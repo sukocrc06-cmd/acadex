@@ -127,6 +127,20 @@
           </label>
         </div>
 
+        <!-- Optional Avatar Builder -->
+        <div id="reg-avatar-builder" style="margin-top: 0.5rem; margin-bottom: 0.5rem;">
+          <button type="button" id="btn-toggle-reg-avatar" style="width:100%; padding:0.6rem 1rem; font-size:0.85rem; font-weight:700; background:rgba(31,138,147,0.08); border:1px dashed var(--color-teal); border-radius:var(--radius-sm); cursor:pointer; color:var(--color-teal); transition:background 0.2s;">🎨 Customize Avatar (Optional)</button>
+          <div id="reg-avatar-panel" style="display:none; margin-top:0.75rem; padding:1rem; border:1px solid rgba(22,50,92,0.08); border-radius:var(--radius-sm); background:var(--color-bg-alt);">
+            <div id="reg-avatar-styles" style="display:flex; gap:0.4rem; flex-wrap:wrap; justify-content:center; margin-bottom:0.75rem;"></div>
+            <div id="reg-avatar-preview" style="display:flex; align-items:center; justify-content:center; margin-bottom:0.75rem; min-height:90px;"></div>
+            <div style="display:flex; gap:0.5rem; justify-content:center; flex-wrap:wrap;">
+              <button type="button" id="btn-reg-avatar-random" class="btn btn-outline" style="padding:0.35rem 1rem; font-size:0.8rem;">🎲 Shuffle</button>
+              <button type="button" id="btn-reg-avatar-select" class="btn btn-primary" style="border:none; padding:0.35rem 1rem; font-size:0.8rem;">✅ Use This Avatar</button>
+              <button type="button" id="btn-skip-avatar" class="btn btn-outline" style="padding:0.35rem 0.75rem; font-size:0.75rem; color:var(--color-text-muted); border-color:rgba(22,50,92,0.15);">Skip</button>
+            </div>
+          </div>
+        </div>
+
         <!-- Submit Button -->
         <button type="submit" id="btn-signup" class="btn btn-primary" style="width: 100%; margin-top: 1rem; border: none;" disabled data-i18n="register.btn">Sign Up</button>
       </form>

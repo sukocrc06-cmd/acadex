@@ -21,6 +21,9 @@ const TRANSLATIONS = {
     "common.success": "Success",
     "common.loading": "Loading...",
 
+    "landing.coordinator.name": "Şükrü Çerçi",
+    "landing.coordinator.role": "Business Faculty Program Coordinator",
+
     // Landing Page (index.html)
     "landing.hero.title": "Elevate Your Academic Potential",
     "landing.hero.subtitle": "Business Faculty Pilot Program: Empowering students with AI study notebooks, automated summaries, flashcards, and practice exams.",
@@ -219,6 +222,9 @@ const TRANSLATIONS = {
     "common.error": "Hata",
     "common.success": "Başarılı",
     "common.loading": "Yükleniyor...",
+
+    "landing.coordinator.name": "Şükrü Çerçi",
+    "landing.coordinator.role": "İşletme Fakültesi Program Koordinatörü",
 
     // Landing Page (index.html)
     "landing.hero.title": "Akademik Potansiyelinizi Zirveye Taşıyın",

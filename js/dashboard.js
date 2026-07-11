@@ -145,6 +145,12 @@ async function checkSessionAndLoadProfile() {
       // Display full name or fallback
       const displayName = profile.full_name || currentUser.email.split('@')[0];
       nameEl.textContent = displayName;
+
+      // Display user avatar in top bar
+      const topBarAvatar = document.getElementById('topbar-user-avatar');
+      if (topBarAvatar) {
+        topBarAvatar.innerHTML = renderUserAvatarHtml(profile, 32);
+      }
       
       const badgeClass = getDepartmentColorClass(profile.department);
       const shortName = getDepartmentShortName(profile.department);
@@ -2669,12 +2675,12 @@ async function loadDepartmentFeed() {
     const userIds = [...new Set(cards.map(c => c.user_id))];
     const { data: profiles, error: profError } = await supabaseClient
       .from('profiles')
-      .select('id, full_name')
+      .select('id, full_name, avatar_url')
       .in('id', userIds);
 
     const profileMap = {};
     profiles?.forEach(p => {
-      profileMap[p.id] = p.full_name || 'A classmate';
+      profileMap[p.id] = { full_name: p.full_name || 'A classmate', avatar_url: p.avatar_url };
     });
 
     // Populate + wire feed course filter (Phase 17)
@@ -2753,7 +2759,8 @@ function renderDepartmentFeed(cards, profileMap) {
       year: 'numeric'
     });
 
-    const sharerName = profileMap[card.user_id] || 'A classmate';
+    const sharerProfile = profileMap[card.user_id] || { full_name: 'A classmate', avatar_url: null };
+    const sharerName = sharerProfile.full_name;
     const docName = card.documents?.file_name || 'Shared Document';
     const excerpt = card.summary && card.summary.length > 120
       ? card.summary.substring(0, 120) + '...'
@@ -3847,6 +3854,12 @@ async function loadSettingsView() {
 
     // Fill form
     fullnameInput.value = profile.full_name || '';
+
+    // Avatar preview in settings
+    const settingsAvatar = document.getElementById('settings-avatar-preview');
+    if (settingsAvatar) {
+      settingsAvatar.innerHTML = renderUserAvatarHtml(profile, 64);
+    }
     studentNoDiv.textContent = profile.student_number || 'N/A';
     emailDiv.textContent = currentUser.email || 'N/A';
     deptSelect.value = profile.department || '';
@@ -5561,14 +5574,15 @@ async function loadSandboxProjects() {
     const userIds = [...new Set(projects.map(p => p.user_id))];
     const { data: profiles, error: profError } = await supabaseClient
       .from('profiles')
-      .select('id, full_name, department')
+      .select('id, full_name, department, avatar_url')
       .in('id', userIds);
 
     const profileMap = {};
     profiles?.forEach(p => {
       profileMap[p.id] = {
         full_name: p.full_name || 'Anonymous Student',
-        department: p.department || 'General Faculty'
+        department: p.department || 'General Faculty',
+        avatar_url: p.avatar_url || null
       };
     });
 
@@ -5992,6 +6006,12 @@ async function loadDashboardHome() {
     const displayName = currentUserProfile.full_name || currentUser.email.split('@')[0];
     const firstName = displayName.split(' ')[0];
     greetingEl.textContent = `Welcome back, ${firstName}!`;
+  }
+
+  // Display home avatar
+  const homeAvatar = document.getElementById('home-user-avatar');
+  if (homeAvatar && currentUserProfile) {
+    homeAvatar.innerHTML = renderUserAvatarHtml(currentUserProfile, 48);
   }
 
   try {
@@ -8176,4 +8196,178 @@ async function loadHomeExamBanners() {
   }
 }
 window.loadHomeExamBanners = loadHomeExamBanners;
+
+// ==========================================
+// AVATAR BUILDER (DiceBear Integration)
+// ==========================================
+const DICEBEAR_STYLES = ['adventurer', 'avataaars', 'bottts', 'micah', 'personas'];
+const DICEBEAR_STYLE_LABELS = { adventurer: 'Adventurer', avataaars: 'Avataaars', bottts: 'Bottts', micah: 'Micah', personas: 'Personas' };
+let currentAvatarStyle = 'adventurer';
+let currentAvatarSeed = '';
+
+function getDiceBearUrl(style, seed) {
+  return `https://api.dicebear.com/9.x/${style}/svg?seed=${encodeURIComponent(seed)}`;
+}
+
+function renderUserAvatarHtml(profile, sizePx) {
+  sizePx = sizePx || 36;
+  if (profile && profile.avatar_url) {
+    return `<img src="${profile.avatar_url}" alt="Avatar" style="width:${sizePx}px;height:${sizePx}px;border-radius:50%;object-fit:cover;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">`
+      + `<span style="display:none;width:${sizePx}px;height:${sizePx}px;border-radius:50%;background:var(--color-gradient);color:#fff;font-weight:800;font-size:${Math.round(sizePx*0.4)}px;align-items:center;justify-content:center;letter-spacing:0.05em;">${getInitials(profile.full_name)}</span>`;
+  }
+  return `<span style="display:flex;width:${sizePx}px;height:${sizePx}px;border-radius:50%;background:var(--color-gradient);color:#fff;font-weight:800;font-size:${Math.round(sizePx*0.4)}px;align-items:center;justify-content:center;letter-spacing:0.05em;">${getInitials(profile ? profile.full_name : '')}</span>`;
+}
+
+function getInitials(name) {
+  if (!name) return '?';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  return parts[0].substring(0, 2).toUpperCase();
+}
+
+function openAvatarBuilder() {
+  const modal = document.getElementById('avatar-builder-modal');
+  if (!modal) return;
+  modal.style.display = 'flex';
+  
+  // Initialize with current avatar if user has one, or defaults
+  if (currentUserProfile && currentUserProfile.avatar_url) {
+    const url = currentUserProfile.avatar_url;
+    // Try to parse style and seed from URL
+    const match = url.match(/\/9\.x\/([\w-]+)\/svg\?seed=(.+)/);
+    if (match) {
+      currentAvatarStyle = match[1];
+      currentAvatarSeed = decodeURIComponent(match[2]);
+    } else {
+      currentAvatarStyle = 'adventurer';
+      currentAvatarSeed = currentUserProfile.full_name || 'acadex';
+    }
+  } else {
+    currentAvatarStyle = 'adventurer';
+    currentAvatarSeed = (currentUserProfile?.full_name) || 'acadex';
+  }
+  
+  renderAvatarStyleOptions();
+  updateAvatarPreview();
+}
+
+function closeAvatarBuilder() {
+  const modal = document.getElementById('avatar-builder-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function renderAvatarStyleOptions() {
+  const container = document.getElementById('avatar-style-options');
+  if (!container) return;
+  container.innerHTML = '';
+  
+  DICEBEAR_STYLES.forEach(style => {
+    const previewSeed = 'acadex-preview';
+    const previewUrl = getDiceBearUrl(style, previewSeed);
+    const isActive = style === currentAvatarStyle;
+    
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'avatar-style-btn' + (isActive ? ' active' : '');
+    btn.title = DICEBEAR_STYLE_LABELS[style] || style;
+    btn.innerHTML = `
+      <img src="${previewUrl}" alt="${style}" style="width:48px;height:48px;border-radius:50%;" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22/>';">
+      <span style="font-size:0.65rem;font-weight:700;margin-top:0.2rem;">${DICEBEAR_STYLE_LABELS[style] || style}</span>
+    `;
+    btn.addEventListener('click', () => {
+      currentAvatarStyle = style;
+      renderAvatarStyleOptions();
+      updateAvatarPreview();
+    });
+    container.appendChild(btn);
+  });
+}
+
+function updateAvatarPreview() {
+  const preview = document.getElementById('avatar-builder-preview');
+  if (!preview) return;
+  const url = getDiceBearUrl(currentAvatarStyle, currentAvatarSeed);
+  preview.innerHTML = `<img src="${url}" alt="Avatar Preview" style="width:120px;height:120px;border-radius:50%;border:3px solid var(--color-teal);" onerror="this.alt='Failed to load preview';">`;
+}
+
+function randomizeAvatarSeed() {
+  currentAvatarSeed = 'acadex-' + Math.random().toString(36).substring(2, 10);
+  updateAvatarPreview();
+}
+
+async function saveAvatar() {
+  const url = getDiceBearUrl(currentAvatarStyle, currentAvatarSeed);
+  
+  try {
+    const { error } = await supabaseClient
+      .from('profiles')
+      .update({ avatar_url: url })
+      .eq('id', currentUser.id);
+    
+    if (error) {
+      console.error('Failed to save avatar:', error);
+      showDashboardAlert('error', 'Avatar could not be saved.');
+      return;
+    }
+    
+    currentUserProfile.avatar_url = url;
+    showDashboardAlert('success', 'Avatar saved!');
+    closeAvatarBuilder();
+    updateAllAvatarDisplays();
+  } catch (err) {
+    console.error('Exception saving avatar:', err);
+    showDashboardAlert('error', 'Avatar save failed.');
+  }
+}
+
+async function removeAvatar() {
+  try {
+    const { error } = await supabaseClient
+      .from('profiles')
+      .update({ avatar_url: null })
+      .eq('id', currentUser.id);
+    
+    if (error) {
+      console.error('Failed to remove avatar:', error);
+      return;
+    }
+    
+    currentUserProfile.avatar_url = null;
+    showDashboardAlert('success', 'Avatar removed.');
+    closeAvatarBuilder();
+    updateAllAvatarDisplays();
+  } catch (err) {
+    console.error('Exception removing avatar:', err);
+  }
+}
+
+function updateAllAvatarDisplays() {
+  // Top bar avatar
+  const topBarAvatar = document.getElementById('topbar-user-avatar');
+  if (topBarAvatar && currentUserProfile) {
+    topBarAvatar.innerHTML = renderUserAvatarHtml(currentUserProfile, 32);
+  }
+  
+  // Home welcome avatar
+  const homeAvatar = document.getElementById('home-user-avatar');
+  if (homeAvatar && currentUserProfile) {
+    homeAvatar.innerHTML = renderUserAvatarHtml(currentUserProfile, 48);
+  }
+  
+  // Settings avatar preview
+  const settingsAvatar = document.getElementById('settings-avatar-preview');
+  if (settingsAvatar && currentUserProfile) {
+    settingsAvatar.innerHTML = renderUserAvatarHtml(currentUserProfile, 64);
+  }
+}
+
+window.openAvatarBuilder = openAvatarBuilder;
+window.closeAvatarBuilder = closeAvatarBuilder;
+window.randomizeAvatarSeed = randomizeAvatarSeed;
+window.saveAvatar = saveAvatar;
+window.removeAvatar = removeAvatar;
+window.renderUserAvatarHtml = renderUserAvatarHtml;
+window.getInitials = getInitials;
+window.getDiceBearUrl = getDiceBearUrl;
+window.updateAllAvatarDisplays = updateAllAvatarDisplays;
 

@@ -253,6 +253,7 @@ function initRegisterForm() {
 
     try {
       // 1. Supabase Auth Signup passing metadata in options.data
+      const avatarUrl = window.__registrationAvatarUrl || null;
       const { data, error } = await supabaseClient.auth.signUp({
         email: email,
         password: password,
@@ -260,7 +261,8 @@ function initRegisterForm() {
           data: {
             student_number: studentNumber,
             department: department,
-            full_name: fullName
+            full_name: fullName,
+            avatar_url: avatarUrl
           }
         }
       });
@@ -518,3 +520,94 @@ style.innerHTML = `
 }
 `;
 document.head.appendChild(style);
+
+// ==========================================
+// REGISTRATION AVATAR BUILDER (Optional)
+// ==========================================
+(function initRegistrationAvatarBuilder() {
+  const container = document.getElementById('reg-avatar-builder');
+  if (!container) return;
+  
+  const STYLES = ['adventurer', 'avataaars', 'bottts', 'micah', 'personas'];
+  const LABELS = { adventurer: 'Adventurer', avataaars: 'Avataaars', bottts: 'Bottts', micah: 'Micah', personas: 'Personas' };
+  let regAvatarStyle = 'adventurer';
+  let regAvatarSeed = 'new-student-' + Math.random().toString(36).substring(2, 8);
+  let avatarSelected = false;
+  
+  function getDiceBearUrl(style, seed) {
+    return `https://api.dicebear.com/9.x/${style}/svg?seed=${encodeURIComponent(seed)}`;
+  }
+  
+  const toggleBtn = document.getElementById('btn-toggle-reg-avatar');
+  const builderPanel = document.getElementById('reg-avatar-panel');
+  const previewEl = document.getElementById('reg-avatar-preview');
+  const stylesContainer = document.getElementById('reg-avatar-styles');
+  const skipBtn = document.getElementById('btn-skip-avatar');
+  
+  if (toggleBtn && builderPanel) {
+    toggleBtn.addEventListener('click', () => {
+      const isOpen = builderPanel.style.display !== 'none';
+      builderPanel.style.display = isOpen ? 'none' : 'block';
+      toggleBtn.textContent = isOpen ? '\uD83C\uDFA8 Customize Avatar (Optional)' : '\u2715 Close Avatar Builder';
+      if (!isOpen) {
+        renderRegStyles();
+        updateRegPreview();
+      }
+    });
+  }
+  
+  if (skipBtn) {
+    skipBtn.addEventListener('click', () => {
+      avatarSelected = false;
+      window.__registrationAvatarUrl = null;
+      if (builderPanel) builderPanel.style.display = 'none';
+      if (toggleBtn) toggleBtn.textContent = '\uD83C\uDFA8 Customize Avatar (Optional)';
+    });
+  }
+  
+  const randomBtn = document.getElementById('btn-reg-avatar-random');
+  if (randomBtn) {
+    randomBtn.addEventListener('click', () => {
+      regAvatarSeed = 'reg-' + Math.random().toString(36).substring(2, 10);
+      updateRegPreview();
+    });
+  }
+  
+  const selectBtn = document.getElementById('btn-reg-avatar-select');
+  if (selectBtn) {
+    selectBtn.addEventListener('click', () => {
+      avatarSelected = true;
+      window.__registrationAvatarUrl = getDiceBearUrl(regAvatarStyle, regAvatarSeed);
+      if (builderPanel) builderPanel.style.display = 'none';
+      if (toggleBtn) {
+        toggleBtn.innerHTML = '\u2705 Avatar Selected \u2014 <span style="text-decoration:underline;">Change</span>';
+      }
+    });
+  }
+  
+  function renderRegStyles() {
+    if (!stylesContainer) return;
+    stylesContainer.innerHTML = '';
+    STYLES.forEach(style => {
+      const url = getDiceBearUrl(style, 'acadex-preview');
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'avatar-style-btn' + (style === regAvatarStyle ? ' active' : '');
+      btn.innerHTML = `<img src="${url}" alt="${style}" style="width:40px;height:40px;border-radius:50%;" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22/>';">\n        <span style="font-size:0.6rem;font-weight:700;">${LABELS[style]}</span>`;
+      btn.addEventListener('click', () => {
+        regAvatarStyle = style;
+        renderRegStyles();
+        updateRegPreview();
+      });
+      stylesContainer.appendChild(btn);
+    });
+  }
+  
+  function updateRegPreview() {
+    if (!previewEl) return;
+    const url = getDiceBearUrl(regAvatarStyle, regAvatarSeed);
+    previewEl.innerHTML = `<img src="${url}" alt="Preview" style="width:80px;height:80px;border-radius:50%;border:2px solid var(--color-teal);">`;
+    // Auto-set the URL when preview changes
+    window.__registrationAvatarUrl = getDiceBearUrl(regAvatarStyle, regAvatarSeed);
+  }
+})();
