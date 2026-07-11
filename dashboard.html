@@ -598,6 +598,15 @@
                     <path d="M3 3h18v18H3zM21 9H3M21 15H3M12 3v18"></path>
                   </svg>
                 </button>
+
+                <!-- Page Controls Group -->
+                <div class="notebook-toolbar-group" id="notebook-page-controls" style="display: flex; align-items: center; gap: 0.35rem; margin-left: 0.5rem;">
+                  <button class="tool-btn" id="btn-page-prev" title="Previous Page" onclick="navigateNotebookPage(-1)">←</button>
+                  <span id="notebook-page-indicator" style="font-size: 0.8rem; font-weight: 700; color: var(--color-navy); min-width: 80px; text-align: center; white-space: nowrap;">Page 1 of 1</span>
+                  <button class="tool-btn" id="btn-page-next" title="Next Page" onclick="navigateNotebookPage(1)">→</button>
+                  <button class="tool-btn" id="btn-page-new" title="New Page" onclick="createNewNotebookPage()" style="font-weight: bold; font-size: 1.1rem; color: var(--color-teal);">+</button>
+                  <button class="tool-btn" id="btn-page-delete" title="Delete Current Page" onclick="deleteCurrentNotebookPage()" style="color: #EF4444; font-size: 0.95rem;">🗑️</button>
+                </div>
               </div>
 
               <!-- Action triggers: Clear / Download / Depot / Save -->
@@ -751,13 +760,10 @@
 
                 <!-- Question Count -->
                 <div style="margin-bottom: 2rem;">
-                  <label for="exam-question-count" style="display: block; font-size: 0.9rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.5rem;">Soru Sayısı</label>
-                  <select id="exam-question-count" class="font-size-select" style="width: 100px; padding: 0.5rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); font-size: 0.85rem;">
-                    <option value="5">5</option>
-                    <option value="10" selected>10</option>
-                    <option value="15">15</option>
-                    <option value="20">20</option>
-                  </select>
+                  <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <input type="number" id="exam-question-count" value="10" min="1" max="20" style="width: 100px; padding: 0.5rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); font-size: 0.85rem;">
+                    <span id="exam-question-count-range-hint" style="font-size: 0.75rem; color: var(--color-text-muted); font-weight: 600;">(Range: 1 - 20)</span>
+                  </div>
                 </div>
 
                 <!-- Generate Trigger -->
@@ -1422,7 +1428,7 @@
       </div>
 
       <div class="flashcard-viewer-footer" style="display: flex; gap: 1rem; width: 100%; justify-content: space-between;">
-        <button class="btn btn-outline" id="btn-flashcard-send" style="flex: 1; padding: 0.5rem 1rem; display: flex; align-items: center; justify-content: center; gap: 0.35rem; font-size: 0.85rem; font-weight: 700;">
+        <button class="btn btn-primary" id="btn-flashcard-send" style="flex: 1; padding: 0.5rem 1rem; display: flex; align-items: center; justify-content: center; gap: 0.35rem; font-size: 0.85rem; font-weight: 700; border: none;">
           📥 Deftere Gönder
         </button>
         <button class="btn btn-primary" id="btn-flashcard-next" style="flex: 1; padding: 0.5rem 1rem; font-size: 0.85rem; font-weight: 700; border: none;">
@@ -1576,6 +1582,12 @@
         <div class="search-empty-state">Start typing to search documents, cards, and exams...</div>
       </div>
     </div>
+  </div>
+
+  <div id="text-format-toolbar" class="text-format-toolbar" style="display: none; position: absolute; z-index: 1000000; background: #FFFFFF; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); box-shadow: var(--shadow-md); padding: 4px; gap: 4px; align-items: center;">
+    <button class="format-btn" onclick="applyTextFormat('bold')" style="font-weight: bold;">B</button>
+    <button class="format-btn" onclick="applyTextFormat('italic')" style="font-style: italic;">I</button>
+    <button class="format-btn" onclick="applyTextFormat('underline')" style="text-decoration: underline;">U</button>
   </div>
 
   <!-- Page Interaction JavaScript -->

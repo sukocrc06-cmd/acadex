@@ -1569,7 +1569,7 @@ function renderNotebookSidebarList(cards) {
 
         <div style="display: flex; gap: 0.25rem; margin-top: 0.5rem;">
           <button class="btn btn-outline btn-view-summary" data-doc-id="${card.document_id}" data-doc-name="${docName.replace(/'/g, "\\'")}" data-card-id="${card.id}" style="flex: 1; padding: 0.25rem; font-size: 0.7rem; min-height: 24px;">View</button>
-          <button class="btn btn-primary" onclick="addStickyNoteToNotebook('${card.id}', '${docName.replace(/'/g, "\\'")}', '${escapedSummary}')" style="flex: 1; padding: 0.25rem; font-size: 0.7rem; border: none; min-height: 24px;">Add to Board</button>
+          <button class="btn btn-primary btn-add-to-board" onclick="addStickyNoteToNotebook('${card.id}', '${docName.replace(/'/g, "\\'")}', '${escapedSummary}')" style="flex: 1; padding: 0.25rem; font-size: 0.7rem; border: none; min-height: 24px;">Add to Board</button>
         </div>
       `;
       sidebarList.appendChild(cardDiv);
@@ -1678,6 +1678,9 @@ function initWhiteboard() {
   const btnTableConfirm = document.getElementById('btn-table-confirm');
   if (btnTableCancel) btnTableCancel.addEventListener('click', closeTablePickerModal);
   if (btnTableConfirm) btnTableConfirm.addEventListener('click', confirmInsertTable);
+
+  // Floating text formatting selectionchange listener
+  document.addEventListener('selectionchange', handleTextSelectionChange);
 }
 
 function resizeCanvasToDisplaySize() {
@@ -1940,6 +1943,12 @@ function confirmInsertTable() {
 
   let tableHtml = `
     <div class="drag-handle-bar"></div>
+    <div class="table-actions-bar">
+      <button class="table-btn" onclick="addTableRow(this)" title="Add Row">+ Row</button>
+      <button class="table-btn" onclick="deleteTableRow(this)" title="Remove Row">− Row</button>
+      <button class="table-btn" onclick="addTableCol(this)" title="Add Column">+ Col</button>
+      <button class="table-btn" onclick="deleteTableCol(this)" title="Remove Column">− Col</button>
+    </div>
     <button class="delete-overlay-btn" title="Delete Table" onclick="removeOverlayElement('${id}')" style="top: -6px; right: -6px;">×</button>
     <table>
       <tbody>
@@ -1961,6 +1970,18 @@ function confirmInsertTable() {
   tableWrapper.innerHTML = tableHtml;
   overlay.appendChild(tableWrapper);
   makeElementDraggable(tableWrapper, tableWrapper.querySelector('.drag-handle-bar'));
+
+  // Append resizer
+  const resizer = document.createElement('div');
+  resizer.className = 'table-resizer';
+  resizer.innerHTML = `
+    <svg width="10" height="10" viewBox="0 0 10 10" style="position: absolute; bottom: 1px; right: 1px; pointer-events: none;">
+      <path d="M10 0 L0 10 M10 4 L4 10 M10 8 L8 10" stroke="#94A3B8" stroke-width="1.5"/>
+    </svg>
+  `;
+  tableWrapper.appendChild(resizer);
+  makeElementResizable(tableWrapper, resizer);
+
   notebookHasUnsavedChanges = true;
 
   // Track table cell typing changes
@@ -2106,23 +2127,15 @@ async function saveNotebookData() {
       });
     }
 
-    // Check if notebook exists before saving
-    const { data: existingNotebook } = await supabaseClient
-      .from('notebooks')
-      .select('id')
-      .eq('user_id', currentUser.id)
-      .maybeSingle();
-
-    const isFirstSave = !existingNotebook;
-
     const { error } = await supabaseClient
       .from('notebooks')
       .upsert({
         user_id: currentUser.id,
+        page_number: currentNotebookPageNumber,
         canvas_data: canvasData,
         elements: elementsArray,
         updated_at: new Date().toISOString()
-      }, { onConflict: 'user_id' });
+      }, { onConflict: 'user_id,page_number' });
 
     if (error) {
       console.error("Notebook upsert failed: ", error);
@@ -2130,7 +2143,26 @@ async function saveNotebookData() {
     } else {
       showDashboardAlert('success', 'Notebook saved!');
       notebookHasUnsavedChanges = false;
-      if (isFirstSave) {
+      
+      // Update local state in memory
+      const existingIdx = notebookPages.findIndex(p => p.page_number === currentNotebookPageNumber);
+      const pageData = {
+        user_id: currentUser.id,
+        page_number: currentNotebookPageNumber,
+        canvas_data: canvasData,
+        elements: elementsArray,
+        updated_at: new Date().toISOString()
+      };
+      if (existingIdx >= 0) {
+        notebookPages[existingIdx] = pageData;
+      } else {
+        notebookPages.push(pageData);
+        notebookPages.sort((a, b) => a.page_number - b.page_number);
+      }
+      
+      // Award achievement if this is user's first save
+      // Check if user has any other pages saved in DB previously
+      if (notebookPages.length === 1 && existingIdx === -1) {
         await awardAchievement('first_notebook_save');
       }
     }
@@ -2143,140 +2175,451 @@ async function saveNotebookData() {
   }
 }
 
+let notebookPages = [];
+let currentNotebookPageNumber = 1;
+
 async function loadNotebookData() {
+  const overlay = document.getElementById('notebook-overlay-container');
+  if (!overlay || !canvasCtx || !canvasElement) return;
+
+  try {
+    const { data: pages, error } = await supabaseClient
+      .from('notebooks')
+      .select('*')
+      .eq('user_id', currentUser.id)
+      .order('page_number', { ascending: true });
+
+    if (error) {
+      console.error("Failed to load notebooks data: ", error);
+      return;
+    }
+
+    if (!pages || pages.length === 0) {
+      notebookPages = [{
+        user_id: currentUser.id,
+        page_number: 1,
+        canvas_data: null,
+        elements: []
+      }];
+      currentNotebookPageNumber = 1;
+    } else {
+      notebookPages = pages;
+      if (!notebookPages.some(p => p.page_number === currentNotebookPageNumber)) {
+        currentNotebookPageNumber = notebookPages[0].page_number;
+      }
+    }
+
+    renderCurrentPageData();
+  } catch (err) {
+    console.error("Exception loading saved notebook data: ", err);
+  }
+}
+
+async function navigateNotebookPage(direction) {
+  const currentIdx = notebookPages.findIndex(p => p.page_number === currentNotebookPageNumber);
+  if (currentIdx === -1) return;
+  const nextIdx = currentIdx + direction;
+  if (nextIdx < 0 || nextIdx >= notebookPages.length) return;
+
+  if (notebookHasUnsavedChanges) {
+    const isTr = localStorage.getItem('acadexUILang') === 'tr';
+    const confirmSave = confirm(
+      isTr 
+        ? "Kaydedilmemiş değişiklikleriniz var. Sayfa değiştirmeden önce kaydetmek ister misiniz?"
+        : "You have unsaved changes. Would you like to save before switching pages?"
+    );
+    if (confirmSave) {
+      await saveNotebookData();
+    }
+  }
+
+  currentNotebookPageNumber = notebookPages[nextIdx].page_number;
+  notebookHasUnsavedChanges = false;
+  renderCurrentPageData();
+}
+
+async function createNewNotebookPage() {
+  if (notebookHasUnsavedChanges) {
+    const isTr = localStorage.getItem('acadexUILang') === 'tr';
+    const confirmSave = confirm(
+      isTr 
+        ? "Kaydedilmemiş değişiklikleriniz var. Yeni sayfa oluşturmadan önce kaydetmek ister misiniz?"
+        : "You have unsaved changes. Would you like to save before creating a new page?"
+    );
+    if (confirmSave) {
+      await saveNotebookData();
+    }
+  }
+
+  const maxPageNum = notebookPages.reduce((max, p) => Math.max(max, p.page_number), 0);
+  const newPageNum = maxPageNum + 1;
+
+  const newPage = {
+    user_id: currentUser.id,
+    page_number: newPageNum,
+    canvas_data: null,
+    elements: []
+  };
+
+  notebookPages.push(newPage);
+  notebookPages.sort((a, b) => a.page_number - b.page_number);
+  currentNotebookPageNumber = newPageNum;
+  notebookHasUnsavedChanges = true;
+  renderCurrentPageData();
+}
+
+async function deleteCurrentNotebookPage() {
+  if (notebookPages.length <= 1) {
+    const isTr = localStorage.getItem('acadexUILang') === 'tr';
+    showDashboardAlert('error', isTr ? 'Tek kalan sayfa silinemez!' : 'Cannot delete the only remaining page!');
+    return;
+  }
+
+  const isTr = localStorage.getItem('acadexUILang') === 'tr';
+  const confirmDelete = confirm(
+    isTr
+      ? "Bu sayfayı silmek istediğinize emin misiniz? Bu işlem geri alınamaz."
+      : "Are you sure you want to delete this page? This action cannot be undone."
+  );
+  if (!confirmDelete) return;
+
+  try {
+    const { error } = await supabaseClient
+      .from('notebooks')
+      .delete()
+      .eq('user_id', currentUser.id)
+      .eq('page_number', currentNotebookPageNumber);
+
+    if (error) throw error;
+
+    const currentIdx = notebookPages.findIndex(p => p.page_number === currentNotebookPageNumber);
+    notebookPages.splice(currentIdx, 1);
+    
+    const nextIdx = Math.max(0, currentIdx - 1);
+    currentNotebookPageNumber = notebookPages[nextIdx].page_number;
+    
+    notebookHasUnsavedChanges = false;
+    renderCurrentPageData();
+    showDashboardAlert('success', isTr ? 'Sayfa silindi!' : 'Page deleted successfully!');
+  } catch (err) {
+    console.error("Failed to delete notebook page:", err);
+    showDashboardAlert('error', isTr ? 'Sayfa silinemedi.' : 'Failed to delete page.');
+  }
+}
+
+function renderCurrentPageData() {
   const overlay = document.getElementById('notebook-overlay-container');
   if (!overlay || !canvasCtx || !canvasElement) return;
 
   canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
   overlay.innerHTML = '';
 
-  try {
-    const { data: notebook, error } = await supabaseClient
-      .from('notebooks')
-      .select('*')
-      .eq('user_id', currentUser.id)
-      .maybeSingle();
+  const activePage = notebookPages.find(p => p.page_number === currentNotebookPageNumber);
+  if (!activePage) return;
 
-    if (error) {
-      console.error("Failed to load notebook record: ", error);
-      return;
+  if (activePage.canvas_data) {
+    const img = new Image();
+    img.src = activePage.canvas_data;
+    img.onload = () => {
+      canvasCtx.drawImage(img, 0, 0);
+    };
+  }
+
+  const elements = activePage.elements || [];
+  elements.forEach(item => {
+    if (item.type === 'sticky') {
+      const note = document.createElement('div');
+      note.className = 'draggable-element draggable-note';
+      note.id = item.id;
+      note.style.left = `${item.left}px`;
+      note.style.top = `${item.top}px`;
+      note.style.transform = `rotate(${item.rotation || 0}deg)`;
+      note.setAttribute('data-type', 'sticky');
+      note.setAttribute('data-card-id', item.content.cardId);
+      note.setAttribute('data-rotation', item.rotation || 0);
+
+      note.innerHTML = `
+        <button class="delete-overlay-btn" title="Remove Sticky Note" onclick="removeOverlayElement('${item.id}')">×</button>
+        <div class="draggable-note-title">${item.content.fileName}</div>
+        <div class="draggable-note-text">${item.content.excerpt}</div>
+        <div class="draggable-note-footer">Acadex Card</div>
+      `;
+
+      note.addEventListener('click', (e) => {
+        if (e.target.classList.contains('delete-overlay-btn') || e.target.closest('.delete-overlay-btn')) return;
+        viewStudyCard(item.content.cardId, item.content.fileName, false, item.content.cardId);
+      });
+
+      overlay.appendChild(note);
+      makeElementDraggable(note);
     }
+    else if (item.type === 'text') {
+      const textBox = document.createElement('div');
+      textBox.className = 'draggable-element draggable-text-box';
+      textBox.id = item.id;
+      textBox.style.left = `${item.left}px`;
+      textBox.style.top = `${item.top}px`;
+      textBox.style.color = item.color;
+      textBox.style.fontSize = item.fontSize;
+      textBox.setAttribute('data-type', 'text');
+      textBox.setAttribute('data-color', item.color);
+      textBox.setAttribute('data-font-size', item.fontSize);
 
-    if (!notebook) return;
+      textBox.innerHTML = `
+        <button class="delete-overlay-btn" title="Delete Text" onclick="removeOverlayElement('${item.id}')" style="top: -6px; right: -6px;">×</button>
+        <div contenteditable="false" style="outline:none; min-width: 150px; white-space: pre-wrap; overflow-wrap: break-word; font-family: inherit; font-size: inherit;" onblur="handleTextBlur('${item.id}')">${item.content}</div>
+      `;
 
-    if (notebook.canvas_data) {
-      const img = new Image();
-      img.src = notebook.canvas_data;
-      img.onload = () => {
-        canvasCtx.drawImage(img, 0, 0);
-      };
-    }
+      overlay.appendChild(textBox);
+      makeElementDraggable(textBox);
 
-    const elements = notebook.elements || [];
-    elements.forEach(item => {
-      if (item.type === 'sticky') {
-        const note = document.createElement('div');
-        note.className = 'draggable-element draggable-note';
-        note.id = item.id;
-        note.style.left = `${item.left}px`;
-        note.style.top = `${item.top}px`;
-        note.style.transform = `rotate(${item.rotation || 0}deg)`;
-        note.setAttribute('data-type', 'sticky');
-        note.setAttribute('data-card-id', item.content.cardId);
-        note.setAttribute('data-rotation', item.rotation || 0);
-
-        note.innerHTML = `
-          <button class="delete-overlay-btn" title="Remove Sticky Note" onclick="removeOverlayElement('${item.id}')">×</button>
-          <div class="draggable-note-title">${item.content.fileName}</div>
-          <div class="draggable-note-text">${item.content.excerpt}</div>
-          <div class="draggable-note-footer">Acadex Card</div>
-        `;
-
-        note.addEventListener('click', (e) => {
-          if (e.target.classList.contains('delete-overlay-btn') || e.target.closest('.delete-overlay-btn')) return;
-          viewStudyCard(item.content.cardId, item.content.fileName, false, item.content.cardId);
-        });
-
-        overlay.appendChild(note);
-        makeElementDraggable(note);
-      }
-      else if (item.type === 'text') {
-        const textBox = document.createElement('div');
-        textBox.className = 'draggable-element draggable-text-box';
-        textBox.id = item.id;
-        textBox.style.left = `${item.left}px`;
-        textBox.style.top = `${item.top}px`;
-        textBox.style.color = item.color;
-        textBox.style.fontSize = item.fontSize;
-        textBox.setAttribute('data-type', 'text');
-        textBox.setAttribute('data-color', item.color);
-        textBox.setAttribute('data-font-size', item.fontSize);
-
-        textBox.innerHTML = `
-          <button class="delete-overlay-btn" title="Delete Text" onclick="removeOverlayElement('${item.id}')" style="top: -6px; right: -6px;">×</button>
-          <div contenteditable="false" style="outline:none; min-width: 150px; white-space: pre-wrap; overflow-wrap: break-word; font-family: inherit; font-size: inherit;" onblur="handleTextBlur('${item.id}')">${item.content}</div>
-        `;
-
-        overlay.appendChild(textBox);
-        makeElementDraggable(textBox);
-
-        textBox.addEventListener('dblclick', (evt) => {
-          if (evt.target.classList.contains('delete-overlay-btn')) return;
-          const ed = textBox.querySelector('[contenteditable]');
-          if (ed) {
-            ed.contentEditable = "true";
-            textBox.classList.add('editing');
-            activeEditingTextBox = textBox;
-            ed.focus();
-          }
-        });
-      }
-      else if (item.type === 'table') {
-        const tableWrapper = document.createElement('div');
-        tableWrapper.className = 'draggable-element draggable-table-wrapper';
-        tableWrapper.id = item.id;
-        tableWrapper.style.left = `${item.left}px`;
-        tableWrapper.style.top = `${item.top}px`;
-        tableWrapper.setAttribute('data-type', 'table');
-        tableWrapper.setAttribute('data-rows', item.content.rows);
-        tableWrapper.setAttribute('data-cols', item.content.cols);
-
-        let tableHtml = `
-          <div class="drag-handle-bar"></div>
-          <button class="delete-overlay-btn" title="Delete Table" onclick="removeOverlayElement('${item.id}')" style="top: -6px; right: -6px;">×</button>
-          <table>
-            <tbody>
-        `;
-        
-        let cellIdx = 0;
-        const rows = parseInt(item.content.rows);
-        const cols = parseInt(item.content.cols);
-        
-        for (let r = 0; r < rows; r++) {
-          tableHtml += `<tr>`;
-          for (let c = 0; c < cols; c++) {
-            const cellVal = item.content.cells[cellIdx] || '';
-            tableHtml += `<td contenteditable="true">${cellVal}</td>`;
-            cellIdx++;
-          }
-          tableHtml += `</tr>`;
+      textBox.addEventListener('dblclick', (evt) => {
+        if (evt.target.classList.contains('delete-overlay-btn')) return;
+        const ed = textBox.querySelector('[contenteditable]');
+        if (ed) {
+          ed.contentEditable = "true";
+          textBox.classList.add('editing');
+          activeEditingTextBox = textBox;
+          ed.focus();
         }
-        
-        tableHtml += `
-            </tbody>
-          </table>
-        `;
-        
-        tableWrapper.innerHTML = tableHtml;
-        overlay.appendChild(tableWrapper);
-        makeElementDraggable(tableWrapper, tableWrapper.querySelector('.drag-handle-bar'));
-      }
-    });
+      });
+    }
+    else if (item.type === 'table') {
+      const tableWrapper = document.createElement('div');
+      tableWrapper.className = 'draggable-element draggable-table-wrapper';
+      tableWrapper.id = item.id;
+      tableWrapper.style.left = `${item.left}px`;
+      tableWrapper.style.top = `${item.top}px`;
+      tableWrapper.setAttribute('data-type', 'table');
+      tableWrapper.setAttribute('data-rows', item.content.rows);
+      tableWrapper.setAttribute('data-cols', item.content.cols);
+      if (item.width) tableWrapper.style.width = `${item.width}px`;
+      if (item.height) tableWrapper.style.height = `${item.height}px`;
 
-  } catch (err) {
-    console.error("Exception loading saved notebook data: ", err);
+      let tableHtml = `
+        <div class="drag-handle-bar"></div>
+        <div class="table-actions-bar">
+          <button class="table-btn" onclick="addTableRow(this)" title="Add Row">+ Row</button>
+          <button class="table-btn" onclick="deleteTableRow(this)" title="Remove Row">− Row</button>
+          <button class="table-btn" onclick="addTableCol(this)" title="Add Column">+ Col</button>
+          <button class="table-btn" onclick="deleteTableCol(this)" title="Remove Column">− Col</button>
+        </div>
+        <button class="delete-overlay-btn" title="Delete Table" onclick="removeOverlayElement('${item.id}')" style="top: -6px; right: -6px;">×</button>
+        <table>
+          <tbody>
+      `;
+      
+      let cellIdx = 0;
+      const rows = parseInt(item.content.rows);
+      const cols = parseInt(item.content.cols);
+      
+      for (let r = 0; r < rows; r++) {
+        tableHtml += `<tr>`;
+        for (let c = 0; c < cols; c++) {
+          const cellVal = item.content.cells[cellIdx] || '';
+          tableHtml += `<td contenteditable="true">${cellVal}</td>`;
+          cellIdx++;
+        }
+        tableHtml += `</tr>`;
+      }
+      
+      tableHtml += `
+          </tbody>
+        </table>
+      `;
+      
+      tableWrapper.innerHTML = tableHtml;
+      overlay.appendChild(tableWrapper);
+      makeElementDraggable(tableWrapper, tableWrapper.querySelector('.drag-handle-bar'));
+
+      const resizer = document.createElement('div');
+      resizer.className = 'table-resizer';
+      resizer.innerHTML = `
+        <svg width="10" height="10" viewBox="0 0 10 10" style="position: absolute; bottom: 1px; right: 1px; pointer-events: none;">
+          <path d="M10 0 L0 10 M10 4 L4 10 M10 8 L8 10" stroke="#94A3B8" stroke-width="1.5"/>
+        </svg>
+      `;
+      tableWrapper.appendChild(resizer);
+      makeElementResizable(tableWrapper, resizer);
+
+      tableWrapper.addEventListener('input', () => {
+        notebookHasUnsavedChanges = true;
+      });
+    }
+  });
+
+  updatePageControlsUI();
+}
+
+function updatePageControlsUI() {
+  const currentLang = localStorage.getItem('acadexUILang') || 'en';
+  const prevBtn = document.getElementById('btn-page-prev');
+  const nextBtn = document.getElementById('btn-page-next');
+  const deleteBtn = document.getElementById('btn-page-delete');
+  const indicator = document.getElementById('notebook-page-indicator');
+
+  if (!notebookPages || notebookPages.length === 0) return;
+
+  const currentIdx = notebookPages.findIndex(p => p.page_number === currentNotebookPageNumber);
+  if (indicator) {
+    if (currentLang === 'tr') {
+      indicator.textContent = `Sayfa ${currentIdx + 1} / ${notebookPages.length}`;
+    } else {
+      indicator.textContent = `Page ${currentIdx + 1} of ${notebookPages.length}`;
+    }
+  }
+
+  if (prevBtn) prevBtn.disabled = (currentIdx === 0);
+  if (nextBtn) nextBtn.disabled = (currentIdx === notebookPages.length - 1);
+  if (deleteBtn) deleteBtn.disabled = (notebookPages.length <= 1);
+}
+
+function makeElementResizable(el, resizer) {
+  resizer.addEventListener('mousedown', initResize, false);
+
+  function initResize(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    window.addEventListener('mousemove', startResize, false);
+    window.addEventListener('mouseup', stopResize, false);
+  }
+
+  function startResize(e) {
+    const rect = el.getBoundingClientRect();
+    const overlay = document.getElementById('notebook-overlay-container');
+    const overlayRect = overlay.getBoundingClientRect();
+    
+    let newWidth = e.clientX - rect.left;
+    let newHeight = e.clientY - rect.top;
+
+    newWidth = Math.max(150, newWidth);
+    newHeight = Math.max(100, newHeight);
+
+    const maxW = overlayRect.width - el.offsetLeft;
+    const maxH = overlayRect.height - el.offsetTop;
+    newWidth = Math.min(newWidth, maxW);
+    newHeight = Math.min(newHeight, maxH);
+
+    el.style.width = newWidth + 'px';
+    el.style.height = newHeight + 'px';
+    
+    const tbl = el.querySelector('table');
+    if (tbl) {
+      tbl.style.width = '100%';
+      const dragBar = el.querySelector('.drag-handle-bar');
+      const actionBar = el.querySelector('.table-actions-bar');
+      const headerH = (dragBar ? dragBar.offsetHeight : 0) + (actionBar ? actionBar.offsetHeight : 0);
+      tbl.style.height = `calc(100% - ${headerH}px)`;
+    }
+  }
+
+  function stopResize(e) {
+    window.removeEventListener('mousemove', startResize, false);
+    window.removeEventListener('mouseup', stopResize, false);
+    notebookHasUnsavedChanges = true;
   }
 }
+
+function addTableRow(btn) {
+  const wrapper = btn.closest('.draggable-table-wrapper');
+  if (!wrapper) return;
+  const tbody = wrapper.querySelector('tbody');
+  const cols = parseInt(wrapper.getAttribute('data-cols'), 10) || 1;
+  const tr = document.createElement('tr');
+  for (let i = 0; i < cols; i++) {
+    const td = document.createElement('td');
+    td.contentEditable = "true";
+    tr.appendChild(td);
+  }
+  tbody.appendChild(tr);
+  wrapper.setAttribute('data-rows', parseInt(wrapper.getAttribute('data-rows'), 10) + 1);
+  notebookHasUnsavedChanges = true;
+}
+
+function deleteTableRow(btn) {
+  const wrapper = btn.closest('.draggable-table-wrapper');
+  if (!wrapper) return;
+  const tbody = wrapper.querySelector('tbody');
+  const rows = parseInt(wrapper.getAttribute('data-rows'), 10) || 1;
+  if (rows <= 1) return;
+  tbody.lastElementChild?.remove();
+  wrapper.setAttribute('data-rows', rows - 1);
+  notebookHasUnsavedChanges = true;
+}
+
+function addTableCol(btn) {
+  const wrapper = btn.closest('.draggable-table-wrapper');
+  if (!wrapper) return;
+  const trs = wrapper.querySelectorAll('tbody tr');
+  trs.forEach(tr => {
+    const td = document.createElement('td');
+    td.contentEditable = "true";
+    tr.appendChild(td);
+  });
+  wrapper.setAttribute('data-cols', (parseInt(wrapper.getAttribute('data-cols'), 10) || 0) + 1);
+  notebookHasUnsavedChanges = true;
+}
+
+function deleteTableCol(btn) {
+  const wrapper = btn.closest('.draggable-table-wrapper');
+  if (!wrapper) return;
+  const cols = parseInt(wrapper.getAttribute('data-cols'), 10) || 1;
+  if (cols <= 1) return;
+  const trs = wrapper.querySelectorAll('tbody tr');
+  trs.forEach(tr => {
+    tr.lastElementChild?.remove();
+  });
+  wrapper.setAttribute('data-cols', cols - 1);
+  notebookHasUnsavedChanges = true;
+}
+
+function handleTextSelectionChange() {
+  const selection = window.getSelection();
+  const toolbar = document.getElementById('text-format-toolbar');
+  if (!toolbar) return;
+
+  if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
+    const range = selection.getRangeAt(0);
+    const container = range.commonAncestorContainer;
+    const editableParent = container.nodeType === 1 ? container.closest('[contenteditable="true"]') : container.parentElement?.closest('[contenteditable="true"]');
+    
+    if (editableParent && document.getElementById('notebook-overlay-container')?.contains(editableParent)) {
+      const rect = range.getBoundingClientRect();
+      toolbar.style.display = 'flex';
+      
+      const toolbarHeight = toolbar.offsetHeight || 32;
+      const toolbarWidth = toolbar.offsetWidth || 100;
+      
+      let left = rect.left + window.scrollX + (rect.width - toolbarWidth) / 2;
+      let top = rect.top + window.scrollY - toolbarHeight - 8;
+      
+      if (left < 10) left = 10;
+      if (top < 10) top = rect.bottom + window.scrollY + 8;
+      
+      toolbar.style.left = `${left}px`;
+      toolbar.style.top = `${top}px`;
+      return;
+    }
+  }
+  
+  toolbar.style.display = 'none';
+}
+
+function applyTextFormat(command) {
+  document.execCommand(command, false, null);
+  notebookHasUnsavedChanges = true;
+}
+
+window.navigateNotebookPage = navigateNotebookPage;
+window.createNewNotebookPage = createNewNotebookPage;
+window.deleteCurrentNotebookPage = deleteCurrentNotebookPage;
+window.addTableRow = addTableRow;
+window.deleteTableRow = deleteTableRow;
+window.addTableCol = addTableCol;
+window.deleteTableCol = deleteTableCol;
+window.applyTextFormat = applyTextFormat;
+
+
 
 async function loadDepartmentFeed() {
   const feedSection = document.getElementById('feed-list-section');
@@ -2753,7 +3096,7 @@ function renderCardsLibraryList(cards) {
             <div class="accordion-header" onclick="toggleLibraryAccordion('${card.id}', 'terms')">
               <span>Anahtar Terimler (${terms.length})</span>
               <div style="display: flex; align-items: center; gap: 0.5rem;">
-                <button class="btn btn-outline" style="padding: 0.15rem 0.4rem; font-size: 0.65rem; border-color: var(--color-teal); color: var(--color-teal); min-height: 20px; line-height: 1;" onclick="event.stopPropagation(); addSectionStickyNote('${card.id}', 'terms', '${cardDocName.replace(/'/g, "\\'")}')">+ Deftere Ekle</button>
+                <button class="btn btn-outline btn-deftere-ekle" style="padding: 0.15rem 0.4rem; font-size: 0.65rem; border-color: var(--color-teal); color: var(--color-teal); min-height: 20px; line-height: 1;" onclick="event.stopPropagation(); addSectionStickyNote('${card.id}', 'terms', '${cardDocName.replace(/'/g, "\\'")}')">+ Deftere Ekle</button>
                 <button class="btn btn-outline" style="padding: 0.15rem 0.4rem; font-size: 0.65rem; border-color: var(--color-navy); color: var(--color-navy); min-height: 20px; line-height: 1;" onclick="event.stopPropagation(); openFlashcardViewer('${card.id}', 'terms', '${cardDocName.replace(/'/g, "\\'")}')">🔍 Kartları İncele</button>
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
               </div>
@@ -2765,7 +3108,7 @@ function renderCardsLibraryList(cards) {
             <div class="accordion-header" onclick="toggleLibraryAccordion('${card.id}', 'points')">
               <span>Önemli Noktalar (${points.length})</span>
               <div style="display: flex; align-items: center; gap: 0.5rem;">
-                <button class="btn btn-outline" style="padding: 0.15rem 0.4rem; font-size: 0.65rem; border-color: var(--color-teal); color: var(--color-teal); min-height: 20px; line-height: 1;" onclick="event.stopPropagation(); addSectionStickyNote('${card.id}', 'points', '${cardDocName.replace(/'/g, "\\'")}')">+ Deftere Ekle</button>
+                <button class="btn btn-outline btn-deftere-ekle" style="padding: 0.15rem 0.4rem; font-size: 0.65rem; border-color: var(--color-teal); color: var(--color-teal); min-height: 20px; line-height: 1;" onclick="event.stopPropagation(); addSectionStickyNote('${card.id}', 'points', '${cardDocName.replace(/'/g, "\\'")}')">+ Deftere Ekle</button>
                 <button class="btn btn-outline" style="padding: 0.15rem 0.4rem; font-size: 0.65rem; border-color: var(--color-navy); color: var(--color-navy); min-height: 20px; line-height: 1;" onclick="event.stopPropagation(); openFlashcardViewer('${card.id}', 'points', '${cardDocName.replace(/'/g, "\\'")}')">🔍 Kartları İncele</button>
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
               </div>
@@ -2777,7 +3120,7 @@ function renderCardsLibraryList(cards) {
             <div class="accordion-header" onclick="toggleLibraryAccordion('${card.id}', 'quiz')">
               <span>Kendi Kendine Test (${quiz.length})</span>
               <div style="display: flex; align-items: center; gap: 0.5rem;">
-                <button class="btn btn-outline" style="padding: 0.15rem 0.4rem; font-size: 0.65rem; border-color: var(--color-teal); color: var(--color-teal); min-height: 20px; line-height: 1;" onclick="event.stopPropagation(); addSectionStickyNote('${card.id}', 'quiz', '${cardDocName.replace(/'/g, "\\'")}')">+ Deftere Ekle</button>
+                <button class="btn btn-outline btn-deftere-ekle" style="padding: 0.15rem 0.4rem; font-size: 0.65rem; border-color: var(--color-teal); color: var(--color-teal); min-height: 20px; line-height: 1;" onclick="event.stopPropagation(); addSectionStickyNote('${card.id}', 'quiz', '${cardDocName.replace(/'/g, "\\'")}')">+ Deftere Ekle</button>
                 <button class="btn btn-outline" style="padding: 0.15rem 0.4rem; font-size: 0.65rem; border-color: var(--color-navy); color: var(--color-navy); min-height: 20px; line-height: 1;" onclick="event.stopPropagation(); openFlashcardViewer('${card.id}', 'quiz', '${cardDocName.replace(/'/g, "\\'")}')">🔍 Kartları İncele</button>
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
               </div>
@@ -6127,6 +6470,48 @@ function initPhase11Listeners() {
         showDashboardAlert('error', 'No active study card data found to export.');
       }
     });
+  }
+
+  // Exam question count dynamic ranges initialization
+  const countInput = document.getElementById('exam-question-count');
+  const countHint = document.getElementById('exam-question-count-range-hint');
+  const examTypeRadios = document.querySelectorAll('input[name="exam-type"]');
+  if (countInput && examTypeRadios.length > 0) {
+    const updateRanges = () => {
+      const selectedType = document.querySelector('input[name="exam-type"]:checked')?.value || 'classic';
+      let minVal = 1, maxVal = 20;
+      if (selectedType === 'classic') {
+        minVal = 1; maxVal = 20;
+      } else if (selectedType === 'test') {
+        minVal = 1; maxVal = 50;
+      } else if (selectedType === 'mixed') {
+        minVal = 1; maxVal = 30;
+      }
+      countInput.min = minVal;
+      countInput.max = maxVal;
+      if (countHint) {
+        countHint.textContent = `(Range: ${minVal} - ${maxVal})`;
+      }
+      let val = parseInt(countInput.value, 10);
+      if (isNaN(val)) val = 10;
+      if (val < minVal) countInput.value = minVal;
+      else if (val > maxVal) countInput.value = maxVal;
+    };
+
+    examTypeRadios.forEach(radio => {
+      radio.addEventListener('change', updateRanges);
+    });
+
+    countInput.addEventListener('change', () => {
+      let val = parseInt(countInput.value, 10);
+      const minVal = parseInt(countInput.min, 10) || 1;
+      const maxVal = parseInt(countInput.max, 10) || 20;
+      if (isNaN(val)) val = 10;
+      if (val < minVal) countInput.value = minVal;
+      else if (val > maxVal) countInput.value = maxVal;
+    });
+
+    updateRanges();
   }
 }
 

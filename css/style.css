@@ -3593,6 +3593,178 @@ input:checked + .slider:before {
   }
 }
 
+/* ==================================================
+   TABLE IMPROVEMENTS (PHASE 18)
+   ================================================== */
+.draggable-table-wrapper {
+  display: flex;
+  flex-direction: column;
+}
+.draggable-table-wrapper table {
+  flex: 1;
+  width: 100%;
+}
+.table-resizer {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 12px;
+  height: 12px;
+  cursor: se-resize;
+  z-index: 10;
+}
+.table-actions-bar {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background-color: #F1F5F9;
+  border-bottom: 1px solid rgba(22, 50, 92, 0.12);
+  align-items: center;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.draggable-table-wrapper:hover .table-actions-bar {
+  opacity: 1;
+}
+.table-btn {
+  background-color: #FFFFFF;
+  border: 1px solid rgba(22, 50, 92, 0.15);
+  border-radius: var(--radius-sm);
+  padding: 0.15rem 0.35rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--color-navy);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  min-height: auto !important;
+  line-height: 1;
+}
+.table-btn:hover {
+  background-color: var(--color-teal-light);
+  border-color: var(--color-teal);
+  color: var(--color-teal);
+}
+
+/* ==================================================
+   TEXT RICH FORMATTING (PHASE 18)
+   ================================================== */
+.text-format-toolbar {
+  display: flex;
+  background-color: #FFFFFF !important;
+  border: 1px solid rgba(22, 50, 92, 0.15);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  padding: 4px;
+  gap: 4px;
+}
+.format-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-navy);
+  border-radius: var(--radius-sm);
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+}
+.format-btn:hover {
+  background-color: var(--color-teal-light);
+  color: var(--color-teal);
+}
+
+/* ==================================================
+   PREMIUM STUDY CARD / FLASHCARD REDESIGN (PHASE 18)
+   ================================================== */
+#library-cards-grid .doc-card,
+#notebook-sidebar-list .doc-card,
+.flashcard-card {
+  position: relative;
+  background: linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 100%) !important;
+  border: 1px solid rgba(22, 50, 92, 0.08) !important;
+  border-radius: var(--radius) !important;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.02) !important;
+  overflow: hidden;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  padding-top: 1.5rem !important; /* make room for accent bar */
+}
+
+#library-cards-grid .doc-card::before,
+#notebook-sidebar-list .doc-card::before,
+.flashcard-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: var(--color-gradient) !important;
+  z-index: 1;
+}
+
+#library-cards-grid .doc-card::after,
+#notebook-sidebar-list .doc-card::after,
+.flashcard-card::after {
+  content: "";
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  width: 48px;
+  height: 48px;
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="%231F8A93" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 2 2 3 6 3s6-1 6-3v-5"/></svg>');
+  background-repeat: no-repeat;
+  background-size: contain;
+  opacity: 0.06;
+  pointer-events: none;
+  z-index: 0;
+}
+
+#library-cards-grid .doc-card:hover,
+#notebook-sidebar-list .doc-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08), 0 2px 6px rgba(15, 23, 42, 0.03) !important;
+}
+
+#library-cards-grid .doc-card .doc-header::before,
+#notebook-sidebar-list .doc-card .doc-header::before {
+  content: "ACADEX STUDY CARD";
+  display: block;
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: var(--color-teal);
+  margin-bottom: 0.25rem;
+}
+
+/* Flashcard and Board Add Buttons Branded Styling */
+#btn-flashcard-send,
+.btn-add-to-board,
+.btn-deftere-ekle {
+  background: var(--color-gradient) !important;
+  color: var(--color-white) !important;
+  border: none !important;
+  font-weight: 700;
+  box-shadow: 0 2px 5px rgba(31, 138, 147, 0.2);
+  transition: all 0.2s ease;
+}
+
+.btn-add-to-board:hover,
+.btn-deftere-ekle:hover,
+#btn-flashcard-send:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(31, 138, 147, 0.35);
+  background: var(--color-teal) !important;
+}
+
 
 
 

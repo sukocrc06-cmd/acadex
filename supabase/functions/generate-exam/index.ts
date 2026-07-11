@@ -101,9 +101,12 @@ IMPORTANT LANGUAGE RULES:
 EXAM TYPE RULES:
 1. 'classic': All questions must be open-ended (free-text essay questions). The options field should be null.
 2. 'test': All questions must be multiple-choice. Each question must have exactly 4 options. The correct_answer field must be exactly equal to one of the options.
-3. 'mixed': A combination of True/False and Fill-in-the-Blank questions only, split roughly 50/50.
-   - For 'true_false' type: Set options to ['True', 'False'] (if en) or ['Doğru', 'Yanlış'] (if tr).
-   - For 'fill_blank' type: Use '______' (underscores) in the question text to represent the blank. The options field should be null.
+3. 'mixed': A combination of all four question types: 'open_ended' (classic), 'multiple_choice' (test), 'true_false', and 'fill_blank'.
+   - You MUST distribute the question types as evenly as possible across the requested ${questionCount} questions. For example, if ${questionCount} is 20, generate exactly 5 of each type.
+   - For 'open_ended' type: options should be null.
+   - For 'multiple_choice' type: exactly 4 options, correct_answer must match one of the options.
+   - For 'true_false' type: options must be exactly ['True', 'False'] (if en) or ['Doğru', 'Yanlış'] (if tr).
+   - For 'fill_blank' type: use '______' (underscores) in the question text to represent the blank. The options field should be null.
 
 RESPONSE FORMAT:
 You must output ONLY a valid JSON array of questions, with no markdown code fences (do NOT use \`\`\`json or similar), no introductory or concluding text, and no conversational commentary.
