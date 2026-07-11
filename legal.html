@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Read Acadex terms of use and privacy policy. Official pilot program guidelines.">
+  <title data-i18n="legal.title">Privacy Policy & Terms of Use — Acadex</title>
+  
+  <!-- Favicon Link -->
+  <link rel="icon" type="image/png" href="assets/logo.png">
+
+  <!-- Google Fonts - Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Core Stylesheet -->
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .legal-content {
+      padding: 3rem 0;
+      color: var(--color-navy);
+    }
+    .legal-nav {
+      display: flex;
+      gap: 1.5rem;
+      border-bottom: 2px solid rgba(22, 50, 92, 0.08);
+      padding-bottom: 1rem;
+      margin-bottom: 2.5rem;
+    }
+    .legal-nav-link {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--color-text-muted);
+      text-decoration: none;
+      transition: color 0.2s ease;
+    }
+    .legal-nav-link:hover, .legal-nav-link.active {
+      color: var(--color-teal);
+    }
+    .legal-section {
+      margin-bottom: 4rem;
+      scroll-margin-top: 100px;
+    }
+    .legal-section h2 {
+      font-size: 1.8rem;
+      font-weight: 800;
+      color: var(--color-navy);
+      margin-bottom: 1.5rem;
+      border-bottom: 1px solid rgba(22, 50, 92, 0.08);
+      padding-bottom: 0.5rem;
+    }
+    .legal-section h3 {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--color-teal);
+      margin-top: 1.5rem;
+      margin-bottom: 0.75rem;
+    }
+    .legal-section p {
+      font-size: 0.95rem;
+      line-height: 1.6;
+      color: var(--color-text);
+      margin-bottom: 1rem;
+    }
+    .legal-section ul {
+      margin-bottom: 1.5rem;
+      padding-left: 1.5rem;
+    }
+    .legal-section li {
+      font-size: 0.95rem;
+      line-height: 1.6;
+      color: var(--color-text);
+      margin-bottom: 0.5rem;
+      list-style-type: disc;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Keyboard Accessibility Skip Link -->
+  <a href="#main-content" class="skip-link" data-i18n="splash.skip">Skip to main content</a>
+
+  <!-- ==========================================
+       HEADER & NAVIGATION BAR
+       ========================================== -->
+  <header class="header scrolled">
+    <div class="container header-container">
+      <a href="index.html" class="brand-logo" data-i18n="brand.name">ACADEX</a>
+
+      <nav aria-label="Main Navigation">
+        <ul class="nav-menu" id="nav-menu">
+          <li><a href="index.html#home" class="nav-link" data-i18n="common.home">Home</a></li>
+          <li><a href="index.html#about" class="nav-link" data-i18n="common.about">About</a></li>
+          <li><a href="index.html#departments" class="nav-link" data-i18n="common.departments">Departments</a></li>
+          <li><a href="index.html#how-it-works" class="nav-link" data-i18n="common.howItWorks">How It Works</a></li>
+          
+          <li class="nav-actions" style="display: flex; align-items: center; gap: 0.5rem;">
+            <!-- Language switcher -->
+            <select class="lang-switcher-select" aria-label="Select Language" onchange="applyLanguage(this.value)" style="margin-right: 0.25rem;">
+              <option value="en">EN</option>
+              <option value="tr">TR</option>
+            </select>
+            <a href="login.html" class="btn btn-outline" data-i18n="common.login">Log In</a>
+            <a href="register.html" class="btn btn-primary" data-i18n="common.signup">Sign Up</a>
+          </li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ==========================================
+       MAIN CONTENT (LEGAL TEXTS)
+       ========================================== -->
+  <main class="legal-content" id="main-content">
+    <div class="container" style="max-width: 800px;">
+      
+      <!-- In-page Navigation -->
+      <nav class="legal-nav" aria-label="Policy Navigation">
+        <a href="#privacy" id="link-privacy" class="legal-nav-link active" data-i18n="common.privacy">Privacy Policy</a>
+        <a href="#terms" id="link-terms" class="legal-nav-link" data-i18n="common.terms">Terms of Use</a>
+      </nav>
+
+      <!-- Privacy Policy Section -->
+      <section id="privacy" class="legal-section">
+        <h2 data-i18n="common.privacy">Privacy Policy</h2>
+        <p><strong>Last Updated: July 2026</strong></p>
+        <p>
+          Welcome to Acadex. This Privacy Policy describes how your information is collected, used, and processed during your participation in the Acadex academic portal pilot program.
+        </p>
+
+        <h3>1. Information We Collect</h3>
+        <p>To provide our study services, we collect the following types of information:</p>
+        <ul>
+          <li><strong>Account Credentials:</strong> Full name, student number, institutional email address, and department selection.</li>
+          <li><strong>Uploaded Learning Materials:</strong> Lecture slides, syllabus files, textbooks, and notes uploaded in PDF, DOCX, PPTX, or TXT formats.</li>
+          <li><strong>AI-Generated Content:</strong> Study summaries, key terms lists, test scores, custom exam structures, and whiteboard notebooks associated with your account.</li>
+        </ul>
+
+        <h3>2. How Your Information is Used</h3>
+        <p>We process your data strictly to enable portal features, specifically:</p>
+        <ul>
+          <li>Generating study notebooks, interactive flashcards, and summary highlights.</li>
+          <li>Generating custom trial exams and providing Hint support.</li>
+          <li>Enabling optional peer-to-peer sharing on the "Department Feed" only when you explicitly select to publish a study card to your department.</li>
+        </ul>
+
+        <h3>3. Third-Party Data Processors</h3>
+        <p>
+          Acadex uses external infrastructure to manage files and provide generative AI functions. By uploading material, you acknowledge that:
+        </p>
+        <ul>
+          <li><strong>Supabase:</strong> Serves as our secure authentication system, database hosting service, and raw document file storage.</li>
+          <li><strong>Groq AI API:</strong> Receives extracted raw document text to generate summaries, extract terms, and construct practice exam questions. Uploaded files themselves are not shared directly, only their extracted text is processed.</li>
+        </ul>
+
+        <h3>4. Data Retention & Deletion</h3>
+        <p>
+          All data is retained as long as your account remains active. You can permanently delete your profile, study cards, notebook canvases, and uploaded document records at any time by visiting the "Settings" page and using the "Delete Account" action. This permanently removes all data from our Supabase instance.
+        </p>
+
+        <h3>5. Pilot Program Notice</h3>
+        <p>
+          Please note that Acadex is currently a pilot program designed specifically for the Business Faculty (Management Information Systems, Business Administration, International Trade and Business, and Banking and Finance departments). The portal's services, policies, and data-handling rules may be updated or modified as the pilot progresses.
+        </p>
+
+        <h3>6. Contact Information</h3>
+        <p>
+          For questions or concerns regarding this Privacy Policy, please contact the pilot administrator at: <a href="mailto:pilot-admin@business.edu" style="color: var(--color-teal); text-decoration: underline;">pilot-admin@business.edu</a>.
+        </p>
+      </section>
+
+      <!-- Terms of Use Section -->
+      <section id="terms" class="legal-section">
+        <h2 data-i18n="common.terms">Terms of Use</h2>
+        <p><strong>Last Updated: July 2026</strong></p>
+        <p>
+          These Terms of Use govern your access and use of the Acadex pilot portal. Please read them carefully.
+        </p>
+
+        <h3>1. Permitted Use</h3>
+        <p>
+          Acadex is provided strictly for academic and educational purposes. Access is restricted to active students enrolled in the named departments of the Faculty of Business. Commercial utilization, scraping, or load testing is strictly prohibited.
+        </p>
+
+        <h3>2. Student Responsibility</h3>
+        <p>
+          You are solely responsible for the files you upload to Acadex. You must ensure you have the necessary rights or permission to utilize the textbooks, slides, and syllabus documents, and that your uploads comply with academic integrity standards.
+        </p>
+
+        <h3>3. Department Feed sharing</h3>
+        <p>
+          Publishing study cards to the Department Feed is entirely opt-in. You retain the right to remove or unshare your shared study cards from the public feed at any time via the Info Cards library dashboard.
+        </p>
+
+        <h3>4. AI Output Disclaimer</h3>
+        <p>
+          AI-generated study materials (summaries, terms, and exam questions) are generated by automated algorithms. They may occasionally contain factual errors, misinterpretations, or formatting issues. These tools are designed to complement, not replace, course materials, lectures, and guidance from your instructors.
+        </p>
+
+        <h3>5. Service Availability</h3>
+        <p>
+          As a pilot software program, Acadex is provided on an "as-is" and "as-available" basis without warranties of uptime, permanence, or reliability. The service administrators reserve the right to pause, modify, or discontinue features without notice.
+        </p>
+
+        <h3>6. Account Misuse & Termination</h3>
+        <p>
+          Users may delete their accounts at any time. The pilot administrator reserves the right to suspend or disable accounts that are found to be violating institutional honor codes, uploading inappropriate material, or attempting to compromise portal security.
+        </p>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- ==========================================
+       FOOTER
+       ========================================== -->
+  <footer class="footer">
+    <div class="container" style="text-align: center; padding: 2rem 0; border-top: 1px solid rgba(22, 50, 92, 0.08);">
+      <p style="font-size: 0.85rem; color: var(--color-text-muted); margin: 0;">&copy; 2026 Acadex. Faculty of Business. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <script src="js/i18n.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const linkPrivacy = document.getElementById('link-privacy');
+      const linkTerms = document.getElementById('link-terms');
+
+      function handleHashChange() {
+        const hash = window.location.hash;
+        if (hash === '#terms') {
+          linkPrivacy.classList.remove('active');
+          linkTerms.classList.add('active');
+        } else {
+          linkTerms.classList.remove('active');
+          linkPrivacy.classList.add('active');
+        }
+      }
+
+      window.addEventListener('hashchange', handleHashChange);
+      handleHashChange(); // Run on load
+
+      // Smooth click handling
+      linkPrivacy.addEventListener('click', () => {
+        linkTerms.classList.remove('active');
+        linkPrivacy.classList.add('active');
+      });
+      linkTerms.addEventListener('click', () => {
+        linkPrivacy.classList.remove('active');
+        linkTerms.classList.add('active');
+      });
+    });
+  </script>
+  <script src="js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Acadex - Academic Development Portal. Empowering Business Faculty students with AI-driven study tools, smart document summarization, and interactive flashcards.">
+  <title>Acadex — Academic Development Portal</title>
+  
+  <!-- Favicon Link -->
+  <link rel="icon" type="image/png" href="assets/logo.png">
+
+  <!-- Open Graph Meta Tags -->
+  <meta property="og:title" content="Acadex — Academic Development Portal">
+  <meta property="og:description" content="Empowering Business Faculty students with AI-driven study tools, smart document summarization, and interactive flashcards.">
+  <meta property="og:image" content="assets/logo.png">
+  <meta property="og:type" content="website">
+
+  <!-- Google Fonts - Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Core Stylesheet -->
+  <link rel="stylesheet" href="css/style.css">
+
+  <!-- Splash Screen Animation Logic -->
+  <script src="js/splash.js" defer></script>
+</head>
+<body>
+
+  <!-- Keyboard Accessibility Skip Link -->
+  <a href="#main-content" class="skip-link" data-i18n="splash.skip">Skip to main content</a>
+
+  <!-- ==========================================
+       SPLASH SCREEN (Intro Animation Overlay)
+       ========================================== -->
+  <div id="splash" role="dialog" aria-label="Acadex intro" aria-modal="true">
+
+    <!-- Animated gradient mesh blobs (ambient background) -->
+    <div class="splash-blob splash-blob-1" aria-hidden="true"></div>
+    <div class="splash-blob splash-blob-2" aria-hidden="true"></div>
+    <div class="splash-blob splash-blob-3" aria-hidden="true"></div>
+
+    <!-- Main content group (scaled + faded on exit) -->
+    <div class="splash-content" id="splash-content">
+
+      <!-- Logo icon with clip-path wipe reveal -->
+      <div class="splash-icon-wrap" id="splash-icon-wrap" aria-hidden="true">
+        <img src="assets/logo-icon-only.png" alt="" class="splash-icon" id="splash-icon">
+      </div>
+
+      <!-- ACADEX wordmark: each letter is individually animated -->
+      <div class="splash-wordmark" id="splash-wordmark" aria-label="ACADEX">
+        <span class="splash-letter" aria-hidden="true">A</span><span class="splash-letter" aria-hidden="true">C</span><span class="splash-letter" aria-hidden="true">A</span><span class="splash-letter" aria-hidden="true">D</span><span class="splash-letter" aria-hidden="true">E</span><span class="splash-letter" aria-hidden="true">X</span>
+      </div>
+
+      <!-- Turkish slogan -->
+      <p class="splash-slogan" id="splash-slogan">Zekice Çalış, Sınırları Aş.<br><span>ACADEX ile Akademik Zirveye Ulaş.</span></p>
+
+      <!-- Progress bar: fills while splash holds, finishes right before exit -->
+      <div class="splash-progress-track" id="splash-progress-track" aria-hidden="true">
+        <div class="splash-progress-fill" id="splash-progress-fill"></div>
+      </div>
+
+    </div><!-- /.splash-content -->
+
+    <!-- Skip button — fixed, always reachable -->
+    <button id="skip-intro" aria-label="Skip intro animation">Skip</button>
+
+  </div>
+
+  <!-- ==========================================
+       HEADER & NAVIGATION BAR
+       ========================================== -->
+  <header class="header" role="banner">
+    <div class="container header-container">
+      <a href="index.html" class="brand-logo" data-i18n="brand.name">ACADEX</a>
+
+      <nav aria-label="Main Navigation">
+        <ul class="nav-menu" id="nav-menu">
+          <li><a href="#home" class="nav-link" data-i18n="common.home">Home</a></li>
+          <li><a href="#about" class="nav-link" data-i18n="common.about">About</a></li>
+          <li><a href="#departments" class="nav-link" data-i18n="common.departments">Departments</a></li>
+          <li><a href="#how-it-works" class="nav-link" data-i18n="common.howItWorks">How It Works</a></li>
+          
+          <li class="nav-actions" style="display: flex; align-items: center; gap: 0.5rem;">
+            <!-- UI Language switcher select dropdown -->
+            <select class="lang-switcher-select" aria-label="Select Language" onchange="applyLanguage(this.value)">
+              <option value="en">EN</option>
+              <option value="tr">TR</option>
+            </select>
+
+            <a href="login.html" class="btn btn-outline" data-i18n="common.login">Log In</a>
+            <a href="register.html" class="btn btn-primary" data-i18n="common.signup">Sign Up</a>
+          </li>
+        </ul>
+      </nav>
+
+      <button class="menu-toggle" id="menu-toggle" aria-label="Toggle navigation menu" aria-expanded="false">
+        <span class="menu-icon"></span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ==========================================
+       MAIN CONTENT
+       ========================================== -->
+  <main id="main-content">
+
+    <!-- 1. HERO SECTION -->
+    <section class="hero" id="home">
+      <!-- Animated gradient mesh blobs (same as splash, Part A) -->
+      <div class="hero-blob hero-blob-1" aria-hidden="true"></div>
+      <div class="hero-blob hero-blob-2" aria-hidden="true"></div>
+      <div class="hero-blob hero-blob-3" aria-hidden="true"></div>
+
+      <div class="container hero-grid">
+        <div class="hero-content">
+          <span class="hero-tag">Faculty of Business Pilot Portal</span>
+          <h1 class="hero-title" data-i18n="landing.hero.title">Elevate Your Academic Potential</h1>
+          <p class="hero-description" data-i18n="landing.hero.subtitle">
+            Business Faculty Pilot Program: Empowering students with AI study notebooks, automated summaries, flashcards, and practice exams.
+          </p>
+          <div class="hero-actions">
+            <a href="register.html" class="btn btn-primary" data-i18n="landing.hero.btnRegister">Register Now</a>
+            <a href="#about" class="btn btn-outline" data-i18n="landing.hero.btnExplore">Explore Portal</a>
+          </div>
+        </div>
+
+        <div class="hero-media">
+          <div class="tablet-mockup" aria-label="Tablet interface displaying Acadex in action">
+            <div class="tablet-screen">
+              <video class="tablet-video" autoplay muted loop playsinline>
+                <source src="assets/promo.mp4" type="video/mp4">
+                Your browser does not support the video tag.
+              </video>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TRUST SIGNALS STRIP (PHASE 14) -->
+    <section class="trust-strip" style="background-color: var(--color-bg); padding: 1.5rem 0; border-bottom: 1px solid rgba(22, 50, 92, 0.05); border-top: 1px solid rgba(22, 50, 92, 0.05);">
+      <div class="container" style="display: flex; justify-content: center; gap: 1.5rem; flex-wrap: wrap; align-items: center;">
+        <a href="legal.html#privacy" style="display: flex; align-items: center; gap: 0.5rem; text-decoration: none; padding: 0.5rem 1rem; background-color: var(--color-white); border-radius: var(--radius); border: 1px solid rgba(22, 50, 92, 0.08); transition: transform 0.2s;">
+          <span style="font-size: 1.1rem;" aria-hidden="true">🔒</span>
+          <span data-i18n="landing.trust.dataPrivate" style="font-size: 0.8rem; font-weight: 700; color: var(--color-navy);">Your data stays private</span>
+        </a>
+        <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; background-color: var(--color-white); border-radius: var(--radius); border: 1px solid rgba(22, 50, 92, 0.08);">
+          <span style="font-size: 1.1rem;" aria-hidden="true">🎓</span>
+          <span data-i18n="landing.trust.facultyProgram" style="font-size: 0.8rem; font-weight: 700; color: var(--color-navy);">Official Faculty of Business Pilot Program</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; background-color: var(--color-white); border-radius: var(--radius); border: 1px solid rgba(22, 50, 92, 0.08);">
+          <span style="font-size: 1.1rem;" aria-hidden="true">🤝</span>
+          <span data-i18n="landing.trust.departments" style="font-size: 0.8rem; font-weight: 700; color: var(--color-navy);">4 Departments, One Platform</span>
+        </div>
+        <a href="legal.html#privacy" style="display: flex; align-items: center; gap: 0.5rem; text-decoration: none; padding: 0.5rem 1rem; background-color: var(--color-white); border-radius: var(--radius); border: 1px solid rgba(22, 50, 92, 0.08); transition: transform 0.2s;">
+          <span style="font-size: 1.1rem;" aria-hidden="true">🗑️</span>
+          <span data-i18n="landing.trust.deleteAnytime" style="font-size: 0.8rem; font-weight: 700; color: var(--color-navy);">Delete your data anytime</span>
+        </a>
+      </div>
+    </section>
+
+    <!-- REAL-TIME STATS COUNTER STRIP -->
+    <section class="stats-bar" id="stats-section" style="background-color: var(--color-white); border-bottom: 1px solid rgba(22, 50, 92, 0.08); padding: 2.5rem 0;">
+      <div class="container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 2rem; text-align: center;">
+        <div class="stat-item">
+          <div class="stat-number" id="stat-students" data-val="0" style="font-size: 2.75rem; font-weight: 800; color: var(--color-teal); line-height: 1.2;">0</div>
+          <div class="stat-label" style="font-size: 0.85rem; font-weight: 700; color: var(--color-navy); text-transform: uppercase; margin-top: 0.35rem; letter-spacing: 0.05em;">Students</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-number" id="stat-documents" data-val="0" style="font-size: 2.75rem; font-weight: 800; color: var(--color-teal); line-height: 1.2;">0</div>
+          <div class="stat-label" style="font-size: 0.85rem; font-weight: 700; color: var(--color-navy); text-transform: uppercase; margin-top: 0.35rem; letter-spacing: 0.05em;">Documents Summarized</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-number" id="stat-cards" data-val="0" style="font-size: 2.75rem; font-weight: 800; color: var(--color-teal); line-height: 1.2;">0</div>
+          <div class="stat-label" style="font-size: 0.85rem; font-weight: 700; color: var(--color-navy); text-transform: uppercase; margin-top: 0.35rem; letter-spacing: 0.05em;">Study Cards Created</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-number" id="stat-exams" data-val="0" style="font-size: 2.75rem; font-weight: 800; color: var(--color-teal); line-height: 1.2;">0</div>
+          <div class="stat-label" style="font-size: 0.85rem; font-weight: 700; color: var(--color-navy); text-transform: uppercase; margin-top: 0.35rem; letter-spacing: 0.05em;">Exams Completed</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. ABOUT / CORE CONTEXT SECTION -->
+    <section class="about" id="about" style="padding: 5rem 0; background-color: var(--color-white);">
+      <div class="container" style="max-width: 800px; text-align: center;">
+        <span class="section-tag" style="display: inline-block; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-teal); margin-bottom: 0.75rem;">About Acadex</span>
+        <h2 class="section-title" style="font-size: 2.25rem; font-weight: 800; color: var(--color-navy); margin-bottom: 1.25rem; line-height: 1.3;">Designed for Academic Success</h2>
+        <p class="section-desc" style="font-size: 1.05rem; line-height: 1.7; color: var(--color-text-muted); margin-bottom: 0;">
+          Acadex was developed specifically to address learning challenges in modern business education. By utilizing optimized summarization parameters, interactive whiteboards, and customizable quiz patterns, we build a tailored portal where concepts connect and academic development is accessible to every student.
+        </p>
+      </div>
+    </section>
+
+    <!-- 3. DEPARTMENTS SECTION -->
+    <section class="departments" id="departments" style="padding: 5rem 0; background-color: var(--color-bg); border-top: 1px solid rgba(22, 50, 92, 0.04); border-bottom: 1px solid rgba(22, 50, 92, 0.04);">
+      <div class="container">
+        <div style="text-align: center; max-width: 600px; margin: 0 auto 3.5rem auto;">
+          <span class="section-tag" style="display: inline-block; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-teal); margin-bottom: 0.75rem;">Faculty Programs</span>
+          <h2 class="section-title" style="font-size: 2.25rem; font-weight: 800; color: var(--color-navy); line-height: 1.3;">Serving 4 Academic Fields</h2>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 2rem;">
+          <!-- Dept 1 -->
+          <div style="background-color: var(--color-white); padding: 2.25rem 2rem; border-radius: var(--radius); border: 1px solid rgba(22, 50, 92, 0.06); transition: transform 0.2s, box-shadow 0.2s;">
+            <div style="font-size: 2.25rem; margin-bottom: 1rem;">💻</div>
+            <h3 style="font-size: 1.2rem; font-weight: 800; color: var(--color-navy); margin-bottom: 0.75rem;" data-i18n="dept.mis">Management Information Systems</h3>
+            <p style="font-size: 0.9rem; line-height: 1.6; color: var(--color-text-muted); margin: 0;" data-i18n="landing.dept.mis.blurb">Perfect for future analysts and developers — sharpen your skills with the Developer Sandbox's sample datasets and share your own coding projects with the community.</p>
+          </div>
+          <!-- Dept 2 -->
+          <div style="background-color: var(--color-white); padding: 2.25rem 2rem; border-radius: var(--radius); border: 1px solid rgba(22, 50, 92, 0.06); transition: transform 0.2s, box-shadow 0.2s;">
+            <div style="font-size: 2.25rem; margin-bottom: 1rem;">📊</div>
+            <h3 style="font-size: 1.2rem; font-weight: 800; color: var(--color-navy); margin-bottom: 0.75rem;" data-i18n="dept.ba">Business Administration</h3>
+            <p style="font-size: 0.9rem; line-height: 1.6; color: var(--color-text-muted); margin: 0;" data-i18n="landing.dept.ba.blurb">Turn dense business theory into clear, exam-ready summaries and test your understanding with AI-generated practice exams.</p>
+          </div>
+          <!-- Dept 3 -->
+          <div style="background-color: var(--color-white); padding: 2.25rem 2rem; border-radius: var(--radius); border: 1px solid rgba(22, 50, 92, 0.06); transition: transform 0.2s, box-shadow 0.2s;">
+            <div style="font-size: 2.25rem; margin-bottom: 1rem;">🌐</div>
+            <h3 style="font-size: 1.2rem; font-weight: 800; color: var(--color-navy); margin-bottom: 0.75rem;" data-i18n="dept.itb">International Trade and Business</h3>
+            <p style="font-size: 0.9rem; line-height: 1.6; color: var(--color-text-muted); margin: 0;" data-i18n="landing.dept.itb.blurb">Navigate complex global business concepts with structured outlines and simplified explanations tailored to how you like to study.</p>
+          </div>
+          <!-- Dept 4 -->
+          <div style="background-color: var(--color-white); padding: 2.25rem 2rem; border-radius: var(--radius); border: 1px solid rgba(22, 50, 92, 0.06); transition: transform 0.2s, box-shadow 0.2s;">
+            <div style="font-size: 2.25rem; margin-bottom: 1rem;">🏦</div>
+            <h3 style="font-size: 1.2rem; font-weight: 800; color: var(--color-navy); margin-bottom: 0.75rem;" data-i18n="dept.bf">Banking and Finance</h3>
+            <p style="font-size: 0.9rem; line-height: 1.6; color: var(--color-text-muted); margin: 0;" data-i18n="landing.dept.bf.blurb">Transform lecture slides and financial readings into concise study cards, and self-test with instantly graded practice exams.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. HOW IT WORKS SECTION -->
+    <section class="how-it-works" id="how-it-works" style="padding: 5rem 0; background-color: var(--color-white);">
+      <div class="container">
+        <div style="text-align: center; max-width: 600px; margin: 0 auto 3.5rem auto;">
+          <span class="section-tag" style="display: inline-block; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-teal); margin-bottom: 0.75rem;">Process Flow</span>
+          <h2 class="section-title" style="font-size: 2.25rem; font-weight: 800; color: var(--color-navy); line-height: 1.3;">4 Steps to Academic Excellence</h2>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 2.5rem; text-align: center;">
+          <!-- Step 1 -->
+          <div>
+            <div style="width: 50px; height: 50px; background-color: rgba(31, 138, 147, 0.1); color: var(--color-teal); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; font-weight: 800; margin: 0 auto 1.25rem auto;">1</div>
+            <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--color-navy); margin-bottom: 0.5rem;">Upload Document</h3>
+            <p style="font-size: 0.85rem; line-height: 1.6; color: var(--color-text-muted); margin: 0; padding: 0 1rem;">Upload lecture slides, chapters, or syllabus files securely to your private storage vault.</p>
+          </div>
+          <!-- Step 2 -->
+          <div>
+            <div style="width: 50px; height: 50px; background-color: rgba(31, 138, 147, 0.1); color: var(--color-teal); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; font-weight: 800; margin: 0 auto 1.25rem auto;">2</div>
+            <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--color-navy); margin-bottom: 0.5rem;">AI Summarization</h3>
+            <p style="font-size: 0.85rem; line-height: 1.6; color: var(--color-text-muted); margin: 0; padding: 0 1rem;">Our AI model parses context, generating bulleted key terms, crucial concepts, and summaries.</p>
+          </div>
+          <!-- Step 3 -->
+          <div>
+            <div style="width: 50px; height: 50px; background-color: rgba(31, 138, 147, 0.1); color: var(--color-teal); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; font-weight: 800; margin: 0 auto 1.25rem auto;">3</div>
+            <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--color-navy); margin-bottom: 0.5rem;">Assemble Notebook</h3>
+            <p style="font-size: 0.85rem; line-height: 1.6; color: var(--color-text-muted); margin: 0; padding: 0 1rem;">Drag study cards onto the canvas, sketch visual relations, and save your whiteboard canvas.</p>
+          </div>
+          <!-- Step 4 -->
+          <div>
+            <div style="width: 50px; height: 50px; background-color: rgba(31, 138, 147, 0.1); color: var(--color-teal); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; font-weight: 800; margin: 0 auto 1.25rem auto;">4</div>
+            <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--color-navy); margin-bottom: 0.5rem;">Self-Testing</h3>
+            <p style="font-size: 0.85rem; line-height: 1.6; color: var(--color-text-muted); margin: 0; padding: 0 1rem;">Solve generated custom quizzes, inspect score analytics, and unlock milestones.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. FAQ SECTION -->
+    <section class="faq" id="faq" style="padding: 5rem 0; background-color: var(--color-bg); border-top: 1px solid rgba(22, 50, 92, 0.04);">
+      <div class="container" style="max-width: 800px;">
+        <div style="text-align: center; margin-bottom: 3.5rem;">
+          <span class="section-tag" style="display: inline-block; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-teal); margin-bottom: 0.75rem;">Support Center</span>
+          <h2 class="section-title" style="font-size: 2.25rem; font-weight: 800; color: var(--color-navy); line-height: 1.3;">Frequently Asked Questions</h2>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 1rem;">
+          <!-- FAQ Item 1 -->
+          <div class="faq-item" style="border: 1px solid rgba(22, 50, 92, 0.08); border-radius: var(--radius); overflow: hidden; background-color: var(--color-white);">
+            <button class="faq-question" style="width: 100%; text-align: left; padding: 1.25rem; font-weight: 700; color: var(--color-navy); background: none; border: none; outline: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 0.95rem;">
+              <span>Who can access the Acadex portal?</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="faq-arrow" style="transition: transform 0.2s;"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </button>
+            <div class="faq-answer" style="display: none; padding: 0 1.25rem 1.25rem 1.25rem; font-size: 0.9rem; color: var(--color-text-muted); line-height: 1.5; border-top: 1px solid rgba(22, 50, 92, 0.04); padding-top: 1rem;">
+              The pilot program is exclusively restricted to students registered under the Faculty of Business (MIS, Finance, Trade, Business Administration).
+            </div>
+          </div>
+
+          <!-- FAQ Item 2 -->
+          <div class="faq-item" style="border: 1px solid rgba(22, 50, 92, 0.08); border-radius: var(--radius); overflow: hidden; background-color: var(--color-bg);">
+            <button class="faq-question" style="width: 100%; text-align: left; padding: 1.25rem; font-weight: 700; color: var(--color-navy); background: none; border: none; outline: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 0.95rem;">
+              <span>Is my uploaded data private?</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="faq-arrow" style="transition: transform 0.2s;"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </button>
+            <div class="faq-answer" style="display: none; padding: 0 1.25rem 1.25rem 1.25rem; font-size: 0.9rem; color: var(--color-text-muted); line-height: 1.5; border-top: 1px solid rgba(22, 50, 92, 0.04); padding-top: 1rem;">
+              Yes. All uploads are stored securely inside your private user storage bucket. Sharing to the department feed is completely voluntary and opt-in. Refer to our <a href="legal.html#privacy" style="color: var(--color-teal); text-decoration: underline;">Privacy Policy</a> for details.
+            </div>
+          </div>
+
+          <!-- FAQ Item 3 -->
+          <div class="faq-item" style="border: 1px solid rgba(22, 50, 92, 0.08); border-radius: var(--radius); overflow: hidden; background-color: var(--color-bg);">
+            <button class="faq-question" style="width: 100%; text-align: left; padding: 1.25rem; font-weight: 700; color: var(--color-navy); background: none; border: none; outline: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 0.95rem;">
+              <span>What file types are supported?</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="faq-arrow" style="transition: transform 0.2s;"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </button>
+            <div class="faq-answer" style="display: none; padding: 0 1.25rem 1.25rem 1.25rem; font-size: 0.9rem; color: var(--color-text-muted); line-height: 1.5; border-top: 1px solid rgba(22, 50, 92, 0.04); padding-top: 1rem;">
+              You can upload PDF, Word (DOCX/DOC), PowerPoint (PPTX/PPT), and plain text (TXT) files up to 20MB in size.
+            </div>
+          </div>
+
+          <!-- FAQ Item 4 -->
+          <div class="faq-item" style="border: 1px solid rgba(22, 50, 92, 0.08); border-radius: var(--radius); overflow: hidden; background-color: var(--color-bg);">
+            <button class="faq-question" style="width: 100%; text-align: left; padding: 1.25rem; font-weight: 700; color: var(--color-navy); background: none; border: none; outline: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 0.95rem;">
+              <span>How does the AI study card generation work?</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="faq-arrow" style="transition: transform 0.2s;"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </button>
+            <div class="faq-answer" style="display: none; padding: 0 1.25rem 1.25rem 1.25rem; font-size: 0.9rem; color: var(--color-text-muted); line-height: 1.5; border-top: 1px solid rgba(22, 50, 92, 0.04); padding-top: 1rem;">
+              Acadex uses AI language models to analyze your documents and generate summaries, study cards, and practice exams.
+            </div>
+          </div>
+
+          <!-- FAQ Item 5 -->
+          <div class="faq-item" style="border: 1px solid rgba(22, 50, 92, 0.08); border-radius: var(--radius); overflow: hidden; background-color: var(--color-bg);">
+            <button class="faq-question" style="width: 100%; text-align: left; padding: 1.25rem; font-weight: 700; color: var(--color-navy); background: none; border: none; outline: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 0.95rem;">
+              <span>Can I delete my account and data?</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="faq-arrow" style="transition: transform 0.2s;"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </button>
+            <div class="faq-answer" style="display: none; padding: 0 1.25rem 1.25rem 1.25rem; font-size: 0.9rem; color: var(--color-text-muted); line-height: 1.5; border-top: 1px solid rgba(22, 50, 92, 0.04); padding-top: 1rem;">
+              Yes, anytime from Settings — this permanently removes your profile, documents, study cards, and exam history. See our <a href="legal.html#privacy" style="color: var(--color-teal); text-decoration: underline;">Privacy Policy</a> for details.
+            </div>
+          </div>
+
+          <!-- FAQ Item 6 -->
+          <div class="faq-item" style="border: 1px solid rgba(22, 50, 92, 0.08); border-radius: var(--radius); overflow: hidden; background-color: var(--color-bg);">
+            <button class="faq-question" style="width: 100%; text-align: left; padding: 1.25rem; font-weight: 700; color: var(--color-navy); background: none; border: none; outline: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 0.95rem;">
+              <span>Is this a permanent service?</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="faq-arrow" style="transition: transform 0.2s;"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </button>
+            <div class="faq-answer" style="display: none; padding: 0 1.25rem 1.25rem 1.25rem; font-size: 0.9rem; color: var(--color-text-muted); line-height: 1.5; border-top: 1px solid rgba(22, 50, 92, 0.04); padding-top: 1rem;">
+              Acadex is currently a pilot program; features and availability may evolve based on feedback. Refer to our <a href="legal.html#terms" style="color: var(--color-teal); text-decoration: underline;">Terms of Use</a> for compliance rules.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- EDIT: Replace placeholder name/role/email below with real program coordinator details -->
+    <!-- ==========================================
+         PROGRAM COORDINATORS SECTION (PHASE 19)
+         ========================================== -->
+    <section class="coordinators-section" id="coordinators" aria-labelledby="coordinators-title">
+      <div class="container">
+        <div class="section-header" style="text-align: center; margin-bottom: 3rem;">
+          <h2 class="section-title" id="coordinators-title">Program Coordinators</h2>
+          <p class="section-subtitle">Have questions about the pilot program? Get in touch with our coordinators directly.</p>
+        </div>
+
+        <div class="coordinators-grid">
+
+          <!-- ====== COORDINATOR CARD (duplicate this block to add more people) ====== -->
+          <div class="coordinator-card">
+            <!-- Avatar: circular gradient with initials (replace with <img> when real photo is available) -->
+            <div class="coordinator-avatar" aria-hidden="true">
+              <span class="coordinator-initials">PC</span>
+            </div>
+            <div class="coordinator-info">
+              <h3 class="coordinator-name">Program Coordinator Name</h3>
+              <p class="coordinator-role">Program Coordinator, Faculty of Business</p>
+              <a href="mailto:coordinator@example.edu" class="coordinator-email">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                coordinator@example.edu
+              </a>
+            </div>
+          </div>
+          <!-- ====== END COORDINATOR CARD ====== -->
+
+        </div>
+      </div>
+    </section>
+
+
+    <section class="contact-section" id="contact" style="background-color: var(--color-white); padding: 5rem 0; border-top: 1px solid rgba(22, 50, 92, 0.08);">
+      <div class="container" style="max-width: 600px; text-align: center;">
+        <h2 class="section-title" data-i18n="landing.contact.title" style="font-size: 2.25rem; font-weight: 800; color: var(--color-navy); margin-bottom: 0.5rem; line-height: 1.3;">Have a question?</h2>
+        <p class="section-subtitle" data-i18n="landing.contact.subtitle" style="color: var(--color-text-muted); margin-bottom: 2.5rem; font-size: 1rem; line-height: 1.6;">We'd love to help you. Reach out to our program coordinators directly.</p>
+        
+        <form id="contact-form" novalidate style="text-align: left; background: var(--color-bg); padding: 2.5rem 2rem; border-radius: var(--radius); border: 1px solid rgba(22, 50, 92, 0.08); box-shadow: var(--shadow-sm);">
+          <div id="contact-alert" class="alert" style="display: none; margin-bottom: 1.25rem; font-size: 0.85rem; padding: 0.75rem 1rem; border-radius: var(--radius-sm); align-items: center; gap: 8px;"></div>
+          
+          <div class="form-group" style="margin-bottom: 1.25rem;">
+            <label for="contact-name" class="form-label" data-i18n="landing.contact.name" style="font-weight: 700; font-size: 0.85rem; color: var(--color-navy); margin-bottom: 0.5rem; display: block;">Full Name</label>
+            <input type="text" id="contact-name" class="form-control" data-i18n-placeholder="landing.contact.name" placeholder="Full Name" required style="width: 100%; padding: 0.65rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); outline: none;">
+          </div>
+          
+          <div class="form-group" style="margin-bottom: 1.25rem;">
+            <label for="contact-email" class="form-label" data-i18n="landing.contact.email" style="font-weight: 700; font-size: 0.85rem; color: var(--color-navy); margin-bottom: 0.5rem; display: block;">Email Address</label>
+            <input type="email" id="contact-email" class="form-control" data-i18n-placeholder="landing.contact.email" placeholder="Email Address" required style="width: 100%; padding: 0.65rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); outline: none;">
+          </div>
+          
+          <div class="form-group" style="margin-bottom: 1.5rem;">
+            <label for="contact-message" class="form-label" data-i18n="landing.contact.message" style="font-weight: 700; font-size: 0.85rem; color: var(--color-navy); margin-bottom: 0.5rem; display: block;">Your Message</label>
+            <textarea id="contact-message" class="form-control" data-i18n-placeholder="landing.contact.message" placeholder="Your Message" required style="width: 100%; height: 120px; padding: 0.65rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); outline: none; resize: vertical; font-family: inherit;"></textarea>
+          </div>
+          
+          <button type="submit" class="btn btn-primary" data-i18n="common.send" style="width: 100%; border: none; font-weight: 700; padding: 0.75rem; background: var(--color-teal); color: white;">Send</button>
+        </form>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ==========================================
+       FOOTER
+       ========================================== -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-info">
+          <div class="footer-logo">
+            <a href="index.html" class="brand-logo" data-i18n="brand.name" style="animation: none; opacity: 1;">ACADEX</a>
+          </div>
+          <p class="footer-desc">
+            An academic development portal for the Business Faculty, providing students with state-of-the-art learning aids.
+          </p>
+        </div>
+
+        <div>
+          <h4 class="footer-title" data-i18n="common.about">About</h4>
+          <ul class="footer-links">
+            <li><a href="#home" data-i18n="common.home">Home</a></li>
+            <li><a href="#about" data-i18n="common.about">About</a></li>
+            <li><a href="#departments" data-i18n="common.departments">Departments</a></li>
+            <li><a href="#how-it-works" data-i18n="common.howItWorks">How It Works</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <h4 class="footer-title">Portal Links</h4>
+          <ul class="footer-links">
+            <li><a href="login.html" data-i18n="common.login">Log In</a></li>
+            <li><a href="register.html" data-i18n="common.signup">Sign Up</a></li>
+            <li><a href="dashboard.html" data-i18n="common.dashboard">Student Dashboard</a></li>
+            <li><a href="legal.html#privacy" data-i18n="common.privacy">Privacy Policy</a></li>
+            <li><a href="legal.html#terms" data-i18n="common.terms">Terms of Use</a></li>
+            <li><a href="changelog.html" data-i18n="common.changelog">What's New</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <p>&copy; 2026 Acadex — Academic Development Portal. All rights reserved.</p>
+        <div class="footer-socials">
+          <a href="#" class="social-link" aria-label="LinkedIn">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path>
+              <rect x="2" y="9" width="4" height="12"></rect>
+              <circle cx="4" cy="4" r="2"></circle>
+            </svg>
+          </a>
+          <a href="#" class="social-link" aria-label="Twitter">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M23 3a10.9 10.9 0 0 1-3.14 1.53 4.48 4.48 0 0 0-7.86 3v1A10.66 10.66 0 0 1 3 4s-4 9 5 13a11.64 11.64 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.08-.83A7.72 7.72 0 0 0 23 3z"></path>
+            </svg>
+          </a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Supabase Integration Client JS -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-config.js"></script>
+  
+  <!-- Core i18n & Page Interaction JavaScript -->
+  <script src="js/i18n.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

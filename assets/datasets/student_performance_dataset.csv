@@ -1,0 +1,121 @@
+student_id,department,gpa,study_hours_per_week,attendance_rate,final_exam_score
+STU1001,Computer Science,2.52,7,85,58
+STU1002,Computer Science,2.88,13,89,69
+STU1003,Management Information Systems,2.84,11,85,67
+STU1004,Computer Science,2.25,5,80,59
+STU1005,Management Information Systems,2.83,12,84,63
+STU1006,Information Security,3.42,25,95,86
+STU1007,Information Security,2.56,11,82,63
+STU1008,Information Security,3.17,18,93,75
+STU1009,Computer Science,2.29,8,82,66
+STU1010,Information Security,2.33,6,84,56
+STU1011,Information Security,2.85,15,86,71
+STU1012,Software Engineering,2.60,11,79,63
+STU1013,Management Information Systems,3.51,22,96,88
+STU1014,Management Information Systems,2.80,10,78,63
+STU1015,Management Information Systems,3.19,21,92,85
+STU1016,Management Information Systems,2.29,8,77,62
+STU1017,Computer Science,3.53,24,99,86
+STU1018,Information Security,3.15,21,88,83
+STU1019,Computer Science,2.62,12,86,69
+STU1020,Computer Science,2.79,13,88,71
+STU1021,Software Engineering,3.20,22,94,88
+STU1022,Management Information Systems,3.58,24,98,94
+STU1023,Management Information Systems,3.18,17,87,73
+STU1024,Information Security,2.76,11,83,61
+STU1025,Computer Science,3.41,25,97,89
+STU1026,Information Security,2.61,12,83,65
+STU1027,Information Security,3.23,22,93,84
+STU1028,Information Security,2.48,6,75,56
+STU1029,Information Security,2.86,14,91,73
+STU1030,Computer Science,2.55,11,86,64
+STU1031,Management Information Systems,2.96,15,90,78
+STU1032,Management Information Systems,2.48,5,82,57
+STU1033,Information Security,3.76,28,95,91
+STU1034,Information Security,3.66,25,96,89
+STU1035,Management Information Systems,2.66,10,82,69
+STU1036,Software Engineering,2.89,13,81,67
+STU1037,Software Engineering,3.55,23,91,87
+STU1038,Information Security,3.10,16,90,72
+STU1039,Computer Science,3.14,17,91,73
+STU1040,Information Security,2.75,15,87,72
+STU1041,Management Information Systems,2.78,13,84,72
+STU1042,Management Information Systems,3.44,23,99,89
+STU1043,Software Engineering,3.47,26,94,97
+STU1044,Computer Science,3.07,16,88,72
+STU1045,Software Engineering,3.75,28,99,92
+STU1046,Management Information Systems,3.64,26,96,94
+STU1047,Information Security,2.62,11,84,67
+STU1048,Management Information Systems,2.97,18,86,75
+STU1049,Management Information Systems,3.25,18,89,81
+STU1050,Information Security,2.78,10,82,62
+STU1051,Management Information Systems,2.43,10,83,67
+STU1052,Management Information Systems,2.37,9,79,59
+STU1053,Software Engineering,2.62,12,86,67
+STU1054,Management Information Systems,2.74,9,86,60
+STU1055,Computer Science,2.41,8,77,61
+STU1056,Computer Science,3.36,23,96,85
+STU1057,Management Information Systems,2.48,11,81,61
+STU1058,Computer Science,2.37,9,79,67
+STU1059,Management Information Systems,2.61,13,88,73
+STU1060,Computer Science,3.75,28,100,100
+STU1061,Information Security,3.23,20,87,82
+STU1062,Computer Science,2.45,10,87,65
+STU1063,Software Engineering,3.59,28,100,99
+STU1064,Information Security,2.49,11,88,65
+STU1065,Software Engineering,3.54,27,99,90
+STU1066,Management Information Systems,2.49,11,87,62
+STU1067,Software Engineering,2.17,6,84,62
+STU1068,Management Information Systems,2.90,17,85,72
+STU1069,Information Security,2.60,7,85,59
+STU1070,Computer Science,3.29,22,96,88
+STU1071,Software Engineering,2.66,8,81,63
+STU1072,Management Information Systems,2.19,6,77,61
+STU1073,Information Security,3.06,16,92,72
+STU1074,Software Engineering,3.29,21,91,81
+STU1075,Management Information Systems,2.96,18,93,75
+STU1076,Management Information Systems,2.45,8,85,60
+STU1077,Software Engineering,2.68,12,84,68
+STU1078,Software Engineering,3.38,26,94,88
+STU1079,Software Engineering,3.16,17,87,73
+STU1080,Software Engineering,2.81,13,81,65
+STU1081,Computer Science,2.61,12,83,65
+STU1082,Software Engineering,2.71,14,91,76
+STU1083,Management Information Systems,2.74,15,90,74
+STU1084,Software Engineering,2.86,15,86,72
+STU1085,Information Security,2.13,5,78,59
+STU1086,Management Information Systems,2.69,13,81,69
+STU1087,Management Information Systems,2.40,6,84,55
+STU1088,Software Engineering,2.91,17,86,78
+STU1089,Software Engineering,3.04,17,89,74
+STU1090,Information Security,2.48,11,85,64
+STU1091,Information Security,3.57,29,96,92
+STU1092,Software Engineering,3.04,16,92,79
+STU1093,Information Security,3.37,23,93,85
+STU1094,Management Information Systems,3.45,22,88,89
+STU1095,Software Engineering,3.64,25,93,90
+STU1096,Information Security,3.26,21,97,83
+STU1097,Computer Science,2.91,18,87,74
+STU1098,Information Security,3.28,20,92,81
+STU1099,Management Information Systems,2.13,5,75,60
+STU1100,Computer Science,2.85,14,87,67
+STU1101,Management Information Systems,3.78,29,95,94
+STU1102,Management Information Systems,2.24,6,77,59
+STU1103,Information Security,2.98,15,86,68
+STU1104,Computer Science,3.27,19,93,85
+STU1105,Information Security,2.94,18,93,79
+STU1106,Software Engineering,3.42,22,89,82
+STU1107,Computer Science,3.35,22,97,82
+STU1108,Software Engineering,2.23,7,80,60
+STU1109,Information Security,2.74,13,85,66
+STU1110,Information Security,3.36,20,94,78
+STU1111,Management Information Systems,3.76,29,100,98
+STU1112,Information Security,3.68,28,98,92
+STU1113,Management Information Systems,3.50,25,93,94
+STU1114,Computer Science,2.42,9,79,66
+STU1115,Computer Science,2.29,8,82,58
+STU1116,Computer Science,3.45,26,93,87
+STU1117,Management Information Systems,2.69,12,82,72
+STU1118,Management Information Systems,2.80,11,81,69
+STU1119,Information Security,3.54,29,96,94
+STU1120,Software Engineering,2.46,11,87,64

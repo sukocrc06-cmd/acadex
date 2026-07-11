@@ -1,0 +1,121 @@
+customer_id,tenure_months,monthly_charges,contract_type,churned
+CUST5001,68,93,Two year,Yes
+CUST5002,32,98,One year,No
+CUST5003,13,101,One year,No
+CUST5004,1,58,Month-to-month,Yes
+CUST5005,3,37,Month-to-month,No
+CUST5006,64,73,Two year,No
+CUST5007,4,37,Month-to-month,Yes
+CUST5008,13,46,One year,No
+CUST5009,12,80,Month-to-month,Yes
+CUST5010,7,108,Month-to-month,Yes
+CUST5011,52,73,Two year,No
+CUST5012,7,103,Month-to-month,No
+CUST5013,3,39,Month-to-month,Yes
+CUST5014,24,96,One year,No
+CUST5015,11,104,Month-to-month,No
+CUST5016,3,109,Month-to-month,Yes
+CUST5017,18,76,One year,No
+CUST5018,33,48,One year,No
+CUST5019,31,64,One year,No
+CUST5020,40,75,Two year,No
+CUST5021,3,88,Month-to-month,Yes
+CUST5022,5,32,Month-to-month,No
+CUST5023,39,75,Two year,No
+CUST5024,8,109,Month-to-month,Yes
+CUST5025,68,68,Two year,No
+CUST5026,7,81,Month-to-month,No
+CUST5027,8,56,Month-to-month,Yes
+CUST5028,56,64,Two year,No
+CUST5029,69,34,Two year,No
+CUST5030,46,79,Two year,No
+CUST5031,37,36,Two year,Yes
+CUST5032,8,57,Month-to-month,No
+CUST5033,30,83,One year,No
+CUST5034,65,54,Two year,No
+CUST5035,32,54,One year,No
+CUST5036,9,60,Month-to-month,No
+CUST5037,31,91,One year,No
+CUST5038,28,93,One year,No
+CUST5039,61,54,Two year,No
+CUST5040,17,92,One year,No
+CUST5041,9,32,Month-to-month,No
+CUST5042,43,104,Two year,No
+CUST5043,15,42,One year,No
+CUST5044,68,107,Two year,No
+CUST5045,26,46,One year,No
+CUST5046,50,87,Two year,No
+CUST5047,22,103,One year,No
+CUST5048,52,105,Two year,Yes
+CUST5049,9,87,Month-to-month,Yes
+CUST5050,2,55,Month-to-month,Yes
+CUST5051,7,65,Month-to-month,Yes
+CUST5052,68,40,Two year,No
+CUST5053,55,74,Two year,No
+CUST5054,8,84,Month-to-month,Yes
+CUST5055,55,32,Two year,No
+CUST5056,56,74,Two year,No
+CUST5057,32,68,One year,No
+CUST5058,42,38,Two year,No
+CUST5059,5,68,Month-to-month,No
+CUST5060,21,62,One year,Yes
+CUST5061,15,63,One year,No
+CUST5062,20,58,One year,No
+CUST5063,31,95,One year,No
+CUST5064,11,47,Month-to-month,No
+CUST5065,31,78,One year,No
+CUST5066,5,86,Month-to-month,Yes
+CUST5067,4,102,Month-to-month,No
+CUST5068,22,88,One year,No
+CUST5069,10,55,Month-to-month,No
+CUST5070,11,83,Month-to-month,No
+CUST5071,1,36,Month-to-month,Yes
+CUST5072,32,78,One year,No
+CUST5073,32,57,One year,No
+CUST5074,4,44,Month-to-month,No
+CUST5075,19,44,One year,No
+CUST5076,44,51,Two year,No
+CUST5077,18,37,One year,No
+CUST5078,12,98,Month-to-month,Yes
+CUST5079,30,99,One year,No
+CUST5080,21,88,One year,No
+CUST5081,7,47,Month-to-month,No
+CUST5082,49,81,Two year,No
+CUST5083,23,72,One year,No
+CUST5084,37,72,Two year,No
+CUST5085,13,46,One year,No
+CUST5086,10,40,Month-to-month,No
+CUST5087,10,104,Month-to-month,Yes
+CUST5088,64,51,Two year,No
+CUST5089,12,54,Month-to-month,Yes
+CUST5090,8,106,Month-to-month,Yes
+CUST5091,52,99,Two year,Yes
+CUST5092,13,73,One year,No
+CUST5093,50,36,Two year,No
+CUST5094,17,53,One year,No
+CUST5095,19,99,One year,Yes
+CUST5096,4,31,Month-to-month,No
+CUST5097,66,33,Two year,No
+CUST5098,3,105,Month-to-month,Yes
+CUST5099,33,87,One year,No
+CUST5100,33,58,One year,No
+CUST5101,1,63,Month-to-month,No
+CUST5102,1,107,Month-to-month,Yes
+CUST5103,10,75,Month-to-month,Yes
+CUST5104,2,58,Month-to-month,No
+CUST5105,40,66,Two year,No
+CUST5106,66,54,Two year,No
+CUST5107,12,65,Month-to-month,Yes
+CUST5108,11,69,Month-to-month,Yes
+CUST5109,14,65,One year,No
+CUST5110,39,37,Two year,No
+CUST5111,12,85,Month-to-month,Yes
+CUST5112,1,58,Month-to-month,No
+CUST5113,6,58,Month-to-month,Yes
+CUST5114,48,55,Two year,No
+CUST5115,31,105,One year,No
+CUST5116,10,80,Month-to-month,No
+CUST5117,7,63,Month-to-month,Yes
+CUST5118,38,71,Two year,No
+CUST5119,33,92,One year,No
+CUST5120,1,39,Month-to-month,Yes

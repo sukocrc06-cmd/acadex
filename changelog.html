@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="What's new in Acadex. Follow our release history, updates, and feature milestones.">
+  <title data-i18n="changelog.title">What's New — Acadex</title>
+  
+  <!-- Favicon Link -->
+  <link rel="icon" type="image/png" href="assets/logo.png">
+
+  <!-- Google Fonts - Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Core Stylesheet -->
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .changelog-content {
+      padding: 3rem 0;
+      color: var(--color-navy);
+    }
+    .changelog-card {
+      background-color: var(--color-white);
+      border: 1px solid rgba(22, 50, 92, 0.08);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      box-shadow: var(--shadow-sm);
+    }
+    .changelog-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(22, 50, 92, 0.08);
+      padding-bottom: 0.5rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    .changelog-version {
+      font-size: 1.1rem;
+      font-weight: 800;
+      color: var(--color-teal);
+    }
+    .changelog-date {
+      font-size: 0.85rem;
+      color: var(--color-text-muted);
+      font-weight: 600;
+    }
+    .changelog-list {
+      margin: 0;
+      padding-left: 1.25rem;
+    }
+    .changelog-list li {
+      font-size: 0.9rem;
+      line-height: 1.5;
+      color: var(--color-text);
+      margin-bottom: 0.5rem;
+      list-style-type: disc;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Keyboard Accessibility Skip Link -->
+  <a href="#main-content" class="skip-link" data-i18n="splash.skip">Skip to main content</a>
+
+  <!-- ==========================================
+       HEADER & NAVIGATION BAR
+       ========================================== -->
+  <header class="header scrolled">
+    <div class="container header-container">
+      <a href="index.html" class="brand-logo" data-i18n="brand.name">ACADEX</a>
+
+      <nav aria-label="Main Navigation">
+        <ul class="nav-menu" id="nav-menu">
+          <li><a href="index.html#home" class="nav-link" data-i18n="common.home">Home</a></li>
+          <li><a href="index.html#about" class="nav-link" data-i18n="common.about">About</a></li>
+          <li><a href="index.html#departments" class="nav-link" data-i18n="common.departments">Departments</a></li>
+          <li><a href="index.html#how-it-works" class="nav-link" data-i18n="common.howItWorks">How It Works</a></li>
+          
+          <li class="nav-actions" style="display: flex; align-items: center; gap: 0.5rem;">
+            <select class="lang-switcher-select" aria-label="Select Language" onchange="applyLanguage(this.value)" style="margin-right: 0.25rem;">
+              <option value="en">EN</option>
+              <option value="tr">TR</option>
+            </select>
+            <a href="login.html" class="btn btn-outline" data-i18n="common.login">Log In</a>
+            <a href="register.html" class="btn btn-primary" data-i18n="common.signup">Sign Up</a>
+          </li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ==========================================
+       MAIN CONTENT (CHANGELOG)
+       ========================================== -->
+  <main class="changelog-content" id="main-content">
+    <div class="container" style="max-width: 800px;">
+      <div style="text-align: center; margin-bottom: 3rem;">
+        <span class="section-tag" style="display: inline-block; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-teal); margin-bottom: 0.5rem;" data-i18n="changelog.tag">Release Notes</span>
+        <h1 class="section-title" style="font-size: 2.25rem; font-weight: 800; color: var(--color-navy);" data-i18n="changelog.heading">Yenilikler / What's New</h1>
+        <p class="section-desc" style="font-size: 1rem; color: var(--color-text-muted);" data-i18n="changelog.subheading">Acadex platform update history and features release notes timeline.</p>
+      </div>
+
+      <!-- Changelog Entries -->
+      <!-- Note: These release dates are illustrative placeholders that can be adjusted later. -->
+      
+      <!-- v1.5.0 -->
+      <div class="changelog-card">
+        <div class="changelog-header">
+          <span class="changelog-version">v1.5.0 — Planner & Highlights</span>
+          <span class="changelog-date">July 10, 2026</span>
+        </div>
+        <ul class="changelog-list">
+          <li><strong>Study Planner:</strong> Added personal study tracker (Çalışma Planlayıcı) featuring upcoming exams, goals, deadline tracking with a checkbox completion, and an interactive Month Grid view.</li>
+          <li><strong>Department Focus Highlights:</strong> Introduced custom blurbs tailored to MIS, Business (İşletme), Trade, and Finance curricula on the landing page.</li>
+          <li><strong>Sandbox Guide:</strong> Added formatted learning guides and dataset exercises to the Developer Sandbox.</li>
+          <li><strong>Onboarding Relocation:</strong> Relocated the onboarding tour restart link to the main overview tab and updated all 13 tutorial steps.</li>
+        </ul>
+      </div>
+
+      <!-- v1.4.0 -->
+      <div class="changelog-card">
+        <div class="changelog-header">
+          <span class="changelog-version">v1.4.0 — Accessibility & Trust</span>
+          <span class="changelog-date">July 09, 2026</span>
+        </div>
+        <ul class="changelog-list">
+          <li><strong>Trust Signals:</strong> Linked legal disclosures and privacy options, plus added contact coordinator forms in index page.</li>
+          <li><strong>Accessibility Upgrades:</strong> Implemented visual skip links, landmark elements, alt attributes, and high contrast badges.</li>
+          <li><strong>Form Validation:</strong> Integrated debounced duplicate registration checkers and password strength meters.</li>
+          <li><strong>Command Palette:</strong> Bound Ctrl+K / Cmd+K keys to open global quick-action searches.</li>
+        </ul>
+      </div>
+
+      <!-- v1.3.0 -->
+      <div class="changelog-card">
+        <div class="changelog-header">
+          <span class="changelog-version">v1.3.0 — Achievements & PDF Export</span>
+          <span class="changelog-date">June 28, 2026</span>
+        </div>
+        <ul class="changelog-list">
+          <li><strong>Achievements System:</strong> Added fire streak badges and audio celebration chimes for key milestones.</li>
+          <li><strong>PDF Downloads:</strong> Implemented clean, paginated PDF study card exporter.</li>
+          <li><strong>Bulk Actions:</strong> Enabled multi-file selection and queue-based AI summary generation.</li>
+        </ul>
+      </div>
+
+      <!-- v1.2.0 -->
+      <div class="changelog-card">
+        <div class="changelog-header">
+          <span class="changelog-version">v1.2.0 — Dark Theme & Languages</span>
+          <span class="changelog-date">June 15, 2026</span>
+        </div>
+        <ul class="changelog-list">
+          <li><strong>Theme Toggle:</strong> Integrated smooth dark/light theme switching.</li>
+          <li><strong>Multilingual Support:</strong> Added a global Turkish and English UI translation dictionary.</li>
+        </ul>
+      </div>
+
+      <!-- v1.1.0 -->
+      <div class="changelog-card">
+        <div class="changelog-header">
+          <span class="changelog-version">v1.1.0 — Smart Interactive Canvas</span>
+          <span class="changelog-date">May 30, 2026</span>
+        </div>
+        <ul class="changelog-list">
+          <li><strong>Study Notebook:</strong> Built drawing canvases supporting text entries, tables, and sticky notes.</li>
+          <li><strong>Knowledge Depot:</strong> Created side storage trays to save summary blocks.</li>
+        </ul>
+      </div>
+
+      <!-- v1.0.0 -->
+      <div class="changelog-card">
+        <div class="changelog-header">
+          <span class="changelog-version">v1.0.0 — AI Exam Platform</span>
+          <span class="changelog-date">May 12, 2026</span>
+        </div>
+        <ul class="changelog-list">
+          <li><strong>Practice Exams:</strong> Added classic multiple-choice, classical, and mixed mock test formats with AI hint support.</li>
+          <li><strong>Instant Grading:</strong> Implemented automatic question validation and score history dashboards.</li>
+        </ul>
+      </div>
+
+      <!-- v0.9.0 -->
+      <div class="changelog-card">
+        <div class="changelog-header">
+          <span class="changelog-version">v0.9.0 — Summaries & Sharing</span>
+          <span class="changelog-date">April 25, 2026</span>
+        </div>
+        <ul class="changelog-list">
+          <li><strong>AI Study Cards:</strong> Enabled customizable summarization styles (Standard, Q&A, ELI5 formats).</li>
+          <li><strong>Department Feed:</strong> Created public showcase streams to publish study aids for classmates.</li>
+        </ul>
+      </div>
+
+      <!-- v0.8.0 -->
+      <div class="changelog-card">
+        <div class="changelog-header">
+          <span class="changelog-version">v0.8.0 — Core Platform Launch</span>
+          <span class="changelog-date">April 02, 2026</span>
+        </div>
+        <ul class="changelog-list">
+          <li><strong>Secure Vault:</strong> Integrated Supabase Auth profile databases and secure document uploads.</li>
+          <li><strong>Brand Identity:</strong> Designed the original interface and responsive navigation menu controls.</li>
+        </ul>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- ==========================================
+       FOOTER
+       ========================================== -->
+  <footer class="footer">
+    <div class="container" style="text-align: center; padding: 2rem 0; border-top: 1px solid rgba(22, 50, 92, 0.08);">
+      <p style="font-size: 0.85rem; color: var(--color-text-muted); margin: 0;">&copy; 2026 Acadex. Faculty of Business. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <script src="js/i18n.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

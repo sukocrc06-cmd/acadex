@@ -1,0 +1,7794 @@
+/* ==========================================================================
+   ACADEX DASHBOARD CONTROLLER (js/dashboard.js)
+   Handles session checking, profile loads, Supabase document uploads/lists,
+   signed-URL downloads, custom confirm delete modals, and logouts.
+   ========================================================================== */
+
+let currentUser = null;
+let currentUserProfile = null;
+let activeDocuments = [];
+let activeStudyCards = [];
+let documentToDelete = null;
+let pollingInterval = null;
+let previousFocusedElement = null;
+let currentActiveTab = 'home';
+let activeModalCardId = null;
+let isBulkSummarize = false;
+let isMergeSummarize = false;
+let pendingMergeDocIds = [];
+let activeBulkSummarizingDocIds = [];
+let currentActiveStudyCard = null;
+let departmentFeedLimit = 30;
+let sandboxProjectsLimit = 20;
+let notebookHasUnsavedChanges = false;
+
+// Helper to get YYYY-MM-DD in local time (prevents timezone bugs)
+function getLocalDateString(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+window.addEventListener('beforeunload', (e) => {
+  if (notebookHasUnsavedChanges) {
+    e.preventDefault();
+    e.returnValue = 'You have unsaved changes in your notebook — are you sure you want to leave?';
+    return e.returnValue;
+  }
+});
+
+document.addEventListener('DOMContentLoaded', async () => {
+  // 1. Verify Active Session & Fetch Profile details
+  await checkSessionAndLoadProfile();
+
+  // 2. Drag & Drop File Upload Listeners
+  initUploadZone();
+
+  // 3. Modal Confirm Action Listeners
+  initDeleteModal();
+
+  // 4. Logout Action Listener
+  initLogout();
+
+  // 5. Study Card Modal Listeners
+  initStudyCardModal();
+
+  // 6. Event Delegation for View Summary Buttons (resilient across views and dynamic content)
+  document.addEventListener('click', async (e) => {
+    const viewBtn = e.target.closest('.btn-view-summary');
+    if (viewBtn) {
+      e.preventDefault();
+      const docId = viewBtn.dataset.docId;
+      const docName = viewBtn.dataset.docName;
+      const cardId = viewBtn.dataset.cardId;
+      const readOnly = viewBtn.dataset.readOnly === 'true';
+      console.log("Delegated View Summary clicked: docId =", docId, "docName =", docName, "cardId =", cardId, "readOnly =", readOnly);
+      await viewStudyCard(docId, docName, readOnly, cardId);
+    }
+  });
+
+  // 7. Global Search Listener (Phase 9)
+  initGlobalSearch();
+
+  // 8. Pomodoro Floating Widget (Phase 10)
+  initPomodoroWidget();
+
+  // 9. Phase 11 General Listeners
+  initPhase11Listeners();
+});
+
+// ==========================================
+// 1. Session Redirect Guard & Profile Loader
+// ==========================================
+async function checkSessionAndLoadProfile() {
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) {
+      // Redirect back to login if unauthenticated
+      window.location.replace('login.html');
+      return;
+    }
+
+    currentUser = session.user;
+    
+    // Fetch profile data from the profiles table
+    const { data: profile, error } = await supabaseClient
+      .from('profiles')
+      .select('*')
+      .eq('id', currentUser.id)
+      .single();
+
+    currentUserProfile = profile;
+
+    // Admin Panel display check (Phase 16B part B)
+    if (profile && profile.is_admin) {
+      const sideAdmin = document.getElementById('side-admin');
+      if (sideAdmin) {
+        sideAdmin.style.display = 'block';
+      }
+      const sideReport = document.getElementById('side-report');
+      if (sideReport) {
+        sideReport.style.display = 'block';
+      }
+      await updateAdminInboxBadge();
+    }
+
+    // Streak tracking (Phase 12)
+    if (profile) {
+      const today = getLocalDateString(); // 'YYYY-MM-DD'
+      const lastActive = profile.last_active_date;
+      let newStreak = profile.current_streak || 0;
+      if (lastActive !== today) {
+        const yesterday = getLocalDateString(new Date(Date.now() - 86400000));
+        newStreak = (lastActive === yesterday) ? (profile.current_streak || 0) + 1 : 1;
+        
+        await supabaseClient
+          .from('profiles')
+          .update({ last_active_date: today, current_streak: newStreak })
+          .eq('id', currentUser.id);
+          
+        profile.last_active_date = today;
+        profile.current_streak = newStreak;
+        
+        if (newStreak === 7) await awardAchievement('streak_7');
+        if (newStreak === 30) await awardAchievement('streak_30');
+      }
+    }
+
+    const nameEl = document.getElementById('user-name');
+    const deptEl = document.getElementById('user-dept');
+    const welcomeGreeting = document.getElementById('welcome-greeting');
+    const welcomeSub = document.getElementById('welcome-sub');
+
+    if (profile) {
+      // Display full name or fallback
+      const displayName = profile.full_name || currentUser.email.split('@')[0];
+      nameEl.textContent = displayName;
+      
+      const badgeClass = getDepartmentColorClass(profile.department);
+      const shortName = getDepartmentShortName(profile.department);
+      deptEl.innerHTML = `${translateDepartment(profile.department)} <span class="dept-badge ${badgeClass}">${shortName}</span>`;
+
+      // Welcome greeting
+      const firstName = displayName.split(' ')[0];
+      if (welcomeGreeting) {
+        welcomeGreeting.textContent = `Welcome back, ${firstName}!`;
+      }
+      if (welcomeSub) {
+        const currentLang = localStorage.getItem('acadexUILang') || 'en';
+        const translatedDept = translateDepartment(profile.department);
+        if (currentLang === 'tr') {
+          welcomeSub.textContent = `Fakülte programında neler olup bittiğine göz at: ${translatedDept || 'Bölümün'}`;
+        } else {
+          welcomeSub.textContent = `Here's what's happening in ${translatedDept || 'your faculty'}.`;
+        }
+      }
+    } else {
+      nameEl.textContent = currentUser.email;
+      deptEl.textContent = "Student Program Member";
+    }
+
+    // Load default tab view content
+    switchDashboardView(currentActiveTab);
+    await updateDepotCountBadge();
+    await checkNotifications();
+
+    // Check upcoming exams & trigger notifications (Part E)
+    if (!window.examNotificationIntervalWired) {
+      window.examNotificationIntervalWired = true;
+      checkAndTriggerExamNotifications();
+      setInterval(checkAndTriggerExamNotifications, 3600000);
+    }
+
+    // Bind notebook search input listener
+    const searchInput = document.getElementById('notebook-search');
+    if (searchInput) {
+      searchInput.addEventListener('input', () => {
+        filterNotebookCards();
+      });
+    }
+
+    // Bind cards search input listener
+    const cardsSearchInput = document.getElementById('cards-search');
+    if (cardsSearchInput) {
+      cardsSearchInput.addEventListener('input', () => {
+        filterLibraryCards();
+      });
+    }
+
+    const cardsFilterStyle = document.getElementById('cards-filter-style');
+    const cardsFilterLang = document.getElementById('cards-filter-lang');
+    const cardsFilterCourse = document.getElementById('cards-filter-course');
+    const btnClearFilters = document.getElementById('btn-clear-filters');
+
+    if (cardsFilterStyle) {
+      cardsFilterStyle.addEventListener('change', () => {
+        filterLibraryCards();
+      });
+    }
+    if (cardsFilterLang) {
+      cardsFilterLang.addEventListener('change', () => {
+        filterLibraryCards();
+      });
+    }
+    if (cardsFilterCourse) {
+      cardsFilterCourse.addEventListener('change', () => {
+        filterLibraryCards();
+      });
+    }
+    if (btnClearFilters) {
+      btnClearFilters.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (cardsSearchInput) cardsSearchInput.value = '';
+        if (cardsFilterStyle) cardsFilterStyle.value = 'all';
+        if (cardsFilterLang) cardsFilterLang.value = 'all';
+        if (cardsFilterCourse) cardsFilterCourse.value = 'all';
+        filterLibraryCards();
+      });
+    }
+
+    // Start Guided Tour automatically if not completed
+    if (currentUserProfile && currentUserProfile.onboarding_completed === false) {
+      setTimeout(() => {
+        startOnboardingTour();
+      }, 1500);
+    }
+
+  } catch (err) {
+    console.error("Failed to load session/profile info: ", err);
+    window.location.replace('login.html');
+  }
+}
+
+// ==========================================
+// 2. Documents List Fetch & Render
+// ==========================================
+async function loadDocuments(isPolling = false) {
+  const docsGrid = document.getElementById('docs-grid');
+  if (!docsGrid) return;
+
+  try {
+    const [docsRes, cardsRes] = await Promise.all([
+      supabaseClient
+        .from('documents')
+        .select('*')
+        .eq('user_id', currentUser.id)
+        .order('uploaded_at', { ascending: false }),
+      supabaseClient
+        .from('study_cards')
+        .select('id, document_id, summary_style, summary_language, created_at')
+        .eq('user_id', currentUser.id)
+        .order('created_at', { ascending: false })
+    ]);
+
+    if (docsRes.error) {
+      console.error("Error fetching documents: ", docsRes.error);
+      if (!isPolling) {
+        showDashboardAlert('error', 'Could not load your documents. Please refresh the page.');
+      }
+      return;
+    }
+
+    activeDocuments = docsRes.data || [];
+    activeStudyCards = cardsRes.data || [];
+    renderDocumentsList();
+
+    if (activeStudyCards.length > 0) {
+      checkAndAwardFirstSummary();
+    }
+
+    // Polling setup: re-fetch if any document is in the 'processing' state
+    const hasProcessing = activeDocuments.some(doc => doc.status === 'processing');
+    if (hasProcessing) {
+      if (!pollingInterval) {
+        pollingInterval = setInterval(() => loadDocuments(true), 3000);
+      }
+    } else {
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+        pollingInterval = null;
+      }
+    }
+
+  } catch (err) {
+    console.error("Exception loading documents: ", err);
+    if (!isPolling) {
+      showDashboardAlert('error', 'Could not load your documents. Please refresh the page.');
+    }
+  }
+}
+
+function renderDocumentsList() {
+  const docsSection = document.getElementById('docs-list-section');
+  if (!docsSection) return;
+
+  if (activeDocuments.length === 0) {
+    // Render Empty State
+    docsSection.innerHTML = `
+      <div class="empty-state">
+        <svg class="empty-state-icon" xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+          <line x1="12" y1="18" x2="12" y2="12"></line>
+          <line x1="9" y1="15" x2="12" y2="12"></line>
+          <line x1="15" y1="15" x2="12" y2="12"></line>
+        </svg>
+        <h3 class="empty-state-title">No documents uploaded</h3>
+        <p class="empty-state-text">You haven't uploaded any documents yet. Drag a lecture slide, syllabus, or article above to get started!</p>
+      </div>
+    `;
+    return;
+  }
+
+  // Create grid container
+  docsSection.innerHTML = `<div class="docs-grid" id="docs-grid"></div>`;
+  const grid = document.getElementById('docs-grid');
+
+  activeDocuments.forEach(doc => {
+    // Format variables
+    const formattedDate = new Date(doc.uploaded_at).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+    
+    const sizeInKB = doc.file_size / 1024;
+    const formattedSize = sizeInKB > 1024 
+      ? `${(sizeInKB / 1024).toFixed(2)} MB` 
+      : `${sizeInKB.toFixed(1)} KB`;
+
+    // Map extensions to icons and styles
+    const fileExt = doc.file_name.split('.').pop().toLowerCase();
+    let fileClass = 'text';
+    let iconSvg = '';
+
+    if (fileExt === 'pdf') {
+      fileClass = 'pdf';
+      iconSvg = '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line>';
+    } else if (fileExt === 'docx' || fileExt === 'doc') {
+      fileClass = 'word';
+      iconSvg = '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="M9 15v-4h3"></path><path d="M12 15V11h3"></path><line x1="9" y1="13" x2="15" y2="13"></line>';
+    } else if (fileExt === 'pptx' || fileExt === 'ppt') {
+      fileClass = 'powerpoint';
+      iconSvg = '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><circle cx="12" cy="14" r="3"></circle>';
+    } else {
+      fileClass = 'text';
+      iconSvg = '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="12" y1="17" x2="8" y2="17"></line>';
+    }
+
+    // Determine status badge layouts and primary actions
+    let statusBadgeHtml = '';
+    let actionBtnHtml = '';
+    let failureNoteHtml = '';
+
+    if (doc.status === 'processing') {
+      statusBadgeHtml = `<span class="doc-status-badge" style="background-color: #FEF3C7; color: #D97706; font-weight: 700;">Processing</span>`;
+      actionBtnHtml = `
+        <button class="btn btn-outline" disabled style="width: 100%; padding: 0.5rem 1rem; font-size: 0.85rem; margin-top: 0.5rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+          <svg class="spinner" viewBox="0 0 50 50" style="animation: rotate 2s linear infinite; width: 14px; height: 14px; margin-right: 0;">
+            <circle class="path" cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="5" style="stroke-dasharray: 1, 150; stroke-dashoffset: 0; stroke-linecap: round; animation: dash 1.5s ease-in-out infinite;"></circle>
+          </svg>
+          Processing...
+        </button>
+      `;
+    } else if (doc.status === 'summarized') {
+      statusBadgeHtml = `<span class="doc-status-badge" style="background-color: #D1FAE5; color: #059669; font-weight: 700;">Summarized</span>`;
+      
+      const docCards = activeStudyCards.filter(c => c.document_id === doc.id);
+      if (docCards.length > 1) {
+        actionBtnHtml = `
+          <div class="dropdown" style="position: relative; width: 100%; margin-top: 0.5rem;">
+            <button class="btn btn-outline dropdown-toggle" onclick="toggleDocDropdown(event, '${doc.id}')" style="width: 100%; padding: 0.5rem 1rem; font-size: 0.85rem; display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;">
+              <span>View Summary</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </button>
+            <div id="dropdown-menu-${doc.id}" class="dropdown-menu" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: var(--color-white); border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); box-shadow: var(--shadow-md); z-index: 100; margin-top: 0.25rem; overflow: hidden; max-height: 200px; overflow-y: auto;">
+              ${docCards.map(c => {
+                const styleName = getStyleLabel(c.summary_style);
+                const langName = c.summary_language === 'tr' ? 'Türkçe' : 'English';
+                const formattedTime = new Date(c.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                return `
+                  <a href="#" class="dropdown-item" onclick="viewStudyCardWrapper(event, '${doc.id}', '${doc.file_name.replace(/'/g, "\\'")}', '${c.id}')" style="display: block; padding: 0.5rem 0.75rem; font-size: 0.75rem; color: var(--color-navy); text-decoration: none; border-bottom: 1px solid rgba(22, 50, 92, 0.05); text-align: left; transition: background-color 0.2s;">
+                    <strong>${styleName}</strong> — ${langName} <span style="color: var(--color-text-muted); font-size: 0.65rem; display: block; margin-top: 0.1rem;">${formattedTime}</span>
+                  </a>
+                `;
+              }).join('')}
+            </div>
+          </div>
+          <button class="btn-resummarize" onclick="openResummarizeModal('${doc.id}')" style="width: 100%; margin-top: 0.35rem; font-size: 0.75rem; color: var(--color-teal); background: none; border: none; cursor: pointer; text-decoration: underline; text-align: center; font-weight: 600;">Re-summarize with different style</button>
+        `;
+      } else {
+        const cardId = docCards.length === 1 ? docCards[0].id : '';
+        actionBtnHtml = `
+          <button class="btn btn-outline btn-view-summary" data-doc-id="${doc.id}" data-doc-name="${doc.file_name.replace(/'/g, "\\'")}" data-card-id="${cardId}" style="width: 100%; padding: 0.5rem 1rem; font-size: 0.85rem; margin-top: 0.5rem;">View Summary</button>
+          <button class="btn-resummarize" onclick="openResummarizeModal('${doc.id}')" style="width: 100%; margin-top: 0.35rem; font-size: 0.75rem; color: var(--color-teal); background: none; border: none; cursor: pointer; text-decoration: underline; text-align: center; font-weight: 600;">Re-summarize with different style</button>
+        `;
+      }
+    } else {
+      // 'uploaded' or 'failed'
+      if (doc.status === 'failed') {
+        statusBadgeHtml = `<span class="doc-status-badge" style="background-color: #FEE2E2; color: #DC2626; font-weight: 700;">Failed</span>`;
+        failureNoteHtml = `
+          <div class="card-failure-note">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <span>Summarization failed, try again.</span>
+          </div>
+        `;
+      } else {
+        statusBadgeHtml = `<span class="doc-status-badge">Uploaded</span>`;
+      }
+
+      actionBtnHtml = `
+        <button class="btn btn-primary" id="btn-sum-${doc.id}" onclick="summarizeDocument('${doc.id}')" style="width: 100%; border: none; padding: 0.5rem 1rem; font-size: 0.85rem; margin-top: 0.5rem;">Summarize</button>
+      `;
+    }
+
+    const card = document.createElement('div');
+    card.className = 'doc-card';
+    card.id = `doc-card-${doc.id}`;
+    card.innerHTML = `
+      <input type="checkbox" class="doc-bulk-select-checkbox" data-doc-id="${doc.id}" onclick="handleDocCheckboxClick(event)" style="position: absolute; top: 0.5rem; left: 0.5rem; width: 16px; height: 16px; cursor: pointer; accent-color: var(--color-teal); z-index: 10;">
+      <div class="doc-header" style="padding-left: 0.75rem;">
+        <div class="doc-file-icon ${fileClass}">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            ${iconSvg}
+          </svg>
+        </div>
+        <div class="doc-info">
+          <h4 class="doc-name" title="${doc.file_name}">${doc.file_name}</h4>
+          <div class="doc-meta">
+            <span>${formattedSize}</span>
+            <span>&bull;</span>
+            <span>${formattedDate}</span>
+          </div>
+        </div>
+      </div>
+      
+      ${failureNoteHtml}
+      ${actionBtnHtml}
+
+      <!-- Course Tag Pill (Phase 17) -->
+      <div class="doc-course-tag-wrapper" style="margin-top: 0.5rem;" data-doc-id="${doc.id}">
+        ${doc.course_tag
+          ? `<span class="course-tag-pill" onclick="startEditCourseTag('${doc.id}', this)" title="Click to edit course tag" style="display: inline-flex; align-items: center; gap: 0.3rem; background: var(--color-teal-light); color: var(--color-teal); font-size: 0.7rem; font-weight: 700; padding: 0.2rem 0.55rem; border-radius: 20px; cursor: pointer; transition: background 0.2s;">
+              🏷️ ${doc.course_tag}
+            </span>`
+          : `<button class="add-course-tag-btn" onclick="startEditCourseTag('${doc.id}', this)" style="display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.7rem; color: var(--color-text-muted); background: none; border: 1px dashed rgba(22,50,92,0.2); border-radius: 20px; padding: 0.2rem 0.55rem; cursor: pointer; transition: all 0.2s;">
+              + Add course tag
+            </button>`
+        }
+      </div>
+
+      <div class="doc-footer" style="margin-top: 0.25rem;">
+        ${statusBadgeHtml}
+        <div class="doc-actions">
+          <button class="btn-icon btn-download" title="Download File" onclick="downloadDocument('${doc.storage_path}')">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+          </button>
+          <button class="btn-icon btn-delete" title="Delete File" onclick="confirmDeleteDocument('${doc.id}', '${doc.storage_path}')">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              <line x1="10" y1="11" x2="10" y2="17"></line>
+              <line x1="14" y1="11" x2="14" y2="17"></line>
+            </svg>
+          </button>
+        </div>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+// ==========================================
+// 3. Document Download Handler (Signed URL)
+// ==========================================
+async function downloadDocument(storagePath) {
+  try {
+    const { data, error } = await supabaseClient.storage
+      .from('documents')
+      .createSignedUrl(storagePath, 60); // link valid for 60 seconds
+
+    if (error) {
+      console.error("Signed URL creation failed: ", error);
+      showDashboardAlert('error', 'Download link generation failed. Please try again.');
+      return;
+    }
+
+    if (data && data.signedUrl) {
+      // Open in a new tab or trigger an direct download
+      const tempLink = document.createElement('a');
+      tempLink.href = data.signedUrl;
+      tempLink.target = '_blank';
+      tempLink.setAttribute('download', ''); // hint browser to download
+      document.body.appendChild(tempLink);
+      tempLink.click();
+      document.body.removeChild(tempLink);
+    }
+  } catch (err) {
+    console.error("Exception during download: ", err);
+    showDashboardAlert('error', 'Download failed. Please try again.');
+  }
+}
+
+// ==========================================
+// 4. Drag & Drop Upload Zone Setup
+// ==========================================
+function initUploadZone() {
+  const uploadZone = document.getElementById('upload-zone');
+  const fileInput = document.getElementById('file-input');
+
+  if (!uploadZone || !fileInput) return;
+
+  // Open file selector when clicking the drop zone
+  uploadZone.addEventListener('click', () => {
+    fileInput.click();
+  });
+
+  // Space/Enter click trigger for keyboard users
+  uploadZone.addEventListener('keydown', (e) => {
+    if (e.key === ' ' || e.key === 'Enter') {
+      e.preventDefault();
+      fileInput.click();
+    }
+  });
+
+  // Handle selected files
+  fileInput.addEventListener('change', (e) => {
+    const files = Array.from(e.target.files);
+    if (files.length > 0) {
+      handleMultipleFilesUpload(files);
+    }
+  });
+
+  // Drag over effects
+  uploadZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    uploadZone.classList.add('dragover');
+  });
+
+  uploadZone.addEventListener('dragleave', () => {
+    uploadZone.classList.remove('dragover');
+  });
+
+  uploadZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    uploadZone.classList.remove('dragover');
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      handleMultipleFilesUpload(files);
+    }
+  });
+}
+
+async function handleFileUpload(file) {
+  const uploadZone = document.getElementById('upload-zone');
+  const progressContainer = document.getElementById('progress-container');
+  const progressBar = document.getElementById('progress-bar');
+  
+  if (!file) return;
+
+  // File size validation (max 20MB)
+  const maxSize = 20 * 1024 * 1024;
+  if (file.size > maxSize) {
+    showDashboardAlert('error', 'File size exceeds the 20MB limit.');
+    return;
+  }
+
+  // File type validation (.pdf, .docx, .pptx, .txt)
+  const allowedExtensions = ['pdf', 'docx', 'doc', 'pptx', 'ppt', 'txt'];
+  const fileExt = file.name.split('.').pop().toLowerCase();
+  if (!allowedExtensions.includes(fileExt)) {
+    showDashboardAlert('error', 'Unsupported format. Please upload PDF, Word, PowerPoint, or TXT files.');
+    return;
+  }
+
+  // Set visual upload state
+  uploadZone.style.pointerEvents = 'none';
+  progressContainer.style.display = 'block';
+  progressBar.style.width = '10%';
+
+  // Slow mock progress animation to look responsive (standard Supabase JS doesn't expose standard progress hook)
+  let progressInterval = setInterval(() => {
+    let currentWidth = parseFloat(progressBar.style.width);
+    if (currentWidth < 85) {
+      progressBar.style.width = `${currentWidth + 10}%`;
+    }
+  }, 100);
+
+  const storagePath = `${currentUser.id}/${Date.now()}_${file.name}`;
+
+  try {
+    // 1. Upload to Supabase Storage private bucket
+    const { data, error } = await supabaseClient.storage
+      .from('documents')
+      .upload(storagePath, file);
+
+    if (error) {
+      console.error("Storage upload failed: ", error);
+      clearInterval(progressInterval);
+      showDashboardAlert('error', 'File upload failed. Please try again.');
+      resetUploadUI();
+      return;
+    }
+
+    // 2. Insert metadata row into public.documents table
+    const { data: insertedDoc, error: dbError } = await supabaseClient
+      .from('documents')
+      .insert({
+        user_id: currentUser.id,
+        file_name: file.name,
+        storage_path: storagePath,
+        file_size: file.size,
+        mime_type: file.type || getMimeTypeFromExtension(file.name),
+        status: 'uploaded',
+        department: currentUserProfile ? currentUserProfile.department : null
+      })
+      .select()
+      .single();
+
+    clearInterval(progressInterval);
+
+    if (dbError) {
+      console.error("Document DB insert failed: ", dbError);
+      // clean up orphaned storage file
+      await supabaseClient.storage.from('documents').remove([storagePath]);
+      showDashboardAlert('error', 'Failed to register document in portal. Please try again.');
+      resetUploadUI();
+      return;
+    }
+
+    if (insertedDoc) {
+      activeDocuments.unshift(insertedDoc);
+      renderDocumentsList();
+    }
+
+    // Finish progress bar
+    progressBar.style.width = '100%';
+    setTimeout(async () => {
+      showDashboardAlert('success', 'Document uploaded successfully!');
+      resetUploadUI();
+      await loadDocuments(); // Reload list to ensure fully in-sync
+    }, 400);
+
+  } catch (err) {
+    console.error("Exception during upload flow: ", err);
+    clearInterval(progressInterval);
+    showDashboardAlert('error', 'An unexpected error occurred. Please try again.');
+    resetUploadUI();
+  }
+}
+
+function resetUploadUI() {
+  const uploadZone = document.getElementById('upload-zone');
+  const progressContainer = document.getElementById('progress-container');
+  const progressBar = document.getElementById('progress-bar');
+  const fileInput = document.getElementById('file-input');
+
+  uploadZone.style.pointerEvents = '';
+  progressContainer.style.display = 'none';
+  progressBar.style.width = '0%';
+  fileInput.value = ''; // clear input selection
+}
+
+function getMimeTypeFromExtension(filename) {
+  const ext = filename.split('.').pop().toLowerCase();
+  if (ext === 'pdf') return 'application/pdf';
+  if (ext === 'docx') return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  if (ext === 'doc') return 'application/msword';
+  if (ext === 'pptx') return 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+  if (ext === 'ppt') return 'application/vnd.ms-powerpoint';
+  if (ext === 'txt') return 'text/plain';
+  return 'application/octet-stream';
+}
+
+// ==========================================
+// 5. Custom Modal Confirm Delete Setup
+// ==========================================
+function initDeleteModal() {
+  const modal = document.getElementById('delete-modal');
+  const cancelBtn = document.getElementById('btn-delete-cancel');
+  const confirmBtn = document.getElementById('btn-delete-confirm');
+
+  if (!modal || !cancelBtn || !confirmBtn) return;
+
+  // Cancel closes the modal
+  cancelBtn.addEventListener('click', () => {
+    closeDeleteModal();
+  });
+
+  // Confirm triggers delete transactions
+  confirmBtn.addEventListener('click', async () => {
+    if (!documentToDelete) return;
+
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = 'Deleting...';
+
+    try {
+      // 1. Delete object from storage bucket
+      const { error: storageError } = await supabaseClient.storage
+        .from('documents')
+        .remove([documentToDelete.storagePath]);
+
+      if (storageError) {
+        console.error("Storage delete failed: ", storageError);
+        showDashboardAlert('error', 'Could not delete the file from storage. Please try again.');
+        closeDeleteModal();
+        return;
+      }
+
+      // 2. Delete metadata row from DB
+      const { error: dbError } = await supabaseClient
+        .from('documents')
+        .delete()
+        .eq('id', documentToDelete.docId);
+
+      if (dbError) {
+        console.error("DB row delete failed: ", dbError);
+        showDashboardAlert('error', 'Could not delete document records. Please try again.');
+        closeDeleteModal();
+        return;
+      }
+
+      // Success
+      showDashboardAlert('success', 'Document deleted successfully.');
+      closeDeleteModal();
+      await loadDocuments(); // Reload list
+
+    } catch (err) {
+      console.error("Exception during document deletion: ", err);
+      showDashboardAlert('error', 'An error occurred during deletion. Please try again.');
+      closeDeleteModal();
+    }
+  });
+}
+
+function confirmDeleteDocument(docId, storagePath) {
+  documentToDelete = { docId, storagePath };
+  if (window.openModalWithFocus) {
+    window.openModalWithFocus('delete-modal');
+  } else {
+    const modal = document.getElementById('delete-modal');
+    if (modal) modal.classList.add('active');
+  }
+}
+
+function closeDeleteModal() {
+  const confirmBtn = document.getElementById('btn-delete-confirm');
+  
+  if (window.closeModalWithFocus) {
+    window.closeModalWithFocus('delete-modal');
+  } else {
+    const modal = document.getElementById('delete-modal');
+    if (modal) modal.classList.remove('active');
+  }
+  
+  if (confirmBtn) {
+    confirmBtn.disabled = false;
+    confirmBtn.textContent = 'Delete';
+  }
+  
+  documentToDelete = null;
+}
+
+// ==========================================
+// 6. Log Out Controller
+// ==========================================
+function initLogout() {
+  const logoutBtn = document.getElementById('btn-logout');
+  if (!logoutBtn) return;
+
+  logoutBtn.addEventListener('click', async (e) => {
+    e.preventDefault();
+    try {
+      const { error } = await supabaseClient.auth.signOut();
+      if (error) {
+        console.error("Signout error: ", error);
+        showDashboardAlert('error', 'Log out failed. Please try again.');
+        return;
+      }
+      
+      // Clean sessionStorage to trigger splash on next entry
+      sessionStorage.removeItem('acadexSplashSeen');
+      window.location.replace('index.html');
+    } catch (err) {
+      console.error("Exception during signout: ", err);
+      window.location.replace('index.html');
+    }
+  });
+}
+
+// ==========================================
+// 7. General Alert Notification Helper
+// ==========================================
+function showDashboardAlert(type, message) {
+  if (window.showToast) {
+    window.showToast(message, type);
+  } else {
+    const container = document.getElementById('dashboard-alert-container');
+    if (!container) return;
+    container.innerHTML = '';
+    const alertEl = document.createElement('div');
+    alertEl.className = `alert alert-${type}`;
+    alertEl.style.marginTop = '1rem';
+    alertEl.style.marginBottom = '1rem';
+    alertEl.setAttribute('role', type === 'error' ? 'alert' : 'status');
+    alertEl.innerHTML = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:8px; flex-shrink: 0;">
+        ${type === 'error' 
+          ? '<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>' 
+          : '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline>'}
+      </svg>
+      <span>${message}</span>
+    `;
+    container.appendChild(alertEl);
+  }
+}
+
+// ==========================================
+// 8. AI Summarization Invoker
+// ==========================================
+let activeSummarizingDocId = null;
+
+function openSummaryStyleModal() {
+  const standardRadio = document.querySelector('input[name="summary-style-choice"][value="standard"]');
+  if (standardRadio) standardRadio.checked = true;
+  const enRadio = document.querySelector('input[name="summary-language-choice"][value="en"]');
+  if (enRadio) enRadio.checked = true;
+
+  if (window.openModalWithFocus) {
+    window.openModalWithFocus('summary-style-modal');
+  } else {
+    const modal = document.getElementById('summary-style-modal');
+    if (modal) modal.classList.add('active');
+  }
+}
+window.openSummaryStyleModal = openSummaryStyleModal;
+
+function closeSummaryStyleModal() {
+  if (window.closeModalWithFocus) {
+    window.closeModalWithFocus('summary-style-modal');
+  } else {
+    const modal = document.getElementById('summary-style-modal');
+    if (modal) modal.classList.remove('active');
+  }
+  activeSummarizingDocId = null;
+}
+window.closeSummaryStyleModal = closeSummaryStyleModal;
+
+function summarizeDocument(docId) {
+  activeSummarizingDocId = docId;
+  openSummaryStyleModal();
+}
+window.summarizeDocument = summarizeDocument;
+
+function openResummarizeModal(docId) {
+  activeSummarizingDocId = docId;
+  openSummaryStyleModal();
+}
+window.openResummarizeModal = openResummarizeModal;
+
+async function proceedWithSummarization() {
+  const styleSelect = document.querySelector('input[name="summary-style-choice"]:checked');
+  const summaryStyle = styleSelect ? styleSelect.value : 'standard';
+  const langSelect = document.querySelector('input[name="summary-language-choice"]:checked');
+  const language = langSelect ? langSelect.value : 'en';
+
+  if (isMergeSummarize) {
+    closeSummaryStyleModal();
+    await triggerMergeSummarize(pendingMergeDocIds, summaryStyle, language);
+    isMergeSummarize = false;
+    pendingMergeDocIds = [];
+    return;
+  }
+
+  if (isBulkSummarize) {
+    closeSummaryStyleModal();
+    await proceedWithBulkSummarization(summaryStyle, language);
+    return;
+  }
+
+  if (!activeSummarizingDocId) return;
+  const docId = activeSummarizingDocId;
+
+  closeSummaryStyleModal();
+
+  const card = document.getElementById(`doc-card-${docId}`);
+  const btn = document.getElementById(`btn-sum-${docId}`);
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `
+      <svg class="spinner" viewBox="0 0 50 50" style="animation: rotate 2s linear infinite; width: 14px; height: 14px; margin-right: 8px;">
+        <circle class="path" cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="5" style="stroke-dasharray: 1, 150; stroke-dashoffset: 0; stroke-linecap: round; animation: dash 1.5s ease-in-out infinite;"></circle>
+      </svg>
+      Processing...
+    `;
+  }
+
+  try {
+    // Set document status to processing first in database so that page reload / polling reflects it
+    await supabaseClient
+      .from('documents')
+      .update({ status: 'processing' })
+      .eq('id', docId);
+
+    console.log("INVOKING Edge Function: summarize-document with payload:", { documentId: docId, summaryStyle: summaryStyle, language: language });
+
+    const { data, error } = await supabaseClient.functions.invoke('summarize-document', {
+      body: { documentId: docId, summaryStyle: summaryStyle, language: language }
+    });
+
+    if (error) {
+      console.error("AI invocation returned error details: ", error);
+      showDashboardAlert('error', 'Summarization failed. Please check your connection and try again.');
+      await loadDocuments(); // Reload to reset card state
+      return;
+    }
+
+    if (data && data.success) {
+      showDashboardAlert('success', 'Document processing started successfully.');
+      await loadDocuments();
+    }
+  } catch (err) {
+    console.error("Exception invoking summarize-document: ", err);
+    showDashboardAlert('error', 'Edge function invocation failed. Please try again.');
+    await loadDocuments();
+  }
+}
+window.proceedWithSummarization = proceedWithSummarization;
+
+// ==========================================
+// 9. Study Card Modal Renderer & Populator
+// ==========================================
+function initStudyCardModal() {
+  const modal = document.getElementById('study-card-modal');
+  const closeBtn = document.getElementById('btn-close-study-card');
+
+  if (!modal || !closeBtn) return;
+
+  closeBtn.addEventListener('click', () => {
+    closeStudyCardModal();
+  });
+
+  // Close modal when clicking on overlay background
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      closeStudyCardModal();
+    }
+  });
+}
+
+function getStyleLabel(style) {
+  switch (style) {
+    case 'bullet': return 'Bullet Points';
+    case 'outline': return 'Structured Outline';
+    case 'simplified': return 'Simplified';
+    case 'exam_focused': return 'Exam-Focused';
+    default: return 'Standard';
+  }
+}
+window.getStyleLabel = getStyleLabel;
+
+function formatSummaryText(summary) {
+  if (!summary) return "";
+  
+  // Split on raw or escaped newline
+  const lines = summary.split(/\n|\\n/);
+  
+  let html = "";
+  let insideList = false;
+
+  lines.forEach(line => {
+    let trimmed = line.trim();
+    if (!trimmed) {
+      if (insideList) {
+        html += "</ul>";
+        insideList = false;
+      }
+      html += "<br>";
+      return;
+    }
+
+    // Check if line is a bullet item
+    const bulletMatch = trimmed.match(/^([-\*•])\s*(.*)$/);
+    if (bulletMatch) {
+      if (!insideList) {
+        html += '<ul style="margin: 0.5rem 0; padding-left: 1.5rem; list-style-type: disc;">';
+        insideList = true;
+      }
+      html += `<li style="margin-bottom: 0.25rem; font-size: 0.85rem; color: var(--color-navy); line-height: 1.4;">${bulletMatch[2]}</li>`;
+    } else {
+      if (insideList) {
+        html += "</ul>";
+        insideList = false;
+      }
+
+      // Check if line is a heading (starts with a number like "1." or "A." or is capitalized/short < 50 chars)
+      const isNumberHeading = /^\d+\.\s+/.test(trimmed) || /^[A-Z]\.\s+/.test(trimmed);
+      const isShortTitleCase = trimmed.length < 50 && (/^[A-Z]/.test(trimmed) && trimmed === trimmed.toUpperCase());
+      const isSyllabusHeading = trimmed.startsWith("Anahtar ") || trimmed.startsWith("Önemli ") || trimmed.startsWith("Sınav ") || trimmed.startsWith("Key ") || trimmed.startsWith("Summary ");
+
+      if (isNumberHeading || isShortTitleCase || isSyllabusHeading) {
+        html += `<h4 style="font-size: 0.95rem; font-weight: 700; color: var(--color-teal); margin-top: 0.75rem; margin-bottom: 0.35rem; font-family: 'Outfit', sans-serif;">${trimmed}</h4>`;
+      } else {
+        html += `<p style="margin: 0.35rem 0; font-size: 0.85rem; color: var(--color-navy); line-height: 1.5;">${trimmed}</p>`;
+      }
+    }
+  });
+
+  if (insideList) {
+    html += "</ul>";
+  }
+
+  return html;
+}
+window.formatSummaryText = formatSummaryText;
+
+function populateStudyCardModalDetails(card, docName, readOnly) {
+  currentActiveStudyCard = { ...card, documentFileName: docName };
+  // Populate Modal Title
+  const titleEl = document.getElementById('study-card-title');
+  if (titleEl) titleEl.textContent = `Study Card: ${docName}`;
+
+  // Populate Style Badge
+  const badgeEl = document.getElementById('study-card-modal-style-badge');
+  if (badgeEl) {
+    const style = card.summary_style || 'standard';
+    badgeEl.textContent = getStyleLabel(style);
+    // Remove old classes and add new one
+    badgeEl.className = 'style-badge';
+    badgeEl.classList.add(`style-${style}`);
+  }
+
+  // Populate Language Badge
+  const langBadgeEl = document.getElementById('study-card-modal-lang-badge');
+  if (langBadgeEl) {
+    const langCode = card.summary_language || 'en';
+    langBadgeEl.textContent = langCode === 'tr' ? 'Türkçe' : 'English';
+  }
+
+  // Sharing switch container control
+  const shareContainer = document.getElementById('modal-share-container');
+  const shareToggle = document.getElementById('modal-share-toggle');
+  
+  if (readOnly) {
+    if (shareContainer) shareContainer.style.display = 'none';
+    activeModalCardId = null;
+  } else {
+    if (shareContainer) shareContainer.style.display = 'flex';
+    activeModalCardId = card.id;
+    if (shareToggle) {
+      shareToggle.checked = card.is_shared || false;
+      shareToggle.onchange = async (e) => {
+        await toggleShareStudyCard(card.id, e.target.checked);
+      };
+    }
+  }
+
+  // Populate Summary
+  const summaryText = document.getElementById('study-card-summary-text');
+  if (summaryText) summaryText.innerHTML = formatSummaryText(card.summary) || "No summary generated for this document.";
+
+  // Populate Key Points
+  const pointsContainer = document.getElementById('study-card-points-container');
+  if (pointsContainer) {
+    pointsContainer.innerHTML = '';
+    const keyPoints = card.key_points || [];
+    if (keyPoints.length === 0) {
+      pointsContainer.innerHTML = '<li class="study-card-point-item">No key points generated.</li>';
+    } else {
+      keyPoints.forEach(pt => {
+        const li = document.createElement('li');
+        li.className = 'study-card-point-item';
+        li.innerHTML = `
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          <span>${pt}</span>
+        `;
+        pointsContainer.appendChild(li);
+      });
+    }
+  }
+
+  // Populate Key Terms
+  const termsContainer = document.getElementById('study-card-terms-container');
+  if (termsContainer) {
+    termsContainer.innerHTML = '';
+    const keyTerms = card.key_terms || [];
+    if (keyTerms.length === 0) {
+      termsContainer.innerHTML = '<div style="color: var(--color-text-muted); font-size: 0.9rem;">No key terms generated.</div>';
+    } else {
+      keyTerms.forEach(t => {
+        const div = document.createElement('div');
+        div.className = 'key-term-card';
+        div.innerHTML = `
+          <div class="key-term-word">${t.term}</div>
+          <div class="key-term-def">${t.definition}</div>
+        `;
+        termsContainer.appendChild(div);
+      });
+    }
+  }
+
+  // Populate Self-Test Questions (Quiz)
+  const quizContainer = document.getElementById('study-card-quiz-container');
+  if (quizContainer) {
+    quizContainer.innerHTML = '';
+    const quizQuestions = card.quiz_questions || [];
+    if (quizQuestions.length === 0) {
+      quizContainer.innerHTML = '<div style="color: var(--color-text-muted); font-size: 0.9rem;">No quiz questions generated.</div>';
+    } else {
+      quizQuestions.forEach((q, idx) => {
+        const div = document.createElement('div');
+        div.className = 'quiz-item';
+        div.id = `quiz-item-${idx}`;
+        div.innerHTML = `
+          <div class="quiz-question-header" onclick="toggleQuizAnswer(${idx})">
+            <span>Q${idx + 1}: ${q.question}</span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </div>
+          <div class="quiz-answer-body" id="quiz-answer-${idx}">
+            <strong style="color: var(--color-teal);">Answer:</strong> ${q.answer}
+          </div>
+        `;
+        quizContainer.appendChild(div);
+      });
+    }
+  }
+}
+window.populateStudyCardModalDetails = populateStudyCardModalDetails;
+
+async function viewStudyCard(docId, docName, readOnly = false, selectedCardId = null) {
+  console.log("viewStudyCard fired for docId:", docId, "docName:", docName, "selectedCardId:", selectedCardId);
+  try {
+    let cards = [];
+    
+    // First query by document_id
+    const { data: docCards, error: docError } = await supabaseClient
+      .from('study_cards')
+      .select('*')
+      .eq('document_id', docId)
+      .order('created_at', { ascending: false });
+
+    if (!docError && docCards && docCards.length > 0) {
+      cards = docCards;
+    } else {
+      // Fallback: query by card ID directly (if cardId was passed as docId)
+      const { data: directCards, error: directError } = await supabaseClient
+        .from('study_cards')
+        .select('*')
+        .eq('id', docId);
+
+      if (!directError && directCards && directCards.length > 0) {
+        cards = directCards;
+      }
+    }
+
+    if (cards.length === 0) {
+      console.warn("No study cards found for docId / cardId:", docId);
+      showDashboardAlert('error', 'This study card has been deleted.');
+      return;
+    }
+
+    console.log("Fetched study cards successfully: ", cards);
+
+    // Determine initial selected index
+    let selectedIndex = 0;
+    if (selectedCardId) {
+      const idx = cards.findIndex(c => c.id === selectedCardId);
+      if (idx !== -1) {
+        selectedIndex = idx;
+      }
+    }
+
+    // Initial population with the selected card
+    populateStudyCardModalDetails(cards[selectedIndex], docName, readOnly);
+
+    // Handle multiple study cards dropdown
+    const selectContainer = document.getElementById('modal-style-selector-container');
+    if (selectContainer) {
+      if (cards.length > 1) {
+        selectContainer.style.display = 'block';
+        selectContainer.innerHTML = `
+          <div style="display: flex; align-items: center; gap: 0.5rem; background: var(--color-bg-alt); padding: 0.5rem; border-radius: var(--radius-sm); border: 1px solid rgba(22, 50, 92, 0.08); margin-bottom: 0.75rem;">
+            <label style="font-size: 0.8rem; font-weight: 700; color: var(--color-navy); margin-right: 0.5rem;">Select Summary Style:</label>
+            <select id="modal-card-selector" class="font-size-select" style="padding: 0.35rem 0.5rem; font-size: 0.8rem; border-radius: var(--radius-sm); border: 1px solid rgba(22, 50, 92, 0.15); background: white; cursor: pointer;">
+              ${cards.map((c, index) => {
+                const formattedTime = new Date(c.created_at || Date.now()).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                const styleName = getStyleLabel(c.summary_style);
+                const isSelected = index === selectedIndex ? 'selected' : '';
+                return `<option value="${index}" ${isSelected}>${styleName} (Generated on ${formattedTime})</option>`;
+              }).join('')}
+            </select>
+          </div>
+        `;
+        const selectorEl = document.getElementById('modal-card-selector');
+        selectorEl.onchange = (e) => {
+          populateStudyCardModalDetails(cards[parseInt(e.target.value, 10)], docName, readOnly);
+        };
+      } else {
+        selectContainer.style.display = 'none';
+      }
+    }
+
+    // Open Modal
+    openStudyCardModal();
+
+  } catch (err) {
+    console.error("Exception loading study card: ", err);
+    showDashboardAlert('error', 'An error occurred loading the study card.');
+  }
+}
+
+function toggleQuizAnswer(idx) {
+  const quizItem = document.getElementById(`quiz-item-${idx}`);
+  if (quizItem) {
+    quizItem.classList.toggle('active');
+  }
+}
+
+// ==========================================
+// 10. Study Card Modal Accessibility Controls
+// ==========================================
+function openStudyCardModal() {
+  if (window.openModalWithFocus) {
+    window.openModalWithFocus('study-card-modal');
+  } else {
+    const modal = document.getElementById('study-card-modal');
+    if (modal) modal.classList.add('active');
+  }
+}
+
+function closeStudyCardModal() {
+  if (window.closeModalWithFocus) {
+    window.closeModalWithFocus('study-card-modal');
+  } else {
+    const modal = document.getElementById('study-card-modal');
+    if (modal) modal.classList.remove('active');
+  }
+}
+
+// ==========================================================================
+// ACADEX PHASE 5 VIEWS CONTROLLER (switch views, load feed, load notebooks)
+// ==========================================================================
+
+async function toggleShareStudyCard(cardId, isChecked) {
+  try {
+    const { error } = await supabaseClient
+      .from('study_cards')
+      .update({
+        is_shared: isChecked,
+        shared_at: isChecked ? new Date().toISOString() : null,
+        department: currentUserProfile ? currentUserProfile.department : null
+      })
+      .eq('id', cardId);
+
+    if (error) {
+      console.error("Sharing update failed: ", error);
+      showDashboardAlert('error', 'Failed to update sharing settings. Please try again.');
+      
+      // Revert checkboxes on failure
+      const switches = [`share-switch-${cardId}`, `share-switch-lib-${cardId}`, 'modal-share-toggle'];
+      switches.forEach(id => {
+        const cb = document.getElementById(id);
+        if (cb) cb.checked = !isChecked;
+      });
+    } else {
+      showDashboardAlert('success', isChecked ? 'Shared with your department!' : 'Removed from shared feed.');
+      if (isChecked) {
+        awardAchievement('first_share');
+      }
+      
+      // Sync memory & DOM checkboxes
+      if (notebookCards) {
+        const c = notebookCards.find(card => card.id === cardId);
+        if (c) c.is_shared = isChecked;
+        const cb = document.getElementById(`share-switch-${cardId}`);
+        if (cb) cb.checked = isChecked;
+      }
+
+      if (libraryCards) {
+        const c = libraryCards.find(card => card.id === cardId);
+        if (c) c.is_shared = isChecked;
+        const cb = document.getElementById(`share-switch-lib-${cardId}`);
+        if (cb) cb.checked = isChecked;
+      }
+
+      // Sync modal toggle
+      const modalToggle = document.getElementById('modal-share-toggle');
+      if (modalToggle && activeModalCardId === cardId) {
+        modalToggle.checked = isChecked;
+      }
+    }
+  } catch (err) {
+    console.error("Sharing update exception: ", err);
+    showDashboardAlert('error', 'An error occurred updating the sharing state.');
+  }
+}
+window.toggleShareStudyCard = toggleShareStudyCard;
+let currentViewTransitionTimeout = null;
+
+function switchDashboardView(viewId) {
+  // Clear any active transition timeout
+  if (currentViewTransitionTimeout) {
+    clearTimeout(currentViewTransitionTimeout);
+    currentViewTransitionTimeout = null;
+  }
+
+  // Update sidebar active classes immediately for responsiveness
+  const tabs = ['home', 'planner', 'docs', 'feed', 'notebook', 'cards', 'exams', 'settings', 'sandbox', 'admin', 'report'];
+  tabs.forEach(tab => {
+    const el = document.getElementById(`side-${tab}`);
+    if (el) {
+      if (tab === viewId) el.classList.add('active');
+      else el.classList.remove('active');
+    }
+  });
+
+  const targetSection = document.getElementById(`${viewId}-view`);
+  if (!targetSection) {
+    currentActiveTab = viewId;
+    return;
+  }
+
+  const currentActiveSection = document.querySelector('.dashboard-view-section.active');
+
+  // If there's an existing active section that is different, do the transitions
+  if (currentActiveSection && currentActiveSection !== targetSection) {
+    currentActiveSection.classList.add('animating-out');
+    
+    currentViewTransitionTimeout = setTimeout(() => {
+      currentActiveSection.classList.remove('active', 'animating-out');
+      targetSection.classList.add('active', 'animating-in');
+      currentActiveTab = viewId;
+      
+      // Load view content at start of fade-in
+      loadViewContent(viewId);
+      
+      currentViewTransitionTimeout = setTimeout(() => {
+        targetSection.classList.remove('animating-in');
+        currentViewTransitionTimeout = null;
+      }, 150);
+    }, 150);
+  } else {
+    // Immediate activation for initial load or same tab
+    tabs.forEach(tab => {
+      const section = document.getElementById(`${tab}-view`);
+      if (section) {
+        if (tab === viewId) {
+          section.classList.add('active');
+          section.classList.remove('animating-in', 'animating-out');
+        } else {
+          section.classList.remove('active', 'animating-in', 'animating-out');
+        }
+      }
+    });
+    currentActiveTab = viewId;
+    loadViewContent(viewId);
+  }
+}
+
+function loadViewContent(viewId) {
+  if (viewId === 'home') {
+    loadDashboardHome();
+  } else if (viewId === 'planner') {
+    loadPlannerEvents();
+    updateRemindersStatusText();
+  } else if (viewId === 'docs') {
+    loadDocuments();
+  } else if (viewId === 'feed') {
+    departmentFeedLimit = 30;
+    loadDepartmentFeed();
+  } else if (viewId === 'notebook') {
+    loadStudyNotebook();
+  } else if (viewId === 'cards') {
+    loadCardsLibrary();
+  } else if (viewId === 'exams') {
+    loadExamsPlatform();
+  } else if (viewId === 'settings') {
+    loadSettingsView();
+  } else if (viewId === 'sandbox') {
+    sandboxProjectsLimit = 20;
+    loadDeveloperSandbox();
+  } else if (viewId === 'admin') {
+    loadAdminInbox();
+  } else if (viewId === 'report') {
+    loadAdminReport();
+  }
+}
+window.switchDashboardView = switchDashboardView;
+let notebookCards = [];
+let isDrawing = false;
+let currentPenColor = '#000000';
+let currentBrushSize = 4;
+let notebookMode = 'pen'; // 'pen', 'eraser', 'text'
+let canvasCtx = null;
+let canvasElement = null;
+let isNotebookInitialized = false;
+
+async function loadStudyNotebook() {
+  const sidebarList = document.getElementById('notebook-sidebar-list');
+  if (!sidebarList) return;
+
+  sidebarList.innerHTML = `
+    <div style="display: flex; align-items: center; justify-content: center; padding: 2rem;">
+      <svg class="spinner" viewBox="0 0 50 50" style="animation: rotate 2s linear infinite; width: 24px; height: 24px; color: var(--color-teal);">
+        <circle class="path" cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="5" style="stroke-dasharray: 1, 150; stroke-dashoffset: 0; stroke-linecap: round; animation: dash 1.5s ease-in-out infinite;"></circle>
+      </svg>
+    </div>
+  `;
+
+  try {
+    // 1. Fetch user's study cards for left sidebar
+    const { data: cards, error } = await supabaseClient
+      .from('study_cards')
+      .select('*, documents(file_name)')
+      .eq('user_id', currentUser.id)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error("Error fetching study cards: ", error);
+      sidebarList.innerHTML = `<p style="color: var(--color-text-muted); font-size: 0.8rem;">Failed to load cards.</p>`;
+      return;
+    }
+
+    notebookCards = cards || [];
+    filterNotebookCards();
+    
+    // 2. Initialize whiteboard canvas once
+    if (!isNotebookInitialized) {
+      initWhiteboard();
+      isNotebookInitialized = true;
+    } else {
+      // Re-trigger viewport resize context bindings
+      resizeCanvasToDisplaySize();
+    }
+    
+    // 3. Load saved whiteboard layout & elements
+    await loadNotebookData();
+
+    // 4. Load staging depot items (Phase 11)
+    await loadDepotItems();
+    initDepotModalListeners();
+
+  } catch (err) {
+    console.error("Exception loading notebook panel: ", err);
+    sidebarList.innerHTML = `<p style="color: var(--color-text-muted); font-size: 0.8rem;">Failed to load cards.</p>`;
+  }
+}
+
+function filterNotebookCards() {
+  const searchInput = document.getElementById('notebook-search');
+  const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
+
+  const filtered = notebookCards.filter(card => {
+    const fileName = (card.documents?.file_name || '').toLowerCase();
+    const summary = (card.summary || '').toLowerCase();
+    return fileName.includes(query) || summary.includes(query);
+  });
+
+  renderNotebookSidebarList(filtered);
+}
+
+function renderNotebookSidebarList(cards) {
+  const sidebarList = document.getElementById('notebook-sidebar-list');
+  if (!sidebarList) return;
+
+  if (cards.length === 0) {
+    sidebarList.innerHTML = `<p style="color: var(--color-text-muted); font-size: 0.8rem; text-align: center; padding: 1rem;">No cards found.</p>`;
+    return;
+  }
+
+  sidebarList.innerHTML = '';
+
+  // Group cards by document ID
+  const grouped = {};
+  cards.forEach(card => {
+    const docId = card.document_id || 'unknown';
+    if (!grouped[docId]) {
+      grouped[docId] = [];
+    }
+    grouped[docId].push(card);
+  });
+
+  Object.keys(grouped).forEach(docId => {
+    const groupCards = grouped[docId];
+    const firstCard = groupCards[0];
+    const docName = firstCard.documents?.file_name || 'Unnamed Document';
+
+    if (groupCards.length > 1) {
+      const headerDiv = document.createElement('div');
+      headerDiv.className = 'notebook-doc-group-header';
+      headerDiv.style.margin = '0.75rem 0 0.25rem 0';
+      headerDiv.style.padding = '0.25rem 0.5rem';
+      headerDiv.style.background = 'var(--color-bg-alt)';
+      headerDiv.style.borderRadius = 'var(--radius-sm)';
+      headerDiv.style.borderLeft = '3px solid var(--color-teal)';
+      headerDiv.innerHTML = `<h5 style="font-size: 0.75rem; color: var(--color-navy); font-weight: 800; margin:0; word-break: break-all;">${docName} <span style="font-size: 0.65rem; color: var(--color-text-muted); font-weight: 500;">(${groupCards.length} versiyon)</span></h5>`;
+      sidebarList.appendChild(headerDiv);
+    }
+
+    groupCards.forEach(card => {
+      const formattedDate = new Date(card.created_at).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      });
+      const fullSummary = card.summary || 'No summary generated.';
+      const escapedSummary = fullSummary.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
+      const cardDiv = document.createElement('div');
+      cardDiv.className = 'doc-card';
+      cardDiv.style.padding = '0.75rem';
+      cardDiv.style.fontSize = '0.8rem';
+      cardDiv.style.position = 'relative';
+      cardDiv.innerHTML = `
+        <div class="doc-header" style="gap: 0.5rem; margin-bottom: 0.25rem; position: relative;">
+          <div class="doc-file-icon text" style="background-color: var(--color-teal-light); color: var(--color-teal); width: 28px; height: 28px; flex-shrink:0;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+            </svg>
+          </div>
+          <div class="doc-info" style="width: calc(100% - 50px);">
+            <h4 class="doc-name" style="font-size: 0.8rem; line-height: 1.2; padding-right: 0.5rem;" title="${docName}">${docName}</h4>
+            <span style="font-size: 0.65rem; color: var(--color-text-muted);">${formattedDate}</span>
+            <div style="display: flex; gap: 0.25rem; margin-top: 0.15rem;">
+              <span class="style-badge style-${card.summary_style || 'standard'}" style="margin: 0; font-size: 0.55rem; padding: 0.05rem 0.25rem;">${getStyleLabel(card.summary_style)}</span>
+              <span class="style-badge" style="margin: 0; font-size: 0.55rem; padding: 0.05rem 0.25rem; background-color: var(--color-teal-light); color: var(--color-teal); border: 1px solid rgba(22, 50, 92, 0.08); font-weight: 700;">${card.summary_language === 'tr' ? 'TR' : 'EN'}</span>
+            </div>
+          </div>
+          <button onclick="deleteStudyCard(event, '${card.id}', '${card.document_id}')" style="background: none; border: none; cursor: pointer; color: #EF4444; position: absolute; right: 0; top: 0.15rem; padding: 0.15rem; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); transition: background-color 0.2s;" title="Delete this study card">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+          </button>
+        </div>
+        
+        <div class="sidebar-summary-box" style="margin-top: 0.5rem;">
+          <strong>Özet:</strong> ${fullSummary}
+        </div>
+        
+        <div class="share-toggle-container" style="margin: 0.25rem 0; padding: 0.25rem 0.5rem; font-size: 0.75rem;">
+          <span>Share</span>
+          <label class="switch" style="width: 32px; height: 16px;">
+            <input type="checkbox" id="share-switch-${card.id}" ${card.is_shared ? 'checked' : ''} onchange="toggleShareStudyCard('${card.id}', this.checked)" style="width:0;height:0;">
+            <span class="slider" style="border-radius: 16px;"></span>
+          </label>
+        </div>
+
+        <div style="display: flex; gap: 0.25rem; margin-top: 0.5rem;">
+          <button class="btn btn-outline btn-view-summary" data-doc-id="${card.document_id}" data-doc-name="${docName.replace(/'/g, "\\'")}" data-card-id="${card.id}" style="flex: 1; padding: 0.25rem; font-size: 0.7rem; min-height: 24px;">View</button>
+          <button class="btn btn-primary" onclick="addStickyNoteToNotebook('${card.id}', '${docName.replace(/'/g, "\\'")}', '${escapedSummary}')" style="flex: 1; padding: 0.25rem; font-size: 0.7rem; border: none; min-height: 24px;">Add to Board</button>
+        </div>
+      `;
+      sidebarList.appendChild(cardDiv);
+    });
+  });
+}
+
+function initWhiteboard() {
+  canvasElement = document.getElementById('notebook-canvas');
+  if (!canvasElement) return;
+
+  canvasCtx = canvasElement.getContext('2d');
+  
+  // Set dimensions
+  resizeCanvasToDisplaySize();
+
+  // Initialize whiteboard swatches (permanently styled for light canvas)
+  if (typeof updateWhiteboardSwatches === 'function') {
+    updateWhiteboardSwatches();
+  }
+
+  // Draw event bindings
+  canvasElement.addEventListener('mousedown', startDrawing);
+  canvasElement.addEventListener('mousemove', draw);
+  canvasElement.addEventListener('mouseup', stopDrawing);
+  canvasElement.addEventListener('mouseleave', stopDrawing);
+
+  // Toolbar toggles
+  const btnPen = document.getElementById('tool-pen');
+  const btnEraser = document.getElementById('tool-eraser');
+  const btnText = document.getElementById('tool-text');
+  const btnTable = document.getElementById('tool-table');
+  const btnClear = document.getElementById('btn-clear-canvas');
+  const btnDownload = document.getElementById('btn-download-notebook');
+  const btnSave = document.getElementById('btn-save-notebook');
+  const sizeSlider = document.getElementById('brush-size');
+  const sizeVal = document.getElementById('brush-size-val');
+  const swatches = document.querySelectorAll('.color-swatch');
+  const fontSizeSelect = document.getElementById('text-font-size');
+
+  btnPen.addEventListener('click', () => setNotebookMode('pen'));
+  btnEraser.addEventListener('click', () => setNotebookMode('eraser'));
+  btnText.addEventListener('click', () => setNotebookMode('text'));
+  btnTable.addEventListener('click', openTablePickerModal);
+
+  // Wire up Voice notes tool (Part D)
+  const btnMic = document.getElementById('tool-mic');
+  if (btnMic) {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      btnMic.disabled = true;
+      btnMic.style.opacity = '0.5';
+      btnMic.style.cursor = 'not-allowed';
+      btnMic.title = "Voice input isn't supported in this browser — try Chrome or Edge.";
+    } else {
+      btnMic.addEventListener('click', toggleVoiceTranscription);
+    }
+  }
+
+  btnClear.addEventListener('click', () => {
+    const isTr = localStorage.getItem('acadexUILang') === 'tr';
+    const title = isTr ? "Çizimleri Temizle" : "Erase Drawings";
+    const text = isTr 
+      ? "Bu sayfadaki tüm kalem çizimleri silinecektir. Devam etmek istiyor musunuz?" 
+      : "This will erase all pen drawings on this page. Continue?";
+    showConfirmModal(title, text, () => {
+      canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+      notebookHasUnsavedChanges = true;
+    });
+  });
+
+  if (btnDownload) btnDownload.addEventListener('click', downloadNotebook);
+  btnSave.addEventListener('click', saveNotebookData);
+
+  sizeSlider.addEventListener('input', (e) => {
+    currentBrushSize = e.target.value;
+    sizeVal.textContent = `${currentBrushSize}px`;
+  });
+
+  swatches.forEach(swatch => {
+    swatch.addEventListener('click', () => {
+      swatches.forEach(s => s.classList.remove('active'));
+      swatch.classList.add('active');
+      currentPenColor = swatch.getAttribute('data-color');
+      
+      // Update color of currently active editing text box
+      if (activeEditingTextBox) {
+        activeEditingTextBox.style.color = currentPenColor;
+        activeEditingTextBox.setAttribute('data-color', currentPenColor);
+      }
+    });
+  });
+
+  if (fontSizeSelect) {
+    fontSizeSelect.addEventListener('change', (e) => {
+      // Update font size of currently active editing text box
+      if (activeEditingTextBox) {
+        activeEditingTextBox.style.fontSize = e.target.value;
+        activeEditingTextBox.setAttribute('data-font-size', e.target.value);
+      }
+    });
+  }
+
+  // Table modal confirmations
+  const btnTableCancel = document.getElementById('btn-table-cancel');
+  const btnTableConfirm = document.getElementById('btn-table-confirm');
+  if (btnTableCancel) btnTableCancel.addEventListener('click', closeTablePickerModal);
+  if (btnTableConfirm) btnTableConfirm.addEventListener('click', confirmInsertTable);
+}
+
+function resizeCanvasToDisplaySize() {
+  if (!canvasElement) return;
+  const rect = canvasElement.getBoundingClientRect();
+  if (canvasElement.width !== rect.width || canvasElement.height !== rect.height) {
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = canvasElement.width;
+    tempCanvas.height = canvasElement.height;
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCtx.drawImage(canvasElement, 0, 0);
+
+    canvasElement.width = rect.width;
+    canvasElement.height = rect.height;
+
+    canvasCtx.drawImage(tempCanvas, 0, 0);
+  }
+}
+
+function setNotebookMode(mode) {
+  notebookMode = mode;
+  const tools = ['pen', 'eraser', 'text'];
+  tools.forEach(t => {
+    const btn = document.getElementById(`tool-${t}`);
+    if (btn) {
+      if (t === mode) btn.classList.add('active');
+      else btn.classList.remove('active');
+    }
+  });
+
+  if (mode === 'pen') {
+    canvasElement.style.cursor = 'crosshair';
+  } else if (mode === 'eraser') {
+    canvasElement.style.cursor = 'cell';
+  } else if (mode === 'text') {
+    canvasElement.style.cursor = 'text';
+  }
+}
+
+function startDrawing(e) {
+  if (notebookMode === 'text') {
+    e.preventDefault(); // Prevent default focus stealing by canvas mousedown
+    insertTextBox(e);
+    return;
+  }
+  if (notebookMode !== 'pen' && notebookMode !== 'eraser') return;
+
+  isDrawing = true;
+  canvasCtx.beginPath();
+  
+  const rect = canvasElement.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  
+  canvasCtx.moveTo(x, y);
+  
+  if (notebookMode === 'eraser') {
+    canvasCtx.globalCompositeOperation = 'destination-out';
+    canvasCtx.lineWidth = currentBrushSize * 2.5;
+  } else {
+    canvasCtx.globalCompositeOperation = 'source-over';
+    canvasCtx.strokeStyle = currentPenColor;
+    canvasCtx.lineWidth = currentBrushSize;
+  }
+  
+  canvasCtx.lineCap = 'round';
+  canvasCtx.lineJoin = 'round';
+  
+  // Draw dot immediately on click
+  canvasCtx.lineTo(x, y);
+  canvasCtx.stroke();
+}
+
+function draw(e) {
+  if (!isDrawing) return;
+
+  const rect = canvasElement.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  
+  canvasCtx.lineTo(x, y);
+  canvasCtx.stroke();
+  notebookHasUnsavedChanges = true;
+}
+
+function stopDrawing() {
+  if (!isDrawing) return;
+  isDrawing = false;
+  canvasCtx.closePath();
+}
+
+let activeEditingTextBox = null;
+
+function addStickyNoteToNotebook(cardId, fileName, excerpt) {
+  if (currentActiveTab !== 'notebook') {
+    switchDashboardView('notebook');
+  }
+
+  // Allow workspace layout viewport transitions to complete
+  setTimeout(() => {
+    const overlay = document.getElementById('notebook-overlay-container');
+    if (!overlay) return;
+
+    const id = 'note-' + Date.now();
+    const rotation = Math.floor(Math.random() * 7) - 3; // -3 to +3 deg
+    
+    // Default position: Center of visible canvas viewport with cascading offset
+    const rect = overlay.getBoundingClientRect();
+    const noteWidth = 220;
+    const noteHeight = 150;
+    const centerX = (rect.width > noteWidth) ? (rect.width - noteWidth) / 2 : 50;
+    const centerY = (rect.height > noteHeight) ? (rect.height - noteHeight) / 2 : 50;
+    
+    const offset = (overlay.children.length * 20) % 200;
+    const x = centerX + offset;
+    const y = centerY + offset;
+
+    const note = document.createElement('div');
+    note.className = 'draggable-element draggable-note';
+    note.id = id;
+    note.style.left = `${x}px`;
+    note.style.top = `${y}px`;
+    note.style.transform = `rotate(${rotation}deg)`;
+    note.setAttribute('data-type', 'sticky');
+    note.setAttribute('data-card-id', cardId);
+    note.setAttribute('data-rotation', rotation);
+
+    note.innerHTML = `
+      <button class="delete-overlay-btn" title="Remove Sticky Note" onclick="removeOverlayElement('${id}')">×</button>
+      <div class="draggable-note-title">${fileName}</div>
+      <div class="draggable-note-text">${excerpt}</div>
+      <div class="draggable-note-footer">Acadex Card</div>
+    `;
+
+    note.addEventListener('click', (e) => {
+      if (e.target.classList.contains('delete-overlay-btn') || e.target.closest('.delete-overlay-btn')) return;
+      const card = notebookCards.find(c => c.id === cardId) || libraryCards.find(c => c.id === cardId);
+      if (card) {
+        viewStudyCard(card.document_id, fileName, false, cardId);
+      } else {
+        showDashboardAlert('error', 'This study card has been deleted.');
+      }
+    });
+
+    overlay.appendChild(note);
+    makeElementDraggable(note);
+    notebookHasUnsavedChanges = true;
+  }, 100);
+}
+window.addStickyNoteToNotebook = addStickyNoteToNotebook;
+
+function insertTextBox(e) {
+  const overlay = document.getElementById('notebook-overlay-container');
+  if (!overlay) return;
+
+  const rect = canvasElement.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+
+  const id = 'text-' + Date.now();
+  const fontSize = document.getElementById('text-font-size').value;
+
+  const textBox = document.createElement('div');
+  textBox.className = 'draggable-element draggable-text-box editing';
+  textBox.id = id;
+  textBox.style.left = `${x}px`;
+  textBox.style.top = `${y}px`;
+  textBox.style.color = currentPenColor;
+  textBox.style.fontSize = fontSize;
+  textBox.setAttribute('data-type', 'text');
+  textBox.setAttribute('data-color', currentPenColor);
+  textBox.setAttribute('data-font-size', fontSize);
+
+  // Borderless input growing naturally: min-width: 150px, pre-wrap, break-word
+  textBox.innerHTML = `
+    <button class="delete-overlay-btn" title="Delete Text" onclick="removeOverlayElement('${id}')" style="top: -6px; right: -6px;">×</button>
+    <div contenteditable="true" style="outline:none; min-width: 150px; white-space: pre-wrap; overflow-wrap: break-word; font-family: inherit; font-size: inherit;" onblur="handleTextBlur('${id}')"></div>
+  `;
+
+  overlay.appendChild(textBox);
+  makeElementDraggable(textBox);
+
+  const editable = textBox.querySelector('[contenteditable="true"]');
+  activeEditingTextBox = textBox;
+  requestAnimationFrame(() => {
+    editable.focus();
+  });
+
+  // Bind double-click handler to re-enter editing mode
+  textBox.addEventListener('dblclick', (evt) => {
+    if (evt.target.classList.contains('delete-overlay-btn')) return;
+    const ed = textBox.querySelector('[contenteditable]');
+    if (ed) {
+      ed.contentEditable = "true";
+      textBox.classList.add('editing');
+      activeEditingTextBox = textBox;
+      ed.focus();
+    }
+  });
+}
+
+function handleTextBlur(id) {
+  const textBox = document.getElementById(id);
+  if (!textBox) return;
+  const editable = textBox.querySelector('[contenteditable]');
+  if (!editable) return;
+
+  const text = editable.textContent.trim();
+  if (!text) {
+    textBox.remove();
+  } else {
+    editable.contentEditable = "false";
+    textBox.classList.remove('editing');
+    notebookHasUnsavedChanges = true;
+  }
+  activeEditingTextBox = null;
+}
+window.handleTextBlur = handleTextBlur;
+
+function openTablePickerModal() {
+  if (window.openModalWithFocus) {
+    window.openModalWithFocus('table-picker-modal');
+  } else {
+    const modal = document.getElementById('table-picker-modal');
+    if (modal) modal.classList.add('active');
+  }
+}
+
+function closeTablePickerModal() {
+  if (window.closeModalWithFocus) {
+    window.closeModalWithFocus('table-picker-modal');
+  } else {
+    const modal = document.getElementById('table-picker-modal');
+    if (modal) modal.classList.remove('active');
+  }
+}
+
+function confirmInsertTable() {
+  const rowsInput = document.getElementById('table-rows-input');
+  const colsInput = document.getElementById('table-cols-input');
+  const overlay = document.getElementById('notebook-overlay-container');
+  
+  const rows = Math.min(10, Math.max(1, parseInt(rowsInput.value) || 3));
+  const cols = Math.min(10, Math.max(1, parseInt(colsInput.value) || 3));
+  
+  closeTablePickerModal();
+  
+  if (!overlay) return;
+  
+  const id = 'table-' + Date.now();
+  
+  const tableWrapper = document.createElement('div');
+  tableWrapper.className = 'draggable-element draggable-table-wrapper';
+  tableWrapper.id = id;
+  tableWrapper.style.left = '100px';
+  tableWrapper.style.top = '150px';
+  tableWrapper.setAttribute('data-type', 'table');
+  tableWrapper.setAttribute('data-rows', rows);
+  tableWrapper.setAttribute('data-cols', cols);
+
+  let tableHtml = `
+    <div class="drag-handle-bar"></div>
+    <button class="delete-overlay-btn" title="Delete Table" onclick="removeOverlayElement('${id}')" style="top: -6px; right: -6px;">×</button>
+    <table>
+      <tbody>
+  `;
+  
+  for (let r = 0; r < rows; r++) {
+    tableHtml += `<tr>`;
+    for (let c = 0; c < cols; c++) {
+      tableHtml += `<td contenteditable="true"></td>`;
+    }
+    tableHtml += `</tr>`;
+  }
+  
+  tableHtml += `
+      </tbody>
+    </table>
+  `;
+  
+  tableWrapper.innerHTML = tableHtml;
+  overlay.appendChild(tableWrapper);
+  makeElementDraggable(tableWrapper, tableWrapper.querySelector('.drag-handle-bar'));
+  notebookHasUnsavedChanges = true;
+
+  // Track table cell typing changes
+  tableWrapper.addEventListener('input', () => {
+    notebookHasUnsavedChanges = true;
+  });
+}
+
+function removeOverlayElement(id) {
+  const el = document.getElementById(id);
+  if (el) {
+    el.remove();
+    notebookHasUnsavedChanges = true;
+  }
+}
+window.removeOverlayElement = removeOverlayElement;
+
+function makeElementDraggable(el, handle = el) {
+  let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+  let startX = 0, startY = 0;
+  
+  handle.onmousedown = dragMouseDown;
+
+  // Intercept click events in the capture phase to cancel them if a drag occurred
+  el.addEventListener('click', (e) => {
+    if (el.getAttribute('data-dragged') === 'true') {
+      e.preventDefault();
+      e.stopPropagation();
+      el.setAttribute('data-dragged', 'false'); // reset for future clicks
+      return false;
+    }
+  }, true);
+
+  function dragMouseDown(e) {
+    isDrawing = false;
+    if (e.target.classList.contains('delete-overlay-btn')) return;
+    if (e.target.tagName === 'TD' || e.target.closest('td') || e.target.closest('[contenteditable="true"]')) return;
+    
+    e = e || window.event;
+    e.preventDefault();
+    
+    startX = e.clientX;
+    startY = e.clientY;
+    el.setAttribute('data-dragged', 'false');
+    
+    pos3 = e.clientX;
+    pos4 = e.clientY;
+    
+    document.onmouseup = closeDragElement;
+    document.onmousemove = elementDrag;
+  }
+
+  function elementDrag(e) {
+    e = e || window.event;
+    e.preventDefault();
+    
+    const dist = Math.sqrt(Math.pow(e.clientX - startX, 2) + Math.pow(e.clientY - startY, 2));
+    if (dist > 5) {
+      el.setAttribute('data-dragged', 'true');
+    }
+    
+    pos1 = pos3 - e.clientX;
+    pos2 = pos4 - e.clientY;
+    pos3 = e.clientX;
+    pos4 = e.clientY;
+    
+    const overlay = document.getElementById('notebook-overlay-container');
+    const containerRect = overlay.getBoundingClientRect();
+    
+    let newTop = el.offsetTop - pos2;
+    let newLeft = el.offsetLeft - pos1;
+    
+    newTop = Math.max(0, Math.min(newTop, containerRect.height - el.offsetHeight));
+    newLeft = Math.max(0, Math.min(newLeft, containerRect.width - el.offsetWidth));
+    
+    el.style.top = `${newTop}px`;
+    el.style.left = `${newLeft}px`;
+  }
+
+  function closeDragElement() {
+    document.onmouseup = null;
+    document.onmousemove = null;
+    if (el.getAttribute('data-dragged') === 'true') {
+      notebookHasUnsavedChanges = true;
+    }
+  }
+}
+
+async function saveNotebookData() {
+  const btnSave = document.getElementById('btn-save-notebook');
+  if (!btnSave) return;
+
+  const originalText = btnSave.textContent;
+  btnSave.disabled = true;
+  btnSave.textContent = 'Saving...';
+
+  try {
+    const canvasData = canvasElement.toDataURL('image/png');
+    const overlay = document.getElementById('notebook-overlay-container');
+    const elementsArray = [];
+    
+    if (overlay) {
+      Array.from(overlay.children).forEach(el => {
+        const type = el.getAttribute('data-type');
+        const id = el.id;
+        const left = parseFloat(el.style.left) || 0;
+        const top = parseFloat(el.style.top) || 0;
+        const width = el.offsetWidth;
+        const height = el.offsetHeight;
+        
+        if (type === 'sticky') {
+          const cardId = el.getAttribute('data-card-id');
+          const fileName = el.querySelector('.draggable-note-title').textContent;
+          const excerpt = el.querySelector('.draggable-note-text').textContent;
+          const rotation = el.getAttribute('data-rotation');
+          elementsArray.push({
+            type, id, left, top, width, height, rotation,
+            content: { cardId, fileName, excerpt }
+          });
+        } 
+        else if (type === 'text') {
+          const color = el.getAttribute('data-color');
+          const fontSize = el.getAttribute('data-font-size');
+          const textContent = el.querySelector('[contenteditable]').innerHTML;
+          elementsArray.push({
+            type, id, left, top, width, height, color, fontSize,
+            content: textContent
+          });
+        }
+        else if (type === 'table') {
+          const rows = el.getAttribute('data-rows');
+          const cols = el.getAttribute('data-cols');
+          const cells = [];
+          el.querySelectorAll('td').forEach(td => {
+            cells.push(td.innerHTML);
+          });
+          
+          elementsArray.push({
+            type, id, left, top, width, height,
+            content: { rows, cols, cells }
+          });
+        }
+      });
+    }
+
+    // Check if notebook exists before saving
+    const { data: existingNotebook } = await supabaseClient
+      .from('notebooks')
+      .select('id')
+      .eq('user_id', currentUser.id)
+      .maybeSingle();
+
+    const isFirstSave = !existingNotebook;
+
+    const { error } = await supabaseClient
+      .from('notebooks')
+      .upsert({
+        user_id: currentUser.id,
+        canvas_data: canvasData,
+        elements: elementsArray,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id' });
+
+    if (error) {
+      console.error("Notebook upsert failed: ", error);
+      showDashboardAlert('error', 'Failed to save notebook. Please try again.');
+    } else {
+      showDashboardAlert('success', 'Notebook saved!');
+      notebookHasUnsavedChanges = false;
+      if (isFirstSave) {
+        await awardAchievement('first_notebook_save');
+      }
+    }
+  } catch (err) {
+    console.error("Exception saving notebook: ", err);
+    showDashboardAlert('error', 'Notebook save failed.');
+  } finally {
+    btnSave.disabled = false;
+    btnSave.textContent = originalText;
+  }
+}
+
+async function loadNotebookData() {
+  const overlay = document.getElementById('notebook-overlay-container');
+  if (!overlay || !canvasCtx || !canvasElement) return;
+
+  canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+  overlay.innerHTML = '';
+
+  try {
+    const { data: notebook, error } = await supabaseClient
+      .from('notebooks')
+      .select('*')
+      .eq('user_id', currentUser.id)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Failed to load notebook record: ", error);
+      return;
+    }
+
+    if (!notebook) return;
+
+    if (notebook.canvas_data) {
+      const img = new Image();
+      img.src = notebook.canvas_data;
+      img.onload = () => {
+        canvasCtx.drawImage(img, 0, 0);
+      };
+    }
+
+    const elements = notebook.elements || [];
+    elements.forEach(item => {
+      if (item.type === 'sticky') {
+        const note = document.createElement('div');
+        note.className = 'draggable-element draggable-note';
+        note.id = item.id;
+        note.style.left = `${item.left}px`;
+        note.style.top = `${item.top}px`;
+        note.style.transform = `rotate(${item.rotation || 0}deg)`;
+        note.setAttribute('data-type', 'sticky');
+        note.setAttribute('data-card-id', item.content.cardId);
+        note.setAttribute('data-rotation', item.rotation || 0);
+
+        note.innerHTML = `
+          <button class="delete-overlay-btn" title="Remove Sticky Note" onclick="removeOverlayElement('${item.id}')">×</button>
+          <div class="draggable-note-title">${item.content.fileName}</div>
+          <div class="draggable-note-text">${item.content.excerpt}</div>
+          <div class="draggable-note-footer">Acadex Card</div>
+        `;
+
+        note.addEventListener('click', (e) => {
+          if (e.target.classList.contains('delete-overlay-btn') || e.target.closest('.delete-overlay-btn')) return;
+          viewStudyCard(item.content.cardId, item.content.fileName, false, item.content.cardId);
+        });
+
+        overlay.appendChild(note);
+        makeElementDraggable(note);
+      }
+      else if (item.type === 'text') {
+        const textBox = document.createElement('div');
+        textBox.className = 'draggable-element draggable-text-box';
+        textBox.id = item.id;
+        textBox.style.left = `${item.left}px`;
+        textBox.style.top = `${item.top}px`;
+        textBox.style.color = item.color;
+        textBox.style.fontSize = item.fontSize;
+        textBox.setAttribute('data-type', 'text');
+        textBox.setAttribute('data-color', item.color);
+        textBox.setAttribute('data-font-size', item.fontSize);
+
+        textBox.innerHTML = `
+          <button class="delete-overlay-btn" title="Delete Text" onclick="removeOverlayElement('${item.id}')" style="top: -6px; right: -6px;">×</button>
+          <div contenteditable="false" style="outline:none; min-width: 150px; white-space: pre-wrap; overflow-wrap: break-word; font-family: inherit; font-size: inherit;" onblur="handleTextBlur('${item.id}')">${item.content}</div>
+        `;
+
+        overlay.appendChild(textBox);
+        makeElementDraggable(textBox);
+
+        textBox.addEventListener('dblclick', (evt) => {
+          if (evt.target.classList.contains('delete-overlay-btn')) return;
+          const ed = textBox.querySelector('[contenteditable]');
+          if (ed) {
+            ed.contentEditable = "true";
+            textBox.classList.add('editing');
+            activeEditingTextBox = textBox;
+            ed.focus();
+          }
+        });
+      }
+      else if (item.type === 'table') {
+        const tableWrapper = document.createElement('div');
+        tableWrapper.className = 'draggable-element draggable-table-wrapper';
+        tableWrapper.id = item.id;
+        tableWrapper.style.left = `${item.left}px`;
+        tableWrapper.style.top = `${item.top}px`;
+        tableWrapper.setAttribute('data-type', 'table');
+        tableWrapper.setAttribute('data-rows', item.content.rows);
+        tableWrapper.setAttribute('data-cols', item.content.cols);
+
+        let tableHtml = `
+          <div class="drag-handle-bar"></div>
+          <button class="delete-overlay-btn" title="Delete Table" onclick="removeOverlayElement('${item.id}')" style="top: -6px; right: -6px;">×</button>
+          <table>
+            <tbody>
+        `;
+        
+        let cellIdx = 0;
+        const rows = parseInt(item.content.rows);
+        const cols = parseInt(item.content.cols);
+        
+        for (let r = 0; r < rows; r++) {
+          tableHtml += `<tr>`;
+          for (let c = 0; c < cols; c++) {
+            const cellVal = item.content.cells[cellIdx] || '';
+            tableHtml += `<td contenteditable="true">${cellVal}</td>`;
+            cellIdx++;
+          }
+          tableHtml += `</tr>`;
+        }
+        
+        tableHtml += `
+            </tbody>
+          </table>
+        `;
+        
+        tableWrapper.innerHTML = tableHtml;
+        overlay.appendChild(tableWrapper);
+        makeElementDraggable(tableWrapper, tableWrapper.querySelector('.drag-handle-bar'));
+      }
+    });
+
+  } catch (err) {
+    console.error("Exception loading saved notebook data: ", err);
+  }
+}
+
+async function loadDepartmentFeed() {
+  const feedSection = document.getElementById('feed-list-section');
+  if (!feedSection) return;
+
+  const deptName = currentUserProfile?.department || 'your Department';
+  const translatedDept = translateDepartment(deptName);
+  const currentLang = localStorage.getItem('acadexUILang') || 'en';
+  const feedTitle = document.getElementById('feed-title');
+  if (feedTitle) {
+    if (currentLang === 'tr') {
+      feedTitle.textContent = `${translatedDept} Akışı`;
+    } else {
+      feedTitle.textContent = `${translatedDept} Feed`;
+    }
+  }
+
+  feedSection.innerHTML = `
+    <div style="display: flex; align-items: center; justify-content: center; padding: 2rem;">
+      <svg class="spinner" viewBox="0 0 50 50" style="animation: rotate 2s linear infinite; width: 32px; height: 32px; color: var(--color-teal);">
+        <circle class="path" cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="5" style="stroke-dasharray: 1, 150; stroke-dashoffset: 0; stroke-linecap: round; animation: dash 1.5s ease-in-out infinite;"></circle>
+      </svg>
+    </div>
+  `;
+
+  try {
+    const { data: cards, error } = await supabaseClient
+      .from('study_cards')
+      .select('*, documents(file_name)')
+      .eq('is_shared', true)
+      .eq('department', currentUserProfile?.department)
+      .order('shared_at', { ascending: false })
+      .limit(departmentFeedLimit);
+
+    if (error) {
+      console.error("Error fetching department feed: ", error);
+      feedSection.innerHTML = `<p style="color: var(--color-text-muted);">Failed to load department feed.</p>`;
+      return;
+    }
+
+    if (!cards || cards.length === 0) {
+      renderDepartmentFeed([], {});
+      return;
+    }
+
+    // Fetch sharers' profiles client-side
+    const userIds = [...new Set(cards.map(c => c.user_id))];
+    const { data: profiles, error: profError } = await supabaseClient
+      .from('profiles')
+      .select('id, full_name')
+      .in('id', userIds);
+
+    const profileMap = {};
+    profiles?.forEach(p => {
+      profileMap[p.id] = p.full_name || 'A classmate';
+    });
+
+    // Populate + wire feed course filter (Phase 17)
+    const feedFilterBar = document.getElementById('feed-filter-bar');
+    const feedFilterCourse = document.getElementById('feed-filter-course');
+    if (feedFilterCourse) {
+      const tags = [...new Set(cards.map(c => c.course_tag).filter(Boolean))].sort();
+      const prevVal = feedFilterCourse.value;
+      feedFilterCourse.innerHTML = '<option value="all">All Courses</option>';
+      tags.forEach(tag => {
+        const opt = document.createElement('option');
+        opt.value = tag;
+        opt.textContent = tag;
+        feedFilterCourse.appendChild(opt);
+      });
+      if (tags.includes(prevVal)) feedFilterCourse.value = prevVal;
+
+      // Show bar only if there are tagged cards
+      if (feedFilterBar) {
+        feedFilterBar.style.display = tags.length > 0 ? 'flex' : 'none';
+      }
+
+      // Wire change event (set once using a flag to avoid duplicates)
+      if (!feedFilterCourse.dataset.wired) {
+        feedFilterCourse.dataset.wired = 'true';
+        feedFilterCourse.addEventListener('change', () => {
+          const selectedCourse = feedFilterCourse.value;
+          const filtered = cards.filter(c => selectedCourse === 'all' || c.course_tag === selectedCourse);
+          renderDepartmentFeed(filtered, profileMap);
+        });
+      }
+    }
+
+    // Apply current course filter selection
+    const selectedCourse = feedFilterCourse?.value || 'all';
+    const filteredCards = selectedCourse === 'all' ? cards : cards.filter(c => c.course_tag === selectedCourse);
+
+    renderDepartmentFeed(filteredCards, profileMap);
+
+  } catch (err) {
+    console.error("Exception loading department feed: ", err);
+    feedSection.innerHTML = `<p style="color: var(--color-text-muted);">Failed to load department feed.</p>`;
+  }
+}
+
+function renderDepartmentFeed(cards, profileMap) {
+  const feedSection = document.getElementById('feed-list-section');
+  if (!feedSection) return;
+
+  const deptName = currentUserProfile?.department || 'your Department';
+
+  if (cards.length === 0) {
+    feedSection.innerHTML = `
+      <div class="empty-state" style="margin-top: 1rem;">
+        <svg class="empty-state-icon" xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+          <circle cx="9" cy="7" r="4"></circle>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+          <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+        </svg>
+        <h3 class="empty-state-title">No shared study cards</h3>
+        <p class="empty-state-text">No shared study cards in ${deptName} yet. Be the first to share one from your <a href="#" onclick="switchDashboardView('notebook')" style="color: var(--color-teal); text-decoration: underline;">Study Notebook</a>!</p>
+      </div>
+    `;
+    return;
+  }
+
+  // Create grid
+  feedSection.innerHTML = `<div class="docs-grid" id="feed-grid"></div>`;
+  const grid = document.getElementById('feed-grid');
+
+  cards.forEach(card => {
+    const formattedDate = new Date(card.shared_at || card.created_at).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+
+    const sharerName = profileMap[card.user_id] || 'A classmate';
+    const docName = card.documents?.file_name || 'Shared Document';
+    const excerpt = card.summary && card.summary.length > 120
+      ? card.summary.substring(0, 120) + '...'
+      : card.summary || 'No summary text generated.';
+
+    const badgeClass = getDepartmentColorClass(card.department);
+    const shortName = getDepartmentShortName(card.department);
+
+    const cardEl = document.createElement('div');
+    cardEl.className = 'doc-card';
+    cardEl.innerHTML = `
+      <div class="doc-header">
+        <div class="doc-file-icon text" style="background-color: var(--color-teal-light); color: var(--color-teal);">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+          </svg>
+        </div>
+        <div class="doc-info" style="width: calc(100% - 40px);">
+          <h4 class="doc-name" title="${docName}">${docName}</h4>
+          <div class="feed-card-sharer">
+            <span>By: ${sharerName}</span>
+            <span class="dept-badge ${badgeClass}" style="margin-left: 4px; font-size: 0.65rem;">${shortName}</span>
+          </div>
+          <div class="doc-meta" style="margin-top: 2px;">
+            <span>Shared: ${formattedDate}</span>
+          </div>
+        </div>
+      </div>
+
+      <p class="feed-card-excerpt" style="margin: 0.75rem 0;">${excerpt}</p>
+
+      <button class="btn btn-primary btn-view-summary" data-doc-id="${card.document_id}" data-doc-name="${docName.replace(/'/g, "\\'")}" data-read-only="true" style="width: 100%; border: none; font-size: 0.85rem; padding: 0.5rem 1rem;">View Summary</button>
+    `;
+    grid.appendChild(cardEl);
+  });
+
+  if (cards.length === departmentFeedLimit) {
+    const loadMoreContainer = document.createElement('div');
+    loadMoreContainer.style.cssText = 'text-align: center; margin-top: 2rem; margin-bottom: 2rem; grid-column: 1 / -1; width: 100%;';
+    
+    const loadMoreBtn = document.createElement('button');
+    loadMoreBtn.className = 'btn btn-outline';
+    loadMoreBtn.id = 'btn-load-more-feed';
+    loadMoreBtn.textContent = 'Load More / Daha Fazla Yükle';
+    loadMoreBtn.style.padding = '0.6rem 1.5rem';
+    loadMoreBtn.style.fontSize = '0.85rem';
+    
+    loadMoreBtn.addEventListener('click', async () => {
+      loadMoreBtn.disabled = true;
+      loadMoreBtn.textContent = 'Loading...';
+      departmentFeedLimit += 30;
+      await loadDepartmentFeed();
+    });
+    
+    loadMoreContainer.appendChild(loadMoreBtn);
+    grid.appendChild(loadMoreContainer);
+  }
+}
+
+function getDepartmentColorClass(dept) {
+  if (!dept) return '';
+  const d = dept.toLowerCase();
+  if (d.includes('information') || d.includes('mis')) return 'dept-mis';
+  if (d.includes('administration') || d.includes('business')) return 'dept-ba';
+  if (d.includes('international') || d.includes('trade')) return 'dept-itb';
+  if (d.includes('banking') || d.includes('finance')) return 'dept-bf';
+  return '';
+}
+
+function getDepartmentShortName(dept) {
+  if (!dept) return '';
+  const d = dept.toLowerCase();
+  if (d.includes('information') || d.includes('mis')) return 'MIS';
+  if (d.includes('administration') || d.includes('business')) return 'BA';
+  if (d.includes('international') || d.includes('trade')) return 'ITB';
+  if (d.includes('banking') || d.includes('finance')) return 'B&F';
+  return 'DEPT';
+}
+
+// ==========================================
+// TAB 4: BILGI KARTLARI (INFO CARDS LIBRARY)
+// ==========================================
+let libraryCards = [];
+
+async function loadCardsLibrary() {
+  const listSection = document.getElementById('cards-list-section');
+  if (!listSection) return;
+
+  listSection.innerHTML = `
+    <div style="display: flex; align-items: center; justify-content: center; padding: 2rem;">
+      <svg class="spinner" viewBox="0 0 50 50" style="animation: rotate 2s linear infinite; width: 32px; height: 32px; color: var(--color-teal);">
+        <circle class="path" cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="5" style="stroke-dasharray: 1, 150; stroke-dashoffset: 0; stroke-linecap: round; animation: dash 1.5s ease-in-out infinite;"></circle>
+      </svg>
+    </div>
+  `;
+
+  try {
+    const { data: cards, error } = await supabaseClient
+      .from('study_cards')
+      .select('*, documents(file_name)')
+      .eq('user_id', currentUser.id)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error("Error loading library cards: ", error);
+      listSection.innerHTML = `<p style="color: var(--color-text-muted);">Failed to load info cards.</p>`;
+      return;
+    }
+
+    libraryCards = cards || [];
+
+    // Populate Course filter dropdown (Phase 17)
+    const courseSelect = document.getElementById('cards-filter-course');
+    if (courseSelect) {
+      const tags = [...new Set((libraryCards).map(c => c.course_tag).filter(Boolean))].sort();
+      const currentVal = courseSelect.value;
+      courseSelect.innerHTML = '<option value="all">All Courses</option>';
+      tags.forEach(tag => {
+        const opt = document.createElement('option');
+        opt.value = tag;
+        opt.textContent = tag;
+        courseSelect.appendChild(opt);
+      });
+      if (tags.includes(currentVal)) courseSelect.value = currentVal;
+    }
+
+    filterLibraryCards();
+
+  } catch (err) {
+    console.error("Exception loading library cards: ", err);
+    listSection.innerHTML = `<p style="color: var(--color-text-muted);">Failed to load info cards.</p>`;
+  }
+}
+
+function filterLibraryCards() {
+  const searchInput = document.getElementById('cards-search');
+  const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
+
+  const styleFilter = document.getElementById('cards-filter-style')?.value || 'all';
+  const langFilter = document.getElementById('cards-filter-lang')?.value || 'all';
+  const courseFilter = document.getElementById('cards-filter-course')?.value || 'all';
+
+  const filtered = libraryCards.filter(card => {
+    // 1. Text Query Filter
+    const fileName = (card.documents?.file_name || card.source_documents?.map(s => s.file_name).join(' ') || '').toLowerCase();
+    const summary = (card.summary || '').toLowerCase();
+    const textMatch = !query || fileName.includes(query) || summary.includes(query);
+
+    // 2. Style Filter
+    let styleMatch = styleFilter === 'all' || card.summary_style === styleFilter;
+
+    // 3. Language Filter
+    let langMatch = langFilter === 'all' || card.summary_language === langFilter;
+
+    // 4. Course Filter (Phase 17)
+    let courseMatch = true;
+    if (courseFilter !== 'all') {
+      if (courseFilter === 'untagged') {
+        courseMatch = !card.course_tag;
+      } else {
+        courseMatch = card.course_tag === courseFilter;
+      }
+    }
+
+    return textMatch && styleMatch && langMatch && courseMatch;
+  });
+
+  // Toggle "Clear Filters" button visibility
+  const btnClear = document.getElementById('btn-clear-filters');
+  if (btnClear) {
+    if (styleFilter !== 'all' || langFilter !== 'all' || courseFilter !== 'all' || query !== '') {
+      btnClear.style.display = 'inline-block';
+    } else {
+      btnClear.style.display = 'none';
+    }
+  }
+
+  renderCardsLibraryList(filtered);
+}
+
+function renderCardsLibraryList(cards) {
+  const listSection = document.getElementById('cards-list-section');
+  if (!listSection) return;
+
+  const currentLang = localStorage.getItem('acadexUILang') || 'en';
+
+  if (cards.length === 0) {
+    const isFiltered = libraryCards.length > 0;
+    let title = '';
+    let desc = '';
+
+    if (isFiltered) {
+      title = currentLang === 'tr' ? 'Filtrelerinize uygun bilgi kartı bulunamadı' : 'No study cards match your filters';
+      desc = currentLang === 'tr' 
+        ? 'Seçtiğiniz filtreler veya arama terimi ile eşleşen kart bulunamadı. Lütfen filtrelerinizi temizleyin veya değiştirin.' 
+        : 'No cards matched your active filters or search terms. Try clearing or modifying your filters.';
+    } else {
+      title = currentLang === 'tr' ? 'Henüz bilgi kartınız yok' : 'You have no study cards yet';
+      desc = currentLang === 'tr'
+        ? 'Henüz bilgi kartı oluşturmamışsınız. <a href="#" onclick="switchDashboardView(\'docs\')" style="color: var(--color-teal); text-decoration: underline;">Belgelerim</a> sekmesinden dosya yükleyip özetleyerek başlayabilirsiniz.'
+        : 'You haven\'t created any study cards yet. Go to <a href="#" onclick="switchDashboardView(\'docs\')" style="color: var(--color-teal); text-decoration: underline;">My Documents</a> to upload and summarize files.';
+    }
+
+    listSection.innerHTML = `
+      <div class="empty-state" style="margin-top: 1.5rem;">
+        <svg class="empty-state-icon" xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+        </svg>
+        <h3 class="empty-state-title">${title}</h3>
+        <p class="empty-state-text">${desc}</p>
+      </div>
+    `;
+    return;
+  }
+
+  listSection.innerHTML = `<div class="docs-grid" id="library-cards-grid"></div>`;
+  const grid = document.getElementById('library-cards-grid');
+
+  // Group cards by document ID to support variants grouping headings
+  const grouped = {};
+  cards.forEach(card => {
+    const docId = card.document_id || 'unknown';
+    if (!grouped[docId]) {
+      grouped[docId] = [];
+    }
+    grouped[docId].push(card);
+  });
+
+  Object.keys(grouped).forEach(docId => {
+    const groupCards = grouped[docId];
+    const firstCard = groupCards[0];
+    const docName = firstCard.documents?.file_name || 'İsimsiz Belge';
+
+    // If there's more than one version, render a full-width header
+    if (groupCards.length > 1) {
+      const headerDiv = document.createElement('div');
+      headerDiv.className = 'doc-group-header';
+      headerDiv.style.gridColumn = '1 / -1';
+      headerDiv.style.marginTop = '1.5rem';
+      headerDiv.style.borderBottom = '2px solid var(--color-teal)';
+      headerDiv.style.paddingBottom = '0.5rem';
+      headerDiv.style.marginBottom = '0.5rem';
+      headerDiv.innerHTML = `<h3 style="font-size: 1.1rem; color: var(--color-navy); font-weight: 800; margin:0;">${docName} <span style="font-size: 0.8rem; color: var(--color-text-muted); font-weight: 500;">(${groupCards.length} versions / versiyon)</span></h3>`;
+      grid.appendChild(headerDiv);
+    }
+
+    groupCards.forEach(card => {
+      const formattedDate = new Date(card.created_at).toLocaleDateString('tr-TR', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      });
+      const cardDocName = card.documents?.file_name || 'İsimsiz Belge';
+      const escapedSummary = (card.summary || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
+      const cardEl = document.createElement('div');
+      cardEl.className = 'doc-card';
+      cardEl.style.display = 'flex';
+      cardEl.style.flexDirection = 'column';
+      cardEl.style.justifyContent = 'space-between';
+      cardEl.style.gap = '0.5rem';
+
+      // Generate terms list
+      let termsHtml = '';
+      const terms = card.key_terms || [];
+      if (terms.length === 0) {
+        termsHtml = '<p style="font-size: 0.75rem; color: var(--color-text-muted); margin:0;">Anahtar terim bulunmamaktadır.</p>';
+      } else {
+        termsHtml = '<ul style="padding-left: 1.25rem; font-size: 0.75rem; display: flex; flex-direction: column; gap: 0.35rem; margin:0;">';
+        terms.forEach(t => {
+          termsHtml += `<li><strong>${t.term}:</strong> ${t.definition}</li>`;
+        });
+        termsHtml += '</ul>';
+      }
+
+      // Generate key points list
+      let pointsHtml = '';
+      const points = card.key_points || [];
+      if (points.length === 0) {
+        pointsHtml = '<p style="font-size: 0.75rem; color: var(--color-text-muted); margin:0;">Önemli nokta bulunmamaktadır.</p>';
+      } else {
+        pointsHtml = '<ul style="padding-left: 1.25rem; font-size: 0.75rem; display: flex; flex-direction: column; gap: 0.35rem; margin:0;">';
+        points.forEach(p => {
+          pointsHtml += `<li>${p}</li>`;
+        });
+        pointsHtml += '</ul>';
+      }
+
+      // Generate quiz questions
+      let quizHtml = '';
+      const quiz = card.quiz_questions || [];
+      if (quiz.length === 0) {
+        quizHtml = '<p style="font-size: 0.75rem; color: var(--color-text-muted); margin:0;">Soru bulunmamaktadır.</p>';
+      } else {
+        quizHtml = '<ul style="padding-left: 1.25rem; font-size: 0.75rem; display: flex; flex-direction: column; gap: 0.35rem; margin:0;">';
+        quiz.forEach((q, idx) => {
+          quizHtml += `
+            <li style="margin-bottom: 0.35rem;">
+              <strong>S${idx+1}:</strong> ${q.question}<br>
+              <span style="color: var(--color-teal);"><strong>Cevap:</strong> ${q.answer}</span>
+            </li>
+          `;
+        });
+        quizHtml += '</ul>';
+      }
+
+      cardEl.innerHTML = `
+        <div class="doc-header" style="margin-bottom: 0.25rem; position: relative;">
+          <div class="doc-file-icon text" style="background-color: var(--color-teal-light); color: var(--color-teal); flex-shrink: 0;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="3" y1="9" x2="21" y2="9"></line>
+              <line x1="9" y1="21" x2="9" y2="9"></line>
+            </svg>
+          </div>
+          <div class="doc-info" style="width: calc(100% - 68px);">
+            <h4 class="doc-name" style="font-size: 0.9rem; padding-right: 0.5rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${cardDocName}">${cardDocName}</h4>
+            <div class="doc-meta" style="display: flex; align-items: center; justify-content: space-between; gap: 0.35rem;">
+              <span>Oluşturulma: ${formattedDate}</span>
+              <div style="display: flex; gap: 0.25rem;">
+                <span class="style-badge style-${card.summary_style || 'standard'}" style="margin: 0; font-size: 0.6rem; padding: 0.1rem 0.35rem;">${getStyleLabel(card.summary_style)}</span>
+                <span class="style-badge" style="margin: 0; font-size: 0.6rem; padding: 0.1rem 0.35rem; background-color: var(--color-teal-light); color: var(--color-teal); border: 1px solid rgba(22, 50, 92, 0.08); font-weight: 700;">${card.summary_language === 'tr' ? 'Türkçe' : 'English'}</span>
+              </div>
+            </div>
+          </div>
+          <button onclick="deleteStudyCard(event, '${card.id}', '${card.document_id}')" style="background: none; border: none; cursor: pointer; color: #EF4444; position: absolute; right: 0; top: 0.25rem; padding: 0.25rem; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); transition: background-color 0.2s;" title="Sil (Delete this card)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+          </button>
+        </div>
+
+        <div class="card-library-summary">
+          <strong>Özet:</strong>
+          <div style="margin-top: 0.25rem; font-size: 0.85rem; line-height: 1.5; color: var(--color-navy);">${formatSummaryText(card.summary) || 'Özet bulunmamaktadır.'}</div>
+        </div>
+
+        <div style="margin: 0.25rem 0; flex-grow: 1;">
+          <div class="accordion-item" id="accordion-terms-${card.id}">
+            <div class="accordion-header" onclick="toggleLibraryAccordion('${card.id}', 'terms')">
+              <span>Anahtar Terimler (${terms.length})</span>
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <button class="btn btn-outline" style="padding: 0.15rem 0.4rem; font-size: 0.65rem; border-color: var(--color-teal); color: var(--color-teal); min-height: 20px; line-height: 1;" onclick="event.stopPropagation(); addSectionStickyNote('${card.id}', 'terms', '${cardDocName.replace(/'/g, "\\'")}')">+ Deftere Ekle</button>
+                <button class="btn btn-outline" style="padding: 0.15rem 0.4rem; font-size: 0.65rem; border-color: var(--color-navy); color: var(--color-navy); min-height: 20px; line-height: 1;" onclick="event.stopPropagation(); openFlashcardViewer('${card.id}', 'terms', '${cardDocName.replace(/'/g, "\\'")}')">🔍 Kartları İncele</button>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+              </div>
+            </div>
+            <div class="accordion-body">${termsHtml}</div>
+          </div>
+
+          <div class="accordion-item" id="accordion-points-${card.id}">
+            <div class="accordion-header" onclick="toggleLibraryAccordion('${card.id}', 'points')">
+              <span>Önemli Noktalar (${points.length})</span>
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <button class="btn btn-outline" style="padding: 0.15rem 0.4rem; font-size: 0.65rem; border-color: var(--color-teal); color: var(--color-teal); min-height: 20px; line-height: 1;" onclick="event.stopPropagation(); addSectionStickyNote('${card.id}', 'points', '${cardDocName.replace(/'/g, "\\'")}')">+ Deftere Ekle</button>
+                <button class="btn btn-outline" style="padding: 0.15rem 0.4rem; font-size: 0.65rem; border-color: var(--color-navy); color: var(--color-navy); min-height: 20px; line-height: 1;" onclick="event.stopPropagation(); openFlashcardViewer('${card.id}', 'points', '${cardDocName.replace(/'/g, "\\'")}')">🔍 Kartları İncele</button>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+              </div>
+            </div>
+            <div class="accordion-body">${pointsHtml}</div>
+          </div>
+
+          <div class="accordion-item" id="accordion-quiz-${card.id}">
+            <div class="accordion-header" onclick="toggleLibraryAccordion('${card.id}', 'quiz')">
+              <span>Kendi Kendine Test (${quiz.length})</span>
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <button class="btn btn-outline" style="padding: 0.15rem 0.4rem; font-size: 0.65rem; border-color: var(--color-teal); color: var(--color-teal); min-height: 20px; line-height: 1;" onclick="event.stopPropagation(); addSectionStickyNote('${card.id}', 'quiz', '${cardDocName.replace(/'/g, "\\'")}')">+ Deftere Ekle</button>
+                <button class="btn btn-outline" style="padding: 0.15rem 0.4rem; font-size: 0.65rem; border-color: var(--color-navy); color: var(--color-navy); min-height: 20px; line-height: 1;" onclick="event.stopPropagation(); openFlashcardViewer('${card.id}', 'quiz', '${cardDocName.replace(/'/g, "\\'")}')">🔍 Kartları İncele</button>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+              </div>
+            </div>
+            <div class="accordion-body">${quizHtml}</div>
+          </div>
+        </div>
+
+        <div class="share-toggle-container" style="margin: 0.25rem 0; padding: 0.4rem 0.6rem; font-size: 0.8rem;">
+          <span>Bölümümle Paylaş</span>
+          <label class="switch" style="width: 36px; height: 18px;">
+            <input type="checkbox" id="share-switch-lib-${card.id}" ${card.is_shared ? 'checked' : ''} onchange="toggleShareStudyCard('${card.id}', this.checked)" style="width:0;height:0;">
+            <span class="slider" style="border-radius: 18px;"></span>
+          </label>
+        </div>
+
+        <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+          <button class="btn btn-outline btn-view-summary" data-doc-id="${card.document_id}" data-doc-name="${cardDocName.replace(/'/g, "\\'")}" data-card-id="${card.id}" style="flex: 1; padding: 0.4rem; font-size: 0.75rem;">Özeti Görüntüle</button>
+          <button class="btn btn-primary" onclick="addStickyNoteToNotebook('${card.id}', '${cardDocName.replace(/'/g, "\\'")}', '${escapedSummary}')" style="flex: 1; padding: 0.4rem; font-size: 0.75rem; border: none;">Panoya Ekle</button>
+        </div>
+      `;
+      grid.appendChild(cardEl);
+    });
+  });
+}
+
+function toggleLibraryAccordion(cardId, section) {
+  const el = document.getElementById(`accordion-${section}-${cardId}`);
+  if (el) {
+    el.classList.toggle('active');
+  }
+}
+window.toggleLibraryAccordion = toggleLibraryAccordion;
+
+// ==========================================
+// PART E: DOWNLOAD NOTEBOOK AS PNG
+// ==========================================
+async function downloadNotebook() {
+  const btnDownload = document.getElementById('btn-download-notebook');
+  const viewport = document.getElementById('canvas-viewport');
+  if (!btnDownload || !viewport) return;
+
+  const originalText = btnDownload.textContent;
+  btnDownload.disabled = true;
+  btnDownload.textContent = 'Generating...';
+
+  try {
+    // Lazy-load html2canvas
+    if (window.loadScript) {
+      await window.loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+    }
+    
+    // Render container screenshot via html2canvas
+    const canvas = await html2canvas(viewport, {
+      logging: false,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#ffffff'
+    });
+
+    const link = document.createElement('a');
+    link.download = `acadex-notebook-${getLocalDateString()}.png`;
+    link.href = canvas.toDataURL('image/png');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    showDashboardAlert('success', 'Notebook downloaded successfully!');
+  } catch (err) {
+    console.error("html2canvas generation failed: ", err);
+    showDashboardAlert('error', 'Failed to generate image. Please try again.');
+  } finally {
+    btnDownload.disabled = false;
+    btnDownload.textContent = originalText;
+  }
+}
+
+function addSectionStickyNote(cardId, type, fileName) {
+  // Find study card in libraryCards or notebookCards
+  const card = libraryCards.find(c => c.id === cardId) || notebookCards.find(c => c.id === cardId);
+  if (!card) return;
+
+  let title = '';
+  let contentHtml = '';
+
+  if (type === 'terms') {
+    title = `Anahtar Terimler — ${fileName}`;
+    const terms = card.key_terms || [];
+    if (terms.length === 0) {
+      contentHtml = 'Anahtar terim bulunmamaktadır.';
+    } else {
+      contentHtml = `<ul style="padding-left: 1.20rem; margin: 0; font-size: 0.75rem; text-align: left; display: flex; flex-direction: column; gap: 0.25rem;">`;
+      terms.forEach(t => {
+        contentHtml += `<li><strong>${t.term}:</strong> ${t.definition}</li>`;
+      });
+      contentHtml += '</ul>';
+    }
+  } else if (type === 'points') {
+    title = `Önemli Noktalar — ${fileName}`;
+    const points = card.key_points || [];
+    if (points.length === 0) {
+      contentHtml = 'Önemli nokta bulunmamaktadır.';
+    } else {
+      contentHtml = `<ul style="padding-left: 1.20rem; margin: 0; font-size: 0.75rem; text-align: left; display: flex; flex-direction: column; gap: 0.25rem;">`;
+      points.forEach(p => {
+        contentHtml += `<li>${p}</li>`;
+      });
+      contentHtml += '</ul>';
+    }
+  } else if (type === 'quiz') {
+    title = `Kendi Kendine Test — ${fileName}`;
+    const quiz = card.quiz_questions || [];
+    if (quiz.length === 0) {
+      contentHtml = 'Soru bulunmamaktadır.';
+    } else {
+      contentHtml = `<div style="display: flex; flex-direction: column; gap: 0.5rem; text-align: left; font-size: 0.75rem;">`;
+      quiz.forEach((q, idx) => {
+        contentHtml += `
+          <div style="border-bottom: 1px dashed rgba(0,0,0,0.06); padding-bottom: 0.25rem;">
+            <strong>S${idx+1}:</strong> ${q.question}<br>
+            <span style="color: var(--color-teal);"><strong>Cevap:</strong> ${q.answer}</span>
+          </div>
+        `;
+      });
+      contentHtml += '</div>';
+    }
+  }
+
+  // Create sticky note on notebook canvas
+  if (currentActiveTab !== 'notebook') {
+    switchDashboardView('notebook');
+  }
+
+  setTimeout(() => {
+    const overlay = document.getElementById('notebook-overlay-container');
+    if (!overlay) return;
+
+    const id = 'note-' + Date.now();
+    const rotation = Math.floor(Math.random() * 7) - 3; // -3 to +3 deg
+    
+    // Default position: Center of visible canvas viewport with cascading offset
+    const rect = overlay.getBoundingClientRect();
+    const noteWidth = 240;
+    const noteHeight = 260;
+    const centerX = (rect.width > noteWidth) ? (rect.width - noteWidth) / 2 : 50;
+    const centerY = (rect.height > noteHeight) ? (rect.height - noteHeight) / 2 : 50;
+    
+    const offset = (overlay.children.length * 20) % 200;
+    const x = centerX + offset;
+    const y = centerY + offset;
+
+    const note = document.createElement('div');
+    note.className = 'draggable-element draggable-note';
+    note.id = id;
+    note.style.width = '240px';
+    note.style.height = '260px';
+    note.style.left = `${x}px`;
+    note.style.top = `${y}px`;
+    note.style.transform = `rotate(${rotation}deg)`;
+    note.setAttribute('data-type', 'sticky');
+    note.setAttribute('data-card-id', cardId);
+    note.setAttribute('data-rotation', rotation);
+
+    // Make the content area internally scrollable as requested
+    note.innerHTML = `
+      <button class="delete-overlay-btn" title="Remove Sticky Note" onclick="removeOverlayElement('${id}')">×</button>
+      <div class="draggable-note-title" style="font-size: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${title}">${title}</div>
+      <div class="draggable-note-text" style="max-height: 180px; overflow-y: auto; padding-right: 2px; font-size: 0.75rem;">${contentHtml}</div>
+      <div class="draggable-note-footer">Acadex Section Card</div>
+    `;
+
+    note.addEventListener('click', (e) => {
+      if (e.target.classList.contains('delete-overlay-btn') || e.target.closest('.delete-overlay-btn')) return;
+      viewStudyCard(card.document_id, fileName, false, card.id);
+    });
+
+    overlay.appendChild(note);
+    makeElementDraggable(note);
+  }, 100);
+}
+window.addSectionStickyNote = addSectionStickyNote;
+
+// ==========================================
+// TAB 5: SINAV PLATFORMU (EXAM PLATFORM)
+// ==========================================
+let currentActiveExam = null;
+let activeExamCardId = null;
+
+async function loadExamsPlatform() {
+  const cardSelect = document.getElementById('exam-card-select');
+  const emptyState = document.getElementById('exam-empty-state');
+  const setupContent = document.getElementById('exam-setup-content');
+  const setupScreen = document.getElementById('exam-setup-screen');
+  const activeScreen = document.getElementById('exam-active-screen');
+  const resultsScreen = document.getElementById('exam-results-screen');
+
+  if (!cardSelect) return;
+
+  // Reset screens
+  setupScreen.style.display = 'block';
+  activeScreen.style.display = 'none';
+  resultsScreen.style.display = 'none';
+
+  cardSelect.innerHTML = '<option value="">Yükleniyor...</option>';
+
+  try {
+    const { data: cards, error } = await supabaseClient
+      .from('study_cards')
+      .select('*, documents(file_name)')
+      .eq('user_id', currentUser.id)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error("Error fetching cards for exam: ", error);
+      cardSelect.innerHTML = '<option value="">Kartlar yüklenemedi</option>';
+      return;
+    }
+
+    if (!cards || cards.length === 0) {
+      emptyState.style.display = 'block';
+      setupContent.style.display = 'none';
+      return;
+    }
+
+    emptyState.style.display = 'none';
+    setupContent.style.display = 'flex';
+
+    cardSelect.innerHTML = '';
+    cards.forEach(card => {
+      const docName = card.documents?.file_name || 'İsimsiz Belge';
+      const createdDate = new Date(card.created_at).toLocaleDateString('tr-TR');
+      const opt = document.createElement('option');
+      opt.value = card.id;
+      opt.textContent = `${docName} (${createdDate})`;
+      cardSelect.appendChild(opt);
+    });
+
+    // Setup first card
+    const firstCardId = cardSelect.value;
+    activeExamCardId = firstCardId;
+    
+    // Display form options
+    document.getElementById('exam-form-params').style.display = 'block';
+    
+    // Load past attempts
+    await loadPastAttempts(firstCardId);
+
+  } catch (err) {
+    console.error("Exception in loadExamsPlatform: ", err);
+    cardSelect.innerHTML = '<option value="">Hata oluştu</option>';
+  }
+}
+window.loadExamsPlatform = loadExamsPlatform;
+
+async function onExamCardChange() {
+  const cardSelect = document.getElementById('exam-card-select');
+  if (!cardSelect) return;
+
+  const cardId = cardSelect.value;
+  activeExamCardId = cardId;
+
+  if (cardId) {
+    await loadPastAttempts(cardId);
+  }
+}
+window.onExamCardChange = onExamCardChange;
+
+async function loadPastAttempts(cardId) {
+  const listEl = document.getElementById('past-attempts-list');
+  if (!listEl) return;
+
+  listEl.innerHTML = '<p style="font-size: 0.85rem; color: var(--color-text-muted);">Yükleniyor...</p>';
+
+  try {
+    const { data: exams, error } = await supabaseClient
+      .from('exams')
+      .select('*')
+      .eq('study_card_id', cardId)
+      .eq('user_id', currentUser.id)
+      .not('completed_at', 'is', null)
+      .order('completed_at', { ascending: false });
+
+    if (error) {
+      console.error("Error loading past attempts: ", error);
+      listEl.innerHTML = '<p style="font-size: 0.85rem; color: #EF4444;">Geçmiş denemeler yüklenemedi.</p>';
+      return;
+    }
+
+    if (!exams || exams.length === 0) {
+      listEl.innerHTML = '<p style="font-size: 0.85rem; color: var(--color-text-muted);">Bu çalışma kartı için henüz tamamlanmış sınav bulunmamaktadır.</p>';
+      return;
+    }
+
+    listEl.innerHTML = '';
+    exams.forEach(exam => {
+      const formattedDate = new Date(exam.completed_at).toLocaleDateString('tr-TR', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+
+      const typeLabel = exam.exam_type === 'classic' ? 'Klasik' : (exam.exam_type === 'test' ? 'Çoktan Seçmeli' : 'Karışık');
+      const langLabel = exam.language === 'tr' ? 'Türkçe' : 'English';
+
+      const item = document.createElement('div');
+      item.className = 'past-attempt-item';
+      item.onclick = () => showExamResults(exam);
+
+      item.innerHTML = `
+        <div class="past-attempt-info">
+          <strong style="font-size: 0.85rem; color: var(--color-navy);">${typeLabel} Sınav (${langLabel})</strong>
+          <span class="past-attempt-meta">${formattedDate} - ${exam.question_count} Soru</span>
+        </div>
+        <div class="past-attempt-score">${exam.grade} / 100</div>
+      `;
+      listEl.appendChild(item);
+    });
+
+  } catch (err) {
+    console.error("Exception loading past attempts: ", err);
+    listEl.innerHTML = '<p style="font-size: 0.85rem; color: #EF4444;">Hata oluştu.</p>';
+  }
+}
+window.loadPastAttempts = loadPastAttempts;
+
+async function generateExam() {
+  const btn = document.getElementById('btn-generate-exam');
+  const cardSelect = document.getElementById('exam-card-select');
+  if (!btn || !cardSelect) return;
+
+  const studyCardId = cardSelect.value;
+  if (!studyCardId) return;
+
+  const examType = document.querySelector('input[name="exam-type"]:checked').value;
+  const language = document.querySelector('input[name="exam-lang"]:checked').value;
+  const questionCount = parseInt(document.getElementById('exam-question-count').value, 10);
+
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Sınav Hazırlanıyor...';
+
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) {
+      showDashboardAlert('error', 'Oturum bulunamadı. Lütfen tekrar giriş yapın.');
+      btn.disabled = false;
+      btn.textContent = originalText;
+      return;
+    }
+
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/generate-exam`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({ studyCardId, examType, questionCount, language })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      console.error("Exam generation failed: ", data);
+      showDashboardAlert('error', data.error || 'Sınav oluşturulamadı.');
+      btn.disabled = false;
+      btn.textContent = originalText;
+      return;
+    }
+
+    showDashboardAlert('success', 'Sınav başarıyla oluşturuldu!');
+    currentActiveExam = data;
+    startActiveExam(data);
+
+  } catch (err) {
+    console.error("Exception generating exam: ", err);
+    showDashboardAlert('error', 'Sınav oluşturulurken bir bağlantı hatası oluştu.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+}
+window.generateExam = generateExam;
+
+function startActiveExam(exam) {
+  const setupScreen = document.getElementById('exam-setup-screen');
+  const activeScreen = document.getElementById('exam-active-screen');
+  const container = document.getElementById('exam-questions-container');
+
+  if (!setupScreen || !activeScreen || !container) return;
+
+  setupScreen.style.display = 'none';
+  activeScreen.style.display = 'block';
+
+  document.getElementById('active-exam-title').textContent = `${exam.exam_type === 'classic' ? 'Klasik' : (exam.exam_type === 'test' ? 'Çoktan Seçmeli' : 'Karışık')} Sınav`;
+  document.getElementById('active-exam-desc').textContent = exam.language === 'tr' ? 'Lütfen tüm soruları dikkatlice cevaplayın.' : 'Please answer all questions carefully.';
+
+  container.innerHTML = '';
+
+  const questions = exam.questions || [];
+  questions.forEach((q, idx) => {
+    const card = document.createElement('div');
+    card.className = 'exam-question-card';
+    card.id = `question-card-${q.id}`;
+
+    let inputHtml = '';
+    if (q.type === 'multiple_choice' || q.type === 'true_false') {
+      inputHtml = `<div class="exam-choice-list">`;
+      const options = q.options || [];
+      options.forEach(opt => {
+        const optionId = `q-${q.id}-opt-${opt.replace(/\s+/g, '-')}`;
+        inputHtml += `
+          <label class="exam-choice-label" id="label-${optionId}">
+            <input type="radio" name="answer-q-${q.id}" value="${opt}" onchange="selectChoiceOption('${optionId}', 'q-${q.id}')">
+            <span>${opt}</span>
+          </label>
+        `;
+      });
+      inputHtml += `</div>`;
+    } 
+    else if (q.type === 'fill_blank') {
+      inputHtml = `
+        <div style="margin-top: 0.5rem;">
+          <input type="text" name="answer-q-${q.id}" class="search-input" style="width: 100%; max-width: 400px; padding: 0.6rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.85rem;" placeholder="${exam.language === 'tr' ? 'Cevabınızı girin...' : 'Enter your answer...'}">
+        </div>
+      `;
+    } 
+    else if (q.type === 'open_ended') {
+      inputHtml = `
+        <div style="margin-top: 0.5rem;">
+          <textarea name="answer-q-${q.id}" class="search-input" rows="4" style="width: 100%; padding: 0.65rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.85rem; font-family: inherit; resize: vertical;" placeholder="${exam.language === 'tr' ? 'Cevabınızı buraya yazın...' : 'Write your answer here...'}"></textarea>
+        </div>
+      `;
+    }
+
+    card.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;">
+        <span class="exam-question-text">Soru ${idx + 1}: ${q.question}</span>
+        <button class="btn btn-outline" id="btn-hint-${q.id}" style="padding: 0.35rem 0.65rem; font-size: 0.7rem; border-color: #F59E0B; color: #F59E0B; min-height: unset; line-height: 1;" onclick="revealExamHint('${q.id}')">+ İpucu Al</button>
+      </div>
+      <div id="hint-box-${q.id}" class="exam-hint-box" style="display: none;"></div>
+      ${inputHtml}
+    `;
+
+    container.appendChild(card);
+  });
+}
+
+function selectChoiceOption(optionId, radioName) {
+  // Clear other selections
+  const labels = document.querySelectorAll(`[id^="label-${radioName}"]`);
+  labels.forEach(l => l.classList.remove('selected'));
+
+  const targetLabel = document.getElementById(`label-${optionId}`);
+  if (targetLabel) targetLabel.classList.add('selected');
+}
+window.selectChoiceOption = selectChoiceOption;
+
+async function revealExamHint(qId) {
+  const hintBox = document.getElementById(`hint-box-${qId}`);
+  const btn = document.getElementById(`btn-hint-${qId}`);
+  if (!hintBox || !currentActiveExam) return;
+
+  const isTr = currentActiveExam.language === 'tr';
+
+  // If already loaded, do nothing (button is already disabled anyway)
+  if (hintBox.dataset.loaded === 'true') {
+    return;
+  }
+
+  const originalText = btn ? btn.textContent : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = isTr ? 'Yükleniyor...' : 'Loading...';
+  }
+  hintBox.innerHTML = `<strong>${isTr ? 'İpucu:' : 'Hint:'}</strong> <span style="color: var(--color-text-muted);">${isTr ? 'Yükleniyor...' : 'Loading...'}</span>`;
+  hintBox.style.display = 'block';
+
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) {
+      hintBox.innerHTML = `<strong>${isTr ? 'Hata:' : 'Error:'}</strong> ${isTr ? 'Oturum bulunamadı.' : 'No active session.'}`;
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = originalText;
+      }
+      return;
+    }
+
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/get-exam-hint`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({ examId: currentActiveExam.id, questionIndex: parseInt(qId, 10) })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      console.error("Hint retrieval failed: ", data);
+      hintBox.innerHTML = `<strong>${isTr ? 'Hata:' : 'Error:'}</strong> ${data.error || (isTr ? 'İpucu alınamadı.' : 'Could not fetch hint.')}`;
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = originalText;
+      }
+      return;
+    }
+
+    hintBox.innerHTML = `<strong>${isTr ? 'İpucu:' : 'Hint:'}</strong> ${data.hint}`;
+    hintBox.dataset.loaded = 'true';
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = isTr ? 'İpucu Alındı' : 'Already Revealed';
+      btn.style.borderColor = '#9CA3AF';
+      btn.style.color = '#9CA3AF';
+    }
+
+  } catch (err) {
+    console.error("Exception fetching hint: ", err);
+    hintBox.innerHTML = `<strong>${isTr ? 'Hata:' : 'Error:'}</strong> ${isTr ? 'Bağlantı hatası.' : 'Connection error.'}`;
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }
+  }
+}
+window.revealExamHint = revealExamHint;
+
+function cancelExam() {
+  const isTr = currentActiveExam?.language === 'tr';
+  const title = isTr ? "Sınavdan Çık" : "Exit Exam";
+  const text = isTr 
+    ? "Sınavı iptal etmek istediğinize emin misiniz? Cevaplarınız silinecektir." 
+    : "Are you sure you want to exit the exam? Your answers will be lost.";
+  showConfirmModal(title, text, () => {
+    loadExamsPlatform();
+  });
+}
+window.cancelExam = cancelExam;
+
+async function submitExam() {
+  if (!currentActiveExam) return;
+
+  const btn = document.getElementById('btn-submit-exam');
+  if (!btn) return;
+
+  // Collect answers
+  const answers = {};
+  const questions = currentActiveExam.questions || [];
+  
+  questions.forEach(q => {
+    if (q.type === 'multiple_choice' || q.type === 'true_false') {
+      const selected = document.querySelector(`input[name="answer-q-${q.id}"]:checked`);
+      answers[q.id] = selected ? selected.value : "";
+    } else {
+      const input = document.querySelector(`[name="answer-q-${q.id}"]`);
+      answers[q.id] = input ? input.value : "";
+    }
+  });
+
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = currentActiveExam.language === 'tr' ? 'Değerlendiriliyor...' : 'Grading...';
+
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) {
+      showDashboardAlert('error', 'Oturum bulunamadı.');
+      btn.disabled = false;
+      btn.textContent = originalText;
+      return;
+    }
+
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/grade-exam`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({ examId: currentActiveExam.id, answers })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      console.error("Exam submission failed: ", data);
+      showDashboardAlert('error', data.error || 'Sınav gönderilemedi.');
+      btn.disabled = false;
+      btn.textContent = originalText;
+      return;
+    }
+
+    showDashboardAlert('success', 'Sınav başarıyla tamamlandı ve notlandırıldı!');
+    showExamResults(data);
+    
+    // Check and award exam achievements
+    await checkAndAwardFirstExam(data.grade);
+
+  } catch (err) {
+    console.error("Exception submitting exam: ", err);
+    showDashboardAlert('error', 'Sınav gönderilirken bağlantı hatası oluştu.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+}
+window.submitExam = submitExam;
+
+function showExamResults(exam) {
+  const setupScreen = document.getElementById('exam-setup-screen');
+  const activeScreen = document.getElementById('exam-active-screen');
+  const resultsScreen = document.getElementById('exam-results-screen');
+
+  if (!setupScreen || !activeScreen || !resultsScreen) return;
+
+  setupScreen.style.display = 'none';
+  activeScreen.style.display = 'none';
+  resultsScreen.style.display = 'block';
+
+  // Set score
+  const scoreCircle = document.getElementById('result-score-circle');
+  scoreCircle.textContent = exam.grade;
+
+  // Grade color
+  if (exam.grade >= 80) {
+    scoreCircle.style.background = 'var(--color-teal-light)';
+    scoreCircle.style.color = 'var(--color-teal)';
+  } else if (exam.grade >= 50) {
+    scoreCircle.style.background = '#FEF3C7';
+    scoreCircle.style.color = '#D97706';
+  } else {
+    scoreCircle.style.background = '#FEE2E2';
+    scoreCircle.style.color = '#DC2626';
+  }
+
+  // Set qualitative feedback
+  const resultTitle = document.getElementById('result-feedback-title');
+  const resultDesc = document.getElementById('result-feedback-desc');
+  const isTr = exam.language === 'tr';
+
+  if (exam.grade >= 85) {
+    resultTitle.textContent = isTr ? "Mükemmel Başarı!" : "Outstanding Success!";
+    resultDesc.textContent = isTr ? "Harika bir çalışma çıkarmışsınız. Konuyu neredeyse tamamen kavramışsınız." : "Outstanding work. You have mastered this material.";
+  } else if (exam.grade >= 70) {
+    resultTitle.textContent = isTr ? "Güzel Sonuç!" : "Good Result!";
+    resultDesc.textContent = isTr ? "Oldukça iyi bir performans. Ufak tefek eksiklikler dışında konuya hakimsiniz." : "Solid performance. You have a good understanding of the topics.";
+  } else if (exam.grade >= 50) {
+    resultTitle.textContent = isTr ? "Geçer Not!" : "Passed!";
+    resultDesc.textContent = isTr ? "Sınavı geçtiniz, fakat konunun üzerinden biraz daha geçmeniz faydalı olabilir." : "You passed, but some review of key areas would be beneficial.";
+  } else {
+    resultTitle.textContent = isTr ? "Daha Fazla Çalışmalısınız" : "Needs Study";
+    resultDesc.textContent = isTr ? "Konuyu tam anlamıyla pekiştirmek için çalışma kartlarınızı tekrar inceleyin." : "Review your study cards again to better grasp the topics.";
+  }
+
+  // Render question detail results
+  const detailsContainer = document.getElementById('result-details-container');
+  detailsContainer.innerHTML = '';
+
+  const results = exam.question_results || [];
+  results.forEach((res, idx) => {
+    const item = document.createElement('div');
+    const statusClass = res.score >= 80 ? 'correct' : (res.score >= 50 ? 'partial' : 'incorrect');
+    item.className = `question-result-box ${statusClass}`;
+
+    let correctBlock = '';
+    if (res.type !== 'open_ended') {
+      correctBlock = `<div style="font-size: 0.8rem; color: var(--color-teal); font-weight: 700; margin-top: 0.25rem;">Doğru Cevap: ${res.correct_answer}</div>`;
+    }
+
+    item.innerHTML = `
+      <div style="display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 700; color: var(--color-navy);">
+        <span>Soru ${idx + 1}: ${res.question}</span>
+        <span style="color: ${res.score >= 80 ? 'var(--color-teal)' : (res.score >= 50 ? '#D97706' : '#DC2626')};">${res.score} / 100 Puan</span>
+      </div>
+      <div style="font-size: 0.8rem; margin-top: 0.5rem;">
+        <strong>Sizin Cevabınız:</strong> ${res.student_answer || (isTr ? '[Boş bırakıldı]' : '[Left blank]')}
+      </div>
+      ${correctBlock}
+      <div style="font-size: 0.8rem; color: var(--color-text-muted); margin-top: 0.5rem; background-color: var(--color-bg-alt); padding: 0.5rem; border-radius: var(--radius-sm); border-left: 3px solid rgba(22,50,92,0.15);">
+        <strong>Değerlendirme:</strong> ${res.feedback}
+      </div>
+    `;
+
+    detailsContainer.appendChild(item);
+  });
+}
+window.showExamResults = showExamResults;
+
+function backToExamSetup() {
+  loadExamsPlatform();
+}
+window.backToExamSetup = backToExamSetup;
+
+// ==========================================
+// TAB 6: SETTINGS VIEW (AYARLAR)
+// ==========================================
+async function loadSettingsView() {
+  const fullnameInput = document.getElementById('settings-fullname');
+  const studentNoDiv = document.getElementById('settings-student-no');
+  const emailDiv = document.getElementById('settings-email');
+  const deptSelect = document.getElementById('settings-dept');
+
+  if (!fullnameInput) return;
+
+  try {
+    // 1. Fetch latest profile
+    const { data: profile, error } = await supabaseClient
+      .from('profiles')
+      .select('*')
+      .eq('id', currentUser.id)
+      .single();
+
+    if (error || !profile) {
+      console.error("Error loading settings profile: ", error);
+      showDashboardAlert('error', 'Profil bilgileri yüklenemedi.');
+      return;
+    }
+
+    // Cache updated profile info
+    currentUserProfile = profile;
+
+    // Fill form
+    fullnameInput.value = profile.full_name || '';
+    studentNoDiv.textContent = profile.student_number || 'N/A';
+    emailDiv.textContent = currentUser.email || 'N/A';
+    deptSelect.value = profile.department || '';
+
+  } catch (err) {
+    console.error("Exception loading settings profile: ", err);
+    showDashboardAlert('error', 'Hata oluştu.');
+  }
+}
+window.loadSettingsView = loadSettingsView;
+
+async function saveProfileSettings(event) {
+  event.preventDefault();
+
+  const fullnameInput = document.getElementById('settings-fullname');
+  const deptSelect = document.getElementById('settings-dept');
+  if (!fullnameInput || !deptSelect) return;
+
+  const fullName = fullnameInput.value.trim();
+  const department = deptSelect.value;
+
+  if (!fullName) {
+    showDashboardAlert('error', 'Lütfen adınızı girin.');
+    return;
+  }
+
+  try {
+    const { error } = await supabaseClient
+      .from('profiles')
+      .update({
+        full_name: fullName,
+        department: department
+      })
+      .eq('id', currentUser.id);
+
+    if (error) {
+      console.error("Profile settings save failed: ", error);
+      showDashboardAlert('error', 'Değişiklikler kaydedilemedi.');
+      return;
+    }
+
+    showDashboardAlert('success', 'Profile updated!');
+
+    // Update locally cached profile
+    currentUserProfile.full_name = fullName;
+    currentUserProfile.department = department;
+
+    // Refresh UI elements
+    const nameEl = document.getElementById('user-name');
+    const deptEl = document.getElementById('user-dept');
+    const welcomeGreeting = document.getElementById('welcome-greeting');
+    const welcomeSub = document.getElementById('welcome-sub');
+
+    if (nameEl) {
+      nameEl.textContent = fullName;
+    }
+    if (deptEl) {
+      const badgeClass = getDepartmentColorClass(department);
+      const shortName = getDepartmentShortName(department);
+      deptEl.innerHTML = `${translateDepartment(department)} <span class="dept-badge ${badgeClass}">${shortName}</span>`;
+    }
+    if (welcomeGreeting) {
+      welcomeGreeting.textContent = `Welcome back, ${fullName.split(' ')[0]}!`;
+    }
+    if (welcomeSub) {
+      const currentLang = localStorage.getItem('acadexUILang') || 'en';
+      const translatedDept = translateDepartment(department);
+      if (currentLang === 'tr') {
+        welcomeSub.textContent = `Fakülte programında neler olup bittiğine göz at: ${translatedDept || 'Bölümün'}`;
+      } else {
+        welcomeSub.textContent = `Here's what's happening in ${translatedDept || 'your faculty'}.`;
+      }
+    }
+
+  } catch (err) {
+    console.error("Exception in saveProfileSettings: ", err);
+    showDashboardAlert('error', 'Hata oluştu.');
+  }
+}
+window.saveProfileSettings = saveProfileSettings;
+
+async function changeUserPassword(event) {
+  event.preventDefault();
+
+  const newPassInput = document.getElementById('settings-new-pass');
+  const confirmPassInput = document.getElementById('settings-confirm-pass');
+  const errorEl = document.getElementById('password-error-message');
+
+  if (!newPassInput || !confirmPassInput || !errorEl) return;
+
+  errorEl.style.display = 'none';
+  errorEl.textContent = '';
+
+  const newPass = newPassInput.value;
+  const confirmPass = confirmPassInput.value;
+
+  if (!newPass || !confirmPass) {
+    errorEl.textContent = 'Lütfen tüm alanları doldurun.';
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  if (newPass.length < 6) {
+    errorEl.textContent = 'Şifre en az 6 karakter olmalıdır.';
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  if (newPass !== confirmPass) {
+    errorEl.textContent = 'Şifreler eşleşmiyor.';
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  try {
+    const { error } = await supabaseClient.auth.updateUser({ password: newPass });
+
+    if (error) {
+      console.error("Password update failed: ", error);
+      errorEl.textContent = 'Şifre güncellenemedi. Lütfen tekrar deneyin.';
+      errorEl.style.display = 'block';
+      return;
+    }
+
+    showDashboardAlert('success', 'Password updated successfully!');
+    newPassInput.value = '';
+    confirmPassInput.value = '';
+
+  } catch (err) {
+    console.error("Exception updating password: ", err);
+    errorEl.textContent = 'Hata oluştu.';
+    errorEl.style.display = 'block';
+  }
+}
+window.changeUserPassword = changeUserPassword;
+
+function openDeleteAccountModal() {
+  const modal = document.getElementById('delete-account-modal');
+  const confirmInput = document.getElementById('delete-account-confirm-input');
+  const confirmBtn = document.getElementById('btn-delete-account-confirm');
+  const errorEl = document.getElementById('delete-account-modal-error');
+
+  if (!modal || !confirmInput || !confirmBtn) return;
+
+  confirmInput.value = '';
+  confirmBtn.disabled = true;
+  confirmBtn.style.opacity = '0.5';
+  if (errorEl) {
+    errorEl.style.display = 'none';
+    errorEl.textContent = '';
+  }
+
+  modal.classList.add('active');
+}
+window.openDeleteAccountModal = openDeleteAccountModal;
+
+function closeDeleteAccountModal() {
+  const modal = document.getElementById('delete-account-modal');
+  if (modal) {
+    modal.classList.remove('active');
+  }
+}
+window.closeDeleteAccountModal = closeDeleteAccountModal;
+
+function onDeleteAccountConfirmInput(val) {
+  const confirmBtn = document.getElementById('btn-delete-account-confirm');
+  if (!confirmBtn) return;
+
+  if (val.trim() === 'DELETE') {
+    confirmBtn.disabled = false;
+    confirmBtn.style.opacity = '1';
+  } else {
+    confirmBtn.disabled = true;
+    confirmBtn.style.opacity = '0.5';
+  }
+}
+window.onDeleteAccountConfirmInput = onDeleteAccountConfirmInput;
+
+async function confirmDeleteAccount() {
+  const confirmBtn = document.getElementById('btn-delete-account-confirm');
+  const cancelBtn = document.getElementById('btn-delete-account-cancel');
+  const errorEl = document.getElementById('delete-account-modal-error');
+
+  if (!confirmBtn || !cancelBtn || !errorEl) return;
+
+  errorEl.style.display = 'none';
+  errorEl.textContent = '';
+
+  confirmBtn.disabled = true;
+  confirmBtn.textContent = 'Siliniyor...';
+  cancelBtn.disabled = true;
+
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) {
+      errorEl.textContent = 'Oturum bulunamadı. Silme işlemi başarısız.';
+      errorEl.style.display = 'block';
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = 'Hesabımı Sil';
+      cancelBtn.disabled = false;
+      return;
+    }
+
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/delete-account`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY
+      }
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      console.error("Account deletion failed: ", data);
+      errorEl.textContent = data.error || 'Hesap silme işlemi başarısız oldu.';
+      errorEl.style.display = 'block';
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = 'Hesabımı Sil';
+      cancelBtn.disabled = false;
+      return;
+    }
+
+    // Success! Sign out and redirect
+    await supabaseClient.auth.signOut();
+    window.location.replace('index.html?accountDeleted=true');
+
+  } catch (err) {
+    console.error("Exception in confirmDeleteAccount: ", err);
+    errorEl.textContent = 'Bir bağlantı hatası oluştu. Lütfen tekrar deneyin.';
+    errorEl.style.display = 'block';
+    confirmBtn.disabled = false;
+    confirmBtn.textContent = 'Hesabımı Sil';
+    cancelBtn.disabled = false;
+  }
+}
+window.confirmDeleteAccount = confirmDeleteAccount;
+
+// ==========================================
+// GUIDED ONBOARDING TOUR IMPLEMENTATION (PHASE 8)
+// ==========================================
+const tourSteps = [
+  {
+    title: "Welcome to Acadex! 👋",
+    desc: "Let's take a quick guided tour of your student study portal.",
+    target: null
+  },
+  {
+    title: "Ana Sayfa (Home)",
+    desc: "View your personal study statistics, recent activity, streak info, and earned badges here.",
+    target: "side-home"
+  },
+  {
+    title: "Çalışma Planlayıcı (Study Planner)",
+    desc: "Track upcoming exam dates, academic deadlines, and learning goals here.",
+    target: "side-planner"
+  },
+  {
+    title: "Belgelerim (My Documents)",
+    desc: "Upload lecture slides, chapters, or syllabus documents to get AI-powered study cards.",
+    target: "side-docs"
+  },
+  {
+    title: "Bölüm Akışı (Department Feed)",
+    desc: "See shared study materials published by other students in your department.",
+    target: "side-feed"
+  },
+  {
+    title: "Çalışma Defteri (Study Notebook)",
+    desc: "Create whiteboard canvases, write notes, construct tables, and drag your study cards as sticky notes.",
+    target: "side-notebook"
+  },
+  {
+    title: "Bilgi Kartları (Study Cards)",
+    desc: "Browse, filter, and organize all your AI-generated summaries, key terms, and self-test questions.",
+    target: "side-cards"
+  },
+  {
+    title: "Sınav Platformu (Exams Platform)",
+    desc: "Generate custom multiple choice, mixed, or classical practice quizzes with hints and instant grading.",
+    target: "side-exams"
+  },
+  {
+    title: "Geliştirici Sandbox (Developer Sandbox)",
+    desc: "Practice data analysis skills with sample datasets and share programming projects with the community.",
+    target: "side-sandbox"
+  },
+  {
+    title: "Ayarlar (Settings)",
+    desc: "Manage your profile name, change your department selection, update your password, or delete your account.",
+    target: "side-settings"
+  },
+  {
+    title: "Top Bar Features",
+    desc: "Use global search / Command Palette (Ctrl+K), toggle dark mode, switch between English/Turkish language, and check your notification center.",
+    target: "top-bar-features"
+  },
+  {
+    title: "Focus Mode (Pomodoro)",
+    desc: "Boost your productivity with the floating Pomodoro widget and ambient study soundtracks.",
+    target: "btn-pomodoro-toggle"
+  },
+  {
+    title: "You're all set! 🎉",
+    desc: "Start your academic journey by uploading your first document or setting a study goal.",
+    target: null
+  }
+];
+
+let currentTourStep = 0;
+
+function startOnboardingTour() {
+  console.log("Starting guided onboarding tour...");
+
+  // Close any open modals first for clean view
+  const modalCloseButtons = document.querySelectorAll('.modal-close, [data-dismiss="modal"]');
+  modalCloseButtons.forEach(btn => btn.click());
+
+  // Ensure tour layout elements exist
+  let overlay = document.getElementById('tour-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'tour-overlay';
+    overlay.className = 'tour-overlay';
+    document.body.appendChild(overlay);
+  }
+
+  let spotlight = document.getElementById('tour-spotlight');
+  if (!spotlight) {
+    spotlight = document.createElement('div');
+    spotlight.id = 'tour-spotlight';
+    spotlight.className = 'tour-spotlight';
+    document.body.appendChild(spotlight);
+  }
+
+  let tooltip = document.getElementById('tour-tooltip');
+  if (!tooltip) {
+    tooltip = document.createElement('div');
+    tooltip.id = 'tour-tooltip';
+    tooltip.className = 'tour-tooltip';
+    document.body.appendChild(tooltip);
+  }
+
+  overlay.classList.add('active');
+  currentTourStep = 0;
+
+  // Add Escape key dismiss listener
+  document.addEventListener('keydown', handleTourKeydown);
+
+  // Initial step render
+  renderTourStep(currentTourStep);
+}
+
+function handleTourKeydown(e) {
+  if (e.key === 'Escape') {
+    finishTour();
+  }
+}
+
+function renderTourStep(stepIndex) {
+  const overlay = document.getElementById('tour-overlay');
+  const spotlight = document.getElementById('tour-spotlight');
+  const tooltip = document.getElementById('tour-tooltip');
+
+  if (!overlay || !spotlight || !tooltip) return;
+  if (stepIndex < 0 || stepIndex >= tourSteps.length) {
+    finishTour();
+    return;
+  }
+
+  currentTourStep = stepIndex;
+  const step = tourSteps[stepIndex];
+  const isFirst = stepIndex === 0;
+  const isLast = stepIndex === tourSteps.length - 1;
+
+  // Generate tooltip content
+  tooltip.innerHTML = `
+    <h4 class="tour-tooltip-title">${step.title}</h4>
+    <p class="tour-tooltip-desc">${step.desc}</p>
+    <div class="tour-tooltip-footer">
+      <span class="tour-steps-indicator">${stepIndex} / ${tourSteps.length - 1}</span>
+      <div class="tour-tooltip-buttons">
+        ${!isFirst && !isLast ? '<button class="tour-btn btn-back">Geri</button>' : ''}
+        ${isLast 
+          ? '<button class="tour-btn btn-next">Tamamla</button>' 
+          : '<button class="tour-btn btn-next">' + (isFirst ? 'Başla' : 'İleri') + '</button>'}
+        ${!isLast ? '<button class="tour-btn btn-skip">Geç</button>' : ''}
+      </div>
+    </div>
+  `;
+
+  // Attach button event handlers
+  const nextBtn = tooltip.querySelector('.btn-next');
+  const backBtn = tooltip.querySelector('.btn-back');
+  const skipBtn = tooltip.querySelector('.btn-skip');
+
+  if (nextBtn) {
+    nextBtn.addEventListener('click', () => {
+      if (isLast) {
+        finishTour();
+      } else {
+        renderTourStep(stepIndex + 1);
+      }
+    });
+  }
+
+  if (backBtn) {
+    backBtn.addEventListener('click', () => {
+      renderTourStep(stepIndex - 1);
+    });
+  }
+
+  if (skipBtn) {
+    skipBtn.addEventListener('click', () => {
+      finishTour();
+    });
+  }
+
+  // Handle positioning
+  if (step.target) {
+    const el = document.getElementById(step.target);
+    if (el) {
+      // Switch active dashboard view so the student actually sees the target tab in active context
+      const viewName = step.target.replace('side-', '');
+      if (typeof switchDashboardView === 'function') {
+        switchDashboardView(viewName);
+      }
+
+      spotlight.style.display = 'block';
+      
+      // Calculate coordinates relative to viewport
+      const rect = el.getBoundingClientRect();
+      spotlight.style.width = `${rect.width + 12}px`;
+      spotlight.style.height = `${rect.height + 12}px`;
+      spotlight.style.top = `${rect.top - 6}px`;
+      spotlight.style.left = `${rect.left - 6}px`;
+
+      // Position tooltip relative to screen size
+      if (window.innerWidth >= 768) {
+        tooltip.style.transform = 'none';
+        tooltip.style.left = `${rect.right + 20}px`;
+        
+        // Measure tooltip offset height
+        tooltip.style.visibility = 'hidden';
+        tooltip.style.display = 'flex';
+        const tooltipHeight = tooltip.offsetHeight || 150;
+        tooltip.style.visibility = 'visible';
+
+        let topPos = rect.top + (rect.height / 2) - (tooltipHeight / 2);
+        topPos = Math.max(20, Math.min(window.innerHeight - tooltipHeight - 20, topPos));
+        tooltip.style.top = `${topPos}px`;
+      } else {
+        // Mobile layout: place tooltip centered at the bottom
+        tooltip.style.transform = 'translateX(-50%)';
+        tooltip.style.left = '50%';
+        tooltip.style.top = 'auto';
+        tooltip.style.bottom = '20px';
+      }
+    } else {
+      centerTourTooltip();
+    }
+  } else {
+    centerTourTooltip();
+  }
+}
+
+function centerTourTooltip() {
+  const spotlight = document.getElementById('tour-spotlight');
+  const tooltip = document.getElementById('tour-tooltip');
+  if (spotlight) spotlight.style.display = 'none';
+  if (tooltip) {
+    tooltip.style.left = '50%';
+    tooltip.style.top = '50%';
+    tooltip.style.bottom = 'auto';
+    tooltip.style.transform = 'translate(-50%, -50%)';
+  }
+}
+
+async function finishTour() {
+  console.log("Ending guided onboarding tour...");
+  
+  // Cleanup UI
+  const overlay = document.getElementById('tour-overlay');
+  const spotlight = document.getElementById('tour-spotlight');
+  const tooltip = document.getElementById('tour-tooltip');
+  
+  if (overlay) overlay.classList.remove('active');
+  if (spotlight) spotlight.style.display = 'none';
+  if (tooltip) {
+    tooltip.style.left = '-9999px'; // move off-screen
+    tooltip.style.top = '-9999px';
+  }
+
+  document.removeEventListener('keydown', handleTourKeydown);
+
+  // Save completion status to Supabase profile row
+  try {
+    const { data: { user } } = await supabaseClient.auth.getUser();
+    if (user) {
+      const { error } = await supabaseClient
+        .from('profiles')
+        .update({ onboarding_completed: true })
+        .eq('id', user.id);
+      
+      if (error) {
+        console.error("Failed to update onboarding_completed database status:", error);
+      } else {
+        console.log("Successfully marked onboarding_completed as true in DB.");
+        if (currentUserProfile) {
+          currentUserProfile.onboarding_completed = true;
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Exception in finishTour DB save:", err);
+  }
+}
+
+window.startOnboardingTour = startOnboardingTour;
+window.renderTourStep = renderTourStep;
+window.finishTour = finishTour;
+
+// ==========================================
+// DOCUMENT DROPDOWN VIEW CONTROLLERS (PHASE 9)
+// ==========================================
+function toggleDocDropdown(event, docId) {
+  event.preventDefault();
+  event.stopPropagation();
+  
+  const allMenus = document.querySelectorAll('.dropdown-menu');
+  allMenus.forEach(menu => {
+    if (menu.id !== `dropdown-menu-${docId}`) {
+      menu.style.display = 'none';
+    }
+  });
+  
+  const menu = document.getElementById(`dropdown-menu-${docId}`);
+  if (menu) {
+    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+  }
+}
+
+function viewStudyCardWrapper(event, docId, docName, cardId) {
+  event.preventDefault();
+  event.stopPropagation();
+  
+  const menu = document.getElementById(`dropdown-menu-${docId}`);
+  if (menu) menu.style.display = 'none';
+  
+  viewStudyCard(docId, docName, false, cardId);
+}
+
+// Global click event to close dropdowns when clicking outside
+document.addEventListener('click', () => {
+  const allMenus = document.querySelectorAll('.dropdown-menu');
+  allMenus.forEach(menu => {
+    menu.style.display = 'none';
+  });
+});
+
+window.toggleDocDropdown = toggleDocDropdown;
+window.viewStudyCardWrapper = viewStudyCardWrapper;
+
+async function deleteStudyCard(event, cardId, docId) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  
+  const isTr = localStorage.getItem('acadexUILang') === 'tr';
+  const title = isTr ? "Bilgi Kartını Sil" : "Delete Study Card";
+  const text = isTr 
+    ? "Bu bilgi kartını silmek istediğinize emin misiniz? Bu işlem geri alınamaz." 
+    : "Delete this study card? This cannot be undone.";
+
+  showConfirmModal(title, text, async () => {
+    try {
+      const { error } = await supabaseClient
+        .from('study_cards')
+        .delete()
+        .eq('id', cardId);
+
+      if (error) {
+        console.error("Error deleting study card:", error);
+        showDashboardAlert('error', 'Could not delete study card. / Bilgi kartı silinemedi.');
+        return;
+      }
+
+      showDashboardAlert('success', 'Study card deleted successfully. / Bilgi kartı başarıyla silindi.');
+
+      // Check if there are any remaining study cards for this document
+      const { data: remainingCards, error: checkError } = await supabaseClient
+        .from('study_cards')
+        .select('id')
+        .eq('document_id', docId);
+
+      if (!checkError && (!remainingCards || remainingCards.length === 0)) {
+        // Revert document status back to 'uploaded'
+        await supabaseClient
+          .from('documents')
+          .update({ status: 'uploaded' })
+          .eq('id', docId);
+      }
+
+      // Refresh UI
+      await loadDocuments(true);
+      if (typeof loadCardsLibrary === 'function') {
+        await loadCardsLibrary();
+      }
+      if (typeof loadStudyNotebook === 'function') {
+        await loadStudyNotebook();
+      }
+
+    } catch (err) {
+      console.error("Exception deleting study card:", err);
+      showDashboardAlert('error', 'An unexpected error occurred. / Beklenmedik bir hata oluştu.');
+    }
+  });
+}
+window.deleteStudyCard = deleteStudyCard;
+
+function updateWhiteboardSwatches() {
+  const swatches = document.querySelectorAll('.color-swatch');
+  if (swatches.length >= 2) {
+    swatches[0].style.backgroundColor = '#000000';
+    swatches[0].setAttribute('data-color', '#000000');
+    swatches[0].title = 'Black color';
+    swatches[0].setAttribute('aria-label', 'Black color');
+    
+    swatches[1].style.backgroundColor = '#0F172A';
+    swatches[1].setAttribute('data-color', '#0F172A');
+    swatches[1].title = 'Dark Navy color';
+    swatches[1].setAttribute('aria-label', 'Dark Navy color');
+    
+    if (currentPenColor === '#FFFFFF' || currentPenColor === '#38BDF8') {
+      currentPenColor = '#000000';
+      swatches.forEach(s => s.classList.remove('active'));
+      swatches[0].classList.add('active');
+    }
+  }
+}
+window.updateWhiteboardSwatches = updateWhiteboardSwatches;
+
+// ==========================================
+// GLOBAL SEARCH CONTROLLER & WORKERS (PHASE 9)
+// ==========================================
+function initGlobalSearch() {
+  const overlay = document.getElementById('global-search-overlay');
+  const openBtn = document.getElementById('btn-global-search');
+  const closeBtn = document.getElementById('btn-close-global-search');
+  const searchInput = document.getElementById('global-search-input');
+  const resultsContainer = document.getElementById('global-search-results');
+
+  if (!overlay || !openBtn || !closeBtn || !searchInput || !resultsContainer) {
+    console.warn("Global Search elements not found in DOM.");
+    return;
+  }
+
+  // Open modal
+  openBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    overlay.classList.add('active');
+    searchInput.value = '';
+    resultsContainer.innerHTML = '<div class="search-empty-state">Start typing to search documents, cards, and exams...</div>';
+    setTimeout(() => searchInput.focus(), 100);
+  });
+
+  // Open search overlay on Ctrl+K / Cmd+K
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      openBtn.click();
+    }
+  });
+
+  // Close modal
+  function closeSearch() {
+    overlay.classList.remove('active');
+  }
+
+  closeBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    closeSearch();
+  });
+
+  // Close on Esc key
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && overlay.classList.contains('active')) {
+      closeSearch();
+    }
+  });
+
+  // Close on clicking overlay background
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) {
+      closeSearch();
+    }
+  });
+
+  // Debounced input handler
+  let searchTimeout = null;
+  searchInput.addEventListener('input', () => {
+    clearTimeout(searchTimeout);
+    const query = searchInput.value.trim().toLowerCase();
+    if (!query) {
+      resultsContainer.innerHTML = '<div class="search-empty-state">Start typing to search documents, cards, and exams...</div>';
+      return;
+    }
+
+    resultsContainer.innerHTML = `
+      <div style="display: flex; align-items: center; justify-content: center; padding: 2rem;">
+        <svg class="spinner" viewBox="0 0 50 50" style="animation: rotate 2s linear infinite; width: 24px; height: 24px; color: var(--color-teal);">
+          <circle class="path" cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="5" style="stroke-dasharray: 1, 150; stroke-dashoffset: 0; stroke-linecap: round; animation: dash 1.5s ease-in-out infinite;"></circle>
+        </svg>
+      </div>
+    `;
+
+    searchTimeout = setTimeout(async () => {
+      try {
+        await executeGlobalSearch(query, resultsContainer);
+      } catch (err) {
+        console.error("Error executing global search:", err);
+        resultsContainer.innerHTML = '<div class="search-empty-state">An error occurred while searching.</div>';
+      }
+    }, 300);
+  });
+}
+
+async function executeGlobalSearch(query, container) {
+  const actionsList = [
+    { title: "Ana Sayfa (Overview)", action: "nav-home", tr: "Genel Bakış Sayfasına Git", en: "Go to Overview Page" },
+    { title: "Belgelerim (My Documents)", action: "nav-docs", tr: "Belgelerim Sayfasına Git", en: "Go to My Documents Page" },
+    { title: "Bölüm Akışı (Department Feed)", action: "nav-feed", tr: "Bölüm Akışı Sayfasına Git", en: "Go to Department Feed Page" },
+    { title: "Çalışma Defteri (Study Canvas)", action: "nav-notebook", tr: "Çalışma Defteri Sayfasına Git", en: "Go to Study Notebook Page" },
+    { title: "Bilgi Kartları (Study Cards)", action: "nav-cards", tr: "Bilgi Kartları Sayfasına Git", en: "Go to Study Cards Page" },
+    { title: "Sınav Platformu (Exams Platform)", action: "nav-exams", tr: "Sınav Platformuna Git", en: "Go to Exams Platform Page" },
+    { title: "Geliştirici Sandbox (Developer Sandbox)", action: "nav-sandbox", tr: "Geliştirici Sandbox Galerisine Git", en: "Go to Developer Sandbox Page" },
+    { title: "Ayarlar (Settings)", action: "nav-settings", tr: "Ayarlar Sayfasına Git", en: "Go to Settings Page" }
+  ];
+
+  const matchedActions = actionsList.filter(act => 
+    act.title.toLowerCase().includes(query) || 
+    act.tr.toLowerCase().includes(query) || 
+    act.en.toLowerCase().includes(query)
+  );
+
+  const [docsRes, cardsRes, examsRes] = await Promise.all([
+    supabaseClient
+      .from('documents')
+      .select('*')
+      .eq('user_id', currentUser.id)
+      .ilike('file_name', `%${query}%`)
+      .limit(10),
+    supabaseClient
+      .from('study_cards')
+      .select('*, documents(file_name)')
+      .eq('user_id', currentUser.id)
+      .order('created_at', { ascending: false }),
+    supabaseClient
+      .from('exams')
+      .select('*')
+      .eq('user_id', currentUser.id)
+      .not('completed_at', 'is', null)
+      .order('completed_at', { ascending: false })
+  ]);
+
+  const matchedDocs = docsRes.data || [];
+  
+  // Client-side filter study cards
+  const allCards = cardsRes.data || [];
+  const matchedCards = allCards.filter(card => {
+    const fileName = (card.documents?.file_name || '').toLowerCase();
+    const summary = (card.summary || '').toLowerCase();
+    return fileName.includes(query) || summary.includes(query);
+  }).slice(0, 10);
+
+  // Client-side filter exams: match by document file name
+  const allExams = examsRes.data || [];
+  const matchedExams = allExams.filter(exam => {
+    const card = allCards.find(c => c.id === exam.study_card_id);
+    if (!card) return false;
+    const fileName = (card.documents?.file_name || '').toLowerCase();
+    return fileName.includes(query);
+  }).slice(0, 10);
+
+  let html = '';
+
+  if (matchedActions.length === 0 && matchedDocs.length === 0 && matchedCards.length === 0 && matchedExams.length === 0) {
+    container.innerHTML = '<div class="search-empty-state">No matching results found. / Eşleşen sonuç bulunamadı.</div>';
+    return;
+  }
+
+  // 0. Quick Actions group
+  if (matchedActions.length > 0) {
+    html += `
+      <div>
+        <div class="search-results-group-title">Quick Actions & Pages (${matchedActions.length})</div>
+        <ul class="search-results-list">
+          ${matchedActions.map(act => `
+            <li>
+              <a class="search-result-item" onclick="handleQuickActionClick(event, '${act.action}')">
+                <div class="search-result-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-teal);"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg>
+                </div>
+                <div class="search-result-text">
+                  <span>${act.title}</span>
+                  <span class="search-result-subtext">Action: ${act.en} / ${act.tr}</span>
+                </div>
+              </a>
+            </li>
+          `).join('')}
+        </ul>
+      </div>
+    `;
+  }
+
+  // 1. Documents group
+  if (matchedDocs.length > 0) {
+    html += `
+      <div>
+        <div class="search-results-group-title">Documents (${matchedDocs.length})</div>
+        <ul class="search-results-list">
+          ${matchedDocs.map(doc => `
+            <li>
+              <a class="search-result-item" onclick="handleSearchResultClick(event, 'doc', '${doc.id}')">
+                <div class="search-result-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                </div>
+                <div class="search-result-text">
+                  <span>${doc.file_name}</span>
+                  <span class="search-result-subtext">Status: ${doc.status} • Size: ${(doc.file_size / 1024).toFixed(1)} KB</span>
+                </div>
+              </a>
+            </li>
+          `).join('')}
+        </ul>
+      </div>
+    `;
+  }
+
+  // 2. Study Cards group
+  if (matchedCards.length > 0) {
+    html += `
+      <div>
+        <div class="search-results-group-title">Study Cards (${matchedCards.length})</div>
+        <ul class="search-results-list">
+          ${matchedCards.map(card => {
+            const docName = card.documents?.file_name || 'Unnamed Document';
+            const styleLabel = getStyleLabel(card.summary_style);
+            const langLabel = card.summary_language === 'tr' ? 'Turkish' : 'English';
+            return `
+              <li>
+                <a class="search-result-item" onclick="handleSearchResultClick(event, 'card', '${card.document_id}', '${card.id}', '${docName.replace(/'/g, "\\'")}')">
+                  <div class="search-result-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
+                  </div>
+                  <div class="search-result-text">
+                    <span>${docName} — <span style="color: var(--color-teal); font-weight: 700;">${styleLabel} (${langLabel})</span></span>
+                    <span class="search-result-subtext" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 550px;">${card.summary}</span>
+                  </div>
+                </a>
+              </li>
+            `;
+          }).join('')}
+        </ul>
+      </div>
+    `;
+  }
+
+  // 3. Exams group
+  if (matchedExams.length > 0) {
+    html += `
+      <div>
+        <div class="search-results-group-title">Completed Exams (${matchedExams.length})</div>
+        <ul class="search-results-list">
+          ${matchedExams.map(exam => {
+            const card = allCards.find(c => c.id === exam.study_card_id);
+            const docName = card?.documents?.file_name || 'Unnamed Document';
+            const scorePercent = Math.round((exam.score || 0) * 100);
+            const formattedTime = new Date(exam.completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            return `
+              <li>
+                <a class="search-result-item" onclick="handleSearchResultClick(event, 'exam', '${exam.study_card_id}')">
+                  <div class="search-result-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                  </div>
+                  <div class="search-result-text">
+                    <span>Quiz for ${docName}</span>
+                    <span class="search-result-subtext">Score: ${scorePercent}% • Completed: ${formattedTime}</span>
+                  </div>
+                </a>
+              </li>
+            `;
+          }).join('')}
+        </ul>
+      </div>
+    `;
+  }
+
+  container.innerHTML = html;
+}
+
+function handleQuickActionClick(event, action) {
+  if (event) event.preventDefault();
+  
+  const overlay = document.getElementById('global-search-overlay');
+  if (overlay) overlay.classList.remove('active');
+  
+  if (action.startsWith('nav-')) {
+    const viewName = action.substring(4);
+    switchDashboardView(viewName);
+  }
+}
+
+function handleSearchResultClick(event, type, targetId, cardId = null, docName = null) {
+  event.preventDefault();
+  event.stopPropagation();
+  
+  const overlay = document.getElementById('global-search-overlay');
+  if (overlay) {
+    overlay.classList.remove('active');
+  }
+
+  if (type === 'doc') {
+    switchDashboardView('docs');
+  } 
+  else if (type === 'card') {
+    switchDashboardView('cards');
+    if (targetId && docName) {
+      viewStudyCard(targetId, docName, false, cardId);
+    }
+  } 
+  else if (type === 'exam') {
+    switchDashboardView('exams');
+  }
+}
+
+window.initGlobalSearch = initGlobalSearch;
+window.handleQuickActionClick = handleQuickActionClick;
+window.handleSearchResultClick = handleSearchResultClick;
+
+// ==========================================
+// CARD DEPOT WORKFLOW CONTROLLERS (PHASE 11)
+// ==========================================
+
+async function updateDepotCountBadge(count = null) {
+  const badge = document.getElementById('depot-count-badge');
+  if (!badge) return;
+
+  if (count === null) {
+    try {
+      const { count: fetchedCount, error } = await supabaseClient
+        .from('card_depot')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', currentUser.id);
+
+      if (!error) {
+        if (fetchedCount > 0) {
+          badge.textContent = fetchedCount;
+          badge.style.display = 'flex';
+        } else {
+          badge.style.display = 'none';
+        }
+      }
+    } catch (e) {
+      console.error("Error fetching depot count:", e);
+    }
+  } else {
+    if (count > 0) {
+      badge.textContent = count;
+      badge.style.display = 'flex';
+    } else {
+      badge.style.display = 'none';
+    }
+  }
+}
+
+function initDepotModalListeners() {
+  const btnOpen = document.getElementById('btn-depot-modal');
+  const modal = document.getElementById('depot-modal');
+  const btnClose = document.getElementById('btn-close-depot-modal');
+  if (!btnOpen || !modal || !btnClose) return;
+
+  if (btnOpen.getAttribute('data-bound') === 'true') return;
+
+  btnOpen.addEventListener('click', async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    await loadDepotItems();
+    modal.style.display = 'flex';
+  });
+
+  const closeModal = () => {
+    modal.style.display = 'none';
+  };
+
+  btnClose.addEventListener('click', closeModal);
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      closeModal();
+    }
+  });
+
+  btnOpen.setAttribute('data-bound', 'true');
+}
+
+async function sendToDepot(event, btn, cardId, sourceType, title, content) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  const originalHtml = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = `
+    <svg class="spinner" viewBox="0 0 50 50" style="animation: rotate 2s linear infinite; width: 12px; height: 12px; margin-right: 0; color: currentColor; display: inline-block;">
+      <circle class="path" cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="5" style="stroke-dasharray: 1, 150; stroke-dashoffset: 0; stroke-linecap: round; animation: dash 1.5s ease-in-out infinite;"></circle>
+    </svg>
+    Gönderiliyor...
+  `;
+
+  try {
+    const { error } = await supabaseClient
+      .from('card_depot')
+      .insert({
+        user_id: currentUser.id,
+        source_type: sourceType,
+        title: title,
+        content: content,
+        study_card_id: cardId
+      });
+
+    if (error) {
+      console.error("Error sending to depot:", error);
+      showDashboardAlert('error', 'Depoya gönderilemedi. / Failed to send.');
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
+      return;
+    }
+
+    btn.innerHTML = '✓ Sent! / Gönderildi!';
+    btn.style.backgroundColor = 'var(--color-teal)';
+    btn.style.color = 'white';
+
+    await updateDepotCountBadge();
+
+    setTimeout(() => {
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
+      btn.style.backgroundColor = '';
+      btn.style.color = '';
+    }, 1500);
+
+  } catch (err) {
+    console.error("Exception in sendToDepot:", err);
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
+  }
+}
+
+async function loadDepotItems() {
+  const depotList = document.getElementById('depot-items-list');
+  if (!depotList) return;
+
+  depotList.innerHTML = `
+    <div style="display: flex; align-items: center; justify-content: center; padding: 1.5rem;">
+      <svg class="spinner" viewBox="0 0 50 50" style="animation: rotate 2s linear infinite; width: 20px; height: 20px; color: var(--color-teal);">
+        <circle class="path" cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="5" style="stroke-dasharray: 1, 150; stroke-dashoffset: 0; stroke-linecap: round; animation: dash 1.5s ease-in-out infinite;"></circle>
+      </svg>
+    </div>
+  `;
+
+  try {
+    const { data: items, error } = await supabaseClient
+      .from('card_depot')
+      .select('*')
+      .eq('user_id', currentUser.id)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error("Error loading depot items:", error);
+      depotList.innerHTML = '<p style="font-size: 0.8rem; color: var(--color-text-muted);">Failed to load staging items.</p>';
+      return;
+    }
+
+    updateDepotCountBadge(items.length);
+
+    if (!items || items.length === 0) {
+      depotList.innerHTML = `
+        <div class="search-empty-state" style="padding: 1.5rem 0.5rem; text-align: center;">
+          <p style="font-size: 0.8rem; color: var(--color-text-muted); margin-bottom: 0.5rem;">Deponuz boş. / Staging depot is empty.</p>
+          <a href="#" onclick="const modal = document.getElementById('depot-modal'); if (modal) modal.style.display = 'none'; switchDashboardView('cards');" style="color: var(--color-teal); font-weight: 700; font-size: 0.8rem; text-decoration: underline;">
+            Bilgi Kartları'na git ve terimleri, noktaları buraya gönder!
+          </a>
+        </div>
+      `;
+      return;
+    }
+
+    depotList.innerHTML = '';
+    items.forEach(item => {
+      const cardDiv = document.createElement('div');
+      cardDiv.className = 'depot-item-card';
+      cardDiv.id = `depot-item-${item.id}`;
+      cardDiv.setAttribute('data-study-card-id', item.study_card_id || '');
+
+      let typeTag = '';
+      if (item.source_type === 'key_term') {
+        typeTag = '<span class="depot-item-tag depot-tag-term">Term</span>';
+      } else if (item.source_type === 'key_point') {
+        typeTag = '<span class="depot-item-tag depot-tag-point">Point</span>';
+      } else {
+        typeTag = '<span class="depot-item-tag depot-tag-question">Question</span>';
+      }
+
+      const maxTextLen = 140;
+      let displayContent = item.content || '';
+      if (displayContent.length > maxTextLen) {
+        displayContent = displayContent.substring(0, maxTextLen) + '...';
+      }
+
+      const escapedContent = (item.content || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+      const escapedTitle = (item.title || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
+      cardDiv.innerHTML = `
+        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 0.5rem;">
+          ${typeTag}
+          <button class="depot-item-close" onclick="deleteDepotItem(event, '${item.id}')" title="Depodan Sil (Discard)">✕</button>
+        </div>
+        ${item.title ? `<div class="depot-item-title">${item.title}</div>` : ''}
+        <div class="depot-item-text" title="${(item.content || '').replace(/"/g, '&quot;')}">${displayContent}</div>
+        <div class="depot-item-actions">
+          <button class="btn btn-primary" onclick="pasteDepotItem(event, '${item.id}', '${escapedTitle}', '${escapedContent}')" style="font-size: 0.7rem !important; padding: 0.25rem 0.5rem !important; min-height: auto !important; border: none; font-weight: 700;">
+            📌 Deftere Yapıştır
+          </button>
+        </div>
+      `;
+      depotList.appendChild(cardDiv);
+    });
+
+  } catch (err) {
+    console.error("Exception loading depot items:", err);
+  }
+}
+
+async function deleteDepotItem(event, itemId) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  try {
+    const { error } = await supabaseClient
+      .from('card_depot')
+      .delete()
+      .eq('id', itemId);
+
+    if (error) {
+      console.error("Error discarding depot item:", error);
+      showDashboardAlert('error', 'Depodan silinemedi. / Failed to discard.');
+      return;
+    }
+
+    const card = document.getElementById(`depot-item-${itemId}`);
+    if (card) card.remove();
+
+    await updateDepotCountBadge();
+
+    const depotList = document.getElementById('depot-items-list');
+    if (depotList && depotList.children.length === 0) {
+      depotList.innerHTML = `
+        <div class="search-empty-state" style="padding: 1.5rem 0.5rem; text-align: center;">
+          <p style="font-size: 0.8rem; color: var(--color-text-muted); margin-bottom: 0.5rem;">Deponuz boş. / Staging depot is empty.</p>
+          <a href="#" onclick="const modal = document.getElementById('depot-modal'); if (modal) modal.style.display = 'none'; switchDashboardView('cards');" style="color: var(--color-teal); font-weight: 700; font-size: 0.8rem; text-decoration: underline;">
+            Bilgi Kartları'na git ve terimleri, noktaları buraya gönder!
+          </a>
+        </div>
+      `;
+    }
+
+  } catch (err) {
+    console.error("Exception discarding depot item:", err);
+  }
+}
+
+async function pasteDepotItem(event, itemId, title, content) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  const cardEl = document.getElementById(`depot-item-${itemId}`);
+  let studyCardId = '';
+  if (cardEl) {
+    studyCardId = cardEl.getAttribute('data-study-card-id') || '';
+  }
+
+  addDepotStickyNoteToCanvas(studyCardId, title, content);
+
+  try {
+    const { error } = await supabaseClient
+      .from('card_depot')
+      .delete()
+      .eq('id', itemId);
+
+    if (error) {
+      console.error("Error deleting placed depot item:", error);
+    }
+  } catch (err) {
+    console.error("Exception removing placed depot item:", err);
+  }
+
+  if (cardEl) cardEl.remove();
+
+  await updateDepotCountBadge();
+
+  const depotList = document.getElementById('depot-items-list');
+  if (depotList && depotList.children.length === 0) {
+    depotList.innerHTML = `
+      <div class="search-empty-state" style="padding: 1.5rem 0.5rem; text-align: center;">
+        <p style="font-size: 0.8rem; color: var(--color-text-muted); margin-bottom: 0.5rem;">Deponuz boş. / Staging depot is empty.</p>
+        <a href="#" onclick="const modal = document.getElementById('depot-modal'); if (modal) modal.style.display = 'none'; switchDashboardView('cards');" style="color: var(--color-teal); font-weight: 700; font-size: 0.8rem; text-decoration: underline;">
+          Bilgi Kartları'na git ve terimleri, noktaları buraya gönder!
+        </a>
+      </div>
+    `;
+  }
+}
+
+function addDepotStickyNoteToCanvas(cardId, title, content) {
+  const overlay = document.getElementById('notebook-overlay-container');
+  if (!overlay) return;
+
+  const id = 'note-' + Date.now();
+  const rotation = Math.floor(Math.random() * 7) - 3; // -3 to +3 deg
+  
+  const rect = overlay.getBoundingClientRect();
+  const noteWidth = 220;
+  const noteHeight = 150;
+  const centerX = (rect.width > noteWidth) ? (rect.width - noteWidth) / 2 : 50;
+  const centerY = (rect.height > noteHeight) ? (rect.height - noteHeight) / 2 : 50;
+  
+  const offset = (overlay.children.length * 20) % 200;
+  const x = centerX + offset;
+  const y = centerY + offset;
+
+  const note = document.createElement('div');
+  note.className = 'draggable-element draggable-note';
+  note.id = id;
+  note.style.left = `${x}px`;
+  note.style.top = `${y}px`;
+  note.style.transform = `rotate(${rotation}deg)`;
+  note.setAttribute('data-type', 'sticky');
+  note.setAttribute('data-card-id', cardId || '');
+  note.setAttribute('data-rotation', rotation);
+
+  const formattedContent = content.replace(/\n/g, '<br>');
+
+  note.innerHTML = `
+    <button class="delete-overlay-btn" title="Remove Sticky Note" onclick="removeOverlayElement('${id}')">×</button>
+    <div class="draggable-note-title" style="font-size: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${title}">${title}</div>
+    <div class="draggable-note-text" style="max-height: 180px; overflow-y: auto; padding-right: 2px; font-size: 0.75rem;">${formattedContent}</div>
+    <div class="draggable-note-footer">Acadex Depot Card</div>
+  `;
+
+  note.addEventListener('click', (e) => {
+    if (e.target.classList.contains('delete-overlay-btn') || e.target.closest('.delete-overlay-btn')) return;
+    if (!cardId) {
+      showDashboardAlert('info', 'This sticky note was created from the depot and is not linked to a study card.');
+      return;
+    }
+    const card = notebookCards.find(c => c.id === cardId) || libraryCards.find(c => c.id === cardId);
+    if (card) {
+      const fileName = card.documents?.file_name || 'Document';
+      viewStudyCard(card.document_id, fileName, false, cardId);
+    } else {
+      showDashboardAlert('error', 'The study card for this note has been deleted.');
+    }
+  });
+
+  overlay.appendChild(note);
+  makeElementDraggable(note);
+}
+
+// ==========================================
+// ANIMATED FLASHCARD MODAL CONTROLLERS (PHASE 11)
+// ==========================================
+let reviewItems = [];
+let reviewIndex = 0;
+let reviewCardId = '';
+let reviewType = '';
+let reviewFileName = '';
+
+function openFlashcardViewer(cardId, type, fileName) {
+  const card = libraryCards.find(c => c.id === cardId) || notebookCards.find(c => c.id === cardId);
+  if (!card) {
+    showDashboardAlert('error', 'Study card not found.');
+    return;
+  }
+
+  if (type === 'terms') {
+    reviewItems = card.key_terms || [];
+    document.getElementById('flashcard-modal-title').textContent = `${fileName} - Anahtar Terimler`;
+  } else if (type === 'points') {
+    reviewItems = card.key_points || [];
+    document.getElementById('flashcard-modal-title').textContent = `${fileName} - Önemli Noktalar`;
+  } else if (type === 'quiz') {
+    reviewItems = card.quiz_questions || [];
+    document.getElementById('flashcard-modal-title').textContent = `${fileName} - Kendi Kendine Test`;
+  }
+
+  if (reviewItems.length === 0) {
+    showDashboardAlert('info', 'Bu kategoriye ait kart bulunmamaktadır. / No items in this section.');
+    return;
+  }
+
+  reviewIndex = 0;
+  reviewCardId = cardId;
+  reviewType = type;
+  reviewFileName = fileName;
+
+  const footer = document.querySelector('.flashcard-viewer-footer');
+  const progress = document.getElementById('flashcard-progress');
+  if (progress) progress.style.display = 'block';
+  if (footer) footer.style.display = 'flex';
+
+  const modal = document.getElementById('flashcard-modal');
+  if (modal) {
+    modal.style.display = 'flex';
+  }
+
+  const btnNext = document.getElementById('btn-flashcard-next');
+  const btnSend = document.getElementById('btn-flashcard-send');
+  
+  btnNext.onclick = (e) => {
+    e.preventDefault();
+    nextFlashcard();
+  };
+
+  btnSend.onclick = (e) => {
+    e.preventDefault();
+    sendCurrentCardToDepot(btnSend);
+  };
+
+  const btnClose = document.getElementById('btn-close-flashcard-modal');
+  btnClose.onclick = (e) => {
+    e.preventDefault();
+    closeFlashcardViewer();
+  };
+
+  modal.onclick = (e) => {
+    if (e.target === modal) {
+      closeFlashcardViewer();
+    }
+  };
+
+  renderCurrentFlashcard();
+}
+
+function renderCurrentFlashcard() {
+  const cardEl = document.getElementById('flashcard-card');
+  const progress = document.getElementById('flashcard-progress');
+  if (!cardEl || reviewIndex >= reviewItems.length) return;
+
+  const item = reviewItems[reviewIndex];
+  progress.textContent = `Card ${reviewIndex + 1} of ${reviewItems.length}`;
+  progress.setAttribute('aria-label', `Card ${reviewIndex + 1} of ${reviewItems.length}`);
+
+  cardEl.innerHTML = '';
+
+  if (reviewType === 'terms') {
+    cardEl.innerHTML = `
+      <h3 style="font-size: 1.5rem; color: var(--color-navy); font-weight: 800; margin-bottom: 1rem;">${item.term}</h3>
+      <p style="font-size: 0.95rem; color: var(--color-text); line-height: 1.6; margin: 0;">${item.definition}</p>
+    `;
+  } else if (reviewType === 'points') {
+    cardEl.innerHTML = `
+      <p style="font-size: 1.1rem; color: var(--color-navy); line-height: 1.6; font-weight: 600; margin: 0; padding: 1rem 0;">${item}</p>
+    `;
+  } else if (reviewType === 'quiz') {
+    cardEl.innerHTML = `
+      <h3 style="font-size: 1.25rem; color: var(--color-navy); font-weight: 800; margin-bottom: 1rem;">Soru: ${item.question}</h3>
+      <p style="font-size: 1.05rem; color: var(--color-teal); font-weight: 700; line-height: 1.6; margin: 0;">Cevap: ${item.answer}</p>
+    `;
+  }
+}
+
+function nextFlashcard() {
+  if (reviewIndex >= reviewItems.length - 1) {
+    const cardEl = document.getElementById('flashcard-card');
+    if (cardEl) {
+      cardEl.classList.add('slide-out-left');
+      setTimeout(() => {
+        cardEl.classList.remove('slide-out-left');
+        reviewIndex++;
+        renderEndOfDeck();
+      }, 300);
+    }
+    return;
+  }
+
+  animateNextCard(() => {
+    reviewIndex++;
+    renderCurrentFlashcard();
+  });
+}
+
+function animateNextCard(nextItemCallback) {
+  const cardEl = document.getElementById('flashcard-card');
+  if (!cardEl) return;
+  
+  cardEl.classList.add('slide-out-left');
+  
+  setTimeout(() => {
+    nextItemCallback();
+    
+    cardEl.style.transition = 'none';
+    cardEl.classList.remove('slide-out-left');
+    cardEl.classList.add('slide-in-right');
+    
+    cardEl.offsetHeight; // trigger reflow
+    
+    cardEl.style.transition = 'transform 0.3s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.3s ease';
+    cardEl.classList.remove('slide-in-right');
+  }, 300);
+}
+
+async function sendCurrentCardToDepot(btn) {
+  if (reviewIndex >= reviewItems.length) return;
+  const item = reviewItems[reviewIndex];
+
+  let title = '';
+  let content = '';
+
+  if (reviewType === 'terms') {
+    title = item.term;
+    content = item.definition;
+  } else if (reviewType === 'points') {
+    title = 'Key Point';
+    content = item;
+  } else if (reviewType === 'quiz') {
+    title = 'Self-Test Q&A';
+    content = `Question: ${item.question}\nAnswer: ${item.answer}`;
+  }
+
+  const originalHtml = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = 'Sending...';
+
+  try {
+    const { error } = await supabaseClient
+      .from('card_depot')
+      .insert({
+        user_id: currentUser.id,
+        source_type: reviewType === 'terms' ? 'key_term' : (reviewType === 'points' ? 'key_point' : 'quiz_question'),
+        title: title,
+        content: content,
+        study_card_id: reviewCardId
+      });
+
+    if (error) {
+      console.error(error);
+      showDashboardAlert('error', 'Depoya gönderilemedi. / Failed to send.');
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
+      return;
+    }
+
+    btn.innerHTML = '✓ Sent!';
+    btn.style.backgroundColor = 'var(--color-teal)';
+    btn.style.color = 'white';
+
+    await updateDepotCountBadge();
+
+    setTimeout(() => {
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
+      btn.style.backgroundColor = '';
+      btn.style.color = '';
+      nextFlashcard();
+    }, 600);
+
+  } catch (e) {
+    console.error(e);
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
+  }
+}
+
+function renderEndOfDeck() {
+  const cardEl = document.getElementById('flashcard-card');
+  const footer = document.querySelector('.flashcard-viewer-footer');
+  const progress = document.getElementById('flashcard-progress');
+  if (progress) progress.style.display = 'none';
+  if (footer) footer.style.display = 'none';
+
+  if (cardEl) {
+    cardEl.innerHTML = `
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 1rem; justify-content: center; height: 100%;">
+        <div style="font-size: 3rem;">🎉</div>
+        <h3 style="font-size: 1.2rem; color: var(--color-navy); font-weight: 800; margin: 0;">Tüm kartları incelediniz!</h3>
+        <p style="font-size: 0.85rem; color: var(--color-text-muted); margin: 0 0 1rem 0;">Reviewed all ${reviewItems.length} cards!</p>
+        <div style="display: flex; gap: 1rem; width: 100%;">
+          <button class="btn btn-outline" onclick="restartReview()" style="flex: 1; padding: 0.5rem 1rem;">Tekrar İncele</button>
+          <button class="btn btn-primary" onclick="closeFlashcardViewer()" style="flex: 1; padding: 0.5rem 1rem; border: none;">Kapat</button>
+        </div>
+      </div>
+    `;
+  }
+}
+
+function restartReview() {
+  reviewIndex = 0;
+  
+  const footer = document.querySelector('.flashcard-viewer-footer');
+  const progress = document.getElementById('flashcard-progress');
+  if (progress) progress.style.display = 'block';
+  if (footer) footer.style.display = 'flex';
+
+  renderCurrentFlashcard();
+}
+
+function closeFlashcardViewer() {
+  const modal = document.getElementById('flashcard-modal');
+  if (modal) {
+    modal.style.display = 'none';
+  }
+}
+
+// Add Escape key handler to close active modals
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    closeFlashcardViewer();
+    const depotModal = document.getElementById('depot-modal');
+    if (depotModal) depotModal.style.display = 'none';
+  }
+});
+
+window.initDepotModalListeners = initDepotModalListeners;
+window.updateDepotCountBadge = updateDepotCountBadge;
+window.sendToDepot = sendToDepot;
+window.loadDepotItems = loadDepotItems;
+window.deleteDepotItem = deleteDepotItem;
+window.pasteDepotItem = pasteDepotItem;
+window.addDepotStickyNoteToCanvas = addDepotStickyNoteToCanvas;
+
+window.openFlashcardViewer = openFlashcardViewer;
+window.restartReview = restartReview;
+window.closeFlashcardViewer = closeFlashcardViewer;
+
+// ==========================================
+// GELISTIRICI SANDBOX CONTROLLERS (PHASE 10)
+// ==========================================
+function loadDeveloperSandbox() {
+  const modal = document.getElementById('share-project-modal');
+  const btnShare = document.getElementById('btn-share-project');
+  const btnClose = document.getElementById('btn-close-share-project-modal');
+  const btnCancel = document.getElementById('btn-cancel-share-project');
+  const form = document.getElementById('share-project-form');
+
+  if (btnShare && modal) {
+    btnShare.onclick = (e) => {
+      e.preventDefault();
+      form.reset();
+      modal.style.display = 'flex';
+    };
+  }
+
+  const closeModal = () => {
+    if (modal) modal.style.display = 'none';
+  };
+
+  if (btnClose) btnClose.onclick = closeModal;
+  if (btnCancel) btnCancel.onclick = closeModal;
+
+  // Escape key close project share modal
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeModal();
+    }
+  });
+
+  if (form) {
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const title = document.getElementById('project-title').value.trim();
+      const description = document.getElementById('project-desc').value.trim();
+      const githubUrl = document.getElementById('project-github').value.trim();
+      const liveUrl = document.getElementById('project-live').value.trim();
+
+      if (!title || !description) return;
+
+      // Clear previous error messages
+      const ghErrorEl = document.getElementById('github-url-error');
+      const liveErrorEl = document.getElementById('live-url-error');
+      if (ghErrorEl) { ghErrorEl.style.display = 'none'; ghErrorEl.textContent = ''; }
+      if (liveErrorEl) { liveErrorEl.style.display = 'none'; liveErrorEl.textContent = ''; }
+
+      let hasError = false;
+
+      function validateAndGetURL(str) {
+        if (!str) return null;
+        let formatted = str;
+        if (!/^https?:\/\//i.test(str)) {
+          formatted = 'https://' + str;
+        }
+        try {
+          const url = new URL(formatted);
+          if (url.hostname.includes('.')) {
+            return url.href;
+          }
+          return null;
+        } catch (_) {
+          return null;
+        }
+      }
+
+      let parsedGithub = null;
+      if (githubUrl) {
+        parsedGithub = validateAndGetURL(githubUrl);
+        if (!parsedGithub) {
+          if (ghErrorEl) {
+            ghErrorEl.textContent = 'Invalid URL format / Geçersiz URL';
+            ghErrorEl.style.display = 'block';
+          }
+          hasError = true;
+        }
+      }
+
+      let parsedLive = null;
+      if (liveUrl) {
+        parsedLive = validateAndGetURL(liveUrl);
+        if (!parsedLive) {
+          if (liveErrorEl) {
+            liveErrorEl.textContent = 'Invalid URL format / Geçersiz URL';
+            liveErrorEl.style.display = 'block';
+          }
+          hasError = true;
+        }
+      }
+
+      if (hasError) return;
+
+      try {
+        const { error } = await supabaseClient
+          .from('sandbox_projects')
+          .insert({
+            user_id: currentUser.id,
+            title: title,
+            description: description,
+            github_url: parsedGithub,
+            live_url: parsedLive
+          });
+
+        if (error) {
+          console.error("Error sharing sandbox project:", error);
+          showDashboardAlert('error', 'Proje paylaşılamadı. / Failed to share project.');
+          return;
+        }
+
+        showDashboardAlert('success', 'Projeniz paylaşıldı! / Project shared successfully!');
+        closeModal();
+        await checkAndAwardSandboxProject();
+        await loadSandboxProjects();
+      } catch (err) {
+        console.error("Exception sharing project:", err);
+      }
+    };
+  }
+
+  loadSandboxProjects();
+}
+
+async function loadSandboxProjects() {
+  const grid = document.getElementById('sandbox-projects-grid');
+  if (!grid) return;
+
+  grid.innerHTML = `
+    <div style="display: flex; align-items: center; justify-content: center; padding: 2rem; grid-column: 1 / -1;">
+      <svg class="spinner" viewBox="0 0 50 50" style="animation: rotate 2s linear infinite; width: 32px; height: 32px; color: var(--color-teal);">
+        <circle class="path" cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="5" style="stroke-dasharray: 1, 150; stroke-dashoffset: 0; stroke-linecap: round; animation: dash 1.5s ease-in-out infinite;"></circle>
+      </svg>
+    </div>
+  `;
+
+  try {
+    const { data: projects, error } = await supabaseClient
+      .from('sandbox_projects')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(sandboxProjectsLimit);
+
+    if (error) {
+      console.error("Error fetching sandbox projects:", error);
+      grid.innerHTML = `<p style="color: var(--color-text-muted); grid-column: 1 / -1;">Projeler yüklenemedi. / Failed to load projects.</p>`;
+      return;
+    }
+
+    if (!projects || projects.length === 0) {
+      grid.innerHTML = `
+        <div class="search-empty-state" style="grid-column: 1 / -1; text-align: center; padding: 2rem;">
+          <p style="color: var(--color-text-muted); font-size: 0.9rem;">Henüz paylaşılan proje yok. İlk paylaşan siz olun!</p>
+          <p style="font-size: 0.8rem; color: var(--color-text-muted);">No projects shared yet — be the first! Share your GitHub project or Vercel deployment with the whole Acadex community.</p>
+        </div>
+      `;
+      return;
+    }
+
+    // Fetch submitter profiles client-side
+    const userIds = [...new Set(projects.map(p => p.user_id))];
+    const { data: profiles, error: profError } = await supabaseClient
+      .from('profiles')
+      .select('id, full_name, department')
+      .in('id', userIds);
+
+    const profileMap = {};
+    profiles?.forEach(p => {
+      profileMap[p.id] = {
+        full_name: p.full_name || 'Anonymous Student',
+        department: p.department || 'General Faculty'
+      };
+    });
+
+    grid.innerHTML = '';
+    projects.forEach(proj => {
+      const author = profileMap[proj.user_id] || { full_name: 'Anonymous Student', department: 'General Faculty' };
+      const deptClass = getDepartmentColorClass(author.department);
+      const deptShort = getDepartmentShortName(author.department);
+      
+      const createdDate = new Date(proj.created_at).toLocaleDateString('tr-TR', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+      });
+
+      const card = document.createElement('div');
+      card.className = 'doc-card';
+      card.style.display = 'flex';
+      card.style.flexDirection = 'column';
+      card.style.justifyContent = 'space-between';
+      card.style.position = 'relative';
+      card.style.gap = '0.5rem';
+
+      // Render Delete Button if current student is the owner
+      let deleteBtnHtml = '';
+      if (proj.user_id === currentUser.id) {
+        deleteBtnHtml = `
+          <button onclick="deleteSandboxProject('${proj.id}')" style="background: none; border: none; cursor: pointer; color: #EF4444; position: absolute; top: 0.75rem; right: 0.75rem; display: flex; align-items: center; justify-content: center; padding: 0.25rem; border-radius: var(--radius-sm); transition: background-color 0.2s;" title="Projeyi Sil (Delete)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+          </button>
+        `;
+      }
+
+      card.innerHTML = `
+        <div style="padding-right: 1.5rem;">
+          <h4 style="font-size: 0.95rem; font-weight: 800; color: var(--color-navy); margin-bottom: 0.25rem; word-break: break-word;">${proj.title}</h4>
+          
+          <div style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.7rem; color: var(--color-text-muted); margin-bottom: 0.5rem; flex-wrap: wrap;">
+            <span>By: <strong>${author.full_name}</strong></span>
+            <span class="dept-badge ${deptClass}" style="padding: 0.1rem 0.35rem; font-size: 0.55rem; font-weight: 800;">${deptShort}</span>
+          </div>
+
+          <p style="font-size: 0.8rem; color: var(--color-text); line-height: 1.4; margin-bottom: 0.5rem; word-break: break-word;">${proj.description}</p>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 0.35rem; border-top: 1px solid rgba(22, 50, 92, 0.08); padding-top: 0.5rem; margin-top: auto;">
+          <div style="display: flex; gap: 0.35rem;">
+            ${proj.github_url ? `
+              <a href="${proj.github_url}" target="_blank" class="btn btn-outline" style="flex: 1; text-align: center; font-size: 0.7rem; padding: 0.3rem 0.5rem; display: flex; align-items: center; justify-content: center; gap: 0.25rem;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
+                GitHub
+              </a>
+            ` : ''}
+            ${proj.live_url ? `
+              <a href="${proj.live_url}" target="_blank" class="btn btn-primary" style="flex: 1; text-align: center; font-size: 0.7rem; padding: 0.3rem 0.5rem; border: none; display: flex; align-items: center; justify-content: center; gap: 0.25rem;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                Live Demo
+              </a>
+            ` : ''}
+          </div>
+          <span style="font-size: 0.65rem; color: var(--color-text-muted); text-align: right; display: block; margin-top: 0.15rem;">Paylaşım: ${createdDate}</span>
+        </div>
+        ${deleteBtnHtml}
+      `;
+      grid.appendChild(card);
+    });
+
+    if (projects.length === sandboxProjectsLimit) {
+      const loadMoreBtn = document.createElement('button');
+      loadMoreBtn.className = 'btn btn-outline';
+      loadMoreBtn.id = 'btn-load-more-sandbox';
+      loadMoreBtn.textContent = 'Load More / Daha Fazla Yükle';
+      loadMoreBtn.style.gridColumn = '1 / -1';
+      loadMoreBtn.style.margin = '2rem auto';
+      loadMoreBtn.style.padding = '0.6rem 1.5rem';
+      loadMoreBtn.style.fontSize = '0.85rem';
+      loadMoreBtn.style.display = 'block';
+      
+      loadMoreBtn.addEventListener('click', async () => {
+        loadMoreBtn.disabled = true;
+        loadMoreBtn.textContent = 'Loading...';
+        sandboxProjectsLimit += 20;
+        await loadSandboxProjects();
+      });
+      
+      grid.appendChild(loadMoreBtn);
+    }
+
+  } catch (err) {
+    console.error("Exception loading sandbox projects:", err);
+  }
+}
+
+async function deleteSandboxProject(projectId) {
+  const isTr = localStorage.getItem('acadexUILang') === 'tr';
+  const title = isTr ? "Projeyi Sil" : "Delete Project";
+  const text = isTr 
+    ? "Bu projeyi galeriden kaldırmak istediğinize emin misiniz?" 
+    : "Are you sure you want to delete this project?";
+
+  showConfirmModal(title, text, async () => {
+    try {
+      const { error } = await supabaseClient
+        .from('sandbox_projects')
+        .delete()
+        .eq('id', projectId);
+
+      if (error) {
+        console.error("Error deleting sandbox project:", error);
+        showDashboardAlert('error', 'Proje silinemedi. / Failed to delete project.');
+        return;
+      }
+
+      showDashboardAlert('success', 'Proje başarıyla silindi. / Project deleted.');
+      await loadSandboxProjects();
+
+    } catch (err) {
+      console.error("Exception deleting sandbox project:", err);
+      showDashboardAlert('error', 'Proje silinirken hata oluştu.');
+    }
+  });
+}
+
+// ==========================================
+// POMODORO WIDGET CONTROLLERS (PHASE 10)
+// ==========================================
+let ambientAudioCtx = null;
+let ambientGainNode = null;
+let ambientOscillators = [];
+let ambientLfoNode = null;
+
+function playPomodoroDing() {
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(880, ctx.currentTime);
+    gain1.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+    
+    osc1.connect(gain1);
+    gain1.connect(ctx.destination);
+    osc1.start();
+    osc1.stop(ctx.currentTime + 0.5);
+
+    setTimeout(() => {
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(659.25, ctx.currentTime);
+      gain2.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
+      
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.start();
+      osc2.stop(ctx.currentTime + 0.6);
+    }, 350);
+    
+  } catch (e) {
+    console.error("Web Audio API error during completion ring:", e);
+  }
+}
+
+function initAmbientTone() {
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    
+    ambientAudioCtx = new AudioContext();
+    ambientGainNode = ambientAudioCtx.createGain();
+    
+    const baseFreq = 110;
+    const freqs = [baseFreq, baseFreq * 1.5, baseFreq * 2.005];
+    
+    const filter = ambientAudioCtx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 350;
+    
+    freqs.forEach((freq, idx) => {
+      const osc = ambientAudioCtx.createOscillator();
+      osc.type = idx === 1 ? 'triangle' : 'sine';
+      osc.frequency.value = freq;
+      
+      const oscGain = ambientAudioCtx.createGain();
+      oscGain.gain.value = 0.15;
+      
+      osc.connect(oscGain);
+      oscGain.connect(filter);
+      osc.start();
+      ambientOscillators.push(osc);
+    });
+    
+    ambientLfoNode = ambientAudioCtx.createOscillator();
+    ambientLfoNode.frequency.value = 0.15;
+    
+    const lfoGain = ambientAudioCtx.createGain();
+    lfoGain.gain.value = 0.08;
+    
+    ambientLfoNode.connect(lfoGain);
+    
+    ambientGainNode.gain.value = 0.12; 
+    lfoGain.connect(ambientGainNode.gain);
+    ambientLfoNode.start();
+    
+    filter.connect(ambientGainNode);
+    ambientGainNode.connect(ambientAudioCtx.destination);
+    
+    const volSlider = document.getElementById('pomodoro-sound-volume');
+    if (volSlider) {
+      updateAmbientVolume(volSlider.value);
+    }
+    
+  } catch (e) {
+    console.error("Web Audio API error during ambient init:", e);
+  }
+}
+
+function updateAmbientVolume(val) {
+  if (!ambientGainNode || !ambientAudioCtx) return;
+  const scale = parseFloat(val);
+  if (!isNaN(scale)) {
+    ambientGainNode.gain.setValueAtTime(ambientGainNode.gain.value, ambientAudioCtx.currentTime);
+    ambientGainNode.gain.linearRampToValueAtTime(0.12 * scale, ambientAudioCtx.currentTime + 0.1);
+  }
+}
+
+function stopAmbientTone() {
+  if (!ambientAudioCtx) return;
+  
+  try {
+    if (ambientGainNode) {
+      ambientGainNode.gain.setValueAtTime(ambientGainNode.gain.value, ambientAudioCtx.currentTime);
+      ambientGainNode.gain.linearRampToValueAtTime(0, ambientAudioCtx.currentTime + 0.5);
+    }
+    
+    setTimeout(() => {
+      ambientOscillators.forEach(osc => {
+        try { osc.stop(); } catch(e){}
+      });
+      ambientOscillators = [];
+      
+      if (ambientLfoNode) {
+        try { ambientLfoNode.stop(); } catch(e){}
+        ambientLfoNode = null;
+      }
+      
+      if (ambientAudioCtx && ambientAudioCtx.state !== 'closed') {
+        ambientAudioCtx.close();
+      }
+      ambientAudioCtx = null;
+      ambientGainNode = null;
+    }, 550);
+    
+  } catch (e) {
+    console.error("Web Audio API error during fade out:", e);
+    ambientOscillators = [];
+    ambientAudioCtx = null;
+  }
+}
+
+function initPomodoroWidget() {
+  const btnToggle = document.getElementById('btn-pomodoro-toggle');
+  const panel = document.getElementById('pomodoro-panel');
+  const btnClose = document.getElementById('btn-close-pomodoro-panel');
+  
+  const timerDisplay = document.getElementById('pomodoro-timer-display');
+  const btnStart = document.getElementById('btn-pomodoro-start');
+  const btnPause = document.getElementById('btn-pomodoro-pause');
+  const btnReset = document.getElementById('btn-pomodoro-reset');
+  const modeSelect = document.getElementById('pomodoro-mode-select');
+  
+  const dimToggle = document.getElementById('pomodoro-dim-toggle');
+  const dimOverlay = document.getElementById('pomodoro-dim-overlay');
+  
+  const soundToggle = document.getElementById('pomodoro-sound-toggle');
+  const soundVolume = document.getElementById('pomodoro-sound-volume');
+  const sessionCount = document.getElementById('pomodoro-session-count');
+
+  if (!btnToggle || !panel) return;
+
+  btnToggle.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (panel.style.display === 'none') {
+      panel.style.display = 'flex';
+      btnToggle.style.transform = 'scale(0.95)';
+    } else {
+      panel.style.display = 'none';
+      btnToggle.style.transform = 'none';
+    }
+  });
+
+  if (btnClose) {
+    btnClose.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      panel.style.display = 'none';
+      btnToggle.style.transform = 'none';
+    });
+  }
+
+  let timeLeft = 25 * 60;
+  let timerInterval = null;
+  let currentMode = 'focus';
+  let focusSessions = 0;
+
+  const updateDisplay = () => {
+    const mins = Math.floor(timeLeft / 60);
+    const secs = timeLeft % 60;
+    timerDisplay.textContent = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const startTimer = () => {
+    if (timerInterval) return;
+    
+    btnStart.disabled = true;
+    btnPause.disabled = false;
+    modeSelect.disabled = true;
+    
+    timerInterval = setInterval(() => {
+      if (timeLeft > 0) {
+        timeLeft--;
+        updateDisplay();
+      } else {
+        clearInterval(timerInterval);
+        timerInterval = null;
+        btnStart.disabled = false;
+        btnPause.disabled = true;
+        modeSelect.disabled = false;
+        
+        playPomodoroDing();
+        
+        if (currentMode === 'focus') {
+          focusSessions++;
+          sessionCount.textContent = focusSessions;
+          
+          showDashboardAlert('success', 'Focus session completed! Nice work! Take a break. 🎉');
+          
+          currentMode = 'break';
+          modeSelect.value = 'break';
+          timeLeft = 5 * 60;
+        } else {
+          showDashboardAlert('info', 'Break over! Back to focus! 🎯');
+          
+          currentMode = 'focus';
+          modeSelect.value = 'focus';
+          timeLeft = 25 * 60;
+        }
+        updateDisplay();
+      }
+    }, 1000);
+  };
+
+  const pauseTimer = () => {
+    if (timerInterval) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+      btnStart.disabled = false;
+      btnPause.disabled = true;
+    }
+  };
+
+  const resetTimer = () => {
+    pauseTimer();
+    modeSelect.disabled = false;
+    currentMode = modeSelect.value;
+    timeLeft = currentMode === 'focus' ? 25 * 60 : 5 * 60;
+    updateDisplay();
+  };
+
+  btnStart.addEventListener('click', startTimer);
+  btnPause.addEventListener('click', pauseTimer);
+  btnReset.addEventListener('click', resetTimer);
+
+  modeSelect.addEventListener('change', () => {
+    currentMode = modeSelect.value;
+    timeLeft = currentMode === 'focus' ? 25 * 60 : 5 * 60;
+    updateDisplay();
+  });
+
+  dimToggle.addEventListener('change', () => {
+    if (dimToggle.checked) {
+      dimOverlay.style.display = 'block';
+    } else {
+      dimOverlay.style.display = 'none';
+    }
+  });
+
+  soundToggle.addEventListener('change', () => {
+    if (soundToggle.checked) {
+      initAmbientTone();
+    } else {
+      stopAmbientTone();
+    }
+  });
+
+  soundVolume.addEventListener('input', (e) => {
+    updateAmbientVolume(e.target.value);
+  });
+}
+
+window.loadDeveloperSandbox = loadDeveloperSandbox;
+window.loadSandboxProjects = loadSandboxProjects;
+window.deleteSandboxProject = deleteSandboxProject;
+window.initPomodoroWidget = initPomodoroWidget;
+window.playPomodoroDing = playPomodoroDing;
+
+// ==========================================
+// PORTAL OVERVIEW / ANA SAYFA (PHASE 11)
+// ==========================================
+async function loadDashboardHome() {
+  const greetingEl = document.getElementById('home-welcome-greeting');
+  if (!greetingEl) return;
+
+  if (currentUserProfile) {
+    const displayName = currentUserProfile.full_name || currentUser.email.split('@')[0];
+    const firstName = displayName.split(' ')[0];
+    greetingEl.textContent = `Welcome back, ${firstName}!`;
+  }
+
+  try {
+    const { count: docsCount } = await supabaseClient
+      .from('documents')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', currentUser.id)
+      .neq('status', 'failed');
+
+    const { count: cardsCount } = await supabaseClient
+      .from('study_cards')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', currentUser.id);
+
+    const { data: examsData } = await supabaseClient
+      .from('exams')
+      .select('score')
+      .eq('user_id', currentUser.id)
+      .eq('status', 'completed');
+
+    const examsCount = examsData ? examsData.length : 0;
+    let avgGrade = '—';
+    if (examsCount > 0) {
+      const sum = examsData.reduce((acc, curr) => acc + (curr.score || 0), 0);
+      avgGrade = Math.round(sum / examsCount).toString();
+    }
+
+    document.getElementById('home-stat-docs').textContent = docsCount || 0;
+    document.getElementById('home-stat-cards').textContent = cardsCount || 0;
+    document.getElementById('home-stat-exams').textContent = examsCount || 0;
+    document.getElementById('home-stat-avg-grade').textContent = avgGrade;
+
+    // Load exam date reminders banners (Part E)
+    await loadHomeExamBanners();
+
+    await loadRecentActivity();
+    await renderStreakAndAchievements();
+  } catch (err) {
+    console.error("Error loading home stats:", err);
+  }
+}
+
+async function loadRecentActivity() {
+  const activityList = document.getElementById('home-recent-activity-list');
+  if (!activityList) return;
+
+  activityList.innerHTML = `
+    <div style="display: flex; align-items: center; justify-content: center; padding: 1rem;">
+      <svg class="spinner" viewBox="0 0 50 50" style="animation: rotate 2s linear infinite; width: 24px; height: 24px; color: var(--color-teal);">
+        <circle class="path" cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="5" style="stroke-dasharray: 1, 150; stroke-dashoffset: 0; stroke-linecap: round; animation: dash 1.5s ease-in-out infinite;"></circle>
+      </svg>
+    </div>
+  `;
+
+  try {
+    const [docsRes, cardsRes, examsRes] = await Promise.all([
+      supabaseClient
+        .from('documents')
+        .select('file_name, uploaded_at')
+        .eq('user_id', currentUser.id)
+        .order('uploaded_at', { ascending: false })
+        .limit(5),
+      supabaseClient
+        .from('study_cards')
+        .select('id, created_at, summary_style, documents(file_name)')
+        .eq('user_id', currentUser.id)
+        .order('created_at', { ascending: false })
+        .limit(5),
+      supabaseClient
+        .from('exams')
+        .select('id, score, created_at, study_cards(documents(file_name))')
+        .eq('user_id', currentUser.id)
+        .order('created_at', { ascending: false })
+        .limit(5)
+    ]);
+
+    const docs = docsRes.data;
+    const cards = cardsRes.data;
+    const exams = examsRes.data;
+
+    const merged = [];
+
+    docs?.forEach(d => {
+      merged.push({
+        type: 'document',
+        title: `Uploaded: ${d.file_name}`,
+        timestamp: new Date(d.uploaded_at),
+        icon: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline>'
+      });
+    });
+
+    cards?.forEach(c => {
+      const styleName = getStyleLabel(c.summary_style);
+      const docName = c.documents?.file_name || 'document';
+      merged.push({
+        type: 'card',
+        title: `Created a ${styleName} study card for ${docName}`,
+        timestamp: new Date(c.created_at),
+        icon: '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line>'
+      });
+    });
+
+    exams?.forEach(e => {
+      const docName = e.study_cards?.documents?.file_name || 'study card';
+      merged.push({
+        type: 'exam',
+        title: `Completed a practice exam (${e.score || 0}/100) on ${docName}`,
+        timestamp: new Date(e.created_at),
+        icon: '<circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline>'
+      });
+    });
+
+    merged.sort((a, b) => b.timestamp - a.timestamp);
+    const top5 = merged.slice(0, 5);
+
+    if (top5.length === 0) {
+      activityList.innerHTML = `<p style="font-size: 0.8rem; color: var(--color-text-muted); text-align: center; padding: 1rem;">No recent activity yet. Start by uploading a document!</p>`;
+      return;
+    }
+
+    activityList.innerHTML = '';
+    top5.forEach(act => {
+      const friendlyTime = act.timestamp.toLocaleString('tr-TR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      const row = document.createElement('div');
+      row.style.display = 'flex';
+      row.style.alignItems = 'center';
+      row.style.gap = '0.75rem';
+      row.style.padding = '0.5rem';
+      row.style.backgroundColor = 'var(--color-bg)';
+      row.style.borderRadius = 'var(--radius-sm)';
+      row.style.fontSize = '0.8rem';
+      row.style.border = '1px solid rgba(22, 50, 92, 0.04)';
+
+      row.innerHTML = `
+        <div style="background-color: var(--color-teal-light); color: var(--color-teal); width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            ${act.icon}
+          </svg>
+        </div>
+        <div style="flex-grow: 1; min-width: 0;">
+          <p style="margin: 0; font-weight: 700; color: var(--color-navy); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${act.title}</p>
+          <span style="font-size: 0.65rem; color: var(--color-text-muted);">${friendlyTime}</span>
+        </div>
+      `;
+      activityList.appendChild(row);
+    });
+
+  } catch (err) {
+    console.error("Error loading recent activity:", err);
+  }
+}
+
+// ==========================================
+// NOTIFICATION SYSTEM CONTROLLERS (PHASE 11)
+// ==========================================
+async function checkNotifications() {
+  if (!currentUserProfile) return;
+  const lastCheck = currentUserProfile.last_notification_check || new Date(0).toISOString();
+  
+  try {
+    const { data: cards, error } = await supabaseClient
+      .from('study_cards')
+      .select('id')
+      .eq('department', currentUserProfile.department)
+      .eq('is_shared', true)
+      .neq('user_id', currentUser.id)
+      .gt('shared_at', lastCheck);
+
+    const badge = document.getElementById('notification-badge');
+    if (badge) {
+      if (!error && cards && cards.length > 0) {
+        badge.style.display = 'block';
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+  } catch (err) {
+    console.error("Error checking notifications:", err);
+  }
+}
+
+async function toggleNotificationsDropdown() {
+  const dropdown = document.getElementById('notification-dropdown');
+  const badge = document.getElementById('notification-badge');
+  if (!dropdown) return;
+
+  if (dropdown.style.display === 'none') {
+    dropdown.style.display = 'flex';
+    
+    const list = document.getElementById('notification-list');
+    if (list) {
+      list.innerHTML = `
+        <div style="display: flex; align-items: center; justify-content: center; padding: 1rem;">
+          <svg class="spinner" viewBox="0 0 50 50" style="animation: rotate 2s linear infinite; width: 20px; height: 20px; color: var(--color-teal);">
+            <circle class="path" cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="5" style="stroke-dasharray: 1, 150; stroke-dashoffset: 0; stroke-linecap: round; animation: dash 1.5s ease-in-out infinite;"></circle>
+          </svg>
+        </div>
+      `;
+      
+      const lastCheck = currentUserProfile.last_notification_check || new Date(0).toISOString();
+      
+      try {
+        const { data: cards, error } = await supabaseClient
+          .from('study_cards')
+          .select('*, documents(file_name)')
+          .eq('department', currentUserProfile.department)
+          .eq('is_shared', true)
+          .neq('user_id', currentUser.id)
+          .gt('shared_at', lastCheck)
+          .order('shared_at', { ascending: false });
+
+        if (error) {
+          list.innerHTML = `<p style="font-size: 0.75rem; color: var(--color-text-muted); text-align: center; padding: 0.5rem;">Failed to load alerts.</p>`;
+          return;
+        }
+
+        if (!cards || cards.length === 0) {
+          list.innerHTML = `<p style="font-size: 0.75rem; color: var(--color-text-muted); text-align: center; padding: 0.5rem; font-weight: 600;">You're all caught up! / Catch up! Yeni bildiriminiz yok.</p>`;
+        } else {
+          list.innerHTML = '';
+          cards.forEach(c => {
+            const docName = c.documents?.file_name || 'study card';
+            const friendlyTime = new Date(c.shared_at).toLocaleDateString('tr-TR', { month: 'short', day: 'numeric' });
+            
+            const item = document.createElement('a');
+            item.href = '#';
+            item.style.display = 'block';
+            item.style.padding = '0.5rem';
+            item.style.backgroundColor = 'var(--color-bg)';
+            item.style.borderRadius = 'var(--radius-sm)';
+            item.style.fontSize = '0.75rem';
+            item.style.textDecoration = 'none';
+            item.style.color = 'var(--color-navy)';
+            item.style.border = '1px solid rgba(22, 50, 92, 0.05)';
+            item.style.transition = 'background-color 0.2s';
+            
+            item.innerHTML = `
+              <div style="font-weight: 700; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.15rem;">
+                <span>New Study Card Shared</span>
+                <span style="font-weight: 500; font-size: 0.65rem; color: var(--color-text-muted);">${friendlyTime}</span>
+              </div>
+              <p style="margin: 0; color: var(--color-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">A classmate shared a study card for: ${docName}</p>
+            `;
+            
+            item.onclick = (e) => {
+              e.preventDefault();
+              dropdown.style.display = 'none';
+              switchDashboardView('feed');
+            };
+            
+            list.appendChild(item);
+          });
+        }
+
+        const nowStr = new Date().toISOString();
+        const { error: updateError } = await supabaseClient
+          .from('profiles')
+          .update({ last_notification_check: nowStr })
+          .eq('id', currentUser.id);
+
+        if (!updateError) {
+          currentUserProfile.last_notification_check = nowStr;
+          if (badge) badge.style.display = 'none';
+        }
+
+      } catch (err) {
+        console.error("Error displaying notifications:", err);
+      }
+    }
+  } else {
+    dropdown.style.display = 'none';
+  }
+}
+
+// ==========================================
+// BULK ACTIONS SYSTEM (PHASE 11)
+// ==========================================
+let selectedDocIds = [];
+
+function handleDocCheckboxClick(event) {
+  event.stopPropagation();
+  const docId = event.target.dataset.docId;
+  
+  if (event.target.checked) {
+    if (!selectedDocIds.includes(docId)) {
+      selectedDocIds.push(docId);
+    }
+  } else {
+    selectedDocIds = selectedDocIds.filter(id => id !== docId);
+  }
+
+  updateBulkDeleteBar();
+}
+
+function updateBulkDeleteBar() {
+  const bar = document.getElementById('bulk-delete-bar');
+  const countEl = document.getElementById('bulk-delete-count');
+  const summarizeBtn = document.getElementById('btn-bulk-summarize');
+  const mergeBtn = document.getElementById('btn-bulk-merge');
+  
+  if (!bar || !countEl) return;
+
+  if (selectedDocIds.length > 0) {
+    bar.style.display = 'flex';
+    countEl.textContent = `${selectedDocIds.length} selected`;
+
+    const unsummarizedSelected = activeDocuments.filter(d => 
+      selectedDocIds.includes(d.id) && (d.status === 'uploaded' || d.status === 'failed')
+    );
+
+    if (summarizeBtn) {
+      if (unsummarizedSelected.length >= 2) {
+        summarizeBtn.style.display = 'inline-block';
+      } else {
+        summarizeBtn.style.display = 'none';
+      }
+    }
+
+    // Show merge button when 2+ docs of any status are selected
+    if (mergeBtn) {
+      mergeBtn.style.display = selectedDocIds.length >= 2 ? 'inline-block' : 'none';
+    }
+  } else {
+    bar.style.display = 'none';
+    if (summarizeBtn) summarizeBtn.style.display = 'none';
+    if (mergeBtn) mergeBtn.style.display = 'none';
+  }
+}
+
+async function bulkDeleteSelectedDocuments() {
+  if (selectedDocIds.length === 0) return;
+
+  const isTr = localStorage.getItem('acadexUILang') === 'tr';
+  const title = isTr ? "Seçilenleri Sil" : "Delete Selected";
+  const text = isTr 
+    ? `Seçilen ${selectedDocIds.length} belgeyi ve bunlara ait tüm özetleri, bilgi kartlarını ve sınav geçmişlerini silmek istediğinize emin misiniz?`
+    : `Are you sure you want to delete the selected ${selectedDocIds.length} documents and all their summaries, cards, and exam history?`;
+
+  showConfirmModal(title, text, async () => {
+    const deleteBtn = document.getElementById('btn-bulk-delete');
+    const cancelBtn = document.getElementById('btn-bulk-cancel');
+    if (deleteBtn) {
+      deleteBtn.disabled = true;
+      deleteBtn.textContent = 'Deleting...';
+    }
+    if (cancelBtn) cancelBtn.disabled = true;
+
+    try {
+      const storagePaths = activeDocuments
+        .filter(d => selectedDocIds.includes(d.id))
+        .map(d => d.storage_path);
+
+      if (storagePaths.length > 0) {
+        const { error: storageError } = await supabaseClient.storage
+          .from('documents')
+          .remove(storagePaths);
+
+        if (storageError) {
+          console.error("Bulk Storage delete failed: ", storageError);
+          showDashboardAlert('error', 'Could not delete the files from storage. Please try again.');
+          resetBulkSelection();
+          return;
+        }
+      }
+
+      const { error: dbError } = await supabaseClient
+        .from('documents')
+        .delete()
+        .in('id', selectedDocIds);
+
+      if (dbError) {
+        console.error("Bulk DB row delete failed: ", dbError);
+        showDashboardAlert('error', 'Could not delete document records. Please try again.');
+        resetBulkSelection();
+        return;
+      }
+
+      showDashboardAlert('success', 'Selected documents deleted successfully.');
+      resetBulkSelection();
+      await loadDocuments(); 
+
+    } catch (err) {
+      console.error("Exception during bulk deletion: ", err);
+      showDashboardAlert('error', 'An error occurred during bulk deletion. Please try again.');
+      resetBulkSelection();
+    }
+  });
+}
+
+function resetBulkSelection() {
+  selectedDocIds = [];
+  updateBulkDeleteBar();
+  document.querySelectorAll('.doc-bulk-select-checkbox').forEach(cb => {
+    cb.checked = false;
+  });
+  
+  const deleteBtn = document.getElementById('btn-bulk-delete');
+  const cancelBtn = document.getElementById('btn-bulk-cancel');
+  if (deleteBtn) {
+    deleteBtn.disabled = false;
+    deleteBtn.textContent = 'Delete Selected';
+  }
+  if (cancelBtn) cancelBtn.disabled = false;
+}
+
+function initPhase11Listeners() {
+  const bell = document.getElementById('btn-notification-bell');
+  if (bell) {
+    bell.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleNotificationsDropdown();
+    });
+  }
+
+  document.addEventListener('click', (e) => {
+    const dropdown = document.getElementById('notification-dropdown');
+    if (dropdown && dropdown.style.display !== 'none' && !dropdown.contains(e.target) && !document.getElementById('btn-notification-bell').contains(e.target)) {
+      dropdown.style.display = 'none';
+    }
+  });
+
+  const btnBulkDelete = document.getElementById('btn-bulk-delete');
+  const btnBulkCancel = document.getElementById('btn-bulk-cancel');
+  const btnBulkSummarize = document.getElementById('btn-bulk-summarize');
+  const btnExportPdf = document.getElementById('btn-export-pdf');
+
+  if (btnBulkDelete) {
+    btnBulkDelete.addEventListener('click', bulkDeleteSelectedDocuments);
+  }
+  if (btnBulkCancel) {
+    btnBulkCancel.addEventListener('click', resetBulkSelection);
+  }
+  if (btnBulkSummarize) {
+    btnBulkSummarize.addEventListener('click', () => {
+      const unsummarizedSelected = activeDocuments.filter(d => 
+        selectedDocIds.includes(d.id) && (d.status === 'uploaded' || d.status === 'failed')
+      );
+      if (unsummarizedSelected.length >= 2) {
+        isBulkSummarize = true;
+        isMergeSummarize = false;
+        activeBulkSummarizingDocIds = unsummarizedSelected.map(d => d.id);
+        openSummaryStyleModal();
+      }
+    });
+  }
+  // Merge & Summarize button (Phase 17)
+  const btnBulkMerge = document.getElementById('btn-bulk-merge');
+  if (btnBulkMerge) {
+    btnBulkMerge.addEventListener('click', () => {
+      if (selectedDocIds.length >= 2) {
+        pendingMergeDocIds = [...selectedDocIds];
+        isMergeSummarize = true;
+        isBulkSummarize = false;
+        openSummaryStyleModal();
+      }
+    });
+  }
+  if (btnExportPdf) {
+    btnExportPdf.addEventListener('click', async (e) => {
+      e.preventDefault();
+      if (currentActiveStudyCard) {
+        const originalText = btnExportPdf.textContent;
+        btnExportPdf.disabled = true;
+        btnExportPdf.textContent = 'Exporting...';
+        try {
+          await exportStudyCardToPDF(currentActiveStudyCard);
+          showDashboardAlert('success', 'PDF exported successfully!');
+        } catch (err) {
+          console.error("PDF export failed: ", err);
+          showDashboardAlert('error', 'Failed to export study card to PDF. Please try again.');
+        } finally {
+          btnExportPdf.disabled = false;
+          btnExportPdf.textContent = originalText;
+        }
+      } else {
+        showDashboardAlert('error', 'No active study card data found to export.');
+      }
+    });
+  }
+}
+
+window.loadDashboardHome = loadDashboardHome;
+window.loadRecentActivity = loadRecentActivity;
+window.checkNotifications = checkNotifications;
+window.toggleNotificationsDropdown = toggleNotificationsDropdown;
+window.handleDocCheckboxClick = handleDocCheckboxClick;
+window.updateBulkDeleteBar = updateBulkDeleteBar;
+window.bulkDeleteSelectedDocuments = bulkDeleteSelectedDocuments;
+window.resetBulkSelection = resetBulkSelection;
+window.initPhase11Listeners = initPhase11Listeners;
+
+// ==========================================================================
+// ACADEX PHASE 12: BULK ACTIONS & ACHIEVEMENTS SYSTEM
+// ==========================================================================
+
+async function handleMultipleFilesUpload(files) {
+  const allowedExtensions = ['pdf', 'docx', 'doc', 'pptx', 'ppt', 'txt'];
+  const maxSize = 20 * 1024 * 1024;
+  const validFiles = [];
+  
+  for (const file of files) {
+    const fileExt = file.name.split('.').pop().toLowerCase();
+    if (file.size > maxSize) {
+      showDashboardAlert('error', `File ${file.name} size exceeds 20MB limit.`);
+      continue;
+    }
+    if (!allowedExtensions.includes(fileExt)) {
+      showDashboardAlert('error', `Unsupported format for ${file.name}.`);
+      continue;
+    }
+    validFiles.push(file);
+  }
+
+  if (validFiles.length === 0) return;
+
+  const uploadZone = document.getElementById('upload-zone');
+  const progressContainer = document.getElementById('progress-container');
+  const progressBar = document.getElementById('progress-bar');
+  const progressText = document.getElementById('upload-progress-text');
+
+  if (uploadZone) uploadZone.style.pointerEvents = 'none';
+  if (progressContainer) progressContainer.style.display = 'block';
+  if (progressText) progressText.style.display = 'block';
+
+  let completedCount = 0;
+  const totalCount = validFiles.length;
+
+  const updateUI = (currentFileName) => {
+    const percentage = Math.round((completedCount / totalCount) * 100);
+    if (progressBar) progressBar.style.width = `${percentage}%`;
+    if (progressText) {
+      progressText.textContent = `Uploading ${completedCount + 1} of ${totalCount}: ${currentFileName}...`;
+    }
+  };
+
+  let index = 0;
+  async function worker() {
+    while (index < totalCount) {
+      const currentIdx = index++;
+      const file = validFiles[currentIdx];
+      updateUI(file.name);
+
+      try {
+        await uploadSingleFileCore(file);
+      } catch (err) {
+        console.error(`Error uploading ${file.name}:`, err);
+        showDashboardAlert('error', `Failed to upload ${file.name}.`);
+      }
+
+      completedCount++;
+      updateUI(file.name);
+    }
+  }
+
+  // Run with concurrency 2
+  await Promise.all([worker(), worker()]);
+
+  if (progressBar) progressBar.style.width = '100%';
+  if (progressText) progressText.textContent = 'All files uploaded successfully!';
+  
+  await checkAndAwardFirstUpload();
+
+  setTimeout(async () => {
+    showDashboardAlert('success', 'All documents processed successfully!');
+    resetUploadUI();
+    await loadDocuments();
+  }, 800);
+}
+
+async function uploadSingleFileCore(file) {
+  const storagePath = `${currentUser.id}/${Date.now()}_${file.name}`;
+  
+  const { data, error } = await supabaseClient.storage
+    .from('documents')
+    .upload(storagePath, file);
+
+  if (error) throw error;
+
+  const { data: insertedDoc, error: dbError } = await supabaseClient
+    .from('documents')
+    .insert({
+      user_id: currentUser.id,
+      file_name: file.name,
+      storage_path: storagePath,
+      file_size: file.size,
+      mime_type: file.type || getMimeTypeFromExtension(file.name),
+      status: 'uploaded',
+      department: currentUserProfile ? currentUserProfile.department : null
+    })
+    .select()
+    .single();
+
+  if (dbError) {
+    await supabaseClient.storage.from('documents').remove([storagePath]);
+    throw dbError;
+  }
+
+  if (insertedDoc) {
+    activeDocuments.unshift(insertedDoc);
+    renderDocumentsList();
+  }
+}
+
+async function proceedWithBulkSummarization(summaryStyle, language) {
+  const docIds = [...activeBulkSummarizingDocIds];
+  const totalCount = docIds.length;
+  let completedCount = 0;
+  
+  showBulkSummarizeProgress(`Summarizing 1 of ${totalCount}...`);
+  resetBulkSelection();
+
+  let index = 0;
+  async function worker() {
+    while (index < totalCount) {
+      const currentIdx = index++;
+      const docId = docIds[currentIdx];
+
+      const card = document.getElementById(`doc-card-${docId}`);
+      if (card) {
+        const badge = card.querySelector('.doc-status-badge');
+        if (badge) {
+          badge.textContent = 'Processing';
+          badge.style.backgroundColor = '#FEF3C7';
+          badge.style.color = '#D97706';
+        }
+      }
+
+      try {
+        await supabaseClient
+          .from('documents')
+          .update({ status: 'processing' })
+          .eq('id', docId);
+
+        const { data, error } = await supabaseClient.functions.invoke('summarize-document', {
+          body: { documentId: docId, summaryStyle: summaryStyle, language: language }
+        });
+
+        if (error || !data || !data.success) {
+          throw new Error(error ? error.message : "Summarization failed");
+        }
+      } catch (err) {
+        console.error(`Error summarizing document ${docId}:`, err);
+        await supabaseClient
+          .from('documents')
+          .update({ status: 'failed' })
+          .eq('id', docId);
+      }
+
+      completedCount++;
+      await loadDocuments(true);
+      if (completedCount < totalCount) {
+        showBulkSummarizeProgress(`Summarizing ${completedCount + 1} of ${totalCount}...`);
+      }
+    }
+  }
+
+  // Run with concurrency 2
+  await Promise.all([worker(), worker()]);
+
+  hideBulkSummarizeProgress();
+  showDashboardAlert('success', `All ${totalCount} summaries processed!`);
+  
+  await checkAndAwardFirstSummary();
+  await loadDocuments();
+}
+
+function showBulkSummarizeProgress(text) {
+  let alertEl = document.getElementById('bulk-summarize-progress-banner');
+  if (!alertEl) {
+    alertEl = document.createElement('div');
+    alertEl.id = 'bulk-summarize-progress-banner';
+    alertEl.style.cssText = `
+      position: fixed;
+      bottom: 24px;
+      left: 24px;
+      background-color: var(--color-navy);
+      color: white;
+      border: 2px solid var(--color-teal);
+      border-radius: var(--radius);
+      padding: 1rem 1.5rem;
+      box-shadow: var(--shadow-lg);
+      z-index: 10000;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      font-weight: 700;
+    `;
+    alertEl.innerHTML = `
+      <svg class="spinner" viewBox="0 0 50 50" style="animation: rotate 2s linear infinite; width: 20px; height: 20px; color: var(--color-teal); margin-right: 0;">
+        <circle class="path" cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="5" style="stroke-dasharray: 1, 150; stroke-dashoffset: 0; stroke-linecap: round; animation: dash 1.5s ease-in-out infinite;"></circle>
+      </svg>
+      <span id="bulk-summarize-progress-text"></span>
+    `;
+    document.body.appendChild(alertEl);
+  }
+  const textEl = document.getElementById('bulk-summarize-progress-text');
+  if (textEl) textEl.textContent = text;
+}
+
+function hideBulkSummarizeProgress() {
+  const alertEl = document.getElementById('bulk-summarize-progress-banner');
+  if (alertEl) alertEl.remove();
+}
+
+async function checkAndAwardFirstUpload() {
+  try {
+    const { count, error } = await supabaseClient
+      .from('documents')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', currentUser.id);
+
+    if (!error && count === 1) {
+      await awardAchievement('first_upload');
+    }
+  } catch (err) {
+    console.error("Error checking first_upload:", err);
+  }
+}
+
+async function checkAndAwardFirstSummary() {
+  try {
+    const { count, error } = await supabaseClient
+      .from('study_cards')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', currentUser.id);
+
+    if (!error && count === 1) {
+      await awardAchievement('first_summary');
+    }
+  } catch (err) {
+    console.error("Error checking first_summary:", err);
+  }
+}
+
+async function checkAndAwardFirstExam(grade) {
+  try {
+    const { count, error } = await supabaseClient
+      .from('exams')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', currentUser.id)
+      .eq('status', 'completed');
+
+    if (!error && count === 1) {
+      await awardAchievement('first_exam');
+    }
+    if (grade === 100) {
+      await awardAchievement('perfect_score');
+    }
+  } catch (err) {
+    console.error("Error checking exams achievements:", err);
+  }
+}
+
+async function checkAndAwardSandboxProject() {
+  try {
+    const { count, error } = await supabaseClient
+      .from('sandbox_projects')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', currentUser.id);
+
+    if (!error && count === 1) {
+      await awardAchievement('first_sandbox_project');
+    }
+  } catch (err) {
+    console.error("Error checking sandbox achievements:", err);
+  }
+}
+
+async function renderStreakAndAchievements() {
+  const streakEl = document.getElementById('home-streak-display');
+  if (streakEl) {
+    const streak = currentUserProfile?.current_streak || 0;
+    streakEl.textContent = `🔥 ${streak} day streak!`;
+  }
+
+  const listContainer = document.getElementById('home-achievements-list');
+  if (!listContainer) return;
+
+  listContainer.innerHTML = `
+    <div style="display: flex; align-items: center; justify-content: center; padding: 2rem; grid-column: 1 / -1;">
+      <svg class="spinner" viewBox="0 0 50 50" style="animation: rotate 2s linear infinite; width: 32px; height: 32px; color: var(--color-teal);">
+        <circle class="path" cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="5" style="stroke-dasharray: 1, 150; stroke-dashoffset: 0; stroke-linecap: round; animation: dash 1.5s ease-in-out infinite;"></circle>
+      </svg>
+    </div>
+  `;
+
+  try {
+    const [earnedRes, allRes] = await Promise.all([
+      supabaseClient
+        .from('user_achievements')
+        .select('achievement_id, earned_at')
+        .eq('user_id', currentUser.id),
+      supabaseClient
+        .from('achievements')
+        .select('*')
+    ]);
+
+    if (allRes.error) {
+      listContainer.innerHTML = `<p style="color: var(--color-text-muted);">Failed to load achievements.</p>`;
+      return;
+    }
+
+    const earned = earnedRes.data || [];
+    const allAchievements = allRes.data || [];
+    
+    listContainer.innerHTML = '';
+    
+    const earnedMap = new Map();
+    earned.forEach(e => earnedMap.set(e.achievement_id, e.earned_at));
+
+    allAchievements.forEach(ach => {
+      const isEarned = earnedMap.has(ach.id);
+      const card = document.createElement('div');
+      card.className = `achievement-card ${isEarned ? 'earned' : 'locked'}`;
+      
+      const detailsHtml = `
+        <div class="achievement-icon-wrapper">${ach.icon}</div>
+        <div class="achievement-details">
+          <h4>${ach.title}</h4>
+          <p>${ach.description}</p>
+          ${isEarned ? `<span style="font-size: 0.6rem; color: var(--color-teal); display: block; margin-top: 0.15rem; font-weight: 700;">Earned: ${new Date(earnedMap.get(ach.id)).toLocaleDateString()}</span>` : ''}
+        </div>
+        ${!isEarned ? `<div class="lock-overlay">🔒</div>` : ''}
+      `;
+      card.innerHTML = detailsHtml;
+      listContainer.appendChild(card);
+    });
+
+  } catch (err) {
+    console.error("Error displaying achievements:", err);
+    listContainer.innerHTML = `<p style="color: var(--color-text-muted);">Failed to load achievements.</p>`;
+  }
+}
+
+function replaceTurkishChars(str) {
+  if (!str) return '';
+  return str
+    .replace(/ğ/g, 'g').replace(/Ğ/g, 'G')
+    .replace(/ü/g, 'u').replace(/Ü/g, 'U')
+    .replace(/ş/g, 's').replace(/Ş/g, 'S')
+    .replace(/ı/g, 'i').replace(/İ/g, 'I')
+    .replace(/ö/g, 'o').replace(/Ö/g, 'O')
+    .replace(/ç/g, 'c').replace(/Ç/g, 'C');
+}
+
+async function exportStudyCardToPDF(studyCard) {
+  // Lazy-load jsPDF
+  if (window.loadScript) {
+    await window.loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  }
+  
+  // Turkish unicode characters replaced for default jsPDF helvetica compatibility. Custom TTF/Unicode font can be registered for native rendering.
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  let y = 20;
+  const margin = 14;
+  const pageWidth = doc.internal.pageSize.width;
+  const maxWidth = pageWidth - (margin * 2);
+
+  const safeText = (txt) => replaceTurkishChars(txt || '');
+
+  // Title
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(18);
+  const titleLines = doc.splitTextToSize(safeText(studyCard.documentFileName || 'Study Card'), maxWidth);
+  titleLines.forEach(line => {
+    if (y > 280) { doc.addPage(); y = 20; }
+    doc.text(line, margin, y);
+    y += 8;
+  });
+  y += 2;
+
+  // Metadata
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.setTextColor(100);
+  const styleLabel = getStyleLabel(studyCard.summary_style);
+  const langLabel = studyCard.summary_language === 'tr' ? 'Turkish' : 'English';
+  const createdDate = new Date(studyCard.created_at).toLocaleDateString();
+  const metaText = `Style: ${styleLabel} | Language: ${langLabel} | Created: ${createdDate}`;
+  doc.text(metaText, margin, y);
+  y += 12;
+
+  // Horizontal line
+  doc.setDrawColor(200);
+  doc.line(margin, y, margin + maxWidth, y);
+  y += 10;
+
+  // 1. Summary
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.setTextColor(20);
+  doc.text('Summary', margin, y);
+  y += 8;
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.setTextColor(50);
+  const summaryLines = doc.splitTextToSize(safeText(studyCard.summary), maxWidth);
+  summaryLines.forEach(line => {
+    if (y > 280) { doc.addPage(); y = 20; }
+    doc.text(line, margin, y);
+    y += 6;
+  });
+  y += 10;
+
+  // 2. Key Terms
+  if (studyCard.key_terms && studyCard.key_terms.length > 0) {
+    if (y > 260) { doc.addPage(); y = 20; }
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.setTextColor(20);
+    doc.text('Key Terms', margin, y);
+    y += 8;
+
+    studyCard.key_terms.forEach(kt => {
+      const defText = `- ${safeText(kt.term)}: ${safeText(kt.definition)}`;
+      const defLines = doc.splitTextToSize(defText, maxWidth);
+      
+      defLines.forEach(line => {
+        if (y > 280) { doc.addPage(); y = 20; }
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        doc.setTextColor(50);
+        doc.text(line, margin, y);
+        y += 6;
+      });
+    });
+    y += 8;
+  }
+
+  // 3. Key Points
+  if (studyCard.key_points && studyCard.key_points.length > 0) {
+    if (y > 260) { doc.addPage(); y = 20; }
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.setTextColor(20);
+    doc.text('Key Points', margin, y);
+    y += 8;
+
+    studyCard.key_points.forEach(pt => {
+      const ptText = `* ${safeText(pt)}`;
+      const ptLines = doc.splitTextToSize(ptText, maxWidth);
+      ptLines.forEach(line => {
+        if (y > 280) { doc.addPage(); y = 20; }
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        doc.setTextColor(50);
+        doc.text(line, margin, y);
+        y += 6;
+      });
+    });
+    y += 8;
+  }
+
+  // 4. Quiz Questions
+  if (studyCard.quiz_questions && studyCard.quiz_questions.length > 0) {
+    if (y > 260) { doc.addPage(); y = 20; }
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.setTextColor(20);
+    doc.text('Self-Test (Quiz)', margin, y);
+    y += 8;
+
+    studyCard.quiz_questions.forEach((q, idx) => {
+      const qText = `Q${idx + 1}: ${safeText(q.question)}`;
+      const aText = `A: ${safeText(q.answer)}`;
+      
+      const qLines = doc.splitTextToSize(qText, maxWidth);
+      qLines.forEach(line => {
+        if (y > 280) { doc.addPage(); y = 20; }
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.setTextColor(40);
+        doc.text(line, margin, y);
+        y += 6;
+      });
+
+      const aLines = doc.splitTextToSize(aText, maxWidth);
+      aLines.forEach(line => {
+        if (y > 280) { doc.addPage(); y = 20; }
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        doc.setTextColor(60);
+        doc.text(line, margin, y);
+        y += 6;
+      });
+      y += 4;
+    });
+  }
+
+  doc.save(`${safeText(studyCard.documentFileName || 'study-card')}.pdf`);
+}
+
+window.handleMultipleFilesUpload = handleMultipleFilesUpload;
+window.uploadSingleFileCore = uploadSingleFileCore;
+window.proceedWithBulkSummarization = proceedWithBulkSummarization;
+window.showBulkSummarizeProgress = showBulkSummarizeProgress;
+window.hideBulkSummarizeProgress = hideBulkSummarizeProgress;
+window.checkAndAwardFirstUpload = checkAndAwardFirstUpload;
+window.checkAndAwardFirstSummary = checkAndAwardFirstSummary;
+window.checkAndAwardFirstExam = checkAndAwardFirstExam;
+window.checkAndAwardSandboxProject = checkAndAwardSandboxProject;
+window.renderStreakAndAchievements = renderStreakAndAchievements;
+window.replaceTurkishChars = replaceTurkishChars;
+window.exportStudyCardToPDF = exportStudyCardToPDF;
+
+// ==========================================
+// STUDY PLANNER (PHASE 15)
+// ==========================================
+let plannerEvents = [];
+let plannerCurrentDate = new Date();
+let plannerLayoutMode = 'list'; // 'list' or 'calendar'
+
+async function loadPlannerEvents() {
+  if (!currentUser) return;
+  
+  const listThisWeek = document.getElementById('planner-events-this-week');
+  const listLater = document.getElementById('planner-events-later');
+  const groupThisWeek = document.getElementById('planner-group-this-week');
+  const groupLater = document.getElementById('planner-group-later');
+  const emptyState = document.getElementById('planner-empty-state');
+  
+  if (!listThisWeek || !listLater) return;
+
+  listThisWeek.innerHTML = '';
+  listLater.innerHTML = '';
+  
+  try {
+    const { data, error } = await supabaseClient
+      .from('study_events')
+      .select('*')
+      .eq('user_id', currentUser.id)
+      .order('event_date', { ascending: true });
+
+    if (error) throw error;
+
+    plannerEvents = data || [];
+    
+    // Render calendar if in calendar view
+    if (plannerLayoutMode === 'calendar') {
+      renderPlannerCalendar(plannerEvents);
+    }
+
+    if (plannerEvents.length === 0) {
+      if (emptyState) emptyState.style.display = 'block';
+      if (groupThisWeek) groupThisWeek.style.display = 'none';
+      if (groupLater) groupLater.style.display = 'none';
+      return;
+    }
+
+    if (emptyState) emptyState.style.display = 'none';
+    if (groupThisWeek) groupThisWeek.style.display = 'block';
+    if (groupLater) groupLater.style.display = 'block';
+
+    const todayStr = getLocalDateString();
+    const today = new Date(todayStr);
+    const oneWeekLater = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    let thisWeekCount = 0;
+    let laterCount = 0;
+
+    plannerEvents.forEach(event => {
+      const evDate = new Date(event.event_date);
+      const isThisWeek = evDate >= today && evDate <= oneWeekLater;
+
+      // Render Item Card
+      const card = document.createElement('div');
+      card.className = `doc-card ${event.is_done ? 'done-event' : ''}`;
+      card.id = `planner-event-card-${event.id}`;
+      card.style.padding = '1rem';
+      card.style.display = 'flex';
+      card.style.alignItems = 'center';
+      card.style.justifyContent = 'space-between';
+      card.style.gap = '1rem';
+      card.style.transition = 'opacity 0.2s, background-color 0.2s';
+      if (event.is_done) {
+        card.style.opacity = '0.6';
+        card.style.backgroundColor = 'var(--color-bg-alt)';
+      }
+
+      // Determine Badge style
+      let badgeBg = '#6B7280';
+      if (event.event_type === 'exam') badgeBg = '#EF4444';
+      else if (event.event_type === 'goal') badgeBg = 'var(--color-teal)';
+      else if (event.event_type === 'deadline') badgeBg = '#F59E0B';
+
+      card.innerHTML = `
+        <div style="display: flex; align-items: flex-start; gap: 0.75rem;">
+          <input type="checkbox" ${event.is_done ? 'checked' : ''} onchange="toggleEventDone('${event.id}', this.checked)" style="width: 18px; height: 18px; accent-color: var(--color-teal); cursor: pointer; margin-top: 0.2rem;">
+          <div>
+            <h4 style="font-size: 0.95rem; font-weight: 800; color: var(--color-navy); margin: 0; ${event.is_done ? 'text-decoration: line-through;' : ''}">${event.title}</h4>
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.25rem; flex-wrap: wrap;">
+              <span style="font-size: 0.75rem; color: var(--color-text-muted); font-weight: 600;">📅 ${event.event_date}</span>
+              <span style="font-size: 0.65rem; font-weight: 800; padding: 0.1rem 0.4rem; border-radius: 10px; color: white; text-transform: uppercase; background-color: ${badgeBg};">${event.event_type}</span>
+            </div>
+            ${event.notes ? `<p style="font-size: 0.8rem; color: var(--color-text-muted); margin: 0.35rem 0 0 0; line-height: 1.35; white-space: pre-wrap;">${event.notes}</p>` : ''}
+          </div>
+        </div>
+        <button onclick="deletePlannerEvent('${event.id}')" style="background: none; border: none; color: #EF4444; cursor: pointer; padding: 0.25rem; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); transition: background-color 0.2s;" title="Delete Event">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+        </button>
+      `;
+
+      if (isThisWeek) {
+        listThisWeek.appendChild(card);
+        thisWeekCount++;
+      } else {
+        listLater.appendChild(card);
+        laterCount++;
+      }
+    });
+
+    if (thisWeekCount === 0) {
+      listThisWeek.innerHTML = '<p style="font-size: 0.85rem; color: var(--color-text-muted); font-style: italic; margin: 0.5rem 0;">No events this week.</p>';
+    }
+    if (laterCount === 0) {
+      listLater.innerHTML = '<p style="font-size: 0.85rem; color: var(--color-text-muted); font-style: italic; margin: 0.5rem 0;">No later events.</p>';
+    }
+
+  } catch (err) {
+    console.error("Failed to load planner events: ", err);
+    showDashboardAlert('error', 'Could not load planner events.');
+  }
+}
+
+function openAddEventModal() {
+  const modal = document.getElementById('planner-event-modal');
+  if (modal) {
+    document.getElementById('planner-event-form').reset();
+    modal.classList.add('active');
+  }
+}
+
+function closeAddEventModal() {
+  const modal = document.getElementById('planner-event-modal');
+  if (modal) modal.classList.remove('active');
+}
+
+async function savePlannerEvent(e) {
+  e.preventDefault();
+  if (!currentUser) return;
+
+  const submitBtn = e.target.querySelector('button[type="submit"]');
+  const originalText = submitBtn ? submitBtn.textContent : '';
+
+  const title = document.getElementById('planner-event-title').value.trim();
+  const eventDate = document.getElementById('planner-event-date').value;
+  const eventType = document.getElementById('planner-event-type').value;
+  const notes = document.getElementById('planner-event-notes').value.trim();
+
+  if (!title || !eventDate) {
+    showDashboardAlert('error', 'Please fill in required fields.');
+    return;
+  }
+
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Saving / Kaydediliyor...';
+  }
+
+  try {
+    const { error } = await supabaseClient
+      .from('study_events')
+      .insert({
+        user_id: currentUser.id,
+        title: title,
+        event_date: eventDate,
+        event_type: eventType,
+        notes: notes || null,
+        is_done: false
+      });
+
+    if (error) throw error;
+
+    e.target.reset();
+    closeAddEventModal();
+    showDashboardAlert('success', 'Event added successfully!');
+    await loadPlannerEvents();
+  } catch (err) {
+    console.error("Failed to save event: ", err);
+    showDashboardAlert('error', 'Could not save event.');
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = originalText;
+    }
+  }
+}
+
+async function toggleEventDone(id, isDone) {
+  try {
+    const { error } = await supabaseClient
+      .from('study_events')
+      .update({ is_done: isDone })
+      .eq('id', id);
+
+    if (error) throw error;
+
+    const card = document.getElementById(`planner-event-card-${id}`);
+    if (card) {
+      if (isDone) {
+        card.classList.add('done-event');
+        card.style.opacity = '0.6';
+        card.style.backgroundColor = 'var(--color-bg-alt)';
+        const titleEl = card.querySelector('h4');
+        if (titleEl) titleEl.style.textDecoration = 'line-through';
+      } else {
+        card.classList.remove('done-event');
+        card.style.opacity = '1';
+        card.style.backgroundColor = '';
+        const titleEl = card.querySelector('h4');
+        if (titleEl) titleEl.style.textDecoration = 'none';
+      }
+    }
+
+    // Refresh calendar view if active to update dots
+    if (plannerLayoutMode === 'calendar') {
+      renderPlannerCalendar(plannerEvents);
+    }
+  } catch (err) {
+    console.error("Failed to update event: ", err);
+    showDashboardAlert('error', 'Could not update event status.');
+  }
+}
+
+async function deletePlannerEvent(id) {
+  const isTr = localStorage.getItem('acadexUILang') === 'tr';
+  const title = isTr ? "Etkinliği Sil" : "Delete Event";
+  const text = isTr 
+    ? "Bu etkinliği silmek istediğinizden emin misiniz?" 
+    : "Are you sure you want to delete this event?";
+
+  showConfirmModal(title, text, async () => {
+    try {
+      const { error } = await supabaseClient
+        .from('study_events')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      showDashboardAlert('success', 'Event deleted!');
+      await loadPlannerEvents();
+    } catch (err) {
+      console.error("Failed to delete event: ", err);
+      showDashboardAlert('error', 'Could not delete event.');
+    }
+  });
+}
+
+function togglePlannerLayout(mode) {
+  plannerLayoutMode = mode;
+  const listContainer = document.getElementById('planner-list-container');
+  const calendarContainer = document.getElementById('planner-calendar-container');
+  const btnList = document.getElementById('btn-planner-view-list');
+  const btnCal = document.getElementById('btn-planner-view-calendar');
+
+  if (mode === 'calendar') {
+    if (calendarContainer) calendarContainer.style.display = 'block';
+    if (btnCal) {
+      btnCal.style.backgroundColor = 'var(--color-teal)';
+      btnCal.style.color = 'white';
+    }
+    if (btnList) {
+      btnList.style.backgroundColor = 'transparent';
+      btnList.style.color = 'var(--color-navy)';
+    }
+    renderPlannerCalendar(plannerEvents);
+  } else {
+    if (calendarContainer) calendarContainer.style.display = 'none';
+    if (btnList) {
+      btnList.style.backgroundColor = 'var(--color-teal)';
+      btnList.style.color = 'white';
+    }
+    if (btnCal) {
+      btnCal.style.backgroundColor = 'transparent';
+      btnCal.style.color = 'var(--color-navy)';
+    }
+  }
+}
+
+function renderPlannerCalendar(events) {
+  const container = document.getElementById('planner-calendar-days');
+  const monthYearHeader = document.getElementById('planner-calendar-month-year');
+  if (!container || !monthYearHeader) return;
+
+  container.innerHTML = '';
+
+  const year = plannerCurrentDate.getFullYear();
+  const month = plannerCurrentDate.getMonth();
+
+  const monthNames = [
+    "January", "February", "March", "April", "May", "June", 
+    "July", "August", "September", "October", "November", "December"
+  ];
+  const trMonthNames = [
+    "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
+    "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"
+  ];
+  
+  const currentLang = localStorage.getItem('acadexUILang') || 'en';
+  const monthLabel = currentLang === 'tr' ? trMonthNames[month] : monthNames[month];
+  monthYearHeader.textContent = `${monthLabel} ${year}`;
+
+  const firstDayIndex = new Date(year, month, 1).getDay();
+  const adjustedFirstDay = firstDayIndex === 0 ? 6 : firstDayIndex - 1;
+  const totalDays = new Date(year, month + 1, 0).getDate();
+
+  for (let i = 0; i < adjustedFirstDay; i++) {
+    const emptyCell = document.createElement('div');
+    emptyCell.style.padding = '0.5rem';
+    emptyCell.style.color = 'var(--color-text-muted)';
+    emptyCell.style.opacity = '0.35';
+    container.appendChild(emptyCell);
+  }
+
+  for (let day = 1; day <= totalDays; day++) {
+    const dayCell = document.createElement('div');
+    dayCell.style.padding = '0.5rem';
+    dayCell.style.borderRadius = 'var(--radius-sm)';
+    dayCell.style.border = '1px solid rgba(22, 50, 92, 0.04)';
+    dayCell.style.position = 'relative';
+    dayCell.style.cursor = 'pointer';
+    dayCell.style.display = 'flex';
+    dayCell.style.flexDirection = 'column';
+    dayCell.style.alignItems = 'center';
+    dayCell.style.minHeight = '42px';
+    dayCell.style.transition = 'background-color 0.2s';
+    dayCell.className = 'calendar-day-cell';
+
+    dayCell.addEventListener('mouseenter', () => {
+      dayCell.style.backgroundColor = 'rgba(31, 138, 147, 0.08)';
+    });
+    dayCell.addEventListener('mouseleave', () => {
+      dayCell.style.backgroundColor = '';
+    });
+
+    const dayNum = document.createElement('span');
+    dayNum.textContent = day;
+    dayNum.style.fontSize = '0.85rem';
+    dayNum.style.fontWeight = '700';
+    dayNum.style.color = 'var(--color-navy)';
+    dayCell.appendChild(dayNum);
+
+    const monthStr = String(month + 1).padStart(2, '0');
+    const dayStr = String(day).padStart(2, '0');
+    const dateKey = `${year}-${monthStr}-${dayStr}`;
+
+    const dayEvents = events.filter(e => e.event_date === dateKey);
+
+    if (dayEvents.length > 0) {
+      const hasActiveEvent = dayEvents.some(e => !e.is_done);
+      const dot = document.createElement('span');
+      dot.style.width = '6px';
+      dot.style.height = '6px';
+      dot.style.borderRadius = '50%';
+      dot.style.backgroundColor = hasActiveEvent ? 'var(--color-teal)' : '#6B7280';
+      dot.style.marginTop = '4px';
+      dayCell.appendChild(dot);
+
+      dayCell.title = dayEvents.map(e => `${e.is_done ? '✓ ' : ''}[${e.event_type.toUpperCase()}] ${e.title}`).join('\n');
+
+      dayCell.addEventListener('click', () => {
+        const firstEventId = dayEvents[0].id;
+        const targetElement = document.getElementById(`planner-event-card-${firstEventId}`);
+        if (targetElement) {
+          targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          targetElement.style.outline = '2px solid var(--color-teal)';
+          setTimeout(() => {
+            targetElement.style.outline = 'none';
+          }, 2000);
+        }
+      });
+    }
+
+    container.appendChild(dayCell);
+  }
+}
+
+function navigatePlannerCalendar(direction) {
+  plannerCurrentDate.setMonth(plannerCurrentDate.getMonth() + direction);
+  renderPlannerCalendar(plannerEvents);
+}
+
+// Bind to window for HTML access
+window.loadPlannerEvents = loadPlannerEvents;
+window.openAddEventModal = openAddEventModal;
+window.closeAddEventModal = closeAddEventModal;
+window.savePlannerEvent = savePlannerEvent;
+window.toggleEventDone = toggleEventDone;
+window.deletePlannerEvent = deletePlannerEvent;
+window.togglePlannerLayout = togglePlannerLayout;
+window.navigatePlannerCalendar = navigatePlannerCalendar;
+
+function closeActiveModal(modalEl) {
+  const id = modalEl.id;
+  if (id === 'planner-event-modal') {
+    closeAddEventModal();
+  } else if (id === 'delete-account-modal') {
+    closeDeleteAccountModal();
+  } else if (id === 'summary-style-modal') {
+    closeSummaryStyleModal();
+  } else if (id === 'delete-modal') {
+    closeDeleteModal();
+  } else if (id === 'table-picker-modal') {
+    closeTablePickerModal();
+  } else if (id === 'study-card-modal') {
+    closeStudyCardModal();
+  } else if (id === 'share-project-modal') {
+    closeShareProjectModal();
+  } else if (id === 'depot-modal') {
+    closeDepotModal();
+  } else {
+    if (window.closeModalWithFocus) window.closeModalWithFocus(id);
+  }
+}
+window.closeActiveModal = closeActiveModal;
+
+// ==========================================
+// Admin Inbox Controllers (Phase 16B - Part B)
+// ==========================================
+async function updateAdminInboxBadge() {
+  try {
+    const { count, error } = await supabaseClient
+      .from('contact_messages')
+      .select('*', { count: 'exact', head: true })
+      .eq('is_read', false);
+
+    if (!error) {
+      const badge = document.getElementById('admin-inbox-badge');
+      if (badge) {
+        if (count > 0) {
+          badge.textContent = count;
+          badge.style.display = 'flex';
+        } else {
+          badge.style.display = 'none';
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Error updating admin inbox count:", err);
+  }
+}
+window.updateAdminInboxBadge = updateAdminInboxBadge;
+
+async function loadAdminInbox() {
+  const listContainer = document.getElementById('admin-messages-list');
+  if (!listContainer) return;
+
+  listContainer.innerHTML = `
+    <div style="display: flex; align-items: center; justify-content: center; padding: 2rem;">
+      <svg class="spinner" viewBox="0 0 50 50" style="animation: rotate 2s linear infinite; width: 32px; height: 32px; color: var(--color-teal);">
+        <circle class="path" cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="5" style="stroke-dasharray: 1, 150; stroke-dashoffset: 0; stroke-linecap: round; animation: dash 1.5s ease-in-out infinite;"></circle>
+      </svg>
+    </div>
+  `;
+
+  try {
+    const { data: messages, error } = await supabaseClient
+      .from('contact_messages')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error("Error loading admin messages:", error);
+      listContainer.innerHTML = `<p style="color: var(--color-text-muted);">Failed to load messages from inbox.</p>`;
+      return;
+    }
+
+    if (!messages || messages.length === 0) {
+      listContainer.innerHTML = `
+        <div class="search-empty-state" style="text-align: center; padding: 2rem;">
+          <p style="color: var(--color-text-muted); font-size: 0.9rem;">No messages yet.</p>
+        </div>
+      `;
+      return;
+    }
+
+    listContainer.innerHTML = '';
+    messages.forEach(msg => {
+      const createdDate = new Date(msg.created_at).toLocaleString();
+      const card = document.createElement('div');
+      card.className = `doc-card ${msg.is_read ? '' : 'unread-message'}`;
+      card.id = `admin-msg-${msg.id}`;
+      card.style.padding = '1.25rem';
+      card.style.position = 'relative';
+      card.style.border = msg.is_read ? '1px solid rgba(22, 50, 92, 0.08)' : '2px solid var(--color-teal)';
+      card.style.backgroundColor = msg.is_read ? 'var(--color-white)' : 'var(--color-bg-alt)';
+      card.style.transition = 'background-color 0.2s, border-color 0.2s';
+      card.style.cursor = 'pointer';
+
+      // Unread dot indicator
+      const unreadDot = msg.is_read ? '' : `<span style="width: 8px; height: 8px; background-color: var(--color-teal); border-radius: 50%; display: inline-block; margin-right: 0.5rem;" title="Yeni / Unread"></span>`;
+
+      card.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 0.5rem;">
+          <div style="display: flex; align-items: center;">
+            ${unreadDot}
+            <strong style="color: var(--color-navy); font-size: 0.95rem;">${msg.name || 'Anonymous'}</strong>
+          </div>
+          <span style="font-size: 0.75rem; color: var(--color-text-muted); font-weight: 500;">${createdDate}</span>
+        </div>
+
+        <div style="margin-top: 0.35rem; font-size: 0.8rem; color: var(--color-teal); font-weight: 700;">
+          <a href="mailto:${msg.email}" style="color: inherit; text-decoration: underline;" onclick="event.stopPropagation();">${msg.email}</a>
+        </div>
+
+        <div class="message-content" style="margin-top: 0.75rem; font-size: 0.85rem; color: var(--color-text); line-height: 1.5; white-space: pre-wrap; ${msg.is_read ? 'display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;' : ''}">
+          ${msg.message}
+        </div>
+      `;
+
+      // Click to toggle full view & mark as read
+      card.addEventListener('click', async () => {
+        const contentEl = card.querySelector('.message-content');
+        if (contentEl) {
+          // Toggle clamp styling
+          if (contentEl.style.display === 'none' || contentEl.style.webkitLineClamp === '3') {
+            contentEl.style.display = 'block';
+            contentEl.style.webkitLineClamp = 'unset';
+            contentEl.style.overflow = 'visible';
+          } else {
+            contentEl.style.display = '-webkit-box';
+            contentEl.style.webkitLineClamp = '3';
+            contentEl.style.overflow = 'hidden';
+          }
+        }
+
+        // Mark as read in DB if it was unread
+        if (!msg.is_read) {
+          try {
+            const { error: updateError } = await supabaseClient
+              .from('contact_messages')
+              .update({ is_read: true })
+              .eq('id', msg.id);
+
+            if (!updateError) {
+              msg.is_read = true;
+              card.classList.remove('unread-message');
+              card.style.border = '1px solid rgba(22, 50, 92, 0.08)';
+              card.style.backgroundColor = 'var(--color-white)';
+              
+              // Remove the dot
+              const dotEl = card.querySelector('span[title="Yeni / Unread"]');
+              if (dotEl) dotEl.remove();
+
+              await updateAdminInboxBadge();
+            }
+          } catch (e) {
+            console.error("Error marking message as read:", e);
+          }
+        }
+      });
+
+      listContainer.appendChild(card);
+    });
+
+  } catch (err) {
+    console.error("Exception loading admin inbox:", err);
+    listContainer.innerHTML = `<p style="color: var(--color-text-muted);">Failed to load messages from inbox.</p>`;
+  }
+}
+window.loadAdminInbox = loadAdminInbox;
+
+// ==========================================
+// PHASE 17A — COURSE TAG UI HELPERS
+// ==========================================
+
+/**
+ * Starts inline editing of a course tag on a document card.
+ * Replaces the pill/button with a text input; saves on blur/Enter.
+ */
+function startEditCourseTag(docId, triggerEl) {
+  const wrapper = triggerEl.closest('.doc-course-tag-wrapper');
+  if (!wrapper) return;
+
+  // Get current value from the pill text (if any)
+  const currentTag = triggerEl.classList.contains('course-tag-pill')
+    ? triggerEl.textContent.replace('🏷️', '').trim()
+    : '';
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = currentTag;
+  input.placeholder = 'e.g. MIS301, Marketing 101';
+  input.style.cssText = `
+    font-size: 0.7rem; font-family: inherit;
+    border: 1px solid var(--color-teal); border-radius: 20px;
+    padding: 0.2rem 0.55rem; outline: none; width: 160px;
+    color: var(--color-navy); background: var(--color-white);
+  `;
+
+  wrapper.innerHTML = '';
+  wrapper.appendChild(input);
+  input.focus();
+  input.select();
+
+  const save = async () => {
+    const newTag = input.value.trim();
+    await saveCourseTag(docId, newTag);
+  };
+
+  input.addEventListener('blur', save);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') {
+      // Restore original without saving
+      loadDocuments();
+    }
+  });
+}
+window.startEditCourseTag = startEditCourseTag;
+
+/**
+ * Saves a course tag for a document to Supabase and refreshes the card.
+ */
+async function saveCourseTag(docId, newTag) {
+  try {
+    const tagValue = newTag || null;
+    const { error } = await supabaseClient
+      .from('documents')
+      .update({ course_tag: tagValue })
+      .eq('id', docId);
+
+    if (error) {
+      console.error('Failed to save course tag:', error);
+      showDashboardAlert('error', 'Could not save course tag. Please try again.');
+    }
+
+    // Update the in-memory cache so filterLibraryCards() picks it up too
+    const doc = activeDocuments.find(d => d.id === docId);
+    if (doc) doc.course_tag = tagValue;
+
+    // Re-render just this card's tag area without a full reload
+    const wrapper = document.querySelector(`.doc-course-tag-wrapper[data-doc-id="${docId}"]`);
+    if (wrapper) {
+      if (tagValue) {
+        wrapper.innerHTML = `<span class="course-tag-pill" onclick="startEditCourseTag('${docId}', this)" title="Click to edit course tag" style="display: inline-flex; align-items: center; gap: 0.3rem; background: var(--color-teal-light); color: var(--color-teal); font-size: 0.7rem; font-weight: 700; padding: 0.2rem 0.55rem; border-radius: 20px; cursor: pointer; transition: background 0.2s;">🏷️ ${tagValue}</span>`;
+      } else {
+        wrapper.innerHTML = `<button class="add-course-tag-btn" onclick="startEditCourseTag('${docId}', this)" style="display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.7rem; color: var(--color-text-muted); background: none; border: 1px dashed rgba(22,50,92,0.2); border-radius: 20px; padding: 0.2rem 0.55rem; cursor: pointer; transition: all 0.2s;">+ Add course tag</button>`;
+      }
+    }
+  } catch (err) {
+    console.error('Exception saving course tag:', err);
+    showDashboardAlert('error', 'An error occurred saving the course tag.');
+    await loadDocuments();
+  }
+}
+window.saveCourseTag = saveCourseTag;
+
+// ==========================================
+// PHASE 17B — MERGE & SUMMARIZE TRIGGER
+// ==========================================
+
+/**
+ * Calls the merge-summarize Edge Function for the given document IDs.
+ * Shows loading + success/error toasts and reloads the cards library on success.
+ */
+async function triggerMergeSummarize(documentIds, summaryStyle, language) {
+  if (!documentIds || documentIds.length < 2) {
+    showDashboardAlert('error', 'Select at least 2 documents to merge.');
+    return;
+  }
+
+  showDashboardAlert('info', `Merging ${documentIds.length} documents… This may take a moment.`);
+  resetBulkSelection();
+
+  try {
+    const session = await supabaseClient.auth.getSession();
+    const token = session?.data?.session?.access_token;
+    if (!token) {
+      showDashboardAlert('error', 'Session expired. Please log in again.');
+      return;
+    }
+
+    const SUPABASE_URL = supabaseClient.supabaseUrl;
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/merge-summarize`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ documentIds, summaryStyle, language })
+    });
+
+    const result = await response.json();
+
+    if (!response.ok || !result.success) {
+      console.error('merge-summarize error:', result);
+      showDashboardAlert('error', result.error || 'Merge summarization failed. Please try again.');
+      return;
+    }
+
+    showDashboardAlert('success', 'Merged study card created! View it in Bilgi Kartları.');
+
+    // Refresh the cards library if it's open
+    if (currentActiveTab === 'cards') {
+      await loadCardsLibrary();
+    }
+
+  } catch (err) {
+    console.error('Exception in triggerMergeSummarize:', err);
+    showDashboardAlert('error', 'An unexpected error occurred during merge. Please try again.');
+  }
+}
+window.triggerMergeSummarize = triggerMergeSummarize;
+
+// ==========================================
+// PHASE 17C — ADMIN PILOT IMPACT REPORT
+// ==========================================
+
+/**
+ * Loads the admin Pilot Impact Report via the get_admin_report() RPC and renders
+ * a rich stat-card dashboard in #report-content.
+ */
+async function loadAdminReport() {
+  const container = document.getElementById('report-content');
+  if (!container) return;
+
+  container.innerHTML = `
+    <div style="display: flex; align-items: center; justify-content: center; padding: 3rem;">
+      <svg class="spinner" viewBox="0 0 50 50" style="animation: rotate 2s linear infinite; width: 36px; height: 36px; color: var(--color-teal);">
+        <circle class="path" cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="5" style="stroke-dasharray: 1, 150; stroke-dashoffset: 0; stroke-linecap: round; animation: dash 1.5s ease-in-out infinite;"></circle>
+      </svg>
+    </div>
+  `;
+
+  try {
+    const { data, error } = await supabaseClient.rpc('get_admin_report');
+
+    if (error) {
+      console.error('get_admin_report error:', error);
+      container.innerHTML = `
+        <div class="empty-state">
+          <p class="empty-state-text" style="color: #DC2626;">
+            Could not load the report. You may not have admin permissions, or an error occurred.
+          </p>
+        </div>
+      `;
+      return;
+    }
+
+    const r = data || {};
+
+    const statCard = (label, value, icon, color) => `
+      <div style="background: var(--color-white); border: 1px solid rgba(22,50,92,0.1); border-radius: var(--radius-md); padding: 1.5rem; box-shadow: var(--shadow-sm); display: flex; align-items: center; gap: 1rem;">
+        <div style="width: 48px; height: 48px; border-radius: var(--radius-sm); background-color: ${color}22; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; flex-shrink: 0;">${icon}</div>
+        <div>
+          <div style="font-size: 1.75rem; font-weight: 800; color: var(--color-navy);">${value ?? '—'}</div>
+          <div style="font-size: 0.8rem; color: var(--color-text-muted); font-weight: 600; margin-top: 0.15rem;">${label}</div>
+        </div>
+      </div>
+    `;
+
+    container.innerHTML = `
+      <p style="font-size: 0.8rem; color: var(--color-text-muted); margin-bottom: 1.5rem;">
+        Generated at ${new Date().toLocaleString()}
+      </p>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+        ${statCard('Total Students', r.total_students, '👥', '#0D9488')}
+        ${statCard('Total Documents', r.total_documents, '📄', '#7C3AED')}
+        ${statCard('Study Cards Created', r.total_study_cards, '🃏', '#D97706')}
+        ${statCard('Merged Cards', r.total_merged_cards ?? 0, '🔀', '#4F46E5')}
+        ${statCard('Exams Taken', r.total_exams_taken, '📝', '#DC2626')}
+        ${statCard('Avg. Exam Score', r.avg_exam_score != null ? r.avg_exam_score.toFixed(1) + '%' : '—', '⭐', '#059669')}
+        ${statCard('Shared Cards', r.total_shared_cards, '🌐', '#0EA5E9')}
+        ${statCard('Contact Messages', r.total_contact_messages ?? 0, '✉️', '#F59E0B')}
+      </div>
+
+      ${r.top_departments && r.top_departments.length > 0 ? `
+        <div style="background: var(--color-white); border: 1px solid rgba(22,50,92,0.1); border-radius: var(--radius-md); padding: 1.5rem; box-shadow: var(--shadow-sm);">
+          <h3 style="font-size: 1rem; font-weight: 800; color: var(--color-navy); margin-bottom: 1rem;">📊 Top Departments by Activity</h3>
+          <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+            <thead>
+              <tr style="border-bottom: 2px solid rgba(22,50,92,0.1);">
+                <th style="text-align: left; padding: 0.5rem; color: var(--color-navy); font-weight: 700;">Department</th>
+                <th style="text-align: right; padding: 0.5rem; color: var(--color-navy); font-weight: 700;">Students</th>
+                <th style="text-align: right; padding: 0.5rem; color: var(--color-navy); font-weight: 700;">Documents</th>
+                <th style="text-align: right; padding: 0.5rem; color: var(--color-navy); font-weight: 700;">Cards</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${r.top_departments.map(d => `
+                <tr style="border-bottom: 1px solid rgba(22,50,92,0.05);">
+                  <td style="padding: 0.5rem; color: var(--color-navy);">${d.department || '—'}</td>
+                  <td style="padding: 0.5rem; text-align: right; color: var(--color-text-muted);">${d.student_count ?? 0}</td>
+                  <td style="padding: 0.5rem; text-align: right; color: var(--color-text-muted);">${d.document_count ?? 0}</td>
+                  <td style="padding: 0.5rem; text-align: right; color: var(--color-text-muted);">${d.card_count ?? 0}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      ` : ''}
+
+      ${r.recent_signups && r.recent_signups.length > 0 ? `
+        <div style="background: var(--color-white); border: 1px solid rgba(22,50,92,0.1); border-radius: var(--radius-md); padding: 1.5rem; box-shadow: var(--shadow-sm); margin-top: 1rem;">
+          <h3 style="font-size: 1rem; font-weight: 800; color: var(--color-navy); margin-bottom: 1rem;">🆕 Recent Sign-ups</h3>
+          <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.5rem;">
+            ${r.recent_signups.map(u => `
+              <li style="font-size: 0.85rem; color: var(--color-navy); display: flex; justify-content: space-between; border-bottom: 1px solid rgba(22,50,92,0.05); padding-bottom: 0.4rem;">
+                <span>${u.full_name || 'Anonymous'} <span style="color: var(--color-text-muted); font-size: 0.75rem;">(${u.department || 'No dept'})</span></span>
+                <span style="color: var(--color-text-muted); font-size: 0.75rem;">${new Date(u.created_at).toLocaleDateString()}</span>
+              </li>
+            `).join('')}
+          </ul>
+        </div>
+      ` : ''}
+    `;
+
+  } catch (err) {
+    console.error('Exception in loadAdminReport:', err);
+    container.innerHTML = `
+      <div class="empty-state">
+        <p class="empty-state-text" style="color: #DC2626;">An unexpected error occurred while loading the report.</p>
+      </div>
+    `;
+  }
+}
+window.loadAdminReport = loadAdminReport;
+
+// ==========================================================================
+// PART D — VOICE-TO-TEXT NOTES IN THE STUDY NOTEBOOK
+// ==========================================================================
+
+let speechRecognitionInstance = null;
+let isSpeechListening = false;
+let speechActiveTextBoxId = null;
+
+function toggleVoiceTranscription() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) return;
+
+  const btnMic = document.getElementById('tool-mic');
+  if (isSpeechListening) {
+    // Stop listening
+    if (speechRecognitionInstance) {
+      speechRecognitionInstance.stop();
+    }
+  } else {
+    // Start listening
+    isSpeechListening = true;
+    if (btnMic) {
+      btnMic.classList.add('mic-active');
+    }
+    
+    // Create new textbox at default center position
+    const overlay = document.getElementById('notebook-overlay-container');
+    if (overlay) {
+      const id = 'text-voice-' + Date.now();
+      const fontSize = document.getElementById('text-font-size')?.value || '16px';
+      
+      const textBox = document.createElement('div');
+      textBox.className = 'draggable-element draggable-text-box editing';
+      textBox.id = id;
+      textBox.style.left = '150px';
+      textBox.style.top = '150px';
+      textBox.style.color = currentPenColor;
+      textBox.style.fontSize = fontSize;
+      textBox.setAttribute('data-type', 'text');
+      textBox.setAttribute('data-color', currentPenColor);
+      textBox.setAttribute('data-font-size', fontSize);
+
+      textBox.innerHTML = `
+        <button class="delete-overlay-btn" title="Delete Text" onclick="removeOverlayElement('${id}')" style="top: -6px; right: -6px;">×</button>
+        <div contenteditable="true" style="outline:none; min-width: 150px; white-space: pre-wrap; overflow-wrap: break-word; font-family: inherit; font-size: inherit;" onblur="handleTextBlur('${id}')"></div>
+      `;
+
+      overlay.appendChild(textBox);
+      makeElementDraggable(textBox);
+      activeEditingTextBox = textBox;
+      speechActiveTextBoxId = id;
+
+      const editable = textBox.querySelector('[contenteditable="true"]');
+      if (editable) {
+        editable.focus();
+        editable.textContent = "(Listening... / Dinleniyor...)";
+      }
+
+      // Bind double-click handler to re-enter editing mode
+      textBox.addEventListener('dblclick', (evt) => {
+        if (evt.target.classList.contains('delete-overlay-btn')) return;
+        const ed = textBox.querySelector('[contenteditable]');
+        if (ed) {
+          ed.contentEditable = "true";
+          textBox.classList.add('editing');
+          activeEditingTextBox = textBox;
+          ed.focus();
+        }
+      });
+    }
+
+    try {
+      speechRecognitionInstance = new SpeechRecognition();
+      speechRecognitionInstance.continuous = true;
+      speechRecognitionInstance.interimResults = true;
+      
+      const currentLang = localStorage.getItem('acadexUILang') || 'en';
+      speechRecognitionInstance.lang = currentLang === 'tr' ? 'tr-TR' : 'en-US';
+
+      speechRecognitionInstance.onresult = (event) => {
+        let finalTrans = '';
+        let interimTrans = '';
+        // Fixed: Loop from 0 to display cumulative speech transcript
+        for (let i = 0; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalTrans += event.results[i][0].transcript;
+          } else {
+            interimTrans += event.results[i][0].transcript;
+          }
+        }
+        
+        const textBox = document.getElementById(speechActiveTextBoxId);
+        if (textBox) {
+          const editable = textBox.querySelector('[contenteditable="true"]');
+          if (editable) {
+            editable.textContent = finalTrans + interimTrans;
+          }
+        }
+      };
+
+      speechRecognitionInstance.onerror = (event) => {
+        console.error("Speech Recognition Error:", event.error);
+        if ((event.error === 'not-allowed' || event.error === 'service-not-allowed') && window.location.protocol === 'file:') {
+          console.warn("Speech recognition may require HTTPS hosting to function — this may not work from a local file:// path.");
+        }
+        if (event.error === 'not-allowed') {
+          showDashboardAlert('error', 'Microphone permission denied. / Mikrofon izni reddedildi.');
+        } else {
+          showDashboardAlert('error', 'Speech recognition error. / Ses tanıma hatası: ' + event.error);
+        }
+        stopSpeechProcess();
+      };
+
+      speechRecognitionInstance.onend = () => {
+        stopSpeechProcess();
+      };
+
+      speechRecognitionInstance.start();
+    } catch (err) {
+      console.error("Speech Recognition start exception:", err);
+      showDashboardAlert('error', 'Could not initialize microphone. / Mikrofon başlatılamadı.');
+      stopSpeechProcess();
+    }
+  }
+}
+window.toggleVoiceTranscription = toggleVoiceTranscription;
+
+function stopSpeechProcess() {
+  isSpeechListening = false;
+  const btnMic = document.getElementById('tool-mic');
+  if (btnMic) {
+    btnMic.classList.remove('mic-active');
+  }
+  
+  if (speechActiveTextBoxId) {
+    const textBox = document.getElementById(speechActiveTextBoxId);
+    if (textBox) {
+      const editable = textBox.querySelector('[contenteditable="true"]');
+      if (editable) {
+        const text = editable.textContent.trim();
+        if (text === "" || text === "(Listening... / Dinleniyor...)") {
+          textBox.remove();
+        } else {
+          editable.blur();
+        }
+      }
+    }
+    speechActiveTextBoxId = null;
+  }
+}
+
+// ==========================================================================
+// PART E — EXAM DATE REMINDERS (Çalışma Planlayıcı)
+// ==========================================================================
+
+let alreadyNotifiedEventIds = new Set();
+
+function requestExamNotificationPermission() {
+  if (!('Notification' in window)) {
+    showDashboardAlert('error', 'Notifications not supported by this browser.');
+    return;
+  }
+
+  Notification.requestPermission().then(permission => {
+    updateRemindersStatusText();
+    if (permission === 'granted') {
+      showDashboardAlert('success', 'Exam reminders enabled successfully!');
+      checkAndTriggerExamNotifications();
+    }
+  });
+}
+window.requestExamNotificationPermission = requestExamNotificationPermission;
+
+function updateRemindersStatusText() {
+  const statusText = document.getElementById('reminders-status-text');
+  if (!statusText) return;
+
+  if (!('Notification' in window)) {
+    statusText.textContent = 'Status: Unsupported';
+    statusText.style.color = '#EF4444';
+    return;
+  }
+
+  if (Notification.permission === 'granted') {
+    statusText.textContent = 'Status: Enabled 🔔';
+    statusText.style.color = '#10B981';
+  } else if (Notification.permission === 'denied') {
+    statusText.textContent = 'Status: Blocked 🚫';
+    statusText.style.color = '#EF4444';
+  } else {
+    statusText.textContent = 'Status: Not Enabled ⚠️';
+    statusText.style.color = '#F59E0B';
+  }
+}
+window.updateRemindersStatusText = updateRemindersStatusText;
+
+async function checkAndTriggerExamNotifications() {
+  if (!currentUser) return;
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+  try {
+    const { data: events, error } = await supabaseClient
+      .from('study_events')
+      .select('*')
+      .eq('user_id', currentUser.id)
+      .eq('event_type', 'exam')
+      .eq('is_done', false);
+
+    if (error) throw error;
+
+    const todayStr = getLocalDateString();
+    const tomorrowStr = getLocalDateString(new Date(Date.now() + 86400000));
+
+    (events || []).forEach(ev => {
+      if (alreadyNotifiedEventIds.has(ev.id)) return;
+
+      if (ev.event_date === todayStr) {
+        new Notification("Upcoming Exam Reminder", {
+          body: `"${ev.title}" is today!`,
+          icon: 'assets/logo.png'
+        });
+        alreadyNotifiedEventIds.add(ev.id);
+      } else if (ev.event_date === tomorrowStr) {
+        new Notification("Upcoming Exam Reminder", {
+          body: `"${ev.title}" is tomorrow!`,
+          icon: 'assets/logo.png'
+        });
+        alreadyNotifiedEventIds.add(ev.id);
+      }
+    });
+  } catch (err) {
+    console.error("Error triggering notifications:", err);
+  }
+}
+window.checkAndTriggerExamNotifications = checkAndTriggerExamNotifications;
+
+async function loadHomeExamBanners() {
+  const container = document.getElementById('home-exam-banners-container');
+  if (!container) return;
+
+  container.innerHTML = '';
+  if (!currentUser) return;
+
+  try {
+    const { data: events, error } = await supabaseClient
+      .from('study_events')
+      .select('*')
+      .eq('user_id', currentUser.id)
+      .eq('event_type', 'exam')
+      .eq('is_done', false);
+
+    if (error) throw error;
+
+    const todayStr = getLocalDateString();
+    const tomorrowStr = getLocalDateString(new Date(Date.now() + 86400000));
+
+    const upcomingExams = (events || []).filter(ev => {
+      return ev.event_date === todayStr || ev.event_date === tomorrowStr;
+    });
+
+    upcomingExams.forEach(ev => {
+      const banner = document.createElement('div');
+      banner.style.cssText = `
+        background-color: #FEF2F2;
+        border: 1px solid #FCA5A5;
+        border-radius: var(--radius-sm);
+        padding: 0.75rem 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        box-shadow: var(--shadow-sm);
+      `;
+
+      const textSpan = document.createElement('span');
+      textSpan.style.cssText = `
+        color: #991B1B;
+        font-weight: 700;
+        font-size: 0.85rem;
+      `;
+      const dateText = ev.event_date === todayStr ? "TODAY" : "TOMORROW";
+      textSpan.textContent = `🚨 Upcoming Exam: "${ev.title}" is ${dateText}!`;
+
+      const ackBtn = document.createElement('button');
+      ackBtn.className = 'btn';
+      ackBtn.style.cssText = `
+        padding: 0.25rem 0.6rem;
+        font-size: 0.75rem;
+        background-color: #EF4444;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: 700;
+      `;
+      ackBtn.textContent = "Acknowledge / Anladım";
+      ackBtn.addEventListener('click', async () => {
+        try {
+          const { error: updateError } = await supabaseClient
+            .from('study_events')
+            .update({ is_done: true })
+            .eq('id', ev.id);
+          if (updateError) throw updateError;
+          banner.remove();
+          loadDashboardHome();
+        } catch (updateErr) {
+          console.error("Failed to acknowledge exam:", updateErr);
+        }
+      });
+
+      banner.appendChild(textSpan);
+      banner.appendChild(ackBtn);
+      container.appendChild(banner);
+    });
+  } catch (err) {
+    console.error("Error loading exam banners:", err);
+  }
+}
+window.loadHomeExamBanners = loadHomeExamBanners;
+
