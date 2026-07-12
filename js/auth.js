@@ -398,11 +398,8 @@ function initForgotForm() {
     setButtonLoading(submitBtn, true, 'Sending Reset Link...');
 
     try {
-      const resetRedirectUrl = window.location.origin + window.location.pathname.replace('login.html', 'reset-password.html');
-      console.log("Password reset redirect url set to:", resetRedirectUrl);
-
       const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
-        redirectTo: resetRedirectUrl
+        redirectTo: window.location.origin + '/reset-password.html'
       });
 
       if (error) {

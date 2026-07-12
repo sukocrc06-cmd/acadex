@@ -264,6 +264,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
   loadLandingPageStats();
 
+  async function loadCoordinatorAvatar() {
+    if (typeof supabaseClient !== 'undefined') {
+      try {
+        const { data, error } = await supabaseClient
+          .from('profiles')
+          .select('avatar_url')
+          .eq('email', 'suko.crc06@gmail.com')
+          .maybeSingle();
+
+        if (!error && data && data.avatar_url) {
+          const avatarContainer = document.querySelector('.coordinator-avatar');
+          if (avatarContainer) {
+            avatarContainer.innerHTML = `<img src="${data.avatar_url}" alt="Şükrü Çerçi" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;" onerror="this.style.display='none';this.nextElementSibling.style.display='block';">`
+              + `<span class="coordinator-initials" style="display: none;">ŞÇ</span>`;
+          }
+        }
+      } catch (err) {
+        console.error("Error loading coordinator avatar:", err);
+      }
+    }
+  }
+  loadCoordinatorAvatar();
+
   // ==========================================
   // 7. Contact / Ask a Question Form (Phase 14)
   // ==========================================

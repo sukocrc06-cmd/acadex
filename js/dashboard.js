@@ -2781,7 +2781,8 @@ function renderDepartmentFeed(cards, profileMap) {
         </div>
         <div class="doc-info" style="width: calc(100% - 40px);">
           <h4 class="doc-name" title="${docName}">${docName}</h4>
-          <div class="feed-card-sharer">
+          <div class="feed-card-sharer" style="display:flex; align-items:center; gap:0.35rem;">
+            ${renderUserAvatarHtml(sharerProfile, 18)}
             <span>By: ${sharerName}</span>
             <span class="dept-badge ${badgeClass}" style="margin-left: 4px; font-size: 0.65rem;">${shortName}</span>
           </div>
@@ -5621,6 +5622,7 @@ async function loadSandboxProjects() {
           <h4 style="font-size: 0.95rem; font-weight: 800; color: var(--color-navy); margin-bottom: 0.25rem; word-break: break-word;">${proj.title}</h4>
           
           <div style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.7rem; color: var(--color-text-muted); margin-bottom: 0.5rem; flex-wrap: wrap;">
+            ${renderUserAvatarHtml(author, 18)}
             <span>By: <strong>${author.full_name}</strong></span>
             <span class="dept-badge ${deptClass}" style="padding: 0.1rem 0.35rem; font-size: 0.55rem; font-weight: 800;">${deptShort}</span>
           </div>
