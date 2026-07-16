@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+import { SMTPClient } from "https://deno.land/x/denomailer/mod.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -16,7 +17,8 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    const resendApiKey = Deno.env.get('RESEND_API_KEY') ?? ''
+    const gmailAddress = Deno.env.get('GMAIL_ADDRESS') ?? ''
+    const gmailAppPassword = Deno.env.get('GMAIL_APP_PASSWORD') ?? ''
 
     if (!supabaseUrl || !supabaseServiceKey) {
       return new Response(JSON.stringify({ error: 'Supabase configuration is missing' }), {
@@ -25,8 +27,8 @@ serve(async (req) => {
       })
     }
 
-    if (!resendApiKey) {
-      return new Response(JSON.stringify({ error: 'Resend API key is missing' }), {
+    if (!gmailAddress || !gmailAppPassword) {
+      return new Response(JSON.stringify({ error: 'Gmail configuration is missing (GMAIL_ADDRESS or GMAIL_APP_PASSWORD)' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
@@ -100,27 +102,29 @@ serve(async (req) => {
       const studentName = profile.full_name || 'Student'
 
       try {
-        const resendRes = await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${resendApiKey}`,
-            'Content-Type': 'application/json'
+        const client = new SMTPClient({
+          connection: {
+            hostname: "smtp.gmail.com",
+            port: 587,
+            tls: true,
+            auth: {
+              username: gmailAddress,
+              password: gmailAppPassword,
+            },
           },
-          body: JSON.stringify({
-            from: 'Acadex Reminders <onboarding@resend.dev>',
-            to: [studentEmail],
-            subject: `Reminder: ${event.title} is tomorrow!`,
-            html: `<p>Hi ${studentName},</p><p>This is a friendly reminder that <strong>${event.title}</strong> is scheduled for tomorrow (${event.event_date}).</p>${event.notes ? `<p>Notes: ${event.notes}</p>` : ''}<p>Good luck! — Acadex</p>`
-          })
         })
 
-        if (!resendRes.ok) {
-          const errData = await resendRes.json()
-          console.error(`Resend failure sending email to ${studentEmail}:`, errData)
-        } else {
-          remindersSent++
-          console.log(`Reminder email successfully sent to ${studentEmail} for event "${event.title}"`)
-        }
+        await client.send({
+          from: `Acadex <${gmailAddress}>`,
+          to: studentEmail,
+          subject: `Reminder: ${event.title} is tomorrow!`,
+          content: "auto",
+          html: `<p>Hi ${studentName},</p><p>This is a friendly reminder that <strong>${event.title}</strong> is scheduled for tomorrow (${event.event_date}).</p>${event.notes ? `<p>Notes: ${event.notes}</p>` : ''}<p>Good luck! — Acadex</p>`,
+        })
+
+        await client.close()
+        remindersSent++
+        console.log(`Reminder email successfully sent to ${studentEmail} for event "${event.title}"`)
       } catch (emailErr) {
         console.error(`Exception occurred sending email to ${studentEmail}:`, emailErr)
       }
@@ -139,3 +143,4 @@ serve(async (req) => {
     })
   }
 })
+

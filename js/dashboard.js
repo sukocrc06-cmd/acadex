@@ -5235,17 +5235,17 @@ function renderCurrentFlashcard() {
 
   if (reviewType === 'terms') {
     cardEl.innerHTML = `
-      <h3 style="font-size: 1.5rem; color: var(--color-navy); font-weight: 800; margin-bottom: 1rem;">${item.term}</h3>
-      <p style="font-size: 0.95rem; color: var(--color-text); line-height: 1.6; margin: 0;">${item.definition}</p>
+      <h3 style="font-size: 1.5rem; color: var(--color-navy); font-weight: 800; margin-bottom: 1rem; padding: 0 2rem;">${item.term}</h3>
+      <p style="font-size: 0.95rem; color: var(--color-text); line-height: 1.6; margin: 0; padding: 0 1.5rem;">${item.definition}</p>
     `;
   } else if (reviewType === 'points') {
     cardEl.innerHTML = `
-      <p style="font-size: 1.1rem; color: var(--color-navy); line-height: 1.6; font-weight: 600; margin: 0; padding: 1rem 0;">${item}</p>
+      <p style="font-size: 1.1rem; color: var(--color-navy); line-height: 1.6; font-weight: 600; margin: 0; padding: 1rem 2rem;">${item}</p>
     `;
   } else if (reviewType === 'quiz') {
     cardEl.innerHTML = `
-      <h3 style="font-size: 1.25rem; color: var(--color-navy); font-weight: 800; margin-bottom: 1rem;">Soru: ${item.question}</h3>
-      <p style="font-size: 1.05rem; color: var(--color-teal); font-weight: 700; line-height: 1.6; margin: 0;">Cevap: ${item.answer}</p>
+      <h3 style="font-size: 1.25rem; color: var(--color-navy); font-weight: 800; margin-bottom: 1rem; padding: 0 2rem;">Soru: ${item.question}</h3>
+      <p style="font-size: 1.05rem; color: var(--color-teal); font-weight: 700; line-height: 1.6; margin: 0; padding: 0 1.5rem;">Cevap: ${item.answer}</p>
     `;
   }
 }
