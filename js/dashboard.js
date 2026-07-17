@@ -19,6 +19,8 @@ let pendingMergeDocIds = [];
 let activeBulkSummarizingDocIds = [];
 let currentActiveStudyCard = null;
 let departmentFeedLimit = 30;
+let feedVoteCounts = {}; // card_id -> number of "helpful" votes
+let feedUserVotedSet = new Set(); // card_ids the current user has voted for
 let sandboxProjectsLimit = 20;
 let notebookHasUnsavedChanges = false;
 
@@ -76,6 +78,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 9. Phase 11 General Listeners
   initPhase11Listeners();
+
+  // 10. Acadia AI Study Assistant Widget
+  initAcadiaWidget();
 });
 
 // ==========================================
@@ -2683,6 +2688,28 @@ async function loadDepartmentFeed() {
       profileMap[p.id] = { full_name: p.full_name || 'A classmate', avatar_url: p.avatar_url };
     });
 
+    // Fetch "helpful" vote counts + whether the current user already voted.
+    // Table is created by supabase/migrations/20260717_add_study_card_votes.sql
+    // — if that migration hasn't been run yet, this simply fails silently
+    // and vote counts default to 0 everywhere.
+    feedVoteCounts = {};
+    feedUserVotedSet = new Set();
+    try {
+      const cardIds = cards.map(c => c.id);
+      const { data: votes, error: votesError } = await supabaseClient
+        .from('study_card_votes')
+        .select('card_id, user_id')
+        .in('card_id', cardIds);
+      if (!votesError && votes) {
+        votes.forEach(v => {
+          feedVoteCounts[v.card_id] = (feedVoteCounts[v.card_id] || 0) + 1;
+          if (v.user_id === currentUser?.id) feedUserVotedSet.add(v.card_id);
+        });
+      }
+    } catch (voteErr) {
+      console.warn('Could not load feed vote counts (has the study_card_votes migration been run?):', voteErr);
+    }
+
     // Populate + wire feed course filter (Phase 17)
     const feedFilterBar = document.getElementById('feed-filter-bar');
     const feedFilterCourse = document.getElementById('feed-filter-course');
@@ -2794,7 +2821,10 @@ function renderDepartmentFeed(cards, profileMap) {
 
       <p class="feed-card-excerpt" style="margin: 0.75rem 0;">${excerpt}</p>
 
-      <button class="btn btn-primary btn-view-summary" data-doc-id="${card.document_id}" data-doc-name="${docName.replace(/'/g, "\\'")}" data-read-only="true" style="width: 100%; border: none; font-size: 0.85rem; padding: 0.5rem 1rem;">View Summary</button>
+      <div style="display: flex; gap: 0.5rem; align-items: center;">
+        <button class="btn btn-primary btn-view-summary" data-doc-id="${card.document_id}" data-doc-name="${docName.replace(/'/g, "\\'")}" data-read-only="true" style="flex: 1; border: none; font-size: 0.85rem; padding: 0.5rem 1rem;">View Summary</button>
+        ${renderVoteButtonHtml(card.id)}
+      </div>
     `;
     grid.appendChild(cardEl);
   });
@@ -2821,6 +2851,70 @@ function renderDepartmentFeed(cards, profileMap) {
     grid.appendChild(loadMoreContainer);
   }
 }
+
+// ==========================================
+// Department Feed quality voting ("helpful" votes)
+// Lets students upvote shared study cards so the most useful material rises
+// to the top over time. Requires the study_card_votes table — see
+// supabase/migrations/20260717_add_study_card_votes.sql.
+// ==========================================
+function renderVoteButtonHtml(cardId) {
+  const count = feedVoteCounts[cardId] || 0;
+  const voted = feedUserVotedSet.has(cardId);
+  return `
+    <button id="vote-btn-${cardId}" onclick="toggleCardVote('${cardId}')"
+      class="btn ${voted ? 'btn-primary' : 'btn-outline'}"
+      title="${voted ? 'Faydalı buldum işaretini kaldır' : 'Bunu faydalı buldum'}"
+      style="padding: 0.5rem 0.75rem; font-size: 0.8rem; display: flex; align-items: center; gap: 0.35rem; white-space: nowrap; ${voted ? 'border: none; background: var(--color-teal); color: white;' : ''}">
+      <span aria-hidden="true">👍</span>
+      <span id="vote-count-${cardId}">${count}</span>
+    </button>
+  `;
+}
+
+async function toggleCardVote(cardId) {
+  if (!currentUser) return;
+  const btn = document.getElementById(`vote-btn-${cardId}`);
+  const countEl = document.getElementById(`vote-count-${cardId}`);
+  if (btn) btn.disabled = true;
+
+  const alreadyVoted = feedUserVotedSet.has(cardId);
+
+  try {
+    if (alreadyVoted) {
+      const { error } = await supabaseClient
+        .from('study_card_votes')
+        .delete()
+        .eq('card_id', cardId)
+        .eq('user_id', currentUser.id);
+      if (error) throw error;
+      feedUserVotedSet.delete(cardId);
+      feedVoteCounts[cardId] = Math.max(0, (feedVoteCounts[cardId] || 1) - 1);
+    } else {
+      const { error } = await supabaseClient
+        .from('study_card_votes')
+        .insert({ card_id: cardId, user_id: currentUser.id });
+      if (error) throw error;
+      feedUserVotedSet.add(cardId);
+      feedVoteCounts[cardId] = (feedVoteCounts[cardId] || 0) + 1;
+    }
+
+    // Update just this button in place rather than re-rendering the whole feed.
+    if (btn) {
+      const nowVoted = feedUserVotedSet.has(cardId);
+      btn.className = `btn ${nowVoted ? 'btn-primary' : 'btn-outline'}`;
+      btn.title = nowVoted ? 'Faydalı buldum işaretini kaldır' : 'Bunu faydalı buldum';
+      btn.style.cssText = `padding: 0.5rem 0.75rem; font-size: 0.8rem; display: flex; align-items: center; gap: 0.35rem; white-space: nowrap; ${nowVoted ? 'border: none; background: var(--color-teal); color: white;' : ''}`;
+    }
+    if (countEl) countEl.textContent = feedVoteCounts[cardId] || 0;
+  } catch (err) {
+    console.error('Failed to toggle card vote (has the study_card_votes migration been run?):', err);
+    showDashboardAlert('error', 'Oy kaydedilemedi. Bu özellik için gerekli veritabanı tablosu henüz oluşturulmamış olabilir.');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+window.toggleCardVote = toggleCardVote;
 
 function getDepartmentColorClass(dept) {
   if (!dept) return '';
@@ -3467,6 +3561,8 @@ async function generateExam() {
   const examType = document.querySelector('input[name="exam-type"]:checked').value;
   const language = document.querySelector('input[name="exam-lang"]:checked').value;
   const questionCount = parseInt(document.getElementById('exam-question-count').value, 10);
+  const difficultyInput = document.querySelector('input[name="exam-difficulty"]:checked');
+  const difficulty = difficultyInput ? difficultyInput.value : 'medium';
 
   const originalText = btn.textContent;
   btn.disabled = true;
@@ -3488,7 +3584,7 @@ async function generateExam() {
         'Content-Type': 'application/json',
         'apikey': SUPABASE_ANON_KEY
       },
-      body: JSON.stringify({ studyCardId, examType, questionCount, language })
+      body: JSON.stringify({ studyCardId, examType, questionCount, language, difficulty })
     });
 
     const data = await response.json();
@@ -3726,9 +3822,13 @@ async function submitExam() {
 
     showDashboardAlert('success', 'Sınav başarıyla tamamlandı ve notlandırıldı!');
     showExamResults(data);
-    
+
     // Check and award exam achievements
     await checkAndAwardFirstExam(data.grade);
+
+    // Auto-schedule a short remediation plan in the Study Planner for any
+    // concept the student scored poorly on in this attempt.
+    await scheduleRemediationPlan(data);
 
   } catch (err) {
     console.error("Exception submitting exam: ", err);
@@ -3819,6 +3919,94 @@ function showExamResults(exam) {
   });
 }
 window.showExamResults = showExamResults;
+
+// ==========================================
+// Post-exam remediation plan
+// Looks at the concepts the student scored weakest on in the attempt that
+// was just graded, and quietly adds a couple of "review this" tasks to the
+// Study Planner (study_events) so the next study session has a starting
+// point. Skips concepts that already have an open reminder to avoid
+// cluttering the planner across repeated exam attempts.
+// ==========================================
+const REMEDIATION_SCORE_THRESHOLD = 60;
+const REMEDIATION_MAX_ITEMS = 3;
+const REMEDIATION_DUE_IN_DAYS = 2;
+
+async function scheduleRemediationPlan(exam) {
+  try {
+    if (!currentUser) return;
+    const results = exam.question_results || [];
+
+    // Aggregate by concept within this single attempt only.
+    const conceptScores = {};
+    results.forEach(res => {
+      const concept = (res.concept || '').trim();
+      if (!concept) return;
+      if (!conceptScores[concept]) conceptScores[concept] = { total: 0, count: 0 };
+      conceptScores[concept].total += (typeof res.score === 'number' ? res.score : 0);
+      conceptScores[concept].count += 1;
+    });
+
+    const weakConcepts = Object.keys(conceptScores)
+      .map(concept => ({ concept, avg: conceptScores[concept].total / conceptScores[concept].count }))
+      .filter(c => c.avg < REMEDIATION_SCORE_THRESHOLD)
+      .sort((a, b) => a.avg - b.avg)
+      .slice(0, REMEDIATION_MAX_ITEMS);
+
+    if (weakConcepts.length === 0) return; // Nothing to schedule — good result!
+
+    // Avoid duplicate reminders: check which of these concepts already have
+    // an open (not-done) "review" event pending.
+    const { data: existingEvents } = await supabaseClient
+      .from('study_events')
+      .select('title')
+      .eq('user_id', currentUser.id)
+      .eq('is_done', false);
+    const existingTitles = new Set((existingEvents || []).map(e => e.title));
+
+    const dueDate = new Date(Date.now() + REMEDIATION_DUE_IN_DAYS * 24 * 60 * 60 * 1000);
+    const dueDateStr = getLocalDateString(dueDate);
+
+    const isTr = exam.language === 'tr';
+    const newEvents = weakConcepts
+      .map(c => ({
+        title: (isTr ? `Tekrar Et: ${c.concept}` : `Review: ${c.concept}`),
+        avg: c.avg
+      }))
+      .filter(e => !existingTitles.has(e.title))
+      .map(e => ({
+        user_id: currentUser.id,
+        title: e.title,
+        event_date: dueDateStr,
+        event_type: 'goal',
+        notes: isTr
+          ? `Otomatik oluşturuldu: son sınavda bu konudan ortalama ${Math.round(e.avg)}/100 aldınız. Çalışma kartlarınızı tekrar gözden geçirin.`
+          : `Auto-added: you averaged ${Math.round(e.avg)}/100 on this topic in your last exam. Worth another look at your study cards.`,
+        is_done: false
+      }));
+
+    if (newEvents.length === 0) return;
+
+    const { error } = await supabaseClient.from('study_events').insert(newEvents);
+    if (error) {
+      console.error('Failed to schedule remediation plan:', error);
+      return;
+    }
+
+    // Refresh the planner list if it's currently visible, and let the
+    // student know without being intrusive about it.
+    if (document.getElementById('planner-events-this-week')) {
+      await loadPlannerEvents();
+    }
+    const topicNames = newEvents.map(e => e.title.split(': ')[1]).join(', ');
+    showDashboardAlert('success', isTr
+      ? `Planlayıcınıza tekrar hatırlatmaları eklendi: ${topicNames}`
+      : `Added review reminders to your planner: ${topicNames}`);
+  } catch (err) {
+    console.error('Exception scheduling remediation plan:', err);
+    // Non-critical — fail silently beyond the console so it never blocks the exam results screen.
+  }
+}
 
 function backToExamSetup() {
   loadExamsPlatform();
@@ -6028,16 +6216,20 @@ async function loadDashboardHome() {
       .select('*', { count: 'exact', head: true })
       .eq('user_id', currentUser.id);
 
+    // Note: completed exams are identified by a non-null completed_at (the
+    // grade-exam function never writes a 'status'/'score' column — it writes
+    // 'grade' and 'completed_at'). Also pull question_results here so we can
+    // build the concept-level weak-topics panel without a second round trip.
     const { data: examsData } = await supabaseClient
       .from('exams')
-      .select('score')
+      .select('grade, question_results, completed_at')
       .eq('user_id', currentUser.id)
-      .eq('status', 'completed');
+      .not('completed_at', 'is', null);
 
     const examsCount = examsData ? examsData.length : 0;
     let avgGrade = '—';
     if (examsCount > 0) {
-      const sum = examsData.reduce((acc, curr) => acc + (curr.score || 0), 0);
+      const sum = examsData.reduce((acc, curr) => acc + (curr.grade || 0), 0);
       avgGrade = Math.round(sum / examsCount).toString();
     }
 
@@ -6051,9 +6243,66 @@ async function loadDashboardHome() {
 
     await loadRecentActivity();
     await renderStreakAndAchievements();
+    renderWeakTopicsPanel(examsData || []);
   } catch (err) {
     console.error("Error loading home stats:", err);
   }
+}
+
+// ==========================================
+// Weak Topics / Focus Panel (concept-level analysis)
+// Aggregates question_results across all completed exams by the AI-assigned
+// "concept" tag (see supabase/functions/generate-exam) and surfaces the
+// lowest-scoring concepts so the student knows exactly what to review next.
+// ==========================================
+function renderWeakTopicsPanel(examsData) {
+  const card = document.getElementById('home-weak-topics-card');
+  const list = document.getElementById('home-weak-topics-list');
+  if (!card || !list) return;
+
+  const conceptStats = {};
+  (examsData || []).forEach(exam => {
+    (exam.question_results || []).forEach(res => {
+      const concept = (res.concept || '').trim();
+      if (!concept) return; // Older exams generated before concept tagging won't have this field.
+      if (!conceptStats[concept]) conceptStats[concept] = { totalScore: 0, count: 0 };
+      conceptStats[concept].totalScore += (typeof res.score === 'number' ? res.score : 0);
+      conceptStats[concept].count += 1;
+    });
+  });
+
+  const concepts = Object.keys(conceptStats).map(concept => ({
+    concept,
+    avgScore: Math.round(conceptStats[concept].totalScore / conceptStats[concept].count),
+    count: conceptStats[concept].count
+  }));
+
+  // Only surface concepts seen at least once, weakest first, capped at the 5 weakest.
+  const weakest = concepts.sort((a, b) => a.avgScore - b.avgScore).slice(0, 5);
+
+  if (weakest.length === 0) {
+    card.style.display = 'none';
+    return;
+  }
+
+  card.style.display = 'flex';
+  list.innerHTML = '';
+
+  weakest.forEach(item => {
+    const barColor = item.avgScore >= 70 ? 'var(--color-teal)' : (item.avgScore >= 40 ? '#F59E0B' : '#EF4444');
+    const row = document.createElement('div');
+    row.style.cssText = 'display: flex; flex-direction: column; gap: 0.3rem;';
+    row.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
+        <span style="font-weight: 700; color: var(--color-navy);">${item.concept}</span>
+        <span style="font-weight: 800; color: ${barColor};">${item.avgScore}/100 <span style="font-weight: 500; color: var(--color-text-muted); font-size: 0.72rem;">(${item.count} soru)</span></span>
+      </div>
+      <div style="background: rgba(22, 50, 92, 0.08); border-radius: 10px; height: 6px; overflow: hidden;">
+        <div style="width: ${Math.max(item.avgScore, 4)}%; height: 100%; background: ${barColor}; border-radius: 10px;"></div>
+      </div>
+    `;
+    list.appendChild(row);
+  });
 }
 
 async function loadRecentActivity() {
@@ -7181,6 +7430,83 @@ async function loadPlannerEvents() {
     showDashboardAlert('error', 'Could not load planner events.');
   }
 }
+
+// ==========================================
+// Export Study Planner events as a standard .ics file so students can
+// import their exam dates and goals into Google Calendar, Outlook, or Apple
+// Calendar in one click. Generated entirely client-side from the
+// already-loaded `plannerEvents` array — no new backend endpoint needed.
+// ==========================================
+function icalEscapeText(str) {
+  return String(str || '')
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\n/g, '\\n');
+}
+
+function icalDateStamp(date) {
+  // Returns a UTC-basis YYYYMMDDTHHMMSSZ timestamp for DTSTAMP/CREATED fields.
+  return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+}
+
+function exportPlannerToICal() {
+  if (!plannerEvents || plannerEvents.length === 0) {
+    showDashboardAlert('error', 'Takvime aktarılacak bir etkinlik bulunamadı. / No events to export yet.');
+    return;
+  }
+
+  const nowStamp = icalDateStamp(new Date());
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Acadex//Study Planner//EN',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH'
+  ];
+
+  plannerEvents.forEach(event => {
+    // event_date is a plain YYYY-MM-DD string; treat it as an all-day event
+    // so it doesn't depend on the student's timezone.
+    const dateOnly = (event.event_date || '').replace(/-/g, '');
+    if (!dateOnly) return;
+
+    // All-day events in iCal use DTEND as the *next* day (exclusive end).
+    const startDate = new Date(event.event_date + 'T00:00:00');
+    const endDate = new Date(startDate.getTime() + 24 * 60 * 60 * 1000);
+    const dateOnlyEnd = getLocalDateString(endDate).replace(/-/g, '');
+
+    const typeLabel = { exam: 'Sınav', goal: 'Hedef', deadline: 'Son Tarih' }[event.event_type] || event.event_type || '';
+
+    lines.push('BEGIN:VEVENT');
+    lines.push(`UID:acadex-${event.id}@acadex`);
+    lines.push(`DTSTAMP:${nowStamp}`);
+    lines.push(`DTSTART;VALUE=DATE:${dateOnly}`);
+    lines.push(`DTEND;VALUE=DATE:${dateOnlyEnd}`);
+    lines.push(`SUMMARY:${icalEscapeText(`[Acadex${typeLabel ? ' • ' + typeLabel : ''}] ${event.title}`)}`);
+    if (event.notes) {
+      lines.push(`DESCRIPTION:${icalEscapeText(event.notes)}`);
+    }
+    lines.push('END:VEVENT');
+  });
+
+  lines.push('END:VCALENDAR');
+
+  // CRLF line endings are required by the iCalendar spec (RFC 5545).
+  const icsContent = lines.join('\r\n');
+  const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'acadex-calendar.ics';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  showDashboardAlert('success', 'Takvim dosyası indirildi! Google Calendar veya Outlook\'a içe aktarabilirsiniz.');
+}
+window.exportPlannerToICal = exportPlannerToICal;
 
 function openAddEventModal() {
   const modal = document.getElementById('planner-event-modal');
@@ -8373,3 +8699,152 @@ window.getInitials = getInitials;
 window.getDiceBearUrl = getDiceBearUrl;
 window.updateAllAvatarDisplays = updateAllAvatarDisplays;
 
+
+// ==========================================================================
+// ACADIA AI STUDY ASSISTANT
+// A context-aware chat widget available from every dashboard tab. Calls the
+// acadia-assistant edge function, which assembles a fresh snapshot of the
+// student's own activity (exam averages, weak concepts, upcoming planner
+// items) server-side and asks Groq/Llama for grounded, conversational study
+// advice. Conversation history lives only in this tab's memory — it is
+// never written to Supabase and is lost on page reload, consistent with the
+// privacy notice shown in the panel and in legal.html.
+// ==========================================================================
+let acadiaChatHistory = []; // [{ role: 'user' | 'assistant', content: string }]
+let acadiaHasGreeted = false;
+let acadiaRequestInFlight = false;
+
+function initAcadiaWidget() {
+  const form = document.getElementById('acadia-input-form');
+  if (!form || form.dataset.wired) return;
+  form.dataset.wired = 'true';
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const input = document.getElementById('acadia-input');
+    if (!input) return;
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    sendAcadiaMessage(text);
+  });
+}
+
+function toggleAcadiaPanel(forceState) {
+  const panel = document.getElementById('acadia-panel');
+  if (!panel) return;
+  const shouldShow = typeof forceState === 'boolean' ? forceState : (panel.style.display === 'none' || !panel.style.display);
+
+  panel.style.display = shouldShow ? 'flex' : 'none';
+
+  if (shouldShow) {
+    if (!acadiaHasGreeted) {
+      acadiaHasGreeted = true;
+      const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+      const firstName = (currentUserProfile?.full_name || '').split(' ')[0];
+      const greeting = isTr
+        ? `Merhaba${firstName ? ' ' + firstName : ''}! Ben Acadia 👋 Çalışma durumun hakkında soru sorabilir, hangi konuya odaklanman gerektiğini sorabilir ya da bugün nereden başlayacağını bana sorabilirsin.`
+        : `Hi${firstName ? ' ' + firstName : ''}! I'm Acadia 👋 Ask me about your study progress, which topics to focus on, or where to start today.`;
+      renderAcadiaMessage('assistant', greeting);
+    }
+    const input = document.getElementById('acadia-input');
+    if (input) setTimeout(() => input.focus(), 50);
+  }
+}
+window.toggleAcadiaPanel = toggleAcadiaPanel;
+
+function clearAcadiaChat() {
+  acadiaChatHistory = [];
+  acadiaHasGreeted = false;
+  const messages = document.getElementById('acadia-messages');
+  if (messages) messages.innerHTML = '';
+  toggleAcadiaPanel(true); // re-trigger the welcome message
+}
+window.clearAcadiaChat = clearAcadiaChat;
+
+function renderAcadiaMessage(role, text) {
+  const messages = document.getElementById('acadia-messages');
+  if (!messages) return;
+
+  const bubble = document.createElement('div');
+  const isUser = role === 'user';
+  bubble.style.cssText = `
+    max-width: 85%;
+    align-self: ${isUser ? 'flex-end' : 'flex-start'};
+    background: ${isUser ? 'var(--color-teal)' : 'var(--color-bg-alt)'};
+    color: ${isUser ? 'white' : 'var(--color-navy)'};
+    padding: 0.6rem 0.85rem;
+    border-radius: ${isUser ? '14px 14px 2px 14px' : '14px 14px 14px 2px'};
+    font-size: 0.83rem;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+  `;
+  bubble.textContent = text;
+  messages.appendChild(bubble);
+  messages.scrollTop = messages.scrollHeight;
+}
+
+async function sendAcadiaMessage(text) {
+  if (acadiaRequestInFlight) return;
+  if (!currentUser) {
+    showDashboardAlert('error', 'Oturum bulunamadı. Lütfen tekrar giriş yapın.');
+    return;
+  }
+
+  renderAcadiaMessage('user', text);
+  acadiaChatHistory.push({ role: 'user', content: text });
+
+  const sendBtn = document.getElementById('btn-acadia-send');
+  const typingIndicator = document.getElementById('acadia-typing-indicator');
+  acadiaRequestInFlight = true;
+  if (sendBtn) sendBtn.disabled = true;
+  if (typingIndicator) typingIndicator.style.display = 'block';
+
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) {
+      showDashboardAlert('error', 'Oturum bulunamadı. Lütfen tekrar giriş yapın.');
+      return;
+    }
+
+    const uiLang = localStorage.getItem('acadexUILang') || 'en';
+
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/acadia-assistant`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY
+      },
+      // Send history *before* this turn's message — the function appends the
+      // new message itself.
+      body: JSON.stringify({
+        message: text,
+        history: acadiaChatHistory.slice(0, -1),
+        language: uiLang
+      })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      console.error('Acadia request failed:', data);
+      const isTr = uiLang === 'tr';
+      renderAcadiaMessage('assistant', isTr
+        ? 'Şu anda yanıt veremiyorum, birazdan tekrar dener misin?'
+        : "I can't respond right now — could you try again in a moment?");
+      return;
+    }
+
+    renderAcadiaMessage('assistant', data.reply);
+    acadiaChatHistory.push({ role: 'assistant', content: data.reply });
+  } catch (err) {
+    console.error('Exception messaging Acadia:', err);
+    renderAcadiaMessage('assistant', 'Bir bağlantı hatası oluştu. / A connection error occurred.');
+  } finally {
+    acadiaRequestInFlight = false;
+    if (sendBtn) sendBtn.disabled = false;
+    if (typingIndicator) typingIndicator.style.display = 'none';
+  }
+}
+window.sendAcadiaMessage = sendAcadiaMessage;

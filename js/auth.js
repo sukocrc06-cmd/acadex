@@ -71,9 +71,27 @@ function getFriendlyError(message) {
 // ==========================================
 // 4. Registration Form Controller
 // ==========================================
+
+// EDIT: Fill in your institution's real student email domain(s) here to
+// restrict signups to verified students, e.g. ["ogr.acadex.edu.tr"].
+// Leave the array empty to allow any email address (current pilot default).
+const ALLOWED_STUDENT_EMAIL_DOMAINS = [];
+
+function isAllowedStudentEmail(email) {
+  if (!ALLOWED_STUDENT_EMAIL_DOMAINS.length) return true;
+  const domain = email.split('@')[1]?.toLowerCase() || '';
+  return ALLOWED_STUDENT_EMAIL_DOMAINS.some(allowed => domain === allowed.toLowerCase());
+}
+
 function initRegisterForm() {
   const form = document.getElementById('register-form');
   if (!form) return;
+
+  // Anti-bot: timestamp the moment the form became interactive. Genuine
+  // students take at least a couple of seconds to fill the form; a submit
+  // that arrives almost instantly is a strong bot signal.
+  const formRenderedAt = Date.now();
+  const MIN_HUMAN_FILL_TIME_MS = 2500;
 
   const checkbox = document.getElementById('legal-agree');
   const signupBtn = document.getElementById('btn-signup');
@@ -178,10 +196,28 @@ function initRegisterForm() {
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    
+
     // Clear previous errors
     clearFormErrors(form);
-    
+
+    // Anti-bot check #1: honeypot field. It's hidden from real users via CSS,
+    // so only an automated script filling every field would populate it.
+    const honeypot = document.getElementById('website');
+    if (honeypot && honeypot.value.trim() !== '') {
+      console.warn('Registration blocked: honeypot field was filled.');
+      // Fail silently with a generic message so bots don't learn why.
+      showFormAlert(form, 'error', getMsg('validation.unexpectedError', 'An unexpected error occurred. Please try again.'));
+      return;
+    }
+
+    // Anti-bot check #2: minimum fill time. Reject submissions that arrive
+    // faster than a human could plausibly complete the form.
+    if (Date.now() - formRenderedAt < MIN_HUMAN_FILL_TIME_MS) {
+      console.warn('Registration blocked: form submitted too quickly.');
+      showFormAlert(form, 'error', getMsg('validation.unexpectedError', 'An unexpected error occurred. Please try again.'));
+      return;
+    }
+
     // Grab input values
     const fullName = document.getElementById('full-name').value.trim();
     const studentNumber = document.getElementById('student-number').value.trim();
@@ -221,6 +257,9 @@ function initRegisterForm() {
       isValid = false;
     } else if (!emailPattern.test(email)) {
       showFieldError('email', getMsg('validation.emailInvalid', 'Please enter a valid email address.'));
+      isValid = false;
+    } else if (!isAllowedStudentEmail(email)) {
+      showFieldError('email', getMsg('validation.emailNotInstitutional', `Please use your institutional student email (${ALLOWED_STUDENT_EMAIL_DOMAINS.join(', ')}).`));
       isValid = false;
     }
 

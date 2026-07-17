@@ -93,15 +93,16 @@ serve(async (req) => {
           type: q.type,
           question: q.question,
           options: q.options,
+          concept: q.concept || null,
           student_answer: studentAns,
           correct_answer: correctAns,
           is_correct: isCorrect,
           score: isCorrect ? 100 : 0,
-          feedback: isCorrect 
-            ? (isTr ? "Tebrikler, doğru cevap!" : "Correct! Good job!") 
+          feedback: isCorrect
+            ? (isTr ? "Tebrikler, doğru cevap!" : "Correct! Good job!")
             : (isTr ? `Yanlış cevap. Doğru cevap: ${correctAns}` : `Incorrect. The correct answer is: ${correctAns}`)
         })
-      } 
+      }
       else if (q.type === 'fill_blank') {
         const isCorrect = studentAns.toLowerCase() === correctAns.toLowerCase()
         results.push({
@@ -109,15 +110,16 @@ serve(async (req) => {
           type: q.type,
           question: q.question,
           options: q.options,
+          concept: q.concept || null,
           student_answer: studentAns,
           correct_answer: correctAns,
           is_correct: isCorrect,
           score: isCorrect ? 100 : 0,
-          feedback: isCorrect 
-            ? (isTr ? "Tebrikler, boşluğu doğru tamamladınız!" : "Correct! Good job!") 
+          feedback: isCorrect
+            ? (isTr ? "Tebrikler, boşluğu doğru tamamladınız!" : "Correct! Good job!")
             : (isTr ? `Yanlış cevap. Doğru cevap: ${correctAns}` : `Incorrect. The correct answer is: ${correctAns}`)
         })
-      } 
+      }
       else if (q.type === 'open_ended') {
         if (!studentAns) {
           results.push({
@@ -125,6 +127,7 @@ serve(async (req) => {
             type: q.type,
             question: q.question,
             options: null,
+            concept: q.concept || null,
             student_answer: "",
             correct_answer: correctAns,
             is_correct: false,
@@ -137,7 +140,8 @@ serve(async (req) => {
             id: q.id,
             question: q.question,
             correct_answer: correctAns,
-            student_answer: studentAns
+            student_answer: studentAns,
+            concept: q.concept || null
           })
         }
       }
@@ -219,6 +223,7 @@ The array must contain exactly ${classicToGrade.length} objects matching this JS
             type: 'open_ended',
             question: matchingQ.question,
             options: null,
+            concept: matchingQ.concept || null,
             student_answer: matchingQ.student_answer,
             correct_answer: matchingQ.correct_answer,
             is_correct: gradeItem.score >= 50,

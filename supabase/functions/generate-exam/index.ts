@@ -20,13 +20,17 @@ serve(async (req) => {
       })
     }
 
-    const { studyCardId, examType, questionCount, language } = await req.json()
+    const { studyCardId, examType, questionCount, language, difficulty } = await req.json()
     if (!studyCardId || !examType || !questionCount || !language) {
       return new Response(JSON.stringify({ error: 'Missing required parameters' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
+
+    // Difficulty is optional for backward compatibility with older clients; default to 'medium'.
+    const allowedDifficulties = ['easy', 'medium', 'hard']
+    const resolvedDifficulty = allowedDifficulties.includes(difficulty) ? difficulty : 'medium'
 
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
@@ -89,14 +93,22 @@ ${JSON.stringify(card.key_points || [])}
 
     const sysPrompt = `
 You are an academic study assistant. You will be given the summary, key terms, and key points of a study card.
-Your task is to generate exactly ${questionCount} questions of type '${examType}' in the language '${language}' (en = English, tr = Turkish).
+Your task is to generate exactly ${questionCount} questions of type '${examType}' in the language '${language}' (en = English, tr = Turkish), at difficulty level '${resolvedDifficulty}'.
 
 IMPORTANT VARIATION RULES:
 - Generate a fresh, varied set of questions. Vary which facts, terms, and angles you focus on, and vary question phrasing — do not default to only the most obvious or first-mentioned details every time.
 
+IMPORTANT DIFFICULTY RULES (Bloom's taxonomy):
+- 'easy': Test basic recall and definitions — "what is X", matching a term to its definition. A student who skimmed the material once should be able to answer.
+- 'medium': Test comprehension and application — explaining relationships between concepts, applying a term to a short scenario. Requires actually understanding the material, not just memorizing it.
+- 'hard': Test analysis and judgment — comparing/contrasting concepts, multi-step reasoning, or evaluating a short business scenario using the material. Requires synthesizing multiple key points together.
+
 IMPORTANT LANGUAGE RULES:
 - Write ALL questions, options, correct answers, and hints strictly in the requested language '${language}' (English if 'en', Turkish if 'tr'), regardless of the language of the source text.
 - Do not mix languages.
+
+IMPORTANT CONCEPT TAGGING RULE:
+- For every question, set a "concept" field to the single key term (from the KEY TERMS list provided) that the question is primarily testing. Pick the closest match even if the fit isn't perfect. This is used to show students which topics they're weak in, so keep concept labels short and consistent with the provided key terms.
 
 EXAM TYPE RULES:
 1. 'classic': All questions must be open-ended (free-text essay questions). The options field should be null.
@@ -118,7 +130,8 @@ The array must contain exactly ${questionCount} objects matching this JSON schem
     "question": "string",
     "options": ["string"] | null,
     "correct_answer": "string",
-    "hint": "string (a short helpful clue or context indicator to help the student answer)"
+    "hint": "string (a short helpful clue or context indicator to help the student answer)",
+    "concept": "string (the single key term this question tests, per the CONCEPT TAGGING RULE above)"
   }
 ]
     `.trim()
@@ -170,6 +183,14 @@ The array must contain exactly ${questionCount} objects matching this JSON schem
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
+
+    // Stamp the requested difficulty onto every question server-side (rather than
+    // trusting the model to echo it back correctly). Stored inside the questions
+    // JSONB array so it works without any 'exams' table schema changes.
+    questionsArray = questionsArray.map((q: Record<string, unknown>) => ({
+      ...q,
+      difficulty: resolvedDifficulty
+    }))
 
     // Service role client to insert exam record
     const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
