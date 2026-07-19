@@ -396,8 +396,25 @@ function initLoginForm() {
       }
 
       if (data && data.session) {
-        showFormAlert(form, 'success', getMsg('validation.loginSuccess', 'Login successful! Accessing portal...'));
         const destination = await getPostLoginDestination(data.session.user.id);
+
+        // Maintenance mode: only admins are allowed through while it's on.
+        // (site-status.js, loaded before this script, exposes the check.)
+        if (destination !== 'admin.html' && typeof window.acadexGetSiteSettings === 'function') {
+          try {
+            const settings = await window.acadexGetSiteSettings();
+            if (settings.maintenance && settings.maintenance.enabled) {
+              await supabaseClient.auth.signOut();
+              showFormAlert(form, 'error', settings.maintenance.message || getMsg('validation.maintenanceMode', 'Acadex is currently undergoing maintenance. Please check back soon.'));
+              setButtonLoading(submitBtn, false);
+              return;
+            }
+          } catch (maintErr) {
+            console.error('Maintenance mode check failed, allowing login:', maintErr);
+          }
+        }
+
+        showFormAlert(form, 'success', getMsg('validation.loginSuccess', 'Login successful! Accessing portal...'));
         setTimeout(() => {
           window.location.href = destination;
         }, 1200);

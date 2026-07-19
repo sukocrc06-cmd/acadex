@@ -63,7 +63,7 @@ serve(async (req) => {
     // Confirm the caller is an admin (checked server-side; never trust the client).
     const { data: callerProfile, error: callerProfileError } = await serviceClient
       .from('profiles')
-      .select('is_admin')
+      .select('is_admin, full_name')
       .eq('id', caller.id)
       .single()
 
@@ -93,12 +93,41 @@ serve(async (req) => {
       })
     }
 
+    // Best-effort label for the audit log — never blocks the actual action.
+    let targetLabel = targetUserId
+    try {
+      const { data: targetProfile } = await serviceClient
+        .from('profiles')
+        .select('full_name, email')
+        .eq('id', targetUserId)
+        .single()
+      if (targetProfile) targetLabel = targetProfile.full_name || targetProfile.email || targetUserId
+    } catch (_labelErr) {
+      // ignore — fall back to the raw id
+    }
+
+    const writeAuditLog = async (auditAction: string) => {
+      try {
+        await serviceClient.from('admin_audit_log').insert({
+          actor_id: caller.id,
+          actor_name: callerProfile.full_name || caller.email || caller.id,
+          action: auditAction,
+          target_user_id: targetUserId,
+          target_label: targetLabel
+        })
+      } catch (auditErr) {
+        // Audit logging must never block the actual admin action.
+        console.error('admin_audit_log insert failed:', auditErr)
+      }
+    }
+
     if (action === 'suspend') {
       const { error } = await serviceClient.auth.admin.updateUserById(targetUserId, {
         ban_duration: '876000h' // ~100 years — effectively indefinite until unsuspended
       })
       if (error) throw error
       await serviceClient.from('profiles').update({ is_suspended: true }).eq('id', targetUserId)
+      await writeAuditLog('suspend')
 
     } else if (action === 'unsuspend') {
       const { error } = await serviceClient.auth.admin.updateUserById(targetUserId, {
@@ -106,6 +135,7 @@ serve(async (req) => {
       })
       if (error) throw error
       await serviceClient.from('profiles').update({ is_suspended: false }).eq('id', targetUserId)
+      await writeAuditLog('unsuspend')
 
     } else if (action === 'delete') {
       // Best-effort storage cleanup, same pattern as delete-account.
@@ -121,6 +151,7 @@ serve(async (req) => {
 
       const { error } = await serviceClient.auth.admin.deleteUser(targetUserId)
       if (error) throw error
+      await writeAuditLog('delete')
 
     } else {
       return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {

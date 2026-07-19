@@ -104,10 +104,10 @@ async function loadStudentPerformance() {
 
     if (examsError) throw examsError;
 
-    const examsByStudent = {};
+    deptExamsByStudent = {};
     (exams || []).forEach(e => {
-      if (!examsByStudent[e.user_id]) examsByStudent[e.user_id] = [];
-      examsByStudent[e.user_id].push(e);
+      if (!deptExamsByStudent[e.user_id]) deptExamsByStudent[e.user_id] = [];
+      deptExamsByStudent[e.user_id].push(e);
     });
 
     // Summary stat cards
@@ -123,28 +123,152 @@ async function loadStudentPerformance() {
       `;
     }
 
-    if (tbody) {
-      tbody.innerHTML = deptStudents.map(s => {
-        const studentExams = examsByStudent[s.id] || [];
-        const grades = studentExams.map(e => e.grade).filter(g => typeof g === 'number');
-        const avg = grades.length > 0 ? (grades.reduce((a, b) => a + b, 0) / grades.length).toFixed(1) + '%' : '—';
-        return `
-          <tr>
-            <td>${escapeHtml(s.full_name || '—')}</td>
-            <td>${escapeHtml(s.student_number || '—')}</td>
-            <td style="text-align:right;">${studentExams.length}</td>
-            <td style="text-align:right;">${avg}</td>
-            <td style="text-align:right;">${s.current_streak ?? 0}</td>
-            <td>${s.last_active_date || '—'}</td>
-          </tr>
-        `;
-      }).join('');
+    renderStudentsTable();
+
+    const searchInput = document.getElementById('teacher-student-search');
+    if (searchInput && !searchInput.dataset.wired) {
+      searchInput.dataset.wired = 'true';
+      searchInput.addEventListener('input', renderStudentsTable);
     }
   } catch (err) {
     console.error('loadStudentPerformance error:', err);
     if (tbody) tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 2rem; color: #DC2626;">Öğrenci verileri yüklenemedi.</td></tr>`;
   }
 }
+
+let deptExamsByStudent = {};
+
+function renderStudentsTable() {
+  const tbody = document.getElementById('teacher-students-tbody');
+  if (!tbody) return;
+
+  const search = (document.getElementById('teacher-student-search')?.value || '').trim().toLowerCase();
+  const rows = deptStudents.filter(s => {
+    if (!search) return true;
+    return `${s.full_name || ''} ${s.student_number || ''}`.toLowerCase().includes(search);
+  });
+
+  if (rows.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 2rem; color: var(--color-text-muted);">Eşleşen öğrenci yok.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map(s => {
+    const studentExams = deptExamsByStudent[s.id] || [];
+    const grades = studentExams.map(e => e.grade).filter(g => typeof g === 'number');
+    const avg = grades.length > 0 ? (grades.reduce((a, b) => a + b, 0) / grades.length).toFixed(1) + '%' : '—';
+    return `
+      <tr>
+        <td><a href="#" onclick="openStudentDetailModal('${s.id}'); return false;" style="color: var(--color-teal); font-weight: 700; text-decoration: underline;">${escapeHtml(s.full_name || '—')}</a></td>
+        <td>${escapeHtml(s.student_number || '—')}</td>
+        <td style="text-align:right;">${studentExams.length}</td>
+        <td style="text-align:right;">${avg}</td>
+        <td style="text-align:right;">${s.current_streak ?? 0}</td>
+        <td>${s.last_active_date || '—'}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function exportStudentsCsv() {
+  if (!deptStudents || deptStudents.length === 0) {
+    showTeacherAlert('error', 'Dışa aktarılacak öğrenci yok.');
+    return;
+  }
+
+  const headers = ['Ad Soyad', 'Öğrenci No', 'Sınav Sayısı', 'Ort. Not (%)', 'Seri (gün)', 'Son Aktivite'];
+  const csvEscape = (val) => {
+    const str = (val === null || val === undefined) ? '' : String(val);
+    return `"${str.replace(/"/g, '""')}"`;
+  };
+
+  const rows = deptStudents.map(s => {
+    const studentExams = deptExamsByStudent[s.id] || [];
+    const grades = studentExams.map(e => e.grade).filter(g => typeof g === 'number');
+    const avg = grades.length > 0 ? (grades.reduce((a, b) => a + b, 0) / grades.length).toFixed(1) : '';
+    return [s.full_name, s.student_number, studentExams.length, avg, s.current_streak ?? 0, s.last_active_date || '']
+      .map(csvEscape).join(',');
+  });
+
+  const csvContent = [headers.map(csvEscape).join(','), ...rows].join('\n');
+  const blob = new Blob(['﻿' + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${(teacherProfile.department || 'bolum')}-ogrenciler-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+window.exportStudentsCsv = exportStudentsCsv;
+
+// ==========================================
+// STUDENT DETAIL VIEW (documents, study cards, exam history)
+// ==========================================
+async function openStudentDetailModal(studentId) {
+  const modal = document.getElementById('teacher-student-detail-modal');
+  const content = document.getElementById('teacher-student-detail-content');
+  const titleEl = document.getElementById('teacher-student-detail-title');
+  if (!modal || !content) return;
+
+  const student = deptStudents.find(s => s.id === studentId);
+  if (titleEl) titleEl.textContent = student ? `${student.full_name || 'Öğrenci'} — Detay` : 'Öğrenci Detayı';
+
+  content.innerHTML = `<div style="text-align:center; padding: 2rem; color: var(--color-text-muted);">Yükleniyor...</div>`;
+  modal.classList.add('active');
+
+  try {
+    const [docsRes, cardsRes, examsRes] = await Promise.all([
+      supabaseClient.from('documents').select('*').eq('user_id', studentId).order('created_at', { ascending: false }),
+      supabaseClient.from('study_cards').select('*, documents(file_name)').eq('user_id', studentId).order('created_at', { ascending: false }),
+      supabaseClient.from('exams').select('*, study_cards(documents(file_name))').eq('user_id', studentId).not('completed_at', 'is', null).order('completed_at', { ascending: false })
+    ]);
+
+    const docs = docsRes.data || [];
+    const cards = cardsRes.data || [];
+    const exams = examsRes.data || [];
+
+    content.innerHTML = `
+      <div style="margin-bottom: 1.25rem;">
+        <h4 style="font-size: 0.85rem; font-weight: 800; color: var(--color-navy); margin-bottom: 0.5rem;">📄 Belgeler (${docs.length})</h4>
+        ${docs.length === 0 ? '<p style="font-size:0.8rem; color:var(--color-text-muted);">Belge yok.</p>' : `
+          <ul style="list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:0.3rem;">
+            ${docs.slice(0, 10).map(d => `<li style="font-size:0.8rem; color:var(--color-text);">${escapeHtml(d.file_name || 'İsimsiz')} <span style="color:var(--color-text-muted); font-size:0.72rem;">(${new Date(d.created_at).toLocaleDateString()})</span></li>`).join('')}
+          </ul>
+        `}
+      </div>
+
+      <div style="margin-bottom: 1.25rem;">
+        <h4 style="font-size: 0.85rem; font-weight: 800; color: var(--color-navy); margin-bottom: 0.5rem;">🃏 Bilgi Kartları (${cards.length})</h4>
+        ${cards.length === 0 ? '<p style="font-size:0.8rem; color:var(--color-text-muted);">Kart yok.</p>' : `
+          <ul style="list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:0.3rem;">
+            ${cards.slice(0, 10).map(c => `<li style="font-size:0.8rem; color:var(--color-text);">${escapeHtml(c.documents?.file_name || 'İsimsiz')} ${c.is_shared ? '<span style="color:var(--color-teal); font-size:0.72rem;">· paylaşıldı</span>' : ''}</li>`).join('')}
+          </ul>
+        `}
+      </div>
+
+      <div>
+        <h4 style="font-size: 0.85rem; font-weight: 800; color: var(--color-navy); margin-bottom: 0.5rem;">📝 Sınav Geçmişi (${exams.length})</h4>
+        ${exams.length === 0 ? '<p style="font-size:0.8rem; color:var(--color-text-muted);">Tamamlanmış sınav yok.</p>' : `
+          <ul style="list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:0.3rem;">
+            ${exams.slice(0, 10).map(e => `<li style="font-size:0.8rem; color:var(--color-text); display:flex; justify-content:space-between;"><span>${escapeHtml(e.study_cards?.documents?.file_name || 'Genel')}</span><span>${typeof e.grade === 'number' ? e.grade + '%' : '—'} · ${e.completed_at ? new Date(e.completed_at).toLocaleDateString() : '—'}</span></li>`).join('')}
+          </ul>
+        `}
+      </div>
+    `;
+  } catch (err) {
+    console.error('openStudentDetailModal error:', err);
+    content.innerHTML = `<p style="color:#DC2626;">Detaylar yüklenemedi.</p>`;
+  }
+}
+window.openStudentDetailModal = openStudentDetailModal;
+
+function closeStudentDetailModal() {
+  const modal = document.getElementById('teacher-student-detail-modal');
+  if (modal) modal.classList.remove('active');
+}
+window.closeStudentDetailModal = closeStudentDetailModal;
 
 // ==========================================
 // EXAM & GRADE REVIEW
@@ -261,14 +385,23 @@ function closeTeacherAnnouncementForm() {
   document.getElementById('teacher-announcement-form').style.display = 'none';
   document.getElementById('tann-title').value = '';
   document.getElementById('tann-body').value = '';
+  document.getElementById('tann-starts-at').value = '';
+  document.getElementById('tann-ends-at').value = '';
 }
 window.closeTeacherAnnouncementForm = closeTeacherAnnouncementForm;
 
 async function submitTeacherAnnouncement() {
   const title = document.getElementById('tann-title').value.trim();
   const body = document.getElementById('tann-body').value.trim();
+  const startsAtRaw = document.getElementById('tann-starts-at').value;
+  const endsAtRaw = document.getElementById('tann-ends-at').value;
+
   if (!title || !body) {
     showTeacherAlert('error', 'Başlık ve metin zorunludur.');
+    return;
+  }
+  if (startsAtRaw && endsAtRaw && new Date(endsAtRaw) <= new Date(startsAtRaw)) {
+    showTeacherAlert('error', 'Bitiş tarihi başlangıçtan sonra olmalı.');
     return;
   }
   try {
@@ -276,7 +409,9 @@ async function submitTeacherAnnouncement() {
       title, body,
       audience_department: teacherProfile.department,
       created_by: teacherProfile.id,
-      created_by_role: 'teacher'
+      created_by_role: 'teacher',
+      starts_at: startsAtRaw ? new Date(startsAtRaw).toISOString() : null,
+      ends_at: endsAtRaw ? new Date(endsAtRaw).toISOString() : null
     });
     if (error) throw error;
     closeTeacherAnnouncementForm();
@@ -312,6 +447,7 @@ async function loadTeacherAnnouncements() {
           <span style="font-size: 0.7rem; color: var(--color-text-muted);">${new Date(a.created_at).toLocaleDateString()}</span>
         </div>
         <p style="font-size: 0.8rem; color: var(--color-text); margin-top: 0.35rem;">${escapeHtml(a.body)}</p>
+        ${(a.starts_at || a.ends_at) ? `<p style="font-size: 0.7rem; color: var(--color-text-muted); margin-top: 0.3rem;">🕓 ${a.starts_at ? new Date(a.starts_at).toLocaleString() : 'şimdi'} → ${a.ends_at ? new Date(a.ends_at).toLocaleString() : 'süresiz'}</p>` : ''}
         <div style="margin-top: 0.5rem; display:flex; gap: 0.5rem;">
           <button class="teacher-mini-btn" onclick="toggleTeacherAnnouncementActive('${a.id}', ${!a.active})">${a.active ? 'Pasifleştir' : 'Aktifleştir'}</button>
           <button class="teacher-mini-btn danger" onclick="deleteTeacherAnnouncement('${a.id}')">Sil</button>

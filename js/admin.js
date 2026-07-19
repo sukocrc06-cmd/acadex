@@ -60,7 +60,7 @@ function switchAdminTab(tabId) {
 
   if (tabId === 'analytics') loadAnalytics();
   if (tabId === 'content') { loadContactMessages(); loadSharedCardsModeration(); }
-  if (tabId === 'settings') { loadSiteSettings(); loadAnnouncements(); }
+  if (tabId === 'settings') { loadSiteSettings(); loadAnnouncements(); loadAuditLog(); }
 }
 window.switchAdminTab = switchAdminTab;
 
@@ -161,6 +161,15 @@ async function toggleUserFlag(userId, field, value) {
     if (user) user[field] = value;
     renderUsersTable();
     showAdminAlert('success', 'Kullanıcı güncellendi.');
+
+    // Audit trail (best-effort — never blocks the UI on failure).
+    writeAdminAuditLog(`set_${field}`, userId, user ? (user.full_name || user.email) : userId, { value });
+
+    // Only email on a genuine promotion (false -> true), not on demotion.
+    if (value === true && (field === 'is_admin' || field === 'is_teacher')) {
+      const newRole = field === 'is_admin' ? 'admin' : 'teacher';
+      notifyRoleChange(userId, newRole).catch(err => console.error('notifyRoleChange error:', err));
+    }
   } catch (err) {
     console.error('toggleUserFlag error:', err);
     showAdminAlert('error', 'Güncelleme başarısız: ' + (err.message || 'bilinmeyen hata'));
@@ -188,6 +197,112 @@ async function callAdminManageUser(action, targetUserId) {
   }
   return result;
 }
+
+// Fire-and-forget audit trail for actions admin.html performs directly via
+// RLS (role/flag toggles). Suspend/unsuspend/delete are logged server-side
+// by the admin-manage-user Edge Function instead, since those already run
+// under the service role.
+async function writeAdminAuditLog(action, targetUserId, targetLabel, details) {
+  try {
+    await supabaseClient.from('admin_audit_log').insert({
+      actor_id: adminProfile.id,
+      actor_name: adminProfile.full_name || adminProfile.email,
+      action,
+      target_user_id: targetUserId,
+      target_label: targetLabel,
+      details: details || null
+    });
+  } catch (err) {
+    // Never block the actual admin action on a logging failure.
+    console.error('writeAdminAuditLog error:', err);
+  }
+}
+
+async function loadAuditLog() {
+  const tbody = document.getElementById('admin-audit-log-tbody');
+  if (!tbody) return;
+  try {
+    const { data, error } = await supabaseClient
+      .from('admin_audit_log')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(100);
+    if (error) throw error;
+
+    if (!data || data.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding: 1.5rem; color: var(--color-text-muted);">Henüz kayıt yok.</td></tr>`;
+      return;
+    }
+
+    const actionLabels = {
+      set_is_admin: 'Admin yetkisi değiştirildi',
+      set_is_teacher: 'Hoca yetkisi değiştirildi',
+      suspend: 'Askıya alındı',
+      unsuspend: 'Askı kaldırıldı',
+      delete: 'Hesap silindi'
+    };
+
+    tbody.innerHTML = data.map(row => `
+      <tr>
+        <td>${new Date(row.created_at).toLocaleString()}</td>
+        <td>${escapeHtml(row.actor_name || row.actor_id || '—')}</td>
+        <td>${escapeHtml(actionLabels[row.action] || row.action)}${row.details ? ` <span style="color:var(--color-text-muted); font-size:0.75rem;">(${escapeHtml(JSON.stringify(row.details))})</span>` : ''}</td>
+        <td>${escapeHtml(row.target_label || row.target_user_id || '—')}</td>
+      </tr>
+    `).join('');
+  } catch (err) {
+    console.error('loadAuditLog error:', err);
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding: 1.5rem; color: #DC2626;">Günlük yüklenemedi. admin_audit_log tablosunun migration ile oluşturulduğundan emin olun.</td></tr>`;
+  }
+}
+
+async function notifyRoleChange(targetUserId, newRole) {
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  const token = session?.access_token;
+  if (!token) return;
+
+  const SUPABASE_URL_LOCAL = supabaseClient.supabaseUrl;
+  await fetch(`${SUPABASE_URL_LOCAL}/functions/v1/notify-role-change`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ targetUserId, newRole })
+  });
+}
+
+function exportUsersCsv() {
+  if (!cachedUsers || cachedUsers.length === 0) {
+    showAdminAlert('error', 'Dışa aktarılacak kullanıcı yok.');
+    return;
+  }
+
+  const headers = ['Ad Soyad', 'E-posta', 'Bölüm', 'Öğrenci No', 'Rol', 'Durum', 'Kayıt Tarihi'];
+  const csvEscape = (val) => {
+    const str = (val === null || val === undefined) ? '' : String(val);
+    return `"${str.replace(/"/g, '""')}"`;
+  };
+
+  const rows = cachedUsers.map(u => {
+    const role = u.is_admin ? 'Admin' : (u.is_teacher ? 'Hoca' : 'Öğrenci');
+    const status = u.is_suspended ? 'Askıda' : 'Aktif';
+    return [u.full_name, u.email, u.department, u.student_number, role, status, u.created_at]
+      .map(csvEscape).join(',');
+  });
+
+  const csvContent = [headers.map(csvEscape).join(','), ...rows].join('\n');
+  const blob = new Blob(['﻿' + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `acadex-kullanicilar-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+window.exportUsersCsv = exportUsersCsv;
 
 async function suspendUser(userId, suspend) {
   const confirmMsg = suspend
@@ -491,6 +606,8 @@ function closeAnnouncementForm() {
   document.getElementById('ann-title').value = '';
   document.getElementById('ann-body').value = '';
   document.getElementById('ann-department').value = '';
+  document.getElementById('ann-starts-at').value = '';
+  document.getElementById('ann-ends-at').value = '';
 }
 window.closeAnnouncementForm = closeAnnouncementForm;
 
@@ -498,9 +615,15 @@ async function submitAnnouncement() {
   const title = document.getElementById('ann-title').value.trim();
   const body = document.getElementById('ann-body').value.trim();
   const dept = document.getElementById('ann-department').value || null;
+  const startsAtRaw = document.getElementById('ann-starts-at').value;
+  const endsAtRaw = document.getElementById('ann-ends-at').value;
 
   if (!title || !body) {
     showAdminAlert('error', 'Başlık ve metin zorunludur.');
+    return;
+  }
+  if (startsAtRaw && endsAtRaw && new Date(endsAtRaw) <= new Date(startsAtRaw)) {
+    showAdminAlert('error', 'Bitiş tarihi başlangıçtan sonra olmalı.');
     return;
   }
 
@@ -509,7 +632,9 @@ async function submitAnnouncement() {
       title, body,
       audience_department: dept,
       created_by: adminProfile.id,
-      created_by_role: 'admin'
+      created_by_role: 'admin',
+      starts_at: startsAtRaw ? new Date(startsAtRaw).toISOString() : null,
+      ends_at: endsAtRaw ? new Date(endsAtRaw).toISOString() : null
     });
     if (error) throw error;
     closeAnnouncementForm();
@@ -545,6 +670,7 @@ async function loadAnnouncements() {
           <span style="font-size: 0.7rem; color: var(--color-text-muted);">${a.audience_department ? escapeHtml(a.audience_department) : 'Tüm bölümler'} · ${a.created_by_role === 'teacher' ? 'Hoca' : 'Admin'}</span>
         </div>
         <p style="font-size: 0.8rem; color: var(--color-text); margin-top: 0.35rem;">${escapeHtml(a.body)}</p>
+        ${(a.starts_at || a.ends_at) ? `<p style="font-size: 0.7rem; color: var(--color-text-muted); margin-top: 0.3rem;">🕓 ${a.starts_at ? new Date(a.starts_at).toLocaleString() : 'şimdi'} → ${a.ends_at ? new Date(a.ends_at).toLocaleString() : 'süresiz'}</p>` : ''}
         <div style="margin-top: 0.5rem; display:flex; gap: 0.5rem;">
           <button class="admin-mini-btn" onclick="toggleAnnouncementActive('${a.id}', ${!a.active})">${a.active ? 'Pasifleştir' : 'Aktifleştir'}</button>
           <button class="admin-mini-btn danger" onclick="deleteAnnouncement('${a.id}')">Sil</button>

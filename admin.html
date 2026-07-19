@@ -144,6 +144,7 @@
             <option value="teacher">Hoca</option>
             <option value="admin">Admin</option>
           </select>
+          <button class="admin-mini-btn" onclick="exportUsersCsv()">⬇ CSV İndir</button>
         </div>
 
         <div class="admin-panel-card" style="overflow-x: auto;">
@@ -267,6 +268,16 @@
             <select id="ann-department" style="padding: 0.55rem 0.75rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.85rem; margin-bottom: 0.75rem;">
               <option value="">Tüm bölümler</option>
             </select>
+            <div style="display:flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.75rem;">
+              <div>
+                <label style="display:block; font-size: 0.7rem; font-weight: 700; color: var(--color-text-muted); margin-bottom: 0.2rem;">Başlangıç (isteğe bağlı)</label>
+                <input type="datetime-local" id="ann-starts-at" style="padding: 0.5rem 0.65rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.8rem;">
+              </div>
+              <div>
+                <label style="display:block; font-size: 0.7rem; font-weight: 700; color: var(--color-text-muted); margin-bottom: 0.2rem;">Bitiş (isteğe bağlı)</label>
+                <input type="datetime-local" id="ann-ends-at" style="padding: 0.5rem 0.65rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.8rem;">
+              </div>
+            </div>
             <div style="display:flex; gap:0.5rem;">
               <button class="admin-mini-btn primary" onclick="submitAnnouncement()">Yayınla</button>
               <button class="admin-mini-btn" onclick="closeAnnouncementForm()">Vazgeç</button>
@@ -275,6 +286,25 @@
 
           <div id="admin-announcements-list" style="display:flex; flex-direction: column; gap: 0.75rem;">
             <div style="text-align:center; padding: 1.5rem; color: var(--color-text-muted);">Yükleniyor...</div>
+          </div>
+        </div>
+
+        <div class="admin-panel-card" style="margin-top: 1.5rem;">
+          <h3 style="font-size: 1rem; font-weight: 800; color: var(--color-navy); margin-bottom: 1rem;">🕓 İşlem Günlüğü (Audit Log)</h3>
+          <div style="overflow-x:auto;">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Tarih</th>
+                  <th>Yapan</th>
+                  <th>İşlem</th>
+                  <th>Hedef</th>
+                </tr>
+              </thead>
+              <tbody id="admin-audit-log-tbody">
+                <tr><td colspan="4" style="text-align:center; padding: 1.5rem; color: var(--color-text-muted);">Yükleniyor...</td></tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </section>
