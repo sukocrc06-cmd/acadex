@@ -112,10 +112,6 @@ async function checkSessionAndLoadProfile() {
       if (sideAdmin) {
         sideAdmin.style.display = 'block';
       }
-      const sideReport = document.getElementById('side-report');
-      if (sideReport) {
-        sideReport.style.display = 'block';
-      }
       await updateAdminInboxBadge();
     }
 
@@ -1339,7 +1335,7 @@ function switchDashboardView(viewId) {
   }
 
   // Update sidebar active classes immediately for responsiveness
-  const tabs = ['home', 'planner', 'docs', 'feed', 'notebook', 'cards', 'exams', 'settings', 'sandbox', 'admin', 'report'];
+  const tabs = ['home', 'planner', 'docs', 'feed', 'notebook', 'cards', 'exams', 'settings', 'sandbox', 'admin'];
   tabs.forEach(tab => {
     const el = document.getElementById(`side-${tab}`);
     if (el) {
@@ -1414,9 +1410,7 @@ function loadViewContent(viewId) {
     sandboxProjectsLimit = 20;
     loadDeveloperSandbox();
   } else if (viewId === 'admin') {
-    loadAdminInbox();
-  } else if (viewId === 'report') {
-    loadAdminReport();
+    loadAdminPanel();
   }
 }
 window.switchDashboardView = switchDashboardView;
@@ -7812,7 +7806,7 @@ async function updateAdminInboxBadge() {
       .eq('is_read', false);
 
     if (!error) {
-      const badge = document.getElementById('admin-inbox-badge');
+      const badge = document.getElementById('admin-tab-inbox-badge');
       if (badge) {
         if (count > 0) {
           badge.textContent = count;
@@ -8204,6 +8198,486 @@ async function loadAdminReport() {
   }
 }
 window.loadAdminReport = loadAdminReport;
+
+// ==========================================
+// ADMIN PANEL UNIFIED VIEWS & TABS (PART A)
+// ==========================================
+let currentAdminTab = 'overview';
+let adminStudentsList = [];
+let adminStudentsSortField = 'created_at';
+let adminStudentsSortAsc = false;
+let adminModerationCards = [];
+let adminModerationProjects = [];
+
+function loadAdminPanel() {
+  switchAdminTab(currentAdminTab);
+}
+window.loadAdminPanel = loadAdminPanel;
+
+function switchAdminTab(tabId) {
+  currentAdminTab = tabId;
+
+  // Update tab buttons
+  const buttons = document.querySelectorAll('.btn-admin-tab');
+  buttons.forEach(btn => {
+    const idSuffix = btn.id.replace('btn-admin-tab-', '');
+    if (idSuffix === tabId) {
+      btn.classList.add('active');
+      btn.style.color = 'var(--color-navy)';
+      btn.style.borderBottom = '3px solid var(--color-teal)';
+    } else {
+      btn.classList.remove('active');
+      btn.style.color = 'var(--color-text-muted)';
+      btn.style.borderBottom = '3px solid transparent';
+    }
+  });
+
+  // Toggle tab contents
+  const contents = document.querySelectorAll('.admin-tab-content');
+  contents.forEach(content => {
+    const contentIdSuffix = content.id.replace('admin-tab-content-', '');
+    if (contentIdSuffix === tabId) {
+      content.style.display = 'block';
+    } else {
+      content.style.display = 'none';
+    }
+  });
+
+  // Load active tab data
+  if (tabId === 'overview') {
+    loadAdminReport();
+  } else if (tabId === 'students') {
+    loadAdminStudentList();
+  } else if (tabId === 'inbox') {
+    loadAdminInbox();
+  } else if (tabId === 'moderation') {
+    loadAdminModeration();
+  }
+}
+window.switchAdminTab = switchAdminTab;
+
+// ==========================================
+// ADMIN PANEL - STUDENTS TAB (PART C)
+// ==========================================
+async function loadAdminStudentList() {
+  const tableBody = document.getElementById('students-table-body');
+  const countLabel = document.getElementById('students-count-label');
+  const errorContainer = document.getElementById('students-error-container');
+
+  if (!tableBody) return;
+
+  tableBody.innerHTML = `
+    <tr>
+      <td colspan="9" style="text-align: center; padding: 2rem;">
+        <svg class="spinner" viewBox="0 0 50 50" style="animation: rotate 2s linear infinite; width: 32px; height: 32px; color: var(--color-teal); display: inline-block;">
+          <circle class="path" cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="5" style="stroke-dasharray: 1, 150; stroke-dashoffset: 0; stroke-linecap: round; animation: dash 1.5s ease-in-out infinite;"></circle>
+        </svg>
+      </td>
+    </tr>
+  `;
+  if (countLabel) countLabel.textContent = '';
+  if (errorContainer) {
+    errorContainer.style.display = 'none';
+    errorContainer.textContent = '';
+  }
+
+  try {
+    const { data, error } = await supabaseClient.rpc('get_admin_student_list');
+
+    if (error) {
+      console.error("Error fetching admin student list:", error);
+      tableBody.innerHTML = '';
+      if (errorContainer) {
+        errorContainer.textContent = "Erişim Reddedildi / Access Denied. You may not have administrative permissions.";
+        errorContainer.style.display = 'block';
+      }
+      return;
+    }
+
+    adminStudentsList = data || [];
+    renderAdminStudentsTable();
+  } catch (err) {
+    console.error("Exception fetching admin student list:", err);
+    tableBody.innerHTML = '';
+    if (errorContainer) {
+      errorContainer.textContent = "An unexpected error occurred loading student list.";
+      errorContainer.style.display = 'block';
+    }
+  }
+}
+window.loadAdminStudentList = loadAdminStudentList;
+
+function renderAdminStudentsTable() {
+  const tableBody = document.getElementById('students-table-body');
+  const countLabel = document.getElementById('students-count-label');
+  if (!tableBody) return;
+
+  const searchInput = document.getElementById('students-search-input');
+  const searchQuery = searchInput ? searchInput.value.trim().toLowerCase() : '';
+  const deptFilter = document.getElementById('students-dept-filter');
+  const selectedDept = deptFilter ? deptFilter.value : 'all';
+
+  let filtered = adminStudentsList.filter(student => {
+    const matchesSearch = !searchQuery || 
+      (student.full_name && student.full_name.toLowerCase().includes(searchQuery)) ||
+      (student.student_number && student.student_number.toLowerCase().includes(searchQuery)) ||
+      (student.email && student.email.toLowerCase().includes(searchQuery));
+
+    const matchesDept = selectedDept === 'all' || student.department === selectedDept;
+
+    return matchesSearch && matchesDept;
+  });
+
+  // Apply sorting
+  filtered.sort((a, b) => {
+    let valA = a[adminStudentsSortField];
+    let valB = b[adminStudentsSortField];
+
+    if (valA === undefined || valA === null) valA = '';
+    if (valB === undefined || valB === null) valB = '';
+
+    if (typeof valA === 'string') {
+      return adminStudentsSortAsc 
+        ? valA.localeCompare(valB)
+        : valB.localeCompare(valA);
+    } else {
+      if (adminStudentsSortField === 'created_at') {
+        const timeA = new Date(valA).getTime();
+        const timeB = new Date(valB).getTime();
+        return adminStudentsSortAsc ? timeA - timeB : timeB - timeA;
+      }
+      return adminStudentsSortAsc ? valA - valB : valB - valA;
+    }
+  });
+
+  tableBody.innerHTML = '';
+
+  if (filtered.length === 0) {
+    tableBody.innerHTML = `
+      <tr>
+        <td colspan="9" style="text-align: center; padding: 2rem; color: var(--color-text-muted);">
+          No students found matching current filters.
+        </td>
+      </tr>
+    `;
+    if (countLabel) countLabel.textContent = `Showing 0 of ${adminStudentsList.length} students`;
+    return;
+  }
+
+  filtered.forEach(student => {
+    const row = document.createElement('tr');
+    row.style.borderBottom = '1px solid rgba(22, 50, 92, 0.05)';
+    row.style.transition = 'background-color 0.2s';
+    
+    const deptClass = getDepartmentColorClass(student.department);
+    const shortName = getDepartmentShortName(student.department);
+    const registeredDate = student.created_at ? new Date(student.created_at).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    }) : '—';
+
+    row.innerHTML = `
+      <td style="padding: 0.75rem 1rem; color: var(--color-navy); font-weight: 700; white-space: nowrap;">${student.full_name || '—'}</td>
+      <td style="padding: 0.75rem 1rem; color: var(--color-text);">${student.student_number || '—'}</td>
+      <td style="padding: 0.75rem 1rem; color: var(--color-text);"><a href="mailto:${student.email || ''}" style="color: var(--color-teal); text-decoration: underline;">${student.email || '—'}</a></td>
+      <td style="padding: 0.75rem 1rem;"><span class="dept-badge ${deptClass}" style="font-size: 0.7rem; font-weight: 800;">${shortName}</span></td>
+      <td style="padding: 0.75rem 1rem; color: var(--color-text-muted);">${registeredDate}</td>
+      <td style="padding: 0.75rem 1rem; color: var(--color-navy); font-weight: 700;">🔥 ${student.current_streak || 0}</td>
+      <td style="padding: 0.75rem 1rem; color: var(--color-text); font-weight: 600;">${student.document_count || 0}</td>
+      <td style="padding: 0.75rem 1rem; color: var(--color-text); font-weight: 600;">${student.study_card_count || 0}</td>
+      <td style="padding: 0.75rem 1rem; color: var(--color-text); font-weight: 600;">${student.exam_count || 0}</td>
+    `;
+    tableBody.appendChild(row);
+  });
+
+  if (countLabel) {
+    countLabel.textContent = `Showing ${filtered.length} of ${adminStudentsList.length} students`;
+  }
+}
+window.renderAdminStudentsTable = renderAdminStudentsTable;
+
+function filterAdminStudentsTable() {
+  renderAdminStudentsTable();
+}
+window.filterAdminStudentsTable = filterAdminStudentsTable;
+
+function sortAdminStudents(field) {
+  if (adminStudentsSortField === field) {
+    adminStudentsSortAsc = !adminStudentsSortAsc;
+  } else {
+    adminStudentsSortField = field;
+    adminStudentsSortAsc = true;
+  }
+  renderAdminStudentsTable();
+}
+window.sortAdminStudents = sortAdminStudents;
+
+// ==========================================
+// ADMIN PANEL - CONTENT MODERATION TAB (PART E)
+// ==========================================
+async function loadAdminModeration() {
+  const cardsList = document.getElementById('mod-cards-list');
+  const projectsList = document.getElementById('mod-projects-list');
+
+  if (cardsList) {
+    cardsList.innerHTML = `
+      <div style="display: flex; align-items: center; justify-content: center; padding: 2rem;">
+        <svg class="spinner" viewBox="0 0 50 50" style="animation: rotate 2s linear infinite; width: 32px; height: 32px; color: var(--color-teal);">
+          <circle class="path" cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="5" style="stroke-dasharray: 1, 150; stroke-dashoffset: 0; stroke-linecap: round; animation: dash 1.5s ease-in-out infinite;"></circle>
+        </svg>
+      </div>
+    `;
+  }
+  if (projectsList) {
+    projectsList.innerHTML = `
+      <div style="display: flex; align-items: center; justify-content: center; padding: 2rem;">
+        <svg class="spinner" viewBox="0 0 50 50" style="animation: rotate 2s linear infinite; width: 32px; height: 32px; color: var(--color-teal);">
+          <circle class="path" cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="5" style="stroke-dasharray: 1, 150; stroke-dashoffset: 0; stroke-linecap: round; animation: dash 1.5s ease-in-out infinite;"></circle>
+        </svg>
+      </div>
+    `;
+  }
+
+  try {
+    // 1. Fetch shared study cards
+    const { data: cards, error: cardsErr } = await supabaseClient
+      .from('study_cards')
+      .select('*, documents(file_name)')
+      .eq('is_shared', true)
+      .order('shared_at', { ascending: false });
+
+    if (!cardsErr && cards && cards.length > 0) {
+      const userIds = [...new Set(cards.map(c => c.user_id))];
+      const { data: profiles } = await supabaseClient
+        .from('profiles')
+        .select('id, full_name, department, avatar_url')
+        .in('id', userIds);
+
+      const profileMap = {};
+      profiles?.forEach(p => {
+        profileMap[p.id] = p;
+      });
+
+      adminModerationCards = cards.map(c => ({
+        ...c,
+        profile: profileMap[c.user_id] || { full_name: 'A classmate', department: c.department }
+      }));
+    } else {
+      adminModerationCards = [];
+    }
+
+    // 2. Fetch sandbox projects
+    const { data: projects, error: projErr } = await supabaseClient
+      .from('sandbox_projects')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (!projErr && projects && projects.length > 0) {
+      const userIds = [...new Set(projects.map(p => p.user_id))];
+      const { data: profiles } = await supabaseClient
+        .from('profiles')
+        .select('id, full_name, department, avatar_url')
+        .in('id', userIds);
+
+      const profileMap = {};
+      profiles?.forEach(p => {
+        profileMap[p.id] = p;
+      });
+
+      adminModerationProjects = projects.map(p => ({
+        ...p,
+        profile: profileMap[p.user_id] || { full_name: 'Anonymous Student', department: 'General Faculty' }
+      }));
+    } else {
+      adminModerationProjects = [];
+    }
+
+    renderModerationCards();
+    renderModerationProjects();
+
+  } catch (err) {
+    console.error("Exception loading moderation data:", err);
+    if (cardsList) cardsList.innerHTML = `<p style="color: var(--color-text-muted);">Failed to load moderation data.</p>`;
+    if (projectsList) projectsList.innerHTML = `<p style="color: var(--color-text-muted);">Failed to load moderation data.</p>`;
+  }
+}
+window.loadAdminModeration = loadAdminModeration;
+
+function renderModerationCards() {
+  const container = document.getElementById('mod-cards-list');
+  if (!container) return;
+
+  const searchInput = document.getElementById('mod-cards-search');
+  const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
+
+  let filtered = adminModerationCards.filter(c => {
+    return !query ||
+      (c.profile.full_name && c.profile.full_name.toLowerCase().includes(query)) ||
+      (c.documents?.file_name && c.documents.file_name.toLowerCase().includes(query)) ||
+      (c.summary && c.summary.toLowerCase().includes(query));
+  });
+
+  container.innerHTML = '';
+
+  if (filtered.length === 0) {
+    container.innerHTML = `
+      <div class="search-empty-state" style="text-align: center; padding: 1.5rem; border: 1px dashed rgba(22, 50, 92, 0.1); border-radius: var(--radius-sm);">
+        <p style="color: var(--color-text-muted); font-size: 0.85rem; margin: 0;">Paylaşılan çalışma kartı bulunamadı. / No shared cards found.</p>
+      </div>
+    `;
+    return;
+  }
+
+  filtered.forEach(c => {
+    const row = document.createElement('div');
+    row.className = 'doc-card';
+    row.style.padding = '1rem';
+    row.style.display = 'flex';
+    row.style.flexDirection = 'column';
+    row.style.gap = '0.5rem';
+    row.style.border = '1px solid rgba(22, 50, 92, 0.08)';
+
+    const deptClass = getDepartmentColorClass(c.profile.department);
+    const shortName = getDepartmentShortName(c.profile.department);
+    const sharedDate = c.shared_at ? new Date(c.shared_at).toLocaleDateString() : '—';
+    const excerpt = c.summary && c.summary.length > 150 ? c.summary.substring(0, 150) + '...' : c.summary || 'No summary text.';
+
+    row.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 0.5rem;">
+        <div>
+          <strong style="color: var(--color-navy); font-size: 0.9rem;">${c.profile.full_name || 'Classmate'}</strong>
+          <span class="dept-badge ${deptClass}" style="margin-left: 4px; font-size: 0.65rem;">${shortName}</span>
+          <span style="font-size: 0.75rem; color: var(--color-text-muted); margin-left: 0.5rem;">Document: ${c.documents?.file_name || 'Shared Doc'}</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <span style="font-size: 0.75rem; color: var(--color-text-muted);">${sharedDate}</span>
+          <button class="btn" onclick="unshareStudyCard('${c.id}')" style="background-color: #EF4444; color: white; border: none; padding: 0.25rem 0.6rem; font-size: 0.75rem; font-weight: 700; border-radius: var(--radius-sm); cursor: pointer; transition: background-color 0.2s;">🚫 Unshare</button>
+        </div>
+      </div>
+      <p style="font-size: 0.8rem; color: var(--color-text); margin: 0; line-height: 1.4; word-break: break-word;">${excerpt}</p>
+    `;
+    container.appendChild(row);
+  });
+}
+window.renderModerationCards = renderModerationCards;
+
+function filterModerationCards() {
+  renderModerationCards();
+}
+window.filterModerationCards = filterModerationCards;
+
+function renderModerationProjects() {
+  const container = document.getElementById('mod-projects-list');
+  if (!container) return;
+
+  const searchInput = document.getElementById('mod-projects-search');
+  const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
+
+  let filtered = adminModerationProjects.filter(p => {
+    return !query ||
+      (p.profile.full_name && p.profile.full_name.toLowerCase().includes(query)) ||
+      (p.title && p.title.toLowerCase().includes(query)) ||
+      (p.description && p.description.toLowerCase().includes(query));
+  });
+
+  container.innerHTML = '';
+
+  if (filtered.length === 0) {
+    container.innerHTML = `
+      <div class="search-empty-state" style="text-align: center; padding: 1.5rem; border: 1px dashed rgba(22, 50, 92, 0.1); border-radius: var(--radius-sm);">
+        <p style="color: var(--color-text-muted); font-size: 0.85rem; margin: 0;">Paylaşılan proje bulunamadı. / No projects found.</p>
+      </div>
+    `;
+    return;
+  }
+
+  filtered.forEach(p => {
+    const row = document.createElement('div');
+    row.className = 'doc-card';
+    row.style.padding = '1rem';
+    row.style.display = 'flex';
+    row.style.flexDirection = 'column';
+    row.style.gap = '0.5rem';
+    row.style.border = '1px solid rgba(22, 50, 92, 0.08)';
+
+    const deptClass = getDepartmentColorClass(p.profile.department);
+    const shortName = getDepartmentShortName(p.profile.department);
+    const submitDate = p.created_at ? new Date(p.created_at).toLocaleDateString() : '—';
+
+    row.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 0.5rem;">
+        <div>
+          <strong style="color: var(--color-navy); font-size: 0.9rem;">${p.title || 'Untitled Project'}</strong>
+          <span style="font-size: 0.75rem; color: var(--color-text-muted); margin-left: 0.5rem;">By: ${p.profile.full_name || 'Student'}</span>
+          <span class="dept-badge ${deptClass}" style="margin-left: 4px; font-size: 0.65rem;">${shortName}</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <span style="font-size: 0.75rem; color: var(--color-text-muted);">${submitDate}</span>
+          <button class="btn" onclick="removeSandboxProject('${p.id}')" style="background-color: #DC2626; color: white; border: none; padding: 0.25rem 0.6rem; font-size: 0.75rem; font-weight: 700; border-radius: var(--radius-sm); cursor: pointer; transition: background-color 0.2s;">🗑️ Remove</button>
+        </div>
+      </div>
+      <p style="font-size: 0.8rem; color: var(--color-text-muted); margin: 0; word-break: break-word;">${p.description || 'No description.'}</p>
+      <div style="display: flex; gap: 0.5rem; margin-top: 0.25rem;">
+        ${p.github_url ? `<a href="${p.github_url}" target="_blank" style="font-size: 0.75rem; color: var(--color-teal); text-decoration: underline;">GitHub</a>` : ''}
+        ${p.live_url ? `<a href="${p.live_url}" target="_blank" style="font-size: 0.75rem; color: var(--color-teal); text-decoration: underline;">Live Demo</a>` : ''}
+      </div>
+    `;
+    container.appendChild(row);
+  });
+}
+window.renderModerationProjects = renderModerationProjects;
+
+function filterModerationProjects() {
+  renderModerationProjects();
+}
+window.filterModerationProjects = filterModerationProjects;
+
+async function unshareStudyCard(cardId) {
+  if (!confirm("Bu çalışma kartının paylaşımını kaldırmak istediğinizden emin misiniz? / Are you sure you want to unshare this study card?")) return;
+
+  try {
+    const { error } = await supabaseClient
+      .from('study_cards')
+      .update({ is_shared: false })
+      .eq('id', cardId);
+
+    if (error) {
+      console.error("Error unsharing study card:", error);
+      showDashboardAlert('error', 'Paylaşım kaldırılamadı. / Failed to unshare study card.');
+      return;
+    }
+
+    showDashboardAlert('success', 'Çalışma kartı paylaşımı kaldırıldı! / Study card unshared successfully!');
+    await loadAdminModeration();
+  } catch (err) {
+    console.error("Exception unsharing card:", err);
+  }
+}
+window.unshareStudyCard = unshareStudyCard;
+
+async function removeSandboxProject(projId) {
+  if (!confirm("Bu projeyi kaldırmak istediğinizden emin misiniz? / Are you sure you want to remove this sandbox project?")) return;
+
+  try {
+    const { error } = await supabaseClient
+      .from('sandbox_projects')
+      .delete()
+      .eq('id', projId);
+
+    if (error) {
+      console.error("Error deleting sandbox project:", error);
+      showDashboardAlert('error', 'Proje silinemedi. / Failed to delete sandbox project.');
+      return;
+    }
+
+    showDashboardAlert('success', 'Proje başarıyla kaldırıldı! / Project removed successfully!');
+    await loadAdminModeration();
+  } catch (err) {
+    console.error("Exception deleting project:", err);
+  }
+}
+window.removeSandboxProject = removeSandboxProject;
 
 // ==========================================================================
 // PART D — VOICE-TO-TEXT NOTES IN THE STUDY NOTEBOOK

@@ -226,22 +226,10 @@
           <li class="sidebar-item" id="side-admin" style="display: none; border-top: 1px solid rgba(255, 255, 255, 0.15); margin-top: 0.5rem; padding-top: 0.5rem;">
             <a href="#" onclick="switchDashboardView('admin')">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                <polyline points="22,6 12,13 2,6"></polyline>
+                <rect x="3" y="4" width="18" height="16" rx="2"></rect>
+                <path d="M3 10h18"></path>
               </svg>
-              <span style="font-weight: 700;">Yönetici Gelen Kutusu</span>
-              <span id="admin-inbox-badge" style="margin-left: auto; width: 18px; height: 18px; background-color: #EF4444; border-radius: 50%; color: white; display: none; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 800; line-height: 1;">0</span>
-            </a>
-          </li>
-          <!-- Admin-Only: Pilot Impact Report -->
-          <li class="sidebar-item" id="side-report" style="display: none;">
-            <a href="#" onclick="switchDashboardView('report')">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="18" y1="20" x2="18" y2="10"></line>
-                <line x1="12" y1="20" x2="12" y2="4"></line>
-                <line x1="6" y1="20" x2="6" y2="14"></line>
-              </svg>
-              <span style="font-weight: 700;">Pilot Rapor</span>
+              <span style="font-weight: 700;">Yönetici Paneli</span>
             </a>
           </li>
         </ul>
@@ -1109,26 +1097,100 @@
         </div>
       </section>
 
-      <!-- Admin Inbox View (only visible to pilot administrator) -->
+      <!-- Consolidated Admin Panel View (admin only) -->
       <section id="admin-view" class="dashboard-view-section">
         <div class="dashboard-page-header">
-          <h2 class="dashboard-page-title">Yönetici Gelen Kutusu</h2>
-          <p class="dashboard-page-subtitle">Gelen iletişim/destek mesajlarını yönetin ve yanıtlayın.</p>
+          <h2 class="dashboard-page-title">Yönetici Paneli</h2>
+          <p class="dashboard-page-subtitle">Platform yönetim, istatistik ve denetim araçları.</p>
         </div>
 
-        <div style="display: flex; flex-direction: column; gap: 1.25rem; max-width: 900px; margin-top: 1.5rem;" id="admin-messages-list">
-          <!-- Populated dynamically via JS -->
+        <!-- Internal Tab Navigation -->
+        <div class="admin-tab-bar" style="display: flex; gap: 0.5rem; border-bottom: 2px solid rgba(22, 50, 92, 0.08); margin: 1.5rem 0 1rem 0; padding-bottom: 0px; flex-wrap: wrap;">
+          <button class="btn-admin-tab active" id="btn-admin-tab-overview" onclick="switchAdminTab('overview')" style="background: none; border: none; padding: 0.6rem 1.2rem; font-weight: 700; font-size: 0.9rem; color: var(--color-navy); cursor: pointer; border-bottom: 3px solid var(--color-teal); margin-bottom: -2px; transition: all 0.2s;">Genel Bakış</button>
+          <button class="btn-admin-tab" id="btn-admin-tab-students" onclick="switchAdminTab('students')" style="background: none; border: none; padding: 0.6rem 1.2rem; font-weight: 700; font-size: 0.9rem; color: var(--color-text-muted); cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; transition: all 0.2s;">Öğrenciler</button>
+          <button class="btn-admin-tab" id="btn-admin-tab-inbox" onclick="switchAdminTab('inbox')" style="background: none; border: none; padding: 0.6rem 1.2rem; font-weight: 700; font-size: 0.9rem; color: var(--color-text-muted); cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; transition: all 0.2s; display: flex; align-items: center; gap: 0.5rem;">
+            <span>Gelen Kutusu</span>
+            <span id="admin-tab-inbox-badge" style="width: 18px; height: 18px; background-color: #EF4444; border-radius: 50%; color: white; display: none; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 800; line-height: 1;">0</span>
+          </button>
+          <button class="btn-admin-tab" id="btn-admin-tab-moderation" onclick="switchAdminTab('moderation')" style="background: none; border: none; padding: 0.6rem 1.2rem; font-weight: 700; font-size: 0.9rem; color: var(--color-text-muted); cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; transition: all 0.2s;">İçerik Denetimi</button>
         </div>
-      </section>
 
-      <!-- Pilot Impact Report View (admin only) -->
-      <section id="report-view" class="dashboard-view-section">
-        <div class="dashboard-page-header">
-          <h2 class="dashboard-page-title">Pilot Impact Report</h2>
-          <p class="dashboard-page-subtitle">Platform-wide statistics for the ACADEX pilot programme.</p>
+        <!-- TAB: Genel Bakış (Overview) -->
+        <div id="admin-tab-content-overview" class="admin-tab-content" style="display: block;">
+          <div id="report-content" style="margin-top: 1rem;">
+            <!-- Populated dynamically via JS -->
+          </div>
         </div>
-        <div id="report-content" style="margin-top: 1.5rem;">
-          <!-- Populated dynamically via JS -->
+
+        <!-- TAB: Öğrenciler (Students) -->
+        <div id="admin-tab-content-students" class="admin-tab-content" style="display: none;">
+          <div class="students-filters-bar" style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin-bottom: 1.5rem;">
+            <input type="text" id="students-search-input" placeholder="Search by name, student number or email..." style="flex: 1; min-width: 250px; padding: 0.6rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); font-size: 0.85rem;" oninput="filterAdminStudentsTable()">
+            
+            <select id="students-dept-filter" style="padding: 0.6rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); font-size: 0.85rem;" onchange="filterAdminStudentsTable()">
+              <option value="all">All Departments / Tüm Bölümler</option>
+              <option value="İşletme">Business / İşletme</option>
+              <option value="İktisat">Economics / İktisat</option>
+              <option value="Siyaset Bilimi ve Kamu Yönetimi">Political Science / Siyaset Bilimi</option>
+              <option value="Uluslararası İlişkiler">International Relations / Uluslararası İlişkiler</option>
+            </select>
+            
+            <span id="students-count-label" style="font-size: 0.85rem; font-weight: 700; color: var(--color-text-muted);">Showing 0 of 0 students</span>
+          </div>
+
+          <div style="overflow-x: auto; background: white; border: 1px solid rgba(22, 50, 92, 0.08); border-radius: var(--radius); box-shadow: var(--shadow-sm);">
+            <table class="admin-table" style="width: 100%; border-collapse: collapse; font-size: 0.85rem; text-align: left;">
+              <thead>
+                <tr style="background-color: var(--color-bg-alt); border-bottom: 1px solid rgba(22, 50, 92, 0.08); cursor: pointer; user-select: none;">
+                  <th onclick="sortAdminStudents('full_name')" style="padding: 0.75rem 1rem; font-weight: 700; color: var(--color-navy);">Full Name ↕</th>
+                  <th onclick="sortAdminStudents('student_number')" style="padding: 0.75rem 1rem; font-weight: 700; color: var(--color-navy);">Student No ↕</th>
+                  <th onclick="sortAdminStudents('email')" style="padding: 0.75rem 1rem; font-weight: 700; color: var(--color-navy);">Email ↕</th>
+                  <th onclick="sortAdminStudents('department')" style="padding: 0.75rem 1rem; font-weight: 700; color: var(--color-navy);">Department ↕</th>
+                  <th onclick="sortAdminStudents('created_at')" style="padding: 0.75rem 1rem; font-weight: 700; color: var(--color-navy);">Registered ↕</th>
+                  <th onclick="sortAdminStudents('current_streak')" style="padding: 0.75rem 1rem; font-weight: 700; color: var(--color-navy);">Streak ↕</th>
+                  <th onclick="sortAdminStudents('document_count')" style="padding: 0.75rem 1rem; font-weight: 700; color: var(--color-navy);">Docs ↕</th>
+                  <th onclick="sortAdminStudents('study_card_count')" style="padding: 0.75rem 1rem; font-weight: 700; color: var(--color-navy);">Cards ↕</th>
+                  <th onclick="sortAdminStudents('exam_count')" style="padding: 0.75rem 1rem; font-weight: 700; color: var(--color-navy);">Exams ↕</th>
+                </tr>
+              </thead>
+              <tbody id="students-table-body">
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+          <div id="students-error-container" style="display: none; padding: 2rem; text-align: center; color: #DC2626;"></div>
+        </div>
+
+        <!-- TAB: Gelen Kutusu (Inbox) -->
+        <div id="admin-tab-content-inbox" class="admin-tab-content" style="display: none;">
+          <div style="display: flex; flex-direction: column; gap: 1.25rem; max-width: 900px; margin-top: 1rem;" id="admin-messages-list">
+            <!-- Populated dynamically via JS -->
+          </div>
+        </div>
+
+        <!-- TAB: İçerik Denetimi (Moderation) -->
+        <div id="admin-tab-content-moderation" class="admin-tab-content" style="display: none; display: flex; flex-direction: column; gap: 2rem; margin-top: 1rem;">
+          <!-- Shared Study Cards Subsection -->
+          <div class="moderation-section">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid rgba(22, 50, 92, 0.08); padding-bottom: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+              <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--color-navy); margin: 0;">Paylaşılan Çalışma Kartları (Shared Study Cards)</h3>
+              <input type="text" id="mod-cards-search" placeholder="Filter shared cards..." style="padding: 0.4rem 0.75rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); font-size: 0.8rem; width: 220px;" oninput="filterModerationCards()">
+            </div>
+            <div id="mod-cards-list" style="display: flex; flex-direction: column; gap: 0.75rem;">
+              <!-- Loaded dynamically -->
+            </div>
+          </div>
+
+          <!-- Sandbox Projects Subsection -->
+          <div class="moderation-section">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid rgba(22, 50, 92, 0.08); padding-bottom: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+              <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--color-navy); margin: 0;">Sandbox Projeleri (Sandbox Projects)</h3>
+              <input type="text" id="mod-projects-search" placeholder="Filter sandbox projects..." style="padding: 0.4rem 0.75rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); font-size: 0.8rem; width: 220px;" oninput="filterModerationProjects()">
+            </div>
+            <div id="mod-projects-list" style="display: flex; flex-direction: column; gap: 0.75rem;">
+              <!-- Loaded dynamically -->
+            </div>
+          </div>
         </div>
       </section>
 
