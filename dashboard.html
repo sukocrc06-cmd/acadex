@@ -201,6 +201,27 @@
             </a>
           </li>
           
+          <!-- Dedicated Admin Panel / Hoca Panel doorways (hidden by default,
+               shown by the small role-check script near the end of body) -->
+          <li class="sidebar-item" id="side-link-admin" style="display: none; border-top: 1px solid rgba(255, 255, 255, 0.15); margin-top: 0.5rem; padding-top: 0.5rem;">
+            <a href="admin.html">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="4" width="18" height="16" rx="2"></rect>
+                <path d="M3 10h18"></path>
+              </svg>
+              <span style="font-weight: 700;">Admin Paneli</span>
+            </a>
+          </li>
+          <li class="sidebar-item" id="side-link-teacher" style="display: none;">
+            <a href="teacher.html">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z"></path>
+                <path d="M6 12v5c0 1.5 2.7 3 6 3s6-1.5 6-3v-5"></path>
+              </svg>
+              <span style="font-weight: 700;">Hoca Paneli</span>
+            </a>
+          </li>
+
           <!-- Admin-Only Section (hidden by default) -->
           <li class="sidebar-item" id="side-admin" style="display: none; border-top: 1px solid rgba(255, 255, 255, 0.15); margin-top: 0.5rem; padding-top: 0.5rem;">
             <a href="#" onclick="switchDashboardView('admin')">
@@ -1731,5 +1752,34 @@
   <script src="js/main.js"></script>
   <script src="js/achievements.js"></script>
   <script src="js/dashboard.js"></script>
+
+  <!-- Small, self-contained check to reveal the "Admin Paneli" / "Hoca
+       Paneli" sidebar doorways. Deliberately kept separate from the large
+       dashboard.js so it can't interfere with the existing dashboard logic. -->
+  <script>
+    (async function revealPortalLinks() {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return;
+        const { data: profile, error } = await supabaseClient
+          .from('profiles')
+          .select('is_admin, is_teacher')
+          .eq('id', session.user.id)
+          .single();
+        if (error || !profile) return;
+
+        if (profile.is_admin) {
+          const el = document.getElementById('side-link-admin');
+          if (el) el.style.display = 'block';
+        }
+        if (profile.is_teacher) {
+          const el = document.getElementById('side-link-teacher');
+          if (el) el.style.display = 'block';
+        }
+      } catch (e) {
+        console.error('revealPortalLinks error:', e);
+      }
+    })();
+  </script>
 </body>
 </html>

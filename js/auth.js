@@ -12,6 +12,33 @@ function getMsg(key, defaultVal) {
   return defaultVal;
 }
 
+// ==========================================
+// Role-based landing page (Admin Paneli / Hoca Paneli / Dashboard)
+//
+// Acadex uses boolean flags on profiles (is_admin, is_teacher) rather than
+// a single role column. This looks up those flags for the given user and
+// returns which page they should land on after login / when they already
+// have a session. Fails open to the normal student dashboard on any error,
+// so a profile lookup hiccup never locks a student out of their portal.
+// ==========================================
+async function getPostLoginDestination(userId) {
+  try {
+    const { data: profile, error } = await supabaseClient
+      .from('profiles')
+      .select('is_admin, is_teacher')
+      .eq('id', userId)
+      .single();
+
+    if (error || !profile) return 'dashboard.html';
+    if (profile.is_admin) return 'admin.html';
+    if (profile.is_teacher) return 'teacher.html';
+    return 'dashboard.html';
+  } catch (e) {
+    console.error('getPostLoginDestination error:', e);
+    return 'dashboard.html';
+  }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   const path = window.location.pathname;
   const isLoginPage = path.includes('login.html');
@@ -24,8 +51,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       const { data: { session } } = await supabaseClient.auth.getSession();
       if (session) {
-        // If user already logged in, redirect directly to dashboard
-        window.location.href = 'dashboard.html';
+        // If user already logged in, send them straight to their portal
+        // (admin/hoca panel or the regular student dashboard).
+        window.location.href = await getPostLoginDestination(session.user.id);
         return;
       }
     } catch (e) {
@@ -369,8 +397,9 @@ function initLoginForm() {
 
       if (data && data.session) {
         showFormAlert(form, 'success', getMsg('validation.loginSuccess', 'Login successful! Accessing portal...'));
+        const destination = await getPostLoginDestination(data.session.user.id);
         setTimeout(() => {
-          window.location.href = 'dashboard.html';
+          window.location.href = destination;
         }, 1200);
       }
     } catch (err) {

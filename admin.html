@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="description" content="Acadex Admin Panel — kullanıcı, içerik ve sistem yönetimi.">
+  <title>Admin Paneli — Acadex</title>
+
+  <link rel="icon" type="image/png" href="assets/logo.png">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="css/style.css">
+
+  <!-- Supabase CDN & Config (Route Guard) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="js/supabase-config.js"></script>
+  <script>
+    // Route guard: must be logged in AND profiles.is_admin = true.
+    let __adminGuardProfile = null;
+    (async function checkAdminSession() {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+          window.location.replace('login.html');
+          return;
+        }
+        const { data: profile, error } = await supabaseClient
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+
+        if (error || !profile || !profile.is_admin) {
+          // Logged in, but not an admin — send back to the normal dashboard.
+          window.location.replace('dashboard.html');
+          return;
+        }
+        __adminGuardProfile = profile;
+        window.__acadexAdminProfile = profile;
+        document.dispatchEvent(new CustomEvent('acadex-admin-ready'));
+      } catch (e) {
+        console.error("Admin auth guard error", e);
+        window.location.replace('login.html');
+      }
+    })();
+  </script>
+  <style>
+    /* Small additions not already covered by style.css — kept minimal and
+       scoped to this page so nothing in the shared stylesheet is touched. */
+    .admin-tab-panel { display: none; }
+    .admin-tab-panel.active { display: block; }
+    .admin-stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+    .admin-stat-card { background: var(--color-white); border: 1px solid rgba(22,50,92,0.1); border-radius: var(--radius-md); padding: 1.5rem; box-shadow: var(--shadow-sm); display: flex; align-items: center; gap: 1rem; }
+    .admin-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .admin-table th { text-align: left; padding: 0.6rem 0.5rem; color: var(--color-navy); font-weight: 700; border-bottom: 2px solid rgba(22,50,92,0.1); white-space: nowrap; }
+    .admin-table td { padding: 0.6rem 0.5rem; border-bottom: 1px solid rgba(22,50,92,0.06); color: var(--color-text); vertical-align: middle; }
+    .admin-badge { display: inline-block; font-size: 0.7rem; font-weight: 700; padding: 0.2rem 0.55rem; border-radius: 20px; }
+    .admin-badge.role-admin { background: #FEE2E2; color: #DC2626; }
+    .admin-badge.role-teacher { background: #E0E7FF; color: #4F46E5; }
+    .admin-badge.role-student { background: rgba(22,50,92,0.08); color: var(--color-navy); }
+    .admin-badge.suspended { background: #FEF3C7; color: #B45309; }
+    .admin-panel-card { background: var(--color-white); border: 1px solid rgba(22,50,92,0.1); border-radius: var(--radius-md); padding: 1.5rem; box-shadow: var(--shadow-sm); }
+    .admin-toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.85rem 0; border-bottom: 1px solid rgba(22,50,92,0.06); }
+    .admin-toggle-row:last-child { border-bottom: none; }
+    .admin-mini-btn { font-size: 0.75rem; font-weight: 700; padding: 0.3rem 0.65rem; border-radius: var(--radius-sm); border: 1px solid rgba(22,50,92,0.15); background: var(--color-white); color: var(--color-navy); cursor: pointer; transition: all 0.15s; }
+    .admin-mini-btn:hover { background: var(--color-bg-alt); }
+    .admin-mini-btn.danger { color: #DC2626; border-color: #FCA5A5; }
+    .admin-mini-btn.danger:hover { background: #FEF2F2; }
+    .admin-mini-btn.primary { color: var(--color-white); background: var(--color-teal); border-color: var(--color-teal); }
+    .admin-search-row { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+    .admin-search-row input, .admin-search-row select { padding: 0.55rem 0.75rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.85rem; font-family: inherit; }
+  </style>
+</head>
+<body>
+
+  <a href="#main-content" class="skip-link">İçeriğe geç</a>
+
+  <!-- HEADER -->
+  <header class="header scrolled dashboard-topbar">
+    <div class="container header-container">
+      <a href="admin.html" class="brand-logo">ACADEX <span style="font-size:0.65rem; font-weight:700; opacity:0.75; vertical-align:middle;">ADMIN</span></a>
+      <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <a href="dashboard.html" class="btn btn-outline" style="padding: 0.5rem 1rem; font-size: 0.85rem; color: rgba(255,255,255,0.9); border-color: rgba(255,255,255,0.25);">Öğrenci Paneline Dön</a>
+        <span id="admin-topbar-name" style="color: rgba(255,255,255,0.9); font-weight: 700; font-size: 0.85rem;"></span>
+        <button id="btn-admin-logout" class="btn btn-outline" style="padding: 0.5rem 1rem; font-size: 0.85rem; color: rgba(255,255,255,0.9); border-color: rgba(255,255,255,0.25);">Çıkış Yap</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="dashboard-layout">
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <nav aria-label="Admin gezinme" style="width: 100%;">
+        <ul class="sidebar-nav">
+          <li class="sidebar-item active" data-admin-tab="users">
+            <a href="#" onclick="switchAdminTab('users'); return false;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+              <span>Kullanıcılar &amp; Roller</span>
+            </a>
+          </li>
+          <li class="sidebar-item" data-admin-tab="analytics">
+            <a href="#" onclick="switchAdminTab('analytics'); return false;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+              <span>Analitik &amp; Kullanım</span>
+            </a>
+          </li>
+          <li class="sidebar-item" data-admin-tab="content">
+            <a href="#" onclick="switchAdminTab('content'); return false;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+              <span>İçerik &amp; Destek</span>
+              <span id="admin-content-badge" style="margin-left: auto; width: 18px; height: 18px; background-color: #EF4444; border-radius: 50%; color: white; display: none; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 800; line-height: 1;">0</span>
+            </a>
+          </li>
+          <li class="sidebar-item" data-admin-tab="settings">
+            <a href="#" onclick="switchAdminTab('settings'); return false;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+              <span>Ayarlar &amp; Duyurular</span>
+            </a>
+          </li>
+        </ul>
+      </nav>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="dashboard-content" id="main-content">
+      <div id="admin-alert-container"></div>
+
+      <!-- USERS & ROLES -->
+      <section id="admin-users-panel" class="admin-tab-panel active">
+        <div class="dashboard-page-header">
+          <h2 class="dashboard-page-title">Kullanıcılar &amp; Rol Yönetimi</h2>
+          <p class="dashboard-page-subtitle">Öğrenci ve hoca hesaplarını görüntüleyin, rol atayın, askıya alın veya silin.</p>
+        </div>
+
+        <div class="admin-search-row">
+          <input type="text" id="admin-user-search" placeholder="İsim, e-posta, öğrenci no ile ara..." style="flex: 1; min-width: 220px;">
+          <select id="admin-user-filter-role">
+            <option value="">Tüm roller</option>
+            <option value="student">Öğrenci</option>
+            <option value="teacher">Hoca</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+
+        <div class="admin-panel-card" style="overflow-x: auto;">
+          <table class="admin-table" id="admin-users-table">
+            <thead>
+              <tr>
+                <th>Ad Soyad</th>
+                <th>E-posta</th>
+                <th>Bölüm</th>
+                <th>Öğr. No</th>
+                <th>Rol</th>
+                <th>Durum</th>
+                <th style="text-align:right;">İşlemler</th>
+              </tr>
+            </thead>
+            <tbody id="admin-users-tbody">
+              <tr><td colspan="7" style="text-align:center; padding: 2rem; color: var(--color-text-muted);">Yükleniyor...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ANALYTICS -->
+      <section id="admin-analytics-panel" class="admin-tab-panel">
+        <div class="dashboard-page-header">
+          <h2 class="dashboard-page-title">Analitik &amp; Kullanım Paneli</h2>
+          <p class="dashboard-page-subtitle">Platform genelinde kullanım istatistikleri (get_admin_report() üzerinden).</p>
+        </div>
+        <div id="admin-analytics-content">
+          <div style="text-align:center; padding: 2rem; color: var(--color-text-muted);">Yükleniyor...</div>
+        </div>
+      </section>
+
+      <!-- CONTENT & SUPPORT -->
+      <section id="admin-content-panel" class="admin-tab-panel">
+        <div class="dashboard-page-header">
+          <h2 class="dashboard-page-title">İçerik &amp; Destek Yönetimi</h2>
+          <p class="dashboard-page-subtitle">İletişim formu mesajları ve paylaşılan çalışma kartlarının moderasyonu.</p>
+        </div>
+
+        <div style="display:flex; gap: 0.5rem; margin-bottom: 1.25rem;">
+          <button class="admin-mini-btn primary" id="admin-content-tab-messages" onclick="switchAdminContentSubtab('messages')">Destek Mesajları</button>
+          <button class="admin-mini-btn" id="admin-content-tab-cards" onclick="switchAdminContentSubtab('cards')">Paylaşılan Kartlar</button>
+        </div>
+
+        <div id="admin-content-messages-view">
+          <div style="display: flex; flex-direction: column; gap: 1rem;" id="admin-messages-list">
+            <div style="text-align:center; padding: 2rem; color: var(--color-text-muted);">Yükleniyor...</div>
+          </div>
+        </div>
+
+        <div id="admin-content-cards-view" style="display:none;">
+          <div class="admin-panel-card" style="overflow-x: auto;">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Kart</th>
+                  <th>Bölüm</th>
+                  <th>Paylaşım Tarihi</th>
+                  <th style="text-align:right;">İşlem</th>
+                </tr>
+              </thead>
+              <tbody id="admin-shared-cards-tbody">
+                <tr><td colspan="4" style="text-align:center; padding: 2rem; color: var(--color-text-muted);">Yükleniyor...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- SETTINGS & ANNOUNCEMENTS -->
+      <section id="admin-settings-panel" class="admin-tab-panel">
+        <div class="dashboard-page-header">
+          <h2 class="dashboard-page-title">Sistem Ayarları &amp; Duyurular</h2>
+          <p class="dashboard-page-subtitle">Bakım modu, site geneli banner ve öğrencilere yönelik duyurular.</p>
+        </div>
+
+        <div class="admin-panel-card" style="margin-bottom: 1.5rem;">
+          <h3 style="font-size: 1rem; font-weight: 800; color: var(--color-navy); margin-bottom: 0.75rem;">Sistem Durumu</h3>
+
+          <div class="admin-toggle-row">
+            <div>
+              <strong style="color: var(--color-navy); font-size: 0.9rem;">Bakım Modu</strong>
+              <p style="font-size: 0.75rem; color: var(--color-text-muted); margin-top: 0.15rem;">Etkinleştirildiğinde öğrenciler giriş sayfasında bir bakım mesajı görür.</p>
+            </div>
+            <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+              <input type="checkbox" id="admin-maintenance-toggle">
+            </label>
+          </div>
+          <div id="admin-maintenance-msg-row" style="margin-top: 0.5rem;">
+            <input type="text" id="admin-maintenance-msg" placeholder="Bakım mesajı (isteğe bağlı)" style="width: 100%; padding: 0.55rem 0.75rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.85rem;">
+          </div>
+
+          <div class="admin-toggle-row">
+            <div>
+              <strong style="color: var(--color-navy); font-size: 0.9rem;">Site Geneli Banner</strong>
+              <p style="font-size: 0.75rem; color: var(--color-text-muted); margin-top: 0.15rem;">Ana sayfada ve girişte üstte gösterilen kısa duyuru şeridi.</p>
+            </div>
+            <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+              <input type="checkbox" id="admin-banner-toggle">
+            </label>
+          </div>
+          <div style="margin-top: 0.5rem;">
+            <input type="text" id="admin-banner-msg" placeholder="Banner metni" style="width: 100%; padding: 0.55rem 0.75rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.85rem;">
+          </div>
+
+          <div style="margin-top: 1rem; text-align: right;">
+            <button class="admin-mini-btn primary" onclick="saveSiteSettings()">Ayarları Kaydet</button>
+          </div>
+        </div>
+
+        <div class="admin-panel-card">
+          <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+            <h3 style="font-size: 1rem; font-weight: 800; color: var(--color-navy);">Duyurular</h3>
+            <button class="admin-mini-btn primary" onclick="openAnnouncementForm()">+ Yeni Duyuru</button>
+          </div>
+
+          <div id="admin-announcement-form" style="display:none; background: var(--color-bg-alt); border-radius: var(--radius-sm); padding: 1rem; margin-bottom: 1rem;">
+            <input type="text" id="ann-title" placeholder="Başlık" style="width: 100%; padding: 0.55rem 0.75rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.85rem; margin-bottom: 0.5rem;">
+            <textarea id="ann-body" rows="3" placeholder="Duyuru metni" style="width: 100%; padding: 0.55rem 0.75rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.85rem; font-family: inherit; resize: vertical; margin-bottom: 0.5rem;"></textarea>
+            <select id="ann-department" style="padding: 0.55rem 0.75rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.85rem; margin-bottom: 0.75rem;">
+              <option value="">Tüm bölümler</option>
+            </select>
+            <div style="display:flex; gap:0.5rem;">
+              <button class="admin-mini-btn primary" onclick="submitAnnouncement()">Yayınla</button>
+              <button class="admin-mini-btn" onclick="closeAnnouncementForm()">Vazgeç</button>
+            </div>
+          </div>
+
+          <div id="admin-announcements-list" style="display:flex; flex-direction: column; gap: 0.75rem;">
+            <div style="text-align:center; padding: 1.5rem; color: var(--color-text-muted);">Yükleniyor...</div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="js/i18n.js"></script>
+  <script src="js/admin.js"></script>
+</body>
+</html>

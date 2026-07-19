@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="description" content="Acadex Akademik Portal — hocalar için öğrenci takibi, sınav denetimi ve duyuru paneli.">
+  <title>Akademik Panel — Acadex</title>
+
+  <link rel="icon" type="image/png" href="assets/logo.png">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="css/style.css">
+
+  <!-- Supabase CDN & Config (Route Guard) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="js/supabase-config.js"></script>
+  <script>
+    // Route guard: must be logged in AND (profiles.is_teacher = true OR is_admin = true).
+    (async function checkTeacherSession() {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+          window.location.replace('login.html');
+          return;
+        }
+        const { data: profile, error } = await supabaseClient
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+
+        if (error || !profile || (!profile.is_teacher && !profile.is_admin)) {
+          window.location.replace('dashboard.html');
+          return;
+        }
+        window.__acadexTeacherProfile = profile;
+        document.dispatchEvent(new CustomEvent('acadex-teacher-ready'));
+      } catch (e) {
+        console.error("Teacher auth guard error", e);
+        window.location.replace('login.html');
+      }
+    })();
+  </script>
+  <style>
+    .teacher-tab-panel { display: none; }
+    .teacher-tab-panel.active { display: block; }
+    .teacher-panel-card { background: var(--color-white); border: 1px solid rgba(22,50,92,0.1); border-radius: var(--radius-md); padding: 1.5rem; box-shadow: var(--shadow-sm); }
+    .teacher-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .teacher-table th { text-align: left; padding: 0.6rem 0.5rem; color: var(--color-navy); font-weight: 700; border-bottom: 2px solid rgba(22,50,92,0.1); white-space: nowrap; }
+    .teacher-table td { padding: 0.6rem 0.5rem; border-bottom: 1px solid rgba(22,50,92,0.06); color: var(--color-text); vertical-align: middle; }
+    .teacher-mini-btn { font-size: 0.75rem; font-weight: 700; padding: 0.3rem 0.65rem; border-radius: var(--radius-sm); border: 1px solid rgba(22,50,92,0.15); background: var(--color-white); color: var(--color-navy); cursor: pointer; transition: all 0.15s; }
+    .teacher-mini-btn:hover { background: var(--color-bg-alt); }
+    .teacher-mini-btn.primary { color: var(--color-white); background: var(--color-teal); border-color: var(--color-teal); }
+    .teacher-mini-btn.danger { color: #DC2626; border-color: #FCA5A5; }
+    .teacher-stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+    .teacher-stat-card { background: var(--color-white); border: 1px solid rgba(22,50,92,0.1); border-radius: var(--radius-md); padding: 1.25rem; box-shadow: var(--shadow-sm); }
+  </style>
+</head>
+<body>
+
+  <a href="#main-content" class="skip-link">İçeriğe geç</a>
+
+  <!-- HEADER -->
+  <header class="header scrolled dashboard-topbar">
+    <div class="container header-container">
+      <a href="teacher.html" class="brand-logo">ACADEX <span style="font-size:0.65rem; font-weight:700; opacity:0.75; vertical-align:middle;">HOCA</span></a>
+      <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <span id="teacher-topbar-dept" style="color: rgba(255,255,255,0.75); font-size: 0.8rem;"></span>
+        <span id="teacher-topbar-name" style="color: rgba(255,255,255,0.9); font-weight: 700; font-size: 0.85rem;"></span>
+        <button id="btn-teacher-logout" class="btn btn-outline" style="padding: 0.5rem 1rem; font-size: 0.85rem; color: rgba(255,255,255,0.9); border-color: rgba(255,255,255,0.25);">Çıkış Yap</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="dashboard-layout">
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <nav aria-label="Hoca paneli gezinme" style="width: 100%;">
+        <ul class="sidebar-nav">
+          <li class="sidebar-item active" data-teacher-tab="students">
+            <a href="#" onclick="switchTeacherTab('students'); return false;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+              <span>Öğrenci Performansı</span>
+            </a>
+          </li>
+          <li class="sidebar-item" data-teacher-tab="exams">
+            <a href="#" onclick="switchTeacherTab('exams'); return false;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg>
+              <span>Sınav &amp; Not Denetimi</span>
+            </a>
+          </li>
+          <li class="sidebar-item" data-teacher-tab="materials">
+            <a href="#" onclick="switchTeacherTab('materials'); return false;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+              <span>Materyal &amp; Duyuru</span>
+            </a>
+          </li>
+        </ul>
+      </nav>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="dashboard-content" id="main-content">
+      <div id="teacher-alert-container"></div>
+
+      <!-- STUDENT PERFORMANCE -->
+      <section id="teacher-students-panel" class="teacher-tab-panel active">
+        <div class="dashboard-page-header">
+          <h2 class="dashboard-page-title">Öğrenci Performansı</h2>
+          <p class="dashboard-page-subtitle">Bölümünüzdeki öğrencilerin AI sınav sonuçları ve çalışma istatistikleri (salt okunur).</p>
+        </div>
+
+        <div class="teacher-stat-grid" id="teacher-students-summary"></div>
+
+        <div class="teacher-panel-card" style="overflow-x: auto;">
+          <table class="teacher-table">
+            <thead>
+              <tr>
+                <th>Ad Soyad</th>
+                <th>Öğr. No</th>
+                <th style="text-align:right;">Sınav Sayısı</th>
+                <th style="text-align:right;">Ort. Not</th>
+                <th style="text-align:right;">Seri (gün)</th>
+                <th>Son Aktivite</th>
+              </tr>
+            </thead>
+            <tbody id="teacher-students-tbody">
+              <tr><td colspan="6" style="text-align:center; padding: 2rem; color: var(--color-text-muted);">Yükleniyor...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- EXAM & GRADE REVIEW -->
+      <section id="teacher-exams-panel" class="teacher-tab-panel">
+        <div class="dashboard-page-header">
+          <h2 class="dashboard-page-title">Sınav &amp; Not Denetimi</h2>
+          <p class="dashboard-page-subtitle">AI tarafından üretilen ve değerlendirilen sınavları inceleyin, not üzerine geri bildirim bırakın.</p>
+        </div>
+
+        <div class="teacher-panel-card" style="overflow-x: auto;">
+          <table class="teacher-table">
+            <thead>
+              <tr>
+                <th>Öğrenci</th>
+                <th>Belge / Konu</th>
+                <th style="text-align:right;">Not</th>
+                <th>Tarih</th>
+                <th>İnceleme Notu</th>
+                <th style="text-align:right;">İşlem</th>
+              </tr>
+            </thead>
+            <tbody id="teacher-exams-tbody">
+              <tr><td colspan="6" style="text-align:center; padding: 2rem; color: var(--color-text-muted);">Yükleniyor...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- MATERIALS & ANNOUNCEMENTS -->
+      <section id="teacher-materials-panel" class="teacher-tab-panel">
+        <div class="dashboard-page-header">
+          <h2 class="dashboard-page-title">Materyal &amp; Duyuru Paylaşımı</h2>
+          <p class="dashboard-page-subtitle">Bölümünüzdeki öğrencilere ders materyali linki paylaşın veya duyuru yapın.</p>
+        </div>
+
+        <div class="teacher-panel-card" style="margin-bottom: 1.5rem;">
+          <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+            <h3 style="font-size: 1rem; font-weight: 800; color: var(--color-navy);">📢 Duyurular</h3>
+            <button class="teacher-mini-btn primary" onclick="openTeacherAnnouncementForm()">+ Yeni Duyuru</button>
+          </div>
+
+          <div id="teacher-announcement-form" style="display:none; background: var(--color-bg-alt); border-radius: var(--radius-sm); padding: 1rem; margin-bottom: 1rem;">
+            <input type="text" id="tann-title" placeholder="Başlık" style="width: 100%; padding: 0.55rem 0.75rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.85rem; margin-bottom: 0.5rem;">
+            <textarea id="tann-body" rows="3" placeholder="Duyuru metni" style="width: 100%; padding: 0.55rem 0.75rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.85rem; font-family: inherit; resize: vertical; margin-bottom: 0.75rem;"></textarea>
+            <div style="display:flex; gap:0.5rem;">
+              <button class="teacher-mini-btn primary" onclick="submitTeacherAnnouncement()">Yayınla</button>
+              <button class="teacher-mini-btn" onclick="closeTeacherAnnouncementForm()">Vazgeç</button>
+            </div>
+          </div>
+
+          <div id="teacher-announcements-list" style="display:flex; flex-direction: column; gap: 0.75rem;">
+            <div style="text-align:center; padding: 1.5rem; color: var(--color-text-muted);">Yükleniyor...</div>
+          </div>
+        </div>
+
+        <div class="teacher-panel-card">
+          <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+            <h3 style="font-size: 1rem; font-weight: 800; color: var(--color-navy);">📚 Paylaşılan Materyaller</h3>
+            <button class="teacher-mini-btn primary" onclick="openTeacherMaterialForm()">+ Yeni Materyal</button>
+          </div>
+
+          <div id="teacher-material-form" style="display:none; background: var(--color-bg-alt); border-radius: var(--radius-sm); padding: 1rem; margin-bottom: 1rem;">
+            <input type="text" id="tmat-title" placeholder="Başlık (ör. Hafta 5 - Ders Notları)" style="width: 100%; padding: 0.55rem 0.75rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.85rem; margin-bottom: 0.5rem;">
+            <input type="text" id="tmat-desc" placeholder="Kısa açıklama (isteğe bağlı)" style="width: 100%; padding: 0.55rem 0.75rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.85rem; margin-bottom: 0.5rem;">
+            <input type="url" id="tmat-url" placeholder="Bağlantı (Drive, PDF, YouTube vb.) https://..." style="width: 100%; padding: 0.55rem 0.75rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.85rem; margin-bottom: 0.75rem;">
+            <div style="display:flex; gap:0.5rem;">
+              <button class="teacher-mini-btn primary" onclick="submitTeacherMaterial()">Paylaş</button>
+              <button class="teacher-mini-btn" onclick="closeTeacherMaterialForm()">Vazgeç</button>
+            </div>
+          </div>
+
+          <div id="teacher-materials-list" style="display:flex; flex-direction: column; gap: 0.75rem;">
+            <div style="text-align:center; padding: 1.5rem; color: var(--color-text-muted);">Yükleniyor...</div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="js/teacher.js"></script>
+</body>
+</html>
