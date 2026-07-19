@@ -200,7 +200,12 @@ const TRANSLATIONS = {
     "sandbox.guide.step2": "Share Your Projects:",
     "sandbox.guide.step2Text": "Publish links to your GitHub repositories or live apps so peers can check them out, view your source code, and run tests.",
     "sandbox.guide.step3": "Cross-Department Showcase:",
-    "sandbox.guide.step3Text": "All shared projects are visible public-wide to inspire other students and promote learning collaboration!"
+    "sandbox.guide.step3Text": "All shared projects are visible public-wide to inspire other students and promote learning collaboration!",
+    "dash.acadia.btn": "Ask Acadia",
+    "dash.acadia.clear": "Clear",
+    "dash.acadia.disclosure": "Acadia only sees your own account activity data and is AI-generated — not an official grade or advising opinion.",
+    "dash.acadia.typing": "Acadia is typing...",
+    "dash.acadia.placeholder": "Ask a question..."
   },
   tr: {
     // Brand & Commons
@@ -403,7 +408,12 @@ const TRANSLATIONS = {
     "sandbox.guide.step2": "Projelerinizi Paylaşın:",
     "sandbox.guide.step2Text": "Akranlarınızın incelemesi, kaynak kodlarınızı görmesi ve testler yapması için GitHub depolarınıza veya canlı uygulamalarınıza bağlantılar yayınlayın.",
     "sandbox.guide.step3": "Bölümler Arası Vitrin:",
-    "sandbox.guide.step3Text": "Paylaşılan tüm projeler, diğer öğrencilere ilham vermek ve işbirliğini teşvik etmek için platform genelinde herkes tarafından görülebilir!"
+    "sandbox.guide.step3Text": "Paylaşılan tüm projeler, diğer öğrencilere ilham vermek ve işbirliğini teşvik etmek için platform genelinde herkes tarafından görülebilir!",
+    "dash.acadia.btn": "Acadia'ya Sorun",
+    "dash.acadia.clear": "Temizle",
+    "dash.acadia.disclosure": "Acadia yalnızca sizin hesap verilerinizi görür ve AI tarafından üretilir — resmi not veya danışman görüşü yerine geçmez.",
+    "dash.acadia.typing": "Acadia yazıyor...",
+    "dash.acadia.placeholder": "Bir soru sorun..."
   },
 };
 

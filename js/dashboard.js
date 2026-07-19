@@ -9215,11 +9215,11 @@ function toggleAcadiaPanel(forceState) {
     if (!acadiaHasGreeted) {
       acadiaHasGreeted = true;
       const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
-      const firstName = (currentUserProfile?.full_name || '').split(' ')[0];
       const greeting = isTr
-        ? `Merhaba${firstName ? ' ' + firstName : ''}! Ben Acadia 👋 Çalışma durumun hakkında soru sorabilir, hangi konuya odaklanman gerektiğini sorabilir ya da bugün nereden başlayacağını bana sorabilirsin.`
-        : `Hi${firstName ? ' ' + firstName : ''}! I'm Acadia 👋 Ask me about your study progress, which topics to focus on, or where to start today.`;
+        ? `Merhaba! Ben Acadia, çalışma asistanınız. Bana derslerinizle veya Acadex'i nasıl kullanacağınızla ilgili her şeyi sorabilirsiniz!`
+        : `Hi! I'm Acadia, your study assistant. Ask me anything about your coursework, or how to use Acadex!`;
       renderAcadiaMessage('assistant', greeting);
+      acadiaChatHistory.push({ role: 'assistant', content: greeting });
     }
     const input = document.getElementById('acadia-input');
     if (input) setTimeout(() => input.focus(), 50);
@@ -9284,19 +9284,15 @@ async function sendAcadiaMessage(text) {
 
     const uiLang = localStorage.getItem('acadexUILang') || 'en';
 
-    const response = await fetch(`${SUPABASE_URL}/functions/v1/acadia-assistant`, {
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/acadia-chat`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${session.access_token}`,
         'Content-Type': 'application/json',
         'apikey': SUPABASE_ANON_KEY
       },
-      // Send history *before* this turn's message — the function appends the
-      // new message itself.
       body: JSON.stringify({
-        message: text,
-        history: acadiaChatHistory.slice(0, -1),
-        language: uiLang
+        messages: acadiaChatHistory
       })
     });
 
@@ -9304,9 +9300,12 @@ async function sendAcadiaMessage(text) {
     if (!response.ok) {
       console.error('Acadia request failed:', data);
       const isTr = uiLang === 'tr';
-      renderAcadiaMessage('assistant', isTr
-        ? 'Şu anda yanıt veremiyorum, birazdan tekrar dener misin?'
-        : "I can't respond right now — could you try again in a moment?");
+      const errMsg = isTr
+        ? 'Acadia şu anda yanıt vermekte zorlanıyor, lütfen tekrar deneyin.'
+        : 'Acadia is having trouble responding right now, please try again.';
+      renderAcadiaMessage('assistant', errMsg);
+      // Remove failed user message from history so they can retry without building up bad history
+      acadiaChatHistory.pop();
       return;
     }
 
@@ -9314,7 +9313,12 @@ async function sendAcadiaMessage(text) {
     acadiaChatHistory.push({ role: 'assistant', content: data.reply });
   } catch (err) {
     console.error('Exception messaging Acadia:', err);
-    renderAcadiaMessage('assistant', 'Bir bağlantı hatası oluştu. / A connection error occurred.');
+    const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+    const errMsg = isTr
+      ? 'Acadia şu anda yanıt vermekte zorlanıyor, lütfen tekrar deneyin.'
+      : 'Acadia is having trouble responding right now, please try again.';
+    renderAcadiaMessage('assistant', errMsg);
+    acadiaChatHistory.pop();
   } finally {
     acadiaRequestInFlight = false;
     if (sendBtn) sendBtn.disabled = false;

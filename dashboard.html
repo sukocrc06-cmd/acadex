@@ -1727,27 +1727,27 @@
           <span style="font-size: 0.65rem; font-weight: 600; color: rgba(255,255,255,0.75); background: rgba(255,255,255,0.12); padding: 0.1rem 0.4rem; border-radius: 8px;">AI</span>
         </span>
         <div style="display: flex; align-items: center; gap: 0.5rem;">
-          <button id="btn-acadia-clear" onclick="clearAcadiaChat()" title="Sohbeti temizle" style="background: none; border: none; color: rgba(255,255,255,0.75); cursor: pointer; font-size: 0.7rem; font-weight: 700;">Temizle</button>
+          <button id="btn-acadia-clear" onclick="clearAcadiaChat()" data-i18n="dash.acadia.clear" style="background: none; border: none; color: rgba(255,255,255,0.75); cursor: pointer; font-size: 0.7rem; font-weight: 700;">Temizle</button>
           <button id="btn-close-acadia-panel" onclick="toggleAcadiaPanel(false)" style="background: none; border: none; font-size: 1.25rem; font-weight: 700; color: rgba(255,255,255,0.85); cursor: pointer; line-height: 1; padding: 0;">&times;</button>
         </div>
       </div>
 
       <!-- Disclosure note -->
-      <div style="font-size: 0.68rem; color: var(--color-text-muted); background: var(--color-bg-alt); padding: 0.5rem 0.85rem; border-bottom: 1px solid rgba(22, 50, 92, 0.06); flex-shrink: 0;">
+      <div data-i18n="dash.acadia.disclosure" style="font-size: 0.68rem; color: var(--color-text-muted); background: var(--color-bg-alt); padding: 0.5rem 0.85rem; border-bottom: 1px solid rgba(22, 50, 92, 0.06); flex-shrink: 0;">
         Acadia yalnızca sizin hesap verilerinizi (sınav ortalamanız, yaklaşan görevler) görür ve AI tarafından üretilir — resmi not veya danışman görüşü yerine geçmez.
       </div>
 
       <!-- Messages -->
-      <div id="acadia-messages" style="flex: 1; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem;">
+      <div id="acadia-messages" aria-live="polite" style="flex: 1; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem;">
         <!-- Populated dynamically; a welcome bubble is inserted on first open -->
       </div>
 
       <!-- Typing indicator -->
-      <div id="acadia-typing-indicator" style="display: none; padding: 0 1rem 0.5rem 1rem; font-size: 0.75rem; color: var(--color-text-muted); font-style: italic;">Acadia yazıyor...</div>
+      <div id="acadia-typing-indicator" data-i18n="dash.acadia.typing" style="display: none; padding: 0 1rem 0.5rem 1rem; font-size: 0.75rem; color: var(--color-text-muted); font-style: italic;">Acadia yazıyor...</div>
 
       <!-- Input Row -->
       <form id="acadia-input-form" style="display: flex; gap: 0.5rem; padding: 0.75rem; border-top: 1px solid rgba(22, 50, 92, 0.08); flex-shrink: 0;">
-        <input type="text" id="acadia-input" placeholder="Bir soru sorun..." autocomplete="off" style="flex: 1; padding: 0.55rem 0.75rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: 20px; font-size: 0.82rem; outline: none; font-family: inherit;">
+        <input type="text" id="acadia-input" data-i18n-placeholder="dash.acadia.placeholder" placeholder="Bir soru sorun..." autocomplete="off" style="flex: 1; padding: 0.55rem 0.75rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: 20px; font-size: 0.82rem; outline: none; font-family: inherit;">
         <button type="submit" id="btn-acadia-send" style="background: var(--color-teal); color: white; border: none; border-radius: 50%; width: 36px; height: 36px; flex-shrink: 0; cursor: pointer; display: flex; align-items: center; justify-content: center;">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
         </button>
@@ -1757,7 +1757,7 @@
     <!-- Toggle Acadia Button -->
     <button id="btn-acadia-toggle" onclick="toggleAcadiaPanel()" style="background-color: var(--color-teal); color: white; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 30px; padding: 0.6rem 1.2rem; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; box-shadow: var(--shadow-lg); font-size: 0.8rem; font-weight: 700; transition: transform 0.2s, background-color 0.2s; z-index: 99999;">
       <span aria-hidden="true">🤖</span>
-      <span>Ask Acadia</span>
+      <span data-i18n="dash.acadia.btn">Ask Acadia</span>
     </button>
   </div>
 

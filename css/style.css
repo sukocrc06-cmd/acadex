@@ -3859,6 +3859,27 @@ input:checked + .slider:before {
   background-color: rgba(22, 50, 92, 0.02);
 }
 
+/* Floating Widgets Responsive Layout (Acadia & Focus Mode) */
+@media (max-width: 768px) {
+  #acadia-widget-container {
+    bottom: 80px !important;
+    left: 10px !important;
+  }
+  #pomodoro-widget-container {
+    bottom: 20px !important;
+    right: 10px !important;
+  }
+  #acadia-panel {
+    width: calc(100vw - 20px) !important;
+    max-height: 55vh !important;
+  }
+  #pomodoro-panel {
+    width: calc(100vw - 20px) !important;
+    max-height: 55vh !important;
+  }
+}
+
+
 
 
 
