@@ -1668,29 +1668,35 @@
   </div>
 
   <!-- ==========================================
-       FLASHCARD VIEWER MODAL (PHASE 11)
+       FLASHCARD VIEWER MODAL (PHASE 11 REDESIGN)
        ========================================== -->
   <div id="flashcard-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="flashcard-modal-title" style="display: none;">
-    <div class="modal-content" style="max-width: 550px; width: 90%; position: relative; overflow: hidden; display: flex; flex-direction: column; min-height: 400px; justify-content: space-between; padding: 1.5rem;">
+    <div class="modal-content" style="max-width: 620px; width: 92%; position: relative; display: flex; flex-direction: column; padding: 1.5rem; background: transparent; border: none; box-shadow: none;">
       
-      <div class="flashcard-viewer-header" style="display: flex; flex-direction: column; gap: 0.25rem;">
-        <h4 id="flashcard-modal-title" style="font-size: 0.85rem; text-transform: uppercase; color: var(--color-teal); font-weight: 800; margin: 0; letter-spacing: 0.05em;">Reviewing Cards</h4>
-        <div id="flashcard-progress" style="font-size: 0.8rem; color: var(--color-text-muted); font-weight: 600;" aria-label="Progress">Card 1 of 5</div>
-      </div>
-
-      <!-- The animatable card container -->
-      <div class="flashcard-container" id="flashcard-container" style="position: relative; flex-grow: 1; display: flex; align-items: center; justify-content: center; margin: 1.5rem 0; width: 100%; min-height: 200px;">
-        <button class="modal-close" id="btn-close-flashcard-modal" aria-label="Close viewer" style="position: absolute; top: 1rem; right: 1rem; z-index: 100; background: rgba(15, 23, 42, 0.05); border: none; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; cursor: pointer; color: var(--color-navy); transition: background-color 0.2s, color 0.2s;">&times;</button>
-        <div class="flashcard-card" id="flashcard-card" style="width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; padding: 1.5rem; text-align: center;">
-          <!-- Dynamic content goes here -->
+      <!-- Progress Bar & Header positioned directly above card -->
+      <div class="flashcard-viewer-header" style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.25rem; width: 100%;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <h4 id="flashcard-modal-title" style="font-size: 0.85rem; text-transform: uppercase; color: var(--color-white); font-weight: 800; margin: 0; letter-spacing: 0.05em; text-shadow: 0 1px 3px rgba(0,0,0,0.3);">Reviewing Cards</h4>
+          <span id="flashcard-progress-text" style="font-size: 12px; color: #E2E8F0; font-weight: 600; text-shadow: 0 1px 3px rgba(0,0,0,0.3);">1 / 5</span>
+        </div>
+        <div class="flashcard-progress-bar-bg" style="height: 4px; background: rgba(226, 232, 240, 0.4); border-radius: 4px; overflow: hidden; width: 100%;">
+          <div id="flashcard-progress-bar-fill" style="height: 100%; background: linear-gradient(90deg, #16325C, #1F8A93); width: 20%; transition: width 0.3s ease; border-radius: 4px;"></div>
         </div>
       </div>
 
+      <!-- The animatable card container -->
+      <div class="flashcard-container" id="flashcard-container" style="position: relative; width: 100%; min-height: 320px; margin-bottom: 1.5rem;">
+        <div class="flashcard-card" id="flashcard-card">
+          <!-- Dynamic card content rendering -->
+        </div>
+      </div>
+
+      <!-- Action Footer -->
       <div class="flashcard-viewer-footer" style="display: flex; gap: 1rem; width: 100%; justify-content: space-between;">
-        <button class="btn btn-primary" id="btn-flashcard-send" style="flex: 1; padding: 0.5rem 1rem; display: flex; align-items: center; justify-content: center; gap: 0.35rem; font-size: 0.85rem; font-weight: 700; border: none;">
+        <button class="btn btn-primary" id="btn-flashcard-send" style="flex: 1; padding: 0.65rem 1rem; display: flex; align-items: center; justify-content: center; gap: 0.35rem; font-size: 0.85rem; font-weight: 700; border: none;">
           📥 Deftere Gönder
         </button>
-        <button class="btn btn-primary" id="btn-flashcard-next" style="flex: 1; padding: 0.5rem 1rem; font-size: 0.85rem; font-weight: 700; border: none;">
+        <button class="btn btn-primary" id="btn-flashcard-next" style="flex: 1; padding: 0.65rem 1rem; font-size: 0.85rem; font-weight: 700; border: none;">
           Kartı Geç →
         </button>
       </div>

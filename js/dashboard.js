@@ -6032,29 +6032,56 @@ function openFlashcardViewer(cardId, type, fileName) {
 
 function renderCurrentFlashcard() {
   const cardEl = document.getElementById('flashcard-card');
-  const progress = document.getElementById('flashcard-progress');
+  const progressText = document.getElementById('flashcard-progress-text');
+  const progressBarFill = document.getElementById('flashcard-progress-bar-fill');
   if (!cardEl || reviewIndex >= reviewItems.length) return;
 
   const item = reviewItems[reviewIndex];
-  progress.textContent = `Card ${reviewIndex + 1} of ${reviewItems.length}`;
-  progress.setAttribute('aria-label', `Card ${reviewIndex + 1} of ${reviewItems.length}`);
+  const currentNum = reviewIndex + 1;
+  const totalNum = reviewItems.length;
+  const progressPercent = Math.round((currentNum / totalNum) * 100);
 
-  cardEl.innerHTML = '';
+  if (progressText) progressText.textContent = `${currentNum} / ${totalNum}`;
+  if (progressBarFill) progressBarFill.style.width = `${progressPercent}%`;
+
+  let categoryPillText = 'ANAHTAR TERİM';
+  let titleText = '';
+  let bodyText = '';
 
   if (reviewType === 'terms') {
-    cardEl.innerHTML = `
-      <h3 style="font-size: 1.5rem; color: var(--color-navy); font-weight: 800; margin-bottom: 1rem; padding: 0 2rem;">${item.term}</h3>
-      <p style="font-size: 0.95rem; color: var(--color-text); line-height: 1.6; margin: 0; padding: 0 1.5rem;">${item.definition}</p>
-    `;
+    categoryPillText = 'ANAHTAR TERİM';
+    titleText = item.term || '';
+    bodyText = item.definition || '';
   } else if (reviewType === 'points') {
-    cardEl.innerHTML = `
-      <p style="font-size: 1.1rem; color: var(--color-navy); line-height: 1.6; font-weight: 600; margin: 0; padding: 1rem 2rem;">${item}</p>
-    `;
+    categoryPillText = 'ÖNEMLİ NOKTA';
+    titleText = 'Key Point';
+    bodyText = typeof item === 'string' ? item : (item.point || item.text || '');
   } else if (reviewType === 'quiz') {
-    cardEl.innerHTML = `
-      <h3 style="font-size: 1.25rem; color: var(--color-navy); font-weight: 800; margin-bottom: 1rem; padding: 0 2rem;">Soru: ${item.question}</h3>
-      <p style="font-size: 1.05rem; color: var(--color-teal); font-weight: 700; line-height: 1.6; margin: 0; padding: 0 1.5rem;">Cevap: ${item.answer}</p>
-    `;
+    categoryPillText = 'KENDİ KENDİNE TEST';
+    titleText = item.question ? `Soru: ${item.question}` : '';
+    bodyText = item.answer ? `Cevap: ${item.answer}` : '';
+  }
+
+  cardEl.innerHTML = `
+    <button class="modal-close" id="btn-close-flashcard-modal" aria-label="Close viewer" onclick="closeFlashcardViewer()" style="position: absolute; top: 20px; right: 20px; z-index: 10; background: rgba(22, 50, 92, 0.08); border: none; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; font-size: 18px; line-height: 1; cursor: pointer; color: #16325C; transition: background 0.2s;">&times;</button>
+    
+    <div class="card-left-accent-bar"></div>
+
+    <img src="assets/logo-icon-only.png" alt="" class="card-watermark-logo">
+
+    <div class="card-inner-content">
+      <div class="card-category-pill">${categoryPillText}</div>
+      ${titleText ? `<h3 class="card-term-title">${escapeHtml(titleText)}</h3>` : ''}
+      ${bodyText ? `<p class="card-definition-body">${escapeHtml(bodyText)}</p>` : ''}
+    </div>
+  `;
+
+  const btnClose = document.getElementById('btn-close-flashcard-modal');
+  if (btnClose) {
+    btnClose.onclick = (e) => {
+      e.preventDefault();
+      closeFlashcardViewer();
+    };
   }
 }
 
@@ -6091,7 +6118,7 @@ function animateNextCard(nextItemCallback) {
     cardEl.classList.remove('slide-out-left');
     cardEl.classList.add('slide-in-right');
     
-    cardEl.offsetHeight; // trigger reflow
+    cardEl.offsetHeight;
     
     cardEl.style.transition = 'transform 0.3s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.3s ease';
     cardEl.classList.remove('slide-in-right');
@@ -6163,17 +6190,22 @@ async function sendCurrentCardToDepot(btn) {
 function renderEndOfDeck() {
   const cardEl = document.getElementById('flashcard-card');
   const footer = document.querySelector('.flashcard-viewer-footer');
-  const progress = document.getElementById('flashcard-progress');
-  if (progress) progress.style.display = 'none';
+  const progressText = document.getElementById('flashcard-progress-text');
+  const progressBarFill = document.getElementById('flashcard-progress-bar-fill');
+  
+  if (progressText) progressText.textContent = `${reviewItems.length} / ${reviewItems.length}`;
+  if (progressBarFill) progressBarFill.style.width = '100%';
   if (footer) footer.style.display = 'none';
 
   if (cardEl) {
     cardEl.innerHTML = `
-      <div style="display: flex; flex-direction: column; align-items: center; gap: 1rem; justify-content: center; height: 100%;">
-        <div style="font-size: 3rem;">🎉</div>
-        <h3 style="font-size: 1.2rem; color: var(--color-navy); font-weight: 800; margin: 0;">Tüm kartları incelediniz!</h3>
-        <p style="font-size: 0.85rem; color: var(--color-text-muted); margin: 0 0 1rem 0;">Reviewed all ${reviewItems.length} cards!</p>
-        <div style="display: flex; gap: 1rem; width: 100%;">
+      <div class="card-left-accent-bar"></div>
+      <img src="assets/logo-icon-only.png" alt="" class="card-watermark-logo">
+      <div class="card-inner-content">
+        <div style="font-size: 3rem; margin-bottom: 0.5rem;">🎉</div>
+        <h3 style="font-size: 1.5rem; color: #16325C; font-weight: 800; margin: 0 0 0.5rem 0;">Tüm kartları incelediniz!</h3>
+        <p style="font-size: 0.95rem; color: #4A5A6A; margin: 0 0 1.5rem 0;">Reviewed all ${reviewItems.length} cards!</p>
+        <div style="display: flex; gap: 1rem; width: 100%; max-width: 320px;">
           <button class="btn btn-outline" onclick="restartReview()" style="flex: 1; padding: 0.5rem 1rem;">Tekrar İncele</button>
           <button class="btn btn-primary" onclick="closeFlashcardViewer()" style="flex: 1; padding: 0.5rem 1rem; border: none;">Kapat</button>
         </div>
@@ -6186,9 +6218,8 @@ function restartReview() {
   reviewIndex = 0;
   
   const footer = document.querySelector('.flashcard-viewer-footer');
-  const progress = document.getElementById('flashcard-progress');
-  if (progress) progress.style.display = 'block';
-  if (footer) footer.style.display = 'flex';
+  const footerEl = document.querySelector('.flashcard-viewer-footer');
+  if (footerEl) footerEl.style.display = 'flex';
 
   renderCurrentFlashcard();
 }
