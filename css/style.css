@@ -3775,19 +3775,19 @@ input:checked + .slider:before {
   z-index: 0;
 }
 
-/* ── Flashcard Viewer Redesign Specs ── */
+/* ── Flashcard Viewer Reference Layout Specs ── */
 .flashcard-card {
   position: relative !important;
   border-radius: 24px !important;
-  background: linear-gradient(180deg, #FFFFFF 0%, #F0F7F8 100%) !important;
-  box-shadow: 0 24px 64px -12px rgba(22, 50, 92, 0.28) !important;
+  background: #FFFFFF !important;
+  box-shadow: 0 20px 50px -10px rgba(22, 50, 92, 0.2) !important;
   border: 1px solid rgba(22, 50, 92, 0.08) !important;
-  padding: 56px !important;
+  padding: 40px !important;
   overflow: hidden !important;
   display: flex !important;
   flex-direction: column !important;
-  align-items: center !important;
-  justify-content: center !important;
+  align-items: flex-start !important;
+  justify-content: flex-start !important;
   min-height: 320px !important;
   width: 100% !important;
   box-sizing: border-box !important;
@@ -3798,78 +3798,10 @@ input:checked + .slider:before {
   display: none !important;
 }
 
-.card-left-accent-bar {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 6px;
-  background: linear-gradient(180deg, #16325C, #1F8A93);
-  border-top-left-radius: 24px;
-  border-bottom-left-radius: 24px;
-  z-index: 2;
-}
-
-.card-watermark-logo {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: 220px;
-  height: auto;
-  opacity: 0.04;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.card-inner-content {
-  position: relative;
-  z-index: 1;
-  text-align: center;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-
-.card-category-pill {
-  background: #1F8A93;
-  color: #FFFFFF;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  padding: 4px 12px;
-  border-radius: 20px;
-  text-transform: uppercase;
-  display: inline-block;
-  margin-bottom: 20px;
-}
-
-.card-term-title {
-  font-size: 34px !important;
-  font-weight: 800 !important;
-  color: #16325C !important;
-  line-height: 1.2 !important;
-  margin-bottom: 20px !important;
-  margin-top: 0 !important;
-  text-align: center;
-  font-family: 'Outfit', var(--font-primary), sans-serif;
-}
-
-.card-definition-body {
-  font-size: 18px !important;
-  font-weight: 400 !important;
-  color: #4A5A6A !important;
-  line-height: 1.6 !important;
-  margin: 0 !important;
-  text-align: center;
-}
-
 #btn-close-flashcard-modal {
   position: absolute !important;
-  top: 20px !important;
-  right: 20px !important;
+  top: 16px !important;
+  right: 16px !important;
   z-index: 10 !important;
   background: rgba(22, 50, 92, 0.08) !important;
   border: none !important;
@@ -3883,12 +3815,25 @@ input:checked + .slider:before {
   line-height: 1 !important;
   cursor: pointer !important;
   color: #16325C !important;
-  transition: background 0.2s ease !important;
+  transition: background 0.2s ease, transform 0.15s ease !important;
 }
 
 #btn-close-flashcard-modal:hover {
   background: rgba(22, 50, 92, 0.15) !important;
   color: #16325C !important;
+  transform: scale(1.05);
+}
+
+#btn-flashcard-bilmedim:hover {
+  background: #FCA5A5 !important;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(239, 68, 68, 0.25) !important;
+}
+
+#btn-flashcard-bildim:hover {
+  background: linear-gradient(135deg, #11284A, #16727A) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(31, 138, 147, 0.4) !important;
 }
 
 /* Flashcard and Board Add Buttons Branded Styling */

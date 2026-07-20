@@ -6002,24 +6002,13 @@ function openFlashcardViewer(cardId, type, fileName) {
     modal.style.display = 'flex';
   }
 
-  const btnNext = document.getElementById('btn-flashcard-next');
-  const btnSend = document.getElementById('btn-flashcard-send');
-  
-  btnNext.onclick = (e) => {
-    e.preventDefault();
-    nextFlashcard();
-  };
-
-  btnSend.onclick = (e) => {
-    e.preventDefault();
-    sendCurrentCardToDepot(btnSend);
-  };
-
   const btnClose = document.getElementById('btn-close-flashcard-modal');
-  btnClose.onclick = (e) => {
-    e.preventDefault();
-    closeFlashcardViewer();
-  };
+  if (btnClose) {
+    btnClose.onclick = (e) => {
+      e.preventDefault();
+      closeFlashcardViewer();
+    };
+  }
 
   modal.onclick = (e) => {
     if (e.target === modal) {
@@ -6041,38 +6030,73 @@ function renderCurrentFlashcard() {
   const totalNum = reviewItems.length;
   const progressPercent = Math.round((currentNum / totalNum) * 100);
 
-  if (progressText) progressText.textContent = `${currentNum} / ${totalNum}`;
+  if (progressText) progressText.textContent = `Kart ${currentNum} / ${totalNum}`;
   if (progressBarFill) progressBarFill.style.width = `${progressPercent}%`;
 
-  let categoryPillText = 'ANAHTAR TERİM';
-  let titleText = '';
-  let bodyText = '';
+  let firstPillText = 'SORU';
+  let firstPillBg = '#DDF4F7';
+  let firstPillColor = '#1F8A93';
+  let firstContentText = '';
 
-  if (reviewType === 'terms') {
-    categoryPillText = 'ANAHTAR TERİM';
-    titleText = item.term || '';
-    bodyText = item.definition || '';
+  let secondPillText = '';
+  let secondPillBg = '#DCFCE7';
+  let secondPillColor = '#16A34A';
+  let secondContentText = '';
+
+  if (reviewType === 'quiz') {
+    firstPillText = 'SORU';
+    firstContentText = item.question || '';
+    secondPillText = 'CEVAP';
+    secondContentText = item.answer || '';
+  } else if (reviewType === 'terms') {
+    firstPillText = 'TERİM';
+    firstContentText = item.term || '';
+    secondPillText = 'TANIM';
+    secondContentText = item.definition || '';
   } else if (reviewType === 'points') {
-    categoryPillText = 'ÖNEMLİ NOKTA';
-    titleText = 'Key Point';
-    bodyText = typeof item === 'string' ? item : (item.point || item.text || '');
-  } else if (reviewType === 'quiz') {
-    categoryPillText = 'KENDİ KENDİNE TEST';
-    titleText = item.question ? `Soru: ${item.question}` : '';
-    bodyText = item.answer ? `Cevap: ${item.answer}` : '';
+    firstPillText = 'ÖNEMLİ NOKTA';
+    firstContentText = typeof item === 'string' ? item : (item.point || item.text || '');
+    secondPillText = '';
+    secondContentText = '';
   }
 
+  const hasSecondBlock = Boolean(secondPillText && secondContentText);
+
   cardEl.innerHTML = `
-    <button class="modal-close" id="btn-close-flashcard-modal" aria-label="Close viewer" onclick="closeFlashcardViewer()" style="position: absolute; top: 20px; right: 20px; z-index: 10; background: rgba(22, 50, 92, 0.08); border: none; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; font-size: 18px; line-height: 1; cursor: pointer; color: #16325C; transition: background 0.2s;">&times;</button>
+    <!-- Top edge full-width gradient bar -->
+    <div style="position: absolute; top: 0; left: 0; right: 0; height: 5px; background: linear-gradient(90deg, #16325C, #1F8A93); border-top-left-radius: 24px; border-top-right-radius: 24px;"></div>
     
-    <div class="card-left-accent-bar"></div>
+    <!-- Top right close button -->
+    <button class="modal-close" id="btn-close-flashcard-modal" aria-label="Close viewer" onclick="closeFlashcardViewer()" style="position: absolute; top: 16px; right: 16px; z-index: 10; background: rgba(22, 50, 92, 0.08); border: none; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; font-size: 18px; line-height: 1; cursor: pointer; color: #16325C; transition: background 0.2s;">&times;</button>
+    
+    <div class="card-inner-content" style="width: 100%; display: flex; flex-direction: column; text-align: left; padding-top: 0.5rem;">
+      <!-- First Block -->
+      <div style="margin-bottom: ${hasSecondBlock ? '0.25rem' : '1.25rem'};">
+        <span style="background: ${firstPillBg}; color: ${firstPillColor}; font-size: 11px; font-weight: 800; letter-spacing: 0.08em; padding: 4px 12px; border-radius: 20px; text-transform: uppercase; display: inline-block; margin-bottom: 12px;">${firstPillText}</span>
+        <h3 style="font-size: 24px; font-weight: 800; color: #16325C; line-height: 1.35; margin: 0; font-family: 'Outfit', var(--font-primary), sans-serif;">${escapeHtml(firstContentText)}</h3>
+      </div>
 
-    <img src="assets/logo-icon-only.png" alt="" class="card-watermark-logo">
+      ${hasSecondBlock ? `
+        <!-- Thin horizontal divider -->
+        <div style="border-top: 1px solid #E5EAEE; margin: 18px 0; width: 100%;"></div>
 
-    <div class="card-inner-content">
-      <div class="card-category-pill">${categoryPillText}</div>
-      ${titleText ? `<h3 class="card-term-title">${escapeHtml(titleText)}</h3>` : ''}
-      ${bodyText ? `<p class="card-definition-body">${escapeHtml(bodyText)}</p>` : ''}
+        <!-- Second Block -->
+        <div style="margin-bottom: 0.75rem;">
+          <span style="background: ${secondPillBg}; color: ${secondPillColor}; font-size: 11px; font-weight: 800; letter-spacing: 0.08em; padding: 4px 12px; border-radius: 20px; text-transform: uppercase; display: inline-block; margin-bottom: 10px;">${secondPillText}</span>
+          <p style="font-size: 17px; font-weight: 400; color: #374151; line-height: 1.6; margin: 0;">${escapeHtml(secondContentText)}</p>
+        </div>
+      ` : ''}
+
+      <!-- Source reference row -->
+      <div style="border-top: 1px solid #F1F5F9; margin-top: 1.25rem; padding-top: 1rem; display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; width: 100%;">
+        <div style="display: flex; align-items: center; gap: 0.4rem; font-size: 13px; color: #94A3B8; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+          <span style="overflow: hidden; text-overflow: ellipsis;">${escapeHtml(reviewFileName || 'Ders Notu')}</span>
+        </div>
+        <button onclick="sendCurrentCardToDepot(this)" title="Defter Depoma Gönder" style="background: rgba(31, 138, 147, 0.08); color: #1F8A93; border: 1px solid rgba(31, 138, 147, 0.2); border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; font-weight: 700; transition: all 0.2s ease; flex-shrink: 0;">
+          📥 Depoya Gönder
+        </button>
+      </div>
     </div>
   `;
 
@@ -6084,6 +6108,35 @@ function renderCurrentFlashcard() {
     };
   }
 }
+
+async function handleConfidenceRating(rating) {
+  try {
+    if (reviewCardId && reviewItems[reviewIndex]) {
+      const item = reviewItems[reviewIndex];
+      const itemKey = item.term || item.question || (typeof item === 'string' ? item : item.point) || `item-${reviewIndex}`;
+      
+      const now = new Date();
+      let intervalDays = (rating === 'good') ? 3 : 0.5;
+      const nextReviewDate = new Date(now.getTime() + intervalDays * 24 * 60 * 60 * 1000).toISOString();
+
+      await supabaseClient
+        .from('card_item_confidence')
+        .upsert({
+          user_id: currentUser.id,
+          study_card_id: reviewCardId,
+          item_key: itemKey,
+          rating: rating,
+          next_review_at: nextReviewDate,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id,study_card_id,item_key' });
+    }
+  } catch (e) {
+    console.warn("Confidence record:", e);
+  }
+  
+  nextFlashcard();
+}
+window.handleConfidenceRating = handleConfidenceRating;
 
 function nextFlashcard() {
   if (reviewIndex >= reviewItems.length - 1) {
@@ -6137,15 +6190,17 @@ async function sendCurrentCardToDepot(btn) {
     content = item.definition;
   } else if (reviewType === 'points') {
     title = 'Key Point';
-    content = item;
+    content = typeof item === 'string' ? item : (item.point || item.text || '');
   } else if (reviewType === 'quiz') {
     title = 'Self-Test Q&A';
     content = `Question: ${item.question}\nAnswer: ${item.answer}`;
   }
 
-  const originalHtml = btn.innerHTML;
-  btn.disabled = true;
-  btn.innerHTML = 'Sending...';
+  const originalHtml = btn ? btn.innerHTML : '📥 Depoya Gönder';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = 'Gönderiliyor...';
+  }
 
   try {
     const { error } = await supabaseClient
@@ -6161,29 +6216,36 @@ async function sendCurrentCardToDepot(btn) {
     if (error) {
       console.error(error);
       showDashboardAlert('error', 'Depoya gönderilemedi. / Failed to send.');
-      btn.disabled = false;
-      btn.innerHTML = originalHtml;
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+      }
       return;
     }
 
-    btn.innerHTML = '✓ Sent!';
-    btn.style.backgroundColor = 'var(--color-teal)';
-    btn.style.color = 'white';
+    if (btn) {
+      btn.innerHTML = '✓ Gönderildi!';
+      btn.style.backgroundColor = 'var(--color-teal)';
+      btn.style.color = 'white';
+    }
 
     await updateDepotCountBadge();
 
     setTimeout(() => {
-      btn.disabled = false;
-      btn.innerHTML = originalHtml;
-      btn.style.backgroundColor = '';
-      btn.style.color = '';
-      nextFlashcard();
-    }, 600);
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+        btn.style.backgroundColor = '';
+        btn.style.color = '';
+      }
+    }, 1200);
 
   } catch (e) {
     console.error(e);
-    btn.disabled = false;
-    btn.innerHTML = originalHtml;
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
+    }
   }
 }
 
@@ -6193,21 +6255,20 @@ function renderEndOfDeck() {
   const progressText = document.getElementById('flashcard-progress-text');
   const progressBarFill = document.getElementById('flashcard-progress-bar-fill');
   
-  if (progressText) progressText.textContent = `${reviewItems.length} / ${reviewItems.length}`;
+  if (progressText) progressText.textContent = `Kart ${reviewItems.length} / ${reviewItems.length}`;
   if (progressBarFill) progressBarFill.style.width = '100%';
   if (footer) footer.style.display = 'none';
 
   if (cardEl) {
     cardEl.innerHTML = `
-      <div class="card-left-accent-bar"></div>
-      <img src="assets/logo-icon-only.png" alt="" class="card-watermark-logo">
-      <div class="card-inner-content">
+      <div style="position: absolute; top: 0; left: 0; right: 0; height: 5px; background: linear-gradient(90deg, #16325C, #1F8A93); border-top-left-radius: 24px; border-top-right-radius: 24px;"></div>
+      <div class="card-inner-content" style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 1rem 0;">
         <div style="font-size: 3rem; margin-bottom: 0.5rem;">🎉</div>
         <h3 style="font-size: 1.5rem; color: #16325C; font-weight: 800; margin: 0 0 0.5rem 0;">Tüm kartları incelediniz!</h3>
         <p style="font-size: 0.95rem; color: #4A5A6A; margin: 0 0 1.5rem 0;">Reviewed all ${reviewItems.length} cards!</p>
         <div style="display: flex; gap: 1rem; width: 100%; max-width: 320px;">
-          <button class="btn btn-outline" onclick="restartReview()" style="flex: 1; padding: 0.5rem 1rem;">Tekrar İncele</button>
-          <button class="btn btn-primary" onclick="closeFlashcardViewer()" style="flex: 1; padding: 0.5rem 1rem; border: none;">Kapat</button>
+          <button class="btn btn-outline" onclick="restartReview()" style="flex: 1; padding: 0.55rem 1rem; border-radius: 30px; font-weight: 700;">Tekrar İncele</button>
+          <button class="btn btn-primary" onclick="closeFlashcardViewer()" style="flex: 1; padding: 0.55rem 1rem; border-radius: 30px; border: none; font-weight: 700;">Kapat</button>
         </div>
       </div>
     `;

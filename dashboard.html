@@ -1668,36 +1668,44 @@
   </div>
 
   <!-- ==========================================
-       FLASHCARD VIEWER MODAL (PHASE 11 REDESIGN)
+       FLASHCARD VIEWER MODAL (REFERENCE LAYOUT REDESIGN)
        ========================================== -->
   <div id="flashcard-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="flashcard-modal-title" style="display: none;">
-    <div class="modal-content" style="max-width: 620px; width: 92%; position: relative; display: flex; flex-direction: column; padding: 1.5rem; background: transparent; border: none; box-shadow: none;">
+    <div class="modal-content" style="max-width: 640px; width: 92%; position: relative; display: flex; flex-direction: column; padding: 1.5rem; background: transparent; border: none; box-shadow: none;">
       
-      <!-- Progress Bar & Header positioned directly above card -->
-      <div class="flashcard-viewer-header" style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.25rem; width: 100%;">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <h4 id="flashcard-modal-title" style="font-size: 0.85rem; text-transform: uppercase; color: var(--color-white); font-weight: 800; margin: 0; letter-spacing: 0.05em; text-shadow: 0 1px 3px rgba(0,0,0,0.3);">Reviewing Cards</h4>
-          <span id="flashcard-progress-text" style="font-size: 12px; color: #E2E8F0; font-weight: 600; text-shadow: 0 1px 3px rgba(0,0,0,0.3);">1 / 5</span>
+      <!-- LAYOUT — HEADER ROW (above the card box) -->
+      <div class="flashcard-viewer-header" style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 1.25rem;">
+        <!-- Left side: Acadex badge + logo text -->
+        <div style="display: flex; align-items: center; gap: 0.6rem;">
+          <div style="width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, #16325C, #1F8A93); display: flex; align-items: center; justify-content: center; color: white; font-weight: 800; font-size: 1.15rem; font-family: 'Outfit', var(--font-primary), sans-serif; box-shadow: 0 4px 12px rgba(22, 50, 92, 0.25);">
+            A
+          </div>
+          <span style="font-size: 1.1rem; font-weight: 800; color: #FFFFFF; letter-spacing: 0.05em; font-family: 'Outfit', var(--font-primary), sans-serif; text-shadow: 0 1px 3px rgba(0,0,0,0.4);">ACADEX</span>
         </div>
-        <div class="flashcard-progress-bar-bg" style="height: 4px; background: rgba(226, 232, 240, 0.4); border-radius: 4px; overflow: hidden; width: 100%;">
-          <div id="flashcard-progress-bar-fill" style="height: 100%; background: linear-gradient(90deg, #16325C, #1F8A93); width: 20%; transition: width 0.3s ease; border-radius: 4px;"></div>
+
+        <!-- Right side: Pill badge with Progress & Inline Indicator -->
+        <div style="background: #F0F7F8; border: 1px solid rgba(31, 138, 147, 0.15); border-radius: 30px; padding: 6px 14px; display: flex; align-items: center; gap: 0.75rem; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+          <span id="flashcard-progress-text" style="font-size: 13px; font-weight: 700; color: #16325C;">Kart 1 / 5</span>
+          <div style="width: 48px; height: 4px; background: #CBD5E1; border-radius: 4px; overflow: hidden;">
+            <div id="flashcard-progress-bar-fill" style="height: 100%; background: linear-gradient(90deg, #16325C, #1F8A93); width: 20%; transition: width 0.3s ease; border-radius: 4px;"></div>
+          </div>
         </div>
       </div>
 
       <!-- The animatable card container -->
-      <div class="flashcard-container" id="flashcard-container" style="position: relative; width: 100%; min-height: 320px; margin-bottom: 1.5rem;">
+      <div class="flashcard-container" id="flashcard-container" style="position: relative; width: 100%; min-height: 340px; margin-bottom: 1.5rem;">
         <div class="flashcard-card" id="flashcard-card">
           <!-- Dynamic card content rendering -->
         </div>
       </div>
 
-      <!-- Action Footer -->
+      <!-- Action Footer (Bilmedim / Bildim) -->
       <div class="flashcard-viewer-footer" style="display: flex; gap: 1rem; width: 100%; justify-content: space-between;">
-        <button class="btn btn-primary" id="btn-flashcard-send" style="flex: 1; padding: 0.65rem 1rem; display: flex; align-items: center; justify-content: center; gap: 0.35rem; font-size: 0.85rem; font-weight: 700; border: none;">
-          📥 Deftere Gönder
+        <button class="btn btn-flashcard-action" id="btn-flashcard-bilmedim" onclick="handleConfidenceRating('again')" style="flex: 1; height: 54px; border-radius: 30px; background: #FEE2E2; color: #991B1B; font-weight: 800; font-size: 1rem; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem; transition: all 0.2s ease; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.15);">
+          🙁 Bilmedim
         </button>
-        <button class="btn btn-primary" id="btn-flashcard-next" style="flex: 1; padding: 0.65rem 1rem; font-size: 0.85rem; font-weight: 700; border: none;">
-          Kartı Geç →
+        <button class="btn btn-flashcard-action" id="btn-flashcard-bildim" onclick="handleConfidenceRating('good')" style="flex: 1; height: 54px; border-radius: 30px; background: linear-gradient(135deg, #16325C, #1F8A93); color: #FFFFFF; font-weight: 800; font-size: 1rem; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem; transition: all 0.2s ease; box-shadow: 0 4px 15px rgba(31, 138, 147, 0.3);">
+          ✅ Bildim
         </button>
       </div>
     </div>
