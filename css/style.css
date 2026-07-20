@@ -4077,3 +4077,127 @@ input:checked + .slider:before {
   padding: 0.4rem;
 }
 
+/* ── Footnote Markers & References ── */
+.footnote-marker {
+  font-size: 0.75em;
+  vertical-align: super;
+  line-height: 0;
+  color: var(--color-teal);
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0 0.15rem;
+  margin-left: 0.1rem;
+  border-radius: 3px;
+  background: rgba(20, 184, 166, 0.1);
+  transition: background-color 0.2s;
+  position: relative;
+  display: inline-block;
+}
+
+.footnote-marker:hover {
+  background: var(--color-teal);
+  color: #ffffff;
+}
+
+.footnotes-section {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed rgba(22, 50, 92, 0.15);
+  font-size: 0.8rem;
+}
+
+.footnotes-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-navy);
+  margin-bottom: 0.4rem;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.footnotes-list {
+  padding-left: 1.2rem;
+  margin: 0;
+  color: var(--color-text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.footnotes-list li {
+  line-height: 1.35;
+}
+
+/* ── Suggested Course Tag Chip ── */
+.suggested-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0.5rem;
+  background: #EEF2FF;
+  border: 1px dashed #6366F1;
+  border-radius: 12px;
+  font-size: 0.725rem;
+  color: #4F46E5;
+  margin-top: 0.35rem;
+}
+
+.suggested-tag-chip button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.725rem;
+  font-weight: 700;
+  padding: 0.1rem 0.25rem;
+  border-radius: 4px;
+  line-height: 1;
+}
+
+.suggested-tag-chip .btn-accept-tag {
+  color: #059669;
+  background: #D1FAE5;
+}
+
+.suggested-tag-chip .btn-dismiss-tag {
+  color: #DC2626;
+  background: #FEE2E2;
+}
+
+/* ── Comparison Mode Card Styles ── */
+.difference-card {
+  background: #ffffff;
+  border: 1px solid rgba(22, 50, 92, 0.12);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 0.9rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+}
+
+.difference-aspect-title {
+  font-size: 0.825rem;
+  font-weight: 700;
+  color: #D97706;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 0.3rem;
+}
+
+.past-comparison-card {
+  background: #ffffff;
+  border: 1px solid rgba(22, 50, 92, 0.12);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.past-comparison-card:hover {
+  border-color: var(--color-teal);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+

@@ -1129,11 +1129,56 @@ function renderChartJs(canvasEl, chartObj) {
 window.renderChartJs = renderChartJs;
 
 
-function formatSummaryText(summary) {
+function formatFootnoteMarkers(text, footnotesArray) {
+  if (!text) return "";
+  const footnotesMap = {};
+  if (Array.isArray(footnotesArray)) {
+    footnotesArray.forEach(fn => {
+      if (fn && fn.id != null) {
+        footnotesMap[fn.id] = fn.reference || `Reference ${fn.id}`;
+      }
+    });
+  }
+
+  return text.replace(/\[(\d+)\]/g, (match, fnId) => {
+    const refText = footnotesMap[fnId] || `Reference ${fnId}`;
+    const escapedRef = escapeHtml(refText).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    return `<sup class="footnote-marker" title="${escapedRef}" onclick="event.stopPropagation(); showFootnoteToast('${escapedRef}')">[${fnId}]</sup>`;
+  });
+}
+window.formatFootnoteMarkers = formatFootnoteMarkers;
+
+function renderFootnotesSectionHtml(footnotesArray) {
+  if (!Array.isArray(footnotesArray) || footnotesArray.length === 0) return "";
+  
+  let itemsHtml = footnotesArray.map(fn => `
+    <li id="fn-ref-${fn.id}">
+      <strong>[${fn.id}]</strong> ${escapeHtml(fn.reference || '')}
+    </li>
+  `).join('');
+
+  return `
+    <div class="footnotes-section">
+      <div class="footnotes-title">📎 References / Kaynakça</div>
+      <ol class="footnotes-list">
+        ${itemsHtml}
+      </ol>
+    </div>
+  `;
+}
+window.renderFootnotesSectionHtml = renderFootnotesSectionHtml;
+
+function showFootnoteToast(refText) {
+  showDashboardAlert('info', `📎 ${refText}`);
+}
+window.showFootnoteToast = showFootnoteToast;
+
+function formatSummaryText(summary, footnotes) {
   if (!summary) return "";
+  const withFootnotes = formatFootnoteMarkers(summary, footnotes);
   
   // Split on raw or escaped newline
-  const lines = summary.split(/\n|\\n/);
+  const lines = withFootnotes.split(/\n|\\n/);
   
   let html = "";
   let insideList = false;
@@ -1278,7 +1323,7 @@ async function populateStudyCardModalDetails(card, docName, readOnly) {
 
   // Populate Summary
   const summaryText = document.getElementById('study-card-summary-text');
-  if (summaryText) summaryText.innerHTML = formatSummaryText(card.summary) || "No summary generated for this document.";
+  if (summaryText) summaryText.innerHTML = formatSummaryText(card.summary, card.footnotes) || "No summary generated for this document.";
 
   // Populate Key Points
   const pointsContainer = document.getElementById('study-card-points-container');
@@ -1295,7 +1340,7 @@ async function populateStudyCardModalDetails(card, docName, readOnly) {
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="20 6 9 17 4 12"></polyline>
           </svg>
-          <span>${pt}</span>
+          <span>${formatFootnoteMarkers(pt, card.footnotes)}</span>
         `;
         pointsContainer.appendChild(li);
       });
@@ -1429,6 +1474,12 @@ async function populateStudyCardModalDetails(card, docName, readOnly) {
     } else {
       chartsSection.style.display = 'none';
     }
+  }
+
+  // Populate Footnotes / References
+  const fnContainer = document.getElementById('study-card-footnotes-container');
+  if (fnContainer) {
+    fnContainer.innerHTML = renderFootnotesSectionHtml(card.footnotes || []);
   }
 }
 window.populateStudyCardModalDetails = populateStudyCardModalDetails;
@@ -3354,6 +3405,7 @@ async function loadCardsLibrary() {
     }
 
     filterLibraryCards();
+    loadPastComparisons();
 
   } catch (err) {
     console.error("Exception loading library cards: ", err);
@@ -7113,6 +7165,7 @@ function updateBulkDeleteBar() {
   const countEl = document.getElementById('bulk-delete-count');
   const summarizeBtn = document.getElementById('btn-bulk-summarize');
   const mergeBtn = document.getElementById('btn-bulk-merge');
+  const compareBtn = document.getElementById('btn-bulk-compare');
   
   if (!bar || !countEl) return;
 
@@ -7136,10 +7189,16 @@ function updateBulkDeleteBar() {
     if (mergeBtn) {
       mergeBtn.style.display = selectedDocIds.length >= 2 ? 'inline-block' : 'none';
     }
+
+    // Show compare button when 2+ docs of any status are selected
+    if (compareBtn) {
+      compareBtn.style.display = selectedDocIds.length >= 2 ? 'inline-block' : 'none';
+    }
   } else {
     bar.style.display = 'none';
     if (summarizeBtn) summarizeBtn.style.display = 'none';
     if (mergeBtn) mergeBtn.style.display = 'none';
+    if (compareBtn) compareBtn.style.display = 'none';
   }
 }
 
@@ -7270,6 +7329,17 @@ function initPhase11Listeners() {
         openSummaryStyleModal();
       }
     });
+  }
+
+  // Compare Documents button
+  const btnBulkCompare = document.getElementById('btn-bulk-compare');
+  if (btnBulkCompare) {
+    btnBulkCompare.addEventListener('click', openCompareModal);
+  }
+
+  const btnStartCompare = document.getElementById('btn-start-compare');
+  if (btnStartCompare) {
+    btnStartCompare.addEventListener('click', startDocumentComparison);
   }
   if (btnExportPdf) {
     btnExportPdf.addEventListener('click', async (e) => {
@@ -10555,5 +10625,262 @@ async function triggerSectionRegeneration(section) {
   }
 }
 window.triggerSectionRegeneration = triggerSectionRegeneration;
+
+// ==========================================
+// SUGGESTED COURSE TAG CHIPS (PART C)
+// ==========================================
+function renderSuggestedTagChipHtml(docId, cardId, suggestedTag) {
+  if (!suggestedTag) return '';
+  const escapedTag = escapeHtml(suggestedTag).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+  return `
+    <div class="suggested-tag-chip" id="suggested-chip-${cardId || docId}">
+      <span>Suggested: <strong>${escapeHtml(suggestedTag)}</strong></span>
+      <button type="button" class="btn-accept-tag" onclick="acceptSuggestedTag(event, '${docId || ''}', '${cardId || ''}', '${escapedTag}')" title="Accept Tag">✓ Accept</button>
+      <button type="button" class="btn-dismiss-tag" onclick="dismissSuggestedTag(event, '${cardId || docId}')" title="Dismiss Tag">✕ Dismiss</button>
+    </div>
+  `;
+}
+
+async function acceptSuggestedTag(event, docId, cardId, suggestedTag) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  try {
+    if (docId) {
+      await supabaseClient
+        .from('documents')
+        .update({ course_tag: suggestedTag })
+        .eq('id', docId);
+    }
+    
+    if (cardId) {
+      await supabaseClient
+        .from('study_cards')
+        .update({ course_tag: suggestedTag })
+        .eq('id', cardId);
+    } else if (docId) {
+      await supabaseClient
+        .from('study_cards')
+        .update({ course_tag: suggestedTag })
+        .eq('document_id', docId);
+    }
+
+    showDashboardAlert('success', `Course tag set to '${suggestedTag}'!`);
+    dismissSuggestedTag(null, cardId || docId);
+    
+    if (typeof loadDocuments === 'function') loadDocuments();
+    if (typeof loadCardsLibrary === 'function') loadCardsLibrary();
+
+  } catch (err) {
+    console.error("Exception accepting suggested tag:", err);
+    showDashboardAlert('error', 'Could not save suggested course tag.');
+  }
+}
+
+function dismissSuggestedTag(event, chipId) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  const chip = document.getElementById(`suggested-chip-${chipId}`);
+  if (chip) chip.remove();
+}
+
+window.renderSuggestedTagChipHtml = renderSuggestedTagChipHtml;
+window.acceptSuggestedTag = acceptSuggestedTag;
+window.dismissSuggestedTag = dismissSuggestedTag;
+
+// ==========================================
+// DOCUMENT COMPARISON MODE CONTROLLERS (PART D)
+// ==========================================
+let pendingCompareDocIds = [];
+
+function openCompareModal() {
+  if (selectedDocIds.length < 2) {
+    showDashboardAlert('error', 'Select at least 2 documents to compare.');
+    return;
+  }
+  pendingCompareDocIds = [...selectedDocIds];
+  const modal = document.getElementById('compare-modal');
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeCompareModal() {
+  const modal = document.getElementById('compare-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+async function startDocumentComparison() {
+  if (pendingCompareDocIds.length < 2) {
+    showDashboardAlert('error', 'Select at least 2 documents to compare.');
+    return;
+  }
+
+  const langRadio = document.querySelector('input[name="compare-language-choice"]:checked');
+  const language = langRadio ? langRadio.value : 'en';
+
+  const btnStart = document.getElementById('btn-start-compare');
+  const originalText = btnStart ? btnStart.textContent : 'Compare';
+  if (btnStart) {
+    btnStart.disabled = true;
+    btnStart.textContent = 'Comparing...';
+  }
+
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) {
+      showDashboardAlert('error', 'You must be logged in.');
+      return;
+    }
+
+    const { data, error } = await supabaseClient.functions.invoke('compare-documents', {
+      body: { documentIds: pendingCompareDocIds, language }
+    });
+
+    if (error || !data) {
+      console.error("Compare documents invocation error:", error);
+      showDashboardAlert('error', 'Document comparison failed. Please try again.');
+      return;
+    }
+
+    closeCompareModal();
+    resetBulkSelection();
+    openComparisonResultModal(data);
+    await loadPastComparisons();
+
+  } catch (err) {
+    console.error("Exception in startDocumentComparison:", err);
+    showDashboardAlert('error', 'An error occurred during document comparison.');
+  } finally {
+    if (btnStart) {
+      btnStart.disabled = false;
+      btnStart.textContent = originalText;
+    }
+  }
+}
+
+function openComparisonResultModal(comparisonData) {
+  if (!comparisonData) return;
+
+  const modal = document.getElementById('comparison-result-modal');
+  const docNamesEl = document.getElementById('comparison-doc-names');
+  const summaryEl = document.getElementById('comparison-summary-text');
+  const similaritiesList = document.getElementById('comparison-similarities-list');
+  const differencesContainer = document.getElementById('comparison-differences-container');
+
+  if (docNamesEl) {
+    const names = comparisonData.document_names || [];
+    docNamesEl.textContent = `Comparing (${names.length}): ${names.join('  vs.  ')}`;
+  }
+
+  if (summaryEl) {
+    summaryEl.textContent = comparisonData.comparison_summary || 'No comparison summary generated.';
+  }
+
+  if (similaritiesList) {
+    similaritiesList.innerHTML = '';
+    const similarities = comparisonData.similarities || [];
+    if (similarities.length === 0) {
+      similaritiesList.innerHTML = '<li style="color: var(--color-text-muted);">No major similarities identified.</li>';
+    } else {
+      similarities.forEach(sim => {
+        const li = document.createElement('li');
+        li.textContent = sim;
+        similaritiesList.appendChild(li);
+      });
+    }
+  }
+
+  if (differencesContainer) {
+    differencesContainer.innerHTML = '';
+    const differences = comparisonData.differences || [];
+    if (differences.length === 0) {
+      differencesContainer.innerHTML = '<div style="color: var(--color-text-muted); font-size: 0.85rem;">No major differences identified.</div>';
+    } else {
+      differences.forEach(diff => {
+        const cardDiv = document.createElement('div');
+        cardDiv.className = 'difference-card';
+        cardDiv.innerHTML = `
+          <div class="difference-aspect-title">${escapeHtml(diff.aspect || 'Dimension')}</div>
+          <div style="font-size: 0.85rem; color: var(--color-navy); line-height: 1.45;">${escapeHtml(diff.comparison || '')}</div>
+        `;
+        differencesContainer.appendChild(cardDiv);
+      });
+    }
+  }
+
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeComparisonResultModal() {
+  const modal = document.getElementById('comparison-result-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+async function loadPastComparisons() {
+  const listEl = document.getElementById('past-comparisons-list');
+  if (!listEl) return;
+
+  try {
+    const { data: comparisons, error } = await supabaseClient
+      .from('document_comparisons')
+      .select('*')
+      .eq('user_id', currentUser.id)
+      .order('created_at', { ascending: false });
+
+    if (error || !comparisons || comparisons.length === 0) {
+      listEl.innerHTML = '<p style="font-size: 0.8rem; color: var(--color-text-muted); font-style: italic;">No past comparisons yet. Select 2+ documents in My Documents and click "Compare Documents"!</p>';
+      return;
+    }
+
+    listEl.innerHTML = '';
+    comparisons.forEach(comp => {
+      const cardDiv = document.createElement('div');
+      cardDiv.className = 'past-comparison-card';
+      const namesText = (comp.document_names || []).join(' vs ');
+      const dateText = new Date(comp.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      const langBadge = comp.language === 'tr' ? 'Türkçe' : 'English';
+
+      cardDiv.innerHTML = `
+        <div>
+          <div style="font-weight: 700; font-size: 0.875rem; color: var(--color-navy); margin-bottom: 0.2rem;">⚖️ ${escapeHtml(namesText)}</div>
+          <div style="font-size: 0.75rem; color: var(--color-text-muted);">${dateText} &bull; <span style="color: var(--color-teal); font-weight: 600;">${langBadge}</span></div>
+        </div>
+        <button class="btn btn-outline" style="font-size: 0.75rem; padding: 0.25rem 0.6rem;" onclick="event.stopPropagation(); viewPastComparison('${comp.id}')">View</button>
+      `;
+
+      cardDiv.addEventListener('click', () => {
+        openComparisonResultModal(comp);
+      });
+
+      listEl.appendChild(cardDiv);
+    });
+
+  } catch (err) {
+    console.error("Exception loading past comparisons:", err);
+  }
+}
+
+async function viewPastComparison(compObjId) {
+  try {
+    const { data: comp } = await supabaseClient
+      .from('document_comparisons')
+      .select('*')
+      .eq('id', compObjId)
+      .single();
+    if (comp) openComparisonResultModal(comp);
+  } catch(e) {}
+}
+
+window.openCompareModal = openCompareModal;
+window.closeCompareModal = closeCompareModal;
+window.startDocumentComparison = startDocumentComparison;
+window.openComparisonResultModal = openComparisonResultModal;
+window.closeComparisonResultModal = closeComparisonResultModal;
+window.loadPastComparisons = loadPastComparisons;
+window.viewPastComparison = viewPastComparison;
+
 
 

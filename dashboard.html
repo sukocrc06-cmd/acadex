@@ -507,6 +507,7 @@
         <div id="bulk-delete-bar" style="display: none; position: fixed; top: 80px; left: 50%; transform: translateX(-50%); background-color: var(--color-white); border: 2px solid var(--color-teal); border-radius: 30px; box-shadow: var(--shadow-lg); padding: 0.5rem 1.5rem; align-items: center; gap: 1rem; z-index: 1000;">
           <span id="bulk-delete-count" style="font-size: 0.85rem; font-weight: 800; color: var(--color-navy);">0 selected</span>
           <button id="btn-bulk-merge" class="btn btn-primary" style="background-color: #7C3AED; border: none; font-size: 0.75rem; padding: 0.35rem 0.75rem; font-weight: 700; border-radius: 20px; display: none;" title="Merge selected documents into one AI study card">🔀 Merge &amp; Summarize</button>
+          <button id="btn-bulk-compare" class="btn btn-primary" style="background-color: #2563EB; border: none; font-size: 0.75rem; padding: 0.35rem 0.75rem; font-weight: 700; border-radius: 20px; display: none;" title="Compare selected documents using AI">⚖️ Compare Documents</button>
           <button id="btn-bulk-summarize" class="btn btn-primary" style="background-color: var(--color-teal); border: none; font-size: 0.75rem; padding: 0.35rem 0.75rem; font-weight: 700; border-radius: 20px; display: none;">Bulk Summarize</button>
           <button id="btn-bulk-delete" class="btn btn-destructive" style="font-size: 0.75rem; padding: 0.35rem 0.75rem; font-weight: 700; border-radius: 20px;">Delete Selected</button>
           <button id="btn-bulk-cancel" class="btn btn-outline" style="font-size: 0.75rem; padding: 0.35rem 0.75rem; font-weight: 700; border-radius: 20px;">Cancel</button>
@@ -737,6 +738,16 @@
         <!-- Study cards list container -->
         <div id="cards-list-section">
           <!-- Populated dynamically -->
+        </div>
+
+        <!-- Past Comparisons Section -->
+        <div id="past-comparisons-section" style="margin-top: 2rem;">
+          <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+            <span>⚖️</span> <span>Past Document Comparisons</span>
+          </h3>
+          <div id="past-comparisons-list" style="display: flex; flex-direction: column; gap: 0.6rem;">
+            <!-- Populated dynamically -->
+          </div>
         </div>
       </section>
 
@@ -1612,6 +1623,11 @@
             <!-- Dynamically populated -->
           </div>
         </section>
+
+        <!-- Footnotes / References Section -->
+        <div id="study-card-footnotes-container">
+          <!-- Dynamically populated -->
+        </div>
       </div>
     </div>
   </div>
@@ -1895,6 +1911,79 @@
   <script src="js/main.js"></script>
   <script src="js/achievements.js"></script>
   <script src="js/dashboard.js"></script>
+
+  <!-- ==========================================
+       DOCUMENT COMPARISON SETUP MODAL (PART D)
+       ========================================== -->
+  <div class="modal-overlay" id="compare-modal" role="dialog" aria-modal="true" aria-labelledby="compare-modal-title" style="display: none;">
+    <div class="modal-card" style="max-width: 440px; width: 90%;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h3 class="modal-title" id="compare-modal-title" style="margin: 0; font-size: 1.1rem; color: var(--color-navy);">⚖️ Compare Documents</h3>
+        <button class="btn-icon" onclick="closeCompareModal()" style="background: none; border: none; font-size: 1.25rem; font-weight: bold; color: var(--color-text-muted); cursor: pointer; line-height: 1;">×</button>
+      </div>
+      <p style="font-size: 0.825rem; color: var(--color-text-muted); margin-bottom: 1rem;">
+        Synthesize key similarities and differences across the selected documents.
+      </p>
+
+      <div style="margin-bottom: 1.25rem;">
+        <label style="display: block; font-size: 0.78rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.35rem; text-transform: uppercase; letter-spacing: 0.03em;">Language / Dil</label>
+        <div style="display: flex; gap: 1.5rem; align-items: center;">
+          <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; color: var(--color-navy); cursor: pointer; font-weight: 600;">
+            <input type="radio" name="compare-language-choice" value="en" checked style="accent-color: var(--color-teal); width: 14px; height: 14px;"> English
+          </label>
+          <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; color: var(--color-navy); cursor: pointer; font-weight: 600;">
+            <input type="radio" name="compare-language-choice" value="tr" style="accent-color: var(--color-teal); width: 14px; height: 14px;"> Türkçe
+          </label>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+        <button class="btn btn-outline" onclick="closeCompareModal()" style="font-size: 0.8rem; padding: 0.4rem 0.85rem;">Cancel</button>
+        <button class="btn btn-primary" id="btn-start-compare" style="font-size: 0.8rem; padding: 0.4rem 1rem; border: none; background-color: #2563EB;">Compare</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================
+       DOCUMENT COMPARISON RESULT VIEW MODAL (PART D)
+       ========================================== -->
+  <div class="modal-overlay" id="comparison-result-modal" role="dialog" aria-modal="true" aria-labelledby="comparison-result-title" style="display: none;">
+    <div class="modal-card" style="max-width: 750px; width: 92%; max-height: 85vh; display: flex; flex-direction: column;">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid rgba(22, 50, 92, 0.1); padding-bottom: 0.75rem; margin-bottom: 1rem;">
+        <div>
+          <h3 class="modal-title" id="comparison-result-title" style="margin: 0; font-size: 1.15rem; color: var(--color-navy);">⚖️ Document Comparison</h3>
+          <div id="comparison-doc-names" style="font-size: 0.78rem; color: var(--color-teal); font-weight: 700; margin-top: 0.25rem;"></div>
+        </div>
+        <button class="btn-icon" onclick="closeComparisonResultModal()" style="background: none; border: none; font-size: 1.25rem; font-weight: bold; color: var(--color-text-muted); cursor: pointer; line-height: 1;">×</button>
+      </div>
+
+      <div style="flex: 1; overflow-y: auto; padding-right: 0.35rem;">
+        <!-- Overview Summary -->
+        <div style="background: #F8FAFC; border: 1px solid rgba(22, 50, 92, 0.1); border-radius: var(--radius-md); padding: 0.85rem 1rem; margin-bottom: 1rem;">
+          <h4 style="font-size: 0.85rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.35rem; text-transform: uppercase; letter-spacing: 0.03em;">Overview</h4>
+          <p id="comparison-summary-text" style="font-size: 0.875rem; color: var(--color-navy); line-height: 1.55; margin: 0;"></p>
+        </div>
+
+        <!-- Similarities -->
+        <div style="margin-bottom: 1.25rem;">
+          <h4 style="font-size: 0.9rem; font-weight: 700; color: #059669; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.4rem;">
+            <span>✅</span> <span>Similarities</span>
+          </h4>
+          <ul id="comparison-similarities-list" style="padding-left: 1.25rem; font-size: 0.85rem; color: var(--color-navy); display: flex; flex-direction: column; gap: 0.4rem; margin: 0;">
+          </ul>
+        </div>
+
+        <!-- Differences -->
+        <div>
+          <h4 style="font-size: 0.9rem; font-weight: 700; color: #D97706; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.4rem;">
+            <span>⚡</span> <span>Differences</span>
+          </h4>
+          <div id="comparison-differences-container" style="display: flex; flex-direction: column; gap: 0.6rem;">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Small, self-contained check to reveal the "Admin Paneli" / "Hoca
        Paneli" sidebar doorways. Deliberately kept separate from the large
