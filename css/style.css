@@ -3940,3 +3940,140 @@ input:checked + .slider:before {
   border-color: var(--color-teal) !important;
   background-color: rgba(20, 184, 166, 0.06);
 }
+
+/* ── AI Extracted Tables & Charts ── */
+.ai-table-container {
+  width: 100%;
+  overflow-x: auto;
+  margin-top: 0.5rem;
+  margin-bottom: 0.75rem;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(22, 50, 92, 0.12);
+}
+
+.ai-extracted-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  text-align: left;
+}
+
+.ai-extracted-table th {
+  background-color: var(--color-navy);
+  color: #ffffff;
+  font-weight: 700;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 2px solid rgba(22, 50, 92, 0.2);
+}
+
+.ai-extracted-table td {
+  padding: 0.45rem 0.75rem;
+  border-bottom: 1px solid rgba(22, 50, 92, 0.08);
+  color: var(--color-navy);
+}
+
+.ai-extracted-table tr:nth-child(even) {
+  background-color: #f8fafc;
+}
+
+.ai-extracted-table tr:hover {
+  background-color: rgba(20, 184, 166, 0.05);
+}
+
+.ai-chart-container {
+  position: relative;
+  width: 100%;
+  max-width: 550px;
+  margin: 0.5rem auto 0.75rem;
+  padding: 0.75rem;
+  background: #ffffff;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(22, 50, 92, 0.1);
+  box-shadow: var(--shadow-sm);
+}
+
+.ai-section-card {
+  background: #ffffff;
+  border: 1px solid rgba(22, 50, 92, 0.1);
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1rem;
+  margin-bottom: 0.85rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+
+.ai-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.ai-section-title {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--color-navy);
+  margin: 0;
+}
+
+/* Card Depot Table & Chart Previews */
+.depot-preview-table-wrapper {
+  max-height: 120px;
+  overflow-y: auto;
+  overflow-x: auto;
+  border: 1px solid rgba(22, 50, 92, 0.1);
+  border-radius: 6px;
+  margin: 0.35rem 0;
+  background: #fff;
+}
+
+.depot-preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.72rem;
+}
+
+.depot-preview-table th {
+  background: var(--color-navy);
+  color: #fff;
+  padding: 0.25rem 0.4rem;
+}
+
+.depot-preview-table td {
+  padding: 0.2rem 0.4rem;
+  border-bottom: 1px solid rgba(22, 50, 92, 0.06);
+}
+
+.depot-preview-chart-wrapper {
+  width: 100%;
+  height: 130px;
+  position: relative;
+  margin: 0.35rem 0;
+  background: #fff;
+  border: 1px solid rgba(22, 50, 92, 0.1);
+  border-radius: 6px;
+  padding: 0.25rem;
+}
+
+/* Notebook Canvas Overlay Elements for AI Table & Chart */
+.draggable-ai-table-wrapper,
+.draggable-ai-chart-wrapper {
+  position: absolute;
+  background: #ffffff;
+  border: 1px solid rgba(22, 50, 92, 0.18);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  z-index: 10;
+}
+
+.draggable-ai-table-wrapper .table-content-area,
+.draggable-ai-chart-wrapper .chart-content-area {
+  flex: 1;
+  width: 100%;
+  height: calc(100% - 28px);
+  overflow: auto;
+  padding: 0.4rem;
+}
+

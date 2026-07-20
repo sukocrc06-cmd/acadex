@@ -1046,6 +1046,89 @@ function getStyleLabel(style) {
 }
 window.getStyleLabel = getStyleLabel;
 
+function escapeHtml(str) {
+  if (typeof str !== 'string') return '';
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+}
+window.escapeHtml = escapeHtml;
+
+const ACADEX_CHART_COLORS = [
+  '#16325C', // Navy
+  '#14B8A6', // Teal
+  '#F59E0B', // Amber
+  '#F43F5E', // Rose
+  '#6366F1', // Indigo
+  '#10B981'  // Emerald
+];
+
+function renderChartJs(canvasEl, chartObj) {
+  if (!canvasEl || !chartObj) return null;
+  
+  if (typeof Chart === 'undefined') {
+    console.warn('Chart.js library is not loaded.');
+    return null;
+  }
+
+  // Destroy existing chart on canvas if any
+  if (canvasEl.__chartInstance) {
+    try { canvasEl.__chartInstance.destroy(); } catch(e){}
+    canvasEl.__chartInstance = null;
+  }
+  
+  const ctx = canvasEl.getContext('2d');
+  const type = (chartObj.type || 'bar').toLowerCase();
+  const validTypes = ['bar', 'pie', 'line', 'doughnut'];
+  const chartType = validTypes.includes(type) ? type : 'bar';
+  
+  const labels = chartObj.labels || [];
+  const dataValues = chartObj.data || [];
+  
+  const bgColors = labels.map((_, i) => ACADEX_CHART_COLORS[i % ACADEX_CHART_COLORS.length]);
+  
+  const config = {
+    type: chartType,
+    data: {
+      labels: labels,
+      datasets: [{
+        label: chartObj.title || 'Data',
+        data: dataValues,
+        backgroundColor: chartType === 'line' ? 'rgba(20, 184, 166, 0.15)' : bgColors,
+        borderColor: chartType === 'line' ? '#14B8A6' : bgColors,
+        borderWidth: 2,
+        fill: chartType === 'line',
+        tension: 0.3
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: chartType === 'pie' || chartType === 'doughnut',
+          position: 'bottom',
+          labels: { font: { family: 'Inter', size: 10 } }
+        },
+        title: { display: false }
+      },
+      scales: (chartType === 'pie' || chartType === 'doughnut') ? {} : {
+        y: { beginAtZero: true, grid: { color: 'rgba(22,50,92,0.06)' }, ticks: { font: { family: 'Inter', size: 10 } } },
+        x: { grid: { display: false }, ticks: { font: { family: 'Inter', size: 10 } } }
+      }
+    }
+  };
+  
+  try {
+    const chart = new Chart(ctx, config);
+    canvasEl.__chartInstance = chart;
+    return chart;
+  } catch (err) {
+    console.error('Failed to create Chart.js instance:', err);
+    return null;
+  }
+}
+window.renderChartJs = renderChartJs;
+
+
 function formatSummaryText(summary) {
   if (!summary) return "";
   
@@ -1264,6 +1347,87 @@ async function populateStudyCardModalDetails(card, docName, readOnly) {
         `;
         quizContainer.appendChild(div);
       });
+    }
+  }
+
+  // Populate Tables
+  const tablesSection = document.getElementById('study-card-tables-section');
+  const tablesContainer = document.getElementById('study-card-tables-container');
+  if (tablesSection && tablesContainer) {
+    tablesContainer.innerHTML = '';
+    const tables = card.tables || [];
+    if (Array.isArray(tables) && tables.length > 0) {
+      tablesSection.style.display = 'block';
+      tables.forEach((t, idx) => {
+        const cardDiv = document.createElement('div');
+        cardDiv.className = 'ai-section-card';
+        
+        let headersHtml = (t.headers || []).map(h => `<th>${escapeHtml(String(h))}</th>`).join('');
+        let rowsHtml = (t.rows || []).map(row => {
+          const cells = (row || []).map(c => `<td>${escapeHtml(String(c))}</td>`).join('');
+          return `<tr>${cells}</tr>`;
+        }).join('');
+        
+        const tableJson = JSON.stringify(t);
+        const escapedTitle = escapeHtml(t.title || `Table ${idx + 1}`);
+        
+        cardDiv.innerHTML = `
+          <div class="ai-section-header">
+            <h5 class="ai-section-title">${escapedTitle}</h5>
+            <button class="btn btn-outline" style="font-size: 0.75rem; padding: 0.25rem 0.5rem; font-weight: 700; border-color: var(--color-teal); color: var(--color-teal);" onclick="sendSectionToDepot(event, this, '${card.id}', 'table', '${(t.title || 'Table').replace(/'/g, "\\'").replace(/"/g, '&quot;')}', '${tableJson.replace(/'/g, "\\'").replace(/"/g, '&quot;')}')">
+              📥 Deftere Gönder
+            </button>
+          </div>
+          <div class="ai-table-container">
+            <table class="ai-extracted-table">
+              <thead><tr>${headersHtml}</tr></thead>
+              <tbody>${rowsHtml}</tbody>
+            </table>
+          </div>
+        `;
+        tablesContainer.appendChild(cardDiv);
+      });
+    } else {
+      tablesSection.style.display = 'none';
+    }
+  }
+
+  // Populate Charts
+  const chartsSection = document.getElementById('study-card-charts-section');
+  const chartsContainer = document.getElementById('study-card-charts-container');
+  if (chartsSection && chartsContainer) {
+    chartsContainer.innerHTML = '';
+    const charts = card.charts || [];
+    if (Array.isArray(charts) && charts.length > 0) {
+      chartsSection.style.display = 'block';
+      charts.forEach((c, idx) => {
+        const cardDiv = document.createElement('div');
+        cardDiv.className = 'ai-section-card';
+        
+        const chartJson = JSON.stringify(c);
+        const escapedTitle = escapeHtml(c.title || `Chart ${idx + 1}`);
+        const canvasId = `modal-chart-canvas-${card.id}-${idx}`;
+        
+        cardDiv.innerHTML = `
+          <div class="ai-section-header">
+            <h5 class="ai-section-title">${escapedTitle} (${c.type || 'bar'})</h5>
+            <button class="btn btn-outline" style="font-size: 0.75rem; padding: 0.25rem 0.5rem; font-weight: 700; border-color: var(--color-teal); color: var(--color-teal);" onclick="sendSectionToDepot(event, this, '${card.id}', 'chart', '${(c.title || 'Chart').replace(/'/g, "\\'").replace(/"/g, '&quot;')}', '${chartJson.replace(/'/g, "\\'").replace(/"/g, '&quot;')}')">
+              📥 Deftere Gönder
+            </button>
+          </div>
+          <div class="ai-chart-container" style="height: 250px;">
+            <canvas id="${canvasId}"></canvas>
+          </div>
+        `;
+        chartsContainer.appendChild(cardDiv);
+        
+        setTimeout(() => {
+          const canvasEl = document.getElementById(canvasId);
+          if (canvasEl) renderChartJs(canvasEl, c);
+        }, 60);
+      });
+    } else {
+      chartsSection.style.display = 'none';
     }
   }
 }
@@ -2309,6 +2473,22 @@ async function saveNotebookData() {
             content: { shapeType, flippedX, flippedY }
           });
         }
+        else if (type === 'ai_table') {
+          const title = el.getAttribute('data-table-title');
+          const tableJson = el.getAttribute('data-table-json');
+          elementsArray.push({
+            type, id, left, top, width, height, title,
+            content: tableJson
+          });
+        }
+        else if (type === 'ai_chart') {
+          const title = el.getAttribute('data-chart-title');
+          const chartJson = el.getAttribute('data-chart-json');
+          elementsArray.push({
+            type, id, left, top, width, height, title,
+            content: chartJson
+          });
+        }
       });
     }
 
@@ -2636,6 +2816,12 @@ function renderCurrentPageData() {
     }
     else if (item.type === 'shape') {
       insertShapeElement(item.id, item.content.shapeType, item.color, item.left, item.top, item.width, item.height, item.content.flippedX === 'true', item.content.flippedY === 'true');
+    }
+    else if (item.type === 'ai_table') {
+      insertAiTableCanvasElement(item.content, item.title, item.left, item.top, item.width, item.height, item.id);
+    }
+    else if (item.type === 'ai_chart') {
+      insertAiChartCanvasElement(item.content, item.title, item.left, item.top, item.width, item.height, item.id);
     }
   });
 
@@ -5344,32 +5530,73 @@ async function loadDepotItems() {
       cardDiv.className = 'depot-item-card';
       cardDiv.id = `depot-item-${item.id}`;
       cardDiv.setAttribute('data-study-card-id', item.study_card_id || '');
+      cardDiv.setAttribute('data-source-type', item.source_type || '');
 
       let typeTag = '';
+      let displayContentHtml = '';
+      const escapedContent = (item.content || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+      const escapedTitle = (item.title || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
       if (item.source_type === 'key_term') {
         typeTag = '<span class="depot-item-tag depot-tag-term">Term</span>';
       } else if (item.source_type === 'key_point') {
         typeTag = '<span class="depot-item-tag depot-tag-point">Point</span>';
+      } else if (item.source_type === 'table') {
+        typeTag = '<span class="depot-item-tag" style="background:#EEF2FF; color:#4F46E5; font-weight:700;">📊 Tablo</span>';
+      } else if (item.source_type === 'chart') {
+        typeTag = '<span class="depot-item-tag" style="background:#ECFDF5; color:#059669; font-weight:700;">📈 Grafik</span>';
       } else {
         typeTag = '<span class="depot-item-tag depot-tag-question">Question</span>';
       }
 
-      const maxTextLen = 140;
-      let displayContent = item.content || '';
-      if (displayContent.length > maxTextLen) {
-        displayContent = displayContent.substring(0, maxTextLen) + '...';
+      if (item.source_type === 'table') {
+        try {
+          const tableData = JSON.parse(item.content);
+          const headers = (tableData.headers || []).slice(0, 4);
+          const rows = (tableData.rows || []).slice(0, 3);
+          let hHtml = headers.map(h => `<th>${escapeHtml(String(h))}</th>`).join('');
+          let rHtml = rows.map(r => `<tr>${(r || []).slice(0, 4).map(c => `<td>${escapeHtml(String(c))}</td>`).join('')}</tr>`).join('');
+          displayContentHtml = `
+            <div class="depot-preview-table-wrapper">
+              <table class="depot-preview-table">
+                <thead><tr>${hHtml}</tr></thead>
+                <tbody>${rHtml}</tbody>
+              </table>
+            </div>
+          `;
+        } catch (e) {
+          displayContentHtml = `<div class="depot-item-text">${escapeHtml(item.content)}</div>`;
+        }
+      } else if (item.source_type === 'chart') {
+        const miniCanvasId = `depot-chart-${item.id}`;
+        displayContentHtml = `
+          <div class="depot-preview-chart-wrapper">
+            <canvas id="${miniCanvasId}"></canvas>
+          </div>
+        `;
+        setTimeout(() => {
+          try {
+            const chartData = JSON.parse(item.content);
+            const canvasEl = document.getElementById(miniCanvasId);
+            if (canvasEl) renderChartJs(canvasEl, chartData);
+          } catch(e) {}
+        }, 60);
+      } else {
+        const maxTextLen = 140;
+        let textVal = item.content || '';
+        if (textVal.length > maxTextLen) {
+          textVal = textVal.substring(0, maxTextLen) + '...';
+        }
+        displayContentHtml = `<div class="depot-item-text" title="${(item.content || '').replace(/"/g, '&quot;')}">${escapeHtml(textVal)}</div>`;
       }
-
-      const escapedContent = (item.content || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
-      const escapedTitle = (item.title || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
 
       cardDiv.innerHTML = `
         <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 0.5rem;">
           ${typeTag}
           <button class="depot-item-close" onclick="deleteDepotItem(event, '${item.id}')" title="Depodan Sil (Discard)">✕</button>
         </div>
-        ${item.title ? `<div class="depot-item-title">${item.title}</div>` : ''}
-        <div class="depot-item-text" title="${(item.content || '').replace(/"/g, '&quot;')}">${displayContent}</div>
+        ${item.title ? `<div class="depot-item-title">${escapeHtml(item.title)}</div>` : ''}
+        ${displayContentHtml}
         <div class="depot-item-actions">
           <button class="btn btn-primary" onclick="pasteDepotItem(event, '${item.id}', '${escapedTitle}', '${escapedContent}')" style="font-size: 0.7rem !important; padding: 0.25rem 0.5rem !important; min-height: auto !important; border: none; font-weight: 700;">
             📌 Deftere Yapıştır
@@ -5432,11 +5659,29 @@ async function pasteDepotItem(event, itemId, title, content) {
 
   const cardEl = document.getElementById(`depot-item-${itemId}`);
   let studyCardId = '';
+  let sourceType = '';
   if (cardEl) {
     studyCardId = cardEl.getAttribute('data-study-card-id') || '';
+    sourceType = cardEl.getAttribute('data-source-type') || '';
   }
 
-  addDepotStickyNoteToCanvas(studyCardId, title, content);
+  if (sourceType === 'table') {
+    try {
+      const tableData = JSON.parse(content);
+      insertAiTableCanvasElement(tableData, title);
+    } catch (e) {
+      addDepotStickyNoteToCanvas(studyCardId, title, content);
+    }
+  } else if (sourceType === 'chart') {
+    try {
+      const chartData = JSON.parse(content);
+      insertAiChartCanvasElement(chartData, title);
+    } catch (e) {
+      addDepotStickyNoteToCanvas(studyCardId, title, content);
+    }
+  } else {
+    addDepotStickyNoteToCanvas(studyCardId, title, content);
+  }
 
   try {
     const { error } = await supabaseClient
@@ -5522,6 +5767,124 @@ function addDepotStickyNoteToCanvas(cardId, title, content) {
   overlay.appendChild(note);
   makeElementDraggable(note);
 }
+
+function insertAiTableCanvasElement(tableData, title, left, top, width, height, id) {
+  const overlay = document.getElementById('notebook-overlay-container');
+  if (!overlay) return;
+
+  const elementId = id || 'ai-table-' + Date.now();
+  const elWidth = width || 380;
+  const elHeight = height || 220;
+
+  const rect = overlay.getBoundingClientRect();
+  const posX = left !== undefined ? left : ((rect.width > elWidth) ? (rect.width - elWidth) / 2 : 50);
+  const posY = top !== undefined ? top : ((rect.height > elHeight) ? (rect.height - elHeight) / 2 : 50);
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'draggable-element draggable-ai-table-wrapper';
+  wrapper.id = elementId;
+  wrapper.style.left = `${posX}px`;
+  wrapper.style.top = `${posY}px`;
+  wrapper.style.width = `${elWidth}px`;
+  wrapper.style.height = `${elHeight}px`;
+  wrapper.setAttribute('data-type', 'ai_table');
+  wrapper.setAttribute('data-table-title', title || 'Table');
+  wrapper.setAttribute('data-table-json', typeof tableData === 'string' ? tableData : JSON.stringify(tableData));
+
+  const parsed = typeof tableData === 'string' ? JSON.parse(tableData) : tableData;
+  const headers = parsed.headers || [];
+  const rows = parsed.rows || [];
+
+  let headersHtml = headers.map(h => `<th>${escapeHtml(String(h))}</th>`).join('');
+  let rowsHtml = rows.map(r => `<tr>${(r || []).map(c => `<td>${escapeHtml(String(c))}</td>`).join('')}</tr>`).join('');
+
+  wrapper.innerHTML = `
+    <div class="drag-handle-bar" style="background: var(--color-navy); color: #fff; padding: 0.25rem 0.5rem; font-size: 0.725rem; font-weight: 700; display: flex; justify-content: space-between; align-items: center; cursor: move;">
+      <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 80%;">${escapeHtml(title || parsed.title || 'Table')}</span>
+      <button class="delete-overlay-btn" title="Delete Table" onclick="removeOverlayElement('${elementId}')" style="background: none; border: none; color: #fff; font-size: 1rem; cursor: pointer; line-height: 1;">×</button>
+    </div>
+    <div class="table-content-area">
+      <table class="ai-extracted-table">
+        <thead><tr>${headersHtml}</tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    </div>
+  `;
+
+  overlay.appendChild(wrapper);
+  makeElementDraggable(wrapper, wrapper.querySelector('.drag-handle-bar'));
+
+  const resizer = document.createElement('div');
+  resizer.className = 'table-resizer';
+  resizer.innerHTML = `
+    <svg width="10" height="10" viewBox="0 0 10 10" style="position: absolute; bottom: 1px; right: 1px; pointer-events: none;">
+      <path d="M10 0 L0 10 M10 4 L4 10 M10 8 L8 10" stroke="#94A3B8" stroke-width="1.5"/>
+    </svg>
+  `;
+  wrapper.appendChild(resizer);
+  makeElementResizable(wrapper, resizer);
+  notebookHasUnsavedChanges = true;
+}
+
+function insertAiChartCanvasElement(chartData, title, left, top, width, height, id) {
+  const overlay = document.getElementById('notebook-overlay-container');
+  if (!overlay) return;
+
+  const elementId = id || 'ai-chart-' + Date.now();
+  const elWidth = width || 380;
+  const elHeight = height || 260;
+
+  const rect = overlay.getBoundingClientRect();
+  const posX = left !== undefined ? left : ((rect.width > elWidth) ? (rect.width - elWidth) / 2 : 50);
+  const posY = top !== undefined ? top : ((rect.height > elHeight) ? (rect.height - elHeight) / 2 : 50);
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'draggable-element draggable-ai-chart-wrapper';
+  wrapper.id = elementId;
+  wrapper.style.left = `${posX}px`;
+  wrapper.style.top = `${posY}px`;
+  wrapper.style.width = `${elWidth}px`;
+  wrapper.style.height = `${elHeight}px`;
+  wrapper.setAttribute('data-type', 'ai_chart');
+  wrapper.setAttribute('data-chart-title', title || 'Chart');
+  wrapper.setAttribute('data-chart-json', typeof chartData === 'string' ? chartData : JSON.stringify(chartData));
+
+  const parsed = typeof chartData === 'string' ? JSON.parse(chartData) : chartData;
+  const canvasId = `canvas-${elementId}`;
+
+  wrapper.innerHTML = `
+    <div class="drag-handle-bar" style="background: var(--color-navy); color: #fff; padding: 0.25rem 0.5rem; font-size: 0.725rem; font-weight: 700; display: flex; justify-content: space-between; align-items: center; cursor: move;">
+      <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 80%;">${escapeHtml(title || parsed.title || 'Chart')}</span>
+      <button class="delete-overlay-btn" title="Delete Chart" onclick="removeOverlayElement('${elementId}')" style="background: none; border: none; color: #fff; font-size: 1rem; cursor: pointer; line-height: 1;">×</button>
+    </div>
+    <div class="chart-content-area" style="position: relative; width: 100%; height: calc(100% - 28px); padding: 0.25rem;">
+      <canvas id="${canvasId}"></canvas>
+    </div>
+  `;
+
+  overlay.appendChild(wrapper);
+  makeElementDraggable(wrapper, wrapper.querySelector('.drag-handle-bar'));
+
+  const resizer = document.createElement('div');
+  resizer.className = 'table-resizer';
+  resizer.innerHTML = `
+    <svg width="10" height="10" viewBox="0 0 10 10" style="position: absolute; bottom: 1px; right: 1px; pointer-events: none;">
+      <path d="M10 0 L0 10 M10 4 L4 10 M10 8 L8 10" stroke="#94A3B8" stroke-width="1.5"/>
+    </svg>
+  `;
+  wrapper.appendChild(resizer);
+  makeElementResizable(wrapper, resizer);
+
+  // Render Chart.js
+  setTimeout(() => {
+    const canvasEl = document.getElementById(canvasId);
+    if (canvasEl) renderChartJs(canvasEl, parsed);
+  }, 60);
+
+  notebookHasUnsavedChanges = true;
+}
+window.insertAiTableCanvasElement = insertAiTableCanvasElement;
+window.insertAiChartCanvasElement = insertAiChartCanvasElement;
 
 // ==========================================
 // ANIMATED FLASHCARD MODAL CONTROLLERS (PHASE 11)

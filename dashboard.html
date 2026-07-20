@@ -18,6 +18,7 @@
   <link rel="stylesheet" href="css/style.css">
 
   <!-- Supabase CDN & Config (Route Guard) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="js/supabase-config.js"></script>
   <script>
@@ -1588,6 +1589,26 @@
             </button>
           </h4>
           <div class="quiz-container" id="study-card-quiz-container">
+            <!-- Dynamically populated -->
+          </div>
+        </section>
+
+        <!-- Tables Section -->
+        <section class="study-card-section" id="study-card-tables-section" style="display: none;">
+          <h4 class="study-card-section-title" style="display: flex; align-items: center; width: 100%;">
+            <span>📊</span> <span style="margin-left: 0.4rem;">Tables</span>
+          </h4>
+          <div id="study-card-tables-container">
+            <!-- Dynamically populated -->
+          </div>
+        </section>
+
+        <!-- Charts Section -->
+        <section class="study-card-section" id="study-card-charts-section" style="display: none;">
+          <h4 class="study-card-section-title" style="display: flex; align-items: center; width: 100%;">
+            <span>📈</span> <span style="margin-left: 0.4rem;">Charts</span>
+          </h4>
+          <div id="study-card-charts-container">
             <!-- Dynamically populated -->
           </div>
         </section>
