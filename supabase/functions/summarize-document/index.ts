@@ -107,15 +107,43 @@ serve(async (req) => {
         extractedText = new TextDecoder("utf-8").decode(fileBytes)
       } 
       else if (mimeType === "application/pdf") {
-        const pdf = await getDocumentProxy(fileBytes)
-        const { text } = await extractText(pdf, { mergePages: true })
-        extractedText = text
+        let isScannedOrFailed = false
+        try {
+          const pdf = await getDocumentProxy(fileBytes)
+          const { text } = await extractText(pdf, { mergePages: true })
+          extractedText = text
 
-        // Scanned PDF detection: text too short relative to size
-        const textLen = (extractedText || "").trim().length
-        const fileSize = fileBytes.length
-        if (textLen < 200 || textLen < (fileSize / 500)) {
-          throw new Error("SCANNED_PDF")
+          const textLen = (extractedText || "").trim().length
+          const fileSize = fileBytes.length
+          if (textLen < 200 || textLen < (fileSize / 500)) {
+            isScannedOrFailed = true
+          }
+        } catch (pdfErr) {
+          console.error("Normal PDF text extraction failed, trying OCR fallback: ", pdfErr)
+          isScannedOrFailed = true
+        }
+
+        if (isScannedOrFailed) {
+          console.log("PDF text is empty, short or extraction failed. Attempting OCR fallback...")
+          const ocrApiKey = Deno.env.get('OCR_SPACE_API_KEY')
+          if (ocrApiKey) {
+            try {
+              const ocrText = await tryOCR(fileBytes, ocrApiKey)
+              const ocrTextLen = (ocrText || "").trim().length
+              if (ocrTextLen >= 200) {
+                console.log(`OCR succeeded! Extracted ${ocrTextLen} characters.`)
+                extractedText = ocrText
+              } else {
+                throw new Error("SCANNED_PDF")
+              }
+            } catch (ocrErr) {
+              console.error("OCR fallback failed: ", ocrErr)
+              throw new Error("SCANNED_PDF")
+            }
+          } else {
+            console.warn("OCR_SPACE_API_KEY not configured. Falling back to scanned error.")
+            throw new Error("SCANNED_PDF")
+          }
         }
       } 
       else if (mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
@@ -367,4 +395,24 @@ async function markFailed(client: any, documentId: string) {
   } catch (e) {
     console.error('Failed to set document status to failed: ', e)
   }
+}
+
+async function tryOCR(fileBytes: Uint8Array, apiKey: string): Promise<string> {
+  const formData = new FormData();
+  const blob = new Blob([fileBytes], { type: 'application/pdf' });
+  formData.append('file', blob, 'document.pdf');
+  formData.append('apikey', apiKey);
+  formData.append('filetype', 'PDF');
+  formData.append('OCREngine', '2');
+  formData.append('isOverlayRequired', 'false');
+
+  const response = await fetch('https://api.ocr.space/parse/image', {
+    method: 'POST',
+    body: formData,
+  });
+  const result = await response.json();
+  if (result.IsErroredOnProcessing) {
+    throw new Error(result.ErrorMessage?.[0] || 'OCR processing failed');
+  }
+  return (result.ParsedResults ?? []).map((r: any) => r.ParsedText).join('\n\n');
 }
