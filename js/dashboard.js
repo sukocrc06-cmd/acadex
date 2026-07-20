@@ -2373,11 +2373,19 @@ function confirmInsertTable() {
   });
 }
 
+function stopDrawing() {
+  if (!isDrawing) return;
+  isDrawing = false;
+  canvasCtx.closePath();
+  if (typeof recordNotebookState === 'function') recordNotebookState();
+}
+
 function removeOverlayElement(id) {
   const el = document.getElementById(id);
   if (el) {
     el.remove();
     notebookHasUnsavedChanges = true;
+    if (typeof recordNotebookState === 'function') recordNotebookState();
   }
 }
 window.removeOverlayElement = removeOverlayElement;
@@ -2449,6 +2457,7 @@ function makeElementDraggable(el, handle = el) {
     document.onmousemove = null;
     if (el.getAttribute('data-dragged') === 'true') {
       notebookHasUnsavedChanges = true;
+      if (typeof recordNotebookState === 'function') recordNotebookState();
     }
   }
 }
@@ -2477,8 +2486,8 @@ async function saveNotebookData() {
         
         if (type === 'sticky') {
           const cardId = el.getAttribute('data-card-id');
-          const fileName = el.querySelector('.draggable-note-title').textContent;
-          const excerpt = el.querySelector('.draggable-note-text').textContent;
+          const fileName = el.querySelector('.draggable-note-title')?.textContent || '';
+          const excerpt = el.querySelector('.draggable-note-text')?.textContent || '';
           const rotation = el.getAttribute('data-rotation');
           elementsArray.push({
             type, id, left, top, width, height, rotation,
@@ -2488,7 +2497,7 @@ async function saveNotebookData() {
         else if (type === 'text') {
           const color = el.getAttribute('data-color');
           const fontSize = el.getAttribute('data-font-size');
-          const textContent = el.querySelector('[contenteditable]').innerHTML;
+          const textContent = el.querySelector('[contenteditable]')?.innerHTML || '';
           elementsArray.push({
             type, id, left, top, width, height, color, fontSize,
             content: textContent
@@ -2543,10 +2552,13 @@ async function saveNotebookData() {
       });
     }
 
+    const activePage = notebookPages.find(p => p.page_number === currentNotebookPageNumber);
+    const targetUserId = (activePage && activePage.is_shared) ? activePage.owner_id : currentUser.id;
+
     const { error } = await supabaseClient
       .from('notebooks')
       .upsert({
-        user_id: currentUser.id,
+        user_id: targetUserId,
         page_number: currentNotebookPageNumber,
         canvas_data: canvasData,
         elements: elementsArray,
@@ -2563,11 +2575,14 @@ async function saveNotebookData() {
       // Update local state in memory
       const existingIdx = notebookPages.findIndex(p => p.page_number === currentNotebookPageNumber);
       const pageData = {
-        user_id: currentUser.id,
+        user_id: targetUserId,
         page_number: currentNotebookPageNumber,
         canvas_data: canvasData,
         elements: elementsArray,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        is_shared: activePage ? activePage.is_shared : false,
+        owner_name: activePage ? activePage.owner_name : null,
+        owner_id: targetUserId
       };
       if (existingIdx >= 0) {
         notebookPages[existingIdx] = pageData;
@@ -2576,8 +2591,6 @@ async function saveNotebookData() {
         notebookPages.sort((a, b) => a.page_number - b.page_number);
       }
       
-      // Award achievement if this is user's first save
-      // Check if user has any other pages saved in DB previously
       if (notebookPages.length === 1 && existingIdx === -1) {
         await awardAchievement('first_notebook_save');
       }
@@ -2625,6 +2638,12 @@ async function loadNotebookData() {
       }
     }
 
+    // Load shared pages
+    if (typeof loadSharedPages === 'function') {
+      await loadSharedPages();
+    }
+
+    resetNotebookHistory();
     renderCurrentPageData();
   } catch (err) {
     console.error("Exception loading saved notebook data: ", err);
@@ -2651,37 +2670,12 @@ async function navigateNotebookPage(direction) {
 
   currentNotebookPageNumber = notebookPages[nextIdx].page_number;
   notebookHasUnsavedChanges = false;
+  resetNotebookHistory();
   renderCurrentPageData();
 }
 
 async function createNewNotebookPage() {
-  if (notebookHasUnsavedChanges) {
-    const isTr = localStorage.getItem('acadexUILang') === 'tr';
-    const confirmSave = confirm(
-      isTr 
-        ? "Kaydedilmemiş değişiklikleriniz var. Yeni sayfa oluşturmadan önce kaydetmek ister misiniz?"
-        : "You have unsaved changes. Would you like to save before creating a new page?"
-    );
-    if (confirmSave) {
-      await saveNotebookData();
-    }
-  }
-
-  const maxPageNum = notebookPages.reduce((max, p) => Math.max(max, p.page_number), 0);
-  const newPageNum = maxPageNum + 1;
-
-  const newPage = {
-    user_id: currentUser.id,
-    page_number: newPageNum,
-    canvas_data: null,
-    elements: []
-  };
-
-  notebookPages.push(newPage);
-  notebookPages.sort((a, b) => a.page_number - b.page_number);
-  currentNotebookPageNumber = newPageNum;
-  notebookHasUnsavedChanges = true;
-  renderCurrentPageData();
+  openTemplatePickerModal();
 }
 
 async function deleteCurrentNotebookPage() {
@@ -10881,6 +10875,605 @@ window.openComparisonResultModal = openComparisonResultModal;
 window.closeComparisonResultModal = closeComparisonResultModal;
 window.loadPastComparisons = loadPastComparisons;
 window.viewPastComparison = viewPastComparison;
+
+// ==========================================
+// PART A — PAGE TEMPLATES
+// ==========================================
+function openTemplatePickerModal() {
+  const modal = document.getElementById('template-picker-modal');
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeTemplatePickerModal() {
+  const modal = document.getElementById('template-picker-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+async function selectNotebookTemplate(templateType) {
+  closeTemplatePickerModal();
+
+  if (notebookHasUnsavedChanges) {
+    const isTr = localStorage.getItem('acadexUILang') === 'tr';
+    const confirmSave = confirm(
+      isTr 
+        ? "Kaydedilmemiş değişiklikleriniz var. Yeni sayfa oluşturmadan önce kaydetmek ister misiniz?"
+        : "You have unsaved changes. Would you like to save before creating a new page?"
+    );
+    if (confirmSave) {
+      await saveNotebookData();
+    }
+  }
+
+  const maxPageNum = notebookPages.reduce((max, p) => Math.max(max, p.page_number), 0);
+  const newPageNum = maxPageNum + 1;
+
+  let starterElements = [];
+
+  if (templateType === 'swot') {
+    const w = 340, h = 270;
+    // Strengths (Top-Left)
+    starterElements.push({
+      type: 'shape', id: `shape-${Date.now()}-1`, left: 20, top: 20, width: w, height: h, color: '#6366F1',
+      content: { shapeType: 'rectangle', flippedX: 'false', flippedY: 'false' }
+    });
+    starterElements.push({
+      type: 'text', id: `text-${Date.now()}-1`, left: 35, top: 30, width: w - 30, height: 40, color: '#4338CA', fontSize: '18px',
+      content: '<strong>💪 STRENGTHS</strong>'
+    });
+
+    // Weaknesses (Top-Right)
+    starterElements.push({
+      type: 'shape', id: `shape-${Date.now()}-2`, left: 380, top: 20, width: w, height: h, color: '#EF4444',
+      content: { shapeType: 'rectangle', flippedX: 'false', flippedY: 'false' }
+    });
+    starterElements.push({
+      type: 'text', id: `text-${Date.now()}-2`, left: 395, top: 30, width: w - 30, height: 40, color: '#B91C1C', fontSize: '18px',
+      content: '<strong>⚠️ WEAKNESSES</strong>'
+    });
+
+    // Opportunities (Bottom-Left)
+    starterElements.push({
+      type: 'shape', id: `shape-${Date.now()}-3`, left: 20, top: 310, width: w, height: h, color: '#10B981',
+      content: { shapeType: 'rectangle', flippedX: 'false', flippedY: 'false' }
+    });
+    starterElements.push({
+      type: 'text', id: `text-${Date.now()}-3`, left: 35, top: 320, width: w - 30, height: 40, color: '#047857', fontSize: '18px',
+      content: '<strong>🚀 OPPORTUNITIES</strong>'
+    });
+
+    // Threats (Bottom-Right)
+    starterElements.push({
+      type: 'shape', id: `shape-${Date.now()}-4`, left: 380, top: 310, width: w, height: h, color: '#F59E0B',
+      content: { shapeType: 'rectangle', flippedX: 'false', flippedY: 'false' }
+    });
+    starterElements.push({
+      type: 'text', id: `text-${Date.now()}-4`, left: 395, top: 320, width: w - 30, height: 40, color: '#B45309', fontSize: '18px',
+      content: '<strong>🛡️ THREATS</strong>'
+    });
+  } else if (templateType === 'cornell') {
+    starterElements.push({
+      type: 'shape', id: `shape-${Date.now()}-v`, left: 230, top: 20, width: 4, height: 470, color: '#94A3B8',
+      content: { shapeType: 'rectangle', flippedX: 'false', flippedY: 'false' }
+    });
+    starterElements.push({
+      type: 'shape', id: `shape-${Date.now()}-h`, left: 20, top: 500, width: 700, height: 4, color: '#94A3B8',
+      content: { shapeType: 'rectangle', flippedX: 'false', flippedY: 'false' }
+    });
+
+    starterElements.push({
+      type: 'text', id: `text-${Date.now()}-cues`, left: 25, top: 25, width: 195, height: 40, color: '#1E293B', fontSize: '16px',
+      content: '<strong>💡 CUES &amp; QUESTIONS</strong><br><span style="font-size:12px;color:#64748B;">Key terms, prompts...</span>'
+    });
+
+    starterElements.push({
+      type: 'text', id: `text-${Date.now()}-notes`, left: 245, top: 25, width: 460, height: 40, color: '#1E293B', fontSize: '16px',
+      content: '<strong>📝 CLASS NOTES</strong><br><span style="font-size:12px;color:#64748B;">Main notes and diagrams...</span>'
+    });
+
+    starterElements.push({
+      type: 'text', id: `text-${Date.now()}-summary`, left: 25, top: 510, width: 680, height: 40, color: '#1E293B', fontSize: '16px',
+      content: '<strong>📌 SUMMARY</strong><br><span style="font-size:12px;color:#64748B;">Brief summary of takeaways...</span>'
+    });
+  } else if (templateType === 'mindmap') {
+    starterElements.push({
+      type: 'shape', id: `shape-${Date.now()}-center`, left: 270, top: 240, width: 200, height: 110, color: '#14B8A6',
+      content: { shapeType: 'ellipse', flippedX: 'false', flippedY: 'false' }
+    });
+    starterElements.push({
+      type: 'text', id: `text-${Date.now()}-center`, left: 285, top: 275, width: 170, height: 40, color: '#0F766E', fontSize: '20px',
+      content: '<div style="text-align:center;"><strong>CENTRAL TOPIC</strong></div>'
+    });
+
+    starterElements.push({
+      type: 'shape', id: `shape-${Date.now()}-sub1`, left: 50, top: 50, width: 140, height: 75, color: '#6366F1',
+      content: { shapeType: 'ellipse', flippedX: 'false', flippedY: 'false' }
+    });
+    starterElements.push({
+      type: 'text', id: `text-${Date.now()}-sub1`, left: 60, top: 70, width: 120, height: 30, color: '#4338CA', fontSize: '14px',
+      content: '<div style="text-align:center;">Sub-topic 1</div>'
+    });
+    starterElements.push({
+      type: 'shape', id: `line-${Date.now()}-1`, left: 170, top: 115, width: 110, height: 130, color: '#CBD5E1',
+      content: { shapeType: 'line', flippedX: 'false', flippedY: 'false' }
+    });
+
+    starterElements.push({
+      type: 'shape', id: `shape-${Date.now()}-sub2`, left: 550, top: 50, width: 140, height: 75, color: '#10B981',
+      content: { shapeType: 'ellipse', flippedX: 'false', flippedY: 'false' }
+    });
+    starterElements.push({
+      type: 'text', id: `text-${Date.now()}-sub2`, left: 560, top: 70, width: 120, height: 30, color: '#047857', fontSize: '14px',
+      content: '<div style="text-align:center;">Sub-topic 2</div>'
+    });
+    starterElements.push({
+      type: 'shape', id: `line-${Date.now()}-2`, left: 460, top: 115, width: 110, height: 130, color: '#CBD5E1',
+      content: { shapeType: 'line', flippedX: 'true', flippedY: 'false' }
+    });
+
+    starterElements.push({
+      type: 'shape', id: `shape-${Date.now()}-sub3`, left: 50, top: 450, width: 140, height: 75, color: '#F59E0B',
+      content: { shapeType: 'ellipse', flippedX: 'false', flippedY: 'false' }
+    });
+    starterElements.push({
+      type: 'text', id: `text-${Date.now()}-sub3`, left: 60, top: 470, width: 120, height: 30, color: '#B45309', fontSize: '14px',
+      content: '<div style="text-align:center;">Sub-topic 3</div>'
+    });
+    starterElements.push({
+      type: 'shape', id: `line-${Date.now()}-3`, left: 170, top: 345, width: 110, height: 115, color: '#CBD5E1',
+      content: { shapeType: 'line', flippedX: 'false', flippedY: 'true' }
+    });
+
+    starterElements.push({
+      type: 'shape', id: `shape-${Date.now()}-sub4`, left: 550, top: 450, width: 140, height: 75, color: '#EC4899',
+      content: { shapeType: 'ellipse', flippedX: 'false', flippedY: 'false' }
+    });
+    starterElements.push({
+      type: 'text', id: `text-${Date.now()}-sub4`, left: 560, top: 470, width: 120, height: 30, color: '#BE185D', fontSize: '14px',
+      content: '<div style="text-align:center;">Sub-topic 4</div>'
+    });
+    starterElements.push({
+      type: 'shape', id: `line-${Date.now()}-4`, left: 460, top: 345, width: 110, height: 115, color: '#CBD5E1',
+      content: { shapeType: 'line', flippedX: 'true', flippedY: 'true' }
+    });
+  }
+
+  const newPage = {
+    user_id: currentUser.id,
+    page_number: newPageNum,
+    canvas_data: null,
+    elements: starterElements
+  };
+
+  notebookPages.push(newPage);
+  notebookPages.sort((a, b) => a.page_number - b.page_number);
+  currentNotebookPageNumber = newPageNum;
+  notebookHasUnsavedChanges = true;
+  
+  resetNotebookHistory();
+  renderCurrentPageData();
+}
+
+window.openTemplatePickerModal = openTemplatePickerModal;
+window.closeTemplatePickerModal = closeTemplatePickerModal;
+window.selectNotebookTemplate = selectNotebookTemplate;
+
+// ==========================================
+// PART B — UNDO / REDO HISTORY STACK
+// ==========================================
+let notebookUndoStack = [];
+let notebookRedoStack = [];
+const MAX_NOTEBOOK_STACK_SIZE = 50;
+
+function updateUndoRedoButtons() {
+  const btnUndo = document.getElementById('btn-undo-notebook');
+  const btnRedo = document.getElementById('btn-redo-notebook');
+  if (btnUndo) btnUndo.disabled = (notebookUndoStack.length <= 1);
+  if (btnRedo) btnRedo.disabled = (notebookRedoStack.length === 0);
+}
+
+function recordNotebookState() {
+  if (!canvasElement) return;
+  const canvasDataURL = canvasElement.toDataURL('image/png');
+  const elements = (typeof captureCurrentOverlayElements === 'function') ? captureCurrentOverlayElements() : [];
+  
+  const snapshot = {
+    canvasDataURL: canvasDataURL,
+    elements: elements
+  };
+
+  notebookUndoStack.push(snapshot);
+  if (notebookUndoStack.length > MAX_NOTEBOOK_STACK_SIZE) {
+    notebookUndoStack.shift();
+  }
+  notebookRedoStack = [];
+  updateUndoRedoButtons();
+}
+
+function resetNotebookHistory() {
+  notebookUndoStack = [];
+  notebookRedoStack = [];
+  if (canvasElement) {
+    const canvasDataURL = canvasElement.toDataURL('image/png');
+    const elements = (typeof captureCurrentOverlayElements === 'function') ? captureCurrentOverlayElements() : [];
+    notebookUndoStack.push({ canvasDataURL, elements });
+  }
+  updateUndoRedoButtons();
+}
+
+function undoNotebookAction() {
+  if (notebookUndoStack.length <= 1) return;
+  
+  const currentSnapshot = notebookUndoStack.pop();
+  notebookRedoStack.push(currentSnapshot);
+  
+  const previousSnapshot = notebookUndoStack[notebookUndoStack.length - 1];
+  applyNotebookStateSnapshot(previousSnapshot);
+  updateUndoRedoButtons();
+}
+
+function redoNotebookAction() {
+  if (notebookRedoStack.length === 0) return;
+  
+  const snapshotToRestore = notebookRedoStack.pop();
+  notebookUndoStack.push(snapshotToRestore);
+  applyNotebookStateSnapshot(snapshotToRestore);
+  updateUndoRedoButtons();
+}
+
+function applyNotebookStateSnapshot(snapshot) {
+  if (!snapshot || !canvasCtx || !canvasElement) return;
+  
+  canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+  if (snapshot.canvasDataURL) {
+    const img = new Image();
+    img.src = snapshot.canvasDataURL;
+    img.onload = () => {
+      canvasCtx.drawImage(img, 0, 0);
+    };
+  }
+
+  const activePage = notebookPages.find(p => p.page_number === currentNotebookPageNumber);
+  if (activePage) {
+    activePage.canvas_data = snapshot.canvasDataURL;
+    activePage.elements = snapshot.elements || [];
+  }
+
+  notebookHasUnsavedChanges = true;
+  renderCurrentPageData();
+}
+
+document.addEventListener('keydown', (e) => {
+  if (currentActiveTab !== 'notebook') return;
+  if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable)) return;
+
+  const isCmdOrCtrl = e.metaKey || e.ctrlKey;
+  if (isCmdOrCtrl && e.key.toLowerCase() === 'z') {
+    if (e.shiftKey) {
+      e.preventDefault();
+      redoNotebookAction();
+    } else {
+      e.preventDefault();
+      undoNotebookAction();
+    }
+  } else if (isCmdOrCtrl && e.key.toLowerCase() === 'y') {
+    e.preventDefault();
+    redoNotebookAction();
+  }
+});
+
+window.recordNotebookState = recordNotebookState;
+window.resetNotebookHistory = resetNotebookHistory;
+window.undoNotebookAction = undoNotebookAction;
+window.redoNotebookAction = redoNotebookAction;
+
+// ==========================================
+// PART C — PAGE THUMBNAIL OVERVIEW
+// ==========================================
+function openNotebookPagesOverview() {
+  const modal = document.getElementById('notebook-pages-modal');
+  const grid = document.getElementById('notebook-pages-grid');
+  if (!modal || !grid) return;
+
+  grid.innerHTML = '';
+
+  notebookPages.forEach(page => {
+    const isCurrent = (page.page_number === currentNotebookPageNumber);
+    const elemCount = (page.elements || []).length;
+
+    const tile = document.createElement('div');
+    tile.className = 'page-thumbnail-tile' + (isCurrent ? ' active-page' : '');
+    
+    let previewContentHtml = `<div style="color: var(--color-text-muted); font-size: 0.75rem; font-style: italic;">Blank Canvas</div>`;
+    if (page.canvas_data) {
+      previewContentHtml = `<img src="${page.canvas_data}" alt="Page ${page.page_number}">`;
+    }
+
+    let sharedBadgeHtml = '';
+    if (page.is_shared) {
+      sharedBadgeHtml = `<span style="font-size: 0.65rem; background: #EEF2FF; color: #4F46E5; font-weight: 700; padding: 0.1rem 0.35rem; border-radius: 6px; display: block; margin-top: 0.15rem;">👥 Shared by ${escapeHtml(page.owner_name || 'Classmate')}</span>`;
+    }
+
+    tile.innerHTML = `
+      <div class="page-thumbnail-preview">
+        ${previewContentHtml}
+      </div>
+      <div class="page-thumbnail-meta">
+        <div>
+          <div class="page-thumbnail-title">Page ${page.page_number}</div>
+          ${sharedBadgeHtml}
+        </div>
+        <span class="page-thumbnail-badge">${elemCount} items</span>
+      </div>
+    `;
+
+    tile.addEventListener('click', () => {
+      selectPageFromOverview(page.page_number);
+    });
+
+    grid.appendChild(tile);
+  });
+
+  const addTile = document.createElement('div');
+  addTile.className = 'page-thumbnail-add';
+  addTile.innerHTML = `
+    <span style="font-size: 1.8rem; line-height: 1;">+</span>
+    <span>New Page</span>
+  `;
+  addTile.addEventListener('click', () => {
+    closeNotebookPagesOverview();
+    openTemplatePickerModal();
+  });
+  grid.appendChild(addTile);
+
+  modal.style.display = 'flex';
+}
+
+function closeNotebookPagesOverview() {
+  const modal = document.getElementById('notebook-pages-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+async function selectPageFromOverview(pageNum) {
+  closeNotebookPagesOverview();
+  if (pageNum === currentNotebookPageNumber) return;
+
+  if (notebookHasUnsavedChanges) {
+    const isTr = localStorage.getItem('acadexUILang') === 'tr';
+    const confirmSave = confirm(
+      isTr 
+        ? "Kaydedilmemiş değişiklikleriniz var. Sayfa değiştirmeden önce kaydetmek ister misiniz?"
+        : "You have unsaved changes. Would you like to save before switching pages?"
+    );
+    if (confirmSave) {
+      await saveNotebookData();
+    }
+  }
+
+  currentNotebookPageNumber = pageNum;
+  notebookHasUnsavedChanges = false;
+  resetNotebookHistory();
+  renderCurrentPageData();
+}
+
+window.openNotebookPagesOverview = openNotebookPagesOverview;
+window.closeNotebookPagesOverview = closeNotebookPagesOverview;
+window.selectPageFromOverview = selectPageFromOverview;
+
+// ==========================================
+// PART D — SHARED / COLLABORATIVE PAGES
+// ==========================================
+let searchDebounceTimer = null;
+
+function openPageShareModal() {
+  const modal = document.getElementById('page-share-modal');
+  if (!modal) return;
+
+  const searchInput = document.getElementById('share-student-search');
+  if (searchInput) searchInput.value = '';
+  
+  const resultsContainer = document.getElementById('share-search-results');
+  if (resultsContainer) resultsContainer.innerHTML = '';
+
+  loadCurrentlySharedList();
+  modal.style.display = 'flex';
+}
+
+function closePageShareModal() {
+  const modal = document.getElementById('page-share-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+async function loadCurrentlySharedList() {
+  const listEl = document.getElementById('currently-shared-list');
+  if (!listEl) return;
+
+  try {
+    const { data: shares, error } = await supabaseClient
+      .from('notebook_page_shares')
+      .select('id, shared_with_id, profiles:shared_with_id(full_name, student_number)')
+      .eq('page_owner_id', currentUser.id)
+      .eq('page_number', currentNotebookPageNumber);
+
+    if (error || !shares || shares.length === 0) {
+      listEl.innerHTML = '<p style="font-size: 0.78rem; color: var(--color-text-muted); font-style: italic;">Not shared with anyone yet.</p>';
+      return;
+    }
+
+    listEl.innerHTML = '';
+    shares.forEach(sh => {
+      const studentName = sh.profiles?.full_name || 'Classmate';
+      const studentNum = sh.profiles?.student_number || '';
+
+      const row = document.createElement('div');
+      row.className = 'share-user-row';
+      row.innerHTML = `
+        <div>
+          <div class="share-user-name">${escapeHtml(studentName)}</div>
+          <div class="share-user-meta">No: ${escapeHtml(studentNum)}</div>
+        </div>
+        <button class="btn btn-destructive" style="font-size: 0.7rem; padding: 0.2rem 0.5rem;" onclick="removePageShare('${sh.id}')">Remove</button>
+      `;
+      listEl.appendChild(row);
+    });
+
+  } catch (err) {
+    console.error("Exception loading shares:", err);
+  }
+}
+
+function debounceSearchClassmates() {
+  clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(searchClassmatesForShare, 300);
+}
+
+async function searchClassmatesForShare() {
+  const query = document.getElementById('share-student-search')?.value.trim();
+  const resultsEl = document.getElementById('share-search-results');
+  if (!resultsEl) return;
+
+  if (!query || query.length < 2) {
+    resultsEl.innerHTML = '';
+    return;
+  }
+
+  try {
+    const userDept = currentUserProfile?.department || '';
+    
+    let queryBuilder = supabaseClient
+      .from('profiles')
+      .select('id, full_name, student_number, department')
+      .neq('id', currentUser.id)
+      .or(`full_name.ilike.%${query}%,student_number.ilike.%${query}%`)
+      .limit(6);
+
+    if (userDept) {
+      queryBuilder = queryBuilder.eq('department', userDept);
+    }
+
+    const { data: students, error } = await queryBuilder;
+
+    if (error || !students || students.length === 0) {
+      resultsEl.innerHTML = '<p style="font-size: 0.78rem; color: var(--color-text-muted); font-style: italic;">No classmates found matching query.</p>';
+      return;
+    }
+
+    resultsEl.innerHTML = '';
+    students.forEach(st => {
+      const row = document.createElement('div');
+      row.className = 'share-user-row';
+      row.innerHTML = `
+        <div>
+          <div class="share-user-name">${escapeHtml(st.full_name || 'Student')}</div>
+          <div class="share-user-meta">No: ${escapeHtml(st.student_number || '')} &bull; ${escapeHtml(st.department || '')}</div>
+        </div>
+        <button class="btn btn-primary" style="font-size: 0.7rem; padding: 0.2rem 0.55rem;" onclick="addPageShare('${st.id}')">+ Share</button>
+      `;
+      resultsEl.appendChild(row);
+    });
+
+  } catch (err) {
+    console.error("Exception searching classmates:", err);
+  }
+}
+
+async function addPageShare(studentId) {
+  try {
+    const { error } = await supabaseClient
+      .from('notebook_page_shares')
+      .insert({
+        page_owner_id: currentUser.id,
+        page_number: currentNotebookPageNumber,
+        shared_with_id: studentId
+      });
+
+    if (error) {
+      console.error("Insert share failed:", error);
+      showDashboardAlert('error', 'Already shared or failed to share.');
+      return;
+    }
+
+    showDashboardAlert('success', 'Page access granted!');
+    document.getElementById('share-student-search').value = '';
+    document.getElementById('share-search-results').innerHTML = '';
+    await loadCurrentlySharedList();
+
+  } catch (err) {
+    console.error("Exception adding share:", err);
+    showDashboardAlert('error', 'Failed to share page.');
+  }
+}
+
+async function removePageShare(shareId) {
+  try {
+    const { error } = await supabaseClient
+      .from('notebook_page_shares')
+      .delete()
+      .eq('id', shareId);
+
+    if (error) {
+      console.error("Delete share failed:", error);
+      showDashboardAlert('error', 'Could not remove share.');
+      return;
+    }
+
+    showDashboardAlert('success', 'Share revoked.');
+    await loadCurrentlySharedList();
+
+  } catch (err) {
+    console.error("Exception removing share:", err);
+  }
+}
+
+async function loadSharedPages() {
+  try {
+    const { data: sharedRows, error } = await supabaseClient
+      .from('notebook_page_shares')
+      .select('page_owner_id, page_number')
+      .eq('shared_with_id', currentUser.id);
+
+    if (error || !sharedRows || sharedRows.length === 0) return;
+
+    for (let sh of sharedRows) {
+      const { data: nbook } = await supabaseClient
+        .from('notebooks')
+        .select('*, profiles:user_id(full_name)')
+        .eq('user_id', sh.page_owner_id)
+        .eq('page_number', sh.page_number)
+        .maybeSingle();
+
+      if (nbook) {
+        const ownerName = nbook.profiles?.full_name || 'Classmate';
+        const pageObj = {
+          user_id: nbook.user_id,
+          page_number: nbook.page_number,
+          canvas_data: nbook.canvas_data,
+          elements: nbook.elements || [],
+          is_shared: true,
+          owner_name: ownerName,
+          owner_id: nbook.user_id
+        };
+
+        const existingIdx = notebookPages.findIndex(p => p.user_id === pageObj.user_id && p.page_number === pageObj.page_number);
+        if (existingIdx === -1) {
+          notebookPages.push(pageObj);
+        } else {
+          notebookPages[existingIdx] = pageObj;
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Exception loading shared pages:", err);
+  }
+}
+
+window.openPageShareModal = openPageShareModal;
+window.closePageShareModal = closePageShareModal;
+window.debounceSearchClassmates = debounceSearchClassmates;
+window.searchClassmatesForShare = searchClassmatesForShare;
+window.addPageShare = addPageShare;
+window.removePageShare = removePageShare;
+window.loadSharedPages = loadSharedPages;
+
 
 
 
