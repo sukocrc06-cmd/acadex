@@ -978,7 +978,6 @@ async function proceedWithSummarization() {
       .update({ status: 'processing' })
       .eq('id', docId);
 
-    console.log("INVOKING Edge Function: summarize-document with payload:", { documentId: docId, summaryStyle: summaryStyle, language: language, summaryLength: summaryLength, analyzeVisuals: analyzeVisuals });
 
     const { data, error } = await supabaseClient.functions.invoke('summarize-document', {
       body: { documentId: docId, summaryStyle: summaryStyle, language: language, summaryLength: summaryLength, analyzeVisuals: analyzeVisuals }

@@ -57,7 +57,7 @@ serve(async (req) => {
     const lang = (language || 'en').toLowerCase()
     const len = (summaryLength || 'medium').toLowerCase()
 
-    console.log("RECEIVED Edge Function parameters: documentId =", documentId, "summaryStyle =", summaryStyle, "language =", language, "summaryLength =", summaryLength, "analyzeVisuals =", analyzeVisuals);
+
 
     // Get User Authorization JWT to verify ownership
     const authHeader = req.headers.get('Authorization')
@@ -342,12 +342,13 @@ ${styleInstruction}`
 
           if (pdfcoRes.ok) {
             const pdfcoData = await pdfcoRes.json()
-            if (!pdfcoData.error && pdfcoData.url) {
+            if (!pdfcoData.error && (pdfcoData.urls || pdfcoData.url)) {
               let imageUrls: string[] = []
-              if (Array.isArray(pdfcoData.url)) {
-                imageUrls = pdfcoData.url
-              } else if (typeof pdfcoData.url === 'string') {
-                imageUrls = [pdfcoData.url]
+              const rawUrls = pdfcoData.urls || pdfcoData.url
+              if (Array.isArray(rawUrls)) {
+                imageUrls = rawUrls
+              } else if (typeof rawUrls === 'string') {
+                imageUrls = [rawUrls]
               }
 
               console.log(`PDF.co converted ${imageUrls.length} pages. Downloading page images...`)
