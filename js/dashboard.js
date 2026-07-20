@@ -1028,6 +1028,17 @@ function formatSummaryText(summary) {
       return;
     }
 
+    // Check if line is a markdown heading (starts with ## )
+    if (trimmed.startsWith("## ")) {
+      if (insideList) {
+        html += "</ul>";
+        insideList = false;
+      }
+      const headingText = trimmed.replace(/^##\s*/, "");
+      html += `<h4 style="font-size: 0.95rem; font-weight: 700; color: var(--color-teal); margin-top: 0.75rem; margin-bottom: 0.35rem; font-family: 'Outfit', sans-serif;">${headingText}</h4>`;
+      return;
+    }
+
     // Check if line is a bullet item
     const bulletMatch = trimmed.match(/^([-\*•])\s*(.*)$/);
     if (bulletMatch) {
@@ -9844,34 +9855,38 @@ window.insertImageElement = insertImageElement;
 // PART A & B BADGE HELPERS & PART D FEEDBACK
 // ==========================================
 function getDocumentTypeBadgeHtml(type) {
-  if (!type) return '';
+  if (!type || type === 'null' || type === 'undefined' || (typeof type === 'string' && !type.trim())) return '';
   const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
   let label = type;
   let emoji = '📄';
-  if (type.includes('Lecture') || type.includes('Slide')) {
+  const typeStr = String(type);
+  if (typeStr.includes('Lecture') || typeStr.includes('Slide')) {
     emoji = '📖';
     label = isTr ? 'Ders Notları' : 'Lecture Notes';
-  } else if (type.includes('Article')) {
+  } else if (typeStr.includes('Article')) {
     emoji = '🔬';
     label = isTr ? 'Akademik Makale' : 'Academic Article';
-  } else if (type.includes('Syllabus')) {
+  } else if (typeStr.includes('Syllabus')) {
     emoji = '📋';
     label = isTr ? 'Müfredat' : 'Syllabus';
-  } else if (type.includes('Case')) {
+  } else if (typeStr.includes('Case')) {
     emoji = '💼';
     label = isTr ? 'Vaka Çalışması' : 'Case Study';
-  } else if (type.includes('Textbook')) {
+  } else if (typeStr.includes('Textbook')) {
     emoji = '📚';
     label = isTr ? 'Ders Kitabı' : 'Textbook Chapter';
-  } else if (type === 'Other') {
+  } else if (typeStr === 'Other') {
     emoji = '📄';
     label = isTr ? 'Diğer' : 'Other';
+  } else {
+    emoji = '📄';
+    label = typeStr;
   }
   return `<span class="style-badge" style="margin: 0; font-size: 0.6rem; padding: 0.1rem 0.35rem; background-color: #F1F5F9; color: #475569; border: 1px solid rgba(22, 50, 92, 0.08); font-weight: 700;">${emoji} ${label}</span>`;
 }
 
 function getLengthBadgeHtml(len) {
-  if (!len) return '';
+  if (!len || len === 'null' || len === 'undefined' || (typeof len === 'string' && !len.trim())) return '';
   const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
   let label = len;
   if (len === 'short') label = isTr ? 'Kısa' : 'Short';

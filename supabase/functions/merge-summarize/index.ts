@@ -191,11 +191,17 @@ serve(async (req) => {
       })
     }
 
-    let styleInstruction = "Write the summary as a clear, well-balanced paragraph-style overview."
-    if (style === "bullet") styleInstruction = "Write the summary primarily as a series of short, scannable bullet points rather than flowing prose."
-    else if (style === "outline") styleInstruction = "Write the summary as a hierarchical outline with clear section headings and indented sub-points, mirroring the structure of the source documents."
-    else if (style === "simplified") styleInstruction = "Write the summary in simple, plain language suitable for someone new to the topic, avoiding jargon or clearly defining any technical terms used."
-    else if (style === "exam_focused") styleInstruction = "Write a concise, fact-dense summary emphasizing definitions, relationships, and facts most likely to appear on an exam. Prioritize precision over narrative flow."
+    // Select style instruction (Part A)
+    let styleInstruction = "Write the summary as 4-8 well-formed sentences in flowing prose."
+    if (style === "bullet") {
+      styleInstruction = "Write the summary as a series of SHORT bullet points, each starting with '- ' at the beginning of its own line (use '\\n' between each bullet). Do NOT write flowing paragraph sentences — every line must be a distinct, concise bullet fragment, not a full narrative paragraph. Aim for 6-10 bullets."
+    } else if (style === "outline") {
+      styleInstruction = "Write the summary as a hierarchical outline. Use '## ' prefixed lines for major section headings (identify 2-4 natural sections in the material), and '- ' prefixed indented lines beneath each heading for sub-points. Use '\\n' between every line. This must visually read as a structured outline, NOT as flowing paragraph prose."
+    } else if (style === "simplified") {
+      styleInstruction = "Write the summary in very short sentences (aim for under 15 words per sentence) using simple, everyday vocabulary. Avoid compound/complex sentence structures. Explain any necessary technical term immediately in parentheses using plain language."
+    } else if (style === "exam_focused") {
+      styleInstruction = "Write the summary as terse, fact-dense statements — prefer sentence fragments and direct statements over flowing narrative connectors like 'furthermore' or 'in addition.' Each sentence should pack in a specific fact, definition, or relationship. Keep it noticeably more compact and dense than a standard-style summary, with less narrative connective tissue between ideas."
+    }
 
     // Part B: Length instruction
     let lengthInstruction = "Write a balanced summary in 4-8 sentences. Include 5-10 key terms, 5-10 key points, and 4-6 quiz questions."
@@ -272,9 +278,21 @@ ${styleInstruction}`
       sourceTextForReview = sourceTextForReview.substring(0, 15000) + " [truncated for review]"
     }
 
-    const reviewSystemPrompt = `You are reviewing a draft academic summary for accuracy and quality. Compare the draft against the original source text. Check for: (1) any factual errors or details not actually present in the source, (2) any important information from the source that was missed, (3) clarity and organization issues. Produce a REFINED, corrected final version in the exact same JSON format: { "summary": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "document_type": string }. If the draft was already accurate and complete, you may return it largely unchanged — only make genuine improvements, don't change things arbitrarily.`
+    const reviewSystemPrompt = `You are reviewing a draft academic summary for accuracy and quality. Compare the draft against the original source text. Check for: (1) any factual errors or details not actually present in the source, (2) any important information from the source that was missed, (3) clarity and organization issues.
+In addition to checking factual accuracy, you MUST preserve the original requested style, length, and language of the draft. If the draft was written in bullet-point format, your refined version must ALSO be in bullet-point format (using '- ' prefixed lines). If it was an outline with '## ' headings, preserve that heading structure. If it was written in short/simplified sentences, keep sentences short and simple. Do NOT normalize or flatten distinctive formatting back into generic flowing prose — your job is to improve accuracy and clarity WITHIN the same style and structure the draft already used, not to rewrite it in a different format.
 
-    const reviewUserPrompt = `Original source text:\n${sourceTextForReview}\n\nDraft JSON summary:\n${rawContent}`
+Produce a REFINED, corrected final version in the exact same JSON format: { "summary": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "document_type": string }. If the draft was already accurate and complete, you may return it largely unchanged — only make genuine improvements, don't change things arbitrarily.`
+
+    const reviewUserPrompt = `Original requested format parameters:
+- Summary Style: ${style}
+- Summary Length: ${len}
+- Summary Language: ${lang}
+
+Original source text:
+${sourceTextForReview}
+
+Draft JSON summary:
+${rawContent}`
 
     const groqReviewResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
