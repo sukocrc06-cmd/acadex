@@ -5973,16 +5973,19 @@ function openFlashcardViewer(cardId, type, fileName) {
 
   if (type === 'terms') {
     reviewItems = card.key_terms || [];
-    document.getElementById('flashcard-modal-title').textContent = `${fileName} - Anahtar Terimler`;
   } else if (type === 'points') {
     reviewItems = card.key_points || [];
-    document.getElementById('flashcard-modal-title').textContent = `${fileName} - Önemli Noktalar`;
   } else if (type === 'quiz') {
     reviewItems = card.quiz_questions || [];
-    document.getElementById('flashcard-modal-title').textContent = `${fileName} - Kendi Kendine Test`;
   }
 
-  if (reviewItems.length === 0) {
+  const titleEl = document.getElementById('flashcard-modal-title');
+  if (titleEl) {
+    const label = type === 'terms' ? 'Anahtar Terimler' : (type === 'points' ? 'Önemli Noktalar' : 'Kendi Kendine Test');
+    titleEl.textContent = `${fileName} - ${label}`;
+  }
+
+  if (!reviewItems || reviewItems.length === 0) {
     showDashboardAlert('info', 'Bu kategoriye ait kart bulunmamaktadır. / No items in this section.');
     return;
   }
@@ -6010,11 +6013,13 @@ function openFlashcardViewer(cardId, type, fileName) {
     };
   }
 
-  modal.onclick = (e) => {
-    if (e.target === modal) {
-      closeFlashcardViewer();
-    }
-  };
+  if (modal) {
+    modal.onclick = (e) => {
+      if (e.target === modal) {
+        closeFlashcardViewer();
+      }
+    };
+  }
 
   renderCurrentFlashcard();
 }
