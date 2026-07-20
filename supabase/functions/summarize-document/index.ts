@@ -311,7 +311,7 @@ INLINE FOOTNOTES / SOURCE REFERENCES INSTRUCTION:
 For non-obvious or specific factual claims in the summary and key_points, add a footnote marker like [1], [2], etc. immediately after the claim. Build a corresponding 'footnotes' array in your JSON output: [{ "id": 1, "reference": "brief description of which section/topic of the source this relates to, e.g. 'Section 2.2 - SEO discussion' or 'Introduction section'" }]. Since you don't have exact page numbers, reference the topical section or heading area instead. Don't over-footnote — reserve markers for specific, checkable claims (numbers, definitions, named findings), not every sentence.
 
 SUGGESTED COURSE TAG INSTRUCTION:
-Based on the document's content, suggest a likely course code or short subject name if one is evident (e.g. a course code mentioned in the document like 'BUS 340', or a general subject label like 'Digital Marketing' if no explicit code is found). Include this as 'suggested_course_tag' (a short string, or null if genuinely unclear) in your JSON output.`ly narrative/text documents.
+Based on the document's content, suggest a likely course code or short subject name if one is evident (e.g. a course code mentioned in the document like 'BUS 340', or a general subject label like 'Digital Marketing' if no explicit code is found). Include this as 'suggested_course_tag' (a short string, or null if genuinely unclear) in your JSON output.
 
 LENGTH INSTRUCTION:
 ${lengthInstruction}
