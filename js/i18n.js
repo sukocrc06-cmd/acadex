@@ -141,6 +141,11 @@ const TRANSLATIONS = {
     "dash.docs.bulk.summarize": "Bulk Summarize",
     "dash.docs.bulk.cancel": "Cancel",
     "dash.docs.list.title": "My Library",
+    "dash.summarize.modal.length": "Summary Length",
+    "dash.summarize.modal.length.short": "Short (Quick Overview)",
+    "dash.summarize.modal.length.medium": "Medium (Balanced)",
+    "dash.summarize.modal.length.detailed": "Detailed (In-depth)",
+    "dash.summarize.modal.length.hint": "Select how detailed your summary card should be.",
 
     // Department Feed Tab
     "dash.feed.title": "Department Study Feed",
@@ -350,6 +355,11 @@ const TRANSLATIONS = {
     "dash.docs.bulk.summarize": "Toplu Özetle",
     "dash.docs.bulk.cancel": "İptal Et",
     "dash.docs.list.title": "Kütüphanem",
+    "dash.summarize.modal.length": "Özet Uzunluğu",
+    "dash.summarize.modal.length.short": "Kısa (Hızlı Genel Bakış)",
+    "dash.summarize.modal.length.medium": "Orta (Dengeli)",
+    "dash.summarize.modal.length.detailed": "Detaylı (Kapsamlı)",
+    "dash.summarize.modal.length.hint": "Özet kartınızın ne kadar detaylı olacağını seçin.",
 
     // Department Feed Tab
     "dash.feed.title": "Bölüm Çalışma Akışı",

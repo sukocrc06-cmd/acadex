@@ -1396,7 +1396,7 @@
       </div>
 
       <!-- Language Selector -->
-      <div style="margin-bottom: 1.5rem; padding-top: 1rem; border-top: 1px solid rgba(22, 50, 92, 0.08);">
+      <div style="margin-bottom: 1.25rem; padding-top: 0.75rem; border-top: 1px solid rgba(22, 50, 92, 0.08);">
         <label style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.5rem;">Summary Language</label>
         <div style="display: flex; gap: 1.5rem; align-items: center;">
           <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: var(--color-navy); cursor: pointer; font-weight: 600;">
@@ -1408,6 +1408,28 @@
         </div>
         <p style="font-size: 0.75rem; color: var(--color-text-muted); margin-top: 0.4rem; margin-bottom: 0; line-height: 1.35;">
           Choose the language for your summary, regardless of the original document's language.
+        </p>
+      </div>
+
+      <!-- Length Selector (Part B) -->
+      <div style="margin-bottom: 1.5rem; padding-top: 0.75rem; border-top: 1px solid rgba(22, 50, 92, 0.08);">
+        <label data-i18n="dash.summarize.modal.length" style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.5rem;">Summary Length</label>
+        <div style="display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap;">
+          <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: var(--color-navy); cursor: pointer; font-weight: 600;">
+            <input type="radio" name="summary-length-choice" value="short" style="accent-color: var(--color-teal); cursor: pointer; width: 16px; height: 16px;">
+            <span data-i18n="dash.summarize.modal.length.short">Short (Quick Overview)</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: var(--color-navy); cursor: pointer; font-weight: 600;">
+            <input type="radio" name="summary-length-choice" value="medium" checked style="accent-color: var(--color-teal); cursor: pointer; width: 16px; height: 16px;">
+            <span data-i18n="dash.summarize.modal.length.medium">Medium (Balanced)</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: var(--color-navy); cursor: pointer; font-weight: 600;">
+            <input type="radio" name="summary-length-choice" value="detailed" style="accent-color: var(--color-teal); cursor: pointer; width: 16px; height: 16px;">
+            <span data-i18n="dash.summarize.modal.length.detailed">Detailed (In-depth)</span>
+          </label>
+        </div>
+        <p data-i18n="dash.summarize.modal.length.hint" style="font-size: 0.75rem; color: var(--color-text-muted); margin-top: 0.4rem; margin-bottom: 0; line-height: 1.35;">
+          Select how detailed your summary card should be.
         </p>
       </div>
 
@@ -1460,10 +1482,18 @@
     <div class="modal-card study-card-modal-card">
       <div class="study-card-modal-header" style="display: flex; flex-direction: column; align-items: flex-start; gap: 0.5rem; width: 100%;">
         <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-          <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
             <h3 class="modal-title" id="study-card-title" style="margin: 0;">Study Card</h3>
             <span id="study-card-modal-style-badge" class="style-badge style-standard" style="margin-left: 0;">Standard</span>
             <span id="study-card-modal-lang-badge" class="style-badge" style="background-color: var(--color-teal-light); color: var(--color-teal); border: 1px solid rgba(22, 50, 92, 0.08); font-weight: 700;">English</span>
+            <span id="study-card-modal-type-badge"></span>
+            <span id="study-card-modal-length-badge"></span>
+            
+            <div class="feedback-vote-container" style="display: flex; align-items: center; gap: 0.25rem; margin-left: 0.5rem; border-left: 1px solid rgba(22, 50, 92, 0.1); padding-left: 0.5rem;">
+              <span style="font-size: 0.725rem; color: var(--color-text-muted); font-weight: 500;" data-i18n="dash.cards.helpful">Helpful?</span>
+              <button class="vote-btn" id="btn-vote-up" onclick="submitSummaryFeedback('up')" title="Helpful" style="padding: 0.2rem 0.35rem; font-size: 0.85rem; line-height: 1; border-radius: var(--radius-sm); border: 1px solid rgba(22, 50, 92, 0.1); background: var(--color-white); cursor: pointer; transition: all 0.2s;">👍</button>
+              <button class="vote-btn" id="btn-vote-down" onclick="submitSummaryFeedback('down')" title="Not Helpful" style="padding: 0.2rem 0.35rem; font-size: 0.85rem; line-height: 1; border-radius: var(--radius-sm); border: 1px solid rgba(22, 50, 92, 0.1); background: var(--color-white); cursor: pointer; transition: all 0.2s;">👎</button>
+            </div>
           </div>
           <div style="display: flex; align-items: center; gap: 0.5rem;">
             <button class="btn btn-outline" id="btn-export-pdf" style="font-size: 0.75rem; padding: 0.35rem 0.75rem; font-weight: 700; border-radius: var(--radius-sm); display: flex; align-items: center; gap: 0.25rem;">

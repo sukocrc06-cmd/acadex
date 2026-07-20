@@ -898,10 +898,12 @@ async function proceedWithSummarization() {
   const summaryStyle = styleSelect ? styleSelect.value : 'standard';
   const langSelect = document.querySelector('input[name="summary-language-choice"]:checked');
   const language = langSelect ? langSelect.value : 'en';
+  const lengthSelect = document.querySelector('input[name="summary-length-choice"]:checked');
+  const summaryLength = lengthSelect ? lengthSelect.value : 'medium';
 
   if (isMergeSummarize) {
     closeSummaryStyleModal();
-    await triggerMergeSummarize(pendingMergeDocIds, summaryStyle, language);
+    await triggerMergeSummarize(pendingMergeDocIds, summaryStyle, language, summaryLength);
     isMergeSummarize = false;
     pendingMergeDocIds = [];
     return;
@@ -909,7 +911,7 @@ async function proceedWithSummarization() {
 
   if (isBulkSummarize) {
     closeSummaryStyleModal();
-    await proceedWithBulkSummarization(summaryStyle, language);
+    await proceedWithBulkSummarization(summaryStyle, language, summaryLength);
     return;
   }
 
@@ -926,7 +928,7 @@ async function proceedWithSummarization() {
       <svg class="spinner" viewBox="0 0 50 50" style="animation: rotate 2s linear infinite; width: 14px; height: 14px; margin-right: 8px;">
         <circle class="path" cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="5" style="stroke-dasharray: 1, 150; stroke-dashoffset: 0; stroke-linecap: round; animation: dash 1.5s ease-in-out infinite;"></circle>
       </svg>
-      Processing...
+      Summarizing & reviewing...
     `;
   }
 
@@ -937,10 +939,10 @@ async function proceedWithSummarization() {
       .update({ status: 'processing' })
       .eq('id', docId);
 
-    console.log("INVOKING Edge Function: summarize-document with payload:", { documentId: docId, summaryStyle: summaryStyle, language: language });
+    console.log("INVOKING Edge Function: summarize-document with payload:", { documentId: docId, summaryStyle: summaryStyle, language: language, summaryLength: summaryLength });
 
     const { data, error } = await supabaseClient.functions.invoke('summarize-document', {
-      body: { documentId: docId, summaryStyle: summaryStyle, language: language }
+      body: { documentId: docId, summaryStyle: summaryStyle, language: language, summaryLength: summaryLength }
     });
 
     if (error) {
@@ -1061,7 +1063,7 @@ function formatSummaryText(summary) {
 }
 window.formatSummaryText = formatSummaryText;
 
-function populateStudyCardModalDetails(card, docName, readOnly) {
+async function populateStudyCardModalDetails(card, docName, readOnly) {
   currentActiveStudyCard = { ...card, documentFileName: docName };
   // Populate Modal Title
   const titleEl = document.getElementById('study-card-title');
@@ -1082,6 +1084,37 @@ function populateStudyCardModalDetails(card, docName, readOnly) {
   if (langBadgeEl) {
     const langCode = card.summary_language || 'en';
     langBadgeEl.textContent = langCode === 'tr' ? 'Türkçe' : 'English';
+  }
+
+  // Populate Type Badge (Part A)
+  const typeBadgeEl = document.getElementById('study-card-modal-type-badge');
+  if (typeBadgeEl) {
+    typeBadgeEl.innerHTML = getDocumentTypeBadgeHtml(card.document_type);
+  }
+
+  // Populate Length Badge (Part B)
+  const lengthBadgeEl = document.getElementById('study-card-modal-length-badge');
+  if (lengthBadgeEl) {
+    lengthBadgeEl.innerHTML = getLengthBadgeHtml(card.summary_length);
+  }
+
+  // Fetch feedback rating (Part D)
+  highlightFeedbackButtons(null); // Clear first
+  if (currentUser && card.id) {
+    try {
+      const { data: voteData, error: voteError } = await supabaseClient
+        .from('summary_feedback')
+        .select('rating')
+        .eq('study_card_id', card.id)
+        .eq('user_id', currentUser.id)
+        .maybeSingle();
+
+      if (!voteError && voteData) {
+        highlightFeedbackButtons(voteData.rating);
+      }
+    } catch (err) {
+      console.error("Error fetching vote rating: ", err);
+    }
   }
 
   // Sharing switch container control
@@ -1571,9 +1604,11 @@ function renderNotebookSidebarList(cards) {
           <div class="doc-info" style="width: calc(100% - 50px);">
             <h4 class="doc-name" style="font-size: 0.8rem; line-height: 1.2; padding-right: 0.5rem;" title="${docName}">${docName}</h4>
             <span style="font-size: 0.65rem; color: var(--color-text-muted);">${formattedDate}</span>
-            <div style="display: flex; gap: 0.25rem; margin-top: 0.15rem;">
+            <div style="display: flex; gap: 0.25rem; margin-top: 0.15rem; flex-wrap: wrap;">
               <span class="style-badge style-${card.summary_style || 'standard'}" style="margin: 0; font-size: 0.55rem; padding: 0.05rem 0.25rem;">${getStyleLabel(card.summary_style)}</span>
               <span class="style-badge" style="margin: 0; font-size: 0.55rem; padding: 0.05rem 0.25rem; background-color: var(--color-teal-light); color: var(--color-teal); border: 1px solid rgba(22, 50, 92, 0.08); font-weight: 700;">${card.summary_language === 'tr' ? 'TR' : 'EN'}</span>
+              ${getDocumentTypeBadgeHtml(card.document_type)}
+              ${getLengthBadgeHtml(card.summary_length)}
             </div>
           </div>
           <button onclick="deleteStudyCard(event, '${card.id}', '${card.document_id}')" style="background: none; border: none; cursor: pointer; color: #EF4444; position: absolute; right: 0; top: 0.15rem; padding: 0.15rem; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); transition: background-color 0.2s;" title="Delete this study card">
@@ -3266,11 +3301,13 @@ function renderCardsLibraryList(cards) {
           </div>
           <div class="doc-info" style="width: calc(100% - 68px);">
             <h4 class="doc-name" style="font-size: 0.9rem; padding-right: 0.5rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${cardDocName}">${cardDocName}</h4>
-            <div class="doc-meta" style="display: flex; align-items: center; justify-content: space-between; gap: 0.35rem;">
+            <div class="doc-meta" style="display: flex; align-items: center; justify-content: space-between; gap: 0.35rem; flex-wrap: wrap;">
               <span>Oluşturulma: ${formattedDate}</span>
-              <div style="display: flex; gap: 0.25rem;">
+              <div style="display: flex; gap: 0.25rem; flex-wrap: wrap;">
                 <span class="style-badge style-${card.summary_style || 'standard'}" style="margin: 0; font-size: 0.6rem; padding: 0.1rem 0.35rem;">${getStyleLabel(card.summary_style)}</span>
                 <span class="style-badge" style="margin: 0; font-size: 0.6rem; padding: 0.1rem 0.35rem; background-color: var(--color-teal-light); color: var(--color-teal); border: 1px solid rgba(22, 50, 92, 0.08); font-weight: 700;">${card.summary_language === 'tr' ? 'Türkçe' : 'English'}</span>
+                ${getDocumentTypeBadgeHtml(card.document_type)}
+                ${getLengthBadgeHtml(card.summary_length)}
               </div>
             </div>
           </div>
@@ -6999,7 +7036,7 @@ async function uploadSingleFileCore(file) {
   }
 }
 
-async function proceedWithBulkSummarization(summaryStyle, language) {
+async function proceedWithBulkSummarization(summaryStyle, language, summaryLength) {
   const docIds = [...activeBulkSummarizingDocIds];
   const totalCount = docIds.length;
   let completedCount = 0;
@@ -7030,7 +7067,7 @@ async function proceedWithBulkSummarization(summaryStyle, language) {
           .eq('id', docId);
 
         const { data, error } = await supabaseClient.functions.invoke('summarize-document', {
-          body: { documentId: docId, summaryStyle: summaryStyle, language: language }
+          body: { documentId: docId, summaryStyle: summaryStyle, language: language, summaryLength: summaryLength }
         });
 
         if (error || !data || !data.success) {
@@ -8240,7 +8277,7 @@ window.saveCourseTag = saveCourseTag;
  * Calls the merge-summarize Edge Function for the given document IDs.
  * Shows loading + success/error toasts and reloads the cards library on success.
  */
-async function triggerMergeSummarize(documentIds, summaryStyle, language) {
+async function triggerMergeSummarize(documentIds, summaryStyle, language, summaryLength) {
   if (!documentIds || documentIds.length < 2) {
     showDashboardAlert('error', 'Select at least 2 documents to merge.');
     return;
@@ -8264,7 +8301,7 @@ async function triggerMergeSummarize(documentIds, summaryStyle, language) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
-      body: JSON.stringify({ documentIds, summaryStyle, language })
+      body: JSON.stringify({ documentIds, summaryStyle, language, summaryLength })
     });
 
     const result = await response.json();
@@ -8326,6 +8363,24 @@ async function loadAdminReport() {
 
     const r = data || {};
 
+    let feedbackRatioStr = '—';
+    try {
+      const { data: fbData, error: fbError } = await supabaseClient
+        .from('summary_feedback')
+        .select('rating');
+
+      if (!fbError && fbData && fbData.length > 0) {
+        const positiveCount = fbData.filter(f => f.rating === 'up').length;
+        const totalCount = fbData.length;
+        const ratio = Math.round((positiveCount / totalCount) * 100);
+        feedbackRatioStr = `${ratio}% positive`;
+      } else if (!fbError && fbData && fbData.length === 0) {
+        feedbackRatioStr = 'No feedback';
+      }
+    } catch (fbErr) {
+      console.error("Error computing feedback ratio:", fbErr);
+    }
+
     const statCard = (label, value, icon, color) => `
       <div style="background: var(--color-white); border: 1px solid rgba(22,50,92,0.1); border-radius: var(--radius-md); padding: 1.5rem; box-shadow: var(--shadow-sm); display: flex; align-items: center; gap: 1rem;">
         <div style="width: 48px; height: 48px; border-radius: var(--radius-sm); background-color: ${color}22; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; flex-shrink: 0;">${icon}</div>
@@ -8349,6 +8404,7 @@ async function loadAdminReport() {
         ${statCard('Exams Taken', r.total_exams_taken, '📝', '#DC2626')}
         ${statCard('Avg. Exam Score', r.avg_exam_score != null ? r.avg_exam_score.toFixed(1) + '%' : '—', '⭐', '#059669')}
         ${statCard('Shared Cards', r.total_shared_cards, '🌐', '#0EA5E9')}
+        ${statCard('Overall Feedback', feedbackRatioStr, '👍', '#0D9488')}
         ${statCard('Contact Messages', r.total_contact_messages ?? 0, '✉️', '#F59E0B')}
       </div>
 
@@ -9783,4 +9839,104 @@ window.triggerNotebookImageUpload = triggerNotebookImageUpload;
 window.handleNotebookImageUpload = handleNotebookImageUpload;
 window.insertShapeElement = insertShapeElement;
 window.insertImageElement = insertImageElement;
+
+// ==========================================
+// PART A & B BADGE HELPERS & PART D FEEDBACK
+// ==========================================
+function getDocumentTypeBadgeHtml(type) {
+  if (!type) return '';
+  const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+  let label = type;
+  let emoji = '📄';
+  if (type.includes('Lecture') || type.includes('Slide')) {
+    emoji = '📖';
+    label = isTr ? 'Ders Notları' : 'Lecture Notes';
+  } else if (type.includes('Article')) {
+    emoji = '🔬';
+    label = isTr ? 'Akademik Makale' : 'Academic Article';
+  } else if (type.includes('Syllabus')) {
+    emoji = '📋';
+    label = isTr ? 'Müfredat' : 'Syllabus';
+  } else if (type.includes('Case')) {
+    emoji = '💼';
+    label = isTr ? 'Vaka Çalışması' : 'Case Study';
+  } else if (type.includes('Textbook')) {
+    emoji = '📚';
+    label = isTr ? 'Ders Kitabı' : 'Textbook Chapter';
+  } else if (type === 'Other') {
+    emoji = '📄';
+    label = isTr ? 'Diğer' : 'Other';
+  }
+  return `<span class="style-badge" style="margin: 0; font-size: 0.6rem; padding: 0.1rem 0.35rem; background-color: #F1F5F9; color: #475569; border: 1px solid rgba(22, 50, 92, 0.08); font-weight: 700;">${emoji} ${label}</span>`;
+}
+
+function getLengthBadgeHtml(len) {
+  if (!len) return '';
+  const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+  let label = len;
+  if (len === 'short') label = isTr ? 'Kısa' : 'Short';
+  else if (len === 'medium') label = isTr ? 'Orta' : 'Medium';
+  else if (len === 'detailed') label = isTr ? 'Detaylı' : 'Detailed';
+  return `<span class="style-badge" style="margin: 0; font-size: 0.6rem; padding: 0.1rem 0.35rem; background-color: #EEF2FF; color: #4F46E5; border: 1px solid rgba(22, 50, 92, 0.08); font-weight: 700;">${label}</span>`;
+}
+
+function highlightFeedbackButtons(rating) {
+  const btnUp = document.getElementById('btn-vote-up');
+  const btnDown = document.getElementById('btn-vote-down');
+  if (!btnUp || !btnDown) return;
+  
+  // Reset styles to default premium border-less light look
+  btnUp.style.backgroundColor = 'var(--color-white)';
+  btnUp.style.borderColor = 'rgba(22, 50, 92, 0.1)';
+  btnUp.style.color = '';
+  btnDown.style.backgroundColor = 'var(--color-white)';
+  btnDown.style.borderColor = 'rgba(22, 50, 92, 0.1)';
+  btnDown.style.color = '';
+  
+  if (rating === 'up') {
+    btnUp.style.backgroundColor = 'var(--color-teal-light)';
+    btnUp.style.borderColor = 'var(--color-teal)';
+  } else if (rating === 'down') {
+    btnDown.style.backgroundColor = '#FEE2E2';
+    btnDown.style.borderColor = '#EF4444';
+  }
+}
+
+async function submitSummaryFeedback(rating) {
+  if (!currentActiveStudyCard || !currentActiveStudyCard.id) return;
+  const studyCardId = currentActiveStudyCard.id;
+  const user = currentUser;
+  if (!user) return;
+  
+  try {
+    const { error } = await supabaseClient
+      .from('summary_feedback')
+      .upsert({ 
+        study_card_id: studyCardId, 
+        user_id: user.id, 
+        rating: rating 
+      }, { onConflict: 'study_card_id,user_id' });
+      
+    if (error) {
+      console.error("Feedback submit failed: ", error);
+      showDashboardAlert('error', 'Feedback submission failed.');
+      return;
+    }
+    
+    // Update local UI state
+    highlightFeedbackButtons(rating);
+    currentActiveStudyCard.user_rating = rating;
+    
+    const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+    showDashboardAlert('success', isTr ? 'Geri bildiriminiz için teşekkürler!' : 'Thank you for your feedback!');
+  } catch (err) {
+    console.error("Feedback submit exception: ", err);
+  }
+}
+
+window.getDocumentTypeBadgeHtml = getDocumentTypeBadgeHtml;
+window.getLengthBadgeHtml = getLengthBadgeHtml;
+window.highlightFeedbackButtons = highlightFeedbackButtons;
+window.submitSummaryFeedback = submitSummaryFeedback;
+
 

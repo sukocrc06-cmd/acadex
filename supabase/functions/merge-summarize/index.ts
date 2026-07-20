@@ -22,7 +22,7 @@ serve(async (req) => {
       })
     }
 
-    const { documentIds, summaryStyle, language } = await req.json()
+    const { documentIds, summaryStyle, language, summaryLength } = await req.json()
 
     if (!documentIds || !Array.isArray(documentIds) || documentIds.length < 2) {
       return new Response(JSON.stringify({ error: "documentIds must be an array of at least 2 IDs" }), {
@@ -32,7 +32,8 @@ serve(async (req) => {
 
     const style = (summaryStyle || "standard").toLowerCase()
     const lang = (language || "en").toLowerCase()
-    console.log("merge-summarize: documentIds =", documentIds, "style =", style, "lang =", lang)
+    const len = (summaryLength || "medium").toLowerCase()
+    console.log("merge-summarize: documentIds =", documentIds, "style =", style, "lang =", lang, "len =", len)
 
     const authHeader = req.headers.get("Authorization")
     if (!authHeader) {
@@ -196,19 +197,38 @@ serve(async (req) => {
     else if (style === "simplified") styleInstruction = "Write the summary in simple, plain language suitable for someone new to the topic, avoiding jargon or clearly defining any technical terms used."
     else if (style === "exam_focused") styleInstruction = "Write a concise, fact-dense summary emphasizing definitions, relationships, and facts most likely to appear on an exam. Prioritize precision over narrative flow."
 
+    // Part B: Length instruction
+    let lengthInstruction = "Write a balanced summary in 4-8 sentences. Include 5-10 key terms, 5-10 key points, and 4-6 quiz questions."
+    if (len === 'short') {
+      lengthInstruction = "Write a concise summary in 2-3 sentences. Include only the 3-5 most essential key terms, 3-5 key points, and 3 quiz questions."
+    } else if (len === 'detailed') {
+      lengthInstruction = "Write a thorough, in-depth summary (8-14 sentences). Include 10-15 key terms, 10-15 key points, and 6-8 quiz questions covering the material comprehensively."
+    }
+
     const langLabel = lang === "tr" ? "Turkish / Turkce" : "English"
     const docNames = documents.map(d => d.file_name).join(", ")
 
-    const systemPrompt = `You are an academic study assistant. You will be given combined text extracted from MULTIPLE student documents (${docNames}). Analyze all of them together and produce a UNIFIED study card that synthesizes the key information across all sources. Respond with ONLY a valid JSON object, no markdown code fences, no commentary before or after — just the raw JSON matching this exact shape: { "summary": string (4-8 sentences synthesizing all documents), "key_terms": [ { "term": string, "definition": string } ] (5-10 items from across all documents), "key_points": [ string ] (5-10 concise bullet points of the most important ideas across all documents), "quiz_questions": [ { "question": string, "answer": string } ] (4-6 questions covering material from multiple documents) }.
+    // Part A: System prompt with document type classification & type specific guidance
+    const systemPrompt = `You are an academic study assistant. You will be given combined text extracted from MULTIPLE student documents (${docNames}). Analyze all of them together and produce a UNIFIED study card that synthesizes the key information across all sources. Respond with ONLY a valid JSON object, no markdown code fences, no commentary before or after — just the raw JSON matching this exact shape: { "summary": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "document_type": string }.
+
+DOCUMENT-TYPE CLASSIFICATION:
+Identify the synthesized document type as one of the following exact strings: "Lecture Notes/Slides", "Academic Article", "Syllabus", "Case Study", "Textbook Chapter", or "Other". Put this classification in the "document_type" JSON field.
+Adapt your summary approach according to this classification:
+- "Lecture Notes/Slides": focus on key concepts, definitions, and the structure as originally presented.
+- "Academic Article": focus on research question/purpose, methodology, key findings, and conclusions.
+- "Syllabus": focus on course objectives, topics covered, and learning outcomes.
+- "Case Study": structure around Problem/Context, Analysis, and Solution/Recommendation.
+- "Textbook Chapter": focus on core theory, definitions, and illustrative examples.
+- "Other": use standard general-purpose summarization.
+
+LENGTH INSTRUCTION:
+${lengthInstruction}
 
 ACCURACY INSTRUCTION:
 Base your summary, key terms, key points, and quiz questions STRICTLY on content actually present in the provided text. Do not invent, assume, or add information not found in the source material. If a section of the document is unclear or incomplete, reflect that faithfully rather than filling gaps with assumptions. Copy any specific numbers, formulas, names, or technical terms EXACTLY as they appear in the source — do not paraphrase or alter precise factual details.
 
-STRUCTURAL-AWARENESS INSTRUCTION:
-Before summarizing, first identify the document's overall topic and structure (e.g. is it lecture slides, a research article, a syllabus, a chapter). Let this understanding guide how you organize the summary, rather than processing the text as an undifferentiated block.
-
 LANGUAGE INSTRUCTION:
-Respond strictly in the language: '${langLabel}'. Write the ENTIRE response in that specified language, REGARDLESS of the language of the source text.
+Respond strictly in the language: '${langLabel}'. Write the ENTIRE response (the summary, all key_terms, all key_points, all quiz_questions, and the document_type) in that specified language (the returned value of "document_type" must be one of the specified English strings: "Lecture Notes/Slides", "Academic Article", "Syllabus", "Case Study", "Textbook Chapter", or "Other").
 
 EXAM-FOCUSED CONTENT FILTERING:
 Exclude administrative/logistical information (instructor names, office hours, grading policies, textbook ISBN, etc.). Focus on actual academic content.
@@ -216,6 +236,7 @@ Exclude administrative/logistical information (instructor names, office hours, g
 STYLE-SPECIFIC INSTRUCTION:
 ${styleInstruction}`
 
+    // Pass 1: Call Groq to generate Draft
     const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: { "Authorization": "Bearer " + groqApiKey, "Content-Type": "application/json" },
@@ -240,18 +261,57 @@ ${styleInstruction}`
 
     const rawContent = groqData.choices?.[0]?.message?.content ?? ""
     if (!rawContent) {
-      return new Response(JSON.stringify({ error: "AI failed to generate a response" }), {
+      return new Response(JSON.stringify({ error: "AI failed to generate a draft response" }), {
         status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" }
       })
     }
 
-    const cleaned = rawContent.replace(/```json\s*|```/g, "").trim()
+    // Pass 2: Self-Review for Higher Accuracy
+    let sourceTextForReview = combinedText
+    if (sourceTextForReview.length > 15000) {
+      sourceTextForReview = sourceTextForReview.substring(0, 15000) + " [truncated for review]"
+    }
+
+    const reviewSystemPrompt = `You are reviewing a draft academic summary for accuracy and quality. Compare the draft against the original source text. Check for: (1) any factual errors or details not actually present in the source, (2) any important information from the source that was missed, (3) clarity and organization issues. Produce a REFINED, corrected final version in the exact same JSON format: { "summary": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "document_type": string }. If the draft was already accurate and complete, you may return it largely unchanged — only make genuine improvements, don't change things arbitrarily.`
+
+    const reviewUserPrompt = `Original source text:\n${sourceTextForReview}\n\nDraft JSON summary:\n${rawContent}`
+
+    const groqReviewResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + groqApiKey, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile",
+        temperature: 0.2,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: reviewSystemPrompt },
+          { role: "user", content: reviewUserPrompt }
+        ]
+      })
+    })
+
+    const groqReviewData = await groqReviewResponse.json()
+    if (!groqReviewResponse.ok) {
+      console.error("Groq Review API error:", JSON.stringify(groqReviewData))
+      return new Response(JSON.stringify({ error: "AI review service error. Please try again." }), {
+        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" }
+      })
+    }
+
+    const rawFinalContent = groqReviewData.choices?.[0]?.message?.content ?? ""
+    if (!rawFinalContent) {
+      return new Response(JSON.stringify({ error: "AI failed to generate a review response" }), {
+        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" }
+      })
+    }
+
+    const cleaned = rawFinalContent.replace(/```json\s*|```/g, "").trim()
     let parsedContent
     try {
       parsedContent = JSON.parse(cleaned)
     } catch (parseError) {
-      console.error("Failed to parse Groq JSON:", rawContent, parseError)
-      return new Response(JSON.stringify({ error: "AI returned invalid JSON formatting" }), {
+      console.error("Failed to parse Groq JSON:", rawFinalContent, parseError)
+      return new Response(JSON.stringify({ error: "AI returned invalid JSON formatting after review" }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" }
       })
     }
@@ -271,6 +331,8 @@ ${styleInstruction}`
         quiz_questions: parsedContent.quiz_questions || [],
         summary_style: style,
         summary_language: lang,
+        summary_length: len,
+        document_type: parsedContent.document_type || "Other",
         is_merged: true,
         source_documents: sourceDocumentsMeta,
         course_tag: inheritedTag
