@@ -4723,75 +4723,95 @@ async function confirmDeleteAccount() {
 window.confirmDeleteAccount = confirmDeleteAccount;
 
 // ==========================================
-// GUIDED ONBOARDING TOUR IMPLEMENTATION (PHASE 8)
+// GUIDED ONBOARDING TOUR IMPLEMENTATION (PHASE 8 UPDATED)
 // ==========================================
-const tourSteps = [
-  {
-    title: "Welcome to Acadex! 👋",
-    desc: "Let's take a quick guided tour of your student study portal.",
-    target: null
-  },
-  {
-    title: "Ana Sayfa (Home)",
-    desc: "View your personal study statistics, recent activity, streak info, and earned badges here.",
-    target: "side-home"
-  },
-  {
-    title: "Çalışma Planlayıcı (Study Planner)",
-    desc: "Track upcoming exam dates, academic deadlines, and learning goals here.",
-    target: "side-planner"
-  },
-  {
-    title: "Belgelerim (My Documents)",
-    desc: "Upload lecture slides, chapters, or syllabus documents to get AI-powered study cards.",
-    target: "side-docs"
-  },
-  {
-    title: "Bölüm Akışı (Department Feed)",
-    desc: "See shared study materials published by other students in your department.",
-    target: "side-feed"
-  },
-  {
-    title: "Çalışma Defteri (Study Notebook)",
-    desc: "Create whiteboard canvases, write notes, construct tables, and drag your study cards as sticky notes.",
-    target: "side-notebook"
-  },
-  {
-    title: "Bilgi Kartları (Study Cards)",
-    desc: "Browse, filter, and organize all your AI-generated summaries, key terms, and self-test questions.",
-    target: "side-cards"
-  },
-  {
-    title: "Sınav Platformu (Exams Platform)",
-    desc: "Generate custom multiple choice, mixed, or classical practice quizzes with hints and instant grading.",
-    target: "side-exams"
-  },
-  {
-    title: "Geliştirici Sandbox (Developer Sandbox)",
-    desc: "Practice data analysis skills with sample datasets and share programming projects with the community.",
-    target: "side-sandbox"
-  },
-  {
-    title: "Ayarlar (Settings)",
-    desc: "Manage your profile name, change your department selection, update your password, or delete your account.",
-    target: "side-settings"
-  },
-  {
-    title: "Top Bar Features",
-    desc: "Use global search / Command Palette (Ctrl+K), toggle dark mode, switch between English/Turkish language, and check your notification center.",
-    target: "top-bar-features"
-  },
-  {
-    title: "Focus Mode (Pomodoro)",
-    desc: "Boost your productivity with the floating Pomodoro widget and ambient study soundtracks.",
-    target: "btn-pomodoro-toggle"
-  },
-  {
-    title: "You're all set! 🎉",
-    desc: "Start your academic journey by uploading your first document or setting a study goal.",
-    target: null
+function getTourSteps() {
+  const steps = [
+    {
+      title: "Welcome to Acadex! 👋",
+      desc: "Let's take a quick tour of your student portal.",
+      target: null
+    },
+    {
+      title: "Ana Sayfa",
+      desc: "Your personal dashboard — see your stats, quick actions, recent activity, achievements, and study streak here. You can always replay this tour from a link on this page.",
+      target: "side-home"
+    },
+    {
+      title: "Çalışma Planlayıcı",
+      desc: "Track upcoming exam dates and study goals here — with reminders so you never miss one.",
+      target: "side-planner"
+    },
+    {
+      title: "Belgelerim",
+      desc: "Upload your lecture slides, articles, and syllabus files here — you can even upload several at once and summarize them together.",
+      target: "side-docs"
+    },
+    {
+      title: "Bölüm Akışı",
+      desc: "See study cards your classmates have chosen to share with your department — and share your own when you're ready.",
+      target: "side-feed"
+    },
+    {
+      title: "Çalışma Defteri",
+      desc: "Your personal digital notebook — draw, write, add tables, shapes, and images, start from a template like SWOT or Cornell Notes, and paste your study cards here as sticky notes. You can even share a page with a classmate to work on together.",
+      target: "side-notebook"
+    },
+    {
+      title: "Bilgi Kartları",
+      desc: "Every AI-generated study card you create lives here, fully searchable and filterable. Review them with smart spaced repetition, listen to an audio overview, chat with Acadia about a specific document, or turn one into a mind map — all from here.",
+      target: "side-cards"
+    },
+    {
+      title: "Sınav Platformu",
+      desc: "Turn any study card into a practice exam — classic, multiple choice, or mixed — complete with hints if you get stuck and instant AI grading.",
+      target: "side-exams"
+    },
+    {
+      title: "Geliştirici Sandbox",
+      desc: "Practice with sample datasets and share your own coding or data projects with the whole Acadex community — especially handy if you're into MIS or just curious about data.",
+      target: "side-sandbox"
+    },
+    {
+      title: "Ayarlar",
+      desc: "Manage your profile, password, avatar, and account settings here.",
+      target: "side-settings"
+    },
+    {
+      title: "Top Bar Features",
+      desc: "Use the search icon (or Ctrl+K) to quickly find anything, check 'Yenilikler' for what's new, switch between English and Turkish, and keep an eye on the bell for updates from your department.",
+      target: "top-bar-features"
+    },
+    {
+      title: "Acadia Assistant",
+      desc: "Need help understanding something? Ask Acadia, your AI study assistant, anytime.",
+      target: "btn-acadia-toggle"
+    },
+    {
+      title: "Focus Mode",
+      desc: "When you need to concentrate, try Focus Mode — a Pomodoro timer with an optional dim screen and calming ambient sound.",
+      target: "btn-pomodoro-toggle"
+    }
+  ];
+
+  // Conditional Step 14: Yönetici Paneli (only included if current account is admin)
+  if (currentUserProfile && currentUserProfile.is_admin === true) {
+    steps.push({
+      title: "Yönetici Paneli",
+      desc: "As an administrator, you also have access to the Yönetici Paneli — platform statistics, the student roster, your inbox, and content moderation tools.",
+      target: "side-admin"
+    });
   }
-];
+
+  // Final Step 15
+  steps.push({
+    title: "You're all set! 🎉",
+    desc: "Start by uploading your first document.",
+    target: null
+  });
+
+  return steps;
+}
 
 let currentTourStep = 0;
 
@@ -4849,6 +4869,8 @@ function renderTourStep(stepIndex) {
   const tooltip = document.getElementById('tour-tooltip');
 
   if (!overlay || !spotlight || !tooltip) return;
+
+  const tourSteps = getTourSteps();
   if (stepIndex < 0 || stepIndex >= tourSteps.length) {
     finishTour();
     return;
@@ -4868,7 +4890,7 @@ function renderTourStep(stepIndex) {
       <div class="tour-tooltip-buttons">
         ${!isFirst && !isLast ? '<button class="tour-btn btn-back">Geri</button>' : ''}
         ${isLast 
-          ? '<button class="tour-btn btn-next">Tamamla</button>' 
+          ? '<button class="tour-btn btn-next">Finish</button>' 
           : '<button class="tour-btn btn-next">' + (isFirst ? 'Başla' : 'İleri') + '</button>'}
         ${!isLast ? '<button class="tour-btn btn-skip">Geç</button>' : ''}
       </div>
@@ -4906,37 +4928,43 @@ function renderTourStep(stepIndex) {
   if (step.target) {
     const el = document.getElementById(step.target);
     if (el) {
-      // Switch active dashboard view so the student actually sees the target tab in active context
-      const viewName = step.target.replace('side-', '');
-      if (typeof switchDashboardView === 'function') {
-        switchDashboardView(viewName);
+      if (step.target.startsWith('side-')) {
+        const viewName = step.target.replace('side-', '');
+        if (typeof switchDashboardView === 'function') {
+          switchDashboardView(viewName);
+        }
       }
 
       spotlight.style.display = 'block';
       
-      // Calculate coordinates relative to viewport
       const rect = el.getBoundingClientRect();
       spotlight.style.width = `${rect.width + 12}px`;
       spotlight.style.height = `${rect.height + 12}px`;
       spotlight.style.top = `${rect.top - 6}px`;
       spotlight.style.left = `${rect.left - 6}px`;
 
-      // Position tooltip relative to screen size
       if (window.innerWidth >= 768) {
         tooltip.style.transform = 'none';
-        tooltip.style.left = `${rect.right + 20}px`;
-        
-        // Measure tooltip offset height
-        tooltip.style.visibility = 'hidden';
-        tooltip.style.display = 'flex';
-        const tooltipHeight = tooltip.offsetHeight || 150;
-        tooltip.style.visibility = 'visible';
 
-        let topPos = rect.top + (rect.height / 2) - (tooltipHeight / 2);
-        topPos = Math.max(20, Math.min(window.innerHeight - tooltipHeight - 20, topPos));
-        tooltip.style.top = `${topPos}px`;
+        if (step.target === 'btn-pomodoro-toggle') {
+          tooltip.style.left = `${Math.max(20, rect.left - 340)}px`;
+          tooltip.style.top = `${Math.max(20, rect.top - 20)}px`;
+        } else if (step.target === 'btn-acadia-toggle') {
+          tooltip.style.left = `${rect.right + 20}px`;
+          tooltip.style.top = `${Math.max(20, rect.top - 40)}px`;
+        } else {
+          tooltip.style.left = `${rect.right + 20}px`;
+          
+          tooltip.style.visibility = 'hidden';
+          tooltip.style.display = 'flex';
+          const tooltipHeight = tooltip.offsetHeight || 150;
+          tooltip.style.visibility = 'visible';
+
+          let topPos = rect.top + (rect.height / 2) - (tooltipHeight / 2);
+          topPos = Math.max(20, Math.min(window.innerHeight - tooltipHeight - 20, topPos));
+          tooltip.style.top = `${topPos}px`;
+        }
       } else {
-        // Mobile layout: place tooltip centered at the bottom
         tooltip.style.transform = 'translateX(-50%)';
         tooltip.style.left = '50%';
         tooltip.style.top = 'auto';
