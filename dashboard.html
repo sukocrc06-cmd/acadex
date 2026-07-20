@@ -598,6 +598,7 @@
                   <button class="color-swatch" style="background-color: #10B981;" data-color="#10B981" title="Green color" aria-label="Green color"></button>
                   <button class="color-swatch" style="background-color: #F59E0B;" data-color="#F59E0B" title="Orange color" aria-label="Orange color"></button>
                   <button class="color-swatch" style="background-color: #8B5CF6;" data-color="#8B5CF6" title="Purple color" aria-label="Purple color"></button>
+                  <input type="color" id="tool-color-picker" title="Custom Color Picker" aria-label="Custom Color Picker" style="width: 24px; height: 24px; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: 50%; padding: 0; cursor: pointer; background: none; margin-left: 0.25rem;">
                 </div>
               </div>
 
@@ -634,6 +635,23 @@
                     <path d="M3 3h18v18H3zM21 9H3M21 15H3M12 3v18"></path>
                   </svg>
                 </button>
+
+                <div class="shape-dropdown" style="position: relative; display: inline-block;">
+                  <button class="tool-btn" id="tool-shape" title="Shape Tool" aria-label="Shape Tool" onclick="toggleShapeDropdown(event)">
+                    🔺
+                  </button>
+                  <div id="shape-menu" style="display: none; position: absolute; top: 100%; left: 0; background: var(--color-white); border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); box-shadow: var(--shadow-md); z-index: 10000; min-width: 120px;">
+                    <button class="shape-option-btn" onclick="selectShapeMode('rectangle', event)" style="display: block; width: 100%; padding: 0.5rem; text-align: left; background: none; border: none; font-size: 0.8rem; cursor: pointer; color: var(--color-navy); font-family: inherit;">Rectangle</button>
+                    <button class="shape-option-btn" onclick="selectShapeMode('circle', event)" style="display: block; width: 100%; padding: 0.5rem; text-align: left; background: none; border: none; font-size: 0.8rem; cursor: pointer; color: var(--color-navy); font-family: inherit;">Circle</button>
+                    <button class="shape-option-btn" onclick="selectShapeMode('line', event)" style="display: block; width: 100%; padding: 0.5rem; text-align: left; background: none; border: none; font-size: 0.8rem; cursor: pointer; color: var(--color-navy); font-family: inherit;">Line</button>
+                    <button class="shape-option-btn" onclick="selectShapeMode('arrow', event)" style="display: block; width: 100%; padding: 0.5rem; text-align: left; background: none; border: none; font-size: 0.8rem; cursor: pointer; color: var(--color-navy); font-family: inherit;">Arrow</button>
+                  </div>
+                </div>
+
+                <button class="tool-btn" id="tool-image" title="Insert Image" aria-label="Insert Image" onclick="triggerNotebookImageUpload(event)">
+                  🖼️
+                </button>
+                <input type="file" id="notebook-image-uploader" accept="image/*" style="display: none;" onchange="handleNotebookImageUpload(event)">
 
                 <!-- Page Controls Group -->
                 <div class="notebook-toolbar-group" id="notebook-page-controls" style="display: flex; align-items: center; gap: 0.35rem; margin-left: 0.5rem;">
@@ -706,7 +724,8 @@
               <option value="all">All Courses</option>
             </select>
           </div>
-          <button id="btn-clear-filters" class="btn btn-outline" style="padding: 0.35rem 0.75rem; font-size: 0.75rem; font-weight: 700; border-radius: var(--radius-sm); margin-left: auto;">Clear Filters</button>
+          <button id="btn-clear-filters" class="btn btn-outline" data-i18n="dash.cards.btn.clear" style="padding: 0.35rem 0.75rem; font-size: 0.75rem; font-weight: 700; border-radius: var(--radius-sm); margin-left: auto;">Clear Filters</button>
+          <button id="btn-export-all-pdf" class="btn btn-primary" data-i18n="dash.cards.btn.exportAll" style="padding: 0.35rem 0.75rem; font-size: 0.75rem; font-weight: 700; border-radius: var(--radius-sm); margin-left: 0.5rem;">Export All to PDF</button>
         </div>
 
         <!-- Search bar -->

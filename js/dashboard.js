@@ -235,6 +235,15 @@ async function checkSessionAndLoadProfile() {
       });
     }
 
+    const btnExportAllPdf = document.getElementById('btn-export-all-pdf');
+    if (btnExportAllPdf) {
+      btnExportAllPdf.addEventListener('click', (e) => {
+        e.preventDefault();
+        exportAllFilteredCardsToPDF();
+      });
+    }
+
+
     // Start Guided Tour automatically if not completed
     if (currentUserProfile && currentUserProfile.onboarding_completed === false) {
       setTimeout(() => {
@@ -936,7 +945,19 @@ async function proceedWithSummarization() {
 
     if (error) {
       console.error("AI invocation returned error details: ", error);
-      showDashboardAlert('error', 'Summarization failed. Please check your connection and try again.');
+      let errorMsg = 'Summarization failed. Please check your connection and try again.';
+      try {
+        if (error.context) {
+          const bodyText = await error.context.text();
+          const parsed = JSON.parse(bodyText);
+          if (parsed && parsed.error) {
+            errorMsg = parsed.error;
+          }
+        }
+      } catch (parseErr) {
+        console.error("Failed to parse HTTP error body:", parseErr);
+      }
+      showDashboardAlert('error', errorMsg);
       await loadDocuments(); // Reload to reset card state
       return;
     }
@@ -1668,6 +1689,19 @@ function initWhiteboard() {
     });
   });
 
+  const customColorPicker = document.getElementById('tool-color-picker');
+  if (customColorPicker) {
+    customColorPicker.addEventListener('input', (e) => {
+      swatches.forEach(s => s.classList.remove('active'));
+      currentPenColor = e.target.value;
+      
+      if (activeEditingTextBox) {
+        activeEditingTextBox.style.color = currentPenColor;
+        activeEditingTextBox.setAttribute('data-color', currentPenColor);
+      }
+    });
+  }
+
   if (fontSizeSelect) {
     fontSizeSelect.addEventListener('change', (e) => {
       // Update font size of currently active editing text box
@@ -1731,6 +1765,11 @@ function startDrawing(e) {
     insertTextBox(e);
     return;
   }
+  if (notebookMode === 'shape') {
+    e.preventDefault();
+    startDrawingShape(e);
+    return;
+  }
   if (notebookMode !== 'pen' && notebookMode !== 'eraser') return;
 
   isDrawing = true;
@@ -1760,6 +1799,10 @@ function startDrawing(e) {
 }
 
 function draw(e) {
+  if (isDrawingShape && activeShapeElement) {
+    updateDrawingShape(e);
+    return;
+  }
   if (!isDrawing) return;
 
   const rect = canvasElement.getBoundingClientRect();
@@ -1772,6 +1815,32 @@ function draw(e) {
 }
 
 function stopDrawing() {
+  if (isDrawingShape && activeShapeElement) {
+    isDrawingShape = false;
+    
+    const el = activeShapeElement;
+    activeShapeElement = null;
+
+    // Add resizer handle
+    const resizer = document.createElement('div');
+    resizer.className = 'table-resizer';
+    resizer.innerHTML = `
+      <svg width="10" height="10" viewBox="0 0 10 10" style="position: absolute; bottom: 1px; right: 1px; pointer-events: none;">
+        <path d="M10 0 L0 10 M10 4 L4 10 M10 8 L8 10" stroke="#94A3B8" stroke-width="1.5"/>
+      </svg>
+    `;
+    el.appendChild(resizer);
+    
+    makeElementDraggable(el, el.querySelector('.drag-handle-bar') || el);
+    makeElementResizable(el, resizer);
+    
+    if (el.offsetWidth < 5 && el.offsetHeight < 5) {
+      el.remove();
+    } else {
+      notebookHasUnsavedChanges = true;
+    }
+    return;
+  }
   if (!isDrawing) return;
   isDrawing = false;
   canvasCtx.closePath();
@@ -2129,6 +2198,23 @@ async function saveNotebookData() {
             content: { rows, cols, cells }
           });
         }
+        else if (type === 'image') {
+          const src = el.getAttribute('data-src');
+          elementsArray.push({
+            type, id, left, top, width, height,
+            content: src
+          });
+        }
+        else if (type === 'shape') {
+          const shapeType = el.getAttribute('data-shape-type');
+          const color = el.getAttribute('data-color');
+          const flippedX = el.getAttribute('data-flipped-x');
+          const flippedY = el.getAttribute('data-flipped-y');
+          elementsArray.push({
+            type, id, left, top, width, height, color,
+            content: { shapeType, flippedX, flippedY }
+          });
+        }
       });
     }
 
@@ -2451,6 +2537,12 @@ function renderCurrentPageData() {
         notebookHasUnsavedChanges = true;
       });
     }
+    else if (item.type === 'image') {
+      insertImageElement(item.content, item.left, item.top, item.width, item.height, item.id);
+    }
+    else if (item.type === 'shape') {
+      insertShapeElement(item.id, item.content.shapeType, item.color, item.left, item.top, item.width, item.height, item.content.flippedX === 'true', item.content.flippedY === 'true');
+    }
   });
 
   updatePageControlsUI();
@@ -2497,8 +2589,12 @@ function makeElementResizable(el, resizer) {
     let newWidth = e.clientX - rect.left;
     let newHeight = e.clientY - rect.top;
 
-    newWidth = Math.max(150, newWidth);
-    newHeight = Math.max(100, newHeight);
+    const type = el.getAttribute('data-type');
+    const minW = (type === 'shape' || type === 'image') ? 10 : 150;
+    const minH = (type === 'shape' || type === 'image') ? 10 : 100;
+
+    newWidth = Math.max(minW, newWidth);
+    newHeight = Math.max(minH, newHeight);
 
     const maxW = overlayRect.width - el.offsetLeft;
     const maxH = overlayRect.height - el.offsetTop;
@@ -3028,6 +3124,7 @@ function filterLibraryCards() {
     }
   }
 
+  window.filteredLibraryCardsList = filtered;
   renderCardsLibraryList(filtered);
 }
 
@@ -7144,153 +7241,261 @@ function replaceTurkishChars(str) {
     .replace(/ç/g, 'c').replace(/Ç/g, 'C');
 }
 
-async function exportStudyCardToPDF(studyCard) {
-  // Lazy-load jsPDF
-  if (window.loadScript) {
-    await window.loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+function applyBrandedLayout(doc) {
+  const pageCount = doc.internal.getNumberOfPages();
+  const pageWidth = doc.internal.pageSize.width;
+  const pageHeight = doc.internal.pageSize.height;
+  const margin = 14;
+
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    
+    // Header text
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(22, 50, 92); // Brand navy rgb(22, 50, 92)
+    doc.text("ACADEX", margin, 15);
+    
+    // Thin horizontal line under header in brand teal rgb(13, 148, 136)
+    doc.setDrawColor(13, 148, 136);
+    doc.setLineWidth(0.5);
+    doc.line(margin, 17, pageWidth - margin, 17);
+    
+    // Footer page number
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(128, 128, 128); // Gray text
+    const footerText = `Page ${i} of ${pageCount}`;
+    doc.text(footerText, pageWidth - margin - doc.getTextWidth(footerText), pageHeight - 12);
   }
-  
-  // Turkish unicode characters replaced for default jsPDF helvetica compatibility. Custom TTF/Unicode font can be registered for native rendering.
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
-  let y = 20;
+}
+
+function appendStudyCardToDoc(doc, studyCard, isFirstCard) {
   const margin = 14;
   const pageWidth = doc.internal.pageSize.width;
   const maxWidth = pageWidth - (margin * 2);
-
   const safeText = (txt) => replaceTurkishChars(txt || '');
 
-  // Title
+  if (!isFirstCard) {
+    doc.addPage();
+  }
+  
+  let y = 35; // Start y below the header
+
+  // Document Title
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(18);
-  const titleLines = doc.splitTextToSize(safeText(studyCard.documentFileName || 'Study Card'), maxWidth);
+  doc.setFontSize(16);
+  doc.setTextColor(22, 50, 92); // Navy heading
+  
+  let titleStr = '';
+  if (studyCard.documents?.file_name) {
+    titleStr = studyCard.documents.file_name;
+  } else if (studyCard.source_documents && studyCard.source_documents.length > 0) {
+    titleStr = studyCard.source_documents.map(s => s.file_name).join(', ');
+  } else {
+    titleStr = studyCard.documentFileName || 'Study Card';
+  }
+
+  const titleLines = doc.splitTextToSize(safeText(titleStr), maxWidth);
   titleLines.forEach(line => {
-    if (y > 280) { doc.addPage(); y = 20; }
+    if (y > 270) { doc.addPage(); y = 35; }
     doc.text(line, margin, y);
     y += 8;
   });
   y += 2;
 
-  // Metadata
+  // Metadata block
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  doc.setTextColor(100);
+  doc.setFontSize(9);
+  doc.setTextColor(128, 128, 128); // Gray text
   const styleLabel = getStyleLabel(studyCard.summary_style);
   const langLabel = studyCard.summary_language === 'tr' ? 'Turkish' : 'English';
   const createdDate = new Date(studyCard.created_at).toLocaleDateString();
   const metaText = `Style: ${styleLabel} | Language: ${langLabel} | Created: ${createdDate}`;
   doc.text(metaText, margin, y);
-  y += 12;
+  y += 8;
 
-  // Horizontal line
-  doc.setDrawColor(200);
+  // Simple divider
+  doc.setDrawColor(230);
+  doc.setLineWidth(0.2);
   doc.line(margin, y, margin + maxWidth, y);
   y += 10;
 
-  // 1. Summary
+  // 1. Summary Section
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
-  doc.setTextColor(20);
+  doc.setFontSize(12);
+  doc.setTextColor(22, 50, 92); // Navy section header
   doc.text('Summary', margin, y);
-  y += 8;
+  y += 7;
 
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  doc.setTextColor(50);
+  doc.setFontSize(9.5);
+  doc.setTextColor(60, 66, 82); // Muted dark gray body
   const summaryLines = doc.splitTextToSize(safeText(studyCard.summary), maxWidth);
   summaryLines.forEach(line => {
-    if (y > 280) { doc.addPage(); y = 20; }
+    if (y > 270) { doc.addPage(); y = 35; }
     doc.text(line, margin, y);
-    y += 6;
+    y += 5.5;
   });
-  y += 10;
+  y += 8;
 
-  // 2. Key Terms
+  // 2. Key Terms Section
   if (studyCard.key_terms && studyCard.key_terms.length > 0) {
-    if (y > 260) { doc.addPage(); y = 20; }
+    if (y > 250) { doc.addPage(); y = 35; }
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    doc.setTextColor(20);
+    doc.setFontSize(12);
+    doc.setTextColor(22, 50, 92); // Navy section header
     doc.text('Key Terms', margin, y);
-    y += 8;
+    y += 7;
 
     studyCard.key_terms.forEach(kt => {
-      const defText = `- ${safeText(kt.term)}: ${safeText(kt.definition)}`;
-      const defLines = doc.splitTextToSize(defText, maxWidth);
+      // Bold Navy Term
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9.5);
+      doc.setTextColor(22, 50, 92);
+      const termLabel = replaceTurkishChars(`• ${kt.term}`);
       
+      if (y > 270) { doc.addPage(); y = 35; }
+      doc.text(termLabel, margin, y);
+      y += 5;
+
+      // Regular Gray Definition
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9.5);
+      doc.setTextColor(60, 66, 82); // Muted dark gray definition text
+      const defLines = doc.splitTextToSize(safeText(kt.definition), maxWidth - 6);
       defLines.forEach(line => {
-        if (y > 280) { doc.addPage(); y = 20; }
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(10);
-        doc.setTextColor(50);
-        doc.text(line, margin, y);
-        y += 6;
+        if (y > 270) { doc.addPage(); y = 35; }
+        doc.text(line, margin + 6, y);
+        y += 5;
       });
+      y += 3; // Spacing between terms
     });
-    y += 8;
+    y += 6;
   }
 
-  // 3. Key Points
+  // 3. Key Points Section
   if (studyCard.key_points && studyCard.key_points.length > 0) {
-    if (y > 260) { doc.addPage(); y = 20; }
+    if (y > 250) { doc.addPage(); y = 35; }
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    doc.setTextColor(20);
+    doc.setFontSize(12);
+    doc.setTextColor(22, 50, 92); // Navy section header
     doc.text('Key Points', margin, y);
-    y += 8;
+    y += 7;
 
     studyCard.key_points.forEach(pt => {
-      const ptText = `* ${safeText(pt)}`;
+      const ptText = replaceTurkishChars(`* ${pt}`);
       const ptLines = doc.splitTextToSize(ptText, maxWidth);
       ptLines.forEach(line => {
-        if (y > 280) { doc.addPage(); y = 20; }
+        if (y > 270) { doc.addPage(); y = 35; }
         doc.setFont("helvetica", "normal");
-        doc.setFontSize(10);
-        doc.setTextColor(50);
+        doc.setFontSize(9.5);
+        doc.setTextColor(60, 66, 82); // Muted dark gray body
         doc.text(line, margin, y);
-        y += 6;
+        y += 5.5;
       });
     });
     y += 8;
   }
 
-  // 4. Quiz Questions
+  // 4. Quiz Questions Section
   if (studyCard.quiz_questions && studyCard.quiz_questions.length > 0) {
-    if (y > 260) { doc.addPage(); y = 20; }
+    if (y > 250) { doc.addPage(); y = 35; }
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    doc.setTextColor(20);
+    doc.setFontSize(12);
+    doc.setTextColor(22, 50, 92); // Navy section header
     doc.text('Self-Test (Quiz)', margin, y);
-    y += 8;
+    y += 7;
 
     studyCard.quiz_questions.forEach((q, idx) => {
-      const qText = `Q${idx + 1}: ${safeText(q.question)}`;
-      const aText = `A: ${safeText(q.answer)}`;
+      const qText = replaceTurkishChars(`Q${idx + 1}: ${q.question}`);
+      const aText = replaceTurkishChars(`A: ${q.answer}`);
       
       const qLines = doc.splitTextToSize(qText, maxWidth);
       qLines.forEach(line => {
-        if (y > 280) { doc.addPage(); y = 20; }
+        if (y > 270) { doc.addPage(); y = 35; }
         doc.setFont("helvetica", "bold");
-        doc.setFontSize(10);
-        doc.setTextColor(40);
+        doc.setFontSize(9.5);
+        doc.setTextColor(22, 50, 92); // Navy text for question
         doc.text(line, margin, y);
-        y += 6;
+        y += 5.5;
       });
 
       const aLines = doc.splitTextToSize(aText, maxWidth);
       aLines.forEach(line => {
-        if (y > 280) { doc.addPage(); y = 20; }
+        if (y > 270) { doc.addPage(); y = 35; }
         doc.setFont("helvetica", "normal");
-        doc.setFontSize(10);
-        doc.setTextColor(60);
+        doc.setFontSize(9.5);
+        doc.setTextColor(60, 66, 82); // Muted dark gray for answer
         doc.text(line, margin, y);
-        y += 6;
+        y += 5.5;
       });
-      y += 4;
+      y += 3.5;
     });
   }
+}
 
-  doc.save(`${safeText(studyCard.documentFileName || 'study-card')}.pdf`);
+async function exportStudyCardToPDF(studyCard) {
+  if (window.loadScript) {
+    await window.loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+
+  appendStudyCardToDoc(doc, studyCard, true);
+  applyBrandedLayout(doc);
+
+  let docFileName = 'study-card';
+  if (studyCard.documents?.file_name) {
+    docFileName = studyCard.documents.file_name;
+  } else if (studyCard.documentFileName) {
+    docFileName = studyCard.documentFileName;
+  }
+  doc.save(`${replaceTurkishChars(docFileName)}.pdf`);
+}
+
+async function exportAllFilteredCardsToPDF() {
+  const cards = window.filteredLibraryCardsList || [];
+  if (cards.length === 0) {
+    const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+    showDashboardAlert('error', isTr 
+      ? 'Aktarılacak bilgi kartı bulunamadı. Lütfen filtrelerinizi kontrol edin.' 
+      : 'No study cards found to export. Please check your filters.');
+    return;
+  }
+
+  const btnExport = document.getElementById('btn-export-all-pdf');
+  const originalText = btnExport ? btnExport.textContent : 'Export All to PDF';
+  if (btnExport) {
+    btnExport.disabled = true;
+    btnExport.textContent = (localStorage.getItem('acadexUILang') || 'en') === 'tr' ? 'Aktarılıyor...' : 'Exporting...';
+  }
+
+  try {
+    if (window.loadScript) {
+      await window.loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+    }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+
+    for (let i = 0; i < cards.length; i++) {
+      appendStudyCardToDoc(doc, cards[i], i === 0);
+    }
+
+    applyBrandedLayout(doc);
+
+    doc.save('Acadex_Study_Guide.pdf');
+    const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+    showDashboardAlert('success', isTr ? 'Tüm bilgi kartları başarıyla PDF olarak aktarıldı!' : 'All study cards successfully exported to PDF!');
+  } catch (err) {
+    console.error("Failed to export all study cards to PDF: ", err);
+    showDashboardAlert('error', 'Failed to export study guide to PDF. Please try again.');
+  } finally {
+    if (btnExport) {
+      btnExport.disabled = false;
+      btnExport.textContent = originalText;
+    }
+  }
 }
 
 window.handleMultipleFilesUpload = handleMultipleFilesUpload;
@@ -9326,3 +9531,256 @@ async function sendAcadiaMessage(text) {
   }
 }
 window.sendAcadiaMessage = sendAcadiaMessage;
+
+// ==========================================
+// STUDY NOTEBOOK SHAPES AND IMAGE CREATOR
+// ==========================================
+let notebookActiveShapeTool = null; // 'rectangle', 'circle', 'line', 'arrow'
+let isDrawingShape = false;
+let shapeStartX = 0;
+let shapeStartY = 0;
+let activeShapeElement = null;
+let shapeFlippedX = false;
+let shapeFlippedY = false;
+
+function toggleShapeDropdown(e) {
+  if (e) { e.preventDefault(); e.stopPropagation(); }
+  const menu = document.getElementById('shape-menu');
+  if (menu) {
+    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+  }
+}
+
+function selectShapeMode(shapeType, e) {
+  if (e) { e.preventDefault(); e.stopPropagation(); }
+  notebookActiveShapeTool = shapeType;
+  setNotebookMode('shape');
+  
+  const menu = document.getElementById('shape-menu');
+  if (menu) menu.style.display = 'none';
+  
+  const btnShape = document.getElementById('tool-shape');
+  if (btnShape) {
+    btnShape.classList.add('active');
+    btnShape.innerHTML = getShapeEmoji(shapeType);
+  }
+}
+
+function getShapeEmoji(type) {
+  if (type === 'rectangle') return '⬜';
+  if (type === 'circle') return '⚪';
+  if (type === 'line') return '➖';
+  if (type === 'arrow') return '➡️';
+  return '🔺';
+}
+
+function startDrawingShape(e) {
+  const overlay = document.getElementById('notebook-overlay-container');
+  if (!overlay || !notebookActiveShapeTool) return;
+
+  isDrawingShape = true;
+  const rect = canvasElement.getBoundingClientRect();
+  shapeStartX = e.clientX - rect.left;
+  shapeStartY = e.clientY - rect.top;
+
+  const id = 'shape-' + Date.now();
+  activeShapeElement = document.createElement('div');
+  activeShapeElement.className = 'draggable-element draggable-shape-wrapper';
+  activeShapeElement.id = id;
+  activeShapeElement.style.left = `${shapeStartX}px`;
+  activeShapeElement.style.top = `${shapeStartY}px`;
+  activeShapeElement.style.width = '0px';
+  activeShapeElement.style.height = '0px';
+  
+  activeShapeElement.setAttribute('data-type', 'shape');
+  activeShapeElement.setAttribute('data-shape-type', notebookActiveShapeTool);
+  activeShapeElement.setAttribute('data-color', currentPenColor);
+  activeShapeElement.setAttribute('data-flipped-x', 'false');
+  activeShapeElement.setAttribute('data-flipped-y', 'false');
+
+  overlay.appendChild(activeShapeElement);
+}
+
+function updateDrawingShape(e) {
+  if (!activeShapeElement) return;
+  const rect = canvasElement.getBoundingClientRect();
+  const currentX = e.clientX - rect.left;
+  const currentY = e.clientY - rect.top;
+
+  const dx = currentX - shapeStartX;
+  const dy = currentY - shapeStartY;
+  const w = Math.max(0, Math.abs(dx));
+  const h = Math.max(0, Math.abs(dy));
+  
+  const left = dx >= 0 ? shapeStartX : currentX;
+  const top = dy >= 0 ? shapeStartY : currentY;
+  
+  shapeFlippedX = dx < 0;
+  shapeFlippedY = dy < 0;
+
+  activeShapeElement.style.left = `${left}px`;
+  activeShapeElement.style.top = `${top}px`;
+  activeShapeElement.style.width = `${w}px`;
+  activeShapeElement.style.height = `${h}px`;
+  
+  activeShapeElement.setAttribute('data-flipped-x', shapeFlippedX ? 'true' : 'false');
+  activeShapeElement.setAttribute('data-flipped-y', shapeFlippedY ? 'true' : 'false');
+
+  const shapeType = activeShapeElement.getAttribute('data-shape-type');
+  const color = activeShapeElement.getAttribute('data-color');
+  
+  activeShapeElement.innerHTML = getShapeInnerHtml(activeShapeElement.id, shapeType, color, shapeFlippedX, shapeFlippedY);
+}
+
+function getShapeInnerHtml(id, type, color, flippedX, flippedY) {
+  const deleteBtn = `<button class="delete-overlay-btn" title="Delete Shape" onclick="removeOverlayElement('${id}')" style="top: -6px; right: -6px;">×</button>`;
+  
+  let contentHtml = '';
+  if (type === 'rectangle') {
+    contentHtml = `<div style="width: 100%; height: 100%; border: 3px solid ${color}; box-sizing: border-box; background: transparent;"></div>`;
+  }
+  else if (type === 'circle') {
+    contentHtml = `<div style="width: 100%; height: 100%; border: 3px solid ${color}; border-radius: 50%; box-sizing: border-box; background: transparent;"></div>`;
+  }
+  else if (type === 'line') {
+    contentHtml = `
+      <svg style="width: 100%; height: 100%; overflow: visible; pointer-events: none; display: block;">
+        <line x1="${flippedX ? '100%' : '0%'}" y1="${flippedY ? '100%' : '0%'}" x2="${flippedX ? '0%' : '100%'}" y2="${flippedY ? '0%' : '100%'}" stroke="${color}" stroke-width="3" />
+      </svg>
+    `;
+  }
+  else if (type === 'arrow') {
+    contentHtml = `
+      <svg style="width: 100%; height: 100%; overflow: visible; pointer-events: none; display: block;">
+        <defs>
+          <marker id="arrowhead-${id}" markerWidth="10" markerHeight="7" refX="8" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="${color}" />
+          </marker>
+        </defs>
+        <line x1="${flippedX ? '100%' : '0%'}" y1="${flippedY ? '100%' : '0%'}" x2="${flippedX ? '0%' : '100%'}" y2="${flippedY ? '0%' : '100%'}" stroke="${color}" stroke-width="3" marker-end="url(#arrowhead-${id})" />
+      </svg>
+    `;
+  }
+  
+  const dragHandle = `<div class="drag-handle-bar shape-drag-handle" style="position: absolute; inset: 0; cursor: move; background: transparent; z-index: 1;"></div>`;
+  
+  return dragHandle + deleteBtn + contentHtml;
+}
+
+function insertShapeElement(id, shapeType, color, left, top, width, height, flippedX, flippedY) {
+  const overlay = document.getElementById('notebook-overlay-container');
+  if (!overlay) return;
+
+  const shapeWrapper = document.createElement('div');
+  shapeWrapper.className = 'draggable-element draggable-shape-wrapper';
+  shapeWrapper.id = id;
+  shapeWrapper.style.left = `${left}px`;
+  shapeWrapper.style.top = `${top}px`;
+  shapeWrapper.style.width = `${width}px`;
+  shapeWrapper.style.height = `${height}px`;
+  
+  shapeWrapper.setAttribute('data-type', 'shape');
+  shapeWrapper.setAttribute('data-shape-type', shapeType);
+  shapeWrapper.setAttribute('data-color', color);
+  shapeWrapper.setAttribute('data-flipped-x', flippedX ? 'true' : 'false');
+  shapeWrapper.setAttribute('data-flipped-y', flippedY ? 'true' : 'false');
+
+  shapeWrapper.innerHTML = getShapeInnerHtml(id, shapeType, color, flippedX, flippedY);
+  
+  overlay.appendChild(shapeWrapper);
+
+  const resizer = document.createElement('div');
+  resizer.className = 'table-resizer';
+  resizer.innerHTML = `
+    <svg width="10" height="10" viewBox="0 0 10 10" style="position: absolute; bottom: 1px; right: 1px; pointer-events: none;">
+      <path d="M10 0 L0 10 M10 4 L4 10 M10 8 L8 10" stroke="#94A3B8" stroke-width="1.5"/>
+    </svg>
+  `;
+  shapeWrapper.appendChild(resizer);
+
+  makeElementDraggable(shapeWrapper, shapeWrapper.querySelector('.drag-handle-bar'));
+  makeElementResizable(shapeWrapper, resizer);
+}
+
+function triggerNotebookImageUpload(e) {
+  if (e) { e.preventDefault(); e.stopPropagation(); }
+  const fileInput = document.getElementById('notebook-image-uploader');
+  if (fileInput) fileInput.click();
+}
+
+function handleNotebookImageUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  if (file.size > 2 * 1024 * 1024) {
+    const isTr = localStorage.getItem('acadexUILang') === 'tr';
+    showDashboardAlert('error', isTr 
+      ? 'Resim boyutu 2MB\'tan küçük olmalıdır.' 
+      : 'Image must be under 2MB. Please resize or compress it.');
+    e.target.value = '';
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = function(evt) {
+    const base64Url = evt.target.result;
+    insertImageElement(base64Url, 100, 150, 200, 150);
+    e.target.value = '';
+  };
+  reader.readAsDataURL(file);
+}
+
+function insertImageElement(src, x, y, width, height, id) {
+  const overlay = document.getElementById('notebook-overlay-container');
+  if (!overlay) return;
+
+  const elementId = id || 'img-' + Date.now();
+  
+  const imgWrapper = document.createElement('div');
+  imgWrapper.className = 'draggable-element draggable-image-wrapper';
+  imgWrapper.id = elementId;
+  imgWrapper.style.left = `${x}px`;
+  imgWrapper.style.top = `${y}px`;
+  imgWrapper.style.width = `${width}px`;
+  imgWrapper.style.height = `${height}px`;
+  imgWrapper.setAttribute('data-type', 'image');
+  imgWrapper.setAttribute('data-src', src);
+
+  imgWrapper.innerHTML = `
+    <div class="drag-handle-bar" style="height: 12px; background: rgba(148, 163, 184, 0.2); cursor: move;"></div>
+    <button class="delete-overlay-btn" title="Delete Image" onclick="removeOverlayElement('${elementId}')" style="top: -6px; right: -6px;">×</button>
+    <img src="${src}" style="width: 100%; height: calc(100% - 12px); object-fit: contain; pointer-events: none; display: block;">
+  `;
+
+  overlay.appendChild(imgWrapper);
+  makeElementDraggable(imgWrapper, imgWrapper.querySelector('.drag-handle-bar'));
+
+  const resizer = document.createElement('div');
+  resizer.className = 'table-resizer';
+  resizer.innerHTML = `
+    <svg width="10" height="10" viewBox="0 0 10 10" style="position: absolute; bottom: 1px; right: 1px; pointer-events: none;">
+      <path d="M10 0 L0 10 M10 4 L4 10 M10 8 L8 10" stroke="#94A3B8" stroke-width="1.5"/>
+    </svg>
+  `;
+  imgWrapper.appendChild(resizer);
+  makeElementResizable(imgWrapper, resizer);
+
+  notebookHasUnsavedChanges = true;
+}
+
+// Close shape menu when clicking outside
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('shape-menu');
+  if (menu && !e.target.closest('.shape-dropdown')) {
+    menu.style.display = 'none';
+  }
+});
+
+// Bind window level handlers
+window.toggleShapeDropdown = toggleShapeDropdown;
+window.selectShapeMode = selectShapeMode;
+window.triggerNotebookImageUpload = triggerNotebookImageUpload;
+window.handleNotebookImageUpload = handleNotebookImageUpload;
+window.insertShapeElement = insertShapeElement;
+window.insertImageElement = insertImageElement;
+

@@ -86,7 +86,7 @@ serve(async (req) => {
     if (downloadError || !fileBlob) {
       console.error('Download error: ', downloadError)
       await markFailed(serviceClient, documentId)
-      return new Response(JSON.stringify({ error: 'Failed to download document from storage' }), {
+      return new Response(JSON.stringify({ error: 'Failed to download the document. The file could not be downloaded or opened.' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
@@ -110,6 +110,13 @@ serve(async (req) => {
         const pdf = await getDocumentProxy(fileBytes)
         const { text } = await extractText(pdf, { mergePages: true })
         extractedText = text
+
+        // Scanned PDF detection: text too short relative to size
+        const textLen = (extractedText || "").trim().length
+        const fileSize = fileBytes.length
+        if (textLen < 200 || textLen < (fileSize / 500)) {
+          throw new Error("SCANNED_PDF")
+        }
       } 
       else if (mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
         const docxResult = await mammoth.extractRawText({ buffer: fileBytes })
@@ -159,7 +166,11 @@ serve(async (req) => {
     } catch (extractionError) {
       console.error("Text extraction failed: ", extractionError)
       await markFailed(serviceClient, documentId)
-      return new Response(JSON.stringify({ error: "Could not extract readable text from this file." }), {
+      let errorMsg = "Failed to extract readable content. The file could not be downloaded/opened (it may be corrupted, password-protected, or unreadable)."
+      if (extractionError.message === "SCANNED_PDF") {
+        errorMsg = "This PDF appears to be a scanned image without selectable text. Please try a text-based PDF, or convert it using OCR software first."
+      }
+      return new Response(JSON.stringify({ error: errorMsg }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
@@ -170,22 +181,22 @@ serve(async (req) => {
     if (!extractedText) {
       console.error("Extracted text is empty or blank")
       await markFailed(serviceClient, documentId)
-      return new Response(JSON.stringify({ error: "Could not extract readable text from this file." }), {
+      return new Response(JSON.stringify({ error: "No readable text found in this file." }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
 
-    // Truncate to first 15,000 characters if too long, snapping to sentence/paragraph boundary
+    // Truncate to first 40,000 characters if too long, snapping to sentence/paragraph boundary
     let textToSend = extractedText
-    if (textToSend.length > 15000) {
-      const truncated = textToSend.substring(0, 15000)
+    if (textToSend.length > 40000) {
+      const truncated = textToSend.substring(0, 40000)
       const lastBoundary = Math.max(
         truncated.lastIndexOf(". "),
         truncated.lastIndexOf(".\n"),
         truncated.lastIndexOf("\n")
       )
-      if (lastBoundary > 12000) {
+      if (lastBoundary > 35000) {
         textToSend = truncated.substring(0, lastBoundary + 1)
       } else {
         textToSend = truncated
@@ -220,6 +231,12 @@ serve(async (req) => {
     const langLabel = lang === 'tr' ? 'Turkish / Türkçe' : 'English'
 
     const systemPrompt = `You are an academic study assistant. You will be given the raw text extracted from a student's uploaded document (lecture slides, article, or syllabus). Analyze it and respond with ONLY a valid JSON object, no markdown code fences, no commentary before or after — just the raw JSON object matching this exact shape: { "summary": string (4-8 sentences, clear and well-structured), "key_terms": [ { "term": string, "definition": string } ] (5-10 items), "key_points": [ string ] (5-10 concise bullet points of the most important ideas), "quiz_questions": [ { "question": string, "answer": string } ] (4-6 self-test questions with answers covering the material) }.
+
+ACCURACY INSTRUCTION:
+Base your summary, key terms, key points, and quiz questions STRICTLY on content actually present in the provided text. Do not invent, assume, or add information not found in the source material. If a section of the document is unclear or incomplete, reflect that faithfully rather than filling gaps with assumptions. Copy any specific numbers, formulas, names, or technical terms EXACTLY as they appear in the source — do not paraphrase or alter precise factual details.
+
+STRUCTURAL-AWARENESS INSTRUCTION:
+Before summarizing, first identify the document's overall topic and structure (e.g. is it lecture slides, a research article, a syllabus, a chapter). Let this understanding guide how you organize the summary, rather than processing the text as an undifferentiated block.
 
 LANGUAGE INSTRUCTION:
 Respond strictly in the language: '${langLabel}'. Write the ENTIRE response (the summary, all key_terms terms and definitions, all key_points, and all quiz_questions questions and answers) in that specified language, REGARDLESS of the language of the source text. If the source document is in Turkish but the target language is English, translate and write in English. If the source document is in English but the target language is Turkish, translate and write in Turkish.
@@ -261,7 +278,7 @@ ${styleInstruction}`
     if (!groqResponse.ok) {
       console.error("Groq API call failed: ", JSON.stringify(groqData))
       await markFailed(serviceClient, documentId)
-      return new Response(JSON.stringify({ error: 'Groq AI service error' }), {
+      return new Response(JSON.stringify({ error: 'AI service error. The AI model is temporarily unavailable or has failed to generate a response.' }), {
         status: 502,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })

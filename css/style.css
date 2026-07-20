@@ -3879,6 +3879,30 @@ input:checked + .slider:before {
   }
 }
 
+/* Draggable Shape & Image Overlays styling */
+.draggable-shape-wrapper, 
+.draggable-image-wrapper {
+  background-color: transparent !important;
+}
+
+.draggable-element .delete-overlay-btn,
+.draggable-element .table-resizer {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition-fast);
+}
+
+.draggable-element:hover .delete-overlay-btn,
+.draggable-element:hover .table-resizer {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.shape-drag-handle {
+  pointer-events: auto !important;
+}
+
+
 
 
 

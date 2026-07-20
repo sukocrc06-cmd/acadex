@@ -1,4 +1,4 @@
-﻿import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 import { extractText, getDocumentProxy } from "npm:unpdf"
 import mammoth from "npm:mammoth@1.6.0"
@@ -77,7 +77,7 @@ serve(async (req) => {
 
       if (downloadError || !fileBlob) {
         console.error("Download failed for doc", doc.id, downloadError)
-        return new Response(JSON.stringify({ error: "Failed to download: " + doc.file_name }), {
+        return new Response(JSON.stringify({ error: `Failed to download "${doc.file_name}". The file could not be downloaded or opened.` }), {
           status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" }
         })
       }
@@ -94,6 +94,13 @@ serve(async (req) => {
           const pdf = await getDocumentProxy(fileBytes)
           const { text } = await extractText(pdf, { mergePages: true })
           extractedText = text
+
+          // Scanned PDF detection: text too short relative to size
+          const textLen = (extractedText || "").trim().length
+          const fileSize = fileBytes.length
+          if (textLen < 200 || textLen < (fileSize / 500)) {
+            throw new Error("SCANNED_PDF")
+          }
         } else if (mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
           const docxResult = await mammoth.extractRawText({ buffer: fileBytes })
           extractedText = docxResult.value
@@ -118,14 +125,18 @@ serve(async (req) => {
         }
       } catch (extractionError) {
         console.error("Extraction failed for doc", doc.id, extractionError)
-        return new Response(JSON.stringify({ error: "Could not extract text from: " + doc.file_name }), {
+        let errorMsg = `Failed to extract readable content from "${doc.file_name}". The file could not be downloaded/opened (it may be corrupted, password-protected, or unreadable).`
+        if (extractionError.message === "SCANNED_PDF") {
+          errorMsg = `"${doc.file_name}" appears to be a scanned image without selectable text. Please try a text-based PDF, or convert it using OCR software first.`
+        }
+        return new Response(JSON.stringify({ error: errorMsg }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" }
         })
       }
 
       extractedText = extractedText.trim()
       if (!extractedText) {
-        return new Response(JSON.stringify({ error: "No readable text in: " + doc.file_name }), {
+        return new Response(JSON.stringify({ error: `No readable text found in "${doc.file_name}".` }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" }
         })
       }
@@ -137,10 +148,11 @@ serve(async (req) => {
       .map(s => "=== DOCUMENT: " + s.fileName + " ===\n" + s.text)
       .join("\n\n")
 
-    if (combinedText.length > 18000) {
-      const truncated = combinedText.substring(0, 18000)
+    // Truncate combined text to first 40,000 characters
+    if (combinedText.length > 40000) {
+      const truncated = combinedText.substring(0, 40000)
       const lastBoundary = Math.max(truncated.lastIndexOf(". "), truncated.lastIndexOf(".\n"), truncated.lastIndexOf("\n"))
-      combinedText = lastBoundary > 14000 ? truncated.substring(0, lastBoundary + 1) : truncated
+      combinedText = lastBoundary > 35000 ? truncated.substring(0, lastBoundary + 1) : truncated
     }
 
     const groqApiKey = Deno.env.get("GROQ_API_KEY")
@@ -160,6 +172,12 @@ serve(async (req) => {
     const docNames = documents.map(d => d.file_name).join(", ")
 
     const systemPrompt = `You are an academic study assistant. You will be given combined text extracted from MULTIPLE student documents (${docNames}). Analyze all of them together and produce a UNIFIED study card that synthesizes the key information across all sources. Respond with ONLY a valid JSON object, no markdown code fences, no commentary before or after — just the raw JSON matching this exact shape: { "summary": string (4-8 sentences synthesizing all documents), "key_terms": [ { "term": string, "definition": string } ] (5-10 items from across all documents), "key_points": [ string ] (5-10 concise bullet points of the most important ideas across all documents), "quiz_questions": [ { "question": string, "answer": string } ] (4-6 questions covering material from multiple documents) }.
+
+ACCURACY INSTRUCTION:
+Base your summary, key terms, key points, and quiz questions STRICTLY on content actually present in the provided text. Do not invent, assume, or add information not found in the source material. If a section of the document is unclear or incomplete, reflect that faithfully rather than filling gaps with assumptions. Copy any specific numbers, formulas, names, or technical terms EXACTLY as they appear in the source — do not paraphrase or alter precise factual details.
+
+STRUCTURAL-AWARENESS INSTRUCTION:
+Before summarizing, first identify the document's overall topic and structure (e.g. is it lecture slides, a research article, a syllabus, a chapter). Let this understanding guide how you organize the summary, rather than processing the text as an undifferentiated block.
 
 LANGUAGE INSTRUCTION:
 Respond strictly in the language: '${langLabel}'. Write the ENTIRE response in that specified language, REGARDLESS of the language of the source text.
@@ -187,7 +205,7 @@ ${styleInstruction}`
     const groqData = await groqResponse.json()
     if (!groqResponse.ok) {
       console.error("Groq API error:", JSON.stringify(groqData))
-      return new Response(JSON.stringify({ error: "Groq AI service error" }), {
+      return new Response(JSON.stringify({ error: "AI service error. The AI model is temporarily unavailable or has failed to generate a response." }), {
         status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" }
       })
     }

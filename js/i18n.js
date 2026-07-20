@@ -160,6 +160,7 @@ const TRANSLATIONS = {
     "dash.cards.filter.style": "Filter Style",
     "dash.cards.filter.lang": "Filter Language",
     "dash.cards.btn.clear": "Clear Filters",
+    "dash.cards.btn.exportAll": "Export All to PDF",
 
     // Exams Platform Tab
     "dash.exams.title": "Smart Exam Platform",
@@ -368,6 +369,7 @@ const TRANSLATIONS = {
     "dash.cards.filter.style": "Stil Filtrele",
     "dash.cards.filter.lang": "Dil Filtrele",
     "dash.cards.btn.clear": "Filtreleri Temizle",
+    "dash.cards.btn.exportAll": "Hepsini PDF Yap",
 
     // Exams Platform Tab
     "dash.exams.title": "Akıllı Sınav Platformu",
