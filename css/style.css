@@ -2150,8 +2150,12 @@ input:checked + .slider:before {
 
 /* View Section Control */
 #dashboard-alert-container:empty,
-#admin-alert-container:empty {
-  display: none;
+#admin-alert-container:empty,
+#home-exam-banners-container:empty,
+#students-error-container:empty,
+#password-error-message:empty,
+#exam-empty-state:empty {
+  display: none !important;
 }
 
 .dashboard-view-section {
@@ -2162,11 +2166,7 @@ input:checked + .slider:before {
 .dashboard-view-section.active {
   display: flex;
   flex-direction: column;
-  gap: 2rem;
-}
-
-#admin-view {
-  gap: 1rem;
+  gap: 1.5rem;
 }
 
 @keyframes fadeIn {
@@ -3590,20 +3590,20 @@ input:checked + .slider:before {
 .dashboard-view-section.active {
   display: flex;
   flex-direction: column;
-  gap: 2rem;
+  gap: 1.5rem;
   opacity: 1;
   transform: translateY(0);
 }
 .dashboard-view-section.animating-out {
   display: flex;
   flex-direction: column;
-  gap: 2rem;
+  gap: 1.5rem;
   animation: viewSlideOut 150ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 .dashboard-view-section.animating-in {
   display: flex;
   flex-direction: column;
-  gap: 2rem;
+  gap: 1.5rem;
   animation: viewSlideIn 150ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 @keyframes viewSlideOut {

@@ -248,10 +248,10 @@
            ========================================== -->
       <section id="home-view" class="dashboard-view-section active">
         <!-- Exam banners container (Part E) -->
-        <div id="home-exam-banners-container" style="width: 100%; display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1.5rem;"></div>
+        <div id="home-exam-banners-container" style="width: 100%; display: flex; flex-direction: column; gap: 0.75rem;"></div>
 
         <!-- Personal welcome greeting banner -->
-        <div class="welcome-banner" id="home-welcome-banner" style="margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <div class="welcome-banner" id="home-welcome-banner" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
           <div style="display:flex; align-items:center; gap:1rem;">
             <span id="home-user-avatar"></span>
             <div>
@@ -268,7 +268,7 @@
         </div>
 
         <!-- Personal Stat Cards -->
-        <div class="container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.5rem; margin-bottom: 2.5rem; padding: 0;">
+        <div class="container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.5rem; padding: 0;">
           <!-- Stat 1: Docs Uploaded -->
           <div class="doc-card" style="display: flex; align-items: center; gap: 1rem; padding: 1.5rem;">
             <div style="background-color: var(--color-teal-light); color: var(--color-teal); width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
@@ -315,7 +315,7 @@
         </div>
 
         <!-- Quick Actions & Recent Activity Grid -->
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; align-items: start; margin-bottom: 2.5rem;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; align-items: start;">
           <!-- Quick Actions -->
           <div class="doc-card" style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1.25rem;">
             <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--color-navy); border-bottom: 2px solid var(--color-teal); padding-bottom: 0.5rem; margin: 0;">⚡ <span data-i18n="dash.overview.quickActions">Quick Actions</span></h3>
@@ -357,7 +357,7 @@
         </div>
 
         <!-- Weak Topics / Focus Panel (concept-level analysis from exam history) -->
-        <div class="doc-card" id="home-weak-topics-card" style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; margin-bottom: 2.5rem; display: none;">
+        <div class="doc-card" id="home-weak-topics-card" style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; display: none;">
           <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--color-navy); border-bottom: 2px solid var(--color-teal); padding-bottom: 0.5rem; margin: 0;">🎯 <span data-i18n="dash.overview.focusAreas">Focus Areas</span></h3>
           <p style="font-size: 0.8rem; color: var(--color-text-muted); margin: 0;" data-i18n="dash.overview.focusAreasSub">Concepts you should review next based on exam history.</p>
           <div id="home-weak-topics-list" style="display: flex; flex-direction: column; gap: 0.6rem;">
@@ -366,12 +366,10 @@
         </div>
 
         <!-- Achievements Section -->
-        <div class="doc-card" style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1.25rem; margin-bottom: 2.5rem;">
+        <div class="doc-card" style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1.25rem;">
           <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--color-navy); border-bottom: 2px solid var(--color-teal); padding-bottom: 0.5rem; margin: 0;">🏆 <span data-i18n="dash.overview.achievements.title">My Achievements</span></h3>
           <div class="achievement-grid" id="home-achievements-list">
             <!-- Populated dynamically -->
-          </div>
-        </div>ed dynamically -->
           </div>
         </div>
       </section>
@@ -385,7 +383,7 @@
           <p class="dashboard-page-desc" data-i18n="dash.planner.desc">Akademik takviminizi yönetin, sınav tarihlerinizi ve çalışma hedeflerinizi takip edin.</p>
 
           <!-- Exam Notification Opt-in UI (Part E) -->
-          <div class="notification-optin-container" style="margin-top: 1rem; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; background-color: var(--color-bg-alt); padding: 0.75rem 1rem; border-radius: var(--radius-sm); border: 1px solid rgba(22, 50, 92, 0.08); max-width: fit-content;">
+          <div class="notification-optin-container" style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; background-color: var(--color-bg-alt); padding: 0.75rem 1rem; border-radius: var(--radius-sm); border: 1px solid rgba(22, 50, 92, 0.08); max-width: fit-content;">
             <button id="btn-enable-reminders" class="btn btn-outline" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; display: flex; align-items: center; gap: 0.4rem; cursor: pointer;" onclick="requestExamNotificationPermission()">
               🔔 Enable Exam Reminders
             </button>
@@ -394,7 +392,7 @@
           </div>
         </div>
 
-        <div style="margin-top: 1.5rem; display: flex; flex-direction: column; gap: 2rem;">
+        <div style="display: flex; flex-direction: column; gap: 2rem;">
           <!-- Action Buttons / Calendar togglers -->
           <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
             <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
@@ -782,7 +780,7 @@
             <p class="dashboard-page-desc" data-i18n="dash.exams.desc">Çalışma kartlarınızdan yapay zeka destekli sınavlar oluşturun, kendinizi test edin.</p>
           </div>
 
-          <div id="exam-empty-state" class="empty-state" style="display: none; margin-top: 1.5rem;">
+          <div id="exam-empty-state" class="empty-state" style="display: none;">
             <svg class="empty-state-icon" xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
               <polyline points="14 2 14 8 20 8"></polyline>
@@ -791,7 +789,7 @@
             <p class="empty-state-text" data-i18n="dash.exams.emptyText">Sınav oluşturmak için en az bir adet özetlenmiş belgenizin olması gerekir. <a href="#" onclick="switchDashboardView('docs')" style="color: var(--color-teal); text-decoration: underline;">Belgelerim</a> sekmesinden dosya yükleyip özetleyebilirsiniz.</p>
           </div>
 
-          <div id="exam-setup-content" style="display: none; display: flex; flex-direction: column; gap: 1.5rem;">
+          <div id="exam-setup-content" style="display: none; flex-direction: column; gap: 1.5rem;">
             <!-- Study Card selector card -->
             <div class="doc-card" style="box-shadow: var(--shadow-sm); padding: 1.5rem;">
               <div style="margin-bottom: 1.5rem;">
@@ -922,7 +920,7 @@
             <p class="dashboard-page-desc" data-i18n="dash.exams.resultsDesc">Yapay zeka tarafından değerlendirilen sınav sonuçlarınız.</p>
           </div>
 
-          <div class="results-container" style="display: flex; flex-direction: column; gap: 2rem; margin-top: 1.5rem;">
+          <div class="results-container" style="display: flex; flex-direction: column; gap: 1.5rem;">
             <!-- Score box -->
             <div class="results-score-card" style="display: flex; gap: 2rem; align-items: center; padding: 2rem; background: var(--color-white); border-radius: var(--radius-md); box-shadow: var(--shadow-sm);">
               <div class="score-circle-container" style="position: relative;">
@@ -957,7 +955,7 @@
         </div>
 
         <!-- Developer Sandbox Guide Section -->
-        <div class="doc-card" style="padding: 1.5rem; margin-top: 1.5rem; margin-bottom: 2rem; background-color: var(--color-bg-alt); border-left: 4px solid var(--color-teal); box-shadow: var(--shadow-sm);">
+        <div class="doc-card" style="padding: 1.5rem; background-color: var(--color-bg-alt); border-left: 4px solid var(--color-teal); box-shadow: var(--shadow-sm);">
           <h3 style="font-size: 1rem; font-weight: 800; color: var(--color-navy); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
             💡 <span data-i18n="sandbox.guide.title">Sandbox Developer Guide</span>
           </h3>
@@ -973,7 +971,7 @@
         </div>
 
         <!-- Section 1: Örnek Veri Setleri -->
-        <div class="sandbox-section" style="margin-bottom: 2.5rem;">
+        <div class="sandbox-section">
           <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.5rem; border-bottom: 2px solid var(--color-teal); padding-bottom: 0.35rem;">
             📊 <span data-i18n="sandbox.datasetsTitle">Örnek Veri Setleri</span>
           </h3>
@@ -1061,7 +1059,7 @@
           <p class="dashboard-page-desc" data-i18n="dash.settings.desc">Hesap ayarlarınızı, şifrenizi ve kişisel tercihlerinizi yönetin.</p>
         </div>
 
-        <div class="settings-container" style="display: flex; flex-direction: column; gap: 2rem; margin-top: 1.5rem; max-width: 600px;">
+        <div class="settings-container" style="display: flex; flex-direction: column; gap: 1.5rem; max-width: 600px;">
           
           <!-- PART A: Profile Info Card -->
           <div class="doc-card" style="box-shadow: var(--shadow-sm); padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem;">
