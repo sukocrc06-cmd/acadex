@@ -3913,3 +3913,30 @@ input:checked + .slider:before {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* ── Summary Style Modal: 2-column grid ── */
+.style-selection-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.6rem;
+}
+@media (max-width: 576px) {
+  .style-selection-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Highlight the selected style card */
+.style-choice-card:has(input:checked) {
+  border-color: var(--color-teal) !important;
+  background-color: rgba(20, 184, 166, 0.04);
+  box-shadow: 0 0 0 1px var(--color-teal);
+}
+.style-choice-card:hover {
+  border-color: rgba(22, 50, 92, 0.25) !important;
+  background-color: rgba(22, 50, 92, 0.02);
+}
+.style-choice-card:has(input:checked):hover {
+  border-color: var(--color-teal) !important;
+  background-color: rgba(20, 184, 166, 0.06);
+}
