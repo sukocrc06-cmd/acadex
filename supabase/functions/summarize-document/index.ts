@@ -10,6 +10,27 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
+async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2): Promise<Response> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(url, options);
+      if (response.ok) return response;
+      if (response.status === 429) {
+        // Rate limited — wait longer before retrying
+        await new Promise(r => setTimeout(r, 2500));
+      } else if (response.status >= 500 && attempt < maxRetries) {
+        await new Promise(r => setTimeout(r, 800));
+      } else {
+        return response; // let the caller handle non-retryable errors normally
+      }
+    } catch (err) {
+      if (attempt === maxRetries) throw err;
+      await new Promise(r => setTimeout(r, 800));
+    }
+  }
+  throw new Error("Max retries exceeded");
+}
+
 serve(async (req) => {
   // Handle CORS preflight request
   if (req.method === 'OPTIONS') {
@@ -298,36 +319,52 @@ Write in a clear, formal academic register. Avoid filler phrases, redundant rest
 STYLE-SPECIFIC INSTRUCTION:
 ${styleInstruction}`
 
+    // Update stage to analyzing
+    await serviceClient
+      .from('documents')
+      .update({ processing_stage: 'analyzing' })
+      .eq('id', documentId)
+
     // Pass 1: Call Groq to generate Draft
-    const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${groqApiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
-        temperature: 0.3,
-        response_format: { type: "json_object" },
-        messages: [
-          {
-            role: "system",
-            content: systemPrompt
-          },
-          {
-            role: "user",
-            content: textToSend
-          }
-        ]
+    let groqResponse;
+    try {
+      groqResponse = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${groqApiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          temperature: 0.3,
+          response_format: { type: "json_object" },
+          messages: [
+            {
+              role: "system",
+              content: systemPrompt
+            },
+            {
+              role: "user",
+              content: textToSend
+            }
+          ]
+        })
       })
-    })
+    } catch (fetchErr) {
+      console.error("Pass 1 Groq API fetchWithRetry exception: ", fetchErr)
+      await markFailed(serviceClient, documentId)
+      return new Response(JSON.stringify({ error: 'Our AI service is experiencing high demand right now — please try again in a moment' }), {
+        status: 503,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
 
     const groqData = await groqResponse.json()
 
     if (!groqResponse.ok) {
       console.error("Groq API Draft call failed: ", JSON.stringify(groqData))
       await markFailed(serviceClient, documentId)
-      return new Response(JSON.stringify({ error: 'AI service error. The AI model is temporarily unavailable or has failed to generate a response.' }), {
+      return new Response(JSON.stringify({ error: 'Our AI service is experiencing high demand right now — please try again in a moment' }), {
         status: 502,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
@@ -365,35 +402,51 @@ ${sourceTextForReview}
 Draft JSON summary:
 ${rawContent}`
 
-    const groqReviewResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${groqApiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
-        temperature: 0.2,
-        response_format: { type: "json_object" },
-        messages: [
-          {
-            role: "system",
-            content: reviewSystemPrompt
-          },
-          {
-            role: "user",
-            content: reviewUserPrompt
-          }
-        ]
+    // Update stage to reviewing
+    await serviceClient
+      .from('documents')
+      .update({ processing_stage: 'reviewing' })
+      .eq('id', documentId)
+
+    let groqReviewResponse;
+    try {
+      groqReviewResponse = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${groqApiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          temperature: 0.2,
+          response_format: { type: "json_object" },
+          messages: [
+            {
+              role: "system",
+              content: reviewSystemPrompt
+            },
+            {
+              role: "user",
+              content: reviewUserPrompt
+            }
+          ]
+        })
       })
-    })
+    } catch (fetchReviewErr) {
+      console.error("Pass 2 Groq API fetchWithRetry exception: ", fetchReviewErr)
+      await markFailed(serviceClient, documentId)
+      return new Response(JSON.stringify({ error: 'Our AI service is experiencing high demand right now — please try again in a moment' }), {
+        status: 503,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
 
     const groqReviewData = await groqReviewResponse.json()
 
     if (!groqReviewResponse.ok) {
       console.error("Groq Review API call failed: ", JSON.stringify(groqReviewData))
       await markFailed(serviceClient, documentId)
-      return new Response(JSON.stringify({ error: 'AI review service error. Please try again.' }), {
+      return new Response(JSON.stringify({ error: 'Our AI service is experiencing high demand right now — please try again in a moment' }), {
         status: 502,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
@@ -403,7 +456,7 @@ ${rawContent}`
     if (!rawFinalContent) {
       console.error('Empty response content from Groq Review: ', JSON.stringify(groqReviewData))
       await markFailed(serviceClient, documentId)
-      return new Response(JSON.stringify({ error: 'AI failed to generate a review response' }), {
+      return new Response(JSON.stringify({ error: 'Our AI service is experiencing high demand right now — please try again in a moment' }), {
         status: 502,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
@@ -455,10 +508,10 @@ ${rawContent}`
       })
     }
 
-    // Update document status to summarized
+    // Update document status to summarized and clear processing_stage
     await serviceClient
       .from('documents')
-      .update({ status: 'summarized' })
+      .update({ status: 'summarized', processing_stage: null })
       .eq('id', documentId)
 
     return new Response(JSON.stringify({ success: true, studyCardId: newCard.id }), {
@@ -479,7 +532,7 @@ async function markFailed(client: any, documentId: string) {
   try {
     await client
       .from('documents')
-      .update({ status: 'failed' })
+      .update({ status: 'failed', processing_stage: null })
       .eq('id', documentId)
   } catch (e) {
     console.error('Failed to set document status to failed: ', e)

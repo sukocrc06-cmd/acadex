@@ -298,7 +298,7 @@ async function loadDocuments(isPolling = false) {
     const hasProcessing = activeDocuments.some(doc => doc.status === 'processing');
     if (hasProcessing) {
       if (!pollingInterval) {
-        pollingInterval = setInterval(() => loadDocuments(true), 3000);
+        pollingInterval = setInterval(() => loadDocuments(true), 2000);
       }
     } else {
       if (pollingInterval) {
@@ -379,13 +379,24 @@ function renderDocumentsList() {
     let failureNoteHtml = '';
 
     if (doc.status === 'processing') {
-      statusBadgeHtml = `<span class="doc-status-badge" style="background-color: #FEF3C7; color: #D97706; font-weight: 700;">Processing</span>`;
+      const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+      let progressMsg = isTr ? 'İşleniyor...' : 'Processing...';
+      if (doc.processing_stage === 'extracting') {
+        progressMsg = isTr ? 'Metin çıkarılıyor...' : 'Extracting text...';
+      } else if (doc.processing_stage === 'analyzing') {
+        progressMsg = isTr ? 'Özet oluşturuluyor...' : 'Analyzing content...';
+      } else if (doc.processing_stage === 'reviewing') {
+        progressMsg = isTr ? 'Doğruluk kontrol ediliyor...' : 'Reviewing for accuracy...';
+      }
+
+      const badgeText = isTr ? 'İşleniyor' : 'Processing';
+      statusBadgeHtml = `<span class="doc-status-badge" style="background-color: #FEF3C7; color: #D97706; font-weight: 700;">${badgeText}</span>`;
       actionBtnHtml = `
-        <button class="btn btn-outline" disabled style="width: 100%; padding: 0.5rem 1rem; font-size: 0.85rem; margin-top: 0.5rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+        <button class="btn btn-outline" disabled style="width: 100%; padding: 0.5rem 1rem; font-size: 0.85rem; margin-top: 0.5rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem;" title="${progressMsg}">
           <svg class="spinner" viewBox="0 0 50 50" style="animation: rotate 2s linear infinite; width: 14px; height: 14px; margin-right: 0;">
             <circle class="path" cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="5" style="stroke-dasharray: 1, 150; stroke-dashoffset: 0; stroke-linecap: round; animation: dash 1.5s ease-in-out infinite;"></circle>
           </svg>
-          Processing...
+          <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${progressMsg}</span>
         </button>
       `;
     } else if (doc.status === 'summarized') {
@@ -608,6 +619,12 @@ async function handleFileUpload(file) {
     return;
   }
 
+  // Duplicate Check (Part C)
+  const { shouldUpload, fileHash } = await checkFileHashDuplicate(file);
+  if (!shouldUpload) {
+    return;
+  }
+
   // Set visual upload state
   uploadZone.style.pointerEvents = 'none';
   progressContainer.style.display = 'block';
@@ -647,6 +664,7 @@ async function handleFileUpload(file) {
         file_size: file.size,
         mime_type: file.type || getMimeTypeFromExtension(file.name),
         status: 'uploaded',
+        file_hash: fileHash,
         department: currentUserProfile ? currentUserProfile.department : null
       })
       .select()
@@ -1132,12 +1150,15 @@ async function populateStudyCardModalDetails(card, docName, readOnly) {
   const shareContainer = document.getElementById('modal-share-container');
   const shareToggle = document.getElementById('modal-share-toggle');
   
+  const regenButtons = document.querySelectorAll('.btn-regenerate-section');
   if (readOnly) {
     if (shareContainer) shareContainer.style.display = 'none';
     activeModalCardId = null;
+    regenButtons.forEach(btn => btn.style.display = 'none');
   } else {
     if (shareContainer) shareContainer.style.display = 'flex';
     activeModalCardId = card.id;
+    regenButtons.forEach(btn => btn.style.display = 'inline-flex');
     if (shareToggle) {
       shareToggle.checked = card.is_shared || false;
       shareToggle.onchange = async (e) => {
@@ -7014,6 +7035,11 @@ async function handleMultipleFilesUpload(files) {
 }
 
 async function uploadSingleFileCore(file) {
+  const { shouldUpload, fileHash } = await checkFileHashDuplicate(file);
+  if (!shouldUpload) {
+    return; // user cancelled this file
+  }
+
   const storagePath = `${currentUser.id}/${Date.now()}_${file.name}`;
   
   const { data, error } = await supabaseClient.storage
@@ -7031,6 +7057,7 @@ async function uploadSingleFileCore(file) {
       file_size: file.size,
       mime_type: file.type || getMimeTypeFromExtension(file.name),
       status: 'uploaded',
+      file_hash: fileHash,
       department: currentUserProfile ? currentUserProfile.department : null
     })
     .select()
@@ -9953,5 +9980,181 @@ window.getDocumentTypeBadgeHtml = getDocumentTypeBadgeHtml;
 window.getLengthBadgeHtml = getLengthBadgeHtml;
 window.highlightFeedbackButtons = highlightFeedbackButtons;
 window.submitSummaryFeedback = submitSummaryFeedback;
+
+async function checkFileHashDuplicate(file) {
+  try {
+    const hashBuffer = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
+    const fileHash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+    
+    const { data: existing, error } = await supabaseClient
+      .from('documents')
+      .select('id, file_name')
+      .eq('user_id', currentUser.id)
+      .eq('file_hash', fileHash)
+      .maybeSingle();
+
+    if (!error && existing) {
+      const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+      const confirmMsg = isTr
+        ? `Bu dosya içeriğiyle daha önce '${existing.file_name}' adında bir dosya yüklemiştiniz. Yine de tekrar yüklemek istiyor musunuz?`
+        : `You've already uploaded a file with this exact content, named '${existing.file_name}'. Upload it again anyway?`;
+      if (!window.confirm(confirmMsg)) {
+        return { shouldUpload: false, fileHash };
+      }
+    }
+    return { shouldUpload: true, fileHash };
+  } catch (err) {
+    console.error("Error checking file hash duplicate:", err);
+    return { shouldUpload: true, fileHash: null };
+  }
+}
+window.checkFileHashDuplicate = checkFileHashDuplicate;
+
+async function triggerSectionRegeneration(section) {
+  if (!activeModalCardId) return;
+  const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+  
+  // Find the button
+  const sectionTitleEl = document.querySelector(`.btn-regenerate-section[onclick="triggerSectionRegeneration('${section}')"]`);
+  if (!sectionTitleEl) return;
+  
+  const originalHtml = sectionTitleEl.innerHTML;
+  sectionTitleEl.disabled = true;
+  sectionTitleEl.innerHTML = `
+    <svg class="spinner" viewBox="0 0 50 50" style="animation: rotate 2s linear infinite; width: 12px; height: 12px; margin-right: 4px; display: inline-block;">
+      <circle class="path" cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="5" style="stroke-dasharray: 1, 150; stroke-dashoffset: 0; stroke-linecap: round; animation: dash 1.5s ease-in-out infinite;"></circle>
+    </svg>
+    <span class="btn-regen-text">${isTr ? 'Yenileniyor...' : 'Refreshing...'}</span>
+  `;
+  
+  try {
+    const { data, error } = await supabaseClient.functions.invoke('regenerate-section', {
+      body: { studyCardId: activeModalCardId, section: section }
+    });
+    
+    if (error || !data || !data.success) {
+      console.error("Regenerate section failed: ", error || data);
+      showDashboardAlert('error', isTr 
+        ? 'Bölüm yenilenemedi. Lütfen tekrar deneyin.' 
+        : 'Failed to regenerate section. Please try again.');
+      return;
+    }
+    
+    const newContent = data.content;
+    
+    if (section === 'summary') {
+      const summaryText = document.getElementById('study-card-summary-text');
+      if (summaryText) {
+        summaryText.innerHTML = formatSummaryText(newContent) || "";
+      }
+      if (currentActiveStudyCard) currentActiveStudyCard.summary = newContent;
+    } else if (section === 'key_points') {
+      const pointsContainer = document.getElementById('study-card-points-container');
+      if (pointsContainer) {
+        pointsContainer.innerHTML = '';
+        const keyPoints = newContent || [];
+        if (keyPoints.length === 0) {
+          pointsContainer.innerHTML = '<li class="study-card-point-item">No key points generated.</li>';
+        } else {
+          keyPoints.forEach(pt => {
+            const li = document.createElement('li');
+            li.className = 'study-card-point-item';
+            li.innerHTML = `
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+              <span>${pt}</span>
+            `;
+            pointsContainer.appendChild(li);
+          });
+        }
+      }
+      if (currentActiveStudyCard) currentActiveStudyCard.key_points = newContent;
+    } else if (section === 'key_terms') {
+      const termsContainer = document.getElementById('study-card-terms-container');
+      if (termsContainer) {
+        termsContainer.innerHTML = '';
+        const keyTerms = newContent || [];
+        if (keyTerms.length === 0) {
+          termsContainer.innerHTML = '<div style="color: var(--color-text-muted); font-size: 0.9rem;">No key terms generated.</div>';
+        } else {
+          keyTerms.forEach(t => {
+            const div = document.createElement('div');
+            div.className = 'key-term-card';
+            div.innerHTML = `
+              <div class="key-term-word">${t.term}</div>
+              <div class="key-term-def">${t.definition}</div>
+            `;
+            termsContainer.appendChild(div);
+          });
+        }
+      }
+      if (currentActiveStudyCard) currentActiveStudyCard.key_terms = newContent;
+    } else if (section === 'quiz_questions') {
+      const quizContainer = document.getElementById('study-card-quiz-container');
+      if (quizContainer) {
+        quizContainer.innerHTML = '';
+        const quizQuestions = newContent || [];
+        if (quizQuestions.length === 0) {
+          quizContainer.innerHTML = '<div style="color: var(--color-text-muted); font-size: 0.9rem;">No quiz questions generated.</div>';
+        } else {
+          quizQuestions.forEach((q, idx) => {
+            const div = document.createElement('div');
+            div.className = 'quiz-item';
+            div.id = `quiz-item-${idx}`;
+            div.innerHTML = `
+              <div class="quiz-question-header" onclick="toggleQuizAnswer(${idx})">
+                <span>Q${idx + 1}: ${q.question}</span>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </div>
+              <div class="quiz-answer-body" id="quiz-answer-${idx}">
+                <strong style="color: var(--color-teal);">Answer:</strong> ${q.answer}
+              </div>
+            `;
+            quizContainer.appendChild(div);
+          });
+        }
+      }
+      if (currentActiveStudyCard) currentActiveStudyCard.quiz_questions = newContent;
+    }
+    
+    // Update local card grid data too so it doesn't revert if opened again without reloading
+    const cachedCard = activeStudyCards.find(c => c.id === activeModalCardId);
+    if (cachedCard) {
+      cachedCard[section] = newContent;
+    }
+    const cachedLibCard = libraryCards.find(c => c.id === activeModalCardId);
+    if (cachedLibCard) {
+      cachedLibCard[section] = newContent;
+    }
+    const cachedNotebookCard = notebookCards.find(c => c.id === activeModalCardId);
+    if (cachedNotebookCard) {
+      cachedNotebookCard[section] = newContent;
+    }
+
+    // Refresh lists in background so grid cards look up-to-date
+    renderDocumentsList();
+    if (window.renderCardsLibraryList) {
+      window.renderCardsLibraryList();
+    }
+    if (window.loadNotebookCards) {
+      window.loadNotebookCards();
+    }
+    
+    showDashboardAlert('success', isTr ? 'Bölüm başarıyla güncellendi!' : 'Section refreshed!');
+    
+  } catch (err) {
+    console.error("Exception in triggerSectionRegeneration: ", err);
+    showDashboardAlert('error', isTr 
+      ? 'Yenileme sırasında beklenmeyen bir hata oluştu.' 
+      : 'An unexpected error occurred during regeneration.');
+  } finally {
+    sectionTitleEl.disabled = false;
+    sectionTitleEl.innerHTML = originalHtml;
+  }
+}
+window.triggerSectionRegeneration = triggerSectionRegeneration;
 
 

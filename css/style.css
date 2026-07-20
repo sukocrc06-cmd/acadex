@@ -3901,10 +3901,15 @@ input:checked + .slider:before {
 .shape-drag-handle {
   pointer-events: auto !important;
 }
-
-
-
-
-
-
-
+.btn-regenerate-section {
+  opacity: 0.65;
+  transition: all 0.2s ease-in-out;
+}
+.btn-regenerate-section:hover:not(:disabled) {
+  opacity: 1;
+  transform: scale(1.05);
+}
+.btn-regenerate-section:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
