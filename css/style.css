@@ -2149,6 +2149,11 @@ input:checked + .slider:before {
 }
 
 /* View Section Control */
+#dashboard-alert-container:empty,
+#admin-alert-container:empty {
+  display: none;
+}
+
 .dashboard-view-section {
   display: none;
   animation: fadeIn var(--transition-normal) ease-in-out;
@@ -2158,6 +2163,10 @@ input:checked + .slider:before {
   display: flex;
   flex-direction: column;
   gap: 2rem;
+}
+
+#admin-view {
+  gap: 1rem;
 }
 
 @keyframes fadeIn {

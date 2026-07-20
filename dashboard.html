@@ -248,7 +248,9 @@
            ========================================== -->
       <section id="home-view" class="dashboard-view-section active">
         <!-- Exam banners container (Part E) -->
-        <div id="home-exam-banners-container" style="width: 100%; display: flex; flex-direction: column; gap: 0.75rem; margin-bottom        <!-- Personal welcome greeting banner -->
+        <div id="home-exam-banners-container" style="width: 100%; display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1.5rem;"></div>
+
+        <!-- Personal welcome greeting banner -->
         <div class="welcome-banner" id="home-welcome-banner" style="margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
           <div style="display:flex; align-items:center; gap:1rem;">
             <span id="home-user-avatar"></span>
@@ -1150,11 +1152,11 @@
       <section id="admin-view" class="dashboard-view-section">
         <div class="dashboard-page-header">
           <h2 class="dashboard-page-title">Yönetici Paneli</h2>
-          <p class="dashboard-page-subtitle">Platform yönetim, istatistik ve denetim araçları.</p>
+          <p class="dashboard-page-desc">Platform yönetim, istatistik ve denetim araçları.</p>
         </div>
 
         <!-- Internal Tab Navigation -->
-        <div class="admin-tab-bar" style="display: flex; gap: 0.5rem; border-bottom: 2px solid rgba(22, 50, 92, 0.08); margin: 1.5rem 0 1rem 0; padding-bottom: 0px; flex-wrap: wrap;">
+        <div class="admin-tab-bar" style="display: flex; gap: 0.5rem; border-bottom: 2px solid rgba(22, 50, 92, 0.08); margin: 0; padding-bottom: 0px; flex-wrap: wrap;">
           <button class="btn-admin-tab active" id="btn-admin-tab-overview" onclick="switchAdminTab('overview')" style="background: none; border: none; padding: 0.6rem 1.2rem; font-weight: 700; font-size: 0.9rem; color: var(--color-navy); cursor: pointer; border-bottom: 3px solid var(--color-teal); margin-bottom: -2px; transition: all 0.2s;">Genel Bakış</button>
           <button class="btn-admin-tab" id="btn-admin-tab-students" onclick="switchAdminTab('students')" style="background: none; border: none; padding: 0.6rem 1.2rem; font-weight: 700; font-size: 0.9rem; color: var(--color-text-muted); cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; transition: all 0.2s;">Öğrenciler</button>
           <button class="btn-admin-tab" id="btn-admin-tab-inbox" onclick="switchAdminTab('inbox')" style="background: none; border: none; padding: 0.6rem 1.2rem; font-weight: 700; font-size: 0.9rem; color: var(--color-text-muted); cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; transition: all 0.2s; display: flex; align-items: center; gap: 0.5rem;">
@@ -1166,7 +1168,7 @@
 
         <!-- TAB: Genel Bakış (Overview) -->
         <div id="admin-tab-content-overview" class="admin-tab-content" style="display: block;">
-          <div id="report-content" style="margin-top: 1rem;">
+          <div id="report-content">
             <!-- Populated dynamically via JS -->
           </div>
         </div>
@@ -1212,13 +1214,13 @@
 
         <!-- TAB: Gelen Kutusu (Inbox) -->
         <div id="admin-tab-content-inbox" class="admin-tab-content" style="display: none;">
-          <div style="display: flex; flex-direction: column; gap: 1.25rem; max-width: 900px; margin-top: 1rem;" id="admin-messages-list">
+          <div style="display: flex; flex-direction: column; gap: 1.25rem; max-width: 900px;" id="admin-messages-list">
             <!-- Populated dynamically via JS -->
           </div>
         </div>
 
         <!-- TAB: İçerik Denetimi (Moderation) -->
-        <div id="admin-tab-content-moderation" class="admin-tab-content" style="display: none; display: flex; flex-direction: column; gap: 2rem; margin-top: 1rem;">
+        <div id="admin-tab-content-moderation" class="admin-tab-content" style="display: none; flex-direction: column; gap: 2rem;">
           <!-- Shared Study Cards Subsection -->
           <div class="moderation-section">
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid rgba(22, 50, 92, 0.08); padding-bottom: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">

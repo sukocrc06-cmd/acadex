@@ -9138,7 +9138,7 @@ function switchAdminTab(tabId) {
   contents.forEach(content => {
     const contentIdSuffix = content.id.replace('admin-tab-content-', '');
     if (contentIdSuffix === tabId) {
-      content.style.display = 'block';
+      content.style.display = (contentIdSuffix === 'moderation') ? 'flex' : 'block';
     } else {
       content.style.display = 'none';
     }
