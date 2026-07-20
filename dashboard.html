@@ -570,27 +570,86 @@
 
           <!-- Right Column: Whiteboard Workspace -->
           <div class="notebook-main-area">
-            <!-- Whiteboard Toolbar -->
-            <div class="notebook-toolbar">
-              <!-- Drawing tool select -->
-              <div class="notebook-toolbar-group">
-                <button class="tool-btn active" id="tool-pen" title="Pen Tool" aria-label="Pen Tool">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 20h9"></path>
-                    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
-                  </svg>
-                </button>
-                <button class="tool-btn" id="tool-eraser" title="Eraser Tool" aria-label="Eraser Tool">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M20 20H4"></path>
-                    <path d="M20 7L12 15l-4-4 8-8 4 4z"></path>
-                    <rect x="3" y="11" width="9" height="9" rx="2"></rect>
-                  </svg>
-                </button>
+            <!-- Redesigned Whiteboard Toolbar Wrapper -->
+            <div class="notebook-toolbar-wrapper">
+              <!-- Primary Toolbar Row (Draw, Insert, Edit, Page Navigation) -->
+              <div class="notebook-primary-toolbar">
+                <!-- Group 1: Draw Tools -->
+                <div class="toolbar-group">
+                  <button class="tool-btn active" id="tool-pen" title="Kalem Aracı (Pen Tool — Click to toggle color/size bar)" aria-label="Pen Tool">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 20h9"></path>
+                      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                    </svg>
+                  </button>
+                  <button class="tool-btn" id="tool-eraser" title="Silgi Aracı (Eraser Tool)" aria-label="Eraser Tool">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M20 20H4"></path>
+                      <path d="M20 7L12 15l-4-4 8-8 4 4z"></path>
+                      <rect x="3" y="11" width="9" height="9" rx="2"></rect>
+                    </svg>
+                  </button>
+                  <div class="shape-dropdown" style="position: relative; display: inline-block;">
+                    <button class="tool-btn" id="tool-shape" title="Şekil Çizimi (Shapes: Dikdörtgen, Daire, Çizgi, Ok)" aria-label="Shape Tool" onclick="toggleShapeDropdown(event)">
+                      🔺
+                    </button>
+                    <div id="shape-menu" style="display: none; position: absolute; top: 100%; left: 0; background: var(--color-white); border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); box-shadow: var(--shadow-md); z-index: 10000; min-width: 120px;">
+                      <button class="shape-option-btn" onclick="selectShapeMode('rectangle', event)" style="display: block; width: 100%; padding: 0.5rem; text-align: left; background: none; border: none; font-size: 0.8rem; cursor: pointer; color: var(--color-navy); font-family: inherit;">Rectangle</button>
+                      <button class="shape-option-btn" onclick="selectShapeMode('circle', event)" style="display: block; width: 100%; padding: 0.5rem; text-align: left; background: none; border: none; font-size: 0.8rem; cursor: pointer; color: var(--color-navy); font-family: inherit;">Circle</button>
+                      <button class="shape-option-btn" onclick="selectShapeMode('line', event)" style="display: block; width: 100%; padding: 0.5rem; text-align: left; background: none; border: none; font-size: 0.8rem; cursor: pointer; color: var(--color-navy); font-family: inherit;">Line</button>
+                      <button class="shape-option-btn" onclick="selectShapeMode('arrow', event)" style="display: block; width: 100%; padding: 0.5rem; text-align: left; background: none; border: none; font-size: 0.8rem; cursor: pointer; color: var(--color-navy); font-family: inherit;">Arrow</button>
+                    </div>
+                  </div>
+                  <button class="tool-btn" id="tool-text" title="Metin Kutusu Ekle (Text Tool)" aria-label="Text Tool">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="4 7 4 4 20 4 20 7"></polyline>
+                      <line x1="9" y1="20" x2="15" y2="20"></line>
+                      <line x1="12" y1="4" x2="12" y2="20"></line>
+                    </svg>
+                  </button>
+                  <button class="tool-btn" id="tool-mic" title="Sesli Not Al (Speech to Text)" aria-label="Voice Notes Tool">
+                    🎤
+                  </button>
+                </div>
+
+                <div class="toolbar-divider"></div>
+
+                <!-- Group 2: Insert Elements -->
+                <div class="toolbar-group">
+                  <button class="tool-btn" id="tool-table" title="Tablo Oluştur (Table Creator)" aria-label="Table Creator Tool">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M3 3h18v18H3zM21 9H3M21 15H3M12 3v18"></path>
+                    </svg>
+                  </button>
+                  <button class="tool-btn" id="tool-image" title="Görsel Yükle (Insert Image)" aria-label="Insert Image" onclick="triggerNotebookImageUpload(event)">
+                    🖼️
+                  </button>
+                  <input type="file" id="notebook-image-uploader" accept="image/*" style="display: none;" onchange="handleNotebookImageUpload(event)">
+                </div>
+
+                <div class="toolbar-divider"></div>
+
+                <!-- Group 3: History Edit (Undo/Redo) -->
+                <div class="toolbar-group">
+                  <button class="tool-btn" id="btn-undo-notebook" title="Geri Al (Undo — Ctrl+Z)" onclick="undoNotebookAction()" disabled>↶</button>
+                  <button class="tool-btn" id="btn-redo-notebook" title="İleri Al (Redo — Ctrl+Y)" onclick="redoNotebookAction()" disabled>↷</button>
+                </div>
+
+                <!-- Group 4: Page Navigation Cluster (Right Aligned) -->
+                <div class="toolbar-group nav-cluster" style="margin-left: auto;">
+                  <button class="tool-btn" id="btn-page-prev" title="Önceki Sayfa" onclick="navigateNotebookPage(-1)">←</button>
+                  <span id="notebook-page-indicator" title="Mevcut Sayfa Konumu" style="font-size: 0.8rem; font-weight: 700; color: var(--color-navy); padding: 0 0.25rem; white-space: nowrap;">Page 1 of 1</span>
+                  <button class="tool-btn" id="btn-page-next" title="Sonraki Sayfa" onclick="navigateNotebookPage(1)">→</button>
+                  <button class="tool-btn" id="btn-pages-overview" title="Tüm Sayfalar Önizlemesi (Grid View)" onclick="openNotebookPagesOverview()" style="font-size: 0.8rem; font-weight: 600;">📑 All Pages</button>
+                  <button class="tool-btn" id="btn-page-new" title="Yeni Sayfa Oluştur (Şablon Seçimi)" onclick="openTemplatePickerModal()" style="font-weight: bold; font-size: 1.1rem; color: var(--color-teal);">+</button>
+                  <button class="tool-btn" id="btn-page-delete" title="Mevcut Sayfayı Sil" onclick="deleteCurrentNotebookPage()" style="color: #EF4444; font-size: 0.95rem;">🗑️</button>
+                  <button class="tool-btn" id="btn-share-page" title="Bu Sayfayı Sınıf Arkadaşınla Paylaş" onclick="openPageShareModal()" style="font-size: 0.8rem; font-weight: 600; color: var(--color-navy);">👥 Share</button>
+                </div>
               </div>
 
-              <!-- Color presets swatches -->
-              <div class="notebook-toolbar-group">
+              <!-- Contextual Color & Brush/Font Size Panel (Shown when Pen or Text tool active) -->
+              <div class="notebook-contextual-bar" id="notebook-contextual-panel" style="display: flex;">
+                <div class="contextual-label">Color:</div>
                 <div class="swatch-container">
                   <button class="color-swatch active" style="background-color: #000000;" data-color="#000000" title="Black color" aria-label="Black color"></button>
                   <button class="color-swatch" style="background-color: #0F172A;" data-color="#0F172A" title="Dark Navy color" aria-label="Dark Navy color"></button>
@@ -600,88 +659,38 @@
                   <button class="color-swatch" style="background-color: #10B981;" data-color="#10B981" title="Green color" aria-label="Green color"></button>
                   <button class="color-swatch" style="background-color: #F59E0B;" data-color="#F59E0B" title="Orange color" aria-label="Orange color"></button>
                   <button class="color-swatch" style="background-color: #8B5CF6;" data-color="#8B5CF6" title="Purple color" aria-label="Purple color"></button>
-                  <input type="color" id="tool-color-picker" title="Custom Color Picker" aria-label="Custom Color Picker" style="width: 24px; height: 24px; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: 50%; padding: 0; cursor: pointer; background: none; margin-left: 0.25rem;">
+                  <input type="color" id="tool-color-picker" title="Özel Renk Seç (Custom Color Picker)" aria-label="Custom Color Picker" style="width: 22px; height: 22px; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: 50%; padding: 0; cursor: pointer; background: none; margin-left: 0.25rem;">
                 </div>
-              </div>
 
-              <!-- Brush sizing slider -->
-              <div class="notebook-toolbar-group">
-                <label class="brush-slider-label">
-                  <span>Size: <span id="brush-size-val">4px</span></span>
+                <div class="toolbar-divider" style="height: 18px;"></div>
+
+                <div id="contextual-brush-size-group" style="display: inline-flex; align-items: center; gap: 0.35rem;">
+                  <span class="brush-slider-label">Size: <span id="brush-size-val">4px</span></span>
                   <input type="range" id="brush-size" class="brush-slider" min="1" max="20" value="4">
-                </label>
+                </div>
+
+                <div id="contextual-font-size-group" style="display: none; align-items: center; gap: 0.35rem;">
+                  <span class="brush-slider-label">Font:</span>
+                  <select id="text-font-size" class="font-size-select" title="Text Font Size" aria-label="Text Font Size">
+                    <option value="12px">12px</option>
+                    <option value="16px" selected>16px</option>
+                    <option value="20px">20px</option>
+                    <option value="24px">24px</option>
+                    <option value="32px">32px</option>
+                  </select>
+                </div>
               </div>
 
-              <!-- Element creators text / table -->
-              <div class="notebook-toolbar-group">
-                <button class="tool-btn" id="tool-text" title="Text Overlay Tool" aria-label="Text Overlay Tool">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="4 7 4 4 20 4 20 7"></polyline>
-                    <line x1="9" y1="20" x2="15" y2="20"></line>
-                    <line x1="12" y1="4" x2="12" y2="20"></line>
-                  </svg>
+              <!-- Bottom Document-level Actions Row -->
+              <div class="notebook-bottom-actions">
+                <button class="btn btn-outline" id="btn-clear-canvas" title="Tüm Çizimleri Temizle" style="padding: 0.35rem 0.75rem; font-size: 0.78rem;">Çizimleri Temizle</button>
+                <button class="btn btn-outline" id="btn-download-notebook" title="Sayfayı Görsel Olarak İndir" style="padding: 0.35rem 0.75rem; font-size: 0.78rem;">Defteri İndir</button>
+                <button class="btn btn-outline" id="btn-depot-modal" title="Bilgi Deposu Staging Paneli" style="padding: 0.35rem 0.75rem; font-size: 0.78rem; position: relative; display: flex; align-items: center; gap: 0.5rem; margin-left: auto;">
+                  📦 Bilgi Deposu
+                  <span class="depot-badge" id="depot-count-badge" style="display: none; background-color: #EF4444; color: white; font-size: 0.7rem; width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; position: absolute; top: -6px; right: -6px; transform: none;">0</span>
                 </button>
-                <button class="tool-btn" id="tool-mic" title="Voice Notes Tool (Speech to Text)" aria-label="Voice Notes Tool" style="font-size: 1.1rem; line-height: 1;">
-                  🎤
-                </button>
-                <!-- Font size select dropdown -->
-                <select id="text-font-size" class="font-size-select" title="Text Font Size" aria-label="Text Font Size">
-                  <option value="12px">12px</option>
-                  <option value="16px" selected>16px</option>
-                  <option value="20px">20px</option>
-                  <option value="24px">24px</option>
-                  <option value="32px">32px</option>
-                </select>
-                <button class="tool-btn" id="tool-table" title="Table Creator Tool" aria-label="Table Creator Tool">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M3 3h18v18H3zM21 9H3M21 15H3M12 3v18"></path>
-                  </svg>
-                </button>
-
-                <div class="shape-dropdown" style="position: relative; display: inline-block;">
-                  <button class="tool-btn" id="tool-shape" title="Shape Tool" aria-label="Shape Tool" onclick="toggleShapeDropdown(event)">
-                    🔺
-                  </button>
-                  <div id="shape-menu" style="display: none; position: absolute; top: 100%; left: 0; background: var(--color-white); border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); box-shadow: var(--shadow-md); z-index: 10000; min-width: 120px;">
-                    <button class="shape-option-btn" onclick="selectShapeMode('rectangle', event)" style="display: block; width: 100%; padding: 0.5rem; text-align: left; background: none; border: none; font-size: 0.8rem; cursor: pointer; color: var(--color-navy); font-family: inherit;">Rectangle</button>
-                    <button class="shape-option-btn" onclick="selectShapeMode('circle', event)" style="display: block; width: 100%; padding: 0.5rem; text-align: left; background: none; border: none; font-size: 0.8rem; cursor: pointer; color: var(--color-navy); font-family: inherit;">Circle</button>
-                    <button class="shape-option-btn" onclick="selectShapeMode('line', event)" style="display: block; width: 100%; padding: 0.5rem; text-align: left; background: none; border: none; font-size: 0.8rem; cursor: pointer; color: var(--color-navy); font-family: inherit;">Line</button>
-                    <button class="shape-option-btn" onclick="selectShapeMode('arrow', event)" style="display: block; width: 100%; padding: 0.5rem; text-align: left; background: none; border: none; font-size: 0.8rem; cursor: pointer; color: var(--color-navy); font-family: inherit;">Arrow</button>
-                  </div>
-                </div>
-
-                <button class="tool-btn" id="tool-image" title="Insert Image" aria-label="Insert Image" onclick="triggerNotebookImageUpload(event)">
-                  🖼️
-                </button>
-                <input type="file" id="notebook-image-uploader" accept="image/*" style="display: none;" onchange="handleNotebookImageUpload(event)">
-
-                <!-- Undo / Redo Group -->
-                <div class="notebook-toolbar-group" id="notebook-history-controls" style="display: flex; align-items: center; gap: 0.25rem;">
-                  <button class="tool-btn" id="btn-undo-notebook" title="Undo (Ctrl+Z)" onclick="undoNotebookAction()" disabled>↶</button>
-                  <button class="tool-btn" id="btn-redo-notebook" title="Redo (Ctrl+Y)" onclick="redoNotebookAction()" disabled>↷</button>
-                </div>
-
-                <!-- Page Controls Group -->
-                <div class="notebook-toolbar-group" id="notebook-page-controls" style="display: flex; align-items: center; gap: 0.35rem; margin-left: 0.5rem;">
-                  <button class="tool-btn" id="btn-page-prev" title="Previous Page" onclick="navigateNotebookPage(-1)">←</button>
-                  <span id="notebook-page-indicator" style="font-size: 0.8rem; font-weight: 700; color: var(--color-navy); min-width: 80px; text-align: center; white-space: nowrap;">Page 1 of 1</span>
-                  <button class="tool-btn" id="btn-page-next" title="Next Page" onclick="navigateNotebookPage(1)">→</button>
-                  <button class="tool-btn" id="btn-pages-overview" title="All Pages Thumbnail Overview" onclick="openNotebookPagesOverview()" style="font-size: 0.85rem; font-weight: 600;">📑 All Pages</button>
-                  <button class="tool-btn" id="btn-page-new" title="New Page Template" onclick="openTemplatePickerModal()" style="font-weight: bold; font-size: 1.1rem; color: var(--color-teal);">+</button>
-                  <button class="tool-btn" id="btn-page-delete" title="Delete Current Page" onclick="deleteCurrentNotebookPage()" style="color: #EF4444; font-size: 0.95rem;">🗑️</button>
-                </div>
-
-                <button class="tool-btn" id="btn-share-page" title="Share This Page with Classmate" onclick="openPageShareModal()" style="font-size: 0.85rem; font-weight: 600; color: var(--color-navy);">👥 Share</button>
+                <button class="btn btn-primary" id="btn-save-notebook" title="Defter Verisini Buluta Kaydet" style="border: none; padding: 0.35rem 1rem; font-size: 0.78rem;">Defteri Kaydet</button>
               </div>
-
-              <!-- Action triggers: Clear / Download / Depot / Save -->
-              <button class="btn btn-outline" id="btn-clear-canvas" style="padding: 0.5rem 0.75rem; font-size: 0.8rem; margin-left: auto;">Çizimleri Temizle</button>
-              <button class="btn btn-outline" id="btn-download-notebook" style="padding: 0.5rem 0.75rem; font-size: 0.8rem;">Defteri İndir</button>
-              <button class="btn btn-outline" id="btn-depot-modal" style="padding: 0.5rem 0.75rem; font-size: 0.8rem; position: relative; display: flex; align-items: center; gap: 0.5rem;">
-                📦 Bilgi Deposu
-                <span class="depot-badge" id="depot-count-badge" style="display: none; background-color: #EF4444; color: white; font-size: 0.7rem; width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; position: absolute; top: -6px; right: -6px; transform: none;">0</span>
-              </button>
-              <button class="btn btn-primary" id="btn-save-notebook" style="border: none; padding: 0.5rem 1rem; font-size: 0.8rem;">Defteri Kaydet</button>
             </div>
             
             <!-- Warning hint display -->

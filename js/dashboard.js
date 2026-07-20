@@ -1891,7 +1891,8 @@ function renderNotebookSidebarList(cards) {
         </div>
         
         <div class="sidebar-summary-box" style="margin-top: 0.5rem;">
-          <strong>Özet:</strong> ${fullSummary}
+          <strong style="color: var(--color-navy); font-size: 0.78rem;">Özet:</strong>
+          <div style="margin-top: 0.25rem;">${formatSummaryText(card.summary, card.footnotes) || 'No summary generated.'}</div>
         </div>
         
         <div class="share-toggle-container" style="margin: 0.25rem 0; padding: 0.25rem 0.5rem; font-size: 0.75rem;">
@@ -2058,6 +2059,20 @@ function setNotebookMode(mode) {
       else btn.classList.remove('active');
     }
   });
+
+  const contextualPanel = document.getElementById('notebook-contextual-panel');
+  const fontSizeGroup = document.getElementById('contextual-font-size-group');
+  const brushSizeGroup = document.getElementById('contextual-brush-size-group');
+
+  if (contextualPanel) {
+    if (mode === 'pen' || mode === 'text') {
+      contextualPanel.style.display = 'flex';
+      if (fontSizeGroup) fontSizeGroup.style.display = (mode === 'text') ? 'inline-flex' : 'none';
+      if (brushSizeGroup) brushSizeGroup.style.display = (mode === 'pen') ? 'inline-flex' : 'none';
+    } else {
+      contextualPanel.style.display = 'none';
+    }
+  }
 
   if (mode === 'pen') {
     canvasElement.style.cursor = 'crosshair';
@@ -5483,6 +5498,8 @@ async function sendToDepot(event, btn, cardId, sourceType, title, content) {
     event.stopPropagation();
   }
 
+  console.log(`[sendToDepot] Sending item to depot: sourceType=${sourceType}, title=${title}, cardId=${cardId}`, content);
+
   const originalHtml = btn.innerHTML;
   btn.disabled = true;
   btn.innerHTML = `
@@ -5505,7 +5522,7 @@ async function sendToDepot(event, btn, cardId, sourceType, title, content) {
 
     if (error) {
       console.error("Error sending to depot:", error);
-      showDashboardAlert('error', 'Depoya gönderilemedi. / Failed to send.');
+      showDashboardAlert('error', `Depoya gönderilemedi: ${error.message || 'Hata oluştu'}`);
       btn.disabled = false;
       btn.innerHTML = originalHtml;
       return;
@@ -5526,10 +5543,16 @@ async function sendToDepot(event, btn, cardId, sourceType, title, content) {
 
   } catch (err) {
     console.error("Exception in sendToDepot:", err);
+    showDashboardAlert('error', 'Depoya gönderirken hata oluştu.');
     btn.disabled = false;
     btn.innerHTML = originalHtml;
   }
 }
+
+async function sendSectionToDepot(event, btn, cardId, sourceType, title, content) {
+  return sendToDepot(event, btn, cardId, sourceType, title, content);
+}
+window.sendSectionToDepot = sendSectionToDepot;
 
 async function loadDepotItems() {
   const depotList = document.getElementById('depot-items-list');

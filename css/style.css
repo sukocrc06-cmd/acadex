@@ -4351,5 +4351,69 @@ input:checked + .slider:before {
   color: var(--color-text-muted);
 }
 
+/* ── Redesigned Notebook Toolbar Styles ── */
+.notebook-toolbar-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background-color: var(--color-white);
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(22, 50, 92, 0.1);
+  box-shadow: var(--shadow-sm);
+  z-index: 10;
+  margin-bottom: 0.75rem;
+}
+
+.notebook-primary-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.toolbar-divider {
+  width: 1px;
+  height: 22px;
+  background-color: rgba(22, 50, 92, 0.12);
+  margin: 0 0.15rem;
+}
+
+.notebook-contextual-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.35rem 0.65rem;
+  background: var(--color-bg-alt);
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(22, 50, 92, 0.08);
+  font-size: 0.78rem;
+  transition: all 0.2s ease;
+}
+
+.contextual-label {
+  font-size: 0.725rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.notebook-bottom-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding-top: 0.25rem;
+  border-top: 1px dashed rgba(22, 50, 92, 0.1);
+}
+
+
 
 
