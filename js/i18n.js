@@ -74,7 +74,7 @@ const TRANSLATIONS = {
     "register.hasAccount": "Already have an account?",
     "register.loginLink": "Log in here",
 
-    // Validation messages (Phase 16A)
+    // Validation messages
     "validation.fullNameRequired": "Full Name is required.",
     "validation.studentNumberRange": "Student Number must be between 6 and 12 digits.",
     "validation.selectDepartment": "Please select your department.",
@@ -103,7 +103,7 @@ const TRANSLATIONS = {
     "legal.subtitle": "Terms of Use and Privacy Policy guidelines.",
 
     // Dashboard Layout (dashboard.html)
-    "dash.nav.home": "Overview",
+    "dash.nav.home": "Ana Sayfa",
     "dash.nav.planner": "Study Planner",
     "dash.nav.docs": "My Documents",
     "dash.nav.feed": "Department Feed",
@@ -114,29 +114,55 @@ const TRANSLATIONS = {
     "dash.nav.settings": "Settings",
     "dash.search.placeholder": "Search actions, pages, cards...",
 
-    // Dashboard Overview Tab
+    // Dashboard Overview Tab (Ana Sayfa)
     "dash.overview.title": "Welcome back,",
-    "dash.overview.subtitle": "Here's what is happening in your faculty program.",
-    "dash.overview.stat.docs": "Uploaded Documents",
-    "dash.overview.stat.cards": "AI Study Cards",
-    "dash.overview.stat.exams": "Exams Taken",
-    "dash.overview.stat.grade": "Average Grade",
+    "dash.overview.greeting": "Welcome back,",
+    "dash.overview.welcomeSub": "Welcome back to Acadex! Here's your study summary.",
+    "dash.overview.retakeTour": "Need a refresher? Retake the Tour",
+    "dash.overview.streakSuffix": "day streak!",
+    "dash.overview.stat.docs": "DOCUMENTS UPLOADED",
+    "dash.overview.stat.cards": "STUDY CARDS CREATED",
+    "dash.overview.stat.exams": "EXAMS TAKEN",
+    "dash.overview.stat.grade": "AVERAGE GRADE",
+    "dash.overview.quickActions": "Quick Actions",
     "dash.overview.recentActivity": "Recent Activity",
-    "dash.overview.streak": "day streak!",
+    "dash.overview.focusAreas": "Focus Areas",
+    "dash.overview.focusAreasSub": "Concepts you should review next based on exam history.",
     "dash.overview.achievements.title": "My Achievements",
+    "dash.overview.qa.upload": "Upload Document",
+    "dash.overview.qa.exam": "Practice Exam",
+    "dash.overview.noActivity": "No recent activity yet. Start by uploading a document!",
 
     // Study Planner Tab
     "dash.planner.title": "Study Planner",
     "dash.planner.desc": "Manage your academic calendar, track exam dates and study goals.",
+    "dash.planner.enableReminders": "🔔 Enable Exam Reminders",
+    "dash.planner.statusChecking": "Status: Checking...",
+    "dash.planner.remindersHint": "* Reminders work while Acadex is open in your browser.",
     "dash.planner.addBtn": "+ Add Event",
+    "dash.planner.exportIcal": "Export to Calendar",
+    "dash.planner.listView": "List View",
+    "dash.planner.calendarView": "Calendar View",
+    "dash.planner.mon": "Mon",
+    "dash.planner.tue": "Tue",
+    "dash.planner.wed": "Wed",
+    "dash.planner.thu": "Thu",
+    "dash.planner.fri": "Fri",
+    "dash.planner.sat": "Sat",
+    "dash.planner.sun": "Sun",
     "dash.planner.thisWeek": "This Week",
     "dash.planner.later": "Later",
+    "dash.planner.empty": "No events yet. Add your first exam date or study goal to get started!",
 
     // My Documents Tab
-    "dash.docs.title": "My Study Documents",
+    "dash.docs.title": "My Documents",
+    "dash.docs.desc": "Upload and manage academic files, slides, and syllabus documents.",
     "dash.docs.upload.title": "Upload Study Material",
-    "dash.docs.upload.dragText": "Drag and drop files here, or click to browse",
-    "dash.docs.upload.subtext": "Supports PDF, Word, PowerPoint, TXT up to 20MB",
+    "dash.docs.upload.dragText": "Drag and drop your file here, or click to browse",
+    "dash.docs.upload.subtext": "Supported formats: PDF, Word, PowerPoint, TXT — max 20MB",
+    "dash.docs.bulk.selected": "selected",
+    "dash.docs.bulk.merge": "🔀 Merge & Summarize",
+    "dash.docs.bulk.compare": "⚖️ Compare Documents",
     "dash.docs.bulk.delete": "Delete Selected",
     "dash.docs.bulk.summarize": "Bulk Summarize",
     "dash.docs.bulk.cancel": "Cancel",
@@ -148,56 +174,75 @@ const TRANSLATIONS = {
     "dash.summarize.modal.length.hint": "Select how detailed your summary card should be.",
 
     // Department Feed Tab
-    "dash.feed.title": "Department Study Feed",
-    "dash.feed.subtitle": "Shared learning resources from fellow students in your program.",
+    "dash.feed.title": "Department Feed",
+    "dash.feed.subtitle": "Study cards shared by your classmates in your program.",
+    "dash.feed.courseLabel": "Course:",
+    "dash.feed.allCourses": "All Courses",
 
     // Study Notebook Tab
-    "dash.notebook.title": "Interactive Study Canvas",
+    "dash.notebook.title": "Digital Study Notebook",
+    "dash.notebook.desc": "Create freehand drawings, drag cards as sticky notes, type texts, and construct tables.",
+    "dash.notebook.screenNotice": "For the best experience, use a larger screen to access your drawing notebook.",
+    "dash.notebook.sidebar.title": "Your Study Cards",
+    "dash.notebook.searchPlaceholder": "Search cards...",
     "dash.notebook.btn.save": "Save Notebook",
     "dash.notebook.btn.addText": "Add Text",
     "dash.notebook.btn.addTable": "Add Table",
     "dash.notebook.btn.clear": "Clear Canvas",
-    "dash.notebook.sidebar.title": "Available Study Cards",
+    "dash.notebook.btn.clearDrawings": "Clear Drawings",
+    "dash.notebook.btn.download": "Download Notebook",
+    "dash.notebook.btn.depot": "📦 Info Depot",
+    "dash.notebook.saveHint": "Remember to save your notebook before leaving this page.",
+    "dash.notebook.allPages": "📑 All Pages",
+    "dash.notebook.share": "👥 Share",
     "dash.notebook.sidebar.empty": "Generate study cards from documents to view them here.",
 
     // Study Cards Tab
-    "dash.cards.title": "Generated Study Cards",
+    "dash.cards.title": "Study Cards Library",
+    "dash.cards.desc": "Browse all your study cards, review details, share with classmates, or add to your notebook.",
+    "dash.cards.searchPlaceholder": "Search study cards (filename or summary)...",
     "dash.cards.filter.style": "Filter Style",
     "dash.cards.filter.lang": "Filter Language",
     "dash.cards.btn.clear": "Clear Filters",
     "dash.cards.btn.exportAll": "Export All to PDF",
+    "dash.cards.pastComparisons": "Past Document Comparisons",
 
     // Exams Platform Tab
-    "dash.exams.title": "Smart Exam Platform",
-    "dash.exams.setup.title": "New Practice Exam Setup",
-    "dash.exams.setup.cardSelect": "Select Study Card / Context",
-    "dash.exams.setup.type": "Exam Style",
-    "dash.exams.setup.count": "Number of Questions",
-    "dash.exams.setup.btn": "Generate Exam",
+    "dash.exams.title": "Exams Platform",
+    "dash.exams.desc": "Create AI-powered exams from your study cards and test yourself.",
+    "dash.exams.emptyTitle": "You must summarize a document first",
+    "dash.exams.emptyText": "You need at least one summarized document to generate an exam.",
+    "dash.exams.cardSelect": "Select Study Card",
+    "dash.exams.typeTitle": "Exam Style",
+    "dash.exams.typeClassic": "Classic Exam",
+    "dash.exams.typeClassicSub": "All open-ended questions evaluated by AI.",
+    "dash.exams.typeTest": "Multiple Choice (Test)",
+    "dash.exams.typeTestSub": "4 options per question with one correct answer.",
+    "dash.exams.typeMixed": "Mixed Exam",
+    "dash.exams.typeMixedSub": "True/False and fill-in-the-blank questions.",
+    "dash.exams.difficultyTitle": "Difficulty Level",
+    "dash.exams.diffEasy": "Easy",
+    "dash.exams.diffEasySub": "Basic recall and definitions.",
+    "dash.exams.diffMedium": "Medium",
+    "dash.exams.diffMediumSub": "Balanced comprehension and application.",
+    "dash.exams.diffHard": "Hard",
+    "dash.exams.diffHardSub": "Analysis and scenario-based questions.",
+    "dash.exams.langTitle": "Exam Language",
+    "dash.exams.langHint": "* English is recommended since courses are taught in English.",
+    "dash.exams.generateBtn": "Generate Exam",
     "dash.exams.pastAttempts": "Past Exam Attempts",
+    "dash.exams.cancel": "Exit Exam",
+    "dash.exams.submit": "Submit Exam",
+    "dash.exams.resultsTitle": "Exam Result",
+    "dash.exams.resultsDesc": "Exam results evaluated by AI.",
+    "dash.exams.totalScore": "Total Score",
+    "dash.exams.completed": "Exam Completed",
+    "dash.exams.completedDesc": "Review detailed question analyses below.",
+    "dash.exams.backToSetup": "Back to Exam Setup",
 
     // Developer Sandbox Tab
-    "dash.sandbox.title": "Developer Sandbox Showcase",
-    "dash.sandbox.subtitle": "Practice data analysis and share student-built projects here.",
-    "dash.sandbox.btn.share": "Share a Project",
-
-    // Settings Tab
-    "dash.settings.title": "Account Settings",
-    "dash.settings.profile.title": "Student Profile",
-    "dash.settings.password.title": "Change Password",
-    "dash.settings.delete.title": "Danger Zone",
-
-    // Departments Details
-    "dept.mis": "Management Information Systems",
-    "dept.ba": "Business Administration",
-    "dept.itb": "International Trade and Business",
-    "dept.bf": "Banking and Finance",
-
-    // Landing Blurbs
-    "landing.dept.mis.blurb": "Perfect for future analysts and developers — sharpen your skills with the Developer Sandbox's sample datasets and share your own coding projects with the community.",
-    "landing.dept.ba.blurb": "Turn dense business theory into clear, exam-ready summaries and test your understanding with AI-generated practice exams.",
-    "landing.dept.itb.blurb": "Navigate complex global business concepts with structured outlines and simplified explanations tailored to how you like to study.",
-    "landing.dept.bf.blurb": "Transform lecture slides and financial readings into concise study cards, and self-test with instantly graded practice exams.",
+    "dash.sandbox.title": "Developer Sandbox",
+    "dash.sandbox.subtitle": "Practice data analysis with sample datasets, or share your programming projects with the Acadex community.",
     "sandbox.guide.title": "Sandbox Developer Guide",
     "sandbox.guide.who": "Who is this for?",
     "sandbox.guide.whoText": "Designed for MIS students and programming enthusiasts across all 4 departments to practice coding, analytics, and software design.",
@@ -207,12 +252,49 @@ const TRANSLATIONS = {
     "sandbox.guide.step2Text": "Publish links to your GitHub repositories or live apps so peers can check them out, view your source code, and run tests.",
     "sandbox.guide.step3": "Cross-Department Showcase:",
     "sandbox.guide.step3Text": "All shared projects are visible public-wide to inspire other students and promote learning collaboration!",
+    "sandbox.datasetsTitle": "Sample Datasets",
+    "sandbox.datasetsSub": "Practice your data analysis skills with these sample datasets.",
+    "sandbox.galleryTitle": "Project Gallery",
+    "sandbox.shareBtn": "Share New Project",
+
+    // Settings Tab
+    "dash.settings.title": "Settings",
+    "dash.settings.desc": "Manage your profile, password, avatar, and account preferences.",
+    "dash.settings.profileInfo": "Profile Information",
+    "dash.settings.fullName": "Full Name",
+    "dash.settings.studentNo": "Student Number",
+    "dash.settings.email": "Email",
+    "dash.settings.department": "Department",
+    "dash.settings.deptHint": "* Changing your department affects which classmates can see your future shared study cards.",
+    "dash.settings.save": "Save",
+    "dash.settings.passwordTitle": "Change Password",
+    "dash.settings.newPass": "New Password",
+    "dash.settings.confirmPass": "New Password (Confirm)",
+    "dash.settings.updatePass": "Update Password",
+    "dash.settings.dangerTitle": "Danger Zone",
+    "dash.settings.dangerDesc": "Deleting your account permanently removes your profile, documents, and cards.",
+    "dash.settings.deleteBtn": "Delete Account",
+
+    // Focus & Acadia
+    "dash.focus.title": "Focus Mode",
+    "dash.focus.start": "Start",
+    "dash.focus.pause": "Pause",
+    "dash.focus.reset": "Reset",
+    "dash.focus.dim": "Dim Screen",
+    "dash.focus.sound": "Sound",
     "dash.acadia.btn": "Ask Acadia",
     "dash.acadia.clear": "Clear",
-    "dash.acadia.disclosure": "Acadia only sees your own account activity data and is AI-generated — not an official grade or advising opinion.",
+    "dash.acadia.disclosure": "Acadia only views your account data and is AI-generated — not official advisor advice.",
     "dash.acadia.typing": "Acadia is typing...",
-    "dash.acadia.placeholder": "Ask a question..."
+    "dash.acadia.placeholder": "Ask a question...",
+
+    // Departments Details
+    "dept.mis": "Management Information Systems",
+    "dept.ba": "Business Administration",
+    "dept.itb": "International Trade and Business",
+    "dept.bf": "Banking and Finance"
   },
+
   tr: {
     // Brand & Commons
     "brand.name": "ACADEX",
@@ -288,7 +370,7 @@ const TRANSLATIONS = {
     "register.hasAccount": "Zaten bir hesabınız var mı?",
     "register.loginLink": "Buradan giriş yapın",
 
-    // Validation messages (Phase 16A)
+    // Validation messages
     "validation.fullNameRequired": "Ad Soyad alanı zorunludur.",
     "validation.studentNumberRange": "Öğrenci numarası 6 ile 12 basamak arasında olmalıdır.",
     "validation.selectDepartment": "Lütfen bölümünüzü seçin.",
@@ -317,7 +399,7 @@ const TRANSLATIONS = {
     "legal.subtitle": "Kullanım Şartları ve Gizlilik Politikası kuralları.",
 
     // Dashboard Layout (dashboard.html)
-    "dash.nav.home": "Genel Bakış",
+    "dash.nav.home": "Ana Sayfa",
     "dash.nav.planner": "Çalışma Planlayıcı",
     "dash.nav.docs": "Belgelerim",
     "dash.nav.feed": "Bölüm Akışı",
@@ -328,29 +410,55 @@ const TRANSLATIONS = {
     "dash.nav.settings": "Ayarlar",
     "dash.search.placeholder": "Eylemleri, sayfaları, kartları arayın...",
 
-    // Dashboard Overview Tab
+    // Dashboard Overview Tab (Ana Sayfa)
     "dash.overview.title": "Tekrar hoş geldin,",
-    "dash.overview.subtitle": "Fakülte programında neler olup bittiğine göz at.",
-    "dash.overview.stat.docs": "Yüklenen Belgeler",
-    "dash.overview.stat.cards": "Yapay Zeka Kartları",
-    "dash.overview.stat.exams": "Çözülen Sınavlar",
-    "dash.overview.stat.grade": "Not Ortalaması",
-    "dash.overview.recentActivity": "Son Etkinlikler",
-    "dash.overview.streak": "günlük seri!",
+    "dash.overview.greeting": "Tekrar hoş geldin,",
+    "dash.overview.welcomeSub": "Acadex'e tekrar hoş geldin! İşte çalışma özetin.",
+    "dash.overview.retakeTour": "Bilgi tazelemeye mi ihtiyacın var? Turu Tekrar Başlat",
+    "dash.overview.streakSuffix": "günlük seri!",
+    "dash.overview.stat.docs": "YÜKLENEN BELGELER",
+    "dash.overview.stat.cards": "OLUŞTURULAN ÇALIŞMA KARTLARI",
+    "dash.overview.stat.exams": "GİRİLEN SINAVLAR",
+    "dash.overview.stat.grade": "ORTALAMA NOT",
+    "dash.overview.quickActions": "Hızlı İşlemler",
+    "dash.overview.recentActivity": "Son Aktiviteler",
+    "dash.overview.focusAreas": "Zayıf Olduğunuz Konular",
+    "dash.overview.focusAreasSub": "Geçmiş sınavlarınızdaki performansa göre en çok tekrar etmeniz gereken konular.",
     "dash.overview.achievements.title": "Rozetlerim",
+    "dash.overview.qa.upload": "Belge Yükle",
+    "dash.overview.qa.exam": "Deneme Sınavı",
+    "dash.overview.noActivity": "Henüz son aktivite yok. Bir belge yükleyerek başlayın!",
 
     // Study Planner Tab
     "dash.planner.title": "Çalışma Planlayıcı",
     "dash.planner.desc": "Akademik takviminizi yönetin, sınav tarihlerinizi ve çalışma hedeflerinizi takip edin.",
+    "dash.planner.enableReminders": "🔔 Sınav Hatırlatıcılarını Aç",
+    "dash.planner.statusChecking": "Durum: Kontrol ediliyor...",
+    "dash.planner.remindersHint": "* Hatırlatıcılar Acadex tarayıcınızda açıkken çalışır.",
     "dash.planner.addBtn": "+ Etkinlik Ekle",
+    "dash.planner.exportIcal": "Takvime Aktar",
+    "dash.planner.listView": "Liste Görünümü",
+    "dash.planner.calendarView": "Takvim Görünümü",
+    "dash.planner.mon": "Pzt",
+    "dash.planner.tue": "Sal",
+    "dash.planner.wed": "Çar",
+    "dash.planner.thu": "Per",
+    "dash.planner.fri": "Cum",
+    "dash.planner.sat": "Cmt",
+    "dash.planner.sun": "Paz",
     "dash.planner.thisWeek": "Bu Hafta",
     "dash.planner.later": "Daha Sonra",
+    "dash.planner.empty": "Henüz etkinlik yok. Başlamak için ilk sınav tarihinizi veya çalışma hedefinizi ekleyin!",
 
     // My Documents Tab
-    "dash.docs.title": "Çalışma Belgelerim",
+    "dash.docs.title": "Belgelerim",
+    "dash.docs.desc": "Akademik dosyaları, slaytları ve müfredat belgelerini yükleyin ve yönetin.",
     "dash.docs.upload.title": "Çalışma Materyali Yükle",
     "dash.docs.upload.dragText": "Dosyaları buraya sürükleyip bırakın veya göz atmak için tıklayın",
     "dash.docs.upload.subtext": "Maksimum 20MB boyutunda PDF, Word, PowerPoint, TXT destekler",
+    "dash.docs.bulk.selected": "seçildi",
+    "dash.docs.bulk.merge": "🔀 Birleştir ve Özetle",
+    "dash.docs.bulk.compare": "⚖️ Belgeleri Karşılaştır",
     "dash.docs.bulk.delete": "Seçilenleri Sil",
     "dash.docs.bulk.summarize": "Toplu Özetle",
     "dash.docs.bulk.cancel": "İptal Et",
@@ -362,57 +470,76 @@ const TRANSLATIONS = {
     "dash.summarize.modal.length.hint": "Özet kartınızın ne kadar detaylı olacağını seçin.",
 
     // Department Feed Tab
-    "dash.feed.title": "Bölüm Çalışma Akışı",
+    "dash.feed.title": "Bölüm Akışı",
     "dash.feed.subtitle": "Programınızdaki diğer öğrencilerden paylaşılan çalışma kaynakları.",
+    "dash.feed.courseLabel": "Ders:",
+    "dash.feed.allCourses": "Tüm Dersler",
 
     // Study Notebook Tab
-    "dash.notebook.title": "İnteraktif Çalışma Tahtası",
+    "dash.notebook.title": "Çalışma Defteri",
+    "dash.notebook.desc": "Çizimler yapın, kartları yapışkan not olarak sürükleyin, metinler yazın ve tablolar oluşturun.",
+    "dash.notebook.screenNotice": "En iyi deneyim için çizim defterinize daha büyük bir ekrandan erişin.",
+    "dash.notebook.sidebar.title": "Mevcut Bilgi Kartları",
+    "dash.notebook.searchPlaceholder": "Kartlarda ara...",
     "dash.notebook.btn.save": "Defteri Kaydet",
     "dash.notebook.btn.addText": "Metin Ekle",
     "dash.notebook.btn.addTable": "Tablo Ekle",
     "dash.notebook.btn.clear": "Tuvali Temizle",
-    "dash.notebook.sidebar.title": "Mevcut Bilgi Kartları",
+    "dash.notebook.btn.clearDrawings": "Çizimleri Temizle",
+    "dash.notebook.btn.download": "Defteri İndir",
+    "dash.notebook.btn.depot": "📦 Bilgi Deposu",
+    "dash.notebook.saveHint": "Bu sayfadan ayrılmadan önce defterinizi kaydetmeyi unutmayın.",
+    "dash.notebook.allPages": "📑 Tüm Sayfalar",
+    "dash.notebook.share": "👥 Paylaş",
     "dash.notebook.sidebar.empty": "Bunları burada görmek için belgelerden bilgi kartları oluşturun.",
 
     // Study Cards Tab
-    "dash.cards.title": "Oluşturulan Bilgi Kartları",
+    "dash.cards.title": "Bilgi Kartları",
+    "dash.cards.desc": "Tüm çalışma kartlarınızı görüntüleyin, ayrıntıları inceleyin, arkadaşlarınızla paylaşın veya defterinize ekleyin.",
+    "dash.cards.searchPlaceholder": "Bilgi kartlarında ara (dosya adı veya özet)...",
     "dash.cards.filter.style": "Stil Filtrele",
     "dash.cards.filter.lang": "Dil Filtrele",
     "dash.cards.btn.clear": "Filtreleri Temizle",
     "dash.cards.btn.exportAll": "Hepsini PDF Yap",
+    "dash.cards.pastComparisons": "Geçmiş Belge Karşılaştırmaları",
 
     // Exams Platform Tab
-    "dash.exams.title": "Akıllı Sınav Platformu",
-    "dash.exams.setup.title": "Yeni Deneme Sınavı Kurulumu",
-    "dash.exams.setup.cardSelect": "Bilgi Kartı / Bağlam Seçin",
-    "dash.exams.setup.type": "Sınav Tarzı",
-    "dash.exams.setup.count": "Soru Sayısı",
-    "dash.exams.setup.btn": "Sınav Oluştur",
+    "dash.exams.title": "Sınav Platformu",
+    "dash.exams.desc": "Çalışma kartlarınızdan yapay zeka destekli sınavlar oluşturun, kendinizi test edin.",
+    "dash.exams.emptyTitle": "Öncelikle bir belge özetlemelisiniz",
+    "dash.exams.emptyText": "Sınav oluşturmak için en az bir adet özetlenmiş belgenizin olması gerekir.",
+    "dash.exams.cardSelect": "Çalışma Kartı Seçin",
+    "dash.exams.typeTitle": "Sınav Türü",
+    "dash.exams.typeClassic": "Klasik Sınav",
+    "dash.exams.typeClassicSub": "Tüm sorular açık uçludur. Yapay zeka tarafından değerlendirilir.",
+    "dash.exams.typeTest": "Çoktan Seçmeli (Test)",
+    "dash.exams.typeTestSub": "Tüm sorular 4 şıklı test formatındadır. Tek bir doğru cevap vardır.",
+    "dash.exams.typeMixed": "Karışık Sınav",
+    "dash.exams.typeMixedSub": "Doğru/Yanlış ve Boşluk Doldurma sorularından oluşan karışık test.",
+    "dash.exams.difficultyTitle": "Zorluk Seviyesi",
+    "dash.exams.diffEasy": "Kolay",
+    "dash.exams.diffEasySub": "Temel hatırlama ve tanımlar. Konuya yeni başlarken idealdir.",
+    "dash.exams.diffMedium": "Orta",
+    "dash.exams.diffMediumSub": "Kavrama ve uygulama düzeyinde, sınava hazırlık için dengeli.",
+    "dash.exams.diffHard": "Zor",
+    "dash.exams.diffHardSub": "Analiz ve senaryo bazlı sorular. İleri düzey tekrar için.",
+    "dash.exams.langTitle": "Sınav Dili",
+    "dash.exams.langHint": "* Dersler İngilizce işlendiği için İngilizce önerilir.",
+    "dash.exams.generateBtn": "Sınavı Oluştur",
     "dash.exams.pastAttempts": "Geçmiş Sınav Denemeleri",
+    "dash.exams.cancel": "Sınavdan Çık",
+    "dash.exams.submit": "Sınavı Tamamla ve Gönder",
+    "dash.exams.resultsTitle": "Sınav Sonucu",
+    "dash.exams.resultsDesc": "Yapay zeka tarafından değerlendirilen sınav sonuçlarınız.",
+    "dash.exams.totalScore": "Toplam Puan",
+    "dash.exams.completed": "Sınav Tamamlandı",
+    "dash.exams.completedDesc": "Aşağıdan detaylı soru analizlerini inceleyebilirsiniz.",
+    "dash.exams.backToSetup": "Sınav Kütüphanesine Dön",
 
     // Developer Sandbox Tab
-    "dash.sandbox.title": "Geliştirici Sandbox Galerisi",
-    "dash.sandbox.subtitle": "Veri analizi yapın ve öğrenci yapımı projeleri burada paylaşın.",
-    "dash.sandbox.btn.share": "Proje Paylaş",
-
-    // Settings Tab
-    "dash.settings.title": "Hesap Ayarları",
-    "dash.settings.profile.title": "Öğrenci Profili",
-    "dash.settings.password.title": "Şifre Değiştir",
-    "dash.settings.delete.title": "Tehlikeli Bölge",
-
-    // Departments Details
-    "dept.mis": "Yönetim Bilişim Sistemleri",
-    "dept.ba": "İşletme",
-    "dept.itb": "Uluslararası Ticaret ve İşletmecilik",
-    "dept.bf": "Bankacılık ve Finans",
-
-    // Landing Blurbs
-    "landing.dept.mis.blurb": "Geleceğin analistleri ve geliştiricileri için mükemmel — Geliştirici Sandbox'ın örnek veri setleriyle becerilerinizi bileyin ve kendi kodlama projelerinizi toplulukla paylaşın.",
-    "landing.dept.ba.blurb": "Yoğun işletme teorisini net, sınava hazır özetlere dönüştürün ve yapay zeka tarafından oluşturulan pratik sınavlarla anlayışınızı test edin.",
-    "landing.dept.itb.blurb": "Nasıl çalışmayı seviyorsanız ona göre uyarlanmış yapılandırılmış ana hatlar ve basitleştirilmiş açıklamalarla karmaşık küresel iş kavramlarında gezinin.",
-    "landing.dept.bf.blurb": "Ders slaytlarını ve finansal okumaları kısa çalışma kartlarına dönüştürün ve anında notlandırılan pratik sınavlarla kendinizi test edin.",
-    "sandbox.guide.title": "Sandbox Kullanım Kılavuzu",
+    "dash.sandbox.title": "Geliştirici Sandbox",
+    "dash.sandbox.subtitle": "Örnek veri setleriyle veri analizi yapın veya programlama projelerinizi Acadex topluluğuyla paylaşın.",
+    "sandbox.guide.title": "Sandbox Developer Kılavuzu",
     "sandbox.guide.who": "Bu alan kimler için?",
     "sandbox.guide.whoText": "Tüm 4 bölümdeki Yönetim Bilişim Sistemleri (MIS) öğrencileri ve programlama meraklılarının kodlama, veri analizi ve yazılım tasarımı pratiği yapmaları için tasarlanmıştır.",
     "sandbox.guide.step1": "Örnek Veri Setleri:",
@@ -421,17 +548,53 @@ const TRANSLATIONS = {
     "sandbox.guide.step2Text": "Akranlarınızın incelemesi, kaynak kodlarınızı görmesi ve testler yapması için GitHub depolarınıza veya canlı uygulamalarınıza bağlantılar yayınlayın.",
     "sandbox.guide.step3": "Bölümler Arası Vitrin:",
     "sandbox.guide.step3Text": "Paylaşılan tüm projeler, diğer öğrencilere ilham vermek ve işbirliğini teşvik etmek için platform genelinde herkes tarafından görülebilir!",
+    "sandbox.datasetsTitle": "Örnek Veri Setleri",
+    "sandbox.datasetsSub": "Bu örnek veri setleriyle veri analizi becerilerinizi geliştirin.",
+    "sandbox.galleryTitle": "Proje Galerisi",
+    "sandbox.shareBtn": "Yeni Proje Paylaş",
+
+    // Settings Tab
+    "dash.settings.title": "Ayarlar",
+    "dash.settings.desc": "Hesap ayarlarınızı, şifrenizi ve kişisel tercihlerinizi yönetin.",
+    "dash.settings.profileInfo": "Profil Bilgileri",
+    "dash.settings.fullName": "Ad Soyad",
+    "dash.settings.studentNo": "Öğrenci Numarası",
+    "dash.settings.email": "E-posta",
+    "dash.settings.department": "Bölüm",
+    "dash.settings.deptHint": "* Bölümünüzü değiştirmek gelecekteki kart paylaşımlarınızı etkiler.",
+    "dash.settings.save": "Kaydet",
+    "dash.settings.passwordTitle": "Şifre Değiştir",
+    "dash.settings.newPass": "Yeni Şifre",
+    "dash.settings.confirmPass": "Yeni Şifre (Tekrar)",
+    "dash.settings.updatePass": "Şifreyi Güncelle",
+    "dash.settings.dangerTitle": "Danger Zone (Tehlikeli Bölge)",
+    "dash.settings.dangerDesc": "Hesabınızı sildiğinizde profiliniz, belgeleriniz ve kartlarınız kalıcı olarak kaldırılacaktır.",
+    "dash.settings.deleteBtn": "Hesabımı Sil",
+
+    // Focus & Acadia
+    "dash.focus.title": "Odaklanma Modu",
+    "dash.focus.start": "Başlat",
+    "dash.focus.pause": "Duraklat",
+    "dash.focus.reset": "Sıfırla",
+    "dash.focus.dim": "Ekranı Karart",
+    "dash.focus.sound": "Ses",
     "dash.acadia.btn": "Acadia'ya Sorun",
     "dash.acadia.clear": "Temizle",
-    "dash.acadia.disclosure": "Acadia yalnızca sizin hesap verilerinizi görür ve AI tarafından üretilir — resmi not veya danışman görüşü yerine geçmez.",
+    "dash.acadia.disclosure": "Acadia yalnızca hesap verilerinizi görür ve AI tarafından üretilir — resmi danışman görüşü yerine geçmez.",
     "dash.acadia.typing": "Acadia yazıyor...",
-    "dash.acadia.placeholder": "Bir soru sorun..."
-  },
+    "dash.acadia.placeholder": "Bir soru sorun...",
+
+    // Departments Details
+    "dept.mis": "Yönetim Bilişim Sistemleri",
+    "dept.ba": "İşletme",
+    "dept.itb": "Uluslararası Ticaret ve İşletmecilik",
+    "dept.bf": "Bankacılık ve Finans"
+  }
 };
 
 function translateDepartment(dept) {
   if (!dept) return '';
-  const currentLang = localStorage.getItem('acadexUILang') || 'en';
+  const currentLang = localStorage.getItem('acadexUILang') || 'tr';
   if (currentLang === 'tr') {
     if (dept === 'Management Information Systems') return 'Yönetim Bilişim Sistemleri';
     if (dept === 'Business Administration') return 'İşletme';
@@ -442,10 +605,9 @@ function translateDepartment(dept) {
 }
 
 function applyLanguage(lang) {
-  if (lang !== 'en' && lang !== 'tr') lang = 'en';
+  lang = lang || localStorage.getItem('acadexUILang') || 'tr';
   localStorage.setItem('acadexUILang', lang);
-  document.documentElement.setAttribute('lang', lang);
-  
+
   const dict = TRANSLATIONS[lang];
   if (!dict) return;
 
@@ -498,16 +660,29 @@ function applyLanguage(lang) {
     deptEl.innerHTML = `${translatedDept} <span class="dept-badge ${badgeClass}">${shortName}</span>`;
   }
 
-  // Dynamic welcome subtitle updater hook
+  // Dynamic welcome title & subtitle updater hooks
+  const isTr = lang === 'tr';
+  const greetingEl = document.getElementById('home-welcome-greeting');
+  if (greetingEl && window.currentUserProfile) {
+    const displayName = window.currentUserProfile.full_name || (window.currentUser?.email ? window.currentUser.email.split('@')[0] : '');
+    const firstName = displayName.split(' ')[0] || '';
+    greetingEl.textContent = isTr ? `Tekrar hoş geldin, ${firstName}!` : `Welcome back, ${firstName}!`;
+  }
+
   const welcomeSub = document.getElementById('home-welcome-sub') || document.getElementById('welcome-sub');
-  if (welcomeSub && window.currentUserProfile) {
-    const dept = window.currentUserProfile.department;
-    const translatedDept = translateDepartment(dept);
-    if (lang === 'tr') {
-      welcomeSub.textContent = `Acadex'e tekrar hoş geldiniz! ${translatedDept || 'bölümünüz'} için hazırlanan çalışma özeti burada.`;
-    } else {
-      welcomeSub.textContent = `Welcome back to Acadex! Here's your study summary for ${translatedDept || 'your department'}.`;
-    }
+  if (welcomeSub) {
+    welcomeSub.textContent = isTr ? "Acadex'e tekrar hoş geldin! İşte çalışma özetin." : "Welcome back to Acadex! Here's your study summary.";
+  }
+
+  const streakEl = document.getElementById('home-streak-display');
+  if (streakEl && window.currentUserProfile) {
+    const streak = window.currentUserProfile.current_streak || 0;
+    streakEl.textContent = isTr ? `🔥 ${streak} günlük seri!` : `🔥 ${streak} day streak!`;
+  }
+
+  // Trigger recent activity re-render if loaded
+  if (typeof window.loadRecentActivity === 'function') {
+    window.loadRecentActivity();
   }
 
   // Trigger CSS transition fade-in for i18n targets
@@ -516,7 +691,7 @@ function applyLanguage(lang) {
 
 // Auto-run on DOMContentLoaded if loaded inside script tags
 document.addEventListener('DOMContentLoaded', () => {
-  const storedLang = localStorage.getItem('acadexUILang') || 'en';
+  const storedLang = localStorage.getItem('acadexUILang') || 'tr';
   applyLanguage(storedLang);
 });
 

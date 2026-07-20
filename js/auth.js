@@ -5,7 +5,7 @@
    ========================================================================== */
 
 function getMsg(key, defaultVal) {
-  const lang = localStorage.getItem('acadexUILang') || 'en';
+  const lang = localStorage.getItem('acadexUILang') || 'tr';
   if (window.TRANSLATIONS && window.TRANSLATIONS[lang] && window.TRANSLATIONS[lang][key]) {
     return window.TRANSLATIONS[lang][key];
   }
@@ -151,7 +151,7 @@ function initRegisterForm() {
       if (/[0-9]/.test(val)) criteriaMet++;
       if (/[^A-Za-z0-9]/.test(val)) criteriaMet++;
 
-      const currentLang = localStorage.getItem('acadexUILang') || 'en';
+      const currentLang = localStorage.getItem('acadexUILang') || 'tr';
       const weakText = currentLang === 'tr' ? 'Zayıf' : 'Weak';
       const mediumText = currentLang === 'tr' ? 'Orta' : 'Medium';
       const strongText = currentLang === 'tr' ? 'Güçlü' : 'Strong';
@@ -195,7 +195,7 @@ function initRegisterForm() {
           .eq('student_number', value)
           .maybeSingle();
 
-        const currentLang = localStorage.getItem('acadexUILang') || 'en';
+        const currentLang = localStorage.getItem('acadexUILang') || 'tr';
         const warningMessage = currentLang === 'tr' 
           ? 'Bu öğrenci numarası zaten kayıtlı. Bunun yerine <a href="login.html" style="color: var(--color-teal); text-decoration: underline;">giriş yapmak</a> ister misiniz?' 
           : 'This student number is already registered. Did you mean to <a href="login.html" style="color: var(--color-teal); text-decoration: underline;">log in</a> instead?';

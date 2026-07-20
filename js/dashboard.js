@@ -6937,10 +6937,12 @@ async function loadDashboardHome() {
   const greetingEl = document.getElementById('home-welcome-greeting');
   if (!greetingEl) return;
 
+  const isTr = (localStorage.getItem('acadexUILang') || 'tr') === 'tr';
+
   if (currentUserProfile) {
     const displayName = currentUserProfile.full_name || currentUser.email.split('@')[0];
     const firstName = displayName.split(' ')[0];
-    greetingEl.textContent = `Welcome back, ${firstName}!`;
+    greetingEl.textContent = isTr ? `Tekrar hoş geldin, ${firstName}!` : `Welcome back, ${firstName}!`;
   }
 
   // Display home avatar
@@ -6961,10 +6963,6 @@ async function loadDashboardHome() {
       .select('*', { count: 'exact', head: true })
       .eq('user_id', currentUser.id);
 
-    // Note: completed exams are identified by a non-null completed_at (the
-    // grade-exam function never writes a 'status'/'score' column — it writes
-    // 'grade' and 'completed_at'). Also pull question_results here so we can
-    // build the concept-level weak-topics panel without a second round trip.
     const { data: examsData } = await supabaseClient
       .from('exams')
       .select('grade, question_results, completed_at')
@@ -6996,20 +6994,19 @@ async function loadDashboardHome() {
 
 // ==========================================
 // Weak Topics / Focus Panel (concept-level analysis)
-// Aggregates question_results across all completed exams by the AI-assigned
-// "concept" tag (see supabase/functions/generate-exam) and surfaces the
-// lowest-scoring concepts so the student knows exactly what to review next.
 // ==========================================
 function renderWeakTopicsPanel(examsData) {
   const card = document.getElementById('home-weak-topics-card');
   const list = document.getElementById('home-weak-topics-list');
   if (!card || !list) return;
 
+  const isTr = (localStorage.getItem('acadexUILang') || 'tr') === 'tr';
+
   const conceptStats = {};
   (examsData || []).forEach(exam => {
     (exam.question_results || []).forEach(res => {
       const concept = (res.concept || '').trim();
-      if (!concept) return; // Older exams generated before concept tagging won't have this field.
+      if (!concept) return;
       if (!conceptStats[concept]) conceptStats[concept] = { totalScore: 0, count: 0 };
       conceptStats[concept].totalScore += (typeof res.score === 'number' ? res.score : 0);
       conceptStats[concept].count += 1;
@@ -7022,7 +7019,6 @@ function renderWeakTopicsPanel(examsData) {
     count: conceptStats[concept].count
   }));
 
-  // Only surface concepts seen at least once, weakest first, capped at the 5 weakest.
   const weakest = concepts.sort((a, b) => a.avgScore - b.avgScore).slice(0, 5);
 
   if (weakest.length === 0) {
@@ -7040,7 +7036,7 @@ function renderWeakTopicsPanel(examsData) {
     row.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
         <span style="font-weight: 700; color: var(--color-navy);">${item.concept}</span>
-        <span style="font-weight: 800; color: ${barColor};">${item.avgScore}/100 <span style="font-weight: 500; color: var(--color-text-muted); font-size: 0.72rem;">(${item.count} soru)</span></span>
+        <span style="font-weight: 800; color: ${barColor};">${item.avgScore}/100 <span style="font-weight: 500; color: var(--color-text-muted); font-size: 0.72rem;">(${item.count} ${isTr ? 'soru' : 'questions'})</span></span>
       </div>
       <div style="background: rgba(22, 50, 92, 0.08); border-radius: 10px; height: 6px; overflow: hidden;">
         <div style="width: ${Math.max(item.avgScore, 4)}%; height: 100%; background: ${barColor}; border-radius: 10px;"></div>
@@ -7053,6 +7049,8 @@ function renderWeakTopicsPanel(examsData) {
 async function loadRecentActivity() {
   const activityList = document.getElementById('home-recent-activity-list');
   if (!activityList) return;
+
+  const isTr = (localStorage.getItem('acadexUILang') || 'tr') === 'tr';
 
   activityList.innerHTML = `
     <div style="display: flex; align-items: center; justify-content: center; padding: 1rem;">
@@ -7093,7 +7091,7 @@ async function loadRecentActivity() {
     docs?.forEach(d => {
       merged.push({
         type: 'document',
-        title: `Uploaded: ${d.file_name}`,
+        title: isTr ? `Yüklendi: ${d.file_name}` : `Uploaded: ${d.file_name}`,
         timestamp: new Date(d.uploaded_at),
         icon: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline>'
       });
@@ -7101,20 +7099,20 @@ async function loadRecentActivity() {
 
     cards?.forEach(c => {
       const styleName = getStyleLabel(c.summary_style);
-      const docName = c.documents?.file_name || 'document';
+      const docName = c.documents?.file_name || (isTr ? 'belge' : 'document');
       merged.push({
         type: 'card',
-        title: `Created a ${styleName} study card for ${docName}`,
+        title: isTr ? `${styleName} stilinde ${docName} için çalışma kartı oluşturuldu` : `Created a ${styleName} study card for ${docName}`,
         timestamp: new Date(c.created_at),
         icon: '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line>'
       });
     });
 
     exams?.forEach(e => {
-      const docName = e.study_cards?.documents?.file_name || 'study card';
+      const docName = e.study_cards?.documents?.file_name || (isTr ? 'çalışma kartı' : 'study card');
       merged.push({
         type: 'exam',
-        title: `Completed a practice exam (${e.score || 0}/100) on ${docName}`,
+        title: isTr ? `${docName} üzerine bir deneme sınavı tamamlandı (${e.score || 0}/100)` : `Completed a practice exam (${e.score || 0}/100) on ${docName}`,
         timestamp: new Date(e.created_at),
         icon: '<circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline>'
       });
@@ -7124,13 +7122,14 @@ async function loadRecentActivity() {
     const top5 = merged.slice(0, 5);
 
     if (top5.length === 0) {
-      activityList.innerHTML = `<p style="font-size: 0.8rem; color: var(--color-text-muted); text-align: center; padding: 1rem;">No recent activity yet. Start by uploading a document!</p>`;
+      activityList.innerHTML = `<p style="font-size: 0.8rem; color: var(--color-text-muted); text-align: center; padding: 1rem;">${isTr ? 'Henüz son aktivite yok. Bir belge yükleyerek başlayın!' : 'No recent activity yet. Start by uploading a document!'}</p>`;
       return;
     }
 
     activityList.innerHTML = '';
     top5.forEach(act => {
-      const friendlyTime = act.timestamp.toLocaleString('tr-TR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      const locale = isTr ? 'tr-TR' : 'en-US';
+      const friendlyTime = act.timestamp.toLocaleString(locale, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
       const row = document.createElement('div');
       row.style.display = 'flex';
       row.style.alignItems = 'center';

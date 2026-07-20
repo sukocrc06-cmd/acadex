@@ -305,7 +305,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const email = document.getElementById('contact-email').value.trim();
       const message = document.getElementById('contact-message').value.trim();
 
-      const currentLang = localStorage.getItem('acadexUILang') || 'en';
+      const currentLang = localStorage.getItem('acadexUILang') || 'tr';
       const validationErr = currentLang === 'tr' 
         ? 'Tüm alanların doldurulması zorunludur. Lütfen bilgilerinizi kontrol edin.' 
         : 'All fields are required. Please check your inputs.';

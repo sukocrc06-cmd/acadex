@@ -248,17 +248,15 @@
            ========================================== -->
       <section id="home-view" class="dashboard-view-section active">
         <!-- Exam banners container (Part E) -->
-        <div id="home-exam-banners-container" style="width: 100%; display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1.5rem;"></div>
-
-        <!-- Personal welcome greeting banner -->
+        <div id="home-exam-banners-container" style="width: 100%; display: flex; flex-direction: column; gap: 0.75rem; margin-bottom        <!-- Personal welcome greeting banner -->
         <div class="welcome-banner" id="home-welcome-banner" style="margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
           <div style="display:flex; align-items:center; gap:1rem;">
             <span id="home-user-avatar"></span>
             <div>
             <h2 class="welcome-greeting" id="home-welcome-greeting">Loading...</h2>
-            <span class="welcome-sub" id="home-welcome-sub">Welcome back to Acadex! Here's your study summary.</span>
+            <span class="welcome-sub" id="home-welcome-sub" data-i18n="dash.overview.welcomeSub">Welcome back to Acadex! Here's your study summary.</span>
             <div style="margin-top: 0.35rem;">
-              <a href="#" onclick="startOnboardingTour()" style="font-size: 0.75rem; color: var(--color-teal); text-decoration: underline; font-weight: 700;">Need a refresher? Retake the Tour / Turu Tekrar Başlat</a>
+              <a href="#" onclick="startOnboardingTour()" style="font-size: 0.75rem; color: var(--color-teal); text-decoration: underline; font-weight: 700;" data-i18n="dash.overview.retakeTour">Need a refresher? Retake the Tour</a>
             </div>
             </div>
           </div>
@@ -276,7 +274,7 @@
             </div>
             <div>
               <div id="home-stat-docs" style="font-size: 1.75rem; font-weight: 800; color: var(--color-navy); line-height: 1.2;">0</div>
-              <div style="font-size: 0.75rem; font-weight: 700; color: var(--color-text-muted); text-transform: uppercase;">Documents Uploaded</div>
+              <div style="font-size: 0.75rem; font-weight: 700; color: var(--color-text-muted); text-transform: uppercase;" data-i18n="dash.overview.stat.docs">Documents Uploaded</div>
             </div>
           </div>
 
@@ -287,7 +285,7 @@
             </div>
             <div>
               <div id="home-stat-cards" style="font-size: 1.75rem; font-weight: 800; color: var(--color-navy); line-height: 1.2;">0</div>
-              <div style="font-size: 0.75rem; font-weight: 700; color: var(--color-text-muted); text-transform: uppercase;">Study Cards Created</div>
+              <div style="font-size: 0.75rem; font-weight: 700; color: var(--color-text-muted); text-transform: uppercase;" data-i18n="dash.overview.stat.cards">Study Cards Created</div>
             </div>
           </div>
 
@@ -298,7 +296,7 @@
             </div>
             <div>
               <div id="home-stat-exams" style="font-size: 1.75rem; font-weight: 800; color: var(--color-navy); line-height: 1.2;">0</div>
-              <div style="font-size: 0.75rem; font-weight: 700; color: var(--color-text-muted); text-transform: uppercase;">Exams Taken</div>
+              <div style="font-size: 0.75rem; font-weight: 700; color: var(--color-text-muted); text-transform: uppercase;" data-i18n="dash.overview.stat.exams">Exams Taken</div>
             </div>
           </div>
 
@@ -309,7 +307,7 @@
             </div>
             <div>
               <div id="home-stat-avg-grade" style="font-size: 1.75rem; font-weight: 800; color: var(--color-navy); line-height: 1.2;">—</div>
-              <div style="font-size: 0.75rem; font-weight: 700; color: var(--color-text-muted); text-transform: uppercase;">Average Grade</div>
+              <div style="font-size: 0.75rem; font-weight: 700; color: var(--color-text-muted); text-transform: uppercase;" data-i18n="dash.overview.stat.grade">Average Grade</div>
             </div>
           </div>
         </div>
@@ -318,38 +316,38 @@
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; align-items: start; margin-bottom: 2.5rem;">
           <!-- Quick Actions -->
           <div class="doc-card" style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1.25rem;">
-            <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--color-navy); border-bottom: 2px solid var(--color-teal); padding-bottom: 0.5rem; margin: 0;">⚡ Hızlı İşlemler (Quick Actions)</h3>
+            <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--color-navy); border-bottom: 2px solid var(--color-teal); padding-bottom: 0.5rem; margin: 0;">⚡ <span data-i18n="dash.overview.quickActions">Quick Actions</span></h3>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
               <button onclick="switchDashboardView('docs'); setTimeout(() => { document.getElementById('file-upload-input')?.focus(); }, 150);" class="btn btn-outline" style="padding: 1rem; text-align: center; height: auto; font-size: 0.85rem; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem; border-color: rgba(22, 50, 92, 0.15); background: none; cursor: pointer;">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-teal);"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-                Upload Document
+                <span data-i18n="dash.overview.qa.upload">Upload Document</span>
               </button>
               <button onclick="switchDashboardView('notebook');" class="btn btn-outline" style="padding: 1rem; text-align: center; height: auto; font-size: 0.85rem; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem; border-color: rgba(22, 50, 92, 0.15); background: none; cursor: pointer;">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-teal);"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
-                Study Notebook
+                <span data-i18n="dash.nav.notebook">Study Notebook</span>
               </button>
               <button onclick="switchDashboardView('exams');" class="btn btn-outline" style="padding: 1rem; text-align: center; height: auto; font-size: 0.85rem; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem; border-color: rgba(22, 50, 92, 0.15); background: none; cursor: pointer;">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-teal);"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg>
-                Practice Exam
+                <span data-i18n="dash.overview.qa.exam">Practice Exam</span>
               </button>
               <button onclick="switchDashboardView('feed');" class="btn btn-outline" style="padding: 1rem; text-align: center; height: auto; font-size: 0.85rem; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem; border-color: rgba(22, 50, 92, 0.15); background: none; cursor: pointer;">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-teal);"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-                Department Feed
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-teal);"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 1 0 7.75"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                <span data-i18n="dash.nav.feed">Department Feed</span>
               </button>
               <button onclick="switchDashboardView('planner');" class="btn btn-outline" style="padding: 1rem; text-align: center; height: auto; font-size: 0.85rem; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem; border-color: rgba(22, 50, 92, 0.15); background: none; cursor: pointer;">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-teal);"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-                Study Planner
+                <span data-i18n="dash.nav.planner">Study Planner</span>
               </button>
               <button onclick="switchDashboardView('settings');" class="btn btn-outline" style="padding: 1rem; text-align: center; height: auto; font-size: 0.85rem; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem; border-color: rgba(22, 50, 92, 0.15); background: none; cursor: pointer;">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-teal);"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-                Settings
+                <span data-i18n="dash.nav.settings">Settings</span>
               </button>
             </div>
           </div>
 
           <!-- Recent Activity -->
           <div class="doc-card" style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1.25rem; min-height: 250px;">
-            <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--color-navy); border-bottom: 2px solid var(--color-teal); padding-bottom: 0.5rem; margin: 0;">📅 Son Aktiviteler (Recent Activity)</h3>
+            <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--color-navy); border-bottom: 2px solid var(--color-teal); padding-bottom: 0.5rem; margin: 0;">📅 <span data-i18n="dash.overview.recentActivity">Recent Activity</span></h3>
             <div id="home-recent-activity-list" style="display: flex; flex-direction: column; gap: 0.75rem;">
               <!-- Populated dynamically -->
             </div>
@@ -358,8 +356,8 @@
 
         <!-- Weak Topics / Focus Panel (concept-level analysis from exam history) -->
         <div class="doc-card" id="home-weak-topics-card" style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; margin-bottom: 2.5rem; display: none;">
-          <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--color-navy); border-bottom: 2px solid var(--color-teal); padding-bottom: 0.5rem; margin: 0;">🎯 Zayıf Olduğunuz Konular (Focus Areas)</h3>
-          <p style="font-size: 0.8rem; color: var(--color-text-muted); margin: 0;">Geçmiş sınavlarınızdaki soru bazlı performansa göre en çok tekrar etmeniz gereken konular.</p>
+          <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--color-navy); border-bottom: 2px solid var(--color-teal); padding-bottom: 0.5rem; margin: 0;">🎯 <span data-i18n="dash.overview.focusAreas">Focus Areas</span></h3>
+          <p style="font-size: 0.8rem; color: var(--color-text-muted); margin: 0;" data-i18n="dash.overview.focusAreasSub">Concepts you should review next based on exam history.</p>
           <div id="home-weak-topics-list" style="display: flex; flex-direction: column; gap: 0.6rem;">
             <!-- Populated dynamically by renderWeakTopicsPanel() -->
           </div>
@@ -367,9 +365,11 @@
 
         <!-- Achievements Section -->
         <div class="doc-card" style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1.25rem; margin-bottom: 2.5rem;">
-          <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--color-navy); border-bottom: 2px solid var(--color-teal); padding-bottom: 0.5rem; margin: 0;">🏆 Rozetlerim (My Achievements)</h3>
+          <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--color-navy); border-bottom: 2px solid var(--color-teal); padding-bottom: 0.5rem; margin: 0;">🏆 <span data-i18n="dash.overview.achievements.title">My Achievements</span></h3>
           <div class="achievement-grid" id="home-achievements-list">
             <!-- Populated dynamically -->
+          </div>
+        </div>ed dynamically -->
           </div>
         </div>
       </section>
@@ -475,8 +475,8 @@
         </div>
 
         <div class="dashboard-page-header">
-          <h2 class="dashboard-page-title" style="font-size: 1.5rem;">My Documents</h2>
-          <p class="dashboard-page-desc">Upload and manage academic files, slides, and syllabus documents.</p>
+          <h2 class="dashboard-page-title" style="font-size: 1.5rem;" data-i18n="dash.docs.title">My Documents</h2>
+          <p class="dashboard-page-desc" data-i18n="dash.docs.desc">Upload and manage academic files, slides, and syllabus documents.</p>
         </div>
 
         <!-- Drag & Drop Upload Zone -->
@@ -486,8 +486,8 @@
             <polyline points="17 8 12 3 7 8"></polyline>
             <line x1="12" y1="3" x2="12" y2="15"></line>
           </svg>
-          <span class="upload-zone-text">Drag & drop your file here, or <span style="color: var(--color-teal); text-decoration: underline;">click to browse</span></span>
-          <span class="upload-zone-subtext">Supported formats: PDF, Word, PowerPoint, TXT — max 20MB</span>
+          <span class="upload-zone-text" data-i18n="dash.docs.upload.dragText">Drag & drop your file here, or click to browse</span>
+          <span class="upload-zone-subtext" data-i18n="dash.docs.upload.subtext">Supported formats: PDF, Word, PowerPoint, TXT — max 20MB</span>
           
           <!-- Hidden file selector input -->
           <input type="file" id="file-input" style="display: none;" accept=".pdf,.docx,.pptx,.txt" multiple>
@@ -505,12 +505,12 @@
         </div>
         <!-- Floating Bulk Delete Action Bar -->
         <div id="bulk-delete-bar" style="display: none; position: fixed; top: 80px; left: 50%; transform: translateX(-50%); background-color: var(--color-white); border: 2px solid var(--color-teal); border-radius: 30px; box-shadow: var(--shadow-lg); padding: 0.5rem 1.5rem; align-items: center; gap: 1rem; z-index: 1000;">
-          <span id="bulk-delete-count" style="font-size: 0.85rem; font-weight: 800; color: var(--color-navy);">0 selected</span>
-          <button id="btn-bulk-merge" class="btn btn-primary" style="background-color: #7C3AED; border: none; font-size: 0.75rem; padding: 0.35rem 0.75rem; font-weight: 700; border-radius: 20px; display: none;" title="Merge selected documents into one AI study card">🔀 Merge &amp; Summarize</button>
-          <button id="btn-bulk-compare" class="btn btn-primary" style="background-color: #2563EB; border: none; font-size: 0.75rem; padding: 0.35rem 0.75rem; font-weight: 700; border-radius: 20px; display: none;" title="Compare selected documents using AI">⚖️ Compare Documents</button>
-          <button id="btn-bulk-summarize" class="btn btn-primary" style="background-color: var(--color-teal); border: none; font-size: 0.75rem; padding: 0.35rem 0.75rem; font-weight: 700; border-radius: 20px; display: none;">Bulk Summarize</button>
-          <button id="btn-bulk-delete" class="btn btn-destructive" style="font-size: 0.75rem; padding: 0.35rem 0.75rem; font-weight: 700; border-radius: 20px;">Delete Selected</button>
-          <button id="btn-bulk-cancel" class="btn btn-outline" style="font-size: 0.75rem; padding: 0.35rem 0.75rem; font-weight: 700; border-radius: 20px;">Cancel</button>
+          <span id="bulk-delete-count" style="font-size: 0.85rem; font-weight: 800; color: var(--color-navy);" data-i18n="dash.docs.bulk.selected">0 selected</span>
+          <button id="btn-bulk-merge" class="btn btn-primary" style="background-color: #7C3AED; border: none; font-size: 0.75rem; padding: 0.35rem 0.75rem; font-weight: 700; border-radius: 20px; display: none;" title="Merge selected documents into one AI study card" data-i18n="dash.docs.bulk.merge">🔀 Merge &amp; Summarize</button>
+          <button id="btn-bulk-compare" class="btn btn-primary" style="background-color: #2563EB; border: none; font-size: 0.75rem; padding: 0.35rem 0.75rem; font-weight: 700; border-radius: 20px; display: none;" title="Compare selected documents using AI" data-i18n="dash.docs.bulk.compare">⚖️ Compare Documents</button>
+          <button id="btn-bulk-summarize" class="btn btn-primary" style="background-color: var(--color-teal); border: none; font-size: 0.75rem; padding: 0.35rem 0.75rem; font-weight: 700; border-radius: 20px; display: none;" data-i18n="dash.docs.bulk.summarize">Bulk Summarize</button>
+          <button id="btn-bulk-delete" class="btn btn-destructive" style="font-size: 0.75rem; padding: 0.35rem 0.75rem; font-weight: 700; border-radius: 20px;" data-i18n="dash.docs.bulk.delete">Delete Selected</button>
+          <button id="btn-bulk-cancel" class="btn btn-outline" style="font-size: 0.75rem; padding: 0.35rem 0.75rem; font-weight: 700; border-radius: 20px;" data-i18n="dash.docs.bulk.cancel">Cancel</button>
         </div>
       </section>
 
@@ -519,16 +519,16 @@
            ========================================== -->
       <section id="feed-view" class="dashboard-view-section">
         <div class="dashboard-page-header">
-          <h2 class="dashboard-page-title" id="feed-title">Department Feed</h2>
-          <p class="dashboard-page-desc">Study cards shared by your classmates in your department.</p>
+          <h2 class="dashboard-page-title" id="feed-title" data-i18n="dash.feed.title">Department Feed</h2>
+          <p class="dashboard-page-desc" data-i18n="dash.feed.subtitle">Study cards shared by your classmates in your department.</p>
         </div>
 
         <!-- Feed Course filter bar (populated dynamically) -->
         <div class="filter-bar" id="feed-filter-bar" style="display: none; gap: 1rem; margin-bottom: 1rem; align-items: center; flex-wrap: wrap;">
           <div style="display: flex; align-items: center; gap: 0.5rem;">
-            <label for="feed-filter-course" style="font-size: 0.8rem; font-weight: 700; color: var(--color-navy);">Course:</label>
+            <label for="feed-filter-course" style="font-size: 0.8rem; font-weight: 700; color: var(--color-navy);" data-i18n="dash.feed.courseLabel">Course:</label>
             <select id="feed-filter-course" class="settings-input" style="padding: 0.35rem 0.5rem; font-size: 0.8rem; min-height: auto; width: auto;">
-              <option value="all">All Courses</option>
+              <option value="all" data-i18n="dash.feed.allCourses">All Courses</option>
             </select>
           </div>
         </div>
@@ -544,22 +544,22 @@
            ========================================== -->
       <section id="notebook-view" class="dashboard-view-section">
         <div class="dashboard-page-header">
-          <h2 class="dashboard-page-title">Digital Study Notebook</h2>
-          <p class="dashboard-page-desc">Create freehand drawings, drag cards as sticky notes, type texts, and construct tables.</p>
+          <h2 class="dashboard-page-title" data-i18n="dash.notebook.title">Digital Study Notebook</h2>
+          <p class="dashboard-page-desc" data-i18n="dash.notebook.desc">Create freehand drawings, drag cards as sticky notes, type texts, and construct tables.</p>
         </div>
 
         <!-- Small viewport screen warning notice -->
-        <div class="notebook-screen-notice">
+        <div class="notebook-screen-notice" data-i18n="dash.notebook.screenNotice">
           For the best experience, use a larger screen to access your drawing notebook.
         </div>
 
         <div class="notebook-workspace-container">
           <!-- Left Column: Compact Study Cards -->
           <div class="notebook-left-panel">
-            <h3 style="font-size: 1rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.25rem;">Your Study Cards</h3>
+            <h3 style="font-size: 1rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.25rem;" data-i18n="dash.notebook.sidebar.title">Your Study Cards</h3>
             
             <div class="search-container" style="margin-bottom: 0.5rem; width: 100%;">
-              <input type="text" id="notebook-search" class="search-input" placeholder="Search cards..." style="padding: 0.5rem 0.75rem; font-size: 0.8rem;">
+              <input type="text" id="notebook-search" class="search-input" data-i18n-placeholder="dash.notebook.searchPlaceholder" placeholder="Search cards..." style="padding: 0.5rem 0.75rem; font-size: 0.8rem;">
             </div>
 
             <!-- List wrapper -->
@@ -640,10 +640,10 @@
                   <button class="tool-btn" id="btn-page-prev" title="Önceki Sayfa" onclick="navigateNotebookPage(-1)">←</button>
                   <span id="notebook-page-indicator" title="Mevcut Sayfa Konumu" style="font-size: 0.8rem; font-weight: 700; color: var(--color-navy); padding: 0 0.25rem; white-space: nowrap;">Page 1 of 1</span>
                   <button class="tool-btn" id="btn-page-next" title="Sonraki Sayfa" onclick="navigateNotebookPage(1)">→</button>
-                  <button class="tool-btn" id="btn-pages-overview" title="Tüm Sayfalar Önizlemesi (Grid View)" onclick="openNotebookPagesOverview()" style="font-size: 0.8rem; font-weight: 600;">📑 All Pages</button>
+                  <button class="tool-btn" id="btn-pages-overview" title="Tüm Sayfalar Önizlemesi (Grid View)" onclick="openNotebookPagesOverview()" style="font-size: 0.8rem; font-weight: 600;" data-i18n="dash.notebook.allPages">📑 All Pages</button>
                   <button class="tool-btn" id="btn-page-new" title="Yeni Sayfa Oluştur (Şablon Seçimi)" onclick="openTemplatePickerModal()" style="font-weight: bold; font-size: 1.1rem; color: var(--color-teal);">+</button>
                   <button class="tool-btn" id="btn-page-delete" title="Mevcut Sayfayı Sil" onclick="deleteCurrentNotebookPage()" style="color: #EF4444; font-size: 0.95rem;">🗑️</button>
-                  <button class="tool-btn" id="btn-share-page" title="Bu Sayfayı Sınıf Arkadaşınla Paylaş" onclick="openPageShareModal()" style="font-size: 0.8rem; font-weight: 600; color: var(--color-navy);">👥 Share</button>
+                  <button class="tool-btn" id="btn-share-page" title="Bu Sayfayı Sınıf Arkadaşınla Paylaş" onclick="openPageShareModal()" style="font-size: 0.8rem; font-weight: 600; color: var(--color-navy);" data-i18n="dash.notebook.share">👥 Share</button>
                 </div>
               </div>
 
@@ -683,19 +683,19 @@
 
               <!-- Bottom Document-level Actions Row -->
               <div class="notebook-bottom-actions">
-                <button class="btn btn-outline" id="btn-clear-canvas" title="Tüm Çizimleri Temizle" style="padding: 0.35rem 0.75rem; font-size: 0.78rem;">Çizimleri Temizle</button>
-                <button class="btn btn-outline" id="btn-download-notebook" title="Sayfayı Görsel Olarak İndir" style="padding: 0.35rem 0.75rem; font-size: 0.78rem;">Defteri İndir</button>
-                <button class="btn btn-outline" id="btn-depot-modal" title="Bilgi Deposu Staging Paneli" style="padding: 0.35rem 0.75rem; font-size: 0.78rem; position: relative; display: flex; align-items: center; gap: 0.5rem; margin-left: auto;">
+                <button class="btn btn-outline" id="btn-clear-canvas" title="Tüm Çizimleri Temizle" style="padding: 0.35rem 0.75rem; font-size: 0.78rem;" data-i18n="dash.notebook.btn.clearDrawings">Çizimleri Temizle</button>
+                <button class="btn btn-outline" id="btn-download-notebook" title="Sayfayı Görsel Olarak İndir" style="padding: 0.35rem 0.75rem; font-size: 0.78rem;" data-i18n="dash.notebook.btn.download">Defteri İndir</button>
+                <button class="btn btn-outline" id="btn-depot-modal" title="Bilgi Deposu Staging Paneli" style="padding: 0.35rem 0.75rem; font-size: 0.78rem; position: relative; display: flex; align-items: center; gap: 0.5rem; margin-left: auto;" data-i18n="dash.notebook.btn.depot">
                   📦 Bilgi Deposu
                   <span class="depot-badge" id="depot-count-badge" style="display: none; background-color: #EF4444; color: white; font-size: 0.7rem; width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; position: absolute; top: -6px; right: -6px; transform: none;">0</span>
                 </button>
-                <button class="btn btn-primary" id="btn-save-notebook" title="Defter Verisini Buluta Kaydet" style="border: none; padding: 0.35rem 1rem; font-size: 0.78rem;">Defteri Kaydet</button>
+                <button class="btn btn-primary" id="btn-save-notebook" title="Defter Verisini Buluta Kaydet" style="border: none; padding: 0.35rem 1rem; font-size: 0.78rem;" data-i18n="dash.notebook.btn.save">Defteri Kaydet</button>
               </div>
             </div>
             
             <!-- Warning hint display -->
             <div style="display: flex; justify-content: flex-end; margin-top: -0.25rem;">
-              <span class="save-hint-text">Remember to save your notebook before leaving this page.</span>
+              <span class="save-hint-text" data-i18n="dash.notebook.saveHint">Remember to save your notebook before leaving this page.</span>
             </div>
 
             <!-- Canvas whiteboard viewport container -->
@@ -713,8 +713,8 @@
            ========================================== -->
       <section id="cards-view" class="dashboard-view-section">
         <div class="dashboard-page-header">
-          <h2 class="dashboard-page-title">Bilgi Kartları Kütüphanesi</h2>
-          <p class="dashboard-page-desc">Tüm çalışma kartlarınızı görüntüleyin, ayrıntıları inceleyin, arkadaşlarınızla paylaşın veya defterinize ekleyin.</p>
+          <h2 class="dashboard-page-title" data-i18n="dash.cards.title">Bilgi Kartları Kütüphanesi</h2>
+          <p class="dashboard-page-desc" data-i18n="dash.cards.desc">Tüm çalışma kartlarınızı görüntüleyin, ayrıntıları inceleyin, arkadaşlarınızla paylaşın veya defterinize ekleyin.</p>
         </div>
 
         <!-- Filter bar -->
@@ -750,7 +750,7 @@
 
         <!-- Search bar -->
         <div class="search-container">
-          <input type="text" id="cards-search" class="search-input" placeholder="Bilgi kartlarında ara (dosya adı veya özet)...">
+          <input type="text" id="cards-search" class="search-input" data-i18n-placeholder="dash.cards.searchPlaceholder" placeholder="Bilgi kartlarında ara (dosya adı veya özet)...">
         </div>
 
         <!-- Study cards list container -->
@@ -761,7 +761,7 @@
         <!-- Past Comparisons Section -->
         <div id="past-comparisons-section" style="margin-top: 2rem;">
           <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
-            <span>⚖️</span> <span>Past Document Comparisons</span>
+            <span>⚖️</span> <span data-i18n="dash.cards.pastComparisons">Past Document Comparisons</span>
           </h3>
           <div id="past-comparisons-list" style="display: flex; flex-direction: column; gap: 0.6rem;">
             <!-- Populated dynamically -->
@@ -776,8 +776,8 @@
         <!-- 1. Exam Configuration Screen -->
         <div id="exam-setup-screen">
           <div class="dashboard-page-header">
-            <h2 class="dashboard-page-title">Sınav Platformu</h2>
-            <p class="dashboard-page-desc">Çalışma kartlarınızdan yapay zeka destekli sınavlar oluşturun, kendinizi test edin.</p>
+            <h2 class="dashboard-page-title" data-i18n="dash.exams.title">Sınav Platformu</h2>
+            <p class="dashboard-page-desc" data-i18n="dash.exams.desc">Çalışma kartlarınızdan yapay zeka destekli sınavlar oluşturun, kendinizi test edin.</p>
           </div>
 
           <div id="exam-empty-state" class="empty-state" style="display: none; margin-top: 1.5rem;">
@@ -785,15 +785,15 @@
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
               <polyline points="14 2 14 8 20 8"></polyline>
             </svg>
-            <h3 class="empty-state-title">Öncelikle bir belge özetlemelisiniz</h3>
-            <p class="empty-state-text">Sınav oluşturmak için en az bir adet özetlenmiş belgenizin olması gerekir. <a href="#" onclick="switchDashboardView('docs')" style="color: var(--color-teal); text-decoration: underline;">Belgelerim</a> sekmesinden dosya yükleyip özetleyebilirsiniz.</p>
+            <h3 class="empty-state-title" data-i18n="dash.exams.emptyTitle">Öncelikle bir belge özetlemelisiniz</h3>
+            <p class="empty-state-text" data-i18n="dash.exams.emptyText">Sınav oluşturmak için en az bir adet özetlenmiş belgenizin olması gerekir. <a href="#" onclick="switchDashboardView('docs')" style="color: var(--color-teal); text-decoration: underline;">Belgelerim</a> sekmesinden dosya yükleyip özetleyebilirsiniz.</p>
           </div>
 
           <div id="exam-setup-content" style="display: none; display: flex; flex-direction: column; gap: 1.5rem;">
             <!-- Study Card selector card -->
             <div class="doc-card" style="box-shadow: var(--shadow-sm); padding: 1.5rem;">
               <div style="margin-bottom: 1.5rem;">
-                <label for="exam-card-select" style="display: block; font-size: 0.9rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.5rem;">Çalışma Kartı Seçin</label>
+                <label for="exam-card-select" style="display: block; font-size: 0.9rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.5rem;" data-i18n="dash.exams.cardSelect">Çalışma Kartı Seçin</label>
                 <select id="exam-card-select" class="font-size-select" style="width: 100%; max-width: 500px; padding: 0.6rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); font-size: 0.85rem;" onchange="onExamCardChange()">
                   <!-- Dynamically populated -->
                 </select>
@@ -803,27 +803,27 @@
               <div id="exam-form-params" style="display: none;">
                 <!-- Exam Type -->
                 <div style="margin-bottom: 1.5rem;">
-                  <span style="display: block; font-size: 0.9rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.75rem;">Sınav Türü</span>
+                  <span style="display: block; font-size: 0.9rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.75rem;" data-i18n="dash.exams.typeTitle">Sınav Türü</span>
                   <div class="exam-type-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
                     <label class="exam-type-option" style="display: block; cursor: pointer;">
                       <input type="radio" name="exam-type" value="classic" checked style="display: none;">
                       <div class="option-box">
-                        <strong>Klasik Sınav</strong>
-                        <span>Tüm sorular açık uçludur. Yapay zeka tarafından değerlendirilir.</span>
+                        <strong data-i18n="dash.exams.typeClassic">Klasik Sınav</strong>
+                        <span data-i18n="dash.exams.typeClassicSub">Tüm sorular açık uçludur. Yapay zeka tarafından değerlendirilir.</span>
                       </div>
                     </label>
                     <label class="exam-type-option" style="display: block; cursor: pointer;">
                       <input type="radio" name="exam-type" value="test" style="display: none;">
                       <div class="option-box">
-                        <strong>Çoktan Seçmeli (Test)</strong>
-                        <span>Tüm sorular 4 şıklı test formatındadır. Tek bir doğru cevap vardır.</span>
+                        <strong data-i18n="dash.exams.typeTest">Çoktan Seçmeli (Test)</strong>
+                        <span data-i18n="dash.exams.typeTestSub">Tüm sorular 4 şıklı test formatındadır. Tek bir doğru cevap vardır.</span>
                       </div>
                     </label>
                     <label class="exam-type-option" style="display: block; cursor: pointer;">
                       <input type="radio" name="exam-type" value="mixed" style="display: none;">
                       <div class="option-box">
-                        <strong>Karışık Sınav</strong>
-                        <span>Doğru/Yanlış ve Boşluk Doldurma sorularından oluşan karışık test.</span>
+                        <strong data-i18n="dash.exams.typeMixed">Karışık Sınav</strong>
+                        <span data-i18n="dash.exams.typeMixedSub">Doğru/Yanlış ve Boşluk Doldurma sorularından oluşan karışık test.</span>
                       </div>
                     </label>
                   </div>
@@ -831,27 +831,27 @@
 
                 <!-- Difficulty Level -->
                 <div style="margin-bottom: 1.5rem;">
-                  <span style="display: block; font-size: 0.9rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.75rem;">Zorluk Seviyesi</span>
+                  <span style="display: block; font-size: 0.9rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.75rem;" data-i18n="dash.exams.difficultyTitle">Zorluk Seviyesi</span>
                   <div class="exam-type-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem;">
                     <label class="exam-type-option" style="display: block; cursor: pointer;">
                       <input type="radio" name="exam-difficulty" value="easy" style="display: none;">
                       <div class="option-box">
-                        <strong>Kolay</strong>
-                        <span>Temel hatırlama ve tanımlar. Konuya yeni başlarken idealdir.</span>
+                        <strong data-i18n="dash.exams.diffEasy">Kolay</strong>
+                        <span data-i18n="dash.exams.diffEasySub">Temel hatırlama ve tanımlar. Konuya yeni başlarken idealdir.</span>
                       </div>
                     </label>
                     <label class="exam-type-option" style="display: block; cursor: pointer;">
                       <input type="radio" name="exam-difficulty" value="medium" checked style="display: none;">
                       <div class="option-box">
-                        <strong>Orta</strong>
-                        <span>Kavrama ve uygulama düzeyinde, sınava hazırlık için dengeli.</span>
+                        <strong data-i18n="dash.exams.diffMedium">Orta</strong>
+                        <span data-i18n="dash.exams.diffMediumSub">Kavrama ve uygulama düzeyinde, sınava hazırlık için dengeli.</span>
                       </div>
                     </label>
                     <label class="exam-type-option" style="display: block; cursor: pointer;">
                       <input type="radio" name="exam-difficulty" value="hard" style="display: none;">
                       <div class="option-box">
-                        <strong>Zor</strong>
-                        <span>Analiz ve senaryo bazlı sorular. İleri düzey tekrar için.</span>
+                        <strong data-i18n="dash.exams.diffHard">Zor</strong>
+                        <span data-i18n="dash.exams.diffHardSub">Analiz ve senaryo bazlı sorular. İleri düzey tekrar için.</span>
                       </div>
                     </label>
                   </div>
@@ -859,7 +859,7 @@
 
                 <!-- Language Selection -->
                 <div style="margin-bottom: 1.5rem;">
-                  <span style="display: block; font-size: 0.9rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.5rem;">Sınav Dili</span>
+                  <span style="display: block; font-size: 0.9rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.5rem;" data-i18n="dash.exams.langTitle">Sınav Dili</span>
                   <div style="display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap;">
                     <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; font-weight: 600; cursor: pointer;">
                       <input type="radio" name="exam-lang" value="en" checked> English
@@ -867,7 +867,7 @@
                     <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; font-weight: 600; cursor: pointer;">
                       <input type="radio" name="exam-lang" value="tr"> Türkçe
                     </label>
-                    <span style="font-size: 0.75rem; color: var(--color-text-muted);">* English is recommended since courses are taught in English.</span>
+                    <span style="font-size: 0.75rem; color: var(--color-text-muted);" data-i18n="dash.exams.langHint">* English is recommended since courses are taught in English.</span>
                   </div>
                 </div>
 
@@ -880,13 +880,13 @@
                 </div>
 
                 <!-- Generate Trigger -->
-                <button class="btn btn-primary" id="btn-generate-exam" onclick="generateExam()" style="border: none; padding: 0.75rem 2rem;">Sınavı Oluştur</button>
+                <button class="btn btn-primary" id="btn-generate-exam" onclick="generateExam()" style="border: none; padding: 0.75rem 2rem;" data-i18n="dash.exams.generateBtn">Sınavı Oluştur</button>
               </div>
             </div>
 
             <!-- Past Attempts list -->
             <div class="past-attempts-card" style="box-shadow: var(--shadow-sm); padding: 1.5rem; background-color: var(--color-white); border-radius: var(--radius-md);">
-              <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--color-navy); margin-bottom: 1rem; border-bottom: 1px solid rgba(22,50,92,0.08); padding-bottom: 0.5rem;">Geçmiş Sınav Denemeleri</h3>
+              <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--color-navy); margin-bottom: 1rem; border-bottom: 1px solid rgba(22,50,92,0.08); padding-bottom: 0.5rem;" data-i18n="dash.exams.pastAttempts">Geçmiş Sınav Denemeleri</h3>
               <div id="past-attempts-list">
                 <!-- Populated dynamically -->
               </div>
@@ -901,7 +901,7 @@
               <h2 class="dashboard-page-title" id="active-exam-title">Sınav</h2>
               <p class="dashboard-page-desc" id="active-exam-desc">Lütfen tüm soruları dikkatlice cevaplayın.</p>
             </div>
-            <button class="btn btn-outline" onclick="cancelExam()" style="padding: 0.5rem 1rem;">Sınavdan Çık</button>
+            <button class="btn btn-outline" onclick="cancelExam()" style="padding: 0.5rem 1rem;" data-i18n="dash.exams.cancel">Sınavdan Çık</button>
           </div>
 
           <div id="exam-questions-container" style="margin: 2rem 0; display: flex; flex-direction: column; gap: 1.5rem;">
@@ -909,15 +909,15 @@
           </div>
 
           <div style="display: flex; gap: 1rem; margin-top: 2rem; border-top: 1px solid rgba(22,50,92,0.08); padding-top: 1.5rem;">
-            <button class="btn btn-primary" id="btn-submit-exam" onclick="submitExam()" style="border: none; padding: 0.75rem 2.5rem;">Sınavı Tamamla ve Gönder</button>
+            <button class="btn btn-primary" id="btn-submit-exam" onclick="submitExam()" style="border: none; padding: 0.75rem 2.5rem;" data-i18n="dash.exams.submit">Sınavı Tamamla ve Gönder</button>
           </div>
         </div>
 
         <!-- 3. Exam Results Screen -->
         <div id="exam-results-screen" style="display: none;">
           <div class="dashboard-page-header">
-            <h2 class="dashboard-page-title">Sınav Sonucu</h2>
-            <p class="dashboard-page-desc">Yapay zeka tarafından değerlendirilen sınav sonuçlarınız.</p>
+            <h2 class="dashboard-page-title" data-i18n="dash.exams.resultsTitle">Sınav Sonucu</h2>
+            <p class="dashboard-page-desc" data-i18n="dash.exams.resultsDesc">Yapay zeka tarafından değerlendirilen sınav sonuçlarınız.</p>
           </div>
 
           <div class="results-container" style="display: flex; flex-direction: column; gap: 2rem; margin-top: 1.5rem;">
@@ -925,11 +925,11 @@
             <div class="results-score-card" style="display: flex; gap: 2rem; align-items: center; padding: 2rem; background: var(--color-white); border-radius: var(--radius-md); box-shadow: var(--shadow-sm);">
               <div class="score-circle-container" style="position: relative;">
                 <div class="score-circle" id="result-score-circle" style="width: 100px; height: 100px; border-radius: 50%; background: var(--color-teal-light); color: var(--color-teal); display: flex; align-items: center; justify-content: center; font-size: 2.25rem; font-weight: 800;">0</div>
-                <div class="score-label" style="text-align: center; font-size: 0.75rem; font-weight: 700; color: var(--color-text-muted); margin-top: 0.25rem;">Toplam Puan</div>
+                <div class="score-label" style="text-align: center; font-size: 0.75rem; font-weight: 700; color: var(--color-text-muted); margin-top: 0.25rem;" data-i18n="dash.exams.totalScore">Toplam Puan</div>
               </div>
               <div class="score-feedback-text">
-                <h3 id="result-feedback-title" style="font-size: 1.25rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.5rem;">Sınav Tamamlandı</h3>
-                <p id="result-feedback-desc" style="font-size: 0.9rem; color: var(--color-text-muted);">Aşağıdan detaylı soru analizlerini inceleyebilirsiniz.</p>
+                <h3 id="result-feedback-title" style="font-size: 1.25rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.5rem;" data-i18n="dash.exams.completed">Sınav Tamamlandı</h3>
+                <p id="result-feedback-desc" style="font-size: 0.9rem; color: var(--color-text-muted);" data-i18n="dash.exams.completedDesc">Aşağıdan detaylı soru analizlerini inceleyebilirsiniz.</p>
               </div>
             </div>
 
@@ -939,7 +939,7 @@
             </div>
 
             <div>
-              <button class="btn btn-primary" onclick="backToExamSetup()" style="border: none; padding: 0.75rem 2rem;">Sınav Kütüphanesine Dön</button>
+              <button class="btn btn-primary" onclick="backToExamSetup()" style="border: none; padding: 0.75rem 2rem;" data-i18n="dash.exams.backToSetup">Sınav Kütüphanesine Dön</button>
             </div>
           </div>
         </div>
@@ -950,8 +950,8 @@
            ========================================== -->
       <section id="sandbox-view" class="dashboard-view-section">
         <div class="dashboard-page-header">
-          <h2 class="dashboard-page-title">Geliştirici Sandbox</h2>
-          <p class="dashboard-page-desc">Practice data analysis with sample datasets, or share your programming projects with the Acadex community.</p>
+          <h2 class="dashboard-page-title" data-i18n="dash.sandbox.title">Geliştirici Sandbox</h2>
+          <p class="dashboard-page-desc" data-i18n="dash.sandbox.subtitle">Practice data analysis with sample datasets, or share your programming projects with the Acadex community.</p>
         </div>
 
         <!-- Developer Sandbox Guide Section -->
@@ -973,9 +973,9 @@
         <!-- Section 1: Örnek Veri Setleri -->
         <div class="sandbox-section" style="margin-bottom: 2.5rem;">
           <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.5rem; border-bottom: 2px solid var(--color-teal); padding-bottom: 0.35rem;">
-            📊 Örnek Veri Setleri (Sample Datasets)
+            📊 <span data-i18n="sandbox.datasetsTitle">Örnek Veri Setleri</span>
           </h3>
-          <p style="font-size: 0.85rem; color: var(--color-text-muted); margin-bottom: 1.25rem;">
+          <p style="font-size: 0.85rem; color: var(--color-text-muted); margin-bottom: 1.25rem;" data-i18n="sandbox.datasetsSub">
             Practice your data analysis skills with these sample datasets — perfect for MIS students or anyone curious about coding and analytics.
           </p>
 
@@ -1037,9 +1037,9 @@
         <div class="sandbox-section">
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; border-bottom: 2px solid var(--color-teal); padding-bottom: 0.35rem; flex-wrap: wrap; gap: 0.5rem;">
             <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--color-navy); margin: 0;">
-              🚀 Proje Galerisi (Project Gallery)
+              🚀 <span data-i18n="sandbox.galleryTitle">Proje Galerisi</span>
             </h3>
-            <button class="btn btn-primary" id="btn-share-project" style="border: none; font-size: 0.8rem; padding: 0.4rem 0.8rem; font-weight: 700;">
+            <button class="btn btn-primary" id="btn-share-project" style="border: none; font-size: 0.8rem; padding: 0.4rem 0.8rem; font-weight: 700;" data-i18n="sandbox.shareBtn">
               Yeni Proje Paylaş
             </button>
           </div>
@@ -1055,47 +1055,47 @@
            ========================================== -->
       <section id="settings-view" class="dashboard-view-section">
         <div class="dashboard-page-header">
-          <h2 class="dashboard-page-title">Ayarlar</h2>
-          <p class="dashboard-page-desc">Hesap ayarlarınızı, şifrenizi ve kişisel tercihlerinizi yönetin.</p>
+          <h2 class="dashboard-page-title" data-i18n="dash.settings.title">Ayarlar</h2>
+          <p class="dashboard-page-desc" data-i18n="dash.settings.desc">Hesap ayarlarınızı, şifrenizi ve kişisel tercihlerinizi yönetin.</p>
         </div>
 
         <div class="settings-container" style="display: flex; flex-direction: column; gap: 2rem; margin-top: 1.5rem; max-width: 600px;">
           
           <!-- PART A: Profile Info Card -->
           <div class="doc-card" style="box-shadow: var(--shadow-sm); padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem;">
-            <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--color-navy); border-bottom: 1px solid rgba(22,50,92,0.08); padding-bottom: 0.5rem; margin: 0;">Profil Bilgileri</h3>
+            <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--color-navy); border-bottom: 1px solid rgba(22,50,92,0.08); padding-bottom: 0.5rem; margin: 0;" data-i18n="dash.settings.profileInfo">Profil Bilgileri</h3>
             
             <form id="profile-settings-form" onsubmit="saveProfileSettings(event)" style="display: flex; flex-direction: column; gap: 1.25rem;">
               <div>
-                <label for="settings-fullname" style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.35rem;">Ad Soyad</label>
+                <label for="settings-fullname" style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.35rem;" data-i18n="dash.settings.fullName">Ad Soyad</label>
                 <input type="text" id="settings-fullname" class="search-input" style="width: 100%; padding: 0.6rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); font-size: 0.85rem;" required>
               </div>
 
               <div>
-                <label style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.35rem;">Öğrenci Numarası</label>
+                <label style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.35rem;" data-i18n="dash.settings.studentNo">Öğrenci Numarası</label>
                 <div id="settings-student-no" style="font-size: 0.85rem; color: var(--color-text-muted); background: var(--color-bg-alt); padding: 0.6rem; border-radius: var(--radius-sm); border: 1px solid rgba(22, 50, 92, 0.08); font-family: monospace;">-</div>
               </div>
 
               <div>
-                <label style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.35rem;">E-posta</label>
+                <label style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.35rem;" data-i18n="dash.settings.email">E-posta</label>
                 <div id="settings-email" style="font-size: 0.85rem; color: var(--color-text-muted); background: var(--color-bg-alt); padding: 0.6rem; border-radius: var(--radius-sm); border: 1px solid rgba(22, 50, 92, 0.08); font-family: monospace;">-</div>
               </div>
 
               <div>
-                <label for="settings-dept" style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.35rem;">Bölüm</label>
+                <label for="settings-dept" style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.35rem;" data-i18n="dash.settings.department">Bölüm</label>
                 <select id="settings-dept" class="font-size-select" style="width: 100%; padding: 0.6rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); font-size: 0.85rem;" required>
                   <option value="Management Information Systems" data-i18n="dept.mis">Management Information Systems</option>
                   <option value="Business Administration" data-i18n="dept.ba">Business Administration</option>
                   <option value="International Trade and Business" data-i18n="dept.itb">International Trade and Business</option>
                   <option value="Banking and Finance" data-i18n="dept.bf">Banking and Finance</option>
                 </select>
-                <span style="display: block; font-size: 0.75rem; color: var(--color-text-muted); margin-top: 0.35rem; line-height: 1.3;">
+                <span style="display: block; font-size: 0.75rem; color: var(--color-text-muted); margin-top: 0.35rem; line-height: 1.3;" data-i18n="dash.settings.deptHint">
                   * Changing your department affects which classmates can see your future shared study cards. Past shared cards keep their original department.
                 </span>
               </div>
 
               <div style="display: flex; justify-content: flex-end; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-                <button type="submit" class="btn btn-primary" style="border: none; padding: 0.5rem 1.5rem; font-size: 0.85rem;">Kaydet</button>
+                <button type="submit" class="btn btn-primary" style="border: none; padding: 0.5rem 1.5rem; font-size: 0.85rem;" data-i18n="dash.settings.save">Kaydet</button>
               </div>
             </form>
           </div>
@@ -1109,37 +1109,37 @@
 
           <!-- PART B: Change Password Card -->
           <div class="doc-card" style="box-shadow: var(--shadow-sm); padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem;">
-            <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--color-navy); border-bottom: 1px solid rgba(22,50,92,0.08); padding-bottom: 0.5rem; margin: 0;">Şifre Değiştir</h3>
+            <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--color-navy); border-bottom: 1px solid rgba(22,50,92,0.08); padding-bottom: 0.5rem; margin: 0;" data-i18n="dash.settings.passwordTitle">Şifre Değiştir</h3>
             
             <form id="password-settings-form" onsubmit="changeUserPassword(event)" style="display: flex; flex-direction: column; gap: 1.25rem;">
               <div>
-                <label for="settings-new-pass" style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.35rem;">Yeni Şifre</label>
+                <label for="settings-new-pass" style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.35rem;" data-i18n="dash.settings.newPass">Yeni Şifre</label>
                 <input type="password" id="settings-new-pass" class="search-input" style="width: 100%; padding: 0.6rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); font-size: 0.85rem;" required minlength="6">
               </div>
 
               <div>
-                <label for="settings-confirm-pass" style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.35rem;">Yeni Şifre (Tekrar)</label>
+                <label for="settings-confirm-pass" style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.35rem;" data-i18n="dash.settings.confirmPass">Yeni Şifre (Tekrar)</label>
                 <input type="password" id="settings-confirm-pass" class="search-input" style="width: 100%; padding: 0.6rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); font-size: 0.85rem;" required minlength="6">
               </div>
 
               <div id="password-error-message" style="display: none; color: #DC2626; font-size: 0.75rem;"></div>
 
               <div style="display: flex; justify-content: flex-end;">
-                <button type="submit" class="btn btn-primary" style="border: none; padding: 0.5rem 1.5rem; font-size: 0.85rem;">Şifreyi Güncelle</button>
+                <button type="submit" class="btn btn-primary" style="border: none; padding: 0.5rem 1.5rem; font-size: 0.85rem;" data-i18n="dash.settings.updatePass">Şifreyi Güncelle</button>
               </div>
             </form>
           </div>
 
           <!-- PART C: Danger Zone -->
           <div class="doc-card" style="box-shadow: var(--shadow-sm); padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; border: 1px solid #FEE2E2; background-color: #FFF5F5;">
-            <h3 style="font-size: 1.1rem; font-weight: 700; color: #DC2626; border-bottom: 1px solid #FEE2E2; padding-bottom: 0.5rem; margin: 0;">Danger Zone (Tehlikeli Bölge)</h3>
+            <h3 style="font-size: 1.1rem; font-weight: 700; color: #DC2626; border-bottom: 1px solid #FEE2E2; padding-bottom: 0.5rem; margin: 0;" data-i18n="dash.settings.dangerTitle">Danger Zone (Tehlikeli Bölge)</h3>
             
-            <p style="font-size: 0.85rem; color: #991B1B; line-height: 1.4; margin: 0;">
+            <p style="font-size: 0.85rem; color: #991B1B; line-height: 1.4; margin: 0;" data-i18n="dash.settings.dangerDesc">
               Hesabınızı sildiğinizde profiliniz, yüklediğiniz belgeler, çalışma kartlarınız, çizimleriniz ve sınav geçmişiniz <strong>kalıcı olarak kaldırılacaktır</strong>. Bu işlem geri alınamaz.
             </p>
 
             <div style="display: flex; justify-content: flex-start; margin-top: 0.5rem;">
-              <button class="btn" onclick="openDeleteAccountModal()" style="background-color: #DC2626; color: var(--color-white); border: none; padding: 0.5rem 1.5rem; font-size: 0.85rem; border-radius: var(--radius-sm); cursor: pointer; font-weight: 600;">Hesabımı Sil</button>
+              <button class="btn" onclick="openDeleteAccountModal()" style="background-color: #DC2626; color: var(--color-white); border: none; padding: 0.5rem 1.5rem; font-size: 0.85rem; border-radius: var(--radius-sm); cursor: pointer; font-weight: 600;" data-i18n="dash.settings.deleteBtn">Hesabımı Sil</button>
             </div>
           </div>
 
