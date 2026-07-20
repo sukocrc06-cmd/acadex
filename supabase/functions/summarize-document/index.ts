@@ -213,11 +213,11 @@ serve(async (req) => {
         // Fallback: try UTF-8 decoding
         extractedText = new TextDecoder("utf-8").decode(fileBytes)
       }
-    } catch (extractionError) {
+    } catch (extractionError: any) {
       console.error("Text extraction failed: ", extractionError)
       await markFailed(serviceClient, documentId)
       let errorMsg = "Failed to extract readable content. The file could not be downloaded/opened (it may be corrupted, password-protected, or unreadable)."
-      if (extractionError.message === "SCANNED_PDF") {
+      if (extractionError?.message === "SCANNED_PDF") {
         errorMsg = "This PDF appears to be a scanned image without selectable text. Please try a text-based PDF, or convert it using OCR software first."
       }
       return new Response(JSON.stringify({ error: errorMsg }), {

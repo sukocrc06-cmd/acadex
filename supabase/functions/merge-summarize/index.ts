@@ -173,10 +173,10 @@ serve(async (req) => {
         } else {
           extractedText = new TextDecoder("utf-8").decode(fileBytes)
         }
-      } catch (extractionError) {
+      } catch (extractionError: any) {
         console.error("Extraction failed for doc", doc.id, extractionError)
         let errorMsg = `Failed to extract readable content from "${doc.file_name}". The file could not be downloaded/opened (it may be corrupted, password-protected, or unreadable).`
-        if (extractionError.message === "SCANNED_PDF") {
+        if (extractionError?.message === "SCANNED_PDF") {
           errorMsg = `"${doc.file_name}" appears to be a scanned image without selectable text. Please try a text-based PDF, or convert it using OCR software first.`
         }
         return new Response(JSON.stringify({ error: errorMsg }), {
@@ -222,7 +222,9 @@ serve(async (req) => {
       styleInstruction = "Write the summary in very short sentences (aim for under 15 words per sentence) using simple, everyday vocabulary. Avoid compound/complex sentence structures. Explain any necessary technical term immediately in parentheses using plain language."
     } else if (style === "exam_focused") {
       styleInstruction = "Write the summary as terse, fact-dense statements — prefer sentence fragments and direct statements over flowing narrative connectors like 'furthermore' or 'in addition.' Each sentence should pack in a specific fact, definition, or relationship. Keep it noticeably more compact and dense than a standard-style summary, with less narrative connective tissue between ideas."
-     // Part B: Length instruction
+    }
+
+    // Part B: Length instruction
     let lengthInstruction = "Write a balanced summary in 4-8 sentences. Include 5-10 key terms, 5-10 key points, and 4-6 quiz questions."
     if (len === 'short') {
       lengthInstruction = "Write a concise summary in 2-3 sentences. Include only the 3-5 most essential key terms, 3-5 key points, and 3 quiz questions."
@@ -231,7 +233,7 @@ serve(async (req) => {
     }
 
     const langLabel = lang === "tr" ? "Turkish / Turkce" : "English"
-    const docNames = documents.map(d => d.file_name).join(", ")
+    const docNames = documents.map((d: any) => d.file_name).join(", ")
 
     // Part A: System prompt with document type classification & type specific guidance
     const systemPrompt = `You are an academic study assistant. You will be given combined text extracted from MULTIPLE student documents (${docNames}). Analyze all of them together and produce a UNIFIED study card that synthesizes the key information across all sources. Respond with ONLY a valid JSON object, no markdown code fences, no commentary before or after — just the raw JSON matching this exact shape: { "summary": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "document_type": string, "tables": [ { "title": string, "headers": [ string ], "rows": [ [ string ] ] } ], "charts": [ { "title": string, "type": string, "labels": [ string ], "data": [ number ] } ], "footnotes": [ { "id": number, "reference": string } ], "suggested_course_tag": string | null }.
@@ -381,9 +383,9 @@ ${rawContent}`
       })
     }
 
-    const inheritedTag = documents.find(d => d.course_tag)?.course_tag ?? null
+    const inheritedTag = documents.find((d: any) => d.course_tag)?.course_tag ?? null
     const userId = documents[0].user_id
-    const sourceDocumentsMeta = documents.map(d => ({ id: d.id, file_name: d.file_name }))
+    const sourceDocumentsMeta = documents.map((d: any) => ({ id: d.id, file_name: d.file_name }))
 
     const { data: newCard, error: cardError } = await serviceClient
       .from("study_cards")
