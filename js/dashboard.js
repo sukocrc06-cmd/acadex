@@ -879,6 +879,24 @@ function openSummaryStyleModal() {
   const enRadio = document.querySelector('input[name="summary-language-choice"][value="en"]');
   if (enRadio) enRadio.checked = true;
 
+  // Visual check
+  const visualContainer = document.getElementById('visual-analysis-container');
+  const visualCheckbox = document.getElementById('chk-analyze-visuals');
+  if (visualCheckbox) visualCheckbox.checked = false; // Reset to false by default
+
+  let isPdf = false;
+  if (activeSummarizingDocId) {
+    const doc = activeDocuments.find(d => d.id === activeSummarizingDocId);
+    if (doc) {
+      const fileName = (doc.file_name || '').toLowerCase();
+      isPdf = fileName.endsWith('.pdf') || doc.mime_type === 'application/pdf';
+    }
+  }
+
+  if (visualContainer) {
+    visualContainer.style.display = isPdf ? 'block' : 'none';
+  }
+
   if (window.openModalWithFocus) {
     window.openModalWithFocus('summary-style-modal');
   } else {
@@ -950,6 +968,9 @@ async function proceedWithSummarization() {
     `;
   }
 
+  const visualCheckbox = document.getElementById('chk-analyze-visuals');
+  const analyzeVisuals = (visualCheckbox && visualCheckbox.checked && visualCheckbox.closest('#visual-analysis-container')?.style.display !== 'none') || false;
+
   try {
     // Set document status to processing first in database so that page reload / polling reflects it
     await supabaseClient
@@ -957,10 +978,10 @@ async function proceedWithSummarization() {
       .update({ status: 'processing' })
       .eq('id', docId);
 
-    console.log("INVOKING Edge Function: summarize-document with payload:", { documentId: docId, summaryStyle: summaryStyle, language: language, summaryLength: summaryLength });
+    console.log("INVOKING Edge Function: summarize-document with payload:", { documentId: docId, summaryStyle: summaryStyle, language: language, summaryLength: summaryLength, analyzeVisuals: analyzeVisuals });
 
     const { data, error } = await supabaseClient.functions.invoke('summarize-document', {
-      body: { documentId: docId, summaryStyle: summaryStyle, language: language, summaryLength: summaryLength }
+      body: { documentId: docId, summaryStyle: summaryStyle, language: language, summaryLength: summaryLength, analyzeVisuals: analyzeVisuals }
     });
 
     if (error) {
@@ -1125,6 +1146,12 @@ async function populateStudyCardModalDetails(card, docName, readOnly) {
   const lengthBadgeEl = document.getElementById('study-card-modal-length-badge');
   if (lengthBadgeEl) {
     lengthBadgeEl.innerHTML = getLengthBadgeHtml(card.summary_length);
+  }
+
+  // Populate Visual Analysis Badge (Part E)
+  const visualBadgeEl = document.getElementById('study-card-modal-visual-badge');
+  if (visualBadgeEl) {
+    visualBadgeEl.innerHTML = getVisualAnalysisBadgeHtml(card.visual_analysis);
   }
 
   // Fetch feedback rating (Part D)
@@ -1641,6 +1668,7 @@ function renderNotebookSidebarList(cards) {
               <span class="style-badge" style="margin: 0; font-size: 0.55rem; padding: 0.05rem 0.25rem; background-color: var(--color-teal-light); color: var(--color-teal); border: 1px solid rgba(22, 50, 92, 0.08); font-weight: 700;">${card.summary_language === 'tr' ? 'TR' : 'EN'}</span>
               ${getDocumentTypeBadgeHtml(card.document_type)}
               ${getLengthBadgeHtml(card.summary_length)}
+              ${getVisualAnalysisBadgeHtml(card.visual_analysis)}
             </div>
           </div>
           <button onclick="deleteStudyCard(event, '${card.id}', '${card.document_id}')" style="background: none; border: none; cursor: pointer; color: #EF4444; position: absolute; right: 0; top: 0.15rem; padding: 0.15rem; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); transition: background-color 0.2s;" title="Delete this study card">
@@ -3340,6 +3368,7 @@ function renderCardsLibraryList(cards) {
                 <span class="style-badge" style="margin: 0; font-size: 0.6rem; padding: 0.1rem 0.35rem; background-color: var(--color-teal-light); color: var(--color-teal); border: 1px solid rgba(22, 50, 92, 0.08); font-weight: 700;">${card.summary_language === 'tr' ? 'Türkçe' : 'English'}</span>
                 ${getDocumentTypeBadgeHtml(card.document_type)}
                 ${getLengthBadgeHtml(card.summary_length)}
+                ${getVisualAnalysisBadgeHtml(card.visual_analysis)}
               </div>
             </div>
           </div>
@@ -9921,6 +9950,14 @@ function getLengthBadgeHtml(len) {
   else if (len === 'detailed') label = isTr ? 'Detaylı' : 'Detailed';
   return `<span class="style-badge" style="margin: 0; font-size: 0.6rem; padding: 0.1rem 0.35rem; background-color: #EEF2FF; color: #4F46E5; border: 1px solid rgba(22, 50, 92, 0.08); font-weight: 700;">${label}</span>`;
 }
+
+function getVisualAnalysisBadgeHtml(used) {
+  if (!used) return '';
+  const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+  const label = isTr ? 'Görsel Analiz' : 'Visual Analysis';
+  return `<span class="style-badge" style="margin: 0; font-size: 0.6rem; padding: 0.1rem 0.35rem; background-color: #FDF2F8; color: #DB2777; border: 1px solid rgba(22, 50, 92, 0.08); font-weight: 700;">🖼️ ${label}</span>`;
+}
+window.getVisualAnalysisBadgeHtml = getVisualAnalysisBadgeHtml;
 
 function highlightFeedbackButtons(rating) {
   const btnUp = document.getElementById('btn-vote-up');

@@ -1433,6 +1433,17 @@
         </p>
       </div>
 
+      <!-- Visual Analysis Checkbox (Part A) -->
+      <div id="visual-analysis-container" style="display: none; margin-bottom: 1.5rem; padding-top: 0.75rem; border-top: 1px solid rgba(22, 50, 92, 0.08);">
+        <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: var(--color-navy); cursor: pointer; font-weight: 600;">
+          <input type="checkbox" id="chk-analyze-visuals" style="accent-color: var(--color-teal); cursor: pointer; width: 16px; height: 16px;">
+          <span>🖼️ Also analyze charts, diagrams, and visual content (slower, more thorough)</span>
+        </label>
+        <p style="font-size: 0.75rem; color: var(--color-text-muted); margin-top: 0.4rem; margin-bottom: 0; line-height: 1.35;">
+          Recommended for documents with important tables, diagrams, or visual slide content.
+        </p>
+      </div>
+
       <div class="modal-actions">
         <button class="btn btn-outline" onclick="closeSummaryStyleModal()">Vazgeç</button>
         <button class="btn btn-primary" id="btn-confirm-summarize" onclick="proceedWithSummarization()" style="border: none;">Generate Summary</button>
@@ -1488,6 +1499,7 @@
             <span id="study-card-modal-lang-badge" class="style-badge" style="background-color: var(--color-teal-light); color: var(--color-teal); border: 1px solid rgba(22, 50, 92, 0.08); font-weight: 700;">English</span>
             <span id="study-card-modal-type-badge"></span>
             <span id="study-card-modal-length-badge"></span>
+            <span id="study-card-modal-visual-badge"></span>
             
             <div class="feedback-vote-container" style="display: flex; align-items: center; gap: 0.25rem; margin-left: 0.5rem; border-left: 1px solid rgba(22, 50, 92, 0.1); padding-left: 0.5rem;">
               <span style="font-size: 0.725rem; color: var(--color-text-muted); font-weight: 500;" data-i18n="dash.cards.helpful">Helpful?</span>

@@ -45,7 +45,7 @@ serve(async (req) => {
       })
     }
 
-    const { documentId, summaryStyle, language, summaryLength } = await req.json()
+    const { documentId, summaryStyle, language, summaryLength, analyzeVisuals } = await req.json()
     if (!documentId) {
       return new Response(JSON.stringify({ error: 'documentId is required' }), {
         status: 400,
@@ -57,7 +57,7 @@ serve(async (req) => {
     const lang = (language || 'en').toLowerCase()
     const len = (summaryLength || 'medium').toLowerCase()
 
-    console.log("RECEIVED Edge Function parameters: documentId =", documentId, "summaryStyle =", summaryStyle, "language =", language, "summaryLength =", summaryLength);
+    console.log("RECEIVED Edge Function parameters: documentId =", documentId, "summaryStyle =", summaryStyle, "language =", language, "summaryLength =", summaryLength, "analyzeVisuals =", analyzeVisuals);
 
     // Get User Authorization JWT to verify ownership
     const authHeader = req.headers.get('Authorization')
@@ -319,6 +319,74 @@ Write in a clear, formal academic register. Avoid filler phrases, redundant rest
 STYLE-SPECIFIC INSTRUCTION:
 ${styleInstruction}`
 
+    // Visual analysis (Part B & C)
+    const runVisuals = !!analyzeVisuals && mimeType === "application/pdf"
+    let visualAnalysisUsed = false
+    let base64Images: string[] = []
+
+    if (runVisuals) {
+      const pdfcoApiKey = Deno.env.get('PDFCO_API_KEY')
+      if (pdfcoApiKey) {
+        try {
+          console.log("PDF.co Visual analysis enabled. Uploading PDF to convert first 8 pages to images...")
+          const formData = new FormData()
+          const pdfBlob = new Blob([fileBytes], { type: 'application/pdf' })
+          formData.append('file', pdfBlob, 'document.pdf')
+          formData.append('pages', '0-7')
+
+          const pdfcoRes = await fetch('https://api.pdf.co/v1/pdf/convert/to/png', {
+            method: 'POST',
+            headers: { 'x-api-key': pdfcoApiKey },
+            body: formData
+          })
+
+          if (pdfcoRes.ok) {
+            const pdfcoData = await pdfcoRes.json()
+            if (!pdfcoData.error && pdfcoData.url) {
+              let imageUrls: string[] = []
+              if (Array.isArray(pdfcoData.url)) {
+                imageUrls = pdfcoData.url
+              } else if (typeof pdfcoData.url === 'string') {
+                imageUrls = [pdfcoData.url]
+              }
+
+              console.log(`PDF.co converted ${imageUrls.length} pages. Downloading page images...`)
+              for (const imgUrl of imageUrls) {
+                try {
+                  const imgRes = await fetch(imgUrl)
+                  if (imgRes.ok) {
+                    const buffer = await imgRes.arrayBuffer()
+                    const bytes = new Uint8Array(buffer)
+                    let binary = ''
+                    const lenBytes = bytes.byteLength
+                    for (let i = 0; i < lenBytes; i++) {
+                      binary += String.fromCharCode(bytes[i])
+                    }
+                    base64Images.push(btoa(binary))
+                  }
+                } catch (imgDownloadErr) {
+                  console.error(`Failed to download page image from ${imgUrl}:`, imgDownloadErr)
+                }
+              }
+
+              if (base64Images.length > 0) {
+                visualAnalysisUsed = true
+                console.log(`Successfully prepared ${base64Images.length} images for vision-based analysis.`)
+              }
+            } else {
+              console.warn("PDF.co API returned error:", pdfcoData)
+            }
+          } else {
+            console.warn(`PDF.co response status failed: ${pdfcoRes.status}`)
+          }
+        } catch (pdfcoErr) {
+          console.error("PDF.co page conversion failed, falling back to text-only:", pdfcoErr)
+        }
+      } else {
+        console.warn("PDFCO_API_KEY is missing. Falling back to text-only analysis.")
+      }
+    }
+
     // Update stage to analyzing
     await serviceClient
       .from('documents')
@@ -327,36 +395,96 @@ ${styleInstruction}`
 
     // Pass 1: Call Groq to generate Draft
     let groqResponse;
-    try {
-      groqResponse = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${groqApiKey}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          temperature: 0.3,
-          response_format: { type: "json_object" },
-          messages: [
-            {
-              role: "system",
-              content: systemPrompt
-            },
-            {
-              role: "user",
-              content: textToSend
-            }
-          ]
+    let pass1Completed = false;
+
+    if (visualAnalysisUsed && base64Images.length > 0) {
+      try {
+        const visualSystemPrompt = systemPrompt + `\n\nVISUAL ANALYSIS INSTRUCTION:
+In addition to the text below, you are shown images of this document's pages. Use these images to also identify and incorporate any information from charts, diagrams, tables, or visual elements that the text alone doesn't fully capture. Reference specific visual content in your summary/key_points where relevant.`
+
+        const pass1Messages = [
+          {
+            role: "system",
+            content: visualSystemPrompt
+          },
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: `Here is the extracted text from the document:\n\n${textToSend}`
+              },
+              ...base64Images.map(b64 => ({
+                type: "image_url",
+                image_url: {
+                  url: `data:image/png;base64,${b64}`
+                }
+              }))
+            ]
+          }
+        ]
+
+        console.log("Attempting vision-based analysis using llama-3.2-90b-vision-preview...")
+        groqResponse = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${groqApiKey}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            model: "llama-3.2-90b-vision-preview",
+            temperature: 0.3,
+            response_format: { type: "json_object" },
+            messages: pass1Messages
+          })
         })
-      })
-    } catch (fetchErr) {
-      console.error("Pass 1 Groq API fetchWithRetry exception: ", fetchErr)
-      await markFailed(serviceClient, documentId)
-      return new Response(JSON.stringify({ error: 'Our AI service is experiencing high demand right now — please try again in a moment' }), {
-        status: 503,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
+
+        if (groqResponse.ok) {
+          pass1Completed = true
+          console.log("Vision-based Pass 1 completed successfully.")
+        } else {
+          console.warn(`Vision model call returned non-ok status: ${groqResponse.status}. Falling back to text-only.`)
+          visualAnalysisUsed = false
+        }
+      } catch (visionErr) {
+        console.warn("Vision-based analysis call failed. Falling back to text-only:", visionErr)
+        visualAnalysisUsed = false
+      }
+    }
+
+    if (!pass1Completed) {
+      console.log("Running standard text-only analysis using Llama-3.3-70b-versatile...")
+      try {
+        groqResponse = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${groqApiKey}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            model: "llama-3.3-70b-versatile",
+            temperature: 0.3,
+            response_format: { type: "json_object" },
+            messages: [
+              {
+                role: "system",
+                content: systemPrompt
+              },
+              {
+                role: "user",
+                content: textToSend
+              }
+            ]
+          })
+        })
+      } catch (fetchErr) {
+        console.error("Pass 1 Groq API fetchWithRetry exception: ", fetchErr)
+        await markFailed(serviceClient, documentId)
+        return new Response(JSON.stringify({ error: 'Our AI service is experiencing high demand right now — please try again in a moment' }), {
+          status: 503,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
     }
 
     const groqData = await groqResponse.json()
@@ -494,6 +622,7 @@ ${rawContent}`
         summary_language: lang,
         summary_length: len,
         document_type: parsedContent.document_type || 'Other',
+        visual_analysis: visualAnalysisUsed,
         course_tag: document.course_tag ?? null  // Phase 17A: propagate parent doc's tag
       })
       .select('id')
