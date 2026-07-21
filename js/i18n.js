@@ -747,8 +747,17 @@ function applyLanguage(lang) {
     streakEl.textContent = isTr ? `🔥 ${streak} günlük seri!` : `🔥 ${streak} day streak!`;
   }
 
-  // Trigger recent activity re-render if loaded
-  if (typeof window.loadRecentActivity === 'function') {
+  // Trigger recent activity re-render if loaded. Guarded on window.currentUser
+  // because applyLanguage() also runs immediately on this script's own
+  // DOMContentLoaded listener — which, on dashboard.html, fires BEFORE
+  // dashboard.js's checkSessionAndLoadProfile() has set currentUser. Without
+  // this guard, that very first call reached `.eq('user_id', currentUser.id)`
+  // on a null currentUser and threw ("Cannot read properties of null
+  // (reading 'id')"), logged from loadRecentActivity's catch block on every
+  // page load. Later calls (actual language switches) already have
+  // window.currentUser set by then, so this only skips the harmless/invalid
+  // very-first call.
+  if (typeof window.loadRecentActivity === 'function' && window.currentUser) {
     window.loadRecentActivity();
   }
 

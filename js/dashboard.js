@@ -96,7 +96,15 @@ async function checkSessionAndLoadProfile() {
     }
 
     currentUser = session.user;
-    
+    // Mirror onto window: currentUser/currentUserProfile are top-level `let`
+    // bindings, which do NOT become window properties on their own. Other
+    // scripts (i18n.js) read window.currentUser / window.currentUserProfile
+    // to know whether it's safe to call functions that depend on them —
+    // without this mirror those checks always see `undefined` and either
+    // silently no-op or (for loadRecentActivity, before this fix) crash on
+    // a null reference during the page's very first language-apply pass.
+    window.currentUser = currentUser;
+
     // Fetch profile data from the profiles table
     const { data: profile, error } = await supabaseClient
       .from('profiles')
@@ -105,6 +113,7 @@ async function checkSessionAndLoadProfile() {
       .single();
 
     currentUserProfile = profile;
+    window.currentUserProfile = currentUserProfile;
 
     // Admin Panel display check (Phase 16B part B)
     if (profile && profile.is_admin) {
@@ -4659,6 +4668,7 @@ async function loadSettingsView() {
 
     // Cache updated profile info
     currentUserProfile = profile;
+    window.currentUserProfile = currentUserProfile;
 
     // Fill form
     fullnameInput.value = profile.full_name || '';
