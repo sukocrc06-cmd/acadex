@@ -170,6 +170,12 @@ function getFriendlyError(message) {
   if (msg.includes("network") || msg.includes("fetch")) {
     return "Network error. Please check your internet connection and try again.";
   }
+  if (msg.includes("database error") || msg.includes("unexpected_failure")) {
+    return "A server error occurred while creating the account. Please try again in a moment, or contact support if this keeps happening.";
+  }
+  if (msg.includes("rate limit")) {
+    return "Too many signup attempts right now. Please wait a few minutes and try again.";
+  }
 
   return message; // fallback to supabase error message if we can't map it
 }
@@ -580,11 +586,24 @@ function initAcademicRegisterForm() {
     setButtonLoading(submitBtn, true, 'Submitting...');
 
     try {
+      // The profiles-creation trigger that fires on new auth.users rows was
+      // written for the student form and appears to require student_number
+      // to be non-null (academic signups were failing with a 500 from
+      // /auth/v1/signup — a database error inside that trigger — because
+      // this form never collects one). Rather than touch a trigger we can't
+      // see the source of, we hand it a harmless, unique placeholder so its
+      // insert succeeds; the real academic identity fields (department,
+      // full_name, teacher_title, teacher_request_pending) are then set
+      // explicitly via the profiles UPDATE below, which is what actually
+      // matters for this flow.
+      const placeholderStudentNumber = 'AC-' + Date.now();
+
       const { data, error } = await supabaseClient.auth.signUp({
         email: email,
         password: password,
         options: {
           data: {
+            student_number: placeholderStudentNumber,
             department: department,
             full_name: fullName,
             teacher_title: teacherTitle || null,
