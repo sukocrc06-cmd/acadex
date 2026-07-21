@@ -86,18 +86,39 @@ function switchLoginMode(mode) {
   if (emailInput) {
     emailInput.placeholder = isAcademic ? 'hoca@university.edu.tr' : 'student@faculty.edu';
   }
+
+  // The footer "Don't have an account? Sign Up" link should point new
+  // academics at the dedicated academic application page instead of the
+  // student registration form (which requires a student number).
+  const signupLabel = document.getElementById('login-signup-label');
+  const signupLink = document.getElementById('login-signup-link');
+  if (signupLabel) {
+    const labelKey = isAcademic ? 'registerAcademic.notAcademicShort' : 'login.noAccount';
+    signupLabel.textContent = getMsg(labelKey, isAcademic ? 'New faculty member?' : "Don't have an account yet?");
+    signupLabel.setAttribute('data-i18n', labelKey);
+  }
+  if (signupLink) {
+    signupLink.href = isAcademic ? 'register-academic.html' : 'register.html';
+    const linkKey = isAcademic ? 'registerAcademic.navSignup' : 'login.registerLink';
+    signupLink.textContent = getMsg(linkKey, isAcademic ? 'Academic Sign Up' : 'Create an account');
+    signupLink.setAttribute('data-i18n', linkKey);
+  }
 }
 window.switchLoginMode = switchLoginMode;
 
 document.addEventListener('DOMContentLoaded', async () => {
   const path = window.location.pathname;
   const isLoginPage = path.includes('login.html');
-  const isRegisterPage = path.includes('register.html');
+  // NOTE: register-academic.html deliberately does NOT match this check
+  // ("register-academic.html" does not contain the substring "register.html"),
+  // so it's tracked separately below and added to the redirect guard itself.
+  const isRegisterPage = path.includes('register.html') && !path.includes('register-academic.html');
+  const isAcademicRegisterPage = path.includes('register-academic.html');
 
   // ==========================================
   // 1. Session Redirect Guard on Load
   // ==========================================
-  if (isLoginPage || isRegisterPage) {
+  if (isLoginPage || isRegisterPage || isAcademicRegisterPage) {
     try {
       const { data: { session } } = await supabaseClient.auth.getSession();
       if (session) {
@@ -122,6 +143,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     initLoginForm();
     initForgotForm();
+  } else if (isAcademicRegisterPage) {
+    initAcademicRegisterForm();
   } else if (isRegisterPage) {
     initRegisterForm();
   }
@@ -400,6 +423,219 @@ function initRegisterForm() {
       }
     } catch (err) {
       console.error("Signup exception: ", err);
+      showFormAlert(form, 'error', getMsg('validation.unexpectedError', 'An unexpected error occurred during signup. Please try again.'));
+      setButtonLoading(submitBtn, false);
+    }
+  });
+}
+
+// ==========================================
+// 4b. Academic (Teacher) Registration Form Controller
+//
+// Creates a normal Supabase Auth account exactly like initRegisterForm()
+// does, but the resulting profile is NOT granted is_teacher automatically.
+// Instead it's flagged teacher_request_pending = true so it shows up in the
+// admin panel's "Hoca Başvuruları" queue — an admin has to approve it before
+// the account gets real teacher access. This avoids letting anyone grant
+// themselves teacher/staff privileges just by picking this form.
+//
+// Whatever the profile-creation trigger on auth.users does with the signUp
+// metadata, we explicitly UPDATE the profile row right after signup so the
+// department/title/pending-flag are set correctly regardless of what keys
+// that trigger happens to read.
+// ==========================================
+function initAcademicRegisterForm() {
+  const form = document.getElementById('academic-register-form');
+  if (!form) return;
+
+  const formRenderedAt = Date.now();
+  const MIN_HUMAN_FILL_TIME_MS = 2500;
+
+  const checkbox = document.getElementById('ac-legal-agree');
+  const signupBtn = document.getElementById('ac-btn-signup');
+  if (checkbox && signupBtn) {
+    checkbox.addEventListener('change', (e) => {
+      signupBtn.disabled = !e.target.checked;
+    });
+  }
+
+  // Password Strength Indicator (same logic as the student form, scoped to
+  // this page's own input/bar ids so the two pages never collide).
+  const passwordInput = document.getElementById('ac-password');
+  const strengthBar = document.getElementById('ac-password-strength-bar');
+  const strengthLabel = document.getElementById('ac-password-strength-label');
+
+  if (passwordInput && strengthBar && strengthLabel) {
+    passwordInput.addEventListener('input', () => {
+      const val = passwordInput.value;
+      if (!val) {
+        strengthBar.style.width = '0%';
+        strengthBar.className = '';
+        strengthLabel.textContent = '—';
+        strengthLabel.style.color = 'var(--color-text-muted)';
+        return;
+      }
+
+      let criteriaMet = 0;
+      if (val.length >= 8) criteriaMet++;
+      if (/[A-Z]/.test(val)) criteriaMet++;
+      if (/[0-9]/.test(val)) criteriaMet++;
+      if (/[^A-Za-z0-9]/.test(val)) criteriaMet++;
+
+      const currentLang = localStorage.getItem('acadexUILang') || 'tr';
+      const weakText = currentLang === 'tr' ? 'Zayıf' : 'Weak';
+      const mediumText = currentLang === 'tr' ? 'Orta' : 'Medium';
+      const strongText = currentLang === 'tr' ? 'Güçlü' : 'Strong';
+
+      if (criteriaMet <= 1) {
+        strengthBar.style.width = '33%';
+        strengthBar.className = 'strength-weak';
+        strengthLabel.textContent = weakText;
+        strengthLabel.style.color = '#EF4444';
+      } else if (criteriaMet <= 3) {
+        strengthBar.style.width = '66%';
+        strengthBar.className = 'strength-medium';
+        strengthLabel.textContent = mediumText;
+        strengthLabel.style.color = '#F59E0B';
+      } else {
+        strengthBar.style.width = '100%';
+        strengthBar.className = 'strength-strong';
+        strengthLabel.textContent = strongText;
+        strengthLabel.style.color = '#10B981';
+      }
+    });
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clearFormErrors(form);
+
+    // Anti-bot check #1: honeypot field.
+    const honeypot = document.getElementById('ac-website');
+    if (honeypot && honeypot.value.trim() !== '') {
+      console.warn('Academic registration blocked: honeypot field was filled.');
+      showFormAlert(form, 'error', getMsg('validation.unexpectedError', 'An unexpected error occurred. Please try again.'));
+      return;
+    }
+
+    // Anti-bot check #2: minimum fill time.
+    if (Date.now() - formRenderedAt < MIN_HUMAN_FILL_TIME_MS) {
+      console.warn('Academic registration blocked: form submitted too quickly.');
+      showFormAlert(form, 'error', getMsg('validation.unexpectedError', 'An unexpected error occurred. Please try again.'));
+      return;
+    }
+
+    const fullName = document.getElementById('ac-full-name').value.trim();
+    const teacherTitle = document.getElementById('ac-title').value.trim();
+    const department = document.getElementById('ac-department').value;
+    const email = document.getElementById('ac-email').value.trim();
+    const password = document.getElementById('ac-password').value;
+    const confirmPassword = document.getElementById('ac-confirm-password').value;
+    const submitBtn = form.querySelector('button[type="submit"]');
+
+    let isValid = true;
+
+    if (!fullName) {
+      showFieldError('ac-full-name', getMsg('validation.fullNameRequired', 'Full Name is required.'));
+      isValid = false;
+    }
+
+    if (!department) {
+      showFieldError('ac-department', getMsg('validation.selectDepartment', 'Please select your department.'));
+      isValid = false;
+    }
+
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email) {
+      showFieldError('ac-email', getMsg('validation.emailRequired', 'Email address is required.'));
+      isValid = false;
+    } else if (!emailPattern.test(email)) {
+      showFieldError('ac-email', getMsg('validation.emailInvalid', 'Please enter a valid email address.'));
+      isValid = false;
+    }
+
+    if (!password) {
+      showFieldError('ac-password', getMsg('validation.passwordRequired', 'Password is required.'));
+      isValid = false;
+    } else if (password.length < 6) {
+      showFieldError('ac-password', getMsg('validation.passwordLength', 'Password must be at least 6 characters.'));
+      isValid = false;
+    }
+
+    if (!confirmPassword) {
+      showFieldError('ac-confirm-password', getMsg('validation.confirmPasswordRequired', 'Confirm password is required.'));
+      isValid = false;
+    } else if (password !== confirmPassword) {
+      showFieldError('ac-confirm-password', getMsg('validation.passwordsMatch', 'Passwords do not match.'));
+      isValid = false;
+    }
+
+    if (checkbox && !checkbox.checked) {
+      showFieldError('ac-legal-agree', getMsg('validation.legalAgree', 'You must agree to the Privacy Policy and Terms of Use.'));
+      isValid = false;
+    }
+
+    if (!isValid) return;
+
+    setButtonLoading(submitBtn, true, 'Submitting...');
+
+    try {
+      const { data, error } = await supabaseClient.auth.signUp({
+        email: email,
+        password: password,
+        options: {
+          data: {
+            department: department,
+            full_name: fullName,
+            teacher_title: teacherTitle || null,
+            applied_as: 'teacher'
+          }
+        }
+      });
+
+      if (error) {
+        showFormAlert(form, 'error', getFriendlyError(error.message));
+        setButtonLoading(submitBtn, false);
+        return;
+      }
+
+      // Explicitly set the academic-specific fields on the profile row
+      // ourselves (rather than trusting the auth-trigger to read these
+      // particular metadata keys), so the pending-approval flag and title
+      // are guaranteed to land even if that trigger only knows about the
+      // student registration's field names.
+      if (data && data.user) {
+        try {
+          await supabaseClient
+            .from('profiles')
+            .update({
+              department: department,
+              full_name: fullName,
+              teacher_title: teacherTitle || null,
+              teacher_request_pending: true
+            })
+            .eq('id', data.user.id);
+        } catch (profileErr) {
+          console.error('Academic profile update error:', profileErr);
+        }
+
+        // Sign the applicant back out — until an admin approves the
+        // request, there's nothing useful for them to do while "logged in"
+        // (they aren't a teacher yet, and this isn't a student account), so
+        // we show a clear confirmation instead of dropping them into the
+        // student dashboard.
+        try {
+          await supabaseClient.auth.signOut();
+        } catch (signOutErr) {
+          console.error('Post-application sign-out error:', signOutErr);
+        }
+
+        showFormAlert(form, 'success', getMsg('registerAcademic.pendingSuccess', 'Application received! An admin will review it, and you\'ll be able to log in to the academic panel once approved.'));
+        form.reset();
+        setButtonLoading(submitBtn, false);
+      }
+    } catch (err) {
+      console.error("Academic signup exception: ", err);
       showFormAlert(form, 'error', getMsg('validation.unexpectedError', 'An unexpected error occurred during signup. Please try again.'));
       setButtonLoading(submitBtn, false);
     }

@@ -80,6 +80,21 @@ const TRANSLATIONS = {
     "register.hasAccount": "Already have an account?",
     "register.loginLink": "Log in here",
 
+    // Academic (Teacher) Registration Page (register-academic.html)
+    "registerAcademic.title": "Academic / Faculty Sign Up",
+    "registerAcademic.subtitle": "Apply for a faculty account. An admin reviews every request before teacher access is granted.",
+    "registerAcademic.reviewNotice": "ℹ️ Your account will start as a regular account. An admin approves academic (teacher) access after reviewing your application.",
+    "registerAcademic.label.title": "Academic Title / Role",
+    "registerAcademic.label.titleHelper": "Optional — helps the admin reviewing your application.",
+    "registerAcademic.btn": "Submit Application",
+    "registerAcademic.pendingSuccess": "Application received! An admin will review it, and you'll be able to log in to the academic panel once approved.",
+    "registerAcademic.navSignup": "Academic Sign Up",
+    "registerAcademic.notAcademic": "Are you a student?",
+    "registerAcademic.notAcademicShort": "New faculty member?",
+    "registerAcademic.studentSignupLink": "Sign up here",
+    "registerAcademic.notStudent": "Are you faculty?",
+    "registerAcademic.academicSignupLink": "Apply for an academic account",
+
     // Validation messages
     "validation.fullNameRequired": "Full Name is required.",
     "validation.studentNumberRange": "Student Number must be between 6 and 12 digits.",
@@ -406,6 +421,21 @@ const TRANSLATIONS = {
     "register.btn": "Hesap Oluştur",
     "register.hasAccount": "Zaten bir hesabınız var mı?",
     "register.loginLink": "Buradan giriş yapın",
+
+    // Akademisyen (Hoca) Kayıt Sayfası (register-academic.html)
+    "registerAcademic.title": "Akademisyen / Hoca Kaydı",
+    "registerAcademic.subtitle": "Akademisyen hesabı için başvurun. Hoca yetkisi verilmeden önce her başvuru admin tarafından incelenir.",
+    "registerAcademic.reviewNotice": "ℹ️ Hesabınız önce normal bir hesap olarak başlar. Başvurunuz incelendikten sonra admin, akademisyen (hoca) erişimini onaylar.",
+    "registerAcademic.label.title": "Akademik Unvan / Görev",
+    "registerAcademic.label.titleHelper": "İsteğe bağlı — başvurunuzu inceleyen admine yardımcı olur.",
+    "registerAcademic.btn": "Başvuruyu Gönder",
+    "registerAcademic.pendingSuccess": "Başvurunuz alındı! Admin inceledikten sonra onaylanırsa akademisyen paneline giriş yapabileceksiniz.",
+    "registerAcademic.navSignup": "Akademisyen Kaydı",
+    "registerAcademic.notAcademic": "Öğrenci misiniz?",
+    "registerAcademic.notAcademicShort": "Yeni bir akademisyen misiniz?",
+    "registerAcademic.studentSignupLink": "Buradan kayıt olun",
+    "registerAcademic.notStudent": "Akademisyen misiniz?",
+    "registerAcademic.academicSignupLink": "Akademisyen hesabı için başvurun",
 
     // Validation messages
     "validation.fullNameRequired": "Ad Soyad alanı zorunludur.",
