@@ -236,6 +236,10 @@ const TRANSLATIONS = {
     "dash.cards.singleView": "✕ Single View",
     "dash.cards.downloadOriginal": "⬇️ Download Original File",
     "dash.cards.cannotPreviewInline": "This file type (Word/PowerPoint) cannot be previewed directly in the browser.",
+    "dash.cards.chatWithSource": "💬 Chat with Source",
+    "dash.cards.closeChatView": "✕ Close Chat",
+    "dash.cards.chatPanelTitle": "Chat with Source",
+    "dash.cards.chatDisclosure": "Answers are grounded strictly in this document's content. If you ask something not covered in it, Acadex will tell you.",
 
     // Course Glossary Tab
     "dash.glossary.title": "📖 Course Glossary",
@@ -578,6 +582,10 @@ const TRANSLATIONS = {
     "dash.cards.singleView": "✕ Tekli Görünüm",
     "dash.cards.downloadOriginal": "⬇️ Orijinal Dosyayı İndir",
     "dash.cards.cannotPreviewInline": "Bu dosya türü (Word/PowerPoint) tarayıcıda doğrudan önizlenemiyor.",
+    "dash.cards.chatWithSource": "💬 Kaynakla Sohbet Et",
+    "dash.cards.closeChatView": "✕ Sohbeti Kapat",
+    "dash.cards.chatPanelTitle": "Kaynakla Sohbet",
+    "dash.cards.chatDisclosure": "Cevaplar yalnızca bu belgenin içeriğine dayanır. Belgede olmayan bir şey sorarsanız Acadex bunu size söyler.",
 
     // Course Glossary Tab
     "dash.glossary.title": "📖 Ders Sözlüğü",

@@ -23,6 +23,10 @@ let feedVoteCounts = {}; // card_id -> number of "helpful" votes
 let feedUserVotedSet = new Set(); // card_ids the current user has voted for
 let sandboxProjectsLimit = 20;
 let notebookHasUnsavedChanges = false;
+let docChatHistory = []; // [{ role: 'user' | 'assistant', content: string }] — reset per modal open, never persisted
+let isDocChatPaneActive = false;
+let docChatHasGreeted = false;
+let docChatRequestInFlight = false;
 
 // Helper to get YYYY-MM-DD in local time (prevents timezone bugs)
 function getLocalDateString(date = new Date()) {
@@ -81,6 +85,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 10. Acadia AI Study Assistant Widget
   initAcadiaWidget();
+
+  // 11. Chat With Source (NotebookLM-style grounded document Q&A)
+  initDocChatForm();
 });
 
 // ==========================================
@@ -1604,6 +1611,7 @@ window.renderMathInText = renderMathInText;
 
 async function viewStudyCard(docId, docName, readOnly = false, selectedCardId = null) {
   console.log("viewStudyCard fired for docId:", docId, "docName:", docName, "selectedCardId:", selectedCardId);
+  resetDocChatState(); // fresh chat for each newly opened study card
   try {
     let cards = [];
     
@@ -1710,6 +1718,7 @@ function closeStudyCardModal() {
     const modal = document.getElementById('study-card-modal');
     if (modal) modal.classList.remove('active');
   }
+  resetDocChatState();
 }
 
 // ==========================================================================
@@ -11990,6 +11999,11 @@ async function toggleOriginalDocumentViewer() {
     return;
   }
 
+  // Mutual exclusion: close the chat pane first if it's open (only one right pane at a time)
+  if (isDocChatPaneActive) {
+    toggleDocChatPane(true);
+  }
+
   // Open side-by-side view
   isOriginalDocSplitActive = true;
   modalCard.classList.add('split-active');
@@ -12058,6 +12072,193 @@ async function toggleOriginalDocumentViewer() {
   }
 }
 window.toggleOriginalDocumentViewer = toggleOriginalDocumentViewer;
+
+// ==========================================================================
+// CHAT WITH SOURCE (NotebookLM-style grounded document Q&A)
+// Calls the chat-with-document edge function, which re-extracts the exact
+// text of the study card's source document(s) and answers strictly from
+// that text, with inline [1][2] citation markers rendered via the same
+// formatFootnoteMarkers()/showFootnoteToast() helpers already used for
+// study card summaries. Conversation history lives only in this tab's
+// memory (same privacy model as the Acadia widget) and resets whenever a
+// study card modal is freshly opened.
+// ==========================================================================
+
+function initDocChatForm() {
+  const form = document.getElementById('doc-chat-input-form');
+  if (!form || form.dataset.wired) return;
+  form.dataset.wired = 'true';
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const input = document.getElementById('doc-chat-input');
+    if (!input) return;
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    sendDocChatMessage(text);
+  });
+}
+window.initDocChatForm = initDocChatForm;
+
+function resetDocChatState() {
+  docChatHistory = [];
+  docChatHasGreeted = false;
+  isDocChatPaneActive = false;
+  const pane = document.getElementById('study-card-chat-pane');
+  if (pane) pane.style.display = 'none';
+  const messages = document.getElementById('doc-chat-messages');
+  if (messages) messages.innerHTML = '';
+  const toggleBtnLabel = document.getElementById('btn-toggle-chat-label');
+  if (toggleBtnLabel) toggleBtnLabel.textContent = getTranslation('dash.cards.chatWithSource') || '💬 Kaynakla Sohbet Et';
+
+  // Also fully close the original document viewer pane so a fresh modal
+  // open never inherits a stale split-screen layout from a previous card.
+  isOriginalDocSplitActive = false;
+  const originalPane = document.getElementById('original-doc-viewer-pane');
+  if (originalPane) { originalPane.style.display = 'none'; originalPane.innerHTML = ''; }
+  const originalToggleLabel = document.getElementById('btn-toggle-original-label');
+  if (originalToggleLabel) originalToggleLabel.textContent = getTranslation('dash.cards.viewOriginal') || '📄 Orijinali Görüntüle';
+  const modalCard = document.querySelector('.study-card-modal-card');
+  if (modalCard) modalCard.classList.remove('split-active');
+}
+window.resetDocChatState = resetDocChatState;
+
+function renderDocChatMessage(role, text, citations) {
+  const container = document.getElementById('doc-chat-messages');
+  if (!container) return;
+
+  const bubble = document.createElement('div');
+  const isUser = role === 'user';
+  bubble.style.cssText = `
+    max-width: 88%;
+    align-self: ${isUser ? 'flex-end' : 'flex-start'};
+    background: ${isUser ? 'var(--color-teal)' : 'var(--color-bg-alt)'};
+    color: ${isUser ? 'white' : 'var(--color-navy)'};
+    padding: 0.55rem 0.8rem;
+    border-radius: ${isUser ? '14px 14px 2px 14px' : '14px 14px 14px 2px'};
+    font-size: 0.8rem;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+  `;
+
+  if (isUser) {
+    bubble.textContent = text;
+  } else {
+    // Escape first, then apply citation markers — formatFootnoteMarkers only
+    // touches literal "[n]" substrings so this is safe and closes off any
+    // stored-XSS risk from AI-generated answer text.
+    bubble.innerHTML = formatFootnoteMarkers(escapeHtml(text), citations);
+  }
+
+  container.appendChild(bubble);
+  container.scrollTop = container.scrollHeight;
+}
+window.renderDocChatMessage = renderDocChatMessage;
+
+function toggleDocChatPane(forceClose) {
+  const modalCard = document.querySelector('.study-card-modal-card');
+  const chatPane = document.getElementById('study-card-chat-pane');
+  const toggleBtnLabel = document.getElementById('btn-toggle-chat-label');
+  if (!modalCard || !chatPane || !currentActiveStudyCard) return;
+
+  if (forceClose === true || isDocChatPaneActive) {
+    isDocChatPaneActive = false;
+    chatPane.style.display = 'none';
+    if (!isOriginalDocSplitActive) {
+      modalCard.classList.remove('split-active');
+    }
+    if (toggleBtnLabel) toggleBtnLabel.textContent = getTranslation('dash.cards.chatWithSource') || '💬 Kaynakla Sohbet Et';
+    return;
+  }
+
+  // Mutual exclusion: close the original document viewer first if it's open
+  if (isOriginalDocSplitActive) {
+    toggleOriginalDocumentViewer();
+  }
+
+  isDocChatPaneActive = true;
+  modalCard.classList.add('split-active');
+  chatPane.style.display = 'flex';
+  if (toggleBtnLabel) toggleBtnLabel.textContent = getTranslation('dash.cards.closeChatView') || '✕ Sohbeti Kapat';
+
+  if (!docChatHasGreeted) {
+    docChatHasGreeted = true;
+    const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+    const greeting = isTr
+      ? 'Merhaba! Bu belge/belgeler hakkında bana soru sorabilirsiniz. Cevaplarımı yalnızca kaynağın içeriğine dayandırırım — belgede olmayan bir şey sorarsanız size bunu söylerim.'
+      : "Hi! Ask me anything about this document — I'll answer strictly from its content, and I'll tell you honestly if something isn't covered in it.";
+    renderDocChatMessage('assistant', greeting, []);
+  }
+
+  const input = document.getElementById('doc-chat-input');
+  if (input) setTimeout(() => input.focus(), 50);
+}
+window.toggleDocChatPane = toggleDocChatPane;
+
+function clearDocChat() {
+  docChatHistory = [];
+  docChatHasGreeted = false;
+  const messages = document.getElementById('doc-chat-messages');
+  if (messages) messages.innerHTML = '';
+
+  const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+  const greeting = isTr
+    ? 'Merhaba! Bu belge/belgeler hakkında bana soru sorabilirsiniz. Cevaplarımı yalnızca kaynağın içeriğine dayandırırım — belgede olmayan bir şey sorarsanız size bunu söylerim.'
+    : "Hi! Ask me anything about this document — I'll answer strictly from its content, and I'll tell you honestly if something isn't covered in it.";
+  renderDocChatMessage('assistant', greeting, []);
+  docChatHasGreeted = true;
+}
+window.clearDocChat = clearDocChat;
+
+async function sendDocChatMessage(text) {
+  if (docChatRequestInFlight) return;
+  if (!currentActiveStudyCard || !currentActiveStudyCard.id) return;
+
+  const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+  const cardId = currentActiveStudyCard.id;
+
+  renderDocChatMessage('user', text, []);
+  docChatHistory.push({ role: 'user', content: text });
+
+  const sendBtn = document.getElementById('btn-doc-chat-send');
+  const typingIndicator = document.getElementById('doc-chat-typing-indicator');
+  docChatRequestInFlight = true;
+  if (sendBtn) sendBtn.disabled = true;
+  if (typingIndicator) typingIndicator.style.display = 'block';
+
+  try {
+    const { data, error } = await supabaseClient.functions.invoke('chat-with-document', {
+      body: { studyCardId: cardId, messages: docChatHistory }
+    });
+
+    if (error || !data || typeof data.answer !== 'string') {
+      console.error('chat-with-document invocation failed:', error || data);
+      const errMsg = isTr
+        ? 'Şu anda cevap veremiyorum, lütfen tekrar deneyin.'
+        : "I couldn't answer right now, please try again.";
+      renderDocChatMessage('assistant', errMsg, []);
+      docChatHistory.pop(); // drop the failed user turn so a retry doesn't build bad history
+      return;
+    }
+
+    renderDocChatMessage('assistant', data.answer, data.citations || []);
+    docChatHistory.push({ role: 'assistant', content: data.answer });
+  } catch (err) {
+    console.error('Exception in sendDocChatMessage:', err);
+    const errMsg = isTr
+      ? 'Şu anda cevap veremiyorum, lütfen tekrar deneyin.'
+      : "I couldn't answer right now, please try again.";
+    renderDocChatMessage('assistant', errMsg, []);
+    docChatHistory.pop();
+  } finally {
+    docChatRequestInFlight = false;
+    if (sendBtn) sendBtn.disabled = false;
+    if (typingIndicator) typingIndicator.style.display = 'none';
+  }
+}
+window.sendDocChatMessage = sendDocChatMessage;
 
 // ==========================================
 // COURSE-WIDE AUTO-GLOSSARY
