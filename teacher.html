@@ -99,6 +99,12 @@
               <span>Materyal &amp; Duyuru</span>
             </a>
           </li>
+          <li class="sidebar-item" data-teacher-tab="analytics">
+            <a href="#" onclick="switchTeacherTab('analytics'); return false;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+              <span>Analitik</span>
+            </a>
+          </li>
           <li class="sidebar-item" data-teacher-tab="profile">
             <a href="#" onclick="switchTeacherTab('profile'); return false;">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
@@ -117,13 +123,20 @@
       <section id="teacher-students-panel" class="teacher-tab-panel active">
         <div class="dashboard-page-header">
           <h2 class="dashboard-page-title">Öğrenci Performansı</h2>
-          <p class="dashboard-page-subtitle">Bölümünüzdeki öğrencilerin AI sınav sonuçları ve çalışma istatistikleri (salt okunur).</p>
+          <p class="dashboard-page-subtitle">Tüm bölümlerdeki öğrencilerin AI sınav sonuçları ve çalışma istatistikleri (salt okunur).</p>
         </div>
 
         <div class="teacher-stat-grid" id="teacher-students-summary"></div>
 
         <div style="display:flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1rem;">
           <input type="text" id="teacher-student-search" placeholder="İsim veya öğrenci no ile ara..." style="flex:1; min-width: 220px; padding: 0.55rem 0.75rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.85rem;">
+          <select id="teacher-student-filter-dept" style="padding: 0.55rem 0.75rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.85rem; font-family: inherit;">
+            <option value="">Tüm Bölümler</option>
+            <option value="Management Information Systems">Management Information Systems</option>
+            <option value="Business Administration">Business Administration</option>
+            <option value="International Trade and Business">International Trade and Business</option>
+            <option value="Banking and Finance">Banking and Finance</option>
+          </select>
           <button class="teacher-mini-btn" onclick="exportStudentsCsv()">⬇ CSV İndir</button>
         </div>
 
@@ -132,6 +145,7 @@
             <thead>
               <tr>
                 <th>Ad Soyad</th>
+                <th>Bölüm</th>
                 <th>Öğr. No</th>
                 <th style="text-align:right;">Sınav Sayısı</th>
                 <th style="text-align:right;">Ort. Not</th>
@@ -140,7 +154,7 @@
               </tr>
             </thead>
             <tbody id="teacher-students-tbody">
-              <tr><td colspan="6" style="text-align:center; padding: 2rem; color: var(--color-text-muted);">Yükleniyor...</td></tr>
+              <tr><td colspan="7" style="text-align:center; padding: 2rem; color: var(--color-text-muted);">Yükleniyor...</td></tr>
             </tbody>
           </table>
         </div>
@@ -188,6 +202,16 @@
           <div id="teacher-announcement-form" style="display:none; background: var(--color-bg-alt); border-radius: var(--radius-sm); padding: 1rem; margin-bottom: 1rem;">
             <input type="text" id="tann-title" placeholder="Başlık" style="width: 100%; padding: 0.55rem 0.75rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.85rem; margin-bottom: 0.5rem;">
             <textarea id="tann-body" rows="3" placeholder="Duyuru metni" style="width: 100%; padding: 0.55rem 0.75rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.85rem; font-family: inherit; resize: vertical; margin-bottom: 0.75rem;"></textarea>
+            <div style="margin-bottom: 0.75rem;">
+              <label style="display:block; font-size: 0.7rem; font-weight: 700; color: var(--color-text-muted); margin-bottom: 0.2rem;">Hedef Kitle</label>
+              <select id="tann-audience" style="width: 100%; padding: 0.5rem 0.65rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.85rem; font-family: inherit;">
+                <option value="">Tüm Bölümler</option>
+                <option value="Management Information Systems">Management Information Systems</option>
+                <option value="Business Administration">Business Administration</option>
+                <option value="International Trade and Business">International Trade and Business</option>
+                <option value="Banking and Finance">Banking and Finance</option>
+              </select>
+            </div>
             <div style="display:flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.75rem;">
               <div>
                 <label style="display:block; font-size: 0.7rem; font-weight: 700; color: var(--color-text-muted); margin-bottom: 0.2rem;">Başlangıç (isteğe bağlı)</label>
@@ -228,6 +252,17 @@
           <div id="teacher-materials-list" style="display:flex; flex-direction: column; gap: 0.75rem;">
             <div style="text-align:center; padding: 1.5rem; color: var(--color-text-muted);">Yükleniyor...</div>
           </div>
+        </div>
+      </section>
+
+      <!-- ANALYTICS -->
+      <section id="teacher-analytics-panel" class="teacher-tab-panel">
+        <div class="dashboard-page-header">
+          <h2 class="dashboard-page-title">Analitik</h2>
+          <p class="dashboard-page-subtitle">Okul genelinde en çok özetlenen dersler, en zayıf konular ve bölüm bazlı aktiflik (get_teacher_report() üzerinden).</p>
+        </div>
+        <div id="teacher-analytics-content">
+          <div style="text-align:center; padding: 2rem; color: var(--color-text-muted);">Yükleniyor...</div>
         </div>
       </section>
 

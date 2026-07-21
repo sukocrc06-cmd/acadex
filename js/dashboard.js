@@ -7355,28 +7355,126 @@ async function loadRecentActivity() {
 
 // ==========================================
 // NOTIFICATION SYSTEM CONTROLLERS (PHASE 11)
+//
+// Consolidates every "something happened since you last checked" signal
+// into one feed: new shared study cards from your department, announcements
+// (school-wide or your department), newly unlocked achievements, and exams
+// your hoca has left review feedback on. Each source is fetched
+// independently and fails soft — if one table/column isn't there yet (e.g.
+// a pending migration hasn't been run), that source is just skipped instead
+// of breaking the whole bell.
 // ==========================================
-async function checkNotifications() {
-  if (!currentUserProfile) return;
-  const lastCheck = currentUserProfile.last_notification_check || new Date(0).toISOString();
-  
+async function gatherNotificationItems(lastCheck) {
+  const items = [];
+
+  // 1. New shared study cards in your department
   try {
     const { data: cards, error } = await supabaseClient
       .from('study_cards')
-      .select('id')
+      .select('*, documents(file_name)')
       .eq('department', currentUserProfile.department)
       .eq('is_shared', true)
       .neq('user_id', currentUser.id)
-      .gt('shared_at', lastCheck);
-
-    const badge = document.getElementById('notification-badge');
-    if (badge) {
-      if (!error && cards && cards.length > 0) {
-        badge.style.display = 'block';
-      } else {
-        badge.style.display = 'none';
-      }
+      .gt('shared_at', lastCheck)
+      .order('shared_at', { ascending: false });
+    if (!error && cards) {
+      cards.forEach(c => {
+        const docName = escapeHtml(c.documents?.file_name || 'study card');
+        items.push({
+          time: c.shared_at,
+          title: 'New Study Card Shared',
+          subtitle: `A classmate shared a study card for: ${docName}`,
+          onClick: () => switchDashboardView('feed')
+        });
+      });
     }
+  } catch (err) {
+    console.error('gatherNotificationItems (shared cards) error:', err);
+  }
+
+  // 2. Announcements — school-wide (audience_department null) or yours
+  try {
+    const { data: anns, error } = await supabaseClient
+      .from('announcements')
+      .select('*')
+      .eq('active', true)
+      .gt('created_at', lastCheck)
+      .order('created_at', { ascending: false });
+    if (!error && anns) {
+      anns
+        .filter(a => !a.audience_department || a.audience_department === currentUserProfile.department)
+        .forEach(a => {
+          items.push({
+            time: a.created_at,
+            title: `📢 ${escapeHtml(a.title)}`,
+            subtitle: escapeHtml(a.body),
+            onClick: () => switchDashboardView('home')
+          });
+        });
+    }
+  } catch (err) {
+    console.error('gatherNotificationItems (announcements) error:', err);
+  }
+
+  // 3. Newly unlocked achievements
+  try {
+    const { data: earned, error } = await supabaseClient
+      .from('user_achievements')
+      .select('achievement_id, created_at')
+      .eq('user_id', currentUser.id)
+      .gt('created_at', lastCheck)
+      .order('created_at', { ascending: false });
+    if (!error && earned) {
+      earned.forEach(e => {
+        const meta = (window.ACHIEVEMENTS_LOOKUP || {})[e.achievement_id];
+        items.push({
+          time: e.created_at,
+          title: `${meta?.icon || '🏆'} Achievement Unlocked: ${meta?.title || e.achievement_id}`,
+          subtitle: meta?.desc || '',
+          onClick: () => switchDashboardView('home')
+        });
+      });
+    }
+  } catch (err) {
+    console.error('gatherNotificationItems (achievements) error:', err);
+  }
+
+  // 4. Exams your hoca has left feedback on
+  try {
+    const { data: reviewed, error } = await supabaseClient
+      .from('exams')
+      .select('id, teacher_note, teacher_reviewed_at, study_cards(documents(file_name))')
+      .eq('user_id', currentUser.id)
+      .eq('teacher_reviewed', true)
+      .gt('teacher_reviewed_at', lastCheck)
+      .order('teacher_reviewed_at', { ascending: false });
+    if (!error && reviewed) {
+      reviewed.forEach(e => {
+        const topic = escapeHtml(e.study_cards?.documents?.file_name || 'a recent exam');
+        items.push({
+          time: e.teacher_reviewed_at,
+          title: '📝 Your Hoca Reviewed Your Exam',
+          subtitle: e.teacher_note ? `"${escapeHtml(e.teacher_note)}" — ${topic}` : `Feedback added on: ${topic}`,
+          onClick: () => switchDashboardView('exams')
+        });
+      });
+    }
+  } catch (err) {
+    console.error('gatherNotificationItems (exam reviews) error:', err);
+  }
+
+  items.sort((a, b) => new Date(b.time) - new Date(a.time));
+  return items;
+}
+
+async function checkNotifications() {
+  if (!currentUserProfile) return;
+  const lastCheck = currentUserProfile.last_notification_check || new Date(0).toISOString();
+
+  try {
+    const items = await gatherNotificationItems(lastCheck);
+    const badge = document.getElementById('notification-badge');
+    if (badge) badge.style.display = items.length > 0 ? 'block' : 'none';
   } catch (err) {
     console.error("Error checking notifications:", err);
   }
@@ -7389,7 +7487,7 @@ async function toggleNotificationsDropdown() {
 
   if (dropdown.style.display === 'none') {
     dropdown.style.display = 'flex';
-    
+
     const list = document.getElementById('notification-list');
     if (list) {
       list.innerHTML = `
@@ -7399,32 +7497,19 @@ async function toggleNotificationsDropdown() {
           </svg>
         </div>
       `;
-      
+
       const lastCheck = currentUserProfile.last_notification_check || new Date(0).toISOString();
-      
+
       try {
-        const { data: cards, error } = await supabaseClient
-          .from('study_cards')
-          .select('*, documents(file_name)')
-          .eq('department', currentUserProfile.department)
-          .eq('is_shared', true)
-          .neq('user_id', currentUser.id)
-          .gt('shared_at', lastCheck)
-          .order('shared_at', { ascending: false });
+        const items = await gatherNotificationItems(lastCheck);
 
-        if (error) {
-          list.innerHTML = `<p style="font-size: 0.75rem; color: var(--color-text-muted); text-align: center; padding: 0.5rem;">Failed to load alerts.</p>`;
-          return;
-        }
-
-        if (!cards || cards.length === 0) {
+        if (items.length === 0) {
           list.innerHTML = `<p style="font-size: 0.75rem; color: var(--color-text-muted); text-align: center; padding: 0.5rem; font-weight: 600;">You're all caught up! / Catch up! Yeni bildiriminiz yok.</p>`;
         } else {
           list.innerHTML = '';
-          cards.forEach(c => {
-            const docName = c.documents?.file_name || 'study card';
-            const friendlyTime = new Date(c.shared_at).toLocaleDateString('tr-TR', { month: 'short', day: 'numeric' });
-            
+          items.forEach(n => {
+            const friendlyTime = new Date(n.time).toLocaleDateString('tr-TR', { month: 'short', day: 'numeric' });
+
             const item = document.createElement('a');
             item.href = '#';
             item.style.display = 'block';
@@ -7436,21 +7521,21 @@ async function toggleNotificationsDropdown() {
             item.style.color = 'var(--color-navy)';
             item.style.border = '1px solid rgba(22, 50, 92, 0.05)';
             item.style.transition = 'background-color 0.2s';
-            
+
             item.innerHTML = `
               <div style="font-weight: 700; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.15rem;">
-                <span>New Study Card Shared</span>
+                <span>${n.title}</span>
                 <span style="font-weight: 500; font-size: 0.65rem; color: var(--color-text-muted);">${friendlyTime}</span>
               </div>
-              <p style="margin: 0; color: var(--color-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">A classmate shared a study card for: ${docName}</p>
+              <p style="margin: 0; color: var(--color-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${n.subtitle || ''}</p>
             `;
-            
+
             item.onclick = (e) => {
               e.preventDefault();
               dropdown.style.display = 'none';
-              switchDashboardView('feed');
+              if (typeof n.onClick === 'function') n.onClick();
             };
-            
+
             list.appendChild(item);
           });
         }

@@ -2,7 +2,12 @@
    ACADEX ACADEMIC (HOCA) PANEL (js/teacher.js)
    Standalone teacher page. Waits for the route guard in teacher.html to
    confirm the current user is a teacher (or admin previewing), then wires
-   up the three tabs, all scoped to the teacher's own department via RLS.
+   up the tabs. Every teacher now has open, school-wide visibility into all
+   departments' students, documents, study cards, and exams (RLS was
+   broadened in 20260721c_teacher_open_access_and_analytics.sql) — nothing
+   here is scoped to the teacher's own department anymore except what they
+   themselves post (materials) and their own home-department label on the
+   Profile tab.
    ========================================================================== */
 
 let teacherProfile = null;
@@ -14,7 +19,7 @@ document.addEventListener('acadex-teacher-ready', () => {
   const nameEl = document.getElementById('teacher-topbar-name');
   const deptEl = document.getElementById('teacher-topbar-dept');
   if (nameEl) nameEl.textContent = teacherProfile.full_name || 'Hoca';
-  if (deptEl) deptEl.textContent = teacherProfile.department || '';
+  if (deptEl) deptEl.textContent = 'Tüm Bölümlere Yetkili';
 
   wireLogout();
   loadStudentPerformance();
@@ -68,6 +73,7 @@ function switchTeacherTab(tabId) {
   if (tabId === 'students') loadStudentPerformance();
   if (tabId === 'exams') loadExamReview();
   if (tabId === 'materials') { loadTeacherAnnouncements(); loadTeacherMaterials(); }
+  if (tabId === 'analytics') loadTeacherAnalytics();
   if (tabId === 'profile') renderTeacherProfile();
 }
 window.switchTeacherTab = switchTeacherTab;
@@ -161,7 +167,7 @@ async function saveTeacherTitle() {
 window.saveTeacherTitle = saveTeacherTitle;
 
 // ==========================================
-// STUDENT PERFORMANCE (read-only)
+// STUDENT PERFORMANCE (read-only, all departments)
 // ==========================================
 async function loadStudentPerformance() {
   const tbody = document.getElementById('teacher-students-tbody');
@@ -171,7 +177,6 @@ async function loadStudentPerformance() {
     const { data: students, error: studentsError } = await supabaseClient
       .from('profiles')
       .select('*')
-      .eq('department', teacherProfile.department)
       .eq('is_admin', false)
       .eq('is_teacher', false)
       .order('full_name', { ascending: true });
@@ -180,7 +185,7 @@ async function loadStudentPerformance() {
     deptStudents = students || [];
 
     if (deptStudents.length === 0) {
-      if (tbody) tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 2rem; color: var(--color-text-muted);">Bölümünüzde kayıtlı öğrenci bulunamadı.</td></tr>`;
+      if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 2rem; color: var(--color-text-muted);">Kayıtlı öğrenci bulunamadı.</td></tr>`;
       if (summary) summary.innerHTML = '';
       return;
     }
@@ -207,9 +212,9 @@ async function loadStudentPerformance() {
 
     if (summary) {
       summary.innerHTML = `
-        <div class="teacher-stat-card"><div style="font-size:1.5rem; font-weight:800; color: var(--color-navy);">${deptStudents.length}</div><div style="font-size:0.8rem; color: var(--color-text-muted); font-weight:600;">Öğrenci</div></div>
+        <div class="teacher-stat-card"><div style="font-size:1.5rem; font-weight:800; color: var(--color-navy);">${deptStudents.length}</div><div style="font-size:0.8rem; color: var(--color-text-muted); font-weight:600;">Öğrenci (Tüm Bölümler)</div></div>
         <div class="teacher-stat-card"><div style="font-size:1.5rem; font-weight:800; color: var(--color-navy);">${totalExams}</div><div style="font-size:0.8rem; color: var(--color-text-muted); font-weight:600;">Tamamlanan Sınav</div></div>
-        <div class="teacher-stat-card"><div style="font-size:1.5rem; font-weight:800; color: var(--color-navy);">${avgGrade}${avgGrade !== '—' ? '%' : ''}</div><div style="font-size:0.8rem; color: var(--color-text-muted); font-weight:600;">Bölüm Ortalaması</div></div>
+        <div class="teacher-stat-card"><div style="font-size:1.5rem; font-weight:800; color: var(--color-navy);">${avgGrade}${avgGrade !== '—' ? '%' : ''}</div><div style="font-size:0.8rem; color: var(--color-text-muted); font-weight:600;">Genel Ortalama</div></div>
       `;
     }
 
@@ -220,9 +225,14 @@ async function loadStudentPerformance() {
       searchInput.dataset.wired = 'true';
       searchInput.addEventListener('input', renderStudentsTable);
     }
+    const deptFilter = document.getElementById('teacher-student-filter-dept');
+    if (deptFilter && !deptFilter.dataset.wired) {
+      deptFilter.dataset.wired = 'true';
+      deptFilter.addEventListener('change', renderStudentsTable);
+    }
   } catch (err) {
     console.error('loadStudentPerformance error:', err);
-    if (tbody) tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 2rem; color: #DC2626;">Öğrenci verileri yüklenemedi.</td></tr>`;
+    if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 2rem; color: #DC2626;">Öğrenci verileri yüklenemedi.</td></tr>`;
   }
 }
 
@@ -233,13 +243,15 @@ function renderStudentsTable() {
   if (!tbody) return;
 
   const search = (document.getElementById('teacher-student-search')?.value || '').trim().toLowerCase();
+  const deptFilterVal = document.getElementById('teacher-student-filter-dept')?.value || '';
   const rows = deptStudents.filter(s => {
+    if (deptFilterVal && s.department !== deptFilterVal) return false;
     if (!search) return true;
     return `${s.full_name || ''} ${s.student_number || ''}`.toLowerCase().includes(search);
   });
 
   if (rows.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 2rem; color: var(--color-text-muted);">Eşleşen öğrenci yok.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 2rem; color: var(--color-text-muted);">Eşleşen öğrenci yok.</td></tr>`;
     return;
   }
 
@@ -250,6 +262,7 @@ function renderStudentsTable() {
     return `
       <tr>
         <td><a href="#" onclick="openStudentDetailModal('${s.id}'); return false;" style="color: var(--color-teal); font-weight: 700; text-decoration: underline;">${escapeHtml(s.full_name || '—')}</a></td>
+        <td>${escapeHtml(s.department || '—')}</td>
         <td>${escapeHtml(s.student_number || '—')}</td>
         <td style="text-align:right;">${studentExams.length}</td>
         <td style="text-align:right;">${avg}</td>
@@ -266,17 +279,20 @@ function exportStudentsCsv() {
     return;
   }
 
-  const headers = ['Ad Soyad', 'Öğrenci No', 'Sınav Sayısı', 'Ort. Not (%)', 'Seri (gün)', 'Son Aktivite'];
+  const headers = ['Ad Soyad', 'Bölüm', 'Öğrenci No', 'Sınav Sayısı', 'Ort. Not (%)', 'Seri (gün)', 'Son Aktivite'];
   const csvEscape = (val) => {
     const str = (val === null || val === undefined) ? '' : String(val);
     return `"${str.replace(/"/g, '""')}"`;
   };
 
-  const rows = deptStudents.map(s => {
+  const deptFilterVal = document.getElementById('teacher-student-filter-dept')?.value || '';
+  const source = deptFilterVal ? deptStudents.filter(s => s.department === deptFilterVal) : deptStudents;
+
+  const rows = source.map(s => {
     const studentExams = deptExamsByStudent[s.id] || [];
     const grades = studentExams.map(e => e.grade).filter(g => typeof g === 'number');
     const avg = grades.length > 0 ? (grades.reduce((a, b) => a + b, 0) / grades.length).toFixed(1) : '';
-    return [s.full_name, s.student_number, studentExams.length, avg, s.current_streak ?? 0, s.last_active_date || '']
+    return [s.full_name, s.department, s.student_number, studentExams.length, avg, s.current_streak ?? 0, s.last_active_date || '']
       .map(csvEscape).join(',');
   });
 
@@ -285,7 +301,7 @@ function exportStudentsCsv() {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `${(teacherProfile.department || 'bolum')}-ogrenciler-${new Date().toISOString().slice(0, 10)}.csv`;
+  link.download = `${(deptFilterVal || 'tum-bolumler')}-ogrenciler-${new Date().toISOString().slice(0, 10)}.csv`;
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -464,10 +480,16 @@ async function toggleExamReviewed(examId, reviewed) {
 window.toggleExamReviewed = toggleExamReviewed;
 
 // ==========================================
-// ANNOUNCEMENTS (scoped to own department only)
+// ANNOUNCEMENTS (a teacher can now target any department, or all of them)
 // ==========================================
 function openTeacherAnnouncementForm() {
   document.getElementById('teacher-announcement-form').style.display = 'block';
+  // Default to the teacher's own home department for convenience — they can
+  // still change it to "Tüm Bölümler" or any other department before posting.
+  const audienceSelect = document.getElementById('tann-audience');
+  if (audienceSelect && teacherProfile?.department) {
+    audienceSelect.value = teacherProfile.department;
+  }
 }
 window.openTeacherAnnouncementForm = openTeacherAnnouncementForm;
 
@@ -475,6 +497,7 @@ function closeTeacherAnnouncementForm() {
   document.getElementById('teacher-announcement-form').style.display = 'none';
   document.getElementById('tann-title').value = '';
   document.getElementById('tann-body').value = '';
+  document.getElementById('tann-audience').value = '';
   document.getElementById('tann-starts-at').value = '';
   document.getElementById('tann-ends-at').value = '';
 }
@@ -483,6 +506,7 @@ window.closeTeacherAnnouncementForm = closeTeacherAnnouncementForm;
 async function submitTeacherAnnouncement() {
   const title = document.getElementById('tann-title').value.trim();
   const body = document.getElementById('tann-body').value.trim();
+  const audience = document.getElementById('tann-audience').value || null;
   const startsAtRaw = document.getElementById('tann-starts-at').value;
   const endsAtRaw = document.getElementById('tann-ends-at').value;
 
@@ -497,7 +521,7 @@ async function submitTeacherAnnouncement() {
   try {
     const { error } = await supabaseClient.from('announcements').insert({
       title, body,
-      audience_department: teacherProfile.department,
+      audience_department: audience,
       created_by: teacherProfile.id,
       created_by_role: 'teacher',
       starts_at: startsAtRaw ? new Date(startsAtRaw).toISOString() : null,
@@ -536,6 +560,7 @@ async function loadTeacherAnnouncements() {
           <strong style="color: var(--color-navy); font-size: 0.9rem;">${escapeHtml(a.title)}</strong>
           <span style="font-size: 0.7rem; color: var(--color-text-muted);">${new Date(a.created_at).toLocaleDateString()}</span>
         </div>
+        <span style="display:inline-block; margin-top: 0.35rem; font-size: 0.68rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 20px; background: rgba(31,138,147,0.1); color: var(--color-teal);">🎯 ${escapeHtml(a.audience_department || 'Tüm Bölümler')}</span>
         <p style="font-size: 0.8rem; color: var(--color-text); margin-top: 0.35rem;">${escapeHtml(a.body)}</p>
         ${(a.starts_at || a.ends_at) ? `<p style="font-size: 0.7rem; color: var(--color-text-muted); margin-top: 0.3rem;">🕓 ${a.starts_at ? new Date(a.starts_at).toLocaleString() : 'şimdi'} → ${a.ends_at ? new Date(a.ends_at).toLocaleString() : 'süresiz'}</p>` : ''}
         <div style="margin-top: 0.5rem; display:flex; gap: 0.5rem;">
@@ -655,3 +680,95 @@ async function deleteTeacherMaterial(id) {
   }
 }
 window.deleteTeacherMaterial = deleteTeacherMaterial;
+
+// ==========================================
+// ANALYTICS (school-wide — reuses the get_teacher_report() RPC added in
+// 20260721c_teacher_open_access_and_analytics.sql; mirrors the shape of
+// admin.js's get_admin_report() consumer, minus anything admin-only like
+// contact-message counts)
+// ==========================================
+async function loadTeacherAnalytics() {
+  const container = document.getElementById('teacher-analytics-content');
+  if (!container) return;
+  container.innerHTML = `<div style="text-align:center; padding: 2rem; color: var(--color-text-muted);">Yükleniyor...</div>`;
+
+  try {
+    const { data, error } = await supabaseClient.rpc('get_teacher_report');
+    if (error) throw error;
+    const r = data || {};
+
+    const statCard = (label, value, icon, color) => `
+      <div class="teacher-stat-card" style="display:flex; align-items:center; gap:1rem;">
+        <div style="width: 44px; height: 44px; border-radius: var(--radius-sm); background-color: ${color}22; display: flex; align-items: center; justify-content: center; font-size: 1.35rem; flex-shrink: 0;">${icon}</div>
+        <div>
+          <div style="font-size: 1.5rem; font-weight: 800; color: var(--color-navy);">${value ?? '—'}</div>
+          <div style="font-size: 0.78rem; color: var(--color-text-muted); font-weight: 600; margin-top: 0.1rem;">${label}</div>
+        </div>
+      </div>
+    `;
+
+    container.innerHTML = `
+      <div class="teacher-stat-grid">
+        ${statCard('Öğrenci', r.total_students, '👥', '#0D9488')}
+        ${statCard('Belge', r.total_documents, '📄', '#7C3AED')}
+        ${statCard('Bilgi Kartı', r.total_study_cards, '🃏', '#D97706')}
+        ${statCard('Girilen Sınav', r.total_exams_taken, '📝', '#DC2626')}
+        ${statCard('Ort. Sınav Skoru', r.avg_exam_score != null ? r.avg_exam_score + '%' : '—', '⭐', '#059669')}
+        ${statCard('Paylaşılan Kart', r.total_shared_cards, '🌐', '#0EA5E9')}
+      </div>
+
+      ${r.top_departments && r.top_departments.length > 0 ? `
+        <div class="teacher-panel-card" style="margin-bottom: 1rem;">
+          <h3 style="font-size: 1rem; font-weight: 800; color: var(--color-navy); margin-bottom: 1rem;">📊 Bölüm Bazlı Aktiflik</h3>
+          <table class="teacher-table">
+            <thead><tr><th>Bölüm</th><th style="text-align:right;">Öğrenci</th><th style="text-align:right;">Belge</th><th style="text-align:right;">Kart</th></tr></thead>
+            <tbody>
+              ${r.top_departments.map(d => `
+                <tr>
+                  <td>${escapeHtml(d.department || '—')}</td>
+                  <td style="text-align:right;">${d.student_count ?? 0}</td>
+                  <td style="text-align:right;">${d.document_count ?? 0}</td>
+                  <td style="text-align:right;">${d.card_count ?? 0}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      ` : ''}
+
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+        ${r.top_courses && r.top_courses.length > 0 ? `
+          <div class="teacher-panel-card">
+            <h3 style="font-size: 1rem; font-weight: 800; color: var(--color-navy); margin-bottom: 1rem;">🔥 En Çok Özetlenen Dersler</h3>
+            <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.5rem;">
+              ${r.top_courses.map(c => `
+                <li style="font-size: 0.85rem; color: var(--color-navy); display: flex; justify-content: space-between; border-bottom: 1px solid rgba(22,50,92,0.05); padding-bottom: 0.4rem;">
+                  <span>${escapeHtml(c.course_tag || '—')}</span>
+                  <span style="color: var(--color-text-muted); font-size: 0.78rem;">${c.card_count ?? 0} kart</span>
+                </li>
+              `).join('')}
+            </ul>
+          </div>
+        ` : ''}
+
+        ${r.weakest_topics && r.weakest_topics.length > 0 ? `
+          <div class="teacher-panel-card">
+            <h3 style="font-size: 1rem; font-weight: 800; color: var(--color-navy); margin-bottom: 1rem;">⚠️ En Zayıf Konular (Ort. Sınav Skoru)</h3>
+            <p style="font-size: 0.72rem; color: var(--color-text-muted); margin-top: -0.5rem; margin-bottom: 0.75rem;">En az 3 sınav girilmiş konular arasından, ortalaması en düşük olanlar.</p>
+            <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.5rem;">
+              ${r.weakest_topics.map(t => `
+                <li style="font-size: 0.85rem; color: var(--color-navy); display: flex; justify-content: space-between; border-bottom: 1px solid rgba(22,50,92,0.05); padding-bottom: 0.4rem;">
+                  <span>${escapeHtml(t.course_tag || '—')}</span>
+                  <span style="color: #DC2626; font-weight: 700; font-size: 0.78rem;">${t.avg_grade ?? '—'}% <span style="color: var(--color-text-muted); font-weight: 500;">(${t.exam_count ?? 0} sınav)</span></span>
+                </li>
+              `).join('')}
+            </ul>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  } catch (err) {
+    console.error('loadTeacherAnalytics error:', err);
+    container.innerHTML = `<p style="color: #DC2626;">Rapor yüklenemedi. get_teacher_report() fonksiyonunun projenizde tanımlı olduğundan emin olun (20260721c migration'ını çalıştırdınız mı?).</p>`;
+  }
+}
