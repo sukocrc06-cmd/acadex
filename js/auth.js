@@ -39,6 +39,56 @@ async function getPostLoginDestination(userId) {
   }
 }
 
+// ==========================================
+// Student / Academic login mode tabs
+//
+// Purely a presentation-layer toggle: it changes the title, subtitle, and
+// email placeholder shown above the (single, shared) login form. It never
+// gates access — real routing after login is still 100% decided server-side
+// by getPostLoginDestination() via profiles.is_admin / is_teacher. Selecting
+// a tab just sets expectations and lets initLoginForm() show a friendly
+// heads-up if the account turns out to be the other type.
+// ==========================================
+window.selectedLoginMode = 'student';
+
+function switchLoginMode(mode) {
+  const isAcademic = mode === 'academic';
+  window.selectedLoginMode = isAcademic ? 'academic' : 'student';
+
+  const studentTab = document.getElementById('tab-student');
+  const academicTab = document.getElementById('tab-academic');
+  const titleEl = document.getElementById('auth-title-text');
+  const subtitleEl = document.getElementById('auth-subtitle-text');
+  const emailInput = document.getElementById('email');
+
+  if (studentTab) {
+    studentTab.classList.toggle('active', !isAcademic);
+    studentTab.setAttribute('aria-selected', String(!isAcademic));
+  }
+  if (academicTab) {
+    academicTab.classList.toggle('active', isAcademic);
+    academicTab.setAttribute('aria-selected', String(isAcademic));
+  }
+
+  if (titleEl) {
+    const titleKey = isAcademic ? 'login.mode.academicTitle' : 'login.title';
+    titleEl.textContent = getMsg(titleKey, isAcademic ? 'Faculty & Staff Login' : 'Welcome Back to Acadex');
+    // Keep data-i18n pointed at the right key so a language switch later
+    // (via the header dropdown) re-translates into the tab that's active,
+    // instead of applyLanguage() silently reverting it to the student copy.
+    titleEl.setAttribute('data-i18n', titleKey);
+  }
+  if (subtitleEl) {
+    const subtitleKey = isAcademic ? 'login.mode.academicSubtitle' : 'login.subtitle';
+    subtitleEl.textContent = getMsg(subtitleKey, isAcademic ? 'Access your teaching materials and admin tools.' : 'Log in to access your study portal, documents, and flashcards.');
+    subtitleEl.setAttribute('data-i18n', subtitleKey);
+  }
+  if (emailInput) {
+    emailInput.placeholder = isAcademic ? 'hoca@university.edu.tr' : 'student@faculty.edu';
+  }
+}
+window.switchLoginMode = switchLoginMode;
+
 document.addEventListener('DOMContentLoaded', async () => {
   const path = window.location.pathname;
   const isLoginPage = path.includes('login.html');
@@ -65,6 +115,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 2. Initialize Forms based on current page
   // ==========================================
   if (isLoginPage) {
+    // Allow a deep link like login.html?mode=academic to preselect the
+    // academic tab (e.g. from a "Hocalar için giriş" link elsewhere).
+    const modeParam = new URLSearchParams(window.location.search).get('mode');
+    if (modeParam === 'academic') switchLoginMode('academic');
+
     initLoginForm();
     initForgotForm();
   } else if (isRegisterPage) {
@@ -414,7 +469,21 @@ function initLoginForm() {
           }
         }
 
-        showFormAlert(form, 'success', getMsg('validation.loginSuccess', 'Login successful! Accessing portal...'));
+        // The tab the user picked is purely cosmetic — the real destination
+        // above is always decided by their actual profile flags. If the two
+        // disagree (e.g. a student clicked "Akademisyen Girişi"), let them
+        // know why they're landing somewhere other than the tab they chose,
+        // instead of silently redirecting them somewhere unexpected.
+        const pickedMode = window.selectedLoginMode || 'student';
+        const isAcademicDestination = destination === 'admin.html' || destination === 'teacher.html';
+        let successMsg = getMsg('validation.loginSuccess', 'Login successful! Accessing portal...');
+        if (pickedMode === 'academic' && !isAcademicDestination) {
+          successMsg = getMsg('login.mode.redirectToStudent', 'This account is a student account — redirecting you to your student dashboard...');
+        } else if (pickedMode === 'student' && isAcademicDestination) {
+          successMsg = getMsg('login.mode.redirectToAcademic', 'This account has faculty access — redirecting you to your panel...');
+        }
+
+        showFormAlert(form, 'success', successMsg);
         setTimeout(() => {
           window.location.href = destination;
         }, 1200);

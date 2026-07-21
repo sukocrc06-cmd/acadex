@@ -1293,6 +1293,57 @@ button, input {
   text-align: center;
 }
 
+/* ==========================================
+   LOGIN MODE TABS (Student / Academic)
+   ========================================== */
+.login-mode-tabs {
+  display: flex;
+  gap: 0.35rem;
+  background-color: var(--color-bg-alt);
+  padding: 0.35rem;
+  border-radius: var(--radius-sm);
+  margin-bottom: 1.75rem;
+}
+
+.login-mode-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.65rem 0.5rem;
+  border: none;
+  background: transparent;
+  border-radius: calc(var(--radius-sm) - 2px);
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.login-mode-tab:hover {
+  color: var(--color-navy);
+}
+
+.login-mode-tab.active {
+  background-color: var(--color-white);
+  color: var(--color-navy);
+  box-shadow: var(--shadow-md);
+}
+
+.login-mode-icon {
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+@media (max-width: 400px) {
+  .login-mode-tab span:not(.login-mode-icon) {
+    font-size: 0.75rem;
+  }
+}
+
 .form-group {
   margin-bottom: 1.25rem;
   display: flex;

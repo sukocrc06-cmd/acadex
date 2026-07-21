@@ -62,14 +62,27 @@
       
       <!-- Login View -->
       <div id="login-view">
-        <h1 class="auth-title" data-i18n="login.title">Log In</h1>
-        <p class="auth-subtitle" data-i18n="login.subtitle">Access the Acadex Smart Portal</p>
-        
+
+        <!-- Student / Academic Login Mode Tabs -->
+        <div class="login-mode-tabs" role="tablist" aria-label="Login type">
+          <button type="button" class="login-mode-tab active" id="tab-student" role="tab" aria-selected="true" onclick="switchLoginMode('student')">
+            <span class="login-mode-icon" aria-hidden="true">🎓</span>
+            <span data-i18n="login.mode.student">Student Login</span>
+          </button>
+          <button type="button" class="login-mode-tab" id="tab-academic" role="tab" aria-selected="false" onclick="switchLoginMode('academic')">
+            <span class="login-mode-icon" aria-hidden="true">👩‍🏫</span>
+            <span data-i18n="login.mode.academic">Academic Login</span>
+          </button>
+        </div>
+
+        <h1 class="auth-title" id="auth-title-text" data-i18n="login.title">Log In</h1>
+        <p class="auth-subtitle" id="auth-subtitle-text" data-i18n="login.subtitle">Access the Acadex Smart Portal</p>
+
         <form id="login-form" novalidate>
-          
+
           <!-- Email -->
           <div class="form-group">
-            <label for="email" class="form-label" data-i18n="login.label.email">Institutional Email</label>
+            <label for="email" class="form-label" id="email-label" data-i18n="login.label.email">Institutional Email</label>
             <input type="email" id="email" class="form-control" placeholder="student@faculty.edu" required autocomplete="username email" autofocus>
           </div>
   

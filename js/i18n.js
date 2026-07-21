@@ -55,6 +55,12 @@ const TRANSLATIONS = {
     "login.forgotPassword": "Forgot your password?",
     "login.noAccount": "Don't have an account yet?",
     "login.registerLink": "Create an account",
+    "login.mode.student": "Student Login",
+    "login.mode.academic": "Academic Login",
+    "login.mode.academicTitle": "Faculty & Staff Login",
+    "login.mode.academicSubtitle": "Access your teaching materials and admin tools.",
+    "login.mode.redirectToStudent": "This account is a student account — redirecting you to your student dashboard...",
+    "login.mode.redirectToAcademic": "This account has faculty access — redirecting you to your panel...",
 
     // Register Page (register.html)
     "register.title": "Join Acadex Portal",
@@ -376,6 +382,12 @@ const TRANSLATIONS = {
     "login.forgotPassword": "Şifrenizi mi unuttunuz?",
     "login.noAccount": "Henüz bir hesabınız yok mu?",
     "login.registerLink": "Hesap oluşturun",
+    "login.mode.student": "Öğrenci Girişi",
+    "login.mode.academic": "Akademisyen Girişi",
+    "login.mode.academicTitle": "Akademisyen & Personel Girişi",
+    "login.mode.academicSubtitle": "Ders materyallerinize ve yönetim panelinize erişin.",
+    "login.mode.redirectToStudent": "Bu bir öğrenci hesabı — öğrenci panelinize yönlendiriliyorsunuz...",
+    "login.mode.redirectToAcademic": "Bu hesabın akademisyen erişimi var — panelinize yönlendiriliyorsunuz...",
 
     // Register Page (register.html)
     "register.title": "Acadex Portalına Katılın",
