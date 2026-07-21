@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="description" content="Acadex Ders Ağacı — bölümünüzün resmi müfredatını sınıf sınıf gezin, hangi derste özet olduğunu görün.">
+  <title>Ders Ağacı — Acadex</title>
+
+  <link rel="icon" type="image/png" href="assets/logo.png">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="css/style.css">
+
+  <!-- Supabase CDN & Config (Route Guard) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="js/supabase-config.js"></script>
+  <script>
+    // Route guard: must be logged in. Any student/teacher/admin can browse the catalog.
+    (async function checkSession() {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+          window.location.replace('login.html');
+          return;
+        }
+        const { data: profile, error } = await supabaseClient
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+
+        if (error || !profile) {
+          window.location.replace('login.html');
+          return;
+        }
+        window.__acadexProfile = profile;
+        document.dispatchEvent(new CustomEvent('acadex-course-tree-ready'));
+      } catch (e) {
+        console.error('Ders Ağacı auth guard error', e);
+        window.location.replace('login.html');
+      }
+    })();
+  </script>
+  <style>
+    .ct-tab-panel { display: none; }
+    .ct-tab-panel.active { display: block; }
+    .ct-panel-card { background: var(--color-white); border: 1px solid rgba(22,50,92,0.1); border-radius: var(--radius-md); padding: 1.5rem; box-shadow: var(--shadow-sm); }
+    .ct-year-header {
+      display: flex; align-items: center; justify-content: space-between; cursor: pointer;
+      padding: 0.85rem 1rem; background: var(--color-bg-alt); border-radius: var(--radius-sm);
+      font-weight: 800; color: var(--color-navy); font-size: 0.95rem; margin-bottom: 0.5rem; user-select: none;
+    }
+    .ct-year-header .ct-chevron { transition: transform 0.2s; }
+    .ct-year-header.collapsed .ct-chevron { transform: rotate(-90deg); }
+    .ct-year-body { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.25rem; }
+    .ct-year-body.collapsed { display: none; }
+    .ct-course-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+      padding: 0.65rem 0.9rem; border: 1px solid rgba(22,50,92,0.08); border-radius: var(--radius-sm);
+      background: var(--color-white);
+    }
+    .ct-course-code { font-weight: 700; color: var(--color-navy); font-size: 0.8rem; min-width: 68px; }
+    .ct-course-name { flex: 1; font-size: 0.85rem; color: var(--color-text); }
+    .ct-count-badge {
+      font-size: 0.7rem; font-weight: 700; padding: 0.2rem 0.6rem; border-radius: 20px; white-space: nowrap;
+    }
+    .ct-count-badge.has-cards { background: var(--color-teal-light); color: var(--color-teal); }
+    .ct-count-badge.empty { background: rgba(22,50,92,0.06); color: var(--color-text-muted); }
+    .ct-dept-picker { display: flex; flex-direction: column; gap: 0.5rem; }
+    .ct-dept-btn {
+      display: flex; align-items: center; gap: 0.6rem; padding: 0.75rem 1rem; border-radius: var(--radius-sm);
+      border: 1px solid rgba(255,255,255,0.1); background: transparent; color: rgba(255,255,255,0.8);
+      cursor: pointer; font-weight: 600; font-size: 0.9rem; text-align: left; width: 100%;
+    }
+    .ct-dept-btn:hover { background: rgba(255,255,255,0.08); color: #fff; }
+    .ct-dept-btn.active { background: rgba(31, 138, 147, 0.2); color: #2DD4BF; }
+    .ct-stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+    .ct-stat-card { background: var(--color-white); border: 1px solid rgba(22,50,92,0.1); border-radius: var(--radius-md); padding: 1.1rem; box-shadow: var(--shadow-sm); text-align: center; }
+    .ct-stat-value { font-size: 1.6rem; font-weight: 800; color: var(--color-navy); }
+    .ct-stat-label { font-size: 0.75rem; color: var(--color-text-muted); font-weight: 600; margin-top: 0.15rem; }
+  </style>
+</head>
+<body>
+
+  <a href="#main-content" class="skip-link">İçeriğe geç</a>
+
+  <!-- HEADER -->
+  <header class="header scrolled dashboard-topbar">
+    <div class="container header-container">
+      <a href="dashboard.html" class="brand-logo">ACADEX <span style="font-size:0.65rem; font-weight:700; opacity:0.75; vertical-align:middle;">DERS AĞACI</span></a>
+      <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <a href="dashboard.html" class="btn btn-outline" style="padding: 0.5rem 1rem; font-size: 0.85rem; color: rgba(255,255,255,0.9); border-color: rgba(255,255,255,0.25);">← Panele Dön</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="dashboard-layout">
+    <!-- SIDEBAR: department picker -->
+    <aside class="sidebar">
+      <nav aria-label="Bölüm seçimi" style="width: 100%;">
+        <div style="color: rgba(255,255,255,0.5); font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.75rem; padding: 0 0.25rem;">Bölüm Seç</div>
+        <div class="ct-dept-picker" id="ct-dept-picker">
+          <div style="text-align:center; padding: 1rem; color: rgba(255,255,255,0.5); font-size: 0.8rem;">Yükleniyor...</div>
+        </div>
+      </nav>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="dashboard-content" id="main-content">
+      <div id="ct-alert-container"></div>
+
+      <div class="dashboard-page-header">
+        <h2 class="dashboard-page-title" id="ct-dept-title">Ders Ağacı</h2>
+        <p class="dashboard-page-subtitle" id="ct-dept-subtitle">Bölümünüzün resmi müfredatını sınıf sınıf gezin ve hangi derste paylaşılan özet olduğunu görün.</p>
+      </div>
+
+      <div class="ct-stat-grid" id="ct-stat-grid"></div>
+
+      <div id="ct-tree-container">
+        <div style="text-align:center; padding: 2rem; color: var(--color-text-muted);">Yükleniyor...</div>
+      </div>
+    </main>
+  </div>
+
+  <script src="js/course-tree.js"></script>
+</body>
+</html>

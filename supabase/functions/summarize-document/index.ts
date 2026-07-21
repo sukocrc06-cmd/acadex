@@ -300,6 +300,47 @@ serve(async (req) => {
     const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     const serviceClient = createClient(supabaseUrl, supabaseServiceRoleKey)
 
+    // ==========================================================================
+    // COURSE CATALOG LOOKUP — makes the AI's course-tag suggestion department-aware
+    // Fetches the official curriculum ("Ders Ağacı") courses for the uploading
+    // student's declared department (public.departments / public.courses,
+    // seeded via 20260721_add_course_catalog.sql) and passes it to the LLM so it
+    // can match the document against a REAL course code instead of guessing one
+    // out of thin air. Fails soft — if the catalog tables don't exist yet or the
+    // student has no department on file, we just fall back to the old free-guess
+    // behavior instead of erroring the whole summarization out.
+    // ==========================================================================
+    let courseCatalogBlock = "No official course catalog is available for this student — suggest a course code or subject label only if one is explicitly evident in the document text itself."
+    try {
+      const { data: ownerProfile } = await serviceClient
+        .from('profiles')
+        .select('department')
+        .eq('id', document.user_id)
+        .single()
+
+      if (ownerProfile?.department) {
+        const { data: deptRow } = await serviceClient
+          .from('departments')
+          .select('code')
+          .eq('name', ownerProfile.department)
+          .maybeSingle()
+
+        if (deptRow?.code) {
+          const { data: deptCourses } = await serviceClient
+            .from('courses')
+            .select('course_code, course_name')
+            .eq('department_code', deptRow.code)
+            .order('course_code')
+
+          if (deptCourses && deptCourses.length > 0) {
+            courseCatalogBlock = deptCourses.map((c: any) => `${c.course_code} — ${c.course_name}`).join('\n')
+          }
+        }
+      }
+    } catch (catalogErr) {
+      console.warn('Course catalog lookup failed, continuing with free-text course guessing: ', catalogErr)
+    }
+
     // 1. Instantly set document status to processing
     await serviceClient
       .from('documents')
@@ -528,7 +569,10 @@ INLINE FOOTNOTES / SOURCE REFERENCES INSTRUCTION:
 For non-obvious or specific factual claims in the summary and key_points, add a footnote marker like [1], [2], etc. immediately after the claim. Build a corresponding 'footnotes' array in your JSON output: [{ "id": 1, "reference": "brief description of which section/topic of the source this relates to, e.g. 'Section 2.2 - SEO discussion' or 'Introduction section'" }]. Since you don't have exact page numbers, reference the topical section or heading area instead. Don't over-footnote — reserve markers for specific, checkable claims (numbers, definitions, named findings), not every sentence.
 
 SUGGESTED COURSE TAG INSTRUCTION:
-Based on the document's content, suggest a likely course code or short subject name if one is evident (e.g. a course code mentioned in the document like 'BUS 340', or a general subject label like 'Digital Marketing' if no explicit code is found). Include this as 'suggested_course_tag' (a short string, or null if genuinely unclear) in your JSON output.
+Below is this student's OFFICIAL course catalog (format: CODE — Course Name):
+${courseCatalogBlock}
+
+Compare the document's content, terminology, and subject matter against this catalog. If it clearly corresponds to one of these listed courses, return that course's EXACT code (copied character-for-character, e.g. 'BUS330') as 'suggested_course_tag' — do not alter, reformat, or add spaces to it. Only if the content doesn't match any listed course, but a course code or clear subject label is otherwise evident directly in the source text, fall back to that as a short free-text string instead. If genuinely unclear and nothing in the catalog fits, return null. Never invent a course code that is neither in the catalog above nor explicitly present in the source text.
 
 LENGTH INSTRUCTION:
 ${lengthInstruction}
