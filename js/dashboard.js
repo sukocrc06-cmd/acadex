@@ -1476,13 +1476,106 @@ async function populateStudyCardModalDetails(card, docName, readOnly) {
     }
   }
 
+  // Populate Quantitative Badge
+  const quantBadgeEl = document.getElementById('study-card-modal-quantitative-badge');
+  if (quantBadgeEl) {
+    quantBadgeEl.style.display = card.is_quantitative ? 'inline-block' : 'none';
+  }
+
   // Populate Footnotes / References
   const fnContainer = document.getElementById('study-card-footnotes-container');
   if (fnContainer) {
     fnContainer.innerHTML = renderFootnotesSectionHtml(card.footnotes || []);
   }
+
+  // Populate Formulas Section
+  const formulasSection = document.getElementById('study-card-formulas-section');
+  const formulasContainer = document.getElementById('study-card-formulas-container');
+  if (formulasSection && formulasContainer) {
+    formulasContainer.innerHTML = '';
+    const formulas = card.formulas || [];
+    if (Array.isArray(formulas) && formulas.length > 0) {
+      formulasSection.style.display = 'block';
+      formulas.forEach((f, idx) => {
+        const cardEl = document.createElement('div');
+        cardEl.className = 'formula-card';
+        
+        let varsHtml = '';
+        if (Array.isArray(f.variables) && f.variables.length > 0) {
+          varsHtml = '<ul class="formula-vars-list">' + f.variables.map(v => `<li><strong>${escapeHtml(v.symbol || '')}:</strong> ${escapeHtml(v.meaning || '')}</li>`).join('') + '</ul>';
+        }
+        
+        const latexId = `formula-latex-${card.id || 'preview'}-${idx}`;
+        cardEl.innerHTML = `
+          <h5 class="formula-card-title">${escapeHtml(f.name || 'Formula')}</h5>
+          <div class="formula-latex-box" id="${latexId}"></div>
+          ${varsHtml}
+        `;
+        formulasContainer.appendChild(cardEl);
+
+        setTimeout(() => {
+          const latexTarget = document.getElementById(latexId);
+          if (latexTarget && window.katex && f.latex) {
+            try {
+              window.katex.render(f.latex, latexTarget, { throwOnError: false, displayMode: true });
+            } catch (e) {
+              latexTarget.textContent = f.latex;
+            }
+          } else if (latexTarget) {
+            latexTarget.textContent = f.latex || '';
+          }
+        }, 40);
+      });
+    } else {
+      formulasSection.style.display = 'none';
+    }
+  }
+
+  // Populate Worked Examples Section
+  const examplesSection = document.getElementById('study-card-examples-section');
+  const examplesContainer = document.getElementById('study-card-examples-container');
+  if (examplesSection && examplesContainer) {
+    examplesContainer.innerHTML = '';
+    const examples = card.worked_examples || [];
+    if (Array.isArray(examples) && examples.length > 0) {
+      examplesSection.style.display = 'block';
+      examples.forEach(ex => {
+        const cardEl = document.createElement('div');
+        cardEl.className = 'worked-example-card';
+        
+        let stepsHtml = '';
+        if (Array.isArray(ex.steps) && ex.steps.length > 0) {
+          stepsHtml = '<ol class="worked-example-steps">' + ex.steps.map(step => `<li>${renderMathInText(step)}</li>`).join('') + '</ol>';
+        }
+        
+        cardEl.innerHTML = `
+          <h5 class="worked-example-title">${escapeHtml(ex.title || 'Worked Example')}</h5>
+          <div class="worked-example-problem">${renderMathInText(ex.problem_statement || '')}</div>
+          ${stepsHtml}
+          ${ex.final_answer ? `<div class="worked-example-final"><strong>Sonuç / Final Answer:</strong> ${renderMathInText(ex.final_answer)}</div>` : ''}
+        `;
+        examplesContainer.appendChild(cardEl);
+      });
+    } else {
+      examplesSection.style.display = 'none';
+    }
+  }
 }
 window.populateStudyCardModalDetails = populateStudyCardModalDetails;
+
+function renderMathInText(text) {
+  if (!text) return '';
+  const escaped = escapeHtml(String(text));
+  if (!window.katex) return escaped;
+  return escaped.replace(/\$(.*?)\$/g, (match, latex) => {
+    try {
+      return window.katex.renderToString(latex, { displayMode: false, throwOnError: false });
+    } catch (e) {
+      return match;
+    }
+  });
+}
+window.renderMathInText = renderMathInText;
 
 async function viewStudyCard(docId, docName, readOnly = false, selectedCardId = null) {
   console.log("viewStudyCard fired for docId:", docId, "docName:", docName, "selectedCardId:", selectedCardId);
@@ -1883,6 +1976,7 @@ function renderNotebookSidebarList(cards) {
               ${getDocumentTypeBadgeHtml(card.document_type)}
               ${getLengthBadgeHtml(card.summary_length)}
               ${getVisualAnalysisBadgeHtml(card.visual_analysis)}
+              ${getQuantitativeBadgeHtml(card.is_quantitative)}
             </div>
           </div>
           <button onclick="deleteStudyCard(event, '${card.id}', '${card.document_id}')" style="background: none; border: none; cursor: pointer; color: #EF4444; position: absolute; right: 0; top: 0.15rem; padding: 0.15rem; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); transition: background-color 0.2s;" title="Delete this study card">
@@ -3615,6 +3709,7 @@ function renderCardsLibraryList(cards) {
                 ${getDocumentTypeBadgeHtml(card.document_type)}
                 ${getLengthBadgeHtml(card.summary_length)}
                 ${getVisualAnalysisBadgeHtml(card.visual_analysis)}
+                ${getQuantitativeBadgeHtml(card.is_quantitative)}
               </div>
             </div>
           </div>
@@ -3885,6 +3980,7 @@ async function loadExamsPlatform() {
     emptyState.style.display = 'none';
     setupContent.style.display = 'flex';
 
+    cachedExamCards = cards || [];
     cardSelect.innerHTML = '';
     cards.forEach(card => {
       const docName = card.documents?.file_name || 'İsimsiz Belge';
@@ -3899,8 +3995,9 @@ async function loadExamsPlatform() {
     const firstCardId = cardSelect.value;
     activeExamCardId = firstCardId;
     
-    // Display form options
+    // Display form options & toggle calc option
     document.getElementById('exam-form-params').style.display = 'block';
+    updateExamCalcOptionState(firstCardId);
     
     // Load past attempts
     await loadPastAttempts(firstCardId);
@@ -3920,10 +4017,44 @@ async function onExamCardChange() {
   activeExamCardId = cardId;
 
   if (cardId) {
+    updateExamCalcOptionState(cardId);
     await loadPastAttempts(cardId);
   }
 }
 window.onExamCardChange = onExamCardChange;
+
+let cachedExamCards = [];
+
+function updateExamCalcOptionState(cardId) {
+  const cardObj = cachedExamCards.find(c => String(c.id) === String(cardId));
+  const isQuant = cardObj ? !!cardObj.is_quantitative : false;
+  
+  const calcOption = document.getElementById('exam-type-option-calc');
+  const calcRadio = document.querySelector('input[name="exam-type"][value="calculation"]');
+  const calcHint = document.getElementById('exam-calc-hint');
+
+  if (isQuant) {
+    if (calcOption) {
+      calcOption.style.opacity = '1';
+      calcOption.style.pointerEvents = 'auto';
+    }
+    if (calcRadio) calcRadio.disabled = false;
+    if (calcHint) calcHint.style.display = 'none';
+  } else {
+    if (calcOption) {
+      calcOption.style.opacity = '0.45';
+      calcOption.style.pointerEvents = 'none';
+    }
+    if (calcRadio) {
+      calcRadio.disabled = true;
+      if (calcRadio.checked) {
+        const classicRadio = document.querySelector('input[name="exam-type"][value="classic"]');
+        if (classicRadio) classicRadio.checked = true;
+      }
+    }
+    if (calcHint) calcHint.style.display = 'block';
+  }
+}
 
 async function loadPastAttempts(cardId) {
   const listEl = document.getElementById('past-attempts-list');
@@ -4055,7 +4186,13 @@ function startActiveExam(exam) {
   setupScreen.style.display = 'none';
   activeScreen.style.display = 'block';
 
-  document.getElementById('active-exam-title').textContent = `${exam.exam_type === 'classic' ? 'Klasik' : (exam.exam_type === 'test' ? 'Çoktan Seçmeli' : 'Karışık')} Sınav`;
+  const typeTitleMap = {
+    classic: exam.language === 'tr' ? 'Klasik' : 'Classic',
+    test: exam.language === 'tr' ? 'Çoktan Seçmeli' : 'Multiple Choice',
+    calculation: exam.language === 'tr' ? 'Hesaplama' : 'Calculation',
+    mixed: exam.language === 'tr' ? 'Karışık' : 'Mixed'
+  };
+  document.getElementById('active-exam-title').textContent = `${typeTitleMap[exam.exam_type] || 'Sınav'} Sınav`;
   document.getElementById('active-exam-desc').textContent = exam.language === 'tr' ? 'Lütfen tüm soruları dikkatlice cevaplayın.' : 'Please answer all questions carefully.';
 
   container.innerHTML = '';
@@ -4088,6 +4225,16 @@ function startActiveExam(exam) {
         </div>
       `;
     } 
+    else if (q.type === 'calculation') {
+      const isPrefix = q.units && (q.units === '$' || q.units === '€' || q.units === '₺');
+      inputHtml = `
+        <div class="calculation-input-wrapper">
+          ${isPrefix ? `<span class="calculation-unit">${q.units}</span>` : ''}
+          <input type="number" step="any" name="answer-q-${q.id}" class="calculation-input" placeholder="${exam.language === 'tr' ? 'Sayısal cevabınız...' : 'Your numeric answer...'}">
+          ${!isPrefix && q.units ? `<span class="calculation-unit">${q.units}</span>` : ''}
+        </div>
+      `;
+    }
     else if (q.type === 'open_ended') {
       inputHtml = `
         <div style="margin-top: 0.5rem;">
@@ -4333,7 +4480,21 @@ function showExamResults(exam) {
 
     let correctBlock = '';
     if (res.type !== 'open_ended') {
-      correctBlock = `<div style="font-size: 0.8rem; color: var(--color-teal); font-weight: 700; margin-top: 0.25rem;">Doğru Cevap: ${res.correct_answer}</div>`;
+      const unitStr = res.units ? ` ${res.units}` : '';
+      const tolStr = res.tolerance_percent ? ` (±${res.tolerance_percent}% ${isTr ? 'tolerans' : 'margin'})` : '';
+      correctBlock = `<div style="font-size: 0.8rem; color: var(--color-teal); font-weight: 700; margin-top: 0.25rem;">${isTr ? 'Doğru Cevap' : 'Correct Answer'}: ${res.correct_answer}${unitStr}${tolStr}</div>`;
+    }
+
+    let solutionStepsHtml = '';
+    if (Array.isArray(res.solution_steps) && res.solution_steps.length > 0) {
+      solutionStepsHtml = `
+        <div class="solution-steps-box">
+          <div class="solution-steps-title">📋 ${isTr ? 'Çözüm Adımları' : 'Solution Steps'}</div>
+          <ol class="solution-steps-list">
+            ${res.solution_steps.map(step => `<li>${renderMathInText(step)}</li>`).join('')}
+          </ol>
+        </div>
+      `;
     }
 
     item.innerHTML = `
@@ -4342,12 +4503,13 @@ function showExamResults(exam) {
         <span style="color: ${res.score >= 80 ? 'var(--color-teal)' : (res.score >= 50 ? '#D97706' : '#DC2626')};">${res.score} / 100 Puan</span>
       </div>
       <div style="font-size: 0.8rem; margin-top: 0.5rem;">
-        <strong>Sizin Cevabınız:</strong> ${res.student_answer || (isTr ? '[Boş bırakıldı]' : '[Left blank]')}
+        <strong>${isTr ? 'Sizin Cevabınız' : 'Your Answer'}:</strong> ${res.student_answer || (isTr ? '[Boş bırakıldı]' : '[Left blank]')} ${res.units && res.student_answer ? res.units : ''}
       </div>
       ${correctBlock}
       <div style="font-size: 0.8rem; color: var(--color-text-muted); margin-top: 0.5rem; background-color: var(--color-bg-alt); padding: 0.5rem; border-radius: var(--radius-sm); border-left: 3px solid rgba(22,50,92,0.15);">
-        <strong>Değerlendirme:</strong> ${res.feedback}
+        <strong>${isTr ? 'Değerlendirme' : 'Evaluation'}:</strong> ${res.feedback}
       </div>
+      ${solutionStepsHtml}
     `;
 
     detailsContainer.appendChild(item);
@@ -10531,6 +10693,14 @@ function getVisualAnalysisBadgeHtml(used) {
   return `<span class="style-badge" style="margin: 0; font-size: 0.6rem; padding: 0.1rem 0.35rem; background-color: #FDF2F8; color: #DB2777; border: 1px solid rgba(22, 50, 92, 0.08); font-weight: 700;">🖼️ ${label}</span>`;
 }
 window.getVisualAnalysisBadgeHtml = getVisualAnalysisBadgeHtml;
+
+function getQuantitativeBadgeHtml(isQuant) {
+  if (!isQuant) return '';
+  const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+  const label = isTr ? 'Sayısal Ders' : 'Quantitative Course';
+  return `<span class="style-badge" style="margin: 0; font-size: 0.6rem; padding: 0.1rem 0.35rem; background-color: rgba(99, 102, 241, 0.12); color: #4F46E5; border: 1px solid rgba(99, 102, 241, 0.2); font-weight: 700;">🔢 ${label}</span>`;
+}
+window.getQuantitativeBadgeHtml = getQuantitativeBadgeHtml;
 
 function highlightFeedbackButtons(rating) {
   const btnUp = document.getElementById('btn-vote-up');

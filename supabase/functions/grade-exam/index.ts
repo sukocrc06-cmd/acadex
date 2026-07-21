@@ -120,6 +120,64 @@ serve(async (req) => {
             : (isTr ? `Yanlış cevap. Doğru cevap: ${correctAns}` : `Incorrect. The correct answer is: ${correctAns}`)
         })
       }
+      else if (q.type === 'calculation') {
+        const studentNum = parseFloat(studentAns.replace(/[^0-9.-]/g, ''))
+        const correctNum = typeof q.correct_answer === 'number'
+          ? q.correct_answer
+          : parseFloat(String(q.correct_answer).replace(/[^0-9.-]/g, ''))
+        
+        const tolPercent = typeof q.tolerance_percent === 'number' ? q.tolerance_percent : 2
+        const tolRatio = tolPercent / 100
+        
+        let isFullCorrect = false
+        let isPartialCorrect = false
+        
+        if (!isNaN(studentNum) && !isNaN(correctNum)) {
+          const diff = Math.abs(studentNum - correctNum)
+          const margin = correctNum !== 0 ? Math.abs(correctNum) * tolRatio : tolRatio
+          
+          if (diff <= margin) {
+            isFullCorrect = true
+          } else if (diff <= margin * 2) {
+            isPartialCorrect = true
+          }
+        }
+        
+        const score = isFullCorrect ? 100 : (isPartialCorrect ? 50 : 0)
+        const isCorrect = isFullCorrect
+        
+        const unitSuffix = q.units ? ` ${q.units}` : ''
+        let feedback = ''
+        if (isFullCorrect) {
+          feedback = isTr
+            ? `Tebrikler! Hesaplamanız doğru (${studentAns}${unitSuffix}).`
+            : `Correct! Excellent calculation (${studentAns}${unitSuffix}).`
+        } else if (isPartialCorrect) {
+          feedback = isTr
+            ? `Kısmi Doğru! Cevabınız (${studentAns}${unitSuffix}) kabul edilebilir tolerans aralığında (${correctNum}${unitSuffix} ±${tolPercent}%).`
+            : `Close! Your answer (${studentAns}${unitSuffix}) is within partial credit tolerance (${correctNum}${unitSuffix} ±${tolPercent}%).`
+        } else {
+          feedback = isTr
+            ? `Yanlış cevap (${studentAns || '-'}${unitSuffix}). Doğru cevap: ${correctNum}${unitSuffix} (±${tolPercent}% tolerans).`
+            : `Incorrect calculation (${studentAns || '-'}${unitSuffix}). Correct answer: ${correctNum}${unitSuffix} (±${tolPercent}% margin).`
+        }
+
+        results.push({
+          question_id: q.id,
+          type: q.type,
+          question: q.question,
+          options: null,
+          concept: q.concept || null,
+          student_answer: studentAns,
+          correct_answer: correctNum,
+          units: q.units || null,
+          tolerance_percent: tolPercent,
+          solution_steps: q.solution_steps || [],
+          is_correct: isCorrect,
+          score: score,
+          feedback: feedback
+        })
+      }
       else if (q.type === 'open_ended') {
         if (!studentAns) {
           results.push({

@@ -206,6 +206,9 @@ const TRANSLATIONS = {
     "dash.cards.btn.clear": "Clear Filters",
     "dash.cards.btn.exportAll": "Export All to PDF",
     "dash.cards.pastComparisons": "Past Document Comparisons",
+    "dash.cards.quantitative": "🔢 Quantitative Course",
+    "dash.cards.formulas": "Formulas",
+    "dash.cards.examples": "Worked Examples",
 
     // Exams Platform Tab
     "dash.exams.title": "Exams Platform",
@@ -220,6 +223,10 @@ const TRANSLATIONS = {
     "dash.exams.typeTestSub": "4 options per question with one correct answer.",
     "dash.exams.typeMixed": "Mixed Exam",
     "dash.exams.typeMixedSub": "True/False and fill-in-the-blank questions.",
+    "dash.exams.typeCalc": "Calculation Exam",
+    "dash.exams.typeCalcSub": "Formula applications and numerical calculation problems.",
+    "dash.exams.calcOnlyQuant": "* Calculation exam option is only available for Quantitative Courses.",
+    "dash.exams.solutionSteps": "📋 Solution Steps",
     "dash.exams.difficultyTitle": "Difficulty Level",
     "dash.exams.diffEasy": "Easy",
     "dash.exams.diffEasySub": "Basic recall and definitions.",
@@ -494,14 +501,17 @@ const TRANSLATIONS = {
     "dash.notebook.sidebar.empty": "Bunları burada görmek için belgelerden bilgi kartları oluşturun.",
 
     // Study Cards Tab
-    "dash.cards.title": "Bilgi Kartları",
-    "dash.cards.desc": "Tüm çalışma kartlarınızı görüntüleyin, ayrıntıları inceleyin, arkadaşlarınızla paylaşın veya defterinize ekleyin.",
-    "dash.cards.searchPlaceholder": "Bilgi kartlarında ara (dosya adı veya özet)...",
+    "dash.cards.title": "Bilgi Kartları Kütüphanesi",
+    "dash.cards.desc": "Tüm bilgi kartlarınızı inceleyin, arkadaşlarınızla paylaşın veya çalışma defterinize ekleyin.",
+    "dash.cards.searchPlaceholder": "Kartlarda ara (dosya adı veya özet)...",
     "dash.cards.filter.style": "Stil Filtrele",
     "dash.cards.filter.lang": "Dil Filtrele",
     "dash.cards.btn.clear": "Filtreleri Temizle",
     "dash.cards.btn.exportAll": "Hepsini PDF Yap",
     "dash.cards.pastComparisons": "Geçmiş Belge Karşılaştırmaları",
+    "dash.cards.quantitative": "🔢 Sayısal Ders",
+    "dash.cards.formulas": "Formüller",
+    "dash.cards.examples": "Çözümlü Örnekler",
 
     // Exams Platform Tab
     "dash.exams.title": "Sınav Platformu",
@@ -516,6 +526,10 @@ const TRANSLATIONS = {
     "dash.exams.typeTestSub": "Tüm sorular 4 şıklı test formatındadır. Tek bir doğru cevap vardır.",
     "dash.exams.typeMixed": "Karışık Sınav",
     "dash.exams.typeMixedSub": "Doğru/Yanlış ve Boşluk Doldurma sorularından oluşan karışık test.",
+    "dash.exams.typeCalc": "Hesaplama Sınavı",
+    "dash.exams.typeCalcSub": "Formül uygulaması ve sayısal işlem bazlı hesaplama soruları.",
+    "dash.exams.calcOnlyQuant": "* Hesaplama sınavı seçeneği sadece Sayısal Dersler için kullanılabilir.",
+    "dash.exams.solutionSteps": "📋 Çözüm Adımları",
     "dash.exams.difficultyTitle": "Zorluk Seviyesi",
     "dash.exams.diffEasy": "Kolay",
     "dash.exams.diffEasySub": "Temel hatırlama ve tanımlar. Konuya yeni başlarken idealdir.",

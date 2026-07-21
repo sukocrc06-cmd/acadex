@@ -14,6 +14,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
+  <!-- KaTeX CDN for Math Formula Rendering -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+
   <!-- Core Stylesheet -->
   <link rel="stylesheet" href="css/style.css">
 
@@ -826,7 +830,15 @@
                         <span data-i18n="dash.exams.typeMixedSub">Doğru/Yanlış ve Boşluk Doldurma sorularından oluşan karışık test.</span>
                       </div>
                     </label>
+                    <label class="exam-type-option" id="exam-type-option-calc" style="display: block; cursor: pointer;">
+                      <input type="radio" name="exam-type" value="calculation" style="display: none;">
+                      <div class="option-box">
+                        <strong data-i18n="dash.exams.typeCalc">Hesaplama Sınavı</strong>
+                        <span data-i18n="dash.exams.typeCalcSub">Formül uygulaması ve sayısal işlem bazlı hesaplama soruları.</span>
+                      </div>
+                    </label>
                   </div>
+                  <span id="exam-calc-hint" style="display: none; font-size: 0.75rem; color: var(--color-text-muted); margin-top: 0.5rem; font-weight: 500;" data-i18n="dash.exams.calcOnlyQuant">* Hesaplama sınavı seçeneği sadece Sayısal Dersler için kullanılabilir.</span>
                 </div>
 
                 <!-- Difficulty Level -->
@@ -1516,6 +1528,7 @@
             <span id="study-card-modal-type-badge"></span>
             <span id="study-card-modal-length-badge"></span>
             <span id="study-card-modal-visual-badge"></span>
+            <span id="study-card-modal-quantitative-badge" class="style-badge" style="display: none; background-color: rgba(99, 102, 241, 0.12); color: #4F46E5; border: 1px solid rgba(99, 102, 241, 0.2); font-weight: 700;">🔢 Sayısal Ders</span>
             
             <div class="feedback-vote-container" style="display: flex; align-items: center; gap: 0.25rem; margin-left: 0.5rem; border-left: 1px solid rgba(22, 50, 92, 0.1); padding-left: 0.5rem;">
               <span style="font-size: 0.725rem; color: var(--color-text-muted); font-weight: 500;" data-i18n="dash.cards.helpful">Helpful?</span>
@@ -1638,6 +1651,26 @@
             <span>📈</span> <span style="margin-left: 0.4rem;">Charts</span>
           </h4>
           <div id="study-card-charts-container">
+            <!-- Dynamically populated -->
+          </div>
+        </section>
+
+        <!-- Formulas Section -->
+        <section class="study-card-section" id="study-card-formulas-section" style="display: none;">
+          <h4 class="study-card-section-title" style="display: flex; align-items: center; width: 100%;">
+            <span>🔢</span> <span style="margin-left: 0.4rem;" data-i18n="dash.cards.formulas">Formüller</span>
+          </h4>
+          <div id="study-card-formulas-container" class="formulas-grid">
+            <!-- Dynamically populated -->
+          </div>
+        </section>
+
+        <!-- Worked Examples Section -->
+        <section class="study-card-section" id="study-card-examples-section" style="display: none;">
+          <h4 class="study-card-section-title" style="display: flex; align-items: center; width: 100%;">
+            <span>📝</span> <span style="margin-left: 0.4rem;" data-i18n="dash.cards.examples">Çözümlü Örnekler</span>
+          </h4>
+          <div id="study-card-examples-container" class="worked-examples-list">
             <!-- Dynamically populated -->
           </div>
         </section>

@@ -4444,6 +4444,167 @@ input:checked + .slider:before {
   border-top: 1px dashed rgba(22, 50, 92, 0.1);
 }
 
+/* ==========================================================================
+   QUANTITATIVE COURSE STYLES (Formulas, KaTeX, Worked Examples, Calculations)
+   ========================================================================== */
+.formulas-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+  margin-top: 0.75rem;
+}
+
+.formula-card {
+  background: var(--color-white);
+  border: 1px solid rgba(22, 50, 92, 0.08);
+  border-radius: var(--radius-md);
+  padding: 1.25rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.formula-card-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-navy);
+  margin-bottom: 0.65rem;
+}
+
+.formula-latex-box {
+  background: var(--color-bg-alt);
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-sm);
+  border-left: 3px solid #4F46E5;
+  margin-bottom: 0.75rem;
+  text-align: center;
+  overflow-x: auto;
+  font-size: 1rem;
+  color: var(--color-navy);
+}
+
+.formula-vars-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.formula-vars-list li {
+  margin-bottom: 0.25rem;
+}
+
+.worked-examples-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  margin-top: 0.75rem;
+}
+
+.worked-example-card {
+  background: var(--color-white);
+  border: 1px solid rgba(22, 50, 92, 0.08);
+  border-radius: var(--radius-md);
+  padding: 1.25rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.worked-example-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-navy);
+  margin-bottom: 0.5rem;
+}
+
+.worked-example-problem {
+  font-size: 0.85rem;
+  color: var(--color-text);
+  background: var(--color-bg-alt);
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--color-teal);
+  margin-bottom: 0.75rem;
+  line-height: 1.5;
+}
+
+.worked-example-steps {
+  margin: 0 0 1rem 1.25rem;
+  font-size: 0.825rem;
+  line-height: 1.6;
+  color: var(--color-text);
+}
+
+.worked-example-steps li {
+  margin-bottom: 0.35rem;
+}
+
+.worked-example-final {
+  display: inline-block;
+  background: rgba(31, 138, 147, 0.1);
+  color: var(--color-teal);
+  border: 1px solid rgba(31, 138, 147, 0.25);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 1rem;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.calculation-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.calculation-input {
+  width: 100%;
+  max-width: 280px;
+  padding: 0.65rem 0.85rem;
+  border: 1.5px solid rgba(22, 50, 92, 0.2);
+  border-radius: var(--radius-sm);
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-navy);
+  transition: all 0.2s ease;
+}
+
+.calculation-input:focus {
+  border-color: var(--color-teal);
+  box-shadow: 0 0 0 3px rgba(31, 138, 147, 0.12);
+  outline: none;
+}
+
+.calculation-unit {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--color-navy);
+}
+
+.solution-steps-box {
+  background: rgba(31, 138, 147, 0.05);
+  border: 1px solid rgba(31, 138, 147, 0.18);
+  border-radius: var(--radius-sm);
+  padding: 1rem;
+  margin-top: 0.75rem;
+}
+
+.solution-steps-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-navy);
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.solution-steps-list {
+  margin: 0;
+  padding-left: 1.25rem;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: var(--color-text);
+}
+
 
 
 
