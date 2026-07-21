@@ -31,6 +31,96 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2)
   throw new Error("Max retries exceeded");
 }
 
+function decodeXmlEntities(str: string): string {
+  return str
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'");
+}
+
+function parsePptxSlideXml(slideXml: string): string {
+  const tableMatches = [...slideXml.matchAll(/<a:tbl[\s>][\s\S]*?<\/a:tbl>/g)];
+  
+  if (tableMatches.length === 0) {
+    const matches = slideXml.matchAll(/<a:t>(.*?)<\/a:t>/g);
+    let text = "";
+    for (const match of matches) {
+      text += decodeXmlEntities(match[1]) + " ";
+    }
+    return text.trim();
+  }
+
+  const slideParts: string[] = [];
+  let lastIdx = 0;
+
+  for (const tMatch of tableMatches) {
+    const tblStartIndex = tMatch.index!;
+    const tblEndIndex = tblStartIndex + tMatch[0].length;
+
+    const preTextXml = slideXml.substring(lastIdx, tblStartIndex);
+    const preMatches = preTextXml.matchAll(/<a:t>(.*?)<\/a:t>/g);
+    let preText = "";
+    for (const m of preMatches) {
+      preText += decodeXmlEntities(m[1]) + " ";
+    }
+    if (preText.trim()) {
+      slideParts.push(preText.trim());
+    }
+
+    const tblXml = tMatch[0];
+    const rowMatches = [...tblXml.matchAll(/<a:tr[\s>][\s\S]*?<\/a:tr>/g)];
+    const tableRows: string[][] = [];
+
+    for (const rMatch of rowMatches) {
+      const rowXml = rMatch[0];
+      const cellMatches = [...rowXml.matchAll(/<a:tc[\s>][\s\S]*?<\/a:tc>/g)];
+      const rowCells: string[] = [];
+      for (const cMatch of cellMatches) {
+        const cellXml = cMatch[0];
+        const textMatches = [...cellXml.matchAll(/<a:t>(.*?)<\/a:t>/g)];
+        let cellText = textMatches.map(m => decodeXmlEntities(m[1])).join(" ").trim();
+        cellText = cellText.replace(/\|/g, "\\|");
+        rowCells.push(cellText);
+      }
+      if (rowCells.some(c => c.length > 0)) {
+        tableRows.push(rowCells);
+      }
+    }
+
+    if (tableRows.length > 0) {
+      const colCount = Math.max(...tableRows.map(r => r.length));
+      let mdTable = "\n\n";
+      const header = [...tableRows[0]];
+      while (header.length < colCount) header.push("");
+      mdTable += "| " + header.join(" | ") + " |\n";
+      mdTable += "| " + Array(colCount).fill("---").join(" | ") + " |\n";
+      for (let r = 1; r < tableRows.length; r++) {
+        const row = [...tableRows[r]];
+        while (row.length < colCount) row.push("");
+        mdTable += "| " + row.join(" | ") + " |\n";
+      }
+      mdTable += "\n";
+      slideParts.push(mdTable);
+    }
+
+    lastIdx = tblEndIndex;
+  }
+
+  const postTextXml = slideXml.substring(lastIdx);
+  const postMatches = postTextXml.matchAll(/<a:t>(.*?)<\/a:t>/g);
+  let postText = "";
+  for (const m of postMatches) {
+    postText += decodeXmlEntities(m[1]) + " ";
+  }
+  if (postText.trim()) {
+    slideParts.push(postText.trim());
+  }
+
+  return slideParts.join("\n");
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders })
@@ -163,11 +253,10 @@ serve(async (req) => {
           let pptxText = ""
           for (const slidePath of slideFiles) {
             const slideXml = await zip.files[slidePath].async("text")
-            const matches = slideXml.matchAll(/<a:t>(.*?)<\/a:t>/g)
-            let slideText = ""
-            for (const match of matches) { slideText += match[1] + " " }
-            slideText = slideText.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'")
-            pptxText += slideText + "\n"
+            const slideText = parsePptxSlideXml(slideXml)
+            if (slideText) {
+              pptxText += slideText + "\n\n"
+            }
           }
           extractedText = pptxText
         } else {
@@ -281,6 +370,9 @@ Respond strictly in the language: '${langLabel}'. Write the ENTIRE response (the
 
 EXAM-FOCUSED CONTENT FILTERING:
 Exclude administrative/logistical information (instructor names, office hours, grading policies, textbook ISBN, etc.). Focus on actual academic content.
+
+CODE SNIPPETS & DATA PREVIEWS INSTRUCTION:
+If the source material includes programming code snippets (e.g. Python, R, SQL used for data analysis), do not ignore them — briefly describe WHAT METHODOLOGY STEP each code block represents in the summary/key_points (e.g. 'the analysis loads and cleans the dataset, then engineers features including a lagged return and rolling volatility measure' rather than omitting this entirely). Do not attempt to reproduce the code verbatim in the summary, just describe its purpose and role in the overall analysis. If a code block's output shows a small data preview (a few rows of a dataframe), treat that as a legitimate table for the 'tables' field.
 
 STYLE-SPECIFIC INSTRUCTION:
 ${styleInstruction}`

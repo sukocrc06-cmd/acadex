@@ -31,6 +31,96 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2)
   throw new Error("Max retries exceeded");
 }
 
+function decodeXmlEntities(str: string): string {
+  return str
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'");
+}
+
+function parsePptxSlideXml(slideXml: string): string {
+  const tableMatches = [...slideXml.matchAll(/<a:tbl[\s>][\s\S]*?<\/a:tbl>/g)];
+  
+  if (tableMatches.length === 0) {
+    const matches = slideXml.matchAll(/<a:t>(.*?)<\/a:t>/g);
+    let text = "";
+    for (const match of matches) {
+      text += decodeXmlEntities(match[1]) + " ";
+    }
+    return text.trim();
+  }
+
+  const slideParts: string[] = [];
+  let lastIdx = 0;
+
+  for (const tMatch of tableMatches) {
+    const tblStartIndex = tMatch.index!;
+    const tblEndIndex = tblStartIndex + tMatch[0].length;
+
+    const preTextXml = slideXml.substring(lastIdx, tblStartIndex);
+    const preMatches = preTextXml.matchAll(/<a:t>(.*?)<\/a:t>/g);
+    let preText = "";
+    for (const m of preMatches) {
+      preText += decodeXmlEntities(m[1]) + " ";
+    }
+    if (preText.trim()) {
+      slideParts.push(preText.trim());
+    }
+
+    const tblXml = tMatch[0];
+    const rowMatches = [...tblXml.matchAll(/<a:tr[\s>][\s\S]*?<\/a:tr>/g)];
+    const tableRows: string[][] = [];
+
+    for (const rMatch of rowMatches) {
+      const rowXml = rMatch[0];
+      const cellMatches = [...rowXml.matchAll(/<a:tc[\s>][\s\S]*?<\/a:tc>/g)];
+      const rowCells: string[] = [];
+      for (const cMatch of cellMatches) {
+        const cellXml = cMatch[0];
+        const textMatches = [...cellXml.matchAll(/<a:t>(.*?)<\/a:t>/g)];
+        let cellText = textMatches.map(m => decodeXmlEntities(m[1])).join(" ").trim();
+        cellText = cellText.replace(/\|/g, "\\|");
+        rowCells.push(cellText);
+      }
+      if (rowCells.some(c => c.length > 0)) {
+        tableRows.push(rowCells);
+      }
+    }
+
+    if (tableRows.length > 0) {
+      const colCount = Math.max(...tableRows.map(r => r.length));
+      let mdTable = "\n\n";
+      const header = [...tableRows[0]];
+      while (header.length < colCount) header.push("");
+      mdTable += "| " + header.join(" | ") + " |\n";
+      mdTable += "| " + Array(colCount).fill("---").join(" | ") + " |\n";
+      for (let r = 1; r < tableRows.length; r++) {
+        const row = [...tableRows[r]];
+        while (row.length < colCount) row.push("");
+        mdTable += "| " + row.join(" | ") + " |\n";
+      }
+      mdTable += "\n";
+      slideParts.push(mdTable);
+    }
+
+    lastIdx = tblEndIndex;
+  }
+
+  const postTextXml = slideXml.substring(lastIdx);
+  const postMatches = postTextXml.matchAll(/<a:t>(.*?)<\/a:t>/g);
+  let postText = "";
+  for (const m of postMatches) {
+    postText += decodeXmlEntities(m[1]) + " ";
+  }
+  if (postText.trim()) {
+    slideParts.push(postText.trim());
+  }
+
+  return slideParts.join("\n");
+}
+
 serve(async (req) => {
   // Handle CORS preflight request
   if (req.method === 'OPTIONS') {
@@ -191,21 +281,10 @@ serve(async (req) => {
         let pptxText = ""
         for (const slidePath of slideFiles) {
           const slideXml = await zip.files[slidePath].async("text")
-          const matches = slideXml.matchAll(/<a:t>(.*?)<\/a:t>/g)
-          let slideText = ""
-          for (const match of matches) {
-            slideText += match[1] + " "
+          const slideText = parsePptxSlideXml(slideXml)
+          if (slideText) {
+            pptxText += slideText + "\n\n"
           }
-          
-          // Decode basic XML entities
-          slideText = slideText
-            .replace(/&amp;/g, "&")
-            .replace(/&lt;/g, "<")
-            .replace(/&gt;/g, ">")
-            .replace(/&quot;/g, '"')
-            .replace(/&apos;/g, "'")
-            
-          pptxText += slideText + "\n"
         }
         extractedText = pptxText
       } 
@@ -335,6 +414,9 @@ Respond strictly in the language: '${langLabel}'. Write the ENTIRE response (the
 EXAM-FOCUSED CONTENT FILTERING:
 Before summarizing, identify and EXCLUDE administrative/logistical information that would not appear on an exam. Focus exclusively on the actual academic subject matter: concepts, theories, definitions, processes, relationships, examples, and any content a student would need to understand or recall for an exam.
 
+CODE SNIPPETS & DATA PREVIEWS INSTRUCTION:
+If the source material includes programming code snippets (e.g. Python, R, SQL used for data analysis), do not ignore them — briefly describe WHAT METHODOLOGY STEP each code block represents in the summary/key_points (e.g. 'the analysis loads and cleans the dataset, then engineers features including a lagged return and rolling volatility measure' rather than omitting this entirely). Do not attempt to reproduce the code verbatim in the summary, just describe its purpose and role in the overall analysis. If a code block's output shows a small data preview (a few rows of a dataframe), treat that as a legitimate table for the 'tables' field.
+
 PROFESSIONAL TONE INSTRUCTION:
 Write in a clear, formal academic register. Avoid filler phrases, redundant restatements, and vague generalities. Use precise terminology appropriate to the subject matter.
 
@@ -342,71 +424,115 @@ STYLE-SPECIFIC INSTRUCTION:
 ${styleInstruction}`
 
     // Visual analysis (Part B & C)
-    const runVisuals = !!analyzeVisuals && mimeType === "application/pdf"
+    const runVisuals = !!analyzeVisuals && (mimeType === "application/pdf" || mimeType === "application/vnd.openxmlformats-officedocument.presentationml.presentation")
     let visualAnalysisUsed = false
     let base64Images: string[] = []
 
     if (runVisuals) {
-      const pdfcoApiKey = Deno.env.get('PDFCO_API_KEY')
-      if (pdfcoApiKey) {
+      if (mimeType === "application/vnd.openxmlformats-officedocument.presentationml.presentation") {
         try {
-          console.log("PDF.co Visual analysis enabled. Uploading PDF to convert first 8 pages to images...")
-          const formData = new FormData()
-          const pdfBlob = new Blob([fileBytes], { type: 'application/pdf' })
-          formData.append('file', pdfBlob, 'document.pdf')
-          formData.append('pages', '0-7')
+          console.log("PPTX Visual analysis enabled. Extracting embedded media images from ppt/media/...")
+          const zip = new JSZip()
+          await zip.loadAsync(fileBytes)
 
-          const pdfcoRes = await fetch('https://api.pdf.co/v1/pdf/convert/to/png', {
-            method: 'POST',
-            headers: { 'x-api-key': pdfcoApiKey },
-            body: formData
+          const mediaFiles = Object.keys(zip.files).filter(name =>
+            name.startsWith("ppt/media/") && /\.(png|jpe?g|webp|gif|bmp)$/i.test(name)
+          )
+
+          mediaFiles.sort((a, b) => {
+            const numA = parseInt(a.replace(/[^0-9]/g, ""), 10) || 0
+            const numB = parseInt(b.replace(/[^0-9]/g, ""), 10) || 0
+            return numA !== numB ? numA - numB : a.localeCompare(b)
           })
 
-          if (pdfcoRes.ok) {
-            const pdfcoData = await pdfcoRes.json()
-            if (!pdfcoData.error && (pdfcoData.urls || pdfcoData.url)) {
-              let imageUrls: string[] = []
-              const rawUrls = pdfcoData.urls || pdfcoData.url
-              if (Array.isArray(rawUrls)) {
-                imageUrls = rawUrls
-              } else if (typeof rawUrls === 'string') {
-                imageUrls = [rawUrls]
-              }
+          const cappedMediaFiles = mediaFiles.slice(0, 8)
+          console.log(`Found ${mediaFiles.length} media files in PPTX. Processing top ${cappedMediaFiles.length}...`)
 
-              console.log(`PDF.co converted ${imageUrls.length} pages. Downloading page images...`)
-              for (const imgUrl of imageUrls) {
-                try {
-                  const imgRes = await fetch(imgUrl)
-                  if (imgRes.ok) {
-                    const buffer = await imgRes.arrayBuffer()
-                    const bytes = new Uint8Array(buffer)
-                    let binary = ''
-                    const lenBytes = bytes.byteLength
-                    for (let i = 0; i < lenBytes; i++) {
-                      binary += String.fromCharCode(bytes[i])
-                    }
-                    base64Images.push(btoa(binary))
-                  }
-                } catch (imgDownloadErr) {
-                  console.error(`Failed to download page image from ${imgUrl}:`, imgDownloadErr)
+          for (const mediaPath of cappedMediaFiles) {
+            try {
+              const imgBytes = await zip.files[mediaPath].async("uint8array")
+              if (imgBytes && imgBytes.byteLength > 0) {
+                let binary = ''
+                const lenBytes = imgBytes.byteLength
+                for (let i = 0; i < lenBytes; i++) {
+                  binary += String.fromCharCode(imgBytes[i])
                 }
+                base64Images.push(btoa(binary))
               }
+            } catch (mediaErr) {
+              console.error(`Failed to extract media image ${mediaPath}:`, mediaErr)
+            }
+          }
 
-              if (base64Images.length > 0) {
-                visualAnalysisUsed = true
-                console.log(`Successfully prepared ${base64Images.length} images for vision-based analysis.`)
+          if (base64Images.length > 0) {
+            visualAnalysisUsed = true
+            console.log(`Successfully prepared ${base64Images.length} PPTX media images for vision-based analysis.`)
+          }
+        } catch (pptxVisionErr) {
+          console.error("PPTX media image extraction failed:", pptxVisionErr)
+        }
+      } else if (mimeType === "application/pdf") {
+        const pdfcoApiKey = Deno.env.get('PDFCO_API_KEY')
+        if (pdfcoApiKey) {
+          try {
+            console.log("PDF.co Visual analysis enabled. Uploading PDF to convert first 8 pages to images...")
+            const formData = new FormData()
+            const pdfBlob = new Blob([fileBytes], { type: 'application/pdf' })
+            formData.append('file', pdfBlob, 'document.pdf')
+            formData.append('pages', '0-7')
+
+            const pdfcoRes = await fetch('https://api.pdf.co/v1/pdf/convert/to/png', {
+              method: 'POST',
+              headers: { 'x-api-key': pdfcoApiKey },
+              body: formData
+            })
+
+            if (pdfcoRes.ok) {
+              const pdfcoData = await pdfcoRes.json()
+              if (!pdfcoData.error && (pdfcoData.urls || pdfcoData.url)) {
+                let imageUrls: string[] = []
+                const rawUrls = pdfcoData.urls || pdfcoData.url
+                if (Array.isArray(rawUrls)) {
+                  imageUrls = rawUrls
+                } else if (typeof rawUrls === 'string') {
+                  imageUrls = [rawUrls]
+                }
+
+                console.log(`PDF.co converted ${imageUrls.length} pages. Downloading page images...`)
+                for (const imgUrl of imageUrls) {
+                  try {
+                    const imgRes = await fetch(imgUrl)
+                    if (imgRes.ok) {
+                      const buffer = await imgRes.arrayBuffer()
+                      const bytes = new Uint8Array(buffer)
+                      let binary = ''
+                      const lenBytes = bytes.byteLength
+                      for (let i = 0; i < lenBytes; i++) {
+                        binary += String.fromCharCode(bytes[i])
+                      }
+                      base64Images.push(btoa(binary))
+                    }
+                  } catch (imgDownloadErr) {
+                    console.error(`Failed to download page image from ${imgUrl}:`, imgDownloadErr)
+                  }
+                }
+
+                if (base64Images.length > 0) {
+                  visualAnalysisUsed = true
+                  console.log(`Successfully prepared ${base64Images.length} images for vision-based analysis.`)
+                }
+              } else {
+                console.warn("PDF.co API returned error:", pdfcoData)
               }
             } else {
-              console.warn("PDF.co API returned error:", pdfcoData)
+              console.warn(`PDF.co response status failed: ${pdfcoRes.status}`)
             }
-          } else {
-            console.warn(`PDF.co response status failed: ${pdfcoRes.status}`)
+          } catch (pdfcoErr) {
+            console.error("PDF.co page conversion failed, falling back to text-only:", pdfcoErr)
           }
-        } catch (pdfcoErr) {
-          console.error("PDF.co page conversion failed, falling back to text-only:", pdfcoErr)
+        } else {
+          console.warn("PDFCO_API_KEY is missing. Falling back to text-only analysis.")
         }
-      } else {
-        console.warn("PDFCO_API_KEY is missing. Falling back to text-only analysis.")
       }
     }
 

@@ -884,17 +884,17 @@ function openSummaryStyleModal() {
   const visualCheckbox = document.getElementById('chk-analyze-visuals');
   if (visualCheckbox) visualCheckbox.checked = false; // Reset to false by default
 
-  let isPdf = false;
+  let isVisualSupported = false;
   if (activeSummarizingDocId) {
     const doc = activeDocuments.find(d => d.id === activeSummarizingDocId);
     if (doc) {
       const fileName = (doc.file_name || '').toLowerCase();
-      isPdf = fileName.endsWith('.pdf') || doc.mime_type === 'application/pdf';
+      isVisualSupported = fileName.endsWith('.pdf') || doc.mime_type === 'application/pdf' || fileName.endsWith('.pptx') || doc.mime_type === 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
     }
   }
 
   if (visualContainer) {
-    visualContainer.style.display = isPdf ? 'block' : 'none';
+    visualContainer.style.display = isVisualSupported ? 'block' : 'none';
   }
 
   if (window.openModalWithFocus) {
