@@ -99,6 +99,12 @@
               <span>Materyal &amp; Duyuru</span>
             </a>
           </li>
+          <li class="sidebar-item" data-teacher-tab="profile">
+            <a href="#" onclick="switchTeacherTab('profile'); return false;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+              <span>Profilim</span>
+            </a>
+          </li>
         </ul>
       </nav>
     </aside>
@@ -221,6 +227,49 @@
 
           <div id="teacher-materials-list" style="display:flex; flex-direction: column; gap: 0.75rem;">
             <div style="text-align:center; padding: 1.5rem; color: var(--color-text-muted);">Yükleniyor...</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PROFILE -->
+      <section id="teacher-profile-panel" class="teacher-tab-panel">
+        <div class="dashboard-page-header">
+          <h2 class="dashboard-page-title">Profilim</h2>
+          <p class="dashboard-page-subtitle">Hesap bilgileriniz ve sorumlu olduğunuz bölüm.</p>
+        </div>
+
+        <div class="teacher-panel-card" style="max-width: 560px;">
+          <div style="display:flex; align-items:center; gap:1rem; margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid rgba(22,50,92,0.08);">
+            <div id="teacher-profile-avatar" style="width:64px; height:64px; border-radius:50%; background: var(--color-teal); color:white; display:flex; align-items:center; justify-content:center; font-size:1.4rem; font-weight:800; flex-shrink:0;"></div>
+            <div>
+              <div id="teacher-profile-name" style="font-size:1.1rem; font-weight:800; color:var(--color-navy);"></div>
+              <div id="teacher-profile-email" style="font-size:0.8rem; color:var(--color-text-muted); margin-top:0.15rem;"></div>
+            </div>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:1.25rem;">
+            <div>
+              <div style="font-size:0.7rem; font-weight:700; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.35rem;">Akademik Unvan</div>
+              <div id="teacher-profile-title-display" style="display:flex; align-items:center; gap:0.6rem;">
+                <span id="teacher-profile-title-text" style="font-size:0.95rem; color:var(--color-text);"></span>
+                <button class="teacher-mini-btn" onclick="startEditTeacherTitle()">✏️ Düzenle</button>
+              </div>
+              <div id="teacher-profile-title-edit" style="display:none; gap:0.5rem; margin-top:0.5rem;">
+                <input type="text" id="teacher-profile-title-input" placeholder="ör. Dr. Öğr. Üyesi" style="flex:1; padding:0.5rem 0.65rem; border:1px solid rgba(22,50,92,0.15); border-radius:var(--radius-sm); font-size:0.85rem; font-family:inherit;">
+                <button class="teacher-mini-btn primary" onclick="saveTeacherTitle()">Kaydet</button>
+                <button class="teacher-mini-btn" onclick="cancelEditTeacherTitle()">Vazgeç</button>
+              </div>
+            </div>
+
+            <div>
+              <div style="font-size:0.7rem; font-weight:700; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.35rem;">Sorumlu Olduğu Bölüm</div>
+              <div id="teacher-profile-department" style="font-size:0.95rem; color:var(--color-text);"></div>
+            </div>
+
+            <div>
+              <div style="font-size:0.7rem; font-weight:700; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.35rem;">Hesap Türü</div>
+              <span id="teacher-profile-role-badge" style="display:inline-block; font-size:0.75rem; font-weight:700; padding:0.25rem 0.65rem; border-radius:20px; background:#E0E7FF; color:#4F46E5;"></span>
+            </div>
           </div>
         </div>
       </section>

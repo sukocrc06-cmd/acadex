@@ -18,6 +18,7 @@ document.addEventListener('acadex-teacher-ready', () => {
 
   wireLogout();
   loadStudentPerformance();
+  renderTeacherProfile();
 });
 
 function wireLogout() {
@@ -67,8 +68,97 @@ function switchTeacherTab(tabId) {
   if (tabId === 'students') loadStudentPerformance();
   if (tabId === 'exams') loadExamReview();
   if (tabId === 'materials') { loadTeacherAnnouncements(); loadTeacherMaterials(); }
+  if (tabId === 'profile') renderTeacherProfile();
 }
 window.switchTeacherTab = switchTeacherTab;
+
+// ==========================================
+// PROFILE (read-only, except the academic title which the teacher can
+// edit themselves — everything else here, including the department they're
+// responsible for, is server-truth from profiles and never client-editable).
+// ==========================================
+function renderTeacherProfile() {
+  if (!teacherProfile) return;
+
+  const avatarEl = document.getElementById('teacher-profile-avatar');
+  const nameEl = document.getElementById('teacher-profile-name');
+  const emailEl = document.getElementById('teacher-profile-email');
+  const titleTextEl = document.getElementById('teacher-profile-title-text');
+  const deptEl = document.getElementById('teacher-profile-department');
+  const roleBadgeEl = document.getElementById('teacher-profile-role-badge');
+
+  const fullName = teacherProfile.full_name || 'Hoca';
+  if (avatarEl) {
+    const initials = fullName
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map(part => part[0].toUpperCase())
+      .join('');
+    avatarEl.textContent = initials || 'H';
+  }
+  if (nameEl) nameEl.textContent = fullName;
+  if (emailEl) emailEl.textContent = teacherProfile.email || '';
+  if (titleTextEl) titleTextEl.textContent = teacherProfile.teacher_title || 'Belirtilmemiş';
+  if (deptEl) deptEl.textContent = teacherProfile.department || 'Belirtilmemiş';
+  if (roleBadgeEl) {
+    if (teacherProfile.is_admin) {
+      roleBadgeEl.textContent = 'Admin (Önizleme)';
+      roleBadgeEl.style.background = '#FEE2E2';
+      roleBadgeEl.style.color = '#DC2626';
+    } else {
+      roleBadgeEl.textContent = 'Hoca';
+      roleBadgeEl.style.background = '#E0E7FF';
+      roleBadgeEl.style.color = '#4F46E5';
+    }
+  }
+}
+
+function startEditTeacherTitle() {
+  const displayEl = document.getElementById('teacher-profile-title-display');
+  const editEl = document.getElementById('teacher-profile-title-edit');
+  const input = document.getElementById('teacher-profile-title-input');
+  if (!displayEl || !editEl || !input) return;
+
+  input.value = teacherProfile.teacher_title || '';
+  displayEl.style.display = 'none';
+  editEl.style.display = 'flex';
+  input.focus();
+}
+window.startEditTeacherTitle = startEditTeacherTitle;
+
+function cancelEditTeacherTitle() {
+  const displayEl = document.getElementById('teacher-profile-title-display');
+  const editEl = document.getElementById('teacher-profile-title-edit');
+  if (!displayEl || !editEl) return;
+  editEl.style.display = 'none';
+  displayEl.style.display = 'flex';
+}
+window.cancelEditTeacherTitle = cancelEditTeacherTitle;
+
+async function saveTeacherTitle() {
+  const input = document.getElementById('teacher-profile-title-input');
+  if (!input) return;
+  const newTitle = input.value.trim();
+
+  try {
+    const { error } = await supabaseClient
+      .from('profiles')
+      .update({ teacher_title: newTitle || null })
+      .eq('id', teacherProfile.id);
+    if (error) throw error;
+
+    teacherProfile.teacher_title = newTitle || null;
+    window.__acadexTeacherProfile = teacherProfile;
+    renderTeacherProfile();
+    cancelEditTeacherTitle();
+    showTeacherAlert('success', 'Unvan güncellendi.');
+  } catch (err) {
+    console.error('saveTeacherTitle error:', err);
+    showTeacherAlert('error', 'Unvan güncellenemedi: ' + (err.message || 'bilinmeyen hata'));
+  }
+}
+window.saveTeacherTitle = saveTeacherTitle;
 
 // ==========================================
 // STUDENT PERFORMANCE (read-only)
