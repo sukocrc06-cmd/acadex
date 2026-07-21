@@ -654,6 +654,23 @@ function translateDepartment(dept) {
   return dept;
 }
 
+/**
+ * Looks up a single translation key for the currently active UI language.
+ * Several dashboard.js call sites (course tag / original-document-viewer /
+ * glossary UI) call this expecting it to exist, but it was never actually
+ * defined here — every call threw "getTranslation is not defined" and
+ * aborted whatever click handler invoked it (e.g. the original-document
+ * viewer button, which crashed before it ever rendered its loading state,
+ * leaving a blank pane). All call sites already guard with `|| 'fallback text'`,
+ * so a missing/undefined key degrades gracefully to that fallback.
+ */
+function getTranslation(key) {
+  const lang = localStorage.getItem('acadexUILang') || 'tr';
+  const dict = TRANSLATIONS[lang] || TRANSLATIONS['en'];
+  return dict ? dict[key] : undefined;
+}
+window.getTranslation = getTranslation;
+
 function applyLanguage(lang) {
   lang = lang || localStorage.getItem('acadexUILang') || 'tr';
   localStorage.setItem('acadexUILang', lang);
