@@ -109,6 +109,7 @@ const TRANSLATIONS = {
     "dash.nav.feed": "Department Feed",
     "dash.nav.notebook": "Study Notebook",
     "dash.nav.cards": "Study Cards",
+    "dash.nav.glossary": "Course Glossary",
     "dash.nav.exams": "Exams Platform",
     "dash.nav.sandbox": "Developer Sandbox",
     "dash.nav.settings": "Settings",
@@ -209,6 +210,22 @@ const TRANSLATIONS = {
     "dash.cards.quantitative": "🔢 Quantitative Course",
     "dash.cards.formulas": "Formulas",
     "dash.cards.examples": "Worked Examples",
+    "dash.cards.viewOriginal": "📄 View Original",
+    "dash.cards.singleView": "✕ Single View",
+    "dash.cards.downloadOriginal": "⬇️ Download Original File",
+    "dash.cards.cannotPreviewInline": "This file type (Word/PowerPoint) cannot be previewed directly in the browser.",
+
+    // Course Glossary Tab
+    "dash.glossary.title": "📖 Course Glossary",
+    "dash.glossary.desc": "Consolidated glossary of terms and definitions across your study cards grouped by course tag.",
+    "dash.glossary.selectCourse": "Select Course Tag",
+    "dash.glossary.allCourses": "All Courses",
+    "dash.glossary.searchLabel": "Search Terms",
+    "dash.glossary.searchPlaceholder": "Filter terms or definitions...",
+    "dash.glossary.exportPdf": "📥 Export as PDF",
+    "dash.glossary.emptyTitle": "No course-tagged study cards yet",
+    "dash.glossary.emptyDesc": "Add a course tag to your study cards on Belgelerim or Bilgi Kartları to build a glossary.",
+    "dash.glossary.alsoCoveredIn": "also covered in:",
 
     // Exams Platform Tab
     "dash.exams.title": "Exams Platform",
@@ -412,6 +429,7 @@ const TRANSLATIONS = {
     "dash.nav.feed": "Bölüm Akışı",
     "dash.nav.notebook": "Çalışma Defteri",
     "dash.nav.cards": "Bilgi Kartları",
+    "dash.nav.glossary": "Ders Sözlüğü",
     "dash.nav.exams": "Sınav Platformu",
     "dash.nav.sandbox": "Geliştirici Sandbox",
     "dash.nav.settings": "Ayarlar",
@@ -512,6 +530,22 @@ const TRANSLATIONS = {
     "dash.cards.quantitative": "🔢 Sayısal Ders",
     "dash.cards.formulas": "Formüller",
     "dash.cards.examples": "Çözümlü Örnekler",
+    "dash.cards.viewOriginal": "📄 Orijinali Görüntüle",
+    "dash.cards.singleView": "✕ Tekli Görünüm",
+    "dash.cards.downloadOriginal": "⬇️ Orijinal Dosyayı İndir",
+    "dash.cards.cannotPreviewInline": "Bu dosya türü (Word/PowerPoint) tarayıcıda doğrudan önizlenemiyor.",
+
+    // Course Glossary Tab
+    "dash.glossary.title": "📖 Ders Sözlüğü",
+    "dash.glossary.desc": "Çalışma kartlarınızdaki ders kodlarına göre derlenmiş terimler ve tanımları sözlüğü.",
+    "dash.glossary.selectCourse": "Ders Kodu Seçin",
+    "dash.glossary.allCourses": "Tüm Dersler",
+    "dash.glossary.searchLabel": "Terimlerde Ara",
+    "dash.glossary.searchPlaceholder": "Terim veya tanım filtrele...",
+    "dash.glossary.exportPdf": "📥 PDF Olarak Aktar",
+    "dash.glossary.emptyTitle": "Henüz ders kodlu çalışma kartı bulunmuyor",
+    "dash.glossary.emptyDesc": "Ders sözlüğü oluşturmak için Belgelerim veya Bilgi Kartları sayfasında kartlarınıza ders kodu ekleyin.",
+    "dash.glossary.alsoCoveredIn": "ayrıca şurada da geçiyor:",
 
     // Exams Platform Tab
     "dash.exams.title": "Sınav Platformu",

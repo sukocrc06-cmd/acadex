@@ -4605,6 +4605,110 @@ input:checked + .slider:before {
   color: var(--color-text);
 }
 
+/* ==========================================================================
+   SIDE-BY-SIDE ORIGINAL DOCUMENT VIEWER & COURSE GLOSSARY STYLES
+   ========================================================================== */
+.study-card-modal-card.split-active {
+  max-width: 95vw !important;
+  width: 1400px !important;
+  height: 90vh !important;
+}
+
+.study-card-split-wrapper {
+  display: flex;
+  gap: 1rem;
+  width: 100%;
+  height: calc(100% - 60px);
+  overflow: hidden;
+}
+
+.study-card-modal-card.split-active .study-card-split-wrapper {
+  height: calc(100% - 70px);
+}
+
+.study-card-split-wrapper #study-card-left-pane {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+}
+
+.original-doc-viewer-pane {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg-alt);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(22, 50, 92, 0.12);
+  padding: 0.5rem;
+  overflow: hidden;
+  height: 100%;
+}
+
+@media (max-width: 992px) {
+  .study-card-modal-card.split-active {
+    height: 95vh !important;
+  }
+  .study-card-split-wrapper {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+  .original-doc-viewer-pane {
+    min-height: 400px;
+  }
+}
+
+/* Glossary Page Styling */
+.glossary-card {
+  background: var(--color-white);
+  border: 1px solid rgba(22, 50, 92, 0.08);
+  border-radius: var(--radius-md);
+  padding: 1.25rem;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.glossary-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.glossary-term-name {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--color-navy);
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.glossary-definition-block {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--color-text);
+  background: var(--color-bg-alt);
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--color-teal);
+  margin-bottom: 0.5rem;
+}
+
+.glossary-source-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.725rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  background: rgba(22, 50, 92, 0.05);
+  border: 1px solid rgba(22, 50, 92, 0.08);
+  border-radius: var(--radius-sm);
+  padding: 0.15rem 0.45rem;
+  margin-top: 0.25rem;
+}
+
 
 
 

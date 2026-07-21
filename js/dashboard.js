@@ -1758,7 +1758,7 @@ function switchDashboardView(viewId) {
   }
 
   // Update sidebar active classes immediately for responsiveness
-  const tabs = ['home', 'planner', 'docs', 'feed', 'notebook', 'cards', 'exams', 'settings', 'sandbox', 'admin'];
+  const tabs = ['home', 'planner', 'docs', 'feed', 'notebook', 'cards', 'glossary', 'exams', 'settings', 'sandbox', 'admin'];
   tabs.forEach(tab => {
     const el = document.getElementById(`side-${tab}`);
     if (el) {
@@ -1825,6 +1825,8 @@ function loadViewContent(viewId) {
     loadStudyNotebook();
   } else if (viewId === 'cards') {
     loadCardsLibrary();
+  } else if (viewId === 'glossary') {
+    loadGlossaryView();
   } else if (viewId === 'exams') {
     loadExamsPlatform();
   } else if (viewId === 'settings') {
@@ -11793,6 +11795,392 @@ window.searchClassmatesForShare = searchClassmatesForShare;
 window.addPageShare = addPageShare;
 window.removePageShare = removePageShare;
 window.loadSharedPages = loadSharedPages;
+
+// ==========================================
+// SIDE-BY-SIDE ORIGINAL DOCUMENT VIEWER
+// ==========================================
+let isOriginalDocSplitActive = false;
+
+async function toggleOriginalDocumentViewer() {
+  const modalCard = document.querySelector('.study-card-modal-card');
+  const rightPane = document.getElementById('original-doc-viewer-pane');
+  const toggleBtnLabel = document.getElementById('btn-toggle-original-label');
+  if (!modalCard || !rightPane || !currentActiveStudyCard) return;
+
+  if (isOriginalDocSplitActive) {
+    // Return to single view
+    isOriginalDocSplitActive = false;
+    modalCard.classList.remove('split-active');
+    rightPane.style.display = 'none';
+    rightPane.innerHTML = '';
+    if (toggleBtnLabel) toggleBtnLabel.textContent = getTranslation('dash.cards.viewOriginal') || '📄 Orijinali Görüntüle';
+    return;
+  }
+
+  // Open side-by-side view
+  isOriginalDocSplitActive = true;
+  modalCard.classList.add('split-active');
+  rightPane.style.display = 'flex';
+  if (toggleBtnLabel) toggleBtnLabel.textContent = getTranslation('dash.cards.singleView') || '✕ Tekli Görünüm';
+
+  rightPane.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:0.9rem;color:var(--color-text-muted);">Yükleniyor / Loading...</div>`;
+
+  try {
+    let storagePath = currentActiveStudyCard.storage_path;
+    let fileName = currentActiveStudyCard.documentFileName || '';
+    let mimeType = currentActiveStudyCard.mime_type || '';
+
+    if (!storagePath && currentActiveStudyCard.document_id) {
+      const { data: docData } = await supabaseClient
+        .from('documents')
+        .select('storage_path, file_name, mime_type')
+        .eq('id', currentActiveStudyCard.document_id)
+        .single();
+      
+      if (docData) {
+        storagePath = docData.storage_path;
+        fileName = docData.file_name || fileName;
+        mimeType = docData.mime_type || mimeType;
+      }
+    }
+
+    if (!storagePath) {
+      rightPane.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:0.9rem;color:#EF4444;">Dosya yolu bulunamadı / Document file path not found.</div>`;
+      return;
+    }
+
+    // Generate signed URL (300 seconds = 5 min expiry)
+    const { data: signedData, error: signedErr } = await supabaseClient
+      .storage
+      .from('documents')
+      .createSignedUrl(storagePath, 300);
+
+    if (signedErr || !signedData?.signedUrl) {
+      console.error("Failed to create signed URL:", signedErr);
+      rightPane.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:0.9rem;color:#EF4444;">Belge yüklenemedi / Could not load document.</div>`;
+      return;
+    }
+
+    const lowerName = fileName.toLowerCase();
+    const isPdf = lowerName.endsWith('.pdf') || mimeType === 'application/pdf';
+
+    if (isPdf) {
+      rightPane.innerHTML = `<iframe src="${signedData.signedUrl}" style="width:100%;height:100%;border:none;border-radius:var(--radius-sm);"></iframe>`;
+    } else {
+      // Non-PDF (Word / PowerPoint) download panel
+      rightPane.innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;text-align:center;padding:2rem;gap:1rem;background:var(--color-white);border-radius:var(--radius-sm);">
+          <div style="font-size:3.5rem;">📄</div>
+          <h4 style="margin:0;color:var(--color-navy);font-size:1.05rem;">${escapeHtml(fileName || 'Belge')}</h4>
+          <p style="margin:0;color:var(--color-text-muted);font-size:0.85rem;max-width:340px;">${getTranslation('dash.cards.cannotPreviewInline') || 'Bu dosya türü (Word/PowerPoint) tarayıcıda doğrudan önizlenemiyor.'}</p>
+          <a href="${signedData.signedUrl}" download target="_blank" class="btn btn-primary" style="font-size:0.85rem;padding:0.6rem 1.25rem;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:0.5rem;border-radius:var(--radius-sm);">
+            <span>${getTranslation('dash.cards.downloadOriginal') || '⬇️ Orijinal Dosyayı İndir'}</span>
+          </a>
+        </div>
+      `;
+    }
+  } catch (err) {
+    console.error("Exception loading original doc viewer:", err);
+    rightPane.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:0.9rem;color:#EF4444;">Hata oluştu / Error loading document.</div>`;
+  }
+}
+window.toggleOriginalDocumentViewer = toggleOriginalDocumentViewer;
+
+// ==========================================
+// COURSE-WIDE AUTO-GLOSSARY
+// ==========================================
+let currentGlossaryData = [];
+
+async function loadGlossaryView() {
+  if (!currentUser) return;
+
+  const selectEl = document.getElementById('glossary-course-select');
+  if (!selectEl) return;
+
+  try {
+    const { data: cards, error } = await supabaseClient
+      .from('study_cards')
+      .select('course_tag')
+      .eq('user_id', currentUser.id)
+      .not('course_tag', 'is', null);
+
+    if (!error && cards) {
+      const distinctTags = Array.from(new Set(cards.map(c => c.course_tag).filter(Boolean))).sort();
+      selectEl.innerHTML = `<option value="ALL">${getTranslation('dash.glossary.allCourses') || 'Tüm Dersler (All Courses)'}</option>`;
+      distinctTags.forEach(tag => {
+        const opt = document.createElement('option');
+        opt.value = tag;
+        opt.textContent = tag;
+        selectEl.appendChild(opt);
+      });
+    }
+  } catch (err) {
+    console.error("Exception fetching glossary course tags:", err);
+  }
+
+  await loadCourseGlossary();
+}
+window.loadGlossaryView = loadGlossaryView;
+
+async function loadCourseGlossary() {
+  const container = document.getElementById('glossary-list-container');
+  const selectEl = document.getElementById('glossary-course-select');
+  if (!container || !selectEl || !currentUser) return;
+
+  container.innerHTML = `<p style="font-size:0.85rem;color:var(--color-text-muted);">Yükleniyor...</p>`;
+
+  const selectedCourse = selectEl.value;
+
+  try {
+    let query = supabaseClient
+      .from('study_cards')
+      .select('id, course_tag, key_terms, documents(file_name)')
+      .eq('user_id', currentUser.id);
+
+    if (selectedCourse !== 'ALL') {
+      query = query.eq('course_tag', selectedCourse);
+    }
+
+    const { data: cards, error } = await query;
+
+    if (error) {
+      console.error("Error loading study cards for glossary:", error);
+      container.innerHTML = `<p style="font-size:0.85rem;color:#EF4444;">Ders sözlüğü yüklenemedi.</p>`;
+      return;
+    }
+
+    if (!cards || cards.length === 0) {
+      renderGlossaryEmptyState(container);
+      currentGlossaryData = [];
+      return;
+    }
+
+    const rawTerms = [];
+    cards.forEach(card => {
+      const docName = card.documents?.file_name || 'Belge';
+      const terms = card.key_terms || [];
+      if (Array.isArray(terms)) {
+        terms.forEach(t => {
+          if (t && t.term && t.definition) {
+            rawTerms.push({
+              term: t.term.trim(),
+              definition: t.definition.trim(),
+              source: docName,
+              courseTag: card.course_tag
+            });
+          }
+        });
+      }
+    });
+
+    if (rawTerms.length === 0) {
+      renderGlossaryEmptyState(container);
+      currentGlossaryData = [];
+      return;
+    }
+
+    const grouped = {};
+    rawTerms.forEach(item => {
+      const key = item.term.toLowerCase();
+      if (!grouped[key]) {
+        grouped[key] = {
+          displayTerm: item.term,
+          entries: []
+        };
+      }
+      grouped[key].entries.push(item);
+    });
+
+    const consolidatedList = [];
+
+    Object.keys(grouped).sort().forEach(key => {
+      const group = grouped[key];
+      const termName = group.displayTerm;
+
+      const defClusters = [];
+
+      group.entries.forEach(entry => {
+        let matchedCluster = null;
+        for (const cluster of defClusters) {
+          if (isSimilarDefinition(cluster.definition, entry.definition)) {
+            matchedCluster = cluster;
+            break;
+          }
+        }
+
+        if (matchedCluster) {
+          if (!matchedCluster.sources.includes(entry.source)) {
+            matchedCluster.sources.push(entry.source);
+          }
+        } else {
+          defClusters.push({
+            definition: entry.definition,
+            sources: [entry.source]
+          });
+        }
+      });
+
+      consolidatedList.push({
+        term: termName,
+        clusters: defClusters
+      });
+    });
+
+    currentGlossaryData = consolidatedList;
+    renderGlossaryList(consolidatedList);
+
+  } catch (err) {
+    console.error("Exception in loadCourseGlossary:", err);
+    container.innerHTML = `<p style="font-size:0.85rem;color:#EF4444;">Hata oluştu.</p>`;
+  }
+}
+window.loadCourseGlossary = loadCourseGlossary;
+
+function isSimilarDefinition(def1, def2) {
+  const words1 = new Set((def1 || '').toLowerCase().match(/\b\w+\b/g) || []);
+  const words2 = new Set((def2 || '').toLowerCase().match(/\b\w+\b/g) || []);
+  if (words1.size === 0 || words2.size === 0) return true;
+  let overlap = 0;
+  words1.forEach(w => { if (words2.has(w)) overlap++; });
+  const similarity = overlap / Math.min(words1.size, words2.size);
+  return similarity >= 0.4;
+}
+
+function renderGlossaryList(list) {
+  const container = document.getElementById('glossary-list-container');
+  if (!container) return;
+
+  if (!list || list.length === 0) {
+    renderGlossaryEmptyState(container);
+    return;
+  }
+
+  container.innerHTML = '';
+  list.forEach(item => {
+    const cardEl = document.createElement('div');
+    cardEl.className = 'glossary-card';
+
+    let defsHtml = '';
+    item.clusters.forEach(cluster => {
+      const sourcesText = cluster.sources.join(', ');
+      defsHtml += `
+        <div class="glossary-definition-block">
+          <div>${escapeHtml(cluster.definition)}</div>
+          <div class="glossary-source-badge">
+            <span>📄 ${escapeHtml(sourcesText)}</span>
+          </div>
+        </div>
+      `;
+    });
+
+    cardEl.innerHTML = `
+      <div class="glossary-term-name">📌 ${escapeHtml(item.term)}</div>
+      ${defsHtml}
+    `;
+
+    container.appendChild(cardEl);
+  });
+}
+
+function renderGlossaryEmptyState(container) {
+  const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+  container.innerHTML = `
+    <div class="empty-state" style="padding: 3rem 1.5rem; background: var(--color-white); border-radius: var(--radius-md); border: 1px solid rgba(22,50,92,0.08);">
+      <svg class="empty-state-icon" xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+      </svg>
+      <h3 class="empty-state-title">${isTr ? 'Henüz ders kodlu çalışma kartı bulunmuyor' : 'No course-tagged study cards yet'}</h3>
+      <p class="empty-state-text">${isTr ? 'Ders sözlüğü oluşturmak için Belgelerim veya Bilgi Kartları sayfasında kartlarınıza ders kodu ekleyin.' : 'Add a course tag to your study cards on Belgelerim or Bilgi Kartları to build a glossary.'}</p>
+    </div>
+  `;
+}
+
+function filterGlossaryList() {
+  const query = (document.getElementById('glossary-search-input')?.value || '').toLowerCase().trim();
+  if (!query) {
+    renderGlossaryList(currentGlossaryData);
+    return;
+  }
+
+  const filtered = currentGlossaryData.filter(item => {
+    const termMatch = item.term.toLowerCase().includes(query);
+    const defMatch = item.clusters.some(c => c.definition.toLowerCase().includes(query) || c.sources.some(s => s.toLowerCase().includes(query)));
+    return termMatch || defMatch;
+  });
+
+  renderGlossaryList(filtered);
+}
+window.filterGlossaryList = filterGlossaryList;
+
+async function exportGlossaryToPdf() {
+  if (!currentGlossaryData || currentGlossaryData.length === 0) {
+    showDashboardAlert('error', 'Aktarılacak terim bulunamadı.');
+    return;
+  }
+
+  try {
+    if (!window.jspdf) {
+      await window.loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+    }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+
+    const selectEl = document.getElementById('glossary-course-select');
+    const courseName = selectEl ? selectEl.value : 'ALL';
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.text(`Acadex Course Glossary — ${courseName}`, 14, 20);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Generated on ${new Date().toLocaleDateString()}`, 14, 27);
+
+    let y = 35;
+    const pageHeight = doc.internal.pageSize.height;
+
+    currentGlossaryData.forEach((item, idx) => {
+      if (y > pageHeight - 30) {
+        doc.addPage();
+        y = 20;
+      }
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(22, 50, 92);
+      doc.text(`${idx + 1}. ${item.term}`, 14, y);
+      y += 6;
+
+      item.clusters.forEach(cluster => {
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9.5);
+        doc.setTextColor(40);
+        
+        const splitText = doc.splitTextToSize(cluster.definition, 175);
+        doc.text(splitText, 18, y);
+        y += splitText.length * 4.5;
+
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(8.5);
+        doc.setTextColor(120);
+        doc.text(`Source: ${cluster.sources.join(', ')}`, 18, y);
+        y += 7;
+      });
+
+      y += 3;
+    });
+
+    doc.save(`Acadex_Glossary_${courseName.replace(/\s+/g, '_')}.pdf`);
+    showDashboardAlert('success', 'Sözlük PDF olarak aktarıldı!');
+
+  } catch (err) {
+    console.error("PDF export failed:", err);
+    showDashboardAlert('error', 'PDF aktarımı başarısız oldu.');
+  }
+}
+window.exportGlossaryToPdf = exportGlossaryToPdf;
 
 
 
