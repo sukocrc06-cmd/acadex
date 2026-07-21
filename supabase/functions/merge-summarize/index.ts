@@ -121,6 +121,122 @@ function parsePptxSlideXml(slideXml: string): string {
   return slideParts.join("\n");
 }
 
+function parseDocxHtmlContent(html: string): string {
+  if (!html) return "";
+  let processed = html;
+
+  processed = processed.replace(/<h[1-6][^>]*>(.*?)<\/h[1-6]>/gi, (_m, content) => {
+    const clean = content.replace(/<[^>]+>/g, "").trim();
+    return clean ? `\n\n## ${clean}\n\n` : "";
+  });
+
+  processed = processed.replace(/<table[^>]*>[\s\S]*?<\/table>/gi, (tableHtml) => {
+    const rowMatches = [...tableHtml.matchAll(/<tr[^>]*>[\s\S]*?<\/tr>/gi)];
+    const tableRows: string[][] = [];
+
+    for (const rMatch of rowMatches) {
+      const rowInner = rMatch[0];
+      const cellMatches = [...rowInner.matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)];
+      const rowCells: string[] = [];
+
+      for (const cMatch of cellMatches) {
+        let cellText = cMatch[1].replace(/<[^>]+>/g, " ").trim();
+        cellText = cellText.replace(/\s+/g, " ").replace(/\|/g, "\\|");
+        rowCells.push(cellText);
+      }
+
+      if (rowCells.some(c => c.length > 0)) {
+        tableRows.push(rowCells);
+      }
+    }
+
+    if (tableRows.length === 0) return "";
+
+    const colCount = Math.max(...tableRows.map(r => r.length));
+    let mdTable = "\n\n";
+    const header = [...tableRows[0]];
+    while (header.length < colCount) header.push("");
+    mdTable += "| " + header.join(" | ") + " |\n";
+    mdTable += "| " + Array(colCount).fill("---").join(" | ") + " |\n";
+
+    for (let r = 1; r < tableRows.length; r++) {
+      const row = [...tableRows[r]];
+      while (row.length < colCount) row.push("");
+      mdTable += "| " + row.join(" | ") + " |\n";
+    }
+    mdTable += "\n";
+    return mdTable;
+  });
+
+  processed = processed.replace(/<\/p>/gi, "\n");
+  processed = processed.replace(/<br\s*\/?>/gi, "\n");
+  processed = processed.replace(/<\/div>/gi, "\n");
+  processed = processed.replace(/<[^>]+>/g, "");
+
+  processed = processed
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, " ");
+
+  return processed.replace(/\n{3,}/g, "\n\n").trim();
+}
+
+function detectAndFormatPdfTables(text: string): string {
+  if (!text) return text;
+  
+  const lines = text.split("\n");
+  const resultLines: string[] = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+    const columns = line.split(/\s{2,}|\t/).map(c => c.trim()).filter(Boolean);
+
+    if (columns.length >= 2 && i + 1 < lines.length) {
+      const potentialTableRows: string[][] = [columns];
+      let j = i + 1;
+
+      while (j < lines.length) {
+        const nextLine = lines[j];
+        const nextCols = nextLine.split(/\s{2,}|\t/).map(c => c.trim()).filter(Boolean);
+        if (nextCols.length >= 2 && Math.abs(nextCols.length - columns.length) <= 2) {
+          potentialTableRows.push(nextCols);
+          j++;
+        } else {
+          break;
+        }
+      }
+
+      if (potentialTableRows.length >= 3) {
+        const colCount = Math.max(...potentialTableRows.map(r => r.length));
+        let mdTable = "\n\n";
+        const header = [...potentialTableRows[0]];
+        while (header.length < colCount) header.push("");
+        mdTable += "| " + header.map(h => h.replace(/\|/g, "\\|")).join(" | ") + " |\n";
+        mdTable += "| " + Array(colCount).fill("---").join(" | ") + " |\n";
+
+        for (let r = 1; r < potentialTableRows.length; r++) {
+          const row = [...potentialTableRows[r]];
+          while (row.length < colCount) row.push("");
+          mdTable += "| " + row.map(cell => cell.replace(/\|/g, "\\|")).join(" | ") + " |\n";
+        }
+        mdTable += "\n";
+        resultLines.push(mdTable);
+        i = j;
+        continue;
+      }
+    }
+
+    resultLines.push(line);
+    i++;
+  }
+
+  return resultLines.join("\n");
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders })
@@ -207,8 +323,7 @@ serve(async (req) => {
           try {
             const pdf = await getDocumentProxy(fileBytes)
             const { text } = await extractText(pdf, { mergePages: true })
-            extractedText = text
-
+            extractedText = detectAndFormatPdfTables(text)
             const textLen = (extractedText || "").trim().length
             const fileSize = fileBytes.length
             if (textLen < 200 || textLen < (fileSize / 500)) {
@@ -228,7 +343,7 @@ serve(async (req) => {
                 const ocrTextLen = (ocrText || "").trim().length
                 if (ocrTextLen >= 200) {
                   console.log(`OCR succeeded! Extracted ${ocrTextLen} characters.`)
-                  extractedText = ocrText
+                  extractedText = detectAndFormatPdfTables(ocrText)
                 } else {
                   throw new Error("SCANNED_PDF")
                 }
@@ -242,8 +357,20 @@ serve(async (req) => {
             }
           }
         } else if (mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
-          const docxResult = await mammoth.extractRawText({ buffer: fileBytes })
-          extractedText = docxResult.value
+          try {
+            const docxHtmlResult = await mammoth.convertToHtml({ buffer: fileBytes })
+            const parsedDocxText = parseDocxHtmlContent(docxHtmlResult.value || "")
+            if (parsedDocxText.trim()) {
+              extractedText = parsedDocxText
+            } else {
+              const rawFallback = await mammoth.extractRawText({ buffer: fileBytes })
+              extractedText = rawFallback.value
+            }
+          } catch (docxErr) {
+            console.warn("Mammoth HTML conversion failed, falling back to raw text: ", docxErr)
+            const docxResult = await mammoth.extractRawText({ buffer: fileBytes })
+            extractedText = docxResult.value
+          }
         } else if (mimeType === "application/vnd.openxmlformats-officedocument.presentationml.presentation") {
           const zip = new JSZip()
           await zip.loadAsync(fileBytes)

@@ -889,7 +889,10 @@ function openSummaryStyleModal() {
     const doc = activeDocuments.find(d => d.id === activeSummarizingDocId);
     if (doc) {
       const fileName = (doc.file_name || '').toLowerCase();
-      isVisualSupported = fileName.endsWith('.pdf') || doc.mime_type === 'application/pdf' || fileName.endsWith('.pptx') || doc.mime_type === 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+      const mime = (doc.mime_type || '').toLowerCase();
+      isVisualSupported = fileName.endsWith('.pdf') || mime === 'application/pdf' ||
+                          fileName.endsWith('.pptx') || mime === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' ||
+                          fileName.endsWith('.docx') || mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
     }
   }
 
@@ -9079,7 +9082,7 @@ window.saveCourseTag = saveCourseTag;
  * Calls the merge-summarize Edge Function for the given document IDs.
  * Shows loading + success/error toasts and reloads the cards library on success.
  */
-async function triggerMergeSummarize(documentIds, summaryStyle, language, summaryLength) {
+async function triggerMergeSummarize(documentIds, summaryStyle, language, summaryLength, analyzeVisuals) {
   if (!documentIds || documentIds.length < 2) {
     showDashboardAlert('error', 'Select at least 2 documents to merge.');
     return;
@@ -9103,7 +9106,7 @@ async function triggerMergeSummarize(documentIds, summaryStyle, language, summar
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
-      body: JSON.stringify({ documentIds, summaryStyle, language, summaryLength })
+      body: JSON.stringify({ documentIds, summaryStyle, language, summaryLength, analyzeVisuals: !!analyzeVisuals })
     });
 
     const result = await response.json();
