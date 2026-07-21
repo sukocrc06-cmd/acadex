@@ -117,8 +117,14 @@ async function ctLoadDepartment(code) {
       countByCode[key] = (countByCode[key] || 0) + 1;
     });
 
+    // A course's shared-summary count can only be usefully deep-linked into
+    // the Department Feed when browsing your OWN department — dashboard.html
+    // always shows the logged-in student's own department feed, so a link
+    // for another department's course would land on the wrong feed.
+    const isOwnDept = !!(window.__acadexProfile && window.__acadexProfile.department === dept.name);
+
     renderStats(courses || [], countByCode);
-    renderTree(courses || [], countByCode);
+    renderTree(courses || [], countByCode, isOwnDept);
   } catch (err) {
     console.error('Failed to load department courses:', err);
     treeContainer.innerHTML = `<div class="ct-panel-card">Bu bölümün dersleri yüklenirken bir hata oluştu.</div>`;
@@ -138,7 +144,7 @@ function renderStats(courses, countByCode) {
   `;
 }
 
-function renderTree(courses, countByCode) {
+function renderTree(courses, countByCode, isOwnDept) {
   const container = document.getElementById('ct-tree-container');
   if (courses.length === 0) {
     container.innerHTML = `<div class="ct-panel-card">Bu bölüm için henüz ders kataloğu girilmemiş.</div>`;
@@ -158,9 +164,14 @@ function renderTree(courses, countByCode) {
     const label = year > 0 ? `${year}. Sınıf Dersleri` : 'Sınıfı Belirtilmemiş Dersler';
     const rows = byYear[year].map(c => {
       const count = countByCode[c.course_code.toUpperCase()] || 0;
-      const badge = count > 0
-        ? `<span class="ct-count-badge has-cards">📚 ${count} özet</span>`
-        : `<span class="ct-count-badge empty">İlk sen özetle!</span>`;
+      let badge;
+      if (count > 0 && isOwnDept) {
+        badge = `<span class="ct-count-badge has-cards" style="cursor:pointer;" onclick="ctGoToFeed('${c.course_code}')" title="Bölüm akışında bu dersin özetlerini gör">📚 ${count} özet →</span>`;
+      } else if (count > 0) {
+        badge = `<span class="ct-count-badge has-cards">📚 ${count} özet</span>`;
+      } else {
+        badge = `<span class="ct-count-badge empty">İlk sen özetle!</span>`;
+      }
       return `
         <div class="ct-course-row">
           <span class="ct-course-code">${c.course_code}</span>
@@ -188,5 +199,10 @@ function ctToggleYear(headerEl) {
   if (body) body.classList.toggle('collapsed');
 }
 window.ctToggleYear = ctToggleYear;
+
+function ctGoToFeed(courseCode) {
+  window.location.href = `dashboard.html?course=${encodeURIComponent(courseCode)}`;
+}
+window.ctGoToFeed = ctGoToFeed;
 
 document.addEventListener('acadex-course-tree-ready', ctInit);

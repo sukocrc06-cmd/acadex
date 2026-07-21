@@ -12,7 +12,10 @@
 --      code, course name, and class year (1-4). Seeded from the 4 curriculum
 --      PDFs (BF, BUS, ITB, MIS).
 --   3. Both tables are publicly readable (anon + authenticated) since this is a
---      shared reference catalog, not user data; writes are admin-only.
+--      shared reference catalog, not user data; writes are admin-only (checked
+--      directly against profiles.is_admin -- does NOT depend on the
+--      current_is_admin() helper from 20260719_admin_teacher_portals.sql, so
+--      this migration runs standalone even if that one hasn't been applied).
 --
 -- This does NOT change documents/study_cards.course_tag or its data -- it stays
 -- a free-text field. The summarize-document / merge-summarize Edge Functions are
@@ -53,8 +56,8 @@ drop policy if exists "departments_admin_write" on public.departments;
 create policy "departments_admin_write"
   on public.departments for all
   to authenticated
-  using (public.current_is_admin())
-  with check (public.current_is_admin());
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_admin = true))
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_admin = true));
 
 drop policy if exists "courses_select_all" on public.courses;
 create policy "courses_select_all"
@@ -66,8 +69,8 @@ drop policy if exists "courses_admin_write" on public.courses;
 create policy "courses_admin_write"
   on public.courses for all
   to authenticated
-  using (public.current_is_admin())
-  with check (public.current_is_admin());
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_admin = true))
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_admin = true));
 
 -- --------------------------------------------------------------------------
 -- Seed: 4 departments (name matches profiles.department / register.html exactly)

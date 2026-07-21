@@ -61,6 +61,7 @@ function switchAdminTab(tabId) {
   if (tabId === 'analytics') loadAnalytics();
   if (tabId === 'content') { loadContactMessages(); loadSharedCardsModeration(); }
   if (tabId === 'settings') { loadSiteSettings(); loadAnnouncements(); loadAuditLog(); }
+  if (tabId === 'catalog') loadCourseCatalog();
 }
 window.switchAdminTab = switchAdminTab;
 
@@ -703,6 +704,263 @@ async function deleteAnnouncement(id) {
   }
 }
 window.deleteAnnouncement = deleteAnnouncement;
+
+// ==========================================================================
+// DERS KATALOĞU (COURSE CATALOG) — CRUD + content-gap report over
+// public.departments / public.courses (seeded by
+// supabase/migrations/20260721_add_course_catalog.sql). These are the same
+// tables the AI course-detection (summarize-document / merge-summarize edge
+// functions) and the student-facing ders-agaci.html page read from, so
+// changes here take effect everywhere immediately — no redeploy needed.
+// ==========================================================================
+let catalogDepartments = [];
+let catalogCourses = [];
+let catalogCardCounts = {};
+
+function catalogDeptColorClass(code) {
+  const map = { MIS: 'dept-mis', BUS: 'dept-ba', ITB: 'dept-itb', BF: 'dept-bf' };
+  return map[code] || '';
+}
+
+async function loadCourseCatalog() {
+  const tbody = document.getElementById('admin-catalog-tbody');
+  if (tbody) tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 2rem; color: var(--color-text-muted);">Yükleniyor...</td></tr>`;
+
+  try {
+    const { data: departments, error: deptErr } = await supabaseClient
+      .from('departments')
+      .select('code, name, name_tr')
+      .order('name');
+    if (deptErr) throw deptErr;
+
+    const { data: courses, error: coursesErr } = await supabaseClient
+      .from('courses')
+      .select('id, department_code, course_code, course_name, year_level')
+      .order('department_code')
+      .order('course_code');
+    if (coursesErr) throw coursesErr;
+
+    catalogDepartments = departments || [];
+    catalogCourses = courses || [];
+
+    // Count shared study cards per course_code (case-insensitive), across all
+    // departments at once — same approach as js/course-tree.js.
+    const { data: sharedCards, error: cardsErr } = await supabaseClient
+      .from('study_cards')
+      .select('course_tag')
+      .eq('is_shared', true)
+      .not('course_tag', 'is', null);
+    if (cardsErr) console.warn('Could not load shared card counts for catalog:', cardsErr);
+
+    catalogCardCounts = {};
+    (sharedCards || []).forEach(c => {
+      const key = (c.course_tag || '').trim().toUpperCase();
+      if (!key) return;
+      catalogCardCounts[key] = (catalogCardCounts[key] || 0) + 1;
+    });
+
+    populateCatalogDeptSelects();
+    renderCatalogStats();
+    renderCatalogTable();
+    renderCatalogGapReport();
+  } catch (err) {
+    console.error('loadCourseCatalog error:', err);
+    if (tbody) tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 2rem; color: #DC2626;">Ders kataloğu yüklenemedi. Migration (supabase/migrations/20260721_add_course_catalog.sql) çalıştırılmış mı?</td></tr>`;
+  }
+}
+window.loadCourseCatalog = loadCourseCatalog;
+
+function populateCatalogDeptSelects() {
+  const newDeptSelect = document.getElementById('cat-new-dept');
+  const filterDeptSelect = document.getElementById('cat-filter-dept');
+
+  if (newDeptSelect) {
+    newDeptSelect.innerHTML = catalogDepartments
+      .map(d => `<option value="${d.code}">${escapeHtml(d.name_tr || d.name)} (${d.code})</option>`)
+      .join('');
+  }
+  if (filterDeptSelect) {
+    const currentVal = filterDeptSelect.value || 'all';
+    filterDeptSelect.innerHTML = '<option value="all">Tüm Bölümler</option>' +
+      catalogDepartments.map(d => `<option value="${d.code}">${escapeHtml(d.name_tr || d.name)} (${d.code})</option>`).join('');
+    if ([...filterDeptSelect.options].some(o => o.value === currentVal)) filterDeptSelect.value = currentVal;
+  }
+}
+
+function renderCatalogStats() {
+  const grid = document.getElementById('admin-catalog-stat-grid');
+  if (!grid) return;
+
+  const total = catalogCourses.length;
+  const withCards = catalogCourses.filter(c => (catalogCardCounts[c.course_code.toUpperCase()] || 0) > 0).length;
+  const totalCards = catalogCourses.reduce((sum, c) => sum + (catalogCardCounts[c.course_code.toUpperCase()] || 0), 0);
+
+  const stat = (value, label, color) => `
+    <div class="admin-stat-card">
+      <div>
+        <div style="font-size:1.5rem; font-weight:800; color:${color || 'var(--color-navy)'};">${value}</div>
+        <div style="font-size:0.75rem; color:var(--color-text-muted); font-weight:600;">${label}</div>
+      </div>
+    </div>`;
+
+  grid.innerHTML =
+    stat(catalogDepartments.length, 'Bölüm') +
+    stat(total, 'Toplam Ders') +
+    stat(withCards, 'Özeti Olan Ders') +
+    stat(total - withCards, 'Boşluk (Özetsiz Ders)', '#DC2626') +
+    stat(totalCards, 'Paylaşılan Özet');
+}
+
+function renderCatalogTable() {
+  const tbody = document.getElementById('admin-catalog-tbody');
+  if (!tbody) return;
+
+  const deptFilter = document.getElementById('cat-filter-dept')?.value || 'all';
+  const rows = catalogCourses.filter(c => deptFilter === 'all' || c.department_code === deptFilter);
+
+  if (rows.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 2rem; color: var(--color-text-muted);">Bu filtrede ders yok.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map(c => {
+    const count = catalogCardCounts[c.course_code.toUpperCase()] || 0;
+    return `
+    <tr data-course-id="${c.id}">
+      <td><span class="dept-badge ${catalogDeptColorClass(c.department_code)}">${escapeHtml(c.department_code)}</span></td>
+      <td><strong>${escapeHtml(c.course_code)}</strong></td>
+      <td class="cat-name-cell">${escapeHtml(c.course_name)}</td>
+      <td class="cat-year-cell" data-year="${c.year_level || ''}">${c.year_level ? c.year_level + '. Sınıf' : '—'}</td>
+      <td style="text-align:right;">${count > 0 ? `📚 ${count}` : '<span style="color: var(--color-text-muted);">0</span>'}</td>
+      <td style="text-align:right; white-space:nowrap;">
+        <button class="admin-mini-btn" onclick="startEditCatalogCourse('${c.id}')">Düzenle</button>
+        <button class="admin-mini-btn danger" onclick="deleteCatalogCourse('${c.id}', '${c.course_code}')">Sil</button>
+      </td>
+    </tr>
+  `;
+  }).join('');
+}
+window.renderCatalogTable = renderCatalogTable;
+
+function renderCatalogGapReport() {
+  const list = document.getElementById('admin-catalog-gap-list');
+  if (!list) return;
+
+  const gapCourses = catalogCourses.filter(c => (catalogCardCounts[c.course_code.toUpperCase()] || 0) === 0);
+
+  if (gapCourses.length === 0) {
+    list.innerHTML = `<div style="text-align:center; padding: 1.5rem; color: var(--color-text-muted);">Harika! Kataloğdaki tüm derslerde en az bir paylaşılan özet var.</div>`;
+    return;
+  }
+
+  const byDept = {};
+  gapCourses.forEach(c => {
+    if (!byDept[c.department_code]) byDept[c.department_code] = [];
+    byDept[c.department_code].push(c);
+  });
+
+  list.innerHTML = Object.keys(byDept).sort().map(deptCode => `
+    <div style="border: 1px solid rgba(22,50,92,0.08); border-radius: var(--radius-sm); padding: 0.65rem 0.9rem;">
+      <span class="dept-badge ${catalogDeptColorClass(deptCode)}">${escapeHtml(deptCode)}</span>
+      <span style="font-size: 0.8rem; color: var(--color-text-muted); margin-left: 0.5rem;">${byDept[deptCode].map(c => escapeHtml(c.course_code)).join(', ')}</span>
+    </div>
+  `).join('');
+}
+
+async function addCatalogCourse() {
+  const dept = document.getElementById('cat-new-dept')?.value;
+  const code = document.getElementById('cat-new-code')?.value.trim().toUpperCase();
+  const name = document.getElementById('cat-new-name')?.value.trim().toUpperCase();
+  const year = parseInt(document.getElementById('cat-new-year')?.value, 10);
+
+  if (!dept || !code || !name) {
+    showAdminAlert('error', 'Bölüm, ders kodu ve ders adı zorunludur.');
+    return;
+  }
+
+  try {
+    const { error } = await supabaseClient.from('courses').insert({
+      department_code: dept,
+      course_code: code,
+      course_name: name,
+      year_level: year || null
+    });
+    if (error) throw error;
+
+    document.getElementById('cat-new-code').value = '';
+    document.getElementById('cat-new-name').value = '';
+    showAdminAlert('success', `${code} kataloğa eklendi.`);
+    loadCourseCatalog();
+  } catch (err) {
+    console.error('addCatalogCourse error:', err);
+    const msg = (err && err.code === '23505') ? 'Bu ders kodu zaten kayıtlı.' : 'Ders eklenirken bir hata oluştu.';
+    showAdminAlert('error', msg);
+  }
+}
+window.addCatalogCourse = addCatalogCourse;
+
+function startEditCatalogCourse(id) {
+  const row = document.querySelector(`tr[data-course-id="${id}"]`);
+  if (!row) return;
+  const course = catalogCourses.find(c => c.id === id);
+  if (!course) return;
+
+  const nameCell = row.querySelector('.cat-name-cell');
+  const yearCell = row.querySelector('.cat-year-cell');
+  const actionsCell = row.querySelector('td:last-child');
+
+  nameCell.innerHTML = `<input type="text" class="cat-edit-name" value="${escapeHtml(course.course_name)}" style="width:100%; padding:0.3rem 0.5rem; border:1px solid rgba(22,50,92,0.15); border-radius:4px; font-size:0.8rem;">`;
+  yearCell.innerHTML = `
+    <select class="cat-edit-year" style="padding:0.3rem 0.4rem; border:1px solid rgba(22,50,92,0.15); border-radius:4px; font-size:0.8rem;">
+      ${[1, 2, 3, 4].map(y => `<option value="${y}" ${y === course.year_level ? 'selected' : ''}>${y}. Sınıf</option>`).join('')}
+    </select>
+  `;
+  actionsCell.innerHTML = `
+    <button class="admin-mini-btn primary" onclick="saveCatalogCourse('${id}')">Kaydet</button>
+    <button class="admin-mini-btn" onclick="renderCatalogTable()">Vazgeç</button>
+  `;
+}
+window.startEditCatalogCourse = startEditCatalogCourse;
+
+async function saveCatalogCourse(id) {
+  const row = document.querySelector(`tr[data-course-id="${id}"]`);
+  if (!row) return;
+  const newName = row.querySelector('.cat-edit-name')?.value.trim().toUpperCase();
+  const newYear = parseInt(row.querySelector('.cat-edit-year')?.value, 10);
+
+  if (!newName) {
+    showAdminAlert('error', 'Ders adı boş olamaz.');
+    return;
+  }
+
+  try {
+    const { error } = await supabaseClient
+      .from('courses')
+      .update({ course_name: newName, year_level: newYear || null })
+      .eq('id', id);
+    if (error) throw error;
+    showAdminAlert('success', 'Ders güncellendi.');
+    loadCourseCatalog();
+  } catch (err) {
+    console.error('saveCatalogCourse error:', err);
+    showAdminAlert('error', 'Ders güncellenirken bir hata oluştu.');
+  }
+}
+window.saveCatalogCourse = saveCatalogCourse;
+
+async function deleteCatalogCourse(id, code) {
+  if (!window.confirm(`${code} dersini kataloğdan silmek istediğinize emin misiniz? Bu, mevcut özetlerdeki course_tag değerlerini etkilemez, sadece kataloğdan (Ders Ağacı / AI önerileri) kaldırır.`)) return;
+  try {
+    const { error } = await supabaseClient.from('courses').delete().eq('id', id);
+    if (error) throw error;
+    showAdminAlert('success', `${code} kataloğdan silindi.`);
+    loadCourseCatalog();
+  } catch (err) {
+    console.error('deleteCatalogCourse error:', err);
+    showAdminAlert('error', 'Ders silinirken bir hata oluştu.');
+  }
+}
+window.deleteCatalogCourse = deleteCatalogCourse;
 
 // ==========================================
 // UTIL

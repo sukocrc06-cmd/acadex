@@ -121,6 +121,12 @@
               <span>Ayarlar &amp; Duyurular</span>
             </a>
           </li>
+          <li class="sidebar-item" data-admin-tab="catalog">
+            <a href="#" onclick="switchAdminTab('catalog'); return false;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+              <span>Ders Kataloğu</span>
+            </a>
+          </li>
         </ul>
       </nav>
     </aside>
@@ -305,6 +311,78 @@
                 <tr><td colspan="4" style="text-align:center; padding: 1.5rem; color: var(--color-text-muted);">Yükleniyor...</td></tr>
               </tbody>
             </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- DERS KATALOĞU (COURSE CATALOG) -->
+      <section id="admin-catalog-panel" class="admin-tab-panel">
+        <div class="dashboard-page-header">
+          <h2 class="dashboard-page-title">Ders Kataloğu</h2>
+          <p class="dashboard-page-subtitle">Resmi müfredatı (Ders Ağacı) yönetin — AI'nin ders önerileri ve Ders Ağacı sayfası buradan beslenir. Kaynak: public.departments / public.courses.</p>
+        </div>
+
+        <div class="admin-stat-grid" id="admin-catalog-stat-grid"></div>
+
+        <div class="admin-panel-card" style="margin-bottom: 1.5rem;">
+          <h3 style="font-size: 1rem; font-weight: 800; color: var(--color-navy); margin-bottom: 0.75rem;">+ Yeni Ders Ekle</h3>
+          <div style="display:flex; gap: 0.5rem; flex-wrap: wrap; align-items: flex-end;">
+            <div>
+              <label style="display:block; font-size: 0.7rem; font-weight: 700; color: var(--color-text-muted); margin-bottom: 0.2rem;">Bölüm</label>
+              <select id="cat-new-dept" style="padding: 0.55rem 0.75rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.85rem;"></select>
+            </div>
+            <div>
+              <label style="display:block; font-size: 0.7rem; font-weight: 700; color: var(--color-text-muted); margin-bottom: 0.2rem;">Ders Kodu</label>
+              <input type="text" id="cat-new-code" placeholder="ör. BUS450" style="padding: 0.55rem 0.75rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.85rem; width: 130px;">
+            </div>
+            <div style="flex: 1; min-width: 220px;">
+              <label style="display:block; font-size: 0.7rem; font-weight: 700; color: var(--color-text-muted); margin-bottom: 0.2rem;">Ders Adı</label>
+              <input type="text" id="cat-new-name" placeholder="ör. NEW VENTURE CREATION" style="width: 100%; padding: 0.55rem 0.75rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.85rem;">
+            </div>
+            <div>
+              <label style="display:block; font-size: 0.7rem; font-weight: 700; color: var(--color-text-muted); margin-bottom: 0.2rem;">Sınıf</label>
+              <select id="cat-new-year" style="padding: 0.55rem 0.75rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.85rem;">
+                <option value="1">1. Sınıf</option>
+                <option value="2">2. Sınıf</option>
+                <option value="3">3. Sınıf</option>
+                <option value="4">4. Sınıf</option>
+              </select>
+            </div>
+            <button class="admin-mini-btn primary" onclick="addCatalogCourse()">+ Ekle</button>
+          </div>
+        </div>
+
+        <div class="admin-panel-card" style="margin-bottom: 1.5rem;">
+          <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+            <h3 style="font-size: 1rem; font-weight: 800; color: var(--color-navy);">📋 Dersler</h3>
+            <select id="cat-filter-dept" style="padding: 0.5rem 0.7rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.8rem;" onchange="renderCatalogTable()">
+              <option value="all">Tüm Bölümler</option>
+            </select>
+          </div>
+          <div style="overflow-x: auto; max-height: 600px; overflow-y: auto;">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Bölüm</th>
+                  <th>Kod</th>
+                  <th>Ders Adı</th>
+                  <th>Sınıf</th>
+                  <th style="text-align:right;">Özet</th>
+                  <th style="text-align:right;">İşlemler</th>
+                </tr>
+              </thead>
+              <tbody id="admin-catalog-tbody">
+                <tr><td colspan="6" style="text-align:center; padding: 2rem; color: var(--color-text-muted);">Yükleniyor...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="admin-panel-card">
+          <h3 style="font-size: 1rem; font-weight: 800; color: var(--color-navy); margin-bottom: 0.5rem;">⚠️ İçerik Boşluğu Raporu</h3>
+          <p style="font-size: 0.8rem; color: var(--color-text-muted); margin-bottom: 1rem;">Hiç paylaşılan özeti olmayan dersler — öğrencileri bu derslere yönlendirmek içerik boşluklarını kapatabilir.</p>
+          <div id="admin-catalog-gap-list" style="display:flex; flex-direction: column; gap: 0.4rem;">
+            <div style="text-align:center; padding: 1.5rem; color: var(--color-text-muted);">Yükleniyor...</div>
           </div>
         </div>
       </section>

@@ -176,6 +176,19 @@ async function checkSessionAndLoadProfile() {
       deptEl.textContent = "Student Program Member";
     }
 
+    // Deep-link from ders-agaci.html: ?course=CODE lands on the Department
+    // Feed pre-filtered to that course. The actual filter application happens
+    // inside loadDepartmentFeed() via feed-filter-course's dataset.pendingFilter
+    // (set here, read+cleared there) since that dropdown's options are only
+    // populated once the feed's cards are fetched.
+    const deepLinkParams = new URLSearchParams(window.location.search);
+    const deepLinkCourse = deepLinkParams.get('course');
+    if (deepLinkCourse) {
+      currentActiveTab = 'feed';
+      const feedFilterCourseEl = document.getElementById('feed-filter-course');
+      if (feedFilterCourseEl) feedFilterCourseEl.dataset.pendingFilter = deepLinkCourse.toUpperCase();
+    }
+
     // Load default tab view content
     switchDashboardView(currentActiveTab);
     await updateDepotCountBadge();
@@ -3244,7 +3257,11 @@ async function loadDepartmentFeed() {
     const feedFilterCourse = document.getElementById('feed-filter-course');
     if (feedFilterCourse) {
       const tags = [...new Set(cards.map(c => c.course_tag).filter(Boolean))].sort();
-      const prevVal = feedFilterCourse.value;
+      // A pending deep-link from ders-agaci.html (?course=CODE) takes priority
+      // over whatever was previously selected — see checkSessionAndLoadProfile().
+      const pendingFilter = feedFilterCourse.dataset.pendingFilter;
+      delete feedFilterCourse.dataset.pendingFilter;
+      const prevVal = pendingFilter || feedFilterCourse.value;
       feedFilterCourse.innerHTML = '<option value="all">All Courses</option>';
       tags.forEach(tag => {
         const opt = document.createElement('option');
@@ -8994,11 +9011,68 @@ window.loadAdminInbox = loadAdminInbox;
 // PHASE 17A — COURSE TAG UI HELPERS
 // ==========================================
 
+// Cached official course catalog for the current student's own department
+// (public.departments / public.courses, seeded via
+// supabase/migrations/20260721_add_course_catalog.sql). Used to power a
+// <datalist> autocomplete on the manual course-tag input below, so tagging
+// converges on real course codes instead of drifting into free-text
+// variants — while still allowing a free-text override for courses outside
+// the catalog (electives, cross-department courses, STAJ, etc).
+let courseTagCatalogCache = null;
+
+async function getOwnDepartmentCourseCatalog() {
+  if (courseTagCatalogCache) return courseTagCatalogCache;
+  if (!currentUserProfile?.department) {
+    courseTagCatalogCache = [];
+    return courseTagCatalogCache;
+  }
+  try {
+    const { data: deptRow } = await supabaseClient
+      .from('departments')
+      .select('code')
+      .eq('name', currentUserProfile.department)
+      .maybeSingle();
+
+    if (!deptRow?.code) {
+      courseTagCatalogCache = [];
+      return courseTagCatalogCache;
+    }
+
+    const { data: courses } = await supabaseClient
+      .from('courses')
+      .select('course_code, course_name')
+      .eq('department_code', deptRow.code)
+      .order('course_code');
+
+    courseTagCatalogCache = courses || [];
+  } catch (err) {
+    console.warn('Could not load course catalog for tag autocomplete (has the catalog migration been run?):', err);
+    courseTagCatalogCache = [];
+  }
+  return courseTagCatalogCache;
+}
+
+function ensureCourseTagDatalist(courses) {
+  let dl = document.getElementById('course-tag-datalist');
+  if (!dl) {
+    dl = document.createElement('datalist');
+    dl.id = 'course-tag-datalist';
+    document.body.appendChild(dl);
+  }
+  dl.innerHTML = (courses || [])
+    .map(c => `<option value="${escapeHtml(c.course_code)}">${escapeHtml(c.course_code)} — ${escapeHtml(c.course_name)}</option>`)
+    .join('');
+  return dl;
+}
+
 /**
  * Starts inline editing of a course tag on a document card.
  * Replaces the pill/button with a text input; saves on blur/Enter.
+ * The input is backed by a <datalist> of the student's own official course
+ * catalog for autocomplete, but free-text entry still works for anything
+ * not in that catalog.
  */
-function startEditCourseTag(docId, triggerEl) {
+async function startEditCourseTag(docId, triggerEl) {
   const wrapper = triggerEl.closest('.doc-course-tag-wrapper');
   if (!wrapper) return;
 
@@ -9007,10 +9081,14 @@ function startEditCourseTag(docId, triggerEl) {
     ? triggerEl.textContent.replace('🏷️', '').trim()
     : '';
 
+  const catalog = await getOwnDepartmentCourseCatalog();
+  ensureCourseTagDatalist(catalog);
+
   const input = document.createElement('input');
   input.type = 'text';
   input.value = currentTag;
   input.placeholder = 'e.g. MIS301, Marketing 101';
+  input.setAttribute('list', 'course-tag-datalist');
   input.style.cssText = `
     font-size: 0.7rem; font-family: inherit;
     border: 1px solid var(--color-teal); border-radius: 20px;
