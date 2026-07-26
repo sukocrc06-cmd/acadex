@@ -1168,45 +1168,85 @@ In addition to the text below, you are shown images of this document's pages. Us
 
       if (!pass1Completed) {
         console.log("Running standard text-only analysis using openai/gpt-oss-120b...")
-        try {
-          groqResponse = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              "Authorization": `Bearer ${groqApiKey}`,
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              // llama-3.3-70b-versatile is being retired by Groq (shutdown
-              // 2026-08-16); openai/gpt-oss-120b is one of Groq's recommended
-              // replacements.
-              model: "openai/gpt-oss-120b",
-              temperature: 0.3,
-              reasoning_effort: "low",
-              include_reasoning: false,
-              // See callGroqJson above — an explicit cap keeps this request's
-              // estimated token usage safely under the account's per-model
-              // tokens-per-minute limit.
-              max_completion_tokens: 4096,
-              response_format: { type: "json_object" },
-              messages: [
-                {
-                  role: "system",
-                  content: systemPrompt
-                },
-                {
-                  role: "user",
-                  content: textToSend
-                }
-              ]
+
+        // This account's tokens-per-minute limit for openai/gpt-oss-120b has
+        // been observed as low as 8000 — the system prompt alone (~2,900
+        // tokens, since it carries all the formatting/LaTeX/quantitative
+        // instructions) leaves surprisingly little room for the document
+        // text plus the completion. Rather than hand-tune one "safe" size
+        // (impossible to get right for every document/tokenizer), try
+        // progressively smaller (text budget, completion budget) pairs and
+        // only give up if a non-token-size error occurs or every tier fails.
+        const draftTiers: Array<{ textChars: number; maxCompletionTokens: number }> = [
+          { textChars: 6000, maxCompletionTokens: 2500 },
+          { textChars: 3000, maxCompletionTokens: 1800 },
+          { textChars: 1200, maxCompletionTokens: 1200 }
+        ]
+
+        for (let i = 0; i < draftTiers.length; i++) {
+          const tier = draftTiers[i]
+          const draftUserContent = textToSend.length > tier.textChars
+            ? textToSend.substring(0, tier.textChars) + " [truncated to fit the AI provider's rate limits]"
+            : textToSend
+
+          try {
+            groqResponse = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${groqApiKey}`,
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                // llama-3.3-70b-versatile is being retired by Groq (shutdown
+                // 2026-08-16); openai/gpt-oss-120b is one of Groq's recommended
+                // replacements.
+                model: "openai/gpt-oss-120b",
+                temperature: 0.3,
+                reasoning_effort: "low",
+                include_reasoning: false,
+                max_completion_tokens: tier.maxCompletionTokens,
+                response_format: { type: "json_object" },
+                messages: [
+                  {
+                    role: "system",
+                    content: systemPrompt
+                  },
+                  {
+                    role: "user",
+                    content: draftUserContent
+                  }
+                ]
+              })
+            }, 1, 25000) // 1 retry max, 25s cap per attempt — leaves time for the review pass afterward
+          } catch (fetchErr) {
+            console.error("Pass 1 Groq API fetchWithRetry exception: ", fetchErr)
+            await markFailed(serviceClient, documentId)
+            return new Response(JSON.stringify({ error: 'Our AI service is experiencing high demand right now — please try again in a moment' }), {
+              status: 503,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
             })
-          }, 1, 25000) // 1 retry max, 25s cap per attempt — leaves time for the review pass afterward
-        } catch (fetchErr) {
-          console.error("Pass 1 Groq API fetchWithRetry exception: ", fetchErr)
-          await markFailed(serviceClient, documentId)
-          return new Response(JSON.stringify({ error: 'Our AI service is experiencing high demand right now — please try again in a moment' }), {
-            status: 503,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          })
+          }
+
+          if (groqResponse.ok) break
+
+          let draftErrBody: any = null
+          try { draftErrBody = await groqResponse.clone().json() } catch (_readErr) { /* ignore */ }
+          // Groq has been observed returning this error as either a 400 or a
+          // 429, depending on the exact overage — treat both the same way.
+          const isTokenSizeError = (groqResponse.status === 400 || groqResponse.status === 429) &&
+            draftErrBody?.error?.code === 'rate_limit_exceeded' &&
+            draftErrBody?.error?.type === 'tokens'
+
+          console.error(`Groq API Draft call failed (text budget ${tier.textChars} chars, completion budget ${tier.maxCompletionTokens}, status ${groqResponse.status}): `, JSON.stringify(draftErrBody))
+
+          if (!isTokenSizeError || i === draftTiers.length - 1) {
+            await markFailed(serviceClient, documentId)
+            return new Response(JSON.stringify({ error: 'Our AI service is experiencing high demand right now — please try again in a moment' }), {
+              status: 502,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            })
+          }
+          // else: too-large-for-TPM error — loop again with a smaller tier
         }
       }
 
@@ -1396,17 +1436,23 @@ ${rawContent}`
       .update({ processing_stage: 'reviewing' })
       .eq('id', documentId)
 
-    // Groq enforces a tokens-per-minute cap per model. A long/detailed draft
-    // plus the reference source text can occasionally exceed it even after
-    // the 6,000-char truncation above. Rather than fail outright, retry with
-    // a progressively smaller reference-text budget (the draft JSON itself
-    // is never trimmed, since that would lose content from the final output).
-    const sourceBudgets = [6000, 1200, 0]
+    // Groq enforces a tokens-per-minute cap per model (as low as 8000 on
+    // this account). A long/detailed draft plus the reference source text
+    // can occasionally exceed it even after the 6,000-char truncation above.
+    // Rather than fail outright, retry with progressively smaller reference-
+    // text AND completion budgets together (the draft JSON itself is never
+    // trimmed, since that would lose content from the final output).
+    const reviewTiers: Array<{ sourceChars: number; maxCompletionTokens: number }> = [
+      { sourceChars: 4000, maxCompletionTokens: 2500 },
+      { sourceChars: 1200, maxCompletionTokens: 1800 },
+      { sourceChars: 0, maxCompletionTokens: 1200 }
+    ]
     let groqReviewResponse: Response | null = null
     let groqReviewData: any = null
 
-    for (let i = 0; i < sourceBudgets.length; i++) {
-      const attemptPrompt = buildReviewUserPrompt(sourceBudgets[i])
+    for (let i = 0; i < reviewTiers.length; i++) {
+      const tier = reviewTiers[i]
+      const attemptPrompt = buildReviewUserPrompt(tier.sourceChars)
       let attemptResponse: Response
       try {
         attemptResponse = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
@@ -1423,7 +1469,7 @@ ${rawContent}`
             temperature: 0.2,
             reasoning_effort: "low",
             include_reasoning: false,
-            max_completion_tokens: 4096,
+            max_completion_tokens: tier.maxCompletionTokens,
             response_format: { type: "json_object" },
             messages: [
               {
@@ -1460,9 +1506,9 @@ ${rawContent}`
         attemptData?.error?.code === 'rate_limit_exceeded' &&
         attemptData?.error?.type === 'tokens'
 
-      console.error(`Groq Review API call failed (source budget ${sourceBudgets[i]} chars, status ${attemptResponse.status}): `, JSON.stringify(attemptData))
+      console.error(`Groq Review API call failed (source budget ${tier.sourceChars} chars, completion budget ${tier.maxCompletionTokens}, status ${attemptResponse.status}): `, JSON.stringify(attemptData))
 
-      if (!isTokenSizeError || i === sourceBudgets.length - 1) {
+      if (!isTokenSizeError || i === reviewTiers.length - 1) {
         await markFailed(serviceClient, documentId)
         return new Response(JSON.stringify({ error: 'Our AI service is experiencing high demand right now — please try again in a moment' }), {
           status: 502,
