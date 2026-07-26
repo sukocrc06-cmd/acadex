@@ -240,6 +240,7 @@ const TRANSLATIONS = {
     "dash.cards.closeChatView": "✕ Close Chat",
     "dash.cards.chatPanelTitle": "Chat with Source",
     "dash.cards.chatDisclosure": "Answers are grounded strictly in this document's content. If you ask something not covered in it, Acadex will tell you.",
+    "dash.cards.chatImageAttached": "Image attached — type your question and send",
 
     // Course Glossary Tab
     "dash.glossary.title": "📖 Course Glossary",
@@ -586,6 +587,7 @@ const TRANSLATIONS = {
     "dash.cards.closeChatView": "✕ Sohbeti Kapat",
     "dash.cards.chatPanelTitle": "Kaynakla Sohbet",
     "dash.cards.chatDisclosure": "Cevaplar yalnızca bu belgenin içeriğine dayanır. Belgede olmayan bir şey sorarsanız Acadex bunu size söyler.",
+    "dash.cards.chatImageAttached": "Görsel eklendi — sorunuzu yazıp gönderin",
 
     // Course Glossary Tab
     "dash.glossary.title": "📖 Ders Sözlüğü",

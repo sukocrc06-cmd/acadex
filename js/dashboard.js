@@ -27,6 +27,7 @@ let docChatHistory = []; // [{ role: 'user' | 'assistant', content: string }] �
 let isDocChatPaneActive = false;
 let docChatHasGreeted = false;
 let docChatRequestInFlight = false;
+let pendingDocChatImageDataUrl = null; // base64 data URL of an attached screenshot, cleared after each send
 
 // Helper to get YYYY-MM-DD in local time (prevents timezone bugs)
 function getLocalDateString(date = new Date()) {
@@ -12094,17 +12095,89 @@ function initDocChatForm() {
     const input = document.getElementById('doc-chat-input');
     if (!input) return;
     const text = input.value.trim();
-    if (!text) return;
+    const image = pendingDocChatImageDataUrl;
+    if (!text && !image) return;
+    const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+    // Allow sending just an image with no typed question — use a sensible default.
+    const finalText = text || (isTr ? 'Ekli görseldeki bu kısmı açıklar mısın?' : 'Can you explain this part shown in the attached image?');
     input.value = '';
-    sendDocChatMessage(text);
+    removeDocChatImage();
+    sendDocChatMessage(finalText, image);
   });
+
+  const imageInput = document.getElementById('doc-chat-image-input');
+  if (imageInput) {
+    imageInput.addEventListener('change', async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      try {
+        const dataUrl = await downscaleImageForChat(file);
+        pendingDocChatImageDataUrl = dataUrl;
+        const thumb = document.getElementById('doc-chat-image-preview-thumb');
+        const preview = document.getElementById('doc-chat-image-preview');
+        if (thumb) thumb.src = dataUrl;
+        if (preview) preview.style.display = 'flex';
+      } catch (err) {
+        console.error('Failed to process attached image:', err);
+        const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+        alert(isTr ? 'Görsel yüklenirken bir sorun oluştu, lütfen başka bir dosya deneyin.' : 'There was a problem loading that image, please try another file.');
+      } finally {
+        imageInput.value = '';
+      }
+    });
+  }
 }
 window.initDocChatForm = initDocChatForm;
+
+// Downscales an attached photo/screenshot before sending — keeps the request
+// payload and per-message vision cost small while still being plenty legible
+// for a page/diagram screenshot. Caps the longest side at 1600px and encodes
+// as JPEG (quality 0.82) to keep the base64 payload compact.
+function downscaleImageForChat(file) {
+  return new Promise((resolve, reject) => {
+    const MAX_DIMENSION = 1600;
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('File read failed'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Image decode failed'));
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
+          const scale = MAX_DIMENSION / Math.max(width, height);
+          width = Math.round(width * scale);
+          height = Math.round(height * scale);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.82));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+window.downscaleImageForChat = downscaleImageForChat;
+
+function removeDocChatImage() {
+  pendingDocChatImageDataUrl = null;
+  const preview = document.getElementById('doc-chat-image-preview');
+  if (preview) preview.style.display = 'none';
+  const thumb = document.getElementById('doc-chat-image-preview-thumb');
+  if (thumb) thumb.src = '';
+  const imageInput = document.getElementById('doc-chat-image-input');
+  if (imageInput) imageInput.value = '';
+}
+window.removeDocChatImage = removeDocChatImage;
 
 function resetDocChatState() {
   docChatHistory = [];
   docChatHasGreeted = false;
   isDocChatPaneActive = false;
+  removeDocChatImage();
   const pane = document.getElementById('study-card-chat-pane');
   if (pane) pane.style.display = 'none';
   const messages = document.getElementById('doc-chat-messages');
@@ -12124,7 +12197,7 @@ function resetDocChatState() {
 }
 window.resetDocChatState = resetDocChatState;
 
-function renderDocChatMessage(role, text, citations) {
+function renderDocChatMessage(role, text, citations, imageDataUrl, visionUsed) {
   const container = document.getElementById('doc-chat-messages');
   if (!container) return;
 
@@ -12144,12 +12217,28 @@ function renderDocChatMessage(role, text, citations) {
   `;
 
   if (isUser) {
-    bubble.textContent = text;
+    if (imageDataUrl) {
+      const img = document.createElement('img');
+      img.src = imageDataUrl;
+      img.alt = '';
+      img.style.cssText = 'max-width: 100%; max-height: 160px; border-radius: 8px; display: block; margin-bottom: 0.4rem; object-fit: contain;';
+      bubble.appendChild(img);
+    }
+    const textNode = document.createElement('div');
+    textNode.textContent = text;
+    bubble.appendChild(textNode);
   } else {
     // Escape first, then apply citation markers — formatFootnoteMarkers only
     // touches literal "[n]" substrings so this is safe and closes off any
     // stored-XSS risk from AI-generated answer text.
     bubble.innerHTML = formatFootnoteMarkers(escapeHtml(text), citations);
+    if (visionUsed) {
+      const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+      const tag = document.createElement('div');
+      tag.textContent = isTr ? '📷 Görsel incelendi' : '📷 Image analyzed';
+      tag.style.cssText = 'margin-top: 0.35rem; font-size: 0.65rem; opacity: 0.65; font-style: italic;';
+      bubble.appendChild(tag);
+    }
   }
 
   container.appendChild(bubble);
@@ -12200,6 +12289,7 @@ window.toggleDocChatPane = toggleDocChatPane;
 function clearDocChat() {
   docChatHistory = [];
   docChatHasGreeted = false;
+  removeDocChatImage();
   const messages = document.getElementById('doc-chat-messages');
   if (messages) messages.innerHTML = '';
 
@@ -12212,14 +12302,16 @@ function clearDocChat() {
 }
 window.clearDocChat = clearDocChat;
 
-async function sendDocChatMessage(text) {
+async function sendDocChatMessage(text, imageDataUrl) {
   if (docChatRequestInFlight) return;
   if (!currentActiveStudyCard || !currentActiveStudyCard.id) return;
 
   const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
   const cardId = currentActiveStudyCard.id;
 
-  renderDocChatMessage('user', text, []);
+  renderDocChatMessage('user', text, [], imageDataUrl || null);
+  // Only the text goes into persisted history — the image is sent once for
+  // this turn only, so a long conversation doesn't keep re-sending base64 data.
   docChatHistory.push({ role: 'user', content: text });
 
   const sendBtn = document.getElementById('btn-doc-chat-send');
@@ -12229,8 +12321,11 @@ async function sendDocChatMessage(text) {
   if (typingIndicator) typingIndicator.style.display = 'block';
 
   try {
+    const requestBody = { studyCardId: cardId, messages: docChatHistory };
+    if (imageDataUrl) requestBody.image = imageDataUrl;
+
     const { data, error } = await supabaseClient.functions.invoke('chat-with-document', {
-      body: { studyCardId: cardId, messages: docChatHistory }
+      body: requestBody
     });
 
     if (error || !data || typeof data.answer !== 'string') {
@@ -12243,7 +12338,7 @@ async function sendDocChatMessage(text) {
       return;
     }
 
-    renderDocChatMessage('assistant', data.answer, data.citations || []);
+    renderDocChatMessage('assistant', data.answer, data.citations || [], null, !!data.visionUsed);
     docChatHistory.push({ role: 'assistant', content: data.answer });
   } catch (err) {
     console.error('Exception in sendDocChatMessage:', err);

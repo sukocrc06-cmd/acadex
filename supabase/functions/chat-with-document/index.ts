@@ -212,6 +212,36 @@ function tryParseJsonLoose(raw: string): any {
   }
 }
 
+// The student explicitly wants chat answers to consider BOTH the raw source
+// text and the study card summary already generated for it — the summary can
+// carry synthesized info (e.g. a diagram's meaning inferred at generation
+// time) that the raw extracted text alone doesn't make obvious. Kept compact
+// since this rides along on every chat turn.
+function buildSummaryContextBlock(card: any): string {
+  const parts: string[] = []
+  if (card.summary && typeof card.summary === 'string') {
+    parts.push(`Study card summary:\n${card.summary}`)
+  }
+  if (Array.isArray(card.key_points) && card.key_points.length > 0) {
+    parts.push(`Key points:\n- ${card.key_points.slice(0, 20).join('\n- ')}`)
+  }
+  if (Array.isArray(card.tables) && card.tables.length > 0) {
+    parts.push(`Tables identified when this card was generated:\n${JSON.stringify(card.tables).slice(0, 2000)}`)
+  }
+  if (Array.isArray(card.charts) && card.charts.length > 0) {
+    parts.push(`Charts/diagrams identified when this card was generated:\n${JSON.stringify(card.charts).slice(0, 2000)}`)
+  }
+  if (Array.isArray(card.formulas) && card.formulas.length > 0) {
+    parts.push(`Formulas identified when this card was generated:\n${JSON.stringify(card.formulas).slice(0, 1500)}`)
+  }
+  let block = parts.join('\n\n')
+  const MAX_SUMMARY_CONTEXT = 6000
+  if (block.length > MAX_SUMMARY_CONTEXT) {
+    block = block.substring(0, MAX_SUMMARY_CONTEXT) + '\n...[truncated]'
+  }
+  return block
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -225,7 +255,7 @@ serve(async (req) => {
       })
     }
 
-    const { studyCardId, messages } = await req.json()
+    const { studyCardId, messages, image } = await req.json()
     if (!studyCardId) {
       return new Response(JSON.stringify({ error: 'studyCardId is required' }), {
         status: 400,
@@ -237,6 +267,31 @@ serve(async (req) => {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
+    }
+
+    // Optional: a student can attach a screenshot/photo of a specific page —
+    // e.g. a diagram that the extracted text renders as garbled/disconnected
+    // fragments. When present we route this one turn through a vision-capable
+    // model instead of the usual text-only one. Validated defensively since
+    // it's a raw base64 data URL coming straight from the client.
+    let imageDataUrl: string | undefined = undefined
+    if (typeof image === 'string' && image.trim().length > 0) {
+      const candidate = image.trim()
+      if (!/^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(candidate)) {
+        return new Response(JSON.stringify({ error: 'Attached image must be a valid PNG/JPEG/WEBP/GIF data URL.' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+      const approxBytes = candidate.length * 0.75
+      const MAX_IMAGE_BYTES = 6 * 1024 * 1024 // ~6MB decoded — plenty for a screenshot, keeps latency/cost sane
+      if (approxBytes > MAX_IMAGE_BYTES) {
+        return new Response(JSON.stringify({ error: 'Attached image is too large (max ~6MB). Try a smaller screenshot or crop it.' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+      imageDataUrl = candidate
     }
 
     const authHeader = req.headers.get('Authorization')
@@ -257,7 +312,7 @@ serve(async (req) => {
     //    covers both "it's my own card" and "I'm a teacher with open access").
     const { data: card, error: cardError } = await userClient
       .from('study_cards')
-      .select('id, document_id, is_merged, source_documents, summary_language')
+      .select('id, document_id, is_merged, source_documents, summary_language, summary, key_points, tables, charts, formulas')
       .eq('id', studyCardId)
       .single()
 
@@ -340,17 +395,22 @@ serve(async (req) => {
     }
 
     const docNames = docs.map((d: any) => d.file_name).join(', ')
+    const summaryContextBlock = buildSummaryContextBlock(card)
+    const hasImage = typeof imageDataUrl === 'string'
 
-    const systemPrompt = `You are a grounded document Q&A assistant for Acadex, an academic study platform. The student is asking questions about a specific uploaded source (${docNames}). You are given the full extracted text of that source below.
+    const systemPrompt = `You are a grounded document Q&A assistant for Acadex, an academic study platform. The student is asking questions about a specific uploaded source (${docNames}). You are given the full extracted text of that source below${summaryContextBlock ? ', along with the study card summary already generated for it' : ''}.
 
 STRICT GROUNDING RULE:
-Answer ONLY using information that is actually present in the source text below. Do NOT use outside knowledge to fill in gaps, and do NOT invent facts, numbers, names, or details that are not in the text. If the source does not contain enough information to answer the question, say so honestly and clearly (in the student's own language) instead of guessing — you may still briefly explain the general concept if it's common academic knowledge, but you MUST clearly distinguish that from what the source itself says.
+Answer ONLY using information that is actually present in the source text${summaryContextBlock ? ' or the study card summary' : ''} below. Do NOT use outside knowledge to fill in gaps, and do NOT invent facts, numbers, names, or details that are not in the text. If the source does not contain enough information to answer the question, say so honestly and clearly (in the student's own language) instead of guessing — you may still briefly explain the general concept if it's common academic knowledge, but you MUST clearly distinguish that from what the source itself says.
 
 CITATION RULE:
 When you state a specific fact, definition, number, or claim drawn from the source, add a citation marker like [1], [2], etc. immediately after it, reusing the same marker for the same location if you reference it again. Build a "citations" array in your JSON output: [{ "id": number, "reference": string }], where "reference" briefly names the topical section/heading area the claim came from (e.g. "Bölüm 2 - SEO tartışması" or "Giriş bölümü"). Don't over-cite — reserve markers for specific, checkable claims, not every sentence. If your answer makes no specific checkable claims (e.g. it's just a clarifying question back to the student, or a general "not found in the source" answer), return an empty citations array.
 
 DIAGRAM & VISUAL-STRUCTURE AWARENESS:
-You only have the extracted text, not the original page images — so a flowchart, comparison diagram, or process illustration in the source often survives only as a cluster of short, disconnected phrases that don't read as normal prose (e.g. parallel short labels repeated near each other, a sequence of terse stage names, or paired opposing terms). If the student asks about a chart, diagram, graphic, or "görsel/şekil" and you spot such a cluster in the source text, reconstruct and explain its likely meaning — but explicitly flag that you're inferring the diagram's structure from scattered text labels rather than describing an image you can see (e.g. "Kaynak metindeki dağınık ifadelere bakılırsa, bu muhtemelen ... karşılaştıran bir diyagram."). If you can't find any fragments that plausibly correspond to what they're asking about, say so honestly instead of guessing.
+You only have the extracted text, not the original page images — so a flowchart, comparison diagram, or process illustration in the source often survives only as a cluster of short, disconnected phrases that don't read as normal prose (e.g. parallel short labels repeated near each other, a sequence of terse stage names, or paired opposing terms). If the student asks about a chart, diagram, graphic, or "görsel/şekil" and you spot such a cluster in the source text (or in the study card summary/tables/charts context below, if provided), reconstruct and explain its likely meaning — but explicitly flag that you're inferring the diagram's structure from scattered text labels rather than describing an image you can see (e.g. "Kaynak metindeki dağınık ifadelere bakılırsa, bu muhtemelen ... karşılaştıran bir diyagram."). If you genuinely can't find any fragments that plausibly correspond to what they're asking about, tell them honestly instead of guessing — and mention they can attach a photo/screenshot of that page so you can look at it directly.${hasImage ? `
+
+ATTACHED IMAGE FROM STUDENT:
+The student has attached a photo or screenshot of part of this source (for example, a diagram, chart, or page they want you to look at directly) along with their latest message. You DO have real vision on this image — actually look at it and describe/explain what it shows, don't just infer from text fragments. Cross-reference the source text and summary above to name the section/concept the image illustrates where relevant, but the image itself is your primary evidence for what it depicts. If the image is blurry, unrelated to this document, or you can't make out enough detail, say so honestly instead of guessing.` : ''}
 
 LANGUAGE RULE:
 Respond in the same language the student's latest question is written in (default to Turkish if genuinely ambiguous).
@@ -363,7 +423,12 @@ If the student asks you to bring back a table, ranking, or list of items from th
 
 OUTPUT FORMAT:
 Respond with ONLY a valid JSON object, no markdown code fences, no commentary before or after, and make sure every string value is valid single-line JSON (escape any newlines inside it as "\\n"): { "answer": string, "citations": [ { "id": number, "reference": string } ] }.
-
+${summaryContextBlock ? `
+STUDY CARD SUMMARY CONTEXT (already generated for this document — may capture a diagram/table/chart's meaning even where the raw source text below is sparse or garbled; cross-check both when relevant):
+"""
+${summaryContextBlock}
+"""
+` : ''}
 SOURCE TEXT:
 """
 ${sourceText}
@@ -383,30 +448,80 @@ ${sourceText}
       })
     }
 
+    // Build the actual message list. Only the LAST user turn ever carries the
+    // attached image — older turns stay plain text so the conversation history
+    // doesn't balloon with base64 data on every follow-up.
+    function buildChatMessages(withImage: boolean) {
+      const built: any[] = [{ role: "system", content: systemPrompt }]
+      safeMessages.forEach((m, idx) => {
+        const isLastUserMsg = withImage && idx === safeMessages.length - 1 && m.role === 'user'
+        if (isLastUserMsg && imageDataUrl) {
+          built.push({
+            role: 'user',
+            content: [
+              { type: 'text', text: m.content },
+              { type: 'image_url', image_url: { url: imageDataUrl } }
+            ]
+          })
+        } else {
+          built.push({ role: m.role, content: m.content })
+        }
+      })
+      return built
+    }
+
     let groqResponse
-    try {
-      groqResponse = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${groqApiKey}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          temperature: 0.3,
-          response_format: { type: "json_object" },
-          messages: [
-            { role: "system", content: systemPrompt },
-            ...safeMessages
-          ]
+    let visionUsed = false
+    if (hasImage) {
+      try {
+        console.log("chat-with-document: attempting vision analysis with llama-3.2-90b-vision-preview...")
+        groqResponse = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${groqApiKey}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            model: "llama-3.2-90b-vision-preview",
+            temperature: 0.3,
+            response_format: { type: "json_object" },
+            messages: buildChatMessages(true)
+          })
         })
-      })
-    } catch (fetchErr) {
-      console.error("chat-with-document Groq fetch exception: ", fetchErr)
-      return new Response(JSON.stringify({ error: 'Our AI service is experiencing high demand right now — please try again in a moment' }), {
-        status: 503,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
+        if (groqResponse.ok) {
+          visionUsed = true
+        } else {
+          console.warn(`chat-with-document: vision call returned non-ok status ${groqResponse.status}, falling back to text-only.`)
+          groqResponse = undefined
+        }
+      } catch (visionErr) {
+        console.warn("chat-with-document: vision call failed, falling back to text-only:", visionErr)
+        groqResponse = undefined
+      }
+    }
+
+    if (!groqResponse) {
+      try {
+        groqResponse = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${groqApiKey}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            model: "llama-3.3-70b-versatile",
+            temperature: 0.3,
+            response_format: { type: "json_object" },
+            messages: buildChatMessages(false)
+          })
+        })
+      } catch (fetchErr) {
+        console.error("chat-with-document Groq fetch exception: ", fetchErr)
+        return new Response(JSON.stringify({ error: 'Our AI service is experiencing high demand right now — please try again in a moment' }), {
+          status: 503,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
     }
 
     const groqData = await groqResponse.json()
@@ -440,7 +555,8 @@ ${sourceText}
 
     return new Response(JSON.stringify({
       answer: parsedContent.answer || '',
-      citations: Array.isArray(parsedContent.citations) ? parsedContent.citations : []
+      citations: Array.isArray(parsedContent.citations) ? parsedContent.citations : [],
+      visionUsed
     }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
