@@ -50,11 +50,21 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2,
         // of throwing an opaque error) if every attempt is exhausted, then
         // wait longer before retrying.
         lastRateLimitedResponse = response;
-        try {
-          const bodyPreview = await response.clone().text();
-          console.warn(`fetchWithRetry: 429 rate-limited (attempt ${attempt + 1}/${maxRetries + 1}): ${bodyPreview}`);
-        } catch (_readErr) { /* ignore — body may not be readable twice in all runtimes */ }
-        await new Promise(r => setTimeout(r, 2500));
+        let bodyPreview = "";
+        try { bodyPreview = await response.clone().text(); } catch (_readErr) { /* ignore — body may not be readable twice in all runtimes */ }
+        console.warn(`fetchWithRetry: 429 rate-limited (attempt ${attempt + 1}/${maxRetries + 1}): ${bodyPreview}`);
+        // Two distinct Groq 429 shapes here: "Request too large ... Requested
+        // X" (this single request's own tokens exceed the limit — shrinking
+        // it helps, waiting doesn't) vs. "Rate limit reached ... Used X,
+        // Requested Y. Please try again in Z s" (the per-minute window is
+        // already spent from earlier calls — no amount of shrinking this
+        // request helps until the window rolls over, so we must actually
+        // wait). Parse Groq's own suggested wait time when present.
+        const retryAfterMatch = bodyPreview.match(/try again in ([\d.]+)s/i);
+        const waitMs = retryAfterMatch
+          ? Math.min(Math.ceil(parseFloat(retryAfterMatch[1]) * 1000) + 500, 30000)
+          : 2500;
+        await new Promise(r => setTimeout(r, waitMs));
       } else if (response.status >= 500 && attempt < maxRetries) {
         await new Promise(r => setTimeout(r, 800));
       } else {
