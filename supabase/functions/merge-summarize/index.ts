@@ -31,6 +31,24 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2)
   throw new Error("Max retries exceeded");
 }
 
+// Defensive safety net: reasoning-capable Groq models (openai/gpt-oss-120b)
+// can prepend a <think>...</think> block to "content" even with reasoning
+// turned down via reasoning_effort/include_reasoning below — strip it so a
+// stray thinking block never breaks a JSON.parse call. Returns null if the
+// block is unterminated (the model ran out of its token budget mid-thought
+// before ever writing the real answer) — callers should treat that as a
+// failure rather than trying to parse what's left.
+function stripThinkBlock(raw: string): string | null {
+  const match = raw.match(/<think>[\s\S]*?<\/think>/i)
+  if (match) {
+    return raw.slice((match.index ?? 0) + match[0].length).trim()
+  }
+  if (/^\s*<think>/i.test(raw)) {
+    return null
+  }
+  return raw
+}
+
 function decodeXmlEntities(str: string): string {
   return str
     .replace(/&amp;/g, "&")
@@ -550,8 +568,15 @@ ${styleInstruction}`
         method: "POST",
         headers: { "Authorization": "Bearer " + groqApiKey, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          // llama-3.3-70b-versatile is being retired by Groq (shutdown
+          // 2026-08-16); openai/gpt-oss-120b is one of Groq's recommended
+          // replacements.
+          model: "openai/gpt-oss-120b",
           temperature: 0.3,
+          // gpt-oss is a reasoning model; keep its reasoning minimal and out
+          // of "content" so a stray <think> block can't break JSON.parse.
+          reasoning_effort: "low",
+          include_reasoning: false,
           response_format: { type: "json_object" },
           messages: [
             { role: "system", content: systemPrompt },
@@ -574,12 +599,22 @@ ${styleInstruction}`
       })
     }
 
-    const rawContent = groqData.choices?.[0]?.message?.content ?? ""
+    let rawContent = groqData.choices?.[0]?.message?.content ?? ""
     if (!rawContent) {
       return new Response(JSON.stringify({ error: "Our AI service is experiencing high demand right now — please try again in a moment" }), {
         status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" }
       })
     }
+    // Strip any stray <think> block before this draft text gets embedded
+    // into the review-pass prompt below.
+    const draftStripped = stripThinkBlock(rawContent)
+    if (draftStripped === null) {
+      console.error('Groq Draft response was an unterminated <think> block (ran out of tokens while reasoning):', rawContent)
+      return new Response(JSON.stringify({ error: "The AI ran out of thinking time before writing a draft — please try again" }), {
+        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" }
+      })
+    }
+    rawContent = draftStripped
 
     // Pass 2: Self-Review for Higher Accuracy
     let sourceTextForReview = combinedText
@@ -609,8 +644,13 @@ ${rawContent}`
         method: "POST",
         headers: { "Authorization": "Bearer " + groqApiKey, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          // llama-3.3-70b-versatile is being retired by Groq (shutdown
+          // 2026-08-16); openai/gpt-oss-120b is one of Groq's recommended
+          // replacements.
+          model: "openai/gpt-oss-120b",
           temperature: 0.2,
+          reasoning_effort: "low",
+          include_reasoning: false,
           response_format: { type: "json_object" },
           messages: [
             { role: "system", content: reviewSystemPrompt },
@@ -640,7 +680,14 @@ ${rawContent}`
       })
     }
 
-    const cleaned = rawFinalContent.replace(/```json\s*|```/g, "").trim()
+    const reviewStripped = stripThinkBlock(rawFinalContent)
+    if (reviewStripped === null) {
+      console.error('Groq Review response was an unterminated <think> block (ran out of tokens while reasoning):', rawFinalContent)
+      return new Response(JSON.stringify({ error: "The AI ran out of thinking time before finishing its review — please try again" }), {
+        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" }
+      })
+    }
+    const cleaned = reviewStripped.replace(/```json\s*|```/g, "").trim()
     let parsedContent
     try {
       parsedContent = JSON.parse(cleaned)

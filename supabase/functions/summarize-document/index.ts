@@ -31,6 +31,24 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2)
   throw new Error("Max retries exceeded");
 }
 
+// Defensive safety net: reasoning-capable Groq models (qwen/qwen3.6-27b,
+// openai/gpt-oss-120b) can prepend a <think>...</think> block to "content"
+// even with reasoning turned down/off via reasoning_effort/include_reasoning
+// below — strip it so a stray thinking block never breaks a JSON.parse call.
+// Returns null if the block is unterminated (the model ran out of its token
+// budget mid-thought before ever writing the real answer) — callers should
+// treat that as a failure rather than trying to parse what's left.
+function stripThinkBlock(raw: string): string | null {
+  const match = raw.match(/<think>[\s\S]*?<\/think>/i)
+  if (match) {
+    return raw.slice((match.index ?? 0) + match[0].length).trim()
+  }
+  if (/^\s*<think>/i.test(raw)) {
+    return null
+  }
+  return raw
+}
+
 function decodeXmlEntities(str: string): string {
   return str
     .replace(/&amp;/g, "&")
@@ -355,8 +373,15 @@ async function callGroqJson(groqApiKey: string, systemPrompt: string, userConten
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      model: "llama-3.3-70b-versatile",
+      // llama-3.3-70b-versatile is being retired by Groq (shutdown
+      // 2026-08-16); openai/gpt-oss-120b is one of Groq's recommended
+      // replacements and has a comparable (131K) context window.
+      model: "openai/gpt-oss-120b",
       temperature,
+      // gpt-oss is a reasoning model; keep its reasoning minimal and out of
+      // "content" so a stray <think> block can't break JSON.parse below.
+      reasoning_effort: "low",
+      include_reasoning: false,
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: systemPrompt },
@@ -370,7 +395,9 @@ async function callGroqJson(groqApiKey: string, systemPrompt: string, userConten
   }
   const raw = data.choices?.[0]?.message?.content ?? ""
   if (!raw) throw new Error("Empty Groq response content")
-  const cleaned = raw.replace(/```json\s*|```/g, "").trim()
+  const stripped = stripThinkBlock(raw)
+  if (stripped === null) throw new Error("Model ran out of tokens mid-<think> block, never wrote the actual answer")
+  const cleaned = stripped.replace(/```json\s*|```/g, "").trim()
   return JSON.parse(cleaned)
 }
 
@@ -1069,7 +1096,7 @@ In addition to the text below, you are shown images of this document's pages. Us
             }
           ]
 
-          console.log("Attempting vision-based analysis using llama-3.2-90b-vision-preview...")
+          console.log("Attempting vision-based analysis using qwen/qwen3.6-27b...")
           groqResponse = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
             headers: {
@@ -1077,8 +1104,13 @@ In addition to the text below, you are shown images of this document's pages. Us
               "Content-Type": "application/json"
             },
             body: JSON.stringify({
-              model: "llama-3.2-90b-vision-preview",
+              // Groq retired llama-3.2-90b-vision-preview; qwen/qwen3.6-27b is
+              // the current vision-capable model (same image_url format).
+              model: "qwen/qwen3.6-27b",
               temperature: 0.3,
+              // Qwen3.6 is a hybrid reasoning model that thinks by default —
+              // turn that off so "content" is just the direct JSON answer.
+              reasoning_effort: "none",
               response_format: { type: "json_object" },
               messages: pass1Messages
             })
@@ -1098,7 +1130,7 @@ In addition to the text below, you are shown images of this document's pages. Us
       }
 
       if (!pass1Completed) {
-        console.log("Running standard text-only analysis using Llama-3.3-70b-versatile...")
+        console.log("Running standard text-only analysis using openai/gpt-oss-120b...")
         try {
           groqResponse = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
@@ -1107,8 +1139,13 @@ In addition to the text below, you are shown images of this document's pages. Us
               "Content-Type": "application/json"
             },
             body: JSON.stringify({
-              model: "llama-3.3-70b-versatile",
+              // llama-3.3-70b-versatile is being retired by Groq (shutdown
+              // 2026-08-16); openai/gpt-oss-120b is one of Groq's recommended
+              // replacements.
+              model: "openai/gpt-oss-120b",
               temperature: 0.3,
+              reasoning_effort: "low",
+              include_reasoning: false,
               response_format: { type: "json_object" },
               messages: [
                 {
@@ -1152,6 +1189,18 @@ In addition to the text below, you are shown images of this document's pages. Us
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
       }
+      // Strip any stray <think> block before this draft text gets embedded
+      // into the review-pass prompt below (see stripThinkBlock definition).
+      const draftStripped = stripThinkBlock(rawContent)
+      if (draftStripped === null) {
+        console.error('Groq Draft response was an unterminated <think> block (ran out of tokens while reasoning):', rawContent)
+        await markFailed(serviceClient, documentId)
+        return new Response(JSON.stringify({ error: 'The AI ran out of thinking time before writing a draft — please try again' }), {
+          status: 502,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+      rawContent = draftStripped
 
       sourceTextForReview = textToSend
       if (sourceTextForReview.length > 15000) {
@@ -1307,8 +1356,13 @@ ${rawContent}`
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          // llama-3.3-70b-versatile is being retired by Groq (shutdown
+          // 2026-08-16); openai/gpt-oss-120b is one of Groq's recommended
+          // replacements.
+          model: "openai/gpt-oss-120b",
           temperature: 0.2,
+          reasoning_effort: "low",
+          include_reasoning: false,
           response_format: { type: "json_object" },
           messages: [
             {
@@ -1355,7 +1409,16 @@ ${rawContent}`
     // ==========================================================================
     // STEP 3 — PARSE THE RESPONSE (defensive parsing of final reviewed output)
     // ==========================================================================
-    const cleaned = rawFinalContent.replace(/```json\s*|```/g, "").trim()
+    const reviewStripped = stripThinkBlock(rawFinalContent)
+    if (reviewStripped === null) {
+      console.error('Groq Review response was an unterminated <think> block (ran out of tokens while reasoning):', rawFinalContent)
+      await markFailed(serviceClient, documentId)
+      return new Response(JSON.stringify({ error: 'The AI ran out of thinking time before finishing its review — please try again' }), {
+        status: 502,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+    const cleaned = reviewStripped.replace(/```json\s*|```/g, "").trim()
     let parsedContent
     try {
       parsedContent = JSON.parse(cleaned)
