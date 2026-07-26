@@ -10,10 +10,19 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 }
 
-async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2): Promise<Response> {
+// timeoutMs bounds EACH attempt via AbortController. This function runs as
+// one of two SEQUENTIAL Groq calls in a single request (draft, then review)
+// — without a cap, a slow/hanging draft call (plus its own retries) can
+// quietly burn through the edge function's entire execution budget, so by
+// the time the review call runs there's no time left and every attempt
+// fails the same way, exhausting retries for a reason retrying can't fix.
+async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2, timeoutMs = 25000): Promise<Response> {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
     try {
-      const response = await fetch(url, options);
+      const response = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(timeoutId)
       if (response.ok) return response;
       if (response.status === 429) {
         // Rate limited — wait longer before retrying
@@ -24,6 +33,7 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2)
         return response; // let the caller handle non-retryable errors normally
       }
     } catch (err) {
+      clearTimeout(timeoutId)
       if (attempt === maxRetries) throw err;
       await new Promise(r => setTimeout(r, 800));
     }
@@ -583,7 +593,7 @@ ${styleInstruction}`
             { role: "user", content: combinedText }
           ]
         })
-      })
+      }, 1, 25000) // 1 retry max, 25s cap per attempt — leaves time for the review pass afterward
     } catch (fetchErr) {
       console.error("Pass 1 Groq API fetchWithRetry exception: ", fetchErr)
       return new Response(JSON.stringify({ error: "Our AI service is experiencing high demand right now — please try again in a moment" }), {
@@ -657,7 +667,7 @@ ${rawContent}`
             { role: "user", content: reviewUserPrompt }
           ]
         })
-      })
+      }, 1, 25000) // 1 retry max, 25s cap per attempt
     } catch (fetchReviewErr) {
       console.error("Pass 2 Groq API fetchWithRetry exception: ", fetchReviewErr)
       return new Response(JSON.stringify({ error: "Our AI service is experiencing high demand right now — please try again in a moment" }), {
