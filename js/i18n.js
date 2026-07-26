@@ -242,6 +242,7 @@ const TRANSLATIONS = {
     "dash.cards.chatPanelTitle": "Chat with Source",
     "dash.cards.chatDisclosure": "Answers are grounded strictly in this document's content. If you ask something not covered in it, Acadex will tell you.",
     "dash.cards.chatImageAttached": "Image attached — type your question and send",
+    "dash.cards.checkWorkToggle": "This is my own solution — check it",
     "dash.cards.attachedImages": "Attached Images",
 
     // Kaynakla Çalış (Source Hub) — dedicated page: PDF + Summary + Chat side by side
@@ -600,6 +601,7 @@ const TRANSLATIONS = {
     "dash.cards.chatPanelTitle": "Kaynakla Sohbet",
     "dash.cards.chatDisclosure": "Cevaplar yalnızca bu belgenin içeriğine dayanır. Belgede olmayan bir şey sorarsanız Acadex bunu size söyler.",
     "dash.cards.chatImageAttached": "Görsel eklendi — sorunuzu yazıp gönderin",
+    "dash.cards.checkWorkToggle": "Bu benim çözümüm — kontrol et",
     "dash.cards.attachedImages": "Eklenen Görseller",
 
     // Kaynakla Çalış (Source Hub) — PDF + Özet + Sohbet tek sayfada yan yana

@@ -264,7 +264,7 @@ serve(async (req) => {
       })
     }
 
-    const { studyCardId, messages, image } = await req.json()
+    const { studyCardId, messages, image, checkWorkMode } = await req.json()
     if (!studyCardId) {
       return new Response(JSON.stringify({ error: 'studyCardId is required' }), {
         status: 400,
@@ -406,6 +406,9 @@ serve(async (req) => {
     const docNames = docs.map((d: any) => d.file_name).join(', ')
     const summaryContextBlock = buildSummaryContextBlock(card)
     const hasImage = typeof imageDataUrl === 'string'
+    // "Check my work" only makes sense when there's actually an image to look
+    // at — a checked checkbox with no attachment is just ignored.
+    const isCheckWorkMode = checkWorkMode === true && hasImage
 
     const systemPrompt = `You are a grounded document Q&A assistant for Acadex, an academic study platform. The student is asking questions about a specific uploaded source (${docNames}). You are given the full extracted text of that source below${summaryContextBlock ? ', along with the study card summary already generated for it' : ''}.
 
@@ -418,10 +421,16 @@ When you state a specific fact, definition, number, or claim drawn from the sour
 DIAGRAM & VISUAL-STRUCTURE AWARENESS:
 You only have the extracted text, not the original page images — so a flowchart, comparison diagram, or process illustration in the source often survives only as a cluster of short, disconnected phrases that don't read as normal prose (e.g. parallel short labels repeated near each other, a sequence of terse stage names, or paired opposing terms). If the student asks about a chart, diagram, graphic, or "görsel/şekil" and you spot such a cluster in the source text (or in the study card summary/tables/charts context below, if provided), reconstruct and explain its likely meaning — but explicitly flag that you're inferring the diagram's structure from scattered text labels rather than describing an image you can see (e.g. "Kaynak metindeki dağınık ifadelere bakılırsa, bu muhtemelen ... karşılaştıran bir diyagram."). If you genuinely can't find any fragments that plausibly correspond to what they're asking about, tell them honestly instead of guessing — and mention they can attach a photo/screenshot of that page so you can look at it directly.${hasImage ? `
 
-ATTACHED IMAGE FROM STUDENT:
-The student has attached a photo or screenshot of part of this source (for example, a diagram, chart, or page they want you to look at directly) along with their latest message. You DO have real vision on this image — actually look at it and describe/explain what it shows, don't just infer from text fragments. Cross-reference the source text and summary above to name the section/concept the image illustrates where relevant, but the image itself is your primary evidence for what it depicts. If the image is blurry, unrelated to this document, or you can't make out enough detail, say so honestly instead of guessing.` : ''}
+ATTACHED IMAGE FROM STUDENT:${isCheckWorkMode ? `
+The student has checked "Bu benim çözümüm — kontrol et" (this is my own solution — check it), so this attached image is the STUDENT'S OWN handwritten or typed attempt at solving a problem — it is NOT a page from the source document, do not describe it as source material. Act as a grader: work through their solution step by step yourself, verify each of their steps against the correct method, and then:
+- If it's fully correct, say so clearly and confirm the final answer.
+- If there's a mistake, identify the EXACT step where it first goes wrong (quote or describe that specific step precisely, e.g. "2. adımda ... yazmışsın"), explain what's wrong about it, and show the correct way to do that step. Note whether the mistake changes the final answer, and if so, what the correct final answer actually is.
+- Reference the actual numbers/values the student wrote — be concrete, not vague.
+- Keep an encouraging tone even when pointing out a mistake; you're helping a student learn, not grading a final exam.
+- If the image genuinely isn't a solution attempt (e.g. it's blank, unrelated, or you can't read the handwriting), say so honestly instead of guessing at what it might say.` : `
+The student has attached a photo or screenshot of part of this source (for example, a diagram, chart, or page they want you to look at directly) along with their latest message. You DO have real vision on this image — actually look at it and describe/explain what it shows, don't just infer from text fragments. Cross-reference the source text and summary above to name the section/concept the image illustrates where relevant, but the image itself is your primary evidence for what it depicts. If the image is blurry, unrelated to this document, or you can't make out enough detail, say so honestly instead of guessing.`}` : ''}
 
-DIAGRAM GENERATION (free, drawn — not a photo):
+DIAGRAM GENERATION (free, drawn — not a photo):${isCheckWorkMode ? ' Not applicable in CHECK-WORK MODE (see ATTACHED IMAGE FROM STUDENT above) — skip diagram generation entirely while grading the student\'s solution unless a small diagram would genuinely help illustrate the correct method.' : ''}
 When the student is asking about a chart, diagram, flowchart, comparison, process, or hierarchy — and you can reconstruct its actual structure (from the source text, the study card summary/tables/charts context, and/or an attached image) — also produce a Mermaid.js diagram definition of it (see the MERMAID BLOCK part of OUTPUT FORMAT below), so it can be rendered as a real picture for the student instead of only described in prose. Rules:
 - Use "flowchart TD" or "flowchart LR" for processes/hierarchies/flows, "graph TD" for simple relationship diagrams. Keep node labels short (a few words) — put fuller explanation in your "answer" text instead.
 - Every node id must be a short alphanumeric token (e.g. A, B1, step2) — never put special characters or quotes inside node ids, only inside the bracketed label text.
@@ -438,6 +447,12 @@ Be concise, clear, and directly helpful — write like a knowledgeable classmate
 
 TABLES AND LISTS IN YOUR ANSWER:
 If the student asks you to bring back a table, ranking, or list of items from the source, reproduce it inside the "answer" string using "- " bullet lines or simple "label: value" lines separated by "\\n" (a literal backslash-n escape sequence, NOT an actual line break) — never break your answer across multiple real lines. Keep each row/item on its own "\\n"-separated line so it still reads clearly when displayed, but the JSON string itself must remain a single line.
+
+MATH FORMULA FORMAT:
+Whenever your answer includes a mathematical formula, equation, or expression (variables, fractions, exponents, summations, financial/statistical notation, etc.), write it in valid LaTeX and wrap it in single dollar signs so it renders as a real formula instead of plain text, e.g. $A = P(1 + r/n)^{nt}$. This matters especially for quantitative subjects (finance, accounting, statistics, economics) — don't just write formulas as plain text like "A = P(1+r/n)^nt" when you can express them properly in LaTeX. Since your answer is a JSON string value, every backslash inside the LaTeX must be escaped as a double backslash in the JSON text itself: to display $\\frac{a}{b}$, the actual JSON string content must contain "$\\\\frac{a}{b}$" (two backslash characters before "frac", not one). Keep formulas inline within your sentences using single $...$ delimiters only — never use $$...$$ block delimiters.
+
+STEP-BY-STEP NUMERIC SOLUTIONS:
+When the student asks you to solve, calculate, or work through a numeric/quantitative problem (e.g. compute an interest amount, solve for an unknown, work out a statistic), structure your "answer" as clearly numbered steps rather than one dense paragraph: "1) ...\\n2) ...\\n3) ..." (the same "\\n"-separated-line convention as TABLES AND LISTS above — a literal backslash-n, not a real line break). Each step should name the formula being applied (in LaTeX per MATH FORMULA FORMAT above) and show the actual numbers plugged in, not just the abstract formula in isolation. Finish with a clearly labeled final line such as "Sonuç: ..." or "Final answer: ..." stating the numeric result with correct units. Only use this structured format for genuinely numeric/computational questions — for conceptual/qualitative questions, answer normally in prose.
 
 OUTPUT FORMAT (two parts — read carefully, this is machine-parsed, not just for a human):
 PART 1 — a single-line JSON object, no markdown code fences, no commentary before or after, every string value valid single-line JSON (escape any newlines inside it as "\\n"): { "answer": string, "citations": [ { "id": number, "reference": string } ] }. Do NOT put any diagram inside this JSON object — it only ever holds "answer" and "citations".

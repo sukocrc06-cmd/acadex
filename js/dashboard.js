@@ -3701,6 +3701,9 @@ function removeSourceHubChatImage() {
   if (thumb) thumb.src = '';
   const imageInput = document.getElementById('sourcehub-chat-image-input');
   if (imageInput) imageInput.value = '';
+  // Don't let "check my work" linger checked for the next, unrelated image.
+  const checkWorkToggle = document.getElementById('sourcehub-chat-checkwork-toggle');
+  if (checkWorkToggle) checkWorkToggle.checked = false;
 }
 window.removeSourceHubChatImage = removeSourceHubChatImage;
 
@@ -3754,7 +3757,10 @@ function renderSourceHubChatMessage(role, text, citations, imageDataUrl, visionU
       bubble.appendChild(createChatImageActionRow(imageDataUrl, isTr ? 'Sohbetten Fotoğraf' : 'Photo from chat'));
     }
   } else {
-    bubble.innerHTML = formatFootnoteMarkers(escapeHtml(text), citations);
+    // renderMathInText() escapes the text AND renders any $...$ LaTeX
+    // formulas the AI included (same convention as the study card's worked
+    // examples) before we layer citation markers on top.
+    bubble.innerHTML = formatFootnoteMarkers(renderMathInText(text), citations);
     if (visionUsed) {
       const tag = document.createElement('div');
       tag.textContent = isTr ? '📷 Görsel incelendi' : '📷 Image analyzed';
@@ -3775,7 +3781,7 @@ function renderSourceHubChatMessage(role, text, citations, imageDataUrl, visionU
   container.scrollTop = container.scrollHeight;
 }
 
-async function sendSourceHubChatMessage(text, imageDataUrl) {
+async function sendSourceHubChatMessage(text, imageDataUrl, checkWorkMode) {
   if (sourceHubChatRequestInFlight) return;
   if (!currentActiveStudyCard || !currentActiveStudyCard.id) return;
 
@@ -3794,6 +3800,7 @@ async function sendSourceHubChatMessage(text, imageDataUrl) {
   try {
     const requestBody = { studyCardId: cardId, messages: sourceHubChatHistory };
     if (imageDataUrl) requestBody.image = imageDataUrl;
+    if (checkWorkMode) requestBody.checkWorkMode = true;
 
     const { data, error } = await supabaseClient.functions.invoke('chat-with-document', {
       body: requestBody
@@ -3838,11 +3845,16 @@ function initSourceHubChatForm() {
     const text = input.value.trim();
     const image = pendingSourceHubChatImageDataUrl;
     if (!text && !image) return;
+    // Read the checkbox BEFORE removeSourceHubChatImage() resets it below.
+    const checkWorkToggle = document.getElementById('sourcehub-chat-checkwork-toggle');
+    const checkWorkMode = !!(image && checkWorkToggle && checkWorkToggle.checked);
     const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
-    const finalText = text || (isTr ? 'Ekli görseldeki bu kısmı açıklar mısın?' : 'Can you explain this part shown in the attached image?');
+    const finalText = text || (checkWorkMode
+      ? (isTr ? 'Çözümümü kontrol eder misin?' : 'Can you check my solution?')
+      : (isTr ? 'Ekli görseldeki bu kısmı açıklar mısın?' : 'Can you explain this part shown in the attached image?'));
     input.value = '';
     removeSourceHubChatImage();
-    sendSourceHubChatMessage(finalText, image);
+    sendSourceHubChatMessage(finalText, image, checkWorkMode);
   });
 
   const imageInput = document.getElementById('sourcehub-chat-image-input');
@@ -12488,12 +12500,17 @@ function initDocChatForm() {
     const text = input.value.trim();
     const image = pendingDocChatImageDataUrl;
     if (!text && !image) return;
+    // Read the checkbox BEFORE removeDocChatImage() resets it below.
+    const checkWorkToggle = document.getElementById('doc-chat-checkwork-toggle');
+    const checkWorkMode = !!(image && checkWorkToggle && checkWorkToggle.checked);
     const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
     // Allow sending just an image with no typed question — use a sensible default.
-    const finalText = text || (isTr ? 'Ekli görseldeki bu kısmı açıklar mısın?' : 'Can you explain this part shown in the attached image?');
+    const finalText = text || (checkWorkMode
+      ? (isTr ? 'Çözümümü kontrol eder misin?' : 'Can you check my solution?')
+      : (isTr ? 'Ekli görseldeki bu kısmı açıklar mısın?' : 'Can you explain this part shown in the attached image?'));
     input.value = '';
     removeDocChatImage();
-    sendDocChatMessage(finalText, image);
+    sendDocChatMessage(finalText, image, checkWorkMode);
   });
 
   const imageInput = document.getElementById('doc-chat-image-input');
@@ -12564,6 +12581,9 @@ function removeDocChatImage() {
   if (thumb) thumb.src = '';
   const imageInput = document.getElementById('doc-chat-image-input');
   if (imageInput) imageInput.value = '';
+  // Don't let "check my work" linger checked for the next, unrelated image.
+  const checkWorkToggle = document.getElementById('doc-chat-checkwork-toggle');
+  if (checkWorkToggle) checkWorkToggle.checked = false;
 }
 window.removeDocChatImage = removeDocChatImage;
 
@@ -12768,7 +12788,10 @@ function renderDocChatMessage(role, text, citations, imageDataUrl, visionUsed, m
     // Escape first, then apply citation markers — formatFootnoteMarkers only
     // touches literal "[n]" substrings so this is safe and closes off any
     // stored-XSS risk from AI-generated answer text.
-    bubble.innerHTML = formatFootnoteMarkers(escapeHtml(text), citations);
+    // renderMathInText() escapes the text AND renders any $...$ LaTeX
+    // formulas the AI included (same convention as the study card's worked
+    // examples) before we layer citation markers on top.
+    bubble.innerHTML = formatFootnoteMarkers(renderMathInText(text), citations);
     if (visionUsed) {
       const tag = document.createElement('div');
       tag.textContent = isTr ? '📷 Görsel incelendi' : '📷 Image analyzed';
@@ -12853,7 +12876,7 @@ function clearDocChat() {
 }
 window.clearDocChat = clearDocChat;
 
-async function sendDocChatMessage(text, imageDataUrl) {
+async function sendDocChatMessage(text, imageDataUrl, checkWorkMode) {
   if (docChatRequestInFlight) return;
   if (!currentActiveStudyCard || !currentActiveStudyCard.id) return;
 
@@ -12874,6 +12897,7 @@ async function sendDocChatMessage(text, imageDataUrl) {
   try {
     const requestBody = { studyCardId: cardId, messages: docChatHistory };
     if (imageDataUrl) requestBody.image = imageDataUrl;
+    if (checkWorkMode) requestBody.checkWorkMode = true;
 
     const { data, error } = await supabaseClient.functions.invoke('chat-with-document', {
       body: requestBody
