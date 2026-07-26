@@ -3733,7 +3733,18 @@ function renderSourceHubChatMessage(role, text, citations, imageDataUrl, visionU
       const img = document.createElement('img');
       img.src = imageDataUrl;
       img.alt = '';
-      img.style.cssText = 'max-width: 100%; max-height: 160px; border-radius: 8px; display: block; margin-bottom: 0.4rem; object-fit: contain;';
+      img.style.cssText = 'max-width: 100%; max-height: 160px; border-radius: 8px; display: block; margin-bottom: 0.4rem; object-fit: contain; cursor: zoom-in;';
+      img.title = isTr ? 'Büyütmek için tıkla' : 'Click to enlarge';
+      const uploadLabel = isTr ? 'Sohbetten Fotoğraf' : 'Photo from chat';
+      img.addEventListener('click', () => {
+        openImageLightbox(imageDataUrl, uploadLabel, {
+          onSendToNotebook: (btn) => {
+            if (!currentActiveStudyCard || !currentActiveStudyCard.id) return;
+            sendToDepot(null, btn, currentActiveStudyCard.id, 'image', uploadLabel, imageDataUrl);
+          },
+          onAddToSummary: (btn) => saveChatImageToSummary(imageDataUrl, uploadLabel, btn)
+        });
+      });
       bubble.appendChild(img);
     }
     const textNode = document.createElement('div');
@@ -3752,7 +3763,7 @@ function renderSourceHubChatMessage(role, text, citations, imageDataUrl, visionU
     }
 
     if (mermaidCode) {
-      renderMermaidIntoBubble(bubble, mermaidCode).then((svgDataUrl) => {
+      renderMermaidIntoBubble(bubble, mermaidCode, isTr ? 'AI Diyagramı' : 'AI diagram').then((svgDataUrl) => {
         if (!svgDataUrl) return;
         bubble.appendChild(createChatImageActionRow(svgDataUrl, isTr ? 'AI Diyagramı' : 'AI diagram'));
         container.scrollTop = container.scrollHeight;
@@ -12580,6 +12591,57 @@ function resetDocChatState() {
 }
 window.resetDocChatState = resetDocChatState;
 
+// Generic click-to-enlarge lightbox for any AI-generated diagram or
+// chat-attached photo — shows the image at full size (the chat column and
+// the "Eklenen Görseller" gallery thumbnails are both too small to read a
+// detailed Mermaid diagram comfortably) and, when the caller supplies
+// onSendToNotebook/onAddToSummary callbacks, offers those same actions from
+// inside the enlarged view so the student doesn't have to close it first.
+function openImageLightbox(dataUrl, caption, actions) {
+  const overlay = document.getElementById('image-lightbox-overlay');
+  const img = document.getElementById('image-lightbox-img');
+  const capEl = document.getElementById('image-lightbox-caption');
+  const actionsEl = document.getElementById('image-lightbox-actions');
+  if (!overlay || !img || !actionsEl) return;
+
+  const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+  img.src = dataUrl;
+  if (capEl) capEl.textContent = caption || '';
+  actionsEl.innerHTML = '';
+
+  if (actions && typeof actions.onSendToNotebook === 'function') {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-outline';
+    btn.style.cssText = 'font-size: 0.75rem; padding: 0.35rem 0.75rem; font-weight: 700;';
+    btn.textContent = isTr ? '🖼️ Deftere Gönder' : '🖼️ Send to Notebook';
+    btn.addEventListener('click', () => actions.onSendToNotebook(btn));
+    actionsEl.appendChild(btn);
+  }
+  if (actions && typeof actions.onAddToSummary === 'function') {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-outline';
+    btn.style.cssText = 'font-size: 0.75rem; padding: 0.35rem 0.75rem; font-weight: 700;';
+    btn.textContent = isTr ? '📌 Özete Ekle' : '📌 Add to Summary';
+    btn.addEventListener('click', () => actions.onAddToSummary(btn));
+    actionsEl.appendChild(btn);
+  }
+
+  overlay.style.display = 'flex';
+}
+window.openImageLightbox = openImageLightbox;
+
+function closeImageLightbox() {
+  const overlay = document.getElementById('image-lightbox-overlay');
+  if (overlay) overlay.style.display = 'none';
+}
+window.closeImageLightbox = closeImageLightbox;
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeImageLightbox();
+});
+
 // Builds the small "🖼️ Deftere Gönder" / "📌 Özete Ekle" action row shown
 // under any image in the chat (a student's uploaded photo, a rendered
 // Mermaid diagram, or a paid AI-generated illustration). Uses real DOM
@@ -12615,10 +12677,13 @@ function createChatImageActionRow(dataUrl, caption) {
 // serialized as a "data:image/svg+xml;base64,..." data URL on success (so
 // callers can offer the same Deftere Gönder/Özete Ekle actions on it as any
 // other image), or null if rendering failed (invalid Mermaid syntax, etc).
-async function renderMermaidIntoBubble(bubble, mermaidCode) {
+async function renderMermaidIntoBubble(bubble, mermaidCode, caption) {
   if (!window.mermaid || !mermaidCode) return null;
+  const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+  const label = caption || (isTr ? 'AI Diyagramı' : 'AI diagram');
   const wrapper = document.createElement('div');
-  wrapper.style.cssText = 'margin-top: 0.5rem; background: white; border-radius: 8px; padding: 0.5rem; overflow-x: auto;';
+  wrapper.style.cssText = 'margin-top: 0.5rem; background: white; border-radius: 8px; padding: 0.5rem; overflow-x: auto; cursor: zoom-in;';
+  wrapper.title = isTr ? 'Büyütmek için tıkla' : 'Click to enlarge';
   bubble.appendChild(wrapper);
 
   try {
@@ -12632,6 +12697,20 @@ async function renderMermaidIntoBubble(bubble, mermaidCode) {
     }
     const svgString = new XMLSerializer().serializeToString(svgEl || wrapper);
     const dataUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgString)));
+
+    // Click the small in-bubble diagram to view it full-size, with the same
+    // Deftere Gönder/Özete Ekle actions available right there in the enlarged
+    // view — the chat column is too narrow to read a detailed diagram in place.
+    wrapper.addEventListener('click', () => {
+      openImageLightbox(dataUrl, label, {
+        onSendToNotebook: (btn) => {
+          if (!currentActiveStudyCard || !currentActiveStudyCard.id) return;
+          sendToDepot(null, btn, currentActiveStudyCard.id, 'image', label, dataUrl);
+        },
+        onAddToSummary: (btn) => saveChatImageToSummary(dataUrl, label, btn)
+      });
+    });
+
     return dataUrl;
   } catch (err) {
     console.warn('Mermaid render failed, dropping diagram silently:', err);
@@ -12665,7 +12744,18 @@ function renderDocChatMessage(role, text, citations, imageDataUrl, visionUsed, m
       const img = document.createElement('img');
       img.src = imageDataUrl;
       img.alt = '';
-      img.style.cssText = 'max-width: 100%; max-height: 160px; border-radius: 8px; display: block; margin-bottom: 0.4rem; object-fit: contain;';
+      img.style.cssText = 'max-width: 100%; max-height: 160px; border-radius: 8px; display: block; margin-bottom: 0.4rem; object-fit: contain; cursor: zoom-in;';
+      img.title = isTr ? 'Büyütmek için tıkla' : 'Click to enlarge';
+      const uploadLabel = isTr ? 'Sohbetten Fotoğraf' : 'Photo from chat';
+      img.addEventListener('click', () => {
+        openImageLightbox(imageDataUrl, uploadLabel, {
+          onSendToNotebook: (btn) => {
+            if (!currentActiveStudyCard || !currentActiveStudyCard.id) return;
+            sendToDepot(null, btn, currentActiveStudyCard.id, 'image', uploadLabel, imageDataUrl);
+          },
+          onAddToSummary: (btn) => saveChatImageToSummary(imageDataUrl, uploadLabel, btn)
+        });
+      });
       bubble.appendChild(img);
     }
     const textNode = document.createElement('div');
@@ -12687,7 +12777,7 @@ function renderDocChatMessage(role, text, citations, imageDataUrl, visionUsed, m
     }
 
     if (mermaidCode) {
-      renderMermaidIntoBubble(bubble, mermaidCode).then((svgDataUrl) => {
+      renderMermaidIntoBubble(bubble, mermaidCode, isTr ? 'AI Diyagramı' : 'AI diagram').then((svgDataUrl) => {
         if (!svgDataUrl) return;
         // Free path only — the paid "generate a real image" button was
         // deliberately removed from the UI so there's no way to trigger any
@@ -12953,8 +13043,13 @@ function renderStudyCardImagesGallery(images, cardId, sectionId, containerId) {
     const img = document.createElement('img');
     img.src = att.dataUrl;
     img.alt = att.caption || '';
-    img.style.cssText = 'width: 100%; height: 110px; object-fit: contain; background: var(--color-bg-alt); cursor: pointer;';
-    img.addEventListener('click', () => window.open(att.dataUrl, '_blank'));
+    img.style.cssText = 'width: 100%; height: 110px; object-fit: contain; background: var(--color-bg-alt); cursor: zoom-in;';
+    img.title = 'Büyütmek için tıkla';
+    img.addEventListener('click', () => {
+      openImageLightbox(att.dataUrl, att.caption || '', {
+        onSendToNotebook: (btn) => sendToDepot(null, btn, cardId, 'image', att.caption || 'Image', att.dataUrl)
+      });
+    });
     wrapper.appendChild(img);
 
     const footer = document.createElement('div');
