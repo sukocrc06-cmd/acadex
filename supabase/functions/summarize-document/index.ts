@@ -391,6 +391,9 @@ Set "is_quantitative" true if this part centers on mathematical formulas, numeri
 TABLES & CHARTS:
 Identify any tabular data ('tables') or chart-worthy numeric data ('charts', type "bar"|"pie"|"line") actually present in this part. Empty arrays are the correct output if none exists — never fabricate.
 
+DIAGRAM & VISUAL-STRUCTURE AWARENESS:
+You only see extracted text — visual layout (boxes, arrows, side-by-side positioning) is lost, so a flowchart, comparison diagram, or process illustration on the original slide/page often survives only as a cluster of short, disconnected phrases that don't read as normal prose (e.g. two or three parallel short labels repeated near each other, a sequence of terse stage names, or paired opposing terms). When you notice such a cluster in THIS part, infer its likely meaning and add ONE key_point reconstructing it, clearly prefixed with "Diyagram/Görsel:" ("Diagram/Visual:" in English) so the student knows it's your interpretation of a visual element, not a verbatim quote. Only do this when fragments genuinely look diagram-like — don't force it onto ordinary bullet lists.
+
 FOOTNOTES:
 For specific, checkable factual claims within key_points (numbers, definitions, named findings), add a footnote marker like [1], [2] immediately after the claim (numbering restarts at 1 for this part — it will be renumbered globally later). List each in 'footnotes': [{ "id": number, "reference": "brief description of the topic/heading this relates to" }]. Don't over-footnote.
 
@@ -850,6 +853,9 @@ Respond strictly in the language: '${langLabel}'. Write the ENTIRE response (the
 
 EXAM-FOCUSED CONTENT FILTERING:
 Before summarizing, identify and EXCLUDE administrative/logistical information that would not appear on an exam. Focus exclusively on the actual academic subject matter: concepts, theories, definitions, processes, relationships, examples, and any content a student would need to understand or recall for an exam.
+
+DIAGRAM & VISUAL-STRUCTURE AWARENESS:
+You are only given extracted text — visual layout (boxes, arrows, side-by-side positioning) is lost in extraction, so a flowchart, comparison diagram, or process illustration often survives only as a cluster of short, disconnected phrases that don't read as normal prose (e.g. two or three parallel short labels repeated near each other, a sequence of terse stage names, or paired opposing terms). When you notice such a cluster, infer that it likely represents a diagram and add ONE key_point that reconstructs its probable meaning, clearly prefixed with "Diyagram/Görsel:" (or "Diagram/Visual:" if responding in English) so the student knows this is your interpretation of a visual element rather than a verbatim quote — e.g. "Diyagram: 'Satış kavramı' (ürün/satış odaklı, mevcut ürünleri satmaya çalışır) ile 'Pazarlama kavramı' (müşteri ihtiyaçlarını anlayıp buna göre değer yaratır) karşılaştırılıyor gibi görünüyor." Only do this when the fragments genuinely look diagram-like — don't force it onto ordinary bullet lists or normal prose.
 
 CODE SNIPPETS & DATA PREVIEWS INSTRUCTION:
 If the source material includes programming code snippets (e.g. Python, R, SQL used for data analysis), do not ignore them — briefly describe WHAT METHODOLOGY STEP each code block represents in the summary/key_points (e.g. 'the analysis loads and cleans the dataset, then engineers features including a lagged return and rolling volatility measure' rather than omitting this entirely). Do not attempt to reproduce the code verbatim in the summary, just describe its purpose and role in the overall analysis. If a code block's output shows a small data preview (a few rows of a dataframe), treat that as a legitimate table for the 'tables' field.
