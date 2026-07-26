@@ -382,7 +382,7 @@ serve(async (req) => {
     }
 
     let sourceText = sections.join('\n\n')
-    // llama-3.3-70b-versatile has a large (128k token) context window, so for
+    // openai/gpt-oss-120b has a large (131k token) context window, so for
     // chat we send the WHOLE document rather than truncating early the way a
     // one-shot summarization pass does — a student can ask about slide 3 or
     // slide 50 of the same deck in the same conversation. This cap is a safety
@@ -498,7 +498,7 @@ ${sourceText}
     let visionUsed = false
     if (hasImage) {
       try {
-        console.log("chat-with-document: attempting vision analysis with llama-3.2-90b-vision-preview...")
+        console.log("chat-with-document: attempting vision analysis with qwen/qwen3.6-27b...")
         groqResponse = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -506,7 +506,9 @@ ${sourceText}
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            model: "llama-3.2-90b-vision-preview",
+            // Groq retired llama-3.2-90b-vision-preview; qwen/qwen3.6-27b is the
+            // current vision-capable model (same OpenAI-style image_url format).
+            model: "qwen/qwen3.6-27b",
             temperature: 0.3,
             // No response_format:"json_object" here — that mode forces the ENTIRE
             // reply to be one JSON value, which would forbid the optional
@@ -537,7 +539,10 @@ ${sourceText}
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            model: "llama-3.3-70b-versatile",
+            // llama-3.3-70b-versatile is being retired by Groq (shutdown
+            // 2026-08-16); openai/gpt-oss-120b is one of Groq's recommended
+            // replacements and has a comparable (131K) context window.
+            model: "openai/gpt-oss-120b",
             temperature: 0.3,
             // See the comment on the vision call above for why response_format
             // is deliberately omitted here too.
