@@ -510,6 +510,12 @@ ${sourceText}
             // current vision-capable model (same OpenAI-style image_url format).
             model: "qwen/qwen3.6-27b",
             temperature: 0.3,
+            // Qwen3.6 is a hybrid reasoning model that THINKS by default (a
+            // <think>...</think> block prepended to content), which broke our
+            // JSON parsing and burned most of the time/token budget on
+            // reasoning instead of the actual answer. "none" turns reasoning
+            // off entirely so "content" is just the direct final answer.
+            reasoning_effort: "none",
             // No response_format:"json_object" here — that mode forces the ENTIRE
             // reply to be one JSON value, which would forbid the optional
             // ###MERMAID_START###...###MERMAID_END### block appended after it
@@ -544,6 +550,13 @@ ${sourceText}
             // replacements and has a comparable (131K) context window.
             model: "openai/gpt-oss-120b",
             temperature: 0.3,
+            // gpt-oss doesn't support reasoning_effort:"none" (only
+            // low/medium/high) or reasoning_format, so we use the lowest
+            // reasoning depth plus include_reasoning:false to keep "content"
+            // limited to the final answer instead of a <think> block that
+            // would break our JSON parsing below.
+            reasoning_effort: "low",
+            include_reasoning: false,
             // See the comment on the vision call above for why response_format
             // is deliberately omitted here too.
             messages: buildChatMessages(false)
@@ -567,7 +580,33 @@ ${sourceText}
       })
     }
 
-    const rawContent = groqData.choices?.[0]?.message?.content ?? ""
+    let rawContent = groqData.choices?.[0]?.message?.content ?? ""
+    if (!rawContent) {
+      return new Response(JSON.stringify({ error: 'AI failed to generate a response' }), {
+        status: 502,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
+    // Defensive safety net: reasoning-capable models (qwen/qwen3.6-27b,
+    // openai/gpt-oss-120b) can still prepend a <think>...</think> block to
+    // "content" even with reasoning turned down/off above — e.g. Groq changes
+    // a default, or a future model swap reintroduces this. Strip it so a
+    // stray thinking block never breaks the JSON parse below.
+    const thinkMatch = rawContent.match(/<think>[\s\S]*?<\/think>/i)
+    if (thinkMatch) {
+      rawContent = rawContent.slice(thinkMatch.index! + thinkMatch[0].length).trim()
+    } else if (/^\s*<think>/i.test(rawContent)) {
+      // Opening tag with no closing tag — the model ran out of its token
+      // budget mid-thought before ever writing the real answer. Nothing
+      // usable is left; fail with a message that tells the student to retry
+      // rather than a confusing generic JSON error.
+      console.error("chat-with-document: model response was an unterminated <think> block (ran out of tokens while reasoning):", rawContent)
+      return new Response(JSON.stringify({ error: 'The AI ran out of thinking time before writing an answer — please try again' }), {
+        status: 502,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
     if (!rawContent) {
       return new Response(JSON.stringify({ error: 'AI failed to generate a response' }), {
         status: 502,
