@@ -18,6 +18,9 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 
+  <!-- Mermaid.js CDN — free client-side rendering of diagrams the "Kaynakla Sohbet" AI reconstructs (no image-generation API cost) -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+
   <!-- Core Stylesheet -->
   <link rel="stylesheet" href="css/style.css">
 
@@ -1727,6 +1730,16 @@
             <span>📈</span> <span style="margin-left: 0.4rem;">Charts</span>
           </h4>
           <div id="study-card-charts-container">
+            <!-- Dynamically populated -->
+          </div>
+        </section>
+
+        <!-- Attached Images Section (from Kaynakla Sohbet: uploaded photos, AI diagrams/illustrations) -->
+        <section class="study-card-section" id="study-card-images-section" style="display: none;">
+          <h4 class="study-card-section-title" style="display: flex; align-items: center; width: 100%;">
+            <span>🖼️</span> <span style="margin-left: 0.4rem;" data-i18n="dash.cards.attachedImages">Eklenen Görseller</span>
+          </h4>
+          <div id="study-card-images-container" style="display: flex; flex-wrap: wrap; gap: 0.7rem;">
             <!-- Dynamically populated -->
           </div>
         </section>

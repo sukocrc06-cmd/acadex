@@ -89,6 +89,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 11. Chat With Source (NotebookLM-style grounded document Q&A)
   initDocChatForm();
+
+  // 12. Mermaid.js — free client-side rendering of AI-reconstructed diagrams
+  if (window.mermaid) {
+    try {
+      window.mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'loose' });
+    } catch (e) {
+      console.warn('Mermaid initialize failed:', e);
+    }
+  }
 });
 
 // ==========================================
@@ -1508,6 +1517,9 @@ async function populateStudyCardModalDetails(card, docName, readOnly) {
       chartsSection.style.display = 'none';
     }
   }
+
+  // Populate Attached Images (photos/diagrams saved from Kaynakla Sohbet)
+  renderStudyCardImagesGallery(card.chat_attachments || [], card.id);
 
   // Populate Quantitative Badge
   const quantBadgeEl = document.getElementById('study-card-modal-quantitative-badge');
@@ -5846,6 +5858,8 @@ async function loadDepotItems() {
         typeTag = '<span class="depot-item-tag" style="background:#EEF2FF; color:#4F46E5; font-weight:700;">📊 Tablo</span>';
       } else if (item.source_type === 'chart') {
         typeTag = '<span class="depot-item-tag" style="background:#ECFDF5; color:#059669; font-weight:700;">📈 Grafik</span>';
+      } else if (item.source_type === 'image') {
+        typeTag = '<span class="depot-item-tag" style="background:#FEF3C7; color:#B45309; font-weight:700;">🖼️ Görsel</span>';
       } else {
         typeTag = '<span class="depot-item-tag depot-tag-question">Question</span>';
       }
@@ -5882,6 +5896,12 @@ async function loadDepotItems() {
             if (canvasEl) renderChartJs(canvasEl, chartData);
           } catch(e) {}
         }, 60);
+      } else if (item.source_type === 'image') {
+        displayContentHtml = `
+          <div class="depot-preview-image-wrapper" style="text-align: center;">
+            <img src="${item.content}" alt="" style="max-width: 100%; max-height: 120px; border-radius: 6px; object-fit: contain;">
+          </div>
+        `;
       } else {
         const maxTextLen = 140;
         let textVal = item.content || '';
@@ -5980,6 +6000,8 @@ async function pasteDepotItem(event, itemId, title, content) {
     } catch (e) {
       addDepotStickyNoteToCanvas(studyCardId, title, content);
     }
+  } else if (sourceType === 'image') {
+    insertImageElement(content, 120, 120, 260, 200);
   } else {
     addDepotStickyNoteToCanvas(studyCardId, title, content);
   }
@@ -12197,10 +12219,71 @@ function resetDocChatState() {
 }
 window.resetDocChatState = resetDocChatState;
 
-function renderDocChatMessage(role, text, citations, imageDataUrl, visionUsed) {
+// Builds the small "🖼️ Deftere Gönder" / "📌 Özete Ekle" action row shown
+// under any image in the chat (a student's uploaded photo, a rendered
+// Mermaid diagram, or a paid AI-generated illustration). Uses real DOM
+// elements + closures (not inline onclick strings) since dataUrl can be a
+// sizeable base64 payload that shouldn't be serialized into an HTML attribute.
+function createChatImageActionRow(dataUrl, caption) {
+  const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+  const row = document.createElement('div');
+  row.style.cssText = 'display: flex; gap: 0.4rem; margin-top: 0.4rem; flex-wrap: wrap;';
+
+  const notebookBtn = document.createElement('button');
+  notebookBtn.type = 'button';
+  notebookBtn.textContent = isTr ? '🖼️ Deftere Gönder' : '🖼️ Send to Notebook';
+  notebookBtn.style.cssText = 'background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); color: inherit; border-radius: 20px; padding: 0.2rem 0.55rem; font-size: 0.65rem; font-weight: 700; cursor: pointer;';
+  notebookBtn.addEventListener('click', (e) => {
+    if (!currentActiveStudyCard || !currentActiveStudyCard.id) return;
+    sendToDepot(e, notebookBtn, currentActiveStudyCard.id, 'image', caption, dataUrl);
+  });
+  row.appendChild(notebookBtn);
+
+  const summaryBtn = document.createElement('button');
+  summaryBtn.type = 'button';
+  summaryBtn.textContent = isTr ? '📌 Özete Ekle' : '📌 Add to Summary';
+  summaryBtn.style.cssText = 'background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); color: inherit; border-radius: 20px; padding: 0.2rem 0.55rem; font-size: 0.65rem; font-weight: 700; cursor: pointer;';
+  summaryBtn.addEventListener('click', () => saveChatImageToSummary(dataUrl, caption, summaryBtn));
+  row.appendChild(summaryBtn);
+
+  return row;
+}
+
+// Renders a Mermaid diagram definition string into a chat bubble as a real
+// SVG picture (free — no image-generation API involved). Returns the SVG
+// serialized as a "data:image/svg+xml;base64,..." data URL on success (so
+// callers can offer the same Deftere Gönder/Özete Ekle actions on it as any
+// other image), or null if rendering failed (invalid Mermaid syntax, etc).
+async function renderMermaidIntoBubble(bubble, mermaidCode) {
+  if (!window.mermaid || !mermaidCode) return null;
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = 'margin-top: 0.5rem; background: white; border-radius: 8px; padding: 0.5rem; overflow-x: auto;';
+  bubble.appendChild(wrapper);
+
+  try {
+    const renderId = 'mermaid-' + Date.now() + '-' + Math.floor(Math.random() * 100000);
+    const { svg } = await window.mermaid.render(renderId, mermaidCode);
+    wrapper.innerHTML = svg;
+    const svgEl = wrapper.querySelector('svg');
+    if (svgEl) {
+      svgEl.style.maxWidth = '100%';
+      svgEl.style.height = 'auto';
+    }
+    const svgString = new XMLSerializer().serializeToString(svgEl || wrapper);
+    const dataUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgString)));
+    return dataUrl;
+  } catch (err) {
+    console.warn('Mermaid render failed, dropping diagram silently:', err);
+    wrapper.remove();
+    return null;
+  }
+}
+
+function renderDocChatMessage(role, text, citations, imageDataUrl, visionUsed, mermaidCode) {
   const container = document.getElementById('doc-chat-messages');
   if (!container) return;
 
+  const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
   const bubble = document.createElement('div');
   const isUser = role === 'user';
   bubble.style.cssText = `
@@ -12227,17 +12310,34 @@ function renderDocChatMessage(role, text, citations, imageDataUrl, visionUsed) {
     const textNode = document.createElement('div');
     textNode.textContent = text;
     bubble.appendChild(textNode);
+    if (imageDataUrl) {
+      bubble.appendChild(createChatImageActionRow(imageDataUrl, isTr ? 'Sohbetten Fotoğraf' : 'Photo from chat'));
+    }
   } else {
     // Escape first, then apply citation markers — formatFootnoteMarkers only
     // touches literal "[n]" substrings so this is safe and closes off any
     // stored-XSS risk from AI-generated answer text.
     bubble.innerHTML = formatFootnoteMarkers(escapeHtml(text), citations);
     if (visionUsed) {
-      const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
       const tag = document.createElement('div');
       tag.textContent = isTr ? '📷 Görsel incelendi' : '📷 Image analyzed';
       tag.style.cssText = 'margin-top: 0.35rem; font-size: 0.65rem; opacity: 0.65; font-style: italic;';
       bubble.appendChild(tag);
+    }
+
+    if (mermaidCode) {
+      renderMermaidIntoBubble(bubble, mermaidCode).then((svgDataUrl) => {
+        if (!svgDataUrl) return;
+        // Free path only — the paid "generate a real image" button was
+        // deliberately removed from the UI so there's no way to trigger any
+        // billed API call from this app. The Mermaid diagram above is the
+        // entire diagram-generation feature; generateRealImageForChat() and
+        // the generate-study-image function remain in the codebase, unused,
+        // in case this is ever wanted later.
+        const actionRow = createChatImageActionRow(svgDataUrl, isTr ? 'AI Diyagramı' : 'AI diagram');
+        bubble.appendChild(actionRow);
+        container.scrollTop = container.scrollHeight;
+      });
     }
   }
 
@@ -12338,7 +12438,7 @@ async function sendDocChatMessage(text, imageDataUrl) {
       return;
     }
 
-    renderDocChatMessage('assistant', data.answer, data.citations || [], null, !!data.visionUsed);
+    renderDocChatMessage('assistant', data.answer, data.citations || [], null, !!data.visionUsed, data.mermaid || null);
     docChatHistory.push({ role: 'assistant', content: data.answer });
   } catch (err) {
     console.error('Exception in sendDocChatMessage:', err);
@@ -12354,6 +12454,225 @@ async function sendDocChatMessage(text, imageDataUrl) {
   }
 }
 window.sendDocChatMessage = sendDocChatMessage;
+
+const MAX_CHAT_ATTACHMENTS_PER_CARD = 12;
+const MAX_CHAT_ATTACHMENT_CHARS = 900000; // ~900KB of base64 text — a generous safety cap, not a normal ceiling
+
+// Persists an image from "Kaynakla Sohbet" (student photo, free Mermaid
+// diagram, or paid AI illustration) onto the study card itself, so it
+// survives after the chat window/conversation is gone. Stored directly as a
+// base64 data URL in study_cards.chat_attachments (jsonb) — see the
+// 20260726_chat_attachments.sql migration for why no Storage bucket is used.
+async function saveChatImageToSummary(dataUrl, caption, btn) {
+  if (!currentActiveStudyCard || !currentActiveStudyCard.id) return;
+  const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+  const cardId = currentActiveStudyCard.id;
+
+  if (dataUrl.length > MAX_CHAT_ATTACHMENT_CHARS) {
+    showDashboardAlert('error', isTr ? 'Bu görsel özete eklenemeyecek kadar büyük.' : 'This image is too large to add to the summary.');
+    return;
+  }
+
+  const originalHtml = btn ? btn.innerHTML : null;
+  if (btn) { btn.disabled = true; btn.textContent = isTr ? 'Ekleniyor...' : 'Adding...'; }
+
+  try {
+    // Re-fetch the current attachments rather than trusting local state, so
+    // two saves in quick succession (or a stale modal) don't clobber each other.
+    const { data: freshCard, error: fetchErr } = await supabaseClient
+      .from('study_cards')
+      .select('chat_attachments')
+      .eq('id', cardId)
+      .single();
+
+    if (fetchErr) {
+      console.error('saveChatImageToSummary: fetch failed:', fetchErr);
+      showDashboardAlert('error', isTr ? 'Özete eklenemedi, lütfen tekrar deneyin.' : 'Could not add to summary, please try again.');
+      return;
+    }
+
+    const existing = Array.isArray(freshCard?.chat_attachments) ? freshCard.chat_attachments : [];
+    const newAttachment = {
+      id: 'att-' + Date.now(),
+      dataUrl,
+      caption: caption || (isTr ? 'Görsel' : 'Image'),
+      createdAt: new Date().toISOString()
+    };
+    let updatedList = [...existing, newAttachment];
+    if (updatedList.length > MAX_CHAT_ATTACHMENTS_PER_CARD) {
+      updatedList = updatedList.slice(updatedList.length - MAX_CHAT_ATTACHMENTS_PER_CARD);
+    }
+
+    const { error: updateErr } = await supabaseClient
+      .from('study_cards')
+      .update({ chat_attachments: updatedList })
+      .eq('id', cardId);
+
+    if (updateErr) {
+      console.error('saveChatImageToSummary: update failed:', updateErr);
+      showDashboardAlert('error', isTr ? 'Özete eklenemedi, lütfen tekrar deneyin.' : 'Could not add to summary, please try again.');
+      return;
+    }
+
+    currentActiveStudyCard.chat_attachments = updatedList;
+    renderStudyCardImagesGallery(updatedList, cardId);
+    showDashboardAlert('success', isTr ? 'Görsel özete eklendi!' : 'Image added to the summary!');
+
+    if (btn) {
+      btn.textContent = isTr ? '✓ Eklendi' : '✓ Added';
+      setTimeout(() => { btn.disabled = false; btn.innerHTML = originalHtml; }, 1500);
+    }
+  } catch (err) {
+    console.error('Exception in saveChatImageToSummary:', err);
+    showDashboardAlert('error', isTr ? 'Özete eklenemedi, lütfen tekrar deneyin.' : 'Could not add to summary, please try again.');
+    if (btn) { btn.disabled = false; btn.innerHTML = originalHtml; }
+  }
+}
+window.saveChatImageToSummary = saveChatImageToSummary;
+
+async function deleteChatAttachment(cardId, attachmentId) {
+  const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+  try {
+    const { data: freshCard, error: fetchErr } = await supabaseClient
+      .from('study_cards')
+      .select('chat_attachments')
+      .eq('id', cardId)
+      .single();
+    if (fetchErr) throw fetchErr;
+
+    const existing = Array.isArray(freshCard?.chat_attachments) ? freshCard.chat_attachments : [];
+    const updatedList = existing.filter(a => a.id !== attachmentId);
+
+    const { error: updateErr } = await supabaseClient
+      .from('study_cards')
+      .update({ chat_attachments: updatedList })
+      .eq('id', cardId);
+    if (updateErr) throw updateErr;
+
+    if (currentActiveStudyCard && currentActiveStudyCard.id === cardId) {
+      currentActiveStudyCard.chat_attachments = updatedList;
+    }
+    renderStudyCardImagesGallery(updatedList, cardId);
+  } catch (err) {
+    console.error('Exception in deleteChatAttachment:', err);
+    showDashboardAlert('error', isTr ? 'Görsel silinemedi.' : 'Could not remove the image.');
+  }
+}
+window.deleteChatAttachment = deleteChatAttachment;
+
+// Renders the "🖼️ Eklenen Görseller" gallery in the study card modal —
+// mirrors the existing Tables/Charts sections' show/hide + container pattern.
+function renderStudyCardImagesGallery(images, cardId) {
+  const section = document.getElementById('study-card-images-section');
+  const container = document.getElementById('study-card-images-container');
+  if (!section || !container) return;
+
+  container.innerHTML = '';
+  const list = Array.isArray(images) ? images : [];
+  if (list.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = 'block';
+
+  list.forEach((att) => {
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'width: 150px; border: 1px solid rgba(22,50,92,0.1); border-radius: var(--radius-sm); overflow: hidden; background: white;';
+
+    const img = document.createElement('img');
+    img.src = att.dataUrl;
+    img.alt = att.caption || '';
+    img.style.cssText = 'width: 100%; height: 110px; object-fit: contain; background: var(--color-bg-alt); cursor: pointer;';
+    img.addEventListener('click', () => window.open(att.dataUrl, '_blank'));
+    wrapper.appendChild(img);
+
+    const footer = document.createElement('div');
+    footer.style.cssText = 'display: flex; align-items: center; justify-content: space-between; padding: 0.3rem 0.4rem; gap: 0.3rem;';
+
+    const label = document.createElement('span');
+    label.textContent = att.caption || '';
+    label.title = att.caption || '';
+    label.style.cssText = 'font-size: 0.65rem; color: var(--color-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;';
+    footer.appendChild(label);
+
+    const notebookBtn = document.createElement('button');
+    notebookBtn.type = 'button';
+    notebookBtn.title = 'Deftere Gönder';
+    notebookBtn.textContent = '🖼️';
+    notebookBtn.style.cssText = 'background: none; border: none; cursor: pointer; font-size: 0.85rem; padding: 0.1rem;';
+    notebookBtn.addEventListener('click', (e) => sendToDepot(e, notebookBtn, cardId, 'image', att.caption || 'Image', att.dataUrl));
+    footer.appendChild(notebookBtn);
+
+    const delBtn = document.createElement('button');
+    delBtn.type = 'button';
+    delBtn.title = 'Sil';
+    delBtn.textContent = '✕';
+    delBtn.style.cssText = 'background: none; border: none; cursor: pointer; font-size: 0.75rem; color: var(--color-text-muted); padding: 0.1rem;';
+    delBtn.addEventListener('click', () => deleteChatAttachment(cardId, att.id));
+    footer.appendChild(delBtn);
+
+    wrapper.appendChild(footer);
+    container.appendChild(wrapper);
+  });
+}
+window.renderStudyCardImagesGallery = renderStudyCardImagesGallery;
+
+let docChatImageGenInFlight = false;
+
+// Paid, explicitly-triggered real-image generation — calls the
+// generate-study-image edge function (OpenAI). Never invoked automatically;
+// only from the "🎨 Generate Real Image (paid)" button the student clicks.
+async function generateRealImageForChat(contextText, btn) {
+  if (docChatImageGenInFlight) return;
+  const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+  const container = document.getElementById('doc-chat-messages');
+
+  docChatImageGenInFlight = true;
+  const originalHtml = btn ? btn.innerHTML : null;
+  if (btn) { btn.disabled = true; btn.textContent = isTr ? '🎨 Oluşturuluyor...' : '🎨 Generating...'; }
+
+  try {
+    const prompt = (contextText || '').slice(0, 600);
+    const { data, error } = await supabaseClient.functions.invoke('generate-study-image', {
+      body: { prompt }
+    });
+
+    if (error || !data || typeof data.image !== 'string') {
+      const serverMsg = (data && data.error) || (error && error.message);
+      console.error('generate-study-image invocation failed:', error || data);
+      renderDocChatMessage('assistant', serverMsg || (isTr ? 'Görsel oluşturulamadı, lütfen tekrar deneyin.' : 'Could not generate the image, please try again.'), []);
+      return;
+    }
+
+    const bubble = document.createElement('div');
+    bubble.style.cssText = `
+      max-width: 88%;
+      align-self: flex-start;
+      background: var(--color-bg-alt);
+      color: var(--color-navy);
+      padding: 0.55rem 0.8rem;
+      border-radius: 14px 14px 14px 2px;
+      font-size: 0.8rem;
+    `;
+    const img = document.createElement('img');
+    img.src = data.image;
+    img.alt = '';
+    img.style.cssText = 'max-width: 100%; border-radius: 8px; display: block;';
+    bubble.appendChild(img);
+    bubble.appendChild(createChatImageActionRow(data.image, isTr ? 'AI Görseli (ücretli)' : 'AI image (paid)'));
+    if (container) {
+      container.appendChild(bubble);
+      container.scrollTop = container.scrollHeight;
+    }
+  } catch (err) {
+    console.error('Exception in generateRealImageForChat:', err);
+    renderDocChatMessage('assistant', isTr ? 'Görsel oluşturulamadı, lütfen tekrar deneyin.' : 'Could not generate the image, please try again.', []);
+  } finally {
+    docChatImageGenInFlight = false;
+    if (btn) { btn.disabled = false; btn.innerHTML = originalHtml; }
+  }
+}
+window.generateRealImageForChat = generateRealImageForChat;
 
 // ==========================================
 // COURSE-WIDE AUTO-GLOSSARY

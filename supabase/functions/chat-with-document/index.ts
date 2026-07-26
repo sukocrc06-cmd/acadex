@@ -412,6 +412,14 @@ You only have the extracted text, not the original page images — so a flowchar
 ATTACHED IMAGE FROM STUDENT:
 The student has attached a photo or screenshot of part of this source (for example, a diagram, chart, or page they want you to look at directly) along with their latest message. You DO have real vision on this image — actually look at it and describe/explain what it shows, don't just infer from text fragments. Cross-reference the source text and summary above to name the section/concept the image illustrates where relevant, but the image itself is your primary evidence for what it depicts. If the image is blurry, unrelated to this document, or you can't make out enough detail, say so honestly instead of guessing.` : ''}
 
+DIAGRAM GENERATION (free, drawn — not a photo):
+When the student is asking about a chart, diagram, flowchart, comparison, process, or hierarchy — and you can reconstruct its actual structure (from the source text, the study card summary/tables/charts context, and/or an attached image) — also produce a "mermaid" field containing a valid Mermaid.js diagram definition of it, so it can be rendered as a real picture for the student instead of only described in prose. Rules for this field:
+- Use "flowchart TD" or "flowchart LR" for processes/hierarchies/flows, "graph TD" for simple relationship diagrams. Keep node labels short (a few words) — put fuller explanation in your "answer" text instead.
+- Every node id must be a short alphanumeric token (e.g. A, B1, step2) — never put special characters, quotes, or newlines inside node ids, only inside the bracketed label text.
+- Keep it to at most ~12 nodes. Prefer a simple, correct diagram over an elaborate, possibly-wrong one.
+- Set "mermaid" to null (not an empty string) whenever the question isn't about a diagram/chart/structure, or when you don't have enough grounded structure to draw one honestly — never fabricate a diagram just to have something to show.
+- The "mermaid" field is entirely separate from and in addition to your normal "answer" text — still write a normal grounded answer as usual.
+
 LANGUAGE RULE:
 Respond in the same language the student's latest question is written in (default to Turkish if genuinely ambiguous).
 
@@ -422,7 +430,7 @@ TABLES AND LISTS IN YOUR ANSWER:
 If the student asks you to bring back a table, ranking, or list of items from the source, reproduce it inside the "answer" string using "- " bullet lines or simple "label: value" lines separated by "\\n" (a literal backslash-n escape sequence, NOT an actual line break) — never break your answer across multiple real lines. Keep each row/item on its own "\\n"-separated line so it still reads clearly when displayed, but the JSON string itself must remain a single line.
 
 OUTPUT FORMAT:
-Respond with ONLY a valid JSON object, no markdown code fences, no commentary before or after, and make sure every string value is valid single-line JSON (escape any newlines inside it as "\\n"): { "answer": string, "citations": [ { "id": number, "reference": string } ] }.
+Respond with ONLY a valid JSON object, no markdown code fences, no commentary before or after, and make sure every string value is valid single-line JSON (escape any newlines inside it as "\\n"): { "answer": string, "citations": [ { "id": number, "reference": string } ], "mermaid": string | null }. Always include the "mermaid" key — use null when no diagram applies. Since Mermaid syntax itself uses newlines between statements, encode them as "\\n" escape sequences inside the JSON string just like any other multi-line string value — never a literal line break.
 ${summaryContextBlock ? `
 STUDY CARD SUMMARY CONTEXT (already generated for this document — may capture a diagram/table/chart's meaning even where the raw source text below is sparse or garbled; cross-check both when relevant):
 """
@@ -556,6 +564,7 @@ ${sourceText}
     return new Response(JSON.stringify({
       answer: parsedContent.answer || '',
       citations: Array.isArray(parsedContent.citations) ? parsedContent.citations : [],
+      mermaid: typeof parsedContent.mermaid === 'string' && parsedContent.mermaid.trim() ? parsedContent.mermaid.trim() : null,
       visionUsed
     }), {
       status: 200,
