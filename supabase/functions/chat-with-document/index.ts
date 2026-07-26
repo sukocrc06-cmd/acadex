@@ -318,8 +318,14 @@ serve(async (req) => {
     }
 
     let sourceText = sections.join('\n\n')
-    const MAX_CHARS = 30000
+    // llama-3.3-70b-versatile has a large (128k token) context window, so for
+    // chat we send the WHOLE document rather than truncating early the way a
+    // one-shot summarization pass does — a student can ask about slide 3 or
+    // slide 50 of the same deck in the same conversation. This cap is a safety
+    // net for truly oversized documents only, not a normal ceiling.
+    const MAX_CHARS = 100000
     if (sourceText.length > MAX_CHARS) {
+      console.warn(`chat-with-document: source text (${sourceText.length} chars) exceeds ${MAX_CHARS}, truncating.`)
       const truncated = sourceText.substring(0, MAX_CHARS)
       const lastBoundary = Math.max(truncated.lastIndexOf(". "), truncated.lastIndexOf(".\n"), truncated.lastIndexOf("\n"))
       sourceText = lastBoundary > MAX_CHARS - 3000 ? truncated.substring(0, lastBoundary + 1) : truncated
