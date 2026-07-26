@@ -29,10 +29,18 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2): Promise<Response> {
+// timeoutMs bounds EACH individual attempt via AbortController — without
+// this, a slow/hanging call (e.g. a vision model chewing on a large image)
+// can silently eat the whole request's time budget, leaving no room for a
+// text-only fallback attempt afterward and surfacing as a generic network
+// exception rather than a clean, fast failure we can recover from.
+async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2, timeoutMs = 25000): Promise<Response> {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const response = await fetch(url, options);
+      const response = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(timeoutId);
       if (response.ok) return response;
       if (response.status === 429) {
         await new Promise(r => setTimeout(r, 2500));
@@ -42,6 +50,7 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2)
         return response;
       }
     } catch (err) {
+      clearTimeout(timeoutId);
       if (attempt === maxRetries) throw err;
       await new Promise(r => setTimeout(r, 800));
     }
@@ -506,7 +515,7 @@ ${sourceText}
             // ourselves below instead.
             messages: buildChatMessages(true)
           })
-        })
+        }, 0, 20000) // no retries, 20s cap — leave real time budget for the text-only fallback below
         if (groqResponse.ok) {
           visionUsed = true
         } else {
@@ -534,7 +543,7 @@ ${sourceText}
             // is deliberately omitted here too.
             messages: buildChatMessages(false)
           })
-        })
+        }, 1, 20000) // one retry max, 20s cap per attempt
       } catch (fetchErr) {
         console.error("chat-with-document Groq fetch exception: ", fetchErr)
         return new Response(JSON.stringify({ error: 'Our AI service is experiencing high demand right now — please try again in a moment' }), {

@@ -12511,11 +12511,14 @@ window.initDocChatForm = initDocChatForm;
 
 // Downscales an attached photo/screenshot before sending — keeps the request
 // payload and per-message vision cost small while still being plenty legible
-// for a page/diagram screenshot. Caps the longest side at 1600px and encodes
-// as JPEG (quality 0.82) to keep the base64 payload compact.
+// for a page/diagram screenshot. Caps the longest side at 1280px and encodes
+// as JPEG (quality 0.75): a smaller payload means less time spent uploading
+// and less time for the vision model to chew on, which matters because the
+// edge function has a real time budget and needs room left over for a
+// text-only fallback attempt if the vision call fails.
 function downscaleImageForChat(file) {
   return new Promise((resolve, reject) => {
-    const MAX_DIMENSION = 1600;
+    const MAX_DIMENSION = 1280;
     const reader = new FileReader();
     reader.onerror = () => reject(new Error('File read failed'));
     reader.onload = () => {
@@ -12533,7 +12536,7 @@ function downscaleImageForChat(file) {
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', 0.82));
+        resolve(canvas.toDataURL('image/jpeg', 0.75));
       };
       img.src = reader.result;
     };
