@@ -183,6 +183,35 @@ async function extractDocumentText(serviceClient: any, doc: any): Promise<string
   return (extractedText || "").trim()
 }
 
+// When asked for tables/lists, the model sometimes writes its "answer" field
+// with literal line breaks between rows instead of escaped "\n" sequences —
+// that's invalid JSON and JSON.parse() rejects the whole response outright.
+// This walks the raw text tracking whether we're inside a JSON string
+// (toggling on unescaped double quotes) and escapes stray control characters
+// found there, then retries the parse. Only kicks in when a plain parse
+// already failed, so well-formed responses are unaffected.
+function tryParseJsonLoose(raw: string): any {
+  try {
+    return JSON.parse(raw)
+  } catch (_firstErr) {
+    let repaired = ''
+    let inString = false
+    let prevChar = ''
+    for (const ch of raw) {
+      if (ch === '"' && prevChar !== '\\') {
+        inString = !inString
+        repaired += ch
+      } else if (inString && (ch === '\n' || ch === '\r' || ch === '\t')) {
+        repaired += ch === '\n' ? '\\n' : ch === '\r' ? '\\r' : '\\t'
+      } else {
+        repaired += ch
+      }
+      prevChar = ch
+    }
+    return JSON.parse(repaired)
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -320,8 +349,11 @@ Respond in the same language the student's latest question is written in (defaul
 CONVERSATION STYLE:
 Be concise, clear, and directly helpful — write like a knowledgeable classmate walking them through the material, not a formal report. Refer back to earlier turns in the conversation naturally if the student asks a follow-up question.
 
+TABLES AND LISTS IN YOUR ANSWER:
+If the student asks you to bring back a table, ranking, or list of items from the source, reproduce it inside the "answer" string using "- " bullet lines or simple "label: value" lines separated by "\\n" (a literal backslash-n escape sequence, NOT an actual line break) — never break your answer across multiple real lines. Keep each row/item on its own "\\n"-separated line so it still reads clearly when displayed, but the JSON string itself must remain a single line.
+
 OUTPUT FORMAT:
-Respond with ONLY a valid JSON object, no markdown code fences, no commentary before or after: { "answer": string, "citations": [ { "id": number, "reference": string } ] }.
+Respond with ONLY a valid JSON object, no markdown code fences, no commentary before or after, and make sure every string value is valid single-line JSON (escape any newlines inside it as "\\n"): { "answer": string, "citations": [ { "id": number, "reference": string } ] }.
 
 SOURCE TEXT:
 """
@@ -388,7 +420,7 @@ ${sourceText}
     const cleaned = rawContent.replace(/```json\s*|```/g, "").trim()
     let parsedContent
     try {
-      parsedContent = JSON.parse(cleaned)
+      parsedContent = tryParseJsonLoose(cleaned)
     } catch (parseError) {
       console.error("Failed to parse chat-with-document JSON:", rawContent, parseError)
       return new Response(JSON.stringify({ error: 'AI returned invalid JSON formatting' }), {
