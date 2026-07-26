@@ -18,6 +18,7 @@ const corsHeaders = {
 // pass (e.g. the review call) runs, there's no time left and every attempt
 // fails the same way, exhausting retries for a reason retrying can't fix.
 async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2, timeoutMs = 25000): Promise<Response> {
+  let lastRateLimitedResponse: Response | null = null
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
@@ -26,7 +27,16 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2,
       clearTimeout(timeoutId)
       if (response.ok) return response;
       if (response.status === 429) {
-        // Rate limited — wait longer before retrying
+        // Rate limited. Log the actual reason (e.g. Groq's TPM-exceeded
+        // message) so it's visible in the function logs without a separate
+        // dashboard lookup, keep this response so we can return it (instead
+        // of throwing an opaque error) if every attempt is exhausted, then
+        // wait longer before retrying.
+        lastRateLimitedResponse = response
+        try {
+          const bodyPreview = await response.clone().text()
+          console.warn(`fetchWithRetry: 429 rate-limited (attempt ${attempt + 1}/${maxRetries + 1}): ${bodyPreview}`)
+        } catch (_readErr) { /* ignore — body may not be readable twice in all runtimes */ }
         await new Promise(r => setTimeout(r, 2500));
       } else if (response.status >= 500 && attempt < maxRetries) {
         await new Promise(r => setTimeout(r, 800));
@@ -39,6 +49,11 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2,
       await new Promise(r => setTimeout(r, 800));
     }
   }
+  // Every attempt came back 429 — return the last rate-limited response so
+  // the caller's normal "!response.ok" handling can log/react to the real
+  // reason, instead of surfacing a generic "Max retries exceeded" with no
+  // diagnostic detail.
+  if (lastRateLimitedResponse) return lastRateLimitedResponse
   throw new Error("Max retries exceeded");
 }
 
@@ -393,6 +408,11 @@ async function callGroqJson(groqApiKey: string, systemPrompt: string, userConten
       // "content" so a stray <think> block can't break JSON.parse below.
       reasoning_effort: "low",
       include_reasoning: false,
+      // Without an explicit cap, Groq reserves a large default completion
+      // budget against this account's tokens-per-minute limit, which alone
+      // can push an otherwise modest request over the limit and return a
+      // "Request too large" / rate_limit_exceeded error.
+      max_completion_tokens: 4096,
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: systemPrompt },
@@ -1122,6 +1142,10 @@ In addition to the text below, you are shown images of this document's pages. Us
               // Qwen3.6 is a hybrid reasoning model that thinks by default —
               // turn that off so "content" is just the direct JSON answer.
               reasoning_effort: "none",
+              // See callGroqJson above — an explicit cap keeps this request's
+              // estimated token usage safely under the account's per-model
+              // tokens-per-minute limit.
+              max_completion_tokens: 4096,
               response_format: { type: "json_object" },
               messages: pass1Messages
             })
@@ -1131,7 +1155,9 @@ In addition to the text below, you are shown images of this document's pages. Us
             pass1Completed = true
             console.log("Vision-based Pass 1 completed successfully.")
           } else {
-            console.warn(`Vision model call returned non-ok status: ${groqResponse.status}. Falling back to text-only.`)
+            let visionErrBody = ""
+            try { visionErrBody = await groqResponse.clone().text() } catch (_readErr) { /* ignore */ }
+            console.warn(`Vision model call returned non-ok status: ${groqResponse.status}. Falling back to text-only. Body: ${visionErrBody}`)
             visualAnalysisUsed = false
           }
         } catch (visionErr) {
@@ -1157,6 +1183,10 @@ In addition to the text below, you are shown images of this document's pages. Us
               temperature: 0.3,
               reasoning_effort: "low",
               include_reasoning: false,
+              // See callGroqJson above — an explicit cap keeps this request's
+              // estimated token usage safely under the account's per-model
+              // tokens-per-minute limit.
+              max_completion_tokens: 4096,
               response_format: { type: "json_object" },
               messages: [
                 {
@@ -1424,11 +1454,13 @@ ${rawContent}`
         break
       }
 
-      const isTokenSizeError = attemptResponse.status === 400 &&
+      // Groq has been observed returning this error as either a 400 or a
+      // 429, depending on the exact overage — treat both the same way.
+      const isTokenSizeError = (attemptResponse.status === 400 || attemptResponse.status === 429) &&
         attemptData?.error?.code === 'rate_limit_exceeded' &&
         attemptData?.error?.type === 'tokens'
 
-      console.error(`Groq Review API call failed (source budget ${sourceBudgets[i]} chars): `, JSON.stringify(attemptData))
+      console.error(`Groq Review API call failed (source budget ${sourceBudgets[i]} chars, status ${attemptResponse.status}): `, JSON.stringify(attemptData))
 
       if (!isTokenSizeError || i === sourceBudgets.length - 1) {
         await markFailed(serviceClient, documentId)

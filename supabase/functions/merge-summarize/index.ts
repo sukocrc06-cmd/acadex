@@ -17,6 +17,7 @@ const corsHeaders = {
 // the time the review call runs there's no time left and every attempt
 // fails the same way, exhausting retries for a reason retrying can't fix.
 async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2, timeoutMs = 25000): Promise<Response> {
+  let lastRateLimitedResponse: Response | null = null
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
@@ -25,7 +26,16 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2,
       clearTimeout(timeoutId)
       if (response.ok) return response;
       if (response.status === 429) {
-        // Rate limited — wait longer before retrying
+        // Rate limited. Log the actual reason (e.g. Groq's TPM-exceeded
+        // message) so it's visible in the function logs without a separate
+        // dashboard lookup, keep this response so we can return it (instead
+        // of throwing an opaque error) if every attempt is exhausted, then
+        // wait longer before retrying.
+        lastRateLimitedResponse = response
+        try {
+          const bodyPreview = await response.clone().text()
+          console.warn(`fetchWithRetry: 429 rate-limited (attempt ${attempt + 1}/${maxRetries + 1}): ${bodyPreview}`)
+        } catch (_readErr) { /* ignore — body may not be readable twice in all runtimes */ }
         await new Promise(r => setTimeout(r, 2500));
       } else if (response.status >= 500 && attempt < maxRetries) {
         await new Promise(r => setTimeout(r, 800));
@@ -38,6 +48,7 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2,
       await new Promise(r => setTimeout(r, 800));
     }
   }
+  if (lastRateLimitedResponse) return lastRateLimitedResponse
   throw new Error("Max retries exceeded");
 }
 
@@ -587,6 +598,11 @@ ${styleInstruction}`
           // of "content" so a stray <think> block can't break JSON.parse.
           reasoning_effort: "low",
           include_reasoning: false,
+          // Without an explicit cap, Groq reserves a large default completion
+          // budget against this account's tokens-per-minute limit, which alone
+          // can push an otherwise modest request over the limit and return a
+          // "Request too large" / rate_limit_exceeded error.
+          max_completion_tokens: 4096,
           response_format: { type: "json_object" },
           messages: [
             { role: "system", content: systemPrompt },
@@ -703,11 +719,13 @@ ${rawContent}`
         break
       }
 
-      const isTokenSizeError = attemptResponse.status === 400 &&
+      // Groq has been observed returning this error as either a 400 or a
+      // 429, depending on the exact overage — treat both the same way.
+      const isTokenSizeError = (attemptResponse.status === 400 || attemptResponse.status === 429) &&
         attemptData?.error?.code === 'rate_limit_exceeded' &&
         attemptData?.error?.type === 'tokens'
 
-      console.error(`Groq Review API error (source budget ${sourceBudgets[i]} chars):`, JSON.stringify(attemptData))
+      console.error(`Groq Review API error (source budget ${sourceBudgets[i]} chars, status ${attemptResponse.status}):`, JSON.stringify(attemptData))
 
       if (!isTokenSizeError || i === sourceBudgets.length - 1) {
         return new Response(JSON.stringify({ error: "Our AI service is experiencing high demand right now — please try again in a moment" }), {
