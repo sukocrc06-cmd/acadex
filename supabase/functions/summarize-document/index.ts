@@ -42,7 +42,7 @@ function decodeXmlEntities(str: string): string {
 
 function parsePptxSlideXml(slideXml: string): string {
   const tableMatches = [...slideXml.matchAll(/<a:tbl[\s>][\s\S]*?<\/a:tbl>/g)];
-  
+
   if (tableMatches.length === 0) {
     const matches = slideXml.matchAll(/<a:t>(.*?)<\/a:t>/g);
     let text = "";
@@ -186,7 +186,7 @@ function parseDocxHtmlContent(html: string): string {
 
 function detectAndFormatPdfTables(text: string): string {
   if (!text) return text;
-  
+
   const lines = text.split("\n");
   const resultLines: string[] = [];
   let i = 0;
@@ -235,6 +235,265 @@ function detectAndFormatPdfTables(text: string): string {
   }
 
   return resultLines.join("\n");
+}
+
+// ==========================================================================
+// LONG-DOCUMENT SUMMARIZATION ENGINE (chunked map-reduce + adaptive length)
+//
+// Problem this solves: previously, ANY document — a 3-page handout or a
+// 52-page slide deck — got the exact same fixed output size per length
+// preset ("medium" always meant "4-8 sentences, 5-10 key terms, 4-6 quiz
+// questions"), and text beyond 40,000 characters was silently truncated and
+// never seen by the model at all. Long documents therefore got a shallow
+// summary of roughly their first third, at best.
+//
+// Fix, in two parts:
+//   1. computeAdaptiveTargets() / buildLengthInstruction() — the target
+//      counts (summary sentences, key terms, key points, quiz questions)
+//      now grow with the actual amount of extracted text, per length
+//      preset, up to a sane cap. This applies to every document.
+//   2. For documents whose extracted text exceeds CHUNK_THRESHOLD, we
+//      switch from a single Groq call to a map-reduce pipeline: split the
+//      text into sequential chunks, extract key terms/points/quiz/tables/
+//      charts/formulas/footnotes from EACH chunk independently (so nothing
+//      past character 40,000 is ever skipped), then synthesize one cohesive
+//      final summary from the per-chunk summaries and merge+dedupe the
+//      per-chunk structured data down to the adaptive target counts.
+//      Visual (image) analysis is intentionally skipped for the chunked
+//      path to keep this addition scoped — it only ever applies to the
+//      short-document fast path today anyway.
+// ==========================================================================
+
+const CHUNK_THRESHOLD = 18000 // chars of extracted text; above this we go chunked
+const CHUNK_TARGET_SIZE = 6500 // chars per chunk (well within model context; sized for extraction depth, not context limits)
+const MAX_CHUNKS = 24 // hard ceiling (~150k chars) protecting cost/time on pathological inputs
+
+function computeAdaptiveTargets(charCount: number, lengthPreset: string) {
+  const presets: Record<string, { summary: [number, number]; terms: [number, number]; points: [number, number]; quiz: [number, number]; capSummary: number; capTerms: number; capPoints: number; capQuiz: number }> = {
+    short: { summary: [2, 3], terms: [3, 5], points: [3, 5], quiz: [3, 3], capSummary: 6, capTerms: 12, capPoints: 10, capQuiz: 6 },
+    medium: { summary: [4, 8], terms: [5, 10], points: [5, 10], quiz: [4, 6], capSummary: 16, capTerms: 25, capPoints: 22, capQuiz: 12 },
+    detailed: { summary: [12, 20], terms: [15, 20], points: [12, 18], quiz: [8, 10], capSummary: 28, capTerms: 40, capPoints: 35, capQuiz: 20 }
+  }
+  const p = presets[lengthPreset] || presets.medium
+  // one "growth unit" per ~4000 extra characters beyond a 6000-char baseline
+  // (a baseline-sized document gets exactly the old fixed numbers; only
+  // longer-than-that documents scale up, and only up to the per-preset cap)
+  const extraUnits = Math.max(0, Math.floor((charCount - 6000) / 4000))
+  const grow = (range: [number, number], cap: number, perUnit: number): [number, number] => {
+    const lo = Math.min(cap, Math.round(range[0] + extraUnits * perUnit))
+    const hi = Math.min(cap, Math.round(range[1] + extraUnits * perUnit))
+    return [lo, Math.max(lo, hi)]
+  }
+  return {
+    summarySentences: grow(p.summary, p.capSummary, 1),
+    keyTerms: grow(p.terms, p.capTerms, 1),
+    keyPoints: grow(p.points, p.capPoints, 1),
+    quizQuestions: grow(p.quiz, p.capQuiz, 0.5)
+  }
+}
+
+function buildLengthInstruction(targets: ReturnType<typeof computeAdaptiveTargets>, lengthPreset: string): string {
+  const [sLo, sHi] = targets.summarySentences
+  const [tLo, tHi] = targets.keyTerms
+  const [pLo, pHi] = targets.keyPoints
+  const [qLo, qHi] = targets.quizQuestions
+  const scaleNote = (sHi > 8 || tHi > 10 || pHi > 10)
+    ? " This document is substantial, so make sure the summary, key terms, key points, and quiz questions genuinely cover its full breadth — not just the first portion of it."
+    : ""
+  if (lengthPreset === 'short') {
+    return `Write a concise summary in ${sLo}-${sHi} sentences. Include only the ${tLo}-${tHi} most essential key terms, ${pLo}-${pHi} key points, and ${qLo}-${qHi} quiz questions.`
+  } else if (lengthPreset === 'detailed') {
+    return `Write a thorough, in-depth summary (${sLo}-${sHi} sentences). Include ${tLo}-${tHi} key terms, ${pLo}-${pHi} key points, and ${qLo}-${qHi} quiz questions covering the material comprehensively.${scaleNote}`
+  }
+  return `Write a balanced summary in ${sLo}-${sHi} sentences. Include ${tLo}-${tHi} key terms, ${pLo}-${pHi} key points, and ${qLo}-${qHi} quiz questions.${scaleNote}`
+}
+
+function splitIntoChunks(text: string, targetChunkSize: number): string[] {
+  const paragraphs = text.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean)
+  const chunks: string[] = []
+  let current = ""
+
+  for (const para of paragraphs) {
+    if (para.length > targetChunkSize * 1.5) {
+      if (current) { chunks.push(current); current = "" }
+      for (let i = 0; i < para.length; i += targetChunkSize) {
+        chunks.push(para.substring(i, i + targetChunkSize))
+      }
+      continue
+    }
+    if (current && (current.length + para.length + 2) > targetChunkSize) {
+      chunks.push(current)
+      current = para
+    } else {
+      current = current ? current + "\n\n" + para : para
+    }
+  }
+  if (current) chunks.push(current)
+  return chunks.length > 0 ? chunks : [text]
+}
+
+async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length)
+  let nextIndex = 0
+  async function worker() {
+    while (true) {
+      const i = nextIndex++
+      if (i >= items.length) return
+      results[i] = await fn(items[i], i)
+    }
+  }
+  const workerCount = Math.max(1, Math.min(limit, items.length))
+  await Promise.all(Array.from({ length: workerCount }, () => worker()))
+  return results
+}
+
+async function callGroqJson(groqApiKey: string, systemPrompt: string, userContent: string, temperature = 0.3): Promise<any> {
+  const response = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${groqApiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: "llama-3.3-70b-versatile",
+      temperature,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userContent }
+      ]
+    })
+  })
+  const data = await response.json()
+  if (!response.ok) {
+    throw new Error(`Groq API error (${response.status}): ${JSON.stringify(data)}`)
+  }
+  const raw = data.choices?.[0]?.message?.content ?? ""
+  if (!raw) throw new Error("Empty Groq response content")
+  const cleaned = raw.replace(/```json\s*|```/g, "").trim()
+  return JSON.parse(cleaned)
+}
+
+function buildChunkSystemPrompt(chunkIndex: number, totalChunks: number, langLabel: string): string {
+  return `You are an academic study assistant helping process a LARGE document that has been split into ${totalChunks} sequential parts because of its length. You are given ONLY part ${chunkIndex + 1} of ${totalChunks} below — you do NOT see the rest of the document, so do not reference "the whole document" or assume content beyond what's shown here.
+
+Respond with ONLY a valid JSON object, no markdown code fences, no commentary before or after — matching this exact shape: { "chunk_summary": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "tables": [ { "title": string, "headers": [ string ], "rows": [ [ string ] ] } ], "charts": [ { "title": string, "type": string, "labels": [ string ], "data": [ number ] } ], "footnotes": [ { "id": number, "reference": string } ], "is_quantitative": boolean, "formulas": [ { "name": string, "latex": string, "variables": [ { "symbol": string, "meaning": string } ] } ], "worked_examples": [ { "title": string, "problem_statement": string, "steps": [ string ], "final_answer": string } ] }.
+
+CHUNK SUMMARY:
+Write a 2-4 sentence "chunk_summary" capturing specifically what THIS part covers — it will later be combined with the other parts' summaries into one final document summary, so be concrete and self-contained about the actual topics discussed here rather than vague.
+
+EXTRACTION SCOPE:
+Extract key terms, key points, and 1-3 quiz questions found in THIS PART ONLY. Scale the amount to how much substantive academic content this part actually contains — a short or mostly administrative/transitional part may legitimately warrant few or even zero key terms/points/quiz questions. Do not pad for the sake of padding.
+
+QUANTITATIVE & FORMULAS:
+Set "is_quantitative" true if this part centers on mathematical formulas, numerical calculations, or financial/statistical computations. If so, extract every distinct formula in 'formulas' (valid LaTeX notation) and 1-2 worked examples in 'worked_examples' (reuse the source's own example if present, preserving its actual numbers; otherwise generate one clear, realistic example). Return empty arrays if not applicable to this part.
+
+TABLES & CHARTS:
+Identify any tabular data ('tables') or chart-worthy numeric data ('charts', type "bar"|"pie"|"line") actually present in this part. Empty arrays are the correct output if none exists — never fabricate.
+
+FOOTNOTES:
+For specific, checkable factual claims within key_points (numbers, definitions, named findings), add a footnote marker like [1], [2] immediately after the claim (numbering restarts at 1 for this part — it will be renumbered globally later). List each in 'footnotes': [{ "id": number, "reference": "brief description of the topic/heading this relates to" }]. Don't over-footnote.
+
+ACCURACY:
+Base everything STRICTLY on the text in this part. Do not invent facts or assume content not shown. Copy specific numbers, names, and technical terms exactly as they appear.
+
+LANGUAGE:
+Respond entirely in: '${langLabel}'.`
+}
+
+function buildSynthesisSystemPrompt(courseCatalogBlock: string, langLabel: string, styleInstruction: string, summaryLengthPhrase: string): string {
+  return `You are an academic study assistant. A large document was split into sequential parts and each part was already summarized independently. Below you are given all of those part-summaries, in order, plus a hint about what fraction were flagged as quantitative. Your job is to synthesize ONE cohesive, well-organized final summary of the ENTIRE document — write a genuinely unified narrative that flows across the whole document, not a mechanical concatenation of the part-summaries.
+
+Respond with ONLY a valid JSON object, no markdown fences, no commentary before or after: { "summary": string, "document_type": string, "suggested_course_tag": string | null, "is_quantitative": boolean }.
+
+DOCUMENT-TYPE CLASSIFICATION:
+Identify the overall document type as exactly one of: "Lecture Notes/Slides", "Academic Article", "Syllabus", "Case Study", "Textbook Chapter", or "Other".
+
+SUGGESTED COURSE TAG:
+Below is this student's OFFICIAL course catalog (format: CODE — Course Name):
+${courseCatalogBlock}
+Compare the document's content against this catalog. If it clearly matches one listed course, return that course's EXACT code (character-for-character). Otherwise, if a course code or clear subject label is evident from the part-summaries, use that as free text instead. If genuinely unclear and nothing fits, return null. Never invent a code that isn't in the catalog above and isn't evident in the part-summaries.
+
+IS_QUANTITATIVE:
+You'll be told what fraction of parts were flagged quantitative — combine that with your own reading of the part-summaries to make one final true/false call for the document as a whole.
+
+LENGTH INSTRUCTION:
+${summaryLengthPhrase}
+
+STYLE INSTRUCTION:
+${styleInstruction}
+
+LANGUAGE INSTRUCTION:
+Respond strictly in: '${langLabel}' (except "document_type", which must be one of the exact English strings listed above).
+
+ACCURACY:
+Base the summary strictly on the part-summaries provided — do not invent content beyond what they describe.`
+}
+
+function dedupeKeyTerms(terms: any[]): any[] {
+  const seen = new Map<string, any>()
+  for (const t of terms) {
+    if (!t || !t.term) continue
+    const key = String(t.term).trim().toLowerCase()
+    if (!seen.has(key)) seen.set(key, t)
+  }
+  return Array.from(seen.values())
+}
+
+function normalizeForDedup(s: string): string {
+  return (s || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, '').replace(/\s+/g, ' ').trim()
+}
+
+function dedupeByText(items: any[], getText: (item: any) => string): any[] {
+  const seen = new Set<string>()
+  const out: any[] = []
+  for (const item of items) {
+    const norm = normalizeForDedup(getText(item))
+    if (!norm) continue
+    const sig = norm.slice(0, 50)
+    if (seen.has(sig)) continue
+    seen.add(sig)
+    out.push(item)
+  }
+  return out
+}
+
+function roundRobinInterleave<T>(lists: T[][]): T[] {
+  const out: T[] = []
+  let idx = 0
+  let anyLeft = true
+  while (anyLeft) {
+    anyLeft = false
+    for (const list of lists) {
+      if (idx < list.length) {
+        out.push(list[idx])
+        anyLeft = true
+      }
+    }
+    idx++
+  }
+  return out
+}
+
+function remapChunkFootnotes(chunkResult: any, idOffset: number): { footnotes: any[]; idMap: Record<number, number> } {
+  const footnotesArr = Array.isArray(chunkResult.footnotes) ? chunkResult.footnotes : []
+  const idMap: Record<number, number> = {}
+  const remapped = footnotesArr.map((fn: any, i: number) => {
+    const oldId = fn?.id
+    const newId = idOffset + i + 1
+    if (oldId != null) idMap[oldId] = newId
+    return { id: newId, reference: fn?.reference || `Reference ${newId}` }
+  })
+  return { footnotes: remapped, idMap }
+}
+
+function applyFootnoteRemap(text: string, idMap: Record<number, number>): string {
+  if (!text) return text
+  return text.replace(/\[(\d+)\]/g, (match, idStr) => {
+    const oldId = parseInt(idStr, 10)
+    const newId = idMap[oldId]
+    return newId != null ? `[${newId}]` : match
+  })
 }
 
 serve(async (req) => {
@@ -374,7 +633,7 @@ serve(async (req) => {
     try {
       if (mimeType === "text/plain") {
         extractedText = new TextDecoder("utf-8").decode(fileBytes)
-      } 
+      }
       else if (mimeType === "application/pdf") {
         let isScannedOrFailed = false
         try {
@@ -414,7 +673,7 @@ serve(async (req) => {
             throw new Error("SCANNED_PDF")
           }
         }
-      } 
+      }
       else if (mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
         try {
           const docxHtmlResult = await mammoth.convertToHtml({ buffer: fileBytes })
@@ -430,16 +689,16 @@ serve(async (req) => {
           const docxResult = await mammoth.extractRawText({ buffer: fileBytes })
           extractedText = docxResult.value
         }
-      } 
+      }
       else if (mimeType === "application/vnd.openxmlformats-officedocument.presentationml.presentation") {
         const zip = new JSZip()
         await zip.loadAsync(fileBytes)
-        
+
         // Filter slide XML files
-        const slideFiles = Object.keys(zip.files).filter(name => 
+        const slideFiles = Object.keys(zip.files).filter(name =>
           name.startsWith("ppt/slides/slide") && name.endsWith(".xml")
         )
-        
+
         // Sort slides numerically (ppt/slides/slide1.xml, slide2.xml etc)
         slideFiles.sort((a, b) => {
           const numA = parseInt(a.replace(/[^0-9]/g, ""), 10)
@@ -456,7 +715,7 @@ serve(async (req) => {
           }
         }
         extractedText = pptxText
-      } 
+      }
       else {
         // Fallback: try UTF-8 decoding
         extractedText = new TextDecoder("utf-8").decode(fileBytes)
@@ -485,9 +744,17 @@ serve(async (req) => {
       })
     }
 
-    // Truncate to first 40,000 characters if too long, snapping to sentence/paragraph boundary
+    // ==========================================================================
+    // DECIDE PIPELINE: short/medium documents use the original single-pass
+    // (fast, cheap, supports visual analysis); long documents route through
+    // the chunked map-reduce pipeline below so nothing gets silently
+    // truncated and depth scales with actual document length.
+    // ==========================================================================
+    const useChunkedPipeline = extractedText.length > CHUNK_THRESHOLD
+
+    // Fast-path truncation (unchanged behavior) — only ever applies when NOT chunking
     let textToSend = extractedText
-    if (textToSend.length > 40000) {
+    if (!useChunkedPipeline && textToSend.length > 40000) {
       const truncated = textToSend.substring(0, 40000)
       const lastBoundary = Math.max(
         truncated.lastIndexOf(". "),
@@ -526,13 +793,11 @@ serve(async (req) => {
       styleInstruction = "Write the summary as terse, fact-dense statements — prefer sentence fragments and direct statements over flowing narrative connectors like 'furthermore' or 'in addition.' Each sentence should pack in a specific fact, definition, or relationship. Keep it noticeably more compact and dense than a standard-style summary, with less narrative connective tissue between ideas."
     }
 
-    // Part B: Length instruction
-    let lengthInstruction = "Write a balanced summary in 4-8 sentences. Include 5-10 key terms, 5-10 key points, and 4-6 quiz questions."
-    if (len === 'short') {
-      lengthInstruction = "Write a concise summary in 2-3 sentences. Include only the 3-5 most essential key terms, 3-5 key points, and 3 quiz questions."
-    } else if (len === 'detailed') {
-      lengthInstruction = "Write a thorough, in-depth summary (12-20 sentences). Include 15-20 key terms, 12-18 key points, and 8-10 quiz questions covering the material comprehensively."
-    }
+    // Part B: Length instruction — now adaptive to actual document length (see
+    // computeAdaptiveTargets above). A baseline-sized document gets the same
+    // numbers as before; longer documents get proportionally more, up to a cap.
+    const adaptiveTargets = computeAdaptiveTargets(useChunkedPipeline ? extractedText.length : textToSend.length, len)
+    const lengthInstruction = buildLengthInstruction(adaptiveTargets, len)
 
     const langLabel = lang === 'tr' ? 'Turkish / Türkçe' : 'English'
 
@@ -595,292 +860,416 @@ Write in a clear, formal academic register. Avoid filler phrases, redundant rest
 STYLE-SPECIFIC INSTRUCTION:
 ${styleInstruction}`
 
-    // Visual analysis (Part B & C)
-    const isDocx = mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    const isPptx = mimeType === "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-    const isPdf = mimeType === "application/pdf"
-
-    const runVisuals = !!analyzeVisuals && (isPdf || isPptx || isDocx)
+    let rawContent = ""
+    let sourceTextForReview = ""
     let visualAnalysisUsed = false
-    let base64Images: string[] = []
 
-    if (runVisuals) {
-      if (isDocx) {
-        try {
-          console.log("DOCX Visual analysis enabled. Extracting embedded media images from word/media/...")
-          const zip = new JSZip()
-          await zip.loadAsync(fileBytes)
+    if (!useChunkedPipeline) {
+      // ========================================================================
+      // FAST PATH (unchanged): short/medium documents — single Groq call,
+      // optional visual (image) analysis pass.
+      // ========================================================================
+      const isDocx = mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      const isPptx = mimeType === "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+      const isPdf = mimeType === "application/pdf"
 
-          const mediaFiles = Object.keys(zip.files).filter(name =>
-            name.startsWith("word/media/") && /\.(png|jpe?g|webp|gif|bmp)$/i.test(name)
-          )
+      const runVisuals = !!analyzeVisuals && (isPdf || isPptx || isDocx)
+      let base64Images: string[] = []
 
-          mediaFiles.sort((a, b) => {
-            const numA = parseInt(a.replace(/[^0-9]/g, ""), 10) || 0
-            const numB = parseInt(b.replace(/[^0-9]/g, ""), 10) || 0
-            return numA !== numB ? numA - numB : a.localeCompare(b)
-          })
-
-          const cappedMediaFiles = mediaFiles.slice(0, 8)
-          console.log(`Found ${mediaFiles.length} media files in DOCX. Processing top ${cappedMediaFiles.length}...`)
-
-          for (const mediaPath of cappedMediaFiles) {
-            try {
-              const imgBytes = await zip.files[mediaPath].async("uint8array")
-              if (imgBytes && imgBytes.byteLength > 0) {
-                let binary = ''
-                const lenBytes = imgBytes.byteLength
-                for (let i = 0; i < lenBytes; i++) {
-                  binary += String.fromCharCode(imgBytes[i])
-                }
-                base64Images.push(btoa(binary))
-              }
-            } catch (mediaErr) {
-              console.error(`Failed to extract DOCX media image ${mediaPath}:`, mediaErr)
-            }
-          }
-
-          if (base64Images.length > 0) {
-            visualAnalysisUsed = true
-            console.log(`Successfully prepared ${base64Images.length} DOCX media images for vision-based analysis.`)
-          }
-        } catch (docxVisionErr) {
-          console.error("DOCX media image extraction failed:", docxVisionErr)
-        }
-      } else if (isPptx) {
-        try {
-          console.log("PPTX Visual analysis enabled. Extracting embedded media images from ppt/media/...")
-          const zip = new JSZip()
-          await zip.loadAsync(fileBytes)
-
-          const mediaFiles = Object.keys(zip.files).filter(name =>
-            name.startsWith("ppt/media/") && /\.(png|jpe?g|webp|gif|bmp)$/i.test(name)
-          )
-
-          mediaFiles.sort((a, b) => {
-            const numA = parseInt(a.replace(/[^0-9]/g, ""), 10) || 0
-            const numB = parseInt(b.replace(/[^0-9]/g, ""), 10) || 0
-            return numA !== numB ? numA - numB : a.localeCompare(b)
-          })
-
-          const cappedMediaFiles = mediaFiles.slice(0, 8)
-          console.log(`Found ${mediaFiles.length} media files in PPTX. Processing top ${cappedMediaFiles.length}...`)
-
-          for (const mediaPath of cappedMediaFiles) {
-            try {
-              const imgBytes = await zip.files[mediaPath].async("uint8array")
-              if (imgBytes && imgBytes.byteLength > 0) {
-                let binary = ''
-                const lenBytes = imgBytes.byteLength
-                for (let i = 0; i < lenBytes; i++) {
-                  binary += String.fromCharCode(imgBytes[i])
-                }
-                base64Images.push(btoa(binary))
-              }
-            } catch (mediaErr) {
-              console.error(`Failed to extract media image ${mediaPath}:`, mediaErr)
-            }
-          }
-
-          if (base64Images.length > 0) {
-            visualAnalysisUsed = true
-            console.log(`Successfully prepared ${base64Images.length} PPTX media images for vision-based analysis.`)
-          }
-        } catch (pptxVisionErr) {
-          console.error("PPTX media image extraction failed:", pptxVisionErr)
-        }
-      } else if (mimeType === "application/pdf") {
-        const pdfcoApiKey = Deno.env.get('PDFCO_API_KEY')
-        if (pdfcoApiKey) {
+      if (runVisuals) {
+        if (isDocx) {
           try {
-            console.log("PDF.co Visual analysis enabled. Uploading PDF to convert first 8 pages to images...")
-            const formData = new FormData()
-            const pdfBlob = new Blob([fileBytes], { type: 'application/pdf' })
-            formData.append('file', pdfBlob, 'document.pdf')
-            formData.append('pages', '0-7')
+            console.log("DOCX Visual analysis enabled. Extracting embedded media images from word/media/...")
+            const zip = new JSZip()
+            await zip.loadAsync(fileBytes)
 
-            const pdfcoRes = await fetch('https://api.pdf.co/v1/pdf/convert/to/png', {
-              method: 'POST',
-              headers: { 'x-api-key': pdfcoApiKey },
-              body: formData
+            const mediaFiles = Object.keys(zip.files).filter(name =>
+              name.startsWith("word/media/") && /\.(png|jpe?g|webp|gif|bmp)$/i.test(name)
+            )
+
+            mediaFiles.sort((a, b) => {
+              const numA = parseInt(a.replace(/[^0-9]/g, ""), 10) || 0
+              const numB = parseInt(b.replace(/[^0-9]/g, ""), 10) || 0
+              return numA !== numB ? numA - numB : a.localeCompare(b)
             })
 
-            if (pdfcoRes.ok) {
-              const pdfcoData = await pdfcoRes.json()
-              if (!pdfcoData.error && (pdfcoData.urls || pdfcoData.url)) {
-                let imageUrls: string[] = []
-                const rawUrls = pdfcoData.urls || pdfcoData.url
-                if (Array.isArray(rawUrls)) {
-                  imageUrls = rawUrls
-                } else if (typeof rawUrls === 'string') {
-                  imageUrls = [rawUrls]
-                }
+            const cappedMediaFiles = mediaFiles.slice(0, 8)
+            console.log(`Found ${mediaFiles.length} media files in DOCX. Processing top ${cappedMediaFiles.length}...`)
 
-                console.log(`PDF.co converted ${imageUrls.length} pages. Downloading page images...`)
-                for (const imgUrl of imageUrls) {
-                  try {
-                    const imgRes = await fetch(imgUrl)
-                    if (imgRes.ok) {
-                      const buffer = await imgRes.arrayBuffer()
-                      const bytes = new Uint8Array(buffer)
-                      let binary = ''
-                      const lenBytes = bytes.byteLength
-                      for (let i = 0; i < lenBytes; i++) {
-                        binary += String.fromCharCode(bytes[i])
-                      }
-                      base64Images.push(btoa(binary))
-                    }
-                  } catch (imgDownloadErr) {
-                    console.error(`Failed to download page image from ${imgUrl}:`, imgDownloadErr)
+            for (const mediaPath of cappedMediaFiles) {
+              try {
+                const imgBytes = await zip.files[mediaPath].async("uint8array")
+                if (imgBytes && imgBytes.byteLength > 0) {
+                  let binary = ''
+                  const lenBytes = imgBytes.byteLength
+                  for (let i = 0; i < lenBytes; i++) {
+                    binary += String.fromCharCode(imgBytes[i])
                   }
+                  base64Images.push(btoa(binary))
                 }
+              } catch (mediaErr) {
+                console.error(`Failed to extract DOCX media image ${mediaPath}:`, mediaErr)
+              }
+            }
 
-                if (base64Images.length > 0) {
-                  visualAnalysisUsed = true
-                  console.log(`Successfully prepared ${base64Images.length} images for vision-based analysis.`)
+            if (base64Images.length > 0) {
+              visualAnalysisUsed = true
+              console.log(`Successfully prepared ${base64Images.length} DOCX media images for vision-based analysis.`)
+            }
+          } catch (docxVisionErr) {
+            console.error("DOCX media image extraction failed:", docxVisionErr)
+          }
+        } else if (isPptx) {
+          try {
+            console.log("PPTX Visual analysis enabled. Extracting embedded media images from ppt/media/...")
+            const zip = new JSZip()
+            await zip.loadAsync(fileBytes)
+
+            const mediaFiles = Object.keys(zip.files).filter(name =>
+              name.startsWith("ppt/media/") && /\.(png|jpe?g|webp|gif|bmp)$/i.test(name)
+            )
+
+            mediaFiles.sort((a, b) => {
+              const numA = parseInt(a.replace(/[^0-9]/g, ""), 10) || 0
+              const numB = parseInt(b.replace(/[^0-9]/g, ""), 10) || 0
+              return numA !== numB ? numA - numB : a.localeCompare(b)
+            })
+
+            const cappedMediaFiles = mediaFiles.slice(0, 8)
+            console.log(`Found ${mediaFiles.length} media files in PPTX. Processing top ${cappedMediaFiles.length}...`)
+
+            for (const mediaPath of cappedMediaFiles) {
+              try {
+                const imgBytes = await zip.files[mediaPath].async("uint8array")
+                if (imgBytes && imgBytes.byteLength > 0) {
+                  let binary = ''
+                  const lenBytes = imgBytes.byteLength
+                  for (let i = 0; i < lenBytes; i++) {
+                    binary += String.fromCharCode(imgBytes[i])
+                  }
+                  base64Images.push(btoa(binary))
+                }
+              } catch (mediaErr) {
+                console.error(`Failed to extract media image ${mediaPath}:`, mediaErr)
+              }
+            }
+
+            if (base64Images.length > 0) {
+              visualAnalysisUsed = true
+              console.log(`Successfully prepared ${base64Images.length} PPTX media images for vision-based analysis.`)
+            }
+          } catch (pptxVisionErr) {
+            console.error("PPTX media image extraction failed:", pptxVisionErr)
+          }
+        } else if (mimeType === "application/pdf") {
+          const pdfcoApiKey = Deno.env.get('PDFCO_API_KEY')
+          if (pdfcoApiKey) {
+            try {
+              console.log("PDF.co Visual analysis enabled. Uploading PDF to convert first 8 pages to images...")
+              const formData = new FormData()
+              const pdfBlob = new Blob([fileBytes], { type: 'application/pdf' })
+              formData.append('file', pdfBlob, 'document.pdf')
+              formData.append('pages', '0-7')
+
+              const pdfcoRes = await fetch('https://api.pdf.co/v1/pdf/convert/to/png', {
+                method: 'POST',
+                headers: { 'x-api-key': pdfcoApiKey },
+                body: formData
+              })
+
+              if (pdfcoRes.ok) {
+                const pdfcoData = await pdfcoRes.json()
+                if (!pdfcoData.error && (pdfcoData.urls || pdfcoData.url)) {
+                  let imageUrls: string[] = []
+                  const rawUrls = pdfcoData.urls || pdfcoData.url
+                  if (Array.isArray(rawUrls)) {
+                    imageUrls = rawUrls
+                  } else if (typeof rawUrls === 'string') {
+                    imageUrls = [rawUrls]
+                  }
+
+                  console.log(`PDF.co converted ${imageUrls.length} pages. Downloading page images...`)
+                  for (const imgUrl of imageUrls) {
+                    try {
+                      const imgRes = await fetch(imgUrl)
+                      if (imgRes.ok) {
+                        const buffer = await imgRes.arrayBuffer()
+                        const bytes = new Uint8Array(buffer)
+                        let binary = ''
+                        const lenBytes = bytes.byteLength
+                        for (let i = 0; i < lenBytes; i++) {
+                          binary += String.fromCharCode(bytes[i])
+                        }
+                        base64Images.push(btoa(binary))
+                      }
+                    } catch (imgDownloadErr) {
+                      console.error(`Failed to download page image from ${imgUrl}:`, imgDownloadErr)
+                    }
+                  }
+
+                  if (base64Images.length > 0) {
+                    visualAnalysisUsed = true
+                    console.log(`Successfully prepared ${base64Images.length} images for vision-based analysis.`)
+                  }
+                } else {
+                  console.warn("PDF.co API returned error:", pdfcoData)
                 }
               } else {
-                console.warn("PDF.co API returned error:", pdfcoData)
+                console.warn(`PDF.co response status failed: ${pdfcoRes.status}`)
               }
-            } else {
-              console.warn(`PDF.co response status failed: ${pdfcoRes.status}`)
+            } catch (pdfcoErr) {
+              console.error("PDF.co page conversion failed, falling back to text-only:", pdfcoErr)
             }
-          } catch (pdfcoErr) {
-            console.error("PDF.co page conversion failed, falling back to text-only:", pdfcoErr)
+          } else {
+            console.warn("PDFCO_API_KEY is missing. Falling back to text-only analysis.")
           }
-        } else {
-          console.warn("PDFCO_API_KEY is missing. Falling back to text-only analysis.")
         }
       }
-    }
 
-    // Update stage to analyzing
-    await serviceClient
-      .from('documents')
-      .update({ processing_stage: 'analyzing' })
-      .eq('id', documentId)
+      // Update stage to analyzing
+      await serviceClient
+        .from('documents')
+        .update({ processing_stage: 'analyzing' })
+        .eq('id', documentId)
 
-    // Pass 1: Call Groq to generate Draft
-    let groqResponse;
-    let pass1Completed = false;
+      // Pass 1: Call Groq to generate Draft
+      let groqResponse;
+      let pass1Completed = false;
 
-    if (visualAnalysisUsed && base64Images.length > 0) {
-      try {
-        const visualSystemPrompt = systemPrompt + `\n\nVISUAL ANALYSIS INSTRUCTION:
+      if (visualAnalysisUsed && base64Images.length > 0) {
+        try {
+          const visualSystemPrompt = systemPrompt + `\n\nVISUAL ANALYSIS INSTRUCTION:
 In addition to the text below, you are shown images of this document's pages. Use these images to also identify and incorporate any information from charts, diagrams, tables, or visual elements that the text alone doesn't fully capture. Reference specific visual content in your summary/key_points where relevant.`
 
-        const pass1Messages = [
-          {
-            role: "system",
-            content: visualSystemPrompt
-          },
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: `Here is the extracted text from the document:\n\n${textToSend}`
-              },
-              ...base64Images.map(b64 => ({
-                type: "image_url",
-                image_url: {
-                  url: `data:image/png;base64,${b64}`
-                }
-              }))
-            ]
-          }
-        ]
+          const pass1Messages = [
+            {
+              role: "system",
+              content: visualSystemPrompt
+            },
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: `Here is the extracted text from the document:\n\n${textToSend}`
+                },
+                ...base64Images.map(b64 => ({
+                  type: "image_url",
+                  image_url: {
+                    url: `data:image/png;base64,${b64}`
+                  }
+                }))
+              ]
+            }
+          ]
 
-        console.log("Attempting vision-based analysis using llama-3.2-90b-vision-preview...")
-        groqResponse = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${groqApiKey}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            model: "llama-3.2-90b-vision-preview",
-            temperature: 0.3,
-            response_format: { type: "json_object" },
-            messages: pass1Messages
+          console.log("Attempting vision-based analysis using llama-3.2-90b-vision-preview...")
+          groqResponse = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${groqApiKey}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              model: "llama-3.2-90b-vision-preview",
+              temperature: 0.3,
+              response_format: { type: "json_object" },
+              messages: pass1Messages
+            })
           })
-        })
 
-        if (groqResponse.ok) {
-          pass1Completed = true
-          console.log("Vision-based Pass 1 completed successfully.")
-        } else {
-          console.warn(`Vision model call returned non-ok status: ${groqResponse.status}. Falling back to text-only.`)
+          if (groqResponse.ok) {
+            pass1Completed = true
+            console.log("Vision-based Pass 1 completed successfully.")
+          } else {
+            console.warn(`Vision model call returned non-ok status: ${groqResponse.status}. Falling back to text-only.`)
+            visualAnalysisUsed = false
+          }
+        } catch (visionErr) {
+          console.warn("Vision-based analysis call failed. Falling back to text-only:", visionErr)
           visualAnalysisUsed = false
         }
-      } catch (visionErr) {
-        console.warn("Vision-based analysis call failed. Falling back to text-only:", visionErr)
-        visualAnalysisUsed = false
       }
-    }
 
-    if (!pass1Completed) {
-      console.log("Running standard text-only analysis using Llama-3.3-70b-versatile...")
-      try {
-        groqResponse = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${groqApiKey}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            model: "llama-3.3-70b-versatile",
-            temperature: 0.3,
-            response_format: { type: "json_object" },
-            messages: [
-              {
-                role: "system",
-                content: systemPrompt
-              },
-              {
-                role: "user",
-                content: textToSend
-              }
-            ]
+      if (!pass1Completed) {
+        console.log("Running standard text-only analysis using Llama-3.3-70b-versatile...")
+        try {
+          groqResponse = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${groqApiKey}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              model: "llama-3.3-70b-versatile",
+              temperature: 0.3,
+              response_format: { type: "json_object" },
+              messages: [
+                {
+                  role: "system",
+                  content: systemPrompt
+                },
+                {
+                  role: "user",
+                  content: textToSend
+                }
+              ]
+            })
           })
+        } catch (fetchErr) {
+          console.error("Pass 1 Groq API fetchWithRetry exception: ", fetchErr)
+          await markFailed(serviceClient, documentId)
+          return new Response(JSON.stringify({ error: 'Our AI service is experiencing high demand right now — please try again in a moment' }), {
+            status: 503,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          })
+        }
+      }
+
+      const groqData = await groqResponse.json()
+
+      if (!groqResponse.ok) {
+        console.error("Groq API Draft call failed: ", JSON.stringify(groqData))
+        await markFailed(serviceClient, documentId)
+        return new Response(JSON.stringify({ error: 'Our AI service is experiencing high demand right now — please try again in a moment' }), {
+          status: 502,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
-      } catch (fetchErr) {
-        console.error("Pass 1 Groq API fetchWithRetry exception: ", fetchErr)
+      }
+
+      rawContent = groqData.choices?.[0]?.message?.content ?? ""
+      if (!rawContent) {
+        console.error('Empty response content from Groq Draft: ', JSON.stringify(groqData))
+        await markFailed(serviceClient, documentId)
+        return new Response(JSON.stringify({ error: 'AI failed to generate a response' }), {
+          status: 502,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+
+      sourceTextForReview = textToSend
+      if (sourceTextForReview.length > 15000) {
+        sourceTextForReview = sourceTextForReview.substring(0, 15000) + " [truncated for review]"
+      }
+    } else {
+      // ========================================================================
+      // CHUNKED MAP-REDUCE PATH: long documents. Every character of the
+      // extracted text (up to MAX_CHUNKS chunks) is analyzed — nothing is
+      // silently dropped the way the old 40,000-char cutoff did. Visual
+      // analysis is not run on this path.
+      // ========================================================================
+      await serviceClient
+        .from('documents')
+        .update({ processing_stage: 'analyzing' })
+        .eq('id', documentId)
+
+      const rawChunks = splitIntoChunks(extractedText, CHUNK_TARGET_SIZE)
+      let chunksToProcess = rawChunks
+      if (rawChunks.length > MAX_CHUNKS) {
+        console.warn(`Document produced ${rawChunks.length} chunks; capping to ${MAX_CHUNKS} — remaining content will not be analyzed.`)
+        chunksToProcess = rawChunks.slice(0, MAX_CHUNKS)
+      }
+      console.log(`Chunked pipeline: processing ${chunksToProcess.length} chunk(s) for document ${documentId}.`)
+
+      let chunkResults: any[]
+      try {
+        chunkResults = await mapWithConcurrency(chunksToProcess, 4, async (chunkText, i) => {
+          try {
+            return await callGroqJson(groqApiKey, buildChunkSystemPrompt(i, chunksToProcess.length, langLabel), chunkText, 0.3)
+          } catch (chunkErr) {
+            console.error(`Chunk ${i + 1}/${chunksToProcess.length} extraction failed, using empty fallback:`, chunkErr)
+            return {
+              chunk_summary: '', key_terms: [], key_points: [], quiz_questions: [],
+              tables: [], charts: [], footnotes: [], is_quantitative: false,
+              formulas: [], worked_examples: []
+            }
+          }
+        })
+      } catch (mapErr) {
+        console.error('Chunked map phase failed unexpectedly: ', mapErr)
         await markFailed(serviceClient, documentId)
         return new Response(JSON.stringify({ error: 'Our AI service is experiencing high demand right now — please try again in a moment' }), {
           status: 503,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
       }
+
+      // Renumber each chunk's footnotes into one global sequence, in order,
+      // and rewrite any [n] markers in that chunk's text to match.
+      let footnoteOffset = 0
+      for (const result of chunkResults) {
+        const { footnotes, idMap } = remapChunkFootnotes(result, footnoteOffset)
+        result.footnotes = footnotes
+        result.chunk_summary = applyFootnoteRemap(result.chunk_summary, idMap)
+        result.key_points = (Array.isArray(result.key_points) ? result.key_points : []).map((p: string) => applyFootnoteRemap(p, idMap))
+        footnoteOffset += footnotes.length
+      }
+
+      const mergedKeyTerms = dedupeKeyTerms(roundRobinInterleave(chunkResults.map(r => Array.isArray(r.key_terms) ? r.key_terms : [])))
+        .slice(0, adaptiveTargets.keyTerms[1])
+      const mergedKeyPoints = dedupeByText(roundRobinInterleave(chunkResults.map(r => Array.isArray(r.key_points) ? r.key_points : [])), (x: string) => x)
+        .slice(0, adaptiveTargets.keyPoints[1])
+      const mergedQuiz = dedupeByText(roundRobinInterleave(chunkResults.map(r => Array.isArray(r.quiz_questions) ? r.quiz_questions : [])), (q: any) => q?.question || '')
+        .slice(0, adaptiveTargets.quizQuestions[1])
+      const mergedTables = chunkResults.flatMap(r => Array.isArray(r.tables) ? r.tables : []).slice(0, 15)
+      const mergedCharts = chunkResults.flatMap(r => Array.isArray(r.charts) ? r.charts : []).slice(0, 10)
+      const mergedFormulas = chunkResults.flatMap(r => Array.isArray(r.formulas) ? r.formulas : []).slice(0, 20)
+      const mergedWorkedExamples = chunkResults.flatMap(r => Array.isArray(r.worked_examples) ? r.worked_examples : []).slice(0, 10)
+      const mergedFootnotes = chunkResults.flatMap(r => Array.isArray(r.footnotes) ? r.footnotes : [])
+      const quantFlaggedCount = chunkResults.filter(r => r.is_quantitative).length
+      const quantFraction = chunkResults.length > 0 ? quantFlaggedCount / chunkResults.length : 0
+
+      const [sLo, sHi] = adaptiveTargets.summarySentences
+      const summaryLengthPhrase = len === 'short'
+        ? `Write a concise final summary in ${sLo}-${sHi} sentences.`
+        : len === 'detailed'
+          ? `Write a thorough final summary in ${sLo}-${sHi} sentences, synthesizing across all parts.`
+          : `Write a balanced final summary in ${sLo}-${sHi} sentences, synthesizing across all parts.`
+
+      const synthesisUserContent = `Fraction of parts flagged quantitative: ${Math.round(quantFraction * 100)}%\n\n` +
+        chunkResults.map((r, i) => `Part ${i + 1}/${chunkResults.length}:\n${r.chunk_summary || '(no summary extracted for this part)'}`).join('\n\n')
+
+      let synthesis: any
+      try {
+        synthesis = await callGroqJson(
+          groqApiKey,
+          buildSynthesisSystemPrompt(courseCatalogBlock, langLabel, styleInstruction, summaryLengthPhrase),
+          synthesisUserContent,
+          0.3
+        )
+      } catch (synthesisErr) {
+        console.error('Synthesis call failed: ', synthesisErr)
+        await markFailed(serviceClient, documentId)
+        return new Response(JSON.stringify({ error: 'Our AI service is experiencing high demand right now — please try again in a moment' }), {
+          status: 503,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+
+      const mergedDraft = {
+        summary: synthesis.summary || '',
+        document_type: synthesis.document_type || 'Other',
+        suggested_course_tag: synthesis.suggested_course_tag ?? null,
+        is_quantitative: synthesis.is_quantitative ?? (quantFraction >= 0.5),
+        key_terms: mergedKeyTerms,
+        key_points: mergedKeyPoints,
+        quiz_questions: mergedQuiz,
+        tables: mergedTables,
+        charts: mergedCharts,
+        formulas: mergedFormulas,
+        worked_examples: mergedWorkedExamples,
+        footnotes: mergedFootnotes
+      }
+
+      rawContent = JSON.stringify(mergedDraft)
+
+      sourceTextForReview = chunkResults.map((r, i) => `Part ${i + 1}: ${r.chunk_summary || ''}`).join('\n\n')
+      if (sourceTextForReview.length > 15000) {
+        sourceTextForReview = sourceTextForReview.substring(0, 15000) + " [truncated for review]"
+      }
     }
 
-    const groqData = await groqResponse.json()
-
-    if (!groqResponse.ok) {
-      console.error("Groq API Draft call failed: ", JSON.stringify(groqData))
-      await markFailed(serviceClient, documentId)
-      return new Response(JSON.stringify({ error: 'Our AI service is experiencing high demand right now — please try again in a moment' }), {
-        status: 502,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
-    }
-
-    const rawContent = groqData.choices?.[0]?.message?.content ?? ""
-    if (!rawContent) {
-      console.error('Empty response content from Groq Draft: ', JSON.stringify(groqData))
-      await markFailed(serviceClient, documentId)
-      return new Response(JSON.stringify({ error: 'AI failed to generate a response' }), {
-        status: 502,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
-    }
-
-    // Pass 2: Self-Review for Higher Accuracy
-    let sourceTextForReview = textToSend
-    if (sourceTextForReview.length > 15000) {
-      sourceTextForReview = sourceTextForReview.substring(0, 15000) + " [truncated for review]"
-    }
-
+    // Pass 2: Self-Review for Higher Accuracy (shared by both pipelines above)
     const reviewSystemPrompt = `You are reviewing a draft academic summary for accuracy and quality. Compare the draft against the original source text. Check for: (1) any factual errors or details not actually present in the source, (2) any important information from the source that was missed, (3) clarity and organization issues, (4) verify that any extracted tables and charts accurately represent the source data numbers and values, (5) verify footnote references are accurate and preserve footnote markers [1], [2] in text, (6) verify that is_quantitative, formulas, and worked_examples are accurate, well-formatted, and use valid LaTeX string syntax.
 In addition to checking factual accuracy, you MUST preserve the original requested style, length, and language of the draft. If the draft was written in bullet-point format, your refined version must ALSO be in bullet-point format (using '- ' prefixed lines). If it was an outline with '## ' headings, preserve that heading structure. If it was written in short/simplified sentences, keep sentences short and simple. Do NOT normalize or flatten distinctive formatting back into generic flowing prose — your job is to improve accuracy and clarity WITHIN the same style and structure the draft already used, not to rewrite it in a different format.
 
