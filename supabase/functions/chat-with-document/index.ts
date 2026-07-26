@@ -413,12 +413,13 @@ ATTACHED IMAGE FROM STUDENT:
 The student has attached a photo or screenshot of part of this source (for example, a diagram, chart, or page they want you to look at directly) along with their latest message. You DO have real vision on this image — actually look at it and describe/explain what it shows, don't just infer from text fragments. Cross-reference the source text and summary above to name the section/concept the image illustrates where relevant, but the image itself is your primary evidence for what it depicts. If the image is blurry, unrelated to this document, or you can't make out enough detail, say so honestly instead of guessing.` : ''}
 
 DIAGRAM GENERATION (free, drawn — not a photo):
-When the student is asking about a chart, diagram, flowchart, comparison, process, or hierarchy — and you can reconstruct its actual structure (from the source text, the study card summary/tables/charts context, and/or an attached image) — also produce a "mermaid" field containing a valid Mermaid.js diagram definition of it, so it can be rendered as a real picture for the student instead of only described in prose. Rules for this field:
+When the student is asking about a chart, diagram, flowchart, comparison, process, or hierarchy — and you can reconstruct its actual structure (from the source text, the study card summary/tables/charts context, and/or an attached image) — also produce a Mermaid.js diagram definition of it (see the MERMAID BLOCK part of OUTPUT FORMAT below), so it can be rendered as a real picture for the student instead of only described in prose. Rules:
 - Use "flowchart TD" or "flowchart LR" for processes/hierarchies/flows, "graph TD" for simple relationship diagrams. Keep node labels short (a few words) — put fuller explanation in your "answer" text instead.
-- Every node id must be a short alphanumeric token (e.g. A, B1, step2) — never put special characters, quotes, or newlines inside node ids, only inside the bracketed label text.
+- Every node id must be a short alphanumeric token (e.g. A, B1, step2) — never put special characters or quotes inside node ids, only inside the bracketed label text.
+- Inside node/edge labels, prefer plain words with no punctuation at all. If you must include a comma or a slash, that's fine, but NEVER use a double-quote character ("") anywhere in the diagram — Mermaid doesn't need quoted labels for ordinary text, and a stray quote is the single most common way this block gets garbled downstream. If a label would otherwise need quotes, just reword it without them.
 - Keep it to at most ~12 nodes. Prefer a simple, correct diagram over an elaborate, possibly-wrong one.
-- Set "mermaid" to null (not an empty string) whenever the question isn't about a diagram/chart/structure, or when you don't have enough grounded structure to draw one honestly — never fabricate a diagram just to have something to show.
-- The "mermaid" field is entirely separate from and in addition to your normal "answer" text — still write a normal grounded answer as usual.
+- Skip the diagram entirely (omit the whole MERMAID BLOCK) whenever the question isn't about a diagram/chart/structure, or when you don't have enough grounded structure to draw one honestly — never fabricate a diagram just to have something to show.
+- The diagram is entirely separate from and in addition to your normal "answer" text — still write a normal grounded answer as usual.
 
 LANGUAGE RULE:
 Respond in the same language the student's latest question is written in (default to Turkish if genuinely ambiguous).
@@ -429,8 +430,14 @@ Be concise, clear, and directly helpful — write like a knowledgeable classmate
 TABLES AND LISTS IN YOUR ANSWER:
 If the student asks you to bring back a table, ranking, or list of items from the source, reproduce it inside the "answer" string using "- " bullet lines or simple "label: value" lines separated by "\\n" (a literal backslash-n escape sequence, NOT an actual line break) — never break your answer across multiple real lines. Keep each row/item on its own "\\n"-separated line so it still reads clearly when displayed, but the JSON string itself must remain a single line.
 
-OUTPUT FORMAT:
-Respond with ONLY a valid JSON object, no markdown code fences, no commentary before or after, and make sure every string value is valid single-line JSON (escape any newlines inside it as "\\n"): { "answer": string, "citations": [ { "id": number, "reference": string } ], "mermaid": string | null }. Always include the "mermaid" key — use null when no diagram applies. Since Mermaid syntax itself uses newlines between statements, encode them as "\\n" escape sequences inside the JSON string just like any other multi-line string value — never a literal line break.
+OUTPUT FORMAT (two parts — read carefully, this is machine-parsed, not just for a human):
+PART 1 — a single-line JSON object, no markdown code fences, no commentary before or after, every string value valid single-line JSON (escape any newlines inside it as "\\n"): { "answer": string, "citations": [ { "id": number, "reference": string } ] }. Do NOT put any diagram inside this JSON object — it only ever holds "answer" and "citations".
+PART 2 — ONLY when DIAGRAM GENERATION above applies, immediately after the JSON object (on new lines, which is fine here since this part is plain text, not JSON) append exactly this block with your Mermaid definition inside it, real line breaks allowed:
+###MERMAID_START###
+flowchart TD
+  A[Example] --> B[Node]
+###MERMAID_END###
+Use the literal markers "###MERMAID_START###" and "###MERMAID_END###" on their own lines, nothing else on those lines. If no diagram applies, output NOTHING after the JSON object from PART 1 — do not include the markers at all in that case.
 ${summaryContextBlock ? `
 STUDY CARD SUMMARY CONTEXT (already generated for this document — may capture a diagram/table/chart's meaning even where the raw source text below is sparse or garbled; cross-check both when relevant):
 """
@@ -492,7 +499,11 @@ ${sourceText}
           body: JSON.stringify({
             model: "llama-3.2-90b-vision-preview",
             temperature: 0.3,
-            response_format: { type: "json_object" },
+            // No response_format:"json_object" here — that mode forces the ENTIRE
+            // reply to be one JSON value, which would forbid the optional
+            // ###MERMAID_START###...###MERMAID_END### block appended after it
+            // (see OUTPUT FORMAT in the system prompt). We parse the JSON part
+            // ourselves below instead.
             messages: buildChatMessages(true)
           })
         })
@@ -519,7 +530,8 @@ ${sourceText}
           body: JSON.stringify({
             model: "llama-3.3-70b-versatile",
             temperature: 0.3,
-            response_format: { type: "json_object" },
+            // See the comment on the vision call above for why response_format
+            // is deliberately omitted here too.
             messages: buildChatMessages(false)
           })
         })
@@ -549,7 +561,28 @@ ${sourceText}
       })
     }
 
-    const cleaned = rawContent.replace(/```json\s*|```/g, "").trim()
+    // Pull the optional Mermaid diagram block out via plain string search
+    // BEFORE touching JSON.parse at all — Mermaid syntax (brackets, arrows,
+    // occasional stray quotes) is exactly the kind of content that breaks a
+    // naive "embed it as a JSON string value" approach when the model
+    // forgets to escape something. Extracting it out-of-band means the JSON
+    // parse below only ever has to handle the simple {answer, citations}
+    // shape, regardless of how messy the diagram syntax gets.
+    const MERMAID_START = '###MERMAID_START###'
+    const MERMAID_END = '###MERMAID_END###'
+    let mermaidCode: string | null = null
+    let jsonPart = rawContent
+    const mermaidStartIdx = rawContent.indexOf(MERMAID_START)
+    const mermaidEndIdx = rawContent.indexOf(MERMAID_END)
+    if (mermaidStartIdx !== -1 && mermaidEndIdx !== -1 && mermaidEndIdx > mermaidStartIdx) {
+      mermaidCode = rawContent
+        .substring(mermaidStartIdx + MERMAID_START.length, mermaidEndIdx)
+        .replace(/```mermaid\s*|```/g, '')
+        .trim()
+      jsonPart = rawContent.substring(0, mermaidStartIdx).trim()
+    }
+
+    const cleaned = jsonPart.replace(/```json\s*|```/g, "").trim()
     let parsedContent
     try {
       parsedContent = tryParseJsonLoose(cleaned)
@@ -564,7 +597,7 @@ ${sourceText}
     return new Response(JSON.stringify({
       answer: parsedContent.answer || '',
       citations: Array.isArray(parsedContent.citations) ? parsedContent.citations : [],
-      mermaid: typeof parsedContent.mermaid === 'string' && parsedContent.mermaid.trim() ? parsedContent.mermaid.trim() : null,
+      mermaid: mermaidCode && mermaidCode.length > 0 ? mermaidCode : null,
       visionUsed
     }), {
       status: 200,
