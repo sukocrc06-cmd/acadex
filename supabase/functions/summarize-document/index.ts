@@ -1214,8 +1214,8 @@ In addition to the text below, you are shown images of this document's pages. Us
       rawContent = draftStripped
 
       sourceTextForReview = textToSend
-      if (sourceTextForReview.length > 15000) {
-        sourceTextForReview = sourceTextForReview.substring(0, 15000) + " [truncated for review]"
+      if (sourceTextForReview.length > 6000) {
+        sourceTextForReview = sourceTextForReview.substring(0, 6000) + " [truncated for review]"
       }
     } else {
       // ========================================================================
@@ -1330,8 +1330,8 @@ In addition to the text below, you are shown images of this document's pages. Us
       rawContent = JSON.stringify(mergedDraft)
 
       sourceTextForReview = chunkResults.map((r, i) => `Part ${i + 1}: ${r.chunk_summary || ''}`).join('\n\n')
-      if (sourceTextForReview.length > 15000) {
-        sourceTextForReview = sourceTextForReview.substring(0, 15000) + " [truncated for review]"
+      if (sourceTextForReview.length > 6000) {
+        sourceTextForReview = sourceTextForReview.substring(0, 6000) + " [truncated for review]"
       }
     }
 
@@ -1341,16 +1341,24 @@ In addition to checking factual accuracy, you MUST preserve the original request
 
 Produce a REFINED, corrected final version in the exact same JSON format: { "summary": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "document_type": string, "tables": [ { "title": string, "headers": [ string ], "rows": [ [ string ] ] } ], "charts": [ { "title": string, "type": string, "labels": [ string ], "data": [ number ] } ], "footnotes": [ { "id": number, "reference": string } ], "suggested_course_tag": string | null, "is_quantitative": boolean, "formulas": [ { "name": string, "latex": string, "variables": [ { "symbol": string, "meaning": string } ] } ], "worked_examples": [ { "title": string, "problem_statement": string, "steps": [ string ], "final_answer": string } ] }. If the draft was already accurate and complete, you may return it largely unchanged — only make genuine improvements, don't change things arbitrarily.`
 
-    const reviewUserPrompt = `Original requested format parameters:
+    function buildReviewUserPrompt(sourceBudgetChars: number): string {
+      let trimmedSource = sourceTextForReview
+      if (sourceBudgetChars <= 0) {
+        trimmedSource = "[omitted to fit token limits — rely on the draft's internal consistency]"
+      } else if (trimmedSource.length > sourceBudgetChars) {
+        trimmedSource = trimmedSource.substring(0, sourceBudgetChars) + " [truncated for review]"
+      }
+      return `Original requested format parameters:
 - Summary Style: ${style}
 - Summary Length: ${len}
 - Summary Language: ${lang}
 
 Original source text:
-${sourceTextForReview}
+${trimmedSource}
 
 Draft JSON summary:
 ${rawContent}`
+    }
 
     // Update stage to reviewing
     await serviceClient
@@ -1358,53 +1366,78 @@ ${rawContent}`
       .update({ processing_stage: 'reviewing' })
       .eq('id', documentId)
 
-    let groqReviewResponse;
-    try {
-      groqReviewResponse = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${groqApiKey}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          // llama-3.3-70b-versatile is being retired by Groq (shutdown
-          // 2026-08-16); openai/gpt-oss-120b is one of Groq's recommended
-          // replacements.
-          model: "openai/gpt-oss-120b",
-          temperature: 0.2,
-          reasoning_effort: "low",
-          include_reasoning: false,
-          response_format: { type: "json_object" },
-          messages: [
-            {
-              role: "system",
-              content: reviewSystemPrompt
-            },
-            {
-              role: "user",
-              content: reviewUserPrompt
-            }
-          ]
+    // Groq enforces a tokens-per-minute cap per model. A long/detailed draft
+    // plus the reference source text can occasionally exceed it even after
+    // the 6,000-char truncation above. Rather than fail outright, retry with
+    // a progressively smaller reference-text budget (the draft JSON itself
+    // is never trimmed, since that would lose content from the final output).
+    const sourceBudgets = [6000, 1200, 0]
+    let groqReviewResponse: Response | null = null
+    let groqReviewData: any = null
+
+    for (let i = 0; i < sourceBudgets.length; i++) {
+      const attemptPrompt = buildReviewUserPrompt(sourceBudgets[i])
+      let attemptResponse: Response
+      try {
+        attemptResponse = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${groqApiKey}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            // llama-3.3-70b-versatile is being retired by Groq (shutdown
+            // 2026-08-16); openai/gpt-oss-120b is one of Groq's recommended
+            // replacements.
+            model: "openai/gpt-oss-120b",
+            temperature: 0.2,
+            reasoning_effort: "low",
+            include_reasoning: false,
+            max_completion_tokens: 4096,
+            response_format: { type: "json_object" },
+            messages: [
+              {
+                role: "system",
+                content: reviewSystemPrompt
+              },
+              {
+                role: "user",
+                content: attemptPrompt
+              }
+            ]
+          })
+        }, 1, 25000) // 1 retry max, 25s cap per attempt
+      } catch (fetchReviewErr) {
+        console.error("Pass 2 Groq API fetchWithRetry exception: ", fetchReviewErr)
+        await markFailed(serviceClient, documentId)
+        return new Response(JSON.stringify({ error: 'Our AI service is experiencing high demand right now — please try again in a moment' }), {
+          status: 503,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
-      }, 1, 25000) // 1 retry max, 25s cap per attempt
-    } catch (fetchReviewErr) {
-      console.error("Pass 2 Groq API fetchWithRetry exception: ", fetchReviewErr)
-      await markFailed(serviceClient, documentId)
-      return new Response(JSON.stringify({ error: 'Our AI service is experiencing high demand right now — please try again in a moment' }), {
-        status: 503,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
-    }
+      }
 
-    const groqReviewData = await groqReviewResponse.json()
+      const attemptData = await attemptResponse.json()
 
-    if (!groqReviewResponse.ok) {
-      console.error("Groq Review API call failed: ", JSON.stringify(groqReviewData))
-      await markFailed(serviceClient, documentId)
-      return new Response(JSON.stringify({ error: 'Our AI service is experiencing high demand right now — please try again in a moment' }), {
-        status: 502,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
+      if (attemptResponse.ok) {
+        groqReviewResponse = attemptResponse
+        groqReviewData = attemptData
+        break
+      }
+
+      const isTokenSizeError = attemptResponse.status === 400 &&
+        attemptData?.error?.code === 'rate_limit_exceeded' &&
+        attemptData?.error?.type === 'tokens'
+
+      console.error(`Groq Review API call failed (source budget ${sourceBudgets[i]} chars): `, JSON.stringify(attemptData))
+
+      if (!isTokenSizeError || i === sourceBudgets.length - 1) {
+        await markFailed(serviceClient, documentId)
+        return new Response(JSON.stringify({ error: 'Our AI service is experiencing high demand right now — please try again in a moment' }), {
+          status: 502,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+      // else: too-large-for-TPM error — loop again with a smaller source budget
     }
 
     const rawFinalContent = groqReviewData.choices?.[0]?.message?.content ?? ""
