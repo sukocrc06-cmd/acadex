@@ -89,6 +89,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 11. Chat With Source (NotebookLM-style grounded document Q&A)
   initDocChatForm();
+  initSourceHubChatForm();
 
   // 12. Mermaid.js — free client-side rendering of AI-reconstructed diagrams
   if (window.mermaid) {
@@ -1802,7 +1803,7 @@ function switchDashboardView(viewId) {
   }
 
   // Update sidebar active classes immediately for responsiveness
-  const tabs = ['home', 'planner', 'docs', 'feed', 'notebook', 'cards', 'glossary', 'exams', 'settings', 'sandbox', 'admin'];
+  const tabs = ['home', 'planner', 'docs', 'feed', 'notebook', 'cards', 'sourcehub', 'glossary', 'exams', 'settings', 'sandbox', 'admin'];
   tabs.forEach(tab => {
     const el = document.getElementById(`side-${tab}`);
     if (el) {
@@ -1869,6 +1870,8 @@ function loadViewContent(viewId) {
     loadStudyNotebook();
   } else if (viewId === 'cards') {
     loadCardsLibrary();
+  } else if (viewId === 'sourcehub') {
+    loadSourceHubView();
   } else if (viewId === 'glossary') {
     loadGlossaryView();
   } else if (viewId === 'exams') {
@@ -3512,6 +3515,348 @@ function getDepartmentShortName(dept) {
   if (d.includes('banking') || d.includes('finance')) return 'B&F';
   return 'DEPT';
 }
+
+// ==========================================================================
+// KAYNAKLA ÇALIŞ (SOURCE HUB) — dedicated page: original document, summary,
+// and Chat with Source side by side (3 columns on wide screens, stacked on
+// narrow ones). Reuses renderOriginalDocumentPreview() for the PDF column,
+// a trimmed version of the study card modal's summary rendering for the
+// middle column, and its own independent chat implementation (separate
+// conversation state from the modal's "Kaynakla Sohbet" pane, but backed by
+// the same chat-with-document edge function and the same shared helpers —
+// createChatImageActionRow, renderMermaidIntoBubble, saveChatImageToSummary,
+// downscaleImageForChat) so behavior stays consistent between the two.
+// ==========================================================================
+let sourceHubCards = [];
+let sourceHubActiveCardId = null;
+
+async function loadSourceHubView() {
+  const select = document.getElementById('sourcehub-card-select');
+  const emptyState = document.getElementById('sourcehub-empty-state');
+  const columns = document.getElementById('sourcehub-columns');
+  if (!select) return;
+
+  try {
+    const { data: cards, error } = await supabaseClient
+      .from('study_cards')
+      .select('*, documents(file_name)')
+      .eq('user_id', currentUser.id)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('loadSourceHubView: failed to fetch study cards:', error);
+      return;
+    }
+
+    sourceHubCards = cards || [];
+
+    if (sourceHubCards.length === 0) {
+      select.innerHTML = '';
+      if (emptyState) emptyState.style.display = 'block';
+      if (columns) columns.style.display = 'none';
+      return;
+    }
+
+    if (emptyState) emptyState.style.display = 'none';
+
+    select.innerHTML = sourceHubCards.map(c => {
+      const docName = c.documents?.file_name || 'Untitled';
+      const styleName = getStyleLabel(c.summary_style);
+      const formattedTime = new Date(c.created_at || Date.now()).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      return `<option value="${c.id}">${escapeHtml(docName)} — ${escapeHtml(styleName)} (${formattedTime})</option>`;
+    }).join('');
+
+    select.onchange = (e) => loadSourceHubCard(e.target.value);
+
+    // Keep whatever was already open if it still exists, otherwise default
+    // to the most recently generated card.
+    const stillExists = sourceHubActiveCardId && sourceHubCards.some(c => c.id === sourceHubActiveCardId);
+    const targetId = stillExists ? sourceHubActiveCardId : sourceHubCards[0].id;
+    select.value = targetId;
+    await loadSourceHubCard(targetId);
+
+  } catch (err) {
+    console.error('Exception in loadSourceHubView:', err);
+  }
+}
+window.loadSourceHubView = loadSourceHubView;
+
+async function loadSourceHubCard(cardId) {
+  const card = sourceHubCards.find(c => c.id === cardId);
+  const columns = document.getElementById('sourcehub-columns');
+  if (!card || !columns) return;
+
+  sourceHubActiveCardId = cardId;
+  columns.style.display = 'grid';
+
+  const docName = card.documents?.file_name || 'Untitled';
+  const cardLike = { ...card, documentFileName: docName };
+  currentActiveStudyCard = cardLike; // shared "focus" pointer used by chat/depot/summary-save helpers
+
+  // Column 1: original document
+  const pdfPane = document.getElementById('sourcehub-pdf-pane');
+  renderOriginalDocumentPreview(pdfPane, cardLike);
+
+  // Column 2: summary
+  renderSourceHubSummary(card, docName);
+
+  // Column 3: chat — fresh conversation whenever the selected card changes
+  resetSourceHubChatState();
+}
+window.loadSourceHubCard = loadSourceHubCard;
+
+function renderSourceHubSummary(card, docName) {
+  const badgesEl = document.getElementById('sourcehub-summary-badges');
+  if (badgesEl) {
+    const style = card.summary_style || 'standard';
+    const langCode = card.summary_language || 'en';
+    badgesEl.innerHTML = `
+      <span class="style-badge style-${style}">${getStyleLabel(style)}</span>
+      <span class="style-badge">${langCode === 'tr' ? 'Türkçe' : 'English'}</span>
+      ${getDocumentTypeBadgeHtml(card.document_type)}
+    `;
+  }
+
+  const summaryTextEl = document.getElementById('sourcehub-summary-text');
+  if (summaryTextEl) {
+    summaryTextEl.innerHTML = formatSummaryText(card.summary, card.footnotes) || 'No summary generated for this document.';
+  }
+
+  const pointsEl = document.getElementById('sourcehub-points-container');
+  if (pointsEl) {
+    pointsEl.innerHTML = '';
+    const keyPoints = card.key_points || [];
+    if (keyPoints.length === 0) {
+      pointsEl.innerHTML = '<li class="study-card-point-item">No key points generated.</li>';
+    } else {
+      keyPoints.forEach(pt => {
+        const li = document.createElement('li');
+        li.className = 'study-card-point-item';
+        li.innerHTML = `
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          <span>${formatFootnoteMarkers(pt, card.footnotes)}</span>
+        `;
+        pointsEl.appendChild(li);
+      });
+    }
+  }
+
+  renderStudyCardImagesGallery(card.chat_attachments || [], card.id, 'sourcehub-images-section', 'sourcehub-images-container');
+}
+
+function openFullCardFromSourceHub() {
+  const card = sourceHubCards.find(c => c.id === sourceHubActiveCardId);
+  if (!card) return;
+  const docName = card.documents?.file_name || 'Untitled';
+  viewStudyCard(card.document_id, docName, false, card.id);
+}
+window.openFullCardFromSourceHub = openFullCardFromSourceHub;
+
+// --------------------------------------------------------------------------
+// Source Hub's own "Kaynakla Sohbet" chat — independent conversation state
+// from the study card modal's chat pane (see the big comment above), reusing
+// the same edge function and the same generic image-action helpers.
+// --------------------------------------------------------------------------
+let sourceHubChatHistory = [];
+let sourceHubChatHasGreeted = false;
+let sourceHubChatRequestInFlight = false;
+let pendingSourceHubChatImageDataUrl = null;
+
+function resetSourceHubChatState() {
+  sourceHubChatHistory = [];
+  sourceHubChatHasGreeted = false;
+  removeSourceHubChatImage();
+  const messages = document.getElementById('sourcehub-chat-messages');
+  if (messages) messages.innerHTML = '';
+  greetSourceHubChatIfNeeded();
+}
+
+function greetSourceHubChatIfNeeded() {
+  if (sourceHubChatHasGreeted) return;
+  sourceHubChatHasGreeted = true;
+  const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+  const greeting = isTr
+    ? 'Merhaba! Bu belge/belgeler hakkında bana soru sorabilirsiniz. Cevaplarımı yalnızca kaynağın içeriğine dayandırırım — belgede olmayan bir şey sorarsanız size bunu söylerim.'
+    : "Hi! Ask me anything about this document — I'll answer strictly from its content, and I'll tell you honestly if something isn't covered in it.";
+  renderSourceHubChatMessage('assistant', greeting, []);
+}
+
+function clearSourceHubChat() {
+  sourceHubChatHistory = [];
+  sourceHubChatHasGreeted = false;
+  removeSourceHubChatImage();
+  const messages = document.getElementById('sourcehub-chat-messages');
+  if (messages) messages.innerHTML = '';
+  greetSourceHubChatIfNeeded();
+}
+window.clearSourceHubChat = clearSourceHubChat;
+
+function removeSourceHubChatImage() {
+  pendingSourceHubChatImageDataUrl = null;
+  const preview = document.getElementById('sourcehub-chat-image-preview');
+  if (preview) preview.style.display = 'none';
+  const thumb = document.getElementById('sourcehub-chat-image-preview-thumb');
+  if (thumb) thumb.src = '';
+  const imageInput = document.getElementById('sourcehub-chat-image-input');
+  if (imageInput) imageInput.value = '';
+}
+window.removeSourceHubChatImage = removeSourceHubChatImage;
+
+// Renders one chat bubble into the Source Hub's chat column. Deliberately
+// mirrors renderDocChatMessage()'s structure (see that function for the
+// reasoning behind each piece) rather than sharing code with it directly,
+// so the modal's already-working chat is never touched by this page.
+function renderSourceHubChatMessage(role, text, citations, imageDataUrl, visionUsed, mermaidCode) {
+  const container = document.getElementById('sourcehub-chat-messages');
+  if (!container) return;
+
+  const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+  const bubble = document.createElement('div');
+  const isUser = role === 'user';
+  bubble.style.cssText = `
+    max-width: 88%;
+    align-self: ${isUser ? 'flex-end' : 'flex-start'};
+    background: ${isUser ? 'var(--color-teal)' : 'var(--color-white)'};
+    color: ${isUser ? 'white' : 'var(--color-navy)'};
+    padding: 0.55rem 0.8rem;
+    border-radius: ${isUser ? '14px 14px 2px 14px' : '14px 14px 14px 2px'};
+    font-size: 0.8rem;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+  `;
+
+  if (isUser) {
+    if (imageDataUrl) {
+      const img = document.createElement('img');
+      img.src = imageDataUrl;
+      img.alt = '';
+      img.style.cssText = 'max-width: 100%; max-height: 160px; border-radius: 8px; display: block; margin-bottom: 0.4rem; object-fit: contain;';
+      bubble.appendChild(img);
+    }
+    const textNode = document.createElement('div');
+    textNode.textContent = text;
+    bubble.appendChild(textNode);
+    if (imageDataUrl) {
+      bubble.appendChild(createChatImageActionRow(imageDataUrl, isTr ? 'Sohbetten Fotoğraf' : 'Photo from chat'));
+    }
+  } else {
+    bubble.innerHTML = formatFootnoteMarkers(escapeHtml(text), citations);
+    if (visionUsed) {
+      const tag = document.createElement('div');
+      tag.textContent = isTr ? '📷 Görsel incelendi' : '📷 Image analyzed';
+      tag.style.cssText = 'margin-top: 0.35rem; font-size: 0.65rem; opacity: 0.65; font-style: italic;';
+      bubble.appendChild(tag);
+    }
+
+    if (mermaidCode) {
+      renderMermaidIntoBubble(bubble, mermaidCode).then((svgDataUrl) => {
+        if (!svgDataUrl) return;
+        bubble.appendChild(createChatImageActionRow(svgDataUrl, isTr ? 'AI Diyagramı' : 'AI diagram'));
+        container.scrollTop = container.scrollHeight;
+      });
+    }
+  }
+
+  container.appendChild(bubble);
+  container.scrollTop = container.scrollHeight;
+}
+
+async function sendSourceHubChatMessage(text, imageDataUrl) {
+  if (sourceHubChatRequestInFlight) return;
+  if (!currentActiveStudyCard || !currentActiveStudyCard.id) return;
+
+  const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+  const cardId = currentActiveStudyCard.id;
+
+  renderSourceHubChatMessage('user', text, [], imageDataUrl || null);
+  sourceHubChatHistory.push({ role: 'user', content: text });
+
+  const sendBtn = document.getElementById('sourcehub-chat-send-btn');
+  const typingIndicator = document.getElementById('sourcehub-chat-typing-indicator');
+  sourceHubChatRequestInFlight = true;
+  if (sendBtn) sendBtn.disabled = true;
+  if (typingIndicator) typingIndicator.style.display = 'block';
+
+  try {
+    const requestBody = { studyCardId: cardId, messages: sourceHubChatHistory };
+    if (imageDataUrl) requestBody.image = imageDataUrl;
+
+    const { data, error } = await supabaseClient.functions.invoke('chat-with-document', {
+      body: requestBody
+    });
+
+    if (error || !data || typeof data.answer !== 'string') {
+      console.error('chat-with-document invocation failed (Source Hub):', error || data);
+      const errMsg = isTr
+        ? 'Şu anda cevap veremiyorum, lütfen tekrar deneyin.'
+        : "I couldn't answer right now, please try again.";
+      renderSourceHubChatMessage('assistant', errMsg, []);
+      sourceHubChatHistory.pop();
+      return;
+    }
+
+    renderSourceHubChatMessage('assistant', data.answer, data.citations || [], null, !!data.visionUsed, data.mermaid || null);
+    sourceHubChatHistory.push({ role: 'assistant', content: data.answer });
+  } catch (err) {
+    console.error('Exception in sendSourceHubChatMessage:', err);
+    const errMsg = isTr
+      ? 'Şu anda cevap veremiyorum, lütfen tekrar deneyin.'
+      : "I couldn't answer right now, please try again.";
+    renderSourceHubChatMessage('assistant', errMsg, []);
+    sourceHubChatHistory.pop();
+  } finally {
+    sourceHubChatRequestInFlight = false;
+    if (sendBtn) sendBtn.disabled = false;
+    if (typingIndicator) typingIndicator.style.display = 'none';
+  }
+}
+window.sendSourceHubChatMessage = sendSourceHubChatMessage;
+
+function initSourceHubChatForm() {
+  const form = document.getElementById('sourcehub-chat-input-form');
+  if (!form || form.dataset.wired) return;
+  form.dataset.wired = 'true';
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const input = document.getElementById('sourcehub-chat-input');
+    if (!input) return;
+    const text = input.value.trim();
+    const image = pendingSourceHubChatImageDataUrl;
+    if (!text && !image) return;
+    const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+    const finalText = text || (isTr ? 'Ekli görseldeki bu kısmı açıklar mısın?' : 'Can you explain this part shown in the attached image?');
+    input.value = '';
+    removeSourceHubChatImage();
+    sendSourceHubChatMessage(finalText, image);
+  });
+
+  const imageInput = document.getElementById('sourcehub-chat-image-input');
+  if (imageInput) {
+    imageInput.addEventListener('change', async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      try {
+        const dataUrl = await downscaleImageForChat(file);
+        pendingSourceHubChatImageDataUrl = dataUrl;
+        const thumb = document.getElementById('sourcehub-chat-image-preview-thumb');
+        const preview = document.getElementById('sourcehub-chat-image-preview');
+        if (thumb) thumb.src = dataUrl;
+        if (preview) preview.style.display = 'flex';
+      } catch (err) {
+        console.error('Failed to process attached image (Source Hub):', err);
+        const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+        alert(isTr ? 'Görsel yüklenirken bir sorun oluştu, lütfen başka bir dosya deneyin.' : 'There was a problem loading that image, please try another file.');
+      } finally {
+        imageInput.value = '';
+      }
+    });
+  }
+}
+window.initSourceHubChatForm = initSourceHubChatForm;
 
 // ==========================================
 // TAB 4: BILGI KARTLARI (INFO CARDS LIBRARY)
@@ -12006,6 +12351,78 @@ window.loadSharedPages = loadSharedPages;
 // ==========================================
 let isOriginalDocSplitActive = false;
 
+// Fills `container` with an iframe (PDF) or a download box (Word/PowerPoint)
+// for the original source document behind `cardLike` — a study_cards row (or
+// study_cards-shaped object) carrying storage_path/documentFileName/mime_type
+// and/or a document_id to resolve them from. Shared by the study card
+// modal's split-view "Orijinali Görüntüle" pane and the "Kaynakla Çalış"
+// page's PDF column, so there's exactly one place that knows how to fetch
+// and render a source document.
+async function renderOriginalDocumentPreview(container, cardLike) {
+  if (!container) return;
+  container.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:0.9rem;color:var(--color-text-muted);">Yükleniyor / Loading...</div>`;
+
+  try {
+    let storagePath = cardLike.storage_path;
+    let fileName = cardLike.documentFileName || cardLike.file_name || '';
+    let mimeType = cardLike.mime_type || '';
+
+    if (!storagePath && cardLike.document_id) {
+      const { data: docData } = await supabaseClient
+        .from('documents')
+        .select('storage_path, file_name, mime_type')
+        .eq('id', cardLike.document_id)
+        .single();
+
+      if (docData) {
+        storagePath = docData.storage_path;
+        fileName = docData.file_name || fileName;
+        mimeType = docData.mime_type || mimeType;
+      }
+    }
+
+    if (!storagePath) {
+      container.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:0.9rem;color:#EF4444;">Dosya yolu bulunamadı / Document file path not found.</div>`;
+      return;
+    }
+
+    // Generate signed URL (300 seconds = 5 min expiry)
+    const { data: signedData, error: signedErr } = await supabaseClient
+      .storage
+      .from('documents')
+      .createSignedUrl(storagePath, 300);
+
+    if (signedErr || !signedData?.signedUrl) {
+      console.error("Failed to create signed URL:", signedErr);
+      container.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:0.9rem;color:#EF4444;">Belge yüklenemedi / Could not load document.</div>`;
+      return;
+    }
+
+    const lowerName = (fileName || '').toLowerCase();
+    const isPdf = lowerName.endsWith('.pdf') || mimeType === 'application/pdf';
+
+    if (isPdf) {
+      container.innerHTML = `<iframe src="${signedData.signedUrl}" style="width:100%;height:100%;border:none;border-radius:var(--radius-sm);"></iframe>`;
+    } else {
+      // Non-PDF (Word / PowerPoint) download panel
+      container.innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;text-align:center;padding:2rem;gap:1rem;background:var(--color-white);border-radius:var(--radius-sm);">
+          <div style="font-size:3.5rem;">📄</div>
+          <h4 style="margin:0;color:var(--color-navy);font-size:1.05rem;">${escapeHtml(fileName || 'Belge')}</h4>
+          <p style="margin:0;color:var(--color-text-muted);font-size:0.85rem;max-width:340px;">${getTranslation('dash.cards.cannotPreviewInline') || 'Bu dosya türü (Word/PowerPoint) tarayıcıda doğrudan önizlenemiyor.'}</p>
+          <a href="${signedData.signedUrl}" download target="_blank" class="btn btn-primary" style="font-size:0.85rem;padding:0.6rem 1.25rem;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:0.5rem;border-radius:var(--radius-sm);">
+            <span>${getTranslation('dash.cards.downloadOriginal') || '⬇️ Orijinal Dosyayı İndir'}</span>
+          </a>
+        </div>
+      `;
+    }
+  } catch (err) {
+    console.error("Exception loading original document preview:", err);
+    container.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:0.9rem;color:#EF4444;">Hata oluştu / Error loading document.</div>`;
+  }
+}
+window.renderOriginalDocumentPreview = renderOriginalDocumentPreview;
+
 async function toggleOriginalDocumentViewer() {
   const modalCard = document.querySelector('.study-card-modal-card');
   const rightPane = document.getElementById('original-doc-viewer-pane');
@@ -12033,66 +12450,7 @@ async function toggleOriginalDocumentViewer() {
   rightPane.style.display = 'flex';
   if (toggleBtnLabel) toggleBtnLabel.textContent = getTranslation('dash.cards.singleView') || '✕ Tekli Görünüm';
 
-  rightPane.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:0.9rem;color:var(--color-text-muted);">Yükleniyor / Loading...</div>`;
-
-  try {
-    let storagePath = currentActiveStudyCard.storage_path;
-    let fileName = currentActiveStudyCard.documentFileName || '';
-    let mimeType = currentActiveStudyCard.mime_type || '';
-
-    if (!storagePath && currentActiveStudyCard.document_id) {
-      const { data: docData } = await supabaseClient
-        .from('documents')
-        .select('storage_path, file_name, mime_type')
-        .eq('id', currentActiveStudyCard.document_id)
-        .single();
-      
-      if (docData) {
-        storagePath = docData.storage_path;
-        fileName = docData.file_name || fileName;
-        mimeType = docData.mime_type || mimeType;
-      }
-    }
-
-    if (!storagePath) {
-      rightPane.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:0.9rem;color:#EF4444;">Dosya yolu bulunamadı / Document file path not found.</div>`;
-      return;
-    }
-
-    // Generate signed URL (300 seconds = 5 min expiry)
-    const { data: signedData, error: signedErr } = await supabaseClient
-      .storage
-      .from('documents')
-      .createSignedUrl(storagePath, 300);
-
-    if (signedErr || !signedData?.signedUrl) {
-      console.error("Failed to create signed URL:", signedErr);
-      rightPane.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:0.9rem;color:#EF4444;">Belge yüklenemedi / Could not load document.</div>`;
-      return;
-    }
-
-    const lowerName = fileName.toLowerCase();
-    const isPdf = lowerName.endsWith('.pdf') || mimeType === 'application/pdf';
-
-    if (isPdf) {
-      rightPane.innerHTML = `<iframe src="${signedData.signedUrl}" style="width:100%;height:100%;border:none;border-radius:var(--radius-sm);"></iframe>`;
-    } else {
-      // Non-PDF (Word / PowerPoint) download panel
-      rightPane.innerHTML = `
-        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;text-align:center;padding:2rem;gap:1rem;background:var(--color-white);border-radius:var(--radius-sm);">
-          <div style="font-size:3.5rem;">📄</div>
-          <h4 style="margin:0;color:var(--color-navy);font-size:1.05rem;">${escapeHtml(fileName || 'Belge')}</h4>
-          <p style="margin:0;color:var(--color-text-muted);font-size:0.85rem;max-width:340px;">${getTranslation('dash.cards.cannotPreviewInline') || 'Bu dosya türü (Word/PowerPoint) tarayıcıda doğrudan önizlenemiyor.'}</p>
-          <a href="${signedData.signedUrl}" download target="_blank" class="btn btn-primary" style="font-size:0.85rem;padding:0.6rem 1.25rem;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:0.5rem;border-radius:var(--radius-sm);">
-            <span>${getTranslation('dash.cards.downloadOriginal') || '⬇️ Orijinal Dosyayı İndir'}</span>
-          </a>
-        </div>
-      `;
-    }
-  } catch (err) {
-    console.error("Exception loading original doc viewer:", err);
-    rightPane.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:0.9rem;color:#EF4444;">Hata oluştu / Error loading document.</div>`;
-  }
+  await renderOriginalDocumentPreview(rightPane, currentActiveStudyCard);
 }
 window.toggleOriginalDocumentViewer = toggleOriginalDocumentViewer;
 
@@ -12515,7 +12873,7 @@ async function saveChatImageToSummary(dataUrl, caption, btn) {
     }
 
     currentActiveStudyCard.chat_attachments = updatedList;
-    renderStudyCardImagesGallery(updatedList, cardId);
+    refreshAllImageGalleriesFor(updatedList, cardId);
     showDashboardAlert('success', isTr ? 'Görsel özete eklendi!' : 'Image added to the summary!');
 
     if (btn) {
@@ -12552,7 +12910,7 @@ async function deleteChatAttachment(cardId, attachmentId) {
     if (currentActiveStudyCard && currentActiveStudyCard.id === cardId) {
       currentActiveStudyCard.chat_attachments = updatedList;
     }
-    renderStudyCardImagesGallery(updatedList, cardId);
+    refreshAllImageGalleriesFor(updatedList, cardId);
   } catch (err) {
     console.error('Exception in deleteChatAttachment:', err);
     showDashboardAlert('error', isTr ? 'Görsel silinemedi.' : 'Could not remove the image.');
@@ -12560,11 +12918,21 @@ async function deleteChatAttachment(cardId, attachmentId) {
 }
 window.deleteChatAttachment = deleteChatAttachment;
 
+// Both the study card modal and the "Kaynakla Çalış" (Source Hub) page have
+// their own "Eklenen Görseller" gallery for the same underlying
+// chat_attachments data. Only one is visible at a time, but refreshing both
+// keeps whichever one the student looks at next already in sync instead of
+// showing stale data until its own re-render happens to fire.
+function refreshAllImageGalleriesFor(updatedList, cardId) {
+  renderStudyCardImagesGallery(updatedList, cardId); // modal (default ids)
+  renderStudyCardImagesGallery(updatedList, cardId, 'sourcehub-images-section', 'sourcehub-images-container');
+}
+
 // Renders the "🖼️ Eklenen Görseller" gallery in the study card modal —
 // mirrors the existing Tables/Charts sections' show/hide + container pattern.
-function renderStudyCardImagesGallery(images, cardId) {
-  const section = document.getElementById('study-card-images-section');
-  const container = document.getElementById('study-card-images-container');
+function renderStudyCardImagesGallery(images, cardId, sectionId, containerId) {
+  const section = document.getElementById(sectionId || 'study-card-images-section');
+  const container = document.getElementById(containerId || 'study-card-images-container');
   if (!section || !container) return;
 
   container.innerHTML = '';

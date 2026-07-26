@@ -179,6 +179,16 @@
               <span data-i18n="dash.nav.cards">Bilgi Kartları</span>
             </a>
           </li>
+          <li class="sidebar-item" id="side-sourcehub">
+            <a href="#" onclick="switchDashboardView('sourcehub')">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="9" y1="3" x2="9" y2="21"></line>
+                <line x1="15" y1="3" x2="15" y2="21"></line>
+              </svg>
+              <span data-i18n="dash.nav.sourcehub">Kaynakla Çalış</span>
+            </a>
+          </li>
           <li class="sidebar-item" id="side-glossary">
             <a href="#" onclick="switchDashboardView('glossary')">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -796,6 +806,88 @@
           </h3>
           <div id="past-comparisons-list" style="display: flex; flex-direction: column; gap: 0.6rem;">
             <!-- Populated dynamically -->
+          </div>
+        </div>
+      </section>
+
+      <!-- ==========================================
+           TAB: KAYNAKLA ÇALIŞ (Source Hub) — PDF + Özet + Sohbet, tek sayfada
+           yan yana üç sütun (geniş ekranda); dar ekranda alt alta.
+           ========================================== -->
+      <section id="sourcehub-view" class="dashboard-view-section">
+        <div class="dashboard-page-header">
+          <h2 class="dashboard-page-title" data-i18n="dash.sourcehub.title">🔎 Kaynakla Çalış</h2>
+          <p class="dashboard-page-desc" data-i18n="dash.sourcehub.desc">Orijinal belgeyi, özeti ve kaynakla sohbeti aynı ekranda birlikte kullanın.</p>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1rem; flex-wrap: wrap;">
+          <label for="sourcehub-card-select" style="font-size: 0.8rem; font-weight: 700; color: var(--color-navy);" data-i18n="dash.sourcehub.selectLabel">Bilgi Kartı:</label>
+          <select id="sourcehub-card-select" class="settings-input" style="padding: 0.4rem 0.6rem; font-size: 0.82rem; min-height: auto; max-width: 420px; flex: 1;">
+            <!-- Dynamically populated -->
+          </select>
+        </div>
+
+        <div id="sourcehub-empty-state" style="display: none; text-align: center; padding: 3rem 1rem; color: var(--color-text-muted);">
+          <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">📭</div>
+          <p style="font-size: 0.9rem;" data-i18n="dash.sourcehub.empty">Henüz bir bilgi kartınız yok. Önce bir belge yükleyip özetleyin.</p>
+        </div>
+
+        <div id="sourcehub-columns" class="sourcehub-columns" style="display: none;">
+          <!-- Column 1: Original document -->
+          <div class="sourcehub-column sourcehub-pdf-column">
+            <div class="sourcehub-column-header">📄 <span data-i18n="dash.sourcehub.originalHeader">Orijinal Belge</span></div>
+            <div id="sourcehub-pdf-pane" class="sourcehub-column-body">
+              <!-- Dynamically populated: iframe or download box -->
+            </div>
+          </div>
+
+          <!-- Column 2: Summary -->
+          <div class="sourcehub-column sourcehub-summary-column">
+            <div class="sourcehub-column-header">📋 <span data-i18n="dash.sourcehub.summaryHeader">Özet</span></div>
+            <div class="sourcehub-column-body">
+              <div id="sourcehub-summary-badges" style="display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.6rem;"></div>
+              <div id="sourcehub-summary-text" class="study-card-summary-text"></div>
+              <ul id="sourcehub-points-container" class="study-card-points-list" style="margin-top: 1rem;"></ul>
+
+              <section id="sourcehub-images-section" style="display: none; margin-top: 1rem;">
+                <h4 class="study-card-section-title" style="display: flex; align-items: center; width: 100%;">
+                  <span>🖼️</span> <span style="margin-left: 0.4rem;" data-i18n="dash.cards.attachedImages">Eklenen Görseller</span>
+                </h4>
+                <div id="sourcehub-images-container" style="display: flex; flex-wrap: wrap; gap: 0.7rem;"></div>
+              </section>
+
+              <button class="btn btn-outline" id="btn-sourcehub-open-full-card" onclick="openFullCardFromSourceHub()" style="margin-top: 1.25rem; font-size: 0.78rem; font-weight: 700; border-color: var(--color-teal); color: var(--color-teal); border-radius: var(--radius-sm);">
+                <span data-i18n="dash.sourcehub.openFullCard">🔎 Tam Kartı Aç (Quiz, Tablolar, Grafikler...)</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Column 3: Chat with Source -->
+          <div class="sourcehub-column sourcehub-chat-column">
+            <div class="sourcehub-column-header" style="display: flex; align-items: center; justify-content: space-between;">
+              <span>💬 <span data-i18n="dash.cards.chatPanelTitle">Kaynakla Sohbet</span></span>
+              <button id="sourcehub-chat-clear-btn" onclick="clearSourceHubChat()" data-i18n="dash.acadia.clear" style="background: none; border: none; color: rgba(255,255,255,0.75); cursor: pointer; font-size: 0.68rem; font-weight: 700;">Temizle</button>
+            </div>
+            <div data-i18n="dash.cards.chatDisclosure" style="font-size: 0.65rem; color: var(--color-text-muted); background: var(--color-bg-alt); padding: 0.45rem 0.85rem; border-bottom: 1px solid rgba(22, 50, 92, 0.06); flex-shrink: 0;">
+              Cevaplar yalnızca bu belgenin/belgelerin içeriğine dayanır. Belgede olmayan bir şey sorarsanız Acadex bunu size söyler.
+            </div>
+            <div id="sourcehub-chat-messages" aria-live="polite" style="flex: 1; overflow-y: auto; padding: 0.85rem; display: flex; flex-direction: column; gap: 0.6rem;"></div>
+            <div id="sourcehub-chat-typing-indicator" style="display: none; padding: 0 0.85rem 0.4rem 0.85rem; font-size: 0.7rem; color: var(--color-text-muted); font-style: italic;">Yazıyor...</div>
+            <div id="sourcehub-chat-image-preview" style="display: none; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; border-top: 1px solid rgba(22, 50, 92, 0.08); flex-shrink: 0;">
+              <img id="sourcehub-chat-image-preview-thumb" src="" alt="" style="width: 40px; height: 40px; object-fit: cover; border-radius: 6px; border: 1px solid rgba(22,50,92,0.15);">
+              <span style="font-size: 0.68rem; color: var(--color-text-muted); flex: 1;" data-i18n="dash.cards.chatImageAttached">Görsel eklendi — sorunuzu yazıp gönderin</span>
+              <button type="button" id="sourcehub-chat-image-remove-btn" onclick="removeSourceHubChatImage()" style="background: none; border: none; color: var(--color-text-muted); cursor: pointer; font-size: 0.9rem; line-height: 1; padding: 0.2rem;">✕</button>
+            </div>
+            <form id="sourcehub-chat-input-form" style="display: flex; gap: 0.5rem; padding: 0.6rem 0.75rem; border-top: 1px solid rgba(22, 50, 92, 0.08); flex-shrink: 0;">
+              <input type="file" id="sourcehub-chat-image-input" accept="image/png,image/jpeg,image/webp,image/gif" style="display: none;">
+              <button type="button" id="sourcehub-chat-attach-btn" onclick="document.getElementById('sourcehub-chat-image-input').click()" title="Fotoğraf/ekran görüntüsü ekle" style="background: none; border: 1px solid rgba(22, 50, 92, 0.15); color: var(--color-navy); border-radius: 50%; width: 34px; height: 34px; flex-shrink: 0; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
+              </button>
+              <input type="text" id="sourcehub-chat-input" placeholder="Belge hakkında bir soru sorun..." autocomplete="off" style="flex: 1; padding: 0.5rem 0.7rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: 20px; font-size: 0.8rem; outline: none; font-family: inherit;">
+              <button type="submit" id="sourcehub-chat-send-btn" style="background: var(--color-teal); color: white; border: none; border-radius: 50%; width: 34px; height: 34px; flex-shrink: 0; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+              </button>
+            </form>
           </div>
         </div>
       </section>

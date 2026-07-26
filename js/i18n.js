@@ -130,6 +130,7 @@ const TRANSLATIONS = {
     "dash.nav.feed": "Department Feed",
     "dash.nav.notebook": "Study Notebook",
     "dash.nav.cards": "Study Cards",
+    "dash.nav.sourcehub": "Work with Source",
     "dash.nav.glossary": "Course Glossary",
     "dash.nav.courseTree": "Course Tree",
     "dash.nav.exams": "Exams Platform",
@@ -242,6 +243,15 @@ const TRANSLATIONS = {
     "dash.cards.chatDisclosure": "Answers are grounded strictly in this document's content. If you ask something not covered in it, Acadex will tell you.",
     "dash.cards.chatImageAttached": "Image attached — type your question and send",
     "dash.cards.attachedImages": "Attached Images",
+
+    // Kaynakla Çalış (Source Hub) — dedicated page: PDF + Summary + Chat side by side
+    "dash.sourcehub.title": "🔎 Work with Source",
+    "dash.sourcehub.desc": "Use the original document, the summary, and Chat with Source together on one screen.",
+    "dash.sourcehub.selectLabel": "Study Card:",
+    "dash.sourcehub.empty": "You don't have any study cards yet. Upload and summarize a document first.",
+    "dash.sourcehub.originalHeader": "Original Document",
+    "dash.sourcehub.summaryHeader": "Summary",
+    "dash.sourcehub.openFullCard": "🔎 Open Full Card (Quiz, Tables, Charts...)",
 
     // Course Glossary Tab
     "dash.glossary.title": "📖 Course Glossary",
@@ -478,6 +488,7 @@ const TRANSLATIONS = {
     "dash.nav.feed": "Bölüm Akışı",
     "dash.nav.notebook": "Çalışma Defteri",
     "dash.nav.cards": "Bilgi Kartları",
+    "dash.nav.sourcehub": "Kaynakla Çalış",
     "dash.nav.glossary": "Ders Sözlüğü",
     "dash.nav.courseTree": "Ders Ağacı",
     "dash.nav.exams": "Sınav Platformu",
@@ -590,6 +601,15 @@ const TRANSLATIONS = {
     "dash.cards.chatDisclosure": "Cevaplar yalnızca bu belgenin içeriğine dayanır. Belgede olmayan bir şey sorarsanız Acadex bunu size söyler.",
     "dash.cards.chatImageAttached": "Görsel eklendi — sorunuzu yazıp gönderin",
     "dash.cards.attachedImages": "Eklenen Görseller",
+
+    // Kaynakla Çalış (Source Hub) — PDF + Özet + Sohbet tek sayfada yan yana
+    "dash.sourcehub.title": "🔎 Kaynakla Çalış",
+    "dash.sourcehub.desc": "Orijinal belgeyi, özeti ve kaynakla sohbeti aynı ekranda birlikte kullanın.",
+    "dash.sourcehub.selectLabel": "Bilgi Kartı:",
+    "dash.sourcehub.empty": "Henüz bir bilgi kartınız yok. Önce bir belge yükleyip özetleyin.",
+    "dash.sourcehub.originalHeader": "Orijinal Belge",
+    "dash.sourcehub.summaryHeader": "Özet",
+    "dash.sourcehub.openFullCard": "🔎 Tam Kartı Aç (Quiz, Tablolar, Grafikler...)",
 
     // Course Glossary Tab
     "dash.glossary.title": "📖 Ders Sözlüğü",
