@@ -2083,8 +2083,18 @@
 
       <!-- Disclosure note -->
       <div data-i18n="dash.acadia.disclosure" style="font-size: 0.68rem; color: var(--color-text-muted); background: var(--color-bg-alt); padding: 0.5rem 0.85rem; border-bottom: 1px solid rgba(22, 50, 92, 0.06); flex-shrink: 0;">
-        Acadia yalnızca sizin hesap verilerinizi (sınav ortalamanız, yaklaşan görevler) görür ve AI tarafından üretilir — resmi not veya danışman görüşü yerine geçmez.
+        Acadia hesap verilerinizi görür; seçtiğiniz bir özetin tüm içeriğini de görebilir — AI tarafından üretilir, resmi danışman görüşü yerine geçmez.
       </div>
+
+      <!-- Summary context picker: lets Acadia read a specific study card and act on it (e.g. push quiz questions to the notebook as sticky notes) -->
+      <div id="acadia-context-bar" style="display: flex; align-items: center; gap: 0.4rem; padding: 0.45rem 0.85rem; border-bottom: 1px solid rgba(22, 50, 92, 0.06); flex-shrink: 0; background: var(--color-white);">
+        <button id="btn-acadia-select-card" type="button" onclick="toggleAcadiaCardPicker()" style="flex: 1; text-align: left; background: var(--color-bg-alt); border: 1px dashed rgba(22, 50, 92, 0.25); border-radius: 8px; padding: 0.35rem 0.6rem; font-size: 0.72rem; color: var(--color-text-muted); cursor: pointer; display: flex; align-items: center; gap: 0.35rem; overflow: hidden; min-width: 0;">
+          <span aria-hidden="true">📎</span>
+          <span id="acadia-context-label" data-i18n="dash.acadia.pickContext" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Bir özet seç (bağlam ekle)</span>
+        </button>
+        <button id="btn-acadia-clear-context" type="button" onclick="clearAcadiaCardContext()" title="Bağlamı kaldır" style="display: none; background: none; border: none; color: #EF4444; font-size: 0.95rem; font-weight: 700; cursor: pointer; padding: 0 0.3rem; flex-shrink: 0;">&times;</button>
+      </div>
+      <div id="acadia-card-picker" style="display: none; max-height: 190px; overflow-y: auto; border-bottom: 1px solid rgba(22, 50, 92, 0.06); flex-shrink: 0;"></div>
 
       <!-- Messages -->
       <div id="acadia-messages" aria-live="polite" style="flex: 1; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem;">

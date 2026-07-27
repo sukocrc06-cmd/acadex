@@ -10952,6 +10952,9 @@ window.updateAllAvatarDisplays = updateAllAvatarDisplays;
 let acadiaChatHistory = []; // [{ role: 'user' | 'assistant', content: string }]
 let acadiaHasGreeted = false;
 let acadiaRequestInFlight = false;
+let acadiaSelectedCardId = null;
+let acadiaSelectedCardLabel = null;
+let acadiaAvailableCards = [];
 
 function initAcadiaWidget() {
   const form = document.getElementById('acadia-input-form');
@@ -11001,6 +11004,122 @@ function clearAcadiaChat() {
 }
 window.clearAcadiaChat = clearAcadiaChat;
 
+// --------------------------------------------------------------------
+// Summary context picker: lets the student hand Acadia a specific study
+// card so it can answer questions grounded in that exact summary, and
+// (via the acadia-action mechanism in sendAcadiaMessage) push content
+// from it onto the notebook board as sticky notes on request.
+// --------------------------------------------------------------------
+async function toggleAcadiaCardPicker(forceState) {
+  const picker = document.getElementById('acadia-card-picker');
+  if (!picker) return;
+  const shouldShow = typeof forceState === 'boolean' ? forceState : (picker.style.display === 'none' || !picker.style.display);
+
+  if (!shouldShow) {
+    picker.style.display = 'none';
+    return;
+  }
+
+  const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+  picker.style.display = 'block';
+  picker.innerHTML = `<div style="padding: 0.6rem 0.85rem; font-size: 0.72rem; color: var(--color-text-muted);">${isTr ? 'Yükleniyor...' : 'Loading...'}</div>`;
+
+  try {
+    const { data: cards, error } = await supabaseClient
+      .from('study_cards')
+      .select('id, summary, created_at, documents(file_name)')
+      .eq('user_id', currentUser.id)
+      .order('created_at', { ascending: false })
+      .limit(25);
+
+    if (error || !cards || cards.length === 0) {
+      picker.innerHTML = `<div style="padding: 0.6rem 0.85rem; font-size: 0.72rem; color: var(--color-text-muted);">${isTr ? 'Henüz bir özet yok.' : 'No summaries yet.'}</div>`;
+      return;
+    }
+
+    acadiaAvailableCards = cards;
+    picker.innerHTML = cards.map(c => {
+      const fname = (c.documents && c.documents.file_name) ? c.documents.file_name : 'Untitled';
+      const safeFname = fname.replace(/</g, '&lt;');
+      const excerptRaw = (c.summary || '').slice(0, 70).replace(/</g, '&lt;');
+      return `
+        <button type="button" class="acadia-card-picker-item" onclick="selectAcadiaCardContext('${c.id}')" style="display: block; width: 100%; text-align: left; background: none; border: none; border-bottom: 1px solid rgba(22, 50, 92, 0.06); padding: 0.5rem 0.85rem; cursor: pointer; font-size: 0.75rem; color: var(--color-navy);">
+          <div style="font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${safeFname}</div>
+          <div style="color: var(--color-text-muted); font-size: 0.68rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${excerptRaw}${(c.summary || '').length > 70 ? '…' : ''}</div>
+        </button>
+      `;
+    }).join('');
+  } catch (err) {
+    console.error('Error loading study cards for Acadia picker:', err);
+    picker.innerHTML = `<div style="padding: 0.6rem 0.85rem; font-size: 0.72rem; color: #EF4444;">${isTr ? 'Yüklenemedi.' : 'Failed to load.'}</div>`;
+  }
+}
+window.toggleAcadiaCardPicker = toggleAcadiaCardPicker;
+
+function selectAcadiaCardContext(cardId) {
+  const card = acadiaAvailableCards.find(c => c.id === cardId);
+  if (!card) return;
+
+  acadiaSelectedCardId = cardId;
+  const fname = (card.documents && card.documents.file_name) ? card.documents.file_name : 'Untitled';
+  acadiaSelectedCardLabel = fname;
+
+  const labelEl = document.getElementById('acadia-context-label');
+  if (labelEl) labelEl.textContent = `📄 ${fname}`;
+  const clearBtn = document.getElementById('btn-acadia-clear-context');
+  if (clearBtn) clearBtn.style.display = 'inline-block';
+
+  toggleAcadiaCardPicker(false);
+
+  const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+  showDashboardAlert('success', isTr ? `Acadia artık "${fname}" özetini görebiliyor.` : `Acadia can now see the "${fname}" summary.`);
+}
+window.selectAcadiaCardContext = selectAcadiaCardContext;
+
+function clearAcadiaCardContext() {
+  acadiaSelectedCardId = null;
+  acadiaSelectedCardLabel = null;
+  const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+
+  const labelEl = document.getElementById('acadia-context-label');
+  if (labelEl) labelEl.textContent = isTr ? 'Bir özet seç (bağlam ekle)' : 'Pick a summary (add context)';
+  const clearBtn = document.getElementById('btn-acadia-clear-context');
+  if (clearBtn) clearBtn.style.display = 'none';
+}
+window.clearAcadiaCardContext = clearAcadiaCardContext;
+
+// Executes any "acadia-action" block the assistant appended to its reply
+// (e.g. transferring quiz questions onto the notebook board as sticky
+// notes) and returns the reply text with the action block stripped out,
+// so the chat bubble only shows the conversational part.
+function processAcadiaActionBlock(rawReply) {
+  const match = /```acadia-action\s*([\s\S]*?)```/.exec(rawReply || '');
+  if (!match) return { displayText: rawReply, actionTaken: false };
+
+  const displayText = rawReply.slice(0, match.index).trim() + rawReply.slice(match.index + match[0].length).trim();
+  const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+
+  try {
+    const action = JSON.parse(match[1].trim());
+    if (action && action.action === 'add_sticky_notes' && Array.isArray(action.items) && action.items.length > 0) {
+      action.items.slice(0, 20).forEach((item, idx) => {
+        const title = (item && item.title) ? String(item.title).slice(0, 80) : 'Acadia';
+        const text = (item && item.text) ? String(item.text).slice(0, 500) : '';
+        if (!text) return;
+        addStickyNoteToNotebook(`acadia-${Date.now()}-${idx}`, title.replace(/</g, '&lt;'), text.replace(/</g, '&lt;'));
+      });
+      showDashboardAlert('success', isTr
+        ? `🗒️ ${action.items.length} not deftere eklendi.`
+        : `🗒️ ${action.items.length} note(s) added to your notebook.`);
+      return { displayText: displayText || (isTr ? 'Notları deftere ekledim.' : "I've added the notes to your notebook."), actionTaken: true };
+    }
+  } catch (err) {
+    console.error('Failed to parse Acadia action block:', err, match[1]);
+  }
+
+  return { displayText: displayText || rawReply, actionTaken: false };
+}
+
 function renderAcadiaMessage(role, text) {
   const messages = document.getElementById('acadia-messages');
   if (!messages) return;
@@ -11049,7 +11168,12 @@ async function sendAcadiaMessage(text) {
 
     const uiLang = localStorage.getItem('acadexUILang') || 'en';
 
-    const response = await fetch(`${SUPABASE_URL}/functions/v1/acadia-chat`, {
+    // Prior turns only — the latest user message is sent separately as
+    // `message` (acadia-assistant's expected shape), capped so the request
+    // stays small and cheap.
+    const priorHistory = acadiaChatHistory.slice(0, -1).slice(-6);
+
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/acadia-assistant`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${session.access_token}`,
@@ -11057,7 +11181,10 @@ async function sendAcadiaMessage(text) {
         'apikey': SUPABASE_ANON_KEY
       },
       body: JSON.stringify({
-        messages: acadiaChatHistory
+        message: text,
+        history: priorHistory,
+        language: uiLang,
+        studyCardId: acadiaSelectedCardId || null
       })
     });
 
@@ -11074,8 +11201,11 @@ async function sendAcadiaMessage(text) {
       return;
     }
 
-    renderAcadiaMessage('assistant', data.reply);
-    acadiaChatHistory.push({ role: 'assistant', content: data.reply });
+    const { displayText } = processAcadiaActionBlock(data.reply);
+    renderAcadiaMessage('assistant', displayText);
+    // Keep the displayed (action-block-stripped) text in history so future
+    // turns aren't confused by re-seeing raw action JSON.
+    acadiaChatHistory.push({ role: 'assistant', content: displayText });
   } catch (err) {
     console.error('Exception messaging Acadia:', err);
     const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';

@@ -347,9 +347,10 @@ const TRANSLATIONS = {
     "dash.focus.sound": "Sound",
     "dash.acadia.btn": "Ask Acadia",
     "dash.acadia.clear": "Clear",
-    "dash.acadia.disclosure": "Acadia only views your account data and is AI-generated — not official advisor advice.",
+    "dash.acadia.disclosure": "Acadia sees your account data and, if you pick one, the full content of a summary — it's AI-generated, not official advisor advice.",
     "dash.acadia.typing": "Acadia is typing...",
     "dash.acadia.placeholder": "Ask a question...",
+    "dash.acadia.pickContext": "Pick a summary (add context)",
 
     // Departments Details
     "dept.mis": "Management Information Systems",
@@ -706,9 +707,10 @@ const TRANSLATIONS = {
     "dash.focus.sound": "Ses",
     "dash.acadia.btn": "Acadia'ya Sorun",
     "dash.acadia.clear": "Temizle",
-    "dash.acadia.disclosure": "Acadia yalnızca hesap verilerinizi görür ve AI tarafından üretilir — resmi danışman görüşü yerine geçmez.",
+    "dash.acadia.disclosure": "Acadia hesap verilerinizi görür; seçtiğiniz bir özetin tüm içeriğini de görebilir — AI tarafından üretilir, resmi danışman görüşü yerine geçmez.",
     "dash.acadia.typing": "Acadia yazıyor...",
     "dash.acadia.placeholder": "Bir soru sorun...",
+    "dash.acadia.pickContext": "Bir özet seç (bağlam ekle)",
 
     // Departments Details
     "dept.mis": "Yönetim Bilişim Sistemleri",

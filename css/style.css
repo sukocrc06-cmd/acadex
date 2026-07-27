@@ -4960,6 +4960,16 @@ input:checked + .slider:before {
   100% { background-position: -200% 0; }
 }
 
+/* Acadia context picker (select a study card as chat context) */
+.acadia-card-picker-item:hover {
+  background: var(--color-bg-alt) !important;
+}
+
+#btn-acadia-select-card:hover {
+  border-color: var(--color-teal) !important;
+  color: var(--color-navy) !important;
+}
+
 
 
 

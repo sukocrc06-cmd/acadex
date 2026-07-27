@@ -9,8 +9,29 @@
 // Security scopes everything to that one account, the same pattern used by
 // every other Acadex edge function.
 //
-// New deploy step required (this function does not exist yet in the
-// project): `supabase functions deploy acadia-assistant`, plus the same
+// This is the endpoint the frontend actually calls (see
+// sendAcadiaMessage() in js/dashboard.js, which posts to
+// `${SUPABASE_URL}/functions/v1/acadia-assistant`). The older, simpler
+// `acadia-chat` function is no longer wired to the UI and can be removed
+// once this one is deployed and verified.
+//
+// Optional per-request `studyCardId`: when the student picks a summary in
+// the Acadia panel's context picker, its full content (summary, key terms,
+// key points, quiz questions, tables, charts, formulas, footnotes, section
+// outline) is loaded here (RLS + explicit user_id check, so a student can
+// only ever select their own cards) and folded into the system prompt, so
+// Acadia can answer questions grounded in that exact document rather than
+// just the account-activity snapshot.
+//
+// Write-actions: when the student explicitly asks Acadia to transfer
+// content (e.g. quiz questions) onto their notebook board, the model is
+// instructed to append a fenced ```acadia-action``` JSON block to its
+// reply. The frontend (processAcadiaActionBlock in dashboard.js) parses
+// that block, strips it from the displayed message, and executes the
+// action client-side (e.g. calling addStickyNoteToNotebook() for each
+// item) — this function never touches the notebook data itself.
+//
+// Deploy: `supabase functions deploy acadia-assistant`, using the same
 // GROQ_API_KEY secret already used by generate-exam / grade-exam.
 // ==========================================================================
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
@@ -35,7 +56,7 @@ serve(async (req) => {
       })
     }
 
-    const { message, history, language } = await req.json()
+    const { message, history, language, studyCardId } = await req.json()
     if (!message || typeof message !== 'string') {
       return new Response(JSON.stringify({ error: 'Missing "message" parameter' }), {
         status: 400,
@@ -159,23 +180,81 @@ serve(async (req) => {
       ? contextLines.join('\n')
       : 'No account activity data is available for this student yet.'
 
+    // ------------------------------------------------------------------
+    // Optional selected study card: the student picked a specific summary
+    // in the Acadia panel's context picker. Re-fetch it here (rather than
+    // trust whatever the client claims) scoped to the caller's own JWT —
+    // RLS plus an explicit user_id check means this can never leak
+    // another student's card, mirroring the pattern used by
+    // chat-with-document.
+    // ------------------------------------------------------------------
+    let studyCardBlock = ''
+    let studyCardFileName = ''
+    if (studyCardId && typeof studyCardId === 'string') {
+      try {
+        const { data: card } = await userClient
+          .from('study_cards')
+          .select('summary, key_terms, key_points, quiz_questions, tables, charts, formulas, worked_examples, footnotes, sections, document_type, documents(file_name)')
+          .eq('id', studyCardId)
+          .eq('user_id', user.id)
+          .single()
+
+        if (card) {
+          studyCardFileName = (card.documents && card.documents.file_name) ? card.documents.file_name : 'Untitled document'
+          const cap = (s: unknown, n: number) => (typeof s === 'string' ? s.slice(0, n) : '')
+          const listCap = (arr: unknown, n: number) => Array.isArray(arr) ? arr.slice(0, n) : []
+
+          const lines: string[] = []
+          lines.push(`Document: ${studyCardFileName} (${card.document_type || 'Other'})`)
+          if (card.summary) lines.push(`Summary:\n${cap(card.summary, 3500)}`)
+
+          const sections = listCap(card.sections, 6)
+          if (sections.length > 0) {
+            lines.push(`Section outline:\n${sections.map((s: any) => `- ${s.heading}: ${cap(s.summary, 200)}`).join('\n')}`)
+          }
+          const keyPoints = listCap(card.key_points, 20)
+          if (keyPoints.length > 0) lines.push(`Key points:\n${keyPoints.map((p: any) => `- ${cap(typeof p === 'string' ? p : p?.point || '', 200)}`).join('\n')}`)
+          const keyTerms = listCap(card.key_terms, 20)
+          if (keyTerms.length > 0) lines.push(`Key terms:\n${keyTerms.map((t: any) => `- ${cap(t?.term || '', 80)}: ${cap(t?.definition || '', 160)}`).join('\n')}`)
+          const quiz = listCap(card.quiz_questions, 15)
+          if (quiz.length > 0) lines.push(`Quiz questions:\n${quiz.map((q: any, i: number) => `${i + 1}. ${cap(q?.question || '', 200)} (Answer: ${cap(q?.correct_answer || q?.answer || '', 120)})`).join('\n')}`)
+          const tables = listCap(card.tables, 8)
+          if (tables.length > 0) lines.push(`Tables: ${tables.length} table(s) present in this summary (titles: ${tables.map((t: any) => cap(t?.title || 'Untitled', 60)).join(', ')})`)
+          const charts = listCap(card.charts, 8)
+          if (charts.length > 0) lines.push(`Charts/diagrams: ${charts.length} present (titles: ${charts.map((c: any) => cap(c?.title || 'Untitled', 60)).join(', ')})`)
+          const formulas = listCap(card.formulas, 10)
+          if (formulas.length > 0) lines.push(`Formulas: ${formulas.map((f: any) => cap(typeof f === 'string' ? f : f?.formula || '', 100)).join(' | ')}`)
+
+          studyCardBlock = lines.join('\n\n').slice(0, 8000)
+        }
+      } catch (_e) { /* non-fatal — just answer without card context */ }
+    }
+
     const lang = (language === 'tr') ? 'tr' : 'en'
 
     const systemPrompt = `
 You are "Acadia", the friendly in-app study advisor for Acadex, an AI study portal for Business Faculty students (Management Information Systems, Business Administration, International Trade and Business, and Banking and Finance).
 
-Your job is to give short, specific, encouraging study advice grounded in the student's OWN activity snapshot below. Do not invent facts not present in the snapshot or the conversation — if you don't know something, say so and suggest how the student could find out inside the app (e.g. "check your Study Planner" or "try a practice exam on that topic").
+Your job is to give short, specific, encouraging study advice grounded in the student's OWN activity snapshot below (and the selected study card, when one is provided). Do not invent facts not present in the snapshot, the study card, or the conversation — if you don't know something, say so and suggest how the student could find out inside the app (e.g. "check your Study Planner" or "try a practice exam on that topic").
 
 STUDENT ACTIVITY SNAPSHOT (fresh for this conversation only):
 ${contextBlock}
+${studyCardBlock ? `\nSELECTED STUDY CARD — the student picked this summary as context, so you can see everything in it (summary, key terms, key points, quiz questions, tables/charts/formulas present, and the section outline) and answer questions about it directly, as if you had read the document yourself:\n${studyCardBlock}` : '\n(No study card is currently selected. If the student asks about a specific summary or document, tell them they can pick one using the 📎 context picker at the top of this chat panel.)'}
 
 RULES:
 - Reply in ${lang === 'tr' ? 'Turkish' : 'English'}, regardless of what language this system prompt is written in.
-- Keep replies conversational and concise: 2-5 sentences, unless the student explicitly asks for a longer breakdown or a study plan.
+- Keep replies conversational and concise: 2-5 sentences, unless the student explicitly asks for a longer breakdown, a study plan, or to see quiz questions.
 - When relevant, reference the student's actual weak concepts, upcoming deadlines, or streak from the snapshot — make the advice feel personal, not generic.
 - You are a study aid, not an instructor or an official grading authority. Never claim a grade or exam result from Acadex is an official course grade.
 - If the student asks something entirely unrelated to their studies or the Acadex platform, answer briefly and gently steer back to how you can help them study.
 - Never ask the student for passwords, payment details, or information already available in the snapshot.
+
+NOTEBOOK WRITE-ACTION (transferring content to the student's board):
+- The student's workspace has a "Çalışma Defteri" (notebook/whiteboard) board where content can live as draggable sticky notes.
+- If — and ONLY if — the student explicitly asks you to transfer, add, send, or push specific content (e.g. "these quiz questions", "the key terms", "bunları deftere ekle") onto the notebook/board as sticky notes, do two things: (1) reply normally, briefly confirming what you're adding, and (2) append, as the very last thing in your reply, a fenced code block with the language tag "acadia-action" containing ONLY valid JSON of the shape {"action":"add_sticky_notes","items":[{"title":"short label","text":"the note content"}]}. Each item's "text" should be under ~400 characters — split long content into multiple items rather than one giant note.
+- Only pull items from the SELECTED STUDY CARD content above (or from earlier in this conversation) — never invent content that isn't grounded in what you can actually see.
+- Do NOT include the acadia-action block for ordinary questions or explanations — only when the student clearly asked for something to be added to their board.
+- Never mention the acadia-action block itself in your conversational reply — it is a hidden instruction the app reads, not something to describe to the student.
 `.trim()
 
     const groqApiKey = Deno.env.get('GROQ_API_KEY')
@@ -186,28 +265,51 @@ RULES:
       })
     }
 
-    const messages = [
-      { role: 'system', content: systemPrompt },
+    // A selected study card can push the system prompt fairly large. Rather
+    // than let a Groq TPM (tokens-per-minute) rejection surface as a bare
+    // failure, fall back once to a trimmed prompt — same reliability
+    // pattern used in summarize-document / merge-summarize.
+    const isTokenSizeError = (status: number, body: any) =>
+      (status === 400 || status === 429 || status === 413) &&
+      (body?.error?.code === 'rate_limit_exceeded' || /token/i.test(String(body?.error?.message || '')))
+
+    const buildMessages = (sysPrompt: string, historyLimit: number) => [
+      { role: 'system', content: sysPrompt },
       ...safeHistory
         .filter((m: Record<string, unknown>) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+        .slice(-historyLimit)
         .map((m: Record<string, unknown>) => ({ role: m.role, content: String(m.content).slice(0, 2000) })),
       { role: 'user', content: message.slice(0, 2000) }
     ]
 
-    const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${groqApiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
-        temperature: 0.6,
-        messages
+    const callGroq = async (sysPrompt: string, historyLimit: number) => {
+      const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${groqApiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          temperature: 0.6,
+          messages: buildMessages(sysPrompt, historyLimit)
+        })
       })
-    })
+      const data = await resp.json()
+      return { resp, data }
+    }
 
-    const groqData = await groqResponse.json()
+    let { resp: groqResponse, data: groqData } = await callGroq(systemPrompt, 6)
+
+    if (!groqResponse.ok && isTokenSizeError(groqResponse.status, groqData) && studyCardBlock) {
+      // Retry once with a much smaller card context (summary + key points
+      // only, no quiz/tables/charts/formulas) and less history.
+      console.warn('Acadia Groq call hit a token-size error with full context, retrying with a trimmed study card context.')
+      const trimmedCardBlock = studyCardBlock.slice(0, 1500)
+      const trimmedSystemPrompt = systemPrompt.replace(studyCardBlock, trimmedCardBlock)
+      ;({ resp: groqResponse, data: groqData } = await callGroq(trimmedSystemPrompt, 2))
+    }
+
     if (!groqResponse.ok) {
       console.error("Acadia Groq call failed: ", groqData)
       return new Response(JSON.stringify({ error: 'Acadia is temporarily unavailable. Please try again in a moment.' }), {
