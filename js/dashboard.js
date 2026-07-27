@@ -421,23 +421,38 @@ function renderDocumentsList() {
     if (doc.status === 'processing') {
       const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
       let progressMsg = isTr ? 'İşleniyor...' : 'Processing...';
+      // Three real backend stages (see processing_stage updates in
+      // summarize-document/index.ts) mapped to rough percentages so the bar
+      // visibly fills as the document moves through extraction -> draft ->
+      // review, instead of just an indeterminate spinner with no sense of
+      // progress. Not a literal % of work done (we don't have per-stage
+      // timing), just a reassuring "still moving forward" signal.
+      let progressPercent = 8;
       if (doc.processing_stage === 'extracting') {
         progressMsg = isTr ? 'Metin çıkarılıyor...' : 'Extracting text...';
+        progressPercent = 25;
       } else if (doc.processing_stage === 'analyzing') {
         progressMsg = isTr ? 'Özet oluşturuluyor...' : 'Analyzing content...';
+        progressPercent = 60;
       } else if (doc.processing_stage === 'reviewing') {
         progressMsg = isTr ? 'Doğruluk kontrol ediliyor...' : 'Reviewing for accuracy...';
+        progressPercent = 90;
       }
 
       const badgeText = isTr ? 'İşleniyor' : 'Processing';
       statusBadgeHtml = `<span class="doc-status-badge" style="background-color: #FEF3C7; color: #D97706; font-weight: 700;">${badgeText}</span>`;
       actionBtnHtml = `
-        <button class="btn btn-outline" disabled style="width: 100%; padding: 0.5rem 1rem; font-size: 0.85rem; margin-top: 0.5rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem;" title="${progressMsg}">
-          <svg class="spinner" viewBox="0 0 50 50" style="animation: rotate 2s linear infinite; width: 14px; height: 14px; margin-right: 0;">
-            <circle class="path" cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="5" style="stroke-dasharray: 1, 150; stroke-dashoffset: 0; stroke-linecap: round; animation: dash 1.5s ease-in-out infinite;"></circle>
-          </svg>
-          <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${progressMsg}</span>
-        </button>
+        <div class="doc-progress-wrap" style="margin-top: 0.5rem;">
+          <div class="doc-progress-label">
+            <svg class="spinner" viewBox="0 0 50 50" style="animation: rotate 2s linear infinite; width: 12px; height: 12px; flex-shrink: 0;">
+              <circle class="path" cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="5" style="stroke-dasharray: 1, 150; stroke-dashoffset: 0; stroke-linecap: round; animation: dash 1.5s ease-in-out infinite;"></circle>
+            </svg>
+            <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${progressMsg}</span>
+          </div>
+          <div class="doc-progress-track">
+            <div class="doc-progress-fill" style="width: ${progressPercent}%;"></div>
+          </div>
+        </div>
       `;
     } else if (doc.status === 'summarized') {
       statusBadgeHtml = `<span class="doc-status-badge" style="background-color: #D1FAE5; color: #059669; font-weight: 700;">Summarized</span>`;
@@ -8459,7 +8474,7 @@ async function proceedWithBulkSummarization(summaryStyle, language, summaryLengt
   const totalCount = docIds.length;
   let completedCount = 0;
   
-  showBulkSummarizeProgress(`Summarizing 1 of ${totalCount}...`);
+  showBulkSummarizeProgress(`Summarizing 1 of ${totalCount}...`, 0);
   resetBulkSelection();
 
   let index = 0;
@@ -8502,7 +8517,7 @@ async function proceedWithBulkSummarization(summaryStyle, language, summaryLengt
       completedCount++;
       await loadDocuments(true);
       if (completedCount < totalCount) {
-        showBulkSummarizeProgress(`Summarizing ${completedCount + 1} of ${totalCount}...`);
+        showBulkSummarizeProgress(`Summarizing ${completedCount + 1} of ${totalCount}...`, Math.round((completedCount / totalCount) * 100));
       }
     }
   }
@@ -8517,7 +8532,7 @@ async function proceedWithBulkSummarization(summaryStyle, language, summaryLengt
   await loadDocuments();
 }
 
-function showBulkSummarizeProgress(text) {
+function showBulkSummarizeProgress(text, percent) {
   let alertEl = document.getElementById('bulk-summarize-progress-banner');
   if (!alertEl) {
     alertEl = document.createElement('div');
@@ -8534,20 +8549,30 @@ function showBulkSummarizeProgress(text) {
       box-shadow: var(--shadow-lg);
       z-index: 10000;
       display: flex;
-      align-items: center;
-      gap: 1rem;
+      flex-direction: column;
+      gap: 0.6rem;
       font-weight: 700;
+      min-width: 260px;
     `;
     alertEl.innerHTML = `
-      <svg class="spinner" viewBox="0 0 50 50" style="animation: rotate 2s linear infinite; width: 20px; height: 20px; color: var(--color-teal); margin-right: 0;">
-        <circle class="path" cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="5" style="stroke-dasharray: 1, 150; stroke-dashoffset: 0; stroke-linecap: round; animation: dash 1.5s ease-in-out infinite;"></circle>
-      </svg>
-      <span id="bulk-summarize-progress-text"></span>
+      <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <svg class="spinner" viewBox="0 0 50 50" style="animation: rotate 2s linear infinite; width: 20px; height: 20px; color: var(--color-teal); margin-right: 0; flex-shrink: 0;">
+          <circle class="path" cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="5" style="stroke-dasharray: 1, 150; stroke-dashoffset: 0; stroke-linecap: round; animation: dash 1.5s ease-in-out infinite;"></circle>
+        </svg>
+        <span id="bulk-summarize-progress-text"></span>
+      </div>
+      <div class="bulk-progress-track">
+        <div id="bulk-summarize-progress-fill" class="bulk-progress-fill" style="width: 0%;"></div>
+      </div>
     `;
     document.body.appendChild(alertEl);
   }
   const textEl = document.getElementById('bulk-summarize-progress-text');
   if (textEl) textEl.textContent = text;
+  const fillEl = document.getElementById('bulk-summarize-progress-fill');
+  if (fillEl && typeof percent === 'number') {
+    fillEl.style.width = `${Math.max(0, Math.min(100, percent))}%`;
+  }
 }
 
 function hideBulkSummarizeProgress() {

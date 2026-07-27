@@ -4906,6 +4906,60 @@ input:checked + .slider:before {
   margin-top: 0.25rem;
 }
 
+/* ── Summarization progress bars (per-document card + bulk banner) ──
+   A filling bar reads as "still moving forward" far better than a bare
+   spinner + text label. Width is driven by the backend's real
+   processing_stage (extracting/analyzing/reviewing) for a single document,
+   or by completed/total count for bulk summarization — see dashboard.js
+   renderDocumentsList() and showBulkSummarizeProgress(). The width
+   transition plus a moving shimmer keep it visibly "alive" between the
+   2-second polling ticks that actually update the percentage. */
+.doc-progress-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin-bottom: 0.3rem;
+}
+
+.doc-progress-track {
+  width: 100%;
+  height: 6px;
+  background: rgba(22, 50, 92, 0.08);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.doc-progress-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--color-teal), var(--color-navy), var(--color-teal));
+  background-size: 200% 100%;
+  transition: width 1.2s ease;
+  animation: progress-shimmer 1.8s linear infinite;
+}
+
+.bulk-progress-track {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.bulk-progress-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--color-teal);
+  transition: width 0.6s ease;
+}
+
+@keyframes progress-shimmer {
+  0% { background-position: 0% 0; }
+  100% { background-position: -200% 0; }
+}
+
 
 
 
