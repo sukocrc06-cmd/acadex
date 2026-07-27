@@ -2072,7 +2072,9 @@
       <!-- Panel Header -->
       <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.85rem 1rem; background: linear-gradient(135deg, var(--color-navy) 0%, #1a365d 60%, var(--color-teal) 140%); color: white; flex-shrink: 0;">
         <span style="font-weight: 800; font-size: 0.9rem; display: flex; align-items: center; gap: 0.5rem;">
-          <span style="width: 26px; height: 26px; border-radius: 50%; background: rgba(255,255,255,0.16); display: flex; align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0;">🤖</span>
+          <span style="width: 26px; height: 26px; border-radius: 50%; background: rgba(255,255,255,0.16); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="white"><path d="M12 2 L14.3 9.7 L22 12 L14.3 14.3 L12 22 L9.7 14.3 L2 12 L9.7 9.7 Z"/></svg>
+          </span>
           Acadia
           <span style="font-size: 0.65rem; font-weight: 600; color: rgba(255,255,255,0.75); background: rgba(255,255,255,0.12); padding: 0.1rem 0.4rem; border-radius: 8px;">AI</span>
         </span>
@@ -2118,7 +2120,10 @@
     <div class="acadia-fab-wrap">
       <span class="acadia-fab-tooltip" data-i18n="dash.acadia.btn">Acadia'ya Sorun</span>
       <button id="btn-acadia-toggle" class="acadia-fab" onclick="toggleAcadiaPanel()" aria-label="Acadia'ya Sorun" title="Acadia">
-        <span aria-hidden="true" class="acadia-fab-icon">🤖</span>
+        <svg class="acadia-fab-icon" xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="white" aria-hidden="true">
+          <path d="M12 2 L14.3 9.7 L22 12 L14.3 14.3 L12 22 L9.7 14.3 L2 12 L9.7 9.7 Z"/>
+          <circle cx="19" cy="5" r="2.1"/>
+        </svg>
         <span class="acadia-fab-dot" aria-hidden="true"></span>
       </button>
     </div>
