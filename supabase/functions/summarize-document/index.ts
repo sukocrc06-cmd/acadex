@@ -1291,9 +1291,13 @@ In addition to the text below, you are shown images of this document's pages. Us
 
           let draftErrBody: any = null
           try { draftErrBody = await groqResponse.clone().json() } catch (_readErr) { /* ignore */ }
-          // Groq has been observed returning this error as either a 400 or a
-          // 429, depending on the exact overage — treat both the same way.
-          const isTokenSizeError = (groqResponse.status === 400 || groqResponse.status === 429) &&
+          // Groq has been observed returning this error as a 400, a 429, OR
+          // a 413 ("Request too large"), depending on the exact overage —
+          // treat all three the same way. Missing 413 here was a real bug:
+          // it fell through to the "non-retryable" branch below and gave up
+          // on tier 1 instead of shrinking to tier 2/3, failing documents
+          // that a smaller tier would have handled fine.
+          const isTokenSizeError = (groqResponse.status === 400 || groqResponse.status === 429 || groqResponse.status === 413) &&
             draftErrBody?.error?.code === 'rate_limit_exceeded' &&
             draftErrBody?.error?.type === 'tokens'
 
@@ -1610,9 +1614,9 @@ ${rawContent}`
         break
       }
 
-      // Groq has been observed returning this error as either a 400 or a
-      // 429, depending on the exact overage — treat both the same way.
-      const isTokenSizeError = (attemptResponse.status === 400 || attemptResponse.status === 429) &&
+      // Groq has been observed returning this error as a 400, a 429, OR a
+      // 413 ("Request too large") — treat all three the same way.
+      const isTokenSizeError = (attemptResponse.status === 400 || attemptResponse.status === 429 || attemptResponse.status === 413) &&
         attemptData?.error?.code === 'rate_limit_exceeded' &&
         attemptData?.error?.type === 'tokens'
 

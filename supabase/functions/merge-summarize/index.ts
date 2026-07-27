@@ -662,9 +662,12 @@ ${styleInstruction}`
         break
       }
 
-      // Groq has been observed returning this error as either a 400 or a
-      // 429, depending on the exact overage — treat both the same way.
-      const isTokenSizeError = (attemptResponse.status === 400 || attemptResponse.status === 429) &&
+      // Groq has been observed returning this error as a 400, a 429, OR a
+      // 413 ("Request too large") — treat all three the same way. Missing
+      // 413 here was a real bug: it fell through to the "non-retryable"
+      // branch and gave up on tier 1 instead of shrinking to a smaller
+      // tier, failing documents a smaller tier would have handled fine.
+      const isTokenSizeError = (attemptResponse.status === 400 || attemptResponse.status === 429 || attemptResponse.status === 413) &&
         attemptData?.error?.code === 'rate_limit_exceeded' &&
         attemptData?.error?.type === 'tokens'
 
@@ -787,9 +790,12 @@ ${rawContent}`
         break
       }
 
-      // Groq has been observed returning this error as either a 400 or a
-      // 429, depending on the exact overage — treat both the same way.
-      const isTokenSizeError = (attemptResponse.status === 400 || attemptResponse.status === 429) &&
+      // Groq has been observed returning this error as a 400, a 429, OR a
+      // 413 ("Request too large") — treat all three the same way. Missing
+      // 413 here was a real bug: it fell through to the "non-retryable"
+      // branch and gave up on tier 1 instead of shrinking to a smaller
+      // tier, failing documents a smaller tier would have handled fine.
+      const isTokenSizeError = (attemptResponse.status === 400 || attemptResponse.status === 429 || attemptResponse.status === 413) &&
         attemptData?.error?.code === 'rate_limit_exceeded' &&
         attemptData?.error?.type === 'tokens'
 
