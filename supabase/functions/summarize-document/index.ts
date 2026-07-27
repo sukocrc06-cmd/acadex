@@ -318,7 +318,20 @@ function detectAndFormatPdfTables(text: string): string {
 //      short-document fast path today anyway.
 // ==========================================================================
 
-const CHUNK_THRESHOLD = 18000 // chars of extracted text; above this we go chunked
+// CHUNK_THRESHOLD used to be 18000, on the assumption that anything under
+// that size could always be sent whole on the short-document fast path.
+// That assumption broke once the fast path's own TPM-driven "shrink and
+// retry" tiers were added (see draftTiers below, tier 1 = 6000 chars): a
+// document between 6000-18000 chars was classified "short" but then had
+// its OWN fast-path attempt truncate it down to whatever tier finally fit
+// the account's 8000 TPM limit — silently dropping most of a genuinely
+// substantial document's content (confirmed on a real 52-page slide deck
+// where pages ~20-52 never reached the model at all). CHUNK_THRESHOLD must
+// therefore match the fast path's actual safe full-send capacity (draft
+// tier 1's textChars) — anything larger MUST route to the chunked
+// map-reduce pipeline instead, which never truncates (every chunk gets its
+// own full analysis pass), rather than being silently cut down to size.
+const CHUNK_THRESHOLD = 6000 // chars of extracted text; above this we go chunked — keep in sync with draftTiers[0].textChars below
 const CHUNK_TARGET_SIZE = 6500 // chars per chunk (well within model context; sized for extraction depth, not context limits)
 const MAX_CHUNKS = 24 // hard ceiling (~150k chars) protecting cost/time on pathological inputs
 
