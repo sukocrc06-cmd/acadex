@@ -4222,6 +4222,91 @@ input:checked + .slider:before {
   white-space: nowrap;
 }
 
+/* ── Hierarchical/Structural Summary Sections (navigable outline) ── */
+.summary-sections-outline {
+  margin-bottom: 1rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px dashed rgba(22, 50, 92, 0.15);
+}
+
+.summary-sections-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-navy);
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.summary-section-item {
+  border: 1px solid rgba(22, 50, 92, 0.1);
+  border-radius: var(--radius-sm);
+  margin-bottom: 0.4rem;
+  overflow: hidden;
+  background: var(--color-bg-alt);
+}
+
+.summary-section-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.65rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+
+.summary-section-num {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-teal);
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.summary-section-heading {
+  flex-grow: 1;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--color-navy);
+}
+
+.summary-section-chevron {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  transition: transform 0.2s;
+  font-size: 0.8rem;
+}
+
+.summary-section-item.expanded .summary-section-chevron {
+  transform: rotate(180deg);
+}
+
+.summary-section-body {
+  max-height: 0;
+  overflow: hidden;
+  padding: 0 0.65rem;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  transition: max-height 0.25s ease, padding 0.25s ease;
+}
+
+.summary-section-item.expanded .summary-section-body {
+  max-height: 600px;
+  padding: 0 0.65rem 0.6rem 0.65rem;
+}
+
 /* ── Suggested Course Tag Chip ── */
 .suggested-tag-chip {
   display: inline-flex;

@@ -478,10 +478,13 @@ Respond entirely in: '${langLabel}'.`
 function buildSynthesisSystemPrompt(courseCatalogBlock: string, langLabel: string, styleInstruction: string, summaryLengthPhrase: string): string {
   return `You are an academic study assistant. A large document was split into sequential parts and each part was already summarized independently. Below you are given all of those part-summaries, in order, plus a hint about what fraction were flagged as quantitative. Your job is to synthesize ONE cohesive, well-organized final summary of the ENTIRE document — write a genuinely unified narrative that flows across the whole document, not a mechanical concatenation of the part-summaries.
 
-Respond with ONLY a valid JSON object, no markdown fences, no commentary before or after: { "summary": string, "document_type": string, "suggested_course_tag": string | null, "is_quantitative": boolean }.
+Respond with ONLY a valid JSON object, no markdown fences, no commentary before or after: { "summary": string, "document_type": string, "suggested_course_tag": string | null, "is_quantitative": boolean, "sections": [ { "heading": string, "summary": string } ] }.
 
 DOCUMENT-TYPE CLASSIFICATION:
 Identify the overall document type as exactly one of: "Lecture Notes/Slides", "Academic Article", "Syllabus", "Case Study", "Textbook Chapter", or "Other".
+
+STRUCTURAL SECTIONS INSTRUCTION (hierarchical outline):
+Across all the part-summaries, identify 2-6 major topic-based SECTIONS spanning the whole document — but only if it genuinely covers that many distinct topics (a document that's really just one continuous topic should return an empty 'sections' array instead of forcing artificial splits). For each, output { "heading": "short 2-5 word topic label", "summary": "2-4 sentence blurb covering just that section's academic content" }, in the order the topics appear across the parts. This becomes a clickable table-of-contents so a student can jump straight to the topic they need. Never create a section purely about course administration/logistics (grading, attendance, appeals, textbook info) — see the filtering rule below.
 
 SUGGESTED COURSE TAG:
 Below is this student's OFFICIAL course catalog (format: CODE — Course Name):
@@ -914,7 +917,7 @@ serve(async (req) => {
     const langLabel = lang === 'tr' ? 'Turkish / Türkçe' : 'English'
 
     // Part A: System prompt with document type classification & type specific guidance
-    const systemPrompt = `You are an academic study assistant. You will be given the raw text extracted from a student's uploaded document. Analyze it and respond with ONLY a valid JSON object, no markdown code fences, no commentary before or after — just the raw JSON object matching this exact shape: { "summary": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "document_type": string, "tables": [ { "title": string, "headers": [ string ], "rows": [ [ string ] ] } ], "charts": [ { "title": string, "type": string, "labels": [ string ], "data": [ number ] } ], "footnotes": [ { "id": number, "reference": string, "page": number | null } ], "suggested_course_tag": string | null, "is_quantitative": boolean, "formulas": [ { "name": string, "latex": string, "variables": [ { "symbol": string, "meaning": string } ] } ], "worked_examples": [ { "title": string, "problem_statement": string, "steps": [ string ], "final_answer": string } ] }.
+    const systemPrompt = `You are an academic study assistant. You will be given the raw text extracted from a student's uploaded document. Analyze it and respond with ONLY a valid JSON object, no markdown code fences, no commentary before or after — just the raw JSON object matching this exact shape: { "summary": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "document_type": string, "tables": [ { "title": string, "headers": [ string ], "rows": [ [ string ] ] } ], "charts": [ { "title": string, "type": string, "labels": [ string ], "data": [ number ] } ], "footnotes": [ { "id": number, "reference": string, "page": number | null } ], "sections": [ { "heading": string, "summary": string } ], "suggested_course_tag": string | null, "is_quantitative": boolean, "formulas": [ { "name": string, "latex": string, "variables": [ { "symbol": string, "meaning": string } ] } ], "worked_examples": [ { "title": string, "problem_statement": string, "steps": [ string ], "final_answer": string } ] }.
 
 QUANTITATIVE COURSE DETECTION & ADAPTATION:
 Determine whether this document is primarily QUANTITATIVE in nature — meaning it centers on mathematical formulas, numerical calculations, statistical methods, or financial/accounting computations (e.g. Calculus, Statistics, Financial Management, Investment Analysis, Accounting, Economics with heavy math) — as opposed to conceptual/qualitative material (e.g. Marketing, Management theory, general business discussion). Put this boolean classification in the 'is_quantitative' JSON field (true or false).
@@ -935,6 +938,10 @@ Adapt your summary approach according to this classification:
 - "Case Study": structure around Problem/Context, Analysis, and Solution/Recommendation.
 - "Textbook Chapter": focus on core theory, definitions, and illustrative examples.
 - "Other": use standard general-purpose summarization.
+
+STRUCTURAL SECTIONS INSTRUCTION (hierarchical outline):
+In addition to the single overall "summary", break the document down into 2-6 major topic-based SECTIONS — but ONLY if it genuinely covers that many distinct topics (e.g. a lecture covering "Tanımlar", "4P Karışımı", "Pazar Bölümlendirme" would get 3 sections, each in the order the topics appear). For each section output an object in the 'sections' array: { "heading": "short 2-5 word topic label", "summary": "2-4 sentence blurb covering just that section's academic content — footnote markers [n] allowed and encouraged where applicable" }. This lets a student jump straight to the topic they need instead of reading one long undifferentiated summary — like a table of contents with a preview under each entry.
+If the document covers only ONE continuous topic, or is too short/simple to meaningfully split (a short handout, a single-topic one-pager), return an empty array — do not force sections onto material that doesn't naturally have them. Sections must still obey the EXAM-FOCUSED CONTENT FILTERING rule below — never create a section purely about course administration/logistics.
 
 TABULAR AND CHART DATA EXTRACTION:
 In addition to the summary, key terms, key points, and quiz questions, also identify any TABULAR DATA (rows/columns of related figures, comparisons, structured lists of data) and any CHART-WORTHY DATA (numeric comparisons, percentages, breakdowns, trends that would be clearly shown as a bar/pie/line chart) present in the source material. If visual analysis was used and chart/graph images were shown to you, extract the ACTUAL data values from those images for this purpose. Include this as two new JSON fields:
@@ -1394,17 +1401,57 @@ In addition to the text below, you are shown images of this document's pages. Us
         footnoteOffset += footnotes.length
       }
 
-      const mergedKeyTerms = dedupeKeyTerms(roundRobinInterleave(chunkResults.map(r => Array.isArray(r.key_terms) ? r.key_terms : [])))
-        .slice(0, adaptiveTargets.keyTerms[1])
-      const mergedKeyPoints = dedupeByText(roundRobinInterleave(chunkResults.map(r => Array.isArray(r.key_points) ? r.key_points : [])), (x: string) => x)
-        .slice(0, adaptiveTargets.keyPoints[1])
-      const mergedQuiz = dedupeByText(roundRobinInterleave(chunkResults.map(r => Array.isArray(r.quiz_questions) ? r.quiz_questions : [])), (q: any) => q?.question || '')
-        .slice(0, adaptiveTargets.quizQuestions[1])
-      const mergedTables = chunkResults.flatMap(r => Array.isArray(r.tables) ? r.tables : []).slice(0, 15)
-      const mergedCharts = chunkResults.flatMap(r => Array.isArray(r.charts) ? r.charts : []).slice(0, 10)
-      const mergedFormulas = chunkResults.flatMap(r => Array.isArray(r.formulas) ? r.formulas : []).slice(0, 20)
-      const mergedWorkedExamples = chunkResults.flatMap(r => Array.isArray(r.worked_examples) ? r.worked_examples : []).slice(0, 10)
+      // adaptiveTargets' caps grow with total character count, but for a
+      // document split into MANY chunks, a preset-based cap alone can
+      // saturate well before every chunk gets a fair share — round-robin
+      // interleaving takes item[0] from every chunk before item[1] from
+      // any, so slicing to (say) 25 across 24 chunks leaves most chunks
+      // only their FIRST item, silently dropping the rest even though
+      // nothing was actually a duplicate. chunkAwareCap() raises the
+      // ceiling to guarantee roughly `perChunk` items per chunk survive
+      // (bounded by an absolute ceiling so pathological inputs still
+      // produce a usable, not endless, list) — completeness over a
+      // preset number that was tuned for much shorter, single-pass docs.
+      const chunkCount = chunksToProcess.length
+      function chunkAwareCap(presetCap: number, perChunk: number, absoluteCeiling: number): number {
+        return Math.min(absoluteCeiling, Math.max(presetCap, Math.round(chunkCount * perChunk)))
+      }
+      const keyTermsCap = chunkAwareCap(adaptiveTargets.keyTerms[1], 1.5, 60)
+      const keyPointsCap = chunkAwareCap(adaptiveTargets.keyPoints[1], 1.5, 55)
+      const quizCap = chunkAwareCap(adaptiveTargets.quizQuestions[1], 1, 30)
+      const tablesCap = chunkAwareCap(15, 1, 40)
+      const chartsCap = chunkAwareCap(10, 0.75, 30)
+      const formulasCap = chunkAwareCap(20, 1.5, 60)
+      const workedExamplesCap = chunkAwareCap(10, 0.75, 30)
+
+      const interleavedKeyTerms = dedupeKeyTerms(roundRobinInterleave(chunkResults.map(r => Array.isArray(r.key_terms) ? r.key_terms : [])))
+      const interleavedKeyPoints = dedupeByText(roundRobinInterleave(chunkResults.map(r => Array.isArray(r.key_points) ? r.key_points : [])), (x: string) => x)
+      const interleavedQuiz = dedupeByText(roundRobinInterleave(chunkResults.map(r => Array.isArray(r.quiz_questions) ? r.quiz_questions : [])), (q: any) => q?.question || '')
+      const flatTables = chunkResults.flatMap(r => Array.isArray(r.tables) ? r.tables : [])
+      const flatCharts = chunkResults.flatMap(r => Array.isArray(r.charts) ? r.charts : [])
+      const flatFormulas = chunkResults.flatMap(r => Array.isArray(r.formulas) ? r.formulas : [])
+      const flatWorkedExamples = chunkResults.flatMap(r => Array.isArray(r.worked_examples) ? r.worked_examples : [])
+
+      const mergedKeyTerms = interleavedKeyTerms.slice(0, keyTermsCap)
+      const mergedKeyPoints = interleavedKeyPoints.slice(0, keyPointsCap)
+      const mergedQuiz = interleavedQuiz.slice(0, quizCap)
+      const mergedTables = flatTables.slice(0, tablesCap)
+      const mergedCharts = flatCharts.slice(0, chartsCap)
+      const mergedFormulas = flatFormulas.slice(0, formulasCap)
+      const mergedWorkedExamples = flatWorkedExamples.slice(0, workedExamplesCap)
       const mergedFootnotes = chunkResults.flatMap(r => Array.isArray(r.footnotes) ? r.footnotes : [])
+
+      // No silent caps: log exactly what (if anything) still got trimmed,
+      // so a genuinely pathological document's data loss is visible in the
+      // Edge Function logs rather than invisible.
+      if (interleavedKeyTerms.length > keyTermsCap || interleavedKeyPoints.length > keyPointsCap || interleavedQuiz.length > quizCap ||
+          flatTables.length > tablesCap || flatCharts.length > chartsCap || flatFormulas.length > formulasCap || flatWorkedExamples.length > workedExamplesCap) {
+        console.warn(`Chunked merge truncation for document ${documentId} (${chunkCount} chunks): ` +
+          `key_terms ${interleavedKeyTerms.length}->${mergedKeyTerms.length}, key_points ${interleavedKeyPoints.length}->${mergedKeyPoints.length}, ` +
+          `quiz ${interleavedQuiz.length}->${mergedQuiz.length}, tables ${flatTables.length}->${mergedTables.length}, ` +
+          `charts ${flatCharts.length}->${mergedCharts.length}, formulas ${flatFormulas.length}->${mergedFormulas.length}, ` +
+          `worked_examples ${flatWorkedExamples.length}->${mergedWorkedExamples.length}`)
+      }
       const quantFlaggedCount = chunkResults.filter(r => r.is_quantitative).length
       const quantFraction = chunkResults.length > 0 ? quantFlaggedCount / chunkResults.length : 0
 
@@ -1447,7 +1494,8 @@ In addition to the text below, you are shown images of this document's pages. Us
         charts: mergedCharts,
         formulas: mergedFormulas,
         worked_examples: mergedWorkedExamples,
-        footnotes: mergedFootnotes
+        footnotes: mergedFootnotes,
+        sections: Array.isArray(synthesis.sections) ? synthesis.sections : []
       }
 
       rawContent = JSON.stringify(mergedDraft)
@@ -1464,7 +1512,9 @@ In addition to checking factual accuracy, you MUST preserve the original request
 
 FOOTNOTE PAGE NUMBERS: each footnote in the draft may already carry a "page" field (a real page/slide number, or null if the document has none). PRESERVE each footnote's existing "page" value exactly as given in the draft — the source text shown to you here may be truncated and missing the page markers it was originally derived from, so do not null out or guess a different page number unless the visible source text clearly shows a different marker for that exact claim.
 
-Produce a REFINED, corrected final version in the exact same JSON format: { "summary": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "document_type": string, "tables": [ { "title": string, "headers": [ string ], "rows": [ [ string ] ] } ], "charts": [ { "title": string, "type": string, "labels": [ string ], "data": [ number ] } ], "footnotes": [ { "id": number, "reference": string, "page": number | null } ], "suggested_course_tag": string | null, "is_quantitative": boolean, "formulas": [ { "name": string, "latex": string, "variables": [ { "symbol": string, "meaning": string } ] } ], "worked_examples": [ { "title": string, "problem_statement": string, "steps": [ string ], "final_answer": string } ] }. If the draft was already accurate and complete, you may return it largely unchanged — only make genuine improvements, don't change things arbitrarily.`
+STRUCTURAL SECTIONS: the draft may already carry a "sections" array (a topic-based outline, each with its own heading + short blurb). Verify each section's summary is accurate against the source and doesn't just restate the whole document's summary verbatim — refine wording if needed, but PRESERVE the overall section breakdown (headings and count) unless it's clearly wrong (e.g. a section that's purely administrative content, which must be removed). Do not invent new sections not grounded in the source, and do not force sections into existence if the draft correctly left this array empty.
+
+Produce a REFINED, corrected final version in the exact same JSON format: { "summary": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "document_type": string, "tables": [ { "title": string, "headers": [ string ], "rows": [ [ string ] ] } ], "charts": [ { "title": string, "type": string, "labels": [ string ], "data": [ number ] } ], "footnotes": [ { "id": number, "reference": string, "page": number | null } ], "sections": [ { "heading": string, "summary": string } ], "suggested_course_tag": string | null, "is_quantitative": boolean, "formulas": [ { "name": string, "latex": string, "variables": [ { "symbol": string, "meaning": string } ] } ], "worked_examples": [ { "title": string, "problem_statement": string, "steps": [ string ], "final_answer": string } ] }. If the draft was already accurate and complete, you may return it largely unchanged — only make genuine improvements, don't change things arbitrarily.`
 
     function buildReviewUserPrompt(sourceBudgetChars: number): string {
       let trimmedSource = sourceTextForReview
@@ -1632,6 +1682,7 @@ ${rawContent}`
         is_quantitative: parsedContent.is_quantitative ?? false,
         formulas: Array.isArray(parsedContent.formulas) ? parsedContent.formulas : [],
         worked_examples: Array.isArray(parsedContent.worked_examples) ? parsedContent.worked_examples : [],
+        sections: Array.isArray(parsedContent.sections) ? parsedContent.sections : [],
         summary_style: style,
         summary_language: lang,
         summary_length: len,

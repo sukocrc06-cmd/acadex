@@ -1218,6 +1218,43 @@ function renderFootnotesSectionHtml(footnotesArray) {
 }
 window.renderFootnotesSectionHtml = renderFootnotesSectionHtml;
 
+// Hierarchical/structural summaries: the AI now optionally breaks a
+// substantial document into 2-6 major topic SECTIONS (card.sections), each
+// with its own short heading + blurb — a NotebookLM-style navigable outline
+// so a student can jump straight to the topic they need instead of reading
+// one long undifferentiated summary. Rendered as a collapsible accordion
+// placed just above the main summary text. Short/single-topic documents
+// legitimately have fewer than 2 sections, in which case this renders
+// nothing and the plain summary below is unaffected — no forced structure.
+function renderSectionsOutlineHtml(sectionsArray, footnotesArray) {
+  if (!Array.isArray(sectionsArray) || sectionsArray.length < 2) return "";
+
+  const itemsHtml = sectionsArray.map((sec, idx) => `
+    <div class="summary-section-item">
+      <button type="button" class="summary-section-toggle" onclick="toggleSummarySection(this)">
+        <span class="summary-section-num">${idx + 1}</span>
+        <span class="summary-section-heading">${escapeHtml(sec?.heading || '')}</span>
+        <span class="summary-section-chevron">▾</span>
+      </button>
+      <div class="summary-section-body">${formatSummaryText(sec?.summary || '', footnotesArray)}</div>
+    </div>
+  `).join('');
+
+  return `
+    <div class="summary-sections-outline">
+      <div class="summary-sections-title">📑 Bölümler / Sections</div>
+      ${itemsHtml}
+    </div>
+  `;
+}
+window.renderSectionsOutlineHtml = renderSectionsOutlineHtml;
+
+function toggleSummarySection(btn) {
+  const item = btn.closest('.summary-section-item');
+  if (item) item.classList.toggle('expanded');
+}
+window.toggleSummarySection = toggleSummarySection;
+
 function showFootnoteToast(refText) {
   showDashboardAlert('info', `📎 ${refText}`);
 }
@@ -1419,7 +1456,7 @@ async function populateStudyCardModalDetails(card, docName, readOnly) {
 
   // Populate Summary
   const summaryText = document.getElementById('study-card-summary-text');
-  if (summaryText) summaryText.innerHTML = formatSummaryText(card.summary, card.footnotes) || "No summary generated for this document.";
+  if (summaryText) summaryText.innerHTML = renderSectionsOutlineHtml(card.sections, card.footnotes) + (formatSummaryText(card.summary, card.footnotes) || "No summary generated for this document.");
 
   // Populate Key Points
   const pointsContainer = document.getElementById('study-card-points-container');
@@ -3672,7 +3709,7 @@ function renderSourceHubSummary(card, docName) {
 
   const summaryTextEl = document.getElementById('sourcehub-summary-text');
   if (summaryTextEl) {
-    summaryTextEl.innerHTML = formatSummaryText(card.summary, card.footnotes) || 'No summary generated for this document.';
+    summaryTextEl.innerHTML = renderSectionsOutlineHtml(card.sections, card.footnotes) + (formatSummaryText(card.summary, card.footnotes) || 'No summary generated for this document.');
   }
 
   const pointsEl = document.getElementById('sourcehub-points-container');
