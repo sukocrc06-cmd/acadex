@@ -3680,7 +3680,7 @@ function greetSourceHubChatIfNeeded() {
   const greeting = isTr
     ? 'Merhaba! Bu belge/belgeler hakkında bana soru sorabilirsiniz. Cevaplarımı yalnızca kaynağın içeriğine dayandırırım — belgede olmayan bir şey sorarsanız size bunu söylerim.'
     : "Hi! Ask me anything about this document — I'll answer strictly from its content, and I'll tell you honestly if something isn't covered in it.";
-  renderSourceHubChatMessage('assistant', greeting, []);
+  renderSourceHubChatMessage('assistant', greeting, [], null, false, null, false);
 }
 
 function clearSourceHubChat() {
@@ -3711,7 +3711,7 @@ window.removeSourceHubChatImage = removeSourceHubChatImage;
 // mirrors renderDocChatMessage()'s structure (see that function for the
 // reasoning behind each piece) rather than sharing code with it directly,
 // so the modal's already-working chat is never touched by this page.
-function renderSourceHubChatMessage(role, text, citations, imageDataUrl, visionUsed, mermaidCode) {
+function renderSourceHubChatMessage(role, text, citations, imageDataUrl, visionUsed, mermaidCode, saveable = true) {
   const container = document.getElementById('sourcehub-chat-messages');
   if (!container) return;
 
@@ -3771,7 +3771,9 @@ function renderSourceHubChatMessage(role, text, citations, imageDataUrl, visionU
     // Let the student save this reply itself (formulas, a worked step-by-step
     // solution, an explanation, etc.) to the notebook — same idea as the
     // "Deftere Gönder" action already available on chat images/diagrams.
-    if (text && text.trim()) {
+    // Not shown on the canned greeting or on error messages — there's
+    // nothing there worth saving.
+    if (saveable && text && text.trim()) {
       bubble.appendChild(createChatTextActionRow(text, isTr));
     }
 
@@ -3818,7 +3820,7 @@ async function sendSourceHubChatMessage(text, imageDataUrl, checkWorkMode) {
       const errMsg = isTr
         ? 'Şu anda cevap veremiyorum, lütfen tekrar deneyin.'
         : "I couldn't answer right now, please try again.";
-      renderSourceHubChatMessage('assistant', errMsg, []);
+      renderSourceHubChatMessage('assistant', errMsg, [], null, false, null, false);
       sourceHubChatHistory.pop();
       return;
     }
@@ -3830,7 +3832,7 @@ async function sendSourceHubChatMessage(text, imageDataUrl, checkWorkMode) {
     const errMsg = isTr
       ? 'Şu anda cevap veremiyorum, lütfen tekrar deneyin.'
       : "I couldn't answer right now, please try again.";
-    renderSourceHubChatMessage('assistant', errMsg, []);
+    renderSourceHubChatMessage('assistant', errMsg, [], null, false, null, false);
     sourceHubChatHistory.pop();
   } finally {
     sourceHubChatRequestInFlight = false;
