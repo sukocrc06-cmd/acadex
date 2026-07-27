@@ -1178,27 +1178,34 @@ function formatFootnoteMarkers(text, footnotesArray) {
   if (Array.isArray(footnotesArray)) {
     footnotesArray.forEach(fn => {
       if (fn && fn.id != null) {
-        footnotesMap[fn.id] = fn.reference || `Reference ${fn.id}`;
+        const page = (typeof fn.page === 'number' && Number.isFinite(fn.page)) ? fn.page : null;
+        footnotesMap[fn.id] = { reference: fn.reference || `Reference ${fn.id}`, page };
       }
     });
   }
 
   return text.replace(/\[(\d+)\]/g, (match, fnId) => {
-    const refText = footnotesMap[fnId] || `Reference ${fnId}`;
-    const escapedRef = escapeHtml(refText).replace(/'/g, "\\'").replace(/"/g, '&quot;');
-    return `<sup class="footnote-marker" title="${escapedRef}" onclick="event.stopPropagation(); showFootnoteToast('${escapedRef}')">[${fnId}]</sup>`;
+    const entry = footnotesMap[fnId] || { reference: `Reference ${fnId}`, page: null };
+    const escapedRef = escapeHtml(entry.reference).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    const pageAttr = entry.page != null ? entry.page : 'null';
+    const title = entry.page != null ? `${escapedRef} (Sayfa ${entry.page})` : escapedRef;
+    return `<sup class="footnote-marker" title="${title}" onclick="event.stopPropagation(); jumpToFootnote(${fnId}, '${escapedRef}', ${pageAttr})">[${fnId}]</sup>`;
   });
 }
 window.formatFootnoteMarkers = formatFootnoteMarkers;
 
 function renderFootnotesSectionHtml(footnotesArray) {
   if (!Array.isArray(footnotesArray) || footnotesArray.length === 0) return "";
-  
-  let itemsHtml = footnotesArray.map(fn => `
+
+  let itemsHtml = footnotesArray.map(fn => {
+    const page = (typeof fn.page === 'number' && Number.isFinite(fn.page)) ? fn.page : null;
+    const pageBadge = page != null ? ` <span class="footnote-page-badge">📄 Sayfa ${page}</span>` : '';
+    return `
     <li id="fn-ref-${fn.id}">
-      <strong>[${fn.id}]</strong> ${escapeHtml(fn.reference || '')}
+      <strong>[${fn.id}]</strong> ${escapeHtml(fn.reference || '')}${pageBadge}
     </li>
-  `).join('');
+  `;
+  }).join('');
 
   return `
     <div class="footnotes-section">
@@ -1215,6 +1222,52 @@ function showFootnoteToast(refText) {
   showDashboardAlert('info', `📎 ${refText}`);
 }
 window.showFootnoteToast = showFootnoteToast;
+
+// Precise page/slide citation linking: when a footnote carries a real "page"
+// number (set by the summarize-document/merge-summarize edge functions from
+// the "--- SAYFA N ---" / "--- SLAYT N ---" markers inserted at extraction
+// time), clicking it jumps the currently-visible original-document viewer
+// (either the Study Card modal's split pane or the Source Hub's PDF column)
+// to that exact page via the "#page=N" URL fragment most browsers' built-in
+// PDF viewers honor — opening the viewer first if it isn't already open.
+// Falls back to the old plain reference toast when no page number is known
+// (DOCX has no reliable page concept; PPTX-without-viewer, etc.).
+async function jumpToFootnote(fnId, refText, page) {
+  const hasPage = typeof page === 'number' && Number.isFinite(page);
+  if (!hasPage) {
+    showFootnoteToast(refText);
+    return;
+  }
+
+  const applyPageToIframe = () => {
+    const containerIds = ['original-doc-viewer-pane', 'sourcehub-pdf-pane'];
+    for (const id of containerIds) {
+      const container = document.getElementById(id);
+      const iframe = container && container.querySelector('iframe');
+      if (iframe && iframe.src) {
+        const baseSrc = iframe.src.split('#')[0];
+        iframe.src = `${baseSrc}#page=${page}`;
+        return true;
+      }
+    }
+    return false;
+  };
+
+  let jumped = applyPageToIframe();
+
+  // Study Card modal context: the original-document pane may not be open
+  // yet — open it (this awaits its own render), then try again.
+  if (!jumped && typeof isOriginalDocSplitActive !== 'undefined' && !isOriginalDocSplitActive &&
+      typeof toggleOriginalDocumentViewer === 'function' && currentActiveStudyCard) {
+    await toggleOriginalDocumentViewer();
+    jumped = applyPageToIframe();
+  }
+
+  showDashboardAlert('info', jumped
+    ? `📎 Sayfa ${page}'e gidildi — ${refText}`
+    : `📎 Sayfa ${page} — ${refText} (orijinal belge görüntüleyici şu an açık değil)`);
+}
+window.jumpToFootnote = jumpToFootnote;
 
 function formatSummaryText(summary, footnotes) {
   if (!summary) return "";

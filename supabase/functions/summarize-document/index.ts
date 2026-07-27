@@ -442,10 +442,10 @@ async function callGroqJson(groqApiKey: string, systemPrompt: string, userConten
   return JSON.parse(cleaned)
 }
 
-function buildChunkSystemPrompt(chunkIndex: number, totalChunks: number, langLabel: string): string {
+function buildChunkSystemPrompt(chunkIndex: number, totalChunks: number, langLabel: string, hasPageMarkers: boolean, pageMarkerLabel: string): string {
   return `You are an academic study assistant helping process a LARGE document that has been split into ${totalChunks} sequential parts because of its length. You are given ONLY part ${chunkIndex + 1} of ${totalChunks} below — you do NOT see the rest of the document, so do not reference "the whole document" or assume content beyond what's shown here.
 
-Respond with ONLY a valid JSON object, no markdown code fences, no commentary before or after — matching this exact shape: { "chunk_summary": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "tables": [ { "title": string, "headers": [ string ], "rows": [ [ string ] ] } ], "charts": [ { "title": string, "type": string, "labels": [ string ], "data": [ number ] } ], "footnotes": [ { "id": number, "reference": string } ], "is_quantitative": boolean, "formulas": [ { "name": string, "latex": string, "variables": [ { "symbol": string, "meaning": string } ] } ], "worked_examples": [ { "title": string, "problem_statement": string, "steps": [ string ], "final_answer": string } ] }.
+Respond with ONLY a valid JSON object, no markdown code fences, no commentary before or after — matching this exact shape: { "chunk_summary": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "tables": [ { "title": string, "headers": [ string ], "rows": [ [ string ] ] } ], "charts": [ { "title": string, "type": string, "labels": [ string ], "data": [ number ] } ], "footnotes": [ { "id": number, "reference": string, "page": number | null } ], "is_quantitative": boolean, "formulas": [ { "name": string, "latex": string, "variables": [ { "symbol": string, "meaning": string } ] } ], "worked_examples": [ { "title": string, "problem_statement": string, "steps": [ string ], "final_answer": string } ] }.
 
 CHUNK SUMMARY:
 Write a 2-4 sentence "chunk_summary" capturing specifically what THIS part covers — it will later be combined with the other parts' summaries into one final document summary, so be concrete and self-contained about the actual topics discussed here rather than vague.
@@ -463,7 +463,7 @@ DIAGRAM & VISUAL-STRUCTURE AWARENESS:
 You only see extracted text — visual layout (boxes, arrows, side-by-side positioning) is lost, so a flowchart, comparison diagram, or process illustration on the original slide/page often survives only as a cluster of short, disconnected phrases that don't read as normal prose (e.g. two or three parallel short labels repeated near each other, a sequence of terse stage names, or paired opposing terms). When you notice such a cluster in THIS part, infer its likely meaning and add ONE key_point reconstructing it, clearly prefixed with "Diyagram/Görsel:" ("Diagram/Visual:" in English) so the student knows it's your interpretation of a visual element, not a verbatim quote. Only do this when fragments genuinely look diagram-like — don't force it onto ordinary bullet lists.
 
 FOOTNOTES:
-For specific, checkable factual claims within key_points (numbers, definitions, named findings), add a footnote marker like [1], [2] immediately after the claim (numbering restarts at 1 for this part — it will be renumbered globally later). List each in 'footnotes': [{ "id": number, "reference": "brief description of the topic/heading this relates to" }]. Don't over-footnote.
+For specific, checkable factual claims within key_points (numbers, definitions, named findings), add a footnote marker like [1], [2] immediately after the claim (numbering restarts at 1 for this part — it will be renumbered globally later). List each in 'footnotes': [{ "id": number, "reference": "brief description of the topic/heading this relates to", "page": number | null }]. ${buildFootnotePageInstruction(hasPageMarkers, pageMarkerLabel)} Don't over-footnote.
 
 ACCURACY:
 Base everything STRICTLY on the text in this part. Do not invent facts or assume content not shown. Copy specific numbers, names, and technical terms exactly as they appear.
@@ -553,7 +553,7 @@ function remapChunkFootnotes(chunkResult: any, idOffset: number): { footnotes: a
     const oldId = fn?.id
     const newId = idOffset + i + 1
     if (oldId != null) idMap[oldId] = newId
-    return { id: newId, reference: fn?.reference || `Reference ${newId}` }
+    return { id: newId, reference: fn?.reference || `Reference ${newId}`, page: (typeof fn?.page === 'number' && Number.isFinite(fn.page)) ? fn.page : null }
   })
   return { footnotes: remapped, idMap }
 }
@@ -565,6 +565,20 @@ function applyFootnoteRemap(text: string, idMap: Record<number, number>): string
     const newId = idMap[oldId]
     return newId != null ? `[${newId}]` : match
   })
+}
+
+// Shared instruction text telling the model how to populate the new
+// footnotes[].page field — either real page/slide numbers copied from the
+// "--- SAYFA N ---" / "--- SLAYT N ---" markers inserted during extraction
+// (see PDF/PPTX extraction above), or null with the old topic/heading
+// description when no such markers exist for this document (DOCX/plain text,
+// which have no reliable fixed-page concept).
+function buildFootnotePageInstruction(hasPageMarkers: boolean, pageMarkerLabel: string): string {
+  if (hasPageMarkers) {
+    const unitWord = pageMarkerLabel === "SLAYT" ? "slide" : "page"
+    return `The source text contains markers in the form "--- ${pageMarkerLabel} N ---" marking where each ${unitWord} begins. For every footnote, set "page" to the N of the marker that appears immediately BEFORE the claim in the source text — this must be a real number copied from an actual marker you saw, never guessed or estimated. Still also write a short "reference" description as before (e.g. 'Introduction section').`
+  }
+  return `This document has no page/slide markers available, so set "page" to null for every footnote and continue describing the topical section or heading area in "reference" as before.`
 }
 
 serve(async (req) => {
@@ -709,8 +723,14 @@ serve(async (req) => {
         let isScannedOrFailed = false
         try {
           const pdf = await getDocumentProxy(fileBytes)
-          const { text } = await extractText(pdf, { mergePages: true })
-          extractedText = detectAndFormatPdfTables(text)
+          // mergePages: false (per-page array) instead of true (one merged
+          // string) — we insert an explicit "--- SAYFA N ---" marker before
+          // each page's text below so the model can cite the EXACT page a
+          // claim came from (see the FOOTNOTES prompt instructions), instead
+          // of only a vague topic/section description as before.
+          const { text: pdfPages } = await extractText(pdf, { mergePages: false })
+          const pdfTextWithPageMarkers = pdfPages.map((pageText, idx) => `--- SAYFA ${idx + 1} ---\n${pageText}`).join('\n\n')
+          extractedText = detectAndFormatPdfTables(pdfTextWithPageMarkers)
 
           const textLen = (extractedText || "").trim().length
           const fileSize = fileBytes.length
@@ -779,10 +799,17 @@ serve(async (req) => {
 
         let pptxText = ""
         for (const slidePath of slideFiles) {
+          // Use the slide's real numeric filename (slideN.xml), not the loop
+          // index — slides can be non-contiguous if some were deleted, so
+          // the index alone could point students to the wrong slide.
+          const slideNumMatch = slidePath.match(/slide(\d+)\.xml$/)
+          const slideNum = slideNumMatch ? parseInt(slideNumMatch[1], 10) : (slideFiles.indexOf(slidePath) + 1)
           const slideXml = await zip.files[slidePath].async("text")
           const slideText = parsePptxSlideXml(slideXml)
           if (slideText) {
-            pptxText += slideText + "\n\n"
+            // "--- SLAYT N ---" marker mirrors the PDF path's page markers so
+            // the model can cite the exact slide a claim came from.
+            pptxText += `--- SLAYT ${slideNum} ---\n${slideText}\n\n`
           }
         }
         extractedText = pptxText
@@ -814,6 +841,14 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
+
+    // PDF pages get "--- SAYFA N ---" markers, PPTX slides get "--- SLAYT N
+    // ---" markers (see extraction above); DOCX/plain-text/fallback paths
+    // have no reliable page concept, so they get neither. This flag tells the
+    // footnote-instruction prompts below whether to ask the model for real
+    // page/slide numbers or to fall back to the old topic/heading reference.
+    const hasPageMarkers = mimeType === "application/pdf" || mimeType === "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    const pageMarkerLabel = mimeType === "application/vnd.openxmlformats-officedocument.presentationml.presentation" ? "SLAYT" : "SAYFA"
 
     // ==========================================================================
     // DECIDE PIPELINE: short/medium documents use the original single-pass
@@ -873,7 +908,7 @@ serve(async (req) => {
     const langLabel = lang === 'tr' ? 'Turkish / Türkçe' : 'English'
 
     // Part A: System prompt with document type classification & type specific guidance
-    const systemPrompt = `You are an academic study assistant. You will be given the raw text extracted from a student's uploaded document. Analyze it and respond with ONLY a valid JSON object, no markdown code fences, no commentary before or after — just the raw JSON object matching this exact shape: { "summary": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "document_type": string, "tables": [ { "title": string, "headers": [ string ], "rows": [ [ string ] ] } ], "charts": [ { "title": string, "type": string, "labels": [ string ], "data": [ number ] } ], "footnotes": [ { "id": number, "reference": string } ], "suggested_course_tag": string | null, "is_quantitative": boolean, "formulas": [ { "name": string, "latex": string, "variables": [ { "symbol": string, "meaning": string } ] } ], "worked_examples": [ { "title": string, "problem_statement": string, "steps": [ string ], "final_answer": string } ] }.
+    const systemPrompt = `You are an academic study assistant. You will be given the raw text extracted from a student's uploaded document. Analyze it and respond with ONLY a valid JSON object, no markdown code fences, no commentary before or after — just the raw JSON object matching this exact shape: { "summary": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "document_type": string, "tables": [ { "title": string, "headers": [ string ], "rows": [ [ string ] ] } ], "charts": [ { "title": string, "type": string, "labels": [ string ], "data": [ number ] } ], "footnotes": [ { "id": number, "reference": string, "page": number | null } ], "suggested_course_tag": string | null, "is_quantitative": boolean, "formulas": [ { "name": string, "latex": string, "variables": [ { "symbol": string, "meaning": string } ] } ], "worked_examples": [ { "title": string, "problem_statement": string, "steps": [ string ], "final_answer": string } ] }.
 
 QUANTITATIVE COURSE DETECTION & ADAPTATION:
 Determine whether this document is primarily QUANTITATIVE in nature — meaning it centers on mathematical formulas, numerical calculations, statistical methods, or financial/accounting computations (e.g. Calculus, Statistics, Financial Management, Investment Analysis, Accounting, Economics with heavy math) — as opposed to conceptual/qualitative material (e.g. Marketing, Management theory, general business discussion). Put this boolean classification in the 'is_quantitative' JSON field (true or false).
@@ -902,7 +937,7 @@ In addition to the summary, key terms, key points, and quiz questions, also iden
 Do NOT fabricate tables/charts if the source doesn't actually contain this kind of data — empty arrays are the correct output for purely narrative/text documents.
 
 INLINE FOOTNOTES / SOURCE REFERENCES INSTRUCTION:
-For non-obvious or specific factual claims in the summary and key_points, add a footnote marker like [1], [2], etc. immediately after the claim. Build a corresponding 'footnotes' array in your JSON output: [{ "id": 1, "reference": "brief description of which section/topic of the source this relates to, e.g. 'Section 2.2 - SEO discussion' or 'Introduction section'" }]. Since you don't have exact page numbers, reference the topical section or heading area instead. Don't over-footnote — reserve markers for specific, checkable claims (numbers, definitions, named findings), not every sentence.
+For non-obvious or specific factual claims in the summary and key_points, add a footnote marker like [1], [2], etc. immediately after the claim. Build a corresponding 'footnotes' array in your JSON output: [{ "id": 1, "reference": "brief description of which section/topic of the source this relates to, e.g. 'Section 2.2 - SEO discussion' or 'Introduction section'", "page": number | null }]. ${buildFootnotePageInstruction(hasPageMarkers, pageMarkerLabel)} Don't over-footnote — reserve markers for specific, checkable claims (numbers, definitions, named findings), not every sentence.
 
 SUGGESTED COURSE TAG INSTRUCTION:
 Below is this student's OFFICIAL course catalog (format: CODE — Course Name):
@@ -1321,7 +1356,7 @@ In addition to the text below, you are shown images of this document's pages. Us
       try {
         chunkResults = await mapWithConcurrency(chunksToProcess, 4, async (chunkText, i) => {
           try {
-            return await callGroqJson(groqApiKey, buildChunkSystemPrompt(i, chunksToProcess.length, langLabel), chunkText, 0.3)
+            return await callGroqJson(groqApiKey, buildChunkSystemPrompt(i, chunksToProcess.length, langLabel, hasPageMarkers, pageMarkerLabel), chunkText, 0.3)
           } catch (chunkErr) {
             console.error(`Chunk ${i + 1}/${chunksToProcess.length} extraction failed, using empty fallback:`, chunkErr)
             return {
@@ -1419,7 +1454,9 @@ In addition to the text below, you are shown images of this document's pages. Us
     const reviewSystemPrompt = `You are reviewing a draft academic summary for accuracy and quality. Compare the draft against the original source text. Check for: (1) any factual errors or details not actually present in the source, (2) any important information from the source that was missed, (3) clarity and organization issues, (4) verify that any extracted tables and charts accurately represent the source data numbers and values, (5) verify footnote references are accurate and preserve footnote markers [1], [2] in text, (6) verify that is_quantitative, formulas, and worked_examples are accurate, well-formatted, and use valid LaTeX string syntax.
 In addition to checking factual accuracy, you MUST preserve the original requested style, length, and language of the draft. If the draft was written in bullet-point format, your refined version must ALSO be in bullet-point format (using '- ' prefixed lines). If it was an outline with '## ' headings, preserve that heading structure. If it was written in short/simplified sentences, keep sentences short and simple. Do NOT normalize or flatten distinctive formatting back into generic flowing prose — your job is to improve accuracy and clarity WITHIN the same style and structure the draft already used, not to rewrite it in a different format.
 
-Produce a REFINED, corrected final version in the exact same JSON format: { "summary": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "document_type": string, "tables": [ { "title": string, "headers": [ string ], "rows": [ [ string ] ] } ], "charts": [ { "title": string, "type": string, "labels": [ string ], "data": [ number ] } ], "footnotes": [ { "id": number, "reference": string } ], "suggested_course_tag": string | null, "is_quantitative": boolean, "formulas": [ { "name": string, "latex": string, "variables": [ { "symbol": string, "meaning": string } ] } ], "worked_examples": [ { "title": string, "problem_statement": string, "steps": [ string ], "final_answer": string } ] }. If the draft was already accurate and complete, you may return it largely unchanged — only make genuine improvements, don't change things arbitrarily.`
+FOOTNOTE PAGE NUMBERS: each footnote in the draft may already carry a "page" field (a real page/slide number, or null if the document has none). PRESERVE each footnote's existing "page" value exactly as given in the draft — the source text shown to you here may be truncated and missing the page markers it was originally derived from, so do not null out or guess a different page number unless the visible source text clearly shows a different marker for that exact claim.
+
+Produce a REFINED, corrected final version in the exact same JSON format: { "summary": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "document_type": string, "tables": [ { "title": string, "headers": [ string ], "rows": [ [ string ] ] } ], "charts": [ { "title": string, "type": string, "labels": [ string ], "data": [ number ] } ], "footnotes": [ { "id": number, "reference": string, "page": number | null } ], "suggested_course_tag": string | null, "is_quantitative": boolean, "formulas": [ { "name": string, "latex": string, "variables": [ { "symbol": string, "meaning": string } ] } ], "worked_examples": [ { "title": string, "problem_statement": string, "steps": [ string ], "final_answer": string } ] }. If the draft was already accurate and complete, you may return it largely unchanged — only make genuine improvements, don't change things arbitrarily.`
 
     function buildReviewUserPrompt(sourceBudgetChars: number): string {
       let trimmedSource = sourceTextForReview

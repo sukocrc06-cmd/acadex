@@ -4210,6 +4210,18 @@ input:checked + .slider:before {
   line-height: 1.35;
 }
 
+.footnote-page-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--color-teal);
+  background: rgba(20, 184, 166, 0.1);
+  border-radius: 8px;
+  padding: 0.05rem 0.4rem;
+  margin-left: 0.3rem;
+  white-space: nowrap;
+}
+
 /* ── Suggested Course Tag Chip ── */
 .suggested-tag-chip {
   display: inline-flex;

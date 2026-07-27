@@ -407,8 +407,13 @@ serve(async (req) => {
           let isScannedOrFailed = false
           try {
             const pdf = await getDocumentProxy(fileBytes)
-            const { text } = await extractText(pdf, { mergePages: true })
-            extractedText = detectAndFormatPdfTables(text)
+            // mergePages: false → per-page array, so we can insert explicit
+            // "--- SAYFA N ---" markers (mirrors summarize-document's page-
+            // level citation feature) letting the model cite the exact page
+            // a claim came from within this document.
+            const { text: pdfPages } = await extractText(pdf, { mergePages: false })
+            const pdfTextWithPageMarkers = pdfPages.map((pageText, idx) => `--- SAYFA ${idx + 1} ---\n${pageText}`).join('\n\n')
+            extractedText = detectAndFormatPdfTables(pdfTextWithPageMarkers)
             const textLen = (extractedText || "").trim().length
             const fileSize = fileBytes.length
             if (textLen < 200 || textLen < (fileSize / 500)) {
@@ -464,10 +469,14 @@ serve(async (req) => {
             .sort((a, b) => parseInt(a.replace(/[^0-9]/g, ""), 10) - parseInt(b.replace(/[^0-9]/g, ""), 10))
           let pptxText = ""
           for (const slidePath of slideFiles) {
+            // Use the slide's real numeric filename, not the loop index —
+            // slides can be non-contiguous if some were deleted.
+            const slideNumMatch = slidePath.match(/slide(\d+)\.xml$/)
+            const slideNum = slideNumMatch ? parseInt(slideNumMatch[1], 10) : (slideFiles.indexOf(slidePath) + 1)
             const slideXml = await zip.files[slidePath].async("text")
             const slideText = parsePptxSlideXml(slideXml)
             if (slideText) {
-              pptxText += slideText + "\n\n"
+              pptxText += `--- SLAYT ${slideNum} ---\n${slideText}\n\n`
             }
           }
           extractedText = pptxText
@@ -537,7 +546,7 @@ serve(async (req) => {
     const docNames = documents.map((d: any) => d.file_name).join(", ")
 
     // Part A: System prompt with document type classification & type specific guidance
-    const systemPrompt = `You are an academic study assistant. You will be given combined text extracted from MULTIPLE student documents (${docNames}). Analyze all of them together and produce a UNIFIED study card that synthesizes the key information across all sources. Respond with ONLY a valid JSON object, no markdown code fences, no commentary before or after — just the raw JSON matching this exact shape: { "summary": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "document_type": string, "tables": [ { "title": string, "headers": [ string ], "rows": [ [ string ] ] } ], "charts": [ { "title": string, "type": string, "labels": [ string ], "data": [ number ] } ], "footnotes": [ { "id": number, "reference": string } ], "suggested_course_tag": string | null, "is_quantitative": boolean, "formulas": [ { "name": string, "latex": string, "variables": [ { "symbol": string, "meaning": string } ] } ], "worked_examples": [ { "title": string, "problem_statement": string, "steps": [ string ], "final_answer": string } ] }.
+    const systemPrompt = `You are an academic study assistant. You will be given combined text extracted from MULTIPLE student documents (${docNames}). Analyze all of them together and produce a UNIFIED study card that synthesizes the key information across all sources. Respond with ONLY a valid JSON object, no markdown code fences, no commentary before or after — just the raw JSON matching this exact shape: { "summary": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "document_type": string, "tables": [ { "title": string, "headers": [ string ], "rows": [ [ string ] ] } ], "charts": [ { "title": string, "type": string, "labels": [ string ], "data": [ number ] } ], "footnotes": [ { "id": number, "reference": string, "page": number | null } ], "suggested_course_tag": string | null, "is_quantitative": boolean, "formulas": [ { "name": string, "latex": string, "variables": [ { "symbol": string, "meaning": string } ] } ], "worked_examples": [ { "title": string, "problem_statement": string, "steps": [ string ], "final_answer": string } ] }.
 
 QUANTITATIVE COURSE DETECTION & ADAPTATION:
 Determine whether these combined documents are primarily QUANTITATIVE in nature — meaning they center on mathematical formulas, numerical calculations, statistical methods, or financial/accounting computations (e.g. Calculus, Statistics, Financial Management, Investment Analysis, Accounting, Economics with heavy math) — as opposed to conceptual/qualitative material (e.g. Marketing, Management theory, general business discussion). Put this boolean classification in the 'is_quantitative' JSON field (true or false).
@@ -566,7 +575,7 @@ In addition to the summary, key terms, key points, and quiz questions, also iden
 Do NOT fabricate tables/charts if the source doesn't actually contain this kind of data — empty arrays are the correct output for purely narrative/text documents.
 
 INLINE FOOTNOTES / SOURCE REFERENCES INSTRUCTION:
-For non-obvious or specific factual claims in the summary and key_points, add a footnote marker like [1], [2], etc. immediately after the claim. Build a corresponding 'footnotes' array in your JSON output: [{ "id": 1, "reference": "brief description of which section/topic of the source this relates to, e.g. 'Section 2.2 - SEO discussion' or 'Introduction section'" }]. Since you don't have exact page numbers, reference the topical section or heading area instead. Don't over-footnote — reserve markers for specific, checkable claims (numbers, definitions, named findings), not every sentence.
+For non-obvious or specific factual claims in the summary and key_points, add a footnote marker like [1], [2], etc. immediately after the claim. Build a corresponding 'footnotes' array in your JSON output: [{ "id": 1, "reference": "brief description of which document and section/topic this relates to, e.g. 'Lecture1.pdf, Section 2.2 - SEO discussion'", "page": number | null }]. Some of the combined documents' text below includes markers in the form "--- SAYFA N ---" (page) or "--- SLAYT N ---" (slide) directly in the source, within the "=== DOCUMENT: filename ===" section they belong to. When a claim's supporting text is preceded by such a marker, set "page" to that real N (copied exactly from an actual marker you saw, never guessed) and mention the document's file name in "reference". If the claim comes from a document with no such markers in its text, set "page" to null and describe the topical section or heading area in "reference" as before. Don't over-footnote — reserve markers for specific, checkable claims (numbers, definitions, named findings), not every sentence.
 
 SUGGESTED COURSE TAG INSTRUCTION:
 Below is this student's OFFICIAL course catalog (format: CODE — Course Name):
@@ -692,7 +701,9 @@ ${styleInstruction}`
     const reviewSystemPrompt = `You are reviewing a draft academic summary for accuracy and quality. Compare the draft against the original source text. Check for: (1) any factual errors or details not actually present in the source, (2) any important information from the source that was missed, (3) clarity and organization issues, (4) verify that any extracted tables and charts accurately represent the source data numbers and values, (5) verify footnote references are accurate and preserve footnote markers [1], [2] in text, (6) verify that is_quantitative, formulas, and worked_examples are accurate, well-formatted, and use valid LaTeX string syntax.
 In addition to checking factual accuracy, you MUST preserve the original requested style, length, and language of the draft. If the draft was written in bullet-point format, your refined version must ALSO be in bullet-point format (using '- ' prefixed lines). If it was an outline with '## ' headings, preserve that heading structure. If it was written in short/simplified sentences, keep sentences short and simple. Do NOT normalize or flatten distinctive formatting back into generic flowing prose — your job is to improve accuracy and clarity WITHIN the same style and structure the draft already used, not to rewrite it in a different format.
 
-Produce a REFINED, corrected final version in the exact same JSON format: { "summary": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "document_type": string, "tables": [ { "title": string, "headers": [ string ], "rows": [ [ string ] ] } ], "charts": [ { "title": string, "type": string, "labels": [ string ], "data": [ number ] } ], "footnotes": [ { "id": number, "reference": string } ], "suggested_course_tag": string | null, "is_quantitative": boolean, "formulas": [ { "name": string, "latex": string, "variables": [ { "symbol": string, "meaning": string } ] } ], "worked_examples": [ { "title": string, "problem_statement": string, "steps": [ string ], "final_answer": string } ] }. If the draft was already accurate and complete, you may return it largely unchanged — only make genuine improvements, don't change things arbitrarily.`
+FOOTNOTE PAGE NUMBERS: each footnote in the draft may already carry a "page" field (a real page/slide number, or null). PRESERVE each footnote's existing "page" value exactly as given in the draft — the source text shown to you here may be truncated and missing the page markers it was originally derived from, so do not null out or guess a different page number unless the visible source text clearly shows a different marker for that exact claim.
+
+Produce a REFINED, corrected final version in the exact same JSON format: { "summary": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "document_type": string, "tables": [ { "title": string, "headers": [ string ], "rows": [ [ string ] ] } ], "charts": [ { "title": string, "type": string, "labels": [ string ], "data": [ number ] } ], "footnotes": [ { "id": number, "reference": string, "page": number | null } ], "suggested_course_tag": string | null, "is_quantitative": boolean, "formulas": [ { "name": string, "latex": string, "variables": [ { "symbol": string, "meaning": string } ] } ], "worked_examples": [ { "title": string, "problem_statement": string, "steps": [ string ], "final_answer": string } ] }. If the draft was already accurate and complete, you may return it largely unchanged — only make genuine improvements, don't change things arbitrarily.`
 
     function buildReviewUserPrompt(sourceBudgetChars: number): string {
       let trimmedSource = sourceTextForReview
