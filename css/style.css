@@ -4970,6 +4970,117 @@ input:checked + .slider:before {
   color: var(--color-navy) !important;
 }
 
+/* Acadia floating launcher: stylish pulsing circular FAB, stacked above Focus Mode */
+.acadia-fab-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.acadia-fab {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--color-teal) 0%, var(--color-navy) 100%);
+  box-shadow: 0 10px 26px rgba(15, 35, 70, 0.35);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  animation: acadia-pulse-ring 2.4s ease-out infinite;
+}
+
+.acadia-fab:hover {
+  transform: scale(1.08);
+  box-shadow: 0 14px 32px rgba(15, 35, 70, 0.42);
+}
+
+.acadia-fab:active {
+  transform: scale(0.96);
+}
+
+.acadia-fab-icon {
+  font-size: 1.55rem;
+  line-height: 1;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25));
+}
+
+.acadia-fab-dot {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #22C55E;
+  border: 2px solid var(--color-white);
+  animation: acadia-dot-blink 1.8s ease-in-out infinite;
+}
+
+.acadia-fab-tooltip {
+  position: absolute;
+  right: 72px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--color-navy);
+  color: var(--color-white);
+  padding: 0.4rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  box-shadow: var(--shadow-md);
+}
+
+.acadia-fab-tooltip::after {
+  content: '';
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 5px solid transparent;
+  border-left-color: var(--color-navy);
+}
+
+.acadia-fab-wrap:hover .acadia-fab-tooltip {
+  opacity: 1;
+  transform: translateY(-50%) translateX(-4px);
+}
+
+@keyframes acadia-pulse-ring {
+  0% { box-shadow: 0 10px 26px rgba(15, 35, 70, 0.35), 0 0 0 0 rgba(45, 212, 191, 0.55); }
+  70% { box-shadow: 0 10px 26px rgba(15, 35, 70, 0.35), 0 0 0 16px rgba(45, 212, 191, 0); }
+  100% { box-shadow: 0 10px 26px rgba(15, 35, 70, 0.35), 0 0 0 0 rgba(45, 212, 191, 0); }
+}
+
+@keyframes acadia-dot-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+.acadia-panel-shell {
+  animation: acadia-panel-in 0.22s ease-out;
+}
+
+@keyframes acadia-panel-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .acadia-fab,
+  .acadia-fab-dot,
+  .acadia-panel-shell {
+    animation: none !important;
+  }
+}
+
 
 
 
