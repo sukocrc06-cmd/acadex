@@ -3768,6 +3768,13 @@ function renderSourceHubChatMessage(role, text, citations, imageDataUrl, visionU
       bubble.appendChild(tag);
     }
 
+    // Let the student save this reply itself (formulas, a worked step-by-step
+    // solution, an explanation, etc.) to the notebook — same idea as the
+    // "Deftere Gönder" action already available on chat images/diagrams.
+    if (text && text.trim()) {
+      bubble.appendChild(createChatTextActionRow(text, isTr));
+    }
+
     if (mermaidCode) {
       renderMermaidIntoBubble(bubble, mermaidCode, isTr ? 'AI Diyagramı' : 'AI diagram').then((svgDataUrl) => {
         if (!svgDataUrl) return;
@@ -12661,6 +12668,30 @@ window.closeImageLightbox = closeImageLightbox;
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closeImageLightbox();
 });
+
+// Builds the small "📌 Deftere Ekle" action button shown under an assistant
+// chat TEXT reply (e.g. a list of formulas, a step-by-step solution) so it
+// can be saved to the notebook (card_depot) same as images/diagrams already
+// can be. Stores the raw text (not the rendered LaTeX/HTML) — the depot's
+// default text renderer displays/truncates it same as any other plain-text
+// item (key terms, key points, etc).
+function createChatTextActionRow(rawText, isTr) {
+  const row = document.createElement('div');
+  row.style.cssText = 'display: flex; gap: 0.4rem; margin-top: 0.45rem; flex-wrap: wrap;';
+
+  const notebookBtn = document.createElement('button');
+  notebookBtn.type = 'button';
+  notebookBtn.textContent = isTr ? '📌 Deftere Ekle' : '📌 Add to Notebook';
+  notebookBtn.style.cssText = 'background: var(--color-bg-alt); border: 1px solid rgba(22, 50, 92, 0.15); color: var(--color-teal); border-radius: 20px; padding: 0.2rem 0.6rem; font-size: 0.65rem; font-weight: 700; cursor: pointer;';
+  notebookBtn.addEventListener('click', (e) => {
+    if (!currentActiveStudyCard || !currentActiveStudyCard.id) return;
+    const title = rawText.length > 60 ? rawText.slice(0, 60) + '…' : rawText;
+    sendToDepot(e, notebookBtn, currentActiveStudyCard.id, 'key_point', title, rawText);
+  });
+  row.appendChild(notebookBtn);
+
+  return row;
+}
 
 // Builds the small "🖼️ Deftere Gönder" / "📌 Özete Ekle" action row shown
 // under any image in the chat (a student's uploaded photo, a rendered
