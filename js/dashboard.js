@@ -11092,32 +11092,107 @@ window.clearAcadiaCardContext = clearAcadiaCardContext;
 // (e.g. transferring quiz questions onto the notebook board as sticky
 // notes) and returns the reply text with the action block stripped out,
 // so the chat bubble only shows the conversational part.
-function processAcadiaActionBlock(rawReply) {
+// Tabs Acadia is allowed to navigate to via switch_tab, and the planner
+// event types the Study Planner's own "Add Event" form accepts (see
+// savePlannerEvent) — kept in sync with #planner-event-type's options.
+const ACADIA_VALID_TABS = ['home', 'planner', 'docs', 'feed', 'notebook', 'cards', 'sourcehub', 'glossary', 'exams', 'settings', 'sandbox'];
+const ACADIA_VALID_EVENT_TYPES = ['exam', 'goal', 'deadline', 'other'];
+const ACADIA_TAB_LABELS = {
+  home: { tr: 'Ana Sayfa', en: 'Home' },
+  planner: { tr: 'Çalışma Planlayıcı', en: 'Study Planner' },
+  docs: { tr: 'Belgeler', en: 'Documents' },
+  feed: { tr: 'Bölüm Akışı', en: 'Department Feed' },
+  notebook: { tr: 'Çalışma Defteri', en: 'Notebook' },
+  cards: { tr: 'Bilgi Kartları', en: 'Study Cards' },
+  sourcehub: { tr: 'Kaynakla Çalış', en: 'Source Hub' },
+  glossary: { tr: 'Ders Sözlüğü', en: 'Course Glossary' },
+  exams: { tr: 'Sınav Platformu', en: 'Exam Platform' },
+  settings: { tr: 'Ayarlar', en: 'Settings' },
+  sandbox: { tr: 'Geliştirici Sandbox', en: 'Developer Sandbox' }
+};
+
+// Executes any "acadia-action" block the assistant appended to its reply
+// (transferring content to the notebook, navigating to a tab, or adding a
+// Study Planner event) and returns the reply text with the action block
+// stripped out, so the chat bubble only shows the conversational part.
+// Accepts the current {"actions":[...]} shape as well as the older single
+// {"action":"add_sticky_notes","items":[...]} shape for backward compatibility.
+async function processAcadiaActionBlock(rawReply) {
   const match = /```acadia-action\s*([\s\S]*?)```/.exec(rawReply || '');
   if (!match) return { displayText: rawReply, actionTaken: false };
 
   const displayText = rawReply.slice(0, match.index).trim() + rawReply.slice(match.index + match[0].length).trim();
   const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
 
+  let parsed;
   try {
-    const action = JSON.parse(match[1].trim());
-    if (action && action.action === 'add_sticky_notes' && Array.isArray(action.items) && action.items.length > 0) {
-      action.items.slice(0, 20).forEach((item, idx) => {
-        const title = (item && item.title) ? String(item.title).slice(0, 80) : 'Acadia';
-        const text = (item && item.text) ? String(item.text).slice(0, 500) : '';
-        if (!text) return;
-        addStickyNoteToNotebook(`acadia-${Date.now()}-${idx}`, title.replace(/</g, '&lt;'), text.replace(/</g, '&lt;'));
-      });
-      showDashboardAlert('success', isTr
-        ? `🗒️ ${action.items.length} not deftere eklendi.`
-        : `🗒️ ${action.items.length} note(s) added to your notebook.`);
-      return { displayText: displayText || (isTr ? 'Notları deftere ekledim.' : "I've added the notes to your notebook."), actionTaken: true };
-    }
+    parsed = JSON.parse(match[1].trim());
   } catch (err) {
     console.error('Failed to parse Acadia action block:', err, match[1]);
+    return { displayText: displayText || rawReply, actionTaken: false };
   }
 
-  return { displayText: displayText || rawReply, actionTaken: false };
+  let actions = [];
+  if (Array.isArray(parsed?.actions)) {
+    actions = parsed.actions;
+  } else if (parsed?.action === 'add_sticky_notes') {
+    actions = [{ type: 'add_sticky_notes', items: parsed.items }];
+  }
+  if (actions.length === 0) return { displayText: displayText || rawReply, actionTaken: false };
+
+  const summaryParts = [];
+
+  for (const action of actions.slice(0, 5)) {
+    if (!action || typeof action.type !== 'string') continue;
+
+    try {
+      if (action.type === 'add_sticky_notes' && Array.isArray(action.items) && action.items.length > 0) {
+        let added = 0;
+        action.items.slice(0, 20).forEach((item, idx) => {
+          const title = (item && item.title) ? String(item.title).slice(0, 80) : 'Acadia';
+          const text = (item && item.text) ? String(item.text).slice(0, 500) : '';
+          if (!text) return;
+          addStickyNoteToNotebook(`acadia-${Date.now()}-${idx}`, title.replace(/</g, '&lt;'), text.replace(/</g, '&lt;'));
+          added++;
+        });
+        if (added > 0) {
+          summaryParts.push(isTr ? `🗒️ ${added} not deftere eklendi` : `🗒️ ${added} note(s) added to your notebook`);
+        }
+      } else if (action.type === 'switch_tab' && ACADIA_VALID_TABS.includes(action.tab)) {
+        switchDashboardView(action.tab);
+        const tabLabel = ACADIA_TAB_LABELS[action.tab]?.[isTr ? 'tr' : 'en'] || action.tab;
+        summaryParts.push(isTr ? `📂 ${tabLabel} sekmesine geçildi` : `📂 switched to ${tabLabel}`);
+      } else if (action.type === 'add_planner_event' && action.title && /^\d{4}-\d{2}-\d{2}$/.test(String(action.date || ''))) {
+        const eventType = ACADIA_VALID_EVENT_TYPES.includes(action.event_type) ? action.event_type : 'other';
+        const eventTitle = String(action.title).slice(0, 150);
+        const { error } = await supabaseClient.from('study_events').insert({
+          user_id: currentUser.id,
+          title: eventTitle,
+          event_date: action.date,
+          event_type: eventType,
+          notes: isTr ? 'Acadia tarafından eklendi' : 'Added by Acadia',
+          is_done: false
+        });
+        if (!error) {
+          summaryParts.push(isTr ? `📅 "${eventTitle}" planlayıcıya eklendi (${action.date})` : `📅 "${eventTitle}" added to your planner (${action.date})`);
+          if (currentActiveTab === 'planner' && typeof loadPlannerEvents === 'function') loadPlannerEvents();
+        } else {
+          console.error('Acadia add_planner_event failed:', error);
+        }
+      }
+    } catch (err) {
+      console.error('Error executing Acadia action:', action, err);
+    }
+  }
+
+  if (summaryParts.length > 0) {
+    showDashboardAlert('success', summaryParts.join(' · '));
+  }
+
+  return {
+    displayText: displayText || (isTr ? 'Tamamdır, hallettim!' : "Done, I've taken care of that!"),
+    actionTaken: summaryParts.length > 0
+  };
 }
 
 function renderAcadiaMessage(role, text) {
@@ -11201,7 +11276,7 @@ async function sendAcadiaMessage(text) {
       return;
     }
 
-    const { displayText } = processAcadiaActionBlock(data.reply);
+    const { displayText } = await processAcadiaActionBlock(data.reply);
     renderAcadiaMessage('assistant', displayText);
     // Keep the displayed (action-block-stripped) text in history so future
     // turns aren't confused by re-seeing raw action JSON.

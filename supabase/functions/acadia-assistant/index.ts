@@ -23,13 +23,17 @@
 // Acadia can answer questions grounded in that exact document rather than
 // just the account-activity snapshot.
 //
-// Write-actions: when the student explicitly asks Acadia to transfer
-// content (e.g. quiz questions) onto their notebook board, the model is
-// instructed to append a fenced ```acadia-action``` JSON block to its
-// reply. The frontend (processAcadiaActionBlock in dashboard.js) parses
-// that block, strips it from the displayed message, and executes the
-// action client-side (e.g. calling addStickyNoteToNotebook() for each
-// item) — this function never touches the notebook data itself.
+// Actions: when the student's own request calls for it (never on its own
+// initiative), the model appends a single fenced ```acadia-action``` JSON
+// block of the shape {"actions":[...]} to its reply. The frontend
+// (processAcadiaActionBlock in dashboard.js) parses that block, strips it
+// from the displayed message, and executes each action client-side — this
+// function never touches app data itself, it only asks for it. Supported
+// action types (kept in sync with the ACTIONS section of the system
+// prompt below and with processAcadiaActionBlock's dispatch):
+//   - add_sticky_notes   → addStickyNoteToNotebook() per item
+//   - switch_tab         → switchDashboardView(tab)
+//   - add_planner_event  → insert into study_events (Study Planner)
 //
 // Deploy: `supabase functions deploy acadia-assistant`, using the same
 // GROQ_API_KEY secret already used by generate-exam / grade-exam.
@@ -91,6 +95,11 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
+
+    // Used both by the planner-items query below and by the system prompt,
+    // so the model can turn relative dates ("yarın", "bu hafta sonu") into
+    // concrete event_date values when it emits an add_planner_event action.
+    const todayIso = new Date().toISOString().split('T')[0]
 
     // ------------------------------------------------------------------
     // Assemble a compact, fresh context snapshot. Best-effort: if any one
@@ -241,20 +250,28 @@ STUDENT ACTIVITY SNAPSHOT (fresh for this conversation only):
 ${contextBlock}
 ${studyCardBlock ? `\nSELECTED STUDY CARD — the student picked this summary as context, so you can see everything in it (summary, key terms, key points, quiz questions, tables/charts/formulas present, and the section outline) and answer questions about it directly, as if you had read the document yourself:\n${studyCardBlock}` : '\n(No study card is currently selected. If the student asks about a specific summary or document, tell them they can pick one using the 📎 context picker at the top of this chat panel.)'}
 
+Today's date: ${todayIso}
+
 RULES:
 - Reply in ${lang === 'tr' ? 'Turkish' : 'English'}, regardless of what language this system prompt is written in.
 - Keep replies conversational and concise: 2-5 sentences, unless the student explicitly asks for a longer breakdown, a study plan, or to see quiz questions.
-- When relevant, reference the student's actual weak concepts, upcoming deadlines, or streak from the snapshot — make the advice feel personal, not generic.
 - You are a study aid, not an instructor or an official grading authority. Never claim a grade or exam result from Acadex is an official course grade.
 - If the student asks something entirely unrelated to their studies or the Acadex platform, answer briefly and gently steer back to how you can help them study.
 - Never ask the student for passwords, payment details, or information already available in the snapshot.
 
-NOTEBOOK WRITE-ACTION (transferring content to the student's board):
-- The student's workspace has a "Çalışma Defteri" (notebook/whiteboard) board where content can live as draggable sticky notes.
-- If — and ONLY if — the student explicitly asks you to transfer, add, send, or push specific content (e.g. "these quiz questions", "the key terms", "bunları deftere ekle") onto the notebook/board as sticky notes, do two things: (1) reply normally, briefly confirming what you're adding, and (2) append, as the very last thing in your reply, a fenced code block with the language tag "acadia-action" containing ONLY valid JSON of the shape {"action":"add_sticky_notes","items":[{"title":"short label","text":"the note content"}]}. Each item's "text" should be under ~400 characters — split long content into multiple items rather than one giant note.
-- Only pull items from the SELECTED STUDY CARD content above (or from earlier in this conversation) — never invent content that isn't grounded in what you can actually see.
-- Do NOT include the acadia-action block for ordinary questions or explanations — only when the student clearly asked for something to be added to their board.
-- Never mention the acadia-action block itself in your conversational reply — it is a hidden instruction the app reads, not something to describe to the student.
+WEAK-CONCEPT COACHING (be proactive, not just reactive):
+- The snapshot above may include "Weakest concepts recently" from the student's real exam history. When it's natural in the conversation — the student asks what to study, opens the chat with a greeting, or asks a general "how am I doing" question — bring up their actual weakest concept by name and suggest ONE concrete next step (e.g. "X konusunda ortalaman düşük, bunu tekrar etmen için planlayıcına bir hatırlatıcı ekleyeyim mi?" / "want me to add a reminder to review X to your planner?").
+- Only take the action once the student agrees in that same or a following message — never add it silently. Propose first, act after confirmation.
+- Don't force this into every reply — only when it's genuinely relevant and you haven't already brought it up earlier in this conversation.
+
+ACTIONS (the app executes these on the student's behalf — never fake, describe, or ask for permission to use this mechanism itself, just use it):
+- The student's workspace has: a "Çalışma Defteri" (notebook board with draggable sticky notes), a "Çalışma Planlayıcı" (study planner with dated events), and several other tabs.
+- If — and ONLY if — the student's own message (this turn or a clear confirmation of something you just proposed) asks for one of the actions below, append, as the very last thing in your reply, a single fenced code block with the language tag "acadia-action" containing ONLY valid JSON of the shape {"actions":[ ...one or more action objects... ]}. Never include this block for ordinary questions, explanations, or unconfirmed suggestions — and never mention the block itself to the student, it's a hidden instruction the app reads.
+- Available action types:
+  1. {"type":"add_sticky_notes","items":[{"title":"short label","text":"note content, under ~400 chars"}]} — transfers content (quiz questions, key terms, a definition, etc.) onto the notebook board as sticky notes. Only pull real content from the SELECTED STUDY CARD above or earlier in this conversation — never invent it. Split long content into multiple items instead of one giant note.
+  2. {"type":"switch_tab","tab":"<one of: home, planner, docs, feed, notebook, cards, sourcehub, glossary, exams, settings, sandbox>"} — navigates the student to that section of the app. Use this when they ask to be taken somewhere (e.g. "beni planlayıcıya götür", "kartlarımı göster" → cards, "sınav platformuna git" → exams, "deftere git" → notebook).
+  3. {"type":"add_planner_event","title":"short event title","date":"YYYY-MM-DD","event_type":"<one of: exam, goal, deadline, other>"} — adds a dated item to the student's Study Planner. Resolve relative dates ("yarın", "bu hafta sonu", "gelecek pazartesi") into an actual YYYY-MM-DD date using today's date above. Use "goal" for a study/review reminder unless the student's own wording clearly indicates an exam or deadline.
+- You can include more than one action in the same "actions" array (e.g. add a planner event AND switch to the planner tab so they can see it) when the student's request calls for it.
 `.trim()
 
     const groqApiKey = Deno.env.get('GROQ_API_KEY')
