@@ -134,8 +134,14 @@ const TRANSLATIONS = {
     "dash.nav.glossary": "Course Glossary",
     "dash.nav.courseTree": "Course Tree",
     "dash.nav.exams": "Exams Platform",
+    "dash.nav.presentation": "Academic Presentation",
     "dash.nav.sandbox": "Developer Sandbox",
     "dash.nav.settings": "Settings",
+    "dash.presentation.title": "Academic Presentation",
+    "dash.presentation.desc": "Create, edit and export your course presentations with AI.",
+    "dash.presentation.placeholderTitle": "Academic Presentation Studio",
+    "dash.presentation.placeholderDesc": "Here you will create presentations, edit slides, add images and download as PPTX/PDF. The studio will be activated soon.",
+    "dash.presentation.newBtn": "+ New Presentation",
     "dash.search.placeholder": "Search actions, pages, cards...",
 
     // Dashboard Overview Tab (Ana Sayfa)
@@ -494,8 +500,14 @@ const TRANSLATIONS = {
     "dash.nav.glossary": "Ders Sözlüğü",
     "dash.nav.courseTree": "Ders Ağacı",
     "dash.nav.exams": "Sınav Platformu",
+    "dash.nav.presentation": "Akademik Sunum",
     "dash.nav.sandbox": "Geliştirici Sandbox",
     "dash.nav.settings": "Ayarlar",
+    "dash.presentation.title": "Akademik Sunum",
+    "dash.presentation.desc": "Ders sunumlarınızı AI ile oluşturun, düzenleyin ve indirin.",
+    "dash.presentation.placeholderTitle": "Akademik Sunum Stüdyosu",
+    "dash.presentation.placeholderDesc": "Burada sunumlarınızı oluşturacak, slayt düzenleyecek, görsel ekleyecek ve PPTX/PDF olarak indirebileceksiniz. Stüdyo yakında aktif olacak.",
+    "dash.presentation.newBtn": "+ Yeni Sunum",
     "dash.search.placeholder": "Eylemleri, sayfaları, kartları arayın...",
 
     // Dashboard Overview Tab (Ana Sayfa)

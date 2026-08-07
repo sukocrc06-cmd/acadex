@@ -1908,7 +1908,7 @@ function switchDashboardView(viewId) {
   }
 
   // Update sidebar active classes immediately for responsiveness
-  const tabs = ['home', 'planner', 'docs', 'feed', 'notebook', 'cards', 'sourcehub', 'glossary', 'exams', 'settings', 'sandbox', 'admin'];
+  const tabs = ['home', 'planner', 'docs', 'feed', 'notebook', 'cards', 'sourcehub', 'glossary', 'exams', 'presentation', 'settings', 'sandbox', 'admin'];
   tabs.forEach(tab => {
     const el = document.getElementById(`side-${tab}`);
     if (el) {
@@ -1981,6 +1981,8 @@ function loadViewContent(viewId) {
     loadGlossaryView();
   } else if (viewId === 'exams') {
     loadExamsPlatform();
+  } else if (viewId === 'presentation') {
+    loadPresentationStudio();
   } else if (viewId === 'settings') {
     loadSettingsView();
   } else if (viewId === 'sandbox') {
@@ -4469,6 +4471,16 @@ function addSectionStickyNote(cardId, type, fileName) {
   }, 100);
 }
 window.addSectionStickyNote = addSectionStickyNote;
+
+// ==========================================
+// TAB: AKADEMIK SUNUM (Academic Presentation Studio)
+// ==========================================
+// Full studio UI will be built in step 3+. For now this is a no-op
+// so switchDashboardView('presentation') does not throw.
+function loadPresentationStudio() {
+  // Placeholder – studio root is already in the HTML skeleton.
+  // Later steps will render the 3-column editor here.
+}
 
 // ==========================================
 // TAB 5: SINAV PLATFORMU (EXAM PLATFORM)
