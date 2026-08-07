@@ -4475,11 +4475,68 @@ window.addSectionStickyNote = addSectionStickyNote;
 // ==========================================
 // TAB: AKADEMIK SUNUM (Academic Presentation Studio)
 // ==========================================
-// Full studio UI will be built in step 3+. For now this is a no-op
-// so switchDashboardView('presentation') does not throw.
+let presStudioInitialized = false;
+let presCurrentId = null;
+let presActiveSlide = 0;
+
 function loadPresentationStudio() {
-  // Placeholder – studio root is already in the HTML skeleton.
-  // Later steps will render the 3-column editor here.
+  initPresentationStudioOnce();
+  showPresentationListMode();
+}
+
+function initPresentationStudioOnce() {
+  if (presStudioInitialized) return;
+  presStudioInitialized = true;
+
+  const newBtn = document.getElementById('presentation-new-btn');
+  if (newBtn) {
+    newBtn.addEventListener('click', () => {
+      // Step 4 will create a real DB row; for now open empty studio UI
+      openPresentationStudio({ id: null, title: 'Adsız Sunum' });
+    });
+  }
+
+  const backBtn = document.getElementById('pres-back-btn');
+  if (backBtn) backBtn.addEventListener('click', showPresentationListMode);
+
+  document.querySelectorAll('.pres-layout-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.pres-layout-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+
+  const uploadZone = document.getElementById('pres-upload-zone');
+  const uploadBtn = document.getElementById('pres-upload-btn');
+  const imageInput = document.getElementById('pres-image-input');
+  if (uploadZone && imageInput) uploadZone.addEventListener('click', () => imageInput.click());
+  if (uploadBtn && imageInput) uploadBtn.addEventListener('click', () => imageInput.click());
+
+  document.getElementById('pres-slides-list')?.addEventListener('click', (e) => {
+    const thumb = e.target.closest('.pres-slide-thumb');
+    if (!thumb) return;
+    document.querySelectorAll('.pres-slide-thumb').forEach(t => t.classList.remove('active'));
+    thumb.classList.add('active');
+    presActiveSlide = parseInt(thumb.dataset.slideIndex || '0', 10);
+  });
+}
+
+function showPresentationListMode() {
+  const list = document.getElementById('pres-list-mode');
+  const studio = document.getElementById('pres-studio-mode');
+  if (list) list.style.display = '';
+  if (studio) studio.style.display = 'none';
+  presCurrentId = null;
+}
+
+function openPresentationStudio(presentation) {
+  const list = document.getElementById('pres-list-mode');
+  const studio = document.getElementById('pres-studio-mode');
+  if (list) list.style.display = 'none';
+  if (studio) studio.style.display = 'flex';
+  presCurrentId = presentation?.id || null;
+  const titleInput = document.getElementById('pres-title-input');
+  if (titleInput) titleInput.value = presentation?.title || 'Adsız Sunum';
 }
 
 // ==========================================
