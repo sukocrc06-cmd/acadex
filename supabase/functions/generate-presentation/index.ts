@@ -155,7 +155,7 @@ function buildStudyCardContext(card: any): string {
   return parts.join('\n\n').slice(0, 24000)
 }
 
-function buildBalancedContext(value: string, maxLength = 20000): string {
+function buildBalancedContext(value: string, maxLength = 8000): string {
   const text = cleanText(value, 50000)
   if (text.length <= maxLength) return text
 
@@ -173,9 +173,22 @@ function buildBalancedContext(value: string, maxLength = 20000): string {
   return [first, middle, last].join(separator)
 }
 
+function shrinkPromptForRetry(userPrompt: string): string {
+  if (userPrompt.length <= 6000) return userPrompt
+  const marker = 'SOURCE MATERIAL:\n'
+  const markerIndex = userPrompt.indexOf(marker)
+  if (markerIndex < 0) return userPrompt.slice(0, 6000)
+
+  const header = userPrompt.slice(0, markerIndex + marker.length)
+  const material = userPrompt.slice(markerIndex + marker.length)
+  return `${header}${buildBalancedContext(material, 4500)}`
+}
+
 async function callGroq(apiKey: string, systemPrompt: string, userPrompt: string) {
   let lastError = ''
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  let promptForAttempt = userPrompt
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 60000)
     try {
@@ -186,20 +199,26 @@ async function callGroq(apiKey: string, systemPrompt: string, userPrompt: string
         body: JSON.stringify({
           model: 'openai/gpt-oss-120b',
           temperature: 0.35,
-          max_completion_tokens: 6000,
+          max_completion_tokens: 3000,
           reasoning_effort: 'low',
           include_reasoning: false,
           response_format: { type: 'json_object' },
           messages: [
             { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
+            { role: 'user', content: promptForAttempt },
           ],
         }),
       })
       clearTimeout(timeoutId)
       const payload = await response.json()
       if (response.ok && payload?.choices?.[0]?.message?.content) return payload.choices[0].message.content as string
+
       lastError = cleanText(payload?.error?.message, 400)
+      const tooLarge = /too large|context|token|request size/i.test(lastError)
+      if (tooLarge && attempt < 2) {
+        promptForAttempt = shrinkPromptForRetry(promptForAttempt)
+        continue
+      }
       if (response.status !== 429 && response.status < 500) break
     } catch (error) {
       clearTimeout(timeoutId)
@@ -297,7 +316,7 @@ serve(async (req) => {
 
     const safeSourceContext = sourceType === 'topic'
       ? sourceContext
-      : buildBalancedContext(sourceContext, 20000)
+      : buildBalancedContext(sourceContext, 8000)
 
     const userPrompt = `SOURCE TYPE: ${sourceType}\nSOURCE TITLE: ${sourceTitle}\nCOURSE / TAG: ${courseTag || 'Not specified'}\n\nSOURCE MATERIAL:\n${safeSourceContext}`
     const raw = await callGroq(groqApiKey, systemPrompt, userPrompt)
