@@ -38,9 +38,9 @@ function getLocalDateString(date = new Date()) {
 }
 
 window.addEventListener('beforeunload', (e) => {
-  if (notebookHasUnsavedChanges) {
+  if (notebookHasUnsavedChanges || presIsDirty) {
     e.preventDefault();
-    e.returnValue = 'You have unsaved changes in your notebook — are you sure you want to leave?';
+    e.returnValue = 'Kaydedilmemiş değişiklikleriniz var. Sayfadan ayrılmak istediğinize emin misiniz?';
     return e.returnValue;
   }
 });
@@ -4477,11 +4477,19 @@ window.addSectionStickyNote = addSectionStickyNote;
 // ==========================================
 let presStudioInitialized = false;
 let presCurrentId = null;
+let presCurrentPresentation = null;
+let presPresentations = [];
+let presSlides = [];
+let presDeletedSlideIds = [];
 let presActiveSlide = 0;
+let presIsDirty = false;
+let presIsSaving = false;
+let presListRequestId = 0;
 
-function loadPresentationStudio() {
+async function loadPresentationStudio() {
   initPresentationStudioOnce();
-  showPresentationListMode();
+  if (presCurrentId) return;
+  await showPresentationListMode();
 }
 
 function initPresentationStudioOnce() {
@@ -4490,19 +4498,40 @@ function initPresentationStudioOnce() {
 
   const newBtn = document.getElementById('presentation-new-btn');
   if (newBtn) {
-    newBtn.addEventListener('click', () => {
-      // Step 4 will create a real DB row; for now open empty studio UI
-      openPresentationStudio({ id: null, title: 'Adsız Sunum' });
-    });
+    newBtn.addEventListener('click', createPresentation);
   }
 
   const backBtn = document.getElementById('pres-back-btn');
-  if (backBtn) backBtn.addEventListener('click', showPresentationListMode);
+  if (backBtn) backBtn.addEventListener('click', leavePresentationStudio);
+
+  document.getElementById('pres-save-btn')?.addEventListener('click', () => savePresentation());
+  document.getElementById('pres-add-slide-btn')?.addEventListener('click', addPresentationSlide);
+  document.getElementById('pres-add-slide-footer-btn')?.addEventListener('click', addPresentationSlide);
+  document.getElementById('pres-complete-btn')?.addEventListener('click', completePresentation);
+
+  const titleInput = document.getElementById('pres-title-input');
+  titleInput?.addEventListener('input', () => {
+    if (presCurrentPresentation) presCurrentPresentation.title = titleInput.value;
+    markPresentationDirty();
+  });
+
+  ['pres-slide-title', 'pres-slide-content', 'pres-speaker-notes'].forEach(id => {
+    document.getElementById(id)?.addEventListener('input', () => {
+      syncActiveSlideFromEditor();
+      renderPresentationSlidesList();
+      markPresentationDirty();
+    });
+  });
 
   document.querySelectorAll('.pres-layout-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.pres-layout-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
+      const slide = presSlides[presActiveSlide];
+      if (slide) {
+        slide.layout_type = btn.dataset.layout || 'title-content';
+        markPresentationDirty();
+      }
     });
   });
 
@@ -4513,31 +4542,603 @@ function initPresentationStudioOnce() {
   if (uploadBtn && imageInput) uploadBtn.addEventListener('click', () => imageInput.click());
 
   document.getElementById('pres-slides-list')?.addEventListener('click', (e) => {
+    const actionButton = e.target.closest('[data-slide-action]');
+    if (actionButton) {
+      e.preventDefault();
+      e.stopPropagation();
+      const index = Number.parseInt(actionButton.dataset.slideIndex || '-1', 10);
+      if (actionButton.dataset.slideAction === 'delete') deletePresentationSlide(index);
+      if (actionButton.dataset.slideAction === 'up') movePresentationSlide(index, -1);
+      if (actionButton.dataset.slideAction === 'down') movePresentationSlide(index, 1);
+      return;
+    }
+
     const thumb = e.target.closest('.pres-slide-thumb');
     if (!thumb) return;
-    document.querySelectorAll('.pres-slide-thumb').forEach(t => t.classList.remove('active'));
-    thumb.classList.add('active');
-    presActiveSlide = parseInt(thumb.dataset.slideIndex || '0', 10);
+    activatePresentationSlide(Number.parseInt(thumb.dataset.slideIndex || '0', 10));
+  });
+
+  document.getElementById('pres-list-container')?.addEventListener('click', async (e) => {
+    const action = e.target.closest('[data-presentation-action]');
+    if (!action) return;
+    const presentationId = action.dataset.presentationId;
+    if (!presentationId) return;
+
+    if (action.dataset.presentationAction === 'open') {
+      await loadAndOpenPresentation(presentationId);
+    } else if (action.dataset.presentationAction === 'delete') {
+      await deletePresentation(presentationId);
+    }
   });
 }
 
-function showPresentationListMode() {
+async function showPresentationListMode() {
   const list = document.getElementById('pres-list-mode');
   const studio = document.getElementById('pres-studio-mode');
   if (list) list.style.display = '';
   if (studio) studio.style.display = 'none';
   presCurrentId = null;
+  presCurrentPresentation = null;
+  presSlides = [];
+  presDeletedSlideIds = [];
+  presActiveSlide = 0;
+  presIsDirty = false;
+  updatePresentationSaveState();
+  await loadPresentationsList();
 }
 
-function openPresentationStudio(presentation) {
+async function leavePresentationStudio() {
+  if (presIsSaving) return;
+
+  if (presIsDirty) {
+    const saved = await savePresentation({ silent: true });
+    if (!saved) {
+      showDashboardAlert('error', 'Değişiklikler kaydedilemediği için sunum açık bırakıldı.');
+      return;
+    }
+  }
+
+  await showPresentationListMode();
+}
+
+async function loadPresentationsList() {
+  const container = document.getElementById('pres-list-container');
+  if (!container || !currentUser) return;
+
+  const requestId = ++presListRequestId;
+  container.innerHTML = renderPresentationListState('loading');
+
+  try {
+    const { data, error } = await supabaseClient
+      .from('presentations')
+      .select('id, title, course_tag, language, theme, source_type, status, slide_count, created_at, updated_at')
+      .eq('user_id', currentUser.id)
+      .order('updated_at', { ascending: false });
+
+    if (error) throw error;
+    if (requestId !== presListRequestId) return;
+
+    presPresentations = data || [];
+    renderPresentationsList();
+  } catch (error) {
+    console.error('Presentation list could not be loaded:', error);
+    if (requestId !== presListRequestId) return;
+    container.innerHTML = renderPresentationListState('error');
+    showPresentationDataError(error, 'Sunumlar yüklenemedi.');
+  }
+}
+
+function renderPresentationsList() {
+  const container = document.getElementById('pres-list-container');
+  if (!container) return;
+
+  if (!presPresentations.length) {
+    container.innerHTML = renderPresentationListState('empty');
+    return;
+  }
+
+  container.innerHTML = presPresentations.map(presentation => {
+    const title = escapeHtml(presentation.title || 'Adsız Sunum');
+    const courseTag = presentation.course_tag
+      ? `<span class="pres-list-tag">${escapeHtml(presentation.course_tag)}</span>`
+      : '';
+    const isCompleted = presentation.status === 'completed';
+    const statusLabel = isCompleted ? 'Tamamlandı' : 'Taslak';
+    const statusClass = isCompleted ? 'is-completed' : 'is-draft';
+    const slideCount = Number(presentation.slide_count) || 0;
+    const updatedText = formatPresentationUpdatedAt(presentation.updated_at);
+
+    return `
+      <article class="pres-list-card">
+        <button type="button" class="pres-list-card-open" data-presentation-action="open" data-presentation-id="${presentation.id}" aria-label="${title} sunumunu aç">
+          <div class="pres-list-card-preview" aria-hidden="true">
+            <div class="pres-list-preview-title">${title}</div>
+            <div class="pres-list-preview-line"></div>
+            <div class="pres-list-preview-line is-short"></div>
+          </div>
+          <div class="pres-list-card-body">
+            <div class="pres-list-card-title-row">
+              <h3>${title}</h3>
+              <span class="pres-status-badge ${statusClass}">${statusLabel}</span>
+            </div>
+            <div class="pres-list-card-meta">
+              <span>${slideCount} slayt</span>
+              <span>•</span>
+              <span>${escapeHtml(updatedText)}</span>
+            </div>
+            ${courseTag}
+          </div>
+        </button>
+        <button type="button" class="pres-list-delete" data-presentation-action="delete" data-presentation-id="${presentation.id}" aria-label="${title} sunumunu sil" title="Sunumu sil">×</button>
+      </article>
+    `;
+  }).join('');
+}
+
+function renderPresentationListState(state) {
+  const states = {
+    loading: {
+      icon: '<span class="pres-loading-spinner" aria-hidden="true"></span>',
+      title: 'Sunumlar yükleniyor',
+      description: 'Akademik çalışmalarınız hazırlanıyor…'
+    },
+    error: {
+      icon: '<span style="font-size:1.8rem" aria-hidden="true">!</span>',
+      title: 'Sunumlar yüklenemedi',
+      description: 'Bağlantınızı ve Supabase migration durumunu kontrol edip tekrar deneyin.',
+      action: '<button type="button" class="pres-btn" onclick="loadPresentationsList()">Tekrar Dene</button>'
+    },
+    empty: {
+      icon: '<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--color-teal)" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>',
+      title: 'Henüz sunumunuz yok',
+      description: 'Yeni bir sunum oluşturarak başlayın. Sunumlarınız güvenli biçimde hesabınıza kaydedilir.'
+    }
+  };
+  const content = states[state] || states.empty;
+
+  return `
+    <div class="pres-empty-state pres-list-state" style="grid-column:1 / -1;">
+      <div class="pres-list-state-icon">${content.icon}</div>
+      <p class="pres-list-state-title">${content.title}</p>
+      <p class="pres-list-state-desc">${content.description}</p>
+      ${content.action || ''}
+    </div>
+  `;
+}
+
+async function createPresentation() {
+  if (!currentUser || presIsSaving) return;
+  const button = document.getElementById('presentation-new-btn');
+  setPresentationButtonBusy(button, true, 'Oluşturuluyor…');
+
+  let createdPresentation = null;
+  try {
+    const { data: presentation, error: presentationError } = await supabaseClient
+      .from('presentations')
+      .insert({
+        user_id: currentUser.id,
+        title: 'Adsız Sunum',
+        language: 'tr',
+        theme: 'academic',
+        source_type: 'blank',
+        status: 'draft',
+        slide_count: 2
+      })
+      .select('*')
+      .single();
+
+    if (presentationError) throw presentationError;
+    createdPresentation = presentation;
+
+    const { data: slides, error: slidesError } = await supabaseClient
+      .from('presentation_slides')
+      .insert([
+        {
+          presentation_id: presentation.id,
+          order_index: 0,
+          title: 'Sunum Başlığı',
+          content: { text: '' },
+          speaker_notes: '',
+          layout_type: 'title-content'
+        },
+        {
+          presentation_id: presentation.id,
+          order_index: 1,
+          title: 'Yeni Slayt',
+          content: { text: '' },
+          speaker_notes: '',
+          layout_type: 'title-content'
+        }
+      ])
+      .select('*');
+
+    if (slidesError) throw slidesError;
+
+    openPresentationStudio(presentation, sortPresentationSlides(slides || []));
+    showDashboardAlert('success', 'Yeni sunum oluşturuldu.');
+  } catch (error) {
+    console.error('Presentation could not be created:', error);
+    if (createdPresentation?.id) {
+      await supabaseClient
+        .from('presentations')
+        .delete()
+        .eq('id', createdPresentation.id)
+        .eq('user_id', currentUser.id);
+    }
+    showPresentationDataError(error, 'Sunum oluşturulamadı.');
+  } finally {
+    setPresentationButtonBusy(button, false);
+  }
+}
+
+async function loadAndOpenPresentation(presentationId) {
+  if (!currentUser || !presentationId || presIsSaving) return;
+
+  try {
+    const [{ data: presentation, error: presentationError }, { data: slides, error: slidesError }] = await Promise.all([
+      supabaseClient
+        .from('presentations')
+        .select('*')
+        .eq('id', presentationId)
+        .eq('user_id', currentUser.id)
+        .single(),
+      supabaseClient
+        .from('presentation_slides')
+        .select('*')
+        .eq('presentation_id', presentationId)
+        .order('order_index', { ascending: true })
+    ]);
+
+    if (presentationError) throw presentationError;
+    if (slidesError) throw slidesError;
+
+    const loadedSlides = sortPresentationSlides(slides || []);
+    if (!loadedSlides.length) loadedSlides.push(createLocalPresentationSlide(0));
+    openPresentationStudio(presentation, loadedSlides);
+  } catch (error) {
+    console.error('Presentation could not be opened:', error);
+    showPresentationDataError(error, 'Sunum açılamadı.');
+  }
+}
+
+function openPresentationStudio(presentation, slides = []) {
   const list = document.getElementById('pres-list-mode');
   const studio = document.getElementById('pres-studio-mode');
   if (list) list.style.display = 'none';
   if (studio) studio.style.display = 'flex';
   presCurrentId = presentation?.id || null;
+  presCurrentPresentation = presentation ? { ...presentation } : null;
+  presSlides = slides.map((slide, index) => normalizePresentationSlide(slide, index));
+  presDeletedSlideIds = [];
+  presActiveSlide = 0;
+  presIsDirty = presSlides.some(slide => slide._isNew);
   const titleInput = document.getElementById('pres-title-input');
   if (titleInput) titleInput.value = presentation?.title || 'Adsız Sunum';
+  renderPresentationSlidesList();
+  renderActivePresentationSlide();
+  updatePresentationSaveState();
 }
+
+function normalizePresentationSlide(slide, index) {
+  const content = slide?.content && typeof slide.content === 'object' ? slide.content : {};
+  return {
+    id: slide?.id || null,
+    presentation_id: slide?.presentation_id || presCurrentId,
+    order_index: index,
+    title: slide?.title || '',
+    content,
+    speaker_notes: slide?.speaker_notes || '',
+    layout_type: slide?.layout_type || 'title-content',
+    image_url: slide?.image_url || null,
+    image_position: slide?.image_position || 'right',
+    _isNew: !slide?.id,
+    _localKey: slide?._localKey || `slide-${Date.now()}-${index}-${Math.random().toString(36).slice(2)}`
+  };
+}
+
+function createLocalPresentationSlide(index = presSlides.length) {
+  return normalizePresentationSlide({
+    title: index === 0 ? 'Sunum Başlığı' : 'Yeni Slayt',
+    content: { text: '' },
+    speaker_notes: '',
+    layout_type: 'title-content'
+  }, index);
+}
+
+function sortPresentationSlides(slides) {
+  return [...slides].sort((a, b) => Number(a.order_index || 0) - Number(b.order_index || 0));
+}
+
+function renderPresentationSlidesList() {
+  const list = document.getElementById('pres-slides-list');
+  if (!list) return;
+
+  list.innerHTML = presSlides.map((slide, index) => {
+    const preview = escapeHtml((slide.title || getPresentationSlideText(slide) || 'Boş slayt').slice(0, 80));
+    return `
+      <div class="pres-slide-thumb ${index === presActiveSlide ? 'active' : ''}" data-slide-index="${index}" draggable="false">
+        <div class="pres-slide-thumb-top">
+          <div class="pres-slide-thumb-num">${index + 1}</div>
+          <div class="pres-slide-thumb-actions">
+            <button type="button" data-slide-action="up" data-slide-index="${index}" ${index === 0 ? 'disabled' : ''} aria-label="Slaytı yukarı taşı" title="Yukarı taşı">↑</button>
+            <button type="button" data-slide-action="down" data-slide-index="${index}" ${index === presSlides.length - 1 ? 'disabled' : ''} aria-label="Slaytı aşağı taşı" title="Aşağı taşı">↓</button>
+            <button type="button" class="is-danger" data-slide-action="delete" data-slide-index="${index}" ${presSlides.length === 1 ? 'disabled' : ''} aria-label="Slaytı sil" title="Slaytı sil">×</button>
+          </div>
+        </div>
+        <div class="pres-slide-thumb-preview">${preview}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function activatePresentationSlide(index) {
+  if (!Number.isInteger(index) || index < 0 || index >= presSlides.length || index === presActiveSlide) return;
+  syncActiveSlideFromEditor();
+  presActiveSlide = index;
+  renderPresentationSlidesList();
+  renderActivePresentationSlide();
+}
+
+function renderActivePresentationSlide() {
+  const slide = presSlides[presActiveSlide];
+  const titleInput = document.getElementById('pres-slide-title');
+  const contentInput = document.getElementById('pres-slide-content');
+  const notesInput = document.getElementById('pres-speaker-notes');
+  if (!slide) return;
+
+  if (titleInput) titleInput.value = slide.title || '';
+  if (contentInput) contentInput.value = getPresentationSlideText(slide);
+  if (notesInput) notesInput.value = slide.speaker_notes || '';
+  document.querySelectorAll('.pres-layout-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.layout === slide.layout_type);
+  });
+}
+
+function syncActiveSlideFromEditor() {
+  const slide = presSlides[presActiveSlide];
+  if (!slide) return;
+
+  const titleInput = document.getElementById('pres-slide-title');
+  const contentInput = document.getElementById('pres-slide-content');
+  const notesInput = document.getElementById('pres-speaker-notes');
+  slide.title = titleInput?.value || '';
+  slide.content = { ...(slide.content || {}), text: contentInput?.value || '' };
+  slide.speaker_notes = notesInput?.value || '';
+}
+
+function getPresentationSlideText(slide) {
+  const content = slide?.content || {};
+  if (typeof content.text === 'string') return content.text;
+  if (typeof content.paragraph === 'string') return content.paragraph;
+  if (Array.isArray(content.bullets)) return content.bullets.map(item => `• ${item}`).join('\n');
+  return '';
+}
+
+function addPresentationSlide() {
+  if (!presCurrentId || presIsSaving) return;
+  syncActiveSlideFromEditor();
+  presSlides.push(createLocalPresentationSlide(presSlides.length));
+  presActiveSlide = presSlides.length - 1;
+  reindexPresentationSlides();
+  markPresentationDirty();
+  renderPresentationSlidesList();
+  renderActivePresentationSlide();
+}
+
+function deletePresentationSlide(index) {
+  if (presSlides.length <= 1) {
+    showDashboardAlert('error', 'Bir sunumda en az bir slayt bulunmalıdır.');
+    return;
+  }
+  if (!Number.isInteger(index) || index < 0 || index >= presSlides.length) return;
+
+  syncActiveSlideFromEditor();
+  const [removed] = presSlides.splice(index, 1);
+  if (removed?.id) presDeletedSlideIds.push(removed.id);
+  if (presActiveSlide > index) presActiveSlide -= 1;
+  if (presActiveSlide === index) presActiveSlide = Math.min(index, presSlides.length - 1);
+  reindexPresentationSlides();
+  markPresentationDirty();
+  renderPresentationSlidesList();
+  renderActivePresentationSlide();
+}
+
+function movePresentationSlide(index, direction) {
+  const targetIndex = index + direction;
+  if (!Number.isInteger(index) || targetIndex < 0 || targetIndex >= presSlides.length) return;
+
+  syncActiveSlideFromEditor();
+  [presSlides[index], presSlides[targetIndex]] = [presSlides[targetIndex], presSlides[index]];
+  if (presActiveSlide === index) presActiveSlide = targetIndex;
+  else if (presActiveSlide === targetIndex) presActiveSlide = index;
+  reindexPresentationSlides();
+  markPresentationDirty();
+  renderPresentationSlidesList();
+  renderActivePresentationSlide();
+}
+
+function reindexPresentationSlides() {
+  presSlides.forEach((slide, index) => {
+    slide.order_index = index;
+  });
+}
+
+function markPresentationDirty() {
+  if (!presCurrentId) return;
+  presIsDirty = true;
+  updatePresentationSaveState();
+}
+
+function updatePresentationSaveState(message = '') {
+  const status = document.getElementById('pres-save-status');
+  const saveButton = document.getElementById('pres-save-btn');
+  if (saveButton) saveButton.disabled = presIsSaving || !presCurrentId;
+  if (!status) return;
+
+  if (message) {
+    status.textContent = message;
+    return;
+  }
+  status.textContent = presIsSaving ? 'Kaydediliyor…' : (presIsDirty ? 'Kaydedilmemiş değişiklikler' : 'Tüm değişiklikler kaydedildi');
+  status.classList.toggle('is-dirty', presIsDirty && !presIsSaving);
+  status.classList.toggle('is-saving', presIsSaving);
+}
+
+function serializePresentationSlide(slide, includeId = true) {
+  const payload = {
+    presentation_id: presCurrentId,
+    order_index: slide.order_index,
+    title: (slide.title || '').trim(),
+    content: slide.content && typeof slide.content === 'object' ? slide.content : { text: '' },
+    speaker_notes: slide.speaker_notes || '',
+    layout_type: slide.layout_type || 'title-content',
+    image_url: slide.image_url || null,
+    image_position: slide.image_position || 'right'
+  };
+  if (includeId && slide.id) payload.id = slide.id;
+  return payload;
+}
+
+async function savePresentation(options = {}) {
+  const { silent = false } = options;
+  if (!currentUser || !presCurrentId || presIsSaving) return false;
+
+  syncActiveSlideFromEditor();
+  reindexPresentationSlides();
+  presIsSaving = true;
+  updatePresentationSaveState();
+
+  try {
+    if (presDeletedSlideIds.length) {
+      const { error: deleteError } = await supabaseClient
+        .from('presentation_slides')
+        .delete()
+        .in('id', presDeletedSlideIds);
+      if (deleteError) throw deleteError;
+    }
+
+    const persistedSlides = presSlides.filter(slide => slide.id);
+    if (persistedSlides.length) {
+      const { error: updateSlidesError } = await supabaseClient
+        .from('presentation_slides')
+        .upsert(persistedSlides.map(slide => serializePresentationSlide(slide)), { onConflict: 'id' });
+      if (updateSlidesError) throw updateSlidesError;
+    }
+
+    const newSlides = presSlides.filter(slide => !slide.id);
+    if (newSlides.length) {
+      const { data: insertedSlides, error: insertSlidesError } = await supabaseClient
+        .from('presentation_slides')
+        .insert(newSlides.map(slide => serializePresentationSlide(slide, false)))
+        .select('*');
+      if (insertSlidesError) throw insertSlidesError;
+
+      const insertedByOrder = new Map((insertedSlides || []).map(slide => [Number(slide.order_index), slide]));
+      newSlides.forEach(slide => {
+        const inserted = insertedByOrder.get(Number(slide.order_index));
+        if (inserted) {
+          slide.id = inserted.id;
+          slide.created_at = inserted.created_at;
+          slide.updated_at = inserted.updated_at;
+          slide._isNew = false;
+        }
+      });
+    }
+
+    const titleInput = document.getElementById('pres-title-input');
+    const title = titleInput?.value.trim() || 'Adsız Sunum';
+    if (titleInput) titleInput.value = title;
+
+    const { data: updatedPresentation, error: updatePresentationError } = await supabaseClient
+      .from('presentations')
+      .update({
+        title,
+        slide_count: presSlides.length,
+        status: presCurrentPresentation?.status || 'draft'
+      })
+      .eq('id', presCurrentId)
+      .eq('user_id', currentUser.id)
+      .select('*')
+      .single();
+
+    if (updatePresentationError) throw updatePresentationError;
+
+    presCurrentPresentation = updatedPresentation;
+    presDeletedSlideIds = [];
+    presIsDirty = false;
+    if (!silent) showDashboardAlert('success', 'Sunum başarıyla kaydedildi.');
+    return true;
+  } catch (error) {
+    console.error('Presentation could not be saved:', error);
+    showPresentationDataError(error, 'Sunum kaydedilemedi.');
+    return false;
+  } finally {
+    presIsSaving = false;
+    updatePresentationSaveState();
+  }
+}
+
+async function completePresentation() {
+  if (!presCurrentPresentation || presIsSaving) return;
+  presCurrentPresentation.status = 'completed';
+  markPresentationDirty();
+  const saved = await savePresentation({ silent: true });
+  if (saved) showDashboardAlert('success', 'Sunum tamamlandı olarak işaretlendi.');
+}
+
+async function deletePresentation(presentationId) {
+  if (!currentUser || !presentationId || presIsSaving) return;
+  const presentation = presPresentations.find(item => item.id === presentationId);
+  const title = presentation?.title || 'Adsız Sunum';
+  if (!window.confirm(`“${title}” sunumunu kalıcı olarak silmek istediğinize emin misiniz?`)) return;
+
+  try {
+    const { error } = await supabaseClient
+      .from('presentations')
+      .delete()
+      .eq('id', presentationId)
+      .eq('user_id', currentUser.id);
+    if (error) throw error;
+
+    presPresentations = presPresentations.filter(item => item.id !== presentationId);
+    renderPresentationsList();
+    showDashboardAlert('success', 'Sunum silindi.');
+  } catch (error) {
+    console.error('Presentation could not be deleted:', error);
+    showPresentationDataError(error, 'Sunum silinemedi.');
+  }
+}
+
+function setPresentationButtonBusy(button, isBusy, busyLabel = 'İşleniyor…') {
+  if (!button) return;
+  if (isBusy) {
+    button.dataset.originalHtml = button.innerHTML;
+    button.disabled = true;
+    button.textContent = busyLabel;
+  } else {
+    button.disabled = false;
+    if (button.dataset.originalHtml) button.innerHTML = button.dataset.originalHtml;
+    delete button.dataset.originalHtml;
+  }
+}
+
+function formatPresentationUpdatedAt(value) {
+  if (!value) return 'Tarih yok';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Tarih yok';
+  return date.toLocaleDateString('tr-TR', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function showPresentationDataError(error, fallbackMessage) {
+  const detail = `${error?.code || ''} ${error?.message || ''}`.toLowerCase();
+  const migrationMissing = detail.includes('42p01') || detail.includes('pgrst205') || detail.includes('presentations') && detail.includes('schema cache');
+  const message = migrationMissing
+    ? 'Akademik Sunum veritabanı henüz hazır değil. 20260807_add_academic_presentations.sql migration dosyasını Supabase üzerinde çalıştırın.'
+    : fallbackMessage;
+  showDashboardAlert('error', message);
+}
+
+window.loadPresentationsList = loadPresentationsList;
 
 // ==========================================
 // TAB 5: SINAV PLATFORMU (EXAM PLATFORM)
@@ -13881,7 +14482,4 @@ async function exportGlossaryToPdf() {
   }
 }
 window.exportGlossaryToPdf = exportGlossaryToPdf;
-
-
-
 
