@@ -4495,6 +4495,7 @@ let presImageRenderRequestId = 0;
 let presActiveChartInstance = null;
 let presTableDraft = null;
 let presChartDraft = null;
+let presAiRequestInProgress = false;
 const presPendingImageDeletes = new Set();
 const presSignedImageCache = new Map();
 const PRES_IMAGE_BUCKET = 'presentation-images';
@@ -4523,6 +4524,19 @@ function initPresentationStudioOnce() {
   document.getElementById('pres-add-slide-btn')?.addEventListener('click', addPresentationSlide);
   document.getElementById('pres-add-slide-footer-btn')?.addEventListener('click', addPresentationSlide);
   document.getElementById('pres-complete-btn')?.addEventListener('click', completePresentation);
+  document.getElementById('pres-ai-btn')?.addEventListener('click', openPresentationAiBuilder);
+  document.getElementById('pres-ai-source-type')?.addEventListener('change', updatePresentationAiSourceFields);
+  document.getElementById('pres-ai-form')?.addEventListener('submit', generatePresentationWithAcadia);
+  document.getElementById('pres-acadia-send')?.addEventListener('click', sendPresentationAcadiaCommand);
+  document.getElementById('pres-acadia-input')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendPresentationAcadiaCommand();
+    }
+  });
+  document.querySelectorAll('[data-pres-acadia-prompt]').forEach(button => {
+    button.addEventListener('click', () => sendPresentationAcadiaCommand(button.dataset.presAcadiaPrompt || ''));
+  });
 
   const titleInput = document.getElementById('pres-title-input');
   titleInput?.addEventListener('input', () => {
@@ -4722,6 +4736,250 @@ function initPresentationStudioOnce() {
       await deletePresentation(presentationId);
     }
   });
+}
+
+async function openPresentationAiBuilder() {
+  if (!presCurrentId || presAiRequestInProgress) return;
+  const language = document.getElementById('pres-ai-language');
+  const course = document.getElementById('pres-ai-course');
+  if (language) language.value = presCurrentPresentation?.language === 'en' ? 'en' : 'tr';
+  if (course) course.value = presCurrentPresentation?.course_tag || '';
+  setPresentationAiStatus('');
+  openPresentationBuilder('pres-ai-builder');
+  await updatePresentationAiSourceFields();
+}
+
+async function updatePresentationAiSourceFields() {
+  const sourceType = document.getElementById('pres-ai-source-type')?.value || 'topic';
+  const topicWrap = document.getElementById('pres-ai-topic-wrap');
+  const sourceWrap = document.getElementById('pres-ai-source-wrap');
+  if (topicWrap) topicWrap.hidden = sourceType !== 'topic';
+  if (sourceWrap) sourceWrap.hidden = sourceType === 'topic';
+  if (sourceType === 'topic') return;
+
+  const sourceSelect = document.getElementById('pres-ai-source-id');
+  if (!sourceSelect || !currentUser) return;
+  sourceSelect.disabled = true;
+  sourceSelect.replaceChildren(new Option('Kaynaklar yükleniyor…', ''));
+
+  try {
+    if (sourceType === 'study_card') {
+      const { data, error } = await supabaseClient
+        .from('study_cards')
+        .select('id, created_at, documents(file_name)')
+        .eq('user_id', currentUser.id)
+        .order('created_at', { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      renderPresentationAiSourceOptions(sourceSelect, data || [], item => item.documents?.file_name || 'Adsız Study Card');
+    } else {
+      const { data, error } = await supabaseClient
+        .from('documents')
+        .select('id, file_name, uploaded_at, status')
+        .eq('user_id', currentUser.id)
+        .order('uploaded_at', { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      renderPresentationAiSourceOptions(sourceSelect, data || [], item => item.file_name || 'Adsız Belge');
+    }
+  } catch (error) {
+    console.error('Presentation AI sources could not be loaded:', error);
+    sourceSelect.replaceChildren(new Option('Kaynaklar yüklenemedi', ''));
+    setPresentationAiStatus('Kaynaklar yüklenemedi. Lütfen tekrar deneyin.', true);
+  } finally {
+    sourceSelect.disabled = false;
+  }
+}
+
+function renderPresentationAiSourceOptions(select, items, getLabel) {
+  select.replaceChildren();
+  select.appendChild(new Option(items.length ? 'Bir kaynak seçin' : 'Uygun kaynak bulunamadı', ''));
+  items.forEach(item => select.appendChild(new Option(getLabel(item).slice(0, 160), item.id)));
+}
+
+function setPresentationAiStatus(message, isError = false) {
+  const status = document.getElementById('pres-ai-status');
+  if (!status) return;
+  status.textContent = message;
+  status.classList.toggle('is-error', isError);
+}
+
+function setPresentationAiBusy(isBusy) {
+  presAiRequestInProgress = isBusy;
+  const generateButton = document.getElementById('pres-ai-generate-btn');
+  setPresentationButtonBusy(generateButton, isBusy, 'Acadia hazırlıyor…');
+  ['pres-ai-source-type', 'pres-ai-source-id', 'pres-ai-slide-count', 'pres-ai-topic', 'pres-ai-language', 'pres-ai-course']
+    .forEach(id => {
+      const element = document.getElementById(id);
+      if (element) element.disabled = isBusy;
+    });
+}
+
+function hasMeaningfulPresentationContent() {
+  return presSlides.some((slide, index) => {
+    const title = (slide.title || '').trim();
+    const text = getPresentationSlideText(slide).trim();
+    const secondary = getPresentationSlideSecondaryText(slide).trim();
+    const isDefaultTitle = title === (index === 0 ? 'Sunum Başlığı' : 'Yeni Slayt');
+    return !isDefaultTitle || text || secondary || slide.speaker_notes || getPresentationImagePath(slide) || slide.content?.table || slide.content?.chart;
+  });
+}
+
+async function generatePresentationWithAcadia(event) {
+  event.preventDefault();
+  if (!presCurrentId || presAiRequestInProgress) return;
+
+  const sourceType = document.getElementById('pres-ai-source-type')?.value || 'topic';
+  const sourceId = document.getElementById('pres-ai-source-id')?.value || '';
+  const topic = document.getElementById('pres-ai-topic')?.value.trim() || '';
+  const slideCount = Number.parseInt(document.getElementById('pres-ai-slide-count')?.value || '8', 10);
+  const language = document.getElementById('pres-ai-language')?.value === 'en' ? 'en' : 'tr';
+  const courseTag = document.getElementById('pres-ai-course')?.value.trim().slice(0, 80) || '';
+
+  if (sourceType === 'topic' && topic.length < 3) {
+    setPresentationAiStatus('Lütfen en az 3 karakterlik bir konu yazın.', true);
+    return;
+  }
+  if (sourceType !== 'topic' && !sourceId) {
+    setPresentationAiStatus('Lütfen bir kaynak seçin.', true);
+    return;
+  }
+  if (hasMeaningfulPresentationContent() && !window.confirm('Acadia mevcut slayt taslağının yerini alacak. Devam edilsin mi?')) return;
+
+  setPresentationAiBusy(true);
+  setPresentationAiStatus('Kaynak inceleniyor ve akademik slaytlar hazırlanıyor…');
+  try {
+    const { data, error } = await supabaseClient.functions.invoke('generate-presentation', {
+      body: { action: 'generate', sourceType, sourceId: sourceId || null, topic, slideCount, language, courseTag }
+    });
+    const generated = data?.presentation;
+    if (error || !generated || !Array.isArray(generated.slides) || generated.slides.length < 1) {
+      throw error || new Error(data?.error || 'Invalid AI presentation response');
+    }
+
+    syncActiveSlideFromEditor();
+    presSlides.forEach(slide => {
+      if (slide.id && !presDeletedSlideIds.includes(slide.id)) presDeletedSlideIds.push(slide.id);
+      queuePresentationImageDelete(getPresentationImagePath(slide));
+    });
+    presSlides = generated.slides.slice(0, 15).map((slide, index) => normalizePresentationSlide({
+      ...slide,
+      id: null,
+      presentation_id: presCurrentId,
+      order_index: index,
+      _isNew: true,
+      _localKey: null
+    }, index));
+    presActiveSlide = 0;
+    presCurrentPresentation = {
+      ...presCurrentPresentation,
+      title: (generated.title || topic || 'Akademik Sunum').slice(0, 160),
+      course_tag: courseTag || null,
+      language,
+      source_type: sourceType,
+      source_id: sourceId || null,
+      status: 'draft'
+    };
+    const titleInput = document.getElementById('pres-title-input');
+    if (titleInput) titleInput.value = presCurrentPresentation.title;
+    reindexPresentationSlides();
+    markPresentationDirty();
+    renderPresentationSlidesList();
+    renderActivePresentationSlide();
+    resetPresentationAcadiaMessages('Sunum taslağı hazır. Bir slayt seçip benden geliştirmemi isteyebilirsin.');
+    closePresentationBuilders();
+    showDashboardAlert('success', `${presSlides.length} slaytlık Acadia taslağı oluşturuldu. Kaydetmeden önce kontrol edin.`);
+  } catch (error) {
+    console.error('AI presentation generation failed:', error);
+    setPresentationAiStatus('Sunum üretilemedi. Edge Function ve GROQ_API_KEY ayarlarını kontrol edip tekrar deneyin.', true);
+  } finally {
+    setPresentationAiBusy(false);
+  }
+}
+
+function resetPresentationAcadiaMessages(message = 'Bu slaytı daha akademik hale getirebilirim. Ne istersin?') {
+  const container = document.getElementById('pres-acadia-messages');
+  if (!container) return;
+  container.replaceChildren();
+  appendPresentationAcadiaMessage('assistant', message);
+}
+
+function appendPresentationAcadiaMessage(role, message, isError = false) {
+  const container = document.getElementById('pres-acadia-messages');
+  if (!container) return;
+  const bubble = document.createElement('div');
+  bubble.className = `pres-acadia-message ${isError ? 'is-error' : (role === 'user' ? 'is-user' : 'is-assistant')}`;
+  bubble.textContent = String(message || '').slice(0, 4000);
+  container.appendChild(bubble);
+  container.scrollTop = container.scrollHeight;
+}
+
+function setPresentationAcadiaBusy(isBusy) {
+  const input = document.getElementById('pres-acadia-input');
+  const send = document.getElementById('pres-acadia-send');
+  if (input) input.disabled = isBusy;
+  if (send) send.disabled = isBusy;
+  document.querySelectorAll('[data-pres-acadia-prompt]').forEach(button => { button.disabled = isBusy; });
+}
+
+async function sendPresentationAcadiaCommand(presetPrompt = '') {
+  if (!presCurrentId || presAiRequestInProgress || !presSlides[presActiveSlide]) return;
+  const input = document.getElementById('pres-acadia-input');
+  const instruction = String(presetPrompt || input?.value || '').trim().slice(0, 500);
+  if (!instruction) return;
+
+  syncActiveSlideFromEditor();
+  appendPresentationAcadiaMessage('user', instruction);
+  if (input) input.value = '';
+  presAiRequestInProgress = true;
+  setPresentationAcadiaBusy(true);
+  const waitingMessage = document.createElement('div');
+  waitingMessage.className = 'pres-acadia-message is-assistant';
+  waitingMessage.textContent = 'Acadia slaytı inceliyor…';
+  document.getElementById('pres-acadia-messages')?.appendChild(waitingMessage);
+
+  try {
+    const slide = presSlides[presActiveSlide];
+    const { data, error } = await supabaseClient.functions.invoke('generate-presentation', {
+      body: {
+        action: 'improve_slide',
+        presentationId: presCurrentId,
+        language: presCurrentPresentation?.language || 'tr',
+        instruction,
+        slide: {
+          title: slide.title,
+          text: getPresentationSlideText(slide),
+          secondary_text: getPresentationSlideSecondaryText(slide),
+          speaker_notes: slide.speaker_notes,
+          layout_type: slide.layout_type
+        }
+      }
+    });
+    waitingMessage.remove();
+    if (error || !data?.slide) throw error || new Error(data?.error || 'Invalid AI slide response');
+
+    const refined = data.slide;
+    slide.title = typeof refined.title === 'string' ? refined.title.slice(0, 160) : slide.title;
+    slide.content = {
+      ...(slide.content || {}),
+      text: typeof refined.content?.text === 'string' ? refined.content.text : getPresentationSlideText(slide),
+      secondary_text: typeof refined.content?.secondary_text === 'string' ? refined.content.secondary_text : getPresentationSlideSecondaryText(slide)
+    };
+    slide.speaker_notes = typeof refined.speaker_notes === 'string' ? refined.speaker_notes : slide.speaker_notes;
+    slide.layout_type = normalizePresentationLayout(refined.layout_type || slide.layout_type);
+    markPresentationDirty();
+    renderPresentationSlidesList();
+    renderActivePresentationSlide();
+    appendPresentationAcadiaMessage('assistant', 'Slaytı isteğine göre güncelledim. Değişikliği editörde görebilirsin.');
+  } catch (error) {
+    waitingMessage.remove();
+    console.error('Acadia slide improvement failed:', error);
+    appendPresentationAcadiaMessage('assistant', 'Şu anda bu slaytı güncelleyemedim. Lütfen biraz sonra tekrar dene.', true);
+  } finally {
+    presAiRequestInProgress = false;
+    setPresentationAcadiaBusy(false);
+    input?.focus();
+  }
 }
 
 async function showPresentationListMode() {
@@ -4970,6 +5228,7 @@ function openPresentationStudio(presentation, slides = []) {
   presIsDirty = presSlides.some(slide => slide._isNew);
   const titleInput = document.getElementById('pres-title-input');
   if (titleInput) titleInput.value = presentation?.title || 'Adsız Sunum';
+  resetPresentationAcadiaMessages();
   renderPresentationSlidesList();
   renderActivePresentationSlide();
   updatePresentationSaveState();
@@ -5884,7 +6143,14 @@ async function savePresentation(options = {}) {
       .update({
         title,
         slide_count: presSlides.length,
-        status: presCurrentPresentation?.status || 'draft'
+        status: presCurrentPresentation?.status || 'draft',
+        course_tag: presCurrentPresentation?.course_tag || null,
+        language: presCurrentPresentation?.language === 'en' ? 'en' : 'tr',
+        theme: presCurrentPresentation?.theme || 'academic',
+        source_type: ['blank', 'topic', 'study_card', 'document'].includes(presCurrentPresentation?.source_type)
+          ? presCurrentPresentation.source_type
+          : 'blank',
+        source_id: presCurrentPresentation?.source_id || null
       })
       .eq('id', presCurrentId)
       .eq('user_id', currentUser.id)
