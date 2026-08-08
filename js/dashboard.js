@@ -4753,8 +4753,12 @@ async function updatePresentationAiSourceFields() {
   const sourceType = document.getElementById('pres-ai-source-type')?.value || 'topic';
   const topicWrap = document.getElementById('pres-ai-topic-wrap');
   const sourceWrap = document.getElementById('pres-ai-source-wrap');
+  const consentWrap = document.getElementById('pres-ai-consent-wrap');
+  const consentInput = document.getElementById('pres-ai-source-consent');
   if (topicWrap) topicWrap.hidden = sourceType !== 'topic';
   if (sourceWrap) sourceWrap.hidden = sourceType === 'topic';
+  if (consentWrap) consentWrap.hidden = sourceType === 'topic';
+  if (consentInput) consentInput.checked = false;
   if (sourceType === 'topic') return;
 
   const sourceSelect = document.getElementById('pres-ai-source-id');
@@ -4808,7 +4812,7 @@ function setPresentationAiBusy(isBusy) {
   presAiRequestInProgress = isBusy;
   const generateButton = document.getElementById('pres-ai-generate-btn');
   setPresentationButtonBusy(generateButton, isBusy, 'Acadia hazırlıyor…');
-  ['pres-ai-source-type', 'pres-ai-source-id', 'pres-ai-slide-count', 'pres-ai-topic', 'pres-ai-language', 'pres-ai-course']
+  ['pres-ai-source-type', 'pres-ai-source-id', 'pres-ai-slide-count', 'pres-ai-topic', 'pres-ai-language', 'pres-ai-course', 'pres-ai-source-consent']
     .forEach(id => {
       const element = document.getElementById(id);
       if (element) element.disabled = isBusy;
@@ -4835,6 +4839,7 @@ async function generatePresentationWithAcadia(event) {
   const slideCount = Number.parseInt(document.getElementById('pres-ai-slide-count')?.value || '8', 10);
   const language = document.getElementById('pres-ai-language')?.value === 'en' ? 'en' : 'tr';
   const courseTag = document.getElementById('pres-ai-course')?.value.trim().slice(0, 80) || '';
+  const sourceConsent = sourceType === 'topic' || document.getElementById('pres-ai-source-consent')?.checked === true;
 
   if (sourceType === 'topic' && topic.length < 3) {
     setPresentationAiStatus('Lütfen en az 3 karakterlik bir konu yazın.', true);
@@ -4844,13 +4849,17 @@ async function generatePresentationWithAcadia(event) {
     setPresentationAiStatus('Lütfen bir kaynak seçin.', true);
     return;
   }
+  if (sourceType !== 'topic' && !sourceConsent) {
+    setPresentationAiStatus('Özel kaynağı AI ile işlemek için açık onay vermeniz gerekir.', true);
+    return;
+  }
   if (hasMeaningfulPresentationContent() && !window.confirm('Acadia mevcut slayt taslağının yerini alacak. Devam edilsin mi?')) return;
 
   setPresentationAiBusy(true);
   setPresentationAiStatus('Kaynak inceleniyor ve akademik slaytlar hazırlanıyor…');
   try {
     const { data, error } = await supabaseClient.functions.invoke('generate-presentation', {
-      body: { action: 'generate', sourceType, sourceId: sourceId || null, topic, slideCount, language, courseTag }
+      body: { action: 'generate', sourceType, sourceId: sourceId || null, topic, slideCount, language, courseTag, sourceConsent }
     });
     const generated = data?.presentation;
     if (error || !generated || !Array.isArray(generated.slides) || generated.slides.length < 1) {
