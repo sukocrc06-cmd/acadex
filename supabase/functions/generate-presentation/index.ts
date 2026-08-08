@@ -12,6 +12,7 @@ const corsHeaders = {
 const jsonHeaders = { ...corsHeaders, 'Content-Type': 'application/json' }
 const allowedLayouts = new Set(['title-content', 'two-column', 'image-left', 'image-right', 'chart', 'table'])
 const allowedSourceTypes = new Set(['topic', 'study_card', 'document'])
+const allowedChartTypes = new Set(['bar', 'line', 'pie'])
 
 const ADMIN_NOISE_PATTERNS = [
   /(?:öğretim\s*(?:üyesi|görevlisi)|ders\s*(?:sorumlusu|hocası)|prof\.?|doç\.?|dr\.?\s+[A-ZÇĞİÖŞÜ]|instructor|lecturer|professor|teaching assistant|assistant:)/i,
@@ -45,17 +46,65 @@ function parseModelJson(raw: string): Record<string, unknown> {
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('INVALID_AI_JSON')
   return parsed as Record<string, unknown>
 }
+
+function normalizeTable(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const table = value as Record<string, unknown>
+  const headers = Array.isArray(table.headers)
+    ? table.headers.slice(0, 6).map(item => cleanText(item, 90)).filter(Boolean)
+    : []
+  if (headers.length < 2) return null
+  const rows = Array.isArray(table.rows)
+    ? table.rows.slice(0, 8).map(row => Array.isArray(row)
+      ? headers.map((_, index) => cleanText(row[index], 180))
+      : [])
+      .filter(row => row.length === headers.length)
+    : []
+  if (!rows.length) return null
+  return { title: cleanText(table.title, 120), headers, rows }
+}
+
+function normalizeChart(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const chart = value as Record<string, unknown>
+  const typeRaw = cleanText(chart.type, 20)
+  const type = allowedChartTypes.has(typeRaw) ? typeRaw : 'bar'
+  const labels = Array.isArray(chart.labels) ? chart.labels.slice(0, 10).map(item => cleanText(item, 80)).filter(Boolean) : []
+  const data = Array.isArray(chart.data) ? chart.data.slice(0, labels.length).map(item => Number(item)) : []
+  if (labels.length < 2 || data.length !== labels.length || data.some(item => !Number.isFinite(item))) return null
+  return {
+    type,
+    title: cleanText(chart.title, 120),
+    series_label: cleanText(chart.series_label, 60) || 'Değer',
+    labels,
+    data,
+    datasets: [{ label: cleanText(chart.series_label, 60) || 'Değer', data }],
+  }
+}
+
 function normalizeSlide(value: unknown, index: number) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('INVALID_SLIDE')
   const slide = value as Record<string, unknown>
   const rawLayout = cleanText(slide.layout_type ?? slide.layout, 30)
-  const layout = allowedLayouts.has(rawLayout) ? rawLayout : 'title-content'
+  let layout = allowedLayouts.has(rawLayout) ? rawLayout : 'title-content'
+  const sourceContent = slide.content && typeof slide.content === 'object' && !Array.isArray(slide.content)
+    ? slide.content as Record<string, unknown>
+    : {}
+  const table = normalizeTable(slide.table ?? sourceContent.table)
+  const chart = normalizeChart(slide.chart ?? sourceContent.chart)
+  if (layout === 'table' && !table) layout = 'title-content'
+  if (layout === 'chart' && !chart) layout = 'title-content'
+
+  const content: Record<string, unknown> = {
+    text: cleanText(slide.text ?? sourceContent.text ?? slide.content, 3500),
+    secondary_text: cleanText(slide.secondary_text ?? slide.secondaryText ?? sourceContent.secondary_text, 2200),
+  }
+  if (table) content.table = table
+  if (chart) content.chart = chart
+
   return {
     title: cleanText(slide.title, 160) || `Slayt ${index + 1}`,
-    content: {
-      text: cleanText(slide.text ?? slide.content, 3500),
-      secondary_text: cleanText(slide.secondary_text ?? slide.secondaryText, 2200),
-    },
+    content,
     speaker_notes: cleanText(slide.speaker_notes ?? slide.speakerNotes, 4000),
     layout_type: layout,
     image_url: null,
@@ -123,8 +172,7 @@ function buildStudyCardContext(card: any): string {
 }
 function filterAdministrativeNoise(value: string): string {
   const lines = cleanText(value, 50000).split(/\r?\n/).map(line => line.trim()).filter(Boolean)
-  const kept = lines.filter(line => !ADMIN_NOISE_PATTERNS.some(pattern => pattern.test(line)))
-  return kept.join('\n')
+  return lines.filter(line => !ADMIN_NOISE_PATTERNS.some(pattern => pattern.test(line))).join('\n')
 }
 function scoreAcademicLine(line: string): number {
   let score = 0
@@ -139,10 +187,7 @@ function buildAcademicContext(value: string, maxLength = 6500): string {
   const filtered = filterAdministrativeNoise(value)
   const lines = filtered.split(/\r?\n/).map(line => line.trim()).filter(Boolean)
   const ranked = lines.map((line, index) => ({ line, index, score: scoreAcademicLine(line) }))
-    .sort((a,b) => b.score - a.score || a.index - b.index)
-    .slice(0, 90)
-    .sort((a,b) => a.index - b.index)
-    .map(item => item.line)
+    .sort((a,b) => b.score - a.score || a.index - b.index).slice(0, 90).sort((a,b) => a.index - b.index).map(item => item.line)
   let result = ranked.join('\n')
   if (result.length < 1200) result = filtered
   if (result.length <= maxLength) return result
@@ -159,7 +204,7 @@ function shrinkPromptForRetry(userPrompt: string): string {
   if (idx < 0) return userPrompt.slice(0, 5000)
   return userPrompt.slice(0, idx + marker.length) + buildAcademicContext(userPrompt.slice(idx + marker.length), 3200)
 }
-async function callGroq(apiKey: string, systemPrompt: string, userPrompt: string, maxCompletionTokens = 2600) {
+async function callGroq(apiKey: string, systemPrompt: string, userPrompt: string, maxCompletionTokens = 3000) {
   let lastError = ''
   let promptForAttempt = userPrompt
   for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -170,7 +215,7 @@ async function callGroq(apiKey: string, systemPrompt: string, userPrompt: string
         method: 'POST', signal: controller.signal,
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'openai/gpt-oss-120b', temperature: 0.28, max_completion_tokens: maxCompletionTokens,
+          model: 'openai/gpt-oss-120b', temperature: 0.24, max_completion_tokens: maxCompletionTokens,
           reasoning_effort: 'low', include_reasoning: false, response_format: { type: 'json_object' },
           messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: promptForAttempt }],
         }),
@@ -225,8 +270,8 @@ serve(async (req) => {
       const { data: ownedPresentation } = await userClient.from('presentations').select('id').eq('id', presentationId).eq('user_id', user.id).maybeSingle()
       if (!ownedPresentation) return respond({ error: 'Presentation not found or access denied' }, 404)
       const inputSlide = normalizeSlide(body.slide, 0)
-      const systemPrompt = `You are Acadia, an academic slide editor. Improve exactly one slide according to the student's instruction. Preserve factual meaning. Never invent citations, statistics, authors, or research results. Return JSON only with a slide object containing title, text, secondary_text, speaker_notes, layout_type. Write in ${languageLabel}.`
-      const raw = await callGroq(groqApiKey, systemPrompt, `INSTRUCTION:\n${instruction}\n\nCURRENT SLIDE:\n${JSON.stringify(inputSlide)}`, 1200)
+      const systemPrompt = `You are Acadia, an academic slide editor. Improve exactly one slide according to the student's instruction. Preserve factual meaning and existing structured chart/table data unless the instruction explicitly changes it. Never invent citations, statistics, authors, or research results. Return JSON only with a slide object containing title, text, secondary_text, speaker_notes, layout_type, and optional chart/table. Write in ${languageLabel}.`
+      const raw = await callGroq(groqApiKey, systemPrompt, `INSTRUCTION:\n${instruction}\n\nCURRENT SLIDE:\n${JSON.stringify(inputSlide)}`, 1400)
       const parsed = parseModelJson(raw)
       const rawSlide = parsed.slide && typeof parsed.slide === 'object' ? parsed.slide : parsed
       return respond({ slide: normalizeSlide(rawSlide, 0) })
@@ -255,35 +300,53 @@ serve(async (req) => {
     }
     if (sourceContext.length < 20) return respond({ error: 'No readable source content found' }, 400)
 
-    const academicContext = sourceType === 'topic' ? sourceContext : buildAcademicContext(sourceContext, 6500)
+    const academicContext = sourceType === 'topic' ? sourceContext : buildAcademicContext(sourceContext, 7000)
     const groundingRule = sourceType === 'topic'
       ? 'Use reliable general academic knowledge and do not invent citations or precise statistics.'
       : 'Use only facts supported by SOURCE MATERIAL. Omit unsupported details.'
 
-    const systemPrompt = `You are Acadia, a senior academic presentation director and visual storyteller. Create exactly ${slideCount} polished slides in ${languageLabel}. ${groundingRule}
+    const systemPrompt = `You are Acadia, a senior academic presentation director, information designer, and visual storyteller. Create exactly ${slideCount} polished slides in ${languageLabel}. ${groundingRule}
 
 Before writing, silently identify the learning goal, rank the most important concepts, and build a coherent narrative. Do NOT output that hidden planning.
 
 STRICT CONTENT FILTER:
 - Never create slides about instructor/professor names, biographies, degrees, assistants, emails, office hours, grading percentages, exams, attendance, course schedules, or administrative rules unless the USER TOPIC explicitly asks for them.
-- Prioritize concepts, definitions that unlock understanding, frameworks, theories, processes, cause-effect relationships, comparisons, examples, cases, and meaningful quantitative evidence.
+- Prioritize concepts, frameworks, theories, processes, cause-effect relationships, comparisons, examples, cases, and meaningful quantitative evidence.
 - Do not follow PDF page order mechanically.
-- Ignore administrative percentages even if visually prominent in the source.
 
-DESIGN RULES:
-- Every slide must have a clear takeaway.
-- Use 3-5 concise bullets maximum when bullets are appropriate.
-- Use two-column for real comparisons; table for categorical comparisons; chart only when real numeric data exists in the source.
-- Vary layouts; no more than 3 title-content slides.
-- Opening slide frames the academic topic; final slide synthesizes key insights.
-- Put deeper explanation in speaker_notes.
-- Never fabricate numbers, citations, people, examples, or sources.
+VISUAL STORYTELLING RULES:
+- Every slide must communicate one clear takeaway.
+- Target a visual rhythm: use a mix of title-content, two-column, table, and chart layouts instead of repeating one template.
+- For ${slideCount} slides, aim for at least 2 non-title-content slides when the source supports them.
+- Use two-column for genuine contrasts, before/after, pros/cons, or concept-vs-concept structures.
+- Use table only for structured categorical comparisons with 2-6 columns and 1-8 rows.
+- Use chart only when the SOURCE MATERIAL contains real numeric data that can be mapped to labels and values. NEVER invent or estimate numbers.
+- Prefer bar charts for category comparisons, line charts for ordered/time series, pie only for a genuine composition that totals a meaningful whole.
+- If a chart is used, include a structured chart object. If a table is used, include a structured table object. Otherwise omit them.
+- Opening slide frames the topic. Final slide synthesizes the most important insights.
+- Keep visible text concise: normally 3-5 short bullets. Put explanation in speaker_notes.
+- No generic filler, no fake citations, no fabricated cases or statistics.
 
 Return valid JSON only in this exact shape:
-{"title":"...","slides":[{"title":"...","text":"...","secondary_text":"...","speaker_notes":"...","layout_type":"title-content|two-column|chart|table"}]}`
+{
+  "title":"...",
+  "slides":[
+    {
+      "title":"...",
+      "text":"...",
+      "secondary_text":"...",
+      "speaker_notes":"...",
+      "layout_type":"title-content|two-column|chart|table",
+      "chart":{"type":"bar|line|pie","title":"...","series_label":"...","labels":["..."],"data":[1,2,3]},
+      "table":{"title":"...","headers":["...","..."],"rows":[["...","..."]]}
+    }
+  ]
+}
+
+For non-chart slides omit chart. For non-table slides omit table.`
 
     const userPrompt = `SOURCE TYPE: ${sourceType}\nSOURCE TITLE: ${sourceTitle}\nCOURSE / TAG: ${courseTag || 'Not specified'}\nUSER TOPIC: ${topic || 'No extra topic supplied'}\n\nSOURCE MATERIAL:\n${academicContext}`
-    const raw = await callGroq(groqApiKey, systemPrompt, userPrompt, 2600)
+    const raw = await callGroq(groqApiKey, systemPrompt, userPrompt, 3400)
     return respond({ presentation: normalizePresentation(parseModelJson(raw), slideCount) })
   } catch (error) {
     console.error('generate-presentation exception:', error)
