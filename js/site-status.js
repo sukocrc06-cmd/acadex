@@ -53,12 +53,11 @@ document.addEventListener('DOMContentLoaded',async()=>{
   const settings=await acadexGetSiteSettings(); acadexRenderBanner(settings.banner);
   if(window.location.pathname.includes('login.html')&&settings.maintenance?.enabled){const notice=acadexRenderMaintenanceNotice(settings.maintenance);const loginView=document.getElementById('login-view');if(notice&&loginView)loginView.insertBefore(notice,loginView.firstChild);}
   if(window.location.pathname.includes('dashboard.html')){
-    // V6-safe presentation stack: V4 remains the stable interaction layer.
-    // The replacement presentation-controls-v5.js is now event-driven and contains
-    // no MutationObserver, so it cannot recreate the production feedback loop.
-    try { await acadexLoadScript('js/presentation-renderer-v2.js?v=6-safe'); } catch (_) {}
-    try { await acadexLoadScript('js/presentation-controls-v4.js?v=6-safe'); } catch (_) {}
-    try { await acadexLoadScript('js/presentation-controls-v5.js?v=6-safe'); } catch (e) { console.error('Presentation V6-safe controls failed to load:', e); }
-    try { await acadexLoadScript('js/presentation-export-v5.js?v=6-safe'); } catch (e) { console.error('Presentation export failed to load:', e); }
+    // V7 uses one shared slide model for editor, preview and export.
+    // No presentation MutationObserver is loaded; interactions are event-driven.
+    try { await acadexLoadScript('js/presentation-model-v7.js?v=7.0.0'); } catch (e) { console.error('Presentation model V7 failed:', e); }
+    try { await acadexLoadScript('js/presentation-renderer-v7.js?v=7.0.0'); } catch (e) { console.error('Presentation renderer V7 failed:', e); }
+    try { await acadexLoadScript('js/presentation-controls-v7.js?v=7.0.0'); } catch (e) { console.error('Presentation controls V7 failed:', e); }
+    try { await acadexLoadScript('js/presentation-export-v7.js?v=7.0.0'); } catch (e) { console.error('Presentation export V7 failed:', e); }
   }
 });
