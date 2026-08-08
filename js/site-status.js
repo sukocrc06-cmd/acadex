@@ -43,23 +43,19 @@ function acadexApplyPortalLabel(){
   const titleEl=document.querySelector('#login-view .auth-title'); const subtitleEl=document.querySelector('#login-view .auth-subtitle');
   if(titleEl){titleEl.removeAttribute('data-i18n');titleEl.textContent=copy.title;} if(subtitleEl){subtitleEl.removeAttribute('data-i18n');subtitleEl.textContent=copy.subtitle;}
 }
+function acadexLoadScript(src){
+  return new Promise((resolve,reject)=>{
+    const s=document.createElement('script'); s.src=src; s.async=false; s.onload=resolve; s.onerror=reject; document.body.appendChild(s);
+  });
+}
 document.addEventListener('DOMContentLoaded',async()=>{
   if(window.location.pathname.includes('login.html')) acadexApplyPortalLabel();
   const settings=await acadexGetSiteSettings(); acadexRenderBanner(settings.banner);
   if(window.location.pathname.includes('login.html')&&settings.maintenance?.enabled){const notice=acadexRenderMaintenanceNotice(settings.maintenance);const loginView=document.getElementById('login-view');if(notice&&loginView)loginView.insertBefore(notice,loginView.firstChild);}
   if(window.location.pathname.includes('dashboard.html')){
-    const renderer=document.createElement('script');
-    renderer.src='js/presentation-renderer-v2.js?v=4';
-    renderer.onload=()=>{
-      const controls=document.createElement('script');
-      controls.src='js/presentation-controls-v4.js?v=4';
-      document.body.appendChild(controls);
-    };
-    renderer.onerror=()=>{
-      const controls=document.createElement('script');
-      controls.src='js/presentation-controls-v4.js?v=4';
-      document.body.appendChild(controls);
-    };
-    document.body.appendChild(renderer);
+    try { await acadexLoadScript('js/presentation-renderer-v2.js?v=5'); } catch (_) {}
+    try { await acadexLoadScript('js/presentation-controls-v4.js?v=5'); } catch (_) {}
+    try { await acadexLoadScript('js/presentation-controls-v5.js?v=5'); } catch (e) { console.error('Presentation controls V5 failed to load:', e); }
+    try { await acadexLoadScript('js/presentation-export-v5.js?v=5'); } catch (e) { console.error('Presentation export V5 failed to load:', e); }
   }
 });
