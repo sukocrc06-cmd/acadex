@@ -14,6 +14,7 @@ const allowedLayouts = new Set(['title-content', 'two-column', 'image-left', 'im
 const allowedSourceTypes = new Set(['topic', 'study_card', 'document'])
 const allowedChartTypes = new Set(['bar', 'line', 'pie'])
 const allowedDesignVariants = new Set(['hero', 'section', 'cards', 'process', 'timeline', 'big-number', 'comparison', 'data', 'summary'])
+const allowedDiagramTypes = new Set(['flow', 'cycle', 'hierarchy', 'matrix', 'funnel'])
 
 const ADMIN_NOISE_PATTERNS = [
   /(?:öğretim\s*(?:üyesi|görevlisi)|ders\s*(?:sorumlusu|hocası)|prof\.?|doç\.?|dr\.?\s+[A-ZÇĞİÖŞÜ]|instructor|lecturer|professor|teaching assistant|assistant:)/i,
@@ -68,8 +69,10 @@ function normalizeChart(value: unknown) {
   const labels = Array.isArray(chart.labels) ? chart.labels.slice(0, 10).map(item => cleanText(item, 80)).filter(Boolean) : []
   const data = Array.isArray(chart.data) ? chart.data.slice(0, labels.length).map(item => Number(item)) : []
   if (labels.length < 2 || data.length !== labels.length || data.some(item => !Number.isFinite(item))) return null
+  const generic = labels.every((label, index) => new RegExp(`^(?:değer|deger|value|kategori|category)\\s*${index + 1}$`, 'i').test(label) || label === String(index + 1))
+  if (generic) return null
   const seriesLabel = cleanText(chart.series_label, 60) || 'Değer'
-  return { type, title: cleanText(chart.title, 120), series_label: seriesLabel, labels, data, datasets: [{ label: seriesLabel, data }] }
+  return { type, title: cleanText(chart.title, 120), series_label: seriesLabel, labels, data, datasets: [{ label: seriesLabel, data }], source_verified: true }
 }
 
 function normalizeCards(value: unknown) {
@@ -78,7 +81,7 @@ function normalizeCards(value: unknown) {
     if (!item || typeof item !== 'object' || Array.isArray(item)) return null
     const row = item as Record<string, unknown>
     const title = cleanText(row.title, 90)
-    const body = cleanText(row.body ?? row.text, 260)
+    const body = cleanText(row.body ?? row.text, 300)
     return title && body ? { title, body } : null
   }).filter(Boolean)
 }
@@ -89,9 +92,9 @@ function normalizeSteps(value: unknown) {
     if (typeof item === 'string') return { label: `${index + 1}`, title: cleanText(item, 100), body: '' }
     if (!item || typeof item !== 'object' || Array.isArray(item)) return null
     const row = item as Record<string, unknown>
-    const title = cleanText(row.title, 100)
+    const title = cleanText(row.title, 110)
     if (!title) return null
-    return { label: cleanText(row.label, 30) || `${index + 1}`, title, body: cleanText(row.body ?? row.text, 220) }
+    return { label: cleanText(row.label, 30) || `${index + 1}`, title, body: cleanText(row.body ?? row.text, 260) }
   }).filter(Boolean)
 }
 
@@ -101,7 +104,26 @@ function normalizeMetric(value: unknown) {
   const number = cleanText(metric.value ?? metric.number, 40)
   const label = cleanText(metric.label, 120)
   if (!number || !label) return null
-  return { value: number, label, context: cleanText(metric.context, 220) }
+  return { value: number, label, context: cleanText(metric.context, 260) }
+}
+
+function normalizeDiagram(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const diagram = value as Record<string, unknown>
+  const rawType = cleanText(diagram.type, 20)
+  const type = allowedDiagramTypes.has(rawType) ? rawType : 'flow'
+  const nodes = Array.isArray(diagram.nodes)
+    ? diagram.nodes.slice(0, 7).map(item => {
+      if (typeof item === 'string') return { label: cleanText(item, 100), body: '' }
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return null
+      const row = item as Record<string, unknown>
+      const label = cleanText(row.label ?? row.title, 100)
+      if (!label) return null
+      return { label, body: cleanText(row.body ?? row.text, 240) }
+    }).filter(Boolean)
+    : []
+  if (nodes.length < 2) return null
+  return { type, title: cleanText(diagram.title, 120), nodes }
 }
 
 function normalizeSlide(value: unknown, index: number) {
@@ -115,6 +137,7 @@ function normalizeSlide(value: unknown, index: number) {
   const cards = normalizeCards(slide.cards ?? sourceContent.cards)
   const steps = normalizeSteps(slide.steps ?? sourceContent.steps)
   const metric = normalizeMetric(slide.metric ?? sourceContent.metric)
+  const diagram = normalizeDiagram(slide.diagram ?? sourceContent.diagram)
   const rawVariant = cleanText(slide.design_variant ?? sourceContent.design_variant, 30)
   const designVariant = allowedDesignVariants.has(rawVariant) ? rawVariant : (index === 0 ? 'hero' : 'section')
 
@@ -122,8 +145,8 @@ function normalizeSlide(value: unknown, index: number) {
   if (layout === 'chart' && !chart) layout = 'title-content'
 
   const content: Record<string, unknown> = {
-    text: cleanText(slide.text ?? sourceContent.text ?? slide.content, 3500),
-    secondary_text: cleanText(slide.secondary_text ?? slide.secondaryText ?? sourceContent.secondary_text, 2200),
+    text: cleanText(slide.text ?? sourceContent.text ?? slide.content, 4200),
+    secondary_text: cleanText(slide.secondary_text ?? slide.secondaryText ?? sourceContent.secondary_text, 2600),
     design_variant: designVariant,
   }
   if (table) content.table = table
@@ -131,11 +154,12 @@ function normalizeSlide(value: unknown, index: number) {
   if (cards.length) content.cards = cards
   if (steps.length) content.steps = steps
   if (metric) content.metric = metric
+  if (diagram) content.diagram = diagram
 
   return {
     title: cleanText(slide.title, 160) || `Slayt ${index + 1}`,
     content,
-    speaker_notes: cleanText(slide.speaker_notes ?? slide.speakerNotes, 4000),
+    speaker_notes: cleanText(slide.speaker_notes ?? slide.speakerNotes, 5200),
     layout_type: layout,
     image_url: null,
     image_position: layout === 'image-left' ? 'left' : 'right',
@@ -205,17 +229,18 @@ function filterAdministrativeNoise(value: string): string {
 function scoreAcademicLine(line: string): number {
   let score = 0
   const text = line.toLowerCase()
-  if (/(definition|tanım|concept|kavram|model|framework|theory|teori|process|süreç|strategy|strateji|segmentation|targeting|positioning|consumer|customer|market|pazarlama|value|değer|behavior|davranış)/i.test(text)) score += 4
-  if (/(because|therefore|neden|sonuç|relationship|ilişki|compare|karşılaştır|example|örnek|case|vaka)/i.test(text)) score += 2
-  if (line.length >= 45 && line.length <= 220) score += 1
+  if (/(definition|tanım|concept|kavram|model|framework|theory|teori|process|süreç|strategy|strateji|segmentation|targeting|positioning|consumer|customer|market|pazarlama|value|değer|behavior|davranış|risk|investment|yatırım|diet|diyet|nutrition|beslenme)/i.test(text)) score += 4
+  if (/(because|therefore|neden|sonuç|relationship|ilişki|compare|karşılaştır|example|örnek|case|vaka|advantage|dezavantaj|benefit|fayda)/i.test(text)) score += 2
+  if (/\d/.test(line) && !/%\s*\d+\s*(?:exam|sınav)/i.test(line)) score += 1
+  if (line.length >= 45 && line.length <= 240) score += 1
   if (ADMIN_NOISE_PATTERNS.some(pattern => pattern.test(line))) score -= 20
   return score
 }
-function buildAcademicContext(value: string, maxLength = 6500): string {
+function buildAcademicContext(value: string, maxLength = 7000): string {
   const filtered = filterAdministrativeNoise(value)
   const lines = filtered.split(/\r?\n/).map(line => line.trim()).filter(Boolean)
   const ranked = lines.map((line, index) => ({ line, index, score: scoreAcademicLine(line) }))
-    .sort((a,b) => b.score - a.score || a.index - b.index).slice(0, 90).sort((a,b) => a.index - b.index).map(item => item.line)
+    .sort((a,b) => b.score - a.score || a.index - b.index).slice(0, 100).sort((a,b) => a.index - b.index).map(item => item.line)
   let result = ranked.join('\n')
   if (result.length < 1200) result = filtered
   if (result.length <= maxLength) return result
@@ -232,7 +257,7 @@ function shrinkPromptForRetry(userPrompt: string): string {
   if (idx < 0) return userPrompt.slice(0, 5000)
   return userPrompt.slice(0, idx + marker.length) + buildAcademicContext(userPrompt.slice(idx + marker.length), 3200)
 }
-async function callGroq(apiKey: string, systemPrompt: string, userPrompt: string, maxCompletionTokens = 3300) {
+async function callGroq(apiKey: string, systemPrompt: string, userPrompt: string, maxCompletionTokens = 3600) {
   let lastError = ''
   let promptForAttempt = userPrompt
   for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -243,7 +268,7 @@ async function callGroq(apiKey: string, systemPrompt: string, userPrompt: string
         method: 'POST', signal: controller.signal,
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'openai/gpt-oss-120b', temperature: 0.24, max_completion_tokens: maxCompletionTokens,
+          model: 'openai/gpt-oss-120b', temperature: 0.22, max_completion_tokens: maxCompletionTokens,
           reasoning_effort: 'low', include_reasoning: false, response_format: { type: 'json_object' },
           messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: promptForAttempt }],
         }),
@@ -298,8 +323,8 @@ serve(async (req) => {
       const { data: ownedPresentation } = await userClient.from('presentations').select('id').eq('id', presentationId).eq('user_id', user.id).maybeSingle()
       if (!ownedPresentation) return respond({ error: 'Presentation not found or access denied' }, 404)
       const inputSlide = normalizeSlide(body.slide, 0)
-      const systemPrompt = `You are Acadia, an academic slide editor and information designer. Improve exactly one slide according to the student's instruction. Preserve factual meaning and any valid chart/table/cards/steps/metric data unless explicitly changed. Never invent citations, statistics, authors, or research results. Return JSON only with a slide object containing title, text, secondary_text, speaker_notes, layout_type, design_variant, and optional chart/table/cards/steps/metric. Write in ${languageLabel}.`
-      const raw = await callGroq(groqApiKey, systemPrompt, `INSTRUCTION:\n${instruction}\n\nCURRENT SLIDE:\n${JSON.stringify(inputSlide)}`, 1600)
+      const systemPrompt = `You are Acadia, an academic slide editor and information designer. Improve exactly one slide according to the student's instruction. Preserve factual meaning and valid structured visual data unless explicitly changed. Visible text must remain present even when a visual is used. Never invent citations, statistics, authors, people, or research results. Return JSON only with a slide object containing title, text, secondary_text, speaker_notes, layout_type, design_variant, and optional chart/table/cards/steps/metric/diagram. Write in ${languageLabel}.`
+      const raw = await callGroq(groqApiKey, systemPrompt, `INSTRUCTION:\n${instruction}\n\nCURRENT SLIDE:\n${JSON.stringify(inputSlide)}`, 1800)
       const parsed = parseModelJson(raw)
       const rawSlide = parsed.slide && typeof parsed.slide === 'object' ? parsed.slide : parsed
       return respond({ slide: normalizeSlide(rawSlide, 0) })
@@ -328,74 +353,83 @@ serve(async (req) => {
     }
     if (sourceContext.length < 20) return respond({ error: 'No readable source content found' }, 400)
 
-    const academicContext = sourceType === 'topic' ? sourceContext : buildAcademicContext(sourceContext, 7000)
+    const academicContext = sourceType === 'topic' ? sourceContext : buildAcademicContext(sourceContext, 7200)
     const groundingRule = sourceType === 'topic'
-      ? 'Use reliable general academic knowledge and do not invent citations or precise statistics.'
-      : 'Use only facts supported by SOURCE MATERIAL. Omit unsupported details.'
+      ? 'Use reliable general academic knowledge. Do not invent citations, named studies, people, or precise statistics.'
+      : 'Use source facts for factual claims. You may add simple pedagogical examples only when clearly presented as an illustrative example, never as a sourced fact.'
 
-    const systemPrompt = `You are Acadia, a senior academic presentation director, Canva-style information designer, and visual storyteller. Create exactly ${slideCount} polished slides in ${languageLabel}. ${groundingRule}
+    const systemPrompt = `You are Acadia, a senior academic presentation director, information architect, and visual storyteller. Create exactly ${slideCount} polished slides in ${languageLabel}. ${groundingRule}
 
-Before writing, silently identify the learning goal, rank the most important concepts, and build a coherent narrative. Do NOT output hidden planning.
+GOAL
+Build a deck a strong university lecturer would actually use: conceptually accurate, visually varied, useful for learning, and rich enough to explain the topic without becoming a wall of text.
 
-STRICT CONTENT FILTER:
-- Never create slides about instructor/professor names, biographies, degrees, assistants, emails, office hours, grading percentages, exams, attendance, course schedules, or administrative rules unless the USER TOPIC explicitly asks for them.
-- Prioritize concepts, frameworks, theories, processes, cause-effect relationships, comparisons, examples, cases, and meaningful quantitative evidence.
-- Do not follow PDF page order mechanically.
+CONTENT DIRECTOR
+- Silently identify the learning goal, 5-10 core concepts, prerequisites, cause-effect relationships, processes, comparisons, examples, and quantitative evidence.
+- Do not output hidden planning.
+- Do NOT follow PDF page order mechanically. Build a coherent teaching narrative.
+- Never create slides about instructor/professor names, biographies, degrees, assistants, emails, office hours, grading percentages, exams, attendance, course schedules, or administrative rules unless USER TOPIC explicitly requests them.
 
-CANVA-LEVEL COMPOSITION SYSTEM:
-Choose a design_variant for EVERY slide. Use visual rhythm across the deck instead of repeating one composition.
-- hero: opening slide. Minimal text, strong central idea, optional subtitle in secondary_text.
-- section: concept-led teaching slide with concise bullets.
-- cards: 3-5 parallel concepts, pillars, benefits, categories, or dimensions. Include cards:[{title,body}].
-- process: ordered workflow or mechanism. Include steps:[{label,title,body}].
-- timeline: chronological stages only. Include steps with year/period in label.
-- big-number: ONE genuinely meaningful quantitative fact from source. Include metric:{value,label,context}. Never invent a number.
-- comparison: real contrast; use two-column and put the two sides in text and secondary_text.
-- data: real numeric evidence; use chart and include a valid chart object.
-- summary: closing synthesis with 3-5 memorable takeaways.
+VISIBLE CONTENT — CRITICAL
+- A visual NEVER replaces the slide's real explanation.
+- Every non-hero slide must contain meaningful visible text in "text": normally 3-5 concise bullets or short teaching statements.
+- If a chart/table/diagram/cards/process is used, keep the explanatory text too. The visual is supporting evidence or structure.
+- Use concrete definitions, why-it-matters explanations, mechanisms, implications, and a short illustrative example when useful.
+- Avoid generic filler such as "this is important" without explaining why.
+- Prefer 45-90 visible words on concept-heavy slides; less for hero/big-number slides.
 
-DECK RHYTHM:
-- Slide 1 must be hero.
-- Final slide must be summary.
-- In an 8-slide deck, target at least 4 distinct design_variants when source supports them.
+SPEAKER NOTES
+- Write useful presenter notes for every slide, normally 70-130 words.
+- Notes should explain how to teach the slide, clarify relationships, and provide one useful example or caution where appropriate.
+- Do not repeat visible bullets verbatim.
+
+VISUAL INTELLIGENCE
+Use structured visuals only when they genuinely help the learner.
+- cards: 3-5 parallel concepts, dimensions, benefits, categories. Include cards:[{title,body}].
+- process: ordered workflow/mechanism. Include steps:[{label,title,body}].
+- timeline: chronological stages only. Include steps with a real year/period in label.
+- comparison: two genuine alternatives. Use two-column text/secondary_text and optionally a table for multi-attribute comparison.
+- data: ONLY when exact numeric values are supported. Include chart with meaningful labels; NEVER use "Değer 1/2/3", sequential numbers, or invented values.
+- big-number: ONLY for one exact, meaningful source number. Include metric.
+- diagram: for conceptual flows, cycles, hierarchies, funnels, or matrices when no numeric chart is appropriate. Include diagram:{type,nodes}.
+- summary: closing synthesis. Do not turn numbered takeaway bullets into a chart.
+
+DECK RHYTHM
+- Slide 1 = hero.
+- Final slide = summary.
+- For an 8-slide deck, aim for at least 3 genuinely structured visual slides when the material supports them, using cards/process/diagram/comparison/table/chart/metric.
 - Do not use the same design_variant more than 3 times.
-- Prefer cards/process/comparison over generic bullets when the information structure supports them.
-- Use chart only for real source numbers and table only for dense categorical comparisons.
-- big-number is forbidden unless the exact number exists in source material.
+- Do not place more than two plain section slides consecutively.
+- Prefer diagram/process/cards to fake charts when the content is qualitative.
 
-VISIBLE TEXT QUALITY:
-- One clear takeaway per slide.
-- Keep visible text concise and presentation-ready; details belong in speaker_notes.
-- Avoid paragraph walls and generic filler.
-- Never fabricate numbers, citations, people, cases, or sources.
+LAYOUT RULES
+- hero, section, cards, process, timeline, big-number, summary, diagram => layout_type title-content
+- comparison => two-column unless a table is clearly superior
+- data => chart
+- dense categorical matrix => table
+- Never output image-left/image-right unless the user has supplied an image; do not fabricate image URLs.
 
-LAYOUT MAPPING FOR CURRENT EDITOR:
-- hero, section, cards, process, timeline, big-number, summary => layout_type title-content
-- comparison => layout_type two-column
-- data => layout_type chart
-- structured matrix comparison => layout_type table
-
-Return valid JSON only in this shape:
+RETURN VALID JSON ONLY
 {
   "title":"...",
   "slides":[{
     "title":"...",
-    "text":"...",
+    "text":"• ...\\n• ...\\n• ...",
     "secondary_text":"...",
     "speaker_notes":"...",
     "layout_type":"title-content|two-column|chart|table",
     "design_variant":"hero|section|cards|process|timeline|big-number|comparison|data|summary",
     "cards":[{"title":"...","body":"..."}],
-    "steps":[{"label":"1 or year","title":"...","body":"..."}],
-    "metric":{"value":"exact source value","label":"...","context":"..."},
-    "chart":{"type":"bar|line|pie","title":"...","series_label":"...","labels":["..."],"data":[1,2,3]},
-    "table":{"title":"...","headers":["...","..."],"rows":[["...","..."]]}
+    "steps":[{"label":"1 or real year","title":"...","body":"..."}],
+    "metric":{"value":"exact supported value","label":"...","context":"..."},
+    "chart":{"type":"bar|line|pie","title":"...","series_label":"...","labels":["meaningful label"],"data":[1,2]},
+    "table":{"title":"...","headers":["...","..."],"rows":[["...","..."]]},
+    "diagram":{"type":"flow|cycle|hierarchy|matrix|funnel","title":"...","nodes":[{"label":"...","body":"..."}]}
   }]
 }
-Omit optional structured objects when not needed.`
+Omit optional structured objects when they are not useful.`
 
     const userPrompt = `SOURCE TYPE: ${sourceType}\nSOURCE TITLE: ${sourceTitle}\nCOURSE / TAG: ${courseTag || 'Not specified'}\nUSER TOPIC: ${topic || 'No extra topic supplied'}\n\nSOURCE MATERIAL:\n${academicContext}`
-    const raw = await callGroq(groqApiKey, systemPrompt, userPrompt, 3700)
+    const raw = await callGroq(groqApiKey, systemPrompt, userPrompt, 4200)
     return respond({ presentation: normalizePresentation(parseModelJson(raw), slideCount) })
   } catch (error) {
     console.error('generate-presentation exception:', error)
