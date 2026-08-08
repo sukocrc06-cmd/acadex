@@ -1139,8 +1139,12 @@
           .pres-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; background: #fff; border: 1px solid rgba(22,50,92,0.08); border-radius: var(--radius); padding: 0.65rem 1rem; box-shadow: var(--shadow-sm); }
           .pres-toolbar-left { display: flex; align-items: center; gap: 0.6rem; flex: 1; min-width: 200px; }
           .pres-toolbar-right { display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; }
+          .pres-title-wrap { display: flex; flex-direction: column; gap: 0.2rem; flex: 1; min-width: 180px; max-width: 320px; }
           .pres-title-input { border: 1px solid rgba(22,50,92,0.12); border-radius: var(--radius-sm); padding: 0.45rem 0.7rem; font-size: 0.9rem; font-weight: 700; color: var(--color-navy); min-width: 180px; max-width: 320px; width: 100%; background: var(--color-bg-alt, #f8fafc); }
           .pres-title-input:focus { outline: none; border-color: var(--color-teal); box-shadow: 0 0 0 3px rgba(31,138,147,0.12); }
+          .pres-save-status { min-height: 14px; font-size: 0.66rem; font-weight: 700; color: #15803d; padding-left: 0.15rem; }
+          .pres-save-status.is-dirty { color: #b45309; }
+          .pres-save-status.is-saving { color: var(--color-teal); }
           .pres-btn { border: 1px solid rgba(22,50,92,0.12); background: #fff; color: var(--color-navy); border-radius: var(--radius-sm); padding: 0.4rem 0.75rem; font-size: 0.8rem; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem; transition: all 0.15s; }
           .pres-btn:hover { border-color: var(--color-teal); color: var(--color-teal); }
           .pres-btn-primary { background: var(--color-teal); color: #fff; border-color: var(--color-teal); }
@@ -1153,7 +1157,15 @@
           .pres-slide-thumb { border: 1.5px solid rgba(22,50,92,0.1); border-radius: var(--radius-sm); padding: 0.5rem; cursor: pointer; background: var(--color-bg-alt, #f8fafc); transition: all 0.15s; }
           .pres-slide-thumb:hover { border-color: rgba(31,138,147,0.4); }
           .pres-slide-thumb.active { border-color: var(--color-teal); background: var(--color-teal-light); box-shadow: 0 0 0 2px rgba(31,138,147,0.15); }
+          .pres-slide-thumb-top { display: flex; align-items: center; justify-content: space-between; gap: 0.25rem; margin-bottom: 0.25rem; }
           .pres-slide-thumb-num { font-size: 0.7rem; font-weight: 800; color: var(--color-teal); margin-bottom: 0.25rem; }
+          .pres-slide-thumb-top .pres-slide-thumb-num { margin-bottom: 0; }
+          .pres-slide-thumb-actions { display: flex; gap: 0.15rem; opacity: 0; transition: opacity 0.15s; }
+          .pres-slide-thumb:hover .pres-slide-thumb-actions, .pres-slide-thumb:focus-within .pres-slide-thumb-actions, .pres-slide-thumb.active .pres-slide-thumb-actions { opacity: 1; }
+          .pres-slide-thumb-actions button { width: 20px; height: 20px; border: 1px solid rgba(22,50,92,0.12); border-radius: 5px; background: #fff; color: var(--color-navy); cursor: pointer; font-size: 0.68rem; line-height: 1; padding: 0; }
+          .pres-slide-thumb-actions button:hover:not(:disabled) { border-color: var(--color-teal); color: var(--color-teal); }
+          .pres-slide-thumb-actions button.is-danger:hover:not(:disabled) { border-color: #dc2626; color: #dc2626; }
+          .pres-slide-thumb-actions button:disabled { opacity: 0.3; cursor: not-allowed; }
           .pres-slide-thumb-preview { height: 48px; background: #fff; border-radius: 4px; border: 1px solid rgba(22,50,92,0.06); display: flex; align-items: center; justify-content: center; font-size: 0.65rem; color: var(--color-text-muted); overflow: hidden; padding: 0.25rem; text-align: center; line-height: 1.2; }
           .pres-canvas-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; padding: 1rem; background: #f1f5f9; }
           .pres-canvas { flex: 1; background: #fff; border-radius: var(--radius); box-shadow: var(--shadow-md); aspect-ratio: 16/9; max-height: 100%; width: 100%; margin: 0 auto; display: flex; flex-direction: column; padding: 1.5rem 1.75rem; position: relative; overflow: auto; }
@@ -1181,6 +1193,30 @@
           .pres-acadia-input-row input:focus { outline: none; border-color: var(--color-teal); }
           .pres-footer { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; background: #fff; border: 1px solid rgba(22,50,92,0.08); border-radius: var(--radius); padding: 0.55rem 1rem; box-shadow: var(--shadow-sm); }
           .pres-empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; text-align: center; padding: 2rem; color: var(--color-text-muted); }
+          .pres-list-state { min-height: 280px; background: #fff; border: 1px dashed rgba(22,50,92,0.15); border-radius: var(--radius); }
+          .pres-list-state-icon { width: 56px; height: 56px; border-radius: 14px; background: rgba(31,138,147,0.1); color: var(--color-teal); display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; }
+          .pres-list-state-title { font-size: 0.95rem; font-weight: 800; color: var(--color-navy); margin: 0 0 0.35rem; }
+          .pres-list-state-desc { font-size: 0.85rem; max-width: 440px; margin: 0 0 0.9rem; }
+          .pres-loading-spinner { width: 24px; height: 24px; border: 3px solid rgba(31,138,147,0.2); border-top-color: var(--color-teal); border-radius: 50%; animation: pres-spin 0.8s linear infinite; }
+          @keyframes pres-spin { to { transform: rotate(360deg); } }
+          .pres-list-card { position: relative; overflow: hidden; background: #fff; border: 1px solid rgba(22,50,92,0.1); border-radius: var(--radius); box-shadow: var(--shadow-sm); transition: transform 0.18s, box-shadow 0.18s, border-color 0.18s; }
+          .pres-list-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: rgba(31,138,147,0.35); }
+          .pres-list-card-open { display: block; width: 100%; border: 0; padding: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; font: inherit; }
+          .pres-list-card-preview { height: 132px; margin: 0.8rem 0.8rem 0; padding: 1rem; border-radius: var(--radius-sm); background: linear-gradient(145deg, #f8fafc 0%, #eef7f7 100%); border: 1px solid rgba(22,50,92,0.06); display: flex; flex-direction: column; justify-content: center; }
+          .pres-list-preview-title { font-size: 0.78rem; font-weight: 800; color: var(--color-navy); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 0.7rem; }
+          .pres-list-preview-line { height: 5px; width: 78%; border-radius: 5px; background: rgba(31,138,147,0.22); margin-bottom: 0.35rem; }
+          .pres-list-preview-line.is-short { width: 52%; background: rgba(22,50,92,0.13); }
+          .pres-list-card-body { padding: 0.85rem 1rem 1rem; }
+          .pres-list-card-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.55rem; }
+          .pres-list-card-title-row h3 { min-width: 0; font-size: 0.92rem; font-weight: 800; color: var(--color-navy); margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+          .pres-list-card-meta { display: flex; align-items: center; gap: 0.35rem; margin-top: 0.4rem; font-size: 0.72rem; color: var(--color-text-muted); }
+          .pres-status-badge, .pres-list-tag { display: inline-flex; align-items: center; border-radius: 999px; font-size: 0.64rem; font-weight: 800; padding: 0.15rem 0.45rem; white-space: nowrap; }
+          .pres-status-badge.is-draft { color: #92400e; background: #fef3c7; }
+          .pres-status-badge.is-completed { color: #166534; background: #dcfce7; }
+          .pres-list-tag { color: var(--color-teal); background: var(--color-teal-light); margin-top: 0.55rem; }
+          .pres-list-delete { position: absolute; top: 0.4rem; right: 0.4rem; width: 28px; height: 28px; border: 1px solid rgba(220,38,38,0.18); border-radius: 8px; background: rgba(255,255,255,0.92); color: #b91c1c; font-size: 1rem; cursor: pointer; opacity: 0; transition: opacity 0.15s, background 0.15s; }
+          .pres-list-card:hover .pres-list-delete, .pres-list-delete:focus { opacity: 1; }
+          .pres-list-delete:hover { background: #fee2e2; }
           @media (max-width: 1100px) {
             .pres-body { grid-template-columns: 150px 1fr; }
             .pres-panel-right { display: none; }
@@ -1221,7 +1257,10 @@
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
                 <span data-i18n="dash.presentation.back">Liste</span>
               </button>
-              <input type="text" class="pres-title-input" id="pres-title-input" placeholder="Sunum başlığı..." value="">
+              <div class="pres-title-wrap">
+                <input type="text" class="pres-title-input" id="pres-title-input" placeholder="Sunum başlığı..." value="">
+                <span class="pres-save-status" id="pres-save-status" role="status" aria-live="polite">Tüm değişiklikler kaydedildi</span>
+              </div>
             </div>
             <div class="pres-toolbar-right">
               <button type="button" class="pres-btn" id="pres-ai-btn">
@@ -1250,14 +1289,7 @@
                 <button type="button" class="pres-btn" id="pres-add-slide-btn" style="padding: 0.2rem 0.45rem; font-size: 0.75rem;">+</button>
               </div>
               <div class="pres-slides-list" id="pres-slides-list">
-                <div class="pres-slide-thumb active" data-slide-index="0">
-                  <div class="pres-slide-thumb-num">1</div>
-                  <div class="pres-slide-thumb-preview">Başlık slaytı</div>
-                </div>
-                <div class="pres-slide-thumb" data-slide-index="1">
-                  <div class="pres-slide-thumb-num">2</div>
-                  <div class="pres-slide-thumb-preview">İçerik</div>
-                </div>
+                <!-- Step 4: rendered from presentation_slides -->
               </div>
             </div>
 
