@@ -1,211 +1,245 @@
-/* Acadex Presentation Controls V5 — full-canvas editor + deterministic media + speaker notes preview */
+/* Acadex Presentation Controls V6-safe core — no MutationObserver feedback loops */
 (function () {
   'use strict';
-  if (window.__acadexPresentationControlsV5) return;
-  window.__acadexPresentationControlsV5 = true;
-
-  const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]));
-  const lineItems = (v) => String(v || '').split(/\r?\n/).map(x => x.replace(/^\s*[-•*]\s*/, '').trim()).filter(Boolean);
-  const slides = () => { try { return Array.isArray(presSlides) ? presSlides : []; } catch (_) { return []; } };
-  const active = () => { try { return slides()[Number.isInteger(presActiveSlide) ? presActiveSlide : 0] || null; } catch (_) { return null; } };
+  if (window.__acadexPresentationControlsV6Safe) return;
+  window.__acadexPresentationControlsV6Safe = true;
 
   const style = document.createElement('style');
-  style.id = 'acadex-presentation-v5-style';
+  style.id = 'acadex-presentation-v6-safe-style';
   style.textContent = `
-    #presentation-view{padding-bottom:0!important}
-    #pres-studio-mode.pres-studio{height:calc(100vh - 104px)!important;min-height:680px!important;gap:.65rem!important}
-    #pres-studio-mode .pres-body{grid-template-columns:190px minmax(620px,1fr) 300px!important;gap:.8rem!important;min-height:0!important;flex:1!important}
-    #pres-studio-mode .pres-panel{min-height:0!important}
-    #pres-studio-mode #pres-canvas{min-height:430px!important;height:100%!important}
-    #pres-studio-mode .pres-layout-placeholder{min-height:245px!important}
-    #pres-component-empty[hidden],#pres-media-loading[hidden]{display:none!important}
-    #pres-component-preview:not([hidden]){display:block!important;width:100%!important;height:100%!important}
-    #pres-component-preview:not([hidden]) + #pres-component-actions{z-index:3}
-    #pres-layout-placeholder.has-rich-component #pres-component-empty{display:none!important}
-    #pres-layout-placeholder.has-rich-component{padding:0!important;border:0!important;background:transparent!important}
-    #pres-layout-placeholder.has-rich-component #pres-component-preview{min-height:245px!important}
-    #pres-media-loading.acadex-force-hidden{display:none!important}
-    .acadex-preview-v5{position:fixed;inset:0;z-index:250000;background:#071827f3;color:#fff;font-family:Inter,Arial,sans-serif;display:grid;grid-template-rows:56px minmax(0,1fr)}
-    .ap5-top{display:flex;align-items:center;justify-content:space-between;padding:0 22px;background:#0b2238;border-bottom:1px solid #ffffff18}.ap5-top strong{font-size:14px}.ap5-top button{border:1px solid #ffffff35;background:#ffffff12;color:#fff;border-radius:9px;padding:8px 12px;cursor:pointer;font-weight:800}
-    .ap5-stage{display:grid;grid-template-columns:56px minmax(0,1fr) 56px;gap:14px;align-items:center;padding:18px;min-height:0}.ap5-nav{height:48px;border:0;border-radius:50%;background:#ffffff18;color:white;font-size:24px;cursor:pointer}.ap5-nav:disabled{opacity:.25}
-    .ap5-center{height:100%;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;overflow:auto;padding:4px}
-    .ap5-slide{aspect-ratio:16/9;width:min(1260px,calc(100vw - 180px),calc((100vh - 220px)*1.777));background:white;color:#16325c;border-radius:16px;box-shadow:0 28px 75px #0008;padding:4.8% 5.5%;overflow:hidden;position:relative;flex:none}
-    .ap5-slide h1{font-size:clamp(24px,2.7vw,42px);line-height:1.08;margin:0 0 16px;letter-spacing:-.03em}.ap5-rule{height:4px;width:72px;border-radius:99px;background:#0d9488;margin-bottom:18px}.ap5-bullets{display:grid;gap:9px;font-size:clamp(13px,1.3vw,21px);line-height:1.35}.ap5-bullets p{margin:0}.ap5-cols{display:grid;grid-template-columns:1fr 1fr;gap:24px}.ap5-cols>div{padding:16px;border:1px solid #e2e8f0;border-radius:13px;background:#f8fafc;font-size:clamp(12px,1.1vw,18px);line-height:1.4}.ap5-cols p{margin:0 0 8px}
-    .ap5-table{width:100%;border-collapse:collapse;font-size:clamp(10px,1vw,16px)}.ap5-table th{background:#e6f7f5;color:#0f5f59}.ap5-table th,.ap5-table td{border:1px solid #cbd5e1;padding:9px;text-align:left}.ap5-chart{display:grid;gap:10px}.ap5-bar{display:grid;grid-template-columns:150px 1fr 65px;gap:10px;align-items:center;font-size:clamp(10px,.95vw,16px)}.ap5-bar i{height:18px;background:#e2e8f0;border-radius:99px;overflow:hidden}.ap5-bar b{display:block;height:100%;background:#0d9488;border-radius:99px}.ap5-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.ap5-cards article{padding:15px;border:1px solid #ccfbf1;border-radius:13px;background:linear-gradient(145deg,#fff,#f0fdfa)}.ap5-cards strong{display:block;margin-bottom:6px;font-size:clamp(11px,1vw,17px)}.ap5-cards p{margin:0;color:#475569;font-size:clamp(9px,.85vw,14px);line-height:1.35}.ap5-image{position:absolute;right:5%;bottom:7%;max-width:36%;max-height:44%;object-fit:contain;border-radius:12px}.ap5-count{position:absolute;right:4%;bottom:3%;color:#94a3b8;font-size:11px}
-    .ap5-notes{width:min(1260px,calc(100vw - 180px));background:#102a43;border:1px solid #ffffff20;border-radius:12px;padding:11px 15px;box-shadow:0 10px 26px #0004;flex:none}.ap5-notes strong{display:block;color:#5eead4;font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}.ap5-notes p{margin:0;color:#e5edf5;font-size:13px;line-height:1.45;max-height:74px;overflow:auto}
-    @media(max-width:1200px){#pres-studio-mode .pres-body{grid-template-columns:165px minmax(500px,1fr) 260px!important}.ap5-cards{grid-template-columns:1fr 1fr}}
+    /* Never block the editor with an endless media spinner. */
+    #pres-media-loading{display:none!important}
+
+    /* If the structured preview has real content, hide the decorative empty-state completely. */
+    #pres-layout-placeholder.has-live-component #pres-component-empty,
+    #pres-layout-placeholder.has-live-component #pres-layout-placeholder-title,
+    #pres-layout-placeholder.has-live-component #pres-layout-placeholder-hint{display:none!important}
+    #pres-layout-placeholder.has-live-component{padding:.35rem!important;background:transparent!important}
+    #pres-layout-placeholder.has-live-component #pres-component-preview{display:block!important;width:100%!important;height:100%!important;min-height:240px!important}
+
+    /* Give the image itself the whole media pane. */
+    #pres-media-placeholder.has-live-image #pres-media-empty{display:none!important}
+    #pres-media-placeholder.has-live-image #pres-slide-image{display:block!important;opacity:1!important;visibility:visible!important;max-width:100%!important;max-height:100%!important;object-fit:contain!important}
   `;
   document.head.appendChild(style);
 
-  function enrichSlideFromNotes(slide) {
-    if (!slide) return false;
-    slide.content = slide.content && typeof slide.content === 'object' ? slide.content : {};
-    const visible = String(slide.content.text || '').trim();
-    const notes = String(slide.speaker_notes || '').trim();
-    if (visible.length >= 260 || notes.length < 140) return false;
-    const sentences = notes.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(s => s.length > 45 && !visible.includes(s.slice(0, 35)));
-    if (!sentences.length) return false;
-    const additions = sentences.slice(0, visible.length < 120 ? 2 : 1).map(s => `• Detay: ${s}`);
-    if (!additions.length) return false;
-    slide.content.text = [visible, ...additions].filter(Boolean).join('\n');
-    return true;
+  const timers = new WeakMap();
+  let mediaRequestId = 0;
+
+  function getSlides() {
+    try { return Array.isArray(presSlides) ? presSlides : []; } catch (_) { return []; }
   }
 
-  function enrichDeck() {
-    let changed = false;
-    slides().forEach(s => { if (enrichSlideFromNotes(s)) changed = true; });
-    if (changed) {
-      try { if (typeof markPresentationDirty === 'function') markPresentationDirty(); } catch (_) {}
-      try { if (typeof renderPresentationSlidesList === 'function') renderPresentationSlidesList(); } catch (_) {}
-    }
-    return changed;
+  function getActiveSlide() {
+    try {
+      const deck = getSlides();
+      return deck[Number.isInteger(presActiveSlide) ? presActiveSlide : 0] || null;
+    } catch (_) { return null; }
   }
 
-  function syncStructuredPlaceholder() {
-    const slide = active();
+  function clearPending(el) {
+    const list = timers.get(el) || [];
+    list.forEach(id => clearTimeout(id));
+    timers.delete(el);
+  }
+
+  function schedule(el, fn, delays) {
+    if (!el) return;
+    clearPending(el);
+    const list = delays.map(ms => setTimeout(fn, ms));
+    timers.set(el, list);
+  }
+
+  function previewHasRealContent(preview) {
+    if (!preview || preview.hidden) return false;
+    if (preview.querySelector('table, canvas, svg, img, .pres-slide-table, .pres-slide-chart, .pres-v2-cards, .pres-v2-process, .pres-v2-timeline, .pres-v2-metric, article')) return true;
+    const text = String(preview.textContent || '').replace(/\s+/g, ' ').trim();
+    return text.length > 12;
+  }
+
+  function syncStructuredComponent() {
     const holder = document.getElementById('pres-layout-placeholder');
     const empty = document.getElementById('pres-component-empty');
     const preview = document.getElementById('pres-component-preview');
-    if (!holder || !empty || !preview || !slide) return;
-    const hasRich = !!(slide.content?.table?.rows?.length || slide.content?.chart?.labels?.length);
-    holder.classList.toggle('has-rich-component', hasRich);
-    if (hasRich) {
-      empty.hidden = true;
+    const title = document.getElementById('pres-layout-placeholder-title');
+    const hint = document.getElementById('pres-layout-placeholder-hint');
+    if (!holder || !preview) return;
+
+    const slide = getActiveSlide();
+    const structured = !!(
+      slide?.content?.table?.rows?.length ||
+      slide?.content?.chart?.labels?.length ||
+      slide?.content?.cards?.length ||
+      slide?.content?.steps?.length ||
+      slide?.content?.metric
+    );
+    const rendered = previewHasRealContent(preview);
+    const live = structured || rendered;
+
+    holder.classList.toggle('has-live-component', live);
+    if (live) {
+      if (empty) { empty.hidden = true; empty.style.display = 'none'; }
+      if (title) title.style.display = 'none';
+      if (hint) hint.style.display = 'none';
       preview.hidden = false;
-      document.getElementById('pres-layout-placeholder-title')?.setAttribute('aria-hidden','true');
-      document.getElementById('pres-layout-placeholder-hint')?.setAttribute('aria-hidden','true');
+      preview.style.display = 'block';
     } else {
-      empty.hidden = false;
+      holder.classList.remove('has-live-component');
+      if (empty) { empty.hidden = false; empty.style.removeProperty('display'); }
+      if (title) title.style.removeProperty('display');
+      if (hint) hint.style.removeProperty('display');
     }
   }
 
-  function forceMediaSettled() {
+  async function resolveImageWithoutSpinner(slide, image, empty, holder) {
+    let path = '';
+    try {
+      path = typeof getPresentationImagePath === 'function' ? String(getPresentationImagePath(slide) || '') : '';
+    } catch (_) {}
+
+    const existingSrc = String(image?.getAttribute('src') || '').trim();
+    if (existingSrc) {
+      image.hidden = false;
+      image.style.display = 'block';
+      holder?.classList.add('has-live-image');
+      if (empty) { empty.hidden = true; empty.style.display = 'none'; }
+      return;
+    }
+
+    if (!path) {
+      holder?.classList.remove('has-live-image');
+      if (image) { image.hidden = true; image.style.removeProperty('display'); }
+      if (empty) { empty.hidden = false; empty.style.removeProperty('display'); }
+      return;
+    }
+
+    if (typeof getPresentationImageUrl !== 'function') {
+      if (empty) { empty.hidden = false; empty.style.removeProperty('display'); }
+      return;
+    }
+
+    const requestId = ++mediaRequestId;
+    try {
+      const url = await Promise.race([
+        getPresentationImageUrl(path),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('image-timeout')), 4500))
+      ]);
+      if (requestId !== mediaRequestId) return;
+      if (url && image) {
+        image.src = url;
+        image.hidden = false;
+        image.style.display = 'block';
+        holder?.classList.add('has-live-image');
+        if (empty) { empty.hidden = true; empty.style.display = 'none'; }
+      } else if (empty) {
+        empty.hidden = false;
+        empty.style.removeProperty('display');
+      }
+    } catch (_) {
+      if (requestId !== mediaRequestId) return;
+      holder?.classList.remove('has-live-image');
+      if (empty) { empty.hidden = false; empty.style.removeProperty('display'); }
+    }
+  }
+
+  function settleMedia() {
     const loading = document.getElementById('pres-media-loading');
     const image = document.getElementById('pres-slide-image');
     const empty = document.getElementById('pres-media-empty');
-    if (!loading) return;
-    const slide = active();
-    let path = '';
-    try { path = typeof getPresentationImagePath === 'function' ? getPresentationImagePath(slide) : ''; } catch (_) {}
-    if (!path) {
+    const holder = document.getElementById('pres-media-placeholder') || image?.parentElement || empty?.parentElement;
+
+    /* The spinner is intentionally non-blocking in V6. */
+    if (loading) {
       loading.hidden = true;
-      loading.classList.add('acadex-force-hidden');
-      if (empty) empty.hidden = false;
+      loading.style.display = 'none';
+      loading.setAttribute('aria-hidden', 'true');
+    }
+
+    const slide = getActiveSlide();
+    if (!slide) {
+      if (empty) { empty.hidden = false; empty.style.removeProperty('display'); }
       return;
     }
-    if (image?.getAttribute('src')) {
-      loading.hidden = true;
-      loading.classList.add('acadex-force-hidden');
+
+    const src = String(image?.getAttribute('src') || '').trim();
+    if (src) {
       image.hidden = false;
-      if (empty) empty.hidden = true;
+      image.style.display = 'block';
+      holder?.classList.add('has-live-image');
+      if (empty) { empty.hidden = true; empty.style.display = 'none'; }
       return;
     }
-    const token = String(Date.now());
-    loading.dataset.acadexToken = token;
-    setTimeout(() => {
-      if (loading.dataset.acadexToken !== token) return;
-      loading.hidden = true;
-      loading.classList.add('acadex-force-hidden');
-      if (image?.getAttribute('src')) {
-        image.hidden = false;
-        if (empty) empty.hidden = true;
-      } else if (empty) {
-        empty.hidden = false;
-      }
-    }, 3200);
+
+    resolveImageWithoutSpinner(slide, image, empty, holder);
   }
 
-  function afterRender() {
-    enrichSlideFromNotes(active());
-    setTimeout(syncStructuredPlaceholder, 0);
-    setTimeout(forceMediaSettled, 20);
+  function runPostRender() {
+    syncStructuredComponent();
+    settleMedia();
+
+    const holder = document.getElementById('pres-studio-mode') || document.body;
+    schedule(holder, () => {
+      syncStructuredComponent();
+      settleMedia();
+    }, [60, 260, 900, 2200, 4800]);
+  }
+
+  function patchGlobalRenderer(name, after) {
+    const current = window[name];
+    if (typeof current !== 'function' || current.__acadexV6Wrapped) return false;
+    const wrapped = function () {
+      const result = current.apply(this, arguments);
+      try { after(); } catch (_) {}
+      return result;
+    };
+    wrapped.__acadexV6Wrapped = true;
+    window[name] = wrapped;
+    return true;
   }
 
   function patchRenderers() {
-    if (!window.__acadexV5RenderPatched && typeof window.renderActivePresentationSlide === 'function') {
-      const original = window.renderActivePresentationSlide;
-      window.renderActivePresentationSlide = function () {
-        const result = original.apply(this, arguments);
-        afterRender();
-        return result;
-      };
-      window.__acadexV5RenderPatched = true;
-    }
-    if (!window.__acadexV5RichPatched && typeof window.renderPresentationRichContent === 'function') {
-      const original = window.renderPresentationRichContent;
-      window.renderPresentationRichContent = function () {
-        const result = original.apply(this, arguments);
-        setTimeout(syncStructuredPlaceholder, 0);
-        return result;
-      };
-      window.__acadexV5RichPatched = true;
-    }
+    patchGlobalRenderer('renderActivePresentationSlide', runPostRender);
+    patchGlobalRenderer('renderPresentationRichContent', syncStructuredComponent);
+    patchGlobalRenderer('renderPresentationSlideMedia', settleMedia);
   }
 
-  function bodyHtml(slide) {
-    const c = slide?.content || {};
-    if (c.table?.headers?.length && c.table?.rows?.length) return `<table class="ap5-table"><thead><tr>${c.table.headers.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${c.table.rows.map(r=>`<tr>${r.map(x=>`<td>${esc(x)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
-    if (c.chart?.labels?.length && c.chart?.data?.length) {
-      const vals = c.chart.data.map(Number); const max = Math.max(1, ...vals.map(v=>Math.abs(v)));
-      return `<div class="ap5-chart">${c.chart.labels.map((l,i)=>`<div class="ap5-bar"><span>${esc(l)}</span><i><b style="width:${Math.max(4,Math.abs(vals[i]||0)/max*100)}%"></b></i><strong>${esc(c.chart.data[i])}</strong></div>`).join('')}</div>`;
+  document.addEventListener('click', (event) => {
+    if (!event.target.closest('#presentation-view, #pres-studio-mode')) return;
+    if (event.target.closest('.pres-layout-btn, .pres-slide-item, #pres-add-slide-btn, #pres-component-actions, #pres-media-actions')) {
+      setTimeout(runPostRender, 0);
+      setTimeout(runPostRender, 180);
+      setTimeout(runPostRender, 900);
     }
-    if (Array.isArray(c.cards) && c.cards.length) return `<div class="ap5-cards">${c.cards.slice(0,6).map(x=>`<article><strong>${esc(x.title)}</strong><p>${esc(x.body||'')}</p></article>`).join('')}</div>`;
-    const primary = lineItems(c.text); const secondary = lineItems(c.secondary_text);
-    if (secondary.length) return `<div class="ap5-cols"><div>${primary.map(x=>`<p>• ${esc(x)}</p>`).join('')}</div><div>${secondary.map(x=>`<p>• ${esc(x)}</p>`).join('')}</div></div>`;
-    return `<div class="ap5-bullets">${primary.map(x=>`<p>• ${esc(x)}</p>`).join('')}</div>`;
-  }
-
-  async function hydrateImage(root, slide) {
-    let path=''; try { path = typeof getPresentationImagePath === 'function' ? getPresentationImagePath(slide) : ''; } catch (_) {}
-    if (!path) return;
-    const img = root.querySelector('.ap5-image'); if (!img) return;
-    try {
-      const url = await Promise.race([getPresentationImageUrl(path), new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),5000))]);
-      if (url) { img.src=url; img.hidden=false; }
-    } catch (_) { img.remove(); }
-  }
-
-  function openPreviewV5() {
-    try { if (typeof syncActiveSlideFromEditor === 'function') syncActiveSlideFromEditor(); } catch (_) {}
-    enrichDeck();
-    const deck = slides(); if (!deck.length) return;
-    document.querySelector('.acadex-preview-v5')?.remove();
-    document.getElementById('acadex-presentation-preview')?.remove();
-    const overlay=document.createElement('div'); overlay.className='acadex-preview-v5';
-    overlay.innerHTML=`<div class="ap5-top"><strong>${esc((typeof presCurrentPresentation!=='undefined'&&presCurrentPresentation?.title)||'Acadex Sunum')}</strong><div><span id="ap5-index"></span> &nbsp; <button id="ap5-close" type="button">Kapat ✕</button></div></div><div class="ap5-stage"><button class="ap5-nav" id="ap5-prev">‹</button><div class="ap5-center"><div id="ap5-slide-host"></div><div class="ap5-notes"><strong>Konuşma Notları</strong><p id="ap5-notes-text"></p></div></div><button class="ap5-nav" id="ap5-next">›</button></div>`;
-    document.body.appendChild(overlay);
-    let index=0;
-    const draw=()=>{
-      const s=deck[index]; const host=overlay.querySelector('#ap5-slide-host');
-      host.innerHTML=`<section class="ap5-slide"><h1>${esc(s.title||`Slayt ${index+1}`)}</h1><div class="ap5-rule"></div>${bodyHtml(s)}<img class="ap5-image" hidden alt=""><span class="ap5-count">${index+1} / ${deck.length}</span></section>`;
-      overlay.querySelector('#ap5-index').textContent=`${index+1} / ${deck.length}`;
-      overlay.querySelector('#ap5-notes-text').textContent=String(s.speaker_notes||'Bu slayt için konuşma notu eklenmemiş.');
-      overlay.querySelector('#ap5-prev').disabled=index===0; overlay.querySelector('#ap5-next').disabled=index===deck.length-1;
-      hydrateImage(host,s);
-    };
-    overlay.querySelector('#ap5-prev').onclick=()=>{if(index>0){index--;draw();}};
-    overlay.querySelector('#ap5-next').onclick=()=>{if(index<deck.length-1){index++;draw();}};
-    overlay.querySelector('#ap5-close').onclick=()=>overlay.remove();
-    const key=e=>{if(!document.body.contains(overlay)){document.removeEventListener('keydown',key,true);return;}if(e.key==='Escape')overlay.remove();if(e.key==='ArrowRight'&&index<deck.length-1){index++;draw();}if(e.key==='ArrowLeft'&&index>0){index--;draw();}};
-    document.addEventListener('keydown',key,true); draw();
-  }
-
-  document.addEventListener('click', (e) => {
-    const preview = e.target.closest('#pres-preview-btn');
-    if (preview) {
-      e.preventDefault(); e.stopImmediatePropagation(); openPreviewV5(); return;
-    }
-    const layout = e.target.closest('.pres-layout-btn');
-    if (layout) setTimeout(afterRender, 10);
   }, true);
 
-  const observer=new MutationObserver(()=>{ syncStructuredPlaceholder(); forceMediaSettled(); });
-  const start=()=>{
-    patchRenderers(); enrichDeck(); afterRender();
-    const root=document.getElementById('pres-studio-mode'); if(root) observer.observe(root,{subtree:true,childList:true,attributes:true,attributeFilter:['hidden','src','data-layout']});
-    let tries=0; const t=setInterval(()=>{patchRenderers();if(++tries>20)clearInterval(t);},500);
-  };
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
+  document.addEventListener('change', (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (!target.closest('#presentation-view, #pres-studio-mode')) return;
+    setTimeout(runPostRender, 40);
+    setTimeout(runPostRender, 500);
+    setTimeout(runPostRender, 1800);
+  }, true);
 
-  window.AcadexPresentationControlsV5={openPreview:openPreviewV5,enrich:enrichDeck,settleMedia:forceMediaSettled,syncStructured:syncStructuredPlaceholder};
+  function start() {
+    patchRenderers();
+    runPostRender();
+    let attempts = 0;
+    const installer = setInterval(() => {
+      patchRenderers();
+      if (++attempts >= 24) clearInterval(installer);
+    }, 400);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start, { once: true });
+  } else {
+    start();
+  }
+
+  window.AcadexPresentationControlsV6Safe = {
+    refresh: runPostRender,
+    syncStructured: syncStructuredComponent,
+    settleMedia
+  };
 })();
