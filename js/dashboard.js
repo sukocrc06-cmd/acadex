@@ -4490,6 +4490,16 @@ let presIsDirty = false;
 let presIsSaving = false;
 let presListRequestId = 0;
 let presDraggedSlideKey = null;
+let presImageUploadInProgress = false;
+let presImageRenderRequestId = 0;
+let presActiveChartInstance = null;
+let presTableDraft = null;
+let presChartDraft = null;
+const presPendingImageDeletes = new Set();
+const presSignedImageCache = new Map();
+const PRES_IMAGE_BUCKET = 'presentation-images';
+const PRES_MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const PRES_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 
 async function loadPresentationStudio() {
   initPresentationStudioOnce();
@@ -4545,8 +4555,68 @@ function initPresentationStudioOnce() {
   const uploadZone = document.getElementById('pres-upload-zone');
   const uploadBtn = document.getElementById('pres-upload-btn');
   const imageInput = document.getElementById('pres-image-input');
-  if (uploadZone && imageInput) uploadZone.addEventListener('click', () => imageInput.click());
-  if (uploadBtn && imageInput) uploadBtn.addEventListener('click', () => imageInput.click());
+  const openImagePicker = () => {
+    if (!presImageUploadInProgress && presCurrentId) imageInput?.click();
+  };
+  uploadZone?.addEventListener('click', openImagePicker);
+  uploadZone?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      openImagePicker();
+    }
+  });
+  uploadBtn?.addEventListener('click', openImagePicker);
+  document.getElementById('pres-media-upload-trigger')?.addEventListener('click', openImagePicker);
+  document.getElementById('pres-image-change-btn')?.addEventListener('click', openImagePicker);
+  imageInput?.addEventListener('change', async () => {
+    const file = imageInput.files?.[0];
+    imageInput.value = '';
+    if (file) await uploadPresentationImage(file);
+  });
+
+  ['dragenter', 'dragover'].forEach(eventName => {
+    uploadZone?.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      if (!presImageUploadInProgress) uploadZone.classList.add('is-dragover');
+    });
+  });
+  ['dragleave', 'drop'].forEach(eventName => {
+    uploadZone?.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      uploadZone.classList.remove('is-dragover');
+    });
+  });
+  uploadZone?.addEventListener('drop', async (e) => {
+    const file = e.dataTransfer?.files?.[0];
+    if (file) await uploadPresentationImage(file);
+  });
+
+  document.getElementById('pres-image-left-btn')?.addEventListener('click', () => setPresentationImagePosition('left'));
+  document.getElementById('pres-image-right-btn')?.addEventListener('click', () => setPresentationImagePosition('right'));
+  document.getElementById('pres-image-remove-btn')?.addEventListener('click', removePresentationImage);
+  document.getElementById('pres-insert-table-btn')?.addEventListener('click', openPresentationTableBuilder);
+  document.getElementById('pres-insert-chart-btn')?.addEventListener('click', openPresentationChartBuilder);
+  document.getElementById('pres-component-edit-btn')?.addEventListener('click', editActivePresentationComponent);
+  document.getElementById('pres-component-remove-btn')?.addEventListener('click', removeActivePresentationComponent);
+
+  document.querySelectorAll('[data-pres-builder-close]').forEach(button => {
+    button.addEventListener('click', closePresentationBuilders);
+  });
+  document.querySelectorAll('.pres-builder-overlay').forEach(overlay => {
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closePresentationBuilders();
+    });
+  });
+  document.getElementById('pres-table-rows')?.addEventListener('change', resizePresentationTableDraft);
+  document.getElementById('pres-table-cols')?.addEventListener('change', resizePresentationTableDraft);
+  document.getElementById('pres-table-form')?.addEventListener('submit', applyPresentationTable);
+  document.getElementById('pres-chart-form')?.addEventListener('submit', applyPresentationChart);
+  document.getElementById('pres-chart-add-row')?.addEventListener('click', addPresentationChartRow);
+  document.getElementById('pres-chart-data-body')?.addEventListener('click', (e) => {
+    const removeButton = e.target.closest('[data-chart-row-remove]');
+    if (!removeButton) return;
+    removePresentationChartRow(Number.parseInt(removeButton.dataset.chartRowRemove || '-1', 10));
+  });
 
   document.getElementById('pres-slides-list')?.addEventListener('click', (e) => {
     const actionButton = e.target.closest('[data-slide-action]');
@@ -4630,6 +4700,10 @@ function initPresentationStudioOnce() {
   });
 
   document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.querySelector('.pres-builder-overlay.is-open')) {
+      closePresentationBuilders();
+      return;
+    }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's' && presCurrentId) {
       e.preventDefault();
       savePresentation();
@@ -4659,8 +4733,11 @@ async function showPresentationListMode() {
   presCurrentPresentation = null;
   presSlides = [];
   presDeletedSlideIds = [];
+  presPendingImageDeletes.clear();
   presActiveSlide = 0;
   presIsDirty = false;
+  destroyActivePresentationChart();
+  closePresentationBuilders();
   updatePresentationSaveState();
   await loadPresentationsList();
 }
@@ -4888,6 +4965,7 @@ function openPresentationStudio(presentation, slides = []) {
   presCurrentPresentation = presentation ? { ...presentation } : null;
   presSlides = slides.map((slide, index) => normalizePresentationSlide(slide, index));
   presDeletedSlideIds = [];
+  presPendingImageDeletes.clear();
   presActiveSlide = 0;
   presIsDirty = presSlides.some(slide => slide._isNew);
   const titleInput = document.getElementById('pres-title-input');
@@ -4899,6 +4977,7 @@ function openPresentationStudio(presentation, slides = []) {
 
 function normalizePresentationSlide(slide, index) {
   const content = slide?.content && typeof slide.content === 'object' ? slide.content : {};
+  const imagePosition = slide?.image_position === 'left' ? 'left' : 'right';
   return {
     id: slide?.id || null,
     presentation_id: slide?.presentation_id || presCurrentId,
@@ -4907,8 +4986,8 @@ function normalizePresentationSlide(slide, index) {
     content,
     speaker_notes: slide?.speaker_notes || '',
     layout_type: normalizePresentationLayout(slide?.layout_type),
-    image_url: slide?.image_url || null,
-    image_position: slide?.image_position || 'right',
+    image_url: slide?.image_url || content?.image?.storage_path || null,
+    image_position: imagePosition,
     _isNew: !slide?.id,
     _localKey: slide?._localKey || `slide-${Date.now()}-${index}-${Math.random().toString(36).slice(2)}`
   };
@@ -4974,6 +5053,7 @@ function renderActivePresentationSlide() {
   const primaryLabel = document.querySelector('.pres-content-primary .pres-field-label');
   const placeholderIcon = document.getElementById('pres-layout-placeholder-icon');
   const placeholderTitle = document.getElementById('pres-layout-placeholder-title');
+  const placeholderHint = document.getElementById('pres-layout-placeholder-hint');
   if (!slide) return;
 
   const layout = normalizePresentationLayout(slide.layout_type);
@@ -4991,11 +5071,16 @@ function renderActivePresentationSlide() {
   }
   if (placeholderIcon) placeholderIcon.textContent = layout === 'table' ? '📊' : '📈';
   if (placeholderTitle) placeholderTitle.textContent = layout === 'table' ? 'Tablo Alanı' : 'Grafik Alanı';
+  if (placeholderHint) placeholderHint.textContent = layout === 'table'
+    ? 'Sağ panelden akademik bir tablo ekleyin.'
+    : 'Sağ panelden çubuk, pasta veya çizgi grafik ekleyin.';
   document.querySelectorAll('.pres-layout-btn').forEach(btn => {
     const isActive = btn.dataset.layout === layout;
     btn.classList.toggle('active', isActive);
     btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
   });
+  void renderPresentationMedia(slide);
+  renderPresentationRichContent(slide);
 }
 
 function syncActiveSlideFromEditor() {
@@ -5032,6 +5117,576 @@ function getPresentationSlideSecondaryText(slide) {
   return '';
 }
 
+function getPresentationImagePath(slide) {
+  const contentPath = slide?.content?.image?.storage_path;
+  const value = contentPath || slide?.image_url || '';
+  return typeof value === 'string' ? value.replace(/^storage:/, '') : '';
+}
+
+function isPresentationOwnedImagePath(path, presentationId = presCurrentId) {
+  if (!path || !currentUser?.id || !presentationId || /^https?:\/\//i.test(path)) return false;
+  return path.startsWith(`${currentUser.id}/${presentationId}/`);
+}
+
+function queuePresentationImageDelete(path, presentationId = presCurrentId) {
+  const normalizedPath = typeof path === 'string' ? path.replace(/^storage:/, '') : '';
+  if (isPresentationOwnedImagePath(normalizedPath, presentationId)) {
+    presPendingImageDeletes.add(normalizedPath);
+    presSignedImageCache.delete(normalizedPath);
+  }
+}
+
+async function getPresentationImageUrl(path) {
+  if (!path) return '';
+  if (/^https?:\/\//i.test(path) || /^data:image\//i.test(path) || /^blob:/i.test(path)) return path;
+
+  const cached = presSignedImageCache.get(path);
+  if (cached && cached.expiresAt > Date.now() + 60_000) return cached.url;
+
+  const { data, error } = await supabaseClient.storage
+    .from(PRES_IMAGE_BUCKET)
+    .createSignedUrl(path, 3600);
+  if (error) throw error;
+
+  const signedUrl = data?.signedUrl || '';
+  if (signedUrl) presSignedImageCache.set(path, { url: signedUrl, expiresAt: Date.now() + 3_600_000 });
+  return signedUrl;
+}
+
+async function renderPresentationMedia(slide) {
+  const requestId = ++presImageRenderRequestId;
+  const slideKey = slide?._localKey;
+  const image = document.getElementById('pres-slide-image');
+  const empty = document.getElementById('pres-media-empty');
+  const actions = document.getElementById('pres-media-actions');
+  const loading = document.getElementById('pres-media-loading');
+  if (!image || !empty || !actions || !loading) return;
+
+  const path = getPresentationImagePath(slide);
+  image.hidden = true;
+  actions.hidden = true;
+  loading.hidden = true;
+  empty.hidden = false;
+  image.removeAttribute('src');
+  if (!path) return;
+
+  loading.hidden = false;
+  empty.hidden = true;
+  try {
+    const url = await getPresentationImageUrl(path);
+    const activeSlide = presSlides[presActiveSlide];
+    if (requestId !== presImageRenderRequestId || activeSlide?._localKey !== slideKey) return;
+    if (!url) throw new Error('Signed image URL could not be created.');
+
+    image.src = url;
+    image.alt = slide?.content?.image?.alt || slide?.title || 'Sunum görseli';
+    image.hidden = false;
+    actions.hidden = false;
+    loading.hidden = true;
+  } catch (error) {
+    if (requestId !== presImageRenderRequestId) return;
+    console.error('Presentation image could not be rendered:', error);
+    loading.hidden = true;
+    empty.hidden = false;
+    showPresentationUploadMessage('Görsel açılamadı. Dosya iznini kontrol edin.', true);
+  }
+}
+
+function showPresentationUploadMessage(message = '', isError = false) {
+  const status = document.getElementById('pres-upload-status');
+  if (!status) return;
+  status.textContent = message;
+  status.style.color = isError ? '#b91c1c' : 'var(--color-text-muted)';
+}
+
+function setPresentationImageBusy(isBusy) {
+  presImageUploadInProgress = isBusy;
+  document.getElementById('pres-upload-zone')?.classList.toggle('is-busy', isBusy);
+  const uploadButton = document.getElementById('pres-upload-btn');
+  if (uploadButton) uploadButton.disabled = isBusy;
+  const loading = document.getElementById('pres-media-loading');
+  if (loading) loading.hidden = !isBusy;
+}
+
+async function uploadPresentationImage(file) {
+  const slide = presSlides[presActiveSlide];
+  if (!currentUser || !presCurrentId || !slide || presImageUploadInProgress) return;
+  if (!PRES_IMAGE_MIME_TYPES.has(file?.type)) {
+    showDashboardAlert('error', 'Yalnızca JPG, PNG, WebP veya GIF görselleri yükleyebilirsiniz.');
+    return;
+  }
+  if (!file.size || file.size > PRES_MAX_IMAGE_BYTES) {
+    showDashboardAlert('error', 'Görsel boyutu 5 MB sınırını aşmamalıdır.');
+    return;
+  }
+
+  const extensionByMime = {
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/webp': 'webp',
+    'image/gif': 'gif'
+  };
+  const uniqueId = window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const storagePath = `${currentUser.id}/${presCurrentId}/${uniqueId}.${extensionByMime[file.type]}`;
+  const previousPath = getPresentationImagePath(slide);
+  const targetSlideKey = slide._localKey;
+
+  setPresentationImageBusy(true);
+  showPresentationUploadMessage('Görsel güvenli alana yükleniyor…');
+  try {
+    const { error } = await supabaseClient.storage
+      .from(PRES_IMAGE_BUCKET)
+      .upload(storagePath, file, { cacheControl: '3600', contentType: file.type, upsert: false });
+    if (error) throw error;
+
+    const activeSlide = presSlides.find(item => item._localKey === targetSlideKey);
+    if (!activeSlide) {
+      queuePresentationImageDelete(storagePath);
+      return;
+    }
+
+    if (previousPath && previousPath !== storagePath) queuePresentationImageDelete(previousPath);
+    const cleanName = String(file.name || 'Sunum görseli').replace(/\.[^.]+$/, '').slice(0, 120);
+    activeSlide.image_url = storagePath;
+    activeSlide.image_position = activeSlide.image_position === 'left' ? 'left' : 'right';
+    activeSlide.content = {
+      ...(activeSlide.content || {}),
+      image: {
+        storage_path: storagePath,
+        alt: cleanName || 'Sunum görseli',
+        original_name: String(file.name || '').slice(0, 180),
+        mime_type: file.type
+      }
+    };
+    if (!['image-left', 'image-right'].includes(activeSlide.layout_type)) {
+      activeSlide.layout_type = activeSlide.image_position === 'left' ? 'image-left' : 'image-right';
+    }
+    markPresentationDirty();
+    renderPresentationSlidesList();
+    if (presSlides[presActiveSlide]?._localKey === targetSlideKey) renderActivePresentationSlide();
+    showPresentationUploadMessage('Görsel slayta eklendi. Kaydetmeyi unutmayın.');
+  } catch (error) {
+    console.error('Presentation image upload failed:', error);
+    showPresentationUploadMessage('Görsel yüklenemedi.', true);
+    showPresentationDataError(error, 'Görsel yüklenemedi.');
+  } finally {
+    setPresentationImageBusy(false);
+  }
+}
+
+function setPresentationImagePosition(position) {
+  const slide = presSlides[presActiveSlide];
+  if (!slide || !['left', 'right'].includes(position)) return;
+  slide.image_position = position;
+  slide.layout_type = position === 'left' ? 'image-left' : 'image-right';
+  markPresentationDirty();
+  renderActivePresentationSlide();
+}
+
+function removePresentationImage() {
+  const slide = presSlides[presActiveSlide];
+  if (!slide) return;
+  const path = getPresentationImagePath(slide);
+  if (!path) return;
+  queuePresentationImageDelete(path);
+  slide.image_url = null;
+  slide.content = { ...(slide.content || {}) };
+  delete slide.content.image;
+  markPresentationDirty();
+  renderPresentationSlidesList();
+  renderActivePresentationSlide();
+  showPresentationUploadMessage('Görsel kaldırıldı; kayıt sırasında depodan temizlenecek.');
+}
+
+function clampPresentationInteger(value, min, max, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback;
+}
+
+function normalizePresentationTable(table) {
+  if (!table || typeof table !== 'object') return null;
+  const headers = Array.isArray(table.headers)
+    ? table.headers.slice(0, 8).map(value => String(value ?? '').slice(0, 120))
+    : [];
+  if (headers.length < 2) return null;
+  const rows = Array.isArray(table.rows)
+    ? table.rows.slice(0, 10).map(row => headers.map((_, index) => String(row?.[index] ?? '').slice(0, 500)))
+    : [];
+  return {
+    title: String(table.title || '').slice(0, 120),
+    headers,
+    rows: rows.length ? rows : [headers.map(() => '')]
+  };
+}
+
+function openPresentationTableBuilder() {
+  const slide = presSlides[presActiveSlide];
+  if (!slide) return;
+  const existing = normalizePresentationTable(slide.content?.table);
+  presTableDraft = existing || {
+    title: '',
+    headers: ['Başlık 1', 'Başlık 2', 'Başlık 3'],
+    rows: [
+      ['Veri 1', '', ''],
+      ['Veri 2', '', ''],
+      ['Veri 3', '', '']
+    ]
+  };
+  document.getElementById('pres-table-title').value = presTableDraft.title;
+  document.getElementById('pres-table-rows').value = presTableDraft.rows.length;
+  document.getElementById('pres-table-cols').value = presTableDraft.headers.length;
+  renderPresentationTableDraft();
+  openPresentationBuilder('pres-table-builder');
+}
+
+function syncPresentationTableDraftFromGrid() {
+  if (!presTableDraft) return;
+  document.querySelectorAll('#pres-table-grid-wrap [data-table-header]').forEach(input => {
+    const index = Number.parseInt(input.dataset.tableHeader, 10);
+    if (Number.isInteger(index) && presTableDraft.headers[index] !== undefined) {
+      presTableDraft.headers[index] = input.value.slice(0, 120);
+    }
+  });
+  document.querySelectorAll('#pres-table-grid-wrap [data-table-cell]').forEach(input => {
+    const [rowIndex, colIndex] = input.dataset.tableCell.split(':').map(value => Number.parseInt(value, 10));
+    if (presTableDraft.rows[rowIndex]?.[colIndex] !== undefined) {
+      presTableDraft.rows[rowIndex][colIndex] = input.value.slice(0, 500);
+    }
+  });
+}
+
+function resizePresentationTableDraft() {
+  if (!presTableDraft) return;
+  syncPresentationTableDraftFromGrid();
+  const rowCount = clampPresentationInteger(document.getElementById('pres-table-rows')?.value, 1, 10, 3);
+  const colCount = clampPresentationInteger(document.getElementById('pres-table-cols')?.value, 2, 8, 3);
+  document.getElementById('pres-table-rows').value = rowCount;
+  document.getElementById('pres-table-cols').value = colCount;
+
+  presTableDraft.headers = Array.from({ length: colCount }, (_, index) => presTableDraft.headers[index] ?? `Başlık ${index + 1}`);
+  presTableDraft.rows = Array.from({ length: rowCount }, (_, rowIndex) => (
+    Array.from({ length: colCount }, (_, colIndex) => presTableDraft.rows[rowIndex]?.[colIndex] ?? '')
+  ));
+  renderPresentationTableDraft();
+}
+
+function renderPresentationTableDraft() {
+  const wrap = document.getElementById('pres-table-grid-wrap');
+  if (!wrap || !presTableDraft) return;
+  wrap.replaceChildren();
+  const table = document.createElement('table');
+  table.className = 'pres-builder-grid';
+  const thead = document.createElement('thead');
+  const headerRow = document.createElement('tr');
+  presTableDraft.headers.forEach((header, index) => {
+    const th = document.createElement('th');
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.maxLength = 120;
+    input.value = header;
+    input.dataset.tableHeader = String(index);
+    input.setAttribute('aria-label', `${index + 1}. sütun başlığı`);
+    th.appendChild(input);
+    headerRow.appendChild(th);
+  });
+  thead.appendChild(headerRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  presTableDraft.rows.forEach((row, rowIndex) => {
+    const tr = document.createElement('tr');
+    row.forEach((value, colIndex) => {
+      const td = document.createElement('td');
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.maxLength = 500;
+      input.value = value;
+      input.dataset.tableCell = `${rowIndex}:${colIndex}`;
+      input.setAttribute('aria-label', `${rowIndex + 1}. satır ${colIndex + 1}. sütun`);
+      td.appendChild(input);
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  wrap.appendChild(table);
+}
+
+function applyPresentationTable(event) {
+  event.preventDefault();
+  const slide = presSlides[presActiveSlide];
+  if (!slide || !presTableDraft) return;
+  syncPresentationTableDraftFromGrid();
+  presTableDraft.title = document.getElementById('pres-table-title')?.value.trim().slice(0, 120) || '';
+  const normalizedTable = normalizePresentationTable(presTableDraft);
+  if (!normalizedTable) {
+    showDashboardAlert('error', 'Tablo için en az iki sütun oluşturun.');
+    return;
+  }
+  slide.content = { ...(slide.content || {}), table: normalizedTable };
+  slide.layout_type = 'table';
+  markPresentationDirty();
+  closePresentationBuilders();
+  renderActivePresentationSlide();
+}
+
+function normalizePresentationChart(chart) {
+  if (!chart || typeof chart !== 'object') return null;
+  const type = ['bar', 'pie', 'line'].includes(chart.type) ? chart.type : 'bar';
+  const dataset = Array.isArray(chart.datasets) ? chart.datasets[0] : null;
+  const rawLabels = Array.isArray(chart.labels) ? chart.labels : [];
+  const rawValues = Array.isArray(chart.data) ? chart.data : (Array.isArray(dataset?.data) ? dataset.data : []);
+  const count = Math.min(12, rawLabels.length, rawValues.length);
+  if (count < 2) return null;
+  const labels = rawLabels.slice(0, count).map(value => String(value ?? '').slice(0, 100));
+  const data = rawValues.slice(0, count).map(value => Number(value));
+  if (data.some(value => !Number.isFinite(value))) return null;
+  return {
+    type,
+    title: String(chart.title || '').slice(0, 120),
+    series_label: String(chart.series_label || dataset?.label || 'Değer').slice(0, 60),
+    labels,
+    data
+  };
+}
+
+function openPresentationChartBuilder() {
+  const slide = presSlides[presActiveSlide];
+  if (!slide) return;
+  presChartDraft = normalizePresentationChart(slide.content?.chart) || {
+    type: 'bar',
+    title: '',
+    series_label: 'Değer',
+    labels: ['Kategori 1', 'Kategori 2', 'Kategori 3'],
+    data: [10, 20, 15]
+  };
+  document.getElementById('pres-chart-title').value = presChartDraft.title;
+  document.getElementById('pres-chart-type').value = presChartDraft.type;
+  document.getElementById('pres-chart-series').value = presChartDraft.series_label;
+  renderPresentationChartRows();
+  openPresentationBuilder('pres-chart-builder');
+}
+
+function syncPresentationChartDraftFromRows() {
+  if (!presChartDraft) return;
+  const labels = [];
+  const data = [];
+  document.querySelectorAll('#pres-chart-data-body tr').forEach(row => {
+    labels.push(row.querySelector('[data-chart-label]')?.value.slice(0, 100) || '');
+    const value = Number(row.querySelector('[data-chart-value]')?.value);
+    data.push(Number.isFinite(value) ? value : 0);
+  });
+  presChartDraft.labels = labels;
+  presChartDraft.data = data;
+}
+
+function renderPresentationChartRows() {
+  const body = document.getElementById('pres-chart-data-body');
+  if (!body || !presChartDraft) return;
+  body.replaceChildren();
+  presChartDraft.labels.forEach((label, index) => {
+    const row = document.createElement('tr');
+    const labelCell = document.createElement('td');
+    const labelInput = document.createElement('input');
+    labelInput.type = 'text';
+    labelInput.maxLength = 100;
+    labelInput.value = label;
+    labelInput.dataset.chartLabel = String(index);
+    labelInput.setAttribute('aria-label', `${index + 1}. kategori`);
+    labelCell.appendChild(labelInput);
+
+    const valueCell = document.createElement('td');
+    const valueInput = document.createElement('input');
+    valueInput.type = 'number';
+    valueInput.step = 'any';
+    valueInput.value = Number.isFinite(Number(presChartDraft.data[index])) ? String(presChartDraft.data[index]) : '0';
+    valueInput.dataset.chartValue = String(index);
+    valueInput.setAttribute('aria-label', `${index + 1}. değer`);
+    valueCell.appendChild(valueInput);
+
+    const actionCell = document.createElement('td');
+    const removeButton = document.createElement('button');
+    removeButton.type = 'button';
+    removeButton.className = 'pres-chart-row-remove';
+    removeButton.dataset.chartRowRemove = String(index);
+    removeButton.textContent = '×';
+    removeButton.disabled = presChartDraft.labels.length <= 2;
+    removeButton.setAttribute('aria-label', `${index + 1}. veri satırını kaldır`);
+    actionCell.appendChild(removeButton);
+    row.append(labelCell, valueCell, actionCell);
+    body.appendChild(row);
+  });
+}
+
+function addPresentationChartRow() {
+  if (!presChartDraft) return;
+  syncPresentationChartDraftFromRows();
+  if (presChartDraft.labels.length >= 12) {
+    showDashboardAlert('error', 'Bir grafikte en fazla 12 veri noktası olabilir.');
+    return;
+  }
+  presChartDraft.labels.push(`Kategori ${presChartDraft.labels.length + 1}`);
+  presChartDraft.data.push(0);
+  renderPresentationChartRows();
+}
+
+function removePresentationChartRow(index) {
+  if (!presChartDraft || presChartDraft.labels.length <= 2 || index < 0 || index >= presChartDraft.labels.length) return;
+  syncPresentationChartDraftFromRows();
+  presChartDraft.labels.splice(index, 1);
+  presChartDraft.data.splice(index, 1);
+  renderPresentationChartRows();
+}
+
+function applyPresentationChart(event) {
+  event.preventDefault();
+  const slide = presSlides[presActiveSlide];
+  if (!slide || !presChartDraft) return;
+  syncPresentationChartDraftFromRows();
+  presChartDraft.title = document.getElementById('pres-chart-title')?.value.trim().slice(0, 120) || '';
+  presChartDraft.type = document.getElementById('pres-chart-type')?.value || 'bar';
+  presChartDraft.series_label = document.getElementById('pres-chart-series')?.value.trim().slice(0, 60) || 'Değer';
+
+  const normalizedChart = normalizePresentationChart(presChartDraft);
+  if (!normalizedChart || normalizedChart.labels.some(label => !label.trim())) {
+    showDashboardAlert('error', 'Grafik için en az iki kategori ve sayısal değer girin.');
+    return;
+  }
+  slide.content = {
+    ...(slide.content || {}),
+    chart: {
+      ...normalizedChart,
+      datasets: [{ label: normalizedChart.series_label, data: normalizedChart.data }]
+    }
+  };
+  slide.layout_type = 'chart';
+  markPresentationDirty();
+  closePresentationBuilders();
+  renderActivePresentationSlide();
+}
+
+function openPresentationBuilder(id) {
+  closePresentationBuilders();
+  const overlay = document.getElementById(id);
+  if (!overlay) return;
+  overlay.classList.add('is-open');
+  document.body.style.overflow = 'hidden';
+  setTimeout(() => overlay.querySelector('input, select, button')?.focus(), 0);
+}
+
+function closePresentationBuilders() {
+  document.querySelectorAll('.pres-builder-overlay.is-open').forEach(overlay => overlay.classList.remove('is-open'));
+  if (!document.querySelector('.modal-overlay.active, .modal-overlay[style*="display: flex"]')) {
+    document.body.style.overflow = '';
+  }
+}
+
+function editActivePresentationComponent() {
+  const layout = normalizePresentationLayout(presSlides[presActiveSlide]?.layout_type);
+  if (layout === 'table') openPresentationTableBuilder();
+  if (layout === 'chart') openPresentationChartBuilder();
+}
+
+function removeActivePresentationComponent() {
+  const slide = presSlides[presActiveSlide];
+  if (!slide) return;
+  const layout = normalizePresentationLayout(slide.layout_type);
+  slide.content = { ...(slide.content || {}) };
+  if (layout === 'table') delete slide.content.table;
+  if (layout === 'chart') delete slide.content.chart;
+  markPresentationDirty();
+  renderActivePresentationSlide();
+}
+
+function destroyActivePresentationChart() {
+  if (presActiveChartInstance) {
+    try { presActiveChartInstance.destroy(); } catch (error) { console.warn('Presentation chart cleanup failed:', error); }
+    presActiveChartInstance = null;
+  }
+}
+
+function renderPresentationRichContent(slide) {
+  const preview = document.getElementById('pres-component-preview');
+  const empty = document.getElementById('pres-component-empty');
+  const actions = document.getElementById('pres-component-actions');
+  if (!preview || !empty || !actions) return;
+  destroyActivePresentationChart();
+  preview.replaceChildren();
+  preview.hidden = true;
+  actions.hidden = true;
+  empty.hidden = false;
+
+  const layout = normalizePresentationLayout(slide?.layout_type);
+  if (layout === 'table') {
+    const tableData = normalizePresentationTable(slide?.content?.table);
+    if (!tableData) return;
+    const table = document.createElement('table');
+    table.className = 'pres-slide-table';
+    if (tableData.title) {
+      const caption = document.createElement('caption');
+      caption.textContent = tableData.title;
+      table.appendChild(caption);
+    }
+    const thead = document.createElement('thead');
+    const headerRow = document.createElement('tr');
+    tableData.headers.forEach(header => {
+      const th = document.createElement('th');
+      th.scope = 'col';
+      th.textContent = header;
+      headerRow.appendChild(th);
+    });
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+    const tbody = document.createElement('tbody');
+    tableData.rows.forEach(row => {
+      const tr = document.createElement('tr');
+      row.forEach(value => {
+        const td = document.createElement('td');
+        td.textContent = value;
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    preview.appendChild(table);
+  } else if (layout === 'chart') {
+    const chartData = normalizePresentationChart(slide?.content?.chart);
+    if (!chartData) return;
+    if (chartData.title) {
+      const title = document.createElement('div');
+      title.textContent = chartData.title;
+      title.style.cssText = 'font-size:0.76rem;font-weight:800;color:var(--color-navy);text-align:left;padding:0.2rem 0.35rem 0.35rem;';
+      preview.appendChild(title);
+    }
+    const chartWrap = document.createElement('div');
+    chartWrap.className = 'pres-chart-preview';
+    const canvas = document.createElement('canvas');
+    canvas.setAttribute('aria-label', chartData.title || 'Sunum grafiği');
+    canvas.setAttribute('role', 'img');
+    chartWrap.appendChild(canvas);
+    preview.appendChild(chartWrap);
+    if (typeof Chart !== 'undefined') {
+      presActiveChartInstance = renderChartJs(canvas, {
+        type: chartData.type,
+        title: chartData.series_label,
+        labels: chartData.labels,
+        data: chartData.data
+      });
+    } else {
+      const fallback = document.createElement('p');
+      fallback.textContent = chartData.labels.map((label, index) => `${label}: ${chartData.data[index]}`).join(' • ');
+      fallback.style.cssText = 'font-size:0.7rem;line-height:1.5;color:var(--color-text);';
+      chartWrap.replaceChildren(fallback);
+    }
+  } else {
+    return;
+  }
+
+  empty.hidden = true;
+  preview.hidden = false;
+  actions.hidden = false;
+}
+
 function addPresentationSlide() {
   if (!presCurrentId || presIsSaving) return;
   syncActiveSlideFromEditor();
@@ -5053,6 +5708,7 @@ function deletePresentationSlide(index) {
   syncActiveSlideFromEditor();
   const [removed] = presSlides.splice(index, 1);
   if (removed?.id) presDeletedSlideIds.push(removed.id);
+  queuePresentationImageDelete(getPresentationImagePath(removed));
   if (presActiveSlide > index) presActiveSlide -= 1;
   if (presActiveSlide === index) presActiveSlide = Math.min(index, presSlides.length - 1);
   reindexPresentationSlides();
@@ -5141,12 +5797,36 @@ function serializePresentationSlide(slide, includeId = true) {
     title: (slide.title || '').trim(),
     content: slide.content && typeof slide.content === 'object' ? slide.content : { text: '' },
     speaker_notes: slide.speaker_notes || '',
-    layout_type: slide.layout_type || 'title-content',
+    layout_type: normalizePresentationLayout(slide.layout_type),
     image_url: slide.image_url || null,
     image_position: slide.image_position || 'right'
   };
   if (includeId && slide.id) payload.id = slide.id;
   return payload;
+}
+
+async function flushPresentationImageDeletes() {
+  const paths = [...presPendingImageDeletes];
+  if (!paths.length) return;
+  const { error } = await supabaseClient.storage.from(PRES_IMAGE_BUCKET).remove(paths);
+  if (error) throw error;
+  paths.forEach(path => presPendingImageDeletes.delete(path));
+}
+
+async function cleanupPresentationImageFolder(presentationId) {
+  if (!currentUser?.id || !presentationId) return;
+  const folder = `${currentUser.id}/${presentationId}`;
+  for (let batch = 0; batch < 20; batch += 1) {
+    const { data: files, error: listError } = await supabaseClient.storage
+      .from(PRES_IMAGE_BUCKET)
+      .list(folder, { limit: 100, offset: 0 });
+    if (listError) throw listError;
+    const paths = (files || []).filter(file => file?.name).map(file => `${folder}/${file.name}`);
+    if (!paths.length) return;
+    const { error: removeError } = await supabaseClient.storage.from(PRES_IMAGE_BUCKET).remove(paths);
+    if (removeError) throw removeError;
+    if (paths.length < 100) return;
+  }
 }
 
 async function savePresentation(options = {}) {
@@ -5216,6 +5896,11 @@ async function savePresentation(options = {}) {
     presCurrentPresentation = updatedPresentation;
     presDeletedSlideIds = [];
     presIsDirty = false;
+    try {
+      await flushPresentationImageDeletes();
+    } catch (cleanupError) {
+      console.warn('Unused presentation images could not be cleaned:', cleanupError);
+    }
     if (!silent) showDashboardAlert('success', 'Sunum başarıyla kaydedildi.');
     return true;
   } catch (error) {
@@ -5249,6 +5934,12 @@ async function deletePresentation(presentationId) {
       .eq('id', presentationId)
       .eq('user_id', currentUser.id);
     if (error) throw error;
+
+    try {
+      await cleanupPresentationImageFolder(presentationId);
+    } catch (cleanupError) {
+      console.warn('Deleted presentation images could not be cleaned:', cleanupError);
+    }
 
     presPresentations = presPresentations.filter(item => item.id !== presentationId);
     renderPresentationsList();

@@ -1184,12 +1184,26 @@
           .pres-field-label { display: block; margin-bottom: 0.25rem; color: var(--color-text-muted); font-size: 0.62rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; }
           .pres-slide-content { flex: 1; min-height: 0; font-size: 0.95rem; color: var(--color-text); line-height: 1.55; border: none; resize: none; width: 100%; background: transparent; font-family: inherit; }
           .pres-slide-content:focus { outline: none; }
-          .pres-layout-visual { grid-area: media; min-height: 0; border: 1.5px dashed rgba(31,138,147,0.28); border-radius: var(--radius-sm); background: linear-gradient(145deg, rgba(31,138,147,0.06), rgba(22,50,92,0.04)); color: var(--color-text-muted); display: none; align-items: center; justify-content: center; flex-direction: column; gap: 0.45rem; text-align: center; padding: 1rem; }
+          .pres-layout-visual { grid-area: media; min-height: 0; border: 1.5px dashed rgba(31,138,147,0.28); border-radius: var(--radius-sm); background: linear-gradient(145deg, rgba(31,138,147,0.06), rgba(22,50,92,0.04)); color: var(--color-text-muted); display: none; align-items: center; justify-content: center; flex-direction: column; gap: 0.45rem; text-align: center; padding: 0.35rem; position: relative; overflow: hidden; }
           .pres-layout-visual svg { color: var(--color-teal); }
           .pres-layout-visual strong { color: var(--color-navy); font-size: 0.78rem; }
           .pres-layout-visual span { max-width: 190px; font-size: 0.68rem; line-height: 1.35; }
-          .pres-layout-placeholder { grid-area: component; min-height: 0; border: 1.5px dashed rgba(22,50,92,0.18); border-radius: var(--radius-sm); background: repeating-linear-gradient(135deg, rgba(22,50,92,0.025), rgba(22,50,92,0.025) 8px, rgba(31,138,147,0.035) 8px, rgba(31,138,147,0.035) 16px); color: var(--color-text-muted); display: none; align-items: center; justify-content: center; flex-direction: column; gap: 0.4rem; text-align: center; padding: 1rem; }
+          .pres-media-empty { width: 100%; height: 100%; min-height: 150px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 0.4rem; padding: 0.75rem; }
+          .pres-media-image { width: 100%; height: 100%; min-height: 150px; object-fit: cover; border-radius: 5px; display: block; }
+          .pres-media-actions, .pres-component-actions { position: absolute; z-index: 2; top: 0.5rem; right: 0.5rem; display: flex; gap: 0.28rem; padding: 0.25rem; border-radius: 8px; background: rgba(255,255,255,0.94); box-shadow: 0 4px 14px rgba(22,50,92,0.14); }
+          .pres-media-actions button, .pres-component-actions button { border: 1px solid rgba(22,50,92,0.13); border-radius: 6px; background: #fff; color: var(--color-navy); min-width: 27px; height: 27px; padding: 0 0.4rem; cursor: pointer; font-size: 0.68rem; font-weight: 800; }
+          .pres-media-actions button:hover, .pres-component-actions button:hover { border-color: var(--color-teal); color: var(--color-teal); }
+          .pres-media-actions button.is-danger:hover, .pres-component-actions button.is-danger:hover { border-color: #dc2626; color: #dc2626; }
+          .pres-media-loading { position: absolute; inset: 0; z-index: 3; display: flex; align-items: center; justify-content: center; gap: 0.5rem; background: rgba(255,255,255,0.88); color: var(--color-navy); font-size: 0.75rem; font-weight: 800; }
+          .pres-layout-placeholder { grid-area: component; min-height: 0; border: 1.5px dashed rgba(22,50,92,0.18); border-radius: var(--radius-sm); background: repeating-linear-gradient(135deg, rgba(22,50,92,0.025), rgba(22,50,92,0.025) 8px, rgba(31,138,147,0.035) 8px, rgba(31,138,147,0.035) 16px); color: var(--color-text-muted); display: none; align-items: stretch; justify-content: stretch; flex-direction: column; gap: 0.4rem; text-align: center; padding: 0.45rem; position: relative; overflow: hidden; }
           .pres-layout-placeholder strong { color: var(--color-navy); font-size: 0.78rem; }
+          .pres-component-empty { flex: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 0.4rem; padding: 0.75rem; }
+          .pres-component-preview { flex: 1; min-height: 0; overflow: auto; padding: 0.3rem; background: rgba(255,255,255,0.9); border-radius: 5px; }
+          .pres-slide-table { width: 100%; border-collapse: collapse; background: #fff; font-size: 0.7rem; color: var(--color-text); }
+          .pres-slide-table caption { padding: 0.25rem 0.35rem 0.45rem; color: var(--color-navy); font-weight: 800; text-align: left; }
+          .pres-slide-table th, .pres-slide-table td { border: 1px solid rgba(22,50,92,0.13); padding: 0.34rem 0.42rem; text-align: left; vertical-align: top; }
+          .pres-slide-table th { background: rgba(31,138,147,0.1); color: var(--color-navy); font-weight: 800; }
+          .pres-chart-preview { position: relative; height: 100%; min-height: 190px; }
           .pres-canvas[data-layout="two-column"] .pres-slide-layout-body { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: "primary secondary"; }
           .pres-canvas[data-layout="two-column"] .pres-content-secondary { display: flex; }
           .pres-canvas[data-layout="image-left"] .pres-slide-layout-body { grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.25fr); grid-template-areas: "media primary"; }
@@ -1208,6 +1222,8 @@
           .pres-tool-card h4 { font-size: 0.78rem; font-weight: 800; color: var(--color-navy); margin: 0 0 0.45rem 0; }
           .pres-upload-zone { border: 1.5px dashed rgba(22,50,92,0.18); border-radius: var(--radius-sm); padding: 1rem 0.75rem; text-align: center; cursor: pointer; transition: all 0.15s; background: #fff; }
           .pres-upload-zone:hover { border-color: var(--color-teal); background: var(--color-teal-light); }
+          .pres-upload-zone.is-dragover { border-color: var(--color-teal); background: var(--color-teal-light); box-shadow: 0 0 0 3px rgba(31,138,147,0.12); }
+          .pres-upload-zone.is-busy { opacity: 0.6; pointer-events: none; }
           .pres-upload-zone svg { color: var(--color-teal); margin-bottom: 0.35rem; }
           .pres-upload-zone p { font-size: 0.75rem; color: var(--color-text-muted); margin: 0; }
           .pres-layout-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
@@ -1244,13 +1260,36 @@
           .pres-list-delete { position: absolute; top: 0.4rem; right: 0.4rem; width: 28px; height: 28px; border: 1px solid rgba(220,38,38,0.18); border-radius: 8px; background: rgba(255,255,255,0.92); color: #b91c1c; font-size: 1rem; cursor: pointer; opacity: 0; transition: opacity 0.15s, background 0.15s; }
           .pres-list-card:hover .pres-list-delete, .pres-list-delete:focus { opacity: 1; }
           .pres-list-delete:hover { background: #fee2e2; }
+          .pres-builder-overlay { position: fixed; inset: 0; z-index: 10050; display: none; align-items: center; justify-content: center; padding: 1.25rem; background: rgba(10,24,45,0.68); backdrop-filter: blur(3px); }
+          .pres-builder-overlay.is-open { display: flex; }
+          .pres-builder-modal { width: min(720px, 96vw); max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; background: #fff; border-radius: 14px; box-shadow: 0 24px 70px rgba(10,24,45,0.28); }
+          .pres-builder-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.9rem 1rem; border-bottom: 1px solid rgba(22,50,92,0.1); }
+          .pres-builder-header h3 { margin: 0; color: var(--color-navy); font-size: 1rem; }
+          .pres-builder-close { border: 0; background: transparent; color: var(--color-text-muted); font-size: 1.3rem; cursor: pointer; }
+          .pres-builder-body { overflow: auto; padding: 1rem; }
+          .pres-builder-form-row { display: grid; grid-template-columns: minmax(0, 1fr) 120px 120px; gap: 0.75rem; margin-bottom: 0.9rem; }
+          .pres-builder-field { display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
+          .pres-builder-field label { color: var(--color-text-muted); font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; }
+          .pres-builder-field input, .pres-builder-field select { width: 100%; border: 1px solid rgba(22,50,92,0.14); border-radius: 7px; padding: 0.52rem 0.62rem; font: inherit; font-size: 0.8rem; color: var(--color-navy); background: #fff; }
+          .pres-builder-field input:focus, .pres-builder-field select:focus { outline: none; border-color: var(--color-teal); box-shadow: 0 0 0 3px rgba(31,138,147,0.1); }
+          .pres-builder-grid-wrap { overflow: auto; border: 1px solid rgba(22,50,92,0.1); border-radius: 8px; }
+          .pres-builder-grid { width: 100%; border-collapse: collapse; min-width: 460px; }
+          .pres-builder-grid th, .pres-builder-grid td { border: 1px solid rgba(22,50,92,0.09); padding: 0.3rem; }
+          .pres-builder-grid th { background: rgba(31,138,147,0.08); }
+          .pres-builder-grid input { width: 100%; min-width: 90px; border: 1px solid transparent; border-radius: 5px; padding: 0.4rem; font-size: 0.76rem; }
+          .pres-builder-grid input:focus { outline: none; border-color: var(--color-teal); }
+          .pres-builder-footer { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.8rem 1rem; border-top: 1px solid rgba(22,50,92,0.1); }
+          .pres-chart-row-remove { border: 0; background: transparent; color: #b91c1c; cursor: pointer; font-size: 1rem; }
           @media (max-width: 1100px) {
             .pres-body { grid-template-columns: 150px 1fr; }
-            .pres-panel-right { display: none; }
+            .pres-panel-right { display: flex; grid-column: 1 / -1; max-height: 260px; }
+            .pres-panel-right .pres-right-body { display: grid; grid-template-columns: repeat(4, minmax(210px, 1fr)); overflow-x: auto; }
           }
           @media (max-width: 720px) {
             .pres-body { grid-template-columns: 1fr; }
             .pres-panel-left { max-height: 160px; }
+            .pres-panel-right { grid-column: auto; max-height: none; }
+            .pres-panel-right .pres-right-body { grid-template-columns: repeat(2, minmax(210px, 1fr)); }
             .pres-canvas { min-height: 360px; aspect-ratio: auto; }
             .pres-canvas[data-layout] .pres-slide-layout-body { grid-template-columns: minmax(0, 1fr); grid-template-areas: "primary" "secondary" "media" "component"; }
             .pres-canvas[data-layout="two-column"] .pres-content-secondary,
@@ -1258,6 +1297,8 @@
             .pres-canvas[data-layout="image-right"] .pres-layout-visual,
             .pres-canvas[data-layout="chart"] .pres-layout-placeholder,
             .pres-canvas[data-layout="table"] .pres-layout-placeholder { min-height: 150px; }
+            .pres-builder-form-row { grid-template-columns: 1fr 1fr; }
+            .pres-builder-form-row .pres-builder-field:first-child { grid-column: 1 / -1; }
           }
         </style>
 
@@ -1332,10 +1373,24 @@
                 <div class="pres-canvas" id="pres-canvas" data-layout="title-content">
                   <input type="text" class="pres-slide-title" id="pres-slide-title" placeholder="Slayt başlığı..." value="Sunum Başlığı Ekleyin">
                   <div class="pres-slide-layout-body" id="pres-slide-layout-body">
-                    <div class="pres-layout-visual" id="pres-slide-media-placeholder" aria-hidden="true">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                      <strong>Görsel Alanı</strong>
-                      <span>Görsel yükleme ve yerleştirme 6. adımda etkinleşecek.</span>
+                    <div class="pres-layout-visual" id="pres-slide-media">
+                      <div class="pres-media-empty" id="pres-media-empty">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                        <strong>Görsel Alanı</strong>
+                        <span>JPG, PNG, WebP veya GIF yükleyin.</span>
+                        <button type="button" class="pres-btn" id="pres-media-upload-trigger">Görsel Seç</button>
+                      </div>
+                      <img class="pres-media-image" id="pres-slide-image" src="" alt="" hidden>
+                      <div class="pres-media-actions" id="pres-media-actions" hidden>
+                        <button type="button" id="pres-image-left-btn" title="Görseli sola al" aria-label="Görseli sola al">Sol</button>
+                        <button type="button" id="pres-image-right-btn" title="Görseli sağa al" aria-label="Görseli sağa al">Sağ</button>
+                        <button type="button" id="pres-image-change-btn" title="Görseli değiştir" aria-label="Görseli değiştir">Değiştir</button>
+                        <button type="button" class="is-danger" id="pres-image-remove-btn" title="Görseli kaldır" aria-label="Görseli kaldır">×</button>
+                      </div>
+                      <div class="pres-media-loading" id="pres-media-loading" hidden>
+                        <span class="pres-loading-spinner" aria-hidden="true"></span>
+                        <span>Görsel hazırlanıyor…</span>
+                      </div>
                     </div>
                     <div class="pres-content-region pres-content-primary">
                       <label class="pres-field-label" for="pres-slide-content">Ana İçerik</label>
@@ -1347,10 +1402,17 @@
                       <label class="pres-field-label" for="pres-slide-content-secondary">İkinci Sütun</label>
                       <textarea class="pres-slide-content pres-slide-content-secondary" id="pres-slide-content-secondary" placeholder="İkinci sütun içeriğini yazın…"></textarea>
                     </div>
-                    <div class="pres-layout-placeholder" id="pres-layout-placeholder" aria-hidden="true">
-                      <span style="font-size:1.55rem" id="pres-layout-placeholder-icon">📈</span>
-                      <strong id="pres-layout-placeholder-title">Grafik Alanı</strong>
-                      <span style="font-size:0.68rem">Tablo ve grafik oluşturucu 6. adımda etkinleşecek.</span>
+                    <div class="pres-layout-placeholder" id="pres-layout-placeholder">
+                      <div class="pres-component-empty" id="pres-component-empty">
+                        <span style="font-size:1.55rem" id="pres-layout-placeholder-icon">📈</span>
+                        <strong id="pres-layout-placeholder-title">Grafik Alanı</strong>
+                        <span style="font-size:0.68rem" id="pres-layout-placeholder-hint">Sağ panelden akademik bir grafik veya tablo ekleyin.</span>
+                      </div>
+                      <div class="pres-component-preview" id="pres-component-preview" hidden></div>
+                      <div class="pres-component-actions" id="pres-component-actions" hidden>
+                        <button type="button" id="pres-component-edit-btn">Düzenle</button>
+                        <button type="button" class="is-danger" id="pres-component-remove-btn" aria-label="İçeriği kaldır">×</button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1380,11 +1442,12 @@
 
                 <div class="pres-tool-card">
                   <h4 data-i18n="dash.presentation.imageUpload">Görsel Yükle</h4>
-                  <div class="pres-upload-zone" id="pres-upload-zone">
+                  <div class="pres-upload-zone" id="pres-upload-zone" role="button" tabindex="0" aria-label="Slayta görsel yükle">
                     <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                     <p data-i18n="dash.presentation.uploadHint">Tıkla veya sürükle</p>
                   </div>
                   <input type="file" id="pres-image-input" accept="image/jpeg,image/png,image/webp,image/gif" style="display:none;">
+                  <p id="pres-upload-status" role="status" aria-live="polite" style="min-height:14px; margin:0.35rem 0 0; font-size:0.66rem; color:var(--color-text-muted);"></p>
                   <button type="button" class="pres-btn" id="pres-upload-btn" style="width:100%; margin-top:0.45rem; justify-content:center;" data-i18n="dash.presentation.chooseFile">Bilgisayardan Seç</button>
                 </div>
 
@@ -1428,6 +1491,82 @@
               </button>
             </div>
           </div>
+        </div>
+
+        <div class="pres-builder-overlay" id="pres-table-builder" role="dialog" aria-modal="true" aria-labelledby="pres-table-builder-title">
+          <form class="pres-builder-modal" id="pres-table-form">
+            <div class="pres-builder-header">
+              <h3 id="pres-table-builder-title">Tablo Oluşturucu</h3>
+              <button type="button" class="pres-builder-close" data-pres-builder-close aria-label="Kapat">×</button>
+            </div>
+            <div class="pres-builder-body">
+              <div class="pres-builder-form-row">
+                <div class="pres-builder-field">
+                  <label for="pres-table-title">Tablo başlığı</label>
+                  <input type="text" id="pres-table-title" maxlength="120" placeholder="Örn. Dönemlere göre başarı oranı">
+                </div>
+                <div class="pres-builder-field">
+                  <label for="pres-table-rows">Veri satırı</label>
+                  <input type="number" id="pres-table-rows" min="1" max="10" value="3">
+                </div>
+                <div class="pres-builder-field">
+                  <label for="pres-table-cols">Sütun</label>
+                  <input type="number" id="pres-table-cols" min="2" max="8" value="3">
+                </div>
+              </div>
+              <div class="pres-builder-grid-wrap" id="pres-table-grid-wrap"></div>
+            </div>
+            <div class="pres-builder-footer">
+              <span style="font-size:0.7rem; color:var(--color-text-muted);">En fazla 10 × 8 hücre</span>
+              <div style="display:flex; gap:0.5rem;">
+                <button type="button" class="pres-btn" data-pres-builder-close>İptal</button>
+                <button type="submit" class="pres-btn pres-btn-primary">Slayta Uygula</button>
+              </div>
+            </div>
+          </form>
+        </div>
+
+        <div class="pres-builder-overlay" id="pres-chart-builder" role="dialog" aria-modal="true" aria-labelledby="pres-chart-builder-title">
+          <form class="pres-builder-modal" id="pres-chart-form">
+            <div class="pres-builder-header">
+              <h3 id="pres-chart-builder-title">Grafik Oluşturucu</h3>
+              <button type="button" class="pres-builder-close" data-pres-builder-close aria-label="Kapat">×</button>
+            </div>
+            <div class="pres-builder-body">
+              <div class="pres-builder-form-row">
+                <div class="pres-builder-field">
+                  <label for="pres-chart-title">Grafik başlığı</label>
+                  <input type="text" id="pres-chart-title" maxlength="120" placeholder="Örn. Yıllara göre öğrenci sayısı">
+                </div>
+                <div class="pres-builder-field">
+                  <label for="pres-chart-type">Grafik türü</label>
+                  <select id="pres-chart-type">
+                    <option value="bar">Çubuk</option>
+                    <option value="pie">Pasta</option>
+                    <option value="line">Çizgi</option>
+                  </select>
+                </div>
+                <div class="pres-builder-field">
+                  <label for="pres-chart-series">Seri adı</label>
+                  <input type="text" id="pres-chart-series" maxlength="60" value="Değer">
+                </div>
+              </div>
+              <div class="pres-builder-grid-wrap">
+                <table class="pres-builder-grid">
+                  <thead><tr><th>Kategori</th><th>Değer</th><th style="width:42px;"></th></tr></thead>
+                  <tbody id="pres-chart-data-body"></tbody>
+                </table>
+              </div>
+              <button type="button" class="pres-btn" id="pres-chart-add-row" style="margin-top:0.65rem;">+ Veri Satırı</button>
+            </div>
+            <div class="pres-builder-footer">
+              <span style="font-size:0.7rem; color:var(--color-text-muted);">2–12 veri noktası kullanın</span>
+              <div style="display:flex; gap:0.5rem;">
+                <button type="button" class="pres-btn" data-pres-builder-close>İptal</button>
+                <button type="submit" class="pres-btn pres-btn-primary">Slayta Uygula</button>
+              </div>
+            </div>
+          </form>
         </div>
       </section>
 
