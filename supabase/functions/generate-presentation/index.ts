@@ -107,8 +107,6 @@ function htmlToPlainText(html: string): string {
 }
 
 async function extractDocumentText(userClient: any, document: any): Promise<string> {
-  // Download with the caller's JWT so the existing Storage RLS policy remains
-  // the only authority boundary. This function never uses a service-role key.
   const { data: fileBlob, error } = await userClient.storage.from('documents').download(document.storage_path)
   if (error || !fileBlob) throw new Error('DOCUMENT_DOWNLOAD_FAILED')
 
@@ -157,11 +155,29 @@ function buildStudyCardContext(card: any): string {
   return parts.join('\n\n').slice(0, 24000)
 }
 
+function buildBalancedContext(value: string, maxLength = 20000): string {
+  const text = cleanText(value, 50000)
+  if (text.length <= maxLength) return text
+
+  const separator = '\n\n--- SOURCE SAMPLE ---\n\n'
+  const usable = maxLength - (separator.length * 2)
+  const firstLen = Math.floor(usable * 0.4)
+  const middleLen = Math.floor(usable * 0.3)
+  const lastLen = usable - firstLen - middleLen
+
+  const first = text.slice(0, firstLen)
+  const middleStart = Math.max(firstLen, Math.floor((text.length - middleLen) / 2))
+  const middle = text.slice(middleStart, middleStart + middleLen)
+  const last = text.slice(text.length - lastLen)
+
+  return [first, middle, last].join(separator)
+}
+
 async function callGroq(apiKey: string, systemPrompt: string, userPrompt: string) {
   let lastError = ''
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 40000)
+    const timeoutId = setTimeout(() => controller.abort(), 60000)
     try {
       const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
@@ -278,7 +294,12 @@ serve(async (req) => {
       ? 'Use reliable general academic knowledge. Do not invent references, quotations, precise statistics, or named research findings.'
       : 'Use only facts supported by SOURCE MATERIAL. If the material does not support a detail, omit it.'
     const systemPrompt = `You are Acadia, the academic presentation generator inside Acadex. Create exactly ${slideCount} coherent slides in ${languageLabel}. ${groundingRule}\n\nReturn only one JSON object with this exact shape: {"title":"...","slides":[{"title":"...","text":"short bullet lines","secondary_text":"","speaker_notes":"presenter explanation","layout_type":"title-content"}]}.\n\nRules:\n- Exactly ${slideCount} slides, including opening and conclusion slides.\n- Each slide needs a specific title and concise presentation-ready content.\n- Use newline-separated bullets without Markdown tables or code fences.\n- Put detail, transitions, and caveats in speaker_notes.\n- Use two-column only when a real comparison helps; otherwise title-content.\n- Do not request or fabricate images.\n- Allowed layouts: title-content, two-column, image-left, image-right, chart, table.\n- Output valid JSON only.`
-    const userPrompt = `SOURCE TYPE: ${sourceType}\nSOURCE TITLE: ${sourceTitle}\nCOURSE / TAG: ${courseTag || 'Not specified'}\n\nSOURCE MATERIAL:\n${sourceContext.slice(0, 50000)}`
+
+    const safeSourceContext = sourceType === 'topic'
+      ? sourceContext
+      : buildBalancedContext(sourceContext, 20000)
+
+    const userPrompt = `SOURCE TYPE: ${sourceType}\nSOURCE TITLE: ${sourceTitle}\nCOURSE / TAG: ${courseTag || 'Not specified'}\n\nSOURCE MATERIAL:\n${safeSourceContext}`
     const raw = await callGroq(groqApiKey, systemPrompt, userPrompt)
     return respond({ presentation: normalizePresentation(parseModelJson(raw), slideCount) })
   } catch (error) {
