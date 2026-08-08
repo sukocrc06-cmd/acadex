@@ -1619,6 +1619,12 @@
                   <label for="pres-ai-source-id">Kaynak seçin</label>
                   <select id="pres-ai-source-id"><option value="">Kaynaklar yükleniyor…</option></select>
                 </div>
+                <div class="pres-builder-field is-full" id="pres-ai-consent-wrap" hidden>
+                  <label style="display:flex; align-items:flex-start; gap:0.55rem; cursor:pointer; font-weight:600; line-height:1.45;">
+                    <input type="checkbox" id="pres-ai-source-consent" style="width:auto; margin-top:0.18rem; flex:0 0 auto;">
+                    <span>Seçtiğim özel kaynak içeriğinin sunum üretimi için yapılandırılmış AI hizmetine gönderilmesini onaylıyorum.</span>
+                  </label>
+                </div>
                 <div class="pres-builder-field">
                   <label for="pres-ai-language">Sunum dili</label>
                   <select id="pres-ai-language">
@@ -1632,7 +1638,7 @@
                 </div>
               </div>
               <div class="pres-ai-source-note" style="margin-top:0.8rem;">
-                AI yalnızca seçtiğiniz kaynağa dayanır. Üretilen slaytlar mevcut taslağın yerini alır; kaydetmeden önce düzenleyebilirsiniz.
+                AI yalnızca seçtiğiniz kaynağa dayanır. Özel kaynaklar, siz açıkça onay vermeden AI hizmetine gönderilmez. Üretilen slaytlar mevcut taslağın yerini alır; kaydetmeden önce düzenleyebilirsiniz.
               </div>
               <div class="pres-ai-status" id="pres-ai-status" role="status" aria-live="polite" style="margin-top:0.65rem;"></div>
             </div>
