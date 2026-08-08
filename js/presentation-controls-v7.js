@@ -188,6 +188,44 @@
       #pres-studio-mode .pres-studio-grid,#pres-studio-mode .pres-editor-grid{min-height:calc(100vh - 245px)!important;grid-template-columns:minmax(175px,.72fr) minmax(520px,2.35fr) minmax(235px,1fr)!important;gap:12px!important}
       #pres-studio-mode .pres-canvas,#pres-studio-mode .pres-editor-canvas{min-height:560px!important}
       #pres-media-loading[hidden]{display:none!important}
+
+      /* AI presentation modal must remain usable on short laptop viewports. */
+      #pres-ai-builder{
+        overflow-y:auto!important;
+        overflow-x:hidden!important;
+        overscroll-behavior:contain!important;
+        align-items:flex-start!important;
+        padding:24px 12px!important;
+      }
+      #pres-ai-builder .pres-builder-modal{
+        width:min(720px,calc(100vw - 24px))!important;
+        max-height:calc(100dvh - 48px)!important;
+        min-height:0!important;
+        margin:auto!important;
+        display:flex!important;
+        flex-direction:column!important;
+        overflow:hidden!important;
+      }
+      #pres-ai-builder .pres-builder-header,
+      #pres-ai-builder .pres-builder-footer{
+        flex:0 0 auto!important;
+      }
+      #pres-ai-builder .pres-builder-body{
+        flex:1 1 auto!important;
+        min-height:0!important;
+        overflow-y:auto!important;
+        overflow-x:hidden!important;
+        scrollbar-gutter:stable!important;
+        overscroll-behavior:contain!important;
+      }
+      @media (max-height:760px){
+        #pres-ai-builder{padding:10px!important;}
+        #pres-ai-builder .pres-builder-modal{max-height:calc(100dvh - 20px)!important;}
+      }
+      @media (max-width:640px){
+        #pres-ai-builder{padding:8px!important;}
+        #pres-ai-builder .pres-builder-modal{width:calc(100vw - 16px)!important;max-height:calc(100dvh - 16px)!important;}
+      }
     `;
     document.head.appendChild(style);
   }
