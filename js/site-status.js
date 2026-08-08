@@ -53,12 +53,12 @@ document.addEventListener('DOMContentLoaded',async()=>{
   const settings=await acadexGetSiteSettings(); acadexRenderBanner(settings.banner);
   if(window.location.pathname.includes('login.html')&&settings.maintenance?.enabled){const notice=acadexRenderMaintenanceNotice(settings.maintenance);const loginView=document.getElementById('login-view');if(notice&&loginView)loginView.insertBefore(notice,loginView.firstChild);}
   if(window.location.pathname.includes('dashboard.html')){
-    // Production hotfix: V5 controls were observing hidden/src mutations while
-    // mutating the same attributes, which could self-trigger indefinitely and
-    // freeze the whole dashboard. Keep the stable V4 controls active until the
-    // V5 behavior is reintroduced without a MutationObserver feedback loop.
-    try { await acadexLoadScript('js/presentation-renderer-v2.js?v=6-hotfix'); } catch (_) {}
-    try { await acadexLoadScript('js/presentation-controls-v4.js?v=6-hotfix'); } catch (_) {}
-    try { await acadexLoadScript('js/presentation-export-v5.js?v=6-hotfix'); } catch (e) { console.error('Presentation export failed to load:', e); }
+    // V6-safe presentation stack: V4 remains the stable interaction layer.
+    // The replacement presentation-controls-v5.js is now event-driven and contains
+    // no MutationObserver, so it cannot recreate the production feedback loop.
+    try { await acadexLoadScript('js/presentation-renderer-v2.js?v=6-safe'); } catch (_) {}
+    try { await acadexLoadScript('js/presentation-controls-v4.js?v=6-safe'); } catch (_) {}
+    try { await acadexLoadScript('js/presentation-controls-v5.js?v=6-safe'); } catch (e) { console.error('Presentation V6-safe controls failed to load:', e); }
+    try { await acadexLoadScript('js/presentation-export-v5.js?v=6-safe'); } catch (e) { console.error('Presentation export failed to load:', e); }
   }
 });
