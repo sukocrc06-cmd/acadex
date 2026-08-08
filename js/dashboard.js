@@ -1901,6 +1901,10 @@ window.toggleShareStudyCard = toggleShareStudyCard;
 let currentViewTransitionTimeout = null;
 
 function switchDashboardView(viewId) {
+  if (viewId !== 'presentation' && currentActiveTab === 'presentation' && presCurrentId && presIsDirty && !presIsSaving) {
+    void savePresentation({ silent: true });
+  }
+
   // Clear any active transition timeout
   if (currentViewTransitionTimeout) {
     clearTimeout(currentViewTransitionTimeout);
@@ -4485,6 +4489,7 @@ let presActiveSlide = 0;
 let presIsDirty = false;
 let presIsSaving = false;
 let presListRequestId = 0;
+let presDraggedSlideKey = null;
 
 async function loadPresentationStudio() {
   initPresentationStudioOnce();
@@ -4515,7 +4520,7 @@ function initPresentationStudioOnce() {
     markPresentationDirty();
   });
 
-  ['pres-slide-title', 'pres-slide-content', 'pres-speaker-notes'].forEach(id => {
+  ['pres-slide-title', 'pres-slide-content', 'pres-slide-content-secondary', 'pres-speaker-notes'].forEach(id => {
     document.getElementById(id)?.addEventListener('input', () => {
       syncActiveSlideFromEditor();
       renderPresentationSlidesList();
@@ -4525,11 +4530,13 @@ function initPresentationStudioOnce() {
 
   document.querySelectorAll('.pres-layout-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.pres-layout-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
       const slide = presSlides[presActiveSlide];
       if (slide) {
-        slide.layout_type = btn.dataset.layout || 'title-content';
+        syncActiveSlideFromEditor();
+        slide.layout_type = normalizePresentationLayout(btn.dataset.layout);
+        if (slide.layout_type === 'image-left') slide.image_position = 'left';
+        if (slide.layout_type === 'image-right') slide.image_position = 'right';
+        renderActivePresentationSlide();
         markPresentationDirty();
       }
     });
@@ -4556,6 +4563,77 @@ function initPresentationStudioOnce() {
     const thumb = e.target.closest('.pres-slide-thumb');
     if (!thumb) return;
     activatePresentationSlide(Number.parseInt(thumb.dataset.slideIndex || '0', 10));
+  });
+
+  const slidesList = document.getElementById('pres-slides-list');
+  slidesList?.addEventListener('dragstart', (e) => {
+    const thumb = e.target.closest('.pres-slide-thumb');
+    if (!thumb || e.target.closest('button')) {
+      e.preventDefault();
+      return;
+    }
+    presDraggedSlideKey = thumb.dataset.slideKey || null;
+    if (!presDraggedSlideKey) {
+      e.preventDefault();
+      return;
+    }
+    thumb.classList.add('is-dragging');
+    thumb.setAttribute('aria-grabbed', 'true');
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', presDraggedSlideKey);
+    }
+  });
+
+  slidesList?.addEventListener('dragover', (e) => {
+    if (!presDraggedSlideKey) return;
+    const thumb = e.target.closest('.pres-slide-thumb');
+    if (!thumb || thumb.dataset.slideKey === presDraggedSlideKey) return;
+    e.preventDefault();
+    clearPresentationDragIndicators();
+    const rect = thumb.getBoundingClientRect();
+    const placeAfter = e.clientY >= rect.top + (rect.height / 2);
+    thumb.classList.add(placeAfter ? 'is-drag-over-bottom' : 'is-drag-over-top');
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+  });
+
+  slidesList?.addEventListener('drop', (e) => {
+    if (!presDraggedSlideKey) return;
+    const thumb = e.target.closest('.pres-slide-thumb');
+    if (!thumb || thumb.dataset.slideKey === presDraggedSlideKey) {
+      clearPresentationDragState();
+      return;
+    }
+    e.preventDefault();
+    const placeAfter = thumb.classList.contains('is-drag-over-bottom');
+    movePresentationSlideTo(presDraggedSlideKey, thumb.dataset.slideKey, placeAfter);
+    clearPresentationDragState();
+  });
+
+  slidesList?.addEventListener('dragend', clearPresentationDragState);
+
+  slidesList?.addEventListener('keydown', (e) => {
+    if (e.target.closest('button')) return;
+    const thumb = e.target.closest('.pres-slide-thumb');
+    if (!thumb) return;
+    const index = Number.parseInt(thumb.dataset.slideIndex || '-1', 10);
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      activatePresentationSlide(index);
+    } else if (e.altKey && e.key === 'ArrowUp') {
+      e.preventDefault();
+      movePresentationSlide(index, -1);
+    } else if (e.altKey && e.key === 'ArrowDown') {
+      e.preventDefault();
+      movePresentationSlide(index, 1);
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's' && presCurrentId) {
+      e.preventDefault();
+      savePresentation();
+    }
   });
 
   document.getElementById('pres-list-container')?.addEventListener('click', async (e) => {
@@ -4828,12 +4906,17 @@ function normalizePresentationSlide(slide, index) {
     title: slide?.title || '',
     content,
     speaker_notes: slide?.speaker_notes || '',
-    layout_type: slide?.layout_type || 'title-content',
+    layout_type: normalizePresentationLayout(slide?.layout_type),
     image_url: slide?.image_url || null,
     image_position: slide?.image_position || 'right',
     _isNew: !slide?.id,
     _localKey: slide?._localKey || `slide-${Date.now()}-${index}-${Math.random().toString(36).slice(2)}`
   };
+}
+
+function normalizePresentationLayout(layout) {
+  const allowedLayouts = new Set(['title-content', 'two-column', 'image-left', 'image-right', 'chart', 'table']);
+  return allowedLayouts.has(layout) ? layout : 'title-content';
 }
 
 function createLocalPresentationSlide(index = presSlides.length) {
@@ -4854,11 +4937,13 @@ function renderPresentationSlidesList() {
   if (!list) return;
 
   list.innerHTML = presSlides.map((slide, index) => {
-    const preview = escapeHtml((slide.title || getPresentationSlideText(slide) || 'Boş slayt').slice(0, 80));
+    const rawPreview = (slide.title || getPresentationSlideText(slide) || getPresentationSlideSecondaryText(slide) || 'Boş slayt').slice(0, 80);
+    const preview = escapeHtml(rawPreview);
+    const slideKey = escapeHtml(slide._localKey);
     return `
-      <div class="pres-slide-thumb ${index === presActiveSlide ? 'active' : ''}" data-slide-index="${index}" draggable="false">
+      <div class="pres-slide-thumb ${index === presActiveSlide ? 'active' : ''}" data-slide-index="${index}" data-slide-key="${slideKey}" draggable="true" tabindex="0" role="button" aria-current="${index === presActiveSlide ? 'true' : 'false'}" aria-grabbed="false" aria-label="${index + 1}. slayt: ${preview}">
         <div class="pres-slide-thumb-top">
-          <div class="pres-slide-thumb-num">${index + 1}</div>
+          <div class="pres-slide-thumb-num"><span class="pres-slide-drag-handle" aria-hidden="true">⠿</span>${index + 1}</div>
           <div class="pres-slide-thumb-actions">
             <button type="button" data-slide-action="up" data-slide-index="${index}" ${index === 0 ? 'disabled' : ''} aria-label="Slaytı yukarı taşı" title="Yukarı taşı">↑</button>
             <button type="button" data-slide-action="down" data-slide-index="${index}" ${index === presSlides.length - 1 ? 'disabled' : ''} aria-label="Slaytı aşağı taşı" title="Aşağı taşı">↓</button>
@@ -4883,14 +4968,33 @@ function renderActivePresentationSlide() {
   const slide = presSlides[presActiveSlide];
   const titleInput = document.getElementById('pres-slide-title');
   const contentInput = document.getElementById('pres-slide-content');
+  const secondaryContentInput = document.getElementById('pres-slide-content-secondary');
   const notesInput = document.getElementById('pres-speaker-notes');
+  const canvas = document.getElementById('pres-canvas');
+  const primaryLabel = document.querySelector('.pres-content-primary .pres-field-label');
+  const placeholderIcon = document.getElementById('pres-layout-placeholder-icon');
+  const placeholderTitle = document.getElementById('pres-layout-placeholder-title');
   if (!slide) return;
 
+  const layout = normalizePresentationLayout(slide.layout_type);
+  slide.layout_type = layout;
   if (titleInput) titleInput.value = slide.title || '';
   if (contentInput) contentInput.value = getPresentationSlideText(slide);
+  if (secondaryContentInput) secondaryContentInput.value = getPresentationSlideSecondaryText(slide);
   if (notesInput) notesInput.value = slide.speaker_notes || '';
+  if (canvas) canvas.dataset.layout = layout;
+  if (primaryLabel) primaryLabel.textContent = layout === 'two-column' ? 'Sol Sütun' : 'Ana İçerik';
+  if (contentInput) {
+    contentInput.placeholder = layout === 'two-column'
+      ? 'Sol sütun içeriğini yazın…'
+      : 'İçeriğinizi buraya yazın…';
+  }
+  if (placeholderIcon) placeholderIcon.textContent = layout === 'table' ? '📊' : '📈';
+  if (placeholderTitle) placeholderTitle.textContent = layout === 'table' ? 'Tablo Alanı' : 'Grafik Alanı';
   document.querySelectorAll('.pres-layout-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.layout === slide.layout_type);
+    const isActive = btn.dataset.layout === layout;
+    btn.classList.toggle('active', isActive);
+    btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
   });
 }
 
@@ -4900,9 +5004,14 @@ function syncActiveSlideFromEditor() {
 
   const titleInput = document.getElementById('pres-slide-title');
   const contentInput = document.getElementById('pres-slide-content');
+  const secondaryContentInput = document.getElementById('pres-slide-content-secondary');
   const notesInput = document.getElementById('pres-speaker-notes');
   slide.title = titleInput?.value || '';
-  slide.content = { ...(slide.content || {}), text: contentInput?.value || '' };
+  slide.content = {
+    ...(slide.content || {}),
+    text: contentInput?.value || '',
+    secondary_text: secondaryContentInput?.value || ''
+  };
   slide.speaker_notes = notesInput?.value || '';
 }
 
@@ -4911,6 +5020,15 @@ function getPresentationSlideText(slide) {
   if (typeof content.text === 'string') return content.text;
   if (typeof content.paragraph === 'string') return content.paragraph;
   if (Array.isArray(content.bullets)) return content.bullets.map(item => `• ${item}`).join('\n');
+  return '';
+}
+
+function getPresentationSlideSecondaryText(slide) {
+  const content = slide?.content || {};
+  if (typeof content.secondary_text === 'string') return content.secondary_text;
+  if (typeof content.secondaryText === 'string') return content.secondaryText;
+  if (typeof content.right_column === 'string') return content.right_column;
+  if (Array.isArray(content.right_column)) return content.right_column.map(item => `• ${item}`).join('\n');
   return '';
 }
 
@@ -4955,6 +5073,38 @@ function movePresentationSlide(index, direction) {
   markPresentationDirty();
   renderPresentationSlidesList();
   renderActivePresentationSlide();
+}
+
+function movePresentationSlideTo(draggedKey, targetKey, placeAfter = false) {
+  const fromIndex = presSlides.findIndex(slide => slide._localKey === draggedKey);
+  const initialTargetIndex = presSlides.findIndex(slide => slide._localKey === targetKey);
+  if (fromIndex < 0 || initialTargetIndex < 0 || fromIndex === initialTargetIndex) return;
+
+  syncActiveSlideFromEditor();
+  const activeKey = presSlides[presActiveSlide]?._localKey;
+  const [movedSlide] = presSlides.splice(fromIndex, 1);
+  const targetIndex = presSlides.findIndex(slide => slide._localKey === targetKey);
+  const insertionIndex = Math.max(0, Math.min(targetIndex + (placeAfter ? 1 : 0), presSlides.length));
+  presSlides.splice(insertionIndex, 0, movedSlide);
+  presActiveSlide = Math.max(0, presSlides.findIndex(slide => slide._localKey === activeKey));
+  reindexPresentationSlides();
+  markPresentationDirty();
+  renderPresentationSlidesList();
+  renderActivePresentationSlide();
+}
+
+function clearPresentationDragIndicators() {
+  document.querySelectorAll('.pres-slide-thumb').forEach(thumb => {
+    thumb.classList.remove('is-drag-over-top', 'is-drag-over-bottom');
+  });
+}
+
+function clearPresentationDragState() {
+  document.querySelectorAll('.pres-slide-thumb').forEach(thumb => {
+    thumb.classList.remove('is-dragging', 'is-drag-over-top', 'is-drag-over-bottom');
+    thumb.setAttribute('aria-grabbed', 'false');
+  });
+  presDraggedSlideKey = null;
 }
 
 function reindexPresentationSlides() {
@@ -14482,4 +14632,3 @@ async function exportGlossaryToPdf() {
   }
 }
 window.exportGlossaryToPdf = exportGlossaryToPdf;
-
