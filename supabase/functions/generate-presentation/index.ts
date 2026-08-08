@@ -247,9 +247,6 @@ serve(async (req) => {
     const slideCount = clampInteger(body?.slideCount, 4, 15, 8)
     if (sourceType === 'topic' && topic.length < 3) return respond({ error: 'A presentation topic is required' }, 400)
     if (sourceType !== 'topic' && !sourceId) return respond({ error: 'A source is required' }, 400)
-    if (sourceType !== 'topic' && body?.sourceConsent !== true) {
-      return respond({ error: 'Explicit consent is required before processing private source content' }, 400)
-    }
 
     let sourceTitle = topic
     let sourceContext = topic
