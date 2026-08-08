@@ -48,6 +48,18 @@ document.addEventListener('DOMContentLoaded',async()=>{
   const settings=await acadexGetSiteSettings(); acadexRenderBanner(settings.banner);
   if(window.location.pathname.includes('login.html')&&settings.maintenance?.enabled){const notice=acadexRenderMaintenanceNotice(settings.maintenance);const loginView=document.getElementById('login-view');if(notice&&loginView)loginView.insertBefore(notice,loginView.firstChild);}
   if(window.location.pathname.includes('dashboard.html')){
-    const script=document.createElement('script'); script.src='js/presentation-renderer-v2.js?v=3'; script.defer=true; document.body.appendChild(script);
+    const renderer=document.createElement('script');
+    renderer.src='js/presentation-renderer-v2.js?v=4';
+    renderer.onload=()=>{
+      const controls=document.createElement('script');
+      controls.src='js/presentation-controls-v4.js?v=4';
+      document.body.appendChild(controls);
+    };
+    renderer.onerror=()=>{
+      const controls=document.createElement('script');
+      controls.src='js/presentation-controls-v4.js?v=4';
+      document.body.appendChild(controls);
+    };
+    document.body.appendChild(renderer);
   }
 });
