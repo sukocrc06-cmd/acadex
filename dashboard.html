@@ -2666,3 +2666,20 @@
     })();
   </script>
 
+  <!-- Generic image lightbox — click-to-enlarge for AI-generated diagrams and
+       chat-attached photos, with optional "send to notebook/summary" actions
+       wired up per-use by openImageLightbox() in js/dashboard.js. -->
+  <div id="image-lightbox-overlay" style="display: none; position: fixed; inset: 0; background: rgba(10, 20, 40, 0.85); z-index: 9999; align-items: center; justify-content: center; padding: 2rem;" onclick="if (event.target === this) closeImageLightbox()">
+    <div style="background: white; border-radius: 12px; max-width: 92vw; max-height: 92vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.6rem 1rem; background: var(--color-navy); color: white;">
+        <span id="image-lightbox-caption" style="font-size: 0.85rem; font-weight: 700;"></span>
+        <button type="button" onclick="closeImageLightbox()" style="background: none; border: none; color: white; font-size: 1.3rem; line-height: 1; cursor: pointer; padding: 0.1rem 0.3rem;">✕</button>
+      </div>
+      <div style="overflow: auto; padding: 1rem; display: flex; align-items: center; justify-content: center; background: var(--color-bg-alt); flex: 1;">
+        <img id="image-lightbox-img" src="" alt="" style="max-width: 100%; max-height: 74vh; object-fit: contain;" />
+      </div>
+      <div id="image-lightbox-actions" style="display: flex; gap: 0.5rem; padding: 0.7rem 1rem; border-top: 1px solid rgba(22,50,92,0.1); flex-wrap: wrap;"></div>
+    </div>
+  </div>
+</body>
+</html>
