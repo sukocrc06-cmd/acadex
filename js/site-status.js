@@ -54,9 +54,11 @@ document.addEventListener('DOMContentLoaded',async()=>{
   if(window.location.pathname.includes('login.html')&&settings.maintenance?.enabled){const notice=acadexRenderMaintenanceNotice(settings.maintenance);const loginView=document.getElementById('login-view');if(notice&&loginView)loginView.insertBefore(notice,loginView.firstChild);}
   if(window.location.pathname.includes('dashboard.html')){
     // V7 uses one shared slide model for editor, preview and export.
+    // V7.3 adds independent panel scrolling, safe body-portaled builders, and deterministic visual enrichment.
     // No presentation MutationObserver is loaded; interactions are event-driven.
     try { await acadexLoadScript('js/presentation-model-v7.js?v=7.0.0'); } catch (e) { console.error('Presentation model V7 failed:', e); }
     try { await acadexLoadScript('js/presentation-renderer-v7.js?v=7.0.0'); } catch (e) { console.error('Presentation renderer V7 failed:', e); }
+    try { await acadexLoadScript('js/presentation-studio-v73.js?v=7.3.0'); } catch (e) { console.error('Presentation studio V7.3 failed:', e); }
     try { await acadexLoadScript('js/presentation-controls-v7.js?v=7.0.0'); } catch (e) { console.error('Presentation controls V7 failed:', e); }
     try { await acadexLoadScript('js/presentation-modal-scroll-v7.js?v=7.2.0'); } catch (e) { console.error('Presentation modal scroll V7.2 failed:', e); }
     try { await acadexLoadScript('js/presentation-export-v7.js?v=7.0.0'); } catch (e) { console.error('Presentation export V7 failed:', e); }
