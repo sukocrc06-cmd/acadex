@@ -4968,14 +4968,24 @@ async function sendPresentationAcadiaCommand(presetPrompt = '') {
     if (error || !data?.slide) throw error || new Error(data?.error || 'Invalid AI slide response');
 
     const refined = data.slide;
+    const refinedContent = refined.content && typeof refined.content === 'object' ? refined.content : refined;
     slide.title = typeof refined.title === 'string' ? refined.title.slice(0, 160) : slide.title;
     slide.content = {
       ...(slide.content || {}),
-      text: typeof refined.content?.text === 'string' ? refined.content.text : getPresentationSlideText(slide),
-      secondary_text: typeof refined.content?.secondary_text === 'string' ? refined.content.secondary_text : getPresentationSlideSecondaryText(slide)
+      text: typeof refinedContent.text === 'string' ? refinedContent.text : getPresentationSlideText(slide),
+      secondary_text: typeof refinedContent.secondary_text === 'string' ? refinedContent.secondary_text : getPresentationSlideSecondaryText(slide)
     };
+    if (refinedContent.table) slide.content.table = refinedContent.table;
+    if (refinedContent.chart) slide.content.chart = refinedContent.chart;
+    if (Array.isArray(refinedContent.cards)) slide.content.cards = refinedContent.cards;
+    if (Array.isArray(refinedContent.steps)) slide.content.steps = refinedContent.steps;
+    if (refinedContent.diagram) slide.content.diagram = refinedContent.diagram;
+    if (refinedContent.metric) slide.content.metric = refinedContent.metric;
+    if (typeof refinedContent.design_variant === 'string') slide.content.design_variant = refinedContent.design_variant;
     slide.speaker_notes = typeof refined.speaker_notes === 'string' ? refined.speaker_notes : slide.speaker_notes;
     slide.layout_type = normalizePresentationLayout(refined.layout_type || slide.layout_type);
+    if (slide.content.table) slide.layout_type = 'table';
+    if (slide.content.chart) slide.layout_type = 'chart';
     markPresentationDirty();
     renderPresentationSlidesList();
     renderActivePresentationSlide();
