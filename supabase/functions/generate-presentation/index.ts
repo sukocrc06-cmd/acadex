@@ -44,10 +44,64 @@ function stripCodeFence(value: string): string {
   if (/^\s*<think>/i.test(withoutReasoning)) throw new Error('INVALID_AI_JSON')
   return withoutReasoning.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
 }
+
+/** Repair truncated / messy model JSON so partial decks still parse */
+function repairJsonText(raw: string): string {
+  let s = stripCodeFence(raw)
+  // extract first {...} block if surrounding junk
+  const first = s.indexOf('{')
+  const last = s.lastIndexOf('}')
+  if (first >= 0 && last > first) s = s.slice(first, last + 1)
+  // trailing commas
+  s = s.replace(/,\s*([}\]])/g, '$1')
+  // if truncated mid-slides array, close open structures
+  if (!s.trim().endsWith('}')) {
+    // close open strings roughly
+    const q = (s.match(/"/g) || []).length
+    if (q % 2 === 1) s += '"'
+    // close brackets
+    const opens = (s.match(/\[/g) || []).length
+    const closes = (s.match(/\]/g) || []).length
+    for (let i = 0; i < opens - closes; i++) s += ']'
+    const o2 = (s.match(/\{/g) || []).length
+    const c2 = (s.match(/\}/g) || []).length
+    for (let i = 0; i < o2 - c2; i++) s += '}'
+  }
+  return s
+}
+
 function parseModelJson(raw: string): Record<string, unknown> {
-  const parsed = JSON.parse(stripCodeFence(raw))
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('INVALID_AI_JSON')
-  return parsed as Record<string, unknown>
+  const attempts = [stripCodeFence(raw), repairJsonText(raw)]
+  let lastErr: unknown = null
+  for (const candidate of attempts) {
+    try {
+      const parsed = JSON.parse(candidate)
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) continue
+      return parsed as Record<string, unknown>
+    } catch (e) {
+      lastErr = e
+    }
+  }
+  // Last resort: pull slides array fragment
+  try {
+    const repaired = repairJsonText(raw)
+    const slidesMatch = repaired.match(/"slides"\s*:\s*\[([\s\S]*)/)
+    if (slidesMatch) {
+      let arr = '[' + slidesMatch[1]
+      // cut after last complete }
+      const lastObj = arr.lastIndexOf('}')
+      if (lastObj > 0) arr = arr.slice(0, lastObj + 1) + ']'
+      const opens = (arr.match(/\[/g) || []).length
+      const closes = (arr.match(/\]/g) || []).length
+      for (let i = 0; i < opens - closes; i++) arr += ']'
+      const slides = JSON.parse(arr)
+      if (Array.isArray(slides) && slides.length) return { title: 'Akademik Sunum', slides }
+    }
+  } catch (e) {
+    lastErr = e
+  }
+  console.error('parseModelJson failed:', lastErr)
+  throw new Error('INVALID_AI_JSON')
 }
 
 function normalizeTable(value: unknown) {
@@ -183,8 +237,8 @@ function normalizePresentation(value: Record<string, unknown>, requestedCount: n
   const container = value.presentation && typeof value.presentation === 'object' && !Array.isArray(value.presentation) ? value.presentation as Record<string, unknown> : value
   const rawSlides = Array.isArray(container.slides) ? container.slides : []
   // Accept if we got at least the requested count, or >= 80% and at least 4 (token-truncation edge)
-  const minAccept = Math.max(4, Math.ceil(requestedCount * 0.8))
-  if (rawSlides.length < minAccept) throw new Error('INCOMPLETE_PRESENTATION')
+  // Accept any deck with at least 4 slides; shortfall is fixed by topUpSlides
+  if (rawSlides.length < 4) throw new Error('INCOMPLETE_PRESENTATION')
   const slides = rawSlides.slice(0, requestedCount).map(normalizeSlide)
   return { title: cleanText(container.title, 160) || slides[0].title, slides }
 }
@@ -315,14 +369,17 @@ async function callGroq(
       // Rate limit: honor "try again in Xs" and optionally switch to smaller model
       if (response.status === 429 && attempt < 3) {
         const waitMatch = lastError.match(/try again in\s*([\d.]+)\s*s/i)
-        const waitMs = waitMatch ? Math.ceil(parseFloat(waitMatch[1]) * 1000) + 500 : 7000 * (attempt + 1)
+        const waitMs = waitMatch ? Math.ceil(parseFloat(waitMatch[1]) * 1000) + 800 : 8000 * (attempt + 1)
         console.warn(`Groq 429 — waiting ${waitMs}ms (attempt ${attempt + 1})`)
-        await new Promise(resolve => setTimeout(resolve, Math.min(waitMs, 20000)))
-        // After first rate limit, shrink prompt and use faster model
-        if (attempt >= 1) {
-          promptForAttempt = shrinkPromptForRetry(promptForAttempt)
-          modelForAttempt = 'openai/gpt-oss-20b'
-        }
+        await new Promise(resolve => setTimeout(resolve, Math.min(waitMs, 25000)))
+        // Stay on gpt-oss-120b (20b fails json_object mode). Only shrink prompt.
+        promptForAttempt = shrinkPromptForRetry(promptForAttempt)
+        continue
+      }
+      // json_validate_failed → shrink and retry same model (do not switch to 20b)
+      if (/json_validate_failed|Failed to validate JSON|invalid_request/i.test(lastError) && attempt < 3) {
+        promptForAttempt = shrinkPromptForRetry(promptForAttempt)
+        await new Promise(resolve => setTimeout(resolve, 1500))
         continue
       }
 
@@ -473,7 +530,7 @@ Last of the new slides should be a strong summary/conclusion if the deck does no
 No instruction leakage in text/notes.`
   const user = `${sourceHeader}\n\nSOURCE MATERIAL:\n${academicContext}\n\nGenerate ${missing} new slides continuing the narrative after the existing ones.`
   try {
-    const raw = await callGroq(apiKey, system, user, Math.min(2000, 280 * missing + 600), 40000, 'openai/gpt-oss-20b')
+    const raw = await callGroq(apiKey, system, user, Math.min(1800, 250 * missing + 500), 45000, 'openai/gpt-oss-120b')
     const parsed = parseModelJson(raw)
     const extraRaw = Array.isArray(parsed.slides) ? parsed.slides : []
     const extra = extraRaw.slice(0, missing).map((item, idx) => normalizeSlide(item, existing.slides.length + idx))
@@ -580,7 +637,7 @@ NO INSTRUCTION LEAKAGE: never write meta text like "use a matrix", "create a cha
 EACH SLIDE MUST INCLUDE:
 - title, purpose (why this slide), message (one-line takeaway), visual_purpose
 - text: 3-5 real teaching bullets on non-hero slides (visuals never replace explanation)
-- speaker_notes: 60-110 words — opening → explanation → example → transition
+- speaker_notes: 40-70 words — opening → key point → transition
 - layout_type + design_variant
 
 visual_purpose values: hero | section | comparison | process | timeline | matrix | chart | table | cards | diagram | big-number | summary
@@ -610,18 +667,25 @@ Omit null/empty structured fields. EXACTLY ${slideCount} slides.`
       const raw = await callGroq(groqApiKey, systemPrompt, userPrompt, completionBudget, 55000)
       presentation = normalizePresentation(parseModelJson(raw), slideCount)
     } catch (firstError) {
-      console.error('Primary generation failed, retrying with compact prompt:', firstError)
-      const compactContext = buildAcademicContext(academicContext, 2500)
+      console.error('Primary generation failed, retrying compact on 120b:', firstError)
+      await new Promise(r => setTimeout(r, 5000)) // TPM cooldown
+      const compactContext = typeof academicContext === 'string'
+        ? academicContext.slice(0, 2500)
+        : buildAcademicContext(String(academicContext || ''), 2500)
+      const compactPrompt = `You are Acadia. Return JSON with title and EXACTLY ${slideCount} slides in ${languageLabel}.
+Each slide: title, text (3-5 bullets), speaker_notes, layout_type (title-content|two-column|chart|table), design_variant (hero|section|cards|process|summary|comparison).
+Slide 1 hero, last summary. No meta-instructions in text. ${groundingRule}
+JSON: {"title":"...","slides":[{"title":"...","text":"...","speaker_notes":"...","layout_type":"title-content","design_variant":"section"}]}`
       const raw = await callGroq(
         groqApiKey,
-        systemPrompt,
+        compactPrompt,
         `${sourceHeader}\n\nSOURCE MATERIAL:\n${compactContext}`,
-        Math.min(2200, completionBudget),
+        Math.min(2400, completionBudget),
         55000,
-        'openai/gpt-oss-20b',
+        'openai/gpt-oss-120b',
       )
       presentation = normalizePresentation(parseModelJson(raw), slideCount)
-      director = { version: 'v8', mode: 'compact_fallback' }
+      director = { version: 'v8', mode: 'compact_120b_fallback' }
     }
 
     // Top-up only if short — small budget, after a brief pause (TPM recovery)
