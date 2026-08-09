@@ -4832,7 +4832,9 @@ async function generatePresentationWithAcadia(event) {
   const sourceType = document.getElementById('pres-ai-source-type')?.value || 'topic';
   const sourceId = document.getElementById('pres-ai-source-id')?.value || '';
   const topic = document.getElementById('pres-ai-topic')?.value.trim() || '';
-  const slideCount = Number.parseInt(document.getElementById('pres-ai-slide-count')?.value || '8', 10);
+  let slideCount = Number.parseInt(document.getElementById('pres-ai-slide-count')?.value || '8', 10);
+  if (!Number.isFinite(slideCount)) slideCount = 8;
+  slideCount = Math.min(15, Math.max(5, slideCount));
   const language = document.getElementById('pres-ai-language')?.value === 'en' ? 'en' : 'tr';
   const courseTag = document.getElementById('pres-ai-course')?.value.trim().slice(0, 80) || '';
 

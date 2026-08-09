@@ -273,10 +273,21 @@ function shrinkPromptForRetry(userPrompt: string): string {
   if (idx < 0) return userPrompt.slice(0, 5000)
   return userPrompt.slice(0, idx + marker.length) + buildAcademicContext(userPrompt.slice(idx + marker.length), 3200)
 }
-async function callGroq(apiKey: string, systemPrompt: string, userPrompt: string, maxCompletionTokens = 3600, timeoutMs = 55000) {
+async function callGroq(
+  apiKey: string,
+  systemPrompt: string,
+  userPrompt: string,
+  maxCompletionTokens = 2400,
+  timeoutMs = 55000,
+  model = 'openai/gpt-oss-120b',
+) {
+  // Free/on_demand TPM is tight (~8k). Never request huge completion budgets.
+  const safeMaxTokens = Math.min(Math.max(400, maxCompletionTokens), 2800)
   let lastError = ''
   let promptForAttempt = userPrompt
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  let modelForAttempt = model
+
+  for (let attempt = 0; attempt < 4; attempt += 1) {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
     try {
@@ -284,22 +295,39 @@ async function callGroq(apiKey: string, systemPrompt: string, userPrompt: string
         method: 'POST', signal: controller.signal,
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'openai/gpt-oss-120b', temperature: 0.22, max_completion_tokens: maxCompletionTokens,
-          // reasoning_effort omitted — some Groq model builds reject unknown params
+          model: modelForAttempt,
+          temperature: 0.22,
+          max_completion_tokens: safeMaxTokens,
           response_format: { type: 'json_object' },
-          messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: promptForAttempt }],
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: promptForAttempt },
+          ],
         }),
       })
       clearTimeout(timeoutId)
       const payload = await response.json()
-      if (response.ok && payload?.choices?.[0]?.message?.content) return payload.choices[0].message.content as string
-      lastError = cleanText(payload?.error?.message, 500)
-      if (/too large|context|token|request size/i.test(lastError) && attempt < 2) {
-        promptForAttempt = shrinkPromptForRetry(promptForAttempt)
+      if (response.ok && payload?.choices?.[0]?.message?.content) {
+        return payload.choices[0].message.content as string
+      }
+      lastError = cleanText(payload?.error?.message, 600)
+
+      // Rate limit: honor "try again in Xs" and optionally switch to smaller model
+      if (response.status === 429 && attempt < 3) {
+        const waitMatch = lastError.match(/try again in\s*([\d.]+)\s*s/i)
+        const waitMs = waitMatch ? Math.ceil(parseFloat(waitMatch[1]) * 1000) + 500 : 7000 * (attempt + 1)
+        console.warn(`Groq 429 — waiting ${waitMs}ms (attempt ${attempt + 1})`)
+        await new Promise(resolve => setTimeout(resolve, Math.min(waitMs, 20000)))
+        // After first rate limit, shrink prompt and use faster model
+        if (attempt >= 1) {
+          promptForAttempt = shrinkPromptForRetry(promptForAttempt)
+          modelForAttempt = 'openai/gpt-oss-20b'
+        }
         continue
       }
-      if (response.status === 429 && attempt < 2) {
-        await new Promise(resolve => setTimeout(resolve, 1800 * (attempt + 1)))
+
+      if (/too large|context|token|request size|maximum context/i.test(lastError) && attempt < 3) {
+        promptForAttempt = shrinkPromptForRetry(promptForAttempt)
         continue
       }
       if (response.status < 500) break
@@ -307,7 +335,7 @@ async function callGroq(apiKey: string, systemPrompt: string, userPrompt: string
       clearTimeout(timeoutId)
       lastError = error instanceof Error ? error.message : 'AI request failed'
     }
-    await new Promise(resolve => setTimeout(resolve, 900 * (attempt + 1)))
+    await new Promise(resolve => setTimeout(resolve, 1200 * (attempt + 1)))
   }
   console.error('generate-presentation Groq failure:', lastError)
   throw new Error('AI_SERVICE_UNAVAILABLE')
@@ -445,7 +473,7 @@ Last of the new slides should be a strong summary/conclusion if the deck does no
 No instruction leakage in text/notes.`
   const user = `${sourceHeader}\n\nSOURCE MATERIAL:\n${academicContext}\n\nGenerate ${missing} new slides continuing the narrative after the existing ones.`
   try {
-    const raw = await callGroq(apiKey, system, user, Math.min(2500, 400 * missing + 800), 40000)
+    const raw = await callGroq(apiKey, system, user, Math.min(2000, 280 * missing + 600), 40000, 'openai/gpt-oss-20b')
     const parsed = parseModelJson(raw)
     const extraRaw = Array.isArray(parsed.slides) ? parsed.slides : []
     const extra = extraRaw.slice(0, missing).map((item, idx) => normalizeSlide(item, existing.slides.length + idx))
@@ -505,7 +533,7 @@ serve(async (req) => {
     const sourceId = cleanText(body?.sourceId, 80)
     const topic = cleanText(body?.topic, 600)
     const courseTag = cleanText(body?.courseTag, 80)
-    const slideCount = clampInteger(body?.slideCount, 4, 15, 8)
+    const slideCount = clampInteger(body?.slideCount, 5, 15, 8)
     if (sourceType === 'topic' && topic.length < 3) return respond({ error: 'A presentation topic is required' }, 400)
     if (sourceType !== 'topic' && !sourceId) return respond({ error: 'A source is required' }, 400)
 
@@ -524,7 +552,9 @@ serve(async (req) => {
     }
     if (sourceContext.length < 20) return respond({ error: 'No readable source content found' }, 400)
 
-    const academicContext = sourceType === 'topic' ? sourceContext : buildAcademicContext(sourceContext, 7200)
+    const academicContext = sourceType === 'topic'
+      ? cleanText(sourceContext, 3500)
+      : buildAcademicContext(sourceContext, 4500)
     const groundingRule = sourceType === 'topic'
       ? 'Use reliable general academic knowledge. Do not invent citations, named studies, people, or precise statistics.'
       : 'Use source facts for factual claims. You may add simple pedagogical examples only when clearly presented as an illustrative example, never as a sourced fact.'
@@ -534,91 +564,85 @@ serve(async (req) => {
     // ═══════════════════════════════════════════════════════════
     // Director V8 — try plan→content; fall back to single-shot on failure
     // ═══════════════════════════════════════════════════════════
-    const singleShotSystem = `You are Acadia, a senior academic presentation director and visual storyteller. Create EXACTLY ${slideCount} slides (not fewer — the slides array length must be ${slideCount}) in ${languageLabel}. ${groundingRule}
+    // Token budget for free-tier TPM (~8k/min). One primary call only.
+    const completionBudget = Math.min(2800, 350 + slideCount * 200)
 
-GOAL: A deck a university lecturer would use — accurate, varied visuals, teachable.
+    const systemPrompt = `You are Acadia, Presentation Director V8 + visual composer. Produce EXACTLY ${slideCount} academic slides in ${languageLabel}. The slides array MUST contain ${slideCount} items — not fewer.
+${groundingRule}
 
-NARRATIVE: problem/context → core concepts → analysis → comparison → example → conclusion → decision. Do not follow PDF page order. No instructor bios, emails, grading %, attendance slides.
+NARRATIVE ARC (do not follow PDF page order):
+problem/context → core concepts → analysis → comparison → example/application → risks → practical steps → conclusion → decision.
 
-NO INSTRUCTION LEAKAGE: never write meta-instructions into title/text/notes (no "use a matrix", "create a chart", "matriks kullanın", "grafik oluştur").
+FORBIDDEN SLIDES: instructor names, bios, emails, office hours, grading %, attendance, course schedules.
 
-VISIBLE CONTENT: Every non-hero slide needs 3-5 real teaching bullets in "text". Visuals support, never replace text. 45-90 words on concept slides.
+NO INSTRUCTION LEAKAGE: never write meta text like "use a matrix", "create a chart", "matriks kullanın", "grafik oluştur", "add discussion question" into title, text, or speaker_notes.
 
-SPEAKER NOTES: 70-130 words — opening → explanation → example → transition. Do not copy bullets.
+EACH SLIDE MUST INCLUDE:
+- title, purpose (why this slide), message (one-line takeaway), visual_purpose
+- text: 3-5 real teaching bullets on non-hero slides (visuals never replace explanation)
+- speaker_notes: 60-110 words — opening → explanation → example → transition
+- layout_type + design_variant
 
-VISUALS: cards/process/timeline/comparison/diagram when qualitative. chart/metric ONLY with exact source numbers (never "Değer 1"). design_variant: hero|section|cards|process|timeline|big-number|comparison|data|summary. Slide 1=hero, last=summary. Prefer diagram/process/cards over fake charts.
+visual_purpose values: hero | section | comparison | process | timeline | matrix | chart | table | cards | diagram | big-number | summary
+- Slide 1 = hero, last = summary
+- chart/metric ONLY with real numbers (never "Değer 1/2/3")
+- Prefer cards/process/diagram/table when qualitative
+- Do not use the same design_variant more than 3 times; no more than 2 plain section slides in a row
 
-LAYOUT: hero/section/cards/process/timeline/big-number/summary/diagram → title-content; comparison → two-column; real chart data → chart; matrix → table.
+STRUCTURED OBJECTS when useful:
+cards:[{title,body}] steps:[{label,title,body}] metric:{value,label,context}
+chart:{type,title,series_label,labels,data} table:{title,headers,rows}
+diagram:{type:flow|cycle|hierarchy|matrix|funnel,title,nodes:[{label,body}]}
 
-JSON ONLY:
-{"title":"...","slides":[{"title":"...","purpose":"...","message":"...","visual_purpose":"hero|section|comparison|process|timeline|matrix|chart|table|cards|diagram|big-number|summary","text":"• ...\\n• ...","secondary_text":"...","speaker_notes":"...","layout_type":"title-content|two-column|chart|table","design_variant":"hero|section|cards|process|timeline|big-number|comparison|data|summary","cards":[{"title":"...","body":"..."}],"steps":[{"label":"...","title":"...","body":"..."}],"metric":{"value":"...","label":"...","context":"..."},"chart":{"type":"bar|line|pie","title":"...","series_label":"...","labels":["..."],"data":[1,2]},"table":{"title":"...","headers":["...","..."],"rows":[["...","..."]]},"diagram":{"type":"flow|cycle|hierarchy|matrix|funnel","title":"...","nodes":[{"label":"...","body":"..."}]}]}
-Omit unused objects.`
+layout_type: title-content | two-column | chart | table
+design_variant: hero|section|cards|process|timeline|big-number|comparison|data|summary
 
-    let presentation: ReturnType<typeof normalizePresentation> | null = null
-    let director: Record<string, unknown> | null = null
-    let mode: 'director_v8' | 'single_shot_fallback' = 'director_v8'
+Return JSON only:
+{"title":"...","slides":[{"title":"...","purpose":"...","message":"...","visual_purpose":"...","text":"• ...\\n• ...","secondary_text":"...","speaker_notes":"...","layout_type":"...","design_variant":"...","cards":[],"steps":[],"metric":null,"chart":null,"table":null,"diagram":null}]}
+Omit null/empty structured fields. EXACTLY ${slideCount} slides.`
+
+    const userPrompt = `${sourceHeader}\n\nSOURCE MATERIAL:\n${academicContext}`
+
+    let presentation: ReturnType<typeof normalizePresentation>
+    let director: Record<string, unknown> = { version: 'v8', mode: 'single_shot_director' }
 
     try {
-      const planSystemPrompt = `You are Acadia Presentation Director V8. Do NOT write slide body content. Design a PLAN only in ${languageLabel}.
-${groundingRule}
-Exactly ${slideCount} slides. Arc: problem → concepts → analysis → comparison → example → conclusion → decision.
-No admin/instructor slides. Slide 1 visual_purpose=hero, last=summary.
-Each slide: title, purpose, message, visual_purpose (hero|section|comparison|process|timeline|matrix|chart|table|cards|diagram|big-number|summary).
-chart only if exact numbers exist. Prefer diagram/process/cards when qualitative. Max 3 of same visual_purpose. Max 2 consecutive section.
-JSON: {"purpose":"...","audience":"...","main_message":"...","narrative_arc":"...","slides":[{"title":"...","purpose":"...","message":"...","visual_purpose":"..."}]}`
-
-      const planRaw = await callGroq(groqApiKey, planSystemPrompt, `${sourceHeader}\n\nSOURCE MATERIAL:\n${academicContext}`, 1400, 35000)
-      const plan = normalizePlan(parseModelJson(planRaw), slideCount)
-
-      const contentSystemPrompt = `You are Acadia content writer. Write FULL slides for an approved plan in ${languageLabel}. ${groundingRule}
-NO meta-instructions in text/notes. Keep explanatory text even with visuals. Speaker notes 70-130 words (opening→explain→example→transition).
-Follow plan order/titles/visual_purpose. chart only with real numbers. Exactly ${plan.slides.length} slides.
-JSON: {"title":"...","slides":[{"title":"...","purpose":"...","message":"...","visual_purpose":"...","text":"...","secondary_text":"...","speaker_notes":"...","layout_type":"title-content|two-column|chart|table","design_variant":"hero|section|cards|process|timeline|big-number|comparison|data|summary","cards":[{"title":"...","body":"..."}],"steps":[{"label":"...","title":"...","body":"..."}],"metric":{"value":"...","label":"...","context":"..."},"chart":{"type":"bar|line|pie","title":"...","series_label":"...","labels":["..."],"data":[1]},"table":{"title":"...","headers":["..."],"rows":[["..."]]},"diagram":{"type":"flow|cycle|hierarchy|matrix|funnel","title":"...","nodes":[{"label":"...","body":"..."}]}]}`
-
-      const contentTokens = Math.min(6500, 500 + slideCount * 450)
-      const contentRaw = await callGroq(
-        groqApiKey,
-        contentSystemPrompt,
-        `${sourceHeader}\n\nAPPROVED PLAN:\n${JSON.stringify(plan)}\n\nSOURCE MATERIAL:\n${academicContext}`,
-        contentTokens,
-        55000
-      )
-      presentation = normalizePresentation(parseModelJson(contentRaw), slideCount)
-      director = {
-        version: 'v8',
-        mode: 'director_v8',
-        purpose: plan.purpose,
-        audience: plan.audience,
-        main_message: plan.main_message,
-        narrative_arc: plan.narrative_arc,
-        plan_slides: plan.slides,
-      }
-    } catch (stageError) {
-      console.error('Director V8 stage failed, falling back to single-shot:', stageError)
-      mode = 'single_shot_fallback'
-      const raw = await callGroq(groqApiKey, singleShotSystem, `${sourceHeader}\n\nSOURCE MATERIAL:\n${academicContext}`, Math.min(6500, 500 + slideCount * 450), 55000)
+      const raw = await callGroq(groqApiKey, systemPrompt, userPrompt, completionBudget, 55000)
       presentation = normalizePresentation(parseModelJson(raw), slideCount)
-      director = { version: 'v8', mode: 'single_shot_fallback' }
+    } catch (firstError) {
+      console.error('Primary generation failed, retrying with compact prompt:', firstError)
+      const compactContext = buildAcademicContext(academicContext, 2500)
+      const raw = await callGroq(
+        groqApiKey,
+        systemPrompt,
+        `${sourceHeader}\n\nSOURCE MATERIAL:\n${compactContext}`,
+        Math.min(2200, completionBudget),
+        55000,
+        'openai/gpt-oss-20b',
+      )
+      presentation = normalizePresentation(parseModelJson(raw), slideCount)
+      director = { version: 'v8', mode: 'compact_fallback' }
     }
 
-    if (!presentation) return respond({ error: 'Presentation generation failed' }, 500)
-
-    // Enforce requested slide count (top-up if model truncated output)
+    // Top-up only if short — small budget, after a brief pause (TPM recovery)
     if (presentation.slides.length < slideCount) {
-      console.warn(`Slide count short: got ${presentation.slides.length}, want ${slideCount} — topping up`)
+      console.warn(`Short deck: ${presentation.slides.length}/${slideCount} — top-up`)
+      await new Promise(r => setTimeout(r, 3000))
       presentation = await topUpSlides(
-        groqApiKey, presentation, slideCount, languageLabel, groundingRule, sourceHeader, academicContext
+        groqApiKey, presentation, slideCount, languageLabel, groundingRule, sourceHeader,
+        buildAcademicContext(academicContext, 2500),
       )
     }
 
     return respond({
       presentation,
       director: {
-        ...(director || { version: 'v8' }),
+        ...director,
         requested_slide_count: slideCount,
         delivered_slide_count: presentation.slides.length,
       },
     })
+
   } catch (error) {
     console.error('generate-presentation exception:', error)
     const message = error instanceof Error ? error.message : ''
