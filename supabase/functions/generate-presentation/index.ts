@@ -986,6 +986,14 @@ serve(async (req) => {
     const topic = cleanText(body?.topic, 600)
     const courseTag = cleanText(body?.courseTag, 80)
     const slideCount = clampInteger(body?.slideCount, 5, 15, 8)
+    const detailRaw = cleanText(body?.detailLevel ?? body?.detail_level, 20).toLowerCase()
+    const detailLevel = detailRaw === 'summary' || detailRaw === 'detailed' ? detailRaw : 'bullets'
+    const densityRule =
+      detailLevel === 'summary'
+        ? 'CONTENT DENSITY=summary: max 3 short bullets per slide; speaker_notes 25-40 words; prefer cards with short titles; avoid long paragraphs.'
+        : detailLevel === 'detailed'
+          ? 'CONTENT DENSITY=detailed: 4-6 substantive bullets or richer card bodies; speaker_notes 50-80 words; explain why/how, not only labels.'
+          : 'CONTENT DENSITY=bullets: 3-5 clear teaching bullets; speaker_notes 35-60 words; balanced academic tone.'
     if (sourceType === 'topic' && topic.length < 3) return respond({ error: 'A presentation topic is required' }, 400)
     if (sourceType !== 'topic' && !sourceId) return respond({ error: 'A source is required' }, 400)
 
@@ -1021,6 +1029,7 @@ serve(async (req) => {
 
     const systemPrompt = `You are Acadia, Presentation Director V8 + visual composer. Produce EXACTLY ${slideCount} academic slides in ${languageLabel}. The slides array MUST contain ${slideCount} items — not fewer.
 ${groundingRule}
+${densityRule}
 
 NARRATIVE ARC (do not follow PDF page order):
 problem/context → core concepts → analysis → comparison → example/application → risks → practical steps → conclusion → decision.
@@ -1100,6 +1109,7 @@ JSON: {"title":"...","slides":[{"title":"...","text":"...","speaker_notes":"..."
         ...director,
         requested_slide_count: slideCount,
         delivered_slide_count: presentation.slides.length,
+        detail_level: detailLevel,
       },
       quality: {
         version: 'v5',
