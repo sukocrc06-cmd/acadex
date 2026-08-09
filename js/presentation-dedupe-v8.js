@@ -1,4 +1,4 @@
-/* Acadex Presentation Dedupe V8 — break left-text / right-card clones (studio fix 2/6) */
+/* Acadex Presentation Dedupe V8 — stronger left/right clone removal */
 (function () {
   'use strict';
   if (window.__acadexPresentationDedupeV8) return;
@@ -23,12 +23,32 @@
       : {};
   }
 
+  function cardSignature(card) {
+    const t = norm(card?.title);
+    const b = norm(card?.body);
+    return { t, b, combo: b ? `${t} ${b}` : t };
+  }
+
+  function lineCoveredByCards(line, signatures) {
+    const n = norm(line);
+    if (!n) return true;
+    return signatures.some((s) => {
+      if (!s.t) return false;
+      if (n === s.t || n === s.combo || n === s.b) return true;
+      // "Karbonhidrat: %45-55" vs title Karbonhidrat body %45-55
+      if (s.t && n.startsWith(s.t) && (!s.b || n.includes(s.b))) return true;
+      if (s.combo && (n.includes(s.t) && s.b && n.includes(s.b))) return true;
+      // near-equal
+      if (s.t.length >= 4 && (n.includes(s.t) || s.t.includes(n)) && Math.abs(n.length - s.t.length) <= 12 && !s.b) return true;
+      return false;
+    });
+  }
+
   function dedupeSlide(slide) {
     if (!slide || typeof slide !== 'object') return slide;
     const content = { ...contentOf(slide) };
     let changed = false;
 
-    // 1) Card body must not clone title
     if (Array.isArray(content.cards) && content.cards.length) {
       content.cards = content.cards.map((card, index) => {
         if (!card || typeof card !== 'object') return card;
@@ -38,16 +58,10 @@
           body = '';
           changed = true;
         }
-        // body that is only a slight truncation of title
-        if (title && body && (norm(title).startsWith(norm(body)) || norm(body).startsWith(norm(title))) && Math.abs(title.length - body.length) <= 8) {
-          body = '';
-          changed = true;
-        }
         return { ...card, title: title || `Madde ${index + 1}`, body };
       });
     }
 
-    // 2) Steps body must not clone title
     if (Array.isArray(content.steps) && content.steps.length) {
       content.steps = content.steps.map((step, index) => {
         if (!step || typeof step !== 'object') return step;
@@ -61,32 +75,24 @@
       });
     }
 
-    // 3) Text lines that equal card titles → remove from text (cards own that info)
     if (Array.isArray(content.cards) && content.cards.length >= 2) {
-      const titles = new Set(
-        content.cards
-          .map((c) => norm(c && c.title))
-          .filter(Boolean)
-      );
+      const signatures = content.cards.map(cardSignature);
       const originalLines = lines(content.text);
-      const kept = originalLines.filter((line) => !titles.has(norm(line)));
+      const kept = originalLines.filter((line) => !lineCoveredByCards(line, signatures));
       if (kept.length !== originalLines.length) {
         changed = true;
-        if (kept.length === 0) {
-          // Prefer a short non-duplicate lead-in from card bodies if any
-          const bodies = content.cards
-            .map((c) => String(c && c.body || '').trim())
-            .filter((b) => b && !titles.has(norm(b)));
-          content.text = bodies.length
-            ? bodies.slice(0, 2).map((b) => `• ${b}`).join('\n')
-            : '';
-        } else {
-          content.text = kept.map((l) => `• ${l}`).join('\n');
-        }
+        content.text = kept.length ? kept.map((l) => `• ${l}`).join('\n') : '';
       }
     }
 
-    // 4) Two-column: secondary_text should not mirror primary text
+    // If cards carry the teaching and text empty, prefer cards-only design
+    if (Array.isArray(content.cards) && content.cards.length >= 2 && !String(content.text || '').trim()) {
+      if (content.design_variant !== 'cards') {
+        content.design_variant = 'cards';
+        changed = true;
+      }
+    }
+
     if (content.secondary_text && content.text) {
       const primary = new Set(lines(content.text).map(norm));
       const secondaryKept = lines(content.secondary_text).filter((l) => !primary.has(norm(l)));
@@ -111,12 +117,35 @@
     return { slides: next, changed };
   }
 
+  function getLiveSlides() {
+    try {
+      if (typeof presSlides !== 'undefined' && Array.isArray(presSlides)) return presSlides;
+    } catch (_) {}
+    try {
+      if (Array.isArray(window.presSlides)) return window.presSlides;
+    } catch (_) {}
+    return null;
+  }
+
+  function setLiveSlides(next) {
+    try {
+      if (typeof presSlides !== 'undefined') {
+        // mutate array in place so references stay valid
+        presSlides.length = 0;
+        next.forEach((s) => presSlides.push(s));
+        return;
+      }
+    } catch (_) {}
+    try { window.presSlides = next; } catch (_) {}
+  }
+
   function repairLiveDeck() {
     try {
-      if (!Array.isArray(window.presSlides)) return false;
-      const { slides, changed } = dedupeDeck(window.presSlides);
+      const live = getLiveSlides();
+      if (!live) return false;
+      const { slides, changed } = dedupeDeck(live);
       if (!changed) return false;
-      window.presSlides = slides;
+      setLiveSlides(slides);
       try {
         if (typeof markPresentationDirty === 'function') markPresentationDirty();
         else window.presIsDirty = true;
@@ -132,39 +161,30 @@
     }
   }
 
-  // Patch model normalize if present
   function patchModel() {
     const model = window.AcadexPresentationModelV7;
     if (!model || model.__dedupePatched) return;
     const originalNormalize = model.normalize;
     if (typeof originalNormalize !== 'function') return;
     model.normalize = function (slide, index) {
-      const base = originalNormalize.call(model, slide, index);
-      return dedupeSlide(base);
+      return dedupeSlide(originalNormalize.call(model, slide, index));
     };
-
-    // Smarter body: avoid combo when text is only card-title echoes
     const originalBody = model.renderBody;
     if (typeof originalBody === 'function') {
       model.renderBody = function (slide) {
         const s = model.normalize(slide);
         const c = s.content || {};
-        const text = model.renderText(s);
         const visual = model.renderVisual(s);
+        const text = model.renderText(s);
         if (text && visual && Array.isArray(c.cards) && c.cards.length >= 2) {
-          const titleSet = new Set(c.cards.map((card) => norm(card.title)).filter(Boolean));
+          const signatures = c.cards.map(cardSignature);
           const textLines = lines(c.text);
-          const unique = textLines.filter((line) => !titleSet.has(norm(line)));
-          // If almost all text is card titles, show cards (+ optional unique lines only)
+          const unique = textLines.filter((line) => !lineCoveredByCards(line, signatures));
           if (unique.length === 0) return visual;
-          if (unique.length <= Math.max(1, Math.floor(textLines.length * 0.34))) {
+          if (unique.length <= Math.max(1, Math.floor(textLines.length * 0.4))) {
             const slim = {
               ...s,
-              content: {
-                ...c,
-                text: unique.map((l) => `• ${l}`).join('\n'),
-                secondary_text: '',
-              },
+              content: { ...c, text: unique.map((l) => `• ${l}`).join('\n'), secondary_text: '' },
             };
             const slimText = model.renderText(slim);
             return slimText
@@ -175,13 +195,11 @@
         return originalBody.call(model, s);
       };
     }
-
     model.__dedupePatched = true;
     model.dedupeSlide = dedupeSlide;
     model.dedupeDeck = dedupeDeck;
   }
 
-  // Hook renderer repairDeck
   function patchRenderer() {
     const r = window.AcadexPresentationRendererV7;
     if (!r || r.__dedupePatched) return;
@@ -195,27 +213,45 @@
     r.__dedupePatched = true;
   }
 
+  // Also hook renderActivePresentationSlide to always dedupe active slide content for display
+  function patchActiveRender() {
+    if (window.__apDedupeRenderHooked) return;
+    const tryHook = () => {
+      if (typeof window.renderActivePresentationSlide !== 'function') return false;
+      if (window.renderActivePresentationSlide.__dedupeWrapped) return true;
+      const original = window.renderActivePresentationSlide;
+      window.renderActivePresentationSlide = function () {
+        try {
+          const live = getLiveSlides();
+          let active = 0;
+          try { if (typeof presActiveSlide !== 'undefined') active = presActiveSlide; } catch (_) {}
+          if (live && live[active]) {
+            const fixed = dedupeSlide(live[active]);
+            if (fixed !== live[active]) live[active] = fixed;
+          }
+        } catch (_) {}
+        return original.apply(this, arguments);
+      };
+      window.renderActivePresentationSlide.__dedupeWrapped = true;
+      window.__apDedupeRenderHooked = true;
+      return true;
+    };
+    if (!tryHook()) {
+      let n = 0;
+      const t = setInterval(() => { if (tryHook() || ++n > 40) clearInterval(t); }, 250);
+    }
+  }
+
   function boot() {
     patchModel();
     patchRenderer();
-    // One-shot repair when slides already loaded
-    setTimeout(() => {
-      patchModel();
-      patchRenderer();
-      repairLiveDeck();
-    }, 600);
+    patchActiveRender();
+    setTimeout(() => { patchModel(); patchRenderer(); patchActiveRender(); repairLiveDeck(); }, 600);
   }
 
-  window.AcadexPresentationDedupeV8 = {
-    dedupeSlide,
-    dedupeDeck,
-    repairLiveDeck,
-  };
+  window.AcadexPresentationDedupeV8 = { dedupeSlide, dedupeDeck, repairLiveDeck };
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', boot);
-  } else {
-    boot();
-  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
   setTimeout(boot, 1200);
 })();

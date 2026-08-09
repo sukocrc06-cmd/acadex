@@ -1,10 +1,49 @@
-/* Acadex Presentation Visual AI V8 — generate table/chart from current slide (studio fix 3/6) */
+/* Acadex Presentation Visual AI V8 — table/chart from active slide (fixed global access) */
 (function () {
   'use strict';
   if (window.__acadexPresentationVisualAiV8) return;
   window.__acadexPresentationVisualAiV8 = true;
 
   let busy = false;
+
+  /** dashboard.js uses top-level let — NOT on window. Read global lexical bindings. */
+  function readGlobals() {
+    const g = {
+      slides: null,
+      active: 0,
+      currentId: null,
+      presentation: null,
+    };
+    try {
+      // eslint-disable-next-line no-undef
+      if (typeof presSlides !== 'undefined' && Array.isArray(presSlides)) g.slides = presSlides;
+    } catch (_) {}
+    try {
+      if (Array.isArray(window.presSlides)) g.slides = window.presSlides;
+    } catch (_) {}
+    try {
+      // eslint-disable-next-line no-undef
+      if (typeof presActiveSlide !== 'undefined') g.active = Number(presActiveSlide) || 0;
+    } catch (_) {}
+    try {
+      if (typeof window.presActiveSlide === 'number') g.active = window.presActiveSlide;
+    } catch (_) {}
+    try {
+      // eslint-disable-next-line no-undef
+      if (typeof presCurrentId !== 'undefined' && presCurrentId) g.currentId = presCurrentId;
+    } catch (_) {}
+    try {
+      if (window.presCurrentId) g.currentId = window.presCurrentId;
+    } catch (_) {}
+    try {
+      // eslint-disable-next-line no-undef
+      if (typeof presCurrentPresentation !== 'undefined') g.presentation = presCurrentPresentation;
+    } catch (_) {}
+    try {
+      if (window.presCurrentPresentation) g.presentation = window.presCurrentPresentation;
+    } catch (_) {}
+    return g;
+  }
 
   function injectStyles() {
     if (document.getElementById('acadex-pres-visual-ai-v8-style')) return;
@@ -14,9 +53,7 @@
       .pres-visual-ai-actions { display:flex; flex-direction:column; gap:.35rem; margin-top:.55rem; }
       .pres-visual-ai-actions .pres-btn { justify-content:flex-start; width:100%; font-size:.78rem; }
       .pres-visual-ai-actions .pres-btn:disabled { opacity:.6; cursor:wait; }
-      .pres-visual-ai-note {
-        margin-top:.35rem; font-size:.66rem; color:#64748b; line-height:1.4;
-      }
+      .pres-visual-ai-note { margin-top:.35rem; font-size:.66rem; color:#64748b; line-height:1.4; }
       .pres-visual-ai-note.is-error { color:#b91c1c; }
       .pres-visual-ai-note.is-ok { color:#0f766e; }
     `;
@@ -26,12 +63,9 @@
   function ensureUi() {
     injectStyles();
     if (document.getElementById('pres-visual-ai-actions')) return;
-
     const host =
-      document.querySelector('#pres-studio-mode .pres-tool-card h4[data-i18n="dash.presentation.imageUpload"]')?.parentElement
-      || document.getElementById('pres-upload-zone')?.parentElement
-      || document.getElementById('pres-insert-table-btn')?.closest('.pres-tool-card');
-
+      document.querySelector('#pres-studio-mode .pres-tool-card h4')?.parentElement
+      || document.getElementById('pres-upload-zone')?.parentElement;
     if (!host) return;
 
     const box = document.createElement('div');
@@ -40,15 +74,11 @@
     box.innerHTML = `
       <button type="button" class="pres-btn" id="pres-ai-make-table-btn">📊 Acadia ile tablo üret</button>
       <button type="button" class="pres-btn" id="pres-ai-make-chart-btn">📈 Acadia ile grafik / görsel üret</button>
-      <p class="pres-visual-ai-note" id="pres-visual-ai-status">Aktif slaytın metninden tablo veya grafik taslağı üretir. Sayı yoksa güvenli tablo önerir.</p>
+      <p class="pres-visual-ai-note" id="pres-visual-ai-status">Aktif slayt metninden tablo veya grafik üretir.</p>
     `;
-
     const uploadBtn = document.getElementById('pres-upload-btn');
-    if (uploadBtn && uploadBtn.parentElement === host) {
-      uploadBtn.insertAdjacentElement('afterend', box);
-    } else {
-      host.appendChild(box);
-    }
+    if (uploadBtn && uploadBtn.parentElement === host) uploadBtn.insertAdjacentElement('afterend', box);
+    else host.appendChild(box);
 
     document.getElementById('pres-ai-make-table-btn')?.addEventListener('click', () => generateFromSlide('table'));
     document.getElementById('pres-ai-make-chart-btn')?.addEventListener('click', () => generateFromSlide('chart'));
@@ -64,19 +94,17 @@
 
   function setBusy(isBusy) {
     busy = isBusy;
-    ['pres-ai-make-table-btn', 'pres-ai-make-chart-btn'].forEach((id) => {
+    ['pres-ai-make-table-btn', 'pres-ai-make-chart-btn', 'pres-ux-ai-table', 'pres-ux-ai-chart'].forEach((id) => {
       const btn = document.getElementById(id);
       if (btn) btn.disabled = !!isBusy;
     });
   }
 
   function activeSlide() {
-    try {
-      if (!Array.isArray(window.presSlides)) return null;
-      return window.presSlides[window.presActiveSlide] || null;
-    } catch (_) {
-      return null;
-    }
+    const g = readGlobals();
+    if (!g.slides || !g.slides.length) return null;
+    const idx = Math.max(0, Math.min(g.slides.length - 1, g.active || 0));
+    return g.slides[idx] || null;
   }
 
   function slidePayload(slide) {
@@ -104,17 +132,14 @@
   function instructionFor(kind, language) {
     const lang = language === 'en' ? 'English' : 'Turkish';
     if (kind === 'table') {
-      return `Create a clear academic TABLE from this slide only. Language: ${lang}.
-Return layout_type "table" and a table object with title, headers (2-5 cols), and 2-6 factual rows grounded in the slide text.
-Do not invent statistics, citations, or numbers that are not implied by the slide.
-Prefer comparison / definition / process-checklist tables.
-Keep a short explanatory text. No instruction leakage.`;
+      return `Create one academic TABLE from this slide only. Language: ${lang}.
+Return layout_type "table" and table {title, headers, rows} grounded in the slide.
+Do not invent numbers. Keep short text. No instruction leakage.`;
     }
-    return `From this slide, add a visual:
-- If real numeric values exist, create a chart (bar preferred) with real labels/data (never "Value 1/2/3" or "Değer 1").
-- If no trustworthy numbers exist, create a comparison TABLE instead (do not invent chart data).
-Language: ${lang}. Keep short explanatory text. No instruction leakage.
-Set layout_type to chart or table accordingly.`;
+    return `From this slide add a visual. Language: ${lang}.
+If real numbers exist, create chart with real labels/data (never Değer 1 / Value 1).
+If no trustworthy numbers, create a comparison TABLE instead.
+Set layout_type chart or table. Keep short text. No instruction leakage.`;
   }
 
   function applyRefined(slide, refined) {
@@ -125,65 +150,52 @@ Set layout_type to chart or table accordingly.`;
     if (typeof refined.title === 'string' && refined.title.trim()) {
       slide.title = refined.title.trim().slice(0, 160);
     }
-
-    const text = rc.text ?? refined.text;
-    const secondary = rc.secondary_text ?? refined.secondary_text;
-    if (typeof text === 'string') content.text = text;
-    if (typeof secondary === 'string') content.secondary_text = secondary;
+    if (typeof (rc.text ?? refined.text) === 'string') content.text = rc.text ?? refined.text;
+    if (typeof (rc.secondary_text ?? refined.secondary_text) === 'string') {
+      content.secondary_text = rc.secondary_text ?? refined.secondary_text;
+    }
 
     const table = rc.table ?? refined.table;
     const chart = rc.chart ?? refined.chart;
-    const cards = rc.cards ?? refined.cards;
-    const steps = rc.steps ?? refined.steps;
-    const diagram = rc.diagram ?? refined.diagram;
-    const metric = rc.metric ?? refined.metric;
-    const variant = rc.design_variant ?? refined.design_variant;
-
     if (table && Array.isArray(table.headers) && Array.isArray(table.rows)) {
       content.table = table;
       content.design_variant = 'comparison';
       slide.layout_type = 'table';
-      // chart optional keep/remove
     }
     if (chart && Array.isArray(chart.labels) && Array.isArray(chart.data)) {
       content.chart = chart;
       content.design_variant = 'data';
       slide.layout_type = 'chart';
     }
-    if (Array.isArray(cards) && cards.length >= 2) content.cards = cards;
-    if (Array.isArray(steps) && steps.length >= 2) content.steps = steps;
-    if (diagram) content.diagram = diagram;
-    if (metric) content.metric = metric;
-    if (typeof variant === 'string' && variant.trim()) content.design_variant = variant.trim();
-
-    if (typeof refined.speaker_notes === 'string') slide.speaker_notes = refined.speaker_notes;
-    if (typeof refined.layout_type === 'string' && refined.layout_type.trim()) {
-      // prefer structured visual layout when we got table/chart
-      if (!(content.table || content.chart)) slide.layout_type = refined.layout_type;
+    if (Array.isArray(rc.cards)) content.cards = rc.cards;
+    if (Array.isArray(rc.steps)) content.steps = rc.steps;
+    if (rc.diagram) content.diagram = rc.diagram;
+    if (rc.metric) content.metric = rc.metric;
+    if (typeof rc.design_variant === 'string' && rc.design_variant.trim()) {
+      content.design_variant = rc.design_variant.trim();
     }
+    if (typeof refined.speaker_notes === 'string') slide.speaker_notes = refined.speaker_notes;
 
     slide.content = content;
-
-    // Dedupe if available
     try {
       if (window.AcadexPresentationDedupeV8?.dedupeSlide) {
         const fixed = window.AcadexPresentationDedupeV8.dedupeSlide(slide);
         Object.assign(slide, fixed);
       }
     } catch (_) {}
-
     return !!(content.table || content.chart || content.cards || content.steps);
   }
 
   async function generateFromSlide(kind) {
     if (busy) return;
+    const g = readGlobals();
     const slide = activeSlide();
     if (!slide) {
-      setStatus('Önce bir sunum ve slayt açın.', 'is-error');
+      setStatus('Aktif slayt bulunamadı. Sol listeden bir slayt seçin.', 'is-error');
       return;
     }
-    if (!window.presCurrentId) {
-      setStatus('Sunum kaydı gerekli. Önce kaydedin.', 'is-error');
+    if (!g.currentId) {
+      setStatus('Sunum kaydı gerekli. Önce Kaydet’e basın.', 'is-error');
       return;
     }
     if (!window.supabaseClient) {
@@ -193,73 +205,59 @@ Set layout_type to chart or table accordingly.`;
 
     try {
       if (typeof window.syncActiveSlideFromEditor === 'function') window.syncActiveSlideFromEditor();
+      else if (typeof syncActiveSlideFromEditor === 'function') syncActiveSlideFromEditor();
     } catch (_) {}
 
     setBusy(true);
     setStatus(kind === 'table' ? 'Acadia tablo hazırlıyor…' : 'Acadia görsel hazırlıyor…');
 
     try {
-      const language = window.presCurrentPresentation?.language === 'en' ? 'en' : 'tr';
+      const language = g.presentation?.language === 'en' ? 'en' : 'tr';
       const { data, error } = await window.supabaseClient.functions.invoke('generate-presentation', {
         body: {
           action: 'improve_slide',
-          presentationId: window.presCurrentId,
+          presentationId: g.currentId,
           language,
           instruction: instructionFor(kind, language),
           slide: slidePayload(slide),
         },
       });
-
-      if (error || !data?.slide) {
-        throw new Error(data?.error || error?.message || 'AI yanıtı alınamadı');
-      }
+      if (error || !data?.slide) throw new Error(data?.error || error?.message || 'AI yanıtı alınamadı');
 
       const ok = applyRefined(slide, data.slide);
       try {
-        if (typeof window.markPresentationDirty === 'function') window.markPresentationDirty();
+        if (typeof markPresentationDirty === 'function') markPresentationDirty();
+        else if (typeof window.markPresentationDirty === 'function') window.markPresentationDirty();
         else window.presIsDirty = true;
       } catch (_) {}
       try {
-        if (typeof window.renderPresentationSlidesList === 'function') window.renderPresentationSlidesList();
-        if (typeof window.renderActivePresentationSlide === 'function') window.renderActivePresentationSlide();
-        if (typeof window.renderPresentationRichContent === 'function') window.renderPresentationRichContent(slide);
+        if (typeof renderPresentationSlidesList === 'function') renderPresentationSlidesList();
+        if (typeof renderActivePresentationSlide === 'function') renderActivePresentationSlide();
+        if (typeof renderPresentationRichContent === 'function') renderPresentationRichContent(slide);
       } catch (_) {}
 
-      if (ok) {
-        setStatus(
-          kind === 'table'
-            ? 'Tablo eklendi. Beğenmezsen düzenleyebilir veya tekrar üretebilirsin.'
-            : 'Görsel bileşen eklendi. Sayı yoksa tablo önerilmiş olabilir.',
-          'is-ok'
-        );
-        if (typeof window.showDashboardAlert === 'function') {
-          window.showDashboardAlert('success', kind === 'table' ? 'Tablo üretildi.' : 'Görsel üretildi.');
-        }
-      } else {
-        setStatus('Üretim tamamlandı ama tablo/grafik alanları boş kaldı. Tekrar deneyin.', 'is-error');
+      setStatus(
+        ok
+          ? (kind === 'table' ? 'Tablo eklendi.' : 'Görsel eklendi. Sayı yoksa tablo önerilmiş olabilir.')
+          : 'Üretim bitti ama tablo/grafik boş kaldı. Tekrar deneyin.',
+        ok ? 'is-ok' : 'is-error'
+      );
+      if (ok && typeof showDashboardAlert === 'function') {
+        showDashboardAlert('success', kind === 'table' ? 'Tablo üretildi.' : 'Görsel üretildi.');
       }
     } catch (e) {
       console.error('Visual AI failed:', e);
-      setStatus(e?.message || 'Üretim başarısız. Biraz sonra tekrar deneyin.', 'is-error');
+      setStatus(e?.message || 'Üretim başarısız.', 'is-error');
     } finally {
       setBusy(false);
     }
   }
 
-  function boot() {
-    ensureUi();
-  }
+  window.AcadexPresentationVisualAiV8 = { generateFromSlide, ensureUi, readGlobals };
 
-  window.AcadexPresentationVisualAiV8 = {
-    generateFromSlide,
-    ensureUi,
-  };
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', boot);
-  } else {
-    boot();
-  }
+  function boot() { ensureUi(); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
   setTimeout(boot, 800);
   setTimeout(boot, 2000);
 })();
