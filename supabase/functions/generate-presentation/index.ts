@@ -239,7 +239,7 @@ function normalizePresentation(value: Record<string, unknown>, requestedCount: n
   // Accept if we got at least the requested count, or >= 80% and at least 4 (token-truncation edge)
   // Accept any deck with at least 4 slides; shortfall is fixed by topUpSlides
   if (rawSlides.length < 4) throw new Error('INCOMPLETE_PRESENTATION')
-  const slides = rawSlides.slice(0, requestedCount).map(normalizeSlide)
+  const slides = applyVisualComposer(rawSlides.slice(0, requestedCount).map(normalizeSlide))
   return { title: cleanText(container.title, 160) || slides[0].title, slides }
 }
 function decodeXmlEntities(value: string): string {
@@ -474,6 +474,164 @@ function applyQualityGate(slide: ReturnType<typeof normalizeSlide>): ReturnType<
   return slide
 }
 
+
+/** Faz 2 — Visual Composer (deterministic, zero extra API calls) */
+function linesFromText(value: unknown): string[] {
+  return String(value || '')
+    .split(/\r?\n/)
+    .map(l => l.replace(/^\s*(?:[-•*]|\d+[.)])\s*/, '').trim())
+    .filter(Boolean)
+}
+
+function ensureStepsFromText(content: Record<string, unknown>): void {
+  const existing = content.steps
+  if (Array.isArray(existing) && existing.length >= 2) return
+  const lines = linesFromText(content.text)
+  if (lines.length < 2) return
+  content.steps = lines.slice(0, 6).map((title, i) => ({
+    label: String(i + 1),
+    title: title.slice(0, 110),
+    body: '',
+  }))
+  content.design_variant = content.design_variant === 'timeline' ? 'timeline' : 'process'
+}
+
+function ensureCardsFromText(content: Record<string, unknown>): void {
+  const existing = content.cards
+  if (Array.isArray(existing) && existing.length >= 2) return
+  const lines = linesFromText(content.text)
+  if (lines.length < 2) return
+  content.cards = lines.slice(0, 5).map((line) => {
+    const parts = line.split(/[:：–—-]/)
+    if (parts.length >= 2 && parts[0].trim().length <= 40) {
+      return { title: parts[0].trim().slice(0, 90), body: parts.slice(1).join(':').trim().slice(0, 300) }
+    }
+    return { title: line.slice(0, 60), body: line.slice(0, 300) }
+  })
+  content.design_variant = 'cards'
+}
+
+function demoteInvalidChart(slide: ReturnType<typeof normalizeSlide>): void {
+  const content = slide.content as Record<string, unknown>
+  if (!content.chart) {
+    if (slide.layout_type === 'chart') slide.layout_type = 'title-content'
+    if (content.design_variant === 'data') content.design_variant = 'section'
+    if (content.visual_purpose === 'chart') content.visual_purpose = 'section'
+    return
+  }
+  // chart already validated in normalizeChart; if missing we demoted above
+}
+
+function applyVisualComposer(slides: ReturnType<typeof normalizeSlide>[]): ReturnType<typeof normalizeSlide>[] {
+  if (!slides.length) return slides
+
+  // 1) Force open/close rhythm
+  const first = slides[0]
+  const firstC = first.content as Record<string, unknown>
+  firstC.design_variant = 'hero'
+  firstC.visual_purpose = 'hero'
+  first.layout_type = 'title-content'
+
+  const last = slides[slides.length - 1]
+  const lastC = last.content as Record<string, unknown>
+  lastC.design_variant = 'summary'
+  lastC.visual_purpose = 'summary'
+  last.layout_type = 'title-content'
+
+  // 2) Per-slide visual purpose → component enforcement
+  for (let i = 0; i < slides.length; i++) {
+    const slide = slides[i]
+    const c = slide.content as Record<string, unknown>
+    const purpose = String(c.visual_purpose || c.design_variant || 'section')
+
+    demoteInvalidChart(slide)
+
+    if (purpose === 'process' || purpose === 'timeline') {
+      ensureStepsFromText(c)
+      if (Array.isArray(c.steps) && c.steps.length >= 2) {
+        c.design_variant = purpose === 'timeline' ? 'timeline' : 'process'
+        slide.layout_type = 'title-content'
+      }
+    }
+
+    if (purpose === 'cards') {
+      ensureCardsFromText(c)
+      if (Array.isArray(c.cards) && c.cards.length >= 2) {
+        c.design_variant = 'cards'
+        slide.layout_type = 'title-content'
+      }
+    }
+
+    if (purpose === 'comparison') {
+      slide.layout_type = c.table ? 'table' : 'two-column'
+      c.design_variant = 'comparison'
+    }
+
+    if (purpose === 'matrix' || purpose === 'table') {
+      if (c.table) {
+        slide.layout_type = 'table'
+        c.design_variant = 'comparison'
+      } else {
+        // no table data — keep readable section rather than empty table layout
+        slide.layout_type = 'title-content'
+        c.design_variant = 'section'
+        c.visual_purpose = 'section'
+      }
+    }
+
+    if (purpose === 'diagram' && !c.diagram) {
+      // try process steps as lightweight structure
+      ensureStepsFromText(c)
+      if (Array.isArray(c.steps) && c.steps.length >= 2) {
+        c.design_variant = 'process'
+        c.visual_purpose = 'process'
+      } else {
+        c.design_variant = 'section'
+        c.visual_purpose = 'section'
+      }
+      slide.layout_type = 'title-content'
+    }
+
+    // Keep explanatory text if a visual exists but text was stripped empty
+    if (!String(c.text || '').trim() && (c.cards || c.steps || c.table || c.diagram || c.metric)) {
+      // leave empty only if structured visual carries the teaching
+    }
+
+    // chart purpose without chart → section
+    if ((purpose === 'chart' || c.design_variant === 'data') && !c.chart) {
+      c.design_variant = 'section'
+      c.visual_purpose = 'section'
+      slide.layout_type = 'title-content'
+    }
+  }
+
+  // 3) Break design_variant streaks (max 2 consecutive identical non-hero/summary)
+  for (let i = 2; i < slides.length; i++) {
+    const a = String((slides[i - 2].content as Record<string, unknown>).design_variant || '')
+    const b = String((slides[i - 1].content as Record<string, unknown>).design_variant || '')
+    const c = slides[i].content as Record<string, unknown>
+    const cur = String(c.design_variant || '')
+    if (a && a === b && b === cur && cur !== 'hero' && cur !== 'summary') {
+      // rotate to cards or process if possible
+      if (cur !== 'cards') {
+        ensureCardsFromText(c)
+        if (Array.isArray(c.cards) && (c.cards as unknown[]).length >= 2) {
+          c.design_variant = 'cards'
+          c.visual_purpose = 'cards'
+        } else {
+          c.design_variant = cur === 'section' ? 'comparison' : 'section'
+        }
+      } else {
+        c.design_variant = 'section'
+        c.visual_purpose = 'section'
+      }
+    }
+  }
+
+  return slides
+}
+
+
 function normalizePlan(value: Record<string, unknown>, requestedCount: number) {
   const container = value.plan && typeof value.plan === 'object' && !Array.isArray(value.plan)
     ? value.plan as Record<string, unknown>
@@ -536,7 +694,7 @@ No instruction leakage in text/notes.`
     const extra = extraRaw.slice(0, missing).map((item, idx) => normalizeSlide(item, existing.slides.length + idx))
     const merged = {
       title: existing.title,
-      slides: [...existing.slides, ...extra].slice(0, requestedCount),
+      slides: applyVisualComposer([...existing.slides, ...extra].slice(0, requestedCount)),
     }
     // Ensure last is summary-ish if we filled to full count
     if (merged.slides.length === requestedCount) {
