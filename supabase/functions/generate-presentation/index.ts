@@ -239,7 +239,7 @@ function normalizePresentation(value: Record<string, unknown>, requestedCount: n
   // Accept if we got at least the requested count, or >= 80% and at least 4 (token-truncation edge)
   // Accept any deck with at least 4 slides; shortfall is fixed by topUpSlides
   if (rawSlides.length < 4) throw new Error('INCOMPLETE_PRESENTATION')
-  const slides = applyVisualComposer(rawSlides.slice(0, requestedCount).map(normalizeSlide))
+  const slides = applySpeakerCoach(applyVisualComposer(rawSlides.slice(0, requestedCount).map(normalizeSlide)))
   return { title: cleanText(container.title, 160) || slides[0].title, slides }
 }
 function decodeXmlEntities(value: string): string {
@@ -522,6 +522,135 @@ function demoteInvalidChart(slide: ReturnType<typeof normalizeSlide>): void {
   // chart already validated in normalizeChart; if missing we demoted above
 }
 
+
+/** Faz 4 — Speaker Coach + content densify (deterministic, zero extra API) */
+function wordCount(value: string): number {
+  return String(value || '').trim().split(/\s+/).filter(Boolean).length
+}
+
+function enrichCards(content: Record<string, unknown>): void {
+  const cards = content.cards
+  if (!Array.isArray(cards) || !cards.length) return
+  const textLines = linesFromText(content.text)
+  content.cards = cards.map((raw, index) => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw
+    const card = raw as Record<string, unknown>
+    const title = cleanText(card.title, 120)
+    let body = cleanText(card.body, 400)
+    // Title repeated as body → clear and rebuild
+    if (body && title && body.toLocaleLowerCase('tr-TR') === title.toLocaleLowerCase('tr-TR')) body = ''
+    if (!body) {
+      // Prefer a different bullet line than the title
+      const candidate = textLines.find((line) => {
+        const low = line.toLocaleLowerCase('tr-TR')
+        return low !== title.toLocaleLowerCase('tr-TR') && !low.startsWith(title.toLocaleLowerCase('tr-TR'))
+      })
+      if (candidate) body = candidate.slice(0, 280)
+      else body = `${title} maddesini bağlam içinde açıklayın; tanım, neden önemli ve kısa bir uygulama notu ekleyin.`
+    }
+    return { title: title || `Madde ${index + 1}`, body }
+  })
+}
+
+function enrichSteps(content: Record<string, unknown>): void {
+  const steps = content.steps
+  if (!Array.isArray(steps) || !steps.length) return
+  content.steps = steps.map((raw, index) => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw
+    const step = raw as Record<string, unknown>
+    const title = cleanText(step.title, 140)
+    let body = cleanText(step.body, 320)
+    if (body && title && body.toLocaleLowerCase('tr-TR') === title.toLocaleLowerCase('tr-TR')) body = ''
+    if (!body) body = 'Bu adımı uygularken dikkat edilecek nokta ve beklenen sonucu netleştirin.'
+    return {
+      label: cleanText(step.label, 20) || String(index + 1),
+      title: title || `Adım ${index + 1}`,
+      body,
+    }
+  })
+}
+
+function dedupeTextAgainstCards(content: Record<string, unknown>): void {
+  const cards = content.cards
+  if (!Array.isArray(cards) || cards.length < 2) return
+  const titles = new Set(
+    cards.map((c) => {
+      if (!c || typeof c !== 'object') return ''
+      return cleanText((c as Record<string, unknown>).title, 120).toLocaleLowerCase('tr-TR')
+    }).filter(Boolean)
+  )
+  const lines = linesFromText(content.text)
+  const kept = lines.filter((line) => !titles.has(line.toLocaleLowerCase('tr-TR')))
+  // If all lines were titles, keep a short teaching lead-in instead of full duplicate list
+  if (kept.length === 0 && lines.length) {
+    content.text = 'Bu slayttaki başlıklar kartlarda açılmıştır; her kartta tanım ve uygulama notuna odaklanın.'
+  } else if (kept.length && kept.length < lines.length) {
+    content.text = kept.map((l) => `• ${l}`).join('\n')
+  }
+}
+
+function buildCoachedNotes(slide: {
+  title: string
+  speaker_notes: string
+  content: Record<string, unknown>
+}, index: number, total: number): string {
+  const existing = stripInstructionLeakage(String(slide.speaker_notes || '')).trim()
+  if (wordCount(existing) >= 35) return existing.slice(0, 900)
+
+  const content = slide.content || {}
+  const variant = String(content.design_variant || content.visual_purpose || 'section')
+  const message = cleanText(content.message, 200)
+  const purpose = cleanText(content.purpose, 200)
+  const bullets = linesFromText(content.text).slice(0, 3)
+  const lead = bullets[0] || message || purpose || slide.title
+  const support = bullets[1] || bullets[0] || ''
+  const isFirst = index === 0
+  const isLast = index === total - 1
+
+  let opening: string
+  if (isFirst) opening = `Bu sunuma "${slide.title}" ile başlıyoruz.`
+  else if (isLast) opening = `Kapanışta ana mesajı toparlayalım: ${slide.title}.`
+  else opening = `Şimdi "${slide.title}" başlığına geçiyoruz.`
+
+  let core: string
+  if (variant === 'process' || variant === 'timeline') {
+    core = `Adımları sırayla takip edin. Özellikle şu nokta kritik: ${lead}.`
+  } else if (variant === 'comparison' || content.table) {
+    core = `Karşılaştırma kriterlerine bakın. Farkı netleştiren nokta: ${lead}.`
+  } else if (variant === 'hero') {
+    core = `Konunun çerçevesini ve neden önemli olduğunu kısaca kurun: ${lead}.`
+  } else if (variant === 'summary') {
+    core = `Önceki slaytlardaki karar noktalarını birleştirin. Uygulanabilir özet: ${lead}.`
+  } else {
+    core = `Ana fikir: ${lead}.${support ? ` Bunu destekleyen ikinci nokta: ${support}.` : ''}`
+  }
+
+  let transition: string
+  if (isLast) transition = 'Katılımcılara tek bir eylem maddesi bırakarak bitirin.'
+  else transition = 'Bir sonraki slayta geçmeden önce bu fikrin pratikte ne işe yaradığını bir cümleyle bağlayın.'
+
+  const notes = `${opening} ${core} ${transition}`.replace(/\s+/g, ' ').trim()
+  return notes.slice(0, 900)
+}
+
+function applySpeakerCoach(slides: Array<ReturnType<typeof normalizeSlide>>): Array<ReturnType<typeof normalizeSlide>> {
+  if (!slides.length) return slides
+  return slides.map((slide, index) => {
+    const content = { ...(slide.content as Record<string, unknown>) }
+    enrichCards(content)
+    enrichSteps(content)
+    dedupeTextAgainstCards(content)
+    slide.content = content
+    slide.speaker_notes = buildCoachedNotes(
+      { title: slide.title, speaker_notes: slide.speaker_notes, content },
+      index,
+      slides.length,
+    )
+    return slide
+  })
+}
+
+
 function applyVisualComposer(slides: ReturnType<typeof normalizeSlide>[]): ReturnType<typeof normalizeSlide>[] {
   if (!slides.length) return slides
 
@@ -694,7 +823,7 @@ No instruction leakage in text/notes.`
     const extra = extraRaw.slice(0, missing).map((item, idx) => normalizeSlide(item, existing.slides.length + idx))
     const merged = {
       title: existing.title,
-      slides: applyVisualComposer([...existing.slides, ...extra].slice(0, requestedCount)),
+      slides: applySpeakerCoach(applyVisualComposer([...existing.slides, ...extra].slice(0, requestedCount))),
     }
     // Ensure last is summary-ish if we filled to full count
     if (merged.slides.length === requestedCount) {
