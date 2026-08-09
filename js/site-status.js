@@ -62,5 +62,6 @@ document.addEventListener('DOMContentLoaded',async()=>{
     try { await acadexLoadScript('js/presentation-controls-v7.js?v=7.0.0'); } catch (e) { console.error('Presentation controls V7 failed:', e); }
     try { await acadexLoadScript('js/presentation-modal-scroll-v7.js?v=7.2.0'); } catch (e) { console.error('Presentation modal scroll V7.2 failed:', e); }
     try { await acadexLoadScript('js/presentation-export-v8.js?v=8.0.0'); } catch (e) { console.error('Presentation export V8 failed:', e); }
+    try { await acadexLoadScript('js/presentation-theme-v8.js?v=8.0.0'); } catch (e) { console.error('Presentation theme V8 failed:', e); }
   }
 });

@@ -9,6 +9,10 @@
   const toText = (value) => String(value == null ? '' : value);
   const esc = (value) => M()?.esc(value) || toText(value).replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
   const safeName = (value) => (toText(value).trim() || 'Acadex-Sunum').replace(/[\\/:*?"<>|]+/g, '-').slice(0, 100);
+  const themePptx = () => {
+    try { return window.AcadexPresentationThemeV8?.exportPalette?.() || { accent: '0D9488', navy: '16325C', text: '24364B', soft: 'F0FDFA', border: '99F6E4' }; }
+    catch (_) { return { accent: '0D9488', navy: '16325C', text: '24364B', soft: 'F0FDFA', border: '99F6E4' }; }
+  };
 
   let exporting = false;
 
@@ -107,7 +111,7 @@
     lines.forEach((item, index) => {
       slide.addText(`• ${item}`, {
         x, y: y + (index * lineH), w, h: lineH,
-        fontFace: 'Aptos', fontSize, color: '24364B',
+        fontFace: 'Aptos', fontSize, color: themePptx().text,
         valign: 'mid', margin: 0.03, breakLine: false, fit: 'shrink'
       });
     });
@@ -119,7 +123,7 @@
     const rows = [table.headers, ...table.rows].map((row) => row.map((cell) => toText(cell)));
     slide.addTable(rows, {
       x, y, w, h,
-      fontFace: 'Aptos', fontSize: 10.5, color: '24364B',
+      fontFace: 'Aptos', fontSize: 10.5, color: themePptx().text,
       border: { type: 'solid', pt: 1, color: 'CBD5E1' },
       fill: 'FFFFFF', margin: 0.05,
       autoFit: false
@@ -170,12 +174,12 @@
       const cy = y + Math.floor(index / cols) * (ch + gap);
       slide.addShape(presentation.ShapeType.roundRect, {
         x: cx, y: cy, w: cw, h: ch,
-        fill: { color: 'F0FDFA' },
-        line: { color: '99F6E4', pt: 1 }
+        fill: { color: themePptx().soft },
+        line: { color: themePptx().border, pt: 1 }
       });
       slide.addText(toText(card.title), {
         x: cx + 0.12, y: cy + 0.12, w: cw - 0.24, h: 0.38,
-        fontSize: 12.5, bold: true, color: '16325C', margin: 0, fit: 'shrink'
+        fontSize: 12.5, bold: true, color: themePptx().navy, margin: 0, fit: 'shrink'
       });
       slide.addText(toText(card.body), {
         x: cx + 0.12, y: cy + 0.54, w: cw - 0.24, h: Math.max(0.42, ch - 0.66),
@@ -195,17 +199,17 @@
       const cx = x + index * (cw + gap);
       slide.addShape(presentation.ShapeType.roundRect, {
         x: cx, y, w: cw, h,
-        fill: { color: 'F0FDFA' },
-        line: { color: '99F6E4', pt: 1 }
+        fill: { color: themePptx().soft },
+        line: { color: themePptx().border, pt: 1 }
       });
       slide.addText(toText(step.label || index + 1), {
         x: cx + 0.08, y: y + 0.1, w: Math.min(0.42, Math.max(0.28, cw - 0.16)), h: 0.3,
         fontSize: 9.5, bold: true, color: 'FFFFFF',
-        fill: { color: '0F766E' }, align: 'center', margin: 0.02
+        fill: { color: themePptx().accent }, align: 'center', margin: 0.02
       });
       slide.addText(toText(step.title || step.label || ''), {
         x: cx + 0.08, y: y + 0.5, w: Math.max(0.2, cw - 0.16), h: 0.5,
-        fontSize: 10.3, bold: true, color: '16325C', margin: 0, fit: 'shrink'
+        fontSize: 10.3, bold: true, color: themePptx().navy, margin: 0, fit: 'shrink'
       });
       slide.addText(toText(step.body || ''), {
         x: cx + 0.08, y: y + 1.04, w: Math.max(0.2, cw - 0.16), h: Math.max(0.4, h - 1.15),
@@ -219,16 +223,16 @@
     if (!M()?.validMetric?.(metric) || !presentation.ShapeType) return false;
     slide.addShape(presentation.ShapeType.roundRect, {
       x, y, w, h,
-      fill: { color: 'F0FDFA' },
-      line: { color: '99F6E4', pt: 1.2 }
+      fill: { color: themePptx().soft },
+      line: { color: themePptx().border, pt: 1.2 }
     });
     slide.addText(toText(metric.value), {
       x: x + 0.18, y: y + 0.42, w: w - 0.36, h: 0.9,
-      fontSize: 35, bold: true, color: '0F766E', align: 'center', margin: 0, fit: 'shrink'
+      fontSize: 35, bold: true, color: themePptx().accent, align: 'center', margin: 0, fit: 'shrink'
     });
     slide.addText(toText(metric.label), {
       x: x + 0.18, y: y + 1.35, w: w - 0.36, h: 0.48,
-      fontSize: 14, bold: true, color: '16325C', align: 'center', margin: 0, fit: 'shrink'
+      fontSize: 14, bold: true, color: themePptx().navy, align: 'center', margin: 0, fit: 'shrink'
     });
     if (metric.context) {
       slide.addText(toText(metric.context), {
@@ -272,15 +276,15 @@
     slides.forEach((normalizedSlide, index) => {
       const content = normalizedSlide.content || {};
       const slide = presentation.addSlide();
-      slide.background = { color: 'F8FAFC' };
+      slide.background = { color: 'F8FAFC' }; /* theme surface */
 
       slide.addText(toText(normalizedSlide.title), {
         x: 0.65, y: 0.42, w: 12, h: 0.62,
-        fontSize: 26, bold: true, color: '16325C', margin: 0, fit: 'shrink'
+        fontSize: 26, bold: true, color: themePptx().navy, margin: 0, fit: 'shrink'
       });
       slide.addShape(presentation.ShapeType.line, {
         x: 0.65, y: 1.15, w: 12, h: 0,
-        line: { color: '0D9488', width: 1.5 }
+        line: { color: themePptx().accent, width: 1.5 }
       });
 
       const kind = M()?.visualKind?.(normalizedSlide);
