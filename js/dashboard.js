@@ -4891,7 +4891,14 @@ async function generatePresentationWithAcadia(event) {
     showDashboardAlert('success', `${presSlides.length} slaytlık Acadia taslağı oluşturuldu. Kaydetmeden önce kontrol edin.`);
   } catch (error) {
     console.error('AI presentation generation failed:', error);
-    setPresentationAiStatus('Sunum üretilemedi. Edge Function ve GROQ_API_KEY ayarlarını kontrol edip tekrar deneyin.', true);
+    const detail = (error && (error.message || error.context?.body || error.details)) || '';
+    let msg = 'Sunum üretilemedi. Edge Function ve GROQ_API_KEY ayarlarını kontrol edip tekrar deneyin.';
+    const raw = String(detail);
+    if (/GROQ|API key|not configured|AI service/i.test(raw)) msg = 'AI servisi yapılandırılmamış veya meşgul. Supabase secrets içinde GROQ_API_KEY olduğundan emin olun.';
+    else if (/timeout|aborted|504|546/i.test(raw)) msg = 'Üretim zaman aşımına uğradı. Slayt sayısını 6–8’e düşürüp tekrar deneyin.';
+    else if (/invalid presentation|INCOMPLETE|502/i.test(raw)) msg = 'AI geçersiz yapı döndürdü. Lütfen tekrar deneyin.';
+    else if (/Unauthorized|401/i.test(raw)) msg = 'Oturum süresi dolmuş olabilir. Sayfayı yenileyip tekrar giriş yapın.';
+    setPresentationAiStatus(msg, true);
   } finally {
     setPresentationAiBusy(false);
   }

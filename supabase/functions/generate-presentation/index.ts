@@ -271,19 +271,20 @@ function shrinkPromptForRetry(userPrompt: string): string {
   if (idx < 0) return userPrompt.slice(0, 5000)
   return userPrompt.slice(0, idx + marker.length) + buildAcademicContext(userPrompt.slice(idx + marker.length), 3200)
 }
-async function callGroq(apiKey: string, systemPrompt: string, userPrompt: string, maxCompletionTokens = 3600) {
+async function callGroq(apiKey: string, systemPrompt: string, userPrompt: string, maxCompletionTokens = 3600, timeoutMs = 55000) {
   let lastError = ''
   let promptForAttempt = userPrompt
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 60000)
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
     try {
       const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST', signal: controller.signal,
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: 'openai/gpt-oss-120b', temperature: 0.22, max_completion_tokens: maxCompletionTokens,
-          reasoning_effort: 'low', include_reasoning: false, response_format: { type: 'json_object' },
+          // reasoning_effort omitted — some Groq model builds reject unknown params
+          response_format: { type: 'json_object' },
           messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: promptForAttempt }],
         }),
       })
@@ -484,128 +485,76 @@ serve(async (req) => {
     const sourceHeader = `SOURCE TYPE: ${sourceType}\nSOURCE TITLE: ${sourceTitle}\nCOURSE / TAG: ${courseTag || 'Not specified'}\nUSER TOPIC: ${topic || 'No extra topic supplied'}`
 
     // ═══════════════════════════════════════════════════════════
-    // STAGE A — Presentation Director V8: story + slide plan only
+    // Director V8 — try plan→content; fall back to single-shot on failure
     // ═══════════════════════════════════════════════════════════
-    const planSystemPrompt = `You are Acadia Presentation Director V8. You do NOT write slide body content yet.
-Your only job: design a coherent academic presentation PLAN in ${languageLabel}.
+    const singleShotSystem = `You are Acadia, a senior academic presentation director and visual storyteller. Create exactly ${slideCount} polished slides in ${languageLabel}. ${groundingRule}
 
+GOAL: A deck a university lecturer would use — accurate, varied visuals, teachable.
+
+NARRATIVE: problem/context → core concepts → analysis → comparison → example → conclusion → decision. Do not follow PDF page order. No instructor bios, emails, grading %, attendance slides.
+
+NO INSTRUCTION LEAKAGE: never write meta-instructions into title/text/notes (no "use a matrix", "create a chart", "matriks kullanın", "grafik oluştur").
+
+VISIBLE CONTENT: Every non-hero slide needs 3-5 real teaching bullets in "text". Visuals support, never replace text. 45-90 words on concept slides.
+
+SPEAKER NOTES: 70-130 words — opening → explanation → example → transition. Do not copy bullets.
+
+VISUALS: cards/process/timeline/comparison/diagram when qualitative. chart/metric ONLY with exact source numbers (never "Değer 1"). design_variant: hero|section|cards|process|timeline|big-number|comparison|data|summary. Slide 1=hero, last=summary. Prefer diagram/process/cards over fake charts.
+
+LAYOUT: hero/section/cards/process/timeline/big-number/summary/diagram → title-content; comparison → two-column; real chart data → chart; matrix → table.
+
+JSON ONLY:
+{"title":"...","slides":[{"title":"...","purpose":"...","message":"...","visual_purpose":"hero|section|comparison|process|timeline|matrix|chart|table|cards|diagram|big-number|summary","text":"• ...\\n• ...","secondary_text":"...","speaker_notes":"...","layout_type":"title-content|two-column|chart|table","design_variant":"hero|section|cards|process|timeline|big-number|comparison|data|summary","cards":[{"title":"...","body":"..."}],"steps":[{"label":"...","title":"...","body":"..."}],"metric":{"value":"...","label":"...","context":"..."},"chart":{"type":"bar|line|pie","title":"...","series_label":"...","labels":["..."],"data":[1,2]},"table":{"title":"...","headers":["...","..."],"rows":[["...","..."]]},"diagram":{"type":"flow|cycle|hierarchy|matrix|funnel","title":"...","nodes":[{"label":"...","body":"..."}]}]}
+Omit unused objects.`
+
+    let presentation: ReturnType<typeof normalizePresentation> | null = null
+    let director: Record<string, unknown> | null = null
+    let mode: 'director_v8' | 'single_shot_fallback' = 'director_v8'
+
+    try {
+      const planSystemPrompt = `You are Acadia Presentation Director V8. Do NOT write slide body content. Design a PLAN only in ${languageLabel}.
 ${groundingRule}
+Exactly ${slideCount} slides. Arc: problem → concepts → analysis → comparison → example → conclusion → decision.
+No admin/instructor slides. Slide 1 visual_purpose=hero, last=summary.
+Each slide: title, purpose, message, visual_purpose (hero|section|comparison|process|timeline|matrix|chart|table|cards|diagram|big-number|summary).
+chart only if exact numbers exist. Prefer diagram/process/cards when qualitative. Max 3 of same visual_purpose. Max 2 consecutive section.
+JSON: {"purpose":"...","audience":"...","main_message":"...","narrative_arc":"...","slides":[{"title":"...","purpose":"...","message":"...","visual_purpose":"..."}]}`
 
-RULES
-- Do NOT follow PDF page order mechanically. Build a teaching narrative.
-- Recommended arc: problem/context → core concepts → analysis → comparison → example/application → conclusion → decision/recommendation.
-- Never plan slides about instructor names, biographies, emails, office hours, grading %, exams, attendance, or course schedules unless USER TOPIC explicitly asks.
-- Exactly ${slideCount} slides.
-- Slide 1 visual_purpose MUST be "hero". Final slide MUST be "summary".
-- Each slide needs: title, purpose (why this slide exists), message (one-sentence takeaway), visual_purpose.
-- visual_purpose must be one of: hero, section, comparison, process, timeline, matrix, chart, table, cards, diagram, big-number, summary.
-- Assign visual_purpose from content structure, not from title keywords.
-- Prefer diagram/process/cards/matrix over chart when numbers are absent.
-- chart only when exact numeric evidence exists in the source.
-- Avoid assigning the same visual_purpose to more than 3 slides.
-- Do not place more than two plain "section" slides consecutively.
+      const planRaw = await callGroq(groqApiKey, planSystemPrompt, `${sourceHeader}\n\nSOURCE MATERIAL:\n${academicContext}`, 1400, 35000)
+      const plan = normalizePlan(parseModelJson(planRaw), slideCount)
 
-RETURN VALID JSON ONLY:
-{
-  "purpose":"overall learning goal",
-  "audience":"who this is for",
-  "main_message":"single thesis of the deck",
-  "narrative_arc":"one-line story spine",
-  "slides":[
-    {"title":"...","purpose":"...","message":"...","visual_purpose":"hero|section|comparison|process|timeline|matrix|chart|table|cards|diagram|big-number|summary"}
-  ]
-}`
+      const contentSystemPrompt = `You are Acadia content writer. Write FULL slides for an approved plan in ${languageLabel}. ${groundingRule}
+NO meta-instructions in text/notes. Keep explanatory text even with visuals. Speaker notes 70-130 words (opening→explain→example→transition).
+Follow plan order/titles/visual_purpose. chart only with real numbers. Exactly ${plan.slides.length} slides.
+JSON: {"title":"...","slides":[{"title":"...","purpose":"...","message":"...","visual_purpose":"...","text":"...","secondary_text":"...","speaker_notes":"...","layout_type":"title-content|two-column|chart|table","design_variant":"hero|section|cards|process|timeline|big-number|comparison|data|summary","cards":[{"title":"...","body":"..."}],"steps":[{"label":"...","title":"...","body":"..."}],"metric":{"value":"...","label":"...","context":"..."},"chart":{"type":"bar|line|pie","title":"...","series_label":"...","labels":["..."],"data":[1]},"table":{"title":"...","headers":["..."],"rows":[["..."]]},"diagram":{"type":"flow|cycle|hierarchy|matrix|funnel","title":"...","nodes":[{"label":"...","body":"..."}]}]}`
 
-    const planUserPrompt = `${sourceHeader}\n\nSOURCE MATERIAL:\n${academicContext}`
-    const planRaw = await callGroq(groqApiKey, planSystemPrompt, planUserPrompt, 1800)
-    const plan = normalizePlan(parseModelJson(planRaw), slideCount)
-
-    // ═══════════════════════════════════════════════════════════
-    // STAGE B — Content production from the locked plan
-    // ═══════════════════════════════════════════════════════════
-    const contentSystemPrompt = `You are Acadia, academic content writer and visual composer. Write the FULL slide content for an already-approved presentation plan in ${languageLabel}.
-${groundingRule}
-
-CRITICAL — NO INSTRUCTION LEAKAGE
-- Never write meta-instructions into title, text, secondary_text, or speaker_notes.
-- Forbidden in visible fields: "use a matrix", "create a chart", "add discussion question", "matriks kullanın", "grafik oluştur", "trendleri açıklayın", design_variant labels, layout orders.
-- Output ONLY student-facing academic content.
-
-VISIBLE CONTENT
-- A visual NEVER replaces the explanation.
-- Every non-hero slide needs meaningful "text": normally 3-5 concise teaching bullets.
-- If chart/table/diagram/cards/process is used, keep explanatory text too.
-- Prefer 45-90 visible words on concept-heavy slides.
-- Do not repeat the same fact as both bullets AND an identical table/card row.
-
-SPEAKER NOTES (Speaker Coach mini)
-- 70-130 words per slide.
-- Structure: opening line → main explanation → one example or caution → transition to next idea.
-- Do not copy visible bullets verbatim.
-
-VISUAL OBJECTS (only when plan.visual_purpose requires them)
-- cards → cards:[{title,body}] (3-5)
-- process / timeline → steps:[{label,title,body}]
-- comparison → two-column text/secondary_text and/or table
-- chart → ONLY exact source numbers; labels must be real categories (never "Değer 1")
-- table → multi-attribute comparison matrix
-- diagram → {type: flow|cycle|hierarchy|matrix|funnel, nodes:[{label,body}]}
-- big-number → metric:{value,label,context}
-- hero / summary / section → usually text only
-
-LAYOUT RULES
-- hero, section, cards, process, timeline, big-number, summary, diagram → layout_type title-content
-- comparison → two-column (or table if multi-attribute)
-- chart visual_purpose with real data → layout_type chart
-- matrix/table visual_purpose → layout_type table
-- design_variant should mirror visual_purpose (hero|section|cards|process|timeline|big-number|comparison|data|summary)
-
-Return JSON:
-{
-  "title":"deck title",
-  "slides":[{
-    "title":"...",
-    "purpose":"from plan",
-    "message":"from plan",
-    "visual_purpose":"from plan",
-    "text":"• ...\\n• ...",
-    "secondary_text":"...",
-    "speaker_notes":"...",
-    "layout_type":"title-content|two-column|chart|table",
-    "design_variant":"hero|section|cards|process|timeline|big-number|comparison|data|summary",
-    "cards":[{"title":"...","body":"..."}],
-    "steps":[{"label":"...","title":"...","body":"..."}],
-    "metric":{"value":"...","label":"...","context":"..."},
-    "chart":{"type":"bar|line|pie","title":"...","series_label":"...","labels":["..."],"data":[1,2]},
-    "table":{"title":"...","headers":["...","..."],"rows":[["...","..."]]},
-    "diagram":{"type":"flow|cycle|hierarchy|matrix|funnel","title":"...","nodes":[{"label":"...","body":"..."}]}
-  }]
-}
-Omit unused structured objects. Exactly ${plan.slides.length} slides in the same order as the plan.`
-
-    const contentUserPrompt = `${sourceHeader}
-
-APPROVED PLAN (follow titles, purpose, message, visual_purpose exactly; do not reorder):
-${JSON.stringify(plan, null, 2)}
-
-SOURCE MATERIAL:
-${academicContext}`
-
-    const contentRaw = await callGroq(groqApiKey, contentSystemPrompt, contentUserPrompt, 4200)
-    const presentation = normalizePresentation(parseModelJson(contentRaw), slideCount)
-
-    // Final quality pass already runs inside normalizeSlide → applyQualityGate
-    return respond({
-      presentation,
-      director: {
+      const contentRaw = await callGroq(
+        groqApiKey,
+        contentSystemPrompt,
+        `${sourceHeader}\n\nAPPROVED PLAN:\n${JSON.stringify(plan)}\n\nSOURCE MATERIAL:\n${academicContext}`,
+        3800,
+        50000
+      )
+      presentation = normalizePresentation(parseModelJson(contentRaw), slideCount)
+      director = {
         version: 'v8',
+        mode: 'director_v8',
         purpose: plan.purpose,
         audience: plan.audience,
         main_message: plan.main_message,
         narrative_arc: plan.narrative_arc,
         plan_slides: plan.slides,
-      },
-    })
+      }
+    } catch (stageError) {
+      console.error('Director V8 stage failed, falling back to single-shot:', stageError)
+      mode = 'single_shot_fallback'
+      const raw = await callGroq(groqApiKey, singleShotSystem, `${sourceHeader}\n\nSOURCE MATERIAL:\n${academicContext}`, 4000, 55000)
+      presentation = normalizePresentation(parseModelJson(raw), slideCount)
+      director = { version: 'v8', mode: 'single_shot_fallback' }
+    }
+
+    if (!presentation) return respond({ error: 'Presentation generation failed' }, 500)
+    return respond({ presentation, director })
   } catch (error) {
     console.error('generate-presentation exception:', error)
     const message = error instanceof Error ? error.message : ''
