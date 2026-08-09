@@ -4919,7 +4919,22 @@ async function generatePresentationWithAcadia(event) {
     renderActivePresentationSlide();
     resetPresentationAcadiaMessages('Sunum taslağı hazır. Bir slayt seçip benden geliştirmemi isteyebilirsin.');
     closePresentationBuilders();
-    showDashboardAlert('success', `${presSlides.length} slaytlık Acadia taslağı oluşturuldu. Kaydetmeden önce kontrol edin.`);
+    try {
+      const quality = data?.quality || null;
+      if (quality && window.AcadexPresentationPolishV8?.setQuality) {
+        window.AcadexPresentationPolishV8.setQuality(quality);
+      } else if (quality) {
+        window.presLastQuality = quality;
+      }
+      if (quality && typeof quality.score === 'number') {
+        const g = quality.grade || '';
+        showDashboardAlert('success', `${presSlides.length} slayt hazır · Kalite ${Math.round(quality.score)}/100${g ? ' (' + g + ')' : ''}. Kaydetmeden önce kontrol edin.`);
+      } else {
+        showDashboardAlert('success', `${presSlides.length} slaytlık Acadia taslağı oluşturuldu. Kaydetmeden önce kontrol edin.`);
+      }
+    } catch (_) {
+      showDashboardAlert('success', `${presSlides.length} slaytlık Acadia taslağı oluşturuldu. Kaydetmeden önce kontrol edin.`);
+    }
   } catch (error) {
     console.error('AI presentation generation failed:', error);
     const detail = (error && (error.message || error.context?.body || error.details)) || '';
