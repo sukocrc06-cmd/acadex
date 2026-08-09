@@ -182,7 +182,9 @@ function normalizeSlide(value: unknown, index: number) {
 function normalizePresentation(value: Record<string, unknown>, requestedCount: number) {
   const container = value.presentation && typeof value.presentation === 'object' && !Array.isArray(value.presentation) ? value.presentation as Record<string, unknown> : value
   const rawSlides = Array.isArray(container.slides) ? container.slides : []
-  if (rawSlides.length < Math.min(4, requestedCount)) throw new Error('INCOMPLETE_PRESENTATION')
+  // Accept if we got at least the requested count, or >= 80% and at least 4 (token-truncation edge)
+  const minAccept = Math.max(4, Math.ceil(requestedCount * 0.8))
+  if (rawSlides.length < minAccept) throw new Error('INCOMPLETE_PRESENTATION')
   const slides = rawSlides.slice(0, requestedCount).map(normalizeSlide)
   return { title: cleanText(container.title, 160) || slides[0].title, slides }
 }
@@ -392,7 +394,8 @@ function normalizePlan(value: Record<string, unknown>, requestedCount: number) {
     ? value.plan as Record<string, unknown>
     : value
   const rawSlides = Array.isArray(container.slides) ? container.slides : []
-  if (rawSlides.length < Math.min(4, requestedCount)) throw new Error('INCOMPLETE_PLAN')
+  const minAccept = Math.max(4, Math.ceil(requestedCount * 0.8))
+  if (rawSlides.length < minAccept) throw new Error('INCOMPLETE_PLAN')
   const slides = rawSlides.slice(0, requestedCount).map((item, index) => {
     if (!item || typeof item !== 'object' || Array.isArray(item)) throw new Error('INVALID_PLAN_SLIDE')
     const row = item as Record<string, unknown>
@@ -416,6 +419,50 @@ function normalizePlan(value: Record<string, unknown>, requestedCount: number) {
     main_message: cleanText(container.main_message ?? container.mainMessage, 400) || slides[0]?.message || '',
     narrative_arc: cleanText(container.narrative_arc ?? container.narrativeArc, 500),
     slides,
+  }
+}
+
+
+/** If AI returned fewer slides than requested, top-up missing ones with a focused call */
+async function topUpSlides(
+  apiKey: string,
+  existing: ReturnType<typeof normalizePresentation>,
+  requestedCount: number,
+  languageLabel: string,
+  groundingRule: string,
+  sourceHeader: string,
+  academicContext: string,
+): Promise<ReturnType<typeof normalizePresentation>> {
+  if (existing.slides.length >= requestedCount) return existing
+  const missing = requestedCount - existing.slides.length
+  const titlesSoFar = existing.slides.map((s, i) => `${i + 1}. ${s.title}`).join('\n')
+  const system = `You are Acadia. Generate exactly ${missing} ADDITIONAL academic slides in ${languageLabel} to complete a ${requestedCount}-slide deck.
+${groundingRule}
+Existing slides (do NOT repeat these topics):
+${titlesSoFar}
+Return JSON only: {"slides":[{...same slide schema as full presentation, with title,text,speaker_notes,layout_type,design_variant,optional visuals...}]}
+Last of the new slides should be a strong summary/conclusion if the deck does not already end with one.
+No instruction leakage in text/notes.`
+  const user = `${sourceHeader}\n\nSOURCE MATERIAL:\n${academicContext}\n\nGenerate ${missing} new slides continuing the narrative after the existing ones.`
+  try {
+    const raw = await callGroq(apiKey, system, user, Math.min(2500, 400 * missing + 800), 40000)
+    const parsed = parseModelJson(raw)
+    const extraRaw = Array.isArray(parsed.slides) ? parsed.slides : []
+    const extra = extraRaw.slice(0, missing).map((item, idx) => normalizeSlide(item, existing.slides.length + idx))
+    const merged = {
+      title: existing.title,
+      slides: [...existing.slides, ...extra].slice(0, requestedCount),
+    }
+    // Ensure last is summary-ish if we filled to full count
+    if (merged.slides.length === requestedCount) {
+      const last = merged.slides[merged.slides.length - 1]
+      const c = last.content as Record<string, unknown>
+      if (c && !c.design_variant) c.design_variant = 'summary'
+    }
+    return merged
+  } catch (e) {
+    console.error('topUpSlides failed:', e)
+    return existing
   }
 }
 
@@ -487,7 +534,7 @@ serve(async (req) => {
     // ═══════════════════════════════════════════════════════════
     // Director V8 — try plan→content; fall back to single-shot on failure
     // ═══════════════════════════════════════════════════════════
-    const singleShotSystem = `You are Acadia, a senior academic presentation director and visual storyteller. Create exactly ${slideCount} polished slides in ${languageLabel}. ${groundingRule}
+    const singleShotSystem = `You are Acadia, a senior academic presentation director and visual storyteller. Create EXACTLY ${slideCount} slides (not fewer — the slides array length must be ${slideCount}) in ${languageLabel}. ${groundingRule}
 
 GOAL: A deck a university lecturer would use — accurate, varied visuals, teachable.
 
@@ -528,12 +575,13 @@ NO meta-instructions in text/notes. Keep explanatory text even with visuals. Spe
 Follow plan order/titles/visual_purpose. chart only with real numbers. Exactly ${plan.slides.length} slides.
 JSON: {"title":"...","slides":[{"title":"...","purpose":"...","message":"...","visual_purpose":"...","text":"...","secondary_text":"...","speaker_notes":"...","layout_type":"title-content|two-column|chart|table","design_variant":"hero|section|cards|process|timeline|big-number|comparison|data|summary","cards":[{"title":"...","body":"..."}],"steps":[{"label":"...","title":"...","body":"..."}],"metric":{"value":"...","label":"...","context":"..."},"chart":{"type":"bar|line|pie","title":"...","series_label":"...","labels":["..."],"data":[1]},"table":{"title":"...","headers":["..."],"rows":[["..."]]},"diagram":{"type":"flow|cycle|hierarchy|matrix|funnel","title":"...","nodes":[{"label":"...","body":"..."}]}]}`
 
+      const contentTokens = Math.min(6500, 500 + slideCount * 450)
       const contentRaw = await callGroq(
         groqApiKey,
         contentSystemPrompt,
         `${sourceHeader}\n\nAPPROVED PLAN:\n${JSON.stringify(plan)}\n\nSOURCE MATERIAL:\n${academicContext}`,
-        3800,
-        50000
+        contentTokens,
+        55000
       )
       presentation = normalizePresentation(parseModelJson(contentRaw), slideCount)
       director = {
@@ -548,13 +596,29 @@ JSON: {"title":"...","slides":[{"title":"...","purpose":"...","message":"...","v
     } catch (stageError) {
       console.error('Director V8 stage failed, falling back to single-shot:', stageError)
       mode = 'single_shot_fallback'
-      const raw = await callGroq(groqApiKey, singleShotSystem, `${sourceHeader}\n\nSOURCE MATERIAL:\n${academicContext}`, 4000, 55000)
+      const raw = await callGroq(groqApiKey, singleShotSystem, `${sourceHeader}\n\nSOURCE MATERIAL:\n${academicContext}`, Math.min(6500, 500 + slideCount * 450), 55000)
       presentation = normalizePresentation(parseModelJson(raw), slideCount)
       director = { version: 'v8', mode: 'single_shot_fallback' }
     }
 
     if (!presentation) return respond({ error: 'Presentation generation failed' }, 500)
-    return respond({ presentation, director })
+
+    // Enforce requested slide count (top-up if model truncated output)
+    if (presentation.slides.length < slideCount) {
+      console.warn(`Slide count short: got ${presentation.slides.length}, want ${slideCount} — topping up`)
+      presentation = await topUpSlides(
+        groqApiKey, presentation, slideCount, languageLabel, groundingRule, sourceHeader, academicContext
+      )
+    }
+
+    return respond({
+      presentation,
+      director: {
+        ...(director || { version: 'v8' }),
+        requested_slide_count: slideCount,
+        delivered_slide_count: presentation.slides.length,
+      },
+    })
   } catch (error) {
     console.error('generate-presentation exception:', error)
     const message = error instanceof Error ? error.message : ''
