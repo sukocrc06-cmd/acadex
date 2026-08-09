@@ -499,14 +499,19 @@ function ensureStepsFromText(content: Record<string, unknown>): void {
 function ensureCardsFromText(content: Record<string, unknown>): void {
   const existing = content.cards
   if (Array.isArray(existing) && existing.length >= 2) return
-  const lines = linesFromText(content.text)
+  const lines = linesFromText(content.text).filter((l) => !isMetaPlaceholder(l))
   if (lines.length < 2) return
-  content.cards = lines.slice(0, 5).map((line) => {
+  content.cards = lines.slice(0, 5).map((line, index, arr) => {
     const parts = line.split(/[:：–—-]/)
     if (parts.length >= 2 && parts[0].trim().length <= 40) {
-      return { title: parts[0].trim().slice(0, 90), body: parts.slice(1).join(':').trim().slice(0, 300) }
+      const title = parts[0].trim().slice(0, 90)
+      let body = parts.slice(1).join(':').trim().slice(0, 300)
+      if (body && body.toLocaleLowerCase('tr-TR') === title.toLocaleLowerCase('tr-TR')) body = ''
+      return { title, body }
     }
-    return { title: line.slice(0, 60), body: line.slice(0, 300) }
+    const title = line.slice(0, 90)
+    // never clone title into body
+    return { title, body: '' }
   })
   content.design_variant = 'cards'
 }
@@ -667,6 +672,73 @@ function buildCoachedNotes(slide: {
     : transitions[index % transitions.length]
 
   return `${opening} ${core} ${transition}`.replace(/\s+/g, ' ').trim().slice(0, 900)
+}
+
+
+/** Faz 5 — Quality Gate score (deterministic, no extra API) */
+function scoreSlide(slide: {
+  title: string
+  speaker_notes: string
+  layout_type: string
+  content: Record<string, unknown>
+}, index: number, total: number): { score: number; issues: string[] } {
+  const issues: string[] = []
+  let score = 100
+  const c = slide.content || {}
+  const textBody = String(c.text || '')
+  const notes = String(slide.speaker_notes || '')
+  const bullets = linesFromText(textBody)
+  const variant = String(c.design_variant || '')
+
+  if (!String(slide.title || '').trim()) { score -= 15; issues.push('missing_title') }
+  if (bullets.length === 0 && !c.cards && !c.steps && !c.table && !c.chart && !c.diagram && !c.metric) {
+    score -= 20; issues.push('empty_content')
+  }
+  if (wordCount(notes) < 20) { score -= 12; issues.push('thin_notes') }
+  if (isMetaPlaceholder(notes) || isMetaPlaceholder(textBody)) { score -= 25; issues.push('meta_leak') }
+  if (c.chart && Array.isArray((c.chart as { labels?: string[] }).labels)
+    && isGenericChartLabels(((c.chart as { labels: string[] }).labels || []).map(String))) {
+    score -= 20; issues.push('generic_chart')
+  }
+  if (Array.isArray(c.cards)) {
+    const dup = (c.cards as Array<Record<string, unknown>>).filter((card) => {
+      const t = cleanText(card.title, 120).toLocaleLowerCase('tr-TR')
+      const b = cleanText(card.body, 200).toLocaleLowerCase('tr-TR')
+      return !!(t && b && t === b)
+    }).length
+    if (dup > 0) { score -= Math.min(15, dup * 4); issues.push('card_title_body_dup') }
+  }
+  if (index === 0 && variant !== 'hero') { score -= 5; issues.push('first_not_hero') }
+  if (index === total - 1 && variant !== 'summary') { score -= 5; issues.push('last_not_summary') }
+  if (slide.layout_type === 'chart' && !c.chart) { score -= 10; issues.push('chart_layout_empty') }
+  if (slide.layout_type === 'table' && !c.table) { score -= 10; issues.push('table_layout_empty') }
+  return { score: Math.max(0, Math.min(100, score)), issues }
+}
+
+function scorePresentation(slides: Array<{ title: string; speaker_notes: string; layout_type: string; content: Record<string, unknown> }>): {
+  score: number
+  grade: string
+  slide_scores: number[]
+  issues: string[]
+  pass: boolean
+} {
+  if (!slides.length) return { score: 0, grade: 'F', slide_scores: [], issues: ['no_slides'], pass: false }
+  const per = slides.map((s, i) => scoreSlide(s, i, slides.length))
+  const slide_scores = per.map((p) => p.score)
+  let score = Math.round(slide_scores.reduce((a, b) => a + b, 0) / slide_scores.length)
+  const issues = Array.from(new Set(per.flatMap((p) => p.issues)))
+  const variants = slides.map((s) => String((s.content || {}).design_variant || 'section'))
+  let streak = 1
+  for (let i = 1; i < variants.length; i++) {
+    if (variants[i] === variants[i - 1] && variants[i] !== 'hero' && variants[i] !== 'summary') {
+      streak += 1
+      if (streak >= 3) { score -= 5; issues.push('layout_streak'); break }
+    } else streak = 1
+  }
+  if (slides.length < 5) { score -= 10; issues.push('too_few_slides') }
+  score = Math.max(0, Math.min(100, score))
+  const grade = score >= 90 ? 'A' : score >= 80 ? 'B' : score >= 70 ? 'C' : score >= 60 ? 'D' : 'F'
+  return { score, grade, slide_scores, issues: issues.slice(0, 12), pass: score >= 70 }
 }
 
 function applySpeakerCoach(slides: Array<ReturnType<typeof normalizeSlide>>): Array<ReturnType<typeof normalizeSlide>> {
@@ -1021,12 +1093,21 @@ JSON: {"title":"...","slides":[{"title":"...","text":"...","speaker_notes":"..."
       )
     }
 
+    const quality = scorePresentation(presentation.slides as Array<{ title: string; speaker_notes: string; layout_type: string; content: Record<string, unknown> }>)
     return respond({
       presentation,
       director: {
         ...director,
         requested_slide_count: slideCount,
         delivered_slide_count: presentation.slides.length,
+      },
+      quality: {
+        version: 'v5',
+        score: quality.score,
+        grade: quality.grade,
+        pass: quality.pass,
+        slide_scores: quality.slide_scores,
+        issues: quality.issues,
       },
     })
 
