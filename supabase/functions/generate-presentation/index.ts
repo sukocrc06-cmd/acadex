@@ -528,25 +528,35 @@ function wordCount(value: string): number {
   return String(value || '').trim().split(/\s+/).filter(Boolean).length
 }
 
+function isMetaPlaceholder(value: string): boolean {
+  const v = String(value || '').trim()
+  if (!v) return true
+  return /kartlarda açılmıştır|dikkat edilecek nokta|bağlam içinde açıklayın|tanım ve uygulama notuna|netleştirin\.?$|açıklayın;|her kartta tanım/i.test(v)
+}
+
 function enrichCards(content: Record<string, unknown>): void {
   const cards = content.cards
   if (!Array.isArray(cards) || !cards.length) return
-  const textLines = linesFromText(content.text)
+  const textLines = linesFromText(content.text).filter((line) => !isMetaPlaceholder(line))
+  // Unique secondary lines for body fill (do not reuse same line for every card)
+  const pool = [...textLines]
   content.cards = cards.map((raw, index) => {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw
     const card = raw as Record<string, unknown>
     const title = cleanText(card.title, 120)
     let body = cleanText(card.body, 400)
-    // Title repeated as body → clear and rebuild
     if (body && title && body.toLocaleLowerCase('tr-TR') === title.toLocaleLowerCase('tr-TR')) body = ''
+    if (isMetaPlaceholder(body)) body = ''
     if (!body) {
-      // Prefer a different bullet line than the title
-      const candidate = textLines.find((line) => {
+      const titleLow = title.toLocaleLowerCase('tr-TR')
+      const idx = pool.findIndex((line) => {
         const low = line.toLocaleLowerCase('tr-TR')
-        return low !== title.toLocaleLowerCase('tr-TR') && !low.startsWith(title.toLocaleLowerCase('tr-TR'))
+        return low !== titleLow && !low.startsWith(titleLow)
       })
-      if (candidate) body = candidate.slice(0, 280)
-      else body = `${title} maddesini bağlam içinde açıklayın; tanım, neden önemli ve kısa bir uygulama notu ekleyin.`
+      if (idx >= 0) {
+        body = pool.splice(idx, 1)[0].slice(0, 280)
+      }
+      // else leave empty — never inject instructional placeholders onto the slide
     }
     return { title: title || `Madde ${index + 1}`, body }
   })
@@ -561,7 +571,8 @@ function enrichSteps(content: Record<string, unknown>): void {
     const title = cleanText(step.title, 140)
     let body = cleanText(step.body, 320)
     if (body && title && body.toLocaleLowerCase('tr-TR') === title.toLocaleLowerCase('tr-TR')) body = ''
-    if (!body) body = 'Bu adımı uygularken dikkat edilecek nokta ve beklenen sonucu netleştirin.'
+    if (isMetaPlaceholder(body)) body = ''
+    // empty body is OK — process UI still shows the step title
     return {
       label: cleanText(step.label, 20) || String(index + 1),
       title: title || `Adım ${index + 1}`,
@@ -579,12 +590,15 @@ function dedupeTextAgainstCards(content: Record<string, unknown>): void {
       return cleanText((c as Record<string, unknown>).title, 120).toLocaleLowerCase('tr-TR')
     }).filter(Boolean)
   )
-  const lines = linesFromText(content.text)
+  const lines = linesFromText(content.text).filter((line) => !isMetaPlaceholder(line))
   const kept = lines.filter((line) => !titles.has(line.toLocaleLowerCase('tr-TR')))
-  // If all lines were titles, keep a short teaching lead-in instead of full duplicate list
-  if (kept.length === 0 && lines.length) {
-    content.text = 'Bu slayttaki başlıklar kartlarda açılmıştır; her kartta tanım ve uygulama notuna odaklanın.'
-  } else if (kept.length && kept.length < lines.length) {
+  if (kept.length === 0) {
+    // Prefer card bodies that add real explanation; otherwise drop duplicate bullet list
+    const bodies = cards
+      .map((c) => (c && typeof c === 'object' ? cleanText((c as Record<string, unknown>).body, 200) : ''))
+      .filter((b) => b && !isMetaPlaceholder(b))
+    content.text = bodies.length ? bodies.slice(0, 3).map((b) => `• ${b}`).join('\n') : ''
+  } else if (kept.length < lines.length) {
     content.text = kept.map((l) => `• ${l}`).join('\n')
   }
 }
@@ -594,43 +608,65 @@ function buildCoachedNotes(slide: {
   speaker_notes: string
   content: Record<string, unknown>
 }, index: number, total: number): string {
-  const existing = stripInstructionLeakage(String(slide.speaker_notes || '')).trim()
+  let existing = stripInstructionLeakage(String(slide.speaker_notes || '')).trim()
+  // Strip any coach-meta that leaked into notes from previous versions
+  if (isMetaPlaceholder(existing)) existing = ''
+  existing = existing
+    .replace(/Bu slayttaki başlıklar kartlarda açılmıştır[^.]*\.?/gi, '')
+    .replace(/her kartta tanım ve uygulama notuna odaklanın\.?/gi, '')
+    .trim()
   if (wordCount(existing) >= 35) return existing.slice(0, 900)
 
   const content = slide.content || {}
   const variant = String(content.design_variant || content.visual_purpose || 'section')
   const message = cleanText(content.message, 200)
   const purpose = cleanText(content.purpose, 200)
-  const bullets = linesFromText(content.text).slice(0, 3)
-  const lead = bullets[0] || message || purpose || slide.title
-  const support = bullets[1] || bullets[0] || ''
+  const bullets = linesFromText(content.text).filter((l) => !isMetaPlaceholder(l)).slice(0, 3)
+  const cardTitles = Array.isArray(content.cards)
+    ? content.cards.map((c) => (c && typeof c === 'object' ? cleanText((c as Record<string, unknown>).title, 80) : '')).filter(Boolean)
+    : []
+  const stepTitles = Array.isArray(content.steps)
+    ? content.steps.map((s) => (s && typeof s === 'object' ? cleanText((s as Record<string, unknown>).title, 80) : '')).filter(Boolean)
+    : []
+  const lead = bullets[0] || cardTitles[0] || stepTitles[0] || message || purpose || slide.title
+  const support = bullets[1] || cardTitles[1] || stepTitles[1] || ''
   const isFirst = index === 0
   const isLast = index === total - 1
 
-  let opening: string
-  if (isFirst) opening = `Bu sunuma "${slide.title}" ile başlıyoruz.`
-  else if (isLast) opening = `Kapanışta ana mesajı toparlayalım: ${slide.title}.`
-  else opening = `Şimdi "${slide.title}" başlığına geçiyoruz.`
+  const openings = [
+    `Bu bölümde odak "${slide.title}".`,
+    `"${slide.title}" başlığıyla devam ediyoruz.`,
+    `Sıradaki konu: ${slide.title}.`,
+  ]
+  const opening = isFirst
+    ? `Sunuma "${slide.title}" ile giriş yapıyoruz.`
+    : isLast
+      ? `Son olarak "${slide.title}" ile toparlıyoruz.`
+      : openings[index % openings.length]
 
   let core: string
   if (variant === 'process' || variant === 'timeline') {
-    core = `Adımları sırayla takip edin. Özellikle şu nokta kritik: ${lead}.`
+    core = `Akış ${stepTitles.length || bullets.length || 3} adımda ilerliyor; kritik nokta ${lead}.`
   } else if (variant === 'comparison' || content.table) {
-    core = `Karşılaştırma kriterlerine bakın. Farkı netleştiren nokta: ${lead}.`
+    core = `Karşılaştırmanın özeti: ${lead}${support ? `; diğer yandan ${support}` : ''}.`
   } else if (variant === 'hero') {
-    core = `Konunun çerçevesini ve neden önemli olduğunu kısaca kurun: ${lead}.`
+    core = `Çerçeve şu: ${lead}.`
   } else if (variant === 'summary') {
-    core = `Önceki slaytlardaki karar noktalarını birleştirin. Uygulanabilir özet: ${lead}.`
+    core = `Öne çıkan sonuç: ${lead}.`
   } else {
-    core = `Ana fikir: ${lead}.${support ? ` Bunu destekleyen ikinci nokta: ${support}.` : ''}`
+    core = `${lead}${support ? ` Bunun yanında ${support}.` : ''}`
   }
 
-  let transition: string
-  if (isLast) transition = 'Katılımcılara tek bir eylem maddesi bırakarak bitirin.'
-  else transition = 'Bir sonraki slayta geçmeden önce bu fikrin pratikte ne işe yaradığını bir cümleyle bağlayın.'
+  const transitions = [
+    'Bu noktayı örnekleyip sonraki başlığa bağlayın.',
+    'Kısa bir sınıf örneği verip ilerleyin.',
+    'Ana fikri bir cümlede sabitleyip devam edin.',
+  ]
+  const transition = isLast
+    ? 'Tek bir uygulanabilir eylemle kapatın.'
+    : transitions[index % transitions.length]
 
-  const notes = `${opening} ${core} ${transition}`.replace(/\s+/g, ' ').trim()
-  return notes.slice(0, 900)
+  return `${opening} ${core} ${transition}`.replace(/\s+/g, ' ').trim().slice(0, 900)
 }
 
 function applySpeakerCoach(slides: Array<ReturnType<typeof normalizeSlide>>): Array<ReturnType<typeof normalizeSlide>> {
