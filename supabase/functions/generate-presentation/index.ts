@@ -15,6 +15,7 @@ const allowedSourceTypes = new Set(['topic', 'study_card', 'document'])
 const allowedChartTypes = new Set(['bar', 'line', 'pie'])
 const allowedDesignVariants = new Set(['hero', 'section', 'cards', 'process', 'timeline', 'big-number', 'comparison', 'data', 'summary'])
 const allowedDiagramTypes = new Set(['flow', 'cycle', 'hierarchy', 'matrix', 'funnel'])
+const allowedVisualPurposes = new Set(['hero', 'comparison', 'process', 'timeline', 'matrix', 'chart', 'table', 'cards', 'diagram', 'summary', 'section', 'big-number'])
 
 const ADMIN_NOISE_PATTERNS = [
   /(?:öğretim\s*(?:üyesi|görevlisi)|ders\s*(?:sorumlusu|hocası)|prof\.?|doç\.?|dr\.?\s+[A-ZÇĞİÖŞÜ]|instructor|lecturer|professor|teaching assistant|assistant:)/i,
@@ -156,14 +157,27 @@ function normalizeSlide(value: unknown, index: number) {
   if (metric) content.metric = metric
   if (diagram) content.diagram = diagram
 
-  return {
+  // Director metadata (optional, stored in content for editor/export)
+  const purpose = cleanText(slide.purpose ?? sourceContent.purpose, 240)
+  const message = cleanText(slide.message ?? sourceContent.message, 280)
+  const visualPurposeRaw = cleanText(slide.visual_purpose ?? slide.visualPurpose ?? sourceContent.visual_purpose, 30)
+  if (purpose) content.purpose = purpose
+  if (message) content.message = message
+  if (allowedVisualPurposes.has(visualPurposeRaw)) content.visual_purpose = visualPurposeRaw
+
+  // Early leakage strip on visible fields
+  content.text = stripInstructionLeakage(String(content.text || ''))
+  content.secondary_text = stripInstructionLeakage(String(content.secondary_text || ''))
+
+  const built = {
     title: cleanText(slide.title, 160) || `Slayt ${index + 1}`,
     content,
-    speaker_notes: cleanText(slide.speaker_notes ?? slide.speakerNotes, 5200),
+    speaker_notes: stripInstructionLeakage(cleanText(slide.speaker_notes ?? slide.speakerNotes, 5200)),
     layout_type: layout,
     image_url: null,
     image_position: layout === 'image-left' ? 'left' : 'right',
   }
+  return applyQualityGate(built)
 }
 function normalizePresentation(value: Record<string, unknown>, requestedCount: number) {
   const container = value.presentation && typeof value.presentation === 'object' && !Array.isArray(value.presentation) ? value.presentation as Record<string, unknown> : value
@@ -296,6 +310,115 @@ async function callGroq(apiKey: string, systemPrompt: string, userPrompt: string
   throw new Error('AI_SERVICE_UNAVAILABLE')
 }
 
+
+// Instruction leakage: AI meta-instructions must never appear in student-facing text
+const LEAKAGE_PATTERNS: RegExp[] = [
+  /(?:matriks|matrix)\s*(?:diyagramı|diyagram|diagram)?\s*(?:kullan(?:ın|in)|oluştur(?:un)?|ekle(?:yin)?)/i,
+  /(?:grafik|chart|tablo|table)\s*(?:oluştur(?:un)?|ekle(?:yin)?|kullan(?:ın|in))/i,
+  /(?:trendleri|trends?)\s*(?:açıkla(?:yın)?|explain)/i,
+  /(?:tartışma\s*sorusu|discussion\s*question)\s*(?:ekle(?:yin)?|add)/i,
+  /(?:öğrencilere\s*(?:sorun|soru)|ask\s*(?:the\s*)?students?)/i,
+  /(?:slayta?\s*(?:ekle|yaz|koy)|add\s*(?:to\s*)?(?:the\s*)?slide)/i,
+  /(?:görsel\s*(?:görev|amaç)|visual\s*purpose)\s*[:=]/i,
+  /(?:design[_\s-]?variant|layout[_\s-]?type)\s*[:=]/i,
+  /(?:use\s+(?:a\s+)?(?:matrix|chart|table|diagram|timeline|funnel))/i,
+  /(?:create\s+(?:a\s+)?(?:chart|table|diagram|matrix))/i,
+  /(?:include\s+(?:a\s+)?(?:chart|table|diagram|bullet))/i,
+  /(?:do\s+not\s+(?:invent|fabricate)|asla\s+uydurma)/i,
+  /(?:return\s+valid\s+json|json\s+only)/i,
+  /(?:speaker[_\s-]?notes?\s*[:=]|konuşma\s*notları\s*[:=])/i,
+  /^\s*(?:note|not|instruction|talimat|prompt)\s*:\s*/i,
+]
+
+function stripInstructionLeakage(value: string): string {
+  if (!value) return ''
+  const lines = value.split(/\r?\n/)
+  const kept = lines.filter(line => {
+    const t = line.trim()
+    if (!t) return true
+    return !LEAKAGE_PATTERNS.some(p => p.test(t))
+  })
+  // Also strip inline leakage phrases inside kept lines
+  return kept
+    .map(line => line
+      .replace(/\((?:use|kullan)\s+(?:a\s+)?(?:matrix|chart|table|diagram)[^)]*\)/gi, '')
+      .replace(/\b(?:use|kullan)\s+(?:a\s+)?(?:matrix|chart|table|diagram)\b[^.!?\n]*/gi, '')
+      .trim())
+    .filter(Boolean)
+    .join('\n')
+    .trim()
+}
+
+function isGenericChartLabels(labels: string[]): boolean {
+  if (!labels.length) return true
+  return labels.every((label, index) => {
+    const n = index + 1
+    return new RegExp(`^(?:değer|deger|value|kategori|category|item|öğe|oge)\\s*${n}$`, 'i').test(label)
+      || label === String(n)
+      || /^[A-Z]$/.test(label)
+  })
+}
+
+/** Quality Gate (minimal): leakage strip + generic chart kill + layout repair */
+function applyQualityGate(slide: ReturnType<typeof normalizeSlide>): ReturnType<typeof normalizeSlide> {
+  const content = { ...(slide.content as Record<string, unknown>) }
+  content.text = stripInstructionLeakage(String(content.text || ''))
+  content.secondary_text = stripInstructionLeakage(String(content.secondary_text || ''))
+
+  // Kill generic / fake charts
+  const chart = content.chart as { labels?: string[] } | undefined
+  if (chart && Array.isArray(chart.labels) && isGenericChartLabels(chart.labels.map(String))) {
+    delete content.chart
+    if (slide.layout_type === 'chart') slide.layout_type = 'title-content'
+  }
+
+  // If layout claims chart/table but data missing, fall back
+  if (slide.layout_type === 'chart' && !content.chart) slide.layout_type = 'title-content'
+  if (slide.layout_type === 'table' && !content.table) slide.layout_type = 'title-content'
+
+  // Empty text after leakage strip → keep a minimal safe placeholder only if visual exists
+  if (!String(content.text || '').trim() && (content.table || content.chart || content.cards || content.steps || content.diagram || content.metric)) {
+    content.text = ''
+  }
+
+  slide.content = content
+  slide.speaker_notes = stripInstructionLeakage(slide.speaker_notes)
+  return slide
+}
+
+function normalizePlan(value: Record<string, unknown>, requestedCount: number) {
+  const container = value.plan && typeof value.plan === 'object' && !Array.isArray(value.plan)
+    ? value.plan as Record<string, unknown>
+    : value
+  const rawSlides = Array.isArray(container.slides) ? container.slides : []
+  if (rawSlides.length < Math.min(4, requestedCount)) throw new Error('INCOMPLETE_PLAN')
+  const slides = rawSlides.slice(0, requestedCount).map((item, index) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) throw new Error('INVALID_PLAN_SLIDE')
+    const row = item as Record<string, unknown>
+    const visualRaw = cleanText(row.visual_purpose ?? row.visualPurpose, 30)
+    const visual_purpose = allowedVisualPurposes.has(visualRaw) ? visualRaw : (index === 0 ? 'hero' : index === requestedCount - 1 ? 'summary' : 'section')
+    return {
+      title: cleanText(row.title, 160) || `Slayt ${index + 1}`,
+      purpose: cleanText(row.purpose, 240) || 'Explain a core academic idea',
+      message: cleanText(row.message, 280) || cleanText(row.title, 160),
+      visual_purpose,
+    }
+  })
+  // Enforce rhythm: first hero, last summary
+  if (slides.length) {
+    slides[0].visual_purpose = 'hero'
+    slides[slides.length - 1].visual_purpose = 'summary'
+  }
+  return {
+    purpose: cleanText(container.purpose, 400) || 'Teach the core academic concepts clearly',
+    audience: cleanText(container.audience, 200) || 'University students',
+    main_message: cleanText(container.main_message ?? container.mainMessage, 400) || slides[0]?.message || '',
+    narrative_arc: cleanText(container.narrative_arc ?? container.narrativeArc, 500),
+    slides,
+  }
+}
+
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   if (req.method !== 'POST') return respond({ error: 'Method not allowed' }, 405)
@@ -358,83 +481,135 @@ serve(async (req) => {
       ? 'Use reliable general academic knowledge. Do not invent citations, named studies, people, or precise statistics.'
       : 'Use source facts for factual claims. You may add simple pedagogical examples only when clearly presented as an illustrative example, never as a sourced fact.'
 
-    const systemPrompt = `You are Acadia, a senior academic presentation director, information architect, and visual storyteller. Create exactly ${slideCount} polished slides in ${languageLabel}. ${groundingRule}
+    const sourceHeader = `SOURCE TYPE: ${sourceType}\nSOURCE TITLE: ${sourceTitle}\nCOURSE / TAG: ${courseTag || 'Not specified'}\nUSER TOPIC: ${topic || 'No extra topic supplied'}`
 
-GOAL
-Build a deck a strong university lecturer would actually use: conceptually accurate, visually varied, useful for learning, and rich enough to explain the topic without becoming a wall of text.
+    // ═══════════════════════════════════════════════════════════
+    // STAGE A — Presentation Director V8: story + slide plan only
+    // ═══════════════════════════════════════════════════════════
+    const planSystemPrompt = `You are Acadia Presentation Director V8. You do NOT write slide body content yet.
+Your only job: design a coherent academic presentation PLAN in ${languageLabel}.
 
-CONTENT DIRECTOR
-- Silently identify the learning goal, 5-10 core concepts, prerequisites, cause-effect relationships, processes, comparisons, examples, and quantitative evidence.
-- Do not output hidden planning.
-- Do NOT follow PDF page order mechanically. Build a coherent teaching narrative.
-- Never create slides about instructor/professor names, biographies, degrees, assistants, emails, office hours, grading percentages, exams, attendance, course schedules, or administrative rules unless USER TOPIC explicitly requests them.
+${groundingRule}
 
-VISIBLE CONTENT — CRITICAL
-- A visual NEVER replaces the slide's real explanation.
-- Every non-hero slide must contain meaningful visible text in "text": normally 3-5 concise bullets or short teaching statements.
-- If a chart/table/diagram/cards/process is used, keep the explanatory text too. The visual is supporting evidence or structure.
-- Use concrete definitions, why-it-matters explanations, mechanisms, implications, and a short illustrative example when useful.
-- Avoid generic filler such as "this is important" without explaining why.
-- Prefer 45-90 visible words on concept-heavy slides; less for hero/big-number slides.
+RULES
+- Do NOT follow PDF page order mechanically. Build a teaching narrative.
+- Recommended arc: problem/context → core concepts → analysis → comparison → example/application → conclusion → decision/recommendation.
+- Never plan slides about instructor names, biographies, emails, office hours, grading %, exams, attendance, or course schedules unless USER TOPIC explicitly asks.
+- Exactly ${slideCount} slides.
+- Slide 1 visual_purpose MUST be "hero". Final slide MUST be "summary".
+- Each slide needs: title, purpose (why this slide exists), message (one-sentence takeaway), visual_purpose.
+- visual_purpose must be one of: hero, section, comparison, process, timeline, matrix, chart, table, cards, diagram, big-number, summary.
+- Assign visual_purpose from content structure, not from title keywords.
+- Prefer diagram/process/cards/matrix over chart when numbers are absent.
+- chart only when exact numeric evidence exists in the source.
+- Avoid assigning the same visual_purpose to more than 3 slides.
+- Do not place more than two plain "section" slides consecutively.
 
-SPEAKER NOTES
-- Write useful presenter notes for every slide, normally 70-130 words.
-- Notes should explain how to teach the slide, clarify relationships, and provide one useful example or caution where appropriate.
-- Do not repeat visible bullets verbatim.
+RETURN VALID JSON ONLY:
+{
+  "purpose":"overall learning goal",
+  "audience":"who this is for",
+  "main_message":"single thesis of the deck",
+  "narrative_arc":"one-line story spine",
+  "slides":[
+    {"title":"...","purpose":"...","message":"...","visual_purpose":"hero|section|comparison|process|timeline|matrix|chart|table|cards|diagram|big-number|summary"}
+  ]
+}`
 
-VISUAL INTELLIGENCE
-Use structured visuals only when they genuinely help the learner.
-- cards: 3-5 parallel concepts, dimensions, benefits, categories. Include cards:[{title,body}].
-- process: ordered workflow/mechanism. Include steps:[{label,title,body}].
-- timeline: chronological stages only. Include steps with a real year/period in label.
-- comparison: two genuine alternatives. Use two-column text/secondary_text and optionally a table for multi-attribute comparison.
-- data: ONLY when exact numeric values are supported. Include chart with meaningful labels; NEVER use "Değer 1/2/3", sequential numbers, or invented values.
-- big-number: ONLY for one exact, meaningful source number. Include metric.
-- diagram: for conceptual flows, cycles, hierarchies, funnels, or matrices when no numeric chart is appropriate. Include diagram:{type,nodes}.
-- summary: closing synthesis. Do not turn numbered takeaway bullets into a chart.
+    const planUserPrompt = `${sourceHeader}\n\nSOURCE MATERIAL:\n${academicContext}`
+    const planRaw = await callGroq(groqApiKey, planSystemPrompt, planUserPrompt, 1800)
+    const plan = normalizePlan(parseModelJson(planRaw), slideCount)
 
-DECK RHYTHM
-- Slide 1 = hero.
-- Final slide = summary.
-- For an 8-slide deck, aim for at least 3 genuinely structured visual slides when the material supports them, using cards/process/diagram/comparison/table/chart/metric.
-- Do not use the same design_variant more than 3 times.
-- Do not place more than two plain section slides consecutively.
-- Prefer diagram/process/cards to fake charts when the content is qualitative.
+    // ═══════════════════════════════════════════════════════════
+    // STAGE B — Content production from the locked plan
+    // ═══════════════════════════════════════════════════════════
+    const contentSystemPrompt = `You are Acadia, academic content writer and visual composer. Write the FULL slide content for an already-approved presentation plan in ${languageLabel}.
+${groundingRule}
+
+CRITICAL — NO INSTRUCTION LEAKAGE
+- Never write meta-instructions into title, text, secondary_text, or speaker_notes.
+- Forbidden in visible fields: "use a matrix", "create a chart", "add discussion question", "matriks kullanın", "grafik oluştur", "trendleri açıklayın", design_variant labels, layout orders.
+- Output ONLY student-facing academic content.
+
+VISIBLE CONTENT
+- A visual NEVER replaces the explanation.
+- Every non-hero slide needs meaningful "text": normally 3-5 concise teaching bullets.
+- If chart/table/diagram/cards/process is used, keep explanatory text too.
+- Prefer 45-90 visible words on concept-heavy slides.
+- Do not repeat the same fact as both bullets AND an identical table/card row.
+
+SPEAKER NOTES (Speaker Coach mini)
+- 70-130 words per slide.
+- Structure: opening line → main explanation → one example or caution → transition to next idea.
+- Do not copy visible bullets verbatim.
+
+VISUAL OBJECTS (only when plan.visual_purpose requires them)
+- cards → cards:[{title,body}] (3-5)
+- process / timeline → steps:[{label,title,body}]
+- comparison → two-column text/secondary_text and/or table
+- chart → ONLY exact source numbers; labels must be real categories (never "Değer 1")
+- table → multi-attribute comparison matrix
+- diagram → {type: flow|cycle|hierarchy|matrix|funnel, nodes:[{label,body}]}
+- big-number → metric:{value,label,context}
+- hero / summary / section → usually text only
 
 LAYOUT RULES
-- hero, section, cards, process, timeline, big-number, summary, diagram => layout_type title-content
-- comparison => two-column unless a table is clearly superior
-- data => chart
-- dense categorical matrix => table
-- Never output image-left/image-right unless the user has supplied an image; do not fabricate image URLs.
+- hero, section, cards, process, timeline, big-number, summary, diagram → layout_type title-content
+- comparison → two-column (or table if multi-attribute)
+- chart visual_purpose with real data → layout_type chart
+- matrix/table visual_purpose → layout_type table
+- design_variant should mirror visual_purpose (hero|section|cards|process|timeline|big-number|comparison|data|summary)
 
-RETURN VALID JSON ONLY
+Return JSON:
 {
-  "title":"...",
+  "title":"deck title",
   "slides":[{
     "title":"...",
-    "text":"• ...\\n• ...\\n• ...",
+    "purpose":"from plan",
+    "message":"from plan",
+    "visual_purpose":"from plan",
+    "text":"• ...\\n• ...",
     "secondary_text":"...",
     "speaker_notes":"...",
     "layout_type":"title-content|two-column|chart|table",
     "design_variant":"hero|section|cards|process|timeline|big-number|comparison|data|summary",
     "cards":[{"title":"...","body":"..."}],
-    "steps":[{"label":"1 or real year","title":"...","body":"..."}],
-    "metric":{"value":"exact supported value","label":"...","context":"..."},
-    "chart":{"type":"bar|line|pie","title":"...","series_label":"...","labels":["meaningful label"],"data":[1,2]},
+    "steps":[{"label":"...","title":"...","body":"..."}],
+    "metric":{"value":"...","label":"...","context":"..."},
+    "chart":{"type":"bar|line|pie","title":"...","series_label":"...","labels":["..."],"data":[1,2]},
     "table":{"title":"...","headers":["...","..."],"rows":[["...","..."]]},
     "diagram":{"type":"flow|cycle|hierarchy|matrix|funnel","title":"...","nodes":[{"label":"...","body":"..."}]}
   }]
 }
-Omit optional structured objects when they are not useful.`
+Omit unused structured objects. Exactly ${plan.slides.length} slides in the same order as the plan.`
 
-    const userPrompt = `SOURCE TYPE: ${sourceType}\nSOURCE TITLE: ${sourceTitle}\nCOURSE / TAG: ${courseTag || 'Not specified'}\nUSER TOPIC: ${topic || 'No extra topic supplied'}\n\nSOURCE MATERIAL:\n${academicContext}`
-    const raw = await callGroq(groqApiKey, systemPrompt, userPrompt, 4200)
-    return respond({ presentation: normalizePresentation(parseModelJson(raw), slideCount) })
+    const contentUserPrompt = `${sourceHeader}
+
+APPROVED PLAN (follow titles, purpose, message, visual_purpose exactly; do not reorder):
+${JSON.stringify(plan, null, 2)}
+
+SOURCE MATERIAL:
+${academicContext}`
+
+    const contentRaw = await callGroq(groqApiKey, contentSystemPrompt, contentUserPrompt, 4200)
+    const presentation = normalizePresentation(parseModelJson(contentRaw), slideCount)
+
+    // Final quality pass already runs inside normalizeSlide → applyQualityGate
+    return respond({
+      presentation,
+      director: {
+        version: 'v8',
+        purpose: plan.purpose,
+        audience: plan.audience,
+        main_message: plan.main_message,
+        narrative_arc: plan.narrative_arc,
+        plan_slides: plan.slides,
+      },
+    })
   } catch (error) {
     console.error('generate-presentation exception:', error)
     const message = error instanceof Error ? error.message : ''
-    if (message.startsWith('INVALID_') || message === 'INCOMPLETE_PRESENTATION') return respond({ error: 'AI returned an invalid presentation structure. Please try again.' }, 502)
+    if (message.startsWith('INVALID_') || message === 'INCOMPLETE_PRESENTATION' || message === 'INCOMPLETE_PLAN') return respond({ error: 'AI returned an invalid presentation structure. Please try again.' }, 502)
     if (message === 'AI_SERVICE_UNAVAILABLE') return respond({ error: 'AI service is busy. Please try again shortly.' }, 503)
     if (message === 'DOCUMENT_DOWNLOAD_FAILED') return respond({ error: 'The source document could not be downloaded.' }, 500)
     return respond({ error: 'Presentation generation failed' }, 500)
