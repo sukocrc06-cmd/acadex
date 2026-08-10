@@ -77,10 +77,12 @@ document.addEventListener('DOMContentLoaded',async()=>{
     try { await acadexLoadScript('js/presentation-chat-v8.js?v=8.3.1'); } catch (e) { console.error('Presentation chat V8 failed:', e); }
     try { await acadexLoadScript('js/presentation-tools-panel-v9.js?v=9.0.0'); } catch (e) { console.error('Presentation tools panel V9 failed:', e); }
 
-    // V10/V11 intelligence: deterministic critic -> stable agent -> V11 Director -> command surface -> rehearsal.
+    // V10/V11 intelligence: deterministic critic -> stable agent -> V11 Director -> chat-first surface.
     try { await acadexLoadScript('js/presentation/quality/presentation-quality-v10.js?v=10.0.0'); } catch (e) { console.error('Presentation quality V10 failed:', e); }
     try { await acadexLoadScript('js/presentation/ai/acadia-presentation-agent-v10.js?v=10.0.0'); } catch (e) { console.error('Acadia presentation agent V10 failed:', e); }
     try { await acadexLoadScript('js/presentation/ai/acadia-presentation-director-v11.js?v=11.0.0'); } catch (e) { console.error('Acadia presentation director V11 failed:', e); }
+    // Chat V11 loads BEFORE the command palette so Ctrl/Cmd+K belongs to conversational Acadia in Presentation Studio.
+    try { await acadexLoadScript('js/presentation/ai/acadia-presentation-chat-v11.js?v=11.1.0'); } catch (e) { console.error('Acadia presentation chat V11 failed:', e); }
     try { await acadexLoadScript('js/presentation/ai/acadia-command-bar-v10.js?v=11.0.1'); } catch (e) { console.error('Acadia command bar V11 bridge failed:', e); }
     try { await acadexLoadScript('js/presentation/rehearsal/presentation-rehearsal-v10.js?v=10.0.0'); } catch (e) { console.error('Presentation rehearsal V10 failed:', e); }
   }
