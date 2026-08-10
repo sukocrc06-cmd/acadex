@@ -64,9 +64,9 @@ document.addEventListener('DOMContentLoaded',async()=>{
     try { await acadexLoadScript('js/presentation-theme-v8.js?v=8.2.0'); } catch (e) { console.error('Presentation theme V8 failed:', e); }
     try { await acadexLoadScript('js/presentation-settings-v8.js?v=8.1.1'); } catch (e) { console.error('Presentation settings V8 failed:', e); }
     try { await acadexLoadScript('js/presentation-dedupe-v8.js?v=8.1.1'); } catch (e) { console.error('Presentation dedupe V8 failed:', e); }
-    try { await acadexLoadScript('js/presentation-visual-ai-v8.js?v=8.1.1'); } catch (e) { console.error('Presentation visual AI V8 failed:', e); }
+    try { await acadexLoadScript('js/presentation-visual-ai-v8.js?v=8.2.1'); } catch (e) { console.error('Presentation visual AI V8 failed:', e); }
     try { await acadexLoadScript('js/presentation-visual-ux-v8.js?v=8.1.1'); } catch (e) { console.error('Presentation visual UX V8 failed:', e); }
     try { await acadexLoadScript('js/presentation-polish-v8.js?v=8.1.1'); } catch (e) { console.error('Presentation polish V8 failed:', e); }
-    try { await acadexLoadScript('js/presentation-chat-v8.js?v=8.2.0'); } catch (e) { console.error('Presentation chat V8 failed:', e); }
+    try { await acadexLoadScript('js/presentation-chat-v8.js?v=8.2.1'); } catch (e) { console.error('Presentation chat V8 failed:', e); }
   }
 });

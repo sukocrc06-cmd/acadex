@@ -43,6 +43,23 @@
     return out;
   }
 
+
+  function getSupabase() {
+    try {
+      // supabase-config.js: const supabaseClient (global lexical, not window)
+      if (typeof supabaseClient !== 'undefined' && supabaseClient && supabaseClient.functions) {
+        return supabaseClient;
+      }
+    } catch (_) {}
+    try {
+      if (getSupabase() && getSupabase()?.functions) return getSupabase();
+    } catch (_) {}
+    try {
+      if (window.supabase && window.__acadexSupabase) return window.__acadexSupabase;
+    } catch (_) {}
+    return null;
+  }
+
   function injectStyles() {
     if (document.getElementById('acadex-pres-chat-v8-style')) {
       document.getElementById('acadex-pres-chat-v8-style').remove();
@@ -473,13 +490,14 @@
 
   async function runCreate(draft) {
     if (!draft?.topic) { push('assistant', 'Konu eksik.'); return; }
-    if (!window.supabaseClient) throw new Error('Bağlantı yok.');
+    const sb = getSupabase();
+    if (!sb || !sb.functions) throw new Error('Supabase bağlantısı hazır değil. Sayfayı yenileyip tekrar giriş yapın.');
     push('system', 'Acadia sunumu hazırlıyor…');
     ctx.lastTopic = draft.topic; ctx.lastDetail = draft.detailLevel; ctx.lastCount = draft.slideCount; ctx.lastAction = 'create';
     saveState();
     try { window.AcadexPresentationSettingsV8?.setDetailLevel?.(draft.detailLevel); } catch (_) {}
 
-    const { data, error } = await window.supabaseClient.functions.invoke('generate-presentation', {
+    const { data, error } = await sb.functions.invoke('generate-presentation', {
       body: {
         action: 'generate', sourceType: 'topic', topic: draft.topic,
         slideCount: draft.slideCount || 8, language: draft.language || 'tr',
@@ -558,7 +576,7 @@
     const slide = g().slides[g().active];
     if (!slide) throw new Error('Aktif slayt yok');
     push('system', 'Slayt güncelleniyor…');
-    const { data, error } = await window.supabaseClient.functions.invoke('generate-presentation', {
+    const { data, error } = await getSupabase()?.functions.invoke('generate-presentation', {
       body: {
         action: 'improve_slide',
         presentationId: g().currentId,
@@ -609,7 +627,7 @@
     open, close, handleUser,
     getMemory: () => memory.slice(),
     clearMemory: () => { memory = []; pendingCreate = null; saveState(); renderMessages(); },
-    version: '8.2',
+    version: '8.2.1',
   };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

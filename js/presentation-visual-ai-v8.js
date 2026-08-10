@@ -45,6 +45,16 @@
     return g;
   }
 
+
+  function getSupabase() {
+    try {
+      if (typeof supabaseClient !== 'undefined' && supabaseClient && supabaseClient.functions) return supabaseClient;
+    } catch (_) {}
+    try {
+      if (getSupabase() && getSupabase().functions) return getSupabase();
+    } catch (_) {}
+    return null;
+  }
   function injectStyles() {
     if (document.getElementById('acadex-pres-visual-ai-v8-style')) return;
     const style = document.createElement('style');
@@ -198,8 +208,8 @@ Set layout_type chart or table. Keep short text. No instruction leakage.`;
       setStatus('Sunum kaydı gerekli. Önce Kaydet’e basın.', 'is-error');
       return;
     }
-    if (!window.supabaseClient) {
-      setStatus('Bağlantı hazır değil.', 'is-error');
+    if (!getSupabase()) {
+      setStatus('Supabase bağlantısı hazır değil. Sayfayı yenileyin.', 'is-error');
       return;
     }
 
@@ -213,7 +223,7 @@ Set layout_type chart or table. Keep short text. No instruction leakage.`;
 
     try {
       const language = g.presentation?.language === 'en' ? 'en' : 'tr';
-      const { data, error } = await window.supabaseClient.functions.invoke('generate-presentation', {
+      const { data, error } = await getSupabase().functions.invoke('generate-presentation', {
         body: {
           action: 'improve_slide',
           presentationId: g.currentId,
