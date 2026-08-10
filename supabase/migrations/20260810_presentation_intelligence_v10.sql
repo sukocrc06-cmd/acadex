@@ -144,13 +144,15 @@ create policy "presentation_sources_owner_all"
   using (
     exists (
       select 1 from public.presentations p
-      where p.id = presentation_id and p.user_id = auth.uid()
+      where p.id = presentation_sources.presentation_id
+        and p.user_id = auth.uid()
     )
   )
   with check (
     exists (
       select 1 from public.presentations p
-      where p.id = presentation_id and p.user_id = auth.uid()
+      where p.id = presentation_sources.presentation_id
+        and p.user_id = auth.uid()
     )
   );
 
@@ -163,7 +165,8 @@ create policy "presentation_citations_owner_all"
       select 1
       from public.presentation_slides s
       join public.presentations p on p.id = s.presentation_id
-      where s.id = slide_id and p.user_id = auth.uid()
+      where s.id = presentation_slide_citations.slide_id
+        and p.user_id = auth.uid()
     )
   )
   with check (
@@ -171,13 +174,10 @@ create policy "presentation_citations_owner_all"
       select 1
       from public.presentation_slides s
       join public.presentations p on p.id = s.presentation_id
-      where s.id = slide_id and p.user_id = auth.uid()
-    )
-    and exists (
-      select 1
-      from public.presentation_sources ps
-      join public.presentations p2 on p2.id = ps.presentation_id
-      where ps.id = source_id and p2.user_id = auth.uid()
+      join public.presentation_sources ps on ps.presentation_id = p.id
+      where s.id = presentation_slide_citations.slide_id
+        and ps.id = presentation_slide_citations.source_id
+        and p.user_id = auth.uid()
     )
   );
 
@@ -188,13 +188,15 @@ create policy "presentation_versions_owner_all"
   using (
     exists (
       select 1 from public.presentations p
-      where p.id = presentation_id and p.user_id = auth.uid()
+      where p.id = presentation_versions.presentation_id
+        and p.user_id = auth.uid()
     )
   )
   with check (
     exists (
       select 1 from public.presentations p
-      where p.id = presentation_id and p.user_id = auth.uid()
+      where p.id = presentation_versions.presentation_id
+        and p.user_id = auth.uid()
     )
   );
 
@@ -202,19 +204,20 @@ drop policy if exists "presentation_generation_runs_select_own" on public.presen
 create policy "presentation_generation_runs_select_own"
   on public.presentation_generation_runs for select
   to authenticated
-  using (user_id = auth.uid());
+  using (presentation_generation_runs.user_id = auth.uid());
 
 drop policy if exists "presentation_generation_runs_insert_own" on public.presentation_generation_runs;
 create policy "presentation_generation_runs_insert_own"
   on public.presentation_generation_runs for insert
   to authenticated
   with check (
-    user_id = auth.uid()
+    presentation_generation_runs.user_id = auth.uid()
     and (
-      presentation_id is null
+      presentation_generation_runs.presentation_id is null
       or exists (
         select 1 from public.presentations p
-        where p.id = presentation_id and p.user_id = auth.uid()
+        where p.id = presentation_generation_runs.presentation_id
+          and p.user_id = auth.uid()
       )
     )
   );
@@ -223,25 +226,27 @@ drop policy if exists "presentation_generation_runs_update_own" on public.presen
 create policy "presentation_generation_runs_update_own"
   on public.presentation_generation_runs for update
   to authenticated
-  using (user_id = auth.uid())
-  with check (user_id = auth.uid());
+  using (presentation_generation_runs.user_id = auth.uid())
+  with check (presentation_generation_runs.user_id = auth.uid());
 
 drop policy if exists "presentation_rehearsals_owner_all" on public.presentation_rehearsals;
 create policy "presentation_rehearsals_owner_all"
   on public.presentation_rehearsals for all
   to authenticated
   using (
-    user_id = auth.uid()
+    presentation_rehearsals.user_id = auth.uid()
     and exists (
       select 1 from public.presentations p
-      where p.id = presentation_id and p.user_id = auth.uid()
+      where p.id = presentation_rehearsals.presentation_id
+        and p.user_id = auth.uid()
     )
   )
   with check (
-    user_id = auth.uid()
+    presentation_rehearsals.user_id = auth.uid()
     and exists (
       select 1 from public.presentations p
-      where p.id = presentation_id and p.user_id = auth.uid()
+      where p.id = presentation_rehearsals.presentation_id
+        and p.user_id = auth.uid()
     )
   );
 
