@@ -183,13 +183,27 @@
     document.getElementById('acadia-command-v10')?.classList.remove('is-open');
   }
 
-  document.addEventListener('keydown', (event) => {
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k' && studioVisible()) {
+  function handlePresentationShortcut(event) {
+    const isCommandK = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k';
+    if (isCommandK && studioVisible()) {
+      // Presentation Studio owns Ctrl/Cmd+K while the editor is visible.
+      // Use capture phase + immediate propagation stop so the dashboard's
+      // global search shortcut cannot open on top of Acadia V11.
       event.preventDefault();
+      event.stopPropagation();
+      if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
       open();
+      return;
     }
-    if (event.key === 'Escape' && document.getElementById('acadia-command-v10')?.classList.contains('is-open')) close();
-  });
 
-  window.AcadiaPresentationCommandBarV10 = { version: '11.0.0', open, close, runCommand, runFreePrompt, commands };
+    if (event.key === 'Escape' && document.getElementById('acadia-command-v10')?.classList.contains('is-open')) {
+      event.preventDefault();
+      close();
+    }
+  }
+
+  // Capture is intentional: dashboard global search registers Ctrl+K earlier.
+  document.addEventListener('keydown', handlePresentationShortcut, true);
+
+  window.AcadiaPresentationCommandBarV10 = { version: '11.0.1', open, close, runCommand, runFreePrompt, commands };
 })();
