@@ -67,5 +67,6 @@ document.addEventListener('DOMContentLoaded',async()=>{
     try { await acadexLoadScript('js/presentation-visual-ai-v8.js?v=8.1.1'); } catch (e) { console.error('Presentation visual AI V8 failed:', e); }
     try { await acadexLoadScript('js/presentation-visual-ux-v8.js?v=8.1.1'); } catch (e) { console.error('Presentation visual UX V8 failed:', e); }
     try { await acadexLoadScript('js/presentation-polish-v8.js?v=8.1.1'); } catch (e) { console.error('Presentation polish V8 failed:', e); }
+    try { await acadexLoadScript('js/presentation-chat-v8.js?v=8.1.0'); } catch (e) { console.error('Presentation chat V8 failed:', e); }
   }
 });

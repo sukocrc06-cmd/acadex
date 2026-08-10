@@ -49,12 +49,28 @@
       canvasBg: '#f8fafc',
       heroGrad: 'linear-gradient(145deg,#1e3a5f 0%,#0f2744 100%)',
       pptx: { accent: 'B45309', navy: '1E3A5F', text: '1E293B', soft: 'FFFBEB', border: 'FDE68A' }
+    },
+    dark: {
+      id: 'dark',
+      label: 'Dark / Siyah',
+      accent: '#2dd4bf',
+      accentDeep: '#14b8a6',
+      navy: '#e2e8f0',
+      text: '#e2e8f0',
+      muted: '#94a3b8',
+      surface: '#0f172a',
+      soft: '#1e293b',
+      border: '#334155',
+      canvasBg: '#020617',
+      heroGrad: 'linear-gradient(145deg,#0f172a 0%,#020617 100%)',
+      pptx: { accent: '2DD4BF', navy: 'E2E8F0', text: 'E2E8F0', soft: '1E293B', border: '334155' }
     }
   };
 
   function normalizeThemeId(value) {
     const raw = String(value || 'academic').toLowerCase().trim();
     if (raw === 'modern' || raw === 'modern-academic' || raw === 'modern_academic') return 'academic';
+    if (raw === 'black' || raw === 'siyah' || raw === 'gece' || raw === 'night') return 'dark';
     if (THEMES[raw]) return raw;
     return 'academic';
   }
@@ -300,6 +316,7 @@
       <button type="button" class="ap-theme-btn" data-theme="academic">Modern Academic</button>
       <button type="button" class="ap-theme-btn" data-theme="minimal">Minimal</button>
       <button type="button" class="ap-theme-btn" data-theme="corporate">Corporate</button>
+      <button type="button" class="ap-theme-btn" data-theme="dark">Dark</button>
     `;
     // insert after settings button if present
     const settings = document.getElementById('pres-settings-btn');
