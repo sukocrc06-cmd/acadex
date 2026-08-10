@@ -1,5 +1,5 @@
-/* Acadex Presentation Studio V10 — unified Acadia presentation agent facade.
- * Structured tools sit above legacy chat/visual/theme modules so the UI has one stable API.
+/* Acadex Presentation Studio V10/V11 — unified Acadia presentation agent facade.
+ * Structured tools sit above legacy chat/visual/theme modules and V11 Director.
  */
 (function () {
   'use strict';
@@ -8,11 +8,17 @@
   const S = () => window.AcadexPresentationServicesV10;
   const Schema = () => window.AcadexPresentationSchemaV10;
   const Quality = () => window.AcadexPresentationQualityV10;
+  const Director = () => window.AcadiaPresentationDirectorV11;
 
   function requireDeck() {
     const state = S()?.state?.();
     if (!state?.slides?.length) throw new Error('Önce bir sunum oluşturun veya açın.');
     return state;
+  }
+  function requireDirector() {
+    const director = Director();
+    if (!director) throw new Error('Acadia V11 Director henüz yüklenmedi.');
+    return director;
   }
 
   function slidePayload(slide) {
@@ -170,6 +176,9 @@
       ask_acadia: () => delegateToLegacy(String(input.message || '').trim()),
       optimize_duration: () => delegateToLegacy(`Bu sunumu yaklaşık ${Math.max(1, Number(input.minutes) || 10)} dakikalık akademik sunuma optimize et. Gereksiz tekrarları azalt, anlatı akışını ve konuşmacı notlarını buna göre düzenle.`),
       change_theme: () => delegateToLegacy(`${String(input.theme || 'academic')} tema yap`),
+      director_open: () => requireDirector().open(input),
+      director_generate: () => requireDirector().generate(input),
+      director_critique: () => requireDirector().critiqueCurrent(),
     };
     if (!tools[tool]) throw new Error(`Bilinmeyen Acadia aracı: ${tool}`);
     S()?.emit?.('agent:tool-start', { tool, args: input });
@@ -184,10 +193,11 @@
   }
 
   window.AcadiaPresentationAgentV10 = {
-    version: '10.0.0',
+    version: '11.0.0',
     tools: [
       'review_deck', 'citation_check', 'rewrite_active_slide', 'generate_speaker_notes',
-      'create_chart', 'create_table', 'save_version', 'ask_acadia', 'optimize_duration', 'change_theme'
+      'create_chart', 'create_table', 'save_version', 'ask_acadia', 'optimize_duration', 'change_theme',
+      'director_open', 'director_generate', 'director_critique'
     ],
     execute,
     improveActiveSlide,
