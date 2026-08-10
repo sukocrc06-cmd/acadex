@@ -135,6 +135,16 @@
         border-radius: 999px; padding: .32rem .7rem; font-size: .7rem; font-weight: 700; cursor: pointer;
       }
       #pres-chat-panel .pch-chip:hover { border-color: #0d9488; color: #0f766e; background: #f0fdfa; }
+      #pres-chat-panel .pch-media-bar {
+        display:flex; flex-wrap:wrap; gap:.35rem; padding: .45rem .75rem .15rem;
+        border-top: 1px solid rgba(22,50,92,.06); background:#fff;
+      }
+      #pres-chat-panel .pch-media-btn {
+        border: 1px solid rgba(22,50,92,.12); background: #f0fdfa; color: #0f766e;
+        border-radius: 999px; padding: .32rem .7rem; font-size: .72rem; font-weight: 800; cursor: pointer;
+      }
+      #pres-chat-panel .pch-media-btn:hover { border-color: #0d9488; background: #ccfbf1; }
+      #pres-chat-panel .pch-media-btn:disabled { opacity: .55; cursor: wait; }
       #pres-chat-panel .pch-form {
         display:flex; gap:.5rem; padding: .8rem; border-top: 1px solid rgba(22,50,92,.08); background:#fff;
       }
@@ -208,6 +218,12 @@
           </div>
           <div id="pres-chat-messages" aria-live="polite"></div>
           <div class="pch-quick" id="pres-chat-quick"></div>
+          <div class="pch-media-bar">
+            <button type="button" class="pch-media-btn" id="pres-chat-image-btn" title="Aktif slayta görsel ekle">🖼️ Görsel ekle</button>
+            <button type="button" class="pch-media-btn" id="pres-chat-image-left-btn" title="Görseli sola al">◀ Sol</button>
+            <button type="button" class="pch-media-btn" id="pres-chat-image-right-btn" title="Görseli sağa al">Sağ ▶</button>
+            <input type="file" id="pres-chat-image-input" accept="image/jpeg,image/png,image/webp,image/gif" hidden />
+          </div>
           <form class="pch-form" id="pres-chat-form">
             <textarea id="pres-chat-input" rows="1" placeholder="Örn. Yapay zeka etiği, 10 slayt, detaylı sunum oluştur…"></textarea>
             <button type="submit" id="pres-chat-send">Gönder</button>
@@ -243,6 +259,16 @@
           document.getElementById('pres-chat-form')?.requestSubmit();
         }
       });
+      document.getElementById('pres-chat-image-btn')?.addEventListener('click', () => {
+        document.getElementById('pres-chat-image-input')?.click();
+      });
+      document.getElementById('pres-chat-image-input')?.addEventListener('change', async (e) => {
+        const file = e.target.files && e.target.files[0];
+        e.target.value = '';
+        if (file) await addImageToActiveSlide(file);
+      });
+      document.getElementById('pres-chat-image-left-btn')?.addEventListener('click', () => placeImage('left'));
+      document.getElementById('pres-chat-image-right-btn')?.addEventListener('click', () => placeImage('right'));
     }
     refreshChips();
   }
@@ -266,7 +292,7 @@
         'Merhaba — Acadia sunum asistanıyım. Bu oturumdaki sohbeti hatırlarım.\n\n' +
         '• "Dijital dönüşüm, 8 slayt, madde madde"\n' +
         '• "Arka planı siyah / ocean / violet yap"\n' +
-        '• "4. slayta grafik ekle"\n' +
+        '• "4. slayta grafik ekle"\n• "Görsel ekle" / 🖼️ butonu\n' +
         '• "Aktif slaytı akademikleştir"\n\n' +
         (ctx.lastTopic ? `Son konu: ${ctx.lastTopic}` : 'Bir konu yazarak başlayabilirsin.'));
       return;
@@ -333,6 +359,11 @@
 
     const slideMatch = low.match(/(\d+)\.?\s*(slayt|slide)/i);
     const slideNum = slideMatch ? Number(slideMatch[1]) : null;
+    if (/(görsel|resim|image|foto|fotoğraf)/i.test(low) && /(ekle|yükle|koy|ekle)/i.test(low)) {
+      return { type: 'image_pick', slide: slideNum };
+    }
+    if (/(görsel|resim).*(sol|left)/i.test(low) || /(sola\s*al)/i.test(low)) return { type: 'image_place', position: 'left' };
+    if (/(görsel|resim).*(sağ|right)/i.test(low) || /(sağa\s*al)/i.test(low)) return { type: 'image_place', position: 'right' };
     if (/(grafik|chart)/i.test(low) && /(ekle|oluştur|üret|koy)/i.test(low)) return { type: 'visual', kind: 'chart', slide: slideNum };
     if (/(tablo|table)/i.test(low) && /(ekle|oluştur|üret|koy|yap)/i.test(low)) return { type: 'visual', kind: 'table', slide: slideNum };
 
@@ -395,6 +426,63 @@
     return `Konu: ${d.topic}\nSlayt: ${d.slideCount}\nYoğunluk: ${dens}\nDil: ${d.language === 'en' ? 'English' : 'Türkçe'}`;
   }
 
+
+  async function addImageToActiveSlide(file) {
+    const globals = g();
+    if (!globals.slides?.length) {
+      push('assistant', 'Önce bir sunum oluştur veya aç, sonra görsel ekle.');
+      return;
+    }
+    if (!globals.currentId) {
+      push('assistant', 'Görsel yüklemek için sunumu bir kez Kaydetmen gerekiyor.');
+      return;
+    }
+    // Prefer dashboard uploader (storage + layout)
+    if (typeof uploadPresentationImage === 'function') {
+      push('system', 'Görsel yükleniyor…');
+      try {
+        await uploadPresentationImage(file);
+        push('assistant', 'Görsel aktif slayta eklendi. Konum için "sola al" / "sağa al" diyebilir veya Sol/Sağ butonlarını kullanabilirsin.');
+        try {
+          if (typeof renderActivePresentationSlide === 'function') renderActivePresentationSlide();
+        } catch (_) {}
+      } catch (e) {
+        push('error', e?.message || 'Görsel yüklenemedi.');
+      }
+      return;
+    }
+    push('assistant', 'Görsel yükleme fonksiyonu hazır değil. Sağ panelden yüklemeyi dene.');
+  }
+
+  function placeImage(position) {
+    const globals = g();
+    if (!globals.slides?.length) {
+      push('assistant', 'Önce sunum/slayt gerekli.');
+      return;
+    }
+    if (typeof setPresentationImagePosition === 'function') {
+      setPresentationImagePosition(position);
+      push('assistant', position === 'left' ? 'Görsel sola alındı.' : 'Görsel sağa alındı.');
+      return;
+    }
+    // fallback
+    try {
+      const slide = globals.slides[globals.active];
+      if (!slide) return;
+      if (!slide.image_url && !slide.content?.image) {
+        push('assistant', 'Bu slaytta görsel yok. Önce "Görsel ekle" ile yükle.');
+        return;
+      }
+      slide.image_position = position;
+      slide.layout_type = position === 'left' ? 'image-left' : 'image-right';
+      if (typeof markPresentationDirty === 'function') markPresentationDirty();
+      if (typeof renderActivePresentationSlide === 'function') renderActivePresentationSlide();
+      push('assistant', position === 'left' ? 'Görsel sola alındı.' : 'Görsel sağa alındı.');
+    } catch (e) {
+      push('error', e?.message || 'Konum ayarlanamadı.');
+    }
+  }
+
   async function handleUser(text) {
     if (busy) return;
     push('user', text);
@@ -416,6 +504,22 @@
           '• "Slaytı akademikleştir / kısalt / notes güçlendir"\n' +
           '• "Hafızayı sil"\n' +
           'Hafıza: son konu, yoğunluk ve mesajlar bu oturumda saklanır.');
+        return;
+      }
+      if (intent.type === 'image_pick') {
+        if (intent.slide) {
+          try {
+            if (typeof presActiveSlide !== 'undefined') presActiveSlide = Math.max(0, intent.slide - 1);
+            if (typeof renderPresentationSlidesList === 'function') renderPresentationSlidesList();
+            if (typeof renderActivePresentationSlide === 'function') renderActivePresentationSlide();
+          } catch (_) {}
+        }
+        push('assistant', 'Görsel dosyasını seç (JPG/PNG/WebP/GIF, max 5MB). Slayta uygun image layout ile yerleştireceğim.');
+        document.getElementById('pres-chat-image-input')?.click();
+        return;
+      }
+      if (intent.type === 'image_place') {
+        placeImage(intent.position === 'left' ? 'left' : 'right');
         return;
       }
       if (intent.type === 'theme') {
@@ -634,7 +738,7 @@
     open, close, handleUser,
     getMemory: () => memory.slice(),
     clearMemory: () => { memory = []; pendingCreate = null; saveState(); renderMessages(); },
-    version: '8.3.0',
+    version: '8.3.1',
   };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
