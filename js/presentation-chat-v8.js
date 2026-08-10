@@ -11,7 +11,7 @@
   const CTX_KEY = 'acadex_pres_chat_v8_ctx';
   const MAX_MEMORY = 60;
   let memory = [];
-  let ctx = { lastTopic: '', lastDetail: 'bullets', lastCount: 8, lastTheme: '', lastAction: '' };
+  let ctx = { lastTopic: '', lastDetail: 'bullets', lastCount: 8, lastTheme: '', lastAction: '', preferMixed: true };
   let pendingCreate = null;
   let busy = false;
 
@@ -334,8 +334,15 @@
     const slideMatch = low.match(/(\d+)\.?\s*(slayt|slide)/i);
     const slideNum = slideMatch ? Number(slideMatch[1]) : null;
     if (/(grafik|chart)/i.test(low) && /(ekle|oluştur|üret|koy)/i.test(low)) return { type: 'visual', kind: 'chart', slide: slideNum };
-    if (/(tablo|table)/i.test(low) && /(ekle|oluştur|üret|koy)/i.test(low)) return { type: 'visual', kind: 'table', slide: slideNum };
+    if (/(tablo|table)/i.test(low) && /(ekle|oluştur|üret|koy|yap)/i.test(low)) return { type: 'visual', kind: 'table', slide: slideNum };
 
+    // content style shortcuts
+    if (/(madde\s*madde|bullet)/i.test(low) && /(yaz|dönüştür|yap|olsun)/i.test(low)) {
+      return { type: 'improve', slide: slideNum, instruction: 'Bu slaytın metnini net madde işaretli akademik maddelere dönüştür. Tablo/grafik varsa koru. Çift içerik üretme.' };
+    }
+    if (/(paragraf|düz\s*metin|prose)/i.test(low) && /(yaz|dönüştür|yap|olsun)/i.test(low)) {
+      return { type: 'improve', slide: slideNum, instruction: 'Bu slaytı 2-3 cümmelik akıcı akademik paragraf yap. Madde listesini kaldır. Tablo/grafik varsa koru.' };
+    }
     if (/(slayt|slide|notes|not)/i.test(low) && /(geliştir|düzelt|akademik|yeniden|kısalt|detaylandır|özetle|güçlendir|netleştir)/i.test(low)) {
       return { type: 'improve', slide: slideNum, instruction: t };
     }
@@ -485,7 +492,7 @@
     ctx.lastDetail = draft.detailLevel;
     ctx.lastCount = draft.slideCount;
     saveState();
-    push('assistant', 'Taslak:\n\n' + summarizeDraft(draft) + '\n\n"Evet" / "Oluştur" — veya "10 slayt, özet" diye güncelle.');
+    push('assistant', 'Taslak:\n\n' + summarizeDraft(draft) + '\n\nKarışık stil: giriş kısa, kavramlar madde, süreç adımlı, özet net.\n\n"Evet" / "Oluştur" — veya "10 slayt, detaylı" diye güncelle.');
   }
 
   async function runCreate(draft) {
@@ -538,7 +545,7 @@
       }
     } catch (_) {}
     const q = data.quality?.score != null ? ` · Kalite ${Math.round(data.quality.score)}/100` : '';
-    push('assistant', `Hazır: ${generated.slides.length} slayt${q}.\nSohbete devam: grafik, tema, slayt düzenleme…`);
+    push('assistant', `Hazır: ${generated.slides.length} slayt${q}.\n\nÖnerilen akış:\n1) Metni gözden geçir\n2) "4. slayta temiz tablo ekle"\n3) Tema / madde-paragraf ayarı\n\nÖrn: "3. slaytı madde madde yaz"`);
     refreshChips();
   }
 
@@ -627,7 +634,7 @@
     open, close, handleUser,
     getMemory: () => memory.slice(),
     clearMemory: () => { memory = []; pendingCreate = null; saveState(); renderMessages(); },
-    version: '8.2.1',
+    version: '8.3.0',
   };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
