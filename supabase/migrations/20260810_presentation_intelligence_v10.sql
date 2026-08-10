@@ -1,26 +1,41 @@
 -- ==========================================================================
--- Acadex Presentation Intelligence V10
--- Adds source/citation lineage, version history, generation telemetry and rehearsal data.
--- Safe to run after 20260807_add_academic_presentations.sql.
+-- Acadex Presentation Intelligence V10 — FULL / RERUNNABLE MIGRATION
+-- Run after: 20260807_add_academic_presentations.sql
+-- Safe to rerun. Creates V10 tables first, then RLS policies and helper view.
 -- ==========================================================================
 
+begin;
+
 -- --------------------------------------------------------------------------
--- 0. Extend current presentation records without breaking V7/V8/V9 clients
+-- 0. Preflight: V7 base presentation tables must already exist
 -- --------------------------------------------------------------------------
-alter table if exists public.presentations
+do $$
+begin
+  if to_regclass('public.presentations') is null then
+    raise exception 'Missing public.presentations. Run 20260807_add_academic_presentations.sql first.';
+  end if;
+  if to_regclass('public.presentation_slides') is null then
+    raise exception 'Missing public.presentation_slides. Run 20260807_add_academic_presentations.sql first.';
+  end if;
+end $$;
+
+-- --------------------------------------------------------------------------
+-- 1. Extend existing presentation records without breaking V7/V8/V9
+-- --------------------------------------------------------------------------
+alter table public.presentations
   add column if not exists schema_version int not null default 10,
   add column if not exists presentation_mode text not null default 'academic',
   add column if not exists target_duration_seconds int,
   add column if not exists quality_score numeric(5,2),
   add column if not exists quality_report jsonb not null default '{}'::jsonb;
 
-alter table if exists public.presentation_slides
+alter table public.presentation_slides
   add column if not exists revision int not null default 0,
   add column if not exists source_refs jsonb not null default '[]'::jsonb,
   add column if not exists quality jsonb not null default '{}'::jsonb;
 
 -- --------------------------------------------------------------------------
--- 1. Sources attached to a presentation
+-- 2. Sources attached to a presentation
 -- --------------------------------------------------------------------------
 create table if not exists public.presentation_sources (
   id uuid primary key default gen_random_uuid(),
@@ -36,11 +51,11 @@ create table if not exists public.presentation_sources (
 
 create index if not exists presentation_sources_presentation_idx
   on public.presentation_sources (presentation_id, created_at desc);
-
-alter table public.presentation_sources enable row level security;
+create index if not exists presentation_sources_source_idx
+  on public.presentation_sources (source_type, source_id);
 
 -- --------------------------------------------------------------------------
--- 2. Claim-level citations for slides
+-- 3. Claim/page-level citations for slides
 -- --------------------------------------------------------------------------
 create table if not exists public.presentation_slide_citations (
   id uuid primary key default gen_random_uuid(),
@@ -57,10 +72,8 @@ create index if not exists presentation_slide_citations_slide_idx
 create index if not exists presentation_slide_citations_source_idx
   on public.presentation_slide_citations (source_id);
 
-alter table public.presentation_slide_citations enable row level security;
-
 -- --------------------------------------------------------------------------
--- 3. Immutable-ish snapshots for restore / Acadia checkpoints
+-- 4. Restorable presentation versions / Acadia checkpoints
 -- --------------------------------------------------------------------------
 create table if not exists public.presentation_versions (
   id uuid primary key default gen_random_uuid(),
@@ -69,17 +82,16 @@ create table if not exists public.presentation_versions (
   reason text not null default 'manual_snapshot',
   created_by_type text not null default 'user' check (created_by_type in ('user','acadia','system')),
   snapshot jsonb not null,
-  created_at timestamptz not null default now(),
-  unique (presentation_id, version_no)
+  created_at timestamptz not null default now()
 );
 
+create unique index if not exists presentation_versions_unique_idx
+  on public.presentation_versions (presentation_id, version_no);
 create index if not exists presentation_versions_presentation_idx
   on public.presentation_versions (presentation_id, version_no desc);
 
-alter table public.presentation_versions enable row level security;
-
 -- --------------------------------------------------------------------------
--- 4. Generation pipeline telemetry
+-- 5. AI generation telemetry / multi-pass pipeline runs
 -- --------------------------------------------------------------------------
 create table if not exists public.presentation_generation_runs (
   id uuid primary key default gen_random_uuid(),
@@ -102,10 +114,8 @@ create index if not exists presentation_generation_runs_user_idx
 create index if not exists presentation_generation_runs_presentation_idx
   on public.presentation_generation_runs (presentation_id, created_at desc);
 
-alter table public.presentation_generation_runs enable row level security;
-
 -- --------------------------------------------------------------------------
--- 5. Rehearsal / presentation practice sessions
+-- 6. Rehearsal / presentation practice sessions
 -- --------------------------------------------------------------------------
 create table if not exists public.presentation_rehearsals (
   id uuid primary key default gen_random_uuid(),
@@ -123,34 +133,52 @@ create index if not exists presentation_rehearsals_user_idx
 create index if not exists presentation_rehearsals_presentation_idx
   on public.presentation_rehearsals (presentation_id, created_at desc);
 
-alter table public.presentation_rehearsals enable row level security;
+-- --------------------------------------------------------------------------
+-- 7. updated_at helper + trigger
+-- --------------------------------------------------------------------------
+create or replace function public.set_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
 
--- --------------------------------------------------------------------------
--- 6. updated_at trigger for presentation_sources
--- --------------------------------------------------------------------------
 drop trigger if exists presentation_sources_set_updated_at on public.presentation_sources;
 create trigger presentation_sources_set_updated_at
   before update on public.presentation_sources
   for each row execute function public.set_updated_at();
 
 -- --------------------------------------------------------------------------
--- 7. Owner-only RLS policies
+-- 8. Enable RLS
 -- --------------------------------------------------------------------------
+alter table public.presentation_sources enable row level security;
+alter table public.presentation_slide_citations enable row level security;
+alter table public.presentation_versions enable row level security;
+alter table public.presentation_generation_runs enable row level security;
+alter table public.presentation_rehearsals enable row level security;
 
+-- --------------------------------------------------------------------------
+-- 9. Owner-only RLS policies (all outer columns explicitly qualified)
+-- --------------------------------------------------------------------------
 drop policy if exists "presentation_sources_owner_all" on public.presentation_sources;
 create policy "presentation_sources_owner_all"
   on public.presentation_sources for all
   to authenticated
   using (
     exists (
-      select 1 from public.presentations p
+      select 1
+      from public.presentations p
       where p.id = presentation_sources.presentation_id
         and p.user_id = auth.uid()
     )
   )
   with check (
     exists (
-      select 1 from public.presentations p
+      select 1
+      from public.presentations p
       where p.id = presentation_sources.presentation_id
         and p.user_id = auth.uid()
     )
@@ -174,9 +202,9 @@ create policy "presentation_citations_owner_all"
       select 1
       from public.presentation_slides s
       join public.presentations p on p.id = s.presentation_id
-      join public.presentation_sources ps on ps.presentation_id = p.id
+      join public.presentation_sources src on src.presentation_id = p.id
       where s.id = presentation_slide_citations.slide_id
-        and ps.id = presentation_slide_citations.source_id
+        and src.id = presentation_slide_citations.source_id
         and p.user_id = auth.uid()
     )
   );
@@ -187,14 +215,16 @@ create policy "presentation_versions_owner_all"
   to authenticated
   using (
     exists (
-      select 1 from public.presentations p
+      select 1
+      from public.presentations p
       where p.id = presentation_versions.presentation_id
         and p.user_id = auth.uid()
     )
   )
   with check (
     exists (
-      select 1 from public.presentations p
+      select 1
+      from public.presentations p
       where p.id = presentation_versions.presentation_id
         and p.user_id = auth.uid()
     )
@@ -215,7 +245,8 @@ create policy "presentation_generation_runs_insert_own"
     and (
       presentation_generation_runs.presentation_id is null
       or exists (
-        select 1 from public.presentations p
+        select 1
+        from public.presentations p
         where p.id = presentation_generation_runs.presentation_id
           and p.user_id = auth.uid()
       )
@@ -236,7 +267,8 @@ create policy "presentation_rehearsals_owner_all"
   using (
     presentation_rehearsals.user_id = auth.uid()
     and exists (
-      select 1 from public.presentations p
+      select 1
+      from public.presentations p
       where p.id = presentation_rehearsals.presentation_id
         and p.user_id = auth.uid()
     )
@@ -244,14 +276,24 @@ create policy "presentation_rehearsals_owner_all"
   with check (
     presentation_rehearsals.user_id = auth.uid()
     and exists (
-      select 1 from public.presentations p
+      select 1
+      from public.presentations p
       where p.id = presentation_rehearsals.presentation_id
         and p.user_id = auth.uid()
     )
   );
 
 -- --------------------------------------------------------------------------
--- 8. Optional helper view: citation coverage per presentation
+-- 10. Explicit privileges for authenticated users (RLS still restricts rows)
+-- --------------------------------------------------------------------------
+grant select, insert, update, delete on public.presentation_sources to authenticated;
+grant select, insert, update, delete on public.presentation_slide_citations to authenticated;
+grant select, insert, update, delete on public.presentation_versions to authenticated;
+grant select, insert, update on public.presentation_generation_runs to authenticated;
+grant select, insert, update, delete on public.presentation_rehearsals to authenticated;
+
+-- --------------------------------------------------------------------------
+-- 11. Citation coverage helper view
 -- --------------------------------------------------------------------------
 create or replace view public.presentation_citation_coverage
 with (security_invoker = true)
@@ -261,7 +303,7 @@ select
   count(distinct s.id) as slide_count,
   count(distinct case when c.id is not null then s.id end) as cited_slide_count,
   case
-    when count(distinct s.id) = 0 then 0
+    when count(distinct s.id) = 0 then 0::numeric
     else round(
       count(distinct case when c.id is not null then s.id end)::numeric
       / count(distinct s.id)::numeric * 100,
@@ -273,10 +315,20 @@ left join public.presentation_slides s on s.presentation_id = p.id
 left join public.presentation_slide_citations c on c.slide_id = s.id
 group by p.id;
 
--- ==========================================================================
--- V10 application layer can now:
--- - attach sources and claim/page citations
--- - create restorable versions
--- - record generation stages and latency
--- - save rehearsal timing/feedback
--- ==========================================================================
+grant select on public.presentation_citation_coverage to authenticated;
+
+commit;
+
+-- --------------------------------------------------------------------------
+-- 12. Validation result
+-- --------------------------------------------------------------------------
+select
+  case
+    when to_regclass('public.presentation_sources') is not null
+     and to_regclass('public.presentation_slide_citations') is not null
+     and to_regclass('public.presentation_versions') is not null
+     and to_regclass('public.presentation_generation_runs') is not null
+     and to_regclass('public.presentation_rehearsals') is not null
+    then 'ACADEX PRESENTATION V10 MIGRATION SUCCESS'
+    else 'ACADEX PRESENTATION V10 MIGRATION INCOMPLETE'
+  end as status;
