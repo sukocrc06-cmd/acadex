@@ -78,9 +78,10 @@ document.addEventListener('DOMContentLoaded',async()=>{
     try { await acadexLoadScript('js/presentation-chat-v8.js?v=8.3.1'); } catch (e) { console.error('Presentation chat V8 failed:', e); }
     try { await acadexLoadScript('js/presentation-tools-panel-v9.js?v=9.0.0'); } catch (e) { console.error('Presentation tools panel V9 failed:', e); }
 
-    // V10 intelligence layer: critic -> agent -> command surface.
+    // V10 intelligence layer: critic -> agent -> command surface -> rehearsal.
     try { await acadexLoadScript('js/presentation/quality/presentation-quality-v10.js?v=10.0.0'); } catch (e) { console.error('Presentation quality V10 failed:', e); }
     try { await acadexLoadScript('js/presentation/ai/acadia-presentation-agent-v10.js?v=10.0.0'); } catch (e) { console.error('Acadia presentation agent V10 failed:', e); }
     try { await acadexLoadScript('js/presentation/ai/acadia-command-bar-v10.js?v=10.0.0'); } catch (e) { console.error('Acadia command bar V10 failed:', e); }
+    try { await acadexLoadScript('js/presentation/rehearsal/presentation-rehearsal-v10.js?v=10.0.0'); } catch (e) { console.error('Presentation rehearsal V10 failed:', e); }
   }
 });
