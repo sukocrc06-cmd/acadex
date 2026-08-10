@@ -366,23 +366,27 @@ function normalizeSlide(value: unknown, index: number, sourceType: string) {
   const cards = normalizeCards(row.cards ?? sourceContent.cards)
   const steps = normalizeSteps(row.steps ?? sourceContent.steps)
   const diagram = normalizeDiagram(row.diagram ?? sourceContent.diagram)
-  let layoutRaw = cleanText(row.layout_type ?? row.layout, 30)
+  const layoutRaw = cleanText(row.layout_type ?? row.layout, 30)
   let layout = allowedLayouts.has(layoutRaw) ? layoutRaw : 'title-content'
   if (layout === 'table' && !table) layout = 'title-content'
   if (layout === 'chart' && !chart) layout = 'title-content'
-  const sourceRefs = Array.isArray(row.source_refs ?? sourceContent.source_refs)
-    ? (row.source_refs ?? sourceContent.source_refs as unknown[]).slice(0, 8).map((ref: any) => ({
+
+  const rawSourceRefs = row.source_refs ?? sourceContent.source_refs
+  const sourceRefs = Array.isArray(rawSourceRefs)
+    ? rawSourceRefs.slice(0, 8).map((ref: any) => ({
       chunk_id: cleanText(ref?.chunk_id ?? ref?.id, 12),
       confidence: Math.max(0, Math.min(1, Number(ref?.confidence ?? 0.8) || 0.8)),
     })).filter((ref: any) => ref.chunk_id)
     : []
-  const claims = Array.isArray(row.claims ?? sourceContent.claims)
-    ? (row.claims ?? sourceContent.claims as unknown[]).slice(0, 8).map((claim: any) => ({
+  const rawClaims = row.claims ?? sourceContent.claims
+  const claims = Array.isArray(rawClaims)
+    ? rawClaims.slice(0, 8).map((claim: any) => ({
       text: cleanText(claim?.text ?? claim?.claim, 360),
       evidence_ids: Array.isArray(claim?.evidence_ids) ? claim.evidence_ids.map((x: unknown) => cleanText(x, 12)).filter(Boolean).slice(0, 6) : [],
       confidence: Math.max(0, Math.min(1, Number(claim?.confidence ?? 0.8) || 0.8)),
     })).filter((claim: any) => claim.text)
     : []
+
   const content: Record<string, unknown> = {
     text: cleanText(row.text ?? sourceContent.text, 3600),
     secondary_text: cleanText(row.secondary_text ?? sourceContent.secondary_text, 2200),
@@ -582,7 +586,8 @@ serve(async (req) => {
       const planInput = body?.plan && typeof body.plan === 'object' ? body.plan : null
       if (!planInput) return respond({ error: 'Director plan is required' }, 400)
       const slideCount = clampInt(body?.slideCount ?? planInput?.outline?.length, 5, 15, 8)
-      const plan = normalizePlan(planInput, slideCount, allowedModes.has(body?.mode) ? body.mode : (planInput?.brief?.mode || 'academic'), clampInt(body?.targetMinutes ?? planInput?.brief?.target_minutes, 3, 30, 10))
+      const planMode = allowedModes.has(body?.mode) ? body.mode : (planInput?.brief?.mode || 'academic')
+      const plan = normalizePlan(planInput, slideCount, String(planMode), clampInt(body?.targetMinutes ?? planInput?.brief?.target_minutes, 3, 30, 10))
       const evidenceChunks = Array.isArray(body?.evidence_chunks)
         ? body.evidence_chunks.slice(0, 12).map((x: any) => ({ id: cleanText(x?.id, 12), text: cleanText(x?.text, 900), locator: x?.locator && typeof x.locator === 'object' ? x.locator : {} })).filter((x: any) => x.id && x.text)
         : undefined
