@@ -82,7 +82,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
     try { await acadexLoadScript('js/presentation/ai/acadia-presentation-agent-v10.js?v=10.0.0'); } catch (e) { console.error('Acadia presentation agent V10 failed:', e); }
     try { await acadexLoadScript('js/presentation/ai/acadia-presentation-director-v11.js?v=11.0.0'); } catch (e) { console.error('Acadia presentation director V11 failed:', e); }
     // Chat V11 loads BEFORE the command palette so Ctrl/Cmd+K belongs to conversational Acadia in Presentation Studio.
-    try { await acadexLoadScript('js/presentation/ai/acadia-presentation-chat-v11.js?v=11.1.0'); } catch (e) { console.error('Acadia presentation chat V11 failed:', e); }
+    try { await acadexLoadScript('js/presentation/ai/acadia-presentation-chat-v11.js?v=11.1.1'); } catch (e) { console.error('Acadia presentation chat V11 failed:', e); }
     try { await acadexLoadScript('js/presentation/ai/acadia-command-bar-v10.js?v=11.0.1'); } catch (e) { console.error('Acadia command bar V11 bridge failed:', e); }
     try { await acadexLoadScript('js/presentation/rehearsal/presentation-rehearsal-v10.js?v=10.0.0'); } catch (e) { console.error('Presentation rehearsal V10 failed:', e); }
   }
