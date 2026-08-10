@@ -1,13 +1,16 @@
-/* Acadex Presentation Studio V10 — Acadia command bar (Ctrl/Cmd + K). */
+/* Acadex Presentation Studio V10/V11 — Acadia command bar (Ctrl/Cmd + K). */
 (function () {
   'use strict';
   if (window.AcadiaPresentationCommandBarV10) return;
 
   const Agent = () => window.AcadiaPresentationAgentV10;
+  const Director = () => window.AcadiaPresentationDirectorV11;
   const Services = () => window.AcadexPresentationServicesV10;
   let busy = false;
 
   const commands = [
+    { id: 'v11-director', label: '✨ V11 Director ile profesyonel sunum üret', hint: 'Brief → evidence → writer → visual → critic', run: () => Director()?.open?.() },
+    { id: 'v11-critic', label: 'V11 Academic Critic ile deck denetle', hint: 'Akış, yoğunluk, grounding ve speaker readiness', run: () => Director()?.critiqueCurrent?.() },
     { id: 'review', label: 'Sunumu akademik olarak denetle', hint: 'Quality score + iyileştirmeler', run: () => Agent().execute('review_deck') },
     { id: 'short', label: 'Aktif slaytı kısalt', hint: 'Ana mesajı korur', run: () => Agent().execute('rewrite_active_slide', { mode: 'short' }) },
     { id: 'academic', label: 'Aktif slaytı akademikleştir', hint: 'Net ve kanıta duyarlı', run: () => Agent().execute('rewrite_active_slide', { mode: 'academic' }) },
@@ -59,7 +62,7 @@
       <div class="ac10-box" role="dialog" aria-modal="true" aria-label="Acadia sunum komut çubuğu">
         <div class="ac10-head">
           <div class="ac10-mark">A</div>
-          <input id="acadia-command-v10-input" type="text" autocomplete="off" placeholder="Acadia'ya söyle… örn. Bu sunumu jüri sunumuna dönüştür">
+          <input id="acadia-command-v10-input" type="text" autocomplete="off" placeholder="Acadia'ya söyle… örn. Bu konuda 10 slaytlık jüri sunumu hazırla">
           <kbd>ESC</kbd>
         </div>
         <div class="ac10-list" id="acadia-command-v10-list"></div>
@@ -115,12 +118,21 @@
   }
 
   async function runCommand(command) {
-    if (busy || !Agent()) return;
+    if (busy) return;
+    if (command.id.startsWith('v11') && !Director()) {
+      setStatus('V11 Director modülü henüz yüklenmedi.', 'is-error');
+      return;
+    }
+    if (!command.id.startsWith('v11') && !Agent()) return;
     busy = true;
     setStatus(`${command.label} çalışıyor…`);
     try {
       const result = await command.run();
-      if (command.id === 'review' && result?.score != null) setStatus(`Denetim tamamlandı · Academic Quality ${result.score}/100`, 'is-ok');
+      if (command.id === 'v11-director') {
+        setStatus('V11 Director açıldı.', 'is-ok');
+        close();
+      } else if (command.id === 'v11-critic' && result?.score != null) setStatus(`V11 Academic Critic · ${result.score}/100`, 'is-ok');
+      else if (command.id === 'review' && result?.score != null) setStatus(`Denetim tamamlandı · Academic Quality ${result.score}/100`, 'is-ok');
       else if (command.id === 'citation' && result?.score != null) setStatus(`Kaynak kontrolü tamamlandı · ${result.score}/100`, 'is-ok');
       else if (command.id === 'version' && result?.version_no) setStatus(`Versiyon v${result.version_no} kaydedildi.`, 'is-ok');
       else setStatus('İşlem tamamlandı.', 'is-ok');
@@ -134,10 +146,18 @@
   }
 
   async function runFreePrompt(message) {
-    if (busy || !Agent()) return;
+    if (busy) return;
     busy = true;
     setStatus('Acadia komutu işliyor…');
     try {
+      const looksLikeDeckRequest = /(?:sunum|presentation|deck).*(?:oluştur|hazırla|üret|tasarla|create|build|generate)|(?:oluştur|hazırla|üret|tasarla).*(?:sunum|presentation|deck)/i.test(message);
+      if (looksLikeDeckRequest && Director()) {
+        await Director().open({ topic: message, sourceType: 'topic' });
+        setStatus('Komut V11 Director’a aktarıldı.', 'is-ok');
+        close();
+        return;
+      }
+      if (!Agent()) throw new Error('Acadia sunum asistanı hazır değil.');
       await Agent().execute('ask_acadia', { message });
       setStatus('Komut Acadia sunum asistanına gönderildi.', 'is-ok');
       close();
@@ -171,5 +191,5 @@
     if (event.key === 'Escape' && document.getElementById('acadia-command-v10')?.classList.contains('is-open')) close();
   });
 
-  window.AcadiaPresentationCommandBarV10 = { version: '10.0.0', open, close, runCommand, commands };
+  window.AcadiaPresentationCommandBarV10 = { version: '11.0.0', open, close, runCommand, runFreePrompt, commands };
 })();
