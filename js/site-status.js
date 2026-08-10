@@ -45,6 +45,8 @@ function acadexApplyPortalLabel(){
 }
 function acadexLoadScript(src){
   return new Promise((resolve,reject)=>{
+    const existing = Array.from(document.scripts).find((script) => script.src && script.src.includes(src.split('?')[0]));
+    if (existing) return resolve();
     const s=document.createElement('script'); s.src=src; s.async=false; s.onload=resolve; s.onerror=reject; document.body.appendChild(s);
   });
 }
@@ -53,6 +55,11 @@ document.addEventListener('DOMContentLoaded',async()=>{
   const settings=await acadexGetSiteSettings(); acadexRenderBanner(settings.banner);
   if(window.location.pathname.includes('login.html')&&settings.maintenance?.enabled){const notice=acadexRenderMaintenanceNotice(settings.maintenance);const loginView=document.getElementById('login-view');if(notice&&loginView)loginView.insertBefore(notice,loginView.firstChild);}
   if(window.location.pathname.includes('dashboard.html')){
+    // V10 shared runtime: load first. It does not replace legacy modules; it gives
+    // the V7/V8/V9 editor a stable service + schema layer for gradual migration.
+    try { await acadexLoadScript('js/presentation/core/presentation-services-v10.js?v=10.0.0'); } catch (e) { console.error('Presentation services V10 failed:', e); }
+    try { await acadexLoadScript('js/presentation/core/presentation-schema-v10.js?v=10.0.0'); } catch (e) { console.error('Presentation schema V10 failed:', e); }
+
     // Core editor stack
     try { await acadexLoadScript('js/presentation-model-v7.js?v=7.0.0'); } catch (e) { console.error('Presentation model V7 failed:', e); }
     try { await acadexLoadScript('js/presentation-renderer-v7.js?v=7.0.0'); } catch (e) { console.error('Presentation renderer V7 failed:', e); }
@@ -60,7 +67,8 @@ document.addEventListener('DOMContentLoaded',async()=>{
     try { await acadexLoadScript('js/presentation-controls-v7.js?v=7.0.0'); } catch (e) { console.error('Presentation controls V7 failed:', e); }
     try { await acadexLoadScript('js/presentation-modal-scroll-v7.js?v=7.2.0'); } catch (e) { console.error('Presentation modal scroll V7.2 failed:', e); }
     try { await acadexLoadScript('js/presentation-export-v8.js?v=8.0.0'); } catch (e) { console.error('Presentation export V8 failed:', e); }
-    // Premium academic layer (master bundle)
+
+    // Premium academic layer (existing V8/V9 capabilities)
     try { await acadexLoadScript('js/presentation-theme-v8.js?v=8.2.0'); } catch (e) { console.error('Presentation theme V8 failed:', e); }
     try { await acadexLoadScript('js/presentation-settings-v8.js?v=8.1.1'); } catch (e) { console.error('Presentation settings V8 failed:', e); }
     try { await acadexLoadScript('js/presentation-dedupe-v8.js?v=8.1.1'); } catch (e) { console.error('Presentation dedupe V8 failed:', e); }
@@ -69,5 +77,10 @@ document.addEventListener('DOMContentLoaded',async()=>{
     try { await acadexLoadScript('js/presentation-polish-v8.js?v=8.1.1'); } catch (e) { console.error('Presentation polish V8 failed:', e); }
     try { await acadexLoadScript('js/presentation-chat-v8.js?v=8.3.1'); } catch (e) { console.error('Presentation chat V8 failed:', e); }
     try { await acadexLoadScript('js/presentation-tools-panel-v9.js?v=9.0.0'); } catch (e) { console.error('Presentation tools panel V9 failed:', e); }
+
+    // V10 intelligence layer: critic -> agent -> command surface.
+    try { await acadexLoadScript('js/presentation/quality/presentation-quality-v10.js?v=10.0.0'); } catch (e) { console.error('Presentation quality V10 failed:', e); }
+    try { await acadexLoadScript('js/presentation/ai/acadia-presentation-agent-v10.js?v=10.0.0'); } catch (e) { console.error('Acadia presentation agent V10 failed:', e); }
+    try { await acadexLoadScript('js/presentation/ai/acadia-command-bar-v10.js?v=10.0.0'); } catch (e) { console.error('Acadia command bar V10 failed:', e); }
   }
 });
