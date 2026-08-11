@@ -16,6 +16,18 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
+  <!-- Supabase client, only for the "Derinlemesine Araştır" (Deep Research)
+       AI generation call — everything else in this tool stays local
+       (localStorage autosave, no other Acadex data is read or written).
+       Same project as the main dashboard, so signing in there already
+       leaves this page authenticated (same-origin localStorage session). -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script>
+    const SUPABASE_URL = "https://yrcdvcsowblzmkpbmkut.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_W_DZnHPY-I51nioiWOTJmw_FCnyFjxm";
+    const acadexSupabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  </script>
+
   <!-- Tailwind custom styles mapping -->
   <script>
     tailwind.config = {
@@ -126,9 +138,39 @@
       background: rgba(31, 138, 147, 0.12) !important;
       box-shadow: 0 0 0 1px rgba(31, 138, 147, 0.45), 0 8px 20px -8px rgba(31, 138, 147, 0.35);
     }
+
+    /* This tool is a 3-column canvas editor (tool panel / 960x540 slide /
+       layer panel) that fundamentally needs real screen width — squeezing
+       it onto a phone would just be a broken, unusable editor rather than
+       a "responsive" one. Instead of pretending to make it work, gate it
+       behind a friendly notice below this breakpoint and point the
+       student back to a desktop/tablet, same honest pattern a lot of
+       canvas/design tools (Figma, Canva) use on small screens. */
+    #mobileGate { display: none; }
+    @media (max-width: 900px) {
+      #mobileGate { display: flex; }
+      #editorRoot { display: none; }
+    }
   </style>
 </head>
 <body class="h-screen overflow-hidden flex flex-col">
+
+  <!-- MOBILE / NARROW-SCREEN NOTICE (see #mobileGate media query above) -->
+  <div id="mobileGate" class="h-screen w-screen flex-col items-center justify-center text-center p-8 gap-4" style="background-color: #16325C;">
+    <div style="width: 64px; height: 64px; border-radius: 50%; background: rgba(31,138,147,0.18); display:flex; align-items:center; justify-content:center;">
+      <i class="fa-solid fa-display" style="color:#1F8A93; font-size: 1.5rem;"></i>
+    </div>
+    <h2 style="font-family:'Inter',sans-serif; font-weight:800; font-size:1.15rem; color:#fff;">Acadex Sunum, geniş ekran gerektirir</h2>
+    <p style="color:#B8C4D3; font-size:0.85rem; max-width: 360px; line-height:1.6;">
+      Bu sunum düzenleyici bir masaüstü/tablet aracıdır — küçük ekranlarda rahat kullanılamaz.
+      Lütfen bir bilgisayar veya tablet üzerinden tekrar deneyin.
+    </p>
+    <button type="button" onclick="if (window.parent && window.parent !== window && typeof window.parent.closeAcadexSunum === 'function') { window.parent.closeAcadexSunum(); } else { window.location.href = 'dashboard.html'; }" style="margin-top:0.5rem; background:#1F8A93; color:#fff; font-weight:700; font-size:0.8rem; padding:0.6rem 1.25rem; border-radius:10px; border:none; cursor:pointer;">
+      ← Panele Dön
+    </button>
+  </div>
+
+  <div id="editorRoot" class="h-screen overflow-hidden flex flex-col">
 
   <!-- TOP BAR -->
   <header class="glass-panel border-b border-slate-800 px-6 py-4 flex justify-between items-center z-10">
@@ -388,27 +430,29 @@
     </aside>
 
     <!-- CENTER CANVAS SECTION -->
-    <section class="flex-grow flex flex-col items-center justify-center p-6 overflow-hidden">
+    <section id="canvasCenterSection" class="flex-grow flex flex-col items-center justify-center p-6 overflow-hidden">
       <!-- Outer canvas wrapper shadow -->
-      <div class="canvas-box rounded-xl overflow-hidden border border-slate-800 shadow-2xl">
+      <div id="canvasBoxWrapper" class="canvas-box rounded-xl overflow-hidden border border-slate-800 shadow-2xl">
         <canvas id="editor-canvas"></canvas>
       </div>
-      
-      <!-- Slide statistics header -->
-      <div class="mt-4 flex items-center gap-4 text-xs font-semibold text-slate-400">
-        <span>Slayt Çözünürlüğü: 960x540 (16:9)</span>
-        <span>•</span>
-        <span id="slideIndicator">Slayt 1 / 1</span>
-      </div>
 
-      <!-- PRESENTER NOTES -->
-      <div class="w-[960px] mt-4 flex flex-col gap-2 z-10">
-        <button id="btnToggleNotes" class="flex items-center gap-2 text-xs text-slate-400 hover:text-white transition-all font-semibold self-start focus:outline-none">
-          <i class="fa-solid fa-chevron-down" id="notesIcon"></i>
-          <span>Konuşmacı Notları (Presenter Notes)</span>
-        </button>
-        <div id="notesContainer" class="w-full transition-all duration-300">
-          <textarea id="txtPresenterNotes" placeholder="Bu slayt için konuşmacı notlarını buraya ekleyin..." class="w-full h-20 bg-slate-900 bg-opacity-65 border border-slate-800 rounded-xl p-3 text-xs text-slate-300 focus:outline-none focus:border-sky-500 transition-all resize-none"></textarea>
+      <div id="canvasFooterBlock">
+        <!-- Slide statistics header -->
+        <div class="mt-4 flex items-center gap-4 text-xs font-semibold text-slate-400">
+          <span>Slayt Çözünürlüğü: 960x540 (16:9)</span>
+          <span>•</span>
+          <span id="slideIndicator">Slayt 1 / 1</span>
+        </div>
+
+        <!-- PRESENTER NOTES -->
+        <div class="w-[960px] mt-4 flex flex-col gap-2 z-10">
+          <button id="btnToggleNotes" class="flex items-center gap-2 text-xs text-slate-400 hover:text-white transition-all font-semibold self-start focus:outline-none">
+            <i class="fa-solid fa-chevron-down" id="notesIcon"></i>
+            <span>Konuşmacı Notları (Presenter Notes)</span>
+          </button>
+          <div id="notesContainer" class="w-full transition-all duration-300">
+            <textarea id="txtPresenterNotes" placeholder="Bu slayt için konuşmacı notlarını buraya ekleyin..." class="w-full h-20 bg-slate-900 bg-opacity-65 border border-slate-800 rounded-xl p-3 text-xs text-slate-300 focus:outline-none focus:border-sky-500 transition-all resize-none"></textarea>
+          </div>
         </div>
       </div>
     </section>
@@ -654,6 +698,11 @@
             <button type="button" data-domain="saglik" class="domain-chip text-[10px] px-2 py-1 rounded-full bg-slate-800 hover:bg-sky-900/50 text-slate-300 border border-slate-700">🏥 Sağlık</button>
             <button type="button" data-domain="pazarlama" class="domain-chip text-[10px] px-2 py-1 rounded-full bg-slate-800 hover:bg-sky-900/50 text-slate-300 border border-slate-700">📈 Pazarlama</button>
           </div>
+          <p class="text-[10.5px] text-slate-500 leading-snug mt-1">
+            💡 "Hızlı Oluştur" anında bir taslak üretir ama genel yapılar kullanır. Tarih, edebiyat, bilim gibi
+            spesifik bir konu için (örn. "İstanbul'un Fethi") en dolu dolu ve doğru içerik için
+            <span class="text-sky-400 font-semibold">"Derinlemesine Araştır (AI)"</span> önerilir.
+          </p>
         </div>
 
         <!-- Slide Count Slider -->
@@ -726,13 +775,17 @@
       </div>
 
       <!-- Action Buttons -->
-      <div class="flex justify-end gap-2.5 pt-3 border-t border-slate-800">
+      <div class="flex justify-end gap-2.5 pt-3 border-t border-slate-800 flex-wrap">
         <button id="btnCancelTopic" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-4 py-2.5 rounded-lg text-xs transition-all border border-slate-700">
           İptal
         </button>
-        <button id="btnSubmitTopic" class="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-semibold px-5 py-2.5 rounded-lg text-xs transition-all shadow-lg flex items-center gap-2">
-          <i class="fa-solid fa-play text-[10px]"></i>
-          <span>Sunumu Oluştur</span>
+        <button id="btnSubmitTopic" title="Yerel şablon motoruyla anında oluşturur" class="bg-slate-800 hover:bg-slate-700 text-white font-semibold px-4 py-2.5 rounded-lg text-xs transition-all border border-slate-700 flex items-center gap-2">
+          <i class="fa-solid fa-bolt text-[10px] text-sky-400"></i>
+          <span>Hızlı Oluştur</span>
+        </button>
+        <button id="btnSubmitTopicDeepResearch" title="Groq AI konuyu gerçekten araştırır, daha yavaş ama içerik dolu dolu olur" class="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-semibold px-5 py-2.5 rounded-lg text-xs transition-all shadow-lg flex items-center gap-2">
+          <i class="fa-solid fa-magnifying-glass-chart text-[10px]"></i>
+          <span>Derinlemesine Araştır (AI)</span>
         </button>
       </div>
     </div>
@@ -932,6 +985,20 @@
         width: 960,
         height: 540,
         backgroundColor: '#ffffff'
+      });
+
+      // The slide canvas is a fixed 960x540 element; without this it just
+      // renders at native size, leaving a lot of unused dark space around
+      // it on larger screens. Scale it up (via CSS zoom, which — unlike
+      // transform — also resizes the element's layout box, so no manual
+      // margin math is needed) to fill the available center column while
+      // preserving the 16:9 ratio. Re-fit on resize and whenever the
+      // presenter notes panel toggles, since that changes how much
+      // vertical space is left for the canvas.
+      fitCanvasToWorkspace();
+      window.addEventListener('resize', () => {
+        clearTimeout(window._canvasFitTimeout);
+        window._canvasFitTimeout = setTimeout(fitCanvasToWorkspace, 120);
       });
 
       // Register deletion keyboard listener
@@ -2622,7 +2689,35 @@
         container.classList.add('hidden');
         icon.className = "fa-solid fa-chevron-right";
       }
+      // Notes panel height changed, so the vertical space left for the
+      // canvas did too — re-fit after the collapse/expand transition.
+      setTimeout(fitCanvasToWorkspace, 320);
     });
+
+    // Scales the 960x540 slide canvas up (or down) to fill the available
+    // space in the center column, preserving its 16:9 aspect ratio. Uses
+    // CSS zoom rather than transform: scale() so the element's layout box
+    // resizes too — no manual centering/margin math needed.
+    function fitCanvasToWorkspace() {
+      const section = document.getElementById('canvasCenterSection');
+      const wrapper = document.getElementById('canvasBoxWrapper');
+      const footer = document.getElementById('canvasFooterBlock');
+      if (!section || !wrapper) return;
+
+      const SECTION_PADDING = 48; // p-6 on all sides (24px * 2)
+      const footerHeight = footer ? footer.getBoundingClientRect().height : 90;
+
+      const availableWidth = section.clientWidth - SECTION_PADDING;
+      const availableHeight = section.clientHeight - SECTION_PADDING - footerHeight;
+
+      const scale = Math.min(availableWidth / 960, availableHeight / 540);
+      // Clamp: never shrink below a legible minimum, never blow up past a
+      // point where a 960x540 canvas would look pixelated on huge displays.
+      const clamped = Math.max(0.55, Math.min(scale, 1.75));
+
+      wrapper.style.zoom = clamped;
+    }
+    window.fitCanvasToWorkspace = fitCanvasToWorkspace;
 
     // Save notes instantly on input changes
     document.getElementById('txtPresenterNotes').addEventListener('input', () => {
@@ -2832,30 +2927,35 @@
     }
     document.getElementById('wizardSlideCount').addEventListener('input', updateSlideCountBadge);
 
-    // Wizard submission action
-    document.getElementById('btnSubmitTopic').addEventListener('click', () => {
+    // Reads and packages the wizard form's current values. Shared by both
+    // the fast local-template path and the AI Deep Research path so the two
+    // stay in sync. Returns null (after alerting) if the topic is empty.
+    function gatherWizardSettings() {
       const topic = document.getElementById('wizardTopic').value.trim();
       if (!topic) {
         alert("Lütfen sunum konusunu belirtin.");
-        return;
+        return null;
       }
-
       const slideCount = parseInt(document.getElementById('wizardSlideCount').value) || 7;
       const tone = document.getElementById('wizardTone').value;
       const theme = document.getElementById('wizardTheme').value;
       const addAnim = document.getElementById('wizardAnimToggle').checked;
       const addDecor = document.getElementById('wizardDecorToggle').checked;
-
-      // 1. Pack all inputs into presentationSettings matching requirements
-      const presentationSettings = {
+      return {
         topic: topic,
         slideCount: slideCount,
         tone: tone,
-        language: tone, // tone mapping alias
+        language: tone, // tone mapping alias (kept as-is, generateAcadiaPresentation falls back to this)
         theme: theme,
         animationPreference: addAnim, // animationPreference mapping alias
         iconPreference: addDecor // iconPreference mapping alias
       };
+    }
+
+    // Wizard submission action — fast, local template engine (instant, generic structure)
+    document.getElementById('btnSubmitTopic').addEventListener('click', () => {
+      const presentationSettings = gatherWizardSettings();
+      if (!presentationSettings) return;
 
       // 2. Hide wizard modal
       document.getElementById('topicModal').classList.add('hidden');
@@ -2871,6 +2971,81 @@
 
       // 3. Call async presentation generator
       generateAcadiaPresentation(presentationSettings);
+    });
+
+    // Wizard submission action — AI Deep Research (Groq). Slower, but the
+    // model actually researches the topic instead of filling a template, so
+    // titles/bullets/speaker notes are genuinely specific and content-rich.
+    document.getElementById('btnSubmitTopicDeepResearch').addEventListener('click', async () => {
+      const presentationSettings = gatherWizardSettings();
+      if (!presentationSettings) return;
+
+      document.getElementById('topicModal').classList.add('hidden');
+
+      const overlay = document.getElementById('loadingOverlay');
+      const progressText = document.getElementById('loadingProgressText');
+      const progressBar = document.getElementById('loadingProgressBar');
+      overlay.classList.remove('hidden');
+      progressBar.style.width = '15%';
+      progressText.innerText = `"${presentationSettings.topic}" konusu derinlemesine araştırılıyor... Bu, hızlı oluşturmadan biraz daha uzun sürer.`;
+
+      try {
+        const { data: { session } } = await acadexSupabase.auth.getSession();
+        if (!session) {
+          overlay.classList.add('hidden');
+          alert("Oturum bulunamadı. Lütfen Acadex paneline giriş yaptığınızdan emin olun ve tekrar deneyin.");
+          document.getElementById('topicModal').classList.remove('hidden');
+          return;
+        }
+
+        progressBar.style.width = '35%';
+
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/generate-presentation`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_ANON_KEY
+          },
+          body: JSON.stringify({
+            topic: presentationSettings.topic,
+            tone: presentationSettings.tone,
+            slideCount: presentationSettings.slideCount,
+            language: 'tr'
+          })
+        });
+
+        const data = await response.json();
+        if (!response.ok || !Array.isArray(data.slides) || data.slides.length === 0) {
+          console.error('generate-presentation failed:', data);
+          overlay.classList.add('hidden');
+          const retry = confirm(
+            "Derinlemesine araştırma şu anda başarısız oldu (AI servisi meşgul olabilir). " +
+            "Bunun yerine hızlı şablon motoruyla anında bir taslak oluşturmak ister misiniz?"
+          );
+          if (retry) {
+            overlay.classList.remove('hidden');
+            progressBar.style.width = '0%';
+            progressText.innerText = "Acadex yapay zekası sunumunuzu hazırlıyor... Lütfen bekleyin";
+            generateAcadiaPresentation(presentationSettings);
+          } else {
+            document.getElementById('topicModal').classList.remove('hidden');
+          }
+          return;
+        }
+
+        progressBar.style.width = '60%';
+        progressText.innerText = "İçerik hazır — slaytlar oluşturuluyor...";
+
+        // Feed the AI's real, researched content into the same renderer the
+        // fast path uses (see adaptAIPresentationToDeck / generateAcadiaPresentation).
+        generateAcadiaPresentation({ ...presentationSettings, aiSlides: data.slides });
+      } catch (err) {
+        console.error('Deep Research generation exception:', err);
+        overlay.classList.add('hidden');
+        alert("Derinlemesine araştırma sırasında bir bağlantı hatası oluştu. Lütfen tekrar deneyin.");
+        document.getElementById('topicModal').classList.remove('hidden');
+      }
     });
 
     // ============================================================
@@ -3358,6 +3533,48 @@
       sonuc: ['flag', 'check', 'mail']
     };
 
+    // Converts the "Derinlemesine Araştır" (Deep Research) response from the
+    // generate-presentation edge function — [{stage, title, bullets, notes}]
+    // — into the exact same per-slide shape buildAcadiaSlideDeck produces
+    // ({title, content, rightContent, shapeType, iconName, stage, mode}), so
+    // the rest of generateAcadiaPresentation's canvas-rendering loop can stay
+    // completely unchanged regardless of which generation mode was used.
+    function adaptAIPresentationToDeck(aiSlides, topic) {
+      const stageCycleCount = {};
+      return (aiSlides || []).map((s) => {
+        const stage = ['giris', 'problem', 'analiz', 'cozum', 'sonuc'].includes(s?.stage) ? s.stage : 'analiz';
+        stageCycleCount[stage] = (stageCycleCount[stage] || 0) + 1;
+        const cycleIdx = stageCycleCount[stage] - 1;
+
+        const shapeFn = STAGE_SHAPE[stage] || STAGE_SHAPE.analiz;
+        const shapeType = shapeFn(cycleIdx);
+
+        const bullets = Array.isArray(s?.bullets) ? s.bullets.filter(b => typeof b === 'string' && b.trim()) : [];
+        const content = bullets.length > 0 ? bullets.map(b => `• ${b.trim()}`).join('\n') : (s?.notes || topic);
+
+        const fallbackPool = STAGE_FALLBACK_ICONS[stage] || STAGE_FALLBACK_ICONS.analiz;
+        const fallbackIcon = fallbackPool[cycleIdx % fallbackPool.length];
+        const iconName = pickSmartIcon(`${s?.title || ''} ${content}`, fallbackIcon);
+
+        // Give the right column (on "columns"-shaped slides) real AI content
+        // — the speaker notes — instead of falling back to generic filler text.
+        const rightContent = (shapeType === 'columns' && s?.notes)
+          ? `Konuşmacı Notu Özeti\n\n${s.notes}`
+          : null;
+
+        return {
+          title: (typeof s?.title === 'string' && s.title.trim()) ? s.title.trim() : topic,
+          content,
+          rightContent,
+          shapeType,
+          iconName,
+          stage,
+          mode: 'general',
+          aiNotes: s?.notes || ''
+        };
+      });
+    }
+
     // Sihirbazın çekirdek üretim fonksiyonu: seçilen Anlatım Profiline göre
     // Giriş → Problem → Analiz → Çözüm → Sonuç döngüsüyle `totalSlides` kadar
     // özgün slayt verisi (başlık, içerik, düzen, ikon) üretir.
@@ -3436,14 +3653,17 @@
       currentSlideIndex = 0;
       canvas.clear();
 
-      // ── Step 2: Akıllı İçerik ve Tonlama Algoritması (Core Engine) ──
-      // Seçilen Anlatım Profiline (Akademik / Kurumsal / Yaratıcı / Özet) göre
-      // dinamik bir metin havuzundan; Giriş → Problem → Analiz → Çözüm → Sonuç
-      // mantığıyla döngüye girerek istenen sayfa sayısı kadar, birbirinden
-      // tamamen farklı ve özgün başlık/içerik üretir. Her slayt için içeriğe
-      // en uygun ikon ICONS_DATABASE üzerinden anahtar kelime eşleşmesiyle
-      // otomatik seçilir (bkz. buildAcadiaSlideDeck / pickSmartIcon).
-      const generatedSlidesData = buildAcadiaSlideDeck(topic, toneKey, totalSlides);
+      // ── Step 2: İçerik Üretimi ──────────────────────────────────
+      // İki üretim modu var:
+      //  - settings.aiSlides varsa: "Derinlemesine Araştır" (Deep Research)
+      //    modu — generate-presentation edge function'ından gelen, konuyla
+      //    ilgili GERÇEK, araştırılmış içerik burada deck şekline uyarlanır.
+      //  - yoksa: hızlı, yerel şablon motoru (buildAcadiaSlideDeck) — anında
+      //    ama jenerik yapısal içerik üretir. Seçilen Anlatım Profiline göre
+      //    Giriş → Problem → Analiz → Çözüm → Sonuç döngüsüyle ilerler.
+      const generatedSlidesData = Array.isArray(settings.aiSlides) && settings.aiSlides.length > 0
+        ? adaptAIPresentationToDeck(settings.aiSlides, topic)
+        : buildAcadiaSlideDeck(topic, toneKey, totalSlides);
 
 
       // ── Step 3: Her slaytı sırayla canvas'a işle ──────────────
@@ -3478,11 +3698,16 @@
           const dataPreview = generatedSlidesData[i];
           const stageLabel = stageLabels[dataPreview.stage] || 'İçerik';
           const toneHint = toneHints[toneKey] || toneHints.academic;
-          const notesText = i === 0
-            ? `【${stageLabel}】\n"${topic}" sunumuna başlıyorsunuz. Bu sayfada konuyu konumlandırın ve dinleyiciye sunumun amacını net söyleyin.\n\nKonuşmacı ipucu: ${toneHint}\n\nGeçiş cümlesi önerisi: "Şimdi ${topic} konusunun temel çerçevesini birlikte netleştirelim."`
-            : (i === generatedSlidesData.length - 1
-              ? `【${stageLabel}】\nKapanış slaydı. Ana mesajı tekrar edin, teşekkür edin ve sorulara açın.\n\nKonuşmacı ipucu: ${toneHint}\n\nKapanış cümlesi: "Bu çerçeveyle ${topic} konusunda net bir yol haritası ortaya koyduk. Sorularınızı alabilirim."`
-              : `【${stageLabel}】\nBu slayt "${topic}" sunumunun ${i + 1}. sayfası. Önceki slayttaki bağlamı bir cümleyle bağlayıp bu sayfanın ana mesajına geçin.\n\nKonuşmacı ipucu: ${toneHint}\n\nAna mesaj: ${dataPreview.title}`);
+          // Deep Research slides already carry real, topic-specific speaker
+          // notes from the AI — use those directly instead of the generic
+          // template-generated notes below (which are structural filler).
+          const notesText = dataPreview.aiNotes
+            ? `【${stageLabel}】\n${dataPreview.aiNotes}\n\nKonuşmacı ipucu: ${toneHint}`
+            : (i === 0
+              ? `【${stageLabel}】\n"${topic}" sunumuna başlıyorsunuz. Bu sayfada konuyu konumlandırın ve dinleyiciye sunumun amacını net söyleyin.\n\nKonuşmacı ipucu: ${toneHint}\n\nGeçiş cümlesi önerisi: "Şimdi ${topic} konusunun temel çerçevesini birlikte netleştirelim."`
+              : (i === generatedSlidesData.length - 1
+                ? `【${stageLabel}】\nKapanış slaydı. Ana mesajı tekrar edin, teşekkür edin ve sorulara açın.\n\nKonuşmacı ipucu: ${toneHint}\n\nKapanış cümlesi: "Bu çerçeveyle ${topic} konusunda net bir yol haritası ortaya koyduk. Sorularınızı alabilirim."`
+                : `【${stageLabel}】\nBu slayt "${topic}" sunumunun ${i + 1}. sayfası. Önceki slayttaki bağlamı bir cümleyle bağlayıp bu sayfanın ana mesajına geçin.\n\nKonuşmacı ipucu: ${toneHint}\n\nAna mesaj: ${dataPreview.title}`));
 
           // Open new slide model for every slide; first slide uses the canvas as-is
           if (i === 0) {
@@ -5157,6 +5382,8 @@
 
 
   </div>
+
+  </div><!-- /#editorRoot -->
 
 </body>
 </html>
