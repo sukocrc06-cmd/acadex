@@ -4359,80 +4359,157 @@
       return (activePresentationContext || 'bu konu').replace(/\s+/g, ' ').trim();
     }
 
-    // ── AI Slayt Oluştur (mevcut mock, konu bağlamlı) ──
-    document.getElementById('btnTriggerAICode').addEventListener('click', () => {
+    // ── AI Asistanı → gerçek, konuya-özgü içerik üretimi ─────────────────
+    // Bu paneldeki bütün butonlar eskiden yerel, konu-bağımsız klişe metinler
+    // (örn. "düzenli üretim ritmi kurun") döndüren mock fonksiyonlardı — bu
+    // yüzden herhangi bir konuda ("İstanbul'un Fethi" gibi) alakasız içerik
+    // üretiyorlardı. Artık gerçek konuyu ve o slaydın mevcut başlık/gövde
+    // metnini `generate-slide-content` edge function'ına gönderip Groq'tan
+    // gerçek, o konuya özgü içerik alıyorlar.
+
+    function extractSlideTexts(slideData) {
+      try {
+        const data = typeof slideData === 'string' ? JSON.parse(slideData) : slideData;
+        if (!data || !Array.isArray(data.objects)) return { title: '', body: '' };
+        const texts = data.objects.filter(o => o.type === 'textbox' || o.type === 'i-text' || o.type === 'text');
+        if (!texts.length) return { title: '', body: '' };
+        const boldIdx = texts.findIndex(t => t.fontWeight === 'bold' || (t.fontSize || 0) >= 22);
+        const titleObj = boldIdx >= 0 ? texts[boldIdx] : texts[0];
+        const bodyObjs = texts.filter((t, i) => i !== (boldIdx >= 0 ? boldIdx : 0));
+        const title = (titleObj.text || '').split('\n')[0].slice(0, 120);
+        const body = bodyObjs.map(t => t.text || '').join('\n').slice(0, 500);
+        return { title, body };
+      } catch (e) { return { title: '', body: '' }; }
+    }
+
+    function getCurrentSlideTitle() {
+      if (!canvas) return getTopicHint();
+      const titleObj = canvas.getObjects().find(o =>
+        (o.type === 'textbox' || o.type === 'i-text') && (o.fontWeight === 'bold' || (o.fontSize || 0) >= 22)
+      );
+      return titleObj ? (titleObj.text || '').split('\n')[0].slice(0, 120) : getTopicHint();
+    }
+
+    function setBtnBusy(btn, busy) {
+      if (!btn) return;
+      btn.disabled = busy;
+      btn.classList.toggle('opacity-50', busy);
+      btn.classList.toggle('cursor-wait', busy);
+      btn.classList.toggle('pointer-events-none', busy);
+    }
+
+    function showMiniToast(text, isError) {
+      const t = document.createElement('div');
+      t.textContent = text;
+      t.className = 'fixed bottom-6 right-6 ' + (isError ? 'bg-rose-950 text-rose-300 border-rose-800' : 'bg-slate-900 text-sky-300 border-sky-800') + ' text-xs font-bold px-3 py-2.5 rounded-lg border z-[100] max-w-xs shadow-lg';
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), isError ? 3600 : 1700);
+    }
+
+    async function callSlideAI(action, payload) {
+      const { data: { session } } = await acadexSupabase.auth.getSession();
+      if (!session) {
+        throw new Error('Oturum bulunamadı. Lütfen Acadex paneline giriş yaptığınızdan emin olun.');
+      }
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/generate-slide-content`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_ANON_KEY
+        },
+        body: JSON.stringify({ action, language: 'tr', ...payload })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || 'AI içerik üretimi başarısız oldu.');
+      }
+      return data;
+    }
+
+    // ── AI Slayt Oluştur (gerçek AI, konu bağlamlı, tekrarsız) ──
+    document.getElementById('btnTriggerAICode').addEventListener('click', async () => {
+      const btn = document.getElementById('btnTriggerAICode');
       const topic = getTopicHint();
-      const mockData = [
-        {
-          title: topic !== 'bu konu' ? topic : 'Yapay Zeka ve Gelecek',
-          content: topic !== 'bu konu'
-            ? `${topic} konusunda net bir çerçeve, kritik noktalar ve uygulanabilir adımlar sunulmaktadır. Bu slayt giriş bağlamını güçlendirmek için otomatik üretilmiştir.`
-            : 'Yapay zeka sistemleri, derin öğrenme ve nöral ağlar sayesinde karmaşık veri gruplarını anlamlandırarak karar süreçlerini optimize eder. Modern endüstrilerde operasyonel verimliliği artırmak için yoğun biçimde kullanılmaktadır.',
+      saveSlideState();
+      const existingTitles = slides.map(s => extractSlideTexts(s.canvasData).title).filter(Boolean);
+      setBtnBusy(btn, true);
+      try {
+        const result = await callSlideAI('new_slide', { topic, existingTitles });
+        injectAIContent([{
+          title: result.title || topic,
+          content: result.content || '',
           shapeType: 'rect',
-          type: 'cover'
-        },
-        {
-          title: 'Kritik Noktalar',
-          content: '• Kapsamı erken netleştirin\n• Düzenli üretim ritmi kurun\n• Ara kontrol ve geri bildirimi ihmal etmeyin\n• Biçim ve standartları sona sıkıştırmayın',
-          shapeType: 'circle',
           type: 'columns'
-        },
-        {
-          title: 'Sonraki Adımlar',
-          content: '1. Outline / ana hat yazın\n2. İlk ara teslim tarihini koyun\n3. Haftalık kontrol ritmini başlatın\n4. Kontrol listesi ile bitirin',
-          shapeType: 'triangle',
-          type: 'image'
-        }
-      ];
-      injectAIContent(mockData, lastThemeUsed);
-      setTimeout(updateAITopicBadge, 600);
+        }], lastThemeUsed);
+        setTimeout(updateAITopicBadge, 600);
+      } catch (err) {
+        console.error('AI Slayt Oluştur failed:', err);
+        showMiniToast(err.message || 'AI slayt üretilemedi. Tekrar deneyin.', true);
+      } finally {
+        setBtnBusy(btn, false);
+      }
     });
 
-    // ── Bu Slaydı Zenginleştir ──
-    document.getElementById('btnEnrichSlide').addEventListener('click', () => {
+    // ── Bu Slaydı Zenginleştir (gerçek AI, mevcut metni derinleştirir) ──
+    document.getElementById('btnEnrichSlide').addEventListener('click', async () => {
+      const btn = document.getElementById('btnEnrichSlide');
       const tb = getPrimaryTextbox();
       if (!tb) {
         alert('Zenginleştirilecek metin bulunamadı. Önce bir metin kutusu ekleyin veya seçin.');
         return;
       }
       const topic = getTopicHint();
-      const enrichVariants = [
-        `• ${topic} sürecinde erken netlik, zaman ve kaliteyi doğrudan etkiler.\n• Düzenli üretim ritmi (küçük ama tutarlı adımlar) motivasyonu korur.\n• Ara kontrol ve geri bildirim, son anda yaşanan krizleri büyük ölçüde önler.\n• Biçim, kaynakça ve standartlar için ayrı bir kontrol listesi kullanın.\n• Başarı: net hedef + disiplin + ölçülebilir ara çıktılar.`,
-        `1. Kapsamı ve başarı kriterlerini yazıya dökün.\n2. Ana bölümleri ve ara tarihlerı belirleyin.\n3. Haftalık odak blokları (25–45 dk) planlayın.\n4. Her bölüm bitiminde kısa gözden geçirme yapın.\n5. Teslim öncesi biçim + tutarlılık kontrol listesini uygulayın.`,
-        `Kritik başarı faktörleri (${topic}):\n• Net hedef tanımı — belirsizlik en pahalı maliyettir\n• Görünür ilerleme — tamamlanan parçalar momentum yaratır\n• Erken taslak — mükemmel beklemek süreci kilitler\n• Geri bildirim döngüsü — yalnız ilerlemek risklidir\n• Kontrol listesi — unutulanlar kaliteyi düşürür`
-      ];
-      const pick = enrichVariants[Math.floor(Math.random() * enrichVariants.length)];
-      tb.set({ text: pick });
-      canvas.requestRenderAll();
-      saveSlideState();
+      const slideTitle = getCurrentSlideTitle();
+      setBtnBusy(btn, true);
+      try {
+        const result = await callSlideAI('enrich', { topic, slideTitle, currentText: tb.text || '' });
+        if (!result.content) throw new Error('AI içerik döndürmedi.');
+        tb.set({ text: result.content });
+        canvas.requestRenderAll();
+        saveSlideState();
+      } catch (err) {
+        console.error('Bu Slaydı Zenginleştir failed:', err);
+        showMiniToast(err.message || 'İçerik zenginleştirilemedi. Tekrar deneyin.', true);
+      } finally {
+        setBtnBusy(btn, false);
+      }
     });
 
-    // ── Konuşmacı Notu Üret ──
-    document.getElementById('btnGenNotes').addEventListener('click', () => {
+    // ── Konuşmacı Notu Üret (gerçek AI, slaydın gerçek içeriğine dayanır) ──
+    document.getElementById('btnGenNotes').addEventListener('click', async () => {
+      const btn = document.getElementById('btnGenNotes');
       const topic = getTopicHint();
       const tb = getPrimaryTextbox();
-      const titleObj = canvas ? canvas.getObjects().find(o =>
-        (o.type === 'textbox' || o.type === 'i-text') && (o.fontWeight === 'bold' || (o.fontSize || 0) >= 22)
-      ) : null;
-      const slideTitle = titleObj ? (titleObj.text || '').split('\n')[0].slice(0, 80) : `Slayt ${currentSlideIndex + 1}`;
-      const bodyPreview = tb ? (tb.text || '').slice(0, 120).replace(/\n/g, ' ') : '';
+      const slideTitle = getCurrentSlideTitle();
+      const bodyText = tb ? (tb.text || '') : '';
 
-      const notes = `【${slideTitle}】\nKonu bağlamı: ${topic}\n\nKonuşmacı ipucu:\n• Bu slaydın ana mesajını tek cümlede söyleyin.\n• Önceki slayttan kısa bir köprü kurun.\n• Dinleyiciye 1 somut aksiyon bırakın.\n\nİçerik özeti: ${bodyPreview}${bodyPreview.length >= 120 ? '…' : ''}\n\nGeçiş cümlesi: "Şimdi ${topic} açısından bu noktayı netleştirelim."`;
+      setBtnBusy(btn, true);
+      try {
+        const result = await callSlideAI('notes', { topic, slideTitle, currentText: bodyText });
+        const notes = result.notes || '';
+        if (!notes) throw new Error('AI not döndürmedi.');
 
-      const notesEl = document.getElementById('txtPresenterNotes');
-      if (notesEl) {
-        notesEl.value = notes;
-        // notes container açıksa görünür kalsın
-        const container = document.getElementById('notesContainer');
-        if (container && container.classList.contains('hidden')) {
-          container.classList.remove('hidden');
-          const icon = document.getElementById('notesIcon');
-          if (icon) icon.className = 'fa-solid fa-chevron-up';
+        const notesEl = document.getElementById('txtPresenterNotes');
+        if (notesEl) {
+          notesEl.value = notes;
+          // notes container açıksa görünür kalsın
+          const container = document.getElementById('notesContainer');
+          if (container && container.classList.contains('hidden')) {
+            container.classList.remove('hidden');
+            const icon = document.getElementById('notesIcon');
+            if (icon) icon.className = 'fa-solid fa-chevron-up';
+          }
         }
-      }
-      if (slides[currentSlideIndex]) {
-        slides[currentSlideIndex].notes = notes;
-        saveSlideState();
+        if (slides[currentSlideIndex]) {
+          slides[currentSlideIndex].notes = notes;
+          saveSlideState();
+        }
+      } catch (err) {
+        console.error('Konuşmacı Notu Üret failed:', err);
+        showMiniToast(err.message || 'Not üretilemedi. Tekrar deneyin.', true);
+      } finally {
+        setBtnBusy(btn, false);
       }
     });
 
@@ -4542,114 +4619,120 @@
       saveSlideState();
     });
 
-    // ── 19. Konuya Göre Yeniden Yaz ──
-    document.getElementById('btnRewriteTopic').addEventListener('click', () => {
+    // ── Konuya Göre Yeniden Yaz (gerçek AI, konuya özgü yeniden yazım) ──
+    document.getElementById('btnRewriteTopic').addEventListener('click', async () => {
+      const btn = document.getElementById('btnRewriteTopic');
       const tb = getPrimaryTextbox();
       if (!tb) { alert('Yeniden yazılacak metin bulunamadı.'); return; }
       const topic = getTopicHint();
-      const subj = (typeof extractSubject === 'function') ? extractSubject(topic) : topic;
-      const mode = (typeof detectTopicMode === 'function') ? detectTopicMode(topic) : 'general';
-      let rewritten;
-      if (mode === 'definition') {
-        rewritten = [
-          `• ${subj}; doğru anlaşıldığında sürdürülebilir ve bilinçli bir yaklaşımdır.`,
-          `• Yaygın mitleri ayıklamak, net tanım ve bireysel ihtiyacı görmek ilk adımdır.`,
-          `• Temel ilkeler: denge, tutarlılık ve ölçülü tempo.`,
-          `• Uygulamada küçük, tekrar edilebilir kurallar uzun vadeli sonucu belirler.`
-        ].join('\n');
-      } else {
-        rewritten = [
-          `• ${subj} sürecinde erken netlik zaman ve kaliteyi doğrudan etkiler.`,
-          `• Düzenli üretim ritmi ve ara kontroller motivasyonu korur.`,
-          `• Net hedef, görünür ilerleme ve geri bildirim döngüsü kritik başarı faktörleridir.`,
-          `• Son adımda kontrol listesi ile kaliteyi kilitleyin.`
-        ].join('\n');
+      const slideTitle = getCurrentSlideTitle();
+      setBtnBusy(btn, true);
+      try {
+        const result = await callSlideAI('rewrite', { topic, slideTitle, currentText: tb.text || '' });
+        if (!result.content) throw new Error('AI içerik döndürmedi.');
+        tb.set({ text: result.content });
+        canvas.requestRenderAll();
+        saveSlideState();
+      } catch (err) {
+        console.error('Konuya Göre Yeniden Yaz failed:', err);
+        showMiniToast(err.message || 'Yeniden yazılamadı. Tekrar deneyin.', true);
+      } finally {
+        setBtnBusy(btn, false);
       }
-      tb.set({ text: rewritten });
-      canvas.requestRenderAll();
-      saveSlideState();
     });
 
-    // ── 5. Soru Ekle ──
-    document.getElementById('btnAddQuestion').addEventListener('click', () => {
+    // ── Soru Ekle (gerçek AI, slaydın içeriğine dayalı spesifik soru) ──
+    document.getElementById('btnAddQuestion').addEventListener('click', async () => {
       if (!canvas) return;
+      const btn = document.getElementById('btnAddQuestion');
       const topic = getTopicHint();
-      const subj = (typeof extractSubject === 'function') ? extractSubject(topic) : topic;
-      const mode = (typeof detectTopicMode === 'function') ? detectTopicMode(topic) : 'general';
-      const questions = mode === 'definition'
-        ? [
-            `${subj} hakkında en sık duyduğunuz yanlış bilgi nedir?`,
-            `${subj} tanımını kendi cümlelerinizle nasıl özetlersiniz?`,
-            `${subj} için sürdürülebilirliği ne belirler?`
-          ]
-        : [
-            `${subj} sürecinde sizin için en riskli aşama hangisi?`,
-            `${subj} için bugün atabileceğiniz ilk somut adım nedir?`,
-            `${subj} konusunda hangi varsayımı sorgulamaya değer?`
-          ];
-      const q = questions[Math.floor(Math.random() * questions.length)];
-      const qBox = new fabric.Textbox('Soru: ' + q, {
-        left: 80,
-        top: 420,
-        width: 800,
-        fontFamily: 'Inter',
-        fontSize: 14,
-        fontStyle: 'italic',
-        fill: '#0369a1',
-        splitByGrapheme: true
-      });
-      canvas.add(qBox);
-      canvas.setActiveObject(qBox);
-      canvas.requestRenderAll();
-      saveSlideState();
+      const slideTitle = getCurrentSlideTitle();
+      const tb = getPrimaryTextbox();
+      setBtnBusy(btn, true);
+      try {
+        const result = await callSlideAI('question', { topic, slideTitle, currentText: tb ? (tb.text || '') : '' });
+        const q = result.question || '';
+        if (!q) throw new Error('AI soru döndürmedi.');
+        const qBox = new fabric.Textbox('Soru: ' + q, {
+          left: 80,
+          top: 420,
+          width: 800,
+          fontFamily: 'Inter',
+          fontSize: 14,
+          fontStyle: 'italic',
+          fill: '#0369a1',
+          splitByGrapheme: true
+        });
+        canvas.add(qBox);
+        canvas.setActiveObject(qBox);
+        canvas.requestRenderAll();
+        saveSlideState();
+      } catch (err) {
+        console.error('Soru Ekle failed:', err);
+        showMiniToast(err.message || 'Soru üretilemedi. Tekrar deneyin.', true);
+      } finally {
+        setBtnBusy(btn, false);
+      }
     });
 
-    // ── 3. Ton Değiştir ──
-    function applyToneToPrimary(toneKey) {
+    // ── Ton Değiştir (gerçek AI, aynı gerçek bilgiyi farklı tonda yazar) ──
+    async function applyToneToPrimary(toneKey) {
       const tb = getPrimaryTextbox();
       if (!tb) { alert('Ton uygulanacak metin bulunamadı.'); return; }
       const topic = getTopicHint();
-      const subj = (typeof extractSubject === 'function') ? extractSubject(topic) : topic;
-      const tones = {
-        academic: `• ${subj} konusunda sistematik bir çerçeve; tanım, kriterler ve uygulanabilir ilkeleri bir araya getirir.\n• Ampirik ve pratik bulgular, erken netlik ile ara kontrollerin sonucu belirgin biçimde iyileştirdiğini göstermektedir.\n• Bu yaklaşım, hem bireysel hem kurumsal bağlamda tutarlı karar almayı destekler.`,
-        corporate: `• ${subj}, ölçülebilir hedefler ve net sahiplik ile yönetildiğinde değer üretir.\n• Kritik metrikler: ilerleme, uyum oranı ve risk listesi.\n• Önerilen model: netleştir → uygula → ölç → ayarla.`,
-        summary: `• ${subj}: net hedef + tutarlı adımlar\n• Kritik: erken plan, ara kontrol\n• Aksiyon: bugün 1 kural seç, bu hafta uygula`,
-        creative: `• ${subj} bir yasak listesi değil; bilinçli tercih ve ritim işidir.\n• Küçük, tekrar edilebilir adımlar büyük "mükemmel gün"lerden daha güçüdür.\n• Bugün tek bir net adım atın — momentum oradan gelir.`
-      };
-      tb.set({ text: tones[toneKey] || tones.summary });
-      canvas.requestRenderAll();
-      saveSlideState();
+      const slideTitle = getCurrentSlideTitle();
+      const toneBtnIds = { academic: 'btnToneAcademic', corporate: 'btnToneCorporate', summary: 'btnToneSummary', creative: 'btnToneCreative' };
+      const btn = document.getElementById(toneBtnIds[toneKey]);
+      setBtnBusy(btn, true);
+      try {
+        const result = await callSlideAI('tone', { topic, slideTitle, currentText: tb.text || '', tone: toneKey });
+        if (!result.content) throw new Error('AI içerik döndürmedi.');
+        tb.set({ text: result.content });
+        canvas.requestRenderAll();
+        saveSlideState();
+      } catch (err) {
+        console.error('Ton Değiştir failed:', err);
+        showMiniToast(err.message || 'Ton uygulanamadı. Tekrar deneyin.', true);
+      } finally {
+        setBtnBusy(btn, false);
+      }
     }
     document.getElementById('btnToneAcademic').addEventListener('click', () => applyToneToPrimary('academic'));
     document.getElementById('btnToneCorporate').addEventListener('click', () => applyToneToPrimary('corporate'));
     document.getElementById('btnToneSummary').addEventListener('click', () => applyToneToPrimary('summary'));
     document.getElementById('btnToneCreative').addEventListener('click', () => applyToneToPrimary('creative'));
 
-    // ── 10. Tüm Slaytlara Not Üret ──
-    document.getElementById('btnGenAllNotes').addEventListener('click', () => {
+    // ── Tüm Slaytlara Not Üret (gerçek AI, her slayt kendi içeriğine göre) ──
+    document.getElementById('btnGenAllNotes').addEventListener('click', async () => {
       if (!slides || !slides.length) { alert('Slayt yok.'); return; }
+      const btn = document.getElementById('btnGenAllNotes');
       const topic = getTopicHint();
       saveSlideState();
-      slides.forEach((sl, idx) => {
-        const isFirst = idx === 0;
-        const isLast = idx === slides.length - 1;
-        let notes;
-        if (isFirst) {
-          notes = `【Giriş】\nKonu: ${topic}\n\n• Sunuma kısa bir bağlam cümlesiyle başlayın.\n• Bu slaytta amacın ne olduğunu tek cümlede söyleyin.\n• Dinleyiciye sunumun akışını 10 saniyede özetleyin.\n\nGeçiş: "Şimdi ${topic} açısından temel çerçeveye geçelim."`;
-        } else if (isLast) {
-          notes = `【Kapanış】\n• Ana mesajı tekrar edin.\n• 1 somut sonraki adım bırakın.\n• Sorulara açın.\n\nKapanış: "Bu çerçeveyle ${topic} konusunda net bir yol haritası ortaya koyduk. Sorularınızı alabilirim."`;
-        } else {
-          notes = `【Slayt ${idx + 1}】\nKonu bağlamı: ${topic}\n\n• Önceki slayttan bir cümleyle köprü kurun.\n• Bu slaydın ana mesajını net söyleyin.\n• 1 örnek veya sayı varsa vurgulayın.\n\nGeçiş: "Bu noktadan hareketle bir sonraki adıma geçiyoruz."`;
-        }
-        sl.notes = notes;
+      const allSlides = slides.map(sl => {
+        const t = extractSlideTexts(sl.canvasData);
+        return { title: t.title, content: t.body };
       });
-      // Aktif slayt notes alanını güncelle
-      const notesEl = document.getElementById('txtPresenterNotes');
-      if (notesEl && slides[currentSlideIndex]) {
-        notesEl.value = slides[currentSlideIndex].notes || '';
+
+      setBtnBusy(btn, true);
+      try {
+        const result = await callSlideAI('notes_all', { topic, allSlides });
+        const notesList = Array.isArray(result.notesList) ? result.notesList : [];
+        if (!notesList.length) throw new Error('AI notlar döndürmedi.');
+        slides.forEach((sl, idx) => {
+          if (notesList[idx]) sl.notes = notesList[idx];
+        });
+        const notesEl = document.getElementById('txtPresenterNotes');
+        if (notesEl && slides[currentSlideIndex]) {
+          notesEl.value = slides[currentSlideIndex].notes || '';
+        }
+        saveSlideState();
+        showMiniToast(slides.length + ' slayt için konuşmacı notu üretildi.');
+      } catch (err) {
+        console.error('Tüm Slaytlara Not Üret failed:', err);
+        showMiniToast(err.message || 'Notlar üretilemedi. Tekrar deneyin.', true);
+      } finally {
+        setBtnBusy(btn, false);
       }
-      saveSlideState();
-      alert(slides.length + ' slayt için konuşmacı notu üretildi.');
     });
 
     // ── 11. Geçiş Cümlesi ──
@@ -5220,70 +5303,69 @@
     // Expose domain tips into getTopicHint path via activePresentationContext enrichment
     // Used by regen and AI panel rewrite
 
-    // ── 4) TEK SLAYTI YENİDEN ÜRET ──────────────────────────────
-    function regenerateCurrentSlide() {
+    // ── TEK SLAYTI YENİDEN ÜRET (gerçek AI, konu bağlamlı) ──────────────
+    async function regenerateCurrentSlide() {
       if (!canvas || !slides.length) return;
+      const btn = document.getElementById('btnRegenSlide');
       const topic = (activePresentationContext || getTopicHint() || 'Konu').trim();
-      const toneKey = (document.getElementById('wizardTone') || {}).value || 'academic';
-      const total = slides.length;
       const idx = currentSlideIndex;
 
-      // build full deck then take this index
-      let deck;
+      saveSlideState();
+      const { title: slideTitle, body: currentBody } = extractSlideTexts(slides[idx].canvasData);
+
+      setBtnBusy(btn, true);
       try {
-        deck = buildAcadiaSlideDeck(topic, toneKey, total);
-      } catch (e) {
-        alert('İçerik motoru hatası: ' + e.message);
-        return;
+        const data = await callSlideAI('regenerate', { topic, slideTitle: slideTitle || topic, currentText: currentBody });
+        if (!data.content) throw new Error('AI içerik döndürmedi.');
+
+        // theme colors from current bg
+        const bg = slides[idx].bgColor || canvas.backgroundColor || '#ffffff';
+        const isDark = typeof isColorDark === 'function' ? isColorDark(bg) : false;
+        const activeText = isDark ? '#e2e8f0' : '#0F2341';
+        const titleColor = isDark ? '#f8fafc' : '#16325C';
+        const accent = '#1F8A93';
+
+        pushHistory();
+        canvas.clear();
+        canvas.setBackgroundColor(bg, () => {
+          // simple content layout (title + body) — always readable
+          const titleObj = new fabric.Textbox(data.title || topic, {
+            left: 70, top: 50, width: 820,
+            fontSize: 26, fontFamily: 'Inter', fontWeight: 'bold',
+            fill: titleColor, splitByGrapheme: true
+          });
+          const bar = new fabric.Rect({
+            left: 70, top: 100, width: 120, height: 4, fill: accent, rx: 2
+          });
+          const bodyObj = new fabric.Textbox(data.content || '', {
+            left: 70, top: 120, width: 820,
+            fontSize: 15, fontFamily: 'Inter', fill: activeText,
+            lineHeight: 1.55, splitByGrapheme: true
+          });
+          canvas.add(titleObj, bar, bodyObj);
+          canvas.requestRenderAll();
+
+          // notes
+          const notesEl = document.getElementById('txtPresenterNotes');
+          const note = `【Yeniden üretildi】\nKonu: ${topic}\nBaşlık: ${data.title || topic}`;
+          if (notesEl) notesEl.value = note;
+          slides[idx].notes = note;
+          slides[idx].bgColor = bg;
+          saveSlideState();
+          if (typeof updateLayersList === 'function') updateLayersList();
+          updateCarouselUI();
+        });
+      } catch (err) {
+        console.error('Bu Slaytı Yeniden Üret failed:', err);
+        showMiniToast(err.message || 'Slayt yeniden üretilemedi. Tekrar deneyin.', true);
+      } finally {
+        setBtnBusy(btn, false);
       }
-      if (!deck || !deck[idx]) {
-        // fallback: pick last or first
-        if (!deck || !deck.length) { alert('Slayt içeriği üretilemedi.'); return; }
-      }
-      const data = deck[Math.min(idx, deck.length - 1)];
-
-      // theme colors from current bg
-      const bg = slides[idx].bgColor || canvas.backgroundColor || '#ffffff';
-      const isDark = typeof isColorDark === 'function' ? isColorDark(bg) : false;
-      const activeText = isDark ? '#e2e8f0' : '#0F2341';
-      const titleColor = isDark ? '#f8fafc' : '#16325C';
-      const accent = '#1F8A93';
-
-      pushHistory();
-      canvas.clear();
-      canvas.setBackgroundColor(bg, () => {
-        // simple content layout (title + body) — always readable
-        const titleObj = new fabric.Textbox(data.title || topic, {
-          left: 70, top: 50, width: 820,
-          fontSize: 26, fontFamily: 'Inter', fontWeight: 'bold',
-          fill: titleColor, splitByGrapheme: true
-        });
-        const bar = new fabric.Rect({
-          left: 70, top: 100, width: 120, height: 4, fill: accent, rx: 2
-        });
-        const bodyObj = new fabric.Textbox(data.content || data.body || '', {
-          left: 70, top: 120, width: 820,
-          fontSize: 15, fontFamily: 'Inter', fill: activeText,
-          lineHeight: 1.55, splitByGrapheme: true
-        });
-        canvas.add(titleObj, bar, bodyObj);
-        canvas.requestRenderAll();
-
-        // notes
-        const notesEl = document.getElementById('txtPresenterNotes');
-        const note = `【Yeniden üretildi】\nKonu: ${topic}\nBaşlık: ${data.title}\n\nBu slaytın ana mesajını net söyleyin; bir örnek verin.`;
-        if (notesEl) notesEl.value = note;
-        slides[idx].notes = note;
-        slides[idx].bgColor = bg;
-        saveSlideState();
-        if (typeof updateLayersList === 'function') updateLayersList();
-        updateCarouselUI();
-      });
     }
 
     document.getElementById('btnRegenSlide')?.addEventListener('click', () => {
       if (!activePresentationContext && !getTopicHint()) {
-        const t = prompt('Yeniden üretmek için konu girin:', 'Diyet nedir?');
+        const t = prompt('Yeniden üretmek için konu girin:', 'İstanbul\'un Fethi');
         if (!t) return;
         activePresentationContext = t;
         if (typeof updateAITopicBadge === 'function') updateAITopicBadge();

@@ -126,8 +126,10 @@ Language: write ALL slide content in ${lang === 'tr' ? 'Turkish' : 'English'}.
 Each slide needs:
 - "stage": one of "giris", "problem", "analiz", "cozum", "sonuc" (matching the arc above).
 - "title": a specific, informative slide title (NOT just the topic name repeated) — under 60 characters.
-- "bullets": ${bulletsPerSlide} concise bullet points (each under ~110 characters), containing real, specific content — not generic filler.
-- "notes": 2-4 sentences of speaker notes — genuinely useful talking points/context a presenter would say aloud for this slide, grounded in real information about the topic.
+- "bullets": ${bulletsPerSlide} substantive bullet points (each roughly 90-160 characters — full, information-dense sentences, not fragments), containing real, specific content — not generic filler. Favor depth: include concrete facts, figures, causes/effects, comparisons, or examples in each bullet rather than a single vague claim.
+- "notes": 4-6 sentences of speaker notes — a genuinely rich paragraph of talking points/context a presenter would say aloud for this slide, grounded in real, specific information about the topic (not generic presenting advice).
+
+This deck should read as a DETAILED, content-rich presentation — the student is relying on it to actually learn the topic, not just see slide headers. Err on the side of more real information per slide rather than less.
 
 RESPONSE FORMAT — output ONLY a valid JSON object, no markdown code fences, no commentary, matching exactly:
 {
@@ -159,13 +161,13 @@ The "slides" array must contain exactly ${slideN} objects.
       return { resp, data }
     }
 
-    let { resp: groqResponse, data: groqData } = await callGroq(requestedSlides, '3-5')
+    let { resp: groqResponse, data: groqData } = await callGroq(requestedSlides, '4-6')
     let effectiveSlideCount = requestedSlides
 
     if (!groqResponse.ok && isTokenSizeError(groqResponse.status, groqData)) {
       console.warn('generate-presentation: token-size error on first attempt, retrying with fewer/shorter slides.')
       effectiveSlideCount = Math.min(requestedSlides, 5)
-      ;({ resp: groqResponse, data: groqData } = await callGroq(effectiveSlideCount, '2-3'))
+      ;({ resp: groqResponse, data: groqData } = await callGroq(effectiveSlideCount, '3-4'))
     }
 
     if (!groqResponse.ok) {
@@ -203,8 +205,8 @@ The "slides" array must contain exactly ${slideN} objects.
     const cleanSlides = slidesArray.slice(0, 10).map((s: any, idx: number) => ({
       stage: allowedStages.includes(s?.stage) ? s.stage : (idx === 0 ? 'giris' : (idx === slidesArray.length - 1 ? 'sonuc' : 'analiz')),
       title: (typeof s?.title === 'string' && s.title.trim()) ? s.title.trim().slice(0, 90) : safeTopic,
-      bullets: Array.isArray(s?.bullets) ? s.bullets.filter((b: any) => typeof b === 'string' && b.trim()).map((b: string) => b.trim().slice(0, 160)).slice(0, 6) : [],
-      notes: (typeof s?.notes === 'string') ? s.notes.trim().slice(0, 600) : ''
+      bullets: Array.isArray(s?.bullets) ? s.bullets.filter((b: any) => typeof b === 'string' && b.trim()).map((b: string) => b.trim().slice(0, 220)).slice(0, 7) : [],
+      notes: (typeof s?.notes === 'string') ? s.notes.trim().slice(0, 900) : ''
     }))
 
     return new Response(JSON.stringify({ slides: cleanSlides, slideCount: cleanSlides.length }), {
