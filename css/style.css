@@ -3672,6 +3672,31 @@ input:checked + .slider:before {
   }
 }
 
+/* Acadex Sunum: full-viewport takeover, overriding .dashboard-content's
+   padding/max-width so the embedded presentation tool (which assumes a
+   full h-screen layout of its own) gets the whole screen instead of being
+   squeezed into the normal padded content column. Its own "Panele Dön"
+   button (inside acadex-sunum.html) calls closeAcadexSunum() to return. */
+#acadexsunum-view.active,
+#acadexsunum-view.animating-in,
+#acadexsunum-view.animating-out {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  background-color: #16325C;
+  padding: 0;
+  margin: 0;
+  max-width: none;
+  width: 100vw;
+  height: 100vh;
+}
+#acadexsunum-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}
+
 /* ==========================================================================
    MIC BUTTON PULSE ANIMATION (PART D)
    ========================================================================== */

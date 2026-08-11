@@ -233,6 +233,16 @@
               <span data-i18n="dash.nav.sandbox">Geliştirici Sandbox</span>
             </a>
           </li>
+          <li class="sidebar-item" id="side-acadexsunum">
+            <a href="#" onclick="switchDashboardView('acadexsunum')">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                <line x1="8" y1="21" x2="16" y2="21"></line>
+                <line x1="12" y1="17" x2="12" y2="21"></line>
+              </svg>
+              <span data-i18n="dash.nav.acadexsunum">Acadex Sunum</span>
+            </a>
+          </li>
           <li class="sidebar-item" id="side-settings">
             <a href="#" onclick="switchDashboardView('settings')">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1120,8 +1130,9 @@
         </div>
       </section>
 
-      <!-- Akademik Sunum panel removed — reserved for Premium Deck -->
-
+      <!-- ==========================================
+           TAB 7: GELISIRICI SANDBOX VIEW (DEVELOPER SANDBOX)
+           ========================================== -->
       <section id="sandbox-view" class="dashboard-view-section">
         <div class="dashboard-page-header">
           <h2 class="dashboard-page-title" data-i18n="dash.sandbox.title">Geliştirici Sandbox</h2>
@@ -1222,6 +1233,16 @@
             <!-- Populated dynamically -->
           </div>
         </div>
+      </section>
+
+      <!-- ==========================================
+           TAB: ACADEX SUNUM (presentation builder tool,
+           embedded via iframe — see acadex-sunum.html and
+           the #acadexsunum-view.active full-viewport override
+           in style.css)
+           ========================================== -->
+      <section id="acadexsunum-view" class="dashboard-view-section">
+        <iframe id="acadexsunum-iframe" title="Acadex Sunum" loading="lazy"></iframe>
       </section>
 
       <!-- ==========================================
@@ -2422,25 +2443,5 @@
       <div id="image-lightbox-actions" style="display: flex; gap: 0.5rem; padding: 0.7rem 1rem; border-top: 1px solid rgba(22,50,92,0.1); flex-wrap: wrap;"></div>
     </div>
   </div>
-
-  <script>
-  /* Acadex: Akademik Sunum removed */
-  (function () {
-    document.getElementById('side-presentation')?.remove();
-    document.getElementById('presentation-view')?.remove();
-    const orig = window.switchDashboardView;
-    if (typeof orig === 'function' && !orig.__presRemoved) {
-      window.switchDashboardView = function (view) {
-        if (view === 'presentation') {
-          console.info('[Acadex] Akademik Sunum kaldırıldı.');
-          return orig.call(this, 'home');
-        }
-        return orig.apply(this, arguments);
-      };
-      window.switchDashboardView.__presRemoved = true;
-    }
-  })();
-  </script>
-
 </body>
 </html>
