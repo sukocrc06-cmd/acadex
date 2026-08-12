@@ -1967,6 +1967,22 @@
           }
 
           // Load data to editor canvas synchronously for printing frame captures
+          //
+          // Kalite düzeltmesi: eskiden canvas.toDataURL() hiçbir multiplier
+          // vermeden 960x540 px'lik bir PNG üretiyordu, ama jsPDF bu sayfayı
+          // fiilen 1280x720 pt (px biriminin jsPDF'teki iç ölçek katsayısı
+          // yüzünden) olarak basıyordu — yani görüntü ~%33 gerilip yaklaşık
+          // 54 DPI'a düşüyor, bu da bulanıklığın doğrudan sebebiydi. Ayrıca
+          // jsPDF, alfa kanallı PNG'leri neredeyse hiç sıkıştırmadan (ham
+          // bitmap'e yakın) gömüyordu — 10 slaytlık bir sunum ~20MB'a
+          // çıkıyordu. Çözüm: (1) canvas'ı `multiplier: 3` ile çok daha
+          // yüksek çözünürlükte (2880x1620) render et, (2) PNG yerine JPEG
+          // formatını kullan — tarayıcı gerçek DCT sıkıştırması uyguluyor,
+          // jsPDF bu sıkıştırılmış baytları olduğu gibi gömüyor. Sonuç: hem
+          // çok daha keskin metin hem de çok daha küçük dosya boyutu.
+          const PDF_EXPORT_MULTIPLIER = 3;
+          const PDF_EXPORT_QUALITY = 0.94;
+
           await new Promise(resolve => {
             canvas.clear();
             canvas.setBackgroundColor(slides[i].bgColor, () => {
@@ -1974,16 +1990,17 @@
                 canvas.loadFromJSON(slides[i].canvasData, () => {
                   canvas.renderAll();
                   const imgData = canvas.toDataURL({
-                    format: 'png',
-                    quality: 1.0
+                    format: 'jpeg',
+                    quality: PDF_EXPORT_QUALITY,
+                    multiplier: PDF_EXPORT_MULTIPLIER
                   });
 
                   const noteText = slides[i].notes ? slides[i].notes.trim() : '';
 
                   if (noteText) {
                     // Scaled down slide (800x450 px), centered horizontally
-                    pdf.addImage(imgData, 'PNG', 80, 25, 800, 450);
-                    
+                    pdf.addImage(imgData, 'JPEG', 80, 25, 800, 450);
+
                     // Separator line
                     pdf.setDrawColor(220, 220, 220);
                     pdf.setLineWidth(1);
@@ -1996,21 +2013,22 @@
                     pdf.text("Notlar: " + noteText, 80, 510, { maxWidth: 800 });
                   } else {
                     // Full screen slide
-                    pdf.addImage(imgData, 'PNG', 0, 0, 960, 540);
+                    pdf.addImage(imgData, 'JPEG', 0, 0, 960, 540);
                   }
                   resolve();
                 });
               } else {
                 canvas.renderAll();
                 const imgData = canvas.toDataURL({
-                  format: 'png',
-                  quality: 1.0
+                  format: 'jpeg',
+                  quality: PDF_EXPORT_QUALITY,
+                  multiplier: PDF_EXPORT_MULTIPLIER
                 });
 
                 const noteText = slides[i].notes ? slides[i].notes.trim() : '';
 
                 if (noteText) {
-                  pdf.addImage(imgData, 'PNG', 80, 25, 800, 450);
+                  pdf.addImage(imgData, 'JPEG', 80, 25, 800, 450);
                   pdf.setDrawColor(220, 220, 220);
                   pdf.setLineWidth(1);
                   pdf.line(80, 490, 880, 490);
@@ -2019,7 +2037,7 @@
                   pdf.setTextColor(100, 100, 100);
                   pdf.text("Notlar: " + noteText, 80, 510, { maxWidth: 800 });
                 } else {
-                  pdf.addImage(imgData, 'PNG', 0, 0, 960, 540);
+                  pdf.addImage(imgData, 'JPEG', 0, 0, 960, 540);
                 }
                 resolve();
               }
