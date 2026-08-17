@@ -441,13 +441,16 @@ function renderDocumentsList() {
         progressPercent = 62;
       } else if (doc.processing_stage === 'writing') {
         progressMsg = isTr ? 'Profesyonel anlatı yazılıyor...' : 'Writing professional narrative...';
-        progressPercent = 72;
+        progressPercent = 70;
       } else if (doc.processing_stage === 'draft_ready') {
         progressMsg = isTr ? 'Taslak hazır, kontrol ediliyor...' : 'Draft ready, reviewing...';
-        progressPercent = 78;
+        progressPercent = 76;
       } else if (doc.processing_stage === 'reviewing') {
         progressMsg = isTr ? 'Doğruluk kontrol ediliyor...' : 'Reviewing for accuracy...';
-        progressPercent = 88;
+        progressPercent = 86;
+      } else if (doc.processing_stage === 'critic') {
+        progressMsg = isTr ? 'Kalite kapısı: düzeltiliyor...' : 'Quality gate: fixing issues...';
+        progressPercent = 92;
       } else if (doc.processing_stage === 'saving') {
         progressMsg = isTr ? 'Kart kaydediliyor...' : 'Saving study card...';
         progressPercent = 96;
@@ -1569,9 +1572,24 @@ async function populateStudyCardModalDetails(card, docName, readOnly) {
   // Populate Document Outline (NotebookLM Madde 1)
   populateStudyCardOutline(card);
 
-  // Populate Summary
+  // Populate Summary (+ Madde 4 quality / grounded badge)
   const summaryText = document.getElementById('study-card-summary-text');
-  if (summaryText) summaryText.innerHTML = renderSectionsOutlineHtml(card.sections, card.footnotes) + (formatSummaryText(card.summary, card.footnotes) || "No summary generated for this document.");
+  if (summaryText) {
+    const qm = card.quality_meta || {};
+    const grounded = !!qm.grounded;
+    const passed = qm.pass !== false;
+    let badge = '';
+    if (grounded) {
+      badge += `<span style="display:inline-flex;align-items:center;gap:0.25rem;font-size:0.7rem;font-weight:800;color:#0f766e;background:rgba(20,184,166,0.12);padding:0.2rem 0.55rem;border-radius:999px;margin-right:0.35rem;">🔗 Kaynaklı özet</span>`;
+    }
+    if (qm.critic_retry) {
+      badge += `<span style="display:inline-flex;align-items:center;gap:0.25rem;font-size:0.7rem;font-weight:800;color:#a16207;background:rgba(234,179,8,0.15);padding:0.2rem 0.55rem;border-radius:999px;margin-right:0.35rem;">✓ Kalite düzeltmesi</span>`;
+    } else if (passed && grounded) {
+      badge += `<span style="display:inline-flex;align-items:center;gap:0.25rem;font-size:0.7rem;font-weight:800;color:#166534;background:rgba(22,163,74,0.12);padding:0.2rem 0.55rem;border-radius:999px;">✓ Kalite kapısı</span>`;
+    }
+    const badgeRow = badge ? `<div style="margin-bottom:0.65rem;display:flex;flex-wrap:wrap;gap:0.25rem;">${badge}</div>` : '';
+    summaryText.innerHTML = badgeRow + renderSectionsOutlineHtml(card.sections, card.footnotes) + (formatSummaryText(card.summary, card.footnotes) || "No summary generated for this document.");
+  }
 
   // Populate Key Points
   const pointsContainer = document.getElementById('study-card-points-container');

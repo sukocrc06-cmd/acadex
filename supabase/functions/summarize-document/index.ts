@@ -1841,15 +1841,35 @@ In addition to the text below, you are shown images of this document's pages. Us
       }
     }
 
-    // Pass 2: Self-Review for Higher Accuracy (shared by both pipelines above)
-    const reviewSystemPrompt = `You are reviewing a draft academic summary for accuracy and quality. Compare the draft against the original source text. Check for: (1) any factual errors or details not actually present in the source, (2) any important information from the source that was missed, (3) clarity and organization issues, (4) verify that any extracted tables and charts accurately represent the source data numbers and values, (5) verify footnote references are accurate and preserve footnote markers [1], [2] in text, (6) verify that is_quantitative, formulas, and worked_examples are accurate, well-formatted, and use valid raw LaTeX string syntax (no surrounding $ delimiters), (7) verify that any diagrams entries have valid simple Mermaid syntax and that their description matches the source structure — remove invented diagrams that have no textual basis, (8) scan the summary, key_points, footnotes, and quiz_questions for any course administration/logistics content that slipped in — grading weights/percentages, exam format/rules, attendance policy, bonus/late-submission policy, grade-appeal procedures, office hours, textbook title/edition — and REMOVE it entirely (renumbering/adjusting footnote markers as needed). This content is NEVER appropriate here, no matter how specific or factually accurate it is, because a student is never tested on it. If removing it leaves the summary or a list shorter than before, that is correct — do not backfill with other administrative details.
-In addition to checking factual accuracy, you MUST preserve the original requested style, length, and language of the draft. If the draft was written in bullet-point format, your refined version must ALSO be in bullet-point format (using '- ' prefixed lines). If it was an outline with '## ' headings, preserve that heading structure. If it was written in short/simplified sentences, keep sentences short and simple. Do NOT normalize or flatten distinctive formatting back into generic flowing prose — your job is to improve accuracy and clarity WITHIN the same style and structure the draft already used, not to rewrite it in a different format.
+    // Pass 2: Madde 4 — Grounding + Critic quality gate
+    const citationUnit = pageMarkerLabel === 'SLAYT' ? 'slayt' : 's.'
+    const reviewSystemPrompt = `You are a strict academic quality critic AND copy-editor for a student study brief (NotebookLM-grade). Compare the draft against the source text.
 
-FOOTNOTE PAGE NUMBERS: each footnote in the draft may already carry a "page" field (a real page/slide number, or null if the document has none). PRESERVE each footnote's existing "page" value exactly as given in the draft — the source text shown to you here may be truncated and missing the page markers it was originally derived from, so do not null out or guess a different page number unless the visible source text clearly shows a different marker for that exact claim.
+QUALITY RUBRIC (must evaluate):
+A) Thesis clarity — does summary open with the document's core purpose/claim?
+B) Hallucination — any claim not supported by source must be removed or softened
+C) Completeness — major topics from outline/sections present in the narrative?
+D) Admin noise — grading, attendance, office hours, textbook edition MUST be removed
+E) Grounding — specific facts (numbers, dates, named findings) should cite source location when markers exist
+F) Structure — preserve narrative prose if the draft summary is already flowing paragraphs (Madde 3 writer). Only keep bullet/outline form if the draft summary itself is clearly bullets/outline. Do NOT convert a polished narrative back into fragments.
 
-STRUCTURAL SECTIONS: the draft may already carry a "sections" array (a topic-based outline, each with its own heading + short blurb). Verify each section's summary is accurate against the source and doesn't just restate the whole document's summary verbatim — refine wording if needed, but PRESERVE the overall section breakdown (headings and count) unless it's clearly wrong (e.g. a section that's purely administrative content, which must be removed). Do not invent new sections not grounded in the source, and do not force sections into existence if the draft correctly left this array empty.
+CITATIONS / GROUNDING:
+${hasPageMarkers
+  ? `Source contains "--- ${pageMarkerLabel} N ---" markers. For important checkable claims in summary and key_points, append inline markers like (${citationUnit} N) using real N values from markers you can see — never invent page numbers. Also keep footnotes[{id, reference, page}] where page is that N or null.`
+  : `Page markers are not available. Do not invent page numbers. Keep footnotes with page: null unless a real page is already in the draft.`}
 
-Produce a REFINED, corrected final version in the exact same JSON format: { "summary": string, "summary_executive": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "document_type": string, "tables": [ { "title": string, "headers": [ string ], "rows": [ [ string ] ] } ], "charts": [ { "title": string, "type": string, "labels": [ string ], "data": [ number ] } ], "footnotes": [ { "id": number, "reference": string, "page": number | null } ], "outline": { "document_title_guess": string, "items": [ { "id": string, "heading": string, "blurb": string, "level": number, "order": number, "parent_id": string | null } ] }, "sections": [ { "heading": string, "summary": string, "key_points": [ string ], "outline_id": string | null } ], "suggested_course_tag": string | null, "is_quantitative": boolean, "formulas": [ { "name": string, "latex": string, "variables": [ { "symbol": string, "meaning": string } ] } ], "worked_examples": [ { "title": string, "problem_statement": string, "steps": [ string ], "final_answer": string } ], "diagrams": [ { "title": string, "mermaid": string, "description": string } ], "concept_graph": { "nodes": [ { "id": string, "label": string, "type": string } ], "edges": [ { "from": string, "to": string, "relation": string } ] }, "cloze_cards": [ { "id": string, "prompt": string, "answer": string, "full_text": string } ] }. If the draft was already accurate and complete, you may return it largely unchanged — only make genuine improvements, don't change things arbitrarily. Preserve summary_executive, outline, deep sections (with key_points), concept_graph, and cloze_cards; only fix clear errors.`
+FOOTNOTES: Preserve existing footnote page values when present; only change if the visible source clearly contradicts them.
+
+SECTIONS / OUTLINE: Preserve structure; refine inaccurate section summaries; remove admin-only sections.
+
+OUTPUT: Return the REFINED full study-card JSON in the same shape as the draft, PLUS:
+"quality_gate": { "pass": boolean, "grounded": boolean, "issues": [ string ] }
+- pass=false only for serious problems (hallucinations, missing thesis, heavy admin noise left in)
+- grounded=true if important claims are citation-backed or source clearly supports them
+- issues: short list of remaining concerns (empty array if clean)
+
+JSON shape: { "summary": string, "summary_executive": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "document_type": string, "tables": [ ... ], "charts": [ ... ], "footnotes": [ { "id": number, "reference": string, "page": number | null } ], "outline": { ... }, "sections": [ { "heading": string, "summary": string, "key_points": [ string ], "outline_id": string | null } ], "suggested_course_tag": string | null, "is_quantitative": boolean, "formulas": [ ... ], "worked_examples": [ ... ], "diagrams": [ ... ], "concept_graph": { ... }, "cloze_cards": [ ... ], "quality_gate": { "pass": boolean, "grounded": boolean, "issues": [ string ] } }.
+Preserve summary_executive, outline, deep sections, concept_graph, cloze_cards unless clearly wrong.`
 
     function buildReviewUserPrompt(sourceBudgetChars: number): string {
       let trimmedSource = sourceTextForReview
@@ -2083,6 +2103,59 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
       })
     }
 
+    // Madde 4 — normalize quality gate; optional one-shot critic rewrite if FAIL
+    let qualityMeta: any = {
+      pass: true,
+      grounded: false,
+      issues: [] as string[],
+      critic_retry: false
+    }
+    if (parsedContent.quality_gate && typeof parsedContent.quality_gate === 'object') {
+      qualityMeta = {
+        pass: parsedContent.quality_gate.pass !== false,
+        grounded: !!parsedContent.quality_gate.grounded,
+        issues: Array.isArray(parsedContent.quality_gate.issues)
+          ? parsedContent.quality_gate.issues.map((x: any) => String(x).slice(0, 200)).slice(0, 8)
+          : [],
+        critic_retry: false
+      }
+    }
+    // Heuristic grounded: footnotes with page numbers or inline (s. N)/(slayt N)
+    const summaryText = String(parsedContent.summary || '')
+    const hasInlineCite = /\((?:s\.|sayfa|slayt|p\.|page)\s*\d+\)/i.test(summaryText)
+    const footWithPage = Array.isArray(parsedContent.footnotes)
+      && parsedContent.footnotes.some((f: any) => f && f.page != null)
+    if (hasInlineCite || footWithPage) qualityMeta.grounded = true
+
+    if (qualityMeta.pass === false && qualityMeta.issues.length > 0) {
+      try {
+        await serviceClient.from('documents').update({ processing_stage: 'critic' }).eq('id', documentId)
+        const fixSys = `You fix a FAILED academic study brief. Respond ONLY with JSON: { "summary": string, "summary_executive": string }.
+Fix the listed issues. Remove hallucinations and admin noise. Keep ${langLabel}. Keep narrative prose. Do not invent facts.`
+        const fixUser = `Issues to fix:\n${qualityMeta.issues.map((i: string) => `- ${i}`).join('\n')}\n\nCurrent summary:\n${summaryText.slice(0, 4000)}\n\nCurrent executive:\n${String(parsedContent.summary_executive || '').slice(0, 500)}`
+        const fixed = await callGroqJson(groqApiKey, fixSys, fixUser, {
+          model: MODEL_FAST,
+          temperature: 0.2,
+          maxCompletionTokens: 2048,
+          timeoutMs: 25000,
+          maxRetries: 0
+        })
+        if (fixed?.summary && String(fixed.summary).trim().length > 80) {
+          parsedContent.summary = String(fixed.summary).trim()
+          qualityMeta.critic_retry = true
+          qualityMeta.pass = true
+          qualityMeta.issues = []
+        }
+        if (fixed?.summary_executive && String(fixed.summary_executive).trim().length > 20) {
+          parsedContent.summary_executive = String(fixed.summary_executive).trim()
+        }
+        console.log('Madde 4: critic rewrite applied')
+      } catch (critErr) {
+        console.warn('Madde 4 critic rewrite skipped:', critErr)
+      }
+    }
+    delete parsedContent.quality_gate
+
     // ==========================================================================
     // STEP 4 — SAVE STUDY CARD & UPDATE STATUS
     // ==========================================================================
@@ -2123,7 +2196,8 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
         summary_length: len,
         document_type: parsedContent.document_type || 'Other',
         visual_analysis: visualAnalysisUsed,
-        course_tag: document.course_tag ?? null  // Phase 17A: propagate parent doc's tag
+        course_tag: document.course_tag ?? null,  // Phase 17A: propagate parent doc's tag
+        quality_meta: qualityMeta
       })
       .select('id')
       .single()
