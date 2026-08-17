@@ -183,6 +183,131 @@
     @media (prefers-reduced-motion: reduce) {
       .sunum-logo-badge::before { animation: none; opacity: 0.35; }
     }
+
+    /* ============================================================
+       VISUAL POLISH PASS — toolbar buttons, empty canvas state,
+       live slide thumbnails, theme palette swatch cards.
+       ============================================================ */
+
+    /* Top bar action buttons — subtle lift + brand-tinted glow on
+       hover instead of the old flat slate/red blocks. */
+    .sunum-toolbar-btn {
+      position: relative;
+      will-change: transform;
+    }
+    .sunum-toolbar-btn:hover { transform: translateY(-1px); }
+    .sunum-toolbar-btn:active { transform: translateY(0); }
+
+    .sunum-btn-ghost {
+      background: linear-gradient(180deg, rgba(51, 65, 85, 0.55), rgba(30, 41, 59, 0.7));
+      border: 1px solid rgba(100, 116, 139, 0.35);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    }
+    .sunum-btn-ghost:hover {
+      background: linear-gradient(180deg, rgba(71, 85, 105, 0.65), rgba(30, 41, 59, 0.8));
+      border-color: rgba(31, 138, 147, 0.5);
+      box-shadow: 0 6px 18px -4px rgba(31, 138, 147, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    }
+
+    .sunum-btn-danger {
+      background: linear-gradient(180deg, rgba(127, 29, 29, 0.32), rgba(69, 10, 10, 0.5));
+      border: 1px solid rgba(153, 27, 27, 0.4);
+    }
+    .sunum-btn-danger:hover {
+      background: linear-gradient(180deg, rgba(153, 27, 27, 0.5), rgba(69, 10, 10, 0.68));
+      border-color: rgba(220, 38, 38, 0.55);
+      box-shadow: 0 6px 18px -4px rgba(153, 27, 27, 0.4);
+    }
+
+    .sunum-btn-primary {
+      background: linear-gradient(135deg, #16325C 0%, #1F8A93 100%);
+      border: 1px solid rgba(31, 138, 147, 0.55);
+      box-shadow: 0 6px 18px -4px rgba(31, 138, 147, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    }
+    .sunum-btn-primary:hover {
+      background: linear-gradient(135deg, #1b3a6b 0%, #24a1ab 100%);
+      box-shadow: 0 8px 24px -4px rgba(31, 138, 147, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+    }
+
+    /* Empty-canvas state — a soft breathing brand-teal halo around the
+       slide box, so a freshly-added blank slide reads as "ready to
+       start" rather than a dead white rectangle. Toggled by JS via
+       .is-canvas-empty whenever the active slide has zero objects. */
+    .canvas-box.is-canvas-empty {
+      animation: sunum-canvas-empty-glow 3.2s ease-in-out infinite;
+    }
+    @keyframes sunum-canvas-empty-glow {
+      0%, 100% { box-shadow: 0 25px 50px -12px rgba(15, 35, 65, 0.7), 0 0 0 0 rgba(31, 138, 147, 0.28); }
+      50%      { box-shadow: 0 25px 50px -12px rgba(15, 35, 65, 0.7), 0 0 0 10px rgba(31, 138, 147, 0); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .canvas-box.is-canvas-empty { animation: none; }
+    }
+
+    /* Live slide thumbnails in the bottom carousel */
+    #slidesCarousel .sunum-thumb {
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+    }
+    #slidesCarousel .sunum-thumb .sunum-thumb-num {
+      position: absolute;
+      top: 3px;
+      left: 4px;
+      font-size: 9px;
+      font-weight: 800;
+      padding: 1px 5px;
+      border-radius: 5px;
+      background: rgba(9, 12, 20, 0.55);
+      -webkit-backdrop-filter: blur(2px);
+      backdrop-filter: blur(2px);
+      line-height: 1.4;
+      pointer-events: none;
+    }
+
+    /* Theme palette swatch preview cards (replace the plain <select>) */
+    .sunum-theme-card {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      padding: 6px 8px;
+      border-radius: 8px;
+      border: 1px solid rgba(100, 116, 139, 0.3);
+      background: rgba(15, 23, 42, 0.4);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-align: left;
+    }
+    .sunum-theme-card:hover {
+      border-color: rgba(31, 138, 147, 0.5);
+      background: rgba(31, 138, 147, 0.1);
+    }
+    .sunum-theme-card-flash {
+      animation: sunum-theme-flash 0.5s ease;
+    }
+    @keyframes sunum-theme-flash {
+      0%   { box-shadow: 0 0 0 0 rgba(31, 138, 147, 0.6); }
+      100% { box-shadow: 0 0 0 8px rgba(31, 138, 147, 0); }
+    }
+    .sunum-theme-swatches {
+      display: flex;
+      flex-shrink: 0;
+    }
+    .sunum-theme-swatches span {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 1.5px solid rgba(15, 23, 42, 0.6);
+      margin-left: -5px;
+      display: block;
+    }
+    .sunum-theme-swatches span:first-child { margin-left: 0; }
+    .sunum-theme-card-label {
+      font-size: 10.5px;
+      font-weight: 700;
+      color: #e2e8f0;
+    }
   </style>
 </head>
 <body class="h-screen overflow-hidden flex flex-col">
@@ -226,19 +351,19 @@
         <span class="w-2.5 h-2.5 rounded-full bg-green-500 animate-ping"></span>
         <span>Kaydedildi (Yerel)</span>
       </div>
-      <button id="btnNewPresentation" class="bg-slate-800 hover:bg-slate-700 text-white font-semibold px-4 py-2.5 rounded-lg text-sm flex items-center gap-2 border border-slate-700 transition-all duration-300">
+      <button id="btnNewPresentation" class="sunum-toolbar-btn sunum-btn-ghost text-white font-semibold px-4 py-2.5 rounded-lg text-sm flex items-center gap-2 transition-all duration-300">
         <i class="fa-solid fa-file-powerpoint text-blue-400"></i>
         <span>ACADEX SUNUMU OLUŞTUR</span>
       </button>
-      <button id="btnPlayPresentation" class="bg-slate-800 hover:bg-slate-700 text-white font-semibold px-4 py-2.5 rounded-lg text-sm flex items-center gap-2 border border-slate-700 transition-all duration-300">
+      <button id="btnPlayPresentation" class="sunum-toolbar-btn sunum-btn-ghost text-white font-semibold px-4 py-2.5 rounded-lg text-sm flex items-center gap-2 transition-all duration-300">
         <i class="fa-solid fa-play text-sky-400"></i>
         <span>SUNUMU BAŞLAT</span>
       </button>
-      <button id="btnResetPresentation" class="bg-red-950 bg-opacity-45 hover:bg-red-900 hover:bg-opacity-60 text-red-200 font-semibold px-4 py-2.5 rounded-lg text-sm flex items-center gap-2 border border-red-900 border-opacity-40 transition-all duration-300">
+      <button id="btnResetPresentation" class="sunum-toolbar-btn sunum-btn-danger text-red-200 font-semibold px-4 py-2.5 rounded-lg text-sm flex items-center gap-2 transition-all duration-300">
         <i class="fa-solid fa-trash-can text-red-400"></i>
         <span>SUNUMU TEMİZLE</span>
       </button>
-      <button id="btnExportPdf" class="bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white font-bold px-5 py-2.5 rounded-lg text-sm flex items-center gap-2 shadow-lg transition-all duration-300">
+      <button id="btnExportPdf" class="sunum-toolbar-btn sunum-btn-primary text-white font-bold px-5 py-2.5 rounded-lg text-sm flex items-center gap-2 transition-all duration-300">
         <i class="fa-solid fa-file-pdf"></i>
         <span>PDF İNDİR</span>
       </button>
@@ -441,13 +566,14 @@
 
           <div class="flex flex-col gap-1.5 mt-2">
             <span class="text-[10px] font-bold text-slate-400 uppercase">Tema Paleti</span>
-            <select id="selectThemePalette" class="w-full bg-slate-800 border border-slate-700 text-xs text-white rounded-lg p-2 focus:outline-none cursor-pointer">
+            <select id="selectThemePalette" style="display:none;">
               <option value="none">Palet Uygula</option>
               <option value="corporate">Kurumsal (Corporate)</option>
               <option value="minimalist">Minimalist (Clean)</option>
               <option value="night">Gece Modu (Dark Neon)</option>
               <option value="pastel">Pastel (Soft Warm)</option>
             </select>
+            <div id="themePaletteCards" class="flex flex-col gap-1.5"></div>
           </div>
         </div>
       </div>
@@ -1090,8 +1216,8 @@
           top: 200,
           fontFamily: 'Inter',
           fontSize: 36,
-          fill: '#111827',
-          fontWeight: 'bold'
+          fill: '#5b7ba8',
+          fontWeight: '600'
         });
         canvas.add(initialText);
         canvas.setActiveObject(initialText);
@@ -1145,8 +1271,8 @@
         clearGuidelines();
       });
 
-      canvas.on('object:added', updateLayersList);
-      canvas.on('object:removed', updateLayersList);
+      canvas.on('object:added', () => { updateLayersList(); updateCanvasEmptyState(); });
+      canvas.on('object:removed', () => { updateLayersList(); updateCanvasEmptyState(); });
 
       // Render guides layer
       canvas.on('after:render', drawGuidelines);
@@ -1155,6 +1281,17 @@
     // ==========================================
     // CORE CANVAS SLIDE MUTATORS
     // ==========================================
+
+    // Toggles a soft breathing brand-teal glow on the slide canvas box
+    // whenever the active slide has zero objects on it — makes a fresh
+    // blank slide feel like an inviting starting point instead of a
+    // dead white rectangle. Purely visual, safe to call liberally.
+    function updateCanvasEmptyState() {
+      const wrapper = document.getElementById('canvasBoxWrapper');
+      if (!wrapper || !canvas) return;
+      wrapper.classList.toggle('is-canvas-empty', canvas.getObjects().length === 0);
+    }
+
     function saveSlideState() {
       if (canvas && slides[currentSlideIndex]) {
         slides[currentSlideIndex].canvasData = canvas.toJSON(['entranceAnim']);
@@ -1162,9 +1299,21 @@
         slides[currentSlideIndex].transition = document.getElementById('selectSlideTransition').value;
         slides[currentSlideIndex].notes = document.getElementById('txtPresenterNotes').value;
 
-        // Auto-save to localStorage
+        // Capture a small live preview for the bottom carousel thumbnail.
+        // Kept in-memory only (excluded below before persisting to
+        // localStorage) since base64 snapshots would otherwise bloat the
+        // saved payload considerably for longer presentations.
+        try {
+          slides[currentSlideIndex].thumbDataUrl = canvas.toDataURL({ format: 'jpeg', quality: 0.55, multiplier: 0.22 });
+        } catch (e) {}
+
+        // Auto-save to localStorage (without the in-memory-only thumbnails)
         const data = {
-          slides: slides,
+          slides: slides.map(s => {
+            const copy = Object.assign({}, s);
+            delete copy.thumbDataUrl;
+            return copy;
+          }),
           currentSlideIndex: currentSlideIndex
         };
         localStorage.setItem("acadia_presentation_data", JSON.stringify(data));
@@ -1243,7 +1392,11 @@
         canvasData: slideToCopy.canvasData ? JSON.parse(JSON.stringify(slideToCopy.canvasData)) : null,
         bgColor: slideToCopy.bgColor || '#ffffff',
         transition: slideToCopy.transition || 'none',
-        notes: slideToCopy.notes || ''
+        notes: slideToCopy.notes || '',
+        // Carry the source thumbnail over so the new thumb looks correct
+        // immediately, instead of falling back to a bare number badge
+        // until the cloned slide is next saved.
+        thumbDataUrl: slideToCopy.thumbDataUrl || null
       };
 
       // Insert immediately after original slide index position
@@ -1798,18 +1951,33 @@
     }
 
     function updateCarouselUI() {
+      // Keep the empty-canvas glow in sync with whatever slide/objects
+      // are on screen right now (covers canvas.clear()-based paths that
+      // don't fire individual object:removed events).
+      updateCanvasEmptyState();
+
       slidesCarousel.innerHTML = '';
 
       slides.forEach((slide, idx) => {
         const thumbWrapper = document.createElement('div');
         thumbWrapper.id = `thumb-${idx}`;
-        thumbWrapper.className = `w-28 h-16 rounded-lg border-2 cursor-pointer transition-all duration-300 relative shrink-0 flex items-center justify-center font-bold text-xs select-none shadow-md ${idx === currentSlideIndex ? 'border-sky-500 scale-105 bg-opacity-100' : 'border-slate-700 bg-opacity-80 hover:border-slate-500'}`;
+        thumbWrapper.className = `sunum-thumb w-28 h-16 rounded-lg border-2 cursor-pointer transition-all duration-300 relative shrink-0 flex items-center justify-center font-bold text-xs select-none shadow-md ${idx === currentSlideIndex ? 'border-sky-500 scale-105 bg-opacity-100' : 'border-slate-700 bg-opacity-80 hover:border-slate-500'}`;
         thumbWrapper.style.backgroundColor = slide.bgColor;
-        
-        // Dark/Light text coloring contrast
-        const isDarkBg = isColorDark(slide.bgColor);
-        thumbWrapper.style.color = isDarkBg ? '#ffffff' : '#111827';
-        thumbWrapper.textContent = `${idx + 1}`;
+
+        if (slide.thumbDataUrl) {
+          // Live mini-preview of the slide's actual content
+          thumbWrapper.style.backgroundImage = `url(${slide.thumbDataUrl})`;
+          const numBadge = document.createElement('span');
+          numBadge.className = 'sunum-thumb-num';
+          numBadge.textContent = `${idx + 1}`;
+          thumbWrapper.appendChild(numBadge);
+        } else {
+          // Not rendered yet (never visited/edited this session) — fall
+          // back to the original flat color + number badge.
+          const isDarkBg = isColorDark(slide.bgColor);
+          thumbWrapper.style.color = isDarkBg ? '#ffffff' : '#111827';
+          thumbWrapper.textContent = `${idx + 1}`;
+        }
 
         thumbWrapper.addEventListener('click', () => {
           loadSlide(idx);
@@ -2504,6 +2672,62 @@
       applyThemePalette(e.target.value);
     });
 
+    // Theme palette swatch preview cards — visual replacement for the
+    // (now hidden) <select id="selectThemePalette">. Each card previews
+    // its palette's real colors and, on click, applies it through the
+    // exact same applyThemePalette() path the select used.
+    function renderThemePaletteCards() {
+      const container = document.getElementById('themePaletteCards');
+      const selectEl = document.getElementById('selectThemePalette');
+      if (!container || !selectEl) return;
+
+      const THEME_LABELS = {
+        corporate: 'Kurumsal',
+        minimalist: 'Minimalist',
+        night: 'Gece Modu',
+        pastel: 'Pastel'
+      };
+      const order = ['corporate', 'minimalist', 'night', 'pastel'];
+
+      container.innerHTML = '';
+      order.forEach(key => {
+        const palette = THEME_PALETTES[key];
+        if (!palette) return;
+
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'sunum-theme-card';
+        card.dataset.theme = key;
+        card.title = THEME_LABELS[key] || key;
+
+        const swatches = document.createElement('span');
+        swatches.className = 'sunum-theme-swatches';
+        [palette.bgColor, palette.accentColor, (palette.shapeColors || [])[0] || palette.accentColor].forEach(c => {
+          const dot = document.createElement('span');
+          dot.style.background = c;
+          swatches.appendChild(dot);
+        });
+
+        const label = document.createElement('span');
+        label.className = 'sunum-theme-card-label';
+        label.textContent = THEME_LABELS[key] || key;
+
+        card.appendChild(swatches);
+        card.appendChild(label);
+
+        card.addEventListener('click', () => {
+          selectEl.value = key;
+          applyThemePalette(key);
+          card.classList.remove('sunum-theme-card-flash');
+          void card.offsetWidth; // restart animation if clicked repeatedly
+          card.classList.add('sunum-theme-card-flash');
+        });
+
+        container.appendChild(card);
+      });
+    }
+    renderThemePaletteCards();
+
     // ==========================================
     // SMART SNAPPING ENGINE CALCULATIONS
     // ==========================================
@@ -2723,11 +2947,14 @@
 
         canvas.renderAll();
         updateLayersList();
-        
+
         // Track last applied theme
         lastThemeUsed = themeName;
-        
+
         saveSlideState();
+        // Full carousel refresh so the current slide's thumbnail reflects
+        // the newly-applied palette immediately, not just its bg color.
+        updateCarouselUI();
 
         // Reset dropdown picker back to placeholder label
         document.getElementById('selectThemePalette').value = 'none';
@@ -2862,8 +3089,8 @@
           top: 200,
           fontFamily: 'Inter',
           fontSize: 36,
-          fill: '#111827',
-          fontWeight: 'bold'
+          fill: '#5b7ba8',
+          fontWeight: '600'
         });
         canvas.add(initialText);
         canvas.setActiveObject(initialText);
@@ -2893,8 +3120,8 @@
           top: 200,
           fontFamily: 'Inter',
           fontSize: 36,
-          fill: '#111827',
-          fontWeight: 'bold'
+          fill: '#5b7ba8',
+          fontWeight: '600'
         });
         canvas.add(initialText);
         canvas.setActiveObject(initialText);
