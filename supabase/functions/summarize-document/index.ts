@@ -538,14 +538,14 @@ function buildSynthesisSystemPrompt(courseCatalogBlock: string, langLabel: strin
 Respond with ONLY a valid JSON object, no markdown fences, no commentary before or after: { "summary": string, "summary_executive": string, "document_type": string, "suggested_course_tag": string | null, "is_quantitative": boolean, "outline": { "document_title_guess": string, "items": [ { "id": string, "heading": string, "blurb": string, "level": number, "order": number, "parent_id": string | null } ] }, "sections": [ { "heading": string, "summary": string, "key_points": [ string ], "outline_id": string | null } ], "concept_graph": { "nodes": [ { "id": string, "label": string, "type": string } ], "edges": [ { "from": string, "to": string, "relation": string } ] } }.
 
 EXECUTIVE SUMMARY:
-Write "summary_executive" as a 2-3 sentence ultra-short overview of the ENTIRE document — what a student would say if asked "what is this document about in 30 seconds?". No lists, no jargon overload.
+Write "summary_executive" as a 2-3 sentence ultra-short overview that NAMES the actual subject (e.g. "machine learning lecture notes covering supervised learning, neural nets, and evaluation metrics"). Forbidden: vague lines like "this document provides a qualitative overview of key concepts".
 
 OUTLINE ENGINE (document skeleton — REQUIRED when the material has structure):
 Build "outline" as a table-of-contents for the whole document:
 - document_title_guess: short title if evident, else ""
 - items: 3-12 entries in reading order. Each: { "id": "o1", "heading": "2-6 word label", "blurb": "one sentence: what this part contributes to the document", "level": 1 or 2, "order": 1, "parent_id": null or parent id }
 - level 1 = major parts; level 2 = sub-topics under a parent
-- Prefer real structure from the part-summaries (introduction, theory, method, cases, conclusion, etc.)
+- Headings MUST reflect real topics from the part-summaries (e.g. "Supervised Learning", "Neural Networks", "Evaluation Metrics") — NOT generic labels like "Introduction", "Main Discussion", "Conclusion", "Key Concepts" when specific topics exist
 - Never include pure admin/logistics (grading weights, attendance, office hours, textbook edition)
 - If the document is truly one continuous topic with no natural splits, return 2-3 coarse items rather than an empty list
 
@@ -583,6 +583,7 @@ Respond strictly in: '${langLabel}' (except "document_type", which must be one o
 
 ACCURACY:
 Base the summary strictly on the part-summaries provided — do not invent content beyond what they describe.
+The summary MUST mention concrete terms, methods, or chapter themes that appear in the part-summaries. Generic academic filler without domain content is a failure.
 
 EXAM-FOCUSED CONTENT FILTERING (not optional):
 If any part-summary contains course administration/logistics — grading weights, exam format/rules, attendance policy, grade-appeal procedures, office hours, textbook title/edition — EXCLUDE it from your final summary entirely, even if it was mistakenly included in a part-summary. Only synthesize the actual academic subject matter (concepts, theories, definitions, processes, relationships, formulas, examples).`
@@ -2005,50 +2006,97 @@ ${rawContent}`
             ? 'Write about 2-3 dense paragraphs (roughly 180-280 words).'
             : 'Write a clear brief of 3-5 paragraphs (roughly 280-450 words).'
 
-        const writerSys = `You are an expert academic writer producing a NotebookLM-quality document brief for a university student.
+        const keyTermsBlock = (Array.isArray(draftObj.key_terms) ? draftObj.key_terms : [])
+          .slice(0, 25)
+          .map((t: any) => `- ${t?.term || t}: ${t?.definition || ''}`)
+          .join('\n')
+          .slice(0, 2000)
+        const keyPointsBlock = (Array.isArray(draftObj.key_points) ? draftObj.key_points : [])
+          .slice(0, 20)
+          .map((p: any) => `- ${typeof p === 'string' ? p : ''}`)
+          .join('\n')
+          .slice(0, 2000)
+
+        const writerSys = `You are an expert academic writer for university study briefs (NotebookLM-grade).
 Respond with ONLY valid JSON: { "summary": string, "summary_executive": string }.
 
 GOAL:
-Write "summary" as a single cohesive NARRATIVE in ${langLabel} — professional prose, not a bullet dump, not a mechanical merge of sections.
-Structure: open with the document's core thesis or purpose → develop the main arguments/topics in logical order → close with implications or takeaways.
-Use smooth transitions. Prefer precise academic language without fluff.
+Write "summary" as a cohesive NARRATIVE in ${langLabel} that a student could study from — concrete topics, methods, definitions, and takeaways from THIS document only.
 ${lengthHint}
 
-RULES:
-- Ground every claim in the outline/sections provided — do NOT invent theories, numbers, or conclusions absent from the inputs
-- Do not discuss grading, attendance, office hours, or textbook logistics
-- "summary_executive" = 2-3 sentence ultra-short overview (may refine the existing one)
-- Do not use markdown headings inside summary; plain paragraphs separated by \\n\\n are fine
-- If inputs are thin, write a shorter honest brief rather than padding`
+HARD RULES (violations = failure):
+1. Use CONCRETE content from the inputs: named topics, techniques, formulas, metrics, chapter themes. Quote or paraphrase real substance.
+2. NEVER write generic filler. Forbidden phrases/patterns include:
+   - "qualitative overview", "scholarly landscape", "theoretical terrain", "conceptual depth"
+   - "broader academic field", "interrelated ideas", "forward-looking synthesis"
+   - "Introduction / Main Discussion / Conclusion" as the only structure when inputs name specific topics
+   - Empty abstractions like "key concepts", "theoretical frameworks", "implications" without naming what they are
+3. If outline/sections name specific subjects (e.g. supervised learning, neural networks, precision/recall), those subjects MUST appear in the summary by name.
+4. Do NOT invent theories, numbers, or conclusions absent from inputs.
+5. No grading/attendance/office-hours/textbook logistics.
+6. "summary_executive" = 2-3 sentences naming the actual subject of the document (not vague "this document discusses theories").
+7. Plain paragraphs only (\\n\\n separators). No markdown headings inside summary.
+8. If inputs are thin or mostly empty, write a SHORT honest note about limited extractable content — do NOT pad with generic academic prose.`
 
-        const writerUser = `Existing executive (may refine):
+        const writerUser = `Existing executive (refine only if it names real topics; otherwise rewrite from inputs):
 ${(draftObj.summary_executive || '').slice(0, 500)}
 
-Document outline:
+Document outline (USE these real headings):
 ${outlineBlock || '(none)'}
 
-Deep section summaries:
-${sectionsBlock || '(none — use existing draft summary below)'}
+Deep section summaries (primary factual source):
+${sectionsBlock || '(none)'}
 
-Existing draft summary (improve into narrative; keep factual content):
+Key terms from the document:
+${keyTermsBlock || '(none)'}
+
+Key points from the document:
+${keyPointsBlock || '(none)'}
+
+Existing draft summary (keep factual content; rewrite only for flow):
 ${String(draftObj.summary || '').slice(0, 3500)}`
 
         const written = await callGroqJson(groqApiKey, writerSys, writerUser, {
           model: MODEL_HEAVY,
-          temperature: 0.35,
+          temperature: 0.2,
           maxCompletionTokens: depthFlags.longNarrative || len === 'long' || len === 'detailed' ? 3072 : 2048,
-          timeoutMs: 35000,
+          timeoutMs: Math.min(35000, Math.max(12000, budgetLeft() - 5000)),
           maxRetries: 1
         })
 
-        if (written?.summary && String(written.summary).trim().length > 80) {
-          draftObj.summary = String(written.summary).trim()
-        }
-        if (written?.summary_executive && String(written.summary_executive).trim().length > 20) {
-          draftObj.summary_executive = String(written.summary_executive).trim()
+        // Reject generic filler narratives — keep pre-writer draft if detection fires
+        const candidateSummary = written?.summary ? String(written.summary).trim() : ''
+        const candidateExec = written?.summary_executive ? String(written.summary_executive).trim() : ''
+        const genericHits = [
+          /qualitative overview/i,
+          /scholarly landscape/i,
+          /theoretical terrain/i,
+          /broader (academic|scholarly) (field|landscape)/i,
+          /forward-?looking synthesis/i,
+          /conceptual (depth|clarity|map|threads)/i,
+          /non-?quantitative (understanding|comprehension)/i,
+          /interrelated ideas/i,
+          /essential terminology that will frame/i
+        ].filter((re) => re.test(candidateSummary) || re.test(candidateExec)).length
+        const hasConcreteFromInput = (() => {
+          const bag = `${outlineBlock}\n${keyTermsBlock}\n${keyPointsBlock}`.toLowerCase()
+          const tokens = bag.split(/[^a-zçğıöşü0-9]+/i).filter((t) => t.length >= 6).slice(0, 40)
+          if (tokens.length < 3) return true // cannot judge
+          const lower = candidateSummary.toLowerCase()
+          let hits = 0
+          for (const t of tokens) if (lower.includes(t)) hits++
+          return hits >= 2
+        })()
+        const acceptWriter = candidateSummary.length > 80 && genericHits === 0 && hasConcreteFromInput
+        if (acceptWriter) {
+          draftObj.summary = candidateSummary
+          if (candidateExec.length > 20) draftObj.summary_executive = candidateExec
+          console.log('Madde 3: narrative writer accepted')
+        } else {
+          console.warn(`Madde 3: narrative writer REJECTED (genericHits=${genericHits}, concrete=${hasConcreteFromInput}) — keeping draft`)
         }
         rawContent = JSON.stringify(draftObj)
-        console.log('Madde 3: narrative writer applied, depth=' + depth)
+        console.log('Madde 3: narrative writer done, depth=' + depth)
       }
       } // end else !skipNarrativeWriter
     } catch (writerErr) {
