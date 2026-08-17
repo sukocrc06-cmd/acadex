@@ -421,22 +421,30 @@ function renderDocumentsList() {
     if (doc.status === 'processing') {
       const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
       let progressMsg = isTr ? 'İşleniyor...' : 'Processing...';
-      // Three real backend stages (see processing_stage updates in
-      // summarize-document/index.ts) mapped to rough percentages so the bar
-      // visibly fills as the document moves through extraction -> draft ->
-      // review, instead of just an indeterminate spinner with no sense of
-      // progress. Not a literal % of work done (we don't have per-stage
-      // timing), just a reassuring "still moving forward" signal.
+      // Madde 6 stages: extracting → analyzing/chunking → synthesizing →
+      // draft_ready → reviewing → saving (mapped to progress bar %).
       let progressPercent = 8;
       if (doc.processing_stage === 'extracting') {
         progressMsg = isTr ? 'Metin çıkarılıyor...' : 'Extracting text...';
-        progressPercent = 25;
+        progressPercent = 18;
       } else if (doc.processing_stage === 'analyzing') {
         progressMsg = isTr ? 'Özet oluşturuluyor...' : 'Analyzing content...';
-        progressPercent = 60;
+        progressPercent = 40;
+      } else if (doc.processing_stage === 'chunking') {
+        progressMsg = isTr ? 'Bölümler işleniyor...' : 'Processing sections...';
+        progressPercent = 45;
+      } else if (doc.processing_stage === 'synthesizing') {
+        progressMsg = isTr ? 'Birleştiriliyor...' : 'Synthesizing summary...';
+        progressPercent = 62;
+      } else if (doc.processing_stage === 'draft_ready') {
+        progressMsg = isTr ? 'Taslak hazır, kontrol ediliyor...' : 'Draft ready, reviewing...';
+        progressPercent = 75;
       } else if (doc.processing_stage === 'reviewing') {
         progressMsg = isTr ? 'Doğruluk kontrol ediliyor...' : 'Reviewing for accuracy...';
-        progressPercent = 90;
+        progressPercent = 88;
+      } else if (doc.processing_stage === 'saving') {
+        progressMsg = isTr ? 'Kart kaydediliyor...' : 'Saving study card...';
+        progressPercent = 96;
       }
 
       const badgeText = isTr ? 'İşleniyor' : 'Processing';
