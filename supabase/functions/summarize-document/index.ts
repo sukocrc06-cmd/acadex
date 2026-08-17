@@ -837,7 +837,7 @@ serve(async (req) => {
       })
     }
 
-    const { documentId, summaryStyle, language, summaryLength, analyzeVisuals } = await req.json()
+    const { documentId, summaryStyle, language, summaryLength, analyzeVisuals, depth: depthRaw } = await req.json()
     if (!documentId) {
       return new Response(JSON.stringify({ error: 'documentId is required' }), {
         status: 400,
@@ -845,9 +845,26 @@ serve(async (req) => {
       })
     }
 
-    const style = (summaryStyle || 'standard').toLowerCase()
+    let style = (summaryStyle || 'standard').toLowerCase()
     const lang = (language || 'en').toLowerCase()
-    const len = (summaryLength || 'medium').toLowerCase()
+    let len = (summaryLength || 'medium').toLowerCase()
+    // Madde 6 depth modes: brief | standard | deep | exam
+    const depth = ['brief', 'standard', 'deep', 'exam'].includes(String(depthRaw || '').toLowerCase())
+      ? String(depthRaw).toLowerCase()
+      : 'standard'
+    if (depth === 'brief' && len === 'medium') len = 'short'
+    if (depth === 'deep' && len !== 'detailed' && len !== 'long') len = 'detailed'
+    if (depth === 'exam' && style === 'standard') style = 'exam_focused'
+    const depthFlags = {
+      skipSectionDeepen: depth === 'brief',
+      forceSectionDeepen: depth === 'deep' || depth === 'exam',
+      skipNarrativeWriter: depth === 'brief',
+      longNarrative: depth === 'deep',
+      examBias: depth === 'exam',
+      // Very long docs: prefer selective digests in section pass
+      selectiveLongDoc: depth === 'deep' || depth === 'standard'
+    }
+    console.log(`Madde 6 depth=${depth}`, depthFlags)
 
 
 
@@ -1804,26 +1821,50 @@ In addition to the text below, you are shown images of this document's pages. Us
         sections: normalizeSections(synthesis.sections, normalizeOutline(synthesis.outline, synthesis.sections))
       }
 
-      // Madde 2: if sections are thin, run a dedicated SECTION PASS on chunk summaries
+      // Madde 2 + Madde 6: section deepen (skip on brief; force on deep/exam)
       try {
         const thin = !mergedDraft.sections.length ||
           mergedDraft.sections.every((s: any) => (s.summary || '').length < 220)
-        if (thin && chunkResults.length > 0 && mergedDraft.outline?.items?.length > 0) {
+        const shouldDeepen = !depthFlags.skipSectionDeepen && chunkResults.length > 0 &&
+          mergedDraft.outline?.items?.length > 0 &&
+          (depthFlags.forceSectionDeepen || thin)
+        if (shouldDeepen) {
           await serviceClient.from('documents').update({ processing_stage: 'sectioning' }).eq('id', documentId)
-          const partDigest = chunkResults.map((r: any, i: number) =>
-            `Part ${i + 1}: ${(r.chunk_summary || '').slice(0, 500)}`
+          // Long-doc intelligence: rank chunk digests by overlap with outline headings
+          const outlineHeads = (mergedDraft.outline.items || [])
+            .map((it: any) => String(it.heading || '').toLowerCase())
+            .filter(Boolean)
+          const scored = chunkResults.map((r: any, i: number) => {
+            const text = String(r.chunk_summary || '').toLowerCase()
+            let score = 0
+            outlineHeads.forEach((h: string) => { if (h.length > 3 && text.includes(h)) score += 2 })
+            // Prefer middle/end chunks slightly for "deep" (less cover-page fluff)
+            if (depthFlags.selectiveLongDoc && i > 0) score += 0.5
+            return { i, r, score }
+          })
+          scored.sort((a, b) => b.score - a.score)
+          const pickN = depthFlags.forceSectionDeepen ? Math.min(scored.length, 12) : Math.min(scored.length, 8)
+          const picked = scored.slice(0, pickN).sort((a, b) => a.i - b.i)
+          const partDigest = picked.map(({ i, r }) =>
+            `Part ${i + 1}: ${(r.chunk_summary || '').slice(0, depthFlags.forceSectionDeepen ? 700 : 500)}`
           ).join('\n')
           const outlineLines = (mergedDraft.outline.items || [])
             .filter((it: any) => (it.level || 1) === 1)
             .map((it: any) => `- [${it.id}] ${it.heading}: ${it.blurb || ''}`)
             .join('\n')
-          const sectionSys = `You deepen section summaries for a long academic document. Given an OUTLINE and PART DIGESTS, write deep per-section summaries. Respond ONLY with JSON: { "sections": [ { "heading": string, "summary": string, "key_points": [ string ], "outline_id": string | null } ] }. Each summary must be 4-8 academic sentences about ONLY that section. key_points: 3-6 takeaways. Match outline level-1 headings. Language: ${langLabel}. No admin/logistics sections.`
-          const sectionUser = `OUTLINE:\n${outlineLines}\n\nPART DIGESTS:\n${partDigest.slice(0, 9000)}`
+          const depthHint = depthFlags.forceSectionDeepen
+            ? 'Each section summary: 6-10 rich academic sentences + 4-7 key_points.'
+            : 'Each section summary: 4-8 academic sentences + 3-6 key_points.'
+          const examHint = depthFlags.examBias
+            ? ' Prefer exam-testable facts, definitions, and contrasts in key_points.'
+            : ''
+          const sectionSys = `You deepen section summaries for a long academic document. Given an OUTLINE and PART DIGESTS, write deep per-section summaries. Respond ONLY with JSON: { "sections": [ { "heading": string, "summary": string, "key_points": [ string ], "outline_id": string | null } ] }. ${depthHint}${examHint} Match outline level-1 headings. Language: ${langLabel}. No admin/logistics sections.`
+          const sectionUser = `OUTLINE:\n${outlineLines}\n\nPART DIGESTS (relevance-ranked for this document):\n${partDigest.slice(0, depthFlags.forceSectionDeepen ? 12000 : 9000)}`
           const deepened = await callGroqJson(groqApiKey, sectionSys, sectionUser, {
             model: MODEL_FAST,
             temperature: 0.25,
-            maxCompletionTokens: 3072,
-            timeoutMs: 28000,
+            maxCompletionTokens: depthFlags.forceSectionDeepen ? 4096 : 3072,
+            timeoutMs: 30000,
             maxRetries: 1
           })
           const norm = normalizeSections(deepened?.sections, mergedDraft.outline)
@@ -1892,10 +1933,12 @@ ${rawContent}`
 
     // ==========================================================================
     // MADDE 3 — NARRATIVE WRITER (professional prose summary)
-    // Turns outline + deep sections into a single NotebookLM-style narrative.
-    // Does not invent facts; rewrites for flow, clarity, and academic brief tone.
+    // Madde 6: skipped for depth=brief; expanded for depth=deep
     // ==========================================================================
     try {
+      if (depthFlags.skipNarrativeWriter) {
+        console.log('Madde 6: skipping narrative writer (depth=brief)')
+      } else {
       await serviceClient.from('documents').update({ processing_stage: 'writing' }).eq('id', documentId)
 
       let draftObj: any = null
@@ -1914,14 +1957,16 @@ ${rawContent}`
           .join('\n')
           .slice(0, 2500)
         const sectionsBlock = sectionItems
-          .map((s: any) => `## ${s.heading}\n${(s.summary || '').slice(0, 600)}`)
+          .map((s: any) => `## ${s.heading}\n${(s.summary || '').slice(0, depthFlags.longNarrative ? 900 : 600)}`)
           .join('\n\n')
-          .slice(0, 7000)
+          .slice(0, depthFlags.longNarrative ? 10000 : 7000)
 
         const lengthHint =
-          len === 'short' ? 'Write about 2-3 dense paragraphs (roughly 180-280 words).' :
-          len === 'long' ? 'Write a thorough brief of 5-8 paragraphs (roughly 450-700 words).' :
-          'Write a clear brief of 3-5 paragraphs (roughly 280-450 words).'
+          depthFlags.longNarrative || len === 'detailed' || len === 'long'
+            ? 'Write a thorough brief of 5-8 paragraphs (roughly 450-750 words).'
+            : len === 'short'
+            ? 'Write about 2-3 dense paragraphs (roughly 180-280 words).'
+            : 'Write a clear brief of 3-5 paragraphs (roughly 280-450 words).'
 
         const writerSys = `You are an expert academic writer producing a NotebookLM-quality document brief for a university student.
 Respond with ONLY valid JSON: { "summary": string, "summary_executive": string }.
@@ -1954,7 +1999,7 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
         const written = await callGroqJson(groqApiKey, writerSys, writerUser, {
           model: MODEL_HEAVY,
           temperature: 0.35,
-          maxCompletionTokens: len === 'long' ? 3072 : 2048,
+          maxCompletionTokens: depthFlags.longNarrative || len === 'long' || len === 'detailed' ? 3072 : 2048,
           timeoutMs: 35000,
           maxRetries: 1
         })
@@ -1966,8 +2011,9 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
           draftObj.summary_executive = String(written.summary_executive).trim()
         }
         rawContent = JSON.stringify(draftObj)
-        console.log('Madde 3: narrative writer applied')
+        console.log('Madde 3: narrative writer applied, depth=' + depth)
       }
+      } // end else !skipNarrativeWriter
     } catch (writerErr) {
       console.warn('Madde 3 narrative writer skipped (keeping draft summary):', writerErr)
     }

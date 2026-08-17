@@ -1006,15 +1006,21 @@ window.openResummarizeModal = openResummarizeModal;
 
 async function proceedWithSummarization() {
   const styleSelect = document.querySelector('input[name="summary-style-choice"]:checked');
-  const summaryStyle = styleSelect ? styleSelect.value : 'standard';
+  let summaryStyle = styleSelect ? styleSelect.value : 'standard';
   const langSelect = document.querySelector('input[name="summary-language-choice"]:checked');
   const language = langSelect ? langSelect.value : 'en';
   const lengthSelect = document.querySelector('input[name="summary-length-choice"]:checked');
-  const summaryLength = lengthSelect ? lengthSelect.value : 'medium';
+  let summaryLength = lengthSelect ? lengthSelect.value : 'medium';
+  const depthSelect = document.querySelector('input[name="summary-depth-choice"]:checked');
+  const summaryDepth = depthSelect ? depthSelect.value : 'standard';
+  // Depth can nudge length/style for better defaults
+  if (summaryDepth === 'brief' && summaryLength === 'medium') summaryLength = 'short';
+  if (summaryDepth === 'deep' && summaryLength !== 'detailed') summaryLength = 'detailed';
+  if (summaryDepth === 'exam' && summaryStyle === 'standard') summaryStyle = 'exam_focused';
 
   if (isMergeSummarize) {
     closeSummaryStyleModal();
-    await triggerMergeSummarize(pendingMergeDocIds, summaryStyle, language, summaryLength);
+    await triggerMergeSummarize(pendingMergeDocIds, summaryStyle, language, summaryLength, undefined, summaryDepth);
     isMergeSummarize = false;
     pendingMergeDocIds = [];
     return;
@@ -1022,7 +1028,7 @@ async function proceedWithSummarization() {
 
   if (isBulkSummarize) {
     closeSummaryStyleModal();
-    await proceedWithBulkSummarization(summaryStyle, language, summaryLength);
+    await proceedWithBulkSummarization(summaryStyle, language, summaryLength, summaryDepth);
     return;
   }
 
@@ -1055,7 +1061,7 @@ async function proceedWithSummarization() {
 
 
     const { data, error } = await supabaseClient.functions.invoke('summarize-document', {
-      body: { documentId: docId, summaryStyle: summaryStyle, language: language, summaryLength: summaryLength, analyzeVisuals: analyzeVisuals }
+      body: { documentId: docId, summaryStyle: summaryStyle, language: language, summaryLength: summaryLength, analyzeVisuals: analyzeVisuals, depth: summaryDepth }
     });
 
     if (error) {
@@ -9334,7 +9340,7 @@ async function uploadSingleFileCore(file) {
   }
 }
 
-async function proceedWithBulkSummarization(summaryStyle, language, summaryLength) {
+async function proceedWithBulkSummarization(summaryStyle, language, summaryLength, summaryDepth = 'standard') {
   const docIds = [...activeBulkSummarizingDocIds];
   const totalCount = docIds.length;
   let completedCount = 0;
@@ -9365,7 +9371,7 @@ async function proceedWithBulkSummarization(summaryStyle, language, summaryLengt
           .eq('id', docId);
 
         const { data, error } = await supabaseClient.functions.invoke('summarize-document', {
-          body: { documentId: docId, summaryStyle: summaryStyle, language: language, summaryLength: summaryLength }
+          body: { documentId: docId, summaryStyle: summaryStyle, language: language, summaryLength: summaryLength, depth: summaryDepth || 'standard' }
         });
 
         if (error || !data || !data.success) {
@@ -10881,7 +10887,7 @@ window.saveCourseTag = saveCourseTag;
  * Calls the merge-summarize Edge Function for the given document IDs.
  * Shows loading + success/error toasts and reloads the cards library on success.
  */
-async function triggerMergeSummarize(documentIds, summaryStyle, language, summaryLength, analyzeVisuals) {
+async function triggerMergeSummarize(documentIds, summaryStyle, language, summaryLength, analyzeVisuals, summaryDepth = 'standard') {
   if (!documentIds || documentIds.length < 2) {
     showDashboardAlert('error', 'Select at least 2 documents to merge.');
     return;
@@ -10905,7 +10911,7 @@ async function triggerMergeSummarize(documentIds, summaryStyle, language, summar
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
-      body: JSON.stringify({ documentIds, summaryStyle, language, summaryLength, analyzeVisuals: !!analyzeVisuals })
+      body: JSON.stringify({ documentIds, summaryStyle, language, summaryLength, analyzeVisuals: !!analyzeVisuals, depth: summaryDepth || 'standard' })
     });
 
     const result = await response.json();
