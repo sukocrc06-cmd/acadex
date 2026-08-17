@@ -565,6 +565,92 @@ function dedupeByText(items: any[], getText: (item: any) => string): any[] {
   return out
 }
 
+/** Build cloze (fill-in-the-blank) cards from key terms and key points.
+ *  Prefer model-produced cloze_cards when present; otherwise derive deterministically.
+ *  Each card: { id, prompt, answer, full_text, source }
+ */
+function buildClozeCards(
+  modelClozes: any[] | undefined,
+  keyTerms: any[],
+  keyPoints: any[],
+  maxCards = 20
+): any[] {
+  const out: any[] = []
+  const seenAnswers = new Set<string>()
+
+  // 1) Keep valid model-produced clozes first
+  if (Array.isArray(modelClozes)) {
+    for (const c of modelClozes) {
+      if (!c || !c.prompt || !c.answer) continue
+      const ansKey = String(c.answer).trim().toLowerCase()
+      if (!ansKey || seenAnswers.has(ansKey)) continue
+      seenAnswers.add(ansKey)
+      out.push({
+        id: c.id || `cl${out.length + 1}`,
+        prompt: String(c.prompt).trim(),
+        answer: String(c.answer).trim(),
+        full_text: String(c.full_text || c.prompt.replace(/_{2,}/g, c.answer)).trim(),
+        source: c.source || 'model'
+      })
+      if (out.length >= maxCards) return out
+    }
+  }
+
+  // 2) Derive from key_terms: "X is defined as Y" → blank the term
+  for (const t of (keyTerms || [])) {
+    if (out.length >= maxCards) break
+    const term = String(t?.term || '').trim()
+    const def = String(t?.definition || '').trim()
+    if (!term || !def || term.length < 2) continue
+    const ansKey = term.toLowerCase()
+    if (seenAnswers.has(ansKey)) continue
+    seenAnswers.add(ansKey)
+    // Prefer blanking the term inside the definition when it appears; else "___ : definition"
+    let prompt: string
+    const defHasTerm = def.toLowerCase().includes(term.toLowerCase())
+    if (defHasTerm) {
+      // case-insensitive replace first occurrence
+      const re = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')
+      prompt = def.replace(re, '___')
+    } else {
+      prompt = `___: ${def}`
+    }
+    out.push({
+      id: `cl${out.length + 1}`,
+      prompt,
+      answer: term,
+      full_text: defHasTerm ? def : `${term}: ${def}`,
+      source: 'key_term'
+    })
+  }
+
+  // 3) Derive from short key_points that contain a clear noun phrase (optional, limited)
+  for (const p of (keyPoints || [])) {
+    if (out.length >= maxCards) break
+    const text = String(typeof p === 'string' ? p : (p?.point || p?.text || '')).trim()
+    if (!text || text.length < 20 || text.length > 180) continue
+    // Heuristic: blank the first capitalized multi-word phrase or a quoted term
+    const m = text.match(/[""']([^""']{3,40})[""']/) || text.match(/\b([A-ZÇĞİÖŞÜ][\wÇĞİÖŞÜçğıöşü\-]{2,}(?:\s+[A-ZÇĞİÖŞÜ][\wÇĞİÖŞÜçğıöşü\-]{2,}){0,3})\b/)
+    if (!m) continue
+    const answer = m[1].trim()
+    if (answer.length < 3 || seenAnswers.has(answer.toLowerCase())) continue
+    // Don't blank if it's the whole sentence
+    if (answer.length > text.length * 0.6) continue
+    seenAnswers.add(answer.toLowerCase())
+    const prompt = text.replace(answer, '___')
+    if (prompt === text) continue
+    out.push({
+      id: `cl${out.length + 1}`,
+      prompt,
+      answer,
+      full_text: text,
+      source: 'key_point'
+    })
+  }
+
+  return out
+}
+
 function roundRobinInterleave<T>(lists: T[][]): T[] {
   const out: T[] = []
   let idx = 0
@@ -944,7 +1030,7 @@ serve(async (req) => {
     const langLabel = lang === 'tr' ? 'Turkish / Türkçe' : 'English'
 
     // Part A: System prompt with document type classification & type specific guidance
-    const systemPrompt = `You are an academic study assistant. You will be given the raw text extracted from a student's uploaded document. Analyze it and respond with ONLY a valid JSON object, no markdown code fences, no commentary before or after — just the raw JSON object matching this exact shape: { "summary": string, "summary_executive": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "document_type": string, "tables": [ { "title": string, "headers": [ string ], "rows": [ [ string ] ] } ], "charts": [ { "title": string, "type": string, "labels": [ string ], "data": [ number ] } ], "footnotes": [ { "id": number, "reference": string, "page": number | null } ], "sections": [ { "heading": string, "summary": string } ], "suggested_course_tag": string | null, "is_quantitative": boolean, "formulas": [ { "name": string, "latex": string, "variables": [ { "symbol": string, "meaning": string } ] } ], "worked_examples": [ { "title": string, "problem_statement": string, "steps": [ string ], "final_answer": string } ], "diagrams": [ { "title": string, "mermaid": string, "description": string } ], "concept_graph": { "nodes": [ { "id": string, "label": string, "type": string } ], "edges": [ { "from": string, "to": string, "relation": string } ] } }.
+    const systemPrompt = `You are an academic study assistant. You will be given the raw text extracted from a student's uploaded document. Analyze it and respond with ONLY a valid JSON object, no markdown code fences, no commentary before or after — just the raw JSON object matching this exact shape: { "summary": string, "summary_executive": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "document_type": string, "tables": [ { "title": string, "headers": [ string ], "rows": [ [ string ] ] } ], "charts": [ { "title": string, "type": string, "labels": [ string ], "data": [ number ] } ], "footnotes": [ { "id": number, "reference": string, "page": number | null } ], "sections": [ { "heading": string, "summary": string } ], "suggested_course_tag": string | null, "is_quantitative": boolean, "formulas": [ { "name": string, "latex": string, "variables": [ { "symbol": string, "meaning": string } ] } ], "worked_examples": [ { "title": string, "problem_statement": string, "steps": [ string ], "final_answer": string } ], "diagrams": [ { "title": string, "mermaid": string, "description": string } ], "concept_graph": { "nodes": [ { "id": string, "label": string, "type": string } ], "edges": [ { "from": string, "to": string, "relation": string } ] }, "cloze_cards": [ { "id": string, "prompt": string, "answer": string, "full_text": string } ] }.
 
 EXECUTIVE SUMMARY:
 Write "summary_executive" as a 2-3 sentence ultra-short overview — what a student would say if asked "what is this document about in 30 seconds?". No bullet lists.
@@ -954,6 +1040,9 @@ Extract the main academic concepts and how they relate. Output concept_graph wit
 - nodes: [{ "id": "c1", "label": "Concept Name", "type": "concept" }] (5-15 nodes, short labels)
 - edges: [{ "from": "c1", "to": "c2", "relation": "includes"|"is_a"|"causes"|"part_of"|"related_to"|"depends_on"|"contrasts_with" }]
 Only real relationships from the text. Empty graph if the material has almost no conceptual structure.
+
+CLOZE CARDS (fill-in-the-blank):
+Create 5-12 cloze cards for spaced-repetition study. Each: { "id": "cl1", "prompt": "sentence with ___ blank", "answer": "the hidden word or short phrase", "full_text": "complete sentence" }. Blank the most exam-relevant term or phrase. Prefer one blank per card. Keep answers short (1-5 words).
 
 QUANTITATIVE COURSE DETECTION & ADAPTATION:
 Determine whether this document is primarily QUANTITATIVE in nature — meaning it centers on mathematical formulas, numerical calculations, statistical methods, or financial/accounting computations (e.g. Calculus, Statistics, Financial Management, Investment Analysis, Accounting, Economics with heavy math) — as opposed to conceptual/qualitative material (e.g. Marketing, Management theory, general business discussion). Put this boolean classification in the 'is_quantitative' JSON field (true or false).
@@ -1589,7 +1678,7 @@ FOOTNOTE PAGE NUMBERS: each footnote in the draft may already carry a "page" fie
 
 STRUCTURAL SECTIONS: the draft may already carry a "sections" array (a topic-based outline, each with its own heading + short blurb). Verify each section's summary is accurate against the source and doesn't just restate the whole document's summary verbatim — refine wording if needed, but PRESERVE the overall section breakdown (headings and count) unless it's clearly wrong (e.g. a section that's purely administrative content, which must be removed). Do not invent new sections not grounded in the source, and do not force sections into existence if the draft correctly left this array empty.
 
-Produce a REFINED, corrected final version in the exact same JSON format: { "summary": string, "summary_executive": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "document_type": string, "tables": [ { "title": string, "headers": [ string ], "rows": [ [ string ] ] } ], "charts": [ { "title": string, "type": string, "labels": [ string ], "data": [ number ] } ], "footnotes": [ { "id": number, "reference": string, "page": number | null } ], "sections": [ { "heading": string, "summary": string } ], "suggested_course_tag": string | null, "is_quantitative": boolean, "formulas": [ { "name": string, "latex": string, "variables": [ { "symbol": string, "meaning": string } ] } ], "worked_examples": [ { "title": string, "problem_statement": string, "steps": [ string ], "final_answer": string } ], "diagrams": [ { "title": string, "mermaid": string, "description": string } ], "concept_graph": { "nodes": [ { "id": string, "label": string, "type": string } ], "edges": [ { "from": string, "to": string, "relation": string } ] } }. If the draft was already accurate and complete, you may return it largely unchanged — only make genuine improvements, don't change things arbitrarily. Preserve summary_executive (2-3 sentences) and concept_graph structure; only fix clear errors.`
+Produce a REFINED, corrected final version in the exact same JSON format: { "summary": string, "summary_executive": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "document_type": string, "tables": [ { "title": string, "headers": [ string ], "rows": [ [ string ] ] } ], "charts": [ { "title": string, "type": string, "labels": [ string ], "data": [ number ] } ], "footnotes": [ { "id": number, "reference": string, "page": number | null } ], "sections": [ { "heading": string, "summary": string } ], "suggested_course_tag": string | null, "is_quantitative": boolean, "formulas": [ { "name": string, "latex": string, "variables": [ { "symbol": string, "meaning": string } ] } ], "worked_examples": [ { "title": string, "problem_statement": string, "steps": [ string ], "final_answer": string } ], "diagrams": [ { "title": string, "mermaid": string, "description": string } ], "concept_graph": { "nodes": [ { "id": string, "label": string, "type": string } ], "edges": [ { "from": string, "to": string, "relation": string } ] }, "cloze_cards": [ { "id": string, "prompt": string, "answer": string, "full_text": string } ] }. If the draft was already accurate and complete, you may return it largely unchanged — only make genuine improvements, don't change things arbitrarily. Preserve summary_executive, concept_graph, and cloze_cards; only fix clear errors.`
 
     function buildReviewUserPrompt(sourceBudgetChars: number): string {
       let trimmedSource = sourceTextForReview
@@ -1762,6 +1851,12 @@ ${rawContent}`
         concept_graph: (parsedContent.concept_graph && typeof parsedContent.concept_graph === 'object')
           ? parsedContent.concept_graph
           : { nodes: [], edges: [] },
+        cloze_cards: buildClozeCards(
+          parsedContent.cloze_cards,
+          Array.isArray(parsedContent.key_terms) ? parsedContent.key_terms : [],
+          Array.isArray(parsedContent.key_points) ? parsedContent.key_points : [],
+          20
+        ),
         sections: Array.isArray(parsedContent.sections) ? parsedContent.sections : [],
         summary_style: style,
         summary_language: lang,

@@ -2177,13 +2177,19 @@
         </div>
       </div>
 
-      <!-- Action Footer (Bilmedim / Bildim) -->
-      <div class="flashcard-viewer-footer" style="display: flex; gap: 1rem; width: 100%; justify-content: space-between;">
-        <button class="btn btn-flashcard-action" id="btn-flashcard-bilmedim" onclick="handleConfidenceRating('again')" style="flex: 1; height: 54px; border-radius: 30px; background: #FEE2E2; color: #991B1B; font-weight: 800; font-size: 1rem; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem; transition: all 0.2s ease; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.15);">
+      <!-- Action Footer — SM-2 ratings: Again / Hard / Good / Easy -->
+      <div class="flashcard-viewer-footer" style="display: flex; gap: 0.5rem; width: 100%; justify-content: space-between; flex-wrap: wrap;">
+        <button class="btn btn-flashcard-action" onclick="handleConfidenceRating('again')" style="flex: 1; min-width: 70px; height: 52px; border-radius: 16px; background: #FEE2E2; color: #991B1B; font-weight: 800; font-size: 0.85rem; border: none; cursor: pointer; box-shadow: 0 3px 10px rgba(239,68,68,0.12);">
           🙁 Bilmedim
         </button>
-        <button class="btn btn-flashcard-action" id="btn-flashcard-bildim" onclick="handleConfidenceRating('good')" style="flex: 1; height: 54px; border-radius: 30px; background: linear-gradient(135deg, #16325C, #1F8A93); color: #FFFFFF; font-weight: 800; font-size: 1rem; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem; transition: all 0.2s ease; box-shadow: 0 4px 15px rgba(31, 138, 147, 0.3);">
+        <button class="btn btn-flashcard-action" onclick="handleConfidenceRating('hard')" style="flex: 1; min-width: 70px; height: 52px; border-radius: 16px; background: #FFEDD5; color: #9A3412; font-weight: 800; font-size: 0.85rem; border: none; cursor: pointer; box-shadow: 0 3px 10px rgba(249,115,22,0.12);">
+          😓 Zor
+        </button>
+        <button class="btn btn-flashcard-action" onclick="handleConfidenceRating('good')" style="flex: 1; min-width: 70px; height: 52px; border-radius: 16px; background: linear-gradient(135deg, #16325C, #1F8A93); color: #fff; font-weight: 800; font-size: 0.85rem; border: none; cursor: pointer; box-shadow: 0 3px 12px rgba(31,138,147,0.25);">
           ✅ Bildim
+        </button>
+        <button class="btn btn-flashcard-action" onclick="handleConfidenceRating('easy')" style="flex: 1; min-width: 70px; height: 52px; border-radius: 16px; background: #DCFCE7; color: #166534; font-weight: 800; font-size: 0.85rem; border: none; cursor: pointer; box-shadow: 0 3px 10px rgba(22,163,74,0.12);">
+          😎 Kolay
         </button>
       </div>
     </div>
