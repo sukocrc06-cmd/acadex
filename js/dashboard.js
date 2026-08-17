@@ -9632,6 +9632,241 @@ async function exportStudyCardToPDF(studyCard) {
   doc.save(`${replaceTurkishChars(docFileName)}.pdf`);
 }
 
+// ==========================================
+// MADDE 5 — Anki / Obsidian / Cheatsheet export
+// ==========================================
+
+function getStudyCardExportBaseName(card) {
+  const raw = card?.documents?.file_name || card?.documentFileName || card?.file_name || 'study-card';
+  return String(raw).replace(/\.[^.]+$/, '').replace(/[^\w\u00C0-\u024f\- ]+/g, '').trim().slice(0, 60) || 'study-card';
+}
+
+function downloadTextFile(filename, content, mime) {
+  const blob = new Blob([content], { type: mime || 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    URL.revokeObjectURL(url);
+    a.remove();
+  }, 500);
+}
+
+function escapeTsvField(s) {
+  return String(s || '').replace(/\t/g, ' ').replace(/\r?\n/g, '<br>');
+}
+
+/** Anki-compatible TSV: Front \t Back (import as Basic note type) */
+function exportStudyCardToAnkiTsv(card) {
+  const rows = [];
+  // Header comment for Anki (ignored if first line has #)
+  rows.push('#separator:tab');
+  rows.push('#html:true');
+  rows.push('#notetype:Basic');
+  rows.push('#deck:Acadex::' + getStudyCardExportBaseName(card));
+
+  (card.key_terms || []).forEach(t => {
+    if (!t?.term) return;
+    rows.push(escapeTsvField(t.term) + '\t' + escapeTsvField(t.definition || ''));
+  });
+  (card.cloze_cards || []).forEach(c => {
+    if (!c?.prompt) return;
+    rows.push(escapeTsvField(c.prompt) + '\t' + escapeTsvField(c.answer || ''));
+  });
+  (card.quiz_questions || []).forEach(q => {
+    if (!q?.question) return;
+    rows.push(escapeTsvField(q.question) + '\t' + escapeTsvField(q.answer || ''));
+  });
+
+  if (rows.length <= 4) {
+    showDashboardAlert('info', 'Bu kartta Anki için terim / cloze / quiz yok.');
+    return;
+  }
+
+  const name = getStudyCardExportBaseName(card) + '-anki.txt';
+  downloadTextFile(name, rows.join('\n'), 'text/tab-separated-values;charset=utf-8');
+  showDashboardAlert('success', 'Anki TSV indirildi. Anki → File → Import ile içe aktar.');
+}
+
+/** Obsidian-friendly Markdown with YAML frontmatter */
+function exportStudyCardToObsidian(card) {
+  const title = getStudyCardExportBaseName(card);
+  const tags = [];
+  if (card.course_tag) tags.push(String(card.course_tag).replace(/\s+/g, '-'));
+  if (card.document_type) tags.push(String(card.document_type).replace(/\s+/g, '-'));
+  tags.push('acadex');
+
+  const fm = [
+    '---',
+    `title: "${title.replace(/"/g, "'")}"`,
+    `created: ${new Date().toISOString().slice(0, 10)}`,
+    `source: Acadex`,
+    `document_type: ${card.document_type || 'Other'}`,
+    `course_tag: ${card.course_tag || ''}`,
+    `tags: [${tags.map(t => t.toLowerCase()).join(', ')}]`,
+    '---',
+    ''
+  ].join('\n');
+
+  let body = `# ${title}\n\n`;
+
+  if (card.summary_executive) {
+    body += `> [!summary] 30 saniyelik özet\n> ${card.summary_executive.replace(/\n/g, '\n> ')}\n\n`;
+  }
+  if (card.summary) {
+    body += `## Özet\n\n${card.summary}\n\n`;
+  }
+  if (Array.isArray(card.sections) && card.sections.length) {
+    body += `## Bölümler\n\n`;
+    card.sections.forEach(s => {
+      body += `### ${s.heading || ''}\n\n${s.summary || ''}\n\n`;
+    });
+  }
+  if (Array.isArray(card.key_terms) && card.key_terms.length) {
+    body += `## Anahtar Terimler\n\n`;
+    card.key_terms.forEach(t => {
+      body += `- **${t.term || ''}**: ${t.definition || ''}\n`;
+    });
+    body += '\n';
+  }
+  if (Array.isArray(card.key_points) && card.key_points.length) {
+    body += `## Önemli Noktalar\n\n`;
+    card.key_points.forEach(p => {
+      body += `- ${typeof p === 'string' ? p : (p.point || p.text || '')}\n`;
+    });
+    body += '\n';
+  }
+  if (Array.isArray(card.cloze_cards) && card.cloze_cards.length) {
+    body += `## Boşluk Doldurma\n\n`;
+    card.cloze_cards.forEach(c => {
+      body += `- ${c.prompt || ''} → **${c.answer || ''}**\n`;
+    });
+    body += '\n';
+  }
+  if (Array.isArray(card.quiz_questions) && card.quiz_questions.length) {
+    body += `## Self-Test\n\n`;
+    card.quiz_questions.forEach((q, i) => {
+      body += `${i + 1}. **S:** ${q.question || ''}\n   **C:** ${q.answer || ''}\n\n`;
+    });
+  }
+  if (Array.isArray(card.formulas) && card.formulas.length) {
+    body += `## Formüller\n\n`;
+    card.formulas.forEach(f => {
+      body += `- **${f.name || 'Formula'}**: \`$${f.latex || ''}$\`\n`;
+    });
+    body += '\n';
+  }
+
+  // Wiki-style concept links for Obsidian graph
+  const concepts = (card.concept_graph?.nodes || []).map(n => n.label).filter(Boolean);
+  if (concepts.length) {
+    body += `## Kavramlar\n\n`;
+    concepts.forEach(label => {
+      body += `- [[${label}]]\n`;
+    });
+    body += '\n';
+  }
+
+  downloadTextFile(title + '.md', fm + body, 'text/markdown;charset=utf-8');
+  showDashboardAlert('success', 'Obsidian markdown indirildi.');
+}
+
+/** Printable one-page cheatsheet */
+function openStudyCheatsheet(card) {
+  const title = getStudyCardExportBaseName(card);
+  const terms = (card.key_terms || []).slice(0, 12);
+  const points = (card.key_points || []).slice(0, 10).map(p => typeof p === 'string' ? p : (p.point || p.text || ''));
+  const formulas = (card.formulas || []).slice(0, 8);
+  const exec = card.summary_executive || '';
+  const summary = card.summary || '';
+
+  const html = `<!DOCTYPE html>
+<html lang="tr"><head><meta charset="utf-8"/>
+<title>Cheatsheet — ${title.replace(/</g, '')}</title>
+<style>
+  @page { margin: 12mm; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; color: #0f172a; font-size: 11px; line-height: 1.35; max-width: 900px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 16px; margin: 0 0 4px; color: #16325C; }
+  .meta { color: #64748b; font-size: 10px; margin-bottom: 10px; }
+  .exec { background: #f0fdfa; border-left: 3px solid #14b8a6; padding: 8px 10px; margin-bottom: 10px; font-weight: 600; }
+  h2 { font-size: 12px; color: #16325C; border-bottom: 1px solid #e2e8f0; margin: 10px 0 6px; padding-bottom: 2px; }
+  ul { margin: 0; padding-left: 16px; }
+  li { margin-bottom: 3px; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .formula { font-family: 'Cambria Math', Georgia, serif; background: #f8fafc; padding: 4px 6px; border-radius: 4px; margin-bottom: 4px; }
+  .footer { margin-top: 12px; font-size: 9px; color: #94a3b8; text-align: center; }
+  @media print { body { padding: 0; } .noprint { display: none; } }
+</style></head><body>
+  <button class="noprint" onclick="window.print()" style="padding:8px 14px;margin-bottom:12px;cursor:pointer;font-weight:700;border-radius:8px;border:1px solid #16325C;background:#16325C;color:#fff;">🖨️ Yazdır / PDF</button>
+  <h1>${title.replace(/</g, '')}</h1>
+  <div class="meta">Acadex cheatsheet · ${card.course_tag || card.document_type || ''} · ${new Date().toLocaleDateString()}</div>
+  ${exec ? `<div class="exec">${exec.replace(/</g, '&lt;')}</div>` : ''}
+  <div class="cols">
+    <div>
+      <h2>Özet</h2>
+      <p>${(summary || '—').replace(/</g, '&lt;').slice(0, 900)}</p>
+      <h2>Önemli Noktalar</h2>
+      <ul>${points.map(p => `<li>${String(p).replace(/</g, '&lt;')}</li>`).join('') || '<li>—</li>'}</ul>
+    </div>
+    <div>
+      <h2>Anahtar Terimler</h2>
+      <ul>${terms.map(t => `<li><strong>${String(t.term || '').replace(/</g, '&lt;')}</strong>: ${String(t.definition || '').replace(/</g, '&lt;')}</li>`).join('') || '<li>—</li>'}</ul>
+      ${formulas.length ? `<h2>Formüller</h2>${formulas.map(f => `<div class="formula"><strong>${String(f.name || '').replace(/</g, '&lt;')}</strong>: ${String(f.latex || '').replace(/</g, '&lt;')}</div>`).join('')}` : ''}
+    </div>
+  </div>
+  <div class="footer">Acadex · Tek sayfalık çalışma özeti</div>
+</body></html>`;
+
+  const w = window.open('', '_blank', 'noopener,width=900,height=700');
+  if (!w) {
+    showDashboardAlert('error', 'Popup engellendi — tarayıcıda pop-up izni verin.');
+    return;
+  }
+  w.document.write(html);
+  w.document.close();
+}
+
+function toggleStudyExportMenu(e) {
+  if (e) e.stopPropagation();
+  const menu = document.getElementById('study-export-menu');
+  if (!menu) return;
+  const open = menu.style.display === 'block';
+  menu.style.display = open ? 'none' : 'block';
+}
+
+function exportCurrentStudyCard(format) {
+  const menu = document.getElementById('study-export-menu');
+  if (menu) menu.style.display = 'none';
+
+  const card = currentActiveStudyCard;
+  if (!card) {
+    showDashboardAlert('error', 'Aktif çalışma kartı yok.');
+    return;
+  }
+  if (format === 'anki') exportStudyCardToAnkiTsv(card);
+  else if (format === 'obsidian') exportStudyCardToObsidian(card);
+  else if (format === 'cheatsheet') openStudyCheatsheet(card);
+}
+
+// Close export menu on outside click
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('study-export-menu');
+  const btn = document.getElementById('btn-export-menu-toggle');
+  if (!menu || menu.style.display === 'none') return;
+  if (btn && (btn === e.target || btn.contains(e.target))) return;
+  if (menu.contains(e.target)) return;
+  menu.style.display = 'none';
+});
+
+window.exportStudyCardToAnkiTsv = exportStudyCardToAnkiTsv;
+window.exportStudyCardToObsidian = exportStudyCardToObsidian;
+window.openStudyCheatsheet = openStudyCheatsheet;
+window.toggleStudyExportMenu = toggleStudyExportMenu;
+window.exportCurrentStudyCard = exportCurrentStudyCard;
+
 async function exportAllFilteredCardsToPDF() {
   const cards = window.filteredLibraryCardsList || [];
   if (cards.length === 0) {

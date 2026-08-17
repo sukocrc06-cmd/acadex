@@ -1941,6 +1941,18 @@
               </svg>
               <span>PDF Olarak İndir</span>
             </button>
+            <!-- Madde 5: Export menu -->
+            <div style="position: relative; display: inline-flex;">
+              <button type="button" class="btn btn-outline" id="btn-export-menu-toggle" onclick="toggleStudyExportMenu(event)"
+                style="font-size: 0.75rem; padding: 0.35rem 0.75rem; font-weight: 700; border-radius: var(--radius-sm); border-color: var(--color-teal); color: var(--color-teal);">
+                ⬇️ Dışa Aktar ▾
+              </button>
+              <div id="study-export-menu" style="display: none; position: absolute; top: 110%; right: 0; z-index: 50; min-width: 200px; background: #fff; border: 1px solid rgba(22,50,92,0.12); border-radius: 10px; box-shadow: 0 8px 24px rgba(22,50,92,0.12); padding: 0.35rem; overflow: hidden;">
+                <button type="button" class="btn" onclick="exportCurrentStudyCard('anki')" style="display:block;width:100%;text-align:left;padding:0.5rem 0.75rem;border:none;background:transparent;font-size:0.8rem;font-weight:600;cursor:pointer;border-radius:6px;">🃏 Anki (TSV)</button>
+                <button type="button" class="btn" onclick="exportCurrentStudyCard('obsidian')" style="display:block;width:100%;text-align:left;padding:0.5rem 0.75rem;border:none;background:transparent;font-size:0.8rem;font-weight:600;cursor:pointer;border-radius:6px;">📝 Obsidian (.md)</button>
+                <button type="button" class="btn" onclick="exportCurrentStudyCard('cheatsheet')" style="display:block;width:100%;text-align:left;padding:0.5rem 0.75rem;border:none;background:transparent;font-size:0.8rem;font-weight:600;cursor:pointer;border-radius:6px;">📋 Cheatsheet (Yazdır)</button>
+              </div>
+            </div>
             <button class="btn-icon" id="btn-close-study-card" aria-label="Close Study Card Modal">
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18"></line>
