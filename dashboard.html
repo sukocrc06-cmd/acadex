@@ -1977,7 +1977,16 @@
           </label>
         </div>
 
-        <!-- Executive Summary (30-second overview) -->
+        <!-- ===== NotebookLM Madde 5: Reading experience ===== -->
+        <div id="study-card-reading-nav" style="display:flex; flex-wrap:wrap; gap:0.4rem; margin:0 0 1rem; padding:0.5rem; background:rgba(22,50,92,0.03); border-radius:12px; border:1px solid rgba(22,50,92,0.06);">
+          <button type="button" class="btn btn-outline" onclick="scrollStudyCardTo('study-card-executive-section')" style="font-size:0.72rem; padding:0.3rem 0.65rem; border-radius:999px; font-weight:700;">⚡ 30 sn</button>
+          <button type="button" class="btn btn-outline" onclick="scrollStudyCardTo('study-card-outline-section')" style="font-size:0.72rem; padding:0.3rem 0.65rem; border-radius:999px; font-weight:700;">📑 İskelet</button>
+          <button type="button" class="btn btn-outline" onclick="scrollStudyCardTo('study-card-narrative-section')" style="font-size:0.72rem; padding:0.3rem 0.65rem; border-radius:999px; font-weight:700;">📖 Anlatı</button>
+          <button type="button" class="btn btn-outline" onclick="scrollStudyCardTo('study-card-deep-sections-section')" style="font-size:0.72rem; padding:0.3rem 0.65rem; border-radius:999px; font-weight:700;">📚 Bölümler</button>
+          <button type="button" class="btn btn-outline" onclick="scrollStudyCardTo('study-card-study-tools-divider')" style="font-size:0.72rem; padding:0.3rem 0.65rem; border-radius:999px; font-weight:700; border-color:var(--color-teal); color:var(--color-teal);">🧠 Çalışma</button>
+        </div>
+
+        <!-- 1) Executive -->
         <section class="study-card-section" id="study-card-executive-section" style="display: none;">
           <h4 class="study-card-section-title" style="display: flex; align-items: center; width: 100%;">
             <span>⚡</span>
@@ -1987,18 +1996,19 @@
           </div>
         </section>
 
-        <!-- Document Outline (NotebookLM Madde 1) -->
+        <!-- 2) Outline TOC (click → jump to deep section) -->
         <section class="study-card-section" id="study-card-outline-section" style="display: none;">
           <h4 class="study-card-section-title" style="display: flex; align-items: center; width: 100%;">
             <span>📑</span>
             <span style="margin-left: 0.4rem;" data-i18n="dash.cards.outline">Belge İskeleti</span>
+            <span style="margin-left:0.4rem; font-size:0.65rem; color:var(--color-text-muted); font-weight:600;">tıkla → bölüme git</span>
           </h4>
           <div id="study-card-outline-title" style="font-size: 0.85rem; color: var(--color-text-muted); margin-bottom: 0.5rem; display: none;"></div>
           <ol id="study-card-outline-list" style="margin: 0; padding-left: 1.25rem; display: flex; flex-direction: column; gap: 0.45rem;"></ol>
         </section>
 
-        <!-- Summary Section -->
-        <section class="study-card-section">
+        <!-- 3) Professional narrative only -->
+        <section class="study-card-section" id="study-card-narrative-section">
           <h4 class="study-card-section-title" style="display: flex; align-items: center; width: 100%;">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="section-icon">
               <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
@@ -2010,10 +2020,28 @@
               <span>🔄</span> <span class="btn-regen-text">Regenerate</span>
             </button>
           </h4>
-          <div class="study-card-summary-text" id="study-card-summary-text" style="font-size:0.95rem; line-height:1.65; color:var(--color-navy);">Loading summary...</div>
+          <div class="study-card-summary-text" id="study-card-summary-text" style="font-size:0.95rem; line-height:1.7; color:var(--color-navy);">Loading summary...</div>
         </section>
 
-        <!-- Key Points Section -->
+        <!-- 4) Deep sections accordion (separate from narrative) -->
+        <section class="study-card-section" id="study-card-deep-sections-section" style="display: none;">
+          <h4 class="study-card-section-title" style="display: flex; align-items: center; width: 100%;">
+            <span>📚</span>
+            <span style="margin-left: 0.4rem;">Bölüm Bölüm Derinleşme</span>
+          </h4>
+          <div id="study-card-deep-sections-container"></div>
+        </section>
+
+        <!-- Study tools divider -->
+        <div id="study-card-study-tools-divider" style="margin:1.25rem 0 0.75rem; padding:0.65rem 0.85rem; border-radius:10px; background:linear-gradient(90deg, rgba(31,138,147,0.12), rgba(22,50,92,0.06)); display:flex; align-items:center; gap:0.5rem;">
+          <span style="font-size:1.1rem;">🧠</span>
+          <div>
+            <div style="font-weight:800; color:var(--color-navy); font-size:0.9rem;">Çalışma Araçları</div>
+            <div style="font-size:0.75rem; color:var(--color-text-muted);">Terimler, quiz, kavram ağı ve tekrar</div>
+          </div>
+        </div>
+
+        <!-- Key Points -->
         <section class="study-card-section">
           <h4 class="study-card-section-title" style="display: flex; align-items: center; width: 100%;">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="section-icon">
@@ -2026,11 +2054,10 @@
             </button>
           </h4>
           <ul class="study-card-points-list" id="study-card-points-container">
-            <!-- Dynamically populated -->
           </ul>
         </section>
 
-        <!-- Key Terms Section -->
+        <!-- Key Terms -->
         <section class="study-card-section">
           <h4 class="study-card-section-title" style="display: flex; align-items: center; width: 100%;">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="section-icon">
@@ -2044,22 +2071,19 @@
             </button>
           </h4>
           <div class="key-terms-grid" id="study-card-terms-container">
-            <!-- Dynamically populated -->
           </div>
         </section>
 
-        <!-- Concept Graph Section -->
+        <!-- Concept Graph -->
         <section class="study-card-section" id="study-card-concept-graph-section" style="display: none;">
           <h4 class="study-card-section-title" style="display: flex; align-items: center; width: 100%;">
             <span>🕸️</span>
             <span style="margin-left: 0.4rem;" data-i18n="dash.cards.conceptGraph">Kavram Grafiği</span>
           </h4>
-          <div id="study-card-concept-graph-container">
-            <!-- Mermaid graph + relation list populated by JS -->
-          </div>
+          <div id="study-card-concept-graph-container"></div>
         </section>
 
-        <!-- Related study cards (cross-document) -->
+        <!-- Related cards -->
         <section class="study-card-section" id="study-card-related-section" style="display: none;">
           <h4 class="study-card-section-title" style="display: flex; align-items: center; width: 100%;">
             <span>🔗</span>
@@ -2069,7 +2093,7 @@
           </div>
         </section>
 
-        <!-- Self-Test Section -->
+        <!-- Self-Test -->
         <section class="study-card-section">
           <h4 class="study-card-section-title" style="display: flex; align-items: center; width: 100%;">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="section-icon">
@@ -2083,7 +2107,6 @@
             </button>
           </h4>
           <div class="quiz-container" id="study-card-quiz-container">
-            <!-- Dynamically populated -->
           </div>
         </section>
 

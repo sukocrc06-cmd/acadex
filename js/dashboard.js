@@ -1341,20 +1341,81 @@ function populateStudyCardOutline(card) {
     const level = Math.min(3, Math.max(1, Number(it.level) || 1));
     const pad = (level - 1) * 12;
     const blurb = (it.blurb || '').trim();
+    const jumpId = it.id || `sec-${idx}`;
     return `
-      <li style="list-style: none; margin-left: ${pad}px; padding: 0.4rem 0.55rem; border-radius: 8px; background: ${level === 1 ? 'rgba(22,50,92,0.04)' : 'transparent'}; border: 1px solid rgba(22,50,92,0.06);">
-        <div style="display:flex; gap:0.5rem; align-items:flex-start;">
+      <li style="list-style: none; margin-left: ${pad}px;">
+        <button type="button" onclick="jumpToDeepSection('${String(jumpId).replace(/'/g, "\\'")}', ${idx})"
+          style="width:100%; text-align:left; cursor:pointer; padding: 0.45rem 0.55rem; border-radius: 8px; background: ${level === 1 ? 'rgba(22,50,92,0.04)' : 'transparent'}; border: 1px solid rgba(22,50,92,0.06); display:flex; gap:0.5rem; align-items:flex-start;">
           <span style="flex-shrink:0; width:22px; height:22px; border-radius:50%; background:var(--color-teal); color:#fff; font-size:0.7rem; font-weight:800; display:flex; align-items:center; justify-content:center;">${idx + 1}</span>
           <div style="min-width:0;">
             <div style="font-weight:700; color:var(--color-navy); font-size:0.9rem;">${escapeHtml(it.heading || '')}</div>
             ${blurb ? `<div style="font-size:0.8rem; color:var(--color-text-muted); margin-top:0.15rem; line-height:1.4;">${escapeHtml(blurb.slice(0, 220))}${blurb.length > 220 ? '…' : ''}</div>` : ''}
           </div>
-        </div>
+        </button>
       </li>
     `;
   }).join('');
 }
 window.populateStudyCardOutline = populateStudyCardOutline;
+
+/** Madde 5 — deep sections in reading pane */
+function populateDeepSectionsReading(card) {
+  const section = document.getElementById('study-card-deep-sections-section');
+  const container = document.getElementById('study-card-deep-sections-container');
+  if (!section || !container) return;
+
+  const sections = Array.isArray(card?.sections) ? card.sections : [];
+  if (sections.length === 0) {
+    section.style.display = 'none';
+    container.innerHTML = '';
+    return;
+  }
+
+  section.style.display = 'block';
+  container.innerHTML = sections.map((sec, idx) => {
+    const kps = Array.isArray(sec?.key_points) ? sec.key_points.filter(Boolean) : [];
+    const kpHtml = kps.length
+      ? `<ul style="margin:0.5rem 0 0; padding-left:1.1rem; font-size:0.85rem;">${kps.map(p => `<li style="margin-bottom:0.25rem;">${escapeHtml(String(p))}</li>`).join('')}</ul>`
+      : '';
+    const oid = sec.outline_id || `sec-${idx}`;
+    return `
+      <div class="summary-section-item" id="deep-section-${escapeHtml(String(oid))}" data-section-idx="${idx}" style="margin-bottom:0.5rem;">
+        <button type="button" class="summary-section-toggle" onclick="toggleSummarySection(this)" style="width:100%;">
+          <span class="summary-section-num">${idx + 1}</span>
+          <span class="summary-section-heading">${escapeHtml(sec?.heading || '')}</span>
+          <span class="summary-section-chevron">▾</span>
+        </button>
+        <div class="summary-section-body">
+          ${formatSummaryText(sec?.summary || '', card.footnotes)}
+          ${kpHtml ? `<div style="margin-top:0.6rem; padding:0.5rem 0.65rem; background:rgba(31,138,147,0.06); border-radius:8px;"><div style="font-size:0.75rem; font-weight:800; color:var(--color-teal); margin-bottom:0.25rem;">Önemli noktalar</div>${kpHtml}</div>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+}
+window.populateDeepSectionsReading = populateDeepSectionsReading;
+
+function scrollStudyCardTo(elementId) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // brief highlight
+  el.style.transition = 'box-shadow 0.3s ease';
+  el.style.boxShadow = '0 0 0 2px rgba(31,138,147,0.35)';
+  setTimeout(() => { el.style.boxShadow = ''; }, 900);
+}
+window.scrollStudyCardTo = scrollStudyCardTo;
+
+function jumpToDeepSection(outlineId, idx) {
+  scrollStudyCardTo('study-card-deep-sections-section');
+  const byId = document.getElementById('deep-section-' + outlineId);
+  const byIdx = document.querySelector(`[data-section-idx="${idx}"]`);
+  const target = byId || byIdx;
+  if (target) {
+    target.classList.add('expanded');
+    setTimeout(() => target.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 80);
+  }
+}
+window.jumpToDeepSection = jumpToDeepSection;
 
 function showFootnoteToast(refText) {
   showDashboardAlert('info', `📎 ${refText}`);
@@ -1572,7 +1633,7 @@ async function populateStudyCardModalDetails(card, docName, readOnly) {
   // Populate Document Outline (NotebookLM Madde 1)
   populateStudyCardOutline(card);
 
-  // Populate Summary (+ Madde 4 quality / grounded badge)
+  // Populate narrative only (Madde 5: deep sections in separate block)
   const summaryText = document.getElementById('study-card-summary-text');
   if (summaryText) {
     const qm = card.quality_meta || {};
@@ -1588,8 +1649,10 @@ async function populateStudyCardModalDetails(card, docName, readOnly) {
       badge += `<span style="display:inline-flex;align-items:center;gap:0.25rem;font-size:0.7rem;font-weight:800;color:#166534;background:rgba(22,163,74,0.12);padding:0.2rem 0.55rem;border-radius:999px;">✓ Kalite kapısı</span>`;
     }
     const badgeRow = badge ? `<div style="margin-bottom:0.65rem;display:flex;flex-wrap:wrap;gap:0.25rem;">${badge}</div>` : '';
-    summaryText.innerHTML = badgeRow + renderSectionsOutlineHtml(card.sections, card.footnotes) + (formatSummaryText(card.summary, card.footnotes) || "No summary generated for this document.");
+    summaryText.innerHTML = badgeRow + (formatSummaryText(card.summary, card.footnotes) || "No summary generated for this document.");
   }
+
+  populateDeepSectionsReading(card);
 
   // Populate Key Points
   const pointsContainer = document.getElementById('study-card-points-container');
