@@ -1715,6 +1715,50 @@ In addition to the text below, you are shown images of this document's pages. Us
         })
       }
 
+      // HOTFIX: if most chunks came back empty (API fail / budget skip), recover with a single-pass on the head of the document
+      const nonEmptyChunkCount = chunkResults.filter((r: any) => (r?.chunk_summary || '').trim().length > 40).length
+      console.log(`Chunk map quality: ${nonEmptyChunkCount}/${chunkResults.length} non-empty summaries`)
+      if (nonEmptyChunkCount < Math.max(1, Math.ceil(chunkResults.length * 0.3))) {
+        console.warn('HOTFIX: chunk map too empty — running single-pass recovery on document head')
+        try {
+          await serviceClient.from('documents').update({ processing_stage: 'analyzing' }).eq('id', documentId)
+          const recoveryText = extractedText.slice(0, 28000)
+          const recovery = await callGroqJson(
+            groqApiKey,
+            systemPrompt, // full single-pass schema (includes key_terms, quiz, etc.)
+            recoveryText,
+            { model: MODEL_HEAVY, temperature: 0.25, maxCompletionTokens: DRAFT_MAX_COMPLETION, timeoutMs: 45000, maxRetries: 1 }
+          )
+          // Rebuild chunkResults-like payload from recovery so merge path still works
+          chunkResults = [{
+            chunk_summary: recovery.summary || recovery.summary_executive || '',
+            key_terms: Array.isArray(recovery.key_terms) ? recovery.key_terms : [],
+            key_points: Array.isArray(recovery.key_points) ? recovery.key_points : [],
+            quiz_questions: Array.isArray(recovery.quiz_questions) ? recovery.quiz_questions : [],
+            tables: Array.isArray(recovery.tables) ? recovery.tables : [],
+            charts: Array.isArray(recovery.charts) ? recovery.charts : [],
+            footnotes: Array.isArray(recovery.footnotes) ? recovery.footnotes : [],
+            is_quantitative: !!recovery.is_quantitative,
+            formulas: Array.isArray(recovery.formulas) ? recovery.formulas : [],
+            worked_examples: Array.isArray(recovery.worked_examples) ? recovery.worked_examples : [],
+            diagrams: Array.isArray(recovery.diagrams) ? recovery.diagrams : [],
+            concept_graph: recovery.concept_graph || { nodes: [], edges: [] },
+            // stash full recovery for synthesis to prefer
+            _recovery_full: recovery
+          }]
+          console.log('HOTFIX recovery terms=', (recovery.key_terms || []).length, 'points=', (recovery.key_points || []).length)
+        } catch (recErr) {
+          console.error('HOTFIX single-pass recovery failed:', recErr)
+          await markFailed(serviceClient, documentId)
+          return new Response(JSON.stringify({
+            error: 'Özet çıkarılamadı — AI yanıtı boş kaldı. Lütfen tekrar deneyin / Summarization returned empty content. Please retry.'
+          }), {
+            status: 503,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          })
+        }
+      }
+
       // Renumber each chunk's footnotes into one global sequence, in order,
       // and rewrite any [n] markers in that chunk's text to match.
       let footnoteOffset = 0
@@ -1791,25 +1835,40 @@ In addition to the text below, you are shown images of this document's pages. Us
           ? `Write a thorough final summary in ${sLo}-${sHi} sentences, synthesizing across all parts.`
           : `Write a balanced final summary in ${sLo}-${sHi} sentences, synthesizing across all parts.`
 
-      const synthesisUserContent = `Fraction of parts flagged quantitative: ${Math.round(quantFraction * 100)}%\n\n` +
-        chunkResults.map((r, i) => `Part ${i + 1}/${chunkResults.length}:\n${r.chunk_summary || '(no summary extracted for this part)'}`).join('\n\n')
-
+      // If single-pass recovery already produced a full card, use it as synthesis
       let synthesis: any
-      try {
-        await serviceClient.from('documents').update({ processing_stage: 'synthesizing' }).eq('id', documentId)
-        synthesis = await callGroqJson(
-          groqApiKey,
-          buildSynthesisSystemPrompt(courseCatalogBlock, langLabel, styleInstruction, summaryLengthPhrase),
-          synthesisUserContent,
-          { model: MODEL_HEAVY, temperature: 0.3, maxCompletionTokens: SYNTHESIS_MAX_COMPLETION, timeoutMs: 30000, maxRetries: 1 }
-        )
-      } catch (synthesisErr) {
-        console.error('Synthesis call failed: ', synthesisErr)
-        await markFailed(serviceClient, documentId)
-        return new Response(JSON.stringify({ error: 'Our AI service is experiencing high demand right now — please try again in a moment' }), {
-          status: 503,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        })
+      const recoveryFull = chunkResults.length === 1 && chunkResults[0]?._recovery_full
+        ? chunkResults[0]._recovery_full
+        : null
+      if (recoveryFull && (recoveryFull.summary || '').length > 80) {
+        console.log('HOTFIX: using recovery object as synthesis')
+        synthesis = recoveryFull
+      } else {
+        // Enrich weak chunk summaries with raw text samples so synthesis is never pure empty
+        const synthesisUserContent = `Fraction of parts flagged quantitative: ${Math.round(quantFraction * 100)}%\n\n` +
+          chunkResults.map((r, i) => {
+            const sum = (r.chunk_summary || '').trim()
+            if (sum.length > 40) return `Part ${i + 1}/${chunkResults.length}:\n${sum}`
+            const sample = (chunksToProcess[i] || '').slice(0, 1200)
+            return `Part ${i + 1}/${chunkResults.length}:\n(no model summary — raw excerpt follows)\n${sample}`
+          }).join('\n\n')
+
+        try {
+          await serviceClient.from('documents').update({ processing_stage: 'synthesizing' }).eq('id', documentId)
+          synthesis = await callGroqJson(
+            groqApiKey,
+            buildSynthesisSystemPrompt(courseCatalogBlock, langLabel, styleInstruction, summaryLengthPhrase),
+            synthesisUserContent.slice(0, 24000),
+            { model: MODEL_HEAVY, temperature: 0.3, maxCompletionTokens: SYNTHESIS_MAX_COMPLETION, timeoutMs: 30000, maxRetries: 1 }
+          )
+        } catch (synthesisErr) {
+          console.error('Synthesis call failed: ', synthesisErr)
+          await markFailed(serviceClient, documentId)
+          return new Response(JSON.stringify({ error: 'Our AI service is experiencing high demand right now — please try again in a moment' }), {
+            status: 503,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          })
+        }
       }
 
       // Prefer synthesis-level concept_graph (unified); fall back to merging chunk graphs
@@ -1836,16 +1895,27 @@ In addition to the text below, you are shown images of this document's pages. Us
         mergedConceptGraph = { nodes: allNodes.slice(0, 20), edges: allEdges.slice(0, 30) }
       }
 
+      // Prefer recovery extractions when chunk merge was empty
+      const finalKeyTerms = mergedKeyTerms.length > 0
+        ? mergedKeyTerms
+        : (Array.isArray(synthesis.key_terms) ? synthesis.key_terms : [])
+      const finalKeyPoints = mergedKeyPoints.length > 0
+        ? mergedKeyPoints
+        : (Array.isArray(synthesis.key_points) ? synthesis.key_points : [])
+      const finalQuiz = mergedQuiz.length > 0
+        ? mergedQuiz
+        : (Array.isArray(synthesis.quiz_questions) ? synthesis.quiz_questions : [])
+
       const mergedDraft = {
         summary: synthesis.summary || '',
         summary_executive: synthesis.summary_executive || '',
         document_type: synthesis.document_type || 'Other',
         suggested_course_tag: synthesis.suggested_course_tag ?? null,
         is_quantitative: synthesis.is_quantitative ?? (quantFraction >= 0.5),
-        key_terms: mergedKeyTerms,
-        key_points: mergedKeyPoints,
-        quiz_questions: mergedQuiz,
-        tables: mergedTables,
+        key_terms: finalKeyTerms,
+        key_points: finalKeyPoints,
+        quiz_questions: finalQuiz,
+        tables: Array.isArray(synthesis.tables) && synthesis.tables.length ? synthesis.tables : mergedTables,
         charts: mergedCharts,
         formulas: mergedFormulas,
         worked_examples: mergedWorkedExamples,
@@ -2290,6 +2360,27 @@ Fix the listed issues. Remove hallucinations and admin noise. Keep ${langLabel}.
       }
     }
     delete parsedContent.quality_gate
+
+    // HOTFIX: never save an empty / meta-only study card
+    {
+      const sum = String(parsedContent.summary || '')
+      const terms = Array.isArray(parsedContent.key_terms) ? parsedContent.key_terms : []
+      const points = Array.isArray(parsedContent.key_points) ? parsedContent.key_points : []
+      const quiz = Array.isArray(parsedContent.quiz_questions) ? parsedContent.quiz_questions : []
+      const metaRe = /sağlanmamış|sağlanmamıştır|no (detailed )?draft|taslak.*sağlan|içerik taslağı|qualitative overview|scholarly landscape|only a general framework|genel bir çerçevesi/i
+      const isMeta = metaRe.test(sum) || metaRe.test(String(parsedContent.summary_executive || ''))
+      const isEmpty = terms.length === 0 && points.length === 0 && quiz.length === 0 && sum.trim().length < 120
+      if (isMeta || isEmpty) {
+        console.error('HOTFIX: refusing to save empty/meta study card', { isMeta, isEmpty, terms: terms.length, points: points.length, quiz: quiz.length, sumLen: sum.length })
+        await markFailed(serviceClient, documentId)
+        return new Response(JSON.stringify({
+          error: 'Özet içeriği boş kaldı (terim/nokta çıkmadı). Lütfen tekrar deneyin — Standart derinlik önerilir. / Summary was empty. Please retry with Standard depth.'
+        }), {
+          status: 503,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+    }
 
     // ==========================================================================
     // STEP 4 — SAVE STUDY CARD & UPDATE STATUS
