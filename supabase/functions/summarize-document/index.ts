@@ -1637,139 +1637,200 @@ In addition to the text below, you are shown images of this document's pages. Us
       }
     } else {
       // ========================================================================
-      // RELIABLE LONG-DOC PATH (HOTFIX)
-      // 3 sequential windows with FULL study-card schema on HEAVY model.
-      // Avoids empty multi-chunk map failures that produced blank cards.
+      // LONG-DOC PATH — compact prompts (fixes Groq 413 payload-too-large)
+      // Huge systemPrompt + 22k text was causing ALL windows to 413.
       // ========================================================================
       await serviceClient
         .from('documents')
         .update({ processing_stage: 'analyzing' })
         .eq('id', documentId)
 
-      const WINDOW = 22000
+      // Compact extraction prompt — keeps request under Groq limits
+      const compactWindowPrompt = (wi: number, total: number) =>
+        `You extract study material from part ${wi + 1}/${total} of a long academic document.
+Language for all text fields: ${langLabel}.
+Respond ONLY with JSON:
+{
+  "summary": "5-10 sentences of CONCRETE content from this part only — name real topics, methods, definitions",
+  "summary_executive": "1-2 sentences naming the subject of this part",
+  "key_terms": [{"term":"...","definition":"..."}],
+  "key_points": ["..."],
+  "quiz_questions": [{"question":"...","answer":"..."}],
+  "is_quantitative": false,
+  "formulas": [{"name":"...","latex":"...","variables":[{"symbol":"...","meaning":"..."}]}],
+  "outline_items": [{"heading":"...","blurb":"..."}],
+  "sections": [{"heading":"...","summary":"...","key_points":["..."]}]
+}
+Rules:
+- Extract 5-15 key_terms and 5-12 key_points when content allows
+- 3-6 quiz_questions when content allows
+- NEVER write meta text like "no draft provided" or "qualitative overview"
+- Use real topic names from the text (e.g. supervised learning, neural networks)
+- Ignore grading/attendance/admin text`
+
+      // Small windows to stay under payload limits (413)
+      const WINDOW = 7000
       const windows: string[] = []
-      for (let start = 0; start < extractedText.length && windows.length < 4; start += WINDOW) {
+      for (let start = 0; start < extractedText.length && windows.length < 8; start += WINDOW) {
         windows.push(extractedText.slice(start, start + WINDOW))
       }
-      console.log(`Reliable long-doc: ${windows.length} window(s), totalChars=${extractedText.length}`)
+      console.log(`Long-doc compact: ${windows.length} window(s), totalChars=${extractedText.length}`)
+
+      async function extractWindow(wi: number, text: string): Promise<any | null> {
+        let payload = text
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            const result = await callGroqJson(
+              groqApiKey,
+              compactWindowPrompt(wi, windows.length),
+              payload,
+              {
+                model: MODEL_HEAVY,
+                temperature: 0.2,
+                maxCompletionTokens: 2048,
+                timeoutMs: Math.min(40000, Math.max(15000, budgetLeft() - 10000)),
+                maxRetries: 0
+              }
+            )
+            return result
+          } catch (err: any) {
+            const msg = String(err?.message || err)
+            console.error(`Window ${wi + 1} attempt ${attempt + 1} failed:`, msg.slice(0, 200))
+            // 413 / context length → shrink payload and retry
+            if (/413|too large|context_length|maximum context|payload/i.test(msg)) {
+              payload = payload.slice(0, Math.floor(payload.length * 0.55))
+              console.warn(`Window ${wi + 1}: shrinking payload to ${payload.length} chars`)
+              continue
+            }
+            // rate limit → brief wait then retry once
+            if (/429|rate limit|tpm/i.test(msg) && attempt < 2) {
+              await new Promise(r => setTimeout(r, 2500 * (attempt + 1)))
+              continue
+            }
+            return null
+          }
+        }
+        return null
+      }
 
       const windowResults: any[] = []
       for (let wi = 0; wi < windows.length; wi++) {
-        if (budgetLeft() < 25_000 && wi > 0) {
-          console.warn(`Budget low — stopping windows at ${wi}/${windows.length}`)
+        if (budgetLeft() < 20_000 && windowResults.length > 0) {
+          console.warn(`Budget low — stopping at window ${wi}`)
           break
+        }
+        // Enough good extractions already?
+        if (windowResults.length >= 4) {
+          const termsSoFar = windowResults.reduce((n, r) => n + (r.key_terms?.length || 0), 0)
+          if (termsSoFar >= 12) {
+            console.log('Enough extractions — skipping remaining windows')
+            break
+          }
         }
         await serviceClient.from('documents')
           .update({ processing_stage: `chunking:${wi + 1}/${windows.length}` })
           .eq('id', documentId)
-        try {
-          const winPrompt = systemPrompt + `\n\nLONG-DOCUMENT WINDOW ${wi + 1} of up to ${windows.length}: extract ALL key_terms, key_points, quiz_questions, formulas, and a concrete chunk-style summary of ONLY this window's text. Do not write meta text about missing drafts. Name real topics from the text.`
-          const result = await callGroqJson(
-            groqApiKey,
-            winPrompt,
-            windows[wi],
-            {
-              model: MODEL_HEAVY,
-              temperature: 0.2,
-              maxCompletionTokens: DRAFT_MAX_COMPLETION,
-              timeoutMs: Math.min(50000, Math.max(20000, budgetLeft() - 15000)),
-              maxRetries: 1
-            }
-          )
+        const result = await extractWindow(wi, windows[wi])
+        if (result) {
+          // Normalize alternate field names
+          if (!result.summary && result.chunk_summary) result.summary = result.chunk_summary
           windowResults.push(result)
           console.log(`Window ${wi + 1} ok: terms=${(result.key_terms || []).length} points=${(result.key_points || []).length} quiz=${(result.quiz_questions || []).length}`)
-        } catch (winErr) {
-          console.error(`Window ${wi + 1} failed:`, winErr)
         }
       }
 
+      // Last-resort: single tiny window if everything failed
       if (windowResults.length === 0) {
-        console.error('All long-doc windows failed')
+        console.warn('All windows failed — last-resort mini extract on first 5000 chars')
+        const mini = await extractWindow(0, extractedText.slice(0, 5000))
+        if (mini) windowResults.push(mini)
+      }
+
+      if (windowResults.length === 0) {
+        console.error('All long-doc windows failed even after shrink retries')
         await markFailed(serviceClient, documentId)
         return new Response(JSON.stringify({
-          error: 'AI servisi uzun belgeyi işleyemedi. Lütfen 1 dk sonra tekrar deneyin. / AI failed on long document — retry shortly.'
+          error: 'AI istek boyutu/kota hatası. 1 dk bekleyip tekrar deneyin. / AI payload or rate error — wait 1 min and retry.'
         }), {
           status: 503,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
       }
 
-      // Merge window extractions
       const mergedKeyTerms = dedupeKeyTerms(windowResults.flatMap(r => Array.isArray(r.key_terms) ? r.key_terms : [])).slice(0, 40)
       const mergedKeyPoints = dedupeByText(windowResults.flatMap(r => Array.isArray(r.key_points) ? r.key_points : []), (x: string) => x).slice(0, 35)
       const mergedQuiz = dedupeByText(windowResults.flatMap(r => Array.isArray(r.quiz_questions) ? r.quiz_questions : []), (q: any) => q?.question || '').slice(0, 20)
-      const mergedTables = windowResults.flatMap(r => Array.isArray(r.tables) ? r.tables : []).slice(0, 20)
-      const mergedCharts = windowResults.flatMap(r => Array.isArray(r.charts) ? r.charts : []).slice(0, 15)
       const mergedFormulas = windowResults.flatMap(r => Array.isArray(r.formulas) ? r.formulas : []).slice(0, 30)
-      const mergedWorkedExamples = windowResults.flatMap(r => Array.isArray(r.worked_examples) ? r.worked_examples : []).slice(0, 15)
-      const mergedDiagrams = windowResults.flatMap(r => Array.isArray(r.diagrams) ? r.diagrams : []).slice(0, 12)
-      const mergedFootnotes = windowResults.flatMap(r => Array.isArray(r.footnotes) ? r.footnotes : [])
-      const quantFraction = windowResults.filter(r => r.is_quantitative).length / windowResults.length
+      const quantFraction = windowResults.filter(r => r.is_quantitative).length / Math.max(1, windowResults.length)
 
-      // Prefer best concrete summary among windows; synthesize if multiple
-      let bestSummary = ''
-      let bestExec = ''
-      let bestOutline: any = null
-      let bestSections: any[] = []
-      let bestGraph: any = { nodes: [], edges: [] }
-      let bestDocType = 'Other'
-      let bestCourse: any = null
-      for (const r of windowResults) {
-        const s = String(r.summary || '')
-        if (s.length > bestSummary.length) {
-          bestSummary = s
-          bestExec = String(r.summary_executive || bestExec)
-          bestOutline = r.outline || bestOutline
-          bestSections = Array.isArray(r.sections) ? r.sections : bestSections
-          bestGraph = r.concept_graph || bestGraph
-          bestDocType = r.document_type || bestDocType
-          bestCourse = r.suggested_course_tag ?? bestCourse
-        }
+      let bestSummary = windowResults.map(r => String(r.summary || '')).filter(s => s.length > 40).join('\n\n')
+      let bestExec = String(windowResults[0]?.summary_executive || '')
+      const outlineFromWindows = {
+        document_title_guess: '',
+        items: windowResults.flatMap((r, i) =>
+          Array.isArray(r.outline_items) ? r.outline_items.map((it: any, j: number) => ({
+            id: `o${i + 1}_${j + 1}`,
+            heading: it.heading || it.title || '',
+            blurb: it.blurb || it.summary || '',
+            level: 1,
+            order: i * 10 + j + 1,
+            parent_id: null
+          })) : []
+        ).filter((it: any) => it.heading)
       }
+      let bestSections = windowResults.flatMap(r => Array.isArray(r.sections) ? r.sections : [])
+      let bestOutline: any = outlineFromWindows.items.length ? outlineFromWindows : null
 
-      // Light synthesis of window summaries when we have 2+
-      if (windowResults.length >= 2 && budgetLeft() > 30_000) {
+      // Compact synthesis (small prompt — only digests)
+      if (windowResults.length >= 2 && budgetLeft() > 25_000) {
         try {
           await serviceClient.from('documents').update({ processing_stage: 'synthesizing' }).eq('id', documentId)
-          const partDigests = windowResults.map((r, i) =>
-            `Part ${i + 1}:\n${String(r.summary || r.summary_executive || '').slice(0, 1500)}`
-          ).join('\n\n')
+          const digests = windowResults.map((r, i) =>
+            `P${i + 1}: ${String(r.summary || '').slice(0, 600)}`
+          ).join('\n')
+          const termHint = mergedKeyTerms.slice(0, 20).map((t: any) => t.term).filter(Boolean).join(', ')
           const syn = await callGroqJson(
             groqApiKey,
-            buildSynthesisSystemPrompt(courseCatalogBlock, langLabel, styleInstruction,
-              len === 'short' ? 'Write 3-5 sentences.' : 'Write 5-10 sentences synthesizing all parts with concrete topic names.'),
-            `Fraction quantitative: ${Math.round(quantFraction * 100)}%\n\n${partDigests}\n\nKnown key terms:\n${mergedKeyTerms.slice(0, 15).map((t: any) => t.term).join(', ')}`,
-            { model: MODEL_HEAVY, temperature: 0.25, maxCompletionTokens: SYNTHESIS_MAX_COMPLETION, timeoutMs: 35000, maxRetries: 1 }
+            `Merge part digests into one study brief in ${langLabel}. JSON only: {"summary":"...","summary_executive":"...","outline":{"document_title_guess":"","items":[{"id":"o1","heading":"...","blurb":"...","level":1,"order":1,"parent_id":null}]},"sections":[{"heading":"...","summary":"...","key_points":["..."]}]}.
+Use CONCRETE topic names from digests and terms. No meta filler.`,
+            `Terms: ${termHint}\n\nDigests:\n${digests}`.slice(0, 12000),
+            { model: MODEL_HEAVY, temperature: 0.25, maxCompletionTokens: 2048, timeoutMs: 30000, maxRetries: 0 }
           )
           if (syn?.summary && String(syn.summary).length > 80) bestSummary = String(syn.summary)
           if (syn?.summary_executive) bestExec = String(syn.summary_executive)
-          if (syn?.outline) bestOutline = syn.outline
+          if (syn?.outline?.items?.length) bestOutline = syn.outline
           if (Array.isArray(syn?.sections) && syn.sections.length) bestSections = syn.sections
-          if (syn?.concept_graph?.nodes?.length) bestGraph = syn.concept_graph
-          if (syn?.document_type) bestDocType = syn.document_type
-          if (syn?.suggested_course_tag !== undefined) bestCourse = syn.suggested_course_tag
         } catch (synErr) {
-          console.warn('Window synthesis skipped, using best window summary:', synErr)
+          console.warn('Compact synthesis skipped:', synErr)
         }
       }
 
-      // If still no terms, force them from best window attempt was already merged — last resort from summary text is not needed
+      // Guarantee non-empty executive from terms if needed
+      if (!bestExec && mergedKeyTerms.length) {
+        bestExec = lang === 'tr'
+          ? `Belge başlıca şu konuları kapsar: ${mergedKeyTerms.slice(0, 6).map((t: any) => t.term).join(', ')}.`
+          : `This document covers: ${mergedKeyTerms.slice(0, 6).map((t: any) => t.term).join(', ')}.`
+      }
+      if (!bestSummary && mergedKeyPoints.length) {
+        bestSummary = mergedKeyPoints.slice(0, 10).map((p: string) => `• ${p}`).join('\n')
+      }
+
       const mergedDraft = {
-        summary: bestSummary || windowResults.map(r => r.summary || '').join('\n\n'),
+        summary: bestSummary || '',
         summary_executive: bestExec || '',
-        document_type: bestDocType || 'Other',
-        suggested_course_tag: bestCourse ?? null,
-        is_quantitative: quantFraction >= 0.4,
+        document_type: 'Lecture Notes/Slides',
+        suggested_course_tag: null,
+        is_quantitative: quantFraction >= 0.3,
         key_terms: mergedKeyTerms,
         key_points: mergedKeyPoints,
         quiz_questions: mergedQuiz,
-        tables: mergedTables,
-        charts: mergedCharts,
+        tables: [],
+        charts: [],
         formulas: mergedFormulas,
-        worked_examples: mergedWorkedExamples,
-        diagrams: mergedDiagrams,
-        concept_graph: bestGraph || { nodes: [], edges: [] },
-        footnotes: mergedFootnotes,
+        worked_examples: [],
+        diagrams: [],
+        concept_graph: { nodes: [], edges: [] },
+        footnotes: [],
         outline: normalizeOutline(bestOutline, bestSections),
         sections: normalizeSections(bestSections, normalizeOutline(bestOutline, bestSections)),
         cloze_cards: [] as any[]
@@ -1778,9 +1839,9 @@ In addition to the text below, you are shown images of this document's pages. Us
       console.log(`Long-doc merge: terms=${mergedKeyTerms.length} points=${mergedKeyPoints.length} quiz=${mergedQuiz.length} summaryLen=${(mergedDraft.summary || '').length}`)
 
       rawContent = JSON.stringify(mergedDraft)
-      sourceTextForReview = windowResults.map((r, i) => `Part ${i + 1}: ${String(r.summary || '').slice(0, 800)}`).join('\n\n')
-      if (sourceTextForReview.length > 6000) {
-        sourceTextForReview = sourceTextForReview.substring(0, 6000) + ' [truncated for review]'
+      sourceTextForReview = windowResults.map((r, i) => `Part ${i + 1}: ${String(r.summary || '').slice(0, 500)}`).join('\n\n')
+      if (sourceTextForReview.length > 4000) {
+        sourceTextForReview = sourceTextForReview.substring(0, 4000) + ' [truncated]'
       }
     }
 
