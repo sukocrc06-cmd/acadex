@@ -1278,6 +1278,66 @@ function toggleSummarySection(btn) {
 }
 window.toggleSummarySection = toggleSummarySection;
 
+/** NotebookLM Madde 1 — render hierarchical document outline TOC */
+function populateStudyCardOutline(card) {
+  const section = document.getElementById('study-card-outline-section');
+  const list = document.getElementById('study-card-outline-list');
+  const titleEl = document.getElementById('study-card-outline-title');
+  if (!section || !list) return;
+
+  let items = [];
+  const outline = card?.outline;
+  if (outline && Array.isArray(outline.items) && outline.items.length > 0) {
+    items = outline.items.slice().sort((a, b) => (a.order || 0) - (b.order || 0));
+  } else if (Array.isArray(card?.sections) && card.sections.length > 0) {
+    // Fallback for older cards without outline column
+    items = card.sections.map((s, idx) => ({
+      id: `o${idx + 1}`,
+      heading: s.heading || '',
+      blurb: s.summary || '',
+      level: 1,
+      order: idx + 1
+    }));
+  }
+
+  if (items.length === 0) {
+    section.style.display = 'none';
+    list.innerHTML = '';
+    if (titleEl) { titleEl.style.display = 'none'; titleEl.textContent = ''; }
+    return;
+  }
+
+  section.style.display = 'block';
+  if (titleEl) {
+    const guess = (outline && outline.document_title_guess) ? String(outline.document_title_guess).trim() : '';
+    if (guess) {
+      titleEl.style.display = 'block';
+      titleEl.textContent = guess;
+    } else {
+      titleEl.style.display = 'none';
+      titleEl.textContent = '';
+    }
+  }
+
+  list.innerHTML = items.map((it, idx) => {
+    const level = Math.min(3, Math.max(1, Number(it.level) || 1));
+    const pad = (level - 1) * 12;
+    const blurb = (it.blurb || '').trim();
+    return `
+      <li style="list-style: none; margin-left: ${pad}px; padding: 0.4rem 0.55rem; border-radius: 8px; background: ${level === 1 ? 'rgba(22,50,92,0.04)' : 'transparent'}; border: 1px solid rgba(22,50,92,0.06);">
+        <div style="display:flex; gap:0.5rem; align-items:flex-start;">
+          <span style="flex-shrink:0; width:22px; height:22px; border-radius:50%; background:var(--color-teal); color:#fff; font-size:0.7rem; font-weight:800; display:flex; align-items:center; justify-content:center;">${idx + 1}</span>
+          <div style="min-width:0;">
+            <div style="font-weight:700; color:var(--color-navy); font-size:0.9rem;">${escapeHtml(it.heading || '')}</div>
+            ${blurb ? `<div style="font-size:0.8rem; color:var(--color-text-muted); margin-top:0.15rem; line-height:1.4;">${escapeHtml(blurb.slice(0, 220))}${blurb.length > 220 ? '…' : ''}</div>` : ''}
+          </div>
+        </div>
+      </li>
+    `;
+  }).join('');
+}
+window.populateStudyCardOutline = populateStudyCardOutline;
+
 function showFootnoteToast(refText) {
   showDashboardAlert('info', `📎 ${refText}`);
 }
@@ -1490,6 +1550,9 @@ async function populateStudyCardModalDetails(card, docName, readOnly) {
       executiveText.innerHTML = '';
     }
   }
+
+  // Populate Document Outline (NotebookLM Madde 1)
+  populateStudyCardOutline(card);
 
   // Populate Summary
   const summaryText = document.getElementById('study-card-summary-text');
