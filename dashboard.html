@@ -796,6 +796,7 @@
             </select>
           </div>
           <button id="btn-clear-filters" class="btn btn-outline" data-i18n="dash.cards.btn.clear" style="padding: 0.35rem 0.75rem; font-size: 0.75rem; font-weight: 700; border-radius: var(--radius-sm); margin-left: auto;">Clear Filters</button>
+          <button id="btn-open-knowledge-graph" class="btn btn-outline" onclick="openKnowledgeGraphModal()" style="padding: 0.35rem 0.75rem; font-size: 0.75rem; font-weight: 700; border-radius: var(--radius-sm); margin-left: 0.5rem; border-color: var(--color-teal); color: var(--color-teal);">🕸️ Kavram Ağı</button>
           <button id="btn-export-all-pdf" class="btn btn-primary" data-i18n="dash.cards.btn.exportAll" style="padding: 0.35rem 0.75rem; font-size: 0.75rem; font-weight: 700; border-radius: var(--radius-sm); margin-left: 0.5rem;">Export All to PDF</button>
         </div>
 
@@ -2035,6 +2036,16 @@
           </div>
         </section>
 
+        <!-- Related study cards (cross-document) -->
+        <section class="study-card-section" id="study-card-related-section" style="display: none;">
+          <h4 class="study-card-section-title" style="display: flex; align-items: center; width: 100%;">
+            <span>🔗</span>
+            <span style="margin-left: 0.4rem;" data-i18n="dash.cards.relatedCards">İlgili Kartlar</span>
+          </h4>
+          <div id="study-card-related-container" style="display: flex; flex-direction: column; gap: 0.5rem;">
+          </div>
+        </section>
+
         <!-- Self-Test Section -->
         <section class="study-card-section">
           <h4 class="study-card-section-title" style="display: flex; align-items: center; width: 100%;">
@@ -2148,6 +2159,32 @@
   <!-- ==========================================
        FLASHCARD VIEWER MODAL (REFERENCE LAYOUT REDESIGN)
        ========================================== -->
+  <!-- Cross-document Knowledge Graph Modal (Madde 4) -->
+  <div id="knowledge-graph-modal" class="modal-overlay" role="dialog" aria-modal="true" style="display: none; z-index: 1200;">
+    <div class="modal-content" style="max-width: 920px; width: 94%; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column;">
+      <div class="modal-header" style="display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
+        <h3 class="modal-title" style="margin: 0; font-size: 1.15rem; color: var(--color-navy); font-weight: 800;">🕸️ Kişisel Kavram Ağı</h3>
+        <button type="button" onclick="closeKnowledgeGraphModal()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--color-text-muted); line-height: 1;">&times;</button>
+      </div>
+      <div style="padding: 0 1.25rem 0.75rem;">
+        <input type="search" id="kg-search-input" placeholder="Kavram ara…" oninput="filterKnowledgeGraph(this.value)"
+          style="width: 100%; padding: 0.55rem 0.85rem; border: 1px solid rgba(22,50,92,0.15); border-radius: 10px; font-size: 0.9rem;" />
+        <p id="kg-stats" style="margin: 0.5rem 0 0; font-size: 0.8rem; color: var(--color-text-muted);"></p>
+      </div>
+      <div style="display: flex; gap: 1rem; padding: 0 1.25rem 1.25rem; overflow: hidden; flex: 1; min-height: 0;">
+        <div style="flex: 1.2; overflow: auto; background: #f8fafc; border-radius: 12px; padding: 0.75rem; min-height: 280px;">
+          <div id="kg-mermaid-box"></div>
+        </div>
+        <div style="flex: 1; overflow: auto; min-width: 240px;">
+          <h4 style="margin: 0 0 0.5rem; font-size: 0.85rem; color: var(--color-navy);">Kavramlar</h4>
+          <div id="kg-concept-list" style="display: flex; flex-direction: column; gap: 0.4rem;"></div>
+          <h4 style="margin: 1rem 0 0.5rem; font-size: 0.85rem; color: var(--color-navy);">Seçili kavrama bağlı kartlar</h4>
+          <div id="kg-related-cards" style="font-size: 0.85rem; color: var(--color-text-muted);">Bir kavram seçin.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="flashcard-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="flashcard-modal-title" style="display: none;">
     <div class="modal-content" style="max-width: 640px; width: 92%; position: relative; display: flex; flex-direction: column; padding: 1.5rem; background: transparent; border: none; box-shadow: none;">
       

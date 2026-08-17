@@ -1592,6 +1592,11 @@ async function populateStudyCardModalDetails(card, docName, readOnly) {
     }
   }
 
+  // Cross-document related cards (Madde 4)
+  if (card && card.id) {
+    try { populateRelatedCardsSection(card.id); } catch (e) { console.warn('Related cards:', e); }
+  }
+
   // Populate Self-Test Questions (Quiz)
   const quizContainer = document.getElementById('study-card-quiz-container');
   if (quizContainer) {
@@ -7427,6 +7432,325 @@ window.addDepotStickyNoteToCanvas = addDepotStickyNoteToCanvas;
 window.openFlashcardViewer = openFlashcardViewer;
 window.restartReview = restartReview;
 window.closeFlashcardViewer = closeFlashcardViewer;
+
+// ==========================================
+// CROSS-DOCUMENT KNOWLEDGE GRAPH (MADDE 4)
+// ==========================================
+let _kgData = null; // { concepts: Map-like array, edges, cardIndex }
+
+function normalizeConceptKey(label) {
+  return String(label || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Build a unified concept graph across all study cards.
+ * Merges concept_graph nodes/edges + key_terms by normalized label.
+ */
+function buildCrossDocumentKnowledgeGraph(cards) {
+  const conceptMap = new Map(); // key -> { label, cards: Set, count }
+  const edgeSet = new Map(); // "fromKey|toKey|rel" -> edge
+  const cardMeta = {};
+
+  (cards || []).forEach(card => {
+    const cardId = card.id;
+    const docName = card.documents?.file_name || card.file_name || 'Untitled';
+    cardMeta[cardId] = {
+      id: cardId,
+      name: docName,
+      course_tag: card.course_tag || card.suggested_course_tag || null,
+      document_id: card.document_id
+    };
+
+    const touch = (label, source) => {
+      const key = normalizeConceptKey(label);
+      if (!key || key.length < 2) return null;
+      if (!conceptMap.has(key)) {
+        conceptMap.set(key, { key, label: String(label).trim(), cardIds: new Set(), sources: new Set(), count: 0 });
+      }
+      const c = conceptMap.get(key);
+      c.cardIds.add(cardId);
+      c.sources.add(source);
+      c.count = c.cardIds.size;
+      return key;
+    };
+
+    // From concept_graph
+    const g = card.concept_graph || {};
+    const idToKey = {};
+    (g.nodes || []).forEach(n => {
+      const k = touch(n.label, 'graph');
+      if (k && n.id) idToKey[n.id] = k;
+    });
+    (g.edges || []).forEach(e => {
+      const fk = idToKey[e.from] || normalizeConceptKey(e.from);
+      const tk = idToKey[e.to] || normalizeConceptKey(e.to);
+      if (!fk || !tk || fk === tk) return;
+      const rel = e.relation || 'related_to';
+      const ek = `${fk}|${tk}|${rel}`;
+      if (!edgeSet.has(ek)) edgeSet.set(ek, { from: fk, to: tk, relation: rel });
+    });
+
+    // From key_terms
+    (card.key_terms || []).forEach(t => touch(t.term, 'term'));
+  });
+
+  const concepts = Array.from(conceptMap.values())
+    .map(c => ({
+      key: c.key,
+      label: c.label,
+      count: c.count,
+      cardIds: Array.from(c.cardIds),
+      sources: Array.from(c.sources)
+    }))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+
+  const edges = Array.from(edgeSet.values());
+
+  return { concepts, edges, cardMeta };
+}
+
+function openKnowledgeGraphModal() {
+  const modal = document.getElementById('knowledge-graph-modal');
+  if (!modal) return;
+  if (!libraryCards || libraryCards.length === 0) {
+    showDashboardAlert('info', 'Önce kütüphanede en az bir çalışma kartı olmalı.');
+    return;
+  }
+
+  _kgData = buildCrossDocumentKnowledgeGraph(libraryCards);
+  const stats = document.getElementById('kg-stats');
+  if (stats) {
+    stats.textContent = `${_kgData.concepts.length} kavram · ${_kgData.edges.length} ilişki · ${libraryCards.length} kart`;
+  }
+
+  const search = document.getElementById('kg-search-input');
+  if (search) search.value = '';
+  renderKnowledgeGraphUI('');
+  modal.style.display = 'flex';
+}
+
+function closeKnowledgeGraphModal() {
+  const modal = document.getElementById('knowledge-graph-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function filterKnowledgeGraph(query) {
+  renderKnowledgeGraphUI(query || '');
+}
+
+function renderKnowledgeGraphUI(query) {
+  if (!_kgData) return;
+  const q = normalizeConceptKey(query);
+  const concepts = q
+    ? _kgData.concepts.filter(c => c.key.includes(q) || c.label.toLowerCase().includes(query.toLowerCase()))
+    : _kgData.concepts;
+
+  // Concept list
+  const listEl = document.getElementById('kg-concept-list');
+  if (listEl) {
+    if (concepts.length === 0) {
+      listEl.innerHTML = '<div style="color:var(--color-text-muted);font-size:0.85rem;">Eşleşen kavram yok.</div>';
+    } else {
+      listEl.innerHTML = concepts.slice(0, 80).map(c => `
+        <button type="button" onclick="selectKnowledgeConcept('${c.key.replace(/'/g, "\\'")}')"
+          style="text-align:left; padding:0.45rem 0.65rem; border-radius:8px; border:1px solid rgba(22,50,92,0.1); background:#fff; cursor:pointer; font-size:0.85rem;">
+          <strong style="color:var(--color-navy);">${escapeHtml(c.label)}</strong>
+          <span style="float:right; color:var(--color-teal); font-weight:700;">${c.count} kart</span>
+        </button>
+      `).join('');
+    }
+  }
+
+  // Mermaid: top cross-document concepts (appear in 2+ cards) + their edges
+  const topKeys = new Set(
+    concepts.filter(c => c.count >= 2).slice(0, 18).map(c => c.key)
+  );
+  // If few multi-card concepts, fill with top overall
+  if (topKeys.size < 8) {
+    concepts.slice(0, 12).forEach(c => topKeys.add(c.key));
+  }
+
+  const keyToId = {};
+  let i = 0;
+  topKeys.forEach(k => { keyToId[k] = 'C' + (i++); });
+
+  let mmd = 'graph LR\n';
+  topKeys.forEach(k => {
+    const c = _kgData.concepts.find(x => x.key === k);
+    if (!c) return;
+    const label = c.label.replace(/"/g, "'").slice(0, 28);
+    const badge = c.count > 1 ? ` (${c.count})` : '';
+    mmd += `  ${keyToId[k]}["${label}${badge}"]\n`;
+  });
+  _kgData.edges.forEach(e => {
+    if (topKeys.has(e.from) && topKeys.has(e.to)) {
+      const rel = String(e.relation || '').replace(/"/g, "'").slice(0, 16);
+      mmd += `  ${keyToId[e.from]} -->|"${rel}"| ${keyToId[e.to]}\n`;
+    }
+  });
+
+  const box = document.getElementById('kg-mermaid-box');
+  if (box) {
+    box.innerHTML = '<div style="color:var(--color-text-muted);font-size:0.85rem;">Graf yükleniyor…</div>';
+    setTimeout(async () => {
+      if (!window.mermaid) {
+        box.innerHTML = `<pre style="font-size:0.7rem;white-space:pre-wrap;">${escapeHtml(mmd)}</pre>`;
+        return;
+      }
+      try {
+        const { svg } = await window.mermaid.render('kg-mmd-' + Date.now(), mmd);
+        box.innerHTML = svg;
+      } catch (err) {
+        console.warn('KG Mermaid failed', err);
+        box.innerHTML = `<pre style="font-size:0.7rem;white-space:pre-wrap;">${escapeHtml(mmd)}</pre>`;
+      }
+    }, 40);
+  }
+
+  // Clear selection panel if filtering
+  const rel = document.getElementById('kg-related-cards');
+  if (rel && !q) rel.innerHTML = 'Bir kavram seçin.';
+}
+
+function selectKnowledgeConcept(conceptKey) {
+  if (!_kgData) return;
+  const concept = _kgData.concepts.find(c => c.key === conceptKey);
+  const rel = document.getElementById('kg-related-cards');
+  if (!rel || !concept) return;
+
+  const cards = concept.cardIds
+    .map(id => _kgData.cardMeta[id])
+    .filter(Boolean);
+
+  // Also show neighboring concepts
+  const neighbors = _kgData.edges
+    .filter(e => e.from === conceptKey || e.to === conceptKey)
+    .map(e => {
+      const otherKey = e.from === conceptKey ? e.to : e.from;
+      const other = _kgData.concepts.find(c => c.key === otherKey);
+      return other ? `${other.label} (${e.relation})` : null;
+    })
+    .filter(Boolean);
+
+  rel.innerHTML = `
+    <div style="margin-bottom:0.5rem; font-weight:700; color:var(--color-navy);">${escapeHtml(concept.label)}</div>
+    ${cards.map(c => `
+      <button type="button" onclick="closeKnowledgeGraphModal(); viewStudyCardFromLibrary('${c.id}')"
+        style="display:block; width:100%; text-align:left; padding:0.5rem 0.65rem; margin-bottom:0.35rem; border-radius:8px; border:1px solid rgba(22,50,92,0.1); background:#fff; cursor:pointer; font-size:0.82rem;">
+        📄 ${escapeHtml(c.name)}
+        ${c.course_tag ? `<span style="color:var(--color-teal); font-size:0.75rem;"> · ${escapeHtml(c.course_tag)}</span>` : ''}
+      </button>
+    `).join('') || '<div style="color:var(--color-text-muted);">Kart bulunamadı.</div>'}
+    ${neighbors.length ? `<div style="margin-top:0.75rem; font-size:0.8rem; color:var(--color-text-muted);"><strong>Bağlı kavramlar:</strong> ${neighbors.map(n => escapeHtml(n)).join(', ')}</div>` : ''}
+  `;
+}
+
+/** Open a library card's study modal by id */
+async function viewStudyCardFromLibrary(cardId) {
+  const card = libraryCards.find(c => c.id === cardId);
+  if (!card) {
+    showDashboardAlert('error', 'Kart bulunamadı.');
+    return;
+  }
+  const docName = card.documents?.file_name || 'Document';
+  const docId = card.document_id;
+  if (typeof viewStudyCard === 'function') {
+    await viewStudyCard(docId, docName, false, cardId);
+  } else if (typeof viewStudyCardWrapper === 'function') {
+    // fallback
+    await populateStudyCardModalDetails(card, docName, false);
+    const modal = document.getElementById('study-card-modal');
+    if (modal) modal.style.display = 'flex';
+  }
+}
+
+/**
+ * Find study cards related to the given card via shared concepts.
+ * Returns [{ card, sharedLabels, score }]
+ */
+function findRelatedStudyCards(cardId, limit = 6) {
+  const cards = libraryCards || [];
+  const source = cards.find(c => c.id === cardId);
+  if (!source || cards.length < 2) return [];
+
+  const sourceKeys = new Set();
+  (source.concept_graph?.nodes || []).forEach(n => {
+    const k = normalizeConceptKey(n.label);
+    if (k) sourceKeys.add(k);
+  });
+  (source.key_terms || []).forEach(t => {
+    const k = normalizeConceptKey(t.term);
+    if (k) sourceKeys.add(k);
+  });
+  if (sourceKeys.size === 0) return [];
+
+  const results = [];
+  cards.forEach(other => {
+    if (other.id === cardId) return;
+    const shared = [];
+    (other.concept_graph?.nodes || []).forEach(n => {
+      const k = normalizeConceptKey(n.label);
+      if (k && sourceKeys.has(k)) shared.push(n.label);
+    });
+    (other.key_terms || []).forEach(t => {
+      const k = normalizeConceptKey(t.term);
+      if (k && sourceKeys.has(k) && !shared.some(s => normalizeConceptKey(s) === k)) {
+        shared.push(t.term);
+      }
+    });
+    if (shared.length > 0) {
+      results.push({
+        card: other,
+        sharedLabels: shared.slice(0, 5),
+        score: shared.length
+      });
+    }
+  });
+
+  results.sort((a, b) => b.score - a.score);
+  return results.slice(0, limit);
+}
+
+function populateRelatedCardsSection(cardId) {
+  const section = document.getElementById('study-card-related-section');
+  const container = document.getElementById('study-card-related-container');
+  if (!section || !container) return;
+
+  const related = findRelatedStudyCards(cardId, 6);
+  if (related.length === 0) {
+    section.style.display = 'none';
+    container.innerHTML = '';
+    return;
+  }
+
+  section.style.display = 'block';
+  container.innerHTML = related.map(r => {
+    const name = r.card.documents?.file_name || 'Untitled';
+    const tags = r.sharedLabels.map(l => escapeHtml(l)).join(', ');
+    return `
+      <button type="button"
+        onclick="viewStudyCardFromLibrary('${r.card.id}')"
+        style="text-align:left; padding:0.6rem 0.75rem; border-radius:10px; border:1px solid rgba(22,50,92,0.1); background:#fff; cursor:pointer; width:100%;">
+        <div style="font-weight:700; color:var(--color-navy); font-size:0.9rem;">📄 ${escapeHtml(name)}</div>
+        <div style="font-size:0.78rem; color:var(--color-text-muted); margin-top:0.2rem;">Ortak: ${tags}</div>
+      </button>
+    `;
+  }).join('');
+}
+
+window.openKnowledgeGraphModal = openKnowledgeGraphModal;
+window.closeKnowledgeGraphModal = closeKnowledgeGraphModal;
+window.filterKnowledgeGraph = filterKnowledgeGraph;
+window.selectKnowledgeConcept = selectKnowledgeConcept;
+window.viewStudyCardFromLibrary = viewStudyCardFromLibrary;
+window.findRelatedStudyCards = findRelatedStudyCards;
+window.buildCrossDocumentKnowledgeGraph = buildCrossDocumentKnowledgeGraph;
 
 // ==========================================
 // GELISTIRICI SANDBOX CONTROLLERS (PHASE 10)
