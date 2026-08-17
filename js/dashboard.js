@@ -430,9 +430,16 @@ function renderDocumentsList() {
       } else if (doc.processing_stage === 'analyzing') {
         progressMsg = isTr ? 'Özet oluşturuluyor...' : 'Analyzing content...';
         progressPercent = 40;
-      } else if (doc.processing_stage === 'chunking') {
-        progressMsg = isTr ? 'Bölümler işleniyor...' : 'Processing sections...';
-        progressPercent = 45;
+      } else if (doc.processing_stage === 'chunking' || (typeof doc.processing_stage === 'string' && doc.processing_stage.startsWith('chunking'))) {
+        const m = String(doc.processing_stage || '').match(/chunking:(\d+)\/(\d+)/);
+        if (m) {
+          progressMsg = isTr ? `Bölümler işleniyor... (${m[1]}/${m[2]})` : `Processing sections... (${m[1]}/${m[2]})`;
+          const a = parseInt(m[1], 10), b = parseInt(m[2], 10) || 1;
+          progressPercent = 40 + Math.min(25, Math.round((a / b) * 25));
+        } else {
+          progressMsg = isTr ? 'Bölümler işleniyor...' : 'Processing sections...';
+          progressPercent = 45;
+        }
       } else if (doc.processing_stage === 'synthesizing') {
         progressMsg = isTr ? 'Birleştiriliyor...' : 'Synthesizing summary...';
         progressPercent = 58;
@@ -458,6 +465,9 @@ function renderDocumentsList() {
 
       const badgeText = isTr ? 'İşleniyor' : 'Processing';
       statusBadgeHtml = `<span class="doc-status-badge" style="background-color: #FEF3C7; color: #D97706; font-weight: 700;">${badgeText}</span>`;
+      // HOTFIX: if processing > 3.5 min, offer reset (Edge timeout can leave docs stuck)
+      const updatedMs = doc.updated_at ? new Date(doc.updated_at).getTime() : (doc.created_at ? new Date(doc.created_at).getTime() : Date.now());
+      const stuckTooLong = (Date.now() - updatedMs) > 210000;
       actionBtnHtml = `
         <div class="doc-progress-wrap" style="margin-top: 0.5rem;">
           <div class="doc-progress-label">
@@ -469,6 +479,7 @@ function renderDocumentsList() {
           <div class="doc-progress-track">
             <div class="doc-progress-fill" style="width: ${progressPercent}%;"></div>
           </div>
+          ${stuckTooLong ? `<button type="button" class="btn btn-outline" onclick="resetStuckDocument('${doc.id}')" style="margin-top:0.45rem; width:100%; font-size:0.75rem; padding:0.35rem 0.5rem; color:#b45309; border-color:#f59e0b;">${isTr ? 'Takıldı — sıfırla ve tekrar dene' : 'Stuck — reset & retry'}</button>` : ''}
         </div>
       `;
     } else if (doc.status === 'summarized') {
@@ -1003,6 +1014,22 @@ function openResummarizeModal(docId) {
   openSummaryStyleModal();
 }
 window.openResummarizeModal = openResummarizeModal;
+
+/** HOTFIX: Edge timeout can leave status=processing forever */
+async function resetStuckDocument(docId) {
+  try {
+    await supabaseClient.from('documents').update({
+      status: 'uploaded',
+      processing_stage: null
+    }).eq('id', docId);
+    showDashboardAlert('info', 'Belge sıfırlandı. Tekrar «Özetle» ile deneyin. / Document reset — try Summarize again.');
+    if (typeof loadDocuments === 'function') loadDocuments(true);
+  } catch (e) {
+    console.error(e);
+    showDashboardAlert('error', 'Sıfırlama başarısız / Reset failed');
+  }
+}
+window.resetStuckDocument = resetStuckDocument;
 
 async function proceedWithSummarization() {
   const styleSelect = document.querySelector('input[name="summary-style-choice"]:checked');

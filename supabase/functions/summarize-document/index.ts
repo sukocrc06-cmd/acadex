@@ -332,7 +332,8 @@ function detectAndFormatPdfTables(text: string): string {
 // map-reduce pipeline instead, which never truncates (every chunk gets its
 // own full analysis pass), rather than being silently cut down to size.
 const CHUNK_THRESHOLD = 6000 // chars of extracted text; above this we go chunked — keep in sync with draftTiers[0].textChars below
-const CHUNK_TARGET_SIZE = 6500 // chars per chunk (well within model context; sized for extraction depth, not context limits)
+// HOTFIX: larger chunks → fewer LLM rounds so ~50-page PDFs finish before Edge wall-clock
+const CHUNK_TARGET_SIZE = 10000 // chars per chunk
 
 // Madde 6 — model tiering (cost + TPM isolation)
 // Heavy model: single-pass draft + synthesis (quality-critical, fewer calls)
@@ -341,13 +342,15 @@ const MODEL_HEAVY = "openai/gpt-oss-120b"
 const MODEL_FAST = "qwen/qwen3.6-27b"
 // Skip the expensive review pass for short, simple documents (saves ~1 full LLM call)
 const SKIP_REVIEW_MAX_CHARS = 3500
-const CHUNK_MAX_COMPLETION = 2048
+const CHUNK_MAX_COMPLETION = 1536 // slightly smaller → faster chunk map
 const SYNTHESIS_MAX_COMPLETION = 3072
 const DRAFT_MAX_COMPLETION = 4096
 const REVIEW_MAX_COMPLETION = 4096
-// Cap parallel chunk calls to reduce TPM bursts (was 4)
-const CHUNK_CONCURRENCY = 3
-const MAX_CHUNKS = 24 // hard ceiling (~150k chars) protecting cost/time on pathological inputs
+// Cap parallel chunk calls to reduce TPM bursts
+const CHUNK_CONCURRENCY = 2
+const MAX_CHUNKS = 12 // hard ceiling: prefer finishing over analyzing every page under Edge timeout
+// Soft wall-clock budget (ms) for the whole function — leave headroom under ~150s platform limit
+const PIPELINE_BUDGET_MS = 110_000
 
 function computeAdaptiveTargets(charCount: number, lengthPreset: string) {
   const presets: Record<string, { summary: [number, number]; terms: [number, number]; points: [number, number]; quiz: [number, number]; capSummary: number; capTerms: number; capPoints: number; capQuiz: number }> = {
@@ -1116,6 +1119,8 @@ serve(async (req) => {
     // truncated and depth scales with actual document length.
     // ==========================================================================
     const useChunkedPipeline = extractedText.length > CHUNK_THRESHOLD
+    const pipelineStartedAt = Date.now()
+    const budgetLeft = () => Math.max(0, PIPELINE_BUDGET_MS - (Date.now() - pipelineStartedAt))
 
     // Fast-path truncation (unchanged behavior) — only ever applies when NOT chunking
     let textToSend = extractedText
@@ -1651,26 +1656,55 @@ In addition to the text below, you are shown images of this document's pages. Us
 
       let chunkResults: any[]
       try {
-        // Madde 6: FAST model + smaller completion budget + limited concurrency → lower TPM / cost
+        // HOTFIX: progress updates + wall-clock budget so long PDFs don't die mid-chunking
         await serviceClient.from('documents').update({ processing_stage: 'chunking' }).eq('id', documentId)
-        chunkResults = await mapWithConcurrency(chunksToProcess, CHUNK_CONCURRENCY, async (chunkText, i) => {
-          try {
-            return await callGroqJson(
-              groqApiKey,
-              buildChunkSystemPrompt(i, chunksToProcess.length, langLabel, hasPageMarkers, pageMarkerLabel),
-              chunkText,
-              { model: MODEL_FAST, temperature: 0.25, maxCompletionTokens: CHUNK_MAX_COMPLETION, timeoutMs: 22000, maxRetries: 1 }
-            )
-          } catch (chunkErr) {
-            console.error(`Chunk ${i + 1}/${chunksToProcess.length} extraction failed, using empty fallback:`, chunkErr)
-            return {
-              chunk_summary: '', key_terms: [], key_points: [], quiz_questions: [],
-              tables: [], charts: [], footnotes: [], is_quantitative: false,
-              formulas: [], worked_examples: [], diagrams: [],
-              concept_graph: { nodes: [], edges: [] }
+        const emptyChunk = () => ({
+          chunk_summary: '', key_terms: [], key_points: [], quiz_questions: [],
+          tables: [], charts: [], footnotes: [], is_quantitative: false,
+          formulas: [], worked_examples: [], diagrams: [],
+          concept_graph: { nodes: [], edges: [] }
+        })
+        chunkResults = new Array(chunksToProcess.length)
+        let nextIdx = 0
+        const workers = Array.from({ length: Math.min(CHUNK_CONCURRENCY, chunksToProcess.length) }, async () => {
+          while (true) {
+            const i = nextIdx++
+            if (i >= chunksToProcess.length) return
+            // Leave ~45s for synthesis + writer + save
+            if (budgetLeft() < 45_000) {
+              console.warn(`Budget low (${budgetLeft()}ms) — skipping remaining chunks from ${i}`)
+              for (let j = i; j < chunksToProcess.length; j++) {
+                if (!chunkResults[j]) chunkResults[j] = emptyChunk()
+              }
+              return
+            }
+            await serviceClient.from('documents')
+              .update({ processing_stage: `chunking:${i + 1}/${chunksToProcess.length}` })
+              .eq('id', documentId)
+            try {
+              chunkResults[i] = await callGroqJson(
+                groqApiKey,
+                buildChunkSystemPrompt(i, chunksToProcess.length, langLabel, hasPageMarkers, pageMarkerLabel),
+                chunksToProcess[i],
+                {
+                  model: MODEL_FAST,
+                  temperature: 0.25,
+                  maxCompletionTokens: CHUNK_MAX_COMPLETION,
+                  timeoutMs: Math.min(18000, Math.max(8000, budgetLeft() - 40_000)),
+                  maxRetries: 0
+                }
+              )
+            } catch (chunkErr) {
+              console.error(`Chunk ${i + 1}/${chunksToProcess.length} failed:`, chunkErr)
+              chunkResults[i] = emptyChunk()
             }
           }
         })
+        await Promise.all(workers)
+        // Fill any holes
+        for (let i = 0; i < chunksToProcess.length; i++) {
+          if (!chunkResults[i]) chunkResults[i] = emptyChunk()
+        }
       } catch (mapErr) {
         console.error('Chunked map phase failed unexpectedly: ', mapErr)
         await markFailed(serviceClient, documentId)
@@ -1827,7 +1861,8 @@ In addition to the text below, you are shown images of this document's pages. Us
           mergedDraft.sections.every((s: any) => (s.summary || '').length < 220)
         const shouldDeepen = !depthFlags.skipSectionDeepen && chunkResults.length > 0 &&
           mergedDraft.outline?.items?.length > 0 &&
-          (depthFlags.forceSectionDeepen || thin)
+          (depthFlags.forceSectionDeepen || thin) &&
+          budgetLeft() > 50_000
         if (shouldDeepen) {
           await serviceClient.from('documents').update({ processing_stage: 'sectioning' }).eq('id', documentId)
           // Long-doc intelligence: rank chunk digests by overlap with outline headings
@@ -1938,6 +1973,8 @@ ${rawContent}`
     try {
       if (depthFlags.skipNarrativeWriter) {
         console.log('Madde 6: skipping narrative writer (depth=brief)')
+      } else if (budgetLeft() < 35_000) {
+        console.log('HOTFIX: skipping narrative writer (low budget', budgetLeft(), 'ms)')
       } else {
       await serviceClient.from('documents').update({ processing_stage: 'writing' }).eq('id', documentId)
 
@@ -2024,13 +2061,17 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
       .update({ processing_stage: 'draft_ready' })
       .eq('id', documentId)
 
-    // Skip review for short single-pass docs → saves 1 full LLM call (cost + latency)
-    const shouldSkipReview = !useChunkedPipeline && extractedText.length <= SKIP_REVIEW_MAX_CHARS
+    // Skip review for short single-pass docs OR any chunked long doc under time pressure
+    // (long-doc review often pushed total runtime past Edge wall-clock → stuck at "chunking")
+    const shouldSkipReview =
+      (!useChunkedPipeline && extractedText.length <= SKIP_REVIEW_MAX_CHARS) ||
+      (useChunkedPipeline && budgetLeft() < 55_000) ||
+      (useChunkedPipeline && depth !== 'deep')
 
     let rawFinalContent = ""
 
     if (shouldSkipReview) {
-      console.log(`Madde 6: skipping review pass (doc ${extractedText.length} chars <= ${SKIP_REVIEW_MAX_CHARS})`)
+      console.log(`HOTFIX: skipping review (chunked=${useChunkedPipeline}, depth=${depth}, budgetLeft=${budgetLeft()})`)
       rawFinalContent = rawContent
       await serviceClient.from('documents').update({ processing_stage: 'saving' }).eq('id', documentId)
     } else {
