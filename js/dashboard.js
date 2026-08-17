@@ -2233,7 +2233,7 @@ function switchDashboardView(viewId) {
   }
 
   // Update sidebar active classes immediately for responsiveness
-  const tabs = ['home', 'planner', 'docs', 'feed', 'notebook', 'cards', 'sourcehub', 'glossary', 'exams', 'presentation', 'settings', 'sandbox', 'admin'];
+  const tabs = ['home', 'planner', 'docs', 'feed', 'notebook', 'cards', 'sourcehub', 'glossary', 'exams', 'presentation', 'acadexsunum', 'settings', 'sandbox', 'admin'];
   tabs.forEach(tab => {
     const el = document.getElementById(`side-${tab}`);
     if (el) {
@@ -2308,6 +2308,8 @@ function loadViewContent(viewId) {
     loadExamsPlatform();
   } else if (viewId === 'presentation') {
     loadPresentationStudio();
+  } else if (viewId === 'acadexsunum') {
+    loadAcadexSunum();
   } else if (viewId === 'settings') {
     loadSettingsView();
   } else if (viewId === 'sandbox') {
@@ -2318,6 +2320,19 @@ function loadViewContent(viewId) {
   }
 }
 window.switchDashboardView = switchDashboardView;
+
+function loadAcadexSunum() {
+  const iframe = document.getElementById('acadexsunum-iframe');
+  if (iframe && !iframe.dataset.loaded) {
+    iframe.src = 'acadex-sunum.html';
+    iframe.dataset.loaded = 'true';
+  }
+}
+function closeAcadexSunum() {
+  switchDashboardView('home');
+}
+window.closeAcadexSunum = closeAcadexSunum;
+
 let notebookCards = [];
 let isDrawing = false;
 let currentPenColor = '#000000';

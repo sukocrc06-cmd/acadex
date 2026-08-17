@@ -223,14 +223,14 @@
               <span data-i18n="dash.nav.exams">Sınav Platformu</span>
             </a>
           </li>
-          <li class="sidebar-item" id="side-presentation">
-            <a href="#" onclick="switchDashboardView('presentation')">
+          <li class="sidebar-item" id="side-acadexsunum">
+            <a href="#" onclick="switchDashboardView('acadexsunum')">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
                 <line x1="8" y1="21" x2="16" y2="21"></line>
                 <line x1="12" y1="17" x2="12" y2="21"></line>
               </svg>
-              <span data-i18n="dash.nav.presentation">Akademik Sunum</span>
+              <span data-i18n="dash.nav.acadexsunum">Acadex Sunum</span>
             </a>
           </li>
           <li class="sidebar-item" id="side-sandbox">
@@ -1345,6 +1345,14 @@
             </div>
           </div>
         </div>
+      </section>
+
+      <!-- ==========================================
+           TAB: ACADEX SUNUM (embedded presentation builder,
+           iframe → acadex-sunum.html)
+           ========================================== -->
+      <section id="acadexsunum-view" class="dashboard-view-section">
+        <iframe id="acadexsunum-iframe" title="Acadex Sunum" loading="lazy"></iframe>
       </section>
 
       <!-- ==========================================
