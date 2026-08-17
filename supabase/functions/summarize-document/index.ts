@@ -1870,6 +1870,88 @@ Draft JSON summary:
 ${rawContent}`
     }
 
+    // ==========================================================================
+    // MADDE 3 — NARRATIVE WRITER (professional prose summary)
+    // Turns outline + deep sections into a single NotebookLM-style narrative.
+    // Does not invent facts; rewrites for flow, clarity, and academic brief tone.
+    // ==========================================================================
+    try {
+      await serviceClient.from('documents').update({ processing_stage: 'writing' }).eq('id', documentId)
+
+      let draftObj: any = null
+      try {
+        const strippedDraft = stripThinkBlock(rawContent)
+        draftObj = JSON.parse((strippedDraft ?? rawContent).replace(/```json\s*|```/g, '').trim())
+      } catch (_e) {
+        draftObj = null
+      }
+
+      if (draftObj && typeof draftObj === 'object') {
+        const outlineItems = Array.isArray(draftObj.outline?.items) ? draftObj.outline.items : []
+        const sectionItems = Array.isArray(draftObj.sections) ? draftObj.sections : []
+        const outlineBlock = outlineItems
+          .map((it: any) => `- ${it.heading}${it.blurb ? ': ' + it.blurb : ''}`)
+          .join('\n')
+          .slice(0, 2500)
+        const sectionsBlock = sectionItems
+          .map((s: any) => `## ${s.heading}\n${(s.summary || '').slice(0, 600)}`)
+          .join('\n\n')
+          .slice(0, 7000)
+
+        const lengthHint =
+          len === 'short' ? 'Write about 2-3 dense paragraphs (roughly 180-280 words).' :
+          len === 'long' ? 'Write a thorough brief of 5-8 paragraphs (roughly 450-700 words).' :
+          'Write a clear brief of 3-5 paragraphs (roughly 280-450 words).'
+
+        const writerSys = `You are an expert academic writer producing a NotebookLM-quality document brief for a university student.
+Respond with ONLY valid JSON: { "summary": string, "summary_executive": string }.
+
+GOAL:
+Write "summary" as a single cohesive NARRATIVE in ${langLabel} — professional prose, not a bullet dump, not a mechanical merge of sections.
+Structure: open with the document's core thesis or purpose → develop the main arguments/topics in logical order → close with implications or takeaways.
+Use smooth transitions. Prefer precise academic language without fluff.
+${lengthHint}
+
+RULES:
+- Ground every claim in the outline/sections provided — do NOT invent theories, numbers, or conclusions absent from the inputs
+- Do not discuss grading, attendance, office hours, or textbook logistics
+- "summary_executive" = 2-3 sentence ultra-short overview (may refine the existing one)
+- Do not use markdown headings inside summary; plain paragraphs separated by \\n\\n are fine
+- If inputs are thin, write a shorter honest brief rather than padding`
+
+        const writerUser = `Existing executive (may refine):
+${(draftObj.summary_executive || '').slice(0, 500)}
+
+Document outline:
+${outlineBlock || '(none)'}
+
+Deep section summaries:
+${sectionsBlock || '(none — use existing draft summary below)'}
+
+Existing draft summary (improve into narrative; keep factual content):
+${String(draftObj.summary || '').slice(0, 3500)}`
+
+        const written = await callGroqJson(groqApiKey, writerSys, writerUser, {
+          model: MODEL_HEAVY,
+          temperature: 0.35,
+          maxCompletionTokens: len === 'long' ? 3072 : 2048,
+          timeoutMs: 35000,
+          maxRetries: 1
+        })
+
+        if (written?.summary && String(written.summary).trim().length > 80) {
+          draftObj.summary = String(written.summary).trim()
+        }
+        if (written?.summary_executive && String(written.summary_executive).trim().length > 20) {
+          draftObj.summary_executive = String(written.summary_executive).trim()
+        }
+        rawContent = JSON.stringify(draftObj)
+        console.log('Madde 3: narrative writer applied')
+      }
+    } catch (writerErr) {
+      console.warn('Madde 3 narrative writer skipped (keeping draft summary):', writerErr)
+    }
+
     // Madde 6: progressive signal — draft exists, review may follow
     await serviceClient
       .from('documents')

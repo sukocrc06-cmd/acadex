@@ -438,10 +438,13 @@ function renderDocumentsList() {
         progressPercent = 58;
       } else if (doc.processing_stage === 'sectioning') {
         progressMsg = isTr ? 'Bölüm özetleri derinleştiriliyor...' : 'Deepening section summaries...';
-        progressPercent = 68;
+        progressPercent = 62;
+      } else if (doc.processing_stage === 'writing') {
+        progressMsg = isTr ? 'Profesyonel anlatı yazılıyor...' : 'Writing professional narrative...';
+        progressPercent = 72;
       } else if (doc.processing_stage === 'draft_ready') {
         progressMsg = isTr ? 'Taslak hazır, kontrol ediliyor...' : 'Draft ready, reviewing...';
-        progressPercent = 75;
+        progressPercent = 78;
       } else if (doc.processing_stage === 'reviewing') {
         progressMsg = isTr ? 'Doğruluk kontrol ediliyor...' : 'Reviewing for accuracy...';
         progressPercent = 88;
