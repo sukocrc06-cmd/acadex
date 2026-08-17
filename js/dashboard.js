@@ -4347,6 +4347,19 @@ function renderCardsLibraryList(cards) {
         quizHtml += '</ul>';
       }
 
+      // Cloze cards
+      let clozeHtml = '';
+      const clozes = card.cloze_cards || [];
+      if (clozes.length === 0) {
+        clozeHtml = '<p style="font-size: 0.75rem; color: var(--color-text-muted); margin:0;">Boşluk doldurma kartı yok.</p>';
+      } else {
+        clozeHtml = '<ul style="padding-left: 1.25rem; font-size: 0.75rem; display: flex; flex-direction: column; gap: 0.35rem; margin:0;">';
+        clozes.forEach((c, idx) => {
+          clozeHtml += `<li><strong>${idx + 1}.</strong> ${escapeHtml(c.prompt || '')} → <span style="color:var(--color-teal);">${escapeHtml(c.answer || '')}</span></li>`;
+        });
+        clozeHtml += '</ul>';
+      }
+
       cardEl.innerHTML = `
         <div class="doc-header" style="margin-bottom: 0.25rem; position: relative;">
           <div class="doc-file-icon text" style="background-color: var(--color-teal-light); color: var(--color-teal); flex-shrink: 0;">
@@ -4416,6 +4429,24 @@ function renderCardsLibraryList(cards) {
             </div>
             <div class="accordion-body">${quizHtml}</div>
           </div>
+
+          <div class="accordion-item" id="accordion-cloze-${card.id}">
+            <div class="accordion-header" onclick="toggleLibraryAccordion('${card.id}', 'cloze')">
+              <span>Boşluk Doldurma (${clozes.length})</span>
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <button class="btn btn-outline" style="padding: 0.15rem 0.4rem; font-size: 0.65rem; border-color: var(--color-navy); color: var(--color-navy); min-height: 20px; line-height: 1;" onclick="event.stopPropagation(); openFlashcardViewer('${card.id}', 'cloze', '${cardDocName.replace(/'/g, "\\'")}')">🔍 Kartları İncele</button>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+              </div>
+            </div>
+            <div class="accordion-body">${clozeHtml}</div>
+          </div>
+        </div>
+
+        <div style="margin: 0.5rem 0;">
+          <button class="btn btn-primary" style="width:100%; padding:0.45rem 0.75rem; font-size:0.8rem; border:none; border-radius:10px; font-weight:700;"
+            onclick="event.stopPropagation(); openAdaptiveReview('${card.id}', '${cardDocName.replace(/'/g, "\\'")}')">
+            🧠 Akıllı Tekrar (Spaced)
+          </button>
         </div>
 
         <div class="share-toggle-container" style="margin: 0.25rem 0; padding: 0.4rem 0.6rem; font-size: 0.8rem;">
@@ -6889,8 +6920,72 @@ let reviewCardId = '';
 let reviewType = '';
 let reviewFileName = '';
 
+/**
+ * Adaptive spaced-repetition review for one study card.
+ * Prioritises: due items (next_review_at <= now) → never reviewed → low ease_factor.
+ * Mixes terms, cloze, quiz into one queue.
+ */
+async function openAdaptiveReview(cardId, fileName) {
+  const card = libraryCards.find(c => c.id === cardId) || notebookCards.find(c => c.id === cardId) || currentActiveStudyCard;
+  if (!card) {
+    showDashboardAlert('error', 'Study card not found.');
+    return;
+  }
+
+  // Build candidate pool
+  const pool = [];
+  (card.key_terms || []).forEach((t, i) => pool.push({ ...t, _kind: 'term', _key: getReviewItemKey(t, 'terms', i) }));
+  (card.cloze_cards || []).forEach((c, i) => pool.push({ ...c, _kind: 'cloze', _key: getReviewItemKey(c, 'cloze', i) }));
+  (card.quiz_questions || []).forEach((q, i) => pool.push({ ...q, _kind: 'quiz', _key: getReviewItemKey(q, 'quiz', i) }));
+
+  if (pool.length === 0) {
+    showDashboardAlert('info', 'Bu kartta çalışılacak madde yok.');
+    return;
+  }
+
+  // Load confidence rows for this card
+  let confMap = {};
+  try {
+    if (currentUser?.id) {
+      const { data } = await supabaseClient
+        .from('card_item_confidence')
+        .select('item_key, next_review_at, ease_factor, repetitions, interval_days')
+        .eq('user_id', currentUser.id)
+        .eq('study_card_id', cardId);
+      (data || []).forEach(r => { confMap[r.item_key] = r; });
+    }
+  } catch (e) {
+    console.warn('Could not load confidence rows:', e);
+  }
+
+  const now = Date.now();
+  const scored = pool.map(item => {
+    const conf = confMap[item._key];
+    const nextAt = conf?.next_review_at ? new Date(conf.next_review_at).getTime() : 0;
+    const isDue = !conf || nextAt <= now;
+    const neverSeen = !conf;
+    const ease = Number(conf?.ease_factor) || 2.5;
+    // Lower score = higher priority
+    let score = 1000;
+    if (neverSeen) score = 0;
+    else if (isDue) score = 10 + ease; // weaker first among due
+    else score = 500 + (nextAt - now) / 86400000; // future items last
+    return { item, score, isDue, neverSeen };
+  });
+
+  scored.sort((a, b) => a.score - b.score);
+  // Prefer due + never-seen; cap session size
+  const session = scored.filter(s => s.isDue || s.neverSeen).slice(0, 30);
+  const items = (session.length > 0 ? session : scored.slice(0, 20)).map(s => s.item);
+
+  // Stash on a temporary card-like object for openFlashcardViewer
+  card._adaptiveItems = items;
+  openFlashcardViewer(cardId, 'adaptive', fileName);
+}
+window.openAdaptiveReview = openAdaptiveReview;
+
 function openFlashcardViewer(cardId, type, fileName) {
-  const card = libraryCards.find(c => c.id === cardId) || notebookCards.find(c => c.id === cardId);
+  const card = libraryCards.find(c => c.id === cardId) || notebookCards.find(c => c.id === cardId) || currentActiveStudyCard;
   if (!card) {
     showDashboardAlert('error', 'Study card not found.');
     return;
@@ -6902,12 +6997,23 @@ function openFlashcardViewer(cardId, type, fileName) {
     reviewItems = card.key_points || [];
   } else if (type === 'quiz') {
     reviewItems = card.quiz_questions || [];
+  } else if (type === 'cloze') {
+    reviewItems = card.cloze_cards || [];
+  } else if (type === 'adaptive') {
+    // Adaptive: mix due/weak items — built by openAdaptiveReview
+    reviewItems = card._adaptiveItems || [];
   }
 
   const titleEl = document.getElementById('flashcard-modal-title');
   if (titleEl) {
-    const label = type === 'terms' ? 'Anahtar Terimler' : (type === 'points' ? 'Önemli Noktalar' : 'Kendi Kendine Test');
-    titleEl.textContent = `${fileName} - ${label}`;
+    const labels = {
+      terms: 'Anahtar Terimler',
+      points: 'Önemli Noktalar',
+      quiz: 'Kendi Kendine Test',
+      cloze: 'Boşluk Doldurma',
+      adaptive: 'Akıllı Tekrar (Spaced)'
+    };
+    titleEl.textContent = `${fileName} - ${labels[type] || type}`;
   }
 
   if (!reviewItems || reviewItems.length === 0) {
@@ -6973,21 +7079,26 @@ function renderCurrentFlashcard() {
   let secondPillColor = '#16A34A';
   let secondContentText = '';
 
-  if (reviewType === 'quiz') {
+  if (reviewType === 'quiz' || (reviewType === 'adaptive' && item._kind === 'quiz')) {
     firstPillText = 'SORU';
     firstContentText = item.question || '';
     secondPillText = 'CEVAP';
     secondContentText = item.answer || '';
-  } else if (reviewType === 'terms') {
+  } else if (reviewType === 'cloze' || (reviewType === 'adaptive' && item._kind === 'cloze')) {
+    firstPillText = 'BOŞLUK DOLDUR';
+    firstContentText = item.prompt || '';
+    secondPillText = 'CEVAP';
+    secondContentText = item.answer || '';
+  } else if (reviewType === 'terms' || (reviewType === 'adaptive' && item._kind === 'term')) {
     firstPillText = 'TERİM';
     firstContentText = item.term || '';
     secondPillText = 'TANIM';
     secondContentText = item.definition || '';
-  } else if (reviewType === 'points') {
+  } else if (reviewType === 'points' || (reviewType === 'adaptive' && item._kind === 'point')) {
     firstPillText = 'ÖNEMLİ NOKTA';
-    firstContentText = typeof item === 'string' ? item : (item.point || item.text || '');
-    secondPillText = '';
-    secondContentText = '';
+    firstContentText = typeof item === 'string' ? item : (item.point || item.text || item.prompt || '');
+    secondPillText = item.answer ? 'CEVAP' : '';
+    secondContentText = item.answer || '';
   }
 
   const hasSecondBlock = Boolean(secondPillText && secondContentText);
@@ -7039,15 +7150,82 @@ function renderCurrentFlashcard() {
   }
 }
 
+/**
+ * Simplified SM-2 spaced repetition.
+ * rating: 'again' | 'hard' | 'good' | 'easy'
+ */
+function computeSm2(prev, rating) {
+  let ef = Number(prev?.ease_factor) || 2.5;
+  let interval = Number(prev?.interval_days) || 0;
+  let reps = Number(prev?.repetitions) || 0;
+  let lapses = Number(prev?.lapses) || 0;
+
+  if (rating === 'again') {
+    reps = 0;
+    lapses += 1;
+    interval = 0.01; // ~15 min
+    ef = Math.max(1.3, ef - 0.2);
+  } else if (rating === 'hard') {
+    interval = reps === 0 ? 0.5 : Math.max(1, interval * 1.2);
+    reps += 1;
+    ef = Math.max(1.3, ef - 0.15);
+  } else if (rating === 'good') {
+    if (reps === 0) interval = 1;
+    else if (reps === 1) interval = 3;
+    else interval = Math.round(interval * ef * 10) / 10;
+    reps += 1;
+  } else if (rating === 'easy') {
+    if (reps === 0) interval = 2;
+    else if (reps === 1) interval = 5;
+    else interval = Math.round(interval * ef * 1.3 * 10) / 10;
+    reps += 1;
+    ef = ef + 0.15;
+  }
+
+  ef = Math.round(Math.min(3.0, Math.max(1.3, ef)) * 100) / 100;
+  interval = Math.min(365, Math.max(0.01, interval));
+  const next = new Date(Date.now() + interval * 24 * 60 * 60 * 1000);
+  return {
+    ease_factor: ef,
+    interval_days: interval,
+    repetitions: reps,
+    lapses,
+    next_review_at: next.toISOString(),
+    last_rating: rating,
+    rating
+  };
+}
+
+function getReviewItemKey(item, type, index) {
+  if (type === 'terms') return `term:${item.term || index}`;
+  if (type === 'quiz') return `quiz:${(item.question || '').slice(0, 80) || index}`;
+  if (type === 'cloze') return `cloze:${item.id || item.answer || index}`;
+  if (type === 'points') {
+    const text = typeof item === 'string' ? item : (item.point || item.text || '');
+    return `point:${text.slice(0, 80) || index}`;
+  }
+  return `item:${index}`;
+}
+
 async function handleConfidenceRating(rating) {
   try {
-    if (reviewCardId && reviewItems[reviewIndex]) {
+    if (reviewCardId && reviewItems[reviewIndex] && currentUser?.id) {
       const item = reviewItems[reviewIndex];
-      const itemKey = item.term || item.question || (typeof item === 'string' ? item : item.point) || `item-${reviewIndex}`;
-      
-      const now = new Date();
-      let intervalDays = (rating === 'good') ? 3 : 0.5;
-      const nextReviewDate = new Date(now.getTime() + intervalDays * 24 * 60 * 60 * 1000).toISOString();
+      const itemKey = getReviewItemKey(item, reviewType, reviewIndex);
+
+      let prev = null;
+      try {
+        const { data } = await supabaseClient
+          .from('card_item_confidence')
+          .select('ease_factor, interval_days, repetitions, lapses')
+          .eq('user_id', currentUser.id)
+          .eq('study_card_id', reviewCardId)
+          .eq('item_key', itemKey)
+          .maybeSingle();
+        prev = data;
+      } catch (_e) { /* first review */ }
+
+      const sm2 = computeSm2(prev, rating);
 
       await supabaseClient
         .from('card_item_confidence')
@@ -7055,18 +7233,25 @@ async function handleConfidenceRating(rating) {
           user_id: currentUser.id,
           study_card_id: reviewCardId,
           item_key: itemKey,
-          rating: rating,
-          next_review_at: nextReviewDate,
+          card_type: reviewType === 'points' ? 'point' : (reviewType || 'term'),
+          rating: sm2.rating,
+          last_rating: sm2.last_rating,
+          ease_factor: sm2.ease_factor,
+          interval_days: sm2.interval_days,
+          repetitions: sm2.repetitions,
+          lapses: sm2.lapses,
+          next_review_at: sm2.next_review_at,
           updated_at: new Date().toISOString()
         }, { onConflict: 'user_id,study_card_id,item_key' });
     }
   } catch (e) {
-    console.warn("Confidence record:", e);
+    console.warn('Confidence / SM-2 record failed:', e);
   }
-  
+
   nextFlashcard();
 }
 window.handleConfidenceRating = handleConfidenceRating;
+window.computeSm2 = computeSm2;
 
 function nextFlashcard() {
   if (reviewIndex >= reviewItems.length - 1) {
