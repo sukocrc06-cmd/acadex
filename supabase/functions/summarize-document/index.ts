@@ -458,7 +458,7 @@ async function callGroqJson(groqApiKey: string, systemPrompt: string, userConten
 function buildChunkSystemPrompt(chunkIndex: number, totalChunks: number, langLabel: string, hasPageMarkers: boolean, pageMarkerLabel: string): string {
   return `You are an academic study assistant helping process a LARGE document that has been split into ${totalChunks} sequential parts because of its length. You are given ONLY part ${chunkIndex + 1} of ${totalChunks} below — you do NOT see the rest of the document, so do not reference "the whole document" or assume content beyond what's shown here.
 
-Respond with ONLY a valid JSON object, no markdown code fences, no commentary before or after — matching this exact shape: { "chunk_summary": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "tables": [ { "title": string, "headers": [ string ], "rows": [ [ string ] ] } ], "charts": [ { "title": string, "type": string, "labels": [ string ], "data": [ number ] } ], "footnotes": [ { "id": number, "reference": string, "page": number | null } ], "is_quantitative": boolean, "formulas": [ { "name": string, "latex": string, "variables": [ { "symbol": string, "meaning": string } ] } ], "worked_examples": [ { "title": string, "problem_statement": string, "steps": [ string ], "final_answer": string } ] }.
+Respond with ONLY a valid JSON object, no markdown code fences, no commentary before or after — matching this exact shape: { "chunk_summary": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "tables": [ { "title": string, "headers": [ string ], "rows": [ [ string ] ] } ], "charts": [ { "title": string, "type": string, "labels": [ string ], "data": [ number ] } ], "footnotes": [ { "id": number, "reference": string, "page": number | null } ], "is_quantitative": boolean, "formulas": [ { "name": string, "latex": string, "variables": [ { "symbol": string, "meaning": string } ] } ], "worked_examples": [ { "title": string, "problem_statement": string, "steps": [ string ], "final_answer": string } ], "diagrams": [ { "title": string, "mermaid": string, "description": string } ], "concept_graph": { "nodes": [ { "id": string, "label": string, "type": string } ], "edges": [ { "from": string, "to": string, "relation": string } ] } }.
 
 CHUNK SUMMARY:
 Write a 2-4 sentence "chunk_summary" capturing specifically what THIS part covers — it will later be combined with the other parts' summaries into one final document summary, so be concrete and self-contained about the actual topics discussed here rather than vague.
@@ -470,13 +470,21 @@ EXAM-FOCUSED CONTENT FILTERING (not optional):
 Separate this part's content into (a) actual academic subject matter — concepts, definitions, theories, frameworks/models, processes, relationships, formulas, examples — and (b) course administration/logistics — grading weights/percentages, exam format/rules, attendance policy, bonus/late-submission policy, grade-appeal procedures, office hours, textbook title/edition. ONLY (a) belongs in chunk_summary, key_points, footnotes, or quiz_questions. COMPLETELY EXCLUDE (b), even if its numbers are specific and checkable — a student is never tested on grading weights or textbook editions. If this part is mostly administrative logistics, it is correct to return few or zero key_terms/key_points/quiz_questions for it — do not pad with excluded content.
 
 QUANTITATIVE & FORMULAS:
-Set "is_quantitative" true if this part centers on mathematical formulas, numerical calculations, or financial/statistical computations. If so, extract every distinct formula in 'formulas' (valid LaTeX notation) and 1-2 worked examples in 'worked_examples' (reuse the source's own example if present, preserving its actual numbers; otherwise generate one clear, realistic example). Return empty arrays if not applicable to this part.
+Set "is_quantitative" true if this part centers on mathematical formulas, numerical calculations, or financial/statistical computations. Extract EVERY distinct formula into 'formulas'. Use valid raw LaTeX ONLY (no surrounding $ or \\( \\) delimiters) — examples: "E = mc^2", "\\\\frac{a}{b}", "\\\\sum_{i=1}^{n} x_i", "F = ma". For each formula also list its variables with meanings. Additionally produce 1-2 worked_examples when formulas are present (prefer the source's own example with its real numbers; otherwise generate one clear realistic practice example). Return empty arrays if not applicable to this part.
 
 TABLES & CHARTS:
 Identify any tabular data ('tables') or chart-worthy numeric data ('charts', type "bar"|"pie"|"line") actually present in this part. Empty arrays are the correct output if none exists — never fabricate.
 
-DIAGRAM & VISUAL-STRUCTURE AWARENESS:
-You only see extracted text — visual layout (boxes, arrows, side-by-side positioning) is lost, so a flowchart, comparison diagram, or process illustration on the original slide/page often survives only as a cluster of short, disconnected phrases that don't read as normal prose (e.g. two or three parallel short labels repeated near each other, a sequence of terse stage names, or paired opposing terms). When you notice such a cluster in THIS part, infer its likely meaning and add ONE key_point reconstructing it, clearly prefixed with "Diyagram/Görsel:" ("Diagram/Visual:" in English) so the student knows it's your interpretation of a visual element, not a verbatim quote. Only do this when fragments genuinely look diagram-like — don't force it onto ordinary bullet lists.
+DIAGRAMS (Mermaid reconstruction):
+You only see extracted text — visual layout (boxes, arrows, side-by-side positioning) is lost. A flowchart, comparison diagram, process illustration, hierarchy or cycle on the original slide/page often survives only as a cluster of short disconnected phrases, sequential stage names, or paired opposing terms. When you detect such a structure in THIS part, RECONSTRUCT it as a real Mermaid diagram and put it in the "diagrams" array:
+{ "title": "short descriptive title", "mermaid": "valid Mermaid source code", "description": "1-2 sentence plain-language explanation of what the diagram shows" }.
+Prefer these Mermaid types: flowchart TD, flowchart LR, graph TD, sequenceDiagram, mindmap. Keep syntax simple and valid (no experimental plugins). Limit to the 1-2 most important diagrams in this part. Also still add a key_point prefixed with "Diyagram/Görsel:" (or "Diagram/Visual:" in English) that briefly states the same idea. Return empty "diagrams" array when nothing is reconstructible — never invent diagrams that have no basis in the text.
+
+CONCEPT GRAPH (this part only):
+Extract the main academic concepts that appear in THIS part and their relationships. Output in concept_graph:
+- nodes: [{ "id": "c1", "label": "Concept Name", "type": "concept" }] — short, exam-relevant concept labels (3-8 words max). Use sequential ids c1, c2, ... within this part.
+- edges: [{ "from": "c1", "to": "c2", "relation": "includes" }] — only real relationships visible in the text. Allowed relation values: includes, is_a, causes, part_of, related_to, depends_on, contrasts_with.
+Keep it focused: 3-8 nodes and 2-10 edges max for this part. Empty nodes/edges arrays are correct if this part has little conceptual structure.
 
 FOOTNOTES:
 For specific, checkable factual claims within key_points (numbers, definitions, named findings), add a footnote marker like [1], [2] immediately after the claim (numbering restarts at 1 for this part — it will be renumbered globally later). List each in 'footnotes': [{ "id": number, "reference": "brief description of the topic/heading this relates to", "page": number | null }]. ${buildFootnotePageInstruction(hasPageMarkers, pageMarkerLabel)} Don't over-footnote.
@@ -491,7 +499,13 @@ Respond entirely in: '${langLabel}'.`
 function buildSynthesisSystemPrompt(courseCatalogBlock: string, langLabel: string, styleInstruction: string, summaryLengthPhrase: string): string {
   return `You are an academic study assistant. A large document was split into sequential parts and each part was already summarized independently. Below you are given all of those part-summaries, in order, plus a hint about what fraction were flagged as quantitative. Your job is to synthesize ONE cohesive, well-organized final summary of the ENTIRE document — write a genuinely unified narrative that flows across the whole document, not a mechanical concatenation of the part-summaries.
 
-Respond with ONLY a valid JSON object, no markdown fences, no commentary before or after: { "summary": string, "document_type": string, "suggested_course_tag": string | null, "is_quantitative": boolean, "sections": [ { "heading": string, "summary": string } ] }.
+Respond with ONLY a valid JSON object, no markdown fences, no commentary before or after: { "summary": string, "summary_executive": string, "document_type": string, "suggested_course_tag": string | null, "is_quantitative": boolean, "sections": [ { "heading": string, "summary": string } ], "concept_graph": { "nodes": [ { "id": string, "label": string, "type": string } ], "edges": [ { "from": string, "to": string, "relation": string } ] } }.
+
+EXECUTIVE SUMMARY:
+Write "summary_executive" as a 2-3 sentence ultra-short overview of the ENTIRE document — what a student would say if asked "what is this document about in 30 seconds?". No lists, no jargon overload.
+
+CONCEPT GRAPH (whole document):
+From the part-summaries, build a unified concept_graph covering the whole document. nodes: [{ "id": "c1", "label": "...", "type": "concept" }], edges: [{ "from": "c1", "to": "c2", "relation": "includes"|"is_a"|"causes"|"part_of"|"related_to"|"depends_on"|"contrasts_with" }]. 5-15 nodes and their real relationships. Reuse consistent ids. Empty graph only if the material truly has no conceptual structure.
 
 DOCUMENT-TYPE CLASSIFICATION:
 Identify the overall document type as exactly one of: "Lecture Notes/Slides", "Academic Article", "Syllabus", "Case Study", "Textbook Chapter", or "Other".
@@ -930,14 +944,23 @@ serve(async (req) => {
     const langLabel = lang === 'tr' ? 'Turkish / Türkçe' : 'English'
 
     // Part A: System prompt with document type classification & type specific guidance
-    const systemPrompt = `You are an academic study assistant. You will be given the raw text extracted from a student's uploaded document. Analyze it and respond with ONLY a valid JSON object, no markdown code fences, no commentary before or after — just the raw JSON object matching this exact shape: { "summary": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "document_type": string, "tables": [ { "title": string, "headers": [ string ], "rows": [ [ string ] ] } ], "charts": [ { "title": string, "type": string, "labels": [ string ], "data": [ number ] } ], "footnotes": [ { "id": number, "reference": string, "page": number | null } ], "sections": [ { "heading": string, "summary": string } ], "suggested_course_tag": string | null, "is_quantitative": boolean, "formulas": [ { "name": string, "latex": string, "variables": [ { "symbol": string, "meaning": string } ] } ], "worked_examples": [ { "title": string, "problem_statement": string, "steps": [ string ], "final_answer": string } ] }.
+    const systemPrompt = `You are an academic study assistant. You will be given the raw text extracted from a student's uploaded document. Analyze it and respond with ONLY a valid JSON object, no markdown code fences, no commentary before or after — just the raw JSON object matching this exact shape: { "summary": string, "summary_executive": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "document_type": string, "tables": [ { "title": string, "headers": [ string ], "rows": [ [ string ] ] } ], "charts": [ { "title": string, "type": string, "labels": [ string ], "data": [ number ] } ], "footnotes": [ { "id": number, "reference": string, "page": number | null } ], "sections": [ { "heading": string, "summary": string } ], "suggested_course_tag": string | null, "is_quantitative": boolean, "formulas": [ { "name": string, "latex": string, "variables": [ { "symbol": string, "meaning": string } ] } ], "worked_examples": [ { "title": string, "problem_statement": string, "steps": [ string ], "final_answer": string } ], "diagrams": [ { "title": string, "mermaid": string, "description": string } ], "concept_graph": { "nodes": [ { "id": string, "label": string, "type": string } ], "edges": [ { "from": string, "to": string, "relation": string } ] } }.
+
+EXECUTIVE SUMMARY:
+Write "summary_executive" as a 2-3 sentence ultra-short overview — what a student would say if asked "what is this document about in 30 seconds?". No bullet lists.
+
+CONCEPT GRAPH:
+Extract the main academic concepts and how they relate. Output concept_graph with:
+- nodes: [{ "id": "c1", "label": "Concept Name", "type": "concept" }] (5-15 nodes, short labels)
+- edges: [{ "from": "c1", "to": "c2", "relation": "includes"|"is_a"|"causes"|"part_of"|"related_to"|"depends_on"|"contrasts_with" }]
+Only real relationships from the text. Empty graph if the material has almost no conceptual structure.
 
 QUANTITATIVE COURSE DETECTION & ADAPTATION:
 Determine whether this document is primarily QUANTITATIVE in nature — meaning it centers on mathematical formulas, numerical calculations, statistical methods, or financial/accounting computations (e.g. Calculus, Statistics, Financial Management, Investment Analysis, Accounting, Economics with heavy math) — as opposed to conceptual/qualitative material (e.g. Marketing, Management theory, general business discussion). Put this boolean classification in the 'is_quantitative' JSON field (true or false).
 When 'is_quantitative' is true: shift your summarization approach to prioritize extracting formulas and worked examples thoroughly, keeping the narrative summary comparatively brief and high-level in favor of these structured practical elements — since for quantitative material, the formulas and worked examples ARE the primary study content.
 
 FORMULA EXTRACTION:
-If this document is quantitative, identify every distinct formula/equation presented. For each, output an object in the 'formulas' array: { "name": "short descriptive name, e.g. 'Compound Interest Formula'", "latex": "the formula written in valid LaTeX notation, e.g. 'A = P(1 + r/n)^{nt}'", "variables": [ { "symbol": "e.g. P", "meaning": "e.g. Principal amount (initial investment)" } ] }. Return an empty array [] if the document has no formulas or is non-quantitative.
+Identify every distinct formula/equation presented (especially when is_quantitative is true, but also extract any clear formulas even in mixed documents). For each, output an object in the 'formulas' array: { "name": "short descriptive name, e.g. 'Compound Interest Formula'", "latex": "raw LaTeX ONLY — no surrounding $ or \\( \\) delimiters, e.g. 'A = P(1 + r/n)^{nt}' or '\\\\frac{a}{b}' or '\\\\sum_{i=1}^{n} x_i'", "variables": [ { "symbol": "e.g. P", "meaning": "e.g. Principal amount (initial investment)" } ] }. Return an empty array [] if the document has no formulas.
 
 STEP-BY-STEP WORKED EXAMPLES:
 If this document is quantitative, provide 1-3 worked examples showing how to apply the key formula(s) to a realistic problem. If the source document already contains a worked example, use and clean up that one (preserving its actual numbers). If it doesn't but a formula is present, GENERATE a clear, realistic illustrative example (clearly reasonable numbers, not the exact same as any example in the source, creating a new one for practice). Output each in the 'worked_examples' array: { "title": "short description of the scenario", "problem_statement": "the problem as a student would read it, with specific numbers", "steps": [ "step 1 description with calculation shown", "step 2..." ], "final_answer": "the final numeric result with units, e.g. '$1,432.50'" }. Return an empty array [] if not applicable.
@@ -985,8 +1008,11 @@ Before writing anything, separate the source into (a) actual academic subject ma
 ONLY (a) belongs anywhere in your output — summary, key_points, footnotes, and quiz_questions. COMPLETELY EXCLUDE (b): do not summarize it, do not footnote it, and never turn it into a quiz_question — a student is never tested on how many percentage points the midterm is worth, how to appeal a grade, or which textbook edition is assigned, no matter how specific or "checkable" those numbers are.
 If a document is mostly or entirely administrative logistics (e.g. a course intro/syllabus slide with little real subject matter), it is completely correct — and REQUIRED — to produce a short summary and few or even zero key_points/quiz_questions. Never pad the output with excluded (b) content just to reach a target count; a short, honest summary is far better than a long one padded with grading/attendance/appeal trivia.
 
-DIAGRAM & VISUAL-STRUCTURE AWARENESS:
-You are only given extracted text — visual layout (boxes, arrows, side-by-side positioning) is lost in extraction, so a flowchart, comparison diagram, or process illustration often survives only as a cluster of short, disconnected phrases that don't read as normal prose (e.g. two or three parallel short labels repeated near each other, a sequence of terse stage names, or paired opposing terms). When you notice such a cluster, infer that it likely represents a diagram and add ONE key_point that reconstructs its probable meaning, clearly prefixed with "Diyagram/Görsel:" (or "Diagram/Visual:" if responding in English) so the student knows this is your interpretation of a visual element rather than a verbatim quote — e.g. "Diyagram: 'Satış kavramı' (ürün/satış odaklı, mevcut ürünleri satmaya çalışır) ile 'Pazarlama kavramı' (müşteri ihtiyaçlarını anlayıp buna göre değer yaratır) karşılaştırılıyor gibi görünüyor." Only do this when the fragments genuinely look diagram-like — don't force it onto ordinary bullet lists or normal prose.
+DIAGRAMS (Mermaid reconstruction) & VISUAL-STRUCTURE AWARENESS:
+You are only given extracted text — visual layout (boxes, arrows, side-by-side positioning) is lost in extraction. A flowchart, comparison diagram, process illustration, hierarchy or cycle often survives only as a cluster of short disconnected phrases, sequential stage names, or paired opposing terms. When you detect such a structure:
+1. RECONSTRUCT it as a real Mermaid diagram and put it in the "diagrams" array: { "title": "short descriptive title", "mermaid": "valid Mermaid source (prefer flowchart TD / flowchart LR / graph TD / sequenceDiagram / mindmap)", "description": "1-2 sentence plain-language explanation of what the diagram shows" }. Keep Mermaid syntax simple and valid. Limit to the 2-4 most important diagrams in the whole document.
+2. Also add ONE key_point reconstructing the same idea, clearly prefixed with "Diyagram/Görsel:" (or "Diagram/Visual:" if responding in English) so the student knows it is an interpretation of a visual element — e.g. "Diyagram: 'Satış kavramı' (ürün/satış odaklı) ile 'Pazarlama kavramı' (müşteri ihtiyaç odaklı) karşılaştırılıyor."
+Only do this when fragments genuinely look diagram-like — never invent diagrams that have no basis in the text. Return empty "diagrams" array when nothing is reconstructible.
 
 CODE SNIPPETS & DATA PREVIEWS INSTRUCTION:
 If the source material includes programming code snippets (e.g. Python, R, SQL used for data analysis), do not ignore them — briefly describe WHAT METHODOLOGY STEP each code block represents in the summary/key_points (e.g. 'the analysis loads and cleans the dataset, then engineers features including a lagged return and rolling volatility measure' rather than omitting this entirely). Do not attempt to reproduce the code verbatim in the summary, just describe its purpose and role in the overall analysis. If a code block's output shows a small data preview (a few rows of a dataframe), treat that as a legitimate table for the 'tables' field.
@@ -1394,7 +1420,8 @@ In addition to the text below, you are shown images of this document's pages. Us
             return {
               chunk_summary: '', key_terms: [], key_points: [], quiz_questions: [],
               tables: [], charts: [], footnotes: [], is_quantitative: false,
-              formulas: [], worked_examples: []
+              formulas: [], worked_examples: [], diagrams: [],
+              concept_graph: { nodes: [], edges: [] }
             }
           }
         })
@@ -1440,6 +1467,7 @@ In addition to the text below, you are shown images of this document's pages. Us
       const chartsCap = chunkAwareCap(10, 0.75, 30)
       const formulasCap = chunkAwareCap(20, 1.5, 60)
       const workedExamplesCap = chunkAwareCap(10, 0.75, 30)
+      const diagramsCap = chunkAwareCap(8, 0.75, 20)
 
       const interleavedKeyTerms = dedupeKeyTerms(roundRobinInterleave(chunkResults.map(r => Array.isArray(r.key_terms) ? r.key_terms : [])))
       const interleavedKeyPoints = dedupeByText(roundRobinInterleave(chunkResults.map(r => Array.isArray(r.key_points) ? r.key_points : [])), (x: string) => x)
@@ -1448,6 +1476,7 @@ In addition to the text below, you are shown images of this document's pages. Us
       const flatCharts = chunkResults.flatMap(r => Array.isArray(r.charts) ? r.charts : [])
       const flatFormulas = chunkResults.flatMap(r => Array.isArray(r.formulas) ? r.formulas : [])
       const flatWorkedExamples = chunkResults.flatMap(r => Array.isArray(r.worked_examples) ? r.worked_examples : [])
+      const flatDiagrams = chunkResults.flatMap(r => Array.isArray(r.diagrams) ? r.diagrams : [])
 
       const mergedKeyTerms = interleavedKeyTerms.slice(0, keyTermsCap)
       const mergedKeyPoints = interleavedKeyPoints.slice(0, keyPointsCap)
@@ -1456,18 +1485,20 @@ In addition to the text below, you are shown images of this document's pages. Us
       const mergedCharts = flatCharts.slice(0, chartsCap)
       const mergedFormulas = flatFormulas.slice(0, formulasCap)
       const mergedWorkedExamples = flatWorkedExamples.slice(0, workedExamplesCap)
+      const mergedDiagrams = flatDiagrams.slice(0, diagramsCap)
       const mergedFootnotes = chunkResults.flatMap(r => Array.isArray(r.footnotes) ? r.footnotes : [])
 
       // No silent caps: log exactly what (if anything) still got trimmed,
       // so a genuinely pathological document's data loss is visible in the
       // Edge Function logs rather than invisible.
       if (interleavedKeyTerms.length > keyTermsCap || interleavedKeyPoints.length > keyPointsCap || interleavedQuiz.length > quizCap ||
-          flatTables.length > tablesCap || flatCharts.length > chartsCap || flatFormulas.length > formulasCap || flatWorkedExamples.length > workedExamplesCap) {
+          flatTables.length > tablesCap || flatCharts.length > chartsCap || flatFormulas.length > formulasCap || flatWorkedExamples.length > workedExamplesCap ||
+          flatDiagrams.length > diagramsCap) {
         console.warn(`Chunked merge truncation for document ${documentId} (${chunkCount} chunks): ` +
           `key_terms ${interleavedKeyTerms.length}->${mergedKeyTerms.length}, key_points ${interleavedKeyPoints.length}->${mergedKeyPoints.length}, ` +
           `quiz ${interleavedQuiz.length}->${mergedQuiz.length}, tables ${flatTables.length}->${mergedTables.length}, ` +
           `charts ${flatCharts.length}->${mergedCharts.length}, formulas ${flatFormulas.length}->${mergedFormulas.length}, ` +
-          `worked_examples ${flatWorkedExamples.length}->${mergedWorkedExamples.length}`)
+          `worked_examples ${flatWorkedExamples.length}->${mergedWorkedExamples.length}, diagrams ${flatDiagrams.length}->${mergedDiagrams.length}`)
       }
       const quantFlaggedCount = chunkResults.filter(r => r.is_quantitative).length
       const quantFraction = chunkResults.length > 0 ? quantFlaggedCount / chunkResults.length : 0
@@ -1499,8 +1530,33 @@ In addition to the text below, you are shown images of this document's pages. Us
         })
       }
 
+      // Prefer synthesis-level concept_graph (unified); fall back to merging chunk graphs
+      let mergedConceptGraph = (synthesis.concept_graph && Array.isArray(synthesis.concept_graph.nodes))
+        ? synthesis.concept_graph
+        : { nodes: [], edges: [] }
+      if ((!mergedConceptGraph.nodes || mergedConceptGraph.nodes.length === 0)) {
+        const allNodes: any[] = []
+        const allEdges: any[] = []
+        const seenNode = new Set<string>()
+        chunkResults.forEach((r, ci) => {
+          const g = r.concept_graph || { nodes: [], edges: [] }
+          ;(g.nodes || []).forEach((n: any) => {
+            const id = `p${ci + 1}_${n.id || n.label}`
+            if (!seenNode.has(String(n.label || '').toLowerCase())) {
+              seenNode.add(String(n.label || '').toLowerCase())
+              allNodes.push({ id, label: n.label, type: n.type || 'concept' })
+            }
+          })
+          ;(g.edges || []).forEach((e: any) => {
+            allEdges.push({ from: `p${ci + 1}_${e.from}`, to: `p${ci + 1}_${e.to}`, relation: e.relation || 'related_to' })
+          })
+        })
+        mergedConceptGraph = { nodes: allNodes.slice(0, 20), edges: allEdges.slice(0, 30) }
+      }
+
       const mergedDraft = {
         summary: synthesis.summary || '',
+        summary_executive: synthesis.summary_executive || '',
         document_type: synthesis.document_type || 'Other',
         suggested_course_tag: synthesis.suggested_course_tag ?? null,
         is_quantitative: synthesis.is_quantitative ?? (quantFraction >= 0.5),
@@ -1511,6 +1567,8 @@ In addition to the text below, you are shown images of this document's pages. Us
         charts: mergedCharts,
         formulas: mergedFormulas,
         worked_examples: mergedWorkedExamples,
+        diagrams: mergedDiagrams,
+        concept_graph: mergedConceptGraph,
         footnotes: mergedFootnotes,
         sections: Array.isArray(synthesis.sections) ? synthesis.sections : []
       }
@@ -1524,14 +1582,14 @@ In addition to the text below, you are shown images of this document's pages. Us
     }
 
     // Pass 2: Self-Review for Higher Accuracy (shared by both pipelines above)
-    const reviewSystemPrompt = `You are reviewing a draft academic summary for accuracy and quality. Compare the draft against the original source text. Check for: (1) any factual errors or details not actually present in the source, (2) any important information from the source that was missed, (3) clarity and organization issues, (4) verify that any extracted tables and charts accurately represent the source data numbers and values, (5) verify footnote references are accurate and preserve footnote markers [1], [2] in text, (6) verify that is_quantitative, formulas, and worked_examples are accurate, well-formatted, and use valid LaTeX string syntax, (7) scan the summary, key_points, footnotes, and quiz_questions for any course administration/logistics content that slipped in — grading weights/percentages, exam format/rules, attendance policy, bonus/late-submission policy, grade-appeal procedures, office hours, textbook title/edition — and REMOVE it entirely (renumbering/adjusting footnote markers as needed). This content is NEVER appropriate here, no matter how specific or factually accurate it is, because a student is never tested on it. If removing it leaves the summary or a list shorter than before, that is correct — do not backfill with other administrative details.
+    const reviewSystemPrompt = `You are reviewing a draft academic summary for accuracy and quality. Compare the draft against the original source text. Check for: (1) any factual errors or details not actually present in the source, (2) any important information from the source that was missed, (3) clarity and organization issues, (4) verify that any extracted tables and charts accurately represent the source data numbers and values, (5) verify footnote references are accurate and preserve footnote markers [1], [2] in text, (6) verify that is_quantitative, formulas, and worked_examples are accurate, well-formatted, and use valid raw LaTeX string syntax (no surrounding $ delimiters), (7) verify that any diagrams entries have valid simple Mermaid syntax and that their description matches the source structure — remove invented diagrams that have no textual basis, (8) scan the summary, key_points, footnotes, and quiz_questions for any course administration/logistics content that slipped in — grading weights/percentages, exam format/rules, attendance policy, bonus/late-submission policy, grade-appeal procedures, office hours, textbook title/edition — and REMOVE it entirely (renumbering/adjusting footnote markers as needed). This content is NEVER appropriate here, no matter how specific or factually accurate it is, because a student is never tested on it. If removing it leaves the summary or a list shorter than before, that is correct — do not backfill with other administrative details.
 In addition to checking factual accuracy, you MUST preserve the original requested style, length, and language of the draft. If the draft was written in bullet-point format, your refined version must ALSO be in bullet-point format (using '- ' prefixed lines). If it was an outline with '## ' headings, preserve that heading structure. If it was written in short/simplified sentences, keep sentences short and simple. Do NOT normalize or flatten distinctive formatting back into generic flowing prose — your job is to improve accuracy and clarity WITHIN the same style and structure the draft already used, not to rewrite it in a different format.
 
 FOOTNOTE PAGE NUMBERS: each footnote in the draft may already carry a "page" field (a real page/slide number, or null if the document has none). PRESERVE each footnote's existing "page" value exactly as given in the draft — the source text shown to you here may be truncated and missing the page markers it was originally derived from, so do not null out or guess a different page number unless the visible source text clearly shows a different marker for that exact claim.
 
 STRUCTURAL SECTIONS: the draft may already carry a "sections" array (a topic-based outline, each with its own heading + short blurb). Verify each section's summary is accurate against the source and doesn't just restate the whole document's summary verbatim — refine wording if needed, but PRESERVE the overall section breakdown (headings and count) unless it's clearly wrong (e.g. a section that's purely administrative content, which must be removed). Do not invent new sections not grounded in the source, and do not force sections into existence if the draft correctly left this array empty.
 
-Produce a REFINED, corrected final version in the exact same JSON format: { "summary": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "document_type": string, "tables": [ { "title": string, "headers": [ string ], "rows": [ [ string ] ] } ], "charts": [ { "title": string, "type": string, "labels": [ string ], "data": [ number ] } ], "footnotes": [ { "id": number, "reference": string, "page": number | null } ], "sections": [ { "heading": string, "summary": string } ], "suggested_course_tag": string | null, "is_quantitative": boolean, "formulas": [ { "name": string, "latex": string, "variables": [ { "symbol": string, "meaning": string } ] } ], "worked_examples": [ { "title": string, "problem_statement": string, "steps": [ string ], "final_answer": string } ] }. If the draft was already accurate and complete, you may return it largely unchanged — only make genuine improvements, don't change things arbitrarily.`
+Produce a REFINED, corrected final version in the exact same JSON format: { "summary": string, "summary_executive": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "document_type": string, "tables": [ { "title": string, "headers": [ string ], "rows": [ [ string ] ] } ], "charts": [ { "title": string, "type": string, "labels": [ string ], "data": [ number ] } ], "footnotes": [ { "id": number, "reference": string, "page": number | null } ], "sections": [ { "heading": string, "summary": string } ], "suggested_course_tag": string | null, "is_quantitative": boolean, "formulas": [ { "name": string, "latex": string, "variables": [ { "symbol": string, "meaning": string } ] } ], "worked_examples": [ { "title": string, "problem_statement": string, "steps": [ string ], "final_answer": string } ], "diagrams": [ { "title": string, "mermaid": string, "description": string } ], "concept_graph": { "nodes": [ { "id": string, "label": string, "type": string } ], "edges": [ { "from": string, "to": string, "relation": string } ] } }. If the draft was already accurate and complete, you may return it largely unchanged — only make genuine improvements, don't change things arbitrarily. Preserve summary_executive (2-3 sentences) and concept_graph structure; only fix clear errors.`
 
     function buildReviewUserPrompt(sourceBudgetChars: number): string {
       let trimmedSource = sourceTextForReview
@@ -1689,6 +1747,7 @@ ${rawContent}`
         document_id: documentId,
         user_id: document.user_id,
         summary: parsedContent.summary || '',
+        summary_executive: parsedContent.summary_executive || '',
         key_terms: parsedContent.key_terms || [],
         key_points: parsedContent.key_points || [],
         quiz_questions: parsedContent.quiz_questions || [],
@@ -1699,6 +1758,10 @@ ${rawContent}`
         is_quantitative: parsedContent.is_quantitative ?? false,
         formulas: Array.isArray(parsedContent.formulas) ? parsedContent.formulas : [],
         worked_examples: Array.isArray(parsedContent.worked_examples) ? parsedContent.worked_examples : [],
+        diagrams: Array.isArray(parsedContent.diagrams) ? parsedContent.diagrams : [],
+        concept_graph: (parsedContent.concept_graph && typeof parsedContent.concept_graph === 'object')
+          ? parsedContent.concept_graph
+          : { nodes: [], edges: [] },
         sections: Array.isArray(parsedContent.sections) ? parsedContent.sections : [],
         summary_style: style,
         summary_language: lang,

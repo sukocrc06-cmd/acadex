@@ -223,6 +223,16 @@
               <span data-i18n="dash.nav.exams">Sınav Platformu</span>
             </a>
           </li>
+          <li class="sidebar-item" id="side-presentation">
+            <a href="#" onclick="switchDashboardView('presentation')">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                <line x1="8" y1="21" x2="16" y2="21"></line>
+                <line x1="12" y1="17" x2="12" y2="21"></line>
+              </svg>
+              <span data-i18n="dash.nav.presentation">Akademik Sunum</span>
+            </a>
+          </li>
           <li class="sidebar-item" id="side-sandbox">
             <a href="#" onclick="switchDashboardView('sandbox')">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -231,16 +241,6 @@
                 <line x1="12" y1="22.08" x2="12" y2="12"></line>
               </svg>
               <span data-i18n="dash.nav.sandbox">Geliştirici Sandbox</span>
-            </a>
-          </li>
-          <li class="sidebar-item" id="side-acadexsunum">
-            <a href="#" onclick="switchDashboardView('acadexsunum')">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-                <line x1="8" y1="21" x2="16" y2="21"></line>
-                <line x1="12" y1="17" x2="12" y2="21"></line>
-              </svg>
-              <span data-i18n="dash.nav.acadexsunum">Acadex Sunum</span>
             </a>
           </li>
           <li class="sidebar-item" id="side-settings">
@@ -1131,6 +1131,222 @@
       </section>
 
       <!-- ==========================================
+           TAB: AKADEMIK SUNUM (Academic Presentation Studio)
+           ========================================== -->
+      <section id="presentation-view" class="dashboard-view-section">
+        <style>
+          .pres-studio { display: flex; flex-direction: column; gap: 0.75rem; height: calc(100vh - 140px); min-height: 560px; }
+          .pres-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; background: #fff; border: 1px solid rgba(22,50,92,0.08); border-radius: var(--radius); padding: 0.65rem 1rem; box-shadow: var(--shadow-sm); }
+          .pres-toolbar-left { display: flex; align-items: center; gap: 0.6rem; flex: 1; min-width: 200px; }
+          .pres-toolbar-right { display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; }
+          .pres-title-input { border: 1px solid rgba(22,50,92,0.12); border-radius: var(--radius-sm); padding: 0.45rem 0.7rem; font-size: 0.9rem; font-weight: 700; color: var(--color-navy); min-width: 180px; max-width: 320px; width: 100%; background: var(--color-bg-alt, #f8fafc); }
+          .pres-title-input:focus { outline: none; border-color: var(--color-teal); box-shadow: 0 0 0 3px rgba(31,138,147,0.12); }
+          .pres-btn { border: 1px solid rgba(22,50,92,0.12); background: #fff; color: var(--color-navy); border-radius: var(--radius-sm); padding: 0.4rem 0.75rem; font-size: 0.8rem; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem; transition: all 0.15s; }
+          .pres-btn:hover { border-color: var(--color-teal); color: var(--color-teal); }
+          .pres-btn-primary { background: var(--color-teal); color: #fff; border-color: var(--color-teal); }
+          .pres-btn-primary:hover { background: #187a82; color: #fff; }
+          .pres-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+          .pres-body { display: grid; grid-template-columns: 180px 1fr 280px; gap: 0.75rem; flex: 1; min-height: 0; }
+          .pres-panel { background: #fff; border: 1px solid rgba(22,50,92,0.08); border-radius: var(--radius); box-shadow: var(--shadow-sm); display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+          .pres-panel-header { padding: 0.65rem 0.85rem; border-bottom: 1px solid rgba(22,50,92,0.08); font-size: 0.78rem; font-weight: 800; color: var(--color-navy); text-transform: uppercase; letter-spacing: 0.03em; display: flex; align-items: center; justify-content: space-between; }
+          .pres-slides-list { flex: 1; overflow-y: auto; padding: 0.6rem; display: flex; flex-direction: column; gap: 0.5rem; }
+          .pres-slide-thumb { border: 1.5px solid rgba(22,50,92,0.1); border-radius: var(--radius-sm); padding: 0.5rem; cursor: pointer; background: var(--color-bg-alt, #f8fafc); transition: all 0.15s; }
+          .pres-slide-thumb:hover { border-color: rgba(31,138,147,0.4); }
+          .pres-slide-thumb.active { border-color: var(--color-teal); background: var(--color-teal-light); box-shadow: 0 0 0 2px rgba(31,138,147,0.15); }
+          .pres-slide-thumb-num { font-size: 0.7rem; font-weight: 800; color: var(--color-teal); margin-bottom: 0.25rem; }
+          .pres-slide-thumb-preview { height: 48px; background: #fff; border-radius: 4px; border: 1px solid rgba(22,50,92,0.06); display: flex; align-items: center; justify-content: center; font-size: 0.65rem; color: var(--color-text-muted); overflow: hidden; padding: 0.25rem; text-align: center; line-height: 1.2; }
+          .pres-canvas-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; padding: 1rem; background: #f1f5f9; }
+          .pres-canvas { flex: 1; background: #fff; border-radius: var(--radius); box-shadow: var(--shadow-md); aspect-ratio: 16/9; max-height: 100%; width: 100%; margin: 0 auto; display: flex; flex-direction: column; padding: 1.5rem 1.75rem; position: relative; overflow: auto; }
+          .pres-slide-title { font-size: 1.35rem; font-weight: 800; color: var(--color-navy); border: none; border-bottom: 2px solid transparent; width: 100%; background: transparent; padding: 0.15rem 0; margin-bottom: 0.75rem; }
+          .pres-slide-title:focus { outline: none; border-bottom-color: var(--color-teal); }
+          .pres-slide-content { flex: 1; font-size: 0.95rem; color: var(--color-text); line-height: 1.55; border: none; resize: none; width: 100%; background: transparent; font-family: inherit; }
+          .pres-slide-content:focus { outline: none; }
+          .pres-speaker-notes { margin-top: 0.75rem; border-top: 1px dashed rgba(22,50,92,0.12); padding-top: 0.6rem; }
+          .pres-speaker-notes label { font-size: 0.7rem; font-weight: 800; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.04em; display: block; margin-bottom: 0.3rem; }
+          .pres-speaker-notes textarea { width: 100%; border: 1px solid rgba(22,50,92,0.1); border-radius: var(--radius-sm); padding: 0.45rem 0.6rem; font-size: 0.8rem; resize: vertical; min-height: 52px; font-family: inherit; color: var(--color-text); background: var(--color-bg-alt, #f8fafc); }
+          .pres-right-body { flex: 1; overflow-y: auto; padding: 0.75rem; display: flex; flex-direction: column; gap: 0.85rem; }
+          .pres-tool-card { border: 1px solid rgba(22,50,92,0.08); border-radius: var(--radius-sm); padding: 0.7rem; background: var(--color-bg-alt, #f8fafc); }
+          .pres-tool-card h4 { font-size: 0.78rem; font-weight: 800; color: var(--color-navy); margin: 0 0 0.45rem 0; }
+          .pres-upload-zone { border: 1.5px dashed rgba(22,50,92,0.18); border-radius: var(--radius-sm); padding: 1rem 0.75rem; text-align: center; cursor: pointer; transition: all 0.15s; background: #fff; }
+          .pres-upload-zone:hover { border-color: var(--color-teal); background: var(--color-teal-light); }
+          .pres-upload-zone svg { color: var(--color-teal); margin-bottom: 0.35rem; }
+          .pres-upload-zone p { font-size: 0.75rem; color: var(--color-text-muted); margin: 0; }
+          .pres-layout-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
+          .pres-layout-btn { border: 1px solid rgba(22,50,92,0.1); background: #fff; border-radius: 6px; padding: 0.4rem; font-size: 0.68rem; font-weight: 700; color: var(--color-navy); cursor: pointer; text-align: center; }
+          .pres-layout-btn:hover, .pres-layout-btn.active { border-color: var(--color-teal); background: var(--color-teal-light); color: var(--color-teal); }
+          .pres-acadia-box { border: 1px solid rgba(22,50,92,0.08); border-radius: var(--radius-sm); background: #fff; display: flex; flex-direction: column; min-height: 160px; }
+          .pres-acadia-messages { flex: 1; padding: 0.6rem; font-size: 0.78rem; color: var(--color-text-muted); overflow-y: auto; max-height: 140px; }
+          .pres-acadia-input-row { display: flex; gap: 0.35rem; padding: 0.5rem; border-top: 1px solid rgba(22,50,92,0.08); }
+          .pres-acadia-input-row input { flex: 1; border: 1px solid rgba(22,50,92,0.12); border-radius: var(--radius-sm); padding: 0.4rem 0.55rem; font-size: 0.78rem; }
+          .pres-acadia-input-row input:focus { outline: none; border-color: var(--color-teal); }
+          .pres-footer { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; background: #fff; border: 1px solid rgba(22,50,92,0.08); border-radius: var(--radius); padding: 0.55rem 1rem; box-shadow: var(--shadow-sm); }
+          .pres-empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; text-align: center; padding: 2rem; color: var(--color-text-muted); }
+          @media (max-width: 1100px) {
+            .pres-body { grid-template-columns: 150px 1fr; }
+            .pres-panel-right { display: none; }
+          }
+          @media (max-width: 720px) {
+            .pres-body { grid-template-columns: 1fr; }
+            .pres-panel-left { max-height: 160px; }
+          }
+        </style>
+
+        <!-- LIST MODE: when no presentation is open -->
+        <div id="pres-list-mode">
+          <div class="dashboard-page-header" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
+            <div>
+              <h2 class="dashboard-page-title" data-i18n="dash.presentation.title">Akademik Sunum</h2>
+              <p class="dashboard-page-desc" data-i18n="dash.presentation.desc">Ders sunumlarınızı AI ile oluşturun, düzenleyin ve indirin.</p>
+            </div>
+            <button type="button" class="btn btn-primary" id="presentation-new-btn" style="padding: 0.65rem 1.25rem; font-weight: 700;">
+              <span data-i18n="dash.presentation.newBtn">+ Yeni Sunum</span>
+            </button>
+          </div>
+          <div id="pres-list-container" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem;">
+            <div class="pres-empty-state" id="pres-list-empty" style="grid-column: 1 / -1; min-height: 280px; background: #fff; border: 1px dashed rgba(22,50,92,0.15); border-radius: var(--radius);">
+              <div style="width: 56px; height: 56px; border-radius: 14px; background: rgba(31,138,147,0.1); display: flex; align-items: center; justify-content: center; margin-bottom: 1rem;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--color-teal)" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+              </div>
+              <p style="font-size: 0.95rem; font-weight: 700; color: var(--color-navy); margin: 0 0 0.35rem 0;" data-i18n="dash.presentation.emptyTitle">Henüz sunumunuz yok</p>
+              <p style="font-size: 0.85rem; max-width: 360px; margin: 0;" data-i18n="dash.presentation.emptyDesc">Yeni bir sunum oluşturarak başlayın. Konu, Study Card veya belge ile AI destekli sunum hazırlayabilirsiniz.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- STUDIO MODE: 3-column editor -->
+        <div id="pres-studio-mode" class="pres-studio" style="display: none;">
+          <div class="pres-toolbar">
+            <div class="pres-toolbar-left">
+              <button type="button" class="pres-btn" id="pres-back-btn" title="Sunum listesine dön">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+                <span data-i18n="dash.presentation.back">Liste</span>
+              </button>
+              <input type="text" class="pres-title-input" id="pres-title-input" placeholder="Sunum başlığı..." value="">
+            </div>
+            <div class="pres-toolbar-right">
+              <button type="button" class="pres-btn" id="pres-ai-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/></svg>
+                <span data-i18n="dash.presentation.aiAssist">AI Asistan</span>
+              </button>
+              <button type="button" class="pres-btn" id="pres-save-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                <span data-i18n="dash.presentation.save">Kaydet</span>
+              </button>
+              <button type="button" class="pres-btn" id="pres-preview-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                <span data-i18n="dash.presentation.preview">Önizle</span>
+              </button>
+              <button type="button" class="pres-btn pres-btn-primary" id="pres-export-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span data-i18n="dash.presentation.export">PPTX / PDF</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="pres-body">
+            <div class="pres-panel pres-panel-left">
+              <div class="pres-panel-header">
+                <span data-i18n="dash.presentation.slides">Slaytlar</span>
+                <button type="button" class="pres-btn" id="pres-add-slide-btn" style="padding: 0.2rem 0.45rem; font-size: 0.75rem;">+</button>
+              </div>
+              <div class="pres-slides-list" id="pres-slides-list">
+                <div class="pres-slide-thumb active" data-slide-index="0">
+                  <div class="pres-slide-thumb-num">1</div>
+                  <div class="pres-slide-thumb-preview">Başlık slaytı</div>
+                </div>
+                <div class="pres-slide-thumb" data-slide-index="1">
+                  <div class="pres-slide-thumb-num">2</div>
+                  <div class="pres-slide-thumb-preview">İçerik</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="pres-panel" style="background: transparent; border: none; box-shadow: none;">
+              <div class="pres-canvas-wrap">
+                <div class="pres-canvas" id="pres-canvas">
+                  <input type="text" class="pres-slide-title" id="pres-slide-title" placeholder="Slayt başlığı..." value="Sunum Başlığı Ekleyin">
+                  <textarea class="pres-slide-content" id="pres-slide-content" placeholder="İçeriğinizi buraya yazın…">• Hedef pazar analizi özetlenmiş ve yapılandırılmıştır.
+• Önizleme pazar analizi sonuçlarıdır.
+• Stratejik adımlar belirlenen akademik hedeflerle uyumludur.</textarea>
+                  <div class="pres-speaker-notes">
+                    <label data-i18n="dash.presentation.speakerNotes">Konuşma Notları</label>
+                    <textarea id="pres-speaker-notes" placeholder="Bu slaytta söyleyeceklerinizi yazın…"></textarea>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="pres-panel pres-panel-right">
+              <div class="pres-panel-header">
+                <span data-i18n="dash.presentation.tools">İçerik & Araçlar</span>
+              </div>
+              <div class="pres-right-body">
+                <div class="pres-tool-card">
+                  <h4 data-i18n="dash.presentation.layouts">Düzen (Layout)</h4>
+                  <div class="pres-layout-grid" id="pres-layout-grid">
+                    <button type="button" class="pres-layout-btn active" data-layout="title-content">Başlık + İçerik</button>
+                    <button type="button" class="pres-layout-btn" data-layout="two-column">İki Sütun</button>
+                    <button type="button" class="pres-layout-btn" data-layout="image-left">Görsel Sol</button>
+                    <button type="button" class="pres-layout-btn" data-layout="image-right">Görsel Sağ</button>
+                    <button type="button" class="pres-layout-btn" data-layout="chart">Grafik</button>
+                    <button type="button" class="pres-layout-btn" data-layout="table">Tablo</button>
+                  </div>
+                </div>
+
+                <div class="pres-tool-card">
+                  <h4 data-i18n="dash.presentation.imageUpload">Görsel Yükle</h4>
+                  <div class="pres-upload-zone" id="pres-upload-zone">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    <p data-i18n="dash.presentation.uploadHint">Tıkla veya sürükle</p>
+                  </div>
+                  <input type="file" id="pres-image-input" accept="image/jpeg,image/png,image/webp,image/gif" style="display:none;">
+                  <button type="button" class="pres-btn" id="pres-upload-btn" style="width:100%; margin-top:0.45rem; justify-content:center;" data-i18n="dash.presentation.chooseFile">Bilgisayardan Seç</button>
+                </div>
+
+                <div class="pres-tool-card">
+                  <h4 data-i18n="dash.presentation.insert">Hızlı Ekle</h4>
+                  <div style="display:flex; flex-direction:column; gap:0.35rem;">
+                    <button type="button" class="pres-btn" id="pres-insert-table-btn" style="justify-content:flex-start;">📊 <span data-i18n="dash.presentation.insertTable">Tablo Ekle</span></button>
+                    <button type="button" class="pres-btn" id="pres-insert-chart-btn" style="justify-content:flex-start;">📈 <span data-i18n="dash.presentation.insertChart">Grafik Ekle</span></button>
+                  </div>
+                </div>
+
+                <div class="pres-tool-card" style="padding:0; overflow:hidden;">
+                  <div style="padding:0.65rem 0.7rem 0.4rem; font-size:0.78rem; font-weight:800; color:var(--color-navy);">✨ Acadia</div>
+                  <div class="pres-acadia-box" style="border:none; border-radius:0;">
+                    <div class="pres-acadia-messages" id="pres-acadia-messages">
+                      <div style="background:var(--color-teal-light); border-radius:8px; padding:0.45rem 0.55rem; margin-bottom:0.35rem; color:var(--color-navy);">
+                        Bu slaytı daha akademik hale getirebilirim. Ne istersin?
+                      </div>
+                    </div>
+                    <div class="pres-acadia-input-row">
+                      <input type="text" id="pres-acadia-input" placeholder="Acadia'ya sor...">
+                      <button type="button" class="pres-btn pres-btn-primary" id="pres-acadia-send" style="padding:0.4rem 0.55rem;">→</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="pres-footer">
+            <button type="button" class="pres-btn" id="pres-settings-btn">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              <span data-i18n="dash.presentation.settings">Sunum Ayarları</span>
+            </button>
+            <div style="display:flex; gap:0.45rem;">
+              <button type="button" class="pres-btn" id="pres-add-slide-footer-btn">
+                <span data-i18n="dash.presentation.addSlide">+ Yeni Slayt</span>
+              </button>
+              <button type="button" class="pres-btn pres-btn-primary" id="pres-complete-btn">
+                <span data-i18n="dash.presentation.complete">Sunumu Tamamla</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==========================================
            TAB 7: GELISIRICI SANDBOX VIEW (DEVELOPER SANDBOX)
            ========================================== -->
       <section id="sandbox-view" class="dashboard-view-section">
@@ -1233,16 +1449,6 @@
             <!-- Populated dynamically -->
           </div>
         </div>
-      </section>
-
-      <!-- ==========================================
-           TAB: ACADEX SUNUM (presentation builder tool,
-           embedded via iframe — see acadex-sunum.html and
-           the #acadexsunum-view.active full-viewport override
-           in style.css)
-           ========================================== -->
-      <section id="acadexsunum-view" class="dashboard-view-section">
-        <iframe id="acadexsunum-iframe" title="Acadex Sunum" loading="lazy"></iframe>
       </section>
 
       <!-- ==========================================
@@ -1758,6 +1964,16 @@
           </label>
         </div>
 
+        <!-- Executive Summary (30-second overview) -->
+        <section class="study-card-section" id="study-card-executive-section" style="display: none;">
+          <h4 class="study-card-section-title" style="display: flex; align-items: center; width: 100%;">
+            <span>⚡</span>
+            <span style="margin-left: 0.4rem;" data-i18n="dash.cards.executive">30 Saniyelik Özet</span>
+          </h4>
+          <div id="study-card-executive-text" style="background: linear-gradient(135deg, rgba(20,184,166,0.08), rgba(22,50,92,0.06)); border-left: 3px solid var(--color-teal); border-radius: 8px; padding: 0.85rem 1rem; font-size: 0.95rem; line-height: 1.55; color: var(--color-navy); font-weight: 500;">
+          </div>
+        </section>
+
         <!-- Summary Section -->
         <section class="study-card-section">
           <h4 class="study-card-section-title" style="display: flex; align-items: center; width: 100%;">
@@ -1805,6 +2021,17 @@
           </h4>
           <div class="key-terms-grid" id="study-card-terms-container">
             <!-- Dynamically populated -->
+          </div>
+        </section>
+
+        <!-- Concept Graph Section -->
+        <section class="study-card-section" id="study-card-concept-graph-section" style="display: none;">
+          <h4 class="study-card-section-title" style="display: flex; align-items: center; width: 100%;">
+            <span>🕸️</span>
+            <span style="margin-left: 0.4rem;" data-i18n="dash.cards.conceptGraph">Kavram Grafiği</span>
+          </h4>
+          <div id="study-card-concept-graph-container">
+            <!-- Mermaid graph + relation list populated by JS -->
           </div>
         </section>
 
@@ -1862,6 +2089,16 @@
             <span>🔢</span> <span style="margin-left: 0.4rem;" data-i18n="dash.cards.formulas">Formüller</span>
           </h4>
           <div id="study-card-formulas-container" class="formulas-grid">
+            <!-- Dynamically populated -->
+          </div>
+        </section>
+
+        <!-- Diagrams Section (AI-reconstructed Mermaid process flows / hierarchies / comparisons) -->
+        <section class="study-card-section" id="study-card-diagrams-section" style="display: none;">
+          <h4 class="study-card-section-title" style="display: flex; align-items: center; width: 100%;">
+            <span>🔀</span> <span style="margin-left: 0.4rem;" data-i18n="dash.cards.diagrams">Diyagramlar</span>
+          </h4>
+          <div id="study-card-diagrams-container" class="diagrams-list" style="display: flex; flex-direction: column; gap: 1.25rem;">
             <!-- Dynamically populated -->
           </div>
         </section>

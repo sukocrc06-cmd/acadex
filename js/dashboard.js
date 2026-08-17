@@ -1469,6 +1469,20 @@ async function populateStudyCardModalDetails(card, docName, readOnly) {
     }
   }
 
+  // Populate Executive Summary (30-second overview)
+  const executiveSection = document.getElementById('study-card-executive-section');
+  const executiveText = document.getElementById('study-card-executive-text');
+  if (executiveSection && executiveText) {
+    const exec = (card.summary_executive || '').trim();
+    if (exec) {
+      executiveSection.style.display = 'block';
+      executiveText.innerHTML = formatSummaryText(exec, card.footnotes);
+    } else {
+      executiveSection.style.display = 'none';
+      executiveText.innerHTML = '';
+    }
+  }
+
   // Populate Summary
   const summaryText = document.getElementById('study-card-summary-text');
   if (summaryText) summaryText.innerHTML = renderSectionsOutlineHtml(card.sections, card.footnotes) + (formatSummaryText(card.summary, card.footnotes) || "No summary generated for this document.");
@@ -1512,6 +1526,69 @@ async function populateStudyCardModalDetails(card, docName, readOnly) {
         `;
         termsContainer.appendChild(div);
       });
+    }
+  }
+
+  // Populate Concept Graph
+  const conceptSection = document.getElementById('study-card-concept-graph-section');
+  const conceptContainer = document.getElementById('study-card-concept-graph-container');
+  if (conceptSection && conceptContainer) {
+    conceptContainer.innerHTML = '';
+    const graph = card.concept_graph || {};
+    const nodes = Array.isArray(graph.nodes) ? graph.nodes : [];
+    const edges = Array.isArray(graph.edges) ? graph.edges : [];
+    if (nodes.length === 0) {
+      conceptSection.style.display = 'none';
+    } else {
+      conceptSection.style.display = 'block';
+      // Build Mermaid graph LR from nodes/edges
+      const idMap = {};
+      nodes.forEach((n, i) => {
+        const safeId = 'N' + i;
+        idMap[n.id] = safeId;
+      });
+      let mmd = 'graph LR\n';
+      nodes.forEach((n, i) => {
+        const safeId = 'N' + i;
+        const label = String(n.label || n.id || '').replace(/"/g, "'").slice(0, 40);
+        mmd += `  ${safeId}["${label}"]\n`;
+      });
+      edges.forEach(e => {
+        const from = idMap[e.from];
+        const to = idMap[e.to];
+        if (from && to) {
+          const rel = String(e.relation || 'related_to').replace(/"/g, "'");
+          mmd += `  ${from} -->|"${rel}"| ${to}\n`;
+        }
+      });
+      const mermaidBoxId = `concept-mmd-${card.id || 'preview'}`;
+      const relList = edges.length
+        ? '<ul style="margin:0.75rem 0 0;padding-left:1.2rem;font-size:0.85rem;color:var(--color-text-muted);">' +
+          edges.slice(0, 20).map(e => {
+            const fromLabel = (nodes.find(n => n.id === e.from) || {}).label || e.from;
+            const toLabel = (nodes.find(n => n.id === e.to) || {}).label || e.to;
+            return `<li><strong>${escapeHtml(fromLabel)}</strong> → <em>${escapeHtml(e.relation || 'related_to')}</em> → <strong>${escapeHtml(toLabel)}</strong></li>`;
+          }).join('') + '</ul>'
+        : '';
+      conceptContainer.innerHTML = `
+        <div id="${mermaidBoxId}" style="overflow-x:auto;background:#f8fafc;border-radius:10px;padding:0.85rem;"></div>
+        ${relList}
+      `;
+      setTimeout(async () => {
+        const target = document.getElementById(mermaidBoxId);
+        if (!target || !window.mermaid) {
+          if (target) target.textContent = mmd;
+          return;
+        }
+        try {
+          const renderId = `cg-${Date.now()}`;
+          const { svg } = await window.mermaid.render(renderId, mmd);
+          target.innerHTML = svg;
+        } catch (err) {
+          console.warn('Concept graph Mermaid render failed:', err);
+          target.innerHTML = `<pre style="font-size:0.75rem;white-space:pre-wrap;margin:0;">${escapeHtml(mmd)}</pre>`;
+        }
+      }, 60);
     }
   }
 
@@ -1679,6 +1756,49 @@ async function populateStudyCardModalDetails(card, docName, readOnly) {
       });
     } else {
       formulasSection.style.display = 'none';
+    }
+  }
+
+  // Populate Diagrams Section (AI-reconstructed Mermaid)
+  const diagramsSection = document.getElementById('study-card-diagrams-section');
+  const diagramsContainer = document.getElementById('study-card-diagrams-container');
+  if (diagramsSection && diagramsContainer) {
+    diagramsContainer.innerHTML = '';
+    const diagrams = card.diagrams || [];
+    if (Array.isArray(diagrams) && diagrams.length > 0) {
+      diagramsSection.style.display = 'block';
+      diagrams.forEach((d, idx) => {
+        const cardEl = document.createElement('div');
+        cardEl.className = 'diagram-card';
+        cardEl.style.cssText = 'background: var(--color-surface-elevated, #fff); border: 1px solid rgba(22,50,92,0.08); border-radius: 12px; padding: 1rem 1.1rem;';
+
+        const mermaidId = `study-card-mermaid-${card.id || 'preview'}-${idx}`;
+        cardEl.innerHTML = `
+          <h5 class="diagram-card-title" style="margin: 0 0 0.5rem 0; font-size: 0.95rem; color: var(--color-navy);">${escapeHtml(d.title || 'Diagram')}</h5>
+          ${d.description ? `<p class="diagram-card-desc" style="margin: 0 0 0.75rem 0; font-size: 0.85rem; color: var(--color-text-muted); line-height: 1.45;">${escapeHtml(d.description)}</p>` : ''}
+          <div id="${mermaidId}" class="diagram-mermaid-box" style="overflow-x: auto; background: #f8fafc; border-radius: 8px; padding: 0.75rem;"></div>
+        `;
+        diagramsContainer.appendChild(cardEl);
+
+        // Render Mermaid asynchronously (same engine already used in Kaynakla Sohbet)
+        setTimeout(async () => {
+          const target = document.getElementById(mermaidId);
+          if (!target || !d.mermaid || !window.mermaid) {
+            if (target) target.textContent = d.mermaid || '';
+            return;
+          }
+          try {
+            const renderId = `mmd-sc-${Date.now()}-${idx}`;
+            const { svg } = await window.mermaid.render(renderId, String(d.mermaid).trim());
+            target.innerHTML = svg;
+          } catch (err) {
+            console.warn('Study card Mermaid render failed:', err);
+            target.innerHTML = `<pre style="font-size:0.75rem;white-space:pre-wrap;color:#64748b;margin:0;">${escapeHtml(d.mermaid)}</pre>`;
+          }
+        }, 50 + idx * 30);
+      });
+    } else {
+      diagramsSection.style.display = 'none';
     }
   }
 
@@ -1908,7 +2028,7 @@ function switchDashboardView(viewId) {
   }
 
   // Update sidebar active classes immediately for responsiveness
-  const tabs = ['home', 'planner', 'docs', 'feed', 'notebook', 'cards', 'sourcehub', 'glossary', 'exams', 'settings', 'sandbox', 'acadexsunum', 'admin'];
+  const tabs = ['home', 'planner', 'docs', 'feed', 'notebook', 'cards', 'sourcehub', 'glossary', 'exams', 'presentation', 'settings', 'sandbox', 'admin'];
   tabs.forEach(tab => {
     const el = document.getElementById(`side-${tab}`);
     if (el) {
@@ -1981,40 +2101,18 @@ function loadViewContent(viewId) {
     loadGlossaryView();
   } else if (viewId === 'exams') {
     loadExamsPlatform();
+  } else if (viewId === 'presentation') {
+    loadPresentationStudio();
   } else if (viewId === 'settings') {
     loadSettingsView();
   } else if (viewId === 'sandbox') {
     sandboxProjectsLimit = 20;
     loadDeveloperSandbox();
-  } else if (viewId === 'acadexsunum') {
-    loadAcadexSunum();
   } else if (viewId === 'admin') {
     loadAdminPanel();
   }
 }
 window.switchDashboardView = switchDashboardView;
-
-// Acadex Sunum: a full presentation-building tool (its own self-contained
-// page, acadex-sunum.html — Tailwind/Fabric.js/jsPDF-based, re-themed to
-// Acadex's navy/teal palette) embedded via iframe rather than merged into
-// this SPA, since it assumes a full h-screen layout of its own. Loaded
-// lazily on first visit only, so its CDN scripts don't slow down every
-// dashboard page load. #acadexsunum-view.active gets a full-viewport CSS
-// override (see style.css) so it takes over the whole screen, matching
-// the tool's own full-page design; its in-page "Panele Dön" button calls
-// closeAcadexSunum() on this window via window.parent.
-function loadAcadexSunum() {
-  const iframe = document.getElementById('acadexsunum-iframe');
-  if (iframe && !iframe.dataset.loaded) {
-    iframe.src = 'acadex-sunum.html';
-    iframe.dataset.loaded = 'true';
-  }
-}
-
-function closeAcadexSunum() {
-  switchDashboardView('home');
-}
-window.closeAcadexSunum = closeAcadexSunum;
 let notebookCards = [];
 let isDrawing = false;
 let currentPenColor = '#000000';
@@ -4493,6 +4591,73 @@ function addSectionStickyNote(cardId, type, fileName) {
   }, 100);
 }
 window.addSectionStickyNote = addSectionStickyNote;
+
+// ==========================================
+// TAB: AKADEMIK SUNUM (Academic Presentation Studio)
+// ==========================================
+let presStudioInitialized = false;
+let presCurrentId = null;
+let presActiveSlide = 0;
+
+function loadPresentationStudio() {
+  initPresentationStudioOnce();
+  showPresentationListMode();
+}
+
+function initPresentationStudioOnce() {
+  if (presStudioInitialized) return;
+  presStudioInitialized = true;
+
+  const newBtn = document.getElementById('presentation-new-btn');
+  if (newBtn) {
+    newBtn.addEventListener('click', () => {
+      // Step 4 will create a real DB row; for now open empty studio UI
+      openPresentationStudio({ id: null, title: 'Adsız Sunum' });
+    });
+  }
+
+  const backBtn = document.getElementById('pres-back-btn');
+  if (backBtn) backBtn.addEventListener('click', showPresentationListMode);
+
+  document.querySelectorAll('.pres-layout-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.pres-layout-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+
+  const uploadZone = document.getElementById('pres-upload-zone');
+  const uploadBtn = document.getElementById('pres-upload-btn');
+  const imageInput = document.getElementById('pres-image-input');
+  if (uploadZone && imageInput) uploadZone.addEventListener('click', () => imageInput.click());
+  if (uploadBtn && imageInput) uploadBtn.addEventListener('click', () => imageInput.click());
+
+  document.getElementById('pres-slides-list')?.addEventListener('click', (e) => {
+    const thumb = e.target.closest('.pres-slide-thumb');
+    if (!thumb) return;
+    document.querySelectorAll('.pres-slide-thumb').forEach(t => t.classList.remove('active'));
+    thumb.classList.add('active');
+    presActiveSlide = parseInt(thumb.dataset.slideIndex || '0', 10);
+  });
+}
+
+function showPresentationListMode() {
+  const list = document.getElementById('pres-list-mode');
+  const studio = document.getElementById('pres-studio-mode');
+  if (list) list.style.display = '';
+  if (studio) studio.style.display = 'none';
+  presCurrentId = null;
+}
+
+function openPresentationStudio(presentation) {
+  const list = document.getElementById('pres-list-mode');
+  const studio = document.getElementById('pres-studio-mode');
+  if (list) list.style.display = 'none';
+  if (studio) studio.style.display = 'flex';
+  presCurrentId = presentation?.id || null;
+  const titleInput = document.getElementById('pres-title-input');
+  if (titleInput) titleInput.value = presentation?.title || 'Adsız Sunum';
+}
 
 // ==========================================
 // TAB 5: SINAV PLATFORMU (EXAM PLATFORM)
