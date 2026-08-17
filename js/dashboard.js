@@ -435,7 +435,10 @@ function renderDocumentsList() {
         progressPercent = 45;
       } else if (doc.processing_stage === 'synthesizing') {
         progressMsg = isTr ? 'Birleştiriliyor...' : 'Synthesizing summary...';
-        progressPercent = 62;
+        progressPercent = 58;
+      } else if (doc.processing_stage === 'sectioning') {
+        progressMsg = isTr ? 'Bölüm özetleri derinleştiriliyor...' : 'Deepening section summaries...';
+        progressPercent = 68;
       } else if (doc.processing_stage === 'draft_ready') {
         progressMsg = isTr ? 'Taslak hazır, kontrol ediliyor...' : 'Draft ready, reviewing...';
         progressPercent = 75;
@@ -1250,22 +1253,31 @@ window.renderFootnotesSectionHtml = renderFootnotesSectionHtml;
 // legitimately have fewer than 2 sections, in which case this renders
 // nothing and the plain summary below is unaffected — no forced structure.
 function renderSectionsOutlineHtml(sectionsArray, footnotesArray) {
-  if (!Array.isArray(sectionsArray) || sectionsArray.length < 2) return "";
+  // Madde 2: deep sections — show even with 1 section; hide only if empty
+  if (!Array.isArray(sectionsArray) || sectionsArray.length < 1) return "";
 
-  const itemsHtml = sectionsArray.map((sec, idx) => `
+  const itemsHtml = sectionsArray.map((sec, idx) => {
+    const kps = Array.isArray(sec?.key_points) ? sec.key_points.filter(Boolean) : [];
+    const kpHtml = kps.length
+      ? `<ul style="margin:0.5rem 0 0; padding-left:1.1rem; font-size:0.85rem; color:var(--color-navy);">${kps.map(p => `<li style="margin-bottom:0.25rem;">${escapeHtml(String(p))}</li>`).join('')}</ul>`
+      : '';
+    return `
     <div class="summary-section-item">
       <button type="button" class="summary-section-toggle" onclick="toggleSummarySection(this)">
         <span class="summary-section-num">${idx + 1}</span>
         <span class="summary-section-heading">${escapeHtml(sec?.heading || '')}</span>
         <span class="summary-section-chevron">▾</span>
       </button>
-      <div class="summary-section-body">${formatSummaryText(sec?.summary || '', footnotesArray)}</div>
-    </div>
-  `).join('');
+      <div class="summary-section-body">
+        ${formatSummaryText(sec?.summary || '', footnotesArray)}
+        ${kpHtml ? `<div style="margin-top:0.6rem; padding:0.5rem 0.65rem; background:rgba(31,138,147,0.06); border-radius:8px;"><div style="font-size:0.75rem; font-weight:800; color:var(--color-teal); margin-bottom:0.25rem;">Önemli noktalar</div>${kpHtml}</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
 
   return `
     <div class="summary-sections-outline">
-      <div class="summary-sections-title">📑 Bölümler / Sections</div>
+      <div class="summary-sections-title">📖 Bölüm Özetleri (Derin)</div>
       ${itemsHtml}
     </div>
   `;

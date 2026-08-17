@@ -532,7 +532,7 @@ Respond entirely in: '${langLabel}'.`
 function buildSynthesisSystemPrompt(courseCatalogBlock: string, langLabel: string, styleInstruction: string, summaryLengthPhrase: string): string {
   return `You are an academic study assistant. A large document was split into sequential parts and each part was already summarized independently. Below you are given all of those part-summaries, in order, plus a hint about what fraction were flagged as quantitative. Your job is to synthesize ONE cohesive, well-organized final summary of the ENTIRE document — write a genuinely unified narrative that flows across the whole document, not a mechanical concatenation of the part-summaries.
 
-Respond with ONLY a valid JSON object, no markdown fences, no commentary before or after: { "summary": string, "summary_executive": string, "document_type": string, "suggested_course_tag": string | null, "is_quantitative": boolean, "outline": { "document_title_guess": string, "items": [ { "id": string, "heading": string, "blurb": string, "level": number, "order": number, "parent_id": string | null } ] }, "sections": [ { "heading": string, "summary": string } ], "concept_graph": { "nodes": [ { "id": string, "label": string, "type": string } ], "edges": [ { "from": string, "to": string, "relation": string } ] } }.
+Respond with ONLY a valid JSON object, no markdown fences, no commentary before or after: { "summary": string, "summary_executive": string, "document_type": string, "suggested_course_tag": string | null, "is_quantitative": boolean, "outline": { "document_title_guess": string, "items": [ { "id": string, "heading": string, "blurb": string, "level": number, "order": number, "parent_id": string | null } ] }, "sections": [ { "heading": string, "summary": string, "key_points": [ string ], "outline_id": string | null } ], "concept_graph": { "nodes": [ { "id": string, "label": string, "type": string } ], "edges": [ { "from": string, "to": string, "relation": string } ] } }.
 
 EXECUTIVE SUMMARY:
 Write "summary_executive" as a 2-3 sentence ultra-short overview of the ENTIRE document — what a student would say if asked "what is this document about in 30 seconds?". No lists, no jargon overload.
@@ -552,8 +552,14 @@ From the part-summaries, build a unified concept_graph covering the whole docume
 DOCUMENT-TYPE CLASSIFICATION:
 Identify the overall document type as exactly one of: "Lecture Notes/Slides", "Academic Article", "Syllabus", "Case Study", "Textbook Chapter", or "Other".
 
-STRUCTURAL SECTIONS (aligned with outline):
-Also output "sections" as 2-8 items { "heading", "summary" } matching the major outline level-1 topics, with a 2-4 sentence academic summary each. Skip pure administration. If outline has items, sections should largely mirror those headings.
+SECTION PASS (deep per-topic summaries — aligned with outline):
+Output "sections" as 2-8 items matching major outline level-1 topics. Each item MUST be:
+{ "heading": "same as outline", "summary": "4-8 sentence DEEP academic summary of ONLY this topic — coherent paragraph(s), not a bullet dump; explain arguments, definitions, and why it matters", "key_points": ["3-6 concrete takeaways for this section only"], "outline_id": "o1" }
+Rules:
+- summary must be substantially longer and more specific than outline.blurb
+- Do not repeat the whole-document summary inside every section
+- Skip pure administration (grading, attendance, textbook edition)
+- If outline has items, sections should mirror those level-1 headings and set outline_id accordingly
 
 SUGGESTED COURSE TAG:
 Below is this student's OFFICIAL course catalog (format: CODE — Course Name):
@@ -587,6 +593,39 @@ function dedupeKeyTerms(terms: any[]): any[] {
     if (!seen.has(key)) seen.set(key, t)
   }
   return Array.from(seen.values())
+}
+
+/** Normalize deep sections: heading + long summary + key_points + outline_id */
+function normalizeSections(raw: any, outline?: { items?: any[] } | null): any[] {
+  const arr = Array.isArray(raw) ? raw : []
+  const outlineItems = outline?.items || []
+  return arr
+    .filter((s: any) => s && (s.heading || s.title))
+    .map((s: any, idx: number) => {
+      const heading = String(s.heading || s.title || '').trim()
+      const summary = String(s.summary || s.body || '').trim()
+      let keyPoints: string[] = []
+      if (Array.isArray(s.key_points)) {
+        keyPoints = s.key_points
+          .map((p: any) => String(typeof p === 'string' ? p : (p?.point || p?.text || '')).trim())
+          .filter(Boolean)
+      }
+      let outlineId = s.outline_id || s.outlineId || null
+      if (!outlineId && outlineItems.length) {
+        const match = outlineItems.find((o: any) =>
+          String(o.heading || '').toLowerCase() === heading.toLowerCase()
+        )
+        if (match) outlineId = match.id
+      }
+      return {
+        heading,
+        summary,
+        key_points: keyPoints.slice(0, 8),
+        outline_id: outlineId,
+        order: Number(s.order) || idx + 1
+      }
+    })
+    .filter((s: any) => s.heading.length > 0 && s.summary.length > 0)
 }
 
 /** Normalize outline from model output into a stable shape for study_cards.outline */
@@ -1111,7 +1150,7 @@ serve(async (req) => {
     const langLabel = lang === 'tr' ? 'Turkish / Türkçe' : 'English'
 
     // Part A: System prompt with document type classification & type specific guidance
-    const systemPrompt = `You are an academic study assistant. You will be given the raw text extracted from a student's uploaded document. Analyze it and respond with ONLY a valid JSON object, no markdown code fences, no commentary before or after — just the raw JSON object matching this exact shape: { "summary": string, "summary_executive": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "document_type": string, "tables": [ { "title": string, "headers": [ string ], "rows": [ [ string ] ] } ], "charts": [ { "title": string, "type": string, "labels": [ string ], "data": [ number ] } ], "footnotes": [ { "id": number, "reference": string, "page": number | null } ], "outline": { "document_title_guess": string, "items": [ { "id": string, "heading": string, "blurb": string, "level": number, "order": number, "parent_id": string | null } ] }, "sections": [ { "heading": string, "summary": string } ], "suggested_course_tag": string | null, "is_quantitative": boolean, "formulas": [ { "name": string, "latex": string, "variables": [ { "symbol": string, "meaning": string } ] } ], "worked_examples": [ { "title": string, "problem_statement": string, "steps": [ string ], "final_answer": string } ], "diagrams": [ { "title": string, "mermaid": string, "description": string } ], "concept_graph": { "nodes": [ { "id": string, "label": string, "type": string } ], "edges": [ { "from": string, "to": string, "relation": string } ] }, "cloze_cards": [ { "id": string, "prompt": string, "answer": string, "full_text": string } ] }.
+    const systemPrompt = `You are an academic study assistant. You will be given the raw text extracted from a student's uploaded document. Analyze it and respond with ONLY a valid JSON object, no markdown code fences, no commentary before or after — just the raw JSON object matching this exact shape: { "summary": string, "summary_executive": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "document_type": string, "tables": [ { "title": string, "headers": [ string ], "rows": [ [ string ] ] } ], "charts": [ { "title": string, "type": string, "labels": [ string ], "data": [ number ] } ], "footnotes": [ { "id": number, "reference": string, "page": number | null } ], "outline": { "document_title_guess": string, "items": [ { "id": string, "heading": string, "blurb": string, "level": number, "order": number, "parent_id": string | null } ] }, "sections": [ { "heading": string, "summary": string, "key_points": [ string ], "outline_id": string | null } ], "suggested_course_tag": string | null, "is_quantitative": boolean, "formulas": [ { "name": string, "latex": string, "variables": [ { "symbol": string, "meaning": string } ] } ], "worked_examples": [ { "title": string, "problem_statement": string, "steps": [ string ], "final_answer": string } ], "diagrams": [ { "title": string, "mermaid": string, "description": string } ], "concept_graph": { "nodes": [ { "id": string, "label": string, "type": string } ], "edges": [ { "from": string, "to": string, "relation": string } ] }, "cloze_cards": [ { "id": string, "prompt": string, "answer": string, "full_text": string } ] }.
 
 EXECUTIVE SUMMARY:
 Write "summary_executive" as a 2-3 sentence ultra-short overview — what a student would say if asked "what is this document about in 30 seconds?". No bullet lists.
@@ -1122,6 +1161,12 @@ Always produce "outline": { "document_title_guess": "...", "items": [ { "id": "o
 - Prefer real structure (intro, theory, methods, cases, conclusion…)
 - Never admin-only items (grading, attendance, textbook edition)
 - Even for a single-topic document, return 2-3 coarse outline items (not empty)
+
+SECTION PASS (deep per-topic summaries):
+Also produce "sections" aligned with outline level-1 items. Each:
+{ "heading": "...", "summary": "4-8 sentence DEEP academic summary of ONLY this topic — coherent prose, explain arguments and definitions", "key_points": ["3-6 takeaways for this section"], "outline_id": "o1" }
+- summary must be deeper than outline.blurb; do not paste the global summary into every section
+- Skip admin-only topics
 
 CONCEPT GRAPH:
 Extract the main academic concepts and how they relate. Output concept_graph with:
@@ -1756,7 +1801,36 @@ In addition to the text below, you are shown images of this document's pages. Us
         concept_graph: mergedConceptGraph,
         footnotes: mergedFootnotes,
         outline: normalizeOutline(synthesis.outline, synthesis.sections),
-        sections: Array.isArray(synthesis.sections) ? synthesis.sections : []
+        sections: normalizeSections(synthesis.sections, normalizeOutline(synthesis.outline, synthesis.sections))
+      }
+
+      // Madde 2: if sections are thin, run a dedicated SECTION PASS on chunk summaries
+      try {
+        const thin = !mergedDraft.sections.length ||
+          mergedDraft.sections.every((s: any) => (s.summary || '').length < 220)
+        if (thin && chunkResults.length > 0 && mergedDraft.outline?.items?.length > 0) {
+          await serviceClient.from('documents').update({ processing_stage: 'sectioning' }).eq('id', documentId)
+          const partDigest = chunkResults.map((r: any, i: number) =>
+            `Part ${i + 1}: ${(r.chunk_summary || '').slice(0, 500)}`
+          ).join('\n')
+          const outlineLines = (mergedDraft.outline.items || [])
+            .filter((it: any) => (it.level || 1) === 1)
+            .map((it: any) => `- [${it.id}] ${it.heading}: ${it.blurb || ''}`)
+            .join('\n')
+          const sectionSys = `You deepen section summaries for a long academic document. Given an OUTLINE and PART DIGESTS, write deep per-section summaries. Respond ONLY with JSON: { "sections": [ { "heading": string, "summary": string, "key_points": [ string ], "outline_id": string | null } ] }. Each summary must be 4-8 academic sentences about ONLY that section. key_points: 3-6 takeaways. Match outline level-1 headings. Language: ${langLabel}. No admin/logistics sections.`
+          const sectionUser = `OUTLINE:\n${outlineLines}\n\nPART DIGESTS:\n${partDigest.slice(0, 9000)}`
+          const deepened = await callGroqJson(groqApiKey, sectionSys, sectionUser, {
+            model: MODEL_FAST,
+            temperature: 0.25,
+            maxCompletionTokens: 3072,
+            timeoutMs: 28000,
+            maxRetries: 1
+          })
+          const norm = normalizeSections(deepened?.sections, mergedDraft.outline)
+          if (norm.length > 0) mergedDraft.sections = norm
+        }
+      } catch (secErr) {
+        console.warn('Madde 2 section deepen skipped:', secErr)
       }
 
       rawContent = JSON.stringify(mergedDraft)
@@ -1775,7 +1849,7 @@ FOOTNOTE PAGE NUMBERS: each footnote in the draft may already carry a "page" fie
 
 STRUCTURAL SECTIONS: the draft may already carry a "sections" array (a topic-based outline, each with its own heading + short blurb). Verify each section's summary is accurate against the source and doesn't just restate the whole document's summary verbatim — refine wording if needed, but PRESERVE the overall section breakdown (headings and count) unless it's clearly wrong (e.g. a section that's purely administrative content, which must be removed). Do not invent new sections not grounded in the source, and do not force sections into existence if the draft correctly left this array empty.
 
-Produce a REFINED, corrected final version in the exact same JSON format: { "summary": string, "summary_executive": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "document_type": string, "tables": [ { "title": string, "headers": [ string ], "rows": [ [ string ] ] } ], "charts": [ { "title": string, "type": string, "labels": [ string ], "data": [ number ] } ], "footnotes": [ { "id": number, "reference": string, "page": number | null } ], "outline": { "document_title_guess": string, "items": [ { "id": string, "heading": string, "blurb": string, "level": number, "order": number, "parent_id": string | null } ] }, "sections": [ { "heading": string, "summary": string } ], "suggested_course_tag": string | null, "is_quantitative": boolean, "formulas": [ { "name": string, "latex": string, "variables": [ { "symbol": string, "meaning": string } ] } ], "worked_examples": [ { "title": string, "problem_statement": string, "steps": [ string ], "final_answer": string } ], "diagrams": [ { "title": string, "mermaid": string, "description": string } ], "concept_graph": { "nodes": [ { "id": string, "label": string, "type": string } ], "edges": [ { "from": string, "to": string, "relation": string } ] }, "cloze_cards": [ { "id": string, "prompt": string, "answer": string, "full_text": string } ] }. If the draft was already accurate and complete, you may return it largely unchanged — only make genuine improvements, don't change things arbitrarily. Preserve summary_executive, outline, concept_graph, and cloze_cards; only fix clear errors.`
+Produce a REFINED, corrected final version in the exact same JSON format: { "summary": string, "summary_executive": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "document_type": string, "tables": [ { "title": string, "headers": [ string ], "rows": [ [ string ] ] } ], "charts": [ { "title": string, "type": string, "labels": [ string ], "data": [ number ] } ], "footnotes": [ { "id": number, "reference": string, "page": number | null } ], "outline": { "document_title_guess": string, "items": [ { "id": string, "heading": string, "blurb": string, "level": number, "order": number, "parent_id": string | null } ] }, "sections": [ { "heading": string, "summary": string, "key_points": [ string ], "outline_id": string | null } ], "suggested_course_tag": string | null, "is_quantitative": boolean, "formulas": [ { "name": string, "latex": string, "variables": [ { "symbol": string, "meaning": string } ] } ], "worked_examples": [ { "title": string, "problem_statement": string, "steps": [ string ], "final_answer": string } ], "diagrams": [ { "title": string, "mermaid": string, "description": string } ], "concept_graph": { "nodes": [ { "id": string, "label": string, "type": string } ], "edges": [ { "from": string, "to": string, "relation": string } ] }, "cloze_cards": [ { "id": string, "prompt": string, "answer": string, "full_text": string } ] }. If the draft was already accurate and complete, you may return it largely unchanged — only make genuine improvements, don't change things arbitrarily. Preserve summary_executive, outline, deep sections (with key_points), concept_graph, and cloze_cards; only fix clear errors.`
 
     function buildReviewUserPrompt(sourceBudgetChars: number): string {
       let trimmedSource = sourceTextForReview
@@ -1958,7 +2032,10 @@ ${rawContent}`
           20
         ),
         outline: normalizeOutline(parsedContent.outline, parsedContent.sections),
-        sections: Array.isArray(parsedContent.sections) ? parsedContent.sections : [],
+        sections: normalizeSections(
+          parsedContent.sections,
+          normalizeOutline(parsedContent.outline, parsedContent.sections)
+        ),
         summary_style: style,
         summary_language: lang,
         summary_length: len,
