@@ -2242,6 +2242,17 @@ function switchDashboardView(viewId) {
     }
   });
 
+  // Acadex Sunum takes over the full viewport (z-index: 5000) and has its
+  // own bottom-right tools panel — the floating Acadia and Focus Mode
+  // widgets (z-index: 99999) would otherwise render on top of it and
+  // collide with that panel. Hide them while Sunum is open, restore them
+  // (in their normal flex layout) on any other tab.
+  const acadiaWidget = document.getElementById('acadia-widget-container');
+  const pomodoroWidget = document.getElementById('pomodoro-widget-container');
+  const hideFloatingWidgets = (viewId === 'acadexsunum');
+  if (acadiaWidget) acadiaWidget.style.display = hideFloatingWidgets ? 'none' : 'flex';
+  if (pomodoroWidget) pomodoroWidget.style.display = hideFloatingWidgets ? 'none' : 'flex';
+
   const targetSection = document.getElementById(`${viewId}-view`);
   if (!targetSection) {
     currentActiveTab = viewId;
