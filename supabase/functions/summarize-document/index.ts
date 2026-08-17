@@ -1637,354 +1637,150 @@ In addition to the text below, you are shown images of this document's pages. Us
       }
     } else {
       // ========================================================================
-      // CHUNKED MAP-REDUCE PATH: long documents. Every character of the
-      // extracted text (up to MAX_CHUNKS chunks) is analyzed — nothing is
-      // silently dropped the way the old 40,000-char cutoff did. Visual
-      // analysis is not run on this path.
+      // RELIABLE LONG-DOC PATH (HOTFIX)
+      // 3 sequential windows with FULL study-card schema on HEAVY model.
+      // Avoids empty multi-chunk map failures that produced blank cards.
       // ========================================================================
       await serviceClient
         .from('documents')
         .update({ processing_stage: 'analyzing' })
         .eq('id', documentId)
 
-      const rawChunks = splitIntoChunks(extractedText, CHUNK_TARGET_SIZE)
-      let chunksToProcess = rawChunks
-      if (rawChunks.length > MAX_CHUNKS) {
-        console.warn(`Document produced ${rawChunks.length} chunks; capping to ${MAX_CHUNKS} — remaining content will not be analyzed.`)
-        chunksToProcess = rawChunks.slice(0, MAX_CHUNKS)
+      const WINDOW = 22000
+      const windows: string[] = []
+      for (let start = 0; start < extractedText.length && windows.length < 4; start += WINDOW) {
+        windows.push(extractedText.slice(start, start + WINDOW))
       }
-      console.log(`Chunked pipeline: processing ${chunksToProcess.length} chunk(s) for document ${documentId}.`)
+      console.log(`Reliable long-doc: ${windows.length} window(s), totalChars=${extractedText.length}`)
 
-      let chunkResults: any[]
-      try {
-        // HOTFIX: progress updates + wall-clock budget so long PDFs don't die mid-chunking
-        await serviceClient.from('documents').update({ processing_stage: 'chunking' }).eq('id', documentId)
-        const emptyChunk = () => ({
-          chunk_summary: '', key_terms: [], key_points: [], quiz_questions: [],
-          tables: [], charts: [], footnotes: [], is_quantitative: false,
-          formulas: [], worked_examples: [], diagrams: [],
-          concept_graph: { nodes: [], edges: [] }
-        })
-        chunkResults = new Array(chunksToProcess.length)
-        let nextIdx = 0
-        const workers = Array.from({ length: Math.min(CHUNK_CONCURRENCY, chunksToProcess.length) }, async () => {
-          while (true) {
-            const i = nextIdx++
-            if (i >= chunksToProcess.length) return
-            // Leave ~45s for synthesis + writer + save
-            if (budgetLeft() < 45_000) {
-              console.warn(`Budget low (${budgetLeft()}ms) — skipping remaining chunks from ${i}`)
-              for (let j = i; j < chunksToProcess.length; j++) {
-                if (!chunkResults[j]) chunkResults[j] = emptyChunk()
-              }
-              return
-            }
-            await serviceClient.from('documents')
-              .update({ processing_stage: `chunking:${i + 1}/${chunksToProcess.length}` })
-              .eq('id', documentId)
-            try {
-              chunkResults[i] = await callGroqJson(
-                groqApiKey,
-                buildChunkSystemPrompt(i, chunksToProcess.length, langLabel, hasPageMarkers, pageMarkerLabel),
-                chunksToProcess[i],
-                {
-                  model: MODEL_FAST,
-                  temperature: 0.25,
-                  maxCompletionTokens: CHUNK_MAX_COMPLETION,
-                  timeoutMs: Math.min(18000, Math.max(8000, budgetLeft() - 40_000)),
-                  maxRetries: 0
-                }
-              )
-            } catch (chunkErr) {
-              console.error(`Chunk ${i + 1}/${chunksToProcess.length} failed:`, chunkErr)
-              chunkResults[i] = emptyChunk()
-            }
-          }
-        })
-        await Promise.all(workers)
-        // Fill any holes
-        for (let i = 0; i < chunksToProcess.length; i++) {
-          if (!chunkResults[i]) chunkResults[i] = emptyChunk()
+      const windowResults: any[] = []
+      for (let wi = 0; wi < windows.length; wi++) {
+        if (budgetLeft() < 25_000 && wi > 0) {
+          console.warn(`Budget low — stopping windows at ${wi}/${windows.length}`)
+          break
         }
-      } catch (mapErr) {
-        console.error('Chunked map phase failed unexpectedly: ', mapErr)
+        await serviceClient.from('documents')
+          .update({ processing_stage: `chunking:${wi + 1}/${windows.length}` })
+          .eq('id', documentId)
+        try {
+          const winPrompt = systemPrompt + `\n\nLONG-DOCUMENT WINDOW ${wi + 1} of up to ${windows.length}: extract ALL key_terms, key_points, quiz_questions, formulas, and a concrete chunk-style summary of ONLY this window's text. Do not write meta text about missing drafts. Name real topics from the text.`
+          const result = await callGroqJson(
+            groqApiKey,
+            winPrompt,
+            windows[wi],
+            {
+              model: MODEL_HEAVY,
+              temperature: 0.2,
+              maxCompletionTokens: DRAFT_MAX_COMPLETION,
+              timeoutMs: Math.min(50000, Math.max(20000, budgetLeft() - 15000)),
+              maxRetries: 1
+            }
+          )
+          windowResults.push(result)
+          console.log(`Window ${wi + 1} ok: terms=${(result.key_terms || []).length} points=${(result.key_points || []).length} quiz=${(result.quiz_questions || []).length}`)
+        } catch (winErr) {
+          console.error(`Window ${wi + 1} failed:`, winErr)
+        }
+      }
+
+      if (windowResults.length === 0) {
+        console.error('All long-doc windows failed')
         await markFailed(serviceClient, documentId)
-        return new Response(JSON.stringify({ error: 'Our AI service is experiencing high demand right now — please try again in a moment' }), {
+        return new Response(JSON.stringify({
+          error: 'AI servisi uzun belgeyi işleyemedi. Lütfen 1 dk sonra tekrar deneyin. / AI failed on long document — retry shortly.'
+        }), {
           status: 503,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
       }
 
-      // HOTFIX: if most chunks came back empty (API fail / budget skip), recover with a single-pass on the head of the document
-      const nonEmptyChunkCount = chunkResults.filter((r: any) => (r?.chunk_summary || '').trim().length > 40).length
-      console.log(`Chunk map quality: ${nonEmptyChunkCount}/${chunkResults.length} non-empty summaries`)
-      if (nonEmptyChunkCount < Math.max(1, Math.ceil(chunkResults.length * 0.3))) {
-        console.warn('HOTFIX: chunk map too empty — running single-pass recovery on document head')
-        try {
-          await serviceClient.from('documents').update({ processing_stage: 'analyzing' }).eq('id', documentId)
-          const recoveryText = extractedText.slice(0, 28000)
-          const recovery = await callGroqJson(
-            groqApiKey,
-            systemPrompt, // full single-pass schema (includes key_terms, quiz, etc.)
-            recoveryText,
-            { model: MODEL_HEAVY, temperature: 0.25, maxCompletionTokens: DRAFT_MAX_COMPLETION, timeoutMs: 45000, maxRetries: 1 }
-          )
-          // Rebuild chunkResults-like payload from recovery so merge path still works
-          chunkResults = [{
-            chunk_summary: recovery.summary || recovery.summary_executive || '',
-            key_terms: Array.isArray(recovery.key_terms) ? recovery.key_terms : [],
-            key_points: Array.isArray(recovery.key_points) ? recovery.key_points : [],
-            quiz_questions: Array.isArray(recovery.quiz_questions) ? recovery.quiz_questions : [],
-            tables: Array.isArray(recovery.tables) ? recovery.tables : [],
-            charts: Array.isArray(recovery.charts) ? recovery.charts : [],
-            footnotes: Array.isArray(recovery.footnotes) ? recovery.footnotes : [],
-            is_quantitative: !!recovery.is_quantitative,
-            formulas: Array.isArray(recovery.formulas) ? recovery.formulas : [],
-            worked_examples: Array.isArray(recovery.worked_examples) ? recovery.worked_examples : [],
-            diagrams: Array.isArray(recovery.diagrams) ? recovery.diagrams : [],
-            concept_graph: recovery.concept_graph || { nodes: [], edges: [] },
-            // stash full recovery for synthesis to prefer
-            _recovery_full: recovery
-          }]
-          console.log('HOTFIX recovery terms=', (recovery.key_terms || []).length, 'points=', (recovery.key_points || []).length)
-        } catch (recErr) {
-          console.error('HOTFIX single-pass recovery failed:', recErr)
-          await markFailed(serviceClient, documentId)
-          return new Response(JSON.stringify({
-            error: 'Özet çıkarılamadı — AI yanıtı boş kaldı. Lütfen tekrar deneyin / Summarization returned empty content. Please retry.'
-          }), {
-            status: 503,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          })
+      // Merge window extractions
+      const mergedKeyTerms = dedupeKeyTerms(windowResults.flatMap(r => Array.isArray(r.key_terms) ? r.key_terms : [])).slice(0, 40)
+      const mergedKeyPoints = dedupeByText(windowResults.flatMap(r => Array.isArray(r.key_points) ? r.key_points : []), (x: string) => x).slice(0, 35)
+      const mergedQuiz = dedupeByText(windowResults.flatMap(r => Array.isArray(r.quiz_questions) ? r.quiz_questions : []), (q: any) => q?.question || '').slice(0, 20)
+      const mergedTables = windowResults.flatMap(r => Array.isArray(r.tables) ? r.tables : []).slice(0, 20)
+      const mergedCharts = windowResults.flatMap(r => Array.isArray(r.charts) ? r.charts : []).slice(0, 15)
+      const mergedFormulas = windowResults.flatMap(r => Array.isArray(r.formulas) ? r.formulas : []).slice(0, 30)
+      const mergedWorkedExamples = windowResults.flatMap(r => Array.isArray(r.worked_examples) ? r.worked_examples : []).slice(0, 15)
+      const mergedDiagrams = windowResults.flatMap(r => Array.isArray(r.diagrams) ? r.diagrams : []).slice(0, 12)
+      const mergedFootnotes = windowResults.flatMap(r => Array.isArray(r.footnotes) ? r.footnotes : [])
+      const quantFraction = windowResults.filter(r => r.is_quantitative).length / windowResults.length
+
+      // Prefer best concrete summary among windows; synthesize if multiple
+      let bestSummary = ''
+      let bestExec = ''
+      let bestOutline: any = null
+      let bestSections: any[] = []
+      let bestGraph: any = { nodes: [], edges: [] }
+      let bestDocType = 'Other'
+      let bestCourse: any = null
+      for (const r of windowResults) {
+        const s = String(r.summary || '')
+        if (s.length > bestSummary.length) {
+          bestSummary = s
+          bestExec = String(r.summary_executive || bestExec)
+          bestOutline = r.outline || bestOutline
+          bestSections = Array.isArray(r.sections) ? r.sections : bestSections
+          bestGraph = r.concept_graph || bestGraph
+          bestDocType = r.document_type || bestDocType
+          bestCourse = r.suggested_course_tag ?? bestCourse
         }
       }
 
-      // Renumber each chunk's footnotes into one global sequence, in order,
-      // and rewrite any [n] markers in that chunk's text to match.
-      let footnoteOffset = 0
-      for (const result of chunkResults) {
-        const { footnotes, idMap } = remapChunkFootnotes(result, footnoteOffset)
-        result.footnotes = footnotes
-        result.chunk_summary = applyFootnoteRemap(result.chunk_summary, idMap)
-        result.key_points = (Array.isArray(result.key_points) ? result.key_points : []).map((p: string) => applyFootnoteRemap(p, idMap))
-        footnoteOffset += footnotes.length
-      }
-
-      // adaptiveTargets' caps grow with total character count, but for a
-      // document split into MANY chunks, a preset-based cap alone can
-      // saturate well before every chunk gets a fair share — round-robin
-      // interleaving takes item[0] from every chunk before item[1] from
-      // any, so slicing to (say) 25 across 24 chunks leaves most chunks
-      // only their FIRST item, silently dropping the rest even though
-      // nothing was actually a duplicate. chunkAwareCap() raises the
-      // ceiling to guarantee roughly `perChunk` items per chunk survive
-      // (bounded by an absolute ceiling so pathological inputs still
-      // produce a usable, not endless, list) — completeness over a
-      // preset number that was tuned for much shorter, single-pass docs.
-      const chunkCount = chunksToProcess.length
-      function chunkAwareCap(presetCap: number, perChunk: number, absoluteCeiling: number): number {
-        return Math.min(absoluteCeiling, Math.max(presetCap, Math.round(chunkCount * perChunk)))
-      }
-      const keyTermsCap = chunkAwareCap(adaptiveTargets.keyTerms[1], 1.5, 60)
-      const keyPointsCap = chunkAwareCap(adaptiveTargets.keyPoints[1], 1.5, 55)
-      const quizCap = chunkAwareCap(adaptiveTargets.quizQuestions[1], 1, 30)
-      const tablesCap = chunkAwareCap(15, 1, 40)
-      const chartsCap = chunkAwareCap(10, 0.75, 30)
-      const formulasCap = chunkAwareCap(20, 1.5, 60)
-      const workedExamplesCap = chunkAwareCap(10, 0.75, 30)
-      const diagramsCap = chunkAwareCap(8, 0.75, 20)
-
-      const interleavedKeyTerms = dedupeKeyTerms(roundRobinInterleave(chunkResults.map(r => Array.isArray(r.key_terms) ? r.key_terms : [])))
-      const interleavedKeyPoints = dedupeByText(roundRobinInterleave(chunkResults.map(r => Array.isArray(r.key_points) ? r.key_points : [])), (x: string) => x)
-      const interleavedQuiz = dedupeByText(roundRobinInterleave(chunkResults.map(r => Array.isArray(r.quiz_questions) ? r.quiz_questions : [])), (q: any) => q?.question || '')
-      const flatTables = chunkResults.flatMap(r => Array.isArray(r.tables) ? r.tables : [])
-      const flatCharts = chunkResults.flatMap(r => Array.isArray(r.charts) ? r.charts : [])
-      const flatFormulas = chunkResults.flatMap(r => Array.isArray(r.formulas) ? r.formulas : [])
-      const flatWorkedExamples = chunkResults.flatMap(r => Array.isArray(r.worked_examples) ? r.worked_examples : [])
-      const flatDiagrams = chunkResults.flatMap(r => Array.isArray(r.diagrams) ? r.diagrams : [])
-
-      const mergedKeyTerms = interleavedKeyTerms.slice(0, keyTermsCap)
-      const mergedKeyPoints = interleavedKeyPoints.slice(0, keyPointsCap)
-      const mergedQuiz = interleavedQuiz.slice(0, quizCap)
-      const mergedTables = flatTables.slice(0, tablesCap)
-      const mergedCharts = flatCharts.slice(0, chartsCap)
-      const mergedFormulas = flatFormulas.slice(0, formulasCap)
-      const mergedWorkedExamples = flatWorkedExamples.slice(0, workedExamplesCap)
-      const mergedDiagrams = flatDiagrams.slice(0, diagramsCap)
-      const mergedFootnotes = chunkResults.flatMap(r => Array.isArray(r.footnotes) ? r.footnotes : [])
-
-      // No silent caps: log exactly what (if anything) still got trimmed,
-      // so a genuinely pathological document's data loss is visible in the
-      // Edge Function logs rather than invisible.
-      if (interleavedKeyTerms.length > keyTermsCap || interleavedKeyPoints.length > keyPointsCap || interleavedQuiz.length > quizCap ||
-          flatTables.length > tablesCap || flatCharts.length > chartsCap || flatFormulas.length > formulasCap || flatWorkedExamples.length > workedExamplesCap ||
-          flatDiagrams.length > diagramsCap) {
-        console.warn(`Chunked merge truncation for document ${documentId} (${chunkCount} chunks): ` +
-          `key_terms ${interleavedKeyTerms.length}->${mergedKeyTerms.length}, key_points ${interleavedKeyPoints.length}->${mergedKeyPoints.length}, ` +
-          `quiz ${interleavedQuiz.length}->${mergedQuiz.length}, tables ${flatTables.length}->${mergedTables.length}, ` +
-          `charts ${flatCharts.length}->${mergedCharts.length}, formulas ${flatFormulas.length}->${mergedFormulas.length}, ` +
-          `worked_examples ${flatWorkedExamples.length}->${mergedWorkedExamples.length}, diagrams ${flatDiagrams.length}->${mergedDiagrams.length}`)
-      }
-      const quantFlaggedCount = chunkResults.filter(r => r.is_quantitative).length
-      const quantFraction = chunkResults.length > 0 ? quantFlaggedCount / chunkResults.length : 0
-
-      const [sLo, sHi] = adaptiveTargets.summarySentences
-      const summaryLengthPhrase = len === 'short'
-        ? `Write a concise final summary in ${sLo}-${sHi} sentences.`
-        : len === 'detailed'
-          ? `Write a thorough final summary in ${sLo}-${sHi} sentences, synthesizing across all parts.`
-          : `Write a balanced final summary in ${sLo}-${sHi} sentences, synthesizing across all parts.`
-
-      // If single-pass recovery already produced a full card, use it as synthesis
-      let synthesis: any
-      const recoveryFull = chunkResults.length === 1 && chunkResults[0]?._recovery_full
-        ? chunkResults[0]._recovery_full
-        : null
-      if (recoveryFull && (recoveryFull.summary || '').length > 80) {
-        console.log('HOTFIX: using recovery object as synthesis')
-        synthesis = recoveryFull
-      } else {
-        // Enrich weak chunk summaries with raw text samples so synthesis is never pure empty
-        const synthesisUserContent = `Fraction of parts flagged quantitative: ${Math.round(quantFraction * 100)}%\n\n` +
-          chunkResults.map((r, i) => {
-            const sum = (r.chunk_summary || '').trim()
-            if (sum.length > 40) return `Part ${i + 1}/${chunkResults.length}:\n${sum}`
-            const sample = (chunksToProcess[i] || '').slice(0, 1200)
-            return `Part ${i + 1}/${chunkResults.length}:\n(no model summary — raw excerpt follows)\n${sample}`
-          }).join('\n\n')
-
+      // Light synthesis of window summaries when we have 2+
+      if (windowResults.length >= 2 && budgetLeft() > 30_000) {
         try {
           await serviceClient.from('documents').update({ processing_stage: 'synthesizing' }).eq('id', documentId)
-          synthesis = await callGroqJson(
+          const partDigests = windowResults.map((r, i) =>
+            `Part ${i + 1}:\n${String(r.summary || r.summary_executive || '').slice(0, 1500)}`
+          ).join('\n\n')
+          const syn = await callGroqJson(
             groqApiKey,
-            buildSynthesisSystemPrompt(courseCatalogBlock, langLabel, styleInstruction, summaryLengthPhrase),
-            synthesisUserContent.slice(0, 24000),
-            { model: MODEL_HEAVY, temperature: 0.3, maxCompletionTokens: SYNTHESIS_MAX_COMPLETION, timeoutMs: 30000, maxRetries: 1 }
+            buildSynthesisSystemPrompt(courseCatalogBlock, langLabel, styleInstruction,
+              len === 'short' ? 'Write 3-5 sentences.' : 'Write 5-10 sentences synthesizing all parts with concrete topic names.'),
+            `Fraction quantitative: ${Math.round(quantFraction * 100)}%\n\n${partDigests}\n\nKnown key terms:\n${mergedKeyTerms.slice(0, 15).map((t: any) => t.term).join(', ')}`,
+            { model: MODEL_HEAVY, temperature: 0.25, maxCompletionTokens: SYNTHESIS_MAX_COMPLETION, timeoutMs: 35000, maxRetries: 1 }
           )
-        } catch (synthesisErr) {
-          console.error('Synthesis call failed: ', synthesisErr)
-          await markFailed(serviceClient, documentId)
-          return new Response(JSON.stringify({ error: 'Our AI service is experiencing high demand right now — please try again in a moment' }), {
-            status: 503,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          })
+          if (syn?.summary && String(syn.summary).length > 80) bestSummary = String(syn.summary)
+          if (syn?.summary_executive) bestExec = String(syn.summary_executive)
+          if (syn?.outline) bestOutline = syn.outline
+          if (Array.isArray(syn?.sections) && syn.sections.length) bestSections = syn.sections
+          if (syn?.concept_graph?.nodes?.length) bestGraph = syn.concept_graph
+          if (syn?.document_type) bestDocType = syn.document_type
+          if (syn?.suggested_course_tag !== undefined) bestCourse = syn.suggested_course_tag
+        } catch (synErr) {
+          console.warn('Window synthesis skipped, using best window summary:', synErr)
         }
       }
 
-      // Prefer synthesis-level concept_graph (unified); fall back to merging chunk graphs
-      let mergedConceptGraph = (synthesis.concept_graph && Array.isArray(synthesis.concept_graph.nodes))
-        ? synthesis.concept_graph
-        : { nodes: [], edges: [] }
-      if ((!mergedConceptGraph.nodes || mergedConceptGraph.nodes.length === 0)) {
-        const allNodes: any[] = []
-        const allEdges: any[] = []
-        const seenNode = new Set<string>()
-        chunkResults.forEach((r, ci) => {
-          const g = r.concept_graph || { nodes: [], edges: [] }
-          ;(g.nodes || []).forEach((n: any) => {
-            const id = `p${ci + 1}_${n.id || n.label}`
-            if (!seenNode.has(String(n.label || '').toLowerCase())) {
-              seenNode.add(String(n.label || '').toLowerCase())
-              allNodes.push({ id, label: n.label, type: n.type || 'concept' })
-            }
-          })
-          ;(g.edges || []).forEach((e: any) => {
-            allEdges.push({ from: `p${ci + 1}_${e.from}`, to: `p${ci + 1}_${e.to}`, relation: e.relation || 'related_to' })
-          })
-        })
-        mergedConceptGraph = { nodes: allNodes.slice(0, 20), edges: allEdges.slice(0, 30) }
-      }
-
-      // Prefer recovery extractions when chunk merge was empty
-      const finalKeyTerms = mergedKeyTerms.length > 0
-        ? mergedKeyTerms
-        : (Array.isArray(synthesis.key_terms) ? synthesis.key_terms : [])
-      const finalKeyPoints = mergedKeyPoints.length > 0
-        ? mergedKeyPoints
-        : (Array.isArray(synthesis.key_points) ? synthesis.key_points : [])
-      const finalQuiz = mergedQuiz.length > 0
-        ? mergedQuiz
-        : (Array.isArray(synthesis.quiz_questions) ? synthesis.quiz_questions : [])
-
+      // If still no terms, force them from best window attempt was already merged — last resort from summary text is not needed
       const mergedDraft = {
-        summary: synthesis.summary || '',
-        summary_executive: synthesis.summary_executive || '',
-        document_type: synthesis.document_type || 'Other',
-        suggested_course_tag: synthesis.suggested_course_tag ?? null,
-        is_quantitative: synthesis.is_quantitative ?? (quantFraction >= 0.5),
-        key_terms: finalKeyTerms,
-        key_points: finalKeyPoints,
-        quiz_questions: finalQuiz,
-        tables: Array.isArray(synthesis.tables) && synthesis.tables.length ? synthesis.tables : mergedTables,
+        summary: bestSummary || windowResults.map(r => r.summary || '').join('\n\n'),
+        summary_executive: bestExec || '',
+        document_type: bestDocType || 'Other',
+        suggested_course_tag: bestCourse ?? null,
+        is_quantitative: quantFraction >= 0.4,
+        key_terms: mergedKeyTerms,
+        key_points: mergedKeyPoints,
+        quiz_questions: mergedQuiz,
+        tables: mergedTables,
         charts: mergedCharts,
         formulas: mergedFormulas,
         worked_examples: mergedWorkedExamples,
         diagrams: mergedDiagrams,
-        concept_graph: mergedConceptGraph,
+        concept_graph: bestGraph || { nodes: [], edges: [] },
         footnotes: mergedFootnotes,
-        outline: normalizeOutline(synthesis.outline, synthesis.sections),
-        sections: normalizeSections(synthesis.sections, normalizeOutline(synthesis.outline, synthesis.sections))
+        outline: normalizeOutline(bestOutline, bestSections),
+        sections: normalizeSections(bestSections, normalizeOutline(bestOutline, bestSections)),
+        cloze_cards: [] as any[]
       }
 
-      // Madde 2 + Madde 6: section deepen (skip on brief; force on deep/exam)
-      try {
-        const thin = !mergedDraft.sections.length ||
-          mergedDraft.sections.every((s: any) => (s.summary || '').length < 220)
-        const shouldDeepen = !depthFlags.skipSectionDeepen && chunkResults.length > 0 &&
-          mergedDraft.outline?.items?.length > 0 &&
-          (depthFlags.forceSectionDeepen || thin) &&
-          budgetLeft() > 50_000
-        if (shouldDeepen) {
-          await serviceClient.from('documents').update({ processing_stage: 'sectioning' }).eq('id', documentId)
-          // Long-doc intelligence: rank chunk digests by overlap with outline headings
-          const outlineHeads = (mergedDraft.outline.items || [])
-            .map((it: any) => String(it.heading || '').toLowerCase())
-            .filter(Boolean)
-          const scored = chunkResults.map((r: any, i: number) => {
-            const text = String(r.chunk_summary || '').toLowerCase()
-            let score = 0
-            outlineHeads.forEach((h: string) => { if (h.length > 3 && text.includes(h)) score += 2 })
-            // Prefer middle/end chunks slightly for "deep" (less cover-page fluff)
-            if (depthFlags.selectiveLongDoc && i > 0) score += 0.5
-            return { i, r, score }
-          })
-          scored.sort((a, b) => b.score - a.score)
-          const pickN = depthFlags.forceSectionDeepen ? Math.min(scored.length, 12) : Math.min(scored.length, 8)
-          const picked = scored.slice(0, pickN).sort((a, b) => a.i - b.i)
-          const partDigest = picked.map(({ i, r }) =>
-            `Part ${i + 1}: ${(r.chunk_summary || '').slice(0, depthFlags.forceSectionDeepen ? 700 : 500)}`
-          ).join('\n')
-          const outlineLines = (mergedDraft.outline.items || [])
-            .filter((it: any) => (it.level || 1) === 1)
-            .map((it: any) => `- [${it.id}] ${it.heading}: ${it.blurb || ''}`)
-            .join('\n')
-          const depthHint = depthFlags.forceSectionDeepen
-            ? 'Each section summary: 6-10 rich academic sentences + 4-7 key_points.'
-            : 'Each section summary: 4-8 academic sentences + 3-6 key_points.'
-          const examHint = depthFlags.examBias
-            ? ' Prefer exam-testable facts, definitions, and contrasts in key_points.'
-            : ''
-          const sectionSys = `You deepen section summaries for a long academic document. Given an OUTLINE and PART DIGESTS, write deep per-section summaries. Respond ONLY with JSON: { "sections": [ { "heading": string, "summary": string, "key_points": [ string ], "outline_id": string | null } ] }. ${depthHint}${examHint} Match outline level-1 headings. Language: ${langLabel}. No admin/logistics sections.`
-          const sectionUser = `OUTLINE:\n${outlineLines}\n\nPART DIGESTS (relevance-ranked for this document):\n${partDigest.slice(0, depthFlags.forceSectionDeepen ? 12000 : 9000)}`
-          const deepened = await callGroqJson(groqApiKey, sectionSys, sectionUser, {
-            model: MODEL_FAST,
-            temperature: 0.25,
-            maxCompletionTokens: depthFlags.forceSectionDeepen ? 4096 : 3072,
-            timeoutMs: 30000,
-            maxRetries: 1
-          })
-          const norm = normalizeSections(deepened?.sections, mergedDraft.outline)
-          if (norm.length > 0) mergedDraft.sections = norm
-        }
-      } catch (secErr) {
-        console.warn('Madde 2 section deepen skipped:', secErr)
-      }
+      console.log(`Long-doc merge: terms=${mergedKeyTerms.length} points=${mergedKeyPoints.length} quiz=${mergedQuiz.length} summaryLen=${(mergedDraft.summary || '').length}`)
 
       rawContent = JSON.stringify(mergedDraft)
-
-      sourceTextForReview = chunkResults.map((r, i) => `Part ${i + 1}: ${r.chunk_summary || ''}`).join('\n\n')
+      sourceTextForReview = windowResults.map((r, i) => `Part ${i + 1}: ${String(r.summary || '').slice(0, 800)}`).join('\n\n')
       if (sourceTextForReview.length > 6000) {
-        sourceTextForReview = sourceTextForReview.substring(0, 6000) + " [truncated for review]"
+        sourceTextForReview = sourceTextForReview.substring(0, 6000) + ' [truncated for review]'
       }
     }
 
@@ -2361,7 +2157,7 @@ Fix the listed issues. Remove hallucinations and admin noise. Keep ${langLabel}.
     }
     delete parsedContent.quality_gate
 
-    // HOTFIX: never save an empty / meta-only study card
+    // HOTFIX: reject only truly empty OR pure-meta with no extractions
     {
       const sum = String(parsedContent.summary || '')
       const terms = Array.isArray(parsedContent.key_terms) ? parsedContent.key_terms : []
@@ -2369,64 +2165,87 @@ Fix the listed issues. Remove hallucinations and admin noise. Keep ${langLabel}.
       const quiz = Array.isArray(parsedContent.quiz_questions) ? parsedContent.quiz_questions : []
       const metaRe = /sağlanmamış|sağlanmamıştır|no (detailed )?draft|taslak.*sağlan|içerik taslağı|qualitative overview|scholarly landscape|only a general framework|genel bir çerçevesi/i
       const isMeta = metaRe.test(sum) || metaRe.test(String(parsedContent.summary_executive || ''))
-      const isEmpty = terms.length === 0 && points.length === 0 && quiz.length === 0 && sum.trim().length < 120
-      if (isMeta || isEmpty) {
+      const hasExtractions = terms.length > 0 || points.length > 0 || quiz.length > 0
+      const isEmpty = !hasExtractions && sum.trim().length < 80
+      // If meta but we have real terms/points, strip meta summary is still bad — fail only if no extractions
+      if (isEmpty || (isMeta && !hasExtractions)) {
         console.error('HOTFIX: refusing to save empty/meta study card', { isMeta, isEmpty, terms: terms.length, points: points.length, quiz: quiz.length, sumLen: sum.length })
         await markFailed(serviceClient, documentId)
         return new Response(JSON.stringify({
-          error: 'Özet içeriği boş kaldı (terim/nokta çıkmadı). Lütfen tekrar deneyin — Standart derinlik önerilir. / Summary was empty. Please retry with Standard depth.'
+          error: 'Özet içeriği boş kaldı. Lütfen tekrar deneyin. / Summary was empty — please retry.'
         }), {
           status: 503,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
+      }
+      if (isMeta && hasExtractions) {
+        // Keep extractions; replace meta summary with a short concrete fallback from terms
+        const termList = terms.slice(0, 8).map((t: any) => t?.term || t).filter(Boolean).join(', ')
+        parsedContent.summary = lang === 'tr'
+          ? `Bu belge şu başlıca konuları kapsar: ${termList}. Aşağıdaki ana noktalar ve terimler çalışmak için çıkarılmıştır.`
+          : `This document covers: ${termList}. Key points and terms were extracted for study.`
+        parsedContent.summary_executive = termList.slice(0, 200)
+        console.warn('HOTFIX: replaced meta summary, kept extractions')
       }
     }
 
     // ==========================================================================
     // STEP 4 — SAVE STUDY CARD & UPDATE STATUS
     // ==========================================================================
-    const { data: newCard, error: cardError } = await serviceClient
-      .from('study_cards')
-      .insert({
-        document_id: documentId,
-        user_id: document.user_id,
-        summary: parsedContent.summary || '',
-        summary_executive: parsedContent.summary_executive || '',
-        key_terms: parsedContent.key_terms || [],
-        key_points: parsedContent.key_points || [],
-        quiz_questions: parsedContent.quiz_questions || [],
-        tables: parsedContent.tables || [],
-        charts: parsedContent.charts || [],
-        footnotes: parsedContent.footnotes || [],
-        suggested_course_tag: parsedContent.suggested_course_tag || null,
-        is_quantitative: parsedContent.is_quantitative ?? false,
-        formulas: Array.isArray(parsedContent.formulas) ? parsedContent.formulas : [],
-        worked_examples: Array.isArray(parsedContent.worked_examples) ? parsedContent.worked_examples : [],
-        diagrams: Array.isArray(parsedContent.diagrams) ? parsedContent.diagrams : [],
-        concept_graph: (parsedContent.concept_graph && typeof parsedContent.concept_graph === 'object')
-          ? parsedContent.concept_graph
-          : { nodes: [], edges: [] },
-        cloze_cards: buildClozeCards(
-          parsedContent.cloze_cards,
-          Array.isArray(parsedContent.key_terms) ? parsedContent.key_terms : [],
-          Array.isArray(parsedContent.key_points) ? parsedContent.key_points : [],
-          20
-        ),
-        outline: normalizeOutline(parsedContent.outline, parsedContent.sections),
-        sections: normalizeSections(
-          parsedContent.sections,
-          normalizeOutline(parsedContent.outline, parsedContent.sections)
-        ),
-        summary_style: style,
-        summary_language: lang,
-        summary_length: len,
-        document_type: parsedContent.document_type || 'Other',
-        visual_analysis: visualAnalysisUsed,
-        course_tag: document.course_tag ?? null,  // Phase 17A: propagate parent doc's tag
-        quality_meta: qualityMeta
-      })
-      .select('id')
-      .single()
+    const cardPayload: Record<string, unknown> = {
+      document_id: documentId,
+      user_id: document.user_id,
+      summary: parsedContent.summary || '',
+      summary_executive: parsedContent.summary_executive || '',
+      key_terms: parsedContent.key_terms || [],
+      key_points: parsedContent.key_points || [],
+      quiz_questions: parsedContent.quiz_questions || [],
+      tables: parsedContent.tables || [],
+      charts: parsedContent.charts || [],
+      footnotes: parsedContent.footnotes || [],
+      suggested_course_tag: parsedContent.suggested_course_tag || null,
+      is_quantitative: parsedContent.is_quantitative ?? false,
+      formulas: Array.isArray(parsedContent.formulas) ? parsedContent.formulas : [],
+      worked_examples: Array.isArray(parsedContent.worked_examples) ? parsedContent.worked_examples : [],
+      diagrams: Array.isArray(parsedContent.diagrams) ? parsedContent.diagrams : [],
+      concept_graph: (parsedContent.concept_graph && typeof parsedContent.concept_graph === 'object')
+        ? parsedContent.concept_graph
+        : { nodes: [], edges: [] },
+      cloze_cards: buildClozeCards(
+        parsedContent.cloze_cards,
+        Array.isArray(parsedContent.key_terms) ? parsedContent.key_terms : [],
+        Array.isArray(parsedContent.key_points) ? parsedContent.key_points : [],
+        20
+      ),
+      outline: normalizeOutline(parsedContent.outline, parsedContent.sections),
+      sections: normalizeSections(
+        parsedContent.sections,
+        normalizeOutline(parsedContent.outline, parsedContent.sections)
+      ),
+      summary_style: style,
+      summary_language: lang,
+      summary_length: len,
+      document_type: parsedContent.document_type || 'Other',
+      visual_analysis: visualAnalysisUsed,
+      course_tag: document.course_tag ?? null,
+      quality_meta: qualityMeta
+    }
+
+    let newCard: any = null
+    let cardError: any = null
+    {
+      const res = await serviceClient.from('study_cards').insert(cardPayload).select('id').single()
+      newCard = res.data
+      cardError = res.error
+    }
+    // If quality_meta column missing, retry without it
+    if (cardError && /quality_meta/i.test(String(cardError.message || cardError.details || ''))) {
+      console.warn('quality_meta column missing — retrying insert without it')
+      delete cardPayload.quality_meta
+      const res2 = await serviceClient.from('study_cards').insert(cardPayload).select('id').single()
+      newCard = res2.data
+      cardError = res2.error
+    }
 
     if (cardError) {
       console.error('Failed to save study card: ', cardError)
