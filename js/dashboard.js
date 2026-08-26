@@ -975,6 +975,13 @@ function openSummaryStyleModal() {
   if (standardRadio) standardRadio.checked = true;
   const enRadio = document.querySelector('input[name="summary-language-choice"][value="en"]');
   if (enRadio) enRadio.checked = true;
+  // Reset Depth to its default too — previously only Style/Language were reset
+  // here, so a "Sınav" (exam) depth picked for one document could silently
+  // carry over into the modal for the NEXT document while Style had already
+  // been reset back to "Standard", leaving the two controls contradicting
+  // each other the moment the modal reopened.
+  const standardDepthRadio = document.querySelector('input[name="summary-depth-choice"][value="standard"]');
+  if (standardDepthRadio) standardDepthRadio.checked = true;
 
   // Visual check
   const visualContainer = document.getElementById('visual-analysis-container');
@@ -1017,6 +1024,35 @@ function closeSummaryStyleModal() {
 }
 window.closeSummaryStyleModal = closeSummaryStyleModal;
 
+// Depth (Kısa/Standart/Derin/Sınav) is the single control for "how long/deep
+// should this summary be" — it replaces the old separate Length selector.
+// This mapping is the client-side mirror of the exact same derivation the
+// summarize-document edge function already does server-side, so what the
+// user sees selected matches what's actually generated.
+function depthToSummaryLength(depth) {
+  if (depth === 'brief') return 'short';
+  if (depth === 'deep') return 'detailed';
+  return 'medium'; // 'standard' and 'exam' both use the medium-length baseline
+}
+window.depthToSummaryLength = depthToSummaryLength;
+
+// Picking "Sınav" depth also switches the summary to the "Exam-Focused"
+// format — this used to happen silently inside proceedWithSummarization()
+// right before submit, so the Format radio never visibly changed and it
+// looked like the two sections disagreed. Doing it live, on selection,
+// makes the relationship visible instead of hidden. Only auto-switches away
+// from "Standard" (the default) so it never overrides a style the user
+// deliberately picked.
+document.addEventListener('change', (e) => {
+  if (!e.target || e.target.name !== 'summary-depth-choice') return;
+  if (e.target.value !== 'exam') return;
+  const currentStyle = document.querySelector('input[name="summary-style-choice"]:checked');
+  if (currentStyle && currentStyle.value === 'standard') {
+    const examStyleRadio = document.querySelector('input[name="summary-style-choice"][value="exam_focused"]');
+    if (examStyleRadio) examStyleRadio.checked = true;
+  }
+});
+
 function summarizeDocument(docId) {
   activeSummarizingDocId = docId;
   openSummaryStyleModal();
@@ -1050,13 +1086,13 @@ async function proceedWithSummarization() {
   let summaryStyle = styleSelect ? styleSelect.value : 'standard';
   const langSelect = document.querySelector('input[name="summary-language-choice"]:checked');
   const language = langSelect ? langSelect.value : 'en';
-  const lengthSelect = document.querySelector('input[name="summary-length-choice"]:checked');
-  let summaryLength = lengthSelect ? lengthSelect.value : 'medium';
   const depthSelect = document.querySelector('input[name="summary-depth-choice"]:checked');
   const summaryDepth = depthSelect ? depthSelect.value : 'standard';
-  // Depth can nudge length/style for better defaults
-  if (summaryDepth === 'brief' && summaryLength === 'medium') summaryLength = 'short';
-  if (summaryDepth === 'deep' && summaryLength !== 'detailed') summaryLength = 'detailed';
+  // Length is derived from Depth (the old separate Length selector was
+  // removed since the two always represented the same underlying choice and
+  // could silently disagree). Style gets the same exam-focused fallback as a
+  // safety net, in case the live sync listener didn't fire for some reason.
+  const summaryLength = depthToSummaryLength(summaryDepth);
   if (summaryDepth === 'exam' && summaryStyle === 'standard') summaryStyle = 'exam_focused';
 
   if (isMergeSummarize) {

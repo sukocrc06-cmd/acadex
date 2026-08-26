@@ -1839,44 +1839,28 @@
           </div>
         </div>
 
-        <!-- Length Selector -->
+        <!-- Depth mode — this single control also determines the summary's length, -->
+        <!-- replacing the old separate Length selector (Short/Medium/Detailed) so the -->
+        <!-- two controls can no longer disagree with each other. -->
         <div style="padding-top: 0.6rem; border-top: 1px solid rgba(22, 50, 92, 0.06);">
-          <label data-i18n="dash.summarize.modal.length" style="display: block; font-size: 0.78rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.3rem; text-transform: uppercase; letter-spacing: 0.03em;">Length</label>
-          <div style="display: flex; gap: 1.25rem; align-items: center; flex-wrap: wrap;">
-            <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; color: var(--color-navy); cursor: pointer; font-weight: 600;">
-              <input type="radio" name="summary-length-choice" value="short" style="accent-color: var(--color-teal); cursor: pointer; width: 14px; height: 14px;">
-              <span data-i18n="dash.summarize.modal.length.short">Short</span>
-            </label>
-            <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; color: var(--color-navy); cursor: pointer; font-weight: 600;">
-              <input type="radio" name="summary-length-choice" value="medium" checked style="accent-color: var(--color-teal); cursor: pointer; width: 14px; height: 14px;">
-              <span data-i18n="dash.summarize.modal.length.medium">Medium</span>
-            </label>
-            <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; color: var(--color-navy); cursor: pointer; font-weight: 600;">
-              <input type="radio" name="summary-length-choice" value="detailed" style="accent-color: var(--color-teal); cursor: pointer; width: 14px; height: 14px;">
-              <span data-i18n="dash.summarize.modal.length.detailed">Detailed</span>
-            </label>
-          </div>
-        </div>
-
-        <!-- NotebookLM Madde 6: Depth mode -->
-        <div style="padding-top: 0.6rem; border-top: 1px solid rgba(22, 50, 92, 0.06);">
-          <label style="display: block; font-size: 0.78rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.35rem; text-transform: uppercase; letter-spacing: 0.03em;">Derinlik (NotebookLM)</label>
+          <label style="display: block; font-size: 0.78rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.1rem; text-transform: uppercase; letter-spacing: 0.03em;">Derinlik &amp; Uzunluk</label>
+          <p style="font-size: 0.68rem; color: var(--color-text-muted); margin: 0 0 0.4rem 0;">Bu seçim özetin hem derinliğini hem uzunluğunu belirler.</p>
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem;">
             <label style="display:flex; gap:0.4rem; align-items:flex-start; padding:0.45rem 0.55rem; border:1px solid rgba(22,50,92,0.1); border-radius:10px; cursor:pointer;">
               <input type="radio" name="summary-depth-choice" value="brief" style="margin-top:0.15rem; accent-color:var(--color-teal);">
-              <span><strong style="font-size:0.8rem; color:var(--color-navy);">Kısa</strong><br><span style="font-size:0.7rem; color:var(--color-text-muted);">Hızlı brief</span></span>
+              <span><strong style="font-size:0.8rem; color:var(--color-navy);">Kısa</strong><br><span style="font-size:0.7rem; color:var(--color-text-muted);">Hızlı brief (Short)</span></span>
             </label>
             <label style="display:flex; gap:0.4rem; align-items:flex-start; padding:0.45rem 0.55rem; border:1px solid rgba(22,50,92,0.1); border-radius:10px; cursor:pointer;">
               <input type="radio" name="summary-depth-choice" value="standard" checked style="margin-top:0.15rem; accent-color:var(--color-teal);">
-              <span><strong style="font-size:0.8rem; color:var(--color-navy);">Standart</strong><br><span style="font-size:0.7rem; color:var(--color-text-muted);">Dengeli</span></span>
+              <span><strong style="font-size:0.8rem; color:var(--color-navy);">Standart</strong><br><span style="font-size:0.7rem; color:var(--color-text-muted);">Dengeli (Medium)</span></span>
             </label>
             <label style="display:flex; gap:0.4rem; align-items:flex-start; padding:0.45rem 0.55rem; border:1px solid rgba(22,50,92,0.1); border-radius:10px; cursor:pointer;">
               <input type="radio" name="summary-depth-choice" value="deep" style="margin-top:0.15rem; accent-color:var(--color-teal);">
-              <span><strong style="font-size:0.8rem; color:var(--color-navy);">Derin</strong><br><span style="font-size:0.7rem; color:var(--color-text-muted);">50+ sayfa</span></span>
+              <span><strong style="font-size:0.8rem; color:var(--color-navy);">Derin</strong><br><span style="font-size:0.7rem; color:var(--color-text-muted);">50+ sayfa (Detailed)</span></span>
             </label>
             <label style="display:flex; gap:0.4rem; align-items:flex-start; padding:0.45rem 0.55rem; border:1px solid rgba(31,138,147,0.25); border-radius:10px; cursor:pointer; background:rgba(31,138,147,0.04);">
               <input type="radio" name="summary-depth-choice" value="exam" style="margin-top:0.15rem; accent-color:var(--color-teal);">
-              <span><strong style="font-size:0.8rem; color:var(--color-navy);">Sınav</strong><br><span style="font-size:0.7rem; color:var(--color-text-muted);">Quiz + cloze</span></span>
+              <span><strong style="font-size:0.8rem; color:var(--color-navy);">Sınav</strong><br><span style="font-size:0.7rem; color:var(--color-text-muted);">Quiz + cloze — Format'ı da "Exam-Focused" yapar</span></span>
             </label>
           </div>
         </div>
