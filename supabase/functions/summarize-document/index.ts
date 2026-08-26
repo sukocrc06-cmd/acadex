@@ -346,8 +346,22 @@ const CHUNK_MAX_COMPLETION = 1536 // slightly smaller → faster chunk map
 const SYNTHESIS_MAX_COMPLETION = 3072
 const DRAFT_MAX_COMPLETION = 4096
 const REVIEW_MAX_COMPLETION = 4096
-// Cap parallel chunk calls to reduce TPM bursts
-const CHUNK_CONCURRENCY = 2
+// Cap parallel chunk calls to reduce TPM bursts.
+// SPEED FIX: the long-document "windows" loop below used to await each
+// window's Groq call one at a time (effective concurrency of 1) even though
+// this constant existed — it was defined but never actually wired into that
+// loop. For an 8-window document at up to 40s per window, that meant up to
+// ~5 minutes just for this one stage, and it also meant the budgetLeft()
+// early-stop kicked in after only 2-3 windows on longer documents (worse
+// coverage, not just slower). The window loop now processes windows in
+// concurrent batches of this size instead, which cuts that stage's
+// wall-clock time roughly proportionally AND lets more windows complete
+// within the same PIPELINE_BUDGET_MS. 3 is a moderate step up from the
+// original (unused) value of 2 — each window's own extractWindow() retry
+// logic already backs off gracefully on 429s, so a modest concurrency bump
+// here trades a small increase in rate-limit retries for a large wall-clock
+// win, without the aggressiveness of a bigger jump.
+const CHUNK_CONCURRENCY = 3
 const MAX_CHUNKS = 12 // hard ceiling: prefer finishing over analyzing every page under Edge timeout
 // Soft wall-clock budget (ms) for the whole function — leave headroom under ~150s platform limit
 const PIPELINE_BUDGET_MS = 110_000
@@ -1713,10 +1727,16 @@ Rules:
         return null
       }
 
+      // SPEED FIX: process windows in concurrent batches (CHUNK_CONCURRENCY at
+      // a time) instead of one fully sequential Groq round-trip per window.
+      // Early-exit/budget checks now run between batches rather than between
+      // every single window — slightly less granular, but this is what turns
+      // an up-to-8x-sequential-calls stage into ~8/CHUNK_CONCURRENCY calls of
+      // wall-clock time, and lets more windows fit inside the same budget.
       const windowResults: any[] = []
-      for (let wi = 0; wi < windows.length; wi++) {
+      for (let batchStart = 0; batchStart < windows.length; batchStart += CHUNK_CONCURRENCY) {
         if (budgetLeft() < 20_000 && windowResults.length > 0) {
-          console.warn(`Budget low — stopping at window ${wi}`)
+          console.warn(`Budget low — stopping before batch starting at window ${batchStart}`)
           break
         }
         // Enough good extractions already?
@@ -1727,15 +1747,25 @@ Rules:
             break
           }
         }
+
+        const batchEnd = Math.min(batchStart + CHUNK_CONCURRENCY, windows.length)
         await serviceClient.from('documents')
-          .update({ processing_stage: `chunking:${wi + 1}/${windows.length}` })
+          .update({ processing_stage: `chunking:${batchEnd}/${windows.length}` })
           .eq('id', documentId)
-        const result = await extractWindow(wi, windows[wi])
-        if (result) {
-          // Normalize alternate field names
-          if (!result.summary && result.chunk_summary) result.summary = result.chunk_summary
-          windowResults.push(result)
-          console.log(`Window ${wi + 1} ok: terms=${(result.key_terms || []).length} points=${(result.key_points || []).length} quiz=${(result.quiz_questions || []).length}`)
+
+        const batchIndices: number[] = []
+        for (let wi = batchStart; wi < batchEnd; wi++) batchIndices.push(wi)
+
+        const batchResults = await Promise.all(batchIndices.map(wi => extractWindow(wi, windows[wi])))
+        for (let bi = 0; bi < batchResults.length; bi++) {
+          const result = batchResults[bi]
+          const wi = batchIndices[bi]
+          if (result) {
+            // Normalize alternate field names
+            if (!result.summary && result.chunk_summary) result.summary = result.chunk_summary
+            windowResults.push(result)
+            console.log(`Window ${wi + 1} ok: terms=${(result.key_terms || []).length} points=${(result.key_points || []).length} quiz=${(result.quiz_questions || []).length}`)
+          }
         }
       }
 

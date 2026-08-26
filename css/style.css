@@ -4985,6 +4985,58 @@ input:checked + .slider:before {
   100% { background-position: -200% 0; }
 }
 
+/* ── Base spinner animation (rotate + dash) ──
+   Every "loading" spinner across the app (summarize buttons, upload,
+   admin panels, podcast/section-visual generation, etc.) is a small SVG
+   circle whose inline style references `animation: rotate ...` on the
+   <svg> and `animation: dash ...` on its <circle class="path">. Those two
+   keyframe names were referenced ~20+ times throughout dashboard.js but
+   never actually defined anywhere in the stylesheet, so every one of
+   those spinners rendered as a static, non-spinning circle. Defining them
+   once here makes all of them animate for the first time — no per-call-site
+   changes needed anywhere else.
+*/
+@keyframes rotate {
+  100% { transform: rotate(360deg); }
+}
+@keyframes dash {
+  0% { stroke-dasharray: 1, 150; stroke-dashoffset: 0; }
+  50% { stroke-dasharray: 90, 150; stroke-dashoffset: -35; }
+  100% { stroke-dasharray: 90, 150; stroke-dashoffset: -124; }
+}
+
+/* ── Per-document summarization progress card ──
+   A gentle pulsing highlight on the whole progress block while a summary
+   is being generated, so the card visibly reads as "actively working" at
+   a glance (not just the small spinner icon) between the 2s polling ticks
+   that move the fill width and stage label forward. */
+.doc-progress-wrap {
+  border-radius: 10px;
+  padding: 0.6rem 0.7rem;
+  background: rgba(31, 138, 147, 0.05);
+  border: 1px solid rgba(31, 138, 147, 0.12);
+  animation: doc-progress-pulse 2.4s ease-in-out infinite;
+}
+@keyframes doc-progress-pulse {
+  0%, 100% { background-color: rgba(31, 138, 147, 0.05); }
+  50% { background-color: rgba(31, 138, 147, 0.11); }
+}
+.doc-progress-stage-icon {
+  display: inline-block;
+  animation: doc-progress-icon-bounce 1.6s ease-in-out infinite;
+}
+@keyframes doc-progress-icon-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .doc-progress-wrap,
+  .doc-progress-stage-icon,
+  .doc-progress-fill {
+    animation: none !important;
+  }
+}
+
 /* Acadia context picker (select a study card as chat context) */
 .acadia-card-picker-item:hover {
   background: var(--color-bg-alt) !important;

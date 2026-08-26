@@ -338,7 +338,9 @@ async function loadDocuments(isPolling = false) {
     const hasProcessing = activeDocuments.some(doc => doc.status === 'processing');
     if (hasProcessing) {
       if (!pollingInterval) {
-        pollingInterval = setInterval(() => loadDocuments(true), 2000);
+        // 1.5s (was 2s) — snappier-feeling live progress without meaningfully
+        // increasing load (this is a lightweight status query, not the AI call).
+        pollingInterval = setInterval(() => loadDocuments(true), 1500);
       }
     } else {
       if (pollingInterval) {
@@ -421,17 +423,21 @@ function renderDocumentsList() {
     if (doc.status === 'processing') {
       const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
       let progressMsg = isTr ? 'İşleniyor...' : 'Processing...';
+      let progressIcon = '📄';
       // Madde 6 stages: extracting → analyzing/chunking → synthesizing →
       // draft_ready → reviewing → saving (mapped to progress bar %).
       let progressPercent = 8;
       if (doc.processing_stage === 'extracting') {
         progressMsg = isTr ? 'Metin çıkarılıyor...' : 'Extracting text...';
+        progressIcon = '📄';
         progressPercent = 18;
       } else if (doc.processing_stage === 'analyzing') {
         progressMsg = isTr ? 'Özet oluşturuluyor...' : 'Analyzing content...';
+        progressIcon = '🧠';
         progressPercent = 40;
       } else if (doc.processing_stage === 'chunking' || (typeof doc.processing_stage === 'string' && doc.processing_stage.startsWith('chunking'))) {
         const m = String(doc.processing_stage || '').match(/chunking:(\d+)\/(\d+)/);
+        progressIcon = '🧩';
         if (m) {
           progressMsg = isTr ? `Bölümler işleniyor... (${m[1]}/${m[2]})` : `Processing sections... (${m[1]}/${m[2]})`;
           const a = parseInt(m[1], 10), b = parseInt(m[2], 10) || 1;
@@ -442,24 +448,31 @@ function renderDocumentsList() {
         }
       } else if (doc.processing_stage === 'synthesizing') {
         progressMsg = isTr ? 'Birleştiriliyor...' : 'Synthesizing summary...';
+        progressIcon = '🧠';
         progressPercent = 58;
       } else if (doc.processing_stage === 'sectioning') {
         progressMsg = isTr ? 'Bölüm özetleri derinleştiriliyor...' : 'Deepening section summaries...';
+        progressIcon = '📚';
         progressPercent = 62;
       } else if (doc.processing_stage === 'writing') {
         progressMsg = isTr ? 'Profesyonel anlatı yazılıyor...' : 'Writing professional narrative...';
+        progressIcon = '✍️';
         progressPercent = 70;
       } else if (doc.processing_stage === 'draft_ready') {
         progressMsg = isTr ? 'Taslak hazır, kontrol ediliyor...' : 'Draft ready, reviewing...';
+        progressIcon = '🔍';
         progressPercent = 76;
       } else if (doc.processing_stage === 'reviewing') {
         progressMsg = isTr ? 'Doğruluk kontrol ediliyor...' : 'Reviewing for accuracy...';
+        progressIcon = '🔍';
         progressPercent = 86;
       } else if (doc.processing_stage === 'critic') {
         progressMsg = isTr ? 'Kalite kapısı: düzeltiliyor...' : 'Quality gate: fixing issues...';
+        progressIcon = '✨';
         progressPercent = 92;
       } else if (doc.processing_stage === 'saving') {
         progressMsg = isTr ? 'Kart kaydediliyor...' : 'Saving study card...';
+        progressIcon = '💾';
         progressPercent = 96;
       }
 
@@ -471,6 +484,7 @@ function renderDocumentsList() {
       actionBtnHtml = `
         <div class="doc-progress-wrap" style="margin-top: 0.5rem;">
           <div class="doc-progress-label">
+            <span class="doc-progress-stage-icon" style="font-size: 0.9rem; line-height: 1;">${progressIcon}</span>
             <svg class="spinner" viewBox="0 0 50 50" style="animation: rotate 2s linear infinite; width: 12px; height: 12px; flex-shrink: 0;">
               <circle class="path" cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="5" style="stroke-dasharray: 1, 150; stroke-dashoffset: 0; stroke-linecap: round; animation: dash 1.5s ease-in-out infinite;"></circle>
             </svg>
@@ -1121,8 +1135,17 @@ async function proceedWithSummarization() {
     }
 
     if (data && data.success) {
-      showDashboardAlert('success', 'Document processing started successfully.');
+      const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+      showDashboardAlert('success', isTr ? 'Özet hazır!' : 'Summary ready!');
       await loadDocuments();
+      // Auto-deliver: open the finished summary immediately instead of
+      // leaving the student to notice the card flipped to "Summarized" and
+      // click "View Summary" themselves — the whole point of watching the
+      // progress bar is to get the summary the moment it's done.
+      if (data.studyCardId) {
+        const doc = activeDocuments.find(d => d.id === docId);
+        viewStudyCard(docId, doc ? doc.file_name : '', false, data.studyCardId);
+      }
     }
   } catch (err) {
     console.error("Exception invoking summarize-document: ", err);
