@@ -1421,11 +1421,351 @@ function populateDeepSectionsReading(card) {
         <div class="summary-section-body">
           ${formatSummaryText(sec?.summary || '', card.footnotes)}
           ${kpHtml ? `<div style="margin-top:0.6rem; padding:0.5rem 0.65rem; background:rgba(31,138,147,0.06); border-radius:8px;"><div style="font-size:0.75rem; font-weight:800; color:var(--color-teal); margin-bottom:0.25rem;">Önemli noktalar</div>${kpHtml}</div>` : ''}
+          <div class="section-visual-actions" style="margin-top:0.65rem; display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap;">
+            <span style="font-size:0.72rem; color:var(--color-text-muted); font-weight:700;">🎨 Görsel oluştur:</span>
+            <button type="button" class="btn-section-visual" data-section-idx="${idx}" data-visual-type="diagram" onclick="generateSectionVisual(event, ${idx}, 'diagram')">📊 Diyagram</button>
+            <button type="button" class="btn-section-visual" data-section-idx="${idx}" data-visual-type="table" onclick="generateSectionVisual(event, ${idx}, 'table')">📋 Tablo</button>
+            <button type="button" class="btn-section-visual" data-section-idx="${idx}" data-visual-type="chart" onclick="generateSectionVisual(event, ${idx}, 'chart')">📈 Grafik</button>
+          </div>
+          <div class="section-visual-result" id="section-visual-result-${idx}"></div>
         </div>
       </div>`;
   }).join('');
 }
 window.populateDeepSectionsReading = populateDeepSectionsReading;
+
+// On-demand per-section visual generation (🎨 button inside a deep section).
+// Free/text-based by design (Mermaid diagram, markdown table, or Chart.js
+// chart via the existing Groq pipeline) — never a billed image API. Appends
+// the new artifact to the card's diagrams/tables/charts array and re-renders
+// just that section, then scrolls the student to it.
+async function generateSectionVisual(event, sectionIdx, visualType) {
+  const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+  const btn = event?.currentTarget || document.querySelector(`.btn-section-visual[data-section-idx="${sectionIdx}"][data-visual-type="${visualType}"]`);
+  const resultBox = document.getElementById(`section-visual-result-${sectionIdx}`);
+
+  if (!activeModalCardId || !currentActiveStudyCard) {
+    showDashboardAlert('error', isTr ? 'Aktif bir çalışma kartı bulunamadı.' : 'No active study card found.');
+    return;
+  }
+  const sections = Array.isArray(currentActiveStudyCard.sections) ? currentActiveStudyCard.sections : [];
+  const sec = sections[sectionIdx];
+  if (!sec) return;
+
+  const actionsRow = btn ? btn.closest('.section-visual-actions') : null;
+  const allBtns = actionsRow ? actionsRow.querySelectorAll('.btn-section-visual') : (btn ? [btn] : []);
+  const originalHtml = btn ? btn.innerHTML : '';
+  allBtns.forEach(b => { b.disabled = true; });
+  if (btn) {
+    btn.innerHTML = isTr ? '⏳ Oluşturuluyor…' : '⏳ Generating…';
+  }
+
+  try {
+    const { data, error } = await supabaseClient.functions.invoke('generate-section-visual', {
+      body: {
+        studyCardId: activeModalCardId,
+        sectionHeading: sec.heading || '',
+        sectionSummary: sec.summary || '',
+        sectionKeyPoints: Array.isArray(sec.key_points) ? sec.key_points : [],
+        visualType: visualType
+      }
+    });
+
+    if (error || !data || !data.success) {
+      const msg = (data && data.error) || (error && error.message) || (isTr ? 'Görsel oluşturulamadı. Lütfen tekrar deneyin.' : 'Could not generate the visual. Please try again.');
+      showDashboardAlert('error', msg);
+      return;
+    }
+
+    // Append to the in-memory card and re-render just that visual type
+    const col = data.targetColumn; // 'diagrams' | 'tables' | 'charts'
+    if (!Array.isArray(currentActiveStudyCard[col])) currentActiveStudyCard[col] = [];
+    currentActiveStudyCard[col].push(data.artifact);
+
+    if (col === 'diagrams') renderStudyCardDiagrams(currentActiveStudyCard);
+    else if (col === 'tables') renderStudyCardTables(currentActiveStudyCard);
+    else if (col === 'charts') renderStudyCardCharts(currentActiveStudyCard);
+
+    if (resultBox) {
+      resultBox.innerHTML = `<div style="margin-top:0.5rem; font-size:0.78rem; color:var(--color-teal); font-weight:700;">✅ ${isTr ? 'Oluşturuldu — aşağıdaki bölümde görebilirsiniz' : 'Generated — see it below'}: "${escapeHtml(data.artifact.title || '')}"</div>`;
+    }
+
+    const targetSectionId = col === 'diagrams' ? 'study-card-diagrams-section' : (col === 'tables' ? 'study-card-tables-section' : 'study-card-charts-section');
+    setTimeout(() => scrollStudyCardTo(targetSectionId), 150);
+  } catch (err) {
+    console.error('generateSectionVisual failed:', err);
+    showDashboardAlert('error', isTr ? 'Beklenmeyen bir hata oluştu.' : 'An unexpected error occurred.');
+  } finally {
+    allBtns.forEach(b => { b.disabled = false; });
+    if (btn) btn.innerHTML = originalHtml;
+  }
+}
+window.generateSectionVisual = generateSectionVisual;
+
+// ==========================================================================
+// Sesli Özet (AI Podcast) — reads a cached two-host script aloud using the
+// free browser Web Speech API (window.speechSynthesis). No TTS API cost:
+// the script text itself is the only thing generated server-side
+// (generate-podcast-script), cached on study_cards.podcast_script.
+// ==========================================================================
+const podcastState = {
+  script: [],
+  hostNames: ['A', 'B'],
+  lang: 'en',
+  currentIndex: -1,
+  isPlaying: false,
+  voiceA: null,
+  voiceB: null,
+  sameVoice: false
+};
+
+function resetPodcastPlayerUI() {
+  const caption = document.getElementById('podcast-caption');
+  if (caption) caption.textContent = '';
+  const fill = document.getElementById('podcast-progress-fill');
+  if (fill) fill.style.width = '0%';
+  const counter = document.getElementById('podcast-line-counter');
+  if (counter) counter.textContent = '';
+  updatePodcastPlayPauseIcon();
+  clearActivePodcastHostChip();
+}
+
+function renderPodcastSection(card) {
+  const cta = document.getElementById('study-card-podcast-cta');
+  const player = document.getElementById('study-card-podcast-player');
+  if (!cta || !player) return;
+
+  // Switching cards mid-playback would keep reading the old script over the
+  // new card's content — always stop first (populateStudyCardModalDetails
+  // also calls stopPodcast() directly, this is a safety net for other callers).
+  if (podcastState.isPlaying) stopPodcast();
+
+  podcastState.lang = (card && card.summary_language) || 'en';
+
+  const podcast = card && card.podcast_script;
+  const hasScript = podcast && Array.isArray(podcast.script) && podcast.script.length > 0;
+
+  resetPodcastPlayerUI();
+
+  if (hasScript) {
+    podcastState.script = podcast.script;
+    podcastState.hostNames = (Array.isArray(podcast.hostNames) && podcast.hostNames.length === 2)
+      ? podcast.hostNames
+      : (podcastState.lang === 'tr' ? ['Ela', 'Kaan'] : ['Alex', 'Sam']);
+    cta.style.display = 'none';
+    player.style.display = 'block';
+    const nameA = document.getElementById('podcast-host-name-a');
+    const nameB = document.getElementById('podcast-host-name-b');
+    if (nameA) nameA.textContent = podcastState.hostNames[0];
+    if (nameB) nameB.textContent = podcastState.hostNames[1];
+    updatePodcastLineCounter();
+  } else {
+    podcastState.script = [];
+    cta.style.display = 'flex';
+    player.style.display = 'none';
+  }
+}
+window.renderPodcastSection = renderPodcastSection;
+
+async function generatePodcastScript() {
+  const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+  if (!activeModalCardId) return;
+
+  const genBtn = document.getElementById('btn-generate-podcast');
+  const originalHtml = genBtn ? genBtn.innerHTML : '';
+  if (genBtn) {
+    genBtn.disabled = true;
+    genBtn.innerHTML = isTr ? '⏳ Oluşturuluyor…' : '⏳ Generating…';
+  }
+
+  try {
+    const { data, error } = await supabaseClient.functions.invoke('generate-podcast-script', {
+      body: { studyCardId: activeModalCardId }
+    });
+
+    if (error || !data || !data.success) {
+      const msg = (data && data.error) || (error && error.message) || (isTr ? 'Sesli özet oluşturulamadı. Lütfen tekrar deneyin.' : 'Could not generate the podcast. Please try again.');
+      showDashboardAlert('error', msg);
+      return;
+    }
+
+    if (currentActiveStudyCard) currentActiveStudyCard.podcast_script = data.podcast;
+    renderPodcastSection(currentActiveStudyCard);
+  } catch (err) {
+    console.error('generatePodcastScript failed:', err);
+    showDashboardAlert('error', isTr ? 'Beklenmeyen bir hata oluştu.' : 'An unexpected error occurred.');
+  } finally {
+    if (genBtn) {
+      genBtn.disabled = false;
+      genBtn.innerHTML = originalHtml;
+    }
+  }
+}
+window.generatePodcastScript = generatePodcastScript;
+
+// Voices load asynchronously in most browsers — resolves once populated,
+// with a timeout fallback in case 'voiceschanged' never fires (some browsers).
+function ensurePodcastVoicesLoaded() {
+  return new Promise((resolve) => {
+    if (!window.speechSynthesis) return resolve([]);
+    const existing = window.speechSynthesis.getVoices();
+    if (existing && existing.length > 0) return resolve(existing);
+    const onReady = () => resolve(window.speechSynthesis.getVoices() || []);
+    window.speechSynthesis.onvoiceschanged = onReady;
+    setTimeout(() => resolve(window.speechSynthesis.getVoices() || []), 800);
+  });
+}
+
+// Two hosts, one free voice engine: prefer two distinct system voices in the
+// card's language; if only one voice is available on this device/browser,
+// fall back to differentiating the hosts by pitch/rate instead.
+function pickPodcastVoices(voices, lang) {
+  const langPrefix = lang === 'tr' ? 'tr' : 'en';
+  const list = Array.isArray(voices) ? voices : [];
+  const matching = list.filter(v => v.lang && v.lang.toLowerCase().startsWith(langPrefix));
+  const pool = matching.length > 0 ? matching : list;
+
+  const voiceA = pool[0] || null;
+  const voiceB = pool.find(v => v.name !== (voiceA && voiceA.name)) || voiceA;
+
+  podcastState.voiceA = voiceA;
+  podcastState.voiceB = voiceB;
+  podcastState.sameVoice = !voiceA || !voiceB || voiceA.name === voiceB.name;
+}
+
+function updatePodcastPlayPauseIcon() {
+  const btn = document.getElementById('btn-podcast-playpause');
+  if (!btn) return;
+  btn.textContent = podcastState.isPlaying ? '⏸️' : '▶️';
+}
+
+function updatePodcastProgress() {
+  const fill = document.getElementById('podcast-progress-fill');
+  if (!fill) return;
+  const total = podcastState.script.length || 1;
+  const pos = Math.max(0, podcastState.currentIndex);
+  const pct = Math.min(100, Math.round(((pos + 1) / total) * 100));
+  fill.style.width = `${pct}%`;
+}
+
+function updatePodcastLineCounter() {
+  const counter = document.getElementById('podcast-line-counter');
+  if (!counter) return;
+  const total = podcastState.script.length;
+  if (!total) { counter.textContent = ''; return; }
+  const pos = podcastState.currentIndex >= 0 ? podcastState.currentIndex + 1 : 0;
+  counter.textContent = `${pos} / ${total}`;
+}
+
+function updatePodcastCaption(line) {
+  const caption = document.getElementById('podcast-caption');
+  if (!caption || !line) return;
+  const speakerName = line.speaker === 'B' ? podcastState.hostNames[1] : podcastState.hostNames[0];
+  caption.innerHTML = `<strong>${escapeHtml(speakerName)}:</strong> ${escapeHtml(line.text)}`;
+}
+
+function highlightActivePodcastHostChip(speaker) {
+  const chipA = document.getElementById('podcast-host-chip-a');
+  const chipB = document.getElementById('podcast-host-chip-b');
+  if (chipA) chipA.classList.toggle('active', speaker === 'A');
+  if (chipB) chipB.classList.toggle('active', speaker === 'B');
+}
+
+function clearActivePodcastHostChip() {
+  const chipA = document.getElementById('podcast-host-chip-a');
+  const chipB = document.getElementById('podcast-host-chip-b');
+  if (chipA) chipA.classList.remove('active');
+  if (chipB) chipB.classList.remove('active');
+}
+
+function speakPodcastLine() {
+  if (!podcastState.isPlaying) return;
+  if (!window.speechSynthesis) { stopPodcast(); return; }
+
+  podcastState.currentIndex++;
+  if (podcastState.currentIndex >= podcastState.script.length) {
+    stopPodcast();
+    return;
+  }
+
+  const line = podcastState.script[podcastState.currentIndex];
+  updatePodcastCaption(line);
+  updatePodcastProgress();
+  updatePodcastLineCounter();
+  highlightActivePodcastHostChip(line.speaker);
+
+  const utter = new SpeechSynthesisUtterance(line.text);
+  const isHostB = line.speaker === 'B';
+  const voice = isHostB ? podcastState.voiceB : podcastState.voiceA;
+  if (voice) {
+    utter.voice = voice;
+    utter.lang = voice.lang;
+  } else {
+    utter.lang = podcastState.lang === 'tr' ? 'tr-TR' : 'en-US';
+  }
+  // When both hosts share one system voice, vary pitch/rate so they're still
+  // distinguishable by ear.
+  utter.rate = isHostB ? 1.03 : 0.98;
+  utter.pitch = podcastState.sameVoice ? (isHostB ? 1.22 : 0.95) : 1.0;
+
+  utter.onend = () => { if (podcastState.isPlaying) speakPodcastLine(); };
+  utter.onerror = (e) => {
+    console.warn('Podcast TTS error, skipping line:', e);
+    if (podcastState.isPlaying) speakPodcastLine();
+  };
+
+  window.speechSynthesis.speak(utter);
+}
+
+async function togglePodcastPlayback() {
+  const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+  if (!window.speechSynthesis) {
+    showDashboardAlert('error', isTr ? 'Tarayıcınız sesli okumayı desteklemiyor.' : 'Your browser does not support text-to-speech.');
+    return;
+  }
+  if (!podcastState.script.length) return;
+
+  // Currently speaking → pause in place
+  if (podcastState.isPlaying && !window.speechSynthesis.paused) {
+    window.speechSynthesis.pause();
+    podcastState.isPlaying = false;
+    updatePodcastPlayPauseIcon();
+    return;
+  }
+
+  // Paused mid-line → resume in place
+  if (window.speechSynthesis.paused && podcastState.currentIndex >= 0) {
+    podcastState.isPlaying = true;
+    updatePodcastPlayPauseIcon();
+    window.speechSynthesis.resume();
+    return;
+  }
+
+  // Fresh start (or restart after it finished/was stopped)
+  const voices = await ensurePodcastVoicesLoaded();
+  pickPodcastVoices(voices, podcastState.lang);
+  podcastState.currentIndex = -1;
+  podcastState.isPlaying = true;
+  updatePodcastPlayPauseIcon();
+  speakPodcastLine();
+}
+window.togglePodcastPlayback = togglePodcastPlayback;
+
+function stopPodcast() {
+  if (window.speechSynthesis) {
+    try { window.speechSynthesis.cancel(); } catch (e) { /* ignore */ }
+  }
+  podcastState.isPlaying = false;
+  podcastState.currentIndex = -1;
+  updatePodcastPlayPauseIcon();
+  const fill = document.getElementById('podcast-progress-fill');
+  if (fill) fill.style.width = '0%';
+  updatePodcastLineCounter();
+  const caption = document.getElementById('podcast-caption');
+  if (caption) caption.textContent = '';
+  clearActivePodcastHostChip();
+}
+window.stopPodcast = stopPodcast;
 
 function scrollStudyCardTo(elementId) {
   const el = document.getElementById(elementId);
@@ -1568,8 +1908,146 @@ function formatSummaryText(summary, footnotes) {
 }
 window.formatSummaryText = formatSummaryText;
 
+// Standalone renderers for tables/charts/diagrams — extracted from
+// populateStudyCardModalDetails so the same rendering logic can also be
+// called after a single new visual is appended by generate-section-visual
+// (the per-section "🎨 Görsel Oluştur" button), without re-running the
+// whole modal populate pipeline.
+function renderStudyCardTables(card) {
+  const tablesSection = document.getElementById('study-card-tables-section');
+  const tablesContainer = document.getElementById('study-card-tables-container');
+  if (!tablesSection || !tablesContainer) return;
+  tablesContainer.innerHTML = '';
+  const tables = card.tables || [];
+  if (Array.isArray(tables) && tables.length > 0) {
+    tablesSection.style.display = 'block';
+    tables.forEach((t, idx) => {
+      const cardDiv = document.createElement('div');
+      cardDiv.className = 'ai-section-card';
+
+      let headersHtml = (t.headers || []).map(h => `<th>${escapeHtml(String(h))}</th>`).join('');
+      let rowsHtml = (t.rows || []).map(row => {
+        const cells = (row || []).map(c => `<td>${escapeHtml(String(c))}</td>`).join('');
+        return `<tr>${cells}</tr>`;
+      }).join('');
+
+      const tableJson = JSON.stringify(t);
+      const escapedTitle = escapeHtml(t.title || `Table ${idx + 1}`);
+
+      cardDiv.innerHTML = `
+        <div class="ai-section-header">
+          <h5 class="ai-section-title">${escapedTitle}</h5>
+          <button class="btn btn-outline" style="font-size: 0.75rem; padding: 0.25rem 0.5rem; font-weight: 700; border-color: var(--color-teal); color: var(--color-teal);" onclick="sendSectionToDepot(event, this, '${card.id}', 'table', '${(t.title || 'Table').replace(/'/g, "\\'").replace(/"/g, '&quot;')}', '${tableJson.replace(/'/g, "\\'").replace(/"/g, '&quot;')}')">
+            📥 Deftere Gönder
+          </button>
+        </div>
+        <div class="ai-table-container">
+          <table class="ai-extracted-table">
+            <thead><tr>${headersHtml}</tr></thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+        </div>
+      `;
+      tablesContainer.appendChild(cardDiv);
+    });
+  } else {
+    tablesSection.style.display = 'none';
+  }
+}
+window.renderStudyCardTables = renderStudyCardTables;
+
+function renderStudyCardCharts(card) {
+  const chartsSection = document.getElementById('study-card-charts-section');
+  const chartsContainer = document.getElementById('study-card-charts-container');
+  if (!chartsSection || !chartsContainer) return;
+  chartsContainer.innerHTML = '';
+  const charts = card.charts || [];
+  if (Array.isArray(charts) && charts.length > 0) {
+    chartsSection.style.display = 'block';
+    charts.forEach((c, idx) => {
+      const cardDiv = document.createElement('div');
+      cardDiv.className = 'ai-section-card';
+
+      const chartJson = JSON.stringify(c);
+      const escapedTitle = escapeHtml(c.title || `Chart ${idx + 1}`);
+      const canvasId = `modal-chart-canvas-${card.id}-${idx}`;
+
+      cardDiv.innerHTML = `
+        <div class="ai-section-header">
+          <h5 class="ai-section-title">${escapedTitle} (${c.type || 'bar'})</h5>
+          <button class="btn btn-outline" style="font-size: 0.75rem; padding: 0.25rem 0.5rem; font-weight: 700; border-color: var(--color-teal); color: var(--color-teal);" onclick="sendSectionToDepot(event, this, '${card.id}', 'chart', '${(c.title || 'Chart').replace(/'/g, "\\'").replace(/"/g, '&quot;')}', '${chartJson.replace(/'/g, "\\'").replace(/"/g, '&quot;')}')">
+            📥 Deftere Gönder
+          </button>
+        </div>
+        <div class="ai-chart-container" style="height: 250px;">
+          <canvas id="${canvasId}"></canvas>
+        </div>
+      `;
+      chartsContainer.appendChild(cardDiv);
+
+      setTimeout(() => {
+        const canvasEl = document.getElementById(canvasId);
+        if (canvasEl) renderChartJs(canvasEl, c);
+      }, 60);
+    });
+  } else {
+    chartsSection.style.display = 'none';
+  }
+}
+window.renderStudyCardCharts = renderStudyCardCharts;
+
+function renderStudyCardDiagrams(card) {
+  const diagramsSection = document.getElementById('study-card-diagrams-section');
+  const diagramsContainer = document.getElementById('study-card-diagrams-container');
+  if (!diagramsSection || !diagramsContainer) return;
+  diagramsContainer.innerHTML = '';
+  const diagrams = card.diagrams || [];
+  if (Array.isArray(diagrams) && diagrams.length > 0) {
+    diagramsSection.style.display = 'block';
+    diagrams.forEach((d, idx) => {
+      const cardEl = document.createElement('div');
+      cardEl.className = 'diagram-card';
+      cardEl.style.cssText = 'background: var(--color-surface-elevated, #fff); border: 1px solid rgba(22,50,92,0.08); border-radius: 12px; padding: 1rem 1.1rem;';
+
+      const mermaidId = `study-card-mermaid-${card.id || 'preview'}-${idx}`;
+      cardEl.innerHTML = `
+        <h5 class="diagram-card-title" style="margin: 0 0 0.5rem 0; font-size: 0.95rem; color: var(--color-navy);">${escapeHtml(d.title || 'Diagram')}</h5>
+        ${d.description ? `<p class="diagram-card-desc" style="margin: 0 0 0.75rem 0; font-size: 0.85rem; color: var(--color-text-muted); line-height: 1.45;">${escapeHtml(d.description)}</p>` : ''}
+        <div id="${mermaidId}" class="diagram-mermaid-box" style="overflow-x: auto; background: #f8fafc; border-radius: 8px; padding: 0.75rem;"></div>
+      `;
+      diagramsContainer.appendChild(cardEl);
+
+      // Render Mermaid asynchronously (same engine already used in Kaynakla Sohbet)
+      setTimeout(async () => {
+        const target = document.getElementById(mermaidId);
+        if (!target || !d.mermaid || !window.mermaid) {
+          if (target) target.textContent = d.mermaid || '';
+          return;
+        }
+        try {
+          const renderId = `mmd-sc-${Date.now()}-${idx}`;
+          const { svg } = await window.mermaid.render(renderId, String(d.mermaid).trim());
+          target.innerHTML = svg;
+        } catch (err) {
+          console.warn('Study card Mermaid render failed:', err);
+          target.innerHTML = `<pre style="font-size:0.75rem;white-space:pre-wrap;color:#64748b;margin:0;">${escapeHtml(d.mermaid)}</pre>`;
+        }
+      }, 50 + idx * 30);
+    });
+  } else {
+    diagramsSection.style.display = 'none';
+  }
+}
+window.renderStudyCardDiagrams = renderStudyCardDiagrams;
+
 async function populateStudyCardModalDetails(card, docName, readOnly) {
   currentActiveStudyCard = { ...card, documentFileName: docName };
+
+  // Sesli Özet (AI Podcast): stop any playback from the previously-open card
+  // and reset the panel to match this card's cached podcast_script (if any).
+  if (window.stopPodcast) window.stopPodcast();
+  if (window.renderPodcastSection) window.renderPodcastSection(currentActiveStudyCard);
+
   // Populate Modal Title
   const titleEl = document.getElementById('study-card-title');
   if (titleEl) titleEl.textContent = `Study Card: ${docName}`;
@@ -1826,85 +2304,10 @@ async function populateStudyCardModalDetails(card, docName, readOnly) {
   }
 
   // Populate Tables
-  const tablesSection = document.getElementById('study-card-tables-section');
-  const tablesContainer = document.getElementById('study-card-tables-container');
-  if (tablesSection && tablesContainer) {
-    tablesContainer.innerHTML = '';
-    const tables = card.tables || [];
-    if (Array.isArray(tables) && tables.length > 0) {
-      tablesSection.style.display = 'block';
-      tables.forEach((t, idx) => {
-        const cardDiv = document.createElement('div');
-        cardDiv.className = 'ai-section-card';
-        
-        let headersHtml = (t.headers || []).map(h => `<th>${escapeHtml(String(h))}</th>`).join('');
-        let rowsHtml = (t.rows || []).map(row => {
-          const cells = (row || []).map(c => `<td>${escapeHtml(String(c))}</td>`).join('');
-          return `<tr>${cells}</tr>`;
-        }).join('');
-        
-        const tableJson = JSON.stringify(t);
-        const escapedTitle = escapeHtml(t.title || `Table ${idx + 1}`);
-        
-        cardDiv.innerHTML = `
-          <div class="ai-section-header">
-            <h5 class="ai-section-title">${escapedTitle}</h5>
-            <button class="btn btn-outline" style="font-size: 0.75rem; padding: 0.25rem 0.5rem; font-weight: 700; border-color: var(--color-teal); color: var(--color-teal);" onclick="sendSectionToDepot(event, this, '${card.id}', 'table', '${(t.title || 'Table').replace(/'/g, "\\'").replace(/"/g, '&quot;')}', '${tableJson.replace(/'/g, "\\'").replace(/"/g, '&quot;')}')">
-              📥 Deftere Gönder
-            </button>
-          </div>
-          <div class="ai-table-container">
-            <table class="ai-extracted-table">
-              <thead><tr>${headersHtml}</tr></thead>
-              <tbody>${rowsHtml}</tbody>
-            </table>
-          </div>
-        `;
-        tablesContainer.appendChild(cardDiv);
-      });
-    } else {
-      tablesSection.style.display = 'none';
-    }
-  }
+  renderStudyCardTables(card);
 
   // Populate Charts
-  const chartsSection = document.getElementById('study-card-charts-section');
-  const chartsContainer = document.getElementById('study-card-charts-container');
-  if (chartsSection && chartsContainer) {
-    chartsContainer.innerHTML = '';
-    const charts = card.charts || [];
-    if (Array.isArray(charts) && charts.length > 0) {
-      chartsSection.style.display = 'block';
-      charts.forEach((c, idx) => {
-        const cardDiv = document.createElement('div');
-        cardDiv.className = 'ai-section-card';
-        
-        const chartJson = JSON.stringify(c);
-        const escapedTitle = escapeHtml(c.title || `Chart ${idx + 1}`);
-        const canvasId = `modal-chart-canvas-${card.id}-${idx}`;
-        
-        cardDiv.innerHTML = `
-          <div class="ai-section-header">
-            <h5 class="ai-section-title">${escapedTitle} (${c.type || 'bar'})</h5>
-            <button class="btn btn-outline" style="font-size: 0.75rem; padding: 0.25rem 0.5rem; font-weight: 700; border-color: var(--color-teal); color: var(--color-teal);" onclick="sendSectionToDepot(event, this, '${card.id}', 'chart', '${(c.title || 'Chart').replace(/'/g, "\\'").replace(/"/g, '&quot;')}', '${chartJson.replace(/'/g, "\\'").replace(/"/g, '&quot;')}')">
-              📥 Deftere Gönder
-            </button>
-          </div>
-          <div class="ai-chart-container" style="height: 250px;">
-            <canvas id="${canvasId}"></canvas>
-          </div>
-        `;
-        chartsContainer.appendChild(cardDiv);
-        
-        setTimeout(() => {
-          const canvasEl = document.getElementById(canvasId);
-          if (canvasEl) renderChartJs(canvasEl, c);
-        }, 60);
-      });
-    } else {
-      chartsSection.style.display = 'none';
-    }
-  }
+  renderStudyCardCharts(card);
 
   // Populate Attached Images (photos/diagrams saved from Kaynakla Sohbet)
   renderStudyCardImagesGallery(card.chat_attachments || [], card.id);
@@ -1965,47 +2368,7 @@ async function populateStudyCardModalDetails(card, docName, readOnly) {
   }
 
   // Populate Diagrams Section (AI-reconstructed Mermaid)
-  const diagramsSection = document.getElementById('study-card-diagrams-section');
-  const diagramsContainer = document.getElementById('study-card-diagrams-container');
-  if (diagramsSection && diagramsContainer) {
-    diagramsContainer.innerHTML = '';
-    const diagrams = card.diagrams || [];
-    if (Array.isArray(diagrams) && diagrams.length > 0) {
-      diagramsSection.style.display = 'block';
-      diagrams.forEach((d, idx) => {
-        const cardEl = document.createElement('div');
-        cardEl.className = 'diagram-card';
-        cardEl.style.cssText = 'background: var(--color-surface-elevated, #fff); border: 1px solid rgba(22,50,92,0.08); border-radius: 12px; padding: 1rem 1.1rem;';
-
-        const mermaidId = `study-card-mermaid-${card.id || 'preview'}-${idx}`;
-        cardEl.innerHTML = `
-          <h5 class="diagram-card-title" style="margin: 0 0 0.5rem 0; font-size: 0.95rem; color: var(--color-navy);">${escapeHtml(d.title || 'Diagram')}</h5>
-          ${d.description ? `<p class="diagram-card-desc" style="margin: 0 0 0.75rem 0; font-size: 0.85rem; color: var(--color-text-muted); line-height: 1.45;">${escapeHtml(d.description)}</p>` : ''}
-          <div id="${mermaidId}" class="diagram-mermaid-box" style="overflow-x: auto; background: #f8fafc; border-radius: 8px; padding: 0.75rem;"></div>
-        `;
-        diagramsContainer.appendChild(cardEl);
-
-        // Render Mermaid asynchronously (same engine already used in Kaynakla Sohbet)
-        setTimeout(async () => {
-          const target = document.getElementById(mermaidId);
-          if (!target || !d.mermaid || !window.mermaid) {
-            if (target) target.textContent = d.mermaid || '';
-            return;
-          }
-          try {
-            const renderId = `mmd-sc-${Date.now()}-${idx}`;
-            const { svg } = await window.mermaid.render(renderId, String(d.mermaid).trim());
-            target.innerHTML = svg;
-          } catch (err) {
-            console.warn('Study card Mermaid render failed:', err);
-            target.innerHTML = `<pre style="font-size:0.75rem;white-space:pre-wrap;color:#64748b;margin:0;">${escapeHtml(d.mermaid)}</pre>`;
-          }
-        }, 50 + idx * 30);
-      });
-    } else {
-      diagramsSection.style.display = 'none';
-    }
-  }
+  renderStudyCardDiagrams(card);
 
   // Populate Worked Examples Section
   const examplesSection = document.getElementById('study-card-examples-section');
@@ -2163,6 +2526,8 @@ function closeStudyCardModal() {
     if (modal) modal.classList.remove('active');
   }
   resetDocChatState();
+  // Sesli Özet: never let a podcast keep talking after the card is closed
+  if (window.stopPodcast) window.stopPodcast();
 }
 
 // ==========================================================================

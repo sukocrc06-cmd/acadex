@@ -2010,12 +2010,45 @@
 
         <!-- ===== NotebookLM Madde 5: Reading experience ===== -->
         <div id="study-card-reading-nav" style="display:flex; flex-wrap:wrap; gap:0.4rem; margin:0 0 1rem; padding:0.5rem; background:rgba(22,50,92,0.03); border-radius:12px; border:1px solid rgba(22,50,92,0.06);">
+          <button type="button" class="btn btn-outline" onclick="scrollStudyCardTo('study-card-podcast-section')" style="font-size:0.72rem; padding:0.3rem 0.65rem; border-radius:999px; font-weight:700; border-color:var(--color-teal); color:var(--color-teal);">🎧 Dinle</button>
           <button type="button" class="btn btn-outline" onclick="scrollStudyCardTo('study-card-executive-section')" style="font-size:0.72rem; padding:0.3rem 0.65rem; border-radius:999px; font-weight:700;">⚡ 30 sn</button>
           <button type="button" class="btn btn-outline" onclick="scrollStudyCardTo('study-card-outline-section')" style="font-size:0.72rem; padding:0.3rem 0.65rem; border-radius:999px; font-weight:700;">📑 İskelet</button>
           <button type="button" class="btn btn-outline" onclick="scrollStudyCardTo('study-card-narrative-section')" style="font-size:0.72rem; padding:0.3rem 0.65rem; border-radius:999px; font-weight:700;">📖 Anlatı</button>
           <button type="button" class="btn btn-outline" onclick="scrollStudyCardTo('study-card-deep-sections-section')" style="font-size:0.72rem; padding:0.3rem 0.65rem; border-radius:999px; font-weight:700;">📚 Bölümler</button>
           <button type="button" class="btn btn-outline" onclick="scrollStudyCardTo('study-card-study-tools-divider')" style="font-size:0.72rem; padding:0.3rem 0.65rem; border-radius:999px; font-weight:700; border-color:var(--color-teal); color:var(--color-teal);">🧠 Çalışma</button>
         </div>
+
+        <!-- 0) Sesli Özet (AI Podcast) — free browser-TTS audio overview -->
+        <section class="study-card-section" id="study-card-podcast-section">
+          <h4 class="study-card-section-title" style="display: flex; align-items: center; width: 100%;">
+            <span>🎧</span>
+            <span style="margin-left: 0.4rem;">Sesli Özet</span>
+            <span style="margin-left:0.4rem; font-size:0.65rem; color:var(--color-text-muted); font-weight:600;">AI Podcast — 2 sunucu</span>
+          </h4>
+
+          <div id="study-card-podcast-cta" style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem; flex-wrap:wrap; background:linear-gradient(135deg, rgba(31,138,147,0.08), rgba(22,50,92,0.05)); border-radius:12px; padding:0.9rem 1rem;">
+            <div style="font-size:0.85rem; color:var(--color-navy); line-height:1.5; flex:1; min-width:220px;">
+              Bu özeti, iki sunucunun sohbet ettiği kısa bir sesli anlatıma dönüştürün — tarayıcınızın yerleşik sesiyle, tamamen ücretsiz dinleyin.
+            </div>
+            <button type="button" id="btn-generate-podcast" class="btn btn-primary" onclick="generatePodcastScript()" style="white-space:nowrap; font-size:0.8rem; font-weight:700;">🎙️ Sesli Özet Oluştur</button>
+          </div>
+
+          <div id="study-card-podcast-player" class="podcast-player" style="display:none;">
+            <div class="podcast-player-hosts">
+              <span class="podcast-host-chip" id="podcast-host-chip-a" data-speaker="A">🅰️ <span id="podcast-host-name-a"></span></span>
+              <span class="podcast-host-chip" id="podcast-host-chip-b" data-speaker="B">🅱️ <span id="podcast-host-name-b"></span></span>
+            </div>
+            <div class="podcast-caption" id="podcast-caption"></div>
+            <div class="podcast-progress-track">
+              <div class="podcast-progress-fill" id="podcast-progress-fill"></div>
+            </div>
+            <div class="podcast-controls">
+              <button type="button" class="podcast-ctrl-btn" id="btn-podcast-playpause" onclick="togglePodcastPlayback()" title="Oynat/Duraklat">▶️</button>
+              <button type="button" class="podcast-ctrl-btn" id="btn-podcast-stop" onclick="stopPodcast()" title="Durdur">⏹️</button>
+              <span class="podcast-line-counter" id="podcast-line-counter"></span>
+            </div>
+          </div>
+        </section>
 
         <!-- 1) Executive -->
         <section class="study-card-section" id="study-card-executive-section" style="display: none;">
