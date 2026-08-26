@@ -1086,6 +1086,16 @@ async function proceedWithSummarization() {
       .update({ status: 'processing' })
       .eq('id', docId);
 
+    // Immediately re-render the card grid and kick off the 2s live-progress
+    // poll (setInterval is only started inside loadDocuments()). Without this
+    // call, the card stayed frozen on the static "Summarizing & reviewing..."
+    // button label for the entire — often multi-minute — summarize-document
+    // call below, since nothing else refreshes the grid or starts polling
+    // until that awaited call finally resolves. That made the live
+    // processing_stage progress bar only ever appear after a manual page
+    // reload (which happens to call loadDocuments() on load), and it looked
+    // like the screen only updates on F5 instead of on its own.
+    await loadDocuments(true);
 
     const { data, error } = await supabaseClient.functions.invoke('summarize-document', {
       body: { documentId: docId, summaryStyle: summaryStyle, language: language, summaryLength: summaryLength, analyzeVisuals: analyzeVisuals, depth: summaryDepth }
@@ -9787,6 +9797,12 @@ async function proceedWithBulkSummarization(summaryStyle, language, summaryLengt
           .from('documents')
           .update({ status: 'processing' })
           .eq('id', docId);
+
+        // Same fix as proceedWithSummarization(): refresh + start the 2s
+        // live-progress poll right away instead of only after this (long)
+        // invoke() call resolves, so the per-card progress bar updates on
+        // its own instead of requiring a manual page reload.
+        await loadDocuments(true);
 
         const { data, error } = await supabaseClient.functions.invoke('summarize-document', {
           body: { documentId: docId, summaryStyle: summaryStyle, language: language, summaryLength: summaryLength, depth: summaryDepth || 'standard' }
