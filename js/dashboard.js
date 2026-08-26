@@ -1549,7 +1549,8 @@ const podcastState = {
   isPlaying: false,
   voiceA: null,
   voiceB: null,
-  sameVoice: false
+  sameVoice: false,
+  voicesConfirmedGenderPair: false
 };
 
 function resetPodcastPlayerUI() {
@@ -1721,6 +1722,14 @@ function pickPodcastVoices(voices, lang) {
   podcastState.voiceA = voiceA;
   podcastState.voiceB = voiceB;
   podcastState.sameVoice = !voiceA || !voiceB || voiceA.name === voiceB.name;
+  // True ONLY when we found two independently-gendered system voices — then
+  // the voice engines themselves already sound male/female and pitch is left
+  // alone. In every other case (one shared voice, or two distinct voices we
+  // couldn't confidently gender) we simulate the difference with pitch/rate
+  // in speakPodcastLine(), and that simulation must always point host A
+  // ("Ela"/"Alex", always the backend's first/female-coded host) HIGHER and
+  // host B ("Kaan"/"Sam", always male-coded) LOWER — never the reverse.
+  podcastState.voicesConfirmedGenderPair = females.length > 0 && males.length > 0;
 }
 
 function updatePodcastPlayPauseIcon() {
@@ -1793,12 +1802,33 @@ function speakPodcastLine() {
   } else {
     utter.lang = podcastState.lang === 'tr' ? 'tr-TR' : 'en-US';
   }
-  // When both hosts share one system voice, vary pitch/rate so they're still
-  // distinguishable by ear.
-  utter.rate = isHostB ? 1.03 : 0.98;
-  utter.pitch = podcastState.sameVoice ? (isHostB ? 1.22 : 0.95) : 1.0;
+  // Host A ("Ela"/"Alex") is always the backend's female-coded host and host
+  // B ("Kaan"/"Sam") is always male-coded (see generate-podcast-script) — so
+  // any artificial pitch/rate difference must always read A higher/brighter
+  // and B lower/steadier, never the reverse. A small per-line random jitter
+  // is added on top so consecutive lines don't sound like a metronome, which
+  // is most of what makes a free browser voice sound flat/robotic instead of
+  // "samimi" (warm) and "akıcı" (fluent).
+  const jitter = (Math.random() - 0.5) * 0.05;
+  if (podcastState.voicesConfirmedGenderPair) {
+    // Real distinct male/female system voices already carry the gender cue —
+    // just add gentle conversational pacing, no artificial pitch shift.
+    utter.rate = (isHostB ? 0.99 : 1.05) + jitter;
+    utter.pitch = 1.0;
+  } else {
+    // One shared voice (or two same-sounding voices) for both hosts —
+    // simulate the gender difference ourselves.
+    utter.rate = (isHostB ? 0.94 : 1.08) + jitter;
+    utter.pitch = (isHostB ? 0.82 : 1.35) + jitter;
+  }
 
-  utter.onend = () => { if (podcastState.isPlaying) speakPodcastLine(); };
+  // A brief natural pause between turns — real conversation has breathing
+  // room; firing the next line the instant one ends is what made it sound
+  // rushed/robotic rather than like two people actually talking.
+  utter.onend = () => {
+    if (!podcastState.isPlaying) return;
+    setTimeout(() => { if (podcastState.isPlaying) speakPodcastLine(); }, 380);
+  };
   utter.onerror = (e) => {
     console.warn('Podcast TTS error, skipping line:', e);
     if (podcastState.isPlaying) speakPodcastLine();
