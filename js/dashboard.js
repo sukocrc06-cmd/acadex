@@ -1094,22 +1094,38 @@ async function proceedWithSummarization() {
   const analyzeVisuals = (visualCheckbox && visualCheckbox.checked && visualCheckbox.closest('#visual-analysis-container')?.style.display !== 'none') || false;
 
   try {
-    // Set document status to processing first in database so that page reload / polling reflects it
-    await supabaseClient
+    // Show the live "processing" UI INSTANTLY — no network round trip on the
+    // critical path. The previous version of this fix awaited the DB update
+    // and then awaited loadDocuments(true) to read it back before rendering
+    // progress. That still raced: if the update's round trip was slow (or
+    // its result just hadn't propagated back to a read yet), loadDocuments
+    // would re-render using the OLD 'uploaded' status and the progress UI
+    // would never appear for that run — only a later manual page reload
+    // (which reads the server's by-then-updated true state) ever showed it,
+    // which is exactly the "only works after F5" symptom. Mutating the
+    // local activeDocuments cache directly and re-rendering synchronously
+    // removes the server round trip from the critical path entirely, so
+    // this can no longer race.
+    const localDoc = activeDocuments.find(d => d.id === docId);
+    if (localDoc) {
+      localDoc.status = 'processing';
+      localDoc.processing_stage = null;
+    }
+    renderDocumentsList();
+    if (!pollingInterval) {
+      pollingInterval = setInterval(() => loadDocuments(true), 1500);
+    }
+
+    // Persist to the database too, for multi-device sync and so a page
+    // reload mid-run picks up the true state — but its outcome no longer
+    // gates whether the progress UI appears.
+    const { error: statusUpdateError } = await supabaseClient
       .from('documents')
       .update({ status: 'processing' })
       .eq('id', docId);
-
-    // Immediately re-render the card grid and kick off the 2s live-progress
-    // poll (setInterval is only started inside loadDocuments()). Without this
-    // call, the card stayed frozen on the static "Summarizing & reviewing..."
-    // button label for the entire — often multi-minute — summarize-document
-    // call below, since nothing else refreshes the grid or starts polling
-    // until that awaited call finally resolves. That made the live
-    // processing_stage progress bar only ever appear after a manual page
-    // reload (which happens to call loadDocuments() on load), and it looked
-    // like the screen only updates on F5 instead of on its own.
-    await loadDocuments(true);
+    if (statusUpdateError) {
+      console.error('Failed to persist "processing" status to the database (UI already shows progress locally):', statusUpdateError);
+    }
 
     const { data, error } = await supabaseClient.functions.invoke('summarize-document', {
       body: { documentId: docId, summaryStyle: summaryStyle, language: language, summaryLength: summaryLength, analyzeVisuals: analyzeVisuals, depth: summaryDepth }
@@ -10018,16 +10034,29 @@ async function proceedWithBulkSummarization(summaryStyle, language, summaryLengt
       }
 
       try {
-        await supabaseClient
+        // Same race fix as proceedWithSummarization(): update the local
+        // cache + re-render synchronously instead of relying on a DB
+        // round trip landing before the next render. Awaiting the update
+        // then awaiting loadDocuments(true) could still read back the OLD
+        // status if that round trip was slow, silently skipping progress
+        // for the whole run until a manual reload.
+        const localDoc = activeDocuments.find(d => d.id === docId);
+        if (localDoc) {
+          localDoc.status = 'processing';
+          localDoc.processing_stage = null;
+        }
+        renderDocumentsList();
+        if (!pollingInterval) {
+          pollingInterval = setInterval(() => loadDocuments(true), 1500);
+        }
+
+        const { error: statusUpdateError } = await supabaseClient
           .from('documents')
           .update({ status: 'processing' })
           .eq('id', docId);
-
-        // Same fix as proceedWithSummarization(): refresh + start the 2s
-        // live-progress poll right away instead of only after this (long)
-        // invoke() call resolves, so the per-card progress bar updates on
-        // its own instead of requiring a manual page reload.
-        await loadDocuments(true);
+        if (statusUpdateError) {
+          console.error('Failed to persist "processing" status (UI already shows progress locally):', statusUpdateError);
+        }
 
         const { data, error } = await supabaseClient.functions.invoke('summarize-document', {
           body: { documentId: docId, summaryStyle: summaryStyle, language: language, summaryLength: summaryLength, depth: summaryDepth || 'standard' }
