@@ -180,8 +180,14 @@ RULES:
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          // llama-3.3-70b-versatile was retired by Groq on 2026-08-16 (calls
+          // now fail with a decommissioned-model error, surfaced to the
+          // frontend as a 502) — openai/gpt-oss-120b is Groq's recommended
+          // replacement, already adopted by summarize-document.
+          model: "openai/gpt-oss-120b",
           temperature: 0.6,
+          reasoning_effort: "low",
+          include_reasoning: false,
           response_format: { type: "json_object" },
           messages: [
             { role: "system", content: systemPrompt },

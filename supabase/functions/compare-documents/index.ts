@@ -28,6 +28,17 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2)
   throw new Error("Max retries reached");
 }
 
+// openai/gpt-oss-120b (the replacement for the retired llama-3.3-70b-versatile
+// below) is a reasoning model and can prefix its answer with a <think>...</think>
+// block even with reasoning_effort set low — strip it before JSON.parse so a
+// leftover reasoning trace doesn't break parsing.
+function stripThinkBlock(raw: string): string | null {
+  const match = raw.match(/<think>[\s\S]*?<\/think>/i)
+  if (match) return raw.slice((match.index ?? 0) + match[0].length).trim()
+  if (/^\s*<think>/i.test(raw)) return null
+  return raw
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -152,8 +163,15 @@ Respond strictly in the language: '${targetLang}'. Base everything strictly on t
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
+        // llama-3.3-70b-versatile was retired by Groq on 2026-08-16 (calls
+        // now fail with a decommissioned-model error) — openai/gpt-oss-120b
+        // is Groq's recommended replacement, already adopted by
+        // summarize-document. This function was silently broken since the
+        // retirement date until this fix.
+        model: "openai/gpt-oss-120b",
         temperature: 0.3,
+        reasoning_effort: "low",
+        include_reasoning: false,
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: systemPrompt },
@@ -172,7 +190,15 @@ Respond strictly in the language: '${targetLang}'. Base everything strictly on t
     }
 
     const rawContent = groqData.choices?.[0]?.message?.content ?? ""
-    const cleaned = rawContent.replace(/```json\s*|```/g, "").trim()
+    const stripped = stripThinkBlock(rawContent)
+    if (stripped === null) {
+      console.error('Groq comparison response was an unterminated <think> block')
+      return new Response(JSON.stringify({ error: 'The AI ran out of thinking time — please try again' }), {
+        status: 502,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+    const cleaned = stripped.replace(/```json\s*|```/g, "").trim()
     let parsed
     try {
       parsed = JSON.parse(cleaned)
