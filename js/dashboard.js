@@ -1550,7 +1550,14 @@ const podcastState = {
   voiceA: null,
   voiceB: null,
   sameVoice: false,
-  voicesConfirmedGenderPair: false
+  voicesConfirmedGenderPair: false,
+  // Real server-generated neural voice audio (Azure TTS), one MP3 URL per
+  // script line — populated lazily on first play via generate-podcast-audio
+  // and cached on study_cards.podcast_script.audio so it's a one-time cost.
+  // When present, playback uses these instead of the free browser voice.
+  audioUrls: [],
+  audioFetchAttempted: false,
+  audioEl: null
 };
 
 function resetPodcastPlayerUI() {
@@ -1581,6 +1588,11 @@ function renderPodcastSection(card) {
 
   resetPodcastPlayerUI();
 
+  // Reset per-card audio state — real audio (if any) is picked back up from
+  // this card's own cache below; it must never leak into a different card.
+  podcastState.audioFetchAttempted = false;
+  podcastState.audioUrls = [];
+
   if (hasScript) {
     podcastState.script = podcast.script;
     podcastState.hostNames = (Array.isArray(podcast.hostNames) && podcast.hostNames.length === 2)
@@ -1593,6 +1605,12 @@ function renderPodcastSection(card) {
     if (nameA) nameA.textContent = podcastState.hostNames[0];
     if (nameB) nameB.textContent = podcastState.hostNames[1];
     updatePodcastLineCounter();
+    // Real neural audio already generated for this card in a previous
+    // session — pick it straight back up, no re-generation needed.
+    if (podcast.audio && Array.isArray(podcast.audio.urls) && podcast.audio.urls.length === podcast.script.length) {
+      podcastState.audioUrls = podcast.audio.urls;
+      podcastState.audioFetchAttempted = true;
+    }
   } else {
     podcastState.script = [];
     cta.style.display = 'flex';
@@ -1636,6 +1654,35 @@ async function generatePodcastScript() {
   }
 }
 window.generatePodcastScript = generatePodcastScript;
+
+// Fetches (and, the very first time, generates) real neural TTS audio for the
+// current card's podcast script via the generate-podcast-audio edge function
+// (Azure Speech — genuine "Emel"/"Ahmet" Turkish neural voices, not a browser
+// voice approximation). Cached forever on study_cards.podcast_script.audio,
+// same one-time-cost pattern as the script itself. Never throws — on any
+// failure (no Azure credentials configured yet, quota exhausted, network
+// error) it just leaves podcastState.audioUrls empty so playback silently
+// falls back to the free browser voice instead of blocking the student.
+async function generatePodcastAudio() {
+  if (!activeModalCardId) return;
+  try {
+    const { data, error } = await supabaseClient.functions.invoke('generate-podcast-audio', {
+      body: { studyCardId: activeModalCardId }
+    });
+    if (error || !data || !data.success) {
+      console.warn('generate-podcast-audio unavailable, using browser voice fallback:', (data && data.error) || (error && error.message));
+      podcastState.audioUrls = [];
+      return;
+    }
+    podcastState.audioUrls = Array.isArray(data.audio && data.audio.urls) ? data.audio.urls : [];
+    if (currentActiveStudyCard && currentActiveStudyCard.podcast_script) {
+      currentActiveStudyCard.podcast_script = { ...currentActiveStudyCard.podcast_script, audio: data.audio };
+    }
+  } catch (err) {
+    console.warn('generatePodcastAudio failed, using browser voice fallback:', err);
+    podcastState.audioUrls = [];
+  }
+}
 
 // Voices load asynchronously in most browsers — resolves once populated,
 // with a timeout fallback in case 'voiceschanged' never fires (some browsers).
@@ -1779,7 +1826,6 @@ function clearActivePodcastHostChip() {
 
 function speakPodcastLine() {
   if (!podcastState.isPlaying) return;
-  if (!window.speechSynthesis) { stopPodcast(); return; }
 
   podcastState.currentIndex++;
   if (podcastState.currentIndex >= podcastState.script.length) {
@@ -1792,6 +1838,45 @@ function speakPodcastLine() {
   updatePodcastProgress();
   updatePodcastLineCounter();
   highlightActivePodcastHostChip(line.speaker);
+
+  // Real neural voice audio for this line, if generate-podcast-audio has
+  // produced it — genuinely distinct, genuinely fluent male/female voices,
+  // no browser-dependent guesswork needed.
+  const audioUrl = podcastState.audioUrls[podcastState.currentIndex];
+  if (audioUrl) {
+    playPodcastLineViaAudio(audioUrl, line);
+    return;
+  }
+
+  if (!window.speechSynthesis) { stopPodcast(); return; }
+  speakPodcastLineWithBrowserVoice(line);
+}
+
+// One shared <audio> element reused across lines — real MP3 playback is far
+// more reliable to pause/resume than the Web Speech API, as a bonus.
+function playPodcastLineViaAudio(url, line) {
+  if (!podcastState.audioEl) {
+    podcastState.audioEl = new Audio();
+    podcastState.audioEl.addEventListener('ended', () => {
+      if (!podcastState.isPlaying) return;
+      // Same short breathing-room pause as the browser-voice fallback below.
+      setTimeout(() => { if (podcastState.isPlaying) speakPodcastLine(); }, 380);
+    });
+  }
+  const audioEl = podcastState.audioEl;
+  audioEl.onerror = () => {
+    console.warn('Podcast audio file failed to play, falling back to browser voice for this line.');
+    speakPodcastLineWithBrowserVoice(line);
+  };
+  audioEl.src = url;
+  audioEl.play().catch((err) => {
+    console.warn('Podcast audio play() was rejected, falling back to browser voice for this line:', err);
+    speakPodcastLineWithBrowserVoice(line);
+  });
+}
+
+function speakPodcastLineWithBrowserVoice(line) {
+  if (!window.speechSynthesis) { stopPodcast(); return; }
 
   const utter = new SpeechSynthesisUtterance(line.text);
   const isHostB = line.speaker === 'B';
@@ -1839,31 +1924,58 @@ function speakPodcastLine() {
 
 async function togglePodcastPlayback() {
   const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
-  if (!window.speechSynthesis) {
+  if (!window.speechSynthesis && !podcastState.audioUrls.length) {
     showDashboardAlert('error', isTr ? 'Tarayıcınız sesli okumayı desteklemiyor.' : 'Your browser does not support text-to-speech.');
     return;
   }
   if (!podcastState.script.length) return;
 
+  const usingAudioEl = !!(podcastState.audioEl && podcastState.audioEl.src && podcastState.audioUrls[podcastState.currentIndex]);
+
   // Currently speaking → pause in place
-  if (podcastState.isPlaying && !window.speechSynthesis.paused) {
-    window.speechSynthesis.pause();
+  if (podcastState.isPlaying) {
     podcastState.isPlaying = false;
+    if (usingAudioEl) {
+      podcastState.audioEl.pause();
+    } else if (window.speechSynthesis) {
+      window.speechSynthesis.pause();
+    }
     updatePodcastPlayPauseIcon();
     return;
   }
 
   // Paused mid-line → resume in place
-  if (window.speechSynthesis.paused && podcastState.currentIndex >= 0) {
+  if (podcastState.currentIndex >= 0) {
     podcastState.isPlaying = true;
     updatePodcastPlayPauseIcon();
-    window.speechSynthesis.resume();
+    if (usingAudioEl) {
+      podcastState.audioEl.play().catch(() => speakPodcastLine());
+    } else if (window.speechSynthesis && window.speechSynthesis.paused) {
+      window.speechSynthesis.resume();
+    } else {
+      speakPodcastLine();
+    }
     return;
   }
 
-  // Fresh start (or restart after it finished/was stopped)
-  const voices = await ensurePodcastVoicesLoaded();
-  pickPodcastVoices(voices, podcastState.lang);
+  // Fresh start (or restart after it finished/was stopped). The very first
+  // time this card is played, try once to fetch/generate real neural voice
+  // audio — worth a short wait since it's cached forever afterward. Any
+  // failure here is silent (see generatePodcastAudio) and just leaves the
+  // free browser voice as the experience for this card.
+  if (!podcastState.audioFetchAttempted) {
+    podcastState.audioFetchAttempted = true;
+    const btn = document.getElementById('btn-podcast-playpause');
+    const prevHtml = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
+    await generatePodcastAudio();
+    if (btn) { btn.disabled = false; btn.textContent = prevHtml; }
+  }
+
+  if (!podcastState.audioUrls.length) {
+    const voices = await ensurePodcastVoicesLoaded();
+    pickPodcastVoices(voices, podcastState.lang);
+  }
   podcastState.currentIndex = -1;
   podcastState.isPlaying = true;
   updatePodcastPlayPauseIcon();
@@ -1872,6 +1984,9 @@ async function togglePodcastPlayback() {
 window.togglePodcastPlayback = togglePodcastPlayback;
 
 function stopPodcast() {
+  if (podcastState.audioEl) {
+    try { podcastState.audioEl.pause(); podcastState.audioEl.currentTime = 0; podcastState.audioEl.src = ''; } catch (e) { /* ignore */ }
+  }
   if (window.speechSynthesis) {
     try { window.speechSynthesis.cancel(); } catch (e) { /* ignore */ }
   }
