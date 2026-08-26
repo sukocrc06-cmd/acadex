@@ -1649,17 +1649,74 @@ function ensurePodcastVoicesLoaded() {
   });
 }
 
-// Two hosts, one free voice engine: prefer two distinct system voices in the
-// card's language; if only one voice is available on this device/browser,
-// fall back to differentiating the hosts by pitch/rate instead.
+// Known first-name / label fragments that browsers and operating systems use
+// inside SpeechSynthesisVoice.name to hint a voice's gender — the Web Speech
+// API itself has no gender field, so name-sniffing is the only cross-browser
+// way to tell them apart. Covers Microsoft/Edge (incl. Turkish "Emel"/"Ahmet"
+// neural voices), Google/Chrome, and Apple/Safari (incl. Turkish "Yelda")
+// voice names actually seen in the wild.
+const PODCAST_FEMALE_VOICE_HINTS = [
+  'female', 'emel', 'yelda', 'zira', 'hazel', 'susan', 'aria', 'jenny', 'michelle',
+  'emma', 'samantha', 'victoria', 'karen', 'moira', 'tessa', 'fiona', 'kate',
+  'serena', 'ava', 'allison', 'zoe', 'nicky', 'salli', 'joanna', 'kimberly',
+  'amy', 'sabina', 'elif', 'seda', 'catherine', 'linda', 'heather'
+];
+const PODCAST_MALE_VOICE_HINTS = [
+  'male', 'ahmet', 'tolga', 'david', 'mark', 'james', 'guy', 'ryan', 'christopher',
+  'eric', 'roger', 'alex', 'daniel', 'fred', 'oliver', 'thomas', 'arthur', 'george',
+  'lee', 'rishi', 'brian', 'justin', 'matthew', 'joey', 'russell', 'tom'
+];
+// Prefer higher-quality neural/cloud voices over older robotic "Desktop"
+// engines when a browser exposes both (this is most of what makes a free
+// browser voice sound "akıcı" — fluent — rather than choppy/robotic).
+const PODCAST_QUALITY_HINTS = ['neural', 'online', 'natural', 'wavenet', 'enhanced', 'premium'];
+
+function detectPodcastVoiceGender(voice) {
+  const name = String(voice?.name || '').toLowerCase();
+  if (PODCAST_FEMALE_VOICE_HINTS.some(h => name.includes(h))) return 'female';
+  if (PODCAST_MALE_VOICE_HINTS.some(h => name.includes(h))) return 'male';
+  return 'unknown';
+}
+
+function podcastVoiceQualityScore(voice) {
+  const name = String(voice?.name || '').toLowerCase();
+  return PODCAST_QUALITY_HINTS.some(h => name.includes(h)) ? 1 : 0;
+}
+
+// Two hosts, one free voice engine: actively look for a real male + female
+// pair among ALL voices this browser/OS exposes (not just the first two),
+// preferring same-language matches and higher-quality "neural/online" voices
+// when there's a choice. Browsers vary a lot here — Edge on Windows usually
+// ships proper Turkish male+female neural voices out of the box, Chrome
+// often exposes only one. If no gender-distinguishable pair is available in
+// the target language, we fall back to the best two distinct voices we can
+// find, and finally to pitch/rate differentiation on a single voice — same
+// safety net as before, just tried only after the smarter match fails.
 function pickPodcastVoices(voices, lang) {
   const langPrefix = lang === 'tr' ? 'tr' : 'en';
   const list = Array.isArray(voices) ? voices : [];
-  const matching = list.filter(v => v.lang && v.lang.toLowerCase().startsWith(langPrefix));
-  const pool = matching.length > 0 ? matching : list;
+  const langPool = list.filter(v => v.lang && v.lang.toLowerCase().startsWith(langPrefix));
+  const pool = langPool.length > 0 ? langPool : list;
 
-  const voiceA = pool[0] || null;
-  const voiceB = pool.find(v => v.name !== (voiceA && voiceA.name)) || voiceA;
+  const byQualityDesc = (a, b) => podcastVoiceQualityScore(b) - podcastVoiceQualityScore(a);
+  const females = pool.filter(v => detectPodcastVoiceGender(v) === 'female').sort(byQualityDesc);
+  const males = pool.filter(v => detectPodcastVoiceGender(v) === 'male').sort(byQualityDesc);
+
+  let voiceA = null;
+  let voiceB = null;
+
+  if (females.length > 0 && males.length > 0) {
+    // Real gender pair found in-language — the ideal case (e.g. Edge's
+    // Turkish "Emel"/"Ahmet" neural voices, or Chrome's English Female/Male).
+    voiceA = females[0];
+    voiceB = males[0];
+  } else {
+    // No confidently-gendered pair — fall back to the two best-quality
+    // distinct voices available, still preferring in-language ones.
+    const sorted = [...pool].sort(byQualityDesc);
+    voiceA = sorted[0] || null;
+    voiceB = sorted.find(v => v.name !== (voiceA && voiceA.name)) || voiceA;
+  }
 
   podcastState.voiceA = voiceA;
   podcastState.voiceB = voiceB;
