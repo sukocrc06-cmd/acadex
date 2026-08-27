@@ -9982,7 +9982,12 @@ async function handleMultipleFilesUpload(files) {
         await uploadSingleFileCore(file);
       } catch (err) {
         console.error(`Error uploading ${file.name}:`, err);
-        showDashboardAlert('error', `Failed to upload ${file.name}.`);
+        // Surface the real reason (expired session, storage RLS rejection,
+        // network block, DB constraint, etc.) instead of one generic
+        // message — every distinct failure looked identical otherwise,
+        // making it impossible to diagnose from a user's screenshot alone.
+        const reason = (err && (err.message || err.error_description || err.statusText)) || 'bilinmeyen hata';
+        showDashboardAlert('error', `Failed to upload ${file.name}: ${reason}`);
       }
 
       completedCount++;
@@ -10006,6 +10011,14 @@ async function handleMultipleFilesUpload(files) {
 }
 
 async function uploadSingleFileCore(file) {
+  // A stale/expired session (or an auth listener that hasn't resolved yet)
+  // used to fail here with a bare "Cannot read properties of null/undefined
+  // (reading 'id')" — indistinguishable from any other upload failure in the
+  // generic toast. Fail with a clear, actionable reason instead.
+  if (!currentUser || !currentUser.id) {
+    throw new Error('Oturum bulunamadı veya süresi doldu — lütfen sayfayı yenileyip tekrar giriş yapın.');
+  }
+
   const { shouldUpload, fileHash } = await checkFileHashDuplicate(file);
   if (!shouldUpload) {
     return; // user cancelled this file
