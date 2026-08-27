@@ -1917,6 +1917,7 @@ function playPodcastLineViaAudio(url, line) {
   }
   const audioEl = podcastState.audioEl;
   audioEl.onerror = () => {
+    if (!podcastState.isPlaying) return; // stopPodcast() clears src, which fires this — must not resurrect playback
     console.warn('Podcast audio file failed to play, falling back to browser voice for this line.');
     speakPodcastLineWithBrowserVoice(line);
   };
@@ -1928,6 +1929,7 @@ function playPodcastLineViaAudio(url, line) {
 }
 
 function speakPodcastLineWithBrowserVoice(line) {
+  if (!podcastState.isPlaying) return;
   if (!window.speechSynthesis) { stopPodcast(); return; }
 
   const utter = new SpeechSynthesisUtterance(line.text);
@@ -2036,13 +2038,24 @@ async function togglePodcastPlayback() {
 window.togglePodcastPlayback = togglePodcastPlayback;
 
 function stopPodcast() {
+  // Set this FIRST, before touching audioEl/speechSynthesis. Clearing
+  // audioEl.src below fires the element's own 'error' event asynchronously,
+  // and that handler (in playPodcastLineViaAudio) used to unconditionally
+  // fall back to speakPodcastLineWithBrowserVoice(line) — so closing the
+  // player while a real audio line was playing would silently kick off a
+  // *new* robotic browser-TTS utterance instead of actually going silent.
+  podcastState.isPlaying = false;
   if (podcastState.audioEl) {
-    try { podcastState.audioEl.pause(); podcastState.audioEl.currentTime = 0; podcastState.audioEl.src = ''; } catch (e) { /* ignore */ }
+    try {
+      podcastState.audioEl.onerror = null;
+      podcastState.audioEl.pause();
+      podcastState.audioEl.currentTime = 0;
+      podcastState.audioEl.src = '';
+    } catch (e) { /* ignore */ }
   }
   if (window.speechSynthesis) {
     try { window.speechSynthesis.cancel(); } catch (e) { /* ignore */ }
   }
-  podcastState.isPlaying = false;
   podcastState.currentIndex = -1;
   updatePodcastPlayPauseIcon();
   const fill = document.getElementById('podcast-progress-fill');
