@@ -221,6 +221,16 @@ async function callGroq(apiKey: string, system: string, user: string, maxTokens:
   const model = Deno.env.get('GROQ_PRESENTATION_MODEL') || 'openai/gpt-oss-120b'
   let prompt = user
   let lastError = ''
+  // Hard ceiling raised from 2800 → 8000: the compose stage now asks for
+  // richer per-slide content (see depthRule/completenessRule), and a
+  // 10-15 slide deck with structured content (tables/charts/cards/
+  // diagrams) can need 5-7k output tokens. A response silently truncated
+  // mid-JSON by too low a cap doesn't hit the 429/"too large" retry path
+  // below — it comes back 200 OK with broken JSON, which just fails as
+  // INCOMPLETE_PRESENTATION with no retry. effectiveMaxTokens grows on a
+  // detected truncation (finish_reason === 'length') so the retry actually
+  // has room to finish instead of truncating identically again.
+  let effectiveMaxTokens = Math.min(8000, Math.max(450, maxTokens))
   for (let attempt = 0; attempt < 3; attempt++) {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), 55000)
@@ -232,14 +242,26 @@ async function callGroq(apiKey: string, system: string, user: string, maxTokens:
         body: JSON.stringify({
           model,
           temperature,
-          max_completion_tokens: Math.min(2800, Math.max(450, maxTokens)),
+          max_completion_tokens: effectiveMaxTokens,
           response_format: { type: 'json_object' },
           messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }],
         }),
       })
       clearTimeout(timer)
       const payload = await response.json()
-      if (response.ok && payload?.choices?.[0]?.message?.content) return payload.choices[0].message.content as string
+      if (response.ok && payload?.choices?.[0]?.message?.content) {
+        if (payload.choices[0].finish_reason === 'length' && attempt < 2) {
+          // Cut off mid-generation — downstream JSON parsing will very
+          // likely fail. Grow the budget and retry instead of silently
+          // returning truncated JSON that only fails later.
+          console.warn('Acadia Director Groq response truncated (finish_reason=length), retrying with larger budget.')
+          lastError = 'RESPONSE_TRUNCATED'
+          effectiveMaxTokens = Math.min(8000, effectiveMaxTokens + 2200)
+          await new Promise(resolve => setTimeout(resolve, 700))
+          continue
+        }
+        return payload.choices[0].message.content as string
+      }
       lastError = cleanText(payload?.error?.message, 700)
       if (response.status === 429 && attempt < 2) {
         await new Promise(resolve => setTimeout(resolve, 6500 * (attempt + 1)))
@@ -502,7 +524,13 @@ async function composeDeck(apiKey: string, source: SourceBundle, body: any, plan
   const completenessRule = 'STRUCTURED CONTENT COMPLETENESS: when you choose cards, steps, or comparison, every card/step must have BOTH a non-empty title AND a non-empty body of at least 12 words — never emit a card or step with only a title. A "comparison" slide must have exactly two cards, each fully populated on both sides; if you cannot write substantive content for both sides, use design_variant "cards", "table", or "section" instead of "comparison". Never leave a visual element half-empty.'
   const system = `You are Acadia Director V11 operating as Academic Writer + Visual Planner. Follow the approved plan exactly and produce a professional editable deck in ${language}.\n${groundedRule}\n${depthRule}\n${completenessRule}\n${density}\nReturn JSON only: {"title":"","slides":[{"title":"","text":"","secondary_text":"","speaker_notes":"","layout_type":"title-content|two-column|image-left|image-right|chart|table","design_variant":"hero|section|cards|process|timeline|big-number|comparison|data|summary","visual_purpose":"hero|section|cards|process|timeline|comparison|table|chart|diagram|big-number|summary","source_refs":[{"chunk_id":"C01","confidence":0.9}],"claims":[{"text":"","evidence_ids":["C01"],"confidence":0.9}],"table":null,"chart":null,"cards":null,"steps":null,"diagram":null}]}.\nRules: exactly ${slideCount} slides; no instruction leakage; no fake charts. Create a chart ONLY when the evidence packet contains explicit numeric values. Prefer comparison/table/process/diagram/cards when data is qualitative. Preserve one clear message per slide. The title slide and final summary should be visually distinct.`
   const user = `APPROVED DIRECTOR PLAN:\n${cleanText(JSON.stringify(plan), 9000)}\n\nEVIDENCE PACKET:\n${packet}\n\nWrite the complete deck now.`
-  const raw = await callGroq(apiKey, system, user, 2650)
+  // Scaled by slideCount instead of a fixed budget — the 'detailed' density
+  // (4-6 dense bullets + 70-110 word notes per slide, plus occasional
+  // table/chart/cards/diagram objects) needs real room to breathe. A fixed
+  // 2650 was fine for short/summary decks but silently truncated mid-JSON
+  // on larger, richer ones (see callGroq's finish_reason handling above).
+  const composeTokenBudget = Math.min(7800, 1400 + slideCount * 480)
+  const raw = await callGroq(apiKey, system, user, composeTokenBudget)
   let deck = normalizeDeck(parseJson(raw), slideCount, source.sourceType)
   let quality = qualityDeck(deck, slideCount, source.sourceType)
 
@@ -510,7 +538,8 @@ async function composeDeck(apiKey: string, source: SourceBundle, body: any, plan
     const repairSystem = `You are Acadia Academic Critic V11. Repair a draft presentation without changing its evidence basis. Return JSON only in the same presentation schema. Fix only these quality issues: ${quality.issues.join(', ') || 'general quality'}. Keep exactly ${slideCount} slides. Do not invent citations, numbers, authors or research. Write in ${language}.`
     const repairUser = `PLAN:\n${cleanText(JSON.stringify(plan), 4200)}\n\nDRAFT:\n${cleanText(JSON.stringify(deck), 8500)}\n\nRepair the deck. Keep source_refs/claims grounded in existing chunk IDs.`
     try {
-      const repairedRaw = await callGroq(apiKey, repairSystem, repairUser, 1900, 0.12)
+      const repairTokenBudget = Math.min(6500, 1100 + slideCount * 380)
+      const repairedRaw = await callGroq(apiKey, repairSystem, repairUser, repairTokenBudget, 0.12)
       const repaired = normalizeDeck(parseJson(repairedRaw), slideCount, source.sourceType)
       const repairedQuality = qualityDeck(repaired, slideCount, source.sourceType)
       if (repairedQuality.score >= quality.score) {

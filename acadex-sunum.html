@@ -4192,17 +4192,25 @@
             return;
           } catch (v11Err) {
             console.error('V11 generate failed, falling back:', v11Err);
+            // Sunucunun döndürdüğü gerçek sebebi (ör. "Acadia Director is
+            // busy", "incomplete structure") gösteriyoruz — önceden hep
+            // aynı jenerik "meşgul" mesajı çıktığı için asıl neden hiç
+            // görünmüyordu ve tekrarlayan hatalar teşhis edilemiyordu.
+            const v11Reason = (v11Err && v11Err.message && v11Err.message !== 'V11_EMPTY_RESPONSE')
+              ? v11Err.message
+              : 'sunucudan geçerli bir yanıt alınamadı';
             if (presentationSettings.sourceType !== 'topic') {
               overlay.classList.add('hidden');
               alert(
-                "V11 Akademik Motor şu anda bu kaynak için içerik üretemedi (AI servisi meşgul olabilir). " +
+                `V11 Akademik Motor şu anda bu kaynak için içerik üretemedi (${v11Reason}). ` +
                 "Lütfen birkaç dakika sonra tekrar deneyin, ya da \"Konu Yaz\" kaynağıyla devam edin."
               );
               document.getElementById('topicModal').classList.remove('hidden');
               return;
             }
             // Kaynak "Konu Yaz" ise sessizce legacy Deep Research'e düş.
-            progressText.innerText = "V11 meşgul, standart Deep Research motoruna geçiliyor...";
+            console.warn('V11 fallback reason:', v11Reason);
+            progressText.innerText = `V11 şu anda kullanılamıyor (${v11Reason}) — standart Deep Research motoruna geçiliyor...`;
           }
         } else if (presentationSettings.sourceType !== 'topic') {
           overlay.classList.add('hidden');
@@ -4233,8 +4241,9 @@
         if (!response.ok || !Array.isArray(data.slides) || data.slides.length === 0) {
           console.error('generate-presentation failed:', data);
           overlay.classList.add('hidden');
+          const legacyReason = (data && data.error) ? ` (${data.error})` : ' (AI servisi meşgul olabilir)';
           const retry = confirm(
-            "Derinlemesine araştırma şu anda başarısız oldu (AI servisi meşgul olabilir). " +
+            `Derinlemesine araştırma şu anda başarısız oldu${legacyReason}. ` +
             "Bunun yerine hızlı şablon motoruyla anında bir taslak oluşturmak ister misiniz?"
           );
           if (retry) {
