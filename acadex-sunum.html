@@ -139,6 +139,13 @@
       box-shadow: 0 0 0 1px rgba(31, 138, 147, 0.45), 0 8px 20px -8px rgba(31, 138, 147, 0.35);
     }
 
+    /* Wizard: Kaynak (source type) selector */
+    .source-type-btn.active {
+      border-color: var(--arctic-ice) !important;
+      background: rgba(31, 138, 147, 0.12) !important;
+      box-shadow: 0 0 0 1px rgba(31, 138, 147, 0.45);
+    }
+
     /* This tool is a 3-column canvas editor (tool panel / 960x540 slide /
        layer panel) that fundamentally needs real screen width — squeezing
        it onto a phone would just be a broken, unusable editor rather than
@@ -850,8 +857,35 @@
 
       <!-- Form Body -->
       <div class="flex flex-col gap-5 text-xs">
-        <!-- Topic -->
+        <!-- Kaynak Seçimi (V11 Akademik Motor) -->
         <div class="flex flex-col gap-1.5">
+          <label class="font-semibold text-slate-300">Kaynak</label>
+          <div class="grid grid-cols-3 gap-2">
+            <button type="button" data-source="topic" class="source-type-btn active text-left bg-slate-900 border border-slate-800 rounded-lg p-2.5 flex flex-col gap-0.5 transition-all">
+              <span class="font-bold text-white text-[11px]">📝 Konu Yaz</span>
+              <span class="text-slate-400 text-[9.5px] leading-snug">Serbest başlık</span>
+            </button>
+            <button type="button" data-source="study_card" class="source-type-btn text-left bg-slate-900 border border-slate-800 rounded-lg p-2.5 flex flex-col gap-0.5 transition-all">
+              <span class="font-bold text-white text-[11px]">🗂️ Ders Kartım</span>
+              <span class="text-slate-400 text-[9.5px] leading-snug">Mevcut özetten</span>
+            </button>
+            <button type="button" data-source="document" class="source-type-btn text-left bg-slate-900 border border-slate-800 rounded-lg p-2.5 flex flex-col gap-0.5 transition-all">
+              <span class="font-bold text-white text-[11px]">📄 Belgem</span>
+              <span class="text-slate-400 text-[9.5px] leading-snug">Yüklediğim dosya</span>
+            </button>
+          </div>
+          <select id="wizardSourceType" class="hidden">
+            <option value="topic">Konu</option>
+            <option value="study_card">Ders Kartı</option>
+            <option value="document">Belge</option>
+          </select>
+          <p class="text-[10px] text-amber-300/80 leading-snug mt-1 hidden" id="wizardSourceV11Hint">
+            ⚡ Ders kartı / belge kaynağı sadece <span class="font-semibold">"Derinlemesine Araştır (AI)"</span> ile çalışır — gerçek içeriğinizden kanıta dayalı bir sunum üretir.
+          </p>
+        </div>
+
+        <!-- Topic -->
+        <div class="flex flex-col gap-1.5" id="wizardTopicBlock">
           <label for="wizardTopic" class="font-semibold text-slate-300">Konu Başlığı</label>
           <input type="text" id="wizardTopic" placeholder="Örn: Diyet nedir?, Tez yazma adımları..." class="w-full bg-slate-900 border border-slate-800 rounded-lg p-3 text-xs text-white focus:outline-none focus:border-sky-500">
           <div class="flex flex-wrap gap-1.5 mt-2" id="wizardDomainChips">
@@ -867,6 +901,24 @@
             spesifik bir konu için (örn. "İstanbul'un Fethi") en dolu dolu ve doğru içerik için
             <span class="text-sky-400 font-semibold">"Derinlemesine Araştır (AI)"</span> önerilir.
           </p>
+        </div>
+
+        <!-- Ders Kartı Seçimi -->
+        <div class="hidden flex-col gap-1.5" id="wizardStudyCardWrap">
+          <label for="wizardStudyCardSelect" class="font-semibold text-slate-300">Ders Kartı Seç</label>
+          <select id="wizardStudyCardSelect" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-3 text-xs text-white focus:outline-none focus:border-sky-500">
+            <option value="">Yükleniyor...</option>
+          </select>
+          <input type="text" id="wizardFocusStudyCard" placeholder="Vurgulamak istediğiniz bir odak (opsiyonel)" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-3 text-xs text-white focus:outline-none focus:border-sky-500">
+        </div>
+
+        <!-- Belge Seçimi -->
+        <div class="hidden flex-col gap-1.5" id="wizardDocumentWrap">
+          <label for="wizardDocumentSelect" class="font-semibold text-slate-300">Belge Seç</label>
+          <select id="wizardDocumentSelect" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-3 text-xs text-white focus:outline-none focus:border-sky-500">
+            <option value="">Yükleniyor...</option>
+          </select>
+          <input type="text" id="wizardFocusDocument" placeholder="Vurgulamak istediğiniz bir odak (opsiyonel)" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-3 text-xs text-white focus:outline-none focus:border-sky-500">
         </div>
 
         <!-- Slide Count Slider -->
@@ -1199,6 +1251,546 @@
       });
 
       return objs;
+    }
+
+    // ============================================================
+    // V11 ZENGİN İÇERİK ÇİZİM MOTORU (table/chart/cards/process/timeline/
+    // diagram/big-number/comparison) — Presentation Studio V11'in ürettiği
+    // yapılı içeriği gerçek Fabric.js nesneleriyle çizer. Hepsi aynı üst
+    // başlık (buildDataSlideHeader) + 80..880 x-ekseni / ~110..500 y-ekseni
+    // içerik alanı sözleşmesini paylaşır, böylece tema ve slayt geneli
+    // hizası korunur.
+    // ============================================================
+    function buildDataSlideHeader(title, accent, titleColor, animate) {
+      const titleObj = new fabric.Textbox(title, {
+        left: 80, top: 44, width: 800, fontSize: 24, fontFamily: 'Inter',
+        fill: accent, fontWeight: 'bold', selectable: false, splitByGrapheme: true
+      });
+      const accentLine = new fabric.Rect({
+        left: 80, top: 86, width: 55, height: 4, fill: accent, rx: 2, ry: 2, selectable: false
+      });
+      if (animate) { titleObj.entranceAnim = 'fadeIn'; accentLine.entranceAnim = 'fadeIn'; }
+      return [titleObj, accentLine];
+    }
+
+    // Sağ-alt köşede küçük bir "kaynağa dayalı" rozeti — V11'in ders kartı/
+    // belge kaynağından ürettiği ve kanıt zincirine (source_refs/claims)
+    // sahip slaytlarda gösterilir; kullanıcı hangi slaytların gerçekten
+    // kaynağa bağlı olduğunu görsel olarak ayırt edebilsin diye.
+    function buildGroundedBadge(data, ctx) {
+      if (!data.v11 || !data.v11.grounded) return [];
+      const badgeW = 168;
+      const bg = new fabric.Rect({
+        left: 960 - 16 - badgeW, top: 540 - 16 - 24, width: badgeW, height: 24,
+        rx: 12, ry: 12, fill: ctx.accent, opacity: 0.88, selectable: false, evented: false
+      });
+      const txt = new fabric.Textbox(`🔎 Kaynağa dayalı (${data.v11.refCount})`, {
+        left: 960 - 16 - badgeW + 8, top: 540 - 16 - 24 + 5, width: badgeW - 16,
+        fontSize: 9, fontFamily: 'Inter', fill: '#ffffff', textAlign: 'center',
+        selectable: false, evented: false
+      });
+      return [bg, txt];
+    }
+
+    function buildTableSlide(data, ctx) {
+      const objs = buildDataSlideHeader(data.title, ctx.accent, ctx.titleColor, ctx.animate);
+      const table = data.v11 && data.v11.table;
+      if (!table || !Array.isArray(table.headers) || !table.headers.length) return objs;
+      const headers = table.headers;
+      const rows = (table.rows || []).slice(0, 7);
+      const areaX = 80, areaY = 108, areaW = 800, headerH = 34;
+      const colW = areaW / headers.length;
+      const maxRows = Math.max(1, rows.length);
+      const rowH = Math.max(24, Math.min(40, (500 - areaY - headerH) / maxRows));
+
+      headers.forEach((h, ci) => {
+        const cellBg = new fabric.Rect({
+          left: areaX + ci * colW, top: areaY, width: colW, height: headerH,
+          fill: ctx.accent, opacity: 0.92, selectable: false
+        });
+        const cellText = new fabric.Textbox(String(h), {
+          left: areaX + ci * colW + 6, top: areaY + 8, width: colW - 12,
+          fontSize: 11.5, fontFamily: 'Inter', fontWeight: 'bold', fill: '#ffffff',
+          selectable: false, splitByGrapheme: true
+        });
+        if (ctx.animate) { cellBg.entranceAnim = 'fadeIn'; cellText.entranceAnim = 'fadeIn'; }
+        objs.push(cellBg, cellText);
+      });
+
+      rows.forEach((row, ri) => {
+        const rowY = areaY + headerH + ri * rowH;
+        const rowBg = new fabric.Rect({
+          left: areaX, top: rowY, width: areaW, height: rowH,
+          fill: ctx.accent, opacity: ri % 2 === 0 ? 0.09 : 0, selectable: false
+        });
+        objs.push(rowBg);
+        headers.forEach((_, ci) => {
+          const cellVal = row[ci] != null ? String(row[ci]) : '';
+          const cellText = new fabric.Textbox(cellVal, {
+            left: areaX + ci * colW + 6, top: rowY + Math.max(4, rowH / 2 - 9), width: colW - 12,
+            fontSize: 11, fontFamily: 'Inter', fill: ctx.activeText,
+            selectable: false, splitByGrapheme: true
+          });
+          if (ctx.animate) cellText.entranceAnim = 'fadeIn';
+          objs.push(cellText);
+        });
+        objs.push(new fabric.Line([areaX, rowY + rowH, areaX + areaW, rowY + rowH], {
+          stroke: ctx.activeText, strokeWidth: 1, opacity: 0.12, selectable: false
+        }));
+      });
+      return objs;
+    }
+
+    function buildBarChart(chart, ctx) {
+      const objs = [];
+      const areaX = 100, areaBottom = 480, areaTop = 150, areaW = 760;
+      const labels = chart.labels, values = chart.data;
+      const maxVal = Math.max.apply(null, values.concat([1]));
+      const n = labels.length;
+      const gap = 22;
+      const barW = Math.max(24, (areaW - gap * (n + 1)) / n);
+      const usedW = barW * n + gap * (n + 1);
+      const startX = areaX + Math.max(0, (areaW - usedW) / 2);
+      const maxBarH = areaBottom - areaTop - 20;
+      const colors = (ctx.palette.shapeColors || [ctx.accent]).concat([ctx.accent]);
+
+      objs.push(new fabric.Line([areaX, areaBottom, areaX + areaW, areaBottom], {
+        stroke: ctx.activeText, strokeWidth: 1.5, opacity: 0.4, selectable: false
+      }));
+
+      labels.forEach((label, i) => {
+        const val = Number(values[i]) || 0;
+        const h = maxVal > 0 ? (val / maxVal) * maxBarH : 0;
+        const x = startX + gap + i * (barW + gap);
+        const bar = new fabric.Rect({
+          left: x, top: areaBottom - h, width: barW, height: Math.max(2, h),
+          fill: colors[i % colors.length], rx: 4, ry: 4, selectable: false
+        });
+        const valLabel = new fabric.Textbox(String(val), {
+          left: x - 8, top: areaBottom - h - 22, width: barW + 16,
+          fontSize: 12, fontWeight: 'bold', fontFamily: 'Inter', fill: ctx.activeText,
+          textAlign: 'center', selectable: false
+        });
+        const catLabel = new fabric.Textbox(label, {
+          left: x - 12, top: areaBottom + 8, width: barW + 24,
+          fontSize: 10, fontFamily: 'Inter', fill: ctx.activeText, opacity: 0.85,
+          textAlign: 'center', selectable: false, splitByGrapheme: true
+        });
+        if (ctx.animate) { bar.entranceAnim = 'slideUp'; valLabel.entranceAnim = 'fadeIn'; catLabel.entranceAnim = 'fadeIn'; }
+        objs.push(bar, valLabel, catLabel);
+      });
+      if (chart.series_label) {
+        objs.push(new fabric.Textbox(chart.series_label, {
+          left: areaX, top: areaTop - 24, width: areaW, fontSize: 11, fontStyle: 'italic',
+          fontFamily: 'Inter', fill: ctx.activeText, opacity: 0.7, selectable: false
+        }));
+      }
+      return objs;
+    }
+
+    function buildLineChart(chart, ctx) {
+      const objs = [];
+      const areaX = 110, areaRight = 850, areaBottom = 480, areaTop = 150;
+      const labels = chart.labels, values = chart.data.map(Number);
+      const maxVal = Math.max.apply(null, values.concat([1]));
+      const minVal = Math.min.apply(null, values.concat([0]));
+      const range = (maxVal - minVal) || 1;
+      const n = labels.length;
+      const stepX = n > 1 ? (areaRight - areaX) / (n - 1) : 0;
+
+      objs.push(new fabric.Line([areaX, areaBottom, areaRight, areaBottom], {
+        stroke: ctx.activeText, strokeWidth: 1.5, opacity: 0.4, selectable: false
+      }));
+
+      const points = values.map((val, i) => ({
+        x: areaX + i * stepX,
+        y: areaBottom - ((val - minVal) / range) * (areaBottom - areaTop),
+        val, label: labels[i]
+      }));
+
+      const polyline = new fabric.Polyline(points.map(p => ({ x: p.x, y: p.y })), {
+        fill: '', stroke: ctx.accent, strokeWidth: 3, selectable: false, objectCaching: false
+      });
+      if (ctx.animate) polyline.entranceAnim = 'fadeIn';
+      objs.push(polyline);
+
+      points.forEach(p => {
+        const dot = new fabric.Circle({
+          left: p.x, top: p.y, radius: 5, originX: 'center', originY: 'center',
+          fill: ctx.accent, selectable: false
+        });
+        const valLabel = new fabric.Textbox(String(p.val), {
+          left: p.x - 35, top: p.y - 24, width: 70, fontSize: 11, fontWeight: 'bold', fontFamily: 'Inter',
+          fill: ctx.activeText, textAlign: 'center', selectable: false
+        });
+        const catLabel = new fabric.Textbox(p.label, {
+          left: p.x - 45, top: areaBottom + 8, width: 90, fontSize: 10, fontFamily: 'Inter',
+          fill: ctx.activeText, opacity: 0.85, textAlign: 'center', selectable: false, splitByGrapheme: true
+        });
+        if (ctx.animate) { dot.entranceAnim = 'fadeIn'; valLabel.entranceAnim = 'fadeIn'; catLabel.entranceAnim = 'fadeIn'; }
+        objs.push(dot, valLabel, catLabel);
+      });
+      return objs;
+    }
+
+    function buildPieChart(chart, ctx) {
+      const objs = [];
+      const cx = 320, cy = 300, r = 150;
+      const labels = chart.labels, values = chart.data.map(Number);
+      const total = values.reduce((a, b) => a + b, 0) || 1;
+      const colors = (ctx.palette.shapeColors || []).concat([ctx.accent, '#ffffff', '#94a3b8']);
+      let startAngle = -Math.PI / 2;
+
+      labels.forEach((label, i) => {
+        const val = values[i] || 0;
+        const angle = (val / total) * Math.PI * 2;
+        const endAngle = startAngle + angle;
+        const x1 = cx + r * Math.cos(startAngle), y1 = cy + r * Math.sin(startAngle);
+        const x2 = cx + r * Math.cos(endAngle), y2 = cy + r * Math.sin(endAngle);
+        const largeArc = angle > Math.PI ? 1 : 0;
+        const pathStr = `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`;
+        const slice = new fabric.Path(pathStr, {
+          fill: colors[i % colors.length], stroke: ctx.palette.bgColor, strokeWidth: 2, selectable: false
+        });
+        if (ctx.animate) slice.entranceAnim = 'fadeIn';
+        objs.push(slice);
+        startAngle = endAngle;
+      });
+
+      const legendX = 550, legendY = 155;
+      labels.forEach((label, i) => {
+        const val = values[i] || 0;
+        const pct = Math.round((val / total) * 100);
+        const sw = new fabric.Rect({
+          left: legendX, top: legendY + i * 27, width: 14, height: 14,
+          fill: colors[i % colors.length], selectable: false
+        });
+        const txt = new fabric.Textbox(`${label} — ${val} (%${pct})`, {
+          left: legendX + 22, top: legendY + i * 27 - 3, width: 300, fontSize: 12,
+          fontFamily: 'Inter', fill: ctx.activeText, selectable: false, splitByGrapheme: true
+        });
+        if (ctx.animate) { sw.entranceAnim = 'fadeIn'; txt.entranceAnim = 'fadeIn'; }
+        objs.push(sw, txt);
+      });
+      return objs;
+    }
+
+    function buildChartSlide(data, ctx) {
+      const objs = buildDataSlideHeader(data.title, ctx.accent, ctx.titleColor, ctx.animate);
+      const chart = data.v11 && data.v11.chart;
+      if (!chart || !Array.isArray(chart.labels) || !chart.labels.length) return objs;
+      if (chart.type === 'pie') return objs.concat(buildPieChart(chart, ctx));
+      if (chart.type === 'line') return objs.concat(buildLineChart(chart, ctx));
+      return objs.concat(buildBarChart(chart, ctx));
+    }
+
+    function buildCardsSlide(data, ctx) {
+      const objs = buildDataSlideHeader(data.title, ctx.accent, ctx.titleColor, ctx.animate);
+      const cards = (data.v11 && data.v11.cards) || [];
+      if (!cards.length) return objs;
+      const areaX = 80, areaY = 118, areaW = 800, areaH = 372, gap = 16;
+      const cols = cards.length <= 3 ? cards.length : Math.ceil(cards.length / 2);
+      const rows = Math.ceil(cards.length / cols);
+      const cardW = (areaW - gap * (cols - 1)) / cols;
+      const cardH = (areaH - gap * (rows - 1)) / rows;
+
+      cards.forEach((card, i) => {
+        const col = i % cols, row = Math.floor(i / cols);
+        const x = areaX + col * (cardW + gap);
+        const y = areaY + row * (cardH + gap);
+        const cardBg = new fabric.Rect({
+          left: x, top: y, width: cardW, height: cardH, rx: 12, ry: 12,
+          fill: ctx.accent, opacity: 0.12, stroke: ctx.accent, strokeWidth: 1, selectable: false
+        });
+        const numBadge = new fabric.Circle({
+          left: x + 20, top: y + 20, radius: 12, originX: 'center', originY: 'center',
+          fill: ctx.accent, selectable: false
+        });
+        const numText = new fabric.Textbox(String(i + 1), {
+          left: x + 10, top: y + 12, width: 20, fontSize: 12, fontWeight: 'bold',
+          fill: '#ffffff', textAlign: 'center', selectable: false
+        });
+        const titleObj = new fabric.Textbox(card.title || '', {
+          left: x + 14, top: y + 42, width: cardW - 28, fontSize: 13.5, fontWeight: 'bold',
+          fontFamily: 'Inter', fill: ctx.titleColor, selectable: false, splitByGrapheme: true
+        });
+        const bodyObj = new fabric.Textbox(card.body || '', {
+          left: x + 14, top: y + 68, width: cardW - 28, fontSize: 10.5, lineHeight: 1.4,
+          fontFamily: 'Inter', fill: ctx.activeText, selectable: false, splitByGrapheme: true
+        });
+        if (ctx.animate) { cardBg.entranceAnim = 'fadeIn'; titleObj.entranceAnim = 'slideUp'; bodyObj.entranceAnim = 'slideUp'; }
+        objs.push(cardBg, numBadge, numText, titleObj, bodyObj);
+      });
+      return objs;
+    }
+
+    function buildProcessSlide(data, ctx) {
+      const objs = buildDataSlideHeader(data.title, ctx.accent, ctx.titleColor, ctx.animate);
+      const steps = (data.v11 && data.v11.steps) || [];
+      if (!steps.length) return objs;
+      const areaX = 95, areaRight = 865, y = 220, r = 26;
+      const n = steps.length;
+      const stepGap = n > 1 ? (areaRight - areaX) / (n - 1) : 0;
+
+      objs.push(new fabric.Line([areaX, y, areaRight, y], { stroke: ctx.accent, strokeWidth: 2, opacity: 0.4, selectable: false }));
+
+      steps.forEach((step, i) => {
+        const cx = areaX + i * stepGap;
+        const circle = new fabric.Circle({ left: cx, top: y, radius: r, originX: 'center', originY: 'center', fill: ctx.accent, selectable: false });
+        const numText = new fabric.Textbox(step.label || String(i + 1), {
+          left: cx - r, top: y - 9, width: r * 2, fontSize: 13, fontWeight: 'bold',
+          fill: '#ffffff', textAlign: 'center', selectable: false
+        });
+        const titleObj = new fabric.Textbox(step.title || '', {
+          left: cx - 85, top: y + r + 14, width: 170, fontSize: 12, fontWeight: 'bold',
+          fontFamily: 'Inter', fill: ctx.titleColor, textAlign: 'center', selectable: false, splitByGrapheme: true
+        });
+        const bodyObj = new fabric.Textbox(step.body || '', {
+          left: cx - 85, top: y + r + 40, width: 170, fontSize: 9.5, lineHeight: 1.35,
+          fontFamily: 'Inter', fill: ctx.activeText, textAlign: 'center', selectable: false, splitByGrapheme: true
+        });
+        if (ctx.animate) { circle.entranceAnim = 'fadeIn'; numText.entranceAnim = 'fadeIn'; titleObj.entranceAnim = 'slideUp'; bodyObj.entranceAnim = 'slideUp'; }
+        objs.push(circle, numText, titleObj, bodyObj);
+      });
+      return objs;
+    }
+
+    function buildTimelineSlide(data, ctx) {
+      const objs = buildDataSlideHeader(data.title, ctx.accent, ctx.titleColor, ctx.animate);
+      const steps = (data.v11 && data.v11.steps) || [];
+      if (!steps.length) return objs;
+      const areaX = 95, areaRight = 865, midY = 300;
+      const n = steps.length;
+      const stepGap = n > 1 ? (areaRight - areaX) / (n - 1) : 0;
+
+      objs.push(new fabric.Line([areaX, midY, areaRight, midY], { stroke: ctx.accent, strokeWidth: 2, opacity: 0.5, selectable: false }));
+
+      steps.forEach((step, i) => {
+        const cx = areaX + i * stepGap;
+        const above = i % 2 === 0;
+        const dot = new fabric.Circle({
+          left: cx, top: midY, radius: 8, originX: 'center', originY: 'center',
+          fill: ctx.accent, stroke: ctx.palette.bgColor, strokeWidth: 3, selectable: false
+        });
+        const stem = new fabric.Line([cx, midY, cx, above ? midY - 44 : midY + 44], {
+          stroke: ctx.accent, strokeWidth: 1.5, opacity: 0.5, selectable: false
+        });
+        const labelBadge = new fabric.Textbox(step.label || String(i + 1), {
+          left: cx - 60, top: above ? midY - 98 : midY + 52, width: 120, fontSize: 10, fontWeight: 'bold',
+          fontFamily: 'Inter', fill: ctx.accent, textAlign: 'center', selectable: false
+        });
+        const titleObj = new fabric.Textbox(step.title || '', {
+          left: cx - 75, top: above ? midY - 80 : midY + 70, width: 150, fontSize: 11.5, fontWeight: 'bold',
+          fontFamily: 'Inter', fill: ctx.titleColor, textAlign: 'center', selectable: false, splitByGrapheme: true
+        });
+        const bodyObj = new fabric.Textbox(step.body || '', {
+          left: cx - 75, top: above ? midY - 58 : midY + 92, width: 150, fontSize: 9, lineHeight: 1.3,
+          fontFamily: 'Inter', fill: ctx.activeText, textAlign: 'center', selectable: false, splitByGrapheme: true
+        });
+        if (ctx.animate) { dot.entranceAnim = 'fadeIn'; stem.entranceAnim = 'fadeIn'; titleObj.entranceAnim = 'slideUp'; bodyObj.entranceAnim = 'slideUp'; }
+        objs.push(stem, dot, labelBadge, titleObj, bodyObj);
+      });
+      return objs;
+    }
+
+    function buildBigNumberSlide(data, ctx) {
+      const objs = buildDataSlideHeader(data.title, ctx.accent, ctx.titleColor, ctx.animate);
+      const metric = (data.v11 && data.v11.metric) || {};
+      let valueStr = metric.value != null ? String(metric.value) : '';
+      if (!valueStr) {
+        const match = String(data.content || '').match(/[-+]?\d[\d.,]*\s*%?/);
+        valueStr = match ? match[0] : '—';
+      }
+      const unit = metric.unit ? String(metric.unit) : '';
+      const label = metric.label ? String(metric.label) : '';
+      const description = metric.description ? String(metric.description) : ((data.v11 && data.v11.secondaryText) || data.content || '');
+
+      // fabric.Text (not Textbox) — auto-sized to its content, so a short
+      // numeric value at a huge font size never gets grapheme-wrapped onto
+      // multiple lines the way a fixed-width Textbox could.
+      const bigNum = new fabric.Text(valueStr + (unit ? ' ' + unit : ''), {
+        left: 80, top: 165, fontSize: 92, fontWeight: 'bold',
+        fill: ctx.accent, fontFamily: 'Inter', selectable: false
+      });
+      const labelObj = new fabric.Textbox(label, {
+        left: 80, top: 300, width: 500, fontSize: 19, fontWeight: 'bold',
+        fontFamily: 'Inter', fill: ctx.titleColor, selectable: false, splitByGrapheme: true
+      });
+      const descObj = new fabric.Textbox(description, {
+        left: 80, top: 340, width: 500, fontSize: 12.5, lineHeight: 1.5,
+        fontFamily: 'Inter', fill: ctx.activeText, selectable: false, splitByGrapheme: true
+      });
+      const ringOuter = new fabric.Circle({
+        left: 750, top: 300, radius: 110, originX: 'center', originY: 'center',
+        fill: 'transparent', stroke: ctx.accent, strokeWidth: 2, opacity: 0.35, selectable: false
+      });
+      const ringInner = new fabric.Circle({
+        left: 750, top: 300, radius: 82, originX: 'center', originY: 'center',
+        fill: ctx.accent, opacity: 0.12, selectable: false
+      });
+      if (ctx.animate) {
+        bigNum.entranceAnim = 'fadeIn'; labelObj.entranceAnim = 'fadeIn'; descObj.entranceAnim = 'slideUp';
+        ringOuter.entranceAnim = 'fadeIn'; ringInner.entranceAnim = 'fadeIn';
+      }
+      return objs.concat([ringOuter, ringInner, bigNum, labelObj, descObj]);
+    }
+
+    function buildComparisonSlide(data, ctx) {
+      const objs = buildDataSlideHeader(data.title, ctx.accent, ctx.titleColor, ctx.animate);
+      const cards = (data.v11 && data.v11.cards) || [];
+      let leftTitle = 'Birinci', leftBody = data.content || '';
+      let rightTitle = 'İkinci', rightBody = (data.v11 && data.v11.secondaryText) || '';
+      if (cards.length >= 2) {
+        leftTitle = cards[0].title || leftTitle; leftBody = cards[0].body || leftBody;
+        rightTitle = cards[1].title || rightTitle; rightBody = cards[1].body || rightBody;
+      }
+
+      const boxY = 118, boxH = 372, boxW = 360, gap = 60;
+      const leftX = 80, rightX = 80 + boxW + gap;
+
+      const leftBox = new fabric.Rect({ left: leftX, top: boxY, width: boxW, height: boxH, rx: 14, ry: 14, fill: ctx.accent, opacity: 0.1, stroke: ctx.accent, strokeWidth: 1.5, selectable: false });
+      const rightBox = new fabric.Rect({ left: rightX, top: boxY, width: boxW, height: boxH, rx: 14, ry: 14, fill: ctx.accent, opacity: 0.1, stroke: ctx.accent, strokeWidth: 1.5, selectable: false });
+      const leftTitleObj = new fabric.Textbox(leftTitle, { left: leftX + 16, top: boxY + 16, width: boxW - 32, fontSize: 15, fontWeight: 'bold', fontFamily: 'Inter', fill: ctx.titleColor, selectable: false, splitByGrapheme: true });
+      const rightTitleObj = new fabric.Textbox(rightTitle, { left: rightX + 16, top: boxY + 16, width: boxW - 32, fontSize: 15, fontWeight: 'bold', fontFamily: 'Inter', fill: ctx.titleColor, selectable: false, splitByGrapheme: true });
+      const leftBodyObj = new fabric.Textbox(leftBody, { left: leftX + 16, top: boxY + 52, width: boxW - 32, fontSize: 11.5, lineHeight: 1.5, fontFamily: 'Inter', fill: ctx.activeText, selectable: false, splitByGrapheme: true });
+      const rightBodyObj = new fabric.Textbox(rightBody, { left: rightX + 16, top: boxY + 52, width: boxW - 32, fontSize: 11.5, lineHeight: 1.5, fontFamily: 'Inter', fill: ctx.activeText, selectable: false, splitByGrapheme: true });
+      const vsCircle = new fabric.Circle({ left: 480, top: boxY + boxH / 2, radius: 26, originX: 'center', originY: 'center', fill: ctx.accent, selectable: false });
+      const vsText = new fabric.Textbox('VS', { left: 480 - 26, top: boxY + boxH / 2 - 11, width: 52, fontSize: 16, fontWeight: 'bold', fontFamily: 'Inter', fill: '#ffffff', textAlign: 'center', selectable: false });
+
+      const arr = [leftBox, rightBox, leftTitleObj, rightTitleObj, leftBodyObj, rightBodyObj, vsCircle, vsText];
+      if (ctx.animate) arr.forEach(o => { o.entranceAnim = (o === leftBox || o === rightBox || o === vsCircle || o === vsText) ? 'fadeIn' : 'slideUp'; });
+      return objs.concat(arr);
+    }
+
+    function buildFlowDiagram(diagram, ctx) {
+      const objs = [];
+      const nodes = diagram.nodes;
+      const n = nodes.length;
+      const areaX = 55, areaRight = 905, y = 240, gap = 16;
+      const boxW = Math.min(150, (areaRight - areaX - gap * (n - 1)) / n);
+      const boxH = 140;
+      const totalW = boxW * n + gap * (n - 1);
+      const startX = areaX + Math.max(0, (areaRight - areaX - totalW) / 2);
+
+      nodes.forEach((node, i) => {
+        const x = startX + i * (boxW + gap);
+        const box = new fabric.Rect({ left: x, top: y - boxH / 2, width: boxW, height: boxH, rx: 10, ry: 10, fill: ctx.accent, opacity: 0.14, stroke: ctx.accent, strokeWidth: 1.5, selectable: false });
+        const label = new fabric.Textbox(node.label, { left: x + 8, top: y - boxH / 2 + 14, width: boxW - 16, fontSize: 12, fontWeight: 'bold', fontFamily: 'Inter', fill: ctx.titleColor, textAlign: 'center', selectable: false, splitByGrapheme: true });
+        const body = new fabric.Textbox(node.body || '', { left: x + 8, top: y - boxH / 2 + 44, width: boxW - 16, fontSize: 9.5, lineHeight: 1.3, fontFamily: 'Inter', fill: ctx.activeText, textAlign: 'center', selectable: false, splitByGrapheme: true });
+        if (ctx.animate) { box.entranceAnim = 'fadeIn'; label.entranceAnim = 'fadeIn'; body.entranceAnim = 'fadeIn'; }
+        objs.push(box, label, body);
+        if (i < n - 1) {
+          const arrow = new fabric.Triangle({
+            left: x + boxW + gap / 2, top: y, width: 12, height: 14, angle: 90,
+            originX: 'center', originY: 'center', fill: ctx.accent, selectable: false
+          });
+          objs.push(arrow);
+        }
+      });
+      return objs;
+    }
+
+    function buildCycleDiagram(diagram, ctx) {
+      const objs = [];
+      const nodes = diagram.nodes;
+      const n = nodes.length;
+      const cx = 480, cy = 300, r = 155;
+      nodes.forEach((node, i) => {
+        const angle = -Math.PI / 2 + (i * 2 * Math.PI / n);
+        const nx = cx + r * Math.cos(angle), ny = cy + r * Math.sin(angle);
+        const nextAngle = -Math.PI / 2 + (((i + 1) % n) * 2 * Math.PI / n);
+        const nnx = cx + r * Math.cos(nextAngle), nny = cy + r * Math.sin(nextAngle);
+        objs.push(new fabric.Line([nx, ny, nnx, nny], { stroke: ctx.accent, strokeWidth: 1.5, opacity: 0.4, selectable: false }));
+      });
+      nodes.forEach((node, i) => {
+        const angle = -Math.PI / 2 + (i * 2 * Math.PI / n);
+        const nx = cx + r * Math.cos(angle), ny = cy + r * Math.sin(angle);
+        const circle = new fabric.Circle({ left: nx, top: ny, radius: 34, originX: 'center', originY: 'center', fill: ctx.accent, opacity: 0.92, selectable: false });
+        const label = new fabric.Textbox(node.label, { left: nx - 55, top: ny - 12, width: 110, fontSize: 10.5, fontWeight: 'bold', fontFamily: 'Inter', fill: '#ffffff', textAlign: 'center', selectable: false, splitByGrapheme: true });
+        if (ctx.animate) { circle.entranceAnim = 'fadeIn'; label.entranceAnim = 'fadeIn'; }
+        objs.push(circle, label);
+      });
+      return objs;
+    }
+
+    function buildHierarchyDiagram(diagram, ctx) {
+      const objs = [];
+      const nodes = diagram.nodes;
+      const root = nodes[0];
+      const children = nodes.slice(1, 7);
+      const rootW = 220, rootH = 58, rootX = 480 - rootW / 2, rootY = 128;
+      const rootBox = new fabric.Rect({ left: rootX, top: rootY, width: rootW, height: rootH, rx: 10, ry: 10, fill: ctx.accent, selectable: false });
+      const rootLabel = new fabric.Textbox(root.label, { left: rootX + 10, top: rootY + 16, width: rootW - 20, fontSize: 14, fontWeight: 'bold', fontFamily: 'Inter', fill: '#ffffff', textAlign: 'center', selectable: false, splitByGrapheme: true });
+      if (ctx.animate) { rootBox.entranceAnim = 'fadeIn'; rootLabel.entranceAnim = 'fadeIn'; }
+      objs.push(rootBox, rootLabel);
+
+      const n = children.length;
+      if (!n) return objs;
+      const areaX = 65, areaRight = 895, childY = 280, gap = 14;
+      const childW = Math.min(160, (areaRight - areaX - gap * (n - 1)) / n);
+      const totalW = childW * n + gap * (n - 1);
+      const startX = areaX + Math.max(0, (areaRight - areaX - totalW) / 2);
+      children.forEach((child, i) => {
+        const x = startX + i * (childW + gap);
+        const cx = x + childW / 2;
+        objs.push(new fabric.Line([480, rootY + rootH, cx, childY], { stroke: ctx.accent, strokeWidth: 1.5, opacity: 0.4, selectable: false }));
+        const box = new fabric.Rect({ left: x, top: childY, width: childW, height: 110, rx: 8, ry: 8, fill: ctx.accent, opacity: 0.14, stroke: ctx.accent, strokeWidth: 1.2, selectable: false });
+        const label = new fabric.Textbox(child.label, { left: x + 8, top: childY + 10, width: childW - 16, fontSize: 11, fontWeight: 'bold', fontFamily: 'Inter', fill: ctx.titleColor, textAlign: 'center', selectable: false, splitByGrapheme: true });
+        const body = new fabric.Textbox(child.body || '', { left: x + 8, top: childY + 38, width: childW - 16, fontSize: 9, lineHeight: 1.3, fontFamily: 'Inter', fill: ctx.activeText, textAlign: 'center', selectable: false, splitByGrapheme: true });
+        if (ctx.animate) { box.entranceAnim = 'fadeIn'; label.entranceAnim = 'fadeIn'; body.entranceAnim = 'fadeIn'; }
+        objs.push(box, label, body);
+      });
+      return objs;
+    }
+
+    function buildMatrixDiagram(diagram, ctx) {
+      const objs = [];
+      const nodes = diagram.nodes.slice(0, 4);
+      const areaX = 130, areaY = 118, cellW = 350, cellH = 180, gap = 16;
+      const positions = [
+        { x: areaX, y: areaY }, { x: areaX + cellW + gap, y: areaY },
+        { x: areaX, y: areaY + cellH + gap }, { x: areaX + cellW + gap, y: areaY + cellH + gap }
+      ];
+      nodes.forEach((node, i) => {
+        const p = positions[i];
+        const box = new fabric.Rect({ left: p.x, top: p.y, width: cellW, height: cellH, rx: 12, ry: 12, fill: ctx.accent, opacity: 0.1 + (i % 2) * 0.06, stroke: ctx.accent, strokeWidth: 1.5, selectable: false });
+        const label = new fabric.Textbox(node.label, { left: p.x + 16, top: p.y + 16, width: cellW - 32, fontSize: 14, fontWeight: 'bold', fontFamily: 'Inter', fill: ctx.titleColor, selectable: false, splitByGrapheme: true });
+        const body = new fabric.Textbox(node.body || '', { left: p.x + 16, top: p.y + 50, width: cellW - 32, fontSize: 11, lineHeight: 1.4, fontFamily: 'Inter', fill: ctx.activeText, selectable: false, splitByGrapheme: true });
+        if (ctx.animate) { box.entranceAnim = 'fadeIn'; label.entranceAnim = 'fadeIn'; body.entranceAnim = 'slideUp'; }
+        objs.push(box, label, body);
+      });
+      return objs;
+    }
+
+    function buildFunnelDiagram(diagram, ctx) {
+      const objs = [];
+      const nodes = diagram.nodes;
+      const n = nodes.length;
+      const topY = 118, totalH = 360, rowH = totalH / n;
+      const maxW = 620, minW = 220, cx = 480;
+      const colorPool = (ctx.palette.shapeColors || [ctx.accent]).concat([ctx.accent]);
+      nodes.forEach((node, i) => {
+        const topW = maxW - (maxW - minW) * (i / n);
+        const botW = maxW - (maxW - minW) * ((i + 1) / n);
+        const y = topY + i * rowH;
+        const pathStr = `M ${cx - topW / 2} ${y} L ${cx + topW / 2} ${y} L ${cx + botW / 2} ${y + rowH - 6} L ${cx - botW / 2} ${y + rowH - 6} Z`;
+        const trapezoid = new fabric.Path(pathStr, { fill: colorPool[i % colorPool.length], opacity: 0.85, selectable: false });
+        const label = new fabric.Textbox(node.label, { left: cx - topW / 2 + 10, top: y + rowH / 2 - 18, width: topW - 20, fontSize: 12, fontWeight: 'bold', fontFamily: 'Inter', fill: '#ffffff', textAlign: 'center', selectable: false, splitByGrapheme: true });
+        if (ctx.animate) { trapezoid.entranceAnim = 'fadeIn'; label.entranceAnim = 'fadeIn'; }
+        objs.push(trapezoid, label);
+      });
+      return objs;
+    }
+
+    function buildDiagramSlide(data, ctx) {
+      const objs = buildDataSlideHeader(data.title, ctx.accent, ctx.titleColor, ctx.animate);
+      const diagram = data.v11 && data.v11.diagram;
+      if (!diagram || !Array.isArray(diagram.nodes) || diagram.nodes.length < 2) return objs;
+      if (diagram.type === 'cycle') return objs.concat(buildCycleDiagram(diagram, ctx));
+      if (diagram.type === 'hierarchy') return objs.concat(buildHierarchyDiagram(diagram, ctx));
+      if (diagram.type === 'matrix') return objs.concat(buildMatrixDiagram(diagram, ctx));
+      if (diagram.type === 'funnel') return objs.concat(buildFunnelDiagram(diagram, ctx));
+      return objs.concat(buildFlowDiagram(diagram, ctx));
     }
 
     // DOM ELEMENTS ACCESSORS
@@ -3283,6 +3875,12 @@
       document.getElementById('wizardSlideCount').value = '7';
       updateSlideCountBadge();
       selectToneCard('academic');
+      selectSourceType('topic');
+      const focusCardEl = document.getElementById('wizardFocusStudyCard');
+      const focusDocEl = document.getElementById('wizardFocusDocument');
+      if (focusCardEl) focusCardEl.value = '';
+      if (focusDocEl) focusDocEl.value = '';
+      populateWizardSourceSelectors();
 
       // Auto-select history theme if exists
       const rawHistory = localStorage.getItem("Sunum Hafızası");
@@ -3321,6 +3919,95 @@
       card.addEventListener('click', () => selectToneCard(card.dataset.tone));
     });
 
+    // ── Kaynak (V11 Akademik Motor) seçici ────────────────────────
+    // "Konu Yaz" her zaman çalışır (hızlı motor + Deep Research + V11 hepsi
+    // destekler). "Ders Kartım" / "Belgem" ise sadece V11 üzerinden çalışır
+    // (acadia-presentation-director gerçek kaynak metnini okur) — bu yüzden
+    // seçilince "Derinlemesine Araştır (AI)" vurgulanır ve bir uyarı gösterilir.
+    function selectSourceType(sourceType) {
+      document.getElementById('wizardSourceType').value = sourceType;
+      document.querySelectorAll('.source-type-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.source === sourceType);
+      });
+      document.getElementById('wizardTopicBlock').classList.toggle('hidden', sourceType !== 'topic');
+      const cardWrap = document.getElementById('wizardStudyCardWrap');
+      const docWrap = document.getElementById('wizardDocumentWrap');
+      cardWrap.classList.toggle('hidden', sourceType !== 'study_card');
+      cardWrap.classList.toggle('flex', sourceType === 'study_card');
+      docWrap.classList.toggle('hidden', sourceType !== 'document');
+      docWrap.classList.toggle('flex', sourceType === 'document');
+      document.getElementById('wizardSourceV11Hint').classList.toggle('hidden', sourceType === 'topic');
+      // "Hızlı Oluştur" sadece serbest konu metniyle çalışır (yerel şablon
+      // motoru gerçek belge/ders kartı içeriği okuyamaz) — kaynak farklıysa
+      // devre dışı bırakıp neden olduğunu ipucu ile göster.
+      const quickBtn = document.getElementById('btnSubmitTopic');
+      quickBtn.disabled = sourceType !== 'topic';
+      quickBtn.classList.toggle('opacity-40', sourceType !== 'topic');
+      quickBtn.classList.toggle('cursor-not-allowed', sourceType !== 'topic');
+      quickBtn.title = sourceType !== 'topic'
+        ? 'Hızlı Oluştur sadece "Konu Yaz" kaynağıyla çalışır'
+        : 'Yerel şablon motoruyla anında oluşturur';
+    }
+    document.querySelectorAll('.source-type-btn').forEach(btn => {
+      btn.addEventListener('click', () => selectSourceType(btn.dataset.source));
+    });
+
+    // Sihirbaz her açıldığında kullanıcının ders kartlarını ve belgelerini
+    // (V11'in destekleyeceği document türleri: pdf/docx/pptx) çekip
+    // dropdown'ları doldurur. Oturum yoksa sessizce placeholder bırakır —
+    // hata sadece kullanıcı bu kaynakla üretmeyi denediğinde gösterilir.
+    async function populateWizardSourceSelectors() {
+      const cardSelect = document.getElementById('wizardStudyCardSelect');
+      const docSelect = document.getElementById('wizardDocumentSelect');
+      cardSelect.innerHTML = '<option value="">Yükleniyor...</option>';
+      docSelect.innerHTML = '<option value="">Yükleniyor...</option>';
+      try {
+        const { data: { session } } = await acadexSupabase.auth.getSession();
+        if (!session) {
+          cardSelect.innerHTML = '<option value="">Oturum bulunamadı</option>';
+          docSelect.innerHTML = '<option value="">Oturum bulunamadı</option>';
+          return;
+        }
+        const userId = session.user.id;
+
+        const { data: cards, error: cardsErr } = await acadexSupabase
+          .from('study_cards')
+          .select('id, title, course_tag, created_at')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(60);
+        if (cardsErr || !cards || cards.length === 0) {
+          cardSelect.innerHTML = '<option value="">Henüz ders kartınız yok</option>';
+        } else {
+          cardSelect.innerHTML = cards.map(c => {
+            const label = (c.title || c.course_tag || 'Ders Kartı').slice(0, 80);
+            return `<option value="${c.id}">${label}${c.course_tag ? ' — ' + c.course_tag : ''}</option>`;
+          }).join('');
+        }
+
+        const { data: docs, error: docsErr } = await acadexSupabase
+          .from('documents')
+          .select('id, file_name, mime_type, created_at')
+          .eq('user_id', userId)
+          .in('mime_type', [
+            'application/pdf',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+          ])
+          .order('created_at', { ascending: false })
+          .limit(60);
+        if (docsErr || !docs || docs.length === 0) {
+          docSelect.innerHTML = '<option value="">Uygun belge bulunamadı (PDF/DOCX/PPTX)</option>';
+        } else {
+          docSelect.innerHTML = docs.map(d => `<option value="${d.id}">${(d.file_name || 'Belge').slice(0, 90)}</option>`).join('');
+        }
+      } catch (e) {
+        console.error('populateWizardSourceSelectors error:', e);
+        cardSelect.innerHTML = '<option value="">Liste yüklenemedi</option>';
+        docSelect.innerHTML = '<option value="">Liste yüklenemedi</option>';
+      }
+    }
+
     // ── Slayt Sayısı slider canlı etiket ──────────────────────────
     function updateSlideCountBadge() {
       const val = document.getElementById('wizardSlideCount').value;
@@ -3332,11 +4019,31 @@
     // the fast local-template path and the AI Deep Research path so the two
     // stay in sync. Returns null (after alerting) if the topic is empty.
     function gatherWizardSettings() {
-      const topic = document.getElementById('wizardTopic').value.trim();
-      if (!topic) {
+      const sourceType = document.getElementById('wizardSourceType').value || 'topic';
+      let topic = document.getElementById('wizardTopic').value.trim();
+      let sourceId = null;
+
+      if (sourceType === 'study_card') {
+        sourceId = document.getElementById('wizardStudyCardSelect').value;
+        if (!sourceId) {
+          alert("Lütfen bir ders kartı seçin.");
+          return null;
+        }
+        const selectedOpt = document.getElementById('wizardStudyCardSelect').selectedOptions[0];
+        topic = document.getElementById('wizardFocusStudyCard').value.trim() || (selectedOpt ? selectedOpt.textContent.trim() : 'Ders Kartı');
+      } else if (sourceType === 'document') {
+        sourceId = document.getElementById('wizardDocumentSelect').value;
+        if (!sourceId) {
+          alert("Lütfen bir belge seçin.");
+          return null;
+        }
+        const selectedOpt = document.getElementById('wizardDocumentSelect').selectedOptions[0];
+        topic = document.getElementById('wizardFocusDocument').value.trim() || (selectedOpt ? selectedOpt.textContent.trim() : 'Belge');
+      } else if (!topic) {
         alert("Lütfen sunum konusunu belirtin.");
         return null;
       }
+
       const slideCount = parseInt(document.getElementById('wizardSlideCount').value) || 7;
       const tone = document.getElementById('wizardTone').value;
       const theme = document.getElementById('wizardTheme').value;
@@ -3344,6 +4051,8 @@
       const addDecor = document.getElementById('wizardDecorToggle').checked;
       return {
         topic: topic,
+        sourceType: sourceType,
+        sourceId: sourceId,
         slideCount: slideCount,
         tone: tone,
         language: tone, // tone mapping alias (kept as-is, generateAcadiaPresentation falls back to this)
@@ -3355,6 +4064,10 @@
 
     // Wizard submission action — fast, local template engine (instant, generic structure)
     document.getElementById('btnSubmitTopic').addEventListener('click', () => {
+      if ((document.getElementById('wizardSourceType').value || 'topic') !== 'topic') {
+        alert('Hızlı Oluştur sadece "Konu Yaz" kaynağıyla çalışır. Ders kartı/belge kaynağı için "Derinlemesine Araştır (AI)" kullanın.');
+        return;
+      }
       const presentationSettings = gatherWizardSettings();
       if (!presentationSettings) return;
 
@@ -3374,9 +4087,17 @@
       generateAcadiaPresentation(presentationSettings);
     });
 
-    // Wizard submission action — AI Deep Research (Groq). Slower, but the
-    // model actually researches the topic instead of filling a template, so
-    // titles/bullets/speaker notes are genuinely specific and content-rich.
+    // Wizard submission action — AI destekli üretim, iki katmanlı:
+    //  1) Presentation Studio V11 (acadia-presentation-director) — önce bir
+    //     "health" çağrısıyla ayakta olduğu doğrulanır. Ayaktaysa gerçek
+    //     kaynağı (konu / ders kartı / belge) okur, plan + yazım + Academic
+    //     Critic kalite-onarım geçişinden geçirir ve tablo/grafik/kart/
+    //     süreç/diyagram gibi zengin içerik tipleri üretebilir.
+    //  2) V11 ayakta değilse ya da başarısız olursa VE kaynak "Konu Yaz"
+    //     ise, her zaman çalışır durumda kalan eski generate-presentation
+    //     (Deep Research) fonksiyonuna sessizce düşülür. Kaynak ders kartı/
+    //     belge ise legacy fonksiyon bunu desteklemediğinden kullanıcıya
+    //     net bir hata gösterilip "Konu Yaz"a geçmesi önerilir.
     document.getElementById('btnSubmitTopicDeepResearch').addEventListener('click', async () => {
       const presentationSettings = gatherWizardSettings();
       if (!presentationSettings) return;
@@ -3387,8 +4108,10 @@
       const progressText = document.getElementById('loadingProgressText');
       const progressBar = document.getElementById('loadingProgressBar');
       overlay.classList.remove('hidden');
-      progressBar.style.width = '15%';
-      progressText.innerText = `"${presentationSettings.topic}" konusu derinlemesine araştırılıyor... Bu, hızlı oluşturmadan biraz daha uzun sürer.`;
+      progressBar.style.width = '10%';
+      progressText.innerText = `"${presentationSettings.topic}" için Acadex Sunum V11 hazırlanıyor...`;
+
+      const sourceLabel = { topic: 'konu', study_card: 'ders kartı', document: 'belge' }[presentationSettings.sourceType] || 'konu';
 
       try {
         const { data: { session } } = await acadexSupabase.auth.getSession();
@@ -3399,15 +4122,102 @@
           return;
         }
 
+        const authHeaders = {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_ANON_KEY
+        };
+
+        // ── Adım 1: V11 sağlık kontrolü (kısa zaman aşımıyla) ────────
+        let v11Healthy = false;
+        try {
+          const healthController = new AbortController();
+          const healthTimer = setTimeout(() => healthController.abort(), 6000);
+          const healthResp = await fetch(`${SUPABASE_URL}/functions/v1/acadia-presentation-director`, {
+            method: 'POST', headers: authHeaders, signal: healthController.signal,
+            body: JSON.stringify({ action: 'health' })
+          });
+          clearTimeout(healthTimer);
+          v11Healthy = healthResp.ok;
+        } catch (e) {
+          v11Healthy = false;
+        }
+
+        if (v11Healthy) {
+          progressBar.style.width = '25%';
+          progressText.innerText = `V11 Akademik Motor "${sourceLabel}" kaynağını analiz ediyor...`;
+          try {
+            const toneModeMap = { academic: 'academic', corporate: 'business', creative: 'lecture', summary: 'research' };
+            const v11Body = {
+              action: 'generate',
+              sourceType: presentationSettings.sourceType,
+              mode: toneModeMap[presentationSettings.tone] || 'academic',
+              slideCount: presentationSettings.slideCount,
+              language: 'tr',
+              detailLevel: 'bullets'
+            };
+            if (presentationSettings.sourceType === 'topic') {
+              v11Body.topic = presentationSettings.topic;
+            } else {
+              v11Body.sourceId = presentationSettings.sourceId;
+              if (presentationSettings.topic) v11Body.topic = presentationSettings.topic;
+            }
+
+            progressBar.style.width = '45%';
+            const v11Controller = new AbortController();
+            const v11Timer = setTimeout(() => v11Controller.abort(), 90000);
+            const v11Resp = await fetch(`${SUPABASE_URL}/functions/v1/acadia-presentation-director`, {
+              method: 'POST', headers: authHeaders, signal: v11Controller.signal,
+              body: JSON.stringify(v11Body)
+            });
+            clearTimeout(v11Timer);
+            const v11Data = await v11Resp.json();
+
+            if (!v11Resp.ok || !v11Data?.presentation?.slides?.length) {
+              throw new Error(v11Data?.error || 'V11_EMPTY_RESPONSE');
+            }
+
+            progressBar.style.width = '65%';
+            progressText.innerText = "İçerik hazır — zengin slaytlar çiziliyor...";
+
+            const v11Slides = adaptV11PresentationToDeck(v11Data.presentation, presentationSettings.topic, presentationSettings.sourceType);
+            await generateAcadiaPresentation({
+              ...presentationSettings,
+              v11Slides,
+              v11Meta: { quality: v11Data.quality, sourceTitle: v11Data.source?.title }
+            });
+            return;
+          } catch (v11Err) {
+            console.error('V11 generate failed, falling back:', v11Err);
+            if (presentationSettings.sourceType !== 'topic') {
+              overlay.classList.add('hidden');
+              alert(
+                "V11 Akademik Motor şu anda bu kaynak için içerik üretemedi (AI servisi meşgul olabilir). " +
+                "Lütfen birkaç dakika sonra tekrar deneyin, ya da \"Konu Yaz\" kaynağıyla devam edin."
+              );
+              document.getElementById('topicModal').classList.remove('hidden');
+              return;
+            }
+            // Kaynak "Konu Yaz" ise sessizce legacy Deep Research'e düş.
+            progressText.innerText = "V11 meşgul, standart Deep Research motoruna geçiliyor...";
+          }
+        } else if (presentationSettings.sourceType !== 'topic') {
+          overlay.classList.add('hidden');
+          alert(
+            "V11 Akademik Motor şu anda ayakta değil, bu yüzden ders kartı/belge kaynağından sunum üretilemiyor. " +
+            "Lütfen daha sonra tekrar deneyin, ya da \"Konu Yaz\" kaynağıyla devam edin."
+          );
+          document.getElementById('topicModal').classList.remove('hidden');
+          return;
+        }
+
+        // ── Legacy düşüş: generate-presentation (sadece "Konu Yaz") ────
         progressBar.style.width = '35%';
+        progressText.innerText = `"${presentationSettings.topic}" konusu derinlemesine araştırılıyor... Bu, hızlı oluşturmadan biraz daha uzun sürer.`;
 
         const response = await fetch(`${SUPABASE_URL}/functions/v1/generate-presentation`, {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json',
-            'apikey': SUPABASE_ANON_KEY
-          },
+          headers: authHeaders,
           body: JSON.stringify({
             topic: presentationSettings.topic,
             tone: presentationSettings.tone,
@@ -3976,6 +4786,93 @@
       });
     }
 
+    // ============================================================
+    // V11 (acadia-presentation-director) DECK ADAPTÖRÜ
+    // ============================================================
+    // V11'in ürettiği slaytlar zengin, tipli içerik taşıyabilir: gerçek
+    // tablo, gerçek sayılardan grafik, kart grid'i, süreç/zaman çizelgesi
+    // adımları, tipli diyagramlar (flow/cycle/hierarchy/matrix/funnel) ve
+    // büyük-sayı metrikleri. Bu adaptör her slaytı, hangi görsel motorun
+    // (table/chart/cards/process/timeline/diagram/big-number/comparison/
+    // cover/columns/image/standard) çizeceğine karar verip generateAcadia
+    // Presentation'ın render döngüsünün anladığı ortak şekle çeviriyor —
+    // legacy Deep Research adaptörüyle (adaptAIPresentationToDeck) aynı
+    // sözleşmeyi paylaşıyor, üstüne `v11` alanında zengin içeriği taşıyor.
+    function pickV11ShapeType(slide, index, totalSlides) {
+      const content = slide.content || {};
+      if (content.table) return 'table';
+      if (content.chart) return 'chart';
+      if (content.diagram) return 'diagram';
+      if (content.design_variant === 'comparison') return 'comparison';
+      if (Array.isArray(content.cards) && content.cards.length) return 'cards';
+      if (Array.isArray(content.steps) && content.steps.length) {
+        return content.design_variant === 'timeline' ? 'timeline' : 'process';
+      }
+      if (content.metric || content.design_variant === 'big-number') return 'big-number';
+      if (index === 0 || content.design_variant === 'hero') return 'cover';
+      if (index === totalSlides - 1 || content.design_variant === 'summary') return 'cover';
+      if (slide.layout_type === 'two-column') return 'columns';
+      if (slide.layout_type === 'image-left' || slide.layout_type === 'image-right') return 'image';
+      return 'standard';
+    }
+
+    function stageForV11Index(index, totalSlides) {
+      if (index === 0) return 'giris';
+      if (index === totalSlides - 1) return 'sonuc';
+      const mid = ['problem', 'analiz', 'cozum'];
+      return mid[(index - 1) % mid.length];
+    }
+
+    function adaptV11PresentationToDeck(v11Presentation, topic, sourceType) {
+      const slides = Array.isArray(v11Presentation?.slides) ? v11Presentation.slides : [];
+      const total = slides.length;
+      return slides.map((slide, index) => {
+        const content = slide.content || {};
+        const shapeType = pickV11ShapeType(slide, index, total);
+        const stage = stageForV11Index(index, total);
+
+        const bodyText = (content.text || '').trim();
+        const secondaryText = (content.secondary_text || '').trim();
+        // "standard"/"cover"/"columns" dalları `content`'i düz metin olarak
+        // kullanıyor — zengin dallar (table/chart/...) kendi v11.* verisini
+        // okuyacak, bu metin sadece onlara düşerse fallback olur.
+        const textForRenderer = bodyText || secondaryText || slide.title || topic;
+
+        const fallbackPool = STAGE_FALLBACK_ICONS[stage] || STAGE_FALLBACK_ICONS.analiz;
+        const fallbackIcon = fallbackPool[index % fallbackPool.length];
+        const iconName = pickSmartIcon(`${slide.title || ''} ${bodyText}`, fallbackIcon);
+
+        const rightContent = (shapeType === 'columns' && secondaryText) ? secondaryText : null;
+
+        const refCount = (Array.isArray(content.source_refs) ? content.source_refs.length : 0) +
+          (Array.isArray(content.claims) ? content.claims.length : 0);
+        const grounded = !!(sourceType && sourceType !== 'topic' && refCount > 0);
+
+        return {
+          title: (typeof slide.title === 'string' && slide.title.trim()) ? slide.title.trim() : topic,
+          content: textForRenderer,
+          rightContent,
+          shapeType,
+          iconName,
+          stage,
+          mode: 'general',
+          aiNotes: slide.speaker_notes || '',
+          v11: {
+            table: content.table || null,
+            chart: content.chart || null,
+            cards: Array.isArray(content.cards) ? content.cards : [],
+            steps: Array.isArray(content.steps) ? content.steps : [],
+            diagram: content.diagram || null,
+            metric: (content.metric && typeof content.metric === 'object') ? content.metric : null,
+            secondaryText,
+            designVariant: content.design_variant || 'section',
+            grounded,
+            refCount
+          }
+        };
+      });
+    }
+
     // Sihirbazın çekirdek üretim fonksiyonu: seçilen Anlatım Profiline göre
     // Giriş → Problem → Analiz → Çözüm → Sonuç döngüsüyle `totalSlides` kadar
     // özgün slayt verisi (başlık, içerik, düzen, ikon) üretir.
@@ -4055,16 +4952,23 @@
       canvas.clear();
 
       // ── Step 2: İçerik Üretimi ──────────────────────────────────
-      // İki üretim modu var:
-      //  - settings.aiSlides varsa: "Derinlemesine Araştır" (Deep Research)
-      //    modu — generate-presentation edge function'ından gelen, konuyla
-      //    ilgili GERÇEK, araştırılmış içerik burada deck şekline uyarlanır.
+      // Üç üretim modu var (önceliğe göre):
+      //  - settings.v11Slides varsa: Presentation Studio V11
+      //    (acadia-presentation-director) çıktısı — gerçek kaynaktan (konu/
+      //    ders kartı/belge) plan+yazım+Academic Critic geçişinden geçmiş,
+      //    tablo/grafik/kart/süreç/diyagram gibi zengin içerik taşıyabilir.
+      //  - yoksa settings.aiSlides varsa: "Derinlemesine Araştır" (Deep
+      //    Research) modu — generate-presentation edge function'ından gelen,
+      //    konuyla ilgili GERÇEK, araştırılmış içerik burada deck şekline
+      //    uyarlanır.
       //  - yoksa: hızlı, yerel şablon motoru (buildAcadiaSlideDeck) — anında
       //    ama jenerik yapısal içerik üretir. Seçilen Anlatım Profiline göre
       //    Giriş → Problem → Analiz → Çözüm → Sonuç döngüsüyle ilerler.
-      const generatedSlidesData = Array.isArray(settings.aiSlides) && settings.aiSlides.length > 0
-        ? adaptAIPresentationToDeck(settings.aiSlides, topic)
-        : buildAcadiaSlideDeck(topic, toneKey, totalSlides);
+      const generatedSlidesData = Array.isArray(settings.v11Slides) && settings.v11Slides.length > 0
+        ? settings.v11Slides
+        : (Array.isArray(settings.aiSlides) && settings.aiSlides.length > 0
+          ? adaptAIPresentationToDeck(settings.aiSlides, topic)
+          : buildAcadiaSlideDeck(topic, toneKey, totalSlides));
 
 
       // ── Step 3: Her slaytı sırayla canvas'a işle ──────────────
@@ -4174,7 +5078,28 @@
               return [cardBg, iconPath];
             };
 
-            if (data.shapeType === 'cover') {
+            // V11 zengin içerik dalları (table/chart/cards/process/timeline/
+            // diagram/big-number/comparison) burada paylaşılan bir ctx ile
+            // besleniyor; theme/settings değerleri zaten bu closure içinde.
+            const v11Ctx = { accent, activeText, titleColor, palette, themeName, animate: !!settings.animationPreference };
+
+            if (data.shapeType === 'table') {
+              canvas.add(...buildTableSlide(data, v11Ctx));
+            } else if (data.shapeType === 'chart') {
+              canvas.add(...buildChartSlide(data, v11Ctx));
+            } else if (data.shapeType === 'cards') {
+              canvas.add(...buildCardsSlide(data, v11Ctx));
+            } else if (data.shapeType === 'process') {
+              canvas.add(...buildProcessSlide(data, v11Ctx));
+            } else if (data.shapeType === 'timeline') {
+              canvas.add(...buildTimelineSlide(data, v11Ctx));
+            } else if (data.shapeType === 'diagram') {
+              canvas.add(...buildDiagramSlide(data, v11Ctx));
+            } else if (data.shapeType === 'big-number') {
+              canvas.add(...buildBigNumberSlide(data, v11Ctx));
+            } else if (data.shapeType === 'comparison') {
+              canvas.add(...buildComparisonSlide(data, v11Ctx));
+            } else if (data.shapeType === 'cover') {
               // ── Cover: İkon Kartı başlığın üstünde ortalanmış ────
               const card = buildIconCard(480, 72, 2.8, 64, 0.92);
               const cardBg = card[0], cardIcon = card[1];
@@ -4310,6 +5235,9 @@
               canvas.add(cardBg, cardIcon, accentLine, titleObj, bodyObj);
             }
 
+            const groundedBadge = buildGroundedBadge(data, v11Ctx);
+            if (groundedBadge.length) canvas.add(...groundedBadge);
+
             canvas.renderAll();
             saveSlideState();
             setTimeout(resolveSlide, 100);
@@ -4323,7 +5251,29 @@
         updateCarouselUI();
         updateIndicator();
         document.getElementById('loadingOverlay').classList.add('hidden');
+        // V11 ile üretildiyse Academic Critic'in kalite skorunu kısa bir
+        // toast ile göster — kullanıcı üretimin "kanıta dayalı mı, tekrar
+        // eden mi" gibi otomatik kalite kontrolünden geçtiğini görsün.
+        if (settings.v11Meta && settings.v11Meta.quality) {
+          const q = settings.v11Meta.quality;
+          const emoji = q.score >= 85 ? '✅' : (q.score >= 72 ? '🟡' : '⚠️');
+          showAcadiaToast(`${emoji} V11 Akademik Motor — Kalite Skoru: ${q.score}/100${q.pass === false ? ' (bazı slaytlar gözden geçirilebilir)' : ''}`);
+        }
       }, 400);
+    }
+
+    // Sağ-üstte birkaç saniye görünüp kaybolan, geri bildirim amaçlı hafif
+    // bir bildirim şeridi. alert() gibi akışı bloklamaz.
+    function showAcadiaToast(message, durationMs = 5200) {
+      const el = document.createElement('div');
+      el.textContent = message;
+      el.style.cssText = 'position:fixed;top:16px;right:16px;z-index:9999;background:#0F2341;color:#f8fafc;padding:10px 16px;border-radius:10px;font-size:12px;font-family:Inter,sans-serif;box-shadow:0 8px 24px -8px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.12);max-width:340px;opacity:0;transition:opacity .25s ease;';
+      document.body.appendChild(el);
+      requestAnimationFrame(() => { el.style.opacity = '1'; });
+      setTimeout(() => {
+        el.style.opacity = '0';
+        setTimeout(() => el.remove(), 300);
+      }, durationMs);
     }
 
 
