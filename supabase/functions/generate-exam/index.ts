@@ -20,7 +20,7 @@ serve(async (req) => {
       })
     }
 
-    const { studyCardId, sourceType, courseCode, courseDepartment, examType, questionCount, language, difficulty } = await req.json()
+    const { studyCardId, sourceType, courseCode, courseDepartment, examType, questionCount, language, difficulty, isSimulation, focusConcept } = await req.json()
 
     // 'study_card' (default, backward-compatible) generates from one of the
     // student's own study cards, as before. 'course' generates directly from
@@ -50,6 +50,30 @@ serve(async (req) => {
     // Difficulty is optional for backward compatibility with older clients; default to 'medium'.
     const allowedDifficulties = ['easy', 'medium', 'hard']
     const resolvedDifficulty = allowedDifficulties.includes(difficulty) ? difficulty : 'medium'
+
+    // "Gerçek Sınav Simülasyonu" — a timed, single-attempt mode meant to
+    // mimic real vize/final/büt conditions. The time budget is computed
+    // server-side (not trusted from the client) from question type/count,
+    // roughly matching how long each question type realistically takes.
+    const resolvedIsSimulation = !!isSimulation
+    let timeLimitSeconds: number | null = null
+    if (resolvedIsSimulation) {
+      const secondsPerQuestion: Record<string, number> = {
+        classic: 150,      // open-ended essay answers take longest to write
+        test: 75,          // multiple-choice, quick to answer
+        mixed: 100,        // blend of true/false, fill-blank, open-ended
+        calculation: 180   // working through a calculation takes longest
+      }
+      const perQ = secondsPerQuestion[examType] || 100
+      timeLimitSeconds = Math.max(300, Math.round(questionCount * perQ))
+    }
+
+    // Optional: focus every question on one specific concept (used by the
+    // "Zayıf Konularınız" panel's "Bu konudan pratik yap" action) instead of
+    // spreading across the whole source's content.
+    const resolvedFocusConcept = (typeof focusConcept === 'string' && focusConcept.trim())
+      ? focusConcept.trim().slice(0, 120)
+      : null
 
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
@@ -205,6 +229,7 @@ IMPORTANT LANGUAGE RULES:
 
 IMPORTANT CONCEPT TAGGING RULE:
 ${conceptRuleText}
+${resolvedFocusConcept ? `\nIMPORTANT FOCUS RULE:\n- The student specifically wants to practice ONE topic: "${resolvedFocusConcept}". EVERY question must test this exact topic, approached from different angles (definition, application, comparison, scenario) — do not drift to unrelated concepts. Set the "concept" field on every question to "${resolvedFocusConcept}" (or a very close variant in the requested language).` : ''}
 
 EXAM TYPE RULES:
 1. 'classic': All questions must be open-ended (free-text essay questions). The options field should be null.
@@ -318,7 +343,9 @@ The array must contain exactly ${questionCount} objects matching this JSON schem
       question_results: null,
       grade: null,
       completed_at: null,
-      source_type: resolvedSourceType
+      source_type: resolvedSourceType,
+      is_simulation: resolvedIsSimulation,
+      time_limit_seconds: timeLimitSeconds
     }
     if (resolvedSourceType === 'course') {
       examInsertPayload.study_card_id = null

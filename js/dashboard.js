@@ -5608,6 +5608,55 @@ let activeExamCardId = null;
 let examSelectedSource = 'study_card';
 let examSelectedCourse = null; // { code, name, departmentName }
 let examCourseCatalog = { departments: [], coursesByDept: {} };
+let examFocusConcept = null; // set by the Weak Concept Map's "Bu konudan pratik yap" action
+let examTimerInterval = null;
+let examTimerRemainingSeconds = 0;
+
+// Starts the countdown for a "Gerçek Sınav Simülasyonu" attempt. Updates
+// #exam-timer-display every second as MM:SS, and auto-submits the exam
+// (via submitExam()) the moment the clock hits zero — mirroring a real
+// timed exam where time running out ends the attempt regardless of
+// whether every question was answered.
+function startExamTimer(seconds) {
+  stopExamTimer();
+  examTimerRemainingSeconds = Math.max(0, Math.floor(seconds || 0));
+
+  const render = () => {
+    const display = document.getElementById('exam-timer-display');
+    if (!display) return;
+    const mins = Math.floor(examTimerRemainingSeconds / 60);
+    const secs = examTimerRemainingSeconds % 60;
+    const isLow = examTimerRemainingSeconds <= 60;
+    display.textContent = `⏱️ ${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    display.style.color = isLow ? '#DC2626' : '';
+  };
+
+  render();
+
+  examTimerInterval = setInterval(() => {
+    examTimerRemainingSeconds -= 1;
+    render();
+
+    if (examTimerRemainingSeconds <= 0) {
+      stopExamTimer();
+      const isTr = currentActiveExam?.language === 'tr';
+      showDashboardAlert('success', isTr
+        ? 'Süre doldu, sınavınız otomatik gönderiliyor...'
+        : 'Time is up, your exam is being submitted automatically...');
+      submitExam();
+    }
+  }, 1000);
+}
+window.startExamTimer = startExamTimer;
+
+function stopExamTimer() {
+  if (examTimerInterval) {
+    clearInterval(examTimerInterval);
+    examTimerInterval = null;
+  }
+  examTimerRemainingSeconds = 0;
+}
+window.stopExamTimer = stopExamTimer;
 
 async function loadExamsPlatform() {
   const cardSelect = document.getElementById('exam-card-select');
@@ -5675,6 +5724,7 @@ async function loadExamsPlatform() {
     if (courseRadio) courseRadio.checked = true;
   }
   await onExamSourceChange();
+  await loadWeakConceptMap();
 }
 window.loadExamsPlatform = loadExamsPlatform;
 
@@ -5760,6 +5810,22 @@ async function ensureExamCourseCatalogLoaded() {
   // before the first normal department-change load, so we don't fetch the
   // wrong department's course list first and throw it away.
   const pending = window.pendingExamCourse;
+  if (pending && !pending.deptCode && pending.code) {
+    // Caller (e.g. "Bu konudan pratik yap" on the Weak Concept Map) only
+    // knew the course code, not its department — look it up ourselves
+    // rather than silently landing on whatever department was already
+    // selected, which could easily be the wrong one.
+    try {
+      const { data: courseRow } = await supabaseClient
+        .from('courses')
+        .select('department_code')
+        .eq('course_code', pending.code)
+        .maybeSingle();
+      if (courseRow) pending.deptCode = courseRow.department_code;
+    } catch (e) {
+      console.warn('Could not resolve department for pending exam course:', e);
+    }
+  }
   if (pending && pending.deptCode) {
     deptSelect.value = pending.deptCode;
   }
@@ -5774,7 +5840,35 @@ async function ensureExamCourseCatalogLoaded() {
       await onExamCourseChange();
     }
   }
+
+  // A pending focus concept (also from "Bu konudan pratik yap") is applied
+  // last, after the course selection has fully settled, so nothing above
+  // can clobber it.
+  if (window.pendingFocusConcept) {
+    examFocusConcept = window.pendingFocusConcept;
+    window.pendingFocusConcept = null;
+    showExamFocusConceptBanner();
+  }
 }
+
+function showExamFocusConceptBanner() {
+  const banner = document.getElementById('exam-focus-concept-banner');
+  const text = document.getElementById('exam-focus-concept-text');
+  if (!banner || !text) return;
+  if (examFocusConcept) {
+    text.textContent = `🎯 Odak: "${examFocusConcept}" konusuna yönelik sorular üretilecek.`;
+    banner.style.display = 'flex';
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+function clearExamFocusConcept() {
+  examFocusConcept = null;
+  const banner = document.getElementById('exam-focus-concept-banner');
+  if (banner) banner.style.display = 'none';
+}
+window.clearExamFocusConcept = clearExamFocusConcept;
 
 async function onExamCourseDeptChange() {
   const deptSelect = document.getElementById('exam-course-dept-select');
@@ -5942,6 +6036,9 @@ function renderPastAttemptsList(exams, emptyMessage) {
     const groundBadge = (exam.source_type === 'course' && exam.is_grounded === false)
       ? ' <span style="color:#D97706;" title="Bu sınav paylaşılan öğrenci notu olmadan, yapay zekanın genel bilgisinden üretildi.">⚠️</span>'
       : '';
+    const simBadge = exam.is_simulation
+      ? ' <span style="color:var(--color-teal);" title="Gerçek sınav simülasyonu — süreli, tek denemelik.">⏱️ Simülasyon</span>'
+      : '';
 
     const item = document.createElement('div');
     item.className = 'past-attempt-item';
@@ -5949,7 +6046,7 @@ function renderPastAttemptsList(exams, emptyMessage) {
 
     item.innerHTML = `
       <div class="past-attempt-info">
-        <strong style="font-size: 0.85rem; color: var(--color-navy);">${typeLabel} Sınav (${langLabel})${groundBadge}</strong>
+        <strong style="font-size: 0.85rem; color: var(--color-navy);">${typeLabel} Sınav (${langLabel})${groundBadge}${simBadge}</strong>
         <span class="past-attempt-meta">${formattedDate} - ${exam.question_count} Soru</span>
       </div>
       <div class="past-attempt-score">${exam.grade} / 100</div>
@@ -6016,6 +6113,182 @@ async function loadPastAttemptsForCourse(courseCode) {
 }
 window.loadPastAttemptsForCourse = loadPastAttemptsForCourse;
 
+// ==========================================
+// WEAK CONCEPT MAP — aggregates every completed exam's per-question
+// "concept" + score across BOTH source types (a study card's own course_tag
+// for study_card-sourced exams, course_code for course-sourced ones) into
+// one ranked "where are you actually weak" view, directly actionable via
+// "Bu konudan pratik yap" for course-tagged concepts (re-generates a new
+// exam focused on just that one concept — see focusConcept in generate-exam).
+// ==========================================
+async function loadWeakConceptMap() {
+  const container = document.getElementById('exam-weak-concepts-list');
+  if (!container || !currentUser) return;
+
+  container.innerHTML = '<p style="font-size: 0.82rem; color: var(--color-text-muted);">Yükleniyor...</p>';
+
+  try {
+    const { data: exams, error } = await supabaseClient
+      .from('exams')
+      .select('question_results, source_type, course_code, study_card_id, study_cards(course_tag)')
+      .eq('user_id', currentUser.id)
+      .not('completed_at', 'is', null)
+      .not('question_results', 'is', null)
+      .order('completed_at', { ascending: false })
+      .limit(200);
+
+    if (error) {
+      console.error('Failed to load weak concept map:', error);
+      container.innerHTML = '<p style="font-size: 0.82rem; color: #EF4444;">Zayıf konu analizi yüklenemedi.</p>';
+      return;
+    }
+
+    const conceptMap = {};
+    (exams || []).forEach(exam => {
+      const courseLabel = exam.source_type === 'course'
+        ? exam.course_code
+        : ((exam.study_cards && exam.study_cards.course_tag) ? exam.study_cards.course_tag.trim().toUpperCase() : null);
+
+      (exam.question_results || []).forEach(r => {
+        if (!r.concept || typeof r.score !== 'number') return;
+        const key = `${courseLabel || 'Genel'}::${r.concept}`;
+        if (!conceptMap[key]) conceptMap[key] = { courseLabel: courseLabel || null, concept: r.concept, total: 0, count: 0 };
+        conceptMap[key].total += r.score;
+        conceptMap[key].count += 1;
+      });
+    });
+
+    const rows = Object.values(conceptMap)
+      .map(c => ({ ...c, avg: Math.round(c.total / c.count) }))
+      .sort((a, b) => a.avg - b.avg)
+      .slice(0, 8);
+
+    if (rows.length === 0) {
+      container.innerHTML = '<p style="font-size: 0.82rem; color: var(--color-text-muted);">Henüz yeterli sınav verisi yok. Birkaç sınav tamamladıktan sonra zayıf konularınız burada görünecek.</p>';
+      return;
+    }
+
+    container.innerHTML = rows.map(r => {
+      const color = r.avg < 50 ? '#DC2626' : (r.avg < 75 ? '#D97706' : 'var(--color-teal)');
+      const escapedConcept = r.concept.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+      const practiceBtn = r.courseLabel
+        ? `<button type="button" class="btn btn-outline" style="padding: 0.3rem 0.7rem; font-size: 0.72rem; white-space: nowrap;" onclick="practiceWeakConcept('${r.courseLabel}', '${escapedConcept}')">Bu konudan pratik yap</button>`
+        : '';
+      return `
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.6rem 0; border-bottom: 1px solid rgba(22,50,92,0.06); flex-wrap: wrap;">
+          <div>
+            <strong style="font-size: 0.85rem; color: var(--color-navy);">${r.concept}</strong>
+            <div style="font-size: 0.72rem; color: var(--color-text-muted);">${r.courseLabel ? r.courseLabel : 'Genel'} · ${r.count} soru</div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <span style="font-weight: 800; color: ${color};">${r.avg}</span>
+            ${practiceBtn}
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch (err) {
+    console.error('Exception loading weak concept map:', err);
+    container.innerHTML = '<p style="font-size: 0.82rem; color: #EF4444;">Hata oluştu.</p>';
+  }
+}
+window.loadWeakConceptMap = loadWeakConceptMap;
+
+function practiceWeakConcept(courseCode, concept) {
+  const courseRadio = document.querySelector('input[name="exam-source"][value="course"]');
+  if (courseRadio) courseRadio.checked = true;
+
+  // Reuse the same "pending" mechanism the Ders Ağacı deep link uses;
+  // ensureExamCourseCatalogLoaded() (triggered by onExamSourceChange below)
+  // resolves the department, selects the course, then applies the focus
+  // concept once everything has settled.
+  window.pendingExamCourse = { code: courseCode, deptCode: null };
+  window.pendingFocusConcept = concept;
+
+  onExamSourceChange();
+  document.getElementById('exam-card-source-wrap')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+window.practiceWeakConcept = practiceWeakConcept;
+
+// ==========================================
+// GRADE CALCULATOR — "finalden kaç almam lazım" — simple two-component
+// (vize + final) weighted grade projection. Purely client-side, no backend
+// call needed; inputs persist per-browser via localStorage for convenience.
+// ==========================================
+const GRADE_CALC_STORAGE_KEY = 'acadex_grade_calc_inputs';
+
+function openGradeCalculator() {
+  const modal = document.getElementById('grade-calc-modal');
+  if (!modal) return;
+
+  try {
+    const saved = JSON.parse(localStorage.getItem(GRADE_CALC_STORAGE_KEY) || '{}');
+    if (saved.vizeWeight != null) document.getElementById('gc-vize-weight').value = saved.vizeWeight;
+    if (saved.finalWeight != null) document.getElementById('gc-final-weight').value = saved.finalWeight;
+    if (saved.vizeGrade != null) document.getElementById('gc-vize-grade').value = saved.vizeGrade;
+    if (saved.targetGrade != null) document.getElementById('gc-target-grade').value = saved.targetGrade;
+  } catch (e) { /* ignore malformed/missing saved state */ }
+
+  const resultBox = document.getElementById('gc-result-box');
+  if (resultBox) resultBox.style.display = 'none';
+
+  modal.classList.add('active');
+}
+window.openGradeCalculator = openGradeCalculator;
+
+function closeGradeCalculator() {
+  const modal = document.getElementById('grade-calc-modal');
+  if (modal) modal.classList.remove('active');
+}
+window.closeGradeCalculator = closeGradeCalculator;
+
+function computeRequiredGrade() {
+  const vizeWeight = parseFloat(document.getElementById('gc-vize-weight').value);
+  const finalWeight = parseFloat(document.getElementById('gc-final-weight').value);
+  const vizeGrade = parseFloat(document.getElementById('gc-vize-grade').value);
+  const targetGrade = parseFloat(document.getElementById('gc-target-grade').value);
+
+  const resultBox = document.getElementById('gc-result-box');
+  if (!resultBox) return;
+
+  if ([vizeWeight, finalWeight, vizeGrade, targetGrade].some(v => Number.isNaN(v))) {
+    resultBox.style.display = 'block';
+    resultBox.style.background = '#FEE2E2';
+    resultBox.style.color = '#DC2626';
+    resultBox.textContent = 'Lütfen tüm alanları doldurun.';
+    return;
+  }
+
+  if (Math.round(vizeWeight + finalWeight) !== 100) {
+    resultBox.style.display = 'block';
+    resultBox.style.background = '#FEF3C7';
+    resultBox.style.color = '#D97706';
+    resultBox.textContent = `Uyarı: vize + final ağırlığı %100 etmiyor (şu an %${vizeWeight + finalWeight}). Yine de hesaplanıyor...`;
+  }
+
+  try {
+    localStorage.setItem(GRADE_CALC_STORAGE_KEY, JSON.stringify({ vizeWeight, finalWeight, vizeGrade, targetGrade }));
+  } catch (e) { /* localStorage unavailable — non-critical, skip persistence */ }
+
+  const requiredFinal = (targetGrade - (vizeWeight / 100) * vizeGrade) / (finalWeight / 100);
+
+  resultBox.style.display = 'block';
+  if (requiredFinal > 100) {
+    resultBox.style.background = '#FEE2E2';
+    resultBox.style.color = '#DC2626';
+    resultBox.textContent = `Bu hedefe vize notunuzla ulaşmak matematiksel olarak mümkün değil (finalden %${Math.round(requiredFinal)} gerekir). Hedefi gözden geçirin.`;
+  } else if (requiredFinal <= 0) {
+    resultBox.style.background = 'var(--color-teal-light)';
+    resultBox.style.color = 'var(--color-teal)';
+    resultBox.textContent = `Tebrikler — vize notunuzla hedefi zaten garantilediniz, finalden 0 alsanız bile yeterli!`;
+  } else {
+    resultBox.style.background = requiredFinal >= 80 ? '#FEE2E2' : (requiredFinal >= 60 ? '#FEF3C7' : 'var(--color-teal-light)');
+    resultBox.style.color = requiredFinal >= 80 ? '#DC2626' : (requiredFinal >= 60 ? '#D97706' : 'var(--color-teal)');
+    resultBox.textContent = `Finalden en az ${Math.ceil(requiredFinal)} almanız gerekiyor.`;
+  }
+}
+window.computeRequiredGrade = computeRequiredGrade;
+
 async function generateExam() {
   const btn = document.getElementById('btn-generate-exam');
   if (!btn) return;
@@ -6024,7 +6297,8 @@ async function generateExam() {
     examType: document.querySelector('input[name="exam-type"]:checked').value,
     language: document.querySelector('input[name="exam-lang"]:checked').value,
     questionCount: parseInt(document.getElementById('exam-question-count').value, 10),
-    difficulty: (document.querySelector('input[name="exam-difficulty"]:checked') || {}).value || 'medium'
+    difficulty: (document.querySelector('input[name="exam-difficulty"]:checked') || {}).value || 'medium',
+    isSimulation: !!document.getElementById('exam-simulation-toggle')?.checked
   };
 
   if (examSelectedSource === 'course') {
@@ -6035,6 +6309,7 @@ async function generateExam() {
     requestBody.sourceType = 'course';
     requestBody.courseCode = examSelectedCourse.code;
     requestBody.courseDepartment = examSelectedCourse.departmentName;
+    if (examFocusConcept) requestBody.focusConcept = examFocusConcept;
   } else {
     const cardSelect = document.getElementById('exam-card-select');
     const studyCardId = cardSelect ? cardSelect.value : '';
@@ -6079,6 +6354,9 @@ async function generateExam() {
 
     showDashboardAlert('success', 'Sınav başarıyla oluşturuldu!');
     currentActiveExam = data;
+    // Consumed — clear so it doesn't silently leak into the next, unrelated
+    // generation once the student is done practicing this concept.
+    clearExamFocusConcept();
     startActiveExam(data);
 
   } catch (err) {
@@ -6107,8 +6385,20 @@ function startActiveExam(exam) {
     calculation: exam.language === 'tr' ? 'Hesaplama' : 'Calculation',
     mixed: exam.language === 'tr' ? 'Karışık' : 'Mixed'
   };
-  document.getElementById('active-exam-title').textContent = `${typeTitleMap[exam.exam_type] || 'Sınav'} Sınav`;
-  document.getElementById('active-exam-desc').textContent = exam.language === 'tr' ? 'Lütfen tüm soruları dikkatlice cevaplayın.' : 'Please answer all questions carefully.';
+  const isTr = exam.language === 'tr';
+  document.getElementById('active-exam-title').textContent = `${typeTitleMap[exam.exam_type] || 'Sınav'} Sınav${exam.is_simulation ? ' — ⏱️ Simülasyon' : ''}`;
+  document.getElementById('active-exam-desc').textContent = exam.is_simulation
+    ? (isTr ? 'Gerçek sınav modu: ipuçları kapalı, süre dolunca otomatik gönderilir.' : 'Real exam mode: hints disabled, auto-submits when time runs out.')
+    : (isTr ? 'Lütfen tüm soruları dikkatlice cevaplayın.' : 'Please answer all questions carefully.');
+
+  stopExamTimer();
+  const timerDisplay = document.getElementById('exam-timer-display');
+  if (exam.is_simulation && exam.time_limit_seconds) {
+    if (timerDisplay) timerDisplay.style.display = 'block';
+    startExamTimer(exam.time_limit_seconds);
+  } else if (timerDisplay) {
+    timerDisplay.style.display = 'none';
+  }
 
   container.innerHTML = '';
 
@@ -6158,10 +6448,15 @@ function startActiveExam(exam) {
       `;
     }
 
+    // Simulation mode mimics real exam conditions — no hints available.
+    const hintButtonHtml = exam.is_simulation
+      ? ''
+      : `<button class="btn btn-outline" id="btn-hint-${q.id}" style="padding: 0.35rem 0.65rem; font-size: 0.7rem; border-color: #F59E0B; color: #F59E0B; min-height: unset; line-height: 1;" onclick="revealExamHint('${q.id}')">+ İpucu Al</button>`;
+
     card.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;">
         <span class="exam-question-text">Soru ${idx + 1}: ${q.question}</span>
-        <button class="btn btn-outline" id="btn-hint-${q.id}" style="padding: 0.35rem 0.65rem; font-size: 0.7rem; border-color: #F59E0B; color: #F59E0B; min-height: unset; line-height: 1;" onclick="revealExamHint('${q.id}')">+ İpucu Al</button>
+        ${hintButtonHtml}
       </div>
       <div id="hint-box-${q.id}" class="exam-hint-box" style="display: none;"></div>
       ${inputHtml}
@@ -6260,6 +6555,7 @@ function cancelExam() {
     ? "Sınavı iptal etmek istediğinize emin misiniz? Cevaplarınız silinecektir." 
     : "Are you sure you want to exit the exam? Your answers will be lost.";
   showConfirmModal(title, text, () => {
+    stopExamTimer();
     loadExamsPlatform();
   });
 }
@@ -6343,6 +6639,11 @@ function showExamResults(exam) {
   const resultsScreen = document.getElementById('exam-results-screen');
 
   if (!setupScreen || !activeScreen || !resultsScreen) return;
+
+  // Leaving the active-exam screen (whether via a successful submission or
+  // by opening a past attempt's results) always means any running
+  // simulation countdown must stop.
+  stopExamTimer();
 
   setupScreen.style.display = 'none';
   activeScreen.style.display = 'none';

@@ -1016,6 +1016,10 @@
                   </div>
                 </div>
                 <p id="exam-course-grounded-hint" style="font-size: 0.8rem; color: var(--color-text-muted); margin-top: 0.6rem;"></p>
+                <div id="exam-focus-concept-banner" style="display: none; align-items: center; justify-content: space-between; gap: 0.75rem; background: rgba(31,138,147,0.08); border: 1px solid rgba(31,138,147,0.25); color: var(--color-teal); padding: 0.6rem 0.9rem; border-radius: var(--radius-sm); font-size: 0.8rem; margin-top: 0.6rem;">
+                  <span id="exam-focus-concept-text"></span>
+                  <button type="button" onclick="clearExamFocusConcept()" style="background: none; border: none; color: var(--color-teal); font-weight: 700; cursor: pointer; font-size: 0.9rem;" title="Odağı kaldır">✕</button>
+                </div>
               </div>
 
               <!-- Setup parameters -->
@@ -1099,11 +1103,20 @@
                 </div>
 
                 <!-- Question Count -->
-                <div style="margin-bottom: 2rem;">
+                <div style="margin-bottom: 1.5rem;">
                   <div style="display: flex; align-items: center; gap: 0.5rem;">
                     <input type="number" id="exam-question-count" value="10" min="1" max="20" style="width: 100px; padding: 0.5rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); font-size: 0.85rem;">
                     <span id="exam-question-count-range-hint" style="font-size: 0.75rem; color: var(--color-text-muted); font-weight: 600;">(Range: 1 - 20)</span>
                   </div>
+                </div>
+
+                <!-- Real Exam Simulation Mode -->
+                <div style="margin-bottom: 2rem; padding: 1rem; background: var(--color-bg); border-radius: var(--radius-sm); border: 1px solid rgba(22,50,92,0.08);">
+                  <label style="display: flex; align-items: center; gap: 0.6rem; cursor: pointer; font-size: 0.9rem; font-weight: 700; color: var(--color-navy);">
+                    <input type="checkbox" id="exam-simulation-toggle" style="width: 18px; height: 18px; margin-right: 0.6rem;">
+                    ⏱️ Gerçek Sınav Simülasyonu
+                  </label>
+                  <p style="font-size: 0.78rem; color: var(--color-text-muted); margin-top: 0.4rem; margin-left: 1.8rem;">Süreli, tek çekimlik mod: ipuçları kapalı, süre dolunca sınav otomatik gönderilir. Gerçek vize/final koşullarına alışmak için kullanın.</p>
                 </div>
 
                 <!-- Generate Trigger -->
@@ -1111,9 +1124,21 @@
               </div>
             </div>
 
+            <!-- Weak Concept Map -->
+            <div class="past-attempts-card" style="box-shadow: var(--shadow-sm); padding: 1.5rem; background-color: var(--color-white); border-radius: var(--radius-md);">
+              <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.25rem; border-bottom: 1px solid rgba(22,50,92,0.08); padding-bottom: 0.5rem;">📊 Zayıf Konularınız</h3>
+              <p style="font-size: 0.78rem; color: var(--color-text-muted); margin: 0.5rem 0 0.75rem;">Tüm sınav denemeleriniz birleştirilerek en düşük ortalamaya sahip konular aşağıda listelenir.</p>
+              <div id="exam-weak-concepts-list">
+                <!-- Populated dynamically -->
+              </div>
+            </div>
+
             <!-- Past Attempts list -->
             <div class="past-attempts-card" style="box-shadow: var(--shadow-sm); padding: 1.5rem; background-color: var(--color-white); border-radius: var(--radius-md);">
-              <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--color-navy); margin-bottom: 1rem; border-bottom: 1px solid rgba(22,50,92,0.08); padding-bottom: 0.5rem;" data-i18n="dash.exams.pastAttempts">Geçmiş Sınav Denemeleri</h3>
+              <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(22,50,92,0.08); padding-bottom: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+                <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--color-navy);" data-i18n="dash.exams.pastAttempts">Geçmiş Sınav Denemeleri</h3>
+                <button type="button" class="btn btn-outline" style="padding: 0.4rem 0.8rem; font-size: 0.78rem;" onclick="openGradeCalculator()">🎯 Not Hesaplayıcı</button>
+              </div>
               <div id="past-attempts-list">
                 <!-- Populated dynamically -->
               </div>
@@ -1128,7 +1153,10 @@
               <h2 class="dashboard-page-title" id="active-exam-title">Sınav</h2>
               <p class="dashboard-page-desc" id="active-exam-desc">Lütfen tüm soruları dikkatlice cevaplayın.</p>
             </div>
-            <button class="btn btn-outline" onclick="cancelExam()" style="padding: 0.5rem 1rem;" data-i18n="dash.exams.cancel">Sınavdan Çık</button>
+            <div style="display: flex; align-items: center; gap: 1rem;">
+              <div id="exam-timer-display" style="display: none; font-size: 1.15rem; font-weight: 800; color: var(--color-navy); background: var(--color-bg); border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); padding: 0.5rem 1rem;">⏱️ --:--</div>
+              <button class="btn btn-outline" onclick="cancelExam()" style="padding: 0.5rem 1rem;" data-i18n="dash.exams.cancel">Sınavdan Çık</button>
+            </div>
           </div>
 
           <div id="exam-questions-container" style="margin: 2rem 0; display: flex; flex-direction: column; gap: 1.5rem;">
@@ -1733,6 +1761,40 @@
           <button type="submit" class="btn btn-primary" style="border: none; background: var(--color-teal); color: white;">Save / Kaydet</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Grade Calculator Modal — "finalden kaç almam lazım" -->
+  <div class="modal-overlay" id="grade-calc-modal" role="dialog" aria-modal="true" aria-labelledby="grade-calc-modal-title">
+    <div class="modal-card" style="max-width: 440px; position: relative;">
+      <button class="btn-icon" style="position: absolute; top: 0.75rem; right: 0.75rem; background: none; border: none; font-size: 1.25rem; font-weight: bold; color: var(--color-text-muted); cursor: pointer; line-height: 1;" onclick="closeGradeCalculator()" aria-label="Close modal">×</button>
+      <h3 class="modal-title" id="grade-calc-modal-title" style="color: var(--color-navy); font-weight: 800; font-size: 1.25rem;">🎯 Not Hesaplayıcı</h3>
+      <p style="font-size: 0.82rem; color: var(--color-text-muted); margin-top: 0.35rem; margin-bottom: 1rem;">Vize/final ağırlıklarınızı ve hedef ders notunuzu girin, finalden kaç almanız gerektiğini görün.</p>
+      <div style="display: flex; flex-direction: column; gap: 0.9rem;">
+        <div style="display: flex; gap: 0.75rem;">
+          <div style="flex: 1;">
+            <label for="gc-vize-weight" style="display: block; font-size: 0.8rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.3rem;">Vize Ağırlığı (%)</label>
+            <input type="number" id="gc-vize-weight" class="search-input" value="40" min="0" max="100" style="width: 100%; padding: 0.55rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.85rem;">
+          </div>
+          <div style="flex: 1;">
+            <label for="gc-final-weight" style="display: block; font-size: 0.8rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.3rem;">Final Ağırlığı (%)</label>
+            <input type="number" id="gc-final-weight" class="search-input" value="60" min="0" max="100" style="width: 100%; padding: 0.55rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.85rem;">
+          </div>
+        </div>
+        <div style="display: flex; gap: 0.75rem;">
+          <div style="flex: 1;">
+            <label for="gc-vize-grade" style="display: block; font-size: 0.8rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.3rem;">Vize Notunuz</label>
+            <input type="number" id="gc-vize-grade" class="search-input" min="0" max="100" placeholder="örn. 65" style="width: 100%; padding: 0.55rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.85rem;">
+          </div>
+          <div style="flex: 1;">
+            <label for="gc-target-grade" style="display: block; font-size: 0.8rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.3rem;">Hedef Ders Notu</label>
+            <input type="number" id="gc-target-grade" class="search-input" min="0" max="100" placeholder="örn. 70" style="width: 100%; padding: 0.55rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.85rem;">
+          </div>
+        </div>
+        <button type="button" class="btn btn-primary" style="border: none;" onclick="computeRequiredGrade()">Hesapla</button>
+        <div id="gc-result-box" style="display: none; padding: 0.9rem; border-radius: var(--radius-sm); font-size: 0.88rem; font-weight: 700; text-align: center;"></div>
+        <p style="font-size: 0.72rem; color: var(--color-text-muted); margin: 0;">Not: Bu hesaplama sadece iki bileşenli (vize + final) basit ağırlıklandırma içindir; dersinizin gerçek notlandırma sistemi farklıysa (ödev, katılım vb.) sonucu ona göre yorumlayın.</p>
+      </div>
     </div>
   </div>
 
