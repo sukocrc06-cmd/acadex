@@ -4154,7 +4154,10 @@
               mode: toneModeMap[presentationSettings.tone] || 'academic',
               slideCount: presentationSettings.slideCount,
               language: 'tr',
-              detailLevel: 'bullets'
+              // 'detailed' → V11'den 4-6 somut/spesifik madde + 70-110
+              // kelimelik zengin konuşmacı notu ister (jenerik ders kitabı
+              // cümleleri yerine örnek/rakam/karşılaştırma içeren içerik).
+              detailLevel: 'detailed'
             };
             if (presentationSettings.sourceType === 'topic') {
               v11Body.topic = presentationSettings.topic;
@@ -4798,13 +4801,31 @@
     // Presentation'ın render döngüsünün anladığı ortak şekle çeviriyor —
     // legacy Deep Research adaptörüyle (adaptAIPresentationToDeck) aynı
     // sözleşmeyi paylaşıyor, üstüne `v11` alanında zengin içeriği taşıyor.
+    // V11'in ürettiği kartlar bazen sadece başlıkla gelip açıklaması boş
+    // kalabiliyor (Groq'un ara sıra eksik doldurduğu bir alan) — böyle bir
+    // kartı 'cards'/'comparison' düzeninde göstermek kocaman boş bir kutu
+    // olarak görünüp amatörce durur. Bu yüzden sadece hem başlığı hem de
+    // en az birkaç kelimelik gerçek açıklaması olan kartları "gösterilebilir"
+    // sayıyoruz; yetersiz kart varsa o düzen hiç seçilmiyor (bkz.
+    // pickV11ShapeType) ve veri kaybolmasın diye düz metne çevriliyor (bkz.
+    // adaptV11PresentationToDeck'teki cardFallbackText).
+    function hasSubstantiveBody(item) {
+      return !!(item && typeof item.body === 'string' && item.body.trim().length >= 10);
+    }
+    function filterSubstantiveCards(cards) {
+      return (Array.isArray(cards) ? cards : []).filter(c => c && typeof c.title === 'string' && c.title.trim() && hasSubstantiveBody(c));
+    }
+
     function pickV11ShapeType(slide, index, totalSlides) {
       const content = slide.content || {};
+      const validCards = filterSubstantiveCards(content.cards);
       if (content.table) return 'table';
       if (content.chart) return 'chart';
       if (content.diagram) return 'diagram';
-      if (content.design_variant === 'comparison') return 'comparison';
-      if (Array.isArray(content.cards) && content.cards.length) return 'cards';
+      // Karşılaştırma tam olarak iki dolu kart ister — tek taraf boşsa
+      // (ör. sadece "Birinci" dolu, "İkinci" boş) bu düzen hiç seçilmez.
+      if (content.design_variant === 'comparison' && validCards.length >= 2) return 'comparison';
+      if (validCards.length >= 2) return 'cards';
       if (Array.isArray(content.steps) && content.steps.length) {
         return content.design_variant === 'timeline' ? 'timeline' : 'process';
       }
@@ -4830,13 +4851,25 @@
         const content = slide.content || {};
         const shapeType = pickV11ShapeType(slide, index, total);
         const stage = stageForV11Index(index, total);
+        const validCards = filterSubstantiveCards(content.cards);
 
         const bodyText = (content.text || '').trim();
         const secondaryText = (content.secondary_text || '').trim();
+        // Kartlar yetersiz olduğu için (bkz. pickV11ShapeType) 'cards'/
+        // 'comparison' düzeni SEÇİLMEDİYSE, o kartların içeriğini kaybetmemek
+        // için düz bir madde listesine çeviriyoruz — boş kutu yerine en
+        // azından ham başlık/açıklama görünür.
+        let cardFallbackText = '';
+        if (shapeType !== 'cards' && shapeType !== 'comparison' && Array.isArray(content.cards) && content.cards.length) {
+          cardFallbackText = content.cards
+            .filter(c => c && typeof c.title === 'string' && c.title.trim())
+            .map(c => (c.body && c.body.trim()) ? `• ${c.title.trim()}: ${c.body.trim()}` : `• ${c.title.trim()}`)
+            .join('\n');
+        }
         // "standard"/"cover"/"columns" dalları `content`'i düz metin olarak
         // kullanıyor — zengin dallar (table/chart/...) kendi v11.* verisini
         // okuyacak, bu metin sadece onlara düşerse fallback olur.
-        const textForRenderer = bodyText || secondaryText || slide.title || topic;
+        const textForRenderer = bodyText || cardFallbackText || secondaryText || slide.title || topic;
 
         const fallbackPool = STAGE_FALLBACK_ICONS[stage] || STAGE_FALLBACK_ICONS.analiz;
         const fallbackIcon = fallbackPool[index % fallbackPool.length];
@@ -4860,7 +4893,10 @@
           v11: {
             table: content.table || null,
             chart: content.chart || null,
-            cards: Array.isArray(content.cards) ? content.cards : [],
+            // Sadece hem başlığı hem de gerçek açıklaması olan kartlar —
+            // buildCardsSlide/buildComparisonSlide asla yarım dolu bir kart
+            // görmüyor, dolayısıyla boş kutu hiç çizilmiyor.
+            cards: validCards,
             steps: Array.isArray(content.steps) ? content.steps : [],
             diagram: content.diagram || null,
             metric: (content.metric && typeof content.metric === 'object') ? content.metric : null,
