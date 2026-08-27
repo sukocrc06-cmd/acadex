@@ -307,7 +307,10 @@ ACTIONS (the app executes these on the student's behalf — never fake, describe
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          // llama-3.3-70b-versatile was retired by Groq on 2026-08-16 — every
+          // call here was failing with a decommissioned-model error, which is
+          // why Acadia's assistant chat looked broken/unresponsive.
+          model: "openai/gpt-oss-120b",
           temperature: 0.6,
           messages: buildMessages(sysPrompt, historyLimit)
         })

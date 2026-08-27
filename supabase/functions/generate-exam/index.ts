@@ -158,7 +158,10 @@ The array must contain exactly ${questionCount} objects matching this JSON schem
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
+        // llama-3.3-70b-versatile was retired by Groq on 2026-08-16 — every
+        // exam generation was failing with a decommissioned-model error,
+        // which is why "Sınav Platformu" looked broken/nonexistent.
+        model: "openai/gpt-oss-120b",
         temperature: 0.9,
         response_format: { type: "json_object" },
         messages: [

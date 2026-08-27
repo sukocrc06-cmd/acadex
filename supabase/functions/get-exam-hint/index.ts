@@ -114,7 +114,9 @@ ${q.options ? `OPTIONS: ${JSON.stringify(q.options)}` : ''}
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
+        // llama-3.3-70b-versatile was retired by Groq on 2026-08-16 — every
+        // hint request was failing with a decommissioned-model error.
+        model: "openai/gpt-oss-120b",
         temperature: 0.5,
         messages: [
           { role: "system", content: sysPrompt },

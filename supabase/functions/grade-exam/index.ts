@@ -239,7 +239,10 @@ The array must contain exactly ${classicToGrade.length} objects matching this JS
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          // llama-3.3-70b-versatile was retired by Groq on 2026-08-16 — every
+          // grading call was failing with a decommissioned-model error, so
+          // submitted exams could never actually be graded.
+          model: "openai/gpt-oss-120b",
           temperature: 0.2,
           response_format: { type: "json_object" },
           messages: [
