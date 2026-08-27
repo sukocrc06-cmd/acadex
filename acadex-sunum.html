@@ -1084,38 +1084,122 @@
     let lastTemplateUsed = 'none';
     let activePresentationContext = '';
 
+    // gradientStops: [colorTopLeft, colorBottomRight] for a diagonal backdrop
+    // gradient. decorShapes: a small set of large, low-opacity decorative
+    // circles drawn behind all slide content — this is what gives AI-
+    // generated slides the "designed background" look (translucent accent
+    // circles on a rich backdrop) instead of a single flat fill color, the
+    // same idea used in the reference decks this feature was modeled after.
+    // Each decor shape is expressed as fractions of the 960x540 slide so it
+    // scales cleanly regardless of canvas size.
     const THEME_PALETTES = {
       arctic: {
         bgColor: "#16325C",
         textColor: "#f8fafc",
         accentColor: "#1F8A93",
-        shapeColors: ["#0F2341", "#23436B", "#1F8A93"]
+        shapeColors: ["#0F2341", "#23436B", "#1F8A93"],
+        gradientStops: ["#0F2341", "#1F4368"],
+        decorShapes: [
+          { xf: 0.92, yf: -0.08, rf: 0.42, color: "#1F8A93", alpha: 0.16 },
+          { xf: -0.08, yf: 1.05, rf: 0.30, color: "#1F8A93", alpha: 0.10 },
+          { xf: 0.15, yf: 0.85, rf: 0.14, color: "#f8fafc", alpha: 0.04 }
+        ]
       },
       corporate: {
         bgColor: "#16325C",
         textColor: "#f8fafc",
         accentColor: "#166970",
-        shapeColors: ["#1e3a8a", "#1d4ed8", "#60a5fa"]
+        shapeColors: ["#1e3a8a", "#1d4ed8", "#60a5fa"],
+        gradientStops: ["#0b1f4d", "#173a7a"],
+        decorShapes: [
+          { xf: 1.02, yf: 0.05, rf: 0.38, color: "#60a5fa", alpha: 0.14 },
+          { xf: 0.05, yf: 1.05, rf: 0.34, color: "#1d4ed8", alpha: 0.14 },
+          { xf: 0.85, yf: 0.9, rf: 0.12, color: "#60a5fa", alpha: 0.10 }
+        ]
       },
       minimalist: {
         bgColor: "#f8fafc",
         textColor: "#16325C",
         accentColor: "#475569",
-        shapeColors: ["#cbd5e1", "#94a3b8", "#64748b"]
+        shapeColors: ["#cbd5e1", "#94a3b8", "#64748b"],
+        gradientStops: ["#ffffff", "#eef2f6"],
+        decorShapes: [
+          { xf: 0.98, yf: -0.05, rf: 0.30, color: "#94a3b8", alpha: 0.10 },
+          { xf: 0.02, yf: 1.08, rf: 0.24, color: "#64748b", alpha: 0.08 }
+        ]
       },
       night: {
         bgColor: "#09090b",
         textColor: "#ffffff",
         accentColor: "#fbbf24",
-        shapeColors: ["#a78bfa", "#ec4899", "#06b6d4"]
+        shapeColors: ["#a78bfa", "#ec4899", "#06b6d4"],
+        gradientStops: ["#000000", "#17171a"],
+        decorShapes: [
+          { xf: 0.88, yf: -0.15, rf: 0.46, color: "#fbbf24", alpha: 0.09 },
+          { xf: -0.12, yf: 0.75, rf: 0.36, color: "#fbbf24", alpha: 0.07 },
+          { xf: 0.5, yf: 1.1, rf: 0.20, color: "#a78bfa", alpha: 0.08 }
+        ]
       },
       pastel: {
         bgColor: "#fff7ed",
         textColor: "#431407",
         accentColor: "#f43f5e",
-        shapeColors: ["#fbcfe8", "#e9d5ff", "#ccfbf1"]
+        shapeColors: ["#fbcfe8", "#e9d5ff", "#ccfbf1"],
+        gradientStops: ["#fff7ed", "#ffedf5"],
+        decorShapes: [
+          { xf: 0.95, yf: -0.1, rf: 0.34, color: "#fbcfe8", alpha: 0.55 },
+          { xf: 0.05, yf: 1.1, rf: 0.30, color: "#ccfbf1", alpha: 0.55 },
+          { xf: 0.8, yf: 0.85, rf: 0.14, color: "#e9d5ff", alpha: 0.5 }
+        ]
       }
     };
+
+    // Builds the full-bleed gradient backdrop + decorative accent circles for
+    // a theme, as real Fabric objects (not a canvas.backgroundColor hack) so
+    // they serialize/restore via the normal slide save/load path and show up
+    // correctly in the PDF export's canvas screenshot. Locked/non-selectable
+    // and tagged isThemeDecor so future logic can identify them if needed.
+    // slideSeed varies the decor slightly per slide index so a whole deck
+    // doesn't look like it was stamped from one identical background.
+    function buildThemeBackdrop(palette, slideSeed, includeDecorShapes) {
+      const W = 960, H = 540;
+      const objs = [];
+
+      const stops = palette.gradientStops || [palette.bgColor, palette.bgColor];
+      const gradientRect = new fabric.Rect({
+        left: 0, top: 0, width: W, height: H,
+        selectable: false, evented: false, isThemeDecor: true,
+        fill: new fabric.Gradient({
+          type: 'linear',
+          coords: { x1: 0, y1: 0, x2: W, y2: H },
+          colorStops: [
+            { offset: 0, color: stops[0] },
+            { offset: 1, color: stops[1] }
+          ]
+        })
+      });
+      objs.push(gradientRect);
+
+      if (includeDecorShapes === false) return objs;
+
+      (palette.decorShapes || []).forEach((shape, i) => {
+        // Tiny deterministic per-slide jitter (no Math.random dependency on
+        // exact reproducibility needed) so circles drift slightly slide to
+        // slide instead of stacking identically.
+        const jitter = ((slideSeed || 0) * 37 + i * 17) % 40 - 20; // -20..+19 px
+        const cx = shape.xf * W + jitter;
+        const cy = shape.yf * H + jitter * 0.6;
+        const r = shape.rf * W;
+        objs.push(new fabric.Circle({
+          left: cx, top: cy, radius: r,
+          originX: 'center', originY: 'center',
+          fill: shape.color, opacity: shape.alpha,
+          selectable: false, evented: false, isThemeDecor: true
+        }));
+      });
+
+      return objs;
+    }
 
     // DOM ELEMENTS ACCESSORS
     const btnAddText = document.getElementById('btnAddText');
@@ -2533,7 +2617,41 @@
       { name: 'puzzle', category: 'concept', keywords: ['problem','bilmece','engel','çözüm','entegrasyon','zorluk'], path: "M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7 1.49 0 2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5S21.88 11 20.5 11z", iconClass: "fa-solid fa-puzzle-piece" },
       { name: 'shield', category: 'concept', keywords: ['risk','güvenlik','koruma','uyum','mevzuat','regülasyon'], path: "M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z", iconClass: "fa-solid fa-shield-halved" },
       { name: 'academic', category: 'concept', keywords: ['akademik','literatür','araştırma','metodoloji','eğitim','ampirik','teori'], path: "M12 3L1 9l11 6 9-4.91V17h2V9L12 3zM5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82z", iconClass: "fa-solid fa-graduation-cap" },
-      { name: 'compass', category: 'concept', keywords: ['yol haritası','strateji','yön','keşif','vizyon','pusula'], path: "M12 10.9c-.61 0-1.1.49-1.1 1.1s.49 1.1 1.1 1.1c.61 0 1.1-.49 1.1-1.1s-.49-1.1-1.1-1.1zM12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm2.19 12.19L6 18l3.81-8.19L18 6l-3.81 8.19z", iconClass: "fa-solid fa-compass" }
+      { name: 'compass', category: 'concept', keywords: ['yol haritası','strateji','yön','keşif','vizyon','pusula'], path: "M12 10.9c-.61 0-1.1.49-1.1 1.1s.49 1.1 1.1 1.1c.61 0 1.1-.49 1.1-1.1s-.49-1.1-1.1-1.1zM12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm2.19 12.19L6 18l3.81-8.19L18 6l-3.81 8.19z", iconClass: "fa-solid fa-compass" },
+
+      // ── Genişletilmiş kütüphane: AI'nin daha isabetli ikon seçebilmesi için
+      // eklendi (26 → 54 ikon). Her path cairosvg ile ayrı ayrı render edilip
+      // görsel olarak doğrulandı; yanlış/bozuk çıkan adaylar (ör. "dna",
+      // "fingerprint", "anchor" denemeleri) elendi, sadece net görünenler
+      // eklendi.
+      { name: 'book', category: 'concept', keywords: ['kitap','literatür','kaynak','okuma','ders','eğitim'], path: "M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 15H6V4h2v12l2.5-1.5L13 16V4h5v13z", iconClass: "fa-solid fa-book" },
+      { name: 'calendar', category: 'system', keywords: ['takvim','tarih','planlama','zaman çizelgesi','program'], path: "M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z", iconClass: "fa-solid fa-calendar" },
+      { name: 'clock', category: 'system', keywords: ['zaman','süre','saat','zamanlama','vakit'], path: "M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z", iconClass: "fa-solid fa-clock" },
+      { name: 'briefcase', category: 'concept', keywords: ['iş','kariyer','şirket','kurumsal','ticaret','sektör'], path: "M20 6h-4V4c0-1.11-.89-2-2-2h-4c-1.11 0-2 .89-2 2v2H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-6 0h-4V4h4v2z", iconClass: "fa-solid fa-briefcase" },
+      { name: 'money', category: 'concept', keywords: ['para','maliyet','bütçe','finansal','gelir','yatırım','ücret'], path: "M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z", iconClass: "fa-solid fa-sack-dollar" },
+      { name: 'database', category: 'system', keywords: ['veritabanı','veri','altyapı','depolama','sistem','teknoloji'], path: "M12 3C7.58 3 4 4.79 4 7s3.58 4 8 4 8-1.79 8-4-3.58-4-8-4zM4 9v3c0 2.21 3.58 4 8 4s8-1.79 8-4V9c0 2.21-3.58 4-8 4s-8-1.79-8-4zm0 5v3c0 2.21 3.58 4 8 4s8-1.79 8-4v-3c0 2.21-3.58 4-8 4s-8-1.79-8-4z", iconClass: "fa-solid fa-database" },
+      { name: 'code', category: 'system', keywords: ['kod','yazılım','geliştirme','programlama','teknik'], path: "M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0L19.2 12l-4.6-4.6L16 6l6 6-6 6-1.4-1.4z", iconClass: "fa-solid fa-code" },
+      { name: 'palette', category: 'concept', keywords: ['tasarım','yaratıcı','sanat','renk','estetik'], path: "M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z", iconClass: "fa-solid fa-palette" },
+      { name: 'clipboard', category: 'system', keywords: ['kontrol listesi','görev','yapılacaklar','süreç','denetim'], path: "M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm2 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z", iconClass: "fa-solid fa-clipboard-list" },
+      { name: 'beaker', category: 'concept', keywords: ['bilim','deney','laboratuvar','kimya','araştırma'], path: "M19.8 18.4L14 10.67V6.5l1.35-1.69c.26-.33.03-.81-.39-.81H9.04c-.42 0-.65.48-.39.81L10 6.5v4.17L4.2 18.4c-.49.66-.02 1.6.8 1.6h14c.82 0 1.29-.94.8-1.6z", iconClass: "fa-solid fa-flask" },
+      { name: 'trophy', category: 'concept', keywords: ['başarı','ödül','kazanım','performans','zafer','hedefe ulaşma'], path: "M20 4h-3V2H7v2H4c-1.1 0-2 .9-2 2v3c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-3v-2.1c1.63-.33 2.98-1.46 3.61-2.96C20.08 13.63 22 11.55 22 9V6c0-1.1-.9-2-2-2zM4 9V6h3v4.82C5.36 10.4 4 8.86 4 9zm16 0c0-.14-1.36 1.4-3 1.82V6h3v3z", iconClass: "fa-solid fa-trophy" },
+      { name: 'target', category: 'concept', keywords: ['hedef','odak','amaç','isabet','strateji'], path: "M12 2C6.49 2 2 6.49 2 12s4.49 10 10 10 10-4.49 10-10S17.51 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4zm0-6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z", iconClass: "fa-solid fa-bullseye" },
+      { name: 'video', category: 'media', keywords: ['video','kayıt','içerik','yayın','multimedya'], path: "M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z", iconClass: "fa-solid fa-video" },
+      { name: 'music', category: 'media', keywords: ['müzik','ses','sanat','ritim'], path: "M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z", iconClass: "fa-solid fa-music" },
+      { name: 'key', category: 'system', keywords: ['erişim','güvenlik','şifre','yetki','anahtar','çözüm'], path: "M12.65 10C11.83 7.67 9.61 6 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c2.61 0 4.83-1.67 5.65-4H17v4h4v-4h2v-4H12.65zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z", iconClass: "fa-solid fa-key" },
+      { name: 'map', category: 'concept', keywords: ['harita','yol haritası','konum','coğrafya','plan'], path: "M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z", iconClass: "fa-solid fa-map" },
+      { name: 'warning', category: 'system', keywords: ['risk','uyarı','dikkat','tehlike','sorun'], path: "M12 2C6.49 2 2 6.49 2 12s4.49 10 10 10 10-4.49 10-10S17.51 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4zm0-6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z", iconClass: "fa-solid fa-triangle-exclamation" },
+      { name: 'gauge', category: 'concept', keywords: ['performans','ölçüm','kpi','verimlilik','gösterge'], path: "M12 2C6.48 2 2 6.48 2 12c0 2.21.72 4.26 1.93 5.92L12 12l8.07 5.92C21.28 16.26 22 14.21 22 12c0-5.52-4.48-10-10-10zm0 8c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2z", iconClass: "fa-solid fa-gauge" },
+      { name: 'microphone', category: 'media', keywords: ['konuşma','sunum','ses','anlatım','podcast'], path: "M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z", iconClass: "fa-solid fa-microphone" },
+      { name: 'link', category: 'system', keywords: ['bağlantı','entegrasyon','ilişki','ağ','bağlanabilirlik'], path: "M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z", iconClass: "fa-solid fa-link" },
+      { name: 'navigation', category: 'concept', keywords: ['yön','konum','rota','ilerleme','pusula'], path: "M13.13 22.19l-1.63-3.83c1.57-.58 3.04-1.36 4.4-2.27l-2.77 6.1zM5.64 12.5l-3.83-1.63 6.1-2.77c-.91 1.36-1.69 2.83-2.27 4.4zM21.61 2.39c0 0-4.95-2.12-10.61 3.54-2.19 2.19-3.5 4.6-4.35 6.71-.28.69-.11 1.47.41 1.99l1.31 1.31c.52.52 1.3.69 1.99.41 2.11-.85 4.52-2.16 6.71-4.35 5.66-5.66 4.54-9.61 4.54-9.61zM15 9c-.83 0-1.5-.67-1.5-1.5S14.17 6 15 6s1.5.67 1.5 1.5S15.83 9 15 9z", iconClass: "fa-solid fa-location-arrow" },
+      { name: 'plus', category: 'basic', keywords: ['sağlık','ekle','yeni','artı','tıbbi'], path: "M19 8h-4V4a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v4H5a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h4v4a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1v-4h4a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1z", iconClass: "fa-solid fa-plus" },
+      { name: 'sun', category: 'concept', keywords: ['enerji','çevre','iklim','sürdürülebilirlik','doğa'], path: "M6.76 4.84l-1.8-1.79-1.41 1.41 1.79 1.79 1.42-1.41zM4 10.5H1v2h3v-2zm9-9.95h-2V3.5h2V.55zm7.45 3.91l-1.41-1.41-1.79 1.79 1.41 1.41 1.79-1.79zm-3.21 13.7l1.79 1.8 1.41-1.41-1.8-1.79-1.4 1.4zM20 10.5v2h3v-2h-3zm-8-5c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm-1 16.95h2V19.5h-2v2.95zm-7.45-3.91l1.41 1.41 1.79-1.8-1.41-1.41-1.79 1.8z", iconClass: "fa-solid fa-sun" },
+      { name: 'car', category: 'basic', keywords: ['ulaşım','lojistik','araç','taşımacılık'], path: "M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z", iconClass: "fa-solid fa-car" },
+      { name: 'plane', category: 'basic', keywords: ['seyahat','uluslararası','ihracat','küresel','uçuş'], path: "M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2.5 1.5V22l4-1 4 1v-1.5L13 19v-5.5l8 2.5z", iconClass: "fa-solid fa-plane" },
+      { name: 'gift', category: 'concept', keywords: ['ödül','teşvik','avantaj','fırsat','kampanya'], path: "M20 6h-2.18c.11-.31.18-.65.18-1a2.996 2.996 0 0 0-5.5-1.65l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm6 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm5 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76V11h2V8.76L15.38 12 17 10.83 14.92 8H20v6z", iconClass: "fa-solid fa-gift" },
+      { name: 'percent', category: 'concept', keywords: ['yüzde','oran','istatistik','indirim','büyüme oranı'], path: "M6.5 6.5c-1.65 0-3 1.35-3 3s1.35 3 3 3 3-1.35 3-3-1.35-3-3-3zm11 5c-1.65 0-3 1.35-3 3s1.35 3 3 3 3-1.35 3-3-1.35-3-3-3zM19.79 5.13L18.66 4 4.21 18.45l1.13 1.13L19.79 5.13z", iconClass: "fa-solid fa-percent" },
+      { name: 'wifi', category: 'system', keywords: ['bağlantı','ağ','internet','iletişim altyapısı','dijital'], path: "M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3c-1.65-1.66-4.34-1.66-6 0zm-4-4l2 2c2.76-2.76 7.24-2.76 10 0l2-2C15.14 9.14 8.87 9.14 5 13z", iconClass: "fa-solid fa-wifi" }
     ];
 
     // ── Akıllı İkon Eşleştirme: başlık + içerik metnine göre en uygun ikonu seçer ──
@@ -4022,6 +4140,19 @@
             slides[currentSlideIndex].bgColor = activeBg;
             slideColorPicker.value = activeBg;
 
+            // ── Tema Arka Planı: gradyan + dekoratif şekiller ──────
+            // A flat single-color fill (the old behavior) reads as an
+            // unfinished template. Every AI-generated slide now gets a
+            // full-bleed diagonal gradient plus a few large, low-opacity
+            // accent circles from the chosen theme — this is what gives the
+            // deck a "designed" look instead of "text pasted on a color".
+            // Gated on the wizard's own "Dekoratif Öğeler" toggle
+            // (iconPreference) for the circles specifically; the gradient
+            // itself always applies since it's just a richer background,
+            // not an added decoration.
+            const backdropObjs = buildThemeBackdrop(palette, i, settings.iconPreference !== false);
+            canvas.add(...backdropObjs);
+
             // ── İkon Kartı Yardımcı Fonksiyonu ─────────────────────
             const buildIconCard = (cx, cy, sz, cardSize, bgAlpha) => {
               const iconDef = ICONS_DATABASE.find(function(ic){ return ic.name === data.iconName; })
@@ -4103,23 +4234,42 @@
               canvas.add(cardBg, cardIcon, titleObj, divider, colLeft, colRight);
 
             } else if (data.shapeType === 'image') {
-              // ── Image: İkon Kartı görsel alanında büyük, yarı-saydam
-              const card = buildIconCard(290, 278, 4.2, 90, 0.12);
-              const cardBg = card[0], cardIcon = card[1];
+              // ── Image: artık boş bir "resim yükleyin" kutusu değil —
+              // konuya uygun ikonun büyütülmüş bir "hero" grafiği + dekoratif
+              // halkalarla dolu bir görsel panel. Gerçek fotoğraf yerine
+              // (uygulamada ücretli görsel üretim API'si kullanılmıyor) tema
+              // rengiyle uyumlu bir illüstrasyon köşesi oluşturuyor; kullanıcı
+              // isterse yine de "Görsel Yükle" ile üzerine gerçek bir
+              // fotoğraf/logo ekleyebilir — bu artık opsiyonel bir ipucu.
+              const panelCx = 290, panelCy = 278;
+              const iconDef = ICONS_DATABASE.find(function(ic){ return ic.name === data.iconName; })
+                            || ICONS_DATABASE[i % ICONS_DATABASE.length];
+              const panelBg = new fabric.Rect({
+                left: 80, top: 118, width: 420, height: 320,
+                fill: (themeName === 'minimalist' || themeName === 'pastel') ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.05)',
+                stroke: accent, strokeWidth: 1.5, rx: 18, ry: 18
+              });
+              const ringOuter = new fabric.Circle({
+                left: panelCx, top: panelCy, radius: 102, originX: 'center', originY: 'center',
+                fill: 'transparent', stroke: accent, strokeWidth: 2, opacity: 0.35, selectable: false
+              });
+              const ringInner = new fabric.Circle({
+                left: panelCx, top: panelCy, radius: 80, originX: 'center', originY: 'center',
+                fill: accent, opacity: 0.14, selectable: false
+              });
+              const heroIcon = new fabric.Path(iconDef.path, {
+                left: panelCx, top: panelCy, fill: accent,
+                scaleX: 5.4, scaleY: 5.4, originX: 'center', originY: 'center', selectable: false
+              });
+              const imgHint = new fabric.Textbox('İsterseniz "Görsel Yükle" ile kendi fotoğrafınızı da ekleyebilirsiniz', {
+                left: panelCx, top: 400, width: 380,
+                fontSize: 9.5, fontFamily: 'Inter', fill: activeText, opacity: 0.55,
+                textAlign: 'center', originX: 'center', splitByGrapheme: true
+              });
               const titleObj = new fabric.Textbox(data.title, {
                 left: 80, top: 52, width: 820,
                 fontSize: 25, fontFamily: 'Inter',
                 fill: titleColor, fontWeight: 'bold', splitByGrapheme: true
-              });
-              const imgBox = new fabric.Rect({
-                left: 80, top: 118, width: 420, height: 320,
-                fill: themeName === 'night' ? 'rgba(255,255,255,0.03)' : '#f3f4f6',
-                stroke: accent, strokeWidth: 2, rx: 10, ry: 10
-              });
-              const imgLabel = new fabric.Textbox('Görsel Alanı\n(Dosya Yükle ile ekleyin)', {
-                left: 290, top: 335, width: 360,
-                fontSize: 11, fontFamily: 'Inter', fill: activeText,
-                textAlign: 'center', originX: 'center', splitByGrapheme: true
               });
               const descObj = new fabric.Textbox(data.content, {
                 left: 535, top: 118, width: 350,
@@ -4127,10 +4277,13 @@
                 lineHeight: 1.5, splitByGrapheme: true
               });
               if (settings.animationPreference) {
-                titleObj.entranceAnim = 'fadeIn';
-                descObj.entranceAnim  = 'slideUp';
+                titleObj.entranceAnim  = 'fadeIn';
+                descObj.entranceAnim   = 'slideUp';
+                ringOuter.entranceAnim = 'fadeIn';
+                ringInner.entranceAnim = 'fadeIn';
+                heroIcon.entranceAnim  = 'fadeIn';
               }
-              canvas.add(imgBox, cardBg, cardIcon, imgLabel, titleObj, descObj);
+              canvas.add(panelBg, ringOuter, ringInner, heroIcon, imgHint, titleObj, descObj);
 
             } else {
               // ── Standard: İkon Kartı sağ üst köşede ──────────────

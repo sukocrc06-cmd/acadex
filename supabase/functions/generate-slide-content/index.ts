@@ -183,7 +183,13 @@ SADECE şu JSON formatında cevap ver, başka hiçbir şey yazma: {"title": "str
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          // llama-3.3-70b-versatile was retired by Groq on 2026-08-16 — every
+          // call here was failing with a decommissioned-model error, which is
+          // why the "AI Asistanı" slide-content buttons stopped working.
+          // openai/gpt-oss-120b is Groq's recommended replacement, already
+          // adopted by summarize-document, generate-section-visual, and the
+          // other Acadex edge functions hit by this same deprecation.
+          model: "openai/gpt-oss-120b",
           temperature: 0.8,
           response_format: { type: "json_object" },
           messages: [

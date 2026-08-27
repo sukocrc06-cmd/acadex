@@ -148,7 +148,13 @@ The "slides" array must contain exactly ${slideN} objects.
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          // llama-3.3-70b-versatile was retired by Groq on 2026-08-16 — every
+          // call here was failing with a decommissioned-model error (surfaced
+          // to the user as "AI generation service failed"), which is why
+          // "Derinlemesine Araştır" looked broken/nonexistent. openai/gpt-oss-120b
+          // is Groq's recommended replacement, already adopted by
+          // summarize-document and generate-section-visual for the same reason.
+          model: "openai/gpt-oss-120b",
           temperature: 0.7,
           response_format: { type: "json_object" },
           messages: [
