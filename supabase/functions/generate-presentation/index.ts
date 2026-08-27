@@ -178,7 +178,12 @@ The "slides" array must contain exactly ${slideN} objects.
 
     if (!groqResponse.ok) {
       console.error("generate-presentation Groq call failed: ", groqData)
-      return new Response(JSON.stringify({ error: 'AI generation service failed. Please try again in a moment.' }), {
+      // Surface the real Groq failure reason (decommissioned model, invalid
+      // key, rate limit, provider outage, etc.) instead of a single generic
+      // string — the generic message made every distinct failure mode look
+      // identical to the user and to us when diagnosing from a screenshot.
+      const groqDetail = groqData?.error?.message || groqData?.error?.code || `HTTP ${groqResponse.status}`
+      return new Response(JSON.stringify({ error: `AI generation service failed: ${groqDetail}` }), {
         status: 502,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
