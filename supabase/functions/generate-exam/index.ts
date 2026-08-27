@@ -20,8 +20,27 @@ serve(async (req) => {
       })
     }
 
-    const { studyCardId, examType, questionCount, language, difficulty } = await req.json()
-    if (!studyCardId || !examType || !questionCount || !language) {
+    const { studyCardId, sourceType, courseCode, courseDepartment, examType, questionCount, language, difficulty } = await req.json()
+
+    // 'study_card' (default, backward-compatible) generates from one of the
+    // student's own study cards, as before. 'course' generates directly from
+    // a Ders Ağacı catalog course — see the branch below for how its context
+    // is built (pooled shared study cards for that course if any exist, else
+    // a general-knowledge fallback).
+    const resolvedSourceType = sourceType === 'course' ? 'course' : 'study_card'
+    if (resolvedSourceType === 'study_card' && !studyCardId) {
+      return new Response(JSON.stringify({ error: 'Missing required parameter: studyCardId' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+    if (resolvedSourceType === 'course' && !courseCode) {
+      return new Response(JSON.stringify({ error: 'Missing required parameter: courseCode' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+    if (!examType || !questionCount || !language) {
       return new Response(JSON.stringify({ error: 'Missing required parameters' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -56,32 +75,32 @@ serve(async (req) => {
       })
     }
 
-    // Verify study card ownership and load context
-    const { data: card, error: cardError } = await userClient
-      .from('study_cards')
-      .select('*')
-      .eq('id', studyCardId)
-      .single()
+    let isQuant = false
+    let context = ''
+    let isGrounded = true
+    let canonicalCourseCode: string | null = null
+    let canonicalCourseName: string | null = null
+    let courseDeptName: string | null = null
+    let conceptRuleText = '- For every question, set a "concept" field to the single key term (from the KEY TERMS list provided) that the question is primarily testing.'
 
-    if (cardError || !card) {
-      console.error("Card ownership check failed: ", cardError)
-      return new Response(JSON.stringify({ error: 'Study card not found or access denied' }), {
-        status: 404,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
-    }
+    if (resolvedSourceType === 'study_card') {
+      // Verify study card ownership and load context
+      const { data: card, error: cardError } = await userClient
+        .from('study_cards')
+        .select('*')
+        .eq('id', studyCardId)
+        .single()
 
-    const groqApiKey = Deno.env.get('GROQ_API_KEY')
-    if (!groqApiKey) {
-      return new Response(JSON.stringify({ error: 'Groq API key not configured' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
-    }
+      if (cardError || !card) {
+        console.error("Card ownership check failed: ", cardError)
+        return new Response(JSON.stringify({ error: 'Study card not found or access denied' }), {
+          status: 404,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
 
-    // Format study card context
-    const isQuant = !!card.is_quantitative
-    const context = `
+      isQuant = !!card.is_quantitative
+      context = `
 SUMMARY:
 ${card.summary || ''}
 
@@ -93,10 +112,84 @@ ${JSON.stringify(card.key_points || [])}
 
 ${card.formulas && card.formulas.length > 0 ? `FORMULAS:\n${JSON.stringify(card.formulas)}` : ''}
 ${card.worked_examples && card.worked_examples.length > 0 ? `WORKED EXAMPLES:\n${JSON.stringify(card.worked_examples)}` : ''}
-    `.trim()
+      `.trim()
+    } else {
+      // 'course' — generate directly from a Ders Ağacı catalog course rather
+      // than a single personal study card. Look up the canonical course row
+      // ourselves (defense-in-depth: don't trust arbitrary client-supplied
+      // course/department strings for the pooling query below).
+      const { data: courseRow, error: courseErr } = await userClient
+        .from('courses')
+        .select('course_code, course_name, department_code, departments(name, name_tr)')
+        .eq('course_code', courseCode)
+        .maybeSingle()
+
+      if (courseErr || !courseRow) {
+        console.error("Course lookup failed: ", courseErr)
+        return new Response(JSON.stringify({ error: 'Course not found in catalog' }), {
+          status: 404,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+
+      canonicalCourseCode = courseRow.course_code
+      canonicalCourseName = courseRow.course_name
+      const deptInfo = (courseRow as Record<string, unknown>).departments as Record<string, unknown> | null
+      courseDeptName = (deptInfo && typeof deptInfo.name === 'string') ? deptInfo.name : (courseDepartment || null)
+
+      // Pool up to 6 of the most recent shared study cards tagged to this
+      // course — real, student-contributed content beats a from-scratch AI
+      // guess whenever it's available. course_tag is free text (see
+      // study_cards.course_tag), so match case-insensitively.
+      const MAX_POOLED_CARDS = 6
+      let sharedCards: Record<string, unknown>[] = []
+      if (courseDeptName) {
+        const { data: pooled, error: poolErr } = await userClient
+          .from('study_cards')
+          .select('summary, key_terms, key_points, formulas, is_quantitative')
+          .eq('is_shared', true)
+          .eq('department', courseDeptName)
+          .ilike('course_tag', canonicalCourseCode)
+          .order('created_at', { ascending: false })
+          .limit(MAX_POOLED_CARDS)
+        if (poolErr) console.warn('Failed to pool shared study cards for course exam:', poolErr)
+        sharedCards = pooled || []
+      }
+
+      isGrounded = sharedCards.length > 0
+      isQuant = isGrounded && sharedCards.some(c => !!c.is_quantitative)
+
+      if (isGrounded) {
+        const merged = sharedCards.map((c, idx) => `
+--- Shared Study Card ${idx + 1} ---
+SUMMARY: ${String(c.summary || '').slice(0, 1200)}
+KEY TERMS: ${JSON.stringify((c.key_terms as unknown[] || []).slice(0, 12))}
+KEY POINTS: ${JSON.stringify((c.key_points as unknown[] || []).slice(0, 10))}
+${c.formulas && (c.formulas as unknown[]).length > 0 ? `FORMULAS: ${JSON.stringify(c.formulas).slice(0, 800)}` : ''}
+        `.trim()).join('\n\n')
+
+        context = `The following is POOLED, STUDENT-SHARED study material for the course "${canonicalCourseName}" (${canonicalCourseCode}), combined from ${sharedCards.length} shared study card(s) contributed by students taking this course:\n\n${merged}`
+        conceptRuleText = '- For every question, set a "concept" field to the single key term (from the pooled KEY TERMS lists provided across the shared study cards) that the question is primarily testing.'
+      } else {
+        context = `No student-shared study material exists yet for the course "${canonicalCourseName}" (${canonicalCourseCode})${courseDeptName ? ` in the "${courseDeptName}" department` : ''}. Draw on your own general academic knowledge of a standard undergraduate business-faculty course with this name/code. If you are not fully confident about a very specific fact, figure, or example, phrase it in general but still accurate terms rather than inventing a false-sounding precise detail.`
+        conceptRuleText = '- For every question, set a "concept" field to a short (1-4 word) topic label, in the requested language, that the question is primarily testing.'
+      }
+    }
+
+    const groqApiKey = Deno.env.get('GROQ_API_KEY')
+    if (!groqApiKey) {
+      return new Response(JSON.stringify({ error: 'Groq API key not configured' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
 
     const sysPrompt = `
-You are an academic study assistant. You will be given the summary, key terms, key points, and optional formulas/examples of a study card.
+You are an academic study assistant. ${resolvedSourceType === 'study_card'
+      ? 'You will be given the summary, key terms, key points, and optional formulas/examples of a study card.'
+      : (isGrounded
+          ? 'You will be given pooled summaries, key terms, key points, and optional formulas from multiple students\' shared study cards for one course.'
+          : 'You will be given a course name/code with no student-shared material yet — use your own general academic knowledge of the subject, as instructed below.')}
 Your task is to generate exactly ${questionCount} questions of type '${examType}' in the language '${language}' (en = English, tr = Turkish), at difficulty level '${resolvedDifficulty}'.
 
 IMPORTANT VARIATION RULES:
@@ -111,7 +204,7 @@ IMPORTANT LANGUAGE RULES:
 - Write ALL questions, options, hints, and solution steps strictly in the requested language '${language}' (English if 'en', Turkish if 'tr').
 
 IMPORTANT CONCEPT TAGGING RULE:
-- For every question, set a "concept" field to the single key term (from the KEY TERMS list provided) that the question is primarily testing.
+${conceptRuleText}
 
 EXAM TYPE RULES:
 1. 'classic': All questions must be open-ended (free-text essay questions). The options field should be null.
@@ -174,7 +267,8 @@ The array must contain exactly ${questionCount} objects matching this JSON schem
     const groqData = await groqResponse.json()
     if (!groqResponse.ok) {
       console.error("Groq generation failed: ", groqData)
-      return new Response(JSON.stringify({ error: 'AI generation service failed' }), {
+      const groqDetail = groqData?.error?.message || groqData?.error?.code || `HTTP ${groqResponse.status}`
+      return new Response(JSON.stringify({ error: `AI generation service failed: ${groqDetail}` }), {
         status: 502,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
@@ -214,20 +308,31 @@ The array must contain exactly ${questionCount} objects matching this JSON schem
     const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     const serviceClient = createClient(supabaseUrl, supabaseServiceRoleKey)
 
+    const examInsertPayload: Record<string, unknown> = {
+      user_id: user.id,
+      exam_type: examType,
+      language: language,
+      question_count: questionCount,
+      questions: questionsArray,
+      answers: null,
+      question_results: null,
+      grade: null,
+      completed_at: null,
+      source_type: resolvedSourceType
+    }
+    if (resolvedSourceType === 'course') {
+      examInsertPayload.study_card_id = null
+      examInsertPayload.course_code = canonicalCourseCode
+      examInsertPayload.course_department = courseDeptName
+      examInsertPayload.is_grounded = isGrounded
+    } else {
+      examInsertPayload.study_card_id = studyCardId
+      examInsertPayload.is_grounded = true
+    }
+
     const { data: newExam, error: insertError } = await serviceClient
       .from('exams')
-      .insert({
-        study_card_id: studyCardId,
-        user_id: user.id,
-        exam_type: examType,
-        language: language,
-        question_count: questionCount,
-        questions: questionsArray,
-        answers: null,
-        question_results: null,
-        grade: null,
-        completed_at: null
-      })
+      .insert(examInsertPayload)
       .select()
       .single()
 

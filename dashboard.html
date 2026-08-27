@@ -968,13 +968,54 @@
           </div>
 
           <div id="exam-setup-content" style="display: none; flex-direction: column; gap: 1.5rem;">
-            <!-- Study Card selector card -->
+            <!-- Source selector card -->
             <div class="doc-card" style="box-shadow: var(--shadow-sm); padding: 1.5rem;">
               <div style="margin-bottom: 1.5rem;">
+                <span style="display: block; font-size: 0.9rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.75rem;">Kaynak</span>
+                <div class="exam-type-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
+                  <label class="exam-type-option" style="display: block; cursor: pointer;">
+                    <input type="radio" name="exam-source" value="study_card" checked style="display: none;" onchange="onExamSourceChange()">
+                    <div class="option-box">
+                      <strong>Çalışma Kartım</strong>
+                      <span>Daha önce özetlediğiniz bir belgeden sınav oluşturun.</span>
+                    </div>
+                  </label>
+                  <label class="exam-type-option" style="display: block; cursor: pointer;">
+                    <input type="radio" name="exam-source" value="course" style="display: none;" onchange="onExamSourceChange()">
+                    <div class="option-box">
+                      <strong>Ders Ağacından</strong>
+                      <span>Bölümünüzün müfredatındaki bir dersten doğrudan sınav oluşturun — özet gerekmez.</span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Study Card source -->
+              <div id="exam-card-source-wrap" style="margin-bottom: 1.5rem;">
                 <label for="exam-card-select" style="display: block; font-size: 0.9rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.5rem;" data-i18n="dash.exams.cardSelect">Çalışma Kartı Seçin</label>
                 <select id="exam-card-select" class="font-size-select" style="width: 100%; max-width: 500px; padding: 0.6rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); font-size: 0.85rem;" onchange="onExamCardChange()">
                   <!-- Dynamically populated -->
                 </select>
+                <p id="exam-card-empty-hint" style="display: none; font-size: 0.8rem; color: var(--color-text-muted); margin-top: 0.5rem;">Henüz bir çalışma kartınız yok. <a href="#" onclick="switchDashboardView('docs')" style="color: var(--color-teal); text-decoration: underline;">Belgelerim</a> sekmesinden dosya yükleyip özetleyebilir, ya da "Ders Ağacından" kaynağını seçip özet gerektirmeden sınav oluşturabilirsiniz.</p>
+              </div>
+
+              <!-- Course (Ders Ağacı) source -->
+              <div id="exam-course-source-wrap" style="display: none; margin-bottom: 1.5rem;">
+                <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                  <div style="flex: 1; min-width: 200px;">
+                    <label for="exam-course-dept-select" style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.4rem;">Bölüm</label>
+                    <select id="exam-course-dept-select" class="font-size-select" style="width: 100%; padding: 0.6rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); font-size: 0.85rem;" onchange="onExamCourseDeptChange()">
+                      <option value="">Yükleniyor...</option>
+                    </select>
+                  </div>
+                  <div style="flex: 1; min-width: 200px;">
+                    <label for="exam-course-select" style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.4rem;">Ders</label>
+                    <select id="exam-course-select" class="font-size-select" style="width: 100%; padding: 0.6rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); font-size: 0.85rem;" onchange="onExamCourseChange()">
+                      <option value="">Önce bölüm seçin</option>
+                    </select>
+                  </div>
+                </div>
+                <p id="exam-course-grounded-hint" style="font-size: 0.8rem; color: var(--color-text-muted); margin-top: 0.6rem;"></p>
               </div>
 
               <!-- Setup parameters -->

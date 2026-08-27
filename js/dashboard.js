@@ -216,6 +216,20 @@ async function checkSessionAndLoadProfile() {
       if (feedFilterCourseEl) feedFilterCourseEl.dataset.pendingFilter = deepLinkCourse.toUpperCase();
     }
 
+    // Deep-link from ders-agaci.html's "Sınav Oluştur" button: ?examCourse=
+    // CODE&examDeptCode=DEPTCODE lands on Sınav Platformu pre-set to
+    // "Ders Ağacından" mode with that exact course selected. Applied inside
+    // loadExamsPlatform() -> onExamSourceChange() -> ensureExamCourseCatalogLoaded()
+    // once the department/course <select> options actually exist to set.
+    const deepLinkExamCourse = deepLinkParams.get('examCourse');
+    if (deepLinkExamCourse) {
+      currentActiveTab = 'exams';
+      window.pendingExamCourse = {
+        code: deepLinkExamCourse.toUpperCase(),
+        deptCode: deepLinkParams.get('examDeptCode') || null
+      };
+    }
+
     // Load default tab view content
     switchDashboardView(currentActiveTab);
     await updateDepotCountBadge();
@@ -5591,10 +5605,13 @@ function openPresentationStudio(presentation) {
 // ==========================================
 let currentActiveExam = null;
 let activeExamCardId = null;
+let examSelectedSource = 'study_card';
+let examSelectedCourse = null; // { code, name, departmentName }
+let examCourseCatalog = { departments: [], coursesByDept: {} };
 
 async function loadExamsPlatform() {
   const cardSelect = document.getElementById('exam-card-select');
-  const emptyState = document.getElementById('exam-empty-state');
+  const emptyHint = document.getElementById('exam-card-empty-hint');
   const setupContent = document.getElementById('exam-setup-content');
   const setupScreen = document.getElementById('exam-setup-screen');
   const activeScreen = document.getElementById('exam-active-screen');
@@ -5606,6 +5623,10 @@ async function loadExamsPlatform() {
   setupScreen.style.display = 'block';
   activeScreen.style.display = 'none';
   resultsScreen.style.display = 'none';
+  // A student with zero study cards is no longer fully blocked here —
+  // "Ders Ağacından" course-sourced exams need no personal study card at
+  // all. Only the "Çalışma Kartım" panel shows an inline nudge below.
+  if (setupContent) setupContent.style.display = 'flex';
 
   cardSelect.innerHTML = '<option value="">Yükleniyor...</option>';
 
@@ -5619,46 +5640,233 @@ async function loadExamsPlatform() {
     if (error) {
       console.error("Error fetching cards for exam: ", error);
       cardSelect.innerHTML = '<option value="">Kartlar yüklenemedi</option>';
-      return;
+      cachedExamCards = [];
+    } else {
+      cachedExamCards = cards || [];
+
+      if (cachedExamCards.length === 0) {
+        cardSelect.innerHTML = '<option value="">Henüz bir çalışma kartınız yok</option>';
+        if (emptyHint) emptyHint.style.display = 'block';
+      } else {
+        if (emptyHint) emptyHint.style.display = 'none';
+        cardSelect.innerHTML = '';
+        cachedExamCards.forEach(card => {
+          const docName = card.documents?.file_name || 'İsimsiz Belge';
+          const createdDate = new Date(card.created_at).toLocaleDateString('tr-TR');
+          const opt = document.createElement('option');
+          opt.value = card.id;
+          opt.textContent = `${docName} (${createdDate})`;
+          cardSelect.appendChild(opt);
+        });
+      }
     }
-
-    if (!cards || cards.length === 0) {
-      emptyState.style.display = 'block';
-      setupContent.style.display = 'none';
-      return;
-    }
-
-    emptyState.style.display = 'none';
-    setupContent.style.display = 'flex';
-
-    cachedExamCards = cards || [];
-    cardSelect.innerHTML = '';
-    cards.forEach(card => {
-      const docName = card.documents?.file_name || 'İsimsiz Belge';
-      const createdDate = new Date(card.created_at).toLocaleDateString('tr-TR');
-      const opt = document.createElement('option');
-      opt.value = card.id;
-      opt.textContent = `${docName} (${createdDate})`;
-      cardSelect.appendChild(opt);
-    });
-
-    // Setup first card
-    const firstCardId = cardSelect.value;
-    activeExamCardId = firstCardId;
-    
-    // Display form options & toggle calc option
-    document.getElementById('exam-form-params').style.display = 'block';
-    updateExamCalcOptionState(firstCardId);
-    
-    // Load past attempts
-    await loadPastAttempts(firstCardId);
-
   } catch (err) {
     console.error("Exception in loadExamsPlatform: ", err);
     cardSelect.innerHTML = '<option value="">Hata oluştu</option>';
+    cachedExamCards = [];
   }
+
+  // A pending Ders Ağacı deep link forces "Ders Ağacından" mode regardless
+  // of which source was last active; onExamSourceChange() (via
+  // ensureExamCourseCatalogLoaded) applies window.pendingExamCourse once the
+  // department/course <select> options exist, then clears it.
+  if (window.pendingExamCourse) {
+    const courseRadio = document.querySelector('input[name="exam-source"][value="course"]');
+    if (courseRadio) courseRadio.checked = true;
+  }
+  await onExamSourceChange();
 }
 window.loadExamsPlatform = loadExamsPlatform;
+
+async function onExamSourceChange() {
+  const sourceInput = document.querySelector('input[name="exam-source"]:checked');
+  examSelectedSource = sourceInput ? sourceInput.value : 'study_card';
+
+  const cardWrap = document.getElementById('exam-card-source-wrap');
+  const courseWrap = document.getElementById('exam-course-source-wrap');
+  const formParams = document.getElementById('exam-form-params');
+  const calcOption = document.getElementById('exam-type-option-calc');
+  const calcRadio = document.querySelector('input[name="exam-type"][value="calculation"]');
+  const calcHint = document.getElementById('exam-calc-hint');
+
+  if (examSelectedSource === 'course') {
+    if (cardWrap) cardWrap.style.display = 'none';
+    if (courseWrap) courseWrap.style.display = 'block';
+    // Whether a course exam should offer calculation questions depends on
+    // pooled shared cards we haven't fetched yet at selection time — keep it
+    // disabled here rather than guessing wrong, same disabled treatment as a
+    // non-quantitative study card.
+    if (calcOption) { calcOption.style.opacity = '0.45'; calcOption.style.pointerEvents = 'none'; }
+    if (calcRadio) {
+      calcRadio.disabled = true;
+      if (calcRadio.checked) {
+        const classicRadio = document.querySelector('input[name="exam-type"][value="classic"]');
+        if (classicRadio) classicRadio.checked = true;
+      }
+    }
+    if (calcHint) calcHint.style.display = 'block';
+    if (formParams) formParams.style.display = 'block';
+    await ensureExamCourseCatalogLoaded();
+  } else {
+    if (cardWrap) cardWrap.style.display = 'block';
+    if (courseWrap) courseWrap.style.display = 'none';
+    const cardSelect = document.getElementById('exam-card-select');
+    if (cardSelect && cardSelect.value) {
+      if (formParams) formParams.style.display = 'block';
+      updateExamCalcOptionState(cardSelect.value);
+      activeExamCardId = cardSelect.value;
+      await loadPastAttempts(cardSelect.value);
+    } else if (formParams) {
+      formParams.style.display = 'none';
+    }
+  }
+}
+window.onExamSourceChange = onExamSourceChange;
+
+async function ensureExamCourseCatalogLoaded() {
+  const deptSelect = document.getElementById('exam-course-dept-select');
+  if (!deptSelect) return;
+
+  if (examCourseCatalog.departments.length === 0) {
+    try {
+      const { data: departments, error: deptErr } = await supabaseClient
+        .from('departments')
+        .select('code, name, name_tr')
+        .order('name');
+
+      if (deptErr || !departments || departments.length === 0) {
+        deptSelect.innerHTML = '<option value="">Ders kataloğu bulunamadı</option>';
+        showDashboardAlert('error', 'Ders kataloğu henüz yüklenmemiş.');
+        return;
+      }
+
+      examCourseCatalog.departments = departments;
+      deptSelect.innerHTML = departments.map(d => `<option value="${d.code}">${d.name_tr || d.name}</option>`).join('');
+
+      let defaultCode = departments[0].code;
+      if (currentUserProfile && currentUserProfile.department) {
+        const own = departments.find(d => d.name === currentUserProfile.department);
+        if (own) defaultCode = own.code;
+      }
+      deptSelect.value = defaultCode;
+    } catch (err) {
+      console.error('Failed to load department catalog for exams:', err);
+      showDashboardAlert('error', 'Ders kataloğu yüklenirken bir hata oluştu.');
+      return;
+    }
+  }
+
+  // Apply a pending Ders Ağacı deep link (department first, then course)
+  // before the first normal department-change load, so we don't fetch the
+  // wrong department's course list first and throw it away.
+  const pending = window.pendingExamCourse;
+  if (pending && pending.deptCode) {
+    deptSelect.value = pending.deptCode;
+  }
+
+  await onExamCourseDeptChange();
+
+  if (pending) {
+    window.pendingExamCourse = null;
+    const courseSelect = document.getElementById('exam-course-select');
+    if (courseSelect && pending.code) {
+      courseSelect.value = pending.code;
+      await onExamCourseChange();
+    }
+  }
+}
+
+async function onExamCourseDeptChange() {
+  const deptSelect = document.getElementById('exam-course-dept-select');
+  const courseSelect = document.getElementById('exam-course-select');
+  if (!deptSelect || !courseSelect) return;
+
+  const deptCode = deptSelect.value;
+  courseSelect.innerHTML = '<option value="">Yükleniyor...</option>';
+
+  try {
+    const { data: courses, error } = await supabaseClient
+      .from('courses')
+      .select('course_code, course_name, year_level')
+      .eq('department_code', deptCode)
+      .order('year_level', { ascending: true })
+      .order('course_code', { ascending: true });
+
+    if (error || !courses) {
+      courseSelect.innerHTML = '<option value="">Yüklenemedi</option>';
+      return;
+    }
+
+    examCourseCatalog.coursesByDept[deptCode] = courses;
+    if (courses.length === 0) {
+      courseSelect.innerHTML = '<option value="">Bu bölüm için ders bulunamadı</option>';
+      examSelectedCourse = null;
+      return;
+    }
+
+    courseSelect.innerHTML = courses.map(c =>
+      `<option value="${c.course_code}">${c.course_code} — ${c.course_name}${c.year_level ? ` (${c.year_level}. Sınıf)` : ''}</option>`
+    ).join('');
+
+    await onExamCourseChange();
+  } catch (err) {
+    console.error('Failed to load courses for department:', err);
+    courseSelect.innerHTML = '<option value="">Hata oluştu</option>';
+  }
+}
+window.onExamCourseDeptChange = onExamCourseDeptChange;
+
+async function onExamCourseChange() {
+  const deptSelect = document.getElementById('exam-course-dept-select');
+  const courseSelect = document.getElementById('exam-course-select');
+  const hint = document.getElementById('exam-course-grounded-hint');
+  if (!courseSelect || !courseSelect.value) {
+    examSelectedCourse = null;
+    if (hint) hint.textContent = '';
+    return;
+  }
+
+  const deptCode = deptSelect ? deptSelect.value : null;
+  const deptObj = examCourseCatalog.departments.find(d => d.code === deptCode);
+  const courses = examCourseCatalog.coursesByDept[deptCode] || [];
+  const courseObj = courses.find(c => c.course_code === courseSelect.value);
+
+  examSelectedCourse = {
+    code: courseSelect.value,
+    name: courseObj ? courseObj.course_name : courseSelect.value,
+    departmentName: deptObj ? deptObj.name : null
+  };
+
+  // Best-effort, purely informational preview of whether this exam will be
+  // grounded in real shared study material or fall back to the AI's general
+  // knowledge — the actual pooling happens server-side in generate-exam.
+  if (hint) {
+    hint.textContent = 'Kontrol ediliyor...';
+    try {
+      const { count, error: countErr } = await supabaseClient
+        .from('study_cards')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_shared', true)
+        .eq('department', examSelectedCourse.departmentName || '')
+        .ilike('course_tag', examSelectedCourse.code);
+
+      if (countErr) {
+        hint.textContent = '';
+      } else if (count && count > 0) {
+        hint.textContent = `✓ Bu ders için ${count} paylaşılan özet bulundu — sınav bunlardan üretilecek.`;
+        hint.style.color = 'var(--color-teal)';
+      } else {
+        hint.textContent = '⚠️ Bu ders için henüz paylaşılan özet yok — sınav yapay zekanın genel bilgisinden üretilecek, içeriği kendi notlarınızla doğrulamayı unutmayın.';
+        hint.style.color = '#D97706';
+      }
+    } catch (err) {
+      hint.textContent = '';
+    }
+  }
+
+  await loadPastAttemptsForCourse(examSelectedCourse.code);
+}
+window.onExamCourseChange = onExamCourseChange;
 
 async function onExamCardChange() {
   const cardSelect = document.getElementById('exam-card-select');
@@ -5707,6 +5915,49 @@ function updateExamCalcOptionState(cardId) {
   }
 }
 
+function renderPastAttemptsList(exams, emptyMessage) {
+  const listEl = document.getElementById('past-attempts-list');
+  if (!listEl) return;
+
+  if (!exams || exams.length === 0) {
+    listEl.innerHTML = `<p style="font-size: 0.85rem; color: var(--color-text-muted);">${emptyMessage}</p>`;
+    return;
+  }
+
+  listEl.innerHTML = '';
+  exams.forEach(exam => {
+    const formattedDate = new Date(exam.completed_at).toLocaleDateString('tr-TR', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    const typeLabel = exam.exam_type === 'classic' ? 'Klasik' : (exam.exam_type === 'test' ? 'Çoktan Seçmeli' : 'Karışık');
+    const langLabel = exam.language === 'tr' ? 'Türkçe' : 'English';
+    // Course-sourced exams generated without any shared study material for
+    // that course get a small warning icon here, since their content leans
+    // on the AI's general knowledge rather than real student notes.
+    const groundBadge = (exam.source_type === 'course' && exam.is_grounded === false)
+      ? ' <span style="color:#D97706;" title="Bu sınav paylaşılan öğrenci notu olmadan, yapay zekanın genel bilgisinden üretildi.">⚠️</span>'
+      : '';
+
+    const item = document.createElement('div');
+    item.className = 'past-attempt-item';
+    item.onclick = () => showExamResults(exam);
+
+    item.innerHTML = `
+      <div class="past-attempt-info">
+        <strong style="font-size: 0.85rem; color: var(--color-navy);">${typeLabel} Sınav (${langLabel})${groundBadge}</strong>
+        <span class="past-attempt-meta">${formattedDate} - ${exam.question_count} Soru</span>
+      </div>
+      <div class="past-attempt-score">${exam.grade} / 100</div>
+    `;
+    listEl.appendChild(item);
+  });
+}
+
 async function loadPastAttempts(cardId) {
   const listEl = document.getElementById('past-attempts-list');
   if (!listEl) return;
@@ -5728,38 +5979,7 @@ async function loadPastAttempts(cardId) {
       return;
     }
 
-    if (!exams || exams.length === 0) {
-      listEl.innerHTML = '<p style="font-size: 0.85rem; color: var(--color-text-muted);">Bu çalışma kartı için henüz tamamlanmış sınav bulunmamaktadır.</p>';
-      return;
-    }
-
-    listEl.innerHTML = '';
-    exams.forEach(exam => {
-      const formattedDate = new Date(exam.completed_at).toLocaleDateString('tr-TR', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-
-      const typeLabel = exam.exam_type === 'classic' ? 'Klasik' : (exam.exam_type === 'test' ? 'Çoktan Seçmeli' : 'Karışık');
-      const langLabel = exam.language === 'tr' ? 'Türkçe' : 'English';
-
-      const item = document.createElement('div');
-      item.className = 'past-attempt-item';
-      item.onclick = () => showExamResults(exam);
-
-      item.innerHTML = `
-        <div class="past-attempt-info">
-          <strong style="font-size: 0.85rem; color: var(--color-navy);">${typeLabel} Sınav (${langLabel})</strong>
-          <span class="past-attempt-meta">${formattedDate} - ${exam.question_count} Soru</span>
-        </div>
-        <div class="past-attempt-score">${exam.grade} / 100</div>
-      `;
-      listEl.appendChild(item);
-    });
-
+    renderPastAttemptsList(exams, 'Bu çalışma kartı için henüz tamamlanmış sınav bulunmamaktadır.');
   } catch (err) {
     console.error("Exception loading past attempts: ", err);
     listEl.innerHTML = '<p style="font-size: 0.85rem; color: #EF4444;">Hata oluştu.</p>';
@@ -5767,19 +5987,63 @@ async function loadPastAttempts(cardId) {
 }
 window.loadPastAttempts = loadPastAttempts;
 
+async function loadPastAttemptsForCourse(courseCode) {
+  const listEl = document.getElementById('past-attempts-list');
+  if (!listEl) return;
+
+  listEl.innerHTML = '<p style="font-size: 0.85rem; color: var(--color-text-muted);">Yükleniyor...</p>';
+
+  try {
+    const { data: exams, error } = await supabaseClient
+      .from('exams')
+      .select('*')
+      .eq('course_code', courseCode)
+      .eq('user_id', currentUser.id)
+      .not('completed_at', 'is', null)
+      .order('completed_at', { ascending: false });
+
+    if (error) {
+      console.error("Error loading past course attempts: ", error);
+      listEl.innerHTML = '<p style="font-size: 0.85rem; color: #EF4444;">Geçmiş denemeler yüklenemedi.</p>';
+      return;
+    }
+
+    renderPastAttemptsList(exams, 'Bu ders için henüz tamamlanmış sınav bulunmamaktadır.');
+  } catch (err) {
+    console.error("Exception loading past course attempts: ", err);
+    listEl.innerHTML = '<p style="font-size: 0.85rem; color: #EF4444;">Hata oluştu.</p>';
+  }
+}
+window.loadPastAttemptsForCourse = loadPastAttemptsForCourse;
+
 async function generateExam() {
   const btn = document.getElementById('btn-generate-exam');
-  const cardSelect = document.getElementById('exam-card-select');
-  if (!btn || !cardSelect) return;
+  if (!btn) return;
 
-  const studyCardId = cardSelect.value;
-  if (!studyCardId) return;
+  const requestBody = {
+    examType: document.querySelector('input[name="exam-type"]:checked').value,
+    language: document.querySelector('input[name="exam-lang"]:checked').value,
+    questionCount: parseInt(document.getElementById('exam-question-count').value, 10),
+    difficulty: (document.querySelector('input[name="exam-difficulty"]:checked') || {}).value || 'medium'
+  };
 
-  const examType = document.querySelector('input[name="exam-type"]:checked').value;
-  const language = document.querySelector('input[name="exam-lang"]:checked').value;
-  const questionCount = parseInt(document.getElementById('exam-question-count').value, 10);
-  const difficultyInput = document.querySelector('input[name="exam-difficulty"]:checked');
-  const difficulty = difficultyInput ? difficultyInput.value : 'medium';
+  if (examSelectedSource === 'course') {
+    if (!examSelectedCourse || !examSelectedCourse.code) {
+      showDashboardAlert('error', 'Lütfen önce bir ders seçin.');
+      return;
+    }
+    requestBody.sourceType = 'course';
+    requestBody.courseCode = examSelectedCourse.code;
+    requestBody.courseDepartment = examSelectedCourse.departmentName;
+  } else {
+    const cardSelect = document.getElementById('exam-card-select');
+    const studyCardId = cardSelect ? cardSelect.value : '';
+    if (!studyCardId) {
+      showDashboardAlert('error', 'Lütfen önce bir çalışma kartı seçin.');
+      return;
+    }
+    requestBody.studyCardId = studyCardId;
+  }
 
   const originalText = btn.textContent;
   btn.disabled = true;
@@ -5801,7 +6065,7 @@ async function generateExam() {
         'Content-Type': 'application/json',
         'apikey': SUPABASE_ANON_KEY
       },
-      body: JSON.stringify({ studyCardId, examType, questionCount, language, difficulty })
+      body: JSON.stringify(requestBody)
     });
 
     const data = await response.json();

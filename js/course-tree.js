@@ -172,11 +172,19 @@ function renderTree(courses, countByCode, isOwnDept) {
       } else {
         badge = `<span class="ct-count-badge empty">İlk sen özetle!</span>`;
       }
+      // Always available regardless of shared-card count or department
+      // ownership — Sınav Platformu pools shared cards for this course when
+      // they exist, and otherwise falls back to AI general-knowledge
+      // generation, so there's no state where this can't produce an exam.
+      const examBtn = `<span class="ct-count-badge has-cards" style="cursor:pointer; background:rgba(31,138,147,0.12); color:var(--color-teal);" onclick="ctGenerateExam('${c.course_code}', '${ctActiveDeptCode}')" title="Bu dersten doğrudan sınav oluştur">📝 Sınav Oluştur</span>`;
       return `
         <div class="ct-course-row">
           <span class="ct-course-code">${c.course_code}</span>
           <span class="ct-course-name">${c.course_name}</span>
-          ${badge}
+          <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+            ${badge}
+            ${examBtn}
+          </div>
         </div>
       `;
     }).join('');
@@ -204,5 +212,10 @@ function ctGoToFeed(courseCode) {
   window.location.href = `dashboard.html?course=${encodeURIComponent(courseCode)}`;
 }
 window.ctGoToFeed = ctGoToFeed;
+
+function ctGenerateExam(courseCode, deptCode) {
+  window.location.href = `dashboard.html?examCourse=${encodeURIComponent(courseCode)}&examDeptCode=${encodeURIComponent(deptCode || '')}`;
+}
+window.ctGenerateExam = ctGenerateExam;
 
 document.addEventListener('acadex-course-tree-ready', ctInit);
