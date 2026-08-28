@@ -5901,10 +5901,13 @@ async function onExamCourseDeptChange() {
 }
 window.onExamCourseDeptChange = onExamCourseDeptChange;
 
+let examCourseOfficialSummary = null; // { text, generatedAt } for the currently selected course, or null
+
 async function onExamCourseChange() {
   const deptSelect = document.getElementById('exam-course-dept-select');
   const courseSelect = document.getElementById('exam-course-select');
   const hint = document.getElementById('exam-course-grounded-hint');
+  resetExamCourseSummaryUi();
   if (!courseSelect || !courseSelect.value) {
     examSelectedCourse = null;
     if (hint) hint.textContent = '';
@@ -5943,7 +5946,7 @@ async function onExamCourseChange() {
       // alone is enough to ground the exam regardless of student notes.
       const { data: knowledgeRow } = await supabaseClient
         .from('course_knowledge_index')
-        .select('chunk_count')
+        .select('chunk_count, ai_summary, ai_summary_generated_at')
         .eq('course_code', examSelectedCourse.code)
         .maybeSingle();
 
@@ -5951,6 +5954,16 @@ async function onExamCourseChange() {
         if (!catalogIsQuant) applyExamCalcOptionState(true);
         hint.textContent = `✅ Bu ders için resmi kaynak taranmış — sınav gerçek ders materyaline dayanacak.`;
         hint.style.color = 'var(--color-teal)';
+
+        // Ders Ağacı artık admin-only olduğu için, admin'in "Resmi Özet
+        // Oluştur" ile ürettiği özet (course_knowledge_index.ai_summary)
+        // öğrencilere BURADA, aynı "resmi kaynak taranmış" uyarısının
+        // hemen altında gösterilir — ayrı bir öğrenci paneli yerine.
+        if (knowledgeRow.ai_summary && knowledgeRow.ai_summary_generated_at) {
+          examCourseOfficialSummary = { text: knowledgeRow.ai_summary, generatedAt: knowledgeRow.ai_summary_generated_at };
+          const toggleRow = document.getElementById('exam-course-summary-toggle-row');
+          if (toggleRow) toggleRow.style.display = 'block';
+        }
       } else {
         const { data: pooledPreview, count, error: previewErr } = await supabaseClient
           .from('study_cards')
@@ -5983,6 +5996,32 @@ async function onExamCourseChange() {
   await loadPastAttemptsForCourse(examSelectedCourse.code);
 }
 window.onExamCourseChange = onExamCourseChange;
+
+function resetExamCourseSummaryUi() {
+  examCourseOfficialSummary = null;
+  const toggleRow = document.getElementById('exam-course-summary-toggle-row');
+  const box = document.getElementById('exam-course-summary-box');
+  const btn = document.getElementById('exam-course-summary-toggle-btn');
+  if (toggleRow) toggleRow.style.display = 'none';
+  if (box) { box.style.display = 'none'; box.textContent = ''; }
+  if (btn) btn.textContent = '📄 Bu dersin resmi özetini gör';
+}
+
+function toggleExamCourseSummary() {
+  const box = document.getElementById('exam-course-summary-box');
+  const btn = document.getElementById('exam-course-summary-toggle-btn');
+  if (!box || !examCourseOfficialSummary) return;
+  const isOpen = box.style.display !== 'none';
+  if (isOpen) {
+    box.style.display = 'none';
+    if (btn) btn.textContent = '📄 Bu dersin resmi özetini gör';
+  } else {
+    box.textContent = examCourseOfficialSummary.text;
+    box.style.display = 'block';
+    if (btn) btn.textContent = '📄 Özeti gizle';
+  }
+}
+window.toggleExamCourseSummary = toggleExamCourseSummary;
 
 async function onExamCardChange() {
   const cardSelect = document.getElementById('exam-card-select');

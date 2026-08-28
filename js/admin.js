@@ -1074,6 +1074,7 @@ window.deleteCatalogCourse = deleteCatalogCourse;
 let akDepartments = [];
 let akCourses = [];
 let akDocuments = [];
+let akKnowledgeIndex = {}; // course_code -> { chunk_count, ai_summary, ai_summary_generated_at }
 let akPollingDocumentId = null; // guards against overlapping polling loops
 
 // "Failed to fetch" (a bare browser TypeError, not an HTTP error status)
@@ -1178,6 +1179,22 @@ async function loadKnowledgeBase() {
     if (docsErr) throw docsErr;
 
     akDocuments = docs || [];
+
+    // Loaded separately (not joined) so a missing/not-yet-migrated
+    // ai_summary column or an empty course_knowledge_index table degrades
+    // gracefully to "no summary yet" everywhere instead of breaking the
+    // whole Kitap Tarama table.
+    akKnowledgeIndex = {};
+    try {
+      const { data: indexRows, error: indexErr } = await supabaseClient
+        .from('course_knowledge_index')
+        .select('course_code, chunk_count, ai_summary, ai_summary_generated_at');
+      if (indexErr) throw indexErr;
+      (indexRows || []).forEach(row => { akKnowledgeIndex[row.course_code] = row; });
+    } catch (indexLoadErr) {
+      console.error('course_knowledge_index load error (Resmi Özet düğmeleri gizlenecek):', indexLoadErr);
+    }
+
     renderKnowledgeDocsTable();
   } catch (err) {
     console.error('loadKnowledgeBase error:', err);
@@ -1223,6 +1240,12 @@ function renderKnowledgeDocsTable() {
     failed: '❌ Başarısız'
   };
 
+  // Track which courses have already had their "Resmi Özet" controls
+  // rendered — a course can have more than one uploaded document, but the
+  // summary itself lives once per course (course_knowledge_index), so only
+  // show it on that course's first row to avoid repeating it per document.
+  const summaryControlsShownFor = new Set();
+
   tbody.innerHTML = visible.map(d => {
     const course = courseByCode[d.course_code];
     const courseLabel = course ? `${course.course_code} — ${escapeHtml(course.course_name)}` : escapeHtml(d.course_code);
@@ -1236,6 +1259,21 @@ function renderKnowledgeDocsTable() {
     const progressLabel = d.total_chunks > 0
       ? `${d.processed_chunks} / ${d.total_chunks} parça${failedCount > 0 ? ` (${failedCount} başarısız)` : ''}`
       : '—';
+
+    // "Resmi Özet Oluştur/Yenile" — only offered once the course actually
+    // has a scanned knowledge base (chunk_count > 0), same gate
+    // admin-generate-course-summary itself enforces server-side.
+    let summaryButtonsHtml = '';
+    const indexRow = akKnowledgeIndex[d.course_code];
+    if (indexRow && indexRow.chunk_count > 0 && !summaryControlsShownFor.has(d.course_code)) {
+      summaryControlsShownFor.add(d.course_code);
+      const hasSummary = !!indexRow.ai_summary_generated_at;
+      summaryButtonsHtml = `
+        ${hasSummary ? `<button class="admin-mini-btn" onclick="akViewCourseSummary('${d.course_code}')" title="Öğrencilerin göreceği mevcut özeti görüntüle">👁 Özeti Gör</button>` : ''}
+        <button class="admin-mini-btn primary" id="ak-summary-btn-${d.course_code}" onclick="akGenerateCourseSummary('${d.course_code}')" title="${hasSummary ? 'Özeti yeniden oluştur (mevcut özetin üzerine yazar)' : 'Bu ders için öğrencilere gösterilecek resmi bir özet oluştur'}">📄 ${hasSummary ? 'Özeti Yenile' : 'Resmi Özet Oluştur'}</button>
+      `;
+    }
+
     return `
       <tr>
         <td>${courseLabel}</td>
@@ -1245,6 +1283,7 @@ function renderKnowledgeDocsTable() {
         <td style="text-align:right; white-space:nowrap;">
           ${canResume ? `<button class="admin-mini-btn primary" onclick="akResumeProcessing('${d.id}')">Devam Et</button>` : ''}
           ${failedCount > 0 ? `<button class="admin-mini-btn primary" onclick="akRetryFailedChunks('${d.id}')" title="${failedCount} başarısız parçayı yeniden dene">🔁 Tekrar Dene</button>` : ''}
+          ${summaryButtonsHtml}
           <button class="admin-mini-btn" onclick="akResyncCourse('${d.course_code}')" title="Bu dersin bilgi tabanını yeniden hesapla">🔄</button>
           <button class="admin-mini-btn danger" onclick="akDeleteDocument('${d.id}', '${d.course_code}')">Sil</button>
         </td>
@@ -1488,6 +1527,62 @@ async function akResyncCourse(courseCode) {
   }
 }
 window.akResyncCourse = akResyncCourse;
+
+// "Resmi Özet" (official AI-written course summary) — see
+// supabase/functions/admin-generate-course-summary and
+// 20260829c_add_ai_course_summary.sql. One shared summary per course,
+// generated on-demand by the admin, then read by every student in Sınav
+// Platformu's course-selection screen (js/dashboard.js).
+async function akGenerateCourseSummary(courseCode) {
+  const btn = document.getElementById(`ak-summary-btn-${courseCode}`);
+  const originalText = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Oluşturuluyor...'; }
+
+  try {
+    const result = await callAdminEdgeFunction('admin-generate-course-summary', { courseCode });
+    if (!akKnowledgeIndex[courseCode]) akKnowledgeIndex[courseCode] = { course_code: courseCode, chunk_count: 1 };
+    akKnowledgeIndex[courseCode].ai_summary = result.summary;
+    akKnowledgeIndex[courseCode].ai_summary_generated_at = result.generatedAt;
+    showAdminAlert('success', `${courseCode} için resmi özet oluşturuldu. Öğrenciler artık Sınav Platformu'nda görebilir.`);
+    renderKnowledgeDocsTable();
+    akOpenSummaryModal(courseCode, result.summary, result.generatedAt);
+  } catch (err) {
+    console.error('akGenerateCourseSummary error:', err);
+    showAdminAlert('error', err.message || 'Özet oluşturulurken bir hata oluştu.');
+    if (btn) { btn.disabled = false; btn.textContent = originalText; }
+  }
+}
+window.akGenerateCourseSummary = akGenerateCourseSummary;
+
+function akViewCourseSummary(courseCode) {
+  const indexRow = akKnowledgeIndex[courseCode];
+  if (!indexRow || !indexRow.ai_summary) {
+    showAdminAlert('error', 'Bu ders için henüz bir özet oluşturulmamış.');
+    return;
+  }
+  akOpenSummaryModal(courseCode, indexRow.ai_summary, indexRow.ai_summary_generated_at);
+}
+window.akViewCourseSummary = akViewCourseSummary;
+
+function akOpenSummaryModal(courseCode, summaryText, generatedAt) {
+  const modal = document.getElementById('ak-summary-modal');
+  const titleEl = document.getElementById('ak-summary-modal-title');
+  const metaEl = document.getElementById('ak-summary-modal-meta');
+  const bodyEl = document.getElementById('ak-summary-modal-body');
+  if (!modal) return;
+  const course = akCourses.find(c => c.course_code === courseCode);
+  if (titleEl) titleEl.textContent = `📄 Resmi Özet — ${courseCode}${course ? ` (${course.course_name})` : ''}`;
+  if (metaEl) metaEl.textContent = generatedAt ? `Oluşturulma: ${new Date(generatedAt).toLocaleString('tr-TR')}` : '';
+  if (bodyEl) bodyEl.textContent = summaryText || '';
+  modal.classList.add('active');
+}
+window.akOpenSummaryModal = akOpenSummaryModal;
+
+function akCloseSummaryModal() {
+  const modal = document.getElementById('ak-summary-modal');
+  if (modal) modal.classList.remove('active');
+}
+window.akCloseSummaryModal = akCloseSummaryModal;
 
 async function akDeleteDocument(documentId, courseCode) {
   if (!window.confirm('Bu kaynağı ve taranan tüm içeriğini kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz.')) return;
