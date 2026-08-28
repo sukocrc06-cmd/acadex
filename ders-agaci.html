@@ -126,6 +126,32 @@
     </main>
   </div>
 
+  <!-- "Ders Kaynakları" modal: students report a course's real textbook /
+       covered topics themselves — Acadia never invents this. -->
+  <div class="modal-overlay" id="ct-resource-modal" role="dialog" aria-modal="true" aria-labelledby="ct-resource-modal-title">
+    <div class="modal-card" style="max-width: 480px; position: relative; max-height: 85vh; overflow-y: auto;">
+      <button class="btn-icon" style="position: absolute; top: 0.75rem; right: 0.75rem; background: none; border: none; font-size: 1.25rem; font-weight: bold; color: var(--color-text-muted); cursor: pointer; line-height: 1;" onclick="ctCloseResourceModal()" aria-label="Kapat">×</button>
+      <h3 class="modal-title" id="ct-resource-modal-title" style="color: var(--color-navy); font-weight: 800; font-size: 1.15rem;">📖 Ders Kaynakları</h3>
+      <p id="ct-resource-modal-course-name" style="font-size: 0.82rem; color: var(--color-text-muted); margin-top: 0.2rem; margin-bottom: 0.75rem;"></p>
+
+      <div style="background: rgba(217,119,6,0.08); border: 1px solid rgba(217,119,6,0.2); border-radius: var(--radius-sm); padding: 0.6rem 0.8rem; font-size: 0.75rem; color: #92400E; margin-bottom: 1rem;">
+        ⚠️ Bu bilgiler öğrenciler tarafından paylaşılır; Acadex veya yapay zeka tarafından doğrulanmamıştır. Emin olmak için hocanızla/sınıf arkadaşlarınızla teyit edin.
+      </div>
+
+      <div id="ct-resource-list" style="margin-bottom: 1.25rem;"></div>
+
+      <div style="border-top: 1px solid rgba(22,50,92,0.08); padding-top: 1rem;">
+        <h4 style="font-size: 0.9rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.6rem;">Kaynak Paylaş</h4>
+        <div style="display: flex; flex-direction: column; gap: 0.6rem;">
+          <input type="text" id="ct-resource-book-title" class="search-input" placeholder="Kitap Adı (opsiyonel)" style="width: 100%; padding: 0.55rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.85rem;">
+          <input type="text" id="ct-resource-book-author" class="search-input" placeholder="Yazar (opsiyonel)" style="width: 100%; padding: 0.55rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.85rem;">
+          <textarea id="ct-resource-topics-note" class="search-input" rows="3" placeholder="İşlenen konular / hocanın notu (opsiyonel) — örn. 'Vizede 3-6. bölümler soruluyor'" style="width: 100%; padding: 0.55rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.85rem; font-family: inherit; resize: vertical;"></textarea>
+          <button id="ct-resource-submit-btn" class="btn btn-primary" onclick="ctSubmitCourseResource()" style="border: none; padding: 0.65rem;">Kaynağı Paylaş</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="js/course-tree.js"></script>
 </body>
 </html>

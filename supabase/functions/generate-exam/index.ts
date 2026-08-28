@@ -188,6 +188,28 @@ ${card.worked_examples && card.worked_examples.length > 0 ? `WORKED EXAMPLES:\n$
       // material itself turns out to be quantitative.
       isQuant = !!(courseRow as Record<string, unknown>).is_quantitative || (isGrounded && sharedCards.some(c => !!c.is_quantitative))
 
+      // "Ders Kaynakları" — students self-report which real textbook a
+      // course's professor uses and/or which topics it actually covers (see
+      // supabase/migrations/20260828e_add_course_resources.sql). This is the
+      // ONLY source of that fact; it is never guessed by the AI. When
+      // present, it's woven into the prompt as real, if unverified, signal —
+      // clearly labeled as student-reported rather than confirmed fact.
+      let resourceContext = ''
+      const { data: resources, error: resourceErr } = await userClient
+        .from('course_resources')
+        .select('book_title, book_author, topics_note')
+        .eq('course_code', canonicalCourseCode)
+        .order('created_at', { ascending: false })
+        .limit(8)
+      if (resourceErr) console.warn('Failed to load course resources for course exam:', resourceErr)
+      if (resources && resources.length > 0) {
+        const textbooks = resources.filter(r => r.book_title).map(r => `${r.book_title}${r.book_author ? ` — ${r.book_author}` : ''}`)
+        const notes = resources.filter(r => r.topics_note).map(r => r.topics_note)
+        resourceContext = `\n\nSTUDENT-REPORTED COURSE RESOURCES for "${canonicalCourseName}" (unverified, but reported by real students taking this course — treat as a strong hint about real course content, not pooled study notes):`
+        if (textbooks.length > 0) resourceContext += `\nReported textbook(s): ${[...new Set(textbooks)].join('; ')}`
+        if (notes.length > 0) resourceContext += `\nReported topic/coverage notes: ${[...new Set(notes)].join(' | ').slice(0, 1000)}`
+      }
+
       if (isGrounded) {
         const merged = sharedCards.map((c, idx) => `
 --- Shared Study Card ${idx + 1} ---
@@ -197,10 +219,10 @@ KEY POINTS: ${JSON.stringify((c.key_points as unknown[] || []).slice(0, 10))}
 ${c.formulas && (c.formulas as unknown[]).length > 0 ? `FORMULAS: ${JSON.stringify(c.formulas).slice(0, 800)}` : ''}
         `.trim()).join('\n\n')
 
-        context = `The following is POOLED, STUDENT-SHARED study material for the course "${canonicalCourseName}" (${canonicalCourseCode}), combined from ${sharedCards.length} shared study card(s) contributed by students taking this course:\n\n${merged}`
+        context = `The following is POOLED, STUDENT-SHARED study material for the course "${canonicalCourseName}" (${canonicalCourseCode}), combined from ${sharedCards.length} shared study card(s) contributed by students taking this course:\n\n${merged}${resourceContext}`
         conceptRuleText = '- For every question, set a "concept" field to the single key term (from the pooled KEY TERMS lists provided across the shared study cards) that the question is primarily testing.'
       } else {
-        context = `No student-shared study material exists yet for the course "${canonicalCourseName}" (${canonicalCourseCode})${courseDeptName ? ` in the "${courseDeptName}" department` : ''}. Draw on your own general academic knowledge of a standard undergraduate business-faculty course with this name/code. If you are not fully confident about a very specific fact, figure, or example, phrase it in general but still accurate terms rather than inventing a false-sounding precise detail.`
+        context = `No student-shared study material exists yet for the course "${canonicalCourseName}" (${canonicalCourseCode})${courseDeptName ? ` in the "${courseDeptName}" department` : ''}. Draw on your own general academic knowledge of a standard undergraduate business-faculty course with this name/code. If you are not fully confident about a very specific fact, figure, or example, phrase it in general but still accurate terms rather than inventing a false-sounding precise detail.${resourceContext}${resourceContext ? '\n\nPrioritize the student-reported resources above over your own generic guess wherever they give useful signal (e.g. if a specific textbook is named, lean on your own knowledge of THAT book\'s typical content/structure rather than a generic textbook on the subject).' : ''}`
         conceptRuleText = '- For every question, set a "concept" field to a short (1-4 word) topic label, in the requested language, that the question is primarily testing.'
       }
     }
