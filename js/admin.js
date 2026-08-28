@@ -62,6 +62,7 @@ function switchAdminTab(tabId) {
   if (tabId === 'content') { loadContactMessages(); loadSharedCardsModeration(); }
   if (tabId === 'settings') { loadSiteSettings(); loadAnnouncements(); loadAuditLog(); }
   if (tabId === 'catalog') loadCourseCatalog();
+  if (tabId === 'knowledge') loadKnowledgeBase();
 }
 window.switchAdminTab = switchAdminTab;
 
@@ -1060,6 +1061,278 @@ async function deleteCatalogCourse(id, code) {
   }
 }
 window.deleteCatalogCourse = deleteCatalogCourse;
+
+// ==========================================
+// KİTAP TARAMA — admin-only full-book knowledge ingestion.
+// Upload a real textbook/lecture-notes PDF for a catalog course; it's split
+// into page-range chunks and processed a few at a time (progress bar polled
+// in a loop), then merged into course_knowledge_index — the most
+// trustworthy grounding source generate-exam can use for that course. See
+// supabase/migrations/20260829_add_course_knowledge_base.sql and the
+// admin-ingest-course-pdf / admin-process-course-knowledge edge functions.
+// ==========================================
+let akDepartments = [];
+let akCourses = [];
+let akDocuments = [];
+let akPollingDocumentId = null; // guards against overlapping polling loops
+
+async function callAdminEdgeFunction(functionName, body) {
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  const token = session?.access_token;
+  if (!token) throw new Error('Oturum bulunamadı.');
+
+  const SUPABASE_URL_LOCAL = supabaseClient.supabaseUrl;
+  const response = await fetch(`${SUPABASE_URL_LOCAL}/functions/v1/${functionName}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    body: JSON.stringify(body)
+  });
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error || 'İşlem başarısız.');
+  return result;
+}
+
+async function loadKnowledgeBase() {
+  const tbody = document.getElementById('admin-knowledge-tbody');
+  if (tbody) tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 2rem; color: var(--color-text-muted);">Yükleniyor...</td></tr>`;
+
+  try {
+    const { data: departments, error: deptErr } = await supabaseClient
+      .from('departments')
+      .select('code, name, name_tr')
+      .order('name');
+    if (deptErr) throw deptErr;
+
+    const { data: courses, error: coursesErr } = await supabaseClient
+      .from('courses')
+      .select('course_code, course_name, department_code')
+      .order('department_code')
+      .order('course_code');
+    if (coursesErr) throw coursesErr;
+
+    akDepartments = departments || [];
+    akCourses = courses || [];
+
+    const deptSelect = document.getElementById('ak-upload-dept');
+    const filterSelect = document.getElementById('ak-filter-dept');
+    if (deptSelect) {
+      deptSelect.innerHTML = akDepartments.map(d => `<option value="${d.code}">${escapeHtml(d.name_tr || d.name)} (${d.code})</option>`).join('');
+    }
+    if (filterSelect) {
+      const currentVal = filterSelect.value || 'all';
+      filterSelect.innerHTML = '<option value="all">Tüm Bölümler</option>' +
+        akDepartments.map(d => `<option value="${d.code}">${escapeHtml(d.name_tr || d.name)} (${d.code})</option>`).join('');
+      if ([...filterSelect.options].some(o => o.value === currentVal)) filterSelect.value = currentVal;
+    }
+    akOnDeptChange();
+
+    const { data: docs, error: docsErr } = await supabaseClient
+      .from('course_knowledge_documents')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (docsErr) throw docsErr;
+
+    akDocuments = docs || [];
+    renderKnowledgeDocsTable();
+  } catch (err) {
+    console.error('loadKnowledgeBase error:', err);
+    if (tbody) tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 2rem; color: #DC2626;">Yüklenemedi. Migration (supabase/migrations/20260829_add_course_knowledge_base.sql) çalıştırılmış mı?</td></tr>`;
+  }
+}
+window.loadKnowledgeBase = loadKnowledgeBase;
+
+function akOnDeptChange() {
+  const deptSelect = document.getElementById('ak-upload-dept');
+  const courseSelect = document.getElementById('ak-upload-course');
+  if (!deptSelect || !courseSelect) return;
+  const deptCode = deptSelect.value;
+  const filtered = akCourses.filter(c => c.department_code === deptCode);
+  courseSelect.innerHTML = filtered.map(c => `<option value="${c.course_code}">${escapeHtml(c.course_code)} — ${escapeHtml(c.course_name)}</option>`).join('');
+}
+window.akOnDeptChange = akOnDeptChange;
+
+function renderKnowledgeDocsTable() {
+  const tbody = document.getElementById('admin-knowledge-tbody');
+  if (!tbody) return;
+
+  const filterDept = document.getElementById('ak-filter-dept')?.value || 'all';
+  const courseByCode = {};
+  akCourses.forEach(c => { courseByCode[c.course_code] = c; });
+
+  const visible = akDocuments.filter(d => {
+    if (filterDept === 'all') return true;
+    const course = courseByCode[d.course_code];
+    return course && course.department_code === filterDept;
+  });
+
+  if (visible.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 2rem; color: var(--color-text-muted);">Henüz hiç kaynak yüklenmemiş.</td></tr>`;
+    return;
+  }
+
+  const statusLabels = {
+    pending: '⏳ Bekliyor',
+    extracting: '📖 Metin çıkarılıyor...',
+    processing: '⚙️ İşleniyor',
+    completed: '✅ Tamamlandı',
+    failed: '❌ Başarısız'
+  };
+
+  tbody.innerHTML = visible.map(d => {
+    const course = courseByCode[d.course_code];
+    const courseLabel = course ? `${course.course_code} — ${escapeHtml(course.course_name)}` : escapeHtml(d.course_code);
+    const progressLabel = d.total_chunks > 0 ? `${d.processed_chunks} / ${d.total_chunks} parça` : '—';
+    const canResume = d.status === 'processing' || d.status === 'pending';
+    return `
+      <tr>
+        <td>${courseLabel}</td>
+        <td title="${escapeHtml(d.file_name)}" style="max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(d.file_name)}</td>
+        <td>${statusLabels[d.status] || d.status}${d.status === 'failed' && d.error_message ? ` <span style="color:#DC2626; font-size:0.7rem;" title="${escapeHtml(d.error_message)}">ⓘ</span>` : ''}</td>
+        <td>${progressLabel}</td>
+        <td style="text-align:right; white-space:nowrap;">
+          ${canResume ? `<button class="admin-mini-btn primary" onclick="akResumeProcessing('${d.id}')">Devam Et</button>` : ''}
+          <button class="admin-mini-btn" onclick="akResyncCourse('${d.course_code}')" title="Bu dersin bilgi tabanını yeniden hesapla">🔄</button>
+          <button class="admin-mini-btn danger" onclick="akDeleteDocument('${d.id}', '${d.course_code}')">Sil</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+window.renderKnowledgeDocsTable = renderKnowledgeDocsTable;
+
+async function akUploadPdf() {
+  const courseSelect = document.getElementById('ak-upload-course');
+  const fileInput = document.getElementById('ak-upload-file');
+  const statusEl = document.getElementById('ak-upload-status');
+  const btn = document.getElementById('ak-upload-btn');
+
+  const courseCode = courseSelect?.value;
+  const file = fileInput?.files?.[0];
+
+  if (!courseCode) {
+    showAdminAlert('error', 'Lütfen bir ders seçin.');
+    return;
+  }
+  if (!file) {
+    showAdminAlert('error', 'Lütfen bir PDF dosyası seçin.');
+    return;
+  }
+  if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+    showAdminAlert('error', 'Sadece PDF dosyaları desteklenir.');
+    return;
+  }
+
+  const originalText = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Yükleniyor...'; }
+  if (statusEl) { statusEl.textContent = 'PDF depoya yükleniyor...'; statusEl.style.color = 'var(--color-text-muted)'; }
+
+  try {
+    const storagePath = `${courseCode}/${Date.now()}_${file.name}`;
+    const { error: uploadErr } = await supabaseClient.storage
+      .from('course-knowledge-pdfs')
+      .upload(storagePath, file);
+    if (uploadErr) throw uploadErr;
+
+    if (statusEl) statusEl.textContent = 'PDF içindeki metin çıkarılıyor (büyük kitaplarda biraz sürebilir)...';
+
+    const ingestResult = await callAdminEdgeFunction('admin-ingest-course-pdf', {
+      courseCode, storagePath, fileName: file.name
+    });
+
+    if (statusEl) statusEl.textContent = '';
+    if (fileInput) fileInput.value = '';
+    showAdminAlert('success', `PDF yüklendi: ${ingestResult.totalPages} sayfa, ${ingestResult.totalChunks} parçaya bölündü. Taranmaya başlanıyor...`);
+
+    await loadKnowledgeBase();
+    akStartPolling(ingestResult.documentId, file.name, ingestResult.totalChunks);
+  } catch (err) {
+    console.error('akUploadPdf error:', err);
+    if (statusEl) { statusEl.textContent = err.message || 'Yükleme başarısız oldu.'; statusEl.style.color = '#DC2626'; }
+    showAdminAlert('error', err.message || 'PDF yüklenirken bir hata oluştu.');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = originalText; }
+  }
+}
+window.akUploadPdf = akUploadPdf;
+
+async function akResumeProcessing(documentId) {
+  const doc = akDocuments.find(d => d.id === documentId);
+  akStartPolling(documentId, doc ? doc.file_name : 'Belge', doc ? doc.total_chunks : 0);
+}
+window.akResumeProcessing = akResumeProcessing;
+
+async function akStartPolling(documentId, fileName, totalChunks) {
+  if (akPollingDocumentId) {
+    showAdminAlert('error', 'Şu anda başka bir belge taranıyor. Lütfen bitmesini bekleyin.');
+    return;
+  }
+  akPollingDocumentId = documentId;
+
+  const progressCard = document.getElementById('ak-progress-card');
+  const progressFilename = document.getElementById('ak-progress-filename');
+  const progressBar = document.getElementById('ak-progress-bar');
+  const progressText = document.getElementById('ak-progress-text');
+
+  if (progressCard) progressCard.style.display = 'block';
+  if (progressFilename) progressFilename.textContent = fileName;
+
+  try {
+    let done = false;
+    while (!done) {
+      const result = await callAdminEdgeFunction('admin-process-course-knowledge', { documentId });
+      done = !!result.done;
+      const pct = result.totalChunks > 0 ? Math.round((result.processedTotal / result.totalChunks) * 100) : 0;
+      if (progressBar) progressBar.style.width = `${pct}%`;
+      if (progressText) progressText.textContent = `${result.processedTotal} / ${result.totalChunks} parça işlendi (%${pct})`;
+
+      // Refresh the table's progress numbers as we go, without a full reload.
+      const docInList = akDocuments.find(d => d.id === documentId);
+      if (docInList) {
+        docInList.processed_chunks = result.processedTotal;
+        docInList.status = result.documentStatus;
+        renderKnowledgeDocsTable();
+      }
+    }
+
+    if (progressText) progressText.textContent = 'Tamamlandı ✅ — bilgi tabanı güncellendi.';
+    showAdminAlert('success', `"${fileName}" başarıyla tarandı ve derse eklendi.`);
+    setTimeout(() => { if (progressCard) progressCard.style.display = 'none'; }, 4000);
+  } catch (err) {
+    console.error('akStartPolling error:', err);
+    if (progressText) progressText.textContent = `Hata: ${err.message || 'İşlem sırasında bir sorun oluştu.'}`;
+    showAdminAlert('error', 'Tarama sırasında bir hata oluştu. "Devam Et" ile tekrar deneyebilirsiniz.');
+  } finally {
+    akPollingDocumentId = null;
+    await loadKnowledgeBase();
+  }
+}
+
+async function akResyncCourse(courseCode) {
+  try {
+    const result = await callAdminEdgeFunction('admin-process-course-knowledge', { courseCode, resyncOnly: true });
+    showAdminAlert('success', `${courseCode} için bilgi tabanı yeniden hesaplandı (${result.chunkCount} parça).`);
+  } catch (err) {
+    console.error('akResyncCourse error:', err);
+    showAdminAlert('error', err.message || 'Yeniden hesaplama başarısız oldu.');
+  }
+}
+window.akResyncCourse = akResyncCourse;
+
+async function akDeleteDocument(documentId, courseCode) {
+  if (!window.confirm('Bu kaynağı ve taranan tüm içeriğini kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz.')) return;
+
+  try {
+    const { error } = await supabaseClient.from('course_knowledge_documents').delete().eq('id', documentId);
+    if (error) throw error;
+    showAdminAlert('success', 'Kaynak silindi. Ders bilgi tabanı yeniden hesaplanıyor...');
+    await callAdminEdgeFunction('admin-process-course-knowledge', { courseCode, resyncOnly: true });
+    await loadKnowledgeBase();
+  } catch (err) {
+    console.error('akDeleteDocument error:', err);
+    showAdminAlert('error', err.message || 'Kaynak silinirken bir hata oluştu.');
+  }
+}
+window.akDeleteDocument = akDeleteDocument;
 
 // ==========================================
 // UTIL

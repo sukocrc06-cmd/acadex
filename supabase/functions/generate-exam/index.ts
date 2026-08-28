@@ -102,10 +102,22 @@ serve(async (req) => {
     let isQuant = false
     let context = ''
     let isGrounded = true
+    let isAdminKnowledgeGrounded = false
     let canonicalCourseCode: string | null = null
     let canonicalCourseName: string | null = null
     let courseDeptName: string | null = null
     let conceptRuleText = '- For every question, set a "concept" field to the single key term (from the KEY TERMS list provided) that the question is primarily testing.'
+
+    // Evenly samples up to maxCount items across an array, so a very large
+    // scanned book (hundreds of key points) still yields a representative
+    // spread across the whole book rather than just its first few chapters.
+    const sampleEvenly = <T,>(items: T[], maxCount: number): T[] => {
+      if (items.length <= maxCount) return items
+      const step = items.length / maxCount
+      const sampled: T[] = []
+      for (let i = 0; i < maxCount; i++) sampled.push(items[Math.floor(i * step)])
+      return sampled
+    }
 
     if (resolvedSourceType === 'study_card') {
       // Verify study card ownership and load context
@@ -188,6 +200,36 @@ ${card.worked_examples && card.worked_examples.length > 0 ? `WORKED EXAMPLES:\n$
       // material itself turns out to be quantitative.
       isQuant = !!(courseRow as Record<string, unknown>).is_quantitative || (isGrounded && sharedCards.some(c => !!c.is_quantitative))
 
+      // Admin "Kitap Tarama" knowledge base — real textbook/lecture-notes
+      // PDFs the admin has scanned page-by-page for this course (see
+      // supabase/migrations/20260829_add_course_knowledge_base.sql). This is
+      // the single most trustworthy source available: unlike pooled student
+      // notes or self-reported course_resources, it's derived directly from
+      // an actual scanned document rather than someone's summary of one.
+      let knowledgeContext = ''
+      const { data: knowledgeIndex, error: knowledgeErr } = await userClient
+        .from('course_knowledge_index')
+        .select('topics_outline, key_terms, key_points, formulas, chunk_count')
+        .eq('course_code', canonicalCourseCode)
+        .maybeSingle()
+      if (knowledgeErr) console.warn('Failed to load course knowledge index:', knowledgeErr)
+
+      if (knowledgeIndex && knowledgeIndex.chunk_count > 0) {
+        isAdminKnowledgeGrounded = true
+        isGrounded = true
+
+        const topics = sampleEvenly((knowledgeIndex.topics_outline as Record<string, unknown>[]) || [], 30)
+        const terms = sampleEvenly((knowledgeIndex.key_terms as string[]) || [], 60)
+        const points = sampleEvenly((knowledgeIndex.key_points as string[]) || [], 40)
+        const formulas = ((knowledgeIndex.formulas as string[]) || []).slice(0, 20)
+
+        knowledgeContext = `\n\nOFFICIAL SCANNED COURSE KNOWLEDGE BASE for "${canonicalCourseName}" (extracted directly, page-by-page, from the real textbook/lecture material the admin uploaded for this course — this is the most reliable source available, prioritize it over anything else below):
+TOPICS COVERED (page-ordered excerpt): ${JSON.stringify(topics.map(t => t.topic))}
+KEY TERMS: ${JSON.stringify(terms)}
+KEY POINTS: ${JSON.stringify(points).slice(0, 4000)}
+${formulas.length > 0 ? `FORMULAS: ${JSON.stringify(formulas)}` : ''}`
+      }
+
       // "Ders Kaynakları" — students self-report which real textbook a
       // course's professor uses and/or which topics it actually covers (see
       // supabase/migrations/20260828e_add_course_resources.sql). This is the
@@ -210,7 +252,7 @@ ${card.worked_examples && card.worked_examples.length > 0 ? `WORKED EXAMPLES:\n$
         if (notes.length > 0) resourceContext += `\nReported topic/coverage notes: ${[...new Set(notes)].join(' | ').slice(0, 1000)}`
       }
 
-      if (isGrounded) {
+      if (sharedCards.length > 0) {
         const merged = sharedCards.map((c, idx) => `
 --- Shared Study Card ${idx + 1} ---
 SUMMARY: ${String(c.summary || '').slice(0, 1200)}
@@ -219,8 +261,11 @@ KEY POINTS: ${JSON.stringify((c.key_points as unknown[] || []).slice(0, 10))}
 ${c.formulas && (c.formulas as unknown[]).length > 0 ? `FORMULAS: ${JSON.stringify(c.formulas).slice(0, 800)}` : ''}
         `.trim()).join('\n\n')
 
-        context = `The following is POOLED, STUDENT-SHARED study material for the course "${canonicalCourseName}" (${canonicalCourseCode}), combined from ${sharedCards.length} shared study card(s) contributed by students taking this course:\n\n${merged}${resourceContext}`
-        conceptRuleText = '- For every question, set a "concept" field to the single key term (from the pooled KEY TERMS lists provided across the shared study cards) that the question is primarily testing.'
+        context = `${knowledgeContext ? knowledgeContext + '\n\n' : ''}The following is POOLED, STUDENT-SHARED study material for the course "${canonicalCourseName}" (${canonicalCourseCode}), combined from ${sharedCards.length} shared study card(s) contributed by students taking this course:\n\n${merged}${resourceContext}`
+        conceptRuleText = '- For every question, set a "concept" field to the single key term (from the pooled KEY TERMS lists / official knowledge base terms provided) that the question is primarily testing.'
+      } else if (isAdminKnowledgeGrounded) {
+        context = `${knowledgeContext}${resourceContext}`
+        conceptRuleText = '- For every question, set a "concept" field to the single key term (from the KEY TERMS list in the official scanned course knowledge base) that the question is primarily testing.'
       } else {
         context = `No student-shared study material exists yet for the course "${canonicalCourseName}" (${canonicalCourseCode})${courseDeptName ? ` in the "${courseDeptName}" department` : ''}. Draw on your own general academic knowledge of a standard undergraduate business-faculty course with this name/code. If you are not fully confident about a very specific fact, figure, or example, phrase it in general but still accurate terms rather than inventing a false-sounding precise detail.${resourceContext}${resourceContext ? '\n\nPrioritize the student-reported resources above over your own generic guess wherever they give useful signal (e.g. if a specific textbook is named, lean on your own knowledge of THAT book\'s typical content/structure rather than a generic textbook on the subject).' : ''}`
         conceptRuleText = '- For every question, set a "concept" field to a short (1-4 word) topic label, in the requested language, that the question is primarily testing.'
@@ -238,9 +283,11 @@ ${c.formulas && (c.formulas as unknown[]).length > 0 ? `FORMULAS: ${JSON.stringi
     const sysPrompt = `
 You are an academic study assistant. ${resolvedSourceType === 'study_card'
       ? 'You will be given the summary, key terms, key points, and optional formulas/examples of a study card.'
-      : (isGrounded
-          ? 'You will be given pooled summaries, key terms, key points, and optional formulas from multiple students\' shared study cards for one course.'
-          : 'You will be given a course name/code with no student-shared material yet — use your own general academic knowledge of the subject, as instructed below.')}
+      : (isAdminKnowledgeGrounded
+          ? 'You will be given topics, key terms, key points, and optional formulas extracted directly from the real, official course textbook/material for one course (and possibly also pooled student-shared study cards) — this is authoritative, verified content, not a guess.'
+          : (isGrounded
+              ? 'You will be given pooled summaries, key terms, key points, and optional formulas from multiple students\' shared study cards for one course.'
+              : 'You will be given a course name/code with no student-shared material yet — use your own general academic knowledge of the subject, as instructed below.'))}
 Your task is to generate exactly ${questionCount} questions of type '${examType}' in the language '${language}' (en = English, tr = Turkish), at difficulty level '${resolvedDifficulty}'.
 
 IMPORTANT VARIATION RULES:
@@ -379,6 +426,7 @@ The array must contain exactly ${questionCount} objects matching this JSON schem
       examInsertPayload.course_code = canonicalCourseCode
       examInsertPayload.course_department = courseDeptName
       examInsertPayload.is_grounded = isGrounded
+      examInsertPayload.is_admin_knowledge_grounded = isAdminKnowledgeGrounded
     } else {
       examInsertPayload.study_card_id = studyCardId
       examInsertPayload.is_grounded = true

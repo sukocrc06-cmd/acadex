@@ -5938,26 +5938,41 @@ async function onExamCourseChange() {
   if (hint) {
     hint.textContent = 'Kontrol ediliyor...';
     try {
-      const { data: pooledPreview, count, error: previewErr } = await supabaseClient
-        .from('study_cards')
-        .select('id, is_quantitative', { count: 'exact' })
-        .eq('is_shared', true)
-        .eq('department', examSelectedCourse.departmentName || '')
-        .ilike('course_tag', examSelectedCourse.code)
-        .limit(50);
+      // Highest-trust signal first: has the admin officially scanned a real
+      // textbook/lecture PDF for this course ("Kitap Tarama")? If so, that
+      // alone is enough to ground the exam regardless of student notes.
+      const { data: knowledgeRow } = await supabaseClient
+        .from('course_knowledge_index')
+        .select('chunk_count')
+        .eq('course_code', examSelectedCourse.code)
+        .maybeSingle();
 
-      if (previewErr) {
-        hint.textContent = '';
+      if (knowledgeRow && knowledgeRow.chunk_count > 0) {
+        if (!catalogIsQuant) applyExamCalcOptionState(true);
+        hint.textContent = `✅ Bu ders için resmi kaynak taranmış — sınav gerçek ders materyaline dayanacak.`;
+        hint.style.color = 'var(--color-teal)';
       } else {
-        if (!catalogIsQuant && pooledPreview && pooledPreview.some(c => c.is_quantitative)) {
-          applyExamCalcOptionState(true);
-        }
-        if (count > 0) {
-          hint.textContent = `✓ Bu ders için ${count} paylaşılan özet bulundu — sınav bunlardan üretilecek.`;
-          hint.style.color = 'var(--color-teal)';
+        const { data: pooledPreview, count, error: previewErr } = await supabaseClient
+          .from('study_cards')
+          .select('id, is_quantitative', { count: 'exact' })
+          .eq('is_shared', true)
+          .eq('department', examSelectedCourse.departmentName || '')
+          .ilike('course_tag', examSelectedCourse.code)
+          .limit(50);
+
+        if (previewErr) {
+          hint.textContent = '';
         } else {
-          hint.textContent = '⚠️ Bu ders için henüz paylaşılan özet yok — sınav yapay zekanın genel bilgisinden üretilecek, içeriği kendi notlarınızla doğrulamayı unutmayın.';
-          hint.style.color = '#D97706';
+          if (!catalogIsQuant && pooledPreview && pooledPreview.some(c => c.is_quantitative)) {
+            applyExamCalcOptionState(true);
+          }
+          if (count > 0) {
+            hint.textContent = `✓ Bu ders için ${count} paylaşılan özet bulundu — sınav bunlardan üretilecek.`;
+            hint.style.color = 'var(--color-teal)';
+          } else {
+            hint.textContent = '⚠️ Bu ders için henüz paylaşılan özet yok — sınav yapay zekanın genel bilgisinden üretilecek, içeriği kendi notlarınızla doğrulamayı unutmayın.';
+            hint.style.color = '#D97706';
+          }
         }
       }
     } catch (err) {
@@ -6049,6 +6064,12 @@ function renderPastAttemptsList(exams, emptyMessage) {
     const groundBadge = (exam.source_type === 'course' && exam.is_grounded === false)
       ? ' <span style="color:#D97706;" title="Bu sınav paylaşılan öğrenci notu olmadan, yapay zekanın genel bilgisinden üretildi.">⚠️</span>'
       : '';
+    // Highest trust tier — this exam drew on the admin's officially scanned
+    // course textbook/material (see "Kitap Tarama" in the admin panel),
+    // not just pooled student notes.
+    const knowledgeBadge = exam.is_admin_knowledge_grounded
+      ? ' <span style="color:var(--color-teal); font-weight:800;" title="Bu sınav, yönetici tarafından taranan resmi ders kaynağından üretildi.">✅ Resmi Kaynak</span>'
+      : '';
     const simBadge = exam.is_simulation
       ? ' <span style="color:var(--color-teal);" title="Gerçek sınav simülasyonu — süreli, tek denemelik.">⏱️ Simülasyon</span>'
       : '';
@@ -6059,7 +6080,7 @@ function renderPastAttemptsList(exams, emptyMessage) {
 
     item.innerHTML = `
       <div class="past-attempt-info">
-        <strong style="font-size: 0.85rem; color: var(--color-navy);">${typeLabel} Sınav (${langLabel})${groundBadge}${simBadge}</strong>
+        <strong style="font-size: 0.85rem; color: var(--color-navy);">${typeLabel} Sınav (${langLabel})${groundBadge}${knowledgeBadge}${simBadge}</strong>
         <span class="past-attempt-meta">${formattedDate} - ${exam.question_count} Soru</span>
       </div>
       <div class="past-attempt-score">${exam.grade} / 100</div>
