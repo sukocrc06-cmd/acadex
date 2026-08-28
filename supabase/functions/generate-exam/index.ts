@@ -370,7 +370,11 @@ The array must contain exactly ${questionCount} objects matching this JSON schem
 
     if (insertError || !newExam) {
       console.error("Failed to insert exam record: ", insertError)
-      return new Response(JSON.stringify({ error: 'Failed to save generated exam' }), {
+      // Surface the real Postgres error (e.g. "column ... does not exist"
+      // when a migration hasn't been run yet) instead of a generic message
+      // that hides what actually went wrong.
+      const insertDetail = insertError?.message || insertError?.details || insertError?.hint || insertError?.code || 'unknown error'
+      return new Response(JSON.stringify({ error: `Failed to save generated exam: ${insertDetail}` }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
