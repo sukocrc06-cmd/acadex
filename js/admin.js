@@ -1122,7 +1122,17 @@ async function callAdminEdgeFunction(functionName, body, retries = 2) {
       throw new Error(`"${functionName}" fonksiyonundan geçerli bir yanıt alınamadı (HTTP ${response.status}). Fonksiyon deploy edilmemiş olabilir. Terminalde şunu çalıştırıp tekrar deneyin: supabase functions deploy ${functionName}`);
     }
 
-    if (!response.ok) throw new Error(result.error || 'İşlem başarısız.');
+    if (!response.ok) {
+      // A 5xx here is usually Supabase's own infrastructure hiccuping
+      // (cold start, transient DB blip) rather than a real application
+      // error — retry it the same as a network failure instead of
+      // aborting a long-running batch scan over one transient blip.
+      if (response.status >= 500 && attempt < retries) {
+        await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt)));
+        continue;
+      }
+      throw new Error(result.error || 'İşlem başarısız.');
+    }
     return result;
   }
 }

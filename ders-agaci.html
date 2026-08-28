@@ -19,7 +19,11 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="js/supabase-config.js"></script>
   <script>
-    // Route guard: must be logged in. Any student/teacher/admin can browse the catalog.
+    // Route guard: admin-only. Ders Ağacı used to be open to every student
+    // (browsing the catalog + a "Ders Kaynakları" self-reported textbook
+    // submission feature), but per product decision this page is now an
+    // internal admin reference tool only — regular students/teachers are
+    // redirected to their dashboard rather than seeing this page at all.
     (async function checkSession() {
       try {
         const { data: { session } } = await supabaseClient.auth.getSession();
@@ -35,6 +39,10 @@
 
         if (error || !profile) {
           window.location.replace('login.html');
+          return;
+        }
+        if (!profile.is_admin) {
+          window.location.replace('dashboard.html');
           return;
         }
         window.__acadexProfile = profile;
