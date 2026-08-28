@@ -94,15 +94,19 @@ serve(async (req) => {
     }
 
     const language = exam.language || 'en'
-    
+
+    // Fully static (no interpolation) so it's byte-identical on every
+    // get-exam-hint call app-wide, letting Groq cache it regardless of
+    // which question/language a given call is about.
     const sysPrompt = `
-You are an academic study assistant. You will be given a question of type '${q.type}'.
-Your task is to write a single, short, helpful hint (1-2 sentences) in the language '${language}' (en = English, tr = Turkish) that guides the student toward the correct answer without revealing it.
+You are an academic study assistant. The user message will state the question's type, its text, and the target language.
+Your task is to write a single, short, helpful hint (1-2 sentences), in the target language, that guides the student toward the correct answer without revealing it.
 Do NOT mention the correct answer, and do NOT give away the direct solution.
-Write the hint response in the requested language '${language}' (English if 'en', Turkish if 'tr').
     `.trim()
 
     const userPrompt = `
+QUESTION TYPE: ${q.type}
+TARGET LANGUAGE: ${language} (en = English, tr = Turkish) — write the hint in this language.
 QUESTION: ${q.question}
 ${q.options ? `OPTIONS: ${JSON.stringify(q.options)}` : ''}
     `.trim()

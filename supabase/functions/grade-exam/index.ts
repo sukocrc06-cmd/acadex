@@ -7,6 +7,29 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
+// Defined once at module scope, with NO per-request interpolation (no
+// language, no question count) so it is byte-identical on every single
+// grade-exam call across the whole app -- the widest possible target for
+// Groq's prompt caching (console.groq.com/docs/prompt-caching), since it
+// doesn't even need two calls from the same course to line up, just two
+// calls to this function at all. The per-request specifics (language,
+// how many questions) move into the user message below.
+const STATIC_GRADING_INSTRUCTIONS = `
+You are an academic grader. You will be given a list of open-ended questions, their correct/sample reference answers, and the student's submitted answers.
+Your task is to grade each answer out of 100 based on accuracy, depth, and relevance.
+
+RESPONSE FORMAT:
+You must respond with ONLY a valid JSON array of objects, with no markdown code fences (do NOT use \`\`\`json or similar), no introductory or concluding text, and no conversational commentary.
+Each object must match this JSON schema, and the array's length must exactly equal the number of questions given to you in the user message:
+[
+  {
+    "question_id": number,
+    "score": number (0 to 100),
+    "feedback": "string (a short 1-2 sentence explanation of why they received this score and what was correct or missing)"
+  }
+]
+`.trim()
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -215,22 +238,13 @@ serve(async (req) => {
         })
       }
 
-      const gradingSysPrompt = `
-You are an academic grader. You will be given a list of open-ended questions, their correct/sample reference answers, and the student's submitted answers.
-Your task is to grade each answer out of 100 based on accuracy, depth, and relevance.
-Write the grading feedback strictly in the requested language: '${language}' (en = English, tr = Turkish).
-
-RESPONSE FORMAT:
-You must respond with ONLY a valid JSON array of objects, with no markdown code fences (do NOT use \`\`\`json or similar), no introductory or concluding text, and no conversational commentary.
-The array must contain exactly ${classicToGrade.length} objects matching this JSON schema:
-[
-  {
-    "question_id": number,
-    "score": number (0 to 100),
-    "feedback": "string (a short 1-2 sentence explanation of why they received this score and what was correct or missing)"
-  }
-]
-      `.trim()
+      // Only the truly per-request bits (language, how many questions, and
+      // the student's own unique answers) go in the user message -- the
+      // system message above stays fully static so it caches across every
+      // grading call app-wide, not just repeats from the same student.
+      const gradingUserPrompt = `Write the grading feedback strictly in the requested language: '${language}' (en = English, tr = Turkish).
+Grade exactly these ${classicToGrade.length} question(s):
+${JSON.stringify(classicToGrade)}`
 
       const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
@@ -246,8 +260,8 @@ The array must contain exactly ${classicToGrade.length} objects matching this JS
           temperature: 0.2,
           response_format: { type: "json_object" },
           messages: [
-            { role: "system", content: gradingSysPrompt },
-            { role: "user", content: JSON.stringify(classicToGrade) }
+            { role: "system", content: STATIC_GRADING_INSTRUCTIONS },
+            { role: "user", content: gradingUserPrompt }
           ]
         })
       })
