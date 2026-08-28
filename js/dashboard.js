@@ -5130,9 +5130,34 @@ function filterLibraryCards() {
   renderCardsLibraryList(filtered);
 }
 
+// Ana–Detay ikili panel (master–detail) redesign of the Bilgi Kartları
+// library — replaces the old dense grid of cards (each with its own
+// height-capped, independently-scrolling summary box AND four
+// independently-scrolling accordions, plus 12+ buttons per card) with a
+// single scannable list on the left and ONE card's full detail on the
+// right. Only one card's content is ever rendered in full at a time, and
+// nothing inside the detail pane has its own inner scrollbar — the pane
+// itself is the only scroll region — which is what actually eliminates the
+// "scrolling inside scrolling" eye strain the redesign was requested for.
+// See supabase/functions (n/a) — this is presentation-only, no schema or
+// query changes; buildLibraryDetailHtml() below reuses the exact same
+// section-building logic (terms/points/quiz/cloze) and the exact same
+// onclick calls (toggleLibraryAccordion, addSectionStickyNote,
+// openFlashcardViewer, openAdaptiveReview, toggleShareStudyCard,
+// deleteStudyCard, addStickyNoteToNotebook, .btn-view-summary) the old grid
+// used, so none of that existing functionality changes — only how densely
+// it's all shown on screen at once.
+let libraryActiveCardId = null;
+
 function renderCardsLibraryList(cards) {
   const listSection = document.getElementById('cards-list-section');
   if (!listSection) return;
+
+  // Some call sites (e.g. after regenerating a single section's AI content)
+  // call this with no arguments at all, expecting it to just re-render
+  // whatever's currently on screen — fall back to the active filtered/full
+  // list rather than crashing on `cards.length` of undefined.
+  if (!cards) cards = window.filteredLibraryCardsList || libraryCards || [];
 
   const currentLang = localStorage.getItem('acadexUILang') || 'en';
 
@@ -5166,215 +5191,266 @@ function renderCardsLibraryList(cards) {
     return;
   }
 
-  listSection.innerHTML = `<div class="docs-grid" id="library-cards-grid"></div>`;
-  const grid = document.getElementById('library-cards-grid');
+  // Ana–Detay ikili panel: sol tarafta sade, taranabilir bir dosya listesi;
+  // sağ tarafta yalnızca SEÇİLİ kartın tam içeriği. Aynı anda ekrana basılan
+  // metin/buton miktarı eski gride göre çok daha az — göz her zaman tek bir
+  // belgeye odaklanıyor.
+  listSection.innerHTML = `
+    <div class="lib-md-shell">
+      <div class="lib-md-list" id="lib-md-list" role="listbox" aria-label="Bilgi kartları listesi"></div>
+      <div class="lib-md-detail" id="lib-md-detail"></div>
+    </div>
+  `;
+  const listEl = document.getElementById('lib-md-list');
 
-  // Group cards by document ID to support variants grouping headings
+  // Group cards by document ID so multiple versions of the same source
+  // file are still visually clustered under one small label, same as the
+  // old grid's full-width group headers — just far less visually loud.
   const grouped = {};
   cards.forEach(card => {
     const docId = card.document_id || 'unknown';
-    if (!grouped[docId]) {
-      grouped[docId] = [];
-    }
+    if (!grouped[docId]) grouped[docId] = [];
     grouped[docId].push(card);
   });
 
+  // Keep whatever was selected before this re-render if it's still in the
+  // (possibly filtered) list; otherwise default to the first card, same as
+  // an email client opening the top message.
+  const stillPresent = libraryActiveCardId && cards.some(c => c.id === libraryActiveCardId);
+  const activeId = stillPresent ? libraryActiveCardId : cards[0].id;
+  libraryActiveCardId = activeId;
+
+  let listHtml = '';
   Object.keys(grouped).forEach(docId => {
     const groupCards = grouped[docId];
     const firstCard = groupCards[0];
     const docName = firstCard.documents?.file_name || 'İsimsiz Belge';
 
-    // If there's more than one version, render a full-width header
     if (groupCards.length > 1) {
-      const headerDiv = document.createElement('div');
-      headerDiv.className = 'doc-group-header';
-      headerDiv.style.gridColumn = '1 / -1';
-      headerDiv.style.marginTop = '1.5rem';
-      headerDiv.style.borderBottom = '2px solid var(--color-teal)';
-      headerDiv.style.paddingBottom = '0.5rem';
-      headerDiv.style.marginBottom = '0.5rem';
-      headerDiv.innerHTML = `<h3 style="font-size: 1.1rem; color: var(--color-navy); font-weight: 800; margin:0;">${docName} <span style="font-size: 0.8rem; color: var(--color-text-muted); font-weight: 500;">(${groupCards.length} versions / versiyon)</span></h3>`;
-      grid.appendChild(headerDiv);
+      listHtml += `<div class="lib-md-group-label">${escapeHtml(docName)} · ${groupCards.length} versiyon</div>`;
     }
 
     groupCards.forEach(card => {
-      const formattedDate = new Date(card.created_at).toLocaleDateString('tr-TR', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric'
-      });
+      const formattedDate = new Date(card.created_at).toLocaleDateString('tr-TR', { month: 'short', day: 'numeric', year: 'numeric' });
       const cardDocName = card.documents?.file_name || 'İsimsiz Belge';
-      const escapedSummary = (card.summary || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+      const termsCount = (card.key_terms || []).length;
+      const pointsCount = (card.key_points || []).length;
+      const quizCount = (card.quiz_questions || []).length;
+      const isActive = card.id === activeId;
 
-      const cardEl = document.createElement('div');
-      cardEl.className = 'doc-card';
-      cardEl.style.display = 'flex';
-      cardEl.style.flexDirection = 'column';
-      cardEl.style.justifyContent = 'space-between';
-      cardEl.style.gap = '0.5rem';
-
-      // Generate terms list
-      let termsHtml = '';
-      const terms = card.key_terms || [];
-      if (terms.length === 0) {
-        termsHtml = '<p style="font-size: 0.75rem; color: var(--color-text-muted); margin:0;">Anahtar terim bulunmamaktadır.</p>';
-      } else {
-        termsHtml = '<ul style="padding-left: 1.25rem; font-size: 0.75rem; display: flex; flex-direction: column; gap: 0.35rem; margin:0;">';
-        terms.forEach(t => {
-          termsHtml += `<li><strong>${t.term}:</strong> ${t.definition}</li>`;
-        });
-        termsHtml += '</ul>';
-      }
-
-      // Generate key points list
-      let pointsHtml = '';
-      const points = card.key_points || [];
-      if (points.length === 0) {
-        pointsHtml = '<p style="font-size: 0.75rem; color: var(--color-text-muted); margin:0;">Önemli nokta bulunmamaktadır.</p>';
-      } else {
-        pointsHtml = '<ul style="padding-left: 1.25rem; font-size: 0.75rem; display: flex; flex-direction: column; gap: 0.35rem; margin:0;">';
-        points.forEach(p => {
-          pointsHtml += `<li>${p}</li>`;
-        });
-        pointsHtml += '</ul>';
-      }
-
-      // Generate quiz questions
-      let quizHtml = '';
-      const quiz = card.quiz_questions || [];
-      if (quiz.length === 0) {
-        quizHtml = '<p style="font-size: 0.75rem; color: var(--color-text-muted); margin:0;">Soru bulunmamaktadır.</p>';
-      } else {
-        quizHtml = '<ul style="padding-left: 1.25rem; font-size: 0.75rem; display: flex; flex-direction: column; gap: 0.35rem; margin:0;">';
-        quiz.forEach((q, idx) => {
-          quizHtml += `
-            <li style="margin-bottom: 0.35rem;">
-              <strong>S${idx+1}:</strong> ${q.question}<br>
-              <span style="color: var(--color-teal);"><strong>Cevap:</strong> ${q.answer}</span>
-            </li>
-          `;
-        });
-        quizHtml += '</ul>';
-      }
-
-      // Cloze cards
-      let clozeHtml = '';
-      const clozes = card.cloze_cards || [];
-      if (clozes.length === 0) {
-        clozeHtml = '<p style="font-size: 0.75rem; color: var(--color-text-muted); margin:0;">Boşluk doldurma kartı yok.</p>';
-      } else {
-        clozeHtml = '<ul style="padding-left: 1.25rem; font-size: 0.75rem; display: flex; flex-direction: column; gap: 0.35rem; margin:0;">';
-        clozes.forEach((c, idx) => {
-          clozeHtml += `<li><strong>${idx + 1}.</strong> ${escapeHtml(c.prompt || '')} → <span style="color:var(--color-teal);">${escapeHtml(c.answer || '')}</span></li>`;
-        });
-        clozeHtml += '</ul>';
-      }
-
-      cardEl.innerHTML = `
-        <div class="doc-header" style="margin-bottom: 0.25rem; position: relative;">
-          <div class="doc-file-icon text" style="background-color: var(--color-teal-light); color: var(--color-teal); flex-shrink: 0;">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-              <line x1="3" y1="9" x2="21" y2="9"></line>
-              <line x1="9" y1="21" x2="9" y2="9"></line>
-            </svg>
+      listHtml += `
+        <div class="lib-md-item${isActive ? ' active' : ''}" data-card-id="${card.id}" role="option" aria-selected="${isActive}" onclick="selectLibraryCard('${card.id}')">
+          <div class="lib-md-item-title" title="${escapeHtml(cardDocName)}">${escapeHtml(cardDocName)}</div>
+          <div class="lib-md-item-meta">
+            <span class="style-badge style-${card.summary_style || 'standard'}" style="margin:0; font-size:0.6rem; padding:0.05rem 0.35rem;">${getStyleLabel(card.summary_style)}</span>
+            <span>${formattedDate}</span>
           </div>
-          <div class="doc-info" style="width: calc(100% - 68px);">
-            <h4 class="doc-name" style="font-size: 0.9rem; padding-right: 0.5rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${cardDocName}">${cardDocName}</h4>
-            <div class="doc-meta" style="display: flex; align-items: center; justify-content: space-between; gap: 0.35rem; flex-wrap: wrap;">
-              <span>Oluşturulma: ${formattedDate}</span>
-              <div style="display: flex; gap: 0.25rem; flex-wrap: wrap;">
-                <span class="style-badge style-${card.summary_style || 'standard'}" style="margin: 0; font-size: 0.6rem; padding: 0.1rem 0.35rem;">${getStyleLabel(card.summary_style)}</span>
-                <span class="style-badge" style="margin: 0; font-size: 0.6rem; padding: 0.1rem 0.35rem; background-color: var(--color-teal-light); color: var(--color-teal); border: 1px solid rgba(22, 50, 92, 0.08); font-weight: 700;">${card.summary_language === 'tr' ? 'Türkçe' : 'English'}</span>
-                ${getDocumentTypeBadgeHtml(card.document_type)}
-                ${getLengthBadgeHtml(card.summary_length)}
-                ${getVisualAnalysisBadgeHtml(card.visual_analysis)}
-                ${getQuantitativeBadgeHtml(card.is_quantitative)}
-              </div>
-            </div>
-          </div>
-          <button onclick="deleteStudyCard(event, '${card.id}', '${card.document_id}')" style="background: none; border: none; cursor: pointer; color: #EF4444; position: absolute; right: 0; top: 0.25rem; padding: 0.25rem; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); transition: background-color 0.2s;" title="Sil (Delete this card)">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-          </button>
-        </div>
-
-        <div class="card-library-summary">
-          <strong>Özet:</strong>
-          <div style="margin-top: 0.25rem; font-size: 0.85rem; line-height: 1.5; color: var(--color-navy);">${formatSummaryText(card.summary) || 'Özet bulunmamaktadır.'}</div>
-        </div>
-
-        <div style="margin: 0.25rem 0; flex-grow: 1;">
-          <div class="accordion-item" id="accordion-terms-${card.id}">
-            <div class="accordion-header" onclick="toggleLibraryAccordion('${card.id}', 'terms')">
-              <span>Anahtar Terimler (${terms.length})</span>
-              <div style="display: flex; align-items: center; gap: 0.5rem;">
-                <button class="btn btn-outline btn-deftere-ekle" style="padding: 0.15rem 0.4rem; font-size: 0.65rem; border-color: var(--color-teal); color: var(--color-teal); min-height: 20px; line-height: 1;" onclick="event.stopPropagation(); addSectionStickyNote('${card.id}', 'terms', '${cardDocName.replace(/'/g, "\\'")}')">+ Deftere Ekle</button>
-                <button class="btn btn-outline" style="padding: 0.15rem 0.4rem; font-size: 0.65rem; border-color: var(--color-navy); color: var(--color-navy); min-height: 20px; line-height: 1;" onclick="event.stopPropagation(); openFlashcardViewer('${card.id}', 'terms', '${cardDocName.replace(/'/g, "\\'")}')">🔍 Kartları İncele</button>
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-              </div>
-            </div>
-            <div class="accordion-body">${termsHtml}</div>
-          </div>
-
-          <div class="accordion-item" id="accordion-points-${card.id}">
-            <div class="accordion-header" onclick="toggleLibraryAccordion('${card.id}', 'points')">
-              <span>Önemli Noktalar (${points.length})</span>
-              <div style="display: flex; align-items: center; gap: 0.5rem;">
-                <button class="btn btn-outline btn-deftere-ekle" style="padding: 0.15rem 0.4rem; font-size: 0.65rem; border-color: var(--color-teal); color: var(--color-teal); min-height: 20px; line-height: 1;" onclick="event.stopPropagation(); addSectionStickyNote('${card.id}', 'points', '${cardDocName.replace(/'/g, "\\'")}')">+ Deftere Ekle</button>
-                <button class="btn btn-outline" style="padding: 0.15rem 0.4rem; font-size: 0.65rem; border-color: var(--color-navy); color: var(--color-navy); min-height: 20px; line-height: 1;" onclick="event.stopPropagation(); openFlashcardViewer('${card.id}', 'points', '${cardDocName.replace(/'/g, "\\'")}')">🔍 Kartları İncele</button>
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-              </div>
-            </div>
-            <div class="accordion-body">${pointsHtml}</div>
-          </div>
-
-          <div class="accordion-item" id="accordion-quiz-${card.id}">
-            <div class="accordion-header" onclick="toggleLibraryAccordion('${card.id}', 'quiz')">
-              <span>Kendi Kendine Test (${quiz.length})</span>
-              <div style="display: flex; align-items: center; gap: 0.5rem;">
-                <button class="btn btn-outline btn-deftere-ekle" style="padding: 0.15rem 0.4rem; font-size: 0.65rem; border-color: var(--color-teal); color: var(--color-teal); min-height: 20px; line-height: 1;" onclick="event.stopPropagation(); addSectionStickyNote('${card.id}', 'quiz', '${cardDocName.replace(/'/g, "\\'")}')">+ Deftere Ekle</button>
-                <button class="btn btn-outline" style="padding: 0.15rem 0.4rem; font-size: 0.65rem; border-color: var(--color-navy); color: var(--color-navy); min-height: 20px; line-height: 1;" onclick="event.stopPropagation(); openFlashcardViewer('${card.id}', 'quiz', '${cardDocName.replace(/'/g, "\\'")}')">🔍 Kartları İncele</button>
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-              </div>
-            </div>
-            <div class="accordion-body">${quizHtml}</div>
-          </div>
-
-          <div class="accordion-item" id="accordion-cloze-${card.id}">
-            <div class="accordion-header" onclick="toggleLibraryAccordion('${card.id}', 'cloze')">
-              <span>Boşluk Doldurma (${clozes.length})</span>
-              <div style="display: flex; align-items: center; gap: 0.5rem;">
-                <button class="btn btn-outline" style="padding: 0.15rem 0.4rem; font-size: 0.65rem; border-color: var(--color-navy); color: var(--color-navy); min-height: 20px; line-height: 1;" onclick="event.stopPropagation(); openFlashcardViewer('${card.id}', 'cloze', '${cardDocName.replace(/'/g, "\\'")}')">🔍 Kartları İncele</button>
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-              </div>
-            </div>
-            <div class="accordion-body">${clozeHtml}</div>
-          </div>
-        </div>
-
-        <div style="margin: 0.5rem 0;">
-          <button class="btn btn-primary" style="width:100%; padding:0.45rem 0.75rem; font-size:0.8rem; border:none; border-radius:10px; font-weight:700;"
-            onclick="event.stopPropagation(); openAdaptiveReview('${card.id}', '${cardDocName.replace(/'/g, "\\'")}')">
-            🧠 Akıllı Tekrar (Spaced)
-          </button>
-        </div>
-
-        <div class="share-toggle-container" style="margin: 0.25rem 0; padding: 0.4rem 0.6rem; font-size: 0.8rem;">
-          <span>Bölümümle Paylaş</span>
-          <label class="switch" style="width: 36px; height: 18px;">
-            <input type="checkbox" id="share-switch-lib-${card.id}" ${card.is_shared ? 'checked' : ''} onchange="toggleShareStudyCard('${card.id}', this.checked)" style="width:0;height:0;">
-            <span class="slider" style="border-radius: 18px;"></span>
-          </label>
-        </div>
-
-        <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
-          <button class="btn btn-outline btn-view-summary" data-doc-id="${card.document_id}" data-doc-name="${cardDocName.replace(/'/g, "\\'")}" data-card-id="${card.id}" style="flex: 1; padding: 0.4rem; font-size: 0.75rem;">Özeti Görüntüle</button>
-          <button class="btn btn-primary" onclick="addStickyNoteToNotebook('${card.id}', '${cardDocName.replace(/'/g, "\\'")}', '${escapedSummary}')" style="flex: 1; padding: 0.4rem; font-size: 0.75rem; border: none;">Panoya Ekle</button>
+          <div class="lib-md-item-counts"><b>${termsCount}</b> terim · <b>${pointsCount}</b> nokta · <b>${quizCount}</b> test</div>
         </div>
       `;
-      grid.appendChild(cardEl);
     });
   });
+  listEl.innerHTML = listHtml;
+
+  renderLibraryDetailPane(activeId, cards);
+}
+
+// Selecting a row in the master list — highlights it and swaps the detail
+// pane's content. On narrow screens (see .lib-md-shell's media query,
+// where the two panes stack instead of sitting side by side) also scrolls
+// the now-updated detail pane into view, since the list stays on top.
+function selectLibraryCard(cardId) {
+  libraryActiveCardId = cardId;
+  document.querySelectorAll('#lib-md-list .lib-md-item').forEach(el => {
+    const isActive = el.dataset.cardId === cardId;
+    el.classList.toggle('active', isActive);
+    el.setAttribute('aria-selected', String(isActive));
+  });
+  renderLibraryDetailPane(cardId, window.filteredLibraryCardsList || libraryCards || []);
+  if (window.innerWidth <= 880) {
+    document.getElementById('lib-md-detail')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+window.selectLibraryCard = selectLibraryCard;
+
+function renderLibraryDetailPane(cardId, cards) {
+  const detail = document.getElementById('lib-md-detail');
+  if (!detail) return;
+  const card = (cards || []).find(c => c.id === cardId) || libraryCards.find(c => c.id === cardId);
+  if (!card) {
+    detail.innerHTML = `
+      <div class="lib-md-empty">
+        <p>Soldaki listeden bir belge seçin.</p>
+      </div>
+    `;
+    return;
+  }
+  detail.innerHTML = buildLibraryDetailHtml(card);
+}
+window.renderLibraryDetailPane = renderLibraryDetailPane;
+
+// Builds ONE card's full detail — same sections, same onclick calls
+// (toggleLibraryAccordion / addSectionStickyNote / openFlashcardViewer /
+// openAdaptiveReview / toggleShareStudyCard / deleteStudyCard /
+// addStickyNoteToNotebook / .btn-view-summary) as the old per-card grid
+// tile, just rendered once for the selected card instead of once per card
+// on screen simultaneously — and with no inner scrollbars of its own,
+// since the surrounding .lib-md-detail pane is the only scroll region now.
+function buildLibraryDetailHtml(card) {
+  const formattedDate = new Date(card.created_at).toLocaleDateString('tr-TR', { month: 'short', day: 'numeric', year: 'numeric' });
+  const cardDocName = card.documents?.file_name || 'İsimsiz Belge';
+  const escapedSummary = (card.summary || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+  const safeDocName = cardDocName.replace(/'/g, "\\'");
+
+  let termsHtml = '';
+  const terms = card.key_terms || [];
+  if (terms.length === 0) {
+    termsHtml = '<p style="font-size: 0.8rem; color: var(--color-text-muted); margin:0;">Anahtar terim bulunmamaktadır.</p>';
+  } else {
+    termsHtml = '<ul style="padding-left: 1.25rem; font-size: 0.82rem; display: flex; flex-direction: column; gap: 0.4rem; margin:0;">';
+    terms.forEach(t => { termsHtml += `<li><strong>${t.term}:</strong> ${t.definition}</li>`; });
+    termsHtml += '</ul>';
+  }
+
+  let pointsHtml = '';
+  const points = card.key_points || [];
+  if (points.length === 0) {
+    pointsHtml = '<p style="font-size: 0.8rem; color: var(--color-text-muted); margin:0;">Önemli nokta bulunmamaktadır.</p>';
+  } else {
+    pointsHtml = '<ul style="padding-left: 1.25rem; font-size: 0.82rem; display: flex; flex-direction: column; gap: 0.4rem; margin:0;">';
+    points.forEach(p => { pointsHtml += `<li>${p}</li>`; });
+    pointsHtml += '</ul>';
+  }
+
+  let quizHtml = '';
+  const quiz = card.quiz_questions || [];
+  if (quiz.length === 0) {
+    quizHtml = '<p style="font-size: 0.8rem; color: var(--color-text-muted); margin:0;">Soru bulunmamaktadır.</p>';
+  } else {
+    quizHtml = '<ul style="padding-left: 1.25rem; font-size: 0.82rem; display: flex; flex-direction: column; gap: 0.5rem; margin:0;">';
+    quiz.forEach((q, idx) => {
+      quizHtml += `
+        <li>
+          <strong>S${idx+1}:</strong> ${q.question}<br>
+          <span style="color: var(--color-teal);"><strong>Cevap:</strong> ${q.answer}</span>
+        </li>
+      `;
+    });
+    quizHtml += '</ul>';
+  }
+
+  let clozeHtml = '';
+  const clozes = card.cloze_cards || [];
+  if (clozes.length === 0) {
+    clozeHtml = '<p style="font-size: 0.8rem; color: var(--color-text-muted); margin:0;">Boşluk doldurma kartı yok.</p>';
+  } else {
+    clozeHtml = '<ul style="padding-left: 1.25rem; font-size: 0.82rem; display: flex; flex-direction: column; gap: 0.4rem; margin:0;">';
+    clozes.forEach((c, idx) => {
+      clozeHtml += `<li><strong>${idx + 1}.</strong> ${escapeHtml(c.prompt || '')} → <span style="color:var(--color-teal);">${escapeHtml(c.answer || '')}</span></li>`;
+    });
+    clozeHtml += '</ul>';
+  }
+
+  return `
+    <div class="lib-detail-header" style="position: relative;">
+      <div class="doc-file-icon text" style="background-color: var(--color-teal-light); color: var(--color-teal); flex-shrink: 0;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+          <line x1="3" y1="9" x2="21" y2="9"></line>
+          <line x1="9" y1="21" x2="9" y2="9"></line>
+        </svg>
+      </div>
+      <div style="width: calc(100% - 68px);">
+        <h4 style="font-size: 1.05rem; font-weight: 800; color: var(--color-navy); margin: 0; padding-right: 2rem;">${cardDocName}</h4>
+        <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.4rem;">
+          <span>Oluşturulma: ${formattedDate}</span>
+          <span class="style-badge style-${card.summary_style || 'standard'}" style="margin: 0; font-size: 0.65rem;">${getStyleLabel(card.summary_style)}</span>
+          <span class="style-badge" style="margin: 0; font-size: 0.65rem; background-color: var(--color-teal-light); color: var(--color-teal); border: 1px solid rgba(22, 50, 92, 0.08); font-weight: 700;">${card.summary_language === 'tr' ? 'Türkçe' : 'English'}</span>
+          ${getDocumentTypeBadgeHtml(card.document_type)}
+          ${getLengthBadgeHtml(card.summary_length)}
+          ${getVisualAnalysisBadgeHtml(card.visual_analysis)}
+          ${getQuantitativeBadgeHtml(card.is_quantitative)}
+        </div>
+      </div>
+      <button onclick="deleteStudyCard(event, '${card.id}', '${card.document_id}')" style="background: none; border: none; cursor: pointer; color: #EF4444; position: absolute; right: 0; top: 0.1rem; padding: 0.35rem; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); transition: background-color 0.2s;" title="Sil (Delete this card)">
+        <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+      </button>
+    </div>
+
+    <div class="lib-detail-summary">
+      <strong style="color: var(--color-navy);">Özet</strong>
+      <div style="margin-top: 0.4rem; font-size: 0.9rem; line-height: 1.65; color: var(--color-navy);">${formatSummaryText(card.summary) || 'Özet bulunmamaktadır.'}</div>
+    </div>
+
+    <div style="margin: 1rem 0;">
+      <div class="accordion-item" id="accordion-terms-${card.id}">
+        <div class="accordion-header" onclick="toggleLibraryAccordion('${card.id}', 'terms')">
+          <span>Anahtar Terimler (${terms.length})</span>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <button class="btn btn-outline btn-deftere-ekle" style="padding: 0.15rem 0.4rem; font-size: 0.65rem; border-color: var(--color-teal); color: var(--color-teal); min-height: 20px; line-height: 1;" onclick="event.stopPropagation(); addSectionStickyNote('${card.id}', 'terms', '${safeDocName}')">+ Deftere Ekle</button>
+            <button class="btn btn-outline" style="padding: 0.15rem 0.4rem; font-size: 0.65rem; border-color: var(--color-navy); color: var(--color-navy); min-height: 20px; line-height: 1;" onclick="event.stopPropagation(); openFlashcardViewer('${card.id}', 'terms', '${safeDocName}')">🔍 Kartları İncele</button>
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </div>
+        </div>
+        <div class="accordion-body">${termsHtml}</div>
+      </div>
+
+      <div class="accordion-item" id="accordion-points-${card.id}">
+        <div class="accordion-header" onclick="toggleLibraryAccordion('${card.id}', 'points')">
+          <span>Önemli Noktalar (${points.length})</span>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <button class="btn btn-outline btn-deftere-ekle" style="padding: 0.15rem 0.4rem; font-size: 0.65rem; border-color: var(--color-teal); color: var(--color-teal); min-height: 20px; line-height: 1;" onclick="event.stopPropagation(); addSectionStickyNote('${card.id}', 'points', '${safeDocName}')">+ Deftere Ekle</button>
+            <button class="btn btn-outline" style="padding: 0.15rem 0.4rem; font-size: 0.65rem; border-color: var(--color-navy); color: var(--color-navy); min-height: 20px; line-height: 1;" onclick="event.stopPropagation(); openFlashcardViewer('${card.id}', 'points', '${safeDocName}')">🔍 Kartları İncele</button>
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </div>
+        </div>
+        <div class="accordion-body">${pointsHtml}</div>
+      </div>
+
+      <div class="accordion-item" id="accordion-quiz-${card.id}">
+        <div class="accordion-header" onclick="toggleLibraryAccordion('${card.id}', 'quiz')">
+          <span>Kendi Kendine Test (${quiz.length})</span>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <button class="btn btn-outline btn-deftere-ekle" style="padding: 0.15rem 0.4rem; font-size: 0.65rem; border-color: var(--color-teal); color: var(--color-teal); min-height: 20px; line-height: 1;" onclick="event.stopPropagation(); addSectionStickyNote('${card.id}', 'quiz', '${safeDocName}')">+ Deftere Ekle</button>
+            <button class="btn btn-outline" style="padding: 0.15rem 0.4rem; font-size: 0.65rem; border-color: var(--color-navy); color: var(--color-navy); min-height: 20px; line-height: 1;" onclick="event.stopPropagation(); openFlashcardViewer('${card.id}', 'quiz', '${safeDocName}')">🔍 Kartları İncele</button>
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </div>
+        </div>
+        <div class="accordion-body">${quizHtml}</div>
+      </div>
+
+      <div class="accordion-item" id="accordion-cloze-${card.id}">
+        <div class="accordion-header" onclick="toggleLibraryAccordion('${card.id}', 'cloze')">
+          <span>Boşluk Doldurma (${clozes.length})</span>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <button class="btn btn-outline" style="padding: 0.15rem 0.4rem; font-size: 0.65rem; border-color: var(--color-navy); color: var(--color-navy); min-height: 20px; line-height: 1;" onclick="event.stopPropagation(); openFlashcardViewer('${card.id}', 'cloze', '${safeDocName}')">🔍 Kartları İncele</button>
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </div>
+        </div>
+        <div class="accordion-body">${clozeHtml}</div>
+      </div>
+    </div>
+
+    <div style="margin: 0.5rem 0;">
+      <button class="btn btn-primary" style="width:100%; padding:0.6rem 0.75rem; font-size:0.85rem; border:none; border-radius:10px; font-weight:700;"
+        onclick="event.stopPropagation(); openAdaptiveReview('${card.id}', '${safeDocName}')">
+        🧠 Akıllı Tekrar (Spaced)
+      </button>
+    </div>
+
+    <div class="share-toggle-container" style="margin: 0.5rem 0; padding: 0.5rem 0.75rem; font-size: 0.85rem;">
+      <span>Bölümümle Paylaş</span>
+      <label class="switch" style="width: 36px; height: 18px;">
+        <input type="checkbox" id="share-switch-lib-${card.id}" ${card.is_shared ? 'checked' : ''} onchange="toggleShareStudyCard('${card.id}', this.checked)" style="width:0;height:0;">
+        <span class="slider" style="border-radius: 18px;"></span>
+      </label>
+    </div>
+
+    <div style="display: flex; gap: 0.6rem; margin-top: 0.75rem;">
+      <button class="btn btn-outline btn-view-summary" data-doc-id="${card.document_id}" data-doc-name="${safeDocName}" data-card-id="${card.id}" style="flex: 1; padding: 0.55rem; font-size: 0.82rem;">Özeti Görüntüle</button>
+      <button class="btn btn-primary" onclick="addStickyNoteToNotebook('${card.id}', '${safeDocName}', '${escapedSummary}')" style="flex: 1; padding: 0.55rem; font-size: 0.82rem; border: none;">Panoya Ekle</button>
+    </div>
+  `;
 }
 
 function toggleLibraryAccordion(cardId, section) {
