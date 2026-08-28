@@ -32,12 +32,31 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-// How many chunks to run through Groq per invocation. Kept small and
-// sequential so a batch reliably finishes well inside the Edge Function
-// time limit even on slower Groq responses, no matter how large the book is
-// overall — the admin UI just calls this function again for the next batch.
-const CHUNK_BATCH_SIZE = 3
+// How many chunks to run through Groq per invocation. Deliberately just
+// ONE. gpt-oss-120b's free-tier Groq quota is only 30 requests/minute AND
+// just 8,000 tokens/minute, shared across the WHOLE app (every student's
+// exam generation, grading, etc. draws from the same pool). One chunk-
+// extraction call here already uses ~2,500-3,000 tokens (input + output)
+// — enough that even 2-3 of them back-to-back can blow the per-minute
+// token budget, which is exactly what caused a real 169-chunk book scan to
+// have most chunks silently rate-limited and marked 'failed' after only
+// the first handful succeeded. Pacing is handled on the CLIENT side (see
+// akRunProcessingLoop in js/admin.js), which waits between calls to this
+// function rather than sleeping inside it — sleeping in here would eat
+// into the ~150s Edge Function time budget for no benefit, since a rate-
+// limit retry (below) can already take up to ~45s on its own.
+const CHUNK_BATCH_SIZE = 1
 const MODEL = "openai/gpt-oss-120b" // llama-3.3-70b-versatile was retired by Groq on 2026-08-16 — see other functions in this repo for the same fix.
+
+// How many times to retry ONE chunk after a Groq rate-limit (429) response
+// before giving up and marking it 'failed'. A 429 here is expected, not
+// exceptional — it means we're sharing a very tight free-tier quota with
+// the rest of the app — so it deserves a wait-and-retry, not an immediate
+// failure. Kept low (worst case ~45s of waiting) so a single chunk retrying
+// can never itself approach the Edge Function's ~150s time limit.
+const MAX_RATE_LIMIT_RETRIES = 2
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 async function extractChunkKnowledge(groqApiKey: string, rawText: string): Promise<{
   topic_label: string
@@ -59,42 +78,63 @@ Output ONLY a valid JSON object (no markdown fences, no commentary) with this ex
 
 If the excerpt is mostly boilerplate (cover page, table of contents, index, references list) with little real teaching content, still return the shape above with your best-effort, possibly sparse, values — never omit a field.`
 
-  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${groqApiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      temperature: 0.2,
-      max_completion_tokens: 1200,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: rawText.slice(0, 12000) }
-      ]
+  for (let attempt = 0; attempt <= MAX_RATE_LIMIT_RETRIES; attempt++) {
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${groqApiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        temperature: 0.2,
+        // Kept deliberately modest (not just for cost, but because this
+        // whole call's token footprint has to fit inside the free tier's
+        // very tight 8,000-tokens/minute ceiling alongside real student
+        // traffic on the same account).
+        max_completion_tokens: 700,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: rawText.slice(0, 8000) }
+        ]
+      })
     })
-  })
 
-  const data = await response.json()
-  if (!response.ok) {
-    const detail = data?.error?.message || data?.error?.code || `HTTP ${response.status}`
-    throw new Error(`Groq API error: ${detail}`)
+    if (response.status === 429 && attempt < MAX_RATE_LIMIT_RETRIES) {
+      // Honor Groq's Retry-After header when present; otherwise back off
+      // with an increasing wait. This is the normal, expected path when
+      // several chunks/students share the same tight free-tier quota — not
+      // an error condition worth giving up on immediately.
+      const retryAfterHeader = response.headers.get('retry-after')
+      const retryAfterSeconds = retryAfterHeader ? parseFloat(retryAfterHeader) : NaN
+      const waitMs = !isNaN(retryAfterSeconds) ? retryAfterSeconds * 1000 : 15000 * (attempt + 1)
+      console.warn(`Groq rate-limited (attempt ${attempt + 1}/${MAX_RATE_LIMIT_RETRIES + 1}), waiting ${Math.round(waitMs / 1000)}s before retry.`)
+      await sleep(waitMs)
+      continue
+    }
+
+    const data = await response.json()
+    if (!response.ok) {
+      const detail = data?.error?.message || data?.error?.code || `HTTP ${response.status}`
+      throw new Error(`Groq API error: ${detail}`)
+    }
+
+    const raw = data.choices?.[0]?.message?.content ?? ""
+    if (!raw) throw new Error("Empty Groq response content")
+    const cleaned = raw.replace(/```json\s*|```/g, "").trim()
+    const parsed = JSON.parse(cleaned)
+
+    return {
+      topic_label: typeof parsed.topic_label === 'string' ? parsed.topic_label.slice(0, 200) : 'Konu',
+      summary: typeof parsed.summary === 'string' ? parsed.summary.slice(0, 800) : '',
+      key_terms: Array.isArray(parsed.key_terms) ? parsed.key_terms.slice(0, 8).map((t: unknown) => String(t)) : [],
+      key_points: Array.isArray(parsed.key_points) ? parsed.key_points.slice(0, 6).map((t: unknown) => String(t)) : [],
+      formulas: Array.isArray(parsed.formulas) ? parsed.formulas.slice(0, 5).map((t: unknown) => String(t)) : []
+    }
   }
 
-  const raw = data.choices?.[0]?.message?.content ?? ""
-  if (!raw) throw new Error("Empty Groq response content")
-  const cleaned = raw.replace(/```json\s*|```/g, "").trim()
-  const parsed = JSON.parse(cleaned)
-
-  return {
-    topic_label: typeof parsed.topic_label === 'string' ? parsed.topic_label.slice(0, 200) : 'Konu',
-    summary: typeof parsed.summary === 'string' ? parsed.summary.slice(0, 800) : '',
-    key_terms: Array.isArray(parsed.key_terms) ? parsed.key_terms.slice(0, 8).map((t: unknown) => String(t)) : [],
-    key_points: Array.isArray(parsed.key_points) ? parsed.key_points.slice(0, 6).map((t: unknown) => String(t)) : [],
-    formulas: Array.isArray(parsed.formulas) ? parsed.formulas.slice(0, 5).map((t: unknown) => String(t)) : []
-  }
+  throw new Error("Groq API rate limit exceeded after retries")
 }
 
 // Rebuilds course_knowledge_index for one course from ALL of its currently
@@ -104,7 +144,13 @@ If the excerpt is mostly boilerplate (cover page, table of contents, index, refe
 async function resyncCourseIndex(serviceClient: ReturnType<typeof createClient>, courseCode: string) {
   const { data: chunks, error: chunksErr } = await serviceClient
     .from('course_knowledge_chunks')
-    .select('document_id, chunk_index, page_start, page_end, topic_label, key_terms, key_points, formulas')
+    // NOTE: these columns are named extracted_key_terms / extracted_key_points
+    // / extracted_formulas on course_knowledge_chunks (see
+    // 20260829_add_course_knowledge_base.sql) — an earlier version of this
+    // query used the un-prefixed names, which don't exist on this table, and
+    // crashed every resync (including the automatic one that runs right
+    // after a document finishes processing) with "column ... does not exist".
+    .select('document_id, chunk_index, page_start, page_end, topic_label, extracted_key_terms, extracted_key_points, extracted_formulas')
     .eq('course_code', courseCode)
     .eq('status', 'processed')
     .order('document_id', { ascending: true })
@@ -134,14 +180,14 @@ async function resyncCourseIndex(serviceClient: ReturnType<typeof createClient>,
   const formulaSet = new Map<string, string>()
 
   processedChunks.forEach((c: Record<string, unknown>) => {
-    ;((c.key_terms as string[]) || []).forEach(t => {
+    ;((c.extracted_key_terms as string[]) || []).forEach(t => {
       const key = t.trim().toLowerCase()
       if (key && !termSet.has(key)) termSet.set(key, t.trim())
     })
-    ;((c.key_points as string[]) || []).forEach(p => {
+    ;((c.extracted_key_points as string[]) || []).forEach(p => {
       if (p && p.trim()) allPoints.push(p.trim())
     })
-    ;((c.formulas as string[]) || []).forEach(f => {
+    ;((c.extracted_formulas as string[]) || []).forEach(f => {
       const key = f.trim().toLowerCase()
       if (key && !formulaSet.has(key)) formulaSet.set(key, f.trim())
     })
@@ -184,7 +230,7 @@ serve(async (req) => {
       })
     }
 
-    const { documentId, courseCode, resyncOnly } = await req.json()
+    const { documentId, courseCode, resyncOnly, retryFailed } = await req.json()
 
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
@@ -264,6 +310,46 @@ serve(async (req) => {
       })
     }
 
+    // Requeues any chunks that got permanently marked 'failed' (e.g. from
+    // exhausting MAX_RATE_LIMIT_RETRIES during a burst of Groq rate-limit
+    // hits) back to 'pending' and reopens the document for processing.
+    // Intentionally checked BEFORE the completed/failed short-circuit below,
+    // since a document that already reached 'completed' with some failed
+    // chunks is exactly the case this is for.
+    if (retryFailed) {
+      const { error: resetErr } = await serviceClient
+        .from('course_knowledge_chunks')
+        .update({ status: 'pending' })
+        .eq('document_id', documentId)
+        .eq('status', 'failed')
+      if (resetErr) {
+        console.error('Failed to reset failed chunks:', resetErr)
+        return new Response(JSON.stringify({ error: 'Başarısız parçalar sıfırlanamadı' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+      const { count: processedCount } = await serviceClient
+        .from('course_knowledge_chunks')
+        .select('id', { count: 'exact', head: true })
+        .eq('document_id', documentId)
+        .eq('status', 'processed')
+      await serviceClient
+        .from('course_knowledge_documents')
+        .update({ status: 'processing', processed_chunks: processedCount || 0, completed_at: null })
+        .eq('id', documentId)
+      return new Response(JSON.stringify({
+        processedInBatch: 0,
+        processedTotal: processedCount || 0,
+        totalChunks: docRow.total_chunks,
+        documentStatus: 'processing',
+        done: false
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
     if (docRow.status === 'completed' || docRow.status === 'failed') {
       return new Response(JSON.stringify({
         processedInBatch: 0,
@@ -302,8 +388,10 @@ serve(async (req) => {
     }
 
     let processedInBatch = 0
+    const chunksToProcess = pendingChunks || []
 
-    for (const chunk of pendingChunks || []) {
+    for (let i = 0; i < chunksToProcess.length; i++) {
+      const chunk = chunksToProcess[i]
       try {
         const extracted = await extractChunkKnowledge(groqApiKey, chunk.raw_text || '')
         await serviceClient
