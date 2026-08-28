@@ -5735,26 +5735,17 @@ async function onExamSourceChange() {
   const cardWrap = document.getElementById('exam-card-source-wrap');
   const courseWrap = document.getElementById('exam-course-source-wrap');
   const formParams = document.getElementById('exam-form-params');
-  const calcOption = document.getElementById('exam-type-option-calc');
-  const calcRadio = document.querySelector('input[name="exam-type"][value="calculation"]');
-  const calcHint = document.getElementById('exam-calc-hint');
 
   if (examSelectedSource === 'course') {
     if (cardWrap) cardWrap.style.display = 'none';
     if (courseWrap) courseWrap.style.display = 'block';
-    // Whether a course exam should offer calculation questions depends on
-    // pooled shared cards we haven't fetched yet at selection time — keep it
-    // disabled here rather than guessing wrong, same disabled treatment as a
-    // non-quantitative study card.
-    if (calcOption) { calcOption.style.opacity = '0.45'; calcOption.style.pointerEvents = 'none'; }
-    if (calcRadio) {
-      calcRadio.disabled = true;
-      if (calcRadio.checked) {
-        const classicRadio = document.querySelector('input[name="exam-type"][value="classic"]');
-        if (classicRadio) classicRadio.checked = true;
-      }
-    }
-    if (calcHint) calcHint.style.display = 'block';
+    // Whether calculation questions make sense depends on the specific
+    // course selected (e.g. Financial Management genuinely is a
+    // calculation-heavy course, even though the exam is course-sourced
+    // rather than study-card-sourced) — start disabled as a safe default
+    // while the catalog loads, then onExamCourseChange() below corrects it
+    // once we know the actual course's is_quantitative flag.
+    applyExamCalcOptionState(false);
     if (formParams) formParams.style.display = 'block';
     await ensureExamCourseCatalogLoaded();
   } else {
@@ -5881,7 +5872,7 @@ async function onExamCourseDeptChange() {
   try {
     const { data: courses, error } = await supabaseClient
       .from('courses')
-      .select('course_code, course_name, year_level')
+      .select('course_code, course_name, year_level, is_quantitative')
       .eq('department_code', deptCode)
       .order('year_level', { ascending: true })
       .order('course_code', { ascending: true });
@@ -5931,27 +5922,43 @@ async function onExamCourseChange() {
     departmentName: deptObj ? deptObj.name : null
   };
 
+  // Whether "Hesaplama Sınavı" makes sense for this course. Catalog-level
+  // is_quantitative (seeded/curated per official course — e.g. Financial
+  // Management is quantitative even before anyone's shared notes for it)
+  // is the primary signal; it's OR'd below with whether any pooled shared
+  // card for this course is itself flagged quantitative, so a course
+  // missing the catalog flag can still unlock it once real quantitative
+  // student material exists.
+  const catalogIsQuant = !!(courseObj && courseObj.is_quantitative);
+  applyExamCalcOptionState(catalogIsQuant);
+
   // Best-effort, purely informational preview of whether this exam will be
   // grounded in real shared study material or fall back to the AI's general
   // knowledge — the actual pooling happens server-side in generate-exam.
   if (hint) {
     hint.textContent = 'Kontrol ediliyor...';
     try {
-      const { count, error: countErr } = await supabaseClient
+      const { data: pooledPreview, count, error: previewErr } = await supabaseClient
         .from('study_cards')
-        .select('id', { count: 'exact', head: true })
+        .select('id, is_quantitative', { count: 'exact' })
         .eq('is_shared', true)
         .eq('department', examSelectedCourse.departmentName || '')
-        .ilike('course_tag', examSelectedCourse.code);
+        .ilike('course_tag', examSelectedCourse.code)
+        .limit(50);
 
-      if (countErr) {
+      if (previewErr) {
         hint.textContent = '';
-      } else if (count && count > 0) {
-        hint.textContent = `✓ Bu ders için ${count} paylaşılan özet bulundu — sınav bunlardan üretilecek.`;
-        hint.style.color = 'var(--color-teal)';
       } else {
-        hint.textContent = '⚠️ Bu ders için henüz paylaşılan özet yok — sınav yapay zekanın genel bilgisinden üretilecek, içeriği kendi notlarınızla doğrulamayı unutmayın.';
-        hint.style.color = '#D97706';
+        if (!catalogIsQuant && pooledPreview && pooledPreview.some(c => c.is_quantitative)) {
+          applyExamCalcOptionState(true);
+        }
+        if (count > 0) {
+          hint.textContent = `✓ Bu ders için ${count} paylaşılan özet bulundu — sınav bunlardan üretilecek.`;
+          hint.style.color = 'var(--color-teal)';
+        } else {
+          hint.textContent = '⚠️ Bu ders için henüz paylaşılan özet yok — sınav yapay zekanın genel bilgisinden üretilecek, içeriği kendi notlarınızla doğrulamayı unutmayın.';
+          hint.style.color = '#D97706';
+        }
       }
     } catch (err) {
       hint.textContent = '';
@@ -5980,8 +5987,14 @@ let cachedExamCards = [];
 
 function updateExamCalcOptionState(cardId) {
   const cardObj = cachedExamCards.find(c => String(c.id) === String(cardId));
-  const isQuant = cardObj ? !!cardObj.is_quantitative : false;
-  
+  applyExamCalcOptionState(cardObj ? !!cardObj.is_quantitative : false);
+}
+
+// Shared enable/disable logic for the "Hesaplama Sınavı" (calculation exam)
+// type option — used both for study-card-sourced exams (driven by that
+// card's own is_quantitative flag) and course-sourced exams (driven by the
+// selected catalog course's is_quantitative flag, see onExamCourseChange).
+function applyExamCalcOptionState(isQuant) {
   const calcOption = document.getElementById('exam-type-option-calc');
   const calcRadio = document.querySelector('input[name="exam-type"][value="calculation"]');
   const calcHint = document.getElementById('exam-calc-hint');

@@ -144,7 +144,7 @@ ${card.worked_examples && card.worked_examples.length > 0 ? `WORKED EXAMPLES:\n$
       // course/department strings for the pooling query below).
       const { data: courseRow, error: courseErr } = await userClient
         .from('courses')
-        .select('course_code, course_name, department_code, departments(name, name_tr)')
+        .select('course_code, course_name, department_code, is_quantitative, departments(name, name_tr)')
         .eq('course_code', courseCode)
         .maybeSingle()
 
@@ -181,7 +181,12 @@ ${card.worked_examples && card.worked_examples.length > 0 ? `WORKED EXAMPLES:\n$
       }
 
       isGrounded = sharedCards.length > 0
-      isQuant = isGrounded && sharedCards.some(c => !!c.is_quantitative)
+      // A course counts as quantitative either because the official course
+      // catalog says so (courses.is_quantitative, curated per course — e.g.
+      // Financial Management is calculation-heavy regardless of whether any
+      // student has shared notes for it yet) or because the pooled shared
+      // material itself turns out to be quantitative.
+      isQuant = !!(courseRow as Record<string, unknown>).is_quantitative || (isGrounded && sharedCards.some(c => !!c.is_quantitative))
 
       if (isGrounded) {
         const merged = sharedCards.map((c, idx) => `
