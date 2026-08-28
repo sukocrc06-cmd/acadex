@@ -7,6 +7,69 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
+// ---- Static instructions, defined once at module scope so the exact same
+// string is reused across every invocation of this function (Deno edge
+// function isolates keep module-level values across warm invocations).
+// This is deliberately the single biggest, most repeated block of tokens
+// we send to Groq, and it MUST stay free of any per-request interpolation
+// (question count, exam type, language, difficulty, course name, etc.) --
+// those all belong in the short per-request tail below instead. Groq's
+// prompt caching (see console.groq.com/docs/prompt-caching) recognizes an
+// exact-matching prefix across requests to the GPT-OSS models we use and
+// stops counting those tokens against our (very tight) free-tier rate
+// limit, so keeping this constant byte-identical call after call is what
+// actually earns us that saving.
+const STATIC_EXAM_INSTRUCTIONS = `
+IMPORTANT VARIATION RULES:
+- Generate a fresh, varied set of questions. Vary which facts, terms, and angles you focus on, and vary question phrasing — do not default to only the most obvious or first-mentioned details every time.
+
+IMPORTANT DIFFICULTY RULES (Bloom's taxonomy):
+- 'easy': Test basic recall and definitions — "what is X", matching a term to its definition, or simple direct formula plugging.
+- 'medium': Test comprehension and application — explaining relationships between concepts, applying a term or multi-step formula to a short scenario.
+- 'hard': Test analysis and judgment — comparing/contrasting concepts, complex calculation scenarios, or evaluating a business case.
+The user message specifies which difficulty level to use for this exam.
+
+IMPORTANT LANGUAGE RULES:
+- The user message specifies a two-letter language code: 'en' for English or 'tr' for Turkish. Write ALL questions, options, hints, and solution steps strictly in that language.
+
+EXAM TYPE RULES:
+1. 'classic': All questions must be open-ended (free-text essay questions). The options field should be null.
+2. 'test': All questions must be multiple-choice. Each question must have exactly 4 options. The correct_answer field must be exactly equal to one of the options.
+3. 'calculation': All questions must be numerical calculation problems. For 'calculation' questions:
+   - "type": "calculation"
+   - "question": a clear scenario with specific numerical inputs.
+   - "correct_answer": numeric value (as a JSON number, e.g. 1432.50 or 42).
+   - "tolerance_percent": number indicating acceptable margin of error (e.g. 2 for 2%).
+   - "units": short unit string (e.g. "$", "%", "units", "kg", etc., or "" if unitless).
+   - "solution_steps": array of strings demonstrating step 1, step 2, step 3 of the step-by-step mathematical solution.
+   - "options": null.
+4. 'mixed': A combination of question types (the user message's MIXED TYPE RULE line below states the exact type spread for this course).
+   - For 'open_ended': options = null.
+   - For 'multiple_choice': exactly 4 options, correct_answer matches one option.
+   - For 'true_false': options = ['True', 'False'] (if en) or ['Doğru', 'Yanlış'] (if tr).
+   - For 'fill_blank': use '______' in question text. options = null.
+   - For 'calculation': use the calculation question format above.
+The user message states exactly which exam type and how many questions to generate.
+
+RESPONSE FORMAT:
+You must output ONLY a valid JSON array of questions, with no markdown code fences (do NOT use \`\`\`json or similar), no introductory or concluding text, and no conversational commentary.
+The array's length must exactly equal the question count requested in the user message. Each object must match this JSON schema:
+[
+  {
+    "id": number (1-based index),
+    "type": "multiple_choice" | "open_ended" | "true_false" | "fill_blank" | "calculation",
+    "question": "string",
+    "options": ["string"] | null,
+    "correct_answer": "string" | number,
+    "tolerance_percent": number | null,
+    "units": "string" | null,
+    "solution_steps": ["string"] | null,
+    "hint": "string (short helpful clue)",
+    "concept": "string"
+  }
+]
+`.trim()
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -280,68 +343,53 @@ ${c.formulas && (c.formulas as unknown[]).length > 0 ? `FORMULAS: ${JSON.stringi
       })
     }
 
-    const sysPrompt = `
-You are an academic study assistant. ${resolvedSourceType === 'study_card'
+    // Source description and the mixed-type spread are both stable per
+    // course/branch (same for every student hitting this exact course +
+    // knowledge-branch combination), not per individual request, so they
+    // belong in the system message alongside the source material below --
+    // NOT in the short per-request user message -- to keep the system
+    // message identical across students and eligible for Groq's prompt
+    // caching.
+    const sourceDescription = resolvedSourceType === 'study_card'
       ? 'You will be given the summary, key terms, key points, and optional formulas/examples of a study card.'
       : (isAdminKnowledgeGrounded
           ? 'You will be given topics, key terms, key points, and optional formulas extracted directly from the real, official course textbook/material for one course (and possibly also pooled student-shared study cards) — this is authoritative, verified content, not a guess.'
           : (isGrounded
               ? 'You will be given pooled summaries, key terms, key points, and optional formulas from multiple students\' shared study cards for one course.'
-              : 'You will be given a course name/code with no student-shared material yet — use your own general academic knowledge of the subject, as instructed below.'))}
-Your task is to generate exactly ${questionCount} questions of type '${examType}' in the language '${language}' (en = English, tr = Turkish), at difficulty level '${resolvedDifficulty}'.
+              : 'You will be given a course name/code with no student-shared material yet — use your own general academic knowledge of the subject, as instructed below.'))
 
-IMPORTANT VARIATION RULES:
-- Generate a fresh, varied set of questions. Vary which facts, terms, and angles you focus on, and vary question phrasing — do not default to only the most obvious or first-mentioned details every time.
+    const mixedTypeRuleNote = isQuant
+      ? "MIXED TYPE RULE: This source IS quantitative — for 'mixed' exams, distribute question types as evenly as possible across FIVE types: 'open_ended', 'multiple_choice', 'true_false', 'fill_blank', and 'calculation'."
+      : "MIXED TYPE RULE: This source is NOT quantitative — for 'mixed' exams, distribute question types as evenly as possible across FOUR types: 'open_ended', 'multiple_choice', 'true_false', and 'fill_blank'."
 
-IMPORTANT DIFFICULTY RULES (Bloom's taxonomy):
-- 'easy': Test basic recall and definitions — "what is X", matching a term to its definition, or simple direct formula plugging.
-- 'medium': Test comprehension and application — explaining relationships between concepts, applying a term or multi-step formula to a short scenario.
-- 'hard': Test analysis and judgment — comparing/contrasting concepts, complex calculation scenarios, or evaluating a business case.
+    // System message: everything in it is either fully static
+    // (STATIC_EXAM_INSTRUCTIONS) or stable per course/branch, and it is
+    // built BEFORE any per-student choice is added — so two different
+    // students requesting an exam for the same course (same branch, same
+    // quant flag) send the exact same system message, letting Groq cache
+    // it instead of re-billing/re-counting it against our rate limit.
+    const sysPrompt = `
+You are an academic study assistant. ${sourceDescription}
 
-IMPORTANT LANGUAGE RULES:
-- Write ALL questions, options, hints, and solution steps strictly in the requested language '${language}' (English if 'en', Turkish if 'tr').
+${mixedTypeRuleNote}
 
 IMPORTANT CONCEPT TAGGING RULE:
 ${conceptRuleText}
-${resolvedFocusConcept ? `\nIMPORTANT FOCUS RULE:\n- The student specifically wants to practice ONE topic: "${resolvedFocusConcept}". EVERY question must test this exact topic, approached from different angles (definition, application, comparison, scenario) — do not drift to unrelated concepts. Set the "concept" field on every question to "${resolvedFocusConcept}" (or a very close variant in the requested language).` : ''}
 
-EXAM TYPE RULES:
-1. 'classic': All questions must be open-ended (free-text essay questions). The options field should be null.
-2. 'test': All questions must be multiple-choice. Each question must have exactly 4 options. The correct_answer field must be exactly equal to one of the options.
-3. 'calculation': All questions must be numerical calculation problems. For 'calculation' questions:
-   - "type": "calculation"
-   - "question": a clear scenario with specific numerical inputs.
-   - "correct_answer": numeric value (as a JSON number, e.g. 1432.50 or 42).
-   - "tolerance_percent": number indicating acceptable margin of error (e.g. 2 for 2%).
-   - "units": short unit string (e.g. "$", "%", "units", "kg", etc., or "" if unitless).
-   - "solution_steps": array of strings demonstrating step 1, step 2, step 3 of the step-by-step mathematical solution.
-   - "options": null.
-4. 'mixed': A combination of question types.
-   - ${isQuant ? "Since this card IS quantitative, distribute question types as evenly as possible across FIVE types: 'open_ended', 'multiple_choice', 'true_false', 'fill_blank', and 'calculation'." : "Since this card is NOT quantitative, distribute question types as evenly as possible across FOUR types: 'open_ended', 'multiple_choice', 'true_false', and 'fill_blank'."}
-   - For 'open_ended': options = null.
-   - For 'multiple_choice': exactly 4 options, correct_answer matches one option.
-   - For 'true_false': options = ['True', 'False'] (if en) or ['Doğru', 'Yanlış'] (if tr).
-   - For 'fill_blank': use '______' in question text. options = null.
-   - For 'calculation': use the calculation question format above.
+${STATIC_EXAM_INSTRUCTIONS}
 
-RESPONSE FORMAT:
-You must output ONLY a valid JSON array of questions, with no markdown code fences (do NOT use \`\`\`json or similar), no introductory or concluding text, and no conversational commentary.
-The array must contain exactly ${questionCount} objects matching this JSON schema:
-[
-  {
-    "id": number (1-based index),
-    "type": "multiple_choice" | "open_ended" | "true_false" | "fill_blank" | "calculation",
-    "question": "string",
-    "options": ["string"] | null,
-    "correct_answer": "string" | number,
-    "tolerance_percent": number | null,
-    "units": "string" | null,
-    "solution_steps": ["string"] | null,
-    "hint": "string (short helpful clue)",
-    "concept": "string"
-  }
-]
+SOURCE MATERIAL:
+${context}
     `.trim()
+
+    // User message: ONLY the small bits that genuinely vary per request
+    // (this student's own choice of exam type/count/language/difficulty,
+    // their optional focus concept, and a variation seed). Keeping this
+    // short and putting everything reusable above in the system message
+    // is what makes the system message worth caching in the first place.
+    const userPrompt = `Generate exactly ${questionCount} questions of type '${examType}' in the language '${language}' (en = English, tr = Turkish), at difficulty level '${resolvedDifficulty}'.${resolvedFocusConcept ? `\n\nIMPORTANT FOCUS RULE:\n- The student specifically wants to practice ONE topic: "${resolvedFocusConcept}". EVERY question must test this exact topic, approached from different angles (definition, application, comparison, scenario) — do not drift to unrelated concepts. Set the "concept" field on every question to "${resolvedFocusConcept}" (or a very close variant in the requested language).` : ''}
+
+Additional variation seed: ${Date.now()}`
 
     const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -358,7 +406,7 @@ The array must contain exactly ${questionCount} objects matching this JSON schem
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: sysPrompt },
-          { role: "user", content: `${context}\n\nAdditional variation seed: ${Date.now()}` }
+          { role: "user", content: userPrompt }
         ]
       })
     })
