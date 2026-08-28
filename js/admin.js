@@ -1076,20 +1076,55 @@ let akCourses = [];
 let akDocuments = [];
 let akPollingDocumentId = null; // guards against overlapping polling loops
 
-async function callAdminEdgeFunction(functionName, body) {
+// "Failed to fetch" (a bare browser TypeError, not an HTTP error status)
+// almost always means one of two things here: a transient network blip, or
+// — far more commonly in practice — the target Edge Function was never
+// deployed, so Supabase's own routing returns a 404 with none of OUR CORS
+// headers attached (our code always sends corsHeaders, even on error
+// responses, so a truly deployed function of ours never triggers this).
+// Rather than let that cryptic message reach the admin (as it did during
+// Kitap Tarama's Global Business textbook scan), retry a couple of times in
+// case it was transient, then fail with a message that names the exact
+// fonksiyon and the exact command to fix it.
+async function callAdminEdgeFunction(functionName, body, retries = 2) {
   const { data: { session } } = await supabaseClient.auth.getSession();
   const token = session?.access_token;
   if (!token) throw new Error('Oturum bulunamadı.');
 
   const SUPABASE_URL_LOCAL = supabaseClient.supabaseUrl;
-  const response = await fetch(`${SUPABASE_URL_LOCAL}/functions/v1/${functionName}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-    body: JSON.stringify(body)
-  });
-  const result = await response.json();
-  if (!response.ok) throw new Error(result.error || 'İşlem başarısız.');
-  return result;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    let response;
+    try {
+      response = await fetch(`${SUPABASE_URL_LOCAL}/functions/v1/${functionName}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(body)
+      });
+    } catch (networkErr) {
+      if (attempt < retries) {
+        await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt)));
+        continue;
+      }
+      throw new Error(`"${functionName}" fonksiyonuna ulaşılamadı (ağ hatası). Bu genellikle fonksiyonun henüz deploy edilmediği anlamına gelir. Terminalde şunu çalıştırıp tekrar deneyin: supabase functions deploy ${functionName}`);
+    }
+
+    let result;
+    try {
+      result = await response.json();
+    } catch (parseErr) {
+      // A response with no valid JSON body (Supabase's own 404/500 routing
+      // page, not our function's code) — same root cause as above.
+      if (attempt < retries) {
+        await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt)));
+        continue;
+      }
+      throw new Error(`"${functionName}" fonksiyonundan geçerli bir yanıt alınamadı (HTTP ${response.status}). Fonksiyon deploy edilmemiş olabilir. Terminalde şunu çalıştırıp tekrar deneyin: supabase functions deploy ${functionName}`);
+    }
+
+    if (!response.ok) throw new Error(result.error || 'İşlem başarısız.');
+    return result;
+  }
 }
 
 async function loadKnowledgeBase() {
