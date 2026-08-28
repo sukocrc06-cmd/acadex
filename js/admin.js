@@ -1216,8 +1216,16 @@ function renderKnowledgeDocsTable() {
   tbody.innerHTML = visible.map(d => {
     const course = courseByCode[d.course_code];
     const courseLabel = course ? `${course.course_code} — ${escapeHtml(course.course_name)}` : escapeHtml(d.course_code);
-    const progressLabel = d.total_chunks > 0 ? `${d.processed_chunks} / ${d.total_chunks} parça` : '—';
     const canResume = d.status === 'processing' || d.status === 'pending' || d.status === 'extracting';
+    // A document can finish (no 'pending' chunks left) while some chunks
+    // permanently failed (e.g. exhausted their Groq rate-limit retries) —
+    // it still shows as 'completed' but processed_chunks < total_chunks.
+    // Surface that plainly and offer a one-click way to requeue just the
+    // failed ones, rather than silently under-reporting the book as "done".
+    const failedCount = d.status === 'completed' ? Math.max(0, (d.total_chunks || 0) - (d.processed_chunks || 0)) : 0;
+    const progressLabel = d.total_chunks > 0
+      ? `${d.processed_chunks} / ${d.total_chunks} parça${failedCount > 0 ? ` (${failedCount} başarısız)` : ''}`
+      : '—';
     return `
       <tr>
         <td>${courseLabel}</td>
@@ -1226,6 +1234,7 @@ function renderKnowledgeDocsTable() {
         <td>${progressLabel}</td>
         <td style="text-align:right; white-space:nowrap;">
           ${canResume ? `<button class="admin-mini-btn primary" onclick="akResumeProcessing('${d.id}')">Devam Et</button>` : ''}
+          ${failedCount > 0 ? `<button class="admin-mini-btn primary" onclick="akRetryFailedChunks('${d.id}')" title="${failedCount} başarısız parçayı yeniden dene">🔁 Tekrar Dene</button>` : ''}
           <button class="admin-mini-btn" onclick="akResyncCourse('${d.course_code}')" title="Bu dersin bilgi tabanını yeniden hesapla">🔄</button>
           <button class="admin-mini-btn danger" onclick="akDeleteDocument('${d.id}', '${d.course_code}')">Sil</button>
         </td>
@@ -1344,17 +1353,34 @@ async function akRunExtractionLoop(documentId, fileName) {
 // Phase 2: keeps calling admin-process-course-knowledge with { documentId }
 // until every extracted chunk has been through the AI step. Same
 // guard-free design as akRunExtractionLoop above.
+// Groq's free-tier quota for the model we use (gpt-oss-120b) is only 8,000
+// tokens/minute and 30 requests/minute, shared across the WHOLE app —
+// every student's exam generation and grading draws from this same pool.
+// The edge function processes exactly ONE chunk per call now (see
+// CHUNK_BATCH_SIZE in admin-process-course-knowledge), so THIS wait,
+// between successive calls, is what actually paces the whole book scan to
+// stay under that shared budget — without it, this loop would fire calls
+// back-to-back as fast as the network allows and blow through the
+// per-minute limit within seconds, exactly what caused most of a real
+// 169-chunk book to get silently rate-limited and marked 'failed' before
+// this fix.
+const AK_PROCESSING_PACE_MS = 20000;
+
 async function akRunProcessingLoop(documentId, fileName) {
   const progressBar = document.getElementById('ak-progress-bar');
   const progressText = document.getElementById('ak-progress-text');
 
   let done = false;
+  let isFirstCall = true;
   while (!done) {
+    if (!isFirstCall) await new Promise(r => setTimeout(r, AK_PROCESSING_PACE_MS));
+    isFirstCall = false;
+
     const result = await callAdminEdgeFunction('admin-process-course-knowledge', { documentId });
     done = !!result.done;
     const pct = result.totalChunks > 0 ? Math.round((result.processedTotal / result.totalChunks) * 100) : 0;
     if (progressBar) progressBar.style.width = `${pct}%`;
-    if (progressText) progressText.textContent = `⚙️ ${result.processedTotal} / ${result.totalChunks} parça işlendi (%${pct})`;
+    if (progressText) progressText.textContent = `⚙️ ${result.processedTotal} / ${result.totalChunks} parça işlendi (%${pct}) — Groq'un ücretsiz kotasını aşmamak için yavaş ilerliyor, sekmeyi açık bırakabilirsiniz.`;
 
     const docInList = akDocuments.find(d => d.id === documentId);
     if (docInList) {
@@ -1427,6 +1453,20 @@ async function akStartPolling(documentId, fileName, totalChunks) {
     await loadKnowledgeBase();
   }
 }
+
+async function akRetryFailedChunks(documentId) {
+  const doc = akDocuments.find(d => d.id === documentId);
+  const fileName = doc ? doc.file_name : 'Belge';
+  try {
+    await callAdminEdgeFunction('admin-process-course-knowledge', { documentId, retryFailed: true });
+    showAdminAlert('success', 'Başarısız parçalar yeniden sıraya alındı, işleniyor...');
+    akStartPolling(documentId, fileName, doc ? doc.total_chunks : 0);
+  } catch (err) {
+    console.error('akRetryFailedChunks error:', err);
+    showAdminAlert('error', err.message || 'Başarısız parçalar sıfırlanırken bir hata oluştu.');
+  }
+}
+window.akRetryFailedChunks = akRetryFailedChunks;
 
 async function akResyncCourse(courseCode) {
   try {
