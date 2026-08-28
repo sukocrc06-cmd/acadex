@@ -118,9 +118,15 @@ ${q.options ? `OPTIONS: ${JSON.stringify(q.options)}` : ''}
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        // llama-3.3-70b-versatile was retired by Groq on 2026-08-16 — every
-        // hint request was failing with a decommissioned-model error.
-        model: "openai/gpt-oss-120b",
+        // Routed to a lighter model on purpose: a one-sentence hint is a
+        // low-stakes, high-frequency call, and gpt-oss-120b's free-tier
+        // quota (30 RPM / 1,000 requests per day, shared with every other
+        // AI feature in the app) is far too tight to spend on this. Groq
+        // meters rate limits per model, so llama-3.1-8b-instant gives this
+        // specific feature its OWN, much larger daily quota (~14,400
+        // requests/day on the free tier) instead of competing with exam
+        // generation/grading for the same 1,000/day pool.
+        model: "llama-3.1-8b-instant",
         temperature: 0.5,
         messages: [
           { role: "system", content: sysPrompt },

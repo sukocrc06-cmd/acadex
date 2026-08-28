@@ -1,21 +1,37 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
-import { extractText, getDocumentProxy } from "npm:unpdf"
+import { getDocumentProxy } from "npm:unpdf"
 
 // ==========================================================================
 // Acadex — admin-only "Kitap Tarama" ingestion step (step 1 of 2).
 //
 // Takes an already-uploaded PDF (in the private 'course-knowledge-pdfs'
 // storage bucket) and turns it into persisted, page-range chunks ready for
-// AI processing. Deliberately does NOT call Groq here — this step is pure
-// local text extraction (unpdf), which is fast even for a large book, so it
-// comfortably fits in one Edge Function call regardless of page count. The
+// AI processing. Pure local text extraction (no Groq calls here) — the
 // actual (slow, LLM-per-chunk) processing happens in a separate function,
 // admin-process-course-knowledge, called repeatedly afterward.
 //
+// RESUMABLE / BATCHED BY DESIGN. An earlier version of this function called
+// unpdf's high-level extractText(pdf, { mergePages: false }) helper, which
+// internally does `Promise.all(pdf.numPages pages, page => getTextContent())`
+// — i.e. it kicks off text extraction for EVERY page of the book
+// concurrently in one go. For a real ~670-page textbook that blew past the
+// Edge Function's memory/time budget and crashed the isolate mid-request,
+// which the browser only ever saw as a bare "Failed to fetch" (a connection
+// reset, not a JSON error) — this is why real book uploads were failing
+// silently. The fix: extract pages ourselves, SEQUENTIALLY, in small fixed
+// batches per call, with progress persisted on the document row
+// (extracted_pages) so a large book is scanned across many small, cheap
+// calls instead of one huge one. The admin UI (js/admin.js, akUploadAndScan
+// / akRunExtractionLoop) calls this repeatedly with { documentId } until it
+// reports done: true, exactly mirroring the pattern already used for the
+// AI-processing step in admin-process-course-knowledge.
+//
 // Admin-only: verified via profiles.is_admin using the CALLER's own JWT
 // (userClient) before any privileged work happens on the service-role
-// client. See supabase/migrations/20260829_add_course_knowledge_base.sql.
+// client. See supabase/migrations/20260829_add_course_knowledge_base.sql
+// and 20260829b_add_extracted_pages.sql (adds the extracted_pages column
+// this resumable design relies on).
 // ==========================================================================
 
 const corsHeaders = {
@@ -24,11 +40,20 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-// How many extracted PDF pages go into one persisted chunk. Smaller chunks
-// mean more (cheaper, faster) individual Groq calls during processing but
-// more rows/round-trips; larger chunks mean fewer, heavier calls. 4 pages is
-// a reasonable middle ground for typical textbook page density.
+// How many extracted PDF pages go into one persisted chunk (unchanged from
+// the original design). Smaller chunks mean more (cheaper, faster)
+// individual Groq calls during processing but more rows/round-trips;
+// larger chunks mean fewer, heavier calls. 4 pages is a reasonable middle
+// ground for typical textbook page density.
 const PAGES_PER_CHUNK = 4
+
+// How many pages this function extracts text from, SEQUENTIALLY, per call.
+// Must be a multiple of PAGES_PER_CHUNK so chunk boundaries never split
+// across two separate calls (extracted_pages always lands on a chunk
+// boundary). 60 pages of sequential (not parallel) text extraction is
+// comfortably fast and light on memory even for a scanned/image-heavy
+// textbook, unlike extracting all ~670 pages of a real book at once.
+const PAGES_PER_EXTRACT_BATCH = 60
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -43,13 +68,7 @@ serve(async (req) => {
       })
     }
 
-    const { courseCode, storagePath, fileName } = await req.json()
-    if (!courseCode || !storagePath || !fileName) {
-      return new Response(JSON.stringify({ error: 'Missing required parameters: courseCode, storagePath, fileName' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
-    }
+    const { courseCode, storagePath, fileName, documentId } = await req.json()
 
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
@@ -90,54 +109,88 @@ serve(async (req) => {
     const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     const serviceClient = createClient(supabaseUrl, supabaseServiceRoleKey)
 
-    // Verify the course exists in the catalog (defense-in-depth, same as
-    // generate-exam's course lookup).
-    const { data: courseRow, error: courseErr } = await serviceClient
-      .from('courses')
-      .select('course_code')
-      .eq('course_code', courseCode)
-      .maybeSingle()
-    if (courseErr || !courseRow) {
-      return new Response(JSON.stringify({ error: 'Course not found in catalog' }), {
-        status: 404,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
+    // ------------------------------------------------------------------
+    // Resolve which document row we're working on: either create it (first
+    // call for a brand-new upload) or load the existing one (a resumed /
+    // continuation call, identified only by documentId).
+    // ------------------------------------------------------------------
+    let docRow: Record<string, unknown> | null = null
+
+    if (documentId) {
+      const { data, error } = await serviceClient
+        .from('course_knowledge_documents')
+        .select('*')
+        .eq('id', documentId)
+        .maybeSingle()
+      if (error || !data) {
+        return new Response(JSON.stringify({ error: 'Document not found' }), {
+          status: 404,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+      docRow = data
+    } else {
+      if (!courseCode || !storagePath || !fileName) {
+        return new Response(JSON.stringify({ error: 'Missing required parameters: courseCode, storagePath, fileName' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+
+      // Verify the course exists in the catalog (defense-in-depth, same as
+      // generate-exam's course lookup).
+      const { data: courseRow, error: courseErr } = await serviceClient
+        .from('courses')
+        .select('course_code')
+        .eq('course_code', courseCode)
+        .maybeSingle()
+      if (courseErr || !courseRow) {
+        return new Response(JSON.stringify({ error: 'Course not found in catalog' }), {
+          status: 404,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+
+      const { data: newDoc, error: docInsertErr } = await serviceClient
+        .from('course_knowledge_documents')
+        .insert({
+          course_code: courseCode,
+          file_name: fileName,
+          storage_path: storagePath,
+          status: 'extracting',
+          extracted_pages: 0,
+          uploaded_by: user.id
+        })
+        .select()
+        .single()
+
+      if (docInsertErr || !newDoc) {
+        console.error('Failed to create course_knowledge_documents row:', docInsertErr)
+        return new Response(JSON.stringify({ error: 'Failed to create document record' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+      docRow = newDoc
     }
 
-    // Create the document row up front (status 'extracting') so the admin
-    // UI has something to show/poll even if extraction itself is slow for a
-    // very large file.
-    const { data: docRow, error: docInsertErr } = await serviceClient
-      .from('course_knowledge_documents')
-      .insert({
-        course_code: courseCode,
-        file_name: fileName,
-        storage_path: storagePath,
-        status: 'extracting',
-        uploaded_by: user.id
-      })
-      .select()
-      .single()
-
-    if (docInsertErr || !docRow) {
-      console.error('Failed to create course_knowledge_documents row:', docInsertErr)
-      return new Response(JSON.stringify({ error: 'Failed to create document record' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
+    const doc = docRow as {
+      id: string; course_code: string; storage_path: string; file_name: string
+      total_pages: number | null; extracted_pages: number; total_chunks: number
     }
 
     const markFailed = async (message: string) => {
       await serviceClient
         .from('course_knowledge_documents')
         .update({ status: 'failed', error_message: message.slice(0, 500) })
-        .eq('id', docRow.id)
+        .eq('id', doc.id)
     }
 
+    let pdf: Awaited<ReturnType<typeof getDocumentProxy>> | null = null
     try {
       const { data: fileBlob, error: downloadError } = await serviceClient.storage
         .from('course-knowledge-pdfs')
-        .download(storagePath)
+        .download(doc.storage_path)
 
       if (downloadError || !fileBlob) {
         console.error('Failed to download PDF from storage:', downloadError)
@@ -151,28 +204,52 @@ serve(async (req) => {
       const arrayBuffer = await fileBlob.arrayBuffer()
       const fileBytes = new Uint8Array(arrayBuffer)
 
-      const pdf = await getDocumentProxy(fileBytes)
-      const { text: pdfPages } = await extractText(pdf, { mergePages: false })
+      pdf = await getDocumentProxy(fileBytes)
+      const totalPages = pdf.numPages
 
-      if (!pdfPages || pdfPages.length === 0) {
-        await markFailed('PDF içinden metin çıkarılamadı (taranmış görsel sayfalar olabilir).')
-        return new Response(JSON.stringify({ error: 'No extractable text found in PDF' }), {
+      if (!totalPages || totalPages === 0) {
+        await markFailed('PDF sayfa sayısı okunamadı (dosya bozuk olabilir).')
+        return new Response(JSON.stringify({ error: 'Could not read PDF page count' }), {
           status: 422,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
       }
 
-      const totalPages = pdfPages.length
+      const startPage = doc.extracted_pages + 1
+      const endPage = Math.min(startPage + PAGES_PER_EXTRACT_BATCH - 1, totalPages)
+
+      // Extract this batch's pages ONE AT A TIME (never Promise.all across
+      // the whole book — that concurrent-everything approach is what
+      // crashed the isolate on real, large textbooks). This keeps memory
+      // and CPU bounded to a small, predictable window regardless of how
+      // big the source book is.
+      const pagesText: string[] = []
+      if (startPage <= endPage) {
+        for (let pageNum = startPage; pageNum <= endPage; pageNum++) {
+          const page = await pdf.getPage(pageNum)
+          const content = await page.getTextContent()
+          const pageText = content.items
+            .filter((item: Record<string, unknown>) => item.str != null)
+            .map((item: Record<string, unknown>) => `${item.str}${item.hasEOL ? '\n' : ''}`)
+            .join('')
+          pagesText.push(pageText)
+        }
+      }
+
+      // Group this batch's freshly extracted pages into chunks, indexed
+      // using the ABSOLUTE page position so chunk_index stays globally
+      // unique and contiguous across separate calls/batches.
+      const chunkIndexBase = Math.floor((startPage - 1) / PAGES_PER_CHUNK)
       const chunks: { chunk_index: number; page_start: number; page_end: number; raw_text: string }[] = []
-      for (let i = 0; i < totalPages; i += PAGES_PER_CHUNK) {
-        const pageSlice = pdfPages.slice(i, i + PAGES_PER_CHUNK)
-        const pageStart = i + 1
-        const pageEnd = Math.min(i + PAGES_PER_CHUNK, totalPages)
-        const rawText = pageSlice
+      for (let i = 0; i < pagesText.length; i += PAGES_PER_CHUNK) {
+        const slice = pagesText.slice(i, i + PAGES_PER_CHUNK)
+        const pageStart = startPage + i
+        const pageEnd = Math.min(pageStart + PAGES_PER_CHUNK - 1, endPage)
+        const rawText = slice
           .map((pageText, idx) => `--- SAYFA ${pageStart + idx} ---\n${(pageText || '').trim()}`)
           .join('\n\n')
         chunks.push({
-          chunk_index: chunks.length,
+          chunk_index: chunkIndexBase + Math.floor(i / PAGES_PER_CHUNK),
           page_start: pageStart,
           page_end: pageEnd,
           raw_text: rawText
@@ -180,60 +257,77 @@ serve(async (req) => {
       }
 
       // Drop chunks that turned out to have no real text (e.g. a blank or
-      // pure-image page) — nothing for the AI step to process.
+      // pure-image page) — nothing for the AI step to process. A chunk
+      // being empty does NOT fail the whole document; we only decide the
+      // whole book had no usable text once every page has been seen (below).
       const nonEmptyChunks = chunks.filter(c => c.raw_text.replace(/--- SAYFA \d+ ---/g, '').trim().length > 20)
 
-      if (nonEmptyChunks.length === 0) {
-        await markFailed('PDF içinde işlenebilir metin bulunamadı.')
-        return new Response(JSON.stringify({ error: 'No usable text chunks extracted from PDF' }), {
-          status: 422,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        })
+      if (nonEmptyChunks.length > 0) {
+        const chunkRows = nonEmptyChunks.map(c => ({
+          document_id: doc.id,
+          course_code: doc.course_code,
+          chunk_index: c.chunk_index,
+          page_start: c.page_start,
+          page_end: c.page_end,
+          raw_text: c.raw_text,
+          status: 'pending'
+        }))
+
+        // Insert in batches to stay well under any single-request payload
+        // limits (mostly relevant if PAGES_PER_EXTRACT_BATCH is turned up).
+        const INSERT_BATCH_SIZE = 50
+        for (let i = 0; i < chunkRows.length; i += INSERT_BATCH_SIZE) {
+          const batch = chunkRows.slice(i, i + INSERT_BATCH_SIZE)
+          const { error: chunkInsertErr } = await serviceClient
+            .from('course_knowledge_chunks')
+            .insert(batch)
+          if (chunkInsertErr) {
+            console.error('Failed to insert chunk batch:', chunkInsertErr)
+            await markFailed('Parçalar veritabanına kaydedilemedi.')
+            return new Response(JSON.stringify({ error: 'Failed to persist document chunks' }), {
+              status: 500,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            })
+          }
+        }
       }
 
-      const chunkRows = nonEmptyChunks.map(c => ({
-        document_id: docRow.id,
-        course_code: courseCode,
-        chunk_index: c.chunk_index,
-        page_start: c.page_start,
-        page_end: c.page_end,
-        raw_text: c.raw_text,
-        status: 'pending'
-      }))
+      const newExtractedPages = endPage
+      const newTotalChunks = (doc.total_chunks || 0) + nonEmptyChunks.length
+      const isDone = newExtractedPages >= totalPages
 
-      // Insert in batches to stay well under any single-request payload
-      // limits for very large books (a 600-page book is ~150 chunks).
-      const INSERT_BATCH_SIZE = 50
-      for (let i = 0; i < chunkRows.length; i += INSERT_BATCH_SIZE) {
-        const batch = chunkRows.slice(i, i + INSERT_BATCH_SIZE)
-        const { error: chunkInsertErr } = await serviceClient
-          .from('course_knowledge_chunks')
-          .insert(batch)
-        if (chunkInsertErr) {
-          console.error('Failed to insert chunk batch:', chunkInsertErr)
-          await markFailed('Parçalar veritabanına kaydedilemedi.')
-          return new Response(JSON.stringify({ error: 'Failed to persist document chunks' }), {
-            status: 500,
+      const updatePayload: Record<string, unknown> = {
+        total_pages: totalPages,
+        extracted_pages: newExtractedPages,
+        total_chunks: newTotalChunks
+      }
+      if (isDone) {
+        // Only now, having seen every single page, can we tell whether the
+        // whole book genuinely had no usable text (e.g. a pure scanned-image
+        // PDF with no text layer) — as opposed to just this batch's pages
+        // being blank/images, which is normal and not a failure.
+        if (newTotalChunks === 0) {
+          await markFailed('PDF içinde işlenebilir metin bulunamadı (taranmış görsel sayfalar olabilir).')
+          return new Response(JSON.stringify({ error: 'No usable text found anywhere in this PDF' }), {
+            status: 422,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           })
         }
+        updatePayload.status = 'processing'
       }
 
       const { error: updateErr } = await serviceClient
         .from('course_knowledge_documents')
-        .update({
-          total_pages: totalPages,
-          total_chunks: chunkRows.length,
-          status: 'processing'
-        })
-        .eq('id', docRow.id)
-
-      if (updateErr) console.error('Failed to update document row after chunking:', updateErr)
+        .update(updatePayload)
+        .eq('id', doc.id)
+      if (updateErr) console.error('Failed to update document row after extraction batch:', updateErr)
 
       return new Response(JSON.stringify({
-        documentId: docRow.id,
+        documentId: doc.id,
         totalPages,
-        totalChunks: chunkRows.length
+        extractedPages: newExtractedPages,
+        totalChunks: newTotalChunks,
+        done: isDone
       }), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -245,6 +339,12 @@ serve(async (req) => {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
+    } finally {
+      // Release the PDF.js document/worker resources for this batch — we
+      // reopen the document fresh on every call anyway (Edge Functions are
+      // stateless between invocations), so nothing should be kept alive
+      // past this request.
+      try { await pdf?.loadingTask?.destroy() } catch (_e) { /* best-effort cleanup */ }
     }
   } catch (err) {
     console.error('admin-ingest-course-pdf exception:', err)

@@ -1182,7 +1182,7 @@ function renderKnowledgeDocsTable() {
     const course = courseByCode[d.course_code];
     const courseLabel = course ? `${course.course_code} — ${escapeHtml(course.course_name)}` : escapeHtml(d.course_code);
     const progressLabel = d.total_chunks > 0 ? `${d.processed_chunks} / ${d.total_chunks} parça` : '—';
-    const canResume = d.status === 'processing' || d.status === 'pending';
+    const canResume = d.status === 'processing' || d.status === 'pending' || d.status === 'extracting';
     return `
       <tr>
         <td>${courseLabel}</td>
@@ -1233,18 +1233,23 @@ async function akUploadPdf() {
       .upload(storagePath, file);
     if (uploadErr) throw uploadErr;
 
-    if (statusEl) statusEl.textContent = 'PDF içindeki metin çıkarılıyor (büyük kitaplarda biraz sürebilir)...';
+    if (statusEl) statusEl.textContent = 'PDF içindeki metin çıkarılıyor (büyük kitaplarda birkaç parça halinde yapılır)...';
 
+    // This first call creates the document row AND does the first
+    // extraction batch (a bounded page window, not the whole book at once
+    // — see admin-ingest-course-pdf's comments for why that used to crash
+    // on real large textbooks). akUploadAndScan below keeps calling it with
+    // { documentId } to continue exactly where this call left off.
     const ingestResult = await callAdminEdgeFunction('admin-ingest-course-pdf', {
       courseCode, storagePath, fileName: file.name
     });
 
     if (statusEl) statusEl.textContent = '';
     if (fileInput) fileInput.value = '';
-    showAdminAlert('success', `PDF yüklendi: ${ingestResult.totalPages} sayfa, ${ingestResult.totalChunks} parçaya bölündü. Taranmaya başlanıyor...`);
+    showAdminAlert('success', `PDF yüklendi (${ingestResult.totalPages || '?'} sayfa tespit edildi). Taranmaya başlanıyor...`);
 
     await loadKnowledgeBase();
-    akStartPolling(ingestResult.documentId, file.name, ingestResult.totalChunks);
+    akUploadAndScan(ingestResult.documentId, file.name);
   } catch (err) {
     console.error('akUploadPdf error:', err);
     if (statusEl) { statusEl.textContent = err.message || 'Yükleme başarısız oldu.'; statusEl.style.color = '#DC2626'; }
@@ -1257,10 +1262,107 @@ window.akUploadPdf = akUploadPdf;
 
 async function akResumeProcessing(documentId) {
   const doc = akDocuments.find(d => d.id === documentId);
-  akStartPolling(documentId, doc ? doc.file_name : 'Belge', doc ? doc.total_chunks : 0);
+  const fileName = doc ? doc.file_name : 'Belge';
+  // A document interrupted mid-extraction (status still 'extracting') needs
+  // to resume the page-extraction loop first; one that already finished
+  // extraction (status 'processing'/'pending') only needs the AI step.
+  if (doc && doc.status === 'extracting') {
+    akUploadAndScan(documentId, fileName);
+  } else {
+    akStartPolling(documentId, fileName, doc ? doc.total_chunks : 0);
+  }
 }
 window.akResumeProcessing = akResumeProcessing;
 
+// Phase 1: keeps calling admin-ingest-course-pdf with { documentId } until
+// every page of the PDF has been extracted into chunks. Does NOT manage
+// the akPollingDocumentId busy-guard itself — the caller (akUploadAndScan /
+// akStartPolling) owns that, since this loop is also called back-to-back
+// with the processing loop for one continuous upload.
+async function akRunExtractionLoop(documentId, fileName) {
+  const progressCard = document.getElementById('ak-progress-card');
+  const progressFilename = document.getElementById('ak-progress-filename');
+  const progressBar = document.getElementById('ak-progress-bar');
+  const progressText = document.getElementById('ak-progress-text');
+
+  if (progressCard) progressCard.style.display = 'block';
+  if (progressFilename) progressFilename.textContent = fileName;
+
+  let done = false;
+  while (!done) {
+    const result = await callAdminEdgeFunction('admin-ingest-course-pdf', { documentId });
+    done = !!result.done;
+    const pct = result.totalPages > 0 ? Math.round((result.extractedPages / result.totalPages) * 100) : 0;
+    if (progressBar) progressBar.style.width = `${pct}%`;
+    if (progressText) progressText.textContent = `📖 Metin çıkarılıyor: ${result.extractedPages} / ${result.totalPages} sayfa (%${pct})`;
+
+    const docInList = akDocuments.find(d => d.id === documentId);
+    if (docInList) {
+      docInList.total_pages = result.totalPages;
+      docInList.total_chunks = result.totalChunks;
+      docInList.status = 'extracting';
+      renderKnowledgeDocsTable();
+    }
+  }
+}
+
+// Phase 2: keeps calling admin-process-course-knowledge with { documentId }
+// until every extracted chunk has been through the AI step. Same
+// guard-free design as akRunExtractionLoop above.
+async function akRunProcessingLoop(documentId, fileName) {
+  const progressBar = document.getElementById('ak-progress-bar');
+  const progressText = document.getElementById('ak-progress-text');
+
+  let done = false;
+  while (!done) {
+    const result = await callAdminEdgeFunction('admin-process-course-knowledge', { documentId });
+    done = !!result.done;
+    const pct = result.totalChunks > 0 ? Math.round((result.processedTotal / result.totalChunks) * 100) : 0;
+    if (progressBar) progressBar.style.width = `${pct}%`;
+    if (progressText) progressText.textContent = `⚙️ ${result.processedTotal} / ${result.totalChunks} parça işlendi (%${pct})`;
+
+    const docInList = akDocuments.find(d => d.id === documentId);
+    if (docInList) {
+      docInList.processed_chunks = result.processedTotal;
+      docInList.status = result.documentStatus;
+      renderKnowledgeDocsTable();
+    }
+  }
+}
+
+// Full pipeline for a freshly uploaded (or resumed, still-'extracting')
+// document: extraction loop, then the AI-processing loop, back to back
+// under a single busy-guard so no other upload can start concurrently.
+async function akUploadAndScan(documentId, fileName) {
+  if (akPollingDocumentId) {
+    showAdminAlert('error', 'Şu anda başka bir belge taranıyor. Lütfen bitmesini bekleyin.');
+    return;
+  }
+  akPollingDocumentId = documentId;
+
+  const progressCard = document.getElementById('ak-progress-card');
+  const progressText = document.getElementById('ak-progress-text');
+
+  try {
+    await akRunExtractionLoop(documentId, fileName);
+    await akRunProcessingLoop(documentId, fileName);
+
+    if (progressText) progressText.textContent = 'Tamamlandı ✅ — bilgi tabanı güncellendi.';
+    showAdminAlert('success', `"${fileName}" başarıyla tarandı ve derse eklendi.`);
+    setTimeout(() => { if (progressCard) progressCard.style.display = 'none'; }, 4000);
+  } catch (err) {
+    console.error('akUploadAndScan error:', err);
+    if (progressText) progressText.textContent = `Hata: ${err.message || 'İşlem sırasında bir sorun oluştu.'}`;
+    showAdminAlert('error', 'Tarama sırasında bir hata oluştu. "Devam Et" ile tekrar deneyebilirsiniz.');
+  } finally {
+    akPollingDocumentId = null;
+    await loadKnowledgeBase();
+  }
+}
+
+// Used when a document has ALREADY finished extraction (status
+// 'processing'/'pending') and only the AI-processing step needs to
+// (re)run — e.g. resuming after an interruption during that later phase.
 async function akStartPolling(documentId, fileName, totalChunks) {
   if (akPollingDocumentId) {
     showAdminAlert('error', 'Şu anda başka bir belge taranıyor. Lütfen bitmesini bekleyin.');
@@ -1270,29 +1372,13 @@ async function akStartPolling(documentId, fileName, totalChunks) {
 
   const progressCard = document.getElementById('ak-progress-card');
   const progressFilename = document.getElementById('ak-progress-filename');
-  const progressBar = document.getElementById('ak-progress-bar');
   const progressText = document.getElementById('ak-progress-text');
 
   if (progressCard) progressCard.style.display = 'block';
   if (progressFilename) progressFilename.textContent = fileName;
 
   try {
-    let done = false;
-    while (!done) {
-      const result = await callAdminEdgeFunction('admin-process-course-knowledge', { documentId });
-      done = !!result.done;
-      const pct = result.totalChunks > 0 ? Math.round((result.processedTotal / result.totalChunks) * 100) : 0;
-      if (progressBar) progressBar.style.width = `${pct}%`;
-      if (progressText) progressText.textContent = `${result.processedTotal} / ${result.totalChunks} parça işlendi (%${pct})`;
-
-      // Refresh the table's progress numbers as we go, without a full reload.
-      const docInList = akDocuments.find(d => d.id === documentId);
-      if (docInList) {
-        docInList.processed_chunks = result.processedTotal;
-        docInList.status = result.documentStatus;
-        renderKnowledgeDocsTable();
-      }
-    }
+    await akRunProcessingLoop(documentId, fileName);
 
     if (progressText) progressText.textContent = 'Tamamlandı ✅ — bilgi tabanı güncellendi.';
     showAdminAlert('success', `"${fileName}" başarıyla tarandı ve derse eklendi.`);
