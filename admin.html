@@ -129,18 +129,13 @@
               <span>Ders Kataloğu</span>
             </a>
           </li>
-          <li class="sidebar-item" data-admin-tab="knowledge">
-            <a href="#" onclick="switchAdminTab('knowledge'); return false;">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path><line x1="9" y1="7" x2="15" y2="7"></line><line x1="9" y1="11" x2="15" y2="11"></line></svg>
-              <span>Kitap Tarama</span>
-            </a>
-          </li>
-          <!-- Ders Ağacı linki admin sidebar'ından kaldırıldı (şükrü'nün
-               isteğiyle) — Kitap Tarama akışıyla karışmaması için şimdilik
-               admin menüsünde gösterilmiyor. ders-agaci.html sayfası hâlâ
-               var ve admin-only route guard'ı çalışıyor, sadece buradan
-               linklenmiyor; nasıl/nerede gösterileceğine daha sonra karar
-               verilecek. -->
+          <!-- "Kitap Tarama" sekmesi tamamen kaldırıldı (şükrü'nün isteğiyle,
+               tekrarlanan büyük kitap/rate-limit hataları sonrası) — özellik,
+               edge fonksiyonları ve taranan tüm veriler kalıcı olarak silindi.
+               Bkz. supabase/migrations/20260830_remove_course_knowledge_base.sql.
+               Ders Ağacı linki de aynı sebeple daha önce admin sidebar'ından
+               kaldırılmıştı; ders-agaci.html sayfası hâlâ var ve admin-only
+               route guard'ı çalışıyor, sadece buradan linklenmiyor. -->
         </ul>
       </nav>
     </aside>
@@ -425,89 +420,15 @@
         </div>
       </section>
 
-      <!-- ============================================================
-           Kitap Tarama — admin-only full-book knowledge ingestion.
-           Upload a real textbook/lecture-notes PDF for a catalog course;
-           it's split into page-range chunks and processed a few at a
-           time (progress bar), then merged into course_knowledge_index,
-           which generate-exam treats as the most trustworthy source
-           available for that course. See
-           supabase/migrations/20260829_add_course_knowledge_base.sql.
-           ============================================================ -->
-      <section id="admin-knowledge-panel" class="admin-tab-panel">
-        <div class="dashboard-page-header">
-          <h2 class="dashboard-page-title">📚 Kitap Tarama</h2>
-          <p class="dashboard-page-subtitle">Bir dersin gerçek ders kitabını veya hocanın PDF notlarını yükleyin — sistem kaç sayfa olursa olsun, sayfa sayfa tarayıp o derse özel bir bilgi tabanı oluşturur. Bu bilgi tabanı Sınav Platformu'nda en güvenilir kaynak olarak kullanılır. Bu araç sadece yöneticiye özeldir; öğrenciler ve hocalar burayı göremez.</p>
-        </div>
-
-        <div class="admin-panel-card" style="margin-bottom: 1.5rem;">
-          <h3 style="font-size: 1rem; font-weight: 800; color: var(--color-navy); margin-bottom: 0.75rem;">+ Yeni Kaynak Yükle</h3>
-          <div style="display:flex; gap: 0.5rem; flex-wrap: wrap; align-items: flex-end;">
-            <div>
-              <label style="display:block; font-size: 0.7rem; font-weight: 700; color: var(--color-text-muted); margin-bottom: 0.2rem;">Bölüm</label>
-              <select id="ak-upload-dept" onchange="akOnDeptChange()" style="padding: 0.55rem 0.75rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.85rem;"></select>
-            </div>
-            <div style="flex: 1; min-width: 240px;">
-              <label style="display:block; font-size: 0.7rem; font-weight: 700; color: var(--color-text-muted); margin-bottom: 0.2rem;">Ders</label>
-              <select id="ak-upload-course" style="width: 100%; padding: 0.55rem 0.75rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.85rem;"></select>
-            </div>
-            <div>
-              <label style="display:block; font-size: 0.7rem; font-weight: 700; color: var(--color-text-muted); margin-bottom: 0.2rem;">PDF Dosyası</label>
-              <input type="file" id="ak-upload-file" accept="application/pdf" style="font-size: 0.8rem;">
-            </div>
-            <button class="admin-mini-btn primary" id="ak-upload-btn" onclick="akUploadPdf()">Yükle ve Taramaya Başla</button>
-          </div>
-          <div id="ak-upload-status" style="margin-top:0.75rem; font-size:0.8rem;"></div>
-        </div>
-
-        <div class="admin-panel-card" id="ak-progress-card" style="margin-bottom: 1.5rem; display:none;">
-          <h3 style="font-size: 0.95rem; font-weight: 800; color: var(--color-navy); margin-bottom: 0.5rem;">⏳ Taranıyor: <span id="ak-progress-filename"></span></h3>
-          <div style="background: rgba(22,50,92,0.08); border-radius: 999px; overflow:hidden; height: 10px; margin: 0.6rem 0;">
-            <div id="ak-progress-bar" style="height:100%; width:0%; background: var(--color-teal); transition: width 0.3s;"></div>
-          </div>
-          <p id="ak-progress-text" style="font-size:0.8rem; color: var(--color-text-muted); margin: 0;">Başlatılıyor...</p>
-          <p style="font-size:0.72rem; color: var(--color-text-muted); margin-top: 0.5rem;">Bu sekmeyi kapatırsan işlem duraklar ama ilerleme kaybolmaz — geri döndüğünde "Devam Et" ile kaldığı yerden sürer.</p>
-        </div>
-
-        <div class="admin-panel-card">
-          <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
-            <h3 style="font-size: 1rem; font-weight: 800; color: var(--color-navy);">📄 Taranan Kaynaklar</h3>
-            <select id="ak-filter-dept" style="padding: 0.5rem 0.7rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.8rem;" onchange="renderKnowledgeDocsTable()">
-              <option value="all">Tüm Bölümler</option>
-            </select>
-          </div>
-          <div style="overflow-x: auto; max-height: 600px; overflow-y: auto;">
-            <table class="admin-table">
-              <thead>
-                <tr>
-                  <th>Ders</th>
-                  <th>Dosya</th>
-                  <th>Durum</th>
-                  <th>İlerleme</th>
-                  <th style="text-align:right;">İşlemler</th>
-                </tr>
-              </thead>
-              <tbody id="admin-knowledge-tbody">
-                <tr><td colspan="5" style="text-align:center; padding: 2rem; color: var(--color-text-muted);">Yükleniyor...</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
+      <!-- "Kitap Tarama" (admin-only full-book knowledge ingestion) panel
+           was removed entirely, along with its edge functions
+           (admin-ingest-course-pdf, admin-process-course-knowledge,
+           admin-generate-course-summary) and its database tables
+           (course_knowledge_documents/chunks/index) and the "Resmi Özet"
+           view modal that went with it — see
+           supabase/migrations/20260830_remove_course_knowledge_base.sql. -->
 
     </main>
-  </div>
-
-  <!-- "Resmi Özet" view modal — shows the AI-generated official course
-       summary (course_knowledge_index.ai_summary) after it's generated, or
-       when the admin clicks "Özeti Gör" on an already-generated course. -->
-  <div class="modal-overlay" id="ak-summary-modal" role="dialog" aria-modal="true" aria-labelledby="ak-summary-modal-title">
-    <div class="modal-card" style="max-width: 640px; position: relative; max-height: 85vh; overflow-y: auto;">
-      <button class="btn-icon" style="position: absolute; top: 0.75rem; right: 0.75rem; background: none; border: none; font-size: 1.25rem; font-weight: bold; color: var(--color-text-muted); cursor: pointer; line-height: 1;" onclick="akCloseSummaryModal()" aria-label="Kapat">×</button>
-      <h3 class="modal-title" id="ak-summary-modal-title" style="color: var(--color-navy); font-weight: 800; font-size: 1.15rem;">📄 Resmi Özet</h3>
-      <p id="ak-summary-modal-meta" style="font-size: 0.78rem; color: var(--color-text-muted); margin-top: 0.2rem; margin-bottom: 1rem;"></p>
-      <div id="ak-summary-modal-body" style="font-size: 0.88rem; color: var(--color-text); white-space: pre-wrap; line-height: 1.6;"></div>
-    </div>
   </div>
 
   <script src="js/i18n.js"></script>

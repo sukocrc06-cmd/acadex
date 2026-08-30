@@ -263,35 +263,16 @@ ${card.worked_examples && card.worked_examples.length > 0 ? `WORKED EXAMPLES:\n$
       // material itself turns out to be quantitative.
       isQuant = !!(courseRow as Record<string, unknown>).is_quantitative || (isGrounded && sharedCards.some(c => !!c.is_quantitative))
 
-      // Admin "Kitap Tarama" knowledge base — real textbook/lecture-notes
-      // PDFs the admin has scanned page-by-page for this course (see
-      // supabase/migrations/20260829_add_course_knowledge_base.sql). This is
-      // the single most trustworthy source available: unlike pooled student
-      // notes or self-reported course_resources, it's derived directly from
-      // an actual scanned document rather than someone's summary of one.
-      let knowledgeContext = ''
-      const { data: knowledgeIndex, error: knowledgeErr } = await userClient
-        .from('course_knowledge_index')
-        .select('topics_outline, key_terms, key_points, formulas, chunk_count')
-        .eq('course_code', canonicalCourseCode)
-        .maybeSingle()
-      if (knowledgeErr) console.warn('Failed to load course knowledge index:', knowledgeErr)
-
-      if (knowledgeIndex && knowledgeIndex.chunk_count > 0) {
-        isAdminKnowledgeGrounded = true
-        isGrounded = true
-
-        const topics = sampleEvenly((knowledgeIndex.topics_outline as Record<string, unknown>[]) || [], 30)
-        const terms = sampleEvenly((knowledgeIndex.key_terms as string[]) || [], 60)
-        const points = sampleEvenly((knowledgeIndex.key_points as string[]) || [], 40)
-        const formulas = ((knowledgeIndex.formulas as string[]) || []).slice(0, 20)
-
-        knowledgeContext = `\n\nOFFICIAL SCANNED COURSE KNOWLEDGE BASE for "${canonicalCourseName}" (extracted directly, page-by-page, from the real textbook/lecture material the admin uploaded for this course — this is the most reliable source available, prioritize it over anything else below):
-TOPICS COVERED (page-ordered excerpt): ${JSON.stringify(topics.map(t => t.topic))}
-KEY TERMS: ${JSON.stringify(terms)}
-KEY POINTS: ${JSON.stringify(points).slice(0, 4000)}
-${formulas.length > 0 ? `FORMULAS: ${JSON.stringify(formulas)}` : ''}`
-      }
+      // The admin "Kitap Tarama" knowledge base (course_knowledge_index) that
+      // used to be queried here as the highest-trust source was removed —
+      // see supabase/migrations/20260830_remove_course_knowledge_base.sql.
+      // knowledgeContext stays declared (always empty) and
+      // isAdminKnowledgeGrounded stays declared (always false, see above)
+      // purely so the trust-tier logic and prompt-building below — which
+      // still reference both — don't need to change; the net effect is that
+      // this tier can now never trigger and exams fall through to the
+      // pooled-shared-study-cards tier or the generic-AI-knowledge tier.
+      const knowledgeContext = ''
 
       // "Ders Kaynakları" — students self-report which real textbook a
       // course's professor uses and/or which topics it actually covers (see

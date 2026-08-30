@@ -161,6 +161,7 @@ async function checkSessionAndLoadProfile() {
         
         if (newStreak === 7) await awardAchievement('streak_7');
         if (newStreak === 30) await awardAchievement('streak_30');
+        if (newStreak === 100) await awardAchievement('streak_100');
       }
     }
 
@@ -2873,6 +2874,17 @@ async function toggleShareStudyCard(cardId, isChecked) {
       showDashboardAlert('success', isChecked ? 'Shared with your department!' : 'Removed from shared feed.');
       if (isChecked) {
         awardAchievement('first_share');
+        // 5x sharing milestone — count how many of this user's own study
+        // cards are currently shared (unsharing later can only lower this,
+        // which is fine: the badge, once earned, is never revoked).
+        const { count: sharedCount, error: sharedCountErr } = await supabaseClient
+          .from('study_cards')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', currentUser.id)
+          .eq('is_shared', true);
+        if (!sharedCountErr && sharedCount === 5) {
+          await awardAchievement('share_5');
+        }
       }
       
       // Sync memory & DOM checkboxes
@@ -3891,6 +3903,9 @@ async function saveNotebookData() {
       
       if (notebookPages.length === 1 && existingIdx === -1) {
         await awardAchievement('first_notebook_save');
+      }
+      if (notebookPages.length === 10 && existingIdx === -1) {
+        await awardAchievement('notebook_10');
       }
     }
   } catch (err) {
@@ -5195,11 +5210,6 @@ function renderCardsLibraryList(cards) {
   // sağ tarafta yalnızca SEÇİLİ kartın tam içeriği. Aynı anda ekrana basılan
   // metin/buton miktarı eski gride göre çok daha az — göz her zaman tek bir
   // belgeye odaklanıyor.
-  const cardsView = document.getElementById('cards-view');
-  if (cardsView) {
-    cardsView.classList.add('cards-paper-on');
-    if (localStorage.getItem('acadexLibNight') === '1') cardsView.classList.add('lib-night');
-  }
   listSection.innerHTML = `
     <div class="lib-md-shell">
       <div class="lib-md-list" id="lib-md-list" role="listbox" aria-label="Bilgi kartları listesi"></div>
@@ -5356,121 +5366,107 @@ function buildLibraryDetailHtml(card) {
     clozeHtml += '</ul>';
   }
 
-  const exec = (card.summary_executive || '').trim();
-  const displayTitle = (cardDocName || '').replace(/\.pdf$/i, '').replace(/_/g, ' ');
-  const langChip = card.summary_language === 'tr' ? 'Türkçe' : 'English';
-
   return `
-    <div class="lib-paper-layout">
-      <div class="lib-paper-main">
-        <div class="lib-paper-kicker">
-          <span>Bilgi kartı</span>
-          <button type="button" class="lib-night-btn" onclick="toggleLibraryNight()">${(localStorage.getItem('acadexLibNight')==='1') ? 'Gündüz' : 'Gece'}</button>
-        </div>
-        <h3 class="lib-paper-title">${escapeHtml(displayTitle)}</h3>
-        <div class="lib-paper-chips">
-          <span class="lib-chip">${getStyleLabel(card.summary_style)}</span>
-          <span class="lib-chip">${langChip}</span>
-          <span class="lib-chip">${formattedDate}</span>
-          ${getLengthBadgeHtml(card.summary_length) ? `<span class="lib-chip">${(card.summary_length || '').toString()}</span>` : ''}
-        </div>
-        ${exec ? `<div class="lib-exec" id="lib-exec-${card.id}"><h5>30 saniyelik özet</h5><p>${escapeHtml(exec)}</p></div>` : ''}
-        <div class="lib-paper-body" id="lib-summary-${card.id}">
-          ${formatSummaryText(card.summary) || '<p>Özet bulunmamaktadır.</p>'}
-        </div>
-
-        <div class="lib-tool-panel" id="lib-panel-terms-${card.id}">
-          <h6>Anahtar terimler (${terms.length})</h6>
-          <div style="display:flex;gap:0.4rem;margin-bottom:0.55rem;flex-wrap:wrap;">
-            <button type="button" class="lib-quiet-btn" onclick="addSectionStickyNote('${card.id}', 'terms', '${safeDocName}')">+ Deftere ekle</button>
-            <button type="button" class="lib-quiet-btn" onclick="openFlashcardViewer('${card.id}', 'terms', '${safeDocName}')">Kartları incele</button>
-          </div>
-          ${termsHtml}
-        </div>
-        <div class="lib-tool-panel" id="lib-panel-points-${card.id}">
-          <h6>Önemli noktalar (${points.length})</h6>
-          <div style="display:flex;gap:0.4rem;margin-bottom:0.55rem;flex-wrap:wrap;">
-            <button type="button" class="lib-quiet-btn" onclick="addSectionStickyNote('${card.id}', 'points', '${safeDocName}')">+ Deftere ekle</button>
-            <button type="button" class="lib-quiet-btn" onclick="openFlashcardViewer('${card.id}', 'points', '${safeDocName}')">Kartları incele</button>
-          </div>
-          ${pointsHtml}
-        </div>
-        <div class="lib-tool-panel" id="lib-panel-quiz-${card.id}">
-          <h6>Test (${quiz.length})</h6>
-          <div style="display:flex;gap:0.4rem;margin-bottom:0.55rem;flex-wrap:wrap;">
-            <button type="button" class="lib-quiet-btn" onclick="addSectionStickyNote('${card.id}', 'quiz', '${safeDocName}')">+ Deftere ekle</button>
-            <button type="button" class="lib-quiet-btn" onclick="openFlashcardViewer('${card.id}', 'quiz', '${safeDocName}')">Kartları incele</button>
-          </div>
-          ${quizHtml}
-        </div>
-        <div class="lib-tool-panel" id="lib-panel-cloze-${card.id}">
-          <h6>Boşluk doldurma (${clozes.length})</h6>
-          <div style="display:flex;gap:0.4rem;margin-bottom:0.55rem;flex-wrap:wrap;">
-            <button type="button" class="lib-quiet-btn" onclick="openFlashcardViewer('${card.id}', 'cloze', '${safeDocName}')">Kartları incele</button>
-          </div>
-          ${clozeHtml}
-        </div>
-
-        <div class="lib-paper-actions">
-          <button type="button" class="lib-quiet-btn primary" onclick="openAdaptiveReview('${card.id}', '${safeDocName}')">Akıllı tekrar</button>
-          <button type="button" class="lib-quiet-btn btn-view-summary" data-doc-id="${card.document_id}" data-doc-name="${safeDocName}" data-card-id="${card.id}">Özeti görüntüle</button>
-          <button type="button" class="lib-quiet-btn" onclick="addStickyNoteToNotebook('${card.id}', '${safeDocName}', '${escapedSummary}')">Panoya ekle</button>
-          <label class="lib-quiet-btn" style="display:inline-flex;align-items:center;gap:0.35rem;">
-            <input type="checkbox" id="share-switch-lib-${card.id}" ${card.is_shared ? 'checked' : ''} onchange="toggleShareStudyCard('${card.id}', this.checked)" style="margin:0;">
-            Paylaş
-          </label>
-          <button type="button" class="lib-quiet-btn" style="margin-left:auto;color:#B91C1C;" onclick="deleteStudyCard(event, '${card.id}', '${card.document_id}')">Sil</button>
+    <div class="lib-detail-header" style="position: relative;">
+      <div class="doc-file-icon text" style="background-color: var(--color-teal-light); color: var(--color-teal); flex-shrink: 0;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+          <line x1="3" y1="9" x2="21" y2="9"></line>
+          <line x1="9" y1="21" x2="9" y2="9"></line>
+        </svg>
+      </div>
+      <div style="width: calc(100% - 68px);">
+        <h4 style="font-size: 1.05rem; font-weight: 800; color: var(--color-navy); margin: 0; padding-right: 2rem;">${cardDocName}</h4>
+        <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.4rem;">
+          <span>Oluşturulma: ${formattedDate}</span>
+          <span class="style-badge style-${card.summary_style || 'standard'}" style="margin: 0; font-size: 0.65rem;">${getStyleLabel(card.summary_style)}</span>
+          <span class="style-badge" style="margin: 0; font-size: 0.65rem; background-color: var(--color-teal-light); color: var(--color-teal); border: 1px solid rgba(22, 50, 92, 0.08); font-weight: 700;">${card.summary_language === 'tr' ? 'Türkçe' : 'English'}</span>
+          ${getDocumentTypeBadgeHtml(card.document_type)}
+          ${getLengthBadgeHtml(card.summary_length)}
+          ${getVisualAnalysisBadgeHtml(card.visual_analysis)}
+          ${getQuantitativeBadgeHtml(card.is_quantitative)}
         </div>
       </div>
+      <button onclick="deleteStudyCard(event, '${card.id}', '${card.document_id}')" style="background: none; border: none; cursor: pointer; color: #EF4444; position: absolute; right: 0; top: 0.1rem; padding: 0.35rem; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); transition: background-color 0.2s;" title="Sil (Delete this card)">
+        <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+      </button>
+    </div>
 
-      <aside class="lib-rail">
-        <h6>İçindekiler</h6>
-        <div class="lib-toc">
-          <button type="button" onclick="scrollLibraryPaper('lib-summary-${card.id}')">Özet</button>
-          <button type="button" onclick="openLibraryTool('${card.id}', 'terms')">Terimler</button>
-          <button type="button" onclick="openLibraryTool('${card.id}', 'points')">Noktalar</button>
-          <button type="button" onclick="openLibraryTool('${card.id}', 'quiz')">Test</button>
-          <button type="button" onclick="openLibraryTool('${card.id}', 'cloze')">Cloze</button>
+    <div class="lib-detail-summary">
+      <strong style="color: var(--color-navy);">Özet</strong>
+      <div style="margin-top: 0.4rem; font-size: 0.9rem; line-height: 1.65; color: var(--color-navy);">${formatSummaryText(card.summary) || 'Özet bulunmamaktadır.'}</div>
+    </div>
+
+    <div style="margin: 1rem 0;">
+      <div class="accordion-item" id="accordion-terms-${card.id}">
+        <div class="accordion-header" onclick="toggleLibraryAccordion('${card.id}', 'terms')">
+          <span>Anahtar Terimler (${terms.length})</span>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <button class="btn btn-outline btn-deftere-ekle" style="padding: 0.15rem 0.4rem; font-size: 0.65rem; border-color: var(--color-teal); color: var(--color-teal); min-height: 20px; line-height: 1;" onclick="event.stopPropagation(); addSectionStickyNote('${card.id}', 'terms', '${safeDocName}')">+ Deftere Ekle</button>
+            <button class="btn btn-outline" style="padding: 0.15rem 0.4rem; font-size: 0.65rem; border-color: var(--color-navy); color: var(--color-navy); min-height: 20px; line-height: 1;" onclick="event.stopPropagation(); openFlashcardViewer('${card.id}', 'terms', '${safeDocName}')">🔍 Kartları İncele</button>
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </div>
         </div>
-        <h6 style="margin-top:1rem;">Kart içeriği</h6>
-        <div class="lib-tiles">
-          <button type="button" class="lib-tile" id="lib-tile-terms-${card.id}" onclick="openLibraryTool('${card.id}', 'terms')"><b>${terms.length}</b>Terim</button>
-          <button type="button" class="lib-tile" id="lib-tile-points-${card.id}" onclick="openLibraryTool('${card.id}', 'points')"><b>${points.length}</b>Nokta</button>
-          <button type="button" class="lib-tile" id="lib-tile-quiz-${card.id}" onclick="openLibraryTool('${card.id}', 'quiz')"><b>${quiz.length}</b>Test</button>
-          <button type="button" class="lib-tile" id="lib-tile-cloze-${card.id}" onclick="openLibraryTool('${card.id}', 'cloze')"><b>${clozes.length}</b>Cloze</button>
+        <div class="accordion-body">${termsHtml}</div>
+      </div>
+
+      <div class="accordion-item" id="accordion-points-${card.id}">
+        <div class="accordion-header" onclick="toggleLibraryAccordion('${card.id}', 'points')">
+          <span>Önemli Noktalar (${points.length})</span>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <button class="btn btn-outline btn-deftere-ekle" style="padding: 0.15rem 0.4rem; font-size: 0.65rem; border-color: var(--color-teal); color: var(--color-teal); min-height: 20px; line-height: 1;" onclick="event.stopPropagation(); addSectionStickyNote('${card.id}', 'points', '${safeDocName}')">+ Deftere Ekle</button>
+            <button class="btn btn-outline" style="padding: 0.15rem 0.4rem; font-size: 0.65rem; border-color: var(--color-navy); color: var(--color-navy); min-height: 20px; line-height: 1;" onclick="event.stopPropagation(); openFlashcardViewer('${card.id}', 'points', '${safeDocName}')">🔍 Kartları İncele</button>
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </div>
         </div>
-      </aside>
+        <div class="accordion-body">${pointsHtml}</div>
+      </div>
+
+      <div class="accordion-item" id="accordion-quiz-${card.id}">
+        <div class="accordion-header" onclick="toggleLibraryAccordion('${card.id}', 'quiz')">
+          <span>Kendi Kendine Test (${quiz.length})</span>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <button class="btn btn-outline btn-deftere-ekle" style="padding: 0.15rem 0.4rem; font-size: 0.65rem; border-color: var(--color-teal); color: var(--color-teal); min-height: 20px; line-height: 1;" onclick="event.stopPropagation(); addSectionStickyNote('${card.id}', 'quiz', '${safeDocName}')">+ Deftere Ekle</button>
+            <button class="btn btn-outline" style="padding: 0.15rem 0.4rem; font-size: 0.65rem; border-color: var(--color-navy); color: var(--color-navy); min-height: 20px; line-height: 1;" onclick="event.stopPropagation(); openFlashcardViewer('${card.id}', 'quiz', '${safeDocName}')">🔍 Kartları İncele</button>
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </div>
+        </div>
+        <div class="accordion-body">${quizHtml}</div>
+      </div>
+
+      <div class="accordion-item" id="accordion-cloze-${card.id}">
+        <div class="accordion-header" onclick="toggleLibraryAccordion('${card.id}', 'cloze')">
+          <span>Boşluk Doldurma (${clozes.length})</span>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <button class="btn btn-outline" style="padding: 0.15rem 0.4rem; font-size: 0.65rem; border-color: var(--color-navy); color: var(--color-navy); min-height: 20px; line-height: 1;" onclick="event.stopPropagation(); openFlashcardViewer('${card.id}', 'cloze', '${safeDocName}')">🔍 Kartları İncele</button>
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </div>
+        </div>
+        <div class="accordion-body">${clozeHtml}</div>
+      </div>
+    </div>
+
+    <div style="margin: 0.5rem 0;">
+      <button class="btn btn-primary" style="width:100%; padding:0.6rem 0.75rem; font-size:0.85rem; border:none; border-radius:10px; font-weight:700;"
+        onclick="event.stopPropagation(); openAdaptiveReview('${card.id}', '${safeDocName}')">
+        🧠 Akıllı Tekrar (Spaced)
+      </button>
+    </div>
+
+    <div class="share-toggle-container" style="margin: 0.5rem 0; padding: 0.5rem 0.75rem; font-size: 0.85rem;">
+      <span>Bölümümle Paylaş</span>
+      <label class="switch" style="width: 36px; height: 18px;">
+        <input type="checkbox" id="share-switch-lib-${card.id}" ${card.is_shared ? 'checked' : ''} onchange="toggleShareStudyCard('${card.id}', this.checked)" style="width:0;height:0;">
+        <span class="slider" style="border-radius: 18px;"></span>
+      </label>
+    </div>
+
+    <div style="display: flex; gap: 0.6rem; margin-top: 0.75rem;">
+      <button class="btn btn-outline btn-view-summary" data-doc-id="${card.document_id}" data-doc-name="${safeDocName}" data-card-id="${card.id}" style="flex: 1; padding: 0.55rem; font-size: 0.82rem;">Özeti Görüntüle</button>
+      <button class="btn btn-primary" onclick="addStickyNoteToNotebook('${card.id}', '${safeDocName}', '${escapedSummary}')" style="flex: 1; padding: 0.55rem; font-size: 0.82rem; border: none;">Panoya Ekle</button>
     </div>
   `;
 }
-
-function openLibraryTool(cardId, section) {
-  ['terms', 'points', 'quiz', 'cloze'].forEach(s => {
-    const panel = document.getElementById(`lib-panel-${s}-${cardId}`);
-    const tile = document.getElementById(`lib-tile-${s}-${cardId}`);
-    if (panel) panel.classList.toggle('open', s === section);
-    if (tile) tile.classList.toggle('active', s === section);
-  });
-  const panel = document.getElementById(`lib-panel-${section}-${cardId}`);
-  if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-}
-window.openLibraryTool = openLibraryTool;
-
-function scrollLibraryPaper(id) {
-  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-window.scrollLibraryPaper = scrollLibraryPaper;
-
-function toggleLibraryNight() {
-  const view = document.getElementById('cards-view');
-  if (!view) return;
-  view.classList.add('cards-paper-on');
-  const on = view.classList.toggle('lib-night');
-  localStorage.setItem('acadexLibNight', on ? '1' : '0');
-  const btn = view.querySelector('.lib-night-btn');
-  if (btn) btn.textContent = on ? 'Gündüz' : 'Gece';
-}
-window.toggleLibraryNight = toggleLibraryNight;
 
 function toggleLibraryAccordion(cardId, section) {
   const el = document.getElementById(`accordion-${section}-${cardId}`);
@@ -5996,13 +5992,10 @@ async function onExamCourseDeptChange() {
 }
 window.onExamCourseDeptChange = onExamCourseDeptChange;
 
-let examCourseOfficialSummary = null; // { text, generatedAt } for the currently selected course, or null
-
 async function onExamCourseChange() {
   const deptSelect = document.getElementById('exam-course-dept-select');
   const courseSelect = document.getElementById('exam-course-select');
   const hint = document.getElementById('exam-course-grounded-hint');
-  resetExamCourseSummaryUi();
   if (!courseSelect || !courseSelect.value) {
     examSelectedCourse = null;
     if (hint) hint.textContent = '';
@@ -6033,54 +6026,33 @@ async function onExamCourseChange() {
   // Best-effort, purely informational preview of whether this exam will be
   // grounded in real shared study material or fall back to the AI's general
   // knowledge — the actual pooling happens server-side in generate-exam.
+  // (The admin "Kitap Tarama" knowledge-base tier that used to be checked
+  // first here was removed along with the whole scanning feature — see
+  // supabase/migrations/20260830_remove_course_knowledge_base.sql — so this
+  // reverts to only the pooled-shared-study-cards check.)
   if (hint) {
     hint.textContent = 'Kontrol ediliyor...';
     try {
-      // Highest-trust signal first: has the admin officially scanned a real
-      // textbook/lecture PDF for this course ("Kitap Tarama")? If so, that
-      // alone is enough to ground the exam regardless of student notes.
-      const { data: knowledgeRow } = await supabaseClient
-        .from('course_knowledge_index')
-        .select('chunk_count, ai_summary, ai_summary_generated_at')
-        .eq('course_code', examSelectedCourse.code)
-        .maybeSingle();
+      const { data: pooledPreview, count, error: previewErr } = await supabaseClient
+        .from('study_cards')
+        .select('id, is_quantitative', { count: 'exact' })
+        .eq('is_shared', true)
+        .eq('department', examSelectedCourse.departmentName || '')
+        .ilike('course_tag', examSelectedCourse.code)
+        .limit(50);
 
-      if (knowledgeRow && knowledgeRow.chunk_count > 0) {
-        if (!catalogIsQuant) applyExamCalcOptionState(true);
-        hint.textContent = `✅ Bu ders için resmi kaynak taranmış — sınav gerçek ders materyaline dayanacak.`;
-        hint.style.color = 'var(--color-teal)';
-
-        // Ders Ağacı artık admin-only olduğu için, admin'in "Resmi Özet
-        // Oluştur" ile ürettiği özet (course_knowledge_index.ai_summary)
-        // öğrencilere BURADA, aynı "resmi kaynak taranmış" uyarısının
-        // hemen altında gösterilir — ayrı bir öğrenci paneli yerine.
-        if (knowledgeRow.ai_summary && knowledgeRow.ai_summary_generated_at) {
-          examCourseOfficialSummary = { text: knowledgeRow.ai_summary, generatedAt: knowledgeRow.ai_summary_generated_at };
-          const toggleRow = document.getElementById('exam-course-summary-toggle-row');
-          if (toggleRow) toggleRow.style.display = 'block';
-        }
+      if (previewErr) {
+        hint.textContent = '';
       } else {
-        const { data: pooledPreview, count, error: previewErr } = await supabaseClient
-          .from('study_cards')
-          .select('id, is_quantitative', { count: 'exact' })
-          .eq('is_shared', true)
-          .eq('department', examSelectedCourse.departmentName || '')
-          .ilike('course_tag', examSelectedCourse.code)
-          .limit(50);
-
-        if (previewErr) {
-          hint.textContent = '';
+        if (!catalogIsQuant && pooledPreview && pooledPreview.some(c => c.is_quantitative)) {
+          applyExamCalcOptionState(true);
+        }
+        if (count > 0) {
+          hint.textContent = `✓ Bu ders için ${count} paylaşılan özet bulundu — sınav bunlardan üretilecek.`;
+          hint.style.color = 'var(--color-teal)';
         } else {
-          if (!catalogIsQuant && pooledPreview && pooledPreview.some(c => c.is_quantitative)) {
-            applyExamCalcOptionState(true);
-          }
-          if (count > 0) {
-            hint.textContent = `✓ Bu ders için ${count} paylaşılan özet bulundu — sınav bunlardan üretilecek.`;
-            hint.style.color = 'var(--color-teal)';
-          } else {
-            hint.textContent = '⚠️ Bu ders için henüz paylaşılan özet yok — sınav yapay zekanın genel bilgisinden üretilecek, içeriği kendi notlarınızla doğrulamayı unutmayın.';
-            hint.style.color = '#D97706';
-          }
+          hint.textContent = '⚠️ Bu ders için henüz paylaşılan özet yok — sınav yapay zekanın genel bilgisinden üretilecek, içeriği kendi notlarınızla doğrulamayı unutmayın.';
+          hint.style.color = '#D97706';
         }
       }
     } catch (err) {
@@ -6091,32 +6063,6 @@ async function onExamCourseChange() {
   await loadPastAttemptsForCourse(examSelectedCourse.code);
 }
 window.onExamCourseChange = onExamCourseChange;
-
-function resetExamCourseSummaryUi() {
-  examCourseOfficialSummary = null;
-  const toggleRow = document.getElementById('exam-course-summary-toggle-row');
-  const box = document.getElementById('exam-course-summary-box');
-  const btn = document.getElementById('exam-course-summary-toggle-btn');
-  if (toggleRow) toggleRow.style.display = 'none';
-  if (box) { box.style.display = 'none'; box.textContent = ''; }
-  if (btn) btn.textContent = '📄 Bu dersin resmi özetini gör';
-}
-
-function toggleExamCourseSummary() {
-  const box = document.getElementById('exam-course-summary-box');
-  const btn = document.getElementById('exam-course-summary-toggle-btn');
-  if (!box || !examCourseOfficialSummary) return;
-  const isOpen = box.style.display !== 'none';
-  if (isOpen) {
-    box.style.display = 'none';
-    if (btn) btn.textContent = '📄 Bu dersin resmi özetini gör';
-  } else {
-    box.textContent = examCourseOfficialSummary.text;
-    box.style.display = 'block';
-    if (btn) btn.textContent = '📄 Özeti gizle';
-  }
-}
-window.toggleExamCourseSummary = toggleExamCourseSummary;
 
 async function onExamCardChange() {
   const cardSelect = document.getElementById('exam-card-select');
@@ -10959,6 +10905,14 @@ async function checkAndAwardFirstSummary() {
     if (!error && count === 1) {
       await awardAchievement('first_summary');
     }
+    // Volume milestones on top of the "first ever" badge above — same
+    // count, just a couple of extra thresholds checked on it.
+    if (!error && count === 10) {
+      await awardAchievement('summary_10');
+    }
+    if (!error && count === 50) {
+      await awardAchievement('summary_50');
+    }
   } catch (err) {
     console.error("Error checking first_summary:", err);
   }
@@ -10975,8 +10929,22 @@ async function checkAndAwardFirstExam(grade) {
     if (!error && count === 1) {
       await awardAchievement('first_exam');
     }
+    if (!error && count === 10) {
+      await awardAchievement('exam_10');
+    }
     if (grade === 100) {
       await awardAchievement('perfect_score');
+      // Only worth a second query on an actual 100 — count how many
+      // perfect scores this user has ever gotten, for the 5x milestone.
+      const { count: perfectCount, error: perfectErr } = await supabaseClient
+        .from('exams')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', currentUser.id)
+        .eq('status', 'completed')
+        .eq('grade', 100);
+      if (!perfectErr && perfectCount === 5) {
+        await awardAchievement('perfect_5');
+      }
     }
   } catch (err) {
     console.error("Error checking exams achievements:", err);

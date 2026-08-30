@@ -7,7 +7,17 @@ const ACHIEVEMENTS_LOOKUP = {
   first_notebook_save: { title: "Defter Tutkunu", desc: "Saved your first notebook page", icon: "📓" },
   first_sandbox_project: { title: "Sandbox Kaşifi", desc: "Shared a project in the Developer Sandbox", icon: "🚀" },
   streak_7: { title: "7 Günlük Seri", desc: "Stayed active for 7 days in a row", icon: "🔥" },
-  streak_30: { title: "30 Günlük Seri", desc: "Stayed active for 30 days in a row", icon: "⭐" }
+  streak_30: { title: "30 Günlük Seri", desc: "Stayed active for 30 days in a row", icon: "⭐" },
+  // Rozet setini genişleten yeni başarılar (hacim/süreklilik kilometre
+  // taşları — mevcut first_* rozetlerin doğal devamı, aynı
+  // checkAndAward* fonksiyonlarına ek sayım eşikleri olarak eklendi).
+  streak_100: { title: "Demir İrade", desc: "Stayed active for 100 days in a row", icon: "🏅" },
+  summary_10: { title: "Not Koleksiyoncusu", desc: "Created 10 AI study cards", icon: "📚" },
+  summary_50: { title: "Bilgi Kütüphanesi", desc: "Created 50 AI study cards", icon: "🏛️" },
+  exam_10: { title: "Sınav Maratoncusu", desc: "Completed 10 practice exams", icon: "🏃" },
+  perfect_5: { title: "Kusursuzluk Ustası", desc: "Scored 100/100 five times", icon: "👑" },
+  share_5: { title: "Cömert Paylaşımcı", desc: "Shared 5 study cards with your department", icon: "🎁" },
+  notebook_10: { title: "Defter Ustası", desc: "Saved 10 notebook pages", icon: "🗂️" }
 };
 
 async function awardAchievement(achievementId) {
