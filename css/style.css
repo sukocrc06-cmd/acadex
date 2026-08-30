@@ -2707,256 +2707,9 @@ input:checked + .slider:before {
    ========================================== */
 .lib-md-shell {
   display: grid;
-  grid-template-columns: minmax(200px, 248px) minmax(0, 1fr);
-  gap: 0.9rem;
+  grid-template-columns: minmax(220px, 300px) 1fr;
+  gap: 1.25rem;
   align-items: start;
-}
-#cards-view.cards-paper-on {
-  --paper: #F6F1E8;
-  --paper-ink: #2C2A26;
-  --paper-muted: #6F6862;
-  --paper-line: rgba(44, 42, 38, 0.10);
-  --paper-teal: #1F8A93;
-  --paper-navy: #16325C;
-}
-#cards-view.cards-paper-on .lib-md-list {
-  background: #F3EEE4;
-  border: 1px solid var(--paper-line);
-  box-shadow: none;
-  border-radius: 14px;
-  padding: 0.45rem;
-}
-#cards-view.cards-paper-on .lib-md-item {
-  padding: 0.55rem 0.65rem;
-  border-radius: 10px;
-  border-left: 3px solid transparent;
-}
-#cards-view.cards-paper-on .lib-md-item.active {
-  background: rgba(31, 138, 147, 0.10);
-  border-color: transparent;
-  border-left-color: var(--paper-teal);
-}
-#cards-view.cards-paper-on .lib-md-item-title {
-  font-size: 0.8rem;
-  font-weight: 650;
-  color: var(--paper-navy);
-}
-#cards-view.cards-paper-on .lib-md-detail {
-  background: var(--paper);
-  border: 1px solid var(--paper-line);
-  box-shadow: none;
-  border-radius: 16px;
-  padding: 0;
-  overflow: hidden;
-}
-.lib-paper-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 210px;
-  min-height: 420px;
-}
-.lib-paper-main {
-  padding: 1.6rem 1.8rem 1.4rem;
-  max-width: 760px;
-}
-.lib-paper-kicker {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 0.35rem;
-}
-.lib-paper-kicker span {
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--paper-teal, #1F8A93);
-}
-.lib-night-btn {
-  border: 1px solid var(--paper-line, rgba(22,50,92,0.12));
-  background: transparent;
-  color: var(--paper-muted, #6F6862);
-  border-radius: 999px;
-  padding: 0.2rem 0.55rem;
-  font-size: 0.72rem;
-  font-weight: 650;
-  cursor: pointer;
-}
-.lib-paper-title {
-  font-size: 1.45rem;
-  line-height: 1.25;
-  font-weight: 800;
-  color: var(--paper-navy, #16325C);
-  margin: 0 0 0.55rem;
-  letter-spacing: -0.02em;
-}
-.lib-paper-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  margin-bottom: 1rem;
-}
-.lib-chip {
-  font-size: 0.65rem;
-  font-weight: 700;
-  padding: 0.18rem 0.5rem;
-  border-radius: 999px;
-  background: rgba(22, 50, 92, 0.06);
-  color: var(--paper-navy, #16325C);
-}
-.lib-exec {
-  background: rgba(31, 138, 147, 0.10);
-  border: 1px solid rgba(31, 138, 147, 0.16);
-  border-radius: 12px;
-  padding: 0.85rem 1rem;
-  margin: 0 0 1.15rem;
-}
-.lib-exec h5 {
-  margin: 0 0 0.3rem;
-  font-size: 0.72rem;
-  letter-spacing: 0.04em;
-  text-transform: none;
-  color: var(--paper-teal, #1F8A93);
-  font-weight: 800;
-}
-.lib-exec p {
-  margin: 0;
-  font-size: 0.9rem;
-  line-height: 1.55;
-  color: var(--paper-ink, #2C2A26);
-}
-.lib-paper-body {
-  font-size: 1.02rem;
-  line-height: 1.7;
-  color: var(--paper-ink, #2C2A26);
-  max-width: 68ch;
-}
-.lib-paper-body p { margin: 0 0 0.9rem; }
-.lib-paper-body strong { color: var(--paper-navy, #16325C); }
-.lib-tool-panel {
-  display: none;
-  margin-top: 1.1rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--paper-line, rgba(22,50,92,0.08));
-}
-.lib-tool-panel.open { display: block; }
-.lib-tool-panel h6 {
-  margin: 0 0 0.55rem;
-  font-size: 0.82rem;
-  color: var(--paper-navy, #16325C);
-}
-.lib-tool-panel ul {
-  padding-left: 1.15rem;
-  margin: 0;
-  font-size: 0.88rem;
-  line-height: 1.5;
-  color: var(--paper-ink, #2C2A26);
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-.lib-paper-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin-top: 1.25rem;
-  padding-top: 0.9rem;
-  border-top: 1px solid var(--paper-line, rgba(22,50,92,0.08));
-}
-.lib-quiet-btn {
-  border: 1px solid var(--paper-line, rgba(22,50,92,0.12));
-  background: #fff;
-  color: var(--paper-navy, #16325C);
-  border-radius: 999px;
-  padding: 0.38rem 0.7rem;
-  font-size: 0.75rem;
-  font-weight: 650;
-  cursor: pointer;
-}
-.lib-quiet-btn.primary {
-  background: var(--paper-navy, #16325C);
-  color: #fff;
-  border-color: transparent;
-}
-.lib-rail {
-  border-left: 1px solid var(--paper-line, rgba(22,50,92,0.08));
-  background: rgba(255,255,255,0.35);
-  padding: 1rem 0.75rem;
-}
-.lib-rail h6 {
-  margin: 0 0 0.55rem;
-  font-size: 0.68rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--paper-muted, #6F6862);
-}
-.lib-toc button {
-  display: block;
-  width: 100%;
-  text-align: left;
-  border: 0;
-  background: transparent;
-  color: var(--paper-navy, #16325C);
-  font-size: 0.78rem;
-  font-weight: 650;
-  padding: 0.32rem 0.4rem;
-  border-radius: 8px;
-  cursor: pointer;
-}
-.lib-toc button:hover, .lib-toc button.active {
-  background: rgba(31, 138, 147, 0.12);
-  color: var(--paper-teal, #1F8A93);
-}
-.lib-tiles {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.45rem;
-  margin-top: 0.85rem;
-}
-.lib-tile {
-  border: 1px solid var(--paper-line, rgba(22,50,92,0.1));
-  background: #fff;
-  border-radius: 12px;
-  padding: 0.55rem 0.45rem;
-  text-align: center;
-  cursor: pointer;
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: var(--paper-navy, #16325C);
-}
-.lib-tile b { display: block; font-size: 1rem; color: var(--paper-teal, #1F8A93); }
-.lib-tile.active { outline: 2px solid rgba(31,138,147,0.45); }
-
-/* Night study */
-#cards-view.cards-paper-on.lib-night {
-  --paper: #1E2228;
-  --paper-ink: #E6E1D6;
-  --paper-muted: #A39B90;
-  --paper-line: rgba(230, 225, 214, 0.10);
-  --paper-teal: #5CBCC4;
-  --paper-navy: #E6E1D6;
-}
-#cards-view.cards-paper-on.lib-night .lib-md-list,
-#cards-view.cards-paper-on.lib-night .lib-md-detail,
-#cards-view.cards-paper-on.lib-night .lib-tile,
-#cards-view.cards-paper-on.lib-night .lib-quiet-btn {
-  background: #242A31;
-  color: var(--paper-ink);
-}
-#cards-view.cards-paper-on.lib-night .lib-quiet-btn.primary {
-  background: #D4A574;
-  color: #1A1D23;
-}
-#cards-view.cards-paper-on.lib-night .lib-exec {
-  background: rgba(92, 188, 196, 0.12);
-}
-#cards-view.cards-paper-on.lib-night .lib-md-item-title,
-#cards-view.cards-paper-on.lib-night .lib-paper-title {
-  color: #E6E1D6;
-}
-
-@media (max-width: 1100px) {
-  .lib-paper-layout { grid-template-columns: 1fr; }
-  .lib-rail { border-left: 0; border-top: 1px solid var(--paper-line, rgba(22,50,92,0.08)); }
 }
 
 .lib-md-list {
@@ -3071,6 +2824,358 @@ input:checked + .slider:before {
   .lib-md-list {
     position: static;
     max-height: 340px;
+  }
+}
+
+/* Per-card progress bar in the master list (replaces the old plain
+   terms/points/quiz count line whenever the card has reviewable items —
+   percent comes from getCardProgressStats(), real card_item_confidence
+   rows, never a placeholder). */
+.lib-md-item-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.1rem;
+}
+.lib-md-item-progress-track {
+  flex: 1;
+  height: 5px;
+  border-radius: 999px;
+  background-color: rgba(22, 50, 92, 0.08);
+  overflow: hidden;
+}
+.lib-md-item-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--color-teal), #2DD4BF);
+  transition: width var(--transition-fast);
+}
+.lib-md-item-progress-pct {
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: var(--color-teal);
+  font-variant-numeric: tabular-nums;
+  min-width: 2ch;
+  text-align: right;
+}
+
+.style-badge.lib-progress-badge {
+  background-color: #ECFDF5;
+  color: #047857;
+  border-color: #A7F3D0;
+  text-transform: none;
+}
+
+/* "Tümü / Devam eden / Yeni" status filter chips above the master list. */
+.cards-status-chips {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+  flex-wrap: wrap;
+}
+.cards-status-chip {
+  padding: 0.35rem 0.9rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-navy);
+  background-color: var(--color-white);
+  border: 1px solid rgba(22, 50, 92, 0.12);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+.cards-status-chip:hover {
+  border-color: var(--color-teal);
+}
+.cards-status-chip.active {
+  background-color: var(--color-navy);
+  border-color: var(--color-navy);
+  color: var(--color-white);
+}
+
+/* ==========================================
+   BİLGİ KARTLARI — step-through summary ("ÖZET · ADIM X/N") and the
+   "ÇALIŞMAYA BAŞLA" mode-launcher grid. Sits at the top of .lib-md-detail,
+   above the (now collapsed-by-default) full accordion set — see
+   js/dashboard.js buildLibraryStepAreaHtml / buildLibraryModeGridHtml /
+   buildLibraryDetailHtml.
+   ========================================== */
+.lib-step-area {
+  background: linear-gradient(135deg, var(--color-teal-light) 0%, var(--color-bg-alt) 100%);
+  border: 1px solid rgba(31, 138, 147, 0.18);
+  border-radius: var(--radius);
+  padding: 1.1rem 1.25rem;
+  margin: 0.9rem 0 1rem;
+}
+.lib-step-eyebrow {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-teal);
+}
+.lib-step-heading {
+  margin: 0.35rem 0 0.15rem;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--color-navy);
+}
+.lib-step-body {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  line-height: 1.65;
+  color: var(--color-navy);
+}
+.lib-step-terms-label {
+  margin-top: 0.85rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+.lib-step-terms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+.lib-step-term-chip {
+  display: inline-flex;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--color-teal);
+  background-color: var(--color-white);
+  border: 1px solid rgba(31, 138, 147, 0.25);
+  border-radius: 999px;
+  cursor: default;
+}
+.lib-step-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+.lib-step-nav-btn {
+  flex-shrink: 0;
+  border: 1px solid rgba(22, 50, 92, 0.15);
+  background-color: var(--color-white);
+  color: var(--color-navy);
+  border-radius: var(--radius-sm);
+  padding: 0.4rem 0.75rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color var(--transition-fast), opacity var(--transition-fast);
+}
+.lib-step-nav-btn:hover:not(:disabled) {
+  background-color: var(--color-teal-light);
+}
+.lib-step-nav-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.lib-step-nav-next {
+  margin-left: auto;
+  background-color: var(--color-teal);
+  color: var(--color-white);
+  border-color: var(--color-teal);
+}
+.lib-step-nav-next:hover:not(:disabled) {
+  background-color: var(--color-navy);
+  border-color: var(--color-navy);
+}
+.lib-step-dots {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+.lib-step-dot {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border-radius: 50%;
+  border: none;
+  background-color: rgba(22, 50, 92, 0.15);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), transform var(--transition-fast);
+}
+.lib-step-dot:hover {
+  background-color: rgba(31, 138, 147, 0.5);
+}
+.lib-step-dot.active {
+  background-color: var(--color-teal);
+  transform: scale(1.3);
+}
+
+.lib-mode-grid-label {
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+  margin: 0 0 0.55rem;
+}
+.lib-mode-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.65rem;
+  margin-bottom: 0.5rem;
+}
+.lib-mode-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  text-align: left;
+  padding: 0.85rem 0.9rem;
+  background-color: var(--color-white);
+  border: 1px solid rgba(22, 50, 92, 0.1);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
+  position: relative;
+}
+.lib-mode-tile:hover:not(:disabled) {
+  border-color: var(--color-teal);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+}
+.lib-mode-tile:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.lib-mode-tile-count {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: var(--color-teal);
+  font-variant-numeric: tabular-nums;
+}
+.lib-mode-tile-icon {
+  font-size: 1.3rem;
+  margin-bottom: 0.15rem;
+}
+.lib-mode-tile-label {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--color-navy);
+}
+.lib-mode-tile-sub {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  line-height: 1.35;
+}
+
+/* Collapsed-by-default "Tüm İçerik" disclosure wrapping the original
+   accordion set (terms/points/quiz/cloze + share toggle + Özeti Görüntüle /
+   Panoya Ekle) — none of that functionality was removed, it's just no
+   longer the first thing on screen now that the step-through summary and
+   mode grid above cover the primary "what do I study right now" job. */
+.lib-full-content {
+  margin-top: 0.5rem;
+  border-top: 1px dashed rgba(22, 50, 92, 0.12);
+  padding-top: 0.75rem;
+}
+.lib-full-content summary {
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--color-navy);
+  list-style: revert;
+  padding: 0.2rem 0;
+  user-select: none;
+}
+.lib-full-content summary::marker {
+  color: var(--color-teal);
+}
+.lib-full-content-hint {
+  font-weight: 500;
+  color: var(--color-text-muted);
+  text-transform: none;
+  font-size: 0.72rem;
+}
+
+/* Full-width cross-card "Akıllı Tekrar" forecast widget, below the
+   master–detail shell — js/dashboard.js renderGlobalReviewWidget(). */
+.lib-global-review {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  background: linear-gradient(135deg, var(--color-navy) 0%, #1F3A5F 100%);
+  color: var(--color-white);
+  border-radius: var(--radius);
+  padding: 1.1rem 1.4rem;
+  margin-top: 1.25rem;
+  box-shadow: var(--shadow-sm);
+}
+.lib-global-review-info {
+  flex: 1 1 200px;
+  min-width: 180px;
+}
+.lib-global-review-title {
+  font-size: 1rem;
+  font-weight: 800;
+}
+.lib-global-review-sub {
+  margin-top: 0.2rem;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.75);
+}
+.lib-global-review-forecast {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.lib-forecast-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.4rem 0.6rem;
+  min-width: 42px;
+  border-radius: var(--radius-sm);
+  background-color: rgba(255, 255, 255, 0.08);
+}
+.lib-forecast-pill.has-due {
+  background-color: rgba(45, 212, 191, 0.22);
+}
+.lib-forecast-day {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: rgba(255, 255, 255, 0.7);
+}
+.lib-forecast-count {
+  font-size: 0.95rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.lib-forecast-pill.has-due .lib-forecast-count {
+  color: #2DD4BF;
+}
+.lib-global-review-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+  .lib-global-review {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+  .lib-global-review-forecast {
+    justify-content: center;
+  }
+  .lib-global-review-btn {
+    width: 100%;
   }
 }
 

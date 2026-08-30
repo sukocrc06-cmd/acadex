@@ -5069,6 +5069,12 @@ window.initSourceHubChatForm = initSourceHubChatForm;
 // TAB 4: BILGI KARTLARI (INFO CARDS LIBRARY)
 // ==========================================
 let libraryCards = [];
+// Every card_item_confidence row for the signed-in user, keyed
+// "<study_card_id>:<item_key>" — fetched once per library load (not once
+// per card) so per-card "% tamamlandı" and the cross-card Akıllı Tekrar
+// widget can both read it without extra round trips. Populated by
+// loadCardsLibrary(); see getCardProgressStats() / renderGlobalReviewWidget().
+let libraryConfidenceMap = {};
 
 async function loadCardsLibrary() {
   const listSection = document.getElementById('cards-list-section');
@@ -5096,6 +5102,7 @@ async function loadCardsLibrary() {
     }
 
     libraryCards = cards || [];
+    libraryConfidenceMap = await fetchAllConfidenceForUser();
 
     // Populate Course filter dropdown (Phase 17)
     const courseSelect = document.getElementById('cards-filter-course');
@@ -5114,12 +5121,50 @@ async function loadCardsLibrary() {
 
     filterLibraryCards();
     loadPastComparisons();
+    renderGlobalReviewWidget();
 
   } catch (err) {
     console.error("Exception loading library cards: ", err);
     listSection.innerHTML = `<p style="color: var(--color-text-muted);">Failed to load info cards.</p>`;
   }
 }
+
+// Computes how far along a card's reviewable pool (key_terms + cloze_cards +
+// quiz_questions — the exact same pool buildCardReviewPool() uses, so this
+// percentage always means "how much of what Akıllı Tekrar would ask you" is
+// consistent with the actual review engine) a student has gotten, from real
+// card_item_confidence rows — never a placeholder number.
+function getCardProgressStats(card) {
+  const pool = buildCardReviewPool(card);
+  const total = pool.length;
+  if (total === 0) return { total: 0, reviewed: 0, percent: 0, status: 'empty' };
+
+  let reviewed = 0;
+  pool.forEach(item => {
+    const conf = libraryConfidenceMap[`${item._studyCardId}:${item._key}`];
+    if (conf && Number(conf.repetitions) > 0) reviewed += 1;
+  });
+
+  const percent = Math.round((reviewed / total) * 100);
+  let status = 'inprogress';
+  if (reviewed === 0) status = 'new';
+  else if (reviewed >= total) status = 'done';
+
+  return { total, reviewed, percent, status };
+}
+window.getCardProgressStats = getCardProgressStats;
+
+// "Tümü / Devam eden / Yeni" chip state — see setCardsStatusFilter().
+let cardsStatusFilter = 'all';
+
+function setCardsStatusFilter(status) {
+  cardsStatusFilter = status;
+  document.querySelectorAll('.cards-status-chip').forEach(chip => {
+    chip.classList.toggle('active', chip.dataset.status === status);
+  });
+  filterLibraryCards();
+}
+window.setCardsStatusFilter = setCardsStatusFilter;
 
 function filterLibraryCards() {
   const searchInput = document.getElementById('cards-search');
@@ -5151,7 +5196,17 @@ function filterLibraryCards() {
       }
     }
 
-    return textMatch && styleMatch && langMatch && courseMatch;
+    // 5. Status chip (Tümü / Devam eden / Yeni) — real progress from
+    // card_item_confidence, computed by getCardProgressStats().
+    let statusMatch = true;
+    if (cardsStatusFilter === 'inprogress') {
+      statusMatch = getCardProgressStats(card).status === 'inprogress';
+    } else if (cardsStatusFilter === 'new') {
+      const s = getCardProgressStats(card).status;
+      statusMatch = s === 'new' || s === 'empty';
+    }
+
+    return textMatch && styleMatch && langMatch && courseMatch && statusMatch;
   });
 
   // Toggle "Clear Filters" button visibility
@@ -5271,10 +5326,8 @@ function renderCardsLibraryList(cards) {
     groupCards.forEach(card => {
       const formattedDate = new Date(card.created_at).toLocaleDateString('tr-TR', { month: 'short', day: 'numeric', year: 'numeric' });
       const cardDocName = card.documents?.file_name || 'İsimsiz Belge';
-      const termsCount = (card.key_terms || []).length;
-      const pointsCount = (card.key_points || []).length;
-      const quizCount = (card.quiz_questions || []).length;
       const isActive = card.id === activeId;
+      const progress = getCardProgressStats(card);
 
       listHtml += `
         <div class="lib-md-item${isActive ? ' active' : ''}" data-card-id="${card.id}" role="option" aria-selected="${isActive}" onclick="selectLibraryCard('${card.id}')">
@@ -5283,7 +5336,12 @@ function renderCardsLibraryList(cards) {
             <span class="style-badge style-${card.summary_style || 'standard'}" style="margin:0; font-size:0.6rem; padding:0.05rem 0.35rem;">${getStyleLabel(card.summary_style)}</span>
             <span>${formattedDate}</span>
           </div>
-          <div class="lib-md-item-counts"><b>${termsCount}</b> terim · <b>${pointsCount}</b> nokta · <b>${quizCount}</b> test</div>
+          ${progress.total > 0 ? `
+            <div class="lib-md-item-progress">
+              <div class="lib-md-item-progress-track"><div class="lib-md-item-progress-fill" style="width:${progress.percent}%;"></div></div>
+              <span class="lib-md-item-progress-pct">${progress.percent}%</span>
+            </div>
+          ` : `<div class="lib-md-item-counts">Çalışılacak madde yok</div>`}
         </div>
       `;
     });
@@ -5334,6 +5392,189 @@ window.renderLibraryDetailPane = renderLibraryDetailPane;
 // tile, just rendered once for the selected card instead of once per card
 // on screen simultaneously — and with no inner scrollbars of its own,
 // since the surrounding .lib-md-detail pane is the only scroll region now.
+// ---- Step-through summary ("ÖZET · ADIM X/N") -----------------------------
+// card.sections is a jsonb array of {heading, summary} added by
+// 20260727_study_card_sections.sql — a topic-level breakdown of the AI
+// summary. Cards created before that column existed (or where the AI
+// returned no breakdown) have an empty/missing array, so we fall back to a
+// single pseudo-section wrapping the whole summary — the step UI still
+// works and nothing from the original summary is ever hidden.
+let libraryStepIndexByCard = {};
+
+function getLibrarySections(card) {
+  if (Array.isArray(card.sections) && card.sections.length > 0) return card.sections;
+  return [{ heading: '', summary: card.summary || 'Özet bulunmamaktadır.' }];
+}
+
+function advanceLibraryStep(cardId, delta) {
+  const card = libraryCards.find(c => c.id === cardId);
+  if (!card) return;
+  const sections = getLibrarySections(card);
+  const current = libraryStepIndexByCard[cardId] || 0;
+  const next = Math.max(0, Math.min(sections.length - 1, current + delta));
+  libraryStepIndexByCard[cardId] = next;
+  renderLibraryStepArea(cardId);
+}
+window.advanceLibraryStep = advanceLibraryStep;
+
+function jumpToLibraryStep(cardId, idx) {
+  libraryStepIndexByCard[cardId] = idx;
+  renderLibraryStepArea(cardId);
+}
+window.jumpToLibraryStep = jumpToLibraryStep;
+
+function renderLibraryStepArea(cardId) {
+  const el = document.getElementById(`lib-step-area-${cardId}`);
+  const card = libraryCards.find(c => c.id === cardId);
+  if (!el || !card) return;
+  el.innerHTML = buildLibraryStepAreaHtml(card);
+}
+window.renderLibraryStepArea = renderLibraryStepArea;
+
+function buildLibraryStepAreaHtml(card) {
+  const sections = getLibrarySections(card);
+  const total = sections.length;
+  const idx = Math.max(0, Math.min(total - 1, libraryStepIndexByCard[card.id] || 0));
+  const step = sections[idx] || {};
+  const terms = card.key_terms || [];
+  // "Bu adımdaki terimler": when there's more than one real section, only
+  // show terms whose text actually appears in THIS step's heading/summary —
+  // when there's just the single fallback pseudo-section (whole-summary
+  // case), every term belongs to it, so show them all.
+  const stepText = `${step.heading || ''} ${step.summary || ''}`.toLowerCase();
+  const matchedTerms = total > 1
+    ? terms.filter(t => t.term && stepText.includes(String(t.term).toLowerCase()))
+    : terms;
+  const dotsHtml = sections.map((s, i) => `<button class="lib-step-dot${i === idx ? ' active' : ''}" onclick="jumpToLibraryStep('${card.id}', ${i})" title="${escapeHtml(s.heading || ('Adım ' + (i + 1)))}" aria-label="Adım ${i + 1}"></button>`).join('');
+
+  return `
+    <div class="lib-step-eyebrow">ÖZET · ADIM ${idx + 1} / ${total}</div>
+    ${step.heading ? `<h5 class="lib-step-heading">${escapeHtml(step.heading)}</h5>` : ''}
+    <div class="lib-step-body">${formatSummaryText(step.summary) || ''}</div>
+    ${matchedTerms.length > 0 ? `
+      <div class="lib-step-terms-label">Bu adımdaki terimler</div>
+      <div class="lib-step-terms">${matchedTerms.slice(0, 8).map(t => `<span class="lib-step-term-chip" title="${escapeHtml(t.definition || '')}">${escapeHtml(t.term || '')}</span>`).join('')}</div>
+    ` : ''}
+    ${total > 1 ? `
+      <div class="lib-step-nav">
+        <button class="lib-step-nav-btn" onclick="advanceLibraryStep('${card.id}', -1)" ${idx === 0 ? 'disabled' : ''} aria-label="Önceki adım">‹</button>
+        <div class="lib-step-dots">${dotsHtml}</div>
+        <button class="lib-step-nav-btn lib-step-nav-next" onclick="advanceLibraryStep('${card.id}', 1)" ${idx === total - 1 ? 'disabled' : ''}>Sonraki Adım ›</button>
+      </div>
+    ` : ''}
+  `;
+}
+window.buildLibraryStepAreaHtml = buildLibraryStepAreaHtml;
+
+// ---- "ÇALIŞMAYA BAŞLA" mode-launcher grid ----------------------------------
+// Same four study modes the old accordions already offered — just presented
+// as big launchable tiles up front instead of buried inside collapsed
+// sections. Counts are the real array lengths from the study card, exactly
+// like the accordion headers always showed; a mode with 0 items is shown
+// disabled rather than hidden, so the count itself stays honest.
+function buildLibraryModeGridHtml(card, safeDocName) {
+  const terms = card.key_terms || [];
+  const points = card.key_points || [];
+  const quiz = card.quiz_questions || [];
+  const clozes = card.cloze_cards || [];
+  const tiles = [
+    { type: 'terms', icon: '🔤', count: terms.length, label: 'Anahtar Terimler', sub: 'Tanımları hızlı tekrar et' },
+    { type: 'points', icon: '⭐', count: points.length, label: 'Önemli Noktalar', sub: 'Sınavda çıkacak fikirler' },
+    { type: 'quiz', icon: '❓', count: quiz.length, label: 'Kendini Test Et', sub: 'Soru–cevap turu' },
+    { type: 'cloze', icon: '✏️', count: clozes.length, label: 'Boşluk Doldurma', sub: 'Aktif hatırlama alıştırması' },
+  ];
+  return `
+    <div class="lib-mode-grid-label">ÇALIŞMAYA BAŞLA</div>
+    <div class="lib-mode-grid">
+      ${tiles.map(t => `
+        <button class="lib-mode-tile${t.count === 0 ? ' disabled' : ''}" ${t.count === 0 ? 'disabled' : ''} onclick="openFlashcardViewer('${card.id}', '${t.type}', '${safeDocName}')">
+          <span class="lib-mode-tile-count">${t.count}</span>
+          <span class="lib-mode-tile-icon" aria-hidden="true">${t.icon}</span>
+          <span class="lib-mode-tile-label">${t.label}</span>
+          <span class="lib-mode-tile-sub">${t.sub}</span>
+        </button>
+      `).join('')}
+    </div>
+  `;
+}
+window.buildLibraryModeGridHtml = buildLibraryModeGridHtml;
+
+// ---- Global "Akıllı Tekrar" forecast widget --------------------------------
+// Full-width, cross-card version of the per-card spaced-repetition button —
+// backed by the exact same card_item_confidence rows (via
+// fetchAllConfidenceForUser/scoreReviewPool, the same helpers
+// openGlobalAdaptiveReview uses to build the actual review session), so
+// every number here is real, never a placeholder.
+function renderGlobalReviewWidget() {
+  const container = document.getElementById('global-review-widget');
+  if (!container) return;
+
+  if (!libraryCards || libraryCards.length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+
+  let pool = [];
+  libraryCards.forEach(card => { pool = pool.concat(buildCardReviewPool(card)); });
+  if (pool.length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+
+  const scored = scoreReviewPool(pool, libraryConfidenceMap);
+  const dueCount = scored.filter(s => s.isDue || s.neverSeen).length;
+
+  // 6-day forecast (today + next 5 days): how many items become due each
+  // day, bucketed from each item's real next_review_at; never-seen items
+  // count toward "Bugün" since they're already reviewable right now.
+  const dayLabels = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'];
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const forecast = [];
+  for (let i = 0; i < 6; i++) {
+    const dayStart = new Date(startOfToday.getTime() + i * 86400000);
+    const dayEnd = new Date(dayStart.getTime() + 86400000);
+    let count;
+    if (i === 0) {
+      count = dueCount;
+    } else {
+      count = scored.filter(s => !s.neverSeen && s.nextAt >= dayStart.getTime() && s.nextAt < dayEnd.getTime()).length;
+    }
+    forecast.push({ label: i === 0 ? 'Bugün' : (i === 1 ? 'Yrn' : dayLabels[dayStart.getDay()]), count });
+  }
+
+  container.innerHTML = `
+    <div class="lib-global-review">
+      <div class="lib-global-review-info">
+        <div class="lib-global-review-title">🧠 Akıllı Tekrar</div>
+        <div class="lib-global-review-sub">${dueCount > 0 ? `Bugün gözden geçirilecek ${dueCount} madde var.` : 'Bugün için bekleyen madde yok — harika gidiyorsun!'}</div>
+      </div>
+      <div class="lib-global-review-forecast">
+        ${forecast.map(f => `
+          <div class="lib-forecast-pill${f.count > 0 ? ' has-due' : ''}">
+            <span class="lib-forecast-day">${f.label}</span>
+            <span class="lib-forecast-count">${f.count}</span>
+          </div>
+        `).join('')}
+      </div>
+      <button class="btn btn-primary lib-global-review-btn" onclick="openGlobalAdaptiveReview()">Tekrara Başla</button>
+    </div>
+  `;
+}
+window.renderGlobalReviewWidget = renderGlobalReviewWidget;
+
+// Called after a flashcard/adaptive review session closes — re-pulls this
+// student's card_item_confidence rows so every progress % badge, status
+// chip, and the global forecast widget reflect the rating just given,
+// without needing a full page reload.
+async function refreshCardsLibraryProgressUI() {
+  if (!currentUser?.id) return;
+  libraryConfidenceMap = await fetchAllConfidenceForUser();
+  renderCardsLibraryList(window.filteredLibraryCardsList || libraryCards || []);
+  renderGlobalReviewWidget();
+}
+window.refreshCardsLibraryProgressUI = refreshCardsLibraryProgressUI;
+
 function buildLibraryDetailHtml(card) {
   const formattedDate = new Date(card.created_at).toLocaleDateString('tr-TR', { month: 'short', day: 'numeric', year: 'numeric' });
   const cardDocName = card.documents?.file_name || 'İsimsiz Belge';
@@ -5389,6 +5630,8 @@ function buildLibraryDetailHtml(card) {
     clozeHtml += '</ul>';
   }
 
+  const progress = getCardProgressStats(card);
+
   return `
     <div class="lib-detail-header" style="position: relative;">
       <div class="doc-file-icon text" style="background-color: var(--color-teal-light); color: var(--color-teal); flex-shrink: 0;">
@@ -5408,6 +5651,7 @@ function buildLibraryDetailHtml(card) {
           ${getLengthBadgeHtml(card.summary_length)}
           ${getVisualAnalysisBadgeHtml(card.visual_analysis)}
           ${getQuantitativeBadgeHtml(card.is_quantitative)}
+          ${progress.total > 0 ? `<span class="style-badge lib-progress-badge">${progress.percent}% tamamlandı</span>` : ''}
         </div>
       </div>
       <button onclick="deleteStudyCard(event, '${card.id}', '${card.document_id}')" style="background: none; border: none; cursor: pointer; color: #EF4444; position: absolute; right: 0; top: 0.1rem; padding: 0.35rem; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); transition: background-color 0.2s;" title="Sil (Delete this card)">
@@ -5415,8 +5659,24 @@ function buildLibraryDetailHtml(card) {
       </button>
     </div>
 
+    <div class="lib-step-area" id="lib-step-area-${card.id}">
+      ${buildLibraryStepAreaHtml(card)}
+    </div>
+
+    ${buildLibraryModeGridHtml(card, safeDocName)}
+
+    <div style="margin: 0.5rem 0 1rem;">
+      <button class="btn btn-primary" style="width:100%; padding:0.6rem 0.75rem; font-size:0.85rem; border:none; border-radius:10px; font-weight:700;"
+        onclick="event.stopPropagation(); openAdaptiveReview('${card.id}', '${safeDocName}')">
+        🧠 Akıllı Tekrar (Spaced)
+      </button>
+    </div>
+
+    <details class="lib-full-content">
+      <summary>Tüm İçerik <span class="lib-full-content-hint">(anahtar terimler, önemli noktalar, testler, boşluk doldurma, paylaşım)</span></summary>
+
     <div class="lib-detail-summary">
-      <strong style="color: var(--color-navy);">Özet</strong>
+      <strong style="color: var(--color-navy);">Tam Özet</strong>
       <div style="margin-top: 0.4rem; font-size: 0.9rem; line-height: 1.65; color: var(--color-navy);">${formatSummaryText(card.summary) || 'Özet bulunmamaktadır.'}</div>
     </div>
 
@@ -5461,19 +5721,13 @@ function buildLibraryDetailHtml(card) {
         <div class="accordion-header" onclick="toggleLibraryAccordion('${card.id}', 'cloze')">
           <span>Boşluk Doldurma (${clozes.length})</span>
           <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <button class="btn btn-outline btn-deftere-ekle" style="padding: 0.15rem 0.4rem; font-size: 0.65rem; border-color: var(--color-teal); color: var(--color-teal); min-height: 20px; line-height: 1;" onclick="event.stopPropagation(); addSectionStickyNote('${card.id}', 'cloze', '${safeDocName}')">+ Deftere Ekle</button>
             <button class="btn btn-outline" style="padding: 0.15rem 0.4rem; font-size: 0.65rem; border-color: var(--color-navy); color: var(--color-navy); min-height: 20px; line-height: 1;" onclick="event.stopPropagation(); openFlashcardViewer('${card.id}', 'cloze', '${safeDocName}')">🔍 Kartları İncele</button>
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
           </div>
         </div>
         <div class="accordion-body">${clozeHtml}</div>
       </div>
-    </div>
-
-    <div style="margin: 0.5rem 0;">
-      <button class="btn btn-primary" style="width:100%; padding:0.6rem 0.75rem; font-size:0.85rem; border:none; border-radius:10px; font-weight:700;"
-        onclick="event.stopPropagation(); openAdaptiveReview('${card.id}', '${safeDocName}')">
-        🧠 Akıllı Tekrar (Spaced)
-      </button>
     </div>
 
     <div class="share-toggle-container" style="margin: 0.5rem 0; padding: 0.5rem 0.75rem; font-size: 0.85rem;">
@@ -5488,6 +5742,7 @@ function buildLibraryDetailHtml(card) {
       <button class="btn btn-outline btn-view-summary" data-doc-id="${card.document_id}" data-doc-name="${safeDocName}" data-card-id="${card.id}" style="flex: 1; padding: 0.55rem; font-size: 0.82rem;">Özeti Görüntüle</button>
       <button class="btn btn-primary" onclick="addStickyNoteToNotebook('${card.id}', '${safeDocName}', '${escapedSummary}')" style="flex: 1; padding: 0.55rem; font-size: 0.82rem; border: none;">Panoya Ekle</button>
     </div>
+    </details>
   `;
 }
 
@@ -5590,6 +5845,18 @@ function addSectionStickyNote(cardId, type, fileName) {
         `;
       });
       contentHtml += '</div>';
+    }
+  } else if (type === 'cloze') {
+    title = `Boşluk Doldurma — ${fileName}`;
+    const clozes = card.cloze_cards || [];
+    if (clozes.length === 0) {
+      contentHtml = 'Boşluk doldurma kartı bulunmamaktadır.';
+    } else {
+      contentHtml = `<ul style="padding-left: 1.20rem; margin: 0; font-size: 0.75rem; text-align: left; display: flex; flex-direction: column; gap: 0.25rem;">`;
+      clozes.forEach((c, idx) => {
+        contentHtml += `<li><strong>${idx + 1}.</strong> ${c.prompt || ''} → <span style="color: var(--color-teal);">${c.answer || ''}</span></li>`;
+      });
+      contentHtml += '</ul>';
     }
   }
 
@@ -8567,6 +8834,58 @@ let reviewCardId = '';
 let reviewType = '';
 let reviewFileName = '';
 
+// Shared by the per-card "Akıllı Tekrar" (openAdaptiveReview) and the
+// cross-card "Akıllı Tekrar" widget on the Bilgi Kartları home
+// (computeGlobalReviewForecast / openGlobalAdaptiveReview) so both agree on
+// exactly which items are reviewable, how they're keyed, and how they're
+// prioritized — the widget's due-count and the session it launches must
+// always match, or the numbers on screen would lie.
+function buildCardReviewPool(card) {
+  const fileName = card.documents?.file_name || 'Ders Notu';
+  const pool = [];
+  (card.key_terms || []).forEach((t, i) => pool.push({ ...t, _kind: 'term', _key: getReviewItemKey(t, 'terms', i), _studyCardId: card.id, _fileName: fileName }));
+  (card.cloze_cards || []).forEach((c, i) => pool.push({ ...c, _kind: 'cloze', _key: getReviewItemKey(c, 'cloze', i), _studyCardId: card.id, _fileName: fileName }));
+  (card.quiz_questions || []).forEach((q, i) => pool.push({ ...q, _kind: 'quiz', _key: getReviewItemKey(q, 'quiz', i), _studyCardId: card.id, _fileName: fileName }));
+  return pool;
+}
+
+// confMap is keyed "<study_card_id>:<item_key>" so it works for both a
+// single-card pool and a pool spanning every card the user owns.
+function scoreReviewPool(pool, confMap) {
+  const now = Date.now();
+  return pool.map(item => {
+    const conf = confMap[`${item._studyCardId}:${item._key}`];
+    const nextAt = conf?.next_review_at ? new Date(conf.next_review_at).getTime() : 0;
+    const isDue = !conf || nextAt <= now;
+    const neverSeen = !conf;
+    const ease = Number(conf?.ease_factor) || 2.5;
+    // Lower score = higher priority
+    let score = 1000;
+    if (neverSeen) score = 0;
+    else if (isDue) score = 10 + ease; // weaker first among due
+    else score = 500 + (nextAt - now) / 86400000; // future items last
+    return { item, score, isDue, neverSeen, nextAt, conf };
+  }).sort((a, b) => a.score - b.score);
+}
+
+async function fetchAllConfidenceForUser() {
+  const map = {};
+  if (!currentUser?.id) return map;
+  try {
+    const { data, error } = await supabaseClient
+      .from('card_item_confidence')
+      .select('study_card_id, item_key, next_review_at, ease_factor, repetitions, interval_days')
+      .eq('user_id', currentUser.id);
+    if (!error) {
+      (data || []).forEach(r => { map[`${r.study_card_id}:${r.item_key}`] = r; });
+    }
+  } catch (e) {
+    console.warn('fetchAllConfidenceForUser error:', e);
+  }
+  return map;
+}
+window.fetchAllConfidenceForUser = fetchAllConfidenceForUser;
+
 /**
  * Adaptive spaced-repetition review for one study card.
  * Prioritises: due items (next_review_at <= now) → never reviewed → low ease_factor.
@@ -8579,12 +8898,7 @@ async function openAdaptiveReview(cardId, fileName) {
     return;
   }
 
-  // Build candidate pool
-  const pool = [];
-  (card.key_terms || []).forEach((t, i) => pool.push({ ...t, _kind: 'term', _key: getReviewItemKey(t, 'terms', i) }));
-  (card.cloze_cards || []).forEach((c, i) => pool.push({ ...c, _kind: 'cloze', _key: getReviewItemKey(c, 'cloze', i) }));
-  (card.quiz_questions || []).forEach((q, i) => pool.push({ ...q, _kind: 'quiz', _key: getReviewItemKey(q, 'quiz', i) }));
-
+  const pool = buildCardReviewPool(card);
   if (pool.length === 0) {
     showDashboardAlert('info', 'Bu kartta çalışılacak madde yok.');
     return;
@@ -8599,28 +8913,13 @@ async function openAdaptiveReview(cardId, fileName) {
         .select('item_key, next_review_at, ease_factor, repetitions, interval_days')
         .eq('user_id', currentUser.id)
         .eq('study_card_id', cardId);
-      (data || []).forEach(r => { confMap[r.item_key] = r; });
+      (data || []).forEach(r => { confMap[`${cardId}:${r.item_key}`] = r; });
     }
   } catch (e) {
     console.warn('Could not load confidence rows:', e);
   }
 
-  const now = Date.now();
-  const scored = pool.map(item => {
-    const conf = confMap[item._key];
-    const nextAt = conf?.next_review_at ? new Date(conf.next_review_at).getTime() : 0;
-    const isDue = !conf || nextAt <= now;
-    const neverSeen = !conf;
-    const ease = Number(conf?.ease_factor) || 2.5;
-    // Lower score = higher priority
-    let score = 1000;
-    if (neverSeen) score = 0;
-    else if (isDue) score = 10 + ease; // weaker first among due
-    else score = 500 + (nextAt - now) / 86400000; // future items last
-    return { item, score, isDue, neverSeen };
-  });
-
-  scored.sort((a, b) => a.score - b.score);
+  const scored = scoreReviewPool(pool, confMap);
   // Prefer due + never-seen; cap session size
   const session = scored.filter(s => s.isDue || s.neverSeen).slice(0, 30);
   const items = (session.length > 0 ? session : scored.slice(0, 20)).map(s => s.item);
@@ -8630,6 +8929,47 @@ async function openAdaptiveReview(cardId, fileName) {
   openFlashcardViewer(cardId, 'adaptive', fileName);
 }
 window.openAdaptiveReview = openAdaptiveReview;
+
+/**
+ * Cross-card version of openAdaptiveReview — the "Akıllı Tekrar" widget at
+ * the bottom of Bilgi Kartları. Same pool-building and scoring, just summed
+ * over every study card the user owns instead of one, so the queue mixes
+ * items from different documents in one session.
+ */
+async function openGlobalAdaptiveReview() {
+  if (!currentUser?.id) return;
+  if (!libraryCards || libraryCards.length === 0) {
+    showDashboardAlert('info', 'Henüz bilgi kartınız yok.');
+    return;
+  }
+
+  let pool = [];
+  libraryCards.forEach(card => { pool = pool.concat(buildCardReviewPool(card)); });
+
+  if (pool.length === 0) {
+    showDashboardAlert('info', 'Çalışılacak madde yok — önce bir bilgi kartı oluşturun.');
+    return;
+  }
+
+  const confMap = await fetchAllConfidenceForUser();
+  const scored = scoreReviewPool(pool, confMap);
+  const session = scored.filter(s => s.isDue || s.neverSeen).slice(0, 30);
+  const items = (session.length > 0 ? session : scored.slice(0, 20)).map(s => s.item);
+
+  if (items.length === 0) {
+    showDashboardAlert('success', 'Harika! Şu an gözden geçirilecek bir şey yok. 🎉');
+    return;
+  }
+
+  reviewItems = items;
+  reviewIndex = 0;
+  reviewCardId = ''; // items span multiple cards — each carries its own _studyCardId
+  reviewType = 'adaptive';
+  reviewFileName = 'Akıllı Tekrar';
+
+  showFlashcardModalShell('Akıllı Tekrar — Tüm Kartlar');
+}
+window.openGlobalAdaptiveReview = openGlobalAdaptiveReview;
 
 function openFlashcardViewer(cardId, type, fileName) {
   const card = libraryCards.find(c => c.id === cardId) || notebookCards.find(c => c.id === cardId) || currentActiveStudyCard;
@@ -8651,18 +8991,6 @@ function openFlashcardViewer(cardId, type, fileName) {
     reviewItems = card._adaptiveItems || [];
   }
 
-  const titleEl = document.getElementById('flashcard-modal-title');
-  if (titleEl) {
-    const labels = {
-      terms: 'Anahtar Terimler',
-      points: 'Önemli Noktalar',
-      quiz: 'Kendi Kendine Test',
-      cloze: 'Boşluk Doldurma',
-      adaptive: 'Akıllı Tekrar (Spaced)'
-    };
-    titleEl.textContent = `${fileName} - ${labels[type] || type}`;
-  }
-
   if (!reviewItems || reviewItems.length === 0) {
     showDashboardAlert('info', 'Bu kategoriye ait kart bulunmamaktadır. / No items in this section.');
     return;
@@ -8672,6 +9000,24 @@ function openFlashcardViewer(cardId, type, fileName) {
   reviewCardId = cardId;
   reviewType = type;
   reviewFileName = fileName;
+
+  const labels = {
+    terms: 'Anahtar Terimler',
+    points: 'Önemli Noktalar',
+    quiz: 'Kendi Kendine Test',
+    cloze: 'Boşluk Doldurma',
+    adaptive: 'Akıllı Tekrar (Spaced)'
+  };
+  showFlashcardModalShell(`${fileName} - ${labels[type] || type}`);
+}
+
+// Shared tail of openFlashcardViewer/openGlobalAdaptiveReview: shows the
+// modal, wires its close handlers, and renders whatever is currently in
+// reviewItems/reviewIndex. Callers set reviewItems/reviewIndex/reviewCardId/
+// reviewType/reviewFileName themselves first — this only handles the DOM.
+function showFlashcardModalShell(titleText) {
+  const titleEl = document.getElementById('flashcard-modal-title');
+  if (titleEl) titleEl.textContent = titleText;
 
   const footer = document.querySelector('.flashcard-viewer-footer');
   const progress = document.getElementById('flashcard-progress');
@@ -8701,6 +9047,7 @@ function openFlashcardViewer(cardId, type, fileName) {
 
   renderCurrentFlashcard();
 }
+window.showFlashcardModalShell = showFlashcardModalShell;
 
 function renderCurrentFlashcard() {
   const cardEl = document.getElementById('flashcard-card');
@@ -8779,7 +9126,7 @@ function renderCurrentFlashcard() {
       <div style="border-top: 1px solid #F1F5F9; margin-top: 1.25rem; padding-top: 1rem; display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; width: 100%;">
         <div style="display: flex; align-items: center; gap: 0.4rem; font-size: 13px; color: #94A3B8; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
-          <span style="overflow: hidden; text-overflow: ellipsis;">${escapeHtml(reviewFileName || 'Ders Notu')}</span>
+          <span style="overflow: hidden; text-overflow: ellipsis;">${escapeHtml(item._fileName || reviewFileName || 'Ders Notu')}</span>
         </div>
         <button onclick="sendCurrentCardToDepot(this)" title="Defter Depoma Gönder" style="background: rgba(31, 138, 147, 0.08); color: #1F8A93; border: 1px solid rgba(31, 138, 147, 0.2); border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; font-weight: 700; transition: all 0.2s ease; flex-shrink: 0;">
           📥 Depoya Gönder
@@ -8854,11 +9201,31 @@ function getReviewItemKey(item, type, index) {
   return `item:${index}`;
 }
 
+// A mixed/adaptive pool (openAdaptiveReview, openGlobalAdaptiveReview) tags
+// each item with its real kind (_kind: 'term'|'cloze'|'quiz'|'point') when
+// the pool is first built, and getReviewItemKey('terms'/'cloze'/'quiz'/...)
+// is what computed the key used to look up and prioritize that item. Bug
+// fixed here: handleConfidenceRating used to call
+// getReviewItemKey(item, reviewType, ...) with reviewType='adaptive'
+// literally — which isn't one of getReviewItemKey's recognized types, so it
+// fell through to the `item:${index}` branch. That key depends on the
+// item's position in THIS session's queue, which is different every time,
+// so a rating given during adaptive review could never be found again on a
+// later session — next_review_at scheduling silently never persisted for
+// adaptive/global review. Resolving the item's true type first (from
+// _kind when present) fixes both the lookup key and the card_type written.
+const REVIEW_KIND_TO_TYPE = { term: 'terms', cloze: 'cloze', quiz: 'quiz', point: 'points' };
+function resolveReviewItemType(item, reviewType) {
+  return (item && item._kind && REVIEW_KIND_TO_TYPE[item._kind]) || reviewType;
+}
+
 async function handleConfidenceRating(rating) {
   try {
-    if (reviewCardId && reviewItems[reviewIndex] && currentUser?.id) {
-      const item = reviewItems[reviewIndex];
-      const itemKey = getReviewItemKey(item, reviewType, reviewIndex);
+    const item = reviewItems[reviewIndex];
+    const studyCardId = item?._studyCardId || reviewCardId;
+    if (studyCardId && item && currentUser?.id) {
+      const effectiveType = resolveReviewItemType(item, reviewType);
+      const itemKey = getReviewItemKey(item, effectiveType, reviewIndex);
 
       let prev = null;
       try {
@@ -8866,7 +9233,7 @@ async function handleConfidenceRating(rating) {
           .from('card_item_confidence')
           .select('ease_factor, interval_days, repetitions, lapses')
           .eq('user_id', currentUser.id)
-          .eq('study_card_id', reviewCardId)
+          .eq('study_card_id', studyCardId)
           .eq('item_key', itemKey)
           .maybeSingle();
         prev = data;
@@ -8878,9 +9245,9 @@ async function handleConfidenceRating(rating) {
         .from('card_item_confidence')
         .upsert({
           user_id: currentUser.id,
-          study_card_id: reviewCardId,
+          study_card_id: studyCardId,
           item_key: itemKey,
-          card_type: reviewType === 'points' ? 'point' : (reviewType || 'term'),
+          card_type: effectiveType === 'points' ? 'point' : (effectiveType || 'term'),
           rating: sm2.rating,
           last_rating: sm2.last_rating,
           ease_factor: sm2.ease_factor,
@@ -8943,19 +9310,38 @@ function animateNextCard(nextItemCallback) {
 async function sendCurrentCardToDepot(btn) {
   if (reviewIndex >= reviewItems.length) return;
   const item = reviewItems[reviewIndex];
+  // Adaptive/global reviews mix terms+cloze+quiz in one queue (item._kind),
+  // so title/content must be resolved the same way handleConfidenceRating
+  // resolves the item's true type — this used to only handle terms/points/
+  // quiz literally, silently sending nothing for 'adaptive' or 'cloze'.
+  const effectiveType = resolveReviewItemType(item, reviewType);
 
   let title = '';
   let content = '';
+  let sourceType = 'key_term';
 
-  if (reviewType === 'terms') {
+  if (effectiveType === 'terms') {
     title = item.term;
     content = item.definition;
-  } else if (reviewType === 'points') {
+    sourceType = 'key_term';
+  } else if (effectiveType === 'points') {
     title = 'Key Point';
     content = typeof item === 'string' ? item : (item.point || item.text || '');
-  } else if (reviewType === 'quiz') {
+    sourceType = 'key_point';
+  } else if (effectiveType === 'quiz') {
     title = 'Self-Test Q&A';
     content = `Question: ${item.question}\nAnswer: ${item.answer}`;
+    sourceType = 'quiz_question';
+  } else if (effectiveType === 'cloze') {
+    title = 'Boşluk Doldurma';
+    content = `${item.prompt || ''}\nCevap: ${item.answer || ''}`;
+    // card_depot.source_type is a constrained set that doesn't include a
+    // dedicated cloze value (see 20260726c_card_depot_allow_image_source_type.sql
+    // for how that constraint has been extended before) — filing it under
+    // quiz_question is the closest existing category rather than adding
+    // another migration just for this label; the title above still says
+    // "Boşluk Doldurma" so the depot entry stays meaningful.
+    sourceType = 'quiz_question';
   }
 
   const originalHtml = btn ? btn.innerHTML : '📥 Depoya Gönder';
@@ -8969,10 +9355,10 @@ async function sendCurrentCardToDepot(btn) {
       .from('card_depot')
       .insert({
         user_id: currentUser.id,
-        source_type: reviewType === 'terms' ? 'key_term' : (reviewType === 'points' ? 'key_point' : 'quiz_question'),
+        source_type: sourceType,
         title: title,
         content: content,
-        study_card_id: reviewCardId
+        study_card_id: item._studyCardId || reviewCardId
       });
 
     if (error) {
@@ -9052,6 +9438,11 @@ function closeFlashcardViewer() {
   if (modal) {
     modal.style.display = 'none';
   }
+  // A review session may have just written new card_item_confidence rows —
+  // refresh the "% tamamlandı" badges and the Akıllı Tekrar widget so they
+  // don't show stale numbers until the next full tab reload. No-ops safely
+  // if Bilgi Kartları isn't the active tab (the elements just aren't there).
+  if (typeof refreshCardsLibraryProgressUI === 'function') refreshCardsLibraryProgressUI();
 }
 
 // Add Escape key handler to close active modals

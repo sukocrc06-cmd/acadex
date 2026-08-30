@@ -780,9 +780,23 @@
            TAB 4: BILGI KARTLARI VIEW (INFO CARDS)
            ========================================== -->
       <section id="cards-view" class="dashboard-view-section">
-        <div class="dashboard-page-header">
-          <h2 class="dashboard-page-title" data-i18n="dash.cards.title">Bilgi Kartları Kütüphanesi</h2>
-          <p class="dashboard-page-desc" data-i18n="dash.cards.desc">Tüm çalışma kartlarınızı görüntüleyin, ayrıntıları inceleyin, arkadaşlarınızla paylaşın veya defterinize ekleyin.</p>
+        <div class="dashboard-page-header" style="display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
+          <div>
+            <div style="font-size: 0.7rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-teal); margin-bottom: 0.3rem;">Bilgi Kartları · Flashcards</div>
+            <h2 class="dashboard-page-title" data-i18n="dash.cards.title" style="margin: 0;">Bugün ne çalışıyoruz?</h2>
+            <p class="dashboard-page-desc" data-i18n="dash.cards.desc">Tüm çalışma kartlarınızı görüntüleyin, ayrıntıları inceleyin, arkadaşlarınızla paylaşın veya defterinize ekleyin.</p>
+          </div>
+          <div style="display: flex; gap: 0.6rem; flex-shrink: 0;">
+            <button class="btn btn-outline" style="padding: 0.5rem 1rem; font-size: 0.82rem;" onclick="document.getElementById('btn-clear-filters')?.click(); setCardsStatusFilter('all');">Kartlarım</button>
+            <button class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.82rem; border: none;" onclick="switchDashboardView('docs')">Kart Oluştur</button>
+          </div>
+        </div>
+
+        <!-- Tümü / Devam eden / Yeni status filter chips -->
+        <div class="cards-status-chips">
+          <button type="button" class="cards-status-chip active" data-status="all" onclick="setCardsStatusFilter('all')">Tümü</button>
+          <button type="button" class="cards-status-chip" data-status="inprogress" onclick="setCardsStatusFilter('inprogress')">Devam Eden</button>
+          <button type="button" class="cards-status-chip" data-status="new" onclick="setCardsStatusFilter('new')">Yeni</button>
         </div>
 
         <!-- Filter bar -->
@@ -826,6 +840,9 @@
         <div id="cards-list-section">
           <!-- Populated dynamically -->
         </div>
+
+        <!-- Cross-card "Akıllı Tekrar" forecast widget — js/dashboard.js renderGlobalReviewWidget() -->
+        <div id="global-review-widget"></div>
 
         <!-- Past Comparisons Section -->
         <div id="past-comparisons-section" style="margin-top: 2rem;">
