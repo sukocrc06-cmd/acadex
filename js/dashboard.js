@@ -11032,6 +11032,21 @@ async function renderStreakAndAchievements() {
   }
 }
 
+// ==========================================================================
+// PDF export — Unicode (Turkish-capable) font support.
+//
+// jsPDF's built-in "helvetica"/"times"/"courier" fonts only cover WinAnsi —
+// they silently drop ğ/ü/ş/ı/ö/ç (and the accented characters of any other
+// language). replaceTurkishChars() below used to be the workaround: strip
+// every Turkish diacritic before printing so at least *something* legible
+// came out. That's no longer needed for on-page PDF content — DejaVu Sans
+// (SIL Open Font License, full Turkish/Latin-Extended coverage) is now
+// embedded into the document at export time, so the real characters print.
+// replaceTurkishChars() is kept only for the downloaded *filename* (still
+// safest to keep those plain-ASCII across OSes) and as a last-resort
+// fallback if the font can't be fetched (e.g. the student is offline).
+// ==========================================================================
+
 function replaceTurkishChars(str) {
   if (!str) return '';
   return str
@@ -11043,32 +11058,215 @@ function replaceTurkishChars(str) {
     .replace(/ç/g, 'c').replace(/Ç/g, 'C');
 }
 
-function applyBrandedLayout(doc) {
+let acadexPdfFontCache = null; // { regular, bold } base64 TTF — fetched once per page load, reused by every export after that
+
+/**
+ * Loads DejaVu Sans (Regular + Bold) into this jsPDF document so Turkish
+ * characters print correctly instead of being transliterated away. Safe to
+ * call once per document. Returns true if the Unicode font is active for
+ * this document, false if it fell back to helvetica (e.g. no network) — the
+ * rest of the PDF-building code checks this to decide whether to also
+ * fall back to replaceTurkishChars() for the text itself.
+ */
+async function loadPdfUnicodeFont(doc) {
+  try {
+    if (!acadexPdfFontCache) {
+      const FONT_BASE = 'https://cdn.jsdelivr.net/npm/dejavu-fonts-ttf@2.37.3/ttf/';
+      const toBase64 = async (url) => {
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error(`Font fetch failed: ${resp.status}`);
+        const bytes = new Uint8Array(await resp.arrayBuffer());
+        let binary = '';
+        const chunkSize = 0x8000;
+        for (let i = 0; i < bytes.length; i += chunkSize) {
+          binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+        }
+        return btoa(binary);
+      };
+      const [regular, bold] = await Promise.all([
+        toBase64(FONT_BASE + 'DejaVuSans.ttf'),
+        toBase64(FONT_BASE + 'DejaVuSans-Bold.ttf'),
+      ]);
+      acadexPdfFontCache = { regular, bold };
+    }
+    doc.addFileToVFS('DejaVuSans.ttf', acadexPdfFontCache.regular);
+    doc.addFont('DejaVuSans.ttf', 'DejaVuSans', 'normal');
+    doc.addFileToVFS('DejaVuSans-Bold.ttf', acadexPdfFontCache.bold);
+    doc.addFont('DejaVuSans-Bold.ttf', 'DejaVuSans', 'bold');
+    doc.setFont('DejaVuSans', 'normal');
+    return true;
+  } catch (err) {
+    console.warn('Unicode PDF font failed to load, falling back to transliterated Latin text:', err);
+    return false;
+  }
+}
+
+/** Sets the active PDF font. When the Unicode font is loaded, 'italic'/'bolditalic' map onto 'bold' since only normal+bold were embedded (keeps the download light — DejaVu Sans's 4 weights together are ~2.7MB, we only need 2). */
+function pdfSetFont(doc, unicodeReady, style) {
+  if (unicodeReady) {
+    doc.setFont('DejaVuSans', (style === 'bold' || style === 'bolditalic') ? 'bold' : 'normal');
+  } else {
+    doc.setFont('helvetica', style || 'normal');
+  }
+}
+
+/** Text ready to print: verbatim when the Unicode font is active, transliterated (old behavior) otherwise. */
+function pdfText(unicodeReady, txt) {
+  const str = txt === undefined || txt === null ? '' : String(txt);
+  return unicodeReady ? str : replaceTurkishChars(str);
+}
+
+// Shared ink palette for the redesigned PDF — mirrors the app's own
+// css/style.css tokens (--color-navy, --color-teal) plus an amber accent
+// for the quiz/self-test section, matching the amber warning color already
+// used for the "no shared summary yet" exam hint elsewhere in this file.
+const PDF_INK = {
+  navy: [22, 50, 92],
+  navySoft: [234, 240, 248],
+  teal: [13, 148, 136],
+  tealSoft: [235, 247, 248],
+  amber: [217, 119, 6],
+  amberDark: [180, 95, 6],
+  amberSoft: [252, 241, 222],
+  body: [60, 66, 82],
+  muted: [91, 107, 122],
+  faint: [150, 158, 168],
+};
+
+function applyBrandedLayout(doc, unicodeReady, startPage) {
   const pageCount = doc.internal.getNumberOfPages();
   const pageWidth = doc.internal.pageSize.width;
   const pageHeight = doc.internal.pageSize.height;
   const margin = 14;
+  const firstBandedPage = startPage || 1; // the cover page (page 1) gets its own full-page treatment instead of this thin header/footer band
 
-  for (let i = 1; i <= pageCount; i++) {
+  for (let i = firstBandedPage; i <= pageCount; i++) {
     doc.setPage(i);
-    
-    // Header text
-    doc.setFont("helvetica", "bold");
+
+    pdfSetFont(doc, unicodeReady, 'bold');
     doc.setFontSize(10);
-    doc.setTextColor(22, 50, 92); // Brand navy rgb(22, 50, 92)
-    doc.text("ACADEX", margin, 15);
-    
-    // Thin horizontal line under header in brand teal rgb(13, 148, 136)
-    doc.setDrawColor(13, 148, 136);
+    doc.setTextColor(...PDF_INK.navy);
+    doc.text('ACADEX', margin, 15);
+
+    doc.setDrawColor(...PDF_INK.teal);
     doc.setLineWidth(0.5);
     doc.line(margin, 17, pageWidth - margin, 17);
-    
-    // Footer page number
-    doc.setFont("helvetica", "normal");
+
+    pdfSetFont(doc, unicodeReady, 'normal');
     doc.setFontSize(8);
-    doc.setTextColor(128, 128, 128); // Gray text
-    const footerText = `Page ${i} of ${pageCount}`;
+    doc.setTextColor(128, 128, 128);
+    const footerText = pdfText(unicodeReady, `Sayfa ${i} / ${pageCount}`);
     doc.text(footerText, pageWidth - margin - doc.getTextWidth(footerText), pageHeight - 12);
+  }
+}
+
+// ==========================================================================
+// PDF structure — branded cover page + table of contents.
+//
+// Every export now opens with a full cover page (title, style/language,
+// date) instead of jumping straight into dense text. "Export All to PDF"
+// additionally reserves page(s) for a table of contents right after the
+// cover, listing every card's title with a clickable jump-to-page link —
+// the page numbers are only known once every card has actually been laid
+// out, so buildPdfCoverPage()/reserving TOC pages happens first, and
+// fillPdfTocPages() comes back to fill in those reserved (initially blank)
+// pages once the real page numbers are known.
+// ==========================================================================
+
+/** Draws the branded cover directly onto the document's current (first) page — call before adding any other page. */
+function buildPdfCoverPage(doc, unicodeReady, opts) {
+  const pageWidth = doc.internal.pageSize.width;
+  const pageHeight = doc.internal.pageSize.height;
+  const centerX = pageWidth / 2;
+  const margin = 24;
+
+  doc.setFillColor(...PDF_INK.navy);
+  doc.rect(0, 0, pageWidth, 64, 'F');
+
+  pdfSetFont(doc, unicodeReady, 'bold');
+  doc.setFontSize(24);
+  doc.setTextColor(255, 255, 255);
+  doc.text('ACADEX', centerX, 34, { align: 'center' });
+
+  pdfSetFont(doc, unicodeReady, 'normal');
+  doc.setFontSize(11);
+  doc.setTextColor(206, 224, 240);
+  doc.text(pdfText(unicodeReady, opts.kind === 'bulk' ? 'Bilgi Kartı Raporu' : 'Bilgi Kartı'), centerX, 47, { align: 'center' });
+
+  doc.setDrawColor(...PDF_INK.teal);
+  doc.setLineWidth(1.1);
+  doc.line(centerX - 18, 55, centerX + 18, 55);
+
+  let y = pageHeight * 0.42;
+  pdfSetFont(doc, unicodeReady, 'bold');
+  doc.setFontSize(19);
+  doc.setTextColor(...PDF_INK.navy);
+  doc.splitTextToSize(pdfText(unicodeReady, opts.title || 'Acadex Bilgi Kartı'), pageWidth - margin * 2).forEach(line => {
+    doc.text(line, centerX, y, { align: 'center' });
+    y += 9;
+  });
+
+  y += 5;
+  pdfSetFont(doc, unicodeReady, 'normal');
+  doc.setFontSize(10.5);
+  doc.setTextColor(...PDF_INK.muted);
+  (opts.metaLines || []).forEach(line => {
+    doc.text(pdfText(unicodeReady, line), centerX, y, { align: 'center' });
+    y += 6.5;
+  });
+
+  pdfSetFont(doc, unicodeReady, 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(...PDF_INK.faint);
+  doc.text(pdfText(unicodeReady, opts.footer || ''), centerX, pageHeight - 18, { align: 'center' });
+}
+
+const PDF_TOC_ROWS_PER_PAGE = 28;
+
+/** How many blank pages to reserve right after the cover for the table of contents, before any card is laid out. */
+function estimatePdfTocPageCount(entryCount) {
+  return Math.max(1, Math.ceil(entryCount / PDF_TOC_ROWS_PER_PAGE));
+}
+
+/** Fills in the reserved (blank) TOC page(s) once every card's real starting page is known. */
+function fillPdfTocPages(doc, unicodeReady, entries, firstTocPage, tocPageCount) {
+  const margin = 20;
+  const pageWidth = doc.internal.pageSize.width;
+  let entryIdx = 0;
+
+  for (let p = 0; p < tocPageCount; p++) {
+    doc.setPage(firstTocPage + p);
+    let y = 32;
+
+    pdfSetFont(doc, unicodeReady, 'bold');
+    doc.setFontSize(15);
+    doc.setTextColor(...PDF_INK.navy);
+    doc.text(pdfText(unicodeReady, p === 0 ? 'İçindekiler' : 'İçindekiler (devamı)'), margin, y);
+    y += 4;
+    doc.setDrawColor(...PDF_INK.teal);
+    doc.setLineWidth(0.6);
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 10;
+
+    for (let row = 0; row < PDF_TOC_ROWS_PER_PAGE && entryIdx < entries.length; row++, entryIdx++) {
+      const entry = entries[entryIdx];
+
+      pdfSetFont(doc, unicodeReady, 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(...PDF_INK.body);
+      const label = doc.splitTextToSize(pdfText(unicodeReady, entry.title), pageWidth - margin * 2 - 16)[0] || '';
+      doc.text(label, margin, y);
+
+      doc.setTextColor(...PDF_INK.muted);
+      doc.text(String(entry.page), pageWidth - margin, y, { align: 'right' });
+
+      doc.setDrawColor(225, 230, 235);
+      doc.setLineWidth(0.2);
+      doc.line(margin, y + 2.2, pageWidth - margin, y + 2.2);
+
+      doc.link(margin, y - 5, pageWidth - margin * 2, 7, { pageNumber: entry.page });
+      y += 8;
+    }
   }
 }
 
@@ -11145,7 +11343,7 @@ async function captureMermaidSvgAsImageData(containerId) {
 }
 
 /** Manual bordered table drawn with jsPDF primitives (no autotable plugin is loaded). */
-function drawPdfTable(doc, headers, rows, margin, y, maxWidth, safeText) {
+function drawPdfTable(doc, unicodeReady, headers, rows, margin, y, maxWidth, safeText) {
   const pageHeight = doc.internal.pageSize.height;
   const colCount = Math.max((headers || []).length, 1);
   const colWidth = maxWidth / colCount;
@@ -11158,7 +11356,7 @@ function drawPdfTable(doc, headers, rows, margin, y, maxWidth, safeText) {
   };
 
   const drawRow = (cells, isHeader) => {
-    doc.setFont('helvetica', isHeader ? 'bold' : 'normal');
+    pdfSetFont(doc, unicodeReady, isHeader ? 'bold' : 'normal');
     doc.setFontSize(8.5);
     const cellLines = cells.map(c => measureCellLines(c));
     const maxLines = Math.max(1, ...cellLines.map(l => l.length));
@@ -11205,17 +11403,17 @@ function drawPdfTable(doc, headers, rows, margin, y, maxWidth, safeText) {
 }
 
 /** Text fallback for a chart when no live canvas image is available (e.g. bulk export). */
-function drawChartDataFallback(doc, chartObj, margin, y, maxWidth, safeText) {
+function drawChartDataFallback(doc, unicodeReady, chartObj, margin, y, maxWidth, safeText) {
   const pageHeight = doc.internal.pageSize.height;
-  doc.setFont('helvetica', 'italic');
+  pdfSetFont(doc, unicodeReady, 'normal');
   doc.setFontSize(8.5);
   doc.setTextColor(120, 126, 138);
-  doc.text(safeText(`(${(chartObj.type || 'bar').toUpperCase()} chart data)`), margin, y);
+  doc.text(safeText(`(${(chartObj.type || 'bar').toUpperCase()} grafik verisi)`), margin, y);
   y += 5.5;
 
   const labels = chartObj.labels || [];
   const data = chartObj.data || [];
-  doc.setFont('helvetica', 'normal');
+  pdfSetFont(doc, unicodeReady, 'normal');
   doc.setFontSize(9);
   doc.setTextColor(60, 66, 82);
   labels.forEach((label, i) => {
@@ -11228,15 +11426,15 @@ function drawChartDataFallback(doc, chartObj, margin, y, maxWidth, safeText) {
 }
 
 /** Text fallback for a diagram when no rasterized image is available (e.g. bulk export). */
-function drawMermaidSourceFallback(doc, diagramObj, margin, y, maxWidth, safeText) {
+function drawMermaidSourceFallback(doc, unicodeReady, diagramObj, margin, y, maxWidth, safeText) {
   const pageHeight = doc.internal.pageSize.height;
-  doc.setFont('helvetica', 'italic');
+  pdfSetFont(doc, unicodeReady, 'normal');
   doc.setFontSize(8.5);
   doc.setTextColor(120, 126, 138);
-  doc.text('(Diagram source)', margin, y);
+  doc.text('(Diyagram kaynağı)', margin, y);
   y += 5.5;
 
-  doc.setFont('courier', 'normal');
+  pdfSetFont(doc, unicodeReady, 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(60, 66, 82);
   const srcLines = doc.splitTextToSize(safeText(diagramObj.mermaid || ''), maxWidth);
@@ -11248,34 +11446,79 @@ function drawMermaidSourceFallback(doc, diagramObj, margin, y, maxWidth, safeTex
   return y + 4;
 }
 
-function appendStudyCardToDoc(doc, studyCard, isFirstCard, visualAssets) {
+/**
+ * Draws one boxed "card" section (rounded, tinted, colored left accent —
+ * see YÖN 01 in the design options the user picked). `opts.measure(w)` must
+ * run the exact same line-wrapping as `opts.render(x, y, w, allowBreak)`
+ * will, so the box height it reports matches what render() actually draws.
+ * If the section is too long to fit as a single box on the remaining page
+ * (a very long summary, say), this gracefully degrades to a plain header +
+ * flowing text — spanning pages if it must — instead of a badly-clipped box.
+ */
+function drawPdfCard(doc, state, opts) {
+  const { margin, maxWidth, pageHeight, unicodeReady } = state;
+  let y = state.y;
+  const innerWidth = maxWidth - 12;
+  const headerH = 11;
+  const contentH = opts.measure(innerWidth);
+  const boxH = headerH + contentH + 5;
+  const pageBottom = pageHeight - 20;
+
+  if (y + Math.min(boxH, 40) > pageBottom) {
+    doc.addPage();
+    y = 35;
+  }
+
+  if (y + boxH <= pageBottom) {
+    doc.setFillColor(...opts.soft);
+    doc.roundedRect(margin - 4, y - 6, maxWidth + 8, boxH, 2, 2, 'F');
+    doc.setFillColor(...opts.accent);
+    doc.roundedRect(margin - 4, y - 6, 1.8, boxH, 0.9, 0.9, 'F');
+
+    pdfSetFont(doc, unicodeReady, 'bold');
+    doc.setFontSize(10.5);
+    doc.setTextColor(...(opts.labelColor || opts.accent));
+    doc.text(pdfText(unicodeReady, opts.label), margin + 2, y + 1);
+
+    y = opts.render(margin + 2, y + 8, innerWidth, false);
+    y += 8;
+  } else {
+    pdfSetFont(doc, unicodeReady, 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(...(opts.labelColor || opts.accent));
+    doc.text(pdfText(unicodeReady, opts.label), margin, y);
+    y += 7;
+    y = opts.render(margin, y, maxWidth, true);
+    y += 8;
+  }
+  return y;
+}
+
+function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
   const margin = 14;
   const pageWidth = doc.internal.pageSize.width;
+  const pageHeight = doc.internal.pageSize.height;
   const maxWidth = pageWidth - (margin * 2);
-  const safeText = (txt) => replaceTurkishChars(txt || '');
+  const safeText = (txt) => pdfText(unicodeReady, txt);
 
-  if (!isFirstCard) {
-    doc.addPage();
-  }
-  
-  let y = 35; // Start y below the header
+  doc.addPage(); // every card now starts on its own fresh page, after the cover (and, in bulk exports, the table of contents)
+  let y = 35;
 
   // Document Title
-  doc.setFont("helvetica", "bold");
+  pdfSetFont(doc, unicodeReady, 'bold');
   doc.setFontSize(16);
-  doc.setTextColor(22, 50, 92); // Navy heading
-  
+  doc.setTextColor(...PDF_INK.navy);
+
   let titleStr = '';
   if (studyCard.documents?.file_name) {
     titleStr = studyCard.documents.file_name;
   } else if (studyCard.source_documents && studyCard.source_documents.length > 0) {
     titleStr = studyCard.source_documents.map(s => s.file_name).join(', ');
   } else {
-    titleStr = studyCard.documentFileName || 'Study Card';
+    titleStr = studyCard.documentFileName || 'Bilgi Kartı';
   }
 
-  const titleLines = doc.splitTextToSize(safeText(titleStr), maxWidth);
-  titleLines.forEach(line => {
+  doc.splitTextToSize(safeText(titleStr), maxWidth).forEach(line => {
     if (y > 270) { doc.addPage(); y = 35; }
     doc.text(line, margin, y);
     y += 8;
@@ -11283,170 +11526,175 @@ function appendStudyCardToDoc(doc, studyCard, isFirstCard, visualAssets) {
   y += 2;
 
   // Metadata block
-  doc.setFont("helvetica", "normal");
+  pdfSetFont(doc, unicodeReady, 'normal');
   doc.setFontSize(9);
-  doc.setTextColor(128, 128, 128); // Gray text
+  doc.setTextColor(128, 128, 128);
   const styleLabel = getStyleLabel(studyCard.summary_style);
-  const langLabel = studyCard.summary_language === 'tr' ? 'Turkish' : 'English';
-  const createdDate = new Date(studyCard.created_at).toLocaleDateString();
-  const metaText = `Style: ${styleLabel} | Language: ${langLabel} | Created: ${createdDate}`;
-  doc.text(metaText, margin, y);
+  const langLabel = studyCard.summary_language === 'tr' ? 'Türkçe' : 'İngilizce';
+  const createdDate = new Date(studyCard.created_at).toLocaleDateString('tr-TR');
+  doc.text(safeText(`Stil: ${styleLabel}  ·  Dil: ${langLabel}  ·  Oluşturulma: ${createdDate}`), margin, y);
   y += 8;
 
-  // Simple divider
   doc.setDrawColor(230);
   doc.setLineWidth(0.2);
   doc.line(margin, y, margin + maxWidth, y);
   y += 10;
 
-  // 1. Summary Section
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
-  doc.setTextColor(22, 50, 92); // Navy section header
-  doc.text('Summary', margin, y);
-  y += 7;
+  const cardState = () => ({ margin, maxWidth, pageHeight, y, unicodeReady });
 
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9.5);
-  doc.setTextColor(60, 66, 82); // Muted dark gray body
-  const summaryLines = doc.splitTextToSize(safeText(studyCard.summary), maxWidth);
-  summaryLines.forEach(line => {
-    if (y > 270) { doc.addPage(); y = 35; }
-    doc.text(line, margin, y);
-    y += 5.5;
-  });
-  y += 8;
+  // 1. Summary — boxed card
+  if (studyCard.summary) {
+    y = drawPdfCard(doc, cardState(), {
+      label: 'ÖZET',
+      accent: PDF_INK.teal,
+      soft: PDF_INK.tealSoft,
+      measure: (w) => {
+        pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5);
+        return doc.splitTextToSize(safeText(studyCard.summary), w).length * 5.2;
+      },
+      render: (x, ry, w, allowBreak) => {
+        pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.body);
+        doc.splitTextToSize(safeText(studyCard.summary), w).forEach(line => {
+          if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
+          doc.text(line, x, ry); ry += 5.2;
+        });
+        return ry;
+      },
+    });
+  }
 
-  // 2. Key Terms Section
+  // 2. Key Terms — boxed card
   if (studyCard.key_terms && studyCard.key_terms.length > 0) {
-    if (y > 250) { doc.addPage(); y = 35; }
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.setTextColor(22, 50, 92); // Navy section header
-    doc.text('Key Terms', margin, y);
-    y += 7;
-
-    studyCard.key_terms.forEach(kt => {
-      // Bold Navy Term
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(9.5);
-      doc.setTextColor(22, 50, 92);
-      const termLabel = replaceTurkishChars(`• ${kt.term}`);
-      
-      if (y > 270) { doc.addPage(); y = 35; }
-      doc.text(termLabel, margin, y);
-      y += 5;
-
-      // Regular Gray Definition
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9.5);
-      doc.setTextColor(60, 66, 82); // Muted dark gray definition text
-      const defLines = doc.splitTextToSize(safeText(kt.definition), maxWidth - 6);
-      defLines.forEach(line => {
-        if (y > 270) { doc.addPage(); y = 35; }
-        doc.text(line, margin + 6, y);
-        y += 5;
-      });
-      y += 3; // Spacing between terms
+    y = drawPdfCard(doc, cardState(), {
+      label: 'ANAHTAR TERİMLER',
+      accent: PDF_INK.navy,
+      soft: PDF_INK.navySoft,
+      measure: (w) => {
+        let h = 0;
+        studyCard.key_terms.forEach(kt => {
+          h += 5;
+          pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5);
+          h += doc.splitTextToSize(safeText(kt.definition), w - 6).length * 5 + 3;
+        });
+        return h;
+      },
+      render: (x, ry, w, allowBreak) => {
+        studyCard.key_terms.forEach(kt => {
+          if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
+          pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.navy);
+          doc.text(safeText(`• ${kt.term}`), x, ry); ry += 5;
+          pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.body);
+          doc.splitTextToSize(safeText(kt.definition), w - 6).forEach(line => {
+            if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
+            doc.text(line, x + 6, ry); ry += 5;
+          });
+          ry += 3;
+        });
+        return ry;
+      },
     });
-    y += 6;
   }
 
-  // 3. Key Points Section
+  // 3. Key Points — boxed card
   if (studyCard.key_points && studyCard.key_points.length > 0) {
-    if (y > 250) { doc.addPage(); y = 35; }
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.setTextColor(22, 50, 92); // Navy section header
-    doc.text('Key Points', margin, y);
-    y += 7;
-
-    studyCard.key_points.forEach(pt => {
-      const ptText = replaceTurkishChars(`* ${pt}`);
-      const ptLines = doc.splitTextToSize(ptText, maxWidth);
-      ptLines.forEach(line => {
-        if (y > 270) { doc.addPage(); y = 35; }
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(9.5);
-        doc.setTextColor(60, 66, 82); // Muted dark gray body
-        doc.text(line, margin, y);
-        y += 5.5;
-      });
+    y = drawPdfCard(doc, cardState(), {
+      label: 'ÖNEMLİ NOKTALAR',
+      accent: PDF_INK.teal,
+      soft: PDF_INK.tealSoft,
+      measure: (w) => {
+        pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5);
+        let h = 0;
+        studyCard.key_points.forEach(pt => { h += doc.splitTextToSize(safeText(`– ${pt}`), w).length * 5.5; });
+        return h;
+      },
+      render: (x, ry, w, allowBreak) => {
+        pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.body);
+        studyCard.key_points.forEach(pt => {
+          doc.splitTextToSize(safeText(`– ${pt}`), w).forEach(line => {
+            if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
+            doc.text(line, x, ry); ry += 5.5;
+          });
+        });
+        return ry;
+      },
     });
-    y += 8;
   }
 
-  // 4. Quiz Questions Section
+  // 4. Quiz Questions — boxed card
   if (studyCard.quiz_questions && studyCard.quiz_questions.length > 0) {
-    if (y > 250) { doc.addPage(); y = 35; }
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.setTextColor(22, 50, 92); // Navy section header
-    doc.text('Self-Test (Quiz)', margin, y);
-    y += 7;
-
-    studyCard.quiz_questions.forEach((q, idx) => {
-      const qText = replaceTurkishChars(`Q${idx + 1}: ${q.question}`);
-      const aText = replaceTurkishChars(`A: ${q.answer}`);
-      
-      const qLines = doc.splitTextToSize(qText, maxWidth);
-      qLines.forEach(line => {
-        if (y > 270) { doc.addPage(); y = 35; }
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(9.5);
-        doc.setTextColor(22, 50, 92); // Navy text for question
-        doc.text(line, margin, y);
-        y += 5.5;
-      });
-
-      const aLines = doc.splitTextToSize(aText, maxWidth);
-      aLines.forEach(line => {
-        if (y > 270) { doc.addPage(); y = 35; }
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(9.5);
-        doc.setTextColor(60, 66, 82); // Muted dark gray for answer
-        doc.text(line, margin, y);
-        y += 5.5;
-      });
-      y += 3.5;
+    y = drawPdfCard(doc, cardState(), {
+      label: 'SINAV SORULARI',
+      accent: PDF_INK.amberDark,
+      soft: PDF_INK.amberSoft,
+      measure: (w) => {
+        let h = 0;
+        studyCard.quiz_questions.forEach((q) => {
+          pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(9.5);
+          h += doc.splitTextToSize(safeText(`S: ${q.question}`), w).length * 5.5;
+          pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5);
+          h += doc.splitTextToSize(safeText(`C: ${q.answer}`), w).length * 5.5 + 3.5;
+        });
+        return h;
+      },
+      render: (x, ry, w, allowBreak) => {
+        studyCard.quiz_questions.forEach((q, idx) => {
+          pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.amberDark);
+          doc.splitTextToSize(safeText(`S${idx + 1}: ${q.question}`), w).forEach(line => {
+            if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
+            doc.text(line, x, ry); ry += 5.5;
+          });
+          pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.body);
+          doc.splitTextToSize(safeText(`C: ${q.answer}`), w).forEach(line => {
+            if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
+            doc.text(line, x, ry); ry += 5.5;
+          });
+          ry += 3.5;
+        });
+        return ry;
+      },
     });
   }
+
+  // Section header used by the sections below — Tables/Charts/Diagrams keep
+  // their existing (already page-break-safe) layout, just re-skinned with a
+  // small colored accent chip + the new Unicode font, rather than being
+  // wrapped in the same variable-height box as the text sections above.
+  const drawPlainSectionHeader = (text, accent) => {
+    if (y > 250) { doc.addPage(); y = 35; }
+    doc.setFillColor(...accent);
+    doc.roundedRect(margin, y - 3.6, 3, 3, 0.8, 0.8, 'F');
+    pdfSetFont(doc, unicodeReady, 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(...PDF_INK.navy);
+    doc.text(safeText(text), margin + 6, y);
+    y += 7;
+  };
 
   // 5. Tables Section
   if (Array.isArray(studyCard.tables) && studyCard.tables.length > 0) {
-    if (y > 250) { doc.addPage(); y = 35; }
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.setTextColor(22, 50, 92); // Navy section header
-    doc.text('Tables', margin, y);
-    y += 7;
+    drawPlainSectionHeader('Tablolar', PDF_INK.navy);
 
     studyCard.tables.forEach((t, idx) => {
       if (y > 260) { doc.addPage(); y = 35; }
-      doc.setFont("helvetica", "bold");
+      pdfSetFont(doc, unicodeReady, 'bold');
       doc.setFontSize(10);
-      doc.setTextColor(22, 50, 92);
-      doc.text(safeText(t.title || `Table ${idx + 1}`), margin, y);
+      doc.setTextColor(...PDF_INK.navy);
+      doc.text(safeText(t.title || `Tablo ${idx + 1}`), margin, y);
       y += 6;
-      y = drawPdfTable(doc, t.headers || [], t.rows || [], margin, y, maxWidth, safeText);
+      y = drawPdfTable(doc, unicodeReady, t.headers || [], t.rows || [], margin, y, maxWidth, safeText);
     });
   }
 
   // 6. Charts Section
   if (Array.isArray(studyCard.charts) && studyCard.charts.length > 0) {
-    if (y > 250) { doc.addPage(); y = 35; }
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.setTextColor(22, 50, 92); // Navy section header
-    doc.text('Charts', margin, y);
-    y += 7;
+    drawPlainSectionHeader('Grafikler', PDF_INK.teal);
 
     studyCard.charts.forEach((c, idx) => {
       if (y > 260) { doc.addPage(); y = 35; }
-      doc.setFont("helvetica", "bold");
+      pdfSetFont(doc, unicodeReady, 'bold');
       doc.setFontSize(10);
-      doc.setTextColor(22, 50, 92);
-      doc.text(safeText(c.title || `Chart ${idx + 1}`), margin, y);
+      doc.setTextColor(...PDF_INK.navy);
+      doc.text(safeText(c.title || `Grafik ${idx + 1}`), margin, y);
       y += 6;
 
       const imgData = visualAssets && visualAssets.chartImages ? visualAssets.chartImages[idx] : null;
@@ -11461,37 +11709,31 @@ function appendStudyCardToDoc(doc, studyCard, isFirstCard, visualAssets) {
           y += imgHeight + 8;
         } catch (err) {
           console.warn('Failed to embed chart image, falling back to data list:', err);
-          y = drawChartDataFallback(doc, c, margin, y, maxWidth, safeText);
+          y = drawChartDataFallback(doc, unicodeReady, c, margin, y, maxWidth, safeText);
         }
       } else {
-        y = drawChartDataFallback(doc, c, margin, y, maxWidth, safeText);
+        y = drawChartDataFallback(doc, unicodeReady, c, margin, y, maxWidth, safeText);
       }
     });
   }
 
   // 7. Diagrams Section
   if (Array.isArray(studyCard.diagrams) && studyCard.diagrams.length > 0) {
-    if (y > 250) { doc.addPage(); y = 35; }
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.setTextColor(22, 50, 92); // Navy section header
-    doc.text('Diagrams', margin, y);
-    y += 7;
+    drawPlainSectionHeader('Diyagramlar', PDF_INK.amberDark);
 
     studyCard.diagrams.forEach((d, idx) => {
       if (y > 260) { doc.addPage(); y = 35; }
-      doc.setFont("helvetica", "bold");
+      pdfSetFont(doc, unicodeReady, 'bold');
       doc.setFontSize(10);
-      doc.setTextColor(22, 50, 92);
-      doc.text(safeText(d.title || `Diagram ${idx + 1}`), margin, y);
+      doc.setTextColor(...PDF_INK.navy);
+      doc.text(safeText(d.title || `Diyagram ${idx + 1}`), margin, y);
       y += 6;
 
       if (d.description) {
-        doc.setFont("helvetica", "normal");
+        pdfSetFont(doc, unicodeReady, 'normal');
         doc.setFontSize(9);
-        doc.setTextColor(60, 66, 82);
-        const descLines = doc.splitTextToSize(safeText(d.description), maxWidth);
-        descLines.forEach(line => {
+        doc.setTextColor(...PDF_INK.body);
+        doc.splitTextToSize(safeText(d.description), maxWidth).forEach(line => {
           if (y > 270) { doc.addPage(); y = 35; }
           doc.text(line, margin, y);
           y += 5;
@@ -11511,10 +11753,10 @@ function appendStudyCardToDoc(doc, studyCard, isFirstCard, visualAssets) {
           y += imgHeight + 8;
         } catch (err) {
           console.warn('Failed to embed diagram image, falling back to source text:', err);
-          y = drawMermaidSourceFallback(doc, d, margin, y, maxWidth, safeText);
+          y = drawMermaidSourceFallback(doc, unicodeReady, d, margin, y, maxWidth, safeText);
         }
       } else {
-        y = drawMermaidSourceFallback(doc, d, margin, y, maxWidth, safeText);
+        y = drawMermaidSourceFallback(doc, unicodeReady, d, margin, y, maxWidth, safeText);
       }
     });
   }
@@ -11526,6 +11768,7 @@ async function exportStudyCardToPDF(studyCard) {
   }
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
+  const unicodeReady = await loadPdfUnicodeFont(doc);
 
   // Tables/charts/diagrams are drawn live by Chart.js/Mermaid onto the DOM
   // only while this card's modal is open. Capture them as images now, before
@@ -11546,8 +11789,23 @@ async function exportStudyCardToPDF(studyCard) {
     }
   }
 
-  appendStudyCardToDoc(doc, studyCard, true, visualAssets);
-  applyBrandedLayout(doc);
+  let titleStr = 'Bilgi Kartı';
+  if (studyCard.documents?.file_name) titleStr = studyCard.documents.file_name;
+  else if (studyCard.documentFileName) titleStr = studyCard.documentFileName;
+
+  const styleLabel = getStyleLabel(studyCard.summary_style);
+  const langLabel = studyCard.summary_language === 'tr' ? 'Türkçe' : 'İngilizce';
+  const createdDate = new Date(studyCard.created_at).toLocaleDateString('tr-TR');
+
+  buildPdfCoverPage(doc, unicodeReady, {
+    kind: 'single',
+    title: titleStr,
+    metaLines: [`Stil: ${styleLabel}  ·  Dil: ${langLabel}`, `Oluşturulma: ${createdDate}`],
+    footer: 'Acadex ile oluşturuldu',
+  });
+
+  appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets);
+  applyBrandedLayout(doc, unicodeReady, 2); // skip the cover page (page 1) — it already carries its own full-page brand treatment
 
   let docFileName = 'study-card';
   if (studyCard.documents?.file_name) {
@@ -11797,8 +12055,8 @@ async function exportAllFilteredCardsToPDF() {
   const cards = window.filteredLibraryCardsList || [];
   if (cards.length === 0) {
     const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
-    showDashboardAlert('error', isTr 
-      ? 'Aktarılacak bilgi kartı bulunamadı. Lütfen filtrelerinizi kontrol edin.' 
+    showDashboardAlert('error', isTr
+      ? 'Aktarılacak bilgi kartı bulunamadı. Lütfen filtrelerinizi kontrol edin.'
       : 'No study cards found to export. Please check your filters.');
     return;
   }
@@ -11816,14 +12074,41 @@ async function exportAllFilteredCardsToPDF() {
     }
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
+    const unicodeReady = await loadPdfUnicodeFont(doc);
 
+    buildPdfCoverPage(doc, unicodeReady, {
+      kind: 'bulk',
+      title: 'Bilgi Kartı Raporu',
+      metaLines: [
+        `${cards.length} bilgi kartı içerir`,
+        `Oluşturulma: ${new Date().toLocaleDateString('tr-TR')}`,
+      ],
+      footer: 'Acadex ile oluşturuldu',
+    });
+
+    // Reserve blank page(s) for the table of contents right after the cover
+    // — how many pages a card starts on isn't known until it's actually laid
+    // out below, so the TOC itself gets filled in afterward, once every
+    // card's real starting page number has been recorded.
+    const tocPageCount = estimatePdfTocPageCount(cards.length);
+    for (let p = 0; p < tocPageCount; p++) doc.addPage();
+    const firstTocPage = 2;
+
+    const tocEntries = [];
     for (let i = 0; i < cards.length; i++) {
-      appendStudyCardToDoc(doc, cards[i], i === 0);
+      const startPage = doc.internal.getNumberOfPages() + 1; // appendStudyCardToDoc() below will addPage() exactly once before drawing, landing on this page number
+      let cardTitle = 'Bilgi Kartı';
+      if (cards[i].documents?.file_name) cardTitle = cards[i].documents.file_name;
+      else if (cards[i].documentFileName) cardTitle = cards[i].documentFileName;
+      tocEntries.push({ title: cardTitle, page: startPage });
+
+      appendStudyCardToDoc(doc, cards[i], unicodeReady);
     }
 
-    applyBrandedLayout(doc);
+    fillPdfTocPages(doc, unicodeReady, tocEntries, firstTocPage, tocPageCount);
+    applyBrandedLayout(doc, unicodeReady, 2); // skip the cover page (page 1)
 
-    doc.save('Acadex_Study_Guide.pdf');
+    doc.save('Acadex_Bilgi_Karti_Raporu.pdf');
     const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
     showDashboardAlert('success', isTr ? 'Tüm bilgi kartları başarıyla PDF olarak aktarıldı!' : 'All study cards successfully exported to PDF!');
   } catch (err) {
