@@ -10322,10 +10322,87 @@ async function loadDashboardHome() {
     await loadRecentActivity();
     await renderStreakAndAchievements();
     renderWeakTopicsPanel(examsData || []);
+    await loadHomeAnnouncementsAndMaterials();
   } catch (err) {
     console.error("Error loading home stats:", err);
   }
 }
+
+// ==========================================
+// Duyurular & Materyaller (Home tab)
+//
+// announcements and teacher_materials were already correctly written by
+// teacher.html (submitTeacherAnnouncement / submitTeacherMaterial) and
+// already have working RLS select policies scoping them to the right
+// student (announcements: active + department + starts_at/ends_at window;
+// teacher_materials: own department) — see
+// supabase/migrations/20260719_admin_teacher_portals.sql and
+// 20260719b_admin_teacher_enhancements.sql. What was missing was any
+// student-facing UI reading from either table, so nothing a hoca posted
+// ever rendered anywhere for a student. Both queries below rely entirely
+// on RLS to scope the rows — no extra client-side filtering needed.
+// ==========================================
+async function loadHomeAnnouncementsAndMaterials() {
+  const annList = document.getElementById('home-announcements-list');
+  const matList = document.getElementById('home-materials-list');
+  if (!annList && !matList) return;
+
+  if (annList) {
+    try {
+      const { data, error } = await supabaseClient
+        .from('announcements')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(10);
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
+        annList.innerHTML = `<div style="text-align:center; padding: 1rem; color: var(--color-text-muted); font-size: 0.85rem;">Şu anda gösterilecek bir duyuru yok.</div>`;
+      } else {
+        annList.innerHTML = data.map(a => `
+          <div style="border: 1px solid rgba(22,50,92,0.08); border-radius: var(--radius-sm); padding: 0.85rem 1rem;">
+            <div style="display:flex; justify-content: space-between; align-items:flex-start; gap: 0.5rem; flex-wrap: wrap;">
+              <strong style="color: var(--color-navy); font-size: 0.9rem;">${escapeHtml(a.title)}</strong>
+              <span style="font-size: 0.7rem; color: var(--color-text-muted); white-space: nowrap;">${new Date(a.created_at).toLocaleDateString()}</span>
+            </div>
+            <span style="display:inline-block; margin-top: 0.35rem; font-size: 0.68rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 20px; background: rgba(31,138,147,0.1); color: var(--color-teal);">🎯 ${escapeHtml(a.audience_department || 'Tüm Bölümler')}</span>
+            <p style="font-size: 0.8rem; color: var(--color-text); margin-top: 0.35rem; white-space: pre-wrap;">${escapeHtml(a.body)}</p>
+          </div>
+        `).join('');
+      }
+    } catch (err) {
+      console.error('loadHomeAnnouncementsAndMaterials (announcements) error:', err);
+      annList.innerHTML = `<p style="color:#DC2626; font-size: 0.85rem;">Duyurular yüklenemedi.</p>`;
+    }
+  }
+
+  if (matList) {
+    try {
+      const { data, error } = await supabaseClient
+        .from('teacher_materials')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(10);
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
+        matList.innerHTML = `<div style="text-align:center; padding: 1rem; color: var(--color-text-muted); font-size: 0.85rem;">Bölümünüz için henüz paylaşılan materyal yok.</div>`;
+      } else {
+        matList.innerHTML = data.map(m => `
+          <div style="border: 1px solid rgba(22,50,92,0.08); border-radius: var(--radius-sm); padding: 0.85rem 1rem;">
+            <a href="${escapeHtml(m.url)}" target="_blank" rel="noopener" style="color: var(--color-teal); font-weight: 700; font-size: 0.9rem; text-decoration: underline;">${escapeHtml(m.title)}</a>
+            ${m.description ? `<p style="font-size: 0.8rem; color: var(--color-text-muted); margin-top: 0.25rem;">${escapeHtml(m.description)}</p>` : ''}
+            <span style="display:block; font-size: 0.7rem; color: var(--color-text-muted); margin-top: 0.25rem;">${new Date(m.created_at).toLocaleDateString()}</span>
+          </div>
+        `).join('');
+      }
+    } catch (err) {
+      console.error('loadHomeAnnouncementsAndMaterials (materials) error:', err);
+      matList.innerHTML = `<p style="color:#DC2626; font-size: 0.85rem;">Materyaller yüklenemedi.</p>`;
+    }
+  }
+}
+window.loadHomeAnnouncementsAndMaterials = loadHomeAnnouncementsAndMaterials;
 
 // ==========================================
 // Weak Topics / Focus Panel (concept-level analysis)
@@ -10555,6 +10632,30 @@ async function gatherNotificationItems(lastCheck) {
     }
   } catch (err) {
     console.error('gatherNotificationItems (announcements) error:', err);
+  }
+
+  // 2b. Shared materials from your own department's hocas — rendered on the
+  // Home tab by loadHomeAnnouncementsAndMaterials(); previously had no
+  // notification either, so a newly-shared material was invisible unless a
+  // student happened to revisit Home on their own.
+  try {
+    const { data: mats, error } = await supabaseClient
+      .from('teacher_materials')
+      .select('*')
+      .gt('created_at', lastCheck)
+      .order('created_at', { ascending: false });
+    if (!error && mats) {
+      mats.forEach(m => {
+        items.push({
+          time: m.created_at,
+          title: `📚 ${escapeHtml(m.title)}`,
+          subtitle: m.description ? escapeHtml(m.description) : 'Yeni bir ders materyali paylaşıldı.',
+          onClick: () => switchDashboardView('home')
+        });
+      });
+    }
+  } catch (err) {
+    console.error('gatherNotificationItems (materials) error:', err);
   }
 
   // 3. Newly unlocked achievements
