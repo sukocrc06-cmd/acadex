@@ -1502,18 +1502,34 @@
           </div>
         </div>
 
-        <!-- Section 2: Proje Galerisi -->
+        <!-- Section 2: Proje Akışı (Project Feed) -->
         <div class="sandbox-section">
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; border-bottom: 2px solid var(--color-teal); padding-bottom: 0.35rem; flex-wrap: wrap; gap: 0.5rem;">
             <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--color-navy); margin: 0;">
-              🚀 <span data-i18n="sandbox.galleryTitle">Proje Galerisi</span>
+              🚀 <span data-i18n="sandbox.galleryTitle">Proje Akışı</span>
             </h3>
             <button class="btn btn-primary" id="btn-share-project" style="border: none; font-size: 0.8rem; padding: 0.4rem 0.8rem; font-weight: 700;" data-i18n="sandbox.shareBtn">
               Yeni Proje Paylaş
             </button>
           </div>
 
-          <div id="sandbox-projects-grid" class="docs-grid" style="grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); margin-top: 1.25rem;">
+          <!-- Sort + department + tag filters -->
+          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin-bottom: 1.1rem;">
+            <div style="display: flex; gap: 0.35rem;">
+              <button type="button" id="sandbox-sort-new" class="btn btn-primary" onclick="setSandboxFeedSort('new')" style="border: none; font-size: 0.75rem; padding: 0.4rem 0.75rem; font-weight: 700;">🆕 Yeni</button>
+              <button type="button" id="sandbox-sort-popular" class="btn btn-outline" onclick="setSandboxFeedSort('popular')" style="font-size: 0.75rem; padding: 0.4rem 0.75rem; font-weight: 700;">🔥 Popüler</button>
+            </div>
+            <select id="sandbox-filter-dept" onchange="setSandboxFeedDeptFilter(this.value)" style="font-size: 0.75rem; padding: 0.4rem 0.6rem; border-radius: var(--radius-sm); border: 1px solid rgba(22, 50, 92, 0.15); color: var(--color-text); background: var(--color-white);">
+              <option value="">Tüm Bölümler</option>
+              <option value="mis">MIS</option>
+              <option value="ba">İşletme (BA)</option>
+              <option value="itb">Uluslararası Ticaret (ITB)</option>
+              <option value="bf">Bankacılık ve Finans (BF)</option>
+            </select>
+            <div id="sandbox-tag-filters" style="display: flex; flex-wrap: wrap; gap: 0.35rem;"></div>
+          </div>
+
+          <div id="sandbox-projects-feed" style="display: flex; flex-direction: column; gap: 1.25rem; max-width: 720px;">
             <!-- Populated dynamically -->
           </div>
         </div>
@@ -1706,6 +1722,17 @@
               <input type="text" id="mod-projects-search" placeholder="Filter sandbox projects..." style="padding: 0.4rem 0.75rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); font-size: 0.8rem; width: 220px;" oninput="filterModerationProjects()">
             </div>
             <div id="mod-projects-list" style="display: flex; flex-direction: column; gap: 0.75rem;">
+              <!-- Loaded dynamically -->
+            </div>
+          </div>
+
+          <!-- Sandbox Project Comments Subsection -->
+          <div class="moderation-section">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid rgba(22, 50, 92, 0.08); padding-bottom: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+              <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--color-navy); margin: 0;">Proje Yorumları (Project Comments)</h3>
+              <input type="text" id="mod-comments-search" placeholder="Filter comments..." style="padding: 0.4rem 0.75rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); font-size: 0.8rem; width: 220px;" oninput="filterModerationComments()">
+            </div>
+            <div id="mod-comments-list" style="display: flex; flex-direction: column; gap: 0.75rem;">
               <!-- Loaded dynamically -->
             </div>
           </div>
@@ -2436,10 +2463,14 @@
             <input type="text" id="project-live" class="settings-input" style="width: 100%;" placeholder="https://project.vercel.app">
             <div id="live-url-error" style="color: #EF4444; font-size: 0.75rem; font-weight: 600; display: none;"></div>
           </div>
+          <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+            <label for="project-tags" style="font-size: 0.85rem; font-weight: 700; color: var(--color-navy);">Etiketler</label>
+            <input type="text" id="project-tags" class="settings-input" style="width: 100%;" placeholder="ör. web, mobil, veri-bilimi (virgülle ayırın)">
+          </div>
         </div>
         <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1rem; border-top: 1px solid rgba(22, 50, 92, 0.08); padding-top: 1rem;">
           <button type="button" class="btn btn-outline" id="btn-cancel-share-project" style="font-size: 0.8rem; padding: 0.5rem 1rem;">Cancel</button>
-          <button type="submit" class="btn btn-primary" style="border: none; font-size: 0.8rem; padding: 0.5rem 1rem;">Paylaş</button>
+          <button type="submit" class="btn btn-primary" id="btn-submit-share-project" style="border: none; font-size: 0.8rem; padding: 0.5rem 1rem;">Paylaş</button>
         </div>
       </form>
     </div>

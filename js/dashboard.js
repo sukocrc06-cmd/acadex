@@ -9325,6 +9325,39 @@ window.buildCrossDocumentKnowledgeGraph = buildCrossDocumentKnowledgeGraph;
 // ==========================================
 // GELISTIRICI SANDBOX CONTROLLERS (PHASE 10)
 // ==========================================
+// ==========================================================================
+// DEVELOPER SANDBOX — Proje Akışı (project feed): likes, comments, tags,
+// department filter, "Popüler" sort, live-preview embed, edit-in-place.
+//
+// sandbox_projects was already a fully public feed (no is_shared toggle —
+// every row is visible to everyone by construction, see loadSandboxProjects
+// below). What was missing was the social layer on top of it: a like
+// counter, a comment thread, a way to browse/sort a growing gallery, and a
+// way to fix a post after sharing it. See
+// supabase/migrations/20260830c_sandbox_feed_likes_comments.sql for the new
+// sandbox_project_likes / sandbox_project_comments tables + the
+// sandbox_projects.tags/likes_count/updated_at columns this relies on.
+// ==========================================================================
+
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+let sandboxFeedSort = 'new'; // 'new' | 'popular'
+let sandboxFeedDeptFilter = ''; // '' | 'mis' | 'ba' | 'itb' | 'bf'
+let sandboxFeedTagFilter = null;
+let sandboxFeedProjects = []; // the currently-loaded page, with .author joined in
+let sandboxFeedHasMore = false;
+let sandboxUserLikedSet = new Set(); // project ids the signed-in student has liked
+let sandboxCommentsCache = {}; // projectId -> [{ ...row, author }]
+let sandboxEditingProjectId = null; // set while the share modal is in "edit" mode
+
 function loadDeveloperSandbox() {
   const modal = document.getElementById('share-project-modal');
   const btnShare = document.getElementById('btn-share-project');
@@ -9332,16 +9365,26 @@ function loadDeveloperSandbox() {
   const btnCancel = document.getElementById('btn-cancel-share-project');
   const form = document.getElementById('share-project-form');
 
+  const resetModalToCreateMode = () => {
+    sandboxEditingProjectId = null;
+    const titleEl = document.getElementById('share-project-modal-title');
+    if (titleEl) titleEl.textContent = 'Yeni Proje Paylaş';
+    const submitBtn = document.getElementById('btn-submit-share-project');
+    if (submitBtn) submitBtn.textContent = 'Paylaş';
+  };
+
   if (btnShare && modal) {
     btnShare.onclick = (e) => {
       e.preventDefault();
       form.reset();
+      resetModalToCreateMode();
       modal.style.display = 'flex';
     };
   }
 
   const closeModal = () => {
     if (modal) modal.style.display = 'none';
+    resetModalToCreateMode();
   };
 
   if (btnClose) btnClose.onclick = closeModal;
@@ -9361,6 +9404,7 @@ function loadDeveloperSandbox() {
       const description = document.getElementById('project-desc').value.trim();
       const githubUrl = document.getElementById('project-github').value.trim();
       const liveUrl = document.getElementById('project-live').value.trim();
+      const tagsRaw = document.getElementById('project-tags') ? document.getElementById('project-tags').value.trim() : '';
 
       if (!title || !description) return;
 
@@ -9415,29 +9459,60 @@ function loadDeveloperSandbox() {
 
       if (hasError) return;
 
-      try {
-        const { error } = await supabaseClient
-          .from('sandbox_projects')
-          .insert({
-            user_id: currentUser.id,
-            title: title,
-            description: description,
-            github_url: parsedGithub,
-            live_url: parsedLive
-          });
+      const tags = tagsRaw
+        ? [...new Set(
+            tagsRaw.split(',')
+              .map(t => t.trim().toLowerCase().replace(/[^a-z0-9ğüşıöç\-]/gi, ''))
+              .filter(Boolean)
+          )].slice(0, 8)
+        : [];
 
-        if (error) {
-          console.error("Error sharing sandbox project:", error);
-          showDashboardAlert('error', 'Proje paylaşılamadı. / Failed to share project.');
-          return;
+      try {
+        if (sandboxEditingProjectId) {
+          const { error } = await supabaseClient
+            .from('sandbox_projects')
+            .update({
+              title,
+              description,
+              github_url: parsedGithub,
+              live_url: parsedLive,
+              tags,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', sandboxEditingProjectId);
+
+          if (error) {
+            console.error("Error updating sandbox project:", error);
+            showDashboardAlert('error', 'Proje güncellenemedi.');
+            return;
+          }
+          showDashboardAlert('success', 'Proje güncellendi!');
+        } else {
+          const { error } = await supabaseClient
+            .from('sandbox_projects')
+            .insert({
+              user_id: currentUser.id,
+              title: title,
+              description: description,
+              github_url: parsedGithub,
+              live_url: parsedLive,
+              tags,
+            });
+
+          if (error) {
+            console.error("Error sharing sandbox project:", error);
+            showDashboardAlert('error', 'Proje paylaşılamadı. / Failed to share project.');
+            return;
+          }
+          showDashboardAlert('success', 'Projeniz paylaşıldı! / Project shared successfully!');
+          await checkAndAwardSandboxProject();
         }
 
-        showDashboardAlert('success', 'Projeniz paylaşıldı! / Project shared successfully!');
         closeModal();
-        await checkAndAwardSandboxProject();
         await loadSandboxProjects();
       } catch (err) {
-        console.error("Exception sharing project:", err);
+        console.error("Exception saving sandbox project:", err);
+        showDashboardAlert('error', 'Proje kaydedilemedi.');
       }
     };
   }
@@ -9446,11 +9521,11 @@ function loadDeveloperSandbox() {
 }
 
 async function loadSandboxProjects() {
-  const grid = document.getElementById('sandbox-projects-grid');
-  if (!grid) return;
+  const feed = document.getElementById('sandbox-projects-feed');
+  if (!feed) return;
 
-  grid.innerHTML = `
-    <div style="display: flex; align-items: center; justify-content: center; padding: 2rem; grid-column: 1 / -1;">
+  feed.innerHTML = `
+    <div style="display: flex; align-items: center; justify-content: center; padding: 2rem;">
       <svg class="spinner" viewBox="0 0 50 50" style="animation: rotate 2s linear infinite; width: 32px; height: 32px; color: var(--color-teal);">
         <circle class="path" cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="5" style="stroke-dasharray: 1, 150; stroke-dashoffset: 0; stroke-linecap: round; animation: dash 1.5s ease-in-out infinite;"></circle>
       </svg>
@@ -9458,140 +9533,408 @@ async function loadSandboxProjects() {
   `;
 
   try {
-    const { data: projects, error } = await supabaseClient
-      .from('sandbox_projects')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(sandboxProjectsLimit);
+    let query = supabaseClient.from('sandbox_projects').select('*');
+    query = sandboxFeedSort === 'popular'
+      ? query.order('likes_count', { ascending: false }).order('created_at', { ascending: false })
+      : query.order('created_at', { ascending: false });
+    const { data: projects, error } = await query.limit(sandboxProjectsLimit);
 
     if (error) {
       console.error("Error fetching sandbox projects:", error);
-      grid.innerHTML = `<p style="color: var(--color-text-muted); grid-column: 1 / -1;">Projeler yüklenemedi. / Failed to load projects.</p>`;
+      feed.innerHTML = `<p style="color: var(--color-text-muted);">Projeler yüklenemedi. / Failed to load projects.</p>`;
       return;
     }
 
     if (!projects || projects.length === 0) {
-      grid.innerHTML = `
-        <div class="search-empty-state" style="grid-column: 1 / -1; text-align: center; padding: 2rem;">
+      sandboxFeedProjects = [];
+      sandboxFeedHasMore = false;
+      feed.innerHTML = `
+        <div class="search-empty-state" style="text-align: center; padding: 2rem;">
           <p style="color: var(--color-text-muted); font-size: 0.9rem;">Henüz paylaşılan proje yok. İlk paylaşan siz olun!</p>
           <p style="font-size: 0.8rem; color: var(--color-text-muted);">No projects shared yet — be the first! Share your GitHub project or Vercel deployment with the whole Acadex community.</p>
         </div>
       `;
+      renderSandboxTagFilterChips();
       return;
     }
 
-    // Fetch submitter profiles client-side
+    const projectIds = projects.map(p => p.id);
     const userIds = [...new Set(projects.map(p => p.user_id))];
-    const { data: profiles, error: profError } = await supabaseClient
-      .from('profiles')
-      .select('id, full_name, department, avatar_url')
-      .in('id', userIds);
+
+    const [{ data: profiles }, { data: myLikes }, { data: comments }] = await Promise.all([
+      supabaseClient.from('profiles').select('id, full_name, department, avatar_url').in('id', userIds),
+      currentUser
+        ? supabaseClient.from('sandbox_project_likes').select('project_id').eq('user_id', currentUser.id).in('project_id', projectIds)
+        : Promise.resolve({ data: [] }),
+      supabaseClient.from('sandbox_project_comments').select('*').in('project_id', projectIds).order('created_at', { ascending: true }),
+    ]);
 
     const profileMap = {};
-    profiles?.forEach(p => {
+    (profiles || []).forEach(p => {
       profileMap[p.id] = {
         full_name: p.full_name || 'Anonymous Student',
         department: p.department || 'General Faculty',
-        avatar_url: p.avatar_url || null
+        avatar_url: p.avatar_url || null,
       };
     });
 
-    grid.innerHTML = '';
-    projects.forEach(proj => {
-      const author = profileMap[proj.user_id] || { full_name: 'Anonymous Student', department: 'General Faculty' };
-      const deptClass = getDepartmentColorClass(author.department);
-      const deptShort = getDepartmentShortName(author.department);
-      
-      const createdDate = new Date(proj.created_at).toLocaleDateString('tr-TR', {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric'
+    sandboxUserLikedSet = new Set((myLikes || []).map(l => l.project_id));
+
+    const commentsByProject = {};
+    (comments || []).forEach(c => {
+      if (!commentsByProject[c.project_id]) commentsByProject[c.project_id] = [];
+      commentsByProject[c.project_id].push({
+        ...c,
+        author: profileMap[c.user_id] || { full_name: 'Anonymous Student', avatar_url: null },
       });
-
-      const card = document.createElement('div');
-      card.className = 'doc-card';
-      card.style.display = 'flex';
-      card.style.flexDirection = 'column';
-      card.style.justifyContent = 'space-between';
-      card.style.position = 'relative';
-      card.style.gap = '0.5rem';
-
-      // Render Delete Button if current student is the owner
-      let deleteBtnHtml = '';
-      if (proj.user_id === currentUser.id) {
-        deleteBtnHtml = `
-          <button onclick="deleteSandboxProject('${proj.id}')" style="background: none; border: none; cursor: pointer; color: #EF4444; position: absolute; top: 0.75rem; right: 0.75rem; display: flex; align-items: center; justify-content: center; padding: 0.25rem; border-radius: var(--radius-sm); transition: background-color 0.2s;" title="Projeyi Sil (Delete)">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-          </button>
-        `;
-      }
-
-      card.innerHTML = `
-        <div style="padding-right: 1.5rem;">
-          <h4 style="font-size: 0.95rem; font-weight: 800; color: var(--color-navy); margin-bottom: 0.25rem; word-break: break-word;">${proj.title}</h4>
-          
-          <div style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.7rem; color: var(--color-text-muted); margin-bottom: 0.5rem; flex-wrap: wrap;">
-            ${renderUserAvatarHtml(author, 18)}
-            <span>By: <strong>${author.full_name}</strong></span>
-            <span class="dept-badge ${deptClass}" style="padding: 0.1rem 0.35rem; font-size: 0.55rem; font-weight: 800;">${deptShort}</span>
-          </div>
-
-          <p style="font-size: 0.8rem; color: var(--color-text); line-height: 1.4; margin-bottom: 0.5rem; word-break: break-word;">${proj.description}</p>
-        </div>
-
-        <div style="display: flex; flex-direction: column; gap: 0.35rem; border-top: 1px solid rgba(22, 50, 92, 0.08); padding-top: 0.5rem; margin-top: auto;">
-          <div style="display: flex; gap: 0.35rem;">
-            ${proj.github_url ? `
-              <a href="${proj.github_url}" target="_blank" class="btn btn-outline" style="flex: 1; text-align: center; font-size: 0.7rem; padding: 0.3rem 0.5rem; display: flex; align-items: center; justify-content: center; gap: 0.25rem;">
-                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
-                GitHub
-              </a>
-            ` : ''}
-            ${proj.live_url ? `
-              <a href="${proj.live_url}" target="_blank" class="btn btn-primary" style="flex: 1; text-align: center; font-size: 0.7rem; padding: 0.3rem 0.5rem; border: none; display: flex; align-items: center; justify-content: center; gap: 0.25rem;">
-                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
-                Live Demo
-              </a>
-            ` : ''}
-          </div>
-          <span style="font-size: 0.65rem; color: var(--color-text-muted); text-align: right; display: block; margin-top: 0.15rem;">Paylaşım: ${createdDate}</span>
-        </div>
-        ${deleteBtnHtml}
-      `;
-      grid.appendChild(card);
     });
+    sandboxCommentsCache = commentsByProject;
 
-    if (projects.length === sandboxProjectsLimit) {
-      const loadMoreBtn = document.createElement('button');
-      loadMoreBtn.className = 'btn btn-outline';
-      loadMoreBtn.id = 'btn-load-more-sandbox';
-      loadMoreBtn.textContent = 'Load More / Daha Fazla Yükle';
-      loadMoreBtn.style.gridColumn = '1 / -1';
-      loadMoreBtn.style.margin = '2rem auto';
-      loadMoreBtn.style.padding = '0.6rem 1.5rem';
-      loadMoreBtn.style.fontSize = '0.85rem';
-      loadMoreBtn.style.display = 'block';
-      
-      loadMoreBtn.addEventListener('click', async () => {
-        loadMoreBtn.disabled = true;
-        loadMoreBtn.textContent = 'Loading...';
-        sandboxProjectsLimit += 20;
-        await loadSandboxProjects();
-      });
-      
-      grid.appendChild(loadMoreBtn);
-    }
+    sandboxFeedProjects = projects.map(p => ({
+      ...p,
+      author: profileMap[p.user_id] || { full_name: 'Anonymous Student', department: 'General Faculty' },
+    }));
+    sandboxFeedHasMore = projects.length === sandboxProjectsLimit;
 
+    renderSandboxTagFilterChips();
+    renderSandboxFeed();
   } catch (err) {
     console.error("Exception loading sandbox projects:", err);
+    feed.innerHTML = `<p style="color: var(--color-text-muted);">Projeler yüklenemedi.</p>`;
   }
 }
+
+function renderSandboxTagFilterChips() {
+  const container = document.getElementById('sandbox-tag-filters');
+  if (!container) return;
+  const allTags = [...new Set(sandboxFeedProjects.flatMap(p => Array.isArray(p.tags) ? p.tags : []))].slice(0, 12);
+  if (allTags.length === 0) { container.innerHTML = ''; return; }
+  container.innerHTML = allTags.map(t => `
+    <span onclick="toggleSandboxTagFilter('${escapeHtml(t)}')" class="dept-badge" style="cursor: pointer; font-size: 0.65rem; padding: 0.2rem 0.55rem; ${sandboxFeedTagFilter === t ? 'background: var(--color-teal); color: white;' : 'background: var(--color-teal-light); color: var(--color-teal);'}">#${escapeHtml(t)}</span>
+  `).join('');
+}
+
+function renderSandboxFeed() {
+  const feed = document.getElementById('sandbox-projects-feed');
+  if (!feed) return;
+
+  let list = sandboxFeedProjects;
+  if (sandboxFeedDeptFilter) {
+    list = list.filter(p => getDepartmentColorClass(p.author.department) === `dept-${sandboxFeedDeptFilter}`);
+  }
+  if (sandboxFeedTagFilter) {
+    list = list.filter(p => Array.isArray(p.tags) && p.tags.includes(sandboxFeedTagFilter));
+  }
+
+  if (list.length === 0) {
+    feed.innerHTML = `
+      <div class="search-empty-state" style="text-align: center; padding: 2rem;">
+        <p style="color: var(--color-text-muted); font-size: 0.9rem;">Bu filtrelere uyan proje bulunamadı.</p>
+      </div>
+    `;
+    return;
+  }
+
+  feed.innerHTML = list.map(proj => renderSandboxPostHtml(proj)).join('');
+  list.forEach(proj => renderProjectComments(proj.id));
+
+  if (sandboxFeedHasMore) {
+    const loadMoreBtn = document.createElement('button');
+    loadMoreBtn.className = 'btn btn-outline';
+    loadMoreBtn.id = 'btn-load-more-sandbox';
+    loadMoreBtn.textContent = 'Daha Fazla Yükle / Load More';
+    loadMoreBtn.style.cssText = 'margin: 0.5rem auto; padding: 0.6rem 1.5rem; font-size: 0.85rem; display: block;';
+    loadMoreBtn.addEventListener('click', async () => {
+      loadMoreBtn.disabled = true;
+      loadMoreBtn.textContent = 'Yükleniyor...';
+      sandboxProjectsLimit += 20;
+      await loadSandboxProjects();
+    });
+    feed.appendChild(loadMoreBtn);
+  }
+}
+
+function renderSandboxPostHtml(proj) {
+  const author = proj.author || {};
+  const deptClass = getDepartmentColorClass(author.department);
+  const deptShort = getDepartmentShortName(author.department);
+  const createdDate = new Date(proj.created_at).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' });
+  const wasEdited = proj.updated_at && (new Date(proj.updated_at).getTime() - new Date(proj.created_at).getTime() > 60000);
+  const isOwner = currentUser && proj.user_id === currentUser.id;
+  const liked = sandboxUserLikedSet.has(proj.id);
+  const tags = Array.isArray(proj.tags) ? proj.tags : [];
+  const commentCount = (sandboxCommentsCache[proj.id] || []).length;
+
+  return `
+    <div class="doc-card" data-project-id="${proj.id}" style="padding: 1.25rem; display: flex; flex-direction: column; gap: 0.75rem;">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          ${renderUserAvatarHtml(author, 32)}
+          <div>
+            <div style="font-weight: 800; color: var(--color-navy); font-size: 0.9rem;">${escapeHtml(author.full_name)}</div>
+            <div style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.7rem; color: var(--color-text-muted); flex-wrap: wrap;">
+              <span class="dept-badge ${deptClass}" style="padding: 0.1rem 0.35rem; font-size: 0.55rem; font-weight: 800;">${deptShort}</span>
+              <span>${createdDate}${wasEdited ? ' · düzenlendi' : ''}</span>
+            </div>
+          </div>
+        </div>
+        ${isOwner ? `
+          <div style="display: flex; gap: 0.15rem;">
+            <button onclick="openEditProjectModal('${proj.id}')" title="Düzenle" style="background: none; border: none; cursor: pointer; color: var(--color-text-muted); padding: 0.3rem; border-radius: var(--radius-sm); display: flex;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+            </button>
+            <button onclick="deleteSandboxProject('${proj.id}')" title="Sil" style="background: none; border: none; cursor: pointer; color: #EF4444; padding: 0.3rem; border-radius: var(--radius-sm); display: flex;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+            </button>
+          </div>
+        ` : ''}
+      </div>
+
+      <h4 style="font-size: 1.05rem; font-weight: 800; color: var(--color-navy); margin: 0; word-break: break-word;">${escapeHtml(proj.title)}</h4>
+      <p style="font-size: 0.85rem; color: var(--color-text); line-height: 1.5; margin: 0; white-space: pre-wrap; word-break: break-word;">${escapeHtml(proj.description)}</p>
+
+      ${tags.length ? `
+        <div style="display: flex; flex-wrap: wrap; gap: 0.3rem;">
+          ${tags.map(t => `<span onclick="toggleSandboxTagFilter('${escapeHtml(t)}')" class="dept-badge" style="background: var(--color-teal-light); color: var(--color-teal); font-size: 0.65rem; padding: 0.15rem 0.5rem; cursor: pointer;">#${escapeHtml(t)}</span>`).join('')}
+        </div>
+      ` : ''}
+
+      ${proj.live_url ? `
+        <div style="border: 1px solid rgba(22, 50, 92, 0.1); border-radius: var(--radius-sm); overflow: hidden; background: var(--color-bg-alt);">
+          <iframe src="${proj.live_url}" loading="lazy" sandbox="allow-scripts allow-same-origin allow-popups allow-forms" referrerpolicy="no-referrer" style="width: 100%; height: 220px; border: none; display: block;"></iframe>
+        </div>
+        <p style="font-size: 0.68rem; color: var(--color-text-muted); margin: -0.35rem 0 0;">Bazı siteler önizlemeye izin vermez — açılmıyorsa aşağıdaki "Canlı Demo" butonunu kullan.</p>
+      ` : ''}
+
+      <div style="display: flex; gap: 0.5rem;">
+        ${proj.github_url ? `
+          <a href="${proj.github_url}" target="_blank" rel="noopener" class="btn btn-outline" style="flex: 1; text-align: center; font-size: 0.75rem; padding: 0.4rem; display: flex; align-items: center; justify-content: center; gap: 0.25rem;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
+            GitHub
+          </a>
+        ` : ''}
+        ${proj.live_url ? `
+          <a href="${proj.live_url}" target="_blank" rel="noopener" class="btn btn-primary" style="flex: 1; text-align: center; font-size: 0.75rem; padding: 0.4rem; border: none; display: flex; align-items: center; justify-content: center; gap: 0.25rem;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+            Canlı Demo
+          </a>
+        ` : ''}
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 0.6rem; border-top: 1px solid rgba(22, 50, 92, 0.08); padding-top: 0.6rem;">
+        <button id="like-btn-${proj.id}" onclick="toggleProjectLike('${proj.id}')" class="btn ${liked ? 'btn-primary' : 'btn-outline'}" style="font-size: 0.75rem; padding: 0.35rem 0.7rem; display: flex; align-items: center; gap: 0.3rem; ${liked ? 'border: none;' : ''}">
+          <span>${liked ? '❤️' : '🤍'}</span><span id="like-count-${proj.id}">${proj.likes_count || 0}</span>
+        </button>
+        <button onclick="toggleCommentsPanel('${proj.id}')" class="btn btn-outline" style="font-size: 0.75rem; padding: 0.35rem 0.7rem;">💬 <span id="comment-count-${proj.id}">${commentCount}</span> yorum</button>
+      </div>
+
+      <div id="comments-panel-${proj.id}" style="display: none; flex-direction: column; gap: 0.6rem; border-top: 1px solid rgba(22, 50, 92, 0.08); padding-top: 0.6rem;">
+        <div id="comments-list-${proj.id}" style="display: flex; flex-direction: column; gap: 0.5rem;"></div>
+        <form onsubmit="submitProjectComment(event, '${proj.id}')" style="display: flex; gap: 0.4rem;">
+          <input type="text" id="comment-input-${proj.id}" placeholder="Bir yorum yaz..." maxlength="500" style="flex: 1; padding: 0.4rem 0.6rem; border-radius: var(--radius-sm); border: 1px solid rgba(22, 50, 92, 0.15); font-size: 0.8rem;">
+          <button type="submit" class="btn btn-primary" style="font-size: 0.75rem; padding: 0.4rem 0.7rem; border: none;">Gönder</button>
+        </form>
+      </div>
+    </div>
+  `;
+}
+
+function renderProjectComments(projectId) {
+  const list = document.getElementById(`comments-list-${projectId}`);
+  if (!list) return;
+  const comments = sandboxCommentsCache[projectId] || [];
+
+  if (comments.length === 0) {
+    list.innerHTML = `<p style="font-size: 0.78rem; color: var(--color-text-muted); margin: 0;">Henüz yorum yok. İlk yorumu sen yaz!</p>`;
+    return;
+  }
+
+  list.innerHTML = comments.map(c => {
+    const canDelete = currentUser && c.user_id === currentUser.id;
+    const when = new Date(c.created_at).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
+    return `
+      <div style="display: flex; gap: 0.5rem; align-items: flex-start;">
+        ${renderUserAvatarHtml(c.author || {}, 22)}
+        <div style="flex: 1; background: var(--color-bg-alt); border-radius: var(--radius-sm); padding: 0.4rem 0.6rem;">
+          <div style="display: flex; justify-content: space-between; gap: 0.5rem;">
+            <strong style="font-size: 0.75rem; color: var(--color-navy);">${escapeHtml(c.author?.full_name || 'Anonymous Student')}</strong>
+            <span style="font-size: 0.65rem; color: var(--color-text-muted); white-space: nowrap;">${when}</span>
+          </div>
+          <p style="font-size: 0.78rem; color: var(--color-text); margin: 0.15rem 0 0; word-break: break-word; white-space: pre-wrap;">${escapeHtml(c.content)}</p>
+        </div>
+        ${canDelete ? `<button onclick="deleteProjectComment('${c.id}', '${projectId}')" title="Sil" style="background: none; border: none; cursor: pointer; color: var(--color-text-muted); font-size: 0.75rem; padding: 0.15rem; flex-shrink: 0;">🗑️</button>` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+function setSandboxFeedSort(sort) {
+  sandboxFeedSort = sort;
+  const btnNew = document.getElementById('sandbox-sort-new');
+  const btnPopular = document.getElementById('sandbox-sort-popular');
+  if (btnNew) btnNew.className = `btn ${sort === 'new' ? 'btn-primary' : 'btn-outline'}`;
+  if (btnPopular) btnPopular.className = `btn ${sort === 'popular' ? 'btn-primary' : 'btn-outline'}`;
+  sandboxProjectsLimit = 20;
+  loadSandboxProjects();
+}
+window.setSandboxFeedSort = setSandboxFeedSort;
+
+function setSandboxFeedDeptFilter(dept) {
+  sandboxFeedDeptFilter = dept;
+  renderSandboxFeed();
+}
+window.setSandboxFeedDeptFilter = setSandboxFeedDeptFilter;
+
+function toggleSandboxTagFilter(tag) {
+  sandboxFeedTagFilter = (sandboxFeedTagFilter === tag) ? null : tag;
+  renderSandboxTagFilterChips();
+  renderSandboxFeed();
+}
+window.toggleSandboxTagFilter = toggleSandboxTagFilter;
+
+async function toggleProjectLike(projectId) {
+  if (!currentUser) return;
+  const btn = document.getElementById(`like-btn-${projectId}`);
+  const countEl = document.getElementById(`like-count-${projectId}`);
+  if (btn) btn.disabled = true;
+
+  const alreadyLiked = sandboxUserLikedSet.has(projectId);
+  const proj = sandboxFeedProjects.find(p => p.id === projectId);
+
+  try {
+    if (alreadyLiked) {
+      const { error } = await supabaseClient
+        .from('sandbox_project_likes')
+        .delete()
+        .eq('project_id', projectId)
+        .eq('user_id', currentUser.id);
+      if (error) throw error;
+      sandboxUserLikedSet.delete(projectId);
+      if (proj) proj.likes_count = Math.max(0, (proj.likes_count || 1) - 1);
+    } else {
+      const { error } = await supabaseClient
+        .from('sandbox_project_likes')
+        .insert({ project_id: projectId, user_id: currentUser.id });
+      if (error) throw error;
+      sandboxUserLikedSet.add(projectId);
+      if (proj) proj.likes_count = (proj.likes_count || 0) + 1;
+      // The "project_popular" (5 likes) achievement is awarded server-side by
+      // a Postgres trigger on sandbox_project_likes — never client-side,
+      // since the recipient (the project's owner) isn't necessarily the
+      // person doing the liking, and RLS rightly won't let this client
+      // write an achievement row for somebody else.
+    }
+
+    if (btn) {
+      const nowLiked = sandboxUserLikedSet.has(projectId);
+      btn.className = `btn ${nowLiked ? 'btn-primary' : 'btn-outline'}`;
+      btn.style.border = nowLiked ? 'none' : '';
+      const emojiSpan = btn.querySelector('span');
+      if (emojiSpan) emojiSpan.textContent = nowLiked ? '❤️' : '🤍';
+    }
+    if (countEl && proj) countEl.textContent = proj.likes_count || 0;
+  } catch (err) {
+    console.error('Failed to toggle project like (has the sandbox_project_likes migration been run?):', err);
+    showDashboardAlert('error', 'Beğeni kaydedilemedi.');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+window.toggleProjectLike = toggleProjectLike;
+
+function toggleCommentsPanel(projectId) {
+  const panel = document.getElementById(`comments-panel-${projectId}`);
+  if (!panel) return;
+  panel.style.display = (panel.style.display === 'flex') ? 'none' : 'flex';
+}
+window.toggleCommentsPanel = toggleCommentsPanel;
+
+async function submitProjectComment(event, projectId) {
+  event.preventDefault();
+  if (!currentUser) return;
+  const input = document.getElementById(`comment-input-${projectId}`);
+  const content = input ? input.value.trim() : '';
+  if (!content) return;
+
+  try {
+    const { data, error } = await supabaseClient
+      .from('sandbox_project_comments')
+      .insert({ project_id: projectId, user_id: currentUser.id, content })
+      .select()
+      .single();
+    if (error) throw error;
+
+    if (!sandboxCommentsCache[projectId]) sandboxCommentsCache[projectId] = [];
+    sandboxCommentsCache[projectId].push({
+      ...data,
+      author: currentUserProfile || { full_name: 'Sen', avatar_url: null },
+    });
+
+    input.value = '';
+    renderProjectComments(projectId);
+    const countEl = document.getElementById(`comment-count-${projectId}`);
+    if (countEl) countEl.textContent = sandboxCommentsCache[projectId].length;
+    const panel = document.getElementById(`comments-panel-${projectId}`);
+    if (panel) panel.style.display = 'flex';
+  } catch (err) {
+    console.error('Failed to submit project comment (has the sandbox_project_comments migration been run?):', err);
+    showDashboardAlert('error', 'Yorum gönderilemedi.');
+  }
+}
+window.submitProjectComment = submitProjectComment;
+
+async function deleteProjectComment(commentId, projectId) {
+  showConfirmModal('Yorumu Sil', 'Bu yorumu silmek istediğinize emin misiniz?', async () => {
+    try {
+      const { error } = await supabaseClient
+        .from('sandbox_project_comments')
+        .delete()
+        .eq('id', commentId);
+      if (error) throw error;
+
+      sandboxCommentsCache[projectId] = (sandboxCommentsCache[projectId] || []).filter(c => c.id !== commentId);
+      renderProjectComments(projectId);
+      const countEl = document.getElementById(`comment-count-${projectId}`);
+      if (countEl) countEl.textContent = sandboxCommentsCache[projectId].length;
+    } catch (err) {
+      console.error('Failed to delete comment:', err);
+      showDashboardAlert('error', 'Yorum silinemedi.');
+    }
+  });
+}
+window.deleteProjectComment = deleteProjectComment;
+
+function openEditProjectModal(projectId) {
+  const proj = sandboxFeedProjects.find(p => p.id === projectId);
+  if (!proj) return;
+  sandboxEditingProjectId = projectId;
+
+  const titleInput = document.getElementById('project-title');
+  const descInput = document.getElementById('project-desc');
+  const githubInput = document.getElementById('project-github');
+  const liveInput = document.getElementById('project-live');
+  const tagsInput = document.getElementById('project-tags');
+  if (titleInput) titleInput.value = proj.title || '';
+  if (descInput) descInput.value = proj.description || '';
+  if (githubInput) githubInput.value = proj.github_url || '';
+  if (liveInput) liveInput.value = proj.live_url || '';
+  if (tagsInput) tagsInput.value = (proj.tags || []).join(', ');
+
+  const modalTitleEl = document.getElementById('share-project-modal-title');
+  if (modalTitleEl) modalTitleEl.textContent = 'Projeyi Düzenle';
+  const submitBtn = document.getElementById('btn-submit-share-project');
+  if (submitBtn) submitBtn.textContent = 'Kaydet';
+
+  const modal = document.getElementById('share-project-modal');
+  if (modal) modal.style.display = 'flex';
+}
+window.openEditProjectModal = openEditProjectModal;
 
 async function deleteSandboxProject(projectId) {
   const isTr = localStorage.getItem('acadexUILang') === 'tr';
   const title = isTr ? "Projeyi Sil" : "Delete Project";
-  const text = isTr 
-    ? "Bu projeyi galeriden kaldırmak istediğinize emin misiniz?" 
+  const text = isTr
+    ? "Bu projeyi galeriden kaldırmak istediğinize emin misiniz?"
     : "Are you sure you want to delete this project?";
 
   showConfirmModal(title, text, async () => {
@@ -13117,6 +13460,7 @@ let adminStudentsSortField = 'created_at';
 let adminStudentsSortAsc = false;
 let adminModerationCards = [];
 let adminModerationProjects = [];
+let adminModerationComments = [];
 
 function loadAdminPanel() {
   switchAdminTab(currentAdminTab);
@@ -13347,6 +13691,16 @@ async function loadAdminModeration() {
       </div>
     `;
   }
+  const commentsListInit = document.getElementById('mod-comments-list');
+  if (commentsListInit) {
+    commentsListInit.innerHTML = `
+      <div style="display: flex; align-items: center; justify-content: center; padding: 2rem;">
+        <svg class="spinner" viewBox="0 0 50 50" style="animation: rotate 2s linear infinite; width: 32px; height: 32px; color: var(--color-teal);">
+          <circle class="path" cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="5" style="stroke-dasharray: 1, 150; stroke-dashoffset: 0; stroke-linecap: round; animation: dash 1.5s ease-in-out infinite;"></circle>
+        </svg>
+      </div>
+    `;
+  }
 
   try {
     // 1. Fetch shared study cards
@@ -13402,13 +13756,42 @@ async function loadAdminModeration() {
       adminModerationProjects = [];
     }
 
+    // 3. Fetch sandbox project comments (Proje Akışı's comment layer)
+    const { data: comments, error: commentsErr } = await supabaseClient
+      .from('sandbox_project_comments')
+      .select('*, sandbox_projects(title)')
+      .order('created_at', { ascending: false });
+
+    if (!commentsErr && comments && comments.length > 0) {
+      const userIds = [...new Set(comments.map(c => c.user_id))];
+      const { data: profiles } = await supabaseClient
+        .from('profiles')
+        .select('id, full_name, department, avatar_url')
+        .in('id', userIds);
+
+      const profileMap = {};
+      profiles?.forEach(p => {
+        profileMap[p.id] = p;
+      });
+
+      adminModerationComments = comments.map(c => ({
+        ...c,
+        profile: profileMap[c.user_id] || { full_name: 'Anonymous Student', department: 'General Faculty' }
+      }));
+    } else {
+      adminModerationComments = [];
+    }
+
     renderModerationCards();
     renderModerationProjects();
+    renderModerationComments();
 
   } catch (err) {
     console.error("Exception loading moderation data:", err);
     if (cardsList) cardsList.innerHTML = `<p style="color: var(--color-text-muted);">Failed to load moderation data.</p>`;
     if (projectsList) projectsList.innerHTML = `<p style="color: var(--color-text-muted);">Failed to load moderation data.</p>`;
+    const commentsList = document.getElementById('mod-comments-list');
+    if (commentsList) commentsList.innerHTML = `<p style="color: var(--color-text-muted);">Failed to load moderation data.</p>`;
   }
 }
 window.loadAdminModeration = loadAdminModeration;
@@ -13587,6 +13970,91 @@ async function removeSandboxProject(projId) {
   }
 }
 window.removeSandboxProject = removeSandboxProject;
+
+function renderModerationComments() {
+  const container = document.getElementById('mod-comments-list');
+  if (!container) return;
+
+  const searchInput = document.getElementById('mod-comments-search');
+  const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
+
+  let filtered = adminModerationComments.filter(c => {
+    return !query ||
+      (c.profile.full_name && c.profile.full_name.toLowerCase().includes(query)) ||
+      (c.sandbox_projects?.title && c.sandbox_projects.title.toLowerCase().includes(query)) ||
+      (c.content && c.content.toLowerCase().includes(query));
+  });
+
+  container.innerHTML = '';
+
+  if (filtered.length === 0) {
+    container.innerHTML = `
+      <div class="search-empty-state" style="text-align: center; padding: 1.5rem; border: 1px dashed rgba(22, 50, 92, 0.1); border-radius: var(--radius-sm);">
+        <p style="color: var(--color-text-muted); font-size: 0.85rem; margin: 0;">Yorum bulunamadı. / No comments found.</p>
+      </div>
+    `;
+    return;
+  }
+
+  filtered.forEach(c => {
+    const row = document.createElement('div');
+    row.className = 'doc-card';
+    row.style.padding = '1rem';
+    row.style.display = 'flex';
+    row.style.flexDirection = 'column';
+    row.style.gap = '0.5rem';
+    row.style.border = '1px solid rgba(22, 50, 92, 0.08)';
+
+    const deptClass = getDepartmentColorClass(c.profile.department);
+    const shortName = getDepartmentShortName(c.profile.department);
+    const postedDate = c.created_at ? new Date(c.created_at).toLocaleDateString() : '—';
+
+    row.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 0.5rem;">
+        <div>
+          <strong style="color: var(--color-navy); font-size: 0.9rem;">${escapeHtml(c.profile.full_name || 'Student')}</strong>
+          <span class="dept-badge ${deptClass}" style="margin-left: 4px; font-size: 0.65rem;">${shortName}</span>
+          <span style="font-size: 0.75rem; color: var(--color-text-muted); margin-left: 0.5rem;">on: ${escapeHtml(c.sandbox_projects?.title || 'a project')}</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <span style="font-size: 0.75rem; color: var(--color-text-muted);">${postedDate}</span>
+          <button class="btn" onclick="removeProjectComment('${c.id}')" style="background-color: #DC2626; color: white; border: none; padding: 0.25rem 0.6rem; font-size: 0.75rem; font-weight: 700; border-radius: var(--radius-sm); cursor: pointer;">🗑️ Remove</button>
+        </div>
+      </div>
+      <p style="font-size: 0.8rem; color: var(--color-text); margin: 0; line-height: 1.4; word-break: break-word;">${escapeHtml(c.content)}</p>
+    `;
+    container.appendChild(row);
+  });
+}
+window.renderModerationComments = renderModerationComments;
+
+function filterModerationComments() {
+  renderModerationComments();
+}
+window.filterModerationComments = filterModerationComments;
+
+async function removeProjectComment(commentId) {
+  if (!confirm("Bu yorumu kaldırmak istediğinizden emin misiniz? / Are you sure you want to remove this comment?")) return;
+
+  try {
+    const { error } = await supabaseClient
+      .from('sandbox_project_comments')
+      .delete()
+      .eq('id', commentId);
+
+    if (error) {
+      console.error("Error deleting project comment:", error);
+      showDashboardAlert('error', 'Yorum silinemedi. / Failed to delete comment.');
+      return;
+    }
+
+    showDashboardAlert('success', 'Yorum kaldırıldı! / Comment removed successfully!');
+    await loadAdminModeration();
+  } catch (err) {
+    console.error("Exception deleting comment:", err);
+  }
+}
+window.removeProjectComment = removeProjectComment;
 
 // ==========================================================================
 // PART D — VOICE-TO-TEXT NOTES IN THE STUDY NOTEBOOK

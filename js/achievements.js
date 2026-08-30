@@ -17,7 +17,13 @@ const ACHIEVEMENTS_LOOKUP = {
   exam_10: { title: "Sınav Maratoncusu", desc: "Completed 10 practice exams", icon: "🏃" },
   perfect_5: { title: "Kusursuzluk Ustası", desc: "Scored 100/100 five times", icon: "👑" },
   share_5: { title: "Cömert Paylaşımcı", desc: "Shared 5 study cards with your department", icon: "🎁" },
-  notebook_10: { title: "Defter Ustası", desc: "Saved 10 notebook pages", icon: "🗂️" }
+  notebook_10: { title: "Defter Ustası", desc: "Saved 10 notebook pages", icon: "🗂️" },
+  // Awarded server-side by a Postgres trigger (see
+  // supabase/migrations/20260830c_sandbox_feed_likes_comments.sql) the
+  // moment one of a student's own Developer Sandbox projects crosses 5
+  // likes — never awarded client-side, since the recipient is the
+  // project's owner, not necessarily whoever is doing the liking.
+  project_popular: { title: "Popüler Proje", desc: "One of your sandbox projects reached 5 likes", icon: "🌟" }
 };
 
 async function awardAchievement(achievementId) {
