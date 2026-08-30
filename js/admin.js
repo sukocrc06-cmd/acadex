@@ -98,7 +98,6 @@ async function loadUsers() {
     if (error) throw error;
     cachedUsers = data || [];
     renderUsersTable();
-    renderTeacherApplications();
   } catch (err) {
     console.error('loadUsers error:', err);
     if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 2rem; color: #DC2626;">Kullanıcılar yüklenemedi.</td></tr>`;
@@ -106,99 +105,17 @@ async function loadUsers() {
 }
 
 // ==========================================
-// TEACHER (ACADEMIC) APPLICATIONS
+// TEACHER (ACADEMIC) ACCOUNTS
 //
-// Academics register via register-academic.html, which sets
-// teacher_request_pending = true on their profile but does NOT grant
-// is_teacher itself — that only happens here, once an admin reviews and
-// approves the request. This keeps self-service signup from being able to
-// grant teacher/admin access to anyone who merely picks that option.
+// Academic self-registration (register-academic.html) and this file's old
+// pending-application approval queue (renderTeacherApplications /
+// approveTeacherApplication / rejectTeacherApplication) were removed once
+// hoca accounts started arriving via Campuso SSO instead (see
+// supabase/functions/campuso-sso — it sets is_teacher = true directly on
+// first arrival, no admin approval step). The manual "Hoca Yap" / "Hoca
+// Yetkisini Al" toggle below (toggleUserFlag) is unrelated and stays — it's
+// still the right tool for a one-off manual grant outside Campuso.
 // ==========================================
-function renderTeacherApplications() {
-  const card = document.getElementById('admin-teacher-apps-card');
-  const tbody = document.getElementById('admin-teacher-apps-tbody');
-  const badge = document.getElementById('admin-users-badge');
-  if (!card || !tbody) return;
-
-  const pending = cachedUsers.filter(u => u.teacher_request_pending);
-
-  if (badge) {
-    if (pending.length > 0) {
-      badge.textContent = String(pending.length);
-      badge.style.display = 'flex';
-    } else {
-      badge.style.display = 'none';
-    }
-  }
-
-  if (pending.length === 0) {
-    card.style.display = 'none';
-    tbody.innerHTML = '';
-    return;
-  }
-
-  card.style.display = 'block';
-  tbody.innerHTML = pending.map(u => `
-    <tr>
-      <td>${escapeHtml(u.full_name || '—')}</td>
-      <td>${escapeHtml(u.email || '—')}</td>
-      <td>${escapeHtml(u.department || '—')}</td>
-      <td>${escapeHtml(u.teacher_title || '—')}</td>
-      <td style="text-align:right; white-space: nowrap;">
-        <button class="admin-mini-btn primary" onclick="approveTeacherApplication('${u.id}')">✅ Onayla</button>
-        <button class="admin-mini-btn danger" onclick="rejectTeacherApplication('${u.id}')">✖ Reddet</button>
-      </td>
-    </tr>
-  `).join('');
-}
-
-async function approveTeacherApplication(userId) {
-  try {
-    const { error } = await supabaseClient
-      .from('profiles')
-      .update({ is_teacher: true, teacher_request_pending: false })
-      .eq('id', userId);
-    if (error) throw error;
-
-    const user = cachedUsers.find(u => u.id === userId);
-    if (user) {
-      user.is_teacher = true;
-      user.teacher_request_pending = false;
-    }
-    renderUsersTable();
-    renderTeacherApplications();
-    showAdminAlert('success', 'Hoca başvurusu onaylandı.');
-
-    writeAdminAuditLog('approve_teacher_application', userId, user ? (user.full_name || user.email) : userId, null);
-    notifyRoleChange(userId, 'teacher').catch(err => console.error('notifyRoleChange error:', err));
-  } catch (err) {
-    console.error('approveTeacherApplication error:', err);
-    showAdminAlert('error', 'Onaylama başarısız: ' + (err.message || 'bilinmeyen hata'));
-  }
-}
-window.approveTeacherApplication = approveTeacherApplication;
-
-async function rejectTeacherApplication(userId) {
-  try {
-    const { error } = await supabaseClient
-      .from('profiles')
-      .update({ teacher_request_pending: false })
-      .eq('id', userId);
-    if (error) throw error;
-
-    const user = cachedUsers.find(u => u.id === userId);
-    if (user) user.teacher_request_pending = false;
-    renderUsersTable();
-    renderTeacherApplications();
-    showAdminAlert('success', 'Hoca başvurusu reddedildi.');
-
-    writeAdminAuditLog('reject_teacher_application', userId, user ? (user.full_name || user.email) : userId, null);
-  } catch (err) {
-    console.error('rejectTeacherApplication error:', err);
-    showAdminAlert('error', 'Reddetme başarısız: ' + (err.message || 'bilinmeyen hata'));
-  }
-}
-window.rejectTeacherApplication = rejectTeacherApplication;
 
 function renderUsersTable() {
   const tbody = document.getElementById('admin-users-tbody');
@@ -224,7 +141,6 @@ function renderUsersTable() {
     const role = u.is_admin ? 'admin' : (u.is_teacher ? 'teacher' : 'student');
     const roleLabel = role === 'admin' ? 'Admin' : (role === 'teacher' ? 'Hoca' : 'Öğrenci');
     const suspendedBadge = u.is_suspended ? `<span class="admin-badge suspended">Askıda</span>` : '';
-    const pendingBadge = u.teacher_request_pending ? `<span class="admin-badge pending">Hoca Onayı Bekliyor</span>` : '';
     return `
       <tr>
         <td>${escapeHtml(u.full_name || '—')}</td>
@@ -234,7 +150,7 @@ function renderUsersTable() {
         <td>
           <span class="admin-badge role-${role}">${roleLabel}</span>
         </td>
-        <td>${suspendedBadge}${suspendedBadge && pendingBadge ? ' ' : ''}${pendingBadge || (suspendedBadge ? '' : '<span style="color: var(--color-text-muted); font-size:0.75rem;">Aktif</span>')}</td>
+        <td>${suspendedBadge || '<span style="color: var(--color-text-muted); font-size:0.75rem;">Aktif</span>'}</td>
         <td style="text-align:right; white-space: nowrap;">
           <button class="admin-mini-btn" onclick="toggleUserFlag('${u.id}', 'is_teacher', ${!u.is_teacher})">${u.is_teacher ? 'Hoca Yetkisini Al' : 'Hoca Yap'}</button>
           <button class="admin-mini-btn" onclick="toggleUserFlag('${u.id}', 'is_admin', ${!u.is_admin})">${u.is_admin ? 'Admin Yetkisini Al' : 'Admin Yap'}</button>

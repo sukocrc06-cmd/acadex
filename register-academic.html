@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Apply for an Acadex academic (faculty) account. Share materials, post announcements, and manage your students after admin approval.">
-  <title data-i18n="registerAcademic.title">Academic Sign Up — Acadex</title>
+  <meta name="description" content="Acadex faculty accounts are now managed through Campuso — sign in there to reach your Acadex teacher panel.">
+  <title data-i18n="registerAcademic.title">Academic Access — Acadex</title>
 
   <!-- Favicon Link -->
   <link rel="icon" type="image/png" href="assets/logo.png">
@@ -42,8 +42,8 @@
               <option value="en">EN</option>
               <option value="tr">TR</option>
             </select>
-            <a href="login.html?mode=academic" class="btn btn-outline" data-i18n="common.login">Log In</a>
-            <a href="register-academic.html" class="btn btn-primary" style="box-shadow: 0 4px 12px rgba(31, 138, 147, 0.35); background: var(--color-teal);" data-i18n="registerAcademic.navSignup">Academic Sign Up</a>
+            <a href="login.html" class="btn btn-outline" data-i18n="common.login">Log In</a>
+            <a href="register.html" class="btn btn-primary" data-i18n="common.signup">Sign Up</a>
           </li>
         </ul>
       </nav>
@@ -55,100 +55,28 @@
   </header>
 
   <!-- ==========================================
-       MAIN CONTENT (ACADEMIC REGISTRATION FORM)
+       MAIN CONTENT — informational redirect to Campuso
+       Academic (hoca) self-registration used to live on this page. It was
+       removed once hoca accounts started arriving via Campuso SSO instead
+       (see supabase/functions/campuso-sso + sso-callback.html) — a teacher
+       who is already recognized as "academician" on Campuso now lands in
+       Acadex's teacher panel directly from a button on Campuso's own
+       dashboard, with no separate Acadex account to create by hand.
        ========================================== -->
   <main class="auth-main" id="main-content">
-    <div class="auth-card">
-      <h1 class="auth-title" data-i18n="registerAcademic.title">Academic / Faculty Sign Up</h1>
-      <p class="auth-subtitle" data-i18n="registerAcademic.subtitle">Apply for a faculty account. An admin reviews every request before teacher access is granted.</p>
+    <div class="auth-card" style="text-align: center;">
+      <div style="font-size: 2.5rem; margin-bottom: 0.5rem;" aria-hidden="true">👩‍🏫</div>
+      <h1 class="auth-title" data-i18n="registerAcademic.title">Academic / Faculty Access</h1>
+      <p class="auth-subtitle" data-i18n="registerAcademic.movedSubtitle">Faculty accounts are no longer created here — sign in through Campuso to reach your Acadex teacher panel.</p>
 
-      <!-- Pending-review notice: sets expectations up front, since signing up
-           here does NOT grant teacher access immediately — see auth.js. -->
-      <div class="alert" style="background-color: #EFF6FF; border-color: #BFDBFE; color: #1E40AF;">
-        <span data-i18n="registerAcademic.reviewNotice">ℹ️ Your account will start as a regular account. An admin approves academic (teacher) access after reviewing your application.</span>
+      <div class="alert" style="background-color: #EFF6FF; border-color: #BFDBFE; color: #1E40AF; text-align: left;">
+        <span data-i18n="registerAcademic.movedNotice">ℹ️ Akademisyen (hoca) hesapları artık burada ayrıca oluşturulmuyor. Campuso hesabınızla giriş yapıp panelinizden "Acadex" bağlantısına tıklamanız yeterli — sistem sizi otomatik olarak Acadex Hoca Paneline yönlendirir.</span>
       </div>
 
-      <form id="academic-register-form" novalidate>
+      <a href="https://campus-o2.vercel.app" class="btn btn-primary" style="width: 100%; margin-top: 1rem; border: none;" data-i18n="registerAcademic.goToCampuso">Campuso'ya Git</a>
 
-        <!-- Honeypot anti-bot field: invisible to real users, only bots that
-             fill every input will populate it. Kept out of the tab order and
-             hidden from screen readers so it never confuses real applicants. -->
-        <div style="position: absolute; left: -9999px; top: -9999px; width: 1px; height: 1px; overflow: hidden;" aria-hidden="true">
-          <label for="ac-website">Leave this field empty</label>
-          <input type="text" id="ac-website" name="website" tabindex="-1" autocomplete="off">
-        </div>
-
-        <!-- Full Name -->
-        <div class="form-group">
-          <label for="ac-full-name" class="form-label" data-i18n="register.label.fullName">Full Name</label>
-          <input type="text" id="ac-full-name" class="form-control" placeholder="e.g. Dr. Jane Doe" required autocomplete="name" autofocus>
-        </div>
-
-        <!-- Academic Title / Role -->
-        <div class="form-group">
-          <label for="ac-title" class="form-label" data-i18n="registerAcademic.label.title">Academic Title / Role</label>
-          <input type="text" id="ac-title" class="form-control" placeholder="e.g. Dr. Öğr. Üyesi, Öğretim Görevlisi, Araş. Gör." autocomplete="organization-title">
-          <span class="form-helper" data-i18n="registerAcademic.label.titleHelper">Optional — helps the admin reviewing your application.</span>
-        </div>
-
-        <!-- Department Select -->
-        <div class="form-group">
-          <label for="ac-department" class="form-label" data-i18n="register.label.department">Department</label>
-          <select id="ac-department" class="form-control" required autocomplete="organization">
-            <option value="" disabled selected data-i18n="register.label.selectDept">Select your department</option>
-            <option value="Management Information Systems" data-i18n="dept.mis">Management Information Systems</option>
-            <option value="Business Administration" data-i18n="dept.ba">Business Administration</option>
-            <option value="International Trade and Business" data-i18n="dept.itb">International Trade and Business</option>
-            <option value="Banking and Finance" data-i18n="dept.bf">Banking and Finance</option>
-          </select>
-        </div>
-
-        <!-- Email -->
-        <div class="form-group">
-          <label for="ac-email" class="form-label" data-i18n="login.label.email">Email Address</label>
-          <input type="email" id="ac-email" class="form-control" placeholder="e.g. hoca@university.edu.tr" required autocomplete="email">
-        </div>
-
-        <!-- Password -->
-        <div class="form-group">
-          <label for="ac-password" class="form-label" data-i18n="register.label.password">Password</label>
-          <input type="password" id="ac-password" class="form-control" data-i18n-placeholder="register.label.password" placeholder="Minimum 6 characters" required autocomplete="new-password">
-
-          <!-- Password Strength Indicator -->
-          <div class="password-strength-container" style="margin-top: 0.5rem;">
-            <div class="password-strength-bar-bg" style="background: rgba(22, 50, 92, 0.1); height: 4px; border-radius: 2px; overflow: hidden; width: 100%;">
-              <div id="ac-password-strength-bar" style="height: 100%; width: 0%; transition: width 0.3s ease, background-color 0.3s ease;"></div>
-            </div>
-            <div style="display:flex; justify-content:space-between; margin-top:0.25rem; font-size: 0.7rem; font-weight:700;">
-              <span data-i18n="register.strength.label" style="color: var(--color-text-muted);">Password Strength</span>
-              <span id="ac-password-strength-label" style="color: var(--color-text-muted);">—</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Confirm Password -->
-        <div class="form-group">
-          <label for="ac-confirm-password" class="form-label">Confirm Password</label>
-          <input type="password" id="ac-confirm-password" class="form-control" placeholder="Re-enter password" required autocomplete="new-password">
-        </div>
-
-        <!-- Legal Checkbox -->
-        <div class="form-group" style="display: flex; align-items: flex-start; gap: 0.5rem; margin-top: 1rem; margin-bottom: 1rem;">
-          <input type="checkbox" id="ac-legal-agree" required style="width: 18px; height: 18px; accent-color: var(--color-teal); cursor: pointer; margin-top: 0.15rem;">
-          <label for="ac-legal-agree" style="font-size: 0.8rem; line-height: 1.4; color: var(--color-navy); cursor: pointer; font-weight: 500; user-select: none;">
-            I have read and agree to the <a href="legal.html#privacy" target="_blank" style="color: var(--color-teal); text-decoration: underline;">Privacy Policy</a> and <a href="legal.html#terms" target="_blank" style="color: var(--color-teal); text-decoration: underline;">Terms of Use</a>
-          </label>
-        </div>
-
-        <!-- Submit Button -->
-        <button type="submit" id="ac-btn-signup" class="btn btn-primary" style="width: 100%; margin-top: 1rem; border: none;" disabled data-i18n="registerAcademic.btn">Submit Application</button>
-      </form>
-
-      <div class="auth-footer">
+      <div class="auth-footer" style="margin-top: 1rem;">
         <span data-i18n="registerAcademic.notAcademic">Are you a student?</span> <a href="register.html" data-i18n="registerAcademic.studentSignupLink">Sign up here</a>
-      </div>
-      <div class="auth-footer" style="margin-top: 0.5rem;">
-        <span data-i18n="register.hasAccount">Already have an account?</span> <a href="login.html?mode=academic" data-i18n="login.registerLink">Log in here</a>
       </div>
     </div>
   </main>
@@ -184,7 +112,7 @@
           <ul class="footer-links">
             <li><a href="login.html" data-i18n="common.login">Log In</a></li>
             <li><a href="register.html" data-i18n="common.signup">Sign Up</a></li>
-            <li><a href="register-academic.html" data-i18n="registerAcademic.navSignup">Academic Sign Up</a></li>
+            <li><a href="https://campus-o2.vercel.app" data-i18n="registerAcademic.goToCampuso">Campuso'ya Git</a></li>
             <li><a href="dashboard.html" data-i18n="common.dashboard">Student Dashboard</a></li>
           </ul>
         </div>
@@ -210,11 +138,9 @@
     </div>
   </footer>
 
-  <!-- Supabase & Auth Scripts -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-  <script src="js/supabase-config.js"></script>
+  <!-- No Supabase/auth scripts needed — this page is a static redirect
+       notice now, not a form. -->
   <script src="js/i18n.js"></script>
-  <script src="js/auth.js"></script>
 
   <!-- Page Interaction JavaScript -->
   <script src="js/main.js"></script>

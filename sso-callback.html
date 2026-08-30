@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Campuso'dan Giriş Yapılıyor — Acadex</title>
+
+  <!-- Favicon Link -->
+  <link rel="icon" type="image/png" href="assets/logo.png">
+
+  <!-- Google Fonts - Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Core Stylesheet -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- ==========================================
+       CAMPUSO SSO CALLBACK
+       Landed here from the magic link supabase/functions/campuso-sso
+       generated. supabase-js (loaded below, default config) auto-detects
+       the session tokens Supabase's own /auth/v1/verify redirect attaches
+       to this URL (as a #access_token=... hash for the classic flow, or a
+       ?code=... for PKCE) and stores the session — see the script at the
+       bottom for the exact handling of both shapes plus the getSession()
+       fallback for whichever one already landed before this script ran.
+       Nothing here is a form; it's a one-shot handoff screen.
+       ========================================== -->
+  <main class="auth-main" id="main-content" style="min-height: 100vh; display: flex; align-items: center; justify-content: center;">
+    <div class="auth-card" style="text-align: center;">
+
+      <div id="sso-state-loading">
+        <div class="spinner" style="width: 40px; height: 40px; margin: 0 auto 1rem; border: 3px solid rgba(31, 138, 147, 0.15); border-top-color: var(--color-teal); border-radius: 50%; animation: rotate 0.8s linear infinite;"></div>
+        <h1 class="auth-title" style="font-size: 1.3rem;">Campuso'dan giriş yapılıyor…</h1>
+        <p class="auth-subtitle">Hoca panelinize yönlendiriliyorsunuz, lütfen bekleyin.</p>
+      </div>
+
+      <div id="sso-state-error" style="display: none;">
+        <div style="font-size: 2.2rem; margin-bottom: 0.5rem;" aria-hidden="true">⚠️</div>
+        <h1 class="auth-title" style="font-size: 1.3rem;">Giriş bağlantısı geçersiz veya süresi doldu</h1>
+        <p class="auth-subtitle" id="sso-error-detail">Lütfen Campuso'ya dönüp "Acadex" bağlantısına tekrar tıklayın.</p>
+        <a href="https://campus-o2.vercel.app" class="btn btn-primary" style="width: 100%; margin-top: 1rem; border: none;">Campuso'ya Dön</a>
+        <div class="auth-footer" style="margin-top: 1rem;">
+          <a href="login.html">Acadex'e normal giriş yap</a>
+        </div>
+      </div>
+
+      <div id="sso-state-not-teacher" style="display: none;">
+        <div style="font-size: 2.2rem; margin-bottom: 0.5rem;" aria-hidden="true">🚫</div>
+        <h1 class="auth-title" style="font-size: 1.3rem;">Bu hesap hoca yetkisine sahip değil</h1>
+        <p class="auth-subtitle">Giriş yapıldı, ama bu hesapta Acadex Hoca Paneli erişimi bulunmuyor.</p>
+        <a href="dashboard.html" class="btn btn-primary" style="width: 100%; margin-top: 1rem; border: none;">Öğrenci Paneline Git</a>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="js/supabase-config.js"></script>
+
+  <script>
+    // ==========================================================================
+    // Turns the magic-link redirect from supabase/functions/campuso-sso into a
+    // real Acadex session, then routes into teacher.html — or shows a clear
+    // error state instead of leaving the visitor on a blank/broken page.
+    // ==========================================================================
+
+    function showState(id) {
+      ['sso-state-loading', 'sso-state-error', 'sso-state-not-teacher'].forEach(s => {
+        const el = document.getElementById(s);
+        if (el) el.style.display = (s === id) ? 'block' : 'none';
+      });
+    }
+
+    async function routeAfterSession(session) {
+      if (!session) {
+        showState('sso-state-error');
+        return;
+      }
+      try {
+        const { data: profile, error } = await supabaseClient
+          .from('profiles')
+          .select('is_teacher, is_admin')
+          .eq('id', session.user.id)
+          .single();
+
+        if (error || !profile || (!profile.is_teacher && !profile.is_admin)) {
+          showState('sso-state-not-teacher');
+          return;
+        }
+        window.location.replace('teacher.html');
+      } catch (e) {
+        console.error('sso-callback profile check failed:', e);
+        showState('sso-state-error');
+      }
+    }
+
+    async function initSsoCallback() {
+      // Case 1: supabase-js already parsed the session from the URL itself
+      // (default detectSessionInUrl: true handles the classic
+      // #access_token=...&refresh_token=... hash automatically on load).
+      const { data: { session: existingSession } } = await supabaseClient.auth.getSession();
+      if (existingSession) {
+        routeAfterSession(existingSession);
+        return;
+      }
+
+      // Case 2: a PKCE-style ?code=... param that detectSessionInUrl doesn't
+      // resolve on its own — exchange it explicitly.
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('code')) {
+        try {
+          const { data, error } = await supabaseClient.auth.exchangeCodeForSession(window.location.href);
+          if (!error && data?.session) {
+            routeAfterSession(data.session);
+            return;
+          }
+        } catch (e) {
+          console.error('sso-callback exchangeCodeForSession failed:', e);
+        }
+      }
+
+      // Case 3: give onAuthStateChange a short window in case the hash was
+      // still being processed when getSession() above ran (a rare race on
+      // first paint), before giving up and showing the error state.
+      let settled = false;
+      const { data: sub } = supabaseClient.auth.onAuthStateChange((_event, session) => {
+        if (settled) return;
+        if (session) {
+          settled = true;
+          sub?.subscription?.unsubscribe();
+          routeAfterSession(session);
+        }
+      });
+
+      setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        sub?.subscription?.unsubscribe();
+        showState('sso-state-error');
+      }, 4000);
+    }
+
+    initSsoCallback();
+  </script>
+</body>
+</html>

@@ -61,6 +61,8 @@ const TRANSLATIONS = {
     "login.mode.academicSubtitle": "Access your teaching materials and admin tools.",
     "login.mode.redirectToStudent": "This account is a student account — redirecting you to your student dashboard...",
     "login.mode.redirectToAcademic": "This account has faculty access — redirecting you to your panel...",
+    "login.campuso.notice": "Are you faculty? Sign in through Campuso to reach the teacher panel.",
+    "login.campuso.link": "Go to Campuso",
 
     // Register Page (register.html)
     "register.title": "Join Acadex Portal",
@@ -80,20 +82,16 @@ const TRANSLATIONS = {
     "register.hasAccount": "Already have an account?",
     "register.loginLink": "Log in here",
 
-    // Academic (Teacher) Registration Page (register-academic.html)
-    "registerAcademic.title": "Academic / Faculty Sign Up",
-    "registerAcademic.subtitle": "Apply for a faculty account. An admin reviews every request before teacher access is granted.",
-    "registerAcademic.reviewNotice": "ℹ️ Your account will start as a regular account. An admin approves academic (teacher) access after reviewing your application.",
-    "registerAcademic.label.title": "Academic Title / Role",
-    "registerAcademic.label.titleHelper": "Optional — helps the admin reviewing your application.",
-    "registerAcademic.btn": "Submit Application",
-    "registerAcademic.pendingSuccess": "Application received! An admin will review it, and you'll be able to log in to the academic panel once approved.",
-    "registerAcademic.navSignup": "Academic Sign Up",
+    // Academic (Teacher) Access Page (register-academic.html) — now an
+    // informational redirect to Campuso instead of a self-registration form.
+    "registerAcademic.title": "Academic / Faculty Access",
+    "registerAcademic.movedSubtitle": "Faculty accounts are no longer created here — sign in through Campuso to reach your Acadex teacher panel.",
+    "registerAcademic.movedNotice": "ℹ️ Academic (teacher) accounts are no longer created here. Sign in with your Campuso account and click the \"Acadex\" link on your panel — you'll be dropped straight into your Acadex teacher panel automatically.",
+    "registerAcademic.goToCampuso": "Go to Campuso",
     "registerAcademic.notAcademic": "Are you a student?",
-    "registerAcademic.notAcademicShort": "New faculty member?",
     "registerAcademic.studentSignupLink": "Sign up here",
     "registerAcademic.notStudent": "Are you faculty?",
-    "registerAcademic.academicSignupLink": "Apply for an academic account",
+    "registerAcademic.academicSignupLink": "See how faculty access works",
 
     // Validation messages
     "validation.fullNameRequired": "Full Name is required.",
@@ -451,6 +449,8 @@ const TRANSLATIONS = {
     "login.mode.academicSubtitle": "Ders materyallerinize ve yönetim panelinize erişin.",
     "login.mode.redirectToStudent": "Bu bir öğrenci hesabı — öğrenci panelinize yönlendiriliyorsunuz...",
     "login.mode.redirectToAcademic": "Bu hesabın akademisyen erişimi var — panelinize yönlendiriliyorsunuz...",
+    "login.campuso.notice": "Akademisyen misiniz? Hoca Paneline giriş artık Campuso üzerinden yapılıyor.",
+    "login.campuso.link": "Campuso'ya Git",
 
     // Register Page (register.html)
     "register.title": "Acadex Portalına Katılın",
@@ -470,20 +470,16 @@ const TRANSLATIONS = {
     "register.hasAccount": "Zaten bir hesabınız var mı?",
     "register.loginLink": "Buradan giriş yapın",
 
-    // Akademisyen (Hoca) Kayıt Sayfası (register-academic.html)
-    "registerAcademic.title": "Akademisyen / Hoca Kaydı",
-    "registerAcademic.subtitle": "Akademisyen hesabı için başvurun. Hoca yetkisi verilmeden önce her başvuru admin tarafından incelenir.",
-    "registerAcademic.reviewNotice": "ℹ️ Hesabınız önce normal bir hesap olarak başlar. Başvurunuz incelendikten sonra admin, akademisyen (hoca) erişimini onaylar.",
-    "registerAcademic.label.title": "Akademik Unvan / Görev",
-    "registerAcademic.label.titleHelper": "İsteğe bağlı — başvurunuzu inceleyen admine yardımcı olur.",
-    "registerAcademic.btn": "Başvuruyu Gönder",
-    "registerAcademic.pendingSuccess": "Başvurunuz alındı! Admin inceledikten sonra onaylanırsa akademisyen paneline giriş yapabileceksiniz.",
-    "registerAcademic.navSignup": "Akademisyen Kaydı",
+    // Akademisyen (Hoca) Erişim Sayfası (register-academic.html) — artık bir
+    // başvuru formu değil, Campuso'ya yönlendiren bilgi sayfası.
+    "registerAcademic.title": "Akademisyen / Hoca Erişimi",
+    "registerAcademic.movedSubtitle": "Hoca hesapları artık burada oluşturulmuyor — Acadex Hoca Panelinize ulaşmak için Campuso üzerinden giriş yapın.",
+    "registerAcademic.movedNotice": "ℹ️ Akademisyen (hoca) hesapları artık burada oluşturulmuyor. Campuso hesabınızla giriş yapıp panelinizdeki \"Acadex\" bağlantısına tıklamanız yeterli — sistem sizi otomatik olarak Acadex Hoca Paneline yönlendirir.",
+    "registerAcademic.goToCampuso": "Campuso'ya Git",
     "registerAcademic.notAcademic": "Öğrenci misiniz?",
-    "registerAcademic.notAcademicShort": "Yeni bir akademisyen misiniz?",
     "registerAcademic.studentSignupLink": "Buradan kayıt olun",
     "registerAcademic.notStudent": "Akademisyen misiniz?",
-    "registerAcademic.academicSignupLink": "Akademisyen hesabı için başvurun",
+    "registerAcademic.academicSignupLink": "Akademisyen erişimi nasıl çalışır, öğrenin",
 
     // Validation messages
     "validation.fullNameRequired": "Ad Soyad alanı zorunludur.",

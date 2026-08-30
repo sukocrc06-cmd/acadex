@@ -40,85 +40,28 @@ async function getPostLoginDestination(userId) {
 }
 
 // ==========================================
-// Student / Academic login mode tabs
+// Academic sign-in note
 //
-// Purely a presentation-layer toggle: it changes the title, subtitle, and
-// email placeholder shown above the (single, shared) login form. It never
-// gates access — real routing after login is still 100% decided server-side
-// by getPostLoginDestination() via profiles.is_admin / is_teacher. Selecting
-// a tab just sets expectations and lets initLoginForm() show a friendly
-// heads-up if the account turns out to be the other type.
+// login.html no longer has a Student/Academic mode toggle or a hoca
+// self-registration form (register-academic.html) — hoca accounts now
+// arrive exclusively via Campuso SSO (see supabase/functions/campuso-sso
+// and sso-callback.html), which sets profiles.is_teacher = true on first
+// arrival and drops the visitor straight into teacher.html. Routing for
+// whoever DOES sign in here with a password (students, and any
+// already-approved teacher/admin account from before this change) is still
+// 100% decided server-side by getPostLoginDestination() via
+// profiles.is_admin / is_teacher — nothing about that changed.
 // ==========================================
-window.selectedLoginMode = 'student';
-
-function switchLoginMode(mode) {
-  const isAcademic = mode === 'academic';
-  window.selectedLoginMode = isAcademic ? 'academic' : 'student';
-
-  const studentTab = document.getElementById('tab-student');
-  const academicTab = document.getElementById('tab-academic');
-  const titleEl = document.getElementById('auth-title-text');
-  const subtitleEl = document.getElementById('auth-subtitle-text');
-  const emailInput = document.getElementById('email');
-
-  if (studentTab) {
-    studentTab.classList.toggle('active', !isAcademic);
-    studentTab.setAttribute('aria-selected', String(!isAcademic));
-  }
-  if (academicTab) {
-    academicTab.classList.toggle('active', isAcademic);
-    academicTab.setAttribute('aria-selected', String(isAcademic));
-  }
-
-  if (titleEl) {
-    const titleKey = isAcademic ? 'login.mode.academicTitle' : 'login.title';
-    titleEl.textContent = getMsg(titleKey, isAcademic ? 'Faculty & Staff Login' : 'Welcome Back to Acadex');
-    // Keep data-i18n pointed at the right key so a language switch later
-    // (via the header dropdown) re-translates into the tab that's active,
-    // instead of applyLanguage() silently reverting it to the student copy.
-    titleEl.setAttribute('data-i18n', titleKey);
-  }
-  if (subtitleEl) {
-    const subtitleKey = isAcademic ? 'login.mode.academicSubtitle' : 'login.subtitle';
-    subtitleEl.textContent = getMsg(subtitleKey, isAcademic ? 'Access your teaching materials and admin tools.' : 'Log in to access your study portal, documents, and flashcards.');
-    subtitleEl.setAttribute('data-i18n', subtitleKey);
-  }
-  if (emailInput) {
-    emailInput.placeholder = isAcademic ? 'hoca@university.edu.tr' : 'student@faculty.edu';
-  }
-
-  // The footer "Don't have an account? Sign Up" link should point new
-  // academics at the dedicated academic application page instead of the
-  // student registration form (which requires a student number).
-  const signupLabel = document.getElementById('login-signup-label');
-  const signupLink = document.getElementById('login-signup-link');
-  if (signupLabel) {
-    const labelKey = isAcademic ? 'registerAcademic.notAcademicShort' : 'login.noAccount';
-    signupLabel.textContent = getMsg(labelKey, isAcademic ? 'New faculty member?' : "Don't have an account yet?");
-    signupLabel.setAttribute('data-i18n', labelKey);
-  }
-  if (signupLink) {
-    signupLink.href = isAcademic ? 'register-academic.html' : 'register.html';
-    const linkKey = isAcademic ? 'registerAcademic.navSignup' : 'login.registerLink';
-    signupLink.textContent = getMsg(linkKey, isAcademic ? 'Academic Sign Up' : 'Create an account');
-    signupLink.setAttribute('data-i18n', linkKey);
-  }
-}
-window.switchLoginMode = switchLoginMode;
 
 document.addEventListener('DOMContentLoaded', async () => {
   const path = window.location.pathname;
   const isLoginPage = path.includes('login.html');
-  // NOTE: register-academic.html deliberately does NOT match this check
-  // ("register-academic.html" does not contain the substring "register.html"),
-  // so it's tracked separately below and added to the redirect guard itself.
   const isRegisterPage = path.includes('register.html') && !path.includes('register-academic.html');
-  const isAcademicRegisterPage = path.includes('register-academic.html');
 
   // ==========================================
   // 1. Session Redirect Guard on Load
   // ==========================================
-  if (isLoginPage || isRegisterPage || isAcademicRegisterPage) {
+  if (isLoginPage || isRegisterPage) {
     try {
       const { data: { session } } = await supabaseClient.auth.getSession();
       if (session) {
@@ -136,15 +79,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 2. Initialize Forms based on current page
   // ==========================================
   if (isLoginPage) {
-    // Allow a deep link like login.html?mode=academic to preselect the
-    // academic tab (e.g. from a "Hocalar için giriş" link elsewhere).
-    const modeParam = new URLSearchParams(window.location.search).get('mode');
-    if (modeParam === 'academic') switchLoginMode('academic');
-
     initLoginForm();
     initForgotForm();
-  } else if (isAcademicRegisterPage) {
-    initAcademicRegisterForm();
   } else if (isRegisterPage) {
     initRegisterForm();
   }
@@ -436,233 +372,12 @@ function initRegisterForm() {
 }
 
 // ==========================================
-// 4b. Academic (Teacher) Registration Form Controller
-//
-// Creates a normal Supabase Auth account exactly like initRegisterForm()
-// does, but the resulting profile is NOT granted is_teacher automatically.
-// Instead it's flagged teacher_request_pending = true so it shows up in the
-// admin panel's "Hoca Başvuruları" queue — an admin has to approve it before
-// the account gets real teacher access. This avoids letting anyone grant
-// themselves teacher/staff privileges just by picking this form.
-//
-// Whatever the profile-creation trigger on auth.users does with the signUp
-// metadata, we explicitly UPDATE the profile row right after signup so the
-// department/title/pending-flag are set correctly regardless of what keys
-// that trigger happens to read.
-// ==========================================
-function initAcademicRegisterForm() {
-  const form = document.getElementById('academic-register-form');
-  if (!form) return;
-
-  const formRenderedAt = Date.now();
-  const MIN_HUMAN_FILL_TIME_MS = 2500;
-
-  const checkbox = document.getElementById('ac-legal-agree');
-  const signupBtn = document.getElementById('ac-btn-signup');
-  if (checkbox && signupBtn) {
-    checkbox.addEventListener('change', (e) => {
-      signupBtn.disabled = !e.target.checked;
-    });
-  }
-
-  // Password Strength Indicator (same logic as the student form, scoped to
-  // this page's own input/bar ids so the two pages never collide).
-  const passwordInput = document.getElementById('ac-password');
-  const strengthBar = document.getElementById('ac-password-strength-bar');
-  const strengthLabel = document.getElementById('ac-password-strength-label');
-
-  if (passwordInput && strengthBar && strengthLabel) {
-    passwordInput.addEventListener('input', () => {
-      const val = passwordInput.value;
-      if (!val) {
-        strengthBar.style.width = '0%';
-        strengthBar.className = '';
-        strengthLabel.textContent = '—';
-        strengthLabel.style.color = 'var(--color-text-muted)';
-        return;
-      }
-
-      let criteriaMet = 0;
-      if (val.length >= 8) criteriaMet++;
-      if (/[A-Z]/.test(val)) criteriaMet++;
-      if (/[0-9]/.test(val)) criteriaMet++;
-      if (/[^A-Za-z0-9]/.test(val)) criteriaMet++;
-
-      const currentLang = localStorage.getItem('acadexUILang') || 'tr';
-      const weakText = currentLang === 'tr' ? 'Zayıf' : 'Weak';
-      const mediumText = currentLang === 'tr' ? 'Orta' : 'Medium';
-      const strongText = currentLang === 'tr' ? 'Güçlü' : 'Strong';
-
-      if (criteriaMet <= 1) {
-        strengthBar.style.width = '33%';
-        strengthBar.className = 'strength-weak';
-        strengthLabel.textContent = weakText;
-        strengthLabel.style.color = '#EF4444';
-      } else if (criteriaMet <= 3) {
-        strengthBar.style.width = '66%';
-        strengthBar.className = 'strength-medium';
-        strengthLabel.textContent = mediumText;
-        strengthLabel.style.color = '#F59E0B';
-      } else {
-        strengthBar.style.width = '100%';
-        strengthBar.className = 'strength-strong';
-        strengthLabel.textContent = strongText;
-        strengthLabel.style.color = '#10B981';
-      }
-    });
-  }
-
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    clearFormErrors(form);
-
-    // Anti-bot check #1: honeypot field.
-    const honeypot = document.getElementById('ac-website');
-    if (honeypot && honeypot.value.trim() !== '') {
-      console.warn('Academic registration blocked: honeypot field was filled.');
-      showFormAlert(form, 'error', getMsg('validation.unexpectedError', 'An unexpected error occurred. Please try again.'));
-      return;
-    }
-
-    // Anti-bot check #2: minimum fill time.
-    if (Date.now() - formRenderedAt < MIN_HUMAN_FILL_TIME_MS) {
-      console.warn('Academic registration blocked: form submitted too quickly.');
-      showFormAlert(form, 'error', getMsg('validation.unexpectedError', 'An unexpected error occurred. Please try again.'));
-      return;
-    }
-
-    const fullName = document.getElementById('ac-full-name').value.trim();
-    const teacherTitle = document.getElementById('ac-title').value.trim();
-    const department = document.getElementById('ac-department').value;
-    const email = document.getElementById('ac-email').value.trim();
-    const password = document.getElementById('ac-password').value;
-    const confirmPassword = document.getElementById('ac-confirm-password').value;
-    const submitBtn = form.querySelector('button[type="submit"]');
-
-    let isValid = true;
-
-    if (!fullName) {
-      showFieldError('ac-full-name', getMsg('validation.fullNameRequired', 'Full Name is required.'));
-      isValid = false;
-    }
-
-    if (!department) {
-      showFieldError('ac-department', getMsg('validation.selectDepartment', 'Please select your department.'));
-      isValid = false;
-    }
-
-    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!email) {
-      showFieldError('ac-email', getMsg('validation.emailRequired', 'Email address is required.'));
-      isValid = false;
-    } else if (!emailPattern.test(email)) {
-      showFieldError('ac-email', getMsg('validation.emailInvalid', 'Please enter a valid email address.'));
-      isValid = false;
-    }
-
-    if (!password) {
-      showFieldError('ac-password', getMsg('validation.passwordRequired', 'Password is required.'));
-      isValid = false;
-    } else if (password.length < 6) {
-      showFieldError('ac-password', getMsg('validation.passwordLength', 'Password must be at least 6 characters.'));
-      isValid = false;
-    }
-
-    if (!confirmPassword) {
-      showFieldError('ac-confirm-password', getMsg('validation.confirmPasswordRequired', 'Confirm password is required.'));
-      isValid = false;
-    } else if (password !== confirmPassword) {
-      showFieldError('ac-confirm-password', getMsg('validation.passwordsMatch', 'Passwords do not match.'));
-      isValid = false;
-    }
-
-    if (checkbox && !checkbox.checked) {
-      showFieldError('ac-legal-agree', getMsg('validation.legalAgree', 'You must agree to the Privacy Policy and Terms of Use.'));
-      isValid = false;
-    }
-
-    if (!isValid) return;
-
-    setButtonLoading(submitBtn, true, 'Submitting...');
-
-    try {
-      // The profiles-creation trigger that fires on new auth.users rows was
-      // written for the student form and appears to require student_number
-      // to be non-null (academic signups were failing with a 500 from
-      // /auth/v1/signup — a database error inside that trigger — because
-      // this form never collects one). Rather than touch a trigger we can't
-      // see the source of, we hand it a harmless, unique placeholder so its
-      // insert succeeds; the real academic identity fields (department,
-      // full_name, teacher_title, teacher_request_pending) are then set
-      // explicitly via the profiles UPDATE below, which is what actually
-      // matters for this flow.
-      const placeholderStudentNumber = 'AC-' + Date.now();
-
-      const { data, error } = await supabaseClient.auth.signUp({
-        email: email,
-        password: password,
-        options: {
-          data: {
-            student_number: placeholderStudentNumber,
-            department: department,
-            full_name: fullName,
-            teacher_title: teacherTitle || null,
-            applied_as: 'teacher'
-          }
-        }
-      });
-
-      if (error) {
-        showFormAlert(form, 'error', getFriendlyError(error.message));
-        setButtonLoading(submitBtn, false);
-        return;
-      }
-
-      // Explicitly set the academic-specific fields on the profile row
-      // ourselves (rather than trusting the auth-trigger to read these
-      // particular metadata keys), so the pending-approval flag and title
-      // are guaranteed to land even if that trigger only knows about the
-      // student registration's field names.
-      if (data && data.user) {
-        try {
-          await supabaseClient
-            .from('profiles')
-            .update({
-              department: department,
-              full_name: fullName,
-              teacher_title: teacherTitle || null,
-              teacher_request_pending: true
-            })
-            .eq('id', data.user.id);
-        } catch (profileErr) {
-          console.error('Academic profile update error:', profileErr);
-        }
-
-        // Sign the applicant back out — until an admin approves the
-        // request, there's nothing useful for them to do while "logged in"
-        // (they aren't a teacher yet, and this isn't a student account), so
-        // we show a clear confirmation instead of dropping them into the
-        // student dashboard.
-        try {
-          await supabaseClient.auth.signOut();
-        } catch (signOutErr) {
-          console.error('Post-application sign-out error:', signOutErr);
-        }
-
-        showFormAlert(form, 'success', getMsg('registerAcademic.pendingSuccess', 'Application received! An admin will review it, and you\'ll be able to log in to the academic panel once approved.'));
-        form.reset();
-        setButtonLoading(submitBtn, false);
-      }
-    } catch (err) {
-      console.error("Academic signup exception: ", err);
-      showFormAlert(form, 'error', getMsg('validation.unexpectedError', 'An unexpected error occurred during signup. Please try again.'));
-      setButtonLoading(submitBtn, false);
-    }
-  });
-}
-
-// ==========================================
 // 5. Login Form Controller
+//
+// (Academic/teacher self-registration used to live here as
+// initAcademicRegisterForm() + register-academic.html's form — removed now
+// that hoca accounts arrive exclusively via Campuso SSO. See
+// supabase/functions/campuso-sso and sso-callback.html.)
 // ==========================================
 function initLoginForm() {
   const form = document.getElementById('login-form');
@@ -724,20 +439,7 @@ function initLoginForm() {
           }
         }
 
-        // The tab the user picked is purely cosmetic — the real destination
-        // above is always decided by their actual profile flags. If the two
-        // disagree (e.g. a student clicked "Akademisyen Girişi"), let them
-        // know why they're landing somewhere other than the tab they chose,
-        // instead of silently redirecting them somewhere unexpected.
-        const pickedMode = window.selectedLoginMode || 'student';
-        const isAcademicDestination = destination === 'admin.html' || destination === 'teacher.html';
-        let successMsg = getMsg('validation.loginSuccess', 'Login successful! Accessing portal...');
-        if (pickedMode === 'academic' && !isAcademicDestination) {
-          successMsg = getMsg('login.mode.redirectToStudent', 'This account is a student account — redirecting you to your student dashboard...');
-        } else if (pickedMode === 'student' && isAcademicDestination) {
-          successMsg = getMsg('login.mode.redirectToAcademic', 'This account has faculty access — redirecting you to your panel...');
-        }
-
+        const successMsg = getMsg('validation.loginSuccess', 'Login successful! Accessing portal...');
         showFormAlert(form, 'success', successMsg);
         setTimeout(() => {
           window.location.href = destination;
