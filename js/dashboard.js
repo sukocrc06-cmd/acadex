@@ -248,6 +248,13 @@ async function checkSessionAndLoadProfile() {
     await updateDepotCountBadge();
     await checkNotifications();
 
+    // Live toast+sound notifications (comments, likes, announcements,
+    // materials, exam feedback...) — see startNotificationPolling().
+    if (!window.notificationPollIntervalWired) {
+      window.notificationPollIntervalWired = true;
+      startNotificationPolling();
+    }
+
     // Check upcoming exams & trigger notifications (Part E)
     if (!window.examNotificationIntervalWired) {
       window.examNotificationIntervalWired = true;
@@ -6997,6 +7004,43 @@ async function loadSettingsView() {
     emailDiv.textContent = currentUser.email || 'N/A';
     deptSelect.value = profile.department || '';
 
+    // Bio + social/portfolio links
+    const bioInput = document.getElementById('settings-bio');
+    if (bioInput) bioInput.value = profile.bio || '';
+    const githubInput = document.getElementById('settings-github-url');
+    if (githubInput) githubInput.value = profile.github_url || '';
+    const linkedinInput = document.getElementById('settings-linkedin-url');
+    if (linkedinInput) linkedinInput.value = profile.linkedin_url || '';
+    const websiteInput = document.getElementById('settings-website-url');
+    if (websiteInput) websiteInput.value = profile.website_url || '';
+
+    // Cover photo (banner) preview
+    const bannerPreview = document.getElementById('settings-banner-preview');
+    if (bannerPreview) {
+      if (profile.banner_url) {
+        bannerPreview.style.backgroundImage = `url('${profile.banner_url}')`;
+        bannerPreview.innerHTML = '';
+      } else {
+        bannerPreview.style.backgroundImage = '';
+        bannerPreview.innerHTML = '<span style="color: rgba(255,255,255,0.6); font-size: 0.8rem; font-weight: 600;">Henüz kapak fotoğrafı yok</span>';
+      }
+    }
+
+    // Notification preferences — default every category to true (checked)
+    // when notification_prefs is missing/undefined so existing accounts
+    // keep getting everything until they explicitly opt out.
+    const prefs = profile.notification_prefs || {};
+    const soundCheck = document.getElementById('notif-pref-sound');
+    if (soundCheck) soundCheck.checked = prefs.sound !== false;
+    const commentsCheck = document.getElementById('notif-pref-comments');
+    if (commentsCheck) commentsCheck.checked = prefs.comments !== false;
+    const likesCheck = document.getElementById('notif-pref-likes');
+    if (likesCheck) likesCheck.checked = prefs.likes !== false;
+    const announcementsCheck = document.getElementById('notif-pref-announcements');
+    if (announcementsCheck) announcementsCheck.checked = prefs.announcements !== false;
+    const materialsCheck = document.getElementById('notif-pref-materials');
+    if (materialsCheck) materialsCheck.checked = prefs.materials !== false;
+
   } catch (err) {
     console.error("Exception loading settings profile: ", err);
     showDashboardAlert('error', 'Hata oluştu.');
@@ -7013,6 +7057,10 @@ async function saveProfileSettings(event) {
 
   const fullName = fullnameInput.value.trim();
   const department = deptSelect.value;
+  const bio = (document.getElementById('settings-bio')?.value || '').trim();
+  const githubUrl = (document.getElementById('settings-github-url')?.value || '').trim();
+  const linkedinUrl = (document.getElementById('settings-linkedin-url')?.value || '').trim();
+  const websiteUrl = (document.getElementById('settings-website-url')?.value || '').trim();
 
   if (!fullName) {
     showDashboardAlert('error', 'Lütfen adınızı girin.');
@@ -7024,7 +7072,11 @@ async function saveProfileSettings(event) {
       .from('profiles')
       .update({
         full_name: fullName,
-        department: department
+        department: department,
+        bio: bio || null,
+        github_url: githubUrl || null,
+        linkedin_url: linkedinUrl || null,
+        website_url: websiteUrl || null
       })
       .eq('id', currentUser.id);
 
@@ -7039,6 +7091,10 @@ async function saveProfileSettings(event) {
     // Update locally cached profile
     currentUserProfile.full_name = fullName;
     currentUserProfile.department = department;
+    currentUserProfile.bio = bio || null;
+    currentUserProfile.github_url = githubUrl || null;
+    currentUserProfile.linkedin_url = linkedinUrl || null;
+    currentUserProfile.website_url = websiteUrl || null;
 
     // Refresh UI elements
     const nameEl = document.getElementById('user-name');
@@ -9575,15 +9631,27 @@ async function loadSandboxProjects() {
     }
 
     const projectIds = projects.map(p => p.id);
-    const userIds = [...new Set(projects.map(p => p.user_id))];
 
-    const [{ data: profiles }, { data: myLikes }, { data: comments }] = await Promise.all([
-      supabaseClient.from('profiles').select('id, full_name, department, avatar_url').in('id', userIds),
+    const [{ data: myLikes }, { data: comments }] = await Promise.all([
       currentUser
         ? supabaseClient.from('sandbox_project_likes').select('project_id').eq('user_id', currentUser.id).in('project_id', projectIds)
         : Promise.resolve({ data: [] }),
       supabaseClient.from('sandbox_project_comments').select('*').in('project_id', projectIds).order('created_at', { ascending: true }),
     ]);
+
+    // Profiles must cover BOTH project owners and comment authors. This used
+    // to only fetch project-owner ids, so a comment from someone who had
+    // never shared a project of their own (e.g. an "onur" who only comments,
+    // never posts) always fell back to "Anonymous Student" even though
+    // their real profile existed — the id just wasn't in the lookup query.
+    const userIds = [...new Set([
+      ...projects.map(p => p.user_id),
+      ...(comments || []).map(c => c.user_id),
+    ])];
+    const { data: profiles } = await supabaseClient
+      .from('profiles')
+      .select('id, full_name, department, avatar_url, bio, github_url, linkedin_url, website_url')
+      .in('id', userIds);
 
     const profileMap = {};
     (profiles || []).forEach(p => {
@@ -9591,6 +9659,10 @@ async function loadSandboxProjects() {
         full_name: p.full_name || 'Anonymous Student',
         department: p.department || 'General Faculty',
         avatar_url: p.avatar_url || null,
+        bio: p.bio || null,
+        github_url: p.github_url || null,
+        linkedin_url: p.linkedin_url || null,
+        website_url: p.website_url || null,
       };
     });
 
@@ -9670,6 +9742,30 @@ function renderSandboxFeed() {
   }
 }
 
+// Small inline icon links for a profile's GitHub/LinkedIn/website — shown
+// next to the author's name on their sandbox posts (Ayarlar → "Sosyal /
+// Portföy Linkleri" is where a student sets these).
+function renderAuthorSocialLinksHtml(author) {
+  if (!author) return '';
+  const links = [];
+  if (author.github_url) {
+    links.push(`<a href="${escapeHtml(author.github_url)}" target="_blank" rel="noopener" title="GitHub" style="color: var(--color-text-muted); display: flex;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
+    </a>`);
+  }
+  if (author.linkedin_url) {
+    links.push(`<a href="${escapeHtml(author.linkedin_url)}" target="_blank" rel="noopener" title="LinkedIn" style="color: var(--color-text-muted); display: flex;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path><rect x="2" y="9" width="4" height="12"></rect><circle cx="4" cy="4" r="2"></circle></svg>
+    </a>`);
+  }
+  if (author.website_url) {
+    links.push(`<a href="${escapeHtml(author.website_url)}" target="_blank" rel="noopener" title="Website" style="color: var(--color-text-muted); display: flex;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+    </a>`);
+  }
+  return links.length ? `<span style="display: flex; align-items: center; gap: 0.35rem;">${links.join('')}</span>` : '';
+}
+
 function renderSandboxPostHtml(proj) {
   const author = proj.author || {};
   const deptClass = getDepartmentColorClass(author.department);
@@ -9687,11 +9783,15 @@ function renderSandboxPostHtml(proj) {
         <div style="display: flex; align-items: center; gap: 0.5rem;">
           ${renderUserAvatarHtml(author, 32)}
           <div>
-            <div style="font-weight: 800; color: var(--color-navy); font-size: 0.9rem;">${escapeHtml(author.full_name)}</div>
+            <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
+              <span style="font-weight: 800; color: var(--color-navy); font-size: 0.9rem;">${escapeHtml(author.full_name)}</span>
+              ${renderAuthorSocialLinksHtml(author)}
+            </div>
             <div style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.7rem; color: var(--color-text-muted); flex-wrap: wrap;">
               <span class="dept-badge ${deptClass}" style="padding: 0.1rem 0.35rem; font-size: 0.55rem; font-weight: 800;">${deptShort}</span>
               <span>${createdDate}${wasEdited ? ' · düzenlendi' : ''}</span>
             </div>
+            ${author.bio ? `<p style="font-size: 0.72rem; color: var(--color-text-muted); margin: 0.15rem 0 0; max-width: 380px;">${escapeHtml(author.bio)}</p>` : ''}
           </div>
         </div>
         ${isOwner ? `
@@ -10626,7 +10726,8 @@ async function gatherNotificationItems(lastCheck) {
             time: a.created_at,
             title: `📢 ${escapeHtml(a.title)}`,
             subtitle: escapeHtml(a.body),
-            onClick: () => switchDashboardView('home')
+            onClick: () => switchDashboardView('home'),
+            category: 'announcements'
           });
         });
     }
@@ -10650,7 +10751,8 @@ async function gatherNotificationItems(lastCheck) {
           time: m.created_at,
           title: `📚 ${escapeHtml(m.title)}`,
           subtitle: m.description ? escapeHtml(m.description) : 'Yeni bir ders materyali paylaşıldı.',
-          onClick: () => switchDashboardView('home')
+          onClick: () => switchDashboardView('home'),
+          category: 'materials'
         });
       });
     }
@@ -10658,7 +10760,11 @@ async function gatherNotificationItems(lastCheck) {
     console.error('gatherNotificationItems (materials) error:', err);
   }
 
-  // 3. Newly unlocked achievements
+  // 3. Newly unlocked achievements — noToast:true because earning one in
+  // THIS session already pops its own instant toast via awardAchievement()
+  // -> showAchievementToast(); this entry is only for the bell dropdown
+  // (and still surfaces badges earned server-side, e.g. "Popüler Proje",
+  // for a session where the owner wasn't there to see the instant toast).
   try {
     const { data: earned, error } = await supabaseClient
       .from('user_achievements')
@@ -10673,7 +10779,8 @@ async function gatherNotificationItems(lastCheck) {
           time: e.created_at,
           title: `${meta?.icon || '🏆'} Achievement Unlocked: ${meta?.title || e.achievement_id}`,
           subtitle: meta?.desc || '',
-          onClick: () => switchDashboardView('home')
+          onClick: () => switchDashboardView('home'),
+          noToast: true
         });
       });
     }
@@ -10681,7 +10788,59 @@ async function gatherNotificationItems(lastCheck) {
     console.error('gatherNotificationItems (achievements) error:', err);
   }
 
-  // 4. Exams your hoca has left feedback on
+  // 4. Likes + comments on YOUR OWN sandbox projects. Previously these never
+  // generated a notification at all (bell or otherwise) — a like/comment on
+  // your project was only visible if you happened to revisit "Sandbox
+  // Etkileşim Paneli" yourself.
+  try {
+    const { data: myProjects, error: myProjErr } = await supabaseClient
+      .from('sandbox_projects')
+      .select('id, title')
+      .eq('user_id', currentUser.id);
+
+    if (!myProjErr && myProjects && myProjects.length > 0) {
+      const myProjectIds = myProjects.map(p => p.id);
+      const titleMap = {};
+      myProjects.forEach(p => { titleMap[p.id] = p.title; });
+
+      const [{ data: newLikes, error: likesErr }, { data: newComments, error: commentsErr2 }] = await Promise.all([
+        supabaseClient.from('sandbox_project_likes').select('project_id, user_id, created_at').in('project_id', myProjectIds).neq('user_id', currentUser.id).gt('created_at', lastCheck),
+        supabaseClient.from('sandbox_project_comments').select('project_id, user_id, content, created_at').in('project_id', myProjectIds).neq('user_id', currentUser.id).gt('created_at', lastCheck),
+      ]);
+
+      if (!likesErr && !commentsErr2) {
+        const actorIds = [...new Set([...(newLikes || []).map(l => l.user_id), ...(newComments || []).map(c => c.user_id)])];
+        const actorMap = {};
+        if (actorIds.length > 0) {
+          const { data: actors } = await supabaseClient.from('profiles').select('id, full_name').in('id', actorIds);
+          (actors || []).forEach(a => { actorMap[a.id] = a.full_name || 'Bir öğrenci'; });
+        }
+
+        (newLikes || []).forEach(l => {
+          items.push({
+            time: l.created_at,
+            title: `❤️ ${escapeHtml(actorMap[l.user_id] || 'Bir öğrenci')} projenizi beğendi`,
+            subtitle: escapeHtml(titleMap[l.project_id] || 'Sandbox projeniz'),
+            onClick: () => switchDashboardView('sandbox-interaction'),
+            category: 'likes'
+          });
+        });
+        (newComments || []).forEach(c => {
+          items.push({
+            time: c.created_at,
+            title: `💬 ${escapeHtml(actorMap[c.user_id] || 'Bir öğrenci')} projenize yorum yaptı`,
+            subtitle: escapeHtml(c.content),
+            onClick: () => switchDashboardView('sandbox-interaction'),
+            category: 'comments'
+          });
+        });
+      }
+    }
+  } catch (err) {
+    console.error('gatherNotificationItems (sandbox social) error:', err);
+  }
+
+  // 5. Exams your hoca has left feedback on
   try {
     const { data: reviewed, error } = await supabaseClient
       .from('exams')
@@ -10705,8 +10864,17 @@ async function gatherNotificationItems(lastCheck) {
     console.error('gatherNotificationItems (exam reviews) error:', err);
   }
 
-  items.sort((a, b) => new Date(b.time) - new Date(a.time));
-  return items;
+  // Ayarlar → "Bildirim Tercihleri" lets a student turn off specific
+  // categories (comments/likes/announcements/materials — achievements and
+  // exam feedback are always on since they're academic, not social, signals
+  // and carry no `category`). Default to true for anyone who hasn't touched
+  // this yet (undefined prefs, or a category missing from an older saved
+  // object) so behavior is unchanged until a student explicitly opts out.
+  const notifPrefs = (currentUserProfile && currentUserProfile.notification_prefs) || {};
+  const filteredItems = items.filter(it => !it.category || notifPrefs[it.category] !== false);
+
+  filteredItems.sort((a, b) => new Date(b.time) - new Date(a.time));
+  return filteredItems;
 }
 
 async function checkNotifications() {
@@ -10721,6 +10889,112 @@ async function checkNotifications() {
     console.error("Error checking notifications:", err);
   }
 }
+
+// ==========================================
+// LIVE TOAST + SOUND NOTIFICATIONS
+//
+// The bell dropdown above only updates when the student opens it, and the
+// achievement toast (achievements.js) only fires for badges YOU just earned
+// in your own session — neither ever surfaced "someone liked/commented on
+// your project" (or a new announcement/material/exam review) the moment it
+// happened. This polls gatherNotificationItems() on an interval using its
+// OWN cursor (acadexNotificationPollTimestamp, separate from
+// last_notification_check so it never messes with the bell's read/unread
+// state) and pops a toast + chime — visually and sonically the same as
+// showAchievementToast() in achievements.js, whose
+// createAchievementToastContainer()/playAchievementChime() helpers are
+// reused as-is since every <script> here shares one global scope.
+// ==========================================
+let acadexNotificationPollTimestamp = null;
+let acadexNotificationPollInterval = null;
+const ACADEX_NOTIFICATION_POLL_MS = 45000;
+
+function startNotificationPolling() {
+  if (acadexNotificationPollInterval) return;
+  acadexNotificationPollTimestamp = new Date().toISOString();
+  acadexNotificationPollInterval = setInterval(pollForLiveNotifications, ACADEX_NOTIFICATION_POLL_MS);
+}
+
+async function pollForLiveNotifications() {
+  if (!currentUserProfile || !currentUser || !acadexNotificationPollTimestamp) return;
+  const checkFrom = acadexNotificationPollTimestamp;
+  const checkAt = new Date().toISOString();
+  try {
+    const items = await gatherNotificationItems(checkFrom);
+    acadexNotificationPollTimestamp = checkAt;
+    if (!items || items.length === 0) return;
+
+    // The bell badge should also light up for items discovered this way,
+    // in case the student never opens the dropdown to trigger checkNotifications().
+    const badge = document.getElementById('notification-badge');
+    if (badge) badge.style.display = 'block';
+
+    // gatherNotificationItems returns newest-first; show oldest-first so
+    // toasts stack chronologically instead of newest-on-bottom.
+    [...items].reverse().forEach(item => {
+      if (item.noToast) return;
+      showSocialNotificationToast(item);
+    });
+  } catch (err) {
+    console.error('pollForLiveNotifications error:', err);
+    acadexNotificationPollTimestamp = checkAt;
+  }
+}
+
+function showSocialNotificationToast(item) {
+  const container = document.getElementById('achievement-toast-container') || createAchievementToastContainer();
+
+  const toast = document.createElement('div');
+  toast.className = 'achievement-toast';
+  toast.style.cssText = `
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    background: linear-gradient(135deg, var(--color-navy) 0%, #1a365d 100%);
+    color: white;
+    padding: 1rem 1.5rem;
+    border-radius: var(--radius);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.25), 0 10px 10px -5px rgba(0, 0, 0, 0.15);
+    border: 2px solid var(--color-teal);
+    font-family: inherit;
+    z-index: 100000;
+    pointer-events: auto;
+    cursor: ${typeof item.onClick === 'function' ? 'pointer' : 'default'};
+    animation: achievementSlideIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    width: 320px;
+  `;
+
+  toast.innerHTML = `
+    <div style="min-width:0;">
+      <strong style="font-size: 0.9rem; font-weight: 800; display: block; color: white;">${item.title}</strong>
+      ${item.subtitle ? `<span style="font-size: 0.75rem; color: #a0aec0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-top: 0.2rem;">${item.subtitle}</span>` : ''}
+    </div>
+  `;
+
+  if (typeof item.onClick === 'function') {
+    toast.addEventListener('click', () => {
+      item.onClick();
+      toast.style.animation = 'achievementSlideOut 0.5s ease forwards';
+      setTimeout(() => toast.remove(), 500);
+    });
+  }
+
+  container.appendChild(toast);
+  // "Sesli Bildirimler" toggle in Ayarlar mutes just the chime — the toast
+  // itself still pops so nothing is silently missed.
+  const soundEnabled = !currentUserProfile || currentUserProfile.notification_prefs?.sound !== false;
+  if (soundEnabled) playAchievementChime();
+
+  setTimeout(() => {
+    toast.style.animation = 'achievementSlideOut 0.5s ease forwards';
+    setTimeout(() => {
+      toast.remove();
+      if (container.children.length === 0) container.remove();
+    }, 500);
+  }, 6500);
+}
+window.startNotificationPolling = startNotificationPolling;
+window.showSocialNotificationToast = showSocialNotificationToast;
 
 async function toggleNotificationsDropdown() {
   const dropdown = document.getElementById('notification-dropdown');
@@ -14636,6 +14910,170 @@ async function removeAvatar() {
     console.error('Exception removing avatar:', err);
   }
 }
+
+// ==========================================
+// Real profile photo upload (Ayarlar → Avatar card)
+//
+// Uploads to the 'avatars' storage bucket at <user_id>/avatar.<ext>
+// (upsert:true — re-uploading just overwrites the same object) then writes
+// the resulting public URL into the SAME profiles.avatar_url column the
+// emoji Avatar Builder already uses. renderUserAvatarHtml() already renders
+// avatar_url as a plain <img src>, so a real photo needs no extra code path
+// anywhere else in the app — header, sandbox feed, comments, etc. all just
+// work. See supabase/migrations/20260830d_avatars_storage_bucket.sql for
+// the bucket + RLS (public read, write restricted to your own <uid>/ folder).
+// ==========================================
+async function uploadProfilePhoto(event) {
+  const input = event.target;
+  const file = input.files && input.files[0];
+  if (!file) return;
+
+  const statusEl = document.getElementById('settings-avatar-upload-status');
+  const MAX_BYTES = 3 * 1024 * 1024; // 3MB
+
+  if (!file.type.startsWith('image/')) {
+    showDashboardAlert('error', 'Lütfen bir resim dosyası seçin.');
+    input.value = '';
+    return;
+  }
+  if (file.size > MAX_BYTES) {
+    showDashboardAlert('error', 'Fotoğraf en fazla 3MB olabilir.');
+    input.value = '';
+    return;
+  }
+
+  if (statusEl) statusEl.textContent = 'Yükleniyor...';
+
+  try {
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+    const path = `${currentUser.id}/avatar.${ext}`;
+
+    const { error: uploadError } = await supabaseClient.storage
+      .from('avatars')
+      .upload(path, file, { upsert: true, cacheControl: '3600' });
+    if (uploadError) throw uploadError;
+
+    const { data: publicUrlData } = supabaseClient.storage.from('avatars').getPublicUrl(path);
+    // Cache-bust: the path is stable across re-uploads (always overwritten),
+    // so without a changing query param the browser/CDN would keep showing
+    // the previous photo after a re-upload.
+    const bustedUrl = `${publicUrlData.publicUrl}?v=${Date.now()}`;
+
+    const { error: dbError } = await supabaseClient
+      .from('profiles')
+      .update({ avatar_url: bustedUrl })
+      .eq('id', currentUser.id);
+    if (dbError) throw dbError;
+
+    currentUserProfile.avatar_url = bustedUrl;
+    updateAllAvatarDisplays();
+    const preview = document.getElementById('settings-avatar-preview');
+    if (preview) preview.innerHTML = renderUserAvatarHtml(currentUserProfile, 96);
+    if (statusEl) statusEl.textContent = '';
+    showDashboardAlert('success', 'Profil fotoğrafı güncellendi.');
+  } catch (err) {
+    console.error('uploadProfilePhoto error:', err);
+    if (statusEl) statusEl.textContent = '';
+    showDashboardAlert('error', 'Fotoğraf yüklenemedi: ' + (err.message || ''));
+  } finally {
+    input.value = '';
+  }
+}
+window.uploadProfilePhoto = uploadProfilePhoto;
+
+// ==========================================
+// Cover photo (banner) upload — Ayarlar → "Kapak Fotoğrafı" card.
+// Same 'avatars' bucket/RLS as the profile photo (already scoped to
+// <user_id>/, so no extra migration is needed for a second filename under
+// that same folder) — just a different object name and profile column.
+// ==========================================
+async function uploadProfileBanner(event) {
+  const input = event.target;
+  const file = input.files && input.files[0];
+  if (!file) return;
+
+  const statusEl = document.getElementById('settings-banner-upload-status');
+  const MAX_BYTES = 5 * 1024 * 1024; // 5MB — banners are wider than avatars
+
+  if (!file.type.startsWith('image/')) {
+    showDashboardAlert('error', 'Lütfen bir resim dosyası seçin.');
+    input.value = '';
+    return;
+  }
+  if (file.size > MAX_BYTES) {
+    showDashboardAlert('error', 'Kapak fotoğrafı en fazla 5MB olabilir.');
+    input.value = '';
+    return;
+  }
+
+  if (statusEl) statusEl.textContent = 'Yükleniyor...';
+
+  try {
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+    const path = `${currentUser.id}/banner.${ext}`;
+
+    const { error: uploadError } = await supabaseClient.storage
+      .from('avatars')
+      .upload(path, file, { upsert: true, cacheControl: '3600' });
+    if (uploadError) throw uploadError;
+
+    const { data: publicUrlData } = supabaseClient.storage.from('avatars').getPublicUrl(path);
+    const bustedUrl = `${publicUrlData.publicUrl}?v=${Date.now()}`;
+
+    const { error: dbError } = await supabaseClient
+      .from('profiles')
+      .update({ banner_url: bustedUrl })
+      .eq('id', currentUser.id);
+    if (dbError) throw dbError;
+
+    currentUserProfile.banner_url = bustedUrl;
+    const preview = document.getElementById('settings-banner-preview');
+    if (preview) {
+      preview.style.backgroundImage = `url('${bustedUrl}')`;
+      preview.innerHTML = '';
+    }
+    if (statusEl) statusEl.textContent = '';
+    showDashboardAlert('success', 'Kapak fotoğrafı güncellendi.');
+  } catch (err) {
+    console.error('uploadProfileBanner error:', err);
+    if (statusEl) statusEl.textContent = '';
+    showDashboardAlert('error', 'Kapak fotoğrafı yüklenemedi: ' + (err.message || ''));
+  } finally {
+    input.value = '';
+  }
+}
+window.uploadProfileBanner = uploadProfileBanner;
+
+// ==========================================
+// Notification preferences — Ayarlar → "Bildirim Tercihleri".
+// Written as a single jsonb column (profiles.notification_prefs) so adding
+// a new category later needs no migration. Read by gatherNotificationItems()
+// (category filtering) and showSocialNotificationToast() (sound toggle).
+// ==========================================
+async function saveNotificationPrefs() {
+  const prefs = {
+    sound: !!document.getElementById('notif-pref-sound')?.checked,
+    comments: !!document.getElementById('notif-pref-comments')?.checked,
+    likes: !!document.getElementById('notif-pref-likes')?.checked,
+    announcements: !!document.getElementById('notif-pref-announcements')?.checked,
+    materials: !!document.getElementById('notif-pref-materials')?.checked,
+  };
+
+  try {
+    const { error } = await supabaseClient
+      .from('profiles')
+      .update({ notification_prefs: prefs })
+      .eq('id', currentUser.id);
+    if (error) throw error;
+
+    currentUserProfile.notification_prefs = prefs;
+    showDashboardAlert('success', 'Bildirim tercihleri kaydedildi.');
+  } catch (err) {
+    console.error('saveNotificationPrefs error:', err);
+    showDashboardAlert('error', 'Tercihler kaydedilemedi: ' + (err.message || ''));
+  }
+}
+window.saveNotificationPrefs = saveNotificationPrefs;
 
 function updateAllAvatarDisplays() {
   // Top bar avatar

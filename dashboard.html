@@ -1579,17 +1579,106 @@
                 </span>
               </div>
 
+              <div>
+                <label for="settings-bio" style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.35rem;">Hakkımda</label>
+                <textarea id="settings-bio" class="search-input" maxlength="240" rows="3" placeholder="Kendinden kısaca bahset (ör. bölüm, ilgi alanların)..." style="width: 100%; padding: 0.6rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); font-size: 0.85rem; font-family: inherit; resize: vertical;"></textarea>
+                <span style="display: block; font-size: 0.7rem; color: var(--color-text-muted); margin-top: 0.25rem;">Sandbox Etkileşim Paneli'nde paylaştığın projelerin yanında görünür. En fazla 240 karakter.</span>
+              </div>
+
+              <!-- Sosyal / Portföy Linkleri — sandbox proje kartlarında yazar
+                   adının yanında küçük ikonlar olarak gösterilir
+                   (renderAuthorSocialLinksHtml() in js/dashboard.js). -->
+              <div>
+                <label style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.5rem;">Sosyal / Portföy Linkleri</label>
+                <div style="display: flex; flex-direction: column; gap: 0.6rem;">
+                  <input type="url" id="settings-github-url" class="search-input" placeholder="GitHub bağlantısı (https://github.com/...)" style="width: 100%; padding: 0.6rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); font-size: 0.85rem;">
+                  <input type="url" id="settings-linkedin-url" class="search-input" placeholder="LinkedIn bağlantısı (https://linkedin.com/in/...)" style="width: 100%; padding: 0.6rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); font-size: 0.85rem;">
+                  <input type="url" id="settings-website-url" class="search-input" placeholder="Kişisel site / portföy bağlantısı" style="width: 100%; padding: 0.6rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); font-size: 0.85rem;">
+                </div>
+              </div>
+
               <div style="display: flex; justify-content: flex-end; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
                 <button type="submit" class="btn btn-primary" style="border: none; padding: 0.5rem 1.5rem; font-size: 0.85rem;" data-i18n="dash.settings.save">Kaydet</button>
               </div>
             </form>
           </div>
 
+          <!-- PART A1: Cover Photo (Banner) Card -->
+          <div class="doc-card" style="box-shadow: var(--shadow-sm); padding: 0; overflow: hidden; display: flex; flex-direction: column;">
+            <div id="settings-banner-preview" style="width: 100%; height: 140px; background: linear-gradient(135deg, var(--color-navy) 0%, #1a365d 100%); display: flex; align-items: center; justify-content: center; background-size: cover; background-position: center;">
+              <span style="color: rgba(255,255,255,0.6); font-size: 0.8rem; font-weight: 600;">Henüz kapak fotoğrafı yok</span>
+            </div>
+            <div style="padding: 1.25rem; display: flex; flex-direction: column; gap: 0.6rem; align-items: center;">
+              <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--color-navy); margin: 0; align-self: flex-start;">Kapak Fotoğrafı</h3>
+              <label class="btn btn-outline" style="padding: 0.5rem 1.5rem; font-size: 0.85rem; cursor: pointer; margin: 0;">
+                🖼️ Kapak Fotoğrafı Yükle
+                <input type="file" id="settings-banner-photo-input" accept="image/png,image/jpeg,image/webp" style="display: none;" onchange="uploadProfileBanner(event)">
+              </label>
+              <span id="settings-banner-upload-status" style="font-size: 0.75rem; color: var(--color-text-muted); min-height: 1em;"></span>
+            </div>
+          </div>
+
           <!-- PART A2: Avatar Card -->
           <div class="doc-card" style="box-shadow: var(--shadow-sm); padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; align-items: center;">
             <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--color-navy); border-bottom: 1px solid rgba(22,50,92,0.08); padding-bottom: 0.5rem; margin: 0; width: 100;">Avatar</h3>
             <div id="settings-avatar-preview" style="margin-top: 0.5rem;"></div>
-            <button type="button" class="btn btn-primary" onclick="openAvatarBuilder()" style="border: none; padding: 0.5rem 1.5rem; font-size: 0.85rem;">🎨 Change Avatar</button>
+            <div style="display: flex; gap: 0.6rem; flex-wrap: wrap; justify-content: center;">
+              <button type="button" class="btn btn-primary" onclick="openAvatarBuilder()" style="border: none; padding: 0.5rem 1.5rem; font-size: 0.85rem;">🎨 Emoji Avatar</button>
+              <!-- Real photo upload — goes to the 'avatars' storage bucket
+                   (supabase/migrations/20260830d_avatars_storage_bucket.sql),
+                   own-folder-scoped RLS, public read. Same profiles.avatar_url
+                   column as the emoji builder, so renderUserAvatarHtml() and
+                   every existing avatar display need no changes. -->
+              <label class="btn btn-outline" style="padding: 0.5rem 1.5rem; font-size: 0.85rem; cursor: pointer; margin: 0;">
+                📷 Fotoğraf Yükle
+                <input type="file" id="settings-avatar-photo-input" accept="image/png,image/jpeg,image/webp" style="display: none;" onchange="uploadProfilePhoto(event)">
+              </label>
+            </div>
+            <span id="settings-avatar-upload-status" style="font-size: 0.75rem; color: var(--color-text-muted); min-height: 1em;"></span>
+          </div>
+
+          <!-- PART A3: Notification Preferences Card — controls the live
+               toast+sound notifications (pollForLiveNotifications /
+               showSocialNotificationToast in js/dashboard.js). "Sesli
+               Bildirimler" mutes the chime only (toasts still pop silently);
+               each category checkbox controls whether that event type
+               generates a notification at all. Exam-feedback and achievement
+               notifications stay always-on since they're academically
+               important, not just social noise. -->
+          <div class="doc-card" style="box-shadow: var(--shadow-sm); padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem;">
+            <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--color-navy); border-bottom: 1px solid rgba(22,50,92,0.08); padding-bottom: 0.5rem; margin: 0;">Bildirim Tercihleri</h3>
+
+            <label style="display: flex; align-items: center; gap: 0.6rem; font-size: 0.85rem; color: var(--color-navy); font-weight: 700; cursor: pointer;">
+              <input type="checkbox" id="notif-pref-sound" style="width: 16px; height: 16px;">
+              🔊 Sesli bildirimler
+            </label>
+            <span style="font-size: 0.75rem; color: var(--color-text-muted); margin-top: -0.6rem;">Kapatırsan bildirimler yine ekranda belirir, sadece ses çalmaz.</span>
+
+            <div style="height: 1px; background: rgba(22,50,92,0.08); margin: 0.25rem 0;"></div>
+
+            <span style="font-size: 0.8rem; font-weight: 700; color: var(--color-navy);">Hangi olaylarda bildirim almak istersin?</span>
+            <div style="display: flex; flex-direction: column; gap: 0.6rem;">
+              <label style="display: flex; align-items: center; gap: 0.6rem; font-size: 0.85rem; color: var(--color-text); cursor: pointer;">
+                <input type="checkbox" id="notif-pref-comments" style="width: 16px; height: 16px;">
+                💬 Projelerime biri yorum yaptığında
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.6rem; font-size: 0.85rem; color: var(--color-text); cursor: pointer;">
+                <input type="checkbox" id="notif-pref-likes" style="width: 16px; height: 16px;">
+                ❤️ Projelerimi biri beğendiğinde
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.6rem; font-size: 0.85rem; color: var(--color-text); cursor: pointer;">
+                <input type="checkbox" id="notif-pref-announcements" style="width: 16px; height: 16px;">
+                📢 Yeni bir duyuru yayınlandığında
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.6rem; font-size: 0.85rem; color: var(--color-text); cursor: pointer;">
+                <input type="checkbox" id="notif-pref-materials" style="width: 16px; height: 16px;">
+                📚 Yeni bir materyal paylaşıldığında
+              </label>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end;">
+              <button type="button" class="btn btn-primary" onclick="saveNotificationPrefs()" style="border: none; padding: 0.5rem 1.5rem; font-size: 0.85rem;">Kaydet</button>
+            </div>
           </div>
 
           <!-- PART B: Change Password Card -->
