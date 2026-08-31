@@ -505,6 +505,49 @@ async function callGroqJson(
   return JSON.parse(cleaned)
 }
 
+// Upload local file bytes to PDF.co via its presigned-URL flow (Denetim
+// Raporu, 2026-08-31 — LIVE TEST FINDING). PDF.co's convert endpoints only
+// accept a `url` pointing to an already-hosted file; they do NOT accept a
+// direct multipart file body. Confirmed via a real 400 in production logs:
+// "Long-doc PDF.co response status failed: 400" — the code below this
+// comment (and, it turns out, the ORIGINAL fast-path PDF visual-analysis
+// block further down, which used the exact same multipart pattern) was
+// sending the file the wrong way. Both call sites now go through this one
+// upload helper instead. Flow, per PDF.co's docs (developer.pdf.co/api/
+// file-upload/generate-presigned-url): GET a presigned URL, PUT the raw
+// bytes to it, then use the returned `url` field in the actual conversion
+// call. Returns null on any failure.
+async function uploadFileToPdfCo(fileBytes: Uint8Array, apiKey: string, filename: string): Promise<string | null> {
+  try {
+    const presignRes = await fetch(
+      `https://api.pdf.co/v1/file/upload/get-presigned-url?name=${encodeURIComponent(filename)}`,
+      { headers: { 'x-api-key': apiKey } }
+    )
+    if (!presignRes.ok) {
+      console.warn(`PDF.co presigned-URL request failed: ${presignRes.status}`)
+      return null
+    }
+    const presignData = await presignRes.json()
+    if (presignData.error || !presignData.presignedUrl || !presignData.url) {
+      console.warn('PDF.co presigned-URL response missing fields:', presignData)
+      return null
+    }
+    const putRes = await fetch(presignData.presignedUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: fileBytes
+    })
+    if (!putRes.ok) {
+      console.warn(`PDF.co presigned upload PUT failed: ${putRes.status}`)
+      return null
+    }
+    return presignData.url as string
+  } catch (err) {
+    console.error('PDF.co presigned upload flow failed:', err)
+    return null
+  }
+}
+
 // Convert SPECIFIC pages of a PDF to images via PDF.co (Denetim Raporu,
 // 2026-08-31). The existing fast-path visual analysis below always asks for
 // pages "0-7" — fine for a short document, but on a long slide deck the
@@ -521,25 +564,26 @@ async function extractVisualImagesForLongDoc(
   const pdfcoApiKey = Deno.env.get('PDFCO_API_KEY')
   if (!pdfcoApiKey || pageIndices.length === 0) return []
   try {
-    // PDF.co's `pages` parameter accepts a comma-separated list of 0-indexed
-    // page numbers and/or ranges (e.g. "0,4,7-9") — verify this against a
-    // real PDF.co response the first time this path fires in production;
-    // the fast path above only ever exercised the "0-7" range form.
+    // Confirmed against PDF.co's own docs: comma-separated 0-indexed page
+    // numbers/ranges is the correct format (e.g. "0, 2-4, !0").
     const pages = pageIndices.slice(0, 8).join(',')
     console.log(`Long-doc visual analysis: converting near-blank page(s) [${pages}] via PDF.co...`)
 
-    const formData = new FormData()
-    const pdfBlob = new Blob([fileBytes], { type: 'application/pdf' })
-    formData.append('file', pdfBlob, 'document.pdf')
-    formData.append('pages', pages)
+    const fileUrl = await uploadFileToPdfCo(fileBytes, pdfcoApiKey, 'document.pdf')
+    if (!fileUrl) {
+      console.warn('Long-doc visual analysis: PDF.co file upload failed, skipping visual patch')
+      return []
+    }
 
     const pdfcoRes = await fetch('https://api.pdf.co/v1/pdf/convert/to/png', {
       method: 'POST',
-      headers: { 'x-api-key': pdfcoApiKey },
-      body: formData
+      headers: { 'x-api-key': pdfcoApiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: fileUrl, pages })
     })
     if (!pdfcoRes.ok) {
-      console.warn(`Long-doc PDF.co response status failed: ${pdfcoRes.status}`)
+      let bodyText = ''
+      try { bodyText = await pdfcoRes.text() } catch (_e) { /* ignore */ }
+      console.warn(`Long-doc PDF.co response status failed: ${pdfcoRes.status} — ${bodyText.slice(0, 500)}`)
       return []
     }
     const pdfcoData = await pdfcoRes.json()
@@ -1497,18 +1541,25 @@ ${styleInstruction}`
           if (pdfcoApiKey) {
             try {
               console.log("PDF.co Visual analysis enabled. Uploading PDF to convert first 8 pages to images...")
-              const formData = new FormData()
-              const pdfBlob = new Blob([fileBytes], { type: 'application/pdf' })
-              formData.append('file', pdfBlob, 'document.pdf')
-              formData.append('pages', '0-7')
+              // Denetim Raporu, 2026-08-31 — LIVE TEST FINDING: this used to
+              // POST the file directly as multipart form-data, which PDF.co's
+              // convert endpoint rejects with a 400 (it only accepts a `url`
+              // to an already-hosted file). See uploadFileToPdfCo() above —
+              // confirmed against PDF.co's own docs and against a real 400
+              // in this project's production logs.
+              const fileUrl = await uploadFileToPdfCo(fileBytes, pdfcoApiKey, 'document.pdf')
 
-              const pdfcoRes = await fetch('https://api.pdf.co/v1/pdf/convert/to/png', {
-                method: 'POST',
-                headers: { 'x-api-key': pdfcoApiKey },
-                body: formData
-              })
+              const pdfcoRes = fileUrl
+                ? await fetch('https://api.pdf.co/v1/pdf/convert/to/png', {
+                    method: 'POST',
+                    headers: { 'x-api-key': pdfcoApiKey, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: fileUrl, pages: '0-7' })
+                  })
+                : null
 
-              if (pdfcoRes.ok) {
+              if (!fileUrl) {
+                console.warn('PDF.co file upload failed. Falling back to text-only analysis.')
+              } else if (pdfcoRes && pdfcoRes.ok) {
                 const pdfcoData = await pdfcoRes.json()
                 if (!pdfcoData.error && (pdfcoData.urls || pdfcoData.url)) {
                   let imageUrls: string[] = []
@@ -1546,7 +1597,7 @@ ${styleInstruction}`
                   console.warn("PDF.co API returned error:", pdfcoData)
                 }
               } else {
-                console.warn(`PDF.co response status failed: ${pdfcoRes.status}`)
+                console.warn(`PDF.co response status failed: ${pdfcoRes?.status ?? 'unknown'}`)
               }
             } catch (pdfcoErr) {
               console.error("PDF.co page conversion failed, falling back to text-only:", pdfcoErr)
