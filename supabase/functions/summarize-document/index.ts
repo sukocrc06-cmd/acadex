@@ -85,6 +85,26 @@ function stripThinkBlock(raw: string): string | null {
   return raw
 }
 
+// Convert raw bytes to a base64 string WITHOUT the one-character-at-a-time
+// `binary += String.fromCharCode(bytes[i])` loop used throughout this file
+// (Denetim Raporu, 2026-08-31 — LIVE PRODUCTION FINDING). That pattern
+// re-allocates and copies a growing string on every single byte — for a
+// multi-hundred-KB/multi-MB PNG page image (exactly what the PDF.co visual
+// analysis below downloads), that is millions of reallocations and is what
+// actually caused a real "Memory limit exceeded" (546) crash in production
+// once the presigned-URL fix above finally let this code path run for the
+// first time with real image data. Chunking into reasonably sized pieces
+// and joining once at the end keeps this O(n) instead of pathological.
+function bytesToBase64(bytes: Uint8Array): string {
+  const CHUNK_SIZE = 8192
+  const chunks: string[] = []
+  for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
+    const chunk = bytes.subarray(i, i + CHUNK_SIZE)
+    chunks.push(String.fromCharCode(...chunk))
+  }
+  return btoa(chunks.join(''))
+}
+
 function decodeXmlEntities(str: string): string {
   return str
     .replace(/&amp;/g, "&")
@@ -600,10 +620,7 @@ async function extractVisualImagesForLongDoc(
         const imgRes = await fetch(imgUrl)
         if (imgRes.ok) {
           const buffer = await imgRes.arrayBuffer()
-          const bytes = new Uint8Array(buffer)
-          let binary = ''
-          for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i])
-          base64Images.push(btoa(binary))
+          base64Images.push(bytesToBase64(new Uint8Array(buffer)))
         }
       } catch (imgDownloadErr) {
         console.error(`Long-doc: failed to download page image from ${imgUrl}:`, imgDownloadErr)
@@ -1475,12 +1492,7 @@ ${styleInstruction}`
               try {
                 const imgBytes = await zip.files[mediaPath].async("uint8array")
                 if (imgBytes && imgBytes.byteLength > 0) {
-                  let binary = ''
-                  const lenBytes = imgBytes.byteLength
-                  for (let i = 0; i < lenBytes; i++) {
-                    binary += String.fromCharCode(imgBytes[i])
-                  }
-                  base64Images.push(btoa(binary))
+                  base64Images.push(bytesToBase64(imgBytes))
                 }
               } catch (mediaErr) {
                 console.error(`Failed to extract DOCX media image ${mediaPath}:`, mediaErr)
@@ -1517,12 +1529,7 @@ ${styleInstruction}`
               try {
                 const imgBytes = await zip.files[mediaPath].async("uint8array")
                 if (imgBytes && imgBytes.byteLength > 0) {
-                  let binary = ''
-                  const lenBytes = imgBytes.byteLength
-                  for (let i = 0; i < lenBytes; i++) {
-                    binary += String.fromCharCode(imgBytes[i])
-                  }
-                  base64Images.push(btoa(binary))
+                  base64Images.push(bytesToBase64(imgBytes))
                 }
               } catch (mediaErr) {
                 console.error(`Failed to extract media image ${mediaPath}:`, mediaErr)
@@ -1576,13 +1583,7 @@ ${styleInstruction}`
                       const imgRes = await fetch(imgUrl)
                       if (imgRes.ok) {
                         const buffer = await imgRes.arrayBuffer()
-                        const bytes = new Uint8Array(buffer)
-                        let binary = ''
-                        const lenBytes = bytes.byteLength
-                        for (let i = 0; i < lenBytes; i++) {
-                          binary += String.fromCharCode(bytes[i])
-                        }
-                        base64Images.push(btoa(binary))
+                        base64Images.push(bytesToBase64(new Uint8Array(buffer)))
                       }
                     } catch (imgDownloadErr) {
                       console.error(`Failed to download page image from ${imgUrl}:`, imgDownloadErr)
