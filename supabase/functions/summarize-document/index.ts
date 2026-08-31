@@ -505,6 +505,73 @@ async function callGroqJson(
   return JSON.parse(cleaned)
 }
 
+// Convert SPECIFIC pages of a PDF to images via PDF.co (Denetim Raporu,
+// 2026-08-31). The existing fast-path visual analysis below always asks for
+// pages "0-7" — fine for a short document, but on a long slide deck the
+// pages worth looking at visually are wherever the text extraction came back
+// near-empty, which can be anywhere in the document (on our real test case,
+// page 51 of 52). This is a separate, additive function so the working
+// fast-path code above is untouched; it is only used by the chunked/long-doc
+// path's visual-analysis patch further down, and only when that path has
+// already identified which pages are worth converting.
+async function extractVisualImagesForLongDoc(
+  fileBytes: Uint8Array,
+  pageIndices: number[] // 0-indexed page numbers to convert
+): Promise<string[]> {
+  const pdfcoApiKey = Deno.env.get('PDFCO_API_KEY')
+  if (!pdfcoApiKey || pageIndices.length === 0) return []
+  try {
+    // PDF.co's `pages` parameter accepts a comma-separated list of 0-indexed
+    // page numbers and/or ranges (e.g. "0,4,7-9") — verify this against a
+    // real PDF.co response the first time this path fires in production;
+    // the fast path above only ever exercised the "0-7" range form.
+    const pages = pageIndices.slice(0, 8).join(',')
+    console.log(`Long-doc visual analysis: converting near-blank page(s) [${pages}] via PDF.co...`)
+
+    const formData = new FormData()
+    const pdfBlob = new Blob([fileBytes], { type: 'application/pdf' })
+    formData.append('file', pdfBlob, 'document.pdf')
+    formData.append('pages', pages)
+
+    const pdfcoRes = await fetch('https://api.pdf.co/v1/pdf/convert/to/png', {
+      method: 'POST',
+      headers: { 'x-api-key': pdfcoApiKey },
+      body: formData
+    })
+    if (!pdfcoRes.ok) {
+      console.warn(`Long-doc PDF.co response status failed: ${pdfcoRes.status}`)
+      return []
+    }
+    const pdfcoData = await pdfcoRes.json()
+    if (pdfcoData.error || !(pdfcoData.urls || pdfcoData.url)) {
+      console.warn("Long-doc PDF.co API returned error:", pdfcoData)
+      return []
+    }
+    const rawUrls = pdfcoData.urls || pdfcoData.url
+    const imageUrls: string[] = Array.isArray(rawUrls) ? rawUrls : [rawUrls]
+
+    const base64Images: string[] = []
+    for (const imgUrl of imageUrls) {
+      try {
+        const imgRes = await fetch(imgUrl)
+        if (imgRes.ok) {
+          const buffer = await imgRes.arrayBuffer()
+          const bytes = new Uint8Array(buffer)
+          let binary = ''
+          for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i])
+          base64Images.push(btoa(binary))
+        }
+      } catch (imgDownloadErr) {
+        console.error(`Long-doc: failed to download page image from ${imgUrl}:`, imgDownloadErr)
+      }
+    }
+    return base64Images
+  } catch (err) {
+    console.error("Long-doc PDF.co page conversion failed:", err)
+    return []
+  }
+}
+
 function buildChunkSystemPrompt(chunkIndex: number, totalChunks: number, langLabel: string, hasPageMarkers: boolean, pageMarkerLabel: string): string {
   return `You are an academic study assistant helping process a LARGE document that has been split into ${totalChunks} sequential parts because of its length. You are given ONLY part ${chunkIndex + 1} of ${totalChunks} below — you do NOT see the rest of the document, so do not reference "the whole document" or assume content beyond what's shown here.
 
@@ -991,6 +1058,11 @@ serve(async (req) => {
     // ==========================================================================
     let extractedText = ""
     const mimeType = document.mime_type?.toLowerCase() || ""
+    // Per-page PDF text, kept around after extraction (Denetim Raporu,
+    // 2026-08-31) so we can measure text density per page below — this is
+    // what lets us tell a text-heavy long document apart from a slide deck
+    // that just happens to be long, without adding a second PDF parse.
+    let pdfPageTexts: string[] = []
 
     try {
       if (mimeType === "text/plain") {
@@ -1006,6 +1078,7 @@ serve(async (req) => {
           // claim came from (see the FOOTNOTES prompt instructions), instead
           // of only a vague topic/section description as before.
           const { text: pdfPages } = await extractText(pdf, { mergePages: false })
+          pdfPageTexts = pdfPages
           const pdfTextWithPageMarkers = pdfPages.map((pageText, idx) => `--- SAYFA ${idx + 1} ---\n${pageText}`).join('\n\n')
           extractedText = detectAndFormatPdfTables(pdfTextWithPageMarkers)
 
@@ -1126,6 +1199,42 @@ serve(async (req) => {
     // page/slide numbers or to fall back to the old topic/heading reference.
     const hasPageMarkers = mimeType === "application/pdf" || mimeType === "application/vnd.openxmlformats-officedocument.presentationml.presentation"
     const pageMarkerLabel = mimeType === "application/vnd.openxmlformats-officedocument.presentationml.presentation" ? "SLAYT" : "SAYFA"
+
+    // ==========================================================================
+    // VISUAL-DENSITY SIGNAL (Denetim Raporu, 2026-08-31)
+    // CHUNK_THRESHOLD below only ever measures character COUNT. That is the
+    // right signal for deciding whether the text needs the chunked/map-reduce
+    // pipeline (see the big comment above), but it is the WRONG signal for
+    // deciding whether visual analysis matters — a slide-deck PDF can be
+    // "long" purely because it has many slides, while each slide carries
+    // almost no extractable text and most of its real content lives in
+    // diagrams/frameworks/charts. Confirmed on a real 52-page lecture deck:
+    // only 17,787 extractable characters total (avg 342/page — well under
+    // the chunked pipeline's 56K-char ceiling), but 216 embedded images and
+    // 5 pages (13%) with ZERO extractable text. Those near-blank pages are
+    // exactly where whole frameworks (e.g. a closing "major developments"
+    // slide) were being silently dropped, because the chunked path below
+    // never ran visual analysis at all.
+    // We flag that pattern here — independent of useChunkedPipeline — and
+    // use it further down to (a) run one extra vision-capable pass over just
+    // the near-blank pages of a chunked document, and (b) not let a chunked
+    // document skip the quality/hallucination review pass purely because
+    // depth !== 'deep'.
+    // ==========================================================================
+    const pdfPageCount = pdfPageTexts.length
+    const avgCharsPerPdfPage = pdfPageCount > 0 ? extractedText.length / pdfPageCount : 0
+    // 0-indexed page numbers whose extracted text is essentially empty —
+    // these are the pages PDF.co should convert to images below, instead of
+    // always guessing "the first 8 pages".
+    const nearBlankPdfPageIndices = pdfPageTexts
+      .map((t, i) => ({ i, len: t.trim().length }))
+      .filter(p => p.len < 20)
+      .map(p => p.i)
+    const isVisuallyDenseDocument = mimeType === "application/pdf" && pdfPageCount > 0 &&
+      (avgCharsPerPdfPage < 500 || (nearBlankPdfPageIndices.length / pdfPageCount) > 0.08)
+    if (isVisuallyDenseDocument) {
+      console.log(`Visual-density signal tripped: avgCharsPerPage=${avgCharsPerPdfPage.toFixed(0)}, nearBlankPages=${nearBlankPdfPageIndices.length}/${pdfPageCount}`)
+    }
 
     // ==========================================================================
     // DECIDE PIPELINE: short/medium documents use the original single-pass
@@ -1835,6 +1944,86 @@ Use CONCRETE topic names from digests and terms. No meta filler.`,
         }
       }
 
+      // ------------------------------------------------------------------
+      // VISUAL ANALYSIS PATCH FOR VISUALLY-DENSE LONG DOCUMENTS
+      // (Denetim Raporu, 2026-08-31) — see the isVisuallyDenseDocument
+      // comment above. The chunked path never looks at page images; when a
+      // document trips that density signal, spend ONE extra vision-capable
+      // call on just the near-blank pages (not all pages — bounds cost and
+      // latency to a single call) and merge anything new it finds into the
+      // terms/points/quiz/sections gathered from the text-only windows.
+      // Fully additive and best-effort: any failure here just leaves the
+      // text-only result untouched, same as the compact synthesis above.
+      // ------------------------------------------------------------------
+      if (isVisuallyDenseDocument && analyzeVisuals && nearBlankPdfPageIndices.length > 0 && budgetLeft() > 30_000) {
+        try {
+          await serviceClient.from('documents').update({ processing_stage: 'visual_analysis' }).eq('id', documentId)
+          const visualImages = await extractVisualImagesForLongDoc(fileBytes, nearBlankPdfPageIndices)
+
+          if (visualImages.length > 0) {
+            const knownTermsHint = mergedKeyTerms.slice(0, 25).map((t: any) => t.term).filter(Boolean).join(', ')
+            const visualSystemPrompt = `You are an academic study assistant. You are shown page images of specific slides from a long lecture document that had almost no extractable text (they are diagram/framework/chart slides). Identify any exam-relevant content shown ONLY in these images — named frameworks, diagrams, comparison tables, category lists — that is NOT already covered by these already-known terms: ${knownTermsHint || '(none yet)'}.
+Respond ONLY with JSON in ${langLabel}: {"key_terms":[{"term":"...","definition":"..."}],"key_points":["..."],"quiz_questions":[{"question":"...","answer":"..."}],"sections":[{"heading":"...","summary":"..."}]}
+Rules: only include content actually visible in the images; return empty arrays for any field with nothing new; do not repeat terms already listed above.`
+
+            const visualUserContent = [
+              { type: "text", text: "Analyze these slide images for exam-relevant content not already covered." },
+              ...visualImages.map(b64 => ({ type: "image_url", image_url: { url: `data:image/png;base64,${b64}` } }))
+            ]
+
+            const visionRes = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
+              method: "POST",
+              headers: { "Authorization": `Bearer ${groqApiKey}`, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                // Same vision-capable model as the fast path's visual pass —
+                // see the "qwen/qwen3.6-27b" note above.
+                model: "qwen/qwen3.6-27b",
+                temperature: 0.3,
+                reasoning_effort: "none",
+                max_completion_tokens: 2048,
+                response_format: { type: "json_object" },
+                messages: [
+                  { role: "system", content: visualSystemPrompt },
+                  { role: "user", content: visualUserContent }
+                ]
+              })
+            }, 0, Math.min(25000, Math.max(10000, budgetLeft() - 15000)))
+
+            if (visionRes.ok) {
+              const visionData = await visionRes.json()
+              const visionRaw = visionData.choices?.[0]?.message?.content ?? ""
+              const visionStripped = stripThinkBlock(visionRaw)
+              const visionCleaned = (visionStripped ?? visionRaw).replace(/```json\s*|```/g, '').trim()
+              const visionParsed = visionCleaned ? JSON.parse(visionCleaned) : null
+
+              if (visionParsed && typeof visionParsed === 'object') {
+                const newTerms = Array.isArray(visionParsed.key_terms) ? visionParsed.key_terms : []
+                const newPoints = Array.isArray(visionParsed.key_points) ? visionParsed.key_points : []
+                const newQuiz = Array.isArray(visionParsed.quiz_questions) ? visionParsed.quiz_questions : []
+                const newSections = Array.isArray(visionParsed.sections) ? visionParsed.sections : []
+
+                if (newTerms.length || newPoints.length || newQuiz.length) {
+                  const patchedTerms = dedupeKeyTerms([...mergedKeyTerms, ...newTerms]).slice(0, 40)
+                  const patchedPoints = dedupeByText([...mergedKeyPoints, ...newPoints], (x: string) => x).slice(0, 35)
+                  const patchedQuiz = dedupeByText([...mergedQuiz, ...newQuiz], (q: any) => q?.question || '').slice(0, 20)
+                  mergedKeyTerms.length = 0; mergedKeyTerms.push(...patchedTerms)
+                  mergedKeyPoints.length = 0; mergedKeyPoints.push(...patchedPoints)
+                  mergedQuiz.length = 0; mergedQuiz.push(...patchedQuiz)
+                }
+                if (newSections.length) bestSections = bestSections.concat(newSections)
+
+                visualAnalysisUsed = true
+                console.log(`Long-doc visual patch: +${newTerms.length} terms, +${newPoints.length} points, +${newQuiz.length} quiz, +${newSections.length} sections from ${visualImages.length} near-blank page(s)`)
+              }
+            } else {
+              console.warn(`Long-doc visual patch call returned non-ok status: ${visionRes.status}`)
+            }
+          }
+        } catch (visualPatchErr) {
+          console.warn('Long-doc visual analysis patch skipped:', visualPatchErr)
+        }
+      }
+
       // Guarantee non-empty executive from terms if needed
       if (!bestExec && mergedKeyTerms.length) {
         bestExec = lang === 'tr'
@@ -2068,10 +2257,15 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
 
     // Skip review for short single-pass docs OR any chunked long doc under time pressure
     // (long-doc review often pushed total runtime past Edge wall-clock → stuck at "chunking")
+    // Denetim Raporu, 2026-08-31: a visually-dense chunked document (see
+    // isVisuallyDenseDocument above) never skips review purely for being
+    // standard-depth — it just went through an extra visual-analysis patch
+    // above, so the hallucination/grounding check matters MORE here, not
+    // less. The wall-clock budget guard on the line above still applies.
     const shouldSkipReview =
       (!useChunkedPipeline && extractedText.length <= SKIP_REVIEW_MAX_CHARS) ||
       (useChunkedPipeline && budgetLeft() < 55_000) ||
-      (useChunkedPipeline && depth !== 'deep')
+      (useChunkedPipeline && depth !== 'deep' && !isVisuallyDenseDocument)
 
     let rawFinalContent = ""
 
