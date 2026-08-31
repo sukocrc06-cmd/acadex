@@ -960,8 +960,8 @@
             <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--color-navy); margin: 0;">
               🚀 <span data-i18n="sandbox.galleryTitle">Proje Akışı</span>
             </h3>
-            <button class="btn btn-primary" id="btn-share-project" style="border: none; font-size: 0.8rem; padding: 0.4rem 0.8rem; font-weight: 700;" data-i18n="sandbox.shareBtn">
-              Yeni Proje Paylaş
+            <button class="btn btn-primary" id="btn-share-project" title="Proje yükleme, Geliştirici Sandbox sayfasında yapılır" style="border: none; font-size: 0.8rem; padding: 0.4rem 0.8rem; font-weight: 700;" data-i18n="sandbox.shareBtn">
+              🚀 Proje Yükle
             </button>
           </div>
 
@@ -1470,7 +1470,7 @@
       <section id="sandbox-view" class="dashboard-view-section">
         <div class="dashboard-page-header">
           <h2 class="dashboard-page-title" data-i18n="dash.sandbox.title">Geliştirici Sandbox</h2>
-          <p class="dashboard-page-desc">Practice data analysis with sample datasets. Projelerinizi paylaşmak, beğenmek ve yorum yapmak için <strong>Sandbox Etkileşim Paneli</strong>'ne göz atın.</p>
+          <p class="dashboard-page-desc">Practice data analysis with sample datasets, and upload your own projects below. Paylaşılan projeleri keşfetmek, beğenmek ve yorum yapmak için <strong>Sandbox Etkileşim Paneli</strong>'ne göz atın.</p>
         </div>
 
         <!-- Developer Sandbox Guide Section -->
@@ -1484,13 +1484,47 @@
           </p>
           <ul style="margin: 0; padding-left: 1.25rem; font-size: 0.8rem; line-height: 1.5; color: var(--color-text-muted); display: flex; flex-direction: column; gap: 0.35rem;">
             <li><strong data-i18n="sandbox.guide.step1">Sample Datasets:</strong> <span data-i18n="sandbox.guide.step1Text">Download raw CSV structures below to run analyses in Jupyter, Python, Excel, or SQL.</span></li>
-            <li><strong>Proje Paylaşımı:</strong> GitHub depolarınızı veya canlı uygulamalarınızı paylaşmak, başkalarının projelerini beğenmek ve yorum yapmak artık <strong>Sandbox Etkileşim Paneli</strong>'nde — soldaki menüden ulaşabilirsiniz.</li>
+            <li><strong>Proje Paylaşımı:</strong> Projenizi aşağıdaki formdan yükleyin — paylaşıldığında <strong>Sandbox Etkileşim Paneli</strong>'nde herkesin görebileceği, beğenip yorum yapabileceği bir gönderiye dönüşür.</li>
           </ul>
-          <!-- Direct entry point back into the share-project composer
-               (title/description/GitHub/live-demo/tags/cover photo) without
-               having to first find the button on the Sandbox Etkileşim
-               Paneli page — jumps there and opens it in one click. -->
-          <button type="button" class="btn btn-primary" onclick="openShareProjectModalFromSandboxPage()" style="border: none; font-size: 0.8rem; padding: 0.5rem 1rem; margin-top: 0.85rem;">🚀 Proje Yükle / Paylaş</button>
+        </div>
+
+        <!-- Proje Yükle — step 1 of the share flow: project details only
+             (title/GitHub/live demo/tags). Submitting opens the composer
+             (#project-compose-modal) for the description + cover photo,
+             which is what actually inserts the row into sandbox_projects
+             and publishes it to Sandbox Etkileşim Paneli. Kept as its own
+             page section (not a modal) so uploading always happens here,
+             on Geliştirici Sandbox, never on the shared panel itself. -->
+        <div class="doc-card" id="sandbox-upload-card" style="padding: 1.75rem; display: flex; flex-direction: column; gap: 1.1rem; border: 1px solid rgba(22, 50, 92, 0.08); box-shadow: var(--shadow-sm);">
+          <div>
+            <h3 style="font-size: 1.05rem; font-weight: 800; color: var(--color-navy); margin-bottom: 0.3rem; display: flex; align-items: center; gap: 0.5rem;">
+              🚀 Proje Yükle
+            </h3>
+            <p style="font-size: 0.82rem; color: var(--color-text-muted); margin: 0;">GitHub deponuzu ya da canlı demonuzu ekleyin — bir sonraki adımda kısa bir açıklama ve kapak fotoğrafıyla paylaşıma hazırlayacaksınız.</p>
+          </div>
+          <form id="sandbox-project-upload-form" style="display: flex; flex-direction: column; gap: 1rem;">
+            <div style="display: flex; flex-direction: column; gap: 0.3rem;">
+              <label for="sandbox-upload-title" style="font-size: 0.8rem; font-weight: 700; color: var(--color-navy);">Proje Başlığı *</label>
+              <input type="text" id="sandbox-upload-title" class="search-input" required placeholder="ör. Satış Analizi Paneli">
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
+              <div style="display: flex; flex-direction: column; gap: 0.3rem;">
+                <label for="sandbox-upload-github" style="font-size: 0.8rem; font-weight: 700; color: var(--color-navy);">GitHub URL</label>
+                <input type="text" id="sandbox-upload-github" class="search-input" placeholder="https://github.com/kullanici/proje">
+                <div id="sandbox-upload-github-error" style="color: #EF4444; font-size: 0.72rem; font-weight: 600; display: none;"></div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 0.3rem;">
+                <label for="sandbox-upload-live" style="font-size: 0.8rem; font-weight: 700; color: var(--color-navy);">Canlı Demo URL</label>
+                <input type="text" id="sandbox-upload-live" class="search-input" placeholder="https://proje.vercel.app">
+                <div id="sandbox-upload-live-error" style="color: #EF4444; font-size: 0.72rem; font-weight: 600; display: none;"></div>
+              </div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 0.3rem;">
+              <label for="sandbox-upload-tags" style="font-size: 0.8rem; font-weight: 700; color: var(--color-navy);">Etiketler</label>
+              <input type="text" id="sandbox-upload-tags" class="search-input" placeholder="ör. web, mobil, veri-bilimi (virgülle ayırın)">
+            </div>
+            <button type="submit" class="btn btn-primary" style="border: none; align-self: flex-start; font-size: 0.85rem; padding: 0.6rem 1.25rem; font-weight: 700;">Devam Et: Gönderiyi Hazırla →</button>
+          </form>
         </div>
 
         <!-- Section 1: Örnek Veri Setleri -->
@@ -2459,35 +2493,50 @@
   <!-- ==========================================
        SHARE PROJECT MODAL (PHASE 10)
        ========================================== -->
-  <div id="share-project-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="share-project-modal-title" style="display: none;">
-    <div class="modal-content" style="max-width: 500px; width: 90%;">
-      <div class="modal-header">
-        <h3 class="modal-title" id="share-project-modal-title">Yeni Proje Paylaş</h3>
-        <button class="modal-close" id="btn-close-share-project-modal" aria-label="Close modal">&times;</button>
+  <!-- ==========================================
+       SANDBOX PROJECT EDITOR (openEditProjectModal only)
+       Fixed 2026-08-31: this used to be class="modal" / "modal-content",
+       neither of which has ANY rule in css/style.css (only .modal-overlay
+       and .modal-card are styled) — so it rendered with zero backdrop,
+       centering, or card chrome: plain unstyled inputs stacked full-width
+       wherever it happened to sit in the DOM. Switched to the same
+       .modal-overlay/.modal-card pattern every other modal in this file
+       uses. Creating a NEW project no longer opens this — that's now a
+       two-step flow (the "Proje Yükle" form on Geliştirici Sandbox, then
+       #project-compose-modal below) so the raw project fields never have
+       to appear on the shared Sandbox Etkileşim Paneli. This modal is kept
+       only so an existing post's owner can edit every field at once. -->
+  <div class="modal-overlay" id="share-project-modal" role="dialog" aria-modal="true" aria-labelledby="share-project-modal-title" style="display: none;">
+    <div class="modal-card" style="max-width: 520px; width: 92%; max-height: 88vh; overflow-y: auto; text-align: left;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h3 class="modal-title" id="share-project-modal-title" style="margin: 0; font-size: 1.1rem; color: var(--color-navy);">Projeyi Düzenle</h3>
+        <button class="btn-icon" id="btn-close-share-project-modal" aria-label="Kapat" style="background: none; border: none; font-size: 1.25rem; font-weight: bold; color: var(--color-text-muted); cursor: pointer; line-height: 1;">×</button>
       </div>
       <form id="share-project-form">
-        <div class="modal-body" style="display: flex; flex-direction: column; gap: 1rem;">
-          <div style="display: flex; flex-direction: column; gap: 0.25rem;">
-            <label for="project-title" style="font-size: 0.85rem; font-weight: 700; color: var(--color-navy);">Project Title *</label>
-            <input type="text" id="project-title" class="settings-input" style="width: 100%;" required placeholder="e.g. Sales Analysis Dashboard">
+        <div style="display: flex; flex-direction: column; gap: 1rem;">
+          <div style="display: flex; flex-direction: column; gap: 0.3rem;">
+            <label for="project-title" style="font-size: 0.8rem; font-weight: 700; color: var(--color-navy);">Proje Başlığı *</label>
+            <input type="text" id="project-title" class="search-input" required placeholder="ör. Satış Analizi Paneli">
           </div>
-          <div style="display: flex; flex-direction: column; gap: 0.25rem;">
-            <label for="project-desc" style="font-size: 0.85rem; font-weight: 700; color: var(--color-navy);">Description *</label>
-            <textarea id="project-desc" class="settings-textarea" style="width: 100%; min-height: 80px;" required placeholder="Briefly describe what your project does (2-3 sentences)."></textarea>
+          <div style="display: flex; flex-direction: column; gap: 0.3rem;">
+            <label for="project-desc" style="font-size: 0.8rem; font-weight: 700; color: var(--color-navy);">Açıklama *</label>
+            <textarea id="project-desc" class="search-input" required placeholder="Projenizi 2-3 cümleyle tanıtın." style="min-height: 80px; resize: vertical; font-family: inherit;"></textarea>
           </div>
-          <div style="display: flex; flex-direction: column; gap: 0.25rem;">
-            <label for="project-github" style="font-size: 0.85rem; font-weight: 700; color: var(--color-navy);">GitHub URL</label>
-            <input type="text" id="project-github" class="settings-input" style="width: 100%;" placeholder="https://github.com/username/project">
-            <div id="github-url-error" style="color: #EF4444; font-size: 0.75rem; font-weight: 600; display: none;"></div>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+            <div style="display: flex; flex-direction: column; gap: 0.3rem;">
+              <label for="project-github" style="font-size: 0.8rem; font-weight: 700; color: var(--color-navy);">GitHub URL</label>
+              <input type="text" id="project-github" class="search-input" placeholder="https://github.com/kullanici/proje">
+              <div id="github-url-error" style="color: #EF4444; font-size: 0.72rem; font-weight: 600; display: none;"></div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 0.3rem;">
+              <label for="project-live" style="font-size: 0.8rem; font-weight: 700; color: var(--color-navy);">Canlı Demo URL</label>
+              <input type="text" id="project-live" class="search-input" placeholder="https://proje.vercel.app">
+              <div id="live-url-error" style="color: #EF4444; font-size: 0.72rem; font-weight: 600; display: none;"></div>
+            </div>
           </div>
-          <div style="display: flex; flex-direction: column; gap: 0.25rem;">
-            <label for="project-live" style="font-size: 0.85rem; font-weight: 700; color: var(--color-navy);">Live Demo URL</label>
-            <input type="text" id="project-live" class="settings-input" style="width: 100%;" placeholder="https://project.vercel.app">
-            <div id="live-url-error" style="color: #EF4444; font-size: 0.75rem; font-weight: 600; display: none;"></div>
-          </div>
-          <div style="display: flex; flex-direction: column; gap: 0.25rem;">
-            <label for="project-tags" style="font-size: 0.85rem; font-weight: 700; color: var(--color-navy);">Etiketler</label>
-            <input type="text" id="project-tags" class="settings-input" style="width: 100%;" placeholder="ör. web, mobil, veri-bilimi (virgülle ayırın)">
+          <div style="display: flex; flex-direction: column; gap: 0.3rem;">
+            <label for="project-tags" style="font-size: 0.8rem; font-weight: 700; color: var(--color-navy);">Etiketler</label>
+            <input type="text" id="project-tags" class="search-input" placeholder="ör. web, mobil, veri-bilimi (virgülle ayırın)">
           </div>
           <!-- Cover photo — optional. Uploads to the existing 'avatars' bucket
                under <user_id>/project-<timestamp>.<ext> (same own-folder RLS
@@ -2495,7 +2544,7 @@
                needed), writes the public URL into sandbox_projects.image_url
                (supabase/migrations/20260831_add_image_to_sandbox_projects.sql). -->
           <div style="display: flex; flex-direction: column; gap: 0.4rem;">
-            <label style="font-size: 0.85rem; font-weight: 700; color: var(--color-navy);">Kapak Fotoğrafı (opsiyonel)</label>
+            <label style="font-size: 0.8rem; font-weight: 700; color: var(--color-navy);">Kapak Fotoğrafı (opsiyonel)</label>
             <div id="project-image-preview" style="display: none; width: 100%; height: 140px; border-radius: var(--radius-sm); background-size: cover; background-position: center; border: 1px solid rgba(22, 50, 92, 0.1);"></div>
             <label class="btn btn-outline" style="padding: 0.5rem 1rem; font-size: 0.8rem; cursor: pointer; margin: 0; align-self: flex-start;">
               🖼️ Fotoğraf Seç
@@ -2504,9 +2553,48 @@
             <span id="project-image-status" style="font-size: 0.72rem; color: var(--color-text-muted); min-height: 1em;"></span>
           </div>
         </div>
-        <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1rem; border-top: 1px solid rgba(22, 50, 92, 0.08); padding-top: 1rem;">
-          <button type="button" class="btn btn-outline" id="btn-cancel-share-project" style="font-size: 0.8rem; padding: 0.5rem 1rem;">Cancel</button>
-          <button type="submit" class="btn btn-primary" id="btn-submit-share-project" style="border: none; font-size: 0.8rem; padding: 0.5rem 1rem;">Paylaş</button>
+        <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.25rem; border-top: 1px solid rgba(22, 50, 92, 0.08); padding-top: 1rem;">
+          <button type="button" class="btn btn-outline" id="btn-cancel-share-project" style="font-size: 0.8rem; padding: 0.5rem 1rem;">İptal</button>
+          <button type="submit" class="btn btn-primary" id="btn-submit-share-project" style="border: none; font-size: 0.8rem; padding: 0.5rem 1.1rem; font-weight: 700;">Kaydet</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==========================================
+       SANDBOX PROJECT COMPOSER — step 2 of sharing a NEW project.
+       Opened after #sandbox-project-upload-form (Geliştirici Sandbox page)
+       is submitted; that step's fields live in the sandboxProjectDraft JS
+       variable until this form's submit inserts the full row into
+       sandbox_projects and publishes it straight to Sandbox Etkileşim
+       Paneli. Keeping this separate from the editor above is what keeps
+       the shared panel itself free of raw upload fields — from there it's
+       just "here's the finished post", not a form.
+       ========================================== -->
+  <div class="modal-overlay" id="project-compose-modal" role="dialog" aria-modal="true" aria-labelledby="project-compose-modal-title" style="display: none;">
+    <div class="modal-card" style="max-width: 460px; width: 92%; text-align: left;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+        <h3 class="modal-title" id="project-compose-modal-title" style="margin: 0; font-size: 1.1rem; color: var(--color-navy);">📝 Gönderiyi Hazırla</h3>
+        <button class="btn-icon" id="btn-close-project-compose-modal" aria-label="Kapat" style="background: none; border: none; font-size: 1.25rem; font-weight: bold; color: var(--color-text-muted); cursor: pointer; line-height: 1;">×</button>
+      </div>
+      <p id="project-compose-modal-subtitle" style="font-size: 0.8rem; color: var(--color-text-muted); margin: 0;">Son adım: kısa bir açıklama ve isterseniz bir kapak fotoğrafı ekleyin.</p>
+      <form id="project-compose-form" style="display: flex; flex-direction: column; gap: 1rem; margin-top: 0.85rem;">
+        <div style="display: flex; flex-direction: column; gap: 0.3rem;">
+          <label for="project-compose-desc" style="font-size: 0.8rem; font-weight: 700; color: var(--color-navy);">Açıklama *</label>
+          <textarea id="project-compose-desc" class="search-input" required placeholder="Projenizi 2-3 cümleyle tanıtın." style="min-height: 90px; resize: vertical; font-family: inherit;"></textarea>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 0.4rem;">
+          <label style="font-size: 0.8rem; font-weight: 700; color: var(--color-navy);">Kapak Fotoğrafı (opsiyonel)</label>
+          <div id="project-compose-image-preview" style="display: none; width: 100%; height: 140px; border-radius: var(--radius-sm); background-size: cover; background-position: center; border: 1px solid rgba(22, 50, 92, 0.1);"></div>
+          <label class="btn btn-outline" style="padding: 0.5rem 1rem; font-size: 0.8rem; cursor: pointer; margin: 0; align-self: flex-start;">
+            🖼️ Fotoğraf Seç
+            <input type="file" id="project-compose-image-input" accept="image/png,image/jpeg,image/webp" style="display: none;">
+          </label>
+          <span id="project-compose-image-status" style="font-size: 0.72rem; color: var(--color-text-muted); min-height: 1em;"></span>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 0.25rem; border-top: 1px solid rgba(22, 50, 92, 0.08); padding-top: 1rem;">
+          <button type="button" class="btn btn-outline" id="btn-back-project-compose" style="font-size: 0.8rem; padding: 0.5rem 1rem;">← Geri</button>
+          <button type="submit" class="btn btn-primary" id="btn-submit-project-compose" style="border: none; font-size: 0.8rem; padding: 0.5rem 1.1rem; font-weight: 700;">🚀 Panelde Paylaş</button>
         </div>
       </form>
     </div>

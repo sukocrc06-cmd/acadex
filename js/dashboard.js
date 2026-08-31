@@ -3002,8 +3002,11 @@ function loadViewContent(viewId) {
   } else if (viewId === 'settings') {
     loadSettingsView();
   } else if (viewId === 'sandbox') {
-    // Geliştirici Sandbox is static (sample-dataset downloads) now that the
-    // dynamic project feed moved to 'sandbox-interaction' — nothing to load.
+    // Geliştirici Sandbox hosts the "Proje Yükle" step-1 form (title/
+    // GitHub/live-demo/tags); wiring it here (re-run safely on every visit)
+    // is what makes it open #project-compose-modal on submit. The dynamic
+    // project feed itself still lives on 'sandbox-interaction'.
+    initSandboxProjectUploadForm();
   } else if (viewId === 'admin') {
     loadAdminPanel();
   }
@@ -9783,22 +9786,35 @@ let sandboxFeedProjects = []; // the currently-loaded page, with .author joined 
 let sandboxFeedHasMore = false;
 let sandboxUserLikedSet = new Set(); // project ids the signed-in student has liked
 let sandboxCommentsCache = {}; // projectId -> [{ ...row, author }]
-let sandboxEditingProjectId = null; // set while the share modal is in "edit" mode
+let sandboxEditingProjectId = null; // set while the (edit-only) share-project-modal is open
 let sandboxEditingProjectImageUrl = null; // existing cover photo URL when editing, kept if no new file is picked
-let sandboxPendingProjectImageFile = null; // File selected in the composer, uploaded on submit
+let sandboxPendingProjectImageFile = null; // File selected in the editor, uploaded on submit
 
-// Lets the "🚀 Proje Yükle / Paylaş" button on the Geliştirici Sandbox page
-// jump straight into the composer instead of just pointing at the Sandbox
-// Etkileşim Paneli sidebar link. switchDashboardView() calls
-// loadDeveloperSandbox() synchronously, which wires btn-share-project's
-// click handler — safe to click it right after.
-function openShareProjectModalFromSandboxPage() {
-  switchDashboardView('sandbox-interaction');
-  const btn = document.getElementById('btn-share-project');
-  if (btn) btn.click();
+// validateAndGetURL was local to loadDeveloperSandbox's form handler; it's
+// also needed by initSandboxProjectUploadForm() below (the new "Proje
+// Yükle" step-1 form on Geliştirici Sandbox), so it's shared here.
+function validateAndGetURL(str) {
+  if (!str) return null;
+  let formatted = str;
+  if (!/^https?:\/\//i.test(str)) {
+    formatted = 'https://' + str;
+  }
+  try {
+    const url = new URL(formatted);
+    if (url.hostname.includes('.')) {
+      return url.href;
+    }
+    return null;
+  } catch (_) {
+    return null;
+  }
 }
-window.openShareProjectModalFromSandboxPage = openShareProjectModalFromSandboxPage;
 
+// share-project-modal is edit-only now (see the HTML comment above it,
+// 2026-08-31): creating a NEW project is a two-step flow — the "Proje
+// Yükle" form on the Geliştirici Sandbox page, then #project-compose-modal
+// — so btn-share-project (on the shared Sandbox Etkileşim Paneli) just
+// sends people there instead of opening this modal directly.
 function loadDeveloperSandbox() {
   const modal = document.getElementById('share-project-modal');
   const btnShare = document.getElementById('btn-share-project');
@@ -9816,15 +9832,6 @@ function loadDeveloperSandbox() {
     if (imageInput) imageInput.value = '';
     if (imagePreview) { imagePreview.style.display = 'none'; imagePreview.style.backgroundImage = ''; }
     if (imageStatus) imageStatus.textContent = '';
-  };
-
-  const resetModalToCreateMode = () => {
-    sandboxEditingProjectId = null;
-    const titleEl = document.getElementById('share-project-modal-title');
-    if (titleEl) titleEl.textContent = 'Yeni Proje Paylaş';
-    const submitBtn = document.getElementById('btn-submit-share-project');
-    if (submitBtn) submitBtn.textContent = 'Paylaş';
-    resetImagePicker();
   };
 
   if (imageInput) {
@@ -9851,26 +9858,25 @@ function loadDeveloperSandbox() {
     };
   }
 
-  if (btnShare && modal) {
+  if (btnShare) {
     btnShare.onclick = (e) => {
       e.preventDefault();
-      form.reset();
-      resetModalToCreateMode();
-      modal.style.display = 'flex';
+      switchDashboardView('sandbox');
     };
   }
 
   const closeModal = () => {
     if (modal) modal.style.display = 'none';
-    resetModalToCreateMode();
+    sandboxEditingProjectId = null;
+    resetImagePicker();
   };
 
   if (btnClose) btnClose.onclick = closeModal;
   if (btnCancel) btnCancel.onclick = closeModal;
 
-  // Escape key close project share modal
+  // Escape key close project edit modal
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
+    if (e.key === 'Escape' && modal && modal.style.display === 'flex') {
       closeModal();
     }
   });
@@ -9878,6 +9884,8 @@ function loadDeveloperSandbox() {
   if (form) {
     form.onsubmit = async (e) => {
       e.preventDefault();
+      if (!sandboxEditingProjectId) { closeModal(); return; }
+
       const title = document.getElementById('project-title').value.trim();
       const description = document.getElementById('project-desc').value.trim();
       const githubUrl = document.getElementById('project-github').value.trim();
@@ -9893,23 +9901,6 @@ function loadDeveloperSandbox() {
       if (liveErrorEl) { liveErrorEl.style.display = 'none'; liveErrorEl.textContent = ''; }
 
       let hasError = false;
-
-      function validateAndGetURL(str) {
-        if (!str) return null;
-        let formatted = str;
-        if (!/^https?:\/\//i.test(str)) {
-          formatted = 'https://' + str;
-        }
-        try {
-          const url = new URL(formatted);
-          if (url.hostname.includes('.')) {
-            return url.href;
-          }
-          return null;
-        } catch (_) {
-          return null;
-        }
-      }
 
       let parsedGithub = null;
       if (githubUrl) {
@@ -9974,50 +9965,28 @@ function loadDeveloperSandbox() {
           }
           const { data: publicUrlData } = supabaseClient.storage.from('avatars').getPublicUrl(path);
           imageUrl = publicUrlData.publicUrl;
-          if (submitBtn) submitBtn.textContent = sandboxEditingProjectId ? 'Kaydet' : 'Paylaş';
+          if (submitBtn) submitBtn.textContent = 'Kaydet';
         }
 
-        if (sandboxEditingProjectId) {
-          const { error } = await supabaseClient
-            .from('sandbox_projects')
-            .update({
-              title,
-              description,
-              github_url: parsedGithub,
-              live_url: parsedLive,
-              tags,
-              image_url: imageUrl,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', sandboxEditingProjectId);
+        const { error } = await supabaseClient
+          .from('sandbox_projects')
+          .update({
+            title,
+            description,
+            github_url: parsedGithub,
+            live_url: parsedLive,
+            tags,
+            image_url: imageUrl,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', sandboxEditingProjectId);
 
-          if (error) {
-            console.error("Error updating sandbox project:", error);
-            showDashboardAlert('error', 'Proje güncellenemedi.');
-            return;
-          }
-          showDashboardAlert('success', 'Proje güncellendi!');
-        } else {
-          const { error } = await supabaseClient
-            .from('sandbox_projects')
-            .insert({
-              user_id: currentUser.id,
-              title: title,
-              description: description,
-              github_url: parsedGithub,
-              live_url: parsedLive,
-              tags,
-              image_url: imageUrl,
-            });
-
-          if (error) {
-            console.error("Error sharing sandbox project:", error);
-            showDashboardAlert('error', 'Proje paylaşılamadı. / Failed to share project.');
-            return;
-          }
-          showDashboardAlert('success', 'Projeniz paylaşıldı! / Project shared successfully!');
-          await checkAndAwardSandboxProject();
+        if (error) {
+          console.error("Error updating sandbox project:", error);
+          showDashboardAlert('error', 'Proje güncellenemedi.');
+          return;
         }
+        showDashboardAlert('success', 'Proje güncellendi!');
 
         closeModal();
         await loadSandboxProjects();
@@ -10031,6 +10000,215 @@ function loadDeveloperSandbox() {
 
   loadSandboxProjects();
 }
+
+// ==========================================================================
+// SANDBOX PROJECT UPLOAD — step 1 (Geliştirici Sandbox page)
+//
+// #sandbox-project-upload-form only collects title/GitHub/live-demo/tags —
+// no description or photo. Submitting it stores that data in
+// sandboxProjectDraft and opens #project-compose-modal (step 2) for the
+// description + optional cover photo; that modal's submit is what actually
+// inserts the row into sandbox_projects. Splitting it this way keeps the
+// upload fields off the shared Sandbox Etkileşim Paneli entirely — that
+// page only ever sees the finished post.
+// ==========================================================================
+let sandboxProjectDraft = null; // { title, github_url, live_url, tags } captured by step 1, consumed by step 2's submit
+let sandboxComposePendingImageFile = null; // File selected in the composer (step 2), uploaded on submit
+
+function initSandboxProjectUploadForm() {
+  const form = document.getElementById('sandbox-project-upload-form');
+  const composeModal = document.getElementById('project-compose-modal');
+  const composeForm = document.getElementById('project-compose-form');
+  const composeSubtitle = document.getElementById('project-compose-modal-subtitle');
+  const composeDesc = document.getElementById('project-compose-desc');
+  const btnCloseCompose = document.getElementById('btn-close-project-compose-modal');
+  const btnBackCompose = document.getElementById('btn-back-project-compose');
+  const composeImageInput = document.getElementById('project-compose-image-input');
+  const composeImagePreview = document.getElementById('project-compose-image-preview');
+  const composeImageStatus = document.getElementById('project-compose-image-status');
+
+  if (!form || !composeModal || !composeForm) return; // not on this page
+
+  const resetComposeImage = () => {
+    sandboxComposePendingImageFile = null;
+    if (composeImageInput) composeImageInput.value = '';
+    if (composeImagePreview) { composeImagePreview.style.display = 'none'; composeImagePreview.style.backgroundImage = ''; }
+    if (composeImageStatus) composeImageStatus.textContent = '';
+  };
+
+  const closeComposeModal = () => {
+    composeModal.style.display = 'none';
+  };
+
+  if (composeImageInput) {
+    composeImageInput.onchange = () => {
+      const file = composeImageInput.files && composeImageInput.files[0];
+      if (!file) return;
+      const MAX_BYTES = 5 * 1024 * 1024;
+      if (!file.type.startsWith('image/')) {
+        showDashboardAlert('error', 'Lütfen bir resim dosyası seçin.');
+        composeImageInput.value = '';
+        return;
+      }
+      if (file.size > MAX_BYTES) {
+        showDashboardAlert('error', 'Fotoğraf en fazla 5MB olabilir.');
+        composeImageInput.value = '';
+        return;
+      }
+      sandboxComposePendingImageFile = file;
+      if (composeImagePreview) {
+        composeImagePreview.style.display = 'block';
+        composeImagePreview.style.backgroundImage = `url('${URL.createObjectURL(file)}')`;
+      }
+      if (composeImageStatus) composeImageStatus.textContent = file.name;
+    };
+  }
+
+  if (btnCloseCompose) btnCloseCompose.onclick = closeComposeModal;
+  if (btnBackCompose) btnBackCompose.onclick = closeComposeModal;
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && composeModal.style.display === 'flex') {
+      closeComposeModal();
+    }
+  });
+
+  form.onsubmit = (e) => {
+    e.preventDefault();
+    const title = document.getElementById('sandbox-upload-title').value.trim();
+    const githubRaw = document.getElementById('sandbox-upload-github').value.trim();
+    const liveRaw = document.getElementById('sandbox-upload-live').value.trim();
+    const tagsRaw = document.getElementById('sandbox-upload-tags').value.trim();
+
+    if (!title) return;
+
+    const ghErrorEl = document.getElementById('sandbox-upload-github-error');
+    const liveErrorEl = document.getElementById('sandbox-upload-live-error');
+    if (ghErrorEl) { ghErrorEl.style.display = 'none'; ghErrorEl.textContent = ''; }
+    if (liveErrorEl) { liveErrorEl.style.display = 'none'; liveErrorEl.textContent = ''; }
+
+    let hasError = false;
+    let parsedGithub = null;
+    if (githubRaw) {
+      parsedGithub = validateAndGetURL(githubRaw);
+      if (!parsedGithub) {
+        if (ghErrorEl) { ghErrorEl.textContent = 'Geçersiz URL formatı'; ghErrorEl.style.display = 'block'; }
+        hasError = true;
+      }
+    }
+    let parsedLive = null;
+    if (liveRaw) {
+      parsedLive = validateAndGetURL(liveRaw);
+      if (!parsedLive) {
+        if (liveErrorEl) { liveErrorEl.textContent = 'Geçersiz URL formatı'; liveErrorEl.style.display = 'block'; }
+        hasError = true;
+      }
+    }
+    if (hasError) return;
+
+    const tags = tagsRaw
+      ? [...new Set(
+          tagsRaw.split(',')
+            .map(t => t.trim().toLowerCase().replace(/[^a-z0-9ğüşıöç\-]/gi, ''))
+            .filter(Boolean)
+        )].slice(0, 8)
+      : [];
+
+    sandboxProjectDraft = { title, github_url: parsedGithub, live_url: parsedLive, tags };
+
+    if (composeSubtitle) composeSubtitle.textContent = `"${title}" için son adım: kısa bir açıklama ve isterseniz bir kapak fotoğrafı ekleyin.`;
+    if (composeDesc) composeDesc.value = '';
+    resetComposeImage();
+    composeModal.style.display = 'flex';
+  };
+
+  composeForm.onsubmit = async (e) => {
+    e.preventDefault();
+    if (!sandboxProjectDraft) { closeComposeModal(); return; }
+
+    const description = composeDesc.value.trim();
+    if (!description) return;
+
+    const submitBtn = document.getElementById('btn-submit-project-compose');
+    const originalText = submitBtn ? submitBtn.textContent : '';
+
+    try {
+      let imageUrl = null;
+      if (sandboxComposePendingImageFile) {
+        if (submitBtn) submitBtn.textContent = 'Fotoğraf yükleniyor...';
+        const file = sandboxComposePendingImageFile;
+        const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+        const path = `${currentUser.id}/project-${Date.now()}.${ext}`;
+        const { error: uploadError } = await supabaseClient.storage
+          .from('avatars')
+          .upload(path, file, { upsert: true, cacheControl: '3600' });
+        if (uploadError) {
+          console.error('Error uploading project cover photo:', uploadError);
+          showDashboardAlert('error', 'Fotoğraf yüklenemedi: ' + (uploadError.message || ''));
+          if (submitBtn) submitBtn.textContent = originalText;
+          return;
+        }
+        const { data: publicUrlData } = supabaseClient.storage.from('avatars').getPublicUrl(path);
+        imageUrl = publicUrlData.publicUrl;
+        if (submitBtn) submitBtn.textContent = 'Yayınlanıyor...';
+      }
+
+      const { error } = await supabaseClient
+        .from('sandbox_projects')
+        .insert({
+          user_id: currentUser.id,
+          title: sandboxProjectDraft.title,
+          description,
+          github_url: sandboxProjectDraft.github_url,
+          live_url: sandboxProjectDraft.live_url,
+          tags: sandboxProjectDraft.tags,
+          image_url: imageUrl,
+        });
+
+      if (error) {
+        console.error('Error sharing sandbox project:', error);
+        showDashboardAlert('error', 'Proje paylaşılamadı.');
+        if (submitBtn) submitBtn.textContent = originalText;
+        return;
+      }
+
+      showDashboardAlert('success', 'Projeniz paylaşıldı! Sandbox Etkileşim Paneli\'nde görüntülenebilir.');
+      await checkAndAwardSandboxProject();
+
+      // Reset both steps and hand the user off to the panel to see it live —
+      // matches "yükledikten sonra ... direk panele yayınlasın" (şükrü, 2026-08).
+      form.reset();
+      sandboxProjectDraft = null;
+      resetComposeImage();
+      closeComposeModal();
+      switchDashboardView('sandbox-interaction');
+    } catch (err) {
+      console.error('Exception sharing sandbox project:', err);
+      showDashboardAlert('error', 'Proje kaydedilemedi.');
+      if (submitBtn) submitBtn.textContent = originalText;
+    }
+  };
+}
+window.initSandboxProjectUploadForm = initSandboxProjectUploadForm;
+
+// closeActiveModal() (generic Escape/backdrop-close dispatcher) calls this
+// by name for id === 'share-project-modal'; it had no definition anywhere
+// in this file (a pre-existing gap, unrelated to today's changes) so any
+// path that actually reached it would have thrown a ReferenceError.
+function closeShareProjectModal() {
+  const modal = document.getElementById('share-project-modal');
+  if (modal) modal.style.display = 'none';
+  sandboxEditingProjectId = null;
+  sandboxEditingProjectImageUrl = null;
+  sandboxPendingProjectImageFile = null;
+  const imageInput = document.getElementById('project-image-input');
+  const imagePreview = document.getElementById('project-image-preview');
+  const imageStatus = document.getElementById('project-image-status');
+  if (imageInput) imageInput.value = '';
+  if (imagePreview) { imagePreview.style.display = 'none'; imagePreview.style.backgroundImage = ''; }
+  if (imageStatus) imageStatus.textContent = '';
+}
+window.closeShareProjectModal = closeShareProjectModal;
 
 async function loadSandboxProjects() {
   const feed = document.getElementById('sandbox-projects-feed');
@@ -13817,6 +13995,8 @@ function closeActiveModal(modalEl) {
     closeStudyCardModal();
   } else if (id === 'share-project-modal') {
     closeShareProjectModal();
+  } else if (id === 'project-compose-modal') {
+    modalEl.style.display = 'none';
   } else if (id === 'depot-modal') {
     closeDepotModal();
   } else {

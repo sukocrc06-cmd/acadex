@@ -346,7 +346,7 @@ const TRANSLATIONS = {
     "sandbox.datasetsTitle": "Sample Datasets",
     "sandbox.datasetsSub": "Practice your data analysis skills with these sample datasets.",
     "sandbox.galleryTitle": "Project Gallery",
-    "sandbox.shareBtn": "Share New Project",
+    "sandbox.shareBtn": "🚀 Upload Project",
 
     // Settings Tab
     "dash.settings.title": "Settings",
@@ -734,7 +734,7 @@ const TRANSLATIONS = {
     "sandbox.datasetsTitle": "Örnek Veri Setleri",
     "sandbox.datasetsSub": "Bu örnek veri setleriyle veri analizi becerilerinizi geliştirin.",
     "sandbox.galleryTitle": "Proje Galerisi",
-    "sandbox.shareBtn": "Yeni Proje Paylaş",
+    "sandbox.shareBtn": "🚀 Proje Yükle",
 
     // Settings Tab
     "dash.settings.title": "Ayarlar",
