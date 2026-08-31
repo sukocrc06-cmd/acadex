@@ -1841,14 +1841,22 @@ Respond ONLY with JSON:
   "is_quantitative": false,
   "formulas": [{"name":"...","latex":"...","variables":[{"symbol":"...","meaning":"..."}]}],
   "outline_items": [{"heading":"...","blurb":"..."}],
-  "sections": [{"heading":"...","summary":"...","key_points":["..."]}]
+  "sections": [{"heading":"...","summary":"...","key_points":["..."]}],
+  "tables": [{"title":"...","headers":["..."],"rows":[["..."]]}],
+  "charts": [{"title":"...","type":"bar|pie|line","labels":["..."],"data":[0]}],
+  "diagrams": [{"title":"...","mermaid":"...","description":"..."}],
+  "worked_examples": [{"title":"...","problem_statement":"...","steps":["..."],"final_answer":"..."}]
 }
 Rules:
 - Extract 5-15 key_terms and 5-12 key_points when content allows
 - 3-6 quiz_questions when content allows
 - NEVER write meta text like "no draft provided" or "qualitative overview"
 - Use real topic names from the text (e.g. supervised learning, neural networks)
-- Ignore grading/attendance/admin text`
+- Ignore grading/attendance/admin text
+- 'tables': only real tabular data actually present in this part — empty array if none, never fabricate
+- 'charts': only chart-worthy numeric data actually present (pick bar for category comparisons, pie for proportions of a whole, line for progression over time) — empty array if none
+- 'diagrams': when short disconnected phrases, stage names, or paired opposing terms in THIS part clearly reconstruct a flowchart/comparison/hierarchy/cycle, rebuild it as valid Mermaid source (flowchart TD/LR, graph TD, sequenceDiagram, or mindmap); at most 1-2 per part; empty array if nothing reconstructible — never invent
+- 'worked_examples': 1-2 solved problems when formulas/calculations are present in this part (prefer the source's own worked numbers); empty array otherwise`
 
       // Small windows to stay under payload limits (413)
       const WINDOW = 7000
@@ -1882,7 +1890,14 @@ Rules:
               {
                 model: MODEL_HEAVY,
                 temperature: 0.2,
-                maxCompletionTokens: 2048,
+                // Denetim Raporu, 2026-08-31: raised from 2048 → 3072 to make
+                // room for the tables/charts/diagrams/worked_examples fields
+                // added to compactWindowPrompt above — those were previously
+                // absent from this schema entirely (the pre-existing
+                // regression this fixes), and a Mermaid diagram or a table
+                // with several rows can genuinely need the extra tokens to
+                // avoid getting silently truncated mid-JSON.
+                maxCompletionTokens: 3072,
                 timeoutMs: Math.min(40000, Math.max(15000, budgetLeft() - 10000)),
                 maxRetries: 0
               }
@@ -1973,6 +1988,29 @@ Rules:
       const mergedQuiz = dedupeByText(windowResults.flatMap(r => Array.isArray(r.quiz_questions) ? r.quiz_questions : []), (q: any) => q?.question || '').slice(0, 20)
       const mergedFormulas = windowResults.flatMap(r => Array.isArray(r.formulas) ? r.formulas : []).slice(0, 30)
       const quantFraction = windowResults.filter(r => r.is_quantitative).length / Math.max(1, windowResults.length)
+      // Denetim Raporu, 2026-08-31 — ROOT-CAUSE FIX: this long-doc path used to
+      // hardcode tables/charts/diagrams/worked_examples to empty arrays below
+      // (mergedDraft), even though compactWindowPrompt now asks each window
+      // for them. Merge them here exactly like the other per-window fields,
+      // with a light title-based dedupe (windows don't overlap, but the same
+      // table/diagram sometimes reappears if a slide repeats) and the same
+      // "cap at N" pattern already used for terms/points/quiz above.
+      const mergedTables = dedupeByText(
+        windowResults.flatMap(r => Array.isArray(r.tables) ? r.tables : []),
+        (t: any) => t?.title || ''
+      ).filter((t: any) => t && t.title && Array.isArray(t.rows) && t.rows.length > 0).slice(0, 12)
+      const mergedCharts = dedupeByText(
+        windowResults.flatMap(r => Array.isArray(r.charts) ? r.charts : []),
+        (c: any) => c?.title || ''
+      ).filter((c: any) => c && c.title && Array.isArray(c.data) && c.data.length > 0).slice(0, 10)
+      const mergedDiagrams = dedupeByText(
+        windowResults.flatMap(r => Array.isArray(r.diagrams) ? r.diagrams : []),
+        (d: any) => d?.title || ''
+      ).filter((d: any) => d && d.title && d.mermaid).slice(0, 8)
+      const mergedWorkedExamples = dedupeByText(
+        windowResults.flatMap(r => Array.isArray(r.worked_examples) ? r.worked_examples : []),
+        (w: any) => w?.title || w?.problem_statement || ''
+      ).filter((w: any) => w && (w.title || w.problem_statement)).slice(0, 10)
 
       let bestSummary = windowResults.map(r => String(r.summary || '')).filter(s => s.length > 40).join('\n\n')
       let bestExec = String(windowResults[0]?.summary_executive || '')
@@ -2046,8 +2084,8 @@ Use CONCRETE topic names from digests and terms. No meta filler.`,
           if (visualImages.length > 0) {
             const knownTermsHint = mergedKeyTerms.slice(0, 25).map((t: any) => t.term).filter(Boolean).join(', ')
             const visualSystemPrompt = `You are an academic study assistant. You are shown page images of specific slides from a long lecture document that had almost no extractable text (they are diagram/framework/chart slides). Identify any exam-relevant content shown ONLY in these images — named frameworks, diagrams, comparison tables, category lists — that is NOT already covered by these already-known terms: ${knownTermsHint || '(none yet)'}.
-Respond ONLY with JSON in ${langLabel}: {"key_terms":[{"term":"...","definition":"..."}],"key_points":["..."],"quiz_questions":[{"question":"...","answer":"..."}],"sections":[{"heading":"...","summary":"..."}]}
-Rules: only include content actually visible in the images; return empty arrays for any field with nothing new; do not repeat terms already listed above.`
+Respond ONLY with JSON in ${langLabel}: {"key_terms":[{"term":"...","definition":"..."}],"key_points":["..."],"quiz_questions":[{"question":"...","answer":"..."}],"sections":[{"heading":"...","summary":"..."}],"tables":[{"title":"...","headers":["..."],"rows":[["..."]]}],"charts":[{"title":"...","type":"bar|pie|line","labels":["..."],"data":[0]}],"diagrams":[{"title":"...","mermaid":"...","description":"..."}]}
+Rules: only include content actually visible in the images; return empty arrays for any field with nothing new; do not repeat terms already listed above. These are exactly the pages most likely to contain a table, chart, or diagram that has NO text-extractable equivalent elsewhere — reconstruct any table you can read as 'tables', any chart/graph as 'charts' with its approximate values, and any flowchart/framework/process image as a Mermaid 'diagrams' entry. Never invent one that isn't visibly there.`
 
             const visualUserContent = [
               { type: "text", text: "Analyze these slide images for exam-relevant content not already covered." },
@@ -2063,7 +2101,11 @@ Rules: only include content actually visible in the images; return empty arrays 
                 model: "qwen/qwen3.6-27b",
                 temperature: 0.3,
                 reasoning_effort: "none",
-                max_completion_tokens: 2048,
+                // Raised alongside the compact-window bump (2048 → 3072):
+                // these near-blank pages are exactly where a table/chart/
+                // diagram is most likely to live, and a Mermaid block or a
+                // multi-row table needs the extra room to avoid truncation.
+                max_completion_tokens: 3072,
                 response_format: { type: "json_object" },
                 messages: [
                   { role: "system", content: visualSystemPrompt },
@@ -2084,6 +2126,15 @@ Rules: only include content actually visible in the images; return empty arrays 
                 const newPoints = Array.isArray(visionParsed.key_points) ? visionParsed.key_points : []
                 const newQuiz = Array.isArray(visionParsed.quiz_questions) ? visionParsed.quiz_questions : []
                 const newSections = Array.isArray(visionParsed.sections) ? visionParsed.sections : []
+                // These near-blank pages are the most likely home for a
+                // table/chart/diagram that has no text-extractable
+                // equivalent anywhere else — merge them into the same
+                // mergedTables/mergedCharts/mergedDiagrams arrays the
+                // text-window extraction feeds above, so the final draft
+                // doesn't lose them.
+                const newTables = Array.isArray(visionParsed.tables) ? visionParsed.tables : []
+                const newCharts = Array.isArray(visionParsed.charts) ? visionParsed.charts : []
+                const newDiagrams = Array.isArray(visionParsed.diagrams) ? visionParsed.diagrams : []
 
                 if (newTerms.length || newPoints.length || newQuiz.length) {
                   const patchedTerms = dedupeKeyTerms([...mergedKeyTerms, ...newTerms]).slice(0, 40)
@@ -2094,9 +2145,24 @@ Rules: only include content actually visible in the images; return empty arrays 
                   mergedQuiz.length = 0; mergedQuiz.push(...patchedQuiz)
                 }
                 if (newSections.length) bestSections = bestSections.concat(newSections)
+                if (newTables.length) {
+                  const patchedTables = dedupeByText([...mergedTables, ...newTables], (t: any) => t?.title || '')
+                    .filter((t: any) => t && t.title && Array.isArray(t.rows) && t.rows.length > 0).slice(0, 12)
+                  mergedTables.length = 0; mergedTables.push(...patchedTables)
+                }
+                if (newCharts.length) {
+                  const patchedCharts = dedupeByText([...mergedCharts, ...newCharts], (c: any) => c?.title || '')
+                    .filter((c: any) => c && c.title && Array.isArray(c.data) && c.data.length > 0).slice(0, 10)
+                  mergedCharts.length = 0; mergedCharts.push(...patchedCharts)
+                }
+                if (newDiagrams.length) {
+                  const patchedDiagrams = dedupeByText([...mergedDiagrams, ...newDiagrams], (d: any) => d?.title || '')
+                    .filter((d: any) => d && d.title && d.mermaid).slice(0, 8)
+                  mergedDiagrams.length = 0; mergedDiagrams.push(...patchedDiagrams)
+                }
 
                 visualAnalysisUsed = true
-                console.log(`Long-doc visual patch: +${newTerms.length} terms, +${newPoints.length} points, +${newQuiz.length} quiz, +${newSections.length} sections from ${visualImages.length} near-blank page(s)`)
+                console.log(`Long-doc visual patch: +${newTerms.length} terms, +${newPoints.length} points, +${newQuiz.length} quiz, +${newSections.length} sections, +${newTables.length} tables, +${newCharts.length} charts, +${newDiagrams.length} diagrams from ${visualImages.length} near-blank page(s)`)
               }
             } else {
               console.warn(`Long-doc visual patch call returned non-ok status: ${visionRes.status}`)
@@ -2126,11 +2192,11 @@ Rules: only include content actually visible in the images; return empty arrays 
         key_terms: mergedKeyTerms,
         key_points: mergedKeyPoints,
         quiz_questions: mergedQuiz,
-        tables: [],
-        charts: [],
+        tables: mergedTables,
+        charts: mergedCharts,
         formulas: mergedFormulas,
-        worked_examples: [],
-        diagrams: [],
+        worked_examples: mergedWorkedExamples,
+        diagrams: mergedDiagrams,
         concept_graph: { nodes: [], edges: [] },
         footnotes: [],
         outline: normalizeOutline(bestOutline, bestSections),
@@ -2138,7 +2204,7 @@ Rules: only include content actually visible in the images; return empty arrays 
         cloze_cards: [] as any[]
       }
 
-      console.log(`Long-doc merge: terms=${mergedKeyTerms.length} points=${mergedKeyPoints.length} quiz=${mergedQuiz.length} summaryLen=${(mergedDraft.summary || '').length}`)
+      console.log(`Long-doc merge: terms=${mergedKeyTerms.length} points=${mergedKeyPoints.length} quiz=${mergedQuiz.length} tables=${mergedTables.length} charts=${mergedCharts.length} diagrams=${mergedDiagrams.length} worked_examples=${mergedWorkedExamples.length} summaryLen=${(mergedDraft.summary || '').length}`)
 
       rawContent = JSON.stringify(mergedDraft)
       sourceTextForReview = windowResults.map((r, i) => `Part ${i + 1}: ${String(r.summary || '').slice(0, 500)}`).join('\n\n')
@@ -2174,8 +2240,9 @@ OUTPUT: Return the REFINED full study-card JSON in the same shape as the draft, 
 - grounded=true if important claims are citation-backed or source clearly supports them
 - issues: short list of remaining concerns (empty array if clean)
 
-JSON shape: { "summary": string, "summary_executive": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "document_type": string, "tables": [ ... ], "charts": [ ... ], "footnotes": [ { "id": number, "reference": string, "page": number | null } ], "outline": { ... }, "sections": [ { "heading": string, "summary": string, "key_points": [ string ], "outline_id": string | null } ], "suggested_course_tag": string | null, "is_quantitative": boolean, "formulas": [ ... ], "worked_examples": [ ... ], "diagrams": [ ... ], "concept_graph": { ... }, "cloze_cards": [ ... ], "quality_gate": { "pass": boolean, "grounded": boolean, "issues": [ string ] } }.
-Preserve summary_executive, outline, deep sections, concept_graph, cloze_cards unless clearly wrong.`
+JSON shape: { "summary": string, "summary_executive": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "document_type": string, "footnotes": [ { "id": number, "reference": string, "page": number | null } ], "outline": { ... }, "sections": [ { "heading": string, "summary": string, "key_points": [ string ], "outline_id": string | null } ], "suggested_course_tag": string | null, "is_quantitative": boolean, "quality_gate": { "pass": boolean, "grounded": boolean, "issues": [ string ] } }.
+Preserve summary_executive, outline, and deep sections unless clearly wrong.
+DO NOT include "tables", "charts", "diagrams", "worked_examples", "formulas", "concept_graph", or "cloze_cards" in your output at all — omit those keys entirely. They are extracted/validated separately outside this review step and are not part of your job; re-emitting them here only burns completion-token budget that "summary"/"sections"/"key_points" need.`
 
     function buildReviewUserPrompt(sourceBudgetChars: number): string {
       let trimmedSource = sourceTextForReview
@@ -2475,6 +2542,30 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
+    }
+
+    // Denetim Raporu, 2026-08-31 — ROOT-CAUSE FIX (part 2): the review pass
+    // above is now deliberately told to NOT re-emit tables/charts/diagrams/
+    // worked_examples/formulas/concept_graph/cloze_cards (to keep its
+    // completion-token budget stable and avoid truncation/JSON-parse
+    // failures now that those fields can carry real content). That means
+    // parsedContent never has them — splice them back in here from the
+    // pre-review draft (rawContent still holds the full draft object,
+    // including when review was skipped entirely, in which case this is a
+    // harmless no-op since parsedContent already came from the same JSON).
+    try {
+      const preReviewStripped = stripThinkBlock(rawContent)
+      const preReviewCleaned = (preReviewStripped ?? rawContent).replace(/```json\s*|```/g, '').trim()
+      const preReviewDraft = preReviewCleaned ? JSON.parse(preReviewCleaned) : null
+      if (preReviewDraft && typeof preReviewDraft === 'object') {
+        for (const field of ['tables', 'charts', 'diagrams', 'worked_examples', 'formulas', 'concept_graph', 'cloze_cards']) {
+          if (parsedContent[field] === undefined && preReviewDraft[field] !== undefined) {
+            parsedContent[field] = preReviewDraft[field]
+          }
+        }
+      }
+    } catch (spliceErr) {
+      console.warn('Post-review field splice-back skipped (pre-review draft unparsable):', spliceErr)
     }
 
     // Madde 4 — normalize quality gate; optional one-shot critic rewrite if FAIL

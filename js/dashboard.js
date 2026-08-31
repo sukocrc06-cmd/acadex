@@ -1005,22 +1005,15 @@ function showDashboardAlert(type, message) {
 let activeSummarizingDocId = null;
 
 function openSummaryStyleModal() {
-  const standardRadio = document.querySelector('input[name="summary-style-choice"][value="standard"]');
-  if (standardRadio) standardRadio.checked = true;
+  // Denetim Raporu, 2026-08-31 — UI SIMPLIFICATION: Format/Depth radios are
+  // gone from this modal (see dashboard.html) — only language and the
+  // visual yes/no question remain, so only those need resetting here.
   const enRadio = document.querySelector('input[name="summary-language-choice"][value="en"]');
   if (enRadio) enRadio.checked = true;
-  // Reset Depth to its default too — previously only Style/Language were reset
-  // here, so a "Sınav" (exam) depth picked for one document could silently
-  // carry over into the modal for the NEXT document while Style had already
-  // been reset back to "Standard", leaving the two controls contradicting
-  // each other the moment the modal reopened.
-  const standardDepthRadio = document.querySelector('input[name="summary-depth-choice"][value="standard"]');
-  if (standardDepthRadio) standardDepthRadio.checked = true;
+  const noVisualsRadio = document.querySelector('input[name="want-visuals-choice"][value="no"]');
+  if (noVisualsRadio) noVisualsRadio.checked = true; // Reset to "No" by default
 
-  // Visual check
   const visualContainer = document.getElementById('visual-analysis-container');
-  const visualCheckbox = document.getElementById('chk-analyze-visuals');
-  if (visualCheckbox) visualCheckbox.checked = false; // Reset to false by default
 
   let isVisualSupported = false;
   if (activeSummarizingDocId) {
@@ -1058,35 +1051,6 @@ function closeSummaryStyleModal() {
 }
 window.closeSummaryStyleModal = closeSummaryStyleModal;
 
-// Depth (Kısa/Standart/Derin/Sınav) is the single control for "how long/deep
-// should this summary be" — it replaces the old separate Length selector.
-// This mapping is the client-side mirror of the exact same derivation the
-// summarize-document edge function already does server-side, so what the
-// user sees selected matches what's actually generated.
-function depthToSummaryLength(depth) {
-  if (depth === 'brief') return 'short';
-  if (depth === 'deep') return 'detailed';
-  return 'medium'; // 'standard' and 'exam' both use the medium-length baseline
-}
-window.depthToSummaryLength = depthToSummaryLength;
-
-// Picking "Sınav" depth also switches the summary to the "Exam-Focused"
-// format — this used to happen silently inside proceedWithSummarization()
-// right before submit, so the Format radio never visibly changed and it
-// looked like the two sections disagreed. Doing it live, on selection,
-// makes the relationship visible instead of hidden. Only auto-switches away
-// from "Standard" (the default) so it never overrides a style the user
-// deliberately picked.
-document.addEventListener('change', (e) => {
-  if (!e.target || e.target.name !== 'summary-depth-choice') return;
-  if (e.target.value !== 'exam') return;
-  const currentStyle = document.querySelector('input[name="summary-style-choice"]:checked');
-  if (currentStyle && currentStyle.value === 'standard') {
-    const examStyleRadio = document.querySelector('input[name="summary-style-choice"][value="exam_focused"]');
-    if (examStyleRadio) examStyleRadio.checked = true;
-  }
-});
-
 function summarizeDocument(docId) {
   activeSummarizingDocId = docId;
   openSummaryStyleModal();
@@ -1116,18 +1080,17 @@ async function resetStuckDocument(docId) {
 window.resetStuckDocument = resetStuckDocument;
 
 async function proceedWithSummarization() {
-  const styleSelect = document.querySelector('input[name="summary-style-choice"]:checked');
-  let summaryStyle = styleSelect ? styleSelect.value : 'standard';
   const langSelect = document.querySelector('input[name="summary-language-choice"]:checked');
   const language = langSelect ? langSelect.value : 'en';
-  const depthSelect = document.querySelector('input[name="summary-depth-choice"]:checked');
-  const summaryDepth = depthSelect ? depthSelect.value : 'standard';
-  // Length is derived from Depth (the old separate Length selector was
-  // removed since the two always represented the same underlying choice and
-  // could silently disagree). Style gets the same exam-focused fallback as a
-  // safety net, in case the live sync listener didn't fire for some reason.
-  const summaryLength = depthToSummaryLength(summaryDepth);
-  if (summaryDepth === 'exam' && summaryStyle === 'standard') summaryStyle = 'exam_focused';
+  // Denetim Raporu, 2026-08-31 — UI SIMPLIFICATION: Format and Depth/Length
+  // are no longer chosen by the student here. Style stays 'standard' (the
+  // balanced default), and summaryStyle/summaryDepth are left undefined so
+  // the summarize-document edge function auto-selects depth from the
+  // document's actual extracted length instead of a one-size-fits-all
+  // default (see "AUTO DEPTH SELECTION" in that function).
+  const summaryStyle = 'standard';
+  const summaryDepth = undefined;
+  const summaryLength = undefined;
 
   if (isMergeSummarize) {
     closeSummaryStyleModal();
@@ -1160,8 +1123,9 @@ async function proceedWithSummarization() {
     `;
   }
 
-  const visualCheckbox = document.getElementById('chk-analyze-visuals');
-  const analyzeVisuals = (visualCheckbox && visualCheckbox.checked && visualCheckbox.closest('#visual-analysis-container')?.style.display !== 'none') || false;
+  const visualsSelect = document.querySelector('input[name="want-visuals-choice"]:checked');
+  const visualsContainerVisible = document.getElementById('visual-analysis-container')?.style.display !== 'none';
+  const analyzeVisuals = !!(visualsSelect && visualsSelect.value === 'yes' && visualsContainerVisible);
 
   try {
     // Show the live "processing" UI INSTANTLY — no network round trip on the
@@ -11875,7 +11839,7 @@ async function uploadSingleFileCore(file) {
   }
 }
 
-async function proceedWithBulkSummarization(summaryStyle, language, summaryLength, summaryDepth = 'standard') {
+async function proceedWithBulkSummarization(summaryStyle, language, summaryLength, summaryDepth) {
   const docIds = [...activeBulkSummarizingDocIds];
   const totalCount = docIds.length;
   let completedCount = 0;
@@ -11925,7 +11889,11 @@ async function proceedWithBulkSummarization(summaryStyle, language, summaryLengt
         }
 
         const { data, error } = await supabaseClient.functions.invoke('summarize-document', {
-          body: { documentId: docId, summaryStyle: summaryStyle, language: language, summaryLength: summaryLength, depth: summaryDepth || 'standard' }
+          // Denetim Raporu, 2026-08-31: no longer forcing depth to 'standard'
+          // when unset — an undefined depth here lets the edge function
+          // auto-select depth per-document from its own extracted length,
+          // same as the simplified single-document flow above.
+          body: { documentId: docId, summaryStyle: summaryStyle, language: language, summaryLength: summaryLength, depth: summaryDepth }
         });
 
         if (error || !data || !data.success) {

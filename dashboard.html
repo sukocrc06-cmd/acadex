@@ -1963,97 +1963,28 @@
       <!-- ═══ Fixed Header ═══ -->
       <div style="padding: 1.25rem 1.5rem 0.75rem; border-bottom: 1px solid rgba(22, 50, 92, 0.08); display: flex; align-items: flex-start; justify-content: space-between; flex-shrink: 0;">
         <div>
-          <h3 class="modal-title" id="style-modal-title" style="margin: 0; font-size: 1.1rem; color: var(--color-navy); font-weight: 800; text-align: left;">Choose Summary Style</h3>
+          <h3 class="modal-title" id="style-modal-title" style="margin: 0; font-size: 1.1rem; color: var(--color-navy); font-weight: 800; text-align: left;">Generate Summary</h3>
           <p style="font-size: 0.78rem; color: var(--color-text-muted); margin: 0.2rem 0 0 0; text-align: left; line-height: 1.3;">
-            Select the structure and tone for this summary card:
+            Acadex picks the best format and depth automatically based on your document.
           </p>
         </div>
         <button class="btn-icon" style="background: none; border: none; font-size: 1.5rem; font-weight: bold; color: var(--color-text-muted); cursor: pointer; line-height: 1; padding: 0.1rem 0.2rem; margin-left: 0.75rem; transition: color 0.2s;" onclick="closeSummaryStyleModal()" aria-label="Close modal">×</button>
       </div>
 
       <!-- ═══ Scrollable Body ═══ -->
+      <!-- Denetim Raporu, 2026-08-31 — UI SIMPLIFICATION: this modal used to
+           ask for Format (5 radios), Depth & Length (4 radios), and a visual
+           checkbox — students found it confusing, and the two controls could
+           silently disagree with each other. Now it only asks two questions:
+           language, and whether to spend extra time analyzing charts/
+           diagrams/visuals. Format is always the balanced "Standard" style,
+           and depth/length are chosen automatically server-side from the
+           document's own length (see summarize-document/index.ts, "AUTO
+           DEPTH SELECTION"). -->
       <div style="flex: 1 1 auto; overflow-y: auto; padding: 1rem 1.5rem; display: flex; flex-direction: column; gap: 0.85rem;">
 
-        <!-- Style Selection — 2-column grid -->
-        <div>
-          <label style="display: block; font-size: 0.78rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.03em;">Format</label>
-          <div class="style-selection-grid" id="summary-style-options">
-
-            <!-- Standard -->
-            <label class="style-choice-card" style="display: flex; gap: 0.5rem; align-items: flex-start; padding: 0.5rem 0.65rem; border: 2px solid rgba(22, 50, 92, 0.1); border-radius: var(--radius-md); cursor: pointer; transition: all 0.2s ease; margin: 0;">
-              <input type="radio" name="summary-style-choice" value="standard" checked style="margin-top: 0.15rem; flex-shrink: 0; width: 14px; height: 14px; accent-color: var(--color-teal);">
-              <div style="display: flex; gap: 0.4rem; align-items: flex-start; flex: 1; min-width: 0;">
-                <div style="color: var(--color-teal); background-color: var(--color-teal-light); padding: 0.25rem; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                </div>
-                <div style="min-width: 0;">
-                  <strong style="display: block; font-size: 0.8rem; color: var(--color-navy); line-height: 1.2;">Standard</strong>
-                  <span style="font-size: 0.67rem; color: var(--color-text-muted); line-height: 1.25; display: block; margin-top: 0.1rem;">Balanced key-point coverage.</span>
-                </div>
-              </div>
-            </label>
-
-            <!-- Bullet Points -->
-            <label class="style-choice-card" style="display: flex; gap: 0.5rem; align-items: flex-start; padding: 0.5rem 0.65rem; border: 2px solid rgba(22, 50, 92, 0.1); border-radius: var(--radius-md); cursor: pointer; transition: all 0.2s ease; margin: 0;">
-              <input type="radio" name="summary-style-choice" value="bullet" style="margin-top: 0.15rem; flex-shrink: 0; width: 14px; height: 14px; accent-color: var(--color-teal);">
-              <div style="display: flex; gap: 0.4rem; align-items: flex-start; flex: 1; min-width: 0;">
-                <div style="color: #4F46E5; background-color: #EEF2FF; padding: 0.25rem; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-                </div>
-                <div style="min-width: 0;">
-                  <strong style="display: block; font-size: 0.8rem; color: var(--color-navy); line-height: 1.2;">Bullet Points</strong>
-                  <span style="font-size: 0.67rem; color: var(--color-text-muted); line-height: 1.25; display: block; margin-top: 0.1rem;">Short, scannable bullets.</span>
-                </div>
-              </div>
-            </label>
-
-            <!-- Structured Outline -->
-            <label class="style-choice-card" style="display: flex; gap: 0.5rem; align-items: flex-start; padding: 0.5rem 0.65rem; border: 2px solid rgba(22, 50, 92, 0.1); border-radius: var(--radius-md); cursor: pointer; transition: all 0.2s ease; margin: 0;">
-              <input type="radio" name="summary-style-choice" value="outline" style="margin-top: 0.15rem; flex-shrink: 0; width: 14px; height: 14px; accent-color: var(--color-teal);">
-              <div style="display: flex; gap: 0.4rem; align-items: flex-start; flex: 1; min-width: 0;">
-                <div style="color: #D97706; background-color: #FEF3C7; padding: 0.25rem; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="6"/><line x1="6" y1="12" x2="18" y2="12"/><line x1="6" y1="18" x2="18" y2="18"/><path d="M4 6h.01M4 12h.01M4 18h.01"/></svg>
-                </div>
-                <div style="min-width: 0;">
-                  <strong style="display: block; font-size: 0.8rem; color: var(--color-navy); line-height: 1.2;">Structured Outline</strong>
-                  <span style="font-size: 0.67rem; color: var(--color-text-muted); line-height: 1.25; display: block; margin-top: 0.1rem;">Hierarchical heading structure.</span>
-                </div>
-              </div>
-            </label>
-
-            <!-- Simplified -->
-            <label class="style-choice-card" style="display: flex; gap: 0.5rem; align-items: flex-start; padding: 0.5rem 0.65rem; border: 2px solid rgba(22, 50, 92, 0.1); border-radius: var(--radius-md); cursor: pointer; transition: all 0.2s ease; margin: 0;">
-              <input type="radio" name="summary-style-choice" value="simplified" style="margin-top: 0.15rem; flex-shrink: 0; width: 14px; height: 14px; accent-color: var(--color-teal);">
-              <div style="display: flex; gap: 0.4rem; align-items: flex-start; flex: 1; min-width: 0;">
-                <div style="color: #059669; background-color: #D1FAE5; padding: 0.25rem; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                </div>
-                <div style="min-width: 0;">
-                  <strong style="display: block; font-size: 0.8rem; color: var(--color-navy); line-height: 1.2;">Simplified</strong>
-                  <span style="font-size: 0.67rem; color: var(--color-text-muted); line-height: 1.25; display: block; margin-top: 0.1rem;">Plain, jargon-free language.</span>
-                </div>
-              </div>
-            </label>
-
-            <!-- Exam-Focused -->
-            <label class="style-choice-card" style="display: flex; gap: 0.5rem; align-items: flex-start; padding: 0.5rem 0.65rem; border: 2px solid rgba(22, 50, 92, 0.1); border-radius: var(--radius-md); cursor: pointer; transition: all 0.2s ease; margin: 0;">
-              <input type="radio" name="summary-style-choice" value="exam_focused" style="margin-top: 0.15rem; flex-shrink: 0; width: 14px; height: 14px; accent-color: var(--color-teal);">
-              <div style="display: flex; gap: 0.4rem; align-items: flex-start; flex: 1; min-width: 0;">
-                <div style="color: #DC2626; background-color: #FEE2E2; padding: 0.25rem; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                </div>
-                <div style="min-width: 0;">
-                  <strong style="display: block; font-size: 0.8rem; color: var(--color-navy); line-height: 1.2;">Exam-Focused</strong>
-                  <span style="font-size: 0.67rem; color: var(--color-text-muted); line-height: 1.25; display: block; margin-top: 0.1rem;">Fact-dense, test-ready content.</span>
-                </div>
-              </div>
-            </label>
-
-          </div>
-        </div>
-
         <!-- Language Selector -->
-        <div style="padding-top: 0.6rem; border-top: 1px solid rgba(22, 50, 92, 0.06);">
+        <div>
           <label style="display: block; font-size: 0.78rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.3rem; text-transform: uppercase; letter-spacing: 0.03em;">Language</label>
           <div style="display: flex; gap: 1.5rem; align-items: center;">
             <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; color: var(--color-navy); cursor: pointer; font-weight: 600;">
@@ -2065,38 +1996,18 @@
           </div>
         </div>
 
-        <!-- Depth mode — this single control also determines the summary's length, -->
-        <!-- replacing the old separate Length selector (Short/Medium/Detailed) so the -->
-        <!-- two controls can no longer disagree with each other. -->
-        <div style="padding-top: 0.6rem; border-top: 1px solid rgba(22, 50, 92, 0.06);">
-          <label style="display: block; font-size: 0.78rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.1rem; text-transform: uppercase; letter-spacing: 0.03em;">Derinlik &amp; Uzunluk</label>
-          <p style="font-size: 0.68rem; color: var(--color-text-muted); margin: 0 0 0.4rem 0;">Bu seçim özetin hem derinliğini hem uzunluğunu belirler.</p>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem;">
-            <label style="display:flex; gap:0.4rem; align-items:flex-start; padding:0.45rem 0.55rem; border:1px solid rgba(22,50,92,0.1); border-radius:10px; cursor:pointer;">
-              <input type="radio" name="summary-depth-choice" value="brief" style="margin-top:0.15rem; accent-color:var(--color-teal);">
-              <span><strong style="font-size:0.8rem; color:var(--color-navy);">Kısa</strong><br><span style="font-size:0.7rem; color:var(--color-text-muted);">Hızlı brief (Short)</span></span>
+        <!-- Visual Analysis — simple yes/no, only shown when the file type supports it (PDF/DOCX/PPTX) -->
+        <div id="visual-analysis-container" style="display: none; padding-top: 0.6rem; border-top: 1px solid rgba(22, 50, 92, 0.06);">
+          <label style="display: block; font-size: 0.78rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.3rem; text-transform: uppercase; letter-spacing: 0.03em;">🖼️ Görsel eklensin mi? / Add visuals?</label>
+          <p style="font-size: 0.68rem; color: var(--color-text-muted); margin: 0 0 0.4rem 0;">Belgedeki grafik, tablo ve diyagramlar analiz edilip özete eklenir (biraz daha uzun sürer). / Charts, tables and diagrams in the document are analyzed and added to the summary (takes a bit longer).</p>
+          <div style="display: flex; gap: 1.5rem; align-items: center;">
+            <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; color: var(--color-navy); cursor: pointer; font-weight: 600;">
+              <input type="radio" name="want-visuals-choice" value="yes" style="accent-color: var(--color-teal); cursor: pointer; width: 14px; height: 14px;"> Evet / Yes
             </label>
-            <label style="display:flex; gap:0.4rem; align-items:flex-start; padding:0.45rem 0.55rem; border:1px solid rgba(22,50,92,0.1); border-radius:10px; cursor:pointer;">
-              <input type="radio" name="summary-depth-choice" value="standard" checked style="margin-top:0.15rem; accent-color:var(--color-teal);">
-              <span><strong style="font-size:0.8rem; color:var(--color-navy);">Standart</strong><br><span style="font-size:0.7rem; color:var(--color-text-muted);">Dengeli (Medium)</span></span>
-            </label>
-            <label style="display:flex; gap:0.4rem; align-items:flex-start; padding:0.45rem 0.55rem; border:1px solid rgba(22,50,92,0.1); border-radius:10px; cursor:pointer;">
-              <input type="radio" name="summary-depth-choice" value="deep" style="margin-top:0.15rem; accent-color:var(--color-teal);">
-              <span><strong style="font-size:0.8rem; color:var(--color-navy);">Derin</strong><br><span style="font-size:0.7rem; color:var(--color-text-muted);">50+ sayfa (Detailed)</span></span>
-            </label>
-            <label style="display:flex; gap:0.4rem; align-items:flex-start; padding:0.45rem 0.55rem; border:1px solid rgba(31,138,147,0.25); border-radius:10px; cursor:pointer; background:rgba(31,138,147,0.04);">
-              <input type="radio" name="summary-depth-choice" value="exam" style="margin-top:0.15rem; accent-color:var(--color-teal);">
-              <span><strong style="font-size:0.8rem; color:var(--color-navy);">Sınav</strong><br><span style="font-size:0.7rem; color:var(--color-text-muted);">Quiz + cloze — Format'ı da "Exam-Focused" yapar</span></span>
+            <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; color: var(--color-navy); cursor: pointer; font-weight: 600;">
+              <input type="radio" name="want-visuals-choice" value="no" checked style="accent-color: var(--color-teal); cursor: pointer; width: 14px; height: 14px;"> Hayır / No
             </label>
           </div>
-        </div>
-
-        <!-- Visual Analysis Checkbox -->
-        <div id="visual-analysis-container" style="display: none; padding-top: 0.6rem; border-top: 1px solid rgba(22, 50, 92, 0.06);">
-          <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; color: var(--color-navy); cursor: pointer; font-weight: 600;">
-            <input type="checkbox" id="chk-analyze-visuals" style="accent-color: var(--color-teal); cursor: pointer; width: 14px; height: 14px;">
-            <span>🖼️ Also analyze charts, diagrams &amp; visuals (slower)</span>
-          </label>
         </div>
 
       </div>
