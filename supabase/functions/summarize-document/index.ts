@@ -1286,10 +1286,17 @@ serve(async (req) => {
     const avgCharsPerPdfPage = pdfPageCount > 0 ? extractedText.length / pdfPageCount : 0
     // 0-indexed page numbers whose extracted text is essentially empty —
     // these are the pages PDF.co should convert to images below, instead of
-    // always guessing "the first 8 pages".
+    // always guessing "the first 8 pages". Threshold is 150 chars, not a
+    // stricter "truly blank" cutoff, on purpose: a chart/table/formula
+    // exhibit page (common in quantitative courses — finance, stats,
+    // accounting) often still extracts a short title or axis-label caption,
+    // so a page can carry almost none of its real content in text while
+    // still clearing a very strict blank check. This is meant to generalize
+    // across course types, not just the image-only slide-deck case it was
+    // first found on.
     const nearBlankPdfPageIndices = pdfPageTexts
       .map((t, i) => ({ i, len: t.trim().length }))
-      .filter(p => p.len < 20)
+      .filter(p => p.len < 150)
       .map(p => p.i)
     const isVisuallyDenseDocument = mimeType === "application/pdf" && pdfPageCount > 0 &&
       (avgCharsPerPdfPage < 500 || (nearBlankPdfPageIndices.length / pdfPageCount) > 0.08)
@@ -2010,17 +2017,28 @@ Use CONCRETE topic names from digests and terms. No meta filler.`,
       }
 
       // ------------------------------------------------------------------
-      // VISUAL ANALYSIS PATCH FOR VISUALLY-DENSE LONG DOCUMENTS
-      // (Denetim Raporu, 2026-08-31) — see the isVisuallyDenseDocument
-      // comment above. The chunked path never looks at page images; when a
-      // document trips that density signal, spend ONE extra vision-capable
-      // call on just the near-blank pages (not all pages — bounds cost and
-      // latency to a single call) and merge anything new it finds into the
-      // terms/points/quiz/sections gathered from the text-only windows.
-      // Fully additive and best-effort: any failure here just leaves the
-      // text-only result untouched, same as the compact synthesis above.
+      // VISUAL ANALYSIS PATCH FOR ANY LONG DOCUMENT WITH IMAGE-ONLY PAGES
+      // (Denetim Raporu, 2026-08-31, generalized after live testing).
+      // This used to also require the WHOLE document to trip
+      // isVisuallyDenseDocument (a slide-deck-shaped avg-chars-per-page
+      // signal) before even checking nearBlankPdfPageIndices — that overfits
+      // to one document shape. A quantitative course PDF (finance, stats,
+      // accounting) can be mostly dense text with just one or two exhibit
+      // pages that are a screenshotted chart/table/formula sheet; a verbal
+      // course PDF can be the reverse. Either way, the actual signal that
+      // matters is simpler and more general: are there SPECIFIC pages this
+      // document's own extraction came back with essentially no text for?
+      // If so, those pages' content is trapped in an image regardless of
+      // what the rest of the document looks like, so we spend ONE extra
+      // vision-capable call on just those pages (not all pages — bounds
+      // cost/latency to a single call) and merge anything new it finds into
+      // the terms/points/quiz/sections gathered from the text-only windows.
+      // isVisuallyDenseDocument (logged above) stays as a diagnostic signal,
+      // it just no longer gates this block. Fully additive and best-effort:
+      // any failure here just leaves the text-only result untouched, same
+      // as the compact synthesis above.
       // ------------------------------------------------------------------
-      if (isVisuallyDenseDocument && analyzeVisuals && nearBlankPdfPageIndices.length > 0 && budgetLeft() > 30_000) {
+      if (analyzeVisuals && nearBlankPdfPageIndices.length > 0 && budgetLeft() > 30_000) {
         try {
           await serviceClient.from('documents').update({ processing_stage: 'visual_analysis' }).eq('id', documentId)
           const visualImages = await extractVisualImagesForLongDoc(fileBytes, nearBlankPdfPageIndices)
