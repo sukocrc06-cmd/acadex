@@ -1486,6 +1486,11 @@
             <li><strong data-i18n="sandbox.guide.step1">Sample Datasets:</strong> <span data-i18n="sandbox.guide.step1Text">Download raw CSV structures below to run analyses in Jupyter, Python, Excel, or SQL.</span></li>
             <li><strong>Proje Paylaşımı:</strong> GitHub depolarınızı veya canlı uygulamalarınızı paylaşmak, başkalarının projelerini beğenmek ve yorum yapmak artık <strong>Sandbox Etkileşim Paneli</strong>'nde — soldaki menüden ulaşabilirsiniz.</li>
           </ul>
+          <!-- Direct entry point back into the share-project composer
+               (title/description/GitHub/live-demo/tags/cover photo) without
+               having to first find the button on the Sandbox Etkileşim
+               Paneli page — jumps there and opens it in one click. -->
+          <button type="button" class="btn btn-primary" onclick="openShareProjectModalFromSandboxPage()" style="border: none; font-size: 0.8rem; padding: 0.5rem 1rem; margin-top: 0.85rem;">🚀 Proje Yükle / Paylaş</button>
         </div>
 
         <!-- Section 1: Örnek Veri Setleri -->
@@ -2483,6 +2488,20 @@
           <div style="display: flex; flex-direction: column; gap: 0.25rem;">
             <label for="project-tags" style="font-size: 0.85rem; font-weight: 700; color: var(--color-navy);">Etiketler</label>
             <input type="text" id="project-tags" class="settings-input" style="width: 100%;" placeholder="ör. web, mobil, veri-bilimi (virgülle ayırın)">
+          </div>
+          <!-- Cover photo — optional. Uploads to the existing 'avatars' bucket
+               under <user_id>/project-<timestamp>.<ext> (same own-folder RLS
+               as the profile photo/banner uploads, no new storage policy
+               needed), writes the public URL into sandbox_projects.image_url
+               (supabase/migrations/20260831_add_image_to_sandbox_projects.sql). -->
+          <div style="display: flex; flex-direction: column; gap: 0.4rem;">
+            <label style="font-size: 0.85rem; font-weight: 700; color: var(--color-navy);">Kapak Fotoğrafı (opsiyonel)</label>
+            <div id="project-image-preview" style="display: none; width: 100%; height: 140px; border-radius: var(--radius-sm); background-size: cover; background-position: center; border: 1px solid rgba(22, 50, 92, 0.1);"></div>
+            <label class="btn btn-outline" style="padding: 0.5rem 1rem; font-size: 0.8rem; cursor: pointer; margin: 0; align-self: flex-start;">
+              🖼️ Fotoğraf Seç
+              <input type="file" id="project-image-input" accept="image/png,image/jpeg,image/webp" style="display: none;">
+            </label>
+            <span id="project-image-status" style="font-size: 0.72rem; color: var(--color-text-muted); min-height: 1em;"></span>
           </div>
         </div>
         <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1rem; border-top: 1px solid rgba(22, 50, 92, 0.08); padding-top: 1rem;">

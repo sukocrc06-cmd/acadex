@@ -9784,6 +9784,20 @@ let sandboxFeedHasMore = false;
 let sandboxUserLikedSet = new Set(); // project ids the signed-in student has liked
 let sandboxCommentsCache = {}; // projectId -> [{ ...row, author }]
 let sandboxEditingProjectId = null; // set while the share modal is in "edit" mode
+let sandboxEditingProjectImageUrl = null; // existing cover photo URL when editing, kept if no new file is picked
+let sandboxPendingProjectImageFile = null; // File selected in the composer, uploaded on submit
+
+// Lets the "🚀 Proje Yükle / Paylaş" button on the Geliştirici Sandbox page
+// jump straight into the composer instead of just pointing at the Sandbox
+// Etkileşim Paneli sidebar link. switchDashboardView() calls
+// loadDeveloperSandbox() synchronously, which wires btn-share-project's
+// click handler — safe to click it right after.
+function openShareProjectModalFromSandboxPage() {
+  switchDashboardView('sandbox-interaction');
+  const btn = document.getElementById('btn-share-project');
+  if (btn) btn.click();
+}
+window.openShareProjectModalFromSandboxPage = openShareProjectModalFromSandboxPage;
 
 function loadDeveloperSandbox() {
   const modal = document.getElementById('share-project-modal');
@@ -9792,13 +9806,50 @@ function loadDeveloperSandbox() {
   const btnCancel = document.getElementById('btn-cancel-share-project');
   const form = document.getElementById('share-project-form');
 
+  const imageInput = document.getElementById('project-image-input');
+  const imagePreview = document.getElementById('project-image-preview');
+  const imageStatus = document.getElementById('project-image-status');
+
+  const resetImagePicker = () => {
+    sandboxEditingProjectImageUrl = null;
+    sandboxPendingProjectImageFile = null;
+    if (imageInput) imageInput.value = '';
+    if (imagePreview) { imagePreview.style.display = 'none'; imagePreview.style.backgroundImage = ''; }
+    if (imageStatus) imageStatus.textContent = '';
+  };
+
   const resetModalToCreateMode = () => {
     sandboxEditingProjectId = null;
     const titleEl = document.getElementById('share-project-modal-title');
     if (titleEl) titleEl.textContent = 'Yeni Proje Paylaş';
     const submitBtn = document.getElementById('btn-submit-share-project');
     if (submitBtn) submitBtn.textContent = 'Paylaş';
+    resetImagePicker();
   };
+
+  if (imageInput) {
+    imageInput.onchange = () => {
+      const file = imageInput.files && imageInput.files[0];
+      if (!file) return;
+      const MAX_BYTES = 5 * 1024 * 1024; // 5MB — same ceiling as the profile banner upload
+      if (!file.type.startsWith('image/')) {
+        showDashboardAlert('error', 'Lütfen bir resim dosyası seçin.');
+        imageInput.value = '';
+        return;
+      }
+      if (file.size > MAX_BYTES) {
+        showDashboardAlert('error', 'Fotoğraf en fazla 5MB olabilir.');
+        imageInput.value = '';
+        return;
+      }
+      sandboxPendingProjectImageFile = file;
+      if (imagePreview) {
+        imagePreview.style.display = 'block';
+        imagePreview.style.backgroundImage = `url('${URL.createObjectURL(file)}')`;
+      }
+      if (imageStatus) imageStatus.textContent = file.name;
+    };
+  }
 
   if (btnShare && modal) {
     btnShare.onclick = (e) => {
@@ -9894,7 +9945,38 @@ function loadDeveloperSandbox() {
           )].slice(0, 8)
         : [];
 
+      const submitBtn = document.getElementById('btn-submit-share-project');
+      const submitBtnOriginalText = submitBtn ? submitBtn.textContent : '';
+
       try {
+        // Cover photo is optional and uploaded here (not on file-select) so
+        // a student who picks a photo then cancels never leaves an orphaned
+        // object in storage. Reuses the existing public 'avatars' bucket —
+        // RLS there is scoped to <user_id>/... (any file name), so a
+        // project-<timestamp>.<ext> object needs no new bucket/policy.
+        // Editing without picking a new file keeps the existing image_url;
+        // there's no "remove photo" control yet — re-sharing a fresh post
+        // is the workaround until one's added.
+        let imageUrl = sandboxEditingProjectImageUrl;
+        if (sandboxPendingProjectImageFile) {
+          if (submitBtn) submitBtn.textContent = 'Fotoğraf yükleniyor...';
+          const file = sandboxPendingProjectImageFile;
+          const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+          const path = `${currentUser.id}/project-${Date.now()}.${ext}`;
+          const { error: uploadError } = await supabaseClient.storage
+            .from('avatars')
+            .upload(path, file, { upsert: true, cacheControl: '3600' });
+          if (uploadError) {
+            console.error('Error uploading project cover photo:', uploadError);
+            showDashboardAlert('error', 'Fotoğraf yüklenemedi: ' + (uploadError.message || ''));
+            if (submitBtn) submitBtn.textContent = submitBtnOriginalText;
+            return;
+          }
+          const { data: publicUrlData } = supabaseClient.storage.from('avatars').getPublicUrl(path);
+          imageUrl = publicUrlData.publicUrl;
+          if (submitBtn) submitBtn.textContent = sandboxEditingProjectId ? 'Kaydet' : 'Paylaş';
+        }
+
         if (sandboxEditingProjectId) {
           const { error } = await supabaseClient
             .from('sandbox_projects')
@@ -9904,6 +9986,7 @@ function loadDeveloperSandbox() {
               github_url: parsedGithub,
               live_url: parsedLive,
               tags,
+              image_url: imageUrl,
               updated_at: new Date().toISOString(),
             })
             .eq('id', sandboxEditingProjectId);
@@ -9924,6 +10007,7 @@ function loadDeveloperSandbox() {
               github_url: parsedGithub,
               live_url: parsedLive,
               tags,
+              image_url: imageUrl,
             });
 
           if (error) {
@@ -9940,6 +10024,7 @@ function loadDeveloperSandbox() {
       } catch (err) {
         console.error("Exception saving sandbox project:", err);
         showDashboardAlert('error', 'Proje kaydedilemedi.');
+        if (submitBtn) submitBtn.textContent = submitBtnOriginalText;
       }
     };
   }
@@ -10163,6 +10248,10 @@ function renderSandboxPostHtml(proj) {
 
       <h4 style="font-size: 1.05rem; font-weight: 800; color: var(--color-navy); margin: 0; word-break: break-word;">${escapeHtml(proj.title)}</h4>
       <p style="font-size: 0.85rem; color: var(--color-text); line-height: 1.5; margin: 0; white-space: pre-wrap; word-break: break-word;">${escapeHtml(proj.description)}</p>
+
+      ${proj.image_url ? `
+        <img src="${escapeHtml(proj.image_url)}" alt="" loading="lazy" style="width: 100%; max-height: 280px; object-fit: cover; border-radius: var(--radius-sm); border: 1px solid rgba(22, 50, 92, 0.08); display: block;">
+      ` : ''}
 
       ${tags.length ? `
         <div style="display: flex; flex-wrap: wrap; gap: 0.3rem;">
@@ -10390,6 +10479,25 @@ function openEditProjectModal(projectId) {
   if (githubInput) githubInput.value = proj.github_url || '';
   if (liveInput) liveInput.value = proj.live_url || '';
   if (tagsInput) tagsInput.value = (proj.tags || []).join(', ');
+
+  // Show the existing cover photo (if any) and remember its URL so the
+  // update payload keeps it when the student doesn't pick a new file.
+  sandboxEditingProjectImageUrl = proj.image_url || null;
+  sandboxPendingProjectImageFile = null;
+  const imageInputEl = document.getElementById('project-image-input');
+  if (imageInputEl) imageInputEl.value = '';
+  const imagePreviewEl = document.getElementById('project-image-preview');
+  const imageStatusEl = document.getElementById('project-image-status');
+  if (imagePreviewEl) {
+    if (proj.image_url) {
+      imagePreviewEl.style.display = 'block';
+      imagePreviewEl.style.backgroundImage = `url('${proj.image_url}')`;
+    } else {
+      imagePreviewEl.style.display = 'none';
+      imagePreviewEl.style.backgroundImage = '';
+    }
+  }
+  if (imageStatusEl) imageStatusEl.textContent = proj.image_url ? 'Mevcut fotoğraf kullanılacak — değiştirmek için yeni bir dosya seç.' : '';
 
   const modalTitleEl = document.getElementById('share-project-modal-title');
   if (modalTitleEl) modalTitleEl.textContent = 'Projeyi Düzenle';
