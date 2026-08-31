@@ -1793,8 +1793,21 @@ Rules:
 
       // Small windows to stay under payload limits (413)
       const WINDOW = 7000
+      // Denetim Raporu, 2026-08-31: this cap used to be a hardcoded 8 —
+      // 8 * 7000 = 56,000 characters, silently dropping anything past that
+      // point with NO signal to the student that content was cut. MAX_CHUNKS
+      // already existed in this file (defined above, "hard ceiling: prefer
+      // finishing over analyzing every page under Edge timeout") for exactly
+      // this purpose but was only ever wired into the unused map-reduce
+      // system, never into this actual live loop. Using it here raises the
+      // ceiling to 12 * 7000 = 84,000 characters. The real protection
+      // against exceeding the Edge wall-clock is the per-batch
+      // `budgetLeft() < 20_000` check a few lines below, which already stops
+      // adding more windows once time is genuinely short — that check is
+      // what should decide "when to stop", not a fixed window count guessed
+      // in advance.
       const windows: string[] = []
-      for (let start = 0; start < extractedText.length && windows.length < 8; start += WINDOW) {
+      for (let start = 0; start < extractedText.length && windows.length < MAX_CHUNKS; start += WINDOW) {
         windows.push(extractedText.slice(start, start + WINDOW))
       }
       console.log(`Long-doc compact: ${windows.length} window(s), totalChars=${extractedText.length}`)
@@ -2255,17 +2268,22 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
       .update({ processing_stage: 'draft_ready' })
       .eq('id', documentId)
 
-    // Skip review for short single-pass docs OR any chunked long doc under time pressure
-    // (long-doc review often pushed total runtime past Edge wall-clock → stuck at "chunking")
-    // Denetim Raporu, 2026-08-31: a visually-dense chunked document (see
-    // isVisuallyDenseDocument above) never skips review purely for being
-    // standard-depth — it just went through an extra visual-analysis patch
-    // above, so the hallucination/grounding check matters MORE here, not
-    // less. The wall-clock budget guard on the line above still applies.
+    // Skip review only for short single-pass docs, or any chunked long doc
+    // that is genuinely out of time budget.
+    // Denetim Raporu, 2026-08-31: this used to ALSO skip review for every
+    // chunked document unless depth === 'deep' — meaning the hallucination/
+    // grounding check never ran on a standard-depth long document, no matter
+    // how much time budget was actually left. That was a blunt, static proxy
+    // for "will this run out of time" when a real, dynamic measurement of
+    // the same thing already exists one line above: budgetLeft() < 55_000.
+    // Long documents need this check MORE than short ones (more windows to
+    // go wrong, more room for the merge step to introduce inconsistencies),
+    // so the time-budget check is now the only gate — review runs on every
+    // chunked document depth gets, as long as there is genuinely enough
+    // wall-clock left to do it safely.
     const shouldSkipReview =
       (!useChunkedPipeline && extractedText.length <= SKIP_REVIEW_MAX_CHARS) ||
-      (useChunkedPipeline && budgetLeft() < 55_000) ||
-      (useChunkedPipeline && depth !== 'deep' && !isVisuallyDenseDocument)
+      (useChunkedPipeline && budgetLeft() < 55_000)
 
     let rawFinalContent = ""
 
