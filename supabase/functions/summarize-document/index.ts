@@ -994,23 +994,17 @@ serve(async (req) => {
     let style = (summaryStyle || 'standard').toLowerCase()
     const lang = (language || 'en').toLowerCase()
     let len = (summaryLength || 'medium').toLowerCase()
-    // Madde 6 depth modes: brief | standard | deep | exam
-    const depth = ['brief', 'standard', 'deep', 'exam'].includes(String(depthRaw || '').toLowerCase())
+    // Denetim Raporu, 2026-08-31 — UI SIMPLIFICATION: the upload modal
+    // (dashboard.html) no longer asks the student for depth/summaryLength at
+    // all — only language + a single "want visuals?" toggle. Only honor an
+    // explicit depth if some caller actually sends one (kept for backward
+    // compatibility / API callers); otherwise it is auto-selected below,
+    // once the real extracted document length is known — see
+    // "AUTO DEPTH SELECTION" further down, right after useChunkedPipeline is
+    // computed. depth/depthFlags are not read anywhere before that point.
+    const explicitDepth = ['brief', 'standard', 'deep', 'exam'].includes(String(depthRaw || '').toLowerCase())
       ? String(depthRaw).toLowerCase()
-      : 'standard'
-    if (depth === 'brief' && len === 'medium') len = 'short'
-    if (depth === 'deep' && len !== 'detailed' && len !== 'long') len = 'detailed'
-    if (depth === 'exam' && style === 'standard') style = 'exam_focused'
-    const depthFlags = {
-      skipSectionDeepen: depth === 'brief',
-      forceSectionDeepen: depth === 'deep' || depth === 'exam',
-      skipNarrativeWriter: depth === 'brief',
-      longNarrative: depth === 'deep',
-      examBias: depth === 'exam',
-      // Very long docs: prefer selective digests in section pass
-      selectiveLongDoc: depth === 'deep' || depth === 'standard'
-    }
-    console.log(`Madde 6 depth=${depth}`, depthFlags)
+      : null
 
 
 
@@ -1313,6 +1307,33 @@ serve(async (req) => {
     const useChunkedPipeline = extractedText.length > CHUNK_THRESHOLD
     const pipelineStartedAt = Date.now()
     const budgetLeft = () => Math.max(0, PIPELINE_BUDGET_MS - (Date.now() - pipelineStartedAt))
+
+    // ==========================================================================
+    // AUTO DEPTH SELECTION (Denetim Raporu, 2026-08-31)
+    // The simplified upload UI no longer sends `depth`/`summaryLength` — pick
+    // one from the actual extracted text length so a 1-page handout and a
+    // 60-page lecture pack don't both get treated as "standard". Explicit
+    // depth (any caller that still sends one) always takes priority.
+    // ==========================================================================
+    let depth = explicitDepth
+    if (!depth) {
+      if (extractedText.length < 2500) depth = 'brief'
+      else if (extractedText.length > 30000) depth = 'deep'
+      else depth = 'standard'
+    }
+    if (depth === 'brief' && len === 'medium') len = 'short'
+    if (depth === 'deep' && len !== 'detailed' && len !== 'long') len = 'detailed'
+    if (depth === 'exam' && style === 'standard') style = 'exam_focused'
+    const depthFlags = {
+      skipSectionDeepen: depth === 'brief',
+      forceSectionDeepen: depth === 'deep' || depth === 'exam',
+      skipNarrativeWriter: depth === 'brief',
+      longNarrative: depth === 'deep',
+      examBias: depth === 'exam',
+      // Very long docs: prefer selective digests in section pass
+      selectiveLongDoc: depth === 'deep' || depth === 'standard'
+    }
+    console.log(`Madde 6 depth=${depth} (${explicitDepth ? 'explicit' : 'auto from textLen=' + extractedText.length})`, depthFlags)
 
     // Fast-path truncation (unchanged behavior) — only ever applies when NOT chunking
     let textToSend = extractedText
@@ -1845,13 +1866,15 @@ Respond ONLY with JSON:
   "tables": [{"title":"...","headers":["..."],"rows":[["..."]]}],
   "charts": [{"title":"...","type":"bar|pie|line","labels":["..."],"data":[0]}],
   "diagrams": [{"title":"...","mermaid":"...","description":"..."}],
-  "worked_examples": [{"title":"...","problem_statement":"...","steps":["..."],"final_answer":"..."}]
+  "worked_examples": [{"title":"...","problem_statement":"...","steps":["..."],"final_answer":"..."}],
+  "concept_graph": {"nodes":[{"id":"c1","label":"...","type":"concept"}],"edges":[{"from":"c1","to":"c2","relation":"..."}]}
 }
 Rules:
 - Extract 5-15 key_terms and 5-12 key_points when content allows
 - 3-6 quiz_questions when content allows
 - NEVER write meta text like "no draft provided" or "qualitative overview"
 - Use real topic names from the text (e.g. supervised learning, neural networks)
+- 'concept_graph': the main academic concepts in THIS part and their real relationships — nodes: short exam-relevant labels (3-8 words), sequential ids c1,c2,... within this part; edges: {"from","to","relation"} using ONLY relation values includes|is_a|causes|part_of|related_to|depends_on|contrasts_with. 3-8 nodes and 2-10 edges when the part has real conceptual structure; empty nodes/edges are correct for thin or purely administrative parts
 - Ignore grading/attendance/admin text
 - 'tables': only real tabular data actually present in this part — empty array if none, never fabricate
 - 'charts': only chart-worthy numeric data actually present (pick bar for category comparisons, pie for proportions of a whole, line for progression over time) — empty array if none
@@ -1890,14 +1913,14 @@ Rules:
               {
                 model: MODEL_HEAVY,
                 temperature: 0.2,
-                // Denetim Raporu, 2026-08-31: raised from 2048 → 3072 to make
-                // room for the tables/charts/diagrams/worked_examples fields
-                // added to compactWindowPrompt above — those were previously
-                // absent from this schema entirely (the pre-existing
-                // regression this fixes), and a Mermaid diagram or a table
-                // with several rows can genuinely need the extra tokens to
-                // avoid getting silently truncated mid-JSON.
-                maxCompletionTokens: 3072,
+                // Denetim Raporu, 2026-08-31: raised from 2048 → 3072 → 3584
+                // to make room for the tables/charts/diagrams/worked_examples
+                // + concept_graph fields added to compactWindowPrompt above —
+                // those were previously absent from this schema entirely (the
+                // pre-existing regression this fixes), and a Mermaid diagram
+                // or a table with several rows can genuinely need the extra
+                // tokens to avoid getting silently truncated mid-JSON.
+                maxCompletionTokens: 3584,
                 timeoutMs: Math.min(40000, Math.max(15000, budgetLeft() - 10000)),
                 maxRetries: 0
               }
@@ -2011,6 +2034,51 @@ Rules:
         windowResults.flatMap(r => Array.isArray(r.worked_examples) ? r.worked_examples : []),
         (w: any) => w?.title || w?.problem_statement || ''
       ).filter((w: any) => w && (w.title || w.problem_statement)).slice(0, 10)
+      // Denetim Raporu, 2026-08-31 — SAME regression as tables/charts/
+      // diagrams, found in the same hardcoded-empty spot (mergedDraft
+      // below): "Kavram Grafiği" (concept graph) is a real, user-facing
+      // feature (dashboard.js renders it from card.concept_graph) that has
+      // been silently empty for every chunked/long document. Each window
+      // uses its own local "c1, c2, ..." ids, so ids must be remapped to a
+      // single global numbering as they're merged — two windows both
+      // producing a node labeled "c1" are almost always DIFFERENT concepts,
+      // not the same one.
+      const mergedConceptGraph = (() => {
+        const nodeMap = new Map<string, any>() // normalized label -> {id,label,type}
+        const edges: any[] = []
+        const edgeKeys = new Set<string>()
+        for (const r of windowResults) {
+          const graph = r.concept_graph
+          if (!graph || typeof graph !== 'object') continue
+          const idRemap = new Map<string, string>() // this window's local id -> global id
+          const nodes = Array.isArray(graph.nodes) ? graph.nodes : []
+          for (const n of nodes) {
+            if (!n || !n.label) continue
+            const labelKey = String(n.label).trim().toLowerCase()
+            if (!labelKey) continue
+            if (!nodeMap.has(labelKey)) {
+              nodeMap.set(labelKey, { id: `c${nodeMap.size + 1}`, label: String(n.label).trim(), type: n.type || 'concept' })
+            }
+            if (n.id) idRemap.set(String(n.id), nodeMap.get(labelKey).id)
+          }
+          const localEdges = Array.isArray(graph.edges) ? graph.edges : []
+          for (const e of localEdges) {
+            if (!e || !e.from || !e.to) continue
+            const from = idRemap.get(String(e.from))
+            const to = idRemap.get(String(e.to))
+            if (!from || !to || from === to) continue
+            const relation = ['includes', 'is_a', 'causes', 'part_of', 'related_to', 'depends_on', 'contrasts_with'].includes(e.relation) ? e.relation : 'related_to'
+            const key = `${from}|${to}|${relation}`
+            if (edgeKeys.has(key)) continue
+            edgeKeys.add(key)
+            edges.push({ from, to, relation })
+          }
+        }
+        const finalNodes = Array.from(nodeMap.values()).slice(0, 30)
+        const finalNodeIds = new Set(finalNodes.map((n: any) => n.id))
+        const finalEdges = edges.filter((e: any) => finalNodeIds.has(e.from) && finalNodeIds.has(e.to)).slice(0, 40)
+        return { nodes: finalNodes, edges: finalEdges }
+      })()
 
       let bestSummary = windowResults.map(r => String(r.summary || '')).filter(s => s.length > 40).join('\n\n')
       let bestExec = String(windowResults[0]?.summary_executive || '')
@@ -2197,14 +2265,14 @@ Rules: only include content actually visible in the images; return empty arrays 
         formulas: mergedFormulas,
         worked_examples: mergedWorkedExamples,
         diagrams: mergedDiagrams,
-        concept_graph: { nodes: [], edges: [] },
+        concept_graph: mergedConceptGraph,
         footnotes: [],
         outline: normalizeOutline(bestOutline, bestSections),
         sections: normalizeSections(bestSections, normalizeOutline(bestOutline, bestSections)),
         cloze_cards: [] as any[]
       }
 
-      console.log(`Long-doc merge: terms=${mergedKeyTerms.length} points=${mergedKeyPoints.length} quiz=${mergedQuiz.length} tables=${mergedTables.length} charts=${mergedCharts.length} diagrams=${mergedDiagrams.length} worked_examples=${mergedWorkedExamples.length} summaryLen=${(mergedDraft.summary || '').length}`)
+      console.log(`Long-doc merge: terms=${mergedKeyTerms.length} points=${mergedKeyPoints.length} quiz=${mergedQuiz.length} tables=${mergedTables.length} charts=${mergedCharts.length} diagrams=${mergedDiagrams.length} worked_examples=${mergedWorkedExamples.length} conceptNodes=${mergedConceptGraph.nodes.length} conceptEdges=${mergedConceptGraph.edges.length} summaryLen=${(mergedDraft.summary || '').length}`)
 
       rawContent = JSON.stringify(mergedDraft)
       sourceTextForReview = windowResults.map((r, i) => `Part ${i + 1}: ${String(r.summary || '').slice(0, 500)}`).join('\n\n')
