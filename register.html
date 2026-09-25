@@ -43,7 +43,7 @@
               <option value="tr">TR</option>
             </select>
             <a href="login.html" class="btn btn-outline" data-i18n="common.login">Log In</a>
-            <a href="register.html" class="btn btn-primary" style="box-shadow: 0 4px 12px rgba(31, 138, 147, 0.35); background: var(--color-teal);" data-i18n="common.signup">Sign Up</a>
+            <a href="register.html" class="btn btn-primary" style="background: var(--color-teal); border-color: var(--color-teal);" data-i18n="common.signup">Sign Up</a>
           </li>
         </ul>
       </nav>
@@ -58,6 +58,28 @@
        MAIN CONTENT (REGISTRATION FORM)
        ========================================== -->
   <main class="auth-main" id="main-content">
+    <div class="auth-shell">
+      <aside class="auth-brand-panel">
+        <div>
+          <span class="auth-brand-tag">🎓 Akademik Çalışma Ağı</span>
+          <div class="auth-brand-name">ACADEX</div>
+          <p class="auth-brand-desc">Bölümüne ait sınıf arkadaşlarınla aynı ortak alanda çalış — özetler, sınav pratiği ve proje paylaşımı bir arada.</p>
+        </div>
+        <div class="auth-brand-stats">
+          <div>
+            <div class="auth-brand-stat-num">1.2M+</div>
+            <div class="auth-brand-stat-label">Doküman</div>
+          </div>
+          <div>
+            <div class="auth-brand-stat-num">200+</div>
+            <div class="auth-brand-stat-label">Bölüm</div>
+          </div>
+          <div>
+            <div class="auth-brand-stat-num">%99.9</div>
+            <div class="auth-brand-stat-label">Erişim</div>
+          </div>
+        </div>
+      </aside>
     <div class="auth-card">
       <h1 class="auth-title" data-i18n="register.title">Create Account</h1>
       <p class="auth-subtitle" data-i18n="register.subtitle">Join the Acadex Faculty pilot program</p>
@@ -111,7 +133,7 @@
           
           <!-- Password Strength Indicator -->
           <div class="password-strength-container" style="margin-top: 0.5rem;">
-            <div class="password-strength-bar-bg" style="background: rgba(22, 50, 92, 0.1); height: 4px; border-radius: 2px; overflow: hidden; width: 100%;">
+            <div class="password-strength-bar-bg" style="background: rgba(15, 37, 55, 0.1); height: 4px; border-radius: 2px; overflow: hidden; width: 100%;">
               <div id="password-strength-bar" style="height: 100%; width: 0%; transition: width 0.3s ease, background-color 0.3s ease;"></div>
             </div>
             <div style="display:flex; justify-content:space-between; margin-top:0.25rem; font-size: 0.7rem; font-weight:700;">
@@ -159,6 +181,7 @@
       <div class="auth-footer" style="margin-top: 0.5rem;">
         <span data-i18n="registerAcademic.notStudent">Are you faculty?</span> <a href="register-academic.html" data-i18n="registerAcademic.academicSignupLink">Apply for an academic account</a>
       </div>
+    </div>
     </div>
   </main>
 
