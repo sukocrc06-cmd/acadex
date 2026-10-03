@@ -31,6 +31,9 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'validateMermaid', 'sanitizeDiagrams',
   // grafik kapisi
   'CHART_TYPES', 'CHART_MIN_POINTS', 'sanitizeCharts',
+  // anlati yil kapisi
+  'YEAR_RE', 'YEAR_RANGE_RE', 'YEAR_ONLY_PAREN_RE',
+  'yearInSource', 'scrubUnsupportedYears', 'sanitizeNarrativeYears',
   // temellendirme kapisi
   'gateNormalize', 'GATE_MIN_TERMS_TO_JUDGE', 'GATE_MAX_DROP_SHARE', 'applyGroundingGate',
   // yakin kopya
@@ -700,6 +703,104 @@ test('sanitizeDiagrams onarim sayisini toplar', () => {
   assert.equal(r.diagrams.length, 1, 'gecerli olan kalmali');
   assert.equal(r.repaired, 2, 'onarim sayisi raporlanmali');
   assert.equal(r.dropped.length, 1);
+});
+
+/* --------------------------------------------------------------------------
+   ANLATI YIL KAPISI (sanitizeNarrativeYears)
+   --------------------------------------------------------------------------
+   applyGroundingGate key_terms ve key_points'u denetliyor, DUZ YAZIYI degil.
+   "summary" / "summary_executive" / sections[].summary kapidan SONRA anlati
+   yazari tarafindan uretiliyor ve hicbir sey kontrol etmiyor. Modelin genel
+   bilgisi oradan sizyor.
+
+   Ayni 30 sayfalik belgenin 11 calistirmasinin 2'sinde, kapi her seferinde
+   "25 kept / 0 dropped" derken ozette su cikti:
+       "the Great Depression (1929-1933)"
+   Kaynak "began in 1929 and continued throughout the 1930s" diyor; 1933
+   belgede hicbir yerde gecmiyor.
+   ------------------------------------------------------------------------ */
+
+// Kaynak: 1929, 1930s, 1973, 1975, 1979, 1981, 1900, 2014, 1970 gecer.
+// 1933 ve 1982 GECMEZ.
+const YEAR_SOURCE = `The Great Depression The period of severe economic contraction and high
+unemployment that began in 1929 and continued throughout the 1930s.
+Since 1970, inflation has been high in two periods: 1973 IV-1975 IV and 1979 I-1981 IV.
+U.S. Aggregate Output (Real GDP), 1900-2014.`;
+
+test('kaynakta olmayan yil, yil-only parantezle birlikte silinir', () => {
+  // Karttan birebir: U+2011 NON-BREAKING HYPHEN ile.
+  const before = 'A brief history highlights the Great Depression (1929‑1933), the post-war era.';
+  const r = A.scrubUnsupportedYears(before, YEAR_SOURCE);
+  assert.equal(r.text, 'A brief history highlights the Great Depression, the post-war era.');
+  assert.deepEqual(r.removed, ['1933']);
+  assert.deepEqual(r.flagged, [], 'silinen yil ayrica isaretlenmemeli');
+});
+
+test('araligin desteklenen ucu korunur', () => {
+  const r = A.scrubUnsupportedYears('The Great Depression of 1929‑1933 reshaped policy.', YEAR_SOURCE);
+  assert.equal(r.text, 'The Great Depression of 1929 reshaped policy.');
+  assert.deepEqual(r.removed, ['1933']);
+});
+
+test('tamamen desteklenen aralik ve parantez korunur', () => {
+  const ok1 = 'High inflation ran 1973-1975 and again 1979-1981.';
+  assert.equal(A.scrubUnsupportedYears(ok1, YEAR_SOURCE).text, ok1);
+  const ok2 = 'The Great Depression (1929) began then.';
+  assert.equal(A.scrubUnsupportedYears(ok2, YEAR_SOURCE).text, ok2);
+});
+
+test('ciplak uydurma yil silinmez, isaretlenir', () => {
+  // Cumle ortasindaki yili korlemesine silmek cumleyi bozar — kapi bunu
+  // bilerek yapmiyor, raporluyor.
+  const before = 'Unemployment peaked in 1982 according to the chart.';
+  const r = A.scrubUnsupportedYears(before, YEAR_SOURCE);
+  assert.equal(r.text, before, 'metin degismemeli');
+  assert.deepEqual(r.flagged, ['1982']);
+  assert.deepEqual(r.removed, []);
+});
+
+test('yil disi parantezlere dokunulmaz', () => {
+  for (const s of ['Three concerns (output, unemployment, inflation).', 'See note (3).', 'GDP (real).']) {
+    assert.equal(A.scrubUnsupportedYears(s, YEAR_SOURCE).text, s, s);
+  }
+});
+
+test('yearInSource bitisik rakamlara takilmaz', () => {
+  assert.ok(A.yearInSource('1929', YEAR_SOURCE));
+  assert.ok(!A.yearInSource('1933', YEAR_SOURCE));
+  // "19700" icinde "1970" aranmamali
+  assert.ok(!A.yearInSource('1970', 'kod 19700 olarak gecer'));
+});
+
+test('sanitizeNarrativeYears ozet, yonetici ozeti ve bolumleri kapsar', () => {
+  const draft = {
+    summary: 'The Great Depression (1929‑1933) was severe.',
+    summary_executive: 'Covers 1929‑1933.',
+    sections: [
+      { heading: 'Tarih', summary: 'Stagflation followed the 1973-1975 period.' },
+      { heading: 'Bos', summary: 'Hic yil yok.' }
+    ],
+    key_points: ['Bu alan bu kapinin isi degil (1933).']
+  };
+  const r = A.sanitizeNarrativeYears(draft, YEAR_SOURCE);
+  assert.equal(draft.summary, 'The Great Depression was severe.');
+  assert.equal(draft.summary_executive, 'Covers 1929.');
+  assert.equal(draft.sections[0].summary, 'Stagflation followed the 1973-1975 period.', 'desteklenen aralik durmali');
+  assert.equal(r.changed, 2, 'iki alan degismeli');
+  assert.deepEqual(r.removed, ['1933']);
+  // key_points applyGroundingGate'in isi — bu kapi ona dokunmamali.
+  assert.match(draft.key_points[0], /1933/);
+});
+
+test('sanitizeNarrativeYears bozuk girdide patlamaz', () => {
+  for (const bad of [null, undefined, 'x', 42]) {
+    const r = A.sanitizeNarrativeYears(bad, YEAR_SOURCE);
+    assert.equal(r.changed, 0);
+  }
+  // kaynak metin yoksa hicbir seyi silme
+  const draft = { summary: 'Great Depression (1929-1933).' };
+  A.sanitizeNarrativeYears(draft, '');
+  assert.match(draft.summary, /1933/, 'kaynaksiz karar verilmemeli');
 });
 
 /* --------------------------------------------------------------------------
