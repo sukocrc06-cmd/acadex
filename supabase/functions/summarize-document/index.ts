@@ -1443,9 +1443,10 @@ function buildPageIndex(text: string, pageMarkerLabel: string): PageSegment[] {
 // single message. Persisting it once here ends that, and gives every future
 // feature a stable, addressable unit of the document to point at.
 //
-// Chunk size is deliberately NOT the 7,000-char extraction window size:
-// windows are sized by the model's token budget, chunks by how precisely we
-// want to address a passage. See the migration for the full rationale.
+// Chunk size is deliberately NOT the extraction window size (WINDOW, further
+// down): windows are sized by the model's token budget, chunks by how
+// precisely we want to address a passage. The two move independently — do not
+// re-couple them. See the migration for the full rationale.
 // ==========================================================================
 const CHUNK_STORE_SIZE = 1200
 
@@ -2991,8 +2992,32 @@ Rules:
 - 'diagrams': when short disconnected phrases, stage names, or paired opposing terms in THIS part clearly reconstruct a flowchart/comparison/hierarchy/cycle, rebuild it as valid Mermaid source (flowchart TD/LR, graph TD, sequenceDiagram, or mindmap); at most 1-2 per part; empty array if nothing reconstructible — never invent
 - 'worked_examples': 1-2 solved problems when formulas/calculations are present in this part (prefer the source's own worked numbers); empty array otherwise`
 
-      // Small windows to stay under payload limits (413)
-      const WINDOW = 7000
+      // Window size is bounded by this account's tokens-per-minute cap, not by
+      // the HTTP payload limit — the 413 comment this constant used to carry
+      // was measuring the wrong thing. The real budget for ONE window call is:
+      //
+      //     compactWindowPrompt   ~527 tokens  (measured, not estimated)
+      //   + document text          WINDOW / 4
+      //   + maxCompletionTokens   3072 tokens  (worst case)
+      //   <= tokenPacer ceiling   7200 tokens  (8000 TPM * PACER_SAFETY 0.9)
+      //
+      // which solves to WINDOW <= ~14,400 chars. 7000 left ~3,600 tokens of
+      // that budget permanently unused, and the cost of under-filling is not
+      // merely "more calls": on 8,000 TPM, EVERY extra window costs a full
+      // ~60s TokenPacer wait before it can start. A live 30-page, 12,451-char
+      // deck measured 130s end to end, 114s of which (87%) was the pacer
+      // waiting between two windows that would have fit in one. That wait is
+      // also what kept budgetLeft() at 0 and made the review pass structurally
+      // unreachable (PIPELINE_BUDGET_MS is 110s; the waits alone exceeded it).
+      //
+      // 13000 keeps the worst case at 3250 + 527 + 3072 = 6,849 tokens, under
+      // the 7,200 ceiling, while letting a typical single-chapter upload land
+      // in one window. If a document's text tokenizes worse than 4 chars/token
+      // (Turkish does) and a window still overshoots, this is self-correcting:
+      // extractWindow's catch shrinks an oversized payload to 55% and retries,
+      // which lands back at ~7,150 chars — i.e. the old behaviour — at a cost
+      // of one failed call rather than a failed summary.
+      const WINDOW = 13000
       // Denetim Raporu, 2026-08-31: this cap used to be a hardcoded 8 —
       // 8 * 7000 = 56,000 characters, silently dropping anything past that
       // point with NO signal to the student that content was cut. MAX_CHUNKS
@@ -3000,7 +3025,8 @@ Rules:
       // finishing over analyzing every page under Edge timeout") for exactly
       // this purpose but was only ever wired into the unused map-reduce
       // system, never into this actual live loop. Using it here raises the
-      // ceiling to 12 * 7000 = 84,000 characters. The real protection
+      // ceiling to MAX_CHUNKS * WINDOW = 12 * 13000 = 156,000 characters
+      // (84,000 back when WINDOW was 7000). The real protection
       // against exceeding the Edge wall-clock is the per-batch
       // `budgetLeft() < 20_000` check a few lines below, which already stops
       // adding more windows once time is genuinely short — that check is
