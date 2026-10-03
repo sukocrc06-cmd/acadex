@@ -550,6 +550,9 @@ test('pencere token butcesi pacer tavaninin altinda', () => {
 
   const promptIdx = SRC.indexOf('const compactWindowPrompt');
   assert.ok(promptIdx > -1, 'compactWindowPrompt bulunamadi');
+  // readTemplate ${...} ifadelerini atladigi icin kosullu dallarin HER IKI
+  // metnini birden sayar — yani gercek render'dan buyuk cikar. Butce kapisi
+  // icin dogru yon bu: fazla tahmin guvenli taraf.
   const prompt = readTemplate(SRC, SRC.indexOf('`', promptIdx) + 1);
   assert.ok(prompt.length > 500, `compactWindowPrompt okunamadi (${prompt.length} krk)`);
 
@@ -577,6 +580,41 @@ test('pencere token butcesi pacer tavaninin altinda', () => {
     est > ceiling * 0.7,
     `pencere butcenin ${Math.round((est / ceiling) * 100)}%'ini kullaniyor — ` +
     `WINDOW gereksiz yere kucuk, bu her belgede fazladan pencere ve fazladan bekleme demek`
+  );
+});
+
+test('tek pencere kotasi parca kotasindan buyuk', () => {
+  // WINDOW buyutulup belge tek pencereye sigdiginda, parca basina yazilmis
+  // "5-15 key_terms" sinirinin TUM belgenin siniri haline gelmesi olculdu:
+  // 2 pencere 24/25 terim verirken 1 pencere tam 15 veriyordu. Kotalar artik
+  // pencere sayisina gore degisiyor; bu test o ayrimin kaybolmamasini saglar.
+  const quotas = ['termQuota', 'pointQuota', 'quizQuota'];
+  for (const name of quotas) {
+    const m = SRC.match(new RegExp('const ' + name + ' = [^\\n]*'));
+    assert.ok(m, `${name} bulunamadi`);
+    const nums = m[0].match(/'(\d+)-(\d+)'/g);
+    assert.ok(nums && nums.length === 2, `${name} iki kota icermeli: ${m[0]}`);
+    const upper = nums.map(q => Number(q.match(/-(\d+)'/)[1]));
+    const [single, multi] = upper;
+    assert.ok(
+      single > multi,
+      `${name}: tek pencere ust siniri (${single}) parca ust sinirindan (${multi}) buyuk olmali — ` +
+      `aksi halde tek pencereye sigan belge parca kotasiyla kirpilir`
+    );
+  }
+});
+
+test('tek pencerede prompt kendini "parca" diye tanitmaz', () => {
+  // "part 1/1" ve "this part" ifadeleri, pencere TUM belge oldugunda modele
+  // var olmayan baska bir parcaya ait malzemeyi atlama izni veriyor.
+  const promptIdx = SRC.indexOf('const compactWindowPrompt');
+  const body = SRC.slice(promptIdx, SRC.indexOf('\n\n', promptIdx));
+  const bare = body
+    .replace(/\$\{[^}]*\}/g, '')          // kosullu ifadeler haric
+    .replace(/scopeWord\(total\)/g, '');
+  assert.ok(
+    !/\bthis part\b/i.test(bare),
+    'prompt kosulsuz "this part" iceriyor — scopeWord(total) uzerinden gecmeli'
   );
 });
 
