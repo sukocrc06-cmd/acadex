@@ -25,6 +25,8 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'tokenPacer', 'estimateTokens',
   // latex
   'stripLatexDelimiters', 'validateLatex', 'sanitizeFormulas',
+  // mermaid dogrulama
+  'MERMAID_TYPES', 'validateMermaid', 'sanitizeDiagrams',
   // temellendirme kapisi
   'gateNormalize', 'GATE_MIN_TERMS_TO_JUDGE', 'GATE_MAX_DROP_SHARE', 'applyGroundingGate',
   // yakin kopya
@@ -126,6 +128,66 @@ test('sanitizeFormulas: diger alanlar korunur', () => {
 test('sanitizeFormulas: bozuk girdide cokmez', () => {
   assert.deepEqual(A.sanitizeFormulas(null).formulas, []);
   assert.deepEqual(A.sanitizeFormulas([null, undefined, {}]).formulas, []);
+});
+
+// ===========================================================================
+console.log('\nMERMAID DOGRULAMA\n');
+
+test('gecerli diyagram kabul edilir', () => {
+  for (const ok of [
+    'flowchart TD\n  A[Baslangic] --> B[Bitis]',
+    'graph LR\n  X --> Y',
+    'mindmap\n  root((konu))\n    dal1',
+    'sequenceDiagram\n  A->>B: mesaj'
+  ]) {
+    const r = A.validateMermaid(ok);
+    assert.ok(r.ok, `reddedildi: ${JSON.stringify(ok)} (${r.reason})`);
+  }
+});
+
+test('kod blogu sarmalayici siyrilir', () => {
+  const r = A.validateMermaid('```mermaid\nflowchart TD\n  A --> B\n```');
+  assert.ok(r.ok, `reddedildi: ${r.reason}`);
+  assert.ok(!r.mermaid.includes('```'), 'fence kalmamali');
+  assert.ok(r.mermaid.startsWith('flowchart'));
+});
+
+test('diyagram turu olmayan kaynak reddedilir', () => {
+  const r = A.validateMermaid('A --> B\n  B --> C');
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /tur/);
+});
+
+test('dengesiz parantezler reddedilir', () => {
+  assert.equal(A.validateMermaid('flowchart TD\n  A[Baslangic --> B').ok, false);
+  assert.equal(A.validateMermaid('flowchart TD\n  A(Bir --> B').ok, false);
+  assert.equal(A.validateMermaid('flowchart TD\n  A{Karar --> B').ok, false);
+});
+
+test('dengesiz tirnak reddedilir', () => {
+  assert.equal(A.validateMermaid('flowchart TD\n  A["Baslangic] --> B').ok, false);
+});
+
+test('tek satir / bos reddedilir', () => {
+  assert.equal(A.validateMermaid('flowchart TD').ok, false);
+  assert.equal(A.validateMermaid('').ok, false);
+  assert.equal(A.validateMermaid('   ').ok, false);
+});
+
+test('sanitizeDiagrams gecerliyi tutar bozugu atar', () => {
+  const r = A.sanitizeDiagrams([
+    { title: 'Iyi', mermaid: 'flowchart TD\n  A --> B' },
+    { title: 'Bozuk', mermaid: 'flowchart TD\n  A[Acik --> B' },
+    { title: 'Tursuz', mermaid: 'A --> B\n B --> C' }
+  ]);
+  assert.deepEqual(r.diagrams.map(d => d.title), ['Iyi']);
+  assert.equal(r.dropped.length, 2);
+  assert.ok(r.dropped.every(d => d.reason), 'her atilan icin neden olmali');
+});
+
+test('sanitizeDiagrams bozuk girdide cokmez', () => {
+  assert.deepEqual(A.sanitizeDiagrams(null).diagrams, []);
+  assert.deepEqual(A.sanitizeDiagrams([null, {}, { mermaid: '' }]).diagrams, []);
 });
 
 // ===========================================================================
