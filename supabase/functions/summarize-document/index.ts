@@ -854,6 +854,102 @@ function normalizeForDedup(s: string): string {
   return (s || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, '').replace(/\s+/g, ' ').trim()
 }
 
+// ==========================================================================
+// NEAR-DUPLICATE MERGE
+//
+// dedupeByText below keys on the first 50 normalised characters:
+//
+//     const sig = norm.slice(0, 50)
+//
+// That catches an exact repeat but misses the kind of duplicate this
+// pipeline actually produces. Each window is summarised independently and
+// never sees its neighbours, so the same idea comes back worded differently
+// from two windows:
+//
+//     "Talep esnekliği fiyat değişimine duyarlılığı ölçer"
+//     "Esneklik, fiyat değişimine talebin duyarlılığıdır"
+//
+// Different first 50 characters, so both survive and the student reads the
+// same fact twice — and both occupy slots in a capped list, pushing out
+// content that is actually new.
+//
+// Comparing content-term sets catches them. The overlap COEFFICIENT (shared
+// terms over the smaller set) is used rather than Jaccard on purpose: a
+// short point that is fully contained in a longer one is a duplicate, and
+// Jaccard would score that pair low simply because the lengths differ.
+// ==========================================================================
+const NEAR_DUP_THRESHOLD = 0.7   // share of the smaller term set that must match
+const NEAR_DUP_MIN_TERMS = 3     // below this, wording is too thin to compare
+
+// Fixed-prefix stem length for duplicate comparison.
+//
+// Exact token matching collapses on Turkish, which is precisely where this
+// merge is needed: "esneklik"/"esnekliği", "duyarlılığı"/"duyarlılığını" and
+// "talep"/"talebin" are the same word, and comparing them literally scored
+// the two paraphrases below the threshold — so the duplicate survived.
+//
+// Raising the threshold's tolerance instead would have merged genuinely
+// different points, so the cause is fixed rather than the bar lowered. The
+// Postgres side solves this with the snowball Turkish stemmer; there is no
+// stemmer available inside a Deno edge function, so fixed-prefix stemming
+// stands in. It works because Turkish is suffixing: cut the suffixes off and
+// the stem is the prefix. Five characters is the length long established for
+// Turkish retrieval — short enough to survive inflection, long enough that
+// unrelated words do not collide.
+//
+// Used ONLY for duplicate detection. Citation anchoring deliberately keeps
+// stricter matching, because there a false match means pointing a student at
+// the wrong page.
+const NEAR_DUP_STEM_LEN = 5
+
+function nearDupStem(term: string): string {
+  const t = String(term || '')
+  return t.length <= NEAR_DUP_STEM_LEN ? t : t.slice(0, NEAR_DUP_STEM_LEN)
+}
+
+function nearDupTermSet(text: string): Set<string> {
+  return new Set(anchorTerms(text).map(nearDupStem))
+}
+
+/**
+ * Collapse near-duplicates, keeping the more informative wording (the longer
+ * text) of each group rather than whichever happened to come first.
+ * Preserves input order based on where each surviving item first appeared.
+ */
+function dedupeNearDuplicates(items: any[], getText: (item: any) => string): any[] {
+  const list = Array.isArray(items) ? items : []
+  type Kept = { item: any; terms: Set<string>; order: number; len: number }
+  const kept: Kept[] = []
+
+  for (let i = 0; i < list.length; i++) {
+    const text = String(getText(list[i]) || '')
+    if (!text.trim()) continue
+    const terms = nearDupTermSet(text)
+
+    if (terms.size < NEAR_DUP_MIN_TERMS) { kept.push({ item: list[i], terms, order: kept.length, len: text.length }); continue }
+
+    let mergedInto = -1
+    for (let k = 0; k < kept.length; k++) {
+      const other = kept[k]
+      if (other.terms.size < NEAR_DUP_MIN_TERMS) continue
+      let shared = 0
+      for (const t of terms) if (other.terms.has(t)) shared++
+      const overlap = shared / Math.min(terms.size, other.terms.size)
+      if (overlap >= NEAR_DUP_THRESHOLD) { mergedInto = k; break }
+    }
+
+    if (mergedInto === -1) {
+      kept.push({ item: list[i], terms, order: kept.length, len: text.length })
+    } else if (text.length > kept[mergedInto].len) {
+      // Same idea, better stated — keep the fuller wording at the original
+      // position so ordering stays stable.
+      kept[mergedInto] = { item: list[i], terms, order: kept[mergedInto].order, len: text.length }
+    }
+  }
+
+  return kept.sort((a, b) => a.order - b.order).map(k => k.item)
+}
+
 function dedupeByText(items: any[], getText: (item: any) => string): any[] {
   const seen = new Set<string>()
   const out: any[] = []
@@ -1369,6 +1465,232 @@ function anchorClaimToPage(
     // actually says rather than just a page number.
     quote: bestQuoteForClaim(claim, best.seg.body, idf)
   }
+}
+
+// ==========================================================================
+// LATEX VALIDATION
+//
+// Formulas are rendered client-side by KaTeX (dashboard.html loads it). A
+// malformed expression does not degrade gracefully — KaTeX throws and the
+// student gets an error box or a blank where the formula should be, which
+// reads as a broken app rather than a missing formula. Nothing validated
+// these strings before they were stored, so one unbalanced brace from the
+// model went straight to the screen.
+//
+// Two jobs here:
+//   REPAIR what is merely over-wrapped. The prompt asks for raw LaTeX with
+//   no delimiters, and models routinely add "$...$", "\(...\)" or "\[...\]"
+//   anyway. Stripping those is safe and keeps a perfectly good formula.
+//   REJECT what cannot render. An unbalanced brace or \left without \right
+//   has no safe repair — guessing where the author meant to close it could
+//   silently change the mathematics, so the formula is dropped instead.
+// ==========================================================================
+
+/** Strip delimiters the prompt forbids but models add anyway. */
+function stripLatexDelimiters(raw: string): string {
+  let s = String(raw || '').trim()
+  for (let i = 0; i < 3; i++) {
+    const before = s
+    s = s.replace(/^\$\$([\s\S]*)\$\$$/, '$1').trim()
+    s = s.replace(/^\$([\s\S]*)\$$/, '$1').trim()
+    s = s.replace(/^\\\(([\s\S]*)\\\)$/, '$1').trim()
+    s = s.replace(/^\\\[([\s\S]*)\\\]$/, '$1').trim()
+    if (s === before) break
+  }
+  return s
+}
+
+/**
+ * Is this renderable by KaTeX? Conservative: only structural problems that
+ * definitely throw are rejected, so an unusual but valid expression is not
+ * thrown away for being unfamiliar.
+ */
+function validateLatex(raw: string): { ok: boolean; latex: string; reason?: string } {
+  const latex = stripLatexDelimiters(raw)
+  if (!latex) return { ok: false, latex, reason: 'bos' }
+  if (latex.length < 2) return { ok: false, latex, reason: 'cok kisa' }
+  if (latex.length > 1000) return { ok: false, latex, reason: 'cok uzun' }
+
+  // Unescaped brace balance. A literal brace is written \{ or \}, so those
+  // pairs are skipped rather than counted.
+  let depth = 0
+  for (let i = 0; i < latex.length; i++) {
+    if (latex[i] === '\\') { i++; continue }      // skip the escaped char
+    if (latex[i] === '{') depth++
+    else if (latex[i] === '}') { depth--; if (depth < 0) return { ok: false, latex, reason: 'fazla kapanis parantezi' } }
+  }
+  if (depth !== 0) return { ok: false, latex, reason: 'dengesiz suslu parantez' }
+
+  // \left must pair with \right or KaTeX throws.
+  const lefts = (latex.match(/\\left/g) || []).length
+  const rights = (latex.match(/\\right/g) || []).length
+  if (lefts !== rights) return { ok: false, latex, reason: '\\left / \\right dengesiz' }
+
+  // A stray delimiter left INSIDE (after the strip above) means the model
+  // mixed modes; KaTeX in text mode throws on a bare $.
+  if (/(^|[^\\])\$/.test(latex)) return { ok: false, latex, reason: 'kacak $' }
+
+  // A backslash with nothing after it is an incomplete command.
+  if (/\\$/.test(latex)) return { ok: false, latex, reason: 'yarim komut' }
+
+  return { ok: true, latex }
+}
+
+/**
+ * Validate a formula list: repaired formulas are kept with their cleaned
+ * LaTeX, unrenderable ones are removed. A formula with no usable LaTeX but a
+ * real name/variable list is still dropped — the card shows formulas as
+ * rendered math, so a nameless broken entry has nothing to display.
+ */
+function sanitizeFormulas(formulas: any[]): { formulas: any[]; dropped: Array<{ name: string; reason: string }>; repaired: number } {
+  const list = Array.isArray(formulas) ? formulas : []
+  const out: any[] = []
+  const dropped: Array<{ name: string; reason: string }> = []
+  let repaired = 0
+  for (const f of list) {
+    const original = String(f?.latex || '')
+    const v = validateLatex(original)
+    if (!v.ok) {
+      dropped.push({ name: String(f?.name || '(isimsiz)').slice(0, 40), reason: v.reason || 'gecersiz' })
+      continue
+    }
+    if (v.latex !== original.trim()) repaired++
+    out.push({ ...f, latex: v.latex })
+  }
+  return { formulas: out, dropped, repaired }
+}
+
+// ==========================================================================
+// QUALITY GATE — drop what the document does not support
+//
+// The anchoring machinery above already answers, for every claim, "do this
+// claim's distinctive words appear in the source?". Until now a claim that
+// answered no was merely left uncited. But that answer is worth more than
+// that: a claim whose distinctive vocabulary appears NOWHERE in a 50-page
+// document is not a paraphrase, it is something the model supplied from
+// outside the source — exactly what a grounded study tool must not show.
+//
+// The distinction that matters, and the reason this gate is deliberately
+// narrow:
+//
+//   LOW overlap  -> a legitimate paraphrase. The model used synonyms, or
+//                   summarised across pages. KEEP IT. Dropping these would
+//                   strip the summary of its best writing.
+//   ZERO overlap -> with three or more distinctive terms and a whole
+//                   document to match against, zero is not word choice.
+//                   DROP IT.
+//
+// Key terms are judged more strictly than key points, because a term is
+// supposed to be lifted from the document, not composed. Turkish
+// suffixation happens to help here: a substring test matches the stem
+// ("esneklik" is found inside the document's "esnekliği"), so a real term
+// is found even in an inflected document.
+// ==========================================================================
+
+// A claim needs at least this many distinctive terms before "none of them
+// appear" is evidence of anything rather than just a short sentence.
+const GATE_MIN_TERMS_TO_JUDGE = 3
+// Past this share of judged claims, the gate distrusts ITSELF rather than the
+// model and drops nothing (see the safety valve in applyGroundingGate).
+const GATE_MAX_DROP_SHARE = 0.6
+
+type GroundingStats = {
+  termsKept: number; termsDropped: number; droppedTerms: string[]
+  pointsKept: number; pointsDropped: number; droppedPoints: string[]
+  score: number | null
+  aborted?: boolean
+}
+
+/**
+ * Drop key terms and key points the document does not support.
+ *
+ * Returns new arrays plus a grounding score (share of judgeable claims that
+ * were supported) so the log shows which documents the model is inventing
+ * on — a number to watch over time, not just a one-off fix.
+ */
+function applyGroundingGate(
+  keyTerms: any[],
+  keyPoints: any[],
+  sourceText: string
+): { key_terms: any[]; key_points: any[]; stats: GroundingStats } {
+  const terms = Array.isArray(keyTerms) ? keyTerms : []
+  const points = Array.isArray(keyPoints) ? keyPoints : []
+  const stats: GroundingStats = {
+    termsKept: 0, termsDropped: 0, droppedTerms: [],
+    pointsKept: 0, pointsDropped: 0, droppedPoints: [],
+    score: null
+  }
+  if (!sourceText || sourceText.length < 200) {
+    // Nothing trustworthy to judge against — never gate on a non-existent
+    // source, or a failed extraction would delete a good summary.
+    stats.termsKept = terms.length
+    stats.pointsKept = points.length
+    return { key_terms: terms, key_points: points, stats }
+  }
+
+  const haystack = ' ' + String(sourceText).toLowerCase().replace(/\s+/g, ' ') + ' '
+  const docTerms = new Set(anchorTerms(sourceText))
+  const readText = (raw: any) => typeof raw === 'string' ? raw : String(raw?.text || raw?.point || '')
+
+  // --- Key terms: the term itself must occur in the document ---
+  const keptTerms = terms.filter((t: any) => {
+    const term = String(t?.term || '').trim()
+    if (!term) return false
+    const norm = term.toLowerCase().replace(/\s+/g, ' ').trim()
+    if (norm.length < 3) return true            // too short to judge
+    if (haystack.includes(norm)) { stats.termsKept++; return true }
+    // Multi-word term: accept when every word of it occurs somewhere. Some
+    // documents write "esneklik katsayısı" across a line break, and the
+    // model legitimately reassembles it.
+    const words = norm.split(' ').filter(w => w.length >= 4)
+    if (words.length > 1 && words.every(w => haystack.includes(w))) { stats.termsKept++; return true }
+    stats.termsDropped++
+    if (stats.droppedTerms.length < 8) stats.droppedTerms.push(term)
+    return false
+  })
+
+  // --- Key points: only a ZERO-overlap point is dropped ---
+  const keptPoints = points.filter((p: any) => {
+    const text = readText(p)
+    if (!text.trim()) return false
+    const claimTerms = [...new Set(anchorTerms(text))]
+    if (claimTerms.length < GATE_MIN_TERMS_TO_JUDGE) { stats.pointsKept++; return true }
+    const matched = claimTerms.filter(t => docTerms.has(t)).length
+    if (matched > 0) { stats.pointsKept++; return true }
+    stats.pointsDropped++
+    if (stats.droppedPoints.length < 6) stats.droppedPoints.push(text.slice(0, 90))
+    return false
+  })
+
+  const judged = stats.termsKept + stats.termsDropped + stats.pointsKept + stats.pointsDropped
+  stats.score = judged > 0
+    ? Math.round(100 * (stats.termsKept + stats.pointsKept) / judged)
+    : null
+
+  // SAFETY VALVE. A gate that guts the output is far more likely to be wrong
+  // about the comparison than right about mass fabrication — an encoding
+  // mismatch, a failed extraction that left `extractedText` holding
+  // something other than what the model actually read, or an unforeseen
+  // normalisation bug would all look exactly like "the model invented
+  // everything". A trimming gate is useful; a gate that empties the study
+  // card is a bug that deletes the student's result. So past this share,
+  // nothing is dropped and the anomaly is logged for investigation.
+  const droppedShare = judged > 0 ? (stats.termsDropped + stats.pointsDropped) / judged : 0
+  if (droppedShare > GATE_MAX_DROP_SHARE) {
+    console.warn(
+      `Grounding gate ABORTED: would have dropped ${Math.round(100 * droppedShare)}% of claims ` +
+      `(${stats.termsDropped} terms, ${stats.pointsDropped} points of ${judged} judged). ` +
+      `That points at the comparison, not the model — keeping everything. ` +
+      `Ornek atilacaklar: ${[...stats.droppedTerms, ...stats.droppedPoints].slice(0, 4).join(' | ')}`
+    )
+    return {
+      key_terms: terms,
+      key_points: points,
+      stats: { ...stats, aborted: true } as GroundingStats
+    }
+  }
+
+  return { key_terms: keptTerms, key_points: keptPoints, stats }
 }
 
 /**
@@ -3265,6 +3587,56 @@ Fix the listed issues. Remove hallucinations and admin noise. Keep ${langLabel}.
     // for why this is computed rather than prompted.
     // ==========================================================================
     {
+      // --- (a) Formulas: repair what is over-wrapped, drop what cannot render
+      const sanitized = sanitizeFormulas(parsedContent.formulas)
+      parsedContent.formulas = sanitized.formulas
+      if (sanitized.dropped.length || sanitized.repaired) {
+        console.log(
+          `Formula validation: ${sanitized.formulas.length} kept, ` +
+          `${sanitized.repaired} repaired, ${sanitized.dropped.length} dropped` +
+          (sanitized.dropped.length
+            ? ` — ${sanitized.dropped.map(d => `${d.name}(${d.reason})`).join('; ')}`
+            : '')
+        )
+      }
+
+      // --- (b) Grounding gate: remove claims the source does not support
+      const gated = applyGroundingGate(parsedContent.key_terms, parsedContent.key_points, extractedText)
+      parsedContent.key_terms = gated.key_terms
+      parsedContent.key_points = gated.key_points
+      console.log(
+        `Grounding gate: score=${gated.stats.score ?? '—'}% ` +
+        `terms ${gated.stats.termsKept} kept / ${gated.stats.termsDropped} dropped, ` +
+        `points ${gated.stats.pointsKept} kept / ${gated.stats.pointsDropped} dropped` +
+        (gated.stats.droppedTerms.length ? ` | uydurma terim: ${gated.stats.droppedTerms.join(', ')}` : '') +
+        (gated.stats.droppedPoints.length ? ` | uydurma nokta: ${gated.stats.droppedPoints.map(p => `"${p}"`).join(' ')}` : '')
+      )
+
+      // --- (c) Near-duplicate merge: the same idea worded twice by two windows
+      const beforeDedup = {
+        terms: (parsedContent.key_terms || []).length,
+        points: (parsedContent.key_points || []).length,
+        quiz: (parsedContent.quiz_questions || []).length
+      }
+      parsedContent.key_terms = dedupeNearDuplicates(
+        parsedContent.key_terms,
+        (t: any) => `${t?.term || ''} ${t?.definition || ''}`
+      )
+      parsedContent.key_points = dedupeNearDuplicates(
+        parsedContent.key_points,
+        (p: any) => typeof p === 'string' ? p : String(p?.text || p?.point || '')
+      )
+      parsedContent.quiz_questions = dedupeNearDuplicates(
+        parsedContent.quiz_questions,
+        (q: any) => String(q?.question || '')
+      )
+      console.log(
+        `Near-duplicate merge: terms ${beforeDedup.terms}→${parsedContent.key_terms.length}, ` +
+        `points ${beforeDedup.points}→${parsedContent.key_points.length}, ` +
+        `quiz ${beforeDedup.quiz}→${parsedContent.quiz_questions.length}`
+      )
+
+      // --- (d) Citations, computed from the page index (see above)
       const pageIndex = buildPageIndex(extractedText, pageMarkerLabel)
       const anchored = anchorCitations(
         Array.isArray(parsedContent.key_points) ? parsedContent.key_points : [],
