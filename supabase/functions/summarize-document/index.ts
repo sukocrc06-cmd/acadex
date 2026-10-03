@@ -2961,14 +2961,46 @@ In addition to the text below, you are shown images of this document's pages. Us
         .update({ processing_stage: 'analyzing' })
         .eq('id', documentId)
 
+      // Per-window extraction quotas.
+      //
+      // These used to be the fixed "5-15 key_terms / 5-12 key_points / 3-6
+      // quiz_questions" below, written when a window was always one SLICE of
+      // a document: several windows each hit the cap, and the merge + dedupe
+      // downstream turned 2x15 candidates into ~24 distinct terms. Once
+      // WINDOW grew to 13000 and a single-chapter upload started landing in
+      // ONE window, that per-slice cap silently became the cap for the whole
+      // document — measured on a 30-page deck whose own glossary lists 25
+      // terms: two windows produced 24/25, one window produced exactly 15.
+      // The window got better (it finally kept "peak"/"trough", which every
+      // two-window run had dropped) while coverage got worse.
+      //
+      // So the quota has to follow what the window actually covers. At
+      // total === 1 the window IS the document and asks for full coverage;
+      // from 2 windows up the original per-slice numbers apply unchanged,
+      // because there the merge step is what reaches full coverage.
+      //
+      // This costs no extra token budget: the single-window run above spent
+      // ~1,400 of its 3,072 completion tokens, so the model was obeying this
+      // prompt's cap, not running out of room. maxCompletionTokens stays at
+      // 3072 and the pacer arithmetic in the WINDOW comment is unaffected.
+      const wholeDocInOneWindow = (total: number) => total === 1
+      // "this part" is a lie when the window is the whole document, and the
+      // model reads it as licence to skip material it thinks belongs to some
+      // other part that does not exist. Every mention of scope in the prompt
+      // goes through this.
+      const scopeWord = (total: number) => wholeDocInOneWindow(total) ? 'the document' : 'this part'
+      const termQuota = (total: number) => wholeDocInOneWindow(total) ? '15-28' : '5-15'
+      const pointQuota = (total: number) => wholeDocInOneWindow(total) ? '10-18' : '5-12'
+      const quizQuota = (total: number) => wholeDocInOneWindow(total) ? '5-10' : '3-6'
+
       // Compact extraction prompt — keeps request under Groq limits
       const compactWindowPrompt = (wi: number, total: number) =>
-        `You extract study material from part ${wi + 1}/${total} of a long academic document.
+        `You extract study material from ${total === 1 ? 'a complete academic document' : `part ${wi + 1}/${total} of a long academic document`}.
 Language for all text fields: ${langLabel}.
 Respond ONLY with JSON:
 {
-  "summary": "5-10 sentences of CONCRETE content from this part only — name real topics, methods, definitions",
-  "summary_executive": "1-2 sentences naming the subject of this part",
+  "summary": "5-10 sentences of CONCRETE content from ${total === 1 ? 'the document' : 'this part only'} — name real topics, methods, definitions",
+  "summary_executive": "1-2 sentences naming the subject of ${total === 1 ? 'the document' : 'this part'}",
   "key_terms": [{"term":"...","definition":"..."}],
   "key_points": ["..."],
   "quiz_questions": [{"question":"...","answer":"..."}],
@@ -2982,15 +3014,17 @@ Respond ONLY with JSON:
   "worked_examples": [{"title":"...","problem_statement":"...","steps":["..."],"final_answer":"..."}]
 }
 Rules:
-- Extract 5-15 key_terms and 5-12 key_points when content allows
-- 3-6 quiz_questions when content allows
+- Extract ${termQuota(total)} key_terms and ${pointQuota(total)} key_points when content allows
+- ${quizQuota(total)} quiz_questions when content allows${total === 1 ? `
+- This is the WHOLE document, not an excerpt: cover every section, and if it ends with a glossary or "review terms" list, every entry on that list must appear in key_terms
+- Keep definitions to one sentence so the full set fits` : ''}
 - NEVER write meta text like "no draft provided" or "qualitative overview"
 - Use real topic names from the text (e.g. supervised learning, neural networks)
 - Ignore grading/attendance/admin text
-- 'tables': only real tabular data actually present in this part — empty array if none, never fabricate
-- 'charts': only chart-worthy numeric data actually present (pick bar for category comparisons, pie for proportions of a whole, line for progression over time) — empty array if none
-- 'diagrams': when short disconnected phrases, stage names, or paired opposing terms in THIS part clearly reconstruct a flowchart/comparison/hierarchy/cycle, rebuild it as valid Mermaid source (flowchart TD/LR, graph TD, sequenceDiagram, or mindmap); at most 1-2 per part; empty array if nothing reconstructible — never invent
-- 'worked_examples': 1-2 solved problems when formulas/calculations are present in this part (prefer the source's own worked numbers); empty array otherwise`
+- 'tables': only real tabular data actually present in ${scopeWord(total)} — empty array if none, never fabricate
+- 'charts': only chart-worthy numeric data actually present in ${scopeWord(total)} (pick bar for category comparisons, pie for proportions of a whole, line for progression over time) — empty array if none
+- 'diagrams': when short disconnected phrases, stage names, or paired opposing terms in ${scopeWord(total)} clearly reconstruct a flowchart/comparison/hierarchy/cycle, rebuild it as valid Mermaid source (flowchart TD/LR, graph TD, sequenceDiagram, or mindmap); at most ${total === 1 ? '2-3' : '1-2'}; empty array if nothing reconstructible — never invent
+- 'worked_examples': 1-2 solved problems when formulas/calculations are present in ${scopeWord(total)} (prefer the source's own worked numbers); empty array otherwise`
 
       // Window size is bounded by this account's tokens-per-minute cap, not by
       // the HTTP payload limit — the 413 comment this constant used to carry
