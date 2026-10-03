@@ -1060,33 +1060,178 @@ function anchorTerms(s: string): string[] {
 type PageSegment = { page: number; terms: Set<string>; head: string }
 
 /**
- * Split extracted text on its "--- SAYFA N ---" / "--- SLAYT N ---" markers
- * into one searchable segment per page. Returns [] when the document has no
- * markers at all (DOCX / plain text), which correctly disables anchoring
- * rather than inventing page numbers for a format that has no pages.
+ * Split extracted text on its "--- SAYFA N ---" / "--- SLAYT N ---" marker
+ * lines into one segment per page, keeping each page's raw body.
+ *
+ * When the document carries no markers at all (DOCX / plain text) this
+ * returns a single segment with page === null rather than an empty list:
+ * such a document still has text worth chunking, it just has no page
+ * concept. Callers that specifically need page numbers (buildPageIndex)
+ * discard that null-page case themselves.
  */
-function buildPageIndex(text: string, pageMarkerLabel: string): PageSegment[] {
-  if (!text) return []
+function splitByPageMarkers(
+  text: string,
+  pageMarkerLabel: string
+): Array<{ page: number | null; body: string }> {
+  if (!text || !text.trim()) return []
   const re = new RegExp(`---\\s*${pageMarkerLabel}\\s+(\\d+)\\s*---`, 'g')
   const hits: Array<{ page: number; start: number; end: number }> = []
   let m: RegExpExecArray | null
   while ((m = re.exec(text)) !== null) {
     hits.push({ page: parseInt(m[1], 10), start: m.index, end: m.index + m[0].length })
   }
-  if (hits.length === 0) return []
-  const segments: PageSegment[] = []
+  if (hits.length === 0) return [{ page: null, body: text }]
+  const out: Array<{ page: number | null; body: string }> = []
   for (let i = 0; i < hits.length; i++) {
-    const body = text.slice(hits[i].end, i + 1 < hits.length ? hits[i + 1].start : text.length)
-    const trimmed = body.trim()
+    out.push({
+      page: hits[i].page,
+      body: text.slice(hits[i].end, i + 1 < hits.length ? hits[i + 1].start : text.length)
+    })
+  }
+  return out
+}
+
+/**
+ * Page index for citation anchoring. Returns [] when the document has no
+ * page markers, which correctly disables anchoring rather than inventing
+ * page numbers for a format that has no pages.
+ */
+function buildPageIndex(text: string, pageMarkerLabel: string): PageSegment[] {
+  const segments: PageSegment[] = []
+  for (const seg of splitByPageMarkers(text, pageMarkerLabel)) {
+    if (seg.page === null) return []   // no page concept for this document
+    const trimmed = seg.body.trim()
     if (!trimmed) continue
     segments.push({
-      page: hits[i].page,
+      page: seg.page,
       terms: new Set(anchorTerms(trimmed)),
       // First non-empty line doubles as a human-readable "reference" label.
       head: (trimmed.split('\n').map(l => l.trim()).find(l => l.length > 3) || '').slice(0, 70)
     })
   }
   return segments
+}
+
+// ==========================================================================
+// CHUNK PERSISTENCE (document_chunks)
+//
+// The extracted text used to be thrown away when this function returned, so
+// chat-with-document re-downloaded and re-parsed the same file on every
+// single message. Persisting it once here ends that, and gives every future
+// feature a stable, addressable unit of the document to point at.
+//
+// Chunk size is deliberately NOT the 7,000-char extraction window size:
+// windows are sized by the model's token budget, chunks by how precisely we
+// want to address a passage. See the migration for the full rationale.
+// ==========================================================================
+const CHUNK_STORE_SIZE = 1200
+
+type StorableChunk = {
+  chunk_index: number
+  page_start: number | null
+  page_end: number | null
+  text: string
+  char_count: number
+}
+
+/**
+ * Paragraph-aware chunks that never span a page boundary, so page_start /
+ * page_end genuinely identify where a passage came from. Several short
+ * consecutive pages (slides, for instance) may share one chunk, in which
+ * case the range covers them; a long page is split into several chunks that
+ * each carry that one page number.
+ */
+function buildStorableChunks(text: string, pageMarkerLabel: string): StorableChunk[] {
+  const out: StorableChunk[] = []
+  let buf: string[] = []
+  let bufLen = 0
+  let bufFirstPage: number | null = null
+  let bufLastPage: number | null = null
+
+  const flush = () => {
+    if (!buf.length) return
+    const joined = buf.join('\n\n').trim()
+    if (joined) {
+      out.push({
+        chunk_index: out.length,
+        page_start: bufFirstPage,
+        page_end: bufLastPage,
+        text: joined,
+        char_count: joined.length
+      })
+    }
+    buf = []; bufLen = 0; bufFirstPage = null; bufLastPage = null
+  }
+
+  for (const seg of splitByPageMarkers(text, pageMarkerLabel)) {
+    const body = seg.body.trim()
+    if (!body) continue
+    const pieces = splitIntoChunks(body, CHUNK_STORE_SIZE)
+
+    if (pieces.length > 1) {
+      // A long page: emit its pieces on their own so each keeps this exact
+      // page number rather than being blended with a neighbouring page.
+      flush()
+      for (const piece of pieces) {
+        const t = piece.trim()
+        if (!t) continue
+        out.push({
+          chunk_index: out.length,
+          page_start: seg.page,
+          page_end: seg.page,
+          text: t,
+          char_count: t.length
+        })
+      }
+      continue
+    }
+
+    // A short page: accumulate with following short pages up to the target.
+    const piece = pieces[0]?.trim()
+    if (!piece) continue
+    if (bufLen > 0 && bufLen + piece.length + 2 > CHUNK_STORE_SIZE) flush()
+    if (!buf.length) bufFirstPage = seg.page
+    bufLastPage = seg.page
+    buf.push(piece)
+    bufLen += piece.length + 2
+  }
+  flush()
+  return out
+}
+
+/**
+ * Best-effort write. A failure here must never fail the summarization job:
+ * the student's study card is the product, stored chunks are an optimisation
+ * and a foundation for later features. Existing rows are deleted first so a
+ * re-processed document replaces its chunks instead of accumulating stale
+ * ones (and so a shorter re-extraction cannot leave orphan tail chunks).
+ */
+async function persistDocumentChunks(
+  serviceClient: any,
+  documentId: string,
+  chunks: StorableChunk[]
+): Promise<{ written: number; error: string | null }> {
+  if (!chunks.length) return { written: 0, error: null }
+  try {
+    const { error: delError } = await serviceClient
+      .from('document_chunks')
+      .delete()
+      .eq('document_id', documentId)
+    if (delError) return { written: 0, error: `delete failed: ${delError.message}` }
+
+    // Batched so a long book does not become one oversized request.
+    const BATCH = 200
+    let written = 0
+    for (let i = 0; i < chunks.length; i += BATCH) {
+      const rows = chunks.slice(i, i + BATCH).map(c => ({ ...c, document_id: documentId }))
+      const { error: insError } = await serviceClient.from('document_chunks').insert(rows)
+      if (insError) return { written, error: `insert failed at ${i}: ${insError.message}` }
+      written += rows.length
+    }
+    return { written, error: null }
+  } catch (e: any) {
+    return { written: 0, error: String(e?.message || e) }
+  }
 }
 
 /** Inverse page frequency: a term on every page discriminates nothing. */
@@ -1513,6 +1658,36 @@ serve(async (req) => {
     // page/slide numbers or to fall back to the old topic/heading reference.
     const hasPageMarkers = mimeType === "application/pdf" || mimeType === "application/vnd.openxmlformats-officedocument.presentationml.presentation"
     const pageMarkerLabel = mimeType === "application/vnd.openxmlformats-officedocument.presentationml.presentation" ? "SLAYT" : "SAYFA"
+
+    // ==========================================================================
+    // PERSIST THE EXTRACTED TEXT (document_chunks)
+    //
+    // This is the only place in the system that has the document's text in a
+    // clean, page-aware form, and it used to throw it away on return — which
+    // is why chat-with-document re-downloaded and re-parsed the same file on
+    // every message. Writing it once here, right after extraction and before
+    // either pipeline branch, means every document gets chunked regardless of
+    // its size or which path summarizes it.
+    //
+    // Deliberately NOT awaited behind a failure path: if this write fails the
+    // student still gets their study card, and chat falls back to extracting
+    // on demand exactly as it does today.
+    // ==========================================================================
+    try {
+      const storable = buildStorableChunks(extractedText, pageMarkerLabel)
+      const { written, error: chunkError } = await persistDocumentChunks(serviceClient, documentId, storable)
+      if (chunkError) {
+        console.warn(`document_chunks: ${chunkError} (ozet akisi etkilenmedi)`)
+      } else {
+        const paged = storable.filter(c => c.page_start !== null).length
+        console.log(
+          `document_chunks: ${written} chunk yazildi ` +
+          `(${paged} tanesi sayfa numarali, ort. ${Math.round(extractedText.length / Math.max(1, written))} krk)`
+        )
+      }
+    } catch (chunkErr) {
+      console.warn('document_chunks: beklenmeyen hata, atlandi:', chunkErr)
+    }
 
     // ==========================================================================
     // VISUAL-DENSITY SIGNAL (Denetim Raporu, 2026-08-31)
