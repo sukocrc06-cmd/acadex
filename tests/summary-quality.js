@@ -19,10 +19,13 @@ const { loadFromSource, makeRunner } = require('./_ts-extract.js');
 
 const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'ANCHOR_STOPWORDS', 'anchorTerms',
+  // token hizlandirici (TPM)
+  'PACER_SAFETY', 'PACER_WINDOW_MS', 'PACER_MAX_WAIT_MS', 'DEFAULT_TPM_LIMIT',
+  'tokenPacer', 'estimateTokens',
   // latex
   'stripLatexDelimiters', 'validateLatex', 'sanitizeFormulas',
   // temellendirme kapisi
-  'GATE_MIN_TERMS_TO_JUDGE', 'GATE_MAX_DROP_SHARE', 'applyGroundingGate',
+  'gateNormalize', 'GATE_MIN_TERMS_TO_JUDGE', 'GATE_MAX_DROP_SHARE', 'applyGroundingGate',
   // yakin kopya
   'NEAR_DUP_THRESHOLD', 'NEAR_DUP_MIN_TERMS', 'NEAR_DUP_STEM_LEN',
   'nearDupStem', 'nearDupTermSet', 'dedupeNearDuplicates'
@@ -194,6 +197,43 @@ test('doğruluk skoru hesaplanir', () => {
   assert.equal(r.stats.score, 50, '1 tuttu / 2 yargilandi = %50');
 });
 
+// --- CANLI LOGDAN GELEN GERCEK VAKALAR (2026-10-04) -------------------------
+// Ilk gercek calistirmada kapi bu uc terimi "uydurma" diye atmisti; ucu de
+// bolumun icinde geciyordu. Sebep tipografik noktalama idi.
+
+test('U+2011 tireli terim atilmaz (Fine-tuning vakasi)', () => {
+  const src = 'The Fed used fine tuning to stabilize the economy. '.repeat(10);
+  const r = A.applyGroundingGate([{ term: 'Fine\u2011tuning' }], [], src);
+  assert.equal(r.key_terms.length, 1, 'U+2011 tire yuzunden atilmamaliydi');
+  assert.equal(r.stats.termsDropped, 0);
+});
+
+test('tire/bosluk farki terimi oldurmez (Goods-and-services vakasi)', () => {
+  const src = 'The goods and services market is one of three market arenas. '.repeat(10);
+  const r = A.applyGroundingGate([{ term: 'Goods\u2011and\u2011services market' }], [], src);
+  assert.equal(r.key_terms.length, 1, 'tire-bosluk farki yuzunden atilmamaliydi');
+});
+
+test('parantezli terim atilmaz (GDP deflator vakasi)', () => {
+  const src = 'The inflation rate measured by the GDP deflator rose sharply. '.repeat(10);
+  const r = A.applyGroundingGate([{ term: 'Inflation rate (GDP deflator)' }], [], src);
+  assert.equal(r.key_terms.length, 1, 'parantezler yuzunden atilmamaliydi');
+});
+
+test('gateNormalize tum tire varyantlarini ayni yere indirger', () => {
+  const want = 'fine tuning';
+  for (const dash of ['\u2010', '\u2011', '\u2012', '\u2013', '\u2014', '-', ' ']) {
+    assert.equal(A.gateNormalize('Fine' + dash + 'tuning'), want, `basarisiz: U+${dash.charCodeAt(0).toString(16)}`);
+  }
+});
+
+test('gateNormalize gercek uydurmayi hala yakaliyor', () => {
+  const src = 'The goods and services market is one of three market arenas. '.repeat(10);
+  const r = A.applyGroundingGate([{ term: 'Fotosentez' }, { term: 'goods and services market' }], [], src);
+  assert.deepEqual(r.key_terms.map(t => t.term), ['goods and services market']);
+  assert.equal(r.stats.termsDropped, 1, 'gercekten gecmeyen terim yine atilmali');
+});
+
 // --- GUVENLIK VALFI: en onemli test -----------------------------------------
 test('GUVENLIK VALFI: kapi cogunu atacaksa HICBIR SEY atmaz', () => {
   const allFake = [
@@ -302,6 +342,78 @@ test('bos ve bozuk girdiler atlanir', () => {
 test('bos dizi guvenli', () => {
   assert.deepEqual(A.dedupeNearDuplicates([], txt), []);
   assert.deepEqual(A.dedupeNearDuplicates(null, txt), []);
+});
+
+console.log('\nTOKEN HIZLANDIRICI (TPM)\n');
+
+function freshPacer(limit) {
+  const p = Object.create(Object.getPrototypeOf(A.tokenPacer));
+  Object.assign(p, A.tokenPacer, { limit, limitKnown: false, spent: [] });
+  return p;
+}
+
+test('8000 TPM de ~5000 tokenlik cagri icin eszamanlilik 1 olur', () => {
+  // Canli logdaki tam senaryo: iki pencere ayni anda atesleniyordu, ikisi de 429 aliyordu
+  assert.equal(freshPacer(8000).safeConcurrency(5000), 1);
+});
+
+test('buyuk plan gercek paralelligi geri aciyor', () => {
+  assert.ok(freshPacer(300000).safeConcurrency(5000) > 1, 'yuksek TPM de paralellik olmali');
+});
+
+test('safeConcurrency asla 0 donmez', () => {
+  assert.equal(freshPacer(8000).safeConcurrency(999999), 1);
+  assert.equal(freshPacer(8000).safeConcurrency(0), 1);
+});
+
+test('used() yalnizca 60 sn penceresini sayar', () => {
+  const p = freshPacer(8000);
+  const now = Date.now();
+  p.spent = [
+    { at: now - 90000, tokens: 5000 },   // pencere disi
+    { at: now - 1000,  tokens: 3000 }    // pencere ici
+  ];
+  assert.equal(p.used(now), 3000, 'eski harcama dusurulmeliydi');
+});
+
+test('Groq header i varsayilan limiti ezer', () => {
+  const p = freshPacer(8000);
+  p.observeHeaders(new Headers({ 'x-ratelimit-limit-tokens': '300000' }));
+  assert.equal(p.limit, 300000);
+  assert.equal(p.limitKnown, true);
+});
+
+test('bozuk header varsayilani bozmaz', () => {
+  const p = freshPacer(8000);
+  p.observeHeaders(new Headers({ 'x-ratelimit-limit-tokens': 'abc' }));
+  assert.equal(p.limit, 8000);
+});
+
+test('butce doluysa acquire BEKLER, bosken beklemez', async () => {
+  const p = freshPacer(8000);
+  let t0 = Date.now();
+  await p.acquire(1000);
+  assert.ok(Date.now() - t0 < 100, 'bos butcede beklememeliydi');
+
+  p.spent = [{ at: Date.now(), tokens: 7900 }];
+  t0 = Date.now();
+  const waiter = p.acquire(3000);
+  await Promise.race([waiter, new Promise(r => setTimeout(r, 400))]);
+  assert.ok(Date.now() - t0 >= 250, 'dolu butcede beklemeliydi');
+});
+
+test('tek cagri butceden buyukse kilitlenmez', async () => {
+  const p = freshPacer(8000);
+  const t0 = Date.now();
+  await p.acquire(99999);   // used===0 kacis yolu
+  assert.ok(Date.now() - t0 < 100, 'sonsuz beklememeliydi');
+});
+
+test('estimateTokens girdiyle birlikte buyur', () => {
+  const a = A.estimateTokens('abc', 'x'.repeat(1000), 1000);
+  const b = A.estimateTokens('abc', 'x'.repeat(10000), 1000);
+  assert.ok(b > a);
+  assert.ok(a >= 1000, 'tamamlama butcesi dahil olmali');
 });
 
 summary();
