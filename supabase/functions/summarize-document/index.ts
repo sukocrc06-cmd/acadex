@@ -327,15 +327,39 @@ function detectAndFormatPdfTables(text: string): string {
 //      now grow with the actual amount of extracted text, per length
 //      preset, up to a sane cap. This applies to every document.
 //   2. For documents whose extracted text exceeds CHUNK_THRESHOLD, we
-//      switch from a single Groq call to a map-reduce pipeline: split the
-//      text into sequential chunks, extract key terms/points/quiz/tables/
-//      charts/formulas/footnotes from EACH chunk independently (so nothing
-//      past character 40,000 is ever skipped), then synthesize one cohesive
-//      final summary from the per-chunk summaries and merge+dedupe the
-//      per-chunk structured data down to the adaptive target counts.
-//      Visual (image) analysis is intentionally skipped for the chunked
-//      path to keep this addition scoped — it only ever applies to the
-//      short-document fast path today anyway.
+//      switch from a single Groq call to a per-window extraction pipeline,
+//      then synthesize one cohesive final summary from the per-window
+//      digests and merge+dedupe the per-window structured data down to the
+//      adaptive target counts. Visual (image) analysis is intentionally
+//      skipped for that path to keep this addition scoped — it only ever
+//      applies to the short-document fast path today anyway.
+//
+// WHICH LONG-DOC CODE ACTUALLY RUNS (read this before trusting the rest):
+//   The live long-document implementation is the "LONG-DOC PATH" block
+//   inside serve(), built on the locally-defined `compactWindowPrompt` and
+//   `extractWindow` (MODEL_HEAVY). It was written to fix Groq 413
+//   payload-too-large errors and it SUPERSEDED an earlier, richer
+//   map-reduce design whose prompt builders are still in this file:
+//
+//     buildChunkSystemPrompt()     — NOT WIRED
+//     buildSynthesisSystemPrompt() — NOT WIRED
+//
+//   Both are deliberately retained, not dead by accident:
+//   tests/map-model-compare.js extracts buildChunkSystemPrompt() from this
+//   source at runtime as the "rich" arm of its prompt comparison, so the
+//   richer schema can be measured (grounding %, page validity, output
+//   counts, latency, tokens) against the live compact prompt on real
+//   documents before we decide whether to promote it. Do not delete them
+//   without also updating that harness; do not assume either one is what
+//   runs in production today.
+//
+//   Promoting the richer schema is gated on the token budget, not on
+//   taste: every extra field competes for the same maxCompletionTokens,
+//   and this account's observed tokens-per-minute cap has been as low as
+//   8,000 (see the draftTiers and review-tier comments further down). The
+//   same constraint is why concept_graph was added, measured as thinner,
+//   and correctly reverted — and why citations are now computed
+//   deterministically in anchorCitations() instead of being prompted for.
 // ==========================================================================
 
 // CHUNK_THRESHOLD used to be 18000, on the assumption that anything under
@@ -450,19 +474,32 @@ function splitIntoChunks(text: string, targetChunkSize: number): string[] {
   return chunks.length > 0 ? chunks : [text]
 }
 
-async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
-  const results: R[] = new Array(items.length)
-  let nextIndex = 0
-  async function worker() {
-    while (true) {
-      const i = nextIndex++
-      if (i >= items.length) return
-      results[i] = await fn(items[i], i)
-    }
+/**
+ * Window builder for the live long-document path.
+ *
+ * The long-doc loop used to window by raw character offset
+ * (`extractedText.slice(start, start + WINDOW)`). Measured against real
+ * Turkish prose from this repo, that cut 92% of window boundaries
+ * mid-sentence and 67% mid-WORD — each boundary handing the model a
+ * fragment like "...provide generat | ive AI functions", which is exactly
+ * the kind of garbled input that produces vague key points.
+ *
+ * splitIntoChunks() above already solves this (paragraph-aware, and
+ * "--- SAYFA N ---" markers sit on their own lines so they survive as
+ * boundaries), but on its own it can emit a chunk up to 1.5x the target
+ * when a single paragraph is oversized — 50% more input tokens per call
+ * than the old behaviour, which this account's tokens-per-minute cap
+ * cannot absorb. So the paragraph-aware split is followed by a hard cap at
+ * `maxChars`, guaranteeing per-window token cost never exceeds what the
+ * char-offset version already spent.
+ */
+function splitIntoWindows(text: string, maxChars: number, maxWindows: number): string[] {
+  const out: string[] = []
+  for (const chunk of splitIntoChunks(text, maxChars)) {
+    if (chunk.length <= maxChars) { out.push(chunk); continue }
+    for (let i = 0; i < chunk.length; i += maxChars) out.push(chunk.slice(i, i + maxChars))
   }
-  const workerCount = Math.max(1, Math.min(limit, items.length))
-  await Promise.all(Array.from({ length: workerCount }, () => worker()))
-  return results
+  return out.slice(0, maxWindows)
 }
 
 type GroqJsonOpts = {
@@ -934,17 +971,12 @@ function roundRobinInterleave<T>(lists: T[][]): T[] {
   return out
 }
 
-function remapChunkFootnotes(chunkResult: any, idOffset: number): { footnotes: any[]; idMap: Record<number, number> } {
-  const footnotesArr = Array.isArray(chunkResult.footnotes) ? chunkResult.footnotes : []
-  const idMap: Record<number, number> = {}
-  const remapped = footnotesArr.map((fn: any, i: number) => {
-    const oldId = fn?.id
-    const newId = idOffset + i + 1
-    if (oldId != null) idMap[oldId] = newId
-    return { id: newId, reference: fn?.reference || `Reference ${newId}`, page: (typeof fn?.page === 'number' && Number.isFinite(fn.page)) ? fn.page : null }
-  })
-  return { footnotes: remapped, idMap }
-}
+// (remapChunkFootnotes was removed on 2026-10-03: it renumbered footnotes
+// per-chunk with an offset, which only made sense while each chunk produced
+// its own footnotes. Citations are now derived centrally in
+// anchorCitations() from the page index, so a single dense renumbering
+// there replaces it. applyFootnoteRemap below is still used — by that
+// function and by the summary remap at the call site.)
 
 function applyFootnoteRemap(text: string, idMap: Record<number, number>): string {
   if (!text) return text
@@ -967,6 +999,233 @@ function buildFootnotePageInstruction(hasPageMarkers: boolean, pageMarkerLabel: 
     return `The source text contains markers in the form "--- ${pageMarkerLabel} N ---" marking where each ${unitWord} begins. For every footnote, set "page" to the N of the marker that appears immediately BEFORE the claim in the source text — this must be a real number copied from an actual marker you saw, never guessed or estimated. Still also write a short "reference" description as before (e.g. 'Introduction section').`
   }
   return `This document has no page/slide markers available, so set "page" to null for every footnote and continue describing the topical section or heading area in "reference" as before.`
+}
+
+// ==========================================================================
+// DETERMINISTIC PAGE ANCHORING (citations without spending model tokens)
+//
+// Why this exists, and why it is NOT another prompt instruction:
+//
+//   The long-document path used to ship `footnotes: []` hardcoded — long
+//   documents got no citations at all. The obvious fix (add a "footnotes"
+//   field to compactWindowPrompt's JSON schema and ask the model for them)
+//   is the SAME mistake that was already made and correctly reverted for
+//   concept_graph (see the merge block below): every extra schema field
+//   competes for the same `maxCompletionTokens` budget, so the model pays
+//   for citations by returning fewer key terms/points — and on an account
+//   whose observed tokens-per-minute cap is as low as 8,000, extra output
+//   tokens also push window calls into 429 territory.
+//
+//   Worse, a model-reported page number is unverifiable: nothing checked
+//   that the page it named actually contains the claim. A footnote that
+//   jumps the PDF viewer to the wrong page is worse than no footnote,
+//   because the student stops trusting every citation on the card.
+//
+//   So citations are COMPUTED here instead, from text we already have:
+//   the "--- SAYFA N ---" / "--- SLAYT N ---" markers inserted at
+//   extraction time give us a page->text index, and each claim is matched
+//   against that index by inverse-page-frequency-weighted term overlap.
+//   Cost: zero extra model tokens, zero extra API calls. A page number
+//   produced this way is one where the claim's distinctive vocabulary
+//   demonstrably appears, so "page 7" means page 7 really discusses it.
+//
+//   The same index also VALIDATES the short/fast path's model-produced
+//   footnote pages, which were previously trusted blind.
+// ==========================================================================
+
+// Terms this common carry no signal about WHICH page a claim came from.
+const ANCHOR_STOPWORDS = new Set([
+  // Turkish
+  'ancak', 'ayrıca', 'bunun', 'burada', 'çünkü', 'daha', 'değil', 'diğer', 'fakat',
+  'gibi', 'göre', 'için', 'ile', 'olan', 'olarak', 'olduğu', 'olur', 'sonra', 'şekilde',
+  'bütün', 'böyle', 'kadar', 'sadece', 'tüm', 'üzerinde', 'vardır', 'veya', 'yani',
+  'bazı', 'birlikte', 'eğer', 'hem', 'ise', 'yine', 'çok', 'önemli', 'bölüm', 'konu',
+  // English
+  'about', 'after', 'also', 'because', 'been', 'between', 'both', 'does', 'each',
+  'from', 'have', 'however', 'into', 'more', 'most', 'other', 'should', 'such',
+  'than', 'that', 'their', 'then', 'there', 'these', 'this', 'those', 'through',
+  'under', 'when', 'where', 'which', 'while', 'will', 'with', 'would', 'they',
+  'important', 'section', 'chapter', 'example', 'following'
+])
+
+/** Content-bearing terms of a string: >=4 chars, not a stopword, diacritics kept. */
+function anchorTerms(s: string): string[] {
+  return String(s == null ? '' : s)
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .split(/\s+/)
+    .filter(w => w.length >= 4 && !ANCHOR_STOPWORDS.has(w))
+}
+
+type PageSegment = { page: number; terms: Set<string>; head: string }
+
+/**
+ * Split extracted text on its "--- SAYFA N ---" / "--- SLAYT N ---" markers
+ * into one searchable segment per page. Returns [] when the document has no
+ * markers at all (DOCX / plain text), which correctly disables anchoring
+ * rather than inventing page numbers for a format that has no pages.
+ */
+function buildPageIndex(text: string, pageMarkerLabel: string): PageSegment[] {
+  if (!text) return []
+  const re = new RegExp(`---\\s*${pageMarkerLabel}\\s+(\\d+)\\s*---`, 'g')
+  const hits: Array<{ page: number; start: number; end: number }> = []
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text)) !== null) {
+    hits.push({ page: parseInt(m[1], 10), start: m.index, end: m.index + m[0].length })
+  }
+  if (hits.length === 0) return []
+  const segments: PageSegment[] = []
+  for (let i = 0; i < hits.length; i++) {
+    const body = text.slice(hits[i].end, i + 1 < hits.length ? hits[i + 1].start : text.length)
+    const trimmed = body.trim()
+    if (!trimmed) continue
+    segments.push({
+      page: hits[i].page,
+      terms: new Set(anchorTerms(trimmed)),
+      // First non-empty line doubles as a human-readable "reference" label.
+      head: (trimmed.split('\n').map(l => l.trim()).find(l => l.length > 3) || '').slice(0, 70)
+    })
+  }
+  return segments
+}
+
+/** Inverse page frequency: a term on every page discriminates nothing. */
+function buildAnchorIdf(pageIndex: PageSegment[]): Map<string, number> {
+  const df = new Map<string, number>()
+  for (const seg of pageIndex) {
+    for (const t of seg.terms) df.set(t, (df.get(t) || 0) + 1)
+  }
+  const N = Math.max(1, pageIndex.length)
+  const idf = new Map<string, number>()
+  for (const [t, d] of df) idf.set(t, Math.log((N + 1) / (d + 0.5)))
+  return idf
+}
+
+// Precision-first thresholds: a missing citation is a small loss, a wrong one
+// costs the student's trust in every other citation on the card.
+const ANCHOR_MIN_SCORE = 0.42   // share of the claim's weighted vocabulary found on the page
+const ANCHOR_MIN_TERMS = 3      // distinct matched content terms
+
+/**
+ * Best page for a single claim, or null when no page matches it well enough.
+ * Score = matched idf weight / total idf weight of the claim's own terms.
+ */
+function anchorClaimToPage(
+  claim: string,
+  pageIndex: PageSegment[],
+  idf: Map<string, number>
+): { page: number; score: number; matched: number; head: string } | null {
+  if (!pageIndex.length) return null
+  const terms = [...new Set(anchorTerms(claim))]
+  if (terms.length === 0) return null
+  const totalWeight = terms.reduce((a, t) => a + (idf.get(t) ?? Math.log(pageIndex.length + 1)), 0)
+  if (totalWeight <= 0) return null
+
+  let best: { page: number; score: number; matched: number; head: string } | null = null
+  for (const seg of pageIndex) {
+    let w = 0, matched = 0
+    for (const t of terms) {
+      if (seg.terms.has(t)) { w += (idf.get(t) ?? 0); matched++ }
+    }
+    if (matched === 0) continue
+    const score = w / totalWeight
+    // Strictly-greater keeps the EARLIEST page on a tie, which is where a
+    // topic is normally introduced.
+    if (!best || score > best.score) best = { page: seg.page, score, matched, head: seg.head }
+  }
+  if (!best) return null
+  if (best.matched < ANCHOR_MIN_TERMS || best.score < ANCHOR_MIN_SCORE) return null
+  return best
+}
+
+/**
+ * Single citation step for BOTH pipelines, run once just before the study
+ * card is saved:
+ *   1. Validate footnote pages the model produced (fast path) — a page the
+ *      index cannot corroborate is demoted to null instead of sending the
+ *      student's PDF viewer somewhere wrong.
+ *   2. Compute footnotes for key_points that carry no marker yet (this is
+ *      what finally gives long documents citations), appending "[n]" to the
+ *      point text so the existing formatFootnoteMarkers()/jumpToFootnote()
+ *      front-end path renders and links them with no UI change at all.
+ * Returns new arrays; never mutates its inputs.
+ */
+function anchorCitations(
+  keyPoints: any[],
+  existingFootnotes: any[],
+  pageIndex: PageSegment[],
+  lang: string
+): { key_points: any[]; footnotes: any[]; idMap: Record<number, number>; stats: Record<string, number> } {
+  const incoming = Array.isArray(existingFootnotes) ? existingFootnotes : []
+  const stats = { kept: 0, demoted: 0, added: 0, skipped: 0 }
+
+  const readText = (raw: any) => typeof raw === 'string' ? raw : String(raw?.text || raw?.point || '')
+  const writeText = (raw: any, text: string) =>
+    typeof raw === 'string' ? text : { ...raw, text }
+
+  // Footnote ids are reassigned to a dense 1..n sequence below, so any "[n]"
+  // markers the model already embedded in key_points (and in the summary,
+  // which the caller remaps with the returned idMap) must be rewritten to
+  // match. Without this, a model that emitted ids out of order or with gaps
+  // — which it is free to do — would leave every marker pointing at the
+  // wrong footnote, i.e. at the wrong page. This is what applyFootnoteRemap
+  // is for; it runs BEFORE any new markers are appended, so the ids this
+  // function allocates afterwards cannot collide with remapped ones.
+  const idMap: Record<number, number> = {}
+  incoming.forEach((fn: any, i: number) => {
+    if (fn?.id != null) idMap[Number(fn.id)] = i + 1
+  })
+  const points = (Array.isArray(keyPoints) ? keyPoints : []).map(raw =>
+    writeText(raw, applyFootnoteRemap(readText(raw), idMap))
+  )
+
+  if (!pageIndex.length) {
+    // No page concept for this format (DOCX / plain text) — keep the
+    // footnotes but strip page numbers we cannot corroborate, rather than
+    // letting the viewer jump somewhere arbitrary.
+    const cleaned = incoming.map((fn: any, i: number) => ({
+      id: i + 1,
+      reference: fn?.reference || `Reference ${i + 1}`,
+      page: null
+    }))
+    stats.demoted = incoming.filter((fn: any) => typeof fn?.page === 'number').length
+    stats.kept = cleaned.length
+    return { key_points: points, footnotes: cleaned, idMap, stats }
+  }
+
+  const idf = buildAnchorIdf(pageIndex)
+  const validPages = new Set(pageIndex.map(s => s.page))
+  const out: any[] = []
+
+  // --- 1. Carry over the model's footnotes, verifying their page numbers ---
+  for (const fn of incoming) {
+    const id = out.length + 1
+    const claimedPage = (typeof fn?.page === 'number' && Number.isFinite(fn.page)) ? fn.page : null
+    let page: number | null = null
+    if (claimedPage !== null && validPages.has(claimedPage)) { page = claimedPage; stats.kept++ }
+    else if (claimedPage !== null) { stats.demoted++ }
+    out.push({ id, reference: fn?.reference || `Reference ${id}`, page })
+  }
+
+  // --- 2. Anchor key_points that carry no marker yet ---
+  const labelFor = (seg: { head: string; page: number }) =>
+    seg.head || (lang === 'tr' ? `Sayfa ${seg.page}` : `Page ${seg.page}`)
+
+  for (let i = 0; i < points.length; i++) {
+    const text = readText(points[i])
+    if (!text.trim()) continue
+    if (/\[\d+\]/.test(text)) continue // already cited — leave it alone
+
+    const hit = anchorClaimToPage(text, pageIndex, idf)
+    if (!hit) { stats.skipped++; continue }
+
+    const id = out.length + 1
+    out.push({ id, reference: labelFor(hit), page: hit.page })
+    points[i] = writeText(points[i], `${text.replace(/\s+$/, '')} [${id}]`)
+    stats.added++
+  }
+
+  return { key_points: points, footnotes: out, idMap, stats }
 }
 
 serve(async (req) => {
@@ -1894,11 +2153,12 @@ Rules:
       // adding more windows once time is genuinely short — that check is
       // what should decide "when to stop", not a fixed window count guessed
       // in advance.
-      const windows: string[] = []
-      for (let start = 0; start < extractedText.length && windows.length < MAX_CHUNKS; start += WINDOW) {
-        windows.push(extractedText.slice(start, start + WINDOW))
-      }
-      console.log(`Long-doc compact: ${windows.length} window(s), totalChars=${extractedText.length}`)
+      const windows: string[] = splitIntoWindows(extractedText, WINDOW, MAX_CHUNKS)
+      const windowedChars = windows.reduce((n, w) => n + w.length, 0)
+      console.log(
+        `Long-doc compact: ${windows.length} window(s), totalChars=${extractedText.length}, ` +
+        `windowedChars=${windowedChars} (${Math.round(100 * windowedChars / Math.max(1, extractedText.length))}% of document reachable)`
+      )
 
       async function extractWindow(wi: number, text: string): Promise<any | null> {
         let payload = text
@@ -2004,10 +2264,22 @@ Rules:
         })
       }
 
-      const mergedKeyTerms = dedupeKeyTerms(windowResults.flatMap(r => Array.isArray(r.key_terms) ? r.key_terms : [])).slice(0, 40)
-      const mergedKeyPoints = dedupeByText(windowResults.flatMap(r => Array.isArray(r.key_points) ? r.key_points : []), (x: string) => x).slice(0, 35)
-      const mergedQuiz = dedupeByText(windowResults.flatMap(r => Array.isArray(r.quiz_questions) ? r.quiz_questions : []), (q: any) => q?.question || '').slice(0, 20)
-      const mergedFormulas = windowResults.flatMap(r => Array.isArray(r.formulas) ? r.formulas : []).slice(0, 30)
+      // FAIR MERGE ACROSS WINDOWS.
+      // These merges used to flatMap in window order and then slice to a cap.
+      // Because each window returns 5-15 key terms, the 40-item cap was
+      // typically filled by windows 1-3 and every later window's extractions
+      // were silently discarded at the slice — the back of the document lost
+      // its terms even when its windows HAD been analyzed successfully.
+      // roundRobinInterleave (already in this file, previously unwired) takes
+      // one item per window per pass instead, so a cap now trims the tail of
+      // every window evenly rather than deleting the last windows entirely.
+      const perWindow = (key: string) =>
+        windowResults.map((r: any) => Array.isArray(r[key]) ? r[key] : [])
+
+      const mergedKeyTerms = dedupeKeyTerms(roundRobinInterleave(perWindow('key_terms'))).slice(0, 40)
+      const mergedKeyPoints = dedupeByText(roundRobinInterleave(perWindow('key_points')), (x: string) => x).slice(0, 35)
+      const mergedQuiz = dedupeByText(roundRobinInterleave(perWindow('quiz_questions')), (q: any) => q?.question || '').slice(0, 20)
+      const mergedFormulas = roundRobinInterleave(perWindow('formulas')).slice(0, 30)
       const quantFraction = windowResults.filter(r => r.is_quantitative).length / Math.max(1, windowResults.length)
       // Denetim Raporu, 2026-08-31 — ROOT-CAUSE FIX: this long-doc path used to
       // hardcode tables/charts/diagrams/worked_examples to empty arrays below
@@ -2017,19 +2289,19 @@ Rules:
       // table/diagram sometimes reappears if a slide repeats) and the same
       // "cap at N" pattern already used for terms/points/quiz above.
       const mergedTables = dedupeByText(
-        windowResults.flatMap(r => Array.isArray(r.tables) ? r.tables : []),
+        roundRobinInterleave(perWindow('tables')),
         (t: any) => t?.title || ''
       ).filter((t: any) => t && t.title && Array.isArray(t.rows) && t.rows.length > 0).slice(0, 12)
       const mergedCharts = dedupeByText(
-        windowResults.flatMap(r => Array.isArray(r.charts) ? r.charts : []),
+        roundRobinInterleave(perWindow('charts')),
         (c: any) => c?.title || ''
       ).filter((c: any) => c && c.title && Array.isArray(c.data) && c.data.length > 0).slice(0, 10)
       const mergedDiagrams = dedupeByText(
-        windowResults.flatMap(r => Array.isArray(r.diagrams) ? r.diagrams : []),
+        roundRobinInterleave(perWindow('diagrams')),
         (d: any) => d?.title || ''
       ).filter((d: any) => d && d.title && d.mermaid).slice(0, 8)
       const mergedWorkedExamples = dedupeByText(
-        windowResults.flatMap(r => Array.isArray(r.worked_examples) ? r.worked_examples : []),
+        roundRobinInterleave(perWindow('worked_examples')),
         (w: any) => w?.title || w?.problem_statement || ''
       ).filter((w: any) => w && (w.title || w.problem_statement)).slice(0, 10)
       // Denetim Raporu, 2026-08-31: attempted to restore "Kavram Grafiği"
@@ -2038,8 +2310,31 @@ Rules:
       // back noticeably thinner (fewer terms/points/quiz) than the prior
       // confirmed-good run — kökten çözmeden önce şüpheli değişikliği geri
       // almak, belirsiz bir teoriyle üstüne inşa etmekten daha güvenli.
-      // concept_graph stays hardcoded empty below, matching the last known-
-      // good state, until this is revisited with real log evidence.
+      //
+      // 2026-10-03 — THE ROOT CAUSE IS NOW IDENTIFIED, and it confirms that
+      // revert was right. Each window call runs under a fixed
+      // maxCompletionTokens (3072) against an account whose observed Groq
+      // tokens-per-minute cap is as low as 8,000. Adding a schema field does
+      // not buy extra output budget; the model pays for the new field out of
+      // the same completion allowance, so concept_graph's nodes/edges were
+      // funded by returning fewer key terms/points/quiz. "Thinner output"
+      // was not noise — it is the arithmetic.
+      //
+      // So concept_graph deliberately STAYS empty on this path. The fix is
+      // not a prompt tweak; it needs either (a) resumable multi-invocation
+      // processing so a window's extraction is not competing for one
+      // completion budget, or (b) one dedicated graph pass over the already
+      // merged key terms, which costs a single extra call instead of taxing
+      // every window. Do not re-add it to compactWindowPrompt's schema
+      // without one of those in place first.
+      //
+      // Note the contrast with footnotes: those were ALSO absent from this
+      // path, and were restored WITHOUT touching the schema at all, by
+      // computing page anchors from the "--- SAYFA N ---" index after the
+      // fact (anchorCitations(), called once before the study card is
+      // saved). Zero extra tokens, and the page numbers are verifiable.
+      // concept_graph has no equivalent purely-textual derivation, which is
+      // exactly why it is the one field still waiting.
 
       let bestSummary = windowResults.map(r => String(r.summary || '')).filter(s => s.length > 40).join('\n\n')
       let bestExec = String(windowResults[0]?.summary_executive || '')
@@ -2680,6 +2975,38 @@ Fix the listed issues. Remove hallucinations and admin noise. Keep ${langLabel}.
         parsedContent.summary_executive = termList.slice(0, 200)
         console.warn('HOTFIX: replaced meta summary, kept extractions')
       }
+    }
+
+    // ==========================================================================
+    // STEP 3.5 — CITATION ANCHORING (both pipelines meet here)
+    //
+    // Runs once, after whichever path produced `parsedContent`, so the fast
+    // path gets its model-reported footnote pages VERIFIED and the long-doc
+    // path — which ships `footnotes: []` because asking each window for them
+    // would eat the completion-token budget it needs for key terms/points —
+    // finally gets citations at all. See buildPageIndex/anchorCitations above
+    // for why this is computed rather than prompted.
+    // ==========================================================================
+    {
+      const pageIndex = buildPageIndex(extractedText, pageMarkerLabel)
+      const anchored = anchorCitations(
+        Array.isArray(parsedContent.key_points) ? parsedContent.key_points : [],
+        Array.isArray(parsedContent.footnotes) ? parsedContent.footnotes : [],
+        pageIndex,
+        lang
+      )
+      parsedContent.key_points = anchored.key_points
+      parsedContent.footnotes = anchored.footnotes
+      // Footnote ids were renumbered to a dense sequence, so markers already
+      // embedded in the summary text have to follow them.
+      if (typeof parsedContent.summary === 'string') {
+        parsedContent.summary = applyFootnoteRemap(parsedContent.summary, anchored.idMap)
+      }
+      console.log(
+        `Citation anchoring: pages=${pageIndex.length} ` +
+        `kept=${anchored.stats.kept} demoted=${anchored.stats.demoted} ` +
+        `added=${anchored.stats.added} unanchored=${anchored.stats.skipped}`
+      )
     }
 
     // ==========================================================================
