@@ -178,6 +178,147 @@ async function loadStoredText(serviceClient: any, documentId: string): Promise<s
   }
 }
 
+// ==========================================================================
+// RETRIEVAL — send the passages that answer the question, not the document
+//
+// The old behaviour assembled the whole document and cut it at 100,000
+// characters (~45 dense pages). On a longer source a question about page 70
+// reached a model that had never been shown page 70, so it answered "this
+// isn't in the source" — the one failure mode a grounded Q&A feature must
+// not have, because it is indistinguishable from an honest "not found".
+//
+// Now: for documents that do not fit, rank the stored chunks against the
+// question (Postgres full-text, see the 20261003b migration) and send the
+// best ones. Documents that DO fit are sent whole exactly as before, so the
+// common case has no behaviour change at all.
+// ==========================================================================
+
+// Below this, send the whole document — retrieval can only lose context when
+// everything already fits.
+const WHOLE_DOC_MAX_CHARS = 50000
+// Budget for assembled retrieved passages. Deliberately well under the old
+// 100,000: relevance-ranked 50k beats an arbitrary first-50k prefix, and a
+// smaller prompt is faster, cheaper, and easier on the account's
+// tokens-per-minute cap.
+const RETRIEVED_MAX_CHARS = 50000
+const RETRIEVED_MAX_CHUNKS = 40
+
+// Words too common to tell one passage from another. Short list on purpose:
+// ts_rank already discounts frequent terms, this just keeps the query tidy.
+const QUERY_STOPWORDS = new Set([
+  'nedir', 'nasil', 'nasıl', 'nicin', 'niçin', 'neden', 'hangi', 'kimdir',
+  'misin', 'mısın', 'bana', 'bunu', 'sunu', 'şunu', 'bunlar', 'daha', 'gibi',
+  'icin', 'için', 'ile', 'olan', 'olarak', 'anlat', 'aciklar', 'açıklar',
+  'aciklama', 'açıklama', 'ozetle', 'özetle', 'soyle', 'söyle', 'lutfen',
+  'lütfen', 'kisaca', 'kısaca', 'yukarida', 'yukarıda', 'belge', 'belgede',
+  'kaynak', 'kaynakta', 'sayfa', 'konu', 'hakkinda', 'hakkında',
+  'what', 'which', 'where', 'when', 'explain', 'about', 'please', 'tell',
+  'does', 'this', 'that', 'from', 'with', 'document', 'source', 'page'
+])
+
+/**
+ * Turn a student's question into tsquery syntax: an OR of its content words.
+ *
+ * OR rather than AND on purpose — websearch_to_tsquery() ANDs terms, which
+ * on a full sentence ("marjinal maliyet egrisi neden U biciminde?") matches
+ * nothing at all. ORing and letting ts_rank_cd sort by how many terms hit
+ * gives recall first and precision from the ranking.
+ *
+ * Everything that is not a letter or digit is stripped before the terms are
+ * joined, so no user input can reach to_tsquery as operator syntax — a
+ * question containing "&", "|", "!" or "(" cannot change the query's shape
+ * or break it.
+ */
+function buildChunkTsQuery(questionText: string): string | null {
+  const terms = String(questionText || '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .split(/\s+/)
+    .filter(w => w.length >= 3 && !QUERY_STOPWORDS.has(w))
+  const unique = [...new Set(terms)].slice(0, 24)
+  if (unique.length === 0) return null
+  return unique.join(' | ')
+}
+
+/** Per-document chunk sizes, cheap enough to ask before deciding strategy. */
+async function loadChunkSizes(
+  serviceClient: any,
+  documentId: string
+): Promise<{ count: number; totalChars: number } | null> {
+  try {
+    const { data, error } = await serviceClient
+      .from('document_chunks')
+      .select('char_count')
+      .eq('document_id', documentId)
+    if (error || !data || data.length === 0) return null
+    return {
+      count: data.length,
+      totalChars: data.reduce((n: number, r: any) => n + (Number(r.char_count) || 0), 0)
+    }
+  } catch (_e) {
+    return null
+  }
+}
+
+/**
+ * Rank a document's chunks against the question. Returns [] when nothing
+ * matched and null when the search itself was unavailable (RPC missing
+ * because the migration has not been run yet, for instance) — the caller
+ * treats those differently: no matches is an answer, an unavailable search
+ * means fall back to sending the document.
+ */
+async function retrieveRelevantChunks(
+  serviceClient: any,
+  documentIds: string[],
+  tsquery: string
+): Promise<any[] | null> {
+  try {
+    const { data, error } = await serviceClient.rpc('search_document_chunks', {
+      p_document_ids: documentIds,
+      p_tsquery: tsquery,
+      p_limit: RETRIEVED_MAX_CHUNKS
+    })
+    if (error) {
+      console.warn(`search_document_chunks unavailable (${error.message}) — falling back to whole document`)
+      return null
+    }
+    return Array.isArray(data) ? data : []
+  } catch (e) {
+    console.warn('search_document_chunks threw, falling back:', e)
+    return null
+  }
+}
+
+/**
+ * Assemble retrieved chunks into prompt context.
+ *
+ * Selection is by relevance, but the assembled text is re-sorted into
+ * READING order: a model handed passages in rank order sees page 70 before
+ * page 12 and reasons about the document as if it were shuffled. Page labels
+ * are included so the model can say where an answer came from.
+ */
+function assembleRetrieved(rows: any[], charBudget: number): { text: string; used: number; pages: number[] } {
+  const picked: any[] = []
+  let used = 0
+  for (const r of rows) {
+    const t = String(r?.text || '')
+    if (!t) continue
+    if (used + t.length > charBudget && picked.length > 0) break
+    picked.push(r)
+    used += t.length
+  }
+  picked.sort((a, b) => (a.chunk_index ?? 0) - (b.chunk_index ?? 0))
+  const pages: number[] = []
+  const parts = picked.map(r => {
+    const ps = (typeof r.page_start === 'number') ? r.page_start : null
+    const pe = (typeof r.page_end === 'number') ? r.page_end : null
+    if (ps !== null && !pages.includes(ps)) pages.push(ps)
+    const label = ps === null ? '' : (pe !== null && pe !== ps ? `[Sayfa ${ps}-${pe}]\n` : `[Sayfa ${ps}]\n`)
+    return `${label}${String(r.text || '').trim()}`
+  })
+  return { text: parts.join('\n\n'), used, pages }
+}
+
 async function extractDocumentText(serviceClient: any, doc: any): Promise<string> {
   const { data: fileBlob, error: downloadError } = await serviceClient.storage
     .from('documents')
@@ -420,49 +561,102 @@ serve(async (req) => {
       })
     }
 
-    const sections: string[] = []
-    let storedHits = 0
-    let extractedHits = 0
-    for (const doc of docs) {
-      try {
-        // Stored chunks first; on-demand extraction only for documents that
-        // predate document_chunks (or whose write failed).
-        let text = await loadStoredText(serviceClient, doc.id)
+    // ========================================================================
+    // SOURCE TEXT STRATEGY
+    //
+    //   small enough  -> send the whole document (unchanged behaviour)
+    //   too large     -> rank chunks against the question, send the best
+    //   no chunks yet -> extract on demand, truncate (pre-migration docs)
+    //
+    // Every branch falls back toward the older, simpler behaviour rather than
+    // failing the student's question.
+    // ========================================================================
+    type ChunkSize = { count: number; totalChars: number } | null
+    const sizes: ChunkSize[] = await Promise.all(
+      docs.map((d: any) => loadChunkSizes(serviceClient, d.id))
+    )
+    const allChunked = sizes.every((s: ChunkSize) => s !== null)
+    const totalChunkChars = sizes.reduce((n: number, s: ChunkSize) => n + (s?.totalChars || 0), 0)
+
+    // The question being asked, plus the previous question for follow-ups
+    // like "peki onun formülü?" whose own words name nothing searchable.
+    const userTurns = messages.filter((m: any) => m?.role === 'user' && typeof m?.content === 'string')
+    const latestQuestion = String(userTurns[userTurns.length - 1]?.content || '')
+    const priorQuestion = String(userTurns[userTurns.length - 2]?.content || '')
+    const retrievalQuery = buildChunkTsQuery(`${latestQuestion} ${priorQuestion}`.trim())
+
+    let sourceText = ''
+    let strategy = 'none'
+
+    if (allChunked && totalChunkChars > WHOLE_DOC_MAX_CHARS && retrievalQuery) {
+      const rows = await retrieveRelevantChunks(serviceClient, docIds, retrievalQuery)
+      if (rows && rows.length > 0) {
+        const { text, used, pages } = assembleRetrieved(rows, RETRIEVED_MAX_CHARS)
         if (text) {
-          storedHits++
-        } else {
-          text = await extractDocumentText(serviceClient, doc)
-          if (text) extractedHits++
+          sourceText = text
+          strategy = 'retrieval'
+          console.log(
+            `chat-with-document: retrieval — ${rows.length} chunk matched, ` +
+            `${Math.min(rows.length, RETRIEVED_MAX_CHUNKS)} ranked, ${used} chars sent ` +
+            `(document total ${totalChunkChars}), pages=[${pages.slice(0, 12).join(', ')}]`
+          )
         }
-        if (text) {
-          sections.push(docs.length > 1 ? `=== DOCUMENT: ${doc.file_name} ===\n${text}` : text)
-        }
-      } catch (extractErr) {
-        console.error('Text extraction failed for doc', doc.id, extractErr)
+      } else if (rows && rows.length === 0) {
+        // The search ran and genuinely matched nothing. Sending the whole
+        // (large) document is still better than answering from nothing, and
+        // the model's own grounding rule handles "not in the source".
+        console.log('chat-with-document: retrieval matched 0 chunks — sending document head instead')
       }
     }
-    console.log(`chat-with-document source text: ${storedHits} from document_chunks, ${extractedHits} re-extracted`)
 
-    if (sections.length === 0) {
-      return new Response(JSON.stringify({ error: 'No readable text could be extracted from the source document(s).' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
+    if (!sourceText) {
+      const sections: string[] = []
+      let storedHits = 0
+      let extractedHits = 0
+      for (const doc of docs) {
+        try {
+          // Stored chunks first; on-demand extraction only for documents that
+          // predate document_chunks (or whose write failed).
+          let text = await loadStoredText(serviceClient, doc.id)
+          if (text) {
+            storedHits++
+          } else {
+            text = await extractDocumentText(serviceClient, doc)
+            if (text) extractedHits++
+          }
+          if (text) {
+            sections.push(docs.length > 1 ? `=== DOCUMENT: ${doc.file_name} ===\n${text}` : text)
+          }
+        } catch (extractErr) {
+          console.error('Text extraction failed for doc', doc.id, extractErr)
+        }
+      }
+
+      if (sections.length === 0) {
+        return new Response(JSON.stringify({ error: 'No readable text could be extracted from the source document(s).' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+
+      sourceText = sections.join('\n\n')
+      strategy = storedHits > 0 ? 'whole-document (stored)' : 'whole-document (extracted)'
+
+      // Safety net for a document that is large AND could not be served by
+      // retrieval (no chunks, or the search was unavailable). Still a cut,
+      // but now only on the path that has no better option.
+      const MAX_CHARS = 100000
+      if (sourceText.length > MAX_CHARS) {
+        console.warn(`chat-with-document: source text (${sourceText.length} chars) exceeds ${MAX_CHARS}, truncating.`)
+        const truncated = sourceText.substring(0, MAX_CHARS)
+        const lastBoundary = Math.max(truncated.lastIndexOf(". "), truncated.lastIndexOf(".\n"), truncated.lastIndexOf("\n"))
+        sourceText = lastBoundary > MAX_CHARS - 3000 ? truncated.substring(0, lastBoundary + 1) : truncated
+        strategy += ' + truncated'
+      }
+      console.log(`chat-with-document source text: ${storedHits} from document_chunks, ${extractedHits} re-extracted`)
     }
 
-    let sourceText = sections.join('\n\n')
-    // openai/gpt-oss-120b has a large (131k token) context window, so for
-    // chat we send the WHOLE document rather than truncating early the way a
-    // one-shot summarization pass does — a student can ask about slide 3 or
-    // slide 50 of the same deck in the same conversation. This cap is a safety
-    // net for truly oversized documents only, not a normal ceiling.
-    const MAX_CHARS = 100000
-    if (sourceText.length > MAX_CHARS) {
-      console.warn(`chat-with-document: source text (${sourceText.length} chars) exceeds ${MAX_CHARS}, truncating.`)
-      const truncated = sourceText.substring(0, MAX_CHARS)
-      const lastBoundary = Math.max(truncated.lastIndexOf(". "), truncated.lastIndexOf(".\n"), truncated.lastIndexOf("\n"))
-      sourceText = lastBoundary > MAX_CHARS - 3000 ? truncated.substring(0, lastBoundary + 1) : truncated
-    }
+    console.log(`chat-with-document strategy=${strategy}, sourceText=${sourceText.length} chars`)
 
     const groqApiKey = Deno.env.get('GROQ_API_KEY')
     if (!groqApiKey) {
@@ -479,7 +673,22 @@ serve(async (req) => {
     // at — a checked checkbox with no attachment is just ignored.
     const isCheckWorkMode = checkWorkMode === true && hasImage
 
-    const systemPrompt = `You are a grounded document Q&A assistant for Acadex, an academic study platform. The student is asking questions about a specific uploaded source (${docNames}). You are given the full extracted text of that source below${summaryContextBlock ? ', along with the study card summary already generated for it' : ''}.
+    // What the model is actually looking at depends on the strategy above.
+    // Telling it "the full extracted text" when it is holding a relevance-
+    // selected subset would invite exactly the wrong error: flatly denying
+    // that the document covers something that simply was not retrieved.
+    const isRetrieval = strategy === 'retrieval'
+    const sourceDescription = isRetrieval
+      ? `Below are the passages from that source that are most relevant to the student's question, selected from a longer document and shown in reading order with their page numbers`
+      : `You are given the full extracted text of that source below`
+    const retrievalCaveat = isRetrieval
+      ? `
+
+SELECTED-PASSAGES CAVEAT (important):
+What follows is a RELEVANCE-SELECTED SUBSET of a longer document, not the whole thing. Answer from these passages exactly as strictly as always — but when they do not contain the answer, say that these passages don't cover it and that it may appear elsewhere in the document (suggest the student rephrase with more specific terms, or name the topic/chapter). Do NOT state or imply that the document itself does not contain something, because you cannot see all of it. Page numbers shown in "[Sayfa N]" headers are real — use them in your citations' "reference" text when relevant.`
+      : ''
+
+    const systemPrompt = `You are a grounded document Q&A assistant for Acadex, an academic study platform. The student is asking questions about a specific uploaded source (${docNames}). ${sourceDescription}${summaryContextBlock ? ', along with the study card summary already generated for it' : ''}.${retrievalCaveat}
 
 STRICT GROUNDING RULE:
 Answer ONLY using information that is actually present in the source text${summaryContextBlock ? ' or the study card summary' : ''} below. Do NOT use outside knowledge to fill in gaps, and do NOT invent facts, numbers, names, or details that are not in the text. If the source does not contain enough information to answer the question, say so honestly and clearly (in the student's own language) instead of guessing — you may still briefly explain the general concept if it's common academic knowledge, but you MUST clearly distinguish that from what the source itself says.
