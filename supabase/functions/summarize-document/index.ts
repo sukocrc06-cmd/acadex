@@ -1735,12 +1735,50 @@ const MERMAID_TYPES = [
   'xychart', 'block'
 ]
 
-function validateMermaid(raw: string): { ok: boolean; mermaid: string; reason?: string } {
+// Mermaid has no left-pointing LABELLED edge: `-->|text|` is valid, `<--|text|`
+// is not, and a flowchart containing one fails to parse in full — the single
+// bad line takes the whole diagram down. Models reach for it constantly when
+// describing a two-way relationship ("households receive wages FROM firms"),
+// and it is exactly backwards from a form that already exists: `A <--|t| B`
+// means the same thing as `B -->|t| A`.
+//
+// Observed live: a circular-flow diagram, otherwise correct, carried
+//   H <--|receives wages, dividends, interest| F
+// and silently never rendered. Dropping it would have been a loss (the diagram
+// is good), so this rewrites the edge instead and only fails validation if
+// something unrepairable is left. Rewriting is safe because the transform is
+// pure direction-swapping — no content is invented or discarded.
+const MERMAID_REVERSE_LABELLED_EDGE = /^(\s*)(.+?)\s*<(-{2,3}|={2,3}|-\.-+)\|([^|]*)\|\s*(.+?)\s*$/
+
+function repairMermaidArrows(src: string): { mermaid: string; repaired: number } {
+  let repaired = 0
+  const out = src.split('\n').map(line => {
+    const m = line.match(MERMAID_REVERSE_LABELLED_EDGE)
+    if (!m) return line
+    const [, indent, left, dashes, label, right] = m
+    // `--` -> `-->`, `==` -> `==>`, `-.-` -> `-.->`
+    const forward = dashes.startsWith('=') ? `${dashes}>` : dashes.endsWith('.') ? `${dashes}->` : `${dashes}>`
+    repaired++
+    return `${indent}${right} ${forward}|${label}| ${left}`
+  })
+  return { mermaid: out.join('\n'), repaired }
+}
+
+function validateMermaid(raw: string): { ok: boolean; mermaid: string; reason?: string; repaired?: number } {
   let src = String(raw || '').trim()
   // Models often wrap it in a fenced code block despite being asked not to.
   src = src.replace(/^```+\s*mermaid\s*/i, '').replace(/```+\s*$/, '').trim()
   if (!src) return { ok: false, mermaid: src, reason: 'bos' }
   if (src.length > 4000) return { ok: false, mermaid: src, reason: 'cok uzun' }
+
+  const fixed = repairMermaidArrows(src)
+  src = fixed.mermaid
+  // Anything still pointing left with a label could not be rewritten (e.g. the
+  // line had more than one such edge, or no right-hand node) — Mermaid would
+  // reject the whole diagram, so fail here rather than ship a blank render.
+  if (/<(-{2,3}|={2,3}|-\.-+)\|/.test(src)) {
+    return { ok: false, mermaid: src, reason: 'onarilamayan ters etiketli ok (<--|...|)' }
+  }
 
   const lines = src.split('\n').map(l => l.trim()).filter(Boolean)
   if (lines.length < 2) return { ok: false, mermaid: src, reason: 'tek satir — govde yok' }
@@ -1766,22 +1804,95 @@ function validateMermaid(raw: string): { ok: boolean; mermaid: string; reason?: 
     return { ok: false, mermaid: src, reason: 'dengesiz tirnak' }
   }
 
-  return { ok: true, mermaid: src }
+  return { ok: true, mermaid: src, repaired: fixed.repaired }
 }
 
-function sanitizeDiagrams(diagrams: any[]): { diagrams: any[]; dropped: Array<{ title: string; reason: string }> } {
+function sanitizeDiagrams(diagrams: any[]): { diagrams: any[]; dropped: Array<{ title: string; reason: string }>; repaired: number } {
   const list = Array.isArray(diagrams) ? diagrams : []
   const out: any[] = []
   const dropped: Array<{ title: string; reason: string }> = []
+  let repaired = 0
   for (const d of list) {
     const v = validateMermaid(d?.mermaid)
     if (!v.ok) {
       dropped.push({ title: String(d?.title || '(isimsiz)').slice(0, 40), reason: v.reason || 'gecersiz' })
       continue
     }
+    repaired += v.repaired || 0
     out.push({ ...d, mermaid: v.mermaid })
   }
-  return { diagrams: out, dropped }
+  return { diagrams: out, dropped, repaired }
+}
+
+// ==========================================================================
+// CHART GATE — a chart with no numbers is worse than no chart
+//
+// The extraction prompts all say "only chart-worthy numeric data actually
+// present ... never fabricate". A model that can see a figure's TITLE and
+// AXIS LABELS in the extracted text, but not the figure itself, reads that
+// rule as satisfied by emitting the labels with a zero for every value — it
+// invented no numbers, after all. The student then gets a chart.
+//
+// Measured live on a 30-page deck: three charts ("U.S. Aggregate Output
+// 1970-2014", "Unemployment Rate", "Inflation Rate"), each with ten year
+// labels and data = [0,0,0,0,0,0,0,0,0,0], rendering as three identical flat
+// lines along the x-axis. charts=0 would have been strictly better.
+//
+// Prompt wording cannot fix this reliably — the model believes it complied.
+// This is the deterministic counterpart, in the same family as
+// sanitizeFormulas/sanitizeDiagrams: it costs no tokens, runs after every
+// pipeline, and holds regardless of what the model emits.
+const CHART_TYPES = ['bar', 'pie', 'line']
+const CHART_MIN_POINTS = 2
+
+function sanitizeCharts(charts: any[]): { charts: any[]; dropped: Array<{ title: string; reason: string }> } {
+  const list = Array.isArray(charts) ? charts : []
+  const out: any[] = []
+  const dropped: Array<{ title: string; reason: string }> = []
+
+  for (const c of list) {
+    const title = String(c?.title || '(isimsiz)').slice(0, 40)
+    const rawData = Array.isArray(c?.data) ? c.data : []
+    const rawLabels = Array.isArray(c?.labels) ? c.labels : []
+
+    // Keep only points that are real numbers. A string "12%" or a null is not
+    // plottable, and silently coercing it is how a 0 gets into the series in
+    // the first place.
+    const paired: Array<{ label: string; value: number }> = []
+    for (let i = 0; i < rawData.length; i++) {
+      const v = typeof rawData[i] === 'number' ? rawData[i] : Number(rawData[i])
+      if (!Number.isFinite(v)) continue
+      paired.push({ label: String(rawLabels[i] ?? ''), value: v })
+    }
+
+    if (paired.length < CHART_MIN_POINTS) {
+      dropped.push({ title, reason: `sayisal veri yok (${paired.length} gecerli nokta)` })
+      continue
+    }
+
+    // Every value identical — including the all-zero case this gate exists
+    // for — carries no information at any chart type.
+    const distinct = new Set(paired.map(p => p.value))
+    if (distinct.size < 2) {
+      dropped.push({ title, reason: `tum degerler ayni (${[...distinct][0]})` })
+      continue
+    }
+
+    // A pie of negative or zero slices cannot be drawn; such data is almost
+    // always a line/bar series the model mislabelled.
+    let type = String(c?.type || '').toLowerCase().trim()
+    if (!CHART_TYPES.includes(type)) type = 'bar'
+    if (type === 'pie' && paired.some(p => p.value <= 0)) type = 'bar'
+
+    out.push({
+      ...c,
+      type,
+      labels: paired.map((p, i) => p.label || String(i + 1)),
+      data: paired.map(p => p.value)
+    })
+  }
+
+  return { charts: out, dropped }
 }
 
 // ==========================================================================
@@ -3936,11 +4047,24 @@ Fix the listed issues. Remove hallucinations and admin noise. Keep ${langLabel}.
       // --- (a2) Diagrams: drop Mermaid that cannot render
       const diagramsChecked = sanitizeDiagrams(parsedContent.diagrams)
       parsedContent.diagrams = diagramsChecked.diagrams
-      if (diagramsChecked.dropped.length) {
+      if (diagramsChecked.dropped.length || diagramsChecked.repaired) {
         console.log(
           `Mermaid validation: ${diagramsChecked.diagrams.length} kept, ` +
-          `${diagramsChecked.dropped.length} dropped — ` +
-          diagramsChecked.dropped.map(d => `${d.title}(${d.reason})`).join('; ')
+          `${diagramsChecked.dropped.length} dropped, ` +
+          `${diagramsChecked.repaired} ok onarildi` +
+          (diagramsChecked.dropped.length
+            ? ' — ' + diagramsChecked.dropped.map(d => `${d.title}(${d.reason})`).join('; ')
+            : '')
+        )
+      }
+
+      const chartsChecked = sanitizeCharts(parsedContent.charts)
+      parsedContent.charts = chartsChecked.charts
+      if (chartsChecked.dropped.length) {
+        console.log(
+          `Chart validation: ${chartsChecked.charts.length} kept, ` +
+          `${chartsChecked.dropped.length} dropped — ` +
+          chartsChecked.dropped.map(c => `${c.title}(${c.reason})`).join('; ')
         )
       }
 
