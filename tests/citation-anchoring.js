@@ -15,7 +15,26 @@
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const ts = require('typescript');
+
+// index.ts bir TypeScript dosyasi; fonksiyonlari oradan cikarip calistirmak icin
+// once JS'e cevirmemiz gerekiyor. Repoda build adimi olmadigi icin typescript
+// tek dev bagimliligi — yoksa ne yapilacagini soyleyip cikiyoruz.
+let ts;
+try {
+  ts = require('typescript');
+} catch (_e) {
+  console.error(
+    '\nBu test `typescript` paketine ihtiyac duyuyor (index.ts yi JS ye cevirmek icin).\n' +
+    'Repo kokunde bir kez:\n\n' +
+    '  npm init -y\n' +
+    '  npm install --save-dev typescript\n' +
+    '  echo "node_modules/" >> .gitignore\n\n' +
+    'Bonus: ayni paket edge function larini tip kontrolunden gecirmeyi de saglar:\n' +
+    '  npx tsc --noEmit --skipLibCheck --target es2022 --module esnext \\\n' +
+    '      --moduleResolution bundler supabase/functions/summarize-document/index.ts\n'
+  );
+  process.exit(1);
+}
 
 const SRC = path.join(__dirname, '..', 'supabase', 'functions', 'summarize-document', 'index.ts');
 
