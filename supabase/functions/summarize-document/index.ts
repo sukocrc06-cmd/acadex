@@ -1708,6 +1708,82 @@ function sanitizeFormulas(formulas: any[]): { formulas: any[]; dropped: Array<{ 
 }
 
 // ==========================================================================
+// MERMAID VALIDATION
+//
+// Same class of problem as the LaTeX check above, and reported from the live
+// app: every "View Summary" showed three bomb icons reading "Syntax error in
+// text / mermaid version 10.9.8". The model writes `diagrams[].mermaid` and
+// nothing ever checked it, so broken source went to the database and then to
+// the renderer.
+//
+// The front end now refuses to draw invalid source (safeMermaidRender in
+// dashboard.js parses before rendering), which stops the bombs. This does
+// the other half: a diagram that cannot be valid is not stored in the first
+// place, so the card does not carry dead weight and the front end is not
+// left hiding empty boxes.
+//
+// Deliberately structural-only. A real Mermaid parser cannot run here, and
+// guessing at semantics would throw away diagrams that render fine — so this
+// rejects only what is definitely broken: no diagram type, unbalanced
+// brackets or quotes, or nothing but a header line.
+// ==========================================================================
+const MERMAID_TYPES = [
+  'flowchart', 'graph', 'sequencediagram', 'classdiagram', 'statediagram',
+  'erdiagram', 'journey', 'gantt', 'pie', 'mindmap', 'timeline',
+  'quadrantchart', 'requirementdiagram', 'gitgraph', 'c4context', 'sankey',
+  'xychart', 'block'
+]
+
+function validateMermaid(raw: string): { ok: boolean; mermaid: string; reason?: string } {
+  let src = String(raw || '').trim()
+  // Models often wrap it in a fenced code block despite being asked not to.
+  src = src.replace(/^```+\s*mermaid\s*/i, '').replace(/```+\s*$/, '').trim()
+  if (!src) return { ok: false, mermaid: src, reason: 'bos' }
+  if (src.length > 4000) return { ok: false, mermaid: src, reason: 'cok uzun' }
+
+  const lines = src.split('\n').map(l => l.trim()).filter(Boolean)
+  if (lines.length < 2) return { ok: false, mermaid: src, reason: 'tek satir — govde yok' }
+
+  // First line must name a diagram type, or Mermaid cannot even start.
+  const head = lines[0].toLowerCase().replace(/\s+/g, '')
+  if (!MERMAID_TYPES.some(t => head.startsWith(t))) {
+    return { ok: false, mermaid: src, reason: `bilinmeyen diyagram turu: ${lines[0].slice(0, 30)}` }
+  }
+
+  // Bracket and quote balance. Unbalanced delimiters are the most common way
+  // the model's output fails, and the one thing checkable without a parser.
+  const pairs: Array<[string, string]> = [['[', ']'], ['(', ')'], ['{', '}']]
+  for (const [open, close] of pairs) {
+    let depth = 0
+    for (const ch of src) {
+      if (ch === open) depth++
+      else if (ch === close) { depth--; if (depth < 0) break }
+    }
+    if (depth !== 0) return { ok: false, mermaid: src, reason: `dengesiz ${open}${close}` }
+  }
+  if ((src.match(/"/g) || []).length % 2 !== 0) {
+    return { ok: false, mermaid: src, reason: 'dengesiz tirnak' }
+  }
+
+  return { ok: true, mermaid: src }
+}
+
+function sanitizeDiagrams(diagrams: any[]): { diagrams: any[]; dropped: Array<{ title: string; reason: string }> } {
+  const list = Array.isArray(diagrams) ? diagrams : []
+  const out: any[] = []
+  const dropped: Array<{ title: string; reason: string }> = []
+  for (const d of list) {
+    const v = validateMermaid(d?.mermaid)
+    if (!v.ok) {
+      dropped.push({ title: String(d?.title || '(isimsiz)').slice(0, 40), reason: v.reason || 'gecersiz' })
+      continue
+    }
+    out.push({ ...d, mermaid: v.mermaid })
+  }
+  return { diagrams: out, dropped }
+}
+
+// ==========================================================================
 // QUALITY GATE — drop what the document does not support
 //
 // The anchoring machinery above already answers, for every claim, "do this
@@ -3794,6 +3870,17 @@ Fix the listed issues. Remove hallucinations and admin noise. Keep ${langLabel}.
           (sanitized.dropped.length
             ? ` — ${sanitized.dropped.map(d => `${d.name}(${d.reason})`).join('; ')}`
             : '')
+        )
+      }
+
+      // --- (a2) Diagrams: drop Mermaid that cannot render
+      const diagramsChecked = sanitizeDiagrams(parsedContent.diagrams)
+      parsedContent.diagrams = diagramsChecked.diagrams
+      if (diagramsChecked.dropped.length) {
+        console.log(
+          `Mermaid validation: ${diagramsChecked.diagrams.length} kept, ` +
+          `${diagramsChecked.dropped.length} dropped — ` +
+          diagramsChecked.dropped.map(d => `${d.title}(${d.reason})`).join('; ')
         )
       }
 
