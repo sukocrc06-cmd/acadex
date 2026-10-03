@@ -539,17 +539,32 @@ type GroqJsonOpts = {
 // x-ratelimit-limit-tokens header, so an account upgrade raises throughput
 // automatically with no code change.
 // ==========================================================================
-const PACER_SAFETY = 0.85            // leave headroom for estimate error
+const PACER_SAFETY = 0.9             // headroom; actual usage is recorded, so this can be tight
 const PACER_WINDOW_MS = 60_000
-// Long enough to actually clear the rolling window, which is the point: on
-// 8,000 TPM two ~5,000-token window calls cannot both fit inside one minute,
-// so the second genuinely has to wait for the first to age out. Capping this
-// lower would mean waiting AND then being rejected anyway — the worst of
-// both. The caller's own wall-clock budget (PIPELINE_BUDGET_MS, plus the
-// budgetLeft() checks in the window loop) is what decides when to stop
-// adding work; this constant only decides how long a single call may hold
-// still before giving up and letting the 429 path handle it.
-const PACER_MAX_WAIT_MS = 55_000
+// MUST exceed PACER_WINDOW_MS. The first live run capped this at 55s and the
+// logs showed exactly why that is wrong:
+//
+//   TokenPacer: 55000ms bekliyor (used=4600/6800, est=4378)
+//   TokenPacer: 55000ms bekledi, yine de gonderiyor (used=4600, est=4378)
+//
+// `used` is unchanged after the wait, because an entry that was fresh when
+// the wait began is only 55 seconds old at the end of it — still inside the
+// 60-second window, so nothing aged out. The wait could not possibly have
+// helped, and the call went out anyway: 55 seconds spent to arrive at the
+// same place. Five of those is most of the two minutes that run took.
+//
+// A ceiling below the window length makes every long wait futile by
+// construction, so this now sits just past it: a wait that is needed is a
+// wait that completes.
+const PACER_MAX_WAIT_MS = 65_000
+// maxCompletionTokens is a CEILING, not a prediction — a window call asking
+// for up to 3072 completion tokens typically spends far less. Charging the
+// full ceiling up front made the pacer see a shortage that was not there and
+// wait for room it did not need; the proof is that every "yine de
+// gonderiyor" call then succeeded without a single 429. Actual usage is
+// still recorded from the response, so this only affects the pre-flight
+// estimate.
+const PACER_COMPLETION_FACTOR = 0.6
 const DEFAULT_TPM_LIMIT = 8000       // observed on this account until a header says otherwise
 
 const tokenPacer = {
@@ -596,23 +611,34 @@ const tokenPacer = {
       if (used + estTokens <= budget || used === 0) return
       // Wait for the oldest recorded spend to age out of the window.
       const oldest = this.spent[0]
-      const waitMs = Math.min(
-        Math.max(250, PACER_WINDOW_MS - (now - oldest.at) + 250),
-        PACER_MAX_WAIT_MS - (now - started)
-      )
-      if (waitMs <= 0) {
-        console.warn(`TokenPacer: ${PACER_MAX_WAIT_MS}ms bekledi, yine de gonderiyor (used=${used}, est=${estTokens})`)
+      const needed = Math.max(250, PACER_WINDOW_MS - (now - oldest.at) + 250)
+      const remaining = PACER_MAX_WAIT_MS - (now - started)
+      // Never wait a length that cannot clear anything: if the time actually
+      // required exceeds what we are willing to spend, waiting part of it
+      // buys nothing and the call goes out either way. Send now and let the
+      // 429 path (which honours Groq's own retry-after) handle it.
+      if (needed > remaining) {
+        console.warn(
+          `TokenPacer: ${Math.round(needed)}ms gerekiyor ama ${Math.round(Math.max(0, remaining))}ms kaldi — ` +
+          `beklemeden gonderiyor (used=${used}, est=${estTokens})`
+        )
         return
       }
+      const waitMs = needed
       console.log(`TokenPacer: ${Math.round(waitMs)}ms bekliyor (used=${used}/${Math.round(budget)}, est=${estTokens})`)
       await new Promise(r => setTimeout(r, waitMs))
     }
   }
 }
 
-/** Rough token estimate. Turkish runs denser than English per character. */
+/**
+ * Pre-flight token estimate. Input is counted in full (we know its length);
+ * the completion budget is counted at PACER_COMPLETION_FACTOR because it is
+ * a ceiling the model rarely reaches — see that constant for the evidence.
+ */
 function estimateTokens(systemPrompt: string, userContent: string, maxCompletion: number): number {
-  return Math.ceil((systemPrompt.length + userContent.length) / 3.2) + maxCompletion
+  return Math.ceil((systemPrompt.length + userContent.length) / 3.2)
+    + Math.ceil(maxCompletion * PACER_COMPLETION_FACTOR)
 }
 
 async function callGroqJson(
