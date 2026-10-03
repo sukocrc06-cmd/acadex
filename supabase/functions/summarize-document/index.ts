@@ -1764,6 +1764,34 @@ function repairMermaidArrows(src: string): { mermaid: string; repaired: number }
   return { mermaid: out.join('\n'), repaired }
 }
 
+// A node label containing bare parentheses is a syntax error:
+// `Money[Money (Financial) Market]` has to be written
+// `Money["Money (Financial) Market"]`. The balance check further down cannot
+// catch it — the parentheses ARE balanced — so the diagram passes validation
+// and then Mermaid rejects it whole.
+//
+// Observed live: a "Three Market Arenas" graph, correct in every other
+// respect, lost to that single line while the circular-flow diagram beside it
+// rendered fine. Quoting is lossless, so this repairs rather than drops.
+//
+// Deliberately narrow: only the `ID[label]` form, only when the label has no
+// quote or bracket of its own. The lookahead skips `[[subroutine]]` and
+// `[(database)]`, whose second character is part of the SHAPE rather than the
+// label, and which quoting would corrupt.
+const MERMAID_UNQUOTED_PAREN_LABEL = /(^|[\s>|-])([A-Za-z_][\w-]*)\[(?!\[|\()([^\[\]"]*[()][^\[\]"]*)\]/g
+
+function repairMermaidLabels(src: string): { mermaid: string; repaired: number } {
+  let repaired = 0
+  const mermaid = src.replace(
+    MERMAID_UNQUOTED_PAREN_LABEL,
+    (_m, lead: string, id: string, label: string) => {
+      repaired++
+      return `${lead}${id}["${label.trim()}"]`
+    }
+  )
+  return { mermaid, repaired }
+}
+
 function validateMermaid(raw: string): { ok: boolean; mermaid: string; reason?: string; repaired?: number } {
   let src = String(raw || '').trim()
   // Models often wrap it in a fenced code block despite being asked not to.
@@ -1771,14 +1799,20 @@ function validateMermaid(raw: string): { ok: boolean; mermaid: string; reason?: 
   if (!src) return { ok: false, mermaid: src, reason: 'bos' }
   if (src.length > 4000) return { ok: false, mermaid: src, reason: 'cok uzun' }
 
-  const fixed = repairMermaidArrows(src)
-  src = fixed.mermaid
+  const arrowsFixed = repairMermaidArrows(src)
+  src = arrowsFixed.mermaid
   // Anything still pointing left with a label could not be rewritten (e.g. the
   // line had more than one such edge, or no right-hand node) — Mermaid would
   // reject the whole diagram, so fail here rather than ship a blank render.
   if (/<(-{2,3}|={2,3}|-\.-+)\|/.test(src)) {
     return { ok: false, mermaid: src, reason: 'onarilamayan ters etiketli ok (<--|...|)' }
   }
+
+  // Must run AFTER the arrow repair: that step rewrites whole lines and would
+  // otherwise undo the quoting.
+  const labelsFixed = repairMermaidLabels(src)
+  src = labelsFixed.mermaid
+  const fixed = { repaired: arrowsFixed.repaired + labelsFixed.repaired }
 
   const lines = src.split('\n').map(l => l.trim()).filter(Boolean)
   if (lines.length < 2) return { ok: false, mermaid: src, reason: 'tek satir — govde yok' }
