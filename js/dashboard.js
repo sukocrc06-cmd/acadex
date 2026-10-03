@@ -1334,10 +1334,28 @@ function formatFootnoteMarkers(text, footnotesArray) {
 
   return text.replace(/\[(\d+)\]/g, (match, fnId) => {
     const entry = footnotesMap[fnId] || { reference: `Reference ${fnId}`, page: null };
-    const escapedRef = escapeHtml(entry.reference).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    // The reference text is carried in a data- attribute and read back from
+    // the element, instead of being pasted into the onclick as a JS string
+    // literal.
+    //
+    // The old form built `jumpToFootnote(1, 'REFERENCE', 4)` by concatenation.
+    // That is unsafe for any text containing a quote or a backslash, and it
+    // broke for a reason specific to this codebase: escapeHtml turns ' into
+    // &#039;, so the following .replace(/'/g, "\\'") found nothing to escape
+    // — and the browser then decodes &#039; back to ' while parsing the
+    // attribute, handing the JS parser an unterminated string. It was latent
+    // while `reference` was a short page heading; it became routine once
+    // references became full source sentences, because Turkish prose is full
+    // of apostrophes ("2008'de", "Nash'in"). A trailing backslash or a
+    // newline broke it the same way.
+    //
+    // Now no author text reaches the JS parser at all: only the numeric id
+    // and page do, and the sentence lives in an attribute value where
+    // escapeHtml alone is sufficient.
+    const refAttr = escapeHtml(entry.reference);
     const pageAttr = entry.page != null ? entry.page : 'null';
-    const title = entry.page != null ? `${escapedRef} (Sayfa ${entry.page})` : escapedRef;
-    return `<sup class="footnote-marker" title="${title}" onclick="event.stopPropagation(); jumpToFootnote(${fnId}, '${escapedRef}', ${pageAttr})">[${fnId}]</sup>`;
+    const title = entry.page != null ? `${refAttr} (Sayfa ${entry.page})` : refAttr;
+    return `<sup class="footnote-marker" title="${title}" data-fn-ref="${refAttr}" onclick="event.stopPropagation(); jumpToFootnote(${fnId}, this.dataset.fnRef, ${pageAttr})">[${fnId}]</sup>`;
   });
 }
 window.formatFootnoteMarkers = formatFootnoteMarkers;
@@ -16663,11 +16681,17 @@ window.triggerSectionRegeneration = triggerSectionRegeneration;
 // ==========================================
 function renderSuggestedTagChipHtml(docId, cardId, suggestedTag) {
   if (!suggestedTag) return '';
-  const escapedTag = escapeHtml(suggestedTag).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+  // Same escapeHtml-then-JS-escape trap as the footnote markers had (see the
+  // comment in formatFootnoteMarkers): escapeHtml has already turned any
+  // apostrophe into &#039;, so .replace(/'/g, "\\'") escapes nothing, and the
+  // browser decodes the entity back to ' while parsing the attribute —
+  // leaving the JS parser an unterminated string. Carried in a data-
+  // attribute instead, so no author text reaches the JS parser.
+  const escapedTag = escapeHtml(suggestedTag);
   return `
     <div class="suggested-tag-chip" id="suggested-chip-${cardId || docId}">
-      <span>Suggested: <strong>${escapeHtml(suggestedTag)}</strong></span>
-      <button type="button" class="btn-accept-tag" onclick="acceptSuggestedTag(event, '${docId || ''}', '${cardId || ''}', '${escapedTag}')" title="Accept Tag">✓ Accept</button>
+      <span>Suggested: <strong>${escapedTag}</strong></span>
+      <button type="button" class="btn-accept-tag" data-suggested-tag="${escapedTag}" onclick="acceptSuggestedTag(event, '${docId || ''}', '${cardId || ''}', this.dataset.suggestedTag)" title="Accept Tag">✓ Accept</button>
       <button type="button" class="btn-dismiss-tag" onclick="dismissSuggestedTag(event, '${cardId || docId}')" title="Dismiss Tag">✕ Dismiss</button>
     </div>
   `;
@@ -18341,7 +18365,3 @@ window.generateRealImageForChat = generateRealImageForChat;
 // loadDeveloperSandbox() and the sandbox-interaction branch in
 // loadViewContent() above).
 // ==========================================
-
-
-
-
