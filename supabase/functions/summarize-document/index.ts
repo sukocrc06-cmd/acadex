@@ -1057,7 +1057,85 @@ function anchorTerms(s: string): string[] {
     .filter(w => w.length >= 4 && !ANCHOR_STOPWORDS.has(w))
 }
 
-type PageSegment = { page: number; terms: Set<string>; head: string }
+type PageSegment = { page: number; terms: Set<string>; head: string; body: string }
+
+// Abbreviations whose trailing dot must NOT end a sentence. Without this a
+// Turkish academic page splits at "s. 42", "vb.", "Prof. Dr." and the quote
+// shown to the student becomes a two-word fragment.
+const SENTENCE_ABBREV = new Set([
+  's', 'ss', 'vb', 'vs', 'bkz', 'örn', 'orn', 'age', 'agm', 'yy', 'bkz',
+  'dr', 'doç', 'doc', 'prof', 'yrd', 'arş', 'ars', 'gör', 'gor', 'no', 'nr',
+  'yay', 'çev', 'cev', 'ed', 'vol', 'pp', 'fig', 'eq', 'etc', 'al'
+])
+
+/**
+ * Split prose into sentences, conservatively. Over-merging two sentences is
+ * harmless here (the quote is simply a little longer); splitting mid-sentence
+ * is not, because the fragment is shown to the student as the source text.
+ */
+function splitSentences(text: string): string[] {
+  const rough = String(text || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(/(?<=[.!?…])\s+/)
+  const out: string[] = []
+  for (const piece of rough) {
+    const prevNeedsMerge = out.length > 0 && (() => {
+      const prev = out[out.length - 1]
+      const lastWord = (prev.match(/([\p{L}\p{N}]+)\.$/u) || [])[1]
+      if (!lastWord) return false
+      // "...vb." / "...s." / a bare initial like "A." / a list number "3."
+      return SENTENCE_ABBREV.has(lastWord.toLowerCase())
+        || lastWord.length <= 2
+        || /^\d+$/.test(lastWord)
+    })()
+    if (prevNeedsMerge) out[out.length - 1] += ' ' + piece
+    else out.push(piece)
+  }
+  return out.map(s => s.trim()).filter(s => s.length > 0)
+}
+
+// A quote shorter than this carries no context; longer than this is a wall of
+// text in a tooltip.
+const QUOTE_MIN_CHARS = 25
+const QUOTE_MAX_CHARS = 220
+
+/**
+ * The sentence on this page that best supports the claim, returned VERBATIM
+ * so it can be checked against the source. This is what turns "page 7" into
+ * "page 7 says this", which is the whole difference between a citation a
+ * student trusts and one they learn to ignore.
+ *
+ * Returns null when no sentence matches well enough; the caller then falls
+ * back to the page's heading line.
+ */
+function bestQuoteForClaim(claim: string, body: string, idf: Map<string, number>): string | null {
+  const claimTerms = [...new Set(anchorTerms(claim))]
+  if (!claimTerms.length) return null
+  const fallbackIdf = Math.log(2)
+  const totalWeight = claimTerms.reduce((a, t) => a + (idf.get(t) ?? fallbackIdf), 0)
+  if (totalWeight <= 0) return null
+
+  let best: { text: string; score: number } | null = null
+  for (const raw of splitSentences(body)) {
+    if (raw.length < QUOTE_MIN_CHARS) continue
+    const sentTerms = new Set(anchorTerms(raw))
+    if (!sentTerms.size) continue
+    let w = 0, matched = 0
+    for (const t of claimTerms) {
+      if (sentTerms.has(t)) { w += (idf.get(t) ?? fallbackIdf); matched++ }
+    }
+    if (matched < 2) continue
+    // Normalising by the claim's own weight (not the sentence's) keeps a long
+    // rambling sentence from winning just by containing more words.
+    const score = w / totalWeight
+    if (!best || score > best.score) best = { text: raw, score }
+  }
+  if (!best || best.score < 0.3) return null
+  return best.text.length > QUOTE_MAX_CHARS
+    ? best.text.slice(0, QUOTE_MAX_CHARS).replace(/\s+\S*$/, '') + '…'
+    : best.text
+}
 
 /**
  * Split extracted text on its "--- SAYFA N ---" / "--- SLAYT N ---" marker
@@ -1105,8 +1183,10 @@ function buildPageIndex(text: string, pageMarkerLabel: string): PageSegment[] {
     segments.push({
       page: seg.page,
       terms: new Set(anchorTerms(trimmed)),
-      // First non-empty line doubles as a human-readable "reference" label.
-      head: (trimmed.split('\n').map(l => l.trim()).find(l => l.length > 3) || '').slice(0, 70)
+      // First non-empty line is the fallback "reference" label when no
+      // sentence on the page matches the claim well enough to quote.
+      head: (trimmed.split('\n').map(l => l.trim()).find(l => l.length > 3) || '').slice(0, 70),
+      body: trimmed
     })
   }
   return segments
@@ -1259,14 +1339,14 @@ function anchorClaimToPage(
   claim: string,
   pageIndex: PageSegment[],
   idf: Map<string, number>
-): { page: number; score: number; matched: number; head: string } | null {
+): { page: number; score: number; matched: number; head: string; quote: string | null } | null {
   if (!pageIndex.length) return null
   const terms = [...new Set(anchorTerms(claim))]
   if (terms.length === 0) return null
   const totalWeight = terms.reduce((a, t) => a + (idf.get(t) ?? Math.log(pageIndex.length + 1)), 0)
   if (totalWeight <= 0) return null
 
-  let best: { page: number; score: number; matched: number; head: string } | null = null
+  let best: { seg: PageSegment; score: number; matched: number } | null = null
   for (const seg of pageIndex) {
     let w = 0, matched = 0
     for (const t of terms) {
@@ -1276,11 +1356,19 @@ function anchorClaimToPage(
     const score = w / totalWeight
     // Strictly-greater keeps the EARLIEST page on a tie, which is where a
     // topic is normally introduced.
-    if (!best || score > best.score) best = { page: seg.page, score, matched, head: seg.head }
+    if (!best || score > best.score) best = { seg, score, matched }
   }
   if (!best) return null
   if (best.matched < ANCHOR_MIN_TERMS || best.score < ANCHOR_MIN_SCORE) return null
-  return best
+  return {
+    page: best.seg.page,
+    score: best.score,
+    matched: best.matched,
+    head: best.seg.head,
+    // Verbatim sentence from that page, so the student sees what the source
+    // actually says rather than just a page number.
+    quote: bestQuoteForClaim(claim, best.seg.body, idf)
+  }
 }
 
 /**
@@ -1302,7 +1390,7 @@ function anchorCitations(
   lang: string
 ): { key_points: any[]; footnotes: any[]; idMap: Record<number, number>; stats: Record<string, number> } {
   const incoming = Array.isArray(existingFootnotes) ? existingFootnotes : []
-  const stats = { kept: 0, demoted: 0, added: 0, skipped: 0 }
+  const stats = { kept: 0, demoted: 0, added: 0, skipped: 0, quoted: 0 }
 
   const readText = (raw: any) => typeof raw === 'string' ? raw : String(raw?.text || raw?.point || '')
   const writeText = (raw: any, text: string) =>
@@ -1353,8 +1441,13 @@ function anchorCitations(
   }
 
   // --- 2. Anchor key_points that carry no marker yet ---
-  const labelFor = (seg: { head: string; page: number }) =>
-    seg.head || (lang === 'tr' ? `Sayfa ${seg.page}` : `Page ${seg.page}`)
+  // The label the student actually reads: prefer the verbatim source
+  // sentence, fall back to the page's heading line, then to a bare page
+  // number. The front end already renders `reference` both in the [n]
+  // tooltip and in the "Kaynakça" list, so a real quote here upgrades both
+  // with no UI change.
+  const labelFor = (hit: { head: string; page: number; quote: string | null }) =>
+    hit.quote || hit.head || (lang === 'tr' ? `Sayfa ${hit.page}` : `Page ${hit.page}`)
 
   for (let i = 0; i < points.length; i++) {
     const text = readText(points[i])
@@ -1365,7 +1458,16 @@ function anchorCitations(
     if (!hit) { stats.skipped++; continue }
 
     const id = out.length + 1
-    out.push({ id, reference: labelFor(hit), page: hit.page })
+    out.push({
+      id,
+      reference: labelFor(hit),
+      page: hit.page,
+      // Kept as its own field too: `reference` is what today's UI shows, but
+      // a verbatim quote is distinct data (it can be highlighted in the
+      // source viewer, and it is what makes the citation checkable).
+      quote: hit.quote
+    })
+    if (hit.quote) stats.quoted++
     points[i] = writeText(points[i], `${text.replace(/\s+$/, '')} [${id}]`)
     stats.added++
   }
@@ -3180,7 +3282,8 @@ Fix the listed issues. Remove hallucinations and admin noise. Keep ${langLabel}.
       console.log(
         `Citation anchoring: pages=${pageIndex.length} ` +
         `kept=${anchored.stats.kept} demoted=${anchored.stats.demoted} ` +
-        `added=${anchored.stats.added} unanchored=${anchored.stats.skipped}`
+        `added=${anchored.stats.added} quoted=${anchored.stats.quoted} ` +
+        `unanchored=${anchored.stats.skipped}`
       )
     }
 
