@@ -121,8 +121,11 @@ function loadAnchoring() {
   const js = transpile(fs.readFileSync(SRC, 'utf8'));
   const names = [
     'ANCHOR_STOPWORDS', 'anchorTerms', 'splitByPageMarkers', 'buildPageIndex',
-    'buildAnchorIdf', 'ANCHOR_MIN_SCORE', 'ANCHOR_MIN_TERMS', 'anchorClaimToPage',
-    'applyFootnoteRemap', 'anchorCitations',
+    'buildAnchorIdf', 'ANCHOR_MIN_SCORE', 'ANCHOR_MIN_TERMS',
+    // birebir alinti (span seviyesi atif)
+    'SENTENCE_ABBREV', 'splitSentences', 'QUOTE_MIN_CHARS', 'QUOTE_MAX_CHARS',
+    'bestQuoteForClaim',
+    'anchorClaimToPage', 'applyFootnoteRemap', 'anchorCitations',
     // chunk saklama (document_chunks)
     'splitIntoChunks', 'CHUNK_STORE_SIZE', 'buildStorableChunks'
   ];
@@ -339,6 +342,92 @@ test('obje bicimli key_point destekleniyor', () => {
   assert.equal(typeof r.key_points[0], 'object');
   assert.match(r.key_points[0].text, /\[1\]$/);
   assert.equal(r.key_points[0].extra, 'korunmali', 'diger alanlar korunmali');
+});
+
+// ===========================================================================
+// BIREBIR ALINTI (span seviyesi atif)
+// ===========================================================================
+console.log('\nALINTI TESTLERI\n');
+
+test('splitSentences normal cumleleri ayirir', () => {
+  const s = A.splitSentences('Birinci cumle burada. Ikinci cumle burada! Ucuncu cumle burada?');
+  assert.equal(s.length, 3);
+});
+
+test('splitSentences kisaltmalarda BOLMEZ (s. vb. Prof.)', () => {
+  assert.equal(A.splitSentences('Esneklik katsayisi onemlidir bkz. s. 42 numarali tablo burada.').length, 1);
+  assert.equal(A.splitSentences('Oligopol vb. piyasalar az firmali yapidadir.').length, 1);
+  assert.equal(A.splitSentences('Prof. Dr. Ahmet Yilmaz bu konuyu ele almistir.').length, 1);
+});
+
+test('splitSentences liste numaralarinda bolmez', () => {
+  assert.equal(A.splitSentences('Asagidaki maddeler var 1. madde burada aciklanmistir.').length, 1);
+});
+
+test('alinti BIREBIR kaynaktan gelir (dogrulanabilirlik)', () => {
+  const idx = A.buildPageIndex(DOC, 'SAYFA');
+  const idf = A.buildAnchorIdf(idx);
+  const page2 = idx.find(s => s.page === 2);
+  const q = A.bestQuoteForClaim(
+    'Esneklik katsayisi birden buyukse talep esnek kabul edilir', page2.body, idf);
+  assert.ok(q, 'alinti bulunmaliydi');
+  const norm = s => s.replace(/\s+/g, ' ').trim();
+  assert.ok(norm(page2.body).includes(norm(q.replace(/…$/, ''))),
+    `alinti kaynakta birebir gecmiyor:\n  alinti: ${q}`);
+});
+
+test('alakasiz iddia icin alinti uretilmez', () => {
+  const idx = A.buildPageIndex(DOC, 'SAYFA');
+  const idf = A.buildAnchorIdf(idx);
+  const page2 = idx.find(s => s.page === 2);
+  assert.equal(A.bestQuoteForClaim('Fotosentez kloroplastlarda gerceklesir', page2.body, idf), null);
+});
+
+test('alinti ust sinirda kirpilir ve kelime ortasindan kesmez', () => {
+  const idf = new Map();
+  const long = 'Talep esnekligi kavrami ' + 'ayrintili bir sekilde incelenmektedir '.repeat(20) + 've sonuclanir.';
+  const q = A.bestQuoteForClaim('Talep esnekligi kavrami incelenmektedir sonuclanir', long, idf);
+  if (q) {
+    assert.ok(q.length <= A.QUOTE_MAX_CHARS + 1, `cok uzun: ${q.length}`);
+    if (q.endsWith('…')) assert.ok(!/\s\S+…$/.test(q) === false || /\S…$/.test(q), 'kirpma kelime sonunda olmali');
+  }
+});
+
+test('anchorClaimToPage artik alinti da dondurur', () => {
+  const idx = A.buildPageIndex(DOC, 'SAYFA');
+  const idf = A.buildAnchorIdf(idx);
+  const hit = A.anchorClaimToPage('Nash dengesi stratejik etkilesimin cozumunu tanimlar', idx, idf);
+  assert.equal(hit.page, 4);
+  assert.ok(hit.quote, 'quote alani dolu olmaliydi');
+  assert.ok(/Nash dengesi/i.test(hit.quote), 'alinti ilgili cumle olmali');
+});
+
+test('dipnot reference i artik sayfa basligi degil GERCEK cumle', () => {
+  const idx = A.buildPageIndex(DOC, 'SAYFA');
+  const r = A.anchorCitations(
+    ['Marjinal maliyet uretimi bir birim artirmanin toplam maliyete ekledigi tutardir'],
+    [], idx, 'tr'
+  );
+  assert.equal(r.footnotes.length, 1);
+  const fn = r.footnotes[0];
+  assert.equal(fn.page, 3);
+  assert.ok(fn.quote, 'quote alani olmali');
+  assert.equal(fn.reference, fn.quote, 'reference alinti ile ayni olmali (UI bunu gosteriyor)');
+  assert.ok(fn.reference.length > 25, 'reference anlamli uzunlukta olmali');
+  assert.equal(r.stats.quoted, 1);
+});
+
+test('alinti bulunamazsa sayfa basligina duser, cokmez', () => {
+  // Sayfa icerigi var ama cumle esigini gecmeyecek kadar alakasiz baglanti
+  const doc = '--- SAYFA 5 ---\nBaslik Satiri\nkisa';
+  const idx = A.buildPageIndex(doc, 'SAYFA');
+  const idf = A.buildAnchorIdf(idx);
+  const hit = A.anchorClaimToPage('Baslik Satiri kisa icerik', idx, idf);
+  if (hit) {
+    assert.ok(hit.quote === null || typeof hit.quote === 'string');
+    const r = A.anchorCitations(['Baslik Satiri kisa icerik'], [], idx, 'tr');
+    if (r.footnotes.length) assert.ok(r.footnotes[0].reference.length > 0, 'reference bos kalmamali');
+  }
 });
 
 // ===========================================================================
