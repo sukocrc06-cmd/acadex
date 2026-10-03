@@ -507,6 +507,91 @@ test('estimateTokens girdiyle birlikte buyur', () => {
   assert.ok(a < 1000 + 1000, 'tavanin tamami sayilmamali');
 });
 
+/* --------------------------------------------------------------------------
+   PENCERE TOKEN BUTCESI
+   --------------------------------------------------------------------------
+   WINDOW'u buyutmek 8.000 TPM'de en degerli ayar: her fazladan pencere, isi
+   degil, ~60 saniyelik bir TokenPacer beklemesi ekliyor (canli olcum: 30
+   sayfalik 12.451 karakterlik belge 130 saniye surdu, 114 saniyesi bekleme).
+   Ama ayni sabit tek basina TPM tavanini asarsa pencere cagrisi 429 alir ve
+   payload %55'e kuculerek yeniden denenir — yani kazanc sessizce geri gider.
+
+   Bu test o dengeyi kilitler: WINDOW, compactWindowPrompt ve pencerenin
+   maxCompletionTokens degeri kaynaktan okunur, kodun KENDI estimateTokens
+   fonksiyonuyla toplanir ve pacer tavaniyla karsilastirilir. Uc sayidan biri
+   buyutuldugunde burasi patlar.
+   ------------------------------------------------------------------------ */
+const fs = require('node:fs');
+const path = require('node:path');
+const SRC = fs.readFileSync(
+  path.join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'),
+  'utf8'
+);
+
+// Sablon literalini kacislari ve ${...} ifadelerini sayarak oku.
+function readTemplate(src, startIdx) {
+  let out = '';
+  let depth = 0;
+  for (let i = startIdx; i < src.length; i++) {
+    const c = src[i];
+    if (c === '\\') { i++; continue; }
+    if (c === '$' && src[i + 1] === '{') { depth++; i++; continue; }
+    if (c === '}' && depth > 0) { depth--; continue; }
+    if (c === '`' && depth === 0) break;
+    out += c;
+  }
+  return out;
+}
+
+test('pencere token butcesi pacer tavaninin altinda', () => {
+  const mWindow = SRC.match(/const WINDOW = (\d+)/);
+  assert.ok(mWindow, 'WINDOW sabiti bulunamadi');
+  const WINDOW = Number(mWindow[1]);
+
+  const promptIdx = SRC.indexOf('const compactWindowPrompt');
+  assert.ok(promptIdx > -1, 'compactWindowPrompt bulunamadi');
+  const prompt = readTemplate(SRC, SRC.indexOf('`', promptIdx) + 1);
+  assert.ok(prompt.length > 500, `compactWindowPrompt okunamadi (${prompt.length} krk)`);
+
+  // Pencere cagrisinin kendi tamamlama tavani (sablonun hemen sonrasindaki
+  // callGroqJson blogunda).
+  const callIdx = SRC.indexOf('compactWindowPrompt(wi, windows.length)');
+  assert.ok(callIdx > -1, 'pencere cagrisi bulunamadi');
+  const mCompletion = SRC.slice(callIdx, callIdx + 1500).match(/maxCompletionTokens: (\d+)/);
+  assert.ok(mCompletion, 'pencere maxCompletionTokens bulunamadi');
+  const maxCompletion = Number(mCompletion[1]);
+
+  const est = A.estimateTokens(prompt, 'x'.repeat(WINDOW), maxCompletion);
+  const ceiling = Math.floor(A.DEFAULT_TPM_LIMIT * A.PACER_SAFETY);
+
+  assert.ok(
+    est <= ceiling,
+    `pencere butcesi tavani asiyor: WINDOW=${WINDOW}, prompt=${prompt.length} krk, ` +
+    `completion=${maxCompletion} -> est=${est} > tavan=${ceiling}. ` +
+    `Ucunden birini kucult, yoksa her pencere 429 alip %55'e kuculecek.`
+  );
+
+  // Alt sinir: pencereyi gereginden kucuk birakmak da bir regresyon — kullanilmayan
+  // her token, 8.000 TPM'de fazladan bir ~60 saniyelik bekleme demek.
+  assert.ok(
+    est > ceiling * 0.7,
+    `pencere butcenin ${Math.round((est / ceiling) * 100)}%'ini kullaniyor — ` +
+    `WINDOW gereksiz yere kucuk, bu her belgede fazladan pencere ve fazladan bekleme demek`
+  );
+});
+
+test('tipik tek bolumluk belge tek pencereye sigar', () => {
+  const WINDOW = Number(SRC.match(/const WINDOW = (\d+)/)[1]);
+  // Canli olculen referans: 30 sayfalik ders slaytindan cikan 12.451 karakter.
+  // Bu belge iki pencereye bolundugunde aralarina ~60 saniyelik pacer beklemesi
+  // giriyor ve PIPELINE_BUDGET_MS (110 sn) tukenip review pass hic calismiyor.
+  assert.ok(
+    WINDOW >= 12451,
+    `WINDOW=${WINDOW}: 12.451 karakterlik referans belge yine bolunur ` +
+    `ve aradaki pacer beklemesi review pass'i engeller`
+  );
+});
+
 summary();
 
 // Pacer testleri bilerek yarida birakilan uzun bekleme zamanlayicilari
