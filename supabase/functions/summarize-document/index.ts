@@ -1930,6 +1930,118 @@ function sanitizeCharts(charts: any[]): { charts: any[]; dropped: Array<{ title:
 }
 
 // ==========================================================================
+// NARRATIVE YEAR GATE — the one blind spot applyGroundingGate has
+//
+// applyGroundingGate judges key_terms and key_points. It does not judge the
+// prose: "summary", "summary_executive" and sections[].summary are written by
+// the narrative writer AFTER the gate has run, and nothing checks them. That
+// is where the model's own world knowledge leaks back in, and it leaks as
+// specifics — exactly the specifics a student would be tested on.
+//
+// Observed twice in eleven runs of the same 30-page deck, with the gate
+// reporting "25 kept / 0 dropped" both times:
+//     "the Great Depression (1929-1933)"
+// The source says "began in 1929 and continued throughout the 1930s" and
+// never mentions 1933 anywhere.
+//
+// A four-digit year is the one claim class that can be checked literally: it
+// is either in the source or it is not, with no paraphrase to reason about.
+// So this gate is deliberately narrow — it only judges years, and it only
+// REWRITES the two shapes where a rewrite is provably grammatical:
+//
+//   1. a parenthetical made of nothing but year material  -> drop it whole
+//      ("the Great Depression (1929-1933)" -> "the Great Depression")
+//   2. a range with one supported endpoint -> keep that endpoint
+//      ("from 1929-1933" -> "from 1929")
+//
+// Anything else — a bare unsupported year mid-sentence — is reported and left
+// alone. Editing prose blind is how a gate starts causing the damage it was
+// added to prevent, and a logged year we can act on beats a mangled sentence
+// we cannot.
+const YEAR_RE = /\b(1[89]\d{2}|20\d{2})\b/g
+// The model writes ranges with whatever dash it likes, including U+2011
+// NON-BREAKING HYPHEN — the same character class that once made the grounding
+// gate drop "fine-tuning" as fabricated.
+const YEAR_RANGE_RE = /\b(1[89]\d{2}|20\d{2})\s*[-‐-―]\s*(1[89]\d{2}|20\d{2})\b/g
+// A parenthetical safe to delete: years, separators and whitespace only.
+const YEAR_ONLY_PAREN_RE = /\s*\(([\d\s,;./‐-―-]*)\)/g
+
+function yearInSource(year: string, sourceText: string): boolean {
+  return new RegExp(`(?<![\\d])${year}(?![\\d])`).test(sourceText)
+}
+
+function scrubUnsupportedYears(
+  text: string,
+  sourceText: string
+): { text: string; removed: string[]; flagged: string[] } {
+  let out = String(text || '')
+  if (!out) return { text: out, removed: [], flagged: [] }
+
+  const removed: string[] = []
+  const supported = (y: string) => yearInSource(y, sourceText)
+
+  // (1) Parentheticals that carry nothing but year material.
+  out = out.replace(YEAR_ONLY_PAREN_RE, (whole, inner: string) => {
+    const years = String(inner).match(YEAR_RE) || []
+    if (!years.length) return whole                       // "(3)" etc — not ours
+    const bad = years.filter(y => !supported(y))
+    if (!bad.length) return whole
+    removed.push(...bad)
+    return ''
+  })
+
+  // (2) Ranges where exactly one endpoint is supported — keep that endpoint.
+  out = out.replace(YEAR_RANGE_RE, (whole, a: string, b: string) => {
+    const aOk = supported(a)
+    const bOk = supported(b)
+    if (aOk && bOk) return whole
+    if (aOk) { removed.push(b); return a }
+    if (bOk) { removed.push(a); return b }
+    return whole                                          // both bad — flagged below
+  })
+
+  // Whatever unsupported year survives both passes stays in the text.
+  const flagged = [...new Set((out.match(YEAR_RE) || []).filter(y => !supported(y)))]
+  // Deleting a parenthetical can leave a doubled space or a space before a
+  // comma/period.
+  out = out.replace(/[ \t]{2,}/g, ' ').replace(/\s+([,.;:])/g, '$1').trim()
+
+  return { text: out, removed: [...new Set(removed)], flagged }
+}
+
+function sanitizeNarrativeYears(
+  draft: any,
+  sourceText: string
+): { changed: number; removed: string[]; flagged: string[] } {
+  const removed: string[] = []
+  const flagged: string[] = []
+  let changed = 0
+  if (!draft || typeof draft !== 'object' || !sourceText) {
+    return { changed, removed, flagged }
+  }
+
+  for (const field of ['summary', 'summary_executive']) {
+    if (typeof draft[field] !== 'string') continue
+    const r = scrubUnsupportedYears(draft[field], sourceText)
+    if (r.text !== draft[field]) { draft[field] = r.text; changed++ }
+    removed.push(...r.removed)
+    flagged.push(...r.flagged)
+  }
+
+  if (Array.isArray(draft.sections)) {
+    for (const s of draft.sections) {
+      if (!s || typeof s.summary !== 'string') continue
+      const r = scrubUnsupportedYears(s.summary, sourceText)
+      if (r.text !== s.summary) { s.summary = r.text; changed++ }
+      removed.push(...r.removed)
+      flagged.push(...r.flagged)
+    }
+  }
+
+  return { changed, removed: [...new Set(removed)], flagged: [...new Set(flagged)] }
+}
+
+// ==========================================================================
 // QUALITY GATE — drop what the document does not support
 //
 // The anchoring machinery above already answers, for every claim, "do this
@@ -4113,6 +4225,16 @@ Fix the listed issues. Remove hallucinations and admin noise. Keep ${langLabel}.
         (gated.stats.droppedTerms.length ? ` | uydurma terim: ${gated.stats.droppedTerms.join(', ')}` : '') +
         (gated.stats.droppedPoints.length ? ` | uydurma nokta: ${gated.stats.droppedPoints.map(p => `"${p}"`).join(' ')}` : '')
       )
+
+      // --- (b2) Narrative year gate: the prose the gate above never sees
+      const yearsChecked = sanitizeNarrativeYears(parsedContent, extractedText)
+      if (yearsChecked.removed.length || yearsChecked.flagged.length) {
+        console.log(
+          `Narrative year gate: ${yearsChecked.changed} alan duzeltildi` +
+          (yearsChecked.removed.length ? ` | kaynakta olmayan yil silindi: ${yearsChecked.removed.join(', ')}` : '') +
+          (yearsChecked.flagged.length ? ` | silinemedi, metinde kaldi: ${yearsChecked.flagged.join(', ')}` : '')
+        )
+      }
 
       // --- (c) Near-duplicate merge: the same idea worded twice by two windows
       const beforeDedup = {
