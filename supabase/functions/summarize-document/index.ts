@@ -510,6 +510,111 @@ type GroqJsonOpts = {
   maxRetries?: number
 }
 
+// ==========================================================================
+// TOKEN PACER — stop hitting the rate limit instead of recovering from it
+//
+// Live evidence (2026-10-04, 30-page chapter, two identical runs):
+//
+//   run A: both windows succeeded      -> 26 terms, 19 key points
+//   run B: window 1 lost all 3 retries -> 14 terms,  8 key points
+//
+// Same document, same settings, half the output. Every failure was:
+//
+//   Rate limit reached ... tokens per minute (TPM): Limit 8000,
+//   Used 7362, Requested 3873. Please try again in 24.26s
+//
+// The cause is that windows were fired CHUNK_CONCURRENCY-at-a-time with no
+// idea of what the budget could absorb. At ~5,000 tokens a call against an
+// 8,000 TPM ceiling, two simultaneous calls cannot both fit — so they knock
+// each other out, and whether a student gets the good summary or the thin
+// one is decided by a race.
+//
+// Retrying harder cannot fix that: when the per-minute window is already
+// spent, every retry is just another 429, and the window loop's own budget
+// then runs out before the remaining windows are ever tried.
+//
+// So this paces requests against a rolling 60-second token budget: a call
+// waits until its estimated cost fits, and actual usage is recorded from
+// the response afterwards. The real ceiling is read from Groq's own
+// x-ratelimit-limit-tokens header, so an account upgrade raises throughput
+// automatically with no code change.
+// ==========================================================================
+const PACER_SAFETY = 0.85            // leave headroom for estimate error
+const PACER_WINDOW_MS = 60_000
+// Long enough to actually clear the rolling window, which is the point: on
+// 8,000 TPM two ~5,000-token window calls cannot both fit inside one minute,
+// so the second genuinely has to wait for the first to age out. Capping this
+// lower would mean waiting AND then being rejected anyway — the worst of
+// both. The caller's own wall-clock budget (PIPELINE_BUDGET_MS, plus the
+// budgetLeft() checks in the window loop) is what decides when to stop
+// adding work; this constant only decides how long a single call may hold
+// still before giving up and letting the 429 path handle it.
+const PACER_MAX_WAIT_MS = 55_000
+const DEFAULT_TPM_LIMIT = 8000       // observed on this account until a header says otherwise
+
+const tokenPacer = {
+  limit: DEFAULT_TPM_LIMIT,
+  limitKnown: false,
+  spent: [] as Array<{ at: number; tokens: number }>,
+
+  /** Drop entries older than the rolling window and total what's left. */
+  used(now: number): number {
+    this.spent = this.spent.filter(e => now - e.at < PACER_WINDOW_MS)
+    return this.spent.reduce((n, e) => n + e.tokens, 0)
+  },
+
+  /** Groq reports the real ceiling on every response; believe it over our default. */
+  observeHeaders(headers: Headers) {
+    const raw = headers.get('x-ratelimit-limit-tokens')
+    const n = raw ? parseInt(raw, 10) : NaN
+    if (Number.isFinite(n) && n > 0 && n !== this.limit) {
+      console.log(`TokenPacer: TPM limit ${this.limit} -> ${n} (Groq header)`)
+      this.limit = n
+      this.limitKnown = true
+    } else if (Number.isFinite(n)) {
+      this.limitKnown = true
+    }
+  },
+
+  record(tokens: number) {
+    if (Number.isFinite(tokens) && tokens > 0) this.spent.push({ at: Date.now(), tokens })
+  },
+
+  /** How many calls of this size can safely be in flight at once. */
+  safeConcurrency(estTokensPerCall: number): number {
+    if (!(estTokensPerCall > 0)) return 1
+    return Math.max(1, Math.floor((this.limit * PACER_SAFETY) / estTokensPerCall))
+  },
+
+  /** Block until this call's estimated cost fits in the rolling budget. */
+  async acquire(estTokens: number): Promise<void> {
+    const budget = this.limit * PACER_SAFETY
+    const started = Date.now()
+    while (true) {
+      const now = Date.now()
+      const used = this.used(now)
+      if (used + estTokens <= budget || used === 0) return
+      // Wait for the oldest recorded spend to age out of the window.
+      const oldest = this.spent[0]
+      const waitMs = Math.min(
+        Math.max(250, PACER_WINDOW_MS - (now - oldest.at) + 250),
+        PACER_MAX_WAIT_MS - (now - started)
+      )
+      if (waitMs <= 0) {
+        console.warn(`TokenPacer: ${PACER_MAX_WAIT_MS}ms bekledi, yine de gonderiyor (used=${used}, est=${estTokens})`)
+        return
+      }
+      console.log(`TokenPacer: ${Math.round(waitMs)}ms bekliyor (used=${used}/${Math.round(budget)}, est=${estTokens})`)
+      await new Promise(r => setTimeout(r, waitMs))
+    }
+  }
+}
+
+/** Rough token estimate. Turkish runs denser than English per character. */
+function estimateTokens(systemPrompt: string, userContent: string, maxCompletion: number): number {
+  return Math.ceil((systemPrompt.length + userContent.length) / 3.2) + maxCompletion
+}
+
 async function callGroqJson(
   groqApiKey: string,
   systemPrompt: string,
@@ -541,6 +646,11 @@ async function callGroqJson(
     body.include_reasoning = false
   }
 
+  // Wait until this call fits the rolling per-minute budget, rather than
+  // firing it and letting Groq reject it (see the TokenPacer comment above).
+  const estTokens = estimateTokens(systemPrompt, userContent, maxCompletionTokens)
+  await tokenPacer.acquire(estTokens)
+
   const response = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -550,10 +660,21 @@ async function callGroqJson(
     body: JSON.stringify(body)
   }, maxRetries, timeoutMs)
 
+  tokenPacer.observeHeaders(response.headers)
+
   const data = await response.json()
   if (!response.ok) {
+    // A rejected call still consumed budget in Groq's accounting, so record
+    // the estimate — otherwise the pacer would under-count after a 429 and
+    // immediately fire again into the same wall.
+    tokenPacer.record(estTokens)
     throw new Error(`Groq API error (${response.status}): ${JSON.stringify(data)}`)
   }
+  tokenPacer.record(
+    Number(data?.usage?.total_tokens) ||
+    (Number(data?.usage?.prompt_tokens) || 0) + (Number(data?.usage?.completion_tokens) || 0) ||
+    estTokens
+  )
   const raw = data.choices?.[0]?.message?.content ?? ""
   if (!raw) throw new Error("Empty Groq response content")
   const stripped = stripThinkBlock(raw)
@@ -1587,6 +1708,37 @@ function sanitizeFormulas(formulas: any[]): { formulas: any[]; dropped: Array<{ 
 // is found even in an inflected document.
 // ==========================================================================
 
+/**
+ * Normalisation for the gate's substring test.
+ *
+ * The first live run exposed why this has to do more than lowercase: the
+ * gate dropped "Fine‑tuning", "Goods‑and‑services market" and "Inflation
+ * rate (GDP deflator)" as fabrications when all three are straight out of
+ * the chapter. The model writes typographic punctuation — the hyphen in
+ * "Fine‑tuning" is U+2011 NON-BREAKING HYPHEN — while the PDF's own text
+ * has a plain hyphen, or just a space ("goods and services"). Comparing
+ * those literally can only fail.
+ *
+ * So every dash variant AND every other punctuation mark becomes a space,
+ * and runs of whitespace collapse. "Fine‑tuning", "fine-tuning" and "fine
+ * tuning" all normalise to "fine tuning", and the parentheses in
+ * "Inflation rate (GDP deflator)" stop welding themselves to the words
+ * inside. Letters and digits are the only things that survive, which is
+ * also what anchorTerms() already does — this brings the two comparisons
+ * into agreement.
+ *
+ * Dropping a real term is the expensive failure here: it deletes correct
+ * content from the student's card and inflates the "model is fabricating"
+ * signal in the logs.
+ */
+function gateNormalize(s: string): string {
+  return String(s == null ? '' : s)
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')   // dashes, quotes, brackets, punctuation
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 // A claim needs at least this many distinctive terms before "none of them
 // appear" is evidence of anything rather than just a short sentence.
 const GATE_MIN_TERMS_TO_JUDGE = 3
@@ -1628,7 +1780,7 @@ function applyGroundingGate(
     return { key_terms: terms, key_points: points, stats }
   }
 
-  const haystack = ' ' + String(sourceText).toLowerCase().replace(/\s+/g, ' ') + ' '
+  const haystack = ' ' + gateNormalize(sourceText) + ' '
   const docTerms = new Set(anchorTerms(sourceText))
   const readText = (raw: any) => typeof raw === 'string' ? raw : String(raw?.text || raw?.point || '')
 
@@ -1636,7 +1788,7 @@ function applyGroundingGate(
   const keptTerms = terms.filter((t: any) => {
     const term = String(t?.term || '').trim()
     if (!term) return false
-    const norm = term.toLowerCase().replace(/\s+/g, ' ').trim()
+    const norm = gateNormalize(term)
     if (norm.length < 3) return true            // too short to judge
     if (haystack.includes(norm)) { stats.termsKept++; return true }
     // Multi-word term: accept when every word of it occurs somewhere. Some
@@ -2809,8 +2961,27 @@ Rules:
       // every single window — slightly less granular, but this is what turns
       // an up-to-8x-sequential-calls stage into ~8/CHUNK_CONCURRENCY calls of
       // wall-clock time, and lets more windows fit inside the same budget.
+      // ADAPTIVE CONCURRENCY. CHUNK_CONCURRENCY is now a ceiling, not the
+      // batch size: the real batch size is whatever the account's token
+      // budget can absorb at once. On the observed 8,000 TPM this resolves
+      // to 1, which is exactly right — two ~5,000-token window calls cannot
+      // both fit in 8,000, and firing them together is what made two runs of
+      // the same document produce 26 terms and 14 terms respectively. On a
+      // larger plan the same expression allows real parallelism again.
+      const estWindowTokens = estimateTokens(
+        compactWindowPrompt(0, windows.length),
+        windows[0] || '',
+        3072
+      )
+      const windowConcurrency = Math.min(CHUNK_CONCURRENCY, tokenPacer.safeConcurrency(estWindowTokens))
+      console.log(
+        `Window concurrency: ${windowConcurrency} ` +
+        `(TPM limit ${tokenPacer.limit}${tokenPacer.limitKnown ? '' : ', varsayilan'}, ` +
+        `~${estWindowTokens} token/pencere, tavan ${CHUNK_CONCURRENCY})`
+      )
+
       const windowResults: any[] = []
-      for (let batchStart = 0; batchStart < windows.length; batchStart += CHUNK_CONCURRENCY) {
+      for (let batchStart = 0; batchStart < windows.length; batchStart += windowConcurrency) {
         if (budgetLeft() < 20_000 && windowResults.length > 0) {
           console.warn(`Budget low — stopping before batch starting at window ${batchStart}`)
           break
@@ -2824,7 +2995,7 @@ Rules:
           }
         }
 
-        const batchEnd = Math.min(batchStart + CHUNK_CONCURRENCY, windows.length)
+        const batchEnd = Math.min(batchStart + windowConcurrency, windows.length)
         await serviceClient.from('documents')
           .update({ processing_stage: `chunking:${batchEnd}/${windows.length}` })
           .eq('id', documentId)
