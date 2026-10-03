@@ -44,25 +44,67 @@ try {
  * parametre parantezi kapandiginda toplam derinlik sifira doner — gövde daha
  * baslamamistir — bu yuzden sayaclar TURE GORE ayri tutulur.
  */
+// Bir '/' karakterinden ONCE gelen bu isaretlerden biri varsa, o '/' bolme
+// degil REGEX LITERAL baslatiyor demektir. Gerekli: js/dashboard.js icindeki
+// escapeHtml gibi fonksiyonlar `/"/g` ve `/'/g` regexleri tasiyor; naif bir
+// tarayici o tirnagi string baslangici sanip parantez sayimini kaybediyor
+// (gercekten oldu — bu testler ilk kosusta tam burada patladi).
+const REGEX_PRECEDERS = new Set([
+  '(', ',', '=', ':', '[', '!', '&', '|', '?', '{', '}', ';',
+  '+', '-', '*', '%', '~', '^', '<', '>', null
+]);
+const REGEX_PRECEDING_KEYWORDS = /\b(return|typeof|instanceof|in|of|new|delete|void|do|else|case|yield|await)$/;
+
 function scanFrom(js, start, onChar) {
   let i = start;
   let paren = 0, brace = 0, bracket = 0;
   let inStr = null, inLineComment = false, inBlockComment = false;
+  let prevSignificant = null;   // son anlamli karakter (bosluk/yorum harici)
+
   while (i < js.length) {
     const c = js[i], n = js[i + 1];
+
     if (inLineComment) { if (c === '\n') inLineComment = false; i++; continue; }
     if (inBlockComment) { if (c === '*' && n === '/') { inBlockComment = false; i += 2; continue; } i++; continue; }
     if (inStr) {
       if (c === '\\') { i += 2; continue; }
-      if (c === inStr) inStr = null;
+      if (c === inStr) { inStr = null; prevSignificant = c; }
       i++; continue;
     }
+
     if (c === '/' && n === '/') { inLineComment = true; i += 2; continue; }
     if (c === '/' && n === '*') { inBlockComment = true; i += 2; continue; }
-    if (c === '"' || c === "'" || c === '`') { inStr = c; i++; continue; }
+
+    if (c === '"' || c === "'" || c === '`') { inStr = c; prevSignificant = c; i++; continue; }
+
+    // Regex literal mi?
+    if (c === '/') {
+      const before = js.slice(Math.max(0, i - 12), i).replace(/\s+$/, '');
+      const isRegex = REGEX_PRECEDERS.has(prevSignificant) || REGEX_PRECEDING_KEYWORDS.test(before);
+      if (isRegex) {
+        i++;                                   // acilis '/' gecildi
+        let inClass = false;
+        while (i < js.length) {
+          const r = js[i];
+          if (r === '\\') { i += 2; continue; }
+          if (r === '[') inClass = true;
+          else if (r === ']') inClass = false;
+          else if (r === '/' && !inClass) { i++; break; }
+          else if (r === '\n') break;          // kapanmamis regex — vazgec
+          i++;
+        }
+        while (i < js.length && /[a-z]/.test(js[i])) i++;   // bayraklar (g, i, u, ...)
+        prevSignificant = '/';
+        continue;
+      }
+    }
+
     if (c === '(') paren++; else if (c === ')') paren--;
     else if (c === '{') brace++; else if (c === '}') brace--;
     else if (c === '[') bracket++; else if (c === ']') bracket--;
+
+    if (!/\s/.test(c)) prevSignificant = c;
+
     const stop = onChar(c, i, { paren, brace, bracket });
     if (stop !== undefined) return stop;
     i++;
