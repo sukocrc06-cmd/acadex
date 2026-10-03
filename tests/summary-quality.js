@@ -26,7 +26,10 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   // latex
   'stripLatexDelimiters', 'validateLatex', 'sanitizeFormulas',
   // mermaid dogrulama
-  'MERMAID_TYPES', 'validateMermaid', 'sanitizeDiagrams',
+  'MERMAID_TYPES', 'MERMAID_REVERSE_LABELLED_EDGE', 'repairMermaidArrows',
+  'validateMermaid', 'sanitizeDiagrams',
+  // grafik kapisi
+  'CHART_TYPES', 'CHART_MIN_POINTS', 'sanitizeCharts',
   // temellendirme kapisi
   'gateNormalize', 'GATE_MIN_TERMS_TO_JUDGE', 'GATE_MAX_DROP_SHARE', 'applyGroundingGate',
   // yakin kopya
@@ -505,6 +508,144 @@ test('estimateTokens girdiyle birlikte buyur', () => {
   // Tamamlama tavani artik PACER_COMPLETION_FACTOR ile carpiliyor, tamami degil
   assert.ok(a > 1000 * A.PACER_COMPLETION_FACTOR * 0.9, 'tamamlama butcesi dahil olmali');
   assert.ok(a < 1000 + 1000, 'tavanin tamami sayilmamali');
+});
+
+/* --------------------------------------------------------------------------
+   GRAFIK KAPISI (sanitizeCharts)
+   --------------------------------------------------------------------------
+   Canli olcum: 30 sayfalik ders slaytindan uretilen kartta uc grafik vardi —
+   "U.S. Aggregate Output 1970-2014", "Unemployment Rate", "Inflation Rate" —
+   her birinin on yil etiketi ve data=[0,0,0,0,0,0,0,0,0,0] degeri. Uc tanesi
+   de x ekseni boyunca duz cizgi olarak render oldu. Model sayi uydurmadigi
+   icin "never fabricate" kuralina uydugunu saniyor; kapi bu yuzden promptta
+   degil burada.
+   ------------------------------------------------------------------------ */
+
+// Kartta gercekten cikan grafik.
+const EMPTY_CHART = {
+  title: 'U.S. Aggregate Output (Real GDP) 1970-2014',
+  type: 'line',
+  labels: ['1970', '1975', '1980', '1985', '1990', '1995', '2000', '2005', '2010', '2014'],
+  data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+};
+
+const REAL_CHART = {
+  title: 'Issizlik orani',
+  type: 'line',
+  labels: ['1975', '1982', '2010'],
+  data: [8.9, 10.6, 10.0]
+};
+
+test('sifir dolu grafik dusurulur', () => {
+  const r = A.sanitizeCharts([EMPTY_CHART]);
+  assert.equal(r.charts.length, 0, 'tum degerleri sifir olan grafik kalmamali');
+  assert.equal(r.dropped.length, 1);
+  assert.match(r.dropped[0].reason, /ayni/, `sebep yaziliyor olmali: ${r.dropped[0].reason}`);
+});
+
+test('gercek verili grafik korunur', () => {
+  const r = A.sanitizeCharts([REAL_CHART]);
+  assert.equal(r.charts.length, 1);
+  assert.deepEqual(r.charts[0].data, [8.9, 10.6, 10.0]);
+  assert.deepEqual(r.charts[0].labels, ['1975', '1982', '2010']);
+});
+
+test('kapi iyi ve kotuyu ayni listede ayirir', () => {
+  const r = A.sanitizeCharts([EMPTY_CHART, REAL_CHART, EMPTY_CHART]);
+  assert.equal(r.charts.length, 1, 'sadece gercek veri kalmali');
+  assert.equal(r.dropped.length, 2);
+});
+
+test('tek noktali veya bos grafik dusurulur', () => {
+  assert.equal(A.sanitizeCharts([{ title: 'tek', data: [5], labels: ['a'] }]).charts.length, 0);
+  assert.equal(A.sanitizeCharts([{ title: 'bos', data: [], labels: [] }]).charts.length, 0);
+  assert.equal(A.sanitizeCharts([{ title: 'dizi degil', data: null }]).charts.length, 0);
+});
+
+test('sayi olmayan noktalar atilir, kalan yeterliyse grafik yasar', () => {
+  const r = A.sanitizeCharts([{ title: 'karisik', type: 'bar', labels: ['a', 'b', 'c'], data: [1, 'yok', 3] }]);
+  assert.equal(r.charts.length, 1);
+  assert.deepEqual(r.charts[0].data, [1, 3], 'sayi olmayan nokta dusmeli');
+  assert.deepEqual(r.charts[0].labels, ['a', 'c'], 'etiket kendi degeriyle hizali kalmali');
+});
+
+test('gecersiz tip bar a dusurulur, negatifli pie bar olur', () => {
+  assert.equal(A.sanitizeCharts([{ title: 'x', type: 'donut', labels: ['a','b'], data: [1, 2] }]).charts[0].type, 'bar');
+  assert.equal(A.sanitizeCharts([{ title: 'y', type: 'pie', labels: ['a','b'], data: [-1, 2] }]).charts[0].type, 'bar');
+  assert.equal(A.sanitizeCharts([{ title: 'z', type: 'pie', labels: ['a','b'], data: [1, 2] }]).charts[0].type, 'pie');
+});
+
+test('sanitizeCharts dizi olmayan girdide patlamaz', () => {
+  for (const bad of [null, undefined, 'x', 42, {}]) {
+    assert.deepEqual(A.sanitizeCharts(bad).charts, [], `${JSON.stringify(bad)} bos liste vermeli`);
+  }
+});
+
+/* --------------------------------------------------------------------------
+   MERMAID TERS OK ONARIMI
+   --------------------------------------------------------------------------
+   `A <--|etiket| B` Mermaid'de gecerli degil ve tek bir satir tum diyagrami
+   parse edilemez hale getiriyor. Canli kartta circular-flow diyagrami tam da
+   bu yuzden hic render olmadi. Dogrusu `B -->|etiket| A` — ayni anlam, gecerli
+   sozdizimi — o yuzden dusurmek yerine cevriliyor.
+   ------------------------------------------------------------------------ */
+
+// Karttan birebir alindi.
+const LIVE_DIAGRAM = `flowchart LR
+H[Households] -->|spends on goods| F[Firms]
+H -->|pays taxes| G[Government]
+H <--|receives wages, dividends, interest| F
+H <--|receives transfers| G`;
+
+test('canli circular-flow diyagrami onarilip gecerli hale gelir', () => {
+  const v = A.validateMermaid(LIVE_DIAGRAM);
+  assert.ok(v.ok, `onarim sonrasi gecerli olmali: ${v.reason}`);
+  assert.equal(v.repaired, 2, 'iki ters ok cevrilmeli');
+  assert.ok(!/<--\|/.test(v.mermaid), 'ters etiketli ok kalmamali');
+  assert.match(v.mermaid, /F -->\|receives wages, dividends, interest\| H/);
+  assert.match(v.mermaid, /G -->\|receives transfers\| H/);
+});
+
+test('onarim yon disinda hicbir seyi degistirmez', () => {
+  const v = A.validateMermaid(LIVE_DIAGRAM);
+  // Zaten dogru olan iki satir aynen durmali.
+  assert.match(v.mermaid, /H\[Households\] -->\|spends on goods\| F\[Firms\]/);
+  assert.match(v.mermaid, /H -->\|pays taxes\| G\[Government\]/);
+  // Etiket metni korunur.
+  assert.ok(v.mermaid.includes('receives wages, dividends, interest'));
+});
+
+test('dogru diyagram onarimdan etkilenmez', () => {
+  const clean = `flowchart TD\nA[Giris] -->|akis| B[Cikis]`;
+  const v = A.validateMermaid(clean);
+  assert.ok(v.ok);
+  assert.equal(v.repaired, 0, 'onarilacak bir sey yoktu');
+  assert.equal(v.mermaid, clean, 'gecerli kaynak aynen kalmali');
+});
+
+test('== ve -.- ok turleri de onarilir', () => {
+  const r1 = A.repairMermaidArrows('A <==|x| B');
+  assert.equal(r1.mermaid, 'B ==>|x| A');
+  const r2 = A.repairMermaidArrows('A <-.-|x| B');
+  assert.equal(r2.mermaid, 'B -.->|x| A');
+});
+
+test('onarilamayan ters ok diyagrami dusurur', () => {
+  // Sag tarafta dugum yok: cevrilecek hedef yok.
+  const broken = `flowchart LR\nA[Tek] <--|etiket|`;
+  const v = A.validateMermaid(broken);
+  assert.ok(!v.ok, 'gecersiz kalmali');
+  assert.match(v.reason, /ters etiketli ok/);
+});
+
+test('sanitizeDiagrams onarim sayisini toplar', () => {
+  const r = A.sanitizeDiagrams([
+    { title: 'akis', mermaid: LIVE_DIAGRAM },
+    { title: 'cop', mermaid: 'bu bir diyagram degil' }
+  ]);
+  assert.equal(r.diagrams.length, 1, 'gecerli olan kalmali');
+  assert.equal(r.repaired, 2, 'onarim sayisi raporlanmali');
+  assert.equal(r.dropped.length, 1);
 });
 
 /* --------------------------------------------------------------------------
