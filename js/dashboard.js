@@ -94,12 +94,76 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 12. Mermaid.js — free client-side rendering of AI-reconstructed diagrams
   if (window.mermaid) {
     try {
-      window.mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'loose' });
+      window.mermaid.initialize({
+        startOnLoad: false,
+        theme: 'default',
+        securityLevel: 'loose',
+        // Stop Mermaid drawing its own "Syntax error in text" bomb graphic.
+        // Every render call site here is already wrapped in try/catch, yet
+        // students still saw three bombs under every summary — because
+        // Mermaid 10 INJECTS the error diagram into the DOM first and throws
+        // afterwards, so catching the exception is too late to stop the
+        // picture appearing. Suppressing it, plus the parse-first check in
+        // safeMermaidRender(), means a diagram the model got wrong simply
+        // does not appear instead of appearing as a failure.
+        suppressErrorRendering: true
+      });
     } catch (e) {
       console.warn('Mermaid initialize failed:', e);
     }
   }
 });
+
+/**
+ * Render Mermaid source into `target`, or leave the area clean if the source
+ * is not valid Mermaid.
+ *
+ * The AI writes this source, and it is wrong often enough that it has to be
+ * treated as untrusted input: the live card that prompted this had three
+ * diagrams and all three failed. mermaid.parse() validates WITHOUT drawing
+ * anything, so an invalid diagram never reaches render() and never produces
+ * a bomb. Any stray node Mermaid may have left behind under the render id is
+ * removed too.
+ *
+ * Returns true when a diagram was drawn, false when it was skipped — callers
+ * can use that to hide an empty container.
+ */
+async function safeMermaidRender(target, code, renderId) {
+  if (!target) return false;
+  const src = String(code || '').trim();
+  if (!src || !window.mermaid) return false;
+
+  // 1. Validate first. suppressErrors makes parse return false instead of
+  //    throwing on the versions that support it; older ones throw, which the
+  //    catch handles identically.
+  let valid = false;
+  try {
+    const res = await window.mermaid.parse(src, { suppressErrors: true });
+    valid = res !== false;
+  } catch (_parseErr) {
+    valid = false;
+  }
+  if (!valid) {
+    console.warn('Mermaid kaynagi gecersiz, diyagram atlandi:', src.slice(0, 120));
+    target.innerHTML = '';
+    return false;
+  }
+
+  // 2. Only now draw it.
+  try {
+    const { svg } = await window.mermaid.render(renderId, src);
+    target.innerHTML = svg;
+    return true;
+  } catch (err) {
+    console.warn('Mermaid render failed after a successful parse:', err);
+    target.innerHTML = '';
+    // Mermaid can leave an orphan working node behind on failure.
+    const orphan = document.getElementById(renderId) || document.getElementById('d' + renderId);
+    if (orphan && orphan.parentNode) orphan.parentNode.removeChild(orphan);
+    return false;
+  }
+}
+window.safeMermaidRender = safeMermaidRender;
 
 // ==========================================
 // 1. Session Redirect Guard & Profile Loader
@@ -918,6 +982,25 @@ function initDeleteModal() {
 }
 
 function confirmDeleteDocument(docId, storagePath) {
+  // Ozetlenmekte olan bir belgeyi silmeyi engelle.
+  //
+  // Canli logdan gelen gercek vaka: bir ozet butun isini bitirdi (25 terim,
+  // 19 nokta, %100 temellendirme skoru, 11 atif) ve son adimda kaydedemedi:
+  //
+  //   Failed to save study card: code 23503
+  //   Key (document_id)=(45ed...) is not present in table "documents"
+  //
+  // Belge, ozet calisirken silinmisti. ~90 saniyelik is ve o kadar Groq
+  // token'i cope gitti, kullanici da "basladi sonra durdu" gordu. Islem
+  // bitene kadar silme dugmesi bu belgeyi birakmiyor.
+  const doc = Array.isArray(activeDocuments) ? activeDocuments.find(d => d.id === docId) : null;
+  if (doc && doc.status === 'processing') {
+    const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+    showDashboardAlert('error', isTr
+      ? 'Bu belge su anda ozetleniyor. Islem bitmeden silinemez — yoksa hazirlanan ozet kaydedilemez.'
+      : 'This document is being summarized. It cannot be deleted until that finishes, or the summary will be lost.');
+    return;
+  }
   documentToDelete = { docId, storagePath };
   if (window.openModalWithFocus) {
     window.openModalWithFocus('delete-modal');
@@ -1079,6 +1162,12 @@ async function resetStuckDocument(docId) {
 }
 window.resetStuckDocument = resetStuckDocument;
 
+// Ozetlemesi suren belge id'leri. Ogrenci "baslamadi" sanip tekrar basinca
+// ayni belge icin ikinci bir edge function cagrisi aciliyordu; ikisi ayni
+// 8.000 TPM butcesini paylasip birbirini yavaslatiyor, hatta 429'a
+// dusuruyordu (loglarda ayni belge icin ust uste calisan execution_id'ler).
+const inFlightSummarizations = new Set();
+
 async function proceedWithSummarization() {
   const langSelect = document.querySelector('input[name="summary-language-choice"]:checked');
   const language = langSelect ? langSelect.value : 'en';
@@ -1140,6 +1229,17 @@ async function proceedWithSummarization() {
     // local activeDocuments cache directly and re-rendering synchronously
     // removes the server round trip from the critical path entirely, so
     // this can no longer race.
+    // Ayni belge icin ikinci bir calistirmayi burada kes. Tekrar basmak
+    // yeni bir ozet uretmiyor, sadece ayni TPM butcesini ikiye boluyor.
+    if (inFlightSummarizations.has(docId)) {
+      const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+      showDashboardAlert('info', isTr
+        ? 'Bu belge zaten ozetleniyor. Islem suruyor, lutfen bekleyin.'
+        : 'This document is already being summarized — it is still running.');
+      return;
+    }
+    inFlightSummarizations.add(docId);
+
     const localDoc = activeDocuments.find(d => d.id === docId);
     if (localDoc) {
       localDoc.status = 'processing';
@@ -1201,6 +1301,10 @@ async function proceedWithSummarization() {
     console.error("Exception invoking summarize-document: ", err);
     showDashboardAlert('error', 'Edge function invocation failed. Please try again.');
     await loadDocuments();
+  } finally {
+    // Her cikis yolunda serbest birak — basarili, hatali ya da erken donus.
+    // Aksi halde bir kere basarisiz olan belge bir daha hic ozetlenemezdi.
+    if (typeof docId !== 'undefined' && docId) inFlightSummarizations.delete(docId);
   }
 }
 window.proceedWithSummarization = proceedWithSummarization;
@@ -2340,13 +2444,13 @@ function renderStudyCardDiagrams(card) {
           if (target) target.textContent = d.mermaid || '';
           return;
         }
-        try {
-          const renderId = `mmd-sc-${Date.now()}-${idx}`;
-          const { svg } = await window.mermaid.render(renderId, String(d.mermaid).trim());
-          target.innerHTML = svg;
-        } catch (err) {
-          console.warn('Study card Mermaid render failed:', err);
-          target.innerHTML = `<pre style="font-size:0.75rem;white-space:pre-wrap;color:#64748b;margin:0;">${escapeHtml(d.mermaid)}</pre>`;
+        const renderId = `mmd-sc-${Date.now()}-${idx}`;
+        const drawn = await safeMermaidRender(target, d.mermaid, renderId);
+        if (!drawn) {
+          // Gecersiz Mermaid: ham kaynagi ogrenciye gostermek anlamsiz, bomba
+          // gostermek daha da kotu. Diyagram kutusunu tamamen gizliyoruz.
+          const box = target.closest('.study-card-diagram') || target.parentElement;
+          if (box) box.style.display = 'none';
         }
       }, 50 + idx * 30);
     });
@@ -2574,13 +2678,10 @@ async function populateStudyCardModalDetails(card, docName, readOnly) {
           if (target) target.textContent = mmd;
           return;
         }
-        try {
-          const renderId = `cg-${Date.now()}`;
-          const { svg } = await window.mermaid.render(renderId, mmd);
-          target.innerHTML = svg;
-        } catch (err) {
-          console.warn('Concept graph Mermaid render failed:', err);
-          target.innerHTML = `<pre style="font-size:0.75rem;white-space:pre-wrap;margin:0;">${escapeHtml(mmd)}</pre>`;
+        const drawn = await safeMermaidRender(target, mmd, `cg-${Date.now()}`);
+        if (!drawn) {
+          const box = target.parentElement;
+          if (box) box.style.display = 'none';
         }
       }, 60);
     }
@@ -9621,12 +9722,9 @@ function renderKnowledgeGraphUI(query) {
         box.innerHTML = `<pre style="font-size:0.7rem;white-space:pre-wrap;">${escapeHtml(mmd)}</pre>`;
         return;
       }
-      try {
-        const { svg } = await window.mermaid.render('kg-mmd-' + Date.now(), mmd);
-        box.innerHTML = svg;
-      } catch (err) {
-        console.warn('KG Mermaid failed', err);
-        box.innerHTML = `<pre style="font-size:0.7rem;white-space:pre-wrap;">${escapeHtml(mmd)}</pre>`;
+      const drawn = await safeMermaidRender(box, mmd, 'kg-mmd-' + Date.now());
+      if (!drawn) {
+        box.innerHTML = `<div style="font-size:0.8rem;color:var(--color-text-muted);padding:0.5rem;">Diyagram bu veriden cizilemedi. / Diagram could not be drawn from this data.</div>`;
       }
     }, 40);
   }
@@ -17591,12 +17689,29 @@ async function renderOriginalDocumentPreview(container, cardLike) {
     const lowerName = (fileName || '').toLowerCase();
     const isPdf = lowerName.endsWith('.pdf') || mimeType === 'application/pdf';
 
+    // Close control INSIDE the pane. The modal header has a toggle that also
+    // closes this, but when the pane is opened by clicking a footnote the
+    // student is looking at the document, not the header — and the embedded
+    // PDF viewer fills the pane edge to edge with its own toolbar, so there
+    // is nothing here that looks like a way out. Reported as "I click a
+    // citation, the PDF opens, and I can't close it again".
+    const closeBarHtml = `
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;padding:0.4rem 0.6rem;background:var(--color-navy);border-radius:var(--radius-sm) var(--radius-sm) 0 0;flex:0 0 auto;">
+        <span style="color:#fff;font-size:0.75rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">📄 ${escapeHtml(fileName || 'Belge')}</span>
+        <button type="button" onclick="toggleOriginalDocumentViewer()"
+          title="${getTranslation('dash.cards.singleView') || 'Kapat / Close'}"
+          style="flex:0 0 auto;background:rgba(255,255,255,0.15);color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer;font-size:0.8rem;font-weight:700;line-height:1;padding:0.3rem 0.6rem;">✕</button>
+      </div>`;
+
     if (isPdf) {
-      container.innerHTML = `<iframe src="${signedData.signedUrl}" style="width:100%;height:100%;border:none;border-radius:var(--radius-sm);"></iframe>`;
+      container.innerHTML = `
+        ${closeBarHtml}
+        <iframe src="${signedData.signedUrl}" style="width:100%;flex:1 1 auto;min-height:0;border:none;border-radius:0 0 var(--radius-sm) var(--radius-sm);"></iframe>`;
     } else {
       // Non-PDF (Word / PowerPoint) download panel
       container.innerHTML = `
-        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;text-align:center;padding:2rem;gap:1rem;background:var(--color-white);border-radius:var(--radius-sm);">
+        ${closeBarHtml}
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1 1 auto;min-height:0;text-align:center;padding:2rem;gap:1rem;background:var(--color-white);border-radius:0 0 var(--radius-sm) var(--radius-sm);">
           <div style="font-size:3.5rem;">📄</div>
           <h4 style="margin:0;color:var(--color-navy);font-size:1.05rem;">${escapeHtml(fileName || 'Belge')}</h4>
           <p style="margin:0;color:var(--color-text-muted);font-size:0.85rem;max-width:340px;">${getTranslation('dash.cards.cannotPreviewInline') || 'Bu dosya türü (Word/PowerPoint) tarayıcıda doğrudan önizlenemiyor.'}</p>
@@ -17638,6 +17753,8 @@ async function toggleOriginalDocumentViewer() {
   isOriginalDocSplitActive = true;
   modalCard.classList.add('split-active');
   rightPane.style.display = 'flex';
+  // Kapatma cubugu ustte, belge altta: dikey yerlesim.
+  rightPane.style.flexDirection = 'column';
   if (toggleBtnLabel) toggleBtnLabel.textContent = getTranslation('dash.cards.singleView') || '✕ Tekli Görünüm';
 
   await renderOriginalDocumentPreview(rightPane, currentActiveStudyCard);
@@ -17899,8 +18016,12 @@ async function renderMermaidIntoBubble(bubble, mermaidCode, caption) {
 
   try {
     const renderId = 'mermaid-' + Date.now() + '-' + Math.floor(Math.random() * 100000);
-    const { svg } = await window.mermaid.render(renderId, mermaidCode);
-    wrapper.innerHTML = svg;
+    // parse-first: gecersiz kaynak render'a hic ulasmasin (bomba cizilmesin)
+    const ok = await safeMermaidRender(wrapper, mermaidCode, renderId);
+    if (!ok) {
+      wrapper.remove();
+      return null;
+    }
     const svgEl = wrapper.querySelector('svg');
     if (svgEl) {
       svgEl.style.maxWidth = '100%';
