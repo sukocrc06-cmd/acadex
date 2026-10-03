@@ -142,6 +142,42 @@ async function tryOCR(fileBytes: Uint8Array, apiKey: string): Promise<string> {
 // Extracts plain text from one document row's file bytes based on its mime type.
 // Deliberately text-only (no vision/image analysis) to keep per-message latency
 // and cost low — the visual analysis pass already ran once at summarization time.
+/**
+ * Read a document's text from document_chunks instead of re-downloading and
+ * re-parsing the original file.
+ *
+ * Before this existed, every chat message against a 60-page PDF cost a full
+ * storage download plus a full unpdf parse — repeated work on bytes that
+ * never change. summarize-document now persists the text once, at extraction
+ * time, so the normal path here is a single indexed SELECT.
+ *
+ * Returns null (not an error) when the document has no stored chunks, which
+ * is the expected case for anything uploaded before the document_chunks
+ * migration was applied. The caller then falls back to on-demand extraction,
+ * so older documents keep working exactly as they did.
+ */
+async function loadStoredText(serviceClient: any, documentId: string): Promise<string | null> {
+  try {
+    const { data, error } = await serviceClient
+      .from('document_chunks')
+      .select('text, chunk_index')
+      .eq('document_id', documentId)
+      .order('chunk_index', { ascending: true })
+    if (error) {
+      // A missing table (migration not yet applied) lands here too — warn
+      // once and fall back rather than failing the student's question.
+      console.warn(`document_chunks read failed for ${documentId}: ${error.message}`)
+      return null
+    }
+    if (!data || data.length === 0) return null
+    const joined = data.map((r: any) => String(r.text || '')).filter(Boolean).join('\n\n').trim()
+    return joined || null
+  } catch (e) {
+    console.warn('document_chunks read threw, falling back to extraction:', e)
+    return null
+  }
+}
+
 async function extractDocumentText(serviceClient: any, doc: any): Promise<string> {
   const { data: fileBlob, error: downloadError } = await serviceClient.storage
     .from('documents')
@@ -385,9 +421,19 @@ serve(async (req) => {
     }
 
     const sections: string[] = []
+    let storedHits = 0
+    let extractedHits = 0
     for (const doc of docs) {
       try {
-        const text = await extractDocumentText(serviceClient, doc)
+        // Stored chunks first; on-demand extraction only for documents that
+        // predate document_chunks (or whose write failed).
+        let text = await loadStoredText(serviceClient, doc.id)
+        if (text) {
+          storedHits++
+        } else {
+          text = await extractDocumentText(serviceClient, doc)
+          if (text) extractedHits++
+        }
         if (text) {
           sections.push(docs.length > 1 ? `=== DOCUMENT: ${doc.file_name} ===\n${text}` : text)
         }
@@ -395,6 +441,7 @@ serve(async (req) => {
         console.error('Text extraction failed for doc', doc.id, extractErr)
       }
     }
+    console.log(`chat-with-document source text: ${storedHits} from document_chunks, ${extractedHits} re-extracted`)
 
     if (sections.length === 0) {
       return new Response(JSON.stringify({ error: 'No readable text could be extracted from the source document(s).' }), {
