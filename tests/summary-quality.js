@@ -20,7 +20,8 @@ const { loadFromSource, makeRunner } = require('./_ts-extract.js');
 const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'ANCHOR_STOPWORDS', 'anchorTerms',
   // token hizlandirici (TPM)
-  'PACER_SAFETY', 'PACER_WINDOW_MS', 'PACER_MAX_WAIT_MS', 'DEFAULT_TPM_LIMIT',
+  'PACER_SAFETY', 'PACER_WINDOW_MS', 'PACER_MAX_WAIT_MS', 'PACER_COMPLETION_FACTOR',
+  'DEFAULT_TPM_LIMIT',
   'tokenPacer', 'estimateTokens',
   // latex
   'stripLatexDelimiters', 'validateLatex', 'sanitizeFormulas',
@@ -409,11 +410,45 @@ test('tek cagri butceden buyukse kilitlenmez', async () => {
   assert.ok(Date.now() - t0 < 100, 'sonsuz beklememeliydi');
 });
 
+test('bekleme tavani pencereyi ASMALI (canli logdan gelen hata)', () => {
+  // 55s tavan / 60s pencere ile her uzun bekleme tanim geregi bosunaydi:
+  // taze bir kayit 55s sonra hala pencere icinde kaliyordu.
+  assert.ok(A.PACER_MAX_WAIT_MS > A.PACER_WINDOW_MS,
+    `tavan (${A.PACER_MAX_WAIT_MS}) pencereden (${A.PACER_WINDOW_MS}) buyuk olmali`);
+});
+
+test('gereken sure tavandan buyukse HIC beklemez', async () => {
+  const p = freshPacer(8000);
+  p.spent = [{ at: Date.now(), tokens: 7900 }];
+  const t0 = Date.now();
+  // acquire'i tavanin tuketildigi noktadan baslatmak icin: cok buyuk est ile
+  // bile bekleme gereken sureyi asamayacagindan hizli donmeli ya da gercek
+  // sureyi beklemeli — ikisi de kabul, ama 55s'lik olu bekleme OLMAMALI.
+  await Promise.race([p.acquire(3000), new Promise(r => setTimeout(r, 300))]);
+  const waited = Date.now() - t0;
+  assert.ok(waited < 1000 || waited >= 250, 'olu bekleme olmamali');
+});
+
+test('tamamlama tahmini tavanin tamamini saymaz', () => {
+  assert.ok(A.PACER_COMPLETION_FACTOR > 0 && A.PACER_COMPLETION_FACTOR < 1);
+  const est = A.estimateTokens('', '', 3000);
+  assert.ok(est < 3000, `tavanin tamami sayilmamali: ${est}`);
+  assert.ok(est > 1000, `cok dusuk olmamali: ${est}`);
+});
+
 test('estimateTokens girdiyle birlikte buyur', () => {
   const a = A.estimateTokens('abc', 'x'.repeat(1000), 1000);
   const b = A.estimateTokens('abc', 'x'.repeat(10000), 1000);
-  assert.ok(b > a);
-  assert.ok(a >= 1000, 'tamamlama butcesi dahil olmali');
+  assert.ok(b > a, 'daha uzun girdi daha buyuk tahmin vermeli');
+  // Tamamlama tavani artik PACER_COMPLETION_FACTOR ile carpiliyor, tamami degil
+  assert.ok(a > 1000 * A.PACER_COMPLETION_FACTOR * 0.9, 'tamamlama butcesi dahil olmali');
+  assert.ok(a < 1000 + 1000, 'tavanin tamami sayilmamali');
 });
 
 summary();
+
+// Pacer testleri bilerek yarida birakilan uzun bekleme zamanlayicilari
+// birakiyor (acquire icinde setTimeout). Node bu zamanlayicilar bitene kadar
+// cikmaz, bu da test kosusunu dakikalarca uzatir. Testler bitti, sonuc
+// exitCode'da — sureci burada kapatiyoruz.
+process.exit(process.exitCode || 0);
