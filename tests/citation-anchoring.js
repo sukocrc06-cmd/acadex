@@ -120,9 +120,11 @@ function sliceDeclaration(js, name) {
 function loadAnchoring() {
   const js = transpile(fs.readFileSync(SRC, 'utf8'));
   const names = [
-    'ANCHOR_STOPWORDS', 'anchorTerms', 'buildPageIndex', 'buildAnchorIdf',
-    'ANCHOR_MIN_SCORE', 'ANCHOR_MIN_TERMS', 'anchorClaimToPage',
-    'applyFootnoteRemap', 'anchorCitations'
+    'ANCHOR_STOPWORDS', 'anchorTerms', 'splitByPageMarkers', 'buildPageIndex',
+    'buildAnchorIdf', 'ANCHOR_MIN_SCORE', 'ANCHOR_MIN_TERMS', 'anchorClaimToPage',
+    'applyFootnoteRemap', 'anchorCitations',
+    // chunk saklama (document_chunks)
+    'splitIntoChunks', 'CHUNK_STORE_SIZE', 'buildStorableChunks'
   ];
   const body = names.map(n => sliceDeclaration(js, n)).join('\n\n');
   const factory = new Function(`${body}\nreturn { ${names.join(', ')} };`);
@@ -337,6 +339,93 @@ test('obje bicimli key_point destekleniyor', () => {
   assert.equal(typeof r.key_points[0], 'object');
   assert.match(r.key_points[0].text, /\[1\]$/);
   assert.equal(r.key_points[0].extra, 'korunmali', 'diger alanlar korunmali');
+});
+
+// ===========================================================================
+// CHUNK SAKLAMA (document_chunks) — buildStorableChunks
+// ===========================================================================
+console.log('\nCHUNK SAKLAMA TESTLERI\n');
+
+test('chunk ler sirali ve bosluksuz indekslenir', () => {
+  const cs = A.buildStorableChunks(DOC, 'SAYFA');
+  assert.ok(cs.length >= 1);
+  assert.deepEqual(cs.map(c => c.chunk_index), cs.map((_, i) => i));
+});
+
+test('char_count metin uzunlugu ile tutarli', () => {
+  for (const c of A.buildStorableChunks(DOC, 'SAYFA')) {
+    assert.equal(c.char_count, c.text.length, 'char_count yanlis');
+    assert.ok(c.text.length > 0, 'bos chunk yazilmamali');
+  }
+});
+
+test('sayfa isaretcileri chunk metnine SIZMAZ', () => {
+  for (const c of A.buildStorableChunks(DOC, 'SAYFA')) {
+    assert.ok(!/---\s*SAYFA\s+\d+\s*---/.test(c.text),
+      `chunk ${c.chunk_index} icinde isaretci kalmis: ${c.text.slice(0, 60)}`);
+  }
+});
+
+test('kisa sayfalar birlesince page_start..page_end araligi dogru', () => {
+  const cs = A.buildStorableChunks(DOC, 'SAYFA');
+  // Test belgesinin sayfalari kisa -> hepsi tek chunk ta birlesmeli
+  const first = cs[0];
+  assert.equal(first.page_start, 1);
+  assert.equal(first.page_end, 4);
+  assert.ok(first.page_start <= first.page_end);
+});
+
+test('uzun sayfa bolununce her parca O sayfanin numarasini tasir', () => {
+  const long = 'Ekonomi '.repeat(400);          // ~3200 krk, tek sayfa
+  const doc = `--- SAYFA 9 ---\n${long}`;
+  const cs = A.buildStorableChunks(doc, 'SAYFA');
+  assert.ok(cs.length > 1, 'uzun sayfa birden fazla chunk olmaliydi');
+  for (const c of cs) {
+    assert.equal(c.page_start, 9);
+    assert.equal(c.page_end, 9);
+  }
+});
+
+test('chunk lar hedef boyutu asmaz', () => {
+  const long = 'Mikroekonomi analizi onemlidir. '.repeat(500);
+  const cs = A.buildStorableChunks(`--- SAYFA 1 ---\n${long}`, 'SAYFA');
+  for (const c of cs) {
+    assert.ok(c.char_count <= A.CHUNK_STORE_SIZE,
+      `chunk ${c.chunk_index} hedefi asti: ${c.char_count} > ${A.CHUNK_STORE_SIZE}`);
+  }
+});
+
+test('isaretcisiz belge (DOCX) chunk lanir ama sayfa null kalir', () => {
+  const cs = A.buildStorableChunks('Birinci paragraf burada.\n\nIkinci paragraf burada.', 'SAYFA');
+  assert.ok(cs.length >= 1, 'isaretcisiz belge de chunk lanmali');
+  for (const c of cs) {
+    assert.equal(c.page_start, null, 'sayfa kavrami yoksa numara uydurulmamali');
+    assert.equal(c.page_end, null);
+  }
+});
+
+test('bos / anlamsiz girdi bos dizi doner', () => {
+  assert.deepEqual(A.buildStorableChunks('', 'SAYFA'), []);
+  assert.deepEqual(A.buildStorableChunks('   \n\n  ', 'SAYFA'), []);
+  assert.deepEqual(A.buildStorableChunks('--- SAYFA 1 ---\n\n--- SAYFA 2 ---\n', 'SAYFA'), []);
+});
+
+test('icerik kaybi yok: chunk lar birlesince tum kelimeler korunur', () => {
+  const cs = A.buildStorableChunks(DOC, 'SAYFA');
+  const joined = cs.map(c => c.text).join(' ').replace(/\s+/g, ' ');
+  // Orijinalden isaretci satirlarini cikar, kelimeleri karsilastir
+  const expected = DOC.replace(/---\s*SAYFA\s+\d+\s*---/g, ' ').replace(/\s+/g, ' ').trim();
+  for (const word of expected.split(' ')) {
+    if (word.length < 5) continue;
+    assert.ok(joined.includes(word), `kelime kaybolmus: "${word}"`);
+  }
+});
+
+test('SLAYT etiketli belge (PPTX) de dogru chunk lanir', () => {
+  const cs = A.buildStorableChunks('--- SLAYT 3 ---\nSunum icerigi yeterince uzun bir metin.', 'SLAYT');
+  assert.equal(cs.length, 1);
+  assert.equal(cs[0].page_start, 3);
+  assert.ok(!/SLAYT/.test(cs[0].text), 'slayt isaretcisi metne sizmamali');
 });
 
 console.log(`\n${passed} test gecti${process.exitCode ? ' (BASARISIZ olanlar var)' : ''}\n`);
