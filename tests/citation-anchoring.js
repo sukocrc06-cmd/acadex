@@ -13,113 +13,11 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const fs = require('fs');
-const path = require('path');
+const { loadFromSource, makeRunner } = require('./_ts-extract.js');
 
-// index.ts bir TypeScript dosyasi; fonksiyonlari oradan cikarip calistirmak icin
-// once JS'e cevirmemiz gerekiyor. Repoda build adimi olmadigi icin typescript
-// tek dev bagimliligi — yoksa ne yapilacagini soyleyip cikiyoruz.
-let ts;
-try {
-  ts = require('typescript');
-} catch (_e) {
-  console.error(
-    '\nBu test `typescript` paketine ihtiyac duyuyor (index.ts yi JS ye cevirmek icin).\n' +
-    'Repo kokunde bir kez:\n\n' +
-    '  npm init -y\n' +
-    '  npm install --save-dev typescript\n' +
-    '  echo "node_modules/" >> .gitignore\n\n' +
-    'Bonus: ayni paket edge function larini tip kontrolunden gecirmeyi de saglar:\n' +
-    '  npx tsc --noEmit --skipLibCheck --target es2022 --module esnext \\\n' +
-    '      --moduleResolution bundler supabase/functions/summarize-document/index.ts\n'
-  );
-  process.exit(1);
-}
-
-const SRC = path.join(__dirname, '..', 'supabase', 'functions', 'summarize-document', 'index.ts');
-
-// ---------------------------------------------------------------------------
-// Kaynaktan izole fonksiyon cikarimi
-// index.ts bir Deno edge function — tepe seviyede import ve serve() var, o
-// yuzden dosyayi butun halde yukleyemeyiz. TypeScript ile JS'e cevirip
-// sadece ihtiyac duydugumuz tepe-seviye bildirimleri brace eslemesiyle
-// kesip izole bir kapsamda degerlendiriyoruz.
-// ---------------------------------------------------------------------------
-function transpile(tsSource) {
-  return ts.transpileModule(tsSource, {
-    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext }
-  }).outputText;
-}
-
-/**
- * Kaynak tarayici: string/yorum iceriklerini atlayarak ilerler ve her
- * konumda parantez/brace/bracket derinligini bildirir. Bir `function f(a)`
- * bildiriminde parametre parantezi kapandiginda toplam derinlik sifira
- * doner — gövde daha baslamamistir — bu yuzden sayaclar TURE GORE ayri
- * tutulur ve fonksiyon gövdesi ayrica aranir.
- */
-function scanFrom(js, start, onChar) {
-  let i = start;
-  let paren = 0, brace = 0, bracket = 0;
-  let inStr = null, inLineComment = false, inBlockComment = false;
-  while (i < js.length) {
-    const c = js[i], n = js[i + 1];
-    if (inLineComment) { if (c === '\n') inLineComment = false; i++; continue; }
-    if (inBlockComment) { if (c === '*' && n === '/') { inBlockComment = false; i += 2; continue; } i++; continue; }
-    if (inStr) {
-      if (c === '\\') { i += 2; continue; }
-      if (c === inStr) inStr = null;
-      i++; continue;
-    }
-    if (c === '/' && n === '/') { inLineComment = true; i += 2; continue; }
-    if (c === '/' && n === '*') { inBlockComment = true; i += 2; continue; }
-    if (c === '"' || c === "'" || c === '`') { inStr = c; i++; continue; }
-    if (c === '(') paren++; else if (c === ')') paren--;
-    else if (c === '{') brace++; else if (c === '}') brace--;
-    else if (c === '[') bracket++; else if (c === ']') bracket--;
-    const stop = onChar(c, i, { paren, brace, bracket });
-    if (stop !== undefined) return stop;
-    i++;
-  }
-  return -1;
-}
-
-/** `function NAME(...) {...}` veya `const NAME = ...;` bildiriminin tamamini keser. */
-function sliceDeclaration(js, name) {
-  const fnRe = new RegExp(`function\\s+${name}\\s*\\(`);
-  const constRe = new RegExp(`const\\s+${name}\\s*=`);
-  const fnM = js.match(fnRe);
-  const constM = js.match(constRe);
-
-  if (fnM) {
-    // Gövdenin acilis '{' ini bul (parametre parantezi kapandiktan sonraki ilk '{'),
-    // sonra SADECE brace sayarak gövdenin sonunu bul.
-    const bodyStart = scanFrom(js, fnM.index, (c, i, d) =>
-      (c === '{' && d.paren === 0 && d.brace === 1) ? i : undefined);
-    if (bodyStart === -1) throw new Error(`'${name}': fonksiyon gövdesi bulunamadi.`);
-    const end = scanFrom(js, bodyStart, (c, i, d) =>
-      (c === '}' && d.brace === 0) ? i + 1 : undefined);
-    if (end === -1) throw new Error(`'${name}': fonksiyon gövdesi kapanmadi.`);
-    return js.slice(fnM.index, end);
-  }
-
-  if (constM) {
-    // Tum derinlikler sifirken gelen ilk ';' bildirimi bitirir.
-    const end = scanFrom(js, constM.index, (c, i, d) =>
-      (c === ';' && d.paren === 0 && d.brace === 0 && d.bracket === 0) ? i + 1 : undefined);
-    if (end === -1) throw new Error(`'${name}': const bildirimi ';' ile bitmiyor.`);
-    return js.slice(constM.index, end);
-  }
-
-  throw new Error(
-    `index.ts icinde '${name}' bildirimi bulunamadi.\n` +
-    `Yeniden adlandirilmis veya tasinmis olabilir — bu test guncellenmeli.`
-  );
-}
-
-function loadAnchoring() {
-  const js = transpile(fs.readFileSync(SRC, 'utf8'));
-  const names = [
+// Cikarilacak bildirimler. Kaynakta biri yeniden adlandirilirsa test ACIK
+// HATA verir — sessizce eski bir kopyayi test etmeye devam etmez.
+const NAMES = [
     'ANCHOR_STOPWORDS', 'anchorTerms', 'splitByPageMarkers', 'buildPageIndex',
     'buildAnchorIdf', 'ANCHOR_MIN_SCORE', 'ANCHOR_MIN_TERMS',
     // birebir alinti (span seviyesi atif)
@@ -129,9 +27,9 @@ function loadAnchoring() {
     // chunk saklama (document_chunks)
     'splitIntoChunks', 'CHUNK_STORE_SIZE', 'buildStorableChunks'
   ];
-  const body = names.map(n => sliceDeclaration(js, n)).join('\n\n');
-  const factory = new Function(`${body}\nreturn { ${names.join(', ')} };`);
-  return factory();
+
+function loadAnchoring() {
+  return loadFromSource('supabase/functions/summarize-document/index.ts', NAMES);
 }
 
 const A = loadAnchoring();
@@ -156,11 +54,7 @@ const DOC = [
   'dikkate alir. Nash dengesi bu stratejik etkilesimin cozumunu tanimlar.'
 ].join('\n');
 
-let passed = 0;
-function test(name, fn) {
-  try { fn(); passed++; console.log(`  ok    ${name}`); }
-  catch (e) { console.error(`  FAIL  ${name}\n        ${e.message}`); process.exitCode = 1; }
-}
+const { test, summary } = makeRunner();
 
 console.log('\nATIF MOTORU TESTLERI\n');
 
@@ -517,4 +411,4 @@ test('SLAYT etiketli belge (PPTX) de dogru chunk lanir', () => {
   assert.ok(!/SLAYT/.test(cs[0].text), 'slayt isaretcisi metne sizmamali');
 });
 
-console.log(`\n${passed} test gecti${process.exitCode ? ' (BASARISIZ olanlar var)' : ''}\n`);
+summary();
