@@ -27,6 +27,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'stripLatexDelimiters', 'validateLatex', 'sanitizeFormulas',
   // mermaid dogrulama
   'MERMAID_TYPES', 'MERMAID_REVERSE_LABELLED_EDGE', 'repairMermaidArrows',
+  'MERMAID_UNQUOTED_PAREN_LABEL', 'repairMermaidLabels',
   'validateMermaid', 'sanitizeDiagrams',
   // grafik kapisi
   'CHART_TYPES', 'CHART_MIN_POINTS', 'sanitizeCharts',
@@ -636,6 +637,59 @@ test('onarilamayan ters ok diyagrami dusurur', () => {
   const v = A.validateMermaid(broken);
   assert.ok(!v.ok, 'gecersiz kalmali');
   assert.match(v.reason, /ters etiketli ok/);
+});
+
+/* --------------------------------------------------------------------------
+   MERMAID ETIKET TIRNAKLAMA
+   --------------------------------------------------------------------------
+   `Money[Money (Financial) Market]` sozdizimi hatasi; dogrusu
+   `Money["Money (Financial) Market"]`. Parantez dengesi kontrolu bunu
+   yakalayamiyor (bir ac bir kapa var), o yuzden diyagram dogrulamadan geciyor
+   ve Mermaid tumunu reddediyor. Canli kartta "Three Market Arenas" diyagrami
+   tam bu satir yuzunden render olmadi.
+   ------------------------------------------------------------------------ */
+
+// Karttan birebir alindi.
+const LIVE_ARENAS = `graph TD
+Goods[Goods-and-Services Market]
+Labor[Labor Market]
+Money[Money (Financial) Market]
+Households --> Goods
+Firms --> Money`;
+
+test('parantezli etiket tirnaklanip gecerli hale gelir', () => {
+  const v = A.validateMermaid(LIVE_ARENAS);
+  assert.ok(v.ok, `onarim sonrasi gecerli olmali: ${v.reason}`);
+  assert.equal(v.repaired, 1, 'tek etiket onarilmali');
+  assert.match(v.mermaid, /Money\["Money \(Financial\) Market"\]/);
+  // Parantezsiz etiketlere dokunulmaz.
+  assert.match(v.mermaid, /Goods\[Goods-and-Services Market\]/);
+  assert.match(v.mermaid, /Labor\[Labor Market\]/);
+});
+
+test('ozel dugum sekilleri bozulmaz', () => {
+  // Ikinci karakter etiketin degil SEKLIN parcasi; tirnaklamak bozar.
+  for (const shape of ['A[(database)]', 'A[[subroutine]]', 'A((daire))', 'A{karar}']) {
+    const r = A.repairMermaidLabels(shape);
+    assert.equal(r.repaired, 0, `${shape} dokunulmamali`);
+    assert.equal(r.mermaid, shape);
+  }
+});
+
+test('zaten tirnakli etiket iki kez tirnaklanmaz', () => {
+  const already = 'A["Money (Financial) Market"]';
+  const r = A.repairMermaidLabels(already);
+  assert.equal(r.repaired, 0);
+  assert.equal(r.mermaid, already);
+});
+
+test('ok ve etiket onarimi ayni diyagramda birlikte calisir', () => {
+  const both = `flowchart LR
+H[Households] <--|wages| F[Firms (all sectors)]`;
+  const v = A.validateMermaid(both);
+  assert.ok(v.ok, `ikisi birden onarilmali: ${v.reason}`);
+  assert.equal(v.repaired, 2, 'bir ok + bir etiket');
+  assert.match(v.mermaid, /F\["Firms \(all sectors\)"\] -->\|wages\| H\[Households\]/);
 });
 
 test('sanitizeDiagrams onarim sayisini toplar', () => {
