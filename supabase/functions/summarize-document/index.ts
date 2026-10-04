@@ -416,6 +416,23 @@ const PIPELINE_BUDGET_MS = 110_000
 // written summary.
 const JSON_RETRY_MIN_BUDGET_MS = 70_000
 
+// Vision pass sizing, both numbers forced by the same 8,000 TPM ceiling.
+//
+// Groq bills every image at a flat 2,048 input tokens and accepts at most 3
+// per request. Three would be 6,144 tokens of image alone; with the system
+// prompt and the completion reservation that lands around 9,000 and the
+// request is rejected outright. Two fits: 4,096 + ~330 prompt + ~1,840
+// completion reservation is about 6,300, inside the pacer's 7,200 ceiling.
+const VISION_TOKENS_PER_IMAGE = 2048
+const VISION_MAX_IMAGES = 2
+// The vision pass is an EXTRA call, and on this tier every extra call means a
+// full ~60s TokenPacer wait before it can start. The narrative writer runs
+// after it and has its own 35s budget gate, so the visual pass may only start
+// when there is room for both: ~65s for itself, 35s for the writer's gate.
+// Below that it skips itself, which is the correct trade — a card always has
+// a written summary, and figure values are the optional extra.
+const VISUAL_MIN_BUDGET_MS = 100_000
+
 function computeAdaptiveTargets(charCount: number, lengthPreset: string) {
   const presets: Record<string, { summary: [number, number]; terms: [number, number]; points: [number, number]; quiz: [number, number]; capSummary: number; capTerms: number; capPoints: number; capQuiz: number }> = {
     short: { summary: [2, 3], terms: [3, 5], points: [3, 5], quiz: [3, 3], capSummary: 6, capTerms: 12, capPoints: 10, capQuiz: 6 },
@@ -767,6 +784,69 @@ async function uploadFileToPdfCo(fileBytes: Uint8Array, apiKey: string, filename
 // fast-path code above is untouched; it is only used by the chunked/long-doc
 // path's visual-analysis patch further down, and only when that path has
 // already identified which pages are worth converting.
+// ==========================================================================
+// WHICH PAGES GO TO THE VISION MODEL
+//
+// The old selector was `pageText.length < 150` — "a page with almost no text
+// must be an image page". Measured on a 30-page lecture deck it picked pages
+// 1 and 3, which are the publisher's two COVER SLIDES, and none of the eight
+// pages that actually carry a figure. The deck's six figures each come with a
+// caption of 200-800 characters, so they never looked blank.
+//
+// The caption itself is the reliable signal. On that same deck a header match
+// scores 8/8 with no false positives: six "FIGURE 20.x" pages plus the two
+// "ECONOMICS IN PRACTICE" feature pages, and the phrase appears nowhere else
+// in the document.
+//
+// The near-blank list stays as the fallback for documents whose figures carry
+// no caption at all (a scanned handout, an image-only deck) — there the old
+// heuristic is the only signal available, and it is right for exactly that
+// case.
+// The Turkish spellings need explicit character classes for their i's. A
+// case-insensitive regex cannot match "Şekil" against "ŞEKİL": İ (U+0130)
+// lowercases to i + COMBINING DOT ABOVE, not to plain i, so /ŞEKİL/i silently
+// fails on the ordinary capitalised form a caption actually uses. Same trap
+// for GRAFİK and ÇİZELGE. Written this way all four of Şekil/ŞEKİL/Sekil/
+// ŞEKIL match.
+const FIGURE_CAPTION_RE =
+  /^[ \t]*(FIGURE|TABLE|EXHIBIT|CHART|PLATE|Ş[EĖ]K[İIi]L|SEK[İIi]L|TABLO|GRAF[İIi]K|[ÇC][İIi]ZELGE)\b/im
+
+function selectVisualPages(
+  pdfPageTexts: string[],
+  nearBlankIndices: number[],
+  maxPages: number
+): { indices: number[]; reason: string } {
+  const captioned: Array<{ i: number; len: number }> = []
+  for (let i = 0; i < pdfPageTexts.length; i++) {
+    const t = pdfPageTexts[i] || ''
+    if (FIGURE_CAPTION_RE.test(t)) captioned.push({ i, len: t.trim().length })
+  }
+  if (captioned.length > 0) {
+    // Only VISION_MAX_IMAGES of them can go, so which ones matter. Taking the
+    // first N means a long document only ever shows its opening figures, and
+    // those are not the valuable ones.
+    //
+    // The ranking signal is the caption's own length: a figure whose caption
+    // already explains it in prose has little left for the vision model to
+    // add, while a chart with a one-line caption keeps everything — the axis
+    // ranges, the levels, the turning points — inside the image. Measured on
+    // the reference deck, shortest-caption-first puts Figure 20.2 (GDP
+    // 1900-2014, 200 chars) and Figure 20.5 (unemployment, 222) at the top
+    // and the circular-flow diagram (788 chars, fully described in words)
+    // last, which is the right order.
+    const ranked = [...captioned].sort((a, b) => a.len - b.len || a.i - b.i)
+    const picked = ranked.slice(0, maxPages).map(p => p.i).sort((a, b) => a - b)
+    return {
+      indices: picked,
+      reason: `sekil basligi (${captioned.length} aday, en kisa altyaziliar secildi)`
+    }
+  }
+  return {
+    indices: nearBlankIndices.slice(0, maxPages),
+    reason: `sekil basligi yok, bos sayfa yedegi (${nearBlankIndices.length} aday)`
+  }
+}
+
 async function extractVisualImagesForLongDoc(
   fileBytes: Uint8Array,
   pageIndices: number[] // 0-indexed page numbers to convert
@@ -776,8 +856,10 @@ async function extractVisualImagesForLongDoc(
   try {
     // Confirmed against PDF.co's own docs: comma-separated 0-indexed page
     // numbers/ranges is the correct format (e.g. "0, 2-4, !0").
-    const pages = pageIndices.slice(0, 8).join(',')
-    console.log(`Long-doc visual analysis: converting near-blank page(s) [${pages}] via PDF.co...`)
+    // Hard cap matches what one Groq request can carry at 2,048 tokens an
+    // image on this account's TPM — rasterising more would only be thrown away.
+    const pages = pageIndices.slice(0, VISION_MAX_IMAGES).join(',')
+    console.log(`Long-doc visual analysis: converting page(s) [${pages}] via PDF.co...`)
 
     const fileUrl = await uploadFileToPdfCo(fileBytes, pdfcoApiKey, 'document.pdf')
     if (!fileUrl) {
@@ -3763,29 +3845,55 @@ Use CONCRETE topic names from digests and terms. No meta filler.`,
       // any failure here just leaves the text-only result untouched, same
       // as the compact synthesis above.
       // ------------------------------------------------------------------
-      if (analyzeVisuals && nearBlankPdfPageIndices.length > 0 && budgetLeft() > 30_000) {
+      const visualPlan = analyzeVisuals
+        ? selectVisualPages(pdfPageTexts, nearBlankPdfPageIndices, VISION_MAX_IMAGES)
+        : { indices: [] as number[], reason: 'kapali' }
+
+      if (analyzeVisuals && visualPlan.indices.length > 0 && budgetLeft() <= VISUAL_MIN_BUDGET_MS) {
+        console.log(
+          `Gorsel gecis atlandi: butce ${budgetLeft()}ms <= ${VISUAL_MIN_BUDGET_MS}ms — ` +
+          `anlati yazarina yer birakiliyor`
+        )
+      }
+
+      if (analyzeVisuals && visualPlan.indices.length > 0 && budgetLeft() > VISUAL_MIN_BUDGET_MS) {
         try {
+          console.log(`Gorsel sayfa secimi: [${visualPlan.indices.join(',')}] — ${visualPlan.reason}`)
           await serviceClient.from('documents').update({ processing_stage: 'visual_analysis' }).eq('id', documentId)
-          const visualImages = await extractVisualImagesForLongDoc(fileBytes, nearBlankPdfPageIndices)
+          const visualImages = await extractVisualImagesForLongDoc(fileBytes, visualPlan.indices)
 
           if (visualImages.length > 0) {
             const knownTermsHint = mergedKeyTerms.slice(0, 25).map((t: any) => t.term).filter(Boolean).join(', ')
-            const visualSystemPrompt = `You are an academic study assistant. You are shown page images of specific slides from a long lecture document that had almost no extractable text (they are diagram/framework/chart slides). Identify any exam-relevant content shown ONLY in these images — named frameworks, diagrams, comparison tables, category lists — that is NOT already covered by these already-known terms: ${knownTermsHint || '(none yet)'}.
+            const visualSystemPrompt = `You are an academic study assistant. You are shown page images of the figure/table pages of a lecture document. Their captions were already extracted as text; what you can see and the text cannot is the CONTENT of the graphic itself — the axis ranges, the plotted levels and turning points, the rows of a table, the boxes and arrows of a diagram. Identify exam-relevant content readable in these images that is NOT already covered by these already-known terms: ${knownTermsHint || '(none yet)'}.
 Respond ONLY with JSON in ${langLabel}: {"key_terms":[{"term":"...","definition":"..."}],"key_points":["..."],"quiz_questions":[{"question":"...","answer":"..."}],"sections":[{"heading":"...","summary":"..."}],"tables":[{"title":"...","headers":["..."],"rows":[["..."]]}],"charts":[{"title":"...","type":"bar|pie|line","labels":["..."],"data":[0]}],"diagrams":[{"title":"...","mermaid":"...","description":"..."}]}
-Rules: only include content actually visible in the images; return empty arrays for any field with nothing new; do not repeat terms already listed above. These are exactly the pages most likely to contain a table, chart, or diagram that has NO text-extractable equivalent elsewhere — reconstruct any table you can read as 'tables', any chart/graph as 'charts' with its approximate values, and any flowchart/framework/process image as a Mermaid 'diagrams' entry. Never invent one that isn't visibly there.`
+Rules: only include content actually visible in the images; return empty arrays for any field with nothing new; do not repeat terms already listed above. Reconstruct any table you can read as 'tables', any chart/graph as 'charts', and any flowchart/framework/process image as a Mermaid 'diagrams' entry. For 'charts', read the approximate value off the axis for each labelled point — a series of zeros, or a single point, is worse than returning no chart at all, so omit the chart unless you can actually read at least two differing values. Never invent one that isn't visibly there.`
 
             const visualUserContent = [
               { type: "text", text: "Analyze these slide images for exam-relevant content not already covered." },
               ...visualImages.map(b64 => ({ type: "image_url", image_url: { url: `data:image/png;base64,${b64}` } }))
             ]
 
+            // This call does NOT go through callGroqJson, so it has to pay the
+            // pacer itself. Skipping that was harmless only while the model
+            // id was wrong and every call 404'd: once it actually spends
+            // tokens, a pacer that never saw them tells the narrative writer
+            // afterwards that there is room, and the writer takes the 429.
+            const estVisionTokens =
+              visualImages.length * VISION_TOKENS_PER_IMAGE +
+              Math.ceil(visualSystemPrompt.length / 3.2) +
+              Math.ceil(3072 * PACER_COMPLETION_FACTOR)
+            console.log(`Gorsel cagri butcesi: ~${estVisionTokens} token (${visualImages.length} gorsel)`)
+            await tokenPacer.acquire(estVisionTokens)
+
             const visionRes = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
               method: "POST",
               headers: { "Authorization": `Bearer ${groqApiKey}`, "Content-Type": "application/json" },
               body: JSON.stringify({
-                // Same vision-capable model as the fast path's visual pass —
-                // see the "qwen/qwen3.6-27b" note above.
-                model: "qwen/qwen3.6-27b",
+                // Groq retired the 3.6 line; qwen/qwen3.8-27b is the current
+                // vision-capable model (same image_url payload shape). The
+                // stale id is what every "Long-doc visual patch call returned
+                // non-ok status: 404" in the logs was.
+                model: "qwen/qwen3.8-27b",
                 temperature: 0.3,
                 reasoning_effort: "none",
                 // Raised alongside the compact-window bump (2048 → 3072):
@@ -3800,6 +3908,12 @@ Rules: only include content actually visible in the images; return empty arrays 
                 ]
               })
             }, 0, Math.min(25000, Math.max(10000, budgetLeft() - 15000)))
+
+            // Record the spend either way: a rejected call still consumed the
+            // image tokens as far as the minute's budget is concerned, and a
+            // successful one must not leave the next caller over-optimistic.
+            tokenPacer.observeHeaders(visionRes.headers)
+            tokenPacer.record(estVisionTokens)
 
             if (visionRes.ok) {
               const visionData = await visionRes.json()
