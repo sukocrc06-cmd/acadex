@@ -21,7 +21,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'ANCHOR_STOPWORDS', 'anchorTerms',
   // token hizlandirici (TPM)
   'PACER_SAFETY', 'PACER_WINDOW_MS', 'PACER_MAX_WAIT_MS', 'PACER_COMPLETION_FACTOR',
-  'DEFAULT_TPM_LIMIT', 'PIPELINE_BUDGET_MS',
+  'DEFAULT_TPM_LIMIT', 'PIPELINE_BUDGET_MS', 'REVIEW_ATTEMPT_TIMEOUT_MS', 'REVIEW_TAIL_MS',
   'tokenPacer', 'estimateTokens', 'MODEL_HEAVY', 'MODEL_FAST',
   // latex
   'stripLatexDelimiters', 'validateLatex', 'sanitizeFormulas',
@@ -512,6 +512,82 @@ test('header bir modelin limitini ezerken digerini bozmaz', () => {
   p.observeHeaders(new Headers({ 'x-ratelimit-limit-tokens': '300000' }), M_B);
   assert.equal(p.lane(M_B).limit, 300000, 'cagrilan modelin limiti guncellenmeli');
   assert.equal(p.lane(M_A).limit, 8000, 'digerinin limiti sabit kalmali');
+});
+
+// ---- waitEstimate: review kapisinin dayandigi olcum --------------------
+
+test('waitEstimate bos seritte 0 doner', () => {
+  assert.equal(freshPacer(8000).waitEstimate(3000, M_A), 0);
+});
+
+test('waitEstimate sigan cagri icin 0 doner', () => {
+  const p = freshPacer(8000);
+  p.lane(M_A).spent = [{ at: Date.now(), tokens: 3000 }];
+  assert.equal(p.waitEstimate(3000, M_A), 0, '3000+3000 <= 7200, beklememeli');
+});
+
+test('waitEstimate dolu seritte kalan pencereyi doner', () => {
+  const p = freshPacer(8000);
+  p.lane(M_A).spent = [{ at: Date.now() - 50_000, tokens: 6500 }];
+  const w = p.waitEstimate(3761, M_A);
+  // 60s pencere, kayit 50s once -> ~10s kaldi
+  assert.ok(w > 9_000 && w < 11_500, `~10sn beklenirdi, ${w} geldi`);
+});
+
+test('waitEstimate baska modelin harcamasini saymaz', () => {
+  const p = freshPacer(8000);
+  p.lane(M_B).limit = 8000;
+  p.lane(M_A).spent = [{ at: Date.now(), tokens: 7000 }];
+  assert.equal(p.waitEstimate(3761, M_B), 0, 'diger serit bos, beklememeli');
+});
+
+test('waitEstimate tavani asmaz', () => {
+  const p = freshPacer(8000);
+  p.lane(M_A).spent = [{ at: Date.now(), tokens: 7900 }];
+  assert.ok(p.waitEstimate(7000, M_A) <= A.PACER_MAX_WAIT_MS);
+});
+
+test('waitEstimate acquire ile ayni karari verir', () => {
+  // Kapi acquire'in ne yapacagini tahmin ediyor; ikisi ayrismamali.
+  for (const [age, tokens, est] of [[0, 7900, 3000], [50_000, 6500, 3761], [0, 1000, 3000]]) {
+    const p = freshPacer(8000);
+    p.lane(M_A).spent = [{ at: Date.now() - age, tokens }];
+    const predicted = p.waitEstimate(est, M_A);
+    const fits = p.used(Date.now(), M_A) + est <= 8000 * A.PACER_SAFETY;
+    assert.equal(predicted === 0, fits, `age=${age} tokens=${tokens} est=${est}`);
+  }
+});
+
+test('CANLI SENARYO 04.10: review 39sn butceyle calisabilmeli', () => {
+  // Gercek run: merge 16.1sn, vision 6505 token kaydetti, kapiya 72.2sn'de
+  // gelindi, budgetLeft=39195ms. Eski sabit 55sn kapisi review'u atlamisti.
+  const p = freshPacer(8000, 'qwen/qwen3.8-27b');
+  p.lane('qwen/qwen3.8-27b').spent = [{ at: Date.now() - 56_100, tokens: 6505 }];
+  const wait = p.waitEstimate(3761, 'qwen/qwen3.8-27b');
+  assert.ok(wait < 5_000, `pacer beklemesi ~4sn olmaliydi, ${wait} geldi`);
+
+  const budgetLeft = 39_195;
+  const needs = wait + A.REVIEW_ATTEMPT_TIMEOUT_MS + A.REVIEW_TAIL_MS;
+  assert.ok(needs <= budgetLeft, `review calismaliydi: gereken ${needs} > kalan ${budgetLeft}`);
+  assert.ok(55_000 > budgetLeft, 'eski sabit kapi gercekten atlamis olmali');
+});
+
+test('serit gercekten doluysa review HALA atlanir', () => {
+  // Kapiyi gevsetmek, zamanin olmadigi durumu gormezden gelmek degil.
+  const p = freshPacer(8000, 'qwen/qwen3.8-27b');
+  p.lane('qwen/qwen3.8-27b').spent = [{ at: Date.now(), tokens: 7000 }];
+  const wait = p.waitEstimate(3761, 'qwen/qwen3.8-27b');
+  const needs = wait + A.REVIEW_ATTEMPT_TIMEOUT_MS + A.REVIEW_TAIL_MS;
+  assert.ok(needs > 39_195, `dolu seritte atlanmaliydi (gereken ${needs})`);
+});
+
+test('tek denemelik butce yetiyorsa retry kapatilir', () => {
+  // reviewRetries mantiginin aynisi: iki deneme sigmazsa 1 deneme.
+  const wait = 4_000;
+  const twoAttempts = wait + A.REVIEW_ATTEMPT_TIMEOUT_MS * 2 + A.REVIEW_TAIL_MS;
+  const oneAttempt = wait + A.REVIEW_ATTEMPT_TIMEOUT_MS + A.REVIEW_TAIL_MS;
+  assert.ok(39_195 < twoAttempts, 'iki deneme sigmamali');
+  assert.ok(39_195 >= oneAttempt, 'tek deneme sigmali');
 });
 
 test('hic gorulmemis model varsayilan limitle acilir', () => {
