@@ -2403,14 +2403,22 @@ serve(async (req) => {
 
   try {
     if (req.method !== 'POST') {
+      console.warn(`Erken cikis 405: method=${req.method}`)
       return new Response(JSON.stringify({ error: 'Method not allowed' }), {
         status: 405,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
 
+    // Every early return below used to be silent. A failed first attempt
+    // therefore produced a worker that logged "booted" and "Listening" and
+    // nothing else — which is exactly what the student's "first press errors,
+    // second press works" looks like in the logs, with no way to tell WHICH
+    // of the five exits it took. Each one now names itself.
     const { documentId, summaryStyle, language, summaryLength, analyzeVisuals, depth: depthRaw } = await req.json()
+    console.log(`Istek alindi: documentId=${documentId ?? '(yok)'}, visuals=${analyzeVisuals ? 'evet' : 'hayir'}`)
     if (!documentId) {
+      console.warn('Erken cikis 400: documentId gonderilmedi')
       return new Response(JSON.stringify({ error: 'documentId is required' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -2437,6 +2445,7 @@ serve(async (req) => {
     // Get User Authorization JWT to verify ownership
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
+      console.warn('Erken cikis 401: Authorization basligi yok')
       return new Response(JSON.stringify({ error: 'Missing Authorization header' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -2451,14 +2460,37 @@ serve(async (req) => {
       global: { headers: { Authorization: authHeader } }
     })
 
-    // Fetch document to verify ownership
-    const { data: document, error: docError } = await userClient
-      .from('documents')
-      .select('*')
-      .eq('id', documentId)
-      .single()
+    // Fetch document to verify ownership.
+    //
+    // Retried once on purpose. The dashboard inserts the documents row and
+    // calls this function immediately after; when the row is not yet visible
+    // to this request's scoped client, the select comes back empty and the
+    // student sees "Document not found or access denied" on the first press,
+    // then a second press a moment later works. That is the single most
+    // reported annoyance in this flow, and it costs one short wait to absorb.
+    //
+    // A genuine permission failure is unaffected: under RLS a document that
+    // is not the caller's returns no rows on the retry either, so the same
+    // 404 is returned, just ~700ms later and with a log line saying so.
+    const DOC_LOOKUP_RETRY_MS = 700
+    let document: any = null
+    let docError: any = null
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const res = await userClient.from('documents').select('*').eq('id', documentId).single()
+      document = res.data
+      docError = res.error
+      if (document) {
+        if (attempt > 0) console.log(`Belge ${attempt + 1}. denemede bulundu (ilk deneme bos dondu)`)
+        break
+      }
+      if (attempt === 0) {
+        console.warn(`Belge ilk denemede bulunamadi (code=${docError?.code ?? '-'}), ${DOC_LOOKUP_RETRY_MS}ms sonra tekrar deneniyor`)
+        await new Promise(r => setTimeout(r, DOC_LOOKUP_RETRY_MS))
+      }
+    }
 
     if (docError || !document) {
+      console.error(`Erken cikis 404: belge bulunamadi veya erisim yok (documentId=${documentId}, code=${docError?.code ?? '-'}, message=${docError?.message ?? '-'})`)
       return new Response(JSON.stringify({ error: 'Document not found or access denied' }), {
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
