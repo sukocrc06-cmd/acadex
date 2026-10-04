@@ -10,6 +10,16 @@ let activeDocuments = [];
 let activeStudyCards = [];
 let documentToDelete = null;
 let pollingInterval = null;
+
+// Ozetlemesi suren belge id'leri. Ogrenci "baslamadi" sanip tekrar basinca
+// ayni belge icin ikinci bir edge function cagrisi aciliyordu; ikisi ayni
+// 8.000 TPM butcesini paylasip birbirini yavaslatiyor, hatta 429'a
+// dusuruyordu (loglarda ayni belge icin ust uste calisan execution_id'ler).
+//
+// Dosyanin tepesinde duruyor cunku loadDocuments() de okuyor ve o fonksiyon
+// bu noktadan ONCE tanimli. Bildirim asagida kalirsa calisma sirasina bagli
+// bir TDZ hatasi riski doguyor.
+const inFlightSummarizations = new Set();
 let previousFocusedElement = null;
 let currentActiveTab = 'home';
 let activeModalCardId = null;
@@ -426,15 +436,42 @@ async function loadDocuments(isPolling = false) {
 
     activeDocuments = docsRes.data || [];
     activeStudyCards = cardsRes.data || [];
+
+    // A document this tab is actively summarizing stays 'processing' in the
+    // UI whatever this particular read returned.
+    //
+    // proceedWithSummarization marks the document locally, renders, starts
+    // polling, and only then writes status='processing' to the database. The
+    // first poll lands 1.5s later, replaces activeDocuments wholesale with
+    // the server's rows, and if that write is not visible yet the card drops
+    // straight back out of its progress state. inFlightSummarizations is the
+    // one thing that cannot be stale here: the request is in this tab's own
+    // call stack.
+    if (inFlightSummarizations.size > 0) {
+      for (const doc of activeDocuments) {
+        if (inFlightSummarizations.has(doc.id) && doc.status !== 'processing') {
+          doc.status = 'processing';
+        }
+      }
+    }
+
     renderDocumentsList();
 
     if (activeStudyCards.length > 0) {
       checkAndAwardFirstSummary();
     }
 
-    // Polling setup: re-fetch if any document is in the 'processing' state
+    // Polling setup: re-fetch while anything is still running.
+    //
+    // inFlightSummarizations is ORed in deliberately. Stopping was previously
+    // decided from this one read alone, so a single poll that did not yet see
+    // status='processing' cleared the interval -- and nothing restarted it,
+    // because the restart also lives here and needs hasProcessing to be true.
+    // One unlucky read therefore froze the progress bar for the rest of a
+    // two-minute run, which is exactly the "it looks like nothing is
+    // happening" the student reports before pressing the button again.
     const hasProcessing = activeDocuments.some(doc => doc.status === 'processing');
-    if (hasProcessing) {
+    if (hasProcessing || inFlightSummarizations.size > 0) {
       if (!pollingInterval) {
         // 1.5s (was 2s) — snappier-feeling live progress without meaningfully
         // increasing load (this is a lightweight status query, not the AI call).
@@ -1161,12 +1198,6 @@ async function resetStuckDocument(docId) {
   }
 }
 window.resetStuckDocument = resetStuckDocument;
-
-// Ozetlemesi suren belge id'leri. Ogrenci "baslamadi" sanip tekrar basinca
-// ayni belge icin ikinci bir edge function cagrisi aciliyordu; ikisi ayni
-// 8.000 TPM butcesini paylasip birbirini yavaslatiyor, hatta 429'a
-// dusuruyordu (loglarda ayni belge icin ust uste calisan execution_id'ler).
-const inFlightSummarizations = new Set();
 
 async function proceedWithSummarization() {
   const langSelect = document.querySelector('input[name="summary-language-choice"]:checked');
