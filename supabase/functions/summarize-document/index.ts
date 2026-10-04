@@ -1380,6 +1380,92 @@ function bestQuoteForClaim(claim: string, body: string, idf: Map<string, number>
     : best.text
 }
 
+// ==========================================================================
+// REPEATED BOILERPLATE — the running header/footer tax
+//
+// A lecture deck or a textbook chapter repeats the same line on every page:
+// a copyright notice, a course code, a running title, a page number. The
+// model pays for every copy. Measured on a 30-page deck: "Copyright © 2017
+// Pearson Education, Inc." plus its "20-1 / 20-2 / ..." page number came to
+// ~1,700 of 12,451 characters — 13% of everything the model was shown, none
+// of it study material, on a budget where one window is already 6,200 of the
+// account's 8,000 tokens per minute.
+//
+// Detection is positional, not a pattern list: a line is boilerplate when it
+// is SHORT and appears on MOST pages. Nothing about copyright or Pearson is
+// hardcoded, so it generalises to whatever a given course's deck repeats.
+//
+// Three guards keep it from eating content:
+//   - documents with too few pages are left alone (no basis to judge)
+//   - only short lines qualify; a repeated paragraph is not a running header
+//   - digits are wildcarded for COUNTING only ("20-1" and "20-2" are the same
+//     footer), never for matching anything else
+const BOILERPLATE_MIN_PAGES = 5
+const BOILERPLATE_PAGE_SHARE = 0.6
+const BOILERPLATE_MAX_LINE_CHARS = 120
+
+function boilerplateKey(line: string): string {
+  return line
+    .toLowerCase()
+    .replace(/\d+/g, '#')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function stripRepeatedBoilerplate(
+  text: string,
+  pageMarkerLabel: string
+): { text: string; removed: string[]; charsSaved: number } {
+  const pages = splitByPageMarkers(text, pageMarkerLabel)
+  // One segment with page === null means the document has no page markers at
+  // all (DOCX / plain text) — there is nothing to compare across.
+  if (pages.length < BOILERPLATE_MIN_PAGES || pages[0]?.page === null) {
+    return { text, removed: [], charsSaved: 0 }
+  }
+
+  // How many distinct pages carry each short line?
+  const pageCount = new Map<string, number>()
+  const sample = new Map<string, string>()
+  for (const p of pages) {
+    const seen = new Set<string>()
+    for (const raw of p.body.split('\n')) {
+      const line = raw.trim()
+      if (!line || line.length > BOILERPLATE_MAX_LINE_CHARS) continue
+      const key = boilerplateKey(line)
+      if (!key || seen.has(key)) continue
+      seen.add(key)
+      pageCount.set(key, (pageCount.get(key) || 0) + 1)
+      if (!sample.has(key)) sample.set(key, line)
+    }
+  }
+
+  const threshold = Math.ceil(pages.length * BOILERPLATE_PAGE_SHARE)
+  const boilerplate = new Set(
+    [...pageCount.entries()].filter(([, n]) => n >= threshold).map(([k]) => k)
+  )
+  if (boilerplate.size === 0) return { text, removed: [], charsSaved: 0 }
+
+  const rebuilt = pages.map(p => {
+    const kept = p.body.split('\n').filter(raw => {
+      const line = raw.trim()
+      if (!line || line.length > BOILERPLATE_MAX_LINE_CHARS) return true
+      return !boilerplate.has(boilerplateKey(line))
+    })
+    // Never blank a page out entirely: a page whose every line looks repeated
+    // is more likely a detector mistake than a genuinely empty page, and an
+    // empty page breaks the citation anchor for anything that cites it.
+    const body = kept.join('\n').trim() ? kept.join('\n') : p.body
+    return `--- ${pageMarkerLabel} ${p.page} ---\n${body.replace(/^\n+/, '')}`
+  }).join('\n\n')
+
+  const out = rebuilt.replace(/\n{3,}/g, '\n\n').trim()
+  return {
+    text: out,
+    removed: [...boilerplate].map(k => sample.get(k) || k),
+    charsSaved: text.length - out.length
+  }
+}
+
 /**
  * Split extracted text on its "--- SAYFA N ---" / "--- SLAYT N ---" marker
  * lines into one segment per page, keeping each page's raw body.
@@ -2595,6 +2681,22 @@ serve(async (req) => {
     const hasPageMarkers = mimeType === "application/pdf" || mimeType === "application/vnd.openxmlformats-officedocument.presentationml.presentation"
     const pageMarkerLabel = mimeType === "application/vnd.openxmlformats-officedocument.presentationml.presentation" ? "SLAYT" : "SAYFA"
 
+    // Drop running headers/footers before anything downstream sees the text,
+    // so the saving reaches the window budget, the stored chunks, the
+    // grounding gate's source and the citation index alike. Must run after the
+    // page markers exist and before document_chunks is written.
+    if (hasPageMarkers) {
+      const deboilerplated = stripRepeatedBoilerplate(extractedText, pageMarkerLabel)
+      if (deboilerplated.charsSaved > 0) {
+        extractedText = deboilerplated.text
+        console.log(
+          `Boilerplate strip: ${deboilerplated.charsSaved} krk kazanildi ` +
+          `(%${((deboilerplated.charsSaved / (deboilerplated.charsSaved + extractedText.length)) * 100).toFixed(1)}), ` +
+          `silinen: ${deboilerplated.removed.map(l => JSON.stringify(l.slice(0, 50))).join(', ')}`
+        )
+      }
+    }
+
     // ==========================================================================
     // PERSIST THE EXTRACTED TEXT (document_chunks)
     //
@@ -3274,7 +3376,9 @@ Rules:
 - Extract ${termQuota(total)} key_terms and ${pointQuota(total)} key_points when content allows
 - ${quizQuota(total)} quiz_questions when content allows${total === 1 ? `
 - This is the WHOLE document, not an excerpt: cover every section, and if it ends with a glossary or "review terms" list, every entry on that list must appear in key_terms
-- Keep definitions to one sentence so the full set fits` : ''}
+- Keep definitions to one sentence so the full set fits
+- A figure or table CAPTION is content, not decoration: it is often the only place a date, range, period or quantity is written out in words, and those are exactly what gets examined — carry them into key_points and quiz_questions verbatim
+- Worked cases, named examples and boxed features ("in practice", "case study", applications) are testable material too; do not skip them as filler` : ''}
 - NEVER write meta text like "no draft provided" or "qualitative overview"
 - Use real topic names from the text (e.g. supervised learning, neural networks)
 - Ignore grading/attendance/admin text
