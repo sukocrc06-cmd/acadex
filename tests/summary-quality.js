@@ -44,6 +44,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'gateNormalize', 'GATE_MIN_TERMS_TO_JUDGE', 'GATE_MAX_DROP_SHARE', 'applyGroundingGate',
   // yakin kopya
   'NEAR_DUP_THRESHOLD', 'NEAR_DUP_MIN_TERMS', 'NEAR_DUP_STEM_LEN',
+  'NEAR_DUP_KEY_OVERLAP', 'nearDupKeysMatch',
   'nearDupStem', 'nearDupTermSet', 'dedupeNearDuplicates'
 ]);
 
@@ -709,6 +710,84 @@ test('sanitizeDiagrams onarim sayisini toplar', () => {
   assert.equal(r.diagrams.length, 1, 'gecerli olan kalmali');
   assert.equal(r.repaired, 2, 'onarim sayisi raporlanmali');
   assert.equal(r.dropped.length, 1);
+});
+
+/* --------------------------------------------------------------------------
+   SOZLUK MADDELERI TERIMLE ANAHTARLANIR (nearDupKeysMatch)
+   --------------------------------------------------------------------------
+   Yakin-kopya birlestirme term + definition metnini karsilastiriyor ve tanim
+   bu metne hakim oluyor. Bir sozluk ise iliskili kavramlari kasten PARALEL
+   cumlelerle tanimlar — ortusmenin tam olarak yanildigi yer.
+
+   Referans bolumun kendi sozlugunde olculen oranlar:
+       0.86  Treasury bonds, notes, or bills  <->  Corporate bonds
+       0.73  Expansion or boom                <->  Contraction, recession, or slump
+       0.60  Inflation                        <->  Deflation
+   Ilk ikisi birlesip karttan kayboldu. Ikincisi birbirinin ZIDDI: "trough'tan
+   peak'e ... grow" ile "peak'ten trough'a ... fall" neredeyse tum icerik
+   kelimelerini paylasiyor.
+   ------------------------------------------------------------------------ */
+
+const GLOSSARY = [
+  { term: 'Treasury bonds, notes, or bills', definition: 'Promissory notes issued by the federal government when it borrows money.' },
+  { term: 'Corporate bonds', definition: 'Promissory notes issued by corporations when they borrow money.' },
+  { term: 'Inflation', definition: 'An increase in the overall price level.' },
+  { term: 'Deflation', definition: 'A decrease in the overall price level.' },
+  { term: 'Expansion or boom', definition: 'The period in the business cycle from a trough up to a peak during which output and employment grow.' },
+  { term: 'Contraction, recession, or slump', definition: 'The period in the business cycle from a peak down to a trough during which output and employment fall.' }
+];
+const TERM_TEXT = t => `${t.term} ${t.definition}`;
+const TERM_KEY = t => String(t.term || '');
+
+test('paralel tanimli AYRI terimler birlesmez', () => {
+  const kept = A.dedupeNearDuplicates(GLOSSARY, TERM_TEXT, TERM_KEY);
+  assert.equal(kept.length, GLOSSARY.length, 'altisinin de kalmasi gerek');
+  for (const t of GLOSSARY) {
+    assert.ok(kept.includes(t), `${t.term} dusmemeli`);
+  }
+});
+
+test('zit kavramlar ozellikle birlesmez', () => {
+  // Bu cift anahtar olmadan 0.73 ile birlesiyordu.
+  assert.ok(!A.nearDupKeysMatch('Expansion or boom', 'Contraction, recession, or slump'));
+  assert.ok(!A.nearDupKeysMatch('Inflation', 'Deflation'));
+  assert.ok(!A.nearDupKeysMatch('Treasury bonds, notes, or bills', 'Corporate bonds'));
+});
+
+test('ayni terimin farkli yazilislari hala birlesir', () => {
+  assert.ok(A.nearDupKeysMatch('Business cycle', 'The business cycle'), 'onek farki');
+  assert.ok(A.nearDupKeysMatch('Aggregate output', 'Aggregate output (Real GDP)'), 'parantezli ek');
+  assert.ok(A.nearDupKeysMatch('Sticky prices', 'Price stickiness'), 'cekim/siralama farki');
+  assert.ok(A.nearDupKeysMatch('Fiscal policy', 'fiscal POLICY'), 'buyuk kucuk harf');
+});
+
+test('gercek kopyalar hala birlestirilir, uzun olani kalir', () => {
+  const dupes = [
+    { term: 'Business cycle', definition: 'The cycle of short-term ups and downs in the economy.' },
+    { term: 'The business cycle', definition: 'The cycle of short term ups and downs in the economy over time.' }
+  ];
+  const kept = A.dedupeNearDuplicates(dupes, TERM_TEXT, TERM_KEY);
+  assert.equal(kept.length, 1, 'kopya birlestirilmeli');
+  assert.equal(kept[0].term, 'The business cycle', 'daha dolu ifade kalmali');
+});
+
+test('anahtarsiz cagri eski davranisi aynen korur', () => {
+  // key_points ve quiz anahtarsiz cagiriliyor; davranislari degismemeli.
+  const points = [
+    'The business cycle has expansions and contractions.',
+    'The business cycle contains expansions and contractions.'
+  ];
+  const withKey = A.dedupeNearDuplicates(points, p => p);
+  assert.equal(withKey.length, 1, 'anahtarsiz metin birlestirmesi calismali');
+});
+
+test('anahtarlardan biri bossa metne gore karar verilir', () => {
+  const items = [
+    { term: '', definition: 'The cycle of short-term ups and downs in the economy.' },
+    { term: 'Business cycle', definition: 'The cycle of short-term ups and downs in the economy.' }
+  ];
+  const kept = A.dedupeNearDuplicates(items, TERM_TEXT, TERM_KEY);
+  assert.equal(kept.length, 1, 'bos anahtar vetoya donusmemeli');
 });
 
 /* --------------------------------------------------------------------------
