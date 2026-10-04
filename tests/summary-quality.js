@@ -2052,4 +2052,31 @@ test('review prompt u artik ozeti yeniden yazmiyor', () => {
   assert.ok(/"corrections"/.test(SRC), 'duzeltme listesi istenmeli');
 });
 
+test('quality_gate verdigi her zaman loglanir', () => {
+  const draft = JSON.stringify({ summary: SUM, key_terms: [], key_points: [] });
+  const { notes } = A.mergeReviewOntoDraft(draft, JSON.stringify({
+    corrections: [],
+    quality_gate: { pass: true, grounded: true, issues: [] }
+  }));
+  assert.ok(notes.some(n => n.startsWith('quality_gate:')), notes.join('|'));
+  assert.ok(notes.some(n => n.includes('0 sorun')), notes.join('|'));
+});
+
+test('quality_gate sorunlari loga yazilir', () => {
+  const draft = JSON.stringify({ summary: SUM, key_terms: [], key_points: [] });
+  const { notes } = A.mergeReviewOntoDraft(draft, JSON.stringify({
+    quality_gate: { pass: false, grounded: false, issues: ['yil hatasi', 'desteksiz iddia'] }
+  }));
+  const line = notes.find(n => n.startsWith('quality_gate:'));
+  assert.ok(line.includes('pass=false'), line);
+  assert.ok(line.includes('2 sorun'), line);
+  assert.ok(line.includes('yil hatasi'), line);
+});
+
+test('quality_gate hic gelmezse bu da loglanir', () => {
+  const draft = JSON.stringify({ summary: SUM, key_terms: [], key_points: [] });
+  const { notes } = A.mergeReviewOntoDraft(draft, JSON.stringify({ corrections: [] }));
+  assert.ok(notes.some(n => n.includes('quality_gate GELMEDI')), notes.join('|'));
+});
+
 summary().then(() => process.exit(process.exitCode || 0));
