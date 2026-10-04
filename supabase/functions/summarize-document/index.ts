@@ -1146,27 +1146,82 @@ function nearDupTermSet(text: string): Set<string> {
   return new Set(anchorTerms(text).map(nearDupStem))
 }
 
+// Do two glossary entries name the SAME term?
+//
+// Word overlap alone cannot answer this, because the text being compared is
+// term + definition and the definition dominates it. A glossary defines
+// related concepts in deliberately parallel sentences, which is precisely
+// when overlap misfires. Measured on the reference chapter's own glossary:
+//
+//   0.86  Treasury bonds, notes, or bills  <->  Corporate bonds
+//   0.73  Expansion or boom                <->  Contraction, recession, or slump
+//   0.60  Inflation                        <->  Deflation
+//
+// The first two merged and were lost from the card. The second pair are
+// OPPOSITES — "from a trough up to a peak ... grow" against "from a peak down
+// to a trough ... fall" — sharing almost every content word and differing only
+// in direction. Inflation/deflation sat one wording change away from the same
+// fate.
+//
+// Raising the threshold would not fix this; it would only move which pairs
+// collide, and it would stop catching the real duplicates. The structural
+// answer is that a glossary is keyed by its term: entries whose HEAD TERMS
+// differ are different entries, however similar the prose. So when a key is
+// available, it has a veto.
+const NEAR_DUP_KEY_OVERLAP = 0.8
+
+function nearDupKeysMatch(a: string, b: string): boolean {
+  const na = gateNormalize(a)
+  const nb = gateNormalize(b)
+  // No usable key on one side — fall back to the text comparison alone, which
+  // is the old behaviour and the right one for key_points and quiz questions.
+  if (!na || !nb) return true
+  if (na === nb) return true
+  // "business cycle" vs "the business cycle", "aggregate output" vs
+  // "aggregate output (real GDP)" — the same term, stated at more length.
+  if (na.includes(nb) || nb.includes(na)) return true
+  // "sticky prices" vs "price stickiness" — same words, inflected or
+  // reordered. Stems, so Turkish suffixes do not defeat it.
+  const sa = nearDupTermSet(na)
+  const sb = nearDupTermSet(nb)
+  if (sa.size === 0 || sb.size === 0) return false
+  let shared = 0
+  for (const t of sa) if (sb.has(t)) shared++
+  return shared / Math.min(sa.size, sb.size) >= NEAR_DUP_KEY_OVERLAP
+}
+
 /**
  * Collapse near-duplicates, keeping the more informative wording (the longer
  * text) of each group rather than whichever happened to come first.
  * Preserves input order based on where each surviving item first appeared.
+ *
+ * `getKey` is optional. When supplied (key_terms pass the term itself), two
+ * items whose keys name different things are never merged, no matter how
+ * alike their full text reads.
  */
-function dedupeNearDuplicates(items: any[], getText: (item: any) => string): any[] {
+function dedupeNearDuplicates(
+  items: any[],
+  getText: (item: any) => string,
+  getKey?: (item: any) => string
+): any[] {
   const list = Array.isArray(items) ? items : []
-  type Kept = { item: any; terms: Set<string>; order: number; len: number }
+  type Kept = { item: any; terms: Set<string>; order: number; len: number; key: string }
   const kept: Kept[] = []
 
   for (let i = 0; i < list.length; i++) {
     const text = String(getText(list[i]) || '')
     if (!text.trim()) continue
     const terms = nearDupTermSet(text)
+    const key = getKey ? String(getKey(list[i]) || '') : ''
 
-    if (terms.size < NEAR_DUP_MIN_TERMS) { kept.push({ item: list[i], terms, order: kept.length, len: text.length }); continue }
+    if (terms.size < NEAR_DUP_MIN_TERMS) { kept.push({ item: list[i], terms, order: kept.length, len: text.length, key }); continue }
 
     let mergedInto = -1
     for (let k = 0; k < kept.length; k++) {
       const other = kept[k]
       if (other.terms.size < NEAR_DUP_MIN_TERMS) continue
+      // Different head terms → different entries, whatever the prose says.
+      if (!nearDupKeysMatch(key, other.key)) continue
       let shared = 0
       for (const t of terms) if (other.terms.has(t)) shared++
       const overlap = shared / Math.min(terms.size, other.terms.size)
@@ -1174,11 +1229,11 @@ function dedupeNearDuplicates(items: any[], getText: (item: any) => string): any
     }
 
     if (mergedInto === -1) {
-      kept.push({ item: list[i], terms, order: kept.length, len: text.length })
+      kept.push({ item: list[i], terms, order: kept.length, len: text.length, key })
     } else if (text.length > kept[mergedInto].len) {
       // Same idea, better stated — keep the fuller wording at the original
       // position so ordering stays stable.
-      kept[mergedInto] = { item: list[i], terms, order: kept[mergedInto].order, len: text.length }
+      kept[mergedInto] = { item: list[i], terms, order: kept[mergedInto].order, len: text.length, key }
     }
   }
 
@@ -4598,7 +4653,8 @@ Fix the listed issues. Remove hallucinations and admin noise. Keep ${langLabel}.
       }
       parsedContent.key_terms = dedupeNearDuplicates(
         parsedContent.key_terms,
-        (t: any) => `${t?.term || ''} ${t?.definition || ''}`
+        (t: any) => `${t?.term || ''} ${t?.definition || ''}`,
+        (t: any) => String(t?.term || '')
       )
       parsedContent.key_points = dedupeNearDuplicates(
         parsedContent.key_points,
