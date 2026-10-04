@@ -4257,7 +4257,9 @@ Use CONCRETE topic names from digests and terms. No meta filler.`,
             const visualSystemPrompt = `You are an academic study assistant. You are shown page images of the figure/table pages of a lecture document. Their captions were already extracted as text; what you can see and the text cannot is the CONTENT of the graphic itself — the axis ranges, the plotted levels and turning points, the rows of a table, the boxes and arrows of a diagram. Identify exam-relevant content readable in these images that is NOT already covered by these already-known terms: ${knownTermsHint || '(none yet)'}.
 Respond ONLY with JSON in ${langLabel}: {"key_terms":[{"term":"...","definition":"..."}],"key_points":["..."],"quiz_questions":[{"question":"...","answer":"..."}],"sections":[{"heading":"...","summary":"..."}],"tables":[{"title":"...","headers":["..."],"rows":[["..."]]}],"diagrams":[{"title":"...","mermaid":"...","description":"..."}]}
 Rules: only include content actually visible in the images; return empty arrays for any field with nothing new; do not repeat terms already listed above. Reconstruct any table you can read as 'tables' and any flowchart/framework/process image as a Mermaid 'diagrams' entry. Never invent one that isn't visibly there.
-When a chart's shape carries the lesson — where it peaks, when it falls, which period is highest — write that in WORDS as a key_point, naming the value and the year you read ("unemployment peaks near 10.6% in 1982"). Do not attempt to output a series of numbers.`
+When a chart's shape carries the lesson — where it peaks, when it falls, which period is highest — write that in WORDS as a key_point. Do not attempt to output a series of numbers.
+Give a numeric value ONLY when that number is PRINTED on the image: an axis tick, a data label, a gridline you can read the plotted point against. If you are estimating a level by eye, say it in relative words instead ("the highest of the five", "roughly double the previous peak", "falls back to about where it started"). A shape described correctly is worth more than a decimal invented to look precise.
+The example that used to sit here named a real-looking percentage, and a live run copied that number straight out of this prompt into the summary as if it were read from the chart — attached to the wrong period, no less. So there is no numeric example here on purpose. Any figure in your answer must come from the image in front of you.`
 
             const visualUserContent = [
               { type: "text", text: "Analyze these slide images for exam-relevant content not already covered." },
@@ -4338,10 +4340,21 @@ When a chart's shape carries the lesson — where it peaks, when it falls, which
                 // chart flattened a log-scale axis into a linear one and
                 // erased the Great Depression trough with it.
                 //
-                // The prompt now asks for that reading in WORDS instead —
-                // "unemployment peaks near 10.6% in 1982" is checkable, keeps
-                // the fact, and cannot be misread as a measured series. Charts
-                // from the TEXT windows are unaffected; those come from
+                // The prompt now asks for that reading in WORDS instead, which
+                // keeps the fact and cannot be misread as a measured series.
+                //
+                // It used to demonstrate that with a worked example naming a
+                // real percentage. That example leaked: on 04.10.2026 the
+                // summary came back claiming unemployment peaked at "10.6% in
+                // 2008-09" — the number lifted verbatim out of this prompt and
+                // pinned to the wrong decade (the real 2008-09 peak is ~10%,
+                // and 10.6 belongs to 1982, which is where the example got it).
+                // A concrete figure inside an instruction is indistinguishable
+                // from a figure read off the page, so the prompt now carries
+                // no numeric example at all and asks for a value only when one
+                // is actually printed on the image.
+                //
+                // Charts from the TEXT windows are unaffected; those come from
                 // figures a document actually tabulates.
                 const newTables = Array.isArray(visionParsed.tables) ? visionParsed.tables : []
                 const newDiagrams = Array.isArray(visionParsed.diagrams) ? visionParsed.diagrams : []
