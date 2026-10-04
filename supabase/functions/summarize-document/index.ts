@@ -2918,6 +2918,19 @@ serve(async (req) => {
     // ==========================================================================
     const useChunkedPipeline = extractedText.length > CHUNK_THRESHOLD
     const pipelineStartedAt = Date.now()
+
+    // Claims the vision pass contributes, normalised the way the grounding
+    // gate normalises, so the gate can recognise and exempt them.
+    //
+    // Declared HERE, outside both pipelines, because that is where it is
+    // read: the vision pass fills it inside the chunked branch, but
+    // applyGroundingGate runs further down on the path both pipelines share.
+    // Declaring it next to the vision pass put it out of scope at the gate
+    // and threw "ReferenceError: visionGroundedClaims is not defined" after
+    // ~3 minutes of completed work, losing the whole card. Stays empty when
+    // the pass does not run, which is the no-op case the gate already
+    // handles.
+    const visionGroundedClaims = new Set<string>()
     const budgetLeft = () => Math.max(0, PIPELINE_BUDGET_MS - (Date.now() - pipelineStartedAt))
 
     // ==========================================================================
@@ -3865,11 +3878,6 @@ Use CONCRETE topic names from digests and terms. No meta filler.`,
       // any failure here just leaves the text-only result untouched, same
       // as the compact synthesis above.
       // ------------------------------------------------------------------
-      // Claims the vision pass contributes, normalised the way the grounding
-      // gate normalises, so the gate can recognise and exempt them. Stays
-      // empty whenever the pass does not run, which is the no-op case.
-      const visionGroundedClaims = new Set<string>()
-
       const visualPlan = analyzeVisuals
         ? selectVisualPages(pdfPageTexts, nearBlankPdfPageIndices, VISION_MAX_IMAGES)
         : { indices: [] as number[], reason: 'kapali' }
