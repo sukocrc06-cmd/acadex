@@ -1254,9 +1254,39 @@ function dedupeByText(items: any[], getText: (item: any) => string): any[] {
   return out
 }
 
+// Word boundaries via \b are ASCII-centric and mis-fire around Turkish
+// letters, so the edges are asserted against Unicode letter/number classes.
+function clozeTermPattern(term: string): RegExp {
+  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(`(^|[^\\p{L}\\p{N}])(${escaped})(?![\\p{L}\\p{N}])`, 'iu')
+}
+
 /** Build cloze (fill-in-the-blank) cards from key terms and key points.
  *  Prefer model-produced cloze_cards when present; otherwise derive deterministically.
  *  Each card: { id, prompt, answer, full_text, source }
+ *
+ *  Two things were wrong with the derivation, and the library's whole
+ *  "Boşluk Doldurma — aktif hatırlama" mode was the quieter for it.
+ *
+ *  1. Sentence clozes never ran. The key_term pass went first and, with a
+ *     real glossary of 25-28 entries, consumed every one of the 20 slots.
+ *     Every card a student saw was "___: <definition>", which is the
+ *     ANAHTAR TERİMLER list read backwards — the same material twice, once
+ *     labelled as an exercise. So the sentence pass now goes FIRST and the
+ *     definition pass fills whatever is left. Both directions have study
+ *     value; only one of them is distinctive.
+ *
+ *  2. The sentence pass blanked the wrong word. It looked for "the first
+ *     capitalised phrase", but every sentence begins with a capital, so the
+ *     first word always won:
+ *         "___ five recessionary periods show increases in the
+ *          unemployment rate."                            -> answer: "The"
+ *         "___ policy involves government taxation..."     -> answer: "Fiscal"
+ *     A stopword as the answer is not recall, and "Fiscal policy" being cut
+ *     in half leaves the other half sitting in the prompt. Capitalisation
+ *     was never the signal: this card already carries a vetted glossary, so
+ *     the blank is now chosen by matching those terms against the sentence,
+ *     longest first, so "unemployment rate" wins over "rate".
  */
 function buildClozeCards(
   modelClozes: any[] | undefined,
@@ -1285,7 +1315,52 @@ function buildClozeCards(
     }
   }
 
-  // 2) Derive from key_terms: "X is defined as Y" → blank the term
+  // 3) Sentence clozes, chosen by the glossary rather than by capitalisation.
+  //    Runs BEFORE the key_term pass below (see the note on the function) so
+  //    it is not starved of slots by a long glossary.
+  const clozeTerms = (keyTerms || [])
+    .map((t: any) => String(t?.term || '').trim())
+    .filter(t => t.length >= 3)
+    // Longest first: in "the unemployment rate rose" the card must ask for
+    // "unemployment rate", never for "rate".
+    .sort((a, b) => b.length - a.length)
+
+  for (const p of (keyPoints || [])) {
+    if (out.length >= maxCards) break
+    const text = String(typeof p === 'string' ? p : (p?.point || p?.text || '')).trim()
+    if (!text || text.length < 20 || text.length > 180) continue
+
+    for (const term of clozeTerms) {
+      const ansKey = term.toLowerCase()
+      // One blank per term: five cards asking the same word is one exercise
+      // repeated, and it crowds out the rest of the glossary.
+      if (seenAnswers.has(ansKey)) continue
+
+      const m = text.match(clozeTermPattern(term))
+      if (!m || typeof m.index !== 'number') continue
+
+      const lead = m[1] || ''
+      const at = m.index + lead.length
+      const prompt = text.slice(0, at) + '___' + text.slice(at + m[2].length)
+      // Nothing left to reason from if the blank swallowed the sentence.
+      if (prompt.replace('___', ' ').trim().split(/\s+/).length < 5) continue
+
+      seenAnswers.add(ansKey)
+      out.push({
+        id: `cl${out.length + 1}`,
+        prompt,
+        // The glossary's own spelling, not whatever casing the sentence used.
+        answer: term,
+        full_text: text,
+        source: 'key_point'
+      })
+      break   // one blank per sentence
+    }
+  }
+
+  // 4) Definition prompts fill whatever capacity the sentence clozes left.
+  //    Useful in their own right (definition -> term is the reverse of the
+  //    ANAHTAR TERİMLER list), just not distinctive enough to crowd it out.
   for (const t of (keyTerms || [])) {
     if (out.length >= maxCards) break
     const term = String(t?.term || '').trim()
@@ -1310,30 +1385,6 @@ function buildClozeCards(
       answer: term,
       full_text: defHasTerm ? def : `${term}: ${def}`,
       source: 'key_term'
-    })
-  }
-
-  // 3) Derive from short key_points that contain a clear noun phrase (optional, limited)
-  for (const p of (keyPoints || [])) {
-    if (out.length >= maxCards) break
-    const text = String(typeof p === 'string' ? p : (p?.point || p?.text || '')).trim()
-    if (!text || text.length < 20 || text.length > 180) continue
-    // Heuristic: blank the first capitalized multi-word phrase or a quoted term
-    const m = text.match(/[""']([^""']{3,40})[""']/) || text.match(/\b([A-ZÇĞİÖŞÜ][\wÇĞİÖŞÜçğıöşü\-]{2,}(?:\s+[A-ZÇĞİÖŞÜ][\wÇĞİÖŞÜçğıöşü\-]{2,}){0,3})\b/)
-    if (!m) continue
-    const answer = m[1].trim()
-    if (answer.length < 3 || seenAnswers.has(answer.toLowerCase())) continue
-    // Don't blank if it's the whole sentence
-    if (answer.length > text.length * 0.6) continue
-    seenAnswers.add(answer.toLowerCase())
-    const prompt = text.replace(answer, '___')
-    if (prompt === text) continue
-    out.push({
-      id: `cl${out.length + 1}`,
-      prompt,
-      answer,
-      full_text: text,
-      source: 'key_point'
     })
   }
 
