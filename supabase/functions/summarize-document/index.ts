@@ -1520,6 +1520,90 @@ function buildClozeCards(
   return out
 }
 
+/**
+ * Merge the review pass's output onto the draft instead of replacing it.
+ *
+ * WHY THIS EXISTS (04.10.2026, first live run with review enabled):
+ * The review prompt asked for "the REFINED full study-card JSON" while the
+ * call was capped at 2500 completion tokens. A 26-term brief does not fit in
+ * 2500 tokens, so the model did the only thing it could and shipped a
+ * shortened version. Its output replaced the draft wholesale:
+ *
+ *   merge            : terms=26 points=14 quiz=13
+ *   after review     : terms=12 points=5  quiz=5
+ *
+ * Over half the study card, deleted by the pass that was supposed to improve
+ * it. The prompt has since been narrowed so review only returns the narrative
+ * fields, but a prompt is a request, not a guarantee — a model can always
+ * return less than it was asked for. So the merge is where the guarantee
+ * lives: arrays come from the DRAFT unless review sends back at least as many
+ * items, and a review that returns nothing usable leaves the draft untouched.
+ *
+ * Review can therefore still fix wording and catch hallucinations; it can no
+ * longer lose content by running out of room.
+ */
+const REVIEW_ARRAY_FIELDS = ['key_terms', 'key_points', 'quiz_questions', 'sections', 'footnotes']
+
+function mergeReviewOntoDraft(
+  draftRaw: string,
+  reviewRaw: string
+): { merged: string; notes: string[] } {
+  const notes: string[] = []
+  const parse = (s: string): any => {
+    try {
+      const stripped = stripThinkBlock(s)
+      return JSON.parse((stripped ?? s).replace(/```json\s*|```/g, '').trim())
+    } catch {
+      return null
+    }
+  }
+
+  const draft = parse(draftRaw)
+  const review = parse(reviewRaw)
+  if (!draft || typeof draft !== 'object') return { merged: draftRaw, notes: ['taslak okunamadi'] }
+  if (!review || typeof review !== 'object') {
+    return { merged: draftRaw, notes: ['review JSON okunamadi — taslak korundu'] }
+  }
+
+  const out: any = { ...draft }
+
+  // Narrative fields: review's job. Accept a non-trivial rewrite.
+  for (const field of ['summary', 'summary_executive']) {
+    const v = review[field]
+    if (typeof v === 'string' && v.trim().length > 40) {
+      if (v.trim() !== String(draft[field] || '').trim()) notes.push(`${field} guncellendi`)
+      out[field] = v.trim()
+    }
+  }
+
+  // Arrays: only accept when review did not shrink them. Equal length is
+  // fine — that is review rewording in place, which is what we want.
+  for (const field of REVIEW_ARRAY_FIELDS) {
+    const rv = review[field]
+    const dv = draft[field]
+    if (!Array.isArray(rv)) continue
+    const draftLen = Array.isArray(dv) ? dv.length : 0
+    if (rv.length >= draftLen) {
+      if (rv.length > draftLen) notes.push(`${field} ${draftLen}→${rv.length}`)
+      out[field] = rv
+    } else {
+      notes.push(`${field} KORUNDU (review ${rv.length} dondu, taslakta ${draftLen})`)
+    }
+  }
+
+  // Scalars review may legitimately correct.
+  for (const field of ['document_type', 'suggested_course_tag']) {
+    if (typeof review[field] === 'string' && review[field].trim()) out[field] = review[field].trim()
+  }
+  if (typeof review.is_quantitative === 'boolean') out.is_quantitative = review.is_quantitative
+  if (review.outline && typeof review.outline === 'object') out.outline = review.outline
+  if (review.quality_gate && typeof review.quality_gate === 'object') {
+    out.quality_gate = review.quality_gate
+  }
+
+  return { merged: JSON.stringify(out), notes }
+}
+
 function roundRobinInterleave<T>(lists: T[][]): T[] {
   const out: T[] = []
   let idx = 0
@@ -4341,13 +4425,30 @@ FOOTNOTES: Preserve existing footnote page values when present; only change if t
 
 SECTIONS / OUTLINE: Preserve structure; refine inaccurate section summaries; remove admin-only sections.
 
-OUTPUT: Return the REFINED full study-card JSON in the same shape as the draft, PLUS:
-"quality_gate": { "pass": boolean, "grounded": boolean, "issues": [ string ] }
-- pass=false only for serious problems (hallucinations, missing thesis, heavy admin noise left in)
-- grounded=true if important claims are citation-backed or source clearly supports them
-- issues: short list of remaining concerns (empty array if clean)
+OUTPUT — READ CAREFULLY. Do NOT re-emit the whole study card. Return ONLY
+the narrative fields plus your verdict:
 
-JSON shape: { "summary": string, "summary_executive": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "document_type": string, "footnotes": [ { "id": number, "reference": string, "page": number | null } ], "outline": { ... }, "sections": [ { "heading": string, "summary": string, "key_points": [ string ], "outline_id": string | null } ], "suggested_course_tag": string | null, "is_quantitative": boolean, "quality_gate": { "pass": boolean, "grounded": boolean, "issues": [ string ] } }.
+{ "summary": string, "summary_executive": string, "footnotes": [ { "id": number, "reference": string, "page": number | null } ], "quality_gate": { "pass": boolean, "grounded": boolean, "issues": [ string ] } }
+
+- "summary" and "summary_executive": the corrected narrative. Fix factual
+  slips against the source (wrong year, wrong figure, a value attributed to
+  the wrong period), remove unsupported claims and admin noise, add (${citationUnit} N)
+  markers where you can see them. Keep the flowing prose of rule F.
+- "footnotes": optional. Omit the field entirely if you are not changing it.
+- "quality_gate":
+  - pass=false only for serious problems (hallucinations, missing thesis,
+    heavy admin noise left in)
+  - grounded=true if important claims are citation-backed or source clearly
+    supports them
+  - issues: short list of remaining concerns, naming anything wrong in
+    key_terms / key_points / quiz_questions so it can be fixed separately
+    (empty array if clean)
+
+key_terms, key_points, quiz_questions, sections and outline are NOT yours to
+rewrite — leave them out of your answer completely. They are carried over
+from the draft unchanged. Report problems with them in "issues" instead.
+This keeps your answer short enough to finish; an answer that runs out of
+room is worse than no answer.
 Preserve summary_executive, outline, and deep sections unless clearly wrong.
 DO NOT include "tables", "charts", "diagrams", "worked_examples", "formulas", "concept_graph", or "cloze_cards" in your output at all — omit those keys entirely. They are extracted/validated separately outside this review step and are not part of your job; re-emitting them here only burns completion-token budget that "summary"/"sections"/"key_points" need.`
 
@@ -4674,7 +4775,15 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
       }
 
       if (!rawFinalContent) {
-        rawFinalContent = groqReviewData?.choices?.[0]?.message?.content ?? ""
+        const reviewOut = groqReviewData?.choices?.[0]?.message?.content ?? ""
+        if (reviewOut) {
+          // Never let review's answer BE the final content — merge it onto the
+          // draft, so a short or truncated answer can only fail to improve
+          // things, not delete them. See mergeReviewOntoDraft.
+          const { merged, notes } = mergeReviewOntoDraft(rawContent, reviewOut)
+          rawFinalContent = merged
+          console.log(`Review birlestirme: ${notes.length ? notes.join(', ') : 'degisiklik yok'}`)
+        }
       }
       if (!rawFinalContent) {
         console.error('Empty response content from Groq Review: ', JSON.stringify(groqReviewData))
