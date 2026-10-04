@@ -11523,17 +11523,24 @@ async function gatherNotificationItems(lastCheck) {
   // (and still surfaces badges earned server-side, e.g. "Popüler Proje",
   // for a session where the owner wasn't there to see the instant toast).
   try {
+    // Column is earned_at, not created_at. This block asked for created_at in
+    // all three places and PostgREST answered 400 Bad Request every time the
+    // notification bell refreshed — visible in the browser console as
+    //   GET .../user_achievements?select=...&created_at=gt.... 400
+    // so no server-side badge has ever reached the bell dropdown. The other
+    // two call sites in this file (the achievements grid) already use
+    // earned_at and work, which is what identified the right name.
     const { data: earned, error } = await supabaseClient
       .from('user_achievements')
-      .select('achievement_id, created_at')
+      .select('achievement_id, earned_at')
       .eq('user_id', currentUser.id)
-      .gt('created_at', lastCheck)
-      .order('created_at', { ascending: false });
+      .gt('earned_at', lastCheck)
+      .order('earned_at', { ascending: false });
     if (!error && earned) {
       earned.forEach(e => {
         const meta = (window.ACHIEVEMENTS_LOOKUP || {})[e.achievement_id];
         items.push({
-          time: e.created_at,
+          time: e.earned_at,
           title: `${meta?.icon || '🏆'} Achievement Unlocked: ${meta?.title || e.achievement_id}`,
           subtitle: meta?.desc || '',
           onClick: () => switchDashboardView('home'),
