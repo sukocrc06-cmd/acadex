@@ -1544,6 +1544,35 @@ function buildClozeCards(
  */
 const REVIEW_ARRAY_FIELDS = ['key_terms', 'key_points', 'quiz_questions', 'sections', 'footnotes']
 
+// Inline source citation, e.g. "(s. 12)" / "(slayt 4)" / "(p. 7)".
+const INLINE_PAGE_CITE = /\s*\((?:s\.|sayfa|slayt|p\.|page)\s*\d+\)/giu
+
+/**
+ * Strip inline page citations that review INTRODUCED.
+ *
+ * Review is shown a truncated slice of the source (reviewTiers[0] is 4,000
+ * chars of an 11,000-char document), so it can only see page markers near the
+ * start. Asked for citations, it dutifully produced them — and a live run on
+ * 04.10.2026 came back with all ELEVEN markers reading "(s. 1)" for facts
+ * drawn from across 30 pages. Confidently wrong provenance is worse than
+ * none: a student who turns to page 1 does not find the claim, and stops
+ * trusting the citations that ARE right.
+ *
+ * Citations are computed deterministically downstream by anchorCitations(),
+ * which indexes the whole document. The prompt now says not to add them; this
+ * is the part that does not depend on the model complying. Markers the DRAFT
+ * already had are kept — only ones that appear in review's text and not in
+ * the draft's are removed.
+ */
+function stripIntroducedCitations(draftText: string, reviewText: string): string {
+  const draftHas = INLINE_PAGE_CITE.test(String(draftText || ''))
+  INLINE_PAGE_CITE.lastIndex = 0
+  if (draftHas) return reviewText
+  const cleaned = reviewText.replace(INLINE_PAGE_CITE, '')
+  INLINE_PAGE_CITE.lastIndex = 0
+  return cleaned
+}
+
 function mergeReviewOntoDraft(
   draftRaw: string,
   reviewRaw: string
@@ -1571,8 +1600,11 @@ function mergeReviewOntoDraft(
   for (const field of ['summary', 'summary_executive']) {
     const v = review[field]
     if (typeof v === 'string' && v.trim().length > 40) {
-      if (v.trim() !== String(draft[field] || '').trim()) notes.push(`${field} guncellendi`)
-      out[field] = v.trim()
+      const scrubbed = stripIntroducedCitations(String(draft[field] || ''), v).trim()
+      if (scrubbed.length < 40) continue
+      if (scrubbed !== v.trim()) notes.push(`${field} uydurma (s. N) temizlendi`)
+      if (scrubbed !== String(draft[field] || '').trim()) notes.push(`${field} guncellendi`)
+      out[field] = scrubbed
     }
   }
 
@@ -4416,10 +4448,16 @@ D) Admin noise — grading, attendance, office hours, textbook edition MUST be r
 E) Grounding — specific facts (numbers, dates, named findings) should cite source location when markers exist
 F) Structure — preserve narrative prose if the draft summary is already flowing paragraphs (Madde 3 writer). Only keep bullet/outline form if the draft summary itself is clearly bullets/outline. Do NOT convert a polished narrative back into fragments.
 
-CITATIONS / GROUNDING:
-${hasPageMarkers
-  ? `Source contains "--- ${pageMarkerLabel} N ---" markers. For important checkable claims in summary and key_points, append inline markers like (${citationUnit} N) using real N values from markers you can see — never invent page numbers. Also keep footnotes[{id, reference, page}] where page is that N or null.`
-  : `Page markers are not available. Do not invent page numbers. Keep footnotes with page: null unless a real page is already in the draft.`}
+CITATIONS / GROUNDING — DO NOT ADD PAGE NUMBERS.
+Citations are attached deterministically after you, by code that indexes the
+WHOLE document. You are shown only a truncated slice of the source, so any
+(${citationUnit} N) you write would be anchored to the part you happen to see
+rather than to where the claim actually comes from. ${hasPageMarkers
+  ? `A live run proved this: every one of 11 markers you added came out as "(${citationUnit} 1)", for facts spread across 30 pages.`
+  : `Page markers are not even available here.`}
+So: do not write (${citationUnit} N) markers, and do not invent page numbers.
+Keep any marker the draft already had exactly as it is. Judge grounding by
+whether the source supports a claim, and report what it does not in "issues".
 
 FOOTNOTES: Preserve existing footnote page values when present; only change if the visible source clearly contradicts them.
 
