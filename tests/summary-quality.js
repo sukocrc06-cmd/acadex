@@ -36,7 +36,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'VISION_TOKENS_PER_IMAGE', 'VISION_MAX_IMAGES', 'VISUAL_MIN_BUDGET_MS',
   // bosluk doldurma kartlari
   'clozeTermPattern', 'turkishIClasses', 'blankAllOccurrences',
-  'REVIEW_ARRAY_FIELDS', 'NARRATIVE_MIN_KEEP_RATIO', 'INLINE_PAGE_CITE', 'stripIntroducedCitations', 'mergeReviewOntoDraft', 'stripThinkBlock', 'buildClozeCards',
+  'REVIEW_ARRAY_FIELDS', 'applyCorrections', 'NARRATIVE_MIN_KEEP_RATIO', 'INLINE_PAGE_CITE', 'stripIntroducedCitations', 'mergeReviewOntoDraft', 'stripThinkBlock', 'buildClozeCards',
   // tekrarlayan ustbilgi/altbilgi temizligi
   'BOILERPLATE_MIN_PAGES', 'BOILERPLATE_PAGE_SHARE', 'BOILERPLATE_MAX_LINE_CHARS',
   'boilerplateKey', 'splitByPageMarkers', 'stripRepeatedBoilerplate',
@@ -1961,6 +1961,95 @@ test('gunluk kota yolu yeniden denemiyor ve sebebi soyluyor', () => {
     'son care mini-extract gunluk kotada atlanmali');
   assert.ok(/Günlük AI kotası doldu/.test(SRC),
     'kullaniciya gercek sebep soylenmeli');
+});
+
+console.log('\nREVIEW DUZELTME LISTESI (applyCorrections)\n');
+
+/* Review, 850 tamamlama tokeniyle ozeti BUTUN halinde geri yazamiyor:
+   2157 krk ozet tek basina ~674 token, butcenin %79'u. Iki canli olcum de
+   ayni: 1644->563 (%34), 2157->635 (%29). Artik cumle bazli duzeltme
+   donduruyor, uzunluk yapisal olarak korunuyor. */
+
+const SUM = 'Macroeconomics focuses on three core concerns. '
+  + 'The unemployment rate peaked at roughly 10.5% in the 2008-09 downturn. '
+  + 'Fiscal policy involves taxes and spending.';
+
+test('CANLI HATA: yanlis donem cumlesi duzeltilir, uzunluk korunur', () => {
+  const r = A.applyCorrections(SUM, [{
+    find: 'The unemployment rate peaked at roughly 10.5% in the 2008-09 downturn.',
+    replace: 'The unemployment rate peaked near 10% in 2008-09 and about 10.8% in 1980-82.'
+  }]);
+  assert.equal(r.applied, 1);
+  assert.ok(r.text.includes('10.8% in 1980-82'));
+  assert.ok(r.text.startsWith('Macroeconomics focuses'), 'bastaki cumle korunmali');
+  assert.ok(r.text.endsWith('taxes and spending.'), 'sondaki cumle korunmali');
+});
+
+test('bulunamayan duzeltme metni BOZMAZ', () => {
+  const r = A.applyCorrections(SUM, [{ find: 'Boyle bir cumle yok burada.', replace: 'X' }]);
+  assert.equal(r.applied, 0);
+  assert.equal(r.text, SUM, 'metin aynen kalmali');
+  assert.equal(r.skipped.length, 1);
+});
+
+test('belirsiz (birden cok gecen) duzeltme atlanir', () => {
+  const dbl = 'Ayni cumle burada. Baska sey. Ayni cumle burada.';
+  const r = A.applyCorrections(dbl, [{ find: 'Ayni cumle burada.', replace: 'X' }]);
+  assert.equal(r.applied, 0, 'hangisi oldugu belirsizken degistirilmemeli');
+  assert.equal(r.text, dbl);
+  assert.ok(r.skipped[0].includes('belirsiz'));
+});
+
+test('bosluk farki tolere edilir', () => {
+  const r = A.applyCorrections(SUM, [{
+    find: 'The unemployment rate peaked at roughly 10.5%   in the 2008-09 downturn.',
+    replace: 'DUZELTILDI.'
+  }]);
+  assert.equal(r.applied, 1, 'model bosluklari yeniden akitabilir');
+  assert.ok(r.text.includes('DUZELTILDI.'));
+  assert.ok(r.text.startsWith('Macroeconomics focuses'));
+});
+
+test('cok kisa find reddedilir (yanlis yeri vurabilir)', () => {
+  const r = A.applyCorrections(SUM, [{ find: 'the', replace: 'X' }]);
+  assert.equal(r.applied, 0);
+  assert.equal(r.text, SUM);
+});
+
+test('en fazla 8 duzeltme uygulanir', () => {
+  const many = Array.from({ length: 20 }, (_, i) => ({ find: `cumle${i} burada.`, replace: 'X' }));
+  const text = many.map((_, i) => `cumle${i} burada.`).join(' ');
+  const r = A.applyCorrections(text, many);
+  assert.ok(r.applied <= 8, `en fazla 8 beklenirdi, ${r.applied} uygulandi`);
+});
+
+test('bos/bozuk girdi patlamaz', () => {
+  assert.equal(A.applyCorrections('', [{ find: 'a', replace: 'b' }]).applied, 0);
+  assert.equal(A.applyCorrections(SUM, null).text, SUM);
+  assert.equal(A.applyCorrections(SUM, 'liste degil').text, SUM);
+  assert.equal(A.applyCorrections(SUM, [null, {}, { find: 'x' }]).applied, 0);
+});
+
+test('merge duzeltmeleri uygular ve uzunlugu korur', () => {
+  const draft = JSON.stringify({ summary: SUM, key_terms: [], key_points: [] });
+  const rev = JSON.stringify({
+    corrections: [{
+      find: 'The unemployment rate peaked at roughly 10.5% in the 2008-09 downturn.',
+      replace: 'The unemployment rate peaked near 10% in 2008-09.'
+    }],
+    quality_gate: { pass: true, grounded: true, issues: [] }
+  });
+  const { merged, notes } = A.mergeReviewOntoDraft(draft, rev);
+  const m = JSON.parse(merged);
+  assert.ok(m.summary.includes('near 10% in 2008-09'), 'duzeltme uygulanmali');
+  assert.ok(m.summary.includes('Macroeconomics focuses'), 'gerisi durmali');
+  assert.ok(notes.some(n => n.includes('1 duzeltme uygulandi')), notes.join('|'));
+});
+
+test('review prompt u artik ozeti yeniden yazmiyor', () => {
+  assert.ok(/do NOT rewrite\nthe summary/.test(SRC) || /do NOT rewrite the summary/.test(SRC),
+    'prompt ta yeniden yazma yasagi olmali');
+  assert.ok(/"corrections"/.test(SRC), 'duzeltme listesi istenmeli');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));
