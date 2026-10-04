@@ -596,50 +596,89 @@ const PACER_MAX_WAIT_MS = 65_000
 const PACER_COMPLETION_FACTOR = 0.6
 const DEFAULT_TPM_LIMIT = 8000       // observed on this account until a header says otherwise
 
+/**
+ * A single model's rolling-window budget. Groq meters tokens-per-minute
+ * PER MODEL, so each model gets its own 8,000 and its own spend history.
+ */
+type PacerLane = {
+  limit: number
+  limitKnown: boolean
+  spent: Array<{ at: number; tokens: number }>
+}
+
+// WHY THIS IS KEYED BY MODEL (2026-10-04):
+// The pacer used to hold one `spent[]` and one `limit` for the whole
+// function. That silently cancelled the one optimisation the pipeline was
+// built around. Groq bills TPM separately for each model, which is the
+// entire reason the review/critic passes run on MODEL_FAST while the draft
+// runs on MODEL_HEAVY — two models, two 8,000s, no queueing. With a shared
+// ledger the review call was charged the draft's spend as well, so it sat
+// through a ~60s wait for room it already had. (It never actually got that
+// far, because the MODEL_FAST id was dead and every call 404'd; fixing the
+// id without also splitting this would have traded a 404 for a stall.)
+//
+// Per-lane limits also make the Groq header more useful than before: the
+// ceiling it reports belongs to the model that was just called, so a
+// preview-tier model with a different TPM no longer overwrites the
+// production model's known limit.
 const tokenPacer = {
-  limit: DEFAULT_TPM_LIMIT,
-  limitKnown: false,
-  spent: [] as Array<{ at: number; tokens: number }>,
+  lanes: Object.create(null) as Record<string, PacerLane>,
+
+  /** The budget for one model, created on first use. */
+  lane(model: string): PacerLane {
+    const key = model || MODEL_HEAVY
+    let lane = this.lanes[key]
+    if (!lane) {
+      lane = { limit: DEFAULT_TPM_LIMIT, limitKnown: false, spent: [] }
+      this.lanes[key] = lane
+    }
+    return lane
+  },
 
   /** Drop entries older than the rolling window and total what's left. */
-  used(now: number): number {
-    this.spent = this.spent.filter(e => now - e.at < PACER_WINDOW_MS)
-    return this.spent.reduce((n, e) => n + e.tokens, 0)
+  used(now: number, model: string): number {
+    const lane = this.lane(model)
+    lane.spent = lane.spent.filter(e => now - e.at < PACER_WINDOW_MS)
+    return lane.spent.reduce((n, e) => n + e.tokens, 0)
   },
 
   /** Groq reports the real ceiling on every response; believe it over our default. */
-  observeHeaders(headers: Headers) {
+  observeHeaders(headers: Headers, model: string) {
+    const lane = this.lane(model)
     const raw = headers.get('x-ratelimit-limit-tokens')
     const n = raw ? parseInt(raw, 10) : NaN
-    if (Number.isFinite(n) && n > 0 && n !== this.limit) {
-      console.log(`TokenPacer: TPM limit ${this.limit} -> ${n} (Groq header)`)
-      this.limit = n
-      this.limitKnown = true
+    if (Number.isFinite(n) && n > 0 && n !== lane.limit) {
+      console.log(`TokenPacer[${model}]: TPM limit ${lane.limit} -> ${n} (Groq header)`)
+      lane.limit = n
+      lane.limitKnown = true
     } else if (Number.isFinite(n)) {
-      this.limitKnown = true
+      lane.limitKnown = true
     }
   },
 
-  record(tokens: number) {
-    if (Number.isFinite(tokens) && tokens > 0) this.spent.push({ at: Date.now(), tokens })
+  record(tokens: number, model: string) {
+    if (Number.isFinite(tokens) && tokens > 0) {
+      this.lane(model).spent.push({ at: Date.now(), tokens })
+    }
   },
 
   /** How many calls of this size can safely be in flight at once. */
-  safeConcurrency(estTokensPerCall: number): number {
+  safeConcurrency(estTokensPerCall: number, model: string): number {
     if (!(estTokensPerCall > 0)) return 1
-    return Math.max(1, Math.floor((this.limit * PACER_SAFETY) / estTokensPerCall))
+    return Math.max(1, Math.floor((this.lane(model).limit * PACER_SAFETY) / estTokensPerCall))
   },
 
-  /** Block until this call's estimated cost fits in the rolling budget. */
-  async acquire(estTokens: number): Promise<void> {
-    const budget = this.limit * PACER_SAFETY
+  /** Block until this call's estimated cost fits in that model's rolling budget. */
+  async acquire(estTokens: number, model: string): Promise<void> {
+    const lane = this.lane(model)
+    const budget = lane.limit * PACER_SAFETY
     const started = Date.now()
     while (true) {
       const now = Date.now()
-      const used = this.used(now)
+      const used = this.used(now, model)
       if (used + estTokens <= budget || used === 0) return
       // Wait for the oldest recorded spend to age out of the window.
-      const oldest = this.spent[0]
+      const oldest = lane.spent[0]
       const needed = Math.max(250, PACER_WINDOW_MS - (now - oldest.at) + 250)
       const remaining = PACER_MAX_WAIT_MS - (now - started)
       // Never wait a length that cannot clear anything: if the time actually
@@ -648,13 +687,16 @@ const tokenPacer = {
       // 429 path (which honours Groq's own retry-after) handle it.
       if (needed > remaining) {
         console.warn(
-          `TokenPacer: ${Math.round(needed)}ms gerekiyor ama ${Math.round(Math.max(0, remaining))}ms kaldi — ` +
+          `TokenPacer[${model}]: ${Math.round(needed)}ms gerekiyor ama ${Math.round(Math.max(0, remaining))}ms kaldi — ` +
           `beklemeden gonderiyor (used=${used}, est=${estTokens})`
         )
         return
       }
       const waitMs = needed
-      console.log(`TokenPacer: ${Math.round(waitMs)}ms bekliyor (used=${used}/${Math.round(budget)}, est=${estTokens})`)
+      console.log(
+        `TokenPacer[${model}]: ${Math.round(waitMs)}ms bekliyor ` +
+        `(used=${used}/${Math.round(budget)}, est=${estTokens})`
+      )
       await new Promise(r => setTimeout(r, waitMs))
     }
   }
@@ -704,7 +746,7 @@ async function callGroqJson(
   // Wait until this call fits the rolling per-minute budget, rather than
   // firing it and letting Groq reject it (see the TokenPacer comment above).
   const estTokens = estimateTokens(systemPrompt, userContent, maxCompletionTokens)
-  await tokenPacer.acquire(estTokens)
+  await tokenPacer.acquire(estTokens, model)
 
   const response = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
@@ -715,20 +757,21 @@ async function callGroqJson(
     body: JSON.stringify(body)
   }, maxRetries, timeoutMs)
 
-  tokenPacer.observeHeaders(response.headers)
+  tokenPacer.observeHeaders(response.headers, model)
 
   const data = await response.json()
   if (!response.ok) {
     // A rejected call still consumed budget in Groq's accounting, so record
     // the estimate — otherwise the pacer would under-count after a 429 and
     // immediately fire again into the same wall.
-    tokenPacer.record(estTokens)
+    tokenPacer.record(estTokens, model)
     throw new Error(`Groq API error (${response.status}): ${JSON.stringify(data)}`)
   }
   tokenPacer.record(
     Number(data?.usage?.total_tokens) ||
     (Number(data?.usage?.prompt_tokens) || 0) + (Number(data?.usage?.completion_tokens) || 0) ||
-    estTokens
+    estTokens,
+    model
   )
   const raw = data.choices?.[0]?.message?.content ?? ""
   if (!raw) throw new Error("Empty Groq response content")
@@ -3793,10 +3836,16 @@ Rules:
         windows[0] || '',
         3072
       )
-      const windowConcurrency = Math.min(CHUNK_CONCURRENCY, tokenPacer.safeConcurrency(estWindowTokens))
+      // Window calls go out on MODEL_HEAVY (see the extractWindow call below),
+      // so it is MODEL_HEAVY's lane that decides how many fit at once.
+      const windowConcurrency = Math.min(
+        CHUNK_CONCURRENCY,
+        tokenPacer.safeConcurrency(estWindowTokens, MODEL_HEAVY)
+      )
+      const heavyLane = tokenPacer.lane(MODEL_HEAVY)
       console.log(
         `Window concurrency: ${windowConcurrency} ` +
-        `(TPM limit ${tokenPacer.limit}${tokenPacer.limitKnown ? '' : ', varsayilan'}, ` +
+        `(${MODEL_HEAVY} TPM limit ${heavyLane.limit}${heavyLane.limitKnown ? '' : ', varsayilan'}, ` +
         `~${estWindowTokens} token/pencere, tavan ${CHUNK_CONCURRENCY})`
       )
 
@@ -4029,17 +4078,21 @@ When a chart's shape carries the lesson — where it peaks, when it falls, which
               Math.ceil(visualSystemPrompt.length / 3.2) +
               Math.ceil(3072 * PACER_COMPLETION_FACTOR)
             console.log(`Gorsel cagri butcesi: ~${estVisionTokens} token (${visualImages.length} gorsel)`)
-            await tokenPacer.acquire(estVisionTokens)
+            // MODEL_FAST, not a literal: this call and the review/critic passes
+            // are the same Groq model, so they must share one lane — Groq
+            // counts them against one TPM bucket and so must we.
+            await tokenPacer.acquire(estVisionTokens, MODEL_FAST)
 
             const visionRes = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
               method: "POST",
               headers: { "Authorization": `Bearer ${groqApiKey}`, "Content-Type": "application/json" },
               body: JSON.stringify({
-                // Groq retired the 3.6 line; qwen/qwen3.8-27b is the current
-                // vision-capable model (same image_url payload shape). The
-                // stale id is what every "Long-doc visual patch call returned
-                // non-ok status: 404" in the logs was.
-                model: "qwen/qwen3.8-27b",
+                // MODEL_FAST, never a literal. A hardcoded id here is exactly
+                // how this call ended up on Groq's retired 3.6 line and 404'd
+                // every time ("Long-doc visual patch call returned non-ok
+                // status: 404"), and it is also how the id could drift away
+                // from the pacer lane keyed above. One constant, one lane.
+                model: MODEL_FAST,
                 temperature: 0.3,
                 reasoning_effort: "none",
                 // Raised alongside the compact-window bump (2048 → 3072):
@@ -4058,8 +4111,8 @@ When a chart's shape carries the lesson — where it peaks, when it falls, which
             // Record the spend either way: a rejected call still consumed the
             // image tokens as far as the minute's budget is concerned, and a
             // successful one must not leave the next caller over-optimistic.
-            tokenPacer.observeHeaders(visionRes.headers)
-            tokenPacer.record(estVisionTokens)
+            tokenPacer.observeHeaders(visionRes.headers, MODEL_FAST)
+            tokenPacer.record(estVisionTokens, MODEL_FAST)
 
             if (visionRes.ok) {
               const visionData = await visionRes.json()
