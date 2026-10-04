@@ -22,7 +22,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   // token hizlandirici (TPM)
   'PACER_SAFETY', 'PACER_WINDOW_MS', 'PACER_MAX_WAIT_MS', 'PACER_COMPLETION_FACTOR',
   'DEFAULT_TPM_LIMIT', 'MODEL_OTPM', 'OTPM_SAFETY', 'VISION_MAX_COMPLETION', 'PIPELINE_BUDGET_MS', 'REVIEW_ATTEMPT_TIMEOUT_MS', 'REVIEW_TAIL_MS',
-  'tokenPacer', 'estimateTokens', 'MODEL_HEAVY', 'MODEL_FAST',
+  'tokenPacer', 'estimateTokens', 'parseGroqRetryAfterMs', 'isDailyQuotaError', 'MODEL_HEAVY', 'MODEL_FAST',
   // latex
   'stripLatexDelimiters', 'validateLatex', 'sanitizeFormulas',
   // mermaid dogrulama
@@ -1903,6 +1903,64 @@ test('critic kapisi OTPM beklemesini hesaba katiyor', () => {
 
 test('critic de uzunluk tabanina tabi', () => {
   assert.ok(/critic yazisi REDDEDILDI/.test(SRC), 'critic icin de taban olmali');
+});
+
+console.log('\nGUNLUK KOTA (TPD) ve RETRY-AFTER AYRISTIRMA\n');
+
+/* 05.10.2026: gunluk token kotasi doldu (TPD 200000, kullanilan 196725).
+   Kod bunu dakikalik limit sanip 3 kez denedi; her 429 tahminini DAKIKALIK
+   deftere yazdi, defter doldu, pacer 60sn bekledi — bir daha, bir daha.
+   Sonuc: ~2 dakika bos bekleme, ozet yok, kullaniciya sebebi soylenmeyen
+   bir hata. */
+
+test('"3m2.736s" dogru okunur (eski desen 2.7sn sanıyordu)', () => {
+  assert.equal(A.parseGroqRetryAfterMs('Please try again in 3m2.736s'), 182736);
+});
+
+test('"5m16.656s" dogru okunur', () => {
+  assert.equal(A.parseGroqRetryAfterMs('Please try again in 5m16.656s'), 316656);
+});
+
+test('dakikasiz sure de okunur', () => {
+  assert.equal(A.parseGroqRetryAfterMs('Please try again in 42.5s'), 42500);
+});
+
+test('sure yoksa null doner', () => {
+  assert.equal(A.parseGroqRetryAfterMs('Rate limit reached'), null);
+  assert.equal(A.parseGroqRetryAfterMs(''), null);
+});
+
+test('eski desenin hatasi bir daha olmasin', () => {
+  // Eski: /try again in ([\d.]+)s/ -> "3m2.736s" icinde "2.736s" yakalardi
+  const eski = 'Please try again in 3m2.736s'.match(/try again in ([\d.]+)s/i);
+  assert.ok(!eski, 'eski desen artik eslesmemeli (dakika atlaniyordu)');
+});
+
+test('TPD hatasi gunluk kota olarak taninir', () => {
+  const live = 'Rate limit reached for model `openai/gpt-oss-120b` in organization '
+    + '`org_x` service tier `on_demand` on tokens per day (TPD): Limit 200000, '
+    + 'Used 196725, Requested 3698. Please try again in 3m2.736s';
+  assert.equal(A.isDailyQuotaError(live), true);
+});
+
+test('RPD de gunluk sayilir', () => {
+  assert.equal(A.isDailyQuotaError('on requests per day (RPD): Limit 1000'), true);
+});
+
+test('DAKIKALIK limitler gunluk SAYILMAZ', () => {
+  const tpm = 'on tokens per minute (TPM): Limit 8000, Used 6982, Requested 3000';
+  const otpm = 'on output tokens per minute (OTPM): Limit 1000, Requested 1311';
+  assert.equal(A.isDailyQuotaError(tpm), false, 'TPM beklenerek asilir, durulmamali');
+  assert.equal(A.isDailyQuotaError(otpm), false, 'OTPM de dakikalik');
+});
+
+test('gunluk kota yolu yeniden denemiyor ve sebebi soyluyor', () => {
+  assert.ok(/GUNLUK kota \(TPD\/RPD\) doldu — yeniden denenmeyecek/.test(SRC),
+    'fetchWithRetry gunluk kotada hemen donmeli');
+  assert.ok(/windowResults\.length === 0 && !dailyQuotaExhausted/.test(SRC),
+    'son care mini-extract gunluk kotada atlanmali');
+  assert.ok(/Günlük AI kotası doldu/.test(SRC),
+    'kullaniciya gercek sebep soylenmeli');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));
