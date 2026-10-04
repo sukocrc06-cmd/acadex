@@ -1656,6 +1656,29 @@ function buildClozeCards(
  */
 const REVIEW_ARRAY_FIELDS = ['key_terms', 'key_points', 'quiz_questions', 'sections', 'footnotes']
 
+/**
+ * How much of the draft's narrative a rewrite must keep to be accepted.
+ *
+ * The arrays were guarded against shrinkage from the start; the narrative was
+ * not, and on 04.10.2026 that asymmetry cost the summary three of its four
+ * paragraphs. The chain: the narrative writer runs on MODEL_HEAVY, which has
+ * no output cap, and produced ~1,600 characters. Review and then the critic
+ * both run on MODEL_FAST, whose OTPM ceiling clamps them to 850 completion
+ * tokens — and both REWRITE the summary. Two passes through a budget smaller
+ * than the text they were handed, and ~1,600 characters came out ~560.
+ *
+ * Nothing was broken: each pass did exactly what it was asked, inside the
+ * room it had. The mistake was letting a pass with less room than the writer
+ * replace the writer's work unconditionally.
+ *
+ * Legitimate review trimming — dropping an unsupported clause, cutting admin
+ * noise — takes a few percent. Losing a quarter of the text is compression,
+ * not editing, so a rewrite below this share of the original is refused and
+ * the draft's narrative stands. Review's findings are not lost either way:
+ * they come back in quality_gate.issues regardless.
+ */
+const NARRATIVE_MIN_KEEP_RATIO = 0.75
+
 // Inline source citation, e.g. "(s. 12)" / "(slayt 4)" / "(p. 7)".
 const INLINE_PAGE_CITE = /\s*\((?:s\.|sayfa|slayt|p\.|page)\s*\d+\)/giu
 
@@ -1712,10 +1735,23 @@ function mergeReviewOntoDraft(
   for (const field of ['summary', 'summary_executive']) {
     const v = review[field]
     if (typeof v === 'string' && v.trim().length > 40) {
-      const scrubbed = stripIntroducedCitations(String(draft[field] || ''), v).trim()
+      const draftText = String(draft[field] || '').trim()
+      const incoming = v.trim()
+      // Measure the floor on what the MODEL returned, before our own citation
+      // scrub shortens it. Scrubbing can strip 15-20% from a heavily cited
+      // summary, and judging after it would reject a perfectly good rewrite
+      // for an edit we made ourselves. The floor is about whether the model
+      // compressed the text — see NARRATIVE_MIN_KEEP_RATIO.
+      if (draftText.length > 0 && incoming.length < draftText.length * NARRATIVE_MIN_KEEP_RATIO) {
+        notes.push(
+          `${field} KORUNDU (review ${incoming.length} krk dondu, taslak ${draftText.length} krk)`
+        )
+        continue
+      }
+      const scrubbed = stripIntroducedCitations(draftText, incoming).trim()
       if (scrubbed.length < 40) continue
       if (scrubbed !== v.trim()) notes.push(`${field} uydurma (s. N) temizlendi`)
-      if (scrubbed !== String(draft[field] || '').trim()) notes.push(`${field} guncellendi`)
+      if (scrubbed !== draftText) notes.push(`${field} guncellendi`)
       out[field] = scrubbed
     }
   }
@@ -5092,9 +5128,17 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
     // timeout at the save step costs far more than keeping an unpolished
     // summary. (We have already seen one run lose ~3 minutes of completed work
     // at exactly that step.)
+    // The completion budget must be passed to waitEstimate, not just to the
+    // call. Without it the OTPM branch sees estCompletion=0, reports no wait,
+    // and the guard waves the critic through — then acquire() sits out a full
+    // 60s output window anyway. That is exactly what happened on 04.10.2026:
+    // guard said "no wait", the critic waited 60.1s, and the run reached 135s
+    // of the 150s Edge wall clock.
+    const criticCompletion = tokenPacer.clampCompletion(MODEL_FAST, 2048)
     const criticWaitMs = tokenPacer.waitEstimate(
-      estimateTokens('', summaryText.slice(0, 4000), 2048),
-      MODEL_FAST
+      estimateTokens('', summaryText.slice(0, 4000), criticCompletion),
+      MODEL_FAST,
+      criticCompletion
     )
     const criticNeedsMs = criticWaitMs + 30_000
     if (qualityMeta.pass === false && qualityMeta.issues.length > 0 && budgetLeft() < criticNeedsMs) {
@@ -5111,20 +5155,33 @@ Fix the listed issues. Remove hallucinations and admin noise. Keep ${langLabel}.
         const fixed = await callGroqJson(groqApiKey, fixSys, fixUser, {
           model: MODEL_FAST,
           temperature: 0.2,
-          maxCompletionTokens: 2048,
+          maxCompletionTokens: criticCompletion,
           timeoutMs: 25000,
           maxRetries: 0
         })
-        if (fixed?.summary && String(fixed.summary).trim().length > 80) {
-          parsedContent.summary = String(fixed.summary).trim()
+        // Same floor as the review merge: the critic runs on MODEL_FAST under
+        // the OTPM ceiling, so it has less room than the narrative writer that
+        // produced this text. A "fix" that returns a quarter of the summary is
+        // compression, not a fix.
+        const fixedSummary = String(fixed?.summary || '').trim()
+        const keepFloor = summaryText.length * NARRATIVE_MIN_KEEP_RATIO
+        if (fixedSummary.length > 80 && fixedSummary.length >= keepFloor) {
+          parsedContent.summary = fixedSummary
           qualityMeta.critic_retry = true
           qualityMeta.pass = true
           qualityMeta.issues = []
+          console.log('Madde 4: critic rewrite applied')
+        } else if (fixedSummary.length > 80) {
+          console.warn(
+            `Madde 4: critic yazisi REDDEDILDI — ${fixedSummary.length} krk dondu, ` +
+            `taslak ${summaryText.length} krk (esik ${Math.round(keepFloor)}). Taslak korunuyor.`
+          )
         }
-        if (fixed?.summary_executive && String(fixed.summary_executive).trim().length > 20) {
-          parsedContent.summary_executive = String(fixed.summary_executive).trim()
+        const fixedExec = String(fixed?.summary_executive || '').trim()
+        const execFloor = String(parsedContent.summary_executive || '').length * NARRATIVE_MIN_KEEP_RATIO
+        if (fixedExec.length > 20 && fixedExec.length >= execFloor) {
+          parsedContent.summary_executive = fixedExec
         }
-        console.log('Madde 4: critic rewrite applied')
       } catch (critErr) {
         console.warn('Madde 4 critic rewrite skipped:', critErr)
       }
