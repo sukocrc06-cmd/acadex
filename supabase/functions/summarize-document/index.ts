@@ -4747,6 +4747,31 @@ Fix the listed issues. Remove hallucinations and admin noise. Keep ${langLabel}.
     // ==========================================================================
     // STEP 4 — SAVE STUDY CARD & UPDATE STATUS
     // ==========================================================================
+
+    // Built before the insert so the mix is visible. Sentence clozes are the
+    // ones worth having -- a run that produces only key_term prompts means
+    // the key_points carried none of the glossary's terms, which is itself
+    // worth seeing in the logs.
+    const clozeCards = buildClozeCards(
+      parsedContent.cloze_cards,
+      Array.isArray(parsedContent.key_terms) ? parsedContent.key_terms : [],
+      Array.isArray(parsedContent.key_points) ? parsedContent.key_points : [],
+      20
+    )
+    if (clozeCards.length > 0) {
+      const bySource = clozeCards.reduce((acc: Record<string, number>, c: any) => {
+        const k = String(c?.source || 'bilinmiyor')
+        acc[k] = (acc[k] || 0) + 1
+        return acc
+      }, {})
+      console.log(
+        `Cloze kartlari: ${clozeCards.length} ` +
+        `(${Object.entries(bySource).map(([k, n]) => `${k}=${n}`).join(', ')})`
+      )
+    } else {
+      console.log('Cloze kartlari: 0 uretildi')
+    }
+
     const cardPayload: Record<string, unknown> = {
       document_id: documentId,
       user_id: document.user_id,
@@ -4766,12 +4791,7 @@ Fix the listed issues. Remove hallucinations and admin noise. Keep ${langLabel}.
       concept_graph: (parsedContent.concept_graph && typeof parsedContent.concept_graph === 'object')
         ? parsedContent.concept_graph
         : { nodes: [], edges: [] },
-      cloze_cards: buildClozeCards(
-        parsedContent.cloze_cards,
-        Array.isArray(parsedContent.key_terms) ? parsedContent.key_terms : [],
-        Array.isArray(parsedContent.key_points) ? parsedContent.key_points : [],
-        20
-      ),
+      cloze_cards: clozeCards,
       outline: normalizeOutline(parsedContent.outline, parsedContent.sections),
       sections: normalizeSections(
         parsedContent.sections,
