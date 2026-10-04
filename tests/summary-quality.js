@@ -1713,4 +1713,49 @@ test('review prompt u artik atif istemiyor', () => {
   assert.ok(/DO NOT ADD PAGE NUMBERS/.test(SRC), 'atif yasagi prompt ta olmali');
 });
 
+console.log('\nPROMPT ICINDE ORNEK SAYI SIZINTISI\n');
+
+/* 04.10.2026: gorsel prompt unda ornek olarak duran
+     ("unemployment peaks near 10.6% in 1982")
+   ozete "10.6% in 2008-09" diye fact olarak sizdi — sayi prompt tan alinmis,
+   ustelik yanlis donem. Bir talimatin icindeki somut rakam, sayfadan okunmus
+   rakamdan ayirt edilemiyor. Bu testler o ornegin geri gelmesini engeller. */
+
+// Kaynaktaki sablon literallerini (prompt lari) yorum satirlarindan ayirarak al.
+function promptLiterals(src) {
+  const out = [];
+  const lines = src.split('\n');
+  let inPrompt = false, buf = [];
+  for (const l of lines) {
+    const t = l.trim();
+    if (t.startsWith('//') || t.startsWith('*')) continue;
+    if (!inPrompt && /(SystemPrompt|UserPrompt|fixSys)\s*=\s*`/.test(l)) { inPrompt = true; buf = [l]; continue; }
+    if (inPrompt) {
+      buf.push(l);
+      if (/`\s*$/.test(t) || /`$/.test(t)) { out.push(buf.join('\n')); inPrompt = false; }
+    }
+  }
+  return out;
+}
+
+test('prompt larda ornek yuzde degeri yok', () => {
+  for (const p of promptLiterals(SRC)) {
+    const m = p.match(/\d{1,3}(?:[.,]\d+)?\s?%/g);
+    assert.equal(m, null, `prompt ta ornek yuzde var, sizabilir: ${(m || []).join(', ')}`);
+  }
+});
+
+test('gorsel prompt u 10.6 ornegini artik tasimiyor', () => {
+  const vis = promptLiterals(SRC).find(p => /visualSystemPrompt/.test(p));
+  assert.ok(vis, 'gorsel prompt bulunamadi — test guncel degil');
+  assert.ok(!/10\.6/.test(vis), 'sizan ornek geri gelmis');
+  assert.ok(/PRINTED on the image/.test(vis),
+    'sayi yalnizca goruntude YAZILIYORSA verilmeli kurali eksik');
+});
+
+test('gorsel prompt u goz karari tahmini kelimeye yonlendiriyor', () => {
+  const vis = promptLiterals(SRC).find(p => /visualSystemPrompt/.test(p));
+  assert.ok(/relative words/.test(vis), 'goz karari degerler icin kelime alternatifi onerilmeli');
+});
+
 summary().then(() => process.exit(process.exitCode || 0));
