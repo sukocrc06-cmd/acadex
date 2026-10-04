@@ -760,11 +760,11 @@ ${rawContent}`
             // PER MODEL, and this account's gpt-oss-120b allowance (8000
             // TPM) is easily exhausted by the Draft pass alone, causing the
             // Review pass to immediately collide with the same budget a
-            // moment later ("Used 6982/8000..."). Using qwen/qwen3.6-27b
+            // moment later ("Used 6982/8000..."). Using qwen/qwen3.8-27b
             // here draws from a separate quota entirely.
-            model: "qwen/qwen3.6-27b",
+            model: "qwen/qwen3.8-27b",
             temperature: 0.2,
-            // Qwen3.6 is a hybrid reasoning model that thinks by default —
+            // Qwen3.8 is a hybrid reasoning model that thinks by default —
             // turn that off so "content" is just the direct JSON answer.
             reasoning_effort: "none",
             max_completion_tokens: tier.maxCompletionTokens,
