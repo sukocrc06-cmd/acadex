@@ -396,6 +396,13 @@ const CHUNK_MAX_COMPLETION = 1536 // slightly smaller → faster chunk map
 const SYNTHESIS_MAX_COMPLETION = 3072
 const DRAFT_MAX_COMPLETION = 4096
 const REVIEW_MAX_COMPLETION = 4096
+// Review timing, used both to budget the gate and to drive the call itself,
+// so the two can never disagree about what a review attempt costs.
+const REVIEW_ATTEMPT_TIMEOUT_MS = 25_000
+// Everything after the review call: JSON parse, grounding gate, near-duplicate
+// merge, citation anchoring, cloze build, DB save. All deterministic; measured
+// at ~200ms on a live 30-page run, so this is ~40x headroom.
+const REVIEW_TAIL_MS = 8_000
 // Cap parallel chunk calls to reduce TPM bursts.
 // SPEED FIX: the long-document "windows" loop below used to await each
 // window's Groq call one at a time (effective concurrency of 1) even though
@@ -666,6 +673,31 @@ const tokenPacer = {
   safeConcurrency(estTokensPerCall: number, model: string): number {
     if (!(estTokensPerCall > 0)) return 1
     return Math.max(1, Math.floor((this.lane(model).limit * PACER_SAFETY) / estTokensPerCall))
+  },
+
+  /**
+   * How long acquire() would block for this call RIGHT NOW, in ms, without
+   * blocking. Mirrors acquire's loop: entries age out oldest-first, and the
+   * answer is when enough of them have expired for the call to fit.
+   *
+   * This exists so a stage can ask "would running me actually cost time?"
+   * instead of assuming the worst. The review gate used to assume a flat
+   * 55s — correct back when one shared ledger meant any call could eat a
+   * full window, but now that lanes are per model the pacer can simply say.
+   */
+  waitEstimate(estTokens: number, model: string): number {
+    const lane = this.lane(model)
+    const now = Date.now()
+    let used = this.used(now, model)
+    const budget = lane.limit * PACER_SAFETY
+    if (used + estTokens <= budget || used === 0) return 0
+    let wait = 0
+    for (const e of lane.spent) {
+      used -= e.tokens
+      wait = PACER_WINDOW_MS - (now - e.at) + 250
+      if (used + estTokens <= budget || used <= 0) break
+    }
+    return Math.max(0, Math.min(PACER_MAX_WAIT_MS, wait))
   },
 
   /** Block until this call's estimated cost fits in that model's rolling budget. */
@@ -4493,39 +4525,93 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
     // so the time-budget check is now the only gate — review runs on every
     // chunked document depth gets, as long as there is genuinely enough
     // wall-clock left to do it safely.
+    // Groq enforces a tokens-per-minute cap per model (as low as 8000 on
+    // this account). A long/detailed draft plus the reference source text
+    // can occasionally exceed it even after the 6,000-char truncation above.
+    // Rather than fail outright, retry with progressively smaller reference-
+    // text AND completion budgets together (the draft JSON itself is never
+    // trimmed, since that would lose content from the final output).
+    //
+    // Declared above the gate because the gate needs tier 0's size to ask the
+    // pacer what the call would cost in time.
+    const reviewTiers: Array<{ sourceChars: number; maxCompletionTokens: number }> = [
+      { sourceChars: 4000, maxCompletionTokens: Math.min(2500, REVIEW_MAX_COMPLETION) },
+      { sourceChars: 1200, maxCompletionTokens: 1800 },
+      { sourceChars: 0, maxCompletionTokens: 1200 }
+    ]
+
+    // WHY THIS IS NOT A FLAT 55s ANY MORE (2026-10-04, measured):
+    // A live run finished all its work at 73.6s of a 110s budget, yet review
+    // was skipped at 72.2s because budgetLeft() was 39.2s and the gate wanted
+    // 55s. The 55s came from the era of ONE shared token ledger, where any
+    // call might have to sit out a whole 60s window. With per-model lanes the
+    // review call runs on MODEL_FAST and the pacer can say exactly how long
+    // that lane would make it wait — in that run, about 4 seconds. The gate
+    // was refusing a ~15s job because it assumed a ~55s one.
+    //
+    // So: ask the pacer, add the work itself, compare to what is left. Still
+    // skips when the lane really is full (waitEstimate returns the real ~55s
+    // and the sum exceeds the budget), which is the case the 55s was for.
+    const reviewEstTokens = estimateTokens(
+      reviewSystemPrompt,
+      buildReviewUserPrompt(reviewTiers[0].sourceChars),
+      reviewTiers[0].maxCompletionTokens
+    )
+    const reviewWaitMs = tokenPacer.waitEstimate(reviewEstTokens, MODEL_FAST)
+    // The work half is derived, not guessed: one attempt can take at most the
+    // fetch timeout, and everything after review (parse, grounding gate,
+    // near-duplicate merge, citation anchoring, cloze build, save) is
+    // deterministic and measured at ~0.2s live — 8s is generous headroom.
+    //
+    // The retry is then budgeted explicitly rather than assumed. The gate's
+    // promise is "if I start this, I can finish it", so if there is not room
+    // for a second attempt we simply do not allow one. That keeps the worst
+    // case equal to the number actually checked here, instead of the old 55s
+    // which was a guess at one attempt plus a retry.
+    const reviewAttemptMs = REVIEW_ATTEMPT_TIMEOUT_MS + REVIEW_TAIL_MS
+    const reviewRetries =
+      budgetLeft() >= reviewWaitMs + REVIEW_ATTEMPT_TIMEOUT_MS * 2 + REVIEW_TAIL_MS ? 1 : 0
+    const reviewNeedsMs =
+      reviewWaitMs + REVIEW_ATTEMPT_TIMEOUT_MS * (reviewRetries + 1) + REVIEW_TAIL_MS
+
     const shouldSkipReview =
       (!useChunkedPipeline && extractedText.length <= SKIP_REVIEW_MAX_CHARS) ||
-      (useChunkedPipeline && budgetLeft() < 55_000)
+      (useChunkedPipeline && budgetLeft() < reviewNeedsMs)
 
     let rawFinalContent = ""
 
     if (shouldSkipReview) {
-      console.log(`HOTFIX: skipping review (chunked=${useChunkedPipeline}, depth=${depth}, budgetLeft=${budgetLeft()})`)
+      console.log(
+        `Review atlandi (chunked=${useChunkedPipeline}, depth=${depth}, ` +
+        `budgetLeft=${budgetLeft()}ms, gereken=${reviewNeedsMs}ms ` +
+        `[pacer beklemesi ${reviewWaitMs}ms + ${reviewRetries + 1} deneme x ` +
+        `${REVIEW_ATTEMPT_TIMEOUT_MS}ms + kuyruk ${REVIEW_TAIL_MS}ms], est=${reviewEstTokens} token)`
+      )
       rawFinalContent = rawContent
       await serviceClient.from('documents').update({ processing_stage: 'saving' }).eq('id', documentId)
     } else {
+      console.log(
+        `Review BASLIYOR (model=${MODEL_FAST}, budgetLeft=${budgetLeft()}ms, ` +
+        `gereken=${reviewNeedsMs}ms [pacer beklemesi ${reviewWaitMs}ms, ` +
+        `${reviewRetries + 1} deneme], est=${reviewEstTokens} token)`
+      )
       // Update stage to reviewing
       await serviceClient
         .from('documents')
         .update({ processing_stage: 'reviewing' })
         .eq('id', documentId)
 
-      // Groq enforces a tokens-per-minute cap per model (as low as 8000 on
-      // this account). A long/detailed draft plus the reference source text
-      // can occasionally exceed it even after the 6,000-char truncation above.
-      // Rather than fail outright, retry with progressively smaller reference-
-      // text AND completion budgets together (the draft JSON itself is never
-      // trimmed, since that would lose content from the final output).
-      const reviewTiers: Array<{ sourceChars: number; maxCompletionTokens: number }> = [
-        { sourceChars: 4000, maxCompletionTokens: Math.min(2500, REVIEW_MAX_COMPLETION) },
-        { sourceChars: 1200, maxCompletionTokens: 1800 },
-        { sourceChars: 0, maxCompletionTokens: 1200 }
-      ]
       let groqReviewData: any = null
 
       for (let i = 0; i < reviewTiers.length; i++) {
         const tier = reviewTiers[i]
         const attemptPrompt = buildReviewUserPrompt(tier.sourceChars)
+        // This call does NOT go through callGroqJson, so like the vision call
+        // it has to pay the pacer itself. Without this it both fires into a
+        // full window (429) and never records what it spent, leaving the
+        // critic pass after it believing the lane is emptier than it is.
+        const attemptEst = estimateTokens(reviewSystemPrompt, attemptPrompt, tier.maxCompletionTokens)
+        await tokenPacer.acquire(attemptEst, MODEL_FAST)
         let attemptResponse: Response
         try {
           attemptResponse = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
@@ -4548,7 +4634,7 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
                 { role: "user", content: attemptPrompt }
               ]
             })
-          }, 1, 25000)
+          }, reviewRetries, REVIEW_ATTEMPT_TIMEOUT_MS)
         } catch (fetchReviewErr) {
           console.error("Pass 2 Groq API fetchWithRetry exception: ", fetchReviewErr)
           await markFailed(serviceClient, documentId)
@@ -4558,7 +4644,15 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
           })
         }
 
+        tokenPacer.observeHeaders(attemptResponse.headers, MODEL_FAST)
         const attemptData = await attemptResponse.json()
+        // Record either way: a rejected call still consumed the minute's
+        // budget as far as Groq is concerned, and the next tier (or the
+        // critic) must not start out over-optimistic.
+        tokenPacer.record(
+          Number(attemptData?.usage?.total_tokens) || attemptEst,
+          MODEL_FAST
+        )
 
         if (attemptResponse.ok) {
           groqReviewData = attemptData
@@ -4667,7 +4761,25 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
       && parsedContent.footnotes.some((f: any) => f && f.page != null)
     if (hasInlineCite || footWithPage) qualityMeta.grounded = true
 
-    if (qualityMeta.pass === false && qualityMeta.issues.length > 0) {
+    // The critic is the last LLM call before the save, and it had no budget
+    // guard at all — it could only ever run after review, which used to be
+    // gated so conservatively that there was always time left. Now that review
+    // starts closer to the wall clock, guard the critic the same way: a
+    // rewrite is a quality improvement, and losing the whole run to the Edge
+    // timeout at the save step costs far more than keeping an unpolished
+    // summary. (We have already seen one run lose ~3 minutes of completed work
+    // at exactly that step.)
+    const criticWaitMs = tokenPacer.waitEstimate(
+      estimateTokens('', summaryText.slice(0, 4000), 2048),
+      MODEL_FAST
+    )
+    const criticNeedsMs = criticWaitMs + 30_000
+    if (qualityMeta.pass === false && qualityMeta.issues.length > 0 && budgetLeft() < criticNeedsMs) {
+      console.log(
+        `Madde 4: critic atlandi (budgetLeft=${budgetLeft()}ms, ` +
+        `gereken=${criticNeedsMs}ms [pacer ${criticWaitMs}ms + is 30000ms])`
+      )
+    } else if (qualityMeta.pass === false && qualityMeta.issues.length > 0) {
       try {
         await serviceClient.from('documents').update({ processing_stage: 'critic' }).eq('id', documentId)
         const fixSys = `You fix a FAILED academic study brief. Respond ONLY with JSON: { "summary": string, "summary_executive": string }.
