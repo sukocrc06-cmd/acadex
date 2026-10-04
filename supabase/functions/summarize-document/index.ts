@@ -1305,9 +1305,49 @@ function dedupeByText(items: any[], getText: (item: any) => string): any[] {
 
 // Word boundaries via \b are ASCII-centric and mis-fire around Turkish
 // letters, so the edges are asserted against Unicode letter/number classes.
+// Turkish dotted/dotless I. JavaScript's /i/ flag uses simple case folding,
+// in which "İ" (U+0130) folds to "i" PLUS a combining dot (U+0307) — so it is
+// not equal to plain "i" and /işsizlik/iu does NOT match "İşsizlik".
+//
+// That is not a corner case here: glossary terms come back lowercase and
+// Turkish sentences capitalise the first word, so the single most likely
+// placement of a term is the one form the regex could not see. Before this,
+// a Turkish cloze would blank the lowercase occurrence and leave the
+// capitalised one standing — printing the answer next to its own blank.
+//
+// Each i-family letter therefore becomes an explicit class. The /i/ flag
+// still folds everything else.
+function turkishIClasses(escaped: string): string {
+  return escaped.replace(/[iıİI]/g, ch =>
+    (ch === 'i' || ch === 'İ') ? '[iİ]' : '[ıI]'
+  )
+}
+
 function clozeTermPattern(term: string): RegExp {
   const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  return new RegExp(`(^|[^\\p{L}\\p{N}])(${escaped})(?![\\p{L}\\p{N}])`, 'iu')
+  const body = turkishIClasses(escaped)
+  return new RegExp(`(^|[^\\p{L}\\p{N}])(${body})(?![\\p{L}\\p{N}])`, 'iu')
+}
+
+/**
+ * Blank EVERY occurrence of a term, not just the first.
+ *
+ * Blanking only the first is how the 2026-10-04 export printed its own answer
+ * key inside the question:
+ *
+ *   7. "...grew from approximately 300 billion ___ in 1900 to over
+ *       17,000 billion 2009 dollars by 2014."          (answer: 2009 dollars)
+ *   8. "...peaked near 10.5% during the 1980-1982 ___ and again reached
+ *       approximately 10% during the 2008-2009 recessionary period."
+ *
+ * Both are sentences that repeat the term, which is common in exactly the
+ * comparative sentences that make the best cards ("rose from X in 1900 to Y
+ * in 2014"). Dropping those sentences would throw away good material, so
+ * blank them all instead and the card stays worth answering.
+ */
+function blankAllOccurrences(text: string, term: string): string {
+  const re = new RegExp(clozeTermPattern(term).source, 'giu')
+  return text.replace(re, (_full, lead) => `${lead}___`)
 }
 
 /** Build cloze (fill-in-the-blank) cards from key terms and key points.
@@ -1388,11 +1428,11 @@ function buildClozeCards(
       const m = text.match(clozeTermPattern(term))
       if (!m || typeof m.index !== 'number') continue
 
-      const lead = m[1] || ''
-      const at = m.index + lead.length
-      const prompt = text.slice(0, at) + '___' + text.slice(at + m[2].length)
-      // Nothing left to reason from if the blank swallowed the sentence.
-      if (prompt.replace('___', ' ').trim().split(/\s+/).length < 5) continue
+      // Every occurrence, so a sentence that repeats the term does not hand
+      // the answer back in the question — see blankAllOccurrences.
+      const prompt = blankAllOccurrences(text, term)
+      // Nothing left to reason from if the blanks swallowed the sentence.
+      if (prompt.replace(/_{3,}/g, ' ').trim().split(/\s+/).length < 5) continue
 
       seenAnswers.add(ansKey)
       out.push({
@@ -1422,17 +1462,25 @@ function buildClozeCards(
     let prompt: string
     const defHasTerm = def.toLowerCase().includes(term.toLowerCase())
     if (defHasTerm) {
-      // case-insensitive replace first occurrence
-      const re = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')
-      prompt = def.replace(re, '___')
+      // All occurrences, and on word boundaries. The old version replaced the
+      // first bare substring, which both leaked the answer when a definition
+      // used the term twice and could blank a fragment inside a longer word.
+      prompt = blankAllOccurrences(def, term)
+      // If the term only occurred as a substring of another word, nothing was
+      // blanked — fall back to the definition prompt rather than shipping a
+      // card whose question is just its own answer.
+      if (!prompt.includes('___')) prompt = `___: ${def}`
     } else {
       prompt = `___: ${def}`
     }
+    // full_text must restore the sentence the prompt was cut from, so it
+    // follows which prompt shape we actually ended up with, not defHasTerm.
+    const blanked = prompt !== `___: ${def}`
     out.push({
       id: `cl${out.length + 1}`,
       prompt,
       answer: term,
-      full_text: defHasTerm ? def : `${term}: ${def}`,
+      full_text: blanked ? def : `${term}: ${def}`,
       source: 'key_term'
     })
   }
