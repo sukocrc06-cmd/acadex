@@ -2294,10 +2294,28 @@ type GroundingStats = {
  * were supported) so the log shows which documents the model is inventing
  * on — a number to watch over time, not just a one-off fix.
  */
+// `visionGrounded` holds the normalised text of claims that came from the
+// VISION pass rather than from the extracted text, and exempts them.
+//
+// Without it the gate and the vision pass work against each other by
+// construction: the gate asks "does the document's text support this claim",
+// and the vision pass exists precisely to recover what the text does NOT
+// contain. Every term it contributes is therefore a candidate for being
+// called a fabrication.
+//
+// Observed live the first time the vision pass actually ran: it read "First
+// oil shock" / "Second oil shock" off the axis annotations of Figure 20.2 and
+// the gate dropped "Oil shock" as invented. The phrase occurs zero times in
+// the extracted text and is plainly there in the image — the claim was true
+// and the gate was judging it against a source that cannot contain it.
+//
+// These claims are not ungrounded, they are grounded in a source this
+// function cannot read, so they are passed through and counted as kept.
 function applyGroundingGate(
   keyTerms: any[],
   keyPoints: any[],
-  sourceText: string
+  sourceText: string,
+  visionGrounded: Set<string> = new Set()
 ): { key_terms: any[]; key_points: any[]; stats: GroundingStats } {
   const terms = Array.isArray(keyTerms) ? keyTerms : []
   const points = Array.isArray(keyPoints) ? keyPoints : []
@@ -2324,6 +2342,7 @@ function applyGroundingGate(
     if (!term) return false
     const norm = gateNormalize(term)
     if (norm.length < 3) return true            // too short to judge
+    if (visionGrounded.has(norm)) { stats.termsKept++; return true }
     if (haystack.includes(norm)) { stats.termsKept++; return true }
     // Multi-word term: accept when every word of it occurs somewhere. Some
     // documents write "esneklik katsayısı" across a line break, and the
@@ -2339,6 +2358,7 @@ function applyGroundingGate(
   const keptPoints = points.filter((p: any) => {
     const text = readText(p)
     if (!text.trim()) return false
+    if (visionGrounded.has(gateNormalize(text))) { stats.pointsKept++; return true }
     const claimTerms = [...new Set(anchorTerms(text))]
     if (claimTerms.length < GATE_MIN_TERMS_TO_JUDGE) { stats.pointsKept++; return true }
     const matched = claimTerms.filter(t => docTerms.has(t)).length
@@ -3845,6 +3865,11 @@ Use CONCRETE topic names from digests and terms. No meta filler.`,
       // any failure here just leaves the text-only result untouched, same
       // as the compact synthesis above.
       // ------------------------------------------------------------------
+      // Claims the vision pass contributes, normalised the way the grounding
+      // gate normalises, so the gate can recognise and exempt them. Stays
+      // empty whenever the pass does not run, which is the no-op case.
+      const visionGroundedClaims = new Set<string>()
+
       const visualPlan = analyzeVisuals
         ? selectVisualPages(pdfPageTexts, nearBlankPdfPageIndices, VISION_MAX_IMAGES)
         : { indices: [] as number[], reason: 'kapali' }
@@ -3865,8 +3890,9 @@ Use CONCRETE topic names from digests and terms. No meta filler.`,
           if (visualImages.length > 0) {
             const knownTermsHint = mergedKeyTerms.slice(0, 25).map((t: any) => t.term).filter(Boolean).join(', ')
             const visualSystemPrompt = `You are an academic study assistant. You are shown page images of the figure/table pages of a lecture document. Their captions were already extracted as text; what you can see and the text cannot is the CONTENT of the graphic itself — the axis ranges, the plotted levels and turning points, the rows of a table, the boxes and arrows of a diagram. Identify exam-relevant content readable in these images that is NOT already covered by these already-known terms: ${knownTermsHint || '(none yet)'}.
-Respond ONLY with JSON in ${langLabel}: {"key_terms":[{"term":"...","definition":"..."}],"key_points":["..."],"quiz_questions":[{"question":"...","answer":"..."}],"sections":[{"heading":"...","summary":"..."}],"tables":[{"title":"...","headers":["..."],"rows":[["..."]]}],"charts":[{"title":"...","type":"bar|pie|line","labels":["..."],"data":[0]}],"diagrams":[{"title":"...","mermaid":"...","description":"..."}]}
-Rules: only include content actually visible in the images; return empty arrays for any field with nothing new; do not repeat terms already listed above. Reconstruct any table you can read as 'tables', any chart/graph as 'charts', and any flowchart/framework/process image as a Mermaid 'diagrams' entry. For 'charts', read the approximate value off the axis for each labelled point — a series of zeros, or a single point, is worse than returning no chart at all, so omit the chart unless you can actually read at least two differing values. Never invent one that isn't visibly there.`
+Respond ONLY with JSON in ${langLabel}: {"key_terms":[{"term":"...","definition":"..."}],"key_points":["..."],"quiz_questions":[{"question":"...","answer":"..."}],"sections":[{"heading":"...","summary":"..."}],"tables":[{"title":"...","headers":["..."],"rows":[["..."]]}],"diagrams":[{"title":"...","mermaid":"...","description":"..."}]}
+Rules: only include content actually visible in the images; return empty arrays for any field with nothing new; do not repeat terms already listed above. Reconstruct any table you can read as 'tables' and any flowchart/framework/process image as a Mermaid 'diagrams' entry. Never invent one that isn't visibly there.
+When a chart's shape carries the lesson — where it peaks, when it falls, which period is highest — write that in WORDS as a key_point, naming the value and the year you read ("unemployment peaks near 10.6% in 1982"). Do not attempt to output a series of numbers.`
 
             const visualUserContent = [
               { type: "text", text: "Analyze these slide images for exam-relevant content not already covered." },
@@ -3927,15 +3953,47 @@ Rules: only include content actually visible in the images; return empty arrays 
                 const newPoints = Array.isArray(visionParsed.key_points) ? visionParsed.key_points : []
                 const newQuiz = Array.isArray(visionParsed.quiz_questions) ? visionParsed.quiz_questions : []
                 const newSections = Array.isArray(visionParsed.sections) ? visionParsed.sections : []
-                // These near-blank pages are the most likely home for a
-                // table/chart/diagram that has no text-extractable
-                // equivalent anywhere else — merge them into the same
-                // mergedTables/mergedCharts/mergedDiagrams arrays the
-                // text-window extraction feeds above, so the final draft
-                // doesn't lose them.
+                // Tables and diagrams merge into the same arrays the text
+                // windows feed. CHARTS DELIBERATELY DO NOT.
+                //
+                // Reading a plotted series off an image is the one thing in
+                // this pass the model cannot do reliably, and a chart is the
+                // one output where being approximately right is worse than
+                // being absent — it looks authoritative. Measured on the
+                // first run where the vision pass worked, against Figure
+                // 20.5: it sampled every five years and returned 1980 ≈ 6,
+                // missing the series maximum of ~10.6 in 1982 entirely. The
+                // same card carried the key point "the five recessionary
+                // reference periods show increases in the unemployment rate",
+                // so the chart contradicted the card's own text. The GDP
+                // chart flattened a log-scale axis into a linear one and
+                // erased the Great Depression trough with it.
+                //
+                // The prompt now asks for that reading in WORDS instead —
+                // "unemployment peaks near 10.6% in 1982" is checkable, keeps
+                // the fact, and cannot be misread as a measured series. Charts
+                // from the TEXT windows are unaffected; those come from
+                // figures a document actually tabulates.
                 const newTables = Array.isArray(visionParsed.tables) ? visionParsed.tables : []
-                const newCharts = Array.isArray(visionParsed.charts) ? visionParsed.charts : []
                 const newDiagrams = Array.isArray(visionParsed.diagrams) ? visionParsed.diagrams : []
+                const droppedVisionCharts = Array.isArray(visionParsed.charts) ? visionParsed.charts.length : 0
+                if (droppedVisionCharts > 0) {
+                  console.log(`Gorsel gecis: ${droppedVisionCharts} grafik alinmadi (gorselden okunan seri guvenilir degil, kelimeyle isteniyor)`)
+                }
+
+                // Everything this pass contributes is grounded in the IMAGE,
+                // which applyGroundingGate cannot read — see visionGrounded
+                // there. Without this the gate calls the pass's own findings
+                // fabrications: it dropped "Oil shock", read correctly off
+                // Figure 20.2's annotations, on the first run that worked.
+                for (const t of newTerms) {
+                  const n = gateNormalize(String(t?.term || ''))
+                  if (n) visionGroundedClaims.add(n)
+                }
+                for (const p of newPoints) {
+                  const n = gateNormalize(typeof p === 'string' ? p : String(p?.text || p?.point || ''))
+                  if (n) visionGroundedClaims.add(n)
+                }
 
                 if (newTerms.length || newPoints.length || newQuiz.length) {
                   const patchedTerms = dedupeKeyTerms([...mergedKeyTerms, ...newTerms]).slice(0, 40)
@@ -3951,11 +4009,6 @@ Rules: only include content actually visible in the images; return empty arrays 
                     .filter((t: any) => t && t.title && Array.isArray(t.rows) && t.rows.length > 0).slice(0, 12)
                   mergedTables.length = 0; mergedTables.push(...patchedTables)
                 }
-                if (newCharts.length) {
-                  const patchedCharts = dedupeByText([...mergedCharts, ...newCharts], (c: any) => c?.title || '')
-                    .filter((c: any) => c && c.title && Array.isArray(c.data) && c.data.length > 0).slice(0, 10)
-                  mergedCharts.length = 0; mergedCharts.push(...patchedCharts)
-                }
                 if (newDiagrams.length) {
                   const patchedDiagrams = dedupeByText([...mergedDiagrams, ...newDiagrams], (d: any) => d?.title || '')
                     .filter((d: any) => d && d.title && d.mermaid).slice(0, 8)
@@ -3963,7 +4016,7 @@ Rules: only include content actually visible in the images; return empty arrays 
                 }
 
                 visualAnalysisUsed = true
-                console.log(`Long-doc visual patch: +${newTerms.length} terms, +${newPoints.length} points, +${newQuiz.length} quiz, +${newSections.length} sections, +${newTables.length} tables, +${newCharts.length} charts, +${newDiagrams.length} diagrams from ${visualImages.length} near-blank page(s)`)
+                console.log(`Long-doc visual patch: +${newTerms.length} terms, +${newPoints.length} points, +${newQuiz.length} quiz, +${newSections.length} sections, +${newTables.length} tables, +${newDiagrams.length} diagrams (grafik alinmaz) from ${visualImages.length} sekil sayfasi`)
               }
             } else {
               console.warn(`Long-doc visual patch call returned non-ok status: ${visionRes.status}`)
@@ -4503,7 +4556,12 @@ Fix the listed issues. Remove hallucinations and admin noise. Keep ${langLabel}.
       }
 
       // --- (b) Grounding gate: remove claims the source does not support
-      const gated = applyGroundingGate(parsedContent.key_terms, parsedContent.key_points, extractedText)
+      const gated = applyGroundingGate(
+        parsedContent.key_terms,
+        parsedContent.key_points,
+        extractedText,
+        visionGroundedClaims
+      )
       parsedContent.key_terms = gated.key_terms
       parsedContent.key_points = gated.key_points
       console.log(

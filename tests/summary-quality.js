@@ -712,6 +712,82 @@ test('sanitizeDiagrams onarim sayisini toplar', () => {
 });
 
 /* --------------------------------------------------------------------------
+   GORSELE DAYALI IDDIALARIN KAPIDAN MUAFIYETI
+   --------------------------------------------------------------------------
+   Kapi "belgenin METNI bu iddiayi destekliyor mu" diye soruyor; gorsel gecis
+   ise tam olarak metinde OLMAYANI kurtarmak icin var. Muafiyet olmadan ikisi
+   yapisal olarak birbirine calisiyor.
+
+   Canli olcum, gorsel gecisin ilk calistigi kosu: model Sekil 20.2'nin eksen
+   etiketlerinden "First oil shock" / "Second oil shock" ifadelerini okudu,
+   kapi da "Oil shock" terimini uydurma diye attı. Ifade cikarilabilir metinde
+   SIFIR kez geciyor, gorselde ise aciktan duruyor.
+   ------------------------------------------------------------------------ */
+
+const GATE_SOURCE = `Macroeconomics deals with the economy as a whole. Aggregate output is the total
+quantity of goods and services produced. A recession is a period during which aggregate output
+declines for two consecutive quarters. The unemployment rate is the percentage of the labor force
+that is unemployed. Inflation is an increase in the overall price level, and deflation is a decrease.
+Fiscal policy concerns taxes and spending; monetary policy concerns short-term interest rates.`;
+
+// Guvenlik valfi, iddialarin %60'indan fazlasi dusecekse kapiyi tumden iptal
+// ediyor. Gercekci bir kart gibi, metinde gecen terimlerle birlikte test et —
+// yoksa tek terimli bir kurgu valfi tetikler ve kapi hic calismamis olur.
+const SUPPORTED_TERMS = [
+  { term: 'Aggregate output', definition: 'a' },
+  { term: 'Unemployment rate', definition: 'b' },
+  { term: 'Fiscal policy', definition: 'c' },
+  { term: 'Monetary policy', definition: 'd' }
+];
+
+test('gorselden gelen terim kapidan gecer, metinde olmasa bile', () => {
+  const terms = [...SUPPORTED_TERMS, { term: 'Oil shock', definition: 'Petrol fiyati soku' }];
+
+  // Muafiyet yokken: uydurma sayilir.
+  const without = A.applyGroundingGate(terms, [], GATE_SOURCE);
+  assert.ok(!without.key_terms.some(t => t.term === 'Oil shock'), 'muafiyetsiz atilmali');
+  assert.deepEqual(without.stats.droppedTerms, ['Oil shock']);
+
+  // Muafiyetle: korunur ve KEPT sayilir.
+  const vision = new Set([A.gateNormalize('Oil shock')]);
+  const withExempt = A.applyGroundingGate(terms, [], GATE_SOURCE, vision);
+  assert.ok(withExempt.key_terms.some(t => t.term === 'Oil shock'), 'gorsele dayali terim korunmali');
+  assert.equal(withExempt.stats.termsDropped, 0);
+  assert.equal(withExempt.stats.score, 100, 'gorsel katkisi skoru dusurmemeli');
+});
+
+test('gorselden gelen nokta da muaf', () => {
+  const pt = 'Unemployment peaks near 10.6 percent in 1982 before falling back';
+  const without = A.applyGroundingGate([], [pt], GATE_SOURCE);
+  const vision = new Set([A.gateNormalize(pt)]);
+  const withExempt = A.applyGroundingGate([], [pt], GATE_SOURCE, vision);
+  assert.equal(withExempt.key_points.length, 1, 'gorsele dayali nokta korunmali');
+  assert.ok(withExempt.key_points.length >= without.key_points.length, 'muafiyet hicbir seyi kotulestirmemeli');
+});
+
+test('muafiyet listesi gercekten uydurma olani kurtarmaz', () => {
+  // Listede olmayan uydurma terim yine atilmali — muafiyet genel bir af degil.
+  const terms = [
+    ...SUPPORTED_TERMS,
+    { term: 'Oil shock', definition: 'gorselden' },
+    { term: 'Phillips egrisi', definition: 'belgede yok, gorselde de yok' }
+  ];
+  const r = A.applyGroundingGate(terms, [], GATE_SOURCE, new Set([A.gateNormalize('Oil shock')]));
+  const kept = r.key_terms.map(t => t.term);
+  assert.ok(kept.includes('Oil shock'), 'muaf olan kalmali');
+  assert.ok(!kept.includes('Phillips egrisi'), 'muaf olmayan uydurma yine atilmali');
+  assert.deepEqual(r.stats.droppedTerms, ['Phillips egrisi']);
+});
+
+test('bos muafiyet listesi eski davranisi aynen korur', () => {
+  const terms = [{ term: 'Aggregate output', definition: 'x' }, { term: 'Oil shock', definition: 'y' }];
+  const a = A.applyGroundingGate(terms, [], GATE_SOURCE);
+  const b = A.applyGroundingGate(terms, [], GATE_SOURCE, new Set());
+  assert.deepEqual(a.key_terms.map(t => t.term), b.key_terms.map(t => t.term));
+  assert.equal(b.stats.termsKept, 1, 'metinde gecen terim yine gecmeli');
+});
+
+/* --------------------------------------------------------------------------
    GORSEL SAYFA SECIMI (selectVisualPages)
    --------------------------------------------------------------------------
    Eski secici "metni 150 karakterden az olan sayfa gorsel sayfasidir" diyordu.
