@@ -17,6 +17,47 @@ const corsHeaders = {
 // the edge function's entire execution budget, so that by the time a later
 // pass (e.g. the review call) runs, there's no time left and every attempt
 // fails the same way, exhausting retries for a reason retrying can't fix.
+/**
+ * Groq's suggested wait, in ms, from a 429 body.
+ *
+ * The format is "Please try again in 3m2.736s" — minutes AND seconds. The
+ * old pattern was /try again in ([\d.]+)s/, which skipped the "3m" and read
+ * that as 2.7 seconds: a 182-second wait understood as three. Live example
+ * from 05.10.2026: "try again in 5m16.656s".
+ */
+function parseGroqRetryAfterMs(body: string): number | null {
+  const m = body.match(/try again in (?:(\d+)m)?([\d.]+)s/i)
+  if (!m) return null
+  const minutes = m[1] ? parseInt(m[1], 10) : 0
+  const seconds = parseFloat(m[2]) || 0
+  const ms = (minutes * 60 + seconds) * 1000
+  return Number.isFinite(ms) && ms > 0 ? Math.ceil(ms) : null
+}
+
+/**
+ * Is this 429 a DAILY quota (TPD/RPD), rather than a per-minute one?
+ *
+ * The distinction decides whether waiting can possibly help. A per-minute
+ * limit clears in under a minute, so waiting and retrying is right. A daily
+ * limit does not:
+ *
+ *   Rate limit reached for `openai/gpt-oss-120b` ... on tokens per day (TPD):
+ *   Limit 200000, Used 196725, Requested 3698. Please try again in 3m2.736s
+ *
+ * On 05.10.2026 the code could not tell them apart. It treated the daily cap
+ * as a per-minute one: each failed window retried, every retry recorded its
+ * estimate into the per-MINUTE ledger, that ledger filled, and the pacer then
+ * waited 60 seconds for a window rollover that was never the problem. Three
+ * attempts, ~2 minutes of pointless waiting, no summary, and a user-facing
+ * error that said nothing about the actual cause.
+ *
+ * Nothing in this function's gift fixes a spent daily quota, so the only
+ * useful response is to stop immediately and say so.
+ */
+function isDailyQuotaError(body: string): boolean {
+  return /\b(TPD|RPD)\b/i.test(body) || /tokens per day|requests per day/i.test(body)
+}
+
 async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2, timeoutMs = 25000): Promise<Response> {
   let lastRateLimitedResponse: Response | null = null
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -36,6 +77,14 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2,
         let bodyPreview = ""
         try { bodyPreview = await response.clone().text() } catch (_readErr) { /* ignore — body may not be readable twice in all runtimes */ }
         console.warn(`fetchWithRetry: 429 rate-limited (attempt ${attempt + 1}/${maxRetries + 1}): ${bodyPreview}`)
+        // A daily cap cannot be waited out inside one request. Hand the
+        // response straight back so the caller fails fast with the real
+        // reason, instead of burning the pipeline budget on retries that
+        // are guaranteed to return the same 429.
+        if (isDailyQuotaError(bodyPreview)) {
+          console.error('fetchWithRetry: GUNLUK kota (TPD/RPD) doldu — yeniden denenmeyecek')
+          return response
+        }
         // Two distinct Groq 429 shapes here: "Request too large ... Requested
         // X" (this single request's own tokens exceed the limit — shrinking
         // it helps, waiting doesn't) vs. "Rate limit reached ... Used X,
@@ -43,10 +92,8 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2,
         // already spent from earlier calls — no amount of shrinking this
         // request helps until the window rolls over, so we must actually
         // wait). Parse Groq's own suggested wait time when present.
-        const retryAfterMatch = bodyPreview.match(/try again in ([\d.]+)s/i)
-        const waitMs = retryAfterMatch
-          ? Math.min(Math.ceil(parseFloat(retryAfterMatch[1]) * 1000) + 500, 30000)
-          : 2500
+        const suggested = parseGroqRetryAfterMs(bodyPreview)
+        const waitMs = suggested !== null ? Math.min(suggested + 500, 30000) : 2500
         await new Promise(r => setTimeout(r, waitMs));
       } else if (response.status >= 500 && attempt < maxRetries) {
         await new Promise(r => setTimeout(r, 800));
@@ -3430,6 +3477,12 @@ serve(async (req) => {
     // the pass does not run, which is the no-op case the gate already
     // handles.
     const visionGroundedClaims = new Set<string>()
+
+    // Set when Groq reports the DAILY token cap (TPD). Declared out here, in
+    // the scope both pipelines share, for the same reason visionGroundedClaims
+    // is: a flag written inside the chunked branch and read outside it is a
+    // ReferenceError in production that no extracted-function test can see.
+    let dailyQuotaExhausted = false
     const budgetLeft = () => Math.max(0, PIPELINE_BUDGET_MS - (Date.now() - pipelineStartedAt))
 
     // ==========================================================================
@@ -4119,6 +4172,14 @@ Rules:
               console.warn(`Window ${wi + 1}: shrinking payload to ${payload.length} chars`)
               continue
             }
+            // Daily cap: retrying cannot help, and each retry poisons the
+            // per-minute ledger and buys a 60s pacer wait on top. Give up on
+            // the spot and let the caller report the real reason.
+            if (isDailyQuotaError(msg)) {
+              console.error(`Window ${wi + 1}: GUNLUK kota doldu — pencere dongusu durduruluyor`)
+              dailyQuotaExhausted = true
+              return null
+            }
             // rate limit → brief wait then retry once
             if (/429|rate limit|tpm/i.test(msg) && attempt < 2) {
               await new Promise(r => setTimeout(r, 2500 * (attempt + 1)))
@@ -4229,14 +4290,28 @@ Rules:
         }
       }
 
-      // Last-resort: single tiny window if everything failed
-      if (windowResults.length === 0) {
+      // Last-resort: single tiny window if everything failed.
+      // Skipped when the DAILY quota is gone: a smaller window is still a
+      // call, and the cap rejects it exactly as it rejected the big one.
+      // Trying anyway is how the 05.10.2026 run spent another ~20s and a
+      // third 429 to arrive at the same place.
+      if (windowResults.length === 0 && !dailyQuotaExhausted) {
         console.warn('All windows failed — last-resort mini extract on first 5000 chars')
         const mini = await extractWindow(0, extractedText.slice(0, 5000))
         if (mini) windowResults.push(mini)
       }
 
       if (windowResults.length === 0) {
+        if (dailyQuotaExhausted) {
+          console.error('Gunluk Groq kotasi (TPD) doldu — ozet uretilemedi')
+          await markFailed(serviceClient, documentId)
+          return new Response(JSON.stringify({
+            error: 'Günlük AI kotası doldu. Kota saat başı yenilenir — bir süre sonra tekrar deneyin. / Daily AI quota exhausted; it refills gradually, please retry later.'
+          }), {
+            status: 429,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          })
+        }
         console.error('All long-doc windows failed even after shrink retries')
         await markFailed(serviceClient, documentId)
         return new Response(JSON.stringify({
