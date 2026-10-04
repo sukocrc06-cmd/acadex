@@ -216,4 +216,4 @@ test('bos etiket bos string doner', () => {
   assert.equal(UI.renderSuggestedTagChipHtml('d1', 'c1', ''), '');
 });
 
-summary();
+summary().then(() => process.exit(process.exitCode || 0));
