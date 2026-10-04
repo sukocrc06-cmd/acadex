@@ -3598,6 +3598,24 @@ serve(async (req) => {
     // handles.
     const visionGroundedClaims = new Set<string>()
 
+    // The same findings, kept VERBATIM for the review pass.
+    //
+    // visionGroundedClaims above is normalised for the grounding gate's
+    // matching; review needs the readable sentences. Review is shown the
+    // document's TEXT, and a figure's annotations are not in the text — they
+    // are drawn inside the image. So without this, everything the vision pass
+    // contributes is invisible to review, and that cuts both ways: it cannot
+    // confirm a correct figure reading, and it cannot catch a wrong one.
+    //
+    // Measured on 05.10.2026. Figure 20.2 is annotated "World War I, Roaring
+    // Twenties, The Great Depression, World War II, Korean War, Vietnam War,
+    // First oil shock, Second oil shock" plus five recessions. The summary
+    // reported "the Korean and Vietnam wars, and oil shocks of the 1970s and
+    // 2000s" — the wars right, read off the chart, and "2000s" wrong, since
+    // both labelled oil shocks are 1974 and 1980. Review had no way to tell,
+    // because the only place that distinction exists is the picture.
+    const visionNotes: string[] = []
+
     // Set when Groq reports the DAILY token cap (TPD). Declared out here, in
     // the scope both pipelines share, for the same reason visionGroundedClaims
     // is: a flag written inside the chunked branch and read outside it is a
@@ -4732,10 +4750,15 @@ The example that used to sit here named a real-looking percentage, and a live ru
                 for (const t of newTerms) {
                   const n = gateNormalize(String(t?.term || ''))
                   if (n) visionGroundedClaims.add(n)
+                  const term = String(t?.term || '').trim()
+                  const def = String(t?.definition || '').trim()
+                  if (term) visionNotes.push(def ? `${term}: ${def}` : term)
                 }
                 for (const p of newPoints) {
                   const n = gateNormalize(typeof p === 'string' ? p : String(p?.text || p?.point || ''))
                   if (n) visionGroundedClaims.add(n)
+                  const text = (typeof p === 'string' ? p : String(p?.text || p?.point || '')).trim()
+                  if (text) visionNotes.push(text)
                 }
 
                 if (newTerms.length || newPoints.length || newQuiz.length) {
@@ -4928,13 +4951,20 @@ DO NOT include "tables", "charts", "diagrams", "worked_examples", "formulas", "c
         // nothing, so review still has something to check.
         narrative = rawContent.slice(0, 4000)
       }
+      // Figure annotations live in the images, never in the extracted text.
+      // Without this block review would treat every correct chart reading as
+      // unsupported, and could not catch a wrong one either. See visionNotes.
+      const figureBlock = visionNotes.length
+        ? `\n\nRead from the document's FIGURES and TABLES (page images, not present in the text above — treat these as source, equally authoritative):\n${visionNotes.slice(0, 20).map(n => `- ${n}`).join('\n')}`
+        : ''
+
       return `Original requested format parameters:
 - Summary Style: ${style}
 - Summary Length: ${len}
 - Summary Language: ${lang}
 
 Original source text:
-${trimmedSource}
+${trimmedSource}${figureBlock}
 
 The draft narrative you are reviewing (these two fields only — the rest of
 the study card is not yours to change, and is not shown):
