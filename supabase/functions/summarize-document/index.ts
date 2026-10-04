@@ -409,6 +409,12 @@ const CHUNK_CONCURRENCY = 3
 const MAX_CHUNKS = 12 // hard ceiling: prefer finishing over analyzing every page under Edge timeout
 // Soft wall-clock budget (ms) for the whole function — leave headroom under ~150s platform limit
 const PIPELINE_BUDGET_MS = 110_000
+// Floor for retrying a window after json_validate_failed. A retry is one more
+// window call, which on this account's 8,000 TPM means a ~60s TokenPacer wait;
+// below this there is no longer room for both that wait and the narrative
+// writer afterwards, so the thin-but-complete card wins over a card with no
+// written summary.
+const JSON_RETRY_MIN_BUDGET_MS = 70_000
 
 function computeAdaptiveTargets(charCount: number, lengthPreset: string) {
   const presets: Record<string, { summary: [number, number]; terms: [number, number]; points: [number, number]; quiz: [number, number]; capSummary: number; capTerms: number; capPoints: number; capQuiz: number }> = {
@@ -3502,6 +3508,38 @@ Rules:
             // rate limit → brief wait then retry once
             if (/429|rate limit|tpm/i.test(msg) && attempt < 2) {
               await new Promise(r => setTimeout(r, 2500 * (attempt + 1)))
+              continue
+            }
+            // json_validate_failed → retry unchanged.
+            //
+            // Groq returns this as a 400, which used to fall through to the
+            // `return null` below and give up after ONE attempt. That is the
+            // wrong read of the error: it does not mean the request was too
+            // big or too fast, it means the model happened to emit malformed
+            // JSON this time. Nothing about the input is at fault, so neither
+            // shrinking the payload nor waiting helps — sending the identical
+            // request again does, because the failure is stochastic.
+            //
+            // The cost of getting this wrong is the whole card: with one
+            // window, a failed window means "All windows failed" and the
+            // last-resort path rebuilds the summary from the first 5,000
+            // characters. Measured live on an 11,050-char deck: 17 key terms
+            // instead of the 28 the same document produced on a clean run.
+            // Retried ONCE, not twice, and only with budget to spare. A
+            // retry costs a fresh window call, which on 8,000 TPM means a
+            // full ~60s pacer wait — but so does the last-resort mini
+            // extract this replaces, so one retry is free in wall-clock
+            // terms and buys the whole document instead of 5,000 characters.
+            // A second retry would NOT be free: it stacks another wait on
+            // top, and by then the narrative writer's own budget gate
+            // (35s) is at risk — trading a thin card for one with no
+            // written summary at all is not a trade worth making.
+            if (
+              /json_validate_failed|failed to generate json/i.test(msg) &&
+              attempt < 1 &&
+              budgetLeft() > JSON_RETRY_MIN_BUDGET_MS
+            ) {
+              console.warn(`Window ${wi + 1}: json_validate_failed — ayni istek bir kez daha deneniyor (butce ${budgetLeft()}ms)`)
               continue
             }
             return null
