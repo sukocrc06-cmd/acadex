@@ -21,7 +21,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'ANCHOR_STOPWORDS', 'anchorTerms',
   // token hizlandirici (TPM)
   'PACER_SAFETY', 'PACER_WINDOW_MS', 'PACER_MAX_WAIT_MS', 'PACER_COMPLETION_FACTOR',
-  'DEFAULT_TPM_LIMIT',
+  'DEFAULT_TPM_LIMIT', 'PIPELINE_BUDGET_MS',
   'tokenPacer', 'estimateTokens',
   // latex
   'stripLatexDelimiters', 'validateLatex', 'sanitizeFormulas',
@@ -31,6 +31,9 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'validateMermaid', 'sanitizeDiagrams',
   // grafik kapisi
   'CHART_TYPES', 'CHART_MIN_POINTS', 'sanitizeCharts',
+  // gorsel sayfa secimi
+  'FIGURE_CAPTION_RE', 'selectVisualPages',
+  'VISION_TOKENS_PER_IMAGE', 'VISION_MAX_IMAGES', 'VISUAL_MIN_BUDGET_MS',
   // tekrarlayan ustbilgi/altbilgi temizligi
   'BOILERPLATE_MIN_PAGES', 'BOILERPLATE_PAGE_SHARE', 'BOILERPLATE_MAX_LINE_CHARS',
   'boilerplateKey', 'splitByPageMarkers', 'stripRepeatedBoilerplate',
@@ -706,6 +709,89 @@ test('sanitizeDiagrams onarim sayisini toplar', () => {
   assert.equal(r.diagrams.length, 1, 'gecerli olan kalmali');
   assert.equal(r.repaired, 2, 'onarim sayisi raporlanmali');
   assert.equal(r.dropped.length, 1);
+});
+
+/* --------------------------------------------------------------------------
+   GORSEL SAYFA SECIMI (selectVisualPages)
+   --------------------------------------------------------------------------
+   Eski secici "metni 150 karakterden az olan sayfa gorsel sayfasidir" diyordu.
+   30 sayfalik referans destede sectigi iki sayfa yayincinin KAPAK slaytlariydi;
+   sekil tasiyan alti sayfanin hicbiri secilmedi, cunku her sekil 200-800
+   karakterlik bir altyaziyla geliyor ve hicbiri "bos" gorunmuyor.
+   ------------------------------------------------------------------------ */
+
+// Referans desteden olculen gercek degerler.
+const DECK = (() => {
+  const pages = Array.from({ length: 30 }, (_, i) => `Slayt ${i + 1} govdesi, duz metin.`);
+  pages[9]  = 'FIGURE 20.1  A Typical Business Cycle\n' + 'x'.repeat(250);
+  pages[10] = 'FIGURE 20.2  U.S. Aggregate Output\n' + 'x'.repeat(200);
+  pages[15] = 'FIGURE 20.3  The Circular Flow\n' + 'x'.repeat(788);
+  pages[26] = 'FIGURE 20.4  Aggregate Output\n' + 'x'.repeat(291);
+  pages[27] = 'FIGURE 20.5  Unemployment Rate\n' + 'x'.repeat(222);
+  pages[28] = 'FIGURE 20.6  Inflation Rate\n' + 'x'.repeat(309);
+  return pages;
+})();
+
+test('kapak slaytlari degil, sekil sayfalari secilir', () => {
+  // Eski seciciye gore "bos" gorunen sayfalar 0 ve 2: ikisi de kapak.
+  const r = A.selectVisualPages(DECK, [0, 2], A.VISION_MAX_IMAGES);
+  assert.ok(!r.indices.includes(0) && !r.indices.includes(2), 'kapak slaytlari secilmemeli');
+  for (const i of r.indices) {
+    assert.match(DECK[i], /^FIGURE/, `sayfa ${i} bir sekil sayfasi olmali`);
+  }
+});
+
+test('en kisa altyazili sekiller tercih edilir', () => {
+  // Altyazi uzunlugu, gorselin icinde ne kadar ACIKLANMAMIS icerik kaldiginin
+  // olcusu: 788 karakterle anlatilmis dolasim diyagramina bakmanin degeri dusuk.
+  const r = A.selectVisualPages(DECK, [], 2);
+  assert.deepEqual(r.indices, [10, 27], 'Sekil 20.2 (200 krk) ve 20.5 (222 krk) secilmeli');
+  assert.ok(!r.indices.includes(15), 'en uzun altyazili sekil (20.3) secilmemeli');
+});
+
+test('secim VISION_MAX_IMAGES ile sinirli', () => {
+  assert.ok(A.selectVisualPages(DECK, [], A.VISION_MAX_IMAGES).indices.length <= A.VISION_MAX_IMAGES);
+  assert.equal(A.selectVisualPages(DECK, [], 1).indices.length, 1);
+});
+
+test('secilen sayfalar okuma sirasinda doner', () => {
+  const r = A.selectVisualPages(DECK, [], 3);
+  assert.deepEqual(r.indices, [...r.indices].sort((a, b) => a - b), 'sayfa sirasi artan olmali');
+});
+
+test('sekil basligi yoksa bos sayfa yedegine duser', () => {
+  const plain = ['bir', 'iki', 'uc', 'dort', 'bes'];
+  const r = A.selectVisualPages(plain, [1, 3], 2);
+  assert.deepEqual(r.indices, [1, 3]);
+  assert.match(r.reason, /yedegi/);
+});
+
+test('FIGURE_CAPTION_RE satir basina bakar, metin icine degil', () => {
+  assert.ok(A.FIGURE_CAPTION_RE.test('FIGURE 20.1 A Typical Business Cycle'));
+  assert.ok(A.FIGURE_CAPTION_RE.test('onceki satir\nTable 3: Sonuclar'));
+  assert.ok(A.FIGURE_CAPTION_RE.test('Şekil 4 — Akis semasi'));
+  // Cumle ortasindaki kelime bir altyazi degil.
+  assert.ok(!A.FIGURE_CAPTION_RE.test('see the figure above for details'));
+  assert.ok(!A.FIGURE_CAPTION_RE.test('bu tabloda gosterildigi gibi'));
+});
+
+test('iki gorsel TPM tavanina sigar, uc sigmaz', () => {
+  // Groq her gorseli sabit 2048 input token sayiyor ve istek basina en fazla
+  // 3 kabul ediyor; 8.000 TPM'de ucu istem+tamamlama ile birlikte limiti asiyor.
+  const overhead = 330 + Math.ceil(3072 * A.PACER_COMPLETION_FACTOR);
+  const load = (n) => n * A.VISION_TOKENS_PER_IMAGE + overhead;
+  const ceiling = Math.floor(A.DEFAULT_TPM_LIMIT * A.PACER_SAFETY);
+  assert.ok(load(A.VISION_MAX_IMAGES) <= ceiling, `${A.VISION_MAX_IMAGES} gorsel tavani asmamali: ${load(A.VISION_MAX_IMAGES)} > ${ceiling}`);
+  assert.ok(load(3) > A.DEFAULT_TPM_LIMIT, '3 gorsel sert limiti asmali — bu yuzden tavan 2');
+});
+
+test('gorsel gecisi anlati yazarina yer birakacak kadar butce ister', () => {
+  // Gorsel gecisi ~65 sn (bekleme + cagri), anlati yazarinin kapisi 35 sn.
+  assert.ok(
+    A.VISUAL_MIN_BUDGET_MS >= 100_000,
+    `taban ${A.VISUAL_MIN_BUDGET_MS}: ikisine birden yer kalmiyor, OZET kaybolabilir`
+  );
+  assert.ok(A.VISUAL_MIN_BUDGET_MS < A.PIPELINE_BUDGET_MS, 'tabandan hic gecilemezse gecis olu kod olur');
 });
 
 /* --------------------------------------------------------------------------
