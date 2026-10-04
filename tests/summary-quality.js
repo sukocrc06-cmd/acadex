@@ -21,7 +21,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'ANCHOR_STOPWORDS', 'anchorTerms',
   // token hizlandirici (TPM)
   'PACER_SAFETY', 'PACER_WINDOW_MS', 'PACER_MAX_WAIT_MS', 'PACER_COMPLETION_FACTOR',
-  'DEFAULT_TPM_LIMIT', 'PIPELINE_BUDGET_MS', 'REVIEW_ATTEMPT_TIMEOUT_MS', 'REVIEW_TAIL_MS',
+  'DEFAULT_TPM_LIMIT', 'MODEL_OTPM', 'OTPM_SAFETY', 'VISION_MAX_COMPLETION', 'PIPELINE_BUDGET_MS', 'REVIEW_ATTEMPT_TIMEOUT_MS', 'REVIEW_TAIL_MS',
   'tokenPacer', 'estimateTokens', 'MODEL_HEAVY', 'MODEL_FAST',
   // latex
   'stripLatexDelimiters', 'validateLatex', 'sanitizeFormulas',
@@ -1756,6 +1756,86 @@ test('gorsel prompt u 10.6 ornegini artik tasimiyor', () => {
 test('gorsel prompt u goz karari tahmini kelimeye yonlendiriyor', () => {
   const vis = promptLiterals(SRC).find(p => /visualSystemPrompt/.test(p));
   assert.ok(/relative words/.test(vis), 'goz karari degerler icin kelime alternatifi onerilmeli');
+});
+
+console.log('\nOTPM — CIKTI TOKEN KOVASI\n');
+
+/* 04.10.2026 canli hata:
+     Request too large for `qwen/qwen3.8-27b` on output tokens per minute
+     (OTPM): Limit 1000, Requested 1311
+   Pacer sadece TPM biliyordu, 2500 tamamlama isteyen review'u gecirdi. Her
+   tier 429 aldi, her 429 sonrasi tam pencere beklendi, dongu 81 saniye surdu
+   ve 150sn'lik Edge duvari fonksiyonu review'un ortasinda oldurdu — belge
+   "reviewing" asamasinda asili kaldi. */
+
+const QWEN = 'qwen/qwen3.8-27b';
+
+test('qwen in OTPM tavani taniniyor', () => {
+  assert.equal(A.MODEL_OTPM[QWEN], 1000, 'canli hata mesajindaki limit');
+  const p = freshPacer(8000);
+  assert.equal(p.maxCompletion(QWEN), Math.floor(1000 * A.OTPM_SAFETY));
+});
+
+test('OTPM i olmayan model sinirsiz sayilir', () => {
+  const p = freshPacer(8000);
+  assert.equal(p.maxCompletion('openai/gpt-oss-120b'), null, 'TPM-only model kisitlanmamali');
+  assert.equal(p.clampCompletion('openai/gpt-oss-120b', 4096), 4096);
+});
+
+test('CANLI HATA: 2500 tamamlama OTPM tavanina kirpilir', () => {
+  const p = freshPacer(8000);
+  const clamped = p.clampCompletion(QWEN, 2500);
+  assert.ok(clamped <= 1000, `2500 -> ${clamped}, 1000 tavanin altinda olmali`);
+  assert.equal(clamped, 850);
+});
+
+test('review tier leri OTPM tavanini asmiyor', () => {
+  // Kaynaktaki gercek tier listesi okunur: biri buyurse burasi patlar.
+  const m = SRC.match(/const reviewTiers[\s\S]{0,400}?\]/);
+  assert.ok(m, 'reviewTiers bulunamadi');
+  const asks = [...m[0].matchAll(/maxCompletionTokens:\s*(?:Math\.min\()?(\d+)/g)].map(x => Number(x[1]));
+  assert.ok(asks.length >= 3, `tier bulunamadi: ${asks}`);
+  for (const a of asks) {
+    assert.ok(a <= A.MODEL_OTPM[QWEN] * A.OTPM_SAFETY,
+      `tier ${a} token istiyor, OTPM tavani ${A.MODEL_OTPM[QWEN] * A.OTPM_SAFETY}`);
+  }
+});
+
+test('cikti butcesi dolu ise acquire OTPM icin bekler', async () => {
+  const p = freshPacer(8000, QWEN);
+  p.lane(QWEN).outSpent = [{ at: Date.now(), tokens: 900 }];
+  const t0 = Date.now();
+  const waiter = p.acquire(100, QWEN, 800);
+  await Promise.race([waiter, new Promise(r => setTimeout(r, 400))]);
+  assert.ok(Date.now() - t0 >= 250, 'OTPM dolu iken beklemeliydi');
+});
+
+test('waitEstimate OTPM i de hesaba katar', () => {
+  const p = freshPacer(8000, QWEN);
+  // TPM bos ama cikti kovasi dolu
+  p.lane(QWEN).outSpent = [{ at: Date.now() - 50_000, tokens: 900 }];
+  const w = p.waitEstimate(100, QWEN, 800);
+  assert.ok(w > 9_000 && w < 11_500, `OTPM icin ~10sn beklenirdi, ${w} geldi`);
+});
+
+test('OTPM bos ise beklenmez', () => {
+  const p = freshPacer(8000, QWEN);
+  assert.equal(p.waitEstimate(100, QWEN, 800), 0);
+});
+
+test('gorsel cagrisinin ciktisi kaydediliyor (review onun arkasina gecsin)', () => {
+  const p = freshPacer(8000, QWEN);
+  p.record(6500, QWEN, 900);
+  assert.equal(p.usedOut(Date.now(), QWEN), 900, 'cikti harcamasi ayri tutulmali');
+  assert.equal(p.used(Date.now(), QWEN), 6500);
+});
+
+test('review dongusu butce bitince taslaga doner', () => {
+  // Kodun kendisi kontrol edilir: tier dongusunde butce kapisi olmali.
+  assert.ok(/Review tier \$\{i \+ 1\} atlandi/.test(SRC) || /Review tier .* atlandi/.test(SRC),
+    'tier dongusunde butce kapisi yok — 150sn duvarina tekrar carpilir');
+  assert.ok(/rawFinalContent = rawContent[\s\S]{0,40}break/.test(SRC),
+    'butce bitince taslaga donulmeli');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));
