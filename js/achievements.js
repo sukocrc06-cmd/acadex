@@ -32,18 +32,58 @@ async function awardAchievement(achievementId) {
     if (!session) return;
     const user = session.user;
 
-    const { error } = await supabaseClient
+    // Upsert rather than insert, so an achievement the student already has is
+    // a no-op in Postgres instead of a rejected write.
+    //
+    // The old insert relied on catching 23505 and returning silently, which
+    // behaved correctly but made the REQUEST fail: every re-award logged
+    //   POST .../user_achievements 409 (Conflict)
+    // in the browser console. That cannot be suppressed from here — the
+    // response really is a 409 and the client logs it before our code sees
+    // the error — so the console filled with red lines that look like bugs
+    // and hide the ones that are. ignoreDuplicates turns this into
+    // ON CONFLICT DO NOTHING, which returns success.
+    //
+    // The toast still only fires on a genuinely new award: with
+    // ignoreDuplicates, .select() returns the rows actually written, so an
+    // ignored duplicate comes back as an empty array.
+    let { data: inserted, error } = await supabaseClient
       .from('user_achievements')
-      .insert({ user_id: user.id, achievement_id: achievementId });
+      .upsert(
+        { user_id: user.id, achievement_id: achievementId },
+        { onConflict: 'user_id,achievement_id', ignoreDuplicates: true }
+      )
+      .select();
+
+    // 42P10 = "no unique or exclusion constraint matching the ON CONFLICT
+    // specification". The table is not defined in supabase/migrations (it was
+    // created from the dashboard), so the constraint's exact columns cannot be
+    // verified from this repo. If the guess is wrong, fall straight back to
+    // the original insert — the console keeps its 409 noise, but a new
+    // achievement still unlocks and still toasts, which matters more than the
+    // console being tidy.
+    if (error && error.code === '42P10') {
+      console.warn('user_achievements: ON CONFLICT hedefi eslesmedi, duz insert e donuluyor');
+      const res = await supabaseClient
+        .from('user_achievements')
+        .insert({ user_id: user.id, achievement_id: achievementId })
+        .select();
+      inserted = res.data;
+      error = res.error;
+    }
 
     if (error) {
-      // Postgres unique constraint violation code is '23505'
+      // Postgres unique constraint violation: already earned, stay silent.
       if (error.code === '23505') {
-        return; // Silently ignore if already earned
+        return;
       }
       console.error("Error inserting user achievement:", error);
       return;
     }
+
+    // Empty array = the student already had it; nothing was written, so
+    // there is nothing to celebrate.
+    if (!inserted || inserted.length === 0) return;
 
     // Success - newly unlocked! Show toast
     showAchievementToast(achievementId);
