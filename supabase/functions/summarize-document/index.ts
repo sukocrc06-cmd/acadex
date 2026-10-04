@@ -67,7 +67,7 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2,
   throw new Error("Max retries exceeded");
 }
 
-// Defensive safety net: reasoning-capable Groq models (qwen/qwen3.6-27b,
+// Defensive safety net: reasoning-capable Groq models (qwen/qwen3.8-27b,
 // openai/gpt-oss-120b) can prepend a <think>...</think> block to "content"
 // even with reasoning turned down/off via reasoning_effort/include_reasoning
 // below — strip it so a stray thinking block never breaks a JSON.parse call.
@@ -383,7 +383,13 @@ const CHUNK_TARGET_SIZE = 10000 // chars per chunk
 // Heavy model: single-pass draft + synthesis (quality-critical, fewer calls)
 // Fast model: per-chunk map + review (many calls, smaller completions)
 const MODEL_HEAVY = "openai/gpt-oss-120b"
-const MODEL_FAST = "qwen/qwen3.6-27b"
+// Groq meters tokens-per-minute PER MODEL, so putting the review/critic pass
+// on a different model from the draft buys it a separate 8,000 rather than
+// making it queue behind the draft's spend. That is the whole point of the
+// split — and it had never worked, because the id below was Groq's retired
+// 3.6 line and every call to it 404'd. Verified against Groq's current model
+// list on 2026-10-04: qwen/qwen3.8-27b is the live vision-capable model.
+const MODEL_FAST = "qwen/qwen3.8-27b"
 // Skip the expensive review pass for short, simple documents (saves ~1 full LLM call)
 const SKIP_REVIEW_MAX_CHARS = 3500
 const CHUNK_MAX_COMPLETION = 1536 // slightly smaller → faster chunk map
@@ -3405,7 +3411,7 @@ In addition to the text below, you are shown images of this document's pages. Us
             }
           ]
 
-          console.log("Attempting vision-based analysis using qwen/qwen3.6-27b...")
+          console.log("Attempting vision-based analysis using qwen/qwen3.8-27b...")
           groqResponse = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
             headers: {
@@ -3413,11 +3419,11 @@ In addition to the text below, you are shown images of this document's pages. Us
               "Content-Type": "application/json"
             },
             body: JSON.stringify({
-              // Groq retired llama-3.2-90b-vision-preview; qwen/qwen3.6-27b is
+              // Groq retired llama-3.2-90b-vision-preview; qwen/qwen3.8-27b is
               // the current vision-capable model (same image_url format).
-              model: "qwen/qwen3.6-27b",
+              model: "qwen/qwen3.8-27b",
               temperature: 0.3,
-              // Qwen3.6 is a hybrid reasoning model that thinks by default —
+              // Qwen3.8 is a hybrid reasoning model that thinks by default —
               // turn that off so "content" is just the direct JSON answer.
               reasoning_effort: "none",
               // See callGroqJson above — an explicit cap keeps this request's
