@@ -2079,4 +2079,41 @@ test('quality_gate hic gelmezse bu da loglanir', () => {
   assert.ok(notes.some(n => n.includes('quality_gate GELMEDI')), notes.join('|'));
 });
 
+console.log('\nREVIEW E NE GONDERILIYOR\n');
+
+/* 05.10.2026, review in kendi sikayeti loglandi:
+     "The source text provided is truncated and does not contain t..."
+   Hakliymis. Chunked yolda sourceTextForReview, BELGE degil pencerelerin
+   kendi ozetleriydi (her biri 500 krk). Yani taslagi kaynakla degil, kendi
+   ozetiyle karsilastiriyordu — her pencereye sizan bir halusinasyon
+   "tam yerinde" gorunurdu. 6000 karakteri asan HER belge bu yoldan gecer. */
+
+test('chunked yolda review e GERCEK kaynak gonderiliyor', () => {
+  assert.ok(!/sourceTextForReview = windowResults\.map/.test(SRC),
+    'review hala pencere ozetleriyle besleniyor — kaynakla karsilastirma yapamaz');
+  assert.ok(/sourceTextForReview = extractedText/.test(SRC),
+    'review kaynak metni gormeli');
+});
+
+test('review e tum taslak JSON gonderilmiyor', () => {
+  assert.ok(!/Draft JSON summary:\n\$\{rawContent\}/.test(SRC),
+    'tum kart hala gonderiliyor — girdi butcesinin ucte ikisi bosa gidiyor');
+  assert.ok(/these two fields only/.test(SRC), 'yalnizca anlatim gonderilmeli');
+});
+
+test('tier 0 tum belgeyi kapsiyor', () => {
+  const m = SRC.match(/const reviewTiers[\s\S]{0,400}?\]/);
+  const srcBudgets = [...m[0].matchAll(/sourceChars:\s*(\d+)/g)].map(x => Number(x[1]));
+  assert.ok(srcBudgets[0] >= 11000,
+    `tier 0 kaynak butcesi ${srcBudgets[0]} — referans belge 11.050 krk, kesilmemeli`);
+  assert.ok(srcBudgets[0] > srcBudgets[1] && srcBudgets[1] > srcBudgets[2], 'tier ler kuculmeli');
+});
+
+test('yeni review cagrisi TPM tavanina siginiyor', () => {
+  // sistem ~2500 + tam kaynak 11050 + anlatim ~2500 + ek ~300
+  const est = A.estimateTokens('x'.repeat(2500), 'y'.repeat(11050 + 2500 + 300), 850);
+  const ceiling = A.DEFAULT_TPM_LIMIT * A.PACER_SAFETY;
+  assert.ok(est <= ceiling, `est ${est} > tavan ${ceiling} — 429 yer`);
+});
+
 summary().then(() => process.exit(process.exitCode || 0));
