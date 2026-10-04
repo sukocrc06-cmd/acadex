@@ -2116,4 +2116,26 @@ test('yeni review cagrisi TPM tavanina siginiyor', () => {
   assert.ok(est <= ceiling, `est ${est} > tavan ${ceiling} — 429 yer`);
 });
 
+test('sekil bulgulari review e kaynak olarak gonderiliyor', () => {
+  /* 05.10.2026: Figure 20.2 nin etiketleri "Korean War, Vietnam War, First
+     oil shock, Second oil shock". Ozet "oil shocks of the 1970s and 2000s"
+     dedi — savaslar dogru (vision grafikten okumus), "2000s" uydurma.
+     Review bunu yakalayamazdi: etiketler METINDE degil, GORSELDE. */
+  assert.ok(/const visionNotes/.test(SRC), 'vision bulgulari verbatim tutulmali');
+  assert.ok(/visionNotes\.push/.test(SRC), 'bulgular doldurulmali');
+  assert.ok(/Read from the document's FIGURES and TABLES/.test(SRC),
+    'review prompt unda sekil bulgulari bolumu olmali');
+  assert.ok(/equally authoritative/.test(SRC),
+    'sekil bulgulari kaynak sayilmali, yoksa review dogru okumalari da eler');
+});
+
+test('vision notlari kapsamda (ReferenceError olmasin)', () => {
+  // visionGroundedClaims ayni hatayi canlida yapmisti: chunked blok icinde
+  // tanimlanip disarida okunmak.
+  const decl = SRC.indexOf('const visionNotes');
+  const use = SRC.indexOf('visionNotes.slice(0, 20)');
+  assert.ok(decl > 0 && use > 0, 'ikisi de bulunmali');
+  assert.ok(decl < use, 'tanim kullanimdan once gelmeli');
+});
+
 summary().then(() => process.exit(process.exitCode || 0));
