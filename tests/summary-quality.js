@@ -22,7 +22,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   // token hizlandirici (TPM)
   'PACER_SAFETY', 'PACER_WINDOW_MS', 'PACER_MAX_WAIT_MS', 'PACER_COMPLETION_FACTOR',
   'DEFAULT_TPM_LIMIT', 'PIPELINE_BUDGET_MS',
-  'tokenPacer', 'estimateTokens',
+  'tokenPacer', 'estimateTokens', 'MODEL_HEAVY', 'MODEL_FAST',
   // latex
   'stripLatexDelimiters', 'validateLatex', 'sanitizeFormulas',
   // mermaid dogrulama
@@ -425,58 +425,112 @@ test('bos dizi guvenli', () => {
 
 console.log('\nTOKEN HIZLANDIRICI (TPM)\n');
 
-function freshPacer(limit) {
+// Pacer artik MODEL BASINA calisiyor: her modelin kendi 8.000'i, kendi
+// harcama gecmisi var (Groq TPM'i model basina sayiyor). Testlerde kullanilan
+// iki ornek model adi — gercek id'ler onemli degil, AYRI olmalari onemli.
+const M_A = 'test/model-a';
+const M_B = 'test/model-b';
+
+function freshPacer(limit, model = M_A) {
   const p = Object.create(Object.getPrototypeOf(A.tokenPacer));
-  Object.assign(p, A.tokenPacer, { limit, limitKnown: false, spent: [] });
+  Object.assign(p, A.tokenPacer, { lanes: Object.create(null) });
+  p.lane(model).limit = limit;
   return p;
 }
 
 test('8000 TPM de ~5000 tokenlik cagri icin eszamanlilik 1 olur', () => {
   // Canli logdaki tam senaryo: iki pencere ayni anda atesleniyordu, ikisi de 429 aliyordu
-  assert.equal(freshPacer(8000).safeConcurrency(5000), 1);
+  assert.equal(freshPacer(8000).safeConcurrency(5000, M_A), 1);
 });
 
 test('buyuk plan gercek paralelligi geri aciyor', () => {
-  assert.ok(freshPacer(300000).safeConcurrency(5000) > 1, 'yuksek TPM de paralellik olmali');
+  assert.ok(freshPacer(300000).safeConcurrency(5000, M_A) > 1, 'yuksek TPM de paralellik olmali');
 });
 
 test('safeConcurrency asla 0 donmez', () => {
-  assert.equal(freshPacer(8000).safeConcurrency(999999), 1);
-  assert.equal(freshPacer(8000).safeConcurrency(0), 1);
+  assert.equal(freshPacer(8000).safeConcurrency(999999, M_A), 1);
+  assert.equal(freshPacer(8000).safeConcurrency(0, M_A), 1);
 });
 
 test('used() yalnizca 60 sn penceresini sayar', () => {
   const p = freshPacer(8000);
   const now = Date.now();
-  p.spent = [
+  p.lane(M_A).spent = [
     { at: now - 90000, tokens: 5000 },   // pencere disi
     { at: now - 1000,  tokens: 3000 }    // pencere ici
   ];
-  assert.equal(p.used(now), 3000, 'eski harcama dusurulmeliydi');
+  assert.equal(p.used(now, M_A), 3000, 'eski harcama dusurulmeliydi');
 });
 
 test('Groq header i varsayilan limiti ezer', () => {
   const p = freshPacer(8000);
-  p.observeHeaders(new Headers({ 'x-ratelimit-limit-tokens': '300000' }));
-  assert.equal(p.limit, 300000);
-  assert.equal(p.limitKnown, true);
+  p.observeHeaders(new Headers({ 'x-ratelimit-limit-tokens': '300000' }), M_A);
+  assert.equal(p.lane(M_A).limit, 300000);
+  assert.equal(p.lane(M_A).limitKnown, true);
 });
 
 test('bozuk header varsayilani bozmaz', () => {
   const p = freshPacer(8000);
-  p.observeHeaders(new Headers({ 'x-ratelimit-limit-tokens': 'abc' }));
-  assert.equal(p.limit, 8000);
+  p.observeHeaders(new Headers({ 'x-ratelimit-limit-tokens': 'abc' }), M_A);
+  assert.equal(p.lane(M_A).limit, 8000);
+});
+
+// ---- model basina ayrisma (asil kazanc) --------------------------------
+
+test('bir modelin harcamasi digerinin butcesini yemez', () => {
+  const p = freshPacer(8000);
+  const now = Date.now();
+  p.lane(M_A).spent = [{ at: now, tokens: 7900 }];
+  assert.equal(p.used(now, M_A), 7900, 'kendi seridi dolu olmali');
+  assert.equal(p.used(now, M_B), 0, 'diger serit ETKILENMEMELI — Groq ayri sayiyor');
+});
+
+test('review cagrisi draft in harcamasi yuzunden BEKLEMEZ', async () => {
+  // Tam da duzeltilen hata: tek ortak defterde review, draft'in 7.900
+  // tokenini kendi borcu sanip ~60 sn bosuna bekliyordu.
+  const p = freshPacer(8000, M_A);
+  p.lane(M_B).limit = 8000;
+  p.lane(M_A).spent = [{ at: Date.now(), tokens: 7900 }];   // draft az once harcadi
+  const t0 = Date.now();
+  await p.acquire(3000, M_B);                                // review baska modelde
+  assert.ok(Date.now() - t0 < 100, `review beklememeliydi (${Date.now() - t0}ms bekledi)`);
+});
+
+test('ayni modeldeki ikinci cagri hala BEKLER', async () => {
+  // Ayrisma, ayni serit icindeki korumayi gevsetmemeli.
+  const p = freshPacer(8000, M_A);
+  p.lane(M_A).spent = [{ at: Date.now(), tokens: 7900 }];
+  const t0 = Date.now();
+  const waiter = p.acquire(3000, M_A);
+  await Promise.race([waiter, new Promise(r => setTimeout(r, 400))]);
+  assert.ok(Date.now() - t0 >= 250, 'ayni seritte beklemeliydi');
+});
+
+test('header bir modelin limitini ezerken digerini bozmaz', () => {
+  const p = freshPacer(8000, M_A);
+  p.lane(M_B).limit = 8000;
+  p.observeHeaders(new Headers({ 'x-ratelimit-limit-tokens': '300000' }), M_B);
+  assert.equal(p.lane(M_B).limit, 300000, 'cagrilan modelin limiti guncellenmeli');
+  assert.equal(p.lane(M_A).limit, 8000, 'digerinin limiti sabit kalmali');
+});
+
+test('hic gorulmemis model varsayilan limitle acilir', () => {
+  const p = freshPacer(8000);
+  const lane = p.lane('test/hic-kullanilmamis');
+  assert.equal(lane.limit, A.DEFAULT_TPM_LIMIT);
+  assert.equal(lane.limitKnown, false);
+  assert.deepEqual(lane.spent, []);
 });
 
 test('butce doluysa acquire BEKLER, bosken beklemez', async () => {
   const p = freshPacer(8000);
   let t0 = Date.now();
-  await p.acquire(1000);
+  await p.acquire(1000, M_A);
   assert.ok(Date.now() - t0 < 100, 'bos butcede beklememeliydi');
 
-  p.spent = [{ at: Date.now(), tokens: 7900 }];
+  p.lane(M_A).spent = [{ at: Date.now(), tokens: 7900 }];
   t0 = Date.now();
-  const waiter = p.acquire(3000);
+  const waiter = p.acquire(3000, M_A);
   await Promise.race([waiter, new Promise(r => setTimeout(r, 400))]);
   assert.ok(Date.now() - t0 >= 250, 'dolu butcede beklemeliydi');
 });
@@ -484,7 +538,7 @@ test('butce doluysa acquire BEKLER, bosken beklemez', async () => {
 test('tek cagri butceden buyukse kilitlenmez', async () => {
   const p = freshPacer(8000);
   const t0 = Date.now();
-  await p.acquire(99999);   // used===0 kacis yolu
+  await p.acquire(99999, M_A);   // used===0 kacis yolu
   assert.ok(Date.now() - t0 < 100, 'sonsuz beklememeliydi');
 });
 
@@ -497,12 +551,12 @@ test('bekleme tavani pencereyi ASMALI (canli logdan gelen hata)', () => {
 
 test('gereken sure tavandan buyukse HIC beklemez', async () => {
   const p = freshPacer(8000);
-  p.spent = [{ at: Date.now(), tokens: 7900 }];
+  p.lane(M_A).spent = [{ at: Date.now(), tokens: 7900 }];
   const t0 = Date.now();
   // acquire'i tavanin tuketildigi noktadan baslatmak icin: cok buyuk est ile
   // bile bekleme gereken sureyi asamayacagindan hizli donmeli ya da gercek
   // sureyi beklemeli — ikisi de kabul, ama 55s'lik olu bekleme OLMAMALI.
-  await Promise.race([p.acquire(3000), new Promise(r => setTimeout(r, 300))]);
+  await Promise.race([p.acquire(3000, M_A), new Promise(r => setTimeout(r, 300))]);
   const waited = Date.now() - t0;
   assert.ok(waited < 1000 || waited >= 250, 'olu bekleme olmamali');
 });
@@ -1368,10 +1422,4 @@ test('tipik tek bolumluk belge tek pencereye sigar', () => {
   );
 });
 
-summary();
-
-// Pacer testleri bilerek yarida birakilan uzun bekleme zamanlayicilari
-// birakiyor (acquire icinde setTimeout). Node bu zamanlayicilar bitene kadar
-// cikmaz, bu da test kosusunu dakikalarca uzatir. Testler bitti, sonuc
-// exitCode'da — sureci burada kapatiyoruz.
-process.exit(process.exitCode || 0);
+summary().then(() => process.exit(process.exitCode || 0));
