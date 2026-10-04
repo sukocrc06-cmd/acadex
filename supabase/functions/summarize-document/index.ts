@@ -1932,6 +1932,20 @@ function mergeReviewOntoDraft(
   if (review.outline && typeof review.outline === 'object') out.outline = review.outline
   if (review.quality_gate && typeof review.quality_gate === 'object') {
     out.quality_gate = review.quality_gate
+    // Log the verdict, always. Without it "degisiklik yok" is ambiguous in
+    // exactly the way that matters: it cannot distinguish review reading the
+    // draft and finding it sound from review returning an empty list because
+    // that is the cheapest answer. The verdict plus the issue count says
+    // which — a pass with issues listed is a review that engaged; a bare pass
+    // with nothing to say, run after run, is one to be suspicious of.
+    const g = review.quality_gate
+    const issues = Array.isArray(g.issues) ? g.issues : []
+    notes.push(
+      `quality_gate: pass=${g.pass !== false}, grounded=${!!g.grounded}, ` +
+      `${issues.length} sorun${issues.length ? ': ' + issues.map((i: any) => String(i).slice(0, 60)).join(' / ') : ''}`
+    )
+  } else {
+    notes.push('quality_gate GELMEDI — review beklenen bicimde cevap vermemis')
   }
 
   return { merged: JSON.stringify(out), notes }
