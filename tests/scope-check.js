@@ -47,12 +47,21 @@ try {
 // saglaniyor ve TypeScript'in standart kutuphanelerinde yok.
 const EXPECTED_UNRESOLVED = new Set(['Deno']);
 
+// TS2554: "Expected N arguments, but got M." Added 2026-10-04 alongside the
+// per-model TokenPacer refactor, which gave acquire/record/observeHeaders/
+// safeConcurrency a new required `model` parameter. A call site left behind
+// would compile under the old shape and fail at runtime (or, worse, pace the
+// wrong lane silently). noResolve means anything imported is `any`, so this
+// only ever fires on functions declared in the file itself — which is the
+// only place we can fix it anyway.
+const ARITY_CODE = 2554;
+
 const FILES = [
   'supabase/functions/summarize-document/index.ts',
   'supabase/functions/chat-with-document/index.ts'
 ].filter(f => fs.existsSync(path.join(__dirname, '..', f)));
 
-function unresolvedNames(relPath) {
+function diagnose(relPath) {
   const file = path.join(__dirname, '..', relPath);
   const opts = {
     noResolve: true,            // Deno'nun https:// importlari cozulemez
@@ -63,29 +72,71 @@ function unresolvedNames(relPath) {
     lib: ['lib.es2022.d.ts', 'lib.dom.d.ts']
   };
   const program = ts.createProgram([file], opts, ts.createCompilerHost(opts));
-  const found = new Map();
+  const names = new Map();
+  const arity = [];
   for (const d of ts.getPreEmitDiagnostics(program)) {
-    if (d.code !== 2304) continue;          // sadece "Cannot find name"
+    const line = d.file && typeof d.start === 'number'
+      ? d.file.getLineAndCharacterOfPosition(d.start).line + 1
+      : 0;
     const msg = ts.flattenDiagnosticMessageText(d.messageText, ' ');
-    const name = (msg.match(/Cannot find name '([^']+)'/) || [])[1];
-    if (!name || EXPECTED_UNRESOLVED.has(name)) continue;
-    if (!found.has(name) && d.file && typeof d.start === 'number') {
-      found.set(name, d.file.getLineAndCharacterOfPosition(d.start).line + 1);
+
+    if (d.code === 2304) {                  // "Cannot find name"
+      const name = (msg.match(/Cannot find name '([^']+)'/) || [])[1];
+      if (!name || EXPECTED_UNRESOLVED.has(name)) continue;
+      if (!names.has(name)) names.set(name, line);
+    } else if (d.code === ARITY_CODE) {     // "Expected N arguments, but got M"
+      arity.push({ line, msg });
     }
   }
-  return found;
+  return { names, arity };
+}
+
+function unresolvedNames(relPath) {
+  return diagnose(relPath).names;
 }
 
 for (const relPath of FILES) {
   test(`${relPath}: tanimsiz isim yok`, () => {
-    const found = unresolvedNames(relPath);
-    const detail = [...found.entries()].map(([n, line]) => `satir ${line}: ${n}`).join('\n  ');
+    const { names } = diagnose(relPath);
+    const detail = [...names.entries()].map(([n, line]) => `satir ${line}: ${n}`).join('\n  ');
     assert.equal(
-      found.size, 0,
+      names.size, 0,
       `kapsamda olmayan isim(ler) var — canlida ReferenceError olur:\n  ${detail}`
     );
   });
+
+  test(`${relPath}: eksik/fazla argumanli cagri yok`, () => {
+    const { arity } = diagnose(relPath);
+    const detail = arity.map(a => `satir ${a.line}: ${a.msg}`).join('\n  ');
+    assert.equal(
+      arity.length, 0,
+      `arguman sayisi tutmayan cagri(lar) var:\n  ${detail}`
+    );
+  });
 }
+
+test('kontrol gercekten eksik argumani yakaliyor', () => {
+  // Kendini dogrulayan test. Pacer artik model basina calistigi icin
+  // acquire(est, model) imzasi zorunlu; model'i unutan bir cagri sessizce
+  // YANLIS seridi odeyeceginden derleme asamasinda yakalanmali.
+  const src = fs.readFileSync(
+    path.join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'),
+    'utf8'
+  );
+  const broken = src.replace(
+    'await tokenPacer.acquire(estTokens, model)',
+    'await tokenPacer.acquire(estTokens)'
+  );
+  assert.notEqual(broken, src, 'fixture hedefi bulunamadi — test guncel degil');
+  const tmp = path.join(__dirname, '.arity-check-fixture.ts');
+  fs.writeFileSync(tmp, broken, 'utf8');
+  try {
+    const { arity } = diagnose(path.relative(path.join(__dirname, '..'), tmp));
+    assert.ok(arity.length > 0, 'eksik argumanli cagri yakalanmaliydi');
+  } finally {
+    fs.unlinkSync(tmp);
+  }
+});
 
 test('kontrol gercekten bir kapsam hatasi yakaliyor', () => {
   // Kendini dogrulayan test: kasten bozulmus bir kopyada hatayi bulamazsa
@@ -108,5 +159,4 @@ test('kontrol gercekten bir kapsam hatasi yakaliyor', () => {
   }
 });
 
-summary();
-process.exit(process.exitCode || 0);
+summary().then(() => process.exit(process.exitCode || 0));
