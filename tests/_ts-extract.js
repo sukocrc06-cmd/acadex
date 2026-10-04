@@ -154,15 +154,49 @@ function loadFromSource(relativePath, names) {
 }
 
 /** Kucuk test kosucusu — iki test dosyasi da bunu paylasiyor. */
+// ASYNC TESTLER (2026-10-04 bulgusu):
+// Eski hali `fn()` diyip donen degeri atiyordu. Bir test `async` ise fn()
+// aninda bir Promise donuyor, hicbir assert henuz calismamis oluyor ve test
+// "ok" sayiliyordu. Yani async testler HER ZAMAN yesildi — icindeki assert
+// patlasa bile. Tam da bu yuzden, per-model pacer refactor'unde model
+// argumani eksik kalan uc acquire testi hata vermeden gecti.
+//
+// Artik thenable donen testler `pending`e aliniyor ve summary() onlari
+// bekliyor. Senkron testlerin ciktisi eskisi gibi aninda basiliyor; async
+// olanlarin sonucu en sona dusuyor (siralama degisir, dogruluk degismez).
 function makeRunner() {
   const state = { passed: 0 };
+  const pending = [];
+
+  const pass = (name) => { state.passed++; console.log(`  ok    ${name}`); };
+  const fail = (name, e) => {
+    console.error(`  FAIL  ${name}\n        ${e && e.message ? e.message : e}`);
+    process.exitCode = 1;
+  };
+
   function test(name, fn) {
-    try { fn(); state.passed++; console.log(`  ok    ${name}`); }
-    catch (e) { console.error(`  FAIL  ${name}\n        ${e.message}`); process.exitCode = 1; }
+    let result;
+    try {
+      result = fn();
+    } catch (e) {
+      fail(name, e);
+      return;
+    }
+    if (result && typeof result.then === 'function') {
+      pending.push(result.then(() => pass(name), (e) => fail(name, e)));
+      return;
+    }
+    pass(name);
   }
-  function summary() {
+
+  async function summary() {
+    if (pending.length) {
+      console.log(`\n  (${pending.length} async test bekleniyor)\n`);
+      await Promise.all(pending);
+    }
     console.log(`\n${state.passed} test gecti${process.exitCode ? ' (BASARISIZ olanlar var)' : ''}\n`);
   }
+
   return { test, summary, state };
 }
 
