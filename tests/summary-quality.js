@@ -34,6 +34,8 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   // gorsel sayfa secimi
   'FIGURE_CAPTION_RE', 'selectVisualPages',
   'VISION_TOKENS_PER_IMAGE', 'VISION_MAX_IMAGES', 'VISUAL_MIN_BUDGET_MS',
+  // bosluk doldurma kartlari
+  'clozeTermPattern', 'buildClozeCards',
   // tekrarlayan ustbilgi/altbilgi temizligi
   'BOILERPLATE_MIN_PAGES', 'BOILERPLATE_PAGE_SHARE', 'BOILERPLATE_MAX_LINE_CHARS',
   'boilerplateKey', 'splitByPageMarkers', 'stripRepeatedBoilerplate',
@@ -710,6 +712,110 @@ test('sanitizeDiagrams onarim sayisini toplar', () => {
   assert.equal(r.diagrams.length, 1, 'gecerli olan kalmali');
   assert.equal(r.repaired, 2, 'onarim sayisi raporlanmali');
   assert.equal(r.dropped.length, 1);
+});
+
+/* --------------------------------------------------------------------------
+   BOSLUK DOLDURMA KARTLARI (buildClozeCards)
+   --------------------------------------------------------------------------
+   Kutuphanede "Boşluk Doldurma — aktif hatırlama" diye tam bir calisma modu
+   var. Uretim iki ayri sekilde bozuktu:
+
+   1. Cumle klozlari hic calismiyordu. key_term gecisi once kosuyor ve 25-28
+      maddelik gercek bir sozlukle 20 slotun hepsini yiyordu; ogrencinin
+      gordugu her kart "___: <tanim>" idi, yani ANAHTAR TERIMLER listesinin
+      tersten okunmus hali.
+   2. Cumle gecisi yanlis kelimeyi bosaltiyordu. "ilk buyuk harfli ifade"
+      ariyordu ama her cumle buyuk harfle basliyor:
+          "___ five recessionary periods ..."   -> cevap: "The"
+          "___ policy involves ..."             -> cevap: "Fiscal"
+   ------------------------------------------------------------------------ */
+
+const CLOZE_TERMS = [
+  { term: 'Macroeconomics', definition: 'Deals with the economy as a whole.' },
+  { term: 'Unemployment rate', definition: 'The percentage of the labor force that is unemployed.' },
+  { term: 'Fiscal policy', definition: 'Government policies concerning taxes and spending.' },
+  { term: 'Sticky prices', definition: 'Prices that do not always adjust rapidly.' },
+  { term: 'Great Depression', definition: 'A period of severe economic contraction beginning in 1929.' },
+  { term: 'Aggregate output', definition: 'The total quantity of goods and services produced.' }
+];
+const CLOZE_POINTS = [
+  'The five recessionary reference periods show increases in the unemployment rate.',
+  'Fiscal policy involves government taxation and spending decisions.',
+  'Sticky prices can cause short-run disequilibria in supply and demand.',
+  'The Great Depression began in 1929 and continued throughout the 1930s.',
+  'Output is measured by aggregate output and tracked through the business cycle.'
+];
+
+test('cevap asla durak kelime olmaz', () => {
+  const cards = A.buildClozeCards(undefined, CLOZE_TERMS, CLOZE_POINTS, 20);
+  assert.ok(cards.length > 0, 'kart uretilmeli');
+  for (const c of cards) {
+    assert.ok(!/^(the|a|an|bu|bir|ve|and|of)$/i.test(c.answer.trim()),
+      `durak kelime cevap olmus: "${c.answer}" — ${c.prompt}`);
+  }
+});
+
+test('cok kelimeli terim ortadan bolunmez', () => {
+  const cards = A.buildClozeCards(undefined, CLOZE_TERMS, CLOZE_POINTS, 20);
+  const byAnswer = new Map(cards.map(c => [c.answer.toLowerCase(), c]));
+  for (const whole of ['fiscal policy', 'sticky prices', 'unemployment rate', 'aggregate output']) {
+    const card = byAnswer.get(whole);
+    assert.ok(card, `${whole} tam haliyle sorulmali`);
+    // Terimin TAMAMI bosluga alinmis olmali — yarisi istemde kalmamali.
+    // (Ayni kelimenin cumlede baska bir yerde gecmesi sorun degil:
+    //  "Output is measured by ___ ..." dogru bir karttir.)
+    assert.ok(!new RegExp(whole.replace(/\s+/g, '\\s+'), 'i').test(card.prompt),
+      `terim istemde butun halde kalmis: ${card.prompt}`);
+    assert.ok(card.prompt.includes('___'), 'istemde bosluk olmali');
+  }
+});
+
+test('uzun terim kisa terime tercih edilir', () => {
+  const terms = [{ term: 'rate', definition: 'x' }, { term: 'unemployment rate', definition: 'y' }];
+  const cards = A.buildClozeCards(undefined, terms, ['The report shows increases in the unemployment rate this year.'], 20);
+  const fromPoint = cards.filter(c => c.source === 'key_point');
+  assert.equal(fromPoint.length, 1);
+  assert.equal(fromPoint[0].answer, 'unemployment rate', '"rate" degil tam ifade sorulmali');
+});
+
+test('cumle klozlari tanim istemlerine ezdirilmez', () => {
+  // 25 terimlik gercekci bir sozluk: eskiden 20 slotun hepsini bunlar aliyordu.
+  const many = Array.from({ length: 25 }, (_, i) => ({
+    term: `Terim${i}`, definition: `Bu ${i} numarali kavramin aciklamasidir.`
+  })).concat(CLOZE_TERMS);
+  const cards = A.buildClozeCards(undefined, many, CLOZE_POINTS, 20);
+  const sentence = cards.filter(c => c.source === 'key_point');
+  assert.ok(sentence.length >= 4, `cumle klozu sayisi ${sentence.length} — sozluk onlari bogmamali`);
+});
+
+test('ayni terim icin tek kart uretilir', () => {
+  const points = [
+    'Fiscal policy involves government taxation and spending decisions.',
+    'Fiscal policy is one of the two main tools of macroeconomic management.',
+    'Changes in fiscal policy affect aggregate demand across the economy.'
+  ];
+  const cards = A.buildClozeCards(undefined, [{ term: 'Fiscal policy', definition: 'x' }], points, 20);
+  const fiscal = cards.filter(c => c.answer.toLowerCase() === 'fiscal policy');
+  assert.equal(fiscal.length, 1, 'ayni kelime icin tekrar tekrar sorulmamali');
+});
+
+test('model kendi kartlarini verdiyse onlar korunur', () => {
+  const model = [{ id: 'm1', prompt: 'Model ___ yazdi.', answer: 'kartini', full_text: 'Model kartini yazdi.' }];
+  const cards = A.buildClozeCards(model, CLOZE_TERMS, CLOZE_POINTS, 20);
+  assert.equal(cards[0].answer, 'kartini', 'model kartlari basta kalmali');
+  assert.equal(cards[0].source, 'model');
+});
+
+test('bos girdide patlamaz', () => {
+  assert.deepEqual(A.buildClozeCards(undefined, [], [], 20), []);
+  assert.deepEqual(A.buildClozeCards(undefined, null, null, 20), []);
+});
+
+test('clozeTermPattern Turkce harflerde dogru sinir kurar', () => {
+  assert.ok(A.clozeTermPattern('işsizlik').test('Türkiye işsizlik oranı arttı.'));
+  // "issizlikten" icindeki "issizlik" tam kelime degil, eslesmemeli
+  assert.ok(!A.clozeTermPattern('işsizlik').test('issizlikten bahsediyoruz'));
+  assert.ok(A.clozeTermPattern('fiscal policy').test('The fiscal policy stance'));
 });
 
 /* --------------------------------------------------------------------------
