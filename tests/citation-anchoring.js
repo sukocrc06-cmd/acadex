@@ -411,4 +411,4 @@ test('SLAYT etiketli belge (PPTX) de dogru chunk lanir', () => {
   assert.ok(!/SLAYT/.test(cs[0].text), 'slayt isaretcisi metne sizmamali');
 });
 
-summary();
+summary().then(() => process.exit(process.exitCode || 0));
