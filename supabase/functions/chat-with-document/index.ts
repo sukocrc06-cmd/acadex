@@ -791,7 +791,7 @@ ${sourceText}
     let visionUsed = false
     if (hasImage) {
       try {
-        console.log("chat-with-document: attempting vision analysis with qwen/qwen3.6-27b...")
+        console.log("chat-with-document: attempting vision analysis with qwen/qwen3.8-27b...")
         groqResponse = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -799,11 +799,11 @@ ${sourceText}
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            // Groq retired llama-3.2-90b-vision-preview; qwen/qwen3.6-27b is the
+            // Groq retired llama-3.2-90b-vision-preview; qwen/qwen3.8-27b is the
             // current vision-capable model (same OpenAI-style image_url format).
-            model: "qwen/qwen3.6-27b",
+            model: "qwen/qwen3.8-27b",
             temperature: 0.3,
-            // Qwen3.6 is a hybrid reasoning model that THINKS by default (a
+            // Qwen3.8 is a hybrid reasoning model that THINKS by default (a
             // <think>...</think> block prepended to content), which broke our
             // JSON parsing and burned most of the time/token budget on
             // reasoning instead of the actual answer. "none" turns reasoning
@@ -887,7 +887,7 @@ ${sourceText}
       })
     }
 
-    // Defensive safety net: reasoning-capable models (qwen/qwen3.6-27b,
+    // Defensive safety net: reasoning-capable models (qwen/qwen3.8-27b,
     // openai/gpt-oss-120b) can still prepend a <think>...</think> block to
     // "content" even with reasoning turned down/off above — e.g. Groq changes
     // a default, or a future model swap reintroduces this. Strip it so a
