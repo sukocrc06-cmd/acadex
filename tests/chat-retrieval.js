@@ -158,4 +158,4 @@ test('butce eski 100.000 kesmesinden kucuk (TPM kazanci)', () => {
   assert.ok(A.WHOLE_DOC_MAX_CHARS > 0 && A.RETRIEVED_MAX_CHUNKS > 0);
 });
 
-summary();
+summary().then(() => process.exit(process.exitCode || 0));
