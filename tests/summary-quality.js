@@ -31,6 +31,9 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'validateMermaid', 'sanitizeDiagrams',
   // grafik kapisi
   'CHART_TYPES', 'CHART_MIN_POINTS', 'sanitizeCharts',
+  // tekrarlayan ustbilgi/altbilgi temizligi
+  'BOILERPLATE_MIN_PAGES', 'BOILERPLATE_PAGE_SHARE', 'BOILERPLATE_MAX_LINE_CHARS',
+  'boilerplateKey', 'splitByPageMarkers', 'stripRepeatedBoilerplate',
   // anlati yil kapisi
   'YEAR_RE', 'YEAR_RANGE_RE', 'YEAR_ONLY_PAREN_RE',
   'yearInSource', 'scrubUnsupportedYears', 'sanitizeNarrativeYears',
@@ -703,6 +706,98 @@ test('sanitizeDiagrams onarim sayisini toplar', () => {
   assert.equal(r.diagrams.length, 1, 'gecerli olan kalmali');
   assert.equal(r.repaired, 2, 'onarim sayisi raporlanmali');
   assert.equal(r.dropped.length, 1);
+});
+
+/* --------------------------------------------------------------------------
+   TEKRARLAYAN USTBILGI/ALTBILGI TEMIZLIGI (stripRepeatedBoilerplate)
+   --------------------------------------------------------------------------
+   Canli olcum: 30 sayfalik Pearson ders slaytinda "Copyright © 2017 Pearson
+   Education, Inc." ve "20-1 / 20-2 / ..." sayfa numarasi, modele gosterilen
+   12.615 karakterin 1.455'ini yiyordu — %11,5'i, hicbiri ders materyali degil,
+   ve pencere zaten hesabin dakikalik 8.000 tokeninin 6.200'unu harciyor.
+   ------------------------------------------------------------------------ */
+
+function makePagedDoc(bodies, footer) {
+  return bodies
+    .map((b, i) => `--- SAYFA ${i + 1} ---\n${b}\n${footer}\n${20}-${i + 1}`)
+    .join('\n\n');
+}
+
+test('her sayfada tekrarlayan altbilgi silinir, icerik kalir', () => {
+  const doc = makePagedDoc(
+    ['Makroekonomi nedir', 'Issizlik orani', 'Enflasyon', 'Para politikasi',
+     'Maliye politikasi', 'Is cevrimi', 'Durgunluk', 'Stagflasyon'],
+    'Copyright © 2017 Pearson Education, Inc.'
+  );
+  const r = A.stripRepeatedBoilerplate(doc, 'SAYFA');
+  assert.ok(r.charsSaved > 0, 'kazanc olmali');
+  assert.ok(!/Pearson/.test(r.text), 'altbilgi kalmamali');
+  assert.ok(!/^20-\d+$/m.test(r.text), 'sayfa numarasi kalmamali');
+  // Icerik aynen durmali.
+  for (const s of ['Makroekonomi nedir', 'Stagflasyon', 'Para politikasi']) {
+    assert.ok(r.text.includes(s), `${s} silinmemeli`);
+  }
+});
+
+test('sayfa isaretleri ve sayfa sayisi korunur', () => {
+  const doc = makePagedDoc(
+    ['bir', 'iki', 'uc', 'dort', 'bes', 'alti', 'yedi', 'sekiz'],
+    'Copyright © 2017 Pearson Education, Inc.'
+  );
+  const r = A.stripRepeatedBoilerplate(doc, 'SAYFA');
+  const pages = A.splitByPageMarkers(r.text, 'SAYFA');
+  assert.equal(pages.length, 8, 'her sayfa isareti durmali');
+  assert.deepEqual(pages.map(p => p.page), [1, 2, 3, 4, 5, 6, 7, 8]);
+});
+
+test('az sayfali belgeye dokunulmaz', () => {
+  // Yargiya varacak kadar sayfa yok.
+  const doc = makePagedDoc(['bir', 'iki', 'uc'], 'Ayni altbilgi');
+  const r = A.stripRepeatedBoilerplate(doc, 'SAYFA');
+  assert.equal(r.charsSaved, 0);
+  assert.equal(r.text, doc);
+});
+
+test('sayfa isareti olmayan belgeye dokunulmaz', () => {
+  const plain = 'Hic sayfa isareti olmayan duz metin.\nAyni satir\nAyni satir';
+  const r = A.stripRepeatedBoilerplate(plain, 'SAYFA');
+  assert.equal(r.text, plain);
+  assert.equal(r.charsSaved, 0);
+});
+
+test('birkac sayfada gecen icerik satiri silinmez', () => {
+  // 8 sayfanin 2'sinde gecen baslik esigin (%60) altinda.
+  const bodies = ['The Three Market Arenas', 'The Three Market Arenas',
+                  'a', 'b', 'c', 'd', 'e', 'f'];
+  const r = A.stripRepeatedBoilerplate(makePagedDoc(bodies, 'Altbilgi satiri'), 'SAYFA');
+  assert.ok(r.text.includes('The Three Market Arenas'), 'icerik basligi korunmali');
+  assert.ok(!/Altbilgi satiri/.test(r.text), 'gercek altbilgi yine de silinmeli');
+});
+
+test('uzun tekrarlayan paragraf altbilgi sayilmaz', () => {
+  const long = 'Bu cok uzun bir paragraf ve her sayfada tekrar ediyor olabilir ama bir ustbilgi degil cunku uzunlugu esigin ustunde kaliyor yani icerik olarak degerlendirilmeli.';
+  assert.ok(long.length > 120, 'test kurgusu: esigin ustunde olmali');
+  const r = A.stripRepeatedBoilerplate(
+    makePagedDoc(['a', 'b', 'c', 'd', 'e', 'f'].map(x => `${x}\n${long}`), 'Kisa altbilgi'),
+    'SAYFA'
+  );
+  assert.ok(r.text.includes(long), 'uzun paragraf korunmali');
+});
+
+test('boilerplateKey rakamlari joker yapar', () => {
+  assert.equal(A.boilerplateKey('20-1'), A.boilerplateKey('20-7'));
+  assert.equal(A.boilerplateKey('Sayfa 3 / 30'), A.boilerplateKey('Sayfa 11 / 30'));
+  assert.notEqual(A.boilerplateKey('Enflasyon'), A.boilerplateKey('Issizlik'));
+});
+
+test('sayfa tamamen bosaltilmaz', () => {
+  // Her satiri tekrarlayan bir sayfa: dedektor hatasi olma ihtimali daha
+  // yuksek, ve bos sayfa o sayfaya yapilan atifi kirar.
+  const doc = makePagedDoc(['Ortak', 'Ortak', 'Ortak', 'Ortak', 'Ortak', 'Ortak'], 'Altbilgi');
+  const r = A.stripRepeatedBoilerplate(doc, 'SAYFA');
+  for (const p of A.splitByPageMarkers(r.text, 'SAYFA')) {
+    assert.ok(p.body.trim().length > 0, `sayfa ${p.page} bosalmamali`);
+  }
 });
 
 /* --------------------------------------------------------------------------
