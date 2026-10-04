@@ -1195,7 +1195,22 @@ async function proceedWithSummarization() {
     return;
   }
 
-  if (!activeSummarizingDocId) return;
+  // TESHIS: "ilk basista iptal oluyor, ikincide zaten devam ediyor diyor"
+  // sorunu uc gundur acik ve sunucu loglarinda izi yok — cunku sorun burada,
+  // tarayicida. Sunucu tarafini "Istek alindi" satiri cozmustu; ayni yontem.
+  // Her cikis yolu kendini soyluyor, boylece bir sonraki tekrar teshisi
+  // kendisi veriyor. Konsolda "Preserve log" acik olmali.
+  console.log('[ozet] proceedWithSummarization girdi:', {
+    activeSummarizingDocId,
+    inFlight: [...inFlightSummarizations]
+  });
+
+  if (!activeSummarizingDocId) {
+    // Bu dal sessizdi: ne log, ne uyari, ne de kullaniciya mesaj. Kullanici
+    // acisindan tiklama hicbir sey yapmamis gibi gorunuyordu.
+    console.warn('[ozet] CIKIS: activeSummarizingDocId bos — hangi belge ozetlenecegi kaybolmus');
+    return;
+  }
   const docId = activeSummarizingDocId;
 
   closeSummaryStyleModal();
@@ -1232,6 +1247,7 @@ async function proceedWithSummarization() {
     // Ayni belge icin ikinci bir calistirmayi burada kes. Tekrar basmak
     // yeni bir ozet uretmiyor, sadece ayni TPM butcesini ikiye boluyor.
     if (inFlightSummarizations.has(docId)) {
+      console.warn('[ozet] CIKIS: guard — bu belge icin bir istek halen acik:', docId);
       const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
       showDashboardAlert('info', isTr
         ? 'Bu belge zaten ozetleniyor. Islem suruyor, lutfen bekleyin.'
@@ -1261,9 +1277,18 @@ async function proceedWithSummarization() {
       console.error('Failed to persist "processing" status to the database (UI already shows progress locally):', statusUpdateError);
     }
 
+    const invokeStartedAt = Date.now();
+    console.log('[ozet] invoke gonderiliyor:', docId, 'gorsel:', analyzeVisuals ? 'evet' : 'hayir');
+
     const { data, error } = await supabaseClient.functions.invoke('summarize-document', {
       body: { documentId: docId, summaryStyle: summaryStyle, language: language, summaryLength: summaryLength, analyzeVisuals: analyzeVisuals, depth: summaryDepth }
     });
+
+    // Sure kritik: sunucu tarafi 130-180 saniye surebiliyor. Istemci bundan
+    // once donduyse istek dusmus demektir, sunucu ise calismaya devam eder —
+    // "iptal oldu ama sonra kart geldi" tam olarak bu.
+    console.log(`[ozet] invoke dondu: ${Date.now() - invokeStartedAt}ms`,
+      error ? 'HATA' : (data && data.success ? 'basarili' : 'basarisiz/bos'), error || '');
 
     if (error) {
       console.error("AI invocation returned error details: ", error);
@@ -1298,7 +1323,7 @@ async function proceedWithSummarization() {
       }
     }
   } catch (err) {
-    console.error("Exception invoking summarize-document: ", err);
+    console.error("[ozet] CIKIS: istisna (fetch dustu / iptal edildi?):", err?.name, err?.message, err);
     showDashboardAlert('error', 'Edge function invocation failed. Please try again.');
     await loadDocuments();
   } finally {
@@ -11343,11 +11368,22 @@ async function loadRecentActivity() {
         .eq('user_id', currentUser.id)
         .order('created_at', { ascending: false })
         .limit(5),
+      // exams has completed_at, not created_at. Asking for created_at here
+      // made PostgREST answer 400 on every dashboard load —
+      //   GET .../exams?select=id,score,created_at...&order=created_at.desc&limit=5
+      // so the activity feed has never shown a single exam. The other exams
+      // queries in this file all use completed_at and return fine, which is
+      // what identified the right name.
+      //
+      // Filtering to completed exams is also what this feed means: the item
+      // it builds reads "completed a practice exam", and an exam still in
+      // progress has no score to show.
       supabaseClient
         .from('exams')
-        .select('id, score, created_at, study_cards(documents(file_name))')
+        .select('id, score, completed_at, study_cards(documents(file_name))')
         .eq('user_id', currentUser.id)
-        .order('created_at', { ascending: false })
+        .not('completed_at', 'is', null)
+        .order('completed_at', { ascending: false })
         .limit(5)
     ]);
 
@@ -11382,7 +11418,7 @@ async function loadRecentActivity() {
       merged.push({
         type: 'exam',
         title: isTr ? `${docName} üzerine bir deneme sınavı tamamlandı (${e.score || 0}/100)` : `Completed a practice exam (${e.score || 0}/100) on ${docName}`,
-        timestamp: new Date(e.created_at),
+        timestamp: new Date(e.completed_at),
         icon: '<circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline>'
       });
     });
