@@ -36,7 +36,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'VISION_TOKENS_PER_IMAGE', 'VISION_MAX_IMAGES', 'VISUAL_MIN_BUDGET_MS',
   // bosluk doldurma kartlari
   'clozeTermPattern', 'turkishIClasses', 'blankAllOccurrences',
-  'REVIEW_ARRAY_FIELDS', 'INLINE_PAGE_CITE', 'stripIntroducedCitations', 'mergeReviewOntoDraft', 'stripThinkBlock', 'buildClozeCards',
+  'REVIEW_ARRAY_FIELDS', 'NARRATIVE_MIN_KEEP_RATIO', 'INLINE_PAGE_CITE', 'stripIntroducedCitations', 'mergeReviewOntoDraft', 'stripThinkBlock', 'buildClozeCards',
   // tekrarlayan ustbilgi/altbilgi temizligi
   'BOILERPLATE_MIN_PAGES', 'BOILERPLATE_PAGE_SHARE', 'BOILERPLATE_MAX_LINE_CHARS',
   'boilerplateKey', 'splitByPageMarkers', 'stripRepeatedBoilerplate',
@@ -1600,7 +1600,7 @@ test('CANLI HATA: kisalmis review icerigi SILEMEZ', () => {
 test('review anlatimi duzeltirse kabul edilir', () => {
   const r = JSON.stringify({
     summary: 'Issizlik orani 1980-82 doneminde %10.5 zirve yapti. '.repeat(3),
-    summary_executive: 'Duzeltilmis yonetici ozeti, yeterince uzun bir metin.',
+    summary_executive: 'Duzeltilmis yonetici ozeti; taslaktakiyle ayni uzunlukta tutuldu ki uzunluk tabanina takilmasin.',
     quality_gate: { pass: true, grounded: true, issues: [] }
   });
   const m = JSON.parse(A.mergeReviewOntoDraft(DRAFT, r).merged);
@@ -1836,6 +1836,73 @@ test('review dongusu butce bitince taslaga doner', () => {
     'tier dongusunde butce kapisi yok — 150sn duvarina tekrar carpilir');
   assert.ok(/rawFinalContent = rawContent[\s\S]{0,40}break/.test(SRC),
     'butce bitince taslaga donulmeli');
+});
+
+console.log('\nANLATIM UZUNLUK TABANI\n');
+
+/* 04.10.2026: narrative writer (MODEL_HEAVY, cikti siniri yok) 4 paragraflik
+   ~1600 karakterlik ozet yazdi. Review ve critic ikisi de MODEL_FAST'te,
+   OTPM tavani yuzunden 850 tamamlama tokeniyle sinirli, ve ikisi de ozeti
+   YENIDEN YAZIYOR. Iki gecisin ardindan ozet ~560 karaktere dustu.
+   Diziler bastan beri kucultmeye karsi koruluydu; anlatim degildi. */
+
+const LONG = ('Makroekonomi butunu inceler. '.repeat(50)).trim();   // ~1400 krk
+
+test('CANLI HATA: sikistirilmis ozet reddedilir, taslak kalir', () => {
+  const draft = JSON.stringify({ summary: LONG, key_terms: [], key_points: [] });
+  const squeezed = JSON.stringify({ summary: 'Makroekonomi butunu inceler. '.repeat(15) });  // ~%30
+  const { merged, notes } = A.mergeReviewOntoDraft(draft, squeezed);
+  assert.equal(JSON.parse(merged).summary, LONG.trim(), 'taslak anlatimi korunmaliydi');
+  assert.ok(notes.some(n => n.includes('KORUNDU')), notes.join('|'));
+});
+
+test('mesru kisaltma (az budama) kabul edilir', () => {
+  const draft = JSON.stringify({ summary: LONG, key_terms: [], key_points: [] });
+  // %90 uzunluk: desteksiz bir cumle atilmis gibi
+  const trimmed = 'Makroekonomi butunu inceler. '.repeat(46);
+  const { merged } = A.mergeReviewOntoDraft(draft, JSON.stringify({ summary: trimmed }));
+  assert.equal(JSON.parse(merged).summary, trimmed.trim(), 'kucuk budama kabul edilmeliydi');
+});
+
+test('tam esikte kabul edilir', () => {
+  const draftText = 'a'.repeat(1000);
+  const atFloor = 'b'.repeat(Math.ceil(1000 * A.NARRATIVE_MIN_KEEP_RATIO));
+  const { merged } = A.mergeReviewOntoDraft(
+    JSON.stringify({ summary: draftText }),
+    JSON.stringify({ summary: atFloor })
+  );
+  assert.equal(JSON.parse(merged).summary, atFloor);
+});
+
+test('esigin bir altinda reddedilir', () => {
+  const draftText = 'a'.repeat(1000);
+  const below = 'b'.repeat(Math.floor(1000 * A.NARRATIVE_MIN_KEEP_RATIO) - 1);
+  const { merged } = A.mergeReviewOntoDraft(
+    JSON.stringify({ summary: draftText }),
+    JSON.stringify({ summary: below })
+  );
+  assert.equal(JSON.parse(merged).summary, draftText);
+});
+
+test('taslakta ozet yoksa taban uygulanmaz', () => {
+  const { merged } = A.mergeReviewOntoDraft(
+    JSON.stringify({ key_terms: [] }),
+    JSON.stringify({ summary: 'Yeni yazilmis yeterince uzun bir ozet metni burada duruyor.' })
+  );
+  assert.ok(JSON.parse(merged).summary.startsWith('Yeni yazilmis'));
+});
+
+test('critic kapisi OTPM beklemesini hesaba katiyor', () => {
+  // Canli hata: waitEstimate e tamamlama gecirilmedigi icin OTPM beklemesi 0
+  // sanildi, critic calisti ve acquire 60sn bekledi (run 135sn/150sn).
+  assert.ok(/criticCompletion = tokenPacer\.clampCompletion/.test(SRC),
+    'critic tamamlama butcesi kirpilmali');
+  assert.ok(/waitEstimate\([\s\S]{0,160}?criticCompletion\s*\n?\s*\)/.test(SRC),
+    'critic waitEstimate e tamamlama gecirilmeli — yoksa OTPM beklemesi gorunmez');
+});
+
+test('critic de uzunluk tabanina tabi', () => {
+  assert.ok(/critic yazisi REDDEDILDI/.test(SRC), 'critic icin de taban olmali');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));
