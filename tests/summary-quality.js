@@ -36,7 +36,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'VISION_TOKENS_PER_IMAGE', 'VISION_MAX_IMAGES', 'VISUAL_MIN_BUDGET_MS',
   // bosluk doldurma kartlari
   'clozeTermPattern', 'turkishIClasses', 'blankAllOccurrences',
-  'REVIEW_ARRAY_FIELDS', 'mergeReviewOntoDraft', 'stripThinkBlock', 'buildClozeCards',
+  'REVIEW_ARRAY_FIELDS', 'INLINE_PAGE_CITE', 'stripIntroducedCitations', 'mergeReviewOntoDraft', 'stripThinkBlock', 'buildClozeCards',
   // tekrarlayan ustbilgi/altbilgi temizligi
   'BOILERPLATE_MIN_PAGES', 'BOILERPLATE_PAGE_SHARE', 'BOILERPLATE_MAX_LINE_CHARS',
   'boilerplateKey', 'splitByPageMarkers', 'stripRepeatedBoilerplate',
@@ -1662,6 +1662,55 @@ test('review prompt u tam JSON istemiyor', () => {
     'eski "tam JSON dondur" talimati hala duruyor — kirpma riski geri gelir');
   assert.ok(/NOT yours to\nrewrite/.test(src) || /NOT yours to rewrite/.test(src),
     'review a dizileri yazmamasi soylenmeli');
+});
+
+test('CANLI HATA: review in uydurdugu (s. N) atiflari temizlenir', () => {
+  // 04.10.2026: review kaynagin sadece ilk 4000 karakterini goruyor, 11
+  // atifin 11'i de "(s. 1)" cikti — 30 sayfaya yayilmis bilgiler icin.
+  const r = JSON.stringify({
+    summary: 'Makroekonomi butunu inceler (s. 1). Is cevrimi evreleri vardir (s. 1). '
+      + 'Dort sektor dolasim semasiyla gosterilir (s. 1). Maliye ve para politikasi araclardir (s. 1).',
+    quality_gate: { pass: true, grounded: true, issues: [] }
+  });
+  const { merged, notes } = A.mergeReviewOntoDraft(DRAFT, r);
+  const m = JSON.parse(merged);
+  assert.ok(!/\(s\.\s*\d+\)/.test(m.summary), `atif kalmamaliydi: ${m.summary}`);
+  assert.ok(m.summary.includes('Makroekonomi'), 'metnin kendisi korunmali');
+  assert.ok(notes.some(n => n.includes('temizlendi')), notes.join('|'));
+});
+
+test('taslakta zaten atif varsa review inkiler korunur', () => {
+  const draftWithCites = JSON.stringify({
+    summary: 'Taslak metni bir atif iceriyor (s. 12). Devami da burada yeterince uzun.',
+    key_terms: [{ term: 'a', definition: 'b' }], key_points: ['p'], quiz_questions: []
+  });
+  const r = JSON.stringify({
+    summary: 'Duzeltilmis metin yine atif iceriyor (s. 14). Devami da burada yeterince uzun.'
+  });
+  const m = JSON.parse(A.mergeReviewOntoDraft(draftWithCites, r).merged);
+  assert.ok(/\(s\.\s*14\)/.test(m.summary), 'taslak atif kullaniyorsa review inki silinmemeli');
+});
+
+test('slayt ve page bicimleri de temizlenir', () => {
+  for (const unit of ['slayt 3', 'p. 9', 'sayfa 2', 'page 11']) {
+    const r = JSON.stringify({
+      summary: `Bu yeterince uzun bir ozet metnidir ve bir atif tasir (${unit}). Devami burada.`
+    });
+    const m = JSON.parse(A.mergeReviewOntoDraft(DRAFT, r).merged);
+    assert.ok(!m.summary.includes(unit), `${unit} temizlenmeliydi: ${m.summary}`);
+  }
+});
+
+test('temizlik sonrasi metin cok kisalirsa taslak korunur', () => {
+  const r = JSON.stringify({ summary: '(s. 1) (s. 2) (s. 3) (s. 4) (s. 5) (s. 6) (s. 7) (s. 8)' });
+  const m = JSON.parse(A.mergeReviewOntoDraft(DRAFT, r).merged);
+  assert.equal(m.summary, 'x'.repeat(200), 'ici bosalan metin kabul edilmemeli');
+});
+
+test('review prompt u artik atif istemiyor', () => {
+  assert.ok(!/append inline markers like/.test(SRC),
+    'eski "atif ekle" talimati duruyor — (s. 1) sorunu geri gelir');
+  assert.ok(/DO NOT ADD PAGE NUMBERS/.test(SRC), 'atif yasagi prompt ta olmali');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));
