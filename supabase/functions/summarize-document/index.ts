@@ -4804,9 +4804,29 @@ The example that used to sit here named a real-looking percentage, and a live ru
       console.log(`Long-doc merge: terms=${mergedKeyTerms.length} points=${mergedKeyPoints.length} quiz=${mergedQuiz.length} tables=${mergedTables.length} charts=${mergedCharts.length} diagrams=${mergedDiagrams.length} worked_examples=${mergedWorkedExamples.length} summaryLen=${(mergedDraft.summary || '').length}`)
 
       rawContent = JSON.stringify(mergedDraft)
-      sourceTextForReview = windowResults.map((r, i) => `Part ${i + 1}: ${String(r.summary || '').slice(0, 500)}`).join('\n\n')
-      if (sourceTextForReview.length > 4000) {
-        sourceTextForReview = sourceTextForReview.substring(0, 4000) + ' [truncated]'
+      // THE SOURCE, not a summary of it (05.10.2026).
+      //
+      // This used to be the windows' own summaries, each cut to 500 chars:
+      //
+      //   windowResults.map((r, i) => `Part ${i+1}: ${r.summary.slice(0,500)}`)
+      //
+      // So the pass whose job is to check the draft against the document was
+      // handed a summary of the draft instead. It could confirm the draft was
+      // consistent with itself and nothing more — a hallucination that made it
+      // into every window would read as perfectly grounded. Review said so
+      // itself once the verdict was logged: "The source text provided is
+      // truncated and does not contain t[he ...]".
+      //
+      // Every document over CHUNK_THRESHOLD (6,000 chars) takes this path, so
+      // this was the state for every real document.
+      //
+      // There is room for the real thing now: review no longer receives the
+      // whole draft JSON (see buildReviewUserPrompt), which was ~14,000 of the
+      // ~20,000 characters going into the call. The tiers below trim this if a
+      // document is genuinely too big.
+      sourceTextForReview = extractedText
+      if (sourceTextForReview.length > 14000) {
+        sourceTextForReview = sourceTextForReview.substring(0, 14000) + ' [truncated for review]'
       }
     }
 
@@ -4887,6 +4907,27 @@ DO NOT include "tables", "charts", "diagrams", "worked_examples", "formulas", "c
       } else if (trimmedSource.length > sourceBudgetChars) {
         trimmedSource = trimmedSource.substring(0, sourceBudgetChars) + " [truncated for review]"
       }
+      // Send ONLY the narrative under review, not the whole draft card.
+      //
+      // The full JSON was ~14,000 of the ~20,000 characters in this call —
+      // 32 key terms, 16 key points, 13 quiz questions, sections, outline —
+      // none of which review may rewrite any more. It was spending two thirds
+      // of its input budget on material it cannot touch, while the source it
+      // must check against was cut to 4,000 characters.
+      //
+      // Swapping them costs nothing and buys review the whole document.
+      let narrative = ''
+      try {
+        const d = JSON.parse(rawContent)
+        narrative = JSON.stringify({
+          summary: d?.summary ?? '',
+          summary_executive: d?.summary_executive ?? ''
+        }, null, 1)
+      } catch {
+        // Unparseable draft: fall back to the raw text rather than sending
+        // nothing, so review still has something to check.
+        narrative = rawContent.slice(0, 4000)
+      }
       return `Original requested format parameters:
 - Summary Style: ${style}
 - Summary Length: ${len}
@@ -4895,8 +4936,9 @@ DO NOT include "tables", "charts", "diagrams", "worked_examples", "formulas", "c
 Original source text:
 ${trimmedSource}
 
-Draft JSON summary:
-${rawContent}`
+The draft narrative you are reviewing (these two fields only — the rest of
+the study card is not yours to change, and is not shown):
+${narrative}`
     }
 
     // ==========================================================================
@@ -5071,10 +5113,13 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
     // 429'd on 04.10.2026 before the model saw a single token of the draft.
     // clampCompletion() enforces the ceiling independently, in case this list
     // and MODEL_OTPM ever drift apart.
+    // Source budgets raised now that the draft card no longer rides along:
+    // 11,000 characters covers the whole reference document, which is the
+    // point — review cannot check a claim against a source it was not shown.
     const reviewTiers: Array<{ sourceChars: number; maxCompletionTokens: number }> = [
-      { sourceChars: 4000, maxCompletionTokens: Math.min(850, REVIEW_MAX_COMPLETION) },
-      { sourceChars: 1200, maxCompletionTokens: 700 },
-      { sourceChars: 0, maxCompletionTokens: 550 }
+      { sourceChars: 11000, maxCompletionTokens: Math.min(850, REVIEW_MAX_COMPLETION) },
+      { sourceChars: 5000, maxCompletionTokens: 700 },
+      { sourceChars: 1500, maxCompletionTokens: 550 }
     ]
 
     // WHY THIS IS NOT A FLAT 55s ANY MORE (2026-10-04, measured):
