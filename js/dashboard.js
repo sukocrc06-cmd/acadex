@@ -8334,7 +8334,10 @@ async function executeGlobalSearch(query, container) {
           ${matchedExams.map(exam => {
             const card = allCards.find(c => c.id === exam.study_card_id);
             const docName = card?.documents?.file_name || 'Unnamed Document';
-            const scorePercent = Math.round((exam.score || 0) * 100);
+            // grade is already 0-100 (grade-exam: finalGrade = round(sum / count),
+            // per-question scores are out of 100), so neither the old column
+            // name nor the x100 was right — this showed 0% for every exam.
+            const scorePercent = exam.grade ?? 0;
             const formattedTime = new Date(exam.completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
             return `
               <li>
@@ -11368,19 +11371,23 @@ async function loadRecentActivity() {
         .eq('user_id', currentUser.id)
         .order('created_at', { ascending: false })
         .limit(5),
-      // exams has completed_at, not created_at. Asking for created_at here
-      // made PostgREST answer 400 on every dashboard load —
-      //   GET .../exams?select=id,score,created_at...&order=created_at.desc&limit=5
-      // so the activity feed has never shown a single exam. The other exams
-      // queries in this file all use completed_at and return fine, which is
-      // what identified the right name.
+      // Two wrong column names in one query, which is why the activity feed
+      // has never shown a single exam: PostgREST answered 400
+      // (Proxy-Status: PostgREST; error=42703, undefined_column) on every
+      // dashboard load.
+      //
+      // The date column is completed_at, not created_at. The score column is
+      // grade, not score — supabase/functions/grade-exam writes
+      // { answers, question_results, grade, completed_at }, which is the
+      // authoritative schema, and line ~11185 of this file already reads
+      // 'grade, question_results, completed_at' correctly.
       //
       // Filtering to completed exams is also what this feed means: the item
       // it builds reads "completed a practice exam", and an exam still in
       // progress has no score to show.
       supabaseClient
         .from('exams')
-        .select('id, score, completed_at, study_cards(documents(file_name))')
+        .select('id, grade, completed_at, study_cards(documents(file_name))')
         .eq('user_id', currentUser.id)
         .not('completed_at', 'is', null)
         .order('completed_at', { ascending: false })
@@ -11417,7 +11424,7 @@ async function loadRecentActivity() {
       const docName = e.study_cards?.documents?.file_name || (isTr ? 'çalışma kartı' : 'study card');
       merged.push({
         type: 'exam',
-        title: isTr ? `${docName} üzerine bir deneme sınavı tamamlandı (${e.score || 0}/100)` : `Completed a practice exam (${e.score || 0}/100) on ${docName}`,
+        title: isTr ? `${docName} üzerine bir deneme sınavı tamamlandı (${e.grade ?? 0}/100)` : `Completed a practice exam (${e.grade ?? 0}/100) on ${docName}`,
         timestamp: new Date(e.completed_at),
         icon: '<circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline>'
       });
