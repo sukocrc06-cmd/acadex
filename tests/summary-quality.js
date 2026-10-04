@@ -35,7 +35,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'FIGURE_CAPTION_RE', 'selectVisualPages',
   'VISION_TOKENS_PER_IMAGE', 'VISION_MAX_IMAGES', 'VISUAL_MIN_BUDGET_MS',
   // bosluk doldurma kartlari
-  'clozeTermPattern', 'buildClozeCards',
+  'clozeTermPattern', 'turkishIClasses', 'blankAllOccurrences', 'buildClozeCards',
   // tekrarlayan ustbilgi/altbilgi temizligi
   'BOILERPLATE_MIN_PAGES', 'BOILERPLATE_PAGE_SHARE', 'BOILERPLATE_MAX_LINE_CHARS',
   'boilerplateKey', 'splitByPageMarkers', 'stripRepeatedBoilerplate',
@@ -863,6 +863,71 @@ test('model kendi kartlarini verdiyse onlar korunur', () => {
 test('bos girdide patlamaz', () => {
   assert.deepEqual(A.buildClozeCards(undefined, [], [], 20), []);
   assert.deepEqual(A.buildClozeCards(undefined, null, null, 20), []);
+});
+
+// ---- cevap sizintisi (04.10.2026 canli PDF ciktisindan) -----------------
+//
+// Cumle icinde terim iki kez geciyorsa eskiden SADECE ilki bosaltiliyordu,
+// yani sorunun icinde cevap yaziyordu. Gercek ciktidan iki ornek:
+//
+//   7. "...300 billion ___ in 1900 to over 17,000 billion 2009 dollars..."
+//   8. "...1980-1982 ___ and again ... during the 2008-2009 recessionary
+//       period."
+
+test('tekrar eden terimin HER gecisi bosaltilir', () => {
+  const text = 'Aggregate output grew from 300 billion 2009 dollars in 1900 '
+    + 'to over 17000 billion 2009 dollars by 2014.';
+  const cards = A.buildClozeCards(undefined, [{ term: '2009 dollars', definition: 'base year' }], [text], 20);
+  const card = cards.find(c => c.source === 'key_point');
+  assert.ok(card, 'cumle karti uretilmeliydi');
+  assert.equal((card.prompt.match(/___/g) || []).length, 2, 'iki bosluk olmaliydi');
+});
+
+test('hicbir kartin sorusu kendi cevabini icermez', () => {
+  const terms = [
+    { term: '2009 dollars', definition: 'The base year used for real GDP.' },
+    { term: 'recessionary period', definition: 'An interval during which the economy contracts.' },
+    { term: 'unemployment rate', definition: 'The percentage of the labor force that is unemployed.' }
+  ];
+  const points = [
+    'Aggregate output grew from 300 billion 2009 dollars in 1900 to over 17000 billion 2009 dollars by 2014.',
+    'The unemployment rate peaked near 10.5% during the 1980-1982 recessionary period and again reached 10% during the 2008-2009 recessionary period.'
+  ];
+  for (const c of A.buildClozeCards(undefined, terms, points, 20)) {
+    assert.ok(
+      !A.clozeTermPattern(c.answer).test(c.prompt),
+      `cevap soruda gorunuyor — answer="${c.answer}" prompt="${c.prompt}"`
+    );
+  }
+});
+
+test('tanim icinde tekrar eden terim de tamamen bosaltilir', () => {
+  const cards = A.buildClozeCards(
+    undefined,
+    [{ term: 'money market', definition: 'The money market is the market where the money market clears.' }],
+    [],
+    20
+  );
+  assert.ok(!A.clozeTermPattern('money market').test(cards[0].prompt), 'tanimda cevap kalmamali');
+});
+
+test('terim yalnizca baska kelimenin icinde geciyorsa tanim kaliba duser', () => {
+  // "rate" sadece "corporate" icinde geciyor: kelime siniri tutmaz, hicbir
+  // sey bosalmaz. Boyle bir kartin sorusu = cevabi olurdu.
+  const cards = A.buildClozeCards(
+    undefined,
+    [{ term: 'rate', definition: 'Applies to corporate borrowing.' }],
+    [],
+    20
+  );
+  assert.ok(cards[0].prompt.startsWith('___:'), `tanim kalibina dusmeliydi: ${cards[0].prompt}`);
+  assert.equal(cards[0].full_text, 'rate: Applies to corporate borrowing.');
+});
+
+test('blankAllOccurrences kelime sinirina saygi duyar', () => {
+  assert.equal(A.blankAllOccurrences('a rate and corporate rates', 'rate'), 'a ___ and corporate rates');
+  // Turkce: buyuk I/i tuzagi
+  assert.equal(A.blankAllOccurrences('İşsizlik ve işsizlik', 'işsizlik'), '___ ve ___');
 });
 
 test('clozeTermPattern Turkce harflerde dogru sinir kurar', () => {
