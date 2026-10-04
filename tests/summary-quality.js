@@ -35,7 +35,8 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'FIGURE_CAPTION_RE', 'selectVisualPages',
   'VISION_TOKENS_PER_IMAGE', 'VISION_MAX_IMAGES', 'VISUAL_MIN_BUDGET_MS',
   // bosluk doldurma kartlari
-  'clozeTermPattern', 'turkishIClasses', 'blankAllOccurrences', 'buildClozeCards',
+  'clozeTermPattern', 'turkishIClasses', 'blankAllOccurrences',
+  'REVIEW_ARRAY_FIELDS', 'mergeReviewOntoDraft', 'stripThinkBlock', 'buildClozeCards',
   // tekrarlayan ustbilgi/altbilgi temizligi
   'BOILERPLATE_MIN_PAGES', 'BOILERPLATE_PAGE_SHARE', 'BOILERPLATE_MAX_LINE_CHARS',
   'boilerplateKey', 'splitByPageMarkers', 'stripRepeatedBoilerplate',
@@ -1561,6 +1562,106 @@ test('tipik tek bolumluk belge tek pencereye sigar', () => {
     `WINDOW=${WINDOW}: 12.451 karakterlik referans belge yine bolunur ` +
     `ve aradaki pacer beklemesi review pass'i engeller`
   );
+});
+
+console.log('\nREVIEW BIRLESTIRME (mergeReviewOntoDraft)\n');
+
+// 04.10.2026 canli run: review "tam JSON" dondurmesi istenirken 2500
+// tamamlama tokeniyle sinirliydi; sigdirmak icin icerigi kirpti.
+//   merge  : terms=26 points=14 quiz=13
+//   sonra  : terms=12 points=5  quiz=5
+const DRAFT = JSON.stringify({
+  summary: 'x'.repeat(200),
+  summary_executive: 'y'.repeat(100),
+  key_terms: Array.from({ length: 26 }, (_, i) => ({ term: `t${i}`, definition: `d${i}` })),
+  key_points: Array.from({ length: 14 }, (_, i) => `p${i}`),
+  quiz_questions: Array.from({ length: 13 }, (_, i) => ({ question: `q${i}`, answer: `a${i}` })),
+  sections: [{ heading: 'h', summary: 's', key_points: [], outline_id: null }],
+  document_type: 'lecture',
+  is_quantitative: false
+});
+
+test('CANLI HATA: kisalmis review icerigi SILEMEZ', () => {
+  const truncated = JSON.stringify({
+    summary: 'z'.repeat(200),
+    key_terms: Array.from({ length: 12 }, (_, i) => ({ term: `t${i}`, definition: `d${i}` })),
+    key_points: ['p0', 'p1', 'p2', 'p3', 'p4'],
+    quiz_questions: Array.from({ length: 5 }, (_, i) => ({ question: `q${i}`, answer: `a${i}` })),
+    quality_gate: { pass: true, grounded: true, issues: [] }
+  });
+  const { merged } = A.mergeReviewOntoDraft(DRAFT, truncated);
+  const m = JSON.parse(merged);
+  assert.equal(m.key_terms.length, 26, 'terimler taslaktan korunmaliydi');
+  assert.equal(m.key_points.length, 14);
+  assert.equal(m.quiz_questions.length, 13);
+  assert.equal(m.summary, 'z'.repeat(200), 'anlatim yine de guncellenmeli');
+});
+
+test('review anlatimi duzeltirse kabul edilir', () => {
+  const r = JSON.stringify({
+    summary: 'Issizlik orani 1980-82 doneminde %10.5 zirve yapti. '.repeat(3),
+    summary_executive: 'Duzeltilmis yonetici ozeti, yeterince uzun bir metin.',
+    quality_gate: { pass: true, grounded: true, issues: [] }
+  });
+  const m = JSON.parse(A.mergeReviewOntoDraft(DRAFT, r).merged);
+  assert.ok(m.summary.includes('1980-82'));
+  assert.ok(m.summary_executive.startsWith('Duzeltilmis'));
+  assert.equal(m.key_terms.length, 26, 'diziler dokunulmadan gecmeli');
+});
+
+test('review diziyi buyutebilir', () => {
+  const r = JSON.stringify({
+    key_points: Array.from({ length: 16 }, (_, i) => `p${i}`),
+    quality_gate: { pass: true, grounded: true, issues: [] }
+  });
+  const { merged, notes } = A.mergeReviewOntoDraft(DRAFT, r);
+  assert.equal(JSON.parse(merged).key_points.length, 16);
+  assert.ok(notes.some(n => n.includes('14→16')), notes.join('|'));
+});
+
+test('bozuk review JSON i taslagi bozmaz', () => {
+  for (const bad of ['', '{ bu json degil', 'null', '[]']) {
+    const { merged } = A.mergeReviewOntoDraft(DRAFT, bad);
+    const m = JSON.parse(merged);
+    assert.equal(m.key_terms.length, 26, `bozuk girdi: ${JSON.stringify(bad)}`);
+    assert.equal(m.key_points.length, 14);
+  }
+});
+
+test('cok kisa summary kabul edilmez', () => {
+  const r = JSON.stringify({ summary: 'kisa', quality_gate: { pass: true, grounded: true, issues: [] } });
+  const m = JSON.parse(A.mergeReviewOntoDraft(DRAFT, r).merged);
+  assert.equal(m.summary, 'x'.repeat(200), 'taslak ozeti korunmaliydi');
+});
+
+test('quality_gate her zaman gecer', () => {
+  const r = JSON.stringify({ quality_gate: { pass: false, grounded: false, issues: ['yil hatasi'] } });
+  const m = JSON.parse(A.mergeReviewOntoDraft(DRAFT, r).merged);
+  assert.equal(m.quality_gate.pass, false);
+  assert.deepEqual(m.quality_gate.issues, ['yil hatasi']);
+});
+
+test('<think> blogu ile gelen review de okunur', () => {
+  const r = '<think>dusunuyorum</think>' + JSON.stringify({
+    summary: 'w'.repeat(200), quality_gate: { pass: true, grounded: true, issues: [] }
+  });
+  const m = JSON.parse(A.mergeReviewOntoDraft(DRAFT, r).merged);
+  assert.equal(m.summary, 'w'.repeat(200));
+  assert.equal(m.key_terms.length, 26);
+});
+
+test('korunan dizi notlara yazilir', () => {
+  const r = JSON.stringify({ key_terms: [{ term: 'a', definition: 'b' }] });
+  const { notes } = A.mergeReviewOntoDraft(DRAFT, r);
+  assert.ok(notes.some(n => n.includes('KORUNDU')), notes.join('|'));
+});
+
+test('review prompt u tam JSON istemiyor', () => {
+  const src = SRC;
+  assert.ok(!/Return the REFINED full study-card JSON/.test(src),
+    'eski "tam JSON dondur" talimati hala duruyor — kirpma riski geri gelir');
+  assert.ok(/NOT yours to\nrewrite/.test(src) || /NOT yours to rewrite/.test(src),
+    'review a dizileri yazmamasi soylenmeli');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));
