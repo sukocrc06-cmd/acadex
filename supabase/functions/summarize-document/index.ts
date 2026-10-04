@@ -1726,6 +1726,91 @@ const REVIEW_ARRAY_FIELDS = ['key_terms', 'key_points', 'quiz_questions', 'secti
  */
 const NARRATIVE_MIN_KEEP_RATIO = 0.75
 
+/**
+ * Apply review's targeted corrections to the narrative.
+ *
+ * WHY REVIEW NO LONGER REWRITES THE SUMMARY (05.10.2026, measured):
+ * Review runs on MODEL_FAST, whose OTPM ceiling caps it at 850 completion
+ * tokens for its ENTIRE answer — summary, executive summary, footnotes and
+ * quality_gate together. A 2,157-character summary is ~674 tokens on its own,
+ * 79% of the budget. Two live runs bear it out: 1,644 chars came back as 563,
+ * and 2,157 came back as 635. Both around 30%, both against the same ceiling.
+ *
+ * So asking review to re-emit the summary is not a thing that sometimes
+ * fails; it is a thing that cannot work. NARRATIVE_MIN_KEEP_RATIO caught the
+ * damage, but catching it meant throwing away the corrections too — and
+ * correcting the narrative is the whole reason review exists (it is what
+ * caught "10.5% in the 2008-09 downturn" being the 1980-82 figure).
+ *
+ * A factual fix is a sentence, not a document. Review now returns the
+ * sentences it wants changed, which costs ~60 tokens each instead of 674,
+ * and they are applied here deterministically. The length of the narrative is
+ * then preserved by construction rather than by a guard, every change is
+ * logged, and a correction whose "find" text cannot be located exactly once
+ * is skipped — a miss is a no-op, never a corruption.
+ */
+function applyCorrections(
+  text: string,
+  corrections: any
+): { text: string; applied: number; skipped: string[] } {
+  const skipped: string[] = []
+  if (!Array.isArray(corrections) || !text) return { text, applied: 0, skipped }
+  let out = text
+  let applied = 0
+
+  for (const c of corrections.slice(0, 8)) {
+    const find = String(c?.find || '').trim()
+    const replace = String(c?.replace ?? '').trim()
+    if (find.length < 8 || find === replace) continue
+
+    // Exact match first; it must be unambiguous, or we cannot know which
+    // occurrence the model meant.
+    const occurrences = out.split(find).length - 1
+    if (occurrences === 1) {
+      out = out.replace(find, replace)
+      applied++
+      continue
+    }
+    if (occurrences > 1) {
+      skipped.push(`"${find.slice(0, 40)}..." ${occurrences} kez geciyor, hangisi belirsiz`)
+      continue
+    }
+
+    // Models reflow whitespace when quoting. Retry on a whitespace-normalised
+    // view, mapping the hit back to the original text by index.
+    const norm = (s: string) => s.replace(/\s+/g, ' ')
+    const flatOut = norm(out)
+    const flatFind = norm(find)
+    if (flatFind.length >= 8 && flatOut.split(flatFind).length - 1 === 1) {
+      // Walk the original, counting non-space-collapsed characters, to find
+      // the span that corresponds to the normalised match.
+      const start = flatOut.indexOf(flatFind)
+      let seen = 0
+      let from = -1
+      let to = -1
+      let prevWasSpace = false
+      for (let i = 0; i <= out.length; i++) {
+        if (seen === start && from === -1) from = i
+        if (seen === start + flatFind.length && to === -1) { to = i; break }
+        const ch = out[i]
+        if (ch === undefined) break
+        const isSpace = /\s/.test(ch)
+        if (isSpace && prevWasSpace) { continue }
+        prevWasSpace = isSpace
+        seen++
+      }
+      if (from >= 0) {
+        out = out.slice(0, from) + replace + out.slice(to === -1 ? out.length : to)
+        applied++
+        continue
+      }
+    }
+    skipped.push(`"${find.slice(0, 40)}..." metinde bulunamadi`)
+  }
+
+  return { text: out, applied, skipped }
+}
+
 // Inline source citation, e.g. "(s. 12)" / "(slayt 4)" / "(p. 7)".
 const INLINE_PAGE_CITE = /\s*\((?:s\.|sayfa|slayt|p\.|page)\s*\d+\)/giu
 
@@ -1778,8 +1863,29 @@ function mergeReviewOntoDraft(
 
   const out: any = { ...draft }
 
+  // Targeted corrections are the primary path — review cannot fit a rewritten
+  // summary in its token budget, so it sends the sentences to change instead.
+  // See applyCorrections.
+  if (Array.isArray(review.corrections) && review.corrections.length > 0) {
+    const draftSummary = String(draft.summary || '')
+    const fixed = applyCorrections(draftSummary, review.corrections)
+    if (fixed.applied > 0) {
+      out.summary = fixed.text
+      notes.push(`summary: ${fixed.applied} duzeltme uygulandi`)
+    }
+    for (const s of fixed.skipped) notes.push(`duzeltme atlandi — ${s}`)
+    if (fixed.applied === 0 && fixed.skipped.length === 0) {
+      notes.push('duzeltme listesi bos geldi')
+    }
+  }
+
   // Narrative fields: review's job. Accept a non-trivial rewrite.
+  // Still supported for short documents, where the whole summary genuinely
+  // fits in the budget and a clean rewrite beats a list of patches.
   for (const field of ['summary', 'summary_executive']) {
+    // A summary already corrected above must not then be replaced wholesale.
+    if (field === 'summary' && typeof out.summary === 'string'
+        && out.summary !== String(draft.summary || '')) continue
     const v = review[field]
     if (typeof v === 'string' && v.trim().length > 40) {
       const draftText = String(draft[field] || '').trim()
@@ -4717,16 +4823,32 @@ FOOTNOTES: Preserve existing footnote page values when present; only change if t
 
 SECTIONS / OUTLINE: Preserve structure; refine inaccurate section summaries; remove admin-only sections.
 
-OUTPUT — READ CAREFULLY. Do NOT re-emit the whole study card. Return ONLY
-the narrative fields plus your verdict:
+OUTPUT — READ CAREFULLY. Do NOT re-emit the study card, and do NOT rewrite
+the summary. Return your CORRECTIONS and your verdict:
 
-{ "summary": string, "summary_executive": string, "footnotes": [ { "id": number, "reference": string, "page": number | null } ], "quality_gate": { "pass": boolean, "grounded": boolean, "issues": [ string ] } }
+{ "corrections": [ { "find": string, "replace": string } ], "summary_executive": string, "footnotes": [ { "id": number, "reference": string, "page": number | null } ], "quality_gate": { "pass": boolean, "grounded": boolean, "issues": [ string ] } }
 
-- "summary" and "summary_executive": the corrected narrative. Fix factual
-  slips against the source (wrong year, wrong figure, a value attributed to
-  the wrong period), remove unsupported claims and admin noise, add (${citationUnit} N)
-  markers where you can see them. Keep the flowing prose of rule F.
+- "corrections": the sentences in the draft summary that are WRONG, and what
+  they should say. At most 8. "find" must be copied EXACTLY from the draft
+  summary, character for character, and must be long enough to appear only
+  once — a whole sentence is right, three words is not. "replace" is that
+  sentence corrected. A correction whose "find" cannot be located is thrown
+  away, so copy carefully rather than paraphrasing.
+  Correct: a wrong year, a figure attributed to the wrong period, a claim the
+  source does not support, admin noise that survived. Return [] when the
+  narrative is sound — an empty list is a perfectly good answer, and inventing
+  changes to look thorough makes the card worse.
+  Do NOT rewrite sentences merely to restyle them.
+- "summary_executive": the corrected executive summary, in full. It is short,
+  so it fits.
 - "footnotes": optional. Omit the field entirely if you are not changing it.
+
+Why corrections and not a rewrite: your reply is capped at a few hundred
+tokens, and the summary alone is longer than that. Asked for the whole thing
+you would have to compress it, and a measured run did exactly that — 2,157
+characters came back as 635, losing three quarters of the card to make room.
+Your edits are applied to the original text, so the summary keeps its length
+and gets your fixes.
 - "quality_gate":
   - pass=false only for serious problems (hallucinations, missing thesis,
     heavy admin noise left in)
