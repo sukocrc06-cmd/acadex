@@ -13336,6 +13336,65 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
       }
     });
   }
+
+  // 8. Cloze cards — prompts first, answers in a key at the end.
+  //
+  // This section existed only in the library UI, so a student who exported
+  // their card lost the whole "Boşluk Doldurma" exercise.
+  //
+  // On screen each card shows "prompt → answer" on one line, which works
+  // because nothing is being tested there. On paper that is just the same
+  // sentences with the answers given away, so the prompts are numbered here
+  // and the answers collected into a key below, the way a worksheet does it:
+  // the student can cover the key, attempt the blanks, then check.
+  if (Array.isArray(studyCard.cloze_cards) && studyCard.cloze_cards.length > 0) {
+    const clozes = studyCard.cloze_cards.filter(c => c && c.prompt && c.answer);
+    if (clozes.length > 0) {
+      y = drawPdfCard(doc, cardState(), {
+        label: 'BOŞLUK DOLDURMA',
+        accent: PDF_INK.teal,
+        soft: PDF_INK.tealSoft,
+        measure: (w) => {
+          let h = 0;
+          pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5);
+          clozes.forEach((c, idx) => {
+            h += doc.splitTextToSize(safeText(`${idx + 1}. ${c.prompt}`), w).length * 5.5 + 1.5;
+          });
+          // Answer key: heading plus the wrapped, comma-joined answers.
+          h += 7;
+          const key = clozes.map((c, idx) => `${idx + 1}. ${c.answer}`).join('   ');
+          pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(8.5);
+          h += doc.splitTextToSize(safeText(key), w).length * 4.6;
+          return h;
+        },
+        render: (x, ry, w, allowBreak) => {
+          pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.body);
+          clozes.forEach((c, idx) => {
+            doc.splitTextToSize(safeText(`${idx + 1}. ${c.prompt}`), w).forEach(line => {
+              if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
+              doc.text(line, x, ry); ry += 5.5;
+            });
+            ry += 1.5;
+          });
+
+          ry += 2;
+          if (allowBreak && ry > 265) { doc.addPage(); ry = 35; }
+          pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(9); doc.setTextColor(...PDF_INK.teal);
+          doc.text(safeText('Cevap anahtarı'), x, ry); ry += 5;
+
+          // Muted and smaller so the eye does not land on it while working
+          // through the prompts above.
+          pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(8.5); doc.setTextColor(...PDF_INK.muted);
+          const key = clozes.map((c, idx) => `${idx + 1}. ${c.answer}`).join('   ');
+          doc.splitTextToSize(safeText(key), w).forEach(line => {
+            if (allowBreak && ry > 272) { doc.addPage(); ry = 35; }
+            doc.text(line, x, ry); ry += 4.6;
+          });
+          return ry;
+        },
+      });
+    }
+  }
 }
 
 async function exportStudyCardToPDF(studyCard) {
