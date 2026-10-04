@@ -437,6 +437,10 @@ const JSON_RETRY_MIN_BUDGET_MS = 70_000
 // request is rejected outright. Two fits: 4,096 + ~330 prompt + ~1,840
 // completion reservation is about 6,300, inside the pacer's 7,200 ceiling.
 const VISION_TOKENS_PER_IMAGE = 2048
+// Raised alongside the compact-window bump (2048 -> 3072): the near-blank
+// pages this pass reads are where a table, chart or diagram is most likely to
+// live, and a Mermaid block or multi-row table needs the room.
+const VISION_MAX_COMPLETION = 3072
 const VISION_MAX_IMAGES = 2
 // The vision pass is an EXTRA call, and on this tier every extra call means a
 // full ~60s TokenPacer wait before it can start. The narrative writer runs
@@ -611,7 +615,38 @@ type PacerLane = {
   limit: number
   limitKnown: boolean
   spent: Array<{ at: number; tokens: number }>
+  /** Rolling OUTPUT-token spend; see MODEL_OTPM. */
+  outSpent: Array<{ at: number; tokens: number }>
 }
+
+// OUTPUT tokens per minute — a SEPARATE Groq bucket from TPM, discovered the
+// hard way on 04.10.2026:
+//
+//   Request too large for model `qwen/qwen3.8-27b` ... on output tokens per
+//   minute (OTPM): Limit 1000, Requested 1311
+//
+// Confirmed against console.groq.com/docs/rate-limits: "some organizations
+// are also subject to separate per-minute limits on input tokens (ITPM) and
+// output tokens (OTPM)", and OTPM "caps how many completion tokens your
+// organization can generate per minute, regardless of how many input tokens
+// are sent".
+//
+// The pacer modelled TPM only, so it happily cleared a review call asking for
+// 2,500 completion tokens against a 1,000 ceiling. Every tier 429'd, and
+// because each retry then waited out a full TPM window, the run spent 81s in
+// the tier loop and was killed by the 150s Edge wall clock mid-review —
+// leaving the document stuck on "reviewing" forever.
+//
+// Only models actually observed to have a split limit are listed; a model
+// absent here is paced on TPM alone, as before.
+const MODEL_OTPM: Record<string, number> = {
+  "qwen/qwen3.8-27b": 1000
+}
+// Leave room for the model overshooting its own completion estimate — Groq
+// rejected a 2,500-token ask as "Requested 1311", so its accounting is not
+// simply max_completion_tokens and a request sized exactly at the limit is
+// not safe.
+const OTPM_SAFETY = 0.85
 
 // WHY THIS IS KEYED BY MODEL (2026-10-04):
 // The pacer used to hold one `spent[]` and one `limit` for the whole
@@ -636,10 +671,35 @@ const tokenPacer = {
     const key = model || MODEL_HEAVY
     let lane = this.lanes[key]
     if (!lane) {
-      lane = { limit: DEFAULT_TPM_LIMIT, limitKnown: false, spent: [] }
+      lane = { limit: DEFAULT_TPM_LIMIT, limitKnown: false, spent: [], outSpent: [] }
       this.lanes[key] = lane
     }
     return lane
+  },
+
+  /**
+   * The largest completion this model will accept, or null when it has no
+   * known output cap. Asking for more than this is not a slow request, it is
+   * a rejected one, so callers clamp rather than wait.
+   */
+  maxCompletion(model: string): number | null {
+    const otpm = MODEL_OTPM[model || MODEL_HEAVY]
+    return otpm ? Math.floor(otpm * OTPM_SAFETY) : null
+  },
+
+  /** Clamp a requested completion budget to what this model can actually emit. */
+  clampCompletion(model: string, requested: number): number {
+    const cap = this.maxCompletion(model)
+    if (cap === null || !(requested > cap)) return requested
+    console.log(`TokenPacer[${model}]: max_completion ${requested} -> ${cap} (OTPM tavani)`)
+    return cap
+  },
+
+  /** Rolling OUTPUT-token spend inside the window. */
+  usedOut(now: number, model: string): number {
+    const lane = this.lane(model)
+    lane.outSpent = lane.outSpent.filter(e => now - e.at < PACER_WINDOW_MS)
+    return lane.outSpent.reduce((n, e) => n + e.tokens, 0)
   },
 
   /** Drop entries older than the rolling window and total what's left. */
@@ -663,9 +723,13 @@ const tokenPacer = {
     }
   },
 
-  record(tokens: number, model: string) {
+  record(tokens: number, model: string, completionTokens = 0) {
+    const lane = this.lane(model)
     if (Number.isFinite(tokens) && tokens > 0) {
-      this.lane(model).spent.push({ at: Date.now(), tokens })
+      lane.spent.push({ at: Date.now(), tokens })
+    }
+    if (Number.isFinite(completionTokens) && completionTokens > 0) {
+      lane.outSpent.push({ at: Date.now(), tokens: completionTokens })
     }
   },
 
@@ -685,30 +749,72 @@ const tokenPacer = {
    * 55s — correct back when one shared ledger meant any call could eat a
    * full window, but now that lanes are per model the pacer can simply say.
    */
-  waitEstimate(estTokens: number, model: string): number {
-    const lane = this.lane(model)
+  waitEstimate(estTokens: number, model: string, estCompletion = 0): number {
+    return Math.max(
+      this.waitFor(this.lane(model).spent, this.lane(model).limit * PACER_SAFETY, estTokens, model, false),
+      this.waitFor(this.lane(model).outSpent, this.maxCompletion(model) ?? Infinity, estCompletion, model, true)
+    )
+  },
+
+  /** Shared ledger walk for both the total and output budgets. */
+  waitFor(
+    ledger: Array<{ at: number; tokens: number }>,
+    budget: number,
+    est: number,
+    _model: string,
+    _isOut: boolean
+  ): number {
+    if (!(est > 0) || !Number.isFinite(budget)) return 0
     const now = Date.now()
-    let used = this.used(now, model)
-    const budget = lane.limit * PACER_SAFETY
-    if (used + estTokens <= budget || used === 0) return 0
+    let used = ledger.filter(e => now - e.at < PACER_WINDOW_MS).reduce((n, e) => n + e.tokens, 0)
+    if (used + est <= budget || used === 0) return 0
     let wait = 0
-    for (const e of lane.spent) {
+    for (const e of ledger) {
+      if (now - e.at >= PACER_WINDOW_MS) continue
       used -= e.tokens
       wait = PACER_WINDOW_MS - (now - e.at) + 250
-      if (used + estTokens <= budget || used <= 0) break
+      if (used + est <= budget || used <= 0) break
     }
     return Math.max(0, Math.min(PACER_MAX_WAIT_MS, wait))
   },
 
   /** Block until this call's estimated cost fits in that model's rolling budget. */
-  async acquire(estTokens: number, model: string): Promise<void> {
+  async acquire(estTokens: number, model: string, estCompletion = 0): Promise<void> {
     const lane = this.lane(model)
     const budget = lane.limit * PACER_SAFETY
+    const outBudget = this.maxCompletion(model)
     const started = Date.now()
     while (true) {
       const now = Date.now()
       const used = this.used(now, model)
-      if (used + estTokens <= budget || used === 0) return
+      const usedOut = outBudget === null ? 0 : this.usedOut(now, model)
+      const totalFits = used + estTokens <= budget || used === 0
+      const outFits = outBudget === null || estCompletion <= 0 ||
+        usedOut + estCompletion <= outBudget || usedOut === 0
+      if (totalFits && outFits) return
+      if (totalFits && !outFits) {
+        // The output bucket is the binding one. Wait for the oldest completion
+        // to age out rather than the oldest total.
+        const oldestOut = lane.outSpent[0]
+        const needOut = oldestOut
+          ? Math.max(250, PACER_WINDOW_MS - (now - oldestOut.at) + 250)
+          : 0
+        const remainingOut = PACER_MAX_WAIT_MS - (now - started)
+        if (!oldestOut || needOut > remainingOut) {
+          console.warn(
+            `TokenPacer[${model}]: OTPM icin ${Math.round(needOut)}ms gerekiyor ama ` +
+            `${Math.round(Math.max(0, remainingOut))}ms kaldi — beklemeden gonderiyor ` +
+            `(usedOut=${usedOut}/${outBudget}, est=${estCompletion})`
+          )
+          return
+        }
+        console.log(
+          `TokenPacer[${model}]: OTPM icin ${Math.round(needOut)}ms bekliyor ` +
+          `(usedOut=${usedOut}/${outBudget}, est=${estCompletion})`
+        )
+        await new Promise(r => setTimeout(r, needOut))
+        continue
+      }
       // Wait for the oldest recorded spend to age out of the window.
       const oldest = lane.spent[0]
       const needed = Math.max(250, PACER_WINDOW_MS - (now - oldest.at) + 250)
@@ -755,7 +861,12 @@ async function callGroqJson(
     : (temperatureOrOpts || {})
   const model = opts.model || MODEL_HEAVY
   const temperature = opts.temperature ?? 0.3
-  const maxCompletionTokens = opts.maxCompletionTokens ?? DRAFT_MAX_COMPLETION
+  // Clamp before anything else: a request whose max_completion_tokens alone
+  // exceeds the model's OTPM ceiling is rejected outright, not queued.
+  const maxCompletionTokens = tokenPacer.clampCompletion(
+    model,
+    opts.maxCompletionTokens ?? DRAFT_MAX_COMPLETION
+  )
   const timeoutMs = opts.timeoutMs ?? 25000
   const maxRetries = opts.maxRetries ?? 1
 
@@ -778,7 +889,7 @@ async function callGroqJson(
   // Wait until this call fits the rolling per-minute budget, rather than
   // firing it and letting Groq reject it (see the TokenPacer comment above).
   const estTokens = estimateTokens(systemPrompt, userContent, maxCompletionTokens)
-  await tokenPacer.acquire(estTokens, model)
+  await tokenPacer.acquire(estTokens, model, maxCompletionTokens)
 
   const response = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
@@ -796,14 +907,15 @@ async function callGroqJson(
     // A rejected call still consumed budget in Groq's accounting, so record
     // the estimate — otherwise the pacer would under-count after a 429 and
     // immediately fire again into the same wall.
-    tokenPacer.record(estTokens, model)
+    tokenPacer.record(estTokens, model, maxCompletionTokens)
     throw new Error(`Groq API error (${response.status}): ${JSON.stringify(data)}`)
   }
   tokenPacer.record(
     Number(data?.usage?.total_tokens) ||
     (Number(data?.usage?.prompt_tokens) || 0) + (Number(data?.usage?.completion_tokens) || 0) ||
     estTokens,
-    model
+    model,
+    Number(data?.usage?.completion_tokens) || maxCompletionTokens
   )
   const raw = data.choices?.[0]?.message?.content ?? ""
   if (!raw) throw new Error("Empty Groq response content")
@@ -4279,7 +4391,16 @@ The example that used to sit here named a real-looking percentage, and a live ru
             // MODEL_FAST, not a literal: this call and the review/critic passes
             // are the same Groq model, so they must share one lane — Groq
             // counts them against one TPM bucket and so must we.
-            await tokenPacer.acquire(estVisionTokens, MODEL_FAST)
+            // NOT clamped to the OTPM ceiling, unlike review and the critic.
+            // This call has run at 3072 on every live run without a single
+            // OTPM rejection, while review 429'd at 2500 — which says Groq is
+            // metering a rolling window of actual output rather than each
+            // request's max_tokens, and this call is simply the first on the
+            // qwen lane. Clamping it to ~850 would truncate exactly the
+            // diagrams and tables it exists to extract, so it keeps its room
+            // and instead RECORDS what it spends, which is what makes review
+            // queue behind it correctly a minute later.
+            await tokenPacer.acquire(estVisionTokens, MODEL_FAST, VISION_MAX_COMPLETION)
 
             const visionRes = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
               method: "POST",
@@ -4297,7 +4418,7 @@ The example that used to sit here named a real-looking percentage, and a live ru
                 // these near-blank pages are exactly where a table/chart/
                 // diagram is most likely to live, and a Mermaid block or a
                 // multi-row table needs the extra room to avoid truncation.
-                max_completion_tokens: 3072,
+                max_completion_tokens: VISION_MAX_COMPLETION,
                 response_format: { type: "json_object" },
                 messages: [
                   { role: "system", content: visualSystemPrompt },
@@ -4306,14 +4427,23 @@ The example that used to sit here named a real-looking percentage, and a live ru
               })
             }, 0, Math.min(25000, Math.max(10000, budgetLeft() - 15000)))
 
+            // Read the body FIRST so the output spend can be recorded from
+            // Groq's own usage figure. That number is what review collides
+            // with a minute later under the OTPM ceiling, so guessing it is
+            // not good enough: the estimate falls back to the ceiling only
+            // when the response does not report one.
+            tokenPacer.observeHeaders(visionRes.headers, MODEL_FAST)
+            const visionData = visionRes.ok ? await visionRes.json() : null
             // Record the spend either way: a rejected call still consumed the
             // image tokens as far as the minute's budget is concerned, and a
             // successful one must not leave the next caller over-optimistic.
-            tokenPacer.observeHeaders(visionRes.headers, MODEL_FAST)
-            tokenPacer.record(estVisionTokens, MODEL_FAST)
+            tokenPacer.record(
+              Number(visionData?.usage?.total_tokens) || estVisionTokens,
+              MODEL_FAST,
+              Number(visionData?.usage?.completion_tokens) || VISION_MAX_COMPLETION
+            )
 
-            if (visionRes.ok) {
-              const visionData = await visionRes.json()
+            if (visionData) {
               const visionRaw = visionData.choices?.[0]?.message?.content ?? ""
               const visionStripped = stripThinkBlock(visionRaw)
               const visionCleaned = (visionStripped ?? visionRaw).replace(/```json\s*|```/g, '').trim()
@@ -4686,10 +4816,18 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
     //
     // Declared above the gate because the gate needs tier 0's size to ask the
     // pacer what the call would cost in time.
+    // Completion budgets sized for what review now RETURNS, not for the whole
+    // study card it used to re-emit: a ~950-char summary (~300 tokens), a
+    // short executive summary and quality_gate fit well inside 850. The old
+    // 2500/1800/1200 ladder was both unnecessary after the contract was
+    // narrowed AND impossible — qwen's OTPM ceiling is 1000, so every rung
+    // 429'd on 04.10.2026 before the model saw a single token of the draft.
+    // clampCompletion() enforces the ceiling independently, in case this list
+    // and MODEL_OTPM ever drift apart.
     const reviewTiers: Array<{ sourceChars: number; maxCompletionTokens: number }> = [
-      { sourceChars: 4000, maxCompletionTokens: Math.min(2500, REVIEW_MAX_COMPLETION) },
-      { sourceChars: 1200, maxCompletionTokens: 1800 },
-      { sourceChars: 0, maxCompletionTokens: 1200 }
+      { sourceChars: 4000, maxCompletionTokens: Math.min(850, REVIEW_MAX_COMPLETION) },
+      { sourceChars: 1200, maxCompletionTokens: 700 },
+      { sourceChars: 0, maxCompletionTokens: 550 }
     ]
 
     // WHY THIS IS NOT A FLAT 55s ANY MORE (2026-10-04, measured):
@@ -4758,12 +4896,36 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
       for (let i = 0; i < reviewTiers.length; i++) {
         const tier = reviewTiers[i]
         const attemptPrompt = buildReviewUserPrompt(tier.sourceChars)
+        const tierCompletion = tokenPacer.clampCompletion(MODEL_FAST, tier.maxCompletionTokens)
+        // THE GATE'S PROMISE HAS TO HOLD FOR THE WHOLE LOOP, NOT ONE FETCH.
+        // The gate above budgets wait + attempt + tail, but this is a loop of
+        // up to three tiers and EACH ONE can sit through its own pacer wait.
+        // On 04.10.2026 two 60s waits stacked inside here: the gate promised
+        // 38s, the loop ran 81s, and the 150s Edge wall clock killed the
+        // function mid-review — leaving the document stuck on "reviewing"
+        // with no summary and no failure marker. A tier that cannot finish
+        // inside the remaining budget must not be started.
+        const tierWaitMs = tokenPacer.waitEstimate(
+          estimateTokens(reviewSystemPrompt, attemptPrompt, tierCompletion),
+          MODEL_FAST,
+          tierCompletion
+        )
+        const tierNeedsMs = tierWaitMs + REVIEW_ATTEMPT_TIMEOUT_MS + REVIEW_TAIL_MS
+        if (i > 0 && budgetLeft() < tierNeedsMs) {
+          console.warn(
+            `Review tier ${i + 1} atlandi — butce yetmiyor ` +
+            `(kalan=${budgetLeft()}ms, gereken=${tierNeedsMs}ms [pacer ${tierWaitMs}ms]). ` +
+            `Taslak korunuyor.`
+          )
+          rawFinalContent = rawContent
+          break
+        }
         // This call does NOT go through callGroqJson, so like the vision call
         // it has to pay the pacer itself. Without this it both fires into a
         // full window (429) and never records what it spent, leaving the
         // critic pass after it believing the lane is emptier than it is.
-        const attemptEst = estimateTokens(reviewSystemPrompt, attemptPrompt, tier.maxCompletionTokens)
-        await tokenPacer.acquire(attemptEst, MODEL_FAST)
+        const attemptEst = estimateTokens(reviewSystemPrompt, attemptPrompt, tierCompletion)
+        await tokenPacer.acquire(attemptEst, MODEL_FAST, tierCompletion)
         let attemptResponse: Response
         try {
           attemptResponse = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
@@ -4779,7 +4941,7 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
               model: MODEL_FAST,
               temperature: 0.2,
               reasoning_effort: "none",
-              max_completion_tokens: tier.maxCompletionTokens,
+              max_completion_tokens: tierCompletion,
               response_format: { type: "json_object" },
               messages: [
                 { role: "system", content: reviewSystemPrompt },
@@ -4803,7 +4965,8 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
         // critic) must not start out over-optimistic.
         tokenPacer.record(
           Number(attemptData?.usage?.total_tokens) || attemptEst,
-          MODEL_FAST
+          MODEL_FAST,
+          Number(attemptData?.usage?.completion_tokens) || tierCompletion
         )
 
         if (attemptResponse.ok) {
