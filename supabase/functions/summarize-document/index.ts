@@ -5373,7 +5373,22 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
       buildReviewUserPrompt(reviewTiers[0].sourceChars),
       reviewTiers[0].maxCompletionTokens
     )
-    const reviewWaitMs = tokenPacer.waitEstimate(reviewEstTokens, MODEL_FAST)
+    // The last call still pinned to one model. It was put on MODEL_FAST to
+    // keep it off the draft's lane — which is exactly what pickLane does now,
+    // and better, because it looks at what is actually free. Pinning also made
+    // review inherit whatever the vision pass had just spent on qwen: on
+    // 05.10.2026 vision finished 2 seconds earlier and review was quoted a 58s
+    // wait on a lane it had no reason to be on.
+    const reviewLane = pickLane(
+      [MODEL_FAST, MODEL_EXTRACT, MODEL_HEAVY],
+      reviewEstTokens,
+      reviewTiers[0].maxCompletionTokens
+    )
+    const reviewWaitMs = tokenPacer.waitEstimate(
+      reviewEstTokens,
+      reviewLane,
+      reviewTiers[0].maxCompletionTokens
+    )
     // The work half is derived, not guessed: one attempt can take at most the
     // fetch timeout, and everything after review (parse, grounding gate,
     // near-duplicate merge, citation anchoring, cloze build, save) is
@@ -5408,7 +5423,7 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
       await serviceClient.from('documents').update({ processing_stage: 'saving' }).eq('id', documentId)
     } else {
       console.log(
-        `Review BASLIYOR (model=${MODEL_FAST}, budgetLeft=${budgetLeft()}ms, ` +
+        `Review BASLIYOR (model=${reviewLane}, budgetLeft=${budgetLeft()}ms, ` +
         `gereken=${reviewNeedsMs}ms [pacer beklemesi ${reviewWaitMs}ms, ` +
         `${reviewRetries + 1} deneme], est=${reviewEstTokens} token)`
       )
@@ -5423,7 +5438,7 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
       for (let i = 0; i < reviewTiers.length; i++) {
         const tier = reviewTiers[i]
         const attemptPrompt = buildReviewUserPrompt(tier.sourceChars)
-        const tierCompletion = tokenPacer.clampCompletion(MODEL_FAST, tier.maxCompletionTokens)
+        const tierCompletion = tokenPacer.clampCompletion(reviewLane, tier.maxCompletionTokens)
         // THE GATE'S PROMISE HAS TO HOLD FOR THE WHOLE LOOP, NOT ONE FETCH.
         // The gate above budgets wait + attempt + tail, but this is a loop of
         // up to three tiers and EACH ONE can sit through its own pacer wait.
@@ -5434,7 +5449,7 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
         // inside the remaining budget must not be started.
         const tierWaitMs = tokenPacer.waitEstimate(
           estimateTokens(reviewSystemPrompt, attemptPrompt, tierCompletion),
-          MODEL_FAST,
+          reviewLane,
           tierCompletion
         )
         const tierNeedsMs = tierWaitMs + REVIEW_ATTEMPT_TIMEOUT_MS + REVIEW_TAIL_MS
@@ -5452,7 +5467,7 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
         // full window (429) and never records what it spent, leaving the
         // critic pass after it believing the lane is emptier than it is.
         const attemptEst = estimateTokens(reviewSystemPrompt, attemptPrompt, tierCompletion)
-        await tokenPacer.acquire(attemptEst, MODEL_FAST, tierCompletion)
+        await tokenPacer.acquire(attemptEst, reviewLane, tierCompletion)
         let attemptResponse: Response
         try {
           attemptResponse = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
@@ -5465,7 +5480,7 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
               // Deliberately a DIFFERENT model than the Draft pass above
               // (openai/gpt-oss-120b). Groq tracks tokens-per-minute limits
               // PER MODEL — review draws from MODEL_FAST quota.
-              model: MODEL_FAST,
+              model: reviewLane,
               temperature: 0.2,
               reasoning_effort: "none",
               max_completion_tokens: tierCompletion,
@@ -5485,14 +5500,14 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
           })
         }
 
-        tokenPacer.observeHeaders(attemptResponse.headers, MODEL_FAST)
+        tokenPacer.observeHeaders(attemptResponse.headers, reviewLane)
         const attemptData = await attemptResponse.json()
         // Record either way: a rejected call still consumed the minute's
         // budget as far as Groq is concerned, and the next tier (or the
         // critic) must not start out over-optimistic.
         tokenPacer.record(
           Number(attemptData?.usage?.total_tokens) || attemptEst,
-          MODEL_FAST,
+          reviewLane,
           Number(attemptData?.usage?.completion_tokens) || tierCompletion
         )
 
@@ -5632,10 +5647,15 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
     // 60s output window anyway. That is exactly what happened on 04.10.2026:
     // guard said "no wait", the critic waited 60.1s, and the run reached 135s
     // of the 150s Edge wall clock.
-    const criticCompletion = tokenPacer.clampCompletion(MODEL_FAST, 2048)
+    const criticLane = pickLane(
+      [MODEL_FAST, MODEL_EXTRACT, MODEL_HEAVY],
+      estimateTokens('', summaryText.slice(0, 4000), 2048),
+      2048
+    )
+    const criticCompletion = tokenPacer.clampCompletion(criticLane, 2048)
     const criticWaitMs = tokenPacer.waitEstimate(
       estimateTokens('', summaryText.slice(0, 4000), criticCompletion),
-      MODEL_FAST,
+      criticLane,
       criticCompletion
     )
     const criticNeedsMs = criticWaitMs + 30_000
@@ -5652,7 +5672,7 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
 Fix the listed issues. Remove hallucinations and admin noise. Keep ${langLabel}. Keep narrative prose. Do not invent facts.`
         const fixUser = `Issues to fix:\n${qualityMeta.issues.map((i: string) => `- ${i}`).join('\n')}\n\nCurrent summary:\n${summaryText.slice(0, 4000)}\n\nCurrent executive:\n${String(parsedContent.summary_executive || '').slice(0, 500)}`
         const fixed = await callGroqJson(groqApiKey, fixSys, fixUser, {
-          model: MODEL_FAST,
+          model: criticLane,
           temperature: 0.2,
           maxCompletionTokens: criticCompletion,
           timeoutMs: 25000,
