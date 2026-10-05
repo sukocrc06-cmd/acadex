@@ -251,7 +251,20 @@ const CHAT_TPM_SAFETY = 0.9
 // cap, and the difference goes to the document.
 const CHAT_MAX_COMPLETION = 2048
 const CHAT_MAX_COMPLETION_SHORT = 1024
-const CHARS_PER_TOKEN = 3.2
+// MEASURED, not inherited. 3.2 came from the summarize function's pacer,
+// where being pessimistic costs a little waiting; here it decides how much
+// document the student sees, and it was 31% too low. The first live run with
+// usage.prompt_tokens logged said:
+//
+//   token orani: 4.18 krk/token (gercek 4364 token / 18236 krk; varsayim 3.2)
+//
+// 3.9, not 4.18: that measurement is an English prompt over an English
+// source with a Turkish question, which is today's material but not
+// tomorrow's — Turkish text tokenises denser, and the note-sharing this is
+// being built for will bring Turkish sources with it. 3.9 keeps most of the
+// gain while leaving room for that, and the ratio stays logged on every call
+// so a Turkish document will say so rather than quietly overflowing.
+const CHARS_PER_TOKEN = 3.9
 // An attached image is billed as tokens too and is not in any string we can
 // measure. Reserved whenever one is present.
 const IMAGE_TOKEN_RESERVE = 1600
@@ -303,13 +316,238 @@ const QUERY_STOPWORDS = new Set([
  * question containing "&", "|", "!" or "(" cannot change the query's shape
  * or break it.
  */
+// ==========================================================================
+// TURKISH QUESTION OVER AN ENGLISH SOURCE
+//
+// This is the normal case here, not an edge case: every department in the
+// business faculty teaches in English, so the PDFs are English and the
+// students ask in Turkish. Retrieval matched the question's own words
+// against the chunks, so it was comparing Turkish to English and losing.
+// Measured 05.10.2026:
+//
+//   "Ben Franklin etkisi nedir?"      -> 2 chunks  (only because "Franklin"
+//                                        is a proper noun and survives)
+//   "makro ekonominin temeli nedir"   -> 0 chunks
+//
+// Zero matches is not a quiet degradation. It drops the whole question to
+// the whole-document path, and on anything long that means the first N
+// characters — a student asking about page 40 gets page 1.
+//
+// Three deterministic layers, no model call, nothing drawn from the daily
+// quota. Each one only ADDS candidates to an OR query, so a wrong guess
+// costs a term that matches nothing, while a right one rescues the question.
+// ==========================================================================
+
+/**
+ * Strip Turkish inflection so "ekonominin", "ekonomiyi" and "ekonomide" all
+ * reach "ekonomi" — the form the glossary below is keyed on.
+ *
+ * Turkish is agglutinative: the suffixes stack, so this strips repeatedly,
+ * longest first. The stem floor stops it eating short words down to nothing.
+ */
+const TR_SUFFIXES = [
+  'lerinden', 'larindan', 'larından', 'lerinde', 'larinda', 'larında',
+  'lerini', 'larini', 'larını', 'lerin', 'larin', 'ların', 'leri', 'lari', 'ları',
+  'ndan', 'dan', 'den', 'tan', 'ten', 'nin', 'nın', 'nun', 'nün',
+  'ler', 'lar', 'nda', 'nde', 'da', 'de', 'ta', 'te',
+  'in', 'ın', 'un', 'ün', 'si', 'sı', 'su', 'sü', 'yi', 'yı', 'yu', 'yü',
+  'le', 'la', 'i', 'ı', 'u', 'ü', 'e', 'a'
+]
+
+/** Stem-final softening reverts once the suffix is gone: "işsizliği" -> "işsizlik". */
+function unsoften(w: string): string {
+  return w.replace(/ğ$/, 'k').replace(/b$/, 'p').replace(/c$/, 'ç').replace(/d$/, 't')
+}
+
+/**
+ * ALL the stems a word can reach, not just the shortest one.
+ *
+ * A single greedy stem was the first version and it lost the two most common
+ * words in the test questions, both by overshooting the form the glossary is
+ * keyed on:
+ *
+ *   ekonominin -> ekonomi -> ekonom     "ekonomi" is the glossary key, and
+ *                                       the extra pass threw away "economy"
+ *   enflasyonun -> enflasyo             longest-first matched "nun", but the
+ *                                       n belongs to the stem; "un" gives
+ *                                       "enflasyon" -> "inflation"
+ *
+ * Both failures are the same shape: committing to one strip. So every
+ * applicable suffix is tried at every level and all the intermediate forms
+ * are kept. The set is small (a Turkish word rarely yields more than a
+ * handful) and a wrong stem only contributes a term that matches nothing.
+ */
+function turkishStemCandidates(word: string): string[] {
+  const seen = new Set<string>([word])
+  let frontier = [word]
+  for (let depth = 0; depth < 3; depth++) {
+    const next: string[] = []
+    for (const w of frontier) {
+      for (const suf of TR_SUFFIXES) {
+        if (w.length - suf.length >= 4 && w.endsWith(suf)) {
+          const cut = w.slice(0, -suf.length)
+          for (const form of [cut, unsoften(cut)]) {
+            if (!seen.has(form)) { seen.add(form); next.push(form) }
+          }
+        }
+      }
+    }
+    if (next.length === 0) break
+    frontier = next
+  }
+  seen.delete(word)
+  return [...seen]
+}
+
+/** The single most likely stem — for callers that want one form, not the set. */
+function turkishStem(word: string): string {
+  const all = turkishStemCandidates(word)
+  // The glossary is the best evidence we have about where the word ends.
+  for (const s of all) if (TR_EN_TERMS[s]) return s
+  return all.length ? all.reduce((a, b) => (a.length >= b.length ? a : b)) : word
+}
+
+/**
+ * Regular orthographic correspondences for the Latinate vocabulary both
+ * languages borrowed. These are genuinely rule-like, unlike the glossary
+ * below which is word-by-word because the words are not related at all.
+ */
+function cognateCandidates(stem: string): string[] {
+  const out: string[] = []
+  const rules: Array<[RegExp, string]> = [
+    [/syon$/, 'tion'],     // deflasyon -> deflation, pozisyon -> position
+    [/zyon$/, 'sion'],     // revizyon -> revision
+    [/izm$/, 'ism'],       // kapitalizm -> capitalism
+    [/loji$/, 'logy'],     // teknoloji -> technology
+    [/lojik$/, 'logic'],
+    [/ik$/, 'ic'],         // ekonomik -> economic
+    [/if$/, 'ive']         // aktif -> active
+  ]
+  for (const [re, rep] of rules) {
+    if (re.test(stem)) out.push(stem.replace(re, rep))
+  }
+  return out
+}
+
+/**
+ * Turkish -> English for the vocabulary of this faculty (economics,
+ * accounting, finance, management, marketing, information systems).
+ *
+ * Word-by-word on purpose: "arz" and "supply" share nothing to derive from.
+ * Values are arrays because one Turkish word often covers two English ones
+ * and an OR query can afford both.
+ */
+const TR_EN_TERMS: Record<string, string[]> = {
+  // iktisat
+  'ekonomi': ['economy', 'economics'], 'iktisat': ['economics'],
+  'makro': ['macro', 'macroeconomics'], 'mikro': ['micro', 'microeconomics'],
+  'arz': ['supply'], 'talep': ['demand'], 'piyasa': ['market'], 'pazar': ['market'],
+  'enflasyon': ['inflation'], 'deflasyon': ['deflation'], 'stagflasyon': ['stagflation'],
+  'issizlik': ['unemployment'], 'işsizlik': ['unemployment'], 'istihdam': ['employment'],
+  'buyume': ['growth'], 'büyüme': ['growth'], 'durgunluk': ['recession', 'slump'],
+  'resesyon': ['recession'], 'daralma': ['contraction'], 'genisleme': ['expansion'],
+  'genişleme': ['expansion'], 'bunalim': ['depression'], 'bunalım': ['depression'],
+  'kriz': ['crisis'], 'cevrim': ['cycle'], 'çevrim': ['cycle'], 'konjonktur': ['cycle'],
+  'uretim': ['production', 'output'], 'üretim': ['production', 'output'],
+  'cikti': ['output'], 'çıktı': ['output'], 'girdi': ['input'],
+  'milli': ['national'], 'gelir': ['income', 'revenue'], 'harcama': ['spending', 'expenditure'],
+  'tasarruf': ['savings'], 'yatirim': ['investment'], 'yatırım': ['investment'],
+  'tuketim': ['consumption'], 'tüketim': ['consumption'], 'hanehalki': ['household'],
+  'hanehalkı': ['household'], 'hane': ['household'], 'firma': ['firm', 'company'],
+  'devlet': ['government'], 'hukumet': ['government'], 'hükümet': ['government'],
+  'maliye': ['fiscal'], 'parasal': ['monetary'], 'para': ['money', 'monetary'],
+  'politika': ['policy'], 'vergi': ['tax', 'taxation'], 'faiz': ['interest'],
+  'merkez': ['central'], 'banka': ['bank'], 'tahvil': ['bond'], 'bono': ['bond'],
+  'hisse': ['share', 'stock'], 'senet': ['note', 'security'], 'temettu': ['dividend'],
+  'temettü': ['dividend'], 'fiyat': ['price'], 'duzey': ['level'], 'düzey': ['level'],
+  'seviye': ['level'], 'oran': ['rate', 'ratio'], 'denge': ['equilibrium', 'balance'],
+  'esneklik': ['elasticity'], 'verim': ['yield', 'efficiency'],
+  // muhasebe / finans
+  'muhasebe': ['accounting'], 'bilanco': ['balance'], 'bilanço': ['balance'],
+  'varlik': ['asset'], 'varlık': ['asset'], 'borc': ['debt', 'liability'],
+  'borç': ['debt', 'liability'], 'yukumluluk': ['liability'], 'yükümlülük': ['liability'],
+  'ozkaynak': ['equity'], 'özkaynak': ['equity'], 'sermaye': ['capital'],
+  'kar': ['profit'], 'kâr': ['profit'], 'zarar': ['loss'], 'maliyet': ['cost'],
+  'gider': ['expense'], 'nakit': ['cash'], 'akis': ['flow'], 'akış': ['flow'],
+  'stok': ['inventory', 'stock'], 'envanter': ['inventory'], 'amortisman': ['depreciation'],
+  'defter': ['ledger', 'book'], 'kayit': ['record', 'entry'], 'kayıt': ['record', 'entry'],
+  'fatura': ['invoice'], 'alacak': ['receivable'], 'satis': ['sales'], 'satış': ['sales'],
+  'satin': ['purchase'], 'satın': ['purchase'], 'iskonto': ['discount'],
+  'indirim': ['discount'], 'navlun': ['freight'], 'sigorta': ['insurance'],
+  'deger': ['value'], 'değer': ['value'], 'degerleme': ['valuation'], 'değerleme': ['valuation'],
+  'butce': ['budget'], 'bütçe': ['budget'], 'denetim': ['audit'], 'raporlama': ['reporting'],
+  // yonetim / pazarlama / MIS
+  'yonetim': ['management'], 'yönetim': ['management'], 'orgut': ['organization'],
+  'örgüt': ['organization'], 'strateji': ['strategy'], 'karar': ['decision'],
+  'surec': ['process'], 'süreç': ['process'], 'musteri': ['customer'], 'müşteri': ['customer'],
+  'pazarlama': ['marketing'], 'marka': ['brand'], 'urun': ['product'], 'ürün': ['product'],
+  'hizmet': ['service'], 'rekabet': ['competition'], 'tedarik': ['supply', 'procurement'],
+  'bilgi': ['information', 'knowledge'], 'veri': ['data'], 'sistem': ['system'],
+  'yazilim': ['software'], 'yazılım': ['software'], 'donanim': ['hardware'],
+  'donanım': ['hardware'], 'veritabani': ['database'], 'veritabanı': ['database'],
+  'guvenlik': ['security'], 'güvenlik': ['security'], 'ag': ['network'], 'ağ': ['network'],
+  // genel akademik
+  'tanim': ['definition'], 'tanım': ['definition'], 'ornek': ['example'], 'örnek': ['example'],
+  'fark': ['difference'], 'etki': ['effect', 'impact'], 'neden': ['cause'], 'sonuc': ['result'],
+  'sonuç': ['result'], 'avantaj': ['advantage'], 'dezavantaj': ['disadvantage'],
+  'ozellik': ['feature', 'characteristic'], 'özellik': ['feature', 'characteristic'],
+  'amac': ['purpose', 'objective'], 'amaç': ['purpose', 'objective'],
+  'yontem': ['method'], 'yöntem': ['method'], 'kuram': ['theory'], 'teori': ['theory'],
+  'model': ['model'], 'varsayim': ['assumption'], 'varsayım': ['assumption'],
+  'olcum': ['measurement'], 'ölçüm': ['measurement'], 'hesap': ['account', 'calculation'],
+  'tablo': ['table'], 'grafik': ['chart', 'graph'], 'sekil': ['figure'], 'şekil': ['figure'],
+  'bolum': ['chapter', 'section'], 'bölüm': ['chapter', 'section'],
+  'temel': ['basis', 'foundation', 'fundamental'], 'ilke': ['principle'],
+  'kural': ['rule'], 'asama': ['stage', 'phase'], 'aşama': ['stage', 'phase'],
+  'tur': ['type', 'kind'], 'tür': ['type', 'kind'], 'cesit': ['type'], 'çeşit': ['type'],
+  'artis': ['increase'], 'artış': ['increase'], 'azalis': ['decrease'], 'azalış': ['decrease'],
+  'dusus': ['decline', 'decrease'], 'düşüş': ['decline', 'decrease'],
+  'yuzde': ['percent', 'percentage'], 'yüzde': ['percent', 'percentage'],
+  'donem': ['period'], 'dönem': ['period'], 'yil': ['year'], 'yıl': ['year'],
+  'ceyrek': ['quarter'], 'çeyrek': ['quarter'], 'toplam': ['total', 'aggregate'],
+  'ortalama': ['average'], 'agirlikli': ['weighted'], 'ağırlıklı': ['weighted']
+}
+
+/** Every English candidate a Turkish word can reach. */
+function englishCandidatesFor(word: string): string[] {
+  const out = new Set<string>()
+  // Every candidate stem, not one: see turkishStemCandidates.
+  for (const form of [word, ...turkishStemCandidates(word)]) {
+    for (const t of TR_EN_TERMS[form] || []) out.add(t)
+  }
+  // Cognate rules only on the word and its likeliest stem — applying them to
+  // every candidate produces noise like "arasindak" -> nothing useful.
+  for (const form of [word, turkishStem(word)]) {
+    for (const c of cognateCandidates(form)) out.add(c)
+  }
+  return [...out]
+}
+
 function buildChunkTsQuery(questionText: string): string | null {
-  const terms = String(questionText || '')
+  const words = String(questionText || '')
     .toLowerCase()
     .replace(/[^\p{L}\p{N}\s]/gu, ' ')
     .split(/\s+/)
     .filter(w => w.length >= 3 && !QUERY_STOPWORDS.has(w))
-  const unique = [...new Set(terms)].slice(0, 24)
+
+  const terms: string[] = []
+  for (const w of words) {
+    // The original word first: proper nouns ("Franklin"), English questions,
+    // and Turkish sources all depend on it, and it is the only term we are
+    // certain the student meant.
+    terms.push(w)
+    // Then the stem, which catches a Turkish source where the chunk happens
+    // to carry a different inflection of the same word.
+    const stem = turkishStem(w)
+    if (stem !== w && stem.length >= 3) terms.push(stem)
+    // Then the bridge to English.
+    for (const en of englishCandidatesFor(w)) terms.push(en)
+  }
+
+  // Cap raised from 24: each original word can now contribute two or three
+  // candidates, and cutting at 24 would silently drop the English half of a
+  // longer question — the half that does the matching.
+  const unique = [...new Set(terms)].filter(t => t.length >= 3).slice(0, 60)
   if (unique.length === 0) return null
   return unique.join(' | ')
 }
@@ -1065,35 +1303,92 @@ ${sourceText}
     }
 
     if (!groqResponse) {
-      try {
-        groqResponse = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${groqApiKey}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            // llama-3.3-70b-versatile is being retired by Groq (shutdown
-            // 2026-08-16); openai/gpt-oss-120b is one of Groq's recommended
-            // replacements and has a comparable (131K) context window.
-            model: "openai/gpt-oss-120b",
-            temperature: 0.3,
-            // gpt-oss doesn't support reasoning_effort:"none" (only
-            // low/medium/high) or reasoning_format, so we use the lowest
-            // reasoning depth plus include_reasoning:false to keep "content"
-            // limited to the final answer instead of a <think> block that
-            // would break our JSON parsing below.
-            reasoning_effort: "low",
-            include_reasoning: false,
-            // See the comment on the vision call above re: max_completion_tokens
-            // and why response_format is deliberately omitted here too.
-            max_completion_tokens: maxCompletion,
-            messages: buildChatMessages(false)
-          })
-        }, 1, 20000) // one retry max, 20s cap per attempt
-      } catch (fetchErr) {
-        console.error("chat-with-document Groq fetch exception: ", fetchErr)
-        return new Response(JSON.stringify({ error: 'Our AI service is experiencing high demand right now — please try again in a moment' }), {
+      // FALL BACK TO ANOTHER MODEL WHEN ONE LANE'S DAY IS SPENT.
+      //
+      // 05.10.2026, 19:20 — a student asked "stagflasyon nedir" and got
+      // "Şu anda cevap veremiyorum":
+      //
+      //   Rate limit reached for model `openai/gpt-oss-120b` ... on tokens
+      //   per day (TPD): Limit 200000, Used 198585. Try again in 24m2.88s
+      //
+      // Nothing was wrong with the request. One model's DAILY allowance was
+      // gone, and this call was pinned to that model, so it retried the same
+      // exhausted lane once and gave up. Groq meters TPD per model, and the
+      // other two lanes had their own untouched 200,000.
+      //
+      // Each lane is tried in turn. A daily quota error moves on immediately
+      // — waiting 24 minutes is not an option with a student watching — while
+      // any other failure also falls through, since a worse model answering
+      // beats no answer. Order is quality-first: the fallbacks are smaller
+      // models, so they are what the student gets only when they have to be.
+      const textLanes = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'qwen/qwen3.8-27b']
+      let lastLaneError = ''
+
+      for (let i = 0; i < textLanes.length; i++) {
+        const lane = textLanes[i]
+        try {
+          const res = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${groqApiKey}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              // llama-3.3-70b-versatile is being retired by Groq (shutdown
+              // 2026-08-16); openai/gpt-oss-120b is one of Groq's recommended
+              // replacements and has a comparable (131K) context window.
+              model: lane,
+              temperature: 0.3,
+              // Per model, never written out: gpt-oss rejects
+              // reasoning_effort:"none" outright while qwen needs exactly
+              // that. The summarize function learned this the hard way when
+              // its review call started picking lanes at runtime and 400'd
+              // on every gpt-oss one.
+              ...(lane.includes('qwen')
+                ? { reasoning_effort: "none" }
+                : { reasoning_effort: "low", include_reasoning: false }),
+              // See the comment on the vision call above re: max_completion_tokens
+              // and why response_format is deliberately omitted here too.
+              max_completion_tokens: maxCompletion,
+              messages: buildChatMessages(false)
+            })
+            // No retry on the first lanes: when this one is out of daily
+            // quota, the next lane is a better use of the student's wait
+            // than a second attempt at the same exhausted one. The last lane
+            // keeps its retry because after it there is nowhere to go.
+          }, i === textLanes.length - 1 ? 1 : 0, 20000)
+
+          if (res.ok) {
+            groqResponse = res
+            if (i > 0) console.warn(`chat-with-document: ${lane} seridine dusuldu (onceki serit(ler) kullanilamadi)`)
+            break
+          }
+
+          lastLaneError = await res.clone().text().catch(() => '')
+          const daily = /tokens per day|TPD/i.test(lastLaneError)
+          console.warn(
+            `chat-with-document: ${lane} ${res.status} verdi` +
+            `${daily ? ' (GUNLUK kota bitti)' : ''}` +
+            `${i < textLanes.length - 1 ? ' — sonraki seride geciliyor' : ''}`
+          )
+        } catch (fetchErr) {
+          lastLaneError = String(fetchErr)
+          console.warn(`chat-with-document: ${lane} istisna attı:`, fetchErr)
+        }
+      }
+
+      if (!groqResponse) {
+        console.error("chat-with-document: butun seritler basarisiz. Son hata:", lastLaneError)
+        // Say WHICH wall was hit. "Try again in a moment" is wrong and
+        // frustrating when the real answer is "tomorrow": the daily quota
+        // does not clear in a moment, and a student retrying every 30
+        // seconds for an hour deserves to know that.
+        const daily = /tokens per day|TPD/i.test(lastLaneError)
+        return new Response(JSON.stringify({
+          error: daily
+            ? 'Bugünkü AI kotamız doldu — yarın tekrar deneyebilirsin. (Özet çıkarma ve sohbet aynı günlük kotayı paylaşıyor.)'
+            : 'Our AI service is experiencing high demand right now — please try again in a moment'
+        }), {
           status: 503,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
