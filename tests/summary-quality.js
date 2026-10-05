@@ -2432,4 +2432,81 @@ test('reasoningParamsFor iki model ailesini dogru ayiriyor', () => {
   }
 });
 
+/* ==========================================================================
+   CLOZE — KARTLAR ARASI CEVAP SIZMASI
+
+   Girdi UYDURMA DEGIL: tests/fixtures/economy-chapter-20.json, 05.10.2026
+   canli kosusunun gercek key_terms (29) ve key_points (16) ciktisi. Uydurma
+   bir sozlukle bu hatayi uretmek zordur, cunku sizma tam olarak gercek bir
+   sozlugun komsu kavramlari birbirinin icinde anmasindan doguyor.
+   ========================================================================== */
+const CLOZE_FIXTURE = require('./fixtures/economy-chapter-20.json');
+
+function clozeLeaks(cards) {
+  const out = [];
+  for (const a of cards) {
+    for (const b of cards) {
+      if (a === b) continue;
+      if (A.clozeTermPattern(b.answer).test(a.prompt)) {
+        out.push(`${a.id} sorusu ${b.id} cevabini iceriyor: "${b.answer}"`);
+      }
+    }
+  }
+  return out;
+}
+
+test('cloze kartlari birbirinin cevabini sizdirmiyor (gercek belge verisi)', () => {
+  const cards = A.buildClozeCards(
+    undefined, CLOZE_FIXTURE.key_terms, CLOZE_FIXTURE.key_points, 20
+  );
+  const leaks = clozeLeaks(cards);
+  assert.equal(
+    leaks.length, 0,
+    `bir kartin sorusu baska bir kartin cevabini yaziyor:\n  ${leaks.join('\n  ')}`
+  );
+});
+
+test('sizma kapisi kart sayisini dusurmuyor', () => {
+  // Sizan adayi YAMAMAK yerine ATLIYORUZ, bu yuzden asil risk kart kaybi.
+  // Aday havuzu (29 terim + 16 nokta) maxCards tan cok buyuk oldugu icin
+  // atlanan slot bir sonraki adayla doluyor: olculen sonuc 20 kart ve
+  // ayni 9 key_point / 11 key_term dagilimi, sizma 4 -> 0.
+  const cards = A.buildClozeCards(
+    undefined, CLOZE_FIXTURE.key_terms, CLOZE_FIXTURE.key_points, 20
+  );
+  assert.equal(cards.length, 20, 'kapi 20 kartin tamamini uretmeye devam etmeli');
+  const bySource = cards.reduce((m, c) => (m[c.source] = (m[c.source] || 0) + 1, m), {});
+  assert.ok(bySource.key_point >= 8,
+    `cumle klozlari ezilmemeli (key_point=${bySource.key_point})`);
+  assert.ok(bySource.key_term >= 8,
+    `tanim klozlari ezilmemeli (key_term=${bySource.key_term})`);
+});
+
+test('sizma kapisi gercekten sizan bir cifti reddediyor', () => {
+  // Kendini dogrulayan test: kapi calismazsa yukaridaki iki yesil bir sey
+  // ifade etmez. Bu cift kacinilmaz sizar — birinin tanimi otekinin terimi.
+  const cards = A.buildClozeCards(undefined, [
+    { term: 'fiscal policy', definition: 'Government policies concerning taxes and spending.' },
+    { term: 'monetary policy', definition: 'Fiscal policy covers taxes; this one covers interest rates.' }
+  ], [], 20);
+  assert.equal(clozeLeaks(cards).length, 0, 'kapi bu cifti ayirmaliydi');
+  assert.equal(cards.length, 1, 'ikisinden sadece biri kalmali');
+});
+
+test('atlanan aday cevabini yakmiyor', () => {
+  /* seenAnswers i leak kontrolunden ONCE isaretlemek sessiz bir kayip
+     uretiyordu: sizdigi icin atilan aday, cevabini "kullanilmis" sayip
+     ayni terimin daha sonra TEMIZ bir karta donusmesini de engelliyordu.
+     Burada "recession" once kirli bir cumlede, sonra temiz bir tanimda
+     geciyor; ikincisi karta donmeli. */
+  const cards = A.buildClozeCards(undefined, [
+    { term: 'recession', definition: 'Two consecutive quarters of declining output.' },
+    { term: 'depression', definition: 'A prolonged and deep recession.' }
+  ], [], 20);
+  const answers = cards.map(c => c.answer.toLowerCase());
+  assert.ok(answers.includes('recession'),
+    `"recession" temiz bir kart olarak kalmaliydi, kalanlar: ${JSON.stringify(answers)}`);
+  assert.equal(clozeLeaks(cards).length, 0);
+});
+
 summary().then(() => process.exit(process.exitCode || 0));
