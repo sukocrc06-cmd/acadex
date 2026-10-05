@@ -240,7 +240,17 @@ const CHAT_TPM_LIMIT = 8000
 // fits today — over into retrieval, which is a capability lost to a number
 // nobody had measured.
 const CHAT_TPM_SAFETY = 0.9
+// The ceiling for a chat answer. 2,048 is 28% of the whole minute, reserved
+// on every message whether or not the answer could possibly need it: Groq
+// counts max_completion_tokens against TPM up front, not what the model
+// actually emits. A plain conceptual answer runs a few hundred tokens.
+//
+// So it follows the same signal as the instruction sections — the questions
+// that need the long rules (a worked numeric solution, a Mermaid diagram)
+// are the questions whose answers are long. Everything else gets the lower
+// cap, and the difference goes to the document.
 const CHAT_MAX_COMPLETION = 2048
+const CHAT_MAX_COMPLETION_SHORT = 1024
 const CHARS_PER_TOKEN = 3.2
 // An attached image is billed as tokens too and is not in any string we can
 // measure. Reserved whenever one is present.
@@ -256,10 +266,10 @@ const SOURCE_MIN_CHARS = 4000
  * overheadChars covers everything else that goes into the same budget: the
  * system prompt minus the source block, and the conversation history.
  */
-function sourceBudgetChars(overheadChars: number, hasImage: boolean): number {
+function sourceBudgetChars(overheadChars: number, hasImage: boolean, maxCompletion = CHAT_MAX_COMPLETION): number {
   const available =
     CHAT_TPM_LIMIT * CHAT_TPM_SAFETY
-    - CHAT_MAX_COMPLETION
+    - maxCompletion
     - Math.ceil(overheadChars / CHARS_PER_TOKEN)
     - (hasImage ? IMAGE_TOKEN_RESERVE : 0)
   return Math.max(SOURCE_MIN_CHARS, Math.floor(available * CHARS_PER_TOKEN))
@@ -657,6 +667,56 @@ serve(async (req) => {
     // Everything that competes with the source text for the same per-minute
     // budget, declared before the strategy below so the budget can be measured
     // rather than assumed.
+    //
+    // WHICH INSTRUCTIONS THIS QUESTION ACTUALLY NEEDS
+    //
+    // Measured 05.10.2026: the system prompt ran to 13,048 characters, about
+    // 3,300 tokens of standing instructions on every single message, before
+    // the question or one character of the document. Broken down, two
+    // sections were 59% of it:
+    //
+    //   DIAGRAM & VISUAL-STRUCTURE AWARENESS + DIAGRAM GENERATION  ~4,990
+    //   MATH FORMULA FORMAT + STEP-BY-STEP NUMERIC SOLUTIONS       ~3,080
+    //
+    // Both are conditional in nature — one earns its place when the student
+    // asks about a figure, the other when the material is quantitative — and
+    // both were being sent for "makro ekonominin temeli nedir". Shortening
+    // the text would cost capability where it matters; sending it only when
+    // it applies costs nothing. Every 3,200 characters saved is ~1,000
+    // tokens handed back to the document.
+    //
+    // Both tests err toward INCLUDING: a missing instruction degrades an
+    // answer, while an unnecessary one only costs budget on a question that
+    // had room anyway.
+    const lastUserText = String(
+      [...messages].reverse().find((m: any) => m?.role === 'user')?.content || ''
+    ).toLowerCase()
+
+    const VISUAL_WORDS = /g[öo]rsel|[şs]ekil|[şs]ema|grafik|diyagram|tablo|çizim|cizim|resim|foto|akı[şs]|aki[sş]|diagram|chart|figure|graph|table|flow|image|picture/
+    const NUMERIC_WORDS = /hesapla|hesab|kaç|kac|ne kadar|yüzde|yuzde|oran|formül|formul|çöz|coz|soru çöz|calculate|compute|how much|how many|percent|ratio|formula|solve|step by step/
+    // The QUESTION decides the visual rules, not the card. "This card has a
+    // diagram" was the first version of this test and it eliminated nothing:
+    // nearly every card the pipeline produces has at least one diagram, so
+    // the 4,990 characters shipped on every message exactly as before. What
+    // the rules are for is a student asking about a figure, and a student
+    // asking about a figure says so. If they don't, they get a prose answer
+    // and can ask again with "şema çiz" — cheap to recover from, unlike a
+    // truncated document.
+    const needsVisualRules =
+      typeof imageDataUrl === 'string' || VISUAL_WORDS.test(lastUserText)
+
+    // is_quantitative is a property of the DOCUMENT, not of one question, and
+    // that is the right level here: in an accounting or economics chapter the
+    // next question is likely to be numeric even when this one wasn't, and a
+    // mis-formatted formula is a worse failure than a slightly smaller window.
+    const needsNumericRules =
+      card?.is_quantitative === true ||
+      (Array.isArray(card?.formulas) && card.formulas.length > 0) ||
+      (Array.isArray(card?.worked_examples) && card.worked_examples.length > 0) ||
+      NUMERIC_WORDS.test(lastUserText) || /\d/.test(lastUserText)
+
+    type SourceView = 'whole' | 'retrieval' | 'truncated'
+
     const docNames = docs.map((d: any) => d.file_name).join(', ')
     const summaryContextBlock = buildSummaryContextBlock(card)
     const hasImage = typeof imageDataUrl === 'string'
@@ -671,7 +731,10 @@ serve(async (req) => {
     const historyChars = () => safeMessages.reduce(
       (n: number, m: any) => n + String(m.content || '').length, 0
     )
-    const basePromptChars = buildSystemPrompt('', true).length
+    // 'retrieval' because it is the longest of the three variants (it adds
+    // the selected-passages caveat), so whichever view wins, the real
+    // prompt is no larger than what we budgeted for.
+    const basePromptChars = buildSystemPrompt('', 'retrieval').length
 
     // A long conversation can eat the whole minute on its own: ten turns at
     // the 3,000-character cap is 30,000 characters, nearly 9,400 tokens
@@ -683,10 +746,15 @@ serve(async (req) => {
     // So when it comes to that, the history is what gets cut. The source
     // document is what the question is about; turn 6 of the chat is not.
     // Oldest first, and never the current question.
+    // Uzun yoneri gerektiren soru, uzun cevabi da gerektiren sorudur.
+    const maxCompletion = (needsNumericRules || needsVisualRules || hasImage)
+      ? CHAT_MAX_COMPLETION
+      : CHAT_MAX_COMPLETION_SHORT
+
     let droppedTurns = 0
     while (
       safeMessages.length > 1 &&
-      sourceBudgetChars(basePromptChars + historyChars(), hasImage) <= SOURCE_MIN_CHARS
+      sourceBudgetChars(basePromptChars + historyChars(), hasImage, maxCompletion) <= SOURCE_MIN_CHARS
     ) {
       safeMessages.shift()
       droppedTurns++
@@ -699,11 +767,12 @@ serve(async (req) => {
     }
 
     const promptOverheadChars = basePromptChars + historyChars()
-    const SOURCE_BUDGET = sourceBudgetChars(promptOverheadChars, hasImage)
+    const SOURCE_BUDGET = sourceBudgetChars(promptOverheadChars, hasImage, maxCompletion)
     console.log(
       `chat-with-document budget: ${SOURCE_BUDGET} krk kaynak ` +
-      `(prompt ${basePromptChars} + gecmis ${historyChars()} krk, ` +
-      `gorsel=${hasImage ? 'var' : 'yok'}, TPM ${CHAT_TPM_LIMIT}×${CHAT_TPM_SAFETY})`
+      `(prompt ${basePromptChars} + gecmis ${historyChars()} krk, completion ${maxCompletion}, ` +
+      `gorsel=${needsVisualRules ? 'kural+' : '-'}${hasImage ? 'ek' : ''}, ` +
+      `sayisal=${needsNumericRules ? 'kural+' : '-'}, TPM ${CHAT_TPM_LIMIT}×${CHAT_TPM_SAFETY})`
     )
 
     type ChunkSize = { count: number; totalChars: number } | null
@@ -823,20 +892,36 @@ serve(async (req) => {
      * been smaller, and would have silently drifted the first time anyone
      * edited the text below.
      */
-    function buildSystemPrompt(sourceText: string, isRetrieval: boolean): string {
-      // What the model is actually looking at depends on the strategy.
-      // Telling it "the full extracted text" when it is holding a relevance-
-      // selected subset would invite exactly the wrong error: flatly denying
-      // that the document covers something that simply was not retrieved.
-      const sourceDescription = isRetrieval
-        ? `Below are the passages from that source that are most relevant to the student's question, selected from a longer document and shown in reading order with their page numbers`
-        : `You are given the full extracted text of that source below`
+    function buildSystemPrompt(sourceText: string, view: SourceView): string {
+      // What the model is actually looking at depends on the strategy, and
+      // getting this wrong produces the one answer a grounded Q&A feature
+      // must never give: a confident "that isn't in the document" about
+      // something that is, just not in the part it was shown.
+      //
+      // 'retrieval' has said so since this feature shipped. 'truncated' did
+      // NOT, and that was a live bug: a cut document was described as "the
+      // full extracted text" — 05.10.2026, the economy chapter went in at
+      // 3,983 of 10,549 characters under that exact sentence. The model was
+      // told it had everything while holding 38% of it.
+      const isRetrieval = view === 'retrieval'
+      const isPartial = view !== 'whole'
+      const sourceDescription =
+        view === 'retrieval'
+          ? `Below are the passages from that source that are most relevant to the student's question, selected from a longer document and shown in reading order with their page numbers`
+          : view === 'truncated'
+            ? `Below is the BEGINNING of that source — it was too long to include in full, so it is cut off partway through`
+            : `You are given the full extracted text of that source below`
       const retrievalCaveat = isRetrieval
         ? `
 
 SELECTED-PASSAGES CAVEAT (important):
 What follows is a RELEVANCE-SELECTED SUBSET of a longer document, not the whole thing. Answer from these passages exactly as strictly as always — but when they do not contain the answer, say that these passages don't cover it and that it may appear elsewhere in the document (suggest the student rephrase with more specific terms, or name the topic/chapter). Do NOT state or imply that the document itself does not contain something, because you cannot see all of it. Page numbers shown in "[Sayfa N]" headers are real — use them in your citations' "reference" text when relevant.`
-        : ''
+        : view === 'truncated'
+          ? `
+
+TRUNCATED-SOURCE CAVEAT (important):
+What follows is only the FIRST PART of a longer document. Answer from it exactly as strictly as always — but when it does not contain the answer, say that the part you can see doesn't cover it and that it probably appears later in the document (suggest the student ask again naming the specific topic, chapter or term). Do NOT state or imply that the document itself does not contain something, because you have not seen most of it.`
+          : ''
 
       return `You are a grounded document Q&A assistant for Acadex, an academic study platform. The student is asking questions about a specific uploaded source (${docNames}). ${sourceDescription}${summaryContextBlock ? ', along with the study card summary already generated for it' : ''}.${retrievalCaveat}
 
@@ -846,6 +931,7 @@ Answer ONLY using information that is actually present in the source text${summa
 CITATION RULE:
 When you state a specific fact, definition, number, or claim drawn from the source, add a citation marker like [1], [2], etc. immediately after it, reusing the same marker for the same location if you reference it again. Build a "citations" array in your JSON output: [{ "id": number, "reference": string }], where "reference" briefly names the topical section/heading area the claim came from (e.g. "Bölüm 2 - SEO tartışması" or "Giriş bölümü"). Don't over-cite — reserve markers for specific, checkable claims, not every sentence. If your answer makes no specific checkable claims (e.g. it's just a clarifying question back to the student, or a general "not found in the source" answer), return an empty citations array.
 
+${needsVisualRules ? `
 DIAGRAM & VISUAL-STRUCTURE AWARENESS:
 You only have the extracted text, not the original page images — so a flowchart, comparison diagram, or process illustration in the source often survives only as a cluster of short, disconnected phrases that don't read as normal prose (e.g. parallel short labels repeated near each other, a sequence of terse stage names, or paired opposing terms). If the student asks about a chart, diagram, graphic, or "görsel/şekil" and you spot such a cluster in the source text (or in the study card summary/tables/charts context below, if provided), reconstruct and explain its likely meaning — but explicitly flag that you're inferring the diagram's structure from scattered text labels rather than describing an image you can see (e.g. "Kaynak metindeki dağınık ifadelere bakılırsa, bu muhtemelen ... karşılaştıran bir diyagram."). If you genuinely can't find any fragments that plausibly correspond to what they're asking about, tell them honestly instead of guessing — and mention they can attach a photo/screenshot of that page so you can look at it directly.${hasImage ? `
 
@@ -866,7 +952,7 @@ When the student is asking about a chart, diagram, flowchart, comparison, proces
 - Keep it to at most ~12 nodes. Prefer a simple, correct diagram over an elaborate, possibly-wrong one.
 - Skip the diagram entirely (omit the whole MERMAID BLOCK) whenever the question isn't about a diagram/chart/structure, or when you don't have enough grounded structure to draw one honestly — never fabricate a diagram just to have something to show.
 - The diagram is entirely separate from and in addition to your normal "answer" text — still write a normal grounded answer as usual.
-
+` : ''}
 LANGUAGE RULE:
 Respond in the same language the student's latest question is written in (default to Turkish if genuinely ambiguous).
 
@@ -876,12 +962,13 @@ Be concise, clear, and directly helpful — write like a knowledgeable classmate
 TABLES AND LISTS IN YOUR ANSWER:
 If the student asks you to bring back a table, ranking, or list of items from the source, reproduce it inside the "answer" string using "- " bullet lines or simple "label: value" lines separated by "\\n" (a literal backslash-n escape sequence, NOT an actual line break) — never break your answer across multiple real lines. Keep each row/item on its own "\\n"-separated line so it still reads clearly when displayed, but the JSON string itself must remain a single line.
 
+${needsNumericRules ? `
 MATH FORMULA FORMAT:
 Whenever your answer includes a mathematical formula, equation, or expression (variables, fractions, exponents, summations, financial/statistical notation, etc.), write it in valid LaTeX and wrap it in single dollar signs so it renders as a real formula instead of plain text, e.g. $A = P(1 + r/n)^{nt}$. This matters especially for quantitative subjects (finance, accounting, statistics, economics) — don't just write formulas as plain text like "A = P(1+r/n)^nt" when you can express them properly in LaTeX. Since your answer is a JSON string value, every backslash inside the LaTeX must be escaped as a double backslash in the JSON text itself: to display $\\frac{a}{b}$, the actual JSON string content must contain "$\\\\frac{a}{b}$" (two backslash characters before "frac", not one). Keep formulas inline within your sentences using single $...$ delimiters only — never use $$...$$ block delimiters.
 
 STEP-BY-STEP NUMERIC SOLUTIONS:
 When the student asks you to solve, calculate, or work through a numeric/quantitative problem (e.g. compute an interest amount, solve for an unknown, work out a statistic), structure your "answer" as clearly numbered steps rather than one dense paragraph: "1) ...\\n2) ...\\n3) ..." (the same "\\n"-separated-line convention as TABLES AND LISTS above — a literal backslash-n, not a real line break). Each step should name the formula being applied (in LaTeX per MATH FORMULA FORMAT above) and show the actual numbers plugged in, not just the abstract formula in isolation. Finish with a clearly labeled final line such as "Sonuç: ..." or "Final answer: ..." stating the numeric result with correct units. Only use this structured format for genuinely numeric/computational questions — for conceptual/qualitative questions, answer normally in prose.
-
+` : ''}
 OUTPUT FORMAT (two parts — read carefully, this is machine-parsed, not just for a human):
 PART 1 — a single-line JSON object, no markdown code fences, no commentary before or after, every string value valid single-line JSON (escape any newlines inside it as "\\n"): { "answer": string, "citations": [ { "id": number, "reference": string } ] }. Do NOT put any diagram inside this JSON object — it only ever holds "answer" and "citations".
 PART 2 — ONLY when DIAGRAM GENERATION above applies, immediately after the JSON object (on new lines, which is fine here since this part is plain text, not JSON) append exactly this block with your Mermaid definition inside it, real line breaks allowed:
@@ -902,7 +989,11 @@ ${sourceText}
 """`
     }
 
-    const systemPrompt = buildSystemPrompt(sourceText, strategy === 'retrieval')
+    const sourceView: SourceView =
+      strategy === 'retrieval' ? 'retrieval'
+        : strategy.includes('truncated') ? 'truncated'
+        : 'whole'
+    const systemPrompt = buildSystemPrompt(sourceText, sourceView)
 
     // Build the actual message list. Only the LAST user turn ever carries the
     // attached image — older turns stay plain text so the conversation history
@@ -952,7 +1043,7 @@ ${sourceText}
             // budget against this account's tokens-per-minute limit, which alone
             // can push an otherwise modest request over the limit and return a
             // "Request too large" / rate_limit_exceeded error.
-            max_completion_tokens: 2048,
+            max_completion_tokens: maxCompletion,
             // No response_format:"json_object" here — that mode forces the ENTIRE
             // reply to be one JSON value, which would forbid the optional
             // ###MERMAID_START###...###MERMAID_END### block appended after it
@@ -996,7 +1087,7 @@ ${sourceText}
             include_reasoning: false,
             // See the comment on the vision call above re: max_completion_tokens
             // and why response_format is deliberately omitted here too.
-            max_completion_tokens: 2048,
+            max_completion_tokens: maxCompletion,
             messages: buildChatMessages(false)
           })
         }, 1, 20000) // one retry max, 20s cap per attempt
@@ -1010,6 +1101,29 @@ ${sourceText}
     }
 
     const groqData = await groqResponse.json()
+
+    // MEASURE THE RATIO INSTEAD OF ARGUING ABOUT IT.
+    //
+    // CHARS_PER_TOKEN decides how much document the student gets, and it was
+    // inherited from the summarize function's pacer where being pessimistic
+    // is nearly free — you wait a little longer. Here it is expensive: too
+    // low a ratio means a document that fits gets cut, which is how the
+    // economy chapter went in at 3,983 of 10,549 characters on 05.10.2026.
+    //
+    // Groq reports what it actually counted. Logging the real ratio on every
+    // call turns the constant from a guess into something we can set from
+    // data — and it will differ by language, which matters here because the
+    // sources are English and the questions are Turkish.
+    const promptTokens = Number(groqData?.usage?.prompt_tokens)
+    if (Number.isFinite(promptTokens) && promptTokens > 0) {
+      const promptChars = systemPrompt.length +
+        safeMessages.reduce((n: number, m: any) => n + String(m.content || '').length, 0)
+      console.log(
+        `chat-with-document token orani: ${(promptChars / promptTokens).toFixed(2)} krk/token ` +
+        `(gercek ${promptTokens} token / ${promptChars} krk; varsayim ${CHARS_PER_TOKEN})`
+      )
+    }
+
     if (!groqResponse.ok) {
       console.error("chat-with-document Groq API error:", JSON.stringify(groqData))
       return new Response(JSON.stringify({ error: 'Our AI service is experiencing high demand right now — please try again in a moment' }), {
