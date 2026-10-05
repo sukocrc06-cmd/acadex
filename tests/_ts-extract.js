@@ -161,12 +161,33 @@ function loadFromSource(relativePath, names) {
 // patlasa bile. Tam da bu yuzden, per-model pacer refactor'unde model
 // argumani eksik kalan uc acquire testi hata vermeden gecti.
 //
-// Artik thenable donen testler `pending`e aliniyor ve summary() onlari
-// bekliyor. Senkron testlerin ciktisi eskisi gibi aninda basiliyor; async
-// olanlarin sonucu en sona dusuyor (siralama degisir, dogruluk degismez).
+// Artik thenable donen testler bekleniyor ve summary() onlari topluyor.
+// Senkron testlerin ciktisi eskisi gibi aninda basiliyor; async olanlarin
+// sonucu en sona dusuyor (siralama degisir, dogruluk degismez).
+//
+// ASYNC TESTLER SIRAYLA KOSAR (2026-10-05 bulgusu):
+// Ilk hali butun async testleri hemen baslatip summary() de Promise.all ile
+// bekliyordu. Pacer testleri ise sureyi DUVAR SAATIYLE olcuyor:
+//
+//     let t0 = Date.now();
+//     await p.acquire(1000, M_A);
+//     assert.ok(Date.now() - t0 < 100, 'bos butcede beklememeliydi');
+//
+// `await` olay dongusunu birakiyor, bu arada dosyanin geri kalanindaki
+// SENKRON testler calisiyor, ve onlarin suresi acquire in beklemesi olarak
+// olculuyor. Cloze sizma testleri eklenince (92ms senkron is) uc pacer testi
+// bu yuzden dustu — pacer da, yeni testler de dogruydu, olcum aletinde
+// kusur vardi. Tek is parcacikli bir dongude "hizli dondu mu" sorusu ancak
+// baska hicbir sey calismiyorken sorulabilir.
+//
+// Bu yuzden async testler CAGRILMADAN once kuyruga alinir ve senkron
+// testlerin tamami bittikten sonra, teker teker, summary() icinde kosar.
+// Tespit fn.constructor.name ile yapilir; `async` ilan edilmemis ama yine de
+// Promise donen bir test eski yoldan (hemen baslayarak) islenir.
 function makeRunner() {
   const state = { passed: 0 };
-  const pending = [];
+  const deferred = [];   // async test thunk'lari — henuz CAGRILMADI
+  const started = [];    // async ilan edilmemis ama thenable donenler
 
   const pass = (name) => { state.passed++; console.log(`  ok    ${name}`); };
   const fail = (name, e) => {
@@ -175,6 +196,10 @@ function makeRunner() {
   };
 
   function test(name, fn) {
+    if (fn && fn.constructor && fn.constructor.name === 'AsyncFunction') {
+      deferred.push({ name, fn });
+      return;
+    }
     let result;
     try {
       result = fn();
@@ -183,16 +208,24 @@ function makeRunner() {
       return;
     }
     if (result && typeof result.then === 'function') {
-      pending.push(result.then(() => pass(name), (e) => fail(name, e)));
+      started.push(result.then(() => pass(name), (e) => fail(name, e)));
       return;
     }
     pass(name);
   }
 
   async function summary() {
-    if (pending.length) {
-      console.log(`\n  (${pending.length} async test bekleniyor)\n`);
-      await Promise.all(pending);
+    if (started.length) await Promise.all(started);
+    if (deferred.length) {
+      console.log(`\n  (${deferred.length} async test sirayla kosuyor)\n`);
+      for (const { name, fn } of deferred) {
+        try {
+          await fn();
+          pass(name);
+        } catch (e) {
+          fail(name, e);
+        }
+      }
     }
     console.log(`\n${state.passed} test gecti${process.exitCode ? ' (BASARISIZ olanlar var)' : ''}\n`);
   }
