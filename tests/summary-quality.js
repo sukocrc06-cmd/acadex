@@ -2218,7 +2218,12 @@ test('serit SIRAYA gore degil, BOS olana gore secilir', () => {
 test('pickLane kodda gercekten kullaniliyor', () => {
   assert.ok(/function pickLane/.test(SRC), 'serit secici olmali');
   assert.ok(!/windowModel\(/.test(SRC), 'parite tabanli secim kaldirilmali');
-  assert.ok(/const windowLane = pickLane/.test(SRC), 'pencereler dagitim aninda secmeli');
+  // Pencere seridi artik partide atanip extractWindow a geciriliyor; yeniden
+  // denemede pickLane e geri dusuyor. Ikisi de olmali.
+  assert.ok(/const batchLanes = batchIndices\.map\(wi => pickLane/.test(SRC),
+    'parti seritleri dagitimdan once secmeli');
+  assert.ok(/\(attempt === 0 && assignedLane\)/.test(SRC),
+    'ilk deneme atanan seridi kullanmali');
   assert.ok(/const writerLane = pickLane/.test(SRC), 'yazar da bos serite dusebilmeli');
 });
 
@@ -2276,6 +2281,34 @@ test('yazar AGIR modeli tercih eder ama ona KILITLI degil', () => {
   const blok = SRC.slice(i, i + 200);
   assert.ok(/\[MODEL_HEAVY, MODEL_EXTRACT\]/.test(blok),
     'MODEL_HEAVY once gelmeli — esitlikte tercih edilen o');
+});
+
+test('ayni partideki pencereler FARKLI seritlere dagilir', () => {
+  /* 05.10.2026: W1 ve W2 ayni anda dagitildi, ikisi de bos serit gorup
+     MODEL_HEAVY i secti -> used=10386/7200, kendi butcesini asti, ve bir
+     sonraki cagri 58sn bekledi. Pacer yardim edemez: harcamayi yanit
+     GELDIGINDE kaydediyor, bu kararlarin hepsi ondan once veriliyor. */
+  assert.ok(/claimed\?: Set<string>/.test(SRC), 'pickLane kapilmis seritleri bilmeli');
+  assert.ok(/const claimedLanes = new Set<string>\(\)/.test(SRC),
+    'parti seritleri dagitimdan ONCE atanmali');
+  assert.ok(/batchIndices\.map\(\(wi, bi\) => extractWindow\(wi, windows\[wi\], batchLanes\[bi\]\)\)/.test(SRC),
+    'atanan serit extractWindow a gecirilmeli');
+});
+
+test('butce paylari OLCULEN degerlerden geliyor', () => {
+  // Vision cagrisi dort canli kosuda 6.0-7.2sn; yazar beklemesiz 1.8sn.
+  // Eski sabitler 30sn ve 40sn idi ve vision u 43sn butceyle atlattilar.
+  assert.ok(A.VISION_CALL_MS <= 20_000, `vision payi ${A.VISION_CALL_MS}: olculen ~6.6sn`);
+  assert.ok(A.NARRATIVE_WRITER_RESERVE_MS <= 25_000, `yazar payi ${A.NARRATIVE_WRITER_RESERVE_MS}: olculen ~1.8sn`);
+  // Ama sifira da inmemeli — bekleme ayri hesaplaniyor, bu cagrinin kendisi.
+  assert.ok(A.VISION_CALL_MS >= 10_000 && A.NARRATIVE_WRITER_RESERVE_MS >= 10_000,
+    'olculen degerin en az bir kac kati pay kalmali');
+});
+
+test('CANLI SENARYO: 43sn butceyle vision calisabilmeli', () => {
+  // Dunku kosunun tam sayilari: pacer beklemesi 0, butce 43031ms.
+  const needs = 0 + A.VISION_CALL_MS + A.NARRATIVE_WRITER_RESERVE_MS;
+  assert.ok(needs <= 43_031, `gereken ${needs} > 43031 — vision yine atlanir`);
 });
 
 summary().then(() => process.exit(process.exitCode || 0));
