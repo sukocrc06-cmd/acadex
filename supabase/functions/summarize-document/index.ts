@@ -437,6 +437,26 @@ const MODEL_HEAVY = "openai/gpt-oss-120b"
 // 3.6 line and every call to it 404'd. Verified against Groq's current model
 // list on 2026-10-04: qwen/qwen3.8-27b is the live vision-capable model.
 const MODEL_FAST = "qwen/qwen3.8-27b"
+// A SECOND extraction lane. Limits read off the org's Groq console on
+// 05.10.2026 — identical to gpt-oss-120b in every column:
+//
+//   openai/gpt-oss-120b   30 RPM  1K RPD  8K TPM  200K TPD
+//   openai/gpt-oss-20b    30 RPM  1K RPD  8K TPM  200K TPD
+//
+// and metered separately, which this pipeline proved the hard way earlier.
+// That matters because a window call costs ~6,150 tokens against a 7,200
+// working budget: two windows cannot share a lane in one minute, so on a
+// multi-window document every window after the first sat out a full 60s.
+// Measured on a 31,817-char deck: 3 windows, two 60s waits, 132s total, and
+// the vision pass, the narrative writer and review all skipped for want of
+// budget. Alternating lanes lets consecutive windows run side by side.
+//
+// Extraction only. 20b is the smaller sibling and this is pattern work —
+// pulling terms and points out of text — not prose. The narrative writer
+// stays on MODEL_HEAVY, where the writing quality is the point.
+const MODEL_EXTRACT = "openai/gpt-oss-20b"
+/** Which lane window `wi` runs on. Alternating keeps both minutes moving. */
+const windowModel = (wi: number) => (wi % 2 === 0 ? MODEL_HEAVY : MODEL_EXTRACT)
 // Skip the expensive review pass for short, simple documents (saves ~1 full LLM call)
 const SKIP_REVIEW_MAX_CHARS = 3500
 const CHUNK_MAX_COMPLETION = 1536 // slightly smaller → faster chunk map
@@ -4286,7 +4306,7 @@ Rules:
               compactWindowPrompt(wi, windows.length),
               payload,
               {
-                model: MODEL_HEAVY,
+                model: windowModel(wi),
                 temperature: 0.2,
                 // Denetim Raporu, 2026-08-31: raised from 2048 → 3072 to make
                 // room for the tables/charts/diagrams/worked_examples fields
@@ -4379,16 +4399,25 @@ Rules:
         windows[0] || '',
         3072
       )
-      // Window calls go out on MODEL_HEAVY (see the extractWindow call below),
-      // so it is MODEL_HEAVY's lane that decides how many fit at once.
+      // Windows alternate between two lanes (windowModel), so capacity is the
+      // SUM of what each lane can take, not one lane's share. Computing it
+      // from MODEL_HEAVY alone is what kept this pinned at 1: a ~6,150-token
+      // window against a 7,200 budget allows exactly one per lane per minute,
+      // and reading one lane made that the answer for the whole batch.
+      // With two lanes a batch of two runs side by side instead of the second
+      // sitting out a full window.
+      const perLane = [MODEL_HEAVY, MODEL_EXTRACT].map(m => ({
+        model: m,
+        fits: tokenPacer.safeConcurrency(estWindowTokens, m),
+        lane: tokenPacer.lane(m)
+      }))
       const windowConcurrency = Math.min(
         CHUNK_CONCURRENCY,
-        tokenPacer.safeConcurrency(estWindowTokens, MODEL_HEAVY)
+        Math.max(1, perLane.reduce((n, l) => n + l.fits, 0))
       )
-      const heavyLane = tokenPacer.lane(MODEL_HEAVY)
       console.log(
         `Window concurrency: ${windowConcurrency} ` +
-        `(${MODEL_HEAVY} TPM limit ${heavyLane.limit}${heavyLane.limitKnown ? '' : ', varsayilan'}, ` +
+        `(${perLane.map(l => `${l.model}: ${l.lane.limit} TPM${l.lane.limitKnown ? '' : '/varsayilan'} -> ${l.fits}`).join(', ')}, ` +
         `~${estWindowTokens} token/pencere, tavan ${CHUNK_CONCURRENCY})`
       )
 
@@ -4423,7 +4452,11 @@ Rules:
             // Normalize alternate field names
             if (!result.summary && result.chunk_summary) result.summary = result.chunk_summary
             windowResults.push(result)
-            console.log(`Window ${wi + 1} ok: terms=${(result.key_terms || []).length} points=${(result.key_points || []).length} quiz=${(result.quiz_questions || []).length}`)
+            // The model is in the line on purpose: windows alternate lanes, so
+            // one run of one document compares 120b and 20b on neighbouring
+            // slices of the same text. If 20b turns out to extract materially
+            // less, this log is where it shows, with no separate experiment.
+            console.log(`Window ${wi + 1} ok [${windowModel(wi)}]: terms=${(result.key_terms || []).length} points=${(result.key_points || []).length} quiz=${(result.quiz_questions || []).length}`)
           }
         }
       }
