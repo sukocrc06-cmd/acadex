@@ -2353,4 +2353,18 @@ test('butce yuzunden atlanan asamalar karta yaziliyor', () => {
     'model quality_gate i ezdiginde de korunmali');
 });
 
+test('review ve critic de serit secebiliyor', () => {
+  /* Review, MODEL_FAST e sabitlenmis son cagriydi. Sabitleme gerekcesi
+     "taslagin seridinden uzak dursun" idi — pickLane bunu zaten, hem de
+     gercekte neyin bos oldugana bakarak yapiyor. Sabitleme ayrica review u
+     vision in az once qwen de harcadigina mahkum ediyordu: 05.10.2026'da
+     vision 2 saniye once bitti ve review a 58sn bekleme cikarildi. */
+  assert.ok(/const reviewLane = pickLane/.test(SRC), 'review serit secmeli');
+  assert.ok(/const criticLane = pickLane/.test(SRC), 'critic de secmeli');
+  // Hicbir yerde MODEL_FAST e sabitlenmis cagri kalmamali (vision haric —
+  // qwen tek gorme yetenekli model).
+  const pinned = [...SRC.matchAll(/model: MODEL_FAST/g)].length;
+  assert.equal(pinned, 1, `MODEL_FAST e sabit ${pinned} cagri var, sadece vision olmali`);
+});
+
 summary().then(() => process.exit(process.exitCode || 0));
