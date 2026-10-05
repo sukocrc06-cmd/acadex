@@ -13349,6 +13349,21 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
   // the student can cover the key, attempt the blanks, then check.
   if (Array.isArray(studyCard.cloze_cards) && studyCard.cloze_cards.length > 0) {
     const clozes = studyCard.cloze_cards.filter(c => c && c.prompt && c.answer);
+    // Two different exercises share this section. buildClozeCards emits
+    // sentence clozes first (source 'key_point' / 'model'), then definition
+    // prompts (source 'key_term') to fill the remaining slots.
+    //
+    // Unlabelled they read as one list, and the definition half looks broken:
+    //   "___: The combined actions of all households and firms."
+    // is not a sentence with a word missing, it is the ANAHTAR TERİMLER list
+    // read backwards — and on this very page its answer is printed three
+    // sections earlier. Measured 05.10.2026: 11 of 20 cards were this shape.
+    //
+    // So the definition half gets its own sub-heading. Numbering stays
+    // continuous because the answer key below refers to these numbers.
+    const defStart = clozes.findIndex(c => c.source === 'key_term');
+    const SPLIT_AT = defStart > 0 ? defStart : -1;
+    const SPLIT_H = 7;
     if (clozes.length > 0) {
       y = drawPdfCard(doc, cardState(), {
         label: 'BOŞLUK DOLDURMA',
@@ -13358,6 +13373,7 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
           let h = 0;
           pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5);
           clozes.forEach((c, idx) => {
+            if (idx === SPLIT_AT) h += SPLIT_H;
             h += doc.splitTextToSize(safeText(`${idx + 1}. ${c.prompt}`), w).length * 5.5 + 1.5;
           });
           // Answer key: heading plus the wrapped, comma-joined answers.
@@ -13370,6 +13386,13 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
         render: (x, ry, w, allowBreak) => {
           pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.body);
           clozes.forEach((c, idx) => {
+            if (idx === SPLIT_AT) {
+              ry += 2;
+              if (allowBreak && ry > 265) { doc.addPage(); ry = 35; }
+              pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(9); doc.setTextColor(...PDF_INK.teal);
+              doc.text(safeText('Terim testi — tanımdan terime'), x, ry); ry += 5;
+              pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.body);
+            }
             doc.splitTextToSize(safeText(`${idx + 1}. ${c.prompt}`), w).forEach(line => {
               if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
               doc.text(line, x, ry); ry += 5.5;
