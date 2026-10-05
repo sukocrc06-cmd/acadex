@@ -1698,17 +1698,61 @@ function buildClozeCards(
   const out: any[] = []
   const seenAnswers = new Set<string>()
 
+  /**
+   * Cross-card answer leakage.
+   *
+   * seenAnswers stops the same answer appearing twice. Nothing stopped one
+   * card's QUESTION from containing another card's ANSWER, and on a real
+   * glossary that happens constantly, because good cloze sentences name
+   * neighbouring concepts. Measured on the economy chapter (05.10.2026):
+   *
+   *   #5  "Fiscal policy involves taxation and spending; ___ involves
+   *        Federal Reserve actions..."                 -> monetary policy
+   *   #17 "___: Government policies concerning taxes and spending."
+   *                                                    -> fiscal policy
+   *
+   * #5 prints #17's answer verbatim. And it runs both ways:
+   *
+   *   #3  "___ is measured as real GDP"                -> aggregate output
+   *   #10 "U.S. Aggregate Output (___), 1900-2014"     -> Real GDP
+   *
+   * So the check has to look in BOTH directions for every candidate: does
+   * this prompt reveal an answer already committed, and does any committed
+   * prompt reveal this candidate's answer.
+   *
+   * A leaking candidate is SKIPPED, not patched. Blanking the extra term
+   * would give the card two blanks and one answer field, which is
+   * unanswerable, and the candidate pool is normally much larger than
+   * maxCards (29 terms and 16 points on this document), so the slot is
+   * refilled by the next candidate instead of being lost.
+   *
+   * clozeTermPattern, not indexOf: the match must respect word boundaries
+   * and the Turkish dotted-I folding, exactly like the blanking does.
+   */
+  const leaks = (prompt: string, answer: string): boolean => {
+    for (const c of out) {
+      // This candidate's question would print an earlier card's answer.
+      if (clozeTermPattern(c.answer).test(prompt)) return true
+      // An earlier card's question already prints this candidate's answer.
+      if (clozeTermPattern(answer).test(c.prompt)) return true
+    }
+    return false
+  }
+
   // 1) Keep valid model-produced clozes first
   if (Array.isArray(modelClozes)) {
     for (const c of modelClozes) {
       if (!c || !c.prompt || !c.answer) continue
       const ansKey = String(c.answer).trim().toLowerCase()
       if (!ansKey || seenAnswers.has(ansKey)) continue
+      const mPrompt = String(c.prompt).trim()
+      const mAnswer = String(c.answer).trim()
+      if (leaks(mPrompt, mAnswer)) continue
       seenAnswers.add(ansKey)
       out.push({
         id: c.id || `cl${out.length + 1}`,
-        prompt: String(c.prompt).trim(),
-        answer: String(c.answer).trim(),
+        prompt: mPrompt,
+        answer: mAnswer,
         full_text: String(c.full_text || c.prompt.replace(/_{2,}/g, c.answer)).trim(),
         source: c.source || 'model'
       })
@@ -1745,6 +1789,9 @@ function buildClozeCards(
       const prompt = blankAllOccurrences(text, term)
       // Nothing left to reason from if the blanks swallowed the sentence.
       if (prompt.replace(/_{3,}/g, ' ').trim().split(/\s+/).length < 5) continue
+      // `continue`, not `break`: this sentence may still yield a clean card
+      // from a different glossary term, so try the rest before giving up on it.
+      if (leaks(prompt, term)) continue
 
       seenAnswers.add(ansKey)
       out.push({
@@ -1769,7 +1816,6 @@ function buildClozeCards(
     if (!term || !def || term.length < 2) continue
     const ansKey = term.toLowerCase()
     if (seenAnswers.has(ansKey)) continue
-    seenAnswers.add(ansKey)
     // Prefer blanking the term inside the definition when it appears; else "___ : definition"
     let prompt: string
     const defHasTerm = def.toLowerCase().includes(term.toLowerCase())
@@ -1785,6 +1831,12 @@ function buildClozeCards(
     } else {
       prompt = `___: ${def}`
     }
+    // Leak check AFTER the prompt is built — the "___: <definition>" fallback
+    // and the blanked-definition form carry different text, so only the final
+    // prompt can be checked. This is also why seenAnswers is marked here
+    // rather than above: a skipped candidate must not burn its answer.
+    if (leaks(prompt, term)) continue
+    seenAnswers.add(ansKey)
     // full_text must restore the sentence the prompt was cut from, so it
     // follows which prompt shape we actually ended up with, not defHasTerm.
     const blanked = prompt !== `___: ${def}`
