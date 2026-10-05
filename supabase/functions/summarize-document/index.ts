@@ -4880,8 +4880,9 @@ FOOTNOTES: Preserve existing footnote page values when present; only change if t
 
 SECTIONS / OUTLINE: Preserve structure; refine inaccurate section summaries; remove admin-only sections.
 
-OUTPUT — READ CAREFULLY. Do NOT re-emit the study card, and do NOT rewrite
-the summary. Return your CORRECTIONS and your verdict:
+OUTPUT — READ CAREFULLY. Respond ONLY with a single JSON object. Do NOT
+re-emit the study card, and do NOT rewrite the summary. Return your
+CORRECTIONS and your verdict, as JSON:
 
 { "corrections": [ { "find": string, "replace": string } ], "summary_executive": string, "footnotes": [ { "id": number, "reference": string, "page": number | null } ], "quality_gate": { "pass": boolean, "grounded": boolean, "issues": [ string ] } }
 
