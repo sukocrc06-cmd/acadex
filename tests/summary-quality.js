@@ -2138,4 +2138,52 @@ test('vision notlari kapsamda (ReferenceError olmasin)', () => {
   assert.ok(decl < use, 'tanim kullanimdan once gelmeli');
 });
 
+console.log('\nGROQ JSON-MOD SOZLESMESI\n');
+
+/* 05.10.2026 canli hata:
+     Groq Review API call failed (400): 'messages' must contain the word
+     'json' in some form, to use 'response_format' of type 'json_object'.
+   Review prompt undan tum taslak JSON unu cikarirken, "Draft JSON summary:"
+   satirini da silmis oldum — ve o satir Groq un sart kostugu TEK "json"
+   gecisiydi. Review butun belgelerde 400 almaya basladi, sessizce taslaga
+   dondu. Prompt metni degistikce bu kolayca tekrar kirilir, o yuzden test. */
+
+function promptStringsOf(name) {
+  // Sablon literalini al; kod icindeki JSON.parse/JSON.stringify sayilmasin.
+  const i = SRC.indexOf(name);
+  assert.ok(i > 0, `${name} bulunamadi`);
+  const start = SRC.indexOf('`', i);
+  let depth = 0, end = start + 1;
+  for (; end < SRC.length; end++) {
+    const c = SRC[end];
+    if (c === '\\') { end++; continue; }
+    if (c === '$' && SRC[end + 1] === '{') { depth++; end++; continue; }
+    if (c === '}' && depth > 0) { depth--; continue; }
+    if (c === '`' && depth === 0) break;
+  }
+  return SRC.slice(start + 1, end);
+}
+
+test('review system prompt u "json" kelimesini iceriyor (Groq sarti)', () => {
+  const p = promptStringsOf('const reviewSystemPrompt');
+  assert.ok(/json/i.test(p),
+    'response_format json_object kullanilirken mesajlarda "json" GECMELI — yoksa 400');
+});
+
+test('json_object kullanan her prompt ta "json" geciyor', () => {
+  // Bildirimden sonraki genis bir dilime bakmak yeterli: bu bir regresyon
+  // bekcisi, bir ayristirici degil. visualSystemPrompt `systemPrompt + ...`
+  // seklinde kuruldugu icin tabanini da katiyoruz — birlestirmeyi gormeden
+  // bakmak yanlis alarm veriyor (ilk denememde tam oyle oldu).
+  const base = SRC.slice(SRC.indexOf('const systemPrompt ='), SRC.indexOf('const systemPrompt =') + 9000);
+  const baseHasJson = /json/i.test(base);
+  for (const m of SRC.matchAll(/const (\w*[Ss]ystemPrompt) = (\w+ \+ )?`/g)) {
+    const [, name, inherits] = m;
+    if (name === 'systemPrompt') continue;
+    const own = SRC.slice(m.index, m.index + 2500);
+    const ok = /json/i.test(own) || (inherits && inherits.startsWith('systemPrompt') && baseHasJson);
+    assert.ok(ok, `${name} ve tabaninda "json" yok — Groq 400 doner`);
+  }
+});
+
 summary().then(() => process.exit(process.exitCode || 0));
