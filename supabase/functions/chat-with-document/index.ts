@@ -193,14 +193,78 @@ async function loadStoredText(serviceClient: any, documentId: string): Promise<s
 // common case has no behaviour change at all.
 // ==========================================================================
 
-// Below this, send the whole document — retrieval can only lose context when
-// everything already fits.
-const WHOLE_DOC_MAX_CHARS = 50000
-// Budget for assembled retrieved passages. Deliberately well under the old
-// 100,000: relevance-ranked 50k beats an arbitrary first-50k prefix, and a
-// smaller prompt is faster, cheaper, and easier on the account's
-// tokens-per-minute cap.
-const RETRIEVED_MAX_CHARS = 50000
+// ==========================================================================
+// HOW MUCH SOURCE TEXT ACTUALLY FITS
+//
+// This used to be a pair of flat 50,000-character constants, chosen as "well
+// under the old 100,000". Measured against the account's real limit on
+// 05.10.2026 they are not under anything:
+//
+//   Groq TPM, per model .......... 8,000 tokens / minute
+//   estimateTokens ratio ......... 3.2 characters per token
+//   this call's completion cap .... 2,048 tokens
+//
+//   50,000 chars = 15,625 tokens + 2,048 completion = 17,673  -> 2.2x the cap
+//   31,817 chars (Cognitive Dissonance, a real test document)
+//               =  9,943 tokens + 2,048 completion = 11,991  -> over the cap
+//   11,050 chars (economy chapter 20)
+//               =  3,453 tokens + 2,048 completion =  5,501  -> fits
+//
+// So the two constants left a DEAD ZONE: a document between roughly 19,000
+// and 50,000 characters was sent whole (too big for the minute's budget, so
+// Groq answers "Request too large") while retrieval stood by, because its
+// trigger was "bigger than 50,000". The only documents that worked were the
+// small ones, which is exactly what got tested.
+//
+// The budget is now derived instead of declared, and derived PER REQUEST,
+// because the two things competing with the source text for the same 8,000
+// tokens both vary: the system prompt grows with the study-card context
+// block, and the conversation history grows with the chat.
+//
+// Deliberately NOT the summarize function's TokenPacer. That paces by
+// WAITING — up to 60 seconds for the window to roll — which is right for a
+// background job and wrong for a student watching a chat box. Here the fix
+// is to make the request fit in the first place; genuine contention between
+// several students still falls to fetchWithRetry's 429 handling, which waits
+// the seconds Groq actually asks for rather than a fixed minute.
+// ==========================================================================
+const CHAT_TPM_LIMIT = 8000
+// Headroom for the 3.2 ratio being an estimate while Groq counts the real
+// tokenisation (Turkish runs denser than English, so it undershoots there).
+//
+// 0.9, not a fresh guess: this is the summarize function's PACER_SAFETY, and
+// that one is evidence rather than taste — every measured run logs its spend
+// against the resulting 7,200 ceiling ("used=6226/7200") and not one of them
+// has come back "Request too large". A tighter 0.85 was tried here first and
+// pushed the 11,050-character economy chapter — a document that demonstrably
+// fits today — over into retrieval, which is a capability lost to a number
+// nobody had measured.
+const CHAT_TPM_SAFETY = 0.9
+const CHAT_MAX_COMPLETION = 2048
+const CHARS_PER_TOKEN = 3.2
+// An attached image is billed as tokens too and is not in any string we can
+// measure. Reserved whenever one is present.
+const IMAGE_TOKEN_RESERVE = 1600
+// Never send less than this, even if the overhead calculation says so — a
+// couple of pages is the floor below which an answer is not worth attempting,
+// and at that point the honest outcome is a short prompt, not an empty one.
+const SOURCE_MIN_CHARS = 4000
+
+/**
+ * Characters of source text this particular request can afford.
+ *
+ * overheadChars covers everything else that goes into the same budget: the
+ * system prompt minus the source block, and the conversation history.
+ */
+function sourceBudgetChars(overheadChars: number, hasImage: boolean): number {
+  const available =
+    CHAT_TPM_LIMIT * CHAT_TPM_SAFETY
+    - CHAT_MAX_COMPLETION
+    - Math.ceil(overheadChars / CHARS_PER_TOKEN)
+    - (hasImage ? IMAGE_TOKEN_RESERVE : 0)
+  return Math.max(SOURCE_MIN_CHARS, Math.floor(available * CHARS_PER_TOKEN))
+}
+
 const RETRIEVED_MAX_CHUNKS = 40
 
 // Words too common to tell one passage from another. Short list on purpose:
@@ -571,6 +635,77 @@ serve(async (req) => {
     // Every branch falls back toward the older, simpler behaviour rather than
     // failing the student's question.
     // ========================================================================
+    // Bound the conversation window we forward to the model: last 10 turns
+    // (5 exchanges) is plenty of context for follow-ups without ballooning cost.
+    //
+    // Computed HERE, before the strategy below, because the history competes
+    // with the source text for the same per-minute budget and so has to be
+    // measurable before we decide how much source we can afford. A long
+    // conversation legitimately shrinks the source window.
+    const safeMessages = messages
+      .filter((m: any) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+      .slice(-10)
+      .map((m: any) => ({ role: m.role, content: m.content.slice(0, 3000) }))
+
+    if (safeMessages.length === 0 || safeMessages[safeMessages.length - 1].role !== 'user') {
+      return new Response(JSON.stringify({ error: 'No valid question found in the request.' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
+    // Everything that competes with the source text for the same per-minute
+    // budget, declared before the strategy below so the budget can be measured
+    // rather than assumed.
+    const docNames = docs.map((d: any) => d.file_name).join(', ')
+    const summaryContextBlock = buildSummaryContextBlock(card)
+    const hasImage = typeof imageDataUrl === 'string'
+    // "Check my work" only makes sense when there's actually an image to look
+    // at — a checked checkbox with no attachment is just ignored.
+    const isCheckWorkMode = checkWorkMode === true && hasImage
+
+    // Measured, not estimated: build the real prompt with an empty source and
+    // take its length. `true` for the retrieval variant because that one is
+    // ~700 characters longer (the selected-passages caveat), so whichever
+    // strategy wins, the real prompt is no larger than what we budgeted for.
+    const historyChars = () => safeMessages.reduce(
+      (n: number, m: any) => n + String(m.content || '').length, 0
+    )
+    const basePromptChars = buildSystemPrompt('', true).length
+
+    // A long conversation can eat the whole minute on its own: ten turns at
+    // the 3,000-character cap is 30,000 characters, nearly 9,400 tokens
+    // before the document is even considered. The floor in
+    // sourceBudgetChars() keeps the source from going to zero, but a floor
+    // that pushes the TOTAL back over the ceiling just trades an empty prompt
+    // for "Request too large" — the student sees an error either way.
+    //
+    // So when it comes to that, the history is what gets cut. The source
+    // document is what the question is about; turn 6 of the chat is not.
+    // Oldest first, and never the current question.
+    let droppedTurns = 0
+    while (
+      safeMessages.length > 1 &&
+      sourceBudgetChars(basePromptChars + historyChars(), hasImage) <= SOURCE_MIN_CHARS
+    ) {
+      safeMessages.shift()
+      droppedTurns++
+    }
+    if (droppedTurns > 0) {
+      console.warn(
+        `chat-with-document: ${droppedTurns} eski sohbet turu dusuruldu — ` +
+        `gecmis kaynak metnine yer birakmiyordu`
+      )
+    }
+
+    const promptOverheadChars = basePromptChars + historyChars()
+    const SOURCE_BUDGET = sourceBudgetChars(promptOverheadChars, hasImage)
+    console.log(
+      `chat-with-document budget: ${SOURCE_BUDGET} krk kaynak ` +
+      `(prompt ${basePromptChars} + gecmis ${historyChars()} krk, ` +
+      `gorsel=${hasImage ? 'var' : 'yok'}, TPM ${CHAT_TPM_LIMIT}×${CHAT_TPM_SAFETY})`
+    )
+
     type ChunkSize = { count: number; totalChars: number } | null
     const sizes: ChunkSize[] = await Promise.all(
       docs.map((d: any) => loadChunkSizes(serviceClient, d.id))
@@ -588,10 +723,10 @@ serve(async (req) => {
     let sourceText = ''
     let strategy = 'none'
 
-    if (allChunked && totalChunkChars > WHOLE_DOC_MAX_CHARS && retrievalQuery) {
+    if (allChunked && totalChunkChars > SOURCE_BUDGET && retrievalQuery) {
       const rows = await retrieveRelevantChunks(serviceClient, docIds, retrievalQuery)
       if (rows && rows.length > 0) {
-        const { text, used, pages } = assembleRetrieved(rows, RETRIEVED_MAX_CHARS)
+        const { text, used, pages } = assembleRetrieved(rows, SOURCE_BUDGET)
         if (text) {
           sourceText = text
           strategy = 'retrieval'
@@ -643,14 +778,23 @@ serve(async (req) => {
       strategy = storedHits > 0 ? 'whole-document (stored)' : 'whole-document (extracted)'
 
       // Safety net for a document that is large AND could not be served by
-      // retrieval (no chunks, or the search was unavailable). Still a cut,
-      // but now only on the path that has no better option.
-      const MAX_CHARS = 100000
-      if (sourceText.length > MAX_CHARS) {
-        console.warn(`chat-with-document: source text (${sourceText.length} chars) exceeds ${MAX_CHARS}, truncating.`)
-        const truncated = sourceText.substring(0, MAX_CHARS)
+      // retrieval (no chunks, or the search was unavailable). Still a cut, but
+      // now only on the path that has no better option.
+      //
+      // The cut used to be at a flat 100,000 characters, which is five times
+      // what the minute's budget can carry — so it did not prevent anything:
+      // the request still went out too large and Groq rejected it. Cutting at
+      // the budget means the student gets an answer from the first N pages
+      // instead of an error, which is worse than retrieval and much better
+      // than nothing.
+      if (sourceText.length > SOURCE_BUDGET) {
+        console.warn(
+          `chat-with-document: source text (${sourceText.length} krk) butceyi ` +
+          `(${SOURCE_BUDGET} krk) asiyor, kirpiliyor — retrieval bu yolda kullanilamadi`
+        )
+        const truncated = sourceText.substring(0, SOURCE_BUDGET)
         const lastBoundary = Math.max(truncated.lastIndexOf(". "), truncated.lastIndexOf(".\n"), truncated.lastIndexOf("\n"))
-        sourceText = lastBoundary > MAX_CHARS - 3000 ? truncated.substring(0, lastBoundary + 1) : truncated
+        sourceText = lastBoundary > SOURCE_BUDGET - 3000 ? truncated.substring(0, lastBoundary + 1) : truncated
         strategy += ' + truncated'
       }
       console.log(`chat-with-document source text: ${storedHits} from document_chunks, ${extractedHits} re-extracted`)
@@ -666,29 +810,35 @@ serve(async (req) => {
       })
     }
 
-    const docNames = docs.map((d: any) => d.file_name).join(', ')
-    const summaryContextBlock = buildSummaryContextBlock(card)
-    const hasImage = typeof imageDataUrl === 'string'
-    // "Check my work" only makes sense when there's actually an image to look
-    // at — a checked checkbox with no attachment is just ignored.
-    const isCheckWorkMode = checkWorkMode === true && hasImage
-
-    // What the model is actually looking at depends on the strategy above.
-    // Telling it "the full extracted text" when it is holding a relevance-
-    // selected subset would invite exactly the wrong error: flatly denying
-    // that the document covers something that simply was not retrieved.
-    const isRetrieval = strategy === 'retrieval'
-    const sourceDescription = isRetrieval
-      ? `Below are the passages from that source that are most relevant to the student's question, selected from a longer document and shown in reading order with their page numbers`
-      : `You are given the full extracted text of that source below`
-    const retrievalCaveat = isRetrieval
-      ? `
+    /**
+     * The system prompt, as a function of the source text.
+     *
+     * It used to be one inline template literal built after the strategy was
+     * chosen. It has to be a function now because the source-text budget is
+     * "what is left of the minute after everything else" — so the everything
+     * else has to be MEASURABLE before the source is picked, and the only
+     * honest way to measure it is to build this with an empty source.
+     *
+     * A hardcoded "the prompt is about 4,000 characters" constant would have
+     * been smaller, and would have silently drifted the first time anyone
+     * edited the text below.
+     */
+    function buildSystemPrompt(sourceText: string, isRetrieval: boolean): string {
+      // What the model is actually looking at depends on the strategy.
+      // Telling it "the full extracted text" when it is holding a relevance-
+      // selected subset would invite exactly the wrong error: flatly denying
+      // that the document covers something that simply was not retrieved.
+      const sourceDescription = isRetrieval
+        ? `Below are the passages from that source that are most relevant to the student's question, selected from a longer document and shown in reading order with their page numbers`
+        : `You are given the full extracted text of that source below`
+      const retrievalCaveat = isRetrieval
+        ? `
 
 SELECTED-PASSAGES CAVEAT (important):
 What follows is a RELEVANCE-SELECTED SUBSET of a longer document, not the whole thing. Answer from these passages exactly as strictly as always — but when they do not contain the answer, say that these passages don't cover it and that it may appear elsewhere in the document (suggest the student rephrase with more specific terms, or name the topic/chapter). Do NOT state or imply that the document itself does not contain something, because you cannot see all of it. Page numbers shown in "[Sayfa N]" headers are real — use them in your citations' "reference" text when relevant.`
-      : ''
+        : ''
 
-    const systemPrompt = `You are a grounded document Q&A assistant for Acadex, an academic study platform. The student is asking questions about a specific uploaded source (${docNames}). ${sourceDescription}${summaryContextBlock ? ', along with the study card summary already generated for it' : ''}.${retrievalCaveat}
+      return `You are a grounded document Q&A assistant for Acadex, an academic study platform. The student is asking questions about a specific uploaded source (${docNames}). ${sourceDescription}${summaryContextBlock ? ', along with the study card summary already generated for it' : ''}.${retrievalCaveat}
 
 STRICT GROUNDING RULE:
 Answer ONLY using information that is actually present in the source text${summaryContextBlock ? ' or the study card summary' : ''} below. Do NOT use outside knowledge to fill in gaps, and do NOT invent facts, numbers, names, or details that are not in the text. If the source does not contain enough information to answer the question, say so honestly and clearly (in the student's own language) instead of guessing — you may still briefly explain the general concept if it's common academic knowledge, but you MUST clearly distinguish that from what the source itself says.
@@ -750,20 +900,9 @@ SOURCE TEXT:
 """
 ${sourceText}
 """`
-
-    // Bound the conversation window we forward to the model: last 10 turns
-    // (5 exchanges) is plenty of context for follow-ups without ballooning cost.
-    const safeMessages = messages
-      .filter((m: any) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
-      .slice(-10)
-      .map((m: any) => ({ role: m.role, content: m.content.slice(0, 3000) }))
-
-    if (safeMessages.length === 0 || safeMessages[safeMessages.length - 1].role !== 'user') {
-      return new Response(JSON.stringify({ error: 'No valid question found in the request.' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
     }
+
+    const systemPrompt = buildSystemPrompt(sourceText, strategy === 'retrieval')
 
     // Build the actual message list. Only the LAST user turn ever carries the
     // attached image — older turns stay plain text so the conversation history
