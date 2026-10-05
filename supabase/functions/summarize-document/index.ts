@@ -455,8 +455,36 @@ const MODEL_FAST = "qwen/qwen3.8-27b"
 // pulling terms and points out of text — not prose. The narrative writer
 // stays on MODEL_HEAVY, where the writing quality is the point.
 const MODEL_EXTRACT = "openai/gpt-oss-20b"
-/** Which lane window `wi` runs on. Alternating keeps both minutes moving. */
-const windowModel = (wi: number) => (wi % 2 === 0 ? MODEL_HEAVY : MODEL_EXTRACT)
+/**
+ * Pick the lane that can take this call SOONEST.
+ *
+ * Alternating by index was the first version and it only half worked. On a
+ * 3-window document (05.10.2026) windows 1 and 2 did run side by side — same
+ * millisecond in the log, the 60s gap between them gone — but window 3 went
+ * back to MODEL_HEAVY purely because its index was even, and sat out a full
+ * window while the other lane was equally busy. Parity does not know which
+ * lane is free; the pacer does.
+ *
+ * The same run showed the sharper version of the problem downstream. The
+ * narrative writer waited 57 seconds on MODEL_HEAVY at a moment when
+ * MODEL_EXTRACT's ledger had just aged out and would have taken it instantly.
+ * Nothing was overloaded — we were queueing for one lane while another stood
+ * empty.
+ *
+ * Order matters: `models` is in preference order, and ties go to the first,
+ * so a caller that cares about quality lists its preferred model first and
+ * still gets it whenever that costs nothing.
+ */
+function pickLane(models: string[], estTokens: number, estCompletion = 0): string {
+  let best = models[0]
+  let bestWait = Infinity
+  for (const m of models) {
+    const wait = tokenPacer.waitEstimate(estTokens, m, estCompletion)
+    if (wait < bestWait) { best = m; bestWait = wait }
+    if (bestWait === 0) break
+  }
+  return best
+}
 // Skip the expensive review pass for short, simple documents (saves ~1 full LLM call)
 const SKIP_REVIEW_MAX_CHARS = 3500
 const CHUNK_MAX_COMPLETION = 1536 // slightly smaller → faster chunk map
@@ -515,7 +543,15 @@ const VISION_MAX_IMAGES = 2
 // when there is room for both: ~65s for itself, 35s for the writer's gate.
 // Below that it skips itself, which is the correct trade — a card always has
 // a written summary, and figure values are the optional extra.
+// Replaced as a gate by a measured wait + cost (see the vision block); kept
+// because the fast path still reads it.
 const VISUAL_MIN_BUDGET_MS = 100_000
+// One vision call: PDF.co page render + a 25s model timeout + merge.
+const VISION_CALL_MS = 30_000
+// What the narrative writer needs after vision returns. It now falls back to
+// whichever lane is free instead of queueing, so this is the call itself plus
+// the deterministic gates and the save, not a full TPM window.
+const NARRATIVE_WRITER_RESERVE_MS = 40_000
 
 function computeAdaptiveTargets(charCount: number, lengthPreset: string) {
   const presets: Record<string, { summary: [number, number]; terms: [number, number]; points: [number, number]; quiz: [number, number]; capSummary: number; capTerms: number; capPoints: number; capQuiz: number }> = {
@@ -4297,16 +4333,30 @@ Rules:
         `windowedChars=${windowedChars} (${Math.round(100 * windowedChars / Math.max(1, extractedText.length))}% of document reachable)`
       )
 
+      // Which lane each window actually used, for the success log. Kept
+      // beside the results rather than ON them: a stray field on the result
+      // object would ride into the merge and out into the saved card.
+      const windowLanes = new Map<number, string>()
+
       async function extractWindow(wi: number, text: string): Promise<any | null> {
         let payload = text
         for (let attempt = 0; attempt < 3; attempt++) {
+          // Chosen HERE, not from the window index, and re-chosen on each
+          // attempt: by the time a retry comes round the lanes have moved.
+          // See pickLane for what index parity got wrong.
+          const windowLane = pickLane(
+            [MODEL_HEAVY, MODEL_EXTRACT],
+            estimateTokens(compactWindowPrompt(wi, windows.length), payload, 3072),
+            3072
+          )
+          windowLanes.set(wi, windowLane)
           try {
             const result = await callGroqJson(
               groqApiKey,
               compactWindowPrompt(wi, windows.length),
               payload,
               {
-                model: windowModel(wi),
+                model: windowLane,
                 temperature: 0.2,
                 // Denetim Raporu, 2026-08-31: raised from 2048 → 3072 to make
                 // room for the tables/charts/diagrams/worked_examples fields
@@ -4452,11 +4502,11 @@ Rules:
             // Normalize alternate field names
             if (!result.summary && result.chunk_summary) result.summary = result.chunk_summary
             windowResults.push(result)
-            // The model is in the line on purpose: windows alternate lanes, so
-            // one run of one document compares 120b and 20b on neighbouring
-            // slices of the same text. If 20b turns out to extract materially
+            // The lane is in the line on purpose: windows are spread across
+            // both models, so one run of one document compares 120b and 20b on
+            // neighbouring slices of the same text. If 20b extracts materially
             // less, this log is where it shows, with no separate experiment.
-            console.log(`Window ${wi + 1} ok [${windowModel(wi)}]: terms=${(result.key_terms || []).length} points=${(result.key_points || []).length} quiz=${(result.quiz_questions || []).length}`)
+            console.log(`Window ${wi + 1} ok [${windowLanes.get(wi) || '?'}]: terms=${(result.key_terms || []).length} points=${(result.key_points || []).length} quiz=${(result.quiz_questions || []).length}`)
           }
         }
       }
@@ -4633,14 +4683,32 @@ Use CONCRETE topic names from digests and terms. No meta filler.`,
         ? selectVisualPages(pdfPageTexts, nearBlankPdfPageIndices, VISION_MAX_IMAGES)
         : { indices: [] as number[], reason: 'kapali' }
 
-      if (analyzeVisuals && visualPlan.indices.length > 0 && budgetLeft() <= VISUAL_MIN_BUDGET_MS) {
+      // Budget the vision pass the way the review gate is budgeted: what the
+      // call would actually WAIT plus what it would actually COST, instead of
+      // a flat reserve.
+      //
+      // VISUAL_MIN_BUDGET_MS is 100s against a 110s pipeline, so vision could
+      // only ever run if it started inside the first ten seconds. On a
+      // single-window document it does. On a multi-window one it never can —
+      // and on 05.10.2026 that is exactly what happened: "Gorsel gecis
+      // atlandi: butce 41096ms <= 100000ms". 41 seconds was plenty for a call
+      // that needs about thirty.
+      //
+      // The reserve was there to leave the narrative writer room. The writer
+      // now falls back to a free lane instead of queueing for a busy one, so
+      // the room it needs is far smaller than 100s.
+      const visionEstTokens = visualPlan.indices.length * VISION_TOKENS_PER_IMAGE + 2000
+      const visionWaitMs = tokenPacer.waitEstimate(visionEstTokens, MODEL_FAST, VISION_MAX_COMPLETION)
+      const visionNeedsMs = visionWaitMs + VISION_CALL_MS + NARRATIVE_WRITER_RESERVE_MS
+      if (analyzeVisuals && visualPlan.indices.length > 0 && budgetLeft() <= visionNeedsMs) {
         console.log(
-          `Gorsel gecis atlandi: butce ${budgetLeft()}ms <= ${VISUAL_MIN_BUDGET_MS}ms — ` +
+          `Gorsel gecis atlandi: butce ${budgetLeft()}ms <= ${visionNeedsMs}ms ` +
+          `[pacer ${visionWaitMs}ms + cagri ${VISION_CALL_MS}ms + yazar payi ${NARRATIVE_WRITER_RESERVE_MS}ms] — ` +
           `anlati yazarina yer birakiliyor`
         )
       }
 
-      if (analyzeVisuals && visualPlan.indices.length > 0 && budgetLeft() > VISUAL_MIN_BUDGET_MS) {
+      if (analyzeVisuals && visualPlan.indices.length > 0 && budgetLeft() > visionNeedsMs) {
         try {
           console.log(`Gorsel sayfa secimi: [${visualPlan.indices.join(',')}] — ${visualPlan.reason}`)
           await serviceClient.from('documents').update({ processing_stage: 'visual_analysis' }).eq('id', documentId)
@@ -5094,10 +5162,24 @@ ${keyPointsBlock || '(none)'}
 Existing draft summary (keep factual content; rewrite only for flow):
 ${String(draftObj.summary || '').slice(0, 3500)}`
 
+        // MODEL_HEAVY first — this is the one call where prose quality is the
+        // product. But a 57s queue for it, measured on 05.10.2026, is not a
+        // quality decision; it is the difference between a written summary and
+        // the skipped-writer path that leaves the card with none. When heavy
+        // is busy and extract is free, take extract.
+        const writerCompletion = depthFlags.longNarrative || len === 'long' || len === 'detailed' ? 3072 : 2048
+        const writerLane = pickLane(
+          [MODEL_HEAVY, MODEL_EXTRACT],
+          estimateTokens(writerSys, writerUser, writerCompletion),
+          writerCompletion
+        )
+        if (writerLane !== MODEL_HEAVY) {
+          console.log(`Madde 3: yazar ${writerLane} seridine alindi (${MODEL_HEAVY} mesgul)`)
+        }
         const written = await callGroqJson(groqApiKey, writerSys, writerUser, {
-          model: MODEL_HEAVY,
+          model: writerLane,
           temperature: 0.2,
-          maxCompletionTokens: depthFlags.longNarrative || len === 'long' || len === 'detailed' ? 3072 : 2048,
+          maxCompletionTokens: writerCompletion,
           timeoutMs: Math.min(35000, Math.max(12000, budgetLeft() - 5000)),
           maxRetries: 1
         })
