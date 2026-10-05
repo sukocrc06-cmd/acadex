@@ -22,7 +22,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   // token hizlandirici (TPM)
   'PACER_SAFETY', 'PACER_WINDOW_MS', 'PACER_MAX_WAIT_MS', 'PACER_COMPLETION_FACTOR',
   'DEFAULT_TPM_LIMIT', 'MODEL_OTPM', 'OTPM_SAFETY', 'VISION_MAX_COMPLETION', 'PIPELINE_BUDGET_MS', 'REVIEW_ATTEMPT_TIMEOUT_MS', 'REVIEW_TAIL_MS',
-  'tokenPacer', 'estimateTokens', 'parseGroqRetryAfterMs', 'isDailyQuotaError', 'MODEL_HEAVY', 'MODEL_FAST', 'MODEL_EXTRACT', 'windowModel',
+  'tokenPacer', 'estimateTokens', 'parseGroqRetryAfterMs', 'isDailyQuotaError', 'MODEL_HEAVY', 'MODEL_FAST', 'MODEL_EXTRACT', 'VISION_CALL_MS', 'NARRATIVE_WRITER_RESERVE_MS',
   // latex
   'stripLatexDelimiters', 'validateLatex', 'sanitizeFormulas',
   // mermaid dogrulama
@@ -2196,11 +2196,47 @@ console.log('\nIKINCI CIKARMA SERIDI (gpt-oss-20b)\n');
    belgede 3 pencere, iki adet 60sn bekleme, 132sn, ve vision+writer+review
    butce yetmediginden atlandi. */
 
-test('pencereler iki serit arasinda donuyor', () => {
-  assert.equal(A.windowModel(0), A.MODEL_HEAVY);
-  assert.equal(A.windowModel(1), A.MODEL_EXTRACT);
-  assert.equal(A.windowModel(2), A.MODEL_HEAVY);
-  assert.equal(A.windowModel(3), A.MODEL_EXTRACT);
+test('serit SIRAYA gore degil, BOS olana gore secilir', () => {
+  // Ilk surum index paritesiyle seciyordu. 3 pencereli belgede W1 ve W2
+  // paralel kostu ama W3 sirf indeksi cift diye yine 120b ye gitti ve bos
+  // yere 60sn bekledi. Parite hangi seridin bos oldugunu bilmiyor.
+  const p = freshPacer(8000, A.MODEL_HEAVY);
+  p.lane(A.MODEL_EXTRACT).limit = 8000;
+  const pick = (est) => {
+    let best = null, bw = Infinity;
+    for (const m of [A.MODEL_HEAVY, A.MODEL_EXTRACT]) {
+      const w = p.waitEstimate(est, m, 3072);
+      if (w < bw) { best = m; bw = w; }
+    }
+    return best;
+  };
+  assert.equal(pick(6149), A.MODEL_HEAVY, 'ikisi de bosken tercih edilen gelir');
+  p.lane(A.MODEL_HEAVY).spent = [{ at: Date.now(), tokens: 6149 }];
+  assert.equal(pick(6149), A.MODEL_EXTRACT, 'agir serit doluyken digerine gecmeli');
+});
+
+test('pickLane kodda gercekten kullaniliyor', () => {
+  assert.ok(/function pickLane/.test(SRC), 'serit secici olmali');
+  assert.ok(!/windowModel\(/.test(SRC), 'parite tabanli secim kaldirilmali');
+  assert.ok(/const windowLane = pickLane/.test(SRC), 'pencereler dagitim aninda secmeli');
+  assert.ok(/const writerLane = pickLane/.test(SRC), 'yazar da bos serite dusebilmeli');
+});
+
+test('yazar tercihini AGIR modelden yana kullanir', () => {
+  // Kalite oncelikli: iki serit de bosken 120b gelmeli.
+  const i = SRC.indexOf('const writerLane = pickLane');
+  assert.ok(/\[MODEL_HEAVY, MODEL_EXTRACT\]/.test(SRC.slice(i, i + 200)),
+    'tercih sirasi once MODEL_HEAVY olmali');
+});
+
+test('gorsel kapisi sabit 100sn degil, olculen sure', () => {
+  // 100sn kapi 110sn lik boru hattinda vision u ilk 10 saniyeye hapsediyordu;
+  // cok pencereli belgede asla calisamazdi (41sn bulup atladi).
+  assert.ok(/budgetLeft\(\) <= visionNeedsMs/.test(SRC), 'kapi olcume baglanmali');
+  assert.ok(/VISION_CALL_MS/.test(SRC) && /NARRATIVE_WRITER_RESERVE_MS/.test(SRC),
+    'cagri suresi ve yazar payi ayri ayri bellenmeli');
+  assert.ok(A.VISION_CALL_MS + A.NARRATIVE_WRITER_RESERVE_MS < A.VISUAL_MIN_BUDGET_MS,
+    'yeni kapi eskisinden gevsek olmali, yoksa degisiklik anlamsiz');
 });
 
 test('ikinci serit gercekten BASKA bir model', () => {
@@ -2228,11 +2264,18 @@ test('eszamanlilik iki seridin TOPLAMI', () => {
   assert.equal(toplam, 2, 'iki serit iki pencere alir');
 });
 
-test('anlatim yazari AGIR modelde kaliyor', () => {
-  // 20b cikarma icin; duzyazi kalitesinin onemli oldugu yer yazar.
-  const i = SRC.indexOf('MADDE 3 — NARRATIVE WRITER');
-  const blok = SRC.slice(i, i + 6000);
-  assert.ok(!blok.includes('MODEL_EXTRACT'), 'yazar kucuk modele kaydirilmamali');
+test('yazar AGIR modeli tercih eder ama ona KILITLI degil', () => {
+  // Bu test once "yazar asla MODEL_EXTRACT kullanmasin" diyordu. O kural
+  // 05.10.2026 olcumunde yanlis cikti: yazar 120b icin 57 saniye bekledi,
+  // o sirada 20b nin seridi bosalmisti, ve bir onceki kosuda yazar tamamen
+  // ATLANMIS, kart yazili ozetsiz kalmisti. 57 saniyelik kuyruk bir kalite
+  // tercihi degil; "yazili ozet var mi yok mu" tercihi. Tercih sirasi
+  // korunuyor, kilit kalkiyor.
+  const i = SRC.indexOf('const writerLane = pickLane');
+  assert.ok(i > 0, 'yazar serit secimi olmali');
+  const blok = SRC.slice(i, i + 200);
+  assert.ok(/\[MODEL_HEAVY, MODEL_EXTRACT\]/.test(blok),
+    'MODEL_HEAVY once gelmeli — esitlikte tercih edilen o');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));
