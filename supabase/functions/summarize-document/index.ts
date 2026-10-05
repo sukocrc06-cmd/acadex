@@ -532,11 +532,22 @@ const CHUNK_CONCURRENCY = 3
 const MAX_CHUNKS = 12 // hard ceiling: prefer finishing over analyzing every page under Edge timeout
 // Soft wall-clock budget (ms) for the whole function — leave headroom under ~150s platform limit
 const PIPELINE_BUDGET_MS = 110_000
-// Floor for retrying a window after json_validate_failed. A retry is one more
-// window call, which on this account's 8,000 TPM means a ~60s TokenPacer wait;
-// below this there is no longer room for both that wait and the narrative
-// writer afterwards, so the thin-but-complete card wins over a card with no
-// written summary.
+// A window call, compact-split to window-ok, measured across four live runs:
+// 2.9s, 3.3s, 4.0s, 5.3s. Used to budget a retry, and deliberately several
+// times the measured cost.
+const WINDOW_CALL_MS = 15_000
+// Superseded as a gate by a measured wait + cost; see the json_validate_failed
+// branch. Kept only so the old reasoning stays readable in one place:
+//
+//   "A retry is one more window call, which on this account's 8,000 TPM means
+//    a ~60s TokenPacer wait"
+//
+// True with one lane. With two, pickLane sends the retry to whichever lane is
+// free, and on 05.10.2026 that would have been a 0.7s wait. The 70s floor was
+// a constant left behind by its own fix — the same way the narrative writer's
+// 40s reserve was — and it cost a third of a document: window 3 failed at
+// 64.1s with 45.9s of budget left, 70 > 45.9, no retry, zero terms from that
+// slice.
 const JSON_RETRY_MIN_BUDGET_MS = 70_000
 
 // Vision pass sizing, both numbers forced by the same 8,000 TPM ceiling.
@@ -3699,6 +3710,13 @@ serve(async (req) => {
     // is: a flag written inside the chunked branch and read outside it is a
     // ReferenceError in production that no extracted-function test can see.
     let dailyQuotaExhausted = false
+
+    // Stages the time budget forced us to drop, recorded so the SAVED CARD can
+    // say so. A long document can lose vision, the narrative writer or review
+    // and still look complete — the student has no way to tell a card that got
+    // the full pipeline from one that ran out of minutes. Declared out here for
+    // the same scope reason as the two above.
+    const skippedStages: string[] = []
     const budgetLeft = () => Math.max(0, PIPELINE_BUDGET_MS - (Date.now() - pipelineStartedAt))
 
     // ==========================================================================
@@ -4441,13 +4459,26 @@ Rules:
             // top, and by then the narrative writer's own budget gate
             // (35s) is at risk — trading a thin card for one with no
             // written summary at all is not a trade worth making.
-            if (
-              /json_validate_failed|failed to generate json/i.test(msg) &&
-              attempt < 1 &&
-              budgetLeft() > JSON_RETRY_MIN_BUDGET_MS
-            ) {
-              console.warn(`Window ${wi + 1}: json_validate_failed — ayni istek bir kez daha deneniyor (butce ${budgetLeft()}ms)`)
-              continue
+            if (/json_validate_failed|failed to generate json/i.test(msg) && attempt < 1) {
+              // Ask what the retry would ACTUALLY cost on the lane it would
+              // actually use, instead of assuming a full TPM window.
+              const retryEst = estimateTokens(compactWindowPrompt(wi, windows.length), payload, 3072)
+              const retryWaitMs = Math.min(
+                tokenPacer.waitEstimate(retryEst, MODEL_HEAVY, 3072),
+                tokenPacer.waitEstimate(retryEst, MODEL_EXTRACT, 3072)
+              )
+              const retryNeedsMs = retryWaitMs + WINDOW_CALL_MS + NARRATIVE_WRITER_RESERVE_MS
+              if (budgetLeft() > retryNeedsMs) {
+                console.warn(
+                  `Window ${wi + 1}: json_validate_failed — tekrar deneniyor ` +
+                  `(butce ${budgetLeft()}ms, gereken ${retryNeedsMs}ms [pacer ${retryWaitMs}ms])`
+                )
+                continue
+              }
+              console.warn(
+                `Window ${wi + 1}: json_validate_failed — butce yetmiyor, bu dilim atlaniyor ` +
+                `(butce ${budgetLeft()}ms, gereken ${retryNeedsMs}ms)`
+              )
             }
             return null
           }
@@ -4677,12 +4708,31 @@ Rules:
             `P${i + 1}: ${String(r.summary || '').slice(0, 600)}`
           ).join('\n')
           const termHint = mergedKeyTerms.slice(0, 20).map((t: any) => t.term).filter(Boolean).join(', ')
+          const synSys = `Merge part digests into one study brief in ${langLabel}. JSON only: {"summary":"...","summary_executive":"...","outline":{"document_title_guess":"","items":[{"id":"o1","heading":"...","blurb":"...","level":1,"order":1,"parent_id":null}]},"sections":[{"heading":"...","summary":"...","key_points":["..."]}]}.
+Use CONCRETE topic names from digests and terms. No meta filler.`
+          const synUser = `Terms: ${termHint}\n\nDigests:\n${digests}`.slice(0, 12000)
+          // Prefers MODEL_EXTRACT, the reverse of the narrative writer.
+          //
+          // These two calls run back to back and used to both want MODEL_HEAVY:
+          // synthesis took it, and the writer — the one call a student actually
+          // reads the output of — found it busy and waited 50 seconds behind it
+          // (05.10.2026). Two calls, two lanes; they should not queue.
+          //
+          // Synthesis is structuring work: fold digests into an outline and
+          // section headings. The writer is prose. So the smaller model takes
+          // the structuring and the better one stays free for the writing,
+          // which is where the difference is visible. Either falls back if its
+          // preferred lane is busy.
+          const synLane = pickLane(
+            [MODEL_EXTRACT, MODEL_HEAVY],
+            estimateTokens(synSys, synUser, 2048),
+            2048
+          )
           const syn = await callGroqJson(
             groqApiKey,
-            `Merge part digests into one study brief in ${langLabel}. JSON only: {"summary":"...","summary_executive":"...","outline":{"document_title_guess":"","items":[{"id":"o1","heading":"...","blurb":"...","level":1,"order":1,"parent_id":null}]},"sections":[{"heading":"...","summary":"...","key_points":["..."]}]}.
-Use CONCRETE topic names from digests and terms. No meta filler.`,
-            `Terms: ${termHint}\n\nDigests:\n${digests}`.slice(0, 12000),
-            { model: MODEL_HEAVY, temperature: 0.25, maxCompletionTokens: 2048, timeoutMs: 30000, maxRetries: 0 }
+            synSys,
+            synUser,
+            { model: synLane, temperature: 0.25, maxCompletionTokens: 2048, timeoutMs: 30000, maxRetries: 0 }
           )
           if (syn?.summary && String(syn.summary).length > 80) bestSummary = String(syn.summary)
           if (syn?.summary_executive) bestExec = String(syn.summary_executive)
@@ -4737,6 +4787,7 @@ Use CONCRETE topic names from digests and terms. No meta filler.`,
       const visionWaitMs = tokenPacer.waitEstimate(visionEstTokens, MODEL_FAST, VISION_MAX_COMPLETION)
       const visionNeedsMs = visionWaitMs + VISION_CALL_MS + NARRATIVE_WRITER_RESERVE_MS
       if (analyzeVisuals && visualPlan.indices.length > 0 && budgetLeft() <= visionNeedsMs) {
+        skippedStages.push('gorsel analiz')
         console.log(
           `Gorsel gecis atlandi: butce ${budgetLeft()}ms <= ${visionNeedsMs}ms ` +
           `[pacer ${visionWaitMs}ms + cagri ${VISION_CALL_MS}ms + yazar payi ${NARRATIVE_WRITER_RESERVE_MS}ms] — ` +
@@ -5117,7 +5168,8 @@ ${narrative}`
       if (depthFlags.skipNarrativeWriter) {
         console.log('Madde 6: skipping narrative writer (depth=brief)')
       } else if (budgetLeft() < 35_000) {
-        console.log('HOTFIX: skipping narrative writer (low budget', budgetLeft(), 'ms)')
+        console.log('Madde 3: anlati yazari atlandi (butce', budgetLeft(), 'ms)')
+        skippedStages.push('anlati yazari')
       } else {
       await serviceClient.from('documents').update({ processing_stage: 'writing' }).eq('id', documentId)
 
@@ -5345,6 +5397,7 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
     let rawFinalContent = ""
 
     if (shouldSkipReview) {
+      if (useChunkedPipeline) skippedStages.push('review')
       console.log(
         `Review atlandi (chunked=${useChunkedPipeline}, depth=${depth}, ` +
         `budgetLeft=${budgetLeft()}ms, gereken=${reviewNeedsMs}ms ` +
@@ -5539,7 +5592,10 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
       pass: true,
       grounded: false,
       issues: [] as string[],
-      critic_retry: false
+      critic_retry: false,
+      // The SAME array, by reference, not a copy: the critic's own skip
+      // decision is made further down and must still land in the saved card.
+      skipped_stages: skippedStages
     }
     if (parsedContent.quality_gate && typeof parsedContent.quality_gate === 'object') {
       qualityMeta = {
@@ -5548,7 +5604,11 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
         issues: Array.isArray(parsedContent.quality_gate.issues)
           ? parsedContent.quality_gate.issues.map((x: any) => String(x).slice(0, 200)).slice(0, 8)
           : [],
-        critic_retry: false
+        critic_retry: false,
+        // Carried through the quality_gate branch too — this is set by OUR
+        // budget decisions, not by the model, so it must survive the model's
+        // verdict replacing the rest of this object.
+        skipped_stages: skippedStages
       }
     }
     // Heuristic grounded: footnotes with page numbers or inline (s. N)/(slayt N)
@@ -5580,6 +5640,7 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
     )
     const criticNeedsMs = criticWaitMs + 30_000
     if (qualityMeta.pass === false && qualityMeta.issues.length > 0 && budgetLeft() < criticNeedsMs) {
+      skippedStages.push('critic')
       console.log(
         `Madde 4: critic atlandi (budgetLeft=${budgetLeft()}ms, ` +
         `gereken=${criticNeedsMs}ms [pacer ${criticWaitMs}ms + is 30000ms])`
