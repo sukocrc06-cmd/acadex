@@ -22,7 +22,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   // token hizlandirici (TPM)
   'PACER_SAFETY', 'PACER_WINDOW_MS', 'PACER_MAX_WAIT_MS', 'PACER_COMPLETION_FACTOR',
   'DEFAULT_TPM_LIMIT', 'MODEL_OTPM', 'OTPM_SAFETY', 'VISION_MAX_COMPLETION', 'PIPELINE_BUDGET_MS', 'REVIEW_ATTEMPT_TIMEOUT_MS', 'REVIEW_TAIL_MS',
-  'tokenPacer', 'estimateTokens', 'parseGroqRetryAfterMs', 'isDailyQuotaError', 'MODEL_HEAVY', 'MODEL_FAST',
+  'tokenPacer', 'estimateTokens', 'parseGroqRetryAfterMs', 'isDailyQuotaError', 'MODEL_HEAVY', 'MODEL_FAST', 'MODEL_EXTRACT', 'windowModel',
   // latex
   'stripLatexDelimiters', 'validateLatex', 'sanitizeFormulas',
   // mermaid dogrulama
@@ -2184,6 +2184,55 @@ test('json_object kullanan her prompt ta "json" geciyor', () => {
     const ok = /json/i.test(own) || (inherits && inherits.startsWith('systemPrompt') && baseHasJson);
     assert.ok(ok, `${name} ve tabaninda "json" yok — Groq 400 doner`);
   }
+});
+
+console.log('\nIKINCI CIKARMA SERIDI (gpt-oss-20b)\n');
+
+/* Groq konsolundan okunan org limitleri (05.10.2026):
+     openai/gpt-oss-120b  30 RPM  1K RPD  8K TPM  200K TPD
+     openai/gpt-oss-20b   30 RPM  1K RPD  8K TPM  200K TPD
+   Birebir ayni, ve model basina olculuyor. Bir pencere ~6150 token, calisma
+   butcesi 7200 -> bir seride dakikada tek pencere sigiyor. 31.817 krk'lik
+   belgede 3 pencere, iki adet 60sn bekleme, 132sn, ve vision+writer+review
+   butce yetmediginden atlandi. */
+
+test('pencereler iki serit arasinda donuyor', () => {
+  assert.equal(A.windowModel(0), A.MODEL_HEAVY);
+  assert.equal(A.windowModel(1), A.MODEL_EXTRACT);
+  assert.equal(A.windowModel(2), A.MODEL_HEAVY);
+  assert.equal(A.windowModel(3), A.MODEL_EXTRACT);
+});
+
+test('ikinci serit gercekten BASKA bir model', () => {
+  assert.notEqual(A.MODEL_EXTRACT, A.MODEL_HEAVY, 'ayni model = ayni kova = kazanc yok');
+  assert.notEqual(A.MODEL_EXTRACT, A.MODEL_FAST, 'qwen zaten vision/review de dolu');
+  assert.equal(A.MODEL_EXTRACT, 'openai/gpt-oss-20b');
+});
+
+test('ardisik iki pencere ayni dakikada calisabilir', () => {
+  const p = freshPacer(8000, A.MODEL_HEAVY);
+  p.lane(A.MODEL_EXTRACT).limit = 8000;
+  // 1. pencere agir seride harcadi
+  p.lane(A.MODEL_HEAVY).spent = [{ at: Date.now(), tokens: 6149 }];
+  assert.ok(p.waitEstimate(6149, A.MODEL_HEAVY) > 0, 'ayni seritte ikincisi beklerdi');
+  assert.equal(p.waitEstimate(6149, A.MODEL_EXTRACT), 0, 'diger seritte beklemeden gider');
+});
+
+test('eszamanlilik iki seridin TOPLAMI', () => {
+  // Tek seride bakmak eszamanliligi 1 e cakiyordu — asil hata buydu.
+  const p = freshPacer(8000, A.MODEL_HEAVY);
+  p.lane(A.MODEL_EXTRACT).limit = 8000;
+  const tek = p.safeConcurrency(6149, A.MODEL_HEAVY);
+  const toplam = [A.MODEL_HEAVY, A.MODEL_EXTRACT].reduce((n, m) => n + p.safeConcurrency(6149, m), 0);
+  assert.equal(tek, 1, 'bir serit tek pencere alir');
+  assert.equal(toplam, 2, 'iki serit iki pencere alir');
+});
+
+test('anlatim yazari AGIR modelde kaliyor', () => {
+  // 20b cikarma icin; duzyazi kalitesinin onemli oldugu yer yazar.
+  const i = SRC.indexOf('MADDE 3 — NARRATIVE WRITER');
+  const blok = SRC.slice(i, i + 6000);
+  assert.ok(!blok.includes('MODEL_EXTRACT'), 'yazar kucuk modele kaydirilmamali');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));
