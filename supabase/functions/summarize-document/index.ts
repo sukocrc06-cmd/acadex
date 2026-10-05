@@ -491,6 +491,65 @@ function reasoningParamsFor(model: string): Record<string, unknown> {
 }
 
 /**
+ * Reasoning tokens are COMPLETION tokens, and the gpt-oss family cannot be
+ * told to stop producing them.
+ *
+ * max_completion_tokens caps reasoning plus content together. qwen takes
+ * reasoning_effort:"none" and spends the whole budget on the answer; gpt-oss
+ * accepts only low/medium/high, so even at its lowest it thinks first and
+ * the answer comes out of whatever is left.
+ *
+ * Review's 850-token budget was sized against qwen's 1,000 OTPM ceiling back
+ * when review was pinned to that lane. 509bd5f let it pick a lane at
+ * runtime, the budget did not follow, and on the accounting chapter
+ * (05.10.2026) review landed on gpt-oss-120b and came back with:
+ *
+ *   400 json_validate_failed ... "failed_generation": ""
+ *
+ * Not a malformed answer — NO answer. The reasoning had eaten all 850 tokens
+ * before a character of content was written, and the empty string failed
+ * Groq's JSON check. The run paid for the call and the wait and got nothing.
+ *
+ * So the tier numbers stay what they always meant — how much ANSWER this
+ * tier needs — and the lane decides how much thinking room to add on top.
+ * clampCompletion still applies afterwards, so qwen cannot exceed its OTPM
+ * ceiling no matter what this returns.
+ *
+ * HOW BIG THE HEADROOM CAN BE is not a matter of taste — there is a ceiling,
+ * and it comes from the pacer. estimateTokens counts completion at
+ * PACER_COMPLETION_FACTOR, so raising this raises review's estimate, its
+ * queue wait, and the chance the budget gate skips it on a long document.
+ * From the measured economy run (est=6645 at completion=850):
+ *
+ *   text part of the estimate ............ 6,135 tokens
+ *   lane ceiling (8,000 x PACER_SAFETY) .. 7,200
+ *   room left for completion x 0.6 ....... 1,065
+ *   -> largest completion that still fits . 1,775
+ *
+ * So the content budget of 850 leaves at most ~900 of headroom before review
+ * stops fitting in its own lane at all. 1,200 was the first value tried here
+ * and it put the estimate at 7,365 — over the ceiling, which would have
+ * traded an empty answer for no answer.
+ *
+ * 700 it is: 2.3x the thinking room review had, still inside the lane.
+ *
+ * And it remains a starting value, not a measurement. All that run proved is
+ * that "low" reasoning sometimes costs more than the ~550 tokens left over
+ * from 850 — the economy document's review passed on the same model and the
+ * same budget, so this varies per prompt and probably per run. The real
+ * figure is logged per call now
+ * (usage.completion_tokens_details.reasoning_tokens) so it can be set from
+ * data instead of from this comment.
+ */
+const REASONING_HEADROOM = 700
+
+function reviewCompletionFor(model: string, contentTokens: number): number {
+  const id = String(model)
+  const thinks = id.includes('gpt-oss') || id.startsWith('openai/')
+  return thinks ? contentTokens + REASONING_HEADROOM : contentTokens
+}
+
+/**
  * Pick the lane that can take this call SOONEST.
  *
  * Alternating by index was the first version and it only half worked. On a
@@ -5437,6 +5496,8 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
     // Source budgets raised now that the draft card no longer rides along:
     // 11,000 characters covers the whole reference document, which is the
     // point — review cannot check a claim against a source it was not shown.
+    // These are CONTENT budgets — what the answer itself needs. The number
+    // actually sent adds reasoning headroom per lane, see reviewCompletionFor.
     const reviewTiers: Array<{ sourceChars: number; maxCompletionTokens: number }> = [
       { sourceChars: 11000, maxCompletionTokens: Math.min(850, REVIEW_MAX_COMPLETION) },
       { sourceChars: 5000, maxCompletionTokens: 700 },
@@ -5525,7 +5586,11 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
       for (let i = 0; i < reviewTiers.length; i++) {
         const tier = reviewTiers[i]
         const attemptPrompt = buildReviewUserPrompt(tier.sourceChars)
-        const tierCompletion = tokenPacer.clampCompletion(reviewLane, tier.maxCompletionTokens)
+        // Lane first (thinking room), ceiling second (qwen's OTPM).
+        const tierCompletion = tokenPacer.clampCompletion(
+          reviewLane,
+          reviewCompletionFor(reviewLane, tier.maxCompletionTokens)
+        )
         // THE GATE'S PROMISE HAS TO HOLD FOR THE WHOLE LOOP, NOT ONE FETCH.
         // The gate above budgets wait + attempt + tail, but this is a loop of
         // up to three tiers and EACH ONE can sit through its own pacer wait.
@@ -5592,6 +5657,22 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
 
         tokenPacer.observeHeaders(attemptResponse.headers, reviewLane)
         const attemptData = await attemptResponse.json()
+
+        // What the thinking actually cost. REASONING_HEADROOM is a starting
+        // value chosen from one failure, and the only honest way to set it is
+        // to watch this number across a few documents: if reasoning routinely
+        // comes in at 400, the headroom is wasting pacer budget and pushing
+        // review past its gate on long documents; if it comes in at 1,100,
+        // the margin is thinner than it looks.
+        const usage = attemptData?.usage
+        const reasoned = Number(usage?.completion_tokens_details?.reasoning_tokens)
+        if (usage) {
+          console.log(
+            `Review token: completion=${usage.completion_tokens ?? '?'}` +
+            `${Number.isFinite(reasoned) ? ` (reasoning=${reasoned}, icerik=${(usage.completion_tokens ?? 0) - reasoned})` : ''}` +
+            ` / butce=${tierCompletion} [${reviewLane}]`
+          )
+        }
         // Record either way: a rejected call still consumed the minute's
         // budget as far as Groq is concerned, and the next tier (or the
         // critic) must not start out over-optimistic.
@@ -5742,7 +5823,15 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
       estimateTokens('', summaryText.slice(0, 4000), 2048),
       2048
     )
-    const criticCompletion = tokenPacer.clampCompletion(criticLane, 2048)
+    // Same reasoning-headroom rule as review, and the critic needs it more:
+    // it rewrites the whole summary (~2,500 characters, ~800 tokens), so on a
+    // gpt-oss lane a flat 2,048 leaves well under that once the thinking is
+    // paid for. A short result is rejected by the NARRATIVE_MIN_KEEP_RATIO
+    // floor below, which would turn a budget problem into a silent no-op.
+    const criticCompletion = tokenPacer.clampCompletion(
+      criticLane,
+      reviewCompletionFor(criticLane, 2048)
+    )
     const criticWaitMs = tokenPacer.waitEstimate(
       estimateTokens('', summaryText.slice(0, 4000), criticCompletion),
       criticLane,
