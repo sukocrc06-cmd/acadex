@@ -28,6 +28,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'reasoningParamsFor',
   // token hizlandirici (TPM)
   'PACER_SAFETY', 'PACER_WINDOW_MS', 'PACER_MAX_WAIT_MS', 'PACER_COMPLETION_FACTOR',
+  'REASONING_HEADROOM', 'reviewCompletionFor',
   'DEFAULT_TPM_LIMIT', 'MODEL_OTPM', 'OTPM_SAFETY', 'VISION_MAX_COMPLETION', 'PIPELINE_BUDGET_MS', 'REVIEW_ATTEMPT_TIMEOUT_MS', 'REVIEW_TAIL_MS',
   'tokenPacer', 'estimateTokens', 'parseGroqRetryAfterMs', 'isDailyQuotaError', 'MODEL_HEAVY', 'MODEL_FAST', 'MODEL_EXTRACT', 'VISION_CALL_MS', 'WINDOW_CALL_MS', 'NARRATIVE_WRITER_RESERVE_MS',
   // latex
@@ -2507,6 +2508,72 @@ test('atlanan aday cevabini yakmiyor', () => {
   assert.ok(answers.includes('recession'),
     `"recession" temiz bir kart olarak kalmaliydi, kalanlar: ${JSON.stringify(answers)}`);
   assert.equal(clozeLeaks(cards).length, 0);
+});
+
+test('dusunen modele reasoning icin ayri yer veriliyor', () => {
+  /* Reasoning tokenleri COMPLETION tokenidir ve gpt-oss ailesine
+     "dusunme" denemiyor — en dususu "low". max_completion_tokens ikisini
+     birden kapsiyor, yani butce once dusunmeye gidiyor, cevap artandan
+     yaziliyor.
+
+     Review'un 850'si qwen'in 1000'lik OTPM tavanindan turetilmisti, review
+     o seride civiliyken. 509bd5f serit secmeyi acti, butce pesinden
+     gitmedi, ve muhasebe belgesinde (05.10.2026) review gpt-oss-120b'ye
+     dusup soyle dondu:
+
+       400 json_validate_failed ... "failed_generation": ""
+
+     Bozuk cevap degil — HIC cevap yok. */
+  const { reviewCompletionFor, REASONING_HEADROOM } = A;
+  // qwen: reasoning_effort "none" aliyor, dusunmuyor, ek yere ihtiyaci yok.
+  assert.equal(reviewCompletionFor('qwen/qwen3.8-27b', 850), 850);
+  // gpt-oss: dusunuyor, ustune yer eklenmeli.
+  assert.equal(reviewCompletionFor('openai/gpt-oss-120b', 850), 850 + REASONING_HEADROOM);
+  assert.equal(reviewCompletionFor('openai/gpt-oss-20b', 700), 700 + REASONING_HEADROOM);
+  assert.ok(REASONING_HEADROOM > 0, 'dusunen model icin yer ayrilmali');
+});
+
+test('reasoning yeri serit tavanini ASMIYOR', () => {
+  /* Bu testin asil isi: headroom'u buyutmek bedava degil. estimateTokens
+     completion'i PACER_COMPLETION_FACTOR ile sayiyor, yani buyuyen butce
+     review'un tahminini, kuyruk beklemesini ve uzun belgede atlanma
+     ihtimalini buyutuyor.
+
+     Olculen ekonomi kosusu: est=6645, completion=850.
+     Metin kismi = 6645 - 850*0.6 = 6135 token.
+     Serit tavani = 8000 * PACER_SAFETY.
+
+     Ilk denemede 1200 yazmistim: est 7365 cikiyordu, yani tavanin ustu —
+     bos cevabi "hic cevap yok"a cevirecekti. */
+  const F = A.PACER_COMPLETION_FACTOR;
+  const metinTokeni = 6645 - 850 * F;          // olculen kosudan
+  const tavan = A.DEFAULT_TPM_LIMIT * A.PACER_SAFETY;
+  const comp = A.reviewCompletionFor('openai/gpt-oss-120b', 850);
+  const est = metinTokeni + comp * F;
+  assert.ok(est <= tavan,
+    `review tahmini serit tavanini asiyor: ${Math.round(est)} > ${tavan} ` +
+    `(completion ${comp}) — bu haliyle review uzun belgede HIC calisamaz`);
+  // Ve gercekten anlamli bir artis olmali, yoksa duzeltme bir sey yapmiyor.
+  assert.ok(comp >= 850 * 1.5, 'dusunme yeri fark edilir olmali');
+});
+
+test('OTPM tavani hala ustte, headroom onu asamaz', () => {
+  // qwen'in 1000'lik OTPM'i mutlak: reviewCompletionFor ondan sonra
+  // clampCompletion'dan geciyor ve o sinir degismemeli.
+  const tavan = A.MODEL_OTPM['qwen/qwen3.8-27b'] * A.OTPM_SAFETY;
+  assert.ok(reviewSrcHas('clampCompletion(\n          reviewLane,\n          reviewCompletionFor(reviewLane'),
+    'once lane sonra tavan sirasi korunmali');
+  assert.ok(tavan <= 1000, 'qwen OTPM tavani 1000');
+});
+
+function reviewSrcHas(frag) { return SRC.includes(frag); }
+
+test('reasoning maliyeti loglaniyor', () => {
+  // 700 bir baslangic degeri, olcum degil. Gercek rakam loglanmadan
+  // ayarlanamaz.
+  assert.ok(/completion_tokens_details\?\.reasoning_tokens/.test(SRC),
+    'gercek reasoning tokeni okunmali');
+  assert.ok(/Review token: completion=/.test(SRC), 'olculen deger loglanmali');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));
