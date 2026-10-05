@@ -17,7 +17,7 @@ const A = loadFromSource('supabase/functions/chat-with-document/index.ts', [
   // WHOLE_DOC_MAX_CHARS ve RETRIEVED_MAX_CHARS kaldirildi (05.10.2026):
   // ikisi de sabit 50.000'di ve hesabi hic tutmuyordu — bkz. asagidaki
   // "BUTCE TESTLERI" blogu. Yerlerini sourceBudgetChars aldi.
-  'CHAT_TPM_LIMIT', 'CHAT_TPM_SAFETY', 'CHAT_MAX_COMPLETION',
+  'CHAT_TPM_LIMIT', 'CHAT_TPM_SAFETY', 'CHAT_MAX_COMPLETION', 'CHAT_MAX_COMPLETION_SHORT',
   'CHARS_PER_TOKEN', 'IMAGE_TOKEN_RESERVE', 'SOURCE_MIN_CHARS',
   'sourceBudgetChars',
   'RETRIEVED_MAX_CHUNKS',
@@ -290,13 +290,74 @@ test('sistem prompt u olculebiliyor (sabit sayiya guvenilmiyor)', () => {
   // fonksiyon olmak zorunda; inline template'e donerse butce sessizce yanlis
   // hesaplanir ve olu bolge geri gelir.
   assert.ok(
-    /function buildSystemPrompt\(sourceText: string, isRetrieval: boolean\)/.test(CHAT_SRC),
+    /function buildSystemPrompt\(sourceText: string, view: SourceView\)/.test(CHAT_SRC),
     'buildSystemPrompt fonksiyon olarak durmali'
   );
   assert.ok(
-    /buildSystemPrompt\(''\s*,\s*true\)\.length/.test(CHAT_SRC),
+    /buildSystemPrompt\(''\s*,\s*'retrieval'\)\.length/.test(CHAT_SRC),
     'overhead bos kaynakla OLCULMELI, tahmin edilmemeli'
   );
+});
+
+test('kirpilmis kaynak modele KIRPILMIS oldugu soylenir', () => {
+  /* 05.10.2026: ekonomi belgesi 10.549 karakterin 3.983'u ile gonderildi ve
+     prompt hala "You are given the full extracted text" diyordu. Model
+     elinde her sey oldugunu sanarak "bu kaynakta yok" diyebilir — grounded
+     bir Q&A ozelliginin verebilecegi en kotu cevap, cunku durust bir
+     "bulamadim"dan ayirt edilemez. */
+  assert.ok(/view === 'truncated'/.test(CHAT_SRC), 'truncated gorunumu olmali');
+  assert.ok(CHAT_SRC.includes('TRUNCATED-SOURCE CAVEAT'),
+    'kirpilmis kaynak icin uyari blogu olmali');
+  assert.ok(/Do NOT state or imply that the document itself does not contain something[\s\S]{0,200}you have not seen most of it/.test(CHAT_SRC),
+    'model belgenin tamamini gormedigini bilmeli');
+  // Ve strateji ile gorunum birbirine baglanmali.
+  assert.ok(/strategy\.includes\('truncated'\) \? 'truncated'/.test(CHAT_SRC),
+    'kirpma stratejisi truncated gorunumune baglanmali');
+});
+
+test('her mesajda gonderilmeyen kurallar kosula bagli', () => {
+  /* Olculdu: sistem prompt'u 13.048 karakterdi ve %59'u iki bolumdu —
+     biri ogrenci sekil sordugunda, digeri sayisal materyalde ise yarar.
+     Ikisi de "makro ekonominin temeli nedir" icin gidiyordu. Metni
+     kisaltmak gerektigi yerde yetenek kaybettirirdi; sadece gerektiginde
+     gondermek bedava. */
+  assert.ok(/\$\{needsVisualRules \? `\nDIAGRAM & VISUAL-STRUCTURE AWARENESS:/.test(CHAT_SRC),
+    'gorsel kurallari kosullu olmali');
+  assert.ok(/\$\{needsNumericRules \? `\nMATH FORMULA FORMAT:/.test(CHAT_SRC),
+    'sayisal kurallar kosullu olmali');
+  // Gorsel karari SORUDAN gelmeli: "kartta diyagram var" testi hicbir sey
+  // elemiyordu, cunku neredeyse her kartta diyagram var.
+  assert.ok(!/cardHasVisuals/.test(CHAT_SRC),
+    'kart-tabanli gorsel testi geri gelmis — hicbir seyi elemiyor');
+  assert.ok(/needsVisualRules =\s*\n?\s*typeof imageDataUrl === 'string' \|\| VISUAL_WORDS\.test/.test(CHAT_SRC),
+    'gorsel karari soru metninden (ve ekli gorselden) gelmeli');
+});
+
+test('uzun cevap gerektirmeyen soruda completion rezervi dusuk', () => {
+  // 2048 token, dakikalik butcenin %28'i, ve Groq bunu ONDEN ayiriyor.
+  assert.ok(A.CHAT_MAX_COMPLETION_SHORT < A.CHAT_MAX_COMPLETION);
+  const genis = A.sourceBudgetChars(5000, false, A.CHAT_MAX_COMPLETION_SHORT);
+  const dar = A.sourceBudgetChars(5000, false, A.CHAT_MAX_COMPLETION);
+  assert.ok(genis > dar, 'dusuk completion daha fazla kaynak birakmali');
+  // Math.floor yuzunden tam esitlik tutmaz (3277 vs 3276.8) — 1 krk tolerans.
+  const beklenen = (A.CHAT_MAX_COMPLETION - A.CHAT_MAX_COMPLETION_SHORT) * A.CHARS_PER_TOKEN;
+  assert.ok(
+    Math.abs((genis - dar) - beklenen) <= 1,
+    `fark serbest kalan completion kadar olmali: ${genis - dar} vs ${beklenen}`
+  );
+  assert.ok(/max_completion_tokens: maxCompletion/.test(CHAT_SRC),
+    'cagrilar secilen completion u kullanmali');
+  assert.equal((CHAT_SRC.match(/max_completion_tokens: 2048/g) || []).length, 0,
+    'sabit 2048 kalmamali');
+});
+
+test('gercek token orani loglaniyor (sabit tahmine guvenilmiyor)', () => {
+  /* CHARS_PER_TOKEN ogrencinin ne kadar belge gordugune karar veriyor ve
+     ozetleme pacer'indan miras alindi; orada kotumser olmak bedava, burada
+     belgeyi kesiyor. Groq ne saydigini soyluyor — olcup oyle ayarlayacagiz. */
+  assert.ok(/groqData\?\.usage\?\.prompt_tokens/.test(CHAT_SRC),
+    'gercek prompt_tokens okunmali');
+  assert.ok(/krk\/token/.test(CHAT_SRC), 'olculen oran loglanmali');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));
