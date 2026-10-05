@@ -29,6 +29,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   // token hizlandirici (TPM)
   'PACER_SAFETY', 'PACER_WINDOW_MS', 'PACER_MAX_WAIT_MS', 'PACER_COMPLETION_FACTOR',
   'REASONING_HEADROOM', 'reviewCompletionFor',
+  'CHART_MIN_GROUNDED_RATIO', 'sourceNumbers',
   'DEFAULT_TPM_LIMIT', 'MODEL_OTPM', 'OTPM_SAFETY', 'VISION_MAX_COMPLETION', 'PIPELINE_BUDGET_MS', 'REVIEW_ATTEMPT_TIMEOUT_MS', 'REVIEW_TAIL_MS',
   'tokenPacer', 'estimateTokens', 'parseGroqRetryAfterMs', 'isDailyQuotaError', 'MODEL_HEAVY', 'MODEL_FAST', 'MODEL_EXTRACT', 'VISION_CALL_MS', 'WINDOW_CALL_MS', 'NARRATIVE_WRITER_RESERVE_MS',
   // latex
@@ -2574,6 +2575,51 @@ test('reasoning maliyeti loglaniyor', () => {
   assert.ok(/completion_tokens_details\?\.reasoning_tokens/.test(SRC),
     'gercek reasoning tokeni okunmali');
   assert.ok(/Review token: completion=/.test(SRC), 'olculen deger loglanmali');
+});
+
+test('grafik: uydurma ama makul sayilar kaynakta aranarak dusuruluyor', () => {
+  /* Mevcut "tum degerler ayni" kontrolu modelin UYMAYA CALISIRKEN urettigi
+     sifirli grafigi yakaliyor. Yakalamadigi, daha tehlikeli olani:
+     goremedigi bir sekli egitimden hatirladigi makul degerlerle doldurmak.
+     Sifirda duz bir cizgi bakinca bozuk gorunur; "GSYIH: 14.9, 15.4, 16.1"
+     dogru gorunur ve bu belgeden degildir. */
+  const kaynak = 'Toplam uretim 1929 yilinda 103 milyar dolardi, 1982 yilinda 3255 milyar dolara ulasti.';
+  const uydurma = { title: 'GSYIH', type: 'line', labels: ['a','b','c'], data: [14.9, 15.4, 16.1] };
+  const gercek  = { title: 'GSYIH', type: 'bar',  labels: ['1929','1982'], data: [103, 3255] };
+
+  const r1 = A.sanitizeCharts([uydurma], kaynak);
+  assert.equal(r1.charts.length, 0, 'kaynakta olmayan sayilarla grafik tutulmamali');
+  assert.match(r1.dropped[0].reason, /kaynakta yok/);
+
+  const r2 = A.sanitizeCharts([gercek], kaynak);
+  assert.equal(r2.charts.length, 1, 'kaynaktan okunan grafik DUSMEMELI — yanlis pozitif en kotusu');
+});
+
+test('grafik: kaynak metin verilmezse yapisal kontroller yine calisiyor', () => {
+  // Iki boru hatti buraya farkli yerlerden geliyor; metni veremeyen cagiran
+  // hic kontrol degil, yapisal kontrolleri almali.
+  const sifirli = { title: 'X', type: 'line', labels: ['a','b'], data: [0, 0] };
+  assert.equal(A.sanitizeCharts([sifirli]).charts.length, 0, 'sifirli grafik metinsiz de dusmeli');
+  const saglam = { title: 'Y', type: 'bar', labels: ['a','b'], data: [3, 7] };
+  assert.equal(A.sanitizeCharts([saglam]).charts.length, 1, 'metin yoksa saglam grafik tutulmali');
+});
+
+test('sourceNumbers binlik ayraci ve yuvarlamayi tolere ediyor', () => {
+  const s = A.sourceNumbers('Hasila 17,042 milyar dolar; oran %10.63 oldu.');
+  assert.ok(s.has(17042), 'binlik ayraci temizlenmeli');
+  assert.ok(s.has(10.63), 'ondalik korunmali');
+  assert.ok(s.has(10.6), 'modelin yuvarladigi deger de okunmus sayilmali');
+  assert.ok(s.has(11), 'tam sayiya yuvarlama da');
+});
+
+test('sourceNumbers gurultusu kapiyi SERTLESTIRMIYOR', () => {
+  // "20-30" gibi sayfa isaretleri sete -30 olarak giriyor. Fazladan uye
+  // kapiyi yalnizca MUSAMAHAKAR yapar; gercek bir grafigi dusurmez. Gatenin
+  // goremedigi bir yerde hata yapacaksa, tutma yonunde yapmali.
+  const az = A.sanitizeCharts([{ title: 'T', type: 'bar', labels: ['a','b'], data: [30, 40] }], 'metin 30 ve 40 iceriyor');
+  const cok = A.sanitizeCharts([{ title: 'T', type: 'bar', labels: ['a','b'], data: [30, 40] }], 'metin 30 ve 40 iceriyor. Sayfa 20-30, 20-40.');
+  assert.equal(az.charts.length, 1);
+  assert.equal(cok.charts.length, 1, 'gurultu grafigi dusurmemeli');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));
