@@ -475,14 +475,29 @@ const MODEL_EXTRACT = "openai/gpt-oss-20b"
  * so a caller that cares about quality lists its preferred model first and
  * still gets it whenever that costs nothing.
  */
-function pickLane(models: string[], estTokens: number, estCompletion = 0): string {
-  let best = models[0]
+function pickLane(
+  models: string[],
+  estTokens: number,
+  estCompletion = 0,
+  claimed?: Set<string>
+): string {
+  // Lanes already taken by a sibling call in the SAME batch are skipped while
+  // an unclaimed one exists. Without this, concurrent pickers all see empty
+  // ledgers and all choose the preferred lane: on 05.10.2026 windows 1 and 2
+  // both landed on MODEL_HEAVY and drove it to used=10386/7200 — over its own
+  // budget — while MODEL_EXTRACT sat idle and the next call paid a 58s wait.
+  // The pacer cannot help here: it records a spend when the response ARRIVES,
+  // and these decisions are all made before any of them has.
+  const free = claimed ? models.filter(m => !claimed.has(m)) : models
+  const pool = free.length > 0 ? free : models
+  let best = pool[0]
   let bestWait = Infinity
-  for (const m of models) {
+  for (const m of pool) {
     const wait = tokenPacer.waitEstimate(estTokens, m, estCompletion)
     if (wait < bestWait) { best = m; bestWait = wait }
     if (bestWait === 0) break
   }
+  claimed?.add(best)
   return best
 }
 // Skip the expensive review pass for short, simple documents (saves ~1 full LLM call)
@@ -546,12 +561,19 @@ const VISION_MAX_IMAGES = 2
 // Replaced as a gate by a measured wait + cost (see the vision block); kept
 // because the fast path still reads it.
 const VISUAL_MIN_BUDGET_MS = 100_000
-// One vision call: PDF.co page render + a 25s model timeout + merge.
-const VISION_CALL_MS = 30_000
-// What the narrative writer needs after vision returns. It now falls back to
-// whichever lane is free instead of queueing, so this is the call itself plus
-// the deterministic gates and the save, not a full TPM window.
-const NARRATIVE_WRITER_RESERVE_MS = 40_000
+// MEASURED, not guessed. Both of these were round numbers picked for safety,
+// and both were wrong by enough to change behaviour: on 05.10.2026 the vision
+// pass was skipped at "butce 43031ms <= 70000ms" when the work it was being
+// denied budget for takes a fraction of that.
+//
+// Vision call, PDF.co render to merged patch, across four live runs:
+//   6.7s, 6.0s, 7.2s, 6.5s  -> ~6.6s average. The old 30s was 4.5x reality.
+const VISION_CALL_MS = 15_000
+// Narrative writer, merge to accepted, once it stopped queueing for a busy
+// lane: 1.8s. The old 40s reserve was 22x reality — a figure from when the
+// writer could sit out a whole TPM window, which pickLane now prevents.
+// Its own wait is budgeted separately, so this is the call alone.
+const NARRATIVE_WRITER_RESERVE_MS = 20_000
 
 function computeAdaptiveTargets(charCount: number, lengthPreset: string) {
   const presets: Record<string, { summary: [number, number]; terms: [number, number]; points: [number, number]; quiz: [number, number]; capSummary: number; capTerms: number; capPoints: number; capQuiz: number }> = {
@@ -4338,17 +4360,19 @@ Rules:
       // object would ride into the merge and out into the saved card.
       const windowLanes = new Map<number, string>()
 
-      async function extractWindow(wi: number, text: string): Promise<any | null> {
+      async function extractWindow(wi: number, text: string, assignedLane?: string): Promise<any | null> {
         let payload = text
         for (let attempt = 0; attempt < 3; attempt++) {
-          // Chosen HERE, not from the window index, and re-chosen on each
-          // attempt: by the time a retry comes round the lanes have moved.
-          // See pickLane for what index parity got wrong.
-          const windowLane = pickLane(
-            [MODEL_HEAVY, MODEL_EXTRACT],
-            estimateTokens(compactWindowPrompt(wi, windows.length), payload, 3072),
-            3072
-          )
+          // First attempt uses the lane the batch assigned (distinct across
+          // siblings — see pickLane). A retry re-picks, because by then the
+          // other calls have landed and the ledgers have moved.
+          const windowLane = (attempt === 0 && assignedLane)
+            ? assignedLane
+            : pickLane(
+                [MODEL_HEAVY, MODEL_EXTRACT],
+                estimateTokens(compactWindowPrompt(wi, windows.length), payload, 3072),
+                3072
+              )
           windowLanes.set(wi, windowLane)
           try {
             const result = await callGroqJson(
@@ -4494,7 +4518,19 @@ Rules:
         const batchIndices: number[] = []
         for (let wi = batchStart; wi < batchEnd; wi++) batchIndices.push(wi)
 
-        const batchResults = await Promise.all(batchIndices.map(wi => extractWindow(wi, windows[wi])))
+        // Assign lanes up front so siblings in this batch cannot pick the same
+        // one. Done here rather than inside extractWindow because every call in
+        // the batch starts before any of them records a spend.
+        const claimedLanes = new Set<string>()
+        const batchLanes = batchIndices.map(wi => pickLane(
+          [MODEL_HEAVY, MODEL_EXTRACT],
+          estimateTokens(compactWindowPrompt(wi, windows.length), windows[wi], 3072),
+          3072,
+          claimedLanes
+        ))
+        const batchResults = await Promise.all(
+          batchIndices.map((wi, bi) => extractWindow(wi, windows[wi], batchLanes[bi]))
+        )
         for (let bi = 0; bi < batchResults.length; bi++) {
           const result = batchResults[bi]
           const wi = batchIndices[bi]
