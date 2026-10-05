@@ -455,6 +455,41 @@ const MODEL_FAST = "qwen/qwen3.8-27b"
 // pulling terms and points out of text — not prose. The narrative writer
 // stays on MODEL_HEAVY, where the writing quality is the point.
 const MODEL_EXTRACT = "openai/gpt-oss-20b"
+
+/**
+ * Reasoning parameters for a model id — NEVER hardcode these per call site.
+ *
+ * The two families disagree on what "don't think, just answer" looks like:
+ *   qwen    — hybrid reasoner, thinks by default, accepts reasoning_effort:"none"
+ *   gpt-oss — accepts ONLY "low" | "medium" | "high"; "none" is a hard 400
+ *
+ * That difference was invisible while every call pinned its own model. Then
+ * 509bd5f unpinned review so it could pick a free lane, review landed on
+ * gpt-oss-120b carrying a literal reasoning_effort:"none", and Groq answered:
+ *
+ *   400 `reasoning_effort` must be one of `low`, `medium`, or `high`
+ *
+ * It had already paid a 52-second pacer wait for that lane, so the single-
+ * window document lost review entirely and the run got ~4s longer for nothing
+ * (05.10.2026, economy chapter 20 — review had been working there before).
+ *
+ * The lesson is not "put the right string at the review call". It is that a
+ * dynamic `model` and a static reasoning parameter cannot coexist: every call
+ * that picks its lane at runtime must derive these from the lane it picked.
+ */
+function reasoningParamsFor(model: string): Record<string, unknown> {
+  const id = String(model)
+  if (id.includes('gpt-oss') || id.startsWith('openai/')) {
+    // "low" is as close to off as this family goes, and include_reasoning:false
+    // keeps the <think> block out of `content` so JSON.parse gets clean JSON.
+    return { reasoning_effort: "low", include_reasoning: false }
+  }
+  if (id.includes('qwen')) return { reasoning_effort: "none" }
+  // Unknown model: send nothing. An unsupported parameter is a 400, and a
+  // silent omission only costs us some reasoning tokens.
+  return {}
+}
+
 /**
  * Pick the lane that can take this call SOONEST.
  *
@@ -1016,11 +1051,8 @@ async function callGroqJson(
       { role: "user", content: userContent }
     ]
   }
-  // Reasoning controls only for models that support them (gpt-oss family)
-  if (String(model).includes('gpt-oss') || String(model).includes('openai/')) {
-    body.reasoning_effort = "low"
-    body.include_reasoning = false
-  }
+  // Reasoning controls, derived from the model id — see reasoningParamsFor.
+  Object.assign(body, reasoningParamsFor(model))
 
   // Wait until this call fits the rolling per-minute budget, rather than
   // firing it and letting Groq reject it (see the TokenPacer comment above).
@@ -4850,7 +4882,10 @@ The example that used to sit here named a real-looking percentage, and a live ru
                 // from the pacer lane keyed above. One constant, one lane.
                 model: MODEL_FAST,
                 temperature: 0.3,
-                reasoning_effort: "none",
+                // Derived from MODEL_FAST, not written out: if that constant
+                // ever moves to a gpt-oss vision model, a literal "none" here
+                // would 400 exactly the way review did.
+                ...reasoningParamsFor(MODEL_FAST),
                 // Raised alongside the compact-window bump (2048 → 3072):
                 // these near-blank pages are exactly where a table/chart/
                 // diagram is most likely to live, and a Mermaid block or a
@@ -5477,12 +5512,15 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
               "Content-Type": "application/json"
             },
             body: JSON.stringify({
-              // Deliberately a DIFFERENT model than the Draft pass above
-              // (openai/gpt-oss-120b). Groq tracks tokens-per-minute limits
-              // PER MODEL — review draws from MODEL_FAST quota.
+              // reviewLane is chosen at runtime by pickLane (509bd5f) — it is
+              // whichever of MODEL_FAST / MODEL_EXTRACT / MODEL_HEAVY can take
+              // the call soonest, NOT a fixed second model. Groq meters TPM
+              // per model, so spreading review across lanes is the point.
               model: reviewLane,
               temperature: 0.2,
-              reasoning_effort: "none",
+              // Derived from reviewLane, never a literal: a hardcoded
+              // reasoning_effort:"none" here 400'd on every gpt-oss lane.
+              ...reasoningParamsFor(reviewLane),
               max_completion_tokens: tierCompletion,
               response_format: { type: "json_object" },
               messages: [
@@ -5678,10 +5716,11 @@ Fix the listed issues. Remove hallucinations and admin noise. Keep ${langLabel}.
           timeoutMs: 25000,
           maxRetries: 0
         })
-        // Same floor as the review merge: the critic runs on MODEL_FAST under
-        // the OTPM ceiling, so it has less room than the narrative writer that
-        // produced this text. A "fix" that returns a quarter of the summary is
-        // compression, not a fix.
+        // Same floor as the review merge: the critic runs on whichever lane
+        // pickLane gave it, clamped to that lane's OTPM ceiling, so it can
+        // easily have less room than the narrative writer that produced this
+        // text. A "fix" that returns a quarter of the summary is compression,
+        // not a fix.
         const fixedSummary = String(fixed?.summary || '').trim()
         const keepFloor = summaryText.length * NARRATIVE_MIN_KEEP_RATIO
         if (fixedSummary.length > 80 && fixedSummary.length >= keepFloor) {
