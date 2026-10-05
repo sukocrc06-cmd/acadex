@@ -21,7 +21,9 @@ const A = loadFromSource('supabase/functions/chat-with-document/index.ts', [
   'CHARS_PER_TOKEN', 'IMAGE_TOKEN_RESERVE', 'SOURCE_MIN_CHARS',
   'sourceBudgetChars',
   'RETRIEVED_MAX_CHUNKS',
-  'QUERY_STOPWORDS', 'buildChunkTsQuery', 'assembleRetrieved'
+  'QUERY_STOPWORDS', 'TR_SUFFIXES', 'unsoften', 'turkishStemCandidates',
+  'turkishStem', 'cognateCandidates', 'TR_EN_TERMS', 'englishCandidatesFor',
+  'buildChunkTsQuery', 'assembleRetrieved'
 ]);
 
 const fs = require('node:fs');
@@ -36,8 +38,14 @@ const { test, summary } = makeRunner();
 console.log('\nSORGU KURMA TESTLERI\n');
 
 test('icerik kelimeleri OR ile birlestirilir', () => {
-  const q = A.buildChunkTsQuery('marjinal maliyet egrisi');
-  assert.equal(q, 'marjinal | maliyet | egrisi');
+  // Eskiden tam esitlik bekliyordu ('marjinal | maliyet | egrisi'). Sorgu
+  // artik Ingilizce karsiliklari da tasiyor (bkz. TURKCE SORU / INGILIZCE
+  // KAYNAK), bu yuzden olcut "sadece bunlar" degil "bunlar da var".
+  const parcalar = A.buildChunkTsQuery('marjinal maliyet egrisi').split(' | ');
+  for (const t of ['marjinal', 'maliyet', 'egrisi']) {
+    assert.ok(parcalar.includes(t), `ogrencinin kendi kelimesi korunmali: ${t}`);
+  }
+  assert.ok(parcalar.includes('cost'), 'maliyet -> cost koprusu kurulmali');
 });
 
 test('soru kaliplari (stopword) atilir', () => {
@@ -55,8 +63,11 @@ test('2 harften kisa kelimeler atilir', () => {
 });
 
 test('tekrarlayan kelime bir kez gecer', () => {
-  const q = A.buildChunkTsQuery('maliyet maliyet maliyet egrisi');
-  assert.equal(q, 'maliyet | egrisi');
+  const parcalar = A.buildChunkTsQuery('maliyet maliyet maliyet egrisi').split(' | ');
+  const tekil = new Set(parcalar);
+  assert.equal(parcalar.length, tekil.size, `yinelenen terim var: ${parcalar}`);
+  assert.equal(parcalar.filter(t => t === 'maliyet').length, 1);
+  assert.equal(parcalar.filter(t => t === 'cost').length, 1, 'koprudeki terim de tekrarlanmamali');
 });
 
 test('anlamli terim yoksa null doner (caller tum belgeye duser)', () => {
@@ -93,7 +104,11 @@ test('tek tirnak ve ters egik cizgi sizdirilmaz', () => {
 test('fazla uzun soru terim sayisinda sinirlanir', () => {
   const many = Array.from({ length: 80 }, (_, i) => `terim${i}`).join(' ');
   const q = A.buildChunkTsQuery(many);
-  assert.ok(q.split(' | ').length <= 24, 'terim sayisi 24 ile sinirli olmali');
+  // Tavan 24 -> 60: her kelime artik kendi formu + kok + Ingilizce karsilik
+  // uretebiliyor, ve 24'te kesmek uzun bir soruda tam da eslesmeyi yapan
+  // Ingilizce yariyi sessizce atardi.
+  assert.ok(q.split(' | ').length <= 60, 'terim sayisi 60 ile sinirli olmali');
+  assert.ok(q.split(' | ').length > 24, 'tavan gercekten yukseltilmis olmali');
 });
 
 test('Turkce karakterler korunur', () => {
@@ -164,6 +179,105 @@ test('bos satir listesi guvenli sekilde bos doner', () => {
 });
 
 console.log('\nSABITLER\n');
+
+console.log('\nTURKCE SORU / INGILIZCE KAYNAK\n');
+
+/* Bu bolumun girdileri uydurma degil: 05.10.2026'da canli sohbette sorulan
+   iki soru ve olculen sonuclari.
+
+     "Ben Franklin etkisi nedir?"     -> 2 chunk  (sadece "Franklin" ozel ad
+                                         oldugu icin kurtardi)
+     "makro ekonominin temeli nedir"  -> 0 chunk
+
+   Sifir eslesme sessiz bir kalite kaybi degil: soruyu komple-belge yoluna
+   dusuruyor, uzun bir belgede de bu "ilk N karakter" demek. Sayfa 40'i soran
+   ogrenci sayfa 1'i aliyor. */
+
+test('Turkce soru Ingilizce kaynakta eslesecek terim uretiyor', () => {
+  const vakalar = {
+    'makro ekonominin temeli nedir': ['economy', 'macroeconomics'],
+    'enflasyonun nedenleri': ['inflation'],
+    'issizlik orani nasil hesaplanir': ['unemployment', 'rate'],
+    'stok degerleme yontemleri nelerdir': ['inventory', 'valuation'],
+    'agirlikli ortalama maliyet': ['weighted', 'average', 'cost'],
+    'arz ve talep dengesi': ['supply', 'demand']
+  };
+  const eksik = [];
+  for (const [soru, beklenen] of Object.entries(vakalar)) {
+    const parcalar = A.buildChunkTsQuery(soru).split(' | ');
+    for (const t of beklenen) {
+      if (!parcalar.includes(t)) eksik.push(`"${soru}" -> ${t}`);
+    }
+  }
+  assert.equal(eksik.length, 0, `Ingilizce karsiligi uretilmedi:\n  ${eksik.join('\n  ')}`);
+});
+
+test('ogrencinin kendi kelimeleri her zaman korunuyor', () => {
+  // Ozel adlar ("Franklin"), Ingilizce sorulan sorular ve Turkce kaynaklar
+  // buna bagli — ve ogrencinin GERCEKTEN kastettigini bildigimiz tek terim o.
+  const parcalar = A.buildChunkTsQuery('Ben Franklin etkisi nedir?').split(' | ');
+  assert.ok(parcalar.includes('franklin'), 'ozel ad dusmemeli');
+  assert.ok(parcalar.includes('etkisi'), 'orijinal kelime korunmali');
+  assert.ok(parcalar.includes('effect'), 'etki -> effect koprusu');
+});
+
+test('kok bulucu sozluk anahtarini atlamiyor', () => {
+  /* Ilk surum tek, acgozlu bir kok uretiyordu ve iki en sik kelimeyi tam da
+     sozlugun anahtarladigi formu asarak kaybediyordu:
+       ekonominin  -> ekonomi -> ekonom      ("economy" ucup gitti)
+       enflasyonun -> enflasyo              ("nun" eki yanlis kesildi)
+     Artik her seviyedeki tum ekler deneniyor ve ara formlar saklaniyor. */
+  assert.ok(A.turkishStemCandidates('ekonominin').includes('ekonomi'),
+    'ekonomi aday kokler arasinda olmali');
+  assert.ok(A.turkishStemCandidates('enflasyonun').includes('enflasyon'),
+    'enflasyon aday kokler arasinda olmali');
+  assert.ok(A.englishCandidatesFor('ekonominin').includes('economy'));
+  assert.ok(A.englishCandidatesFor('enflasyonun').includes('inflation'));
+  // Ve turkishStem sozlukte karsiligi olan formu tercih etmeli.
+  assert.equal(A.turkishStem('ekonominin'), 'ekonomi');
+  assert.equal(A.turkishStem('enflasyonun'), 'enflasyon');
+});
+
+test('kok bulucu kisa kelimeleri yiyip bitirmiyor', () => {
+  for (const w of ['arz', 'kar', 'veri', 'para', 'oran']) {
+    for (const s of A.turkishStemCandidates(w)) {
+      assert.ok(s.length >= 3, `"${w}" -> "${s}" fazla kisaldi`);
+    }
+  }
+});
+
+test('ses yumusamasi geri aliniyor', () => {
+  // Turkce'de ek alinca sertten yumusaga gecen son ses, ek dusunce geri
+  // doner. Sozluk sert hali anahtarliyor, o yuzden bu donusum sart.
+  assert.equal(A.unsoften('işsizliğ'), 'işsizlik');   // ğ -> k
+  assert.equal(A.unsoften('kitab'), 'kitap');         // b -> p
+  assert.equal(A.unsoften('amac'), 'amaç');           // c -> ç
+  assert.equal(A.unsoften('kayid'), 'kayit');         // d -> t
+  assert.equal(A.unsoften('maliyet'), 'maliyet');     // degismeyen hali bozmamali
+  // Ve bu gercekten sozluge ulastirmali:
+  assert.ok(A.englishCandidatesFor('amaci').includes('purpose'),
+    'amaci -> amac -> amaç -> purpose zinciri kurulmali');
+});
+
+test('Ingilizce sorulan soru bozulmuyor', () => {
+  // Kaynaklar Ingilizce; ogrenci Ingilizce de sorabilir ve o zaman kopruye
+  // hic ihtiyac yok — ama orijinal kelimeler yerinde durmali.
+  const parcalar = A.buildChunkTsQuery('what is the unemployment rate').split(' | ');
+  assert.ok(parcalar.includes('unemployment'), 'Ingilizce terim korunmali');
+  assert.ok(parcalar.includes('rate'), 'Ingilizce terim korunmali');
+  assert.ok(!parcalar.includes('what'), 'stopword hala atilmali');
+});
+
+test('kopru tsquery sozdizimini bozmuyor', () => {
+  // Uretilen her terim OR ile birlestiriliyor; icine operatör karakteri
+  // kacarsa Postgres sorguyu reddeder ve retrieval komple duser.
+  for (const soru of ['stok degerleme', 'enflasyonun etkisi', "marjinal maliyet & egri | test"]) {
+    const q = A.buildChunkTsQuery(soru);
+    for (const t of q.split(' | ')) {
+      assert.ok(/^[\p{L}\p{N}]+$/u.test(t), `gecersiz terim uretildi: "${t}"`);
+    }
+  }
+});
 
 console.log('\nBUTCE TESTLERI\n');
 
