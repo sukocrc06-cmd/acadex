@@ -22,7 +22,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   // token hizlandirici (TPM)
   'PACER_SAFETY', 'PACER_WINDOW_MS', 'PACER_MAX_WAIT_MS', 'PACER_COMPLETION_FACTOR',
   'DEFAULT_TPM_LIMIT', 'MODEL_OTPM', 'OTPM_SAFETY', 'VISION_MAX_COMPLETION', 'PIPELINE_BUDGET_MS', 'REVIEW_ATTEMPT_TIMEOUT_MS', 'REVIEW_TAIL_MS',
-  'tokenPacer', 'estimateTokens', 'parseGroqRetryAfterMs', 'isDailyQuotaError', 'MODEL_HEAVY', 'MODEL_FAST', 'MODEL_EXTRACT', 'VISION_CALL_MS', 'NARRATIVE_WRITER_RESERVE_MS',
+  'tokenPacer', 'estimateTokens', 'parseGroqRetryAfterMs', 'isDailyQuotaError', 'MODEL_HEAVY', 'MODEL_FAST', 'MODEL_EXTRACT', 'VISION_CALL_MS', 'WINDOW_CALL_MS', 'NARRATIVE_WRITER_RESERVE_MS',
   // latex
   'stripLatexDelimiters', 'validateLatex', 'sanitizeFormulas',
   // mermaid dogrulama
@@ -2309,6 +2309,48 @@ test('CANLI SENARYO: 43sn butceyle vision calisabilmeli', () => {
   // Dunku kosunun tam sayilari: pacer beklemesi 0, butce 43031ms.
   const needs = 0 + A.VISION_CALL_MS + A.NARRATIVE_WRITER_RESERVE_MS;
   assert.ok(needs <= 43_031, `gereken ${needs} > 43031 — vision yine atlanir`);
+});
+
+console.log('\nUZUN BELGE: KAYIP ASAMALAR GORUNUR\n');
+
+test('json_validate_failed yeniden denemesi OLCUME bagli', () => {
+  /* 05.10.2026: W3 64.1sn de dustu, 45.9sn butce vardi, kapi 70sn istedi ->
+     denenmedi, belgenin 1/3 u hic islenmedi. 70sn "bir pencere = bir tam TPM
+     penceresi beklemek" varsayimindan geliyordu; iki seritte yeniden deneme
+     bos serite gider, o an 0.7sn beklerdi. */
+  assert.ok(/const retryNeedsMs = retryWaitMs \+ WINDOW_CALL_MS/.test(SRC),
+    'yeniden deneme maliyeti olculmeli');
+  assert.ok(/budgetLeft\(\) > retryNeedsMs/.test(SRC), 'kapi olculen degere bakmali');
+  assert.ok(A.WINDOW_CALL_MS <= 20_000, `pencere cagrisi olculen ~3-5sn, sabit ${A.WINDOW_CALL_MS}`);
+});
+
+test('CANLI SENARYO: 45.9sn butceyle W3 yeniden denenebilmeli', () => {
+  const needs = 700 + A.WINDOW_CALL_MS + A.NARRATIVE_WRITER_RESERVE_MS;
+  assert.ok(needs <= 45_900, `gereken ${needs} > 45900 — dilim yine kaybolur`);
+  assert.ok(70_000 > 45_900, 'eski kapi gercekten engelliyordu');
+});
+
+test('sentez ile yazar AYNI seridi kovalamiyor', () => {
+  // Ikisi arka arkaya calisiyor; ikisi de MODEL_HEAVY isteyince yazar 50sn
+  // bekledi. Tercih sirasi ters cevrildi: yapilandirma kucuk modele,
+  // duzyazi buyuge.
+  const syn = SRC.indexOf('const synLane = pickLane');
+  const wrt = SRC.indexOf('const writerLane = pickLane');
+  assert.ok(syn > 0 && wrt > 0, 'ikisi de serit secmeli');
+  assert.ok(/\[MODEL_EXTRACT, MODEL_HEAVY\]/.test(SRC.slice(syn, syn + 160)),
+    'sentez once MODEL_EXTRACT i denemeli');
+  assert.ok(/\[MODEL_HEAVY, MODEL_EXTRACT\]/.test(SRC.slice(wrt, wrt + 160)),
+    'yazar once MODEL_HEAVY i denemeli');
+});
+
+test('butce yuzunden atlanan asamalar karta yaziliyor', () => {
+  // Uzun belge vision/yazar/review i kaybedip yine de "tam" gorunebiliyor.
+  assert.ok(/const skippedStages: string\[\] = \[\]/.test(SRC));
+  for (const asama of ['gorsel analiz', 'anlati yazari', 'review', 'critic']) {
+    assert.ok(SRC.includes(`skippedStages.push('${asama}')`), `${asama} kaydedilmeli`);
+  }
+  assert.ok((SRC.match(/skipped_stages: skippedStages/g) || []).length >= 2,
+    'model quality_gate i ezdiginde de korunmali');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));
