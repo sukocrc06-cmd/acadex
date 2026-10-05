@@ -193,14 +193,101 @@ async function loadStoredText(serviceClient: any, documentId: string): Promise<s
 // common case has no behaviour change at all.
 // ==========================================================================
 
-// Below this, send the whole document — retrieval can only lose context when
-// everything already fits.
-const WHOLE_DOC_MAX_CHARS = 50000
-// Budget for assembled retrieved passages. Deliberately well under the old
-// 100,000: relevance-ranked 50k beats an arbitrary first-50k prefix, and a
-// smaller prompt is faster, cheaper, and easier on the account's
-// tokens-per-minute cap.
-const RETRIEVED_MAX_CHARS = 50000
+// ==========================================================================
+// HOW MUCH SOURCE TEXT ACTUALLY FITS
+//
+// This used to be a pair of flat 50,000-character constants, chosen as "well
+// under the old 100,000". Measured against the account's real limit on
+// 05.10.2026 they are not under anything:
+//
+//   Groq TPM, per model .......... 8,000 tokens / minute
+//   estimateTokens ratio ......... 3.2 characters per token
+//   this call's completion cap .... 2,048 tokens
+//
+//   50,000 chars = 15,625 tokens + 2,048 completion = 17,673  -> 2.2x the cap
+//   31,817 chars (Cognitive Dissonance, a real test document)
+//               =  9,943 tokens + 2,048 completion = 11,991  -> over the cap
+//   11,050 chars (economy chapter 20)
+//               =  3,453 tokens + 2,048 completion =  5,501  -> fits
+//
+// So the two constants left a DEAD ZONE: a document between roughly 19,000
+// and 50,000 characters was sent whole (too big for the minute's budget, so
+// Groq answers "Request too large") while retrieval stood by, because its
+// trigger was "bigger than 50,000". The only documents that worked were the
+// small ones, which is exactly what got tested.
+//
+// The budget is now derived instead of declared, and derived PER REQUEST,
+// because the two things competing with the source text for the same 8,000
+// tokens both vary: the system prompt grows with the study-card context
+// block, and the conversation history grows with the chat.
+//
+// Deliberately NOT the summarize function's TokenPacer. That paces by
+// WAITING — up to 60 seconds for the window to roll — which is right for a
+// background job and wrong for a student watching a chat box. Here the fix
+// is to make the request fit in the first place; genuine contention between
+// several students still falls to fetchWithRetry's 429 handling, which waits
+// the seconds Groq actually asks for rather than a fixed minute.
+// ==========================================================================
+const CHAT_TPM_LIMIT = 8000
+// Headroom for the 3.2 ratio being an estimate while Groq counts the real
+// tokenisation (Turkish runs denser than English, so it undershoots there).
+//
+// 0.9, not a fresh guess: this is the summarize function's PACER_SAFETY, and
+// that one is evidence rather than taste — every measured run logs its spend
+// against the resulting 7,200 ceiling ("used=6226/7200") and not one of them
+// has come back "Request too large". A tighter 0.85 was tried here first and
+// pushed the 11,050-character economy chapter — a document that demonstrably
+// fits today — over into retrieval, which is a capability lost to a number
+// nobody had measured.
+const CHAT_TPM_SAFETY = 0.9
+// The ceiling for a chat answer. 2,048 is 28% of the whole minute, reserved
+// on every message whether or not the answer could possibly need it: Groq
+// counts max_completion_tokens against TPM up front, not what the model
+// actually emits. A plain conceptual answer runs a few hundred tokens.
+//
+// So it follows the same signal as the instruction sections — the questions
+// that need the long rules (a worked numeric solution, a Mermaid diagram)
+// are the questions whose answers are long. Everything else gets the lower
+// cap, and the difference goes to the document.
+const CHAT_MAX_COMPLETION = 2048
+const CHAT_MAX_COMPLETION_SHORT = 1024
+// MEASURED, not inherited. 3.2 came from the summarize function's pacer,
+// where being pessimistic costs a little waiting; here it decides how much
+// document the student sees, and it was 31% too low. The first live run with
+// usage.prompt_tokens logged said:
+//
+//   token orani: 4.18 krk/token (gercek 4364 token / 18236 krk; varsayim 3.2)
+//
+// 3.9, not 4.18: that measurement is an English prompt over an English
+// source with a Turkish question, which is today's material but not
+// tomorrow's — Turkish text tokenises denser, and the note-sharing this is
+// being built for will bring Turkish sources with it. 3.9 keeps most of the
+// gain while leaving room for that, and the ratio stays logged on every call
+// so a Turkish document will say so rather than quietly overflowing.
+const CHARS_PER_TOKEN = 3.9
+// An attached image is billed as tokens too and is not in any string we can
+// measure. Reserved whenever one is present.
+const IMAGE_TOKEN_RESERVE = 1600
+// Never send less than this, even if the overhead calculation says so — a
+// couple of pages is the floor below which an answer is not worth attempting,
+// and at that point the honest outcome is a short prompt, not an empty one.
+const SOURCE_MIN_CHARS = 4000
+
+/**
+ * Characters of source text this particular request can afford.
+ *
+ * overheadChars covers everything else that goes into the same budget: the
+ * system prompt minus the source block, and the conversation history.
+ */
+function sourceBudgetChars(overheadChars: number, hasImage: boolean, maxCompletion = CHAT_MAX_COMPLETION): number {
+  const available =
+    CHAT_TPM_LIMIT * CHAT_TPM_SAFETY
+    - maxCompletion
+    - Math.ceil(overheadChars / CHARS_PER_TOKEN)
+    - (hasImage ? IMAGE_TOKEN_RESERVE : 0)
+  return Math.max(SOURCE_MIN_CHARS, Math.floor(available * CHARS_PER_TOKEN))
+}
+
 const RETRIEVED_MAX_CHUNKS = 40
 
 // Words too common to tell one passage from another. Short list on purpose:
@@ -229,13 +316,238 @@ const QUERY_STOPWORDS = new Set([
  * question containing "&", "|", "!" or "(" cannot change the query's shape
  * or break it.
  */
+// ==========================================================================
+// TURKISH QUESTION OVER AN ENGLISH SOURCE
+//
+// This is the normal case here, not an edge case: every department in the
+// business faculty teaches in English, so the PDFs are English and the
+// students ask in Turkish. Retrieval matched the question's own words
+// against the chunks, so it was comparing Turkish to English and losing.
+// Measured 05.10.2026:
+//
+//   "Ben Franklin etkisi nedir?"      -> 2 chunks  (only because "Franklin"
+//                                        is a proper noun and survives)
+//   "makro ekonominin temeli nedir"   -> 0 chunks
+//
+// Zero matches is not a quiet degradation. It drops the whole question to
+// the whole-document path, and on anything long that means the first N
+// characters — a student asking about page 40 gets page 1.
+//
+// Three deterministic layers, no model call, nothing drawn from the daily
+// quota. Each one only ADDS candidates to an OR query, so a wrong guess
+// costs a term that matches nothing, while a right one rescues the question.
+// ==========================================================================
+
+/**
+ * Strip Turkish inflection so "ekonominin", "ekonomiyi" and "ekonomide" all
+ * reach "ekonomi" — the form the glossary below is keyed on.
+ *
+ * Turkish is agglutinative: the suffixes stack, so this strips repeatedly,
+ * longest first. The stem floor stops it eating short words down to nothing.
+ */
+const TR_SUFFIXES = [
+  'lerinden', 'larindan', 'larından', 'lerinde', 'larinda', 'larında',
+  'lerini', 'larini', 'larını', 'lerin', 'larin', 'ların', 'leri', 'lari', 'ları',
+  'ndan', 'dan', 'den', 'tan', 'ten', 'nin', 'nın', 'nun', 'nün',
+  'ler', 'lar', 'nda', 'nde', 'da', 'de', 'ta', 'te',
+  'in', 'ın', 'un', 'ün', 'si', 'sı', 'su', 'sü', 'yi', 'yı', 'yu', 'yü',
+  'le', 'la', 'i', 'ı', 'u', 'ü', 'e', 'a'
+]
+
+/** Stem-final softening reverts once the suffix is gone: "işsizliği" -> "işsizlik". */
+function unsoften(w: string): string {
+  return w.replace(/ğ$/, 'k').replace(/b$/, 'p').replace(/c$/, 'ç').replace(/d$/, 't')
+}
+
+/**
+ * ALL the stems a word can reach, not just the shortest one.
+ *
+ * A single greedy stem was the first version and it lost the two most common
+ * words in the test questions, both by overshooting the form the glossary is
+ * keyed on:
+ *
+ *   ekonominin -> ekonomi -> ekonom     "ekonomi" is the glossary key, and
+ *                                       the extra pass threw away "economy"
+ *   enflasyonun -> enflasyo             longest-first matched "nun", but the
+ *                                       n belongs to the stem; "un" gives
+ *                                       "enflasyon" -> "inflation"
+ *
+ * Both failures are the same shape: committing to one strip. So every
+ * applicable suffix is tried at every level and all the intermediate forms
+ * are kept. The set is small (a Turkish word rarely yields more than a
+ * handful) and a wrong stem only contributes a term that matches nothing.
+ */
+function turkishStemCandidates(word: string): string[] {
+  const seen = new Set<string>([word])
+  let frontier = [word]
+  for (let depth = 0; depth < 3; depth++) {
+    const next: string[] = []
+    for (const w of frontier) {
+      for (const suf of TR_SUFFIXES) {
+        if (w.length - suf.length >= 4 && w.endsWith(suf)) {
+          const cut = w.slice(0, -suf.length)
+          for (const form of [cut, unsoften(cut)]) {
+            if (!seen.has(form)) { seen.add(form); next.push(form) }
+          }
+        }
+      }
+    }
+    if (next.length === 0) break
+    frontier = next
+  }
+  seen.delete(word)
+  return [...seen]
+}
+
+/** The single most likely stem — for callers that want one form, not the set. */
+function turkishStem(word: string): string {
+  const all = turkishStemCandidates(word)
+  // The glossary is the best evidence we have about where the word ends.
+  for (const s of all) if (TR_EN_TERMS[s]) return s
+  return all.length ? all.reduce((a, b) => (a.length >= b.length ? a : b)) : word
+}
+
+/**
+ * Regular orthographic correspondences for the Latinate vocabulary both
+ * languages borrowed. These are genuinely rule-like, unlike the glossary
+ * below which is word-by-word because the words are not related at all.
+ */
+function cognateCandidates(stem: string): string[] {
+  const out: string[] = []
+  const rules: Array<[RegExp, string]> = [
+    [/syon$/, 'tion'],     // deflasyon -> deflation, pozisyon -> position
+    [/zyon$/, 'sion'],     // revizyon -> revision
+    [/izm$/, 'ism'],       // kapitalizm -> capitalism
+    [/loji$/, 'logy'],     // teknoloji -> technology
+    [/lojik$/, 'logic'],
+    [/ik$/, 'ic'],         // ekonomik -> economic
+    [/if$/, 'ive']         // aktif -> active
+  ]
+  for (const [re, rep] of rules) {
+    if (re.test(stem)) out.push(stem.replace(re, rep))
+  }
+  return out
+}
+
+/**
+ * Turkish -> English for the vocabulary of this faculty (economics,
+ * accounting, finance, management, marketing, information systems).
+ *
+ * Word-by-word on purpose: "arz" and "supply" share nothing to derive from.
+ * Values are arrays because one Turkish word often covers two English ones
+ * and an OR query can afford both.
+ */
+const TR_EN_TERMS: Record<string, string[]> = {
+  // iktisat
+  'ekonomi': ['economy', 'economics'], 'iktisat': ['economics'],
+  'makro': ['macro', 'macroeconomics'], 'mikro': ['micro', 'microeconomics'],
+  'arz': ['supply'], 'talep': ['demand'], 'piyasa': ['market'], 'pazar': ['market'],
+  'enflasyon': ['inflation'], 'deflasyon': ['deflation'], 'stagflasyon': ['stagflation'],
+  'issizlik': ['unemployment'], 'işsizlik': ['unemployment'], 'istihdam': ['employment'],
+  'buyume': ['growth'], 'büyüme': ['growth'], 'durgunluk': ['recession', 'slump'],
+  'resesyon': ['recession'], 'daralma': ['contraction'], 'genisleme': ['expansion'],
+  'genişleme': ['expansion'], 'bunalim': ['depression'], 'bunalım': ['depression'],
+  'kriz': ['crisis'], 'cevrim': ['cycle'], 'çevrim': ['cycle'], 'konjonktur': ['cycle'],
+  'uretim': ['production', 'output'], 'üretim': ['production', 'output'],
+  'cikti': ['output'], 'çıktı': ['output'], 'girdi': ['input'],
+  'milli': ['national'], 'gelir': ['income', 'revenue'], 'harcama': ['spending', 'expenditure'],
+  'tasarruf': ['savings'], 'yatirim': ['investment'], 'yatırım': ['investment'],
+  'tuketim': ['consumption'], 'tüketim': ['consumption'], 'hanehalki': ['household'],
+  'hanehalkı': ['household'], 'hane': ['household'], 'firma': ['firm', 'company'],
+  'devlet': ['government'], 'hukumet': ['government'], 'hükümet': ['government'],
+  'maliye': ['fiscal'], 'parasal': ['monetary'], 'para': ['money', 'monetary'],
+  'politika': ['policy'], 'vergi': ['tax', 'taxation'], 'faiz': ['interest'],
+  'merkez': ['central'], 'banka': ['bank'], 'tahvil': ['bond'], 'bono': ['bond'],
+  'hisse': ['share', 'stock'], 'senet': ['note', 'security'], 'temettu': ['dividend'],
+  'temettü': ['dividend'], 'fiyat': ['price'], 'duzey': ['level'], 'düzey': ['level'],
+  'seviye': ['level'], 'oran': ['rate', 'ratio'], 'denge': ['equilibrium', 'balance'],
+  'esneklik': ['elasticity'], 'verim': ['yield', 'efficiency'],
+  // muhasebe / finans
+  'muhasebe': ['accounting'], 'bilanco': ['balance'], 'bilanço': ['balance'],
+  'varlik': ['asset'], 'varlık': ['asset'], 'borc': ['debt', 'liability'],
+  'borç': ['debt', 'liability'], 'yukumluluk': ['liability'], 'yükümlülük': ['liability'],
+  'ozkaynak': ['equity'], 'özkaynak': ['equity'], 'sermaye': ['capital'],
+  'kar': ['profit'], 'kâr': ['profit'], 'zarar': ['loss'], 'maliyet': ['cost'],
+  'gider': ['expense'], 'nakit': ['cash'], 'akis': ['flow'], 'akış': ['flow'],
+  'stok': ['inventory', 'stock'], 'envanter': ['inventory'], 'amortisman': ['depreciation'],
+  'defter': ['ledger', 'book'], 'kayit': ['record', 'entry'], 'kayıt': ['record', 'entry'],
+  'fatura': ['invoice'], 'alacak': ['receivable'], 'satis': ['sales'], 'satış': ['sales'],
+  'satin': ['purchase'], 'satın': ['purchase'], 'iskonto': ['discount'],
+  'indirim': ['discount'], 'navlun': ['freight'], 'sigorta': ['insurance'],
+  'deger': ['value'], 'değer': ['value'], 'degerleme': ['valuation'], 'değerleme': ['valuation'],
+  'butce': ['budget'], 'bütçe': ['budget'], 'denetim': ['audit'], 'raporlama': ['reporting'],
+  // yonetim / pazarlama / MIS
+  'yonetim': ['management'], 'yönetim': ['management'], 'orgut': ['organization'],
+  'örgüt': ['organization'], 'strateji': ['strategy'], 'karar': ['decision'],
+  'surec': ['process'], 'süreç': ['process'], 'musteri': ['customer'], 'müşteri': ['customer'],
+  'pazarlama': ['marketing'], 'marka': ['brand'], 'urun': ['product'], 'ürün': ['product'],
+  'hizmet': ['service'], 'rekabet': ['competition'], 'tedarik': ['supply', 'procurement'],
+  'bilgi': ['information', 'knowledge'], 'veri': ['data'], 'sistem': ['system'],
+  'yazilim': ['software'], 'yazılım': ['software'], 'donanim': ['hardware'],
+  'donanım': ['hardware'], 'veritabani': ['database'], 'veritabanı': ['database'],
+  'guvenlik': ['security'], 'güvenlik': ['security'], 'ag': ['network'], 'ağ': ['network'],
+  // genel akademik
+  'tanim': ['definition'], 'tanım': ['definition'], 'ornek': ['example'], 'örnek': ['example'],
+  'fark': ['difference'], 'etki': ['effect', 'impact'], 'neden': ['cause'], 'sonuc': ['result'],
+  'sonuç': ['result'], 'avantaj': ['advantage'], 'dezavantaj': ['disadvantage'],
+  'ozellik': ['feature', 'characteristic'], 'özellik': ['feature', 'characteristic'],
+  'amac': ['purpose', 'objective'], 'amaç': ['purpose', 'objective'],
+  'yontem': ['method'], 'yöntem': ['method'], 'kuram': ['theory'], 'teori': ['theory'],
+  'model': ['model'], 'varsayim': ['assumption'], 'varsayım': ['assumption'],
+  'olcum': ['measurement'], 'ölçüm': ['measurement'], 'hesap': ['account', 'calculation'],
+  'tablo': ['table'], 'grafik': ['chart', 'graph'], 'sekil': ['figure'], 'şekil': ['figure'],
+  'bolum': ['chapter', 'section'], 'bölüm': ['chapter', 'section'],
+  'temel': ['basis', 'foundation', 'fundamental'], 'ilke': ['principle'],
+  'kural': ['rule'], 'asama': ['stage', 'phase'], 'aşama': ['stage', 'phase'],
+  'tur': ['type', 'kind'], 'tür': ['type', 'kind'], 'cesit': ['type'], 'çeşit': ['type'],
+  'artis': ['increase'], 'artış': ['increase'], 'azalis': ['decrease'], 'azalış': ['decrease'],
+  'dusus': ['decline', 'decrease'], 'düşüş': ['decline', 'decrease'],
+  'yuzde': ['percent', 'percentage'], 'yüzde': ['percent', 'percentage'],
+  'donem': ['period'], 'dönem': ['period'], 'yil': ['year'], 'yıl': ['year'],
+  'ceyrek': ['quarter'], 'çeyrek': ['quarter'], 'toplam': ['total', 'aggregate'],
+  'ortalama': ['average'], 'agirlikli': ['weighted'], 'ağırlıklı': ['weighted']
+}
+
+/** Every English candidate a Turkish word can reach. */
+function englishCandidatesFor(word: string): string[] {
+  const out = new Set<string>()
+  // Every candidate stem, not one: see turkishStemCandidates.
+  for (const form of [word, ...turkishStemCandidates(word)]) {
+    for (const t of TR_EN_TERMS[form] || []) out.add(t)
+  }
+  // Cognate rules only on the word and its likeliest stem — applying them to
+  // every candidate produces noise like "arasindak" -> nothing useful.
+  for (const form of [word, turkishStem(word)]) {
+    for (const c of cognateCandidates(form)) out.add(c)
+  }
+  return [...out]
+}
+
 function buildChunkTsQuery(questionText: string): string | null {
-  const terms = String(questionText || '')
+  const words = String(questionText || '')
     .toLowerCase()
     .replace(/[^\p{L}\p{N}\s]/gu, ' ')
     .split(/\s+/)
     .filter(w => w.length >= 3 && !QUERY_STOPWORDS.has(w))
-  const unique = [...new Set(terms)].slice(0, 24)
+
+  const terms: string[] = []
+  for (const w of words) {
+    // The original word first: proper nouns ("Franklin"), English questions,
+    // and Turkish sources all depend on it, and it is the only term we are
+    // certain the student meant.
+    terms.push(w)
+    // Then the stem, which catches a Turkish source where the chunk happens
+    // to carry a different inflection of the same word.
+    const stem = turkishStem(w)
+    if (stem !== w && stem.length >= 3) terms.push(stem)
+    // Then the bridge to English.
+    for (const en of englishCandidatesFor(w)) terms.push(en)
+  }
+
+  // Cap raised from 24: each original word can now contribute two or three
+  // candidates, and cutting at 24 would silently drop the English half of a
+  // longer question — the half that does the matching.
+  const unique = [...new Set(terms)].filter(t => t.length >= 3).slice(0, 60)
   if (unique.length === 0) return null
   return unique.join(' | ')
 }
@@ -571,6 +883,136 @@ serve(async (req) => {
     // Every branch falls back toward the older, simpler behaviour rather than
     // failing the student's question.
     // ========================================================================
+    // Bound the conversation window we forward to the model: last 10 turns
+    // (5 exchanges) is plenty of context for follow-ups without ballooning cost.
+    //
+    // Computed HERE, before the strategy below, because the history competes
+    // with the source text for the same per-minute budget and so has to be
+    // measurable before we decide how much source we can afford. A long
+    // conversation legitimately shrinks the source window.
+    const safeMessages = messages
+      .filter((m: any) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+      .slice(-10)
+      .map((m: any) => ({ role: m.role, content: m.content.slice(0, 3000) }))
+
+    if (safeMessages.length === 0 || safeMessages[safeMessages.length - 1].role !== 'user') {
+      return new Response(JSON.stringify({ error: 'No valid question found in the request.' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
+    // Everything that competes with the source text for the same per-minute
+    // budget, declared before the strategy below so the budget can be measured
+    // rather than assumed.
+    //
+    // WHICH INSTRUCTIONS THIS QUESTION ACTUALLY NEEDS
+    //
+    // Measured 05.10.2026: the system prompt ran to 13,048 characters, about
+    // 3,300 tokens of standing instructions on every single message, before
+    // the question or one character of the document. Broken down, two
+    // sections were 59% of it:
+    //
+    //   DIAGRAM & VISUAL-STRUCTURE AWARENESS + DIAGRAM GENERATION  ~4,990
+    //   MATH FORMULA FORMAT + STEP-BY-STEP NUMERIC SOLUTIONS       ~3,080
+    //
+    // Both are conditional in nature — one earns its place when the student
+    // asks about a figure, the other when the material is quantitative — and
+    // both were being sent for "makro ekonominin temeli nedir". Shortening
+    // the text would cost capability where it matters; sending it only when
+    // it applies costs nothing. Every 3,200 characters saved is ~1,000
+    // tokens handed back to the document.
+    //
+    // Both tests err toward INCLUDING: a missing instruction degrades an
+    // answer, while an unnecessary one only costs budget on a question that
+    // had room anyway.
+    const lastUserText = String(
+      [...messages].reverse().find((m: any) => m?.role === 'user')?.content || ''
+    ).toLowerCase()
+
+    const VISUAL_WORDS = /g[öo]rsel|[şs]ekil|[şs]ema|grafik|diyagram|tablo|çizim|cizim|resim|foto|akı[şs]|aki[sş]|diagram|chart|figure|graph|table|flow|image|picture/
+    const NUMERIC_WORDS = /hesapla|hesab|kaç|kac|ne kadar|yüzde|yuzde|oran|formül|formul|çöz|coz|soru çöz|calculate|compute|how much|how many|percent|ratio|formula|solve|step by step/
+    // The QUESTION decides the visual rules, not the card. "This card has a
+    // diagram" was the first version of this test and it eliminated nothing:
+    // nearly every card the pipeline produces has at least one diagram, so
+    // the 4,990 characters shipped on every message exactly as before. What
+    // the rules are for is a student asking about a figure, and a student
+    // asking about a figure says so. If they don't, they get a prose answer
+    // and can ask again with "şema çiz" — cheap to recover from, unlike a
+    // truncated document.
+    const needsVisualRules =
+      typeof imageDataUrl === 'string' || VISUAL_WORDS.test(lastUserText)
+
+    // is_quantitative is a property of the DOCUMENT, not of one question, and
+    // that is the right level here: in an accounting or economics chapter the
+    // next question is likely to be numeric even when this one wasn't, and a
+    // mis-formatted formula is a worse failure than a slightly smaller window.
+    const needsNumericRules =
+      card?.is_quantitative === true ||
+      (Array.isArray(card?.formulas) && card.formulas.length > 0) ||
+      (Array.isArray(card?.worked_examples) && card.worked_examples.length > 0) ||
+      NUMERIC_WORDS.test(lastUserText) || /\d/.test(lastUserText)
+
+    type SourceView = 'whole' | 'retrieval' | 'truncated'
+
+    const docNames = docs.map((d: any) => d.file_name).join(', ')
+    const summaryContextBlock = buildSummaryContextBlock(card)
+    const hasImage = typeof imageDataUrl === 'string'
+    // "Check my work" only makes sense when there's actually an image to look
+    // at — a checked checkbox with no attachment is just ignored.
+    const isCheckWorkMode = checkWorkMode === true && hasImage
+
+    // Measured, not estimated: build the real prompt with an empty source and
+    // take its length. `true` for the retrieval variant because that one is
+    // ~700 characters longer (the selected-passages caveat), so whichever
+    // strategy wins, the real prompt is no larger than what we budgeted for.
+    const historyChars = () => safeMessages.reduce(
+      (n: number, m: any) => n + String(m.content || '').length, 0
+    )
+    // 'retrieval' because it is the longest of the three variants (it adds
+    // the selected-passages caveat), so whichever view wins, the real
+    // prompt is no larger than what we budgeted for.
+    const basePromptChars = buildSystemPrompt('', 'retrieval').length
+
+    // A long conversation can eat the whole minute on its own: ten turns at
+    // the 3,000-character cap is 30,000 characters, nearly 9,400 tokens
+    // before the document is even considered. The floor in
+    // sourceBudgetChars() keeps the source from going to zero, but a floor
+    // that pushes the TOTAL back over the ceiling just trades an empty prompt
+    // for "Request too large" — the student sees an error either way.
+    //
+    // So when it comes to that, the history is what gets cut. The source
+    // document is what the question is about; turn 6 of the chat is not.
+    // Oldest first, and never the current question.
+    // Uzun yoneri gerektiren soru, uzun cevabi da gerektiren sorudur.
+    const maxCompletion = (needsNumericRules || needsVisualRules || hasImage)
+      ? CHAT_MAX_COMPLETION
+      : CHAT_MAX_COMPLETION_SHORT
+
+    let droppedTurns = 0
+    while (
+      safeMessages.length > 1 &&
+      sourceBudgetChars(basePromptChars + historyChars(), hasImage, maxCompletion) <= SOURCE_MIN_CHARS
+    ) {
+      safeMessages.shift()
+      droppedTurns++
+    }
+    if (droppedTurns > 0) {
+      console.warn(
+        `chat-with-document: ${droppedTurns} eski sohbet turu dusuruldu — ` +
+        `gecmis kaynak metnine yer birakmiyordu`
+      )
+    }
+
+    const promptOverheadChars = basePromptChars + historyChars()
+    const SOURCE_BUDGET = sourceBudgetChars(promptOverheadChars, hasImage, maxCompletion)
+    console.log(
+      `chat-with-document budget: ${SOURCE_BUDGET} krk kaynak ` +
+      `(prompt ${basePromptChars} + gecmis ${historyChars()} krk, completion ${maxCompletion}, ` +
+      `gorsel=${needsVisualRules ? 'kural+' : '-'}${hasImage ? 'ek' : ''}, ` +
+      `sayisal=${needsNumericRules ? 'kural+' : '-'}, TPM ${CHAT_TPM_LIMIT}×${CHAT_TPM_SAFETY})`
+    )
+
     type ChunkSize = { count: number; totalChars: number } | null
     const sizes: ChunkSize[] = await Promise.all(
       docs.map((d: any) => loadChunkSizes(serviceClient, d.id))
@@ -588,10 +1030,10 @@ serve(async (req) => {
     let sourceText = ''
     let strategy = 'none'
 
-    if (allChunked && totalChunkChars > WHOLE_DOC_MAX_CHARS && retrievalQuery) {
+    if (allChunked && totalChunkChars > SOURCE_BUDGET && retrievalQuery) {
       const rows = await retrieveRelevantChunks(serviceClient, docIds, retrievalQuery)
       if (rows && rows.length > 0) {
-        const { text, used, pages } = assembleRetrieved(rows, RETRIEVED_MAX_CHARS)
+        const { text, used, pages } = assembleRetrieved(rows, SOURCE_BUDGET)
         if (text) {
           sourceText = text
           strategy = 'retrieval'
@@ -643,14 +1085,23 @@ serve(async (req) => {
       strategy = storedHits > 0 ? 'whole-document (stored)' : 'whole-document (extracted)'
 
       // Safety net for a document that is large AND could not be served by
-      // retrieval (no chunks, or the search was unavailable). Still a cut,
-      // but now only on the path that has no better option.
-      const MAX_CHARS = 100000
-      if (sourceText.length > MAX_CHARS) {
-        console.warn(`chat-with-document: source text (${sourceText.length} chars) exceeds ${MAX_CHARS}, truncating.`)
-        const truncated = sourceText.substring(0, MAX_CHARS)
+      // retrieval (no chunks, or the search was unavailable). Still a cut, but
+      // now only on the path that has no better option.
+      //
+      // The cut used to be at a flat 100,000 characters, which is five times
+      // what the minute's budget can carry — so it did not prevent anything:
+      // the request still went out too large and Groq rejected it. Cutting at
+      // the budget means the student gets an answer from the first N pages
+      // instead of an error, which is worse than retrieval and much better
+      // than nothing.
+      if (sourceText.length > SOURCE_BUDGET) {
+        console.warn(
+          `chat-with-document: source text (${sourceText.length} krk) butceyi ` +
+          `(${SOURCE_BUDGET} krk) asiyor, kirpiliyor — retrieval bu yolda kullanilamadi`
+        )
+        const truncated = sourceText.substring(0, SOURCE_BUDGET)
         const lastBoundary = Math.max(truncated.lastIndexOf(". "), truncated.lastIndexOf(".\n"), truncated.lastIndexOf("\n"))
-        sourceText = lastBoundary > MAX_CHARS - 3000 ? truncated.substring(0, lastBoundary + 1) : truncated
+        sourceText = lastBoundary > SOURCE_BUDGET - 3000 ? truncated.substring(0, lastBoundary + 1) : truncated
         strategy += ' + truncated'
       }
       console.log(`chat-with-document source text: ${storedHits} from document_chunks, ${extractedHits} re-extracted`)
@@ -666,29 +1117,51 @@ serve(async (req) => {
       })
     }
 
-    const docNames = docs.map((d: any) => d.file_name).join(', ')
-    const summaryContextBlock = buildSummaryContextBlock(card)
-    const hasImage = typeof imageDataUrl === 'string'
-    // "Check my work" only makes sense when there's actually an image to look
-    // at — a checked checkbox with no attachment is just ignored.
-    const isCheckWorkMode = checkWorkMode === true && hasImage
-
-    // What the model is actually looking at depends on the strategy above.
-    // Telling it "the full extracted text" when it is holding a relevance-
-    // selected subset would invite exactly the wrong error: flatly denying
-    // that the document covers something that simply was not retrieved.
-    const isRetrieval = strategy === 'retrieval'
-    const sourceDescription = isRetrieval
-      ? `Below are the passages from that source that are most relevant to the student's question, selected from a longer document and shown in reading order with their page numbers`
-      : `You are given the full extracted text of that source below`
-    const retrievalCaveat = isRetrieval
-      ? `
+    /**
+     * The system prompt, as a function of the source text.
+     *
+     * It used to be one inline template literal built after the strategy was
+     * chosen. It has to be a function now because the source-text budget is
+     * "what is left of the minute after everything else" — so the everything
+     * else has to be MEASURABLE before the source is picked, and the only
+     * honest way to measure it is to build this with an empty source.
+     *
+     * A hardcoded "the prompt is about 4,000 characters" constant would have
+     * been smaller, and would have silently drifted the first time anyone
+     * edited the text below.
+     */
+    function buildSystemPrompt(sourceText: string, view: SourceView): string {
+      // What the model is actually looking at depends on the strategy, and
+      // getting this wrong produces the one answer a grounded Q&A feature
+      // must never give: a confident "that isn't in the document" about
+      // something that is, just not in the part it was shown.
+      //
+      // 'retrieval' has said so since this feature shipped. 'truncated' did
+      // NOT, and that was a live bug: a cut document was described as "the
+      // full extracted text" — 05.10.2026, the economy chapter went in at
+      // 3,983 of 10,549 characters under that exact sentence. The model was
+      // told it had everything while holding 38% of it.
+      const isRetrieval = view === 'retrieval'
+      const isPartial = view !== 'whole'
+      const sourceDescription =
+        view === 'retrieval'
+          ? `Below are the passages from that source that are most relevant to the student's question, selected from a longer document and shown in reading order with their page numbers`
+          : view === 'truncated'
+            ? `Below is the BEGINNING of that source — it was too long to include in full, so it is cut off partway through`
+            : `You are given the full extracted text of that source below`
+      const retrievalCaveat = isRetrieval
+        ? `
 
 SELECTED-PASSAGES CAVEAT (important):
 What follows is a RELEVANCE-SELECTED SUBSET of a longer document, not the whole thing. Answer from these passages exactly as strictly as always — but when they do not contain the answer, say that these passages don't cover it and that it may appear elsewhere in the document (suggest the student rephrase with more specific terms, or name the topic/chapter). Do NOT state or imply that the document itself does not contain something, because you cannot see all of it. Page numbers shown in "[Sayfa N]" headers are real — use them in your citations' "reference" text when relevant.`
-      : ''
+        : view === 'truncated'
+          ? `
 
-    const systemPrompt = `You are a grounded document Q&A assistant for Acadex, an academic study platform. The student is asking questions about a specific uploaded source (${docNames}). ${sourceDescription}${summaryContextBlock ? ', along with the study card summary already generated for it' : ''}.${retrievalCaveat}
+TRUNCATED-SOURCE CAVEAT (important):
+What follows is only the FIRST PART of a longer document. Answer from it exactly as strictly as always — but when it does not contain the answer, say that the part you can see doesn't cover it and that it probably appears later in the document (suggest the student ask again naming the specific topic, chapter or term). Do NOT state or imply that the document itself does not contain something, because you have not seen most of it.`
+          : ''
+
+      return `You are a grounded document Q&A assistant for Acadex, an academic study platform. The student is asking questions about a specific uploaded source (${docNames}). ${sourceDescription}${summaryContextBlock ? ', along with the study card summary already generated for it' : ''}.${retrievalCaveat}
 
 STRICT GROUNDING RULE:
 Answer ONLY using information that is actually present in the source text${summaryContextBlock ? ' or the study card summary' : ''} below. Do NOT use outside knowledge to fill in gaps, and do NOT invent facts, numbers, names, or details that are not in the text. If the source does not contain enough information to answer the question, say so honestly and clearly (in the student's own language) instead of guessing — you may still briefly explain the general concept if it's common academic knowledge, but you MUST clearly distinguish that from what the source itself says.
@@ -696,6 +1169,7 @@ Answer ONLY using information that is actually present in the source text${summa
 CITATION RULE:
 When you state a specific fact, definition, number, or claim drawn from the source, add a citation marker like [1], [2], etc. immediately after it, reusing the same marker for the same location if you reference it again. Build a "citations" array in your JSON output: [{ "id": number, "reference": string }], where "reference" briefly names the topical section/heading area the claim came from (e.g. "Bölüm 2 - SEO tartışması" or "Giriş bölümü"). Don't over-cite — reserve markers for specific, checkable claims, not every sentence. If your answer makes no specific checkable claims (e.g. it's just a clarifying question back to the student, or a general "not found in the source" answer), return an empty citations array.
 
+${needsVisualRules ? `
 DIAGRAM & VISUAL-STRUCTURE AWARENESS:
 You only have the extracted text, not the original page images — so a flowchart, comparison diagram, or process illustration in the source often survives only as a cluster of short, disconnected phrases that don't read as normal prose (e.g. parallel short labels repeated near each other, a sequence of terse stage names, or paired opposing terms). If the student asks about a chart, diagram, graphic, or "görsel/şekil" and you spot such a cluster in the source text (or in the study card summary/tables/charts context below, if provided), reconstruct and explain its likely meaning — but explicitly flag that you're inferring the diagram's structure from scattered text labels rather than describing an image you can see (e.g. "Kaynak metindeki dağınık ifadelere bakılırsa, bu muhtemelen ... karşılaştıran bir diyagram."). If you genuinely can't find any fragments that plausibly correspond to what they're asking about, tell them honestly instead of guessing — and mention they can attach a photo/screenshot of that page so you can look at it directly.${hasImage ? `
 
@@ -716,7 +1190,7 @@ When the student is asking about a chart, diagram, flowchart, comparison, proces
 - Keep it to at most ~12 nodes. Prefer a simple, correct diagram over an elaborate, possibly-wrong one.
 - Skip the diagram entirely (omit the whole MERMAID BLOCK) whenever the question isn't about a diagram/chart/structure, or when you don't have enough grounded structure to draw one honestly — never fabricate a diagram just to have something to show.
 - The diagram is entirely separate from and in addition to your normal "answer" text — still write a normal grounded answer as usual.
-
+` : ''}
 LANGUAGE RULE:
 Respond in the same language the student's latest question is written in (default to Turkish if genuinely ambiguous).
 
@@ -726,12 +1200,13 @@ Be concise, clear, and directly helpful — write like a knowledgeable classmate
 TABLES AND LISTS IN YOUR ANSWER:
 If the student asks you to bring back a table, ranking, or list of items from the source, reproduce it inside the "answer" string using "- " bullet lines or simple "label: value" lines separated by "\\n" (a literal backslash-n escape sequence, NOT an actual line break) — never break your answer across multiple real lines. Keep each row/item on its own "\\n"-separated line so it still reads clearly when displayed, but the JSON string itself must remain a single line.
 
+${needsNumericRules ? `
 MATH FORMULA FORMAT:
 Whenever your answer includes a mathematical formula, equation, or expression (variables, fractions, exponents, summations, financial/statistical notation, etc.), write it in valid LaTeX and wrap it in single dollar signs so it renders as a real formula instead of plain text, e.g. $A = P(1 + r/n)^{nt}$. This matters especially for quantitative subjects (finance, accounting, statistics, economics) — don't just write formulas as plain text like "A = P(1+r/n)^nt" when you can express them properly in LaTeX. Since your answer is a JSON string value, every backslash inside the LaTeX must be escaped as a double backslash in the JSON text itself: to display $\\frac{a}{b}$, the actual JSON string content must contain "$\\\\frac{a}{b}$" (two backslash characters before "frac", not one). Keep formulas inline within your sentences using single $...$ delimiters only — never use $$...$$ block delimiters.
 
 STEP-BY-STEP NUMERIC SOLUTIONS:
 When the student asks you to solve, calculate, or work through a numeric/quantitative problem (e.g. compute an interest amount, solve for an unknown, work out a statistic), structure your "answer" as clearly numbered steps rather than one dense paragraph: "1) ...\\n2) ...\\n3) ..." (the same "\\n"-separated-line convention as TABLES AND LISTS above — a literal backslash-n, not a real line break). Each step should name the formula being applied (in LaTeX per MATH FORMULA FORMAT above) and show the actual numbers plugged in, not just the abstract formula in isolation. Finish with a clearly labeled final line such as "Sonuç: ..." or "Final answer: ..." stating the numeric result with correct units. Only use this structured format for genuinely numeric/computational questions — for conceptual/qualitative questions, answer normally in prose.
-
+` : ''}
 OUTPUT FORMAT (two parts — read carefully, this is machine-parsed, not just for a human):
 PART 1 — a single-line JSON object, no markdown code fences, no commentary before or after, every string value valid single-line JSON (escape any newlines inside it as "\\n"): { "answer": string, "citations": [ { "id": number, "reference": string } ] }. Do NOT put any diagram inside this JSON object — it only ever holds "answer" and "citations".
 PART 2 — ONLY when DIAGRAM GENERATION above applies, immediately after the JSON object (on new lines, which is fine here since this part is plain text, not JSON) append exactly this block with your Mermaid definition inside it, real line breaks allowed:
@@ -750,20 +1225,13 @@ SOURCE TEXT:
 """
 ${sourceText}
 """`
-
-    // Bound the conversation window we forward to the model: last 10 turns
-    // (5 exchanges) is plenty of context for follow-ups without ballooning cost.
-    const safeMessages = messages
-      .filter((m: any) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
-      .slice(-10)
-      .map((m: any) => ({ role: m.role, content: m.content.slice(0, 3000) }))
-
-    if (safeMessages.length === 0 || safeMessages[safeMessages.length - 1].role !== 'user') {
-      return new Response(JSON.stringify({ error: 'No valid question found in the request.' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
     }
+
+    const sourceView: SourceView =
+      strategy === 'retrieval' ? 'retrieval'
+        : strategy.includes('truncated') ? 'truncated'
+        : 'whole'
+    const systemPrompt = buildSystemPrompt(sourceText, sourceView)
 
     // Build the actual message list. Only the LAST user turn ever carries the
     // attached image — older turns stay plain text so the conversation history
@@ -813,7 +1281,7 @@ ${sourceText}
             // budget against this account's tokens-per-minute limit, which alone
             // can push an otherwise modest request over the limit and return a
             // "Request too large" / rate_limit_exceeded error.
-            max_completion_tokens: 2048,
+            max_completion_tokens: maxCompletion,
             // No response_format:"json_object" here — that mode forces the ENTIRE
             // reply to be one JSON value, which would forbid the optional
             // ###MERMAID_START###...###MERMAID_END### block appended after it
@@ -835,35 +1303,92 @@ ${sourceText}
     }
 
     if (!groqResponse) {
-      try {
-        groqResponse = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${groqApiKey}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            // llama-3.3-70b-versatile is being retired by Groq (shutdown
-            // 2026-08-16); openai/gpt-oss-120b is one of Groq's recommended
-            // replacements and has a comparable (131K) context window.
-            model: "openai/gpt-oss-120b",
-            temperature: 0.3,
-            // gpt-oss doesn't support reasoning_effort:"none" (only
-            // low/medium/high) or reasoning_format, so we use the lowest
-            // reasoning depth plus include_reasoning:false to keep "content"
-            // limited to the final answer instead of a <think> block that
-            // would break our JSON parsing below.
-            reasoning_effort: "low",
-            include_reasoning: false,
-            // See the comment on the vision call above re: max_completion_tokens
-            // and why response_format is deliberately omitted here too.
-            max_completion_tokens: 2048,
-            messages: buildChatMessages(false)
-          })
-        }, 1, 20000) // one retry max, 20s cap per attempt
-      } catch (fetchErr) {
-        console.error("chat-with-document Groq fetch exception: ", fetchErr)
-        return new Response(JSON.stringify({ error: 'Our AI service is experiencing high demand right now — please try again in a moment' }), {
+      // FALL BACK TO ANOTHER MODEL WHEN ONE LANE'S DAY IS SPENT.
+      //
+      // 05.10.2026, 19:20 — a student asked "stagflasyon nedir" and got
+      // "Şu anda cevap veremiyorum":
+      //
+      //   Rate limit reached for model `openai/gpt-oss-120b` ... on tokens
+      //   per day (TPD): Limit 200000, Used 198585. Try again in 24m2.88s
+      //
+      // Nothing was wrong with the request. One model's DAILY allowance was
+      // gone, and this call was pinned to that model, so it retried the same
+      // exhausted lane once and gave up. Groq meters TPD per model, and the
+      // other two lanes had their own untouched 200,000.
+      //
+      // Each lane is tried in turn. A daily quota error moves on immediately
+      // — waiting 24 minutes is not an option with a student watching — while
+      // any other failure also falls through, since a worse model answering
+      // beats no answer. Order is quality-first: the fallbacks are smaller
+      // models, so they are what the student gets only when they have to be.
+      const textLanes = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'qwen/qwen3.8-27b']
+      let lastLaneError = ''
+
+      for (let i = 0; i < textLanes.length; i++) {
+        const lane = textLanes[i]
+        try {
+          const res = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${groqApiKey}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              // llama-3.3-70b-versatile is being retired by Groq (shutdown
+              // 2026-08-16); openai/gpt-oss-120b is one of Groq's recommended
+              // replacements and has a comparable (131K) context window.
+              model: lane,
+              temperature: 0.3,
+              // Per model, never written out: gpt-oss rejects
+              // reasoning_effort:"none" outright while qwen needs exactly
+              // that. The summarize function learned this the hard way when
+              // its review call started picking lanes at runtime and 400'd
+              // on every gpt-oss one.
+              ...(lane.includes('qwen')
+                ? { reasoning_effort: "none" }
+                : { reasoning_effort: "low", include_reasoning: false }),
+              // See the comment on the vision call above re: max_completion_tokens
+              // and why response_format is deliberately omitted here too.
+              max_completion_tokens: maxCompletion,
+              messages: buildChatMessages(false)
+            })
+            // No retry on the first lanes: when this one is out of daily
+            // quota, the next lane is a better use of the student's wait
+            // than a second attempt at the same exhausted one. The last lane
+            // keeps its retry because after it there is nowhere to go.
+          }, i === textLanes.length - 1 ? 1 : 0, 20000)
+
+          if (res.ok) {
+            groqResponse = res
+            if (i > 0) console.warn(`chat-with-document: ${lane} seridine dusuldu (onceki serit(ler) kullanilamadi)`)
+            break
+          }
+
+          lastLaneError = await res.clone().text().catch(() => '')
+          const daily = /tokens per day|TPD/i.test(lastLaneError)
+          console.warn(
+            `chat-with-document: ${lane} ${res.status} verdi` +
+            `${daily ? ' (GUNLUK kota bitti)' : ''}` +
+            `${i < textLanes.length - 1 ? ' — sonraki seride geciliyor' : ''}`
+          )
+        } catch (fetchErr) {
+          lastLaneError = String(fetchErr)
+          console.warn(`chat-with-document: ${lane} istisna attı:`, fetchErr)
+        }
+      }
+
+      if (!groqResponse) {
+        console.error("chat-with-document: butun seritler basarisiz. Son hata:", lastLaneError)
+        // Say WHICH wall was hit. "Try again in a moment" is wrong and
+        // frustrating when the real answer is "tomorrow": the daily quota
+        // does not clear in a moment, and a student retrying every 30
+        // seconds for an hour deserves to know that.
+        const daily = /tokens per day|TPD/i.test(lastLaneError)
+        return new Response(JSON.stringify({
+          error: daily
+            ? 'Bugünkü AI kotamız doldu — yarın tekrar deneyebilirsin. (Özet çıkarma ve sohbet aynı günlük kotayı paylaşıyor.)'
+            : 'Our AI service is experiencing high demand right now — please try again in a moment'
+        }), {
           status: 503,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
@@ -871,6 +1396,29 @@ ${sourceText}
     }
 
     const groqData = await groqResponse.json()
+
+    // MEASURE THE RATIO INSTEAD OF ARGUING ABOUT IT.
+    //
+    // CHARS_PER_TOKEN decides how much document the student gets, and it was
+    // inherited from the summarize function's pacer where being pessimistic
+    // is nearly free — you wait a little longer. Here it is expensive: too
+    // low a ratio means a document that fits gets cut, which is how the
+    // economy chapter went in at 3,983 of 10,549 characters on 05.10.2026.
+    //
+    // Groq reports what it actually counted. Logging the real ratio on every
+    // call turns the constant from a guess into something we can set from
+    // data — and it will differ by language, which matters here because the
+    // sources are English and the questions are Turkish.
+    const promptTokens = Number(groqData?.usage?.prompt_tokens)
+    if (Number.isFinite(promptTokens) && promptTokens > 0) {
+      const promptChars = systemPrompt.length +
+        safeMessages.reduce((n: number, m: any) => n + String(m.content || '').length, 0)
+      console.log(
+        `chat-with-document token orani: ${(promptChars / promptTokens).toFixed(2)} krk/token ` +
+        `(gercek ${promptTokens} token / ${promptChars} krk; varsayim ${CHARS_PER_TOKEN})`
+      )
+    }
+
     if (!groqResponse.ok) {
       console.error("chat-with-document Groq API error:", JSON.stringify(groqData))
       return new Response(JSON.stringify({ error: 'Our AI service is experiencing high demand right now — please try again in a moment' }), {

@@ -13139,6 +13139,73 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
     });
   }
 
+  // 1b. Section summaries — boxed card, right after the overall summary.
+  //
+  // The pipeline produces these on every run (the long-doc path logs
+  // "+N sections" from the visual patch alone) and normalizeSections only
+  // keeps entries that have BOTH a heading and a summary. None of it reached
+  // the export: a student who downloaded their card got the whole-document
+  // summary and the glossary, but not the document's structure — which is
+  // the part that maps onto how a chapter is actually revised.
+  //
+  // Placed before ANAHTAR TERİMLER because it is still summary-level reading;
+  // the glossary and the exercises come after.
+  if (Array.isArray(studyCard.sections) && studyCard.sections.length > 0) {
+    const sections = studyCard.sections
+      .filter(s => s && s.heading && s.summary)
+      .slice()
+      .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+    if (sections.length > 0) {
+      y = drawPdfCard(doc, cardState(), {
+        label: 'BÖLÜM ÖZETLERİ',
+        accent: PDF_INK.navy,
+        soft: PDF_INK.navySoft,
+        measure: (w) => {
+          let h = 0;
+          sections.forEach(s => {
+            pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(10);
+            h += doc.splitTextToSize(safeText(s.heading), w).length * 5.5 + 1;
+            pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5);
+            h += doc.splitTextToSize(safeText(s.summary), w).length * 5.2;
+            (Array.isArray(s.key_points) ? s.key_points : []).forEach(p => {
+              h += doc.splitTextToSize(safeText(`– ${p}`), w - 6).length * 5;
+            });
+            h += 4;
+          });
+          return h;
+        },
+        render: (x, ry, w, allowBreak) => {
+          sections.forEach(s => {
+            if (allowBreak && ry > 265) { doc.addPage(); ry = 35; }
+            pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(10); doc.setTextColor(...PDF_INK.navy);
+            doc.splitTextToSize(safeText(s.heading), w).forEach(line => {
+              if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
+              doc.text(line, x, ry); ry += 5.5;
+            });
+            ry += 1;
+            pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.body);
+            doc.splitTextToSize(safeText(s.summary), w).forEach(line => {
+              if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
+              doc.text(line, x, ry); ry += 5.2;
+            });
+            // Section-level points are indented so they read as belonging to
+            // the heading above, not to the document-wide list further down.
+            doc.setTextColor(...PDF_INK.muted);
+            (Array.isArray(s.key_points) ? s.key_points : []).forEach(p => {
+              doc.splitTextToSize(safeText(`– ${p}`), w - 6).forEach(line => {
+                if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
+                doc.text(line, x + 6, ry); ry += 5;
+              });
+            });
+            doc.setTextColor(...PDF_INK.body);
+            ry += 4;
+          });
+          return ry;
+        },
+      });
+    }
+  }
+
   // 2. Key Terms — boxed card
   if (studyCard.key_terms && studyCard.key_terms.length > 0) {
     y = drawPdfCard(doc, cardState(), {
@@ -13229,6 +13296,140 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
         return ry;
       },
     });
+  }
+
+  // 4b. Formulas — boxed card.
+  //
+  // Quantitative chapters (economics, accounting, statistics) are exactly
+  // where this card is supposed to earn its place, and the formulas the
+  // pipeline extracts were going nowhere. LaTeX is printed as source rather
+  // than typeset: jsPDF cannot render it, and the raw form is still readable
+  // ("Y = C + I + G + NX") and copyable, which beats omitting it.
+  if (Array.isArray(studyCard.formulas) && studyCard.formulas.length > 0) {
+    const formulas = studyCard.formulas.filter(f => f && (f.name || f.latex));
+    if (formulas.length > 0) {
+      y = drawPdfCard(doc, cardState(), {
+        label: 'FORMÜLLER',
+        accent: PDF_INK.teal,
+        soft: PDF_INK.tealSoft,
+        measure: (w) => {
+          let h = 0;
+          formulas.forEach(f => {
+            pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(9.5);
+            if (f.name) h += doc.splitTextToSize(safeText(f.name), w).length * 5;
+            pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(10);
+            if (f.latex) h += doc.splitTextToSize(safeText(f.latex), w - 6).length * 5.5;
+            pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9);
+            (Array.isArray(f.variables) ? f.variables : []).forEach(v => {
+              h += doc.splitTextToSize(safeText(`${v?.symbol || ''} = ${v?.meaning || ''}`), w - 6).length * 4.6;
+            });
+            h += 4;
+          });
+          return h;
+        },
+        render: (x, ry, w, allowBreak) => {
+          formulas.forEach(f => {
+            if (allowBreak && ry > 265) { doc.addPage(); ry = 35; }
+            if (f.name) {
+              pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.navy);
+              doc.splitTextToSize(safeText(f.name), w).forEach(line => {
+                if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
+                doc.text(line, x, ry); ry += 5;
+              });
+            }
+            if (f.latex) {
+              pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(10); doc.setTextColor(...PDF_INK.teal);
+              doc.splitTextToSize(safeText(f.latex), w - 6).forEach(line => {
+                if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
+                doc.text(line, x + 6, ry); ry += 5.5;
+              });
+            }
+            pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9); doc.setTextColor(...PDF_INK.muted);
+            (Array.isArray(f.variables) ? f.variables : []).forEach(v => {
+              doc.splitTextToSize(safeText(`${v?.symbol || ''} = ${v?.meaning || ''}`), w - 6).forEach(line => {
+                if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
+                doc.text(line, x + 6, ry); ry += 4.6;
+              });
+            });
+            doc.setTextColor(...PDF_INK.body);
+            ry += 4;
+          });
+          return ry;
+        },
+      });
+    }
+  }
+
+  // 4c. Worked examples — boxed card.
+  //
+  // 05.10.2026: a run extracted worked_examples=2 and the export had nowhere
+  // to put them, so both were produced, paid for in tokens, passed through
+  // the gates, and silently dropped. The steps are numbered and the final
+  // answer is set apart, because a worked example is only useful if the
+  // student can follow the order and check the end.
+  if (Array.isArray(studyCard.worked_examples) && studyCard.worked_examples.length > 0) {
+    const examples = studyCard.worked_examples.filter(
+      e => e && (e.problem_statement || (Array.isArray(e.steps) && e.steps.length))
+    );
+    if (examples.length > 0) {
+      y = drawPdfCard(doc, cardState(), {
+        label: 'ÇÖZÜMLÜ ÖRNEKLER',
+        accent: PDF_INK.amberDark,
+        soft: PDF_INK.amberSoft,
+        measure: (w) => {
+          let h = 0;
+          examples.forEach((e, i) => {
+            pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(10);
+            h += doc.splitTextToSize(safeText(e.title || `Örnek ${i + 1}`), w).length * 5.5 + 1;
+            pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5);
+            if (e.problem_statement) h += doc.splitTextToSize(safeText(e.problem_statement), w).length * 5.2 + 1;
+            (Array.isArray(e.steps) ? e.steps : []).forEach((s, si) => {
+              h += doc.splitTextToSize(safeText(`${si + 1}. ${s}`), w - 6).length * 5;
+            });
+            pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(9.5);
+            if (e.final_answer) h += doc.splitTextToSize(safeText(`Sonuç: ${e.final_answer}`), w).length * 5.2;
+            h += 5;
+          });
+          return h;
+        },
+        render: (x, ry, w, allowBreak) => {
+          examples.forEach((e, i) => {
+            if (allowBreak && ry > 262) { doc.addPage(); ry = 35; }
+            pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(10); doc.setTextColor(...PDF_INK.navy);
+            doc.splitTextToSize(safeText(e.title || `Örnek ${i + 1}`), w).forEach(line => {
+              if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
+              doc.text(line, x, ry); ry += 5.5;
+            });
+            ry += 1;
+            if (e.problem_statement) {
+              pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.body);
+              doc.splitTextToSize(safeText(e.problem_statement), w).forEach(line => {
+                if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
+                doc.text(line, x, ry); ry += 5.2;
+              });
+              ry += 1;
+            }
+            pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.muted);
+            (Array.isArray(e.steps) ? e.steps : []).forEach((s, si) => {
+              doc.splitTextToSize(safeText(`${si + 1}. ${s}`), w - 6).forEach(line => {
+                if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
+                doc.text(line, x + 6, ry); ry += 5;
+              });
+            });
+            if (e.final_answer) {
+              pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.amberDark);
+              doc.splitTextToSize(safeText(`Sonuç: ${e.final_answer}`), w).forEach(line => {
+                if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
+                doc.text(line, x, ry); ry += 5.2;
+              });
+            }
+            doc.setTextColor(...PDF_INK.body);
+            ry += 5;
+          });
+          return ry;
+        },
+      });
+    }
   }
 
   // Section header used by the sections below — Tables/Charts/Diagrams keep
@@ -13349,6 +13550,21 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
   // the student can cover the key, attempt the blanks, then check.
   if (Array.isArray(studyCard.cloze_cards) && studyCard.cloze_cards.length > 0) {
     const clozes = studyCard.cloze_cards.filter(c => c && c.prompt && c.answer);
+    // Two different exercises share this section. buildClozeCards emits
+    // sentence clozes first (source 'key_point' / 'model'), then definition
+    // prompts (source 'key_term') to fill the remaining slots.
+    //
+    // Unlabelled they read as one list, and the definition half looks broken:
+    //   "___: The combined actions of all households and firms."
+    // is not a sentence with a word missing, it is the ANAHTAR TERİMLER list
+    // read backwards — and on this very page its answer is printed three
+    // sections earlier. Measured 05.10.2026: 11 of 20 cards were this shape.
+    //
+    // So the definition half gets its own sub-heading. Numbering stays
+    // continuous because the answer key below refers to these numbers.
+    const defStart = clozes.findIndex(c => c.source === 'key_term');
+    const SPLIT_AT = defStart > 0 ? defStart : -1;
+    const SPLIT_H = 7;
     if (clozes.length > 0) {
       y = drawPdfCard(doc, cardState(), {
         label: 'BOŞLUK DOLDURMA',
@@ -13358,6 +13574,7 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
           let h = 0;
           pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5);
           clozes.forEach((c, idx) => {
+            if (idx === SPLIT_AT) h += SPLIT_H;
             h += doc.splitTextToSize(safeText(`${idx + 1}. ${c.prompt}`), w).length * 5.5 + 1.5;
           });
           // Answer key: heading plus the wrapped, comma-joined answers.
@@ -13370,6 +13587,13 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
         render: (x, ry, w, allowBreak) => {
           pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.body);
           clozes.forEach((c, idx) => {
+            if (idx === SPLIT_AT) {
+              ry += 2;
+              if (allowBreak && ry > 265) { doc.addPage(); ry = 35; }
+              pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(9); doc.setTextColor(...PDF_INK.teal);
+              doc.text(safeText('Terim testi — tanımdan terime'), x, ry); ry += 5;
+              pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.body);
+            }
             doc.splitTextToSize(safeText(`${idx + 1}. ${c.prompt}`), w).forEach(line => {
               if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
               doc.text(line, x, ry); ry += 5.5;
@@ -13389,6 +13613,52 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
           doc.splitTextToSize(safeText(key), w).forEach(line => {
             if (allowBreak && ry > 272) { doc.addPage(); ry = 35; }
             doc.text(line, x, ry); ry += 4.6;
+          });
+          return ry;
+        },
+      });
+    }
+  }
+
+  // 9. Footnotes — LAST, because the "[n]" markers in the summary and the key
+  //    points point here.
+  //
+  // Those markers were being printed with nothing to resolve them against:
+  // the 05.10.2026 economy run logged "added=12 quoted=12 unanchored=2", so
+  // the card carried [1]..[12] through the body while this section did not
+  // exist in the export at all. Twelve dead references on a page is worse
+  // than no references, because a student cannot tell whether the citation
+  // is missing or they are missing it.
+  //
+  // Page numbers are printed only when present: the anchoring pass
+  // deliberately demotes a page it could not corroborate to null rather than
+  // guessing, and printing "s. null" would undo that honesty.
+  if (Array.isArray(studyCard.footnotes) && studyCard.footnotes.length > 0) {
+    const notes = studyCard.footnotes.filter(f => f && f.reference);
+    if (notes.length > 0) {
+      const lineFor = (f, i) => {
+        const id = f.id != null ? f.id : i + 1;
+        const page = typeof f.page === 'number' ? `  (s. ${f.page})` : '';
+        return `[${id}] ${f.reference}${page}`;
+      };
+      y = drawPdfCard(doc, cardState(), {
+        label: 'KAYNAKLAR',
+        accent: PDF_INK.muted,
+        soft: PDF_INK.navySoft,
+        measure: (w) => {
+          pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(8.5);
+          let h = 0;
+          notes.forEach((f, i) => { h += doc.splitTextToSize(safeText(lineFor(f, i)), w).length * 4.6 + 1; });
+          return h;
+        },
+        render: (x, ry, w, allowBreak) => {
+          pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(8.5); doc.setTextColor(...PDF_INK.muted);
+          notes.forEach((f, i) => {
+            doc.splitTextToSize(safeText(lineFor(f, i)), w).forEach(line => {
+              if (allowBreak && ry > 272) { doc.addPage(); ry = 35; }
+              doc.text(line, x, ry); ry += 4.6;
+            });
+            ry += 1;
           });
           return ry;
         },

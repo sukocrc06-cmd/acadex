@@ -1,0 +1,17 @@
+# Test bagimliliklari (typescript, jspdf) buraya kuruluyor. Repoya girmemeli:
+# tests/_ts-extract.js ve tests/pdf-export.js ikisi de paket yoksa testi
+# ATLAYARAK gecer, dolayisiyla node_modules'un commit edilmesi gerekmiyor.
+#
+#   npm install --no-save typescript jspdf
+#
+node_modules/
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+*.swp
+
+# Yerel ortam dosyalari — Supabase/Groq anahtarlari asla commit edilmemeli
+.env
+.env.local
+.env.*.local

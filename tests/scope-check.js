@@ -124,7 +124,7 @@ test('kontrol gercekten eksik argumani yakaliyor', () => {
     'utf8'
   );
   const broken = src.replace(
-    'await tokenPacer.acquire(estTokens, model)',
+    'await tokenPacer.acquire(estTokens, model, maxCompletionTokens)',
     'await tokenPacer.acquire(estTokens)'
   );
   assert.notEqual(broken, src, 'fixture hedefi bulunamadi — test guncel degil');

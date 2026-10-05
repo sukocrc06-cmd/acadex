@@ -19,10 +19,18 @@ const { loadFromSource, makeRunner } = require('./_ts-extract.js');
 
 const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'ANCHOR_STOPWORDS', 'anchorTerms',
+  // Reasoning parametrelerinin model ailesine gore turetilmesi.
+  // DIKKAT: bu dosyada loadFromSource SADECE burada cagrilmali. Her cagri
+  // 5.900 satirlik kaynagi senkron olarak transpile ediyor ve olay dongusunu
+  // yuzlerce ms blokluyor; asagidaki pacer testleri gercek duvar saatine
+  // bakiyor, bu yuzden testin ORTASINDA yapilan bir transpile onlari
+  // uydurma sekilde basarisiz gosteriyor (05.10.2026'da tam bu oldu).
+  'reasoningParamsFor',
   // token hizlandirici (TPM)
   'PACER_SAFETY', 'PACER_WINDOW_MS', 'PACER_MAX_WAIT_MS', 'PACER_COMPLETION_FACTOR',
-  'DEFAULT_TPM_LIMIT', 'PIPELINE_BUDGET_MS', 'REVIEW_ATTEMPT_TIMEOUT_MS', 'REVIEW_TAIL_MS',
-  'tokenPacer', 'estimateTokens', 'MODEL_HEAVY', 'MODEL_FAST',
+  'REASONING_HEADROOM', 'reviewCompletionFor',
+  'DEFAULT_TPM_LIMIT', 'MODEL_OTPM', 'OTPM_SAFETY', 'VISION_MAX_COMPLETION', 'PIPELINE_BUDGET_MS', 'REVIEW_ATTEMPT_TIMEOUT_MS', 'REVIEW_TAIL_MS',
+  'tokenPacer', 'estimateTokens', 'parseGroqRetryAfterMs', 'isDailyQuotaError', 'MODEL_HEAVY', 'MODEL_FAST', 'MODEL_EXTRACT', 'VISION_CALL_MS', 'WINDOW_CALL_MS', 'NARRATIVE_WRITER_RESERVE_MS',
   // latex
   'stripLatexDelimiters', 'validateLatex', 'sanitizeFormulas',
   // mermaid dogrulama
@@ -35,7 +43,8 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'FIGURE_CAPTION_RE', 'selectVisualPages',
   'VISION_TOKENS_PER_IMAGE', 'VISION_MAX_IMAGES', 'VISUAL_MIN_BUDGET_MS',
   // bosluk doldurma kartlari
-  'clozeTermPattern', 'turkishIClasses', 'blankAllOccurrences', 'buildClozeCards',
+  'clozeTermPattern', 'turkishIClasses', 'blankAllOccurrences',
+  'REVIEW_ARRAY_FIELDS', 'applyCorrections', 'NARRATIVE_MIN_KEEP_RATIO', 'INLINE_PAGE_CITE', 'stripIntroducedCitations', 'mergeReviewOntoDraft', 'stripThinkBlock', 'buildClozeCards',
   // tekrarlayan ustbilgi/altbilgi temizligi
   'BOILERPLATE_MIN_PAGES', 'BOILERPLATE_PAGE_SHARE', 'BOILERPLATE_MAX_LINE_CHARS',
   'boilerplateKey', 'splitByPageMarkers', 'stripRepeatedBoilerplate',
@@ -1561,6 +1570,1010 @@ test('tipik tek bolumluk belge tek pencereye sigar', () => {
     `WINDOW=${WINDOW}: 12.451 karakterlik referans belge yine bolunur ` +
     `ve aradaki pacer beklemesi review pass'i engeller`
   );
+});
+
+console.log('\nREVIEW BIRLESTIRME (mergeReviewOntoDraft)\n');
+
+// 04.10.2026 canli run: review "tam JSON" dondurmesi istenirken 2500
+// tamamlama tokeniyle sinirliydi; sigdirmak icin icerigi kirpti.
+//   merge  : terms=26 points=14 quiz=13
+//   sonra  : terms=12 points=5  quiz=5
+const DRAFT = JSON.stringify({
+  summary: 'x'.repeat(200),
+  summary_executive: 'y'.repeat(100),
+  key_terms: Array.from({ length: 26 }, (_, i) => ({ term: `t${i}`, definition: `d${i}` })),
+  key_points: Array.from({ length: 14 }, (_, i) => `p${i}`),
+  quiz_questions: Array.from({ length: 13 }, (_, i) => ({ question: `q${i}`, answer: `a${i}` })),
+  sections: [{ heading: 'h', summary: 's', key_points: [], outline_id: null }],
+  document_type: 'lecture',
+  is_quantitative: false
+});
+
+test('CANLI HATA: kisalmis review icerigi SILEMEZ', () => {
+  const truncated = JSON.stringify({
+    summary: 'z'.repeat(200),
+    key_terms: Array.from({ length: 12 }, (_, i) => ({ term: `t${i}`, definition: `d${i}` })),
+    key_points: ['p0', 'p1', 'p2', 'p3', 'p4'],
+    quiz_questions: Array.from({ length: 5 }, (_, i) => ({ question: `q${i}`, answer: `a${i}` })),
+    quality_gate: { pass: true, grounded: true, issues: [] }
+  });
+  const { merged } = A.mergeReviewOntoDraft(DRAFT, truncated);
+  const m = JSON.parse(merged);
+  assert.equal(m.key_terms.length, 26, 'terimler taslaktan korunmaliydi');
+  assert.equal(m.key_points.length, 14);
+  assert.equal(m.quiz_questions.length, 13);
+  assert.equal(m.summary, 'z'.repeat(200), 'anlatim yine de guncellenmeli');
+});
+
+test('review anlatimi duzeltirse kabul edilir', () => {
+  const r = JSON.stringify({
+    summary: 'Issizlik orani 1980-82 doneminde %10.5 zirve yapti. '.repeat(3),
+    summary_executive: 'Duzeltilmis yonetici ozeti; taslaktakiyle ayni uzunlukta tutuldu ki uzunluk tabanina takilmasin.',
+    quality_gate: { pass: true, grounded: true, issues: [] }
+  });
+  const m = JSON.parse(A.mergeReviewOntoDraft(DRAFT, r).merged);
+  assert.ok(m.summary.includes('1980-82'));
+  assert.ok(m.summary_executive.startsWith('Duzeltilmis'));
+  assert.equal(m.key_terms.length, 26, 'diziler dokunulmadan gecmeli');
+});
+
+test('review diziyi buyutebilir', () => {
+  const r = JSON.stringify({
+    key_points: Array.from({ length: 16 }, (_, i) => `p${i}`),
+    quality_gate: { pass: true, grounded: true, issues: [] }
+  });
+  const { merged, notes } = A.mergeReviewOntoDraft(DRAFT, r);
+  assert.equal(JSON.parse(merged).key_points.length, 16);
+  assert.ok(notes.some(n => n.includes('14→16')), notes.join('|'));
+});
+
+test('bozuk review JSON i taslagi bozmaz', () => {
+  for (const bad of ['', '{ bu json degil', 'null', '[]']) {
+    const { merged } = A.mergeReviewOntoDraft(DRAFT, bad);
+    const m = JSON.parse(merged);
+    assert.equal(m.key_terms.length, 26, `bozuk girdi: ${JSON.stringify(bad)}`);
+    assert.equal(m.key_points.length, 14);
+  }
+});
+
+test('cok kisa summary kabul edilmez', () => {
+  const r = JSON.stringify({ summary: 'kisa', quality_gate: { pass: true, grounded: true, issues: [] } });
+  const m = JSON.parse(A.mergeReviewOntoDraft(DRAFT, r).merged);
+  assert.equal(m.summary, 'x'.repeat(200), 'taslak ozeti korunmaliydi');
+});
+
+test('quality_gate her zaman gecer', () => {
+  const r = JSON.stringify({ quality_gate: { pass: false, grounded: false, issues: ['yil hatasi'] } });
+  const m = JSON.parse(A.mergeReviewOntoDraft(DRAFT, r).merged);
+  assert.equal(m.quality_gate.pass, false);
+  assert.deepEqual(m.quality_gate.issues, ['yil hatasi']);
+});
+
+test('<think> blogu ile gelen review de okunur', () => {
+  const r = '<think>dusunuyorum</think>' + JSON.stringify({
+    summary: 'w'.repeat(200), quality_gate: { pass: true, grounded: true, issues: [] }
+  });
+  const m = JSON.parse(A.mergeReviewOntoDraft(DRAFT, r).merged);
+  assert.equal(m.summary, 'w'.repeat(200));
+  assert.equal(m.key_terms.length, 26);
+});
+
+test('korunan dizi notlara yazilir', () => {
+  const r = JSON.stringify({ key_terms: [{ term: 'a', definition: 'b' }] });
+  const { notes } = A.mergeReviewOntoDraft(DRAFT, r);
+  assert.ok(notes.some(n => n.includes('KORUNDU')), notes.join('|'));
+});
+
+test('review prompt u tam JSON istemiyor', () => {
+  const src = SRC;
+  assert.ok(!/Return the REFINED full study-card JSON/.test(src),
+    'eski "tam JSON dondur" talimati hala duruyor — kirpma riski geri gelir');
+  assert.ok(/NOT yours to\nrewrite/.test(src) || /NOT yours to rewrite/.test(src),
+    'review a dizileri yazmamasi soylenmeli');
+});
+
+test('CANLI HATA: review in uydurdugu (s. N) atiflari temizlenir', () => {
+  // 04.10.2026: review kaynagin sadece ilk 4000 karakterini goruyor, 11
+  // atifin 11'i de "(s. 1)" cikti — 30 sayfaya yayilmis bilgiler icin.
+  const r = JSON.stringify({
+    summary: 'Makroekonomi butunu inceler (s. 1). Is cevrimi evreleri vardir (s. 1). '
+      + 'Dort sektor dolasim semasiyla gosterilir (s. 1). Maliye ve para politikasi araclardir (s. 1).',
+    quality_gate: { pass: true, grounded: true, issues: [] }
+  });
+  const { merged, notes } = A.mergeReviewOntoDraft(DRAFT, r);
+  const m = JSON.parse(merged);
+  assert.ok(!/\(s\.\s*\d+\)/.test(m.summary), `atif kalmamaliydi: ${m.summary}`);
+  assert.ok(m.summary.includes('Makroekonomi'), 'metnin kendisi korunmali');
+  assert.ok(notes.some(n => n.includes('temizlendi')), notes.join('|'));
+});
+
+test('taslakta zaten atif varsa review inkiler korunur', () => {
+  const draftWithCites = JSON.stringify({
+    summary: 'Taslak metni bir atif iceriyor (s. 12). Devami da burada yeterince uzun.',
+    key_terms: [{ term: 'a', definition: 'b' }], key_points: ['p'], quiz_questions: []
+  });
+  const r = JSON.stringify({
+    summary: 'Duzeltilmis metin yine atif iceriyor (s. 14). Devami da burada yeterince uzun.'
+  });
+  const m = JSON.parse(A.mergeReviewOntoDraft(draftWithCites, r).merged);
+  assert.ok(/\(s\.\s*14\)/.test(m.summary), 'taslak atif kullaniyorsa review inki silinmemeli');
+});
+
+test('slayt ve page bicimleri de temizlenir', () => {
+  for (const unit of ['slayt 3', 'p. 9', 'sayfa 2', 'page 11']) {
+    const r = JSON.stringify({
+      summary: `Bu yeterince uzun bir ozet metnidir ve bir atif tasir (${unit}). Devami burada.`
+    });
+    const m = JSON.parse(A.mergeReviewOntoDraft(DRAFT, r).merged);
+    assert.ok(!m.summary.includes(unit), `${unit} temizlenmeliydi: ${m.summary}`);
+  }
+});
+
+test('temizlik sonrasi metin cok kisalirsa taslak korunur', () => {
+  const r = JSON.stringify({ summary: '(s. 1) (s. 2) (s. 3) (s. 4) (s. 5) (s. 6) (s. 7) (s. 8)' });
+  const m = JSON.parse(A.mergeReviewOntoDraft(DRAFT, r).merged);
+  assert.equal(m.summary, 'x'.repeat(200), 'ici bosalan metin kabul edilmemeli');
+});
+
+test('review prompt u artik atif istemiyor', () => {
+  assert.ok(!/append inline markers like/.test(SRC),
+    'eski "atif ekle" talimati duruyor — (s. 1) sorunu geri gelir');
+  assert.ok(/DO NOT ADD PAGE NUMBERS/.test(SRC), 'atif yasagi prompt ta olmali');
+});
+
+console.log('\nPROMPT ICINDE ORNEK SAYI SIZINTISI\n');
+
+/* 04.10.2026: gorsel prompt unda ornek olarak duran
+     ("unemployment peaks near 10.6% in 1982")
+   ozete "10.6% in 2008-09" diye fact olarak sizdi — sayi prompt tan alinmis,
+   ustelik yanlis donem. Bir talimatin icindeki somut rakam, sayfadan okunmus
+   rakamdan ayirt edilemiyor. Bu testler o ornegin geri gelmesini engeller. */
+
+// Kaynaktaki sablon literallerini (prompt lari) yorum satirlarindan ayirarak al.
+function promptLiterals(src) {
+  const out = [];
+  const lines = src.split('\n');
+  let inPrompt = false, buf = [];
+  for (const l of lines) {
+    const t = l.trim();
+    if (t.startsWith('//') || t.startsWith('*')) continue;
+    if (!inPrompt && /(SystemPrompt|UserPrompt|fixSys)\s*=\s*`/.test(l)) { inPrompt = true; buf = [l]; continue; }
+    if (inPrompt) {
+      buf.push(l);
+      if (/`\s*$/.test(t) || /`$/.test(t)) { out.push(buf.join('\n')); inPrompt = false; }
+    }
+  }
+  return out;
+}
+
+test('prompt larda ornek yuzde degeri yok', () => {
+  for (const p of promptLiterals(SRC)) {
+    const m = p.match(/\d{1,3}(?:[.,]\d+)?\s?%/g);
+    assert.equal(m, null, `prompt ta ornek yuzde var, sizabilir: ${(m || []).join(', ')}`);
+  }
+});
+
+test('gorsel prompt u 10.6 ornegini artik tasimiyor', () => {
+  const vis = promptLiterals(SRC).find(p => /visualSystemPrompt/.test(p));
+  assert.ok(vis, 'gorsel prompt bulunamadi — test guncel degil');
+  assert.ok(!/10\.6/.test(vis), 'sizan ornek geri gelmis');
+  assert.ok(/PRINTED on the image/.test(vis),
+    'sayi yalnizca goruntude YAZILIYORSA verilmeli kurali eksik');
+});
+
+test('gorsel prompt u goz karari tahmini kelimeye yonlendiriyor', () => {
+  const vis = promptLiterals(SRC).find(p => /visualSystemPrompt/.test(p));
+  assert.ok(/relative words/.test(vis), 'goz karari degerler icin kelime alternatifi onerilmeli');
+});
+
+console.log('\nOTPM — CIKTI TOKEN KOVASI\n');
+
+/* 04.10.2026 canli hata:
+     Request too large for `qwen/qwen3.8-27b` on output tokens per minute
+     (OTPM): Limit 1000, Requested 1311
+   Pacer sadece TPM biliyordu, 2500 tamamlama isteyen review'u gecirdi. Her
+   tier 429 aldi, her 429 sonrasi tam pencere beklendi, dongu 81 saniye surdu
+   ve 150sn'lik Edge duvari fonksiyonu review'un ortasinda oldurdu — belge
+   "reviewing" asamasinda asili kaldi. */
+
+const QWEN = 'qwen/qwen3.8-27b';
+
+test('qwen in OTPM tavani taniniyor', () => {
+  assert.equal(A.MODEL_OTPM[QWEN], 1000, 'canli hata mesajindaki limit');
+  const p = freshPacer(8000);
+  assert.equal(p.maxCompletion(QWEN), Math.floor(1000 * A.OTPM_SAFETY));
+});
+
+test('OTPM i olmayan model sinirsiz sayilir', () => {
+  const p = freshPacer(8000);
+  assert.equal(p.maxCompletion('openai/gpt-oss-120b'), null, 'TPM-only model kisitlanmamali');
+  assert.equal(p.clampCompletion('openai/gpt-oss-120b', 4096), 4096);
+});
+
+test('CANLI HATA: 2500 tamamlama OTPM tavanina kirpilir', () => {
+  const p = freshPacer(8000);
+  const clamped = p.clampCompletion(QWEN, 2500);
+  assert.ok(clamped <= 1000, `2500 -> ${clamped}, 1000 tavanin altinda olmali`);
+  assert.equal(clamped, 850);
+});
+
+test('review tier leri OTPM tavanini asmiyor', () => {
+  // Kaynaktaki gercek tier listesi okunur: biri buyurse burasi patlar.
+  const m = SRC.match(/const reviewTiers[\s\S]{0,400}?\]/);
+  assert.ok(m, 'reviewTiers bulunamadi');
+  const asks = [...m[0].matchAll(/maxCompletionTokens:\s*(?:Math\.min\()?(\d+)/g)].map(x => Number(x[1]));
+  assert.ok(asks.length >= 3, `tier bulunamadi: ${asks}`);
+  for (const a of asks) {
+    assert.ok(a <= A.MODEL_OTPM[QWEN] * A.OTPM_SAFETY,
+      `tier ${a} token istiyor, OTPM tavani ${A.MODEL_OTPM[QWEN] * A.OTPM_SAFETY}`);
+  }
+});
+
+test('cikti butcesi dolu ise acquire OTPM icin bekler', async () => {
+  const p = freshPacer(8000, QWEN);
+  p.lane(QWEN).outSpent = [{ at: Date.now(), tokens: 900 }];
+  const t0 = Date.now();
+  const waiter = p.acquire(100, QWEN, 800);
+  await Promise.race([waiter, new Promise(r => setTimeout(r, 400))]);
+  assert.ok(Date.now() - t0 >= 250, 'OTPM dolu iken beklemeliydi');
+});
+
+test('waitEstimate OTPM i de hesaba katar', () => {
+  const p = freshPacer(8000, QWEN);
+  // TPM bos ama cikti kovasi dolu
+  p.lane(QWEN).outSpent = [{ at: Date.now() - 50_000, tokens: 900 }];
+  const w = p.waitEstimate(100, QWEN, 800);
+  assert.ok(w > 9_000 && w < 11_500, `OTPM icin ~10sn beklenirdi, ${w} geldi`);
+});
+
+test('OTPM bos ise beklenmez', () => {
+  const p = freshPacer(8000, QWEN);
+  assert.equal(p.waitEstimate(100, QWEN, 800), 0);
+});
+
+test('gorsel cagrisinin ciktisi kaydediliyor (review onun arkasina gecsin)', () => {
+  const p = freshPacer(8000, QWEN);
+  p.record(6500, QWEN, 900);
+  assert.equal(p.usedOut(Date.now(), QWEN), 900, 'cikti harcamasi ayri tutulmali');
+  assert.equal(p.used(Date.now(), QWEN), 6500);
+});
+
+test('review dongusu butce bitince taslaga doner', () => {
+  // Kodun kendisi kontrol edilir: tier dongusunde butce kapisi olmali.
+  assert.ok(/Review tier \$\{i \+ 1\} atlandi/.test(SRC) || /Review tier .* atlandi/.test(SRC),
+    'tier dongusunde butce kapisi yok — 150sn duvarina tekrar carpilir');
+  assert.ok(/rawFinalContent = rawContent[\s\S]{0,40}break/.test(SRC),
+    'butce bitince taslaga donulmeli');
+});
+
+console.log('\nANLATIM UZUNLUK TABANI\n');
+
+/* 04.10.2026: narrative writer (MODEL_HEAVY, cikti siniri yok) 4 paragraflik
+   ~1600 karakterlik ozet yazdi. Review ve critic ikisi de MODEL_FAST'te,
+   OTPM tavani yuzunden 850 tamamlama tokeniyle sinirli, ve ikisi de ozeti
+   YENIDEN YAZIYOR. Iki gecisin ardindan ozet ~560 karaktere dustu.
+   Diziler bastan beri kucultmeye karsi koruluydu; anlatim degildi. */
+
+const LONG = ('Makroekonomi butunu inceler. '.repeat(50)).trim();   // ~1400 krk
+
+test('CANLI HATA: sikistirilmis ozet reddedilir, taslak kalir', () => {
+  const draft = JSON.stringify({ summary: LONG, key_terms: [], key_points: [] });
+  const squeezed = JSON.stringify({ summary: 'Makroekonomi butunu inceler. '.repeat(15) });  // ~%30
+  const { merged, notes } = A.mergeReviewOntoDraft(draft, squeezed);
+  assert.equal(JSON.parse(merged).summary, LONG.trim(), 'taslak anlatimi korunmaliydi');
+  assert.ok(notes.some(n => n.includes('KORUNDU')), notes.join('|'));
+});
+
+test('mesru kisaltma (az budama) kabul edilir', () => {
+  const draft = JSON.stringify({ summary: LONG, key_terms: [], key_points: [] });
+  // %90 uzunluk: desteksiz bir cumle atilmis gibi
+  const trimmed = 'Makroekonomi butunu inceler. '.repeat(46);
+  const { merged } = A.mergeReviewOntoDraft(draft, JSON.stringify({ summary: trimmed }));
+  assert.equal(JSON.parse(merged).summary, trimmed.trim(), 'kucuk budama kabul edilmeliydi');
+});
+
+test('tam esikte kabul edilir', () => {
+  const draftText = 'a'.repeat(1000);
+  const atFloor = 'b'.repeat(Math.ceil(1000 * A.NARRATIVE_MIN_KEEP_RATIO));
+  const { merged } = A.mergeReviewOntoDraft(
+    JSON.stringify({ summary: draftText }),
+    JSON.stringify({ summary: atFloor })
+  );
+  assert.equal(JSON.parse(merged).summary, atFloor);
+});
+
+test('esigin bir altinda reddedilir', () => {
+  const draftText = 'a'.repeat(1000);
+  const below = 'b'.repeat(Math.floor(1000 * A.NARRATIVE_MIN_KEEP_RATIO) - 1);
+  const { merged } = A.mergeReviewOntoDraft(
+    JSON.stringify({ summary: draftText }),
+    JSON.stringify({ summary: below })
+  );
+  assert.equal(JSON.parse(merged).summary, draftText);
+});
+
+test('taslakta ozet yoksa taban uygulanmaz', () => {
+  const { merged } = A.mergeReviewOntoDraft(
+    JSON.stringify({ key_terms: [] }),
+    JSON.stringify({ summary: 'Yeni yazilmis yeterince uzun bir ozet metni burada duruyor.' })
+  );
+  assert.ok(JSON.parse(merged).summary.startsWith('Yeni yazilmis'));
+});
+
+test('critic kapisi OTPM beklemesini hesaba katiyor', () => {
+  // Canli hata: waitEstimate e tamamlama gecirilmedigi icin OTPM beklemesi 0
+  // sanildi, critic calisti ve acquire 60sn bekledi (run 135sn/150sn).
+  assert.ok(/criticCompletion = tokenPacer\.clampCompletion/.test(SRC),
+    'critic tamamlama butcesi kirpilmali');
+  assert.ok(/waitEstimate\([\s\S]{0,160}?criticCompletion\s*\n?\s*\)/.test(SRC),
+    'critic waitEstimate e tamamlama gecirilmeli — yoksa OTPM beklemesi gorunmez');
+});
+
+test('critic de uzunluk tabanina tabi', () => {
+  assert.ok(/critic yazisi REDDEDILDI/.test(SRC), 'critic icin de taban olmali');
+});
+
+console.log('\nGUNLUK KOTA (TPD) ve RETRY-AFTER AYRISTIRMA\n');
+
+/* 05.10.2026: gunluk token kotasi doldu (TPD 200000, kullanilan 196725).
+   Kod bunu dakikalik limit sanip 3 kez denedi; her 429 tahminini DAKIKALIK
+   deftere yazdi, defter doldu, pacer 60sn bekledi — bir daha, bir daha.
+   Sonuc: ~2 dakika bos bekleme, ozet yok, kullaniciya sebebi soylenmeyen
+   bir hata. */
+
+test('"3m2.736s" dogru okunur (eski desen 2.7sn sanıyordu)', () => {
+  assert.equal(A.parseGroqRetryAfterMs('Please try again in 3m2.736s'), 182736);
+});
+
+test('"5m16.656s" dogru okunur', () => {
+  assert.equal(A.parseGroqRetryAfterMs('Please try again in 5m16.656s'), 316656);
+});
+
+test('dakikasiz sure de okunur', () => {
+  assert.equal(A.parseGroqRetryAfterMs('Please try again in 42.5s'), 42500);
+});
+
+test('sure yoksa null doner', () => {
+  assert.equal(A.parseGroqRetryAfterMs('Rate limit reached'), null);
+  assert.equal(A.parseGroqRetryAfterMs(''), null);
+});
+
+test('eski desenin hatasi bir daha olmasin', () => {
+  // Eski: /try again in ([\d.]+)s/ -> "3m2.736s" icinde "2.736s" yakalardi
+  const eski = 'Please try again in 3m2.736s'.match(/try again in ([\d.]+)s/i);
+  assert.ok(!eski, 'eski desen artik eslesmemeli (dakika atlaniyordu)');
+});
+
+test('TPD hatasi gunluk kota olarak taninir', () => {
+  const live = 'Rate limit reached for model `openai/gpt-oss-120b` in organization '
+    + '`org_x` service tier `on_demand` on tokens per day (TPD): Limit 200000, '
+    + 'Used 196725, Requested 3698. Please try again in 3m2.736s';
+  assert.equal(A.isDailyQuotaError(live), true);
+});
+
+test('RPD de gunluk sayilir', () => {
+  assert.equal(A.isDailyQuotaError('on requests per day (RPD): Limit 1000'), true);
+});
+
+test('DAKIKALIK limitler gunluk SAYILMAZ', () => {
+  const tpm = 'on tokens per minute (TPM): Limit 8000, Used 6982, Requested 3000';
+  const otpm = 'on output tokens per minute (OTPM): Limit 1000, Requested 1311';
+  assert.equal(A.isDailyQuotaError(tpm), false, 'TPM beklenerek asilir, durulmamali');
+  assert.equal(A.isDailyQuotaError(otpm), false, 'OTPM de dakikalik');
+});
+
+test('gunluk kota yolu yeniden denemiyor ve sebebi soyluyor', () => {
+  assert.ok(/GUNLUK kota \(TPD\/RPD\) doldu — yeniden denenmeyecek/.test(SRC),
+    'fetchWithRetry gunluk kotada hemen donmeli');
+  assert.ok(/windowResults\.length === 0 && !dailyQuotaExhausted/.test(SRC),
+    'son care mini-extract gunluk kotada atlanmali');
+  assert.ok(/Günlük AI kotası doldu/.test(SRC),
+    'kullaniciya gercek sebep soylenmeli');
+});
+
+console.log('\nREVIEW DUZELTME LISTESI (applyCorrections)\n');
+
+/* Review, 850 tamamlama tokeniyle ozeti BUTUN halinde geri yazamiyor:
+   2157 krk ozet tek basina ~674 token, butcenin %79'u. Iki canli olcum de
+   ayni: 1644->563 (%34), 2157->635 (%29). Artik cumle bazli duzeltme
+   donduruyor, uzunluk yapisal olarak korunuyor. */
+
+const SUM = 'Macroeconomics focuses on three core concerns. '
+  + 'The unemployment rate peaked at roughly 10.5% in the 2008-09 downturn. '
+  + 'Fiscal policy involves taxes and spending.';
+
+test('CANLI HATA: yanlis donem cumlesi duzeltilir, uzunluk korunur', () => {
+  const r = A.applyCorrections(SUM, [{
+    find: 'The unemployment rate peaked at roughly 10.5% in the 2008-09 downturn.',
+    replace: 'The unemployment rate peaked near 10% in 2008-09 and about 10.8% in 1980-82.'
+  }]);
+  assert.equal(r.applied, 1);
+  assert.ok(r.text.includes('10.8% in 1980-82'));
+  assert.ok(r.text.startsWith('Macroeconomics focuses'), 'bastaki cumle korunmali');
+  assert.ok(r.text.endsWith('taxes and spending.'), 'sondaki cumle korunmali');
+});
+
+test('bulunamayan duzeltme metni BOZMAZ', () => {
+  const r = A.applyCorrections(SUM, [{ find: 'Boyle bir cumle yok burada.', replace: 'X' }]);
+  assert.equal(r.applied, 0);
+  assert.equal(r.text, SUM, 'metin aynen kalmali');
+  assert.equal(r.skipped.length, 1);
+});
+
+test('belirsiz (birden cok gecen) duzeltme atlanir', () => {
+  const dbl = 'Ayni cumle burada. Baska sey. Ayni cumle burada.';
+  const r = A.applyCorrections(dbl, [{ find: 'Ayni cumle burada.', replace: 'X' }]);
+  assert.equal(r.applied, 0, 'hangisi oldugu belirsizken degistirilmemeli');
+  assert.equal(r.text, dbl);
+  assert.ok(r.skipped[0].includes('belirsiz'));
+});
+
+test('bosluk farki tolere edilir', () => {
+  const r = A.applyCorrections(SUM, [{
+    find: 'The unemployment rate peaked at roughly 10.5%   in the 2008-09 downturn.',
+    replace: 'DUZELTILDI.'
+  }]);
+  assert.equal(r.applied, 1, 'model bosluklari yeniden akitabilir');
+  assert.ok(r.text.includes('DUZELTILDI.'));
+  assert.ok(r.text.startsWith('Macroeconomics focuses'));
+});
+
+test('cok kisa find reddedilir (yanlis yeri vurabilir)', () => {
+  const r = A.applyCorrections(SUM, [{ find: 'the', replace: 'X' }]);
+  assert.equal(r.applied, 0);
+  assert.equal(r.text, SUM);
+});
+
+test('en fazla 8 duzeltme uygulanir', () => {
+  const many = Array.from({ length: 20 }, (_, i) => ({ find: `cumle${i} burada.`, replace: 'X' }));
+  const text = many.map((_, i) => `cumle${i} burada.`).join(' ');
+  const r = A.applyCorrections(text, many);
+  assert.ok(r.applied <= 8, `en fazla 8 beklenirdi, ${r.applied} uygulandi`);
+});
+
+test('bos/bozuk girdi patlamaz', () => {
+  assert.equal(A.applyCorrections('', [{ find: 'a', replace: 'b' }]).applied, 0);
+  assert.equal(A.applyCorrections(SUM, null).text, SUM);
+  assert.equal(A.applyCorrections(SUM, 'liste degil').text, SUM);
+  assert.equal(A.applyCorrections(SUM, [null, {}, { find: 'x' }]).applied, 0);
+});
+
+test('merge duzeltmeleri uygular ve uzunlugu korur', () => {
+  const draft = JSON.stringify({ summary: SUM, key_terms: [], key_points: [] });
+  const rev = JSON.stringify({
+    corrections: [{
+      find: 'The unemployment rate peaked at roughly 10.5% in the 2008-09 downturn.',
+      replace: 'The unemployment rate peaked near 10% in 2008-09.'
+    }],
+    quality_gate: { pass: true, grounded: true, issues: [] }
+  });
+  const { merged, notes } = A.mergeReviewOntoDraft(draft, rev);
+  const m = JSON.parse(merged);
+  assert.ok(m.summary.includes('near 10% in 2008-09'), 'duzeltme uygulanmali');
+  assert.ok(m.summary.includes('Macroeconomics focuses'), 'gerisi durmali');
+  assert.ok(notes.some(n => n.includes('1 duzeltme uygulandi')), notes.join('|'));
+});
+
+test('review prompt u artik ozeti yeniden yazmiyor', () => {
+  assert.ok(/do NOT rewrite\nthe summary/.test(SRC) || /do NOT rewrite the summary/.test(SRC),
+    'prompt ta yeniden yazma yasagi olmali');
+  assert.ok(/"corrections"/.test(SRC), 'duzeltme listesi istenmeli');
+});
+
+test('quality_gate verdigi her zaman loglanir', () => {
+  const draft = JSON.stringify({ summary: SUM, key_terms: [], key_points: [] });
+  const { notes } = A.mergeReviewOntoDraft(draft, JSON.stringify({
+    corrections: [],
+    quality_gate: { pass: true, grounded: true, issues: [] }
+  }));
+  assert.ok(notes.some(n => n.startsWith('quality_gate:')), notes.join('|'));
+  assert.ok(notes.some(n => n.includes('0 sorun')), notes.join('|'));
+});
+
+test('quality_gate sorunlari loga yazilir', () => {
+  const draft = JSON.stringify({ summary: SUM, key_terms: [], key_points: [] });
+  const { notes } = A.mergeReviewOntoDraft(draft, JSON.stringify({
+    quality_gate: { pass: false, grounded: false, issues: ['yil hatasi', 'desteksiz iddia'] }
+  }));
+  const line = notes.find(n => n.startsWith('quality_gate:'));
+  assert.ok(line.includes('pass=false'), line);
+  assert.ok(line.includes('2 sorun'), line);
+  assert.ok(line.includes('yil hatasi'), line);
+});
+
+test('quality_gate hic gelmezse bu da loglanir', () => {
+  const draft = JSON.stringify({ summary: SUM, key_terms: [], key_points: [] });
+  const { notes } = A.mergeReviewOntoDraft(draft, JSON.stringify({ corrections: [] }));
+  assert.ok(notes.some(n => n.includes('quality_gate GELMEDI')), notes.join('|'));
+});
+
+console.log('\nREVIEW E NE GONDERILIYOR\n');
+
+/* 05.10.2026, review in kendi sikayeti loglandi:
+     "The source text provided is truncated and does not contain t..."
+   Hakliymis. Chunked yolda sourceTextForReview, BELGE degil pencerelerin
+   kendi ozetleriydi (her biri 500 krk). Yani taslagi kaynakla degil, kendi
+   ozetiyle karsilastiriyordu — her pencereye sizan bir halusinasyon
+   "tam yerinde" gorunurdu. 6000 karakteri asan HER belge bu yoldan gecer. */
+
+test('chunked yolda review e GERCEK kaynak gonderiliyor', () => {
+  assert.ok(!/sourceTextForReview = windowResults\.map/.test(SRC),
+    'review hala pencere ozetleriyle besleniyor — kaynakla karsilastirma yapamaz');
+  assert.ok(/sourceTextForReview = extractedText/.test(SRC),
+    'review kaynak metni gormeli');
+});
+
+test('review e tum taslak JSON gonderilmiyor', () => {
+  assert.ok(!/Draft JSON summary:\n\$\{rawContent\}/.test(SRC),
+    'tum kart hala gonderiliyor — girdi butcesinin ucte ikisi bosa gidiyor');
+  assert.ok(/these two fields only/.test(SRC), 'yalnizca anlatim gonderilmeli');
+});
+
+test('tier 0 tum belgeyi kapsiyor', () => {
+  const m = SRC.match(/const reviewTiers[\s\S]{0,400}?\]/);
+  const srcBudgets = [...m[0].matchAll(/sourceChars:\s*(\d+)/g)].map(x => Number(x[1]));
+  assert.ok(srcBudgets[0] >= 11000,
+    `tier 0 kaynak butcesi ${srcBudgets[0]} — referans belge 11.050 krk, kesilmemeli`);
+  assert.ok(srcBudgets[0] > srcBudgets[1] && srcBudgets[1] > srcBudgets[2], 'tier ler kuculmeli');
+});
+
+test('yeni review cagrisi TPM tavanina siginiyor', () => {
+  // sistem ~2500 + tam kaynak 11050 + anlatim ~2500 + ek ~300
+  const est = A.estimateTokens('x'.repeat(2500), 'y'.repeat(11050 + 2500 + 300), 850);
+  const ceiling = A.DEFAULT_TPM_LIMIT * A.PACER_SAFETY;
+  assert.ok(est <= ceiling, `est ${est} > tavan ${ceiling} — 429 yer`);
+});
+
+test('sekil bulgulari review e kaynak olarak gonderiliyor', () => {
+  /* 05.10.2026: Figure 20.2 nin etiketleri "Korean War, Vietnam War, First
+     oil shock, Second oil shock". Ozet "oil shocks of the 1970s and 2000s"
+     dedi — savaslar dogru (vision grafikten okumus), "2000s" uydurma.
+     Review bunu yakalayamazdi: etiketler METINDE degil, GORSELDE. */
+  assert.ok(/const visionNotes/.test(SRC), 'vision bulgulari verbatim tutulmali');
+  assert.ok(/visionNotes\.push/.test(SRC), 'bulgular doldurulmali');
+  assert.ok(/Read from the document's FIGURES and TABLES/.test(SRC),
+    'review prompt unda sekil bulgulari bolumu olmali');
+  assert.ok(/equally authoritative/.test(SRC),
+    'sekil bulgulari kaynak sayilmali, yoksa review dogru okumalari da eler');
+});
+
+test('vision notlari kapsamda (ReferenceError olmasin)', () => {
+  // visionGroundedClaims ayni hatayi canlida yapmisti: chunked blok icinde
+  // tanimlanip disarida okunmak.
+  const decl = SRC.indexOf('const visionNotes');
+  const use = SRC.indexOf('visionNotes.slice(0, 20)');
+  assert.ok(decl > 0 && use > 0, 'ikisi de bulunmali');
+  assert.ok(decl < use, 'tanim kullanimdan once gelmeli');
+});
+
+console.log('\nGROQ JSON-MOD SOZLESMESI\n');
+
+/* 05.10.2026 canli hata:
+     Groq Review API call failed (400): 'messages' must contain the word
+     'json' in some form, to use 'response_format' of type 'json_object'.
+   Review prompt undan tum taslak JSON unu cikarirken, "Draft JSON summary:"
+   satirini da silmis oldum — ve o satir Groq un sart kostugu TEK "json"
+   gecisiydi. Review butun belgelerde 400 almaya basladi, sessizce taslaga
+   dondu. Prompt metni degistikce bu kolayca tekrar kirilir, o yuzden test. */
+
+function promptStringsOf(name) {
+  // Sablon literalini al; kod icindeki JSON.parse/JSON.stringify sayilmasin.
+  const i = SRC.indexOf(name);
+  assert.ok(i > 0, `${name} bulunamadi`);
+  const start = SRC.indexOf('`', i);
+  let depth = 0, end = start + 1;
+  for (; end < SRC.length; end++) {
+    const c = SRC[end];
+    if (c === '\\') { end++; continue; }
+    if (c === '$' && SRC[end + 1] === '{') { depth++; end++; continue; }
+    if (c === '}' && depth > 0) { depth--; continue; }
+    if (c === '`' && depth === 0) break;
+  }
+  return SRC.slice(start + 1, end);
+}
+
+test('review system prompt u "json" kelimesini iceriyor (Groq sarti)', () => {
+  const p = promptStringsOf('const reviewSystemPrompt');
+  assert.ok(/json/i.test(p),
+    'response_format json_object kullanilirken mesajlarda "json" GECMELI — yoksa 400');
+});
+
+test('json_object kullanan her prompt ta "json" geciyor', () => {
+  // Bildirimden sonraki genis bir dilime bakmak yeterli: bu bir regresyon
+  // bekcisi, bir ayristirici degil. visualSystemPrompt `systemPrompt + ...`
+  // seklinde kuruldugu icin tabanini da katiyoruz — birlestirmeyi gormeden
+  // bakmak yanlis alarm veriyor (ilk denememde tam oyle oldu).
+  const base = SRC.slice(SRC.indexOf('const systemPrompt ='), SRC.indexOf('const systemPrompt =') + 9000);
+  const baseHasJson = /json/i.test(base);
+  for (const m of SRC.matchAll(/const (\w*[Ss]ystemPrompt) = (\w+ \+ )?`/g)) {
+    const [, name, inherits] = m;
+    if (name === 'systemPrompt') continue;
+    const own = SRC.slice(m.index, m.index + 2500);
+    const ok = /json/i.test(own) || (inherits && inherits.startsWith('systemPrompt') && baseHasJson);
+    assert.ok(ok, `${name} ve tabaninda "json" yok — Groq 400 doner`);
+  }
+});
+
+console.log('\nIKINCI CIKARMA SERIDI (gpt-oss-20b)\n');
+
+/* Groq konsolundan okunan org limitleri (05.10.2026):
+     openai/gpt-oss-120b  30 RPM  1K RPD  8K TPM  200K TPD
+     openai/gpt-oss-20b   30 RPM  1K RPD  8K TPM  200K TPD
+   Birebir ayni, ve model basina olculuyor. Bir pencere ~6150 token, calisma
+   butcesi 7200 -> bir seride dakikada tek pencere sigiyor. 31.817 krk'lik
+   belgede 3 pencere, iki adet 60sn bekleme, 132sn, ve vision+writer+review
+   butce yetmediginden atlandi. */
+
+test('serit SIRAYA gore degil, BOS olana gore secilir', () => {
+  // Ilk surum index paritesiyle seciyordu. 3 pencereli belgede W1 ve W2
+  // paralel kostu ama W3 sirf indeksi cift diye yine 120b ye gitti ve bos
+  // yere 60sn bekledi. Parite hangi seridin bos oldugunu bilmiyor.
+  const p = freshPacer(8000, A.MODEL_HEAVY);
+  p.lane(A.MODEL_EXTRACT).limit = 8000;
+  const pick = (est) => {
+    let best = null, bw = Infinity;
+    for (const m of [A.MODEL_HEAVY, A.MODEL_EXTRACT]) {
+      const w = p.waitEstimate(est, m, 3072);
+      if (w < bw) { best = m; bw = w; }
+    }
+    return best;
+  };
+  assert.equal(pick(6149), A.MODEL_HEAVY, 'ikisi de bosken tercih edilen gelir');
+  p.lane(A.MODEL_HEAVY).spent = [{ at: Date.now(), tokens: 6149 }];
+  assert.equal(pick(6149), A.MODEL_EXTRACT, 'agir serit doluyken digerine gecmeli');
+});
+
+test('pickLane kodda gercekten kullaniliyor', () => {
+  assert.ok(/function pickLane/.test(SRC), 'serit secici olmali');
+  assert.ok(!/windowModel\(/.test(SRC), 'parite tabanli secim kaldirilmali');
+  // Pencere seridi artik partide atanip extractWindow a geciriliyor; yeniden
+  // denemede pickLane e geri dusuyor. Ikisi de olmali.
+  assert.ok(/const batchLanes = batchIndices\.map\(wi => pickLane/.test(SRC),
+    'parti seritleri dagitimdan once secmeli');
+  assert.ok(/\(attempt === 0 && assignedLane\)/.test(SRC),
+    'ilk deneme atanan seridi kullanmali');
+  assert.ok(/const writerLane = pickLane/.test(SRC), 'yazar da bos serite dusebilmeli');
+});
+
+test('yazar tercihini AGIR modelden yana kullanir', () => {
+  // Kalite oncelikli: iki serit de bosken 120b gelmeli.
+  const i = SRC.indexOf('const writerLane = pickLane');
+  assert.ok(/\[MODEL_HEAVY, MODEL_EXTRACT\]/.test(SRC.slice(i, i + 200)),
+    'tercih sirasi once MODEL_HEAVY olmali');
+});
+
+test('gorsel kapisi sabit 100sn degil, olculen sure', () => {
+  // 100sn kapi 110sn lik boru hattinda vision u ilk 10 saniyeye hapsediyordu;
+  // cok pencereli belgede asla calisamazdi (41sn bulup atladi).
+  assert.ok(/budgetLeft\(\) <= visionNeedsMs/.test(SRC), 'kapi olcume baglanmali');
+  assert.ok(/VISION_CALL_MS/.test(SRC) && /NARRATIVE_WRITER_RESERVE_MS/.test(SRC),
+    'cagri suresi ve yazar payi ayri ayri bellenmeli');
+  assert.ok(A.VISION_CALL_MS + A.NARRATIVE_WRITER_RESERVE_MS < A.VISUAL_MIN_BUDGET_MS,
+    'yeni kapi eskisinden gevsek olmali, yoksa degisiklik anlamsiz');
+});
+
+test('ikinci serit gercekten BASKA bir model', () => {
+  assert.notEqual(A.MODEL_EXTRACT, A.MODEL_HEAVY, 'ayni model = ayni kova = kazanc yok');
+  assert.notEqual(A.MODEL_EXTRACT, A.MODEL_FAST, 'qwen zaten vision/review de dolu');
+  assert.equal(A.MODEL_EXTRACT, 'openai/gpt-oss-20b');
+});
+
+test('ardisik iki pencere ayni dakikada calisabilir', () => {
+  const p = freshPacer(8000, A.MODEL_HEAVY);
+  p.lane(A.MODEL_EXTRACT).limit = 8000;
+  // 1. pencere agir seride harcadi
+  p.lane(A.MODEL_HEAVY).spent = [{ at: Date.now(), tokens: 6149 }];
+  assert.ok(p.waitEstimate(6149, A.MODEL_HEAVY) > 0, 'ayni seritte ikincisi beklerdi');
+  assert.equal(p.waitEstimate(6149, A.MODEL_EXTRACT), 0, 'diger seritte beklemeden gider');
+});
+
+test('eszamanlilik iki seridin TOPLAMI', () => {
+  // Tek seride bakmak eszamanliligi 1 e cakiyordu — asil hata buydu.
+  const p = freshPacer(8000, A.MODEL_HEAVY);
+  p.lane(A.MODEL_EXTRACT).limit = 8000;
+  const tek = p.safeConcurrency(6149, A.MODEL_HEAVY);
+  const toplam = [A.MODEL_HEAVY, A.MODEL_EXTRACT].reduce((n, m) => n + p.safeConcurrency(6149, m), 0);
+  assert.equal(tek, 1, 'bir serit tek pencere alir');
+  assert.equal(toplam, 2, 'iki serit iki pencere alir');
+});
+
+test('yazar AGIR modeli tercih eder ama ona KILITLI degil', () => {
+  // Bu test once "yazar asla MODEL_EXTRACT kullanmasin" diyordu. O kural
+  // 05.10.2026 olcumunde yanlis cikti: yazar 120b icin 57 saniye bekledi,
+  // o sirada 20b nin seridi bosalmisti, ve bir onceki kosuda yazar tamamen
+  // ATLANMIS, kart yazili ozetsiz kalmisti. 57 saniyelik kuyruk bir kalite
+  // tercihi degil; "yazili ozet var mi yok mu" tercihi. Tercih sirasi
+  // korunuyor, kilit kalkiyor.
+  const i = SRC.indexOf('const writerLane = pickLane');
+  assert.ok(i > 0, 'yazar serit secimi olmali');
+  const blok = SRC.slice(i, i + 200);
+  assert.ok(/\[MODEL_HEAVY, MODEL_EXTRACT\]/.test(blok),
+    'MODEL_HEAVY once gelmeli — esitlikte tercih edilen o');
+});
+
+test('ayni partideki pencereler FARKLI seritlere dagilir', () => {
+  /* 05.10.2026: W1 ve W2 ayni anda dagitildi, ikisi de bos serit gorup
+     MODEL_HEAVY i secti -> used=10386/7200, kendi butcesini asti, ve bir
+     sonraki cagri 58sn bekledi. Pacer yardim edemez: harcamayi yanit
+     GELDIGINDE kaydediyor, bu kararlarin hepsi ondan once veriliyor. */
+  assert.ok(/claimed\?: Set<string>/.test(SRC), 'pickLane kapilmis seritleri bilmeli');
+  assert.ok(/const claimedLanes = new Set<string>\(\)/.test(SRC),
+    'parti seritleri dagitimdan ONCE atanmali');
+  assert.ok(/batchIndices\.map\(\(wi, bi\) => extractWindow\(wi, windows\[wi\], batchLanes\[bi\]\)\)/.test(SRC),
+    'atanan serit extractWindow a gecirilmeli');
+});
+
+test('butce paylari OLCULEN degerlerden geliyor', () => {
+  // Vision cagrisi dort canli kosuda 6.0-7.2sn; yazar beklemesiz 1.8sn.
+  // Eski sabitler 30sn ve 40sn idi ve vision u 43sn butceyle atlattilar.
+  assert.ok(A.VISION_CALL_MS <= 20_000, `vision payi ${A.VISION_CALL_MS}: olculen ~6.6sn`);
+  assert.ok(A.NARRATIVE_WRITER_RESERVE_MS <= 25_000, `yazar payi ${A.NARRATIVE_WRITER_RESERVE_MS}: olculen ~1.8sn`);
+  // Ama sifira da inmemeli — bekleme ayri hesaplaniyor, bu cagrinin kendisi.
+  assert.ok(A.VISION_CALL_MS >= 10_000 && A.NARRATIVE_WRITER_RESERVE_MS >= 10_000,
+    'olculen degerin en az bir kac kati pay kalmali');
+});
+
+test('CANLI SENARYO: 43sn butceyle vision calisabilmeli', () => {
+  // Dunku kosunun tam sayilari: pacer beklemesi 0, butce 43031ms.
+  const needs = 0 + A.VISION_CALL_MS + A.NARRATIVE_WRITER_RESERVE_MS;
+  assert.ok(needs <= 43_031, `gereken ${needs} > 43031 — vision yine atlanir`);
+});
+
+console.log('\nUZUN BELGE: KAYIP ASAMALAR GORUNUR\n');
+
+test('json_validate_failed yeniden denemesi OLCUME bagli', () => {
+  /* 05.10.2026: W3 64.1sn de dustu, 45.9sn butce vardi, kapi 70sn istedi ->
+     denenmedi, belgenin 1/3 u hic islenmedi. 70sn "bir pencere = bir tam TPM
+     penceresi beklemek" varsayimindan geliyordu; iki seritte yeniden deneme
+     bos serite gider, o an 0.7sn beklerdi. */
+  assert.ok(/const retryNeedsMs = retryWaitMs \+ WINDOW_CALL_MS/.test(SRC),
+    'yeniden deneme maliyeti olculmeli');
+  assert.ok(/budgetLeft\(\) > retryNeedsMs/.test(SRC), 'kapi olculen degere bakmali');
+  assert.ok(A.WINDOW_CALL_MS <= 20_000, `pencere cagrisi olculen ~3-5sn, sabit ${A.WINDOW_CALL_MS}`);
+});
+
+test('CANLI SENARYO: 45.9sn butceyle W3 yeniden denenebilmeli', () => {
+  const needs = 700 + A.WINDOW_CALL_MS + A.NARRATIVE_WRITER_RESERVE_MS;
+  assert.ok(needs <= 45_900, `gereken ${needs} > 45900 — dilim yine kaybolur`);
+  assert.ok(70_000 > 45_900, 'eski kapi gercekten engelliyordu');
+});
+
+test('sentez ile yazar AYNI seridi kovalamiyor', () => {
+  // Ikisi arka arkaya calisiyor; ikisi de MODEL_HEAVY isteyince yazar 50sn
+  // bekledi. Tercih sirasi ters cevrildi: yapilandirma kucuk modele,
+  // duzyazi buyuge.
+  const syn = SRC.indexOf('const synLane = pickLane');
+  const wrt = SRC.indexOf('const writerLane = pickLane');
+  assert.ok(syn > 0 && wrt > 0, 'ikisi de serit secmeli');
+  assert.ok(/\[MODEL_EXTRACT, MODEL_HEAVY\]/.test(SRC.slice(syn, syn + 160)),
+    'sentez once MODEL_EXTRACT i denemeli');
+  assert.ok(/\[MODEL_HEAVY, MODEL_EXTRACT\]/.test(SRC.slice(wrt, wrt + 160)),
+    'yazar once MODEL_HEAVY i denemeli');
+});
+
+test('butce yuzunden atlanan asamalar karta yaziliyor', () => {
+  // Uzun belge vision/yazar/review i kaybedip yine de "tam" gorunebiliyor.
+  assert.ok(/const skippedStages: string\[\] = \[\]/.test(SRC));
+  for (const asama of ['gorsel analiz', 'anlati yazari', 'review', 'critic']) {
+    assert.ok(SRC.includes(`skippedStages.push('${asama}')`), `${asama} kaydedilmeli`);
+  }
+  assert.ok((SRC.match(/skipped_stages: skippedStages/g) || []).length >= 2,
+    'model quality_gate i ezdiginde de korunmali');
+});
+
+test('review ve critic de serit secebiliyor', () => {
+  /* Review, MODEL_FAST e sabitlenmis son cagriydi. Sabitleme gerekcesi
+     "taslagin seridinden uzak dursun" idi — pickLane bunu zaten, hem de
+     gercekte neyin bos oldugana bakarak yapiyor. Sabitleme ayrica review u
+     vision in az once qwen de harcadigina mahkum ediyordu: 05.10.2026'da
+     vision 2 saniye once bitti ve review a 58sn bekleme cikarildi. */
+  assert.ok(/const reviewLane = pickLane/.test(SRC), 'review serit secmeli');
+  assert.ok(/const criticLane = pickLane/.test(SRC), 'critic de secmeli');
+  // Hicbir yerde MODEL_FAST e sabitlenmis cagri kalmamali (vision haric —
+  // qwen tek gorme yetenekli model).
+  const pinned = [...SRC.matchAll(/model: MODEL_FAST/g)].length;
+  assert.equal(pinned, 1, `MODEL_FAST e sabit ${pinned} cagri var, sadece vision olmali`);
+});
+
+test('dinamik serit secen cagrida sabit reasoning_effort yok', () => {
+  /* 05.10.2026 — tam bu testin yoklugu review u ekonomi belgesinde oldurdu.
+     509bd5f review u serbest birakti, review gpt-oss-120b ye dustu, ve
+     govdesinde elle yazilmis reasoning_effort:"none" tasidigi icin Groq
+     cevap verdi:
+
+       400  `reasoning_effort` must be one of `low`, `medium`, or `high`
+
+     Ustelik o 400'u almak icin 52 saniyelik pacer beklemesi odenmisti.
+
+     Kural: `model` calisma aninda secilen bir degiskense (reviewLane,
+     criticLane, synLane, writerLane, windowLane) ayni govdede reasoning
+     parametresi SABIT olamaz — reasoningParamsFor(lane) ile turetilmeli. */
+  const LANE_VARS = /model:\s*(reviewLane|criticLane|synLane|writerLane|windowLane|MODEL_FAST|MODEL_HEAVY|MODEL_EXTRACT)\b/g;
+  const ihlaller = [];
+  for (const m of SRC.matchAll(LANE_VARS)) {
+    // Ayni istek govdesini tara: `model:` satirindan sonraki ~700 karakter
+    // bu cagrinin parametrelerini kapsiyor. YORUMLAR CIKARILIR — aksi halde
+    // bu testin kendi aciklama yorumu ("reasoning_effort:\"none\" 400 doner")
+    // ihlal sayiliyor; ilk kosusta tam bu oldu.
+    const govde = SRC.slice(m.index, m.index + 700).replace(/\/\/[^\n]*/g, '');
+    const literal = govde.match(/reasoning_effort:\s*"(\w+)"/);
+    if (literal) {
+      const satir = SRC.slice(0, m.index).split('\n').length;
+      ihlaller.push(`satir ${satir}: model: ${m[1]} + reasoning_effort: "${literal[1]}"`);
+    }
+  }
+  assert.equal(
+    ihlaller.length, 0,
+    'degisken model ile sabit reasoning_effort bir arada olamaz — ' +
+    'reasoningParamsFor(model) kullan:\n  ' + ihlaller.join('\n  ')
+  );
+});
+
+test('reasoningParamsFor iki model ailesini dogru ayiriyor', () => {
+  const { reasoningParamsFor } = A;   // tepede bir kez yuklendi, bkz. yukarisi
+
+  // gpt-oss: "none" KABUL ETMIYOR, en dusugu "low".
+  for (const m of ['openai/gpt-oss-120b', 'openai/gpt-oss-20b']) {
+    const p = reasoningParamsFor(m);
+    assert.equal(p.reasoning_effort, 'low', `${m} icin low olmali`);
+    assert.equal(p.include_reasoning, false, `${m} icin dusunce blogu kapanmali`);
+  }
+
+  // qwen: varsayilan olarak dusunuyor, kapatilmali.
+  assert.equal(reasoningParamsFor('qwen/qwen3.8-27b').reasoning_effort, 'none');
+
+  // Taninmayan model: parametre GONDERILMEMELI. Desteklenmeyen bir parametre
+  // 400 doner; sessizce atlamak sadece biraz reasoning tokeni maliyeti.
+  assert.deepEqual(reasoningParamsFor('bilinmeyen/model-x'), {});
+
+  // Hicbiri "none" i gpt-oss e vermemeli — kirilan tam buydu.
+  for (const m of ['openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'gpt-oss-safety']) {
+    assert.notEqual(reasoningParamsFor(m).reasoning_effort, 'none',
+      `${m} icin "none" 400 doner`);
+  }
+});
+
+/* ==========================================================================
+   CLOZE — KARTLAR ARASI CEVAP SIZMASI
+
+   Girdi UYDURMA DEGIL: tests/fixtures/economy-chapter-20.json, 05.10.2026
+   canli kosusunun gercek key_terms (29) ve key_points (16) ciktisi. Uydurma
+   bir sozlukle bu hatayi uretmek zordur, cunku sizma tam olarak gercek bir
+   sozlugun komsu kavramlari birbirinin icinde anmasindan doguyor.
+   ========================================================================== */
+const CLOZE_FIXTURE = require('./fixtures/economy-chapter-20.json');
+
+function clozeLeaks(cards) {
+  const out = [];
+  for (const a of cards) {
+    for (const b of cards) {
+      if (a === b) continue;
+      if (A.clozeTermPattern(b.answer).test(a.prompt)) {
+        out.push(`${a.id} sorusu ${b.id} cevabini iceriyor: "${b.answer}"`);
+      }
+    }
+  }
+  return out;
+}
+
+test('cloze kartlari birbirinin cevabini sizdirmiyor (gercek belge verisi)', () => {
+  const cards = A.buildClozeCards(
+    undefined, CLOZE_FIXTURE.key_terms, CLOZE_FIXTURE.key_points, 20
+  );
+  const leaks = clozeLeaks(cards);
+  assert.equal(
+    leaks.length, 0,
+    `bir kartin sorusu baska bir kartin cevabini yaziyor:\n  ${leaks.join('\n  ')}`
+  );
+});
+
+test('sizma kapisi kart sayisini dusurmuyor', () => {
+  // Sizan adayi YAMAMAK yerine ATLIYORUZ, bu yuzden asil risk kart kaybi.
+  // Aday havuzu (29 terim + 16 nokta) maxCards tan cok buyuk oldugu icin
+  // atlanan slot bir sonraki adayla doluyor: olculen sonuc 20 kart ve
+  // ayni 9 key_point / 11 key_term dagilimi, sizma 4 -> 0.
+  const cards = A.buildClozeCards(
+    undefined, CLOZE_FIXTURE.key_terms, CLOZE_FIXTURE.key_points, 20
+  );
+  assert.equal(cards.length, 20, 'kapi 20 kartin tamamini uretmeye devam etmeli');
+  const bySource = cards.reduce((m, c) => (m[c.source] = (m[c.source] || 0) + 1, m), {});
+  assert.ok(bySource.key_point >= 8,
+    `cumle klozlari ezilmemeli (key_point=${bySource.key_point})`);
+  assert.ok(bySource.key_term >= 8,
+    `tanim klozlari ezilmemeli (key_term=${bySource.key_term})`);
+});
+
+test('sizma kapisi gercekten sizan bir cifti reddediyor', () => {
+  // Kendini dogrulayan test: kapi calismazsa yukaridaki iki yesil bir sey
+  // ifade etmez. Bu cift kacinilmaz sizar — birinin tanimi otekinin terimi.
+  const cards = A.buildClozeCards(undefined, [
+    { term: 'fiscal policy', definition: 'Government policies concerning taxes and spending.' },
+    { term: 'monetary policy', definition: 'Fiscal policy covers taxes; this one covers interest rates.' }
+  ], [], 20);
+  assert.equal(clozeLeaks(cards).length, 0, 'kapi bu cifti ayirmaliydi');
+  assert.equal(cards.length, 1, 'ikisinden sadece biri kalmali');
+});
+
+test('atlanan aday cevabini yakmiyor', () => {
+  /* seenAnswers i leak kontrolunden ONCE isaretlemek sessiz bir kayip
+     uretiyordu: sizdigi icin atilan aday, cevabini "kullanilmis" sayip
+     ayni terimin daha sonra TEMIZ bir karta donusmesini de engelliyordu.
+     Burada "recession" once kirli bir cumlede, sonra temiz bir tanimda
+     geciyor; ikincisi karta donmeli. */
+  const cards = A.buildClozeCards(undefined, [
+    { term: 'recession', definition: 'Two consecutive quarters of declining output.' },
+    { term: 'depression', definition: 'A prolonged and deep recession.' }
+  ], [], 20);
+  const answers = cards.map(c => c.answer.toLowerCase());
+  assert.ok(answers.includes('recession'),
+    `"recession" temiz bir kart olarak kalmaliydi, kalanlar: ${JSON.stringify(answers)}`);
+  assert.equal(clozeLeaks(cards).length, 0);
+});
+
+test('dusunen modele reasoning icin ayri yer veriliyor', () => {
+  /* Reasoning tokenleri COMPLETION tokenidir ve gpt-oss ailesine
+     "dusunme" denemiyor — en dususu "low". max_completion_tokens ikisini
+     birden kapsiyor, yani butce once dusunmeye gidiyor, cevap artandan
+     yaziliyor.
+
+     Review'un 850'si qwen'in 1000'lik OTPM tavanindan turetilmisti, review
+     o seride civiliyken. 509bd5f serit secmeyi acti, butce pesinden
+     gitmedi, ve muhasebe belgesinde (05.10.2026) review gpt-oss-120b'ye
+     dusup soyle dondu:
+
+       400 json_validate_failed ... "failed_generation": ""
+
+     Bozuk cevap degil — HIC cevap yok. */
+  const { reviewCompletionFor, REASONING_HEADROOM } = A;
+  // qwen: reasoning_effort "none" aliyor, dusunmuyor, ek yere ihtiyaci yok.
+  assert.equal(reviewCompletionFor('qwen/qwen3.8-27b', 850), 850);
+  // gpt-oss: dusunuyor, ustune yer eklenmeli.
+  assert.equal(reviewCompletionFor('openai/gpt-oss-120b', 850), 850 + REASONING_HEADROOM);
+  assert.equal(reviewCompletionFor('openai/gpt-oss-20b', 700), 700 + REASONING_HEADROOM);
+  assert.ok(REASONING_HEADROOM > 0, 'dusunen model icin yer ayrilmali');
+});
+
+test('reasoning yeri serit tavanini ASMIYOR', () => {
+  /* Bu testin asil isi: headroom'u buyutmek bedava degil. estimateTokens
+     completion'i PACER_COMPLETION_FACTOR ile sayiyor, yani buyuyen butce
+     review'un tahminini, kuyruk beklemesini ve uzun belgede atlanma
+     ihtimalini buyutuyor.
+
+     Olculen ekonomi kosusu: est=6645, completion=850.
+     Metin kismi = 6645 - 850*0.6 = 6135 token.
+     Serit tavani = 8000 * PACER_SAFETY.
+
+     Ilk denemede 1200 yazmistim: est 7365 cikiyordu, yani tavanin ustu —
+     bos cevabi "hic cevap yok"a cevirecekti. */
+  const F = A.PACER_COMPLETION_FACTOR;
+  const metinTokeni = 6645 - 850 * F;          // olculen kosudan
+  const tavan = A.DEFAULT_TPM_LIMIT * A.PACER_SAFETY;
+  const comp = A.reviewCompletionFor('openai/gpt-oss-120b', 850);
+  const est = metinTokeni + comp * F;
+  assert.ok(est <= tavan,
+    `review tahmini serit tavanini asiyor: ${Math.round(est)} > ${tavan} ` +
+    `(completion ${comp}) — bu haliyle review uzun belgede HIC calisamaz`);
+  // Ve gercekten anlamli bir artis olmali, yoksa duzeltme bir sey yapmiyor.
+  assert.ok(comp >= 850 * 1.5, 'dusunme yeri fark edilir olmali');
+});
+
+test('OTPM tavani hala ustte, headroom onu asamaz', () => {
+  // qwen'in 1000'lik OTPM'i mutlak: reviewCompletionFor ondan sonra
+  // clampCompletion'dan geciyor ve o sinir degismemeli.
+  const tavan = A.MODEL_OTPM['qwen/qwen3.8-27b'] * A.OTPM_SAFETY;
+  assert.ok(reviewSrcHas('clampCompletion(\n          reviewLane,\n          reviewCompletionFor(reviewLane'),
+    'once lane sonra tavan sirasi korunmali');
+  assert.ok(tavan <= 1000, 'qwen OTPM tavani 1000');
+});
+
+function reviewSrcHas(frag) { return SRC.includes(frag); }
+
+test('reasoning maliyeti loglaniyor', () => {
+  // 700 bir baslangic degeri, olcum degil. Gercek rakam loglanmadan
+  // ayarlanamaz.
+  assert.ok(/completion_tokens_details\?\.reasoning_tokens/.test(SRC),
+    'gercek reasoning tokeni okunmali');
+  assert.ok(/Review token: completion=/.test(SRC), 'olculen deger loglanmali');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));

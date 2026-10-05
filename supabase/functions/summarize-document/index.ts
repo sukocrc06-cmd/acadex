@@ -17,6 +17,47 @@ const corsHeaders = {
 // the edge function's entire execution budget, so that by the time a later
 // pass (e.g. the review call) runs, there's no time left and every attempt
 // fails the same way, exhausting retries for a reason retrying can't fix.
+/**
+ * Groq's suggested wait, in ms, from a 429 body.
+ *
+ * The format is "Please try again in 3m2.736s" — minutes AND seconds. The
+ * old pattern was /try again in ([\d.]+)s/, which skipped the "3m" and read
+ * that as 2.7 seconds: a 182-second wait understood as three. Live example
+ * from 05.10.2026: "try again in 5m16.656s".
+ */
+function parseGroqRetryAfterMs(body: string): number | null {
+  const m = body.match(/try again in (?:(\d+)m)?([\d.]+)s/i)
+  if (!m) return null
+  const minutes = m[1] ? parseInt(m[1], 10) : 0
+  const seconds = parseFloat(m[2]) || 0
+  const ms = (minutes * 60 + seconds) * 1000
+  return Number.isFinite(ms) && ms > 0 ? Math.ceil(ms) : null
+}
+
+/**
+ * Is this 429 a DAILY quota (TPD/RPD), rather than a per-minute one?
+ *
+ * The distinction decides whether waiting can possibly help. A per-minute
+ * limit clears in under a minute, so waiting and retrying is right. A daily
+ * limit does not:
+ *
+ *   Rate limit reached for `openai/gpt-oss-120b` ... on tokens per day (TPD):
+ *   Limit 200000, Used 196725, Requested 3698. Please try again in 3m2.736s
+ *
+ * On 05.10.2026 the code could not tell them apart. It treated the daily cap
+ * as a per-minute one: each failed window retried, every retry recorded its
+ * estimate into the per-MINUTE ledger, that ledger filled, and the pacer then
+ * waited 60 seconds for a window rollover that was never the problem. Three
+ * attempts, ~2 minutes of pointless waiting, no summary, and a user-facing
+ * error that said nothing about the actual cause.
+ *
+ * Nothing in this function's gift fixes a spent daily quota, so the only
+ * useful response is to stop immediately and say so.
+ */
+function isDailyQuotaError(body: string): boolean {
+  return /\b(TPD|RPD)\b/i.test(body) || /tokens per day|requests per day/i.test(body)
+}
+
 async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2, timeoutMs = 25000): Promise<Response> {
   let lastRateLimitedResponse: Response | null = null
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -36,6 +77,14 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2,
         let bodyPreview = ""
         try { bodyPreview = await response.clone().text() } catch (_readErr) { /* ignore — body may not be readable twice in all runtimes */ }
         console.warn(`fetchWithRetry: 429 rate-limited (attempt ${attempt + 1}/${maxRetries + 1}): ${bodyPreview}`)
+        // A daily cap cannot be waited out inside one request. Hand the
+        // response straight back so the caller fails fast with the real
+        // reason, instead of burning the pipeline budget on retries that
+        // are guaranteed to return the same 429.
+        if (isDailyQuotaError(bodyPreview)) {
+          console.error('fetchWithRetry: GUNLUK kota (TPD/RPD) doldu — yeniden denenmeyecek')
+          return response
+        }
         // Two distinct Groq 429 shapes here: "Request too large ... Requested
         // X" (this single request's own tokens exceed the limit — shrinking
         // it helps, waiting doesn't) vs. "Rate limit reached ... Used X,
@@ -43,10 +92,8 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2,
         // already spent from earlier calls — no amount of shrinking this
         // request helps until the window rolls over, so we must actually
         // wait). Parse Groq's own suggested wait time when present.
-        const retryAfterMatch = bodyPreview.match(/try again in ([\d.]+)s/i)
-        const waitMs = retryAfterMatch
-          ? Math.min(Math.ceil(parseFloat(retryAfterMatch[1]) * 1000) + 500, 30000)
-          : 2500
+        const suggested = parseGroqRetryAfterMs(bodyPreview)
+        const waitMs = suggested !== null ? Math.min(suggested + 500, 30000) : 2500
         await new Promise(r => setTimeout(r, waitMs));
       } else if (response.status >= 500 && attempt < maxRetries) {
         await new Promise(r => setTimeout(r, 800));
@@ -390,6 +437,163 @@ const MODEL_HEAVY = "openai/gpt-oss-120b"
 // 3.6 line and every call to it 404'd. Verified against Groq's current model
 // list on 2026-10-04: qwen/qwen3.8-27b is the live vision-capable model.
 const MODEL_FAST = "qwen/qwen3.8-27b"
+// A SECOND extraction lane. Limits read off the org's Groq console on
+// 05.10.2026 — identical to gpt-oss-120b in every column:
+//
+//   openai/gpt-oss-120b   30 RPM  1K RPD  8K TPM  200K TPD
+//   openai/gpt-oss-20b    30 RPM  1K RPD  8K TPM  200K TPD
+//
+// and metered separately, which this pipeline proved the hard way earlier.
+// That matters because a window call costs ~6,150 tokens against a 7,200
+// working budget: two windows cannot share a lane in one minute, so on a
+// multi-window document every window after the first sat out a full 60s.
+// Measured on a 31,817-char deck: 3 windows, two 60s waits, 132s total, and
+// the vision pass, the narrative writer and review all skipped for want of
+// budget. Alternating lanes lets consecutive windows run side by side.
+//
+// Extraction only. 20b is the smaller sibling and this is pattern work —
+// pulling terms and points out of text — not prose. The narrative writer
+// stays on MODEL_HEAVY, where the writing quality is the point.
+const MODEL_EXTRACT = "openai/gpt-oss-20b"
+
+/**
+ * Reasoning parameters for a model id — NEVER hardcode these per call site.
+ *
+ * The two families disagree on what "don't think, just answer" looks like:
+ *   qwen    — hybrid reasoner, thinks by default, accepts reasoning_effort:"none"
+ *   gpt-oss — accepts ONLY "low" | "medium" | "high"; "none" is a hard 400
+ *
+ * That difference was invisible while every call pinned its own model. Then
+ * 509bd5f unpinned review so it could pick a free lane, review landed on
+ * gpt-oss-120b carrying a literal reasoning_effort:"none", and Groq answered:
+ *
+ *   400 `reasoning_effort` must be one of `low`, `medium`, or `high`
+ *
+ * It had already paid a 52-second pacer wait for that lane, so the single-
+ * window document lost review entirely and the run got ~4s longer for nothing
+ * (05.10.2026, economy chapter 20 — review had been working there before).
+ *
+ * The lesson is not "put the right string at the review call". It is that a
+ * dynamic `model` and a static reasoning parameter cannot coexist: every call
+ * that picks its lane at runtime must derive these from the lane it picked.
+ */
+function reasoningParamsFor(model: string): Record<string, unknown> {
+  const id = String(model)
+  if (id.includes('gpt-oss') || id.startsWith('openai/')) {
+    // "low" is as close to off as this family goes, and include_reasoning:false
+    // keeps the <think> block out of `content` so JSON.parse gets clean JSON.
+    return { reasoning_effort: "low", include_reasoning: false }
+  }
+  if (id.includes('qwen')) return { reasoning_effort: "none" }
+  // Unknown model: send nothing. An unsupported parameter is a 400, and a
+  // silent omission only costs us some reasoning tokens.
+  return {}
+}
+
+/**
+ * Reasoning tokens are COMPLETION tokens, and the gpt-oss family cannot be
+ * told to stop producing them.
+ *
+ * max_completion_tokens caps reasoning plus content together. qwen takes
+ * reasoning_effort:"none" and spends the whole budget on the answer; gpt-oss
+ * accepts only low/medium/high, so even at its lowest it thinks first and
+ * the answer comes out of whatever is left.
+ *
+ * Review's 850-token budget was sized against qwen's 1,000 OTPM ceiling back
+ * when review was pinned to that lane. 509bd5f let it pick a lane at
+ * runtime, the budget did not follow, and on the accounting chapter
+ * (05.10.2026) review landed on gpt-oss-120b and came back with:
+ *
+ *   400 json_validate_failed ... "failed_generation": ""
+ *
+ * Not a malformed answer — NO answer. The reasoning had eaten all 850 tokens
+ * before a character of content was written, and the empty string failed
+ * Groq's JSON check. The run paid for the call and the wait and got nothing.
+ *
+ * So the tier numbers stay what they always meant — how much ANSWER this
+ * tier needs — and the lane decides how much thinking room to add on top.
+ * clampCompletion still applies afterwards, so qwen cannot exceed its OTPM
+ * ceiling no matter what this returns.
+ *
+ * HOW BIG THE HEADROOM CAN BE is not a matter of taste — there is a ceiling,
+ * and it comes from the pacer. estimateTokens counts completion at
+ * PACER_COMPLETION_FACTOR, so raising this raises review's estimate, its
+ * queue wait, and the chance the budget gate skips it on a long document.
+ * From the measured economy run (est=6645 at completion=850):
+ *
+ *   text part of the estimate ............ 6,135 tokens
+ *   lane ceiling (8,000 x PACER_SAFETY) .. 7,200
+ *   room left for completion x 0.6 ....... 1,065
+ *   -> largest completion that still fits . 1,775
+ *
+ * So the content budget of 850 leaves at most ~900 of headroom before review
+ * stops fitting in its own lane at all. 1,200 was the first value tried here
+ * and it put the estimate at 7,365 — over the ceiling, which would have
+ * traded an empty answer for no answer.
+ *
+ * 700 it is: 2.3x the thinking room review had, still inside the lane.
+ *
+ * And it remains a starting value, not a measurement. All that run proved is
+ * that "low" reasoning sometimes costs more than the ~550 tokens left over
+ * from 850 — the economy document's review passed on the same model and the
+ * same budget, so this varies per prompt and probably per run. The real
+ * figure is logged per call now
+ * (usage.completion_tokens_details.reasoning_tokens) so it can be set from
+ * data instead of from this comment.
+ */
+const REASONING_HEADROOM = 700
+
+function reviewCompletionFor(model: string, contentTokens: number): number {
+  const id = String(model)
+  const thinks = id.includes('gpt-oss') || id.startsWith('openai/')
+  return thinks ? contentTokens + REASONING_HEADROOM : contentTokens
+}
+
+/**
+ * Pick the lane that can take this call SOONEST.
+ *
+ * Alternating by index was the first version and it only half worked. On a
+ * 3-window document (05.10.2026) windows 1 and 2 did run side by side — same
+ * millisecond in the log, the 60s gap between them gone — but window 3 went
+ * back to MODEL_HEAVY purely because its index was even, and sat out a full
+ * window while the other lane was equally busy. Parity does not know which
+ * lane is free; the pacer does.
+ *
+ * The same run showed the sharper version of the problem downstream. The
+ * narrative writer waited 57 seconds on MODEL_HEAVY at a moment when
+ * MODEL_EXTRACT's ledger had just aged out and would have taken it instantly.
+ * Nothing was overloaded — we were queueing for one lane while another stood
+ * empty.
+ *
+ * Order matters: `models` is in preference order, and ties go to the first,
+ * so a caller that cares about quality lists its preferred model first and
+ * still gets it whenever that costs nothing.
+ */
+function pickLane(
+  models: string[],
+  estTokens: number,
+  estCompletion = 0,
+  claimed?: Set<string>
+): string {
+  // Lanes already taken by a sibling call in the SAME batch are skipped while
+  // an unclaimed one exists. Without this, concurrent pickers all see empty
+  // ledgers and all choose the preferred lane: on 05.10.2026 windows 1 and 2
+  // both landed on MODEL_HEAVY and drove it to used=10386/7200 — over its own
+  // budget — while MODEL_EXTRACT sat idle and the next call paid a 58s wait.
+  // The pacer cannot help here: it records a spend when the response ARRIVES,
+  // and these decisions are all made before any of them has.
+  const free = claimed ? models.filter(m => !claimed.has(m)) : models
+  const pool = free.length > 0 ? free : models
+  let best = pool[0]
+  let bestWait = Infinity
+  for (const m of pool) {
+    const wait = tokenPacer.waitEstimate(estTokens, m, estCompletion)
+    if (wait < bestWait) { best = m; bestWait = wait }
+    if (bestWait === 0) break
+  }
+  claimed?.add(best)
+  return best
+}
 // Skip the expensive review pass for short, simple documents (saves ~1 full LLM call)
 const SKIP_REVIEW_MAX_CHARS = 3500
 const CHUNK_MAX_COMPLETION = 1536 // slightly smaller → faster chunk map
@@ -422,11 +626,22 @@ const CHUNK_CONCURRENCY = 3
 const MAX_CHUNKS = 12 // hard ceiling: prefer finishing over analyzing every page under Edge timeout
 // Soft wall-clock budget (ms) for the whole function — leave headroom under ~150s platform limit
 const PIPELINE_BUDGET_MS = 110_000
-// Floor for retrying a window after json_validate_failed. A retry is one more
-// window call, which on this account's 8,000 TPM means a ~60s TokenPacer wait;
-// below this there is no longer room for both that wait and the narrative
-// writer afterwards, so the thin-but-complete card wins over a card with no
-// written summary.
+// A window call, compact-split to window-ok, measured across four live runs:
+// 2.9s, 3.3s, 4.0s, 5.3s. Used to budget a retry, and deliberately several
+// times the measured cost.
+const WINDOW_CALL_MS = 15_000
+// Superseded as a gate by a measured wait + cost; see the json_validate_failed
+// branch. Kept only so the old reasoning stays readable in one place:
+//
+//   "A retry is one more window call, which on this account's 8,000 TPM means
+//    a ~60s TokenPacer wait"
+//
+// True with one lane. With two, pickLane sends the retry to whichever lane is
+// free, and on 05.10.2026 that would have been a 0.7s wait. The 70s floor was
+// a constant left behind by its own fix — the same way the narrative writer's
+// 40s reserve was — and it cost a third of a document: window 3 failed at
+// 64.1s with 45.9s of budget left, 70 > 45.9, no retry, zero terms from that
+// slice.
 const JSON_RETRY_MIN_BUDGET_MS = 70_000
 
 // Vision pass sizing, both numbers forced by the same 8,000 TPM ceiling.
@@ -437,6 +652,10 @@ const JSON_RETRY_MIN_BUDGET_MS = 70_000
 // request is rejected outright. Two fits: 4,096 + ~330 prompt + ~1,840
 // completion reservation is about 6,300, inside the pacer's 7,200 ceiling.
 const VISION_TOKENS_PER_IMAGE = 2048
+// Raised alongside the compact-window bump (2048 -> 3072): the near-blank
+// pages this pass reads are where a table, chart or diagram is most likely to
+// live, and a Mermaid block or multi-row table needs the room.
+const VISION_MAX_COMPLETION = 3072
 const VISION_MAX_IMAGES = 2
 // The vision pass is an EXTRA call, and on this tier every extra call means a
 // full ~60s TokenPacer wait before it can start. The narrative writer runs
@@ -444,7 +663,22 @@ const VISION_MAX_IMAGES = 2
 // when there is room for both: ~65s for itself, 35s for the writer's gate.
 // Below that it skips itself, which is the correct trade — a card always has
 // a written summary, and figure values are the optional extra.
+// Replaced as a gate by a measured wait + cost (see the vision block); kept
+// because the fast path still reads it.
 const VISUAL_MIN_BUDGET_MS = 100_000
+// MEASURED, not guessed. Both of these were round numbers picked for safety,
+// and both were wrong by enough to change behaviour: on 05.10.2026 the vision
+// pass was skipped at "butce 43031ms <= 70000ms" when the work it was being
+// denied budget for takes a fraction of that.
+//
+// Vision call, PDF.co render to merged patch, across four live runs:
+//   6.7s, 6.0s, 7.2s, 6.5s  -> ~6.6s average. The old 30s was 4.5x reality.
+const VISION_CALL_MS = 15_000
+// Narrative writer, merge to accepted, once it stopped queueing for a busy
+// lane: 1.8s. The old 40s reserve was 22x reality — a figure from when the
+// writer could sit out a whole TPM window, which pickLane now prevents.
+// Its own wait is budgeted separately, so this is the call alone.
+const NARRATIVE_WRITER_RESERVE_MS = 20_000
 
 function computeAdaptiveTargets(charCount: number, lengthPreset: string) {
   const presets: Record<string, { summary: [number, number]; terms: [number, number]; points: [number, number]; quiz: [number, number]; capSummary: number; capTerms: number; capPoints: number; capQuiz: number }> = {
@@ -611,7 +845,38 @@ type PacerLane = {
   limit: number
   limitKnown: boolean
   spent: Array<{ at: number; tokens: number }>
+  /** Rolling OUTPUT-token spend; see MODEL_OTPM. */
+  outSpent: Array<{ at: number; tokens: number }>
 }
+
+// OUTPUT tokens per minute — a SEPARATE Groq bucket from TPM, discovered the
+// hard way on 04.10.2026:
+//
+//   Request too large for model `qwen/qwen3.8-27b` ... on output tokens per
+//   minute (OTPM): Limit 1000, Requested 1311
+//
+// Confirmed against console.groq.com/docs/rate-limits: "some organizations
+// are also subject to separate per-minute limits on input tokens (ITPM) and
+// output tokens (OTPM)", and OTPM "caps how many completion tokens your
+// organization can generate per minute, regardless of how many input tokens
+// are sent".
+//
+// The pacer modelled TPM only, so it happily cleared a review call asking for
+// 2,500 completion tokens against a 1,000 ceiling. Every tier 429'd, and
+// because each retry then waited out a full TPM window, the run spent 81s in
+// the tier loop and was killed by the 150s Edge wall clock mid-review —
+// leaving the document stuck on "reviewing" forever.
+//
+// Only models actually observed to have a split limit are listed; a model
+// absent here is paced on TPM alone, as before.
+const MODEL_OTPM: Record<string, number> = {
+  "qwen/qwen3.8-27b": 1000
+}
+// Leave room for the model overshooting its own completion estimate — Groq
+// rejected a 2,500-token ask as "Requested 1311", so its accounting is not
+// simply max_completion_tokens and a request sized exactly at the limit is
+// not safe.
+const OTPM_SAFETY = 0.85
 
 // WHY THIS IS KEYED BY MODEL (2026-10-04):
 // The pacer used to hold one `spent[]` and one `limit` for the whole
@@ -636,10 +901,35 @@ const tokenPacer = {
     const key = model || MODEL_HEAVY
     let lane = this.lanes[key]
     if (!lane) {
-      lane = { limit: DEFAULT_TPM_LIMIT, limitKnown: false, spent: [] }
+      lane = { limit: DEFAULT_TPM_LIMIT, limitKnown: false, spent: [], outSpent: [] }
       this.lanes[key] = lane
     }
     return lane
+  },
+
+  /**
+   * The largest completion this model will accept, or null when it has no
+   * known output cap. Asking for more than this is not a slow request, it is
+   * a rejected one, so callers clamp rather than wait.
+   */
+  maxCompletion(model: string): number | null {
+    const otpm = MODEL_OTPM[model || MODEL_HEAVY]
+    return otpm ? Math.floor(otpm * OTPM_SAFETY) : null
+  },
+
+  /** Clamp a requested completion budget to what this model can actually emit. */
+  clampCompletion(model: string, requested: number): number {
+    const cap = this.maxCompletion(model)
+    if (cap === null || !(requested > cap)) return requested
+    console.log(`TokenPacer[${model}]: max_completion ${requested} -> ${cap} (OTPM tavani)`)
+    return cap
+  },
+
+  /** Rolling OUTPUT-token spend inside the window. */
+  usedOut(now: number, model: string): number {
+    const lane = this.lane(model)
+    lane.outSpent = lane.outSpent.filter(e => now - e.at < PACER_WINDOW_MS)
+    return lane.outSpent.reduce((n, e) => n + e.tokens, 0)
   },
 
   /** Drop entries older than the rolling window and total what's left. */
@@ -663,9 +953,13 @@ const tokenPacer = {
     }
   },
 
-  record(tokens: number, model: string) {
+  record(tokens: number, model: string, completionTokens = 0) {
+    const lane = this.lane(model)
     if (Number.isFinite(tokens) && tokens > 0) {
-      this.lane(model).spent.push({ at: Date.now(), tokens })
+      lane.spent.push({ at: Date.now(), tokens })
+    }
+    if (Number.isFinite(completionTokens) && completionTokens > 0) {
+      lane.outSpent.push({ at: Date.now(), tokens: completionTokens })
     }
   },
 
@@ -685,30 +979,72 @@ const tokenPacer = {
    * 55s — correct back when one shared ledger meant any call could eat a
    * full window, but now that lanes are per model the pacer can simply say.
    */
-  waitEstimate(estTokens: number, model: string): number {
-    const lane = this.lane(model)
+  waitEstimate(estTokens: number, model: string, estCompletion = 0): number {
+    return Math.max(
+      this.waitFor(this.lane(model).spent, this.lane(model).limit * PACER_SAFETY, estTokens, model, false),
+      this.waitFor(this.lane(model).outSpent, this.maxCompletion(model) ?? Infinity, estCompletion, model, true)
+    )
+  },
+
+  /** Shared ledger walk for both the total and output budgets. */
+  waitFor(
+    ledger: Array<{ at: number; tokens: number }>,
+    budget: number,
+    est: number,
+    _model: string,
+    _isOut: boolean
+  ): number {
+    if (!(est > 0) || !Number.isFinite(budget)) return 0
     const now = Date.now()
-    let used = this.used(now, model)
-    const budget = lane.limit * PACER_SAFETY
-    if (used + estTokens <= budget || used === 0) return 0
+    let used = ledger.filter(e => now - e.at < PACER_WINDOW_MS).reduce((n, e) => n + e.tokens, 0)
+    if (used + est <= budget || used === 0) return 0
     let wait = 0
-    for (const e of lane.spent) {
+    for (const e of ledger) {
+      if (now - e.at >= PACER_WINDOW_MS) continue
       used -= e.tokens
       wait = PACER_WINDOW_MS - (now - e.at) + 250
-      if (used + estTokens <= budget || used <= 0) break
+      if (used + est <= budget || used <= 0) break
     }
     return Math.max(0, Math.min(PACER_MAX_WAIT_MS, wait))
   },
 
   /** Block until this call's estimated cost fits in that model's rolling budget. */
-  async acquire(estTokens: number, model: string): Promise<void> {
+  async acquire(estTokens: number, model: string, estCompletion = 0): Promise<void> {
     const lane = this.lane(model)
     const budget = lane.limit * PACER_SAFETY
+    const outBudget = this.maxCompletion(model)
     const started = Date.now()
     while (true) {
       const now = Date.now()
       const used = this.used(now, model)
-      if (used + estTokens <= budget || used === 0) return
+      const usedOut = outBudget === null ? 0 : this.usedOut(now, model)
+      const totalFits = used + estTokens <= budget || used === 0
+      const outFits = outBudget === null || estCompletion <= 0 ||
+        usedOut + estCompletion <= outBudget || usedOut === 0
+      if (totalFits && outFits) return
+      if (totalFits && !outFits) {
+        // The output bucket is the binding one. Wait for the oldest completion
+        // to age out rather than the oldest total.
+        const oldestOut = lane.outSpent[0]
+        const needOut = oldestOut
+          ? Math.max(250, PACER_WINDOW_MS - (now - oldestOut.at) + 250)
+          : 0
+        const remainingOut = PACER_MAX_WAIT_MS - (now - started)
+        if (!oldestOut || needOut > remainingOut) {
+          console.warn(
+            `TokenPacer[${model}]: OTPM icin ${Math.round(needOut)}ms gerekiyor ama ` +
+            `${Math.round(Math.max(0, remainingOut))}ms kaldi — beklemeden gonderiyor ` +
+            `(usedOut=${usedOut}/${outBudget}, est=${estCompletion})`
+          )
+          return
+        }
+        console.log(
+          `TokenPacer[${model}]: OTPM icin ${Math.round(needOut)}ms bekliyor ` +
+          `(usedOut=${usedOut}/${outBudget}, est=${estCompletion})`
+        )
+        await new Promise(r => setTimeout(r, needOut))
+        continue
+      }
       // Wait for the oldest recorded spend to age out of the window.
       const oldest = lane.spent[0]
       const needed = Math.max(250, PACER_WINDOW_MS - (now - oldest.at) + 250)
@@ -755,7 +1091,12 @@ async function callGroqJson(
     : (temperatureOrOpts || {})
   const model = opts.model || MODEL_HEAVY
   const temperature = opts.temperature ?? 0.3
-  const maxCompletionTokens = opts.maxCompletionTokens ?? DRAFT_MAX_COMPLETION
+  // Clamp before anything else: a request whose max_completion_tokens alone
+  // exceeds the model's OTPM ceiling is rejected outright, not queued.
+  const maxCompletionTokens = tokenPacer.clampCompletion(
+    model,
+    opts.maxCompletionTokens ?? DRAFT_MAX_COMPLETION
+  )
   const timeoutMs = opts.timeoutMs ?? 25000
   const maxRetries = opts.maxRetries ?? 1
 
@@ -769,16 +1110,13 @@ async function callGroqJson(
       { role: "user", content: userContent }
     ]
   }
-  // Reasoning controls only for models that support them (gpt-oss family)
-  if (String(model).includes('gpt-oss') || String(model).includes('openai/')) {
-    body.reasoning_effort = "low"
-    body.include_reasoning = false
-  }
+  // Reasoning controls, derived from the model id — see reasoningParamsFor.
+  Object.assign(body, reasoningParamsFor(model))
 
   // Wait until this call fits the rolling per-minute budget, rather than
   // firing it and letting Groq reject it (see the TokenPacer comment above).
   const estTokens = estimateTokens(systemPrompt, userContent, maxCompletionTokens)
-  await tokenPacer.acquire(estTokens, model)
+  await tokenPacer.acquire(estTokens, model, maxCompletionTokens)
 
   const response = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
@@ -796,14 +1134,15 @@ async function callGroqJson(
     // A rejected call still consumed budget in Groq's accounting, so record
     // the estimate — otherwise the pacer would under-count after a 429 and
     // immediately fire again into the same wall.
-    tokenPacer.record(estTokens, model)
+    tokenPacer.record(estTokens, model, maxCompletionTokens)
     throw new Error(`Groq API error (${response.status}): ${JSON.stringify(data)}`)
   }
   tokenPacer.record(
     Number(data?.usage?.total_tokens) ||
     (Number(data?.usage?.prompt_tokens) || 0) + (Number(data?.usage?.completion_tokens) || 0) ||
     estTokens,
-    model
+    model,
+    Number(data?.usage?.completion_tokens) || maxCompletionTokens
   )
   const raw = data.choices?.[0]?.message?.content ?? ""
   if (!raw) throw new Error("Empty Groq response content")
@@ -1418,17 +1757,61 @@ function buildClozeCards(
   const out: any[] = []
   const seenAnswers = new Set<string>()
 
+  /**
+   * Cross-card answer leakage.
+   *
+   * seenAnswers stops the same answer appearing twice. Nothing stopped one
+   * card's QUESTION from containing another card's ANSWER, and on a real
+   * glossary that happens constantly, because good cloze sentences name
+   * neighbouring concepts. Measured on the economy chapter (05.10.2026):
+   *
+   *   #5  "Fiscal policy involves taxation and spending; ___ involves
+   *        Federal Reserve actions..."                 -> monetary policy
+   *   #17 "___: Government policies concerning taxes and spending."
+   *                                                    -> fiscal policy
+   *
+   * #5 prints #17's answer verbatim. And it runs both ways:
+   *
+   *   #3  "___ is measured as real GDP"                -> aggregate output
+   *   #10 "U.S. Aggregate Output (___), 1900-2014"     -> Real GDP
+   *
+   * So the check has to look in BOTH directions for every candidate: does
+   * this prompt reveal an answer already committed, and does any committed
+   * prompt reveal this candidate's answer.
+   *
+   * A leaking candidate is SKIPPED, not patched. Blanking the extra term
+   * would give the card two blanks and one answer field, which is
+   * unanswerable, and the candidate pool is normally much larger than
+   * maxCards (29 terms and 16 points on this document), so the slot is
+   * refilled by the next candidate instead of being lost.
+   *
+   * clozeTermPattern, not indexOf: the match must respect word boundaries
+   * and the Turkish dotted-I folding, exactly like the blanking does.
+   */
+  const leaks = (prompt: string, answer: string): boolean => {
+    for (const c of out) {
+      // This candidate's question would print an earlier card's answer.
+      if (clozeTermPattern(c.answer).test(prompt)) return true
+      // An earlier card's question already prints this candidate's answer.
+      if (clozeTermPattern(answer).test(c.prompt)) return true
+    }
+    return false
+  }
+
   // 1) Keep valid model-produced clozes first
   if (Array.isArray(modelClozes)) {
     for (const c of modelClozes) {
       if (!c || !c.prompt || !c.answer) continue
       const ansKey = String(c.answer).trim().toLowerCase()
       if (!ansKey || seenAnswers.has(ansKey)) continue
+      const mPrompt = String(c.prompt).trim()
+      const mAnswer = String(c.answer).trim()
+      if (leaks(mPrompt, mAnswer)) continue
       seenAnswers.add(ansKey)
       out.push({
         id: c.id || `cl${out.length + 1}`,
-        prompt: String(c.prompt).trim(),
-        answer: String(c.answer).trim(),
+        prompt: mPrompt,
+        answer: mAnswer,
         full_text: String(c.full_text || c.prompt.replace(/_{2,}/g, c.answer)).trim(),
         source: c.source || 'model'
       })
@@ -1465,6 +1848,9 @@ function buildClozeCards(
       const prompt = blankAllOccurrences(text, term)
       // Nothing left to reason from if the blanks swallowed the sentence.
       if (prompt.replace(/_{3,}/g, ' ').trim().split(/\s+/).length < 5) continue
+      // `continue`, not `break`: this sentence may still yield a clean card
+      // from a different glossary term, so try the rest before giving up on it.
+      if (leaks(prompt, term)) continue
 
       seenAnswers.add(ansKey)
       out.push({
@@ -1489,7 +1875,6 @@ function buildClozeCards(
     if (!term || !def || term.length < 2) continue
     const ansKey = term.toLowerCase()
     if (seenAnswers.has(ansKey)) continue
-    seenAnswers.add(ansKey)
     // Prefer blanking the term inside the definition when it appears; else "___ : definition"
     let prompt: string
     const defHasTerm = def.toLowerCase().includes(term.toLowerCase())
@@ -1505,6 +1890,12 @@ function buildClozeCards(
     } else {
       prompt = `___: ${def}`
     }
+    // Leak check AFTER the prompt is built — the "___: <definition>" fallback
+    // and the blanked-definition form carry different text, so only the final
+    // prompt can be checked. This is also why seenAnswers is marked here
+    // rather than above: a skipped candidate must not burn its answer.
+    if (leaks(prompt, term)) continue
+    seenAnswers.add(ansKey)
     // full_text must restore the sentence the prompt was cut from, so it
     // follows which prompt shape we actually ended up with, not defHasTerm.
     const blanked = prompt !== `___: ${def}`
@@ -1518,6 +1909,278 @@ function buildClozeCards(
   }
 
   return out
+}
+
+/**
+ * Merge the review pass's output onto the draft instead of replacing it.
+ *
+ * WHY THIS EXISTS (04.10.2026, first live run with review enabled):
+ * The review prompt asked for "the REFINED full study-card JSON" while the
+ * call was capped at 2500 completion tokens. A 26-term brief does not fit in
+ * 2500 tokens, so the model did the only thing it could and shipped a
+ * shortened version. Its output replaced the draft wholesale:
+ *
+ *   merge            : terms=26 points=14 quiz=13
+ *   after review     : terms=12 points=5  quiz=5
+ *
+ * Over half the study card, deleted by the pass that was supposed to improve
+ * it. The prompt has since been narrowed so review only returns the narrative
+ * fields, but a prompt is a request, not a guarantee — a model can always
+ * return less than it was asked for. So the merge is where the guarantee
+ * lives: arrays come from the DRAFT unless review sends back at least as many
+ * items, and a review that returns nothing usable leaves the draft untouched.
+ *
+ * Review can therefore still fix wording and catch hallucinations; it can no
+ * longer lose content by running out of room.
+ */
+const REVIEW_ARRAY_FIELDS = ['key_terms', 'key_points', 'quiz_questions', 'sections', 'footnotes']
+
+/**
+ * How much of the draft's narrative a rewrite must keep to be accepted.
+ *
+ * The arrays were guarded against shrinkage from the start; the narrative was
+ * not, and on 04.10.2026 that asymmetry cost the summary three of its four
+ * paragraphs. The chain: the narrative writer runs on MODEL_HEAVY, which has
+ * no output cap, and produced ~1,600 characters. Review and then the critic
+ * both run on MODEL_FAST, whose OTPM ceiling clamps them to 850 completion
+ * tokens — and both REWRITE the summary. Two passes through a budget smaller
+ * than the text they were handed, and ~1,600 characters came out ~560.
+ *
+ * Nothing was broken: each pass did exactly what it was asked, inside the
+ * room it had. The mistake was letting a pass with less room than the writer
+ * replace the writer's work unconditionally.
+ *
+ * Legitimate review trimming — dropping an unsupported clause, cutting admin
+ * noise — takes a few percent. Losing a quarter of the text is compression,
+ * not editing, so a rewrite below this share of the original is refused and
+ * the draft's narrative stands. Review's findings are not lost either way:
+ * they come back in quality_gate.issues regardless.
+ */
+const NARRATIVE_MIN_KEEP_RATIO = 0.75
+
+/**
+ * Apply review's targeted corrections to the narrative.
+ *
+ * WHY REVIEW NO LONGER REWRITES THE SUMMARY (05.10.2026, measured):
+ * Review runs on MODEL_FAST, whose OTPM ceiling caps it at 850 completion
+ * tokens for its ENTIRE answer — summary, executive summary, footnotes and
+ * quality_gate together. A 2,157-character summary is ~674 tokens on its own,
+ * 79% of the budget. Two live runs bear it out: 1,644 chars came back as 563,
+ * and 2,157 came back as 635. Both around 30%, both against the same ceiling.
+ *
+ * So asking review to re-emit the summary is not a thing that sometimes
+ * fails; it is a thing that cannot work. NARRATIVE_MIN_KEEP_RATIO caught the
+ * damage, but catching it meant throwing away the corrections too — and
+ * correcting the narrative is the whole reason review exists (it is what
+ * caught "10.5% in the 2008-09 downturn" being the 1980-82 figure).
+ *
+ * A factual fix is a sentence, not a document. Review now returns the
+ * sentences it wants changed, which costs ~60 tokens each instead of 674,
+ * and they are applied here deterministically. The length of the narrative is
+ * then preserved by construction rather than by a guard, every change is
+ * logged, and a correction whose "find" text cannot be located exactly once
+ * is skipped — a miss is a no-op, never a corruption.
+ */
+function applyCorrections(
+  text: string,
+  corrections: any
+): { text: string; applied: number; skipped: string[] } {
+  const skipped: string[] = []
+  if (!Array.isArray(corrections) || !text) return { text, applied: 0, skipped }
+  let out = text
+  let applied = 0
+
+  for (const c of corrections.slice(0, 8)) {
+    const find = String(c?.find || '').trim()
+    const replace = String(c?.replace ?? '').trim()
+    if (find.length < 8 || find === replace) continue
+
+    // Exact match first; it must be unambiguous, or we cannot know which
+    // occurrence the model meant.
+    const occurrences = out.split(find).length - 1
+    if (occurrences === 1) {
+      out = out.replace(find, replace)
+      applied++
+      continue
+    }
+    if (occurrences > 1) {
+      skipped.push(`"${find.slice(0, 40)}..." ${occurrences} kez geciyor, hangisi belirsiz`)
+      continue
+    }
+
+    // Models reflow whitespace when quoting. Retry on a whitespace-normalised
+    // view, mapping the hit back to the original text by index.
+    const norm = (s: string) => s.replace(/\s+/g, ' ')
+    const flatOut = norm(out)
+    const flatFind = norm(find)
+    if (flatFind.length >= 8 && flatOut.split(flatFind).length - 1 === 1) {
+      // Walk the original, counting non-space-collapsed characters, to find
+      // the span that corresponds to the normalised match.
+      const start = flatOut.indexOf(flatFind)
+      let seen = 0
+      let from = -1
+      let to = -1
+      let prevWasSpace = false
+      for (let i = 0; i <= out.length; i++) {
+        if (seen === start && from === -1) from = i
+        if (seen === start + flatFind.length && to === -1) { to = i; break }
+        const ch = out[i]
+        if (ch === undefined) break
+        const isSpace = /\s/.test(ch)
+        if (isSpace && prevWasSpace) { continue }
+        prevWasSpace = isSpace
+        seen++
+      }
+      if (from >= 0) {
+        out = out.slice(0, from) + replace + out.slice(to === -1 ? out.length : to)
+        applied++
+        continue
+      }
+    }
+    skipped.push(`"${find.slice(0, 40)}..." metinde bulunamadi`)
+  }
+
+  return { text: out, applied, skipped }
+}
+
+// Inline source citation, e.g. "(s. 12)" / "(slayt 4)" / "(p. 7)".
+const INLINE_PAGE_CITE = /\s*\((?:s\.|sayfa|slayt|p\.|page)\s*\d+\)/giu
+
+/**
+ * Strip inline page citations that review INTRODUCED.
+ *
+ * Review is shown a truncated slice of the source (reviewTiers[0] is 4,000
+ * chars of an 11,000-char document), so it can only see page markers near the
+ * start. Asked for citations, it dutifully produced them — and a live run on
+ * 04.10.2026 came back with all ELEVEN markers reading "(s. 1)" for facts
+ * drawn from across 30 pages. Confidently wrong provenance is worse than
+ * none: a student who turns to page 1 does not find the claim, and stops
+ * trusting the citations that ARE right.
+ *
+ * Citations are computed deterministically downstream by anchorCitations(),
+ * which indexes the whole document. The prompt now says not to add them; this
+ * is the part that does not depend on the model complying. Markers the DRAFT
+ * already had are kept — only ones that appear in review's text and not in
+ * the draft's are removed.
+ */
+function stripIntroducedCitations(draftText: string, reviewText: string): string {
+  const draftHas = INLINE_PAGE_CITE.test(String(draftText || ''))
+  INLINE_PAGE_CITE.lastIndex = 0
+  if (draftHas) return reviewText
+  const cleaned = reviewText.replace(INLINE_PAGE_CITE, '')
+  INLINE_PAGE_CITE.lastIndex = 0
+  return cleaned
+}
+
+function mergeReviewOntoDraft(
+  draftRaw: string,
+  reviewRaw: string
+): { merged: string; notes: string[] } {
+  const notes: string[] = []
+  const parse = (s: string): any => {
+    try {
+      const stripped = stripThinkBlock(s)
+      return JSON.parse((stripped ?? s).replace(/```json\s*|```/g, '').trim())
+    } catch {
+      return null
+    }
+  }
+
+  const draft = parse(draftRaw)
+  const review = parse(reviewRaw)
+  if (!draft || typeof draft !== 'object') return { merged: draftRaw, notes: ['taslak okunamadi'] }
+  if (!review || typeof review !== 'object') {
+    return { merged: draftRaw, notes: ['review JSON okunamadi — taslak korundu'] }
+  }
+
+  const out: any = { ...draft }
+
+  // Targeted corrections are the primary path — review cannot fit a rewritten
+  // summary in its token budget, so it sends the sentences to change instead.
+  // See applyCorrections.
+  if (Array.isArray(review.corrections) && review.corrections.length > 0) {
+    const draftSummary = String(draft.summary || '')
+    const fixed = applyCorrections(draftSummary, review.corrections)
+    if (fixed.applied > 0) {
+      out.summary = fixed.text
+      notes.push(`summary: ${fixed.applied} duzeltme uygulandi`)
+    }
+    for (const s of fixed.skipped) notes.push(`duzeltme atlandi — ${s}`)
+    if (fixed.applied === 0 && fixed.skipped.length === 0) {
+      notes.push('duzeltme listesi bos geldi')
+    }
+  }
+
+  // Narrative fields: review's job. Accept a non-trivial rewrite.
+  // Still supported for short documents, where the whole summary genuinely
+  // fits in the budget and a clean rewrite beats a list of patches.
+  for (const field of ['summary', 'summary_executive']) {
+    // A summary already corrected above must not then be replaced wholesale.
+    if (field === 'summary' && typeof out.summary === 'string'
+        && out.summary !== String(draft.summary || '')) continue
+    const v = review[field]
+    if (typeof v === 'string' && v.trim().length > 40) {
+      const draftText = String(draft[field] || '').trim()
+      const incoming = v.trim()
+      // Measure the floor on what the MODEL returned, before our own citation
+      // scrub shortens it. Scrubbing can strip 15-20% from a heavily cited
+      // summary, and judging after it would reject a perfectly good rewrite
+      // for an edit we made ourselves. The floor is about whether the model
+      // compressed the text — see NARRATIVE_MIN_KEEP_RATIO.
+      if (draftText.length > 0 && incoming.length < draftText.length * NARRATIVE_MIN_KEEP_RATIO) {
+        notes.push(
+          `${field} KORUNDU (review ${incoming.length} krk dondu, taslak ${draftText.length} krk)`
+        )
+        continue
+      }
+      const scrubbed = stripIntroducedCitations(draftText, incoming).trim()
+      if (scrubbed.length < 40) continue
+      if (scrubbed !== v.trim()) notes.push(`${field} uydurma (s. N) temizlendi`)
+      if (scrubbed !== draftText) notes.push(`${field} guncellendi`)
+      out[field] = scrubbed
+    }
+  }
+
+  // Arrays: only accept when review did not shrink them. Equal length is
+  // fine — that is review rewording in place, which is what we want.
+  for (const field of REVIEW_ARRAY_FIELDS) {
+    const rv = review[field]
+    const dv = draft[field]
+    if (!Array.isArray(rv)) continue
+    const draftLen = Array.isArray(dv) ? dv.length : 0
+    if (rv.length >= draftLen) {
+      if (rv.length > draftLen) notes.push(`${field} ${draftLen}→${rv.length}`)
+      out[field] = rv
+    } else {
+      notes.push(`${field} KORUNDU (review ${rv.length} dondu, taslakta ${draftLen})`)
+    }
+  }
+
+  // Scalars review may legitimately correct.
+  for (const field of ['document_type', 'suggested_course_tag']) {
+    if (typeof review[field] === 'string' && review[field].trim()) out[field] = review[field].trim()
+  }
+  if (typeof review.is_quantitative === 'boolean') out.is_quantitative = review.is_quantitative
+  if (review.outline && typeof review.outline === 'object') out.outline = review.outline
+  if (review.quality_gate && typeof review.quality_gate === 'object') {
+    out.quality_gate = review.quality_gate
+    // Log the verdict, always. Without it "degisiklik yok" is ambiguous in
+    // exactly the way that matters: it cannot distinguish review reading the
+    // draft and finding it sound from review returning an empty list because
+    // that is the cheapest answer. The verdict plus the issue count says
+    // which — a pass with issues listed is a review that engaged; a bare pass
+    // with nothing to say, run after run, is one to be suspicious of.
+    const g = review.quality_gate
+    const issues = Array.isArray(g.issues) ? g.issues : []
+    notes.push(
+      `quality_gate: pass=${g.pass !== false}, grounded=${!!g.grounded}, ` +
+      `${issues.length} sorun${issues.length ? ': ' + issues.map((i: any) => String(i).slice(0, 60)).join(' / ') : ''}`
+    )
+  } else {
+    notes.push('quality_gate GELMEDI — review beklenen bicimde cevap vermemis')
+  }
+
+  return { merged: JSON.stringify(out), notes }
 }
 
 function roundRobinInterleave<T>(lists: T[][]): T[] {
@@ -3166,6 +3829,37 @@ serve(async (req) => {
     // the pass does not run, which is the no-op case the gate already
     // handles.
     const visionGroundedClaims = new Set<string>()
+
+    // The same findings, kept VERBATIM for the review pass.
+    //
+    // visionGroundedClaims above is normalised for the grounding gate's
+    // matching; review needs the readable sentences. Review is shown the
+    // document's TEXT, and a figure's annotations are not in the text — they
+    // are drawn inside the image. So without this, everything the vision pass
+    // contributes is invisible to review, and that cuts both ways: it cannot
+    // confirm a correct figure reading, and it cannot catch a wrong one.
+    //
+    // Measured on 05.10.2026. Figure 20.2 is annotated "World War I, Roaring
+    // Twenties, The Great Depression, World War II, Korean War, Vietnam War,
+    // First oil shock, Second oil shock" plus five recessions. The summary
+    // reported "the Korean and Vietnam wars, and oil shocks of the 1970s and
+    // 2000s" — the wars right, read off the chart, and "2000s" wrong, since
+    // both labelled oil shocks are 1974 and 1980. Review had no way to tell,
+    // because the only place that distinction exists is the picture.
+    const visionNotes: string[] = []
+
+    // Set when Groq reports the DAILY token cap (TPD). Declared out here, in
+    // the scope both pipelines share, for the same reason visionGroundedClaims
+    // is: a flag written inside the chunked branch and read outside it is a
+    // ReferenceError in production that no extracted-function test can see.
+    let dailyQuotaExhausted = false
+
+    // Stages the time budget forced us to drop, recorded so the SAVED CARD can
+    // say so. A long document can lose vision, the narrative writer or review
+    // and still look complete — the student has no way to tell a card that got
+    // the full pipeline from one that ran out of minutes. Declared out here for
+    // the same scope reason as the two above.
+    const skippedStages: string[] = []
     const budgetLeft = () => Math.max(0, PIPELINE_BUDGET_MS - (Date.now() - pipelineStartedAt))
 
     // ==========================================================================
@@ -3822,16 +4516,32 @@ Rules:
         `windowedChars=${windowedChars} (${Math.round(100 * windowedChars / Math.max(1, extractedText.length))}% of document reachable)`
       )
 
-      async function extractWindow(wi: number, text: string): Promise<any | null> {
+      // Which lane each window actually used, for the success log. Kept
+      // beside the results rather than ON them: a stray field on the result
+      // object would ride into the merge and out into the saved card.
+      const windowLanes = new Map<number, string>()
+
+      async function extractWindow(wi: number, text: string, assignedLane?: string): Promise<any | null> {
         let payload = text
         for (let attempt = 0; attempt < 3; attempt++) {
+          // First attempt uses the lane the batch assigned (distinct across
+          // siblings — see pickLane). A retry re-picks, because by then the
+          // other calls have landed and the ledgers have moved.
+          const windowLane = (attempt === 0 && assignedLane)
+            ? assignedLane
+            : pickLane(
+                [MODEL_HEAVY, MODEL_EXTRACT],
+                estimateTokens(compactWindowPrompt(wi, windows.length), payload, 3072),
+                3072
+              )
+          windowLanes.set(wi, windowLane)
           try {
             const result = await callGroqJson(
               groqApiKey,
               compactWindowPrompt(wi, windows.length),
               payload,
               {
-                model: MODEL_HEAVY,
+                model: windowLane,
                 temperature: 0.2,
                 // Denetim Raporu, 2026-08-31: raised from 2048 → 3072 to make
                 // room for the tables/charts/diagrams/worked_examples fields
@@ -3854,6 +4564,14 @@ Rules:
               payload = payload.slice(0, Math.floor(payload.length * 0.55))
               console.warn(`Window ${wi + 1}: shrinking payload to ${payload.length} chars`)
               continue
+            }
+            // Daily cap: retrying cannot help, and each retry poisons the
+            // per-minute ledger and buys a 60s pacer wait on top. Give up on
+            // the spot and let the caller report the real reason.
+            if (isDailyQuotaError(msg)) {
+              console.error(`Window ${wi + 1}: GUNLUK kota doldu — pencere dongusu durduruluyor`)
+              dailyQuotaExhausted = true
+              return null
             }
             // rate limit → brief wait then retry once
             if (/429|rate limit|tpm/i.test(msg) && attempt < 2) {
@@ -3884,13 +4602,26 @@ Rules:
             // top, and by then the narrative writer's own budget gate
             // (35s) is at risk — trading a thin card for one with no
             // written summary at all is not a trade worth making.
-            if (
-              /json_validate_failed|failed to generate json/i.test(msg) &&
-              attempt < 1 &&
-              budgetLeft() > JSON_RETRY_MIN_BUDGET_MS
-            ) {
-              console.warn(`Window ${wi + 1}: json_validate_failed — ayni istek bir kez daha deneniyor (butce ${budgetLeft()}ms)`)
-              continue
+            if (/json_validate_failed|failed to generate json/i.test(msg) && attempt < 1) {
+              // Ask what the retry would ACTUALLY cost on the lane it would
+              // actually use, instead of assuming a full TPM window.
+              const retryEst = estimateTokens(compactWindowPrompt(wi, windows.length), payload, 3072)
+              const retryWaitMs = Math.min(
+                tokenPacer.waitEstimate(retryEst, MODEL_HEAVY, 3072),
+                tokenPacer.waitEstimate(retryEst, MODEL_EXTRACT, 3072)
+              )
+              const retryNeedsMs = retryWaitMs + WINDOW_CALL_MS + NARRATIVE_WRITER_RESERVE_MS
+              if (budgetLeft() > retryNeedsMs) {
+                console.warn(
+                  `Window ${wi + 1}: json_validate_failed — tekrar deneniyor ` +
+                  `(butce ${budgetLeft()}ms, gereken ${retryNeedsMs}ms [pacer ${retryWaitMs}ms])`
+                )
+                continue
+              }
+              console.warn(
+                `Window ${wi + 1}: json_validate_failed — butce yetmiyor, bu dilim atlaniyor ` +
+                `(butce ${budgetLeft()}ms, gereken ${retryNeedsMs}ms)`
+              )
             }
             return null
           }
@@ -3916,16 +4647,25 @@ Rules:
         windows[0] || '',
         3072
       )
-      // Window calls go out on MODEL_HEAVY (see the extractWindow call below),
-      // so it is MODEL_HEAVY's lane that decides how many fit at once.
+      // Windows alternate between two lanes (windowModel), so capacity is the
+      // SUM of what each lane can take, not one lane's share. Computing it
+      // from MODEL_HEAVY alone is what kept this pinned at 1: a ~6,150-token
+      // window against a 7,200 budget allows exactly one per lane per minute,
+      // and reading one lane made that the answer for the whole batch.
+      // With two lanes a batch of two runs side by side instead of the second
+      // sitting out a full window.
+      const perLane = [MODEL_HEAVY, MODEL_EXTRACT].map(m => ({
+        model: m,
+        fits: tokenPacer.safeConcurrency(estWindowTokens, m),
+        lane: tokenPacer.lane(m)
+      }))
       const windowConcurrency = Math.min(
         CHUNK_CONCURRENCY,
-        tokenPacer.safeConcurrency(estWindowTokens, MODEL_HEAVY)
+        Math.max(1, perLane.reduce((n, l) => n + l.fits, 0))
       )
-      const heavyLane = tokenPacer.lane(MODEL_HEAVY)
       console.log(
         `Window concurrency: ${windowConcurrency} ` +
-        `(${MODEL_HEAVY} TPM limit ${heavyLane.limit}${heavyLane.limitKnown ? '' : ', varsayilan'}, ` +
+        `(${perLane.map(l => `${l.model}: ${l.lane.limit} TPM${l.lane.limitKnown ? '' : '/varsayilan'} -> ${l.fits}`).join(', ')}, ` +
         `~${estWindowTokens} token/pencere, tavan ${CHUNK_CONCURRENCY})`
       )
 
@@ -3952,7 +4692,19 @@ Rules:
         const batchIndices: number[] = []
         for (let wi = batchStart; wi < batchEnd; wi++) batchIndices.push(wi)
 
-        const batchResults = await Promise.all(batchIndices.map(wi => extractWindow(wi, windows[wi])))
+        // Assign lanes up front so siblings in this batch cannot pick the same
+        // one. Done here rather than inside extractWindow because every call in
+        // the batch starts before any of them records a spend.
+        const claimedLanes = new Set<string>()
+        const batchLanes = batchIndices.map(wi => pickLane(
+          [MODEL_HEAVY, MODEL_EXTRACT],
+          estimateTokens(compactWindowPrompt(wi, windows.length), windows[wi], 3072),
+          3072,
+          claimedLanes
+        ))
+        const batchResults = await Promise.all(
+          batchIndices.map((wi, bi) => extractWindow(wi, windows[wi], batchLanes[bi]))
+        )
         for (let bi = 0; bi < batchResults.length; bi++) {
           const result = batchResults[bi]
           const wi = batchIndices[bi]
@@ -3960,19 +4712,37 @@ Rules:
             // Normalize alternate field names
             if (!result.summary && result.chunk_summary) result.summary = result.chunk_summary
             windowResults.push(result)
-            console.log(`Window ${wi + 1} ok: terms=${(result.key_terms || []).length} points=${(result.key_points || []).length} quiz=${(result.quiz_questions || []).length}`)
+            // The lane is in the line on purpose: windows are spread across
+            // both models, so one run of one document compares 120b and 20b on
+            // neighbouring slices of the same text. If 20b extracts materially
+            // less, this log is where it shows, with no separate experiment.
+            console.log(`Window ${wi + 1} ok [${windowLanes.get(wi) || '?'}]: terms=${(result.key_terms || []).length} points=${(result.key_points || []).length} quiz=${(result.quiz_questions || []).length}`)
           }
         }
       }
 
-      // Last-resort: single tiny window if everything failed
-      if (windowResults.length === 0) {
+      // Last-resort: single tiny window if everything failed.
+      // Skipped when the DAILY quota is gone: a smaller window is still a
+      // call, and the cap rejects it exactly as it rejected the big one.
+      // Trying anyway is how the 05.10.2026 run spent another ~20s and a
+      // third 429 to arrive at the same place.
+      if (windowResults.length === 0 && !dailyQuotaExhausted) {
         console.warn('All windows failed — last-resort mini extract on first 5000 chars')
         const mini = await extractWindow(0, extractedText.slice(0, 5000))
         if (mini) windowResults.push(mini)
       }
 
       if (windowResults.length === 0) {
+        if (dailyQuotaExhausted) {
+          console.error('Gunluk Groq kotasi (TPD) doldu — ozet uretilemedi')
+          await markFailed(serviceClient, documentId)
+          return new Response(JSON.stringify({
+            error: 'Günlük AI kotası doldu. Kota saat başı yenilenir — bir süre sonra tekrar deneyin. / Daily AI quota exhausted; it refills gradually, please retry later.'
+          }), {
+            status: 429,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          })
+        }
         console.error('All long-doc windows failed even after shrink retries')
         await markFailed(serviceClient, documentId)
         return new Response(JSON.stringify({
@@ -4081,12 +4851,31 @@ Rules:
             `P${i + 1}: ${String(r.summary || '').slice(0, 600)}`
           ).join('\n')
           const termHint = mergedKeyTerms.slice(0, 20).map((t: any) => t.term).filter(Boolean).join(', ')
+          const synSys = `Merge part digests into one study brief in ${langLabel}. JSON only: {"summary":"...","summary_executive":"...","outline":{"document_title_guess":"","items":[{"id":"o1","heading":"...","blurb":"...","level":1,"order":1,"parent_id":null}]},"sections":[{"heading":"...","summary":"...","key_points":["..."]}]}.
+Use CONCRETE topic names from digests and terms. No meta filler.`
+          const synUser = `Terms: ${termHint}\n\nDigests:\n${digests}`.slice(0, 12000)
+          // Prefers MODEL_EXTRACT, the reverse of the narrative writer.
+          //
+          // These two calls run back to back and used to both want MODEL_HEAVY:
+          // synthesis took it, and the writer — the one call a student actually
+          // reads the output of — found it busy and waited 50 seconds behind it
+          // (05.10.2026). Two calls, two lanes; they should not queue.
+          //
+          // Synthesis is structuring work: fold digests into an outline and
+          // section headings. The writer is prose. So the smaller model takes
+          // the structuring and the better one stays free for the writing,
+          // which is where the difference is visible. Either falls back if its
+          // preferred lane is busy.
+          const synLane = pickLane(
+            [MODEL_EXTRACT, MODEL_HEAVY],
+            estimateTokens(synSys, synUser, 2048),
+            2048
+          )
           const syn = await callGroqJson(
             groqApiKey,
-            `Merge part digests into one study brief in ${langLabel}. JSON only: {"summary":"...","summary_executive":"...","outline":{"document_title_guess":"","items":[{"id":"o1","heading":"...","blurb":"...","level":1,"order":1,"parent_id":null}]},"sections":[{"heading":"...","summary":"...","key_points":["..."]}]}.
-Use CONCRETE topic names from digests and terms. No meta filler.`,
-            `Terms: ${termHint}\n\nDigests:\n${digests}`.slice(0, 12000),
-            { model: MODEL_HEAVY, temperature: 0.25, maxCompletionTokens: 2048, timeoutMs: 30000, maxRetries: 0 }
+            synSys,
+            synUser,
+            { model: synLane, temperature: 0.25, maxCompletionTokens: 2048, timeoutMs: 30000, maxRetries: 0 }
           )
           if (syn?.summary && String(syn.summary).length > 80) bestSummary = String(syn.summary)
           if (syn?.summary_executive) bestExec = String(syn.summary_executive)
@@ -4123,14 +4912,33 @@ Use CONCRETE topic names from digests and terms. No meta filler.`,
         ? selectVisualPages(pdfPageTexts, nearBlankPdfPageIndices, VISION_MAX_IMAGES)
         : { indices: [] as number[], reason: 'kapali' }
 
-      if (analyzeVisuals && visualPlan.indices.length > 0 && budgetLeft() <= VISUAL_MIN_BUDGET_MS) {
+      // Budget the vision pass the way the review gate is budgeted: what the
+      // call would actually WAIT plus what it would actually COST, instead of
+      // a flat reserve.
+      //
+      // VISUAL_MIN_BUDGET_MS is 100s against a 110s pipeline, so vision could
+      // only ever run if it started inside the first ten seconds. On a
+      // single-window document it does. On a multi-window one it never can —
+      // and on 05.10.2026 that is exactly what happened: "Gorsel gecis
+      // atlandi: butce 41096ms <= 100000ms". 41 seconds was plenty for a call
+      // that needs about thirty.
+      //
+      // The reserve was there to leave the narrative writer room. The writer
+      // now falls back to a free lane instead of queueing for a busy one, so
+      // the room it needs is far smaller than 100s.
+      const visionEstTokens = visualPlan.indices.length * VISION_TOKENS_PER_IMAGE + 2000
+      const visionWaitMs = tokenPacer.waitEstimate(visionEstTokens, MODEL_FAST, VISION_MAX_COMPLETION)
+      const visionNeedsMs = visionWaitMs + VISION_CALL_MS + NARRATIVE_WRITER_RESERVE_MS
+      if (analyzeVisuals && visualPlan.indices.length > 0 && budgetLeft() <= visionNeedsMs) {
+        skippedStages.push('gorsel analiz')
         console.log(
-          `Gorsel gecis atlandi: butce ${budgetLeft()}ms <= ${VISUAL_MIN_BUDGET_MS}ms — ` +
+          `Gorsel gecis atlandi: butce ${budgetLeft()}ms <= ${visionNeedsMs}ms ` +
+          `[pacer ${visionWaitMs}ms + cagri ${VISION_CALL_MS}ms + yazar payi ${NARRATIVE_WRITER_RESERVE_MS}ms] — ` +
           `anlati yazarina yer birakiliyor`
         )
       }
 
-      if (analyzeVisuals && visualPlan.indices.length > 0 && budgetLeft() > VISUAL_MIN_BUDGET_MS) {
+      if (analyzeVisuals && visualPlan.indices.length > 0 && budgetLeft() > visionNeedsMs) {
         try {
           console.log(`Gorsel sayfa secimi: [${visualPlan.indices.join(',')}] — ${visualPlan.reason}`)
           await serviceClient.from('documents').update({ processing_stage: 'visual_analysis' }).eq('id', documentId)
@@ -4141,7 +4949,9 @@ Use CONCRETE topic names from digests and terms. No meta filler.`,
             const visualSystemPrompt = `You are an academic study assistant. You are shown page images of the figure/table pages of a lecture document. Their captions were already extracted as text; what you can see and the text cannot is the CONTENT of the graphic itself — the axis ranges, the plotted levels and turning points, the rows of a table, the boxes and arrows of a diagram. Identify exam-relevant content readable in these images that is NOT already covered by these already-known terms: ${knownTermsHint || '(none yet)'}.
 Respond ONLY with JSON in ${langLabel}: {"key_terms":[{"term":"...","definition":"..."}],"key_points":["..."],"quiz_questions":[{"question":"...","answer":"..."}],"sections":[{"heading":"...","summary":"..."}],"tables":[{"title":"...","headers":["..."],"rows":[["..."]]}],"diagrams":[{"title":"...","mermaid":"...","description":"..."}]}
 Rules: only include content actually visible in the images; return empty arrays for any field with nothing new; do not repeat terms already listed above. Reconstruct any table you can read as 'tables' and any flowchart/framework/process image as a Mermaid 'diagrams' entry. Never invent one that isn't visibly there.
-When a chart's shape carries the lesson — where it peaks, when it falls, which period is highest — write that in WORDS as a key_point, naming the value and the year you read ("unemployment peaks near 10.6% in 1982"). Do not attempt to output a series of numbers.`
+When a chart's shape carries the lesson — where it peaks, when it falls, which period is highest — write that in WORDS as a key_point. Do not attempt to output a series of numbers.
+Give a numeric value ONLY when that number is PRINTED on the image: an axis tick, a data label, a gridline you can read the plotted point against. If you are estimating a level by eye, say it in relative words instead ("the highest of the five", "roughly double the previous peak", "falls back to about where it started"). A shape described correctly is worth more than a decimal invented to look precise.
+The example that used to sit here named a real-looking percentage, and a live run copied that number straight out of this prompt into the summary as if it were read from the chart — attached to the wrong period, no less. So there is no numeric example here on purpose. Any figure in your answer must come from the image in front of you.`
 
             const visualUserContent = [
               { type: "text", text: "Analyze these slide images for exam-relevant content not already covered." },
@@ -4161,7 +4971,16 @@ When a chart's shape carries the lesson — where it peaks, when it falls, which
             // MODEL_FAST, not a literal: this call and the review/critic passes
             // are the same Groq model, so they must share one lane — Groq
             // counts them against one TPM bucket and so must we.
-            await tokenPacer.acquire(estVisionTokens, MODEL_FAST)
+            // NOT clamped to the OTPM ceiling, unlike review and the critic.
+            // This call has run at 3072 on every live run without a single
+            // OTPM rejection, while review 429'd at 2500 — which says Groq is
+            // metering a rolling window of actual output rather than each
+            // request's max_tokens, and this call is simply the first on the
+            // qwen lane. Clamping it to ~850 would truncate exactly the
+            // diagrams and tables it exists to extract, so it keeps its room
+            // and instead RECORDS what it spends, which is what makes review
+            // queue behind it correctly a minute later.
+            await tokenPacer.acquire(estVisionTokens, MODEL_FAST, VISION_MAX_COMPLETION)
 
             const visionRes = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
               method: "POST",
@@ -4174,12 +4993,15 @@ When a chart's shape carries the lesson — where it peaks, when it falls, which
                 // from the pacer lane keyed above. One constant, one lane.
                 model: MODEL_FAST,
                 temperature: 0.3,
-                reasoning_effort: "none",
+                // Derived from MODEL_FAST, not written out: if that constant
+                // ever moves to a gpt-oss vision model, a literal "none" here
+                // would 400 exactly the way review did.
+                ...reasoningParamsFor(MODEL_FAST),
                 // Raised alongside the compact-window bump (2048 → 3072):
                 // these near-blank pages are exactly where a table/chart/
                 // diagram is most likely to live, and a Mermaid block or a
                 // multi-row table needs the extra room to avoid truncation.
-                max_completion_tokens: 3072,
+                max_completion_tokens: VISION_MAX_COMPLETION,
                 response_format: { type: "json_object" },
                 messages: [
                   { role: "system", content: visualSystemPrompt },
@@ -4188,14 +5010,23 @@ When a chart's shape carries the lesson — where it peaks, when it falls, which
               })
             }, 0, Math.min(25000, Math.max(10000, budgetLeft() - 15000)))
 
+            // Read the body FIRST so the output spend can be recorded from
+            // Groq's own usage figure. That number is what review collides
+            // with a minute later under the OTPM ceiling, so guessing it is
+            // not good enough: the estimate falls back to the ceiling only
+            // when the response does not report one.
+            tokenPacer.observeHeaders(visionRes.headers, MODEL_FAST)
+            const visionData = visionRes.ok ? await visionRes.json() : null
             // Record the spend either way: a rejected call still consumed the
             // image tokens as far as the minute's budget is concerned, and a
             // successful one must not leave the next caller over-optimistic.
-            tokenPacer.observeHeaders(visionRes.headers, MODEL_FAST)
-            tokenPacer.record(estVisionTokens, MODEL_FAST)
+            tokenPacer.record(
+              Number(visionData?.usage?.total_tokens) || estVisionTokens,
+              MODEL_FAST,
+              Number(visionData?.usage?.completion_tokens) || VISION_MAX_COMPLETION
+            )
 
-            if (visionRes.ok) {
-              const visionData = await visionRes.json()
+            if (visionData) {
               const visionRaw = visionData.choices?.[0]?.message?.content ?? ""
               const visionStripped = stripThinkBlock(visionRaw)
               const visionCleaned = (visionStripped ?? visionRaw).replace(/```json\s*|```/g, '').trim()
@@ -4222,10 +5053,21 @@ When a chart's shape carries the lesson — where it peaks, when it falls, which
                 // chart flattened a log-scale axis into a linear one and
                 // erased the Great Depression trough with it.
                 //
-                // The prompt now asks for that reading in WORDS instead —
-                // "unemployment peaks near 10.6% in 1982" is checkable, keeps
-                // the fact, and cannot be misread as a measured series. Charts
-                // from the TEXT windows are unaffected; those come from
+                // The prompt now asks for that reading in WORDS instead, which
+                // keeps the fact and cannot be misread as a measured series.
+                //
+                // It used to demonstrate that with a worked example naming a
+                // real percentage. That example leaked: on 04.10.2026 the
+                // summary came back claiming unemployment peaked at "10.6% in
+                // 2008-09" — the number lifted verbatim out of this prompt and
+                // pinned to the wrong decade (the real 2008-09 peak is ~10%,
+                // and 10.6 belongs to 1982, which is where the example got it).
+                // A concrete figure inside an instruction is indistinguishable
+                // from a figure read off the page, so the prompt now carries
+                // no numeric example at all and asks for a value only when one
+                // is actually printed on the image.
+                //
+                // Charts from the TEXT windows are unaffected; those come from
                 // figures a document actually tabulates.
                 const newTables = Array.isArray(visionParsed.tables) ? visionParsed.tables : []
                 const newDiagrams = Array.isArray(visionParsed.diagrams) ? visionParsed.diagrams : []
@@ -4242,10 +5084,15 @@ When a chart's shape carries the lesson — where it peaks, when it falls, which
                 for (const t of newTerms) {
                   const n = gateNormalize(String(t?.term || ''))
                   if (n) visionGroundedClaims.add(n)
+                  const term = String(t?.term || '').trim()
+                  const def = String(t?.definition || '').trim()
+                  if (term) visionNotes.push(def ? `${term}: ${def}` : term)
                 }
                 for (const p of newPoints) {
                   const n = gateNormalize(typeof p === 'string' ? p : String(p?.text || p?.point || ''))
                   if (n) visionGroundedClaims.add(n)
+                  const text = (typeof p === 'string' ? p : String(p?.text || p?.point || '')).trim()
+                  if (text) visionNotes.push(text)
                 }
 
                 if (newTerms.length || newPoints.length || newQuiz.length) {
@@ -4314,9 +5161,29 @@ When a chart's shape carries the lesson — where it peaks, when it falls, which
       console.log(`Long-doc merge: terms=${mergedKeyTerms.length} points=${mergedKeyPoints.length} quiz=${mergedQuiz.length} tables=${mergedTables.length} charts=${mergedCharts.length} diagrams=${mergedDiagrams.length} worked_examples=${mergedWorkedExamples.length} summaryLen=${(mergedDraft.summary || '').length}`)
 
       rawContent = JSON.stringify(mergedDraft)
-      sourceTextForReview = windowResults.map((r, i) => `Part ${i + 1}: ${String(r.summary || '').slice(0, 500)}`).join('\n\n')
-      if (sourceTextForReview.length > 4000) {
-        sourceTextForReview = sourceTextForReview.substring(0, 4000) + ' [truncated]'
+      // THE SOURCE, not a summary of it (05.10.2026).
+      //
+      // This used to be the windows' own summaries, each cut to 500 chars:
+      //
+      //   windowResults.map((r, i) => `Part ${i+1}: ${r.summary.slice(0,500)}`)
+      //
+      // So the pass whose job is to check the draft against the document was
+      // handed a summary of the draft instead. It could confirm the draft was
+      // consistent with itself and nothing more — a hallucination that made it
+      // into every window would read as perfectly grounded. Review said so
+      // itself once the verdict was logged: "The source text provided is
+      // truncated and does not contain t[he ...]".
+      //
+      // Every document over CHUNK_THRESHOLD (6,000 chars) takes this path, so
+      // this was the state for every real document.
+      //
+      // There is room for the real thing now: review no longer receives the
+      // whole draft JSON (see buildReviewUserPrompt), which was ~14,000 of the
+      // ~20,000 characters going into the call. The tiers below trim this if a
+      // document is genuinely too big.
+      sourceTextForReview = extractedText
+      if (sourceTextForReview.length > 14000) {
+        sourceTextForReview = sourceTextForReview.substring(0, 14000) + ' [truncated for review]'
       }
     }
 
@@ -4332,22 +5199,62 @@ D) Admin noise — grading, attendance, office hours, textbook edition MUST be r
 E) Grounding — specific facts (numbers, dates, named findings) should cite source location when markers exist
 F) Structure — preserve narrative prose if the draft summary is already flowing paragraphs (Madde 3 writer). Only keep bullet/outline form if the draft summary itself is clearly bullets/outline. Do NOT convert a polished narrative back into fragments.
 
-CITATIONS / GROUNDING:
-${hasPageMarkers
-  ? `Source contains "--- ${pageMarkerLabel} N ---" markers. For important checkable claims in summary and key_points, append inline markers like (${citationUnit} N) using real N values from markers you can see — never invent page numbers. Also keep footnotes[{id, reference, page}] where page is that N or null.`
-  : `Page markers are not available. Do not invent page numbers. Keep footnotes with page: null unless a real page is already in the draft.`}
+CITATIONS / GROUNDING — DO NOT ADD PAGE NUMBERS.
+Citations are attached deterministically after you, by code that indexes the
+WHOLE document. You are shown only a truncated slice of the source, so any
+(${citationUnit} N) you write would be anchored to the part you happen to see
+rather than to where the claim actually comes from. ${hasPageMarkers
+  ? `A live run proved this: every one of 11 markers you added came out as "(${citationUnit} 1)", for facts spread across 30 pages.`
+  : `Page markers are not even available here.`}
+So: do not write (${citationUnit} N) markers, and do not invent page numbers.
+Keep any marker the draft already had exactly as it is. Judge grounding by
+whether the source supports a claim, and report what it does not in "issues".
 
 FOOTNOTES: Preserve existing footnote page values when present; only change if the visible source clearly contradicts them.
 
 SECTIONS / OUTLINE: Preserve structure; refine inaccurate section summaries; remove admin-only sections.
 
-OUTPUT: Return the REFINED full study-card JSON in the same shape as the draft, PLUS:
-"quality_gate": { "pass": boolean, "grounded": boolean, "issues": [ string ] }
-- pass=false only for serious problems (hallucinations, missing thesis, heavy admin noise left in)
-- grounded=true if important claims are citation-backed or source clearly supports them
-- issues: short list of remaining concerns (empty array if clean)
+OUTPUT — READ CAREFULLY. Respond ONLY with a single JSON object. Do NOT
+re-emit the study card, and do NOT rewrite the summary. Return your
+CORRECTIONS and your verdict, as JSON:
 
-JSON shape: { "summary": string, "summary_executive": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "document_type": string, "footnotes": [ { "id": number, "reference": string, "page": number | null } ], "outline": { ... }, "sections": [ { "heading": string, "summary": string, "key_points": [ string ], "outline_id": string | null } ], "suggested_course_tag": string | null, "is_quantitative": boolean, "quality_gate": { "pass": boolean, "grounded": boolean, "issues": [ string ] } }.
+{ "corrections": [ { "find": string, "replace": string } ], "summary_executive": string, "footnotes": [ { "id": number, "reference": string, "page": number | null } ], "quality_gate": { "pass": boolean, "grounded": boolean, "issues": [ string ] } }
+
+- "corrections": the sentences in the draft summary that are WRONG, and what
+  they should say. At most 8. "find" must be copied EXACTLY from the draft
+  summary, character for character, and must be long enough to appear only
+  once — a whole sentence is right, three words is not. "replace" is that
+  sentence corrected. A correction whose "find" cannot be located is thrown
+  away, so copy carefully rather than paraphrasing.
+  Correct: a wrong year, a figure attributed to the wrong period, a claim the
+  source does not support, admin noise that survived. Return [] when the
+  narrative is sound — an empty list is a perfectly good answer, and inventing
+  changes to look thorough makes the card worse.
+  Do NOT rewrite sentences merely to restyle them.
+- "summary_executive": the corrected executive summary, in full. It is short,
+  so it fits.
+- "footnotes": optional. Omit the field entirely if you are not changing it.
+
+Why corrections and not a rewrite: your reply is capped at a few hundred
+tokens, and the summary alone is longer than that. Asked for the whole thing
+you would have to compress it, and a measured run did exactly that — 2,157
+characters came back as 635, losing three quarters of the card to make room.
+Your edits are applied to the original text, so the summary keeps its length
+and gets your fixes.
+- "quality_gate":
+  - pass=false only for serious problems (hallucinations, missing thesis,
+    heavy admin noise left in)
+  - grounded=true if important claims are citation-backed or source clearly
+    supports them
+  - issues: short list of remaining concerns, naming anything wrong in
+    key_terms / key_points / quiz_questions so it can be fixed separately
+    (empty array if clean)
+
+key_terms, key_points, quiz_questions, sections and outline are NOT yours to
+rewrite — leave them out of your answer completely. They are carried over
+from the draft unchanged. Report problems with them in "issues" instead.
+This keeps your answer short enough to finish; an answer that runs out of
+room is worse than no answer.
 Preserve summary_executive, outline, and deep sections unless clearly wrong.
 DO NOT include "tables", "charts", "diagrams", "worked_examples", "formulas", "concept_graph", or "cloze_cards" in your output at all — omit those keys entirely. They are extracted/validated separately outside this review step and are not part of your job; re-emitting them here only burns completion-token budget that "summary"/"sections"/"key_points" need.`
 
@@ -4358,16 +5265,45 @@ DO NOT include "tables", "charts", "diagrams", "worked_examples", "formulas", "c
       } else if (trimmedSource.length > sourceBudgetChars) {
         trimmedSource = trimmedSource.substring(0, sourceBudgetChars) + " [truncated for review]"
       }
+      // Send ONLY the narrative under review, not the whole draft card.
+      //
+      // The full JSON was ~14,000 of the ~20,000 characters in this call —
+      // 32 key terms, 16 key points, 13 quiz questions, sections, outline —
+      // none of which review may rewrite any more. It was spending two thirds
+      // of its input budget on material it cannot touch, while the source it
+      // must check against was cut to 4,000 characters.
+      //
+      // Swapping them costs nothing and buys review the whole document.
+      let narrative = ''
+      try {
+        const d = JSON.parse(rawContent)
+        narrative = JSON.stringify({
+          summary: d?.summary ?? '',
+          summary_executive: d?.summary_executive ?? ''
+        }, null, 1)
+      } catch {
+        // Unparseable draft: fall back to the raw text rather than sending
+        // nothing, so review still has something to check.
+        narrative = rawContent.slice(0, 4000)
+      }
+      // Figure annotations live in the images, never in the extracted text.
+      // Without this block review would treat every correct chart reading as
+      // unsupported, and could not catch a wrong one either. See visionNotes.
+      const figureBlock = visionNotes.length
+        ? `\n\nRead from the document's FIGURES and TABLES (page images, not present in the text above — treat these as source, equally authoritative):\n${visionNotes.slice(0, 20).map(n => `- ${n}`).join('\n')}`
+        : ''
+
       return `Original requested format parameters:
 - Summary Style: ${style}
 - Summary Length: ${len}
 - Summary Language: ${lang}
 
 Original source text:
-${trimmedSource}
+${trimmedSource}${figureBlock}
 
-Draft JSON summary:
-${rawContent}`
+The draft narrative you are reviewing (these two fields only — the rest of
+the study card is not yours to change, and is not shown):
+${narrative}`
     }
 
     // ==========================================================================
@@ -4378,7 +5314,8 @@ ${rawContent}`
       if (depthFlags.skipNarrativeWriter) {
         console.log('Madde 6: skipping narrative writer (depth=brief)')
       } else if (budgetLeft() < 35_000) {
-        console.log('HOTFIX: skipping narrative writer (low budget', budgetLeft(), 'ms)')
+        console.log('Madde 3: anlati yazari atlandi (butce', budgetLeft(), 'ms)')
+        skippedStages.push('anlati yazari')
       } else {
       await serviceClient.from('documents').update({ processing_stage: 'writing' }).eq('id', documentId)
 
@@ -4459,10 +5396,24 @@ ${keyPointsBlock || '(none)'}
 Existing draft summary (keep factual content; rewrite only for flow):
 ${String(draftObj.summary || '').slice(0, 3500)}`
 
+        // MODEL_HEAVY first — this is the one call where prose quality is the
+        // product. But a 57s queue for it, measured on 05.10.2026, is not a
+        // quality decision; it is the difference between a written summary and
+        // the skipped-writer path that leaves the card with none. When heavy
+        // is busy and extract is free, take extract.
+        const writerCompletion = depthFlags.longNarrative || len === 'long' || len === 'detailed' ? 3072 : 2048
+        const writerLane = pickLane(
+          [MODEL_HEAVY, MODEL_EXTRACT],
+          estimateTokens(writerSys, writerUser, writerCompletion),
+          writerCompletion
+        )
+        if (writerLane !== MODEL_HEAVY) {
+          console.log(`Madde 3: yazar ${writerLane} seridine alindi (${MODEL_HEAVY} mesgul)`)
+        }
         const written = await callGroqJson(groqApiKey, writerSys, writerUser, {
-          model: MODEL_HEAVY,
+          model: writerLane,
           temperature: 0.2,
-          maxCompletionTokens: depthFlags.longNarrative || len === 'long' || len === 'detailed' ? 3072 : 2048,
+          maxCompletionTokens: writerCompletion,
           timeoutMs: Math.min(35000, Math.max(12000, budgetLeft() - 5000)),
           maxRetries: 1
         })
@@ -4534,10 +5485,23 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
     //
     // Declared above the gate because the gate needs tier 0's size to ask the
     // pacer what the call would cost in time.
+    // Completion budgets sized for what review now RETURNS, not for the whole
+    // study card it used to re-emit: a ~950-char summary (~300 tokens), a
+    // short executive summary and quality_gate fit well inside 850. The old
+    // 2500/1800/1200 ladder was both unnecessary after the contract was
+    // narrowed AND impossible — qwen's OTPM ceiling is 1000, so every rung
+    // 429'd on 04.10.2026 before the model saw a single token of the draft.
+    // clampCompletion() enforces the ceiling independently, in case this list
+    // and MODEL_OTPM ever drift apart.
+    // Source budgets raised now that the draft card no longer rides along:
+    // 11,000 characters covers the whole reference document, which is the
+    // point — review cannot check a claim against a source it was not shown.
+    // These are CONTENT budgets — what the answer itself needs. The number
+    // actually sent adds reasoning headroom per lane, see reviewCompletionFor.
     const reviewTiers: Array<{ sourceChars: number; maxCompletionTokens: number }> = [
-      { sourceChars: 4000, maxCompletionTokens: Math.min(2500, REVIEW_MAX_COMPLETION) },
-      { sourceChars: 1200, maxCompletionTokens: 1800 },
-      { sourceChars: 0, maxCompletionTokens: 1200 }
+      { sourceChars: 11000, maxCompletionTokens: Math.min(850, REVIEW_MAX_COMPLETION) },
+      { sourceChars: 5000, maxCompletionTokens: 700 },
+      { sourceChars: 1500, maxCompletionTokens: 550 }
     ]
 
     // WHY THIS IS NOT A FLAT 55s ANY MORE (2026-10-04, measured):
@@ -4557,7 +5521,22 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
       buildReviewUserPrompt(reviewTiers[0].sourceChars),
       reviewTiers[0].maxCompletionTokens
     )
-    const reviewWaitMs = tokenPacer.waitEstimate(reviewEstTokens, MODEL_FAST)
+    // The last call still pinned to one model. It was put on MODEL_FAST to
+    // keep it off the draft's lane — which is exactly what pickLane does now,
+    // and better, because it looks at what is actually free. Pinning also made
+    // review inherit whatever the vision pass had just spent on qwen: on
+    // 05.10.2026 vision finished 2 seconds earlier and review was quoted a 58s
+    // wait on a lane it had no reason to be on.
+    const reviewLane = pickLane(
+      [MODEL_FAST, MODEL_EXTRACT, MODEL_HEAVY],
+      reviewEstTokens,
+      reviewTiers[0].maxCompletionTokens
+    )
+    const reviewWaitMs = tokenPacer.waitEstimate(
+      reviewEstTokens,
+      reviewLane,
+      reviewTiers[0].maxCompletionTokens
+    )
     // The work half is derived, not guessed: one attempt can take at most the
     // fetch timeout, and everything after review (parse, grounding gate,
     // near-duplicate merge, citation anchoring, cloze build, save) is
@@ -4581,6 +5560,7 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
     let rawFinalContent = ""
 
     if (shouldSkipReview) {
+      if (useChunkedPipeline) skippedStages.push('review')
       console.log(
         `Review atlandi (chunked=${useChunkedPipeline}, depth=${depth}, ` +
         `budgetLeft=${budgetLeft()}ms, gereken=${reviewNeedsMs}ms ` +
@@ -4591,7 +5571,7 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
       await serviceClient.from('documents').update({ processing_stage: 'saving' }).eq('id', documentId)
     } else {
       console.log(
-        `Review BASLIYOR (model=${MODEL_FAST}, budgetLeft=${budgetLeft()}ms, ` +
+        `Review BASLIYOR (model=${reviewLane}, budgetLeft=${budgetLeft()}ms, ` +
         `gereken=${reviewNeedsMs}ms [pacer beklemesi ${reviewWaitMs}ms, ` +
         `${reviewRetries + 1} deneme], est=${reviewEstTokens} token)`
       )
@@ -4606,12 +5586,40 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
       for (let i = 0; i < reviewTiers.length; i++) {
         const tier = reviewTiers[i]
         const attemptPrompt = buildReviewUserPrompt(tier.sourceChars)
+        // Lane first (thinking room), ceiling second (qwen's OTPM).
+        const tierCompletion = tokenPacer.clampCompletion(
+          reviewLane,
+          reviewCompletionFor(reviewLane, tier.maxCompletionTokens)
+        )
+        // THE GATE'S PROMISE HAS TO HOLD FOR THE WHOLE LOOP, NOT ONE FETCH.
+        // The gate above budgets wait + attempt + tail, but this is a loop of
+        // up to three tiers and EACH ONE can sit through its own pacer wait.
+        // On 04.10.2026 two 60s waits stacked inside here: the gate promised
+        // 38s, the loop ran 81s, and the 150s Edge wall clock killed the
+        // function mid-review — leaving the document stuck on "reviewing"
+        // with no summary and no failure marker. A tier that cannot finish
+        // inside the remaining budget must not be started.
+        const tierWaitMs = tokenPacer.waitEstimate(
+          estimateTokens(reviewSystemPrompt, attemptPrompt, tierCompletion),
+          reviewLane,
+          tierCompletion
+        )
+        const tierNeedsMs = tierWaitMs + REVIEW_ATTEMPT_TIMEOUT_MS + REVIEW_TAIL_MS
+        if (i > 0 && budgetLeft() < tierNeedsMs) {
+          console.warn(
+            `Review tier ${i + 1} atlandi — butce yetmiyor ` +
+            `(kalan=${budgetLeft()}ms, gereken=${tierNeedsMs}ms [pacer ${tierWaitMs}ms]). ` +
+            `Taslak korunuyor.`
+          )
+          rawFinalContent = rawContent
+          break
+        }
         // This call does NOT go through callGroqJson, so like the vision call
         // it has to pay the pacer itself. Without this it both fires into a
         // full window (429) and never records what it spent, leaving the
         // critic pass after it believing the lane is emptier than it is.
-        const attemptEst = estimateTokens(reviewSystemPrompt, attemptPrompt, tier.maxCompletionTokens)
-        await tokenPacer.acquire(attemptEst, MODEL_FAST)
+        const attemptEst = estimateTokens(reviewSystemPrompt, attemptPrompt, tierCompletion)
+        await tokenPacer.acquire(attemptEst, reviewLane, tierCompletion)
         let attemptResponse: Response
         try {
           attemptResponse = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
@@ -4621,13 +5629,16 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
               "Content-Type": "application/json"
             },
             body: JSON.stringify({
-              // Deliberately a DIFFERENT model than the Draft pass above
-              // (openai/gpt-oss-120b). Groq tracks tokens-per-minute limits
-              // PER MODEL — review draws from MODEL_FAST quota.
-              model: MODEL_FAST,
+              // reviewLane is chosen at runtime by pickLane (509bd5f) — it is
+              // whichever of MODEL_FAST / MODEL_EXTRACT / MODEL_HEAVY can take
+              // the call soonest, NOT a fixed second model. Groq meters TPM
+              // per model, so spreading review across lanes is the point.
+              model: reviewLane,
               temperature: 0.2,
-              reasoning_effort: "none",
-              max_completion_tokens: tier.maxCompletionTokens,
+              // Derived from reviewLane, never a literal: a hardcoded
+              // reasoning_effort:"none" here 400'd on every gpt-oss lane.
+              ...reasoningParamsFor(reviewLane),
+              max_completion_tokens: tierCompletion,
               response_format: { type: "json_object" },
               messages: [
                 { role: "system", content: reviewSystemPrompt },
@@ -4644,14 +5655,31 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
           })
         }
 
-        tokenPacer.observeHeaders(attemptResponse.headers, MODEL_FAST)
+        tokenPacer.observeHeaders(attemptResponse.headers, reviewLane)
         const attemptData = await attemptResponse.json()
+
+        // What the thinking actually cost. REASONING_HEADROOM is a starting
+        // value chosen from one failure, and the only honest way to set it is
+        // to watch this number across a few documents: if reasoning routinely
+        // comes in at 400, the headroom is wasting pacer budget and pushing
+        // review past its gate on long documents; if it comes in at 1,100,
+        // the margin is thinner than it looks.
+        const usage = attemptData?.usage
+        const reasoned = Number(usage?.completion_tokens_details?.reasoning_tokens)
+        if (usage) {
+          console.log(
+            `Review token: completion=${usage.completion_tokens ?? '?'}` +
+            `${Number.isFinite(reasoned) ? ` (reasoning=${reasoned}, icerik=${(usage.completion_tokens ?? 0) - reasoned})` : ''}` +
+            ` / butce=${tierCompletion} [${reviewLane}]`
+          )
+        }
         // Record either way: a rejected call still consumed the minute's
         // budget as far as Groq is concerned, and the next tier (or the
         // critic) must not start out over-optimistic.
         tokenPacer.record(
           Number(attemptData?.usage?.total_tokens) || attemptEst,
-          MODEL_FAST
+          reviewLane,
+          Number(attemptData?.usage?.completion_tokens) || tierCompletion
         )
 
         if (attemptResponse.ok) {
@@ -4674,7 +5702,15 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
       }
 
       if (!rawFinalContent) {
-        rawFinalContent = groqReviewData?.choices?.[0]?.message?.content ?? ""
+        const reviewOut = groqReviewData?.choices?.[0]?.message?.content ?? ""
+        if (reviewOut) {
+          // Never let review's answer BE the final content — merge it onto the
+          // draft, so a short or truncated answer can only fail to improve
+          // things, not delete them. See mergeReviewOntoDraft.
+          const { merged, notes } = mergeReviewOntoDraft(rawContent, reviewOut)
+          rawFinalContent = merged
+          console.log(`Review birlestirme: ${notes.length ? notes.join(', ') : 'degisiklik yok'}`)
+        }
       }
       if (!rawFinalContent) {
         console.error('Empty response content from Groq Review: ', JSON.stringify(groqReviewData))
@@ -4742,7 +5778,10 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
       pass: true,
       grounded: false,
       issues: [] as string[],
-      critic_retry: false
+      critic_retry: false,
+      // The SAME array, by reference, not a copy: the critic's own skip
+      // decision is made further down and must still land in the saved card.
+      skipped_stages: skippedStages
     }
     if (parsedContent.quality_gate && typeof parsedContent.quality_gate === 'object') {
       qualityMeta = {
@@ -4751,7 +5790,11 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
         issues: Array.isArray(parsedContent.quality_gate.issues)
           ? parsedContent.quality_gate.issues.map((x: any) => String(x).slice(0, 200)).slice(0, 8)
           : [],
-        critic_retry: false
+        critic_retry: false,
+        // Carried through the quality_gate branch too — this is set by OUR
+        // budget decisions, not by the model, so it must survive the model's
+        // verdict replacing the rest of this object.
+        skipped_stages: skippedStages
       }
     }
     // Heuristic grounded: footnotes with page numbers or inline (s. N)/(slayt N)
@@ -4769,12 +5812,34 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
     // timeout at the save step costs far more than keeping an unpolished
     // summary. (We have already seen one run lose ~3 minutes of completed work
     // at exactly that step.)
-    const criticWaitMs = tokenPacer.waitEstimate(
+    // The completion budget must be passed to waitEstimate, not just to the
+    // call. Without it the OTPM branch sees estCompletion=0, reports no wait,
+    // and the guard waves the critic through — then acquire() sits out a full
+    // 60s output window anyway. That is exactly what happened on 04.10.2026:
+    // guard said "no wait", the critic waited 60.1s, and the run reached 135s
+    // of the 150s Edge wall clock.
+    const criticLane = pickLane(
+      [MODEL_FAST, MODEL_EXTRACT, MODEL_HEAVY],
       estimateTokens('', summaryText.slice(0, 4000), 2048),
-      MODEL_FAST
+      2048
+    )
+    // Same reasoning-headroom rule as review, and the critic needs it more:
+    // it rewrites the whole summary (~2,500 characters, ~800 tokens), so on a
+    // gpt-oss lane a flat 2,048 leaves well under that once the thinking is
+    // paid for. A short result is rejected by the NARRATIVE_MIN_KEEP_RATIO
+    // floor below, which would turn a budget problem into a silent no-op.
+    const criticCompletion = tokenPacer.clampCompletion(
+      criticLane,
+      reviewCompletionFor(criticLane, 2048)
+    )
+    const criticWaitMs = tokenPacer.waitEstimate(
+      estimateTokens('', summaryText.slice(0, 4000), criticCompletion),
+      criticLane,
+      criticCompletion
     )
     const criticNeedsMs = criticWaitMs + 30_000
     if (qualityMeta.pass === false && qualityMeta.issues.length > 0 && budgetLeft() < criticNeedsMs) {
+      skippedStages.push('critic')
       console.log(
         `Madde 4: critic atlandi (budgetLeft=${budgetLeft()}ms, ` +
         `gereken=${criticNeedsMs}ms [pacer ${criticWaitMs}ms + is 30000ms])`
@@ -4786,22 +5851,36 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
 Fix the listed issues. Remove hallucinations and admin noise. Keep ${langLabel}. Keep narrative prose. Do not invent facts.`
         const fixUser = `Issues to fix:\n${qualityMeta.issues.map((i: string) => `- ${i}`).join('\n')}\n\nCurrent summary:\n${summaryText.slice(0, 4000)}\n\nCurrent executive:\n${String(parsedContent.summary_executive || '').slice(0, 500)}`
         const fixed = await callGroqJson(groqApiKey, fixSys, fixUser, {
-          model: MODEL_FAST,
+          model: criticLane,
           temperature: 0.2,
-          maxCompletionTokens: 2048,
+          maxCompletionTokens: criticCompletion,
           timeoutMs: 25000,
           maxRetries: 0
         })
-        if (fixed?.summary && String(fixed.summary).trim().length > 80) {
-          parsedContent.summary = String(fixed.summary).trim()
+        // Same floor as the review merge: the critic runs on whichever lane
+        // pickLane gave it, clamped to that lane's OTPM ceiling, so it can
+        // easily have less room than the narrative writer that produced this
+        // text. A "fix" that returns a quarter of the summary is compression,
+        // not a fix.
+        const fixedSummary = String(fixed?.summary || '').trim()
+        const keepFloor = summaryText.length * NARRATIVE_MIN_KEEP_RATIO
+        if (fixedSummary.length > 80 && fixedSummary.length >= keepFloor) {
+          parsedContent.summary = fixedSummary
           qualityMeta.critic_retry = true
           qualityMeta.pass = true
           qualityMeta.issues = []
+          console.log('Madde 4: critic rewrite applied')
+        } else if (fixedSummary.length > 80) {
+          console.warn(
+            `Madde 4: critic yazisi REDDEDILDI — ${fixedSummary.length} krk dondu, ` +
+            `taslak ${summaryText.length} krk (esik ${Math.round(keepFloor)}). Taslak korunuyor.`
+          )
         }
-        if (fixed?.summary_executive && String(fixed.summary_executive).trim().length > 20) {
-          parsedContent.summary_executive = String(fixed.summary_executive).trim()
+        const fixedExec = String(fixed?.summary_executive || '').trim()
+        const execFloor = String(parsedContent.summary_executive || '').length * NARRATIVE_MIN_KEEP_RATIO
+        if (fixedExec.length > 20 && fixedExec.length >= execFloor) {
+          parsedContent.summary_executive = fixedExec
         }
-        console.log('Madde 4: critic rewrite applied')
       } catch (critErr) {
         console.warn('Madde 4 critic rewrite skipped:', critErr)
       }
