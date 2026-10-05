@@ -19,6 +19,13 @@ const { loadFromSource, makeRunner } = require('./_ts-extract.js');
 
 const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'ANCHOR_STOPWORDS', 'anchorTerms',
+  // Reasoning parametrelerinin model ailesine gore turetilmesi.
+  // DIKKAT: bu dosyada loadFromSource SADECE burada cagrilmali. Her cagri
+  // 5.900 satirlik kaynagi senkron olarak transpile ediyor ve olay dongusunu
+  // yuzlerce ms blokluyor; asagidaki pacer testleri gercek duvar saatine
+  // bakiyor, bu yuzden testin ORTASINDA yapilan bir transpile onlari
+  // uydurma sekilde basarisiz gosteriyor (05.10.2026'da tam bu oldu).
+  'reasoningParamsFor',
   // token hizlandirici (TPM)
   'PACER_SAFETY', 'PACER_WINDOW_MS', 'PACER_MAX_WAIT_MS', 'PACER_COMPLETION_FACTOR',
   'DEFAULT_TPM_LIMIT', 'MODEL_OTPM', 'OTPM_SAFETY', 'VISION_MAX_COMPLETION', 'PIPELINE_BUDGET_MS', 'REVIEW_ATTEMPT_TIMEOUT_MS', 'REVIEW_TAIL_MS',
@@ -2365,6 +2372,64 @@ test('review ve critic de serit secebiliyor', () => {
   // qwen tek gorme yetenekli model).
   const pinned = [...SRC.matchAll(/model: MODEL_FAST/g)].length;
   assert.equal(pinned, 1, `MODEL_FAST e sabit ${pinned} cagri var, sadece vision olmali`);
+});
+
+test('dinamik serit secen cagrida sabit reasoning_effort yok', () => {
+  /* 05.10.2026 — tam bu testin yoklugu review u ekonomi belgesinde oldurdu.
+     509bd5f review u serbest birakti, review gpt-oss-120b ye dustu, ve
+     govdesinde elle yazilmis reasoning_effort:"none" tasidigi icin Groq
+     cevap verdi:
+
+       400  `reasoning_effort` must be one of `low`, `medium`, or `high`
+
+     Ustelik o 400'u almak icin 52 saniyelik pacer beklemesi odenmisti.
+
+     Kural: `model` calisma aninda secilen bir degiskense (reviewLane,
+     criticLane, synLane, writerLane, windowLane) ayni govdede reasoning
+     parametresi SABIT olamaz — reasoningParamsFor(lane) ile turetilmeli. */
+  const LANE_VARS = /model:\s*(reviewLane|criticLane|synLane|writerLane|windowLane|MODEL_FAST|MODEL_HEAVY|MODEL_EXTRACT)\b/g;
+  const ihlaller = [];
+  for (const m of SRC.matchAll(LANE_VARS)) {
+    // Ayni istek govdesini tara: `model:` satirindan sonraki ~700 karakter
+    // bu cagrinin parametrelerini kapsiyor. YORUMLAR CIKARILIR — aksi halde
+    // bu testin kendi aciklama yorumu ("reasoning_effort:\"none\" 400 doner")
+    // ihlal sayiliyor; ilk kosusta tam bu oldu.
+    const govde = SRC.slice(m.index, m.index + 700).replace(/\/\/[^\n]*/g, '');
+    const literal = govde.match(/reasoning_effort:\s*"(\w+)"/);
+    if (literal) {
+      const satir = SRC.slice(0, m.index).split('\n').length;
+      ihlaller.push(`satir ${satir}: model: ${m[1]} + reasoning_effort: "${literal[1]}"`);
+    }
+  }
+  assert.equal(
+    ihlaller.length, 0,
+    'degisken model ile sabit reasoning_effort bir arada olamaz — ' +
+    'reasoningParamsFor(model) kullan:\n  ' + ihlaller.join('\n  ')
+  );
+});
+
+test('reasoningParamsFor iki model ailesini dogru ayiriyor', () => {
+  const { reasoningParamsFor } = A;   // tepede bir kez yuklendi, bkz. yukarisi
+
+  // gpt-oss: "none" KABUL ETMIYOR, en dusugu "low".
+  for (const m of ['openai/gpt-oss-120b', 'openai/gpt-oss-20b']) {
+    const p = reasoningParamsFor(m);
+    assert.equal(p.reasoning_effort, 'low', `${m} icin low olmali`);
+    assert.equal(p.include_reasoning, false, `${m} icin dusunce blogu kapanmali`);
+  }
+
+  // qwen: varsayilan olarak dusunuyor, kapatilmali.
+  assert.equal(reasoningParamsFor('qwen/qwen3.8-27b').reasoning_effort, 'none');
+
+  // Taninmayan model: parametre GONDERILMEMELI. Desteklenmeyen bir parametre
+  // 400 doner; sessizce atlamak sadece biraz reasoning tokeni maliyeti.
+  assert.deepEqual(reasoningParamsFor('bilinmeyen/model-x'), {});
+
+  // Hicbiri "none" i gpt-oss e vermemeli — kirilan tam buydu.
+  for (const m of ['openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'gpt-oss-safety']) {
+    assert.notEqual(reasoningParamsFor(m).reasoning_effort, 'none',
+      `${m} icin "none" 400 doner`);
+  }
 });
 
 summary().then(() => process.exit(process.exitCode || 0));
