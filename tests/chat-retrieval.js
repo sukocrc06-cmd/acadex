@@ -351,6 +351,58 @@ test('uzun cevap gerektirmeyen soruda completion rezervi dusuk', () => {
     'sabit 2048 kalmamali');
 });
 
+test('gunluk kota biten modelde baska seride dusuluyor', () => {
+  /* 05.10.2026 19:20 — "stagflasyon nedir" cevapsiz kaldi:
+
+       Rate limit reached for `openai/gpt-oss-120b` ... tokens per day (TPD):
+       Limit 200000, Used 198585. Try again in 24m2.88s
+
+     Istekte bir sorun yoktu; BIR modelin gunluk hakki bitmisti ve cagri o
+     modele civiliydi. Groq TPD'yi model basina sayiyor, diger iki seridin
+     200.000'i el degmemis duruyordu. */
+  assert.ok(/const textLanes = \[/.test(CHAT_SRC), 'serit listesi olmali');
+  const liste = CHAT_SRC.match(/const textLanes = \[([^\]]+)\]/)[1];
+  for (const m of ['gpt-oss-120b', 'gpt-oss-20b', 'qwen']) {
+    assert.ok(liste.includes(m), `${m} serit listesinde olmali`);
+  }
+  assert.ok(liste.indexOf('120b') < liste.indexOf('20b'),
+    'kalite sirasi: buyuk model once denenmeli');
+  assert.ok(!/model: "openai\/gpt-oss-120b"/.test(CHAT_SRC),
+    'metin cagrisi hala tek modele civili');
+});
+
+test('serit zincirinde reasoning parametresi modele gore', () => {
+  // gpt-oss "none" i reddediyor, qwen tam da onu istiyor. Ozetleme tarafinda
+  // bu hata review'u tamamen oldurmustu (400 reasoning_effort).
+  assert.ok(
+    /lane\.includes\('qwen'\)\s*\?\s*\{ reasoning_effort: "none" \}/.test(CHAT_SRC),
+    'qwen none almali'
+  );
+  assert.ok(
+    /\{ reasoning_effort: "low", include_reasoning: false \}/.test(CHAT_SRC),
+    'gpt-oss low almali'
+  );
+});
+
+test('gunluk kota hatasi "biraz sonra dene" demiyor', () => {
+  // Gunluk kota bir dakikada acilmiyor; "please try again in a moment"
+  // ogrenciyi bosuna 40 kez denemeye itiyor.
+  assert.ok(/tokens per day\|TPD/.test(CHAT_SRC), 'gunluk kota ayirt edilmeli');
+  assert.ok(/Bugünkü AI kotamız doldu/.test(CHAT_SRC), 'kullaniciya dogru sey soylenmeli');
+});
+
+test('CHARS_PER_TOKEN olcumden geliyor, mirastan degil', () => {
+  // Olculen: 4.18 krk/token (4364 token / 18236 krk). Eski 3.2 %31 kotumserdi
+  // ve ekonomi belgesini kestiriyordu. 4.18 degil 3.9: olcum Ingilizce
+  // kaynak uzerinde, Turkce metin daha yogun tokenlesiyor.
+  assert.ok(A.CHARS_PER_TOKEN > 3.2, 'eski kotumser deger birakilmali');
+  assert.ok(A.CHARS_PER_TOKEN < 4.18, 'olculen degerin ustune cikilmamali — pay kalmali');
+  // Ve olculen oranla ekonomi belgesi artik komple sigmali (asil regresyon).
+  const butce = A.sourceBudgetChars(8392 + 29, false, A.CHAT_MAX_COMPLETION_SHORT);
+  assert.ok(butce >= 10549,
+    `ekonomi belgesi (10549) butceye (${butce}) sigmali — 05.10.2026'da 3983'e kirpilmisti`);
+});
+
 test('gercek token orani loglaniyor (sabit tahmine guvenilmiyor)', () => {
   /* CHARS_PER_TOKEN ogrencinin ne kadar belge gordugune karar veriyor ve
      ozetleme pacer'indan miras alindi; orada kotumser olmak bedava, burada
