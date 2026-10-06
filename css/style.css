@@ -1745,6 +1745,10 @@ button, input {
   border-color: var(--color-border-strong);
 }
 
+.sandbox-preview-frame:hover {
+  border-color: var(--color-teal);
+}
+
 .doc-header {
   display: flex;
   align-items: flex-start;

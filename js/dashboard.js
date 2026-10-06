@@ -10594,6 +10594,32 @@ function renderAuthorSocialLinksHtml(author) {
   return links.length ? `<span style="display: flex; align-items: center; gap: 0.35rem;">${links.join('')}</span>` : '';
 }
 
+function sandboxHostname(url) {
+  try { return new URL(url).hostname.replace(/^www\./, ''); }
+  catch (_) { return url; }
+}
+
+// Sandbox project cards used to embed every live_url in an always-on
+// <iframe> the moment the card rendered. Many hosts (Vercel apps among
+// them) send X-Frame-Options/CSP frame-ancestors headers that refuse to be
+// framed, which the browser renders as a generic broken-page glyph inside
+// the frame — so most cards showed a broken-looking box by default even
+// though nothing was actually wrong. Loading the iframe only once the
+// person clicks the placeholder below turns that automatic broken state
+// into a deliberate action; sites that still refuse to frame just show
+// their own blocked-frame page inside a panel the user chose to open,
+// and the "Canlı Demo" button (new tab) remains the guaranteed fallback.
+function loadSandboxPreview(projectId) {
+  const el = document.getElementById(`sandbox-preview-${projectId}`);
+  if (!el) return;
+  const liveUrl = el.getAttribute('data-live-url');
+  if (!liveUrl) return;
+  el.outerHTML = `<div style="border: 1px solid var(--color-border-subtle); border-radius: var(--radius-sm); overflow: hidden; background: var(--color-bg-alt);">
+    <iframe src="${escapeHtml(liveUrl)}" loading="lazy" sandbox="allow-scripts allow-same-origin allow-popups allow-forms" referrerpolicy="no-referrer" style="width: 100%; height: 220px; border: none; display: block;"></iframe>
+  </div>`;
+}
+window.loadSandboxPreview = loadSandboxPreview;
+
 function renderSandboxPostHtml(proj) {
   const author = proj.author || {};
   const deptClass = getDepartmentColorClass(author.department);
@@ -10648,8 +10674,10 @@ function renderSandboxPostHtml(proj) {
       ` : ''}
 
       ${proj.live_url ? `
-        <div style="border: 1px solid rgba(22, 50, 92, 0.1); border-radius: var(--radius-sm); overflow: hidden; background: var(--color-bg-alt);">
-          <iframe src="${proj.live_url}" loading="lazy" sandbox="allow-scripts allow-same-origin allow-popups allow-forms" referrerpolicy="no-referrer" style="width: 100%; height: 220px; border: none; display: block;"></iframe>
+        <div class="sandbox-preview-frame" id="sandbox-preview-${proj.id}" data-live-url="${escapeHtml(proj.live_url)}" onclick="loadSandboxPreview('${proj.id}')" role="button" tabindex="0" onkeydown="if(event.key==='Enter')loadSandboxPreview('${proj.id}')" style="cursor: pointer; border: 1px solid var(--color-border-subtle); border-radius: var(--radius-sm); overflow: hidden; background: var(--color-bg-alt); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem; height: 180px; transition: border-color var(--transition-fast);">
+          <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--color-teal)" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"></rect><line x1="2" y1="9" x2="22" y2="9"></line><circle cx="5.5" cy="6.5" r="0.6" fill="var(--color-teal)" stroke="none"></circle><circle cx="7.7" cy="6.5" r="0.6" fill="var(--color-teal)" stroke="none"></circle></svg>
+          <span style="font-size: 0.78rem; font-weight: 700; color: var(--color-navy);">Canlı önizlemeyi göster</span>
+          <span style="font-size: 0.68rem; color: var(--color-text-muted);">${escapeHtml(sandboxHostname(proj.live_url))}</span>
         </div>
         <p style="font-size: 0.68rem; color: var(--color-text-muted); margin: -0.35rem 0 0;">Bazı siteler önizlemeye izin vermez — açılmıyorsa aşağıdaki "Canlı Demo" butonunu kullan.</p>
       ` : ''}
