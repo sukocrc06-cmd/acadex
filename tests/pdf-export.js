@@ -225,4 +225,61 @@ test('bozuk/yarim alanlar PDF uretimini patlatmiyor', () => {
   assert.ok(!/\[undefined\]|undefined/.test(txt), `"undefined" basilmamali:\n${txt.slice(0, 400)}`);
 });
 
+/* ==========================================================================
+   SUNUCU HATA MESAJI — kullaniciya ULASIYOR mu
+   ========================================================================== */
+const DASH_SRC = fs.readFileSync(path.join(__dirname, '..', 'js/dashboard.js'), 'utf8');
+const { serverErrorMessage } = new Function(
+  sliceDeclaration(DASH_SRC, 'serverErrorMessage') + '\nreturn { serverErrorMessage };'
+)();
+
+const sahteHata = (govde, status = 503) => ({
+  context: { status, text: async () => govde }
+});
+
+test('sunucunun kendi hata mesaji gosteriliyor', async () => {
+  /* supabase-js 2xx olmayan govdeyi `data`ya koymaz; FunctionsHttpError
+     firlatir ve govde `error.context` icindeki ham Response'ta kalir, yani
+     bilerek okunmasi gerekir. Ozet yolu bunu hep yapiyordu, sohbet yollari
+     hic yapmiyordu ve sunucunun mesajini cope atiyordu.
+
+     Kozmetik degil: chat-with-document gunluk kota bitisini anlik
+     yogunluktan AYIRIYOR, cunku "biraz sonra tekrar dene" dogru cevap
+     "yarin" iken yanlistir ve ogrenciyi yarim saat bosuna denemeye iter.
+     05.10.2026'da TPD dolmusken sorulan soru tam da o genel mesaji aldi:
+     sunucu dogru cumleyi yazmisti, ekran yanlisiyla degistirdi. */
+  const kota = 'Bugünkü AI kotamız doldu — yarın tekrar deneyebilirsin.';
+  const sonuc = await serverErrorMessage(sahteHata(JSON.stringify({ error: kota })), 'genel mesaj');
+  assert.equal(sonuc, kota);
+});
+
+test('govde bos/bozuksa cagiranin mesaji kullaniliyor', async () => {
+  // Govdeyi okurken olusan bir hata, HATANIN KENDISINI yutmamali.
+  for (const govde of ['', 'JSON degil', '{}', '{"error":""}', '{"error":"   "}']) {
+    const sonuc = await serverErrorMessage(sahteHata(govde), 'genel mesaj');
+    assert.equal(sonuc, 'genel mesaj', `govde ${JSON.stringify(govde)} icin yedek mesaj beklenirdi`);
+  }
+  assert.equal(await serverErrorMessage(null, 'genel mesaj'), 'genel mesaj');
+  assert.equal(await serverErrorMessage({}, 'genel mesaj'), 'genel mesaj');
+});
+
+test('her iki sohbet yolu da sunucu mesajini okuyor', () => {
+  // Iki ayri sohbet var (Kaynakla Calis ve Bilgi Karti) ve ikisi de ayni
+  // sabit mesaji tasiyordu; birini duzeltip otekini unutmak kolaydi.
+  const cagri = (DASH_SRC.match(/await serverErrorMessage\(error, isTr/g) || []).length;
+  assert.ok(cagri >= 2, `her iki sohbet yolu da okumali, bulunan: ${cagri}`);
+
+  // Olcut SUNUCU HATASI dalinda helper kullanilmasi — "bu metin hicbir yerde
+  // gecmesin" degil. Ilk yazdigimda genis tutmustum ve `catch` blogundaki
+  // sabit mesaji yakaladi; orasi ag hatasi icin ve orada okunacak bir sunucu
+  // govdesi YOK, yani genel mesaj dogru olan. Test yanlis yeri gosteriyordu.
+  const dallar = [...DASH_SRC.matchAll(/console\.error\('chat-with-document invocation failed[^\n]*\n/g)];
+  assert.ok(dallar.length >= 2, `iki sohbet yolunun hata dali bulunmali, bulunan: ${dallar.length}`);
+  for (const d of dallar) {
+    const sonrasi = DASH_SRC.slice(d.index, d.index + 400);
+    assert.ok(/serverErrorMessage\(error/.test(sonrasi),
+      `bu hata dali sunucu mesajini okumuyor:\n${sonrasi.slice(0, 200)}`);
+  }
+});
+
 summary().then(() => process.exit(process.exitCode || 0));
