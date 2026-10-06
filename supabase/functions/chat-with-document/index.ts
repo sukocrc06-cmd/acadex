@@ -1251,14 +1251,14 @@ Whenever your answer includes a mathematical formula, equation, or expression (v
 STEP-BY-STEP NUMERIC SOLUTIONS:
 When the student asks you to solve, calculate, or work through a numeric/quantitative problem (e.g. compute an interest amount, solve for an unknown, work out a statistic), structure your "answer" as clearly numbered steps rather than one dense paragraph: "1) ...\\n2) ...\\n3) ..." (the same "\\n"-separated-line convention as TABLES AND LISTS above — a literal backslash-n, not a real line break). Each step should name the formula being applied (in LaTeX per MATH FORMULA FORMAT above) and show the actual numbers plugged in, not just the abstract formula in isolation. Finish with a clearly labeled final line such as "Sonuç: ..." or "Final answer: ..." stating the numeric result with correct units. Only use this structured format for genuinely numeric/computational questions — for conceptual/qualitative questions, answer normally in prose.
 ` : ''}
-OUTPUT FORMAT (two parts — read carefully, this is machine-parsed, not just for a human):
-PART 1 — a single-line JSON object, no markdown code fences, no commentary before or after, every string value valid single-line JSON (escape any newlines inside it as "\\n"): { "answer": string, "citations": [ { "id": number, "reference": string } ] }. Do NOT put any diagram inside this JSON object — it only ever holds "answer" and "citations".
-PART 2 — ONLY when DIAGRAM GENERATION above applies, immediately after the JSON object (on new lines, which is fine here since this part is plain text, not JSON) append exactly this block with your Mermaid definition inside it, real line breaks allowed:
+OUTPUT FORMAT (read carefully, this is machine-parsed, not just for a human):
+Respond with a single-line JSON object and NOTHING else${needsVisualRules ? ' except the optional diagram block described below' : ''} — no markdown code fences, no commentary before or after, every string value valid single-line JSON (escape any newlines inside it as "\\n"): { "answer": string, "citations": [ { "id": number, "reference": string } ] }. The "answer" field is required and must never be empty; if you cannot answer from the source, say so IN that field.${needsVisualRules ? `
+Then, ONLY when DIAGRAM GENERATION above applies, immediately after the JSON object (on new lines, which is fine since this part is plain text, not JSON) append exactly this block with your Mermaid definition inside it, real line breaks allowed:
 ###MERMAID_START###
 flowchart TD
   A[Example] --> B[Node]
 ###MERMAID_END###
-Use the literal markers "###MERMAID_START###" and "###MERMAID_END###" on their own lines, nothing else on those lines. If no diagram applies, output NOTHING after the JSON object from PART 1 — do not include the markers at all in that case.
+Use the literal markers "###MERMAID_START###" and "###MERMAID_END###" on their own lines, nothing else on those lines. If no diagram applies, output NOTHING after the JSON object — do not include the markers at all in that case. Do NOT put any diagram inside the JSON object.` : ''}
 ${summaryContextBlock ? `
 STUDY CARD SUMMARY CONTEXT (already generated for this document — may capture a diagram/table/chart's meaning even where the raw source text below is sparse or garbled; cross-check both when relevant):
 """
@@ -1421,11 +1421,25 @@ ${sourceText}
             if (!String(content).trim()) {
               const finish = peek?.choices?.[0]?.finish_reason ?? '?'
               const u = peek?.usage || {}
+              // WHERE the tokens went, not just how many. 06.10.2026:
+              // gpt-oss-120b returned finish_reason=stop with
+              // completion=147 and reasoning=12 — it finished normally and
+              // produced 147 tokens, while `content` was empty. The counts
+              // alone cannot say which field received them, so the message
+              // object's own shape is logged: its keys, and a short head of
+              // every string field. Without this the next empty answer is
+              // the same guess all over again.
+              const msg = peek?.choices?.[0]?.message
+              const sekil = msg && typeof msg === 'object'
+                ? Object.entries(msg).map(([k, v]) =>
+                    `${k}=${typeof v === 'string' ? `"${v.slice(0, 80)}"` : (v === null ? 'null' : typeof v)}`
+                  ).join(' ')
+                : String(msg)
               console.warn(
                 `chat-with-document: ${lane} BOS icerik dondu ` +
                 `(finish_reason=${finish}, completion=${u.completion_tokens ?? '?'}, ` +
                 `reasoning=${u.completion_tokens_details?.reasoning_tokens ?? '?'}, ` +
-                `butce=${maxCompletion})` +
+                `butce=${maxCompletion}) message{ ${sekil} }` +
                 `${i < textLanes.length - 1 ? ' — sonraki seride geciliyor' : ''}`
               )
               lastLaneError = `empty_content finish_reason=${finish}`
