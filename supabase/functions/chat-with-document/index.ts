@@ -1403,6 +1403,34 @@ ${sourceText}
           }, i === textLanes.length - 1 ? 1 : 0, 20000)
 
           if (res.ok) {
+            // A 200 with no content is this lane failing, not the request
+            // failing. 06.10.2026: a student asked "FIFO nedir", Groq
+            // answered 200, the pipeline logged its token ratio and then
+            // returned a silent 502 — the content was empty and the only
+            // visible symptom was the log stopping mid-run.
+            //
+            // The empty answer has to be SEEN here, before the body is
+            // consumed downstream, so the next lane can be tried: the whole
+            // point of the chain is that one model's bad turn is not the end
+            // of the question. finish_reason and the token counts are logged
+            // with it, because "ran out of budget while reasoning" and "the
+            // model simply returned nothing" need different fixes and
+            // guessing between them is how the last silent failure survived.
+            const peek = await res.clone().json().catch(() => null)
+            const content = peek?.choices?.[0]?.message?.content ?? ''
+            if (!String(content).trim()) {
+              const finish = peek?.choices?.[0]?.finish_reason ?? '?'
+              const u = peek?.usage || {}
+              console.warn(
+                `chat-with-document: ${lane} BOS icerik dondu ` +
+                `(finish_reason=${finish}, completion=${u.completion_tokens ?? '?'}, ` +
+                `reasoning=${u.completion_tokens_details?.reasoning_tokens ?? '?'}, ` +
+                `butce=${maxCompletion})` +
+                `${i < textLanes.length - 1 ? ' — sonraki seride geciliyor' : ''}`
+              )
+              lastLaneError = `empty_content finish_reason=${finish}`
+              continue
+            }
             groqResponse = res
             if (i > 0) console.warn(`chat-with-document: ${lane} seridine dusuldu (onceki serit(ler) kullanilamadi)`)
             break
@@ -1473,7 +1501,18 @@ ${sourceText}
 
     let rawContent = groqData.choices?.[0]?.message?.content ?? ""
     if (!rawContent) {
-      return new Response(JSON.stringify({ error: 'AI failed to generate a response' }), {
+      // Reached only when EVERY lane came back empty — the per-lane warning
+      // above has already said which and why. Logged here too so the final
+      // outcome is never a 502 with nothing behind it in the log, which is
+      // exactly how this failure hid on 06.10.2026.
+      console.error(
+        `chat-with-document: tum seritler bos icerik dondu ` +
+        `(finish_reason=${groqData?.choices?.[0]?.finish_reason ?? '?'}, ` +
+        `completion=${groqData?.usage?.completion_tokens ?? '?'})`
+      )
+      return new Response(JSON.stringify({
+        error: 'Yapay zekâ bu soruya yanıt üretemedi — soruyu biraz farklı sorarsan tekrar deneyebilirim.'
+      }), {
         status: 502,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
