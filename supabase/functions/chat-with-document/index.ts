@@ -1348,6 +1348,9 @@ What follows is only the FIRST PART of a longer document. Answer from it exactly
 STRICT GROUNDING RULE:
 Answer ONLY using information that is actually present in the source text${summaryContextBlock ? ' or the study card summary' : ''} below. Do NOT use outside knowledge to fill in gaps, and do NOT invent facts, numbers, names, or details that are not in the text. If the source does not contain enough information to answer the question, say so honestly and clearly (in the student's own language) instead of guessing — you may still briefly explain the general concept if it's common academic knowledge, but you MUST clearly distinguish that from what the source itself says.
 
+COPY TERMS, DON'T RECALL THEM:
+Expand abbreviations, state definitions and write formulas in the SOURCE's wording, never from memory — a half-remembered expansion is what a student copies into an exam. If the source never expands an abbreviation, leave it unexpanded rather than supplying your own.
+
 CITATION RULE:
 When you state a specific fact, definition, number, or claim drawn from the source, add a citation marker like [1], [2], etc. immediately after it, reusing the same marker for the same location if you reference it again. Build a "citations" array in your JSON output: [{ "id": number, "reference": string }], where "reference" briefly names the topical section/heading area the claim came from (e.g. "Bölüm 2 - SEO tartışması" or "Giriş bölümü"). Don't over-cite — reserve markers for specific, checkable claims, not every sentence. If your answer makes no specific checkable claims (e.g. it's just a clarifying question back to the student, or a general "not found in the source" answer), return an empty citations array.
 
