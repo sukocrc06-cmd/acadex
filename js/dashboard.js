@@ -1480,6 +1480,39 @@ function renderChartJs(canvasEl, chartObj) {
 window.renderChartJs = renderChartJs;
 
 
+/**
+ * The message the SERVER actually sent, when it sent one.
+ *
+ * supabase-js does not put a non-2xx body in `data` — it raises a
+ * FunctionsHttpError whose `context` is the raw Response, so the body has to
+ * be read back deliberately. The summarize path has always done this; the
+ * chat paths never did, and threw the server's message away.
+ *
+ * That was not cosmetic. chat-with-document distinguishes a daily quota
+ * exhaustion ("Bugünkü AI kotamız doldu — yarın tekrar deneyebilirsin") from
+ * ordinary load, precisely because "try again in a moment" is wrong when the
+ * right answer is tomorrow and invites a student to retry every thirty
+ * seconds for an hour. On 05.10.2026 a student asked a question with the TPD
+ * limit spent and got exactly that generic retry prompt: the server had
+ * written the right sentence and the screen replaced it with the wrong one.
+ *
+ * Falls back to the caller's generic text when the body carries nothing
+ * useful — a parse failure here must never swallow the error itself.
+ */
+async function serverErrorMessage(error, fallback) {
+  try {
+    if (error && error.context && typeof error.context.text === 'function') {
+      const parsed = JSON.parse(await error.context.text());
+      if (parsed && typeof parsed.error === 'string' && parsed.error.trim()) {
+        return parsed.error.trim();
+      }
+    }
+  } catch (parseErr) {
+    console.warn('serverErrorMessage: hata govdesi okunamadi', parseErr);
+  }
+  return fallback;
+}
+
 function formatFootnoteMarkers(text, footnotesArray) {
   if (!text) return "";
   const footnotesMap = {};
@@ -5134,9 +5167,11 @@ async function sendSourceHubChatMessage(text, imageDataUrl, checkWorkMode) {
 
     if (error || !data || typeof data.answer !== 'string') {
       console.error('chat-with-document invocation failed (Source Hub):', error || data);
-      const errMsg = isTr
+      // Sunucunun kendi mesaji varsa O gosterilir — gunluk kota ile anlik
+      // yogunluk ayni sey degil ve ogrenciye dogrusu soylenmeli.
+      const errMsg = await serverErrorMessage(error, isTr
         ? 'Şu anda cevap veremiyorum, lütfen tekrar deneyin.'
-        : "I couldn't answer right now, please try again.";
+        : "I couldn't answer right now, please try again.");
       renderSourceHubChatMessage('assistant', errMsg, [], null, false, null, false);
       sourceHubChatHistory.pop();
       return;
@@ -18627,9 +18662,9 @@ async function sendDocChatMessage(text, imageDataUrl, checkWorkMode) {
 
     if (error || !data || typeof data.answer !== 'string') {
       console.error('chat-with-document invocation failed:', error || data);
-      const errMsg = isTr
+      const errMsg = await serverErrorMessage(error, isTr
         ? 'Şu anda cevap veremiyorum, lütfen tekrar deneyin.'
-        : "I couldn't answer right now, please try again.";
+        : "I couldn't answer right now, please try again.");
       renderDocChatMessage('assistant', errMsg, []);
       docChatHistory.pop(); // drop the failed user turn so a retry doesn't build bad history
       return;
