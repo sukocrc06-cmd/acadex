@@ -770,6 +770,115 @@ function tryParseJsonLoose(raw: string): any {
   }
 }
 
+/* ===========================================================================
+   SON CARE: SOZLESMEYI ALAN ALAN KURTAR
+   ===========================================================================
+   06.10.2026, serit sirasi 20b-once yapildiktan hemen sonra. Ogrenci "FIFO
+   VE LIFO ARASINDAKI FARK NE" diye sordu ve ekranda "AI returned invalid
+   JSON formatting" gordu. Model aslinda DOGRU ve EKSIKSIZ bir cevap
+   yazmisti; bozuk olan yalnizca sarmalayiciydi:
+
+     {"answer":"FIFO ve LIFO ... [1] [2]"} , "citations":[{"id":1,...}]}
+                                         ^ buraya fazladan bir } dusmus
+
+   JSON.parse 708. karakterde durdu ve 600 kelimelik dogru cevap cope gitti.
+   tryParseJsonLoose bunu kurtaramaz: o, string ICINDEKI kacmamis kontrol
+   karakterlerini onarir, YAPIYI degil.
+
+   Ayraclari onarmaya calismak yanlis yol — nereye kac tane parantez
+   eklenecegini tahmin etmek gerekir. Oysa sozlesme belli: {answer,
+   citations}. O yuzden bu fonksiyon yapiyi hic umursamaz, iki alani
+   BAGIMSIZ olarak okur. Alanlarin arasina ne dusmus olursa olsun etkisi
+   yoktur.
+
+   Kucuk bir model buyuk bir modelden daha sik bicim hatasi yapar; 20b'yi
+   one almanin bedeli bu. Bedel, cevabi atmak degil, sarmalayiciyi es
+   gecmek olmali.
+   =========================================================================== */
+
+/** Verilen konumdaki JSON string literalini okur (kacis dizilerine saygili). */
+function readJsonStringAt(src: string, i: number): { value: string; end: number } | null {
+  if (src[i] !== '"') return null
+  let j = i + 1
+  let out = ''
+  while (j < src.length) {
+    const c = src[j]
+    if (c === '\\') {
+      // Kacis dizisini OLDUGU GIBI tasi — yorumlamayi JSON.parse yapsin.
+      out += c + (src[j + 1] ?? '')
+      j += 2
+      continue
+    }
+    if (c === '"') {
+      try { return { value: JSON.parse(`"${out}"`), end: j + 1 } }
+      catch { return null }
+    }
+    // Ham kontrol karakteri JSON string'inde gecersiz — kacir.
+    if (c === '\n') { out += '\\n'; j++; continue }
+    if (c === '\r') { out += '\\r'; j++; continue }
+    if (c === '\t') { out += '\\t'; j++; continue }
+    out += c
+    j++
+  }
+  return null   // kapanmamis string
+}
+
+/** Verilen konumdaki JSON dizisini dengeli tarama ile okur. */
+function readJsonArrayAt(src: string, i: number): { value: unknown[]; end: number } | null {
+  if (src[i] !== '[') return null
+  let depth = 0, inStr = false, prev = ''
+  for (let j = i; j < src.length; j++) {
+    const c = src[j]
+    if (inStr) {
+      if (c === '"' && prev !== '\\') inStr = false
+    } else if (c === '"') {
+      inStr = true
+    } else if (c === '[') {
+      depth++
+    } else if (c === ']') {
+      depth--
+      if (depth === 0) {
+        try {
+          const v = JSON.parse(src.slice(i, j + 1))
+          return Array.isArray(v) ? { value: v, end: j + 1 } : null
+        } catch { return null }
+      }
+    }
+    prev = c
+  }
+  return null   // kapanmamis dizi
+}
+
+/**
+ * Bozuk sarmalayicidan {answer, citations} cikarir. answer bulunamazsa ya da
+ * bossa null doner — o zaman gercekten kurtarilacak bir cevap yok ve hata
+ * ogrenciye bildirilmeli. citations kurtarilamazsa cevap yine de doner:
+ * atifsiz bir cevap, hic cevap vermemekten iyidir.
+ */
+function salvageAnswerContract(raw: string): { answer: string; citations: unknown[] } | null {
+  const alanBasi = (anahtar: string): number => {
+    const m = raw.match(new RegExp(`"${anahtar}"\\s*:`))
+    if (!m || m.index === undefined) return -1
+    let k = m.index + m[0].length
+    while (k < raw.length && /\s/.test(raw[k])) k++
+    return k
+  }
+
+  const ai = alanBasi('answer')
+  if (ai === -1) return null
+  const a = readJsonStringAt(raw, ai)
+  if (!a || !a.value.trim()) return null
+
+  let citations: unknown[] = []
+  const ci = alanBasi('citations')
+  if (ci !== -1) {
+    const c = readJsonArrayAt(raw, ci)
+    if (c) citations = c.value
+  }
+
+  return { answer: a.value, citations }
+}
+
 // The student explicitly wants chat answers to consider BOTH the raw source
 // text and the study card summary already generated for it — the summary can
 // carry synthesized info (e.g. a diagram's meaning inferred at generation
@@ -1639,11 +1748,26 @@ ${sourceText}
     try {
       parsedContent = tryParseJsonLoose(cleaned)
     } catch (parseError) {
-      console.error("Failed to parse chat-with-document JSON:", rawContent, parseError)
-      return new Response(JSON.stringify({ error: 'AI returned invalid JSON formatting' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
+      // Yapi bozuksa alanlari tek tek kurtarmayi dene (salvageAnswerContract
+      // basligindaki olaya bak): cevap genellikle dogru yazilmis olur ve
+      // sadece sarmalayici bozuktur. Bir cumleyi atmak icin tek bir fazla
+      // parantez yeterli olmamali.
+      const kurtarilan = salvageAnswerContract(cleaned)
+      if (!kurtarilan) {
+        console.error("Failed to parse chat-with-document JSON:", rawContent, parseError)
+        return new Response(JSON.stringify({ error: 'AI returned invalid JSON formatting' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+      // Kurtarma SESSIZ olmamali: bicim hatasi yapan model gorunur kalsin,
+      // yoksa "her sey yolunda" sanilir ve asil sebep hic arastirilmaz.
+      console.warn(
+        `chat-with-document: bozuk JSON sarmalayicidan kurtarildi ` +
+        `(cevap ${kurtarilan.answer.length} krk, ${kurtarilan.citations.length} atif) — ` +
+        `hata: ${String(parseError).slice(0, 160)}`
+      )
+      parsedContent = kurtarilan
     }
 
     return new Response(JSON.stringify({
