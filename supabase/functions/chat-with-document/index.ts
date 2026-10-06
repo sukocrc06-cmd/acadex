@@ -1363,9 +1363,36 @@ ${sourceText}
       // Each lane is tried in turn. A daily quota error moves on immediately
       // — waiting 24 minutes is not an option with a student watching — while
       // any other failure also falls through, since a worse model answering
-      // beats no answer. Order is quality-first: the fallbacks are smaller
-      // models, so they are what the student gets only when they have to be.
-      const textLanes = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'qwen/qwen3.8-27b']
+      // beats no answer.
+      //
+      // ORDER IS MEASURED, NOT ASSUMED (06.10.2026). It used to be
+      // quality-first — 120b, then 20b, then qwen — on the reasoning that a
+      // bigger model is a better answer. On this prompt 120b does not answer
+      // at all. Four consecutive runs, two different questions ("FIFO
+      // nedir", "LIFO ve FIFO arasindaki fark nedir"):
+      //
+      //   finish_reason=stop, completion=147/153/319, reasoning=12/13/25,
+      //   content="" and choice{ index message={role,content} logprobs
+      //   finish_reason } — no tool_calls, no reasoning field, nothing else.
+      //
+      // So ~294 of those 319 tokens were produced and landed in no field the
+      // response exposes. gpt-oss emits channel-tagged output and Groq maps
+      // `final` to content and `analysis` to reasoning; an answer written to
+      // a third channel reaches neither. Consistent with the other half of
+      // the evidence: 120b works fine in summarize-document, where every
+      // call sets response_format json_object. Here it is free prose.
+      //
+      // 20b answered all four times, with citations, on the same prompt. So
+      // the old order cost one guaranteed-dead call per question — ~4,300
+      // prompt tokens of 120b's 200K daily and ~1.1s of the student's wait
+      // — and then landed on 20b anyway. 20b first is strictly better: same
+      // model finally answers, minus the wasted call.
+      //
+      // 120b stays second rather than being dropped: it is a real fallback
+      // if 20b's day runs out, and keeping it in the chain is what will show
+      // whether this ever changes. To re-test it as primary, swap the first
+      // two entries back — one line, and the log above says what to look at.
+      const textLanes = ['openai/gpt-oss-20b', 'openai/gpt-oss-120b', 'qwen/qwen3.8-27b']
       let lastLaneError = ''
 
       for (let i = 0; i < textLanes.length; i++) {
@@ -1388,9 +1415,17 @@ ${sourceText}
               // that. The summarize function learned this the hard way when
               // its review call started picking lanes at runtime and 400'd
               // on every gpt-oss one.
+              // `include_reasoning: false` was dropped from the gpt-oss side
+              // on 06.10.2026. It told Groq to throw the reasoning text away
+              // — while the open question on this prompt is precisely where
+              // 294 produced tokens went. Asking for a field back costs no
+              // tokens (reasoning is metered whether or not it is returned,
+              // and at effort=low it is 12-25 tokens), and it is the only
+              // way the empty-content log below can say whether the answer
+              // ended up in `reasoning` instead of `content`.
               ...(lane.includes('qwen')
                 ? { reasoning_effort: "none" }
-                : { reasoning_effort: "low", include_reasoning: false }),
+                : { reasoning_effort: "low" }),
               // See the comment on the vision call above re: max_completion_tokens
               // and why response_format is deliberately omitted here too.
               max_completion_tokens: maxCompletion,
@@ -1435,11 +1470,22 @@ ${sourceText}
               // entirely — a sibling field on the choice, or nowhere the
               // response exposes. Logging the whole choice is the only way
               // to tell those apart, and it is two lines.
+              // ONE LEVEL DEEP. The first version printed only the keys of
+              // nested objects, so `message={role,content}` told us the
+              // answer was not in `message.content` but could not have shown
+              // it sitting in `message.reasoning` if it were there. A nested
+              // string's head is what distinguishes "the field is missing"
+              // from "the field is full and we were reading the wrong one".
               const choice = peek?.choices?.[0]
-              const kisalt = (v: unknown): string =>
+              const kisalt = (v: unknown, derinlik = 0): string =>
                 typeof v === 'string' ? `"${v.slice(0, 120)}"`
                   : v === null ? 'null'
-                  : typeof v === 'object' ? `{${Object.keys(v as object).join(',')}}`
+                  : typeof v === 'object'
+                    ? (derinlik > 0
+                        ? `{${Object.keys(v as object).join(',')}}`
+                        : `{${Object.entries(v as object)
+                            .map(([k, nv]) => `${k}=${kisalt(nv, derinlik + 1)}`)
+                            .join(' ')}}`)
                   : String(v)
               const sekil = choice && typeof choice === 'object'
                 ? Object.entries(choice).map(([k, v]) => `${k}=${kisalt(v)}`).join(' ')
