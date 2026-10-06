@@ -18,7 +18,8 @@ const A = loadFromSource('supabase/functions/chat-with-document/index.ts', [
   // ikisi de sabit 50.000'di ve hesabi hic tutmuyordu — bkz. asagidaki
   // "BUTCE TESTLERI" blogu. Yerlerini sourceBudgetChars aldi.
   'CHAT_TPM_LIMIT', 'CHAT_TPM_SAFETY', 'CHAT_MAX_COMPLETION', 'CHAT_MAX_COMPLETION_SHORT',
-  'CHARS_PER_TOKEN', 'IMAGE_TOKEN_RESERVE', 'SOURCE_MIN_CHARS',
+  'CHARS_PER_TOKEN_EN', 'CHARS_PER_TOKEN_TR', 'TURKISH_LETTER_SHARE',
+  'charsPerTokenFor', 'CHARS_PER_TOKEN', 'IMAGE_TOKEN_RESERVE', 'SOURCE_MIN_CHARS',
   'sourceBudgetChars',
   'RETRIEVED_MAX_CHUNKS',
   'QUERY_STOPWORDS', 'TR_SUFFIXES', 'unsoften', 'turkishStemCandidates',
@@ -505,16 +506,59 @@ test('gunluk kota hatasi "biraz sonra dene" demiyor', () => {
   assert.ok(/Bugünkü AI kotamız doldu/.test(CHAT_SRC), 'kullaniciya dogru sey soylenmeli');
 });
 
-test('CHARS_PER_TOKEN olcumden geliyor, mirastan degil', () => {
-  // Olculen: 4.18 krk/token (4364 token / 18236 krk). Eski 3.2 %31 kotumserdi
-  // ve ekonomi belgesini kestiriyordu. 4.18 degil 3.9: olcum Ingilizce
-  // kaynak uzerinde, Turkce metin daha yogun tokenlesiyor.
-  assert.ok(A.CHARS_PER_TOKEN > 3.2, 'eski kotumser deger birakilmali');
-  assert.ok(A.CHARS_PER_TOKEN < 4.18, 'olculen degerin ustune cikilmamali — pay kalmali');
-  // Ve olculen oranla ekonomi belgesi artik komple sigmali (asil regresyon).
-  const butce = A.sourceBudgetChars(8392 + 29, false, A.CHAT_MAX_COMPLETION_SHORT);
-  assert.ok(butce >= 10549,
-    `ekonomi belgesi (10549) butceye (${butce}) sigmali — 05.10.2026'da 3983'e kirpilmisti`);
+test('oran metinden turetiliyor, tek sabit degil', () => {
+  /* Hata YONU onemli:
+       gercek token = krk / gercek oran
+       tahmin       = krk / CHARS_PER_TOKEN
+     Sabit gercek oranin USTUNDEyse tahmin DUSUK cikar, istek sandigimizdan
+     buyuk olur ve "Request too large" gelir. Yani sabit, karsilasacagimiz
+     EN DUSUK oranin altinda kalmali.
+
+     Olculen (usage.prompt_tokens): 4.18 (ekonomi) ve 4.69 (muhasebe), ikisi
+     de Ingilizce kaynak. Turkce daha yogun tokenlesir, yani orani DAHA
+     DUSUK — tek bir sabit iki dile birden hizmet edemez. */
+  assert.ok(A.CHARS_PER_TOKEN_EN < 4.18,
+    'Ingilizce oran olculen en dusuk degerin (4.18) ALTINDA kalmali');
+  assert.ok(A.CHARS_PER_TOKEN_EN > 3.2,
+    'eski kotumser deger birakilmali, yoksa kazanc yok');
+  assert.ok(A.CHARS_PER_TOKEN_TR < A.CHARS_PER_TOKEN_EN,
+    'Turkce daha yogun tokenlesir, orani dusuk olmali');
+});
+
+test('Turkce ve Ingilizce metin dogru ayirt ediliyor', () => {
+  // Olculen harf yogunlugu, gercek dosyalar: Ingilizce kaynaklar %0.00-%0.18,
+  // Turkce ders notu %14.2. Yetmis kat fark; %2 esigi bol payla ayiriyor.
+  const ingilizce = 'Macroeconomics concerns output growth, unemployment and inflation. '.repeat(10);
+  const turkce = 'Makro iktisadın temeli ekonomiyi bütün olarak incelemektir; işsizlik ve büyüme göstergeleri değerlendirilir. '.repeat(6);
+  assert.equal(A.charsPerTokenFor(ingilizce), A.CHARS_PER_TOKEN_EN);
+  assert.equal(A.charsPerTokenFor(turkce), A.CHARS_PER_TOKEN_TR);
+});
+
+test('Turkce soru + Ingilizce belge Ingilizce sayiliyor', () => {
+  // Pencereyi dolduran kaynak metin, soru degil. Gercek olcum: %0.56.
+  const karisik = 'Stok değerleme yöntemleri nelerdir? ' +
+    'Inventory valuation methods include FIFO, LIFO and weighted average cost. '.repeat(12);
+  assert.equal(A.charsPerTokenFor(karisik), A.CHARS_PER_TOKEN_EN);
+});
+
+test('karar verecek kadar metin yoksa temkinli davraniliyor', () => {
+  // Kisa bir ornekte harf yogunlugu gurultulu; yanlis tarafa dusmek
+  // "Request too large" demek, o yuzden dusuk orana cekiliyor.
+  assert.equal(A.charsPerTokenFor('kisa'), A.CHARS_PER_TOKEN_TR);
+  assert.equal(A.charsPerTokenFor(''), A.CHARS_PER_TOKEN_TR);
+});
+
+test('butce secilen orani GERCEKTEN kullaniyor', () => {
+  /* Bu testin asil derdi: log dogru orani yazarken hesabin eski oranla
+     yapilmasi. Boyle bir hatada log "oran 4.1" der, butce 3.2'ye gore
+     hesaplanir ve kimse fark etmez. */
+  const en = A.sourceBudgetChars(5000, false, A.CHAT_MAX_COMPLETION_SHORT, A.CHARS_PER_TOKEN_EN);
+  const tr = A.sourceBudgetChars(5000, false, A.CHAT_MAX_COMPLETION_SHORT, A.CHARS_PER_TOKEN_TR);
+  assert.ok(en > tr, 'Ingilizce oran daha fazla kaynak birakmali');
+  assert.ok(CHAT_SRC.includes('sourceBudgetChars(promptOverheadChars, hasImage, maxCompletion, charsPerToken)'),
+    'asil butce cagrisi turetilen orani almali');
+  assert.ok(CHAT_SRC.includes('charsPerTokenFor(summaryContextBlock || docNames)'),
+    'oran BELGENIN dilinden turetilmeli');
 });
 
 test('gercek token orani loglaniyor (sabit tahmine guvenilmiyor)', () => {
