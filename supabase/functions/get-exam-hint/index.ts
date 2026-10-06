@@ -111,40 +111,108 @@ QUESTION: ${q.question}
 ${q.options ? `OPTIONS: ${JSON.stringify(q.options)}` : ''}
     `.trim()
 
-    const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${groqApiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        // Routed to a lighter model on purpose: a one-sentence hint is a
-        // low-stakes, high-frequency call, and gpt-oss-120b's free-tier
-        // quota (30 RPM / 1,000 requests per day, shared with every other
-        // AI feature in the app) is far too tight to spend on this. Groq
-        // meters rate limits per model, so llama-3.1-8b-instant gives this
-        // specific feature its OWN, much larger daily quota (~14,400
-        // requests/day on the free tier) instead of competing with exam
-        // generation/grading for the same 1,000/day pool.
-        model: "llama-3.1-8b-instant",
-        temperature: 0.5,
-        messages: [
-          { role: "system", content: sysPrompt },
-          { role: "user", content: userPrompt }
-        ]
-      })
-    })
+    // MODEL CHOICE — REBUILT 06.10.2026, THE OLD ONE NO LONGER EXISTS.
+    //
+    // This call was pinned to llama-3.1-8b-instant, which Groq SHUT DOWN on
+    // 2026-08-16 (console.groq.com/docs/deprecations), the same day as
+    // llama-3.3-70b-versatile. The rest of the repo was migrated off the 70b
+    // model at the time; this function was missed, so every hint request has
+    // been failing for roughly seven weeks and the student only ever saw
+    // "AI hint service failed".
+    //
+    // The old comment's reasoning was sound and still applies: a one-sentence
+    // hint is a tiny, high-frequency call, and spending gpt-oss-120b's 1,000
+    // requests/day on it — the same pool exam generation and grading draw
+    // from — is the wrong trade. Groq meters per MODEL, so the fix keeps the
+    // isolation by picking a different model, not a bigger one.
+    //
+    // Groq's own recommended replacement for 3.1-8b-instant is
+    // openai/gpt-oss-20b. qwen/qwen3.8-27b backs it up so one model's
+    // exhausted day does not take hints down with it.
+    const hintLanes = ['openai/gpt-oss-20b', 'qwen/qwen3.8-27b']
+    let hintText = ""
+    let lastHintError = ""
 
-    const groqData = await groqResponse.json()
-    if (!groqResponse.ok) {
-      console.error("Groq hint generation failed: ", groqData)
+    for (let i = 0; i < hintLanes.length; i++) {
+      const lane = hintLanes[i]
+      const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${groqApiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: lane,
+          temperature: 0.5,
+          // Per model, never written out: gpt-oss rejects
+          // reasoning_effort:"none" with a 400 while qwen needs exactly
+          // that. summarize-document learned this the hard way when its
+          // review call started picking lanes at runtime and 400'd on every
+          // gpt-oss one.
+          ...(lane.includes('qwen')
+            ? { reasoning_effort: "none" }
+            : { reasoning_effort: "low" }),
+          // WITHOUT THIS, GROQ RESERVES A LARGE DEFAULT COMPLETION BUDGET
+          // against the account's 8,000 tokens-per-minute limit, and a
+          // request that is otherwise tiny can be rejected outright for
+          // being "too large". A hint is one or two sentences; 400 leaves
+          // room for that plus the handful of reasoning tokens effort=low
+          // produces (12-25 observed), since reasoning is counted against
+          // this same ceiling.
+          max_completion_tokens: 400,
+          messages: [
+            { role: "system", content: sysPrompt },
+            { role: "user", content: userPrompt }
+          ]
+        })
+      })
+
+      if (!groqResponse.ok) {
+        lastHintError = await groqResponse.clone().text().catch(() => '')
+        const daily = /tokens per day|TPD|requests per day|RPD/i.test(lastHintError)
+        console.warn(
+          `get-exam-hint: ${lane} ${groqResponse.status} verdi` +
+          `${daily ? ' (GUNLUK kota bitti)' : ''}` +
+          `${i < hintLanes.length - 1 ? ' — sonraki seride geciliyor' : ''}`
+        )
+        continue
+      }
+
+      const groqData = await groqResponse.json()
+      const content = String(groqData.choices?.[0]?.message?.content ?? "").trim()
+
+      // A 200 WITH NO CONTENT IS THIS LANE FAILING, NOT THE REQUEST.
+      // chat-with-document hit exactly this on 06.10.2026: gpt-oss-120b
+      // answered 200 with finish_reason=stop, 147-319 completion tokens
+      // produced, and an empty `content` — four times, on two different
+      // questions. This call sends free prose with no response_format, the
+      // same shape that failed there, so an empty answer has to fall
+      // through to the next lane instead of being returned as the hint.
+      if (!content) {
+        const u = groqData.usage || {}
+        console.warn(
+          `get-exam-hint: ${lane} BOS icerik dondu ` +
+          `(finish_reason=${groqData.choices?.[0]?.finish_reason ?? '?'}, ` +
+          `completion=${u.completion_tokens ?? '?'}, ` +
+          `reasoning=${u.completion_tokens_details?.reasoning_tokens ?? '?'})` +
+          `${i < hintLanes.length - 1 ? ' — sonraki seride geciliyor' : ''}`
+        )
+        lastHintError = 'empty_content'
+        continue
+      }
+
+      hintText = content
+      if (i > 0) console.warn(`get-exam-hint: ${lane} seridine dusuldu (onceki serit kullanilamadi)`)
+      break
+    }
+
+    if (!hintText) {
+      console.error("get-exam-hint: tum seritler basarisiz — ", lastHintError.slice(0, 400))
       return new Response(JSON.stringify({ error: 'AI hint service failed' }), {
         status: 502,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
-
-    const hintText = groqData.choices?.[0]?.message?.content ?? ""
 
     return new Response(JSON.stringify({ hint: hintText.trim() }), {
       status: 200,
