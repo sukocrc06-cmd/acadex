@@ -284,6 +284,35 @@ const CHAT_MAX_COMPLETION_SHORT = 1024
 // Turkish is NOT measured — it is the old inherited value kept as the
 // cautious end until a Turkish document gives us a real number, which the
 // per-call ratio log will.
+//
+// RAISING THIS WAS TRIED AND REJECTED, 06.10.2026. Seven readings from the
+// per-call log — 4.18, 4.52, 4.53, 4.53, 4.52, 4.53, 4.69 — all sit above
+// 4.1, so every request buys less source than it could afford. The budget
+// algebra makes the cost look worth chasing: with overhead O, ceiling
+// T = TPM × safety and completion C,
+//
+//   source = (T - C - O/r) × r   ⟹   O + source = (T - C) × r
+//
+// so r sets the TOTAL prompt size and 4.1 → 4.4 is +16% source
+// (9,659 → 11,206 chars). The 0.9 safety factor would absorb the error:
+// at r = 4.4 a document has to be denser than 3.81 before the HARD 8,000
+// limit is breached, and the worst reading ever taken is 4.18.
+//
+// Two things killed it anyway:
+//
+//   1. Every measured document is prose. This app's documents are full of
+//      formulas — "∫_{-∞}^{∞} f(x) dx = 1" and the like. Unicode maths
+//      tokenizes badly, and a formula-heavy English chapter can plausibly
+//      fall under 4.0. Nothing in the seven readings covers that case.
+//   2. The 1,546 characters bought are retrieval's LOWEST-ranked chunks.
+//      Their marginal value is small, while the cost of guessing wrong is
+//      a hard 413 the student sees. Bad trade.
+//
+// The gain is real but it should come from MEASUREMENT, not a bolder
+// guess: the per-call log already computes each document's true ratio, so
+// persisting it per document would let the second and later questions use
+// the real number while the first stays cautious. That is the fix worth
+// building; a bigger constant is not.
 const CHARS_PER_TOKEN_EN = 4.1
 const CHARS_PER_TOKEN_TR = 3.2
 const TURKISH_LETTER_SHARE = 0.02
