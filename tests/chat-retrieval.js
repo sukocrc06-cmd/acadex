@@ -570,4 +570,42 @@ test('gercek token orani loglaniyor (sabit tahmine guvenilmiyor)', () => {
   assert.ok(/krk\/token/.test(CHAT_SRC), 'olculen oran loglanmali');
 });
 
+test('bos icerik dönen serit BASARISIZ sayiliyor', () => {
+  /* 06.10.2026: "FIFO nedir" soruldu, Groq 200 dondu, boru hatti token
+     oranini loglayip SESSIZCE 502 verdi. Icerik bostu ve tek gorunur
+     belirti logun ortada kesilmesiydi.
+
+     200 + bos icerik, isteğin degil O SERIDIN basarisizligi. Zincirin
+     varlik sebebi tam da bu: bir modelin kotu bir turu sorunun sonu
+     olmamali. */
+  assert.ok(/const peek = await res\.clone\(\)\.json\(\)/.test(CHAT_SRC),
+    'basarili cevabin icerigi, govde tuketilmeden once kontrol edilmeli');
+  assert.ok(/if \(!String\(content\)\.trim\(\)\) \{/.test(CHAT_SRC),
+    'bos icerik tespit edilmeli');
+  // Ve tespit edilince SONRAKI seride gecilmeli, hata dondurulmemeli.
+  const i = CHAT_SRC.indexOf('BOS icerik dondu');
+  assert.ok(i > -1, 'bos icerik uyarisi loglanmali');
+  assert.ok(/continue\b/.test(CHAT_SRC.slice(i, i + 700)),
+    'bos icerikte sonraki serit denenmeli');
+});
+
+test('bos icerik SEBEBIYLE loglaniyor', () => {
+  /* "Butceyi dusunerek tuketti" ile "model hicbir sey dondurmedi" farkli
+     duzeltmeler gerektiriyor; ikisi arasinda tahmin yurutmek, bir onceki
+     sessiz hatanin nasil hayatta kaldigidir. */
+  const i = CHAT_SRC.indexOf('BOS icerik dondu');
+  const blok = CHAT_SRC.slice(i, i + 500);
+  for (const alan of ['finish_reason', 'completion_tokens', 'reasoning_tokens']) {
+    assert.ok(blok.includes(alan), `${alan} loglanmali`);
+  }
+});
+
+test('hicbir 502 logsuz kalmiyor', () => {
+  // Sessiz 502, teshis edilemeyen hatadir: 06.10'da tam olarak bu oldu.
+  const i = CHAT_SRC.indexOf('tum seritler bos icerik dondu');
+  assert.ok(i > -1, 'son care hatasi da loglanmali');
+  assert.ok(/console\.error/.test(CHAT_SRC.slice(Math.max(0, i - 200), i + 50)),
+    'son care hatasi console.error ile yazilmali');
+});
+
 summary().then(() => process.exit(process.exitCode || 0));
