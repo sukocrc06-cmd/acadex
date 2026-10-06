@@ -687,14 +687,30 @@ function assembleRetrieved(rows: any[], charBudget: number): { text: string; use
     used += t.length
   }
   picked.sort((a, b) => (a.chunk_index ?? 0) - (b.chunk_index ?? 0))
+  // SAYFA KUMESI, SAYFA BASLANGICLARI DEGIL (06.10.2026).
+  //
+  // Eski hali yalnizca page_start topluyordu, oysa metne basilan etiket tam
+  // aralik: [Sayfa 30-36]. Log "pages=[... 30 ...]" yaziyordu ve cevap
+  // "Sayfa 30-36" diyordu — bu ikisine bakan biri (bakan bendim) modelin
+  // sayfa uydurdugu sonucuna variyor ve var olmayan bir hatayi kovalamaya
+  // basliyor. Model etiketi dogru kopyalamisti; yanlis olan olcu aletiydi.
+  //
+  // Artik kume, modelin GERCEKTEN gordugu butun sayfalari icerir. Bir
+  // atifin dayanagini dogrulamak isteyen kod da (bkz. groundCitationPages)
+  // bu kumeye bakar — baslangiclara bakan bir kontrol, aralik ortasindaki
+  // her sayfayi sahte sayardi.
   const pages: number[] = []
   const parts = picked.map(r => {
     const ps = (typeof r.page_start === 'number') ? r.page_start : null
     const pe = (typeof r.page_end === 'number') ? r.page_end : null
-    if (ps !== null && !pages.includes(ps)) pages.push(ps)
+    if (ps !== null) {
+      const son = (pe !== null && pe >= ps) ? pe : ps
+      for (let p = ps; p <= son; p++) if (!pages.includes(p)) pages.push(p)
+    }
     const label = ps === null ? '' : (pe !== null && pe !== ps ? `[Sayfa ${ps}-${pe}]\n` : `[Sayfa ${ps}]\n`)
     return `${label}${String(r.text || '').trim()}`
   })
+  pages.sort((a, b) => a - b)
   return { text: parts.join('\n\n'), used, pages }
 }
 
@@ -906,6 +922,99 @@ function salvageAnswerContract(raw: string): { answer: string; citations: unknow
   }
 
   return { answer: a.value, citations }
+}
+
+/* ===========================================================================
+   ATIF SAYFALARINI GONDERILEN SAYFALARA DAYANDIR
+   ===========================================================================
+   Atiflar bugune kadar hicbir kontrolden gecmeden ogrenciye gidiyordu.
+   Ozetleme tarafinda grafik degerleri icin "bu sayi kaynakta geciyor mu"
+   kapisi var; sohbet atiflarinin karsiligi yoktu.
+
+   Riskin sekli: model retrieval ile SECILMIS pasajlari goruyor, ama belgenin
+   tamaminin var oldugunu da biliyor. Gormedigi bir sayfaya atif yazarsa
+   ogrenci o sayfayi acar ve ya hicbir sey bulamaz ya da alakasiz bir seyi
+   kaynak sanir — ikincisi daha kotu.
+
+   TEK BASINA SAYILAR ELLENMEZ. reference serbest metin: "Bolum 2 - SEO
+   tartismasi" gibi. Oradaki 2'yi sayfa iddiasi sayip silmek, duzgun bir
+   atifi bozmak olur. Yalnizca ACIK sayfa kaliplari ("Sayfa 24-25", "s. 7",
+   "p. 12") yakalanir.
+
+   06.10.2026 notu: bu kapi, yazilmasina sebep olan ornekte FIRE ETMEZ.
+   "Sayfa 24-25, 29, 30-36" atfi dogruydu — pasaj etiketleri gercekten
+   [Sayfa 24-25], [Sayfa 29], [Sayfa 30-36] idi. Kapiyi, yanlis okunan bir
+   log yuzunden var sanilan bir hata icin yazmaya basladim; hata yoktu ama
+   kapinin korudugu risk gercek. Dogru ornekte sessiz kalmasi kusur degil,
+   sartname — testlerden biri tam olarak onu dogruluyor.
+   =========================================================================== */
+const SAYFA_DESENI = /(sayfa|sayfalar|sayfalarda|s\.|p\.|pages?)(\s*)([\d]+(?:\s*[-–—]\s*[\d]+)?(?:\s*,\s*[\d]+(?:\s*[-–—]\s*[\d]+)?)*)/gi
+
+/** "24-25, 29, 30-36" → [24,25,29,30,...,36] */
+function sayfaListesiAc(metin: string): number[] {
+  const out: number[] = []
+  for (const parca of metin.split(',')) {
+    const m = parca.trim().match(/^(\d+)(?:\s*[-–—]\s*(\d+))?$/)
+    if (!m) continue
+    const bas = parseInt(m[1], 10)
+    const son = m[2] ? parseInt(m[2], 10) : bas
+    if (!Number.isFinite(bas) || son < bas || son - bas > 200) continue
+    for (let p = bas; p <= son; p++) out.push(p)
+  }
+  return out
+}
+
+/** Bitişik sayıları aralığa toplar: [24,25,29] → "24-25, 29" */
+function sayfaListesiTopla(sayfalar: number[]): string {
+  const s = [...new Set(sayfalar)].sort((a, b) => a - b)
+  const parcalar: string[] = []
+  let i = 0
+  while (i < s.length) {
+    let j = i
+    while (j + 1 < s.length && s[j + 1] === s[j] + 1) j++
+    parcalar.push(i === j ? `${s[i]}` : `${s[i]}-${s[j]}`)
+    i = j + 1
+  }
+  return parcalar.join(', ')
+}
+
+/**
+ * Atiflardaki sayfa iddialarini GONDERILEN sayfa kumesine karsi dogrular.
+ * Dayanaksiz sayfalar referans metninden cikarilir; hicbiri dayanmiyorsa
+ * sayfa ifadesi tamamen atilir ve referansin geri kalani korunur — atfi
+ * bastan silmek, ogrenciyi dogru bolumden de mahrum birakir.
+ * Doner: { citations, atilan } — atilan, loglanacak sayfa numaralari.
+ */
+function groundCitationPages(
+  citations: unknown[],
+  gonderilenSayfalar: number[]
+): { citations: unknown[]; atilan: number[] } {
+  if (!Array.isArray(citations) || gonderilenSayfalar.length === 0) {
+    return { citations: Array.isArray(citations) ? citations : [], atilan: [] }
+  }
+  const gonderilen = new Set(gonderilenSayfalar)
+  const atilan: number[] = []
+
+  const temiz = citations.map((c) => {
+    if (!c || typeof c !== 'object') return c
+    const ref = (c as Record<string, unknown>).reference
+    if (typeof ref !== 'string' || !ref) return c
+
+    const yeni = ref.replace(SAYFA_DESENI, (tam, kelime, bosluk, liste) => {
+      const istenen = sayfaListesiAc(String(liste))
+      if (istenen.length === 0) return tam
+      const dayanan = istenen.filter(p => gonderilen.has(p))
+      const sahte = istenen.filter(p => !gonderilen.has(p))
+      for (const p of sahte) if (!atilan.includes(p)) atilan.push(p)
+      if (dayanan.length === 0) return ''                 // sayfa ifadesini tamamen at
+      if (sahte.length === 0) return tam                  // hepsi dayaniyor — dokunma
+      return `${kelime}${bosluk}${sayfaListesiTopla(dayanan)}`
+    }).replace(/\s{2,}/g, ' ').replace(/\s+([,.;])/g, '$1').replace(/^[\s,;-]+|[\s,;-]+$/g, '')
+
+    return yeni === ref ? c : { ...(c as Record<string, unknown>), reference: yeni }
+  })
+
+  return { citations: temiz, atilan }
 }
 
 // The student explicitly wants chat answers to consider BOTH the raw source
@@ -1211,6 +1320,10 @@ serve(async (req) => {
 
     let sourceText = ''
     let strategy = 'none'
+    // Modelin GERCEKTEN gordugu sayfalar. Yalnizca retrieval dalinda dolar —
+    // tam belge gonderildiginde pasaj etiketi yok, dolayisiyla dogrulanacak
+    // bir sayfa iddiasi da yok ve kapi bos kume ile sessiz kalir.
+    let gonderilenSayfalar: number[] = []
 
     if (allChunked && totalChunkChars > SOURCE_BUDGET && retrievalQuery) {
       const rows = await retrieveRelevantChunks(serviceClient, docIds, retrievalQuery)
@@ -1219,10 +1332,16 @@ serve(async (req) => {
         if (text) {
           sourceText = text
           strategy = 'retrieval'
+          gonderilenSayfalar = pages
           console.log(
             `chat-with-document: retrieval — ${rows.length} chunk matched, ` +
             `${Math.min(rows.length, RETRIEVED_MAX_CHUNKS)} ranked, ${used} chars sent ` +
-            `(document total ${totalChunkChars}), pages=[${pages.slice(0, 12).join(', ')}]`
+            // Sayfalar artik ARALIK olarak yaziliyor. Eskiden yalnizca
+            // page_start listeleniyordu ve [Sayfa 30-36] etiketli bir pasaj
+            // logda sadece "30" olarak gorunuyordu — logu okuyan, modelin
+            // 31-36'yi uydurdugunu saniyordu. (06.10.2026, tam bu yanlis
+            // teshis yapildi.)
+            `(document total ${totalChunkChars}), sayfalar=[${sayfaListesiTopla(pages)}]`
           )
         }
       } else if (rows && rows.length === 0) {
@@ -1802,9 +1921,26 @@ ${sourceText}
       parsedContent = kurtarilan
     }
 
+    // Atif sayfalari modelin GERCEKTEN gordugu sayfalara karsi dogrulanir.
+    // Sessiz kalmasi normal: bu kapi dogru yazilmis bir atifa dokunmaz.
+    // Fire ettiginde loglanmasi sart — yoksa ne kadar sik oldugunu hic
+    // ogrenemeyiz ve ozetleme tarafindaki grafik kapisi gibi, hic
+    // tetiklenmeden mi duruyor yoksa surekli mi calisiyor bilemeyiz.
+    const { citations: dayanakliAtiflar, atilan: sahteSayfalar } = groundCitationPages(
+      Array.isArray(parsedContent.citations) ? parsedContent.citations : [],
+      gonderilenSayfalar
+    )
+    if (sahteSayfalar.length > 0) {
+      console.warn(
+        `chat-with-document: atifta gonderilmemis sayfa(lar) temizlendi — ` +
+        `sahte=[${sayfaListesiTopla(sahteSayfalar)}] ` +
+        `gonderilen=[${sayfaListesiTopla(gonderilenSayfalar)}]`
+      )
+    }
+
     return new Response(JSON.stringify({
       answer: parsedContent.answer || '',
-      citations: Array.isArray(parsedContent.citations) ? parsedContent.citations : [],
+      citations: dayanakliAtiflar,
       mermaid: mermaidCode && mermaidCode.length > 0 ? mermaidCode : null,
       visionUsed
     }), {
