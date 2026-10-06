@@ -114,7 +114,12 @@ function scanFrom(js, start, onChar) {
 
 /** `function NAME(...) {...}` veya `const NAME = ...;` bildiriminin tamamini keser. */
 function sliceDeclaration(js, name) {
-  const fnM = js.match(new RegExp(`function\\s+${name}\\s*\\(`));
+  // `async` DAHIL edilir. Eski hali sadece `function NAME(` ariyordu, yani
+  // bir `async function` keserken `async` kelimesini disarida birakiyor ve
+  // govdedeki `await` "SyntaxError: await is only valid in async functions"
+  // veriyordu — fonksiyonda hicbir sorun yokken. (06.10.2026,
+  // serverErrorMessage.)
+  const fnM = js.match(new RegExp(`(async\\s+)?function\\s+${name}\\s*\\(`));
   const constM = js.match(new RegExp(`const\\s+${name}\\s*=`));
 
   if (fnM) {
