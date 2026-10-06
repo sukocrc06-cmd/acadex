@@ -24,7 +24,8 @@ const A = loadFromSource('supabase/functions/chat-with-document/index.ts', [
   'RETRIEVED_MAX_CHUNKS',
   'QUERY_STOPWORDS', 'TR_SUFFIXES', 'unsoften', 'turkishStemCandidates',
   'turkishStem', 'cognateCandidates', 'TR_EN_TERMS', 'englishCandidatesFor',
-  'buildChunkTsQuery', 'assembleRetrieved'
+  'buildChunkTsQuery', 'assembleRetrieved',
+  'tryParseJsonLoose', 'readJsonStringAt', 'readJsonArrayAt', 'salvageAnswerContract'
 ]);
 
 const fs = require('node:fs');
@@ -697,6 +698,102 @@ test('bos icerikte cevabin SEKLI de loglaniyor', () => {
   const blok = CHAT_SRC.slice(Math.max(0, i - 900), i + 400);
   assert.ok(/Object\.entries\(choice\)/.test(blok), 'choice alanlari loglanmali');
   assert.ok(/choice\{ \$\{sekil\} \}/.test(CHAT_SRC), "sekil log satirina girmeli");
+});
+
+console.log('\nBOZUK JSON KURTARMA TESTLERI\n');
+
+/* 06.10.2026 logundan ALINAN GERCEK cikti. Uydurma bir fixture bu hatayi
+   kanitlamaz: asil mesele modelin tam olarak NASIL bozdugu, ve bunu ancak
+   gercek cikti soyler. Ogrenci ekranda "AI returned invalid JSON
+   formatting" gordu; asagidaki metinde cevap eksiksiz duruyor. */
+const CANLI_BOZUK = '{"answer":"FIFO ve LIFO arasındaki temel fark, hangi maliyetin satılan '
+  + 'malların maliyetine (COGS) ve hangi maliyetin kalan stoklara (ending inventory) '
+  + 'yansıtılmasıdır. FIFO (First‑In, First‑Out) yöntemi, en eski satın alınan malların '
+  + 'ilk satıldığını varsayar. [1] [2]"} , "citations":[{"id":1,"reference":"First‑In, '
+  + 'First‑Out (FIFO) – Açıklama"},{"id":2,"reference":"Last‑In, First‑Out (LIFO) – '
+  + 'Açıklama"}]}';
+
+test('canli bozuk cikti JSON.parse ile GERCEKTEN patliyor', () => {
+  // Fixture'in hala bozuk oldugunu once dogrula. Yoksa asagidaki testler
+  // "kurtarma calisiyor" derken aslinda duzgun JSON ayristiriyor olabilir.
+  assert.throws(() => JSON.parse(CANLI_BOZUK), SyntaxError);
+  assert.throws(() => A.tryParseJsonLoose(CANLI_BOZUK), SyntaxError,
+    'eski gevsek parser bunu kurtarabiliyorsa yeni kod gereksiz');
+});
+
+test('bozuk sarmalayicidan cevap kurtariliyor', () => {
+  const r = A.salvageAnswerContract(CANLI_BOZUK);
+  assert.ok(r, 'kurtarma null dondu');
+  assert.ok(r.answer.startsWith('FIFO ve LIFO arasındaki temel fark'));
+  assert.ok(r.answer.includes('ending inventory'), 'cevabin ortasi kayboldu');
+  assert.ok(r.answer.trimEnd().endsWith('[1] [2]'), 'cevabin sonu kesilmis');
+  assert.equal(r.citations.length, 2, 'atiflar da kurtarilmali');
+  assert.equal(r.citations[0].id, 1);
+  assert.ok(String(r.citations[1].reference).includes('LIFO'));
+});
+
+test('duzgun JSON kurtarma yoluna HIC girmiyor', () => {
+  const saglam = '{"answer":"Normal cevap.","citations":[{"id":1,"reference":"s.4"}]}';
+  const p = A.tryParseJsonLoose(saglam);
+  assert.equal(p.answer, 'Normal cevap.');
+  assert.equal(p.citations.length, 1);
+});
+
+test('answer icindeki kacis dizileri bozulmuyor', () => {
+  // En sinsi hata burada olurdu: kurtarma, string'i karakter karakter
+  // yeniden kurdugu icin \n ve \" kolayca bozulabilir.
+  const bozuk = '{"answer":"Satir1\\nSatir2 ve \\"tirnak\\" ile ters bolu \\\\ burada."} ,'
+    + ' "citations":[]}';
+  const r = A.salvageAnswerContract(bozuk);
+  assert.ok(r, 'kurtarma null dondu');
+  assert.equal(r.answer, 'Satir1\nSatir2 ve "tirnak" ile ters bolu \\ burada.');
+});
+
+test('answer icindeki HAM satir sonu da kurtariliyor', () => {
+  // tryParseJsonLoose'un dogdugu hata (tablo/liste isteyince ham \n).
+  // Kurtarma yolu ayni durumu tek basina da halletmeli.
+  const bozuk = '{"answer":"Baslik\nSatir iki"} , "citations":[]}';
+  const r = A.salvageAnswerContract(bozuk);
+  assert.ok(r, 'kurtarma null dondu');
+  assert.equal(r.answer, 'Baslik\nSatir iki');
+});
+
+test('kurtarilacak cevap YOKSA null donuyor', () => {
+  // Kritik: bos bir cevabi "kurtarilmis" diye donmek, hatayi gizlemek olur.
+  assert.equal(A.salvageAnswerContract('{"citations":[]}'), null, 'answer alani yok');
+  assert.equal(A.salvageAnswerContract('{"answer":"   "}'), null, 'answer bos');
+  assert.equal(A.salvageAnswerContract('tamamen alakasiz metin'), null);
+  assert.equal(A.salvageAnswerContract('{"answer":"kapanmamis string'), null);
+});
+
+test('atif kurtarilamazsa cevap YINE DE donuyor', () => {
+  // Atifsiz bir cevap, hic cevap vermemekten iyidir.
+  const r = A.salvageAnswerContract('{"answer":"Gecerli cevap."} , "citations":[{bozuk');
+  assert.ok(r, 'atif bozuk diye cevap atilmamali');
+  assert.equal(r.answer, 'Gecerli cevap.');
+  assert.deepEqual(r.citations, []);
+});
+
+test('ic ice dizi iceren atiflar dogru okunuyor', () => {
+  // Dengeli tarama gerekiyor: ilk ']' karakterinde durmak yanlis olur.
+  const r = A.salvageAnswerContract(
+    '{"answer":"X"} , "citations":[{"id":1,"pages":[4,5]},{"id":2,"pages":[7]}]}');
+  assert.ok(r);
+  assert.equal(r.citations.length, 2);
+  assert.deepEqual(r.citations[0].pages, [4, 5]);
+});
+
+test('kurtarma SESSIZ degil — log satiri var', () => {
+  // Bicim hatasi yapan model gorunur kalmali, yoksa "her sey yolunda"
+  // sanilir ve asil sebep hic arastirilmaz.
+  const i = CHAT_SRC.indexOf('salvageAnswerContract(cleaned)');
+  assert.ok(i > -1, 'kurtarma cagri yeri bulunamadi');
+  const blok = CHAT_SRC.slice(i, i + 1200);
+  assert.ok(/console\.warn/.test(blok), 'kurtarma loglanmali');
+  assert.ok(/bozuk JSON sarmalayicidan kurtarildi/.test(blok), 'log mesaji yok');
+  // Ve kurtarilamayan durum HALA hata donmeli.
+  assert.ok(/AI returned invalid JSON formatting/.test(blok),
+    'kurtarilamayan durumda hata donmeye devam etmeli');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));
