@@ -608,4 +608,39 @@ test('hicbir 502 logsuz kalmiyor', () => {
     'son care hatasi console.error ile yazilmali');
 });
 
+test('cikti sozlesmesi var olmayan bolume atif yapmiyor', () => {
+  /* Gorsel kurallarini kosullu yaparken DIAGRAM GENERATION bolumu
+     kaldirilabilir hale geldi, ama OUTPUT FORMAT kosulsuz olarak
+     "PART 2 — ONLY when DIAGRAM GENERATION above applies" diyordu: var
+     olmayan bir bolume atif, ve tek parca yeterliyken "iki parca" diye
+     baslayan bir baslik. Makine tarafindan ayristirilan bir sozlesmede
+     bu ciddi.
+
+     06.10.2026'da gpt-oss-120b bu prompt'a finish_reason=stop ve
+     completion=147 ile BOS content dondurdu. Sebep bu mudur
+     kanitlayamam — ama sozlesme bozuktu ve oyle kalmamali. */
+  assert.ok(!/OUTPUT FORMAT \(two parts/.test(CHAT_SRC),
+    '"two parts" basligi kosulsuz duruyor');
+  // PART 2 metni yalnizca gorsel kurallari acikken uretilmeli.
+  const i = CHAT_SRC.indexOf('OUTPUT FORMAT (read carefully');
+  assert.ok(i > -1, 'OUTPUT FORMAT bolumu bulunamadi');
+  const blok = CHAT_SRC.slice(i, i + 1400);
+  assert.ok(/\$\{needsVisualRules \? `/.test(blok),
+    'Mermaid talimati kosullu olmali');
+  assert.ok(/MERMAID_START/.test(blok), 'Mermaid blogu hala tarif edilmeli');
+  // Ve bos "answer" acikca yasaklanmali.
+  assert.ok(/must never be empty/.test(blok),
+    'bos answer alani acikca yasaklanmali');
+});
+
+test('bos icerikte cevabin SEKLI de loglaniyor', () => {
+  // Sayilar tokenin nereye gittigini soylemiyor: 147 uretildi, content
+  // bostu. Alanlarin kendisi loglanmazsa bir sonraki bos cevap da ayni
+  // tahmin olur.
+  const i = CHAT_SRC.indexOf('BOS icerik dondu');
+  const blok = CHAT_SRC.slice(Math.max(0, i - 900), i + 400);
+  assert.ok(/Object\.entries\(msg\)/.test(blok), 'message alanlari loglanmali');
+  assert.ok(/message\{ \$\{sekil\} \}/.test(CHAT_SRC), 'sekil log satirina girmeli');
+});
+
 summary().then(() => process.exit(process.exitCode || 0));
