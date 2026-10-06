@@ -700,6 +700,73 @@ test('bos icerikte cevabin SEKLI de loglaniyor', () => {
   assert.ok(/choice\{ \$\{sekil\} \}/.test(CHAT_SRC), "sekil log satirina girmeli");
 });
 
+console.log('\nORAN EMNIYET TESTLERI\n');
+
+/* 06.10.2026, CHARS_PER_TOKEN_EN 4.1 → 4.4.
+
+   Bu testler SAYIYI degil, sayinin dayandigi EMNIYET MANTIGINI korur.
+   "4.4'e esit mi" diye soran bir test, yarin birinin 4.8 yazmasini
+   engellemez — sadece testi de guncellemesini gerektirir. Asil soru:
+   varsayilan oran gercek orandan BUYUK ciktiginda sert 8.000 TPM
+   sinirini asiyor muyuz? */
+
+const TPM = 8000, GUVENLIK = 0.9, COMP = 2048, OVERHEAD = 11460;
+
+/** Belirli bir varsayim oraninda gercek token tuketimi (gercek oran = a). */
+function gercekToken(r, a) {
+  const butce = A.sourceBudgetChars(OVERHEAD, false, COMP, r);
+  return (OVERHEAD + butce) / a + COMP;
+}
+
+test('FORMUL YOGUN belgede bile sert sinir asilmiyor', () => {
+  /* Asil emniyet sorusu bu. Olculen yedi degerin hepsi DUZ METIN
+     belgelerinden geliyor (4.18 ... 4.69). Oysa bu uygulamanin belgeleri
+     formul dolu: "∫_{-∞}^{∞} f(x) dx = 1" gibi satirlar Unicode matematik
+     sembolleriyle kotu tokenlenir ve orani 4.0'in altina indirebilir.
+     Hicbir olcum o bolgeyi kapsamiyor, o yuzden test kapsiyor. */
+  for (const yogun of [4.0, 3.8, 3.6]) {
+    const t = gercekToken(A.CHARS_PER_TOKEN_EN, yogun);
+    assert.ok(t <= TPM,
+      `gercek oran ${yogun} iken ${Math.round(t)} token > ${TPM} — ogrenci 413 gorur`);
+  }
+});
+
+test('emniyet tabani hesaplanabiliyor ve genis', () => {
+  /* Varsayim orani r iken, 8.000'i asmadan dayanilabilen en dusuk GERCEK
+     oran. Bu sayi degeri degistirmek isteyen herkesin once bakmasi
+     gereken sey: 4.1 → 4.4 denendiginde taban 3.55'ten 3.81'e cikiyor ve
+     formul yogun belgeler icin verilen pay daralyor. */
+  let taban = null;
+  for (let a = 2.5; a <= 5.0; a += 0.001) {
+    if (gercekToken(A.CHARS_PER_TOKEN_EN, a) <= TPM) { taban = a; break; }
+  }
+  assert.ok(taban !== null, 'emniyet tabani hesaplanamadi');
+  assert.ok(taban <= 3.6,
+    `emniyet tabani ${taban.toFixed(2)} — formul yogun belgeler icin pay cok dar`);
+});
+
+test('oran bir ARTTIRILINCA gercekten daha cok kaynak gidiyor', () => {
+  // Oran formulde IKI kez geciyor (overhead ucretini kucultur, butceyi
+  // buyutur) ve ikisi de ayni yone basiyor. Bir yerde isaret ters cevrilse
+  // bu test dusser.
+  const dar = A.sourceBudgetChars(OVERHEAD, false, COMP, 4.1);
+  const genis = A.sourceBudgetChars(OVERHEAD, false, COMP, 4.4);
+  assert.ok(genis > dar, 'oran artinca butce buyumeli');
+  // Beklenen kazanc: (T-C)*Δr = 5152 * 0.3 ≈ 1546 karakter.
+  const beklenen = (TPM * GUVENLIK - COMP) * (4.4 - 4.1);
+  assert.ok(Math.abs((genis - dar) - beklenen) <= 2,
+    `kazanc ${genis - dar}, beklenen ${Math.round(beklenen)} — formul degismis olabilir`);
+});
+
+test('Turkce orani OLCULMEDEN degistirilmemis', () => {
+  // Olculen her belge Ingilizce. Turkce tarafi tahmine dayali olarak
+  // yukseltmek, Ingilizce tarafta kacindigimiz hatanin aynisi olur.
+  assert.equal(A.CHARS_PER_TOKEN_TR, 3.2,
+    'Turkce oran olculmeden degistirilmis — once gercek bir Turkce belge olcumu gerekli');
+  assert.ok(A.CHARS_PER_TOKEN_TR < A.CHARS_PER_TOKEN_EN,
+    'Turkce sondan eklemeli, Ingilizceden daha yogun tokenlenir');
+});
+
 console.log('\nBOZUK JSON KURTARMA TESTLERI\n');
 
 /* 06.10.2026 logundan ALINAN GERCEK cikti. Uydurma bir fixture bu hatayi
