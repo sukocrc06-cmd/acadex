@@ -1499,10 +1499,19 @@ test('pencere token butcesi pacer tavaninin altinda', () => {
   const prompt = readTemplate(SRC, SRC.indexOf('`', promptIdx) + 1);
   assert.ok(prompt.length > 500, `compactWindowPrompt okunamadi (${prompt.length} krk)`);
 
-  // Pencere cagrisinin kendi tamamlama tavani (sablonun hemen sonrasindaki
-  // callGroqJson blogunda).
-  const callIdx = SRC.indexOf('compactWindowPrompt(wi, windows.length)');
-  assert.ok(callIdx > -1, 'pencere cagrisi bulunamadi');
+  // Pencere cagrisinin kendi tamamlama tavani.
+  //
+  // Capa `const result = await callGroqJson(` — compactWindowPrompt'un ILK
+  // gectigi yer DEGIL. 06.10.2026'da retry serit secimine bir tahmin hesabi
+  // eklendi, o da compactWindowPrompt'u cagiriyor, ve indexOf artik cagriyi
+  // degil o hesabi buluyordu: test "maxCompletionTokens bulunamadi" diye
+  // dustu, oysa kodda bir sorun yoktu. Capa cagrinin kendisi olmali.
+  const callIdx = SRC.indexOf('const result = await callGroqJson(');
+  assert.ok(callIdx > -1, 'pencere callGroqJson cagrisi bulunamadi');
+  assert.ok(
+    SRC.slice(callIdx, callIdx + 400).includes('compactWindowPrompt(wi, windows.length)'),
+    'capa dogru cagriyi gostermiyor — pencere cagrisi tasinmis olabilir'
+  );
   const mCompletion = SRC.slice(callIdx, callIdx + 1500).match(/maxCompletionTokens: (\d+)/);
   assert.ok(mCompletion, 'pencere maxCompletionTokens bulunamadi');
   const maxCompletion = Number(mCompletion[1]);
@@ -2620,6 +2629,45 @@ test('sourceNumbers gurultusu kapiyi SERTLESTIRMIYOR', () => {
   const cok = A.sanitizeCharts([{ title: 'T', type: 'bar', labels: ['a','b'], data: [30, 40] }], 'metin 30 ve 40 iceriyor. Sayfa 20-30, 20-40.');
   assert.equal(az.charts.length, 1);
   assert.equal(cok.charts.length, 1, 'gurultu grafigi dusurmemeli');
+});
+
+test('pencere tekrar denemesi BUYUK modeli tercih ediyor', () => {
+  /* pickLane musaitlige gore secer — ki bu hiz icin dogru, burada yanlis:
+     ilk denemenin harcadigi serit tam da kacinacagi serittir, yani dusen
+     bir pencere SISTEMATIK olarak kucuk modele veriliyor.
+
+     Olculdu (06.10.2026): deneme 1 json_validate_failed verdi, tekrar
+     denemesi gpt-oss-20b'ye dustu ve pencere "terms=24 points=10 quiz=0"
+     dondu. Ayni belge ayni promptla bir gun once gpt-oss-120b'de quiz=10
+     vermisti. Kart 13 soru yerine 3 soruyla cikti.
+
+     Tekrar denemesi pencerenin KALITESINI kurtarmak icin var; onu zayif
+     modele vermek amaci bozuyor. */
+  const i = SRC.indexOf('A RETRY PREFERS THE BIG MODEL');
+  assert.ok(i > -1, 'tekrar denemesi serit tercihi aciklamasi kaybolmus');
+  const blok = SRC.slice(i, i + 2600);   // aciklama yorumu uzun, kodu da kapsamali
+  assert.ok(/const heavyWaitMs = tokenPacer\.waitEstimate\(est, MODEL_HEAVY/.test(blok),
+    'buyuk seridin beklemesi olculmeli');
+  assert.ok(/windowLane = affordHeavy\s*\n?\s*\? MODEL_HEAVY/.test(blok),
+    'butceye sigiyorsa MODEL_HEAVY secilmeli');
+  assert.ok(/: pickLane\(\[MODEL_HEAVY, MODEL_EXTRACT\]/.test(blok),
+    'sigmiyorsa eski davranisa dusulmeli — kurtarma yine de olmali');
+  // Ve bekleme butceyle karsilastirilmali, korü korune beklenmemeli.
+  assert.ok(/budgetLeft\(\) > heavyWaitMs \+ WINDOW_CALL_MS \+ NARRATIVE_WRITER_RESERVE_MS/.test(blok),
+    'buyuk serit beklemesi butceye karsi tartilmali');
+});
+
+test('bos donen alan sessiz gecmiyor', () => {
+  /* Bir pencere bir diziden bolca, otekinden HIC dondurmusse basarisiz
+     olmadi — kabul edildi, birlestirildi ve yayinlandi. Logdaki tek kelime
+     "ok" idi. Dolu bir dizinin yanindaki bos dizi, "bu belgede sinav sorusu
+     yok" demek degil; modelin bir alani atlamasi demek. */
+  assert.ok(/const emptyFields = \[/.test(SRC), 'bos alan tespiti kaldirilmis');
+  assert.ok(/BOS dondu/.test(SRC), 'bos alan uyarisi loglanmali');
+  // Gercekten bos bir pencereyi (hepsi sifir) uyarmamali — o zaten baska
+  // yoldan basarisiz sayiliyor, iki kere bagirmak gurultu olur.
+  assert.ok(/nTerms \+ nPoints \+ nQuiz > 0/.test(SRC),
+    'tamamen bos pencere icin ayrica uyarilmamali');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));
