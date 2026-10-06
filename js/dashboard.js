@@ -10247,7 +10247,7 @@ function initSandboxProjectUploadForm() {
   };
 
   const closeComposeModal = () => {
-    composeModal.style.display = 'none';
+    composeModal.classList.remove('active');
   };
 
   if (composeImageInput) {
@@ -10278,7 +10278,7 @@ function initSandboxProjectUploadForm() {
   if (btnBackCompose) btnBackCompose.onclick = closeComposeModal;
 
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && composeModal.style.display === 'flex') {
+    if (e.key === 'Escape' && composeModal.classList.contains('active')) {
       closeComposeModal();
     }
   });
@@ -10329,7 +10329,7 @@ function initSandboxProjectUploadForm() {
     if (composeSubtitle) composeSubtitle.textContent = `"${title}" için son adım: kısa bir açıklama ve isterseniz bir kapak fotoğrafı ekleyin.`;
     if (composeDesc) composeDesc.value = '';
     resetComposeImage();
-    composeModal.style.display = 'flex';
+    composeModal.classList.add('active');
   };
 
   composeForm.onsubmit = async (e) => {
@@ -14557,7 +14557,7 @@ function closeActiveModal(modalEl) {
   } else if (id === 'share-project-modal') {
     closeShareProjectModal();
   } else if (id === 'project-compose-modal') {
-    modalEl.style.display = 'none';
+    modalEl.classList.remove('active');
   } else if (id === 'depot-modal') {
     closeDepotModal();
   } else {
