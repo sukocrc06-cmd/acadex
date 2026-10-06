@@ -251,20 +251,53 @@ const CHAT_TPM_SAFETY = 0.9
 // cap, and the difference goes to the document.
 const CHAT_MAX_COMPLETION = 2048
 const CHAT_MAX_COMPLETION_SHORT = 1024
-// MEASURED, not inherited. 3.2 came from the summarize function's pacer,
-// where being pessimistic costs a little waiting; here it decides how much
-// document the student sees, and it was 31% too low. The first live run with
-// usage.prompt_tokens logged said:
+// DERIVED FROM THE TEXT, not one number for everything.
 //
-//   token orani: 4.18 krk/token (gercek 4364 token / 18236 krk; varsayim 3.2)
+// Which way an error hurts is worth being precise about:
 //
-// 3.9, not 4.18: that measurement is an English prompt over an English
-// source with a Turkish question, which is today's material but not
-// tomorrow's — Turkish text tokenises denser, and the note-sharing this is
-// being built for will bring Turkish sources with it. 3.9 keeps most of the
-// gain while leaving room for that, and the ratio stays logged on every call
-// so a Turkish document will say so rather than quietly overflowing.
-const CHARS_PER_TOKEN = 3.9
+//   real tokens = chars / real ratio
+//   our estimate = chars / CHARS_PER_TOKEN
+//
+//   CHARS_PER_TOKEN above the real ratio -> we UNDERestimate -> the request
+//     is bigger than we think -> "Request too large"
+//   below it -> we overestimate -> we send less document than we could
+//
+// So the constant has to sit under the LOWEST real ratio we will meet. Two
+// measurements from usage.prompt_tokens, both English sources with Turkish
+// questions:
+//
+//   4.18 krk/token  (economy chapter)
+//   4.69 krk/token  (accounting chapter)
+//
+// A single number cannot serve both languages, and that is the whole
+// problem: Turkish tokenises denser, so its ratio is LOWER, and a constant
+// tuned to English would underestimate exactly when a Turkish document
+// arrives — which is what the note-sharing in this product is for.
+//
+// Measured Turkish-letter density, real files: English sources 0.00%-0.18%,
+// Turkish course notes 14.2%. Seventy times apart, so a 2% threshold
+// separates them with room to spare. A Turkish question over an English
+// document reads 0.56% and is correctly treated as English, which is right —
+// the source text, not the question, is what fills the window.
+//
+// 4.1 for English sits under the lower of the two measurements. 3.2 for
+// Turkish is NOT measured — it is the old inherited value kept as the
+// cautious end until a Turkish document gives us a real number, which the
+// per-call ratio log will.
+const CHARS_PER_TOKEN_EN = 4.1
+const CHARS_PER_TOKEN_TR = 3.2
+const TURKISH_LETTER_SHARE = 0.02
+
+function charsPerTokenFor(sampleText: string): number {
+  const text = String(sampleText || '')
+  const turkish = (text.match(/[ğüşıöçĞÜŞİÖÇ]/g) || []).length
+  const letters = (text.match(/\p{L}/gu) || []).length
+  if (letters < 200) return CHARS_PER_TOKEN_TR   // too little to judge — be cautious
+  return (turkish / letters) >= TURKISH_LETTER_SHARE ? CHARS_PER_TOKEN_TR : CHARS_PER_TOKEN_EN
+}
+
+// Kept for the call sites that only need a safe default.
+const CHARS_PER_TOKEN = CHARS_PER_TOKEN_TR
 // An attached image is billed as tokens too and is not in any string we can
 // measure. Reserved whenever one is present.
 const IMAGE_TOKEN_RESERVE = 1600
@@ -279,13 +312,18 @@ const SOURCE_MIN_CHARS = 4000
  * overheadChars covers everything else that goes into the same budget: the
  * system prompt minus the source block, and the conversation history.
  */
-function sourceBudgetChars(overheadChars: number, hasImage: boolean, maxCompletion = CHAT_MAX_COMPLETION): number {
+function sourceBudgetChars(
+  overheadChars: number,
+  hasImage: boolean,
+  maxCompletion = CHAT_MAX_COMPLETION,
+  charsPerToken = CHARS_PER_TOKEN
+): number {
   const available =
     CHAT_TPM_LIMIT * CHAT_TPM_SAFETY
     - maxCompletion
-    - Math.ceil(overheadChars / CHARS_PER_TOKEN)
+    - Math.ceil(overheadChars / charsPerToken)
     - (hasImage ? IMAGE_TOKEN_RESERVE : 0)
-  return Math.max(SOURCE_MIN_CHARS, Math.floor(available * CHARS_PER_TOKEN))
+  return Math.max(SOURCE_MIN_CHARS, Math.floor(available * charsPerToken))
 }
 
 const RETRIEVED_MAX_CHUNKS = 40
@@ -966,6 +1004,11 @@ serve(async (req) => {
     // take its length. `true` for the retrieval variant because that one is
     // ~700 characters longer (the selected-passages caveat), so whichever
     // strategy wins, the real prompt is no larger than what we budgeted for.
+    // The document's own language decides the ratio, so the sample is the
+    // card's summary — it is written in the document's language and is
+    // available here, before the source text itself has been chosen.
+    const charsPerToken = charsPerTokenFor(summaryContextBlock || docNames)
+
     const historyChars = () => safeMessages.reduce(
       (n: number, m: any) => n + String(m.content || '').length, 0
     )
@@ -992,7 +1035,7 @@ serve(async (req) => {
     let droppedTurns = 0
     while (
       safeMessages.length > 1 &&
-      sourceBudgetChars(basePromptChars + historyChars(), hasImage, maxCompletion) <= SOURCE_MIN_CHARS
+      sourceBudgetChars(basePromptChars + historyChars(), hasImage, maxCompletion, charsPerToken) <= SOURCE_MIN_CHARS
     ) {
       safeMessages.shift()
       droppedTurns++
@@ -1005,12 +1048,13 @@ serve(async (req) => {
     }
 
     const promptOverheadChars = basePromptChars + historyChars()
-    const SOURCE_BUDGET = sourceBudgetChars(promptOverheadChars, hasImage, maxCompletion)
+    const SOURCE_BUDGET = sourceBudgetChars(promptOverheadChars, hasImage, maxCompletion, charsPerToken)
     console.log(
       `chat-with-document budget: ${SOURCE_BUDGET} krk kaynak ` +
       `(prompt ${basePromptChars} + gecmis ${historyChars()} krk, completion ${maxCompletion}, ` +
       `gorsel=${needsVisualRules ? 'kural+' : '-'}${hasImage ? 'ek' : ''}, ` +
-      `sayisal=${needsNumericRules ? 'kural+' : '-'}, TPM ${CHAT_TPM_LIMIT}×${CHAT_TPM_SAFETY})`
+      `sayisal=${needsNumericRules ? 'kural+' : '-'}, oran ${charsPerToken}, ` +
+      `TPM ${CHAT_TPM_LIMIT}×${CHAT_TPM_SAFETY})`
     )
 
     type ChunkSize = { count: number; totalChars: number } | null
@@ -1415,7 +1459,7 @@ ${sourceText}
         safeMessages.reduce((n: number, m: any) => n + String(m.content || '').length, 0)
       console.log(
         `chat-with-document token orani: ${(promptChars / promptTokens).toFixed(2)} krk/token ` +
-        `(gercek ${promptTokens} token / ${promptChars} krk; varsayim ${CHARS_PER_TOKEN})`
+        `(gercek ${promptTokens} token / ${promptChars} krk; varsayim ${charsPerToken})`
       )
     }
 
