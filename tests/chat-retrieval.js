@@ -25,7 +25,8 @@ const A = loadFromSource('supabase/functions/chat-with-document/index.ts', [
   'QUERY_STOPWORDS', 'TR_SUFFIXES', 'unsoften', 'turkishStemCandidates',
   'turkishStem', 'cognateCandidates', 'TR_EN_TERMS', 'englishCandidatesFor',
   'buildChunkTsQuery', 'assembleRetrieved',
-  'tryParseJsonLoose', 'readJsonStringAt', 'readJsonArrayAt', 'salvageAnswerContract'
+  'tryParseJsonLoose', 'readJsonStringAt', 'readJsonArrayAt', 'salvageAnswerContract',
+  'SAYFA_DESENI', 'sayfaListesiAc', 'sayfaListesiTopla', 'groundCitationPages'
 ]);
 
 const fs = require('node:fs');
@@ -698,6 +699,130 @@ test('bos icerikte cevabin SEKLI de loglaniyor', () => {
   const blok = CHAT_SRC.slice(Math.max(0, i - 900), i + 400);
   assert.ok(/Object\.entries\(choice\)/.test(blok), 'choice alanlari loglanmali');
   assert.ok(/choice\{ \$\{sekil\} \}/.test(CHAT_SRC), "sekil log satirina girmeli");
+});
+
+console.log('\nATIF DAYANAGI TESTLERI\n');
+
+test('DOGRU atif hic degismeden geciyor', () => {
+  /* EN ONEMLI TEST. 06.10.2026: log "pages=[11,24,26,29,30,...]" yaziyordu,
+     cevap "Sayfa 24-25, 29, 30-36" diyordu, ve ben modelin 25 ile 31-36'yi
+     uydurdugu sonucuna vardim. Yanlisti: log yalnizca page_start listeliyordu,
+     pasaj etiketleri ise [Sayfa 24-25], [Sayfa 29], [Sayfa 30-36] idi. Model
+     etiketleri birebir dogru kopyalamisti.
+
+     Yani bu kapi, yazilmasina sebep olan ornekte SESSIZ KALMALI. Dogru bir
+     atifi "duzelten" bir kapi, korudugu riskten daha cok zarar verir. */
+  const gonderilen = [11, 24, 25, 26, 29, 30, 31, 32, 33, 34, 35, 36, 37, 39, 40, 41];
+  const atiflar = [{ id: 1, reference: 'Sayfa 24-25, 29, 30-36 - FIFO/LIFO karsilastirmasi' }];
+  const r = A.groundCitationPages(atiflar, gonderilen);
+  assert.deepEqual(r.atilan, [], 'dogru atifta sahte sayfa bulunmamali');
+  assert.equal(r.citations[0].reference, atiflar[0].reference, 'referans metni degismemeli');
+  assert.equal(r.citations[0], atiflar[0], 'nesne bile ayni kalmali (gereksiz kopya yok)');
+});
+
+test('sayfa kumesi ARALIGIN TAMAMINI iceriyor, sadece baslangici degil', () => {
+  /* KAPININ TEMELI. Bu kume eksikse kapi gercek sayfalari sahte sayar —
+     yani duzgun atiflari bozar. Tam olarak kacinmak istedigimiz sey bu.
+
+     Mutasyon testinde ortaya cikti: assembleRetrieved'i page_start'a geri
+     dondurdugumde atif testlerinin HICBIRI dusmedi, cunku hepsi sayfa
+     listesini elle veriyordu. Listeyi URETEN kod sinanmadan, kapiya
+     guvenilemez. */
+  const satirlar = [
+    { chunk_index: 0, page_start: 24, page_end: 25, text: 'FIFO aciklamasi.' },
+    { chunk_index: 1, page_start: 29, page_end: 29, text: 'LIFO aciklamasi.' },
+    { chunk_index: 2, page_start: 30, page_end: 36, text: 'Karsilastirma tablosu.' },
+  ];
+  const { text, pages } = A.assembleRetrieved(satirlar, 100000);
+  // Aralik ortasindaki sayfalar da kumede olmali.
+  for (const p of [24, 25, 29, 30, 31, 32, 33, 34, 35, 36]) {
+    assert.ok(pages.includes(p), `sayfa ${p} kumede yok — kapi onu sahte sayar`);
+  }
+  assert.ok(!pages.includes(37), 'gonderilmeyen sayfa kumede olmamali');
+  // Ve metindeki etiket aralik olarak basilmali — modelin gordugu bu.
+  assert.ok(text.includes('[Sayfa 24-25]'), 'aralik etiketi basilmali');
+  assert.ok(text.includes('[Sayfa 29]'), 'tek sayfa etiketi basilmali');
+  assert.ok(text.includes('[Sayfa 30-36]'), 'genis aralik etiketi basilmali');
+});
+
+test('etiketten okunan sayfa, kapidan GECER (uctan uca)', () => {
+  // Iki parcayi birlestiren test: assembleRetrieved ne uretirse,
+  // groundCitationPages onu kabul etmeli. Araya giren bir uyumsuzluk
+  // (ornegin biri 1-tabanli digeri 0-tabanli) ancak boyle yakalanir.
+  const { pages } = A.assembleRetrieved(
+    [{ chunk_index: 0, page_start: 30, page_end: 36, text: 'x' }], 100000);
+  const r = A.groundCitationPages([{ id: 1, reference: 'Sayfa 30-36 - tablo' }], pages);
+  assert.deepEqual(r.atilan, [], 'kendi urettigimiz sayfalar sahte sayilmamali');
+  assert.equal(r.citations[0].reference, 'Sayfa 30-36 - tablo');
+});
+
+test('gonderilmemis sayfa atifdan cikariliyor', () => {
+  const r = A.groundCitationPages(
+    [{ id: 1, reference: 'Sayfa 24-25, 88 - stok degerleme' }],
+    [24, 25, 29]
+  );
+  assert.deepEqual(r.atilan, [88]);
+  assert.ok(/24-25/.test(r.citations[0].reference), 'dayanan sayfalar korunmali');
+  assert.ok(!/88/.test(r.citations[0].reference), 'sahte sayfa silinmeli');
+  assert.ok(/stok degerleme/.test(r.citations[0].reference), 'konu metni korunmali');
+});
+
+test('hicbiri dayanmiyorsa sayfa ifadesi atilir, KONU korunur', () => {
+  // Atfi bastan silmek ogrenciyi dogru bolumden de mahrum birakir.
+  const r = A.groundCitationPages(
+    [{ id: 1, reference: 'Sayfa 90-92 - LCM kurali' }],
+    [24, 25]
+  );
+  assert.deepEqual(r.atilan, [90, 91, 92]);
+  assert.ok(!/90|91|92/.test(r.citations[0].reference), 'sahte sayfalar gitmeli');
+  assert.ok(/LCM kurali/.test(r.citations[0].reference), 'konu metni kalmali');
+});
+
+test('SERBEST METINDEKI sayilara dokunulmuyor', () => {
+  /* reference serbest metin: "Bolum 2", "3. yontem", "1929 krizi". Bunlari
+     sayfa iddiasi sanip silmek, duzgun bir atifi bozmak olur. Yalnizca ACIK
+     sayfa kaliplari yakalanir. */
+  for (const ref of ['Bolum 2 - SEO tartismasi', '3. yontem aciklamasi',
+                     '1929 krizi bolumu', 'Giris bolumu']) {
+    const r = A.groundCitationPages([{ id: 1, reference: ref }], [24, 25]);
+    assert.deepEqual(r.atilan, [], `"${ref}" icinde sayfa iddiasi yok`);
+    assert.equal(r.citations[0].reference, ref, `"${ref}" degistirilmemeli`);
+  }
+});
+
+test('sayfa kumesi bossa kapi tamamen sessiz', () => {
+  // Tam belge gonderildiginde pasaj etiketi yok — dogrulanacak bir iddia da
+  // yok. Kapi her atifi sahte saymamali.
+  const atiflar = [{ id: 1, reference: 'Sayfa 7 - giris' }];
+  const r = A.groundCitationPages(atiflar, []);
+  assert.deepEqual(r.atilan, []);
+  assert.equal(r.citations[0].reference, 'Sayfa 7 - giris');
+});
+
+test('bozuk girdi kapiyi dusurmuyor', () => {
+  assert.deepEqual(A.groundCitationPages(null, [1, 2]).citations, []);
+  assert.deepEqual(A.groundCitationPages([null, 'metin', 5], [1, 2]).citations,
+    [null, 'metin', 5], 'nesne olmayan ogeler oldugu gibi gecmeli');
+  const r = A.groundCitationPages([{ id: 1 }], [1, 2]);
+  assert.deepEqual(r.citations, [{ id: 1 }], 'reference yoksa dokunulmamali');
+});
+
+test('sayfa listesi aralik olarak toplaniyor', () => {
+  // 29,30,31 BITISIK — dogru toplama "29-31". Ilk yazimda "29, 30-31"
+  // bekledim ve test dustu; kod hakliydi, beklenti yanlisti.
+  assert.equal(A.sayfaListesiTopla([24, 25, 29, 30, 31]), '24-25, 29-31');
+  assert.equal(A.sayfaListesiTopla([24, 25, 29, 31]), '24-25, 29, 31',
+    'bitisik olmayanlar ayri kalmali');
+  assert.equal(A.sayfaListesiTopla([5]), '5');
+  assert.equal(A.sayfaListesiTopla([3, 1, 2]), '1-3', 'sirasiz girdi de toplanmali');
+  assert.equal(A.sayfaListesiTopla([]), '');
+});
+
+test('sayfa aralikları acilirken sacma deger reddediliyor', () => {
+  assert.deepEqual(A.sayfaListesiAc('24-25, 29'), [24, 25, 29]);
+  assert.deepEqual(A.sayfaListesiAc('30-29'), [], 'ters aralik atilmali');
+  assert.deepEqual(A.sayfaListesiAc('1-9999'), [], 'absurd aralik atilmali');
+  assert.deepEqual(A.sayfaListesiAc('abc'), []);
 });
 
 console.log('\nTERIM DOGRULUGU TESTLERI\n');
