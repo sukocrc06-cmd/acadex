@@ -1429,17 +1429,26 @@ ${sourceText}
               // object's own shape is logged: its keys, and a short head of
               // every string field. Without this the next empty answer is
               // the same guess all over again.
-              const msg = peek?.choices?.[0]?.message
-              const sekil = msg && typeof msg === 'object'
-                ? Object.entries(msg).map(([k, v]) =>
-                    `${k}=${typeof v === 'string' ? `"${v.slice(0, 80)}"` : (v === null ? 'null' : typeof v)}`
-                  ).join(' ')
-                : String(msg)
+              // The CHOICE, not just its message. The message turned out to
+              // hold only role and an empty content (06.10.2026), so the
+              // 153 completion tokens were accounted for somewhere else
+              // entirely — a sibling field on the choice, or nowhere the
+              // response exposes. Logging the whole choice is the only way
+              // to tell those apart, and it is two lines.
+              const choice = peek?.choices?.[0]
+              const kisalt = (v: unknown): string =>
+                typeof v === 'string' ? `"${v.slice(0, 120)}"`
+                  : v === null ? 'null'
+                  : typeof v === 'object' ? `{${Object.keys(v as object).join(',')}}`
+                  : String(v)
+              const sekil = choice && typeof choice === 'object'
+                ? Object.entries(choice).map(([k, v]) => `${k}=${kisalt(v)}`).join(' ')
+                : String(choice)
               console.warn(
                 `chat-with-document: ${lane} BOS icerik dondu ` +
                 `(finish_reason=${finish}, completion=${u.completion_tokens ?? '?'}, ` +
                 `reasoning=${u.completion_tokens_details?.reasoning_tokens ?? '?'}, ` +
-                `butce=${maxCompletion}) message{ ${sekil} }` +
+                `butce=${maxCompletion}) choice{ ${sekil} }` +
                 `${i < textLanes.length - 1 ? ' — sonraki seride geciliyor' : ''}`
               )
               lastLaneError = `empty_content finish_reason=${finish}`
