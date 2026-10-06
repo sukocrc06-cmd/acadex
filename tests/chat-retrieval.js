@@ -700,6 +700,66 @@ test('bos icerikte cevabin SEKLI de loglaniyor', () => {
   assert.ok(/choice\{ \$\{sekil\} \}/.test(CHAT_SRC), "sekil log satirina girmeli");
 });
 
+console.log('\nTERIM DOGRULUGU TESTLERI\n');
+
+test('terimleri HATIRLAMA, KOPYALA kurali promptta', () => {
+  /* 06.10.2026: model "LIFO (Last‑In, Last‑Out)" yazdi. Dogrusu Last‑In,
+     FIRST‑Out, ve kaynakta dogrusu yaziyordu — ayni cevapta FIFO'yu dogru
+     acmisti. Yani bilgi eksigi degil, AKTARIM hatasi: hafizadan yazmis.
+
+     STRICT GROUNDING RULE "kaynak disina cikma" diyor ama bir kisaltmayi
+     acmak modele kaynak disi gelmiyor; kural acikca soylenmeli. */
+  assert.ok(/COPY TERMS, DON'T RECALL THEM/.test(CHAT_SRC),
+    'terim kopyalama kurali promptta yok');
+  const i = CHAT_SRC.indexOf("COPY TERMS, DON'T RECALL THEM");
+  const blok = CHAT_SRC.slice(i, i + 400);
+  assert.ok(/never from memory/i.test(blok), 'hafizadan yazma yasagi acik olmali');
+  assert.ok(/never expands|unexpanded/i.test(blok),
+    'kaynak acmiyorsa kisaltma acilmamali kurali eksik');
+});
+
+test('terim kurali KOSULSUZ — her soruda gonderiliyor', () => {
+  /* Gorsel ve sayisal kurallar kosullu (bkz. needsVisualRules): prompt
+     butcesi dar oldugu icin yalnizca gerektiginde gonderiliyorlar. Terim
+     dogrulugu oyle degil — her cevapta gecerli. Kural yanlislikla bir
+     ternary'nin icine dusesse bu test yakalar. */
+  const i = CHAT_SRC.indexOf("COPY TERMS, DON'T RECALL THEM");
+  const g = CHAT_SRC.indexOf('STRICT GROUNDING RULE');
+  const c = CHAT_SRC.indexOf('CITATION RULE:');
+  assert.ok(g > -1 && c > -1, 'cevre kurallar bulunamadi');
+  assert.ok(i > g && i < c,
+    'kural, kosulsuz blokta (GROUNDING ile CITATION arasinda) durmali');
+  // Arada bir ternary acilmamis olmali.
+  const ara = CHAT_SRC.slice(g, c);
+  assert.ok(!/\$\{needs\w+ \?/.test(ara),
+    'kosulsuz bolgeye kosullu bir blok sizmis');
+});
+
+test('prompt BUYUMESI kaynaktan birebir goturuyor — mandal', () => {
+  /* O + kaynak = (T - C) * r SABIT oldugu icin prompt'a eklenen her
+     karakter kaynaktan BIR karakter goturuyor. 06.10.2026'da olculdu:
+     300 karakterlik terim kurali, kaynak butcesini 9.659 → 9.360'a
+     dusurdu. Bu takas gorunmez oldugu surece prompt sessizce sisiyor.
+
+     Mandal: sablon bugunku boyutun belirgin ustune cikarsa test duser ve
+     ekleyen kisi bedeli gormek zorunda kalir. Olcum kaba (sablonun kaynak
+     kodu, kosullu bloklar dahil) — amaci kesin boyut degil, BUYUME
+     ALARMI. */
+  // Capa olarak sablonun KENDI sinirlari kullanilir: basi "return `You are
+  // a grounded...", sonu "SOURCE TEXT:" (kaynak metnin kendisi haric).
+  // Ilk denemede capa "const SOURCE_BUDGET" idi ve o satir bu girintide
+  // yoktu — test "sablonun sonu bulunamadi" diye dustu. Capa, olctugu seyin
+  // icinden secilmeli.
+  const bas = CHAT_SRC.indexOf('return `You are a grounded document Q&A assistant');
+  assert.ok(bas > -1, 'sablonun basi bulunamadi');
+  const son = CHAT_SRC.indexOf('SOURCE TEXT:', bas);
+  assert.ok(son > bas, 'sablonun sonu bulunamadi');
+  const boyut = CHAT_SRC.slice(bas, son).length;
+  assert.ok(boyut <= 14000,
+    `prompt sablonu ${boyut} karakter (tavan 15000) — her karakter kaynaktan ` +
+    `bir karakter goturuyor; eklemeden once gercekten gerekli mi diye bak`);
+});
+
 console.log('\nORAN EMNIYET TESTLERI\n');
 
 /* 06.10.2026, CHARS_PER_TOKEN_EN 4.1 → 4.4.
