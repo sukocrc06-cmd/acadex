@@ -639,8 +639,8 @@ test('bos icerikte cevabin SEKLI de loglaniyor', () => {
   // tahmin olur.
   const i = CHAT_SRC.indexOf('BOS icerik dondu');
   const blok = CHAT_SRC.slice(Math.max(0, i - 900), i + 400);
-  assert.ok(/Object\.entries\(msg\)/.test(blok), 'message alanlari loglanmali');
-  assert.ok(/message\{ \$\{sekil\} \}/.test(CHAT_SRC), 'sekil log satirina girmeli');
+  assert.ok(/Object\.entries\(choice\)/.test(blok), 'choice alanlari loglanmali');
+  assert.ok(/choice\{ \$\{sekil\} \}/.test(CHAT_SRC), "sekil log satirina girmeli");
 });
 
 summary().then(() => process.exit(process.exitCode || 0));
