@@ -4602,13 +4602,41 @@ Rules:
           // First attempt uses the lane the batch assigned (distinct across
           // siblings — see pickLane). A retry re-picks, because by then the
           // other calls have landed and the ledgers have moved.
-          const windowLane = (attempt === 0 && assignedLane)
-            ? assignedLane
-            : pickLane(
-                [MODEL_HEAVY, MODEL_EXTRACT],
-                estimateTokens(compactWindowPrompt(wi, windows.length), payload, 3072),
-                3072
+          //
+          // A RETRY PREFERS THE BIG MODEL, and will wait for it.
+          //
+          // pickLane chooses by availability, which is right when the goal is
+          // throughput and wrong here: the lane the first attempt just spent
+          // is the one it will avoid, so a failed window is systematically
+          // handed to the SMALLER model. Measured on the economy chapter
+          // (06.10.2026) — attempt 1 failed with json_validate_failed, the
+          // retry went to gpt-oss-20b, and the window came back
+          // "terms=24 points=10 quiz=0". The same document and the same
+          // prompt on gpt-oss-120b the day before gave quiz=10. The card
+          // shipped with 3 questions instead of 13.
+          //
+          // A retry exists to rescue the window's quality, so giving it to
+          // the weaker model defeats the point. It takes MODEL_HEAVY whenever
+          // that lane's wait fits the remaining budget, and only falls back
+          // to whatever is free when it does not — the rescue still happens,
+          // it just prefers the model that can actually fill the schema.
+          let windowLane: string
+          if (attempt === 0 && assignedLane) {
+            windowLane = assignedLane
+          } else {
+            const est = estimateTokens(compactWindowPrompt(wi, windows.length), payload, 3072)
+            const heavyWaitMs = tokenPacer.waitEstimate(est, MODEL_HEAVY, 3072)
+            const affordHeavy = budgetLeft() > heavyWaitMs + WINDOW_CALL_MS + NARRATIVE_WRITER_RESERVE_MS
+            windowLane = affordHeavy
+              ? MODEL_HEAVY
+              : pickLane([MODEL_HEAVY, MODEL_EXTRACT], est, 3072)
+            if (attempt > 0) {
+              console.log(
+                `Window ${wi + 1}: tekrar denemesi ${windowLane} seridinde ` +
+                `(${MODEL_HEAVY} beklemesi ${heavyWaitMs}ms, ${affordHeavy ? 'butceye sigdi' : 'sigmadi'})`
               )
+            }
+          }
           windowLanes.set(wi, windowLane)
           try {
             const result = await callGroqJson(
@@ -4791,7 +4819,29 @@ Rules:
             // both models, so one run of one document compares 120b and 20b on
             // neighbouring slices of the same text. If 20b extracts materially
             // less, this log is where it shows, with no separate experiment.
-            console.log(`Window ${wi + 1} ok [${windowLanes.get(wi) || '?'}]: terms=${(result.key_terms || []).length} points=${(result.key_points || []).length} quiz=${(result.quiz_questions || []).length}`)
+            const nTerms = (result.key_terms || []).length
+            const nPoints = (result.key_points || []).length
+            const nQuiz = (result.quiz_questions || []).length
+            console.log(`Window ${wi + 1} ok [${windowLanes.get(wi) || '?'}]: terms=${nTerms} points=${nPoints} quiz=${nQuiz}`)
+            // A window that returns plenty of one array and NOTHING of
+            // another did not fail — it was accepted, merged and shipped.
+            // On 06.10.2026 a window came back terms=24 points=10 quiz=0 and
+            // the card went out with 3 questions where 13 was normal, with
+            // nothing anywhere saying a whole field had gone missing. "ok"
+            // was the only word in the log. An empty array next to a full one
+            // is not a document without quiz questions; it is a model that
+            // dropped a field.
+            const emptyFields = [
+              nTerms === 0 ? 'key_terms' : '',
+              nPoints === 0 ? 'key_points' : '',
+              nQuiz === 0 ? 'quiz_questions' : ''
+            ].filter(Boolean)
+            if (emptyFields.length > 0 && nTerms + nPoints + nQuiz > 0) {
+              console.warn(
+                `Window ${wi + 1}: ${emptyFields.join(', ')} BOS dondu ` +
+                `[${windowLanes.get(wi) || '?'}] — model alani atlamis olabilir`
+              )
+            }
           }
         }
       }
