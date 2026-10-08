@@ -341,6 +341,54 @@ test('Unicode font VARKEN gercek matematik glifleri basiliyor', () => {
   assert.ok(/≈/.test(f('\\Delta y \\approx 100\\beta_1')), 'yaklasik isareti');
 });
 
+test('SAPKA isareti iki yazimda da calisiyor', () => {
+  /* Ekonometride her yerde: β̂, ŷ. Iki bicimde geliyor — duzgun LaTeX
+     (\hat{\beta}_0) ve modelin canli diyagramda yazdigi kisa bicim
+     (β^_0). Ikisi de ayni sonuca varmali. */
+  assert.equal(latexToUnicode('\\hat{\\beta}_1 = 0.69', true), 'β̂₁ = 0.69');
+  assert.equal(latexToUnicode('β^_0', true), 'β̂₀');
+  // Fontsuz modda birlestirici isaret ASCII harfe oturup "betâ" uretiyordu.
+  assert.ok(!/̂/.test(latexToUnicode('\\hat{\\beta}_1', false)),
+    'fontsuz modda birlestirici sapka kalmamali');
+});
+
+test('MERMAID etiketleri donusturuluyor, dugum kimlikleri DEGIL', () => {
+  /* 08.10.2026: FORMULLER bolumu duzeldikten sonra bile diyagram kutulari
+     "y_i = β_0 + β_1x_1,i" diye duruyordu — latexToUnicode yalnizca
+     formulas dizisine uygulaniyordu.
+
+     Kritik sinir: butun kaynagi donusturmek dugum KIMLIKLERINI de bozar
+     ("A_1" -> "A₁" gecerli bir Mermaid kimligi degil) ve diyagram tamamen
+     kaybolur. Yalnizca [...] ve |...| icine dokunulmali. */
+  const src = 'flowchart TD\n' +
+    '  A_1[y_i = β_0 + β_1x_1,i + ε_i]\n' +
+    '  B_2[ŷ_i = β^_0 + β^_1x_1,i]\n' +
+    '  A_1 --> B_2';
+  const out = mermaidPrettyLabels(src);
+
+  // Etiket ici donustu.
+  assert.ok(/yᵢ = β₀ \+ β₁x₁,i \+ εᵢ/.test(out), `etiket donusmedi:\n${out}`);
+  assert.ok(/β̂₀/.test(out), 'sapka uygulanmadi');
+  // Dugum kimlikleri ve ok DEGISMEDI.
+  assert.ok(/A_1\[/.test(out), 'dugum kimligi bozulmus — diyagram kaybolur');
+  assert.ok(/B_2\[/.test(out), 'dugum kimligi bozulmus');
+  assert.ok(/A_1 --> B_2/.test(out), 'kenar tanimi bozulmus');
+});
+
+test('cok satirli etiketler ATLANMIYOR', () => {
+  // Ilk yazimda <br/> iceren etiketleri korumaya almistim — oysa cok
+  // satirli etiketler tam olarak formullerin yasadigi yer, yani asil
+  // hedefi kaciriyordum.
+  const out = mermaidPrettyLabels('A[Model<br/>y_i = β_0 + ε_i]');
+  assert.ok(/yᵢ = β₀ \+ εᵢ/.test(out), `cok satirli etiket atlandi: ${out}`);
+  assert.ok(out.includes('<br/>'), 'satir sonu etiketi korunmali');
+});
+
+test('Mermaid ok isareti tasiyan etikete dokunulmuyor', () => {
+  const src = 'flowchart TD\n  A --> B\n  C --- D';
+  assert.equal(mermaidPrettyLabels(src), src, 'yapisal satirlar degismemeli');
+});
+
 test('fontsuz modda ham LaTeX kalmiyor, ters bolu da kalmiyor', () => {
   // Her iki modda da ogrenci ters bolu gormemeli.
   for (const mod of [true, false]) {
