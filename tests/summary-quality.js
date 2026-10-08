@@ -66,7 +66,11 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'gateWorkedExamples',
   'JSON_GECERLI_KACIS', 'repairLatexEscapes',
   // Yokluk iddiasi kapisi (08.10.2026).
-  'YOKLUK_IDDIASI'
+  'YOKLUK_IDDIASI',
+  // Sayisal kapsama olcusu (09.10.2026).
+  'SAYFA_ISARETI_RE', 'SAYISAL_KAPSAMA_TOLERANS', 'SAYI_BELIRTECI', 'SAYISAL_KAPSAMA_ORNEK',
+  'sayiOkumalari', 'distinctiveNumbers', 'outputNumbers', 'yakinDegerVar',
+  'KAPSAMA_DISI_ALANLAR', 'coverageText', 'numericCoverage', 'formatCoverage'
 ]);
 
 const { test, summary } = makeRunner();
@@ -2869,8 +2873,12 @@ test('talimat uc isi de istiyor', () => {
   assert.ok(/JUDGE \w+s: skip/.test(t), 'slayt secme talimati yok');
   assert.ok(/agenda/.test(t), 'atlanacak slayt tipleri sayilmali');
   assert.ok(/GROUP the rest by topic/.test(t), 'konuya gore gruplama talimati yok');
-  assert.ok(/FORMULAS\/TABLES ARE THE LESSON/.test(t), 'formul/tablo talimati yok');
+  assert.ok(/FORMULAS\/TABLES\/NUMBERS ARE THE LESSON/.test(t), 'formul/tablo/sayi talimati yok');
   assert.ok(/name every variable/.test(t), 'degisken aciklamasi istenmeli');
+  // 09.10.2026: alti ampirik sonucun altisi da metindeydi, ozetler en fazla
+  // ucunu tasidi. Sayinin kendisi ve anlamlilik duzeyi acikca istenmeli.
+  assert.ok(/estimated value/.test(t), 'tahmin edilen deger istenmeli');
+  assert.ok(/significance level/.test(t), 'anlamlilik duzeyi istenmeli');
   // Pay, olculen referans belgeyi (12.451 krk) bolmemeli.
   assert.equal(13000 - A.DECK_PROMPT_CHARS, 12451,
     'deste penceresi olculen referans belgeyi tam karsilamali');
@@ -3147,6 +3155,171 @@ test('KACIS IKI KARAKTER olarak tuketiliyor', () => {
   assert.doesNotThrow(() => JSON.parse(A.repairLatexEscapes(tek)));
   assert.ok(JSON.parse(A.repairLatexEscapes(tek)).p.includes('\\beta_0'),
     'tirnaktan SONRAKI LaTeX onarilmali');
+});
+
+
+console.log('\nSAYISAL KAPSAMA OLCUSU\n');
+
+/* 09.10.2026. Ekonometri destesinin (42 slayt) alti ampirik sonucu tasiyan
+   slaytlari, pdftotext ciktisindan BIREBIR. Hepsi metinde — gorsel
+   gerektirmiyor. Dort canli ozet bunlarin en fazla 3'unu tasidi. */
+const DESTE_SONUCLARI = `
+--- SLAYT 13 ---
+Excel Example
+On average, if GDP per capita increases by $1000 US dollars, energy consumption
+per capita increases by .07 tons. This is statistically significant at the 10% level.
+7-13
+--- SLAYT 28 ---
+Utility Bill vs. Temperature – Quadratic Regression
+UtilityBill = 484.12 - 12.08 temp + 0.09 temp2
+When a quadratic relationship is fit between utility bill and monthly temperature
+the linear and quadratic terms are now statistically significant at the 1% level.
+7-28
+--- SLAYT 38 ---
+This slope coefficient on gdppc is interpreted as, "on average, if GDP per capita
+increases by $1000 then energy consumption per capita goes up by (0.026)100% or 2.6%."
+7-38
+--- SLAYT 39 ---
+energy consumption per capita is 50.5% higher in Europe than South America.
+energy consumption per capita is 56.6% higher in North America than South America.
+7-39
+--- SLAYT 41 ---
+if GDP per capita increases by 1% then energy consumption per capita goes up by .69%.
+7-41
+--- SLAYT 42 ---
+energy consumption per capita is 9.3% lower in Europe than South America.
+capita is 41.5% higher in North America than South America.
+7-42
+`;
+
+test('ayirt edici sayilar: ondalik ya da >=100; kucuk tam sayi, yil ve isaret YOK', () => {
+  const s = A.distinctiveNumbers(DESTE_SONUCLARI);
+  for (const v of [0.07, 484.12, 12.08, 0.09, 0.026, 2.6, 50.5, 56.6, 0.69, 9.3, 41.5, 1000]) {
+    assert.ok(s.includes(v), `${v} olcuye girmeli`);
+  }
+  // "%10", "%1", slayt numarasi, "7-13" altbilgisi: her metinde var, hicbir sey olcmez.
+  for (const v of [10, 1, 13, 28, 7, 2]) {
+    assert.ok(!s.includes(v), `${v} olcuye girmemeli`);
+  }
+  // Yil gibi duran tam sayilar disarida.
+  assert.deepEqual(A.distinctiveNumbers('GDP 1900-2014 arasinda, 2024 yilinda'), []);
+  // Sayfa isaretinin kendisi olcuye girmemeli (100+ sayfali belge).
+  assert.deepEqual(A.distinctiveNumbers('--- SAYFA 140 ---\nmetin'), []);
+  assert.deepEqual(A.distinctiveNumbers('--- SLAYT 212 ---\nmetin'), []);
+});
+
+test('bastaki noktali ondalik okunuyor: ".07 tons" = 0.07, 7 DEGIL', () => {
+  // Referans destenin alti sonucundan ikisi (slayt 13 ve 41) bu bicimde.
+  // Rakamla baslayan bir desen bunlari 7 ve 69 okur ve olcuden dusurur.
+  assert.deepEqual(A.distinctiveNumbers('increases by .07 tons'), [0.07]);
+  assert.deepEqual(A.distinctiveNumbers('goes up by .69%.'), [0.69]);
+  assert.equal(A.numericCoverage('by .69%', 'yaklasik %0,69 artar').kept, 1);
+  assert.equal(A.numericCoverage('by .69%', 'yaklasik 0.69% artar').kept, 1);
+});
+
+test('mutlak degere gore tekil ve ILK GORULDUGU SIRADA', () => {
+  // Cikaricilar eksi isaretini kaybediyor; "12.08 kayboldu mu" isaretten bagimsiz.
+  assert.deepEqual(A.distinctiveNumbers('b = -12.08 ve sonra 12.08, sonra 3.5'), [12.08, 3.5]);
+});
+
+test('kaynak tarafi binlik ayraci TEK okur — hayali 1.5 uretmez', () => {
+  assert.deepEqual(A.distinctiveNumbers('fiyat 1,500 dolar'), [1500]);
+  // Ayracli yazilmis bir tutar yil sayilmamali; ayracsiz dort hane sayilir.
+  assert.deepEqual(A.distinctiveNumbers('1,800 dolar, 1800 yilinda'), [1800]);
+  assert.deepEqual(A.distinctiveNumbers('1800 yilinda'), []);
+  // Turkce ondalik virgul kaynakta da okunur (Ingilizce okuma NaN veriyor).
+  assert.deepEqual(A.distinctiveNumbers('katsayi 12,08 oldu'), [12.08]);
+});
+
+test('ozet tarafi Turkce ondalik virgulu okur (%2,6 = 2.6)', () => {
+  const cov = A.numericCoverage('artis 2.6% ve katsayi 12.08', { summary: 'artış %2,6; katsayı 12,08' });
+  assert.equal(cov.kept, 2, `Turkce yazilan sayilar kayip sayildi: ${JSON.stringify(cov)}`);
+});
+
+test('GORELI tolerans: 484 kabul, 0.03 RED, 0 RED (sifira yuvarlama tuzagi)', () => {
+  // Model okudugunu yuvarlar — okunmus deger yine okunmustur.
+  assert.equal(A.numericCoverage('b0 = 484.12', 'yaklasik 484').kept, 1);
+  assert.equal(A.numericCoverage('pay 41.5%', 'pay 42%').kept, 1);
+  // 0.026 icin 0.03 yuzde 15 uzak: bu baska bir sayi.
+  assert.equal(A.numericCoverage('egim 0.026', 'egim 0.03').kept, 0);
+  // gateWorkedExamples'ta dusulen tuzak: 0.0012 -> 0, ve her metinde 0 var.
+  assert.equal(A.numericCoverage('p = 0.0012', 'toplam 0 hata, 10 madde').kept, 0);
+});
+
+test('footnotes SAYILMAZ — kaynaktan birebir alinti, ogretilen icerik degil', () => {
+  const cikti = {
+    summary: 'Log-log modelde esneklik yorumlanir.',
+    footnotes: [{ quote: 'goes up by .69%', page: 41 }]
+  };
+  const cov = A.numericCoverage('goes up by .69%', cikti);
+  assert.equal(cov.kept, 0, 'yalnizca dipnotta gecen sayi ozete ulasmis sayilmamali');
+  assert.deepEqual(cov.missing, [0.69]);
+});
+
+test('canli deste: dort ozetin SIRASINI yeniden uretiyor', () => {
+  /* Dort canli ozetten, bu alti sonuca dair gercekte tasinan ifadeler.
+     out_3 ("asiri zayif" kosusu) hicbirini tasimiyordu, out_2 (en iyisi)
+     log-dogrusal 0.026/2.6 ve kukla 9.3/41.5'i tasiyordu. */
+  const enIyi = {
+    key_points: [
+      'Log-linear: Europe coefficient = -0.093 (9.3% lower consumption), North America = 0.415 (41.5% higher).',
+      'A coefficient of 0.026 means energy per capita rises by about 2.6% per $1,000.'
+    ]
+  };
+  const zayif = {
+    key_points: ['Log-log model: both sides in logs, coefficient is an elasticity.']
+  };
+  const a = A.numericCoverage(DESTE_SONUCLARI, enIyi);
+  const b = A.numericCoverage(DESTE_SONUCLARI, zayif);
+  assert.ok(a.kept > b.kept, `en iyi ozet ${a.kept}, zayif ozet ${b.kept} — siralama tutmali`);
+  assert.equal(b.kept, 0);
+  assert.equal(a.kept, 5, `en iyi ozet: 1000, 0.026, 2.6, 9.3, 41.5 — bulunan ${a.kept}`);
+  // Kayip listesi kaynaktaki sirayla: slayt 13'un "$1000"'u ve ".07"si once.
+  assert.deepEqual(b.missing.slice(0, 2), [1000, 0.07]);
+});
+
+test('log satiri: oran ve kayip ornekleri, fazlasi sayi olarak', () => {
+  const satir = A.formatCoverage(A.numericCoverage(DESTE_SONUCLARI, {}));
+  assert.ok(/^0\/13 \(%0\) — kayip: 1000, 0\.07, 484\.12, 12\.08, 0\.09, 0\.026, 100, 2\.6 \+5$/.test(satir), satir);
+  assert.ok(/\+\d+$/.test(satir), `ornek sayisi asildiginda kalan sayi yazilmali: ${satir}`);
+  assert.equal(A.formatCoverage(A.numericCoverage('yalnizca 3 ve 5', {})),
+    'olculecek ayirt edici sayi yok');
+  assert.equal(A.formatCoverage({ total: 2, kept: 2, missing: [] }), '2/2 (%100)');
+});
+
+test('buyuk belgede hizli (ikili arama)', () => {
+  const kaynak = Array.from({ length: 4000 }, (_, i) => `${i}.${(i * 7) % 100 + 1}`).join(' ');
+  const ozet = { s: Array.from({ length: 20000 }, (_, i) => `${i}.5`).join(' ') };
+  const t0 = Date.now();
+  const cov = A.numericCoverage(kaynak, ozet);
+  const sure = Date.now() - t0;
+  assert.ok(cov.total > 3000, `olcu kurulmadi: ${cov.total}`);
+  assert.ok(sure < 1500, `${sure} ms — edge function suresine yuk olmamali`);
+});
+
+/* Kaynaktaki yorumlar test edilen kaliplari icerebiliyor (bu projede dort
+   kez oldu) — baglanti testleri yorumsuz kopyaya bakar. */
+const KAPSAMA_KOD = SRC.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+test('uc asamada da LOGLANIYOR: pencere, birlesim, son kart', () => {
+  assert.ok(/sayisal kapsama: \$\{formatCoverage\(numericCoverage\(windows\[wi\], result\)\)\}/.test(KAPSAMA_KOD),
+    'pencere kendi dilimine karsi olculmuyor');
+  assert.ok(/Birlesim sayisal kapsama: \$\{formatCoverage\(numericCoverage\(extractedText, mergedDraft\)\)\}/.test(KAPSAMA_KOD),
+    'birlesim olculmuyor');
+  assert.ok(/numericCoverage\(extractedText, cardPayload\)/.test(KAPSAMA_KOD),
+    'son kart olculmuyor');
+});
+
+test('son kart olcusu INSERT\'TEN ONCE ve quality_meta\'ya yaziliyor', () => {
+  const olcu = KAPSAMA_KOD.indexOf('numericCoverage(extractedText, cardPayload)');
+  const insert = KAPSAMA_KOD.indexOf(".from('study_cards').insert(cardPayload)");
+  const payload = KAPSAMA_KOD.indexOf('const cardPayload');
+  assert.ok(payload > -1 && olcu > payload, 'olcu cardPayload kurulmadan once');
+  assert.ok(insert > olcu, 'olcu insert\'ten sonra — karta hic girmez');
+  assert.ok(/qualityMeta\.numeric_coverage = \{ kept: kapsama\.kept, total: kapsama\.total \}/.test(KAPSAMA_KOD),
+    'kapsama karta yazilmiyor');
+  // quality_meta AYNI nesne olmali; kopya olsaydi eklenen alan insert'e girmezdi.
+  assert.ok(/quality_meta: qualityMeta\b/.test(KAPSAMA_KOD), 'quality_meta referansla baglanmamis');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));
