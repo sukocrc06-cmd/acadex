@@ -763,13 +763,69 @@ function splitIntoChunks(text: string, targetChunkSize: number): string[] {
  * `maxChars`, guaranteeing per-window token cost never exceeds what the
  * char-offset version already spent.
  */
-function splitIntoWindows(text: string, maxChars: number, maxWindows: number): string[] {
+function kurPencereler(text: string, hedefChars: number): string[] {
   const out: string[] = []
-  for (const chunk of splitIntoChunks(text, maxChars)) {
-    if (chunk.length <= maxChars) { out.push(chunk); continue }
-    for (let i = 0; i < chunk.length; i += maxChars) out.push(chunk.slice(i, i + maxChars))
+  for (const chunk of splitIntoChunks(text, hedefChars)) {
+    if (chunk.length <= hedefChars) { out.push(chunk); continue }
+    for (let i = 0; i < chunk.length; i += hedefChars) out.push(chunk.slice(i, i + hedefChars))
   }
-  return out.slice(0, maxWindows)
+  return out
+}
+
+/* ===========================================================================
+   PENCERELER DENGELENIR
+   ===========================================================================
+   08.10.2026, canli ekonometri destesinde olculdu. 13.980 karakter acgozlu
+   doldurma ile soyle bolunuyordu:
+
+     pencere 1: 12.192 krk     pencere 2: 2.437 krk
+
+   Ve ikinci pencere su sonucu verdi: terms=0 points=0 quiz=0. Destenin son
+   dort slaydi oradaydi (39-42) ve TAM OLARAK ampirik ornekler orada
+   yasiyor: "Avrupa'da kisi basi enerji tuketimi %9.3 daha dusuk",
+   "K. Amerika %41.5 daha yuksek", log-log icin "%1 artis -> %0.69". Yani
+   sinavda sorulacak sayilarin tamami kayboldu — ustelik deste modu
+   oncesindeki ozette bunlarin ucu sinav sorusu olarak VARDI, yani bu bir
+   geri gidisti.
+
+   Minik bir pencere iki kez kotu: modele neredeyse hic baglam vermez ve
+   yine de tam bir cagri (ve pacer beklemesi) harcar.
+
+   PENCERE SAYISI DEGISMIYOR, yalnizca boyutlari esitleniyor — yani bu
+   dosyadaki TokenPacer yorumlarinin uyardigi "her ek pencere ~60 sn
+   bekleme" maliyeti DOGMUYOR. Ayni iki cagri, bu kez 7.316'sar karakterle.
+
+   Once kaba bolme ile kac pencere gerektigi bulunur; sonra metin hedef
+   boyutta KUCUK PARCALARA ayrilip tam o kadar kovaya dagitilir. Ilk
+   denemede "hedef boyutta yeniden bol, fazla cikarsa vazgec" yapmistim ve
+   hic devreye girmedi: paragraf duyarli bolme hedefte 3 parca uretiyor,
+   koruma da 2'ye geri donuyordu. Parcalari saymak degil DAGITMAK gerekiyor.
+   =========================================================================== */
+function splitIntoWindows(text: string, maxChars: number, maxWindows: number): string[] {
+  const kaba = kurPencereler(text, maxChars)
+  const n = Math.min(kaba.length, maxWindows)
+  if (n <= 1) return kaba.slice(0, maxWindows)
+
+  const hedef = Math.ceil(text.length / n)
+  const parcalar = kurPencereler(text, hedef)
+
+  const kovalar: string[] = []
+  let simdiki = ''
+  for (const p of parcalar) {
+    const sonKova = kovalar.length >= n - 1
+    if (simdiki && !sonKova && (simdiki.length + p.length + 2) > hedef) {
+      kovalar.push(simdiki)
+      simdiki = p
+    } else {
+      simdiki = simdiki ? `${simdiki}\n\n${p}` : p
+    }
+  }
+  if (simdiki) kovalar.push(simdiki)
+
+  // Guvenlik: hicbir kova maxChars'i asmamali (pencere butcesi oradan
+  // hesaplaniyor). Asarsa dengelemeden vazgecilir.
+  if (kovalar.some(k => k.length > maxChars)) return kaba.slice(0, maxWindows)
+  return kovalar.slice(0, maxWindows)
 }
 
 type GroqJsonOpts = {
@@ -3430,6 +3486,75 @@ type GroundingStats = {
 //
 // These claims are not ungrounded, they are grounded in a source this
 // function cannot read, so they are passed through and counted as kept.
+/* ===========================================================================
+   COZUMLU ORNEKLERIN SAYILARI DA DAYANDIRILIR
+   ===========================================================================
+   08.10.2026, canli ekonometri destesinde olculdu. Grounding gate
+   "score=100%, 0 dropped" dedi ve ayni kartta su cozumlu ornek vardi:
+
+     "Given the estimated quadratic model
+      UtilityBill = 208.12 - 0.09*Temp + 0.0012*Temp^2 ..."
+
+   Kaynaktaki gercek denklem (slayt 28):
+
+     UtilityBill = 484.12 - 12.08*temp + 0.09*temp^2
+
+   Dort katsayidan ucu uydurma. Daha kotusu, ornegin VARDIGI sonuclar
+   (40 derecede -5.06 dolar, minimum 67.1 derece) kaynaktaki DOGRU
+   sonuclar — ama yazdigi denklemden cikmiyorlar. Metin bunu kendi icinde
+   itiraf bile ediyor ("using the provided numbers yields -0.0054, i.e., a
+   $5.06 drop"). Dogru cevap, yanlis denklem: adimlari tekrar etmeye
+   calisan ogrenci icin en kotu hata turu.
+
+   Kapi bunu goremezdi, cunku YALNIZCA key_terms ve key_points'e bakiyordu.
+   Oysa uydurma sayinin en cok zarar verdigi yer tam olarak cozumlu ornek.
+
+   YALNIZCA problem_statement YARGILANIR. steps ve final_answer modelin
+   KENDI hesapladigi sayilari tasir; onlarin kaynakta gecmemesi dogaldir.
+   Ayirt edici olmayan sayilar (tek-iki haneli tam sayilar: 2, 40, 100) da
+   elenir, yoksa her ornek yanlis yere takilir. Esik grafik kapisiyla ayni
+   (CHART_MIN_GROUNDED_RATIO): yarisindan fazlasi dayanaksizsa atilir.
+   =========================================================================== */
+function gateWorkedExamples(
+  examples: any[],
+  sourceText: string
+): { kept: any[]; dropped: string[] } {
+  const list = Array.isArray(examples) ? examples : []
+  if (!sourceText || sourceText.length < 200 || list.length === 0) {
+    return { kept: list, dropped: [] }
+  }
+  const inSource = sourceNumbers(sourceText)
+  const dropped: string[] = []
+
+  const kept = list.filter((ex: any) => {
+    const verilen = String(ex?.problem_statement || '')
+    if (!verilen) return true
+    // Ayirt edici sayilar: ondalikli, ya da uc+ basamakli.
+    const adaylar = (verilen.match(/-?\d[\d.,]*/g) || [])
+      .map(t => Number(t.replace(/[.,]+$/, '').replace(/,(?=\d{3}\b)/g, '')))
+      .filter(v => Number.isFinite(v) && (Math.abs(v) >= 100 || !Number.isInteger(v)))
+    if (adaylar.length < 2) return true          // yargilayacak kadar sayi yok
+    /* YUVARLAMA TOLERANSI YALNIZCA BUYUK SAYILARA. sourceNumbers her degerin
+       yuvarlanmisini da kumeye koyuyor ("17.042 milyar" -> 17000 okumasi
+       gercek bir davranis). Ama 0.0012 yuvarlaninca 0 oluyor ve her metinde
+       0 vardir — yani kucuk ondalikli her uydurma sayi "dayanakli" cikiyor.
+       Ilk yazimda tam bu yuzden kapi GERCEK uydurma ornegi kacirdi. */
+    const dayanan = adaylar.filter(v => {
+      if (inSource.has(v)) return true
+      if (Math.abs(v) < 10) return false
+      return inSource.has(Math.round(v)) || inSource.has(Math.round(v * 10) / 10)
+    }).length
+    if (dayanan / adaylar.length >= CHART_MIN_GROUNDED_RATIO) return true
+    dropped.push(
+      `${String(ex?.title || 'baslıksız').slice(0, 40)} ` +
+      `(${adaylar.length - dayanan}/${adaylar.length} sayi kaynakta yok)`
+    )
+    return false
+  })
+
+  return { kept, dropped }
+}
+
 function applyGroundingGate(
   keyTerms: any[],
   keyPoints: any[],
@@ -6300,6 +6425,18 @@ Fix the listed issues. Remove hallucinations and admin noise. Keep ${langLabel}.
         (gated.stats.droppedTerms.length ? ` | uydurma terim: ${gated.stats.droppedTerms.join(', ')}` : '') +
         (gated.stats.droppedPoints.length ? ` | uydurma nokta: ${gated.stats.droppedPoints.map(p => `"${p}"`).join(' ')}` : '')
       )
+
+      // --- (b1) Cozumlu orneklerin VERILEN sayilari da dayandirilir.
+      // Kapi uzun sure yalnizca terim ve noktaya bakiyordu; uydurma sayinin
+      // en cok zarar verdigi yer ise cozumlu ornek (bkz. gateWorkedExamples).
+      const ornekKapi = gateWorkedExamples(parsedContent.worked_examples, extractedText)
+      if (ornekKapi.dropped.length) {
+        console.warn(
+          `Cozumlu ornek kapisi: ${ornekKapi.dropped.length} ornek atildi — ` +
+          ornekKapi.dropped.join(' | ')
+        )
+      }
+      parsedContent.worked_examples = ornekKapi.kept
 
       // --- (b2) Narrative year gate: the prose the gate above never sees
       const yearsChecked = sanitizeNarrativeYears(parsedContent, extractedText)
