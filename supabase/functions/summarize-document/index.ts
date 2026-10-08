@@ -2506,8 +2506,18 @@ function buildSlideDeckInstruction(isDeck: boolean, unitWord: string): string {
 DECK MODE (lecture ${U}s, not prose):
 - EXPAND, don't compress: ${U} text is telegraphic; summarising it leaves nothing. Say what each fragment MEANS in full sentences — output for a content ${U} is normally LONGER than it.
 - JUDGE ${U}s: skip title, agenda, dividers, "Sorular?"/"Questions?", references, ${U}s restating their title. GROUP the rest by topic — never "${U} 1 covers…".
-- FORMULAS/TABLES ARE THE LESSON (spoken explanation is gone): extract each formula, name every variable, say what it computes. A table is primary content.`
+- FORMULAS/TABLES/NUMBERS ARE THE LESSON: copy each formula, name every variable; keep each estimated value with its unit and significance level.`
 }
+/* UCUNCU MADDE NEDEN SAYILARI SOYLUYOR (09.10.2026).
+   Ekonometri destesinin alti ampirik sonucunun ALTISI DA metinde var —
+   "0.026 ... 2.6%", "50.5% higher", ".69%", "484.12 - 12.08 temp" — gorsel
+   gerektirmiyor. Yine de dort canli ozet bunlarin en fazla 3'unu tasidi,
+   sonuncusu 0'ini. Eski madde formul ve tablo istiyordu, sayiyi istemiyordu;
+   model "log-dogrusal modelde egim yuzde degisim olarak yorumlanir" yazip
+   0.026'yi atiyordu. Ders bu sayidir.
+   Ayni 549 krk payina sigdirildi: "(spoken explanation is gone)" ve "say what
+   it computes" cikti — ikincisini birinci maddenin "Say what each fragment
+   MEANS" kurali zaten karsiliyor. */
 
 /* Talimatin pencere butcesinden dustugu karakter payi.
    BU SAYIYI OLCUM SECTI, BEN DEGIL. Canli referans: 30 sayfalik bir ders
@@ -3292,6 +3302,170 @@ function sourceNumbers(text: string): Set<number> {
     }
   }
   return out
+}
+
+/* ==========================================================================
+   SAYISAL KAPSAMA — kaynagin OLCULMUS degerlerinin ne kadari ozete ulasti
+   (09.10.2026)
+
+   Bu projenin ozet kalitesi icin bir olcusu yoktu. "Bence asiri zayif kaldi"
+   dogru bir gozlemdi ama bir sayi degildi; bir sonraki surumun daha iyi mi
+   kotu mu oldugunu ancak biri iki PDF'i yan yana okuyarak soyleyebiliyordu.
+
+   Olculen sey: kaynakta gecen AYIRT EDICI sayilardan kacinin ozette de
+   gectigi. Ayirt edici = ondalikli bir deger ya da |v| >= 100 —
+   gateWorkedExamples'in kullandigi tanimin aynisi. Kucuk tam sayilar
+   (slayt numarasi, "%10 duzeyinde", "2 kategori") her metinde bulunur ve
+   hicbir sey olcmez.
+
+   Ayni ekonometri destesinin dort canli ozeti, BU uygulamayla olculdu
+   (kaynak 41 ayirt edici sayi, dipnotlar haric):
+       08.10 ozet A        19/41   %46
+       08.10 ozet B        15/41   %37
+       08.10 ozet C        19/41   %46   (alti ampirik sonuctan 3'u — en iyisi)
+       09.10 "asiri zayif" 11/41   %27   (repairLatexEscapes hatasi kosusu)
+   Kullanicinin "asiri zayif" dedigi kosu acik farkla en dusuk. A ile C'yi
+   ayirt EDEMIYOR: C alti sonuctan 3'unu, A 1'ini tasiyor ama A baska
+   slaytlarin sayilarini daha cok tutmus. Yani kaba kaliteyi goruyor, ince
+   farki gormuyor — bir sonraki surumun belirgin geriledigini ya da
+   ilerledigini soylemeye yetiyor, ve her kosuda, ek model cagrisi olmadan.
+
+   YALNIZCA TANI. Hicbir seyi kapilamiyor, dusurmuyor, yeniden istemiyor.
+   Mutlak deger anlamli degil (kaynakta ders olmayan sayilar da var); anlamli
+   olan AYNI belgenin kosulari arasindaki fark ve pencere -> birlesim ->
+   son kart arasinda nerede kayboldugu.
+   ========================================================================== */
+
+// Kaynak metindeki "--- SAYFA N ---" / "--- SLAYT N ---" isaretleri olcuye
+// girmemeli: 100+ sayfalik bir belgede isaretin kendisi "ayirt edici" sayilir.
+const SAYFA_ISARETI_RE = /---\s*(?:SAYFA|SLAYT)\s+\d+\s*---/g
+
+// Model okudugunu yuvarlar ("484.12" -> "484", "41.5%" -> "42%") ve yuvarlanmis
+// bir deger de okunmus bir degerdir. GORELI tolerans, mutlak degil: mutlak
+// yuvarlama tam olarak gateWorkedExamples'ta dustugumuz tuzak — 0.0012 sifira
+// yuvarlanir ve her metinde 0 vardir. Goreli %2.5'te 0.026'nin penceresi
+// +/-0.00065; "0.03" (yuzde 15 uzak) KABUL EDILMIYOR, 484.12 icin "484" ediliyor.
+const SAYISAL_KAPSAMA_TOLERANS = 0.025
+
+// Bastaki nokta DAHIL: ders slaytlari ".07 tons", ".69%" yaziyor (Amerikan
+// istatistik gelenegi). \d ile baslayan bir desen bunlari 7 ve 69 olarak okur
+// — ikisi de kucuk tam sayi, ikisi de olcuden duser. Referans destenin alti
+// sonucundan ikisi tam olarak bu bicimde.
+const SAYI_BELIRTECI = /\.?\d[\d.,]*/g
+const SAYISAL_KAPSAMA_ORNEK = 8
+
+/** Bir sayi belirtecinin okumalari; ILK eleman birincil okuma.
+ *
+ *  Turkce ondalik virgul ("12,08", "%2,6") de okunur: ozet dili Turkce
+ *  oldugunda model sayiyi boyle yaziyor, ve bu okunmazsa Turkce her ozet
+ *  sistematik olarak dusuk olculur.
+ *
+ *  "1,500" iki turlu okunabilir (1500 / 1.5). Kaynak tarafi YALNIZCA birincil
+ *  okumayi kullanir — yoksa her binlik ayracli sayi olcuye bir de hayali 1.5
+ *  ekler ve o hep "kayip" cikar. Ozet tarafi hepsini kullanir: orada fazla
+ *  aday olcuyu yalnizca comertlestirir. */
+function sayiOkumalari(token: string): number[] {
+  const base = token.replace(/[.,]+$/, '')
+  const okumalar: number[] = []
+  // Ingilizce: "1,500.25" -> 1500.25 ; "0.026" -> 0.026 ; "12,08" -> NaN
+  const en = Number(base.replace(/,(?=\d{3}\b)/g, ''))
+  if (Number.isFinite(en)) okumalar.push(en)
+  // Turkce: "1.500,25" -> 1500.25 ; "12,08" -> 12.08. Yalnizca virgul varsa
+  // anlamli; "0.026" icin bu okuma 26 uretirdi.
+  if (base.includes(',')) {
+    const tr = Number(base.replace(/\.(?=\d{3}\b)/g, '').replace(',', '.'))
+    if (Number.isFinite(tr) && !okumalar.includes(tr)) okumalar.push(tr)
+  }
+  return okumalar
+}
+
+/** Kaynagin ayirt edici sayilari, ILK GORULDUKLERI SIRADA ve mutlak degere
+ *  gore tekillestirilmis. Isaret karsilastirilmiyor: cikaricilar eksi
+ *  isaretini sik kaybediyor (sembol fontu), ve "12.08 kayboldu mu" sorusu
+ *  isaretten bagimsiz. Yil gibi duran tam sayilar (1500-2100) disarida — ders
+ *  icerigi degil, ama her donem slaytinda var. */
+function distinctiveNumbers(text: string): number[] {
+  const temiz = String(text || '').replace(SAYFA_ISARETI_RE, ' ')
+  const out: number[] = []
+  const gorulen = new Set<number>()
+  for (const token of temiz.match(SAYI_BELIRTECI) || []) {
+    const birincil = sayiOkumalari(token)[0]
+    if (birincil === undefined) continue
+    const v = Math.abs(birincil)
+    const kesirli = v !== Math.trunc(v)
+    // Yil hicbir zaman ayracla yazilmaz: "1,800 dolar" bir tutar, "1800" bir yil.
+    const yil = !kesirli && v >= 1500 && v <= 2100 && /^\d{4}$/.test(token)
+    if (yil || (!kesirli && v < 100)) continue
+    if (gorulen.has(v)) continue
+    gorulen.add(v)
+    out.push(v)
+  }
+  return out
+}
+
+/** Ozetteki tum sayilar, siralanmis mutlak degerler (ikili arama icin). */
+function outputNumbers(text: string): number[] {
+  const out: number[] = []
+  for (const token of String(text || '').match(SAYI_BELIRTECI) || []) {
+    for (const v of sayiOkumalari(token)) out.push(Math.abs(v))
+  }
+  return out.sort((a, b) => a - b)
+}
+
+function yakinDegerVar(sirali: number[], v: number): boolean {
+  const alt = v * (1 - SAYISAL_KAPSAMA_TOLERANS)
+  const ust = v * (1 + SAYISAL_KAPSAMA_TOLERANS)
+  let lo = 0, hi = sirali.length
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1
+    if (sirali[mid] < alt) lo = mid + 1
+    else hi = mid
+  }
+  return lo < sirali.length && sirali[lo] <= ust
+}
+
+/** Olcuye girmeyen alanlar. footnotes kaynaktan BIREBIR alinti tasir — onu
+ *  saymak "ozet bu sayiyi ogretti mi" sorusunu "kaynak kendini tekrar etti mi"
+ *  sorusuna cevirir. Digerleri sayfa numarasi ve kimlik tasir. */
+const KAPSAMA_DISI_ALANLAR = new Set([
+  'footnotes', 'quality_meta', 'outline', 'document_id', 'user_id',
+  'page', 'page_start', 'page_end', 'source_pages'
+])
+
+function coverageText(obj: unknown): string {
+  if (typeof obj === 'string') return obj
+  try {
+    return JSON.stringify(obj, (k, v) => (KAPSAMA_DISI_ALANLAR.has(k) ? undefined : v)) || ''
+  } catch {
+    return ''
+  }
+}
+
+function numericCoverage(
+  sourceText: string,
+  output: unknown
+): { total: number; kept: number; missing: number[] } {
+  const hedef = distinctiveNumbers(sourceText)
+  if (hedef.length === 0) return { total: 0, kept: 0, missing: [] }
+  const cikti = outputNumbers(coverageText(output))
+  const missing: number[] = []
+  let kept = 0
+  for (const v of hedef) {
+    if (yakinDegerVar(cikti, v)) kept++
+    else missing.push(v)
+  }
+  return { total: hedef.length, kept, missing }
+}
+
+function formatCoverage(cov: { total: number; kept: number; missing: number[] }): string {
+  if (cov.total === 0) return 'olculecek ayirt edici sayi yok'
+  const oran = Math.round((100 * cov.kept) / cov.total)
+  if (cov.missing.length === 0) return `${cov.kept}/${cov.total} (%${oran})`
+  const ornek = cov.missing.slice(0, SAYISAL_KAPSAMA_ORNEK).join(', ')
+  const fazla = cov.missing.length > SAYISAL_KAPSAMA_ORNEK
+    ? ` +${cov.missing.length - SAYISAL_KAPSAMA_ORNEK}`
+    : ''
+  return `${cov.kept}/${cov.total} (%${oran}) — kayip: ${ornek}${fazla}`
 }
 
 /**
@@ -5226,6 +5400,10 @@ Rules:
             const nPoints = (result.key_points || []).length
             const nQuiz = (result.quiz_questions || []).length
             console.log(`Window ${wi + 1} ok [${windowLanes.get(wi) || '?'}]: terms=${nTerms} points=${nPoints} quiz=${nQuiz}`)
+            // Pencerenin KENDI dilimine karsi: sayi burada kayboluyorsa sorun
+            // cikarimda, birlesimde degil. Uc asamanin uc satiri (pencere,
+            // birlesim, son kart) kaybin nerede oldugunu ayirt ediyor.
+            console.log(`Window ${wi + 1} sayisal kapsama: ${formatCoverage(numericCoverage(windows[wi], result))}`)
             // A window that returns plenty of one array and NOTHING of
             // another did not fail — it was accepted, merged and shipped.
             // On 06.10.2026 a window came back terms=24 points=10 quiz=0 and
@@ -5687,6 +5865,7 @@ The example that used to sit here named a real-looking percentage, and a live ru
       }
 
       console.log(`Long-doc merge: terms=${mergedKeyTerms.length} points=${mergedKeyPoints.length} quiz=${mergedQuiz.length} tables=${mergedTables.length} charts=${mergedCharts.length} diagrams=${mergedDiagrams.length} worked_examples=${mergedWorkedExamples.length} summaryLen=${(mergedDraft.summary || '').length}`)
+      console.log(`Birlesim sayisal kapsama: ${formatCoverage(numericCoverage(extractedText, mergedDraft))}`)
 
       rawContent = JSON.stringify(mergedDraft)
       // THE SOURCE, not a summary of it (05.10.2026).
@@ -6654,6 +6833,18 @@ Fix the listed issues. Remove hallucinations and admin noise. Keep ${langLabel}.
       visual_analysis: visualAnalysisUsed,
       course_tag: document.course_tag ?? null,
       quality_meta: qualityMeta
+    }
+
+    // Ogrencinin gordugu karta karsi, kaynagin tamamiyla. Kartla birlikte
+    // saklaniyor ki iki kosu loglar kaybolduktan sonra da karsilastirilabilsin.
+    // qualityMeta cardPayload.quality_meta ile AYNI nesne — burada eklenen
+    // alan insert'e giriyor.
+    {
+      const kapsama = numericCoverage(extractedText, cardPayload)
+      console.log(`Son kart sayisal kapsama: ${formatCoverage(kapsama)}`)
+      if (kapsama.total > 0) {
+        qualityMeta.numeric_coverage = { kept: kapsama.kept, total: kapsama.total }
+      }
     }
 
     let newCard: any = null
