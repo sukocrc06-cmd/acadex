@@ -1325,13 +1325,15 @@ async function extractVisualImagesForLongDoc(
   }
 }
 
-function buildChunkSystemPrompt(chunkIndex: number, totalChunks: number, langLabel: string, hasPageMarkers: boolean, pageMarkerLabel: string): string {
+function buildChunkSystemPrompt(chunkIndex: number, totalChunks: number, langLabel: string, hasPageMarkers: boolean, pageMarkerLabel: string, isDeck = false): string {
   return `You are an academic study assistant helping process a LARGE document that has been split into ${totalChunks} sequential parts because of its length. You are given ONLY part ${chunkIndex + 1} of ${totalChunks} below — you do NOT see the rest of the document, so do not reference "the whole document" or assume content beyond what's shown here.
 
 Respond with ONLY a valid JSON object, no markdown code fences, no commentary before or after — matching this exact shape: { "chunk_summary": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "tables": [ { "title": string, "headers": [ string ], "rows": [ [ string ] ] } ], "charts": [ { "title": string, "type": string, "labels": [ string ], "data": [ number ] } ], "footnotes": [ { "id": number, "reference": string, "page": number | null } ], "is_quantitative": boolean, "formulas": [ { "name": string, "latex": string, "variables": [ { "symbol": string, "meaning": string } ] } ], "worked_examples": [ { "title": string, "problem_statement": string, "steps": [ string ], "final_answer": string } ], "diagrams": [ { "title": string, "mermaid": string, "description": string } ], "concept_graph": { "nodes": [ { "id": string, "label": string, "type": string } ], "edges": [ { "from": string, "to": string, "relation": string } ] } }.
 
 CHUNK SUMMARY:
 Write a 2-4 sentence "chunk_summary" capturing specifically what THIS part covers — it will later be combined with the other parts' summaries into one final document summary, so be concrete and self-contained about the actual topics discussed here rather than vague.
+
+${buildSlideDeckInstruction(isDeck, pageMarkerLabel === "SLAYT" ? "slide" : "page")}
 
 EXTRACTION SCOPE:
 Extract key terms, key points, and 1-3 quiz questions found in THIS PART ONLY. Scale the amount to how much substantive academic content this part actually contains — a short or mostly administrative/transitional part may legitimately warrant few or even zero key terms/points/quiz questions. Do not pad for the sake of padding.
@@ -2222,6 +2224,93 @@ function applyFootnoteRemap(text: string, idMap: Record<number, number>): string
 // (see PDF/PPTX extraction above), or null with the old topic/heading
 // description when no such markers exist for this document (DOCX/plain text,
 // which have no reliable fixed-page concept).
+/* ===========================================================================
+   SLAYT DESTESI TESPITI
+   ===========================================================================
+   07.10.2026, bir ekonometri ders notu ozetine gelen geri bildirim uzerine:
+   "ders slaytlari daha ozet gibi kaldi", "slayt slayt degil de hangi slayt
+   gerekli hangisi gereksiz iyi analiz etmeli".
+
+   Dogru teshis: bir deste duz metinden FARKLI bir is istiyor. Bir slaytta
+   "Heteroskedastisite -> OLS etkin degil" yazar. Bunu OZETLEMEK geriye
+   hicbir sey birakmaz; ogrencinin ihtiyaci olan sey tersi, ACMAK. Ustelik
+   destenin metninin onemli bir kismi yapisal gurultu: baslik slayti,
+   ajanda, bolum ayraci, "Sorular?", tekrarlayan altbilgi.
+
+   Boru hatti bunu ZATEN biliyordu, ama GEC: document_type siniflandirmasi
+   ("Lecture Notes/Slides" secenegi dahil) SENTEZ adiminda, yani butun
+   pencereler cikarildiktan SONRA yapiliyor. Sistem destenin deste oldugunu,
+   ona duz metin muamelesi yapmayi bitirdikten sonra ogreniyordu.
+
+   Oysa sinyal en bastan elde. Iki yoldan:
+     - pptx: KESIN. mime type zaten biliniyor ve isaretler "SLAYT".
+     - PDF: ogrenciler slaytlari cogu zaman PDF olarak disa aktariyor ve o
+       zaman etiket "SAYFA" oluyor. Burada icerikten taninir: deste
+       sayfalari KISA olur.
+
+   ESIK OLCULMUS DEGIL — ve bu kodda yaziyor diye gercek olmuyor. Bir ders
+   slayti tipik olarak 30-80 kelime (~200-600 karakter), bir kitap/makale
+   sayfasi 2.000-4.000 karakter tasir; aradaki bosluk genis, 800 oraya
+   muhafazakar bicimde oturuyor. Sayfa alt siniri, iki sayfalik bir belgenin
+   yanlis siniflandirilmamasi icin. Karar HER CALISMADA sayilariyla
+   loglanir; ilk gercek deste bu esigin dogru olup olmadigini soyleyecek.
+   =========================================================================== */
+const DECK_MIN_PAGES = 8
+const DECK_MAX_CHARS_PER_PAGE = 800
+
+function detectSlideDeck(
+  text: string,
+  pageMarkerLabel: string
+): { isDeck: boolean; pages: number; charsPerPage: number; reason: string } {
+  const sayi = (text.match(new RegExp(`---\\s*${pageMarkerLabel}\\s+\\d+\\s*---`, 'g')) || []).length
+  const basina = sayi > 0 ? Math.round(text.length / sayi) : 0
+
+  // pptx: tartisma yok, dosyanin kendisi deste.
+  if (pageMarkerLabel === "SLAYT") {
+    return { isDeck: true, pages: sayi, charsPerPage: basina, reason: 'pptx' }
+  }
+  if (sayi < DECK_MIN_PAGES) {
+    return { isDeck: false, pages: sayi, charsPerPage: basina, reason: `sayfa az (${sayi})` }
+  }
+  if (basina <= DECK_MAX_CHARS_PER_PAGE) {
+    return { isDeck: true, pages: sayi, charsPerPage: basina, reason: `seyrek sayfa (${basina} krk)` }
+  }
+  return { isDeck: false, pages: sayi, charsPerPage: basina, reason: `yogun sayfa (${basina} krk)` }
+}
+
+/**
+ * Deste icin cikarim talimati. Duz metinde BOS doner — tek karakter maliyeti yok.
+ *
+ * KISA TUTULMASI ZORUNLU. Canli pencere cagrisinin butcesi dar:
+ *   WINDOW/4 (metin) + prompt + 3072 (completion) <= 7200 (8000 TPM * 0.9)
+ * WINDOW=13000 iken pay yalnizca ~351 token. Ilk yazim ~425 tokendi ve
+ * tavani asacakti — bu projede tam bu tur tasma daha once pencere
+ * kaybettirdi. Blok sikistirildi ve maliyeti DECK_PROMPT_CHARS olarak
+ * pencere butcesinden dusuluyor, boylece tavan aritmetigi aynen korunuyor.
+ */
+function buildSlideDeckInstruction(isDeck: boolean, unitWord: string): string {
+  if (!isDeck) return ''
+  const U = unitWord
+  return `
+DECK MODE (lecture ${U}s, not prose):
+- EXPAND, don't compress: ${U} text is telegraphic; summarising it leaves nothing. Say what each fragment MEANS in full sentences — output for a content ${U} is normally LONGER than it.
+- JUDGE ${U}s: skip title, agenda, dividers, "Sorular?"/"Questions?", references, ${U}s restating their title. GROUP the rest by topic — never "${U} 1 covers…".
+- FORMULAS/TABLES ARE THE LESSON (spoken explanation is gone): extract each formula, name every variable, say what it computes. A table is primary content.`
+}
+
+/* Talimatin pencere butcesinden dustugu karakter payi.
+   BU SAYIYI OLCUM SECTI, BEN DEGIL. Canli referans: 30 sayfalik bir ders
+   destesinden cikan 12.451 karakter. O belge iki pencereye bolundugunde
+   araya ~60 sn pacer beklemesi giriyor, PIPELINE_BUDGET_MS (110 sn)
+   tukeniyor ve review pass hic calismiyor — olculmus, tahmin degil
+   (bkz. tests/summary-quality.js, "tipik tek bolumluk belge tek pencereye
+   sigar"). Dolayisiyla deste penceresi 12.451'in altina DUSEMEZ:
+     13000 - 12451 = 549
+   Talimat bu paya sigacak sekilde yazildi; pay buyutulemez, talimat
+   kisaltilir. Ilk yazim 1.077 karakterdi ve tam o referans belgeyi
+   bolecekti — yani kuralin yazilmasina sebep olan belge tipini. */
+const DECK_PROMPT_CHARS = 549
+
 function buildFootnotePageInstruction(hasPageMarkers: boolean, pageMarkerLabel: string): string {
   if (hasPageMarkers) {
     const unitWord = pageMarkerLabel === "SLAYT" ? "slide" : "page"
@@ -4510,9 +4599,23 @@ In addition to the text below, you are shown images of this document's pages. Us
       const quizQuota = (total: number) => wholeDocInOneWindow(total) ? '5-10' : '3-6'
 
       // Compact extraction prompt — keeps request under Groq limits
+      // BIR KEZ hesaplanir. compactWindowPrompt pencere basina birkac kez
+      // cagriliyor (token tahmini, cagri, yeniden deneme tahmini), ve
+      // tespit butun metin uzerinde regex kosturuyor — her cagrida yeniden
+      // yapmak bos is.
+      const deste = detectSlideDeck(extractedText, pageMarkerLabel)
+      const desteTalimati = buildSlideDeckInstruction(
+        deste.isDeck,
+        pageMarkerLabel === "SLAYT" ? "slide" : "page"
+      )
+      console.log(
+        `summarize-document: belge tipi ${deste.isDeck ? 'SLAYT DESTESI' : 'duz metin'} ` +
+        `(${deste.reason}; ${deste.pages} isaret, isaret basina ${deste.charsPerPage} krk)`
+      )
+
       const compactWindowPrompt = (wi: number, total: number) =>
         `You extract study material from ${total === 1 ? 'a complete academic document' : `part ${wi + 1}/${total} of a long academic document`}.
-Language for all text fields: ${langLabel}.
+Language for all text fields: ${langLabel}.${desteTalimati}
 Respond ONLY with JSON:
 {
   "summary": "5-10 sentences of CONCRETE content from ${total === 1 ? 'the document' : 'this part only'} — name real topics, methods, definitions",
@@ -4569,7 +4672,27 @@ Rules:
       // extractWindow's catch shrinks an oversized payload to 55% and retries,
       // which lands back at ~7,150 chars — i.e. the old behaviour — at a cost
       // of one failed call rather than a failed summary.
-      const WINDOW = 13000
+      // DESTE MODU PENCEREYI DARALTIR — gerekce PAY, tavan degil.
+      //
+      // Ilk gerekcem yanlisti ve kendi testim yakaladi. Talimat 425 token
+      // iken dusme ZORUNLUYDU (13000/4 + 527 + 425 + 3072 = 7274 > 7200).
+      // Blok 270 tokene sikistirilinca o hesap gecerliligini yitirdi:
+      // dusmeden de 7119, yani tavanin altinda. "Teknik olarak siger" ile
+      // "guvenli" ayni sey degil:
+      //
+      //   duz metin, dusulmemis : 6849  → 351 token pay
+      //   deste,     dusulmemis : 7119  →  81 token pay
+      //   deste,     dusulmus   : 6807  → 393 token pay
+      //
+      // 81 token, bu promptun kendi yorumunun uyardigi seye karsi cok ince:
+      // Turkce 4 krk/token'dan KOTU tokenlesiyor, yani WINDOW/4 tahmini
+      // eksik kaliyor. Dusme, desteye duz metin yolunun dayandigi payin
+      // AYNISINI veriyor — korunan sey tavan degil, tasarimin guvendigi pay.
+      //
+      // Bedeli durustce: sinirin hemen altindaki bir deste bir pencere
+      // fazla bolunebilir, o da bir pacer beklemesi demek. Tipik bir deste
+      // (30 slayt ~12.500 krk) yine tek pencereye siger.
+      const WINDOW = deste.isDeck ? 13000 - DECK_PROMPT_CHARS : 13000
       // Denetim Raporu, 2026-08-31: this cap used to be a hardcoded 8 —
       // 8 * 7000 = 56,000 characters, silently dropping anything past that
       // point with NO signal to the student that content was cut. MAX_CHUNKS
