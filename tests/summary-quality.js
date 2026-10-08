@@ -57,7 +57,10 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   // yakin kopya
   'NEAR_DUP_THRESHOLD', 'NEAR_DUP_MIN_TERMS', 'NEAR_DUP_STEM_LEN',
   'NEAR_DUP_KEY_OVERLAP', 'nearDupKeysMatch',
-  'nearDupStem', 'nearDupTermSet', 'dedupeNearDuplicates'
+  'nearDupStem', 'nearDupTermSet', 'dedupeNearDuplicates',
+  // Slayt destesi tespiti ve cikarim talimati (07.10.2026).
+  'DECK_MIN_PAGES', 'DECK_MAX_CHARS_PER_PAGE', 'DECK_PROMPT_CHARS',
+  'detectSlideDeck', 'buildSlideDeckInstruction'
 ]);
 
 const { test, summary } = makeRunner();
@@ -1487,8 +1490,12 @@ function readTemplate(src, startIdx) {
 }
 
 test('pencere token butcesi pacer tavaninin altinda', () => {
-  const mWindow = SRC.match(/const WINDOW = (\d+)/);
-  assert.ok(mWindow, 'WINDOW sabiti bulunamadi');
+  /* 07.10.2026: WINDOW artik sabit degil, deste moduna gore iki degerden
+     biri. Capa "const WINDOW = (\d+)" idi ve ternary'ye donunce "WINDOW
+     sabiti bulunamadi" diye dustu — kodda sorun yokken. Taban deger
+     okunur; deste modunun kendi tavan testi SLAYT DESTESI blogunda. */
+  const mWindow = SRC.match(/const WINDOW = (?:deste\.isDeck \? )?(\d+)/);
+  assert.ok(mWindow, 'WINDOW taban degeri bulunamadi');
   const WINDOW = Number(mWindow[1]);
 
   const promptIdx = SRC.indexOf('const compactWindowPrompt');
@@ -1571,7 +1578,7 @@ test('tek pencerede prompt kendini "parca" diye tanitmaz', () => {
 });
 
 test('tipik tek bolumluk belge tek pencereye sigar', () => {
-  const WINDOW = Number(SRC.match(/const WINDOW = (\d+)/)[1]);
+  const WINDOW = Number(SRC.match(/const WINDOW = (?:deste\.isDeck \? )?(\d+)/)[1]);
   // Canli olculen referans: 30 sayfalik ders slaytindan cikan 12.451 karakter.
   // Bu belge iki pencereye bolundugunde aralarina ~60 saniyelik pacer beklemesi
   // giriyor ve PIPELINE_BUDGET_MS (110 sn) tukenip review pass hic calismiyor.
@@ -2668,6 +2675,136 @@ test('bos donen alan sessiz gecmiyor', () => {
   // yoldan basarisiz sayiliyor, iki kere bagirmak gurultu olur.
   assert.ok(/nTerms \+ nPoints \+ nQuiz > 0/.test(SRC),
     'tamamen bos pencere icin ayrica uyarilmamali');
+});
+
+console.log('\nSLAYT DESTESI TESTLERI\n');
+
+/* 07.10.2026. Bir ekonometri ders notu ozetine gelen geri bildirim:
+   "ders slaytlari daha ozet gibi kaldi", "slayt slayt degil de hangi slayt
+   gerekli hangisi gereksiz iyi analiz etmeli". Sistem desteyi duz metin
+   gibi isliyordu; document_type siniflandirmasi desteyi taniyor ama
+   SENTEZ adiminda, yani is bittikten sonra. */
+
+const sahteSayfa = (n, krk) => Array.from({ length: n }, (_, i) =>
+  `--- SAYFA ${i + 1} ---\n${'x'.repeat(krk)}`).join('\n\n');
+const sahteSlayt = (n, krk) => Array.from({ length: n }, (_, i) =>
+  `--- SLAYT ${i + 1} ---\n${'x'.repeat(krk)}`).join('\n\n');
+
+test('pptx TARTISMASIZ deste sayilir', () => {
+  // Dosyanin kendisi deste; sayfa yogunlugu ne olursa olsun.
+  const r = A.detectSlideDeck(sahteSlayt(3, 5000), 'SLAYT');
+  assert.equal(r.isDeck, true, 'pptx her zaman deste');
+  assert.equal(r.reason, 'pptx');
+});
+
+test('PDF e aktarilmis deste SEYREK SAYFADAN taniniyor', () => {
+  /* Asil kazanc burada: ogrenciler slaytlari cogu zaman PDF olarak disa
+     aktariyor ve o zaman isaret "SAYFA" oluyor, yani mime type hicbir sey
+     soylemiyor. Deste sayfalari KISA olur. */
+  const r = A.detectSlideDeck(sahteSayfa(30, 300), 'SAYFA');
+  assert.equal(r.isDeck, true, `30 sayfa x 300 krk deste sayilmali (${r.reason})`);
+  assert.ok(r.charsPerPage <= A.DECK_MAX_CHARS_PER_PAGE);
+});
+
+test('kitap bolumu deste SAYILMIYOR', () => {
+  // Yanlis pozitif, yanlis negatiften kotu: duz metne "slaytlari grupla,
+  // baslik sayfalarini atla" demek, atlanmamasi gereken seyi atlatir.
+  const r = A.detectSlideDeck(sahteSayfa(30, 3000), 'SAYFA');
+  assert.equal(r.isDeck, false, `30 sayfa x 3000 krk duz metin olmali (${r.reason})`);
+});
+
+test('kisa belge deste sayilmiyor', () => {
+  // Iki sayfalik seyrek bir belge deste degil; alt sinir bunun icin var.
+  const r = A.detectSlideDeck(sahteSayfa(3, 200), 'SAYFA');
+  assert.equal(r.isDeck, false, 'sayfa sayisi esigin altinda');
+  assert.ok(/sayfa az/.test(r.reason));
+});
+
+test('isaretsiz metin deste sayilmiyor', () => {
+  const r = A.detectSlideDeck('Hicbir isaret icermeyen duz metin. '.repeat(50), 'SAYFA');
+  assert.equal(r.isDeck, false);
+  assert.equal(r.pages, 0);
+});
+
+test('TAVAN KORUNUYOR: deste promptu pencere butcesinden dusuluyor', () => {
+  /* EN KRITIK TEST. Canli pencere cagrisinin butcesi:
+       WINDOW/4 + prompt(527) + talimat + completion(3072) <= 7200
+     WINDOW=13000 iken pay yalnizca ~351 token. Ilk yazdigim talimat ~425
+     tokendi ve tavani ASACAKTI — bu projede tam bu tur tasma daha once
+     pencere kaybettirdi (bkz. TokenPacer yorumlari).
+
+     Bu test sayiyi degil ILISKIYI koruyor: talimat ne kadar buyurse
+     buyusun, maliyeti pencereden dusulmus olmali. */
+  const PROMPT_TOK = 527, COMPLETION = 3072, TAVAN = 7200, TABAN_PENCERE = 13000;
+
+  for (const u of ['slide', 'page']) {
+    const talimat = A.buildSlideDeckInstruction(true, u);
+    const talimatTok = Math.ceil(talimat.length / 4);
+
+    assert.ok(talimat.length <= A.DECK_PROMPT_CHARS,
+      `${u}: talimat ${talimat.length} krk > ayrilan pay ${A.DECK_PROMPT_CHARS} — ` +
+      `pencere butcesinden dusulen miktar yetersiz, tavan asilir`);
+
+    const pencere = TABAN_PENCERE - A.DECK_PROMPT_CHARS;
+    const toplam = Math.ceil(pencere / 4) + PROMPT_TOK + talimatTok + COMPLETION;
+    assert.ok(toplam <= TAVAN,
+      `${u}: deste modunda ${toplam} token > ${TAVAN} tavani`);
+  }
+
+  /* KORUNAN SEY TAVAN DEGIL, PAY. Ilk yazimda burada "dusulmezse tavan
+     asilir" diye bir iddia vardi ve bu test onu CURUTTU: talimat 425'ten
+     270 tokene sikistirilinca dusulmemis toplam 7119 oldu, yani tavanin
+     altinda. Iddia eskimisti, test dogruydu.
+
+     Gercek gerekce pay: duz metin yolu 351 token payla calisiyor, deste
+     dusulmeden 81 token payla kalirdi. Bu promptun kendi yorumu Turkce'nin
+     4 krk/token'dan kotu tokenlestigini soyluyor, yani WINDOW/4 zaten
+     eksik tahmin. Deste modu, duz metnin dayandigi paydan DAHA DAR
+     olmamali. */
+  const payDuz = TAVAN - (Math.ceil(TABAN_PENCERE / 4) + PROMPT_TOK + COMPLETION);
+  const talimatTok = Math.ceil(A.buildSlideDeckInstruction(true, 'slide').length / 4);
+  const payDeste = TAVAN - (Math.ceil((TABAN_PENCERE - A.DECK_PROMPT_CHARS) / 4) +
+    PROMPT_TOK + talimatTok + COMPLETION);
+  assert.ok(payDeste >= payDuz,
+    `deste payi ${payDeste} token, duz metin payi ${payDuz} — deste modu daha dar ` +
+    `paya dusmemeli (Turkce WINDOW/4'ten kotu tokenlesiyor)`);
+});
+
+test('duz metinde talimat BOS — tek karakter maliyeti yok', () => {
+  assert.equal(A.buildSlideDeckInstruction(false, 'page'), '',
+    'deste olmayan belge talimatin bedelini odememeli');
+});
+
+test('talimat uc isi de istiyor', () => {
+  // Geri bildirimin uc maddesi: acmak, slayt secmek, formul/tablo.
+  const t = A.buildSlideDeckInstruction(true, 'slide');
+  assert.ok(/EXPAND, don't compress/.test(t), 'acma talimati yok');
+  assert.ok(/LONGER than/.test(t), 'ciktinin daha uzun olmasi gerektigi soylenmeli');
+  assert.ok(/JUDGE \w+s: skip/.test(t), 'slayt secme talimati yok');
+  assert.ok(/agenda/.test(t), 'atlanacak slayt tipleri sayilmali');
+  assert.ok(/GROUP the rest by topic/.test(t), 'konuya gore gruplama talimati yok');
+  assert.ok(/FORMULAS\/TABLES ARE THE LESSON/.test(t), 'formul/tablo talimati yok');
+  assert.ok(/name every variable/.test(t), 'degisken aciklamasi istenmeli');
+  // Pay, olculen referans belgeyi (12.451 krk) bolmemeli.
+  assert.equal(13000 - A.DECK_PROMPT_CHARS, 12451,
+    'deste penceresi olculen referans belgeyi tam karsilamali');
+});
+
+test('canli pencere promptuna GERCEKTEN bagli', () => {
+  /* buildChunkSystemPrompt bu dosyada "NOT WIRED" olarak duruyor (satir
+     ~391). Talimati oraya eklemek hicbir ise yaramazdi — ilk denemede tam
+     bunu yaptim. Bu test bagin CANLI prompt'ta oldugunu dogruluyor. */
+  const i = SRC.indexOf('const compactWindowPrompt = (wi: number, total: number)');
+  assert.ok(i > -1, 'canli pencere promptu bulunamadi');
+  const blok = SRC.slice(i, i + 600);
+  assert.ok(/\$\{desteTalimati\}/.test(blok),
+    'deste talimati canli prompta baglanmamis');
+  // Ve pencere boyutu deste moduna gore daraltilmali.
+  assert.ok(/const WINDOW = deste\.isDeck \? 13000 - DECK_PROMPT_CHARS : 13000/.test(SRC),
+    'pencere deste modunda daraltilmiyor — tavan asilir');
+  // Tespit pencere basina bir kez, prompt icinde degil.
+  assert.ok(!/buildSlideDeckInstruction\(\s*detectSlideDeck/.test(SRC),
+    'tespit her prompt cagrisinda yeniden kosuyor');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));
