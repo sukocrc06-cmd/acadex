@@ -169,26 +169,50 @@ function repairLatexEscapes(json: string): string {
   let dizedeMi = false
   for (let i = 0; i < s.length; i++) {
     const c = s[i]
+
     if (!dizedeMi) {
       if (c === '"') dizedeMi = true
       out += c
       continue
     }
-    if (c === '"') { dizedeMi = false; out += c; continue }
-    if (c !== '\\') { out += c; continue }
-
-    const n = s[i + 1] ?? ''
-    // Gecersiz kacis (\( \) \[ \v \s ...): her halukarda kacirilmali —
-    // bu ayni zamanda sert ayristirma hatalarini da duzeltiyor.
-    if (!JSON_GECERLI_KACIS.has(n)) { out += '\\\\'; continue }
-    // \u + 4 onaltilik: mesru unicode kacisi, dokunulmaz.
-    if (n === 'u' && /^[0-9a-fA-F]{4}/.test(s.slice(i + 2, i + 6))) { out += c; continue }
-    // \n disarida: gercek satir sonlari korunmali (basliga bak).
-    if (n !== 'n' && 'bfrt'.includes(n) && /^[A-Za-z]{2,}/.test(s.slice(i + 2))) {
-      out += '\\\\'   // LaTeX komutu: \beta, \frac, \tau, \rho ...
+    if (c !== '\\') {
+      if (c === '"') dizedeMi = false
+      out += c
       continue
     }
-    out += c
+
+    /* BIR KACIS IKI KARAKTERDIR VE IKISI BIRDEN TUKETILMELIDIR.
+       Ilk surumum gecerli bir kaciste yalnizca ters boluyu yazip donguye
+       devam ediyordu; ikinci karakter bir sonraki turda BAGIMSIZ olarak
+       isleniyordu. Sonuclari:
+         \"  -> tirnak dize sonu sanildi, tarayici kaydi
+         \\  -> ikinci ters bolu YENI bir kacis sanildi
+       Bundan sonra "dize icinde miyim" bilgisi yanlis oluyor ve gercek
+       gecersiz kacislar onarilmadan geciyordu. Canli sonuc:
+         "Window 1 attempt 1 failed: Bad escaped character in JSON"
+       yani ONARMASI gereken hatanin ta kendisi; bir kosuda butun
+       pencereler dustu ve ozet son care olarak ilk 5.000 karakterden
+       cikarildi. Fuzz ile olculdu: 4.000 gecerli JSON girdisinin 446'si
+       bozuluyordu. */
+    const n = s[i + 1] ?? ''
+
+    // Gecersiz kacis (\( \) \[ \v \s ...): kacirilir. Bu ayni zamanda
+    // sert ayristirma hatalarini da duzeltiyor.
+    if (!JSON_GECERLI_KACIS.has(n)) { out += '\\\\' + n; i++; continue }
+
+    // \u + 4 onaltilik: mesru unicode kacisi, oldugu gibi birakilir.
+    if (n === 'u' && /^[0-9a-fA-F]{4}/.test(s.slice(i + 2, i + 6))) {
+      out += c + n; i++; continue
+    }
+
+    // LaTeX komutu: \beta, \frac, \tau, \rho ... (\n disarida — basliga bak)
+    if (n !== 'n' && 'bfrt'.includes(n) && /^[A-Za-z]{2,}/.test(s.slice(i + 2))) {
+      out += '\\\\' + n; i++; continue
+    }
+
+    // Gercek JSON kacisi: ikisi birden yazilir, ikisi birden tuketilir.
+    out += c + n
+    i++
   }
   return out
 }
