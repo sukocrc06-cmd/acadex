@@ -41,12 +41,14 @@ const { jsPDF } = jsPDFmod;
 const SRC = fs.readFileSync(path.join(__dirname, '..', 'js/dashboard.js'), 'utf8');
 const NEEDED = [
   'PDF_INK', 'replaceTurkishChars', 'pdfSetFont', 'pdfText', 'getStyleLabel',
+  // LaTeX -> Unicode donusturucu ve tablolari (08.10.2026).
+  'LATEX_SEMBOL', 'LATEX_ALT', 'LATEX_UST', 'LATEX_ASCII', 'latexToUnicode',
   'drawPdfTable', 'drawChartDataFallback', 'drawMermaidSourceFallback',
   'drawPdfCard', 'appendStudyCardToDoc'
 ];
 const body = NEEDED.map(n => sliceDeclaration(SRC, n)).join('\n\n');
-const { appendStudyCardToDoc } = new Function(
-  `${body}\nreturn { appendStudyCardToDoc };`
+const { appendStudyCardToDoc, latexToUnicode } = new Function(
+  `${body}\nreturn { appendStudyCardToDoc, latexToUnicode };`
 )();
 
 /** Uretilen PDF'i pdftotext ile metne cevirip doner. */
@@ -280,6 +282,80 @@ test('her iki sohbet yolu da sunucu mesajini okuyor', () => {
     assert.ok(/serverErrorMessage\(error/.test(sonrasi),
       `bu hata dali sunucu mesajini okumuyor:\n${sonrasi.slice(0, 200)}`);
   }
+});
+
+test('formuller HAM LATEX olarak basilmiyor', () => {
+  /* 08.10.2026, canli bir ekonometri destesinin ozetinde olculdu. PDF'in
+     FORMULLER bolumu aynen soyle cikiyordu:
+
+       y = \beta_0 + \beta_1 x + \beta_2 x^2 + \varepsilon
+       \frac{\partial y}{\partial x}=\beta_1+2\beta_2 x
+       \beta_0 = Intercept
+
+     Cikarim tarafinda sorun YOK — prompt "valid raw LaTeX ONLY" istiyor ve
+     dogrusunu uretmis. Bozuk olan GOSTERIM, ve yalnizca PDF yolunda:
+     ekranda KaTeX yuklu ve render ediyor, PDF yolu latex alanini dogrudan
+     doc.text'e veriyordu. Bir ekonometri ogrencisi icin bu, kartin en
+     gorunur kusuru. */
+  const kart = JSON.parse(JSON.stringify(FULL_CARD));
+  kart.formulas = [{
+    name: 'Kuadratik regresyon',
+    latex: 'y = \\beta_0 + \\beta_1 x + \\beta_2 x^2 + \\varepsilon',
+    variables: [
+      { symbol: '\\beta_0', meaning: 'sabit terim' },
+      { symbol: '\\varepsilon', meaning: 'hata terimi' },
+    ],
+  }, {
+    name: 'Marjinal etki',
+    latex: '\\frac{\\partial y}{\\partial x}=\\beta_1+2\\beta_2 x',
+    variables: [],
+  }];
+  const txt = render(kart);
+
+  // Ham LaTeX komutu sayfada GORUNMEMELI.
+  for (const ham of ['\\beta', '\\varepsilon', '\\frac', '\\partial']) {
+    assert.ok(!txt.includes(ham), `ham LaTeX sayfada: "${ham}"`);
+  }
+  /* Ve KARSILIGI gorunmeli — yoksa "hicbir sey basma" da bu testi gecerdi.
+     render() unicodeReady=FALSE ile kosuyor (gomulu font yok), ve o modda
+     dogru cikti Yunan harfi DEGIL okunur ASCII: jsPDF'in helvetica'si "β"
+     verildiginde sayfaya hicbir sey dusurmuyor. Ilk yazimda "β" bekledim
+     ve test hakli olarak dustu. */
+  for (const beklenen of ['beta', 'eps']) {
+    assert.ok(txt.includes(beklenen), `okunur karsilik basilmamis: "${beklenen}"`);
+  }
+  // Degisken listesi de donusturulmeli: "\beta_0 = sabit terim" olmamali.
+  assert.ok(/beta_0\s*=\s*sabit terim/.test(txt),
+    'degisken sembolleri hala ham LaTeX');
+});
+
+test('Unicode font VARKEN gercek matematik glifleri basiliyor', () => {
+  /* Yukaridaki test fontsuz yolu kapsiyor. Asil hedef bu: gomulu DejaVu
+     yuklendiginde ogrenci "β₀" gorur, "beta_0" degil. Donusturucu dogrudan
+     cagrilir — jsPDF'e gomulu font yuklemek bu testin isi degil. */
+  const f = (s) => latexToUnicode(s, true);
+  assert.equal(f('y = \\beta_0 + \\beta_1 x + \\beta_2 x^2 + \\varepsilon'),
+    'y = β₀ + β₁ x + β₂ x² + ε');
+  assert.equal(f('\\ln y = \\beta_0 + \\beta_1 \\ln x'), 'ln y = β₀ + β₁ ln x');
+  assert.ok(/∂/.test(f('\\frac{\\partial y}{\\partial x}')), 'kismi turev isareti');
+  assert.ok(/≈/.test(f('\\Delta y \\approx 100\\beta_1')), 'yaklasik isareti');
+});
+
+test('fontsuz modda ham LaTeX kalmiyor, ters bolu da kalmiyor', () => {
+  // Her iki modda da ogrenci ters bolu gormemeli.
+  for (const mod of [true, false]) {
+    const cikti = latexToUnicode('\\frac{\\Delta y}{y}=\\beta_1 \\frac{\\Delta x}{x}', mod);
+    assert.ok(!cikti.includes('\\'), `mod=${mod}: ters bolu kaldi — "${cikti}"`);
+  }
+});
+
+test('donusturucu tanimadigi seyi BOZMUYOR', () => {
+  // Kapsam dar: tam bir LaTeX motoru degil. Tanimadigi bir yapiyi
+  // okunmaz hale getirmektense oldugu gibi birakmasi yeglenir.
+  const kart = JSON.parse(JSON.stringify(FULL_CARD));
+  kart.formulas = [{ name: 'Duz metin', latex: 'Y = C + I + G + NX', variables: [] }];
+  const txt = render(kart);
+  assert.ok(txt.includes('Y = C + I + G + NX'), 'LaTeX olmayan formul degismemeli');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));
