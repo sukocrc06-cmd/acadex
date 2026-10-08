@@ -4,55 +4,87 @@ import { extractText, getDocumentProxy } from "npm:unpdf"
 import mammoth from "npm:mammoth@1.6.0"
 import JSZip from "npm:jszip@3.10.1"
 
-// ==========================================================================
-// chat-with-document
-//
-// NotebookLM-style "chat with your source" feature. Unlike the general
-// Acadia assistant (supabase/functions/acadia-chat), which explicitly has NO
-// access to a student's uploaded files, this function re-extracts the exact
-// text of the study card's source document(s) on every call and instructs
-// the model to answer ONLY from that text — grounded Q&A with inline
-// citation markers ([1], [2], ...) that mirror the same footnote format
-// already used for study card summaries/key points, so the existing
-// formatFootnoteMarkers()/showFootnoteToast() client-side helpers work
-// unchanged for chat answers too.
-//
-// No new database tables/columns are needed: conversation history lives in
-// the browser tab only (same privacy model as Acadia) and source text is
-// re-extracted per request rather than cached, trading a little latency for
-// zero schema/storage changes.
-// ==========================================================================
-
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-// timeoutMs bounds EACH individual attempt via AbortController — without
-// this, a slow/hanging call (e.g. a vision model chewing on a large image)
-// can silently eat the whole request's time budget, leaving no room for a
-// text-only fallback attempt afterward and surfacing as a generic network
-// exception rather than a clean, fast failure we can recover from.
+// timeoutMs bounds EACH attempt via AbortController. This function typically
+// runs as one of several SEQUENTIAL Groq calls in a single request (draft
+// then review, or chunk-map then synthesis then review) — without a cap, a
+// single slow/hanging attempt (plus its own retries) can quietly burn through
+// the edge function's entire execution budget, so that by the time a later
+// pass (e.g. the review call) runs, there's no time left and every attempt
+// fails the same way, exhausting retries for a reason retrying can't fix.
+/**
+ * Groq's suggested wait, in ms, from a 429 body.
+ *
+ * The format is "Please try again in 3m2.736s" — minutes AND seconds. The
+ * old pattern was /try again in ([\d.]+)s/, which skipped the "3m" and read
+ * that as 2.7 seconds: a 182-second wait understood as three. Live example
+ * from 05.10.2026: "try again in 5m16.656s".
+ */
+function parseGroqRetryAfterMs(body: string): number | null {
+  const m = body.match(/try again in (?:(\d+)m)?([\d.]+)s/i)
+  if (!m) return null
+  const minutes = m[1] ? parseInt(m[1], 10) : 0
+  const seconds = parseFloat(m[2]) || 0
+  const ms = (minutes * 60 + seconds) * 1000
+  return Number.isFinite(ms) && ms > 0 ? Math.ceil(ms) : null
+}
+
+/**
+ * Is this 429 a DAILY quota (TPD/RPD), rather than a per-minute one?
+ *
+ * The distinction decides whether waiting can possibly help. A per-minute
+ * limit clears in under a minute, so waiting and retrying is right. A daily
+ * limit does not:
+ *
+ *   Rate limit reached for `openai/gpt-oss-120b` ... on tokens per day (TPD):
+ *   Limit 200000, Used 196725, Requested 3698. Please try again in 3m2.736s
+ *
+ * On 05.10.2026 the code could not tell them apart. It treated the daily cap
+ * as a per-minute one: each failed window retried, every retry recorded its
+ * estimate into the per-MINUTE ledger, that ledger filled, and the pacer then
+ * waited 60 seconds for a window rollover that was never the problem. Three
+ * attempts, ~2 minutes of pointless waiting, no summary, and a user-facing
+ * error that said nothing about the actual cause.
+ *
+ * Nothing in this function's gift fixes a spent daily quota, so the only
+ * useful response is to stop immediately and say so.
+ */
+function isDailyQuotaError(body: string): boolean {
+  return /\b(TPD|RPD)\b/i.test(body) || /tokens per day|requests per day/i.test(body)
+}
+
 async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2, timeoutMs = 25000): Promise<Response> {
-  let lastRateLimitedResponse: Response | null = null;
+  let lastRateLimitedResponse: Response | null = null
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
     try {
       const response = await fetch(url, { ...options, signal: controller.signal });
-      clearTimeout(timeoutId);
+      clearTimeout(timeoutId)
       if (response.ok) return response;
       if (response.status === 429) {
         // Rate limited. Log the actual reason (e.g. Groq's TPM-exceeded
         // message) so it's visible in the function logs without a separate
         // dashboard lookup, keep this response so we can return it (instead
         // of throwing an opaque error) if every attempt is exhausted, then
-        // wait longer before retrying.
-        lastRateLimitedResponse = response;
-        let bodyPreview = "";
-        try { bodyPreview = await response.clone().text(); } catch (_readErr) { /* ignore — body may not be readable twice in all runtimes */ }
-        console.warn(`fetchWithRetry: 429 rate-limited (attempt ${attempt + 1}/${maxRetries + 1}): ${bodyPreview}`);
+        // wait before retrying.
+        lastRateLimitedResponse = response
+        let bodyPreview = ""
+        try { bodyPreview = await response.clone().text() } catch (_readErr) { /* ignore — body may not be readable twice in all runtimes */ }
+        console.warn(`fetchWithRetry: 429 rate-limited (attempt ${attempt + 1}/${maxRetries + 1}): ${bodyPreview}`)
+        // A daily cap cannot be waited out inside one request. Hand the
+        // response straight back so the caller fails fast with the real
+        // reason, instead of burning the pipeline budget on retries that
+        // are guaranteed to return the same 429.
+        if (isDailyQuotaError(bodyPreview)) {
+          console.error('fetchWithRetry: GUNLUK kota (TPD/RPD) doldu — yeniden denenmeyecek')
+          return response
+        }
         // Two distinct Groq 429 shapes here: "Request too large ... Requested
         // X" (this single request's own tokens exceed the limit — shrinking
         // it helps, waiting doesn't) vs. "Rate limit reached ... Used X,
@@ -60,24 +92,64 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2,
         // already spent from earlier calls — no amount of shrinking this
         // request helps until the window rolls over, so we must actually
         // wait). Parse Groq's own suggested wait time when present.
-        const retryAfterMatch = bodyPreview.match(/try again in ([\d.]+)s/i);
-        const waitMs = retryAfterMatch
-          ? Math.min(Math.ceil(parseFloat(retryAfterMatch[1]) * 1000) + 500, 30000)
-          : 2500;
+        const suggested = parseGroqRetryAfterMs(bodyPreview)
+        const waitMs = suggested !== null ? Math.min(suggested + 500, 30000) : 2500
         await new Promise(r => setTimeout(r, waitMs));
       } else if (response.status >= 500 && attempt < maxRetries) {
         await new Promise(r => setTimeout(r, 800));
       } else {
-        return response;
+        return response; // let the caller handle non-retryable errors normally
       }
     } catch (err) {
-      clearTimeout(timeoutId);
+      clearTimeout(timeoutId)
       if (attempt === maxRetries) throw err;
       await new Promise(r => setTimeout(r, 800));
     }
   }
-  if (lastRateLimitedResponse) return lastRateLimitedResponse;
+  // Every attempt came back 429 — return the last rate-limited response so
+  // the caller's normal "!response.ok" handling can log/react to the real
+  // reason, instead of surfacing a generic "Max retries exceeded" with no
+  // diagnostic detail.
+  if (lastRateLimitedResponse) return lastRateLimitedResponse
   throw new Error("Max retries exceeded");
+}
+
+// Defensive safety net: reasoning-capable Groq models (qwen/qwen3.8-27b,
+// openai/gpt-oss-120b) can prepend a <think>...</think> block to "content"
+// even with reasoning turned down/off via reasoning_effort/include_reasoning
+// below — strip it so a stray thinking block never breaks a JSON.parse call.
+// Returns null if the block is unterminated (the model ran out of its token
+// budget mid-thought before ever writing the real answer) — callers should
+// treat that as a failure rather than trying to parse what's left.
+function stripThinkBlock(raw: string): string | null {
+  const match = raw.match(/<think>[\s\S]*?<\/think>/i)
+  if (match) {
+    return raw.slice((match.index ?? 0) + match[0].length).trim()
+  }
+  if (/^\s*<think>/i.test(raw)) {
+    return null
+  }
+  return raw
+}
+
+// Convert raw bytes to a base64 string WITHOUT the one-character-at-a-time
+// `binary += String.fromCharCode(bytes[i])` loop used throughout this file
+// (Denetim Raporu, 2026-08-31 — LIVE PRODUCTION FINDING). That pattern
+// re-allocates and copies a growing string on every single byte — for a
+// multi-hundred-KB/multi-MB PNG page image (exactly what the PDF.co visual
+// analysis below downloads), that is millions of reallocations and is what
+// actually caused a real "Memory limit exceeded" (546) crash in production
+// once the presigned-URL fix above finally let this code path run for the
+// first time with real image data. Chunking into reasonably sized pieces
+// and joining once at the end keeps this O(n) instead of pathological.
+function bytesToBase64(bytes: Uint8Array): string {
+  const CHUNK_SIZE = 8192
+  const chunks: string[] = []
+  for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
+    const chunk = bytes.subarray(i, i + CHUNK_SIZE)
+    chunks.push(String.fromCharCode(...chunk))
+  }
+  return btoa(chunks.join(''))
 }
 
 function decodeXmlEntities(str: string): string {
@@ -90,25 +162,138 @@ function decodeXmlEntities(str: string): string {
 }
 
 function parsePptxSlideXml(slideXml: string): string {
-  const matches = slideXml.matchAll(/<a:t>(.*?)<\/a:t>/g);
-  let text = "";
-  for (const match of matches) {
-    text += decodeXmlEntities(match[1]) + " ";
+  const tableMatches = [...slideXml.matchAll(/<a:tbl[\s>][\s\S]*?<\/a:tbl>/g)];
+
+  if (tableMatches.length === 0) {
+    const matches = slideXml.matchAll(/<a:t>(.*?)<\/a:t>/g);
+    let text = "";
+    for (const match of matches) {
+      text += decodeXmlEntities(match[1]) + " ";
+    }
+    return text.trim();
   }
-  return text.trim();
+
+  const slideParts: string[] = [];
+  let lastIdx = 0;
+
+  for (const tMatch of tableMatches) {
+    const tblStartIndex = tMatch.index!;
+    const tblEndIndex = tblStartIndex + tMatch[0].length;
+
+    const preTextXml = slideXml.substring(lastIdx, tblStartIndex);
+    const preMatches = preTextXml.matchAll(/<a:t>(.*?)<\/a:t>/g);
+    let preText = "";
+    for (const m of preMatches) {
+      preText += decodeXmlEntities(m[1]) + " ";
+    }
+    if (preText.trim()) {
+      slideParts.push(preText.trim());
+    }
+
+    const tblXml = tMatch[0];
+    const rowMatches = [...tblXml.matchAll(/<a:tr[\s>][\s\S]*?<\/a:tr>/g)];
+    const tableRows: string[][] = [];
+
+    for (const rMatch of rowMatches) {
+      const rowXml = rMatch[0];
+      const cellMatches = [...rowXml.matchAll(/<a:tc[\s>][\s\S]*?<\/a:tc>/g)];
+      const rowCells: string[] = [];
+      for (const cMatch of cellMatches) {
+        const cellXml = cMatch[0];
+        const textMatches = [...cellXml.matchAll(/<a:t>(.*?)<\/a:t>/g)];
+        let cellText = textMatches.map(m => decodeXmlEntities(m[1])).join(" ").trim();
+        cellText = cellText.replace(/\|/g, "\\|");
+        rowCells.push(cellText);
+      }
+      if (rowCells.some(c => c.length > 0)) {
+        tableRows.push(rowCells);
+      }
+    }
+
+    if (tableRows.length > 0) {
+      const colCount = Math.max(...tableRows.map(r => r.length));
+      let mdTable = "\n\n";
+      const header = [...tableRows[0]];
+      while (header.length < colCount) header.push("");
+      mdTable += "| " + header.join(" | ") + " |\n";
+      mdTable += "| " + Array(colCount).fill("---").join(" | ") + " |\n";
+      for (let r = 1; r < tableRows.length; r++) {
+        const row = [...tableRows[r]];
+        while (row.length < colCount) row.push("");
+        mdTable += "| " + row.join(" | ") + " |\n";
+      }
+      mdTable += "\n";
+      slideParts.push(mdTable);
+    }
+
+    lastIdx = tblEndIndex;
+  }
+
+  const postTextXml = slideXml.substring(lastIdx);
+  const postMatches = postTextXml.matchAll(/<a:t>(.*?)<\/a:t>/g);
+  let postText = "";
+  for (const m of postMatches) {
+    postText += decodeXmlEntities(m[1]) + " ";
+  }
+  if (postText.trim()) {
+    slideParts.push(postText.trim());
+  }
+
+  return slideParts.join("\n");
 }
 
 function parseDocxHtmlContent(html: string): string {
   if (!html) return "";
   let processed = html;
+
   processed = processed.replace(/<h[1-6][^>]*>(.*?)<\/h[1-6]>/gi, (_m, content) => {
     const clean = content.replace(/<[^>]+>/g, "").trim();
     return clean ? `\n\n## ${clean}\n\n` : "";
   });
+
+  processed = processed.replace(/<table[^>]*>[\s\S]*?<\/table>/gi, (tableHtml) => {
+    const rowMatches = [...tableHtml.matchAll(/<tr[^>]*>[\s\S]*?<\/tr>/gi)];
+    const tableRows: string[][] = [];
+
+    for (const rMatch of rowMatches) {
+      const rowInner = rMatch[0];
+      const cellMatches = [...rowInner.matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)];
+      const rowCells: string[] = [];
+
+      for (const cMatch of cellMatches) {
+        let cellText = cMatch[1].replace(/<[^>]+>/g, " ").trim();
+        cellText = cellText.replace(/\s+/g, " ").replace(/\|/g, "\\|");
+        rowCells.push(cellText);
+      }
+
+      if (rowCells.some(c => c.length > 0)) {
+        tableRows.push(rowCells);
+      }
+    }
+
+    if (tableRows.length === 0) return "";
+
+    const colCount = Math.max(...tableRows.map(r => r.length));
+    let mdTable = "\n\n";
+    const header = [...tableRows[0]];
+    while (header.length < colCount) header.push("");
+    mdTable += "| " + header.join(" | ") + " |\n";
+    mdTable += "| " + Array(colCount).fill("---").join(" | ") + " |\n";
+
+    for (let r = 1; r < tableRows.length; r++) {
+      const row = [...tableRows[r]];
+      while (row.length < colCount) row.push("");
+      mdTable += "| " + row.join(" | ") + " |\n";
+    }
+    mdTable += "\n";
+    return mdTable;
+  });
+
   processed = processed.replace(/<\/p>/gi, "\n");
   processed = processed.replace(/<br\s*\/?>/gi, "\n");
   processed = processed.replace(/<\/div>/gi, "\n");
   processed = processed.replace(/<[^>]+>/g, "");
+
   processed = processed
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
@@ -116,7 +301,6113 @@ function parseDocxHtmlContent(html: string): string {
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
     .replace(/&nbsp;/g, " ");
+
   return processed.replace(/\n{3,}/g, "\n\n").trim();
+}
+
+function detectAndFormatPdfTables(text: string): string {
+  if (!text) return text;
+
+  const lines = text.split("\n");
+  const resultLines: string[] = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+    const columns = line.split(/\s{2,}|\t/).map(c => c.trim()).filter(Boolean);
+
+    if (columns.length >= 2 && i + 1 < lines.length) {
+      const potentialTableRows: string[][] = [columns];
+      let j = i + 1;
+
+      while (j < lines.length) {
+        const nextLine = lines[j];
+        const nextCols = nextLine.split(/\s{2,}|\t/).map(c => c.trim()).filter(Boolean);
+        if (nextCols.length >= 2 && Math.abs(nextCols.length - columns.length) <= 2) {
+          potentialTableRows.push(nextCols);
+          j++;
+        } else {
+          break;
+        }
+      }
+
+      if (potentialTableRows.length >= 3) {
+        const colCount = Math.max(...potentialTableRows.map(r => r.length));
+        let mdTable = "\n\n";
+        const header = [...potentialTableRows[0]];
+        while (header.length < colCount) header.push("");
+        mdTable += "| " + header.map(h => h.replace(/\|/g, "\\|")).join(" | ") + " |\n";
+        mdTable += "| " + Array(colCount).fill("---").join(" | ") + " |\n";
+
+        for (let r = 1; r < potentialTableRows.length; r++) {
+          const row = [...potentialTableRows[r]];
+          while (row.length < colCount) row.push("");
+          mdTable += "| " + row.map(cell => cell.replace(/\|/g, "\\|")).join(" | ") + " |\n";
+        }
+        mdTable += "\n";
+        resultLines.push(mdTable);
+        i = j;
+        continue;
+      }
+    }
+
+    resultLines.push(line);
+    i++;
+  }
+
+  return resultLines.join("\n");
+}
+
+// ==========================================================================
+// LONG-DOCUMENT SUMMARIZATION ENGINE (chunked map-reduce + adaptive length)
+//
+// Problem this solves: previously, ANY document — a 3-page handout or a
+// 52-page slide deck — got the exact same fixed output size per length
+// preset ("medium" always meant "4-8 sentences, 5-10 key terms, 4-6 quiz
+// questions"), and text beyond 40,000 characters was silently truncated and
+// never seen by the model at all. Long documents therefore got a shallow
+// summary of roughly their first third, at best.
+//
+// Fix, in two parts:
+//   1. computeAdaptiveTargets() / buildLengthInstruction() — the target
+//      counts (summary sentences, key terms, key points, quiz questions)
+//      now grow with the actual amount of extracted text, per length
+//      preset, up to a sane cap. This applies to every document.
+//   2. For documents whose extracted text exceeds CHUNK_THRESHOLD, we
+//      switch from a single Groq call to a per-window extraction pipeline,
+//      then synthesize one cohesive final summary from the per-window
+//      digests and merge+dedupe the per-window structured data down to the
+//      adaptive target counts. Visual (image) analysis is intentionally
+//      skipped for that path to keep this addition scoped — it only ever
+//      applies to the short-document fast path today anyway.
+//
+// WHICH LONG-DOC CODE ACTUALLY RUNS (read this before trusting the rest):
+//   The live long-document implementation is the "LONG-DOC PATH" block
+//   inside serve(), built on the locally-defined `compactWindowPrompt` and
+//   `extractWindow` (MODEL_HEAVY). It was written to fix Groq 413
+//   payload-too-large errors and it SUPERSEDED an earlier, richer
+//   map-reduce design whose prompt builders are still in this file:
+//
+//     buildChunkSystemPrompt()     — NOT WIRED
+//     buildSynthesisSystemPrompt() — NOT WIRED
+//
+//   Both are deliberately retained, not dead by accident:
+//   tests/map-model-compare.js extracts buildChunkSystemPrompt() from this
+//   source at runtime as the "rich" arm of its prompt comparison, so the
+//   richer schema can be measured (grounding %, page validity, output
+//   counts, latency, tokens) against the live compact prompt on real
+//   documents before we decide whether to promote it. Do not delete them
+//   without also updating that harness; do not assume either one is what
+//   runs in production today.
+//
+//   Promoting the richer schema is gated on the token budget, not on
+//   taste: every extra field competes for the same maxCompletionTokens,
+//   and this account's observed tokens-per-minute cap has been as low as
+//   8,000 (see the draftTiers and review-tier comments further down). The
+//   same constraint is why concept_graph was added, measured as thinner,
+//   and correctly reverted — and why citations are now computed
+//   deterministically in anchorCitations() instead of being prompted for.
+// ==========================================================================
+
+// CHUNK_THRESHOLD used to be 18000, on the assumption that anything under
+// that size could always be sent whole on the short-document fast path.
+// That assumption broke once the fast path's own TPM-driven "shrink and
+// retry" tiers were added (see draftTiers below, tier 1 = 6000 chars): a
+// document between 6000-18000 chars was classified "short" but then had
+// its OWN fast-path attempt truncate it down to whatever tier finally fit
+// the account's 8000 TPM limit — silently dropping most of a genuinely
+// substantial document's content (confirmed on a real 52-page slide deck
+// where pages ~20-52 never reached the model at all). CHUNK_THRESHOLD must
+// therefore match the fast path's actual safe full-send capacity (draft
+// tier 1's textChars) — anything larger MUST route to the chunked
+// map-reduce pipeline instead, which never truncates (every chunk gets its
+// own full analysis pass), rather than being silently cut down to size.
+const CHUNK_THRESHOLD = 6000 // chars of extracted text; above this we go chunked — keep in sync with draftTiers[0].textChars below
+// HOTFIX: larger chunks → fewer LLM rounds so ~50-page PDFs finish before Edge wall-clock
+const CHUNK_TARGET_SIZE = 10000 // chars per chunk
+
+// Madde 6 — model tiering (cost + TPM isolation)
+// Heavy model: single-pass draft + synthesis (quality-critical, fewer calls)
+// Fast model: per-chunk map + review (many calls, smaller completions)
+const MODEL_HEAVY = "openai/gpt-oss-120b"
+// Groq meters tokens-per-minute PER MODEL, so putting the review/critic pass
+// on a different model from the draft buys it a separate 8,000 rather than
+// making it queue behind the draft's spend. That is the whole point of the
+// split — and it had never worked, because the id below was Groq's retired
+// 3.6 line and every call to it 404'd. Verified against Groq's current model
+// list on 2026-10-04: qwen/qwen3.8-27b is the live vision-capable model.
+const MODEL_FAST = "qwen/qwen3.8-27b"
+// A SECOND extraction lane. Limits read off the org's Groq console on
+// 05.10.2026 — identical to gpt-oss-120b in every column:
+//
+//   openai/gpt-oss-120b   30 RPM  1K RPD  8K TPM  200K TPD
+//   openai/gpt-oss-20b    30 RPM  1K RPD  8K TPM  200K TPD
+//
+// and metered separately, which this pipeline proved the hard way earlier.
+// That matters because a window call costs ~6,150 tokens against a 7,200
+// working budget: two windows cannot share a lane in one minute, so on a
+// multi-window document every window after the first sat out a full 60s.
+// Measured on a 31,817-char deck: 3 windows, two 60s waits, 132s total, and
+// the vision pass, the narrative writer and review all skipped for want of
+// budget. Alternating lanes lets consecutive windows run side by side.
+//
+// Extraction only. 20b is the smaller sibling and this is pattern work —
+// pulling terms and points out of text — not prose. The narrative writer
+// stays on MODEL_HEAVY, where the writing quality is the point.
+const MODEL_EXTRACT = "openai/gpt-oss-20b"
+
+/**
+ * Reasoning parameters for a model id — NEVER hardcode these per call site.
+ *
+ * The two families disagree on what "don't think, just answer" looks like:
+ *   qwen    — hybrid reasoner, thinks by default, accepts reasoning_effort:"none"
+ *   gpt-oss — accepts ONLY "low" | "medium" | "high"; "none" is a hard 400
+ *
+ * That difference was invisible while every call pinned its own model. Then
+ * 509bd5f unpinned review so it could pick a free lane, review landed on
+ * gpt-oss-120b carrying a literal reasoning_effort:"none", and Groq answered:
+ *
+ *   400 `reasoning_effort` must be one of `low`, `medium`, or `high`
+ *
+ * It had already paid a 52-second pacer wait for that lane, so the single-
+ * window document lost review entirely and the run got ~4s longer for nothing
+ * (05.10.2026, economy chapter 20 — review had been working there before).
+ *
+ * The lesson is not "put the right string at the review call". It is that a
+ * dynamic `model` and a static reasoning parameter cannot coexist: every call
+ * that picks its lane at runtime must derive these from the lane it picked.
+ */
+function reasoningParamsFor(model: string): Record<string, unknown> {
+  const id = String(model)
+  if (id.includes('gpt-oss') || id.startsWith('openai/')) {
+    // "low" is as close to off as this family goes, and include_reasoning:false
+    // keeps the <think> block out of `content` so JSON.parse gets clean JSON.
+    return { reasoning_effort: "low", include_reasoning: false }
+  }
+  if (id.includes('qwen')) return { reasoning_effort: "none" }
+  // Unknown model: send nothing. An unsupported parameter is a 400, and a
+  // silent omission only costs us some reasoning tokens.
+  return {}
+}
+
+/**
+ * Reasoning tokens are COMPLETION tokens, and the gpt-oss family cannot be
+ * told to stop producing them.
+ *
+ * max_completion_tokens caps reasoning plus content together. qwen takes
+ * reasoning_effort:"none" and spends the whole budget on the answer; gpt-oss
+ * accepts only low/medium/high, so even at its lowest it thinks first and
+ * the answer comes out of whatever is left.
+ *
+ * Review's 850-token budget was sized against qwen's 1,000 OTPM ceiling back
+ * when review was pinned to that lane. 509bd5f let it pick a lane at
+ * runtime, the budget did not follow, and on the accounting chapter
+ * (05.10.2026) review landed on gpt-oss-120b and came back with:
+ *
+ *   400 json_validate_failed ... "failed_generation": ""
+ *
+ * Not a malformed answer — NO answer. The reasoning had eaten all 850 tokens
+ * before a character of content was written, and the empty string failed
+ * Groq's JSON check. The run paid for the call and the wait and got nothing.
+ *
+ * So the tier numbers stay what they always meant — how much ANSWER this
+ * tier needs — and the lane decides how much thinking room to add on top.
+ * clampCompletion still applies afterwards, so qwen cannot exceed its OTPM
+ * ceiling no matter what this returns.
+ *
+ * HOW BIG THE HEADROOM CAN BE is not a matter of taste — there is a ceiling,
+ * and it comes from the pacer. estimateTokens counts completion at
+ * PACER_COMPLETION_FACTOR, so raising this raises review's estimate, its
+ * queue wait, and the chance the budget gate skips it on a long document.
+ * From the measured economy run (est=6645 at completion=850):
+ *
+ *   text part of the estimate ............ 6,135 tokens
+ *   lane ceiling (8,000 x PACER_SAFETY) .. 7,200
+ *   room left for completion x 0.6 ....... 1,065
+ *   -> largest completion that still fits . 1,775
+ *
+ * So the content budget of 850 leaves at most ~900 of headroom before review
+ * stops fitting in its own lane at all. 1,200 was the first value tried here
+ * and it put the estimate at 7,365 — over the ceiling, which would have
+ * traded an empty answer for no answer.
+ *
+ * 700 it is: 2.3x the thinking room review had, still inside the lane.
+ *
+ * And it remains a starting value, not a measurement. All that run proved is
+ * that "low" reasoning sometimes costs more than the ~550 tokens left over
+ * from 850 — the economy document's review passed on the same model and the
+ * same budget, so this varies per prompt and probably per run. The real
+ * figure is logged per call now
+ * (usage.completion_tokens_details.reasoning_tokens) so it can be set from
+ * data instead of from this comment.
+ */
+const REASONING_HEADROOM = 700
+
+function reviewCompletionFor(model: string, contentTokens: number): number {
+  const id = String(model)
+  const thinks = id.includes('gpt-oss') || id.startsWith('openai/')
+  return thinks ? contentTokens + REASONING_HEADROOM : contentTokens
+}
+
+/**
+ * Pick the lane that can take this call SOONEST.
+ *
+ * Alternating by index was the first version and it only half worked. On a
+ * 3-window document (05.10.2026) windows 1 and 2 did run side by side — same
+ * millisecond in the log, the 60s gap between them gone — but window 3 went
+ * back to MODEL_HEAVY purely because its index was even, and sat out a full
+ * window while the other lane was equally busy. Parity does not know which
+ * lane is free; the pacer does.
+ *
+ * The same run showed the sharper version of the problem downstream. The
+ * narrative writer waited 57 seconds on MODEL_HEAVY at a moment when
+ * MODEL_EXTRACT's ledger had just aged out and would have taken it instantly.
+ * Nothing was overloaded — we were queueing for one lane while another stood
+ * empty.
+ *
+ * Order matters: `models` is in preference order, and ties go to the first,
+ * so a caller that cares about quality lists its preferred model first and
+ * still gets it whenever that costs nothing.
+ */
+function pickLane(
+  models: string[],
+  estTokens: number,
+  estCompletion = 0,
+  claimed?: Set<string>
+): string {
+  // Lanes already taken by a sibling call in the SAME batch are skipped while
+  // an unclaimed one exists. Without this, concurrent pickers all see empty
+  // ledgers and all choose the preferred lane: on 05.10.2026 windows 1 and 2
+  // both landed on MODEL_HEAVY and drove it to used=10386/7200 — over its own
+  // budget — while MODEL_EXTRACT sat idle and the next call paid a 58s wait.
+  // The pacer cannot help here: it records a spend when the response ARRIVES,
+  // and these decisions are all made before any of them has.
+  const free = claimed ? models.filter(m => !claimed.has(m)) : models
+  const pool = free.length > 0 ? free : models
+  let best = pool[0]
+  let bestWait = Infinity
+  for (const m of pool) {
+    const wait = tokenPacer.waitEstimate(estTokens, m, estCompletion)
+    if (wait < bestWait) { best = m; bestWait = wait }
+    if (bestWait === 0) break
+  }
+  claimed?.add(best)
+  return best
+}
+// Skip the expensive review pass for short, simple documents (saves ~1 full LLM call)
+const SKIP_REVIEW_MAX_CHARS = 3500
+const CHUNK_MAX_COMPLETION = 1536 // slightly smaller → faster chunk map
+const SYNTHESIS_MAX_COMPLETION = 3072
+const DRAFT_MAX_COMPLETION = 4096
+const REVIEW_MAX_COMPLETION = 4096
+// Review timing, used both to budget the gate and to drive the call itself,
+// so the two can never disagree about what a review attempt costs.
+const REVIEW_ATTEMPT_TIMEOUT_MS = 25_000
+// Everything after the review call: JSON parse, grounding gate, near-duplicate
+// merge, citation anchoring, cloze build, DB save. All deterministic; measured
+// at ~200ms on a live 30-page run, so this is ~40x headroom.
+const REVIEW_TAIL_MS = 8_000
+// Cap parallel chunk calls to reduce TPM bursts.
+// SPEED FIX: the long-document "windows" loop below used to await each
+// window's Groq call one at a time (effective concurrency of 1) even though
+// this constant existed — it was defined but never actually wired into that
+// loop. For an 8-window document at up to 40s per window, that meant up to
+// ~5 minutes just for this one stage, and it also meant the budgetLeft()
+// early-stop kicked in after only 2-3 windows on longer documents (worse
+// coverage, not just slower). The window loop now processes windows in
+// concurrent batches of this size instead, which cuts that stage's
+// wall-clock time roughly proportionally AND lets more windows complete
+// within the same PIPELINE_BUDGET_MS. 3 is a moderate step up from the
+// original (unused) value of 2 — each window's own extractWindow() retry
+// logic already backs off gracefully on 429s, so a modest concurrency bump
+// here trades a small increase in rate-limit retries for a large wall-clock
+// win, without the aggressiveness of a bigger jump.
+const CHUNK_CONCURRENCY = 3
+const MAX_CHUNKS = 12 // hard ceiling: prefer finishing over analyzing every page under Edge timeout
+// Soft wall-clock budget (ms) for the whole function — leave headroom under ~150s platform limit
+const PIPELINE_BUDGET_MS = 110_000
+// A window call, compact-split to window-ok, measured across four live runs:
+// 2.9s, 3.3s, 4.0s, 5.3s. Used to budget a retry, and deliberately several
+// times the measured cost.
+const WINDOW_CALL_MS = 15_000
+// Superseded as a gate by a measured wait + cost; see the json_validate_failed
+// branch. Kept only so the old reasoning stays readable in one place:
+//
+//   "A retry is one more window call, which on this account's 8,000 TPM means
+//    a ~60s TokenPacer wait"
+//
+// True with one lane. With two, pickLane sends the retry to whichever lane is
+// free, and on 05.10.2026 that would have been a 0.7s wait. The 70s floor was
+// a constant left behind by its own fix — the same way the narrative writer's
+// 40s reserve was — and it cost a third of a document: window 3 failed at
+// 64.1s with 45.9s of budget left, 70 > 45.9, no retry, zero terms from that
+// slice.
+const JSON_RETRY_MIN_BUDGET_MS = 70_000
+
+// Vision pass sizing, both numbers forced by the same 8,000 TPM ceiling.
+//
+// Groq bills every image at a flat 2,048 input tokens and accepts at most 3
+// per request. Three would be 6,144 tokens of image alone; with the system
+// prompt and the completion reservation that lands around 9,000 and the
+// request is rejected outright. Two fits: 4,096 + ~330 prompt + ~1,840
+// completion reservation is about 6,300, inside the pacer's 7,200 ceiling.
+const VISION_TOKENS_PER_IMAGE = 2048
+// Raised alongside the compact-window bump (2048 -> 3072): the near-blank
+// pages this pass reads are where a table, chart or diagram is most likely to
+// live, and a Mermaid block or multi-row table needs the room.
+const VISION_MAX_COMPLETION = 3072
+const VISION_MAX_IMAGES = 2
+// The vision pass is an EXTRA call, and on this tier every extra call means a
+// full ~60s TokenPacer wait before it can start. The narrative writer runs
+// after it and has its own 35s budget gate, so the visual pass may only start
+// when there is room for both: ~65s for itself, 35s for the writer's gate.
+// Below that it skips itself, which is the correct trade — a card always has
+// a written summary, and figure values are the optional extra.
+// Replaced as a gate by a measured wait + cost (see the vision block); kept
+// because the fast path still reads it.
+const VISUAL_MIN_BUDGET_MS = 100_000
+// MEASURED, not guessed. Both of these were round numbers picked for safety,
+// and both were wrong by enough to change behaviour: on 05.10.2026 the vision
+// pass was skipped at "butce 43031ms <= 70000ms" when the work it was being
+// denied budget for takes a fraction of that.
+//
+// Vision call, PDF.co render to merged patch, across four live runs:
+//   6.7s, 6.0s, 7.2s, 6.5s  -> ~6.6s average. The old 30s was 4.5x reality.
+const VISION_CALL_MS = 15_000
+// Narrative writer, merge to accepted, once it stopped queueing for a busy
+// lane: 1.8s. The old 40s reserve was 22x reality — a figure from when the
+// writer could sit out a whole TPM window, which pickLane now prevents.
+// Its own wait is budgeted separately, so this is the call alone.
+const NARRATIVE_WRITER_RESERVE_MS = 20_000
+
+function computeAdaptiveTargets(charCount: number, lengthPreset: string) {
+  const presets: Record<string, { summary: [number, number]; terms: [number, number]; points: [number, number]; quiz: [number, number]; capSummary: number; capTerms: number; capPoints: number; capQuiz: number }> = {
+    short: { summary: [2, 3], terms: [3, 5], points: [3, 5], quiz: [3, 3], capSummary: 6, capTerms: 12, capPoints: 10, capQuiz: 6 },
+    medium: { summary: [4, 8], terms: [5, 10], points: [5, 10], quiz: [4, 6], capSummary: 16, capTerms: 25, capPoints: 22, capQuiz: 12 },
+    detailed: { summary: [12, 20], terms: [15, 20], points: [12, 18], quiz: [8, 10], capSummary: 28, capTerms: 40, capPoints: 35, capQuiz: 20 }
+  }
+  const p = presets[lengthPreset] || presets.medium
+  // one "growth unit" per ~4000 extra characters beyond a 6000-char baseline
+  // (a baseline-sized document gets exactly the old fixed numbers; only
+  // longer-than-that documents scale up, and only up to the per-preset cap)
+  const extraUnits = Math.max(0, Math.floor((charCount - 6000) / 4000))
+  const grow = (range: [number, number], cap: number, perUnit: number): [number, number] => {
+    const lo = Math.min(cap, Math.round(range[0] + extraUnits * perUnit))
+    const hi = Math.min(cap, Math.round(range[1] + extraUnits * perUnit))
+    return [lo, Math.max(lo, hi)]
+  }
+  return {
+    summarySentences: grow(p.summary, p.capSummary, 1),
+    keyTerms: grow(p.terms, p.capTerms, 1),
+    keyPoints: grow(p.points, p.capPoints, 1),
+    quizQuestions: grow(p.quiz, p.capQuiz, 0.5)
+  }
+}
+
+function buildLengthInstruction(targets: ReturnType<typeof computeAdaptiveTargets>, lengthPreset: string): string {
+  const [sLo, sHi] = targets.summarySentences
+  const [tLo, tHi] = targets.keyTerms
+  const [pLo, pHi] = targets.keyPoints
+  const [qLo, qHi] = targets.quizQuestions
+  const scaleNote = (sHi > 8 || tHi > 10 || pHi > 10)
+    ? " This document is substantial, so make sure the summary, key terms, key points, and quiz questions genuinely cover its full breadth — not just the first portion of it."
+    : ""
+  if (lengthPreset === 'short') {
+    return `Write a concise summary in ${sLo}-${sHi} sentences. Include only the ${tLo}-${tHi} most essential key terms, ${pLo}-${pHi} key points, and ${qLo}-${qHi} quiz questions.`
+  } else if (lengthPreset === 'detailed') {
+    return `Write a thorough, in-depth summary (${sLo}-${sHi} sentences). Include ${tLo}-${tHi} key terms, ${pLo}-${pHi} key points, and ${qLo}-${qHi} quiz questions covering the material comprehensively.${scaleNote}`
+  }
+  return `Write a balanced summary in ${sLo}-${sHi} sentences. Include ${tLo}-${tHi} key terms, ${pLo}-${pHi} key points, and ${qLo}-${qHi} quiz questions.${scaleNote}`
+}
+
+function splitIntoChunks(text: string, targetChunkSize: number): string[] {
+  const paragraphs = text.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean)
+  const chunks: string[] = []
+  let current = ""
+
+  for (const para of paragraphs) {
+    if (para.length > targetChunkSize * 1.5) {
+      if (current) { chunks.push(current); current = "" }
+      for (let i = 0; i < para.length; i += targetChunkSize) {
+        chunks.push(para.substring(i, i + targetChunkSize))
+      }
+      continue
+    }
+    if (current && (current.length + para.length + 2) > targetChunkSize) {
+      chunks.push(current)
+      current = para
+    } else {
+      current = current ? current + "\n\n" + para : para
+    }
+  }
+  if (current) chunks.push(current)
+  return chunks.length > 0 ? chunks : [text]
+}
+
+/**
+ * Window builder for the live long-document path.
+ *
+ * The long-doc loop used to window by raw character offset
+ * (`extractedText.slice(start, start + WINDOW)`). Measured against real
+ * Turkish prose from this repo, that cut 92% of window boundaries
+ * mid-sentence and 67% mid-WORD — each boundary handing the model a
+ * fragment like "...provide generat | ive AI functions", which is exactly
+ * the kind of garbled input that produces vague key points.
+ *
+ * splitIntoChunks() above already solves this (paragraph-aware, and
+ * "--- SAYFA N ---" markers sit on their own lines so they survive as
+ * boundaries), but on its own it can emit a chunk up to 1.5x the target
+ * when a single paragraph is oversized — 50% more input tokens per call
+ * than the old behaviour, which this account's tokens-per-minute cap
+ * cannot absorb. So the paragraph-aware split is followed by a hard cap at
+ * `maxChars`, guaranteeing per-window token cost never exceeds what the
+ * char-offset version already spent.
+ */
+function splitIntoWindows(text: string, maxChars: number, maxWindows: number): string[] {
+  const out: string[] = []
+  for (const chunk of splitIntoChunks(text, maxChars)) {
+    if (chunk.length <= maxChars) { out.push(chunk); continue }
+    for (let i = 0; i < chunk.length; i += maxChars) out.push(chunk.slice(i, i + maxChars))
+  }
+  return out.slice(0, maxWindows)
+}
+
+type GroqJsonOpts = {
+  model?: string
+  temperature?: number
+  maxCompletionTokens?: number
+  timeoutMs?: number
+  maxRetries?: number
+}
+
+// ==========================================================================
+// TOKEN PACER — stop hitting the rate limit instead of recovering from it
+//
+// Live evidence (2026-10-04, 30-page chapter, two identical runs):
+//
+//   run A: both windows succeeded      -> 26 terms, 19 key points
+//   run B: window 1 lost all 3 retries -> 14 terms,  8 key points
+//
+// Same document, same settings, half the output. Every failure was:
+//
+//   Rate limit reached ... tokens per minute (TPM): Limit 8000,
+//   Used 7362, Requested 3873. Please try again in 24.26s
+//
+// The cause is that windows were fired CHUNK_CONCURRENCY-at-a-time with no
+// idea of what the budget could absorb. At ~5,000 tokens a call against an
+// 8,000 TPM ceiling, two simultaneous calls cannot both fit — so they knock
+// each other out, and whether a student gets the good summary or the thin
+// one is decided by a race.
+//
+// Retrying harder cannot fix that: when the per-minute window is already
+// spent, every retry is just another 429, and the window loop's own budget
+// then runs out before the remaining windows are ever tried.
+//
+// So this paces requests against a rolling 60-second token budget: a call
+// waits until its estimated cost fits, and actual usage is recorded from
+// the response afterwards. The real ceiling is read from Groq's own
+// x-ratelimit-limit-tokens header, so an account upgrade raises throughput
+// automatically with no code change.
+// ==========================================================================
+const PACER_SAFETY = 0.9             // headroom; actual usage is recorded, so this can be tight
+const PACER_WINDOW_MS = 60_000
+// MUST exceed PACER_WINDOW_MS. The first live run capped this at 55s and the
+// logs showed exactly why that is wrong:
+//
+//   TokenPacer: 55000ms bekliyor (used=4600/6800, est=4378)
+//   TokenPacer: 55000ms bekledi, yine de gonderiyor (used=4600, est=4378)
+//
+// `used` is unchanged after the wait, because an entry that was fresh when
+// the wait began is only 55 seconds old at the end of it — still inside the
+// 60-second window, so nothing aged out. The wait could not possibly have
+// helped, and the call went out anyway: 55 seconds spent to arrive at the
+// same place. Five of those is most of the two minutes that run took.
+//
+// A ceiling below the window length makes every long wait futile by
+// construction, so this now sits just past it: a wait that is needed is a
+// wait that completes.
+const PACER_MAX_WAIT_MS = 65_000
+// maxCompletionTokens is a CEILING, not a prediction — a window call asking
+// for up to 3072 completion tokens typically spends far less. Charging the
+// full ceiling up front made the pacer see a shortage that was not there and
+// wait for room it did not need; the proof is that every "yine de
+// gonderiyor" call then succeeded without a single 429. Actual usage is
+// still recorded from the response, so this only affects the pre-flight
+// estimate.
+const PACER_COMPLETION_FACTOR = 0.6
+const DEFAULT_TPM_LIMIT = 8000       // observed on this account until a header says otherwise
+
+/**
+ * A single model's rolling-window budget. Groq meters tokens-per-minute
+ * PER MODEL, so each model gets its own 8,000 and its own spend history.
+ */
+type PacerLane = {
+  limit: number
+  limitKnown: boolean
+  spent: Array<{ at: number; tokens: number }>
+  /** Rolling OUTPUT-token spend; see MODEL_OTPM. */
+  outSpent: Array<{ at: number; tokens: number }>
+}
+
+// OUTPUT tokens per minute — a SEPARATE Groq bucket from TPM, discovered the
+// hard way on 04.10.2026:
+//
+//   Request too large for model `qwen/qwen3.8-27b` ... on output tokens per
+//   minute (OTPM): Limit 1000, Requested 1311
+//
+// Confirmed against console.groq.com/docs/rate-limits: "some organizations
+// are also subject to separate per-minute limits on input tokens (ITPM) and
+// output tokens (OTPM)", and OTPM "caps how many completion tokens your
+// organization can generate per minute, regardless of how many input tokens
+// are sent".
+//
+// The pacer modelled TPM only, so it happily cleared a review call asking for
+// 2,500 completion tokens against a 1,000 ceiling. Every tier 429'd, and
+// because each retry then waited out a full TPM window, the run spent 81s in
+// the tier loop and was killed by the 150s Edge wall clock mid-review —
+// leaving the document stuck on "reviewing" forever.
+//
+// Only models actually observed to have a split limit are listed; a model
+// absent here is paced on TPM alone, as before.
+const MODEL_OTPM: Record<string, number> = {
+  "qwen/qwen3.8-27b": 1000
+}
+// Leave room for the model overshooting its own completion estimate — Groq
+// rejected a 2,500-token ask as "Requested 1311", so its accounting is not
+// simply max_completion_tokens and a request sized exactly at the limit is
+// not safe.
+const OTPM_SAFETY = 0.85
+
+// WHY THIS IS KEYED BY MODEL (2026-10-04):
+// The pacer used to hold one `spent[]` and one `limit` for the whole
+// function. That silently cancelled the one optimisation the pipeline was
+// built around. Groq bills TPM separately for each model, which is the
+// entire reason the review/critic passes run on MODEL_FAST while the draft
+// runs on MODEL_HEAVY — two models, two 8,000s, no queueing. With a shared
+// ledger the review call was charged the draft's spend as well, so it sat
+// through a ~60s wait for room it already had. (It never actually got that
+// far, because the MODEL_FAST id was dead and every call 404'd; fixing the
+// id without also splitting this would have traded a 404 for a stall.)
+//
+// Per-lane limits also make the Groq header more useful than before: the
+// ceiling it reports belongs to the model that was just called, so a
+// preview-tier model with a different TPM no longer overwrites the
+// production model's known limit.
+const tokenPacer = {
+  lanes: Object.create(null) as Record<string, PacerLane>,
+
+  /** The budget for one model, created on first use. */
+  lane(model: string): PacerLane {
+    const key = model || MODEL_HEAVY
+    let lane = this.lanes[key]
+    if (!lane) {
+      lane = { limit: DEFAULT_TPM_LIMIT, limitKnown: false, spent: [], outSpent: [] }
+      this.lanes[key] = lane
+    }
+    return lane
+  },
+
+  /**
+   * The largest completion this model will accept, or null when it has no
+   * known output cap. Asking for more than this is not a slow request, it is
+   * a rejected one, so callers clamp rather than wait.
+   */
+  maxCompletion(model: string): number | null {
+    const otpm = MODEL_OTPM[model || MODEL_HEAVY]
+    return otpm ? Math.floor(otpm * OTPM_SAFETY) : null
+  },
+
+  /** Clamp a requested completion budget to what this model can actually emit. */
+  clampCompletion(model: string, requested: number): number {
+    const cap = this.maxCompletion(model)
+    if (cap === null || !(requested > cap)) return requested
+    console.log(`TokenPacer[${model}]: max_completion ${requested} -> ${cap} (OTPM tavani)`)
+    return cap
+  },
+
+  /** Rolling OUTPUT-token spend inside the window. */
+  usedOut(now: number, model: string): number {
+    const lane = this.lane(model)
+    lane.outSpent = lane.outSpent.filter(e => now - e.at < PACER_WINDOW_MS)
+    return lane.outSpent.reduce((n, e) => n + e.tokens, 0)
+  },
+
+  /** Drop entries older than the rolling window and total what's left. */
+  used(now: number, model: string): number {
+    const lane = this.lane(model)
+    lane.spent = lane.spent.filter(e => now - e.at < PACER_WINDOW_MS)
+    return lane.spent.reduce((n, e) => n + e.tokens, 0)
+  },
+
+  /** Groq reports the real ceiling on every response; believe it over our default. */
+  observeHeaders(headers: Headers, model: string) {
+    const lane = this.lane(model)
+    const raw = headers.get('x-ratelimit-limit-tokens')
+    const n = raw ? parseInt(raw, 10) : NaN
+    if (Number.isFinite(n) && n > 0 && n !== lane.limit) {
+      console.log(`TokenPacer[${model}]: TPM limit ${lane.limit} -> ${n} (Groq header)`)
+      lane.limit = n
+      lane.limitKnown = true
+    } else if (Number.isFinite(n)) {
+      lane.limitKnown = true
+    }
+  },
+
+  record(tokens: number, model: string, completionTokens = 0) {
+    const lane = this.lane(model)
+    if (Number.isFinite(tokens) && tokens > 0) {
+      lane.spent.push({ at: Date.now(), tokens })
+    }
+    if (Number.isFinite(completionTokens) && completionTokens > 0) {
+      lane.outSpent.push({ at: Date.now(), tokens: completionTokens })
+    }
+  },
+
+  /** How many calls of this size can safely be in flight at once. */
+  safeConcurrency(estTokensPerCall: number, model: string): number {
+    if (!(estTokensPerCall > 0)) return 1
+    return Math.max(1, Math.floor((this.lane(model).limit * PACER_SAFETY) / estTokensPerCall))
+  },
+
+  /**
+   * How long acquire() would block for this call RIGHT NOW, in ms, without
+   * blocking. Mirrors acquire's loop: entries age out oldest-first, and the
+   * answer is when enough of them have expired for the call to fit.
+   *
+   * This exists so a stage can ask "would running me actually cost time?"
+   * instead of assuming the worst. The review gate used to assume a flat
+   * 55s — correct back when one shared ledger meant any call could eat a
+   * full window, but now that lanes are per model the pacer can simply say.
+   */
+  waitEstimate(estTokens: number, model: string, estCompletion = 0): number {
+    return Math.max(
+      this.waitFor(this.lane(model).spent, this.lane(model).limit * PACER_SAFETY, estTokens, model, false),
+      this.waitFor(this.lane(model).outSpent, this.maxCompletion(model) ?? Infinity, estCompletion, model, true)
+    )
+  },
+
+  /** Shared ledger walk for both the total and output budgets. */
+  waitFor(
+    ledger: Array<{ at: number; tokens: number }>,
+    budget: number,
+    est: number,
+    _model: string,
+    _isOut: boolean
+  ): number {
+    if (!(est > 0) || !Number.isFinite(budget)) return 0
+    const now = Date.now()
+    let used = ledger.filter(e => now - e.at < PACER_WINDOW_MS).reduce((n, e) => n + e.tokens, 0)
+    if (used + est <= budget || used === 0) return 0
+    let wait = 0
+    for (const e of ledger) {
+      if (now - e.at >= PACER_WINDOW_MS) continue
+      used -= e.tokens
+      wait = PACER_WINDOW_MS - (now - e.at) + 250
+      if (used + est <= budget || used <= 0) break
+    }
+    return Math.max(0, Math.min(PACER_MAX_WAIT_MS, wait))
+  },
+
+  /** Block until this call's estimated cost fits in that model's rolling budget. */
+  async acquire(estTokens: number, model: string, estCompletion = 0): Promise<void> {
+    const lane = this.lane(model)
+    const budget = lane.limit * PACER_SAFETY
+    const outBudget = this.maxCompletion(model)
+    const started = Date.now()
+    while (true) {
+      const now = Date.now()
+      const used = this.used(now, model)
+      const usedOut = outBudget === null ? 0 : this.usedOut(now, model)
+      const totalFits = used + estTokens <= budget || used === 0
+      const outFits = outBudget === null || estCompletion <= 0 ||
+        usedOut + estCompletion <= outBudget || usedOut === 0
+      if (totalFits && outFits) return
+      if (totalFits && !outFits) {
+        // The output bucket is the binding one. Wait for the oldest completion
+        // to age out rather than the oldest total.
+        const oldestOut = lane.outSpent[0]
+        const needOut = oldestOut
+          ? Math.max(250, PACER_WINDOW_MS - (now - oldestOut.at) + 250)
+          : 0
+        const remainingOut = PACER_MAX_WAIT_MS - (now - started)
+        if (!oldestOut || needOut > remainingOut) {
+          console.warn(
+            `TokenPacer[${model}]: OTPM icin ${Math.round(needOut)}ms gerekiyor ama ` +
+            `${Math.round(Math.max(0, remainingOut))}ms kaldi — beklemeden gonderiyor ` +
+            `(usedOut=${usedOut}/${outBudget}, est=${estCompletion})`
+          )
+          return
+        }
+        console.log(
+          `TokenPacer[${model}]: OTPM icin ${Math.round(needOut)}ms bekliyor ` +
+          `(usedOut=${usedOut}/${outBudget}, est=${estCompletion})`
+        )
+        await new Promise(r => setTimeout(r, needOut))
+        continue
+      }
+      // Wait for the oldest recorded spend to age out of the window.
+      const oldest = lane.spent[0]
+      const needed = Math.max(250, PACER_WINDOW_MS - (now - oldest.at) + 250)
+      const remaining = PACER_MAX_WAIT_MS - (now - started)
+      // Never wait a length that cannot clear anything: if the time actually
+      // required exceeds what we are willing to spend, waiting part of it
+      // buys nothing and the call goes out either way. Send now and let the
+      // 429 path (which honours Groq's own retry-after) handle it.
+      if (needed > remaining) {
+        console.warn(
+          `TokenPacer[${model}]: ${Math.round(needed)}ms gerekiyor ama ${Math.round(Math.max(0, remaining))}ms kaldi — ` +
+          `beklemeden gonderiyor (used=${used}, est=${estTokens})`
+        )
+        return
+      }
+      const waitMs = needed
+      console.log(
+        `TokenPacer[${model}]: ${Math.round(waitMs)}ms bekliyor ` +
+        `(used=${used}/${Math.round(budget)}, est=${estTokens})`
+      )
+      await new Promise(r => setTimeout(r, waitMs))
+    }
+  }
+}
+
+/**
+ * Pre-flight token estimate. Input is counted in full (we know its length);
+ * the completion budget is counted at PACER_COMPLETION_FACTOR because it is
+ * a ceiling the model rarely reaches — see that constant for the evidence.
+ */
+function estimateTokens(systemPrompt: string, userContent: string, maxCompletion: number): number {
+  return Math.ceil((systemPrompt.length + userContent.length) / 3.2)
+    + Math.ceil(maxCompletion * PACER_COMPLETION_FACTOR)
+}
+
+async function callGroqJson(
+  groqApiKey: string,
+  systemPrompt: string,
+  userContent: string,
+  temperatureOrOpts: number | GroqJsonOpts = 0.3
+): Promise<any> {
+  const opts: GroqJsonOpts = typeof temperatureOrOpts === 'number'
+    ? { temperature: temperatureOrOpts }
+    : (temperatureOrOpts || {})
+  const model = opts.model || MODEL_HEAVY
+  const temperature = opts.temperature ?? 0.3
+  // Clamp before anything else: a request whose max_completion_tokens alone
+  // exceeds the model's OTPM ceiling is rejected outright, not queued.
+  const maxCompletionTokens = tokenPacer.clampCompletion(
+    model,
+    opts.maxCompletionTokens ?? DRAFT_MAX_COMPLETION
+  )
+  const timeoutMs = opts.timeoutMs ?? 25000
+  const maxRetries = opts.maxRetries ?? 1
+
+  const body: Record<string, unknown> = {
+    model,
+    temperature,
+    max_completion_tokens: maxCompletionTokens,
+    response_format: { type: "json_object" },
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userContent }
+    ]
+  }
+  // Reasoning controls, derived from the model id — see reasoningParamsFor.
+  Object.assign(body, reasoningParamsFor(model))
+
+  // Wait until this call fits the rolling per-minute budget, rather than
+  // firing it and letting Groq reject it (see the TokenPacer comment above).
+  const estTokens = estimateTokens(systemPrompt, userContent, maxCompletionTokens)
+  await tokenPacer.acquire(estTokens, model, maxCompletionTokens)
+
+  const response = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${groqApiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  }, maxRetries, timeoutMs)
+
+  tokenPacer.observeHeaders(response.headers, model)
+
+  const data = await response.json()
+  if (!response.ok) {
+    // A rejected call still consumed budget in Groq's accounting, so record
+    // the estimate — otherwise the pacer would under-count after a 429 and
+    // immediately fire again into the same wall.
+    tokenPacer.record(estTokens, model, maxCompletionTokens)
+    throw new Error(`Groq API error (${response.status}): ${JSON.stringify(data)}`)
+  }
+  tokenPacer.record(
+    Number(data?.usage?.total_tokens) ||
+    (Number(data?.usage?.prompt_tokens) || 0) + (Number(data?.usage?.completion_tokens) || 0) ||
+    estTokens,
+    model,
+    Number(data?.usage?.completion_tokens) || maxCompletionTokens
+  )
+  const raw = data.choices?.[0]?.message?.content ?? ""
+  if (!raw) throw new Error("Empty Groq response content")
+  const stripped = stripThinkBlock(raw)
+  if (stripped === null) throw new Error("Model ran out of tokens mid-<think> block, never wrote the actual answer")
+  const cleaned = stripped.replace(/```json\s*|```/g, "").trim()
+  return JSON.parse(cleaned)
+}
+
+// Upload local file bytes to PDF.co via its presigned-URL flow (Denetim
+// Raporu, 2026-08-31 — LIVE TEST FINDING). PDF.co's convert endpoints only
+// accept a `url` pointing to an already-hosted file; they do NOT accept a
+// direct multipart file body. Confirmed via a real 400 in production logs:
+// "Long-doc PDF.co response status failed: 400" — the code below this
+// comment (and, it turns out, the ORIGINAL fast-path PDF visual-analysis
+// block further down, which used the exact same multipart pattern) was
+// sending the file the wrong way. Both call sites now go through this one
+// upload helper instead. Flow, per PDF.co's docs (developer.pdf.co/api/
+// file-upload/generate-presigned-url): GET a presigned URL, PUT the raw
+// bytes to it, then use the returned `url` field in the actual conversion
+// call. Returns null on any failure.
+async function uploadFileToPdfCo(fileBytes: Uint8Array, apiKey: string, filename: string): Promise<string | null> {
+  try {
+    const presignRes = await fetch(
+      `https://api.pdf.co/v1/file/upload/get-presigned-url?name=${encodeURIComponent(filename)}`,
+      { headers: { 'x-api-key': apiKey } }
+    )
+    if (!presignRes.ok) {
+      console.warn(`PDF.co presigned-URL request failed: ${presignRes.status}`)
+      return null
+    }
+    const presignData = await presignRes.json()
+    if (presignData.error || !presignData.presignedUrl || !presignData.url) {
+      console.warn('PDF.co presigned-URL response missing fields:', presignData)
+      return null
+    }
+    const putRes = await fetch(presignData.presignedUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: fileBytes
+    })
+    if (!putRes.ok) {
+      console.warn(`PDF.co presigned upload PUT failed: ${putRes.status}`)
+      return null
+    }
+    return presignData.url as string
+  } catch (err) {
+    console.error('PDF.co presigned upload flow failed:', err)
+    return null
+  }
+}
+
+// Convert SPECIFIC pages of a PDF to images via PDF.co (Denetim Raporu,
+// 2026-08-31). The existing fast-path visual analysis below always asks for
+// pages "0-7" — fine for a short document, but on a long slide deck the
+// pages worth looking at visually are wherever the text extraction came back
+// near-empty, which can be anywhere in the document (on our real test case,
+// page 51 of 52). This is a separate, additive function so the working
+// fast-path code above is untouched; it is only used by the chunked/long-doc
+// path's visual-analysis patch further down, and only when that path has
+// already identified which pages are worth converting.
+// ==========================================================================
+// WHICH PAGES GO TO THE VISION MODEL
+//
+// The old selector was `pageText.length < 150` — "a page with almost no text
+// must be an image page". Measured on a 30-page lecture deck it picked pages
+// 1 and 3, which are the publisher's two COVER SLIDES, and none of the eight
+// pages that actually carry a figure. The deck's six figures each come with a
+// caption of 200-800 characters, so they never looked blank.
+//
+// The caption itself is the reliable signal. On that same deck a header match
+// scores 8/8 with no false positives: six "FIGURE 20.x" pages plus the two
+// "ECONOMICS IN PRACTICE" feature pages, and the phrase appears nowhere else
+// in the document.
+//
+// The near-blank list stays as the fallback for documents whose figures carry
+// no caption at all (a scanned handout, an image-only deck) — there the old
+// heuristic is the only signal available, and it is right for exactly that
+// case.
+// The Turkish spellings need explicit character classes for their i's. A
+// case-insensitive regex cannot match "Şekil" against "ŞEKİL": İ (U+0130)
+// lowercases to i + COMBINING DOT ABOVE, not to plain i, so /ŞEKİL/i silently
+// fails on the ordinary capitalised form a caption actually uses. Same trap
+// for GRAFİK and ÇİZELGE. Written this way all four of Şekil/ŞEKİL/Sekil/
+// ŞEKIL match.
+const FIGURE_CAPTION_RE =
+  /^[ \t]*(FIGURE|TABLE|EXHIBIT|CHART|PLATE|Ş[EĖ]K[İIi]L|SEK[İIi]L|TABLO|GRAF[İIi]K|[ÇC][İIi]ZELGE)\b/im
+
+function selectVisualPages(
+  pdfPageTexts: string[],
+  nearBlankIndices: number[],
+  maxPages: number
+): { indices: number[]; reason: string } {
+  const captioned: Array<{ i: number; len: number }> = []
+  for (let i = 0; i < pdfPageTexts.length; i++) {
+    const t = pdfPageTexts[i] || ''
+    if (FIGURE_CAPTION_RE.test(t)) captioned.push({ i, len: t.trim().length })
+  }
+  if (captioned.length > 0) {
+    // Only VISION_MAX_IMAGES of them can go, so which ones matter. Taking the
+    // first N means a long document only ever shows its opening figures, and
+    // those are not the valuable ones.
+    //
+    // The ranking signal is the caption's own length: a figure whose caption
+    // already explains it in prose has little left for the vision model to
+    // add, while a chart with a one-line caption keeps everything — the axis
+    // ranges, the levels, the turning points — inside the image. Measured on
+    // the reference deck, shortest-caption-first puts Figure 20.2 (GDP
+    // 1900-2014, 200 chars) and Figure 20.5 (unemployment, 222) at the top
+    // and the circular-flow diagram (788 chars, fully described in words)
+    // last, which is the right order.
+    const ranked = [...captioned].sort((a, b) => a.len - b.len || a.i - b.i)
+    const picked = ranked.slice(0, maxPages).map(p => p.i).sort((a, b) => a - b)
+    return {
+      indices: picked,
+      reason: `sekil basligi (${captioned.length} aday, en kisa altyaziliar secildi)`
+    }
+  }
+  return {
+    indices: nearBlankIndices.slice(0, maxPages),
+    reason: `sekil basligi yok, bos sayfa yedegi (${nearBlankIndices.length} aday)`
+  }
+}
+
+async function extractVisualImagesForLongDoc(
+  fileBytes: Uint8Array,
+  pageIndices: number[] // 0-indexed page numbers to convert
+): Promise<string[]> {
+  const pdfcoApiKey = Deno.env.get('PDFCO_API_KEY')
+  if (!pdfcoApiKey || pageIndices.length === 0) return []
+  try {
+    // Confirmed against PDF.co's own docs: comma-separated 0-indexed page
+    // numbers/ranges is the correct format (e.g. "0, 2-4, !0").
+    // Hard cap matches what one Groq request can carry at 2,048 tokens an
+    // image on this account's TPM — rasterising more would only be thrown away.
+    const pages = pageIndices.slice(0, VISION_MAX_IMAGES).join(',')
+    console.log(`Long-doc visual analysis: converting page(s) [${pages}] via PDF.co...`)
+
+    const fileUrl = await uploadFileToPdfCo(fileBytes, pdfcoApiKey, 'document.pdf')
+    if (!fileUrl) {
+      console.warn('Long-doc visual analysis: PDF.co file upload failed, skipping visual patch')
+      return []
+    }
+
+    const pdfcoRes = await fetch('https://api.pdf.co/v1/pdf/convert/to/png', {
+      method: 'POST',
+      headers: { 'x-api-key': pdfcoApiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: fileUrl, pages })
+    })
+    if (!pdfcoRes.ok) {
+      let bodyText = ''
+      try { bodyText = await pdfcoRes.text() } catch (_e) { /* ignore */ }
+      console.warn(`Long-doc PDF.co response status failed: ${pdfcoRes.status} — ${bodyText.slice(0, 500)}`)
+      return []
+    }
+    const pdfcoData = await pdfcoRes.json()
+    if (pdfcoData.error || !(pdfcoData.urls || pdfcoData.url)) {
+      console.warn("Long-doc PDF.co API returned error:", pdfcoData)
+      return []
+    }
+    const rawUrls = pdfcoData.urls || pdfcoData.url
+    const imageUrls: string[] = Array.isArray(rawUrls) ? rawUrls : [rawUrls]
+
+    const base64Images: string[] = []
+    for (const imgUrl of imageUrls) {
+      try {
+        const imgRes = await fetch(imgUrl)
+        if (imgRes.ok) {
+          const buffer = await imgRes.arrayBuffer()
+          base64Images.push(bytesToBase64(new Uint8Array(buffer)))
+        }
+      } catch (imgDownloadErr) {
+        console.error(`Long-doc: failed to download page image from ${imgUrl}:`, imgDownloadErr)
+      }
+    }
+    return base64Images
+  } catch (err) {
+    console.error("Long-doc PDF.co page conversion failed:", err)
+    return []
+  }
+}
+
+function buildChunkSystemPrompt(chunkIndex: number, totalChunks: number, langLabel: string, hasPageMarkers: boolean, pageMarkerLabel: string, isDeck = false): string {
+  return `You are an academic study assistant helping process a LARGE document that has been split into ${totalChunks} sequential parts because of its length. You are given ONLY part ${chunkIndex + 1} of ${totalChunks} below — you do NOT see the rest of the document, so do not reference "the whole document" or assume content beyond what's shown here.
+
+Respond with ONLY a valid JSON object, no markdown code fences, no commentary before or after — matching this exact shape: { "chunk_summary": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "tables": [ { "title": string, "headers": [ string ], "rows": [ [ string ] ] } ], "charts": [ { "title": string, "type": string, "labels": [ string ], "data": [ number ] } ], "footnotes": [ { "id": number, "reference": string, "page": number | null } ], "is_quantitative": boolean, "formulas": [ { "name": string, "latex": string, "variables": [ { "symbol": string, "meaning": string } ] } ], "worked_examples": [ { "title": string, "problem_statement": string, "steps": [ string ], "final_answer": string } ], "diagrams": [ { "title": string, "mermaid": string, "description": string } ], "concept_graph": { "nodes": [ { "id": string, "label": string, "type": string } ], "edges": [ { "from": string, "to": string, "relation": string } ] } }.
+
+CHUNK SUMMARY:
+Write a 2-4 sentence "chunk_summary" capturing specifically what THIS part covers — it will later be combined with the other parts' summaries into one final document summary, so be concrete and self-contained about the actual topics discussed here rather than vague.
+
+${buildSlideDeckInstruction(isDeck, pageMarkerLabel === "SLAYT" ? "slide" : "page")}
+
+EXTRACTION SCOPE:
+Extract key terms, key points, and 1-3 quiz questions found in THIS PART ONLY. Scale the amount to how much substantive academic content this part actually contains — a short or mostly administrative/transitional part may legitimately warrant few or even zero key terms/points/quiz questions. Do not pad for the sake of padding.
+
+EXAM-FOCUSED CONTENT FILTERING (not optional):
+Separate this part's content into (a) actual academic subject matter — concepts, definitions, theories, frameworks/models, processes, relationships, formulas, examples — and (b) course administration/logistics — grading weights/percentages, exam format/rules, attendance policy, bonus/late-submission policy, grade-appeal procedures, office hours, textbook title/edition. ONLY (a) belongs in chunk_summary, key_points, footnotes, or quiz_questions. COMPLETELY EXCLUDE (b), even if its numbers are specific and checkable — a student is never tested on grading weights or textbook editions. If this part is mostly administrative logistics, it is correct to return few or zero key_terms/key_points/quiz_questions for it — do not pad with excluded content.
+
+QUANTITATIVE & FORMULAS:
+Set "is_quantitative" true if this part centers on mathematical formulas, numerical calculations, or financial/statistical computations. Extract EVERY distinct formula into 'formulas'. Use valid raw LaTeX ONLY (no surrounding $ or \\( \\) delimiters) — examples: "E = mc^2", "\\\\frac{a}{b}", "\\\\sum_{i=1}^{n} x_i", "F = ma". For each formula also list its variables with meanings. Additionally produce 1-2 worked_examples when formulas are present (prefer the source's own example with its real numbers; otherwise generate one clear realistic practice example). Return empty arrays if not applicable to this part.
+
+TABLES & CHARTS:
+Identify any tabular data ('tables') or chart-worthy numeric data ('charts', type "bar"|"pie"|"line") actually present in this part. Empty arrays are the correct output if none exists — never fabricate.
+
+DIAGRAMS (Mermaid reconstruction):
+You only see extracted text — visual layout (boxes, arrows, side-by-side positioning) is lost. A flowchart, comparison diagram, process illustration, hierarchy or cycle on the original slide/page often survives only as a cluster of short disconnected phrases, sequential stage names, or paired opposing terms. When you detect such a structure in THIS part, RECONSTRUCT it as a real Mermaid diagram and put it in the "diagrams" array:
+{ "title": "short descriptive title", "mermaid": "valid Mermaid source code", "description": "1-2 sentence plain-language explanation of what the diagram shows" }.
+Prefer these Mermaid types: flowchart TD, flowchart LR, graph TD, sequenceDiagram, mindmap. Keep syntax simple and valid (no experimental plugins). Limit to the 1-2 most important diagrams in this part. Also still add a key_point prefixed with "Diyagram/Görsel:" (or "Diagram/Visual:" in English) that briefly states the same idea. Return empty "diagrams" array when nothing is reconstructible — never invent diagrams that have no basis in the text.
+
+CONCEPT GRAPH (this part only):
+Extract the main academic concepts that appear in THIS part and their relationships. Output in concept_graph:
+- nodes: [{ "id": "c1", "label": "Concept Name", "type": "concept" }] — short, exam-relevant concept labels (3-8 words max). Use sequential ids c1, c2, ... within this part.
+- edges: [{ "from": "c1", "to": "c2", "relation": "includes" }] — only real relationships visible in the text. Allowed relation values: includes, is_a, causes, part_of, related_to, depends_on, contrasts_with.
+Keep it focused: 3-8 nodes and 2-10 edges max for this part. Empty nodes/edges arrays are correct if this part has little conceptual structure.
+
+FOOTNOTES:
+For specific, checkable factual claims within key_points (numbers, definitions, named findings), add a footnote marker like [1], [2] immediately after the claim (numbering restarts at 1 for this part — it will be renumbered globally later). List each in 'footnotes': [{ "id": number, "reference": "brief description of the topic/heading this relates to", "page": number | null }]. ${buildFootnotePageInstruction(hasPageMarkers, pageMarkerLabel)} Don't over-footnote.
+
+ACCURACY:
+Base everything STRICTLY on the text in this part. Do not invent facts or assume content not shown. Copy specific numbers, names, and technical terms exactly as they appear.
+
+LANGUAGE:
+Respond entirely in: '${langLabel}'.`
+}
+
+function buildSynthesisSystemPrompt(courseCatalogBlock: string, langLabel: string, styleInstruction: string, summaryLengthPhrase: string): string {
+  return `You are an academic study assistant. A large document was split into sequential parts and each part was already summarized independently. Below you are given all of those part-summaries, in order, plus a hint about what fraction were flagged as quantitative. Your job is to synthesize ONE cohesive, well-organized final summary of the ENTIRE document — write a genuinely unified narrative that flows across the whole document, not a mechanical concatenation of the part-summaries.
+
+Respond with ONLY a valid JSON object, no markdown fences, no commentary before or after: { "summary": string, "summary_executive": string, "document_type": string, "suggested_course_tag": string | null, "is_quantitative": boolean, "outline": { "document_title_guess": string, "items": [ { "id": string, "heading": string, "blurb": string, "level": number, "order": number, "parent_id": string | null } ] }, "sections": [ { "heading": string, "summary": string, "key_points": [ string ], "outline_id": string | null } ], "concept_graph": { "nodes": [ { "id": string, "label": string, "type": string } ], "edges": [ { "from": string, "to": string, "relation": string } ] } }.
+
+EXECUTIVE SUMMARY:
+Write "summary_executive" as a 2-3 sentence ultra-short overview that NAMES the actual subject (e.g. "machine learning lecture notes covering supervised learning, neural nets, and evaluation metrics"). Forbidden: vague lines like "this document provides a qualitative overview of key concepts".
+
+OUTLINE ENGINE (document skeleton — REQUIRED when the material has structure):
+Build "outline" as a table-of-contents for the whole document:
+- document_title_guess: short title if evident, else ""
+- items: 3-12 entries in reading order. Each: { "id": "o1", "heading": "2-6 word label", "blurb": "one sentence: what this part contributes to the document", "level": 1 or 2, "order": 1, "parent_id": null or parent id }
+- level 1 = major parts; level 2 = sub-topics under a parent
+- Headings MUST reflect real topics from the part-summaries (e.g. "Supervised Learning", "Neural Networks", "Evaluation Metrics") — NOT generic labels like "Introduction", "Main Discussion", "Conclusion", "Key Concepts" when specific topics exist
+- Never include pure admin/logistics (grading weights, attendance, office hours, textbook edition)
+- If the document is truly one continuous topic with no natural splits, return 2-3 coarse items rather than an empty list
+
+CONCEPT GRAPH (whole document):
+From the part-summaries, build a unified concept_graph covering the whole document. nodes: [{ "id": "c1", "label": "...", "type": "concept" }], edges: [{ "from": "c1", "to": "c2", "relation": "includes"|"is_a"|"causes"|"part_of"|"related_to"|"depends_on"|"contrasts_with" }]. 5-15 nodes and their real relationships. Reuse consistent ids. Empty graph only if the material truly has no conceptual structure.
+
+DOCUMENT-TYPE CLASSIFICATION:
+Identify the overall document type as exactly one of: "Lecture Notes/Slides", "Academic Article", "Syllabus", "Case Study", "Textbook Chapter", or "Other".
+
+SECTION PASS (deep per-topic summaries — aligned with outline):
+Output "sections" as 2-8 items matching major outline level-1 topics. Each item MUST be:
+{ "heading": "same as outline", "summary": "4-8 sentence DEEP academic summary of ONLY this topic — coherent paragraph(s), not a bullet dump; explain arguments, definitions, and why it matters", "key_points": ["3-6 concrete takeaways for this section only"], "outline_id": "o1" }
+Rules:
+- summary must be substantially longer and more specific than outline.blurb
+- Do not repeat the whole-document summary inside every section
+- Skip pure administration (grading, attendance, textbook edition)
+- If outline has items, sections should mirror those level-1 headings and set outline_id accordingly
+
+SUGGESTED COURSE TAG:
+Below is this student's OFFICIAL course catalog (format: CODE — Course Name):
+${courseCatalogBlock}
+Compare the document's content against this catalog. If it clearly matches one listed course, return that course's EXACT code (character-for-character). Otherwise, if a course code or clear subject label is evident from the part-summaries, use that as free text instead. If genuinely unclear and nothing fits, return null. Never invent a code that isn't in the catalog above and isn't evident in the part-summaries.
+
+IS_QUANTITATIVE:
+You'll be told what fraction of parts were flagged quantitative — combine that with your own reading of the part-summaries to make one final true/false call for the document as a whole.
+
+LENGTH INSTRUCTION:
+${summaryLengthPhrase}
+
+STYLE INSTRUCTION:
+${styleInstruction}
+
+LANGUAGE INSTRUCTION:
+Respond strictly in: '${langLabel}' (except "document_type", which must be one of the exact English strings listed above).
+
+ACCURACY:
+Base the summary strictly on the part-summaries provided — do not invent content beyond what they describe.
+The summary MUST mention concrete terms, methods, or chapter themes that appear in the part-summaries. Generic academic filler without domain content is a failure.
+
+EXAM-FOCUSED CONTENT FILTERING (not optional):
+If any part-summary contains course administration/logistics — grading weights, exam format/rules, attendance policy, grade-appeal procedures, office hours, textbook title/edition — EXCLUDE it from your final summary entirely, even if it was mistakenly included in a part-summary. Only synthesize the actual academic subject matter (concepts, theories, definitions, processes, relationships, formulas, examples).`
+}
+
+function dedupeKeyTerms(terms: any[]): any[] {
+  const seen = new Map<string, any>()
+  for (const t of terms) {
+    if (!t || !t.term) continue
+    const key = String(t.term).trim().toLowerCase()
+    if (!seen.has(key)) seen.set(key, t)
+  }
+  return Array.from(seen.values())
+}
+
+/** Normalize deep sections: heading + long summary + key_points + outline_id */
+function normalizeSections(raw: any, outline?: { items?: any[] } | null): any[] {
+  const arr = Array.isArray(raw) ? raw : []
+  const outlineItems = outline?.items || []
+  return arr
+    .filter((s: any) => s && (s.heading || s.title))
+    .map((s: any, idx: number) => {
+      const heading = String(s.heading || s.title || '').trim()
+      const summary = String(s.summary || s.body || '').trim()
+      let keyPoints: string[] = []
+      if (Array.isArray(s.key_points)) {
+        keyPoints = s.key_points
+          .map((p: any) => String(typeof p === 'string' ? p : (p?.point || p?.text || '')).trim())
+          .filter(Boolean)
+      }
+      let outlineId = s.outline_id || s.outlineId || null
+      if (!outlineId && outlineItems.length) {
+        const match = outlineItems.find((o: any) =>
+          String(o.heading || '').toLowerCase() === heading.toLowerCase()
+        )
+        if (match) outlineId = match.id
+      }
+      return {
+        heading,
+        summary,
+        key_points: keyPoints.slice(0, 8),
+        outline_id: outlineId,
+        order: Number(s.order) || idx + 1
+      }
+    })
+    .filter((s: any) => s.heading.length > 0 && s.summary.length > 0)
+}
+
+/** Normalize outline from model output into a stable shape for study_cards.outline */
+function normalizeOutline(raw: any, sectionsFallback?: any[]): { document_title_guess: string; items: any[] } {
+  const empty = { document_title_guess: '', items: [] as any[] }
+  if (raw && typeof raw === 'object' && Array.isArray(raw.items) && raw.items.length > 0) {
+    const items = raw.items
+      .filter((it: any) => it && (it.heading || it.title))
+      .map((it: any, idx: number) => ({
+        id: String(it.id || `o${idx + 1}`),
+        heading: String(it.heading || it.title || '').trim(),
+        blurb: String(it.blurb || it.summary || it.role || '').trim(),
+        level: Math.min(3, Math.max(1, Number(it.level) || 1)),
+        order: Number(it.order) || idx + 1,
+        parent_id: it.parent_id || it.parent || null
+      }))
+      .filter((it: any) => it.heading.length > 0)
+    return {
+      document_title_guess: String(raw.document_title_guess || raw.title || '').trim(),
+      items
+    }
+  }
+  // Fallback: lift flat sections into outline items
+  if (Array.isArray(sectionsFallback) && sectionsFallback.length > 0) {
+    return {
+      document_title_guess: '',
+      items: sectionsFallback
+        .filter((s: any) => s && (s.heading || s.title))
+        .map((s: any, idx: number) => ({
+          id: `o${idx + 1}`,
+          heading: String(s.heading || s.title || '').trim(),
+          blurb: String(s.summary || s.blurb || '').trim().slice(0, 280),
+          level: 1,
+          order: idx + 1,
+          parent_id: null
+        }))
+    }
+  }
+  return empty
+}
+
+function normalizeForDedup(s: string): string {
+  return (s || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, '').replace(/\s+/g, ' ').trim()
+}
+
+// ==========================================================================
+// NEAR-DUPLICATE MERGE
+//
+// dedupeByText below keys on the first 50 normalised characters:
+//
+//     const sig = norm.slice(0, 50)
+//
+// That catches an exact repeat but misses the kind of duplicate this
+// pipeline actually produces. Each window is summarised independently and
+// never sees its neighbours, so the same idea comes back worded differently
+// from two windows:
+//
+//     "Talep esnekliği fiyat değişimine duyarlılığı ölçer"
+//     "Esneklik, fiyat değişimine talebin duyarlılığıdır"
+//
+// Different first 50 characters, so both survive and the student reads the
+// same fact twice — and both occupy slots in a capped list, pushing out
+// content that is actually new.
+//
+// Comparing content-term sets catches them. The overlap COEFFICIENT (shared
+// terms over the smaller set) is used rather than Jaccard on purpose: a
+// short point that is fully contained in a longer one is a duplicate, and
+// Jaccard would score that pair low simply because the lengths differ.
+// ==========================================================================
+const NEAR_DUP_THRESHOLD = 0.7   // share of the smaller term set that must match
+const NEAR_DUP_MIN_TERMS = 3     // below this, wording is too thin to compare
+
+// Fixed-prefix stem length for duplicate comparison.
+//
+// Exact token matching collapses on Turkish, which is precisely where this
+// merge is needed: "esneklik"/"esnekliği", "duyarlılığı"/"duyarlılığını" and
+// "talep"/"talebin" are the same word, and comparing them literally scored
+// the two paraphrases below the threshold — so the duplicate survived.
+//
+// Raising the threshold's tolerance instead would have merged genuinely
+// different points, so the cause is fixed rather than the bar lowered. The
+// Postgres side solves this with the snowball Turkish stemmer; there is no
+// stemmer available inside a Deno edge function, so fixed-prefix stemming
+// stands in. It works because Turkish is suffixing: cut the suffixes off and
+// the stem is the prefix. Five characters is the length long established for
+// Turkish retrieval — short enough to survive inflection, long enough that
+// unrelated words do not collide.
+//
+// Used ONLY for duplicate detection. Citation anchoring deliberately keeps
+// stricter matching, because there a false match means pointing a student at
+// the wrong page.
+const NEAR_DUP_STEM_LEN = 5
+
+function nearDupStem(term: string): string {
+  const t = String(term || '')
+  return t.length <= NEAR_DUP_STEM_LEN ? t : t.slice(0, NEAR_DUP_STEM_LEN)
+}
+
+function nearDupTermSet(text: string): Set<string> {
+  return new Set(anchorTerms(text).map(nearDupStem))
+}
+
+// Do two glossary entries name the SAME term?
+//
+// Word overlap alone cannot answer this, because the text being compared is
+// term + definition and the definition dominates it. A glossary defines
+// related concepts in deliberately parallel sentences, which is precisely
+// when overlap misfires. Measured on the reference chapter's own glossary:
+//
+//   0.86  Treasury bonds, notes, or bills  <->  Corporate bonds
+//   0.73  Expansion or boom                <->  Contraction, recession, or slump
+//   0.60  Inflation                        <->  Deflation
+//
+// The first two merged and were lost from the card. The second pair are
+// OPPOSITES — "from a trough up to a peak ... grow" against "from a peak down
+// to a trough ... fall" — sharing almost every content word and differing only
+// in direction. Inflation/deflation sat one wording change away from the same
+// fate.
+//
+// Raising the threshold would not fix this; it would only move which pairs
+// collide, and it would stop catching the real duplicates. The structural
+// answer is that a glossary is keyed by its term: entries whose HEAD TERMS
+// differ are different entries, however similar the prose. So when a key is
+// available, it has a veto.
+const NEAR_DUP_KEY_OVERLAP = 0.8
+
+function nearDupKeysMatch(a: string, b: string): boolean {
+  const na = gateNormalize(a)
+  const nb = gateNormalize(b)
+  // No usable key on one side — fall back to the text comparison alone, which
+  // is the old behaviour and the right one for key_points and quiz questions.
+  if (!na || !nb) return true
+  if (na === nb) return true
+  // "business cycle" vs "the business cycle", "aggregate output" vs
+  // "aggregate output (real GDP)" — the same term, stated at more length.
+  if (na.includes(nb) || nb.includes(na)) return true
+  // "sticky prices" vs "price stickiness" — same words, inflected or
+  // reordered. Stems, so Turkish suffixes do not defeat it.
+  const sa = nearDupTermSet(na)
+  const sb = nearDupTermSet(nb)
+  if (sa.size === 0 || sb.size === 0) return false
+  let shared = 0
+  for (const t of sa) if (sb.has(t)) shared++
+  return shared / Math.min(sa.size, sb.size) >= NEAR_DUP_KEY_OVERLAP
+}
+
+/**
+ * Collapse near-duplicates, keeping the more informative wording (the longer
+ * text) of each group rather than whichever happened to come first.
+ * Preserves input order based on where each surviving item first appeared.
+ *
+ * `getKey` is optional. When supplied (key_terms pass the term itself), two
+ * items whose keys name different things are never merged, no matter how
+ * alike their full text reads.
+ */
+function dedupeNearDuplicates(
+  items: any[],
+  getText: (item: any) => string,
+  getKey?: (item: any) => string
+): any[] {
+  const list = Array.isArray(items) ? items : []
+  type Kept = { item: any; terms: Set<string>; order: number; len: number; key: string }
+  const kept: Kept[] = []
+
+  for (let i = 0; i < list.length; i++) {
+    const text = String(getText(list[i]) || '')
+    if (!text.trim()) continue
+    const terms = nearDupTermSet(text)
+    const key = getKey ? String(getKey(list[i]) || '') : ''
+
+    if (terms.size < NEAR_DUP_MIN_TERMS) { kept.push({ item: list[i], terms, order: kept.length, len: text.length, key }); continue }
+
+    let mergedInto = -1
+    for (let k = 0; k < kept.length; k++) {
+      const other = kept[k]
+      if (other.terms.size < NEAR_DUP_MIN_TERMS) continue
+      // Different head terms → different entries, whatever the prose says.
+      if (!nearDupKeysMatch(key, other.key)) continue
+      let shared = 0
+      for (const t of terms) if (other.terms.has(t)) shared++
+      const overlap = shared / Math.min(terms.size, other.terms.size)
+      if (overlap >= NEAR_DUP_THRESHOLD) { mergedInto = k; break }
+    }
+
+    if (mergedInto === -1) {
+      kept.push({ item: list[i], terms, order: kept.length, len: text.length, key })
+    } else if (text.length > kept[mergedInto].len) {
+      // Same idea, better stated — keep the fuller wording at the original
+      // position so ordering stays stable.
+      kept[mergedInto] = { item: list[i], terms, order: kept[mergedInto].order, len: text.length, key }
+    }
+  }
+
+  return kept.sort((a, b) => a.order - b.order).map(k => k.item)
+}
+
+function dedupeByText(items: any[], getText: (item: any) => string): any[] {
+  const seen = new Set<string>()
+  const out: any[] = []
+  for (const item of items) {
+    const norm = normalizeForDedup(getText(item))
+    if (!norm) continue
+    const sig = norm.slice(0, 50)
+    if (seen.has(sig)) continue
+    seen.add(sig)
+    out.push(item)
+  }
+  return out
+}
+
+// Word boundaries via \b are ASCII-centric and mis-fire around Turkish
+// letters, so the edges are asserted against Unicode letter/number classes.
+// Turkish dotted/dotless I. JavaScript's /i/ flag uses simple case folding,
+// in which "İ" (U+0130) folds to "i" PLUS a combining dot (U+0307) — so it is
+// not equal to plain "i" and /işsizlik/iu does NOT match "İşsizlik".
+//
+// That is not a corner case here: glossary terms come back lowercase and
+// Turkish sentences capitalise the first word, so the single most likely
+// placement of a term is the one form the regex could not see. Before this,
+// a Turkish cloze would blank the lowercase occurrence and leave the
+// capitalised one standing — printing the answer next to its own blank.
+//
+// Each i-family letter therefore becomes an explicit class. The /i/ flag
+// still folds everything else.
+function turkishIClasses(escaped: string): string {
+  return escaped.replace(/[iıİI]/g, ch =>
+    (ch === 'i' || ch === 'İ') ? '[iİ]' : '[ıI]'
+  )
+}
+
+function clozeTermPattern(term: string): RegExp {
+  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const body = turkishIClasses(escaped)
+  return new RegExp(`(^|[^\\p{L}\\p{N}])(${body})(?![\\p{L}\\p{N}])`, 'iu')
+}
+
+/**
+ * Blank EVERY occurrence of a term, not just the first.
+ *
+ * Blanking only the first is how the 2026-10-04 export printed its own answer
+ * key inside the question:
+ *
+ *   7. "...grew from approximately 300 billion ___ in 1900 to over
+ *       17,000 billion 2009 dollars by 2014."          (answer: 2009 dollars)
+ *   8. "...peaked near 10.5% during the 1980-1982 ___ and again reached
+ *       approximately 10% during the 2008-2009 recessionary period."
+ *
+ * Both are sentences that repeat the term, which is common in exactly the
+ * comparative sentences that make the best cards ("rose from X in 1900 to Y
+ * in 2014"). Dropping those sentences would throw away good material, so
+ * blank them all instead and the card stays worth answering.
+ */
+function blankAllOccurrences(text: string, term: string): string {
+  const re = new RegExp(clozeTermPattern(term).source, 'giu')
+  return text.replace(re, (_full, lead) => `${lead}___`)
+}
+
+/** Build cloze (fill-in-the-blank) cards from key terms and key points.
+ *  Prefer model-produced cloze_cards when present; otherwise derive deterministically.
+ *  Each card: { id, prompt, answer, full_text, source }
+ *
+ *  Two things were wrong with the derivation, and the library's whole
+ *  "Boşluk Doldurma — aktif hatırlama" mode was the quieter for it.
+ *
+ *  1. Sentence clozes never ran. The key_term pass went first and, with a
+ *     real glossary of 25-28 entries, consumed every one of the 20 slots.
+ *     Every card a student saw was "___: <definition>", which is the
+ *     ANAHTAR TERİMLER list read backwards — the same material twice, once
+ *     labelled as an exercise. So the sentence pass now goes FIRST and the
+ *     definition pass fills whatever is left. Both directions have study
+ *     value; only one of them is distinctive.
+ *
+ *  2. The sentence pass blanked the wrong word. It looked for "the first
+ *     capitalised phrase", but every sentence begins with a capital, so the
+ *     first word always won:
+ *         "___ five recessionary periods show increases in the
+ *          unemployment rate."                            -> answer: "The"
+ *         "___ policy involves government taxation..."     -> answer: "Fiscal"
+ *     A stopword as the answer is not recall, and "Fiscal policy" being cut
+ *     in half leaves the other half sitting in the prompt. Capitalisation
+ *     was never the signal: this card already carries a vetted glossary, so
+ *     the blank is now chosen by matching those terms against the sentence,
+ *     longest first, so "unemployment rate" wins over "rate".
+ */
+function buildClozeCards(
+  modelClozes: any[] | undefined,
+  keyTerms: any[],
+  keyPoints: any[],
+  maxCards = 20
+): any[] {
+  const out: any[] = []
+  const seenAnswers = new Set<string>()
+
+  /**
+   * Cross-card answer leakage.
+   *
+   * seenAnswers stops the same answer appearing twice. Nothing stopped one
+   * card's QUESTION from containing another card's ANSWER, and on a real
+   * glossary that happens constantly, because good cloze sentences name
+   * neighbouring concepts. Measured on the economy chapter (05.10.2026):
+   *
+   *   #5  "Fiscal policy involves taxation and spending; ___ involves
+   *        Federal Reserve actions..."                 -> monetary policy
+   *   #17 "___: Government policies concerning taxes and spending."
+   *                                                    -> fiscal policy
+   *
+   * #5 prints #17's answer verbatim. And it runs both ways:
+   *
+   *   #3  "___ is measured as real GDP"                -> aggregate output
+   *   #10 "U.S. Aggregate Output (___), 1900-2014"     -> Real GDP
+   *
+   * So the check has to look in BOTH directions for every candidate: does
+   * this prompt reveal an answer already committed, and does any committed
+   * prompt reveal this candidate's answer.
+   *
+   * A leaking candidate is SKIPPED, not patched. Blanking the extra term
+   * would give the card two blanks and one answer field, which is
+   * unanswerable, and the candidate pool is normally much larger than
+   * maxCards (29 terms and 16 points on this document), so the slot is
+   * refilled by the next candidate instead of being lost.
+   *
+   * clozeTermPattern, not indexOf: the match must respect word boundaries
+   * and the Turkish dotted-I folding, exactly like the blanking does.
+   */
+  const leaks = (prompt: string, answer: string): boolean => {
+    for (const c of out) {
+      // This candidate's question would print an earlier card's answer.
+      if (clozeTermPattern(c.answer).test(prompt)) return true
+      // An earlier card's question already prints this candidate's answer.
+      if (clozeTermPattern(answer).test(c.prompt)) return true
+    }
+    return false
+  }
+
+  // 1) Keep valid model-produced clozes first
+  if (Array.isArray(modelClozes)) {
+    for (const c of modelClozes) {
+      if (!c || !c.prompt || !c.answer) continue
+      const ansKey = String(c.answer).trim().toLowerCase()
+      if (!ansKey || seenAnswers.has(ansKey)) continue
+      const mPrompt = String(c.prompt).trim()
+      const mAnswer = String(c.answer).trim()
+      if (leaks(mPrompt, mAnswer)) continue
+      seenAnswers.add(ansKey)
+      out.push({
+        id: c.id || `cl${out.length + 1}`,
+        prompt: mPrompt,
+        answer: mAnswer,
+        full_text: String(c.full_text || c.prompt.replace(/_{2,}/g, c.answer)).trim(),
+        source: c.source || 'model'
+      })
+      if (out.length >= maxCards) return out
+    }
+  }
+
+  // 3) Sentence clozes, chosen by the glossary rather than by capitalisation.
+  //    Runs BEFORE the key_term pass below (see the note on the function) so
+  //    it is not starved of slots by a long glossary.
+  const clozeTerms = (keyTerms || [])
+    .map((t: any) => String(t?.term || '').trim())
+    .filter(t => t.length >= 3)
+    // Longest first: in "the unemployment rate rose" the card must ask for
+    // "unemployment rate", never for "rate".
+    .sort((a, b) => b.length - a.length)
+
+  for (const p of (keyPoints || [])) {
+    if (out.length >= maxCards) break
+    const text = String(typeof p === 'string' ? p : (p?.point || p?.text || '')).trim()
+    if (!text || text.length < 20 || text.length > 180) continue
+
+    for (const term of clozeTerms) {
+      const ansKey = term.toLowerCase()
+      // One blank per term: five cards asking the same word is one exercise
+      // repeated, and it crowds out the rest of the glossary.
+      if (seenAnswers.has(ansKey)) continue
+
+      const m = text.match(clozeTermPattern(term))
+      if (!m || typeof m.index !== 'number') continue
+
+      // Every occurrence, so a sentence that repeats the term does not hand
+      // the answer back in the question — see blankAllOccurrences.
+      const prompt = blankAllOccurrences(text, term)
+      // Nothing left to reason from if the blanks swallowed the sentence.
+      if (prompt.replace(/_{3,}/g, ' ').trim().split(/\s+/).length < 5) continue
+      // `continue`, not `break`: this sentence may still yield a clean card
+      // from a different glossary term, so try the rest before giving up on it.
+      if (leaks(prompt, term)) continue
+
+      seenAnswers.add(ansKey)
+      out.push({
+        id: `cl${out.length + 1}`,
+        prompt,
+        // The glossary's own spelling, not whatever casing the sentence used.
+        answer: term,
+        full_text: text,
+        source: 'key_point'
+      })
+      break   // one blank per sentence
+    }
+  }
+
+  // 4) Definition prompts fill whatever capacity the sentence clozes left.
+  //    Useful in their own right (definition -> term is the reverse of the
+  //    ANAHTAR TERİMLER list), just not distinctive enough to crowd it out.
+  for (const t of (keyTerms || [])) {
+    if (out.length >= maxCards) break
+    const term = String(t?.term || '').trim()
+    const def = String(t?.definition || '').trim()
+    if (!term || !def || term.length < 2) continue
+    const ansKey = term.toLowerCase()
+    if (seenAnswers.has(ansKey)) continue
+    // Prefer blanking the term inside the definition when it appears; else "___ : definition"
+    let prompt: string
+    const defHasTerm = def.toLowerCase().includes(term.toLowerCase())
+    if (defHasTerm) {
+      // All occurrences, and on word boundaries. The old version replaced the
+      // first bare substring, which both leaked the answer when a definition
+      // used the term twice and could blank a fragment inside a longer word.
+      prompt = blankAllOccurrences(def, term)
+      // If the term only occurred as a substring of another word, nothing was
+      // blanked — fall back to the definition prompt rather than shipping a
+      // card whose question is just its own answer.
+      if (!prompt.includes('___')) prompt = `___: ${def}`
+    } else {
+      prompt = `___: ${def}`
+    }
+    // Leak check AFTER the prompt is built — the "___: <definition>" fallback
+    // and the blanked-definition form carry different text, so only the final
+    // prompt can be checked. This is also why seenAnswers is marked here
+    // rather than above: a skipped candidate must not burn its answer.
+    if (leaks(prompt, term)) continue
+    seenAnswers.add(ansKey)
+    // full_text must restore the sentence the prompt was cut from, so it
+    // follows which prompt shape we actually ended up with, not defHasTerm.
+    const blanked = prompt !== `___: ${def}`
+    out.push({
+      id: `cl${out.length + 1}`,
+      prompt,
+      answer: term,
+      full_text: blanked ? def : `${term}: ${def}`,
+      source: 'key_term'
+    })
+  }
+
+  return out
+}
+
+/**
+ * Merge the review pass's output onto the draft instead of replacing it.
+ *
+ * WHY THIS EXISTS (04.10.2026, first live run with review enabled):
+ * The review prompt asked for "the REFINED full study-card JSON" while the
+ * call was capped at 2500 completion tokens. A 26-term brief does not fit in
+ * 2500 tokens, so the model did the only thing it could and shipped a
+ * shortened version. Its output replaced the draft wholesale:
+ *
+ *   merge            : terms=26 points=14 quiz=13
+ *   after review     : terms=12 points=5  quiz=5
+ *
+ * Over half the study card, deleted by the pass that was supposed to improve
+ * it. The prompt has since been narrowed so review only returns the narrative
+ * fields, but a prompt is a request, not a guarantee — a model can always
+ * return less than it was asked for. So the merge is where the guarantee
+ * lives: arrays come from the DRAFT unless review sends back at least as many
+ * items, and a review that returns nothing usable leaves the draft untouched.
+ *
+ * Review can therefore still fix wording and catch hallucinations; it can no
+ * longer lose content by running out of room.
+ */
+const REVIEW_ARRAY_FIELDS = ['key_terms', 'key_points', 'quiz_questions', 'sections', 'footnotes']
+
+/**
+ * How much of the draft's narrative a rewrite must keep to be accepted.
+ *
+ * The arrays were guarded against shrinkage from the start; the narrative was
+ * not, and on 04.10.2026 that asymmetry cost the summary three of its four
+ * paragraphs. The chain: the narrative writer runs on MODEL_HEAVY, which has
+ * no output cap, and produced ~1,600 characters. Review and then the critic
+ * both run on MODEL_FAST, whose OTPM ceiling clamps them to 850 completion
+ * tokens — and both REWRITE the summary. Two passes through a budget smaller
+ * than the text they were handed, and ~1,600 characters came out ~560.
+ *
+ * Nothing was broken: each pass did exactly what it was asked, inside the
+ * room it had. The mistake was letting a pass with less room than the writer
+ * replace the writer's work unconditionally.
+ *
+ * Legitimate review trimming — dropping an unsupported clause, cutting admin
+ * noise — takes a few percent. Losing a quarter of the text is compression,
+ * not editing, so a rewrite below this share of the original is refused and
+ * the draft's narrative stands. Review's findings are not lost either way:
+ * they come back in quality_gate.issues regardless.
+ */
+const NARRATIVE_MIN_KEEP_RATIO = 0.75
+
+/**
+ * Apply review's targeted corrections to the narrative.
+ *
+ * WHY REVIEW NO LONGER REWRITES THE SUMMARY (05.10.2026, measured):
+ * Review runs on MODEL_FAST, whose OTPM ceiling caps it at 850 completion
+ * tokens for its ENTIRE answer — summary, executive summary, footnotes and
+ * quality_gate together. A 2,157-character summary is ~674 tokens on its own,
+ * 79% of the budget. Two live runs bear it out: 1,644 chars came back as 563,
+ * and 2,157 came back as 635. Both around 30%, both against the same ceiling.
+ *
+ * So asking review to re-emit the summary is not a thing that sometimes
+ * fails; it is a thing that cannot work. NARRATIVE_MIN_KEEP_RATIO caught the
+ * damage, but catching it meant throwing away the corrections too — and
+ * correcting the narrative is the whole reason review exists (it is what
+ * caught "10.5% in the 2008-09 downturn" being the 1980-82 figure).
+ *
+ * A factual fix is a sentence, not a document. Review now returns the
+ * sentences it wants changed, which costs ~60 tokens each instead of 674,
+ * and they are applied here deterministically. The length of the narrative is
+ * then preserved by construction rather than by a guard, every change is
+ * logged, and a correction whose "find" text cannot be located exactly once
+ * is skipped — a miss is a no-op, never a corruption.
+ */
+function applyCorrections(
+  text: string,
+  corrections: any
+): { text: string; applied: number; skipped: string[] } {
+  const skipped: string[] = []
+  if (!Array.isArray(corrections) || !text) return { text, applied: 0, skipped }
+  let out = text
+  let applied = 0
+
+  for (const c of corrections.slice(0, 8)) {
+    const find = String(c?.find || '').trim()
+    const replace = String(c?.replace ?? '').trim()
+    if (find.length < 8 || find === replace) continue
+
+    // Exact match first; it must be unambiguous, or we cannot know which
+    // occurrence the model meant.
+    const occurrences = out.split(find).length - 1
+    if (occurrences === 1) {
+      out = out.replace(find, replace)
+      applied++
+      continue
+    }
+    if (occurrences > 1) {
+      skipped.push(`"${find.slice(0, 40)}..." ${occurrences} kez geciyor, hangisi belirsiz`)
+      continue
+    }
+
+    // Models reflow whitespace when quoting. Retry on a whitespace-normalised
+    // view, mapping the hit back to the original text by index.
+    const norm = (s: string) => s.replace(/\s+/g, ' ')
+    const flatOut = norm(out)
+    const flatFind = norm(find)
+    if (flatFind.length >= 8 && flatOut.split(flatFind).length - 1 === 1) {
+      // Walk the original, counting non-space-collapsed characters, to find
+      // the span that corresponds to the normalised match.
+      const start = flatOut.indexOf(flatFind)
+      let seen = 0
+      let from = -1
+      let to = -1
+      let prevWasSpace = false
+      for (let i = 0; i <= out.length; i++) {
+        if (seen === start && from === -1) from = i
+        if (seen === start + flatFind.length && to === -1) { to = i; break }
+        const ch = out[i]
+        if (ch === undefined) break
+        const isSpace = /\s/.test(ch)
+        if (isSpace && prevWasSpace) { continue }
+        prevWasSpace = isSpace
+        seen++
+      }
+      if (from >= 0) {
+        out = out.slice(0, from) + replace + out.slice(to === -1 ? out.length : to)
+        applied++
+        continue
+      }
+    }
+    skipped.push(`"${find.slice(0, 40)}..." metinde bulunamadi`)
+  }
+
+  return { text: out, applied, skipped }
+}
+
+// Inline source citation, e.g. "(s. 12)" / "(slayt 4)" / "(p. 7)".
+const INLINE_PAGE_CITE = /\s*\((?:s\.|sayfa|slayt|p\.|page)\s*\d+\)/giu
+
+/**
+ * Strip inline page citations that review INTRODUCED.
+ *
+ * Review is shown a truncated slice of the source (reviewTiers[0] is 4,000
+ * chars of an 11,000-char document), so it can only see page markers near the
+ * start. Asked for citations, it dutifully produced them — and a live run on
+ * 04.10.2026 came back with all ELEVEN markers reading "(s. 1)" for facts
+ * drawn from across 30 pages. Confidently wrong provenance is worse than
+ * none: a student who turns to page 1 does not find the claim, and stops
+ * trusting the citations that ARE right.
+ *
+ * Citations are computed deterministically downstream by anchorCitations(),
+ * which indexes the whole document. The prompt now says not to add them; this
+ * is the part that does not depend on the model complying. Markers the DRAFT
+ * already had are kept — only ones that appear in review's text and not in
+ * the draft's are removed.
+ */
+function stripIntroducedCitations(draftText: string, reviewText: string): string {
+  const draftHas = INLINE_PAGE_CITE.test(String(draftText || ''))
+  INLINE_PAGE_CITE.lastIndex = 0
+  if (draftHas) return reviewText
+  const cleaned = reviewText.replace(INLINE_PAGE_CITE, '')
+  INLINE_PAGE_CITE.lastIndex = 0
+  return cleaned
+}
+
+function mergeReviewOntoDraft(
+  draftRaw: string,
+  reviewRaw: string
+): { merged: string; notes: string[] } {
+  const notes: string[] = []
+  const parse = (s: string): any => {
+    try {
+      const stripped = stripThinkBlock(s)
+      return JSON.parse((stripped ?? s).replace(/```json\s*|```/g, '').trim())
+    } catch {
+      return null
+    }
+  }
+
+  const draft = parse(draftRaw)
+  const review = parse(reviewRaw)
+  if (!draft || typeof draft !== 'object') return { merged: draftRaw, notes: ['taslak okunamadi'] }
+  if (!review || typeof review !== 'object') {
+    return { merged: draftRaw, notes: ['review JSON okunamadi — taslak korundu'] }
+  }
+
+  const out: any = { ...draft }
+
+  // Targeted corrections are the primary path — review cannot fit a rewritten
+  // summary in its token budget, so it sends the sentences to change instead.
+  // See applyCorrections.
+  if (Array.isArray(review.corrections) && review.corrections.length > 0) {
+    const draftSummary = String(draft.summary || '')
+    const fixed = applyCorrections(draftSummary, review.corrections)
+    if (fixed.applied > 0) {
+      out.summary = fixed.text
+      notes.push(`summary: ${fixed.applied} duzeltme uygulandi`)
+    }
+    for (const s of fixed.skipped) notes.push(`duzeltme atlandi — ${s}`)
+    if (fixed.applied === 0 && fixed.skipped.length === 0) {
+      notes.push('duzeltme listesi bos geldi')
+    }
+  }
+
+  // Narrative fields: review's job. Accept a non-trivial rewrite.
+  // Still supported for short documents, where the whole summary genuinely
+  // fits in the budget and a clean rewrite beats a list of patches.
+  for (const field of ['summary', 'summary_executive']) {
+    // A summary already corrected above must not then be replaced wholesale.
+    if (field === 'summary' && typeof out.summary === 'string'
+        && out.summary !== String(draft.summary || '')) continue
+    const v = review[field]
+    if (typeof v === 'string' && v.trim().length > 40) {
+      const draftText = String(draft[field] || '').trim()
+      const incoming = v.trim()
+      // Measure the floor on what the MODEL returned, before our own citation
+      // scrub shortens it. Scrubbing can strip 15-20% from a heavily cited
+      // summary, and judging after it would reject a perfectly good rewrite
+      // for an edit we made ourselves. The floor is about whether the model
+      // compressed the text — see NARRATIVE_MIN_KEEP_RATIO.
+      if (draftText.length > 0 && incoming.length < draftText.length * NARRATIVE_MIN_KEEP_RATIO) {
+        notes.push(
+          `${field} KORUNDU (review ${incoming.length} krk dondu, taslak ${draftText.length} krk)`
+        )
+        continue
+      }
+      const scrubbed = stripIntroducedCitations(draftText, incoming).trim()
+      if (scrubbed.length < 40) continue
+      if (scrubbed !== v.trim()) notes.push(`${field} uydurma (s. N) temizlendi`)
+      if (scrubbed !== draftText) notes.push(`${field} guncellendi`)
+      out[field] = scrubbed
+    }
+  }
+
+  // Arrays: only accept when review did not shrink them. Equal length is
+  // fine — that is review rewording in place, which is what we want.
+  for (const field of REVIEW_ARRAY_FIELDS) {
+    const rv = review[field]
+    const dv = draft[field]
+    if (!Array.isArray(rv)) continue
+    const draftLen = Array.isArray(dv) ? dv.length : 0
+    if (rv.length >= draftLen) {
+      if (rv.length > draftLen) notes.push(`${field} ${draftLen}→${rv.length}`)
+      out[field] = rv
+    } else {
+      notes.push(`${field} KORUNDU (review ${rv.length} dondu, taslakta ${draftLen})`)
+    }
+  }
+
+  // Scalars review may legitimately correct.
+  for (const field of ['document_type', 'suggested_course_tag']) {
+    if (typeof review[field] === 'string' && review[field].trim()) out[field] = review[field].trim()
+  }
+  if (typeof review.is_quantitative === 'boolean') out.is_quantitative = review.is_quantitative
+  if (review.outline && typeof review.outline === 'object') out.outline = review.outline
+  if (review.quality_gate && typeof review.quality_gate === 'object') {
+    out.quality_gate = review.quality_gate
+    // Log the verdict, always. Without it "degisiklik yok" is ambiguous in
+    // exactly the way that matters: it cannot distinguish review reading the
+    // draft and finding it sound from review returning an empty list because
+    // that is the cheapest answer. The verdict plus the issue count says
+    // which — a pass with issues listed is a review that engaged; a bare pass
+    // with nothing to say, run after run, is one to be suspicious of.
+    const g = review.quality_gate
+    const issues = Array.isArray(g.issues) ? g.issues : []
+    notes.push(
+      `quality_gate: pass=${g.pass !== false}, grounded=${!!g.grounded}, ` +
+      `${issues.length} sorun${issues.length ? ': ' + issues.map((i: any) => String(i).slice(0, 60)).join(' / ') : ''}`
+    )
+  } else {
+    notes.push('quality_gate GELMEDI — review beklenen bicimde cevap vermemis')
+  }
+
+  return { merged: JSON.stringify(out), notes }
+}
+
+function roundRobinInterleave<T>(lists: T[][]): T[] {
+  const out: T[] = []
+  let idx = 0
+  let anyLeft = true
+  while (anyLeft) {
+    anyLeft = false
+    for (const list of lists) {
+      if (idx < list.length) {
+        out.push(list[idx])
+        anyLeft = true
+      }
+    }
+    idx++
+  }
+  return out
+}
+
+// (remapChunkFootnotes was removed on 2026-10-03: it renumbered footnotes
+// per-chunk with an offset, which only made sense while each chunk produced
+// its own footnotes. Citations are now derived centrally in
+// anchorCitations() from the page index, so a single dense renumbering
+// there replaces it. applyFootnoteRemap below is still used — by that
+// function and by the summary remap at the call site.)
+
+function applyFootnoteRemap(text: string, idMap: Record<number, number>): string {
+  if (!text) return text
+  return text.replace(/\[(\d+)\]/g, (match, idStr) => {
+    const oldId = parseInt(idStr, 10)
+    const newId = idMap[oldId]
+    return newId != null ? `[${newId}]` : match
+  })
+}
+
+// Shared instruction text telling the model how to populate the new
+// footnotes[].page field — either real page/slide numbers copied from the
+// "--- SAYFA N ---" / "--- SLAYT N ---" markers inserted during extraction
+// (see PDF/PPTX extraction above), or null with the old topic/heading
+// description when no such markers exist for this document (DOCX/plain text,
+// which have no reliable fixed-page concept).
+/* ===========================================================================
+   SLAYT DESTESI TESPITI
+   ===========================================================================
+   07.10.2026, bir ekonometri ders notu ozetine gelen geri bildirim uzerine:
+   "ders slaytlari daha ozet gibi kaldi", "slayt slayt degil de hangi slayt
+   gerekli hangisi gereksiz iyi analiz etmeli".
+
+   Dogru teshis: bir deste duz metinden FARKLI bir is istiyor. Bir slaytta
+   "Heteroskedastisite -> OLS etkin degil" yazar. Bunu OZETLEMEK geriye
+   hicbir sey birakmaz; ogrencinin ihtiyaci olan sey tersi, ACMAK. Ustelik
+   destenin metninin onemli bir kismi yapisal gurultu: baslik slayti,
+   ajanda, bolum ayraci, "Sorular?", tekrarlayan altbilgi.
+
+   Boru hatti bunu ZATEN biliyordu, ama GEC: document_type siniflandirmasi
+   ("Lecture Notes/Slides" secenegi dahil) SENTEZ adiminda, yani butun
+   pencereler cikarildiktan SONRA yapiliyor. Sistem destenin deste oldugunu,
+   ona duz metin muamelesi yapmayi bitirdikten sonra ogreniyordu.
+
+   Oysa sinyal en bastan elde. Iki yoldan:
+     - pptx: KESIN. mime type zaten biliniyor ve isaretler "SLAYT".
+     - PDF: ogrenciler slaytlari cogu zaman PDF olarak disa aktariyor ve o
+       zaman etiket "SAYFA" oluyor. Burada icerikten taninir: deste
+       sayfalari KISA olur.
+
+   ESIK OLCULMUS DEGIL — ve bu kodda yaziyor diye gercek olmuyor. Bir ders
+   slayti tipik olarak 30-80 kelime (~200-600 karakter), bir kitap/makale
+   sayfasi 2.000-4.000 karakter tasir; aradaki bosluk genis, 800 oraya
+   muhafazakar bicimde oturuyor. Sayfa alt siniri, iki sayfalik bir belgenin
+   yanlis siniflandirilmamasi icin. Karar HER CALISMADA sayilariyla
+   loglanir; ilk gercek deste bu esigin dogru olup olmadigini soyleyecek.
+   =========================================================================== */
+const DECK_MIN_PAGES = 8
+const DECK_MAX_CHARS_PER_PAGE = 800
+
+function detectSlideDeck(
+  text: string,
+  pageMarkerLabel: string
+): { isDeck: boolean; pages: number; charsPerPage: number; reason: string } {
+  const sayi = (text.match(new RegExp(`---\\s*${pageMarkerLabel}\\s+\\d+\\s*---`, 'g')) || []).length
+  const basina = sayi > 0 ? Math.round(text.length / sayi) : 0
+
+  // pptx: tartisma yok, dosyanin kendisi deste.
+  if (pageMarkerLabel === "SLAYT") {
+    return { isDeck: true, pages: sayi, charsPerPage: basina, reason: 'pptx' }
+  }
+  if (sayi < DECK_MIN_PAGES) {
+    return { isDeck: false, pages: sayi, charsPerPage: basina, reason: `sayfa az (${sayi})` }
+  }
+  if (basina <= DECK_MAX_CHARS_PER_PAGE) {
+    return { isDeck: true, pages: sayi, charsPerPage: basina, reason: `seyrek sayfa (${basina} krk)` }
+  }
+  return { isDeck: false, pages: sayi, charsPerPage: basina, reason: `yogun sayfa (${basina} krk)` }
+}
+
+/**
+ * Deste icin cikarim talimati. Duz metinde BOS doner — tek karakter maliyeti yok.
+ *
+ * KISA TUTULMASI ZORUNLU. Canli pencere cagrisinin butcesi dar:
+ *   WINDOW/4 (metin) + prompt + 3072 (completion) <= 7200 (8000 TPM * 0.9)
+ * WINDOW=13000 iken pay yalnizca ~351 token. Ilk yazim ~425 tokendi ve
+ * tavani asacakti — bu projede tam bu tur tasma daha once pencere
+ * kaybettirdi. Blok sikistirildi ve maliyeti DECK_PROMPT_CHARS olarak
+ * pencere butcesinden dusuluyor, boylece tavan aritmetigi aynen korunuyor.
+ */
+function buildSlideDeckInstruction(isDeck: boolean, unitWord: string): string {
+  if (!isDeck) return ''
+  const U = unitWord
+  return `
+DECK MODE (lecture ${U}s, not prose):
+- EXPAND, don't compress: ${U} text is telegraphic; summarising it leaves nothing. Say what each fragment MEANS in full sentences — output for a content ${U} is normally LONGER than it.
+- JUDGE ${U}s: skip title, agenda, dividers, "Sorular?"/"Questions?", references, ${U}s restating their title. GROUP the rest by topic — never "${U} 1 covers…".
+- FORMULAS/TABLES ARE THE LESSON (spoken explanation is gone): extract each formula, name every variable, say what it computes. A table is primary content.`
+}
+
+/* Talimatin pencere butcesinden dustugu karakter payi.
+   BU SAYIYI OLCUM SECTI, BEN DEGIL. Canli referans: 30 sayfalik bir ders
+   destesinden cikan 12.451 karakter. O belge iki pencereye bolundugunde
+   araya ~60 sn pacer beklemesi giriyor, PIPELINE_BUDGET_MS (110 sn)
+   tukeniyor ve review pass hic calismiyor — olculmus, tahmin degil
+   (bkz. tests/summary-quality.js, "tipik tek bolumluk belge tek pencereye
+   sigar"). Dolayisiyla deste penceresi 12.451'in altina DUSEMEZ:
+     13000 - 12451 = 549
+   Talimat bu paya sigacak sekilde yazildi; pay buyutulemez, talimat
+   kisaltilir. Ilk yazim 1.077 karakterdi ve tam o referans belgeyi
+   bolecekti — yani kuralin yazilmasina sebep olan belge tipini. */
+const DECK_PROMPT_CHARS = 549
+
+function buildFootnotePageInstruction(hasPageMarkers: boolean, pageMarkerLabel: string): string {
+  if (hasPageMarkers) {
+    const unitWord = pageMarkerLabel === "SLAYT" ? "slide" : "page"
+    return `The source text contains markers in the form "--- ${pageMarkerLabel} N ---" marking where each ${unitWord} begins. For every footnote, set "page" to the N of the marker that appears immediately BEFORE the claim in the source text — this must be a real number copied from an actual marker you saw, never guessed or estimated. Still also write a short "reference" description as before (e.g. 'Introduction section').`
+  }
+  return `This document has no page/slide markers available, so set "page" to null for every footnote and continue describing the topical section or heading area in "reference" as before.`
+}
+
+// ==========================================================================
+// DETERMINISTIC PAGE ANCHORING (citations without spending model tokens)
+//
+// Why this exists, and why it is NOT another prompt instruction:
+//
+//   The long-document path used to ship `footnotes: []` hardcoded — long
+//   documents got no citations at all. The obvious fix (add a "footnotes"
+//   field to compactWindowPrompt's JSON schema and ask the model for them)
+//   is the SAME mistake that was already made and correctly reverted for
+//   concept_graph (see the merge block below): every extra schema field
+//   competes for the same `maxCompletionTokens` budget, so the model pays
+//   for citations by returning fewer key terms/points — and on an account
+//   whose observed tokens-per-minute cap is as low as 8,000, extra output
+//   tokens also push window calls into 429 territory.
+//
+//   Worse, a model-reported page number is unverifiable: nothing checked
+//   that the page it named actually contains the claim. A footnote that
+//   jumps the PDF viewer to the wrong page is worse than no footnote,
+//   because the student stops trusting every citation on the card.
+//
+//   So citations are COMPUTED here instead, from text we already have:
+//   the "--- SAYFA N ---" / "--- SLAYT N ---" markers inserted at
+//   extraction time give us a page->text index, and each claim is matched
+//   against that index by inverse-page-frequency-weighted term overlap.
+//   Cost: zero extra model tokens, zero extra API calls. A page number
+//   produced this way is one where the claim's distinctive vocabulary
+//   demonstrably appears, so "page 7" means page 7 really discusses it.
+//
+//   The same index also VALIDATES the short/fast path's model-produced
+//   footnote pages, which were previously trusted blind.
+// ==========================================================================
+
+// Terms this common carry no signal about WHICH page a claim came from.
+const ANCHOR_STOPWORDS = new Set([
+  // Turkish
+  'ancak', 'ayrıca', 'bunun', 'burada', 'çünkü', 'daha', 'değil', 'diğer', 'fakat',
+  'gibi', 'göre', 'için', 'ile', 'olan', 'olarak', 'olduğu', 'olur', 'sonra', 'şekilde',
+  'bütün', 'böyle', 'kadar', 'sadece', 'tüm', 'üzerinde', 'vardır', 'veya', 'yani',
+  'bazı', 'birlikte', 'eğer', 'hem', 'ise', 'yine', 'çok', 'önemli', 'bölüm', 'konu',
+  // English
+  'about', 'after', 'also', 'because', 'been', 'between', 'both', 'does', 'each',
+  'from', 'have', 'however', 'into', 'more', 'most', 'other', 'should', 'such',
+  'than', 'that', 'their', 'then', 'there', 'these', 'this', 'those', 'through',
+  'under', 'when', 'where', 'which', 'while', 'will', 'with', 'would', 'they',
+  'important', 'section', 'chapter', 'example', 'following'
+])
+
+/** Content-bearing terms of a string: >=4 chars, not a stopword, diacritics kept. */
+function anchorTerms(s: string): string[] {
+  return String(s == null ? '' : s)
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .split(/\s+/)
+    .filter(w => w.length >= 4 && !ANCHOR_STOPWORDS.has(w))
+}
+
+type PageSegment = { page: number; terms: Set<string>; head: string; body: string }
+
+// Abbreviations whose trailing dot must NOT end a sentence. Without this a
+// Turkish academic page splits at "s. 42", "vb.", "Prof. Dr." and the quote
+// shown to the student becomes a two-word fragment.
+const SENTENCE_ABBREV = new Set([
+  's', 'ss', 'vb', 'vs', 'bkz', 'örn', 'orn', 'age', 'agm', 'yy', 'bkz',
+  'dr', 'doç', 'doc', 'prof', 'yrd', 'arş', 'ars', 'gör', 'gor', 'no', 'nr',
+  'yay', 'çev', 'cev', 'ed', 'vol', 'pp', 'fig', 'eq', 'etc', 'al'
+])
+
+/**
+ * Split prose into sentences, conservatively. Over-merging two sentences is
+ * harmless here (the quote is simply a little longer); splitting mid-sentence
+ * is not, because the fragment is shown to the student as the source text.
+ */
+function splitSentences(text: string): string[] {
+  const rough = String(text || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(/(?<=[.!?…])\s+/)
+  const out: string[] = []
+  for (const piece of rough) {
+    const prevNeedsMerge = out.length > 0 && (() => {
+      const prev = out[out.length - 1]
+      const lastWord = (prev.match(/([\p{L}\p{N}]+)\.$/u) || [])[1]
+      if (!lastWord) return false
+      // "...vb." / "...s." / a bare initial like "A." / a list number "3."
+      return SENTENCE_ABBREV.has(lastWord.toLowerCase())
+        || lastWord.length <= 2
+        || /^\d+$/.test(lastWord)
+    })()
+    if (prevNeedsMerge) out[out.length - 1] += ' ' + piece
+    else out.push(piece)
+  }
+  return out.map(s => s.trim()).filter(s => s.length > 0)
+}
+
+// A quote shorter than this carries no context; longer than this is a wall of
+// text in a tooltip.
+const QUOTE_MIN_CHARS = 25
+const QUOTE_MAX_CHARS = 220
+
+/**
+ * The sentence on this page that best supports the claim, returned VERBATIM
+ * so it can be checked against the source. This is what turns "page 7" into
+ * "page 7 says this", which is the whole difference between a citation a
+ * student trusts and one they learn to ignore.
+ *
+ * Returns null when no sentence matches well enough; the caller then falls
+ * back to the page's heading line.
+ */
+function bestQuoteForClaim(claim: string, body: string, idf: Map<string, number>): string | null {
+  const claimTerms = [...new Set(anchorTerms(claim))]
+  if (!claimTerms.length) return null
+  const fallbackIdf = Math.log(2)
+  const totalWeight = claimTerms.reduce((a, t) => a + (idf.get(t) ?? fallbackIdf), 0)
+  if (totalWeight <= 0) return null
+
+  let best: { text: string; score: number } | null = null
+  for (const raw of splitSentences(body)) {
+    if (raw.length < QUOTE_MIN_CHARS) continue
+    const sentTerms = new Set(anchorTerms(raw))
+    if (!sentTerms.size) continue
+    let w = 0, matched = 0
+    for (const t of claimTerms) {
+      if (sentTerms.has(t)) { w += (idf.get(t) ?? fallbackIdf); matched++ }
+    }
+    if (matched < 2) continue
+    // Normalising by the claim's own weight (not the sentence's) keeps a long
+    // rambling sentence from winning just by containing more words.
+    const score = w / totalWeight
+    if (!best || score > best.score) best = { text: raw, score }
+  }
+  if (!best || best.score < 0.3) return null
+  return best.text.length > QUOTE_MAX_CHARS
+    ? best.text.slice(0, QUOTE_MAX_CHARS).replace(/\s+\S*$/, '') + '…'
+    : best.text
+}
+
+// ==========================================================================
+// REPEATED BOILERPLATE — the running header/footer tax
+//
+// A lecture deck or a textbook chapter repeats the same line on every page:
+// a copyright notice, a course code, a running title, a page number. The
+// model pays for every copy. Measured on a 30-page deck: "Copyright © 2017
+// Pearson Education, Inc." plus its "20-1 / 20-2 / ..." page number came to
+// ~1,700 of 12,451 characters — 13% of everything the model was shown, none
+// of it study material, on a budget where one window is already 6,200 of the
+// account's 8,000 tokens per minute.
+//
+// Detection is positional, not a pattern list: a line is boilerplate when it
+// is SHORT and appears on MOST pages. Nothing about copyright or Pearson is
+// hardcoded, so it generalises to whatever a given course's deck repeats.
+//
+// Three guards keep it from eating content:
+//   - documents with too few pages are left alone (no basis to judge)
+//   - only short lines qualify; a repeated paragraph is not a running header
+//   - digits are wildcarded for COUNTING only ("20-1" and "20-2" are the same
+//     footer), never for matching anything else
+const BOILERPLATE_MIN_PAGES = 5
+const BOILERPLATE_PAGE_SHARE = 0.6
+const BOILERPLATE_MAX_LINE_CHARS = 120
+
+function boilerplateKey(line: string): string {
+  return line
+    .toLowerCase()
+    .replace(/\d+/g, '#')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function stripRepeatedBoilerplate(
+  text: string,
+  pageMarkerLabel: string
+): { text: string; removed: string[]; charsSaved: number } {
+  const pages = splitByPageMarkers(text, pageMarkerLabel)
+  // One segment with page === null means the document has no page markers at
+  // all (DOCX / plain text) — there is nothing to compare across.
+  if (pages.length < BOILERPLATE_MIN_PAGES || pages[0]?.page === null) {
+    return { text, removed: [], charsSaved: 0 }
+  }
+
+  // How many distinct pages carry each short line?
+  const pageCount = new Map<string, number>()
+  const sample = new Map<string, string>()
+  for (const p of pages) {
+    const seen = new Set<string>()
+    for (const raw of p.body.split('\n')) {
+      const line = raw.trim()
+      if (!line || line.length > BOILERPLATE_MAX_LINE_CHARS) continue
+      const key = boilerplateKey(line)
+      if (!key || seen.has(key)) continue
+      seen.add(key)
+      pageCount.set(key, (pageCount.get(key) || 0) + 1)
+      if (!sample.has(key)) sample.set(key, line)
+    }
+  }
+
+  const threshold = Math.ceil(pages.length * BOILERPLATE_PAGE_SHARE)
+  const boilerplate = new Set(
+    [...pageCount.entries()].filter(([, n]) => n >= threshold).map(([k]) => k)
+  )
+  if (boilerplate.size === 0) return { text, removed: [], charsSaved: 0 }
+
+  const rebuilt = pages.map(p => {
+    const kept = p.body.split('\n').filter(raw => {
+      const line = raw.trim()
+      if (!line || line.length > BOILERPLATE_MAX_LINE_CHARS) return true
+      return !boilerplate.has(boilerplateKey(line))
+    })
+    // Never blank a page out entirely: a page whose every line looks repeated
+    // is more likely a detector mistake than a genuinely empty page, and an
+    // empty page breaks the citation anchor for anything that cites it.
+    const body = kept.join('\n').trim() ? kept.join('\n') : p.body
+    return `--- ${pageMarkerLabel} ${p.page} ---\n${body.replace(/^\n+/, '')}`
+  }).join('\n\n')
+
+  const out = rebuilt.replace(/\n{3,}/g, '\n\n').trim()
+  return {
+    text: out,
+    removed: [...boilerplate].map(k => sample.get(k) || k),
+    charsSaved: text.length - out.length
+  }
+}
+
+/**
+ * Split extracted text on its "--- SAYFA N ---" / "--- SLAYT N ---" marker
+ * lines into one segment per page, keeping each page's raw body.
+ *
+ * When the document carries no markers at all (DOCX / plain text) this
+ * returns a single segment with page === null rather than an empty list:
+ * such a document still has text worth chunking, it just has no page
+ * concept. Callers that specifically need page numbers (buildPageIndex)
+ * discard that null-page case themselves.
+ */
+function splitByPageMarkers(
+  text: string,
+  pageMarkerLabel: string
+): Array<{ page: number | null; body: string }> {
+  if (!text || !text.trim()) return []
+  const re = new RegExp(`---\\s*${pageMarkerLabel}\\s+(\\d+)\\s*---`, 'g')
+  const hits: Array<{ page: number; start: number; end: number }> = []
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text)) !== null) {
+    hits.push({ page: parseInt(m[1], 10), start: m.index, end: m.index + m[0].length })
+  }
+  if (hits.length === 0) return [{ page: null, body: text }]
+  const out: Array<{ page: number | null; body: string }> = []
+  for (let i = 0; i < hits.length; i++) {
+    out.push({
+      page: hits[i].page,
+      body: text.slice(hits[i].end, i + 1 < hits.length ? hits[i + 1].start : text.length)
+    })
+  }
+  return out
+}
+
+/**
+ * Page index for citation anchoring. Returns [] when the document has no
+ * page markers, which correctly disables anchoring rather than inventing
+ * page numbers for a format that has no pages.
+ */
+function buildPageIndex(text: string, pageMarkerLabel: string): PageSegment[] {
+  const segments: PageSegment[] = []
+  for (const seg of splitByPageMarkers(text, pageMarkerLabel)) {
+    if (seg.page === null) return []   // no page concept for this document
+    const trimmed = seg.body.trim()
+    if (!trimmed) continue
+    segments.push({
+      page: seg.page,
+      terms: new Set(anchorTerms(trimmed)),
+      // First non-empty line is the fallback "reference" label when no
+      // sentence on the page matches the claim well enough to quote.
+      head: (trimmed.split('\n').map(l => l.trim()).find(l => l.length > 3) || '').slice(0, 70),
+      body: trimmed
+    })
+  }
+  return segments
+}
+
+// ==========================================================================
+// CHUNK PERSISTENCE (document_chunks)
+//
+// The extracted text used to be thrown away when this function returned, so
+// chat-with-document re-downloaded and re-parsed the same file on every
+// single message. Persisting it once here ends that, and gives every future
+// feature a stable, addressable unit of the document to point at.
+//
+// Chunk size is deliberately NOT the extraction window size (WINDOW, further
+// down): windows are sized by the model's token budget, chunks by how
+// precisely we want to address a passage. The two move independently — do not
+// re-couple them. See the migration for the full rationale.
+// ==========================================================================
+const CHUNK_STORE_SIZE = 1200
+
+type StorableChunk = {
+  chunk_index: number
+  page_start: number | null
+  page_end: number | null
+  text: string
+  char_count: number
+}
+
+/**
+ * Paragraph-aware chunks that never span a page boundary, so page_start /
+ * page_end genuinely identify where a passage came from. Several short
+ * consecutive pages (slides, for instance) may share one chunk, in which
+ * case the range covers them; a long page is split into several chunks that
+ * each carry that one page number.
+ */
+function buildStorableChunks(text: string, pageMarkerLabel: string): StorableChunk[] {
+  const out: StorableChunk[] = []
+  let buf: string[] = []
+  let bufLen = 0
+  let bufFirstPage: number | null = null
+  let bufLastPage: number | null = null
+
+  const flush = () => {
+    if (!buf.length) return
+    const joined = buf.join('\n\n').trim()
+    if (joined) {
+      out.push({
+        chunk_index: out.length,
+        page_start: bufFirstPage,
+        page_end: bufLastPage,
+        text: joined,
+        char_count: joined.length
+      })
+    }
+    buf = []; bufLen = 0; bufFirstPage = null; bufLastPage = null
+  }
+
+  for (const seg of splitByPageMarkers(text, pageMarkerLabel)) {
+    const body = seg.body.trim()
+    if (!body) continue
+    const pieces = splitIntoChunks(body, CHUNK_STORE_SIZE)
+
+    if (pieces.length > 1) {
+      // A long page: emit its pieces on their own so each keeps this exact
+      // page number rather than being blended with a neighbouring page.
+      flush()
+      for (const piece of pieces) {
+        const t = piece.trim()
+        if (!t) continue
+        out.push({
+          chunk_index: out.length,
+          page_start: seg.page,
+          page_end: seg.page,
+          text: t,
+          char_count: t.length
+        })
+      }
+      continue
+    }
+
+    // A short page: accumulate with following short pages up to the target.
+    const piece = pieces[0]?.trim()
+    if (!piece) continue
+    if (bufLen > 0 && bufLen + piece.length + 2 > CHUNK_STORE_SIZE) flush()
+    if (!buf.length) bufFirstPage = seg.page
+    bufLastPage = seg.page
+    buf.push(piece)
+    bufLen += piece.length + 2
+  }
+  flush()
+  return out
+}
+
+/**
+ * Best-effort write. A failure here must never fail the summarization job:
+ * the student's study card is the product, stored chunks are an optimisation
+ * and a foundation for later features. Existing rows are deleted first so a
+ * re-processed document replaces its chunks instead of accumulating stale
+ * ones (and so a shorter re-extraction cannot leave orphan tail chunks).
+ */
+async function persistDocumentChunks(
+  serviceClient: any,
+  documentId: string,
+  chunks: StorableChunk[]
+): Promise<{ written: number; error: string | null }> {
+  if (!chunks.length) return { written: 0, error: null }
+  try {
+    const { error: delError } = await serviceClient
+      .from('document_chunks')
+      .delete()
+      .eq('document_id', documentId)
+    if (delError) return { written: 0, error: `delete failed: ${delError.message}` }
+
+    // Batched so a long book does not become one oversized request.
+    const BATCH = 200
+    let written = 0
+    for (let i = 0; i < chunks.length; i += BATCH) {
+      const rows = chunks.slice(i, i + BATCH).map(c => ({ ...c, document_id: documentId }))
+      const { error: insError } = await serviceClient.from('document_chunks').insert(rows)
+      if (insError) return { written, error: `insert failed at ${i}: ${insError.message}` }
+      written += rows.length
+    }
+    return { written, error: null }
+  } catch (e: any) {
+    return { written: 0, error: String(e?.message || e) }
+  }
+}
+
+/** Inverse page frequency: a term on every page discriminates nothing. */
+function buildAnchorIdf(pageIndex: PageSegment[]): Map<string, number> {
+  const df = new Map<string, number>()
+  for (const seg of pageIndex) {
+    for (const t of seg.terms) df.set(t, (df.get(t) || 0) + 1)
+  }
+  const N = Math.max(1, pageIndex.length)
+  const idf = new Map<string, number>()
+  for (const [t, d] of df) idf.set(t, Math.log((N + 1) / (d + 0.5)))
+  return idf
+}
+
+// Precision-first thresholds: a missing citation is a small loss, a wrong one
+// costs the student's trust in every other citation on the card.
+const ANCHOR_MIN_SCORE = 0.42   // share of the claim's weighted vocabulary found on the page
+const ANCHOR_MIN_TERMS = 3      // distinct matched content terms
+
+/**
+ * Best page for a single claim, or null when no page matches it well enough.
+ * Score = matched idf weight / total idf weight of the claim's own terms.
+ */
+function anchorClaimToPage(
+  claim: string,
+  pageIndex: PageSegment[],
+  idf: Map<string, number>
+): { page: number; score: number; matched: number; head: string; quote: string | null } | null {
+  if (!pageIndex.length) return null
+  const terms = [...new Set(anchorTerms(claim))]
+  if (terms.length === 0) return null
+  const totalWeight = terms.reduce((a, t) => a + (idf.get(t) ?? Math.log(pageIndex.length + 1)), 0)
+  if (totalWeight <= 0) return null
+
+  let best: { seg: PageSegment; score: number; matched: number } | null = null
+  for (const seg of pageIndex) {
+    let w = 0, matched = 0
+    for (const t of terms) {
+      if (seg.terms.has(t)) { w += (idf.get(t) ?? 0); matched++ }
+    }
+    if (matched === 0) continue
+    const score = w / totalWeight
+    // Strictly-greater keeps the EARLIEST page on a tie, which is where a
+    // topic is normally introduced.
+    if (!best || score > best.score) best = { seg, score, matched }
+  }
+  if (!best) return null
+  if (best.matched < ANCHOR_MIN_TERMS || best.score < ANCHOR_MIN_SCORE) return null
+  return {
+    page: best.seg.page,
+    score: best.score,
+    matched: best.matched,
+    head: best.seg.head,
+    // Verbatim sentence from that page, so the student sees what the source
+    // actually says rather than just a page number.
+    quote: bestQuoteForClaim(claim, best.seg.body, idf)
+  }
+}
+
+// ==========================================================================
+// LATEX VALIDATION
+//
+// Formulas are rendered client-side by KaTeX (dashboard.html loads it). A
+// malformed expression does not degrade gracefully — KaTeX throws and the
+// student gets an error box or a blank where the formula should be, which
+// reads as a broken app rather than a missing formula. Nothing validated
+// these strings before they were stored, so one unbalanced brace from the
+// model went straight to the screen.
+//
+// Two jobs here:
+//   REPAIR what is merely over-wrapped. The prompt asks for raw LaTeX with
+//   no delimiters, and models routinely add "$...$", "\(...\)" or "\[...\]"
+//   anyway. Stripping those is safe and keeps a perfectly good formula.
+//   REJECT what cannot render. An unbalanced brace or \left without \right
+//   has no safe repair — guessing where the author meant to close it could
+//   silently change the mathematics, so the formula is dropped instead.
+// ==========================================================================
+
+/** Strip delimiters the prompt forbids but models add anyway. */
+function stripLatexDelimiters(raw: string): string {
+  let s = String(raw || '').trim()
+  for (let i = 0; i < 3; i++) {
+    const before = s
+    s = s.replace(/^\$\$([\s\S]*)\$\$$/, '$1').trim()
+    s = s.replace(/^\$([\s\S]*)\$$/, '$1').trim()
+    s = s.replace(/^\\\(([\s\S]*)\\\)$/, '$1').trim()
+    s = s.replace(/^\\\[([\s\S]*)\\\]$/, '$1').trim()
+    if (s === before) break
+  }
+  return s
+}
+
+/**
+ * Is this renderable by KaTeX? Conservative: only structural problems that
+ * definitely throw are rejected, so an unusual but valid expression is not
+ * thrown away for being unfamiliar.
+ */
+function validateLatex(raw: string): { ok: boolean; latex: string; reason?: string } {
+  const latex = stripLatexDelimiters(raw)
+  if (!latex) return { ok: false, latex, reason: 'bos' }
+  if (latex.length < 2) return { ok: false, latex, reason: 'cok kisa' }
+  if (latex.length > 1000) return { ok: false, latex, reason: 'cok uzun' }
+
+  // Unescaped brace balance. A literal brace is written \{ or \}, so those
+  // pairs are skipped rather than counted.
+  let depth = 0
+  for (let i = 0; i < latex.length; i++) {
+    if (latex[i] === '\\') { i++; continue }      // skip the escaped char
+    if (latex[i] === '{') depth++
+    else if (latex[i] === '}') { depth--; if (depth < 0) return { ok: false, latex, reason: 'fazla kapanis parantezi' } }
+  }
+  if (depth !== 0) return { ok: false, latex, reason: 'dengesiz suslu parantez' }
+
+  // \left must pair with \right or KaTeX throws.
+  const lefts = (latex.match(/\\left/g) || []).length
+  const rights = (latex.match(/\\right/g) || []).length
+  if (lefts !== rights) return { ok: false, latex, reason: '\\left / \\right dengesiz' }
+
+  // A stray delimiter left INSIDE (after the strip above) means the model
+  // mixed modes; KaTeX in text mode throws on a bare $.
+  if (/(^|[^\\])\$/.test(latex)) return { ok: false, latex, reason: 'kacak $' }
+
+  // A backslash with nothing after it is an incomplete command.
+  if (/\\$/.test(latex)) return { ok: false, latex, reason: 'yarim komut' }
+
+  return { ok: true, latex }
+}
+
+/**
+ * Validate a formula list: repaired formulas are kept with their cleaned
+ * LaTeX, unrenderable ones are removed. A formula with no usable LaTeX but a
+ * real name/variable list is still dropped — the card shows formulas as
+ * rendered math, so a nameless broken entry has nothing to display.
+ */
+function sanitizeFormulas(formulas: any[]): { formulas: any[]; dropped: Array<{ name: string; reason: string }>; repaired: number } {
+  const list = Array.isArray(formulas) ? formulas : []
+  const out: any[] = []
+  const dropped: Array<{ name: string; reason: string }> = []
+  let repaired = 0
+  for (const f of list) {
+    const original = String(f?.latex || '')
+    const v = validateLatex(original)
+    if (!v.ok) {
+      dropped.push({ name: String(f?.name || '(isimsiz)').slice(0, 40), reason: v.reason || 'gecersiz' })
+      continue
+    }
+    if (v.latex !== original.trim()) repaired++
+    out.push({ ...f, latex: v.latex })
+  }
+  return { formulas: out, dropped, repaired }
+}
+
+// ==========================================================================
+// MERMAID VALIDATION
+//
+// Same class of problem as the LaTeX check above, and reported from the live
+// app: every "View Summary" showed three bomb icons reading "Syntax error in
+// text / mermaid version 10.9.8". The model writes `diagrams[].mermaid` and
+// nothing ever checked it, so broken source went to the database and then to
+// the renderer.
+//
+// The front end now refuses to draw invalid source (safeMermaidRender in
+// dashboard.js parses before rendering), which stops the bombs. This does
+// the other half: a diagram that cannot be valid is not stored in the first
+// place, so the card does not carry dead weight and the front end is not
+// left hiding empty boxes.
+//
+// Deliberately structural-only. A real Mermaid parser cannot run here, and
+// guessing at semantics would throw away diagrams that render fine — so this
+// rejects only what is definitely broken: no diagram type, unbalanced
+// brackets or quotes, or nothing but a header line.
+// ==========================================================================
+const MERMAID_TYPES = [
+  'flowchart', 'graph', 'sequencediagram', 'classdiagram', 'statediagram',
+  'erdiagram', 'journey', 'gantt', 'pie', 'mindmap', 'timeline',
+  'quadrantchart', 'requirementdiagram', 'gitgraph', 'c4context', 'sankey',
+  'xychart', 'block'
+]
+
+// Mermaid has no left-pointing LABELLED edge: `-->|text|` is valid, `<--|text|`
+// is not, and a flowchart containing one fails to parse in full — the single
+// bad line takes the whole diagram down. Models reach for it constantly when
+// describing a two-way relationship ("households receive wages FROM firms"),
+// and it is exactly backwards from a form that already exists: `A <--|t| B`
+// means the same thing as `B -->|t| A`.
+//
+// Observed live: a circular-flow diagram, otherwise correct, carried
+//   H <--|receives wages, dividends, interest| F
+// and silently never rendered. Dropping it would have been a loss (the diagram
+// is good), so this rewrites the edge instead and only fails validation if
+// something unrepairable is left. Rewriting is safe because the transform is
+// pure direction-swapping — no content is invented or discarded.
+const MERMAID_REVERSE_LABELLED_EDGE = /^(\s*)(.+?)\s*<(-{2,3}|={2,3}|-\.-+)\|([^|]*)\|\s*(.+?)\s*$/
+
+function repairMermaidArrows(src: string): { mermaid: string; repaired: number } {
+  let repaired = 0
+  const out = src.split('\n').map(line => {
+    const m = line.match(MERMAID_REVERSE_LABELLED_EDGE)
+    if (!m) return line
+    const [, indent, left, dashes, label, right] = m
+    // `--` -> `-->`, `==` -> `==>`, `-.-` -> `-.->`
+    const forward = dashes.startsWith('=') ? `${dashes}>` : dashes.endsWith('.') ? `${dashes}->` : `${dashes}>`
+    repaired++
+    return `${indent}${right} ${forward}|${label}| ${left}`
+  })
+  return { mermaid: out.join('\n'), repaired }
+}
+
+// A node label containing bare parentheses is a syntax error:
+// `Money[Money (Financial) Market]` has to be written
+// `Money["Money (Financial) Market"]`. The balance check further down cannot
+// catch it — the parentheses ARE balanced — so the diagram passes validation
+// and then Mermaid rejects it whole.
+//
+// Observed live: a "Three Market Arenas" graph, correct in every other
+// respect, lost to that single line while the circular-flow diagram beside it
+// rendered fine. Quoting is lossless, so this repairs rather than drops.
+//
+// Deliberately narrow: only the `ID[label]` form, only when the label has no
+// quote or bracket of its own. The lookahead skips `[[subroutine]]` and
+// `[(database)]`, whose second character is part of the SHAPE rather than the
+// label, and which quoting would corrupt.
+const MERMAID_UNQUOTED_PAREN_LABEL = /(^|[\s>|-])([A-Za-z_][\w-]*)\[(?!\[|\()([^\[\]"]*[()][^\[\]"]*)\]/g
+
+function repairMermaidLabels(src: string): { mermaid: string; repaired: number } {
+  let repaired = 0
+  const mermaid = src.replace(
+    MERMAID_UNQUOTED_PAREN_LABEL,
+    (_m, lead: string, id: string, label: string) => {
+      repaired++
+      return `${lead}${id}["${label.trim()}"]`
+    }
+  )
+  return { mermaid, repaired }
+}
+
+function validateMermaid(raw: string): { ok: boolean; mermaid: string; reason?: string; repaired?: number } {
+  let src = String(raw || '').trim()
+  // Models often wrap it in a fenced code block despite being asked not to.
+  src = src.replace(/^```+\s*mermaid\s*/i, '').replace(/```+\s*$/, '').trim()
+  if (!src) return { ok: false, mermaid: src, reason: 'bos' }
+  if (src.length > 4000) return { ok: false, mermaid: src, reason: 'cok uzun' }
+
+  const arrowsFixed = repairMermaidArrows(src)
+  src = arrowsFixed.mermaid
+  // Anything still pointing left with a label could not be rewritten (e.g. the
+  // line had more than one such edge, or no right-hand node) — Mermaid would
+  // reject the whole diagram, so fail here rather than ship a blank render.
+  if (/<(-{2,3}|={2,3}|-\.-+)\|/.test(src)) {
+    return { ok: false, mermaid: src, reason: 'onarilamayan ters etiketli ok (<--|...|)' }
+  }
+
+  // Must run AFTER the arrow repair: that step rewrites whole lines and would
+  // otherwise undo the quoting.
+  const labelsFixed = repairMermaidLabels(src)
+  src = labelsFixed.mermaid
+  const fixed = { repaired: arrowsFixed.repaired + labelsFixed.repaired }
+
+  const lines = src.split('\n').map(l => l.trim()).filter(Boolean)
+  if (lines.length < 2) return { ok: false, mermaid: src, reason: 'tek satir — govde yok' }
+
+  // First line must name a diagram type, or Mermaid cannot even start.
+  const head = lines[0].toLowerCase().replace(/\s+/g, '')
+  if (!MERMAID_TYPES.some(t => head.startsWith(t))) {
+    return { ok: false, mermaid: src, reason: `bilinmeyen diyagram turu: ${lines[0].slice(0, 30)}` }
+  }
+
+  // Bracket and quote balance. Unbalanced delimiters are the most common way
+  // the model's output fails, and the one thing checkable without a parser.
+  const pairs: Array<[string, string]> = [['[', ']'], ['(', ')'], ['{', '}']]
+  for (const [open, close] of pairs) {
+    let depth = 0
+    for (const ch of src) {
+      if (ch === open) depth++
+      else if (ch === close) { depth--; if (depth < 0) break }
+    }
+    if (depth !== 0) return { ok: false, mermaid: src, reason: `dengesiz ${open}${close}` }
+  }
+  if ((src.match(/"/g) || []).length % 2 !== 0) {
+    return { ok: false, mermaid: src, reason: 'dengesiz tirnak' }
+  }
+
+  return { ok: true, mermaid: src, repaired: fixed.repaired }
+}
+
+function sanitizeDiagrams(diagrams: any[]): { diagrams: any[]; dropped: Array<{ title: string; reason: string }>; repaired: number } {
+  const list = Array.isArray(diagrams) ? diagrams : []
+  const out: any[] = []
+  const dropped: Array<{ title: string; reason: string }> = []
+  let repaired = 0
+  for (const d of list) {
+    const v = validateMermaid(d?.mermaid)
+    if (!v.ok) {
+      dropped.push({ title: String(d?.title || '(isimsiz)').slice(0, 40), reason: v.reason || 'gecersiz' })
+      continue
+    }
+    repaired += v.repaired || 0
+    out.push({ ...d, mermaid: v.mermaid })
+  }
+  return { diagrams: out, dropped, repaired }
+}
+
+// ==========================================================================
+// CHART GATE — a chart with no numbers is worse than no chart
+//
+// The extraction prompts all say "only chart-worthy numeric data actually
+// present ... never fabricate". A model that can see a figure's TITLE and
+// AXIS LABELS in the extracted text, but not the figure itself, reads that
+// rule as satisfied by emitting the labels with a zero for every value — it
+// invented no numbers, after all. The student then gets a chart.
+//
+// Measured live on a 30-page deck: three charts ("U.S. Aggregate Output
+// 1970-2014", "Unemployment Rate", "Inflation Rate"), each with ten year
+// labels and data = [0,0,0,0,0,0,0,0,0,0], rendering as three identical flat
+// lines along the x-axis. charts=0 would have been strictly better.
+//
+// Prompt wording cannot fix this reliably — the model believes it complied.
+// This is the deterministic counterpart, in the same family as
+// sanitizeFormulas/sanitizeDiagrams: it costs no tokens, runs after every
+// pipeline, and holds regardless of what the model emits.
+const CHART_TYPES = ['bar', 'pie', 'line']
+const CHART_MIN_POINTS = 2
+// Share of a chart's values that must be findable in the source before the
+// chart is believed. Not all of them: a legitimate chart may carry a total or
+// a percentage the author derived rather than printed. Half is enough to tell
+// "read from the document" apart from "written from memory".
+//
+// WHAT THIS COSTS, stated plainly: a chart whose values are all DERIVED is
+// dropped with the fabrications. Text saying "30 passed, 20 failed" turned
+// into a pie of [60, 40] has no value in the source, and this gate cannot
+// tell that from invention. The trade is taken on measured grounds — across
+// the runs on 05.10.2026 the pipeline produced four fabricated charts and
+// not one legitimate chart — and it is the right way round regardless: a
+// missing chart is a gap the student can see, a fabricated one is a lie they
+// cannot.
+const CHART_MIN_GROUNDED_RATIO = 0.5
+
+/**
+ * Every number the source text actually contains.
+ *
+ * Thousands separators are stripped so "17,000" and 17000 are the same
+ * number, and a trailing period or comma is dropped so a figure at the end of
+ * a sentence still matches.
+ *
+ * Noise is fine here, and deliberately so: page markers like "20-30" land in
+ * the set as -30. Extra members can only make the check more PERMISSIVE,
+ * never make it drop a real chart, and erring toward keeping is the right
+ * direction for a gate the student cannot see.
+ */
+function sourceNumbers(text: string): Set<number> {
+  const out = new Set<number>()
+  const tokens = String(text || '').match(/-?\d[\d.,]*/g) || []
+  for (const token of tokens) {
+    const cleaned = token.replace(/[.,]+$/, '').replace(/,(?=\d{3}\b)/g, '')
+    const value = Number(cleaned)
+    if (Number.isFinite(value)) {
+      out.add(value)
+      // The model routinely rounds what it read ("17,042 billion" -> 17000),
+      // and a rounded value is still a read value, not an invented one.
+      out.add(Math.round(value))
+      out.add(Math.round(value * 10) / 10)
+    }
+  }
+  return out
+}
+
+/**
+ * sourceText is optional on purpose: the chunked and single-pass pipelines
+ * reach this from different places, and a caller that cannot supply the text
+ * should still get the structural checks rather than no checks.
+ */
+function sanitizeCharts(charts: any[], sourceText?: string): { charts: any[]; dropped: Array<{ title: string; reason: string }> } {
+  const list = Array.isArray(charts) ? charts : []
+  const out: any[] = []
+  const dropped: Array<{ title: string; reason: string }> = []
+
+  for (const c of list) {
+    const title = String(c?.title || '(isimsiz)').slice(0, 40)
+    const rawData = Array.isArray(c?.data) ? c.data : []
+    const rawLabels = Array.isArray(c?.labels) ? c.labels : []
+
+    // Keep only points that are real numbers. A string "12%" or a null is not
+    // plottable, and silently coercing it is how a 0 gets into the series in
+    // the first place.
+    const paired: Array<{ label: string; value: number }> = []
+    for (let i = 0; i < rawData.length; i++) {
+      const v = typeof rawData[i] === 'number' ? rawData[i] : Number(rawData[i])
+      if (!Number.isFinite(v)) continue
+      paired.push({ label: String(rawLabels[i] ?? ''), value: v })
+    }
+
+    if (paired.length < CHART_MIN_POINTS) {
+      dropped.push({ title, reason: `sayisal veri yok (${paired.length} gecerli nokta)` })
+      continue
+    }
+
+    // Every value identical — including the all-zero case this gate exists
+    // for — carries no information at any chart type.
+    const distinct = new Set(paired.map(p => p.value))
+    if (distinct.size < 2) {
+      dropped.push({ title, reason: `tum degerler ayni (${[...distinct][0]})` })
+      continue
+    }
+
+    // Are these numbers in the document, or did the model supply them?
+    //
+    // The all-identical check above catches the zero-filled chart, which is
+    // how a model fabricates when it is TRYING to comply. It does not catch
+    // the more dangerous case: a figure the model cannot see, filled with
+    // varied, plausible values it knows from training. A flat line at zero
+    // looks broken at a glance; "GDP: 14.9, 15.4, 16.1" looks right and is
+    // not from this document.
+    //
+    // Same principle as applyGroundingGate for terms and points — a claim
+    // that cannot be traced to the source does not ship.
+    if (sourceText) {
+      const inSource = sourceNumbers(sourceText)
+      const found = paired.filter(p =>
+        inSource.has(p.value) ||
+        inSource.has(Math.round(p.value)) ||
+        inSource.has(Math.round(p.value * 10) / 10)
+      ).length
+      if (found / paired.length < CHART_MIN_GROUNDED_RATIO) {
+        dropped.push({
+          title,
+          reason: `sayilar kaynakta yok (${found}/${paired.length} bulundu)`
+        })
+        continue
+      }
+    }
+
+    // A pie of negative or zero slices cannot be drawn; such data is almost
+    // always a line/bar series the model mislabelled.
+    let type = String(c?.type || '').toLowerCase().trim()
+    if (!CHART_TYPES.includes(type)) type = 'bar'
+    if (type === 'pie' && paired.some(p => p.value <= 0)) type = 'bar'
+
+    out.push({
+      ...c,
+      type,
+      labels: paired.map((p, i) => p.label || String(i + 1)),
+      data: paired.map(p => p.value)
+    })
+  }
+
+  return { charts: out, dropped }
+}
+
+// ==========================================================================
+// NARRATIVE YEAR GATE — the one blind spot applyGroundingGate has
+//
+// applyGroundingGate judges key_terms and key_points. It does not judge the
+// prose: "summary", "summary_executive" and sections[].summary are written by
+// the narrative writer AFTER the gate has run, and nothing checks them. That
+// is where the model's own world knowledge leaks back in, and it leaks as
+// specifics — exactly the specifics a student would be tested on.
+//
+// Observed twice in eleven runs of the same 30-page deck, with the gate
+// reporting "25 kept / 0 dropped" both times:
+//     "the Great Depression (1929-1933)"
+// The source says "began in 1929 and continued throughout the 1930s" and
+// never mentions 1933 anywhere.
+//
+// A four-digit year is the one claim class that can be checked literally: it
+// is either in the source or it is not, with no paraphrase to reason about.
+// So this gate is deliberately narrow — it only judges years, and it only
+// REWRITES the two shapes where a rewrite is provably grammatical:
+//
+//   1. a parenthetical made of nothing but year material  -> drop it whole
+//      ("the Great Depression (1929-1933)" -> "the Great Depression")
+//   2. a range with one supported endpoint -> keep that endpoint
+//      ("from 1929-1933" -> "from 1929")
+//
+// Anything else — a bare unsupported year mid-sentence — is reported and left
+// alone. Editing prose blind is how a gate starts causing the damage it was
+// added to prevent, and a logged year we can act on beats a mangled sentence
+// we cannot.
+const YEAR_RE = /\b(1[89]\d{2}|20\d{2})\b/g
+// The model writes ranges with whatever dash it likes, including U+2011
+// NON-BREAKING HYPHEN — the same character class that once made the grounding
+// gate drop "fine-tuning" as fabricated.
+const YEAR_RANGE_RE = /\b(1[89]\d{2}|20\d{2})\s*[-‐-―]\s*(1[89]\d{2}|20\d{2})\b/g
+// A parenthetical safe to delete: years, separators and whitespace only.
+const YEAR_ONLY_PAREN_RE = /\s*\(([\d\s,;./‐-―-]*)\)/g
+
+function yearInSource(year: string, sourceText: string): boolean {
+  return new RegExp(`(?<![\\d])${year}(?![\\d])`).test(sourceText)
+}
+
+function scrubUnsupportedYears(
+  text: string,
+  sourceText: string
+): { text: string; removed: string[]; flagged: string[] } {
+  let out = String(text || '')
+  if (!out) return { text: out, removed: [], flagged: [] }
+
+  const removed: string[] = []
+  const supported = (y: string) => yearInSource(y, sourceText)
+
+  // (1) Parentheticals that carry nothing but year material.
+  out = out.replace(YEAR_ONLY_PAREN_RE, (whole, inner: string) => {
+    const years = String(inner).match(YEAR_RE) || []
+    if (!years.length) return whole                       // "(3)" etc — not ours
+    const bad = years.filter(y => !supported(y))
+    if (!bad.length) return whole
+    removed.push(...bad)
+    return ''
+  })
+
+  // (2) Ranges where exactly one endpoint is supported — keep that endpoint.
+  out = out.replace(YEAR_RANGE_RE, (whole, a: string, b: string) => {
+    const aOk = supported(a)
+    const bOk = supported(b)
+    if (aOk && bOk) return whole
+    if (aOk) { removed.push(b); return a }
+    if (bOk) { removed.push(a); return b }
+    return whole                                          // both bad — flagged below
+  })
+
+  // Whatever unsupported year survives both passes stays in the text.
+  const flagged = [...new Set((out.match(YEAR_RE) || []).filter(y => !supported(y)))]
+  // Deleting a parenthetical can leave a doubled space or a space before a
+  // comma/period.
+  out = out.replace(/[ \t]{2,}/g, ' ').replace(/\s+([,.;:])/g, '$1').trim()
+
+  return { text: out, removed: [...new Set(removed)], flagged }
+}
+
+function sanitizeNarrativeYears(
+  draft: any,
+  sourceText: string
+): { changed: number; removed: string[]; flagged: string[] } {
+  const removed: string[] = []
+  const flagged: string[] = []
+  let changed = 0
+  if (!draft || typeof draft !== 'object' || !sourceText) {
+    return { changed, removed, flagged }
+  }
+
+  for (const field of ['summary', 'summary_executive']) {
+    if (typeof draft[field] !== 'string') continue
+    const r = scrubUnsupportedYears(draft[field], sourceText)
+    if (r.text !== draft[field]) { draft[field] = r.text; changed++ }
+    removed.push(...r.removed)
+    flagged.push(...r.flagged)
+  }
+
+  if (Array.isArray(draft.sections)) {
+    for (const s of draft.sections) {
+      if (!s || typeof s.summary !== 'string') continue
+      const r = scrubUnsupportedYears(s.summary, sourceText)
+      if (r.text !== s.summary) { s.summary = r.text; changed++ }
+      removed.push(...r.removed)
+      flagged.push(...r.flagged)
+    }
+  }
+
+  return { changed, removed: [...new Set(removed)], flagged: [...new Set(flagged)] }
+}
+
+// ==========================================================================
+// QUALITY GATE — drop what the document does not support
+//
+// The anchoring machinery above already answers, for every claim, "do this
+// claim's distinctive words appear in the source?". Until now a claim that
+// answered no was merely left uncited. But that answer is worth more than
+// that: a claim whose distinctive vocabulary appears NOWHERE in a 50-page
+// document is not a paraphrase, it is something the model supplied from
+// outside the source — exactly what a grounded study tool must not show.
+//
+// The distinction that matters, and the reason this gate is deliberately
+// narrow:
+//
+//   LOW overlap  -> a legitimate paraphrase. The model used synonyms, or
+//                   summarised across pages. KEEP IT. Dropping these would
+//                   strip the summary of its best writing.
+//   ZERO overlap -> with three or more distinctive terms and a whole
+//                   document to match against, zero is not word choice.
+//                   DROP IT.
+//
+// Key terms are judged more strictly than key points, because a term is
+// supposed to be lifted from the document, not composed. Turkish
+// suffixation happens to help here: a substring test matches the stem
+// ("esneklik" is found inside the document's "esnekliği"), so a real term
+// is found even in an inflected document.
+// ==========================================================================
+
+/**
+ * Normalisation for the gate's substring test.
+ *
+ * The first live run exposed why this has to do more than lowercase: the
+ * gate dropped "Fine‑tuning", "Goods‑and‑services market" and "Inflation
+ * rate (GDP deflator)" as fabrications when all three are straight out of
+ * the chapter. The model writes typographic punctuation — the hyphen in
+ * "Fine‑tuning" is U+2011 NON-BREAKING HYPHEN — while the PDF's own text
+ * has a plain hyphen, or just a space ("goods and services"). Comparing
+ * those literally can only fail.
+ *
+ * So every dash variant AND every other punctuation mark becomes a space,
+ * and runs of whitespace collapse. "Fine‑tuning", "fine-tuning" and "fine
+ * tuning" all normalise to "fine tuning", and the parentheses in
+ * "Inflation rate (GDP deflator)" stop welding themselves to the words
+ * inside. Letters and digits are the only things that survive, which is
+ * also what anchorTerms() already does — this brings the two comparisons
+ * into agreement.
+ *
+ * Dropping a real term is the expensive failure here: it deletes correct
+ * content from the student's card and inflates the "model is fabricating"
+ * signal in the logs.
+ */
+function gateNormalize(s: string): string {
+  return String(s == null ? '' : s)
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')   // dashes, quotes, brackets, punctuation
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+// A claim needs at least this many distinctive terms before "none of them
+// appear" is evidence of anything rather than just a short sentence.
+const GATE_MIN_TERMS_TO_JUDGE = 3
+// Past this share of judged claims, the gate distrusts ITSELF rather than the
+// model and drops nothing (see the safety valve in applyGroundingGate).
+const GATE_MAX_DROP_SHARE = 0.6
+
+type GroundingStats = {
+  termsKept: number; termsDropped: number; droppedTerms: string[]
+  pointsKept: number; pointsDropped: number; droppedPoints: string[]
+  score: number | null
+  aborted?: boolean
+}
+
+/**
+ * Drop key terms and key points the document does not support.
+ *
+ * Returns new arrays plus a grounding score (share of judgeable claims that
+ * were supported) so the log shows which documents the model is inventing
+ * on — a number to watch over time, not just a one-off fix.
+ */
+// `visionGrounded` holds the normalised text of claims that came from the
+// VISION pass rather than from the extracted text, and exempts them.
+//
+// Without it the gate and the vision pass work against each other by
+// construction: the gate asks "does the document's text support this claim",
+// and the vision pass exists precisely to recover what the text does NOT
+// contain. Every term it contributes is therefore a candidate for being
+// called a fabrication.
+//
+// Observed live the first time the vision pass actually ran: it read "First
+// oil shock" / "Second oil shock" off the axis annotations of Figure 20.2 and
+// the gate dropped "Oil shock" as invented. The phrase occurs zero times in
+// the extracted text and is plainly there in the image — the claim was true
+// and the gate was judging it against a source that cannot contain it.
+//
+// These claims are not ungrounded, they are grounded in a source this
+// function cannot read, so they are passed through and counted as kept.
+function applyGroundingGate(
+  keyTerms: any[],
+  keyPoints: any[],
+  sourceText: string,
+  visionGrounded: Set<string> = new Set()
+): { key_terms: any[]; key_points: any[]; stats: GroundingStats } {
+  const terms = Array.isArray(keyTerms) ? keyTerms : []
+  const points = Array.isArray(keyPoints) ? keyPoints : []
+  const stats: GroundingStats = {
+    termsKept: 0, termsDropped: 0, droppedTerms: [],
+    pointsKept: 0, pointsDropped: 0, droppedPoints: [],
+    score: null
+  }
+  if (!sourceText || sourceText.length < 200) {
+    // Nothing trustworthy to judge against — never gate on a non-existent
+    // source, or a failed extraction would delete a good summary.
+    stats.termsKept = terms.length
+    stats.pointsKept = points.length
+    return { key_terms: terms, key_points: points, stats }
+  }
+
+  const haystack = ' ' + gateNormalize(sourceText) + ' '
+  const docTerms = new Set(anchorTerms(sourceText))
+  const readText = (raw: any) => typeof raw === 'string' ? raw : String(raw?.text || raw?.point || '')
+
+  // --- Key terms: the term itself must occur in the document ---
+  const keptTerms = terms.filter((t: any) => {
+    const term = String(t?.term || '').trim()
+    if (!term) return false
+    const norm = gateNormalize(term)
+    if (norm.length < 3) return true            // too short to judge
+    if (visionGrounded.has(norm)) { stats.termsKept++; return true }
+    if (haystack.includes(norm)) { stats.termsKept++; return true }
+    // Multi-word term: accept when every word of it occurs somewhere. Some
+    // documents write "esneklik katsayısı" across a line break, and the
+    // model legitimately reassembles it.
+    const words = norm.split(' ').filter(w => w.length >= 4)
+    if (words.length > 1 && words.every(w => haystack.includes(w))) { stats.termsKept++; return true }
+    stats.termsDropped++
+    if (stats.droppedTerms.length < 8) stats.droppedTerms.push(term)
+    return false
+  })
+
+  // --- Key points: only a ZERO-overlap point is dropped ---
+  const keptPoints = points.filter((p: any) => {
+    const text = readText(p)
+    if (!text.trim()) return false
+    if (visionGrounded.has(gateNormalize(text))) { stats.pointsKept++; return true }
+    const claimTerms = [...new Set(anchorTerms(text))]
+    if (claimTerms.length < GATE_MIN_TERMS_TO_JUDGE) { stats.pointsKept++; return true }
+    const matched = claimTerms.filter(t => docTerms.has(t)).length
+    if (matched > 0) { stats.pointsKept++; return true }
+    stats.pointsDropped++
+    if (stats.droppedPoints.length < 6) stats.droppedPoints.push(text.slice(0, 90))
+    return false
+  })
+
+  const judged = stats.termsKept + stats.termsDropped + stats.pointsKept + stats.pointsDropped
+  stats.score = judged > 0
+    ? Math.round(100 * (stats.termsKept + stats.pointsKept) / judged)
+    : null
+
+  // SAFETY VALVE. A gate that guts the output is far more likely to be wrong
+  // about the comparison than right about mass fabrication — an encoding
+  // mismatch, a failed extraction that left `extractedText` holding
+  // something other than what the model actually read, or an unforeseen
+  // normalisation bug would all look exactly like "the model invented
+  // everything". A trimming gate is useful; a gate that empties the study
+  // card is a bug that deletes the student's result. So past this share,
+  // nothing is dropped and the anomaly is logged for investigation.
+  const droppedShare = judged > 0 ? (stats.termsDropped + stats.pointsDropped) / judged : 0
+  if (droppedShare > GATE_MAX_DROP_SHARE) {
+    console.warn(
+      `Grounding gate ABORTED: would have dropped ${Math.round(100 * droppedShare)}% of claims ` +
+      `(${stats.termsDropped} terms, ${stats.pointsDropped} points of ${judged} judged). ` +
+      `That points at the comparison, not the model — keeping everything. ` +
+      `Ornek atilacaklar: ${[...stats.droppedTerms, ...stats.droppedPoints].slice(0, 4).join(' | ')}`
+    )
+    return {
+      key_terms: terms,
+      key_points: points,
+      stats: { ...stats, aborted: true } as GroundingStats
+    }
+  }
+
+  return { key_terms: keptTerms, key_points: keptPoints, stats }
+}
+
+/**
+ * Single citation step for BOTH pipelines, run once just before the study
+ * card is saved:
+ *   1. Validate footnote pages the model produced (fast path) — a page the
+ *      index cannot corroborate is demoted to null instead of sending the
+ *      student's PDF viewer somewhere wrong.
+ *   2. Compute footnotes for key_points that carry no marker yet (this is
+ *      what finally gives long documents citations), appending "[n]" to the
+ *      point text so the existing formatFootnoteMarkers()/jumpToFootnote()
+ *      front-end path renders and links them with no UI change at all.
+ * Returns new arrays; never mutates its inputs.
+ */
+function anchorCitations(
+  keyPoints: any[],
+  existingFootnotes: any[],
+  pageIndex: PageSegment[],
+  lang: string
+): { key_points: any[]; footnotes: any[]; idMap: Record<number, number>; stats: Record<string, number> } {
+  const incoming = Array.isArray(existingFootnotes) ? existingFootnotes : []
+  const stats = { kept: 0, demoted: 0, added: 0, skipped: 0, quoted: 0 }
+
+  const readText = (raw: any) => typeof raw === 'string' ? raw : String(raw?.text || raw?.point || '')
+  const writeText = (raw: any, text: string) =>
+    typeof raw === 'string' ? text : { ...raw, text }
+
+  // Footnote ids are reassigned to a dense 1..n sequence below, so any "[n]"
+  // markers the model already embedded in key_points (and in the summary,
+  // which the caller remaps with the returned idMap) must be rewritten to
+  // match. Without this, a model that emitted ids out of order or with gaps
+  // — which it is free to do — would leave every marker pointing at the
+  // wrong footnote, i.e. at the wrong page. This is what applyFootnoteRemap
+  // is for; it runs BEFORE any new markers are appended, so the ids this
+  // function allocates afterwards cannot collide with remapped ones.
+  const idMap: Record<number, number> = {}
+  incoming.forEach((fn: any, i: number) => {
+    if (fn?.id != null) idMap[Number(fn.id)] = i + 1
+  })
+  const points = (Array.isArray(keyPoints) ? keyPoints : []).map(raw =>
+    writeText(raw, applyFootnoteRemap(readText(raw), idMap))
+  )
+
+  if (!pageIndex.length) {
+    // No page concept for this format (DOCX / plain text) — keep the
+    // footnotes but strip page numbers we cannot corroborate, rather than
+    // letting the viewer jump somewhere arbitrary.
+    const cleaned = incoming.map((fn: any, i: number) => ({
+      id: i + 1,
+      reference: fn?.reference || `Reference ${i + 1}`,
+      page: null
+    }))
+    stats.demoted = incoming.filter((fn: any) => typeof fn?.page === 'number').length
+    stats.kept = cleaned.length
+    return { key_points: points, footnotes: cleaned, idMap, stats }
+  }
+
+  const idf = buildAnchorIdf(pageIndex)
+  const validPages = new Set(pageIndex.map(s => s.page))
+  const out: any[] = []
+
+  // --- 1. Carry over the model's footnotes, verifying their page numbers ---
+  for (const fn of incoming) {
+    const id = out.length + 1
+    const claimedPage = (typeof fn?.page === 'number' && Number.isFinite(fn.page)) ? fn.page : null
+    let page: number | null = null
+    if (claimedPage !== null && validPages.has(claimedPage)) { page = claimedPage; stats.kept++ }
+    else if (claimedPage !== null) { stats.demoted++ }
+    out.push({ id, reference: fn?.reference || `Reference ${id}`, page })
+  }
+
+  // --- 2. Anchor key_points that carry no marker yet ---
+  // The label the student actually reads: prefer the verbatim source
+  // sentence, fall back to the page's heading line, then to a bare page
+  // number. The front end already renders `reference` both in the [n]
+  // tooltip and in the "Kaynakça" list, so a real quote here upgrades both
+  // with no UI change.
+  const labelFor = (hit: { head: string; page: number; quote: string | null }) =>
+    hit.quote || hit.head || (lang === 'tr' ? `Sayfa ${hit.page}` : `Page ${hit.page}`)
+
+  for (let i = 0; i < points.length; i++) {
+    const text = readText(points[i])
+    if (!text.trim()) continue
+    if (/\[\d+\]/.test(text)) continue // already cited — leave it alone
+
+    const hit = anchorClaimToPage(text, pageIndex, idf)
+    if (!hit) { stats.skipped++; continue }
+
+    const id = out.length + 1
+    out.push({
+      id,
+      reference: labelFor(hit),
+      page: hit.page,
+      // Kept as its own field too: `reference` is what today's UI shows, but
+      // a verbatim quote is distinct data (it can be highlighted in the
+      // source viewer, and it is what makes the citation checkable).
+      quote: hit.quote
+    })
+    if (hit.quote) stats.quoted++
+    points[i] = writeText(points[i], `${text.replace(/\s+$/, '')} [${id}]`)
+    stats.added++
+  }
+
+  return { key_points: points, footnotes: out, idMap, stats }
+}
+
+serve(async (req) => {
+  // Handle CORS preflight request
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
+  try {
+    if (req.method !== 'POST') {
+      console.warn(`Erken cikis 405: method=${req.method}`)
+      return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+        status: 405,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
+    // Every early return below used to be silent. A failed first attempt
+    // therefore produced a worker that logged "booted" and "Listening" and
+    // nothing else — which is exactly what the student's "first press errors,
+    // second press works" looks like in the logs, with no way to tell WHICH
+    // of the five exits it took. Each one now names itself.
+    const { documentId, summaryStyle, language, summaryLength, analyzeVisuals, depth: depthRaw } = await req.json()
+    console.log(`Istek alindi: documentId=${documentId ?? '(yok)'}, visuals=${analyzeVisuals ? 'evet' : 'hayir'}`)
+    if (!documentId) {
+      console.warn('Erken cikis 400: documentId gonderilmedi')
+      return new Response(JSON.stringify({ error: 'documentId is required' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
+    let style = (summaryStyle || 'standard').toLowerCase()
+    const lang = (language || 'en').toLowerCase()
+    let len = (summaryLength || 'medium').toLowerCase()
+    // Denetim Raporu, 2026-08-31 — UI SIMPLIFICATION: the upload modal
+    // (dashboard.html) no longer asks the student for depth/summaryLength at
+    // all — only language + a single "want visuals?" toggle. Only honor an
+    // explicit depth if some caller actually sends one (kept for backward
+    // compatibility / API callers); otherwise it is auto-selected below,
+    // once the real extracted document length is known — see
+    // "AUTO DEPTH SELECTION" further down, right after useChunkedPipeline is
+    // computed. depth/depthFlags are not read anywhere before that point.
+    const explicitDepth = ['brief', 'standard', 'deep', 'exam'].includes(String(depthRaw || '').toLowerCase())
+      ? String(depthRaw).toLowerCase()
+      : null
+
+
+
+    // Get User Authorization JWT to verify ownership
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
+      console.warn('Erken cikis 401: Authorization basligi yok')
+      return new Response(JSON.stringify({ error: 'Missing Authorization header' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+
+    // Scoped client using user auth header
+    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    })
+
+    // Fetch document to verify ownership.
+    //
+    // Retried once on purpose. The dashboard inserts the documents row and
+    // calls this function immediately after; when the row is not yet visible
+    // to this request's scoped client, the select comes back empty and the
+    // student sees "Document not found or access denied" on the first press,
+    // then a second press a moment later works. That is the single most
+    // reported annoyance in this flow, and it costs one short wait to absorb.
+    //
+    // A genuine permission failure is unaffected: under RLS a document that
+    // is not the caller's returns no rows on the retry either, so the same
+    // 404 is returned, just ~700ms later and with a log line saying so.
+    const DOC_LOOKUP_RETRY_MS = 700
+    let document: any = null
+    let docError: any = null
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const res = await userClient.from('documents').select('*').eq('id', documentId).single()
+      document = res.data
+      docError = res.error
+      if (document) {
+        if (attempt > 0) console.log(`Belge ${attempt + 1}. denemede bulundu (ilk deneme bos dondu)`)
+        break
+      }
+      if (attempt === 0) {
+        console.warn(`Belge ilk denemede bulunamadi (code=${docError?.code ?? '-'}), ${DOC_LOOKUP_RETRY_MS}ms sonra tekrar deneniyor`)
+        await new Promise(r => setTimeout(r, DOC_LOOKUP_RETRY_MS))
+      }
+    }
+
+    if (docError || !document) {
+      console.error(`Erken cikis 404: belge bulunamadi veya erisim yok (documentId=${documentId}, code=${docError?.code ?? '-'}, message=${docError?.message ?? '-'})`)
+      return new Response(JSON.stringify({ error: 'Document not found or access denied' }), {
+        status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
+    // Service role client for download and DB write modifications
+    const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    const serviceClient = createClient(supabaseUrl, supabaseServiceRoleKey)
+
+    // ==========================================================================
+    // COURSE CATALOG LOOKUP — makes the AI's course-tag suggestion department-aware
+    // Fetches the official curriculum ("Ders Ağacı") courses for the uploading
+    // student's declared department (public.departments / public.courses,
+    // seeded via 20260721_add_course_catalog.sql) and passes it to the LLM so it
+    // can match the document against a REAL course code instead of guessing one
+    // out of thin air. Fails soft — if the catalog tables don't exist yet or the
+    // student has no department on file, we just fall back to the old free-guess
+    // behavior instead of erroring the whole summarization out.
+    // ==========================================================================
+    let courseCatalogBlock = "No official course catalog is available for this student — suggest a course code or subject label only if one is explicitly evident in the document text itself."
+    try {
+      const { data: ownerProfile } = await serviceClient
+        .from('profiles')
+        .select('department')
+        .eq('id', document.user_id)
+        .single()
+
+      if (ownerProfile?.department) {
+        const { data: deptRow } = await serviceClient
+          .from('departments')
+          .select('code')
+          .eq('name', ownerProfile.department)
+          .maybeSingle()
+
+        if (deptRow?.code) {
+          const { data: deptCourses } = await serviceClient
+            .from('courses')
+            .select('course_code, course_name')
+            .eq('department_code', deptRow.code)
+            .order('course_code')
+
+          if (deptCourses && deptCourses.length > 0) {
+            courseCatalogBlock = deptCourses.map((c: any) => `${c.course_code} — ${c.course_name}`).join('\n')
+          }
+        }
+      }
+    } catch (catalogErr) {
+      console.warn('Course catalog lookup failed, continuing with free-text course guessing: ', catalogErr)
+    }
+
+    // 1. Instantly set document status to processing
+    await serviceClient
+      .from('documents')
+      .update({ status: 'processing' })
+      .eq('id', documentId)
+
+    // 2. Download file blob from private storage bucket
+    const { data: fileBlob, error: downloadError } = await serviceClient.storage
+      .from('documents')
+      .download(document.storage_path)
+
+    if (downloadError || !fileBlob) {
+      console.error('Download error: ', downloadError)
+      await markFailed(serviceClient, documentId)
+      return new Response(JSON.stringify({ error: 'Failed to download the document. The file could not be downloaded or opened.' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
+    // Convert blob to ArrayBuffer & Uint8Array
+    const arrayBuffer = await fileBlob.arrayBuffer()
+    const fileBytes = new Uint8Array(arrayBuffer)
+
+    // ==========================================================================
+    // STEP 1 — TEXT EXTRACTION (based on document.mime_type)
+    // ==========================================================================
+    let extractedText = ""
+    const mimeType = document.mime_type?.toLowerCase() || ""
+    // Per-page PDF text, kept around after extraction (Denetim Raporu,
+    // 2026-08-31) so we can measure text density per page below — this is
+    // what lets us tell a text-heavy long document apart from a slide deck
+    // that just happens to be long, without adding a second PDF parse.
+    let pdfPageTexts: string[] = []
+
+    try {
+      if (mimeType === "text/plain") {
+        extractedText = new TextDecoder("utf-8").decode(fileBytes)
+      }
+      else if (mimeType === "application/pdf") {
+        let isScannedOrFailed = false
+        try {
+          const pdf = await getDocumentProxy(fileBytes)
+          // mergePages: false (per-page array) instead of true (one merged
+          // string) — we insert an explicit "--- SAYFA N ---" marker before
+          // each page's text below so the model can cite the EXACT page a
+          // claim came from (see the FOOTNOTES prompt instructions), instead
+          // of only a vague topic/section description as before.
+          const { text: pdfPages } = await extractText(pdf, { mergePages: false })
+          pdfPageTexts = pdfPages
+          const pdfTextWithPageMarkers = pdfPages.map((pageText, idx) => `--- SAYFA ${idx + 1} ---\n${pageText}`).join('\n\n')
+          extractedText = detectAndFormatPdfTables(pdfTextWithPageMarkers)
+
+          const textLen = (extractedText || "").trim().length
+          const fileSize = fileBytes.length
+          if (textLen < 200 || textLen < (fileSize / 500)) {
+            isScannedOrFailed = true
+          }
+        } catch (pdfErr) {
+          console.error("Normal PDF text extraction failed, trying OCR fallback: ", pdfErr)
+          isScannedOrFailed = true
+        }
+
+        if (isScannedOrFailed) {
+          console.log("PDF text is empty, short or extraction failed. Attempting OCR fallback...")
+          const ocrApiKey = Deno.env.get('OCR_SPACE_API_KEY')
+          if (ocrApiKey) {
+            try {
+              const ocrText = await tryOCR(fileBytes, ocrApiKey)
+              const ocrTextLen = (ocrText || "").trim().length
+              if (ocrTextLen >= 200) {
+                console.log(`OCR succeeded! Extracted ${ocrTextLen} characters.`)
+                extractedText = detectAndFormatPdfTables(ocrText)
+              } else {
+                throw new Error("SCANNED_PDF")
+              }
+            } catch (ocrErr) {
+              console.error("OCR fallback failed: ", ocrErr)
+              throw new Error("SCANNED_PDF")
+            }
+          } else {
+            console.warn("OCR_SPACE_API_KEY not configured. Falling back to scanned error.")
+            throw new Error("SCANNED_PDF")
+          }
+        }
+      }
+      else if (mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
+        try {
+          const docxHtmlResult = await mammoth.convertToHtml({ buffer: fileBytes })
+          const parsedDocxText = parseDocxHtmlContent(docxHtmlResult.value || "")
+          if (parsedDocxText.trim()) {
+            extractedText = parsedDocxText
+          } else {
+            const rawFallback = await mammoth.extractRawText({ buffer: fileBytes })
+            extractedText = rawFallback.value
+          }
+        } catch (docxErr) {
+          console.warn("Mammoth HTML conversion failed, falling back to raw text: ", docxErr)
+          const docxResult = await mammoth.extractRawText({ buffer: fileBytes })
+          extractedText = docxResult.value
+        }
+      }
+      else if (mimeType === "application/vnd.openxmlformats-officedocument.presentationml.presentation") {
+        const zip = new JSZip()
+        await zip.loadAsync(fileBytes)
+
+        // Filter slide XML files
+        const slideFiles = Object.keys(zip.files).filter(name =>
+          name.startsWith("ppt/slides/slide") && name.endsWith(".xml")
+        )
+
+        // Sort slides numerically (ppt/slides/slide1.xml, slide2.xml etc)
+        slideFiles.sort((a, b) => {
+          const numA = parseInt(a.replace(/[^0-9]/g, ""), 10)
+          const numB = parseInt(b.replace(/[^0-9]/g, ""), 10)
+          return numA - numB
+        })
+
+        let pptxText = ""
+        for (const slidePath of slideFiles) {
+          // Use the slide's real numeric filename (slideN.xml), not the loop
+          // index — slides can be non-contiguous if some were deleted, so
+          // the index alone could point students to the wrong slide.
+          const slideNumMatch = slidePath.match(/slide(\d+)\.xml$/)
+          const slideNum = slideNumMatch ? parseInt(slideNumMatch[1], 10) : (slideFiles.indexOf(slidePath) + 1)
+          const slideXml = await zip.files[slidePath].async("text")
+          const slideText = parsePptxSlideXml(slideXml)
+          if (slideText) {
+            // "--- SLAYT N ---" marker mirrors the PDF path's page markers so
+            // the model can cite the exact slide a claim came from.
+            pptxText += `--- SLAYT ${slideNum} ---\n${slideText}\n\n`
+          }
+        }
+        extractedText = pptxText
+      }
+      else {
+        // Fallback: try UTF-8 decoding
+        extractedText = new TextDecoder("utf-8").decode(fileBytes)
+      }
+    } catch (extractionError: any) {
+      console.error("Text extraction failed: ", extractionError)
+      await markFailed(serviceClient, documentId)
+      let errorMsg = "Failed to extract readable content. The file could not be downloaded/opened (it may be corrupted, password-protected, or unreadable)."
+      if (extractionError?.message === "SCANNED_PDF") {
+        errorMsg = "This PDF appears to be a scanned image without selectable text. Please try a text-based PDF, or convert it using OCR software first."
+      }
+      return new Response(JSON.stringify({ error: errorMsg }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
+    // Validate extracted text content
+    extractedText = extractedText.trim()
+    if (!extractedText) {
+      console.error("Extracted text is empty or blank")
+      await markFailed(serviceClient, documentId)
+      return new Response(JSON.stringify({ error: "No readable text found in this file." }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
+    // PDF pages get "--- SAYFA N ---" markers, PPTX slides get "--- SLAYT N
+    // ---" markers (see extraction above); DOCX/plain-text/fallback paths
+    // have no reliable page concept, so they get neither. This flag tells the
+    // footnote-instruction prompts below whether to ask the model for real
+    // page/slide numbers or to fall back to the old topic/heading reference.
+    const hasPageMarkers = mimeType === "application/pdf" || mimeType === "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    const pageMarkerLabel = mimeType === "application/vnd.openxmlformats-officedocument.presentationml.presentation" ? "SLAYT" : "SAYFA"
+
+    // Drop running headers/footers before anything downstream sees the text,
+    // so the saving reaches the window budget, the stored chunks, the
+    // grounding gate's source and the citation index alike. Must run after the
+    // page markers exist and before document_chunks is written.
+    if (hasPageMarkers) {
+      const deboilerplated = stripRepeatedBoilerplate(extractedText, pageMarkerLabel)
+      if (deboilerplated.charsSaved > 0) {
+        extractedText = deboilerplated.text
+        console.log(
+          `Boilerplate strip: ${deboilerplated.charsSaved} krk kazanildi ` +
+          `(%${((deboilerplated.charsSaved / (deboilerplated.charsSaved + extractedText.length)) * 100).toFixed(1)}), ` +
+          `silinen: ${deboilerplated.removed.map(l => JSON.stringify(l.slice(0, 50))).join(', ')}`
+        )
+      }
+    }
+
+    // ==========================================================================
+    // PERSIST THE EXTRACTED TEXT (document_chunks)
+    //
+    // This is the only place in the system that has the document's text in a
+    // clean, page-aware form, and it used to throw it away on return — which
+    // is why chat-with-document re-downloaded and re-parsed the same file on
+    // every message. Writing it once here, right after extraction and before
+    // either pipeline branch, means every document gets chunked regardless of
+    // its size or which path summarizes it.
+    //
+    // Deliberately NOT awaited behind a failure path: if this write fails the
+    // student still gets their study card, and chat falls back to extracting
+    // on demand exactly as it does today.
+    // ==========================================================================
+    try {
+      const storable = buildStorableChunks(extractedText, pageMarkerLabel)
+      const { written, error: chunkError } = await persistDocumentChunks(serviceClient, documentId, storable)
+      if (chunkError) {
+        console.warn(`document_chunks: ${chunkError} (ozet akisi etkilenmedi)`)
+      } else {
+        const paged = storable.filter(c => c.page_start !== null).length
+        console.log(
+          `document_chunks: ${written} chunk yazildi ` +
+          `(${paged} tanesi sayfa numarali, ort. ${Math.round(extractedText.length / Math.max(1, written))} krk)`
+        )
+      }
+    } catch (chunkErr) {
+      console.warn('document_chunks: beklenmeyen hata, atlandi:', chunkErr)
+    }
+
+    // ==========================================================================
+    // VISUAL-DENSITY SIGNAL (Denetim Raporu, 2026-08-31)
+    // CHUNK_THRESHOLD below only ever measures character COUNT. That is the
+    // right signal for deciding whether the text needs the chunked/map-reduce
+    // pipeline (see the big comment above), but it is the WRONG signal for
+    // deciding whether visual analysis matters — a slide-deck PDF can be
+    // "long" purely because it has many slides, while each slide carries
+    // almost no extractable text and most of its real content lives in
+    // diagrams/frameworks/charts. Confirmed on a real 52-page lecture deck:
+    // only 17,787 extractable characters total (avg 342/page — well under
+    // the chunked pipeline's 56K-char ceiling), but 216 embedded images and
+    // 5 pages (13%) with ZERO extractable text. Those near-blank pages are
+    // exactly where whole frameworks (e.g. a closing "major developments"
+    // slide) were being silently dropped, because the chunked path below
+    // never ran visual analysis at all.
+    // We flag that pattern here — independent of useChunkedPipeline — and
+    // use it further down to (a) run one extra vision-capable pass over just
+    // the near-blank pages of a chunked document, and (b) not let a chunked
+    // document skip the quality/hallucination review pass purely because
+    // depth !== 'deep'.
+    // ==========================================================================
+    const pdfPageCount = pdfPageTexts.length
+    const avgCharsPerPdfPage = pdfPageCount > 0 ? extractedText.length / pdfPageCount : 0
+    // 0-indexed page numbers whose extracted text is essentially empty —
+    // these are the pages PDF.co should convert to images below, instead of
+    // always guessing "the first 8 pages". Threshold is 150 chars, not a
+    // stricter "truly blank" cutoff, on purpose: a chart/table/formula
+    // exhibit page (common in quantitative courses — finance, stats,
+    // accounting) often still extracts a short title or axis-label caption,
+    // so a page can carry almost none of its real content in text while
+    // still clearing a very strict blank check. This is meant to generalize
+    // across course types, not just the image-only slide-deck case it was
+    // first found on.
+    const nearBlankPdfPageIndices = pdfPageTexts
+      .map((t, i) => ({ i, len: t.trim().length }))
+      .filter(p => p.len < 150)
+      .map(p => p.i)
+    const isVisuallyDenseDocument = mimeType === "application/pdf" && pdfPageCount > 0 &&
+      (avgCharsPerPdfPage < 500 || (nearBlankPdfPageIndices.length / pdfPageCount) > 0.08)
+    if (isVisuallyDenseDocument) {
+      console.log(`Visual-density signal tripped: avgCharsPerPage=${avgCharsPerPdfPage.toFixed(0)}, nearBlankPages=${nearBlankPdfPageIndices.length}/${pdfPageCount}`)
+    }
+
+    // ==========================================================================
+    // DECIDE PIPELINE: short/medium documents use the original single-pass
+    // (fast, cheap, supports visual analysis); long documents route through
+    // the chunked map-reduce pipeline below so nothing gets silently
+    // truncated and depth scales with actual document length.
+    // ==========================================================================
+    const useChunkedPipeline = extractedText.length > CHUNK_THRESHOLD
+    const pipelineStartedAt = Date.now()
+
+    // Claims the vision pass contributes, normalised the way the grounding
+    // gate normalises, so the gate can recognise and exempt them.
+    //
+    // Declared HERE, outside both pipelines, because that is where it is
+    // read: the vision pass fills it inside the chunked branch, but
+    // applyGroundingGate runs further down on the path both pipelines share.
+    // Declaring it next to the vision pass put it out of scope at the gate
+    // and threw "ReferenceError: visionGroundedClaims is not defined" after
+    // ~3 minutes of completed work, losing the whole card. Stays empty when
+    // the pass does not run, which is the no-op case the gate already
+    // handles.
+    const visionGroundedClaims = new Set<string>()
+
+    // The same findings, kept VERBATIM for the review pass.
+    //
+    // visionGroundedClaims above is normalised for the grounding gate's
+    // matching; review needs the readable sentences. Review is shown the
+    // document's TEXT, and a figure's annotations are not in the text — they
+    // are drawn inside the image. So without this, everything the vision pass
+    // contributes is invisible to review, and that cuts both ways: it cannot
+    // confirm a correct figure reading, and it cannot catch a wrong one.
+    //
+    // Measured on 05.10.2026. Figure 20.2 is annotated "World War I, Roaring
+    // Twenties, The Great Depression, World War II, Korean War, Vietnam War,
+    // First oil shock, Second oil shock" plus five recessions. The summary
+    // reported "the Korean and Vietnam wars, and oil shocks of the 1970s and
+    // 2000s" — the wars right, read off the chart, and "2000s" wrong, since
+    // both labelled oil shocks are 1974 and 1980. Review had no way to tell,
+    // because the only place that distinction exists is the picture.
+    const visionNotes: string[] = []
+
+    // Set when Groq reports the DAILY token cap (TPD). Declared out here, in
+    // the scope both pipelines share, for the same reason visionGroundedClaims
+    // is: a flag written inside the chunked branch and read outside it is a
+    // ReferenceError in production that no extracted-function test can see.
+    let dailyQuotaExhausted = false
+
+    // Stages the time budget forced us to drop, recorded so the SAVED CARD can
+    // say so. A long document can lose vision, the narrative writer or review
+    // and still look complete — the student has no way to tell a card that got
+    // the full pipeline from one that ran out of minutes. Declared out here for
+    // the same scope reason as the two above.
+    const skippedStages: string[] = []
+    const budgetLeft = () => Math.max(0, PIPELINE_BUDGET_MS - (Date.now() - pipelineStartedAt))
+
+    // ==========================================================================
+    // AUTO DEPTH SELECTION (Denetim Raporu, 2026-08-31)
+    // The simplified upload UI no longer sends `depth`/`summaryLength` — pick
+    // one from the actual extracted text length so a 1-page handout and a
+    // 60-page lecture pack don't both get treated as "standard". Explicit
+    // depth (any caller that still sends one) always takes priority.
+    // ==========================================================================
+    let depth = explicitDepth
+    if (!depth) {
+      if (extractedText.length < 2500) depth = 'brief'
+      else if (extractedText.length > 30000) depth = 'deep'
+      else depth = 'standard'
+    }
+    if (depth === 'brief' && len === 'medium') len = 'short'
+    if (depth === 'deep' && len !== 'detailed' && len !== 'long') len = 'detailed'
+    if (depth === 'exam' && style === 'standard') style = 'exam_focused'
+    const depthFlags = {
+      skipSectionDeepen: depth === 'brief',
+      forceSectionDeepen: depth === 'deep' || depth === 'exam',
+      skipNarrativeWriter: depth === 'brief',
+      longNarrative: depth === 'deep',
+      examBias: depth === 'exam',
+      // Very long docs: prefer selective digests in section pass
+      selectiveLongDoc: depth === 'deep' || depth === 'standard'
+    }
+    console.log(`Madde 6 depth=${depth} (${explicitDepth ? 'explicit' : 'auto from textLen=' + extractedText.length})`, depthFlags)
+
+    // Fast-path truncation (unchanged behavior) — only ever applies when NOT chunking
+    let textToSend = extractedText
+    if (!useChunkedPipeline && textToSend.length > 40000) {
+      const truncated = textToSend.substring(0, 40000)
+      const lastBoundary = Math.max(
+        truncated.lastIndexOf(". "),
+        truncated.lastIndexOf(".\n"),
+        truncated.lastIndexOf("\n")
+      )
+      if (lastBoundary > 35000) {
+        textToSend = truncated.substring(0, lastBoundary + 1)
+      } else {
+        textToSend = truncated
+      }
+    }
+
+    // ==========================================================================
+    // STEP 2 — CALL GROQ API WITH THE EXTRACTED TEXT
+    // ==========================================================================
+    const groqApiKey = Deno.env.get('GROQ_API_KEY')
+    if (!groqApiKey) {
+      console.error('Missing GROQ_API_KEY env secret')
+      await markFailed(serviceClient, documentId)
+      return new Response(JSON.stringify({ error: 'AI summarization key not configured' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
+    // Select style instruction (Part A)
+    let styleInstruction = "Write the summary as 4-8 well-formed sentences in flowing prose."
+    if (style === 'bullet') {
+      styleInstruction = "Write the summary as a series of SHORT bullet points, each starting with '- ' at the beginning of its own line (use '\\n' between each bullet). Do NOT write flowing paragraph sentences — every line must be a distinct, concise bullet fragment, not a full narrative paragraph. Aim for 6-10 bullets."
+    } else if (style === 'outline') {
+      styleInstruction = "Write the summary as a hierarchical outline. Use '## ' prefixed lines for major section headings (identify 2-4 natural sections in the material), and '- ' prefixed indented lines beneath each heading for sub-points. Use '\\n' between every line. This must visually read as a structured outline, NOT as flowing paragraph prose."
+    } else if (style === 'simplified') {
+      styleInstruction = "Write the summary in very short sentences (aim for under 15 words per sentence) using simple, everyday vocabulary. Avoid compound/complex sentence structures. Explain any necessary technical term immediately in parentheses using plain language."
+    } else if (style === 'exam_focused') {
+      styleInstruction = "Write the summary as terse, fact-dense statements — prefer sentence fragments and direct statements over flowing narrative connectors like 'furthermore' or 'in addition.' Each sentence should pack in a specific fact, definition, or relationship. Keep it noticeably more compact and dense than a standard-style summary, with less narrative connective tissue between ideas."
+    }
+
+    // Part B: Length instruction — now adaptive to actual document length (see
+    // computeAdaptiveTargets above). A baseline-sized document gets the same
+    // numbers as before; longer documents get proportionally more, up to a cap.
+    const adaptiveTargets = computeAdaptiveTargets(useChunkedPipeline ? extractedText.length : textToSend.length, len)
+    const lengthInstruction = buildLengthInstruction(adaptiveTargets, len)
+
+    const langLabel = lang === 'tr' ? 'Turkish / Türkçe' : 'English'
+
+    // Part A: System prompt with document type classification & type specific guidance
+    const systemPrompt = `You are an academic study assistant. You will be given the raw text extracted from a student's uploaded document. Analyze it and respond with ONLY a valid JSON object, no markdown code fences, no commentary before or after — just the raw JSON object matching this exact shape: { "summary": string, "summary_executive": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "document_type": string, "tables": [ { "title": string, "headers": [ string ], "rows": [ [ string ] ] } ], "charts": [ { "title": string, "type": string, "labels": [ string ], "data": [ number ] } ], "footnotes": [ { "id": number, "reference": string, "page": number | null } ], "outline": { "document_title_guess": string, "items": [ { "id": string, "heading": string, "blurb": string, "level": number, "order": number, "parent_id": string | null } ] }, "sections": [ { "heading": string, "summary": string, "key_points": [ string ], "outline_id": string | null } ], "suggested_course_tag": string | null, "is_quantitative": boolean, "formulas": [ { "name": string, "latex": string, "variables": [ { "symbol": string, "meaning": string } ] } ], "worked_examples": [ { "title": string, "problem_statement": string, "steps": [ string ], "final_answer": string } ], "diagrams": [ { "title": string, "mermaid": string, "description": string } ], "concept_graph": { "nodes": [ { "id": string, "label": string, "type": string } ], "edges": [ { "from": string, "to": string, "relation": string } ] }, "cloze_cards": [ { "id": string, "prompt": string, "answer": string, "full_text": string } ] }.
+
+EXECUTIVE SUMMARY:
+Write "summary_executive" as a 2-3 sentence ultra-short overview — what a student would say if asked "what is this document about in 30 seconds?". No bullet lists.
+
+OUTLINE ENGINE (document skeleton):
+Always produce "outline": { "document_title_guess": "...", "items": [ { "id": "o1", "heading": "short label", "blurb": "one sentence role of this part", "level": 1 or 2, "order": 1, "parent_id": null } ] }.
+- 3-12 items in document order; level 1 = major parts, level 2 = sub-topics
+- Prefer real structure (intro, theory, methods, cases, conclusion…)
+- Never admin-only items (grading, attendance, textbook edition)
+- Even for a single-topic document, return 2-3 coarse outline items (not empty)
+
+SECTION PASS (deep per-topic summaries):
+Also produce "sections" aligned with outline level-1 items. Each:
+{ "heading": "...", "summary": "4-8 sentence DEEP academic summary of ONLY this topic — coherent prose, explain arguments and definitions", "key_points": ["3-6 takeaways for this section"], "outline_id": "o1" }
+- summary must be deeper than outline.blurb; do not paste the global summary into every section
+- Skip admin-only topics
+
+CONCEPT GRAPH:
+Extract the main academic concepts and how they relate. Output concept_graph with:
+- nodes: [{ "id": "c1", "label": "Concept Name", "type": "concept" }] (5-15 nodes, short labels)
+- edges: [{ "from": "c1", "to": "c2", "relation": "includes"|"is_a"|"causes"|"part_of"|"related_to"|"depends_on"|"contrasts_with" }]
+Only real relationships from the text. Empty graph if the material has almost no conceptual structure.
+
+CLOZE CARDS (fill-in-the-blank):
+Create 5-12 cloze cards for spaced-repetition study. Each: { "id": "cl1", "prompt": "sentence with ___ blank", "answer": "the hidden word or short phrase", "full_text": "complete sentence" }. Blank the most exam-relevant term or phrase. Prefer one blank per card. Keep answers short (1-5 words).
+
+QUANTITATIVE COURSE DETECTION & ADAPTATION:
+Determine whether this document is primarily QUANTITATIVE in nature — meaning it centers on mathematical formulas, numerical calculations, statistical methods, or financial/accounting computations (e.g. Calculus, Statistics, Financial Management, Investment Analysis, Accounting, Economics with heavy math) — as opposed to conceptual/qualitative material (e.g. Marketing, Management theory, general business discussion). Put this boolean classification in the 'is_quantitative' JSON field (true or false).
+When 'is_quantitative' is true: shift your summarization approach to prioritize extracting formulas and worked examples thoroughly, keeping the narrative summary comparatively brief and high-level in favor of these structured practical elements — since for quantitative material, the formulas and worked examples ARE the primary study content.
+
+FORMULA EXTRACTION:
+Identify every distinct formula/equation presented (especially when is_quantitative is true, but also extract any clear formulas even in mixed documents). For each, output an object in the 'formulas' array: { "name": "short descriptive name, e.g. 'Compound Interest Formula'", "latex": "raw LaTeX ONLY — no surrounding $ or \\( \\) delimiters, e.g. 'A = P(1 + r/n)^{nt}' or '\\\\frac{a}{b}' or '\\\\sum_{i=1}^{n} x_i'", "variables": [ { "symbol": "e.g. P", "meaning": "e.g. Principal amount (initial investment)" } ] }. Return an empty array [] if the document has no formulas.
+
+STEP-BY-STEP WORKED EXAMPLES:
+If this document is quantitative, provide 1-3 worked examples showing how to apply the key formula(s) to a realistic problem. If the source document already contains a worked example, use and clean up that one (preserving its actual numbers). If it doesn't but a formula is present, GENERATE a clear, realistic illustrative example (clearly reasonable numbers, not the exact same as any example in the source, creating a new one for practice). Output each in the 'worked_examples' array: { "title": "short description of the scenario", "problem_statement": "the problem as a student would read it, with specific numbers", "steps": [ "step 1 description with calculation shown", "step 2..." ], "final_answer": "the final numeric result with units, e.g. '$1,432.50'" }. Return an empty array [] if not applicable.
+
+DOCUMENT-TYPE CLASSIFICATION:
+Identify the document type as one of the following exact strings: "Lecture Notes/Slides", "Academic Article", "Syllabus", "Case Study", "Textbook Chapter", or "Other". Put this classification in the "document_type" JSON field.
+Adapt your summary approach according to this classification:
+- "Lecture Notes/Slides": focus on key concepts, definitions, and the structure as originally presented.
+- "Academic Article": focus on research question/purpose, methodology, key findings, and conclusions.
+- "Syllabus": focus on course objectives, topics covered, and learning outcomes.
+- "Case Study": structure around Problem/Context, Analysis, and Solution/Recommendation.
+- "Textbook Chapter": focus on core theory, definitions, and illustrative examples.
+- "Other": use standard general-purpose summarization.
+
+STRUCTURAL SECTIONS INSTRUCTION (hierarchical outline):
+In addition to the single overall "summary", break the document down into 2-6 major topic-based SECTIONS — but ONLY if it genuinely covers that many distinct topics (e.g. a lecture covering "Tanımlar", "4P Karışımı", "Pazar Bölümlendirme" would get 3 sections, each in the order the topics appear). For each section output an object in the 'sections' array: { "heading": "short 2-5 word topic label", "summary": "2-4 sentence blurb covering just that section's academic content — footnote markers [n] allowed and encouraged where applicable" }. This lets a student jump straight to the topic they need instead of reading one long undifferentiated summary — like a table of contents with a preview under each entry.
+If the document covers only ONE continuous topic, or is too short/simple to meaningfully split (a short handout, a single-topic one-pager), return an empty array — do not force sections onto material that doesn't naturally have them. Sections must still obey the EXAM-FOCUSED CONTENT FILTERING rule below — never create a section purely about course administration/logistics.
+
+TABULAR AND CHART DATA EXTRACTION:
+In addition to the summary, key terms, key points, and quiz questions, also identify any TABULAR DATA (rows/columns of related figures, comparisons, structured lists of data) and any CHART-WORTHY DATA (numeric comparisons, percentages, breakdowns, trends that would be clearly shown as a bar/pie/line chart) present in the source material. If visual analysis was used and chart/graph images were shown to you, extract the ACTUAL data values from those images for this purpose. Include this as two new JSON fields:
+- 'tables': an array of objects, each { "title": string, "headers": [string, ...], "rows": [[string, ...], ...] } — one object per distinct table found. Return an empty array if no clear tabular data exists.
+- 'charts': an array of objects, each { "title": string, "type": "bar" | "pie" | "line", "labels": [string, ...], "data": [number, ...] } — one object per distinct chart-worthy dataset found (pick the most fitting chart type for the data — proportions/percentages of a whole → 'pie', comparisons across categories → 'bar', progression over time → 'line'). Return an empty array if no clear chart-worthy data exists.
+Do NOT fabricate tables/charts if the source doesn't actually contain this kind of data — empty arrays are the correct output for purely narrative/text documents.
+
+INLINE FOOTNOTES / SOURCE REFERENCES INSTRUCTION:
+For non-obvious or specific factual claims in the summary and key_points, add a footnote marker like [1], [2], etc. immediately after the claim. Build a corresponding 'footnotes' array in your JSON output: [{ "id": 1, "reference": "brief description of which section/topic of the source this relates to, e.g. 'Section 2.2 - SEO discussion' or 'Introduction section'", "page": number | null }]. ${buildFootnotePageInstruction(hasPageMarkers, pageMarkerLabel)} Don't over-footnote — reserve markers for specific, checkable claims (numbers, definitions, named findings), not every sentence.
+
+SUGGESTED COURSE TAG INSTRUCTION:
+Below is this student's OFFICIAL course catalog (format: CODE — Course Name):
+${courseCatalogBlock}
+
+Compare the document's content, terminology, and subject matter against this catalog. If it clearly corresponds to one of these listed courses, return that course's EXACT code (copied character-for-character, e.g. 'BUS330') as 'suggested_course_tag' — do not alter, reformat, or add spaces to it. Only if the content doesn't match any listed course, but a course code or clear subject label is otherwise evident directly in the source text, fall back to that as a short free-text string instead. If genuinely unclear and nothing in the catalog fits, return null. Never invent a course code that is neither in the catalog above nor explicitly present in the source text.
+
+LENGTH INSTRUCTION:
+${lengthInstruction}
+
+ACCURACY INSTRUCTION:
+Base your summary, key terms, key points, and quiz questions STRICTLY on content actually present in the provided text. Do not invent, assume, or add information not found in the source material. If a section of the document is unclear or incomplete, reflect that faithfully rather than filling gaps with assumptions. Copy any specific numbers, formulas, names, or technical terms EXACTLY as they appear in the source — do not paraphrase or alter precise factual details.
+
+LANGUAGE INSTRUCTION:
+Respond strictly in the language: '${langLabel}'. Write the ENTIRE response (the summary, all key_terms terms and definitions, all key_points, all quiz_questions, and the document_type) in that specified language (the returned value of "document_type" must be one of the specified English strings: "Lecture Notes/Slides", "Academic Article", "Syllabus", "Case Study", "Textbook Chapter", or "Other").
+
+EXAM-FOCUSED CONTENT FILTERING (applies regardless of style, and is NOT optional):
+Before writing anything, separate the source into (a) actual academic subject matter — concepts, definitions, theories, frameworks/models (e.g. "the 4Ps"), processes, relationships, formulas, examples, case findings, named studies — and (b) course administration/logistics — grading weights or percentages, exam format/rules (open/closed book, question types), attendance/absence policy, late-submission or bonus-point policy, grade-appeal/itiraz procedures and deadlines, office hours, contact info, syllabus housekeeping, textbook title/edition/ISBN.
+ONLY (a) belongs anywhere in your output — summary, key_points, footnotes, and quiz_questions. COMPLETELY EXCLUDE (b): do not summarize it, do not footnote it, and never turn it into a quiz_question — a student is never tested on how many percentage points the midterm is worth, how to appeal a grade, or which textbook edition is assigned, no matter how specific or "checkable" those numbers are.
+If a document is mostly or entirely administrative logistics (e.g. a course intro/syllabus slide with little real subject matter), it is completely correct — and REQUIRED — to produce a short summary and few or even zero key_points/quiz_questions. Never pad the output with excluded (b) content just to reach a target count; a short, honest summary is far better than a long one padded with grading/attendance/appeal trivia.
+
+DIAGRAMS (Mermaid reconstruction) & VISUAL-STRUCTURE AWARENESS:
+You are only given extracted text — visual layout (boxes, arrows, side-by-side positioning) is lost in extraction. A flowchart, comparison diagram, process illustration, hierarchy or cycle often survives only as a cluster of short disconnected phrases, sequential stage names, or paired opposing terms. When you detect such a structure:
+1. RECONSTRUCT it as a real Mermaid diagram and put it in the "diagrams" array: { "title": "short descriptive title", "mermaid": "valid Mermaid source (prefer flowchart TD / flowchart LR / graph TD / sequenceDiagram / mindmap)", "description": "1-2 sentence plain-language explanation of what the diagram shows" }. Keep Mermaid syntax simple and valid. Limit to the 2-4 most important diagrams in the whole document.
+2. Also add ONE key_point reconstructing the same idea, clearly prefixed with "Diyagram/Görsel:" (or "Diagram/Visual:" if responding in English) so the student knows it is an interpretation of a visual element — e.g. "Diyagram: 'Satış kavramı' (ürün/satış odaklı) ile 'Pazarlama kavramı' (müşteri ihtiyaç odaklı) karşılaştırılıyor."
+Only do this when fragments genuinely look diagram-like — never invent diagrams that have no basis in the text. Return empty "diagrams" array when nothing is reconstructible.
+
+CODE SNIPPETS & DATA PREVIEWS INSTRUCTION:
+If the source material includes programming code snippets (e.g. Python, R, SQL used for data analysis), do not ignore them — briefly describe WHAT METHODOLOGY STEP each code block represents in the summary/key_points (e.g. 'the analysis loads and cleans the dataset, then engineers features including a lagged return and rolling volatility measure' rather than omitting this entirely). Do not attempt to reproduce the code verbatim in the summary, just describe its purpose and role in the overall analysis. If a code block's output shows a small data preview (a few rows of a dataframe), treat that as a legitimate table for the 'tables' field.
+
+PROFESSIONAL TONE INSTRUCTION:
+Write in a clear, formal academic register. Avoid filler phrases, redundant restatements, and vague generalities. Use precise terminology appropriate to the subject matter.
+
+STYLE-SPECIFIC INSTRUCTION:
+${styleInstruction}`
+
+    let rawContent = ""
+    let sourceTextForReview = ""
+    let visualAnalysisUsed = false
+
+    if (!useChunkedPipeline) {
+      // ========================================================================
+      // FAST PATH (unchanged): short/medium documents — single Groq call,
+      // optional visual (image) analysis pass.
+      // ========================================================================
+      const isDocx = mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      const isPptx = mimeType === "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+      const isPdf = mimeType === "application/pdf"
+
+      const runVisuals = !!analyzeVisuals && (isPdf || isPptx || isDocx)
+      let base64Images: string[] = []
+
+      if (runVisuals) {
+        if (isDocx) {
+          try {
+            console.log("DOCX Visual analysis enabled. Extracting embedded media images from word/media/...")
+            const zip = new JSZip()
+            await zip.loadAsync(fileBytes)
+
+            const mediaFiles = Object.keys(zip.files).filter(name =>
+              name.startsWith("word/media/") && /\.(png|jpe?g|webp|gif|bmp)$/i.test(name)
+            )
+
+            mediaFiles.sort((a, b) => {
+              const numA = parseInt(a.replace(/[^0-9]/g, ""), 10) || 0
+              const numB = parseInt(b.replace(/[^0-9]/g, ""), 10) || 0
+              return numA !== numB ? numA - numB : a.localeCompare(b)
+            })
+
+            const cappedMediaFiles = mediaFiles.slice(0, 8)
+            console.log(`Found ${mediaFiles.length} media files in DOCX. Processing top ${cappedMediaFiles.length}...`)
+
+            for (const mediaPath of cappedMediaFiles) {
+              try {
+                const imgBytes = await zip.files[mediaPath].async("uint8array")
+                if (imgBytes && imgBytes.byteLength > 0) {
+                  base64Images.push(bytesToBase64(imgBytes))
+                }
+              } catch (mediaErr) {
+                console.error(`Failed to extract DOCX media image ${mediaPath}:`, mediaErr)
+              }
+            }
+
+            if (base64Images.length > 0) {
+              visualAnalysisUsed = true
+              console.log(`Successfully prepared ${base64Images.length} DOCX media images for vision-based analysis.`)
+            }
+          } catch (docxVisionErr) {
+            console.error("DOCX media image extraction failed:", docxVisionErr)
+          }
+        } else if (isPptx) {
+          try {
+            console.log("PPTX Visual analysis enabled. Extracting embedded media images from ppt/media/...")
+            const zip = new JSZip()
+            await zip.loadAsync(fileBytes)
+
+            const mediaFiles = Object.keys(zip.files).filter(name =>
+              name.startsWith("ppt/media/") && /\.(png|jpe?g|webp|gif|bmp)$/i.test(name)
+            )
+
+            mediaFiles.sort((a, b) => {
+              const numA = parseInt(a.replace(/[^0-9]/g, ""), 10) || 0
+              const numB = parseInt(b.replace(/[^0-9]/g, ""), 10) || 0
+              return numA !== numB ? numA - numB : a.localeCompare(b)
+            })
+
+            const cappedMediaFiles = mediaFiles.slice(0, 8)
+            console.log(`Found ${mediaFiles.length} media files in PPTX. Processing top ${cappedMediaFiles.length}...`)
+
+            for (const mediaPath of cappedMediaFiles) {
+              try {
+                const imgBytes = await zip.files[mediaPath].async("uint8array")
+                if (imgBytes && imgBytes.byteLength > 0) {
+                  base64Images.push(bytesToBase64(imgBytes))
+                }
+              } catch (mediaErr) {
+                console.error(`Failed to extract media image ${mediaPath}:`, mediaErr)
+              }
+            }
+
+            if (base64Images.length > 0) {
+              visualAnalysisUsed = true
+              console.log(`Successfully prepared ${base64Images.length} PPTX media images for vision-based analysis.`)
+            }
+          } catch (pptxVisionErr) {
+            console.error("PPTX media image extraction failed:", pptxVisionErr)
+          }
+        } else if (mimeType === "application/pdf") {
+          const pdfcoApiKey = Deno.env.get('PDFCO_API_KEY')
+          if (pdfcoApiKey) {
+            try {
+              console.log("PDF.co Visual analysis enabled. Uploading PDF to convert first 8 pages to images...")
+              // Denetim Raporu, 2026-08-31 — LIVE TEST FINDING: this used to
+              // POST the file directly as multipart form-data, which PDF.co's
+              // convert endpoint rejects with a 400 (it only accepts a `url`
+              // to an already-hosted file). See uploadFileToPdfCo() above —
+              // confirmed against PDF.co's own docs and against a real 400
+              // in this project's production logs.
+              const fileUrl = await uploadFileToPdfCo(fileBytes, pdfcoApiKey, 'document.pdf')
+
+              const pdfcoRes = fileUrl
+                ? await fetch('https://api.pdf.co/v1/pdf/convert/to/png', {
+                    method: 'POST',
+                    headers: { 'x-api-key': pdfcoApiKey, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: fileUrl, pages: '0-7' })
+                  })
+                : null
+
+              if (!fileUrl) {
+                console.warn('PDF.co file upload failed. Falling back to text-only analysis.')
+              } else if (pdfcoRes && pdfcoRes.ok) {
+                const pdfcoData = await pdfcoRes.json()
+                if (!pdfcoData.error && (pdfcoData.urls || pdfcoData.url)) {
+                  let imageUrls: string[] = []
+                  const rawUrls = pdfcoData.urls || pdfcoData.url
+                  if (Array.isArray(rawUrls)) {
+                    imageUrls = rawUrls
+                  } else if (typeof rawUrls === 'string') {
+                    imageUrls = [rawUrls]
+                  }
+
+                  console.log(`PDF.co converted ${imageUrls.length} pages. Downloading page images...`)
+                  for (const imgUrl of imageUrls) {
+                    try {
+                      const imgRes = await fetch(imgUrl)
+                      if (imgRes.ok) {
+                        const buffer = await imgRes.arrayBuffer()
+                        base64Images.push(bytesToBase64(new Uint8Array(buffer)))
+                      }
+                    } catch (imgDownloadErr) {
+                      console.error(`Failed to download page image from ${imgUrl}:`, imgDownloadErr)
+                    }
+                  }
+
+                  if (base64Images.length > 0) {
+                    visualAnalysisUsed = true
+                    console.log(`Successfully prepared ${base64Images.length} images for vision-based analysis.`)
+                  }
+                } else {
+                  console.warn("PDF.co API returned error:", pdfcoData)
+                }
+              } else {
+                console.warn(`PDF.co response status failed: ${pdfcoRes?.status ?? 'unknown'}`)
+              }
+            } catch (pdfcoErr) {
+              console.error("PDF.co page conversion failed, falling back to text-only:", pdfcoErr)
+            }
+          } else {
+            console.warn("PDFCO_API_KEY is missing. Falling back to text-only analysis.")
+          }
+        }
+      }
+
+      // Update stage to analyzing
+      await serviceClient
+        .from('documents')
+        .update({ processing_stage: 'analyzing' })
+        .eq('id', documentId)
+
+      // Pass 1: Call Groq to generate Draft
+      let groqResponse;
+      let pass1Completed = false;
+
+      if (visualAnalysisUsed && base64Images.length > 0) {
+        try {
+          const visualSystemPrompt = systemPrompt + `\n\nVISUAL ANALYSIS INSTRUCTION:
+In addition to the text below, you are shown images of this document's pages. Use these images to also identify and incorporate any information from charts, diagrams, tables, or visual elements that the text alone doesn't fully capture. Reference specific visual content in your summary/key_points where relevant.`
+
+          const pass1Messages = [
+            {
+              role: "system",
+              content: visualSystemPrompt
+            },
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: `Here is the extracted text from the document:\n\n${textToSend}`
+                },
+                ...base64Images.map(b64 => ({
+                  type: "image_url",
+                  image_url: {
+                    url: `data:image/png;base64,${b64}`
+                  }
+                }))
+              ]
+            }
+          ]
+
+          console.log("Attempting vision-based analysis using qwen/qwen3.8-27b...")
+          groqResponse = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${groqApiKey}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              // Groq retired llama-3.2-90b-vision-preview; qwen/qwen3.8-27b is
+              // the current vision-capable model (same image_url format).
+              model: "qwen/qwen3.8-27b",
+              temperature: 0.3,
+              // Qwen3.8 is a hybrid reasoning model that thinks by default —
+              // turn that off so "content" is just the direct JSON answer.
+              reasoning_effort: "none",
+              // See callGroqJson above — an explicit cap keeps this request's
+              // estimated token usage safely under the account's per-model
+              // tokens-per-minute limit.
+              max_completion_tokens: 4096,
+              response_format: { type: "json_object" },
+              messages: pass1Messages
+            })
+          }, 0, 25000) // no retries, 25s cap — leave real time budget for the text-only fallback below and the review pass afterward
+
+          if (groqResponse.ok) {
+            pass1Completed = true
+            console.log("Vision-based Pass 1 completed successfully.")
+          } else {
+            let visionErrBody = ""
+            try { visionErrBody = await groqResponse.clone().text() } catch (_readErr) { /* ignore */ }
+            console.warn(`Vision model call returned non-ok status: ${groqResponse.status}. Falling back to text-only. Body: ${visionErrBody}`)
+            visualAnalysisUsed = false
+          }
+        } catch (visionErr) {
+          console.warn("Vision-based analysis call failed. Falling back to text-only:", visionErr)
+          visualAnalysisUsed = false
+        }
+      }
+
+      if (!pass1Completed) {
+        console.log("Running standard text-only analysis using openai/gpt-oss-120b...")
+
+        // This account's tokens-per-minute limit for openai/gpt-oss-120b has
+        // been observed as low as 8000 — the system prompt alone (~2,900
+        // tokens, since it carries all the formatting/LaTeX/quantitative
+        // instructions) leaves surprisingly little room for the document
+        // text plus the completion. Rather than hand-tune one "safe" size
+        // (impossible to get right for every document/tokenizer), try
+        // progressively smaller (text budget, completion budget) pairs and
+        // only give up if a non-token-size error occurs or every tier fails.
+        const draftTiers: Array<{ textChars: number; maxCompletionTokens: number }> = [
+          { textChars: 6000, maxCompletionTokens: 2500 },
+          { textChars: 3000, maxCompletionTokens: 1800 },
+          { textChars: 1200, maxCompletionTokens: 1200 }
+        ]
+
+        for (let i = 0; i < draftTiers.length; i++) {
+          const tier = draftTiers[i]
+          const draftUserContent = textToSend.length > tier.textChars
+            ? textToSend.substring(0, tier.textChars) + " [truncated to fit the AI provider's rate limits]"
+            : textToSend
+
+          try {
+            groqResponse = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${groqApiKey}`,
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                // llama-3.3-70b-versatile is being retired by Groq (shutdown
+                // 2026-08-16); openai/gpt-oss-120b is one of Groq's recommended
+                // replacements.
+                model: "openai/gpt-oss-120b",
+                temperature: 0.3,
+                reasoning_effort: "low",
+                include_reasoning: false,
+                max_completion_tokens: tier.maxCompletionTokens,
+                response_format: { type: "json_object" },
+                messages: [
+                  {
+                    role: "system",
+                    content: systemPrompt
+                  },
+                  {
+                    role: "user",
+                    content: draftUserContent
+                  }
+                ]
+              })
+            }, 1, 25000) // 1 retry max, 25s cap per attempt — leaves time for the review pass afterward
+          } catch (fetchErr) {
+            console.error("Pass 1 Groq API fetchWithRetry exception: ", fetchErr)
+            await markFailed(serviceClient, documentId)
+            return new Response(JSON.stringify({ error: 'Our AI service is experiencing high demand right now — please try again in a moment' }), {
+              status: 503,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            })
+          }
+
+          if (groqResponse.ok) break
+
+          let draftErrBody: any = null
+          try { draftErrBody = await groqResponse.clone().json() } catch (_readErr) { /* ignore */ }
+          // Groq has been observed returning this error as a 400, a 429, OR
+          // a 413 ("Request too large"), depending on the exact overage —
+          // treat all three the same way. Missing 413 here was a real bug:
+          // it fell through to the "non-retryable" branch below and gave up
+          // on tier 1 instead of shrinking to tier 2/3, failing documents
+          // that a smaller tier would have handled fine.
+          const isTokenSizeError = (groqResponse.status === 400 || groqResponse.status === 429 || groqResponse.status === 413) &&
+            draftErrBody?.error?.code === 'rate_limit_exceeded' &&
+            draftErrBody?.error?.type === 'tokens'
+
+          console.error(`Groq API Draft call failed (text budget ${tier.textChars} chars, completion budget ${tier.maxCompletionTokens}, status ${groqResponse.status}): `, JSON.stringify(draftErrBody))
+
+          if (!isTokenSizeError || i === draftTiers.length - 1) {
+            await markFailed(serviceClient, documentId)
+            return new Response(JSON.stringify({ error: 'Our AI service is experiencing high demand right now — please try again in a moment' }), {
+              status: 502,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            })
+          }
+          // else: too-large-for-TPM error — loop again with a smaller tier
+        }
+      }
+
+      const groqData = await groqResponse.json()
+
+      if (!groqResponse.ok) {
+        console.error("Groq API Draft call failed: ", JSON.stringify(groqData))
+        await markFailed(serviceClient, documentId)
+        return new Response(JSON.stringify({ error: 'Our AI service is experiencing high demand right now — please try again in a moment' }), {
+          status: 502,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+
+      rawContent = groqData.choices?.[0]?.message?.content ?? ""
+      if (!rawContent) {
+        console.error('Empty response content from Groq Draft: ', JSON.stringify(groqData))
+        await markFailed(serviceClient, documentId)
+        return new Response(JSON.stringify({ error: 'AI failed to generate a response' }), {
+          status: 502,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+      // Strip any stray <think> block before this draft text gets embedded
+      // into the review-pass prompt below (see stripThinkBlock definition).
+      const draftStripped = stripThinkBlock(rawContent)
+      if (draftStripped === null) {
+        console.error('Groq Draft response was an unterminated <think> block (ran out of tokens while reasoning):', rawContent)
+        await markFailed(serviceClient, documentId)
+        return new Response(JSON.stringify({ error: 'The AI ran out of thinking time before writing a draft — please try again' }), {
+          status: 502,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+      rawContent = draftStripped
+
+      sourceTextForReview = textToSend
+      if (sourceTextForReview.length > 6000) {
+        sourceTextForReview = sourceTextForReview.substring(0, 6000) + " [truncated for review]"
+      }
+    } else {
+      // ========================================================================
+      // LONG-DOC PATH — compact prompts (fixes Groq 413 payload-too-large)
+      // Huge systemPrompt + 22k text was causing ALL windows to 413.
+      // ========================================================================
+      await serviceClient
+        .from('documents')
+        .update({ processing_stage: 'analyzing' })
+        .eq('id', documentId)
+
+      // Per-window extraction quotas.
+      //
+      // These used to be the fixed "5-15 key_terms / 5-12 key_points / 3-6
+      // quiz_questions" below, written when a window was always one SLICE of
+      // a document: several windows each hit the cap, and the merge + dedupe
+      // downstream turned 2x15 candidates into ~24 distinct terms. Once
+      // WINDOW grew to 13000 and a single-chapter upload started landing in
+      // ONE window, that per-slice cap silently became the cap for the whole
+      // document — measured on a 30-page deck whose own glossary lists 25
+      // terms: two windows produced 24/25, one window produced exactly 15.
+      // The window got better (it finally kept "peak"/"trough", which every
+      // two-window run had dropped) while coverage got worse.
+      //
+      // So the quota has to follow what the window actually covers. At
+      // total === 1 the window IS the document and asks for full coverage;
+      // from 2 windows up the original per-slice numbers apply unchanged,
+      // because there the merge step is what reaches full coverage.
+      //
+      // This costs no extra token budget: the single-window run above spent
+      // ~1,400 of its 3,072 completion tokens, so the model was obeying this
+      // prompt's cap, not running out of room. maxCompletionTokens stays at
+      // 3072 and the pacer arithmetic in the WINDOW comment is unaffected.
+      const wholeDocInOneWindow = (total: number) => total === 1
+      // "this part" is a lie when the window is the whole document, and the
+      // model reads it as licence to skip material it thinks belongs to some
+      // other part that does not exist. Every mention of scope in the prompt
+      // goes through this.
+      const scopeWord = (total: number) => wholeDocInOneWindow(total) ? 'the document' : 'this part'
+      const termQuota = (total: number) => wholeDocInOneWindow(total) ? '15-28' : '5-15'
+      const pointQuota = (total: number) => wholeDocInOneWindow(total) ? '10-18' : '5-12'
+      const quizQuota = (total: number) => wholeDocInOneWindow(total) ? '5-10' : '3-6'
+
+      // Compact extraction prompt — keeps request under Groq limits
+      // BIR KEZ hesaplanir. compactWindowPrompt pencere basina birkac kez
+      // cagriliyor (token tahmini, cagri, yeniden deneme tahmini), ve
+      // tespit butun metin uzerinde regex kosturuyor — her cagrida yeniden
+      // yapmak bos is.
+      const deste = detectSlideDeck(extractedText, pageMarkerLabel)
+      const desteTalimati = buildSlideDeckInstruction(
+        deste.isDeck,
+        pageMarkerLabel === "SLAYT" ? "slide" : "page"
+      )
+      console.log(
+        `summarize-document: belge tipi ${deste.isDeck ? 'SLAYT DESTESI' : 'duz metin'} ` +
+        `(${deste.reason}; ${deste.pages} isaret, isaret basina ${deste.charsPerPage} krk)`
+      )
+
+      const compactWindowPrompt = (wi: number, total: number) =>
+        `You extract study material from ${total === 1 ? 'a complete academic document' : `part ${wi + 1}/${total} of a long academic document`}.
+Language for all text fields: ${langLabel}.${desteTalimati}
+Respond ONLY with JSON:
+{
+  "summary": "5-10 sentences of CONCRETE content from ${total === 1 ? 'the document' : 'this part only'} — name real topics, methods, definitions",
+  "summary_executive": "1-2 sentences naming the subject of ${total === 1 ? 'the document' : 'this part'}",
+  "key_terms": [{"term":"...","definition":"..."}],
+  "key_points": ["..."],
+  "quiz_questions": [{"question":"...","answer":"..."}],
+  "is_quantitative": false,
+  "formulas": [{"name":"...","latex":"...","variables":[{"symbol":"...","meaning":"..."}]}],
+  "outline_items": [{"heading":"...","blurb":"..."}],
+  "sections": [{"heading":"...","summary":"...","key_points":["..."]}],
+  "tables": [{"title":"...","headers":["..."],"rows":[["..."]]}],
+  "charts": [{"title":"...","type":"bar|pie|line","labels":["..."],"data":[0]}],
+  "diagrams": [{"title":"...","mermaid":"...","description":"..."}],
+  "worked_examples": [{"title":"...","problem_statement":"...","steps":["..."],"final_answer":"..."}]
+}
+Rules:
+- Extract ${termQuota(total)} key_terms and ${pointQuota(total)} key_points when content allows
+- ${quizQuota(total)} quiz_questions when content allows${total === 1 ? `
+- This is the WHOLE document, not an excerpt: cover every section, and if it ends with a glossary or "review terms" list, every entry on that list must appear in key_terms
+- Keep definitions to one sentence so the full set fits
+- A figure or table CAPTION is content, not decoration: it is often the only place a date, range, period or quantity is written out in words, and those are exactly what gets examined — carry them into key_points and quiz_questions verbatim
+- Worked cases, named examples and boxed features ("in practice", "case study", applications) are testable material too; do not skip them as filler` : ''}
+- NEVER write meta text like "no draft provided" or "qualitative overview"
+- Use real topic names from the text (e.g. supervised learning, neural networks)
+- Ignore grading/attendance/admin text
+- 'tables': only real tabular data actually present in ${scopeWord(total)} — empty array if none, never fabricate
+- 'charts': only chart-worthy numeric data actually present in ${scopeWord(total)} (pick bar for category comparisons, pie for proportions of a whole, line for progression over time) — empty array if none
+- 'diagrams': when short disconnected phrases, stage names, or paired opposing terms in ${scopeWord(total)} clearly reconstruct a flowchart/comparison/hierarchy/cycle, rebuild it as valid Mermaid source (flowchart TD/LR, graph TD, sequenceDiagram, or mindmap); at most ${total === 1 ? '2-3' : '1-2'}; empty array if nothing reconstructible — never invent
+- 'worked_examples': 1-2 solved problems when formulas/calculations are present in ${scopeWord(total)} (prefer the source's own worked numbers); empty array otherwise`
+
+      // Window size is bounded by this account's tokens-per-minute cap, not by
+      // the HTTP payload limit — the 413 comment this constant used to carry
+      // was measuring the wrong thing. The real budget for ONE window call is:
+      //
+      //     compactWindowPrompt   ~527 tokens  (measured, not estimated)
+      //   + document text          WINDOW / 4
+      //   + maxCompletionTokens   3072 tokens  (worst case)
+      //   <= tokenPacer ceiling   7200 tokens  (8000 TPM * PACER_SAFETY 0.9)
+      //
+      // which solves to WINDOW <= ~14,400 chars. 7000 left ~3,600 tokens of
+      // that budget permanently unused, and the cost of under-filling is not
+      // merely "more calls": on 8,000 TPM, EVERY extra window costs a full
+      // ~60s TokenPacer wait before it can start. A live 30-page, 12,451-char
+      // deck measured 130s end to end, 114s of which (87%) was the pacer
+      // waiting between two windows that would have fit in one. That wait is
+      // also what kept budgetLeft() at 0 and made the review pass structurally
+      // unreachable (PIPELINE_BUDGET_MS is 110s; the waits alone exceeded it).
+      //
+      // 13000 keeps the worst case at 3250 + 527 + 3072 = 6,849 tokens, under
+      // the 7,200 ceiling, while letting a typical single-chapter upload land
+      // in one window. If a document's text tokenizes worse than 4 chars/token
+      // (Turkish does) and a window still overshoots, this is self-correcting:
+      // extractWindow's catch shrinks an oversized payload to 55% and retries,
+      // which lands back at ~7,150 chars — i.e. the old behaviour — at a cost
+      // of one failed call rather than a failed summary.
+      // DESTE MODU PENCEREYI DARALTIR — gerekce PAY, tavan degil.
+      //
+      // Ilk gerekcem yanlisti ve kendi testim yakaladi. Talimat 425 token
+      // iken dusme ZORUNLUYDU (13000/4 + 527 + 425 + 3072 = 7274 > 7200).
+      // Blok 270 tokene sikistirilinca o hesap gecerliligini yitirdi:
+      // dusmeden de 7119, yani tavanin altinda. "Teknik olarak siger" ile
+      // "guvenli" ayni sey degil:
+      //
+      //   duz metin, dusulmemis : 6849  → 351 token pay
+      //   deste,     dusulmemis : 7119  →  81 token pay
+      //   deste,     dusulmus   : 6807  → 393 token pay
+      //
+      // 81 token, bu promptun kendi yorumunun uyardigi seye karsi cok ince:
+      // Turkce 4 krk/token'dan KOTU tokenlesiyor, yani WINDOW/4 tahmini
+      // eksik kaliyor. Dusme, desteye duz metin yolunun dayandigi payin
+      // AYNISINI veriyor — korunan sey tavan degil, tasarimin guvendigi pay.
+      //
+      // Bedeli durustce: sinirin hemen altindaki bir deste bir pencere
+      // fazla bolunebilir, o da bir pacer beklemesi demek. Tipik bir deste
+      // (30 slayt ~12.500 krk) yine tek pencereye siger.
+      const WINDOW = deste.isDeck ? 13000 - DECK_PROMPT_CHARS : 13000
+      // Denetim Raporu, 2026-08-31: this cap used to be a hardcoded 8 —
+      // 8 * 7000 = 56,000 characters, silently dropping anything past that
+      // point with NO signal to the student that content was cut. MAX_CHUNKS
+      // already existed in this file (defined above, "hard ceiling: prefer
+      // finishing over analyzing every page under Edge timeout") for exactly
+      // this purpose but was only ever wired into the unused map-reduce
+      // system, never into this actual live loop. Using it here raises the
+      // ceiling to MAX_CHUNKS * WINDOW = 12 * 13000 = 156,000 characters
+      // (84,000 back when WINDOW was 7000). The real protection
+      // against exceeding the Edge wall-clock is the per-batch
+      // `budgetLeft() < 20_000` check a few lines below, which already stops
+      // adding more windows once time is genuinely short — that check is
+      // what should decide "when to stop", not a fixed window count guessed
+      // in advance.
+      const windows: string[] = splitIntoWindows(extractedText, WINDOW, MAX_CHUNKS)
+      const windowedChars = windows.reduce((n, w) => n + w.length, 0)
+      console.log(
+        `Long-doc compact: ${windows.length} window(s), totalChars=${extractedText.length}, ` +
+        `windowedChars=${windowedChars} (${Math.round(100 * windowedChars / Math.max(1, extractedText.length))}% of document reachable)`
+      )
+
+      // Which lane each window actually used, for the success log. Kept
+      // beside the results rather than ON them: a stray field on the result
+      // object would ride into the merge and out into the saved card.
+      const windowLanes = new Map<number, string>()
+
+      async function extractWindow(wi: number, text: string, assignedLane?: string): Promise<any | null> {
+        let payload = text
+        for (let attempt = 0; attempt < 3; attempt++) {
+          // First attempt uses the lane the batch assigned (distinct across
+          // siblings — see pickLane). A retry re-picks, because by then the
+          // other calls have landed and the ledgers have moved.
+          //
+          // A RETRY PREFERS THE BIG MODEL, and will wait for it.
+          //
+          // pickLane chooses by availability, which is right when the goal is
+          // throughput and wrong here: the lane the first attempt just spent
+          // is the one it will avoid, so a failed window is systematically
+          // handed to the SMALLER model. Measured on the economy chapter
+          // (06.10.2026) — attempt 1 failed with json_validate_failed, the
+          // retry went to gpt-oss-20b, and the window came back
+          // "terms=24 points=10 quiz=0". The same document and the same
+          // prompt on gpt-oss-120b the day before gave quiz=10. The card
+          // shipped with 3 questions instead of 13.
+          //
+          // A retry exists to rescue the window's quality, so giving it to
+          // the weaker model defeats the point. It takes MODEL_HEAVY whenever
+          // that lane's wait fits the remaining budget, and only falls back
+          // to whatever is free when it does not — the rescue still happens,
+          // it just prefers the model that can actually fill the schema.
+          let windowLane: string
+          if (attempt === 0 && assignedLane) {
+            windowLane = assignedLane
+          } else {
+            const est = estimateTokens(compactWindowPrompt(wi, windows.length), payload, 3072)
+            const heavyWaitMs = tokenPacer.waitEstimate(est, MODEL_HEAVY, 3072)
+            const affordHeavy = budgetLeft() > heavyWaitMs + WINDOW_CALL_MS + NARRATIVE_WRITER_RESERVE_MS
+            windowLane = affordHeavy
+              ? MODEL_HEAVY
+              : pickLane([MODEL_HEAVY, MODEL_EXTRACT], est, 3072)
+            if (attempt > 0) {
+              console.log(
+                `Window ${wi + 1}: tekrar denemesi ${windowLane} seridinde ` +
+                `(${MODEL_HEAVY} beklemesi ${heavyWaitMs}ms, ${affordHeavy ? 'butceye sigdi' : 'sigmadi'})`
+              )
+            }
+          }
+          windowLanes.set(wi, windowLane)
+          try {
+            const result = await callGroqJson(
+              groqApiKey,
+              compactWindowPrompt(wi, windows.length),
+              payload,
+              {
+                model: windowLane,
+                temperature: 0.2,
+                // Denetim Raporu, 2026-08-31: raised from 2048 → 3072 to make
+                // room for the tables/charts/diagrams/worked_examples fields
+                // added to compactWindowPrompt above — those were previously
+                // absent from this schema entirely (the pre-existing
+                // regression this fixes), and a Mermaid diagram or a table
+                // with several rows can genuinely need the extra tokens to
+                // avoid getting silently truncated mid-JSON.
+                maxCompletionTokens: 3072,
+                timeoutMs: Math.min(40000, Math.max(15000, budgetLeft() - 10000)),
+                maxRetries: 0
+              }
+            )
+            return result
+          } catch (err: any) {
+            const msg = String(err?.message || err)
+            console.error(`Window ${wi + 1} attempt ${attempt + 1} failed:`, msg.slice(0, 200))
+            // 413 / context length → shrink payload and retry
+            if (/413|too large|context_length|maximum context|payload/i.test(msg)) {
+              payload = payload.slice(0, Math.floor(payload.length * 0.55))
+              console.warn(`Window ${wi + 1}: shrinking payload to ${payload.length} chars`)
+              continue
+            }
+            // Daily cap: retrying cannot help, and each retry poisons the
+            // per-minute ledger and buys a 60s pacer wait on top. Give up on
+            // the spot and let the caller report the real reason.
+            if (isDailyQuotaError(msg)) {
+              console.error(`Window ${wi + 1}: GUNLUK kota doldu — pencere dongusu durduruluyor`)
+              dailyQuotaExhausted = true
+              return null
+            }
+            // rate limit → brief wait then retry once
+            if (/429|rate limit|tpm/i.test(msg) && attempt < 2) {
+              await new Promise(r => setTimeout(r, 2500 * (attempt + 1)))
+              continue
+            }
+            // json_validate_failed → retry unchanged.
+            //
+            // Groq returns this as a 400, which used to fall through to the
+            // `return null` below and give up after ONE attempt. That is the
+            // wrong read of the error: it does not mean the request was too
+            // big or too fast, it means the model happened to emit malformed
+            // JSON this time. Nothing about the input is at fault, so neither
+            // shrinking the payload nor waiting helps — sending the identical
+            // request again does, because the failure is stochastic.
+            //
+            // The cost of getting this wrong is the whole card: with one
+            // window, a failed window means "All windows failed" and the
+            // last-resort path rebuilds the summary from the first 5,000
+            // characters. Measured live on an 11,050-char deck: 17 key terms
+            // instead of the 28 the same document produced on a clean run.
+            // Retried ONCE, not twice, and only with budget to spare. A
+            // retry costs a fresh window call, which on 8,000 TPM means a
+            // full ~60s pacer wait — but so does the last-resort mini
+            // extract this replaces, so one retry is free in wall-clock
+            // terms and buys the whole document instead of 5,000 characters.
+            // A second retry would NOT be free: it stacks another wait on
+            // top, and by then the narrative writer's own budget gate
+            // (35s) is at risk — trading a thin card for one with no
+            // written summary at all is not a trade worth making.
+            if (/json_validate_failed|failed to generate json/i.test(msg) && attempt < 1) {
+              // Ask what the retry would ACTUALLY cost on the lane it would
+              // actually use, instead of assuming a full TPM window.
+              const retryEst = estimateTokens(compactWindowPrompt(wi, windows.length), payload, 3072)
+              const retryWaitMs = Math.min(
+                tokenPacer.waitEstimate(retryEst, MODEL_HEAVY, 3072),
+                tokenPacer.waitEstimate(retryEst, MODEL_EXTRACT, 3072)
+              )
+              const retryNeedsMs = retryWaitMs + WINDOW_CALL_MS + NARRATIVE_WRITER_RESERVE_MS
+              if (budgetLeft() > retryNeedsMs) {
+                console.warn(
+                  `Window ${wi + 1}: json_validate_failed — tekrar deneniyor ` +
+                  `(butce ${budgetLeft()}ms, gereken ${retryNeedsMs}ms [pacer ${retryWaitMs}ms])`
+                )
+                continue
+              }
+              console.warn(
+                `Window ${wi + 1}: json_validate_failed — butce yetmiyor, bu dilim atlaniyor ` +
+                `(butce ${budgetLeft()}ms, gereken ${retryNeedsMs}ms)`
+              )
+            }
+            return null
+          }
+        }
+        return null
+      }
+
+      // SPEED FIX: process windows in concurrent batches (CHUNK_CONCURRENCY at
+      // a time) instead of one fully sequential Groq round-trip per window.
+      // Early-exit/budget checks now run between batches rather than between
+      // every single window — slightly less granular, but this is what turns
+      // an up-to-8x-sequential-calls stage into ~8/CHUNK_CONCURRENCY calls of
+      // wall-clock time, and lets more windows fit inside the same budget.
+      // ADAPTIVE CONCURRENCY. CHUNK_CONCURRENCY is now a ceiling, not the
+      // batch size: the real batch size is whatever the account's token
+      // budget can absorb at once. On the observed 8,000 TPM this resolves
+      // to 1, which is exactly right — two ~5,000-token window calls cannot
+      // both fit in 8,000, and firing them together is what made two runs of
+      // the same document produce 26 terms and 14 terms respectively. On a
+      // larger plan the same expression allows real parallelism again.
+      const estWindowTokens = estimateTokens(
+        compactWindowPrompt(0, windows.length),
+        windows[0] || '',
+        3072
+      )
+      // Windows alternate between two lanes (windowModel), so capacity is the
+      // SUM of what each lane can take, not one lane's share. Computing it
+      // from MODEL_HEAVY alone is what kept this pinned at 1: a ~6,150-token
+      // window against a 7,200 budget allows exactly one per lane per minute,
+      // and reading one lane made that the answer for the whole batch.
+      // With two lanes a batch of two runs side by side instead of the second
+      // sitting out a full window.
+      const perLane = [MODEL_HEAVY, MODEL_EXTRACT].map(m => ({
+        model: m,
+        fits: tokenPacer.safeConcurrency(estWindowTokens, m),
+        lane: tokenPacer.lane(m)
+      }))
+      const windowConcurrency = Math.min(
+        CHUNK_CONCURRENCY,
+        Math.max(1, perLane.reduce((n, l) => n + l.fits, 0))
+      )
+      console.log(
+        `Window concurrency: ${windowConcurrency} ` +
+        `(${perLane.map(l => `${l.model}: ${l.lane.limit} TPM${l.lane.limitKnown ? '' : '/varsayilan'} -> ${l.fits}`).join(', ')}, ` +
+        `~${estWindowTokens} token/pencere, tavan ${CHUNK_CONCURRENCY})`
+      )
+
+      const windowResults: any[] = []
+      for (let batchStart = 0; batchStart < windows.length; batchStart += windowConcurrency) {
+        if (budgetLeft() < 20_000 && windowResults.length > 0) {
+          console.warn(`Budget low — stopping before batch starting at window ${batchStart}`)
+          break
+        }
+        // Enough good extractions already?
+        if (windowResults.length >= 4) {
+          const termsSoFar = windowResults.reduce((n, r) => n + (r.key_terms?.length || 0), 0)
+          if (termsSoFar >= 12) {
+            console.log('Enough extractions — skipping remaining windows')
+            break
+          }
+        }
+
+        const batchEnd = Math.min(batchStart + windowConcurrency, windows.length)
+        await serviceClient.from('documents')
+          .update({ processing_stage: `chunking:${batchEnd}/${windows.length}` })
+          .eq('id', documentId)
+
+        const batchIndices: number[] = []
+        for (let wi = batchStart; wi < batchEnd; wi++) batchIndices.push(wi)
+
+        // Assign lanes up front so siblings in this batch cannot pick the same
+        // one. Done here rather than inside extractWindow because every call in
+        // the batch starts before any of them records a spend.
+        const claimedLanes = new Set<string>()
+        const batchLanes = batchIndices.map(wi => pickLane(
+          [MODEL_HEAVY, MODEL_EXTRACT],
+          estimateTokens(compactWindowPrompt(wi, windows.length), windows[wi], 3072),
+          3072,
+          claimedLanes
+        ))
+        const batchResults = await Promise.all(
+          batchIndices.map((wi, bi) => extractWindow(wi, windows[wi], batchLanes[bi]))
+        )
+        for (let bi = 0; bi < batchResults.length; bi++) {
+          const result = batchResults[bi]
+          const wi = batchIndices[bi]
+          if (result) {
+            // Normalize alternate field names
+            if (!result.summary && result.chunk_summary) result.summary = result.chunk_summary
+            windowResults.push(result)
+            // The lane is in the line on purpose: windows are spread across
+            // both models, so one run of one document compares 120b and 20b on
+            // neighbouring slices of the same text. If 20b extracts materially
+            // less, this log is where it shows, with no separate experiment.
+            const nTerms = (result.key_terms || []).length
+            const nPoints = (result.key_points || []).length
+            const nQuiz = (result.quiz_questions || []).length
+            console.log(`Window ${wi + 1} ok [${windowLanes.get(wi) || '?'}]: terms=${nTerms} points=${nPoints} quiz=${nQuiz}`)
+            // A window that returns plenty of one array and NOTHING of
+            // another did not fail — it was accepted, merged and shipped.
+            // On 06.10.2026 a window came back terms=24 points=10 quiz=0 and
+            // the card went out with 3 questions where 13 was normal, with
+            // nothing anywhere saying a whole field had gone missing. "ok"
+            // was the only word in the log. An empty array next to a full one
+            // is not a document without quiz questions; it is a model that
+            // dropped a field.
+            const emptyFields = [
+              nTerms === 0 ? 'key_terms' : '',
+              nPoints === 0 ? 'key_points' : '',
+              nQuiz === 0 ? 'quiz_questions' : ''
+            ].filter(Boolean)
+            if (emptyFields.length > 0 && nTerms + nPoints + nQuiz > 0) {
+              console.warn(
+                `Window ${wi + 1}: ${emptyFields.join(', ')} BOS dondu ` +
+                `[${windowLanes.get(wi) || '?'}] — model alani atlamis olabilir`
+              )
+            }
+          }
+        }
+      }
+
+      // Last-resort: single tiny window if everything failed.
+      // Skipped when the DAILY quota is gone: a smaller window is still a
+      // call, and the cap rejects it exactly as it rejected the big one.
+      // Trying anyway is how the 05.10.2026 run spent another ~20s and a
+      // third 429 to arrive at the same place.
+      if (windowResults.length === 0 && !dailyQuotaExhausted) {
+        console.warn('All windows failed — last-resort mini extract on first 5000 chars')
+        const mini = await extractWindow(0, extractedText.slice(0, 5000))
+        if (mini) windowResults.push(mini)
+      }
+
+      if (windowResults.length === 0) {
+        if (dailyQuotaExhausted) {
+          console.error('Gunluk Groq kotasi (TPD) doldu — ozet uretilemedi')
+          await markFailed(serviceClient, documentId)
+          return new Response(JSON.stringify({
+            error: 'Günlük AI kotası doldu. Kota saat başı yenilenir — bir süre sonra tekrar deneyin. / Daily AI quota exhausted; it refills gradually, please retry later.'
+          }), {
+            status: 429,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          })
+        }
+        console.error('All long-doc windows failed even after shrink retries')
+        await markFailed(serviceClient, documentId)
+        return new Response(JSON.stringify({
+          error: 'AI istek boyutu/kota hatası. 1 dk bekleyip tekrar deneyin. / AI payload or rate error — wait 1 min and retry.'
+        }), {
+          status: 503,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+
+      // FAIR MERGE ACROSS WINDOWS.
+      // These merges used to flatMap in window order and then slice to a cap.
+      // Because each window returns 5-15 key terms, the 40-item cap was
+      // typically filled by windows 1-3 and every later window's extractions
+      // were silently discarded at the slice — the back of the document lost
+      // its terms even when its windows HAD been analyzed successfully.
+      // roundRobinInterleave (already in this file, previously unwired) takes
+      // one item per window per pass instead, so a cap now trims the tail of
+      // every window evenly rather than deleting the last windows entirely.
+      const perWindow = (key: string) =>
+        windowResults.map((r: any) => Array.isArray(r[key]) ? r[key] : [])
+
+      const mergedKeyTerms = dedupeKeyTerms(roundRobinInterleave(perWindow('key_terms'))).slice(0, 40)
+      const mergedKeyPoints = dedupeByText(roundRobinInterleave(perWindow('key_points')), (x: string) => x).slice(0, 35)
+      const mergedQuiz = dedupeByText(roundRobinInterleave(perWindow('quiz_questions')), (q: any) => q?.question || '').slice(0, 20)
+      const mergedFormulas = roundRobinInterleave(perWindow('formulas')).slice(0, 30)
+      const quantFraction = windowResults.filter(r => r.is_quantitative).length / Math.max(1, windowResults.length)
+      // Denetim Raporu, 2026-08-31 — ROOT-CAUSE FIX: this long-doc path used to
+      // hardcode tables/charts/diagrams/worked_examples to empty arrays below
+      // (mergedDraft), even though compactWindowPrompt now asks each window
+      // for them. Merge them here exactly like the other per-window fields,
+      // with a light title-based dedupe (windows don't overlap, but the same
+      // table/diagram sometimes reappears if a slide repeats) and the same
+      // "cap at N" pattern already used for terms/points/quiz above.
+      const mergedTables = dedupeByText(
+        roundRobinInterleave(perWindow('tables')),
+        (t: any) => t?.title || ''
+      ).filter((t: any) => t && t.title && Array.isArray(t.rows) && t.rows.length > 0).slice(0, 12)
+      const mergedCharts = dedupeByText(
+        roundRobinInterleave(perWindow('charts')),
+        (c: any) => c?.title || ''
+      ).filter((c: any) => c && c.title && Array.isArray(c.data) && c.data.length > 0).slice(0, 10)
+      const mergedDiagrams = dedupeByText(
+        roundRobinInterleave(perWindow('diagrams')),
+        (d: any) => d?.title || ''
+      ).filter((d: any) => d && d.title && d.mermaid).slice(0, 8)
+      const mergedWorkedExamples = dedupeByText(
+        roundRobinInterleave(perWindow('worked_examples')),
+        (w: any) => w?.title || w?.problem_statement || ''
+      ).filter((w: any) => w && (w.title || w.problem_statement)).slice(0, 10)
+      // Denetim Raporu, 2026-08-31: attempted to restore "Kavram Grafiği"
+      // (concept_graph) the same way tables/charts/diagrams were restored
+      // above, but reverted at the user's request after a live test came
+      // back noticeably thinner (fewer terms/points/quiz) than the prior
+      // confirmed-good run — kökten çözmeden önce şüpheli değişikliği geri
+      // almak, belirsiz bir teoriyle üstüne inşa etmekten daha güvenli.
+      //
+      // 2026-10-03 — THE ROOT CAUSE IS NOW IDENTIFIED, and it confirms that
+      // revert was right. Each window call runs under a fixed
+      // maxCompletionTokens (3072) against an account whose observed Groq
+      // tokens-per-minute cap is as low as 8,000. Adding a schema field does
+      // not buy extra output budget; the model pays for the new field out of
+      // the same completion allowance, so concept_graph's nodes/edges were
+      // funded by returning fewer key terms/points/quiz. "Thinner output"
+      // was not noise — it is the arithmetic.
+      //
+      // So concept_graph deliberately STAYS empty on this path. The fix is
+      // not a prompt tweak; it needs either (a) resumable multi-invocation
+      // processing so a window's extraction is not competing for one
+      // completion budget, or (b) one dedicated graph pass over the already
+      // merged key terms, which costs a single extra call instead of taxing
+      // every window. Do not re-add it to compactWindowPrompt's schema
+      // without one of those in place first.
+      //
+      // Note the contrast with footnotes: those were ALSO absent from this
+      // path, and were restored WITHOUT touching the schema at all, by
+      // computing page anchors from the "--- SAYFA N ---" index after the
+      // fact (anchorCitations(), called once before the study card is
+      // saved). Zero extra tokens, and the page numbers are verifiable.
+      // concept_graph has no equivalent purely-textual derivation, which is
+      // exactly why it is the one field still waiting.
+
+      let bestSummary = windowResults.map(r => String(r.summary || '')).filter(s => s.length > 40).join('\n\n')
+      let bestExec = String(windowResults[0]?.summary_executive || '')
+      const outlineFromWindows = {
+        document_title_guess: '',
+        items: windowResults.flatMap((r, i) =>
+          Array.isArray(r.outline_items) ? r.outline_items.map((it: any, j: number) => ({
+            id: `o${i + 1}_${j + 1}`,
+            heading: it.heading || it.title || '',
+            blurb: it.blurb || it.summary || '',
+            level: 1,
+            order: i * 10 + j + 1,
+            parent_id: null
+          })) : []
+        ).filter((it: any) => it.heading)
+      }
+      let bestSections = windowResults.flatMap(r => Array.isArray(r.sections) ? r.sections : [])
+      let bestOutline: any = outlineFromWindows.items.length ? outlineFromWindows : null
+
+      // Compact synthesis (small prompt — only digests)
+      if (windowResults.length >= 2 && budgetLeft() > 25_000) {
+        try {
+          await serviceClient.from('documents').update({ processing_stage: 'synthesizing' }).eq('id', documentId)
+          const digests = windowResults.map((r, i) =>
+            `P${i + 1}: ${String(r.summary || '').slice(0, 600)}`
+          ).join('\n')
+          const termHint = mergedKeyTerms.slice(0, 20).map((t: any) => t.term).filter(Boolean).join(', ')
+          const synSys = `Merge part digests into one study brief in ${langLabel}. JSON only: {"summary":"...","summary_executive":"...","outline":{"document_title_guess":"","items":[{"id":"o1","heading":"...","blurb":"...","level":1,"order":1,"parent_id":null}]},"sections":[{"heading":"...","summary":"...","key_points":["..."]}]}.
+Use CONCRETE topic names from digests and terms. No meta filler.`
+          const synUser = `Terms: ${termHint}\n\nDigests:\n${digests}`.slice(0, 12000)
+          // Prefers MODEL_EXTRACT, the reverse of the narrative writer.
+          //
+          // These two calls run back to back and used to both want MODEL_HEAVY:
+          // synthesis took it, and the writer — the one call a student actually
+          // reads the output of — found it busy and waited 50 seconds behind it
+          // (05.10.2026). Two calls, two lanes; they should not queue.
+          //
+          // Synthesis is structuring work: fold digests into an outline and
+          // section headings. The writer is prose. So the smaller model takes
+          // the structuring and the better one stays free for the writing,
+          // which is where the difference is visible. Either falls back if its
+          // preferred lane is busy.
+          const synLane = pickLane(
+            [MODEL_EXTRACT, MODEL_HEAVY],
+            estimateTokens(synSys, synUser, 2048),
+            2048
+          )
+          const syn = await callGroqJson(
+            groqApiKey,
+            synSys,
+            synUser,
+            { model: synLane, temperature: 0.25, maxCompletionTokens: 2048, timeoutMs: 30000, maxRetries: 0 }
+          )
+          if (syn?.summary && String(syn.summary).length > 80) bestSummary = String(syn.summary)
+          if (syn?.summary_executive) bestExec = String(syn.summary_executive)
+          if (syn?.outline?.items?.length) bestOutline = syn.outline
+          if (Array.isArray(syn?.sections) && syn.sections.length) bestSections = syn.sections
+        } catch (synErr) {
+          console.warn('Compact synthesis skipped:', synErr)
+        }
+      }
+
+      // ------------------------------------------------------------------
+      // VISUAL ANALYSIS PATCH FOR ANY LONG DOCUMENT WITH IMAGE-ONLY PAGES
+      // (Denetim Raporu, 2026-08-31, generalized after live testing).
+      // This used to also require the WHOLE document to trip
+      // isVisuallyDenseDocument (a slide-deck-shaped avg-chars-per-page
+      // signal) before even checking nearBlankPdfPageIndices — that overfits
+      // to one document shape. A quantitative course PDF (finance, stats,
+      // accounting) can be mostly dense text with just one or two exhibit
+      // pages that are a screenshotted chart/table/formula sheet; a verbal
+      // course PDF can be the reverse. Either way, the actual signal that
+      // matters is simpler and more general: are there SPECIFIC pages this
+      // document's own extraction came back with essentially no text for?
+      // If so, those pages' content is trapped in an image regardless of
+      // what the rest of the document looks like, so we spend ONE extra
+      // vision-capable call on just those pages (not all pages — bounds
+      // cost/latency to a single call) and merge anything new it finds into
+      // the terms/points/quiz/sections gathered from the text-only windows.
+      // isVisuallyDenseDocument (logged above) stays as a diagnostic signal,
+      // it just no longer gates this block. Fully additive and best-effort:
+      // any failure here just leaves the text-only result untouched, same
+      // as the compact synthesis above.
+      // ------------------------------------------------------------------
+      const visualPlan = analyzeVisuals
+        ? selectVisualPages(pdfPageTexts, nearBlankPdfPageIndices, VISION_MAX_IMAGES)
+        : { indices: [] as number[], reason: 'kapali' }
+
+      // Budget the vision pass the way the review gate is budgeted: what the
+      // call would actually WAIT plus what it would actually COST, instead of
+      // a flat reserve.
+      //
+      // VISUAL_MIN_BUDGET_MS is 100s against a 110s pipeline, so vision could
+      // only ever run if it started inside the first ten seconds. On a
+      // single-window document it does. On a multi-window one it never can —
+      // and on 05.10.2026 that is exactly what happened: "Gorsel gecis
+      // atlandi: butce 41096ms <= 100000ms". 41 seconds was plenty for a call
+      // that needs about thirty.
+      //
+      // The reserve was there to leave the narrative writer room. The writer
+      // now falls back to a free lane instead of queueing for a busy one, so
+      // the room it needs is far smaller than 100s.
+      const visionEstTokens = visualPlan.indices.length * VISION_TOKENS_PER_IMAGE + 2000
+      const visionWaitMs = tokenPacer.waitEstimate(visionEstTokens, MODEL_FAST, VISION_MAX_COMPLETION)
+      const visionNeedsMs = visionWaitMs + VISION_CALL_MS + NARRATIVE_WRITER_RESERVE_MS
+      if (analyzeVisuals && visualPlan.indices.length > 0 && budgetLeft() <= visionNeedsMs) {
+        skippedStages.push('gorsel analiz')
+        console.log(
+          `Gorsel gecis atlandi: butce ${budgetLeft()}ms <= ${visionNeedsMs}ms ` +
+          `[pacer ${visionWaitMs}ms + cagri ${VISION_CALL_MS}ms + yazar payi ${NARRATIVE_WRITER_RESERVE_MS}ms] — ` +
+          `anlati yazarina yer birakiliyor`
+        )
+      }
+
+      if (analyzeVisuals && visualPlan.indices.length > 0 && budgetLeft() > visionNeedsMs) {
+        try {
+          console.log(`Gorsel sayfa secimi: [${visualPlan.indices.join(',')}] — ${visualPlan.reason}`)
+          await serviceClient.from('documents').update({ processing_stage: 'visual_analysis' }).eq('id', documentId)
+          const visualImages = await extractVisualImagesForLongDoc(fileBytes, visualPlan.indices)
+
+          if (visualImages.length > 0) {
+            const knownTermsHint = mergedKeyTerms.slice(0, 25).map((t: any) => t.term).filter(Boolean).join(', ')
+            const visualSystemPrompt = `You are an academic study assistant. You are shown page images of the figure/table pages of a lecture document. Their captions were already extracted as text; what you can see and the text cannot is the CONTENT of the graphic itself — the axis ranges, the plotted levels and turning points, the rows of a table, the boxes and arrows of a diagram. Identify exam-relevant content readable in these images that is NOT already covered by these already-known terms: ${knownTermsHint || '(none yet)'}.
+Respond ONLY with JSON in ${langLabel}: {"key_terms":[{"term":"...","definition":"..."}],"key_points":["..."],"quiz_questions":[{"question":"...","answer":"..."}],"sections":[{"heading":"...","summary":"..."}],"tables":[{"title":"...","headers":["..."],"rows":[["..."]]}],"diagrams":[{"title":"...","mermaid":"...","description":"..."}]}
+Rules: only include content actually visible in the images; return empty arrays for any field with nothing new; do not repeat terms already listed above. Reconstruct any table you can read as 'tables' and any flowchart/framework/process image as a Mermaid 'diagrams' entry. Never invent one that isn't visibly there.
+When a chart's shape carries the lesson — where it peaks, when it falls, which period is highest — write that in WORDS as a key_point. Do not attempt to output a series of numbers.
+Give a numeric value ONLY when that number is PRINTED on the image: an axis tick, a data label, a gridline you can read the plotted point against. If you are estimating a level by eye, say it in relative words instead ("the highest of the five", "roughly double the previous peak", "falls back to about where it started"). A shape described correctly is worth more than a decimal invented to look precise.
+The example that used to sit here named a real-looking percentage, and a live run copied that number straight out of this prompt into the summary as if it were read from the chart — attached to the wrong period, no less. So there is no numeric example here on purpose. Any figure in your answer must come from the image in front of you.`
+
+            const visualUserContent = [
+              { type: "text", text: "Analyze these slide images for exam-relevant content not already covered." },
+              ...visualImages.map(b64 => ({ type: "image_url", image_url: { url: `data:image/png;base64,${b64}` } }))
+            ]
+
+            // This call does NOT go through callGroqJson, so it has to pay the
+            // pacer itself. Skipping that was harmless only while the model
+            // id was wrong and every call 404'd: once it actually spends
+            // tokens, a pacer that never saw them tells the narrative writer
+            // afterwards that there is room, and the writer takes the 429.
+            const estVisionTokens =
+              visualImages.length * VISION_TOKENS_PER_IMAGE +
+              Math.ceil(visualSystemPrompt.length / 3.2) +
+              Math.ceil(3072 * PACER_COMPLETION_FACTOR)
+            console.log(`Gorsel cagri butcesi: ~${estVisionTokens} token (${visualImages.length} gorsel)`)
+            // MODEL_FAST, not a literal: this call and the review/critic passes
+            // are the same Groq model, so they must share one lane — Groq
+            // counts them against one TPM bucket and so must we.
+            // NOT clamped to the OTPM ceiling, unlike review and the critic.
+            // This call has run at 3072 on every live run without a single
+            // OTPM rejection, while review 429'd at 2500 — which says Groq is
+            // metering a rolling window of actual output rather than each
+            // request's max_tokens, and this call is simply the first on the
+            // qwen lane. Clamping it to ~850 would truncate exactly the
+            // diagrams and tables it exists to extract, so it keeps its room
+            // and instead RECORDS what it spends, which is what makes review
+            // queue behind it correctly a minute later.
+            await tokenPacer.acquire(estVisionTokens, MODEL_FAST, VISION_MAX_COMPLETION)
+
+            const visionRes = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
+              method: "POST",
+              headers: { "Authorization": `Bearer ${groqApiKey}`, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                // MODEL_FAST, never a literal. A hardcoded id here is exactly
+                // how this call ended up on Groq's retired 3.6 line and 404'd
+                // every time ("Long-doc visual patch call returned non-ok
+                // status: 404"), and it is also how the id could drift away
+                // from the pacer lane keyed above. One constant, one lane.
+                model: MODEL_FAST,
+                temperature: 0.3,
+                // Derived from MODEL_FAST, not written out: if that constant
+                // ever moves to a gpt-oss vision model, a literal "none" here
+                // would 400 exactly the way review did.
+                ...reasoningParamsFor(MODEL_FAST),
+                // Raised alongside the compact-window bump (2048 → 3072):
+                // these near-blank pages are exactly where a table/chart/
+                // diagram is most likely to live, and a Mermaid block or a
+                // multi-row table needs the extra room to avoid truncation.
+                max_completion_tokens: VISION_MAX_COMPLETION,
+                response_format: { type: "json_object" },
+                messages: [
+                  { role: "system", content: visualSystemPrompt },
+                  { role: "user", content: visualUserContent }
+                ]
+              })
+            }, 0, Math.min(25000, Math.max(10000, budgetLeft() - 15000)))
+
+            // Read the body FIRST so the output spend can be recorded from
+            // Groq's own usage figure. That number is what review collides
+            // with a minute later under the OTPM ceiling, so guessing it is
+            // not good enough: the estimate falls back to the ceiling only
+            // when the response does not report one.
+            tokenPacer.observeHeaders(visionRes.headers, MODEL_FAST)
+            const visionData = visionRes.ok ? await visionRes.json() : null
+            // Record the spend either way: a rejected call still consumed the
+            // image tokens as far as the minute's budget is concerned, and a
+            // successful one must not leave the next caller over-optimistic.
+            tokenPacer.record(
+              Number(visionData?.usage?.total_tokens) || estVisionTokens,
+              MODEL_FAST,
+              Number(visionData?.usage?.completion_tokens) || VISION_MAX_COMPLETION
+            )
+
+            if (visionData) {
+              const visionRaw = visionData.choices?.[0]?.message?.content ?? ""
+              const visionStripped = stripThinkBlock(visionRaw)
+              const visionCleaned = (visionStripped ?? visionRaw).replace(/```json\s*|```/g, '').trim()
+              const visionParsed = visionCleaned ? JSON.parse(visionCleaned) : null
+
+              if (visionParsed && typeof visionParsed === 'object') {
+                const newTerms = Array.isArray(visionParsed.key_terms) ? visionParsed.key_terms : []
+                const newPoints = Array.isArray(visionParsed.key_points) ? visionParsed.key_points : []
+                const newQuiz = Array.isArray(visionParsed.quiz_questions) ? visionParsed.quiz_questions : []
+                const newSections = Array.isArray(visionParsed.sections) ? visionParsed.sections : []
+                // Tables and diagrams merge into the same arrays the text
+                // windows feed. CHARTS DELIBERATELY DO NOT.
+                //
+                // Reading a plotted series off an image is the one thing in
+                // this pass the model cannot do reliably, and a chart is the
+                // one output where being approximately right is worse than
+                // being absent — it looks authoritative. Measured on the
+                // first run where the vision pass worked, against Figure
+                // 20.5: it sampled every five years and returned 1980 ≈ 6,
+                // missing the series maximum of ~10.6 in 1982 entirely. The
+                // same card carried the key point "the five recessionary
+                // reference periods show increases in the unemployment rate",
+                // so the chart contradicted the card's own text. The GDP
+                // chart flattened a log-scale axis into a linear one and
+                // erased the Great Depression trough with it.
+                //
+                // The prompt now asks for that reading in WORDS instead, which
+                // keeps the fact and cannot be misread as a measured series.
+                //
+                // It used to demonstrate that with a worked example naming a
+                // real percentage. That example leaked: on 04.10.2026 the
+                // summary came back claiming unemployment peaked at "10.6% in
+                // 2008-09" — the number lifted verbatim out of this prompt and
+                // pinned to the wrong decade (the real 2008-09 peak is ~10%,
+                // and 10.6 belongs to 1982, which is where the example got it).
+                // A concrete figure inside an instruction is indistinguishable
+                // from a figure read off the page, so the prompt now carries
+                // no numeric example at all and asks for a value only when one
+                // is actually printed on the image.
+                //
+                // Charts from the TEXT windows are unaffected; those come from
+                // figures a document actually tabulates.
+                const newTables = Array.isArray(visionParsed.tables) ? visionParsed.tables : []
+                const newDiagrams = Array.isArray(visionParsed.diagrams) ? visionParsed.diagrams : []
+                const droppedVisionCharts = Array.isArray(visionParsed.charts) ? visionParsed.charts.length : 0
+                if (droppedVisionCharts > 0) {
+                  console.log(`Gorsel gecis: ${droppedVisionCharts} grafik alinmadi (gorselden okunan seri guvenilir degil, kelimeyle isteniyor)`)
+                }
+
+                // Everything this pass contributes is grounded in the IMAGE,
+                // which applyGroundingGate cannot read — see visionGrounded
+                // there. Without this the gate calls the pass's own findings
+                // fabrications: it dropped "Oil shock", read correctly off
+                // Figure 20.2's annotations, on the first run that worked.
+                for (const t of newTerms) {
+                  const n = gateNormalize(String(t?.term || ''))
+                  if (n) visionGroundedClaims.add(n)
+                  const term = String(t?.term || '').trim()
+                  const def = String(t?.definition || '').trim()
+                  if (term) visionNotes.push(def ? `${term}: ${def}` : term)
+                }
+                for (const p of newPoints) {
+                  const n = gateNormalize(typeof p === 'string' ? p : String(p?.text || p?.point || ''))
+                  if (n) visionGroundedClaims.add(n)
+                  const text = (typeof p === 'string' ? p : String(p?.text || p?.point || '')).trim()
+                  if (text) visionNotes.push(text)
+                }
+
+                if (newTerms.length || newPoints.length || newQuiz.length) {
+                  const patchedTerms = dedupeKeyTerms([...mergedKeyTerms, ...newTerms]).slice(0, 40)
+                  const patchedPoints = dedupeByText([...mergedKeyPoints, ...newPoints], (x: string) => x).slice(0, 35)
+                  const patchedQuiz = dedupeByText([...mergedQuiz, ...newQuiz], (q: any) => q?.question || '').slice(0, 20)
+                  mergedKeyTerms.length = 0; mergedKeyTerms.push(...patchedTerms)
+                  mergedKeyPoints.length = 0; mergedKeyPoints.push(...patchedPoints)
+                  mergedQuiz.length = 0; mergedQuiz.push(...patchedQuiz)
+                }
+                if (newSections.length) bestSections = bestSections.concat(newSections)
+                if (newTables.length) {
+                  const patchedTables = dedupeByText([...mergedTables, ...newTables], (t: any) => t?.title || '')
+                    .filter((t: any) => t && t.title && Array.isArray(t.rows) && t.rows.length > 0).slice(0, 12)
+                  mergedTables.length = 0; mergedTables.push(...patchedTables)
+                }
+                if (newDiagrams.length) {
+                  const patchedDiagrams = dedupeByText([...mergedDiagrams, ...newDiagrams], (d: any) => d?.title || '')
+                    .filter((d: any) => d && d.title && d.mermaid).slice(0, 8)
+                  mergedDiagrams.length = 0; mergedDiagrams.push(...patchedDiagrams)
+                }
+
+                visualAnalysisUsed = true
+                console.log(`Long-doc visual patch: +${newTerms.length} terms, +${newPoints.length} points, +${newQuiz.length} quiz, +${newSections.length} sections, +${newTables.length} tables, +${newDiagrams.length} diagrams (grafik alinmaz) from ${visualImages.length} sekil sayfasi`)
+              }
+            } else {
+              console.warn(`Long-doc visual patch call returned non-ok status: ${visionRes.status}`)
+            }
+          }
+        } catch (visualPatchErr) {
+          console.warn('Long-doc visual analysis patch skipped:', visualPatchErr)
+        }
+      }
+
+      // Guarantee non-empty executive from terms if needed
+      if (!bestExec && mergedKeyTerms.length) {
+        bestExec = lang === 'tr'
+          ? `Belge başlıca şu konuları kapsar: ${mergedKeyTerms.slice(0, 6).map((t: any) => t.term).join(', ')}.`
+          : `This document covers: ${mergedKeyTerms.slice(0, 6).map((t: any) => t.term).join(', ')}.`
+      }
+      if (!bestSummary && mergedKeyPoints.length) {
+        bestSummary = mergedKeyPoints.slice(0, 10).map((p: string) => `• ${p}`).join('\n')
+      }
+
+      const mergedDraft = {
+        summary: bestSummary || '',
+        summary_executive: bestExec || '',
+        document_type: 'Lecture Notes/Slides',
+        suggested_course_tag: null,
+        is_quantitative: quantFraction >= 0.3,
+        key_terms: mergedKeyTerms,
+        key_points: mergedKeyPoints,
+        quiz_questions: mergedQuiz,
+        tables: mergedTables,
+        charts: mergedCharts,
+        formulas: mergedFormulas,
+        worked_examples: mergedWorkedExamples,
+        diagrams: mergedDiagrams,
+        concept_graph: { nodes: [], edges: [] },
+        footnotes: [],
+        outline: normalizeOutline(bestOutline, bestSections),
+        sections: normalizeSections(bestSections, normalizeOutline(bestOutline, bestSections)),
+        cloze_cards: [] as any[]
+      }
+
+      console.log(`Long-doc merge: terms=${mergedKeyTerms.length} points=${mergedKeyPoints.length} quiz=${mergedQuiz.length} tables=${mergedTables.length} charts=${mergedCharts.length} diagrams=${mergedDiagrams.length} worked_examples=${mergedWorkedExamples.length} summaryLen=${(mergedDraft.summary || '').length}`)
+
+      rawContent = JSON.stringify(mergedDraft)
+      // THE SOURCE, not a summary of it (05.10.2026).
+      //
+      // This used to be the windows' own summaries, each cut to 500 chars:
+      //
+      //   windowResults.map((r, i) => `Part ${i+1}: ${r.summary.slice(0,500)}`)
+      //
+      // So the pass whose job is to check the draft against the document was
+      // handed a summary of the draft instead. It could confirm the draft was
+      // consistent with itself and nothing more — a hallucination that made it
+      // into every window would read as perfectly grounded. Review said so
+      // itself once the verdict was logged: "The source text provided is
+      // truncated and does not contain t[he ...]".
+      //
+      // Every document over CHUNK_THRESHOLD (6,000 chars) takes this path, so
+      // this was the state for every real document.
+      //
+      // There is room for the real thing now: review no longer receives the
+      // whole draft JSON (see buildReviewUserPrompt), which was ~14,000 of the
+      // ~20,000 characters going into the call. The tiers below trim this if a
+      // document is genuinely too big.
+      sourceTextForReview = extractedText
+      if (sourceTextForReview.length > 14000) {
+        sourceTextForReview = sourceTextForReview.substring(0, 14000) + ' [truncated for review]'
+      }
+    }
+
+    // Pass 2: Madde 4 — Grounding + Critic quality gate
+    const citationUnit = pageMarkerLabel === 'SLAYT' ? 'slayt' : 's.'
+    const reviewSystemPrompt = `You are a strict academic quality critic AND copy-editor for a student study brief (NotebookLM-grade). Compare the draft against the source text.
+
+QUALITY RUBRIC (must evaluate):
+A) Thesis clarity — does summary open with the document's core purpose/claim?
+B) Hallucination — any claim not supported by source must be removed or softened
+C) Completeness — major topics from outline/sections present in the narrative?
+D) Admin noise — grading, attendance, office hours, textbook edition MUST be removed
+E) Grounding — specific facts (numbers, dates, named findings) should cite source location when markers exist
+F) Structure — preserve narrative prose if the draft summary is already flowing paragraphs (Madde 3 writer). Only keep bullet/outline form if the draft summary itself is clearly bullets/outline. Do NOT convert a polished narrative back into fragments.
+
+CITATIONS / GROUNDING — DO NOT ADD PAGE NUMBERS.
+Citations are attached deterministically after you, by code that indexes the
+WHOLE document. You are shown only a truncated slice of the source, so any
+(${citationUnit} N) you write would be anchored to the part you happen to see
+rather than to where the claim actually comes from. ${hasPageMarkers
+  ? `A live run proved this: every one of 11 markers you added came out as "(${citationUnit} 1)", for facts spread across 30 pages.`
+  : `Page markers are not even available here.`}
+So: do not write (${citationUnit} N) markers, and do not invent page numbers.
+Keep any marker the draft already had exactly as it is. Judge grounding by
+whether the source supports a claim, and report what it does not in "issues".
+
+FOOTNOTES: Preserve existing footnote page values when present; only change if the visible source clearly contradicts them.
+
+SECTIONS / OUTLINE: Preserve structure; refine inaccurate section summaries; remove admin-only sections.
+
+OUTPUT — READ CAREFULLY. Respond ONLY with a single JSON object. Do NOT
+re-emit the study card, and do NOT rewrite the summary. Return your
+CORRECTIONS and your verdict, as JSON:
+
+{ "corrections": [ { "find": string, "replace": string } ], "summary_executive": string, "footnotes": [ { "id": number, "reference": string, "page": number | null } ], "quality_gate": { "pass": boolean, "grounded": boolean, "issues": [ string ] } }
+
+- "corrections": the sentences in the draft summary that are WRONG, and what
+  they should say. At most 8. "find" must be copied EXACTLY from the draft
+  summary, character for character, and must be long enough to appear only
+  once — a whole sentence is right, three words is not. "replace" is that
+  sentence corrected. A correction whose "find" cannot be located is thrown
+  away, so copy carefully rather than paraphrasing.
+  Correct: a wrong year, a figure attributed to the wrong period, a claim the
+  source does not support, admin noise that survived. Return [] when the
+  narrative is sound — an empty list is a perfectly good answer, and inventing
+  changes to look thorough makes the card worse.
+  Do NOT rewrite sentences merely to restyle them.
+- "summary_executive": the corrected executive summary, in full. It is short,
+  so it fits.
+- "footnotes": optional. Omit the field entirely if you are not changing it.
+
+Why corrections and not a rewrite: your reply is capped at a few hundred
+tokens, and the summary alone is longer than that. Asked for the whole thing
+you would have to compress it, and a measured run did exactly that — 2,157
+characters came back as 635, losing three quarters of the card to make room.
+Your edits are applied to the original text, so the summary keeps its length
+and gets your fixes.
+- "quality_gate":
+  - pass=false only for serious problems (hallucinations, missing thesis,
+    heavy admin noise left in)
+  - grounded=true if important claims are citation-backed or source clearly
+    supports them
+  - issues: short list of remaining concerns, naming anything wrong in
+    key_terms / key_points / quiz_questions so it can be fixed separately
+    (empty array if clean)
+
+key_terms, key_points, quiz_questions, sections and outline are NOT yours to
+rewrite — leave them out of your answer completely. They are carried over
+from the draft unchanged. Report problems with them in "issues" instead.
+This keeps your answer short enough to finish; an answer that runs out of
+room is worse than no answer.
+Preserve summary_executive, outline, and deep sections unless clearly wrong.
+DO NOT include "tables", "charts", "diagrams", "worked_examples", "formulas", "concept_graph", or "cloze_cards" in your output at all — omit those keys entirely. They are extracted/validated separately outside this review step and are not part of your job; re-emitting them here only burns completion-token budget that "summary"/"sections"/"key_points" need.`
+
+    function buildReviewUserPrompt(sourceBudgetChars: number): string {
+      let trimmedSource = sourceTextForReview
+      if (sourceBudgetChars <= 0) {
+        trimmedSource = "[omitted to fit token limits — rely on the draft's internal consistency]"
+      } else if (trimmedSource.length > sourceBudgetChars) {
+        trimmedSource = trimmedSource.substring(0, sourceBudgetChars) + " [truncated for review]"
+      }
+      // Send ONLY the narrative under review, not the whole draft card.
+      //
+      // The full JSON was ~14,000 of the ~20,000 characters in this call —
+      // 32 key terms, 16 key points, 13 quiz questions, sections, outline —
+      // none of which review may rewrite any more. It was spending two thirds
+      // of its input budget on material it cannot touch, while the source it
+      // must check against was cut to 4,000 characters.
+      //
+      // Swapping them costs nothing and buys review the whole document.
+      let narrative = ''
+      try {
+        const d = JSON.parse(rawContent)
+        narrative = JSON.stringify({
+          summary: d?.summary ?? '',
+          summary_executive: d?.summary_executive ?? ''
+        }, null, 1)
+      } catch {
+        // Unparseable draft: fall back to the raw text rather than sending
+        // nothing, so review still has something to check.
+        narrative = rawContent.slice(0, 4000)
+      }
+      // Figure annotations live in the images, never in the extracted text.
+      // Without this block review would treat every correct chart reading as
+      // unsupported, and could not catch a wrong one either. See visionNotes.
+      const figureBlock = visionNotes.length
+        ? `\n\nRead from the document's FIGURES and TABLES (page images, not present in the text above — treat these as source, equally authoritative):\n${visionNotes.slice(0, 20).map(n => `- ${n}`).join('\n')}`
+        : ''
+
+      return `Original requested format parameters:
+- Summary Style: ${style}
+- Summary Length: ${len}
+- Summary Language: ${lang}
+
+Original source text:
+${trimmedSource}${figureBlock}
+
+The draft narrative you are reviewing (these two fields only — the rest of
+the study card is not yours to change, and is not shown):
+${narrative}`
+    }
+
+    // ==========================================================================
+    // MADDE 3 — NARRATIVE WRITER (professional prose summary)
+    // Madde 6: skipped for depth=brief; expanded for depth=deep
+    // ==========================================================================
+    try {
+      if (depthFlags.skipNarrativeWriter) {
+        console.log('Madde 6: skipping narrative writer (depth=brief)')
+      } else if (budgetLeft() < 35_000) {
+        console.log('Madde 3: anlati yazari atlandi (butce', budgetLeft(), 'ms)')
+        skippedStages.push('anlati yazari')
+      } else {
+      await serviceClient.from('documents').update({ processing_stage: 'writing' }).eq('id', documentId)
+
+      let draftObj: any = null
+      try {
+        const strippedDraft = stripThinkBlock(rawContent)
+        draftObj = JSON.parse((strippedDraft ?? rawContent).replace(/```json\s*|```/g, '').trim())
+      } catch (_e) {
+        draftObj = null
+      }
+
+      if (draftObj && typeof draftObj === 'object') {
+        const outlineItems = Array.isArray(draftObj.outline?.items) ? draftObj.outline.items : []
+        const sectionItems = Array.isArray(draftObj.sections) ? draftObj.sections : []
+        const outlineBlock = outlineItems
+          .map((it: any) => `- ${it.heading}${it.blurb ? ': ' + it.blurb : ''}`)
+          .join('\n')
+          .slice(0, 2500)
+        const sectionsBlock = sectionItems
+          .map((s: any) => `## ${s.heading}\n${(s.summary || '').slice(0, depthFlags.longNarrative ? 900 : 600)}`)
+          .join('\n\n')
+          .slice(0, depthFlags.longNarrative ? 10000 : 7000)
+
+        const lengthHint =
+          depthFlags.longNarrative || len === 'detailed' || len === 'long'
+            ? 'Write a thorough brief of 5-8 paragraphs (roughly 450-750 words).'
+            : len === 'short'
+            ? 'Write about 2-3 dense paragraphs (roughly 180-280 words).'
+            : 'Write a clear brief of 3-5 paragraphs (roughly 280-450 words).'
+
+        const keyTermsBlock = (Array.isArray(draftObj.key_terms) ? draftObj.key_terms : [])
+          .slice(0, 25)
+          .map((t: any) => `- ${t?.term || t}: ${t?.definition || ''}`)
+          .join('\n')
+          .slice(0, 2000)
+        const keyPointsBlock = (Array.isArray(draftObj.key_points) ? draftObj.key_points : [])
+          .slice(0, 20)
+          .map((p: any) => `- ${typeof p === 'string' ? p : ''}`)
+          .join('\n')
+          .slice(0, 2000)
+
+        const writerSys = `You are an expert academic writer for university study briefs (NotebookLM-grade).
+Respond with ONLY valid JSON: { "summary": string, "summary_executive": string }.
+
+GOAL:
+Write "summary" as a cohesive NARRATIVE in ${langLabel} that a student could study from — concrete topics, methods, definitions, and takeaways from THIS document only.
+${lengthHint}
+
+HARD RULES (violations = failure):
+1. Use CONCRETE content from the inputs: named topics, techniques, formulas, metrics, chapter themes. Quote or paraphrase real substance.
+2. NEVER write generic filler. Forbidden phrases/patterns include:
+   - "qualitative overview", "scholarly landscape", "theoretical terrain", "conceptual depth"
+   - "broader academic field", "interrelated ideas", "forward-looking synthesis"
+   - "Introduction / Main Discussion / Conclusion" as the only structure when inputs name specific topics
+   - Empty abstractions like "key concepts", "theoretical frameworks", "implications" without naming what they are
+3. If outline/sections name specific subjects (e.g. supervised learning, neural networks, precision/recall), those subjects MUST appear in the summary by name.
+4. Do NOT invent theories, numbers, or conclusions absent from inputs.
+5. No grading/attendance/office-hours/textbook logistics.
+6. "summary_executive" = 2-3 sentences naming the actual subject of the document (not vague "this document discusses theories").
+7. Plain paragraphs only (\\n\\n separators). No markdown headings inside summary.
+8. If inputs are thin or mostly empty, write a SHORT honest note about limited extractable content — do NOT pad with generic academic prose.`
+
+        const writerUser = `Existing executive (refine only if it names real topics; otherwise rewrite from inputs):
+${(draftObj.summary_executive || '').slice(0, 500)}
+
+Document outline (USE these real headings):
+${outlineBlock || '(none)'}
+
+Deep section summaries (primary factual source):
+${sectionsBlock || '(none)'}
+
+Key terms from the document:
+${keyTermsBlock || '(none)'}
+
+Key points from the document:
+${keyPointsBlock || '(none)'}
+
+Existing draft summary (keep factual content; rewrite only for flow):
+${String(draftObj.summary || '').slice(0, 3500)}`
+
+        // MODEL_HEAVY first — this is the one call where prose quality is the
+        // product. But a 57s queue for it, measured on 05.10.2026, is not a
+        // quality decision; it is the difference between a written summary and
+        // the skipped-writer path that leaves the card with none. When heavy
+        // is busy and extract is free, take extract.
+        const writerCompletion = depthFlags.longNarrative || len === 'long' || len === 'detailed' ? 3072 : 2048
+        const writerLane = pickLane(
+          [MODEL_HEAVY, MODEL_EXTRACT],
+          estimateTokens(writerSys, writerUser, writerCompletion),
+          writerCompletion
+        )
+        if (writerLane !== MODEL_HEAVY) {
+          console.log(`Madde 3: yazar ${writerLane} seridine alindi (${MODEL_HEAVY} mesgul)`)
+        }
+        const written = await callGroqJson(groqApiKey, writerSys, writerUser, {
+          model: writerLane,
+          temperature: 0.2,
+          maxCompletionTokens: writerCompletion,
+          timeoutMs: Math.min(35000, Math.max(12000, budgetLeft() - 5000)),
+          maxRetries: 1
+        })
+
+        // Reject generic filler narratives — keep pre-writer draft if detection fires
+        const candidateSummary = written?.summary ? String(written.summary).trim() : ''
+        const candidateExec = written?.summary_executive ? String(written.summary_executive).trim() : ''
+        const genericHits = [
+          /qualitative overview/i,
+          /scholarly landscape/i,
+          /theoretical terrain/i,
+          /broader (academic|scholarly) (field|landscape)/i,
+          /forward-?looking synthesis/i,
+          /conceptual (depth|clarity|map|threads)/i,
+          /non-?quantitative (understanding|comprehension)/i,
+          /interrelated ideas/i,
+          /essential terminology that will frame/i
+        ].filter((re) => re.test(candidateSummary) || re.test(candidateExec)).length
+        const hasConcreteFromInput = (() => {
+          const bag = `${outlineBlock}\n${keyTermsBlock}\n${keyPointsBlock}`.toLowerCase()
+          const tokens = bag.split(/[^a-zçğıöşü0-9]+/i).filter((t) => t.length >= 6).slice(0, 40)
+          if (tokens.length < 3) return true // cannot judge
+          const lower = candidateSummary.toLowerCase()
+          let hits = 0
+          for (const t of tokens) if (lower.includes(t)) hits++
+          return hits >= 2
+        })()
+        const acceptWriter = candidateSummary.length > 80 && genericHits === 0 && hasConcreteFromInput
+        if (acceptWriter) {
+          draftObj.summary = candidateSummary
+          if (candidateExec.length > 20) draftObj.summary_executive = candidateExec
+          console.log('Madde 3: narrative writer accepted')
+        } else {
+          console.warn(`Madde 3: narrative writer REJECTED (genericHits=${genericHits}, concrete=${hasConcreteFromInput}) — keeping draft`)
+        }
+        rawContent = JSON.stringify(draftObj)
+        console.log('Madde 3: narrative writer done, depth=' + depth)
+      }
+      } // end else !skipNarrativeWriter
+    } catch (writerErr) {
+      console.warn('Madde 3 narrative writer skipped (keeping draft summary):', writerErr)
+    }
+
+    // Madde 6: progressive signal — draft exists, review may follow
+    await serviceClient
+      .from('documents')
+      .update({ processing_stage: 'draft_ready' })
+      .eq('id', documentId)
+
+    // Skip review only for short single-pass docs, or any chunked long doc
+    // that is genuinely out of time budget.
+    // Denetim Raporu, 2026-08-31: this used to ALSO skip review for every
+    // chunked document unless depth === 'deep' — meaning the hallucination/
+    // grounding check never ran on a standard-depth long document, no matter
+    // how much time budget was actually left. That was a blunt, static proxy
+    // for "will this run out of time" when a real, dynamic measurement of
+    // the same thing already exists one line above: budgetLeft() < 55_000.
+    // Long documents need this check MORE than short ones (more windows to
+    // go wrong, more room for the merge step to introduce inconsistencies),
+    // so the time-budget check is now the only gate — review runs on every
+    // chunked document depth gets, as long as there is genuinely enough
+    // wall-clock left to do it safely.
+    // Groq enforces a tokens-per-minute cap per model (as low as 8000 on
+    // this account). A long/detailed draft plus the reference source text
+    // can occasionally exceed it even after the 6,000-char truncation above.
+    // Rather than fail outright, retry with progressively smaller reference-
+    // text AND completion budgets together (the draft JSON itself is never
+    // trimmed, since that would lose content from the final output).
+    //
+    // Declared above the gate because the gate needs tier 0's size to ask the
+    // pacer what the call would cost in time.
+    // Completion budgets sized for what review now RETURNS, not for the whole
+    // study card it used to re-emit: a ~950-char summary (~300 tokens), a
+    // short executive summary and quality_gate fit well inside 850. The old
+    // 2500/1800/1200 ladder was both unnecessary after the contract was
+    // narrowed AND impossible — qwen's OTPM ceiling is 1000, so every rung
+    // 429'd on 04.10.2026 before the model saw a single token of the draft.
+    // clampCompletion() enforces the ceiling independently, in case this list
+    // and MODEL_OTPM ever drift apart.
+    // Source budgets raised now that the draft card no longer rides along:
+    // 11,000 characters covers the whole reference document, which is the
+    // point — review cannot check a claim against a source it was not shown.
+    // These are CONTENT budgets — what the answer itself needs. The number
+    // actually sent adds reasoning headroom per lane, see reviewCompletionFor.
+    const reviewTiers: Array<{ sourceChars: number; maxCompletionTokens: number }> = [
+      { sourceChars: 11000, maxCompletionTokens: Math.min(850, REVIEW_MAX_COMPLETION) },
+      { sourceChars: 5000, maxCompletionTokens: 700 },
+      { sourceChars: 1500, maxCompletionTokens: 550 }
+    ]
+
+    // WHY THIS IS NOT A FLAT 55s ANY MORE (2026-10-04, measured):
+    // A live run finished all its work at 73.6s of a 110s budget, yet review
+    // was skipped at 72.2s because budgetLeft() was 39.2s and the gate wanted
+    // 55s. The 55s came from the era of ONE shared token ledger, where any
+    // call might have to sit out a whole 60s window. With per-model lanes the
+    // review call runs on MODEL_FAST and the pacer can say exactly how long
+    // that lane would make it wait — in that run, about 4 seconds. The gate
+    // was refusing a ~15s job because it assumed a ~55s one.
+    //
+    // So: ask the pacer, add the work itself, compare to what is left. Still
+    // skips when the lane really is full (waitEstimate returns the real ~55s
+    // and the sum exceeds the budget), which is the case the 55s was for.
+    const reviewEstTokens = estimateTokens(
+      reviewSystemPrompt,
+      buildReviewUserPrompt(reviewTiers[0].sourceChars),
+      reviewTiers[0].maxCompletionTokens
+    )
+    // The last call still pinned to one model. It was put on MODEL_FAST to
+    // keep it off the draft's lane — which is exactly what pickLane does now,
+    // and better, because it looks at what is actually free. Pinning also made
+    // review inherit whatever the vision pass had just spent on qwen: on
+    // 05.10.2026 vision finished 2 seconds earlier and review was quoted a 58s
+    // wait on a lane it had no reason to be on.
+    const reviewLane = pickLane(
+      [MODEL_FAST, MODEL_EXTRACT, MODEL_HEAVY],
+      reviewEstTokens,
+      reviewTiers[0].maxCompletionTokens
+    )
+    const reviewWaitMs = tokenPacer.waitEstimate(
+      reviewEstTokens,
+      reviewLane,
+      reviewTiers[0].maxCompletionTokens
+    )
+    // The work half is derived, not guessed: one attempt can take at most the
+    // fetch timeout, and everything after review (parse, grounding gate,
+    // near-duplicate merge, citation anchoring, cloze build, save) is
+    // deterministic and measured at ~0.2s live — 8s is generous headroom.
+    //
+    // The retry is then budgeted explicitly rather than assumed. The gate's
+    // promise is "if I start this, I can finish it", so if there is not room
+    // for a second attempt we simply do not allow one. That keeps the worst
+    // case equal to the number actually checked here, instead of the old 55s
+    // which was a guess at one attempt plus a retry.
+    const reviewAttemptMs = REVIEW_ATTEMPT_TIMEOUT_MS + REVIEW_TAIL_MS
+    const reviewRetries =
+      budgetLeft() >= reviewWaitMs + REVIEW_ATTEMPT_TIMEOUT_MS * 2 + REVIEW_TAIL_MS ? 1 : 0
+    const reviewNeedsMs =
+      reviewWaitMs + REVIEW_ATTEMPT_TIMEOUT_MS * (reviewRetries + 1) + REVIEW_TAIL_MS
+
+    const shouldSkipReview =
+      (!useChunkedPipeline && extractedText.length <= SKIP_REVIEW_MAX_CHARS) ||
+      (useChunkedPipeline && budgetLeft() < reviewNeedsMs)
+
+    let rawFinalContent = ""
+
+    if (shouldSkipReview) {
+      if (useChunkedPipeline) skippedStages.push('review')
+      console.log(
+        `Review atlandi (chunked=${useChunkedPipeline}, depth=${depth}, ` +
+        `budgetLeft=${budgetLeft()}ms, gereken=${reviewNeedsMs}ms ` +
+        `[pacer beklemesi ${reviewWaitMs}ms + ${reviewRetries + 1} deneme x ` +
+        `${REVIEW_ATTEMPT_TIMEOUT_MS}ms + kuyruk ${REVIEW_TAIL_MS}ms], est=${reviewEstTokens} token)`
+      )
+      rawFinalContent = rawContent
+      await serviceClient.from('documents').update({ processing_stage: 'saving' }).eq('id', documentId)
+    } else {
+      console.log(
+        `Review BASLIYOR (model=${reviewLane}, budgetLeft=${budgetLeft()}ms, ` +
+        `gereken=${reviewNeedsMs}ms [pacer beklemesi ${reviewWaitMs}ms, ` +
+        `${reviewRetries + 1} deneme], est=${reviewEstTokens} token)`
+      )
+      // Update stage to reviewing
+      await serviceClient
+        .from('documents')
+        .update({ processing_stage: 'reviewing' })
+        .eq('id', documentId)
+
+      let groqReviewData: any = null
+
+      for (let i = 0; i < reviewTiers.length; i++) {
+        const tier = reviewTiers[i]
+        const attemptPrompt = buildReviewUserPrompt(tier.sourceChars)
+        // Lane first (thinking room), ceiling second (qwen's OTPM).
+        const tierCompletion = tokenPacer.clampCompletion(
+          reviewLane,
+          reviewCompletionFor(reviewLane, tier.maxCompletionTokens)
+        )
+        // THE GATE'S PROMISE HAS TO HOLD FOR THE WHOLE LOOP, NOT ONE FETCH.
+        // The gate above budgets wait + attempt + tail, but this is a loop of
+        // up to three tiers and EACH ONE can sit through its own pacer wait.
+        // On 04.10.2026 two 60s waits stacked inside here: the gate promised
+        // 38s, the loop ran 81s, and the 150s Edge wall clock killed the
+        // function mid-review — leaving the document stuck on "reviewing"
+        // with no summary and no failure marker. A tier that cannot finish
+        // inside the remaining budget must not be started.
+        const tierWaitMs = tokenPacer.waitEstimate(
+          estimateTokens(reviewSystemPrompt, attemptPrompt, tierCompletion),
+          reviewLane,
+          tierCompletion
+        )
+        const tierNeedsMs = tierWaitMs + REVIEW_ATTEMPT_TIMEOUT_MS + REVIEW_TAIL_MS
+        if (i > 0 && budgetLeft() < tierNeedsMs) {
+          console.warn(
+            `Review tier ${i + 1} atlandi — butce yetmiyor ` +
+            `(kalan=${budgetLeft()}ms, gereken=${tierNeedsMs}ms [pacer ${tierWaitMs}ms]). ` +
+            `Taslak korunuyor.`
+          )
+          rawFinalContent = rawContent
+          break
+        }
+        // This call does NOT go through callGroqJson, so like the vision call
+        // it has to pay the pacer itself. Without this it both fires into a
+        // full window (429) and never records what it spent, leaving the
+        // critic pass after it believing the lane is emptier than it is.
+        const attemptEst = estimateTokens(reviewSystemPrompt, attemptPrompt, tierCompletion)
+        await tokenPacer.acquire(attemptEst, reviewLane, tierCompletion)
+        let attemptResponse: Response
+        try {
+          attemptResponse = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${groqApiKey}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              // reviewLane is chosen at runtime by pickLane (509bd5f) — it is
+              // whichever of MODEL_FAST / MODEL_EXTRACT / MODEL_HEAVY can take
+              // the call soonest, NOT a fixed second model. Groq meters TPM
+              // per model, so spreading review across lanes is the point.
+              model: reviewLane,
+              temperature: 0.2,
+              // Derived from reviewLane, never a literal: a hardcoded
+              // reasoning_effort:"none" here 400'd on every gpt-oss lane.
+              ...reasoningParamsFor(reviewLane),
+              max_completion_tokens: tierCompletion,
+              response_format: { type: "json_object" },
+              messages: [
+                { role: "system", content: reviewSystemPrompt },
+                { role: "user", content: attemptPrompt }
+              ]
+            })
+          }, reviewRetries, REVIEW_ATTEMPT_TIMEOUT_MS)
+        } catch (fetchReviewErr) {
+          console.error("Pass 2 Groq API fetchWithRetry exception: ", fetchReviewErr)
+          await markFailed(serviceClient, documentId)
+          return new Response(JSON.stringify({ error: 'Our AI service is experiencing high demand right now — please try again in a moment' }), {
+            status: 503,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          })
+        }
+
+        tokenPacer.observeHeaders(attemptResponse.headers, reviewLane)
+        const attemptData = await attemptResponse.json()
+
+        // What the thinking actually cost. REASONING_HEADROOM is a starting
+        // value chosen from one failure, and the only honest way to set it is
+        // to watch this number across a few documents: if reasoning routinely
+        // comes in at 400, the headroom is wasting pacer budget and pushing
+        // review past its gate on long documents; if it comes in at 1,100,
+        // the margin is thinner than it looks.
+        const usage = attemptData?.usage
+        const reasoned = Number(usage?.completion_tokens_details?.reasoning_tokens)
+        if (usage) {
+          console.log(
+            `Review token: completion=${usage.completion_tokens ?? '?'}` +
+            `${Number.isFinite(reasoned) ? ` (reasoning=${reasoned}, icerik=${(usage.completion_tokens ?? 0) - reasoned})` : ''}` +
+            ` / butce=${tierCompletion} [${reviewLane}]`
+          )
+        }
+        // Record either way: a rejected call still consumed the minute's
+        // budget as far as Groq is concerned, and the next tier (or the
+        // critic) must not start out over-optimistic.
+        tokenPacer.record(
+          Number(attemptData?.usage?.total_tokens) || attemptEst,
+          reviewLane,
+          Number(attemptData?.usage?.completion_tokens) || tierCompletion
+        )
+
+        if (attemptResponse.ok) {
+          groqReviewData = attemptData
+          break
+        }
+
+        const isTokenSizeError = (attemptResponse.status === 400 || attemptResponse.status === 429 || attemptResponse.status === 413) &&
+          attemptData?.error?.code === 'rate_limit_exceeded' &&
+          attemptData?.error?.type === 'tokens'
+
+        console.error(`Groq Review API call failed (source budget ${tier.sourceChars} chars, completion budget ${tier.maxCompletionTokens}, status ${attemptResponse.status}): `, JSON.stringify(attemptData))
+
+        if (!isTokenSizeError || i === reviewTiers.length - 1) {
+          // Madde 6 fallback: if review fails on TPM, keep the draft instead of failing the whole job
+          console.warn('Madde 6: review failed — falling back to unreviewed draft')
+          rawFinalContent = rawContent
+          break
+        }
+      }
+
+      if (!rawFinalContent) {
+        const reviewOut = groqReviewData?.choices?.[0]?.message?.content ?? ""
+        if (reviewOut) {
+          // Never let review's answer BE the final content — merge it onto the
+          // draft, so a short or truncated answer can only fail to improve
+          // things, not delete them. See mergeReviewOntoDraft.
+          const { merged, notes } = mergeReviewOntoDraft(rawContent, reviewOut)
+          rawFinalContent = merged
+          console.log(`Review birlestirme: ${notes.length ? notes.join(', ') : 'degisiklik yok'}`)
+        }
+      }
+      if (!rawFinalContent) {
+        console.error('Empty response content from Groq Review: ', JSON.stringify(groqReviewData))
+        await markFailed(serviceClient, documentId)
+        return new Response(JSON.stringify({ error: 'Our AI service is experiencing high demand right now — please try again in a moment' }), {
+          status: 502,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+
+      await serviceClient.from('documents').update({ processing_stage: 'saving' }).eq('id', documentId)
+    }
+
+    // ==========================================================================
+    // STEP 3 — PARSE THE RESPONSE (defensive parsing of final reviewed output)
+    // ==========================================================================
+    const reviewStripped = stripThinkBlock(rawFinalContent)
+    if (reviewStripped === null) {
+      console.error('Groq Review response was an unterminated <think> block (ran out of tokens while reasoning):', rawFinalContent)
+      await markFailed(serviceClient, documentId)
+      return new Response(JSON.stringify({ error: 'The AI ran out of thinking time before finishing its review — please try again' }), {
+        status: 502,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+    const cleaned = reviewStripped.replace(/```json\s*|```/g, "").trim()
+    let parsedContent
+    try {
+      parsedContent = JSON.parse(cleaned)
+    } catch (parseError) {
+      console.error("Failed to parse Groq final response as JSON: ", rawFinalContent, parseError)
+      await markFailed(serviceClient, documentId)
+      return new Response(JSON.stringify({ error: 'AI returned invalid JSON formatting after review' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
+    // Denetim Raporu, 2026-08-31 — ROOT-CAUSE FIX (part 2): the review pass
+    // above is now deliberately told to NOT re-emit tables/charts/diagrams/
+    // worked_examples/formulas/concept_graph/cloze_cards (to keep its
+    // completion-token budget stable and avoid truncation/JSON-parse
+    // failures now that those fields can carry real content). That means
+    // parsedContent never has them — splice them back in here from the
+    // pre-review draft (rawContent still holds the full draft object,
+    // including when review was skipped entirely, in which case this is a
+    // harmless no-op since parsedContent already came from the same JSON).
+    try {
+      const preReviewStripped = stripThinkBlock(rawContent)
+      const preReviewCleaned = (preReviewStripped ?? rawContent).replace(/```json\s*|```/g, '').trim()
+      const preReviewDraft = preReviewCleaned ? JSON.parse(preReviewCleaned) : null
+      if (preReviewDraft && typeof preReviewDraft === 'object') {
+        for (const field of ['tables', 'charts', 'diagrams', 'worked_examples', 'formulas', 'concept_graph', 'cloze_cards']) {
+          if (parsedContent[field] === undefined && preReviewDraft[field] !== undefined) {
+            parsedContent[field] = preReviewDraft[field]
+          }
+        }
+      }
+    } catch (spliceErr) {
+      console.warn('Post-review field splice-back skipped (pre-review draft unparsable):', spliceErr)
+    }
+
+    // Madde 4 — normalize quality gate; optional one-shot critic rewrite if FAIL
+    let qualityMeta: any = {
+      pass: true,
+      grounded: false,
+      issues: [] as string[],
+      critic_retry: false,
+      // The SAME array, by reference, not a copy: the critic's own skip
+      // decision is made further down and must still land in the saved card.
+      skipped_stages: skippedStages
+    }
+    if (parsedContent.quality_gate && typeof parsedContent.quality_gate === 'object') {
+      qualityMeta = {
+        pass: parsedContent.quality_gate.pass !== false,
+        grounded: !!parsedContent.quality_gate.grounded,
+        issues: Array.isArray(parsedContent.quality_gate.issues)
+          ? parsedContent.quality_gate.issues.map((x: any) => String(x).slice(0, 200)).slice(0, 8)
+          : [],
+        critic_retry: false,
+        // Carried through the quality_gate branch too — this is set by OUR
+        // budget decisions, not by the model, so it must survive the model's
+        // verdict replacing the rest of this object.
+        skipped_stages: skippedStages
+      }
+    }
+    // Heuristic grounded: footnotes with page numbers or inline (s. N)/(slayt N)
+    const summaryText = String(parsedContent.summary || '')
+    const hasInlineCite = /\((?:s\.|sayfa|slayt|p\.|page)\s*\d+\)/i.test(summaryText)
+    const footWithPage = Array.isArray(parsedContent.footnotes)
+      && parsedContent.footnotes.some((f: any) => f && f.page != null)
+    if (hasInlineCite || footWithPage) qualityMeta.grounded = true
+
+    // The critic is the last LLM call before the save, and it had no budget
+    // guard at all — it could only ever run after review, which used to be
+    // gated so conservatively that there was always time left. Now that review
+    // starts closer to the wall clock, guard the critic the same way: a
+    // rewrite is a quality improvement, and losing the whole run to the Edge
+    // timeout at the save step costs far more than keeping an unpolished
+    // summary. (We have already seen one run lose ~3 minutes of completed work
+    // at exactly that step.)
+    // The completion budget must be passed to waitEstimate, not just to the
+    // call. Without it the OTPM branch sees estCompletion=0, reports no wait,
+    // and the guard waves the critic through — then acquire() sits out a full
+    // 60s output window anyway. That is exactly what happened on 04.10.2026:
+    // guard said "no wait", the critic waited 60.1s, and the run reached 135s
+    // of the 150s Edge wall clock.
+    const criticLane = pickLane(
+      [MODEL_FAST, MODEL_EXTRACT, MODEL_HEAVY],
+      estimateTokens('', summaryText.slice(0, 4000), 2048),
+      2048
+    )
+    // Same reasoning-headroom rule as review, and the critic needs it more:
+    // it rewrites the whole summary (~2,500 characters, ~800 tokens), so on a
+    // gpt-oss lane a flat 2,048 leaves well under that once the thinking is
+    // paid for. A short result is rejected by the NARRATIVE_MIN_KEEP_RATIO
+    // floor below, which would turn a budget problem into a silent no-op.
+    const criticCompletion = tokenPacer.clampCompletion(
+      criticLane,
+      reviewCompletionFor(criticLane, 2048)
+    )
+    const criticWaitMs = tokenPacer.waitEstimate(
+      estimateTokens('', summaryText.slice(0, 4000), criticCompletion),
+      criticLane,
+      criticCompletion
+    )
+    const criticNeedsMs = criticWaitMs + 30_000
+    if (qualityMeta.pass === false && qualityMeta.issues.length > 0 && budgetLeft() < criticNeedsMs) {
+      skippedStages.push('critic')
+      console.log(
+        `Madde 4: critic atlandi (budgetLeft=${budgetLeft()}ms, ` +
+        `gereken=${criticNeedsMs}ms [pacer ${criticWaitMs}ms + is 30000ms])`
+      )
+    } else if (qualityMeta.pass === false && qualityMeta.issues.length > 0) {
+      try {
+        await serviceClient.from('documents').update({ processing_stage: 'critic' }).eq('id', documentId)
+        const fixSys = `You fix a FAILED academic study brief. Respond ONLY with JSON: { "summary": string, "summary_executive": string }.
+Fix the listed issues. Remove hallucinations and admin noise. Keep ${langLabel}. Keep narrative prose. Do not invent facts.`
+        const fixUser = `Issues to fix:\n${qualityMeta.issues.map((i: string) => `- ${i}`).join('\n')}\n\nCurrent summary:\n${summaryText.slice(0, 4000)}\n\nCurrent executive:\n${String(parsedContent.summary_executive || '').slice(0, 500)}`
+        const fixed = await callGroqJson(groqApiKey, fixSys, fixUser, {
+          model: criticLane,
+          temperature: 0.2,
+          maxCompletionTokens: criticCompletion,
+          timeoutMs: 25000,
+          maxRetries: 0
+        })
+        // Same floor as the review merge: the critic runs on whichever lane
+        // pickLane gave it, clamped to that lane's OTPM ceiling, so it can
+        // easily have less room than the narrative writer that produced this
+        // text. A "fix" that returns a quarter of the summary is compression,
+        // not a fix.
+        const fixedSummary = String(fixed?.summary || '').trim()
+        const keepFloor = summaryText.length * NARRATIVE_MIN_KEEP_RATIO
+        if (fixedSummary.length > 80 && fixedSummary.length >= keepFloor) {
+          parsedContent.summary = fixedSummary
+          qualityMeta.critic_retry = true
+          qualityMeta.pass = true
+          qualityMeta.issues = []
+          console.log('Madde 4: critic rewrite applied')
+        } else if (fixedSummary.length > 80) {
+          console.warn(
+            `Madde 4: critic yazisi REDDEDILDI — ${fixedSummary.length} krk dondu, ` +
+            `taslak ${summaryText.length} krk (esik ${Math.round(keepFloor)}). Taslak korunuyor.`
+          )
+        }
+        const fixedExec = String(fixed?.summary_executive || '').trim()
+        const execFloor = String(parsedContent.summary_executive || '').length * NARRATIVE_MIN_KEEP_RATIO
+        if (fixedExec.length > 20 && fixedExec.length >= execFloor) {
+          parsedContent.summary_executive = fixedExec
+        }
+      } catch (critErr) {
+        console.warn('Madde 4 critic rewrite skipped:', critErr)
+      }
+    }
+    delete parsedContent.quality_gate
+
+    // HOTFIX: reject only truly empty OR pure-meta with no extractions
+    {
+      const sum = String(parsedContent.summary || '')
+      const terms = Array.isArray(parsedContent.key_terms) ? parsedContent.key_terms : []
+      const points = Array.isArray(parsedContent.key_points) ? parsedContent.key_points : []
+      const quiz = Array.isArray(parsedContent.quiz_questions) ? parsedContent.quiz_questions : []
+      const metaRe = /sağlanmamış|sağlanmamıştır|no (detailed )?draft|taslak.*sağlan|içerik taslağı|qualitative overview|scholarly landscape|only a general framework|genel bir çerçevesi/i
+      const isMeta = metaRe.test(sum) || metaRe.test(String(parsedContent.summary_executive || ''))
+      const hasExtractions = terms.length > 0 || points.length > 0 || quiz.length > 0
+      const isEmpty = !hasExtractions && sum.trim().length < 80
+      // If meta but we have real terms/points, strip meta summary is still bad — fail only if no extractions
+      if (isEmpty || (isMeta && !hasExtractions)) {
+        console.error('HOTFIX: refusing to save empty/meta study card', { isMeta, isEmpty, terms: terms.length, points: points.length, quiz: quiz.length, sumLen: sum.length })
+        await markFailed(serviceClient, documentId)
+        return new Response(JSON.stringify({
+          error: 'Özet içeriği boş kaldı. Lütfen tekrar deneyin. / Summary was empty — please retry.'
+        }), {
+          status: 503,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+      if (isMeta && hasExtractions) {
+        // Keep extractions; replace meta summary with a short concrete fallback from terms
+        const termList = terms.slice(0, 8).map((t: any) => t?.term || t).filter(Boolean).join(', ')
+        parsedContent.summary = lang === 'tr'
+          ? `Bu belge şu başlıca konuları kapsar: ${termList}. Aşağıdaki ana noktalar ve terimler çalışmak için çıkarılmıştır.`
+          : `This document covers: ${termList}. Key points and terms were extracted for study.`
+        parsedContent.summary_executive = termList.slice(0, 200)
+        console.warn('HOTFIX: replaced meta summary, kept extractions')
+      }
+    }
+
+    // ==========================================================================
+    // STEP 3.5 — CITATION ANCHORING (both pipelines meet here)
+    //
+    // Runs once, after whichever path produced `parsedContent`, so the fast
+    // path gets its model-reported footnote pages VERIFIED and the long-doc
+    // path — which ships `footnotes: []` because asking each window for them
+    // would eat the completion-token budget it needs for key terms/points —
+    // finally gets citations at all. See buildPageIndex/anchorCitations above
+    // for why this is computed rather than prompted.
+    // ==========================================================================
+    {
+      // --- (a) Formulas: repair what is over-wrapped, drop what cannot render
+      const sanitized = sanitizeFormulas(parsedContent.formulas)
+      parsedContent.formulas = sanitized.formulas
+      if (sanitized.dropped.length || sanitized.repaired) {
+        console.log(
+          `Formula validation: ${sanitized.formulas.length} kept, ` +
+          `${sanitized.repaired} repaired, ${sanitized.dropped.length} dropped` +
+          (sanitized.dropped.length
+            ? ` — ${sanitized.dropped.map(d => `${d.name}(${d.reason})`).join('; ')}`
+            : '')
+        )
+      }
+
+      // --- (a2) Diagrams: drop Mermaid that cannot render
+      const diagramsChecked = sanitizeDiagrams(parsedContent.diagrams)
+      parsedContent.diagrams = diagramsChecked.diagrams
+      if (diagramsChecked.dropped.length || diagramsChecked.repaired) {
+        console.log(
+          `Mermaid validation: ${diagramsChecked.diagrams.length} kept, ` +
+          `${diagramsChecked.dropped.length} dropped, ` +
+          `${diagramsChecked.repaired} ok onarildi` +
+          (diagramsChecked.dropped.length
+            ? ' — ' + diagramsChecked.dropped.map(d => `${d.title}(${d.reason})`).join('; ')
+            : '')
+        )
+      }
+
+      // extractedText, so a chart has to be traceable to the document — see
+      // the CHART GATE comment.
+      const chartsChecked = sanitizeCharts(parsedContent.charts, extractedText)
+      parsedContent.charts = chartsChecked.charts
+      if (chartsChecked.dropped.length) {
+        console.log(
+          `Chart validation: ${chartsChecked.charts.length} kept, ` +
+          `${chartsChecked.dropped.length} dropped — ` +
+          chartsChecked.dropped.map(c => `${c.title}(${c.reason})`).join('; ')
+        )
+      }
+
+      // --- (b) Grounding gate: remove claims the source does not support
+      const gated = applyGroundingGate(
+        parsedContent.key_terms,
+        parsedContent.key_points,
+        extractedText,
+        visionGroundedClaims
+      )
+      parsedContent.key_terms = gated.key_terms
+      parsedContent.key_points = gated.key_points
+      console.log(
+        `Grounding gate: score=${gated.stats.score ?? '—'}% ` +
+        `terms ${gated.stats.termsKept} kept / ${gated.stats.termsDropped} dropped, ` +
+        `points ${gated.stats.pointsKept} kept / ${gated.stats.pointsDropped} dropped` +
+        (gated.stats.droppedTerms.length ? ` | uydurma terim: ${gated.stats.droppedTerms.join(', ')}` : '') +
+        (gated.stats.droppedPoints.length ? ` | uydurma nokta: ${gated.stats.droppedPoints.map(p => `"${p}"`).join(' ')}` : '')
+      )
+
+      // --- (b2) Narrative year gate: the prose the gate above never sees
+      const yearsChecked = sanitizeNarrativeYears(parsedContent, extractedText)
+      if (yearsChecked.removed.length || yearsChecked.flagged.length) {
+        console.log(
+          `Narrative year gate: ${yearsChecked.changed} alan duzeltildi` +
+          (yearsChecked.removed.length ? ` | kaynakta olmayan yil silindi: ${yearsChecked.removed.join(', ')}` : '') +
+          (yearsChecked.flagged.length ? ` | silinemedi, metinde kaldi: ${yearsChecked.flagged.join(', ')}` : '')
+        )
+      }
+
+      // --- (c) Near-duplicate merge: the same idea worded twice by two windows
+      const beforeDedup = {
+        terms: (parsedContent.key_terms || []).length,
+        points: (parsedContent.key_points || []).length,
+        quiz: (parsedContent.quiz_questions || []).length
+      }
+      parsedContent.key_terms = dedupeNearDuplicates(
+        parsedContent.key_terms,
+        (t: any) => `${t?.term || ''} ${t?.definition || ''}`,
+        (t: any) => String(t?.term || '')
+      )
+      parsedContent.key_points = dedupeNearDuplicates(
+        parsedContent.key_points,
+        (p: any) => typeof p === 'string' ? p : String(p?.text || p?.point || '')
+      )
+      parsedContent.quiz_questions = dedupeNearDuplicates(
+        parsedContent.quiz_questions,
+        (q: any) => String(q?.question || '')
+      )
+      console.log(
+        `Near-duplicate merge: terms ${beforeDedup.terms}→${parsedContent.key_terms.length}, ` +
+        `points ${beforeDedup.points}→${parsedContent.key_points.length}, ` +
+        `quiz ${beforeDedup.quiz}→${parsedContent.quiz_questions.length}`
+      )
+
+      // --- (d) Citations, computed from the page index (see above)
+      const pageIndex = buildPageIndex(extractedText, pageMarkerLabel)
+      const anchored = anchorCitations(
+        Array.isArray(parsedContent.key_points) ? parsedContent.key_points : [],
+        Array.isArray(parsedContent.footnotes) ? parsedContent.footnotes : [],
+        pageIndex,
+        lang
+      )
+      parsedContent.key_points = anchored.key_points
+      parsedContent.footnotes = anchored.footnotes
+      // Footnote ids were renumbered to a dense sequence, so markers already
+      // embedded in the summary text have to follow them.
+      if (typeof parsedContent.summary === 'string') {
+        parsedContent.summary = applyFootnoteRemap(parsedContent.summary, anchored.idMap)
+      }
+      console.log(
+        `Citation anchoring: pages=${pageIndex.length} ` +
+        `kept=${anchored.stats.kept} demoted=${anchored.stats.demoted} ` +
+        `added=${anchored.stats.added} quoted=${anchored.stats.quoted} ` +
+        `unanchored=${anchored.stats.skipped}`
+      )
+    }
+
+    // ==========================================================================
+    // STEP 4 — SAVE STUDY CARD & UPDATE STATUS
+    // ==========================================================================
+
+    // Built before the insert so the mix is visible. Sentence clozes are the
+    // ones worth having -- a run that produces only key_term prompts means
+    // the key_points carried none of the glossary's terms, which is itself
+    // worth seeing in the logs.
+    const clozeCards = buildClozeCards(
+      parsedContent.cloze_cards,
+      Array.isArray(parsedContent.key_terms) ? parsedContent.key_terms : [],
+      Array.isArray(parsedContent.key_points) ? parsedContent.key_points : [],
+      20
+    )
+    if (clozeCards.length > 0) {
+      const bySource = clozeCards.reduce((acc: Record<string, number>, c: any) => {
+        const k = String(c?.source || 'bilinmiyor')
+        acc[k] = (acc[k] || 0) + 1
+        return acc
+      }, {})
+      console.log(
+        `Cloze kartlari: ${clozeCards.length} ` +
+        `(${Object.entries(bySource).map(([k, n]) => `${k}=${n}`).join(', ')})`
+      )
+    } else {
+      console.log('Cloze kartlari: 0 uretildi')
+    }
+
+    const cardPayload: Record<string, unknown> = {
+      document_id: documentId,
+      user_id: document.user_id,
+      summary: parsedContent.summary || '',
+      summary_executive: parsedContent.summary_executive || '',
+      key_terms: parsedContent.key_terms || [],
+      key_points: parsedContent.key_points || [],
+      quiz_questions: parsedContent.quiz_questions || [],
+      tables: parsedContent.tables || [],
+      charts: parsedContent.charts || [],
+      footnotes: parsedContent.footnotes || [],
+      suggested_course_tag: parsedContent.suggested_course_tag || null,
+      is_quantitative: parsedContent.is_quantitative ?? false,
+      formulas: Array.isArray(parsedContent.formulas) ? parsedContent.formulas : [],
+      worked_examples: Array.isArray(parsedContent.worked_examples) ? parsedContent.worked_examples : [],
+      diagrams: Array.isArray(parsedContent.diagrams) ? parsedContent.diagrams : [],
+      concept_graph: (parsedContent.concept_graph && typeof parsedContent.concept_graph === 'object')
+        ? parsedContent.concept_graph
+        : { nodes: [], edges: [] },
+      cloze_cards: clozeCards,
+      outline: normalizeOutline(parsedContent.outline, parsedContent.sections),
+      sections: normalizeSections(
+        parsedContent.sections,
+        normalizeOutline(parsedContent.outline, parsedContent.sections)
+      ),
+      summary_style: style,
+      summary_language: lang,
+      summary_length: len,
+      document_type: parsedContent.document_type || 'Other',
+      visual_analysis: visualAnalysisUsed,
+      course_tag: document.course_tag ?? null,
+      quality_meta: qualityMeta
+    }
+
+    let newCard: any = null
+    let cardError: any = null
+    {
+      const res = await serviceClient.from('study_cards').insert(cardPayload).select('id').single()
+      newCard = res.data
+      cardError = res.error
+    }
+    // If quality_meta column missing, retry without it
+    if (cardError && /quality_meta/i.test(String(cardError.message || cardError.details || ''))) {
+      console.warn('quality_meta column missing — retrying insert without it')
+      delete cardPayload.quality_meta
+      const res2 = await serviceClient.from('study_cards').insert(cardPayload).select('id').single()
+      newCard = res2.data
+      cardError = res2.error
+    }
+
+    if (cardError) {
+      console.error('Failed to save study card: ', cardError)
+      await markFailed(serviceClient, documentId)
+      return new Response(JSON.stringify({ error: 'Failed to save generated study card' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
+    // Update document status to summarized and clear processing_stage
+    await serviceClient
+      .from('documents')
+      .update({ status: 'summarized', processing_stage: null })
+      .eq('id', documentId)
+
+    return new Response(JSON.stringify({ success: true, studyCardId: newCard.id }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    })
+
+  } catch (err) {
+    console.error('Unexpected Edge Function exception: ', err)
+    return new Response(JSON.stringify({ error: 'An unexpected Edge Function error occurred' }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    })
+  }
+})
+
+async function markFailed(client: any, documentId: string) {
+  try {
+    await client
+      .from('documents')
+      .update({ status: 'failed', processing_stage: null })
+      .eq('id', documentId)
+  } catch (e) {
+    console.error('Failed to set document status to failed: ', e)
+  }
 }
 
 async function tryOCR(fileBytes: Uint8Array, apiKey: string): Promise<string> {
@@ -138,1821 +6429,3 @@ async function tryOCR(fileBytes: Uint8Array, apiKey: string): Promise<string> {
   }
   return (result.ParsedResults ?? []).map((r: any) => r.ParsedText).join('\n\n');
 }
-
-// Extracts plain text from one document row's file bytes based on its mime type.
-// Deliberately text-only (no vision/image analysis) to keep per-message latency
-// and cost low — the visual analysis pass already ran once at summarization time.
-/**
- * Read a document's text from document_chunks instead of re-downloading and
- * re-parsing the original file.
- *
- * Before this existed, every chat message against a 60-page PDF cost a full
- * storage download plus a full unpdf parse — repeated work on bytes that
- * never change. summarize-document now persists the text once, at extraction
- * time, so the normal path here is a single indexed SELECT.
- *
- * Returns null (not an error) when the document has no stored chunks, which
- * is the expected case for anything uploaded before the document_chunks
- * migration was applied. The caller then falls back to on-demand extraction,
- * so older documents keep working exactly as they did.
- */
-async function loadStoredText(serviceClient: any, documentId: string): Promise<string | null> {
-  try {
-    const { data, error } = await serviceClient
-      .from('document_chunks')
-      .select('text, chunk_index')
-      .eq('document_id', documentId)
-      .order('chunk_index', { ascending: true })
-    if (error) {
-      // A missing table (migration not yet applied) lands here too — warn
-      // once and fall back rather than failing the student's question.
-      console.warn(`document_chunks read failed for ${documentId}: ${error.message}`)
-      return null
-    }
-    if (!data || data.length === 0) return null
-    const joined = data.map((r: any) => String(r.text || '')).filter(Boolean).join('\n\n').trim()
-    return joined || null
-  } catch (e) {
-    console.warn('document_chunks read threw, falling back to extraction:', e)
-    return null
-  }
-}
-
-// ==========================================================================
-// RETRIEVAL — send the passages that answer the question, not the document
-//
-// The old behaviour assembled the whole document and cut it at 100,000
-// characters (~45 dense pages). On a longer source a question about page 70
-// reached a model that had never been shown page 70, so it answered "this
-// isn't in the source" — the one failure mode a grounded Q&A feature must
-// not have, because it is indistinguishable from an honest "not found".
-//
-// Now: for documents that do not fit, rank the stored chunks against the
-// question (Postgres full-text, see the 20261003b migration) and send the
-// best ones. Documents that DO fit are sent whole exactly as before, so the
-// common case has no behaviour change at all.
-// ==========================================================================
-
-// ==========================================================================
-// HOW MUCH SOURCE TEXT ACTUALLY FITS
-//
-// This used to be a pair of flat 50,000-character constants, chosen as "well
-// under the old 100,000". Measured against the account's real limit on
-// 05.10.2026 they are not under anything:
-//
-//   Groq TPM, per model .......... 8,000 tokens / minute
-//   estimateTokens ratio ......... 3.2 characters per token
-//   this call's completion cap .... 2,048 tokens
-//
-//   50,000 chars = 15,625 tokens + 2,048 completion = 17,673  -> 2.2x the cap
-//   31,817 chars (Cognitive Dissonance, a real test document)
-//               =  9,943 tokens + 2,048 completion = 11,991  -> over the cap
-//   11,050 chars (economy chapter 20)
-//               =  3,453 tokens + 2,048 completion =  5,501  -> fits
-//
-// So the two constants left a DEAD ZONE: a document between roughly 19,000
-// and 50,000 characters was sent whole (too big for the minute's budget, so
-// Groq answers "Request too large") while retrieval stood by, because its
-// trigger was "bigger than 50,000". The only documents that worked were the
-// small ones, which is exactly what got tested.
-//
-// The budget is now derived instead of declared, and derived PER REQUEST,
-// because the two things competing with the source text for the same 8,000
-// tokens both vary: the system prompt grows with the study-card context
-// block, and the conversation history grows with the chat.
-//
-// Deliberately NOT the summarize function's TokenPacer. That paces by
-// WAITING — up to 60 seconds for the window to roll — which is right for a
-// background job and wrong for a student watching a chat box. Here the fix
-// is to make the request fit in the first place; genuine contention between
-// several students still falls to fetchWithRetry's 429 handling, which waits
-// the seconds Groq actually asks for rather than a fixed minute.
-// ==========================================================================
-const CHAT_TPM_LIMIT = 8000
-// Headroom for the 3.2 ratio being an estimate while Groq counts the real
-// tokenisation (Turkish runs denser than English, so it undershoots there).
-//
-// 0.9, not a fresh guess: this is the summarize function's PACER_SAFETY, and
-// that one is evidence rather than taste — every measured run logs its spend
-// against the resulting 7,200 ceiling ("used=6226/7200") and not one of them
-// has come back "Request too large". A tighter 0.85 was tried here first and
-// pushed the 11,050-character economy chapter — a document that demonstrably
-// fits today — over into retrieval, which is a capability lost to a number
-// nobody had measured.
-const CHAT_TPM_SAFETY = 0.9
-// The ceiling for a chat answer. 2,048 is 28% of the whole minute, reserved
-// on every message whether or not the answer could possibly need it: Groq
-// counts max_completion_tokens against TPM up front, not what the model
-// actually emits. A plain conceptual answer runs a few hundred tokens.
-//
-// So it follows the same signal as the instruction sections — the questions
-// that need the long rules (a worked numeric solution, a Mermaid diagram)
-// are the questions whose answers are long. Everything else gets the lower
-// cap, and the difference goes to the document.
-const CHAT_MAX_COMPLETION = 2048
-const CHAT_MAX_COMPLETION_SHORT = 1024
-// DERIVED FROM THE TEXT, not one number for everything.
-//
-// Which way an error hurts is worth being precise about:
-//
-//   real tokens = chars / real ratio
-//   our estimate = chars / CHARS_PER_TOKEN
-//
-//   CHARS_PER_TOKEN above the real ratio -> we UNDERestimate -> the request
-//     is bigger than we think -> "Request too large"
-//   below it -> we overestimate -> we send less document than we could
-//
-// So the constant has to sit under the LOWEST real ratio we will meet. Two
-// measurements from usage.prompt_tokens, both English sources with Turkish
-// questions:
-//
-//   4.18 krk/token  (economy chapter)
-//   4.69 krk/token  (accounting chapter)
-//
-// A single number cannot serve both languages, and that is the whole
-// problem: Turkish tokenises denser, so its ratio is LOWER, and a constant
-// tuned to English would underestimate exactly when a Turkish document
-// arrives — which is what the note-sharing in this product is for.
-//
-// Measured Turkish-letter density, real files: English sources 0.00%-0.18%,
-// Turkish course notes 14.2%. Seventy times apart, so a 2% threshold
-// separates them with room to spare. A Turkish question over an English
-// document reads 0.56% and is correctly treated as English, which is right —
-// the source text, not the question, is what fills the window.
-//
-// 4.1 for English sits under the lower of the two measurements. 3.2 for
-// Turkish is NOT measured — it is the old inherited value kept as the
-// cautious end until a Turkish document gives us a real number, which the
-// per-call ratio log will.
-//
-// RAISING THIS WAS TRIED AND REJECTED, 06.10.2026. Seven readings from the
-// per-call log — 4.18, 4.52, 4.53, 4.53, 4.52, 4.53, 4.69 — all sit above
-// 4.1, so every request buys less source than it could afford. The budget
-// algebra makes the cost look worth chasing: with overhead O, ceiling
-// T = TPM × safety and completion C,
-//
-//   source = (T - C - O/r) × r   ⟹   O + source = (T - C) × r
-//
-// so r sets the TOTAL prompt size and 4.1 → 4.4 is +16% source
-// (9,659 → 11,206 chars). The 0.9 safety factor would absorb the error:
-// at r = 4.4 a document has to be denser than 3.81 before the HARD 8,000
-// limit is breached, and the worst reading ever taken is 4.18.
-//
-// Two things killed it anyway:
-//
-//   1. Every measured document is prose. This app's documents are full of
-//      formulas — "∫_{-∞}^{∞} f(x) dx = 1" and the like. Unicode maths
-//      tokenizes badly, and a formula-heavy English chapter can plausibly
-//      fall under 4.0. Nothing in the seven readings covers that case.
-//   2. The 1,546 characters bought are retrieval's LOWEST-ranked chunks.
-//      Their marginal value is small, while the cost of guessing wrong is
-//      a hard 413 the student sees. Bad trade.
-//
-// The gain is real but it should come from MEASUREMENT, not a bolder
-// guess: the per-call log already computes each document's true ratio, so
-// persisting it per document would let the second and later questions use
-// the real number while the first stays cautious. That is the fix worth
-// building; a bigger constant is not.
-const CHARS_PER_TOKEN_EN = 4.1
-const CHARS_PER_TOKEN_TR = 3.2
-const TURKISH_LETTER_SHARE = 0.02
-
-function charsPerTokenFor(sampleText: string): number {
-  const text = String(sampleText || '')
-  const turkish = (text.match(/[ğüşıöçĞÜŞİÖÇ]/g) || []).length
-  const letters = (text.match(/\p{L}/gu) || []).length
-  if (letters < 200) return CHARS_PER_TOKEN_TR   // too little to judge — be cautious
-  return (turkish / letters) >= TURKISH_LETTER_SHARE ? CHARS_PER_TOKEN_TR : CHARS_PER_TOKEN_EN
-}
-
-// Kept for the call sites that only need a safe default.
-const CHARS_PER_TOKEN = CHARS_PER_TOKEN_TR
-// An attached image is billed as tokens too and is not in any string we can
-// measure. Reserved whenever one is present.
-const IMAGE_TOKEN_RESERVE = 1600
-// Never send less than this, even if the overhead calculation says so — a
-// couple of pages is the floor below which an answer is not worth attempting,
-// and at that point the honest outcome is a short prompt, not an empty one.
-const SOURCE_MIN_CHARS = 4000
-
-/**
- * Characters of source text this particular request can afford.
- *
- * overheadChars covers everything else that goes into the same budget: the
- * system prompt minus the source block, and the conversation history.
- */
-function sourceBudgetChars(
-  overheadChars: number,
-  hasImage: boolean,
-  maxCompletion = CHAT_MAX_COMPLETION,
-  charsPerToken = CHARS_PER_TOKEN
-): number {
-  const available =
-    CHAT_TPM_LIMIT * CHAT_TPM_SAFETY
-    - maxCompletion
-    - Math.ceil(overheadChars / charsPerToken)
-    - (hasImage ? IMAGE_TOKEN_RESERVE : 0)
-  return Math.max(SOURCE_MIN_CHARS, Math.floor(available * charsPerToken))
-}
-
-const RETRIEVED_MAX_CHUNKS = 40
-
-// Words too common to tell one passage from another. Short list on purpose:
-// ts_rank already discounts frequent terms, this just keeps the query tidy.
-const QUERY_STOPWORDS = new Set([
-  'nedir', 'nasil', 'nasıl', 'nicin', 'niçin', 'neden', 'hangi', 'kimdir',
-  'misin', 'mısın', 'bana', 'bunu', 'sunu', 'şunu', 'bunlar', 'daha', 'gibi',
-  'icin', 'için', 'ile', 'olan', 'olarak', 'anlat', 'aciklar', 'açıklar',
-  'aciklama', 'açıklama', 'ozetle', 'özetle', 'soyle', 'söyle', 'lutfen',
-  'lütfen', 'kisaca', 'kısaca', 'yukarida', 'yukarıda', 'belge', 'belgede',
-  'kaynak', 'kaynakta', 'sayfa', 'konu', 'hakkinda', 'hakkında',
-  'what', 'which', 'where', 'when', 'explain', 'about', 'please', 'tell',
-  'does', 'this', 'that', 'from', 'with', 'document', 'source', 'page'
-])
-
-/**
- * Turn a student's question into tsquery syntax: an OR of its content words.
- *
- * OR rather than AND on purpose — websearch_to_tsquery() ANDs terms, which
- * on a full sentence ("marjinal maliyet egrisi neden U biciminde?") matches
- * nothing at all. ORing and letting ts_rank_cd sort by how many terms hit
- * gives recall first and precision from the ranking.
- *
- * Everything that is not a letter or digit is stripped before the terms are
- * joined, so no user input can reach to_tsquery as operator syntax — a
- * question containing "&", "|", "!" or "(" cannot change the query's shape
- * or break it.
- */
-// ==========================================================================
-// TURKISH QUESTION OVER AN ENGLISH SOURCE
-//
-// This is the normal case here, not an edge case: every department in the
-// business faculty teaches in English, so the PDFs are English and the
-// students ask in Turkish. Retrieval matched the question's own words
-// against the chunks, so it was comparing Turkish to English and losing.
-// Measured 05.10.2026:
-//
-//   "Ben Franklin etkisi nedir?"      -> 2 chunks  (only because "Franklin"
-//                                        is a proper noun and survives)
-//   "makro ekonominin temeli nedir"   -> 0 chunks
-//
-// Zero matches is not a quiet degradation. It drops the whole question to
-// the whole-document path, and on anything long that means the first N
-// characters — a student asking about page 40 gets page 1.
-//
-// Three deterministic layers, no model call, nothing drawn from the daily
-// quota. Each one only ADDS candidates to an OR query, so a wrong guess
-// costs a term that matches nothing, while a right one rescues the question.
-// ==========================================================================
-
-/**
- * Strip Turkish inflection so "ekonominin", "ekonomiyi" and "ekonomide" all
- * reach "ekonomi" — the form the glossary below is keyed on.
- *
- * Turkish is agglutinative: the suffixes stack, so this strips repeatedly,
- * longest first. The stem floor stops it eating short words down to nothing.
- */
-const TR_SUFFIXES = [
-  'lerinden', 'larindan', 'larından', 'lerinde', 'larinda', 'larında',
-  'lerini', 'larini', 'larını', 'lerin', 'larin', 'ların', 'leri', 'lari', 'ları',
-  'ndan', 'dan', 'den', 'tan', 'ten', 'nin', 'nın', 'nun', 'nün',
-  'ler', 'lar', 'nda', 'nde', 'da', 'de', 'ta', 'te',
-  'in', 'ın', 'un', 'ün', 'si', 'sı', 'su', 'sü', 'yi', 'yı', 'yu', 'yü',
-  'le', 'la', 'i', 'ı', 'u', 'ü', 'e', 'a'
-]
-
-/** Stem-final softening reverts once the suffix is gone: "işsizliği" -> "işsizlik". */
-function unsoften(w: string): string {
-  return w.replace(/ğ$/, 'k').replace(/b$/, 'p').replace(/c$/, 'ç').replace(/d$/, 't')
-}
-
-/**
- * ALL the stems a word can reach, not just the shortest one.
- *
- * A single greedy stem was the first version and it lost the two most common
- * words in the test questions, both by overshooting the form the glossary is
- * keyed on:
- *
- *   ekonominin -> ekonomi -> ekonom     "ekonomi" is the glossary key, and
- *                                       the extra pass threw away "economy"
- *   enflasyonun -> enflasyo             longest-first matched "nun", but the
- *                                       n belongs to the stem; "un" gives
- *                                       "enflasyon" -> "inflation"
- *
- * Both failures are the same shape: committing to one strip. So every
- * applicable suffix is tried at every level and all the intermediate forms
- * are kept. The set is small (a Turkish word rarely yields more than a
- * handful) and a wrong stem only contributes a term that matches nothing.
- */
-function turkishStemCandidates(word: string): string[] {
-  const seen = new Set<string>([word])
-  let frontier = [word]
-  for (let depth = 0; depth < 3; depth++) {
-    const next: string[] = []
-    for (const w of frontier) {
-      for (const suf of TR_SUFFIXES) {
-        if (w.length - suf.length >= 4 && w.endsWith(suf)) {
-          const cut = w.slice(0, -suf.length)
-          for (const form of [cut, unsoften(cut)]) {
-            if (!seen.has(form)) { seen.add(form); next.push(form) }
-          }
-        }
-      }
-    }
-    if (next.length === 0) break
-    frontier = next
-  }
-  seen.delete(word)
-  return [...seen]
-}
-
-/** The single most likely stem — for callers that want one form, not the set. */
-function turkishStem(word: string): string {
-  const all = turkishStemCandidates(word)
-  // The glossary is the best evidence we have about where the word ends.
-  for (const s of all) if (TR_EN_TERMS[s]) return s
-  return all.length ? all.reduce((a, b) => (a.length >= b.length ? a : b)) : word
-}
-
-/**
- * Regular orthographic correspondences for the Latinate vocabulary both
- * languages borrowed. These are genuinely rule-like, unlike the glossary
- * below which is word-by-word because the words are not related at all.
- */
-function cognateCandidates(stem: string): string[] {
-  const out: string[] = []
-  const rules: Array<[RegExp, string]> = [
-    [/syon$/, 'tion'],     // deflasyon -> deflation, pozisyon -> position
-    [/zyon$/, 'sion'],     // revizyon -> revision
-    [/izm$/, 'ism'],       // kapitalizm -> capitalism
-    [/loji$/, 'logy'],     // teknoloji -> technology
-    [/lojik$/, 'logic'],
-    [/ik$/, 'ic'],         // ekonomik -> economic
-    [/if$/, 'ive']         // aktif -> active
-  ]
-  for (const [re, rep] of rules) {
-    if (re.test(stem)) out.push(stem.replace(re, rep))
-  }
-  return out
-}
-
-/**
- * Turkish -> English for the vocabulary of this faculty (economics,
- * accounting, finance, management, marketing, information systems).
- *
- * Word-by-word on purpose: "arz" and "supply" share nothing to derive from.
- * Values are arrays because one Turkish word often covers two English ones
- * and an OR query can afford both.
- */
-const TR_EN_TERMS: Record<string, string[]> = {
-  // iktisat
-  'ekonomi': ['economy', 'economics'], 'iktisat': ['economics'],
-  'makro': ['macro', 'macroeconomics'], 'mikro': ['micro', 'microeconomics'],
-  'arz': ['supply'], 'talep': ['demand'], 'piyasa': ['market'], 'pazar': ['market'],
-  'enflasyon': ['inflation'], 'deflasyon': ['deflation'], 'stagflasyon': ['stagflation'],
-  'issizlik': ['unemployment'], 'işsizlik': ['unemployment'], 'istihdam': ['employment'],
-  'buyume': ['growth'], 'büyüme': ['growth'], 'durgunluk': ['recession', 'slump'],
-  'resesyon': ['recession'], 'daralma': ['contraction'], 'genisleme': ['expansion'],
-  'genişleme': ['expansion'], 'bunalim': ['depression'], 'bunalım': ['depression'],
-  'kriz': ['crisis'], 'cevrim': ['cycle'], 'çevrim': ['cycle'], 'konjonktur': ['cycle'],
-  'uretim': ['production', 'output'], 'üretim': ['production', 'output'],
-  'cikti': ['output'], 'çıktı': ['output'], 'girdi': ['input'],
-  'milli': ['national'], 'gelir': ['income', 'revenue'], 'harcama': ['spending', 'expenditure'],
-  'tasarruf': ['savings'], 'yatirim': ['investment'], 'yatırım': ['investment'],
-  'tuketim': ['consumption'], 'tüketim': ['consumption'], 'hanehalki': ['household'],
-  'hanehalkı': ['household'], 'hane': ['household'], 'firma': ['firm', 'company'],
-  'devlet': ['government'], 'hukumet': ['government'], 'hükümet': ['government'],
-  'maliye': ['fiscal'], 'parasal': ['monetary'], 'para': ['money', 'monetary'],
-  'politika': ['policy'], 'vergi': ['tax', 'taxation'], 'faiz': ['interest'],
-  'merkez': ['central'], 'banka': ['bank'], 'tahvil': ['bond'], 'bono': ['bond'],
-  'hisse': ['share', 'stock'], 'senet': ['note', 'security'], 'temettu': ['dividend'],
-  'temettü': ['dividend'], 'fiyat': ['price'], 'duzey': ['level'], 'düzey': ['level'],
-  'seviye': ['level'], 'oran': ['rate', 'ratio'], 'denge': ['equilibrium', 'balance'],
-  'esneklik': ['elasticity'], 'verim': ['yield', 'efficiency'],
-  // muhasebe / finans
-  'muhasebe': ['accounting'], 'bilanco': ['balance'], 'bilanço': ['balance'],
-  'varlik': ['asset'], 'varlık': ['asset'], 'borc': ['debt', 'liability'],
-  'borç': ['debt', 'liability'], 'yukumluluk': ['liability'], 'yükümlülük': ['liability'],
-  'ozkaynak': ['equity'], 'özkaynak': ['equity'], 'sermaye': ['capital'],
-  'kar': ['profit'], 'kâr': ['profit'], 'zarar': ['loss'], 'maliyet': ['cost'],
-  'gider': ['expense'], 'nakit': ['cash'], 'akis': ['flow'], 'akış': ['flow'],
-  'stok': ['inventory', 'stock'], 'envanter': ['inventory'], 'amortisman': ['depreciation'],
-  'defter': ['ledger', 'book'], 'kayit': ['record', 'entry'], 'kayıt': ['record', 'entry'],
-  'fatura': ['invoice'], 'alacak': ['receivable'], 'satis': ['sales'], 'satış': ['sales'],
-  'satin': ['purchase'], 'satın': ['purchase'], 'iskonto': ['discount'],
-  'indirim': ['discount'], 'navlun': ['freight'], 'sigorta': ['insurance'],
-  'deger': ['value'], 'değer': ['value'], 'degerleme': ['valuation'], 'değerleme': ['valuation'],
-  'butce': ['budget'], 'bütçe': ['budget'], 'denetim': ['audit'], 'raporlama': ['reporting'],
-  // yonetim / pazarlama / MIS
-  'yonetim': ['management'], 'yönetim': ['management'], 'orgut': ['organization'],
-  'örgüt': ['organization'], 'strateji': ['strategy'], 'karar': ['decision'],
-  'surec': ['process'], 'süreç': ['process'], 'musteri': ['customer'], 'müşteri': ['customer'],
-  'pazarlama': ['marketing'], 'marka': ['brand'], 'urun': ['product'], 'ürün': ['product'],
-  'hizmet': ['service'], 'rekabet': ['competition'], 'tedarik': ['supply', 'procurement'],
-  'bilgi': ['information', 'knowledge'], 'veri': ['data'], 'sistem': ['system'],
-  'yazilim': ['software'], 'yazılım': ['software'], 'donanim': ['hardware'],
-  'donanım': ['hardware'], 'veritabani': ['database'], 'veritabanı': ['database'],
-  'guvenlik': ['security'], 'güvenlik': ['security'], 'ag': ['network'], 'ağ': ['network'],
-  // genel akademik
-  'tanim': ['definition'], 'tanım': ['definition'], 'ornek': ['example'], 'örnek': ['example'],
-  'fark': ['difference'], 'etki': ['effect', 'impact'], 'neden': ['cause'], 'sonuc': ['result'],
-  'sonuç': ['result'], 'avantaj': ['advantage'], 'dezavantaj': ['disadvantage'],
-  'ozellik': ['feature', 'characteristic'], 'özellik': ['feature', 'characteristic'],
-  'amac': ['purpose', 'objective'], 'amaç': ['purpose', 'objective'],
-  'yontem': ['method'], 'yöntem': ['method'], 'kuram': ['theory'], 'teori': ['theory'],
-  'model': ['model'], 'varsayim': ['assumption'], 'varsayım': ['assumption'],
-  'olcum': ['measurement'], 'ölçüm': ['measurement'], 'hesap': ['account', 'calculation'],
-  'tablo': ['table'], 'grafik': ['chart', 'graph'], 'sekil': ['figure'], 'şekil': ['figure'],
-  'bolum': ['chapter', 'section'], 'bölüm': ['chapter', 'section'],
-  'temel': ['basis', 'foundation', 'fundamental'], 'ilke': ['principle'],
-  'kural': ['rule'], 'asama': ['stage', 'phase'], 'aşama': ['stage', 'phase'],
-  'tur': ['type', 'kind'], 'tür': ['type', 'kind'], 'cesit': ['type'], 'çeşit': ['type'],
-  'artis': ['increase'], 'artış': ['increase'], 'azalis': ['decrease'], 'azalış': ['decrease'],
-  'dusus': ['decline', 'decrease'], 'düşüş': ['decline', 'decrease'],
-  'yuzde': ['percent', 'percentage'], 'yüzde': ['percent', 'percentage'],
-  'donem': ['period'], 'dönem': ['period'], 'yil': ['year'], 'yıl': ['year'],
-  'ceyrek': ['quarter'], 'çeyrek': ['quarter'], 'toplam': ['total', 'aggregate'],
-  'ortalama': ['average'], 'agirlikli': ['weighted'], 'ağırlıklı': ['weighted']
-}
-
-/** Every English candidate a Turkish word can reach. */
-function englishCandidatesFor(word: string): string[] {
-  const out = new Set<string>()
-  // Every candidate stem, not one: see turkishStemCandidates.
-  for (const form of [word, ...turkishStemCandidates(word)]) {
-    for (const t of TR_EN_TERMS[form] || []) out.add(t)
-  }
-  // Cognate rules only on the word and its likeliest stem — applying them to
-  // every candidate produces noise like "arasindak" -> nothing useful.
-  for (const form of [word, turkishStem(word)]) {
-    for (const c of cognateCandidates(form)) out.add(c)
-  }
-  return [...out]
-}
-
-function buildChunkTsQuery(questionText: string): string | null {
-  const words = String(questionText || '')
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-    .split(/\s+/)
-    .filter(w => w.length >= 3 && !QUERY_STOPWORDS.has(w))
-
-  const terms: string[] = []
-  for (const w of words) {
-    // The original word first: proper nouns ("Franklin"), English questions,
-    // and Turkish sources all depend on it, and it is the only term we are
-    // certain the student meant.
-    terms.push(w)
-    // Then the stem, which catches a Turkish source where the chunk happens
-    // to carry a different inflection of the same word.
-    const stem = turkishStem(w)
-    if (stem !== w && stem.length >= 3) terms.push(stem)
-    // Then the bridge to English.
-    for (const en of englishCandidatesFor(w)) terms.push(en)
-  }
-
-  // Cap raised from 24: each original word can now contribute two or three
-  // candidates, and cutting at 24 would silently drop the English half of a
-  // longer question — the half that does the matching.
-  const unique = [...new Set(terms)].filter(t => t.length >= 3).slice(0, 60)
-  if (unique.length === 0) return null
-  return unique.join(' | ')
-}
-
-/** Per-document chunk sizes, cheap enough to ask before deciding strategy. */
-async function loadChunkSizes(
-  serviceClient: any,
-  documentId: string
-): Promise<{ count: number; totalChars: number } | null> {
-  try {
-    const { data, error } = await serviceClient
-      .from('document_chunks')
-      .select('char_count')
-      .eq('document_id', documentId)
-    if (error || !data || data.length === 0) return null
-    return {
-      count: data.length,
-      totalChars: data.reduce((n: number, r: any) => n + (Number(r.char_count) || 0), 0)
-    }
-  } catch (_e) {
-    return null
-  }
-}
-
-/**
- * Rank a document's chunks against the question. Returns [] when nothing
- * matched and null when the search itself was unavailable (RPC missing
- * because the migration has not been run yet, for instance) — the caller
- * treats those differently: no matches is an answer, an unavailable search
- * means fall back to sending the document.
- */
-async function retrieveRelevantChunks(
-  serviceClient: any,
-  documentIds: string[],
-  tsquery: string
-): Promise<any[] | null> {
-  try {
-    const { data, error } = await serviceClient.rpc('search_document_chunks', {
-      p_document_ids: documentIds,
-      p_tsquery: tsquery,
-      p_limit: RETRIEVED_MAX_CHUNKS
-    })
-    if (error) {
-      console.warn(`search_document_chunks unavailable (${error.message}) — falling back to whole document`)
-      return null
-    }
-    return Array.isArray(data) ? data : []
-  } catch (e) {
-    console.warn('search_document_chunks threw, falling back:', e)
-    return null
-  }
-}
-
-/**
- * Assemble retrieved chunks into prompt context.
- *
- * Selection is by relevance, but the assembled text is re-sorted into
- * READING order: a model handed passages in rank order sees page 70 before
- * page 12 and reasons about the document as if it were shuffled. Page labels
- * are included so the model can say where an answer came from.
- */
-function assembleRetrieved(rows: any[], charBudget: number): { text: string; used: number; pages: number[] } {
-  const picked: any[] = []
-  let used = 0
-  for (const r of rows) {
-    const t = String(r?.text || '')
-    if (!t) continue
-    if (used + t.length > charBudget && picked.length > 0) break
-    picked.push(r)
-    used += t.length
-  }
-  picked.sort((a, b) => (a.chunk_index ?? 0) - (b.chunk_index ?? 0))
-  // SAYFA KUMESI, SAYFA BASLANGICLARI DEGIL (06.10.2026).
-  //
-  // Eski hali yalnizca page_start topluyordu, oysa metne basilan etiket tam
-  // aralik: [Sayfa 30-36]. Log "pages=[... 30 ...]" yaziyordu ve cevap
-  // "Sayfa 30-36" diyordu — bu ikisine bakan biri (bakan bendim) modelin
-  // sayfa uydurdugu sonucuna variyor ve var olmayan bir hatayi kovalamaya
-  // basliyor. Model etiketi dogru kopyalamisti; yanlis olan olcu aletiydi.
-  //
-  // Artik kume, modelin GERCEKTEN gordugu butun sayfalari icerir. Bir
-  // atifin dayanagini dogrulamak isteyen kod da (bkz. groundCitationPages)
-  // bu kumeye bakar — baslangiclara bakan bir kontrol, aralik ortasindaki
-  // her sayfayi sahte sayardi.
-  const pages: number[] = []
-  const parts = picked.map(r => {
-    const ps = (typeof r.page_start === 'number') ? r.page_start : null
-    const pe = (typeof r.page_end === 'number') ? r.page_end : null
-    if (ps !== null) {
-      const son = (pe !== null && pe >= ps) ? pe : ps
-      for (let p = ps; p <= son; p++) if (!pages.includes(p)) pages.push(p)
-    }
-    const label = ps === null ? '' : (pe !== null && pe !== ps ? `[Sayfa ${ps}-${pe}]\n` : `[Sayfa ${ps}]\n`)
-    return `${label}${String(r.text || '').trim()}`
-  })
-  pages.sort((a, b) => a - b)
-  return { text: parts.join('\n\n'), used, pages }
-}
-
-async function extractDocumentText(serviceClient: any, doc: any): Promise<string> {
-  const { data: fileBlob, error: downloadError } = await serviceClient.storage
-    .from('documents')
-    .download(doc.storage_path)
-
-  if (downloadError || !fileBlob) {
-    throw new Error(`DOWNLOAD_FAILED:${doc.file_name || doc.id}`)
-  }
-
-  const arrayBuffer = await fileBlob.arrayBuffer()
-  const fileBytes = new Uint8Array(arrayBuffer)
-  const mimeType = (doc.mime_type || "").toLowerCase()
-  let extractedText = ""
-
-  if (mimeType === "text/plain") {
-    extractedText = new TextDecoder("utf-8").decode(fileBytes)
-  } else if (mimeType === "application/pdf") {
-    let isScannedOrFailed = false
-    try {
-      const pdf = await getDocumentProxy(fileBytes)
-      const { text } = await extractText(pdf, { mergePages: true })
-      extractedText = text
-      const textLen = (extractedText || "").trim().length
-      if (textLen < 200 || textLen < (fileBytes.length / 500)) {
-        isScannedOrFailed = true
-      }
-    } catch (_pdfErr) {
-      isScannedOrFailed = true
-    }
-
-    if (isScannedOrFailed) {
-      const ocrApiKey = Deno.env.get('OCR_SPACE_API_KEY')
-      if (ocrApiKey) {
-        try {
-          const ocrText = await tryOCR(fileBytes, ocrApiKey)
-          if ((ocrText || "").trim().length >= 200) {
-            extractedText = ocrText
-          }
-        } catch (_ocrErr) {
-          // fall through with whatever extractedText we already have
-        }
-      }
-    }
-  } else if (mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
-    try {
-      const docxHtmlResult = await mammoth.convertToHtml({ buffer: fileBytes })
-      const parsedDocxText = parseDocxHtmlContent(docxHtmlResult.value || "")
-      extractedText = parsedDocxText.trim() ? parsedDocxText : (await mammoth.extractRawText({ buffer: fileBytes })).value
-    } catch (_docxErr) {
-      const docxResult = await mammoth.extractRawText({ buffer: fileBytes })
-      extractedText = docxResult.value
-    }
-  } else if (mimeType === "application/vnd.openxmlformats-officedocument.presentationml.presentation") {
-    const zip = new JSZip()
-    await zip.loadAsync(fileBytes)
-    const slideFiles = Object.keys(zip.files)
-      .filter(name => name.startsWith("ppt/slides/slide") && name.endsWith(".xml"))
-      .sort((a, b) => parseInt(a.replace(/[^0-9]/g, ""), 10) - parseInt(b.replace(/[^0-9]/g, ""), 10))
-    let pptxText = ""
-    for (const slidePath of slideFiles) {
-      const slideXml = await zip.files[slidePath].async("text")
-      const slideText = parsePptxSlideXml(slideXml)
-      if (slideText) pptxText += slideText + "\n\n"
-    }
-    extractedText = pptxText
-  } else {
-    extractedText = new TextDecoder("utf-8").decode(fileBytes)
-  }
-
-  return (extractedText || "").trim()
-}
-
-// When asked for tables/lists, the model sometimes writes its "answer" field
-// with literal line breaks between rows instead of escaped "\n" sequences —
-// that's invalid JSON and JSON.parse() rejects the whole response outright.
-// This walks the raw text tracking whether we're inside a JSON string
-// (toggling on unescaped double quotes) and escapes stray control characters
-// found there, then retries the parse. Only kicks in when a plain parse
-// already failed, so well-formed responses are unaffected.
-function tryParseJsonLoose(raw: string): any {
-  try {
-    return JSON.parse(raw)
-  } catch (_firstErr) {
-    let repaired = ''
-    let inString = false
-    let prevChar = ''
-    for (const ch of raw) {
-      if (ch === '"' && prevChar !== '\\') {
-        inString = !inString
-        repaired += ch
-      } else if (inString && (ch === '\n' || ch === '\r' || ch === '\t')) {
-        repaired += ch === '\n' ? '\\n' : ch === '\r' ? '\\r' : '\\t'
-      } else {
-        repaired += ch
-      }
-      prevChar = ch
-    }
-    return JSON.parse(repaired)
-  }
-}
-
-/* ===========================================================================
-   SON CARE: SOZLESMEYI ALAN ALAN KURTAR
-   ===========================================================================
-   06.10.2026, serit sirasi 20b-once yapildiktan hemen sonra. Ogrenci "FIFO
-   VE LIFO ARASINDAKI FARK NE" diye sordu ve ekranda "AI returned invalid
-   JSON formatting" gordu. Model aslinda DOGRU ve EKSIKSIZ bir cevap
-   yazmisti; bozuk olan yalnizca sarmalayiciydi:
-
-     {"answer":"FIFO ve LIFO ... [1] [2]"} , "citations":[{"id":1,...}]}
-                                         ^ buraya fazladan bir } dusmus
-
-   JSON.parse 708. karakterde durdu ve 600 kelimelik dogru cevap cope gitti.
-   tryParseJsonLoose bunu kurtaramaz: o, string ICINDEKI kacmamis kontrol
-   karakterlerini onarir, YAPIYI degil.
-
-   Ayraclari onarmaya calismak yanlis yol — nereye kac tane parantez
-   eklenecegini tahmin etmek gerekir. Oysa sozlesme belli: {answer,
-   citations}. O yuzden bu fonksiyon yapiyi hic umursamaz, iki alani
-   BAGIMSIZ olarak okur. Alanlarin arasina ne dusmus olursa olsun etkisi
-   yoktur.
-
-   Kucuk bir model buyuk bir modelden daha sik bicim hatasi yapar; 20b'yi
-   one almanin bedeli bu. Bedel, cevabi atmak degil, sarmalayiciyi es
-   gecmek olmali.
-   =========================================================================== */
-
-/** Verilen konumdaki JSON string literalini okur (kacis dizilerine saygili). */
-function readJsonStringAt(src: string, i: number): { value: string; end: number } | null {
-  if (src[i] !== '"') return null
-  let j = i + 1
-  let out = ''
-  while (j < src.length) {
-    const c = src[j]
-    if (c === '\\') {
-      // Kacis dizisini OLDUGU GIBI tasi — yorumlamayi JSON.parse yapsin.
-      out += c + (src[j + 1] ?? '')
-      j += 2
-      continue
-    }
-    if (c === '"') {
-      try { return { value: JSON.parse(`"${out}"`), end: j + 1 } }
-      catch { return null }
-    }
-    // Ham kontrol karakteri JSON string'inde gecersiz — kacir.
-    if (c === '\n') { out += '\\n'; j++; continue }
-    if (c === '\r') { out += '\\r'; j++; continue }
-    if (c === '\t') { out += '\\t'; j++; continue }
-    out += c
-    j++
-  }
-  return null   // kapanmamis string
-}
-
-/** Verilen konumdaki JSON dizisini dengeli tarama ile okur. */
-function readJsonArrayAt(src: string, i: number): { value: unknown[]; end: number } | null {
-  if (src[i] !== '[') return null
-  let depth = 0, inStr = false, prev = ''
-  for (let j = i; j < src.length; j++) {
-    const c = src[j]
-    if (inStr) {
-      if (c === '"' && prev !== '\\') inStr = false
-    } else if (c === '"') {
-      inStr = true
-    } else if (c === '[') {
-      depth++
-    } else if (c === ']') {
-      depth--
-      if (depth === 0) {
-        try {
-          const v = JSON.parse(src.slice(i, j + 1))
-          return Array.isArray(v) ? { value: v, end: j + 1 } : null
-        } catch { return null }
-      }
-    }
-    prev = c
-  }
-  return null   // kapanmamis dizi
-}
-
-/**
- * Bozuk sarmalayicidan {answer, citations} cikarir. answer bulunamazsa ya da
- * bossa null doner — o zaman gercekten kurtarilacak bir cevap yok ve hata
- * ogrenciye bildirilmeli. citations kurtarilamazsa cevap yine de doner:
- * atifsiz bir cevap, hic cevap vermemekten iyidir.
- */
-function salvageAnswerContract(raw: string): { answer: string; citations: unknown[] } | null {
-  const alanBasi = (anahtar: string): number => {
-    const m = raw.match(new RegExp(`"${anahtar}"\\s*:`))
-    if (!m || m.index === undefined) return -1
-    let k = m.index + m[0].length
-    while (k < raw.length && /\s/.test(raw[k])) k++
-    return k
-  }
-
-  const ai = alanBasi('answer')
-  if (ai === -1) return null
-  const a = readJsonStringAt(raw, ai)
-  if (!a || !a.value.trim()) return null
-
-  let citations: unknown[] = []
-  const ci = alanBasi('citations')
-  if (ci !== -1) {
-    const c = readJsonArrayAt(raw, ci)
-    if (c) citations = c.value
-  }
-
-  return { answer: a.value, citations }
-}
-
-/* ===========================================================================
-   ATIF SAYFALARINI GONDERILEN SAYFALARA DAYANDIR
-   ===========================================================================
-   Atiflar bugune kadar hicbir kontrolden gecmeden ogrenciye gidiyordu.
-   Ozetleme tarafinda grafik degerleri icin "bu sayi kaynakta geciyor mu"
-   kapisi var; sohbet atiflarinin karsiligi yoktu.
-
-   Riskin sekli: model retrieval ile SECILMIS pasajlari goruyor, ama belgenin
-   tamaminin var oldugunu da biliyor. Gormedigi bir sayfaya atif yazarsa
-   ogrenci o sayfayi acar ve ya hicbir sey bulamaz ya da alakasiz bir seyi
-   kaynak sanir — ikincisi daha kotu.
-
-   TEK BASINA SAYILAR ELLENMEZ. reference serbest metin: "Bolum 2 - SEO
-   tartismasi" gibi. Oradaki 2'yi sayfa iddiasi sayip silmek, duzgun bir
-   atifi bozmak olur. Yalnizca ACIK sayfa kaliplari ("Sayfa 24-25", "s. 7",
-   "p. 12") yakalanir.
-
-   06.10.2026 notu: bu kapi, yazilmasina sebep olan ornekte FIRE ETMEZ.
-   "Sayfa 24-25, 29, 30-36" atfi dogruydu — pasaj etiketleri gercekten
-   [Sayfa 24-25], [Sayfa 29], [Sayfa 30-36] idi. Kapiyi, yanlis okunan bir
-   log yuzunden var sanilan bir hata icin yazmaya basladim; hata yoktu ama
-   kapinin korudugu risk gercek. Dogru ornekte sessiz kalmasi kusur degil,
-   sartname — testlerden biri tam olarak onu dogruluyor.
-   =========================================================================== */
-const SAYFA_DESENI = /(sayfa|sayfalar|sayfalarda|s\.|p\.|pages?)(\s*)([\d]+(?:\s*[-–—]\s*[\d]+)?(?:\s*,\s*[\d]+(?:\s*[-–—]\s*[\d]+)?)*)/gi
-
-/** "24-25, 29, 30-36" → [24,25,29,30,...,36] */
-function sayfaListesiAc(metin: string): number[] {
-  const out: number[] = []
-  for (const parca of metin.split(',')) {
-    const m = parca.trim().match(/^(\d+)(?:\s*[-–—]\s*(\d+))?$/)
-    if (!m) continue
-    const bas = parseInt(m[1], 10)
-    const son = m[2] ? parseInt(m[2], 10) : bas
-    if (!Number.isFinite(bas) || son < bas || son - bas > 200) continue
-    for (let p = bas; p <= son; p++) out.push(p)
-  }
-  return out
-}
-
-/** Bitişik sayıları aralığa toplar: [24,25,29] → "24-25, 29" */
-function sayfaListesiTopla(sayfalar: number[]): string {
-  const s = [...new Set(sayfalar)].sort((a, b) => a - b)
-  const parcalar: string[] = []
-  let i = 0
-  while (i < s.length) {
-    let j = i
-    while (j + 1 < s.length && s[j + 1] === s[j] + 1) j++
-    parcalar.push(i === j ? `${s[i]}` : `${s[i]}-${s[j]}`)
-    i = j + 1
-  }
-  return parcalar.join(', ')
-}
-
-/**
- * Atiflardaki sayfa iddialarini GONDERILEN sayfa kumesine karsi dogrular.
- * Dayanaksiz sayfalar referans metninden cikarilir; hicbiri dayanmiyorsa
- * sayfa ifadesi tamamen atilir ve referansin geri kalani korunur — atfi
- * bastan silmek, ogrenciyi dogru bolumden de mahrum birakir.
- * Doner: { citations, atilan } — atilan, loglanacak sayfa numaralari.
- */
-function groundCitationPages(
-  citations: unknown[],
-  gonderilenSayfalar: number[]
-): { citations: unknown[]; atilan: number[] } {
-  if (!Array.isArray(citations) || gonderilenSayfalar.length === 0) {
-    return { citations: Array.isArray(citations) ? citations : [], atilan: [] }
-  }
-  const gonderilen = new Set(gonderilenSayfalar)
-  const atilan: number[] = []
-
-  const temiz = citations.map((c) => {
-    if (!c || typeof c !== 'object') return c
-    const ref = (c as Record<string, unknown>).reference
-    if (typeof ref !== 'string' || !ref) return c
-
-    const yeni = ref.replace(SAYFA_DESENI, (tam, kelime, bosluk, liste) => {
-      const istenen = sayfaListesiAc(String(liste))
-      if (istenen.length === 0) return tam
-      const dayanan = istenen.filter(p => gonderilen.has(p))
-      const sahte = istenen.filter(p => !gonderilen.has(p))
-      for (const p of sahte) if (!atilan.includes(p)) atilan.push(p)
-      if (dayanan.length === 0) return ''                 // sayfa ifadesini tamamen at
-      if (sahte.length === 0) return tam                  // hepsi dayaniyor — dokunma
-      return `${kelime}${bosluk}${sayfaListesiTopla(dayanan)}`
-    }).replace(/\s{2,}/g, ' ').replace(/\s+([,.;])/g, '$1').replace(/^[\s,;-]+|[\s,;-]+$/g, '')
-
-    return yeni === ref ? c : { ...(c as Record<string, unknown>), reference: yeni }
-  })
-
-  return { citations: temiz, atilan }
-}
-
-// The student explicitly wants chat answers to consider BOTH the raw source
-// text and the study card summary already generated for it — the summary can
-// carry synthesized info (e.g. a diagram's meaning inferred at generation
-// time) that the raw extracted text alone doesn't make obvious. Kept compact
-// since this rides along on every chat turn.
-function buildSummaryContextBlock(card: any): string {
-  const parts: string[] = []
-  if (card.summary && typeof card.summary === 'string') {
-    parts.push(`Study card summary:\n${card.summary}`)
-  }
-  if (Array.isArray(card.key_points) && card.key_points.length > 0) {
-    parts.push(`Key points:\n- ${card.key_points.slice(0, 20).join('\n- ')}`)
-  }
-  if (Array.isArray(card.tables) && card.tables.length > 0) {
-    parts.push(`Tables identified when this card was generated:\n${JSON.stringify(card.tables).slice(0, 2000)}`)
-  }
-  if (Array.isArray(card.charts) && card.charts.length > 0) {
-    parts.push(`Charts/diagrams identified when this card was generated:\n${JSON.stringify(card.charts).slice(0, 2000)}`)
-  }
-  if (Array.isArray(card.formulas) && card.formulas.length > 0) {
-    parts.push(`Formulas identified when this card was generated:\n${JSON.stringify(card.formulas).slice(0, 1500)}`)
-  }
-  let block = parts.join('\n\n')
-  const MAX_SUMMARY_CONTEXT = 6000
-  if (block.length > MAX_SUMMARY_CONTEXT) {
-    block = block.substring(0, MAX_SUMMARY_CONTEXT) + '\n...[truncated]'
-  }
-  return block
-}
-
-serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
-
-  try {
-    if (req.method !== 'POST') {
-      return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-        status: 405,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
-    }
-
-    const { studyCardId, messages, image, checkWorkMode } = await req.json()
-    if (!studyCardId) {
-      return new Response(JSON.stringify({ error: 'studyCardId is required' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
-    }
-    if (!messages || !Array.isArray(messages) || messages.length === 0) {
-      return new Response(JSON.stringify({ error: 'Missing or invalid "messages" parameter' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
-    }
-
-    // Optional: a student can attach a screenshot/photo of a specific page —
-    // e.g. a diagram that the extracted text renders as garbled/disconnected
-    // fragments. When present we route this one turn through a vision-capable
-    // model instead of the usual text-only one. Validated defensively since
-    // it's a raw base64 data URL coming straight from the client.
-    let imageDataUrl: string | undefined = undefined
-    if (typeof image === 'string' && image.trim().length > 0) {
-      const candidate = image.trim()
-      if (!/^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(candidate)) {
-        return new Response(JSON.stringify({ error: 'Attached image must be a valid PNG/JPEG/WEBP/GIF data URL.' }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        })
-      }
-      const approxBytes = candidate.length * 0.75
-      const MAX_IMAGE_BYTES = 6 * 1024 * 1024 // ~6MB decoded — plenty for a screenshot, keeps latency/cost sane
-      if (approxBytes > MAX_IMAGE_BYTES) {
-        return new Response(JSON.stringify({ error: 'Attached image is too large (max ~6MB). Try a smaller screenshot or crop it.' }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        })
-      }
-      imageDataUrl = candidate
-    }
-
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Missing Authorization header' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
-    }
-
-    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? ''
-    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } }
-    })
-
-    // 1. Verify the caller can actually see this study card (RLS-enforced —
-    //    covers both "it's my own card" and "I'm a teacher with open access").
-    const { data: card, error: cardError } = await userClient
-      .from('study_cards')
-      .select('id, document_id, is_merged, source_documents, summary_language, summary, key_points, tables, charts, formulas')
-      .eq('id', studyCardId)
-      .single()
-
-    if (cardError || !card) {
-      return new Response(JSON.stringify({ error: 'Study card not found or access denied' }), {
-        status: 404,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
-    }
-
-    const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    const serviceClient = createClient(supabaseUrl, supabaseServiceRoleKey)
-
-    // 2. Resolve which document row(s) back this card, then download + extract text.
-    let docIds: string[] = []
-    if (card.is_merged && Array.isArray(card.source_documents) && card.source_documents.length > 0) {
-      docIds = card.source_documents.map((d: any) => d.id).filter(Boolean)
-    } else if (card.document_id) {
-      docIds = [card.document_id]
-    }
-
-    if (docIds.length === 0) {
-      return new Response(JSON.stringify({ error: 'This study card has no linked source document to chat with.' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
-    }
-
-    const { data: docs, error: docsError } = await serviceClient
-      .from('documents')
-      .select('id, storage_path, mime_type, file_name')
-      .in('id', docIds)
-
-    if (docsError || !docs || docs.length === 0) {
-      return new Response(JSON.stringify({ error: 'The original source document(s) could not be found (they may have been deleted).' }), {
-        status: 404,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
-    }
-
-    // ========================================================================
-    // SOURCE TEXT STRATEGY
-    //
-    //   small enough  -> send the whole document (unchanged behaviour)
-    //   too large     -> rank chunks against the question, send the best
-    //   no chunks yet -> extract on demand, truncate (pre-migration docs)
-    //
-    // Every branch falls back toward the older, simpler behaviour rather than
-    // failing the student's question.
-    // ========================================================================
-    // Bound the conversation window we forward to the model: last 10 turns
-    // (5 exchanges) is plenty of context for follow-ups without ballooning cost.
-    //
-    // Computed HERE, before the strategy below, because the history competes
-    // with the source text for the same per-minute budget and so has to be
-    // measurable before we decide how much source we can afford. A long
-    // conversation legitimately shrinks the source window.
-    const safeMessages = messages
-      .filter((m: any) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
-      .slice(-10)
-      .map((m: any) => ({ role: m.role, content: m.content.slice(0, 3000) }))
-
-    if (safeMessages.length === 0 || safeMessages[safeMessages.length - 1].role !== 'user') {
-      return new Response(JSON.stringify({ error: 'No valid question found in the request.' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
-    }
-
-    // Everything that competes with the source text for the same per-minute
-    // budget, declared before the strategy below so the budget can be measured
-    // rather than assumed.
-    //
-    // WHICH INSTRUCTIONS THIS QUESTION ACTUALLY NEEDS
-    //
-    // Measured 05.10.2026: the system prompt ran to 13,048 characters, about
-    // 3,300 tokens of standing instructions on every single message, before
-    // the question or one character of the document. Broken down, two
-    // sections were 59% of it:
-    //
-    //   DIAGRAM & VISUAL-STRUCTURE AWARENESS + DIAGRAM GENERATION  ~4,990
-    //   MATH FORMULA FORMAT + STEP-BY-STEP NUMERIC SOLUTIONS       ~3,080
-    //
-    // Both are conditional in nature — one earns its place when the student
-    // asks about a figure, the other when the material is quantitative — and
-    // both were being sent for "makro ekonominin temeli nedir". Shortening
-    // the text would cost capability where it matters; sending it only when
-    // it applies costs nothing. Every 3,200 characters saved is ~1,000
-    // tokens handed back to the document.
-    //
-    // Both tests err toward INCLUDING: a missing instruction degrades an
-    // answer, while an unnecessary one only costs budget on a question that
-    // had room anyway.
-    const lastUserText = String(
-      [...messages].reverse().find((m: any) => m?.role === 'user')?.content || ''
-    ).toLowerCase()
-
-    const VISUAL_WORDS = /g[öo]rsel|[şs]ekil|[şs]ema|grafik|diyagram|tablo|çizim|cizim|resim|foto|akı[şs]|aki[sş]|diagram|chart|figure|graph|table|flow|image|picture/
-    const NUMERIC_WORDS = /hesapla|hesab|kaç|kac|ne kadar|yüzde|yuzde|oran|formül|formul|çöz|coz|soru çöz|calculate|compute|how much|how many|percent|ratio|formula|solve|step by step/
-    // The QUESTION decides the visual rules, not the card. "This card has a
-    // diagram" was the first version of this test and it eliminated nothing:
-    // nearly every card the pipeline produces has at least one diagram, so
-    // the 4,990 characters shipped on every message exactly as before. What
-    // the rules are for is a student asking about a figure, and a student
-    // asking about a figure says so. If they don't, they get a prose answer
-    // and can ask again with "şema çiz" — cheap to recover from, unlike a
-    // truncated document.
-    const needsVisualRules =
-      typeof imageDataUrl === 'string' || VISUAL_WORDS.test(lastUserText)
-
-    // is_quantitative is a property of the DOCUMENT, not of one question, and
-    // that is the right level here: in an accounting or economics chapter the
-    // next question is likely to be numeric even when this one wasn't, and a
-    // mis-formatted formula is a worse failure than a slightly smaller window.
-    const needsNumericRules =
-      card?.is_quantitative === true ||
-      (Array.isArray(card?.formulas) && card.formulas.length > 0) ||
-      (Array.isArray(card?.worked_examples) && card.worked_examples.length > 0) ||
-      NUMERIC_WORDS.test(lastUserText) || /\d/.test(lastUserText)
-
-    type SourceView = 'whole' | 'retrieval' | 'truncated'
-
-    const docNames = docs.map((d: any) => d.file_name).join(', ')
-    const summaryContextBlock = buildSummaryContextBlock(card)
-    const hasImage = typeof imageDataUrl === 'string'
-    // "Check my work" only makes sense when there's actually an image to look
-    // at — a checked checkbox with no attachment is just ignored.
-    const isCheckWorkMode = checkWorkMode === true && hasImage
-
-    // Measured, not estimated: build the real prompt with an empty source and
-    // take its length. `true` for the retrieval variant because that one is
-    // ~700 characters longer (the selected-passages caveat), so whichever
-    // strategy wins, the real prompt is no larger than what we budgeted for.
-    // The document's own language decides the ratio, so the sample is the
-    // card's summary — it is written in the document's language and is
-    // available here, before the source text itself has been chosen.
-    const charsPerToken = charsPerTokenFor(summaryContextBlock || docNames)
-
-    const historyChars = () => safeMessages.reduce(
-      (n: number, m: any) => n + String(m.content || '').length, 0
-    )
-    // 'retrieval' because it is the longest of the three variants (it adds
-    // the selected-passages caveat), so whichever view wins, the real
-    // prompt is no larger than what we budgeted for.
-    const basePromptChars = buildSystemPrompt('', 'retrieval').length
-
-    // A long conversation can eat the whole minute on its own: ten turns at
-    // the 3,000-character cap is 30,000 characters, nearly 9,400 tokens
-    // before the document is even considered. The floor in
-    // sourceBudgetChars() keeps the source from going to zero, but a floor
-    // that pushes the TOTAL back over the ceiling just trades an empty prompt
-    // for "Request too large" — the student sees an error either way.
-    //
-    // So when it comes to that, the history is what gets cut. The source
-    // document is what the question is about; turn 6 of the chat is not.
-    // Oldest first, and never the current question.
-    // Uzun yoneri gerektiren soru, uzun cevabi da gerektiren sorudur.
-    const maxCompletion = (needsNumericRules || needsVisualRules || hasImage)
-      ? CHAT_MAX_COMPLETION
-      : CHAT_MAX_COMPLETION_SHORT
-
-    let droppedTurns = 0
-    while (
-      safeMessages.length > 1 &&
-      sourceBudgetChars(basePromptChars + historyChars(), hasImage, maxCompletion, charsPerToken) <= SOURCE_MIN_CHARS
-    ) {
-      safeMessages.shift()
-      droppedTurns++
-    }
-    if (droppedTurns > 0) {
-      console.warn(
-        `chat-with-document: ${droppedTurns} eski sohbet turu dusuruldu — ` +
-        `gecmis kaynak metnine yer birakmiyordu`
-      )
-    }
-
-    const promptOverheadChars = basePromptChars + historyChars()
-    const SOURCE_BUDGET = sourceBudgetChars(promptOverheadChars, hasImage, maxCompletion, charsPerToken)
-    console.log(
-      `chat-with-document budget: ${SOURCE_BUDGET} krk kaynak ` +
-      `(prompt ${basePromptChars} + gecmis ${historyChars()} krk, completion ${maxCompletion}, ` +
-      `gorsel=${needsVisualRules ? 'kural+' : '-'}${hasImage ? 'ek' : ''}, ` +
-      `sayisal=${needsNumericRules ? 'kural+' : '-'}, oran ${charsPerToken}, ` +
-      `TPM ${CHAT_TPM_LIMIT}×${CHAT_TPM_SAFETY})`
-    )
-
-    type ChunkSize = { count: number; totalChars: number } | null
-    const sizes: ChunkSize[] = await Promise.all(
-      docs.map((d: any) => loadChunkSizes(serviceClient, d.id))
-    )
-    const allChunked = sizes.every((s: ChunkSize) => s !== null)
-    const totalChunkChars = sizes.reduce((n: number, s: ChunkSize) => n + (s?.totalChars || 0), 0)
-
-    // The question being asked, plus the previous question for follow-ups
-    // like "peki onun formülü?" whose own words name nothing searchable.
-    const userTurns = messages.filter((m: any) => m?.role === 'user' && typeof m?.content === 'string')
-    const latestQuestion = String(userTurns[userTurns.length - 1]?.content || '')
-    const priorQuestion = String(userTurns[userTurns.length - 2]?.content || '')
-    const retrievalQuery = buildChunkTsQuery(`${latestQuestion} ${priorQuestion}`.trim())
-
-    let sourceText = ''
-    let strategy = 'none'
-    // Modelin GERCEKTEN gordugu sayfalar. Yalnizca retrieval dalinda dolar —
-    // tam belge gonderildiginde pasaj etiketi yok, dolayisiyla dogrulanacak
-    // bir sayfa iddiasi da yok ve kapi bos kume ile sessiz kalir.
-    let gonderilenSayfalar: number[] = []
-
-    if (allChunked && totalChunkChars > SOURCE_BUDGET && retrievalQuery) {
-      const rows = await retrieveRelevantChunks(serviceClient, docIds, retrievalQuery)
-      if (rows && rows.length > 0) {
-        const { text, used, pages } = assembleRetrieved(rows, SOURCE_BUDGET)
-        if (text) {
-          sourceText = text
-          strategy = 'retrieval'
-          gonderilenSayfalar = pages
-          console.log(
-            `chat-with-document: retrieval — ${rows.length} chunk matched, ` +
-            `${Math.min(rows.length, RETRIEVED_MAX_CHUNKS)} ranked, ${used} chars sent ` +
-            // Sayfalar artik ARALIK olarak yaziliyor. Eskiden yalnizca
-            // page_start listeleniyordu ve [Sayfa 30-36] etiketli bir pasaj
-            // logda sadece "30" olarak gorunuyordu — logu okuyan, modelin
-            // 31-36'yi uydurdugunu saniyordu. (06.10.2026, tam bu yanlis
-            // teshis yapildi.)
-            `(document total ${totalChunkChars}), sayfalar=[${sayfaListesiTopla(pages)}]`
-          )
-        }
-      } else if (rows && rows.length === 0) {
-        // The search ran and genuinely matched nothing. Sending the whole
-        // (large) document is still better than answering from nothing, and
-        // the model's own grounding rule handles "not in the source".
-        console.log('chat-with-document: retrieval matched 0 chunks — sending document head instead')
-      }
-    }
-
-    if (!sourceText) {
-      const sections: string[] = []
-      let storedHits = 0
-      let extractedHits = 0
-      for (const doc of docs) {
-        try {
-          // Stored chunks first; on-demand extraction only for documents that
-          // predate document_chunks (or whose write failed).
-          let text = await loadStoredText(serviceClient, doc.id)
-          if (text) {
-            storedHits++
-          } else {
-            text = await extractDocumentText(serviceClient, doc)
-            if (text) extractedHits++
-          }
-          if (text) {
-            sections.push(docs.length > 1 ? `=== DOCUMENT: ${doc.file_name} ===\n${text}` : text)
-          }
-        } catch (extractErr) {
-          console.error('Text extraction failed for doc', doc.id, extractErr)
-        }
-      }
-
-      if (sections.length === 0) {
-        return new Response(JSON.stringify({ error: 'No readable text could be extracted from the source document(s).' }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        })
-      }
-
-      sourceText = sections.join('\n\n')
-      strategy = storedHits > 0 ? 'whole-document (stored)' : 'whole-document (extracted)'
-
-      // Safety net for a document that is large AND could not be served by
-      // retrieval (no chunks, or the search was unavailable). Still a cut, but
-      // now only on the path that has no better option.
-      //
-      // The cut used to be at a flat 100,000 characters, which is five times
-      // what the minute's budget can carry — so it did not prevent anything:
-      // the request still went out too large and Groq rejected it. Cutting at
-      // the budget means the student gets an answer from the first N pages
-      // instead of an error, which is worse than retrieval and much better
-      // than nothing.
-      if (sourceText.length > SOURCE_BUDGET) {
-        console.warn(
-          `chat-with-document: source text (${sourceText.length} krk) butceyi ` +
-          `(${SOURCE_BUDGET} krk) asiyor, kirpiliyor — retrieval bu yolda kullanilamadi`
-        )
-        const truncated = sourceText.substring(0, SOURCE_BUDGET)
-        const lastBoundary = Math.max(truncated.lastIndexOf(". "), truncated.lastIndexOf(".\n"), truncated.lastIndexOf("\n"))
-        sourceText = lastBoundary > SOURCE_BUDGET - 3000 ? truncated.substring(0, lastBoundary + 1) : truncated
-        strategy += ' + truncated'
-      }
-      console.log(`chat-with-document source text: ${storedHits} from document_chunks, ${extractedHits} re-extracted`)
-    }
-
-    console.log(`chat-with-document strategy=${strategy}, sourceText=${sourceText.length} chars`)
-
-    const groqApiKey = Deno.env.get('GROQ_API_KEY')
-    if (!groqApiKey) {
-      return new Response(JSON.stringify({ error: 'AI key not configured' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
-    }
-
-    /**
-     * The system prompt, as a function of the source text.
-     *
-     * It used to be one inline template literal built after the strategy was
-     * chosen. It has to be a function now because the source-text budget is
-     * "what is left of the minute after everything else" — so the everything
-     * else has to be MEASURABLE before the source is picked, and the only
-     * honest way to measure it is to build this with an empty source.
-     *
-     * A hardcoded "the prompt is about 4,000 characters" constant would have
-     * been smaller, and would have silently drifted the first time anyone
-     * edited the text below.
-     */
-    function buildSystemPrompt(sourceText: string, view: SourceView): string {
-      // What the model is actually looking at depends on the strategy, and
-      // getting this wrong produces the one answer a grounded Q&A feature
-      // must never give: a confident "that isn't in the document" about
-      // something that is, just not in the part it was shown.
-      //
-      // 'retrieval' has said so since this feature shipped. 'truncated' did
-      // NOT, and that was a live bug: a cut document was described as "the
-      // full extracted text" — 05.10.2026, the economy chapter went in at
-      // 3,983 of 10,549 characters under that exact sentence. The model was
-      // told it had everything while holding 38% of it.
-      const isRetrieval = view === 'retrieval'
-      const isPartial = view !== 'whole'
-      const sourceDescription =
-        view === 'retrieval'
-          ? `Below are the passages from that source that are most relevant to the student's question, selected from a longer document and shown in reading order with their page numbers`
-          : view === 'truncated'
-            ? `Below is the BEGINNING of that source — it was too long to include in full, so it is cut off partway through`
-            : `You are given the full extracted text of that source below`
-      const retrievalCaveat = isRetrieval
-        ? `
-
-SELECTED-PASSAGES CAVEAT (important):
-What follows is a RELEVANCE-SELECTED SUBSET of a longer document, not the whole thing. Answer from these passages exactly as strictly as always — but when they do not contain the answer, say that these passages don't cover it and that it may appear elsewhere in the document (suggest the student rephrase with more specific terms, or name the topic/chapter). Do NOT state or imply that the document itself does not contain something, because you cannot see all of it. Page numbers shown in "[Sayfa N]" headers are real — use them in your citations' "reference" text when relevant.`
-        : view === 'truncated'
-          ? `
-
-TRUNCATED-SOURCE CAVEAT (important):
-What follows is only the FIRST PART of a longer document. Answer from it exactly as strictly as always — but when it does not contain the answer, say that the part you can see doesn't cover it and that it probably appears later in the document (suggest the student ask again naming the specific topic, chapter or term). Do NOT state or imply that the document itself does not contain something, because you have not seen most of it.`
-          : ''
-
-      return `You are a grounded document Q&A assistant for Acadex, an academic study platform. The student is asking questions about a specific uploaded source (${docNames}). ${sourceDescription}${summaryContextBlock ? ', along with the study card summary already generated for it' : ''}.${retrievalCaveat}
-
-STRICT GROUNDING RULE:
-Answer ONLY using information that is actually present in the source text${summaryContextBlock ? ' or the study card summary' : ''} below. Do NOT use outside knowledge to fill in gaps, and do NOT invent facts, numbers, names, or details that are not in the text. If the source does not contain enough information to answer the question, say so honestly and clearly (in the student's own language) instead of guessing — you may still briefly explain the general concept if it's common academic knowledge, but you MUST clearly distinguish that from what the source itself says.
-
-COPY TERMS, DON'T RECALL THEM:
-Expand abbreviations, state definitions and write formulas in the SOURCE's wording, never from memory — a half-remembered expansion is what a student copies into an exam. If the source never expands an abbreviation, leave it unexpanded rather than supplying your own.
-
-CITATION RULE:
-When you state a specific fact, definition, number, or claim drawn from the source, add a citation marker like [1], [2], etc. immediately after it, reusing the same marker for the same location if you reference it again. Build a "citations" array in your JSON output: [{ "id": number, "reference": string }], where "reference" briefly names the topical section/heading area the claim came from (e.g. "Bölüm 2 - SEO tartışması" or "Giriş bölümü"). Don't over-cite — reserve markers for specific, checkable claims, not every sentence. If your answer makes no specific checkable claims (e.g. it's just a clarifying question back to the student, or a general "not found in the source" answer), return an empty citations array.
-
-${needsVisualRules ? `
-DIAGRAM & VISUAL-STRUCTURE AWARENESS:
-You only have the extracted text, not the original page images — so a flowchart, comparison diagram, or process illustration in the source often survives only as a cluster of short, disconnected phrases that don't read as normal prose (e.g. parallel short labels repeated near each other, a sequence of terse stage names, or paired opposing terms). If the student asks about a chart, diagram, graphic, or "görsel/şekil" and you spot such a cluster in the source text (or in the study card summary/tables/charts context below, if provided), reconstruct and explain its likely meaning — but explicitly flag that you're inferring the diagram's structure from scattered text labels rather than describing an image you can see (e.g. "Kaynak metindeki dağınık ifadelere bakılırsa, bu muhtemelen ... karşılaştıran bir diyagram."). If you genuinely can't find any fragments that plausibly correspond to what they're asking about, tell them honestly instead of guessing — and mention they can attach a photo/screenshot of that page so you can look at it directly.${hasImage ? `
-
-ATTACHED IMAGE FROM STUDENT:${isCheckWorkMode ? `
-The student has checked "Bu benim çözümüm — kontrol et" (this is my own solution — check it), so this attached image is the STUDENT'S OWN handwritten or typed attempt at solving a problem — it is NOT a page from the source document, do not describe it as source material. Act as a grader: work through their solution step by step yourself, verify each of their steps against the correct method, and then:
-- If it's fully correct, say so clearly and confirm the final answer.
-- If there's a mistake, identify the EXACT step where it first goes wrong (quote or describe that specific step precisely, e.g. "2. adımda ... yazmışsın"), explain what's wrong about it, and show the correct way to do that step. Note whether the mistake changes the final answer, and if so, what the correct final answer actually is.
-- Reference the actual numbers/values the student wrote — be concrete, not vague.
-- Keep an encouraging tone even when pointing out a mistake; you're helping a student learn, not grading a final exam.
-- If the image genuinely isn't a solution attempt (e.g. it's blank, unrelated, or you can't read the handwriting), say so honestly instead of guessing at what it might say.` : `
-The student has attached a photo or screenshot of part of this source (for example, a diagram, chart, or page they want you to look at directly) along with their latest message. You DO have real vision on this image — actually look at it and describe/explain what it shows, don't just infer from text fragments. Cross-reference the source text and summary above to name the section/concept the image illustrates where relevant, but the image itself is your primary evidence for what it depicts. If the image is blurry, unrelated to this document, or you can't make out enough detail, say so honestly instead of guessing.`}` : ''}
-
-DIAGRAM GENERATION (free, drawn — not a photo):${isCheckWorkMode ? ' Not applicable in CHECK-WORK MODE (see ATTACHED IMAGE FROM STUDENT above) — skip diagram generation entirely while grading the student\'s solution unless a small diagram would genuinely help illustrate the correct method.' : ''}
-When the student is asking about a chart, diagram, flowchart, comparison, process, or hierarchy — and you can reconstruct its actual structure (from the source text, the study card summary/tables/charts context, and/or an attached image) — also produce a Mermaid.js diagram definition of it (see the MERMAID BLOCK part of OUTPUT FORMAT below), so it can be rendered as a real picture for the student instead of only described in prose. Rules:
-- Use "flowchart TD" or "flowchart LR" for processes/hierarchies/flows, "graph TD" for simple relationship diagrams. Keep node labels short (a few words) — put fuller explanation in your "answer" text instead.
-- Every node id must be a short alphanumeric token (e.g. A, B1, step2) — never put special characters or quotes inside node ids, only inside the bracketed label text.
-- Inside node/edge labels, prefer plain words with no punctuation at all. If you must include a comma or a slash, that's fine, but NEVER use a double-quote character ("") anywhere in the diagram — Mermaid doesn't need quoted labels for ordinary text, and a stray quote is the single most common way this block gets garbled downstream. If a label would otherwise need quotes, just reword it without them.
-- Keep it to at most ~12 nodes. Prefer a simple, correct diagram over an elaborate, possibly-wrong one.
-- Skip the diagram entirely (omit the whole MERMAID BLOCK) whenever the question isn't about a diagram/chart/structure, or when you don't have enough grounded structure to draw one honestly — never fabricate a diagram just to have something to show.
-- The diagram is entirely separate from and in addition to your normal "answer" text — still write a normal grounded answer as usual.
-` : ''}
-LANGUAGE RULE:
-Respond in the same language the student's latest question is written in (default to Turkish if genuinely ambiguous).
-
-CONVERSATION STYLE:
-Be concise, clear, and directly helpful — write like a knowledgeable classmate walking them through the material, not a formal report. Refer back to earlier turns in the conversation naturally if the student asks a follow-up question.
-
-TABLES AND LISTS IN YOUR ANSWER:
-If the student asks you to bring back a table, ranking, or list of items from the source, reproduce it inside the "answer" string using "- " bullet lines or simple "label: value" lines separated by "\\n" (a literal backslash-n escape sequence, NOT an actual line break) — never break your answer across multiple real lines. Keep each row/item on its own "\\n"-separated line so it still reads clearly when displayed, but the JSON string itself must remain a single line.
-
-${needsNumericRules ? `
-MATH FORMULA FORMAT:
-Whenever your answer includes a mathematical formula, equation, or expression (variables, fractions, exponents, summations, financial/statistical notation, etc.), write it in valid LaTeX and wrap it in single dollar signs so it renders as a real formula instead of plain text, e.g. $A = P(1 + r/n)^{nt}$. This matters especially for quantitative subjects (finance, accounting, statistics, economics) — don't just write formulas as plain text like "A = P(1+r/n)^nt" when you can express them properly in LaTeX. Since your answer is a JSON string value, every backslash inside the LaTeX must be escaped as a double backslash in the JSON text itself: to display $\\frac{a}{b}$, the actual JSON string content must contain "$\\\\frac{a}{b}$" (two backslash characters before "frac", not one). Keep formulas inline within your sentences using single $...$ delimiters only — never use $$...$$ block delimiters.
-
-STEP-BY-STEP NUMERIC SOLUTIONS:
-When the student asks you to solve, calculate, or work through a numeric/quantitative problem (e.g. compute an interest amount, solve for an unknown, work out a statistic), structure your "answer" as clearly numbered steps rather than one dense paragraph: "1) ...\\n2) ...\\n3) ..." (the same "\\n"-separated-line convention as TABLES AND LISTS above — a literal backslash-n, not a real line break). Each step should name the formula being applied (in LaTeX per MATH FORMULA FORMAT above) and show the actual numbers plugged in, not just the abstract formula in isolation. Finish with a clearly labeled final line such as "Sonuç: ..." or "Final answer: ..." stating the numeric result with correct units. Only use this structured format for genuinely numeric/computational questions — for conceptual/qualitative questions, answer normally in prose.
-` : ''}
-OUTPUT FORMAT (read carefully, this is machine-parsed, not just for a human):
-Respond with a single-line JSON object and NOTHING else${needsVisualRules ? ' except the optional diagram block described below' : ''} — no markdown code fences, no commentary before or after, every string value valid single-line JSON (escape any newlines inside it as "\\n"): { "answer": string, "citations": [ { "id": number, "reference": string } ] }. The "answer" field is required and must never be empty; if you cannot answer from the source, say so IN that field.${needsVisualRules ? `
-Then, ONLY when DIAGRAM GENERATION above applies, immediately after the JSON object (on new lines, which is fine since this part is plain text, not JSON) append exactly this block with your Mermaid definition inside it, real line breaks allowed:
-###MERMAID_START###
-flowchart TD
-  A[Example] --> B[Node]
-###MERMAID_END###
-Use the literal markers "###MERMAID_START###" and "###MERMAID_END###" on their own lines, nothing else on those lines. If no diagram applies, output NOTHING after the JSON object — do not include the markers at all in that case. Do NOT put any diagram inside the JSON object.` : ''}
-${summaryContextBlock ? `
-STUDY CARD SUMMARY CONTEXT (already generated for this document — may capture a diagram/table/chart's meaning even where the raw source text below is sparse or garbled; cross-check both when relevant):
-"""
-${summaryContextBlock}
-"""
-` : ''}
-SOURCE TEXT:
-"""
-${sourceText}
-"""`
-    }
-
-    const sourceView: SourceView =
-      strategy === 'retrieval' ? 'retrieval'
-        : strategy.includes('truncated') ? 'truncated'
-        : 'whole'
-    const systemPrompt = buildSystemPrompt(sourceText, sourceView)
-
-    // Build the actual message list. Only the LAST user turn ever carries the
-    // attached image — older turns stay plain text so the conversation history
-    // doesn't balloon with base64 data on every follow-up.
-    function buildChatMessages(withImage: boolean) {
-      const built: any[] = [{ role: "system", content: systemPrompt }]
-      safeMessages.forEach((m, idx) => {
-        const isLastUserMsg = withImage && idx === safeMessages.length - 1 && m.role === 'user'
-        if (isLastUserMsg && imageDataUrl) {
-          built.push({
-            role: 'user',
-            content: [
-              { type: 'text', text: m.content },
-              { type: 'image_url', image_url: { url: imageDataUrl } }
-            ]
-          })
-        } else {
-          built.push({ role: m.role, content: m.content })
-        }
-      })
-      return built
-    }
-
-    let groqResponse
-    let visionUsed = false
-    if (hasImage) {
-      try {
-        console.log("chat-with-document: attempting vision analysis with qwen/qwen3.8-27b...")
-        groqResponse = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${groqApiKey}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            // Groq retired llama-3.2-90b-vision-preview; qwen/qwen3.8-27b is the
-            // current vision-capable model (same OpenAI-style image_url format).
-            model: "qwen/qwen3.8-27b",
-            temperature: 0.3,
-            // Qwen3.8 is a hybrid reasoning model that THINKS by default (a
-            // <think>...</think> block prepended to content), which broke our
-            // JSON parsing and burned most of the time/token budget on
-            // reasoning instead of the actual answer. "none" turns reasoning
-            // off entirely so "content" is just the direct final answer.
-            reasoning_effort: "none",
-            // Without an explicit cap, Groq reserves a large default completion
-            // budget against this account's tokens-per-minute limit, which alone
-            // can push an otherwise modest request over the limit and return a
-            // "Request too large" / rate_limit_exceeded error.
-            max_completion_tokens: maxCompletion,
-            // No response_format:"json_object" here — that mode forces the ENTIRE
-            // reply to be one JSON value, which would forbid the optional
-            // ###MERMAID_START###...###MERMAID_END### block appended after it
-            // (see OUTPUT FORMAT in the system prompt). We parse the JSON part
-            // ourselves below instead.
-            messages: buildChatMessages(true)
-          })
-        }, 0, 20000) // no retries, 20s cap — leave real time budget for the text-only fallback below
-        if (groqResponse.ok) {
-          visionUsed = true
-        } else {
-          console.warn(`chat-with-document: vision call returned non-ok status ${groqResponse.status}, falling back to text-only.`)
-          groqResponse = undefined
-        }
-      } catch (visionErr) {
-        console.warn("chat-with-document: vision call failed, falling back to text-only:", visionErr)
-        groqResponse = undefined
-      }
-    }
-
-    if (!groqResponse) {
-      // FALL BACK TO ANOTHER MODEL WHEN ONE LANE'S DAY IS SPENT.
-      //
-      // 05.10.2026, 19:20 — a student asked "stagflasyon nedir" and got
-      // "Şu anda cevap veremiyorum":
-      //
-      //   Rate limit reached for model `openai/gpt-oss-120b` ... on tokens
-      //   per day (TPD): Limit 200000, Used 198585. Try again in 24m2.88s
-      //
-      // Nothing was wrong with the request. One model's DAILY allowance was
-      // gone, and this call was pinned to that model, so it retried the same
-      // exhausted lane once and gave up. Groq meters TPD per model, and the
-      // other two lanes had their own untouched 200,000.
-      //
-      // Each lane is tried in turn. A daily quota error moves on immediately
-      // — waiting 24 minutes is not an option with a student watching — while
-      // any other failure also falls through, since a worse model answering
-      // beats no answer.
-      //
-      // ORDER IS MEASURED, NOT ASSUMED (06.10.2026). It used to be
-      // quality-first — 120b, then 20b, then qwen — on the reasoning that a
-      // bigger model is a better answer. On this prompt 120b does not answer
-      // at all. Four consecutive runs, two different questions ("FIFO
-      // nedir", "LIFO ve FIFO arasindaki fark nedir"):
-      //
-      //   finish_reason=stop, completion=147/153/319, reasoning=12/13/25,
-      //   content="" and choice{ index message={role,content} logprobs
-      //   finish_reason } — no tool_calls, no reasoning field, nothing else.
-      //
-      // So ~294 of those 319 tokens were produced and landed in no field the
-      // response exposes. gpt-oss emits channel-tagged output and Groq maps
-      // `final` to content and `analysis` to reasoning; an answer written to
-      // a third channel reaches neither. Consistent with the other half of
-      // the evidence: 120b works fine in summarize-document, where every
-      // call sets response_format json_object. Here it is free prose.
-      //
-      // 20b answered all four times, with citations, on the same prompt. So
-      // the old order cost one guaranteed-dead call per question — ~4,300
-      // prompt tokens of 120b's 200K daily and ~1.1s of the student's wait
-      // — and then landed on 20b anyway. 20b first is strictly better: same
-      // model finally answers, minus the wasted call.
-      //
-      // 120b stays second rather than being dropped: it is a real fallback
-      // if 20b's day runs out, and keeping it in the chain is what will show
-      // whether this ever changes. To re-test it as primary, swap the first
-      // two entries back — one line, and the log above says what to look at.
-      const textLanes = ['openai/gpt-oss-20b', 'openai/gpt-oss-120b', 'qwen/qwen3.8-27b']
-      let lastLaneError = ''
-
-      for (let i = 0; i < textLanes.length; i++) {
-        const lane = textLanes[i]
-        try {
-          const res = await fetchWithRetry("https://api.groq.com/openai/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              "Authorization": `Bearer ${groqApiKey}`,
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              // llama-3.3-70b-versatile is being retired by Groq (shutdown
-              // 2026-08-16); openai/gpt-oss-120b is one of Groq's recommended
-              // replacements and has a comparable (131K) context window.
-              model: lane,
-              temperature: 0.3,
-              // Per model, never written out: gpt-oss rejects
-              // reasoning_effort:"none" outright while qwen needs exactly
-              // that. The summarize function learned this the hard way when
-              // its review call started picking lanes at runtime and 400'd
-              // on every gpt-oss one.
-              // `include_reasoning: false` was dropped from the gpt-oss side
-              // on 06.10.2026. It told Groq to throw the reasoning text away
-              // — while the open question on this prompt is precisely where
-              // 294 produced tokens went. Asking for a field back costs no
-              // tokens (reasoning is metered whether or not it is returned,
-              // and at effort=low it is 12-25 tokens), and it is the only
-              // way the empty-content log below can say whether the answer
-              // ended up in `reasoning` instead of `content`.
-              ...(lane.includes('qwen')
-                ? { reasoning_effort: "none" }
-                : { reasoning_effort: "low" }),
-              // See the comment on the vision call above re: max_completion_tokens
-              // and why response_format is deliberately omitted here too.
-              max_completion_tokens: maxCompletion,
-              messages: buildChatMessages(false)
-            })
-            // No retry on the first lanes: when this one is out of daily
-            // quota, the next lane is a better use of the student's wait
-            // than a second attempt at the same exhausted one. The last lane
-            // keeps its retry because after it there is nowhere to go.
-          }, i === textLanes.length - 1 ? 1 : 0, 20000)
-
-          if (res.ok) {
-            // A 200 with no content is this lane failing, not the request
-            // failing. 06.10.2026: a student asked "FIFO nedir", Groq
-            // answered 200, the pipeline logged its token ratio and then
-            // returned a silent 502 — the content was empty and the only
-            // visible symptom was the log stopping mid-run.
-            //
-            // The empty answer has to be SEEN here, before the body is
-            // consumed downstream, so the next lane can be tried: the whole
-            // point of the chain is that one model's bad turn is not the end
-            // of the question. finish_reason and the token counts are logged
-            // with it, because "ran out of budget while reasoning" and "the
-            // model simply returned nothing" need different fixes and
-            // guessing between them is how the last silent failure survived.
-            const peek = await res.clone().json().catch(() => null)
-            const content = peek?.choices?.[0]?.message?.content ?? ''
-            if (!String(content).trim()) {
-              const finish = peek?.choices?.[0]?.finish_reason ?? '?'
-              const u = peek?.usage || {}
-              // WHERE the tokens went, not just how many. 06.10.2026:
-              // gpt-oss-120b returned finish_reason=stop with
-              // completion=147 and reasoning=12 — it finished normally and
-              // produced 147 tokens, while `content` was empty. The counts
-              // alone cannot say which field received them, so the message
-              // object's own shape is logged: its keys, and a short head of
-              // every string field. Without this the next empty answer is
-              // the same guess all over again.
-              // The CHOICE, not just its message. The message turned out to
-              // hold only role and an empty content (06.10.2026), so the
-              // 153 completion tokens were accounted for somewhere else
-              // entirely — a sibling field on the choice, or nowhere the
-              // response exposes. Logging the whole choice is the only way
-              // to tell those apart, and it is two lines.
-              // ONE LEVEL DEEP. The first version printed only the keys of
-              // nested objects, so `message={role,content}` told us the
-              // answer was not in `message.content` but could not have shown
-              // it sitting in `message.reasoning` if it were there. A nested
-              // string's head is what distinguishes "the field is missing"
-              // from "the field is full and we were reading the wrong one".
-              const choice = peek?.choices?.[0]
-              const kisalt = (v: unknown, derinlik = 0): string =>
-                typeof v === 'string' ? `"${v.slice(0, 120)}"`
-                  : v === null ? 'null'
-                  : typeof v === 'object'
-                    ? (derinlik > 0
-                        ? `{${Object.keys(v as object).join(',')}}`
-                        : `{${Object.entries(v as object)
-                            .map(([k, nv]) => `${k}=${kisalt(nv, derinlik + 1)}`)
-                            .join(' ')}}`)
-                  : String(v)
-              const sekil = choice && typeof choice === 'object'
-                ? Object.entries(choice).map(([k, v]) => `${k}=${kisalt(v)}`).join(' ')
-                : String(choice)
-              console.warn(
-                `chat-with-document: ${lane} BOS icerik dondu ` +
-                `(finish_reason=${finish}, completion=${u.completion_tokens ?? '?'}, ` +
-                `reasoning=${u.completion_tokens_details?.reasoning_tokens ?? '?'}, ` +
-                `butce=${maxCompletion}) choice{ ${sekil} }` +
-                `${i < textLanes.length - 1 ? ' — sonraki seride geciliyor' : ''}`
-              )
-              lastLaneError = `empty_content finish_reason=${finish}`
-              continue
-            }
-            groqResponse = res
-            if (i > 0) console.warn(`chat-with-document: ${lane} seridine dusuldu (onceki serit(ler) kullanilamadi)`)
-            break
-          }
-
-          lastLaneError = await res.clone().text().catch(() => '')
-          const daily = /tokens per day|TPD/i.test(lastLaneError)
-          console.warn(
-            `chat-with-document: ${lane} ${res.status} verdi` +
-            `${daily ? ' (GUNLUK kota bitti)' : ''}` +
-            `${i < textLanes.length - 1 ? ' — sonraki seride geciliyor' : ''}`
-          )
-        } catch (fetchErr) {
-          lastLaneError = String(fetchErr)
-          console.warn(`chat-with-document: ${lane} istisna attı:`, fetchErr)
-        }
-      }
-
-      if (!groqResponse) {
-        console.error("chat-with-document: butun seritler basarisiz. Son hata:", lastLaneError)
-        // Say WHICH wall was hit. "Try again in a moment" is wrong and
-        // frustrating when the real answer is "tomorrow": the daily quota
-        // does not clear in a moment, and a student retrying every 30
-        // seconds for an hour deserves to know that.
-        const daily = /tokens per day|TPD/i.test(lastLaneError)
-        return new Response(JSON.stringify({
-          error: daily
-            ? 'Bugünkü AI kotamız doldu — yarın tekrar deneyebilirsin. (Özet çıkarma ve sohbet aynı günlük kotayı paylaşıyor.)'
-            : 'Our AI service is experiencing high demand right now — please try again in a moment'
-        }), {
-          status: 503,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        })
-      }
-    }
-
-    const groqData = await groqResponse.json()
-
-    // MEASURE THE RATIO INSTEAD OF ARGUING ABOUT IT.
-    //
-    // CHARS_PER_TOKEN decides how much document the student gets, and it was
-    // inherited from the summarize function's pacer where being pessimistic
-    // is nearly free — you wait a little longer. Here it is expensive: too
-    // low a ratio means a document that fits gets cut, which is how the
-    // economy chapter went in at 3,983 of 10,549 characters on 05.10.2026.
-    //
-    // Groq reports what it actually counted. Logging the real ratio on every
-    // call turns the constant from a guess into something we can set from
-    // data — and it will differ by language, which matters here because the
-    // sources are English and the questions are Turkish.
-    const promptTokens = Number(groqData?.usage?.prompt_tokens)
-    if (Number.isFinite(promptTokens) && promptTokens > 0) {
-      const promptChars = systemPrompt.length +
-        safeMessages.reduce((n: number, m: any) => n + String(m.content || '').length, 0)
-      console.log(
-        `chat-with-document token orani: ${(promptChars / promptTokens).toFixed(2)} krk/token ` +
-        `(gercek ${promptTokens} token / ${promptChars} krk; varsayim ${charsPerToken})`
-      )
-    }
-
-    if (!groqResponse.ok) {
-      console.error("chat-with-document Groq API error:", JSON.stringify(groqData))
-      return new Response(JSON.stringify({ error: 'Our AI service is experiencing high demand right now — please try again in a moment' }), {
-        status: 502,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
-    }
-
-    let rawContent = groqData.choices?.[0]?.message?.content ?? ""
-    if (!rawContent) {
-      // Reached only when EVERY lane came back empty — the per-lane warning
-      // above has already said which and why. Logged here too so the final
-      // outcome is never a 502 with nothing behind it in the log, which is
-      // exactly how this failure hid on 06.10.2026.
-      console.error(
-        `chat-with-document: tum seritler bos icerik dondu ` +
-        `(finish_reason=${groqData?.choices?.[0]?.finish_reason ?? '?'}, ` +
-        `completion=${groqData?.usage?.completion_tokens ?? '?'})`
-      )
-      return new Response(JSON.stringify({
-        error: 'Yapay zekâ bu soruya yanıt üretemedi — soruyu biraz farklı sorarsan tekrar deneyebilirim.'
-      }), {
-        status: 502,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
-    }
-
-    // Defensive safety net: reasoning-capable models (qwen/qwen3.8-27b,
-    // openai/gpt-oss-120b) can still prepend a <think>...</think> block to
-    // "content" even with reasoning turned down/off above — e.g. Groq changes
-    // a default, or a future model swap reintroduces this. Strip it so a
-    // stray thinking block never breaks the JSON parse below.
-    const thinkMatch = rawContent.match(/<think>[\s\S]*?<\/think>/i)
-    if (thinkMatch) {
-      rawContent = rawContent.slice(thinkMatch.index! + thinkMatch[0].length).trim()
-    } else if (/^\s*<think>/i.test(rawContent)) {
-      // Opening tag with no closing tag — the model ran out of its token
-      // budget mid-thought before ever writing the real answer. Nothing
-      // usable is left; fail with a message that tells the student to retry
-      // rather than a confusing generic JSON error.
-      console.error("chat-with-document: model response was an unterminated <think> block (ran out of tokens while reasoning):", rawContent)
-      return new Response(JSON.stringify({ error: 'The AI ran out of thinking time before writing an answer — please try again' }), {
-        status: 502,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
-    }
-    if (!rawContent) {
-      return new Response(JSON.stringify({ error: 'AI failed to generate a response' }), {
-        status: 502,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
-    }
-
-    // Pull the optional Mermaid diagram block out via plain string search
-    // BEFORE touching JSON.parse at all — Mermaid syntax (brackets, arrows,
-    // occasional stray quotes) is exactly the kind of content that breaks a
-    // naive "embed it as a JSON string value" approach when the model
-    // forgets to escape something. Extracting it out-of-band means the JSON
-    // parse below only ever has to handle the simple {answer, citations}
-    // shape, regardless of how messy the diagram syntax gets.
-    const MERMAID_START = '###MERMAID_START###'
-    const MERMAID_END = '###MERMAID_END###'
-    let mermaidCode: string | null = null
-    let jsonPart = rawContent
-    const mermaidStartIdx = rawContent.indexOf(MERMAID_START)
-    const mermaidEndIdx = rawContent.indexOf(MERMAID_END)
-    if (mermaidStartIdx !== -1 && mermaidEndIdx !== -1 && mermaidEndIdx > mermaidStartIdx) {
-      mermaidCode = rawContent
-        .substring(mermaidStartIdx + MERMAID_START.length, mermaidEndIdx)
-        .replace(/```mermaid\s*|```/g, '')
-        .trim()
-      jsonPart = rawContent.substring(0, mermaidStartIdx).trim()
-    }
-
-    const cleaned = jsonPart.replace(/```json\s*|```/g, "").trim()
-    let parsedContent
-    try {
-      parsedContent = tryParseJsonLoose(cleaned)
-    } catch (parseError) {
-      // Yapi bozuksa alanlari tek tek kurtarmayi dene (salvageAnswerContract
-      // basligindaki olaya bak): cevap genellikle dogru yazilmis olur ve
-      // sadece sarmalayici bozuktur. Bir cumleyi atmak icin tek bir fazla
-      // parantez yeterli olmamali.
-      const kurtarilan = salvageAnswerContract(cleaned)
-      if (!kurtarilan) {
-        console.error("Failed to parse chat-with-document JSON:", rawContent, parseError)
-        return new Response(JSON.stringify({ error: 'AI returned invalid JSON formatting' }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        })
-      }
-      // Kurtarma SESSIZ olmamali: bicim hatasi yapan model gorunur kalsin,
-      // yoksa "her sey yolunda" sanilir ve asil sebep hic arastirilmaz.
-      console.warn(
-        `chat-with-document: bozuk JSON sarmalayicidan kurtarildi ` +
-        `(cevap ${kurtarilan.answer.length} krk, ${kurtarilan.citations.length} atif) — ` +
-        `hata: ${String(parseError).slice(0, 160)}`
-      )
-      parsedContent = kurtarilan
-    }
-
-    // Atif sayfalari modelin GERCEKTEN gordugu sayfalara karsi dogrulanir.
-    // Sessiz kalmasi normal: bu kapi dogru yazilmis bir atifa dokunmaz.
-    // Fire ettiginde loglanmasi sart — yoksa ne kadar sik oldugunu hic
-    // ogrenemeyiz ve ozetleme tarafindaki grafik kapisi gibi, hic
-    // tetiklenmeden mi duruyor yoksa surekli mi calisiyor bilemeyiz.
-    const { citations: dayanakliAtiflar, atilan: sahteSayfalar } = groundCitationPages(
-      Array.isArray(parsedContent.citations) ? parsedContent.citations : [],
-      gonderilenSayfalar
-    )
-    if (sahteSayfalar.length > 0) {
-      console.warn(
-        `chat-with-document: atifta gonderilmemis sayfa(lar) temizlendi — ` +
-        `sahte=[${sayfaListesiTopla(sahteSayfalar)}] ` +
-        `gonderilen=[${sayfaListesiTopla(gonderilenSayfalar)}]`
-      )
-    }
-
-    return new Response(JSON.stringify({
-      answer: parsedContent.answer || '',
-      citations: dayanakliAtiflar,
-      mermaid: mermaidCode && mermaidCode.length > 0 ? mermaidCode : null,
-      visionUsed
-    }), {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    })
-
-  } catch (err) {
-    console.error('Unexpected chat-with-document exception: ', err)
-    return new Response(JSON.stringify({ error: 'An unexpected error occurred' }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    })
-  }
-})
