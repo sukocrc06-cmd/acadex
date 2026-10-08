@@ -407,4 +407,76 @@ test('donusturucu tanimadigi seyi BOZMUYOR', () => {
   assert.ok(txt.includes('Y = C + I + G + NX'), 'LaTeX olmayan formul degismemeli');
 });
 
+
+test('SINAV SORULARI ve DEGISKEN aciklamalari da donusuyor', () => {
+  /* 08.10.2026, canli ciktidan: FORMULLER bolumu duzelmisti ama ayni
+     sayfadaki sinav sorulari ham kaliyordu
+       "ln Bill = 9.0 + 0.08*Temp - 0.0012*Temp^2"
+     ve degisken aciklamalari ham LaTeX tasiyordu
+       "Slope for x_{1}"   "(if \beta_{2}<0)"
+     Ogrenci icin ikisi de ayni sayfada ve ayni gozle okunuyor. Donusum
+     artik safeText'te, yani bu dosyadaki TEK metin hunisinde. */
+  const kart = JSON.parse(JSON.stringify(FULL_CARD));
+  kart.quiz_questions = [{
+    question: 'If the model is UtilityBill = 9.0 + 0.08*Temp - 0.0012*Temp^2, find the minimum.',
+    answer: 'Set \\frac{dy}{dx} = 0.',
+  }];
+  kart.formulas = [{
+    name: 'Extremum',
+    latex: 'x^* = -\\frac{\\beta_{1}}{2\\beta_{2}}',
+    variables: [
+      { symbol: '\\beta_1', meaning: 'Slope for x_{1}' },
+      { symbol: 'x^*', meaning: 'maximum if \\beta_{2}<0' },
+    ],
+  }];
+  const txt = render(kart);
+
+  /* render() unicodeReady=FALSE ile kosuyor (gomulu font yok) ve o modda
+     ust/alt simge glifleri uretilmiyor — ucuncu kez ayni tuzaga dustum.
+     Fontsuz modda aranan sey HAM LATEX'in kalmamasi; gercek glif donusumu
+     asagida dogrudan dogrulaniyor. */
+  assert.ok(!/\\frac/.test(txt), 'cevapta ham \\frac kalmis');
+  assert.ok(!/\\beta/.test(txt), 'degisken aciklamasinda ham \\beta kalmis');
+  assert.ok(!/x_\{1\}/.test(txt), 'ham x_{1} kalmis');
+
+  // Unicode font VARKEN gercek glifler: ogrencinin gordugu hal bu.
+  assert.ok(latexToUnicode('UtilityBill = 9.0 + 0.08*Temp - 0.0012*Temp^2', true)
+    .includes('Temp²'), 'us donusumu calismiyor');
+  assert.equal(latexToUnicode('Slope for x_{1}', true), 'Slope for x₁');
+  assert.equal(latexToUnicode('maximum if \\beta_{2}<0', true), 'maximum if β₂<0');
+});
+
+test('IC ICE suslu parantezli \\frac cozuluyor', () => {
+  /* Canli ciktida "x^*= -fracβ₁2β₂" goruluyordu: hem bolu cizgisi hem
+     parantezler kayip. Sebep sira idi — \frac, alt simgelerden ONCE
+     kosuyordu ve \frac{\beta_{1}}{2\beta_{2}} icindeki {1}/{2} [^{}]*
+     kalibini kiriyordu. */
+  const cikti = latexToUnicode('x^* = -\\frac{\\beta_{1}}{2\\beta_{2}}', true);
+  assert.ok(!/frac/.test(cikti), `frac cozulmemis: ${cikti}`);
+  assert.ok(cikti.includes('/'), `bolu cizgisi yok: ${cikti}`);
+  assert.ok(/β₁/.test(cikti) && /β₂/.test(cikti), `alt simgeler yok: ${cikti}`);
+  assert.ok(!/\^/.test(cikti), `x^* sadelesmemis: ${cikti}`);
+});
+
+test('DUZ METIN bozulmuyor (snake_case korunur)', () => {
+  /* Donusum artik her metne uygulandigi icin bu sinir kritik. Ilk yazimda
+     sinir (?![A-Za-z]) idi ve zincirli alt simgeleri kacirdi
+     ("β_kx_k,i"); esik iki harfe cekildi. */
+  assert.equal(latexToUnicode('sample_size ve key_points', true),
+    'sample_size ve key_points');
+  assert.equal(latexToUnicode('Normal bir cumle, matematik yok.', true),
+    'Normal bir cumle, matematik yok.');
+  assert.ok(/βₖxₖ/.test(latexToUnicode('β_kx_k,i', true)),
+    'zincirli alt simge donusmeli');
+});
+
+test('donusum IDEMPOTENT', () => {
+  // safeText her metne uyguluyor, formul yolu ayrica acikca cagiriyor —
+  // yani bazi metinler iki kez geciyor.
+  for (const o of ['y = \\beta_0 + x^2', 'x^* = -\\frac{\\beta_{1}}{2\\beta_{2}}', 'Duz cumle.']) {
+    const bir = latexToUnicode(o, true);
+    assert.equal(latexToUnicode(bir, true), bir, `idempotent degil: ${o}`);
+  }
+});
+
 summary().then(() => process.exit(process.exitCode || 0));
