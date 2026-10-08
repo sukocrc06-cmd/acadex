@@ -12925,15 +12925,6 @@ function latexToUnicode(raw, unicodeReady = true) {
   // Dizgi sarmalayicilari: $...$, \(...\), \[...\]
   s = s.replace(/^\s*\$+|\$+\s*$/g, '').replace(/\\[()[\]]/g, '');
 
-  // \frac{a}{b} -> (a)/(b). Ic ice olanlar icin birkac tur.
-  for (let i = 0; i < 3; i++) {
-    const before = s;
-    s = s.replace(/\\(?:d|t)?frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}/g,
-      (_m, a, b) => `(${a})/(${b})`);
-    if (s === before) break;
-  }
-  // \sqrt{x} -> √(x)
-  s = s.replace(/\\sqrt\s*\{([^{}]*)\}/g, (_m, a) => `√(${a})`);
   // \text{...}, \mathrm{...} -> icerik
   s = s.replace(/\\(?:text|mathrm|mathit|mathbf|operatorname)\s*\{([^{}]*)\}/g, '$1');
 
@@ -12973,11 +12964,34 @@ function latexToUnicode(raw, unicodeReady = true) {
   if (unicodeReady) {
     s = s.replace(/_\{([^{}]*)\}/g, (m, g) => cevir(g, LATEX_ALT) ?? `_${g}`);
     s = s.replace(/\^\{([^{}]*)\}/g, (m, g) => cevir(g, LATEX_UST) ?? `^${g}`);
-    s = s.replace(/_(\w)/g, (m, g) => LATEX_ALT[g] || m);
+    /* (?![A-Za-z]) SART: bu donusum artik duz metne de uygulaniyor
+       (sinav sorulari, bolum maddeleri). Sinir olmadan "sample_size"
+       -> "sampleₛize" olurdu.
+
+       ESIK 2 HARF, 1 DEGIL: once (?![A-Za-z]) yazdim ve zincirli alt
+       simgeleri kacirdi — "β_kx_k,i" icindeki _k'nin ardindan "x" geliyor
+       ve donusmuyordu. Iki+ harf snake_case'e, tek harf matematige isaret
+       ediyor: "sample_size" korunur, "x_1", "x_i", "β_kx_k" donusur. */
+    s = s.replace(/_(\w)(?![A-Za-z]{2,})/g, (m, g) => LATEX_ALT[g] || m);
     s = s.replace(/\^(\w)/g, (m, g) => LATEX_UST[g] || m);
   } else {
     s = s.replace(/_\{([^{}]*)\}/g, '_$1').replace(/\^\{([^{}]*)\}/g, '^$1');
   }
+
+  /* \frac SIMDI, alt simgelerden SONRA. Onceden once kosuyordu ve ic ice
+     suslu parantezde HIC eslesmiyordu: \frac{\beta_{1}}{2\beta_{2}}
+     icindeki {1} ve {2}, [^{}]* kalibini kiriyordu. Canli ciktida sonuc
+     "x^*= -fracβ₁2β₂" idi — yani hem bolu cizgisi hem parantezler kayipti.
+     Alt simgeler once donusunce ic braceler kalmiyor ve kalip tutuyor. */
+  for (let i = 0; i < 3; i++) {
+    const once = s;
+    s = s.replace(/\\(?:d|t)?frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}/g,
+      (_m, a, b) => `(${a})/(${b})`);
+    if (s === once) break;
+  }
+  s = s.replace(/\\sqrt\s*\{([^{}]*)\}/g, (_m, a) => `√(${a})`);
+  // x^* gibi yildizli ust simge: Unicode karsiligi yok, sapka atilir.
+  s = s.replace(/\^\s*\*/g, '*');
 
   // Birlestirici sapka Unicode font ister. Fontsuz modda ASCII harfin
   // uzerine oturup "betâ" gibi bir sey uretiyordu — orada duz "^" daha
@@ -13374,7 +13388,19 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
   const pageWidth = doc.internal.pageSize.width;
   const pageHeight = doc.internal.pageSize.height;
   const maxWidth = pageWidth - (margin * 2);
-  const safeText = (txt) => pdfText(unicodeReady, txt);
+  /* HER METIN MATEMATIK DONUSUMUNDEN GECER (08.10.2026).
+     Once yalnizca formulas dizisine uygulaniyordu, ve sonuc su oldu:
+     FORMULLER bolumu duzelirken sinav sorulari ham kaldi
+       "ln Bill = 9.0 + 0.08*Temp - 0.0012*Temp^2"
+     degisken aciklamalari ham kaldi
+       "beta_1 = Slope for x_{1}"   "(if \beta_{2}<0)"
+     Oysa ogrenci icin ikisi de ayni sayfada ve ayni gozle okunuyor.
+     safeText bu dosyadaki TEK metin hunisi (50 cagri), donusum oraya
+     konunca basliklar dahil her sey tutarli hale geliyor.
+     Guvenli oldugu dogrulandi: donusum duz metne dokunmuyor ("sample_size"
+     korunuyor) ve IDEMPOTENT, yani formul yolundaki acik cagriyla iki kez
+     calismasi sorun degil. */
+  const safeText = (txt) => pdfText(unicodeReady, latexToUnicode(txt, unicodeReady));
 
   doc.addPage(); // every card now starts on its own fresh page, after the cover (and, in bulk exports, the table of contents)
   let y = 35;
