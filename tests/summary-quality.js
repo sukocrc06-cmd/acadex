@@ -61,6 +61,9 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   // Slayt destesi tespiti ve cikarim talimati (07.10.2026).
   'DECK_MIN_PAGES', 'DECK_MAX_CHARS_PER_PAGE', 'DECK_PROMPT_CHARS',
   'detectSlideDeck', 'buildSlideDeckInstruction',
+  // Pencere dengeleme ve cozumlu ornek kapisi (08.10.2026).
+  'kurPencereler', 'splitIntoChunks', 'splitIntoWindows',
+  'gateWorkedExamples',
   // Yokluk iddiasi kapisi (08.10.2026).
   'YOKLUK_IDDIASI'
 ]);
@@ -2887,6 +2890,128 @@ test('canli pencere promptuna GERCEKTEN bagli', () => {
   // Tespit pencere basina bir kez, prompt icinde degil.
   assert.ok(!/buildSlideDeckInstruction\(\s*detectSlideDeck/.test(SRC),
     'tespit her prompt cagrisinda yeniden kosuyor');
+});
+
+
+console.log('\nPENCERE DENGESI VE COZUMLU ORNEK KAPISI\n');
+
+/* 08.10.2026, canli ekonometri destesi (42 slayt, 13.980 krk). */
+
+test('pencereler DENGELENIYOR, son pencere minik kalmiyor', () => {
+  /* Acgozlu doldurma su bolmeyi yapiyordu: 12.192 / 2.437. Ve ikinci
+     pencere terms=0 points=0 quiz=0 dondu — destenin son dort slaydi
+     oradaydi ve ampirik orneklerin TAMAMI orada yasiyor (Avrupa %9.3,
+     K.Amerika %41.5, log-log %0.69). Sinavda sorulacak sayilar kayboldu.
+
+     Minik pencere iki kez kotu: modele neredeyse hic baglam vermez ve yine
+     de tam bir cagri harcar. */
+  const metin = Array.from({ length: 42 }, (_, i) =>
+    `--- SAYFA ${i + 1} ---\n${'icerik '.repeat(45)}`).join('\n\n');
+  const w = A.splitIntoWindows(metin, 12451, 12);
+  assert.ok(w.length >= 2, 'bu metin birden fazla pencere gerektirmeli');
+  const enKucuk = Math.min(...w.map(x => x.length));
+  const enBuyuk = Math.max(...w.map(x => x.length));
+  assert.ok(enKucuk / enBuyuk >= 0.5,
+    `pencereler dengesiz: ${w.map(x => x.length).join(' / ')}`);
+});
+
+test('dengeleme pencere SAYISINI artirmiyor', () => {
+  // Her ek pencere ~60 sn pacer beklemesi demek (bkz. TokenPacer yorumlari).
+  // Dengeleme bedava olmali: ayni sayida cagri, farkli boyutlar.
+  for (const uzunluk of [14000, 20000, 30000, 45000]) {
+    const metin = Array.from({ length: Math.ceil(uzunluk / 350) }, (_, i) =>
+      `--- SAYFA ${i + 1} ---\n${'x'.repeat(330)}`).join('\n\n');
+    const kaba = A.kurPencereler(metin, 12451).length;
+    const dengeli = A.splitIntoWindows(metin, 12451, 12).length;
+    assert.ok(dengeli <= Math.min(kaba, 12),
+      `${uzunluk} krk: dengeleme ${kaba} pencereyi ${dengeli}'e cikardi`);
+  }
+});
+
+test('hicbir pencere maxChars i asmiyor', () => {
+  // Pencere token butcesi maxChars uzerinden hesaplaniyor; asan bir pencere
+  // pacer tavanini deler.
+  const metin = Array.from({ length: 80 }, (_, i) =>
+    `--- SAYFA ${i + 1} ---\n${'y'.repeat(400)}`).join('\n\n');
+  for (const w of A.splitIntoWindows(metin, 12451, 12)) {
+    assert.ok(w.length <= 12451, `pencere ${w.length} krk > 12451`);
+  }
+});
+
+test('tek pencerelik belge bolunmuyor', () => {
+  const kisa = '--- SAYFA 1 ---\n' + 'z'.repeat(3000);
+  assert.equal(A.splitIntoWindows(kisa, 12451, 12).length, 1);
+});
+
+const KAYNAK_ORNEK =
+  'Utility Bill vs. Temperature - Quadratic Regression ' +
+  'UtilityBill = 484.12 - 12.08temp + 0.09temp2 ' +
+  'The marginal effect at a temperature of 40 (evaluated at 39) is ' +
+  '-12.08 + 2(0.09)39 = -12.08 + 7.02 = -5.06 ' +
+  'the function reaches a minimum at temp = 67.11 degrees. ' +
+  'Interaction Term Worksheet y = 18.30 + 98x1 + 22.44x2 + 16.38x3 + 45x1x2 + 32x1x3 '.repeat(3);
+
+test('UYDURMA denklemli cozumlu ornek atiliyor', () => {
+  /* Grounding gate "score=100%, 0 dropped" derken kartta su vardi:
+       UtilityBill = 208.12 - 0.09*Temp + 0.0012*Temp^2
+     Kaynaktaki gercek denklem:
+       UtilityBill = 484.12 - 12.08*temp + 0.09*temp^2
+     Dort katsayidan ucu uydurma. Daha kotusu, ornegin VARDIGI sonuclar
+     (-5.06 ve 67.1) kaynaktaki dogru sonuclar — ama yazdigi denklemden
+     cikmiyorlar. Adimlari tekrar etmeye calisan ogrenci icin en kotu hata. */
+  const r = A.gateWorkedExamples([{
+    title: 'Utility Bill Quadratic Marginal Effect',
+    problem_statement: 'Given the estimated quadratic model UtilityBill = ' +
+      '208.12 - 0.09*Temp + 0.0012*Temp^2, compute the marginal effect at ' +
+      'Temp = 40 and Temp = 80.',
+  }], KAYNAK_ORNEK);
+  assert.equal(r.kept.length, 0, 'uydurma denklemli ornek atilmaliydi');
+  assert.ok(/sayi kaynakta yok/.test(r.dropped[0]), 'atilma sebebi yazilmali');
+});
+
+test('KAYNAKTAKI sayilarla yazilmis ornek korunuyor', () => {
+  // Kapi dar olmali: dogru ornegi atmak, uydurmayi birakmaktan daha kotu.
+  const r = A.gateWorkedExamples([
+    { title: 'Dogru', problem_statement: 'Given UtilityBill = 484.12 - 12.08*temp + 0.09*temp^2, find the minimum.' },
+    { title: 'Worksheet', problem_statement: 'Given y = 18.30 + 98x1 + 22.44x2 + 16.38x3, find the Ranch intercept.' },
+  ], KAYNAK_ORNEK);
+  assert.equal(r.kept.length, 2, `dogru ornekler atildi: ${r.dropped.join(' | ')}`);
+});
+
+test('KUCUK ONDALIKLARDA yuvarlama toleransi yok', () => {
+  /* sourceNumbers her degerin yuvarlanmisini da kumeye koyuyor. Ama 0.0012
+     yuvarlaninca 0 oluyor ve her metinde 0 vardir — yani kucuk ondalikli
+     her uydurma sayi "dayanakli" cikardi. Ilk yazimda kapi gercek uydurma
+     ornegi tam bu yuzden kacirdi. */
+  const r = A.gateWorkedExamples([{
+    title: 'Kucuk ondalik',
+    problem_statement: 'Given a = 0.0012 and b = 0.0034 and c = 0.0056, compute.',
+  }], KAYNAK_ORNEK);
+  assert.equal(r.kept.length, 0, 'kucuk ondalikli uydurma sayilar yakalanmali');
+});
+
+test('sayi tasimayan ornege dokunulmuyor', () => {
+  const r = A.gateWorkedExamples([
+    { title: 'Kavramsal', problem_statement: 'Explain why one category must be omitted.' },
+    { title: 'Bos', problem_statement: '' },
+  ], KAYNAK_ORNEK);
+  assert.equal(r.kept.length, 2);
+  assert.deepEqual(r.dropped, []);
+});
+
+test('kaynak yoksa kapi sessiz', () => {
+  const ornekler = [{ title: 'X', problem_statement: 'Given 208.12 and 0.0012.' }];
+  assert.equal(A.gateWorkedExamples(ornekler, '').kept.length, 1);
+  assert.equal(A.gateWorkedExamples(ornekler, 'kisa').kept.length, 1);
+});
+
+test('kapi BORU HATTINA bagli', () => {
+  // Fonksiyonu yazip cagirmamak, bu oturumda bir kez yapildi
+  // (buildChunkSystemPrompt NOT WIRED).
+  assert.ok(/gateWorkedExamples\(parsedContent\.worked_examples, extractedText\)/.test(SRC),
+    'cozumlu ornek kapisi cagrilmiyor');
+  assert.ok(/parsedContent\.worked_examples = ornekKapi\.kept/.test(SRC),
+    'kapinin sonucu geri yazilmiyor');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));
