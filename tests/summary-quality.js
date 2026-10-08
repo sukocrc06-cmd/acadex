@@ -60,7 +60,9 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'nearDupStem', 'nearDupTermSet', 'dedupeNearDuplicates',
   // Slayt destesi tespiti ve cikarim talimati (07.10.2026).
   'DECK_MIN_PAGES', 'DECK_MAX_CHARS_PER_PAGE', 'DECK_PROMPT_CHARS',
-  'detectSlideDeck', 'buildSlideDeckInstruction'
+  'detectSlideDeck', 'buildSlideDeckInstruction',
+  // Yokluk iddiasi kapisi (08.10.2026).
+  'YOKLUK_IDDIASI'
 ]);
 
 const { test, summary } = makeRunner();
@@ -2675,6 +2677,86 @@ test('bos donen alan sessiz gecmiyor', () => {
   // yoldan basarisiz sayiliyor, iki kere bagirmak gurultu olur.
   assert.ok(/nTerms \+ nPoints \+ nQuiz > 0/.test(SRC),
     'tamamen bos pencere icin ayrica uyarilmamali');
+});
+
+console.log('\nYOKLUK IDDIASI KAPISI\n');
+
+/* 08.10.2026, canli bir ekonometri destesinde (42 slayt, 13.844 krk)
+   olculdu. Ozet su paragrafi tasiyordu:
+
+     "The source does not cover log-log models or elasticity
+      interpretations of slopes."
+
+   Kaynakta AYNEN su var: "- Log-Log Model" ve "In the log-log model β is
+   an elasticity." Ustelik ayni ozette log-log uzerine bir BOLUM, bir
+   anahtar terim ve bir sinav sorusu vardi — yani ozet kendisiyle de
+   celisiyordu.
+
+   Sebep yapisal: review promptu modele "You are shown only a truncated
+   slice" diyor ve "kaynagin desteklemedigi iddialari duzelt" istiyor.
+   Model kendi diliminde bulamayinca DOGRU cumleleri yokluk iddiasina
+   cevirdi. */
+
+const DRAFT_LOGLOG =
+  'The source explains log-log models where the slope is an elasticity. ' +
+  'Quadratic terms capture curvature in the relationship.';
+
+test('review taslaga YOKLUK IDDIASI ekleyemiyor', () => {
+  const r = A.applyCorrections(DRAFT_LOGLOG, [{
+    find: 'The source explains log-log models where the slope is an elasticity.',
+    replace: 'The source does not cover log-log models or elasticity interpretations of slopes.',
+  }]);
+  assert.equal(r.applied, 0, 'yokluk iddiasi uygulanmamali');
+  assert.ok(/log-log models where the slope is an elasticity/.test(r.text),
+    'dogru cumle korunmali');
+  assert.equal(r.skipped.length, 1, 'atlanan duzeltme raporlanmali');
+  assert.ok(/yokluk iddiasi/.test(r.skipped[0]), 'atlanma sebebi yazilmali');
+});
+
+test('GERCEK olgu duzeltmesi etkilenmiyor', () => {
+  // Kapi dar olmali: review'un asil isi bu ve engellenmemeli.
+  const r = A.applyCorrections(DRAFT_LOGLOG, [{
+    find: 'Quadratic terms capture curvature in the relationship.',
+    replace: 'Quadratic terms capture curvature; the marginal effect is β1 + 2β2x.',
+  }]);
+  assert.equal(r.applied, 1, 'olgu duzeltmesi uygulanmali');
+  assert.ok(/β1 \+ 2β2x/.test(r.text));
+});
+
+test('taslak ZATEN yokluk ifadesi tasiyorsa duzeltilebiliyor', () => {
+  /* Iddiayi URETEN review degilse engellemek yanlis olur — orada review
+     mevcut bir ifadeyi duzeltiyor, yenisini uydurmuyor. */
+  const taslak = 'The source does not discuss panel data methods at all.';
+  const r = A.applyCorrections(taslak, [{
+    find: 'The source does not discuss panel data methods at all.',
+    replace: 'The source does not discuss panel data in depth.',
+  }]);
+  assert.equal(r.applied, 1, 'mevcut yokluk ifadesi duzeltilebilmeli');
+});
+
+test('Turkce yokluk ifadeleri de yakalaniyor', () => {
+  // Ozet dili belgeye gore degisiyor; kapi tek dile bagli olmamali.
+  for (const ifade of [
+    'Kaynak log-log modellerini ele almıyor.',
+    'Belgede esneklik yorumundan bahsedilmiyor.',
+    'Bu konu kaynakta yer almıyor.',
+    'Kaynak bu modeli içermiyor.',
+  ]) {
+    const r = A.applyCorrections('Kaynak log-log modellerini açıklar ve esnekliği tanımlar.', [{
+      find: 'Kaynak log-log modellerini açıklar ve esnekliği tanımlar.',
+      replace: ifade,
+    }]);
+    assert.equal(r.applied, 0, `yakalanmadi: "${ifade}"`);
+  }
+});
+
+test('kapi promptta da anlatiliyor', () => {
+  // Kod kapisi son savunma; model de uyarilmali, yoksa her turda bir
+  // duzeltme bosa harcaniyor.
+  assert.ok(/NEVER TURN "I CANNOT FIND IT" INTO "THE SOURCE DOES NOT HAVE IT"/.test(SRC),
+    'review promptunda yokluk uyarisi yok');
+  assert.ok(/silence is not disagreement/.test(SRC),
+    'uyarinin gerekcesi eksik');
 });
 
 console.log('\nSLAYT DESTESI TESTLERI\n');
