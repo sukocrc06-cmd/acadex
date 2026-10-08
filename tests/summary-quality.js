@@ -3089,4 +3089,64 @@ test('onarim HER ayristirma noktasina bagli', () => {
     `${toplam} JSON.parse var, yalnizca ${cagri} onariliyor`);
 });
 
+
+test('GECERLI JSON asla bozulmuyor (fuzz)', () => {
+  /* 09.10.2026 CANLI REGRESYON — bu testin dogdugu yer.
+
+     Ilk surumum gecerli bir kaciste yalnizca ters boluyu yaziyor, ikinci
+     karakteri bir sonraki turda BAGIMSIZ isliyordu:
+       \"  -> tirnak dize sonu sanildi, "dize icinde miyim" bilgisi kaydi
+       \\  -> ikinci ters bolu YENI bir kacis sanildi
+     Bundan sonra gercek gecersiz kacislar onarilmadan geciyordu ve canli
+     sonuc, ONARMASI gereken hatanin ta kendisiydi:
+       "Window 1 attempt 1 failed: Bad escaped character in JSON"
+     Bir kosuda BUTUN pencereler dustu; ozet son care olarak ilk 5.000
+     karakterden cikarildi ve belirgin sekilde zayif geldi.
+
+     Elle yazilmis vakalar bunu KACIRDI: iki kacisli tirnak durumu cift
+     sayida cevirip tesadufen duzeltiyor, yani testlerim yesil geciyordu.
+     Hatayi fuzz buldu — 4.000 girdinin 446'si. Bu yuzden fuzz kaliyor. */
+  const parcalar = ['abc', ' ', '\\"alinti\\"', '\\\\', 'x', ' = ',
+    '\\n', '\\t', '1,2', '(', ')', '\\u00e9', '\\beta_0', '\\frac{a}{b}'];
+  let bozuk = 0;
+  const ornekler = [];
+  // Tohumlu: her kosuda ayni dizi, yani bir hata tekrar uretilebilir.
+  let tohum = 20261009;
+  const rnd = () => (tohum = (tohum * 1103515245 + 12345) % 2147483648) / 2147483648;
+
+  for (let n = 0; n < 3000; n++) {
+    let icerik = '';
+    const uzunluk = 1 + Math.floor(rnd() * 6);
+    for (let i = 0; i < uzunluk; i++) icerik += parcalar[Math.floor(rnd() * parcalar.length)];
+    const ham = `{"p":"${icerik}"}`;
+
+    let beklenen;
+    try { beklenen = JSON.parse(ham).p; } catch (_e) { continue; }  // zaten gecersiz
+    let sonuc;
+    try { sonuc = JSON.parse(A.repairLatexEscapes(ham)).p; }
+    catch (e) { bozuk++; if (ornekler.length < 3) ornekler.push(`${ham} → ${e.message}`); continue; }
+
+    // Kontrol karakteri iceren beklenen deger ZATEN bozulmus demektir
+    // (\beta -> U+0008); onarim onu duzelttigi icin fark normal.
+    if (sonuc !== beklenen && !/[\u0000-\u001f]/.test(beklenen)) {
+      bozuk++;
+      if (ornekler.length < 3) ornekler.push(`${ham}\n    beklenen: ${JSON.stringify(beklenen)}\n    sonuc   : ${JSON.stringify(sonuc)}`);
+    }
+  }
+  assert.equal(bozuk, 0,
+    `${bozuk}/3000 gecerli JSON girdisi bozuldu:\n  ${ornekler.join('\n  ')}`);
+});
+
+test('KACIS IKI KARAKTER olarak tuketiliyor', () => {
+  // Fuzz'in buldugu hatanin birebir en kucuk hali.
+  const ham = '{"p":"\\\\( 1,2"}';          // kacisli ters bolu + "(" 
+  assert.doesNotThrow(() => JSON.parse(A.repairLatexEscapes(ham)));
+  assert.equal(JSON.parse(A.repairLatexEscapes(ham)).p, '\\( 1,2');
+  // Tek sayida kacisli tirnak: durum bilgisi kaymamali.
+  const tek = '{"p":"dedi \\"merhaba, \\beta_0 ile"}';
+  assert.doesNotThrow(() => JSON.parse(A.repairLatexEscapes(tek)));
+  assert.ok(JSON.parse(A.repairLatexEscapes(tek)).p.includes('\\beta_0'),
+    'tirnaktan SONRAKI LaTeX onarilmali');
+});
+
 summary().then(() => process.exit(process.exitCode || 0));
