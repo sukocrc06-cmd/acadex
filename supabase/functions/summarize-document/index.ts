@@ -121,6 +121,78 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2,
 // Returns null if the block is unterminated (the model ran out of its token
 // budget mid-thought before ever writing the real answer) — callers should
 // treat that as a failure rather than trying to parse what's left.
+/* ===========================================================================
+   LATEX TERS BOLULERI JSON'DA SESSIZCE BOZULUYOR
+   ===========================================================================
+   08.10.2026, canli ekonometri destesinde olculdu. Ozetin bolum maddeleri
+   PDF'te soyle cikiyordu:
+
+     - Quadratic model: (y =
+     - Marginal effect: (
+     - Log-linear: (ln y =
+
+   Yani formulun ortasinda kesiliyorlardi. Once PDF yolunu suclu sandim ve
+   yereldeki bir testle hipotezi CURUTTUM: ham ters bolu PDF'i kesmiyor,
+   oldugu gibi basiliyor. Demek ki kesilme VERIDE.
+
+   Sebep: prompt modelden "valid raw LaTeX ONLY" istiyor, model de JSON
+   dize degerinin icine \beta_0 yaziyor. Ama JSON'da \b GERI SILME
+   karakteridir:
+
+     JSON.parse('{"p":"... \beta_0 ..."}')  ->  "... <U+0008>eta_0 ..."
+
+   Bu yalnizca \beta'yi vurmuyor. JSON kacislariyla CAKISAN her LaTeX
+   komutu sessizce bozuluyor, ve hepsi bu uygulamanin en cok kullandigi
+   semboller:
+
+     \beta \bar \binom   -> \b  geri silme
+     \frac               -> \f  sayfa atlatma
+     \rho                -> \r  satir basi
+     \tau \theta \times  -> \t  sekme
+
+   Hicbiri hata vermiyor; JSON gecerli, dize bozuk. Bu yuzden yillarca
+   gorunmeden durabilir.
+
+   ONARIM: ayristirmadan ONCE, dize icindeki ters bolulerden LaTeX olani
+   ikiye katlanir. Bilgi ayristirma aninda kayboldugu icin sonradan telafi
+   edilemez.
+
+   \n BILEREK DISARIDA: duz metinde satir sonu mesru ve sik ("satir1\nsatir2").
+   Onu da LaTeX saymak gercek satir sonlarini bozardi. Bedeli \nu ve \nabla'nin
+   bozuk kalmasi — ikisi de bu derslerde nadir, satir sonu ise her yerde.
+   =========================================================================== */
+const JSON_GECERLI_KACIS = new Set(['"', '\\', '/', 'b', 'f', 'n', 'r', 't', 'u'])
+
+function repairLatexEscapes(json: string): string {
+  const s = String(json || '')
+  let out = ''
+  let dizedeMi = false
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i]
+    if (!dizedeMi) {
+      if (c === '"') dizedeMi = true
+      out += c
+      continue
+    }
+    if (c === '"') { dizedeMi = false; out += c; continue }
+    if (c !== '\\') { out += c; continue }
+
+    const n = s[i + 1] ?? ''
+    // Gecersiz kacis (\( \) \[ \v \s ...): her halukarda kacirilmali —
+    // bu ayni zamanda sert ayristirma hatalarini da duzeltiyor.
+    if (!JSON_GECERLI_KACIS.has(n)) { out += '\\\\'; continue }
+    // \u + 4 onaltilik: mesru unicode kacisi, dokunulmaz.
+    if (n === 'u' && /^[0-9a-fA-F]{4}/.test(s.slice(i + 2, i + 6))) { out += c; continue }
+    // \n disarida: gercek satir sonlari korunmali (basliga bak).
+    if (n !== 'n' && 'bfrt'.includes(n) && /^[A-Za-z]{2,}/.test(s.slice(i + 2))) {
+      out += '\\\\'   // LaTeX komutu: \beta, \frac, \tau, \rho ...
+      continue
+    }
+    out += c
+  }
+  return out
+}
+
 function stripThinkBlock(raw: string): string | null {
   const match = raw.match(/<think>[\s\S]*?<\/think>/i)
   if (match) {
@@ -1205,7 +1277,9 @@ async function callGroqJson(
   const stripped = stripThinkBlock(raw)
   if (stripped === null) throw new Error("Model ran out of tokens mid-<think> block, never wrote the actual answer")
   const cleaned = stripped.replace(/```json\s*|```/g, "").trim()
-  return JSON.parse(cleaned)
+  // LaTeX ters bolulerini onar (bkz. repairLatexEscapes) — ayristirmadan
+  // once yapilmali, bilgi parse aninda kayboluyor.
+  return JSON.parse(repairLatexEscapes(cleaned))
 }
 
 // Upload local file bytes to PDF.co via its presigned-URL flow (Denetim
@@ -2195,7 +2269,7 @@ function mergeReviewOntoDraft(
   const parse = (s: string): any => {
     try {
       const stripped = stripThinkBlock(s)
-      return JSON.parse((stripped ?? s).replace(/```json\s*|```/g, '').trim())
+      return JSON.parse(repairLatexEscapes((stripped ?? s).replace(/```json\s*|```/g, '').trim()))
     } catch {
       return null
     }
@@ -5716,7 +5790,7 @@ DO NOT include "tables", "charts", "diagrams", "worked_examples", "formulas", "c
       // Swapping them costs nothing and buys review the whole document.
       let narrative = ''
       try {
-        const d = JSON.parse(rawContent)
+        const d = JSON.parse(repairLatexEscapes(rawContent))
         narrative = JSON.stringify({
           summary: d?.summary ?? '',
           summary_executive: d?.summary_executive ?? ''
@@ -5762,7 +5836,7 @@ ${narrative}`
       let draftObj: any = null
       try {
         const strippedDraft = stripThinkBlock(rawContent)
-        draftObj = JSON.parse((strippedDraft ?? rawContent).replace(/```json\s*|```/g, '').trim())
+        draftObj = JSON.parse(repairLatexEscapes((strippedDraft ?? rawContent).replace(/```json\s*|```/g, '').trim()))
       } catch (_e) {
         draftObj = null
       }
@@ -6179,7 +6253,7 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
     const cleaned = reviewStripped.replace(/```json\s*|```/g, "").trim()
     let parsedContent
     try {
-      parsedContent = JSON.parse(cleaned)
+      parsedContent = JSON.parse(repairLatexEscapes(cleaned))
     } catch (parseError) {
       console.error("Failed to parse Groq final response as JSON: ", rawFinalContent, parseError)
       await markFailed(serviceClient, documentId)
