@@ -12937,6 +12937,15 @@ function latexToUnicode(raw, unicodeReady = true) {
   // \text{...}, \mathrm{...} -> icerik
   s = s.replace(/\\(?:text|mathrm|mathit|mathbf|operatorname)\s*\{([^{}]*)\}/g, '$1');
 
+  /* SAPKA (tahmin edici isareti). Ekonometride her yerde: β̂, ŷ. Iki
+     bicimde geliyor ve ikisi de desteklenir:
+       \hat{\beta}_0   — duzgun LaTeX
+       β^_0            — modelin canli diyagramda yazdigi kisa bicim
+     Birlestirici U+0302 kullanilir; harfin uzerine oturur ve metin olarak
+     secilebilir kalir. */
+  s = s.replace(/\\hat\s*\{\s*\\?([A-Za-z]+)\s*\}/g, (_m, g) => `\\${g}̂`);
+  s = s.replace(/([A-Za-zα-ωΑ-Ω])\^(?=_|\s|$)/g, '$1̂');
+
   // Komutlar. Uzun adlar once eslenmeli ki \varepsilon, \epsilon'dan once
   // yakalansin — aksi halde geriye "var" takilir.
   // Sinir olarak \b DEGIL (?![A-Za-z]): alt cizgi de kelime karakteri
@@ -12969,6 +12978,11 @@ function latexToUnicode(raw, unicodeReady = true) {
   } else {
     s = s.replace(/_\{([^{}]*)\}/g, '_$1').replace(/\^\{([^{}]*)\}/g, '^$1');
   }
+
+  // Birlestirici sapka Unicode font ister. Fontsuz modda ASCII harfin
+  // uzerine oturup "betâ" gibi bir sey uretiyordu — orada duz "^" daha
+  // okunur ve zaten modelin kendi yazimi.
+  if (!unicodeReady) s = s.replace(/̂/g, '^');
 
   // Kalan susleme: tek basina kalmis {} ve cift ters bolu.
   s = s.replace(/\\\\/g, ' ').replace(/[{}]/g, '');
