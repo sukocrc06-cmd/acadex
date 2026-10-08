@@ -138,10 +138,63 @@ document.addEventListener('DOMContentLoaded', async () => {
  * Returns true when a diagram was drawn, false when it was skipped — callers
  * can use that to hide an empty container.
  */
+/* ==========================================================================
+   DIYAGRAM ETIKETLERINDEKI MATEMATIK
+   ==========================================================================
+   08.10.2026, canli ekonometri destesinde olculdu. FORMULLER bolumu
+   duzeldikten SONRA bile diyagram kutulari soyle duruyordu:
+
+     y_i = β_0 + β_1x_1,i + ... + β_kx_k,i + ε_i
+     ŷ_i = β^_0 + β^_1x_1,i + ... + β^_kx_k,i
+
+   latexToUnicode yalnizca formulas dizisine uygulaniyordu; Mermaid dugum
+   etiketleri ayri bir yoldan geciyor.
+
+   YALNIZCA ETIKET ICI donusturulur. Butun kaynagi donusturmek dugum
+   KIMLIKLERINI de bozardi ("A_1" -> "A₁" gecerli bir Mermaid kimligi
+   degil), yani diyagram tamamen kaybolurdu. Bu yuzden sadece [...] ve
+   |...| araligindaki metne dokunulur.
+
+   EMNIYET: safeMermaidRender gecersiz kaynagi SESSIZCE atiyor. Yani kotu
+   bir donusum diyagrami yok ederdi ve kimse fark etmezdi. Donusmus kaynak
+   ayristirilamazsa ORIJINALINE donulur — guzellestirme, diyagrami
+   kaybetmeye degmez.
+   ========================================================================== */
+function mermaidPrettyLabels(src) {
+  const metin = String(src || '');
+  if (!metin) return metin;
+  const donustur = (icerik) => {
+    /* Mermaid'in kendi ok isaretlerini tasiyan bir etiketi oldugu gibi
+       birak. <br/> BU LISTEDE DEGIL: cok satirli etiketler tam olarak
+       formullerin yasadigi yer, ve ilk yazimda onlari koruyup asil hedefi
+       kacirmistim. latexToUnicode <br/> etiketine dokunmuyor. */
+    if (/-->|---|\|\|/.test(icerik)) return icerik;
+    try { return latexToUnicode(icerik, true); } catch (_e) { return icerik; }
+  };
+  return metin
+    .replace(/\[([^\[\]]*)\]/g, (m, g) => `[${donustur(g)}]`)
+    .replace(/\|([^|\n]*)\|/g, (m, g) => `|${donustur(g)}|`);
+}
+
 async function safeMermaidRender(target, code, renderId) {
   if (!target) return false;
-  const src = String(code || '').trim();
-  if (!src || !window.mermaid) return false;
+  const ham = String(code || '').trim();
+  // Etiketleri guzellestir; ayristirilamazsa asagidaki dogrulama bunu
+  // yakalar ve ham kaynaga donulur.
+  const guzel = mermaidPrettyLabels(ham);
+  let src = guzel;
+  if (!ham || !window.mermaid) return false;
+  if (guzel !== ham) {
+    let okundu = false;
+    try {
+      const r = await window.mermaid.parse(guzel, { suppressErrors: true });
+      okundu = r !== false;
+    } catch (_e) { okundu = false; }
+    if (!okundu) {
+      console.warn('Mermaid etiket donusumu ayristirilamadi, ham kaynak kullaniliyor');
+      src = ham;
+    }
+  }
 
   // 1. Validate first. suppressErrors makes parse return false instead of
   //    throwing on the versions that support it; older ones throw, which the
