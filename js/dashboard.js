@@ -12755,6 +12755,127 @@ function pdfText(unicodeReady, txt) {
   return unicodeReady ? str : replaceTurkishChars(str);
 }
 
+/* ==========================================================================
+   LATEX -> UNICODE (PDF ICIN)
+   ==========================================================================
+   08.10.2026, canli bir ekonometri destesinin ozetinde olculdu. PDF'in
+   FORMULLER bolumu su sekilde cikiyordu:
+
+     y = \beta_0 + \beta_1 x + \beta_2 x^2 + \varepsilon
+     \frac{\partial y}{\partial x}=\beta_1+2\beta_2 x
+     \beta_0 = Intercept
+
+   Yani ogrenciye ham LaTeX kaynagi gosteriliyordu. Cikarim tarafinda bir
+   sorun YOK — prompt zaten "valid raw LaTeX ONLY" istiyor ve dogrusunu
+   uretmis. Bozuk olan GOSTERIM, ve yalnizca PDF yolunda: ekranda KaTeX
+   yuklu ve formulleri render ediyor (bkz. katex.render cagrisi), PDF yolu
+   ise latex alanini dogrudan doc.text'e veriyordu.
+
+   PDF'e KaTeX kurmak dogru cozum degil: KaTeX HTML+CSS uretir, jsPDF onu
+   cizemez; html2canvas ile goruntuye cevirmek gerekirdi. Bu kartlardaki
+   formuller ise basit (beta, ln, kismi turev, kare) — Unicode karsiligi
+   hem okunur hem metin olarak secilebilir kalir.
+
+   KAPSAM DURUST OLSUN: bu, tam bir LaTeX motoru DEGIL. Ic ice kesirler,
+   matrisler, integral sinirlari gibi yapilar sadelestirilir. Amac,
+   ogrencinin formulu OKUYABILMESI; mukemmel dizgi degil.
+   ========================================================================== */
+const LATEX_SEMBOL = {
+  alpha: 'α', beta: 'β', gamma: 'γ', delta: 'δ', Delta: 'Δ', epsilon: 'ε',
+  varepsilon: 'ε', zeta: 'ζ', eta: 'η', theta: 'θ', lambda: 'λ', mu: 'μ',
+  nu: 'ν', xi: 'ξ', pi: 'π', rho: 'ρ', sigma: 'σ', Sigma: 'Σ', tau: 'τ',
+  phi: 'φ', chi: 'χ', psi: 'ψ', omega: 'ω', Omega: 'Ω',
+  partial: '∂', infty: '∞', sum: '∑', prod: '∏', int: '∫', sqrt: '√',
+  times: '×', cdot: '·', pm: '±', mp: '∓', div: '÷',
+  approx: '≈', neq: '≠', leq: '≤', geq: '≥', le: '≤', ge: '≥',
+  rightarrow: '→', Rightarrow: '⇒', leftarrow: '←', to: '→',
+  hat: '^', bar: '‾', ldots: '…', dots: '…', quad: ' ', qquad: '  ',
+};
+const LATEX_ALT = { '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄', '5': '₅',
+  '6': '₆', '7': '₇', '8': '₈', '9': '₉', '+': '₊', '-': '₋', '=': '₌',
+  'i': 'ᵢ', 'j': 'ⱼ', 'n': 'ₙ', 't': 'ₜ', 'k': 'ₖ', 'x': 'ₓ', 'a': 'ₐ' };
+const LATEX_UST = { '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵',
+  '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹', '+': '⁺', '-': '⁻', '=': '⁼',
+  'n': 'ⁿ', 'i': 'ⁱ', 'T': 'ᵀ' };
+
+/* Gomulu Unicode font YOKSA kullanilan karsiliklar. jsPDF'in standart
+   fontu (helvetica) Yunan harflerini hic cizemiyor: "β" verildiginde
+   sayfaya hicbir sey dusmuyor. Ham "\beta_0" gostermek kotuydu, bosluk
+   gostermek daha kotu — bu tablo o durumda okunur ASCII uretir
+   ("beta_0"). Test kosucusu da unicodeReady=false ile calisiyor ve ilk
+   kosuda tam bunu yakaladi. */
+const LATEX_ASCII = {
+  alpha: 'alpha', beta: 'beta', gamma: 'gamma', delta: 'delta', Delta: 'delta',
+  epsilon: 'eps', varepsilon: 'eps', zeta: 'zeta', eta: 'eta', theta: 'theta',
+  lambda: 'lambda', mu: 'mu', nu: 'nu', xi: 'xi', pi: 'pi', rho: 'rho',
+  sigma: 'sigma', Sigma: 'sum', tau: 'tau', phi: 'phi', chi: 'chi',
+  psi: 'psi', omega: 'omega', Omega: 'omega',
+  partial: 'd', infty: 'inf', sum: 'sum', prod: 'prod', int: 'integral',
+  sqrt: 'sqrt', times: 'x', cdot: '*', pm: '+/-', mp: '-/+', div: '/',
+  approx: '~=', neq: '!=', leq: '<=', geq: '>=', le: '<=', ge: '>=',
+  rightarrow: '->', Rightarrow: '=>', leftarrow: '<-', to: '->',
+  hat: '^', bar: '-', ldots: '...', dots: '...', quad: ' ', qquad: '  ',
+};
+
+function latexToUnicode(raw, unicodeReady = true) {
+  let s = String(raw === undefined || raw === null ? '' : raw);
+  if (!s) return '';
+
+  // Dizgi sarmalayicilari: $...$, \(...\), \[...\]
+  s = s.replace(/^\s*\$+|\$+\s*$/g, '').replace(/\\[()[\]]/g, '');
+
+  // \frac{a}{b} -> (a)/(b). Ic ice olanlar icin birkac tur.
+  for (let i = 0; i < 3; i++) {
+    const before = s;
+    s = s.replace(/\\(?:d|t)?frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}/g,
+      (_m, a, b) => `(${a})/(${b})`);
+    if (s === before) break;
+  }
+  // \sqrt{x} -> √(x)
+  s = s.replace(/\\sqrt\s*\{([^{}]*)\}/g, (_m, a) => `√(${a})`);
+  // \text{...}, \mathrm{...} -> icerik
+  s = s.replace(/\\(?:text|mathrm|mathit|mathbf|operatorname)\s*\{([^{}]*)\}/g, '$1');
+
+  // Komutlar. Uzun adlar once eslenmeli ki \varepsilon, \epsilon'dan once
+  // yakalansin — aksi halde geriye "var" takilir.
+  // Sinir olarak \b DEGIL (?![A-Za-z]): alt cizgi de kelime karakteri
+  // oldugu icin \b, "\beta_0" gibi en sik gecen bicimde eslesmiyor ve
+  // formul "beta₀" diye cikiyordu — \varepsilon calisirken \beta_0'in
+  // calismamasi tam bu yuzdendi. (08.10.2026, ilk kosuda yakalandi.)
+  const tablo = unicodeReady ? LATEX_SEMBOL : LATEX_ASCII;
+  const adlar = Object.keys(tablo).sort((a, b) => b.length - a.length);
+  s = s.replace(new RegExp(`\\\\(${adlar.join('|')})(?![A-Za-z])`, 'g'),
+    (_m, ad) => tablo[ad]);
+  // \ln, \log, \exp, \min, \max gibi operatorler: ters bolu atilir.
+  s = s.replace(/\\(ln|log|exp|min|max|lim|sin|cos|tan|det|var|cov|arg)\b/g, '$1');
+
+  // Alt/ust simge: once {..} grubu, sonra tek karakter.
+  const cevir = (metin, tablo) => {
+    let ok = '';
+    for (const ch of metin) {
+      if (tablo[ch]) { ok += tablo[ch]; continue; }
+      return null;   // tablonun karsilamadigi karakter — donusumden vazgec
+    }
+    return ok;
+  };
+  // Alt/ust simge glifleri de Unicode font ister; yoksa "_0" / "^2"
+  // yazimi oldugu gibi birakilir — okunur ve cizilebilir.
+  if (unicodeReady) {
+    s = s.replace(/_\{([^{}]*)\}/g, (m, g) => cevir(g, LATEX_ALT) ?? `_${g}`);
+    s = s.replace(/\^\{([^{}]*)\}/g, (m, g) => cevir(g, LATEX_UST) ?? `^${g}`);
+    s = s.replace(/_(\w)/g, (m, g) => LATEX_ALT[g] || m);
+    s = s.replace(/\^(\w)/g, (m, g) => LATEX_UST[g] || m);
+  } else {
+    s = s.replace(/_\{([^{}]*)\}/g, '_$1').replace(/\^\{([^{}]*)\}/g, '^$1');
+  }
+
+  // Kalan susleme: tek basina kalmis {} ve cift ters bolu.
+  s = s.replace(/\\\\/g, ' ').replace(/[{}]/g, '');
+  // Kalan tanimsiz komutlardan ters boluyu at (ham "\foo" basmaktansa "foo").
+  s = s.replace(/\\([A-Za-z]+)/g, '$1');
+  return s.replace(/\s{2,}/g, ' ').trim();
+}
+
 // Shared ink palette for the redesigned PDF — mirrors the app's own
 // css/style.css tokens (--color-navy, --color-teal) plus an amber accent
 // for the quiz/self-test section, matching the amber warning color already
@@ -13381,10 +13502,10 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
             pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(9.5);
             if (f.name) h += doc.splitTextToSize(safeText(f.name), w).length * 5;
             pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(10);
-            if (f.latex) h += doc.splitTextToSize(safeText(f.latex), w - 6).length * 5.5;
+            if (f.latex) h += doc.splitTextToSize(safeText(latexToUnicode(f.latex, unicodeReady)), w - 6).length * 5.5;
             pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9);
             (Array.isArray(f.variables) ? f.variables : []).forEach(v => {
-              h += doc.splitTextToSize(safeText(`${v?.symbol || ''} = ${v?.meaning || ''}`), w - 6).length * 4.6;
+              h += doc.splitTextToSize(safeText(`${latexToUnicode(v?.symbol || '', unicodeReady)} = ${v?.meaning || ''}`), w - 6).length * 4.6;
             });
             h += 4;
           });
@@ -13402,14 +13523,14 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
             }
             if (f.latex) {
               pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(10); doc.setTextColor(...PDF_INK.teal);
-              doc.splitTextToSize(safeText(f.latex), w - 6).forEach(line => {
+              doc.splitTextToSize(safeText(latexToUnicode(f.latex, unicodeReady)), w - 6).forEach(line => {
                 if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
                 doc.text(line, x + 6, ry); ry += 5.5;
               });
             }
             pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9); doc.setTextColor(...PDF_INK.muted);
             (Array.isArray(f.variables) ? f.variables : []).forEach(v => {
-              doc.splitTextToSize(safeText(`${v?.symbol || ''} = ${v?.meaning || ''}`), w - 6).forEach(line => {
+              doc.splitTextToSize(safeText(`${latexToUnicode(v?.symbol || '', unicodeReady)} = ${v?.meaning || ''}`), w - 6).forEach(line => {
                 if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
                 doc.text(line, x + 6, ry); ry += 4.6;
               });
