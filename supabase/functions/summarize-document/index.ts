@@ -1983,6 +1983,54 @@ const NARRATIVE_MIN_KEEP_RATIO = 0.75
  * logged, and a correction whose "find" text cannot be located exactly once
  * is skipped — a miss is a no-op, never a corruption.
  */
+/* ===========================================================================
+   YOKLUK IDDIASI KAPISI
+   ===========================================================================
+   08.10.2026, canli bir ekonometri destesinde (42 slayt) olculdu. Ozet su
+   paragrafi tasiyordu:
+
+     "The source does not discuss log-linear models that log-transform the
+      dependent variable. The source does not describe coefficients as
+      semi-elasticities... The source does not cover log-log models or
+      elasticity interpretations of slopes."
+
+   Kaynakta ise AYNEN su var:
+     "- Log-Log Model"
+     "In the log-log model β is an elasticity."
+
+   Ustelik ozet KENDISIYLE celisiyordu: ayni belgede "Log-Log Model and
+   Elasticity Interpretation" diye bir bolum, "log-log model" diye bir
+   anahtar terim ve log-log uzerine bir sinav sorusu vardi.
+
+   SEBEP YAPISAL. Review promptu modele acikca "You are shown only a
+   truncated slice of the source" diyor ve "kaynagin desteklemedigi
+   iddialari duzelt" istiyor. Model kendi diliminde log-log'u bulamayinca
+   DOGRU cumleleri "kaynak bunu kapsamiyor" diye duzeltti.
+
+   Prompt bu tuzagi ATIFLAR icin zaten fark etmis ("sadece bir dilim
+   goruyorsun, sayfa numarasi yazma"). Ayni mantik olumsuz iddialar icin de
+   birebir gecerli: gormedigin bir sey, OLMADIGI anlamina gelmez.
+
+   Bu kapi deterministik: modelin kurala uymasina guvenmez. Taslakta
+   OLMAYAN bir yokluk iddiasini review EKLEYEMEZ. Gercek bir olgu
+   duzeltmesi (yanlis yil, yanlis rakam) etkilenmez — yalnizca "belgede X
+   yok" seklindeki, dilimi goren birinin dogrulayamayacagi iddialar.
+   =========================================================================== */
+const YOKLUK_IDDIASI = new RegExp([
+  // Ingilizce
+  'does\\s+not\\s+(discuss|cover|mention|describe|provide|include|contain|address|present)',
+  "doesn'?t\\s+(discuss|cover|mention|describe|provide|include|contain|address)",
+  'is\\s+not\\s+(discussed|covered|mentioned|described|addressed|present)',
+  'are\\s+not\\s+(discussed|covered|mentioned|described|addressed)',
+  'no\\s+mention\\s+of',
+  'not\\s+found\\s+in\\s+the\\s+(source|document|text)',
+  // Turkce
+  // Hem etken hem edilgen: "ele almiyor" / "ele alinmiyor". Ilk yazimda
+  // yalnizca edilgen hali vardi ve test etken halini kacirdigimi gosterdi.
+  'ele\\s+al([ıi]n)?m[ıi]yor', 'bahsedilmiyor', 'yer\\s+alm[ıi]yor',
+  'belirtilmemi[şs]', 'i[çc]ermiyor', 'kapsam[ıi]yor', 'de[ğg]inilmemi[şs]',
+].join('|'), 'i')
+
 function applyCorrections(
   text: string,
   corrections: any
@@ -1996,6 +2044,15 @@ function applyCorrections(
     const find = String(c?.find || '').trim()
     const replace = String(c?.replace ?? '').trim()
     if (find.length < 8 || find === replace) continue
+
+    // Review, taslakta olmayan bir YOKLUK iddiasi getiremez: gordugu dilim
+    // belgenin tamami degil (bkz. YOKLUK_IDDIASI basligi). Taslak zaten
+    // boyle bir ifade tasiyorsa duzeltmesine izin verilir — orada iddiayi
+    // URETEN review degil.
+    if (YOKLUK_IDDIASI.test(replace) && !YOKLUK_IDDIASI.test(find)) {
+      skipped.push(`yokluk iddiasi eklenmeye calisildi: "${replace.slice(0, 70)}..."`)
+      continue
+    }
 
     // Exact match first; it must be unambiguous, or we cannot know which
     // occurrence the model meant.
@@ -5475,9 +5532,19 @@ CORRECTIONS and your verdict, as JSON:
   sentence corrected. A correction whose "find" cannot be located is thrown
   away, so copy carefully rather than paraphrasing.
   Correct: a wrong year, a figure attributed to the wrong period, a claim the
-  source does not support, admin noise that survived. Return [] when the
-  narrative is sound — an empty list is a perfectly good answer, and inventing
-  changes to look thorough makes the card worse.
+  visible source positively contradicts, admin noise that survived. Return []
+  when the narrative is sound — an empty list is a perfectly good answer, and
+  inventing changes to look thorough makes the card worse.
+  NEVER TURN "I CANNOT FIND IT" INTO "THE SOURCE DOES NOT HAVE IT". You see a
+  truncated slice, exactly as with page numbers above, so a topic missing from
+  your slice is most likely in the part you cannot see. Writing "the source
+  does not discuss X" is therefore a claim you are structurally unable to
+  verify, and a live run proved the damage: a 42-slide econometrics deck whose
+  summary ended up asserting the source did not cover log-log models or
+  elasticity, while the deck had a slide titled "Log-Log Model" reading "In the
+  log-log model β is an elasticity" — and the same summary carried a whole
+  section, a key term and an exam question on it. Only correct a claim when
+  the text you CAN see says something different; silence is not disagreement.
   Do NOT rewrite sentences merely to restyle them.
 - "summary_executive": the corrected executive summary, in full. It is short,
   so it fits.
