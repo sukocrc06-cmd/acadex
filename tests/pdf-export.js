@@ -43,12 +43,13 @@ const NEEDED = [
   'PDF_INK', 'replaceTurkishChars', 'pdfSetFont', 'pdfText', 'getStyleLabel',
   // LaTeX -> Unicode donusturucu ve tablolari (08.10.2026).
   'LATEX_SEMBOL', 'LATEX_ALT', 'LATEX_UST', 'LATEX_ASCII', 'latexToUnicode',
+  'mermaidPrettyLabels',
   'drawPdfTable', 'drawChartDataFallback', 'drawMermaidSourceFallback',
   'drawPdfCard', 'appendStudyCardToDoc'
 ];
 const body = NEEDED.map(n => sliceDeclaration(SRC, n)).join('\n\n');
-const { appendStudyCardToDoc, latexToUnicode } = new Function(
-  `${body}\nreturn { appendStudyCardToDoc, latexToUnicode };`
+const { appendStudyCardToDoc, latexToUnicode, mermaidPrettyLabels } = new Function(
+  `${body}\nreturn { appendStudyCardToDoc, latexToUnicode, mermaidPrettyLabels };`
 )();
 
 /** Uretilen PDF'i pdftotext ile metne cevirip doner. */
