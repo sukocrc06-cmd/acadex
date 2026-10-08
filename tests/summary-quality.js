@@ -64,6 +64,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   // Pencere dengeleme ve cozumlu ornek kapisi (08.10.2026).
   'kurPencereler', 'splitIntoChunks', 'splitIntoWindows',
   'gateWorkedExamples',
+  'JSON_GECERLI_KACIS', 'repairLatexEscapes',
   // Yokluk iddiasi kapisi (08.10.2026).
   'YOKLUK_IDDIASI'
 ]);
@@ -3012,6 +3013,80 @@ test('kapi BORU HATTINA bagli', () => {
     'cozumlu ornek kapisi cagrilmiyor');
   assert.ok(/parsedContent\.worked_examples = ornekKapi\.kept/.test(SRC),
     'kapinin sonucu geri yazilmiyor');
+});
+
+
+console.log('\nLATEX TERS BOLU ONARIMI (JSON)\n');
+
+/* 08.10.2026, canli ekonometri destesi. Ozetin bolum maddeleri PDF'te
+   formulun ortasinda kesiliyordu:
+     - Quadratic model: (y =
+     - Log-linear: (ln y =
+
+   Once PDF yolunu suclu sandim; yerel bir testle hipotezi CURUTTUM (ham
+   ters bolu PDF'i kesmiyor). Kesilme VERIDE: prompt modelden "valid raw
+   LaTeX ONLY" istiyor, model JSON dizesine \beta_0 yaziyor, JSON'da ise
+   \b GERI SILME karakteri. Hata yok, JSON gecerli, dize bozuk. */
+
+const parse = (ham) => JSON.parse(A.repairLatexEscapes(ham));
+
+test('JSON KACISLARIYLA CAKISAN LaTeX komutlari korunuyor', () => {
+  // Hepsi bu uygulamanin en cok kullandigi semboller.
+  const vakalar = [
+    ['\\beta',  '{"p":"y = \\beta_0 + \\beta_1 x"}',      'y = \\beta_0 + \\beta_1 x'],
+    ['\\frac',  '{"p":"\\frac{dy}{dx}"}',                  '\\frac{dy}{dx}'],
+    ['\\theta', '{"p":"\\theta ve \\times ve \\tau"}',     '\\theta ve \\times ve \\tau'],
+    ['\\rho',   '{"p":"\\rho katsayisi"}',                 '\\rho katsayisi'],
+    ['\\bar',   '{"p":"\\bar{x} ortalama"}',               '\\bar{x} ortalama'],
+  ];
+  for (const [ad, ham, beklenen] of vakalar) {
+    assert.equal(parse(ham).p, beklenen, `${ad} korunmadi`);
+    // Ve onarim OLMADAN gercekten bozuldugunu da dogrula — yoksa bu test
+    // "zaten calisiyordu" diye bos yere yesil gecer.
+    assert.ok(/[\u0000-\u001f]/.test(JSON.parse(ham).p),
+      `${ad}: onarimsiz hali bozulmuyorsa bu testin koruduğu bir sey yok`);
+  }
+});
+
+test('GECERSIZ kacis sert ayristirma hatasini da duzeltiyor', () => {
+  // \( ve \) JSON'da gecersiz: onarim olmadan JSON.parse PATLIYOR.
+  const ham = '{"p":"Inline \\(y = x\\) math"}';
+  assert.throws(() => JSON.parse(ham), SyntaxError);
+  assert.equal(parse(ham).p, 'Inline \\(y = x\\) math');
+});
+
+test('GERCEK satir sonu bozulmuyor', () => {
+  /* \n bilerek disarida: duz metinde satir sonu mesru ve sik. Onu da LaTeX
+     saymak gercek satir sonlarini bozardi. Bedeli \nu ve \nabla'nin bozuk
+     kalmasi — ikisi de bu derslerde nadir, satir sonu her yerde. */
+  assert.equal(parse('{"p":"satir1\\nsatir2"}').p, 'satir1\nsatir2');
+  assert.equal(parse('{"p":"a\\tb"}').p, 'a\tb', 'tek harfli \\t sekme kalmali');
+});
+
+test('unicode kacisi ve normal kacislar korunuyor', () => {
+  assert.equal(parse('{"p":"\\u00e9cole"}').p, 'école');
+  assert.equal(parse('{"p":"tirnak: \\" ve ters bolu: \\\\"}').p, 'tirnak: " ve ters bolu: \\');
+});
+
+test('DIZE DISINDAKI yapiya dokunulmuyor', () => {
+  const ham = '{"a":[1,2],"b":{"c":true},"d":null,"e":"\\beta"}';
+  const o = parse(ham);
+  assert.deepEqual(o.a, [1, 2]);
+  assert.equal(o.b.c, true);
+  assert.equal(o.d, null);
+  assert.equal(o.e, '\\beta');
+});
+
+test('onarim HER ayristirma noktasina bagli', () => {
+  // Bes ayri yerde JSON.parse var; birini unutmak hatanin bir kismini
+  // canli birakirdi.
+  const cagri = (SRC.match(/JSON\.parse\(repairLatexEscapes\(/g) || []).length;
+  assert.ok(cagri >= 5, `yalnizca ${cagri} ayristirma noktasi onariliyor`);
+  // Onarimdan gecmeyen cagri kalmamali (vision ve kucuk yardimcilar haric
+  // tutulmuyor: hepsi model ciktisi ayristiriyor).
+  const toplam = (SRC.match(/JSON\.parse\(/g) || []).length;
+  assert.ok(cagri >= toplam - 3,
+    `${toplam} JSON.parse var, yalnizca ${cagri} onariliyor`);
 });
 
 summary().then(() => process.exit(process.exitCode || 0));
