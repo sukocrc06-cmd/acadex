@@ -870,7 +870,7 @@ async function handleFileUpload(file) {
     }
   }, 100);
 
-  const storagePath = `${currentUser.id}/${Date.now()}_${file.name}`;
+  const storagePath = `${currentUser.id}/${Date.now()}_${storageSafeName(file.name)}`;
 
   try {
     // 1. Upload to Supabase Storage private bucket
@@ -881,7 +881,16 @@ async function handleFileUpload(file) {
     if (error) {
       console.error("Storage upload failed: ", error);
       clearInterval(progressInterval);
-      showDashboardAlert('error', 'File upload failed. Please try again.');
+      // SUNUCUNUN KENDI MESAJI GOSTERILIR. "File upload failed. Please try
+      // again." demek, tekrar denemenin ise yaramayacagi durumlarda
+      // kullaniciyi bos yere dondurur: 08.10.2026'da gercek sebep
+      // "Invalid key: .../...IPPT_Dummy test dosyamız.pdf" idi ve ayni
+      // dosya her denemede ayni hatayi verecekti. Sohbet tarafinda ayni
+      // ders 06.10.2026'da ogrenildi (serverErrorMessage).
+      const sebep = (error && error.message) ? String(error.message) : '';
+      showDashboardAlert('error', sebep
+        ? `Dosya yüklenemedi: ${sebep}`
+        : 'Dosya yüklenemedi. Lütfen tekrar deneyin.');
       resetUploadUI();
       return;
     }
@@ -12351,7 +12360,7 @@ async function uploadSingleFileCore(file) {
     return; // user cancelled this file
   }
 
-  const storagePath = `${currentUser.id}/${Date.now()}_${file.name}`;
+  const storagePath = `${currentUser.id}/${Date.now()}_${storageSafeName(file.name)}`;
   
   const { data, error } = await supabaseClient.storage
     .from('documents')
@@ -12695,6 +12704,45 @@ function replaceTurkishChars(str) {
     .replace(/ı/g, 'i').replace(/İ/g, 'I')
     .replace(/ö/g, 'o').replace(/Ö/g, 'O')
     .replace(/ç/g, 'c').replace(/Ç/g, 'C');
+}
+
+/* ==========================================================================
+   DEPOLAMA ANAHTARI ICIN GUVENLI DOSYA ADI
+   ==========================================================================
+   08.10.2026, canli hata:
+
+     Failed to upload IPPT_Dummy test dosyamız.pdf: Invalid key:
+     bf2630f0-.../1791459014821_IPPT_Dummy test dosyamız.pdf
+
+   Supabase Storage nesne anahtarinda sinirli bir karakter kumesi kabul
+   ediyor; kod ise `${uid}/${Date.now()}_${file.name}` diyerek dosya adini
+   oldugu gibi anahtara koyuyordu. Yukaridaki adda IKI sorun var: bosluk ve
+   Turkce 'ı'. Yani Turkce adlandirilmis ya da adinda bosluk olan HER dosya
+   yuklenemiyordu — bu uygulamanin kullanicilari icin kural, istisna degil.
+
+   Ekranda gorunen ad etkilenmiyor: documents.file_name alani ORIJINAL adi
+   ayri sakliyor. Temizlenen yalnizca depolama anahtari.
+   ========================================================================== */
+function storageSafeName(name) {
+  const ham = String(name || '').trim();
+  const nokta = ham.lastIndexOf('.');
+  // Uzanti ayri tutulur: ad tamamen elenirse bile ".pdf" korunsun.
+  let govde = nokta > 0 ? ham.slice(0, nokta) : ham;
+  let uzanti = nokta > 0 ? ham.slice(nokta + 1) : '';
+
+  const temizle = (s) => replaceTurkishChars(s)
+    .normalize('NFKD').replace(/[̀-ͯ]/g, '')  // diger aksanlar
+    .replace(/[^A-Za-z0-9._-]+/g, '-')                  // kalan her sey
+    .replace(/-{2,}/g, '-')
+    .replace(/^[-._]+|[-._]+$/g, '');
+
+  govde = temizle(govde).slice(0, 80);
+  uzanti = temizle(uzanti).toLowerCase().slice(0, 10);
+
+  // Ad tamamen elenebilir (ornegin tamami Cince bir dosya adi). Anahtarin
+  // zaten bir zaman damgasi var, yani bos govde carpisma yaratmaz.
+  if (!govde) govde = 'dosya';
+  return uzanti ? `${govde}.${uzanti}` : govde;
 }
 
 let acadexPdfFontCache = null; // { regular, bold } base64 TTF — fetched once per page load, reused by every export after that
