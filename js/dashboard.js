@@ -13529,72 +13529,162 @@ function drawChartDataFallback(doc, unicodeReady, chartObj, margin, y, maxWidth,
 }
 
 /** Text fallback for a diagram when no rasterized image is available (e.g. bulk export). */
+/* Mermaid kaynagini okunur akis satirlarina cevirir.
+
+   NEDEN: diyagram gorseli yalnizca kartin modali acikken yakalanabiliyor;
+   toplu ihracta ve modal kapaliyken yakalanamiyor ve PDF'e KAYNAK KODU
+   dusuyordu. Ogrencinin sayfasinda soyle bir paragraf olusuyordu:
+     "flowchart TD A[Qualitative predictor?] -->|yes| B[Create m-1 dummies]
+      A -->|no| C[Use the variable directly] B --> D{Slopes differ by group?}"
+   Bu bir diyagram degil, gurultu. Ayni bilgi su uc satirda duruyor:
+     Qualitative predictor? —yes→ Create m-1 dummies
+     Qualitative predictor? —no→ Use the variable directly
+     Create m-1 dummies → Slopes differ by group?
+   Dugum kimlikleri ilk gorulduklerinde etiketleriyle eslenir, sonraki
+   satirlarda "B" yerine etiketi basilir. */
+function mermaidToSteps(src) {
+  const metin = String(src || '');
+  if (!metin.trim()) return [];
+  const etiketler = new Map();
+  const temiz = (s) => String(s || '').replace(/<br\s*\/?>/gi, ' ').replace(/^["']|["']$/g, '').trim();
+  const dugum = (ham) => {
+    const s = String(ham || '').trim();
+    if (!s) return '';
+    const m = s.match(/^([A-Za-z0-9_]+)\s*(?:\[([^\]]*)\]|\(\(([^)]*)\)\)|\(([^)]*)\)|\{([^}]*)\})?/);
+    if (!m) return s;
+    const yazi = temiz(m[2] ?? m[3] ?? m[4] ?? m[5] ?? '');
+    if (yazi) etiketler.set(m[1], yazi);
+    return etiketler.get(m[1]) || m[1];
+  };
+  const ATLA = /^(flowchart|graph|sequenceDiagram|classDiagram|stateDiagram(-v2)?|erDiagram|mindmap|gantt|pie|journey|subgraph|end|direction|style|classDef|class|click|linkStyle)\b/i;
+  const adimlar = [];
+  metin.split(/\r?\n|;/).forEach((ham) => {
+    const satir = ham.trim();
+    if (!satir || ATLA.test(satir)) return;
+    const parcalar = satir.split(/\s*(?:-\.->|==>|-->|---)\s*/);
+    if (parcalar.length < 2) {
+      const tek = dugum(satir);
+      if (tek) adimlar.push(tek);
+      return;
+    }
+    let cumle = '';
+    parcalar.forEach((p, i) => {
+      let s = p.trim();
+      let kosul = '';
+      if (i > 0) {
+        const k = s.match(/^\|([^|]*)\|\s*/);
+        if (k) { kosul = temiz(k[1]); s = s.slice(k[0].length); }
+        cumle += kosul ? ` —${kosul}→ ` : ' → ';
+      }
+      cumle += dugum(s);
+    });
+    if (cumle.trim()) adimlar.push(cumle.trim());
+  });
+  return adimlar;
+}
+
 function drawMermaidSourceFallback(doc, unicodeReady, diagramObj, margin, y, maxWidth, safeText) {
   const pageHeight = doc.internal.pageSize.height;
-  pdfSetFont(doc, unicodeReady, 'normal');
-  doc.setFontSize(8.5);
-  doc.setTextColor(120, 126, 138);
-  doc.text('(Diyagram kaynağı)', margin, y);
-  y += 5.5;
+  const adimlar = mermaidToSteps(diagramObj && diagramObj.mermaid);
 
   pdfSetFont(doc, unicodeReady, 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(60, 66, 82);
-  const srcLines = doc.splitTextToSize(safeText(diagramObj.mermaid || ''), maxWidth);
-  srcLines.forEach(line => {
-    if (y > pageHeight - 15) { doc.addPage(); y = 25; }
-    doc.text(line, margin, y);
-    y += 4;
+  doc.setFontSize(PDF_TYPE.smallSize);
+  doc.setTextColor(...PDF_INK.faint);
+  doc.text(pdfText(unicodeReady, adimlar.length ? 'Akış' : '(Diyagram kaynağı)'), margin, y);
+  y += 5.2;
+
+  pdfSetFont(doc, unicodeReady, 'normal');
+  doc.setFontSize(PDF_TYPE.bodySize);
+  doc.setTextColor(...PDF_INK.body);
+  const satirlar = adimlar.length ? adimlar : [String((diagramObj && diagramObj.mermaid) || '')];
+  satirlar.forEach((adim) => {
+    doc.splitTextToSize(safeText(adim), maxWidth - 6).forEach((line, li) => {
+      if (y > pageHeight - 15) { doc.addPage(); y = 35; }
+      doc.text(line, margin + (li === 0 ? 0 : 6), y);
+      y += 5;
+    });
   });
   return y + 4;
 }
 
+/* TEK BIR BOLUM DUZENI (09.10.2026).
+
+   ONCEKI HALI: her bolum yuvarlak kosleri olan, dolgulu, renkli sol seritli
+   bir KUTUYDU; Tablolar/Grafikler/Diyagramlar ise kutusuz, renkli nokta +
+   buyuk-kucuk harfli baslikla ciziliyordu. Yani ayni belgede iki ayri tasarim
+   dili vardi. Uc sorun uretiyordu:
+
+   1. RENK YAMASI. Dokuz bolum sirayla teal/lacivert/kehribar dolguluydu;
+      renkler bir kural anlatmadigi icin goz nereye once bakacagini
+      bilemiyordu. Ust uste gelen iki kutu (arada 8mm, dolgu 6mm) tek bir
+      cizgili blok gibi okunuyordu.
+   2. OLU ALAN. Kutu BOLUNEMEZ bir birimdi: sigmazsa komple sonraki sayfaya
+      atlıyordu. Ornek kosuda 3. sayfanin ucte biri, 4. sayfanin ucte biri,
+      6. sayfanin ucte ikisi bos kaldi.
+   3. DUZ TIPOGRAFI. Bolum etiketi 10.5 kalin, alt baslik 10 kalin, madde
+      basligi 9.5 kalin — uc kademe de ayni gorunuyordu, dolayisiyla hiyerarsi
+      yoktu.
+
+   SIMDIKI HALI: dolgu yok. Her bolum ayni sekilde acilir — etiket, altinda
+   ince bir cizgi (ilk 16mm'si bolumun vurgu renginde, gerisi acik gri) — ve
+   icerik HER ZAMAN akar, gerekirse sayfa bolerek. Renk tek bir isi yapiyor:
+   bolumu isaretlemek. Sayfalar doluyor, kutular carpismiyor, iki dil tek
+   dile indi (drawPlainSectionHeader de ayni ciziciyi cagiriyor).
+
+   opts.soft artik kullanilmiyor; cagri yerlerini degistirmemek icin imza
+   oldugu gibi birakildi. */
+
+/* Dort kademeli olcek. Onceden bolum etiketi 10.5, alt baslik 10, madde
+   basligi 9.5, govde 9.5 idi — dort kademe iki punto icine sikismisti ve
+   hicbiri digerinden ayirt edilemiyordu. Artik aralar aciliyor. */
+const PDF_TYPE = {
+  sectionSize: 11.5,   // BOLUM ETIKETI (buyuk harf, altinda cizgi)
+  headSize: 10,        // madde basligi: bolum basligi, terim, formul adi, ornek basligi, soru
+  bodySize: 9.5,       // govde
+  smallSize: 8.5,      // ikincil: blurb, degisken listesi, kaynaklar, cevap anahtari
+  headLead: 5.4,
+  sectionGap: 9,       // bolumler arasi
+  afterHeader: 5.6,    // cizgiden ilk satira
+};
+
+/** Her bolumun ortak acilisi: etiket + altinda vurgu renkli ince cizgi. */
+function drawPdfSectionHeader(doc, unicodeReady, label, accent, margin, maxWidth, y) {
+  pdfSetFont(doc, unicodeReady, 'bold');
+  doc.setFontSize(PDF_TYPE.sectionSize);
+  doc.setTextColor(...PDF_INK.navy);
+  doc.text(pdfText(unicodeReady, label), margin, y);
+  y += 2.4;
+  doc.setLineWidth(0.5);
+  doc.setDrawColor(...PDF_INK.faint);
+  doc.line(margin + 16, y, margin + maxWidth, y);
+  doc.setDrawColor(...accent);
+  doc.line(margin, y, margin + 16, y);
+  doc.setLineWidth(0.2);
+  return y + PDF_TYPE.afterHeader;
+}
+
 /**
- * Draws one boxed "card" section (rounded, tinted, colored left accent —
- * see YÖN 01 in the design options the user picked). `opts.measure(w)` must
- * run the exact same line-wrapping as `opts.render(x, y, w, allowBreak)`
- * will, so the box height it reports matches what render() actually draws.
- * If the section is too long to fit as a single box on the remaining page
- * (a very long summary, say), this gracefully degrades to a plain header +
- * flowing text — spanning pages if it must — instead of a badly-clipped box.
+ * Bir bolumu cizer: ortak baslik + akan icerik. `opts.measure(w)` yalnizca
+ * "bu bolum kalan yere sigar mi" sorusuna bakmak icin kullanilir; icerik her
+ * durumda `opts.render(x, y, w, true)` ile akitilir, yani uzun bir bolum
+ * sayfa bolerek devam eder, bos sayfa dibi birakmaz.
  */
 function drawPdfCard(doc, state, opts) {
   const { margin, maxWidth, pageHeight, unicodeReady } = state;
   let y = state.y;
-  const innerWidth = maxWidth - 12;
-  const headerH = 11;
-  const contentH = opts.measure(innerWidth);
-  const boxH = headerH + contentH + 5;
   const pageBottom = pageHeight - 20;
-
-  if (y + Math.min(boxH, 40) > pageBottom) {
+  const contentH = opts.measure(maxWidth);
+  /* Baslik sayfanin dibinde yalniz kalmasin: ya bolumun tamami sigsin ya da
+     en az bir baslik + birkac satirlik yer olsun. */
+  const MIN_BLOK = 30;
+  if (y + Math.min(contentH + 10, MIN_BLOK) > pageBottom) {
     doc.addPage();
     y = 35;
   }
 
-  if (y + boxH <= pageBottom) {
-    doc.setFillColor(...opts.soft);
-    doc.roundedRect(margin - 4, y - 6, maxWidth + 8, boxH, 2, 2, 'F');
-    doc.setFillColor(...opts.accent);
-    doc.roundedRect(margin - 4, y - 6, 1.8, boxH, 0.9, 0.9, 'F');
-
-    pdfSetFont(doc, unicodeReady, 'bold');
-    doc.setFontSize(10.5);
-    doc.setTextColor(...(opts.labelColor || opts.accent));
-    doc.text(pdfText(unicodeReady, opts.label), margin + 2, y + 1);
-
-    y = opts.render(margin + 2, y + 8, innerWidth, false);
-    y += 8;
-  } else {
-    pdfSetFont(doc, unicodeReady, 'bold');
-    doc.setFontSize(11);
-    doc.setTextColor(...(opts.labelColor || opts.accent));
-    doc.text(pdfText(unicodeReady, opts.label), margin, y);
-    y += 7;
-    y = opts.render(margin, y, maxWidth, true);
-    y += 8;
-  }
-  return y;
+  y = drawPdfSectionHeader(doc, unicodeReady, opts.label, opts.accent, margin, maxWidth, y);
+  y = opts.render(margin, y, maxWidth, true);
+  return y + PDF_TYPE.sectionGap;
 }
 
 function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
@@ -13869,8 +13959,8 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
       measure: (w) => {
         let h = 0;
         studyCard.key_terms.forEach(kt => {
-          h += 5;
-          pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5);
+          h += PDF_TYPE.headLead;
+          pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(PDF_TYPE.bodySize);
           h += doc.splitTextToSize(safeText(kt.definition), w - 6).length * 5 + 3;
         });
         return h;
@@ -13878,8 +13968,8 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
       render: (x, ry, w, allowBreak) => {
         studyCard.key_terms.forEach(kt => {
           if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
-          pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.navy);
-          doc.text(safeText(`• ${kt.term}`), x, ry); ry += 5;
+          pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(PDF_TYPE.headSize); doc.setTextColor(...PDF_INK.navy);
+          doc.text(safeText(`• ${kt.term}`), x, ry); ry += PDF_TYPE.headLead;
           pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.body);
           doc.splitTextToSize(safeText(kt.definition), w - 6).forEach(line => {
             if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
@@ -13926,8 +14016,8 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
       measure: (w) => {
         let h = 0;
         studyCard.quiz_questions.forEach((q) => {
-          pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(9.5);
-          h += doc.splitTextToSize(safeText(`S: ${q.question}`), w).length * 5.5;
+          pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(PDF_TYPE.headSize);
+          h += doc.splitTextToSize(safeText(`S: ${q.question}`), w).length * PDF_TYPE.headLead;
           pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5);
           h += doc.splitTextToSize(safeText(`C: ${q.answer}`), w).length * 5.5 + 3.5;
         });
@@ -13935,10 +14025,10 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
       },
       render: (x, ry, w, allowBreak) => {
         studyCard.quiz_questions.forEach((q, idx) => {
-          pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.amberDark);
+          pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(PDF_TYPE.headSize); doc.setTextColor(...PDF_INK.navy);
           doc.splitTextToSize(safeText(`S${idx + 1}: ${q.question}`), w).forEach(line => {
             if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
-            doc.text(line, x, ry); ry += 5.5;
+            doc.text(line, x, ry); ry += PDF_TYPE.headLead;
           });
           pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.body);
           doc.splitTextToSize(safeText(`C: ${q.answer}`), w).forEach(line => {
@@ -13969,8 +14059,8 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
         measure: (w) => {
           let h = 0;
           formulas.forEach(f => {
-            pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(9.5);
-            if (f.name) h += doc.splitTextToSize(safeText(f.name), w).length * 5;
+            pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(PDF_TYPE.headSize);
+            if (f.name) h += doc.splitTextToSize(safeText(f.name), w).length * PDF_TYPE.headLead;
             pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(10);
             if (f.latex) h += doc.splitTextToSize(safeText(latexToUnicode(f.latex, unicodeReady)), w - 6).length * 5.5;
             pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9);
@@ -13985,10 +14075,10 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
           formulas.forEach(f => {
             if (allowBreak && ry > 265) { doc.addPage(); ry = 35; }
             if (f.name) {
-              pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.navy);
+              pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(PDF_TYPE.headSize); doc.setTextColor(...PDF_INK.navy);
               doc.splitTextToSize(safeText(f.name), w).forEach(line => {
                 if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
-                doc.text(line, x, ry); ry += 5;
+                doc.text(line, x, ry); ry += PDF_TYPE.headLead;
               });
             }
             if (f.latex) {
@@ -14100,24 +14190,18 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
     }
   }
 
-  // Section header used by the sections below — Tables/Charts/Diagrams keep
-  // their existing (already page-break-safe) layout, just re-skinned with a
-  // small colored accent chip + the new Unicode font, rather than being
-  // wrapped in the same variable-height box as the text sections above.
+  /* Tablolar/Grafikler/Diyagramlar kendi sayfa-bolme mantigini koruyor, ama
+     basligi artik metin bolumleriyle AYNI cizici atiyor (buyuk harf etiket +
+     vurgu renkli ince cizgi). Onceden bu uc bolum renkli nokta + "Tablolar"
+     seklinde yaziliyordu, yani ayni belgede iki ayri baslik dili vardi. */
   const drawPlainSectionHeader = (text, accent) => {
     if (y > 250) { doc.addPage(); y = 35; }
-    doc.setFillColor(...accent);
-    doc.roundedRect(margin, y - 3.6, 3, 3, 0.8, 0.8, 'F');
-    pdfSetFont(doc, unicodeReady, 'bold');
-    doc.setFontSize(12);
-    doc.setTextColor(...PDF_INK.navy);
-    doc.text(safeText(text), margin + 6, y);
-    y += 7;
+    y = drawPdfSectionHeader(doc, unicodeReady, text, accent, margin, maxWidth, y);
   };
 
   // 5. Tables Section
   if (Array.isArray(studyCard.tables) && studyCard.tables.length > 0) {
-    drawPlainSectionHeader('Tablolar', PDF_INK.navy);
+    drawPlainSectionHeader('TABLOLAR', PDF_INK.navy);
 
     studyCard.tables.forEach((t, idx) => {
       if (y > 260) { doc.addPage(); y = 35; }
@@ -14132,7 +14216,7 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
 
   // 6. Charts Section
   if (Array.isArray(studyCard.charts) && studyCard.charts.length > 0) {
-    drawPlainSectionHeader('Grafikler', PDF_INK.teal);
+    drawPlainSectionHeader('GRAFİKLER', PDF_INK.teal);
 
     studyCard.charts.forEach((c, idx) => {
       if (y > 260) { doc.addPage(); y = 35; }
@@ -14164,7 +14248,7 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
 
   // 7. Diagrams Section
   if (Array.isArray(studyCard.diagrams) && studyCard.diagrams.length > 0) {
-    drawPlainSectionHeader('Diyagramlar', PDF_INK.amberDark);
+    drawPlainSectionHeader('DİYAGRAMLAR', PDF_INK.amberDark);
 
     studyCard.diagrams.forEach((d, idx) => {
       if (y > 260) { doc.addPage(); y = 35; }
