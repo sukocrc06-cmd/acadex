@@ -5184,10 +5184,48 @@ const GEMINI_MAX_PAGES = 900
 const GEMINI_MIN_BUDGET_MS = 55_000
 // Cagri bittikten sonra review + kapilar + kayit icin ayrilan pay.
 const GEMINI_RESERVE_MS = 35_000
-const GEMINI_MAX_CALL_MS = 75_000
+/* 68 saniye keyfi degil: GEMINI_PIPELINE_BUDGET_MS (130) eksi
+ * GEMINI_GROQ_RESERVE_MS (62) = 68. Yani EN UZUN Gemini cagrisi zaman
+ * asimina ugrasa bile Groq'a tam 62 saniye kalir. Uc sayi birbirine
+ * bagli; biri degisirse testteki degismez kontrolu uyarir.
+ *
+ * ACIK GERILIM: olculen BASARILI cagri 72,4 saniye surmustu, bu tavanin
+ * ustunde. Istege eklenen metin 120.000'den 40.000 karaktere indi ve
+ * cikis tavani 32.768'den 16.384'e cekildi; sure bunlarla 68 saniyenin
+ * altina inmezse gölge yol bu belgede tamamlanamaz. O zaman karar
+ * gercekten ikili olur: ya butceyi 140 saniyeye cikarmak (Supabase'in
+ * ~150 sn sert sinirina 10 sn pay kalir) ya da ozetlemeyi arka plana
+ * tasimak. Tahminle degil, olcumle secilecek. */
+const GEMINI_MAX_CALL_MS = 68_000
 
-// Groq'ta 3.702 token'da tavan yapan sey buydu. Burada tavan sorun degil.
-const GEMINI_MAX_OUTPUT_TOKENS = 32_768
+/* GROQ'A SAKLANAN PAY — 09.10.2026 dorduncu kosusunun dersi.
+ *
+ * O kosuda tek Gemini cagrisi 74,9 saniyede zaman asimina ugradi. Bir
+ * onceki surumde ekledigim 25 saniyelik "basarisiz denemeler" tavani ise
+ * denemeden ONCE bakiyordu — yani TEK bir cagrinin kendisi 75 saniye
+ * surunce tavan hic devreye giremedi. Groq'a sifir butce kaldi ve o kart
+ * anlati yazarini da, gorsel gecisini de, review'u da kaybetti: gölge yol
+ * calismadigi halde karti bozdu, ki tek sozu bunu yapmamakti.
+ *
+ * Dogru koruma sure tavani degil, CAGRININ KENDI ZAMAN ASIMI: Gemini'ye
+ * ancak "zaman asimina ugrasa bile Groq'un tam bir kosuya yetecek kadar
+ * zamani kalir" kadar sure verilir. Olculen tam Groq kosusu (iki pencere +
+ * birlesim + yazar + review + kayit) 71 saniye surmustu; 62 saniye pencere
+ * ve birlesimi garanti eder, review'u etmez — ama sifir butceden cok daha
+ * iyidir.
+ *
+ * Bedeli acik: Gemini'nin basarili kosusu 72,4 saniye surmustu, bu tavanin
+ * ustunde. Yani istek basina metin kirpildiktan sonra (120.000 -> 40.000
+ * karakter) sure bu tavanin altina inmezse gölge yol bu belgede hic
+ * tamamlanamaz. Olculecek sey tam olarak budur. */
+const GEMINI_GROQ_RESERVE_MS = 62_000
+
+/* Groq'ta 3.702 token'da tavan yapan sey buydu; burada tavan sorun degil.
+ * 32.768'den 16.384'e cekildi: olculen gercek cikti 30.374 karakter
+ * (~8.000 token) yani tavanin dortte biri. Yuksek tavan uretimi
+ * artirmiyor ama modelin ayirdigi butceyi ve dolayisiyla sureyi
+ * buyutebiliyor — ve su an darbogaz sure. */
+const GEMINI_MAX_OUTPUT_TOKENS = 16_384
 
 /** GEMINI_MODEL secret'i varsa basa alinmis model listesi. */
 function geminiModelCandidates(): string[] {
@@ -5521,11 +5559,21 @@ async function geminiDraft(
   userText: string,
   budgetMs: number
 ): Promise<{ raw: string; model: string; ms: number; usage: any } | null> {
-  const callMs = Math.min(GEMINI_MAX_CALL_MS, Math.max(0, budgetMs - GEMINI_RESERVE_MS))
-  if (callMs < 20_000) {
-    console.log(`Gemini: atlandi (cagri icin ${callMs}ms kaliyor, en az 20.000ms gerekli)`)
+  /* Cagrinin zaman asimi IKI kisitin kucugu:
+     - GEMINI_RESERVE_MS: cagri BASARILI olursa review + kapilar + kayit
+     - GEMINI_GROQ_RESERVE_MS: cagri ZAMAN ASIMINA ugrarsa tam bir Groq kosusu
+     Ikincisi buyuk oldugu icin pratikte onu baglayici kilan odur — ve
+     baglayici olmasi gereken de odur (bkz. GEMINI_GROQ_RESERVE_MS). */
+  const basariPayi = budgetMs - GEMINI_RESERVE_MS
+  const basarisizlikPayi = budgetMs - GEMINI_GROQ_RESERVE_MS
+  const callMs = Math.min(GEMINI_MAX_CALL_MS, Math.max(0, basariPayi), Math.max(0, basarisizlikPayi))
+  if (callMs < 35_000) {
+    // 35 saniyenin altinda 42 sayfalik bir PDF'in donme ihtimali yok;
+    // denemek yalnizca Groq'tan zaman calar ve gunluk kotadan istek goturur.
+    console.log(`Gemini: atlandi (cagri icin ${callMs}ms kaliyor, en az 35.000ms gerekli)`)
     return null
   }
+  console.log(`Gemini: cagri zaman asimi ${callMs}ms (butce ${budgetMs}ms, Groq'a ${GEMINI_GROQ_RESERVE_MS}ms saklandi)`)
 
   let fileBase64 = ''
   try {
@@ -6320,6 +6368,16 @@ ${styleInstruction}`
       } else if (budgetLeft() < GEMINI_MIN_BUDGET_MS) {
         console.log(`Gemini: atlandi (butce ${budgetLeft()}ms < ${GEMINI_MIN_BUDGET_MS}ms)`)
       } else {
+        /* Butce, cagridan SONRA degil ONCE genisletiliyor.
+         *
+         * Once sadece basari halinde genisliyordu ve o yuzden Gemini'ye
+         * ayrilabilen sure 110 - 62 = 48 saniyeydi — olculen basarili
+         * cagri 72,4 saniye surmustu, yani gölge yol kendi zaman asimina
+         * carpip hic tamamlanamazdi. 130 saniyelik butce ile Gemini ~66
+         * saniye aliyor ve zaman asimina ugrasa bile Groq'a tam 62 saniye
+         * kaliyor. Gemini hic DENENMEDIGINDE butce 110'da kalir. */
+        pipelineBudgetMs = GEMINI_PIPELINE_BUDGET_MS
+
         await serviceClient
           .from('documents')
           .update({ processing_stage: 'analyzing' })
@@ -6357,9 +6415,6 @@ ${styleInstruction}`
 
     if (geminiResult) {
       draftEngine = 'gemini'
-      // Pencere cagrilari ve pacer beklemeleri bu yolda yok; review'un
-      // atlanmamasi icin butce genisletiliyor (bkz. GEMINI_PIPELINE_BUDGET_MS).
-      pipelineBudgetMs = GEMINI_PIPELINE_BUDGET_MS
       rawContent = geminiResult.raw.replace(/```json\s*|```/g, '').trim()
 
       // Gorselden gelen bulgular. Ikisi de asagida paylasilan yolda okunuyor:
