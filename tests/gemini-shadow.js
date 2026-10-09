@@ -248,41 +248,31 @@ test('buildGeminiDocInstruction: formul ve tablo okumasi istenir', () => {
 // paylasilan promptun "5-15 key_terms" kotasiydi — o rakam kisa belgeler
 // icin yazilmis. Bu testler kotanin belgenin boyuna bagli kalmasini korur.
 // ===========================================================================
-test('geminiCoverageQuota: 42 sayfalik deste Groq un uretiminin ustunu ister', () => {
+/* 09.10.2026 21:15 — OLCULEN GERI ADIM.
+   Sisirilmis kota (25-40 terim, 20-30 nokta, tavansiz her sey) tamamlanan
+   tek kosuyu bir daha tamamlanmaz hale getirdi. Bu testler kotanin bir
+   daha sisirilmemesini ve formul/tablo onceliginin kaybolmamasini korur. */
+test('geminiCoverageQuota: terim/nokta/soru sayilari SISIRILMIYOR', () => {
   const q = G.geminiCoverageQuota(42);
-  assert.match(q, /key_terms: 25-40/);
-  assert.match(q, /key_points: 20-30/);
-  assert.match(q, /quiz_questions: 10-15/);
-  const altSinir = Number(q.match(/key_terms: (\d+)-/)[1]);
-  assert.ok(altSinir > 15, `alt sinir Groq un 15 terimini gecmeli, ${altSinir} bulundu`);
+  assert.doesNotMatch(q, /key_terms:\s*\d/, 'terim sayisi dayatmak sureyi patlatti, geri gelmemeli');
+  assert.doesNotMatch(q, /key_points:\s*\d/);
+  assert.doesNotMatch(q, /quiz_questions:\s*\d/);
+  assert.match(q, /do not inflate them/);
 });
 
-test('geminiCoverageQuota: kisa belgeye buyuk kota dayatilmaz', () => {
-  const q = G.geminiCoverageQuota(4);
-  assert.match(q, /key_terms: 10-18/);
-  assert.doesNotMatch(q, /25-40/);
-});
-
-test('geminiCoverageQuota: orta boy belge arada kalir', () => {
-  assert.match(G.geminiCoverageQuota(18), /key_terms: 18-28/);
-});
-
-test('geminiCoverageQuota: sayfa sayisi bilinmiyorsa sayi uydurulmaz', () => {
-  const q = G.geminiCoverageQuota(0);
-  assert.doesNotMatch(q, /\b0-page\b/);
-  assert.match(q, /this document/);
-});
-
-test('geminiCoverageQuota: formul ve tablo tavansiz istenir', () => {
-  // Gölge yolun butun gerekcesi bu ikisi; bir sayiyla sinirlanirlarsa
-  // 42 sayfalik bir destede en degerli icerik kesilir.
+test('geminiCoverageQuota: formul ve tablo tavansiz kalir', () => {
+  // Gölge yolun butun gerekcesi bu ikisi: 42 sayfanin 22'sinde denklem
+  // resim olarak duruyor ve Groq onlarin yalnizca 2'sini gorebiliyor.
   const q = G.geminiCoverageQuota(42);
-  assert.match(q, /formulas: EVERY distinct equation[^\n]*no cap/);
-  assert.match(q, /tables: EVERY table[^\n]*no cap/);
+  assert.match(q, /NO cap/);
+  assert.match(q, /"formulas"/);
+  assert.match(q, /"tables"/);
 });
 
-test('geminiCoverageQuota: dolgu acikca yasaklanir', () => {
-  assert.match(G.geminiCoverageQuota(42), /padding with restatements is worse/);
+test('geminiCoverageQuota: butun sayfalardan toplamasi istenir', () => {
+  assert.match(G.geminiCoverageQuota(42), /all 42 pages/);
+  assert.match(G.geminiCoverageQuota(0), /the whole document/);
+  assert.doesNotMatch(G.geminiCoverageQuota(0), /all 0 pages/);
 });
 
 test('butce: Gemini yolu review a yer birakacak kadar genis, sert sinirin altinda', () => {
@@ -303,20 +293,21 @@ test('butce: Gemini yolu review a yer birakacak kadar genis, sert sinirin altind
 // ~150 sn. Ikisi tek istege sigmiyor. only modunda Groq taslak icin hic
 // cagrilmaz ve butun butce Gemini'nindir.
 // ===========================================================================
-test('geminiMode: varsayilan only', () => {
+test('geminiMode: varsayilan shadow — Groq agda kalir', () => {
+  // only modunda Gemini tamamlanamayinca ogrenci bos donuyordu.
   denoEnv.delete('GEMINI_MODE');
-  assert.equal(G.geminiMode(), 'only');
-});
-
-test('geminiMode: shadow acikca secilir, yazim/bosluk onemsiz', () => {
-  denoEnv.set('GEMINI_MODE', '  SHADOW ');
   assert.equal(G.geminiMode(), 'shadow');
+});
+
+test('geminiMode: only acikca secilir, yazim/bosluk onemsiz', () => {
+  denoEnv.set('GEMINI_MODE', '  ONLY ');
+  assert.equal(G.geminiMode(), 'only');
   denoEnv.delete('GEMINI_MODE');
 });
 
-test('geminiMode: taninmayan deger only sayilir', () => {
+test('geminiMode: taninmayan deger shadow sayilir', () => {
   denoEnv.set('GEMINI_MODE', 'bilinmeyen');
-  assert.equal(G.geminiMode(), 'only');
+  assert.equal(G.geminiMode(), 'shadow');
   denoEnv.delete('GEMINI_MODE');
 });
 

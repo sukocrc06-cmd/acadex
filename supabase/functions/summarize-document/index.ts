@@ -5243,10 +5243,15 @@ const GEMINI_GROQ_RESERVE_MS = 62_000
 
    Ucuncu kapatma yolu zaten var: GEMINI_API_KEY secret'ini silmek. O zaman
    mod ne olursa olsun Groq yolu bugunku haliyle calisir. */
+/* VARSAYILAN shadow'a GERI ALINDI (09.10.2026, 21:15).
+   only modunda Gemini tamamlanamayinca kart hic uretilmiyor ve ogrenci
+   bos donuyor. Gemini guvenilir sekilde tamamlanana kadar Groq agda
+   kalir: yarim bir Groq karti, karti olmamasindan iyidir. GEMINI_MODE=only
+   ile deneme modu istenildigi zaman acilabilir. */
 function geminiMode(): 'only' | 'shadow' {
-  return String(Deno.env.get('GEMINI_MODE') || '').trim().toLowerCase() === 'shadow'
-    ? 'shadow'
-    : 'only'
+  return String(Deno.env.get('GEMINI_MODE') || '').trim().toLowerCase() === 'only'
+    ? 'only'
+    : 'shadow'
 }
 
 /* only modunda butun istek Gemini'nin: 120 sn butce, geriye kapilar ve
@@ -5379,25 +5384,29 @@ function geminiUnknownParameter(status: number, body: string): string | null {
  * var olma sebebi zaten tam olarak bu.
  */
 function geminiCoverageQuota(pageCount: number): string {
-  let terms = '10-18', points = '10-16', quiz = '6-10', cloze = '6-10'
-  if (pageCount > 25) {
-    terms = '25-40'; points = '20-30'; quiz = '10-15'; cloze = '10-14'
-  } else if (pageCount > 10) {
-    terms = '18-28'; points = '15-22'; quiz = '8-12'; cloze = '8-12'
-  }
-  const olcek = pageCount > 0 ? `a ${pageCount}-page document` : 'this document'
+  /* OLCULEN GERI ADIM (09.10.2026, 21:15).
+     Ilk hali 42 sayfalik belge icin 25-40 terim, 20-30 nokta, 10-15 soru
+     ve TAVANSIZ formul/tablo istiyordu. Sonuc: tamamlanan tek kosu
+     (30.374 karakter, 72,4 sn) bir daha tamamlanmadi — modelden uc dort
+     kati uretim istenince sure 68 sn'ye de 90 sn'ye de sigmadi. Yani
+     "sayilar az" duzeltmesi tamamlanmanin kendisini bozdu.
+
+     Simdi yalnizca ASIL DEGER isteniyor: formuller ve tablolar. Onlar
+     gölge yolun var olma sebebi (42 sayfanin 22'sinde denklem resim
+     olarak duruyor ve Groq onlarin yalnizca 2'sini gorebiliyor) ve
+     uretimin kucuk bir kismi. Terim/nokta/soru sayilari temel promptun
+     kendi rakamlarinda birakildi; onlari buyutmenin bedeli, olculdugu
+     uzere, kartin hic gelmemesi.
+
+     Sayilari geri eklemek icin once tamamlanan bir kosu gerekiyor; o
+     zaman tek tek, olcerek eklenir. */
+  const olcek = pageCount > 0 ? `all ${pageCount} pages` : 'the whole document'
   return `
 
-COVERAGE QUOTA FOR THIS RUN (overrides any smaller count given above):
-You are reading ${olcek} in one pass, so the counts earlier in this prompt — written for a short single-pass document — are too low. For this run produce:
-- key_terms: ${terms}
-- key_points: ${points}
-- quiz_questions: ${quiz}
-- cloze_cards: ${cloze}
-- sections: one per level-1 outline item, none skipped
-- formulas: EVERY distinct equation in the document, with no cap
-- tables: EVERY table in the document, with no cap
-Spread these across the WHOLE document rather than drawing them all from the opening pages — a term from the last third is worth more than a third variation on the first idea. If the material genuinely does not contain enough distinct content to reach a number, stop at what is real; padding with restatements is worse than a short list.`
+COVERAGE FOR THIS RUN:
+Draw your output from ${olcek}, not only the opening ones — a term or example from the last third is worth more than a third variation on the first idea.
+Two fields have NO cap and matter more than the rest, because they are the reason you were given the original file: "formulas" (every distinct equation, including the ones that exist only as images) and "tables" (every table, including spreadsheet screenshots). Be complete there.
+For the other fields keep to the counts given earlier in this prompt — do not inflate them. Padding with restatements is worse than a short list.`
 }
 
 function buildGeminiDocInstruction(pageMarkerLabel: string, pageCount: number): string {
