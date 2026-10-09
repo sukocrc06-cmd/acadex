@@ -5205,6 +5205,35 @@ function geminiFormatRejected(status: number, body: string): boolean {
   return /response_format|responseFormat|mime_type|schema|json/i.test(body)
 }
 
+/* Istegin govdesinden dusurulmesine IZIN VERILEN alanlar.
+   Hicbiri dogruluk tasimiyor: response_format olmadan da prompt "SADECE
+   gecerli JSON" diyor, generation_config olmadan da model varsayilan
+   tavanla cevap veriyor. system_instruction ve input bu listede DEGIL —
+   onlar dusurulurse istek anlamini kaybeder, o yuzden onlara takilan bir
+   hata Groq'a dusmeyi hak eder. */
+const GEMINI_DUSURULEBILIR = ['response_format', 'generation_config', 'thinking_level', 'thinking_summaries']
+
+/**
+ * "Unknown parameter 'X'" hatasindan X'i cikarir, dusurulebilir degilse null.
+ *
+ * 09.10.2026, ILK CANLI KOSU. Uc aday modelin ucu de soyle dondu:
+ *   400 {"error":{"message":"Unknown parameter 'thinking_level'."}}
+ * Yani endpoint de model adlari da DOGRUYDU; tek bir istege-ozel alan
+ * kabul edilmedi ve butun kosu Groq'a dustu. Dokumanda listelenen bir
+ * alanin gercek yuzeyde bulunmamasi bir kez oldugu icin bir daha olur;
+ * bu yuzden tek tek alan adi kovalamak yerine genel bir mekanizma var:
+ * hangi alana takildigini hatadan oku, o alani at, ayni modeli tekrar
+ * dene. thinking_level artik bastan gonderilmiyor (olculdu, reddediliyor),
+ * ama mekanizma bir sonraki surprizi de karsilar.
+ */
+function geminiUnknownParameter(status: number, body: string): string | null {
+  if (status !== 400) return null
+  const m = String(body || '').match(/Unknown (?:parameter|name|field)\s*['"`]?([A-Za-z0-9_.]+)/i)
+  if (!m) return null
+  const ad = m[1].split('.')[0]
+  return GEMINI_DUSURULEBILIR.indexOf(ad) !== -1 ? ad : null
+}
+
 /**
  * Taslak promptuna eklenen native-belge talimati.
  *
@@ -5347,25 +5376,32 @@ async function callGeminiOnce(
   fileMime: string,
   userText: string,
   timeoutMs: number,
-  jsonMode: boolean
+  drop: string[] = []
 ): Promise<{ ok: true; data: any } | { ok: false; status: number; body: string }> {
+  const dusuruldu = (ad: string) => drop.indexOf(ad) !== -1
+
   const body: Record<string, unknown> = {
     model,
     system_instruction: systemInstruction,
     input: [
       { type: 'document', data: fileBase64, mime_type: fileMime },
       { type: 'text', text: userText }
-    ],
-    generation_config: { max_output_tokens: GEMINI_MAX_OUTPUT_TOKENS },
-    // Formul/tablo okumasi muhakeme istiyor, ama 'high' latency'i buraya
-    // sigmayacak kadar buyutuyor. 'low' olculmus bir baslangic noktasi degil,
-    // muhafazali bir varsayim — ilk kosulardan sonra ayarlanacak.
-    thinking_level: 'low',
-    thinking_summaries: 'none'
+    ]
   }
-  if (jsonMode) {
+  // Groq'ta 3.702 token'da tavan yapan sey buydu; burada acikca yukseltiliyor.
+  if (!dusuruldu('generation_config')) {
+    body.generation_config = { max_output_tokens: GEMINI_MAX_OUTPUT_TOKENS }
+  }
+  // Prompt zaten "SADECE gecerli JSON" diyor; bu alan onu garantiye aliyor.
+  if (!dusuruldu('response_format')) {
     body.response_format = { type: 'text', mime_type: 'application/json' }
   }
+  // thinking_level / thinking_summaries BILEREK GONDERILMIYOR: dokumanda
+  // listeleniyorlar ama 09.10.2026'daki ilk canli kosuda uc modelin ucu de
+  // "Unknown parameter 'thinking_level'" ile 400 dondu. Gondermeye devam
+  // etmek her belgede bir istegi bosa harcardi — gunluk kota 100 istek.
+  // Yine de geminiUnknownParameter onlari da dusurebiliyor, cunku bir gun
+  // kabul edilmeye baslarlarsa buraya geri eklemek tek satir.
 
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
@@ -5422,12 +5458,18 @@ async function geminiDraft(
     return null
   }
 
-  let jsonMode = true
+  /* Yuzeyin kabul etmedigi istege-ozel alanlar. Modeller arasinda TASINIR:
+     bir alan bir modelde reddedildiyse digerlerinde de reddedilecektir ve
+     ayni hatayi uc kez yemek gunluk kotadan uc istek goturur. */
+  const dropped: string[] = []
+  let gecici = 0   // 429/503/500 denemeleri — alan dusurme denemelerinden ayri sayilir
+
   for (const model of geminiModelCandidates()) {
-    for (let attempt = 0; attempt < 2; attempt++) {
+    gecici = 0
+    for (let attempt = 0; attempt < 5; attempt++) {
       const startedAt = Date.now()
       const res = await callGeminiOnce(
-        apiKey, model, systemInstruction, fileBase64, fileMime, userText, callMs, jsonMode
+        apiKey, model, systemInstruction, fileBase64, fileMime, userText, callMs, dropped
       )
       const ms = Date.now() - startedAt
 
@@ -5442,25 +5484,40 @@ async function geminiDraft(
           console.warn(`Gemini ${model}: cevapta metin yok (${JSON.stringify(res.data).slice(0, 300)})`)
           break
         }
-        console.log(`Gemini ${model}: taslak geldi, ${ms}ms, ${text.length} karakter, json_mode=${jsonMode}`)
+        console.log(
+          `Gemini ${model}: taslak geldi, ${ms}ms, ${text.length} karakter` +
+          (dropped.length ? `, dusurulen alanlar: ${dropped.join(', ')}` : '')
+        )
         return { raw: text, model, ms, usage: res.data?.usage ?? null }
+      }
+
+      // Taninmayan bir alan: at ve AYNI modeli tekrar dene. Bu kontrol
+      // digerlerinden once geliyor, cunku "Unknown parameter 'X'" asagidaki
+      // model-yok desenine benzeyebilir ve yanlis teshis butun adaylari
+      // bosa harcar (09.10.2026'da tam olarak bu oldu).
+      const bilinmeyen = geminiUnknownParameter(res.status, res.body)
+      if (bilinmeyen && dropped.indexOf(bilinmeyen) === -1) {
+        dropped.push(bilinmeyen)
+        console.warn(`Gemini ${model}: '${bilinmeyen}' alani taninmadi — atilip tekrar denenecek`)
+        continue
       }
 
       if (geminiModelMissing(res.status, res.body)) {
         console.warn(`Gemini ${model}: model yok (${res.status}) — sonraki aday denenecek`)
         break
       }
-      if (jsonMode && geminiFormatRejected(res.status, res.body)) {
-        // Dokumanda tarif edilen response_format bu yuzeyde kabul edilmedi.
-        // Prompt zaten "SADECE gecerli JSON" diyor; alani dusurup ayni
-        // modeli bir kez daha deniyoruz.
+      if (dropped.indexOf('response_format') === -1 && geminiFormatRejected(res.status, res.body)) {
+        // Alan adini vermeyen bir bicim sikayeti (ornegin yalnizca "schema"
+        // ya da "mime_type" diyen). Prompt zaten "SADECE gecerli JSON"
+        // diyor, alani dusurup ayni modeli bir kez daha deniyoruz.
         console.warn(`Gemini ${model}: response_format reddedildi (${res.status}: ${res.body.slice(0, 200)}) — JSON modu kapatilip tekrar denenecek`)
-        jsonMode = false
+        dropped.push('response_format')
         continue
       }
       if (res.status === 429 || res.status === 503 || res.status === 500) {
-        console.warn(`Gemini ${model}: gecici hata ${res.status} (deneme ${attempt + 1}/2): ${res.body.slice(0, 200)}`)
-        if (attempt === 0) continue
+        gecici++
+        console.warn(`Gemini ${model}: gecici hata ${res.status} (deneme ${gecici}/2): ${res.body.slice(0, 200)}`)
+        if (gecici < 2) continue
         break
       }
       console.warn(`Gemini ${model}: cagri basarisiz (${res.status}): ${res.body.slice(0, 300)}`)
