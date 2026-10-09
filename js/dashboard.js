@@ -13128,6 +13128,11 @@ function latexToUnicode(raw, unicodeReady = true) {
   // \left( ... \right) -> ( ... ): boyut komutlari duz metinde anlamsiz,
   // ve asagidaki "tanimsiz komut" adimi onlari "left(" diye birakiyordu.
   s = s.replace(/\\(?:left|right|big|Big|bigg|Bigg)\s*(?=[()[\]{}|.\\])/g, '').replace(/\\[{}]/g, m => m[1]);
+  // LaTeX aralik komutlari: \, \; \: \! — harf olmadiklari icin asagidaki
+  // "tanimsiz komut" adimi bunlari atlamiyordu ve 09.10.2026'da canli PDF'e
+  // "484.12 - 12.08\,temp + 0.09\,temp²" diye basildi. Ince bosluk bir
+  // bosluga iner; \! (negatif bosluk) silinir.
+  s = s.replace(/\\!/g, '').replace(/\\[,;:]/g, ' ');
 
   // \text{...}, \mathrm{...} -> icerik
   s = s.replace(/\\(?:text|mathrm|mathit|mathbf|operatorname)\s*\{([^{}]*)\}/g, '$1');
