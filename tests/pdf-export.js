@@ -48,6 +48,7 @@ const NEEDED = [
   'escapeHtml', 'normalizeWorkedSteps', 'splitStepCalc', 'prettyCalc', 'splitCalcChain',
   'renderMathInText', 'renderWorkedStepHtml', 'acikVurgu', 'OZET_KISALTMA_RE', 'summaryParagraphs', 'inlineMarkdown',
   'stripInlineMarkdown',
+  'PDF_TYPE', 'drawPdfSectionHeader', 'mermaidToSteps',
   'drawPdfTable', 'drawChartDataFallback', 'drawMermaidSourceFallback',
   'drawPdfCard', 'appendStudyCardToDoc'
 ];
@@ -58,9 +59,10 @@ global.window = global.window || {};
 const {
   appendStudyCardToDoc, latexToUnicode, mermaidPrettyLabels,
   normalizeWorkedSteps, splitStepCalc, prettyCalc, splitCalcChain, renderMathInText,
-  renderWorkedStepHtml, summaryParagraphs, inlineMarkdown, stripInlineMarkdown
+  renderWorkedStepHtml, summaryParagraphs, inlineMarkdown, stripInlineMarkdown,
+  PDF_TYPE, mermaidToSteps
 } = new Function(
-  `${body}\nreturn { appendStudyCardToDoc, latexToUnicode, mermaidPrettyLabels, normalizeWorkedSteps, splitStepCalc, prettyCalc, splitCalcChain, renderMathInText, renderWorkedStepHtml, summaryParagraphs, inlineMarkdown, stripInlineMarkdown };`
+  `${body}\nreturn { appendStudyCardToDoc, latexToUnicode, mermaidPrettyLabels, normalizeWorkedSteps, splitStepCalc, prettyCalc, splitCalcChain, renderMathInText, renderWorkedStepHtml, summaryParagraphs, inlineMarkdown, stripInlineMarkdown, PDF_TYPE, mermaidToSteps };`
 )();
 
 /** Uretilen PDF'i pdftotext ile metne cevirip doner. */
@@ -671,6 +673,91 @@ test('iskelet ozetten SONRA, bolum ozetlerinden ONCE', () => {
   const bolumler = t.search(/B[ÖO]L[ÜU]M [ÖO]ZETLER[İI]/);
   assert.ok(ozet > -1 && iskelet > ozet, 'iskelet ozetten once');
   assert.ok(bolumler > iskelet, 'iskelet bolum ozetlerinden sonra');
+});
+
+/* ==========================================================================
+   09.10.2026 — TEK BOLUM DUZENI
+
+   Kullanici: "ozeti indirince gelen sayfa cok karisik oluyor". Olculen
+   nedenler: (a) her bolum dolgulu renkli bir KUTUYDU ve kutular birbirine
+   yapisiyordu, (b) kutu bolunemedigi icin sigmayinca komple sonraki sayfaya
+   atliyor, sayfa diplerinde ucte bir bos alan birakiyordu, (c) Tablolar/
+   Grafikler/Diyagramlar kutusuz + renkli nokta + buyuk-kucuk harf basligiyla
+   AYRI BIR TASARIM DILI kullaniyordu, (d) dort tipografik kademe iki punto
+   icine sikismisti.
+
+   Asagidaki testler bu dordunun geri gelmesini engelliyor.
+   ========================================================================== */
+
+/* Bir seyin YOK oldugunu iddia eden testler aciklama yorumuna takilir
+   (projede dorduncu kez) — yorumsuz kopyaya bakilir. */
+const PDF_KOD = SRC.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+test('bolum kutusu kalkti: dolgu da renkli serit de yok', () => {
+  const govde = sliceDeclaration(PDF_KOD, 'drawPdfCard');
+  assert.ok(!/roundedRect/.test(govde), 'drawPdfCard hala kutu ciziyor');
+  assert.ok(!/setFillColor/.test(govde), 'drawPdfCard hala dolgu kullaniyor');
+  assert.ok(/drawPdfSectionHeader\(/.test(govde), 'ortak baslik cizicisi cagrilmiyor');
+});
+
+test('icerik HER ZAMAN akar: render allowBreak=true ile cagrilir', () => {
+  const govde = sliceDeclaration(PDF_KOD, 'drawPdfCard');
+  const cagri = govde.match(/opts\.render\([^)]*\)/g) || [];
+  assert.equal(cagri.length, 1, `tek render cagrisi bekleniyordu: ${cagri.join(' | ')}`);
+  assert.ok(/,\s*true\s*\)$/.test(cagri[0]), `allowBreak true degil: ${cagri[0]}`);
+  // Kutu donemindeki "sigmazsa komple sonraki sayfaya at" davranisi: bolumun
+  // TAM yuksekligi kalan yerle karsilastiriliyordu. Artik yalnizca basligin
+  // yalniz kalmamasi icin kucuk bir pay bakiliyor.
+  assert.ok(/Math\.min\(contentH[^)]*,\s*MIN_BLOK\)/.test(govde),
+    'sayfa karari hala bolumun tam yuksekligine bagli');
+});
+
+test('Tablolar/Grafikler/Diyagramlar ayni baslik dilini kullanir', () => {
+  const govde = sliceDeclaration(PDF_KOD, 'appendStudyCardToDoc');
+  const ciz = govde.match(/const drawPlainSectionHeader[\s\S]*?\n  \};/);
+  assert.ok(ciz, 'drawPlainSectionHeader bulunamadi');
+  assert.ok(/drawPdfSectionHeader\(/.test(ciz[0]), 'duz baslik ortak ciziciyi cagirmiyor');
+  assert.ok(!/roundedRect/.test(ciz[0]), 'renkli nokta hala ciziliyor');
+  for (const etiket of ['TABLOLAR', 'GRAF', 'DIYAGRAMLAR', 'DİYAGRAMLAR']) {
+    if (etiket === 'GRAF') {
+      assert.ok(/drawPlainSectionHeader\('GRAF[İI]KLER'/.test(govde), 'Grafikler etiketi buyuk harf degil');
+    }
+  }
+  assert.ok(/drawPlainSectionHeader\('TABLOLAR'/.test(govde), 'Tablolar etiketi buyuk harf degil');
+  assert.ok(/drawPlainSectionHeader\('D[İI]YAGRAMLAR'/.test(govde), 'Diyagramlar etiketi buyuk harf degil');
+});
+
+test('tipografik kademeler birbirinden ayri', () => {
+  assert.ok(PDF_TYPE.sectionSize > PDF_TYPE.headSize, 'bolum etiketi madde basligindan buyuk degil');
+  assert.ok(PDF_TYPE.headSize > PDF_TYPE.bodySize, 'madde basligi govdeden buyuk degil');
+  assert.ok(PDF_TYPE.bodySize > PDF_TYPE.smallSize, 'govde ikincil metinden buyuk degil');
+  assert.ok(PDF_TYPE.sectionSize - PDF_TYPE.headSize >= 1, 'bolum/madde farki 1 puntodan az');
+});
+
+/* Diyagram gorseli yalnizca kartin modali acikken yakalanabiliyor; toplu
+   ihracta yakalanamiyor ve PDF'e KAYNAK KODU dusuyordu. */
+test('mermaidToSteps okunur akis satirlari uretir', () => {
+  const src = 'flowchart TD\n  A[Qualitative predictor?] -->|yes| B[Create m-1 dummies]\n  A -->|no| C[Use the variable directly]\n  B --> D{Slopes differ by group?}';
+  const adimlar = mermaidToSteps(src);
+  assert.equal(adimlar.length, 3, `3 kenar bekleniyordu: ${JSON.stringify(adimlar)}`);
+  assert.ok(!adimlar.join(' ').includes('flowchart'), 'tip basligi atilmamis');
+  assert.ok(adimlar[0].includes('Qualitative predictor?') && adimlar[0].includes('Create m-1 dummies'),
+    `etiketler cozulmemis: ${adimlar[0]}`);
+  assert.ok(adimlar[0].includes('yes'), `kenar kosulu dusmus: ${adimlar[0]}`);
+  // Ucuncu satirda B ve D ilk kez etiketiyle gorulmustu; kimlik degil etiket basilmali.
+  assert.ok(!/\bB\b|\bD\b/.test(adimlar[2].replace(/[^A-Za-z? -]/g, ' ').replace(/Slopes differ by group/, '')),
+    `dugum kimligi basilmis: ${adimlar[2]}`);
+  assert.equal(mermaidToSteps('').length, 0, 'bos kaynak satir uretti');
+});
+
+test('diyagram bolumune ham mermaid kaynagi dusmez', () => {
+  const kart = JSON.parse(JSON.stringify(FULL_CARD));
+  kart.diagrams = [{ title: 'Karar akisi', mermaid: 'flowchart TD\n  A[Baslangic] -->|evet| B[Son]' }];
+  const t = render(kart);
+  assert.ok(/D[İI]YAGRAMLAR/.test(t), 'diyagram bolumu yok');
+  assert.ok(!t.includes('flowchart'), 'ham mermaid kaynagi PDF e dusmus');
+  assert.ok(!/A\[/.test(t) && !/-->/.test(t), 'mermaid soz dizimi PDF e dusmus');
+  assert.ok(t.includes('Baslangic') && t.includes('Son'), 'dugum etiketleri kaybolmus');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));
