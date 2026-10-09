@@ -13132,7 +13132,9 @@ function latexToUnicode(raw, unicodeReady = true) {
   // "tanimsiz komut" adimi bunlari atlamiyordu ve 09.10.2026'da canli PDF'e
   // "484.12 - 12.08\,temp + 0.09\,temp²" diye basildi. Ince bosluk bir
   // bosluga iner; \! (negatif bosluk) silinir.
-  s = s.replace(/\\!/g, '').replace(/\\[,;:]/g, ' ');
+  // `\ ` (ters bolu + bosluk) da bir aralik komutu ve canli PDF'te
+  // "H₀:\ β₂ = 0" diye basildi; listede yoktu.
+  s = s.replace(/\\!/g, '').replace(/\\[,;:]/g, ' ').replace(/\\ /g, ' ');
 
   // \text{...}, \mathrm{...} -> icerik
   s = s.replace(/\\(?:text|mathrm|mathit|mathbf|operatorname)\s*\{([^{}]*)\}/g, '$1');
@@ -13713,6 +13715,82 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
         return ry;
       },
     });
+  }
+
+  /* 1a. BELGE İSKELETİ — ozetin hemen ardindan (09.10.2026).
+
+     Kart verisinde `outline` alani her kosuda uretiliyor ve web kartinda
+     gosteriliyor, ama PDF ihracinda HIC yoktu: dort ayri ozetin dordunde de
+     yok. Ogrenci karti indirdiginde belgenin yapisini — hangi konu nerede,
+     hangi sirayla — kaybediyordu; oysa bir bolumu tekrar ederken ilk bakilan
+     sey bu. Web tarafindaki populateStudyCardOutline ile ayni veriyi, ayni
+     girinti mantigiyla basar (level 1-3). */
+  {
+    const anaHat = (studyCard.outline && Array.isArray(studyCard.outline.items))
+      ? studyCard.outline.items
+      : [];
+    const maddeler = anaHat
+      .filter(it => it && String(it.heading || '').trim())
+      .slice()
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
+    if (maddeler.length > 0) {
+      const girinti = (lv) => (Math.min(3, Math.max(1, Number(lv) || 1)) - 1) * 5;
+      y = drawPdfCard(doc, cardState(), {
+        label: 'BELGE İSKELETİ',
+        accent: PDF_INK.navy,
+        soft: PDF_INK.navySoft,
+        measure: (w) => {
+          let h = 0;
+          const baslik = String((studyCard.outline && studyCard.outline.document_title_guess) || '').trim();
+          if (baslik) {
+            pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(10);
+            h += doc.splitTextToSize(safeText(baslik), w).length * 5.4 + 1.5;
+          }
+          maddeler.forEach(it => {
+            const g = girinti(it.level);
+            pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(9.5);
+            h += doc.splitTextToSize(safeText(it.heading), w - g).length * 5.2;
+            const blurb = String(it.blurb || '').trim();
+            if (blurb) {
+              pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9);
+              h += doc.splitTextToSize(safeText(blurb), w - g - 4).length * 4.8;
+            }
+            h += 1.5;
+          });
+          return h;
+        },
+        render: (x, ry, w, allowBreak) => {
+          const baslik = String((studyCard.outline && studyCard.outline.document_title_guess) || '').trim();
+          if (baslik) {
+            pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(10); doc.setTextColor(...PDF_INK.navy);
+            doc.splitTextToSize(safeText(baslik), w).forEach(line => {
+              if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
+              doc.text(line, x, ry); ry += 5.4;
+            });
+            ry += 1.5;
+          }
+          maddeler.forEach(it => {
+            const g = girinti(it.level);
+            pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.navy);
+            doc.splitTextToSize(safeText(it.heading), w - g).forEach(line => {
+              if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
+              doc.text(line, x + g, ry); ry += 5.2;
+            });
+            const blurb = String(it.blurb || '').trim();
+            if (blurb) {
+              pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9); doc.setTextColor(...PDF_INK.muted);
+              doc.splitTextToSize(safeText(blurb), w - g - 4).forEach(line => {
+                if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
+                doc.text(line, x + g + 4, ry); ry += 4.8;
+              });
+            }
+            ry += 1.5;
+          });
+          doc.setTextColor(...PDF_INK.body);
+          return ry;
+        },
+      });
+    }
   }
 
   // 1b. Section summaries — boxed card, right after the overall summary.
