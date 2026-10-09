@@ -29,10 +29,13 @@ const { test, summary } = makeRunner();
 const NAMES = [
   'GEMINI_ENDPOINT', 'GEMINI_MODEL_CANDIDATES', 'GEMINI_INLINE_MAX_BYTES',
   'GEMINI_MAX_PAGES', 'GEMINI_MIN_BUDGET_MS', 'GEMINI_RESERVE_MS',
-  'GEMINI_MAX_CALL_MS', 'GEMINI_MAX_OUTPUT_TOKENS',
+  'GEMINI_MAX_CALL_MS', 'GEMINI_MAX_OUTPUT_TOKENS', 'GEMINI_GROQ_RESERVE_MS',
   'bytesToBase64',
   'geminiModelCandidates', 'geminiNativeMime', 'geminiModelMissing',
-  'geminiFormatRejected', 'buildGeminiDocInstruction', 'extractGeminiText',
+  'geminiFormatRejected', 'GEMINI_DUSURULEBILIR', 'geminiUnknownParameter',
+  'geminiQuotaExhausted',
+  'PIPELINE_BUDGET_MS', 'GEMINI_PIPELINE_BUDGET_MS', 'geminiCoverageQuota',
+  'buildGeminiDocInstruction', 'extractGeminiText',
   'geminiProblem', 'geminiFigureNotes', 'callGeminiOnce', 'geminiDraft'
 ];
 
@@ -106,9 +109,10 @@ test('geminiModelCandidates: GEMINI_MODEL yoksa varsayilan sira', () => {
 });
 
 test('geminiModelCandidates: GEMINI_MODEL basa gecer, kopyalanmaz', () => {
-  denoEnv.set('GEMINI_MODEL', G.GEMINI_MODEL_CANDIDATES[2]);
+  const sonuncu = G.GEMINI_MODEL_CANDIDATES[G.GEMINI_MODEL_CANDIDATES.length - 1];
+  denoEnv.set('GEMINI_MODEL', sonuncu);
   const list = G.geminiModelCandidates();
-  assert.equal(list[0], G.GEMINI_MODEL_CANDIDATES[2]);
+  assert.equal(list[0], sonuncu);
   assert.equal(new Set(list).size, list.length, 'ayni model iki kez listelenmemeli');
   assert.equal(list.length, G.GEMINI_MODEL_CANDIDATES.length);
   denoEnv.delete('GEMINI_MODEL');
@@ -153,6 +157,44 @@ test('geminiFormatRejected: yalnizca 400 ve bicim sikayetinde', () => {
   assert.equal(G.geminiFormatRejected(429, 'response_format'), false);
 });
 
+/* 09.10.2026 ILK CANLI KOSU — uc modelin ucu de soyle dondu:
+   400 {"error":{"message":"Unknown parameter 'thinking_level'."}}
+   Endpoint ve model adlari dogruydu; tek bir alan yuzunden butun kosu
+   Groq'a dustu. Bu testler o teshisi ve dusurme mekanizmasini korur. */
+test('geminiUnknownParameter: canli hatadan alan adini cikarir', () => {
+  const govde = '{"error":{"message":"Unknown parameter \'thinking_level\'.","code":"invalid_request"}}';
+  assert.equal(G.geminiUnknownParameter(400, govde), 'thinking_level');
+});
+
+test('geminiUnknownParameter: Unknown name/field yazimlarini da okur', () => {
+  assert.equal(G.geminiUnknownParameter(400, 'Unknown name "response_format"'), 'response_format');
+  assert.equal(G.geminiUnknownParameter(400, 'Unknown field `generation_config`'), 'generation_config');
+});
+
+test('geminiUnknownParameter: noktali yol en ust alana indirilir', () => {
+  assert.equal(G.geminiUnknownParameter(400, "Unknown parameter 'generation_config.seed'"), 'generation_config');
+});
+
+test('geminiUnknownParameter: dusurulemeyecek alan null doner', () => {
+  // system_instruction ve input atilirsa istek anlamini kaybeder; o hata
+  // Groq a dusmeyi hak eder, sonsuz tekrara degil.
+  assert.equal(G.geminiUnknownParameter(400, "Unknown parameter 'system_instruction'"), null);
+  assert.equal(G.geminiUnknownParameter(400, "Unknown parameter 'input'"), null);
+  assert.equal(G.geminiUnknownParameter(400, "Unknown parameter 'model'"), null);
+});
+
+test('geminiUnknownParameter: alan adi yoksa ve 400 degilse null', () => {
+  assert.equal(G.geminiUnknownParameter(400, 'file too large'), null);
+  assert.equal(G.geminiUnknownParameter(429, "Unknown parameter 'thinking_level'"), null);
+});
+
+test('thinking_level artik bastan gonderilmiyor', () => {
+  // Olculdu: bu hesapta reddediliyor. Gondermeye devam etmek her belgede
+  // bir istegi bosa harcar ve gunluk kota 100 istek.
+  assert.ok(G.GEMINI_DUSURULEBILIR.includes('thinking_level'),
+    'yine de dusurulebilir listesinde kalmali — bir gun kabul edilirse diye');
+});
+
 // ===========================================================================
 // buildGeminiDocInstruction — prompt'un tasimasi ZORUNLU maddeler
 // ===========================================================================
@@ -195,6 +237,62 @@ test('buildGeminiDocInstruction: formul ve tablo okumasi istenir', () => {
   assert.match(s, /FORMULAS:/);
   assert.match(s, /TABLES:/);
   assert.match(s, /LaTeX/);
+});
+
+// ===========================================================================
+// geminiCoverageQuota
+//
+// 09.10.2026 ilk basarili kosu: Gemini 42 sayfayi okudu ama 7 terim / 9
+// nokta / 6 soru uretti; Groq ayni belgede 15/24/11 cikarmisti. Sebep
+// paylasilan promptun "5-15 key_terms" kotasiydi — o rakam kisa belgeler
+// icin yazilmis. Bu testler kotanin belgenin boyuna bagli kalmasini korur.
+// ===========================================================================
+test('geminiCoverageQuota: 42 sayfalik deste Groq un uretiminin ustunu ister', () => {
+  const q = G.geminiCoverageQuota(42);
+  assert.match(q, /key_terms: 25-40/);
+  assert.match(q, /key_points: 20-30/);
+  assert.match(q, /quiz_questions: 10-15/);
+  const altSinir = Number(q.match(/key_terms: (\d+)-/)[1]);
+  assert.ok(altSinir > 15, `alt sinir Groq un 15 terimini gecmeli, ${altSinir} bulundu`);
+});
+
+test('geminiCoverageQuota: kisa belgeye buyuk kota dayatilmaz', () => {
+  const q = G.geminiCoverageQuota(4);
+  assert.match(q, /key_terms: 10-18/);
+  assert.doesNotMatch(q, /25-40/);
+});
+
+test('geminiCoverageQuota: orta boy belge arada kalir', () => {
+  assert.match(G.geminiCoverageQuota(18), /key_terms: 18-28/);
+});
+
+test('geminiCoverageQuota: sayfa sayisi bilinmiyorsa sayi uydurulmaz', () => {
+  const q = G.geminiCoverageQuota(0);
+  assert.doesNotMatch(q, /\b0-page\b/);
+  assert.match(q, /this document/);
+});
+
+test('geminiCoverageQuota: formul ve tablo tavansiz istenir', () => {
+  // Gölge yolun butun gerekcesi bu ikisi; bir sayiyla sinirlanirlarsa
+  // 42 sayfalik bir destede en degerli icerik kesilir.
+  const q = G.geminiCoverageQuota(42);
+  assert.match(q, /formulas: EVERY distinct equation[^\n]*no cap/);
+  assert.match(q, /tables: EVERY table[^\n]*no cap/);
+});
+
+test('geminiCoverageQuota: dolgu acikca yasaklanir', () => {
+  assert.match(G.geminiCoverageQuota(42), /padding with restatements is worse/);
+});
+
+test('butce: Gemini yolu review a yer birakacak kadar genis, sert sinirin altinda', () => {
+  // Olculdu: 72,4 sn Gemini cagrisindan sonra 110 sn butcede 26,8 sn
+  // kaliyordu ve review un en kucuk kademesi 33 sn istiyor.
+  assert.ok(G.GEMINI_PIPELINE_BUDGET_MS > G.PIPELINE_BUDGET_MS,
+    'Gemini yolunda pencere cagrilari yok, butce dar kalmamali');
+  assert.ok(G.GEMINI_PIPELINE_BUDGET_MS - 72_400 > 33_000,
+    '72,4 sn lik bir cagridan sonra review (33 sn) hala sigmali');
+  assert.ok(G.GEMINI_PIPELINE_BUDGET_MS <= 135_000,
+    'Supabase nin ~150 sn sert sinirina emniyet payi kalmali');
 });
 
 // ===========================================================================
@@ -328,7 +426,7 @@ test('geminiFigureNotes: cop girdi bos dizi dondurur, patlamaz', () => {
 test('callGeminiOnce: istek govdesi ve basliklar dogru', async () => {
   stubFetch([{ status: 200, json: OK_JSON }]);
   try {
-    const res = await G.callGeminiOnce('ANAHTAR', 'gemini-test', 'SISTEM', 'QkFTRTY0', 'application/pdf', 'KULLANICI', 5000, true);
+    const res = await G.callGeminiOnce('ANAHTAR', 'gemini-test', 'SISTEM', 'QkFTRTY0', 'application/pdf', 'KULLANICI', 5000, []);
     assert.equal(res.ok, true);
     assert.equal(fetchCalls.length, 1);
     assert.equal(fetchCalls[0].url, G.GEMINI_ENDPOINT);
@@ -342,14 +440,21 @@ test('callGeminiOnce: istek govdesi ve basliklar dogru', async () => {
     assert.equal(body.input[1].text, 'KULLANICI');
     assert.equal(body.generation_config.max_output_tokens, G.GEMINI_MAX_OUTPUT_TOKENS);
     assert.equal(body.response_format.mime_type, 'application/json');
+    assert.equal('thinking_level' in body, false, 'thinking_level bu yuzeyde 400 donduruyor');
+    assert.equal('thinking_summaries' in body, false);
   } finally { restoreFetch(); }
 });
 
-test('callGeminiOnce: jsonMode kapaliyken response_format gonderilmez', async () => {
+test('callGeminiOnce: dusurulen alanlar govdeye konmaz', async () => {
   stubFetch([{ status: 200, json: OK_JSON }]);
   try {
-    await G.callGeminiOnce('K', 'm', 's', 'b', 'application/pdf', 'u', 5000, false);
+    await G.callGeminiOnce('K', 'm', 's', 'b', 'application/pdf', 'u', 5000,
+      ['response_format', 'generation_config']);
     assert.equal('response_format' in fetchCalls[0].body, false);
+    assert.equal('generation_config' in fetchCalls[0].body, false);
+    // Dusurulemeyecekler yerinde durmali.
+    assert.equal(fetchCalls[0].body.system_instruction, 's');
+    assert.ok(Array.isArray(fetchCalls[0].body.input));
   } finally { restoreFetch(); }
 });
 
@@ -362,7 +467,7 @@ test('callGeminiOnce: cikis tavani Groq un 3.702 tavaninin cok ustunde', () => {
 test('callGeminiOnce: ok olmayan cevap status ve govdeyle doner', async () => {
   stubFetch([{ status: 429, text: 'quota exceeded' }]);
   try {
-    const res = await G.callGeminiOnce('K', 'm', 's', 'b', 'application/pdf', 'u', 5000, true);
+    const res = await G.callGeminiOnce('K', 'm', 's', 'b', 'application/pdf', 'u', 5000, []);
     assert.equal(res.ok, false);
     assert.equal(res.status, 429);
     assert.match(res.body, /quota/);
@@ -372,7 +477,7 @@ test('callGeminiOnce: ok olmayan cevap status ve govdeyle doner', async () => {
 test('callGeminiOnce: ag hatasi status 0 olarak doner, atmaz', async () => {
   stubFetch([{ throw: new Error('ECONNRESET') }]);
   try {
-    const res = await G.callGeminiOnce('K', 'm', 's', 'b', 'application/pdf', 'u', 5000, true);
+    const res = await G.callGeminiOnce('K', 'm', 's', 'b', 'application/pdf', 'u', 5000, []);
     assert.equal(res.ok, false);
     assert.equal(res.status, 0);
     assert.match(res.body, /ECONNRESET/);
@@ -383,7 +488,7 @@ test('callGeminiOnce: zaman asimi abort olarak raporlanir', async () => {
   const err = new Error('aborted'); err.name = 'AbortError';
   stubFetch([{ throw: err }]);
   try {
-    const res = await G.callGeminiOnce('K', 'm', 's', 'b', 'application/pdf', 'u', 5000, true);
+    const res = await G.callGeminiOnce('K', 'm', 's', 'b', 'application/pdf', 'u', 5000, []);
     assert.equal(res.ok, false);
     assert.match(res.body, /zaman asimi/);
   } finally { restoreFetch(); }
@@ -449,10 +554,59 @@ test('geminiDraft: response_format reddedilirse JSON modu kapatilip tekrar denen
   } finally { restoreFetch(); }
 });
 
-test('geminiDraft: 429 bir kez tekrar denenir, sonra sonraki modele gecer', async () => {
+test('geminiDraft: taninmayan alan atilip AYNI model tekrar denenir', async () => {
+  // 09.10.2026 canli kosusunun birebir senaryosu.
   stubFetch([
-    { status: 429, text: 'rate limited' },
-    { status: 429, text: 'rate limited' },
+    { status: 400, text: '{"error":{"message":"Unknown parameter \'generation_config\'."}}' },
+    { status: 200, json: OK_JSON }
+  ]);
+  try {
+    const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000));
+    assert.ok(out, 'alan atildiktan sonra taslak gelmeliydi');
+    assert.equal(out.model, G.GEMINI_MODEL_CANDIDATES[0], 'ayni model tekrar denenmeli');
+    assert.equal(fetchCalls.length, 2);
+    assert.equal('generation_config' in fetchCalls[0].body, true);
+    assert.equal('generation_config' in fetchCalls[1].body, false);
+  } finally { restoreFetch(); }
+});
+
+test('geminiDraft: atilan alan sonraki modellere de TASINIR', async () => {
+  // Tasinmazsa ayni hata her modelde tekrar yenir ve gunluk kotadan
+  // (100 istek) bosuna istek gider.
+  stubFetch([
+    { status: 400, text: "Unknown parameter 'generation_config'" },
+    { status: 404, text: 'model not found' },
+    { status: 200, json: OK_JSON }
+  ]);
+  try {
+    const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000));
+    assert.ok(out);
+    assert.equal(out.model, G.GEMINI_MODEL_CANDIDATES[1]);
+    assert.equal(fetchCalls.length, 3);
+    assert.equal('generation_config' in fetchCalls[2].body, false,
+      'ikinci modele giden istek alani yine tasimis');
+  } finally { restoreFetch(); }
+});
+
+test('geminiDraft: ayni alan iki kez atilmaya calisilmaz (sonsuz dongu yok)', async () => {
+  stubFetch(G.GEMINI_MODEL_CANDIDATES.flatMap(() => [
+    { status: 400, text: "Unknown parameter 'generation_config'" },
+    { status: 400, text: "Unknown parameter 'generation_config'" }
+  ]));
+  try {
+    const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000));
+    assert.equal(out, null);
+    // Ilk modelde 2 cagri (biri atma denemesi), sonrakilerde 1'er.
+    assert.equal(fetchCalls.length, G.GEMINI_MODEL_CANDIDATES.length + 1);
+  } finally { restoreFetch(); }
+});
+
+test('geminiDraft: 503 bir kez tekrar denenir, sonra sonraki modele gecer', async () => {
+  // Olculdu: ikinci kosuda ilk deneme 503 aldi, ikincisi tuttu ve kart
+  // Gemini'den geldi. 503 gercekten gecici.
+  stubFetch([
+    { status: 503, text: 'currently experiencing high demand' },
+    { status: 503, text: 'currently experiencing high demand' },
     { status: 200, json: OK_JSON }
   ]);
   try {
@@ -461,6 +615,34 @@ test('geminiDraft: 429 bir kez tekrar denenir, sonra sonraki modele gecer', asyn
     assert.equal(fetchCalls.length, 3);
     assert.equal(out.model, G.GEMINI_MODEL_CANDIDATES[1]);
   } finally { restoreFetch(); }
+});
+
+// ===========================================================================
+// Proje kotasi — 09.10.2026 ucuncu kosu
+// ===========================================================================
+test('geminiQuotaExhausted: proje kotasi 429 u taninir', () => {
+  const govde = '{"error":{"message":"Your project has exceeded a quota. See https://ai.dev/rate-limit to manage your rate limits.","code":"too_many_requests"}}';
+  assert.equal(G.geminiQuotaExhausted(429, govde), true);
+});
+
+test('geminiQuotaExhausted: 503 ve 500 kota degildir', () => {
+  assert.equal(G.geminiQuotaExhausted(503, 'currently experiencing high demand'), false);
+  assert.equal(G.geminiQuotaExhausted(500, 'internal'), false);
+  assert.equal(G.geminiQuotaExhausted(400, 'exceeded a quota'), false);
+});
+
+test('geminiDraft: proje kotasi dolunca TEK istekte durur', async () => {
+  // Kota proje seviyesinde: baska modeli denemek de, tekrar denemek de ayni
+  // duvara carpar ve gunluk 100 isteklik kotadan bosuna istek goturur.
+  stubFetch([{ status: 429, text: 'Your project has exceeded a quota.' }]);
+  {
+    try {
+      const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000));
+      assert.equal(out, null);
+      assert.equal(fetchCalls.length, 1,
+        `kota 429 undan sonra ${fetchCalls.length} istek yapildi — biri yeterli`);
+    } finally { restoreFetch(); }
+  }
 });
 
 test('geminiDraft: her aday tukenirse null (cagiran Groq a duser)', async () => {
@@ -512,6 +694,41 @@ test('sinirlar: butce payi cagri suresinden sonra review a yer birakir', () => {
     'en az butce, ayrilan paydan buyuk olmali yoksa cagri hic baslayamaz');
   assert.ok(G.GEMINI_RESERVE_MS >= 25_000, 'review + kapilar + kayit icin pay cok dar');
   assert.ok(G.GEMINI_MAX_CALL_MS <= 90_000, 'tek cagri 150 sn lik fonksiyon sinirini zorlamamali');
+});
+
+/* 09.10.2026 DORDUNCU KOSU: tek Gemini cagrisi 74,9 sn de zaman asimina
+   ugradi, Groq a 0 ms kaldi ve kart anlati yazarini, gorsel gecisini ve
+   review u kaybetti. Asagidaki uc test o kombinasyonun geri gelmesini
+   engeller. */
+test('zaman asimi olsa bile Groq a tam bir kosuluk sure kalir', () => {
+  // Olculen tam Groq kosusu 71 sn; 62 sn pencere + birlesimi garanti eder.
+  assert.ok(G.GEMINI_GROQ_RESERVE_MS >= 60_000,
+    `Groq a saklanan pay cok dar: ${G.GEMINI_GROQ_RESERVE_MS}ms`);
+  assert.ok(
+    G.GEMINI_PIPELINE_BUDGET_MS - G.GEMINI_MAX_CALL_MS >= G.GEMINI_GROQ_RESERVE_MS,
+    'en uzun Gemini cagrisi zaman asimina ugrarsa Groq a saklanan pay kalmiyor'
+  );
+});
+
+test('Gemini cagrisi 130 sn lik butcede olculen 72 sn ye yer aciyor', () => {
+  // Basarili kosu 72,4 sn surmustu. Tavan bunun altina inerse gölge yol
+  // bu belgede hic tamamlanamaz — kirpma sonrasi sure olculene kadar
+  // tavani bilerek 70 sn de tutuyoruz.
+  assert.ok(G.GEMINI_MAX_CALL_MS >= 60_000,
+    `cagri tavani ${G.GEMINI_MAX_CALL_MS}ms — 42 sayfalik PDF icin cok dar`);
+});
+
+test('geminiDraft: butce cagriya 35 sn bile veremiyorsa hic denemez', async () => {
+  stubFetch([]);
+  {
+    try {
+      // 90 sn butce: 90 - 62 = 28 sn kaliyor, esigin altinda.
+      const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 90_000));
+      assert.equal(out, null);
+      assert.equal(fetchCalls.length, 0,
+        'yarim kalacagi belli bir cagri Groq tan zaman calmamali');
+    } finally { restoreFetch(); }
+  }
 });
 
 summary();

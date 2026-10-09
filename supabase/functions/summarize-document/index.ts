@@ -1196,6 +1196,19 @@ const CHUNK_CONCURRENCY = 3
 const MAX_CHUNKS = 12 // hard ceiling: prefer finishing over analyzing every page under Edge timeout
 // Soft wall-clock budget (ms) for the whole function — leave headroom under ~150s platform limit
 const PIPELINE_BUDGET_MS = 110_000
+
+/* Gemini yolu icin daha genis butce (09.10.2026 olcumu).
+ *
+ * Ilk basarili gölge kosusunda Gemini cagrisi 72,4 saniye surdu ve geriye
+ * 26,8 saniye kaldi; review'un en kucuk kademesi bile 33 saniye istiyordu,
+ * dolayisiyla review ATLANDI. Oysa Groq yolunun butun pencere cagrilari ve
+ * pacer beklemeleri bu yolda HIC yok — 110 saniye o beklemelere gore
+ * secilmisti.
+ *
+ * Supabase'in sert siniri ~150 saniye. 130 saniye, review'a yer acarken
+ * 20 saniyelik emniyet payi birakiyor. YALNIZCA Gemini taslagi geldiginde
+ * devreye giriyor; Groq yolu 110 saniyede kaliyor. */
+const GEMINI_PIPELINE_BUDGET_MS = 130_000
 // A window call, compact-split to window-ok, measured across four live runs:
 // 2.9s, 3.3s, 4.0s, 5.3s. Used to budget a retry, and deliberately several
 // times the measured cost.
@@ -5154,7 +5167,11 @@ const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/intera
 // Model adlari hizli degisiyor. GEMINI_MODEL secret'i tanimliysa o one
 // gecer; tanimli degilse sirayla denenir ve "boyle bir model yok" cevabi
 // bir sonrakine gecisi tetikler (bkz. geminiModelMissing).
-const GEMINI_MODEL_CANDIDATES = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-2.5-flash']
+// gemini-2.5-flash listeden CIKARILDI (09.10.2026): bu hesapta 404 donuyor,
+// yani her basarisiz kosuda bosa giden bir istek demekti. Gunluk kota 100
+// istek ve ayni gun "project has exceeded a quota" 429'u yendik; bos istek
+// lukstu. Hesapta varsa GEMINI_MODEL ile geri getirilebilir.
+const GEMINI_MODEL_CANDIDATES = ['gemini-3.8-flash', 'gemini-3.6-flash']
 
 // Yukleme siniri zaten 20 MB. 18 MB'in ustunu Groq'a birakiyoruz: inline
 // base64 gonderim dosyayi 4/3 buyutuyor ve Files API'ye gecmek (resumable
@@ -5167,10 +5184,48 @@ const GEMINI_MAX_PAGES = 900
 const GEMINI_MIN_BUDGET_MS = 55_000
 // Cagri bittikten sonra review + kapilar + kayit icin ayrilan pay.
 const GEMINI_RESERVE_MS = 35_000
-const GEMINI_MAX_CALL_MS = 75_000
+/* 68 saniye keyfi degil: GEMINI_PIPELINE_BUDGET_MS (130) eksi
+ * GEMINI_GROQ_RESERVE_MS (62) = 68. Yani EN UZUN Gemini cagrisi zaman
+ * asimina ugrasa bile Groq'a tam 62 saniye kalir. Uc sayi birbirine
+ * bagli; biri degisirse testteki degismez kontrolu uyarir.
+ *
+ * ACIK GERILIM: olculen BASARILI cagri 72,4 saniye surmustu, bu tavanin
+ * ustunde. Istege eklenen metin 120.000'den 40.000 karaktere indi ve
+ * cikis tavani 32.768'den 16.384'e cekildi; sure bunlarla 68 saniyenin
+ * altina inmezse gölge yol bu belgede tamamlanamaz. O zaman karar
+ * gercekten ikili olur: ya butceyi 140 saniyeye cikarmak (Supabase'in
+ * ~150 sn sert sinirina 10 sn pay kalir) ya da ozetlemeyi arka plana
+ * tasimak. Tahminle degil, olcumle secilecek. */
+const GEMINI_MAX_CALL_MS = 68_000
 
-// Groq'ta 3.702 token'da tavan yapan sey buydu. Burada tavan sorun degil.
-const GEMINI_MAX_OUTPUT_TOKENS = 32_768
+/* GROQ'A SAKLANAN PAY — 09.10.2026 dorduncu kosusunun dersi.
+ *
+ * O kosuda tek Gemini cagrisi 74,9 saniyede zaman asimina ugradi. Bir
+ * onceki surumde ekledigim 25 saniyelik "basarisiz denemeler" tavani ise
+ * denemeden ONCE bakiyordu — yani TEK bir cagrinin kendisi 75 saniye
+ * surunce tavan hic devreye giremedi. Groq'a sifir butce kaldi ve o kart
+ * anlati yazarini da, gorsel gecisini de, review'u da kaybetti: gölge yol
+ * calismadigi halde karti bozdu, ki tek sozu bunu yapmamakti.
+ *
+ * Dogru koruma sure tavani degil, CAGRININ KENDI ZAMAN ASIMI: Gemini'ye
+ * ancak "zaman asimina ugrasa bile Groq'un tam bir kosuya yetecek kadar
+ * zamani kalir" kadar sure verilir. Olculen tam Groq kosusu (iki pencere +
+ * birlesim + yazar + review + kayit) 71 saniye surmustu; 62 saniye pencere
+ * ve birlesimi garanti eder, review'u etmez — ama sifir butceden cok daha
+ * iyidir.
+ *
+ * Bedeli acik: Gemini'nin basarili kosusu 72,4 saniye surmustu, bu tavanin
+ * ustunde. Yani istek basina metin kirpildiktan sonra (120.000 -> 40.000
+ * karakter) sure bu tavanin altina inmezse gölge yol bu belgede hic
+ * tamamlanamaz. Olculecek sey tam olarak budur. */
+const GEMINI_GROQ_RESERVE_MS = 62_000
+
+/* Groq'ta 3.702 token'da tavan yapan sey buydu; burada tavan sorun degil.
+ * 32.768'den 16.384'e cekildi: olculen gercek cikti 30.374 karakter
+ * (~8.000 token) yani tavanin dortte biri. Yuksek tavan uretimi
+ * artirmiyor ama modelin ayirdigi butceyi ve dolayisiyla sureyi
+ * buyutebiliyor — ve su an darbogaz sure. */
+const GEMINI_MAX_OUTPUT_TOKENS = 16_384
 
 /** GEMINI_MODEL secret'i varsa basa alinmis model listesi. */
 function geminiModelCandidates(): string[] {
@@ -5205,6 +5260,54 @@ function geminiFormatRejected(status: number, body: string): boolean {
   return /response_format|responseFormat|mime_type|schema|json/i.test(body)
 }
 
+/* Istegin govdesinden dusurulmesine IZIN VERILEN alanlar.
+   Hicbiri dogruluk tasimiyor: response_format olmadan da prompt "SADECE
+   gecerli JSON" diyor, generation_config olmadan da model varsayilan
+   tavanla cevap veriyor. system_instruction ve input bu listede DEGIL —
+   onlar dusurulurse istek anlamini kaybeder, o yuzden onlara takilan bir
+   hata Groq'a dusmeyi hak eder. */
+const GEMINI_DUSURULEBILIR = ['response_format', 'generation_config', 'thinking_level', 'thinking_summaries']
+
+/**
+ * "Unknown parameter 'X'" hatasindan X'i cikarir, dusurulebilir degilse null.
+ *
+ * 09.10.2026, ILK CANLI KOSU. Uc aday modelin ucu de soyle dondu:
+ *   400 {"error":{"message":"Unknown parameter 'thinking_level'."}}
+ * Yani endpoint de model adlari da DOGRUYDU; tek bir istege-ozel alan
+ * kabul edilmedi ve butun kosu Groq'a dustu. Dokumanda listelenen bir
+ * alanin gercek yuzeyde bulunmamasi bir kez oldugu icin bir daha olur;
+ * bu yuzden tek tek alan adi kovalamak yerine genel bir mekanizma var:
+ * hangi alana takildigini hatadan oku, o alani at, ayni modeli tekrar
+ * dene. thinking_level artik bastan gonderilmiyor (olculdu, reddediliyor),
+ * ama mekanizma bir sonraki surprizi de karsilar.
+ */
+/**
+ * 429 PROJE KOTASI mi, yoksa anlik bir sikisiklik mi?
+ *
+ * 09.10.2026, ucuncu kosu: gemini-3.6-flash
+ *   429 {"message":"Your project has exceeded a quota..."}
+ * Kota PROJE seviyesinde — modele ozel degil. Yani baska bir adayi denemek
+ * de, 800 ms sonra tekrar denemek de ayni duvara carpar ve her deneme
+ * gunluk 100 isteklik kotadan bir tane daha goturur. Boyle bir 429'da
+ * gölge yoldan HEMEN cikilir.
+ *
+ * 503 ("high demand") farkli: o gercekten gecici ve tekrar denemeye deger —
+ * ikinci kosuda ilk deneme 503 aldi, ikincisi tuttu ve kart Gemini'den
+ * geldi.
+ */
+function geminiQuotaExhausted(status: number, body: string): boolean {
+  if (status !== 429) return false
+  return /exceeded a quota|quota exceeded|rate limit|resource[_ ]exhausted|too_many_requests/i.test(body)
+}
+
+function geminiUnknownParameter(status: number, body: string): string | null {
+  if (status !== 400) return null
+  const m = String(body || '').match(/Unknown (?:parameter|name|field)\s*['"`]?([A-Za-z0-9_.]+)/i)
+  if (!m) return null
+  const ad = m[1].split('.')[0]
+  return GEMINI_DUSURULEBILIR.indexOf(ad) !== -1 ? ad : null
+}
+
 /**
  * Taslak promptuna eklenen native-belge talimati.
  *
@@ -5221,6 +5324,47 @@ function geminiFormatRejected(status: number, body: string): boolean {
  *     istiyoruz ki kapiya muaf olarak verilebilsin ve review de onlari
  *     KAYNAK olarak gorsun (bkz. visionNotes).
  */
+/**
+ * Gemini yolunun KAPSAM KOTASI — belgenin boyuna gore.
+ *
+ * 09.10.2026, ilk basarili gölge kosusu. Gemini 42 sayfanin tamamini okudu,
+ * 16 gorsel bulgu cikardi, 7 formulu degisken aciklamalariyla yakaladi — ama
+ * yalnizca 7 terim, 9 nokta, 6 soru uretti. Groq ayni belgede 15/24/11
+ * cikarmisti. Sebep modelin yetersizligi DEGILDI: paylasilan sistem promptu
+ * "5-15 key_terms" diyor ve o rakam TEK GECIS yolu icin, yani kisa belgeler
+ * icin yazilmisti. Groq'un uzun-belge yolunda her pencere o kotayi ayri ayri
+ * dolduruyor ve iki pencerenin birlesimi dogal olarak iki kat aday uretiyor;
+ * Gemini belgenin tamamini TEK cagrida okudugu icin kotayi bir kez doldurdu.
+ *
+ * Yani tek cagriya gecmenin bedeli buydu ve cozumu kotayi belgenin gercek
+ * boyuna baglamak. Olcu olarak SAYFA sayisi kullaniliyor, cikarilan metnin
+ * uzunlugu degil: bu destede metin 14.465 karakter (depth=standard'a denk
+ * geliyor) ama belge 42 sayfa — icerigin cogu resimde oldugu icin karakter
+ * sayisi belgenin boyunu sistematik olarak kucuk gosteriyor, ki gölge yolun
+ * var olma sebebi zaten tam olarak bu.
+ */
+function geminiCoverageQuota(pageCount: number): string {
+  let terms = '10-18', points = '10-16', quiz = '6-10', cloze = '6-10'
+  if (pageCount > 25) {
+    terms = '25-40'; points = '20-30'; quiz = '10-15'; cloze = '10-14'
+  } else if (pageCount > 10) {
+    terms = '18-28'; points = '15-22'; quiz = '8-12'; cloze = '8-12'
+  }
+  const olcek = pageCount > 0 ? `a ${pageCount}-page document` : 'this document'
+  return `
+
+COVERAGE QUOTA FOR THIS RUN (overrides any smaller count given above):
+You are reading ${olcek} in one pass, so the counts earlier in this prompt — written for a short single-pass document — are too low. For this run produce:
+- key_terms: ${terms}
+- key_points: ${points}
+- quiz_questions: ${quiz}
+- cloze_cards: ${cloze}
+- sections: one per level-1 outline item, none skipped
+- formulas: EVERY distinct equation in the document, with no cap
+- tables: EVERY table in the document, with no cap
+Spread these across the WHOLE document rather than drawing them all from the opening pages — a term from the last third is worth more than a third variation on the first idea. If the material genuinely does not contain enough distinct content to reach a number, stop at what is real; padding with restatements is worse than a short list.`
+}
+
 function buildGeminiDocInstruction(pageMarkerLabel: string, pageCount: number): string {
   const unit = pageMarkerLabel === 'SLAYT' ? 'slide' : 'page'
   const extent = pageCount > 0
@@ -5347,25 +5491,32 @@ async function callGeminiOnce(
   fileMime: string,
   userText: string,
   timeoutMs: number,
-  jsonMode: boolean
+  drop: string[] = []
 ): Promise<{ ok: true; data: any } | { ok: false; status: number; body: string }> {
+  const dusuruldu = (ad: string) => drop.indexOf(ad) !== -1
+
   const body: Record<string, unknown> = {
     model,
     system_instruction: systemInstruction,
     input: [
       { type: 'document', data: fileBase64, mime_type: fileMime },
       { type: 'text', text: userText }
-    ],
-    generation_config: { max_output_tokens: GEMINI_MAX_OUTPUT_TOKENS },
-    // Formul/tablo okumasi muhakeme istiyor, ama 'high' latency'i buraya
-    // sigmayacak kadar buyutuyor. 'low' olculmus bir baslangic noktasi degil,
-    // muhafazali bir varsayim — ilk kosulardan sonra ayarlanacak.
-    thinking_level: 'low',
-    thinking_summaries: 'none'
+    ]
   }
-  if (jsonMode) {
+  // Groq'ta 3.702 token'da tavan yapan sey buydu; burada acikca yukseltiliyor.
+  if (!dusuruldu('generation_config')) {
+    body.generation_config = { max_output_tokens: GEMINI_MAX_OUTPUT_TOKENS }
+  }
+  // Prompt zaten "SADECE gecerli JSON" diyor; bu alan onu garantiye aliyor.
+  if (!dusuruldu('response_format')) {
     body.response_format = { type: 'text', mime_type: 'application/json' }
   }
+  // thinking_level / thinking_summaries BILEREK GONDERILMIYOR: dokumanda
+  // listeleniyorlar ama 09.10.2026'daki ilk canli kosuda uc modelin ucu de
+  // "Unknown parameter 'thinking_level'" ile 400 dondu. Gondermeye devam
+  // etmek her belgede bir istegi bosa harcardi — gunluk kota 100 istek.
+  // Yine de geminiUnknownParameter onlari da dusurebiliyor, cunku bir gun
+  // kabul edilmeye baslarlarsa buraya geri eklemek tek satir.
 
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
@@ -5408,11 +5559,21 @@ async function geminiDraft(
   userText: string,
   budgetMs: number
 ): Promise<{ raw: string; model: string; ms: number; usage: any } | null> {
-  const callMs = Math.min(GEMINI_MAX_CALL_MS, Math.max(0, budgetMs - GEMINI_RESERVE_MS))
-  if (callMs < 20_000) {
-    console.log(`Gemini: atlandi (cagri icin ${callMs}ms kaliyor, en az 20.000ms gerekli)`)
+  /* Cagrinin zaman asimi IKI kisitin kucugu:
+     - GEMINI_RESERVE_MS: cagri BASARILI olursa review + kapilar + kayit
+     - GEMINI_GROQ_RESERVE_MS: cagri ZAMAN ASIMINA ugrarsa tam bir Groq kosusu
+     Ikincisi buyuk oldugu icin pratikte onu baglayici kilan odur — ve
+     baglayici olmasi gereken de odur (bkz. GEMINI_GROQ_RESERVE_MS). */
+  const basariPayi = budgetMs - GEMINI_RESERVE_MS
+  const basarisizlikPayi = budgetMs - GEMINI_GROQ_RESERVE_MS
+  const callMs = Math.min(GEMINI_MAX_CALL_MS, Math.max(0, basariPayi), Math.max(0, basarisizlikPayi))
+  if (callMs < 35_000) {
+    // 35 saniyenin altinda 42 sayfalik bir PDF'in donme ihtimali yok;
+    // denemek yalnizca Groq'tan zaman calar ve gunluk kotadan istek goturur.
+    console.log(`Gemini: atlandi (cagri icin ${callMs}ms kaliyor, en az 35.000ms gerekli)`)
     return null
   }
+  console.log(`Gemini: cagri zaman asimi ${callMs}ms (butce ${budgetMs}ms, Groq'a ${GEMINI_GROQ_RESERVE_MS}ms saklandi)`)
 
   let fileBase64 = ''
   try {
@@ -5422,12 +5583,41 @@ async function geminiDraft(
     return null
   }
 
-  let jsonMode = true
+  /* Yuzeyin kabul etmedigi istege-ozel alanlar. Modeller arasinda TASINIR:
+     bir alan bir modelde reddedildiyse digerlerinde de reddedilecektir ve
+     ayni hatayi uc kez yemek gunluk kotadan uc istek goturur. */
+  const dropped: string[] = []
+  let gecici = 0   // 429/503/500 denemeleri — alan dusurme denemelerinden ayri sayilir
+
+  /* BASARISIZ DENEMELERIN TOPLAM SURESI.
+   *
+   * 09.10.2026 ucuncu kosu: Gemini hic taslak uretemedi (503, 503, 429, 404)
+   * ama denemeler 34 saniye yedi. Groq'a geriye 76 saniye kaldi ve o yuzden
+   * HEM gorsel gecisi HEM review atlandi — yani gölge yol calismadigi halde
+   * kartin kalitesini dusurdu. Kabul edilemez: bu yolun tek sozu "ne olursa
+   * olsun Groq yolunu bozmam".
+   *
+   * Basarili bir cagri bu sinirdan etkilenmez (kontrol denemeden ONCE
+   * yapiliyor ve basaridan sonra butce zaten genisliyor). */
+  const basladi = Date.now()
+  const GEMINI_FAIL_BUDGET_MS = 25_000
+
   for (const model of geminiModelCandidates()) {
-    for (let attempt = 0; attempt < 2; attempt++) {
+    gecici = 0
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const gecen = Date.now() - basladi
+      if (attempt > 0 || model !== geminiModelCandidates()[0]) {
+        if (gecen > GEMINI_FAIL_BUDGET_MS) {
+          console.warn(
+            `Gemini: denemeler ${gecen}ms yedi (sinir ${GEMINI_FAIL_BUDGET_MS}ms) — ` +
+            `Groq'a yer birakmak icin durduruluyor`
+          )
+          return null
+        }
+      }
       const startedAt = Date.now()
       const res = await callGeminiOnce(
-        apiKey, model, systemInstruction, fileBase64, fileMime, userText, callMs, jsonMode
+        apiKey, model, systemInstruction, fileBase64, fileMime, userText, callMs, dropped
       )
       const ms = Date.now() - startedAt
 
@@ -5442,25 +5632,49 @@ async function geminiDraft(
           console.warn(`Gemini ${model}: cevapta metin yok (${JSON.stringify(res.data).slice(0, 300)})`)
           break
         }
-        console.log(`Gemini ${model}: taslak geldi, ${ms}ms, ${text.length} karakter, json_mode=${jsonMode}`)
+        console.log(
+          `Gemini ${model}: taslak geldi, ${ms}ms, ${text.length} karakter` +
+          (dropped.length ? `, dusurulen alanlar: ${dropped.join(', ')}` : '')
+        )
         return { raw: text, model, ms, usage: res.data?.usage ?? null }
+      }
+
+      // Taninmayan bir alan: at ve AYNI modeli tekrar dene. Bu kontrol
+      // digerlerinden once geliyor, cunku "Unknown parameter 'X'" asagidaki
+      // model-yok desenine benzeyebilir ve yanlis teshis butun adaylari
+      // bosa harcar (09.10.2026'da tam olarak bu oldu).
+      const bilinmeyen = geminiUnknownParameter(res.status, res.body)
+      if (bilinmeyen && dropped.indexOf(bilinmeyen) === -1) {
+        dropped.push(bilinmeyen)
+        console.warn(`Gemini ${model}: '${bilinmeyen}' alani taninmadi — atilip tekrar denenecek`)
+        continue
       }
 
       if (geminiModelMissing(res.status, res.body)) {
         console.warn(`Gemini ${model}: model yok (${res.status}) — sonraki aday denenecek`)
         break
       }
-      if (jsonMode && geminiFormatRejected(res.status, res.body)) {
-        // Dokumanda tarif edilen response_format bu yuzeyde kabul edilmedi.
-        // Prompt zaten "SADECE gecerli JSON" diyor; alani dusurup ayni
-        // modeli bir kez daha deniyoruz.
+      if (dropped.indexOf('response_format') === -1 && geminiFormatRejected(res.status, res.body)) {
+        // Alan adini vermeyen bir bicim sikayeti (ornegin yalnizca "schema"
+        // ya da "mime_type" diyen). Prompt zaten "SADECE gecerli JSON"
+        // diyor, alani dusurup ayni modeli bir kez daha deniyoruz.
         console.warn(`Gemini ${model}: response_format reddedildi (${res.status}: ${res.body.slice(0, 200)}) — JSON modu kapatilip tekrar denenecek`)
-        jsonMode = false
+        dropped.push('response_format')
         continue
       }
-      if (res.status === 429 || res.status === 503 || res.status === 500) {
-        console.warn(`Gemini ${model}: gecici hata ${res.status} (deneme ${attempt + 1}/2): ${res.body.slice(0, 200)}`)
-        if (attempt === 0) continue
+      // Proje kotasi: baska model de, tekrar deneme de ayni duvara carpar ve
+      // her deneme gunluk kotadan bir istek daha goturur. Hemen cikilir.
+      if (geminiQuotaExhausted(res.status, res.body)) {
+        console.warn(
+          `Gemini ${model}: PROJE KOTASI dolu (429) — baska aday denenmeyecek, ` +
+          `Groq yoluna dusuluyor: ${res.body.slice(0, 200)}`
+        )
+        return null
+      }
+      if (res.status === 503 || res.status === 500 || res.status === 429) {
+        gecici++
+        console.warn(`Gemini ${model}: gecici hata ${res.status} (deneme ${gecici}/2): ${res.body.slice(0, 200)}`)
+        if (gecici < 2) continue
         break
       }
       console.warn(`Gemini ${model}: cagri basarisiz (${res.status}): ${res.body.slice(0, 300)}`)
@@ -5945,7 +6159,10 @@ serve(async (req) => {
     // the full pipeline from one that ran out of minutes. Declared out here for
     // the same scope reason as the two above.
     const skippedStages: string[] = []
-    const budgetLeft = () => Math.max(0, PIPELINE_BUDGET_MS - (Date.now() - pipelineStartedAt))
+    // Gemini taslagi geldiginde GEMINI_PIPELINE_BUDGET_MS'e yukseltilir;
+    // Groq yolunda hic degismez.
+    let pipelineBudgetMs = PIPELINE_BUDGET_MS
+    const budgetLeft = () => Math.max(0, pipelineBudgetMs - (Date.now() - pipelineStartedAt))
 
     // ==========================================================================
     // AUTO DEPTH SELECTION (Denetim Raporu, 2026-08-31)
@@ -6151,12 +6368,24 @@ ${styleInstruction}`
       } else if (budgetLeft() < GEMINI_MIN_BUDGET_MS) {
         console.log(`Gemini: atlandi (butce ${budgetLeft()}ms < ${GEMINI_MIN_BUDGET_MS}ms)`)
       } else {
+        /* Butce, cagridan SONRA degil ONCE genisletiliyor.
+         *
+         * Once sadece basari halinde genisliyordu ve o yuzden Gemini'ye
+         * ayrilabilen sure 110 - 62 = 48 saniyeydi — olculen basarili
+         * cagri 72,4 saniye surmustu, yani gölge yol kendi zaman asimina
+         * carpip hic tamamlanamazdi. 130 saniyelik butce ile Gemini ~66
+         * saniye aliyor ve zaman asimina ugrasa bile Groq'a tam 62 saniye
+         * kaliyor. Gemini hic DENENMEDIGINDE butce 110'da kalir. */
+        pipelineBudgetMs = GEMINI_PIPELINE_BUDGET_MS
+
         await serviceClient
           .from('documents')
           .update({ processing_stage: 'analyzing' })
           .eq('id', documentId)
 
-        const geminiSystemPrompt = systemPrompt + buildGeminiDocInstruction(pageMarkerLabel, pdfPageCount)
+        const geminiSystemPrompt = systemPrompt
+          + buildGeminiDocInstruction(pageMarkerLabel, pdfPageCount)
+          + geminiCoverageQuota(pdfPageCount)
         // Cikarilan metin de gonderiliyor: Gemini'nin okudugu sayfa ile bizim
         // asagida kapilarda/atiflarda kullandigimiz metin ayni belgeden gelse
         // de AYNI SEY DEGIL. Model ikisini yan yana gorursa, metinde zaten
@@ -6166,7 +6395,12 @@ ${styleInstruction}`
           `Here is the text our extractor pulled out of the same document — it is lossy ` +
           `(equations, spreadsheet screenshots and charts are missing from it), and it is ` +
           `shown only so you can match your wording to it where the two overlap:\n\n` +
-          extractedText.slice(0, 120_000)
+          // 120.000 degil 40.000: hesabin TPM'i 100K ve bu metin PDF'in
+          // kendisiyle BIRLIKTE gidiyor, yani ayni bilginin ikinci kopyasi.
+          // 42 sayfa ~10.800 token tutuyor; 120.000 karakter buna ~35.000
+          // token daha ekliyordu. 40.000 karakter (~12.000 token) eslestirme
+          // faydasini korurken dakikada kac kosu sigacagini ikiye katliyor.
+          extractedText.slice(0, 40_000)
 
         geminiResult = await geminiDraft(
           geminiApiKey,
