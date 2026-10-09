@@ -5167,11 +5167,29 @@ const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/intera
 // Model adlari hizli degisiyor. GEMINI_MODEL secret'i tanimliysa o one
 // gecer; tanimli degilse sirayla denenir ve "boyle bir model yok" cevabi
 // bir sonrakine gecisi tetikler (bkz. geminiModelMissing).
-// gemini-2.5-flash listeden CIKARILDI (09.10.2026): bu hesapta 404 donuyor,
-// yani her basarisiz kosuda bosa giden bir istek demekti. Gunluk kota 100
-// istek ve ayni gun "project has exceeded a quota" 429'u yendik; bos istek
-// lukstu. Hesapta varsa GEMINI_MODEL ile geri getirilebilir.
-const GEMINI_MODEL_CANDIDATES = ['gemini-3.8-flash', 'gemini-3.6-flash']
+/* AI Studio panelinden OKUNAN gercek limitler (09.10.2026, 21:30):
+   her Flash modeli icin RPM 5, TPM 250K, RPD 20. Daha once 100K sandigimiz
+   TPM baska bir satirdi (Antigravity); token tarafinda sikinti yok. Asil
+   darbogaz GUNLUK 20 ISTEK — ve o gun gemini-3.8-flash zaten 8/20'deydi.
+
+   Sira buna gore kuruldu: 3.8 o aksam ustuste 503 "high demand" donduren
+   TEK modeldi (hatalarin tamami ondan geldi) ve kotasinin yarisi yanmisti;
+   3.7 ve 3.5 ayni limitlere sahip ve o gun hic dokunulmamisti. Onler
+   dolu/sikisik olunca arkadakine gecilir, liste bunun icin var.
+
+   gemini-2.5-flash listede DEGIL: panelde gorunuyor ama bu yuzeyde 404
+   donuyor, yani her kosuda gunluk 20 istekten birini bosa yakardi.
+
+   Flash Lite modelleri (RPM 15, RPD 500) bilincli olarak burada degil:
+   gölge yolun isi formul goruntusu ve Excel ekran goruntusu okumak, orada
+   model kalitesi dogrudan kartin dogrulugu demek. Kota dar gelirse once
+   olculur, sonra gecilir — GEMINI_MODEL=gemini-3.5-flash-lite yeter. */
+const GEMINI_MODEL_CANDIDATES = [
+  'gemini-3.7-flash',
+  'gemini-3.8-flash',
+  'gemini-3.5-flash',
+  'gemini-3.6-flash'
+]
 
 // Yukleme siniri zaten 20 MB. 18 MB'in ustunu Groq'a birakiyoruz: inline
 // base64 gonderim dosyayi 4/3 buyutuyor ve Files API'ye gecmek (resumable
@@ -5657,6 +5675,13 @@ async function geminiDraft(
     ? Math.max(0, budgetMs - GEMINI_RESERVE_MS - 20_000)
     : 25_000
 
+  /* RPM 5 (panelden okundu). Istekleri arka arkaya atmak dakikalik limite
+     carpiyor ve o 429 "project has exceeded a quota" diye geliyor — gunluk
+     kota sanip bos yere paniklediğimiz hata buydu. Ilk istek beklemez;
+     sonrakilerin arasina kucuk bir pay konur. */
+  const GEMINI_RETRY_WAIT_MS = 2_500
+  let ilkIstek = true
+
   for (const model of geminiModelCandidates()) {
     gecici = 0
     for (let attempt = 0; attempt < 5; attempt++) {
@@ -5670,6 +5695,9 @@ async function geminiDraft(
           return null
         }
       }
+      if (!ilkIstek) await new Promise((r) => setTimeout(r, GEMINI_RETRY_WAIT_MS))
+      ilkIstek = false
+
       const startedAt = Date.now()
       const res = await callGeminiOnce(
         apiKey, model, systemInstruction, fileBase64, fileMime, userText, callMs, dropped

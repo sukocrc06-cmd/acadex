@@ -127,6 +127,25 @@ test('geminiModelCandidates: bilinmeyen bir GEMINI_MODEL de denenir', () => {
   denoEnv.delete('GEMINI_MODEL');
 });
 
+/* 09.10.2026 21:30 — AI Studio panelinden OKUNAN limitler: RPM 5,
+   TPM 250K, RPD 20 (daha once 100K sandigimiz satir Antigravity'ydi).
+   Asil darbogaz gunluk 20 istek. */
+test('aday listesi: 503 yiyen model basta DEGIL', () => {
+  // O aksam butun 503 "high demand" hatalari gemini-3.8-flash'tan geldi ve
+  // gunluk kotasinin 8/20'si yanmisti; dokunulmamis modeller var.
+  assert.notEqual(G.GEMINI_MODEL_CANDIDATES[0], 'gemini-3.8-flash');
+  assert.ok(G.GEMINI_MODEL_CANDIDATES.includes('gemini-3.8-flash'),
+    'yine de listede kalmali — sirasi degisti, elenmedi');
+});
+
+test('aday listesi: gunluk 20 istekte tukenmeyecek kadar kisa', () => {
+  // Her aday basarisiz bir kosuda gunluk kotadan en az bir istek goturur.
+  assert.ok(G.GEMINI_MODEL_CANDIDATES.length <= 4,
+    `${G.GEMINI_MODEL_CANDIDATES.length} aday, RPD 20 icin fazla`);
+  assert.ok(!G.GEMINI_MODEL_CANDIDATES.includes('gemini-2.5-flash'),
+    '404 donen model listeye geri girmis — her kosuda bir istek bosa gider');
+});
+
 test('geminiModelCandidates: liste kaynaktaki diziyi degistirmez', () => {
   const before = G.GEMINI_MODEL_CANDIDATES.slice();
   G.geminiModelCandidates().push('kirletme');
