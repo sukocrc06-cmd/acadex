@@ -57,7 +57,35 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   // yakin kopya
   'NEAR_DUP_THRESHOLD', 'NEAR_DUP_MIN_TERMS', 'NEAR_DUP_STEM_LEN',
   'NEAR_DUP_KEY_OVERLAP', 'nearDupKeysMatch',
-  'nearDupStem', 'nearDupTermSet', 'dedupeNearDuplicates'
+  'nearDupStem', 'nearDupTermSet', 'dedupeNearDuplicates',
+  // Slayt destesi tespiti ve cikarim talimati (07.10.2026).
+  'DECK_MIN_PAGES', 'DECK_MAX_CHARS_PER_PAGE', 'DECK_PROMPT_CHARS',
+  'detectSlideDeck', 'buildSlideDeckInstruction',
+  // Pencere dengeleme ve cozumlu ornek kapisi (08.10.2026).
+  'kurPencereler', 'splitIntoChunks', 'splitIntoWindows',
+  'gateWorkedExamples',
+  'JSON_GECERLI_KACIS', 'repairLatexEscapes',
+  // Yokluk iddiasi kapisi (08.10.2026).
+  'YOKLUK_IDDIASI',
+  // Sayisal kapsama olcusu (09.10.2026).
+  'SAYFA_ISARETI_RE', 'SAYISAL_KAPSAMA_TOLERANS', 'SAYI_BELIRTECI', 'SAYISAL_KAPSAMA_ORNEK',
+  'sayiOkumalari', 'distinctiveNumbers', 'outputNumbers', 'yakinDegerVar',
+  'KAPSAMA_DISI_ALANLAR', 'coverageText', 'numericCoverage', 'formatCoverage',
+  // Denklem sayfalarinin yeniden dizilmesi (09.10.2026).
+  'SYMBOL_PUA', 'PUA_BULLET_CODES', 'PUA_ANY_RE', 'PUA_LINE_BULLET_RE', 'mapSymbolPua',
+  'countMathPua', 'MATH_PUA_MIN', 'EQ_OPERATORS', 'HAT_GLYPH_RE', 'medianOf', 'largestGap',
+  'xyCut', 'attachHats', 'leafLines', 'rebuildPageText', 'streamPageText', 'REBUILD_MIN_KEEP',
+  'chooseEquationPageText', 'extractPdfPagesWithEquations',
+  // Formul tekrari, cozumlu ornek adimlari ve aritmetigi, review sorunlari.
+  'formulaKey', 'normalizeExampleSteps', 'splitInlineSteps', 'normalizeWorkedExamples',
+  'evalArithmetic', 'normalizeArithmeticText', 'ARITH_RUN_CHARS', 'ARITH_TOLERANCE',
+  'checkArithmetic', 'gateWorkedExampleArithmetic',
+  'ISSUE_ABSENCE_RE', 'ISSUE_THESIS_RE', 'ISSUE_STOPWORDS', 'normalizeForIssueMatch',
+  'filterReviewIssues', 'paragraphCount',
+  // Review duzeltmesi kaynaktaki icerigi silemez (09.10.2026).
+  'DUZELTME_SILME_ORANI', 'DUZELTME_DAYANAK_ORANI', 'IDARI_GURULTU_RE', 'kaynakIcerigiSiliyor',
+  // Reddedilen uretimin kurtarilmasi (09.10.2026).
+  'salvageFailedGeneration'
 ]);
 
 const { test, summary } = makeRunner();
@@ -1487,8 +1515,12 @@ function readTemplate(src, startIdx) {
 }
 
 test('pencere token butcesi pacer tavaninin altinda', () => {
-  const mWindow = SRC.match(/const WINDOW = (\d+)/);
-  assert.ok(mWindow, 'WINDOW sabiti bulunamadi');
+  /* 07.10.2026: WINDOW artik sabit degil, deste moduna gore iki degerden
+     biri. Capa "const WINDOW = (\d+)" idi ve ternary'ye donunce "WINDOW
+     sabiti bulunamadi" diye dustu — kodda sorun yokken. Taban deger
+     okunur; deste modunun kendi tavan testi SLAYT DESTESI blogunda. */
+  const mWindow = SRC.match(/const WINDOW = (?:deste\.isDeck \? )?(\d+)/);
+  assert.ok(mWindow, 'WINDOW taban degeri bulunamadi');
   const WINDOW = Number(mWindow[1]);
 
   const promptIdx = SRC.indexOf('const compactWindowPrompt');
@@ -1571,7 +1603,7 @@ test('tek pencerede prompt kendini "parca" diye tanitmaz', () => {
 });
 
 test('tipik tek bolumluk belge tek pencereye sigar', () => {
-  const WINDOW = Number(SRC.match(/const WINDOW = (\d+)/)[1]);
+  const WINDOW = Number(SRC.match(/const WINDOW = (?:deste\.isDeck \? )?(\d+)/)[1]);
   // Canli olculen referans: 30 sayfalik ders slaytindan cikan 12.451 karakter.
   // Bu belge iki pencereye bolundugunde aralarina ~60 saniyelik pacer beklemesi
   // giriyor ve PIPELINE_BUDGET_MS (110 sn) tukenip review pass hic calismiyor.
@@ -2668,6 +2700,1071 @@ test('bos donen alan sessiz gecmiyor', () => {
   // yoldan basarisiz sayiliyor, iki kere bagirmak gurultu olur.
   assert.ok(/nTerms \+ nPoints \+ nQuiz > 0/.test(SRC),
     'tamamen bos pencere icin ayrica uyarilmamali');
+});
+
+console.log('\nYOKLUK IDDIASI KAPISI\n');
+
+/* 08.10.2026, canli bir ekonometri destesinde (42 slayt, 13.844 krk)
+   olculdu. Ozet su paragrafi tasiyordu:
+
+     "The source does not cover log-log models or elasticity
+      interpretations of slopes."
+
+   Kaynakta AYNEN su var: "- Log-Log Model" ve "In the log-log model β is
+   an elasticity." Ustelik ayni ozette log-log uzerine bir BOLUM, bir
+   anahtar terim ve bir sinav sorusu vardi — yani ozet kendisiyle de
+   celisiyordu.
+
+   Sebep yapisal: review promptu modele "You are shown only a truncated
+   slice" diyor ve "kaynagin desteklemedigi iddialari duzelt" istiyor.
+   Model kendi diliminde bulamayinca DOGRU cumleleri yokluk iddiasina
+   cevirdi. */
+
+const DRAFT_LOGLOG =
+  'The source explains log-log models where the slope is an elasticity. ' +
+  'Quadratic terms capture curvature in the relationship.';
+
+test('review taslaga YOKLUK IDDIASI ekleyemiyor', () => {
+  const r = A.applyCorrections(DRAFT_LOGLOG, [{
+    find: 'The source explains log-log models where the slope is an elasticity.',
+    replace: 'The source does not cover log-log models or elasticity interpretations of slopes.',
+  }]);
+  assert.equal(r.applied, 0, 'yokluk iddiasi uygulanmamali');
+  assert.ok(/log-log models where the slope is an elasticity/.test(r.text),
+    'dogru cumle korunmali');
+  assert.equal(r.skipped.length, 1, 'atlanan duzeltme raporlanmali');
+  assert.ok(/yokluk iddiasi/.test(r.skipped[0]), 'atlanma sebebi yazilmali');
+});
+
+test('GERCEK olgu duzeltmesi etkilenmiyor', () => {
+  // Kapi dar olmali: review'un asil isi bu ve engellenmemeli.
+  const r = A.applyCorrections(DRAFT_LOGLOG, [{
+    find: 'Quadratic terms capture curvature in the relationship.',
+    replace: 'Quadratic terms capture curvature; the marginal effect is β1 + 2β2x.',
+  }]);
+  assert.equal(r.applied, 1, 'olgu duzeltmesi uygulanmali');
+  assert.ok(/β1 \+ 2β2x/.test(r.text));
+});
+
+test('taslak ZATEN yokluk ifadesi tasiyorsa duzeltilebiliyor', () => {
+  /* Iddiayi URETEN review degilse engellemek yanlis olur — orada review
+     mevcut bir ifadeyi duzeltiyor, yenisini uydurmuyor. */
+  const taslak = 'The source does not discuss panel data methods at all.';
+  const r = A.applyCorrections(taslak, [{
+    find: 'The source does not discuss panel data methods at all.',
+    replace: 'The source does not discuss panel data in depth.',
+  }]);
+  assert.equal(r.applied, 1, 'mevcut yokluk ifadesi duzeltilebilmeli');
+});
+
+test('Turkce yokluk ifadeleri de yakalaniyor', () => {
+  // Ozet dili belgeye gore degisiyor; kapi tek dile bagli olmamali.
+  for (const ifade of [
+    'Kaynak log-log modellerini ele almıyor.',
+    'Belgede esneklik yorumundan bahsedilmiyor.',
+    'Bu konu kaynakta yer almıyor.',
+    'Kaynak bu modeli içermiyor.',
+  ]) {
+    const r = A.applyCorrections('Kaynak log-log modellerini açıklar ve esnekliği tanımlar.', [{
+      find: 'Kaynak log-log modellerini açıklar ve esnekliği tanımlar.',
+      replace: ifade,
+    }]);
+    assert.equal(r.applied, 0, `yakalanmadi: "${ifade}"`);
+  }
+});
+
+test('kapi promptta da anlatiliyor', () => {
+  // Kod kapisi son savunma; model de uyarilmali, yoksa her turda bir
+  // duzeltme bosa harcaniyor.
+  assert.ok(/NEVER TURN "I CANNOT FIND IT" INTO "THE SOURCE DOES NOT HAVE IT"/.test(SRC),
+    'review promptunda yokluk uyarisi yok');
+  assert.ok(/silence is not disagreement/.test(SRC),
+    'uyarinin gerekcesi eksik');
+});
+
+console.log('\nSLAYT DESTESI TESTLERI\n');
+
+/* 07.10.2026. Bir ekonometri ders notu ozetine gelen geri bildirim:
+   "ders slaytlari daha ozet gibi kaldi", "slayt slayt degil de hangi slayt
+   gerekli hangisi gereksiz iyi analiz etmeli". Sistem desteyi duz metin
+   gibi isliyordu; document_type siniflandirmasi desteyi taniyor ama
+   SENTEZ adiminda, yani is bittikten sonra. */
+
+const sahteSayfa = (n, krk) => Array.from({ length: n }, (_, i) =>
+  `--- SAYFA ${i + 1} ---\n${'x'.repeat(krk)}`).join('\n\n');
+const sahteSlayt = (n, krk) => Array.from({ length: n }, (_, i) =>
+  `--- SLAYT ${i + 1} ---\n${'x'.repeat(krk)}`).join('\n\n');
+
+test('pptx TARTISMASIZ deste sayilir', () => {
+  // Dosyanin kendisi deste; sayfa yogunlugu ne olursa olsun.
+  const r = A.detectSlideDeck(sahteSlayt(3, 5000), 'SLAYT');
+  assert.equal(r.isDeck, true, 'pptx her zaman deste');
+  assert.equal(r.reason, 'pptx');
+});
+
+test('PDF e aktarilmis deste SEYREK SAYFADAN taniniyor', () => {
+  /* Asil kazanc burada: ogrenciler slaytlari cogu zaman PDF olarak disa
+     aktariyor ve o zaman isaret "SAYFA" oluyor, yani mime type hicbir sey
+     soylemiyor. Deste sayfalari KISA olur. */
+  const r = A.detectSlideDeck(sahteSayfa(30, 300), 'SAYFA');
+  assert.equal(r.isDeck, true, `30 sayfa x 300 krk deste sayilmali (${r.reason})`);
+  assert.ok(r.charsPerPage <= A.DECK_MAX_CHARS_PER_PAGE);
+});
+
+test('kitap bolumu deste SAYILMIYOR', () => {
+  // Yanlis pozitif, yanlis negatiften kotu: duz metne "slaytlari grupla,
+  // baslik sayfalarini atla" demek, atlanmamasi gereken seyi atlatir.
+  const r = A.detectSlideDeck(sahteSayfa(30, 3000), 'SAYFA');
+  assert.equal(r.isDeck, false, `30 sayfa x 3000 krk duz metin olmali (${r.reason})`);
+});
+
+test('kisa belge deste sayilmiyor', () => {
+  // Iki sayfalik seyrek bir belge deste degil; alt sinir bunun icin var.
+  const r = A.detectSlideDeck(sahteSayfa(3, 200), 'SAYFA');
+  assert.equal(r.isDeck, false, 'sayfa sayisi esigin altinda');
+  assert.ok(/sayfa az/.test(r.reason));
+});
+
+test('isaretsiz metin deste sayilmiyor', () => {
+  const r = A.detectSlideDeck('Hicbir isaret icermeyen duz metin. '.repeat(50), 'SAYFA');
+  assert.equal(r.isDeck, false);
+  assert.equal(r.pages, 0);
+});
+
+/** Canli pencere promptunu kaynaktan cizip render eder (desteTalimati ayri
+ *  eklenir). Sablon serve() icinde bir closure; kota fonksiyonlari da oradan
+ *  alinip ayni govdede calistiriliyor. */
+function pencerePromptu(total, desteTalimati) {
+  const a = SRC.indexOf('const compactWindowPrompt = (wi: number, total: number) =>');
+  const bas = SRC.indexOf('`', a);
+  const son = SRC.indexOf('\n\n      // Window size is bounded', bas);
+  const kotaBas = SRC.indexOf('const wholeDocInOneWindow');
+  const kotaSon = SRC.indexOf('// Compact extraction prompt', kotaBas);
+  if (a < 0 || son < 0 || kotaBas < 0 || kotaSon < 0) return '';
+  const kotalar = SRC.slice(kotaBas, kotaSon).replace(/: number/g, '');
+  const fn = new Function('wi', 'total', 'langLabel', 'desteTalimati',
+    kotalar + '\nreturn ' + SRC.slice(bas, son));
+  return fn(0, total, 'English', desteTalimati);
+}
+
+test('TAVAN KORUNUYOR: deste promptu pencere butcesinden dusuluyor', () => {
+  /* EN KRITIK TEST. Canli pencere cagrisinin butcesi:
+       WINDOW/4 + prompt(527) + talimat + completion(3072) <= 7200
+     WINDOW=13000 iken pay yalnizca ~351 token. Ilk yazdigim talimat ~425
+     tokendi ve tavani ASACAKTI — bu projede tam bu tur tasma daha once
+     pencere kaybettirdi (bkz. TokenPacer yorumlari).
+
+     Bu test sayiyi degil ILISKIYI koruyor: talimat ne kadar buyurse
+     buyusun, maliyeti pencereden dusulmus olmali. */
+  /* PROMPT BOYUTU OLCULUYOR, SABIT DEGIL (09.10.2026). Burada "527" diye
+     bir sabit duruyordu; prompt kurallari buyudukce sabit eskidi ve bu test
+     tavani olcmeden "gecti" demeye basladi. Artik canli sablon kaynaktan
+     cizilip render ediliyor (bkz. pencerePromptu). En uzun hali tek pencere
+     (total=1) — butun belge kurallari ona ekleniyor; o da tavana sigmali. */
+  const COMPLETION = 3072, TAVAN = 7200, TABAN_PENCERE = 13000;
+  const PROMPT_TOK = Math.max(
+    Math.ceil(pencerePromptu(2, '').length / 4),
+    Math.ceil(pencerePromptu(1, '').length / 4)
+  );
+  assert.ok(PROMPT_TOK > 400, `sablon okunamadi (${PROMPT_TOK} token)`);
+
+  for (const u of ['slide', 'page']) {
+    const talimat = A.buildSlideDeckInstruction(true, u);
+    const talimatTok = Math.ceil(talimat.length / 4);
+
+    assert.ok(talimat.length <= A.DECK_PROMPT_CHARS,
+      `${u}: talimat ${talimat.length} krk > ayrilan pay ${A.DECK_PROMPT_CHARS} — ` +
+      `pencere butcesinden dusulen miktar yetersiz, tavan asilir`);
+
+    const pencere = TABAN_PENCERE - A.DECK_PROMPT_CHARS;
+    const toplam = Math.ceil(pencere / 4) + PROMPT_TOK + talimatTok + COMPLETION;
+    assert.ok(toplam <= TAVAN,
+      `${u}: deste modunda ${toplam} token > ${TAVAN} tavani`);
+  }
+  // Deste talimati olmadan, duz metnin tam penceresiyle de sigmali.
+  const duzToplam = Math.ceil(TABAN_PENCERE / 4) + PROMPT_TOK + COMPLETION;
+  assert.ok(duzToplam <= TAVAN, `duz metin ${duzToplam} token > ${TAVAN} tavani`);
+
+  /* KORUNAN SEY TAVAN DEGIL, PAY. Ilk yazimda burada "dusulmezse tavan
+     asilir" diye bir iddia vardi ve bu test onu CURUTTU: talimat 425'ten
+     270 tokene sikistirilinca dusulmemis toplam 7119 oldu, yani tavanin
+     altinda. Iddia eskimisti, test dogruydu.
+
+     Gercek gerekce pay: duz metin yolu 351 token payla calisiyor, deste
+     dusulmeden 81 token payla kalirdi. Bu promptun kendi yorumu Turkce'nin
+     4 krk/token'dan kotu tokenlestigini soyluyor, yani WINDOW/4 zaten
+     eksik tahmin. Deste modu, duz metnin dayandigi paydan DAHA DAR
+     olmamali. */
+  const payDuz = TAVAN - (Math.ceil(TABAN_PENCERE / 4) + PROMPT_TOK + COMPLETION);
+  const talimatTok = Math.ceil(A.buildSlideDeckInstruction(true, 'slide').length / 4);
+  const payDeste = TAVAN - (Math.ceil((TABAN_PENCERE - A.DECK_PROMPT_CHARS) / 4) +
+    PROMPT_TOK + talimatTok + COMPLETION);
+  assert.ok(payDeste >= payDuz,
+    `deste payi ${payDeste} token, duz metin payi ${payDuz} — deste modu daha dar ` +
+    `paya dusmemeli (Turkce WINDOW/4'ten kotu tokenlesiyor)`);
+});
+
+test('duz metinde talimat BOS — tek karakter maliyeti yok', () => {
+  assert.equal(A.buildSlideDeckInstruction(false, 'page'), '',
+    'deste olmayan belge talimatin bedelini odememeli');
+});
+
+test('talimat uc isi de istiyor', () => {
+  // Geri bildirimin uc maddesi: acmak, slayt secmek, formul/tablo.
+  const t = A.buildSlideDeckInstruction(true, 'slide');
+  assert.ok(/EXPAND, don't compress/.test(t), 'acma talimati yok');
+  assert.ok(/LONGER than/.test(t), 'ciktinin daha uzun olmasi gerektigi soylenmeli');
+  assert.ok(/JUDGE \w+s: skip/.test(t), 'slayt secme talimati yok');
+  assert.ok(/agenda/.test(t), 'atlanacak slayt tipleri sayilmali');
+  assert.ok(/GROUP the rest by topic/.test(t), 'konuya gore gruplama talimati yok');
+  assert.ok(/FORMULAS\/TABLES\/NUMBERS ARE THE LESSON/.test(t), 'formul/tablo/sayi talimati yok');
+  assert.ok(/name every variable/.test(t), 'degisken aciklamasi istenmeli');
+  // 09.10.2026: alti ampirik sonucun altisi da metindeydi, ozetler en fazla
+  // ucunu tasidi. Sayinin kendisi ve anlamlilik duzeyi acikca istenmeli.
+  assert.ok(/estimated value/.test(t), 'tahmin edilen deger istenmeli');
+  assert.ok(/significance level/.test(t), 'anlamlilik duzeyi istenmeli');
+  // Pay, olculen referans belgeyi (12.451 krk) bolmemeli.
+  assert.equal(13000 - A.DECK_PROMPT_CHARS, 12451,
+    'deste penceresi olculen referans belgeyi tam karsilamali');
+});
+
+test('canli pencere promptuna GERCEKTEN bagli', () => {
+  /* buildChunkSystemPrompt bu dosyada "NOT WIRED" olarak duruyor (satir
+     ~391). Talimati oraya eklemek hicbir ise yaramazdi — ilk denemede tam
+     bunu yaptim. Bu test bagin CANLI prompt'ta oldugunu dogruluyor. */
+  const i = SRC.indexOf('const compactWindowPrompt = (wi: number, total: number)');
+  assert.ok(i > -1, 'canli pencere promptu bulunamadi');
+  const blok = SRC.slice(i, i + 600);
+  assert.ok(/\$\{desteTalimati\}/.test(blok),
+    'deste talimati canli prompta baglanmamis');
+  // Ve pencere boyutu deste moduna gore daraltilmali.
+  assert.ok(/const WINDOW = deste\.isDeck \? 13000 - DECK_PROMPT_CHARS : 13000/.test(SRC),
+    'pencere deste modunda daraltilmiyor — tavan asilir');
+  // Tespit pencere basina bir kez, prompt icinde degil.
+  assert.ok(!/buildSlideDeckInstruction\(\s*detectSlideDeck/.test(SRC),
+    'tespit her prompt cagrisinda yeniden kosuyor');
+});
+
+
+console.log('\nPENCERE DENGESI VE COZUMLU ORNEK KAPISI\n');
+
+/* 08.10.2026, canli ekonometri destesi (42 slayt, 13.980 krk). */
+
+test('pencereler DENGELENIYOR, son pencere minik kalmiyor', () => {
+  /* Acgozlu doldurma su bolmeyi yapiyordu: 12.192 / 2.437. Ve ikinci
+     pencere terms=0 points=0 quiz=0 dondu — destenin son dort slaydi
+     oradaydi ve ampirik orneklerin TAMAMI orada yasiyor (Avrupa %9.3,
+     K.Amerika %41.5, log-log %0.69). Sinavda sorulacak sayilar kayboldu.
+
+     Minik pencere iki kez kotu: modele neredeyse hic baglam vermez ve yine
+     de tam bir cagri harcar. */
+  const metin = Array.from({ length: 42 }, (_, i) =>
+    `--- SAYFA ${i + 1} ---\n${'icerik '.repeat(45)}`).join('\n\n');
+  const w = A.splitIntoWindows(metin, 12451, 12);
+  assert.ok(w.length >= 2, 'bu metin birden fazla pencere gerektirmeli');
+  const enKucuk = Math.min(...w.map(x => x.length));
+  const enBuyuk = Math.max(...w.map(x => x.length));
+  assert.ok(enKucuk / enBuyuk >= 0.5,
+    `pencereler dengesiz: ${w.map(x => x.length).join(' / ')}`);
+});
+
+test('dengeleme pencere SAYISINI artirmiyor', () => {
+  // Her ek pencere ~60 sn pacer beklemesi demek (bkz. TokenPacer yorumlari).
+  // Dengeleme bedava olmali: ayni sayida cagri, farkli boyutlar.
+  for (const uzunluk of [14000, 20000, 30000, 45000]) {
+    const metin = Array.from({ length: Math.ceil(uzunluk / 350) }, (_, i) =>
+      `--- SAYFA ${i + 1} ---\n${'x'.repeat(330)}`).join('\n\n');
+    const kaba = A.kurPencereler(metin, 12451).length;
+    const dengeli = A.splitIntoWindows(metin, 12451, 12).length;
+    assert.ok(dengeli <= Math.min(kaba, 12),
+      `${uzunluk} krk: dengeleme ${kaba} pencereyi ${dengeli}'e cikardi`);
+  }
+});
+
+test('hicbir pencere maxChars i asmiyor', () => {
+  // Pencere token butcesi maxChars uzerinden hesaplaniyor; asan bir pencere
+  // pacer tavanini deler.
+  const metin = Array.from({ length: 80 }, (_, i) =>
+    `--- SAYFA ${i + 1} ---\n${'y'.repeat(400)}`).join('\n\n');
+  for (const w of A.splitIntoWindows(metin, 12451, 12)) {
+    assert.ok(w.length <= 12451, `pencere ${w.length} krk > 12451`);
+  }
+});
+
+test('tek pencerelik belge bolunmuyor', () => {
+  const kisa = '--- SAYFA 1 ---\n' + 'z'.repeat(3000);
+  assert.equal(A.splitIntoWindows(kisa, 12451, 12).length, 1);
+});
+
+const KAYNAK_ORNEK =
+  'Utility Bill vs. Temperature - Quadratic Regression ' +
+  'UtilityBill = 484.12 - 12.08temp + 0.09temp2 ' +
+  'The marginal effect at a temperature of 40 (evaluated at 39) is ' +
+  '-12.08 + 2(0.09)39 = -12.08 + 7.02 = -5.06 ' +
+  'the function reaches a minimum at temp = 67.11 degrees. ' +
+  'Interaction Term Worksheet y = 18.30 + 98x1 + 22.44x2 + 16.38x3 + 45x1x2 + 32x1x3 '.repeat(3);
+
+test('UYDURMA denklemli cozumlu ornek atiliyor', () => {
+  /* Grounding gate "score=100%, 0 dropped" derken kartta su vardi:
+       UtilityBill = 208.12 - 0.09*Temp + 0.0012*Temp^2
+     Kaynaktaki gercek denklem:
+       UtilityBill = 484.12 - 12.08*temp + 0.09*temp^2
+     Dort katsayidan ucu uydurma. Daha kotusu, ornegin VARDIGI sonuclar
+     (-5.06 ve 67.1) kaynaktaki dogru sonuclar — ama yazdigi denklemden
+     cikmiyorlar. Adimlari tekrar etmeye calisan ogrenci icin en kotu hata. */
+  const r = A.gateWorkedExamples([{
+    title: 'Utility Bill Quadratic Marginal Effect',
+    problem_statement: 'Given the estimated quadratic model UtilityBill = ' +
+      '208.12 - 0.09*Temp + 0.0012*Temp^2, compute the marginal effect at ' +
+      'Temp = 40 and Temp = 80.',
+  }], KAYNAK_ORNEK);
+  assert.equal(r.kept.length, 0, 'uydurma denklemli ornek atilmaliydi');
+  assert.ok(/sayi kaynakta yok/.test(r.dropped[0]), 'atilma sebebi yazilmali');
+});
+
+test('KAYNAKTAKI sayilarla yazilmis ornek korunuyor', () => {
+  // Kapi dar olmali: dogru ornegi atmak, uydurmayi birakmaktan daha kotu.
+  const r = A.gateWorkedExamples([
+    { title: 'Dogru', problem_statement: 'Given UtilityBill = 484.12 - 12.08*temp + 0.09*temp^2, find the minimum.' },
+    { title: 'Worksheet', problem_statement: 'Given y = 18.30 + 98x1 + 22.44x2 + 16.38x3, find the Ranch intercept.' },
+  ], KAYNAK_ORNEK);
+  assert.equal(r.kept.length, 2, `dogru ornekler atildi: ${r.dropped.join(' | ')}`);
+});
+
+test('KUCUK ONDALIKLARDA yuvarlama toleransi yok', () => {
+  /* sourceNumbers her degerin yuvarlanmisini da kumeye koyuyor. Ama 0.0012
+     yuvarlaninca 0 oluyor ve her metinde 0 vardir — yani kucuk ondalikli
+     her uydurma sayi "dayanakli" cikardi. Ilk yazimda kapi gercek uydurma
+     ornegi tam bu yuzden kacirdi. */
+  const r = A.gateWorkedExamples([{
+    title: 'Kucuk ondalik',
+    problem_statement: 'Given a = 0.0012 and b = 0.0034 and c = 0.0056, compute.',
+  }], KAYNAK_ORNEK);
+  assert.equal(r.kept.length, 0, 'kucuk ondalikli uydurma sayilar yakalanmali');
+});
+
+test('sayi tasimayan ornege dokunulmuyor', () => {
+  const r = A.gateWorkedExamples([
+    { title: 'Kavramsal', problem_statement: 'Explain why one category must be omitted.' },
+    { title: 'Bos', problem_statement: '' },
+  ], KAYNAK_ORNEK);
+  assert.equal(r.kept.length, 2);
+  assert.deepEqual(r.dropped, []);
+});
+
+test('kaynak yoksa kapi sessiz', () => {
+  const ornekler = [{ title: 'X', problem_statement: 'Given 208.12 and 0.0012.' }];
+  assert.equal(A.gateWorkedExamples(ornekler, '').kept.length, 1);
+  assert.equal(A.gateWorkedExamples(ornekler, 'kisa').kept.length, 1);
+});
+
+test('kapi BORU HATTINA bagli', () => {
+  // Fonksiyonu yazip cagirmamak, bu oturumda bir kez yapildi
+  // (buildChunkSystemPrompt NOT WIRED).
+  assert.ok(/gateWorkedExamples\(parsedContent\.worked_examples, extractedText\)/.test(SRC),
+    'cozumlu ornek kapisi cagrilmiyor');
+  // 09.10.2026: dayanak kapisinin ciktisi once adim normallestirme ve
+  // aritmetik kapisindan geciyor, karta o yaziliyor.
+  assert.ok(/gateWorkedExampleArithmetic\(normalizeWorkedExamples\(ornekKapi\.kept\)\)/.test(SRC),
+    'dayanak kapisinin sonucu aritmetik kapisina gitmiyor');
+  assert.ok(/parsedContent\.worked_examples = aritmetikKapi\.kept/.test(SRC),
+    'kapinin sonucu geri yazilmiyor');
+});
+
+
+console.log('\nLATEX TERS BOLU ONARIMI (JSON)\n');
+
+/* 08.10.2026, canli ekonometri destesi. Ozetin bolum maddeleri PDF'te
+   formulun ortasinda kesiliyordu:
+     - Quadratic model: (y =
+     - Log-linear: (ln y =
+
+   Once PDF yolunu suclu sandim; yerel bir testle hipotezi CURUTTUM (ham
+   ters bolu PDF'i kesmiyor). Kesilme VERIDE: prompt modelden "valid raw
+   LaTeX ONLY" istiyor, model JSON dizesine \beta_0 yaziyor, JSON'da ise
+   \b GERI SILME karakteri. Hata yok, JSON gecerli, dize bozuk. */
+
+const parse = (ham) => JSON.parse(A.repairLatexEscapes(ham));
+
+test('JSON KACISLARIYLA CAKISAN LaTeX komutlari korunuyor', () => {
+  // Hepsi bu uygulamanin en cok kullandigi semboller.
+  const vakalar = [
+    ['\\beta',  '{"p":"y = \\beta_0 + \\beta_1 x"}',      'y = \\beta_0 + \\beta_1 x'],
+    ['\\frac',  '{"p":"\\frac{dy}{dx}"}',                  '\\frac{dy}{dx}'],
+    ['\\theta', '{"p":"\\theta ve \\times ve \\tau"}',     '\\theta ve \\times ve \\tau'],
+    ['\\rho',   '{"p":"\\rho katsayisi"}',                 '\\rho katsayisi'],
+    ['\\bar',   '{"p":"\\bar{x} ortalama"}',               '\\bar{x} ortalama'],
+  ];
+  for (const [ad, ham, beklenen] of vakalar) {
+    assert.equal(parse(ham).p, beklenen, `${ad} korunmadi`);
+    // Ve onarim OLMADAN gercekten bozuldugunu da dogrula — yoksa bu test
+    // "zaten calisiyordu" diye bos yere yesil gecer.
+    assert.ok(/[\u0000-\u001f]/.test(JSON.parse(ham).p),
+      `${ad}: onarimsiz hali bozulmuyorsa bu testin koruduğu bir sey yok`);
+  }
+});
+
+test('GECERSIZ kacis sert ayristirma hatasini da duzeltiyor', () => {
+  // \( ve \) JSON'da gecersiz: onarim olmadan JSON.parse PATLIYOR.
+  const ham = '{"p":"Inline \\(y = x\\) math"}';
+  assert.throws(() => JSON.parse(ham), SyntaxError);
+  assert.equal(parse(ham).p, 'Inline \\(y = x\\) math');
+});
+
+test('GERCEK satir sonu bozulmuyor', () => {
+  /* \n bilerek disarida: duz metinde satir sonu mesru ve sik. Onu da LaTeX
+     saymak gercek satir sonlarini bozardi. Bedeli \nu ve \nabla'nin bozuk
+     kalmasi — ikisi de bu derslerde nadir, satir sonu her yerde. */
+  assert.equal(parse('{"p":"satir1\\nsatir2"}').p, 'satir1\nsatir2');
+  assert.equal(parse('{"p":"a\\tb"}').p, 'a\tb', 'tek harfli \\t sekme kalmali');
+});
+
+test('unicode kacisi ve normal kacislar korunuyor', () => {
+  assert.equal(parse('{"p":"\\u00e9cole"}').p, 'école');
+  assert.equal(parse('{"p":"tirnak: \\" ve ters bolu: \\\\"}').p, 'tirnak: " ve ters bolu: \\');
+});
+
+test('DIZE DISINDAKI yapiya dokunulmuyor', () => {
+  const ham = '{"a":[1,2],"b":{"c":true},"d":null,"e":"\\beta"}';
+  const o = parse(ham);
+  assert.deepEqual(o.a, [1, 2]);
+  assert.equal(o.b.c, true);
+  assert.equal(o.d, null);
+  assert.equal(o.e, '\\beta');
+});
+
+test('onarim HER ayristirma noktasina bagli', () => {
+  // Bes ayri yerde JSON.parse var; birini unutmak hatanin bir kismini
+  // canli birakirdi.
+  const cagri = (SRC.match(/JSON\.parse\(repairLatexEscapes\(/g) || []).length;
+  assert.ok(cagri >= 5, `yalnizca ${cagri} ayristirma noktasi onariliyor`);
+  // Onarimdan gecmeyen cagri kalmamali (vision ve kucuk yardimcilar haric
+  // tutulmuyor: hepsi model ciktisi ayristiriyor).
+  const toplam = (SRC.match(/JSON\.parse\(/g) || []).length;
+  assert.ok(cagri >= toplam - 3,
+    `${toplam} JSON.parse var, yalnizca ${cagri} onariliyor`);
+});
+
+
+test('GECERLI JSON asla bozulmuyor (fuzz)', () => {
+  /* 09.10.2026 CANLI REGRESYON — bu testin dogdugu yer.
+
+     Ilk surumum gecerli bir kaciste yalnizca ters boluyu yaziyor, ikinci
+     karakteri bir sonraki turda BAGIMSIZ isliyordu:
+       \"  -> tirnak dize sonu sanildi, "dize icinde miyim" bilgisi kaydi
+       \\  -> ikinci ters bolu YENI bir kacis sanildi
+     Bundan sonra gercek gecersiz kacislar onarilmadan geciyordu ve canli
+     sonuc, ONARMASI gereken hatanin ta kendisiydi:
+       "Window 1 attempt 1 failed: Bad escaped character in JSON"
+     Bir kosuda BUTUN pencereler dustu; ozet son care olarak ilk 5.000
+     karakterden cikarildi ve belirgin sekilde zayif geldi.
+
+     Elle yazilmis vakalar bunu KACIRDI: iki kacisli tirnak durumu cift
+     sayida cevirip tesadufen duzeltiyor, yani testlerim yesil geciyordu.
+     Hatayi fuzz buldu — 4.000 girdinin 446'si. Bu yuzden fuzz kaliyor. */
+  const parcalar = ['abc', ' ', '\\"alinti\\"', '\\\\', 'x', ' = ',
+    '\\n', '\\t', '1,2', '(', ')', '\\u00e9', '\\beta_0', '\\frac{a}{b}'];
+  let bozuk = 0;
+  const ornekler = [];
+  // Tohumlu: her kosuda ayni dizi, yani bir hata tekrar uretilebilir.
+  let tohum = 20261009;
+  const rnd = () => (tohum = (tohum * 1103515245 + 12345) % 2147483648) / 2147483648;
+
+  for (let n = 0; n < 3000; n++) {
+    let icerik = '';
+    const uzunluk = 1 + Math.floor(rnd() * 6);
+    for (let i = 0; i < uzunluk; i++) icerik += parcalar[Math.floor(rnd() * parcalar.length)];
+    const ham = `{"p":"${icerik}"}`;
+
+    let beklenen;
+    try { beklenen = JSON.parse(ham).p; } catch (_e) { continue; }  // zaten gecersiz
+    let sonuc;
+    try { sonuc = JSON.parse(A.repairLatexEscapes(ham)).p; }
+    catch (e) { bozuk++; if (ornekler.length < 3) ornekler.push(`${ham} → ${e.message}`); continue; }
+
+    // Kontrol karakteri iceren beklenen deger ZATEN bozulmus demektir
+    // (\beta -> U+0008); onarim onu duzelttigi icin fark normal.
+    if (sonuc !== beklenen && !/[\u0000-\u001f]/.test(beklenen)) {
+      bozuk++;
+      if (ornekler.length < 3) ornekler.push(`${ham}\n    beklenen: ${JSON.stringify(beklenen)}\n    sonuc   : ${JSON.stringify(sonuc)}`);
+    }
+  }
+  assert.equal(bozuk, 0,
+    `${bozuk}/3000 gecerli JSON girdisi bozuldu:\n  ${ornekler.join('\n  ')}`);
+});
+
+test('KACIS IKI KARAKTER olarak tuketiliyor', () => {
+  // Fuzz'in buldugu hatanin birebir en kucuk hali.
+  const ham = '{"p":"\\\\( 1,2"}';          // kacisli ters bolu + "(" 
+  assert.doesNotThrow(() => JSON.parse(A.repairLatexEscapes(ham)));
+  assert.equal(JSON.parse(A.repairLatexEscapes(ham)).p, '\\( 1,2');
+  // Tek sayida kacisli tirnak: durum bilgisi kaymamali.
+  const tek = '{"p":"dedi \\"merhaba, \\beta_0 ile"}';
+  assert.doesNotThrow(() => JSON.parse(A.repairLatexEscapes(tek)));
+  assert.ok(JSON.parse(A.repairLatexEscapes(tek)).p.includes('\\beta_0'),
+    'tirnaktan SONRAKI LaTeX onarilmali');
+});
+
+
+console.log('\nSAYISAL KAPSAMA OLCUSU\n');
+
+/* 09.10.2026. Ekonometri destesinin (42 slayt) alti ampirik sonucu tasiyan
+   slaytlari, pdftotext ciktisindan BIREBIR. Hepsi metinde — gorsel
+   gerektirmiyor. Dort canli ozet bunlarin en fazla 3'unu tasidi. */
+const DESTE_SONUCLARI = `
+--- SLAYT 13 ---
+Excel Example
+On average, if GDP per capita increases by $1000 US dollars, energy consumption
+per capita increases by .07 tons. This is statistically significant at the 10% level.
+7-13
+--- SLAYT 28 ---
+Utility Bill vs. Temperature – Quadratic Regression
+UtilityBill = 484.12 - 12.08 temp + 0.09 temp2
+When a quadratic relationship is fit between utility bill and monthly temperature
+the linear and quadratic terms are now statistically significant at the 1% level.
+7-28
+--- SLAYT 38 ---
+This slope coefficient on gdppc is interpreted as, "on average, if GDP per capita
+increases by $1000 then energy consumption per capita goes up by (0.026)100% or 2.6%."
+7-38
+--- SLAYT 39 ---
+energy consumption per capita is 50.5% higher in Europe than South America.
+energy consumption per capita is 56.6% higher in North America than South America.
+7-39
+--- SLAYT 41 ---
+if GDP per capita increases by 1% then energy consumption per capita goes up by .69%.
+7-41
+--- SLAYT 42 ---
+energy consumption per capita is 9.3% lower in Europe than South America.
+capita is 41.5% higher in North America than South America.
+7-42
+`;
+
+test('ayirt edici sayilar: ondalik ya da >=100; kucuk tam sayi, yil ve isaret YOK', () => {
+  const s = A.distinctiveNumbers(DESTE_SONUCLARI);
+  for (const v of [0.07, 484.12, 12.08, 0.09, 0.026, 2.6, 50.5, 56.6, 0.69, 9.3, 41.5, 1000]) {
+    assert.ok(s.includes(v), `${v} olcuye girmeli`);
+  }
+  // "%10", "%1", slayt numarasi, "7-13" altbilgisi: her metinde var, hicbir sey olcmez.
+  for (const v of [10, 1, 13, 28, 7, 2]) {
+    assert.ok(!s.includes(v), `${v} olcuye girmemeli`);
+  }
+  // Yil gibi duran tam sayilar disarida.
+  assert.deepEqual(A.distinctiveNumbers('GDP 1900-2014 arasinda, 2024 yilinda'), []);
+  // Sayfa isaretinin kendisi olcuye girmemeli (100+ sayfali belge).
+  assert.deepEqual(A.distinctiveNumbers('--- SAYFA 140 ---\nmetin'), []);
+  assert.deepEqual(A.distinctiveNumbers('--- SLAYT 212 ---\nmetin'), []);
+});
+
+test('bastaki noktali ondalik okunuyor: ".07 tons" = 0.07, 7 DEGIL', () => {
+  // Referans destenin alti sonucundan ikisi (slayt 13 ve 41) bu bicimde.
+  // Rakamla baslayan bir desen bunlari 7 ve 69 okur ve olcuden dusurur.
+  assert.deepEqual(A.distinctiveNumbers('increases by .07 tons'), [0.07]);
+  assert.deepEqual(A.distinctiveNumbers('goes up by .69%.'), [0.69]);
+  assert.equal(A.numericCoverage('by .69%', 'yaklasik %0,69 artar').kept, 1);
+  assert.equal(A.numericCoverage('by .69%', 'yaklasik 0.69% artar').kept, 1);
+});
+
+test('mutlak degere gore tekil ve ILK GORULDUGU SIRADA', () => {
+  // Cikaricilar eksi isaretini kaybediyor; "12.08 kayboldu mu" isaretten bagimsiz.
+  assert.deepEqual(A.distinctiveNumbers('b = -12.08 ve sonra 12.08, sonra 3.5'), [12.08, 3.5]);
+});
+
+test('kaynak tarafi binlik ayraci TEK okur — hayali 1.5 uretmez', () => {
+  assert.deepEqual(A.distinctiveNumbers('fiyat 1,500 dolar'), [1500]);
+  // Ayracli yazilmis bir tutar yil sayilmamali; ayracsiz dort hane sayilir.
+  assert.deepEqual(A.distinctiveNumbers('1,800 dolar, 1800 yilinda'), [1800]);
+  assert.deepEqual(A.distinctiveNumbers('1800 yilinda'), []);
+  // Turkce ondalik virgul kaynakta da okunur (Ingilizce okuma NaN veriyor).
+  assert.deepEqual(A.distinctiveNumbers('katsayi 12,08 oldu'), [12.08]);
+});
+
+test('ozet tarafi Turkce ondalik virgulu okur (%2,6 = 2.6)', () => {
+  const cov = A.numericCoverage('artis 2.6% ve katsayi 12.08', { summary: 'artış %2,6; katsayı 12,08' });
+  assert.equal(cov.kept, 2, `Turkce yazilan sayilar kayip sayildi: ${JSON.stringify(cov)}`);
+});
+
+test('GORELI tolerans: 484 kabul, 0.03 RED, 0 RED (sifira yuvarlama tuzagi)', () => {
+  // Model okudugunu yuvarlar — okunmus deger yine okunmustur.
+  assert.equal(A.numericCoverage('b0 = 484.12', 'yaklasik 484').kept, 1);
+  assert.equal(A.numericCoverage('pay 41.5%', 'pay 42%').kept, 1);
+  // 0.026 icin 0.03 yuzde 15 uzak: bu baska bir sayi.
+  assert.equal(A.numericCoverage('egim 0.026', 'egim 0.03').kept, 0);
+  // gateWorkedExamples'ta dusulen tuzak: 0.0012 -> 0, ve her metinde 0 var.
+  assert.equal(A.numericCoverage('p = 0.0012', 'toplam 0 hata, 10 madde').kept, 0);
+});
+
+test('footnotes SAYILMAZ — kaynaktan birebir alinti, ogretilen icerik degil', () => {
+  const cikti = {
+    summary: 'Log-log modelde esneklik yorumlanir.',
+    footnotes: [{ quote: 'goes up by .69%', page: 41 }]
+  };
+  const cov = A.numericCoverage('goes up by .69%', cikti);
+  assert.equal(cov.kept, 0, 'yalnizca dipnotta gecen sayi ozete ulasmis sayilmamali');
+  assert.deepEqual(cov.missing, [0.69]);
+});
+
+test('canli deste: dort ozetin SIRASINI yeniden uretiyor', () => {
+  /* Dort canli ozetten, bu alti sonuca dair gercekte tasinan ifadeler.
+     out_3 ("asiri zayif" kosusu) hicbirini tasimiyordu, out_2 (en iyisi)
+     log-dogrusal 0.026/2.6 ve kukla 9.3/41.5'i tasiyordu. */
+  const enIyi = {
+    key_points: [
+      'Log-linear: Europe coefficient = -0.093 (9.3% lower consumption), North America = 0.415 (41.5% higher).',
+      'A coefficient of 0.026 means energy per capita rises by about 2.6% per $1,000.'
+    ]
+  };
+  const zayif = {
+    key_points: ['Log-log model: both sides in logs, coefficient is an elasticity.']
+  };
+  const a = A.numericCoverage(DESTE_SONUCLARI, enIyi);
+  const b = A.numericCoverage(DESTE_SONUCLARI, zayif);
+  assert.ok(a.kept > b.kept, `en iyi ozet ${a.kept}, zayif ozet ${b.kept} — siralama tutmali`);
+  assert.equal(b.kept, 0);
+  assert.equal(a.kept, 5, `en iyi ozet: 1000, 0.026, 2.6, 9.3, 41.5 — bulunan ${a.kept}`);
+  // Kayip listesi kaynaktaki sirayla: slayt 13'un "$1000"'u ve ".07"si once.
+  assert.deepEqual(b.missing.slice(0, 2), [1000, 0.07]);
+});
+
+test('log satiri: oran ve kayip ornekleri, fazlasi sayi olarak', () => {
+  const satir = A.formatCoverage(A.numericCoverage(DESTE_SONUCLARI, {}));
+  assert.ok(/^0\/13 \(%0\) — kayip: 1000, 0\.07, 484\.12, 12\.08, 0\.09, 0\.026, 100, 2\.6 \+5$/.test(satir), satir);
+  assert.ok(/\+\d+$/.test(satir), `ornek sayisi asildiginda kalan sayi yazilmali: ${satir}`);
+  assert.equal(A.formatCoverage(A.numericCoverage('yalnizca 3 ve 5', {})),
+    'olculecek ayirt edici sayi yok');
+  assert.equal(A.formatCoverage({ total: 2, kept: 2, missing: [] }), '2/2 (%100)');
+});
+
+test('buyuk belgede hizli (ikili arama)', () => {
+  const kaynak = Array.from({ length: 4000 }, (_, i) => `${i}.${(i * 7) % 100 + 1}`).join(' ');
+  const ozet = { s: Array.from({ length: 20000 }, (_, i) => `${i}.5`).join(' ') };
+  const t0 = Date.now();
+  const cov = A.numericCoverage(kaynak, ozet);
+  const sure = Date.now() - t0;
+  assert.ok(cov.total > 3000, `olcu kurulmadi: ${cov.total}`);
+  assert.ok(sure < 1500, `${sure} ms — edge function suresine yuk olmamali`);
+});
+
+/* Kaynaktaki yorumlar test edilen kaliplari icerebiliyor (bu projede dort
+   kez oldu) — baglanti testleri yorumsuz kopyaya bakar. */
+const KAPSAMA_KOD = SRC.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+test('uc asamada da LOGLANIYOR: pencere, birlesim, son kart', () => {
+  assert.ok(/sayisal kapsama: \$\{formatCoverage\(numericCoverage\(windows\[wi\], result\)\)\}/.test(KAPSAMA_KOD),
+    'pencere kendi dilimine karsi olculmuyor');
+  assert.ok(/Birlesim sayisal kapsama: \$\{formatCoverage\(numericCoverage\(extractedText, mergedDraft\)\)\}/.test(KAPSAMA_KOD),
+    'birlesim olculmuyor');
+  assert.ok(/numericCoverage\(extractedText, cardPayload\)/.test(KAPSAMA_KOD),
+    'son kart olculmuyor');
+});
+
+test('son kart olcusu INSERT\'TEN ONCE ve quality_meta\'ya yaziliyor', () => {
+  const olcu = KAPSAMA_KOD.indexOf('numericCoverage(extractedText, cardPayload)');
+  const insert = KAPSAMA_KOD.indexOf(".from('study_cards').insert(cardPayload)");
+  const payload = KAPSAMA_KOD.indexOf('const cardPayload');
+  assert.ok(payload > -1 && olcu > payload, 'olcu cardPayload kurulmadan once');
+  assert.ok(insert > olcu, 'olcu insert\'ten sonra — karta hic girmez');
+  assert.ok(/qualityMeta\.numeric_coverage = \{ kept: kapsama\.kept, total: kapsama\.total \}/.test(KAPSAMA_KOD),
+    'kapsama karta yazilmiyor');
+  // quality_meta AYNI nesne olmali; kopya olsaydi eklenen alan insert'e girmezdi.
+  assert.ok(/quality_meta: qualityMeta\b/.test(KAPSAMA_KOD), 'quality_meta referansla baglanmamis');
+});
+
+
+console.log('\nDENKLEM SAYFALARI: KOORDINATTAN YENIDEN DIZIM\n');
+
+/* 09.10.2026. Fikstur, ekonometri destesinin (ve iki matematiksiz belgenin)
+   pdf.js metin ogeleri — unpdf'in edge function'da kullandigi getTextContent
+   ciktisinin birebir dokumu. Eski cikarimda 29. slayt modele soyle gidiyordu:
+     "2 t09.0t08.1212.484 empemplUtilityBil"
+   ve model katsayilari UYDURDU (β1 = −9.0, β2 = 0.1212). */
+const DENKLEM = JSON.parse(require('fs').readFileSync(
+  require('path').join(__dirname, 'fixtures/denklem-sayfalari.json'), 'utf8'));
+
+test('KOK NEDEN belgeli: akis sirasinda tahmin denklemi okunmuyor', () => {
+  const akis = A.streamPageText(DENKLEM['ekonometri-29']);
+  assert.ok(!/484\.12/.test(akis), 'akis metninde 484.12 bitisik okunmamaliydi — fikstur degismis');
+  assert.ok(A.countMathPua(akis) >= A.MATH_PUA_MIN, 'denklem sayfasi matematik PUA tasimali');
+});
+
+test('29. slayt: tahmin denklemi ve marjinal etki hesabi okunur hale geliyor', () => {
+  const r = A.chooseEquationPageText(DENKLEM['ekonometri-29']);
+  assert.ok(r.rebuilt, 'yeniden dizilmedi');
+  assert.ok(r.text.includes('UtilityBill = 484.12 − 12.08temp + 0.09temp^2'), r.text.slice(0, 300));
+  assert.ok(r.text.includes('-12.08 + 2(0.09)39 = − 12.08 + 7.02 = − 5.06'), 'marjinal etki satiri');
+  assert.ok(r.text.includes('-12.08 + 2(0.09)79 = − 12.08 + 14.22 = 2.14'), '80 derece satiri');
+  assert.equal(A.countMathPua(r.text), 0, 'PUA kalmamali');
+});
+
+test('17. slayt: etkilesim denklemi soldan saga, alt simgeli', () => {
+  const r = A.chooseEquationPageText(DENKLEM['ekonometri-17']);
+  assert.ok(r.text.includes('\u0177 = 18.30 + 98x_1 + 22.44x_2 + 16.38x_3 + 45x_1 x_2 + 32x_1 x_3'), r.text);
+});
+
+test('10. slayt: yan kutu denklem satirlarina karismiyor (XY-cut sutunu once ayirir)', () => {
+  const t = A.chooseEquationPageText(DENKLEM['ekonometri-10']).text;
+  const denklem = t.indexOf('\u0177 = 20.43 + 0.045Sqfeet + 23.53Ranch + 18.84Split');
+  const kutu = t.indexOf('With the same square feet');
+  assert.ok(denklem > -1, 'tahmin denklemi yok');
+  assert.ok(kutu > denklem, 'aciklama kutusu denklemin ortasina girmis');
+  // Kutunun cumlesi tek parca kalmali.
+  assert.ok(/ranch will have an estimated\naverage price of 23\.53 thousand/.test(t), 'kutu metni bolunmus');
+});
+
+test('30. slayt: donum noktasi sayisi ve sapkali katsayilar', () => {
+  const t = A.chooseEquationPageText(DENKLEM['ekonometri-30']).text;
+  assert.ok(/= β̂_1 \+ 2β̂_2 x_j = 0/.test(t), 'turev = 0 satiri');
+  assert.ok(/67\.11/.test(t));
+});
+
+test('matematiksiz sayfa YENIDEN DIZILMEZ — yalnizca madde isaretleri okunur', () => {
+  for (const k of ['muhasebe-38', 'ekonomi-27']) {
+    const items = DENKLEM[k];
+    const r = A.chooseEquationPageText(items);
+    assert.equal(r.rebuilt, false, `${k} dizilmemeli`);
+    assert.equal(r.text, A.mapSymbolPua(A.streamPageText(items)), `${k}: akis sirasi korunmali`);
+  }
+  assert.ok(A.chooseEquationPageText(DENKLEM['muhasebe-38']).text.includes('• FIFO assigns'),
+    'Wingdings madde isareti "•" olmali');
+  // Tek bir eksi isareti (yil araligi) sayfayi dizmeye yetmez ama okunur.
+  assert.ok(A.chooseEquationPageText(DENKLEM['ekonomi-27']).text.includes('2008 I−2009 II'));
+});
+
+test('PUA haritasi: Symbol operatorleri ve Yunan harfleri', () => {
+  assert.equal(A.mapSymbolPua('y   x  1'), 'y = β+ x − 1');
+  assert.equal(A.mapSymbolPua('y/x'), '∂y/∂x');
+  assert.equal(A.mapSymbolPua(' Raw materials'), '• Raw materials');
+  // Madde isareti matematik sayilmaz.
+  assert.equal(A.countMathPua(' Raw materials\n Work in process'), 0);
+});
+
+test('PDF cikarimi BORU HATTINA bagli, hata halinde eski yola duser', () => {
+  assert.ok(/const res = await extractPdfPagesWithEquations\(pdf\)/.test(SRC), 'yeniden dizim cagrilmiyor');
+  assert.ok(/pdfPages = text\.map\(mapSymbolPua\)/.test(SRC), 'yedek yol PUA haritasini uygulamiyor');
+});
+
+
+console.log('\nFORMUL TEKRARI VE CIFT TERS BOLU\n');
+
+test('ayni denklem farkli adla iki kez gelmez (x ve x_j ayni)', () => {
+  const r = A.sanitizeFormulas([
+    { name: 'Quadratic regression', latex: 'y = \\beta_0 + \\beta_1 x + \\beta_2 x^2 + \\varepsilon' },
+    { name: 'Quadratic (non-linear) model', latex: 'y = \\beta_0 + \\beta_1 x_j + \\beta_2 x_j^2 + \\epsilon' },
+    { name: 'Quadratic regression function', latex: '\\(y=\\beta_{0}+\\beta_{1}x+\\beta_{2}x^{2}+\\varepsilon\\)' }
+  ]);
+  assert.equal(r.formulas.length, 1, JSON.stringify(r.formulas.map(f => f.name)));
+  assert.equal(r.duplicates, 2);
+});
+
+test('rakam alt simgeleri FARKLI degiskenler — birlestirilmez', () => {
+  const r = A.sanitizeFormulas([
+    { name: 'Dummy model', latex: 'y = \\beta_0 + \\beta_1 x_1 + \\beta_2 x_2 + \\varepsilon' },
+    { name: 'Interaction', latex: 'y = \\beta_0 + \\beta_1 x_1 + \\beta_2 x_2 + \\beta_3 x_1 x_2 + \\varepsilon' },
+    { name: 'Cubic', latex: 'y = \\beta_0 + \\beta_1x + \\beta_2x^2 + \\beta_3x^3 + \\varepsilon' }
+  ]);
+  assert.equal(r.formulas.length, 3);
+});
+
+test('cift kacisli komut onariliyor, gercek satir sonu korunuyor', () => {
+  // Canli PDF: "y=\β₀+\∑ⱼ₌₁^k..." — model "\\beta" yazmisti.
+  const r = A.sanitizeFormulas([
+    { name: 'General polynomial', latex: 'y=\\\\beta_0+\\\\sum_{j=1}^k\\\\beta_jx_j + \\\\cdots' },
+    { name: 'Two lines', latex: 'a = b \\\\ c = d' }
+  ]);
+  assert.equal(r.formulas[0].latex, 'y=\\beta_0+\\sum_{j=1}^k\\beta_jx_j + \\cdots');
+  assert.equal(r.formulas[1].latex, 'a = b \\\\ c = d');
+});
+
+
+console.log('\nCOZUMLU ORNEK: ADIMLAR VE ARITMETIK\n');
+
+/* Iki canli ozetin ayni "Utility Bill" ornegi, birebir. Katsayilar uydurma,
+   sonuclar kaynaktan kopya — aritmetik tutmuyor. */
+const UYDURMA_ORNEK = {
+  title: 'Utility Bill vs. Temperature – Quadratic Regression',
+  problem_statement: 'Fit a quadratic regression ... compute marginal effects at 40°F and 80°F.',
+  steps: ['1. Estimate model: UtilityBill = β0 + β1 Temp + β2 Temp^2 + ε. 2. Obtain coefficients: β1 = -9.0, β2 = 0.1212. 3. Compute marginal effect: dY/dTemp = β1 + 2β2 Temp. 4. At Temp=40: dY/dTemp = -9.0 + 2(0.1212)(40) = -5.06. 5. At Temp=80: dY/dTemp = -9.0 + 2(0.1212)(80) = 2.14.'],
+  final_answer: 'At 40°F the bill decreases by $5.06 per degree; at 80°F it increases by $2.14 per degree.'
+};
+const DOGRU_ORNEK = {
+  title: 'Utility bill: marginal effects',
+  problem_statement: 'UtilityBill = 484.12 − 12.08temp + 0.09temp^2',
+  steps: [
+    'Marginal effect: -12.08 + 2(0.09)temp',
+    'At 39: -12.08 + 2(0.09)39 = − 12.08 + 7.02 = − 5.06',
+    'At 79: -12.08 + 2(0.09)79 = − 12.08 + 14.22 = 2.14',
+    'Minimum: temp = −(−12.08)/(2(.09)) = 67.11',
+    'Bill there: 484.12 - 12.08(67.11) + 0.09(67.11)^2 = 484.12 - 810.69 + 405.34 = 78.77'
+  ],
+  final_answer: '−$5.06 per °F near 40°F, +$2.14 near 80°F; lowest bill ≈ $78.77 at 67.11°F.'
+};
+
+test('tek dizgiye sikismis adimlar ayriliyor, numaralar siliniyor', () => {
+  const s = A.normalizeExampleSteps(UYDURMA_ORNEK.steps);
+  assert.equal(s.length, 5, JSON.stringify(s));
+  assert.equal(s[0], 'Estimate model: UtilityBill = β0 + β1 Temp + β2 Temp^2 + ε.');
+  assert.ok(s.every(x => !/^\d+\.\s/.test(x)), 'basta numara kalmamali ("1. 1." hatasi)');
+});
+
+test('her adim kendi numarasini tasiyorsa da tek numara kalir', () => {
+  const s = A.normalizeExampleSteps(['1. Fit model: x.', '2. Obtain estimates: β1 = -9.0.', 'Step 3: Interpret.']);
+  assert.deepEqual(s, ['Fit model: x.', 'Obtain estimates: β1 = -9.0.', 'Interpret.']);
+});
+
+test('metin icindeki ondalik ya da tek "2." bolme noktasi degil', () => {
+  assert.deepEqual(A.normalizeExampleSteps(['Plug in 2. 5 values then 3. done']),
+    ['Plug in 2. 5 values then 3. done']);
+  assert.deepEqual(A.normalizeExampleSteps(['β2 = 0.1212. Then compute.']), ['β2 = 0.1212. Then compute.']);
+  assert.deepEqual(A.normalizeExampleSteps('tek dizge adim'), ['tek dizge adim']);
+  assert.deepEqual(A.normalizeExampleSteps([{ text: '1. Nesne adim' }]), ['Nesne adim']);
+});
+
+test('aritmetik: kaynagin kendi hesaplari TUTUYOR', () => {
+  for (const st of DOGRU_ORNEK.steps) {
+    const r = A.checkArithmetic(st);
+    assert.equal(r.failures.length, 0, `${st} → ${r.failures}`);
+  }
+  assert.equal(A.checkArithmetic('Holiday week: 300 - 30(5) + 15 = 300 - 150 + 15 = 165').checked, 2);
+  assert.equal(A.checkArithmetic('Per $1000: 0.0259 × 100% ≈ 2.6%').failures.length, 0);
+  // Onceki kelimeyle arasinda bosluk olan hesap DENETLENIR (sembolik degil).
+  assert.equal(A.checkArithmetic('ranch intercept 18.30 + 22.44 = 40.74, slope 98 + 45 = 143').checked, 2);
+});
+
+test('aritmetik: uydurma katsayilarin hesabi TUTMUYOR', () => {
+  const f1 = A.checkArithmetic('At Temp=40: dY/dTemp = -9.0 + 2(0.1212)(40) = -5.06.');
+  assert.equal(f1.failures.length, 1, JSON.stringify(f1));
+  assert.ok(/0\.696/.test(f1.failures[0]), 'hesaplanan deger raporlanmali');
+  const f2 = A.checkArithmetic('Find extremum: Temp* = -β1/(2β2) = 11.67/0.2424 ≈ 67.11 degrees.');
+  assert.equal(f2.failures.length, 1, '11.67/0.2424 = 48.1, 67.11 degil');
+});
+
+test('aritmetik: sembolik esitlik ve tek sayi atlanir', () => {
+  for (const t of ['x* = -β1/(2β2)', 'H0: β2 = 0', 'R² = 0.92 and F = 51.66', 'β1 + 2β2*39 = x']) {
+    assert.equal(A.checkArithmetic(t).checked, 0, t);
+  }
+  // Bosluklu iki sayi ortuk carpim degildir — denetlenmez, yanlis alarm vermez.
+  assert.equal(A.checkArithmetic('week 3 15 + 2 = 17').failures.length, 0);
+  assert.equal(A.evalArithmetic('2(0.09)39'), 0.09 * 2 * 39);
+  assert.equal(A.evalArithmetic('3 15 + 2'), null);
+});
+
+test('kapi: uydurma ornegi ATAR, dogru ornegi tutar', () => {
+  const r = A.gateWorkedExampleArithmetic(A.normalizeWorkedExamples([UYDURMA_ORNEK, DOGRU_ORNEK]));
+  assert.equal(r.kept.length, 1);
+  assert.equal(r.kept[0].title, DOGRU_ORNEK.title);
+  assert.equal(r.dropped.length, 1);
+  assert.ok(/Utility Bill/.test(r.dropped[0]));
+});
+
+
+console.log('\nREVIEW SORUNLARI VE DUZELTMELERI\n');
+
+/* Canli iki kosunun review maddeleri, birebir (logdan). */
+const CANLI_SORUNLAR = [
+  'The summary lacks an opening statement that clearly states the thesis.',
+  'Contains unsupported discussion of log‑linear and log‑log models; this portion is not in the source.',
+  'Hallucinated claim about elasticities and log‑linear models ',
+  'Potential missing explicit thesis statement at very start of summary'
+];
+const DESTE_METNI = DENKLEM_KAYNAK();
+function DENKLEM_KAYNAK() {
+  // Destenin log modeli slaytlarinin metni (36-42) ve basi — filtre icin yeterli.
+  return 'Learning Objectives Construct and use qualitative independent variables. ' +
+    'Estimate marginal effects as percent changes and elasticities. ' +
+    'Estimate Marginal Effects as Percent Changes and Elasticities. The models are estimated taking natural ' +
+    'logarithms of the dependent variable, the independent variable, or both. - Log-Linear Model - Log-Log Model. ' +
+    'Log – Linear Model The population regression function is specified as ln y = β0 + β1x1 + ε ' +
+    'Log – Log Model ln y = β0 + β1 ln x1 + ε In the log-log model β1 is an elasticity. ' +
+    'This slope coefficient on gdppc is interpreted as, on average, if GDP per capita increases by $1000 ' +
+    'then energy consumption per capita goes up by (0.026)100% or 2.6%.';
+}
+
+test('kaynakta GECEN konuyu "uydurma" diyen madde dusuyor, tez maddesi dusuyor', () => {
+  const r = A.filterReviewIssues(CANLI_SORUNLAR, DESTE_METNI);
+  assert.equal(r.kept.length, 0, JSON.stringify(r.kept));
+  assert.equal(r.dropped.length, 4);
+});
+
+test('GERCEK uydurma ve sayi hatasi maddeleri kaliyor', () => {
+  const r = A.filterReviewIssues([
+    'Mentions logistic regression and probit models, which the source does not cover.',
+    'Summary states R² is 0.95 but the source says 0.92.'
+  ], DESTE_METNI);
+  assert.equal(r.kept.length, 2, JSON.stringify(r.dropped));
+});
+
+test('critic suzulmus maddelerle calisiyor ve paragraf yapisini ezemiyor', () => {
+  assert.ok(/const suzulmus = filterReviewIssues\(qualityMeta\.issues, extractedText\)/.test(SRC),
+    'review maddeleri critic\'ten once suzulmuyor');
+  const suzme = SRC.indexOf('const suzulmus = filterReviewIssues(');
+  const critic = SRC.indexOf('const fixSys = `You fix a FAILED academic study brief');
+  assert.ok(suzme > -1 && critic > suzme, 'suzme critic\'ten SONRA');
+  assert.ok(/taslakParagraf >= 3 && paragraphCount\(fixedSummary\) < 2/.test(SRC), 'paragraf korumasi yok');
+  assert.equal(A.paragraphCount('a\n\nb\n\n\nc'), 3);
+  assert.equal(A.paragraphCount('tek blok'), 1);
+});
+
+test('duzeltme kaynaktaki icerigi SILEMEZ, uydurmayi silebilir', () => {
+  const metin = 'Dummies shift the intercept. Log-linear models read coefficients as percent changes, and in the log-log model the coefficient is an elasticity. Logistic regression and probit models handle binary outcomes in this chapter.';
+  const r = A.applyCorrections(metin, [
+    { find: 'Log-linear models read coefficients as percent changes, and in the log-log model the coefficient is an elasticity.', replace: '' },
+    { find: 'Logistic regression and probit models handle binary outcomes in this chapter.', replace: '' }
+  ], DESTE_METNI);
+  assert.ok(r.text.includes('Log-linear models read coefficients'), 'kaynakta gecen cumle silindi');
+  assert.ok(!r.text.includes('Logistic regression'), 'uydurma cumle silinmedi');
+  assert.equal(r.applied, 1);
+  assert.ok(r.skipped.some(x => /kaynakta gecen icerigi siliyor/.test(x)), JSON.stringify(r.skipped));
+});
+
+test('duzeltme yeniden YAZARSA (silmezse) gecer; idari gurultu silinebilir', () => {
+  const metin = 'In the log-log model the coefficient is an exact elasticity of 0.95. The midterm exam covers chapters 6 and 7.';
+  const r = A.applyCorrections(metin, [
+    { find: 'In the log-log model the coefficient is an exact elasticity of 0.95.', replace: 'In the log-log model the coefficient is an elasticity of 0.69.' },
+    { find: 'The midterm exam covers chapters 6 and 7.', replace: '' }
+  ], DESTE_METNI + ' The midterm exam covers chapters 6 and 7.');
+  assert.equal(r.applied, 2, JSON.stringify(r.skipped));
+  // Kaynak verilmezse (eski cagri bicimi) davranis degismez.
+  assert.equal(A.applyCorrections(metin, [{ find: 'The midterm exam covers chapters 6 and 7.', replace: '' }]).applied, 1);
+});
+
+test('review birlestirmesi kaynak metni duzeltme kapisina veriyor', () => {
+  assert.ok(/mergeReviewOntoDraft\(rawContent, reviewOut, extractedText\)/.test(SRC));
+  assert.ok(/applyCorrections\(draftSummary, review\.corrections, sourceText\)/.test(SRC));
+});
+
+
+console.log('\nPROMPTLAR: PENCERE, YAZAR, KULLANIM LOGU\n');
+
+test('pencere promptu: sayili bulgu, her denklem, uydurmasiz ornek, paralel tablo, hesap sorusu', () => {
+  for (const total of [1, 2]) {
+    const p = pencerePromptu(total, '');
+    assert.ok(/every reported result \(estimate, % change, significance\) is its own key_point WITH its numbers/.test(p), 'sayili key_point kurali');
+    assert.ok(/'formulas': EVERY equation/.test(p), 'her denklem kurali');
+    assert.ok(/never invent a coefficient; every "a = b" you write must compute; one action per steps item, no numbering/.test(p), 'ornek kurali');
+    assert.ok(/lined up as one table — every cell from/.test(p), 'paralel tablo kurali');
+    assert.ok(/at least half make the student calculate or read a number/.test(p), 'hesap sorusu kurali');
+  }
+});
+
+test('yazar formulleri ve aritmetigi tutan orneklerin sonuclarini goruyor', () => {
+  assert.ok(/const formulasBlock = \(Array\.isArray\(draftObj\.formulas\)/.test(SRC), 'formul blogu yok');
+  assert.ok(/const workedBlock = gateWorkedExampleArithmetic\(normalizeWorkedExamples\(draftObj\.worked_examples\)\)\.kept/.test(SRC),
+    'yazar aritmetigi tutmayan ornegin sonucunu gorebilir');
+  assert.ok(/Formulas \(cite the central ones inline, in plain text\):\n\$\{formulasBlock/.test(SRC));
+  assert.ok(/Worked results \(numbers you may state\):\n\$\{workedBlock/.test(SRC));
+});
+
+test('yazar BICIM kurali: paragraflar, kalin giris, sayilar, belge anlatimi yok', () => {
+  assert.ok(/Never one block of text/.test(SRC));
+  assert.ok(/Open each paragraph with a bold lead-in/.test(SRC));
+  assert.ok(/state them WITH their numbers/.test(SRC));
+  assert.ok(/Never narrate the document: no "This brief\/chapter presents…"/.test(SRC));
+});
+
+test('review rubrigi tez istemiyor', () => {
+  assert.ok(/never ask for one/.test(SRC));
+  assert.ok(!/A\) Thesis clarity/.test(SRC), 'eski tez maddesi duruyor');
+});
+
+test('pencere cagrilarinin gercek token harcamasi loglaniyor', () => {
+  assert.ok(/usageLabel: `Window \$\{wi \+ 1\}`/.test(SRC));
+  assert.ok(/if \(opts\.usageLabel && data\?\.usage\)/.test(SRC));
+  assert.ok(/SINIRA DAYANDI/.test(SRC), 'finish_reason=length gorunur olmali');
+});
+
+test('olcu: denklem nesnesinin 7+ haneli bozuk dizisi sayi sayilmaz', () => {
+  assert.deepEqual(A.distinctiveNumbers('3152143210 xxˆxxˆ ve 484.12'), [484.12]);
+});
+
+
+console.log('\nREDDEDILEN URETIMI KURTARMA (json_validate_failed)\n');
+
+/* 09.10.2026, canli kosu. Denklem sayfalari duzgun okunmaya baslayinca 1.
+   pencere (1-19. slaytlar) iki denemede de 400 json_validate_failed aldi;
+   ozetin yarisi karta hic girmedi ve ikinci deneme 60 sn pacer beklemesi
+   yiyip anlati yazarinin butcesini bitirdi. Groq reddettigi metni hata
+   govdesinde failed_generation olarak geri veriyor. */
+function groqHatasi(uretim) {
+  return {
+    error: {
+      message: "Failed to generate JSON. Please adjust your prompt. See 'failed_generation' for more details.",
+      type: 'invalid_request_error',
+      code: 'json_validate_failed',
+      failed_generation: uretim
+    }
+  };
+}
+
+test('LaTeX yuzunden reddedilen uretim onarilip ayristiriliyor', () => {
+  // Gecersiz JSON kacislari: \s (\sum), \h (\hat), \p (\partial), \( .
+  const ham = '{"summary":"Quadratic model.","formulas":[' +
+    '{"name":"Polynomial","latex":"y = \\beta_0 + \\sum_{j=1}^p \\beta_j x_j + \\varepsilon"},' +
+    '{"name":"Marginal effect","latex":"\\frac{\\partial \\hat y}{\\partial x_j} = \\hat\\beta_1 + 2\\hat\\beta_2 x_j"}]}';
+  assert.throws(() => JSON.parse(ham), 'fikstur zaten gecerli JSON — testin anlami kalmaz');
+  const r = A.salvageFailedGeneration(groqHatasi(ham));
+  assert.ok(r && typeof r === 'object', 'kurtarilamadi');
+  assert.equal(r.summary, 'Quadratic model.');
+  assert.equal(r.formulas.length, 2);
+  assert.ok(r.formulas[0].latex.includes('\\sum'), r.formulas[0].latex);
+  assert.ok(r.formulas[1].latex.includes('\\partial'), r.formulas[1].latex);
+});
+
+test('kod baska bir sey ya da uretim yoksa KURTARMA YOK', () => {
+  assert.equal(A.salvageFailedGeneration({ error: { code: 'rate_limit_exceeded', failed_generation: '{"a":1}' } }), null);
+  assert.equal(A.salvageFailedGeneration(groqHatasi('')), null);
+  assert.equal(A.salvageFailedGeneration(groqHatasi(undefined)), null);
+  assert.equal(A.salvageFailedGeneration({}), null);
+  // Onarim da kurtaramiyorsa (yarim kalmis JSON) hata yoluna donulur.
+  assert.equal(A.salvageFailedGeneration(groqHatasi('{"summary":"kesik')), null);
+  // JSON olmayan duz metin kurtarilmaz.
+  assert.equal(A.salvageFailedGeneration(groqHatasi('Bir ozet yazamadim.')), null);
+});
+
+test('```json sarmali ve <think> blogu soyuluyor', () => {
+  const r = A.salvageFailedGeneration(groqHatasi('```json\n{"summary":"x","latex":"\\alpha"}\n```'));
+  assert.equal(r.latex, '\\alpha');
+  const t = A.salvageFailedGeneration(groqHatasi('<think>dusunuyorum</think>{"summary":"y"}'));
+  assert.equal(t.summary, 'y');
+});
+
+test('kurtarma BORU HATTINA bagli: 400 atilmadan once deneniyor', () => {
+  const i = KAPSAMA_KOD.indexOf('const kurtarilan = salvageFailedGeneration(data)');
+  const j = KAPSAMA_KOD.indexOf('throw new Error(`Groq API error (${response.status})');
+  assert.ok(i > -1, 'kurtarma cagrilmiyor');
+  assert.ok(j > i, 'kurtarma hatadan SONRA — hic calismaz');
+  assert.ok(/if \(kurtarilan !== null\) \{[\s\S]{0,400}?return kurtarilan/.test(KAPSAMA_KOD),
+    'kurtarilan sonuc dondurulmuyor');
+});
+
+test('prompt JSON icinde ters bolunun IKI KEZ yazilmasini istiyor', () => {
+  for (const total of [1, 2]) {
+    const p = pencerePromptu(total, '');
+    const satir = p.split('\n').find(l => /backslash must be written TWICE/.test(l));
+    assert.ok(satir, 'kural yok');
+    // Modele GORUNEN ornek iki ters bolu tasimali; tek tersbolu ornegi
+    // kuralin kendisini curutur.
+    assert.ok(satir.includes('"\\\\beta_0"'), `ornek tek ters bolulu: ${satir}`);
+  }
+});
+
+test('anlati yazari kapisi OLCULUYOR, duz 35 sn degil', () => {
+  assert.ok(!/budgetLeft\(\) < 35_000/.test(KAPSAMA_KOD), 'duz 35 sn kapisi duruyor');
+  assert.ok(/const yazarBekleme = tokenPacer\.waitEstimate\(/.test(KAPSAMA_KOD), 'pacer sorulmuyor');
+  assert.ok(/const yazarGereken = yazarBekleme \+ WINDOW_CALL_MS/.test(KAPSAMA_KOD));
+  assert.ok(/budgetLeft\(\) < yazarGereken/.test(KAPSAMA_KOD), 'olculmus kapi kullanilmiyor');
+  // Ucuz taban yazarin kendi payindan buyuk olmamali.
+  assert.ok(/budgetLeft\(\) < NARRATIVE_WRITER_RESERVE_MS/.test(KAPSAMA_KOD), 'ucuz taban yok');
+});
+
+test('dusen pencere SESSIZ gecmiyor: log + karta yaziliyor', () => {
+  assert.ok(/if \(!result\) dusenPencereler\.push\(wi \+ 1\)/.test(KAPSAMA_KOD), 'dusen pencere sayilmiyor');
+  assert.ok(/EKSIK BELGE: \$\{dusenPencereler\.length\}\/\$\{windows\.length\} pencere dustu/.test(KAPSAMA_KOD),
+    'eksik belge logu yok');
+  assert.ok(/if \(eksikPencereler\) qualityMeta\.missing_windows = eksikPencereler/.test(KAPSAMA_KOD),
+    'karta yazilmiyor');
+  const bildirim = KAPSAMA_KOD.indexOf('qualityMeta.missing_windows = eksikPencereler');
+  const insert = KAPSAMA_KOD.indexOf(".from('study_cards').insert(cardPayload)");
+  assert.ok(bildirim > -1 && insert > bildirim, 'insert\'ten sonra yaziliyor — karta girmez');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));

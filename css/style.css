@@ -5319,6 +5319,38 @@ input:checked + .slider:before {
   margin-bottom: 0.35rem;
 }
 
+/* Cozumlu ornek adimi: aciklama + altinda ayri hesap satiri (09.10.2026).
+   Hesap duz metnin icinde kayboluyordu; artik girintili, matematik
+   fontunda ve uzun zincirler "= ..." satirlarina bolunmus. */
+.worked-example-steps li.ws-step {
+  margin-bottom: 0.6rem;
+}
+
+.ws-label {
+  display: block;
+}
+
+.ws-calc {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  margin-top: 0.3rem;
+  padding: 0.4rem 0.75rem;
+  background: var(--color-bg-alt);
+  border-left: 3px solid rgba(18, 110, 122, 0.45);
+  border-radius: var(--radius-sm);
+  font-family: 'Cambria Math', 'STIX Two Math', 'Latin Modern Math', 'Times New Roman', serif;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--color-navy);
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.ws-calc-line.ws-cont {
+  padding-left: 1.25rem;
+}
+
 .worked-example-final {
   display: inline-block;
   background: rgba(18, 110, 122, 0.1);
@@ -5884,7 +5916,3 @@ input:checked + .slider:before {
   opacity: 0.6;
   cursor: not-allowed;
 }
-
-
-
-

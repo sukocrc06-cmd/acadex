@@ -121,6 +121,102 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2,
 // Returns null if the block is unterminated (the model ran out of its token
 // budget mid-thought before ever writing the real answer) — callers should
 // treat that as a failure rather than trying to parse what's left.
+/* ===========================================================================
+   LATEX TERS BOLULERI JSON'DA SESSIZCE BOZULUYOR
+   ===========================================================================
+   08.10.2026, canli ekonometri destesinde olculdu. Ozetin bolum maddeleri
+   PDF'te soyle cikiyordu:
+
+     - Quadratic model: (y =
+     - Marginal effect: (
+     - Log-linear: (ln y =
+
+   Yani formulun ortasinda kesiliyorlardi. Once PDF yolunu suclu sandim ve
+   yereldeki bir testle hipotezi CURUTTUM: ham ters bolu PDF'i kesmiyor,
+   oldugu gibi basiliyor. Demek ki kesilme VERIDE.
+
+   Sebep: prompt modelden "valid raw LaTeX ONLY" istiyor, model de JSON
+   dize degerinin icine \beta_0 yaziyor. Ama JSON'da \b GERI SILME
+   karakteridir:
+
+     JSON.parse('{"p":"... \beta_0 ..."}')  ->  "... <U+0008>eta_0 ..."
+
+   Bu yalnizca \beta'yi vurmuyor. JSON kacislariyla CAKISAN her LaTeX
+   komutu sessizce bozuluyor, ve hepsi bu uygulamanin en cok kullandigi
+   semboller:
+
+     \beta \bar \binom   -> \b  geri silme
+     \frac               -> \f  sayfa atlatma
+     \rho                -> \r  satir basi
+     \tau \theta \times  -> \t  sekme
+
+   Hicbiri hata vermiyor; JSON gecerli, dize bozuk. Bu yuzden yillarca
+   gorunmeden durabilir.
+
+   ONARIM: ayristirmadan ONCE, dize icindeki ters bolulerden LaTeX olani
+   ikiye katlanir. Bilgi ayristirma aninda kayboldugu icin sonradan telafi
+   edilemez.
+
+   \n BILEREK DISARIDA: duz metinde satir sonu mesru ve sik ("satir1\nsatir2").
+   Onu da LaTeX saymak gercek satir sonlarini bozardi. Bedeli \nu ve \nabla'nin
+   bozuk kalmasi — ikisi de bu derslerde nadir, satir sonu ise her yerde.
+   =========================================================================== */
+const JSON_GECERLI_KACIS = new Set(['"', '\\', '/', 'b', 'f', 'n', 'r', 't', 'u'])
+
+function repairLatexEscapes(json: string): string {
+  const s = String(json || '')
+  let out = ''
+  let dizedeMi = false
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i]
+
+    if (!dizedeMi) {
+      if (c === '"') dizedeMi = true
+      out += c
+      continue
+    }
+    if (c !== '\\') {
+      if (c === '"') dizedeMi = false
+      out += c
+      continue
+    }
+
+    /* BIR KACIS IKI KARAKTERDIR VE IKISI BIRDEN TUKETILMELIDIR.
+       Ilk surumum gecerli bir kaciste yalnizca ters boluyu yazip donguye
+       devam ediyordu; ikinci karakter bir sonraki turda BAGIMSIZ olarak
+       isleniyordu. Sonuclari:
+         \"  -> tirnak dize sonu sanildi, tarayici kaydi
+         \\  -> ikinci ters bolu YENI bir kacis sanildi
+       Bundan sonra "dize icinde miyim" bilgisi yanlis oluyor ve gercek
+       gecersiz kacislar onarilmadan geciyordu. Canli sonuc:
+         "Window 1 attempt 1 failed: Bad escaped character in JSON"
+       yani ONARMASI gereken hatanin ta kendisi; bir kosuda butun
+       pencereler dustu ve ozet son care olarak ilk 5.000 karakterden
+       cikarildi. Fuzz ile olculdu: 4.000 gecerli JSON girdisinin 446'si
+       bozuluyordu. */
+    const n = s[i + 1] ?? ''
+
+    // Gecersiz kacis (\( \) \[ \v \s ...): kacirilir. Bu ayni zamanda
+    // sert ayristirma hatalarini da duzeltiyor.
+    if (!JSON_GECERLI_KACIS.has(n)) { out += '\\\\' + n; i++; continue }
+
+    // \u + 4 onaltilik: mesru unicode kacisi, oldugu gibi birakilir.
+    if (n === 'u' && /^[0-9a-fA-F]{4}/.test(s.slice(i + 2, i + 6))) {
+      out += c + n; i++; continue
+    }
+
+    // LaTeX komutu: \beta, \frac, \tau, \rho ... (\n disarida — basliga bak)
+    if (n !== 'n' && 'bfrt'.includes(n) && /^[A-Za-z]{2,}/.test(s.slice(i + 2))) {
+      out += '\\\\' + n; i++; continue
+    }
+
+    // Gercek JSON kacisi: ikisi birden yazilir, ikisi birden tuketilir.
+    out += c + n
+    i++
+  }
+  return out
+}
+
 function stripThinkBlock(raw: string): string | null {
   const match = raw.match(/<think>[\s\S]*?<\/think>/i)
   if (match) {
@@ -356,6 +452,320 @@ function detectAndFormatPdfTables(text: string): string {
   }
 
   return resultLines.join("\n");
+}
+
+/* ==========================================================================
+   DENKLEM SAYFALARININ YENIDEN DIZILMESI (09.10.2026)
+
+   KOK NEDEN. PowerPoint/MathType denklemleri PDF'e iki sekilde bozuk geliyor:
+
+   1. Operatorler Symbol fontunda ve ToUnicode haritasi yok. pdf.js onlari
+      ozel kullanim alanina (PUA) koyuyor: U+F02B '+', U+F03D '=', U+F02D '−',
+      U+F062 'β', U+F0B6 '∂'. Model bunlari okuyamiyor — ekranda bosluk gibi.
+   2. Denklem nesnesinin glifleri akista SAGDAN SOLA ve fonta gore gruplu
+      geliyor. Ekonometri destesinin 29. slaytinin modele giden hali:
+
+        2 t 09 . 0 t 08 . 12 12 . 484 emp emp l UtilityBil <F02B> <F02D> <F03D>
+
+      Slaytta yazan: UtilityBill = 484.12 − 12.08 temp + 0.09 temp².
+
+   Sonuc canli olarak goruldu: model katsayilari okuyamadi ve UYDURDU
+   (β1 = −9.0, β2 = 0.1212), cozumlu ornegin aritmetigi tutmadi, formul
+   listesi destedeki ~22 formulun 8'ini tasidi.
+
+   COZUM. Konumlar dogru — yalnizca sira bozuk. Matematik PUA'si tasiyan
+   sayfalarda metin, ogelerin koordinatlarindan yeniden kuruluyor: XY-cut
+   ile bloklar (sutunlar once ayrilir, yan kutudaki aciklama denklem satirina
+   karismaz), blok icinde taban cizgisine gore satirlar, kucuk ve kaymis
+   ogeler ust/alt simge (x^2, β_1), sapka glifi altindaki harfe (ŷ). Ayni
+   destede 29. slayt artik:
+
+        UtilityBill = 484.12 − 12.08temp + 0.09temp^2
+        -12.08 + 2(0.09)39 = − 12.08 + 7.02 = − 5.06
+
+   KAPSAM. Yalnizca matematik PUA'si olan sayfalar yeniden dizilir; digerleri
+   pdf.js'in akis sirasini aynen korur (iki sutunlu ders kitaplarinda akis
+   sirasi dogru okuma sirasidir — orada yeniden dizmek risk, kazanc degil).
+   PUA haritasi ise her sayfaya uygulanir.
+   ========================================================================== */
+
+// Adobe Symbol kodlamasi; pdf.js ToUnicode'u olmayan sembol fontlarini
+// U+F000 + fontun kendi baytina koyuyor.
+const SYMBOL_PUA: Record<number, string> = {
+  0x20: ' ', 0x21: '!', 0x22: '∀', 0x23: '#', 0x24: '∃', 0x25: '%', 0x26: '&', 0x27: '∋',
+  0x28: '(', 0x29: ')', 0x2a: '∗', 0x2b: '+', 0x2c: ',', 0x2d: '−', 0x2e: '.', 0x2f: '/',
+  0x30: '0', 0x31: '1', 0x32: '2', 0x33: '3', 0x34: '4', 0x35: '5', 0x36: '6', 0x37: '7', 0x38: '8', 0x39: '9',
+  0x3a: ':', 0x3b: ';', 0x3c: '<', 0x3d: '=', 0x3e: '>', 0x3f: '?', 0x40: '≅',
+  0x41: 'Α', 0x42: 'Β', 0x43: 'Χ', 0x44: 'Δ', 0x45: 'Ε', 0x46: 'Φ', 0x47: 'Γ', 0x48: 'Η', 0x49: 'Ι',
+  // 0x4B Symbol'de Kappa, ama ayni bayt MathType'in "MT Extra" fontunda "…" —
+  // ve "β1x1 + … + βkxk" her ekonometri slaytinda var, Kappa yok. Font adi
+  // getTextContent'ten gelmiyor (yalnizca getOperatorList sonrasi), o yuzden
+  // sik olan okuma seciliyor.
+  0x4a: 'ϑ', 0x4b: '…', 0x4c: 'Λ', 0x4d: 'Μ', 0x4e: 'Ν', 0x4f: 'Ο', 0x50: 'Π', 0x51: 'Θ', 0x52: 'Ρ',
+  0x53: 'Σ', 0x54: 'Τ', 0x55: 'Υ', 0x56: 'ς', 0x57: 'Ω', 0x58: 'Ξ', 0x59: 'Ψ', 0x5a: 'Ζ',
+  0x5b: '[', 0x5c: '∴', 0x5d: ']', 0x5e: '⊥', 0x5f: '_',
+  0x61: 'α', 0x62: 'β', 0x63: 'χ', 0x64: 'δ', 0x65: 'ε', 0x66: 'φ', 0x67: 'γ', 0x68: 'η', 0x69: 'ι',
+  0x6a: 'ϕ', 0x6b: 'κ', 0x6c: 'λ', 0x6d: 'μ', 0x6e: 'ν', 0x6f: 'ο', 0x70: 'π', 0x71: 'θ', 0x72: 'ρ',
+  0x73: 'σ', 0x74: 'τ', 0x75: 'υ', 0x76: 'ϖ', 0x77: 'ω', 0x78: 'ξ', 0x79: 'ψ', 0x7a: 'ζ',
+  0x7b: '{', 0x7c: '|', 0x7d: '}', 0x7e: '∼',
+  0xa1: 'ϒ', 0xa2: '′', 0xa3: '≤', 0xa4: '⁄', 0xa5: '∞', 0xa6: 'ƒ', 0xab: '↔', 0xac: '←', 0xad: '↑',
+  0xae: '→', 0xaf: '↓', 0xb0: '°', 0xb1: '±', 0xb2: '″', 0xb3: '≥', 0xb4: '×', 0xb5: '∝', 0xb6: '∂',
+  0xb7: '•', 0xb8: '÷', 0xb9: '≠', 0xba: '≡', 0xbb: '≈', 0xbc: '…', 0xc6: '∅', 0xc7: '∩', 0xc8: '∪',
+  0xce: '∈', 0xcf: '∉', 0xd1: '∇', 0xd5: '∏', 0xd6: '√', 0xd7: '⋅', 0xd9: '∧', 0xda: '∨',
+  0xdb: '⇔', 0xdc: '⇐', 0xde: '⇒', 0xe5: '∑', 0xf2: '∫',
+  // Uzun parantez/kume PARCALARI. Duz metinde yalnizca orta parca anlam
+  // tasiyor; digerleri gurultu olurdu.
+  0xe6: '', 0xe7: '', 0xe8: '', 0xe9: '', 0xea: '', 0xeb: '', 0xec: '', 0xed: '{', 0xee: '', 0xef: '',
+  0xf3: '', 0xf4: '', 0xf5: '', 0xf6: '', 0xf7: '', 0xf8: '', 0xf9: '', 0xfa: '', 0xfb: '', 0xfd: '}', 0xfe: ''
+}
+
+// Satir basindaki PUA isareti cogu zaman Wingdings madde isaretidir (Pearson
+// ve McGraw-Hill destelerinde U+F0D8 "➢"), Symbol karakteri degil. Ayni bayt
+// Symbol'de "¬" — satir basinda ve ardindan kelime geliyorsa madde isareti
+// okunuyor. Bu kodlar Wingdings'in madde isareti olarak kullanilanlari.
+const PUA_BULLET_CODES = new Set([0xd8, 0xa7, 0x6e, 0x71, 0x76, 0xfc, 0x9f, 0xa8, 0x77, 0x75, 0xd9, 0xdf, 0xe0, 0xe8, 0xf0])
+const PUA_ANY_RE = /[-]/g
+const PUA_LINE_BULLET_RE = /(^|\n)([ \t]*)([-])(?=[ \t]*[A-Za-zÇĞİÖŞÜçğıöşü0-9"“(])/g
+
+/** PUA sembollerini okunur karaktere cevir. Satir basi madde isaretleri '•'. */
+function mapSymbolPua(text: string): string {
+  return String(text || '')
+    .replace(PUA_LINE_BULLET_RE, (m, nl, ws, ch) =>
+      PUA_BULLET_CODES.has(ch.charCodeAt(0) - 0xf000) ? `${nl}${ws}•` : m)
+    .replace(PUA_ANY_RE, ch => {
+      const code = ch.charCodeAt(0) - 0xf000
+      const v = SYMBOL_PUA[code]
+      if (v !== undefined) return v
+      // Tabloda olmayan PUA modele gorunmez bir karakter olarak gider;
+      // okunamayan bir isaret, hic isaret olmamasindan iyi degil.
+      return PUA_BULLET_CODES.has(code) ? '•' : ''
+    })
+}
+
+/** Sayfada denklem nesnesi var mi? Satir basi madde isaretleri sayilmaz —
+ *  yalnizca isaretli sayfalar yeniden dizilseydi Pearson'un her madde
+ *  isaretli slayti gereksiz yere elden gecerdi. Iki matematik PUA'si
+ *  esik: tek bir "−" (bir yil araliginda) sayfayi dizmeye deger degil. */
+function countMathPua(text: string): number {
+  const s = String(text || '').replace(PUA_LINE_BULLET_RE, (m, nl, ws, ch) =>
+    PUA_BULLET_CODES.has(ch.charCodeAt(0) - 0xf000) ? `${nl}${ws}` : m)
+  return (s.match(PUA_ANY_RE) || []).length
+}
+const MATH_PUA_MIN = 2
+
+interface PdfTextItemLike {
+  str?: string
+  transform?: number[]
+  width?: number
+  height?: number
+  hasEOL?: boolean
+}
+
+interface PdfBox {
+  s: string
+  x0: number
+  x1: number
+  y: number
+  fs: number
+  bot: number
+  top: number
+  role: '' | '^' | '_'
+}
+
+const EQ_OPERATORS = new Set(['=', '+', '−', '≈', '≠', '≤', '≥', '×', '⇒'])
+const HAT_GLYPH_RE = /^[ˆ̂]$/
+
+function medianOf(values: number[]): number {
+  const s = [...values].sort((a, b) => a - b)
+  return s.length ? s[Math.floor(s.length / 2)] : 0
+}
+
+function largestGap(boxes: PdfBox[], lo: (b: PdfBox) => number, hi: (b: PdfBox) => number): { size: number; at: number } | null {
+  const iv = boxes.map(b => [lo(b), hi(b)]).sort((a, b) => a[0] - b[0])
+  let best: { size: number; at: number } | null = null
+  let reach = iv[0][1]
+  for (let i = 1; i < iv.length; i++) {
+    const gap = iv[i][0] - reach
+    if (gap > 0 && (!best || gap > best.size)) best = { size: gap, at: (reach + iv[i][0]) / 2 }
+    reach = Math.max(reach, iv[i][1])
+  }
+  return best
+}
+
+/** XY-cut: once sutun bosluklari (>= 1.2 em), sonra satir bosluklari. Sutun
+ *  once, cunku slaytlarda denklem solda, aciklama kutusu sagda duruyor; satir
+ *  once kesilseydi kutunun cumleleri denklem satirlarinin arasina dagilirdi
+ *  (10. slaytta tam olarak bu oldu). */
+function xyCut(boxes: PdfBox[], depth = 0): PdfBox[][] {
+  if (boxes.length <= 1 || depth > 40) return [boxes]
+  const em = medianOf(boxes.map(b => b.fs)) || 12
+  const v = largestGap(boxes, b => b.x0, b => b.x1)
+  if (v && v.size >= 1.2 * em) {
+    const L = boxes.filter(b => b.x1 <= v.at)
+    const R = boxes.filter(b => b.x0 >= v.at)
+    if (L.length && R.length && L.length + R.length === boxes.length) {
+      return [...xyCut(L, depth + 1), ...xyCut(R, depth + 1)]
+    }
+  }
+  const h = largestGap(boxes, b => b.bot, b => b.top)
+  if (h && h.size >= 0.1 * em) {
+    const T = boxes.filter(b => b.bot >= h.at)
+    const B = boxes.filter(b => b.top <= h.at)
+    if (T.length && B.length && T.length + B.length === boxes.length) {
+      return [...xyCut(T, depth + 1), ...xyCut(B, depth + 1)]
+    }
+  }
+  return [boxes]
+}
+
+/** Sapka gliflerini (ˆ) altlarindaki harfe birlestirici isaret olarak tak. */
+function attachHats(boxes: PdfBox[]): PdfBox[] {
+  const hats = boxes.filter(b => HAT_GLYPH_RE.test(b.s.trim()))
+  if (!hats.length) return boxes
+  const rest = boxes.filter(b => !HAT_GLYPH_RE.test(b.s.trim()))
+  const marks = new Map<PdfBox, Set<number>>()
+  for (const h of hats) {
+    const c = (h.x0 + h.x1) / 2
+    let best: { b: PdfBox; dy: number } | null = null
+    for (const b of rest) {
+      if (c < b.x0 - 1 || c > b.x1 + 1) continue
+      const dy = Math.abs(h.y - b.y)
+      if (dy > 1.0 * b.fs) continue
+      if (!best || dy < best.dy) best = { b, dy }
+    }
+    if (!best) continue
+    const chars = [...best.b.s]
+    const k = Math.max(0, Math.min(chars.length - 1,
+      Math.floor((c - best.b.x0) / Math.max(1e-6, best.b.x1 - best.b.x0) * chars.length)))
+    if (!marks.has(best.b)) marks.set(best.b, new Set())
+    marks.get(best.b)!.add(k)
+  }
+  for (const [b, ks] of marks) {
+    b.s = [...b.s].map((ch, i) => (ks.has(i) && /[A-Za-zα-ωΑ-Ω]/.test(ch) ? ch + '̂' : ch)).join('')
+  }
+  return rest
+}
+
+/** Bir yaprak blogu satirlara ayir. En buyuk font taban cizgilerini belirler;
+ *  daha kucuk, kisa ve yukari/asagi kaymis ogeler o satirin ust/alt simgesi. */
+function leafLines(boxes: PdfBox[]): string[] {
+  type Line = { y: number; fs: number; items: PdfBox[]; minX: number; maxX: number }
+  const lines: Line[] = []
+  for (const b of [...boxes].sort((a, b) => b.fs - a.fs)) {
+    let home: Line | null = null
+    const scriptLike = b.s.trim().length <= 4 && !/\s/.test(b.s.trim())
+    for (const ln of lines) {
+      const dy = b.y - ln.y
+      if (Math.abs(dy) <= 0.2 * ln.fs) { home = ln; b.role = ''; break }
+      const smaller = b.fs < 0.85 * ln.fs
+      if (scriptLike && smaller && b.x0 >= ln.minX - 2 && b.x0 <= ln.maxX + 0.6 * ln.fs) {
+        if (dy > 0.15 * ln.fs && dy <= 0.65 * ln.fs) { home = ln; b.role = '^'; break }
+        if (dy < -0.08 * ln.fs && dy >= -0.45 * ln.fs) { home = ln; b.role = '_'; break }
+      }
+    }
+    if (!home) {
+      home = { y: b.y, fs: b.fs, items: [], minX: b.x0, maxX: b.x1 }
+      lines.push(home)
+      b.role = ''
+    }
+    home.items.push(b)
+    home.minX = Math.min(home.minX, b.x0)
+    home.maxX = Math.max(home.maxX, b.x1)
+  }
+  lines.sort((a, b) => b.y - a.y)
+  return lines.map(ln => {
+    let out = ''
+    let prev: PdfBox | null = null
+    for (const b of ln.items.sort((a, b) => a.x0 - b.x0)) {
+      const script = b.role === '^' || b.role === '_'
+      let s = b.s
+      if (script) s = b.role + ([...s].length > 1 ? `{${s}}` : s)
+      else if (EQ_OPERATORS.has(s.trim())) s = ` ${s.trim()} `
+      if (prev && !script && !out.endsWith(' ') && !s.startsWith(' ')) {
+        const gap = b.x0 - prev.x1
+        // β_1x_1 -> "β_1 x_1" (bitisik yazilinca alt simgenin nerede bittigi
+        // belirsizlesiyor), "andβ_1" -> "and β_1".
+        const afterScript = (prev.role === '^' || prev.role === '_') && /^[A-Za-zα-ωΑ-Ω]/.test(s)
+        const wordThenGreek = /[A-Za-z]{2,}$/.test(out) && /^[α-ωΑ-Ω]/.test(s)
+        if (gap > 0.22 * ln.fs || afterScript || wordThenGreek) out += ' '
+      }
+      out += s
+      prev = b
+    }
+    return out
+  })
+}
+
+/** Bir sayfanin pdf.js metin ogelerinden okuma sirasinda metin kur. */
+function rebuildPageText(items: PdfTextItemLike[]): string {
+  const boxes: PdfBox[] = []
+  for (const it of items || []) {
+    if (!it || typeof it.str !== 'string') continue
+    const s = mapSymbolPua(it.str)
+    if (!s.trim()) continue
+    const t = Array.isArray(it.transform) && it.transform.length >= 6 ? it.transform : [1, 0, 0, 1, 0, 0]
+    const fs = Math.hypot(t[2], t[3]) || Math.abs(t[3]) || Number(it.height) || 10
+    const x0 = t[4]
+    const y = t[5]
+    const w = Math.max(0, Number(it.width) || 0)
+    boxes.push({ s, x0, x1: x0 + w, y, fs, bot: y - 0.2 * fs, top: y + 0.8 * fs, role: '' })
+  }
+  if (!boxes.length) return ''
+  const lines: string[] = []
+  for (const group of xyCut(attachHats(boxes))) lines.push(...leafLines(group))
+  return lines
+    .map(l => l.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .join('\n')
+    // Geometrinin yerlestiremedigi sapka: gurultu birakmaktansa dusur.
+    .replace(/[ \t]*ˆ[ \t]*/g, '')
+    // y + U+0302 -> ŷ (U+0177). Hazir bileseni olan harfler tek karaktere
+    // iner; β̂ gibi olmayanlar birlesik kalir. Ayni metin iki farkli kodlamayla
+    // gelince arama ve tekrar tespiti onlari farkli sanar.
+    .normalize('NFC')
+}
+
+/** pdf.js'in akis sirasi — unpdf'in extractText'iyle birebir ayni birlestirme. */
+function streamPageText(items: PdfTextItemLike[]): string {
+  return (items || [])
+    .filter(it => it && it.str != null)
+    .map(it => String(it.str) + (it.hasEOL ? '\n' : ''))
+    .join('')
+}
+
+/** Yeniden dizilen sayfa, harf kaybetmemeli. Sapka ve parantez parcalari
+ *  dusuyor; daha fazlasi kayboluyorsa bir sey ters gitmistir, akis metni
+ *  (PUA haritali) kalir. */
+const REBUILD_MIN_KEEP = 0.85
+
+function chooseEquationPageText(items: PdfTextItemLike[]): { text: string; rebuilt: boolean } {
+  const stream = streamPageText(items)
+  if (countMathPua(stream) < MATH_PUA_MIN) return { text: mapSymbolPua(stream), rebuilt: false }
+  try {
+    const rebuilt = rebuildPageText(items)
+    const harf = (s: string) => s.replace(/[\ŝˆ]/g, '').length
+    if (harf(rebuilt) >= REBUILD_MIN_KEEP * harf(mapSymbolPua(stream))) {
+      return { text: rebuilt, rebuilt: true }
+    }
+  } catch (_e) {
+    // Akis metnine dus.
+  }
+  return { text: mapSymbolPua(stream), rebuilt: false }
+}
+
+/** Tum sayfalar: tek getTextContent, gerekirse yeniden dizim. */
+async function extractPdfPagesWithEquations(pdf: any): Promise<{ pages: string[]; rebuilt: number[] }> {
+  const pages: string[] = []
+  const rebuilt: number[] = []
+  const n = Number(pdf?.numPages) || 0
+  for (let i = 1; i <= n; i++) {
+    const page = await pdf.getPage(i)
+    const content = await page.getTextContent()
+    const res = chooseEquationPageText(content?.items || [])
+    pages.push(res.text)
+    if (res.rebuilt) rebuilt.push(i)
+  }
+  return { pages, rebuilt }
 }
 
 // ==========================================================================
@@ -763,13 +1173,69 @@ function splitIntoChunks(text: string, targetChunkSize: number): string[] {
  * `maxChars`, guaranteeing per-window token cost never exceeds what the
  * char-offset version already spent.
  */
-function splitIntoWindows(text: string, maxChars: number, maxWindows: number): string[] {
+function kurPencereler(text: string, hedefChars: number): string[] {
   const out: string[] = []
-  for (const chunk of splitIntoChunks(text, maxChars)) {
-    if (chunk.length <= maxChars) { out.push(chunk); continue }
-    for (let i = 0; i < chunk.length; i += maxChars) out.push(chunk.slice(i, i + maxChars))
+  for (const chunk of splitIntoChunks(text, hedefChars)) {
+    if (chunk.length <= hedefChars) { out.push(chunk); continue }
+    for (let i = 0; i < chunk.length; i += hedefChars) out.push(chunk.slice(i, i + hedefChars))
   }
-  return out.slice(0, maxWindows)
+  return out
+}
+
+/* ===========================================================================
+   PENCERELER DENGELENIR
+   ===========================================================================
+   08.10.2026, canli ekonometri destesinde olculdu. 13.980 karakter acgozlu
+   doldurma ile soyle bolunuyordu:
+
+     pencere 1: 12.192 krk     pencere 2: 2.437 krk
+
+   Ve ikinci pencere su sonucu verdi: terms=0 points=0 quiz=0. Destenin son
+   dort slaydi oradaydi (39-42) ve TAM OLARAK ampirik ornekler orada
+   yasiyor: "Avrupa'da kisi basi enerji tuketimi %9.3 daha dusuk",
+   "K. Amerika %41.5 daha yuksek", log-log icin "%1 artis -> %0.69". Yani
+   sinavda sorulacak sayilarin tamami kayboldu — ustelik deste modu
+   oncesindeki ozette bunlarin ucu sinav sorusu olarak VARDI, yani bu bir
+   geri gidisti.
+
+   Minik bir pencere iki kez kotu: modele neredeyse hic baglam vermez ve
+   yine de tam bir cagri (ve pacer beklemesi) harcar.
+
+   PENCERE SAYISI DEGISMIYOR, yalnizca boyutlari esitleniyor — yani bu
+   dosyadaki TokenPacer yorumlarinin uyardigi "her ek pencere ~60 sn
+   bekleme" maliyeti DOGMUYOR. Ayni iki cagri, bu kez 7.316'sar karakterle.
+
+   Once kaba bolme ile kac pencere gerektigi bulunur; sonra metin hedef
+   boyutta KUCUK PARCALARA ayrilip tam o kadar kovaya dagitilir. Ilk
+   denemede "hedef boyutta yeniden bol, fazla cikarsa vazgec" yapmistim ve
+   hic devreye girmedi: paragraf duyarli bolme hedefte 3 parca uretiyor,
+   koruma da 2'ye geri donuyordu. Parcalari saymak degil DAGITMAK gerekiyor.
+   =========================================================================== */
+function splitIntoWindows(text: string, maxChars: number, maxWindows: number): string[] {
+  const kaba = kurPencereler(text, maxChars)
+  const n = Math.min(kaba.length, maxWindows)
+  if (n <= 1) return kaba.slice(0, maxWindows)
+
+  const hedef = Math.ceil(text.length / n)
+  const parcalar = kurPencereler(text, hedef)
+
+  const kovalar: string[] = []
+  let simdiki = ''
+  for (const p of parcalar) {
+    const sonKova = kovalar.length >= n - 1
+    if (simdiki && !sonKova && (simdiki.length + p.length + 2) > hedef) {
+      kovalar.push(simdiki)
+      simdiki = p
+    } else {
+      simdiki = simdiki ? `${simdiki}\n\n${p}` : p
+    }
+  }
+  if (simdiki) kovalar.push(simdiki)
+
+  // Guvenlik: hicbir kova maxChars'i asmamali (pencere butcesi oradan
+  // hesaplaniyor). Asarsa dengelemeden vazgecilir.
+  if (kovalar.some(k => k.length > maxChars)) return kaba.slice(0, maxWindows)
+  return kovalar.slice(0, maxWindows)
 }
 
 type GroqJsonOpts = {
@@ -778,6 +1244,8 @@ type GroqJsonOpts = {
   maxCompletionTokens?: number
   timeoutMs?: number
   maxRetries?: number
+  /** Verilirse cagrinin gercek token harcamasi loglanir (bkz. callGroqJson). */
+  usageLabel?: string
 }
 
 // ==========================================================================
@@ -1080,6 +1548,51 @@ function estimateTokens(systemPrompt: string, userContent: string, maxCompletion
     + Math.ceil(maxCompletion * PACER_COMPLETION_FACTOR)
 }
 
+/* ===========================================================================
+   REDDEDILEN URETIMI KURTARMA — json_validate_failed (09.10.2026)
+
+   OLCULEN OLAY. Denklem sayfalari duzgun okunmaya baslayinca 1. pencere
+   (1-19. slaytlar: kukla degiskenler, etkilesim) ARTIK ICINDE FORMUL OLAN
+   bir metin gordu ve iki denemede de 400 json_validate_failed aldi. Ozetin
+   yarisi — pasta satisi, ev fiyati, etkilesim denklemi — karta hic girmedi.
+   Ikinci deneme ayrica 60 sn pacer beklemesi yedi ve anlati yazarinin
+   butcesini bitirdi; ozet tek kisa paragraf kaldi. Yani bir JSON kacis
+   karakteri yuzunden ozetin yarisi ve bicimi gitti.
+
+   NEDEN OLUYOR. response_format json_object: Groq modelin ciktisini KENDI
+   ayristirip gecersizse 400 donuyor. LaTeX ise JSON kacis kurallariyla
+   dogrudan carpisiyor — \sum, \hat, \partial, \alpha, \varepsilon, \(
+   hicbiri gecerli JSON kacisi degil. Model "EVERY equation" istendikce
+   bunlari daha cok yaziyor, yani cikarim iyilestikce basarisizlik
+   OLASILIGI ARTIYOR.
+
+   NEDEN YENIDEN DENEME COZUM DEGIL. Ayni prompt ayni metinle ayni kacisi
+   yaziyor; olculdu, ikinci deneme de basarisiz. Ustelik 8.000 TPM'de her
+   deneme ~60 sn bekleme demek.
+
+   KURTARMA. Groq reddettigi metni hata govdesinde failed_generation olarak
+   GERI VERIYOR. Bu projede zaten tam bu bozulmayi onaran bir fonksiyon var
+   (repairLatexEscapes). Reddedilen uretimi onarip ayristiriyoruz: ek cagri
+   yok, ek token yok, ek bekleme yok. Onarim tutmazsa eski davranis (hata)
+   aynen devam eder.
+   =========================================================================== */
+function salvageFailedGeneration(data: any): any | null {
+  const err = data?.error ?? data
+  if (String(err?.code || '') !== 'json_validate_failed') return null
+  const ham = err?.failed_generation ?? err?.failedGeneration ?? err?.generation
+  if (typeof ham !== 'string' || ham.trim().length < 2) return null
+  const temiz = (stripThinkBlock(ham) ?? ham).replace(/```json\s*|```/g, '').trim()
+  try {
+    const onarilmis = JSON.parse(repairLatexEscapes(temiz))
+    if (onarilmis && typeof onarilmis === 'object') return onarilmis
+  } catch { /* onarim yetmedi, ham haliyle dene */ }
+  try {
+    const hamParsed = JSON.parse(temiz)
+    if (hamParsed && typeof hamParsed === 'object') return hamParsed
+  } catch { /* kurtarilamadi */ }
+  return null
+}
+
 async function callGroqJson(
   groqApiKey: string,
   systemPrompt: string,
@@ -1135,6 +1648,15 @@ async function callGroqJson(
     // the estimate — otherwise the pacer would under-count after a 429 and
     // immediately fire again into the same wall.
     tokenPacer.record(estTokens, model, maxCompletionTokens)
+    // json_validate_failed: KURTARILABILIR (bkz. salvageFailedGeneration).
+    const kurtarilan = salvageFailedGeneration(data)
+    if (kurtarilan !== null) {
+      console.warn(
+        `${opts.usageLabel || 'Groq'}: json_validate_failed — reddedilen uretim ` +
+        `onarildi (${JSON.stringify(kurtarilan).length} krk), yeniden cagri yok`
+      )
+      return kurtarilan
+    }
     throw new Error(`Groq API error (${response.status}): ${JSON.stringify(data)}`)
   }
   tokenPacer.record(
@@ -1144,12 +1666,26 @@ async function callGroqJson(
     model,
     Number(data?.usage?.completion_tokens) || maxCompletionTokens
   )
+  // Pencere cagrilari 3.072 completion tokenla sinirli ve prompt her alandan
+  // daha fazlasini istedikce bu sinirin ne kadar dolu oldugu karar verdiriyor.
+  // Bilinen tek olcum ("~1.400 harcandi") bir kosudan; artik her kosuda.
+  if (opts.usageLabel && data?.usage) {
+    const u = data.usage
+    const r = Number(u?.completion_tokens_details?.reasoning_tokens)
+    console.log(
+      `${opts.usageLabel} token: prompt=${u.prompt_tokens ?? '?'} completion=${u.completion_tokens ?? '?'}` +
+      `${Number.isFinite(r) ? ` (reasoning=${r})` : ''} / max=${maxCompletionTokens}` +
+      `${data?.choices?.[0]?.finish_reason === 'length' ? ' — SINIRA DAYANDI' : ''}`
+    )
+  }
   const raw = data.choices?.[0]?.message?.content ?? ""
   if (!raw) throw new Error("Empty Groq response content")
   const stripped = stripThinkBlock(raw)
   if (stripped === null) throw new Error("Model ran out of tokens mid-<think> block, never wrote the actual answer")
   const cleaned = stripped.replace(/```json\s*|```/g, "").trim()
-  return JSON.parse(cleaned)
+  // LaTeX ters bolulerini onar (bkz. repairLatexEscapes) — ayristirmadan
+  // once yapilmali, bilgi parse aninda kayboluyor.
+  return JSON.parse(repairLatexEscapes(cleaned))
 }
 
 // Upload local file bytes to PDF.co via its presigned-URL flow (Denetim
@@ -1382,13 +1918,15 @@ async function extractVisualImagesForLongDoc(
   }
 }
 
-function buildChunkSystemPrompt(chunkIndex: number, totalChunks: number, langLabel: string, hasPageMarkers: boolean, pageMarkerLabel: string): string {
+function buildChunkSystemPrompt(chunkIndex: number, totalChunks: number, langLabel: string, hasPageMarkers: boolean, pageMarkerLabel: string, isDeck = false): string {
   return `You are an academic study assistant helping process a LARGE document that has been split into ${totalChunks} sequential parts because of its length. You are given ONLY part ${chunkIndex + 1} of ${totalChunks} below — you do NOT see the rest of the document, so do not reference "the whole document" or assume content beyond what's shown here.
 
 Respond with ONLY a valid JSON object, no markdown code fences, no commentary before or after — matching this exact shape: { "chunk_summary": string, "key_terms": [ { "term": string, "definition": string } ], "key_points": [ string ], "quiz_questions": [ { "question": string, "answer": string } ], "tables": [ { "title": string, "headers": [ string ], "rows": [ [ string ] ] } ], "charts": [ { "title": string, "type": string, "labels": [ string ], "data": [ number ] } ], "footnotes": [ { "id": number, "reference": string, "page": number | null } ], "is_quantitative": boolean, "formulas": [ { "name": string, "latex": string, "variables": [ { "symbol": string, "meaning": string } ] } ], "worked_examples": [ { "title": string, "problem_statement": string, "steps": [ string ], "final_answer": string } ], "diagrams": [ { "title": string, "mermaid": string, "description": string } ], "concept_graph": { "nodes": [ { "id": string, "label": string, "type": string } ], "edges": [ { "from": string, "to": string, "relation": string } ] } }.
 
 CHUNK SUMMARY:
 Write a 2-4 sentence "chunk_summary" capturing specifically what THIS part covers — it will later be combined with the other parts' summaries into one final document summary, so be concrete and self-contained about the actual topics discussed here rather than vague.
+
+${buildSlideDeckInstruction(isDeck, pageMarkerLabel === "SLAYT" ? "slide" : "page")}
 
 EXTRACTION SCOPE:
 Extract key terms, key points, and 1-3 quiz questions found in THIS PART ONLY. Scale the amount to how much substantive academic content this part actually contains — a short or mostly administrative/transitional part may legitimately warrant few or even zero key terms/points/quiz questions. Do not pad for the sake of padding.
@@ -2038,19 +2576,118 @@ const NARRATIVE_MIN_KEEP_RATIO = 0.75
  * logged, and a correction whose "find" text cannot be located exactly once
  * is skipped — a miss is a no-op, never a corruption.
  */
+/* ===========================================================================
+   YOKLUK IDDIASI KAPISI
+   ===========================================================================
+   08.10.2026, canli bir ekonometri destesinde (42 slayt) olculdu. Ozet su
+   paragrafi tasiyordu:
+
+     "The source does not discuss log-linear models that log-transform the
+      dependent variable. The source does not describe coefficients as
+      semi-elasticities... The source does not cover log-log models or
+      elasticity interpretations of slopes."
+
+   Kaynakta ise AYNEN su var:
+     "- Log-Log Model"
+     "In the log-log model β is an elasticity."
+
+   Ustelik ozet KENDISIYLE celisiyordu: ayni belgede "Log-Log Model and
+   Elasticity Interpretation" diye bir bolum, "log-log model" diye bir
+   anahtar terim ve log-log uzerine bir sinav sorusu vardi.
+
+   SEBEP YAPISAL. Review promptu modele acikca "You are shown only a
+   truncated slice of the source" diyor ve "kaynagin desteklemedigi
+   iddialari duzelt" istiyor. Model kendi diliminde log-log'u bulamayinca
+   DOGRU cumleleri "kaynak bunu kapsamiyor" diye duzeltti.
+
+   Prompt bu tuzagi ATIFLAR icin zaten fark etmis ("sadece bir dilim
+   goruyorsun, sayfa numarasi yazma"). Ayni mantik olumsuz iddialar icin de
+   birebir gecerli: gormedigin bir sey, OLMADIGI anlamina gelmez.
+
+   Bu kapi deterministik: modelin kurala uymasina guvenmez. Taslakta
+   OLMAYAN bir yokluk iddiasini review EKLEYEMEZ. Gercek bir olgu
+   duzeltmesi (yanlis yil, yanlis rakam) etkilenmez — yalnizca "belgede X
+   yok" seklindeki, dilimi goren birinin dogrulayamayacagi iddialar.
+   =========================================================================== */
+const YOKLUK_IDDIASI = new RegExp([
+  // Ingilizce
+  'does\\s+not\\s+(discuss|cover|mention|describe|provide|include|contain|address|present)',
+  "doesn'?t\\s+(discuss|cover|mention|describe|provide|include|contain|address)",
+  'is\\s+not\\s+(discussed|covered|mentioned|described|addressed|present)',
+  'are\\s+not\\s+(discussed|covered|mentioned|described|addressed)',
+  'no\\s+mention\\s+of',
+  'not\\s+found\\s+in\\s+the\\s+(source|document|text)',
+  // Turkce
+  // Hem etken hem edilgen: "ele almiyor" / "ele alinmiyor". Ilk yazimda
+  // yalnizca edilgen hali vardi ve test etken halini kacirdigimi gosterdi.
+  'ele\\s+al([ıi]n)?m[ıi]yor', 'bahsedilmiyor', 'yer\\s+alm[ıi]yor',
+  'belirtilmemi[şs]', 'i[çc]ermiyor', 'kapsam[ıi]yor', 'de[ğg]inilmemi[şs]',
+].join('|'), 'i')
+
+/* ===========================================================================
+   REVIEW KAYNAKTA GECEN ICERIGI SILEMEZ (09.10.2026)
+
+   Review kaynagin bir DILIMINI goruyor (reviewTiers[0] = 11.000 krk;
+   ekonometri destesi 13.980). Canli kosuda "Hallucinated claim about
+   elasticities and log-linear models" dedi ve ozete bir duzeltme uyguladi —
+   log modelleri destenin 36-42. slaytlari, review'in gormedigi kisim. Ozette
+   log modellerinden geriye bir sey kalmadi.
+
+   Duzeltmenin isi yanlis bir cumleyi DOGRUSUYLA degistirmek ("replace is
+   that sentence corrected"); bir cumleyi silmek degil. Silme bicimindeki
+   bir duzeltme (replace, find'in yarisindan kisa), sildigi terimlerin cogu
+   kaynakta geciyorsa reddedilir: silinen sey kaynaktaki icerik, uydurma
+   degil. Gercek bir uydurmanin silinmesi gecer ("logistic regression"
+   kaynakta yok). Idari gurultu (sinav tarihi, devam) kaynakta gecse de
+   silinebilir — review'in D maddesi tam olarak bu.
+   =========================================================================== */
+const DUZELTME_SILME_ORANI = 0.5
+const DUZELTME_DAYANAK_ORANI = 0.75
+const IDARI_GURULTU_RE = /\b(exam|midterm|final exam|grading|grade[sd]?|attendance|office hours?|syllabus|deadline|textbook|edition|s[ıi]nav|vize|devam zorunlulu|ofis saat)/i
+
+function kaynakIcerigiSiliyor(find: string, replace: string, sourceNorm: string): string | null {
+  if (!sourceNorm || sourceNorm.length < 200) return null
+  if (replace.length >= find.length * DUZELTME_SILME_ORANI) return null
+  if (IDARI_GURULTU_RE.test(find)) return null
+  const kalan = new Set(anchorTerms(replace))
+  // 5+ harf: "read", "show", "uses" gibi genel fiiller oranda gurultu.
+  const silinen = [...new Set(anchorTerms(find))].filter(t => t.length >= 5 && !/^\d+$/.test(t) && !kalan.has(t))
+  if (silinen.length < 2) return null
+  const kaynakta = silinen.filter(t => sourceNorm.includes(t) || (t.length > 6 && sourceNorm.includes(t.slice(0, 6))))
+  if (kaynakta.length / silinen.length < DUZELTME_DAYANAK_ORANI) return null
+  return `kaynakta gecen icerigi siliyor (${kaynakta.length}/${silinen.length} terim kaynakta): "${find.slice(0, 60)}..."`
+}
+
 function applyCorrections(
   text: string,
-  corrections: any
+  corrections: any,
+  sourceText: string = ''
 ): { text: string; applied: number; skipped: string[] } {
   const skipped: string[] = []
   if (!Array.isArray(corrections) || !text) return { text, applied: 0, skipped }
   let out = text
   let applied = 0
+  const sourceNorm = sourceText ? normalizeForIssueMatch(sourceText) : ''
 
   for (const c of corrections.slice(0, 8)) {
     const find = String(c?.find || '').trim()
     const replace = String(c?.replace ?? '').trim()
     if (find.length < 8 || find === replace) continue
+
+    const silme = kaynakIcerigiSiliyor(find, replace, sourceNorm)
+    if (silme) {
+      skipped.push(silme)
+      continue
+    }
+
+    // Review, taslakta olmayan bir YOKLUK iddiasi getiremez: gordugu dilim
+    // belgenin tamami degil (bkz. YOKLUK_IDDIASI basligi). Taslak zaten
+    // boyle bir ifade tasiyorsa duzeltmesine izin verilir — orada iddiayi
+    // URETEN review degil.
+    if (YOKLUK_IDDIASI.test(replace) && !YOKLUK_IDDIASI.test(find)) {
+      skipped.push(`yokluk iddiasi eklenmeye calisildi: "${replace.slice(0, 70)}..."`)
+      continue
+    }
 
     // Exact match first; it must be unambiguous, or we cannot know which
     // occurrence the model meant.
@@ -2131,13 +2768,14 @@ function stripIntroducedCitations(draftText: string, reviewText: string): string
 
 function mergeReviewOntoDraft(
   draftRaw: string,
-  reviewRaw: string
+  reviewRaw: string,
+  sourceText: string = ''
 ): { merged: string; notes: string[] } {
   const notes: string[] = []
   const parse = (s: string): any => {
     try {
       const stripped = stripThinkBlock(s)
-      return JSON.parse((stripped ?? s).replace(/```json\s*|```/g, '').trim())
+      return JSON.parse(repairLatexEscapes((stripped ?? s).replace(/```json\s*|```/g, '').trim()))
     } catch {
       return null
     }
@@ -2157,7 +2795,7 @@ function mergeReviewOntoDraft(
   // See applyCorrections.
   if (Array.isArray(review.corrections) && review.corrections.length > 0) {
     const draftSummary = String(draft.summary || '')
-    const fixed = applyCorrections(draftSummary, review.corrections)
+    const fixed = applyCorrections(draftSummary, review.corrections, sourceText)
     if (fixed.applied > 0) {
       out.summary = fixed.text
       notes.push(`summary: ${fixed.applied} duzeltme uygulandi`)
@@ -2279,6 +2917,103 @@ function applyFootnoteRemap(text: string, idMap: Record<number, number>): string
 // (see PDF/PPTX extraction above), or null with the old topic/heading
 // description when no such markers exist for this document (DOCX/plain text,
 // which have no reliable fixed-page concept).
+/* ===========================================================================
+   SLAYT DESTESI TESPITI
+   ===========================================================================
+   07.10.2026, bir ekonometri ders notu ozetine gelen geri bildirim uzerine:
+   "ders slaytlari daha ozet gibi kaldi", "slayt slayt degil de hangi slayt
+   gerekli hangisi gereksiz iyi analiz etmeli".
+
+   Dogru teshis: bir deste duz metinden FARKLI bir is istiyor. Bir slaytta
+   "Heteroskedastisite -> OLS etkin degil" yazar. Bunu OZETLEMEK geriye
+   hicbir sey birakmaz; ogrencinin ihtiyaci olan sey tersi, ACMAK. Ustelik
+   destenin metninin onemli bir kismi yapisal gurultu: baslik slayti,
+   ajanda, bolum ayraci, "Sorular?", tekrarlayan altbilgi.
+
+   Boru hatti bunu ZATEN biliyordu, ama GEC: document_type siniflandirmasi
+   ("Lecture Notes/Slides" secenegi dahil) SENTEZ adiminda, yani butun
+   pencereler cikarildiktan SONRA yapiliyor. Sistem destenin deste oldugunu,
+   ona duz metin muamelesi yapmayi bitirdikten sonra ogreniyordu.
+
+   Oysa sinyal en bastan elde. Iki yoldan:
+     - pptx: KESIN. mime type zaten biliniyor ve isaretler "SLAYT".
+     - PDF: ogrenciler slaytlari cogu zaman PDF olarak disa aktariyor ve o
+       zaman etiket "SAYFA" oluyor. Burada icerikten taninir: deste
+       sayfalari KISA olur.
+
+   ESIK OLCULMUS DEGIL — ve bu kodda yaziyor diye gercek olmuyor. Bir ders
+   slayti tipik olarak 30-80 kelime (~200-600 karakter), bir kitap/makale
+   sayfasi 2.000-4.000 karakter tasir; aradaki bosluk genis, 800 oraya
+   muhafazakar bicimde oturuyor. Sayfa alt siniri, iki sayfalik bir belgenin
+   yanlis siniflandirilmamasi icin. Karar HER CALISMADA sayilariyla
+   loglanir; ilk gercek deste bu esigin dogru olup olmadigini soyleyecek.
+   =========================================================================== */
+const DECK_MIN_PAGES = 8
+const DECK_MAX_CHARS_PER_PAGE = 800
+
+function detectSlideDeck(
+  text: string,
+  pageMarkerLabel: string
+): { isDeck: boolean; pages: number; charsPerPage: number; reason: string } {
+  const sayi = (text.match(new RegExp(`---\\s*${pageMarkerLabel}\\s+\\d+\\s*---`, 'g')) || []).length
+  const basina = sayi > 0 ? Math.round(text.length / sayi) : 0
+
+  // pptx: tartisma yok, dosyanin kendisi deste.
+  if (pageMarkerLabel === "SLAYT") {
+    return { isDeck: true, pages: sayi, charsPerPage: basina, reason: 'pptx' }
+  }
+  if (sayi < DECK_MIN_PAGES) {
+    return { isDeck: false, pages: sayi, charsPerPage: basina, reason: `sayfa az (${sayi})` }
+  }
+  if (basina <= DECK_MAX_CHARS_PER_PAGE) {
+    return { isDeck: true, pages: sayi, charsPerPage: basina, reason: `seyrek sayfa (${basina} krk)` }
+  }
+  return { isDeck: false, pages: sayi, charsPerPage: basina, reason: `yogun sayfa (${basina} krk)` }
+}
+
+/**
+ * Deste icin cikarim talimati. Duz metinde BOS doner — tek karakter maliyeti yok.
+ *
+ * KISA TUTULMASI ZORUNLU. Canli pencere cagrisinin butcesi dar:
+ *   WINDOW/4 (metin) + prompt + 3072 (completion) <= 7200 (8000 TPM * 0.9)
+ * WINDOW=13000 iken pay yalnizca ~351 token. Ilk yazim ~425 tokendi ve
+ * tavani asacakti — bu projede tam bu tur tasma daha once pencere
+ * kaybettirdi. Blok sikistirildi ve maliyeti DECK_PROMPT_CHARS olarak
+ * pencere butcesinden dusuluyor, boylece tavan aritmetigi aynen korunuyor.
+ */
+function buildSlideDeckInstruction(isDeck: boolean, unitWord: string): string {
+  if (!isDeck) return ''
+  const U = unitWord
+  return `
+DECK MODE (lecture ${U}s, not prose):
+- EXPAND, don't compress: ${U} text is telegraphic; summarising it leaves nothing. Say what each fragment MEANS in full sentences — output for a content ${U} is normally LONGER than it.
+- JUDGE ${U}s: skip title, agenda, dividers, "Sorular?"/"Questions?", references, ${U}s restating their title. GROUP the rest by topic — never "${U} 1 covers…".
+- FORMULAS/TABLES/NUMBERS ARE THE LESSON: copy each formula, name every variable; keep each estimated value with its unit and significance level.`
+}
+/* UCUNCU MADDE NEDEN SAYILARI SOYLUYOR (09.10.2026).
+   Ekonometri destesinin alti ampirik sonucunun ALTISI DA metinde var —
+   "0.026 ... 2.6%", "50.5% higher", ".69%", "484.12 - 12.08 temp" — gorsel
+   gerektirmiyor. Yine de dort canli ozet bunlarin en fazla 3'unu tasidi,
+   sonuncusu 0'ini. Eski madde formul ve tablo istiyordu, sayiyi istemiyordu;
+   model "log-dogrusal modelde egim yuzde degisim olarak yorumlanir" yazip
+   0.026'yi atiyordu. Ders bu sayidir.
+   Ayni 549 krk payina sigdirildi: "(spoken explanation is gone)" ve "say what
+   it computes" cikti — ikincisini birinci maddenin "Say what each fragment
+   MEANS" kurali zaten karsiliyor. */
+
+/* Talimatin pencere butcesinden dustugu karakter payi.
+   BU SAYIYI OLCUM SECTI, BEN DEGIL. Canli referans: 30 sayfalik bir ders
+   destesinden cikan 12.451 karakter. O belge iki pencereye bolundugunde
+   araya ~60 sn pacer beklemesi giriyor, PIPELINE_BUDGET_MS (110 sn)
+   tukeniyor ve review pass hic calismiyor — olculmus, tahmin degil
+   (bkz. tests/summary-quality.js, "tipik tek bolumluk belge tek pencereye
+   sigar"). Dolayisiyla deste penceresi 12.451'in altina DUSEMEZ:
+     13000 - 12451 = 549
+   Talimat bu paya sigacak sekilde yazildi; pay buyutulemez, talimat
+   kisaltilir. Ilk yazim 1.077 karakterdi ve tam o referans belgeyi
+   bolecekti — yani kuralin yazilmasina sebep olan belge tipini. */
+const DECK_PROMPT_CHARS = 549
+
 function buildFootnotePageInstruction(hasPageMarkers: boolean, pageMarkerLabel: string): string {
   if (hasPageMarkers) {
     const unitWord = pageMarkerLabel === "SLAYT" ? "slide" : "page"
@@ -2819,22 +3554,54 @@ function validateLatex(raw: string): { ok: boolean; latex: string; reason?: stri
  * real name/variable list is still dropped — the card shows formulas as
  * rendered math, so a nameless broken entry has nothing to display.
  */
-function sanitizeFormulas(formulas: any[]): { formulas: any[]; dropped: Array<{ name: string; reason: string }>; repaired: number } {
+/** Iki formulun AYNI formul olup olmadigini anlamak icin anahtar.
+ *
+ *  Canli ozette ikinci derece model uc kez listelendi — "Quadratic
+ *  regression", "Quadratic (non-linear) model", "Quadratic regression
+ *  function" — cunku iki pencere ve gorsel gecis ayni denklemi ayri adla
+ *  yazdi. Ad degil denklem karsilastirilir: bosluk, suslu parantez, \left/
+ *  \right, sapka, carpi isareti atilir; tek harfli gosterge altlari (x_j,
+ *  x_i) dusurulur cunku ayni slayt ayni modeli bazen x, bazen x_j ile yaziyor.
+ *  Rakam altlari (β_1, x_2) KORUNUR — onlar farkli degiskenler. */
+function formulaKey(latex: string): string {
+  return String(latex || '')
+    .replace(/\\(?:left|right|displaystyle|,|;|!|quad|qquad)/g, '')
+    .replace(/\\hat\s*\{?\s*(\\?[A-Za-z]+)\s*\}?/g, '$1')
+    .replace(/\\(?:cdot|times)/g, '')
+    .replace(/\\(?:varepsilon|epsilon)/g, 'ε')
+    .replace(/\\beta/g, 'β').replace(/\\alpha/g, 'α')
+    .replace(/[{}\s]/g, '')
+    .replace(/_([a-zA-Z])(?![a-zA-Z0-9])/g, '')
+    .replace(/[̂ˆ]/g, '')
+    .toLowerCase()
+}
+
+function sanitizeFormulas(formulas: any[]): { formulas: any[]; dropped: Array<{ name: string; reason: string }>; repaired: number; duplicates: number } {
   const list = Array.isArray(formulas) ? formulas : []
   const out: any[] = []
   const dropped: Array<{ name: string; reason: string }> = []
+  const seen = new Set<string>()
   let repaired = 0
+  let duplicates = 0
   for (const f of list) {
     const original = String(f?.latex || '')
-    const v = validateLatex(original)
+    // Cift kacisli komut: model "\\beta" yazinca KaTeX "\\" satir sonu +
+    // "beta" goruyor, PDF "\β" basiyordu (canli: "y=\β₀+\∑ⱼ₌₁^k..."). Harften
+    // once gelen cift ters bolu tek ters boluya indirilir; gercek satir sonu
+    // ("a \\ b") arkasindan bosluk geldigi icin etkilenmez.
+    const deduped = original.replace(/\\\\(?=[A-Za-z])/g, '\\')
+    const v = validateLatex(deduped)
     if (!v.ok) {
       dropped.push({ name: String(f?.name || '(isimsiz)').slice(0, 40), reason: v.reason || 'gecersiz' })
       continue
     }
+    const key = formulaKey(v.latex)
+    if (key && seen.has(key)) { duplicates++; continue }
+    if (key) seen.add(key)
     if (v.latex !== original.trim()) repaired++
     out.push({ ...f, latex: v.latex })
   }
-  return { formulas: out, dropped, repaired }
+  return { formulas: out, dropped, repaired, duplicates }
 }
 
 // ==========================================================================
@@ -3049,6 +3816,174 @@ function sourceNumbers(text: string): Set<number> {
     }
   }
   return out
+}
+
+/* ==========================================================================
+   SAYISAL KAPSAMA — kaynagin OLCULMUS degerlerinin ne kadari ozete ulasti
+   (09.10.2026)
+
+   Bu projenin ozet kalitesi icin bir olcusu yoktu. "Bence asiri zayif kaldi"
+   dogru bir gozlemdi ama bir sayi degildi; bir sonraki surumun daha iyi mi
+   kotu mu oldugunu ancak biri iki PDF'i yan yana okuyarak soyleyebiliyordu.
+
+   Olculen sey: kaynakta gecen AYIRT EDICI sayilardan kacinin ozette de
+   gectigi. Ayirt edici = ondalikli bir deger ya da |v| >= 100 —
+   gateWorkedExamples'in kullandigi tanimin aynisi. Kucuk tam sayilar
+   (slayt numarasi, "%10 duzeyinde", "2 kategori") her metinde bulunur ve
+   hicbir sey olcmez.
+
+   Ayni ekonometri destesinin dort canli ozeti, BU uygulamayla olculdu
+   (kaynak 41 ayirt edici sayi, dipnotlar haric):
+       08.10 ozet A        19/41   %46
+       08.10 ozet B        15/41   %37
+       08.10 ozet C        19/41   %46   (alti ampirik sonuctan 3'u — en iyisi)
+       09.10 "asiri zayif" 11/41   %27   (repairLatexEscapes hatasi kosusu)
+   Kullanicinin "asiri zayif" dedigi kosu acik farkla en dusuk. A ile C'yi
+   ayirt EDEMIYOR: C alti sonuctan 3'unu, A 1'ini tasiyor ama A baska
+   slaytlarin sayilarini daha cok tutmus. Yani kaba kaliteyi goruyor, ince
+   farki gormuyor — bir sonraki surumun belirgin geriledigini ya da
+   ilerledigini soylemeye yetiyor, ve her kosuda, ek model cagrisi olmadan.
+
+   YALNIZCA TANI. Hicbir seyi kapilamiyor, dusurmuyor, yeniden istemiyor.
+   Mutlak deger anlamli degil (kaynakta ders olmayan sayilar da var); anlamli
+   olan AYNI belgenin kosulari arasindaki fark ve pencere -> birlesim ->
+   son kart arasinda nerede kayboldugu.
+   ========================================================================== */
+
+// Kaynak metindeki "--- SAYFA N ---" / "--- SLAYT N ---" isaretleri olcuye
+// girmemeli: 100+ sayfalik bir belgede isaretin kendisi "ayirt edici" sayilir.
+const SAYFA_ISARETI_RE = /---\s*(?:SAYFA|SLAYT)\s+\d+\s*---/g
+
+// Model okudugunu yuvarlar ("484.12" -> "484", "41.5%" -> "42%") ve yuvarlanmis
+// bir deger de okunmus bir degerdir. GORELI tolerans, mutlak degil: mutlak
+// yuvarlama tam olarak gateWorkedExamples'ta dustugumuz tuzak — 0.0012 sifira
+// yuvarlanir ve her metinde 0 vardir. Goreli %2.5'te 0.026'nin penceresi
+// +/-0.00065; "0.03" (yuzde 15 uzak) KABUL EDILMIYOR, 484.12 icin "484" ediliyor.
+const SAYISAL_KAPSAMA_TOLERANS = 0.025
+
+// Bastaki nokta DAHIL: ders slaytlari ".07 tons", ".69%" yaziyor (Amerikan
+// istatistik gelenegi). \d ile baslayan bir desen bunlari 7 ve 69 olarak okur
+// — ikisi de kucuk tam sayi, ikisi de olcuden duser. Referans destenin alti
+// sonucundan ikisi tam olarak bu bicimde.
+const SAYI_BELIRTECI = /\.?\d[\d.,]*/g
+const SAYISAL_KAPSAMA_ORNEK = 8
+
+/** Bir sayi belirtecinin okumalari; ILK eleman birincil okuma.
+ *
+ *  Turkce ondalik virgul ("12,08", "%2,6") de okunur: ozet dili Turkce
+ *  oldugunda model sayiyi boyle yaziyor, ve bu okunmazsa Turkce her ozet
+ *  sistematik olarak dusuk olculur.
+ *
+ *  "1,500" iki turlu okunabilir (1500 / 1.5). Kaynak tarafi YALNIZCA birincil
+ *  okumayi kullanir — yoksa her binlik ayracli sayi olcuye bir de hayali 1.5
+ *  ekler ve o hep "kayip" cikar. Ozet tarafi hepsini kullanir: orada fazla
+ *  aday olcuyu yalnizca comertlestirir. */
+function sayiOkumalari(token: string): number[] {
+  const base = token.replace(/[.,]+$/, '')
+  const okumalar: number[] = []
+  // Ingilizce: "1,500.25" -> 1500.25 ; "0.026" -> 0.026 ; "12,08" -> NaN
+  const en = Number(base.replace(/,(?=\d{3}\b)/g, ''))
+  if (Number.isFinite(en)) okumalar.push(en)
+  // Turkce: "1.500,25" -> 1500.25 ; "12,08" -> 12.08. Yalnizca virgul varsa
+  // anlamli; "0.026" icin bu okuma 26 uretirdi.
+  if (base.includes(',')) {
+    const tr = Number(base.replace(/\.(?=\d{3}\b)/g, '').replace(',', '.'))
+    if (Number.isFinite(tr) && !okumalar.includes(tr)) okumalar.push(tr)
+  }
+  return okumalar
+}
+
+/** Kaynagin ayirt edici sayilari, ILK GORULDUKLERI SIRADA ve mutlak degere
+ *  gore tekillestirilmis. Isaret karsilastirilmiyor: cikaricilar eksi
+ *  isaretini sik kaybediyor (sembol fontu), ve "12.08 kayboldu mu" sorusu
+ *  isaretten bagimsiz. Yil gibi duran tam sayilar (1500-2100) disarida — ders
+ *  icerigi degil, ama her donem slaytinda var. */
+function distinctiveNumbers(text: string): number[] {
+  const temiz = String(text || '').replace(SAYFA_ISARETI_RE, ' ')
+  const out: number[] = []
+  const gorulen = new Set<number>()
+  for (const token of temiz.match(SAYI_BELIRTECI) || []) {
+    // Ayracsiz 7+ hane olculmus bir deger degil, denklem nesnesinin bozuk
+    // cikarimi: canli logda "kayip: 3210, 12010, 3152143210" — "x_1 x_2 x_3"
+    // alt simgelerinin yan yana dizilmis hali. Kimlik/telefon da ayni sinif.
+    if (/^\d{7,}$/.test(token)) continue
+    const birincil = sayiOkumalari(token)[0]
+    if (birincil === undefined) continue
+    const v = Math.abs(birincil)
+    const kesirli = v !== Math.trunc(v)
+    // Yil hicbir zaman ayracla yazilmaz: "1,800 dolar" bir tutar, "1800" bir yil.
+    const yil = !kesirli && v >= 1500 && v <= 2100 && /^\d{4}$/.test(token)
+    if (yil || (!kesirli && v < 100)) continue
+    if (gorulen.has(v)) continue
+    gorulen.add(v)
+    out.push(v)
+  }
+  return out
+}
+
+/** Ozetteki tum sayilar, siralanmis mutlak degerler (ikili arama icin). */
+function outputNumbers(text: string): number[] {
+  const out: number[] = []
+  for (const token of String(text || '').match(SAYI_BELIRTECI) || []) {
+    for (const v of sayiOkumalari(token)) out.push(Math.abs(v))
+  }
+  return out.sort((a, b) => a - b)
+}
+
+function yakinDegerVar(sirali: number[], v: number): boolean {
+  const alt = v * (1 - SAYISAL_KAPSAMA_TOLERANS)
+  const ust = v * (1 + SAYISAL_KAPSAMA_TOLERANS)
+  let lo = 0, hi = sirali.length
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1
+    if (sirali[mid] < alt) lo = mid + 1
+    else hi = mid
+  }
+  return lo < sirali.length && sirali[lo] <= ust
+}
+
+/** Olcuye girmeyen alanlar. footnotes kaynaktan BIREBIR alinti tasir — onu
+ *  saymak "ozet bu sayiyi ogretti mi" sorusunu "kaynak kendini tekrar etti mi"
+ *  sorusuna cevirir. Digerleri sayfa numarasi ve kimlik tasir. */
+const KAPSAMA_DISI_ALANLAR = new Set([
+  'footnotes', 'quality_meta', 'outline', 'document_id', 'user_id',
+  'page', 'page_start', 'page_end', 'source_pages'
+])
+
+function coverageText(obj: unknown): string {
+  if (typeof obj === 'string') return obj
+  try {
+    return JSON.stringify(obj, (k, v) => (KAPSAMA_DISI_ALANLAR.has(k) ? undefined : v)) || ''
+  } catch {
+    return ''
+  }
+}
+
+function numericCoverage(
+  sourceText: string,
+  output: unknown
+): { total: number; kept: number; missing: number[] } {
+  const hedef = distinctiveNumbers(sourceText)
+  if (hedef.length === 0) return { total: 0, kept: 0, missing: [] }
+  const cikti = outputNumbers(coverageText(output))
+  const missing: number[] = []
+  let kept = 0
+  for (const v of hedef) {
+    if (yakinDegerVar(cikti, v)) kept++
+    else missing.push(v)
+  }
+  return { total: hedef.length, kept, missing }
+}
+
+function formatCoverage(cov: { total: number; kept: number; missing: number[] }): string {
+  if (cov.total === 0) return 'olculecek ayirt edici sayi yok'
+  const oran = Math.round((100 * cov.kept) / cov.total)
+  if (cov.missing.length === 0) return `${cov.kept}/${cov.total} (%${oran})`
+  const ornek = cov.missing.slice(0, SAYISAL_KAPSAMA_ORNEK).join(', ')
+  const fazla = cov.missing.length > SAYISAL_KAPSAMA_ORNEK
+    ? ` +${cov.missing.length - SAYISAL_KAPSAMA_ORNEK}`
+    : ''
+  return `${cov.kept}/${cov.total} (%${oran}) — kayip: ${ornek}${fazla}`
 }
 
 /**
@@ -3341,6 +4276,389 @@ type GroundingStats = {
 //
 // These claims are not ungrounded, they are grounded in a source this
 // function cannot read, so they are passed through and counted as kept.
+/* ===========================================================================
+   COZUMLU ORNEKLERIN SAYILARI DA DAYANDIRILIR
+   ===========================================================================
+   08.10.2026, canli ekonometri destesinde olculdu. Grounding gate
+   "score=100%, 0 dropped" dedi ve ayni kartta su cozumlu ornek vardi:
+
+     "Given the estimated quadratic model
+      UtilityBill = 208.12 - 0.09*Temp + 0.0012*Temp^2 ..."
+
+   Kaynaktaki gercek denklem (slayt 28):
+
+     UtilityBill = 484.12 - 12.08*temp + 0.09*temp^2
+
+   Dort katsayidan ucu uydurma. Daha kotusu, ornegin VARDIGI sonuclar
+   (40 derecede -5.06 dolar, minimum 67.1 derece) kaynaktaki DOGRU
+   sonuclar — ama yazdigi denklemden cikmiyorlar. Metin bunu kendi icinde
+   itiraf bile ediyor ("using the provided numbers yields -0.0054, i.e., a
+   $5.06 drop"). Dogru cevap, yanlis denklem: adimlari tekrar etmeye
+   calisan ogrenci icin en kotu hata turu.
+
+   Kapi bunu goremezdi, cunku YALNIZCA key_terms ve key_points'e bakiyordu.
+   Oysa uydurma sayinin en cok zarar verdigi yer tam olarak cozumlu ornek.
+
+   YALNIZCA problem_statement YARGILANIR. steps ve final_answer modelin
+   KENDI hesapladigi sayilari tasir; onlarin kaynakta gecmemesi dogaldir.
+   Ayirt edici olmayan sayilar (tek-iki haneli tam sayilar: 2, 40, 100) da
+   elenir, yoksa her ornek yanlis yere takilir. Esik grafik kapisiyla ayni
+   (CHART_MIN_GROUNDED_RATIO): yarisindan fazlasi dayanaksizsa atilir.
+   =========================================================================== */
+function gateWorkedExamples(
+  examples: any[],
+  sourceText: string
+): { kept: any[]; dropped: string[] } {
+  const list = Array.isArray(examples) ? examples : []
+  if (!sourceText || sourceText.length < 200 || list.length === 0) {
+    return { kept: list, dropped: [] }
+  }
+  const inSource = sourceNumbers(sourceText)
+  const dropped: string[] = []
+
+  const kept = list.filter((ex: any) => {
+    const verilen = String(ex?.problem_statement || '')
+    if (!verilen) return true
+    // Ayirt edici sayilar: ondalikli, ya da uc+ basamakli.
+    const adaylar = (verilen.match(/-?\d[\d.,]*/g) || [])
+      .map(t => Number(t.replace(/[.,]+$/, '').replace(/,(?=\d{3}\b)/g, '')))
+      .filter(v => Number.isFinite(v) && (Math.abs(v) >= 100 || !Number.isInteger(v)))
+    if (adaylar.length < 2) return true          // yargilayacak kadar sayi yok
+    /* YUVARLAMA TOLERANSI YALNIZCA BUYUK SAYILARA. sourceNumbers her degerin
+       yuvarlanmisini da kumeye koyuyor ("17.042 milyar" -> 17000 okumasi
+       gercek bir davranis). Ama 0.0012 yuvarlaninca 0 oluyor ve her metinde
+       0 vardir — yani kucuk ondalikli her uydurma sayi "dayanakli" cikiyor.
+       Ilk yazimda tam bu yuzden kapi GERCEK uydurma ornegi kacirdi. */
+    const dayanan = adaylar.filter(v => {
+      if (inSource.has(v)) return true
+      if (Math.abs(v) < 10) return false
+      return inSource.has(Math.round(v)) || inSource.has(Math.round(v * 10) / 10)
+    }).length
+    if (dayanan / adaylar.length >= CHART_MIN_GROUNDED_RATIO) return true
+    dropped.push(
+      `${String(ex?.title || 'baslıksız').slice(0, 40)} ` +
+      `(${adaylar.length - dayanan}/${adaylar.length} sayi kaynakta yok)`
+    )
+    return false
+  })
+
+  return { kept, dropped }
+}
+
+/* ===========================================================================
+   COZUMLU ORNEK: ADIMLAR VE ARITMETIK (09.10.2026)
+
+   gateWorkedExamples yalnizca problem_statement'a bakiyor; adimlardaki
+   katsayilar ise orada hic gecmeyebilir. Canli iki kosuda ayni ornek:
+
+     "Obtain coefficients: β1 = -9.0, β2 = 0.1212"
+     "At Temp=40: dY/dTemp = -9.0 + 2(0.1212)(40) = -5.06"
+     "Temp* = -β1/(2β2) = 11.67/0.2424 ≈ 67.11"
+
+   Kaynakta β1 = −12.08, β2 = 0.09. Sonuclar (−5.06, 67.11) kaynaktan
+   kopyalanmis, katsayilar uydurulmus — ve aritmetik kendini ele veriyor:
+   −9.0 + 2(0.1212)(40) = 0.696, 11.67/0.2424 = 48.1. Ogrencinin adim adim
+   tekrar edecegi bir ornekte bu, yanlis cevaptan beter: dogru cevap, yanlis
+   yol.
+
+   Kapi kaynaga bakmiyor, ornegin KENDI ICINDE tutarli olup olmadigina
+   bakiyor: "sayisal ifade = sayi" biciminde her esitlik hesaplanir.
+   Sembolik esitlikler (β1 + 2β2x = 0, x* = −β1/(2β2)) atlanir — ifadenin
+   bitisiginde harf varsa hesaplanacak bir sey yoktur.
+   =========================================================================== */
+
+/** Adimlari temizle: tek dizgiye sikistirilmis "1. … 2. … 3. …" ayrilir,
+ *  her adimin basindaki numara silinir (arayuz zaten numaraliyor; ikisi
+ *  birden "1. 1. Fit model" oluyordu). */
+function normalizeExampleSteps(steps: any): string[] {
+  const raw: string[] = (Array.isArray(steps) ? steps : (steps == null ? [] : [steps]))
+    .map((s: any) => (typeof s === 'string' ? s : (s && typeof s === 'object' ? String(s.text || s.step || s.description || '') : String(s ?? ''))))
+  const out: string[] = []
+  for (const s of raw) {
+    for (const part of splitInlineSteps(s)) {
+      const clean = part.replace(/^\s*(?:(?:step|adım|adim)\s*)?\d{1,2}\s*[.):]\s+/i, '').trim()
+      if (clean) out.push(clean)
+    }
+  }
+  return out
+}
+
+/** "1. A 2. B 3. C" -> ["1. A", "2. B", "3. C"]. Yalnizca 1'den baslayan
+ *  ve ardisik ilerleyen numaralar bolme noktasi sayilir: "0.1212. 3." gibi
+ *  ondalik sonu ya da tek bir "2." metnin ortasinda bolme yaratmaz. */
+function splitInlineSteps(s: string): string[] {
+  const text = String(s || '')
+  const re = /(^|\s)(\d{1,2})[.)]\s+(?=\D)/g
+  const marks: Array<{ n: number; at: number }> = []
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text)) !== null) {
+    marks.push({ n: Number(m[2]), at: m.index + m[1].length })
+  }
+  const seq: Array<{ n: number; at: number }> = []
+  for (const mk of marks) {
+    const want = seq.length === 0 ? 1 : seq[seq.length - 1].n + 1
+    if (mk.n === want) seq.push(mk)
+  }
+  if (seq.length < 2 || text.slice(0, seq[0].at).trim() !== '') return [text]
+  const parts: string[] = []
+  for (let i = 0; i < seq.length; i++) {
+    parts.push(text.slice(seq[i].at, i + 1 < seq.length ? seq[i + 1].at : undefined).trim())
+  }
+  return parts
+}
+
+function normalizeWorkedExamples(examples: any[]): any[] {
+  return (Array.isArray(examples) ? examples : []).map((ex: any) =>
+    ex && typeof ex === 'object' ? { ...ex, steps: normalizeExampleSteps(ex.steps) } : ex)
+}
+
+/** Kucuk aritmetik degerlendirici: sayilar, + − * / ^, parantez, ortuk carpim
+ *  ("2(0.09)39"). Gecersiz girdide null. */
+function evalArithmetic(expr: string): number | null {
+  const src = String(expr || '')
+  let i = 0
+  const peek = () => src[i]
+  const skip = () => { while (i < src.length && /\s/.test(src[i])) i++ }
+  function number(): number | null {
+    skip()
+    const m = /^(\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?/.exec(src.slice(i))
+    if (!m) return null
+    i += m[0].length
+    return Number(m[0])
+  }
+  function primary(): number | null {
+    skip()
+    if (peek() === '(') {
+      i++
+      const v = sum()
+      skip()
+      if (v === null || peek() !== ')') return null
+      i++
+      return v
+    }
+    return number()
+  }
+  function power(): number | null {
+    const base = primary()
+    if (base === null) return null
+    const once = i
+    skip()
+    if (peek() === '^') {
+      i++
+      const e = unary()
+      return e === null ? null : Math.pow(base, e)
+    }
+    // Boslugu tuketme: product() bosluktan sonraki rakami ortuk carpim
+    // saymamak icin boslugun orada oldugunu gormeli.
+    i = once
+    return base
+  }
+  function unary(): number | null {
+    skip()
+    if (peek() === '-') { i++; const v = unary(); return v === null ? null : -v }
+    if (peek() === '+') { i++; return unary() }
+    return power()
+  }
+  function product(): number | null {
+    let v = unary()
+    if (v === null) return null
+    for (;;) {
+      const once = i
+      skip()
+      const c = peek()
+      // Bosluktan sonra gelen rakam ortuk carpim DEGIL: "hafta 3 15 + 2"
+      // 3*15 okunursa dogru bir hesap yanlis gorunur. Ortuk carpim yalnizca
+      // parantez bitisikliginde: 2(0.09), (0.09)39, (a)(b).
+      if (i > once && c !== undefined && /[\d.]/.test(c)) return v
+      if (c === '*' || c === '/') {
+        i++
+        const r = unary()
+        if (r === null) return null
+        v = c === '*' ? v * r : v / r
+      } else if (c === '(' || (c !== undefined && /[\d.]/.test(c))) {
+        // ortuk carpim: 2(0.09) ya da (0.09)39
+        const r = power()
+        if (r === null) return null
+        v = v * r
+      } else {
+        return v
+      }
+    }
+  }
+  function sum(): number | null {
+    let v = product()
+    if (v === null) return null
+    for (;;) {
+      skip()
+      const c = peek()
+      if (c !== '+' && c !== '-') return v
+      i++
+      const r = product()
+      if (r === null) return null
+      v = c === '+' ? v + r : v - r
+    }
+  }
+  const v = sum()
+  skip()
+  return v !== null && i === src.length && Number.isFinite(v) ? v : null
+}
+
+/** Esitlik denetimi icin metni duzle: Unicode isaretler, para/yuzde, ust
+ *  simge rakamlari, binlik/ondalik virgul. */
+function normalizeArithmeticText(s: string): string {
+  return String(s || '')
+    .replace(/[−–]/g, '-')
+    .replace(/[×·⋅∗]/g, '*')
+    .replace(/÷/g, '/')
+    .replace(/≈|≅/g, '=')
+    .replace(/²/g, '^2').replace(/³/g, '^3')
+    .replace(/[$€£₺%]/g, '')
+    .replace(/(\d),(\d{3})(?!\d)/g, '$1$2')
+    .replace(/(\d),(\d{1,2})(?!\d)/g, '$1.$2')
+}
+
+const ARITH_RUN_CHARS = /[0-9.+\-*/^()\s]/
+const ARITH_TOLERANCE = 0.02
+
+/** Bir metindeki "sayisal ifade = sayi" esitliklerinin hepsi tutuyor mu? */
+function checkArithmetic(text: string): { checked: number; failures: string[] } {
+  const s = normalizeArithmeticText(text)
+  const segs = s.split('=')
+  const failures: string[] = []
+  let checked = 0
+  for (let k = 0; k + 1 < segs.length; k++) {
+    const left = segs[k]
+    const right = segs[k + 1]
+    // Soldaki segmentin SONUNDAKI sayisal kosu
+    let a = left.length
+    while (a > 0 && ARITH_RUN_CHARS.test(left[a - 1])) a--
+    const before = left[a - 1]
+    // Harf/alt cizgi/ters bolu BITISIKSE ifade sembolik ("2β2*39"):
+    // hesaplanacak sey yok. Arada bosluk varsa ("slope 98 + 45") onceki
+    // kelime duz yazidir, hesap hesaptir.
+    const bitisik = a < left.length && !/\s/.test(left[a])
+    if (before !== undefined && bitisik && /[A-Za-zα-ωΑ-Ω_\\']/.test(before)) continue
+    let lhs = left.slice(a).trim().replace(/^[+*/^]+/, '').trim()
+    // Sagdaki segmentin BASINDAKI sayisal kosu
+    let b = 0
+    while (b < right.length && ARITH_RUN_CHARS.test(right[b])) b++
+    const run = right.slice(0, b)
+    const after = right[b]
+    if (after !== undefined && run === run.trimEnd() && /[A-Za-zα-ωΑ-Ω_]/.test(after)) continue
+    let rhs = run.trim().replace(/[.+\-*/^]+$/, '').trim()
+    lhs = lhs.replace(/[.+\-*/^]+$/, '').trim()
+    if (!/\d/.test(lhs) || !/\d/.test(rhs)) continue
+    // Sol taraf bir HESAP olmali (en az iki sayi ve bir islem); "40 = 40" degil.
+    if ((lhs.match(/\d+(?:\.\d+)?|\.\d+/g) || []).length < 2) continue
+    const L = evalArithmetic(lhs)
+    const R = evalArithmetic(rhs)
+    if (L === null || R === null) continue
+    checked++
+    const tol = Math.max(0.015, ARITH_TOLERANCE * Math.max(Math.abs(L), Math.abs(R)))
+    if (Math.abs(L - R) > tol) {
+      failures.push(`${lhs} = ${Math.round(L * 1000) / 1000}, yazilan ${rhs}`)
+    }
+  }
+  return { checked, failures }
+}
+
+/* ===========================================================================
+   REVIEW SORUNLARININ SUZULMESI (09.10.2026)
+
+   Review'in quality_gate.issues listesi critic'e "bunlari duzelt" diye
+   gidiyor. Iki canli kosuda da liste su maddeleri tasidi:
+
+     "Contains unsupported discussion of log-linear and log-log models"
+     "Hallucinated claim about elasticities and log-linear models"
+
+   Log-dogrusal ve log-log modeller destenin 36-42. slaytlari — kaynakta
+   acikca var. Critic soyleneni yapti ve DOGRU icerigi ozetten sildi; iki
+   ozette de log modeller yok. Ayni turden ucuncu madde ("lacks an opening
+   statement that clearly states the thesis") critic'e ozeti tek paragrafa
+   cevirip "It begins with a thesis that..." diye baslatma sebebi verdi.
+
+   Kural: "kaynakta yok / uydurma" diyen bir madde, adlandirdigi terimlerin
+   kaynakta GECIP GECMEDIGINE bakilarak dogrulanir; terimlerin cogu
+   kaynaktaysa madde dusurulur. "Tez" maddesi ders materyali icin anlamsiz
+   oldugundan dusurulur. Gercek bir uydurmayi ("logistic regression") bu
+   kontrol tutar, cunku o terim kaynakta yoktur.
+   =========================================================================== */
+const ISSUE_ABSENCE_RE = /hallucinat|unsupported|not (?:supported|present|found|mentioned|discussed|covered|in the source)|absent|does not (?:discuss|mention|cover|include|contain)|no (?:mention|discussion) of|fabricat|invented|kaynakta (?:yok|gecmiyor)|uydurma/i
+const ISSUE_THESIS_RE = /\bthesis\b|opening statement|core (?:purpose|claim)|\btez\b/i
+const ISSUE_STOPWORDS = new Set([
+  'hallucinated', 'hallucination', 'hallucinations', 'claim', 'claims', 'about', 'unsupported',
+  'discussion', 'discusses', 'discussed', 'source', 'summary', 'draft', 'statement', 'statements',
+  'mention', 'mentions', 'mentioned', 'model', 'models', 'contains', 'contain', 'regarding',
+  'missing', 'explicit', 'potential', 'section', 'sections', 'chapter', 'document', 'text',
+  'information', 'content', 'details', 'present', 'presents', 'provides', 'which', 'that', 'this',
+  'there', 'their', 'with', 'from', 'into', 'also', 'than', 'more', 'most', 'very', 'does',
+  'not', 'the', 'and', 'such', 'these', 'those', 'claimed', 'portion', 'part', 'parts', 'include',
+  'includes', 'fabricated', 'invented', 'absent', 'covered', 'found', 'supported', 'should',
+  'removed', 'remove', 'brief', 'slides', 'slide', 'lecture', 'material'
+])
+
+function normalizeForIssueMatch(s: string): string {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/\s*[-‐‑–—−]\s*/g, '-')
+    .replace(/\s+/g, ' ')
+}
+
+function filterReviewIssues(
+  issues: string[],
+  sourceText: string
+): { kept: string[]; dropped: Array<{ issue: string; reason: string }> } {
+  const src = normalizeForIssueMatch(sourceText)
+  const kept: string[] = []
+  const dropped: Array<{ issue: string; reason: string }> = []
+  for (const raw of Array.isArray(issues) ? issues : []) {
+    const issue = String(raw || '')
+    if (!issue.trim()) continue
+    if (ISSUE_THESIS_RE.test(issue)) {
+      dropped.push({ issue, reason: 'tez beklentisi ders materyaline uymuyor' })
+      continue
+    }
+    if (src.length >= 200 && ISSUE_ABSENCE_RE.test(issue)) {
+      const terms = (normalizeForIssueMatch(issue).match(/[a-zçğıöşü][a-zçğıöşü-]{3,}/g) || [])
+        .map(t => t.replace(/^-+|-+$/g, ''))
+        // Cogul -> tekil yaklasimi: "elasticities" kaynakta "elasticity"
+        // olarak da gecebilir. Kok olarak ilk 6 harf aranir.
+        .filter(t => t.length >= 4 && !ISSUE_STOPWORDS.has(t))
+      if (terms.length > 0) {
+        const found = terms.filter(t => src.includes(t) || (t.length > 6 && src.includes(t.slice(0, 6)))).length
+        if (found / terms.length >= 0.75) {
+          dropped.push({ issue, reason: `terimler kaynakta var (${found}/${terms.length})` })
+          continue
+        }
+      }
+    }
+    kept.push(issue)
+  }
+  return { kept, dropped }
+}
+
+/** Critic'in yazdigi metin taslagin paragraf yapisini korudu mu? */
+function paragraphCount(text: string): number {
+  return String(text || '').split(/\n\s*\n/).map(p => p.trim()).filter(Boolean).length
+}
+
+function gateWorkedExampleArithmetic(examples: any[]): { kept: any[]; dropped: string[] } {
+  const dropped: string[] = []
+  const kept = (Array.isArray(examples) ? examples : []).filter((ex: any) => {
+    if (!ex || typeof ex !== 'object') return false
+    const parts = [
+      ...(Array.isArray(ex.steps) ? ex.steps : []),
+      String(ex.final_answer || '')
+    ]
+    const failures: string[] = []
+    for (const p of parts) failures.push(...checkArithmetic(String(p || '')).failures)
+    if (failures.length === 0) return true
+    dropped.push(`${String(ex.title || 'basliksiz').slice(0, 40)} (${failures[0]})`)
+    return false
+  })
+  return { kept, dropped }
+}
+
 function applyGroundingGate(
   keyTerms: any[],
   keyPoints: any[],
@@ -3728,7 +5046,21 @@ serve(async (req) => {
           // each page's text below so the model can cite the EXACT page a
           // claim came from (see the FOOTNOTES prompt instructions), instead
           // of only a vague topic/section description as before.
-          const { text: pdfPages } = await extractText(pdf, { mergePages: false })
+          // Denklem sayfalari koordinattan yeniden diziliyor (bkz.
+          // extractPdfPagesWithEquations). Herhangi bir hata unpdf'in duz
+          // cikarimina duser — eski davranis, yalnizca PUA haritasiyla.
+          let pdfPages: string[]
+          try {
+            const res = await extractPdfPagesWithEquations(pdf)
+            pdfPages = res.pages
+            if (res.rebuilt.length > 0) {
+              console.log(`Denklem sayfalari yeniden dizildi: ${res.rebuilt.length}/${pdfPages.length} sayfa [${res.rebuilt.slice(0, 30).join(',')}]`)
+            }
+          } catch (eqErr) {
+            console.warn('Denklem duzeni kurulamadi, duz cikarim kullaniliyor:', String((eqErr as any)?.message || eqErr).slice(0, 200))
+            const { text } = await extractText(pdf, { mergePages: false })
+            pdfPages = text.map(mapSymbolPua)
+          }
           pdfPageTexts = pdfPages
           const pdfTextWithPageMarkers = pdfPages.map((pageText, idx) => `--- SAYFA ${idx + 1} ---\n${pageText}`).join('\n\n')
           extractedText = detectAndFormatPdfTables(pdfTextWithPageMarkers)
@@ -4168,6 +5500,9 @@ ${styleInstruction}`
 
     let rawContent = ""
     let sourceTextForReview = ""
+    // Dusen pencere varsa karta yazilir: ogrenci ozetin eksik oldugunu
+    // bilmeli, ve iki kosu loglar gittikten sonra da karsilastirilabilmeli.
+    let eksikPencereler: { dusen: number; toplam: number; kayipKrk: number } | null = null
     let visualAnalysisUsed = false
 
     if (!useChunkedPipeline) {
@@ -4540,15 +5875,29 @@ In addition to the text below, you are shown images of this document's pages. Us
       // other part that does not exist. Every mention of scope in the prompt
       // goes through this.
       const scopeWord = (total: number) => wholeDocInOneWindow(total) ? 'the document' : 'this part'
-      const termQuota = (total: number) => wholeDocInOneWindow(total) ? '15-28' : '5-15'
+      const termQuota = (total: number) => wholeDocInOneWindow(total) ? '15-28' : '8-15'
       const pointQuota = (total: number) => wholeDocInOneWindow(total) ? '10-18' : '5-12'
-      const quizQuota = (total: number) => wholeDocInOneWindow(total) ? '5-10' : '3-6'
+      const quizQuota = (total: number) => wholeDocInOneWindow(total) ? '5-10' : '4-8'
 
       // Compact extraction prompt — keeps request under Groq limits
+      // BIR KEZ hesaplanir. compactWindowPrompt pencere basina birkac kez
+      // cagriliyor (token tahmini, cagri, yeniden deneme tahmini), ve
+      // tespit butun metin uzerinde regex kosturuyor — her cagrida yeniden
+      // yapmak bos is.
+      const deste = detectSlideDeck(extractedText, pageMarkerLabel)
+      const desteTalimati = buildSlideDeckInstruction(
+        deste.isDeck,
+        pageMarkerLabel === "SLAYT" ? "slide" : "page"
+      )
+      console.log(
+        `summarize-document: belge tipi ${deste.isDeck ? 'SLAYT DESTESI' : 'duz metin'} ` +
+        `(${deste.reason}; ${deste.pages} isaret, isaret basina ${deste.charsPerPage} krk)`
+      )
+
       const compactWindowPrompt = (wi: number, total: number) =>
         `You extract study material from ${total === 1 ? 'a complete academic document' : `part ${wi + 1}/${total} of a long academic document`}.
-Language for all text fields: ${langLabel}.
-Respond ONLY with JSON:
+Language for all text fields: ${langLabel}.${desteTalimati}
+Respond ONLY with JSON. In every string, a backslash must be written TWICE ("\\\\beta_0", "\\\\frac{a}{b}") — a single backslash makes the whole response invalid and it is thrown away.
 {
   "summary": "5-10 sentences of CONCRETE content from ${total === 1 ? 'the document' : 'this part only'} — name real topics, methods, definitions",
   "summary_executive": "1-2 sentences naming the subject of ${total === 1 ? 'the document' : 'this part'}",
@@ -4565,8 +5914,8 @@ Respond ONLY with JSON:
   "worked_examples": [{"title":"...","problem_statement":"...","steps":["..."],"final_answer":"..."}]
 }
 Rules:
-- Extract ${termQuota(total)} key_terms and ${pointQuota(total)} key_points when content allows
-- ${quizQuota(total)} quiz_questions when content allows${total === 1 ? `
+- Extract ${termQuota(total)} key_terms and ${pointQuota(total)} key_points when content allows; every reported result (estimate, % change, significance) is its own key_point WITH its numbers
+- ${quizQuota(total)} quiz_questions when content allows; if is_quantitative, at least half make the student calculate or read a number from ${scopeWord(total)} (the answer shows the result)${total === 1 ? `
 - This is the WHOLE document, not an excerpt: cover every section, and if it ends with a glossary or "review terms" list, every entry on that list must appear in key_terms
 - Keep definitions to one sentence so the full set fits
 - A figure or table CAPTION is content, not decoration: it is often the only place a date, range, period or quantity is written out in words, and those are exactly what gets examined — carry them into key_points and quiz_questions verbatim
@@ -4574,10 +5923,11 @@ Rules:
 - NEVER write meta text like "no draft provided" or "qualitative overview"
 - Use real topic names from the text (e.g. supervised learning, neural networks)
 - Ignore grading/attendance/admin text
-- 'tables': only real tabular data actually present in ${scopeWord(total)} — empty array if none, never fabricate
+- 'tables': real tabular data in ${scopeWord(total)}, or facts it states in parallel for several cases (each group's intercept and slope, each test's H0) lined up as one table — every cell from ${scopeWord(total)}; empty array if none, never fabricate
 - 'charts': only chart-worthy numeric data actually present in ${scopeWord(total)} (pick bar for category comparisons, pie for proportions of a whole, line for progression over time) — empty array if none
 - 'diagrams': when short disconnected phrases, stage names, or paired opposing terms in ${scopeWord(total)} clearly reconstruct a flowchart/comparison/hierarchy/cycle, rebuild it as valid Mermaid source (flowchart TD/LR, graph TD, sequenceDiagram, or mindmap); at most ${total === 1 ? '2-3' : '1-2'}; empty array if nothing reconstructible — never invent
-- 'worked_examples': 1-2 solved problems when formulas/calculations are present in ${scopeWord(total)} (prefer the source's own worked numbers); empty array otherwise`
+- 'formulas': EVERY equation in ${scopeWord(total)} — model forms, estimated equations with their numbers, derivatives, hypotheses (H0/H1) — latex copied from the source, each once
+- 'worked_examples': 1-3, solving ${scopeWord(total)}'s OWN examples with ITS numbers — never invent a coefficient; every "a = b" you write must compute; one action per steps item, no numbering; empty array if there is no calculation`
 
       // Window size is bounded by this account's tokens-per-minute cap, not by
       // the HTTP payload limit — the 413 comment this constant used to carry
@@ -4604,7 +5954,27 @@ Rules:
       // extractWindow's catch shrinks an oversized payload to 55% and retries,
       // which lands back at ~7,150 chars — i.e. the old behaviour — at a cost
       // of one failed call rather than a failed summary.
-      const WINDOW = 13000
+      // DESTE MODU PENCEREYI DARALTIR — gerekce PAY, tavan degil.
+      //
+      // Ilk gerekcem yanlisti ve kendi testim yakaladi. Talimat 425 token
+      // iken dusme ZORUNLUYDU (13000/4 + 527 + 425 + 3072 = 7274 > 7200).
+      // Blok 270 tokene sikistirilinca o hesap gecerliligini yitirdi:
+      // dusmeden de 7119, yani tavanin altinda. "Teknik olarak siger" ile
+      // "guvenli" ayni sey degil:
+      //
+      //   duz metin, dusulmemis : 6849  → 351 token pay
+      //   deste,     dusulmemis : 7119  →  81 token pay
+      //   deste,     dusulmus   : 6807  → 393 token pay
+      //
+      // 81 token, bu promptun kendi yorumunun uyardigi seye karsi cok ince:
+      // Turkce 4 krk/token'dan KOTU tokenlesiyor, yani WINDOW/4 tahmini
+      // eksik kaliyor. Dusme, desteye duz metin yolunun dayandigi payin
+      // AYNISINI veriyor — korunan sey tavan degil, tasarimin guvendigi pay.
+      //
+      // Bedeli durustce: sinirin hemen altindaki bir deste bir pencere
+      // fazla bolunebilir, o da bir pacer beklemesi demek. Tipik bir deste
+      // (30 slayt ~12.500 krk) yine tek pencereye siger.
+      const WINDOW = deste.isDeck ? 13000 - DECK_PROMPT_CHARS : 13000
       // Denetim Raporu, 2026-08-31: this cap used to be a hardcoded 8 —
       // 8 * 7000 = 56,000 characters, silently dropping anything past that
       // point with NO signal to the student that content was cut. MAX_CHUNKS
@@ -4690,7 +6060,8 @@ Rules:
                 // avoid getting silently truncated mid-JSON.
                 maxCompletionTokens: 3072,
                 timeoutMs: Math.min(40000, Math.max(15000, budgetLeft() - 10000)),
-                maxRetries: 0
+                maxRetries: 0,
+                usageLabel: `Window ${wi + 1}`
               }
             )
             return result
@@ -4808,6 +6179,11 @@ Rules:
       )
 
       const windowResults: any[] = []
+      // Dusen pencere SESSIZ kalmamali. 09.10.2026: 1. pencere (1-19.
+      // slaytlar) iki denemede de 400 aldi, merge satiri "terms=14 points=17"
+      // yazip devam etti ve kart belgenin yarisiyla cikti. Hicbir satir
+      // yarisinin eksik oldugunu soylemiyordu.
+      const dusenPencereler: number[] = []
       for (let batchStart = 0; batchStart < windows.length; batchStart += windowConcurrency) {
         if (budgetLeft() < 20_000 && windowResults.length > 0) {
           console.warn(`Budget low — stopping before batch starting at window ${batchStart}`)
@@ -4846,6 +6222,7 @@ Rules:
         for (let bi = 0; bi < batchResults.length; bi++) {
           const result = batchResults[bi]
           const wi = batchIndices[bi]
+          if (!result) dusenPencereler.push(wi + 1)
           if (result) {
             // Normalize alternate field names
             if (!result.summary && result.chunk_summary) result.summary = result.chunk_summary
@@ -4858,6 +6235,10 @@ Rules:
             const nPoints = (result.key_points || []).length
             const nQuiz = (result.quiz_questions || []).length
             console.log(`Window ${wi + 1} ok [${windowLanes.get(wi) || '?'}]: terms=${nTerms} points=${nPoints} quiz=${nQuiz}`)
+            // Pencerenin KENDI dilimine karsi: sayi burada kayboluyorsa sorun
+            // cikarimda, birlesimde degil. Uc asamanin uc satiri (pencere,
+            // birlesim, son kart) kaybin nerede oldugunu ayirt ediyor.
+            console.log(`Window ${wi + 1} sayisal kapsama: ${formatCoverage(numericCoverage(windows[wi], result))}`)
             // A window that returns plenty of one array and NOTHING of
             // another did not fail — it was accepted, merged and shipped.
             // On 06.10.2026 a window came back terms=24 points=10 quiz=0 and
@@ -5190,7 +6571,9 @@ The example that used to sit here named a real-looking percentage, and a live ru
               const visionRaw = visionData.choices?.[0]?.message?.content ?? ""
               const visionStripped = stripThinkBlock(visionRaw)
               const visionCleaned = (visionStripped ?? visionRaw).replace(/```json\s*|```/g, '').trim()
-              const visionParsed = visionCleaned ? JSON.parse(visionCleaned) : null
+              // Gorsel gecis de model ciktisi: ayni LaTeX kacis sorunu burada
+              // da var (09.10.2026'da kurtarma calismasi sirasinda gorundu).
+              const visionParsed = visionCleaned ? JSON.parse(repairLatexEscapes(visionCleaned)) : null
 
               if (visionParsed && typeof visionParsed === 'object') {
                 const newTerms = Array.isArray(visionParsed.key_terms) ? visionParsed.key_terms : []
@@ -5319,6 +6702,16 @@ The example that used to sit here named a real-looking percentage, and a live ru
       }
 
       console.log(`Long-doc merge: terms=${mergedKeyTerms.length} points=${mergedKeyPoints.length} quiz=${mergedQuiz.length} tables=${mergedTables.length} charts=${mergedCharts.length} diagrams=${mergedDiagrams.length} worked_examples=${mergedWorkedExamples.length} summaryLen=${(mergedDraft.summary || '').length}`)
+      console.log(`Birlesim sayisal kapsama: ${formatCoverage(numericCoverage(extractedText, mergedDraft))}`)
+      if (dusenPencereler.length > 0) {
+        const kayipKrk = dusenPencereler.reduce((n, p) => n + (windows[p - 1]?.length || 0), 0)
+        console.error(
+          `EKSIK BELGE: ${dusenPencereler.length}/${windows.length} pencere dustu ` +
+          `[${dusenPencereler.join(',')}] — ${kayipKrk} karakter (belgenin ` +
+          `%${Math.round((100 * kayipKrk) / Math.max(1, extractedText.length))}'i) karta hic girmedi`
+        )
+        eksikPencereler = { dusen: dusenPencereler.length, toplam: windows.length, kayipKrk }
+      }
 
       rawContent = JSON.stringify(mergedDraft)
       // THE SOURCE, not a summary of it (05.10.2026).
@@ -5352,7 +6745,7 @@ The example that used to sit here named a real-looking percentage, and a live ru
     const reviewSystemPrompt = `You are a strict academic quality critic AND copy-editor for a student study brief (NotebookLM-grade). Compare the draft against the source text.
 
 QUALITY RUBRIC (must evaluate):
-A) Thesis clarity — does summary open with the document's core purpose/claim?
+A) Opening — does the summary open by saying what the material teaches (its topics and main results)? Lecture material has topics, not a "thesis": never ask for one.
 B) Hallucination — any claim not supported by source must be removed or softened
 C) Completeness — major topics from outline/sections present in the narrative?
 D) Admin noise — grading, attendance, office hours, textbook edition MUST be removed
@@ -5387,9 +6780,19 @@ CORRECTIONS and your verdict, as JSON:
   sentence corrected. A correction whose "find" cannot be located is thrown
   away, so copy carefully rather than paraphrasing.
   Correct: a wrong year, a figure attributed to the wrong period, a claim the
-  source does not support, admin noise that survived. Return [] when the
-  narrative is sound — an empty list is a perfectly good answer, and inventing
-  changes to look thorough makes the card worse.
+  visible source positively contradicts, admin noise that survived. Return []
+  when the narrative is sound — an empty list is a perfectly good answer, and
+  inventing changes to look thorough makes the card worse.
+  NEVER TURN "I CANNOT FIND IT" INTO "THE SOURCE DOES NOT HAVE IT". You see a
+  truncated slice, exactly as with page numbers above, so a topic missing from
+  your slice is most likely in the part you cannot see. Writing "the source
+  does not discuss X" is therefore a claim you are structurally unable to
+  verify, and a live run proved the damage: a 42-slide econometrics deck whose
+  summary ended up asserting the source did not cover log-log models or
+  elasticity, while the deck had a slide titled "Log-Log Model" reading "In the
+  log-log model β is an elasticity" — and the same summary carried a whole
+  section, a key term and an exam question on it. Only correct a claim when
+  the text you CAN see says something different; silence is not disagreement.
   Do NOT rewrite sentences merely to restyle them.
 - "summary_executive": the corrected executive summary, in full. It is short,
   so it fits.
@@ -5402,8 +6805,9 @@ characters came back as 635, losing three quarters of the card to make room.
 Your edits are applied to the original text, so the summary keeps its length
 and gets your fixes.
 - "quality_gate":
-  - pass=false only for serious problems (hallucinations, missing thesis,
-    heavy admin noise left in)
+  - pass=false only for serious problems (hallucinations, heavy admin noise
+    left in). Before calling a claim unsupported, search the WHOLE source
+    text for its key term — late slides are easy to miss.
   - grounded=true if important claims are citation-backed or source clearly
     supports them
   - issues: short list of remaining concerns, naming anything wrong in
@@ -5436,7 +6840,7 @@ DO NOT include "tables", "charts", "diagrams", "worked_examples", "formulas", "c
       // Swapping them costs nothing and buys review the whole document.
       let narrative = ''
       try {
-        const d = JSON.parse(rawContent)
+        const d = JSON.parse(repairLatexEscapes(rawContent))
         narrative = JSON.stringify({
           summary: d?.summary ?? '',
           summary_executive: d?.summary_executive ?? ''
@@ -5473,7 +6877,12 @@ ${narrative}`
     try {
       if (depthFlags.skipNarrativeWriter) {
         console.log('Madde 6: skipping narrative writer (depth=brief)')
-      } else if (budgetLeft() < 35_000) {
+      } else if (budgetLeft() < NARRATIVE_WRITER_RESERVE_MS) {
+        // UCUZ TABAN. Gercek karar asagida, serit ve prompt belli olunca
+        // OLCULEREK veriliyor (bkz. yazarGereken). Burada duran duz 35 sn,
+        // 09.10.2026'da 30.757 ms kalan bir kosuda yazari atlatti ve ozet
+        // tek kisa paragraf kaldi — oysa yazarin seridi bostu ve cagri
+        // birkac saniye surecekti. Review kapisi ayni hatadan donmustu.
         console.log('Madde 3: anlati yazari atlandi (butce', budgetLeft(), 'ms)')
         skippedStages.push('anlati yazari')
       } else {
@@ -5482,7 +6891,7 @@ ${narrative}`
       let draftObj: any = null
       try {
         const strippedDraft = stripThinkBlock(rawContent)
-        draftObj = JSON.parse((strippedDraft ?? rawContent).replace(/```json\s*|```/g, '').trim())
+        draftObj = JSON.parse(repairLatexEscapes((strippedDraft ?? rawContent).replace(/```json\s*|```/g, '').trim()))
       } catch (_e) {
         draftObj = null
       }
@@ -5516,6 +6925,21 @@ ${narrative}`
           .map((p: any) => `- ${typeof p === 'string' ? p : ''}`)
           .join('\n')
           .slice(0, 2000)
+        // Yazar formulleri ve cozumlu orneklerin SONUCLARINI hic gormuyordu;
+        // ozetin sayisiz ve formulsuz cikmasinin bir nedeni buydu (09.10.2026:
+        // iki canli ozette de sifir sayisal bulgu). Adlari ve sonuclari yeter.
+        const formulasBlock = (Array.isArray(draftObj.formulas) ? draftObj.formulas : [])
+          .slice(0, 14)
+          .map((f: any) => `- ${String(f?.name || '').slice(0, 60)}: ${String(f?.latex || '').slice(0, 140)}`)
+          .join('\n')
+          .slice(0, 1600)
+        // Aritmetigi tutmayan ornek yazara da gitmez — kapi asagida karttan
+        // atacak; sonucunu ozete tasimak onu arka kapidan geri sokmak olurdu.
+        const workedBlock = gateWorkedExampleArithmetic(normalizeWorkedExamples(draftObj.worked_examples)).kept
+          .slice(0, 5)
+          .map((w: any) => `- ${String(w?.title || '').slice(0, 70)}: ${String(w?.final_answer || '').slice(0, 220)}`)
+          .join('\n')
+          .slice(0, 1200)
 
         const writerSys = `You are an expert academic writer for university study briefs (NotebookLM-grade).
 Respond with ONLY valid JSON: { "summary": string, "summary_executive": string }.
@@ -5535,7 +6959,11 @@ HARD RULES (violations = failure):
 4. Do NOT invent theories, numbers, or conclusions absent from inputs.
 5. No grading/attendance/office-hours/textbook logistics.
 6. "summary_executive" = 2-3 sentences naming the actual subject of the document (not vague "this document discusses theories").
-7. Plain paragraphs only (\\n\\n separators). No markdown headings inside summary.
+7. FORMAT — the student reads this first, so it must scan:
+   - Paragraphs separated by a blank line (\\n\\n), as many as the length line above asks for. Never one block of text.
+   - Open each paragraph with a bold lead-in that names its topic and ends with a period, e.g. "**Dummy variables shift the intercept.** A qualitative variable…". No markdown headings (#).
+   - When the inputs give results, state them WITH their numbers: coefficients, % changes, significance levels, turning points, fit (R²).
+   - Teach the content directly. Never narrate the document: no "This brief/chapter presents…", "The X section explains…", "It begins with a thesis…".
 8. If inputs are thin or mostly empty, write a SHORT honest note about limited extractable content — do NOT pad with generic academic prose.`
 
         const writerUser = `Existing executive (refine only if it names real topics; otherwise rewrite from inputs):
@@ -5553,6 +6981,12 @@ ${keyTermsBlock || '(none)'}
 Key points from the document:
 ${keyPointsBlock || '(none)'}
 
+Formulas (cite the central ones inline, in plain text):
+${formulasBlock || '(none)'}
+
+Worked results (numbers you may state):
+${workedBlock || '(none)'}
+
 Existing draft summary (keep factual content; rewrite only for flow):
 ${String(draftObj.summary || '').slice(0, 3500)}`
 
@@ -5569,6 +7003,23 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
         )
         if (writerLane !== MODEL_HEAVY) {
           console.log(`Madde 3: yazar ${writerLane} seridine alindi (${MODEL_HEAVY} mesgul)`)
+        }
+        // OLCULMUS KAPI: pacer'in bu serit icin soyledigi bekleme + cagrinin
+        // kendisi. Serit bossa bekleme 0'dir ve yazar 30 sn kalan butceyle de
+        // calisir; serit gercekten doluysa zaten atlanir.
+        const yazarBekleme = tokenPacer.waitEstimate(
+          estimateTokens(writerSys, writerUser, writerCompletion),
+          writerLane,
+          writerCompletion
+        )
+        const yazarGereken = yazarBekleme + WINDOW_CALL_MS
+        if (budgetLeft() < yazarGereken) {
+          console.log(
+            `Madde 3: anlati yazari atlandi (butce ${budgetLeft()}ms, ` +
+            `gereken ${yazarGereken}ms [pacer ${yazarBekleme}ms + cagri ${WINDOW_CALL_MS}ms])`
+          )
+          skippedStages.push('anlati yazari')
+          throw new Error('__yazar_butce__')
         }
         const written = await callGroqJson(groqApiKey, writerSys, writerUser, {
           model: writerLane,
@@ -5614,7 +7065,10 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
       }
       } // end else !skipNarrativeWriter
     } catch (writerErr) {
-      console.warn('Madde 3 narrative writer skipped (keeping draft summary):', writerErr)
+      // Butce kapisi zaten kendi satirini yazdi; burada tekrar etme.
+      if (String((writerErr as any)?.message || '') !== '__yazar_butce__') {
+        console.warn('Madde 3 narrative writer skipped (keeping draft summary):', writerErr)
+      }
     }
 
     // Madde 6: progressive signal — draft exists, review may follow
@@ -5867,7 +7321,7 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
           // Never let review's answer BE the final content — merge it onto the
           // draft, so a short or truncated answer can only fail to improve
           // things, not delete them. See mergeReviewOntoDraft.
-          const { merged, notes } = mergeReviewOntoDraft(rawContent, reviewOut)
+          const { merged, notes } = mergeReviewOntoDraft(rawContent, reviewOut, extractedText)
           rawFinalContent = merged
           console.log(`Review birlestirme: ${notes.length ? notes.join(', ') : 'degisiklik yok'}`)
         }
@@ -5899,7 +7353,7 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
     const cleaned = reviewStripped.replace(/```json\s*|```/g, "").trim()
     let parsedContent
     try {
-      parsedContent = JSON.parse(cleaned)
+      parsedContent = JSON.parse(repairLatexEscapes(cleaned))
     } catch (parseError) {
       console.error("Failed to parse Groq final response as JSON: ", rawFinalContent, parseError)
       await markFailed(serviceClient, documentId)
@@ -5921,7 +7375,9 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
     try {
       const preReviewStripped = stripThinkBlock(rawContent)
       const preReviewCleaned = (preReviewStripped ?? rawContent).replace(/```json\s*|```/g, '').trim()
-      const preReviewDraft = preReviewCleaned ? JSON.parse(preReviewCleaned) : null
+      // Tek gecisli yolda rawContent modelin HAM ciktisi; onarimsiz ayristirma
+      // formul tasiyan her kartta tables/formulas alanlarini dusurebilirdi.
+      const preReviewDraft = preReviewCleaned ? JSON.parse(repairLatexEscapes(preReviewCleaned)) : null
       if (preReviewDraft && typeof preReviewDraft === 'object') {
         for (const field of ['tables', 'charts', 'diagrams', 'worked_examples', 'formulas', 'concept_graph', 'cloze_cards']) {
           if (parsedContent[field] === undefined && preReviewDraft[field] !== undefined) {
@@ -5955,6 +7411,20 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
         // budget decisions, not by the model, so it must survive the model's
         // verdict replacing the rest of this object.
         skipped_stages: skippedStages
+      }
+    }
+    // Review sorunlari critic'e gitmeden suzulur (bkz. filterReviewIssues):
+    // kaynakta GECEN konuyu "uydurma" diye isaretleyen madde, critic'in dogru
+    // icerigi silmesine yol aciyordu.
+    if (qualityMeta.issues.length > 0) {
+      const suzulmus = filterReviewIssues(qualityMeta.issues, extractedText)
+      if (suzulmus.dropped.length > 0) {
+        console.log(
+          `Review sorunlari suzuldu: ${suzulmus.dropped.length} madde dusuruldu — ` +
+          suzulmus.dropped.map(d => `"${d.issue.slice(0, 60)}" (${d.reason})`).join(' | ')
+        )
+        qualityMeta.issues = suzulmus.kept
+        if (suzulmus.kept.length === 0) qualityMeta.pass = true
       }
     }
     // Heuristic grounded: footnotes with page numbers or inline (s. N)/(slayt N)
@@ -6008,7 +7478,8 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
       try {
         await serviceClient.from('documents').update({ processing_stage: 'critic' }).eq('id', documentId)
         const fixSys = `You fix a FAILED academic study brief. Respond ONLY with JSON: { "summary": string, "summary_executive": string }.
-Fix the listed issues. Remove hallucinations and admin noise. Keep ${langLabel}. Keep narrative prose. Do not invent facts.`
+Fix the listed issues. Remove hallucinations and admin noise. Keep ${langLabel}. Do not invent facts.
+Change ONLY the sentences the issues name. Keep everything else exactly: the paragraph breaks (\\n\\n), each paragraph's bold lead-in (**...**), every number and every formula.`
         const fixUser = `Issues to fix:\n${qualityMeta.issues.map((i: string) => `- ${i}`).join('\n')}\n\nCurrent summary:\n${summaryText.slice(0, 4000)}\n\nCurrent executive:\n${String(parsedContent.summary_executive || '').slice(0, 500)}`
         const fixed = await callGroqJson(groqApiKey, fixSys, fixUser, {
           model: criticLane,
@@ -6024,7 +7495,17 @@ Fix the listed issues. Remove hallucinations and admin noise. Keep ${langLabel}.
         // not a fix.
         const fixedSummary = String(fixed?.summary || '').trim()
         const keepFloor = summaryText.length * NARRATIVE_MIN_KEEP_RATIO
-        if (fixedSummary.length > 80 && fixedSummary.length >= keepFloor) {
+        // Paragraf yapisini ezen duzeltme reddedilir: canli iki kosuda critic
+        // cok paragrafli ozeti tek bloga cevirdi ve kullanicinin ilk sikayeti
+        // tam olarak buydu ("tek paragraf olmasini istemiyorum").
+        const taslakParagraf = paragraphCount(summaryText)
+        const yapiBozuldu = taslakParagraf >= 3 && paragraphCount(fixedSummary) < 2
+        if (yapiBozuldu && fixedSummary.length > 80) {
+          console.warn(
+            `Madde 4: critic yazisi REDDEDILDI — taslak ${taslakParagraf} paragraf, ` +
+            `duzeltme tek blok. Taslak korunuyor.`
+          )
+        } else if (fixedSummary.length > 80 && fixedSummary.length >= keepFloor) {
           parsedContent.summary = fixedSummary
           qualityMeta.critic_retry = true
           qualityMeta.pass = true
@@ -6093,10 +7574,10 @@ Fix the listed issues. Remove hallucinations and admin noise. Keep ${langLabel}.
       // --- (a) Formulas: repair what is over-wrapped, drop what cannot render
       const sanitized = sanitizeFormulas(parsedContent.formulas)
       parsedContent.formulas = sanitized.formulas
-      if (sanitized.dropped.length || sanitized.repaired) {
+      if (sanitized.dropped.length || sanitized.repaired || sanitized.duplicates) {
         console.log(
           `Formula validation: ${sanitized.formulas.length} kept, ` +
-          `${sanitized.repaired} repaired, ${sanitized.dropped.length} dropped` +
+          `${sanitized.repaired} repaired, ${sanitized.duplicates} tekrar, ${sanitized.dropped.length} dropped` +
           (sanitized.dropped.length
             ? ` — ${sanitized.dropped.map(d => `${d.name}(${d.reason})`).join('; ')}`
             : '')
@@ -6145,6 +7626,28 @@ Fix the listed issues. Remove hallucinations and admin noise. Keep ${langLabel}.
         (gated.stats.droppedTerms.length ? ` | uydurma terim: ${gated.stats.droppedTerms.join(', ')}` : '') +
         (gated.stats.droppedPoints.length ? ` | uydurma nokta: ${gated.stats.droppedPoints.map(p => `"${p}"`).join(' ')}` : '')
       )
+
+      // --- (b1) Cozumlu orneklerin VERILEN sayilari da dayandirilir.
+      // Kapi uzun sure yalnizca terim ve noktaya bakiyordu; uydurma sayinin
+      // en cok zarar verdigi yer ise cozumlu ornek (bkz. gateWorkedExamples).
+      const ornekKapi = gateWorkedExamples(parsedContent.worked_examples, extractedText)
+      if (ornekKapi.dropped.length) {
+        console.warn(
+          `Cozumlu ornek kapisi: ${ornekKapi.dropped.length} ornek atildi — ` +
+          ornekKapi.dropped.join(' | ')
+        )
+      }
+      // (b1') Adimlar temizlenir, sonra aritmetigi tutmayan ornek atilir
+      // (bkz. gateWorkedExampleArithmetic). Sira onemli: tek dizgiye
+      // sikistirilmis adimlar ayrilmadan esitlikler dogru okunmuyor.
+      const aritmetikKapi = gateWorkedExampleArithmetic(normalizeWorkedExamples(ornekKapi.kept))
+      if (aritmetikKapi.dropped.length) {
+        console.warn(
+          `Cozumlu ornek aritmetik kapisi: ${aritmetikKapi.dropped.length} ornek atildi — ` +
+          aritmetikKapi.dropped.join(' | ')
+        )
+      }
+      parsedContent.worked_examples = aritmetikKapi.kept
 
       // --- (b2) Narrative year gate: the prose the gate above never sees
       const yearsChecked = sanitizeNarrativeYears(parsedContent, extractedText)
@@ -6264,6 +7767,19 @@ Fix the listed issues. Remove hallucinations and admin noise. Keep ${langLabel}.
       visual_analysis: visualAnalysisUsed,
       course_tag: document.course_tag ?? null,
       quality_meta: qualityMeta
+    }
+
+    // Ogrencinin gordugu karta karsi, kaynagin tamamiyla. Kartla birlikte
+    // saklaniyor ki iki kosu loglar kaybolduktan sonra da karsilastirilabilsin.
+    // qualityMeta cardPayload.quality_meta ile AYNI nesne — burada eklenen
+    // alan insert'e giriyor.
+    {
+      const kapsama = numericCoverage(extractedText, cardPayload)
+      console.log(`Son kart sayisal kapsama: ${formatCoverage(kapsama)}`)
+      if (kapsama.total > 0) {
+        qualityMeta.numeric_coverage = { kept: kapsama.kept, total: kapsama.total }
+      }
+      if (eksikPencereler) qualityMeta.missing_windows = eksikPencereler
     }
 
     let newCard: any = null

@@ -52,22 +52,47 @@ document.addEventListener('DOMContentLoaded',async()=>{
   if(window.location.pathname.includes('login.html')) acadexApplyPortalLabel();
   const settings=await acadexGetSiteSettings(); acadexRenderBanner(settings.banner);
   if(window.location.pathname.includes('login.html')&&settings.maintenance?.enabled){const notice=acadexRenderMaintenanceNotice(settings.maintenance);const loginView=document.getElementById('login-view');if(notice&&loginView)loginView.insertBefore(notice,loginView.firstChild);}
-  if(window.location.pathname.includes('dashboard.html')){
-    // Core editor stack
-    try { await acadexLoadScript('js/presentation-model-v7.js?v=7.0.0'); } catch (e) { console.error('Presentation model V7 failed:', e); }
-    try { await acadexLoadScript('js/presentation-renderer-v7.js?v=7.0.0'); } catch (e) { console.error('Presentation renderer V7 failed:', e); }
-    try { await acadexLoadScript('js/presentation-studio-v73.js?v=7.3.0'); } catch (e) { console.error('Presentation studio V7.3 failed:', e); }
-    try { await acadexLoadScript('js/presentation-controls-v7.js?v=7.0.0'); } catch (e) { console.error('Presentation controls V7 failed:', e); }
-    try { await acadexLoadScript('js/presentation-modal-scroll-v7.js?v=7.2.0'); } catch (e) { console.error('Presentation modal scroll V7.2 failed:', e); }
-    try { await acadexLoadScript('js/presentation-export-v8.js?v=8.0.0'); } catch (e) { console.error('Presentation export V8 failed:', e); }
-    // Premium academic layer (master bundle)
-    try { await acadexLoadScript('js/presentation-theme-v8.js?v=8.1.1'); } catch (e) { console.error('Presentation theme V8 failed:', e); }
-    try { await acadexLoadScript('js/presentation-settings-v8.js?v=8.1.1'); } catch (e) { console.error('Presentation settings V8 failed:', e); }
-    try { await acadexLoadScript('js/presentation-dedupe-v8.js?v=8.1.1'); } catch (e) { console.error('Presentation dedupe V8 failed:', e); }
-    try { await acadexLoadScript('js/presentation-visual-ai-v8.js?v=8.1.1'); } catch (e) { console.error('Presentation visual AI V8 failed:', e); }
-    try { await acadexLoadScript('js/presentation-visual-ux-v8.js?v=8.1.1'); } catch (e) { console.error('Presentation visual UX V8 failed:', e); }
-    try { await acadexLoadScript('js/presentation-polish-v8.js?v=8.1.1'); } catch (e) { console.error('Presentation polish V8 failed:', e); }
-    // HD quality stage (1280×720 design + Present mode)
-    try { await acadexLoadScript('js/presentation-hd-v9.js?v=9.0.0'); } catch (e) { console.error('Presentation HD V9 failed:', e); }
-  }
+  /* SUNUM MODULLERININ YUKLENMESI DURDURULDU — 06.10.2026.
+     ========================================================================
+     Burada 13 betik, HER dashboard acilisinda, sirayla yukleniyordu:
+     model-v7, renderer-v7, studio-v73, controls-v7, modal-scroll-v7,
+     export-v8, theme-v8, settings-v8, dedupe-v8, visual-ai-v8,
+     visual-ux-v8, polish-v8, hd-v9. Toplam 161 KB, ve vercel.json
+     /js/* icin "no-cache, must-revalidate" diyor — yani her acilista
+     yeniden dogrulanan 13 ayri istek.
+
+     Hepsi dashboard.html'deki #presentation-view gorunumunu zenginlestirmek
+     icin yazilmis. O GORUNUME GIDILEMIYOR:
+       - kenar cubugunda 13 gorunum var, 'presentation' onlardan biri degil
+       - derin baglanti yalnizca ?course= ve ?examCourse= (baska bolumlere)
+       - ACADIA_VALID_TABS ve deepLinkTabWhitelist icinde de yok
+     Ustelik zenginlestirecekleri sey de yok: sardiklari
+     renderActivePresentationSlide fonksiyonu repoda HICBIR YERDE tanimli
+     degil, yalnizca sarmalayicilari var. theme ve dedupe onu 250 ms arayla
+     40 kez ariyor ve ~10 saniye sonra vazgeciyor. loadPresentationStudio
+     (dashboard.js:6101) iki div'i gosterip gizlemekten ibaret; kaydet/AI/
+     disa aktar dugmelerinde dinleyici yok ve kodun kendi yorumu "Step 4
+     will create a real DB row" diyor — o adim hic gelmemis.
+
+     Sunumun CALISAN hali bambaska bir yerde: acadex-sunum.html iframe'i
+     (Acadex Sunum sekmesi), kendi icinde, bu 13 modulun hicbirini
+     yuklemeden.
+
+     DOSYALAR SILINMEDI, yalnizca yuklenmiyorlar. Kazancin tamami bu
+     satirlardan geliyor; dosyalari tutmak hem baska bir gelistiricinin
+     emegini korur hem de geri almayi tek satirlik is yapar.
+
+     Kaldirmadan once dogrulandi (bkz. tests/presentation-loader.js):
+       - hd-v9'un switchDashboardView sarmalayicisi SAF GECIS: origSwitch
+         kosulsuz ve ilk calisiyor, sunum dali yalnizca arkadan setTimeout
+         ekliyor; diger 12 gorunum icin davranis birebir ayni
+       - 13 modulun tanimladigi globallerin hicbirini sunum disi kod
+         cagirmiyor
+       - enjekte ettikleri CSS'in tamami sunum seçicileri kapsaminda
+         (#pres- , .pres- , .ap7- , .phd- onekleri); body, :root veya
+         genel bir seciciye dokunan yok
+
+     GORUNUM ERISILEBILIR HALE GELIRSE bu satirlar geri gelmeli — testi o
+     durumu yakalayip soyluyor.
+     ======================================================================== */
 });
