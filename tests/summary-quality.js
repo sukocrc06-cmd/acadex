@@ -70,7 +70,20 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   // Sayisal kapsama olcusu (09.10.2026).
   'SAYFA_ISARETI_RE', 'SAYISAL_KAPSAMA_TOLERANS', 'SAYI_BELIRTECI', 'SAYISAL_KAPSAMA_ORNEK',
   'sayiOkumalari', 'distinctiveNumbers', 'outputNumbers', 'yakinDegerVar',
-  'KAPSAMA_DISI_ALANLAR', 'coverageText', 'numericCoverage', 'formatCoverage'
+  'KAPSAMA_DISI_ALANLAR', 'coverageText', 'numericCoverage', 'formatCoverage',
+  // Denklem sayfalarinin yeniden dizilmesi (09.10.2026).
+  'SYMBOL_PUA', 'PUA_BULLET_CODES', 'PUA_ANY_RE', 'PUA_LINE_BULLET_RE', 'mapSymbolPua',
+  'countMathPua', 'MATH_PUA_MIN', 'EQ_OPERATORS', 'HAT_GLYPH_RE', 'medianOf', 'largestGap',
+  'xyCut', 'attachHats', 'leafLines', 'rebuildPageText', 'streamPageText', 'REBUILD_MIN_KEEP',
+  'chooseEquationPageText', 'extractPdfPagesWithEquations',
+  // Formul tekrari, cozumlu ornek adimlari ve aritmetigi, review sorunlari.
+  'formulaKey', 'normalizeExampleSteps', 'splitInlineSteps', 'normalizeWorkedExamples',
+  'evalArithmetic', 'normalizeArithmeticText', 'ARITH_RUN_CHARS', 'ARITH_TOLERANCE',
+  'checkArithmetic', 'gateWorkedExampleArithmetic',
+  'ISSUE_ABSENCE_RE', 'ISSUE_THESIS_RE', 'ISSUE_STOPWORDS', 'normalizeForIssueMatch',
+  'filterReviewIssues', 'paragraphCount',
+  // Review duzeltmesi kaynaktaki icerigi silemez (09.10.2026).
+  'DUZELTME_SILME_ORANI', 'DUZELTME_DAYANAK_ORANI', 'IDARI_GURULTU_RE', 'kaynakIcerigiSiliyor'
 ]);
 
 const { test, summary } = makeRunner();
@@ -2816,6 +2829,22 @@ test('isaretsiz metin deste sayilmiyor', () => {
   assert.equal(r.pages, 0);
 });
 
+/** Canli pencere promptunu kaynaktan cizip render eder (desteTalimati ayri
+ *  eklenir). Sablon serve() icinde bir closure; kota fonksiyonlari da oradan
+ *  alinip ayni govdede calistiriliyor. */
+function pencerePromptu(total, desteTalimati) {
+  const a = SRC.indexOf('const compactWindowPrompt = (wi: number, total: number) =>');
+  const bas = SRC.indexOf('`', a);
+  const son = SRC.indexOf('\n\n      // Window size is bounded', bas);
+  const kotaBas = SRC.indexOf('const wholeDocInOneWindow');
+  const kotaSon = SRC.indexOf('// Compact extraction prompt', kotaBas);
+  if (a < 0 || son < 0 || kotaBas < 0 || kotaSon < 0) return '';
+  const kotalar = SRC.slice(kotaBas, kotaSon).replace(/: number/g, '');
+  const fn = new Function('wi', 'total', 'langLabel', 'desteTalimati',
+    kotalar + '\nreturn ' + SRC.slice(bas, son));
+  return fn(0, total, 'English', desteTalimati);
+}
+
 test('TAVAN KORUNUYOR: deste promptu pencere butcesinden dusuluyor', () => {
   /* EN KRITIK TEST. Canli pencere cagrisinin butcesi:
        WINDOW/4 + prompt(527) + talimat + completion(3072) <= 7200
@@ -2825,7 +2854,17 @@ test('TAVAN KORUNUYOR: deste promptu pencere butcesinden dusuluyor', () => {
 
      Bu test sayiyi degil ILISKIYI koruyor: talimat ne kadar buyurse
      buyusun, maliyeti pencereden dusulmus olmali. */
-  const PROMPT_TOK = 527, COMPLETION = 3072, TAVAN = 7200, TABAN_PENCERE = 13000;
+  /* PROMPT BOYUTU OLCULUYOR, SABIT DEGIL (09.10.2026). Burada "527" diye
+     bir sabit duruyordu; prompt kurallari buyudukce sabit eskidi ve bu test
+     tavani olcmeden "gecti" demeye basladi. Artik canli sablon kaynaktan
+     cizilip render ediliyor (bkz. pencerePromptu). En uzun hali tek pencere
+     (total=1) — butun belge kurallari ona ekleniyor; o da tavana sigmali. */
+  const COMPLETION = 3072, TAVAN = 7200, TABAN_PENCERE = 13000;
+  const PROMPT_TOK = Math.max(
+    Math.ceil(pencerePromptu(2, '').length / 4),
+    Math.ceil(pencerePromptu(1, '').length / 4)
+  );
+  assert.ok(PROMPT_TOK > 400, `sablon okunamadi (${PROMPT_TOK} token)`);
 
   for (const u of ['slide', 'page']) {
     const talimat = A.buildSlideDeckInstruction(true, u);
@@ -2840,6 +2879,9 @@ test('TAVAN KORUNUYOR: deste promptu pencere butcesinden dusuluyor', () => {
     assert.ok(toplam <= TAVAN,
       `${u}: deste modunda ${toplam} token > ${TAVAN} tavani`);
   }
+  // Deste talimati olmadan, duz metnin tam penceresiyle de sigmali.
+  const duzToplam = Math.ceil(TABAN_PENCERE / 4) + PROMPT_TOK + COMPLETION;
+  assert.ok(duzToplam <= TAVAN, `duz metin ${duzToplam} token > ${TAVAN} tavani`);
 
   /* KORUNAN SEY TAVAN DEGIL, PAY. Ilk yazimda burada "dusulmezse tavan
      asilir" diye bir iddia vardi ve bu test onu CURUTTU: talimat 425'ten
@@ -3019,7 +3061,11 @@ test('kapi BORU HATTINA bagli', () => {
   // (buildChunkSystemPrompt NOT WIRED).
   assert.ok(/gateWorkedExamples\(parsedContent\.worked_examples, extractedText\)/.test(SRC),
     'cozumlu ornek kapisi cagrilmiyor');
-  assert.ok(/parsedContent\.worked_examples = ornekKapi\.kept/.test(SRC),
+  // 09.10.2026: dayanak kapisinin ciktisi once adim normallestirme ve
+  // aritmetik kapisindan geciyor, karta o yaziliyor.
+  assert.ok(/gateWorkedExampleArithmetic\(normalizeWorkedExamples\(ornekKapi\.kept\)\)/.test(SRC),
+    'dayanak kapisinin sonucu aritmetik kapisina gitmiyor');
+  assert.ok(/parsedContent\.worked_examples = aritmetikKapi\.kept/.test(SRC),
     'kapinin sonucu geri yazilmiyor');
 });
 
@@ -3320,6 +3366,312 @@ test('son kart olcusu INSERT\'TEN ONCE ve quality_meta\'ya yaziliyor', () => {
     'kapsama karta yazilmiyor');
   // quality_meta AYNI nesne olmali; kopya olsaydi eklenen alan insert'e girmezdi.
   assert.ok(/quality_meta: qualityMeta\b/.test(KAPSAMA_KOD), 'quality_meta referansla baglanmamis');
+});
+
+
+console.log('\nDENKLEM SAYFALARI: KOORDINATTAN YENIDEN DIZIM\n');
+
+/* 09.10.2026. Fikstur, ekonometri destesinin (ve iki matematiksiz belgenin)
+   pdf.js metin ogeleri — unpdf'in edge function'da kullandigi getTextContent
+   ciktisinin birebir dokumu. Eski cikarimda 29. slayt modele soyle gidiyordu:
+     "2 t09.0t08.1212.484 empemplUtilityBil"
+   ve model katsayilari UYDURDU (β1 = −9.0, β2 = 0.1212). */
+const DENKLEM = JSON.parse(require('fs').readFileSync(
+  require('path').join(__dirname, 'fixtures/denklem-sayfalari.json'), 'utf8'));
+
+test('KOK NEDEN belgeli: akis sirasinda tahmin denklemi okunmuyor', () => {
+  const akis = A.streamPageText(DENKLEM['ekonometri-29']);
+  assert.ok(!/484\.12/.test(akis), 'akis metninde 484.12 bitisik okunmamaliydi — fikstur degismis');
+  assert.ok(A.countMathPua(akis) >= A.MATH_PUA_MIN, 'denklem sayfasi matematik PUA tasimali');
+});
+
+test('29. slayt: tahmin denklemi ve marjinal etki hesabi okunur hale geliyor', () => {
+  const r = A.chooseEquationPageText(DENKLEM['ekonometri-29']);
+  assert.ok(r.rebuilt, 'yeniden dizilmedi');
+  assert.ok(r.text.includes('UtilityBill = 484.12 − 12.08temp + 0.09temp^2'), r.text.slice(0, 300));
+  assert.ok(r.text.includes('-12.08 + 2(0.09)39 = − 12.08 + 7.02 = − 5.06'), 'marjinal etki satiri');
+  assert.ok(r.text.includes('-12.08 + 2(0.09)79 = − 12.08 + 14.22 = 2.14'), '80 derece satiri');
+  assert.equal(A.countMathPua(r.text), 0, 'PUA kalmamali');
+});
+
+test('17. slayt: etkilesim denklemi soldan saga, alt simgeli', () => {
+  const r = A.chooseEquationPageText(DENKLEM['ekonometri-17']);
+  assert.ok(r.text.includes('\u0177 = 18.30 + 98x_1 + 22.44x_2 + 16.38x_3 + 45x_1 x_2 + 32x_1 x_3'), r.text);
+});
+
+test('10. slayt: yan kutu denklem satirlarina karismiyor (XY-cut sutunu once ayirir)', () => {
+  const t = A.chooseEquationPageText(DENKLEM['ekonometri-10']).text;
+  const denklem = t.indexOf('\u0177 = 20.43 + 0.045Sqfeet + 23.53Ranch + 18.84Split');
+  const kutu = t.indexOf('With the same square feet');
+  assert.ok(denklem > -1, 'tahmin denklemi yok');
+  assert.ok(kutu > denklem, 'aciklama kutusu denklemin ortasina girmis');
+  // Kutunun cumlesi tek parca kalmali.
+  assert.ok(/ranch will have an estimated\naverage price of 23\.53 thousand/.test(t), 'kutu metni bolunmus');
+});
+
+test('30. slayt: donum noktasi sayisi ve sapkali katsayilar', () => {
+  const t = A.chooseEquationPageText(DENKLEM['ekonometri-30']).text;
+  assert.ok(/= β̂_1 \+ 2β̂_2 x_j = 0/.test(t), 'turev = 0 satiri');
+  assert.ok(/67\.11/.test(t));
+});
+
+test('matematiksiz sayfa YENIDEN DIZILMEZ — yalnizca madde isaretleri okunur', () => {
+  for (const k of ['muhasebe-38', 'ekonomi-27']) {
+    const items = DENKLEM[k];
+    const r = A.chooseEquationPageText(items);
+    assert.equal(r.rebuilt, false, `${k} dizilmemeli`);
+    assert.equal(r.text, A.mapSymbolPua(A.streamPageText(items)), `${k}: akis sirasi korunmali`);
+  }
+  assert.ok(A.chooseEquationPageText(DENKLEM['muhasebe-38']).text.includes('• FIFO assigns'),
+    'Wingdings madde isareti "•" olmali');
+  // Tek bir eksi isareti (yil araligi) sayfayi dizmeye yetmez ama okunur.
+  assert.ok(A.chooseEquationPageText(DENKLEM['ekonomi-27']).text.includes('2008 I−2009 II'));
+});
+
+test('PUA haritasi: Symbol operatorleri ve Yunan harfleri', () => {
+  assert.equal(A.mapSymbolPua('y   x  1'), 'y = β+ x − 1');
+  assert.equal(A.mapSymbolPua('y/x'), '∂y/∂x');
+  assert.equal(A.mapSymbolPua(' Raw materials'), '• Raw materials');
+  // Madde isareti matematik sayilmaz.
+  assert.equal(A.countMathPua(' Raw materials\n Work in process'), 0);
+});
+
+test('PDF cikarimi BORU HATTINA bagli, hata halinde eski yola duser', () => {
+  assert.ok(/const res = await extractPdfPagesWithEquations\(pdf\)/.test(SRC), 'yeniden dizim cagrilmiyor');
+  assert.ok(/pdfPages = text\.map\(mapSymbolPua\)/.test(SRC), 'yedek yol PUA haritasini uygulamiyor');
+});
+
+
+console.log('\nFORMUL TEKRARI VE CIFT TERS BOLU\n');
+
+test('ayni denklem farkli adla iki kez gelmez (x ve x_j ayni)', () => {
+  const r = A.sanitizeFormulas([
+    { name: 'Quadratic regression', latex: 'y = \\beta_0 + \\beta_1 x + \\beta_2 x^2 + \\varepsilon' },
+    { name: 'Quadratic (non-linear) model', latex: 'y = \\beta_0 + \\beta_1 x_j + \\beta_2 x_j^2 + \\epsilon' },
+    { name: 'Quadratic regression function', latex: '\\(y=\\beta_{0}+\\beta_{1}x+\\beta_{2}x^{2}+\\varepsilon\\)' }
+  ]);
+  assert.equal(r.formulas.length, 1, JSON.stringify(r.formulas.map(f => f.name)));
+  assert.equal(r.duplicates, 2);
+});
+
+test('rakam alt simgeleri FARKLI degiskenler — birlestirilmez', () => {
+  const r = A.sanitizeFormulas([
+    { name: 'Dummy model', latex: 'y = \\beta_0 + \\beta_1 x_1 + \\beta_2 x_2 + \\varepsilon' },
+    { name: 'Interaction', latex: 'y = \\beta_0 + \\beta_1 x_1 + \\beta_2 x_2 + \\beta_3 x_1 x_2 + \\varepsilon' },
+    { name: 'Cubic', latex: 'y = \\beta_0 + \\beta_1x + \\beta_2x^2 + \\beta_3x^3 + \\varepsilon' }
+  ]);
+  assert.equal(r.formulas.length, 3);
+});
+
+test('cift kacisli komut onariliyor, gercek satir sonu korunuyor', () => {
+  // Canli PDF: "y=\β₀+\∑ⱼ₌₁^k..." — model "\\beta" yazmisti.
+  const r = A.sanitizeFormulas([
+    { name: 'General polynomial', latex: 'y=\\\\beta_0+\\\\sum_{j=1}^k\\\\beta_jx_j + \\\\cdots' },
+    { name: 'Two lines', latex: 'a = b \\\\ c = d' }
+  ]);
+  assert.equal(r.formulas[0].latex, 'y=\\beta_0+\\sum_{j=1}^k\\beta_jx_j + \\cdots');
+  assert.equal(r.formulas[1].latex, 'a = b \\\\ c = d');
+});
+
+
+console.log('\nCOZUMLU ORNEK: ADIMLAR VE ARITMETIK\n');
+
+/* Iki canli ozetin ayni "Utility Bill" ornegi, birebir. Katsayilar uydurma,
+   sonuclar kaynaktan kopya — aritmetik tutmuyor. */
+const UYDURMA_ORNEK = {
+  title: 'Utility Bill vs. Temperature – Quadratic Regression',
+  problem_statement: 'Fit a quadratic regression ... compute marginal effects at 40°F and 80°F.',
+  steps: ['1. Estimate model: UtilityBill = β0 + β1 Temp + β2 Temp^2 + ε. 2. Obtain coefficients: β1 = -9.0, β2 = 0.1212. 3. Compute marginal effect: dY/dTemp = β1 + 2β2 Temp. 4. At Temp=40: dY/dTemp = -9.0 + 2(0.1212)(40) = -5.06. 5. At Temp=80: dY/dTemp = -9.0 + 2(0.1212)(80) = 2.14.'],
+  final_answer: 'At 40°F the bill decreases by $5.06 per degree; at 80°F it increases by $2.14 per degree.'
+};
+const DOGRU_ORNEK = {
+  title: 'Utility bill: marginal effects',
+  problem_statement: 'UtilityBill = 484.12 − 12.08temp + 0.09temp^2',
+  steps: [
+    'Marginal effect: -12.08 + 2(0.09)temp',
+    'At 39: -12.08 + 2(0.09)39 = − 12.08 + 7.02 = − 5.06',
+    'At 79: -12.08 + 2(0.09)79 = − 12.08 + 14.22 = 2.14',
+    'Minimum: temp = −(−12.08)/(2(.09)) = 67.11',
+    'Bill there: 484.12 - 12.08(67.11) + 0.09(67.11)^2 = 484.12 - 810.69 + 405.34 = 78.77'
+  ],
+  final_answer: '−$5.06 per °F near 40°F, +$2.14 near 80°F; lowest bill ≈ $78.77 at 67.11°F.'
+};
+
+test('tek dizgiye sikismis adimlar ayriliyor, numaralar siliniyor', () => {
+  const s = A.normalizeExampleSteps(UYDURMA_ORNEK.steps);
+  assert.equal(s.length, 5, JSON.stringify(s));
+  assert.equal(s[0], 'Estimate model: UtilityBill = β0 + β1 Temp + β2 Temp^2 + ε.');
+  assert.ok(s.every(x => !/^\d+\.\s/.test(x)), 'basta numara kalmamali ("1. 1." hatasi)');
+});
+
+test('her adim kendi numarasini tasiyorsa da tek numara kalir', () => {
+  const s = A.normalizeExampleSteps(['1. Fit model: x.', '2. Obtain estimates: β1 = -9.0.', 'Step 3: Interpret.']);
+  assert.deepEqual(s, ['Fit model: x.', 'Obtain estimates: β1 = -9.0.', 'Interpret.']);
+});
+
+test('metin icindeki ondalik ya da tek "2." bolme noktasi degil', () => {
+  assert.deepEqual(A.normalizeExampleSteps(['Plug in 2. 5 values then 3. done']),
+    ['Plug in 2. 5 values then 3. done']);
+  assert.deepEqual(A.normalizeExampleSteps(['β2 = 0.1212. Then compute.']), ['β2 = 0.1212. Then compute.']);
+  assert.deepEqual(A.normalizeExampleSteps('tek dizge adim'), ['tek dizge adim']);
+  assert.deepEqual(A.normalizeExampleSteps([{ text: '1. Nesne adim' }]), ['Nesne adim']);
+});
+
+test('aritmetik: kaynagin kendi hesaplari TUTUYOR', () => {
+  for (const st of DOGRU_ORNEK.steps) {
+    const r = A.checkArithmetic(st);
+    assert.equal(r.failures.length, 0, `${st} → ${r.failures}`);
+  }
+  assert.equal(A.checkArithmetic('Holiday week: 300 - 30(5) + 15 = 300 - 150 + 15 = 165').checked, 2);
+  assert.equal(A.checkArithmetic('Per $1000: 0.0259 × 100% ≈ 2.6%').failures.length, 0);
+  // Onceki kelimeyle arasinda bosluk olan hesap DENETLENIR (sembolik degil).
+  assert.equal(A.checkArithmetic('ranch intercept 18.30 + 22.44 = 40.74, slope 98 + 45 = 143').checked, 2);
+});
+
+test('aritmetik: uydurma katsayilarin hesabi TUTMUYOR', () => {
+  const f1 = A.checkArithmetic('At Temp=40: dY/dTemp = -9.0 + 2(0.1212)(40) = -5.06.');
+  assert.equal(f1.failures.length, 1, JSON.stringify(f1));
+  assert.ok(/0\.696/.test(f1.failures[0]), 'hesaplanan deger raporlanmali');
+  const f2 = A.checkArithmetic('Find extremum: Temp* = -β1/(2β2) = 11.67/0.2424 ≈ 67.11 degrees.');
+  assert.equal(f2.failures.length, 1, '11.67/0.2424 = 48.1, 67.11 degil');
+});
+
+test('aritmetik: sembolik esitlik ve tek sayi atlanir', () => {
+  for (const t of ['x* = -β1/(2β2)', 'H0: β2 = 0', 'R² = 0.92 and F = 51.66', 'β1 + 2β2*39 = x']) {
+    assert.equal(A.checkArithmetic(t).checked, 0, t);
+  }
+  // Bosluklu iki sayi ortuk carpim degildir — denetlenmez, yanlis alarm vermez.
+  assert.equal(A.checkArithmetic('week 3 15 + 2 = 17').failures.length, 0);
+  assert.equal(A.evalArithmetic('2(0.09)39'), 0.09 * 2 * 39);
+  assert.equal(A.evalArithmetic('3 15 + 2'), null);
+});
+
+test('kapi: uydurma ornegi ATAR, dogru ornegi tutar', () => {
+  const r = A.gateWorkedExampleArithmetic(A.normalizeWorkedExamples([UYDURMA_ORNEK, DOGRU_ORNEK]));
+  assert.equal(r.kept.length, 1);
+  assert.equal(r.kept[0].title, DOGRU_ORNEK.title);
+  assert.equal(r.dropped.length, 1);
+  assert.ok(/Utility Bill/.test(r.dropped[0]));
+});
+
+
+console.log('\nREVIEW SORUNLARI VE DUZELTMELERI\n');
+
+/* Canli iki kosunun review maddeleri, birebir (logdan). */
+const CANLI_SORUNLAR = [
+  'The summary lacks an opening statement that clearly states the thesis.',
+  'Contains unsupported discussion of log‑linear and log‑log models; this portion is not in the source.',
+  'Hallucinated claim about elasticities and log‑linear models ',
+  'Potential missing explicit thesis statement at very start of summary'
+];
+const DESTE_METNI = DENKLEM_KAYNAK();
+function DENKLEM_KAYNAK() {
+  // Destenin log modeli slaytlarinin metni (36-42) ve basi — filtre icin yeterli.
+  return 'Learning Objectives Construct and use qualitative independent variables. ' +
+    'Estimate marginal effects as percent changes and elasticities. ' +
+    'Estimate Marginal Effects as Percent Changes and Elasticities. The models are estimated taking natural ' +
+    'logarithms of the dependent variable, the independent variable, or both. - Log-Linear Model - Log-Log Model. ' +
+    'Log – Linear Model The population regression function is specified as ln y = β0 + β1x1 + ε ' +
+    'Log – Log Model ln y = β0 + β1 ln x1 + ε In the log-log model β1 is an elasticity. ' +
+    'This slope coefficient on gdppc is interpreted as, on average, if GDP per capita increases by $1000 ' +
+    'then energy consumption per capita goes up by (0.026)100% or 2.6%.';
+}
+
+test('kaynakta GECEN konuyu "uydurma" diyen madde dusuyor, tez maddesi dusuyor', () => {
+  const r = A.filterReviewIssues(CANLI_SORUNLAR, DESTE_METNI);
+  assert.equal(r.kept.length, 0, JSON.stringify(r.kept));
+  assert.equal(r.dropped.length, 4);
+});
+
+test('GERCEK uydurma ve sayi hatasi maddeleri kaliyor', () => {
+  const r = A.filterReviewIssues([
+    'Mentions logistic regression and probit models, which the source does not cover.',
+    'Summary states R² is 0.95 but the source says 0.92.'
+  ], DESTE_METNI);
+  assert.equal(r.kept.length, 2, JSON.stringify(r.dropped));
+});
+
+test('critic suzulmus maddelerle calisiyor ve paragraf yapisini ezemiyor', () => {
+  assert.ok(/const suzulmus = filterReviewIssues\(qualityMeta\.issues, extractedText\)/.test(SRC),
+    'review maddeleri critic\'ten once suzulmuyor');
+  const suzme = SRC.indexOf('const suzulmus = filterReviewIssues(');
+  const critic = SRC.indexOf('const fixSys = `You fix a FAILED academic study brief');
+  assert.ok(suzme > -1 && critic > suzme, 'suzme critic\'ten SONRA');
+  assert.ok(/taslakParagraf >= 3 && paragraphCount\(fixedSummary\) < 2/.test(SRC), 'paragraf korumasi yok');
+  assert.equal(A.paragraphCount('a\n\nb\n\n\nc'), 3);
+  assert.equal(A.paragraphCount('tek blok'), 1);
+});
+
+test('duzeltme kaynaktaki icerigi SILEMEZ, uydurmayi silebilir', () => {
+  const metin = 'Dummies shift the intercept. Log-linear models read coefficients as percent changes, and in the log-log model the coefficient is an elasticity. Logistic regression and probit models handle binary outcomes in this chapter.';
+  const r = A.applyCorrections(metin, [
+    { find: 'Log-linear models read coefficients as percent changes, and in the log-log model the coefficient is an elasticity.', replace: '' },
+    { find: 'Logistic regression and probit models handle binary outcomes in this chapter.', replace: '' }
+  ], DESTE_METNI);
+  assert.ok(r.text.includes('Log-linear models read coefficients'), 'kaynakta gecen cumle silindi');
+  assert.ok(!r.text.includes('Logistic regression'), 'uydurma cumle silinmedi');
+  assert.equal(r.applied, 1);
+  assert.ok(r.skipped.some(x => /kaynakta gecen icerigi siliyor/.test(x)), JSON.stringify(r.skipped));
+});
+
+test('duzeltme yeniden YAZARSA (silmezse) gecer; idari gurultu silinebilir', () => {
+  const metin = 'In the log-log model the coefficient is an exact elasticity of 0.95. The midterm exam covers chapters 6 and 7.';
+  const r = A.applyCorrections(metin, [
+    { find: 'In the log-log model the coefficient is an exact elasticity of 0.95.', replace: 'In the log-log model the coefficient is an elasticity of 0.69.' },
+    { find: 'The midterm exam covers chapters 6 and 7.', replace: '' }
+  ], DESTE_METNI + ' The midterm exam covers chapters 6 and 7.');
+  assert.equal(r.applied, 2, JSON.stringify(r.skipped));
+  // Kaynak verilmezse (eski cagri bicimi) davranis degismez.
+  assert.equal(A.applyCorrections(metin, [{ find: 'The midterm exam covers chapters 6 and 7.', replace: '' }]).applied, 1);
+});
+
+test('review birlestirmesi kaynak metni duzeltme kapisina veriyor', () => {
+  assert.ok(/mergeReviewOntoDraft\(rawContent, reviewOut, extractedText\)/.test(SRC));
+  assert.ok(/applyCorrections\(draftSummary, review\.corrections, sourceText\)/.test(SRC));
+});
+
+
+console.log('\nPROMPTLAR: PENCERE, YAZAR, KULLANIM LOGU\n');
+
+test('pencere promptu: sayili bulgu, her denklem, uydurmasiz ornek, paralel tablo, hesap sorusu', () => {
+  for (const total of [1, 2]) {
+    const p = pencerePromptu(total, '');
+    assert.ok(/every reported result \(estimate, % change, significance\) is its own key_point WITH its numbers/.test(p), 'sayili key_point kurali');
+    assert.ok(/'formulas': EVERY equation/.test(p), 'her denklem kurali');
+    assert.ok(/never invent a coefficient; every "a = b" you write must compute; one action per steps item, no numbering/.test(p), 'ornek kurali');
+    assert.ok(/lined up as one table — every cell from/.test(p), 'paralel tablo kurali');
+    assert.ok(/at least half make the student calculate or read a number/.test(p), 'hesap sorusu kurali');
+  }
+});
+
+test('yazar formulleri ve aritmetigi tutan orneklerin sonuclarini goruyor', () => {
+  assert.ok(/const formulasBlock = \(Array\.isArray\(draftObj\.formulas\)/.test(SRC), 'formul blogu yok');
+  assert.ok(/const workedBlock = gateWorkedExampleArithmetic\(normalizeWorkedExamples\(draftObj\.worked_examples\)\)\.kept/.test(SRC),
+    'yazar aritmetigi tutmayan ornegin sonucunu gorebilir');
+  assert.ok(/Formulas \(cite the central ones inline, in plain text\):\n\$\{formulasBlock/.test(SRC));
+  assert.ok(/Worked results \(numbers you may state\):\n\$\{workedBlock/.test(SRC));
+});
+
+test('yazar BICIM kurali: paragraflar, kalin giris, sayilar, belge anlatimi yok', () => {
+  assert.ok(/Never one block of text/.test(SRC));
+  assert.ok(/Open each paragraph with a bold lead-in/.test(SRC));
+  assert.ok(/state them WITH their numbers/.test(SRC));
+  assert.ok(/Never narrate the document: no "This brief\/chapter presents…"/.test(SRC));
+});
+
+test('review rubrigi tez istemiyor', () => {
+  assert.ok(/never ask for one/.test(SRC));
+  assert.ok(!/A\) Thesis clarity/.test(SRC), 'eski tez maddesi duruyor');
+});
+
+test('pencere cagrilarinin gercek token harcamasi loglaniyor', () => {
+  assert.ok(/usageLabel: `Window \$\{wi \+ 1\}`/.test(SRC));
+  assert.ok(/if \(opts\.usageLabel && data\?\.usage\)/.test(SRC));
+  assert.ok(/SINIRA DAYANDI/.test(SRC), 'finish_reason=length gorunur olmali');
+});
+
+test('olcu: denklem nesnesinin 7+ haneli bozuk dizisi sayi sayilmaz', () => {
+  assert.deepEqual(A.distinctiveNumbers('3152143210 xxˆxxˆ ve 484.12'), [484.12]);
 });
 
 summary().then(() => process.exit(process.exitCode || 0));
