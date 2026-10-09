@@ -5123,6 +5123,355 @@ function anchorCitations(
   return { key_points: points, footnotes: out, idMap, stats }
 }
 
+// ==========================================================================
+// GEMINI GOLGE YOLU (09.10.2026)
+//
+// NE YAPAR: GEMINI_API_KEY tanimliysa ve belge bir PDF ise, belgenin TAMAMI
+// tek cagrida Gemini'ye gonderilir ve taslak (rawContent) oradan gelir.
+// Anahtar yoksa, belge PDF degilse, dosya/sayfa/zaman siniri asilirsa veya
+// cagri herhangi bir sekilde basarisiz olursa Groq yolu AYNEN calisir.
+// Asagidaki iki pipeline'in (tek-gecis ve chunked) tek satiri degismedi —
+// secim serve() icinde tek bir `else if` ile yapiliyor.
+//
+// NEDEN: darbogaz prompt ya da pacer degil, hesaba tanimli 8.000 TPM.
+// Loglardan olculenler:
+//   - 77 saniyelik bir kosunun 58 saniyesi TEK bir pacer beklemesiydi
+//   - review 4 kosunun 3'unde zaman butcesinden atlandi
+//   - cikis 3.702 token'da tavan yapti
+//   - gorsel analiz tek istekte en fazla 2 sayfa (bir gorsel 2.048 token)
+// Dordu de ayni kotanin turevi. Ikinci saglayici o kotanin tamamen disinda
+// ve PDF'i sayfa sayfa PNG'ye cevirmeden, native olarak okuyor — yani
+// PDF.co adimi da bu yolda hic yok.
+//
+// DURUST NOT: Gemini ucretsiz katmaninin kesin TPM/RPD rakamlari Google
+// tarafindan YAYINLANMIYOR; hesaba ozel ve AI Studio panelinde goruluyor.
+// Plandaki "~1.000.000 TPM" dogrulanmis bir sayi DEGIL. Bu yuzden
+// asagidaki her sinir muhafazali ve her basarisizlik Groq'a dusuyor.
+// ==========================================================================
+
+const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/interactions'
+
+// Model adlari hizli degisiyor. GEMINI_MODEL secret'i tanimliysa o one
+// gecer; tanimli degilse sirayla denenir ve "boyle bir model yok" cevabi
+// bir sonrakine gecisi tetikler (bkz. geminiModelMissing).
+const GEMINI_MODEL_CANDIDATES = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-2.5-flash']
+
+// Yukleme siniri zaten 20 MB. 18 MB'in ustunu Groq'a birakiyoruz: inline
+// base64 gonderim dosyayi 4/3 buyutuyor ve Files API'ye gecmek (resumable
+// upload + ayri finalize) bu kadar kucuk dosyalar icin uc ekstra tur demek.
+const GEMINI_INLINE_MAX_BYTES = 18 * 1024 * 1024
+const GEMINI_MAX_PAGES = 900
+
+// Gemini cagrisi icin EN AZ bu kadar butce kalmali, yoksa hic baslanmaz:
+// yarida kesilen bir cagri Groq yoluna dusmek icin de zaman birakmaz.
+const GEMINI_MIN_BUDGET_MS = 55_000
+// Cagri bittikten sonra review + kapilar + kayit icin ayrilan pay.
+const GEMINI_RESERVE_MS = 35_000
+const GEMINI_MAX_CALL_MS = 75_000
+
+// Groq'ta 3.702 token'da tavan yapan sey buydu. Burada tavan sorun degil.
+const GEMINI_MAX_OUTPUT_TOKENS = 32_768
+
+/** GEMINI_MODEL secret'i varsa basa alinmis model listesi. */
+function geminiModelCandidates(): string[] {
+  const override = String(Deno.env.get('GEMINI_MODEL') || '').trim()
+  if (!override) return [...GEMINI_MODEL_CANDIDATES]
+  return [override, ...GEMINI_MODEL_CANDIDATES.filter(m => m !== override)]
+}
+
+/**
+ * Gemini'ye native gonderilebilecek mime tipi, yoksa null.
+ *
+ * Bilerek SADECE PDF. Gemini baska tipleri de okuyor, ama gölge yolun amaci
+ * kapsam genisletmek degil olculebilir bir karsilastirma yapmak; DOCX/PPTX
+ * zaten gömülü medyayi `word/media`, `ppt/media` uzerinden cikariyor ve o
+ * yol calisiyor. Blast radius kucuk kalsin.
+ */
+function geminiNativeMime(mimeType: string): string | null {
+  const m = String(mimeType || '').toLowerCase().split(';')[0].trim()
+  return m === 'application/pdf' ? 'application/pdf' : null
+}
+
+/** Cevap "boyle bir model yok" mu diyor? Oyleyse sonraki adaya gecilir. */
+function geminiModelMissing(status: number, body: string): boolean {
+  if (status === 404) return true
+  if (status !== 400) return false
+  return /not found|not supported|unsupported model|unknown model|is not available|does not exist/i.test(body)
+}
+
+/** Cevap response_format/schema alanindan mi sikayetci? Oyleyse o alan dusurulur. */
+function geminiFormatRejected(status: number, body: string): boolean {
+  if (status !== 400) return false
+  return /response_format|responseFormat|mime_type|schema|json/i.test(body)
+}
+
+/**
+ * Taslak promptuna eklenen native-belge talimati.
+ *
+ * Iki sey kritik:
+ *  1. GRAFIK SERISI ISTENMIYOR. Chunked yoldaki gorsel gecisi tam bunu
+ *     ogrendi: cizilmis bir egriden okunan seri tahmin oluyor (04.10.2026'da
+ *     issizlik serisinin 1982 zirvesi 10,6 kaybolmus, GDP'nin log ekseni
+ *     dogrusala duzlesmisti). Ustelik sanitizeCharts sayilari kaynak METINDE
+ *     aradigi icin gorselden okunan seriyi zaten dusuruyor — yani istemek
+ *     hem riskli hem bosuna. Okuma kelimeyle ya da tabloyla isteniyor.
+ *  2. visual_findings. Grounding kapisi metni okuyor, resmi okuyamiyor; bir
+ *     formul goruntusunden ya da Excel ekran goruntusunden gelen dogru bir
+ *     bulguyu "uydurma" sayabilir. Modelden bu bulgulari ayrica listelemesini
+ *     istiyoruz ki kapiya muaf olarak verilebilsin ve review de onlari
+ *     KAYNAK olarak gorsun (bkz. visionNotes).
+ */
+function buildGeminiDocInstruction(pageMarkerLabel: string, pageCount: number): string {
+  const unit = pageMarkerLabel === 'SLAYT' ? 'slide' : 'page'
+  const extent = pageCount > 0
+    ? `This document has ${pageCount} ${unit}s. Cover ALL of them, first to last.`
+    : `Cover the ENTIRE document, first ${unit} to last.`
+  return `
+
+NATIVE DOCUMENT ACCESS (this run only — read this before anything else):
+You are given the ORIGINAL document file, not only the extracted text below. You can see every ${unit} exactly as it is laid out: equations pasted in as images from an equation editor, spreadsheet screenshots, scatter plots, comparison diagrams. The extracted text below is a LOSSY copy of the same document — where the two disagree, the document itself is correct.
+${extent} There is no ${unit} budget on this run.
+
+- FORMULAS: read every equation off the ${unit}, including the ones that are images, and put them in "formulas" as LaTeX with each variable's meaning. This is the single most valuable thing you can do here — in the extracted text these equations do not exist at all.
+- TABLES: read every table off the ${unit}, including spreadsheet screenshots and regression output, into "tables" with real headers and rows. Copy the values character-for-character; do not round, re-order or "tidy" them.
+- DIAGRAMS: reconstruct process flows, hierarchies and comparison figures as Mermaid in "diagrams", and explain each in "description".
+- CHARTS — IMPORTANT: do NOT put a numeric series into "charts" unless those same numbers are also printed as text or in a table in the document. A series read off a plotted curve is a guess, and a downstream validator drops any series it cannot find in the text anyway. Instead, state what the chart shows IN WORDS as a key_point (axes, direction, named extremes and their labelled values if the ${unit} prints them).
+- FOOTNOTE PAGES: use the document's own 1-based ${unit} numbers in "footnotes[].page". You can see the ${unit} a claim came from — use it.
+- EXTRA FIELD FOR THIS RUN: "visual_findings": [ string ]. One short sentence per fact you read from a FIGURE, an EQUATION IMAGE or a TABLE SCREENSHOT rather than from the running text. A downstream validator can only read the extracted text; this list is how it is told that such a fact is grounded in a picture it cannot see. Use [] if everything you reported came from the text.`
+}
+
+/**
+ * Gemini cevabindan metni cikarir.
+ *
+ * Iki sekli birden destekliyor: Interactions API'nin `steps[].content[].text`
+ * yapisi ve generateContent'in `candidates[0].content.parts[].text` yapisi.
+ * Sebep tek: hangi yuzeyin bu hesapta cevap verdigine bakmadan ayni kod
+ * calissin — doküman degisirse burasi sessizce bos string dondurmesin.
+ */
+function extractGeminiText(data: any): string {
+  if (!data || typeof data !== 'object') return ''
+  const pieces: string[] = []
+
+  const steps = Array.isArray(data.steps) ? data.steps : []
+  for (let i = steps.length - 1; i >= 0; i--) {
+    const step = steps[i]
+    if (!step || typeof step !== 'object') continue
+    if (step.type && step.type !== 'model_output') continue
+    const content = Array.isArray(step.content) ? step.content : []
+    for (const part of content) {
+      if (!part || typeof part !== 'object') continue
+      if (part.type && part.type !== 'text') continue
+      if (typeof part.text === 'string') pieces.push(part.text)
+    }
+    if (pieces.length > 0) break
+  }
+  if (pieces.length > 0) return pieces.join('')
+
+  const parts = data?.candidates?.[0]?.content?.parts
+  if (Array.isArray(parts)) {
+    for (const p of parts) if (p && typeof p.text === 'string') pieces.push(p.text)
+  }
+  if (pieces.length === 0 && typeof data.output_text === 'string') pieces.push(data.output_text)
+  return pieces.join('')
+}
+
+/**
+ * 200 donmus ama ise yaramaz bir cevabi tespit eder; sebebi dondurur,
+ * sorun yoksa null. Ozellikle `incomplete` onemli: cikti tavana carpmis
+ * demek, yani JSON yarim — Groq'a dusmek dogru karar.
+ */
+function geminiProblem(data: any): string | null {
+  if (!data || typeof data !== 'object') return 'bos yanit'
+  const status = String(data.status || '')
+  if (status === 'failed' || status === 'cancelled') return `status=${status}`
+  if (status === 'incomplete') return 'status=incomplete (cikti tavana carpti, JSON yarim)'
+  if (Array.isArray(data.errors) && data.errors.length > 0) {
+    return `errors=${JSON.stringify(data.errors).slice(0, 300)}`
+  }
+  if (data.error) return `error=${JSON.stringify(data.error).slice(0, 300)}`
+  const finish = data?.candidates?.[0]?.finishReason
+  if (finish && finish !== 'STOP') return `finishReason=${finish}`
+  return null
+}
+
+/**
+ * Gemini'nin GORSELDEN okudugunu bildirdigi bulgular, review'a kaynak ve
+ * grounding kapisina muafiyet olarak verilmek uzere duz metin satirlari.
+ * visual_findings'in yaninda formul adlari ve tablo basliklari da alinir:
+ * ikisi de taniminda gorselden geliyor ve kapi ikisini de metinde arar.
+ */
+function geminiFigureNotes(parsed: any): string[] {
+  const out: string[] = []
+  const push = (s: unknown) => {
+    const t = String(s ?? '').replace(/\s+/g, ' ').trim()
+    if (t.length >= 3 && out.length < 60) out.push(t.slice(0, 300))
+  }
+  if (!parsed || typeof parsed !== 'object') return out
+
+  if (Array.isArray(parsed.visual_findings)) {
+    for (const f of parsed.visual_findings) push(typeof f === 'string' ? f : (f?.text ?? f?.finding))
+  }
+  if (Array.isArray(parsed.formulas)) {
+    for (const f of parsed.formulas) {
+      const name = String(f?.name ?? '').trim()
+      const latex = String(f?.latex ?? '').trim()
+      if (name && latex) push(`${name}: ${latex}`)
+      else push(name || latex)
+    }
+  }
+  if (Array.isArray(parsed.tables)) {
+    for (const t of parsed.tables) {
+      const title = String(t?.title ?? '').trim()
+      const heads = Array.isArray(t?.headers) ? t.headers.map((h: unknown) => String(h ?? '').trim()).filter(Boolean) : []
+      if (title) push(heads.length ? `${title} (${heads.join(' | ')})` : title)
+    }
+  }
+  if (Array.isArray(parsed.diagrams)) {
+    for (const d of parsed.diagrams) push(String(d?.title ?? '').trim())
+  }
+  return out
+}
+
+/**
+ * Tek Gemini cagrisi: belgenin tamami inline, JSON modu, kendi zaman asimi.
+ *
+ * fetchWithRetry KULLANILMIYOR: o fonksiyon Groq'un 429 govdesini ve gunluk
+ * kota mesajini ayristiriyor (parseGroqRetryAfterMs, isDailyQuotaError) ve
+ * burada yanlis sonuc verir. Bu yuzden kendi, daha dar denemesi var.
+ */
+async function callGeminiOnce(
+  apiKey: string,
+  model: string,
+  systemInstruction: string,
+  fileBase64: string,
+  fileMime: string,
+  userText: string,
+  timeoutMs: number,
+  jsonMode: boolean
+): Promise<{ ok: true; data: any } | { ok: false; status: number; body: string }> {
+  const body: Record<string, unknown> = {
+    model,
+    system_instruction: systemInstruction,
+    input: [
+      { type: 'document', data: fileBase64, mime_type: fileMime },
+      { type: 'text', text: userText }
+    ],
+    generation_config: { max_output_tokens: GEMINI_MAX_OUTPUT_TOKENS },
+    // Formul/tablo okumasi muhakeme istiyor, ama 'high' latency'i buraya
+    // sigmayacak kadar buyutuyor. 'low' olculmus bir baslangic noktasi degil,
+    // muhafazali bir varsayim — ilk kosulardan sonra ayarlanacak.
+    thinking_level: 'low',
+    thinking_summaries: 'none'
+  }
+  if (jsonMode) {
+    body.response_format = { type: 'text', mime_type: 'application/json' }
+  }
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const res = await fetch(GEMINI_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'x-goog-api-key': apiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal
+    })
+    if (!res.ok) {
+      let text = ''
+      try { text = (await res.text()).slice(0, 1200) } catch (_e) { /* govde okunamadi */ }
+      return { ok: false, status: res.status, body: text }
+    }
+    return { ok: true, data: await res.json() }
+  } catch (err) {
+    const msg = String((err as any)?.name === 'AbortError'
+      ? `zaman asimi (${timeoutMs}ms)`
+      : ((err as any)?.message || err))
+    return { ok: false, status: 0, body: msg }
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/**
+ * Gölge yolun tamami. Basarisizlikta HER ZAMAN null doner — cagiran taraf
+ * null gorunce Groq yoluna duser, yani bu fonksiyon hicbir durumda bir
+ * belgenin islenmesini engellemez.
+ */
+async function geminiDraft(
+  apiKey: string,
+  systemInstruction: string,
+  fileBytes: Uint8Array,
+  fileMime: string,
+  userText: string,
+  budgetMs: number
+): Promise<{ raw: string; model: string; ms: number; usage: any } | null> {
+  const callMs = Math.min(GEMINI_MAX_CALL_MS, Math.max(0, budgetMs - GEMINI_RESERVE_MS))
+  if (callMs < 20_000) {
+    console.log(`Gemini: atlandi (cagri icin ${callMs}ms kaliyor, en az 20.000ms gerekli)`)
+    return null
+  }
+
+  let fileBase64 = ''
+  try {
+    fileBase64 = bytesToBase64(fileBytes)
+  } catch (encErr) {
+    console.warn('Gemini: base64 kodlama basarisiz, Groq yoluna dusuluyor:', encErr)
+    return null
+  }
+
+  let jsonMode = true
+  for (const model of geminiModelCandidates()) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const startedAt = Date.now()
+      const res = await callGeminiOnce(
+        apiKey, model, systemInstruction, fileBase64, fileMime, userText, callMs, jsonMode
+      )
+      const ms = Date.now() - startedAt
+
+      if (res.ok) {
+        const problem = geminiProblem(res.data)
+        if (problem) {
+          console.warn(`Gemini ${model}: cevap kullanilamaz — ${problem}`)
+          break   // ayni modeli tekrar denemek ayni sonucu verir
+        }
+        const text = extractGeminiText(res.data)
+        if (!text.trim()) {
+          console.warn(`Gemini ${model}: cevapta metin yok (${JSON.stringify(res.data).slice(0, 300)})`)
+          break
+        }
+        console.log(`Gemini ${model}: taslak geldi, ${ms}ms, ${text.length} karakter, json_mode=${jsonMode}`)
+        return { raw: text, model, ms, usage: res.data?.usage ?? null }
+      }
+
+      if (geminiModelMissing(res.status, res.body)) {
+        console.warn(`Gemini ${model}: model yok (${res.status}) — sonraki aday denenecek`)
+        break
+      }
+      if (jsonMode && geminiFormatRejected(res.status, res.body)) {
+        // Dokumanda tarif edilen response_format bu yuzeyde kabul edilmedi.
+        // Prompt zaten "SADECE gecerli JSON" diyor; alani dusurup ayni
+        // modeli bir kez daha deniyoruz.
+        console.warn(`Gemini ${model}: response_format reddedildi (${res.status}: ${res.body.slice(0, 200)}) — JSON modu kapatilip tekrar denenecek`)
+        jsonMode = false
+        continue
+      }
+      if (res.status === 429 || res.status === 503 || res.status === 500) {
+        console.warn(`Gemini ${model}: gecici hata ${res.status} (deneme ${attempt + 1}/2): ${res.body.slice(0, 200)}`)
+        if (attempt === 0) continue
+        break
+      }
+      console.warn(`Gemini ${model}: cagri basarisiz (${res.status}): ${res.body.slice(0, 300)}`)
+      break
+    }
+  }
+
+  console.warn('Gemini: hicbir aday model taslak uretemedi — Groq yoluna dusuluyor')
+  return null
+}
+
 serve(async (req) => {
   // Handle CORS preflight request
   if (req.method === 'OPTIONS') {
@@ -5777,7 +6126,102 @@ ${styleInstruction}`
     let eksikPencereler: { dusen: number; toplam: number; kayipKrk: number } | null = null
     let visualAnalysisUsed = false
 
-    if (!useChunkedPipeline) {
+    // ==========================================================================
+    // GEMINI GOLGE YOLU — secim noktasi (bkz. dosyanin ustundeki blok)
+    //
+    // Bu `if` disinda Groq yolunun hicbir satiri degismedi. Anahtar yoksa ya
+    // da burasi null dondurursek asagidaki iki pipeline eskisi gibi calisir.
+    // ==========================================================================
+    let draftEngine: 'groq' | 'gemini' = 'groq'
+    let geminiMeta: Record<string, unknown> | null = null
+    let geminiResult: { raw: string; model: string; ms: number; usage: any } | null = null
+
+    {
+      const geminiApiKey = Deno.env.get('GEMINI_API_KEY')
+      const geminiMime = geminiNativeMime(mimeType)
+      if (!geminiApiKey) {
+        // Tek satir, her kosuda: hangi yolun calistigi loglardan belli olsun.
+        console.log('Gemini: GEMINI_API_KEY yok — Groq yolu')
+      } else if (!geminiMime) {
+        console.log(`Gemini: atlandi (mime=${mimeType || '(yok)'}, gölge yol yalnizca PDF)`)
+      } else if (fileBytes.byteLength > GEMINI_INLINE_MAX_BYTES) {
+        console.log(`Gemini: atlandi (dosya ${Math.round(fileBytes.byteLength / 1024 / 1024)} MB > ${GEMINI_INLINE_MAX_BYTES / 1024 / 1024} MB)`)
+      } else if (pdfPageCount > GEMINI_MAX_PAGES) {
+        console.log(`Gemini: atlandi (${pdfPageCount} sayfa > ${GEMINI_MAX_PAGES})`)
+      } else if (budgetLeft() < GEMINI_MIN_BUDGET_MS) {
+        console.log(`Gemini: atlandi (butce ${budgetLeft()}ms < ${GEMINI_MIN_BUDGET_MS}ms)`)
+      } else {
+        await serviceClient
+          .from('documents')
+          .update({ processing_stage: 'analyzing' })
+          .eq('id', documentId)
+
+        const geminiSystemPrompt = systemPrompt + buildGeminiDocInstruction(pageMarkerLabel, pdfPageCount)
+        // Cikarilan metin de gonderiliyor: Gemini'nin okudugu sayfa ile bizim
+        // asagida kapilarda/atiflarda kullandigimiz metin ayni belgeden gelse
+        // de AYNI SEY DEGIL. Model ikisini yan yana gorursa, metinde zaten
+        // bulunan bir terimi metindeki yazimiyla yazar ve grounding kapisi
+        // ile anchorCitations onu bulabilir.
+        const geminiUserText =
+          `Here is the text our extractor pulled out of the same document — it is lossy ` +
+          `(equations, spreadsheet screenshots and charts are missing from it), and it is ` +
+          `shown only so you can match your wording to it where the two overlap:\n\n` +
+          extractedText.slice(0, 120_000)
+
+        geminiResult = await geminiDraft(
+          geminiApiKey,
+          geminiSystemPrompt,
+          fileBytes,
+          geminiMime,
+          geminiUserText,
+          budgetLeft()
+        )
+      }
+    }
+
+    if (geminiResult) {
+      draftEngine = 'gemini'
+      rawContent = geminiResult.raw.replace(/```json\s*|```/g, '').trim()
+
+      // Gorselden gelen bulgular. Ikisi de asagida paylasilan yolda okunuyor:
+      // visionNotes review'a KAYNAK olarak gider, visionGroundedClaims ise
+      // grounding kapisina muafiyet olur. Ikisi de olmazsa, Gemini'nin tek
+      // kattigi deger — resimden okunan formul ve tablo — metin tabanli kapi
+      // tarafindan "uydurma" diye silinir.
+      let geminiParsed: any = null
+      try {
+        geminiParsed = JSON.parse(repairLatexEscapes(rawContent))
+      } catch (_parseErr) {
+        // Taslak bozuksa asagidaki ortak yol zaten kendi hatasini verecek;
+        // burada sadece not cikarimi atlanir.
+        geminiParsed = null
+      }
+      const notes = geminiFigureNotes(geminiParsed)
+      for (const n of notes) {
+        visionNotes.push(n)
+        const norm = gateNormalize(n)
+        if (norm) visionGroundedClaims.add(norm)
+      }
+      if (notes.length > 0) visualAnalysisUsed = true
+
+      sourceTextForReview = extractedText.length > 6000
+        ? extractedText.substring(0, 6000) + ' [truncated for review]'
+        : extractedText
+
+      geminiMeta = {
+        model: geminiResult.model,
+        ms: geminiResult.ms,
+        chars: rawContent.length,
+        figure_notes: notes.length,
+        pages: pdfPageCount || null,
+        usage: geminiResult.usage ?? null
+      }
+      console.log(
+        `GOLGE YOL: taslak Gemini'den (model=${geminiResult.model}, ${geminiResult.ms}ms, ` +
+        `${pdfPageCount || '?'} sayfa, ${notes.length} gorsel bulgu, ` +
+        `chunked_olacakti=${useChunkedPipeline}) — Groq yolu hic calismadi`
+      )
+    } else if (!useChunkedPipeline) {
       // ========================================================================
       // FAST PATH (unchanged): short/medium documents — single Groq call,
       // optional visual (image) analysis pass.
@@ -7733,7 +8177,11 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
       critic_retry: false,
       // The SAME array, by reference, not a copy: the critic's own skip
       // decision is made further down and must still land in the saved card.
-      skipped_stages: skippedStages
+      skipped_stages: skippedStages,
+      // Hangi motor bu taslagi yazdi. Iki yolu ayni sunumla karsilastiracagiz
+      // ve loglar birkac gun sonra gidiyor — kartin kendisinde durmali.
+      engine: draftEngine,
+      gemini: geminiMeta
     }
     if (parsedContent.quality_gate && typeof parsedContent.quality_gate === 'object') {
       qualityMeta = {
@@ -7746,7 +8194,9 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
         // Carried through the quality_gate branch too — this is set by OUR
         // budget decisions, not by the model, so it must survive the model's
         // verdict replacing the rest of this object.
-        skipped_stages: skippedStages
+        skipped_stages: skippedStages,
+        engine: draftEngine,
+        gemini: geminiMeta
       }
     }
     // Review sorunlari critic'e gitmeden suzulur (bkz. filterReviewIssues):
