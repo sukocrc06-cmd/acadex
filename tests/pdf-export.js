@@ -615,6 +615,10 @@ test('latexToUnicode: cift ters bolu, bitisik \\ln, \\cdots, \\left/\\right', ()
   assert.equal(latexToUnicode('\\ln y=\\beta_0+\\beta_1\\ln x+\\varepsilon', true), 'ln y=β₀+β₁ ln x+ε');
   assert.ok(latexToUnicode('\\beta_2x^2 + \\cdots + \\beta_p x^p', true).includes('⋯'));
   assert.equal(latexToUnicode('\\left( x + 1 \\right)^2', true), '( x + 1 )²');
+  // Aralik komutlari: canli PDF'te "12.08\,temp" diye basilmisti.
+  assert.equal(latexToUnicode('UtilityBill = 484.12 - 12.08\\,temp + 0.09\\,temp^2', true),
+    'UtilityBill = 484.12 - 12.08 temp + 0.09 temp²');
+  assert.equal(latexToUnicode('a \\; b \\! c', true), 'a b c');
   assert.ok(!latexToUnicode('\\left( x \\right)', false).includes('left'));
 });
 
