@@ -5202,8 +5202,8 @@ const GEMINI_MAX_PAGES = 900
 const GEMINI_MIN_BUDGET_MS = 55_000
 // Cagri bittikten sonra review + kapilar + kayit icin ayrilan pay.
 const GEMINI_RESERVE_MS = 35_000
-/* 68 saniye keyfi degil: GEMINI_PIPELINE_BUDGET_MS (130) eksi
- * GEMINI_GROQ_RESERVE_MS (62) = 68. Yani EN UZUN Gemini cagrisi zaman
+/* 78 saniye keyfi degil: GEMINI_PIPELINE_BUDGET_MS (130) eksi
+ * GEMINI_GROQ_RESERVE_MS (52) = 78. Yani EN UZUN Gemini cagrisi zaman
  * asimina ugrasa bile Groq'a tam 62 saniye kalir. Uc sayi birbirine
  * bagli; biri degisirse testteki degismez kontrolu uyarir.
  *
@@ -5214,7 +5214,7 @@ const GEMINI_RESERVE_MS = 35_000
  * gercekten ikili olur: ya butceyi 140 saniyeye cikarmak (Supabase'in
  * ~150 sn sert sinirina 10 sn pay kalir) ya da ozetlemeyi arka plana
  * tasimak. Tahminle degil, olcumle secilecek. */
-const GEMINI_MAX_CALL_MS = 68_000
+const GEMINI_MAX_CALL_MS = 78_000
 
 /* GROQ'A SAKLANAN PAY — 09.10.2026 dorduncu kosusunun dersi.
  *
@@ -5236,7 +5236,18 @@ const GEMINI_MAX_CALL_MS = 68_000
  * ustunde. Yani istek basina metin kirpildiktan sonra (120.000 -> 40.000
  * karakter) sure bu tavanin altina inmezse gölge yol bu belgede hic
  * tamamlanamaz. Olculecek sey tam olarak budur. */
-const GEMINI_GROQ_RESERVE_MS = 62_000
+/* 62 -> 52 saniye (09.10.2026 21:40 olcumu).
+   gemini-3.7-flash ILK TAM KOSUYU yapti: 67,4 saniye, 32.639 karakter, 26
+   gorsel bulgu, 12 formul, 6 tablo (dordu Excel ekran goruntusunden
+   okunmus regresyon ciktisi), uc cozumlu ornek, ve review de kostu.
+   Ama 67,4 ile 68 saniyelik tavan arasinda yarim saniye var: biraz daha
+   icerik istemek dogrudan zaman asimi demek, ve gunluk kota 20 istek.
+
+   Pay 52 saniyeye iniyor, tavan 78'e cikiyor. Bedeli acik: Gemini zaman
+   asimina ugrarsa Groq'a 52 saniye kalir — pencereler ve birlesim siger
+   (olculdu, ~40 sn), review sigmaz. Gemini'nin calistigi artik olculdugune
+   gore bu takas dogru tarafa yapiliyor. */
+const GEMINI_GROQ_RESERVE_MS = 52_000
 
 /* ==========================================================================
    GEMINI_MODE — gölge mi, tek yol mu (09.10.2026 aksami)
@@ -5418,13 +5429,21 @@ function geminiCoverageQuota(pageCount: number): string {
 
      Sayilari geri eklemek icin once tamamlanan bir kosu gerekiyor; o
      zaman tek tek, olcerek eklenir. */
+  /* Sayilar OLCULEREK geri geldi (09.10.2026 21:40). Ilk hali 25-40 terim
+     isteyip kosuyu tamamlanamaz hale getirmisti; kota tamamen kaldirilinca
+     kosu tamamlandi ama 8 terim / 9 nokta kaldi (Groq 16/25 veriyordu).
+     Bu bant ikisinin arasi ve formul/tablodan SONRA isteniyor — oncelik
+     sirasi promptta acik, cunku gölge yolun degeri orada. */
+  let terms = '12-18', points = '12-16', quiz = '8-10'
+  if (pageCount > 25) { terms = '18-26'; points = '16-22'; quiz = '10-13' }
+  else if (pageCount > 10) { terms = '15-22'; points = '14-18'; quiz = '9-12' }
   const olcek = pageCount > 0 ? `all ${pageCount} pages` : 'the whole document'
   return `
 
 COVERAGE FOR THIS RUN:
 Draw your output from ${olcek}, not only the opening ones — a term or example from the last third is worth more than a third variation on the first idea.
-Two fields have NO cap and matter more than the rest, because they are the reason you were given the original file: "formulas" (every distinct equation, including the ones that exist only as images) and "tables" (every table, including spreadsheet screenshots). Be complete there.
-For the other fields keep to the counts given earlier in this prompt — do not inflate them. Padding with restatements is worse than a short list.`
+Two fields have NO cap and matter more than everything else, because they are the reason you were given the original file: "formulas" (every distinct equation, including the ones that exist only as images) and "tables" (every table, including spreadsheet screenshots and regression output — copy the figures exactly, to the last decimal). Be complete there, and do those first.
+Then, if and only if the document genuinely supports it: ${terms} key_terms, ${points} key_points, ${quiz} quiz_questions. These are a floor to aim at, not a quota to fill — stopping short of them is correct when the material runs out, and padding with restatements of the same idea is worse than a short list.`
 }
 
 function buildGeminiDocInstruction(pageMarkerLabel: string, pageCount: number): string {
