@@ -1548,6 +1548,51 @@ function estimateTokens(systemPrompt: string, userContent: string, maxCompletion
     + Math.ceil(maxCompletion * PACER_COMPLETION_FACTOR)
 }
 
+/* ===========================================================================
+   REDDEDILEN URETIMI KURTARMA — json_validate_failed (09.10.2026)
+
+   OLCULEN OLAY. Denklem sayfalari duzgun okunmaya baslayinca 1. pencere
+   (1-19. slaytlar: kukla degiskenler, etkilesim) ARTIK ICINDE FORMUL OLAN
+   bir metin gordu ve iki denemede de 400 json_validate_failed aldi. Ozetin
+   yarisi — pasta satisi, ev fiyati, etkilesim denklemi — karta hic girmedi.
+   Ikinci deneme ayrica 60 sn pacer beklemesi yedi ve anlati yazarinin
+   butcesini bitirdi; ozet tek kisa paragraf kaldi. Yani bir JSON kacis
+   karakteri yuzunden ozetin yarisi ve bicimi gitti.
+
+   NEDEN OLUYOR. response_format json_object: Groq modelin ciktisini KENDI
+   ayristirip gecersizse 400 donuyor. LaTeX ise JSON kacis kurallariyla
+   dogrudan carpisiyor — \sum, \hat, \partial, \alpha, \varepsilon, \(
+   hicbiri gecerli JSON kacisi degil. Model "EVERY equation" istendikce
+   bunlari daha cok yaziyor, yani cikarim iyilestikce basarisizlik
+   OLASILIGI ARTIYOR.
+
+   NEDEN YENIDEN DENEME COZUM DEGIL. Ayni prompt ayni metinle ayni kacisi
+   yaziyor; olculdu, ikinci deneme de basarisiz. Ustelik 8.000 TPM'de her
+   deneme ~60 sn bekleme demek.
+
+   KURTARMA. Groq reddettigi metni hata govdesinde failed_generation olarak
+   GERI VERIYOR. Bu projede zaten tam bu bozulmayi onaran bir fonksiyon var
+   (repairLatexEscapes). Reddedilen uretimi onarip ayristiriyoruz: ek cagri
+   yok, ek token yok, ek bekleme yok. Onarim tutmazsa eski davranis (hata)
+   aynen devam eder.
+   =========================================================================== */
+function salvageFailedGeneration(data: any): any | null {
+  const err = data?.error ?? data
+  if (String(err?.code || '') !== 'json_validate_failed') return null
+  const ham = err?.failed_generation ?? err?.failedGeneration ?? err?.generation
+  if (typeof ham !== 'string' || ham.trim().length < 2) return null
+  const temiz = (stripThinkBlock(ham) ?? ham).replace(/```json\s*|```/g, '').trim()
+  try {
+    const onarilmis = JSON.parse(repairLatexEscapes(temiz))
+    if (onarilmis && typeof onarilmis === 'object') return onarilmis
+  } catch { /* onarim yetmedi, ham haliyle dene */ }
+  try {
+    const hamParsed = JSON.parse(temiz)
+    if (hamParsed && typeof hamParsed === 'object') return hamParsed
+  } catch { /* kurtarilamadi */ }
+  return null
+}
+
 async function callGroqJson(
   groqApiKey: string,
   systemPrompt: string,
@@ -1603,6 +1648,15 @@ async function callGroqJson(
     // the estimate — otherwise the pacer would under-count after a 429 and
     // immediately fire again into the same wall.
     tokenPacer.record(estTokens, model, maxCompletionTokens)
+    // json_validate_failed: KURTARILABILIR (bkz. salvageFailedGeneration).
+    const kurtarilan = salvageFailedGeneration(data)
+    if (kurtarilan !== null) {
+      console.warn(
+        `${opts.usageLabel || 'Groq'}: json_validate_failed — reddedilen uretim ` +
+        `onarildi (${JSON.stringify(kurtarilan).length} krk), yeniden cagri yok`
+      )
+      return kurtarilan
+    }
     throw new Error(`Groq API error (${response.status}): ${JSON.stringify(data)}`)
   }
   tokenPacer.record(
@@ -5389,6 +5443,9 @@ ${styleInstruction}`
 
     let rawContent = ""
     let sourceTextForReview = ""
+    // Dusen pencere varsa karta yazilir: ogrenci ozetin eksik oldugunu
+    // bilmeli, ve iki kosu loglar gittikten sonra da karsilastirilabilmeli.
+    let eksikPencereler: { dusen: number; toplam: number; kayipKrk: number } | null = null
     let visualAnalysisUsed = false
 
     if (!useChunkedPipeline) {
@@ -5805,7 +5862,7 @@ In addition to the text below, you are shown images of this document's pages. Us
       const compactWindowPrompt = (wi: number, total: number) =>
         `You extract study material from ${total === 1 ? 'a complete academic document' : `part ${wi + 1}/${total} of a long academic document`}.
 Language for all text fields: ${langLabel}.${desteTalimati}
-Respond ONLY with JSON:
+Respond ONLY with JSON. In every string, a backslash must be written TWICE ("\\\\beta_0", "\\\\frac{a}{b}") — a single backslash makes the whole response invalid and it is thrown away.
 {
   "summary": "5-10 sentences of CONCRETE content from ${total === 1 ? 'the document' : 'this part only'} — name real topics, methods, definitions",
   "summary_executive": "1-2 sentences naming the subject of ${total === 1 ? 'the document' : 'this part'}",
@@ -6087,6 +6144,11 @@ Rules:
       )
 
       const windowResults: any[] = []
+      // Dusen pencere SESSIZ kalmamali. 09.10.2026: 1. pencere (1-19.
+      // slaytlar) iki denemede de 400 aldi, merge satiri "terms=14 points=17"
+      // yazip devam etti ve kart belgenin yarisiyla cikti. Hicbir satir
+      // yarisinin eksik oldugunu soylemiyordu.
+      const dusenPencereler: number[] = []
       for (let batchStart = 0; batchStart < windows.length; batchStart += windowConcurrency) {
         if (budgetLeft() < 20_000 && windowResults.length > 0) {
           console.warn(`Budget low — stopping before batch starting at window ${batchStart}`)
@@ -6125,6 +6187,7 @@ Rules:
         for (let bi = 0; bi < batchResults.length; bi++) {
           const result = batchResults[bi]
           const wi = batchIndices[bi]
+          if (!result) dusenPencereler.push(wi + 1)
           if (result) {
             // Normalize alternate field names
             if (!result.summary && result.chunk_summary) result.summary = result.chunk_summary
@@ -6473,7 +6536,9 @@ The example that used to sit here named a real-looking percentage, and a live ru
               const visionRaw = visionData.choices?.[0]?.message?.content ?? ""
               const visionStripped = stripThinkBlock(visionRaw)
               const visionCleaned = (visionStripped ?? visionRaw).replace(/```json\s*|```/g, '').trim()
-              const visionParsed = visionCleaned ? JSON.parse(visionCleaned) : null
+              // Gorsel gecis de model ciktisi: ayni LaTeX kacis sorunu burada
+              // da var (09.10.2026'da kurtarma calismasi sirasinda gorundu).
+              const visionParsed = visionCleaned ? JSON.parse(repairLatexEscapes(visionCleaned)) : null
 
               if (visionParsed && typeof visionParsed === 'object') {
                 const newTerms = Array.isArray(visionParsed.key_terms) ? visionParsed.key_terms : []
@@ -6603,6 +6668,15 @@ The example that used to sit here named a real-looking percentage, and a live ru
 
       console.log(`Long-doc merge: terms=${mergedKeyTerms.length} points=${mergedKeyPoints.length} quiz=${mergedQuiz.length} tables=${mergedTables.length} charts=${mergedCharts.length} diagrams=${mergedDiagrams.length} worked_examples=${mergedWorkedExamples.length} summaryLen=${(mergedDraft.summary || '').length}`)
       console.log(`Birlesim sayisal kapsama: ${formatCoverage(numericCoverage(extractedText, mergedDraft))}`)
+      if (dusenPencereler.length > 0) {
+        const kayipKrk = dusenPencereler.reduce((n, p) => n + (windows[p - 1]?.length || 0), 0)
+        console.error(
+          `EKSIK BELGE: ${dusenPencereler.length}/${windows.length} pencere dustu ` +
+          `[${dusenPencereler.join(',')}] — ${kayipKrk} karakter (belgenin ` +
+          `%${Math.round((100 * kayipKrk) / Math.max(1, extractedText.length))}'i) karta hic girmedi`
+        )
+        eksikPencereler = { dusen: dusenPencereler.length, toplam: windows.length, kayipKrk }
+      }
 
       rawContent = JSON.stringify(mergedDraft)
       // THE SOURCE, not a summary of it (05.10.2026).
@@ -6768,7 +6842,12 @@ ${narrative}`
     try {
       if (depthFlags.skipNarrativeWriter) {
         console.log('Madde 6: skipping narrative writer (depth=brief)')
-      } else if (budgetLeft() < 35_000) {
+      } else if (budgetLeft() < NARRATIVE_WRITER_RESERVE_MS) {
+        // UCUZ TABAN. Gercek karar asagida, serit ve prompt belli olunca
+        // OLCULEREK veriliyor (bkz. yazarGereken). Burada duran duz 35 sn,
+        // 09.10.2026'da 30.757 ms kalan bir kosuda yazari atlatti ve ozet
+        // tek kisa paragraf kaldi — oysa yazarin seridi bostu ve cagri
+        // birkac saniye surecekti. Review kapisi ayni hatadan donmustu.
         console.log('Madde 3: anlati yazari atlandi (butce', budgetLeft(), 'ms)')
         skippedStages.push('anlati yazari')
       } else {
@@ -6890,6 +6969,23 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
         if (writerLane !== MODEL_HEAVY) {
           console.log(`Madde 3: yazar ${writerLane} seridine alindi (${MODEL_HEAVY} mesgul)`)
         }
+        // OLCULMUS KAPI: pacer'in bu serit icin soyledigi bekleme + cagrinin
+        // kendisi. Serit bossa bekleme 0'dir ve yazar 30 sn kalan butceyle de
+        // calisir; serit gercekten doluysa zaten atlanir.
+        const yazarBekleme = tokenPacer.waitEstimate(
+          estimateTokens(writerSys, writerUser, writerCompletion),
+          writerLane,
+          writerCompletion
+        )
+        const yazarGereken = yazarBekleme + WINDOW_CALL_MS
+        if (budgetLeft() < yazarGereken) {
+          console.log(
+            `Madde 3: anlati yazari atlandi (butce ${budgetLeft()}ms, ` +
+            `gereken ${yazarGereken}ms [pacer ${yazarBekleme}ms + cagri ${WINDOW_CALL_MS}ms])`
+          )
+          skippedStages.push('anlati yazari')
+          throw new Error('__yazar_butce__')
+        }
         const written = await callGroqJson(groqApiKey, writerSys, writerUser, {
           model: writerLane,
           temperature: 0.2,
@@ -6934,7 +7030,10 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
       }
       } // end else !skipNarrativeWriter
     } catch (writerErr) {
-      console.warn('Madde 3 narrative writer skipped (keeping draft summary):', writerErr)
+      // Butce kapisi zaten kendi satirini yazdi; burada tekrar etme.
+      if (String((writerErr as any)?.message || '') !== '__yazar_butce__') {
+        console.warn('Madde 3 narrative writer skipped (keeping draft summary):', writerErr)
+      }
     }
 
     // Madde 6: progressive signal — draft exists, review may follow
@@ -7241,7 +7340,9 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
     try {
       const preReviewStripped = stripThinkBlock(rawContent)
       const preReviewCleaned = (preReviewStripped ?? rawContent).replace(/```json\s*|```/g, '').trim()
-      const preReviewDraft = preReviewCleaned ? JSON.parse(preReviewCleaned) : null
+      // Tek gecisli yolda rawContent modelin HAM ciktisi; onarimsiz ayristirma
+      // formul tasiyan her kartta tables/formulas alanlarini dusurebilirdi.
+      const preReviewDraft = preReviewCleaned ? JSON.parse(repairLatexEscapes(preReviewCleaned)) : null
       if (preReviewDraft && typeof preReviewDraft === 'object') {
         for (const field of ['tables', 'charts', 'diagrams', 'worked_examples', 'formulas', 'concept_graph', 'cloze_cards']) {
           if (parsedContent[field] === undefined && preReviewDraft[field] !== undefined) {
@@ -7643,6 +7744,7 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
       if (kapsama.total > 0) {
         qualityMeta.numeric_coverage = { kept: kapsama.kept, total: kapsama.total }
       }
+      if (eksikPencereler) qualityMeta.missing_windows = eksikPencereler
     }
 
     let newCard: any = null
