@@ -29,7 +29,7 @@ const { test, summary } = makeRunner();
 const NAMES = [
   'GEMINI_ENDPOINT', 'GEMINI_MODEL_CANDIDATES', 'GEMINI_INLINE_MAX_BYTES',
   'GEMINI_MAX_PAGES', 'GEMINI_MIN_BUDGET_MS', 'GEMINI_RESERVE_MS',
-  'GEMINI_MAX_CALL_MS', 'GEMINI_MAX_OUTPUT_TOKENS',
+  'GEMINI_MAX_CALL_MS', 'GEMINI_MAX_OUTPUT_TOKENS', 'GEMINI_GROQ_RESERVE_MS',
   'bytesToBase64',
   'geminiModelCandidates', 'geminiNativeMime', 'geminiModelMissing',
   'geminiFormatRejected', 'GEMINI_DUSURULEBILIR', 'geminiUnknownParameter',
@@ -631,18 +631,18 @@ test('geminiQuotaExhausted: 503 ve 500 kota degildir', () => {
   assert.equal(G.geminiQuotaExhausted(400, 'exceeded a quota'), false);
 });
 
-test('geminiDraft: proje kotasi dolunca TEK istekte durur', () => {
+test('geminiDraft: proje kotasi dolunca TEK istekte durur', async () => {
   // Kota proje seviyesinde: baska modeli denemek de, tekrar denemek de ayni
   // duvara carpar ve gunluk 100 isteklik kotadan bosuna istek goturur.
   stubFetch([{ status: 429, text: 'Your project has exceeded a quota.' }]);
-  return (async () => {
+  {
     try {
       const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000));
       assert.equal(out, null);
       assert.equal(fetchCalls.length, 1,
         `kota 429 undan sonra ${fetchCalls.length} istek yapildi — biri yeterli`);
     } finally { restoreFetch(); }
-  })();
+  }
 });
 
 test('geminiDraft: her aday tukenirse null (cagiran Groq a duser)', async () => {
@@ -694,6 +694,41 @@ test('sinirlar: butce payi cagri suresinden sonra review a yer birakir', () => {
     'en az butce, ayrilan paydan buyuk olmali yoksa cagri hic baslayamaz');
   assert.ok(G.GEMINI_RESERVE_MS >= 25_000, 'review + kapilar + kayit icin pay cok dar');
   assert.ok(G.GEMINI_MAX_CALL_MS <= 90_000, 'tek cagri 150 sn lik fonksiyon sinirini zorlamamali');
+});
+
+/* 09.10.2026 DORDUNCU KOSU: tek Gemini cagrisi 74,9 sn de zaman asimina
+   ugradi, Groq a 0 ms kaldi ve kart anlati yazarini, gorsel gecisini ve
+   review u kaybetti. Asagidaki uc test o kombinasyonun geri gelmesini
+   engeller. */
+test('zaman asimi olsa bile Groq a tam bir kosuluk sure kalir', () => {
+  // Olculen tam Groq kosusu 71 sn; 62 sn pencere + birlesimi garanti eder.
+  assert.ok(G.GEMINI_GROQ_RESERVE_MS >= 60_000,
+    `Groq a saklanan pay cok dar: ${G.GEMINI_GROQ_RESERVE_MS}ms`);
+  assert.ok(
+    G.GEMINI_PIPELINE_BUDGET_MS - G.GEMINI_MAX_CALL_MS >= G.GEMINI_GROQ_RESERVE_MS,
+    'en uzun Gemini cagrisi zaman asimina ugrarsa Groq a saklanan pay kalmiyor'
+  );
+});
+
+test('Gemini cagrisi 130 sn lik butcede olculen 72 sn ye yer aciyor', () => {
+  // Basarili kosu 72,4 sn surmustu. Tavan bunun altina inerse gölge yol
+  // bu belgede hic tamamlanamaz — kirpma sonrasi sure olculene kadar
+  // tavani bilerek 70 sn de tutuyoruz.
+  assert.ok(G.GEMINI_MAX_CALL_MS >= 60_000,
+    `cagri tavani ${G.GEMINI_MAX_CALL_MS}ms — 42 sayfalik PDF icin cok dar`);
+});
+
+test('geminiDraft: butce cagriya 35 sn bile veremiyorsa hic denemez', async () => {
+  stubFetch([]);
+  {
+    try {
+      // 90 sn butce: 90 - 62 = 28 sn kaliyor, esigin altinda.
+      const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 90_000));
+      assert.equal(out, null);
+      assert.equal(fetchCalls.length, 0,
+        'yarim kalacagi belli bir cagri Groq tan zaman calmamali');
+    } finally { restoreFetch(); }
+  }
 });
 
 summary();
