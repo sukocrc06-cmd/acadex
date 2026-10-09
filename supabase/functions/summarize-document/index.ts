@@ -1196,6 +1196,19 @@ const CHUNK_CONCURRENCY = 3
 const MAX_CHUNKS = 12 // hard ceiling: prefer finishing over analyzing every page under Edge timeout
 // Soft wall-clock budget (ms) for the whole function — leave headroom under ~150s platform limit
 const PIPELINE_BUDGET_MS = 110_000
+
+/* Gemini yolu icin daha genis butce (09.10.2026 olcumu).
+ *
+ * Ilk basarili gölge kosusunda Gemini cagrisi 72,4 saniye surdu ve geriye
+ * 26,8 saniye kaldi; review'un en kucuk kademesi bile 33 saniye istiyordu,
+ * dolayisiyla review ATLANDI. Oysa Groq yolunun butun pencere cagrilari ve
+ * pacer beklemeleri bu yolda HIC yok — 110 saniye o beklemelere gore
+ * secilmisti.
+ *
+ * Supabase'in sert siniri ~150 saniye. 130 saniye, review'a yer acarken
+ * 20 saniyelik emniyet payi birakiyor. YALNIZCA Gemini taslagi geldiginde
+ * devreye giriyor; Groq yolu 110 saniyede kaliyor. */
+const GEMINI_PIPELINE_BUDGET_MS = 130_000
 // A window call, compact-split to window-ok, measured across four live runs:
 // 2.9s, 3.3s, 4.0s, 5.3s. Used to budget a retry, and deliberately several
 // times the measured cost.
@@ -5250,6 +5263,47 @@ function geminiUnknownParameter(status: number, body: string): string | null {
  *     istiyoruz ki kapiya muaf olarak verilebilsin ve review de onlari
  *     KAYNAK olarak gorsun (bkz. visionNotes).
  */
+/**
+ * Gemini yolunun KAPSAM KOTASI — belgenin boyuna gore.
+ *
+ * 09.10.2026, ilk basarili gölge kosusu. Gemini 42 sayfanin tamamini okudu,
+ * 16 gorsel bulgu cikardi, 7 formulu degisken aciklamalariyla yakaladi — ama
+ * yalnizca 7 terim, 9 nokta, 6 soru uretti. Groq ayni belgede 15/24/11
+ * cikarmisti. Sebep modelin yetersizligi DEGILDI: paylasilan sistem promptu
+ * "5-15 key_terms" diyor ve o rakam TEK GECIS yolu icin, yani kisa belgeler
+ * icin yazilmisti. Groq'un uzun-belge yolunda her pencere o kotayi ayri ayri
+ * dolduruyor ve iki pencerenin birlesimi dogal olarak iki kat aday uretiyor;
+ * Gemini belgenin tamamini TEK cagrida okudugu icin kotayi bir kez doldurdu.
+ *
+ * Yani tek cagriya gecmenin bedeli buydu ve cozumu kotayi belgenin gercek
+ * boyuna baglamak. Olcu olarak SAYFA sayisi kullaniliyor, cikarilan metnin
+ * uzunlugu degil: bu destede metin 14.465 karakter (depth=standard'a denk
+ * geliyor) ama belge 42 sayfa — icerigin cogu resimde oldugu icin karakter
+ * sayisi belgenin boyunu sistematik olarak kucuk gosteriyor, ki gölge yolun
+ * var olma sebebi zaten tam olarak bu.
+ */
+function geminiCoverageQuota(pageCount: number): string {
+  let terms = '10-18', points = '10-16', quiz = '6-10', cloze = '6-10'
+  if (pageCount > 25) {
+    terms = '25-40'; points = '20-30'; quiz = '10-15'; cloze = '10-14'
+  } else if (pageCount > 10) {
+    terms = '18-28'; points = '15-22'; quiz = '8-12'; cloze = '8-12'
+  }
+  const olcek = pageCount > 0 ? `a ${pageCount}-page document` : 'this document'
+  return `
+
+COVERAGE QUOTA FOR THIS RUN (overrides any smaller count given above):
+You are reading ${olcek} in one pass, so the counts earlier in this prompt — written for a short single-pass document — are too low. For this run produce:
+- key_terms: ${terms}
+- key_points: ${points}
+- quiz_questions: ${quiz}
+- cloze_cards: ${cloze}
+- sections: one per level-1 outline item, none skipped
+- formulas: EVERY distinct equation in the document, with no cap
+- tables: EVERY table in the document, with no cap
+Spread these across the WHOLE document rather than drawing them all from the opening pages — a term from the last third is worth more than a third variation on the first idea. If the material genuinely does not contain enough distinct content to reach a number, stop at what is real; padding with restatements is worse than a short list.`
+}
+
 function buildGeminiDocInstruction(pageMarkerLabel: string, pageCount: number): string {
   const unit = pageMarkerLabel === 'SLAYT' ? 'slide' : 'page'
   const extent = pageCount > 0
@@ -6002,7 +6056,10 @@ serve(async (req) => {
     // the full pipeline from one that ran out of minutes. Declared out here for
     // the same scope reason as the two above.
     const skippedStages: string[] = []
-    const budgetLeft = () => Math.max(0, PIPELINE_BUDGET_MS - (Date.now() - pipelineStartedAt))
+    // Gemini taslagi geldiginde GEMINI_PIPELINE_BUDGET_MS'e yukseltilir;
+    // Groq yolunda hic degismez.
+    let pipelineBudgetMs = PIPELINE_BUDGET_MS
+    const budgetLeft = () => Math.max(0, pipelineBudgetMs - (Date.now() - pipelineStartedAt))
 
     // ==========================================================================
     // AUTO DEPTH SELECTION (Denetim Raporu, 2026-08-31)
@@ -6213,7 +6270,9 @@ ${styleInstruction}`
           .update({ processing_stage: 'analyzing' })
           .eq('id', documentId)
 
-        const geminiSystemPrompt = systemPrompt + buildGeminiDocInstruction(pageMarkerLabel, pdfPageCount)
+        const geminiSystemPrompt = systemPrompt
+          + buildGeminiDocInstruction(pageMarkerLabel, pdfPageCount)
+          + geminiCoverageQuota(pdfPageCount)
         // Cikarilan metin de gonderiliyor: Gemini'nin okudugu sayfa ile bizim
         // asagida kapilarda/atiflarda kullandigimiz metin ayni belgeden gelse
         // de AYNI SEY DEGIL. Model ikisini yan yana gorursa, metinde zaten
@@ -6223,7 +6282,12 @@ ${styleInstruction}`
           `Here is the text our extractor pulled out of the same document — it is lossy ` +
           `(equations, spreadsheet screenshots and charts are missing from it), and it is ` +
           `shown only so you can match your wording to it where the two overlap:\n\n` +
-          extractedText.slice(0, 120_000)
+          // 120.000 degil 40.000: hesabin TPM'i 100K ve bu metin PDF'in
+          // kendisiyle BIRLIKTE gidiyor, yani ayni bilginin ikinci kopyasi.
+          // 42 sayfa ~10.800 token tutuyor; 120.000 karakter buna ~35.000
+          // token daha ekliyordu. 40.000 karakter (~12.000 token) eslestirme
+          // faydasini korurken dakikada kac kosu sigacagini ikiye katliyor.
+          extractedText.slice(0, 40_000)
 
         geminiResult = await geminiDraft(
           geminiApiKey,
@@ -6238,6 +6302,9 @@ ${styleInstruction}`
 
     if (geminiResult) {
       draftEngine = 'gemini'
+      // Pencere cagrilari ve pacer beklemeleri bu yolda yok; review'un
+      // atlanmamasi icin butce genisletiliyor (bkz. GEMINI_PIPELINE_BUDGET_MS).
+      pipelineBudgetMs = GEMINI_PIPELINE_BUDGET_MS
       rawContent = geminiResult.raw.replace(/```json\s*|```/g, '').trim()
 
       // Gorselden gelen bulgular. Ikisi de asagida paylasilan yolda okunuyor:
