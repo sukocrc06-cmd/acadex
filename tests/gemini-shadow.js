@@ -33,6 +33,7 @@ const NAMES = [
   'bytesToBase64',
   'geminiModelCandidates', 'geminiNativeMime', 'geminiModelMissing',
   'geminiFormatRejected', 'GEMINI_DUSURULEBILIR', 'geminiUnknownParameter',
+  'geminiQuotaExhausted',
   'PIPELINE_BUDGET_MS', 'GEMINI_PIPELINE_BUDGET_MS', 'geminiCoverageQuota',
   'buildGeminiDocInstruction', 'extractGeminiText',
   'geminiProblem', 'geminiFigureNotes', 'callGeminiOnce', 'geminiDraft'
@@ -108,9 +109,10 @@ test('geminiModelCandidates: GEMINI_MODEL yoksa varsayilan sira', () => {
 });
 
 test('geminiModelCandidates: GEMINI_MODEL basa gecer, kopyalanmaz', () => {
-  denoEnv.set('GEMINI_MODEL', G.GEMINI_MODEL_CANDIDATES[2]);
+  const sonuncu = G.GEMINI_MODEL_CANDIDATES[G.GEMINI_MODEL_CANDIDATES.length - 1];
+  denoEnv.set('GEMINI_MODEL', sonuncu);
   const list = G.geminiModelCandidates();
-  assert.equal(list[0], G.GEMINI_MODEL_CANDIDATES[2]);
+  assert.equal(list[0], sonuncu);
   assert.equal(new Set(list).size, list.length, 'ayni model iki kez listelenmemeli');
   assert.equal(list.length, G.GEMINI_MODEL_CANDIDATES.length);
   denoEnv.delete('GEMINI_MODEL');
@@ -599,10 +601,12 @@ test('geminiDraft: ayni alan iki kez atilmaya calisilmaz (sonsuz dongu yok)', as
   } finally { restoreFetch(); }
 });
 
-test('geminiDraft: 429 bir kez tekrar denenir, sonra sonraki modele gecer', async () => {
+test('geminiDraft: 503 bir kez tekrar denenir, sonra sonraki modele gecer', async () => {
+  // Olculdu: ikinci kosuda ilk deneme 503 aldi, ikincisi tuttu ve kart
+  // Gemini'den geldi. 503 gercekten gecici.
   stubFetch([
-    { status: 429, text: 'rate limited' },
-    { status: 429, text: 'rate limited' },
+    { status: 503, text: 'currently experiencing high demand' },
+    { status: 503, text: 'currently experiencing high demand' },
     { status: 200, json: OK_JSON }
   ]);
   try {
@@ -611,6 +615,34 @@ test('geminiDraft: 429 bir kez tekrar denenir, sonra sonraki modele gecer', asyn
     assert.equal(fetchCalls.length, 3);
     assert.equal(out.model, G.GEMINI_MODEL_CANDIDATES[1]);
   } finally { restoreFetch(); }
+});
+
+// ===========================================================================
+// Proje kotasi — 09.10.2026 ucuncu kosu
+// ===========================================================================
+test('geminiQuotaExhausted: proje kotasi 429 u taninir', () => {
+  const govde = '{"error":{"message":"Your project has exceeded a quota. See https://ai.dev/rate-limit to manage your rate limits.","code":"too_many_requests"}}';
+  assert.equal(G.geminiQuotaExhausted(429, govde), true);
+});
+
+test('geminiQuotaExhausted: 503 ve 500 kota degildir', () => {
+  assert.equal(G.geminiQuotaExhausted(503, 'currently experiencing high demand'), false);
+  assert.equal(G.geminiQuotaExhausted(500, 'internal'), false);
+  assert.equal(G.geminiQuotaExhausted(400, 'exceeded a quota'), false);
+});
+
+test('geminiDraft: proje kotasi dolunca TEK istekte durur', () => {
+  // Kota proje seviyesinde: baska modeli denemek de, tekrar denemek de ayni
+  // duvara carpar ve gunluk 100 isteklik kotadan bosuna istek goturur.
+  stubFetch([{ status: 429, text: 'Your project has exceeded a quota.' }]);
+  return (async () => {
+    try {
+      const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000));
+      assert.equal(out, null);
+      assert.equal(fetchCalls.length, 1,
+        `kota 429 undan sonra ${fetchCalls.length} istek yapildi — biri yeterli`);
+    } finally { restoreFetch(); }
+  })();
 });
 
 test('geminiDraft: her aday tukenirse null (cagiran Groq a duser)', async () => {
