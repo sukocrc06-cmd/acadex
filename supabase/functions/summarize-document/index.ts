@@ -553,6 +553,24 @@ function countMathPua(text: string): number {
 }
 const MATH_PUA_MIN = 2
 
+/* SUTUN ESIGI. Bir em'den genis bosluk sutun sayilir: kelime arasi bosluk
+   tipik olarak 0.25-0.35 em, sutun arasi birkac em. 15. slaydin calisma
+   tablosunda olculen en dar sutun araligi 1.6 em. */
+const SUTUN_BOSLUGU_EM = 1.0
+/* Sayfayi "tablo bicimli" saymak icin: en az bu kadar satirda en az iki sutun
+   ayraci. Uc satir bir basligi ve iki veri satirini karsilar —
+   detectAndFormatPdfTables da zaten uc satir istiyor. */
+const TABLO_SATIR_MIN = 3
+
+/** Yeniden dizilen metin tablo bicimli mi? (bkz. SUTUN_BOSLUGU_EM) */
+function tabloBicimliMi(metin: string): boolean {
+  let satir = 0
+  for (const l of String(metin || '').split('\n')) {
+    if ((l.match(/ {2,}/g) || []).length >= 2) satir++
+  }
+  return satir >= TABLO_SATIR_MIN
+}
+
 interface PdfTextItemLike {
   str?: string
   transform?: number[]
@@ -687,8 +705,22 @@ function leafLines(boxes: PdfBox[]): string[] {
         // belirsizlesiyor), "andβ_1" -> "and β_1".
         const afterScript = (prev.role === '^' || prev.role === '_') && /^[A-Za-zα-ωΑ-Ω]/.test(s)
         const wordThenGreek = /[A-Za-z]{2,}$/.test(out) && /^[α-ωΑ-Ω]/.test(s)
-        if (gap > 0.22 * ln.fs || afterScript || wordThenGreek) out += ' '
+        // GENIS BOSLUK = SUTUN SINIRI. detectAndFormatPdfTables sutunlari iki
+        // ve daha fazla bosluktan tanir; unpdf'in akis metni hic bosluk
+        // tasimadigi icin o fonksiyon bu boru hattinda HIC calisamiyordu ve
+        // metindeki tablolar (ornegin 15. slaydin calisma tablosu) modele duz
+        // bir rakam dizisi olarak gidiyordu. Konum bilgisi elimizde: iki oge
+        // arasi bir em'den genisse sutun ayraci yazilir.
+        if (gap > SUTUN_BOSLUGU_EM * ln.fs) out += '  '
+        else if (gap > 0.22 * ln.fs || afterScript || wordThenGreek) out += ' '
       }
+      /* YAN YANA IKI OPERATORUN DOLGUSU SUTUN AYRACI DEGIL. Operatorler
+         ` op ` diye yaziliyor; "= −" ikilisi "=  −" (iki bosluk) uretiyor ve
+         iki bosluk artik sutun siniri anlamina geldigi icin 29. slaydin
+         "-12.08 + 2(0.09)39 = − 12.08 + 7.02 = − 5.06" satiri bozuluyordu.
+         Eski surum butun boslukları `\s+` ile ezdigi icin bu gorunmuyordu;
+         sutun ayraci korunmaya baslayinca ortaya cikti. */
+      if (out.endsWith(' ') && s.startsWith(' ')) s = s.slice(1)
       out += s
       prev = b
     }
@@ -696,8 +728,122 @@ function leafLines(boxes: PdfBox[]): string[] {
   })
 }
 
-/** Bir sayfanin pdf.js metin ogelerinden okuma sirasinda metin kur. */
-function rebuildPageText(items: PdfTextItemLike[]): string {
+/* ===========================================================================
+   TABLO SAYFALARI SATIR SATIR OKUNUR (09.10.2026)
+
+   xyCut once SUTUNU ayiriyor — slaytta denklem solda, aciklama kutusu sagda
+   oldugu icin dogru karar. Ama gercek bir TABLODA ayni kural satirlari yok
+   ediyor: 15. slaydin calisma tablosu sutun sutun okunup
+
+     Case, i / 1 / 2 / 3 / 4 / yi / 1 / 4 / 1 / 3 / x1i / ...
+
+   haline geliyordu, yani devrik. Model bunu tablo olarak goremez; nitekim
+   iki canli kosuda da pencerelerden sifir tablo geldi.
+
+   Tablo olup olmadigi OLCULUYOR: ogeler taban cizgisine gore satirlara
+   ayrilir, uc veya daha fazla satirda ucer+ hucre varsa ve bu hucrelerin
+   sol kenarlari satirdan satira ayni sutunlara hizaliysa sayfa tablodur.
+   Hizalama sarti onemli: ust uste gelen uc dolu metin satiri tablo degildir,
+   sutunlari ancak gercek bir tablo tutturur.
+   =========================================================================== */
+const TABLO_SUTUN_MIN = 3
+/* Tablo hucresi KISADIR. Duz yazi satiri de ucer parcaya bolunebiliyor
+   (slaytta tireyle ayrilmis bir baslik gibi); hucre uzunlugu ikisini ayiriyor.
+   15. slaytta en uzun hucre "x1i x2i" = 7 karakter. */
+const TABLO_HUCRE_MAX = 16
+/* Sutun sol kenarlarinin satirdan satira kayabilecegi pay. */
+const TABLO_HIZA_EM = 1.5
+
+/** Ogeleri taban cizgisine gore satirlara ayirir (ustten alta).
+ *
+ *  Buyuk font ONCE islenir ki satirlari ana metin kursun; kucuk ve kisa
+ *  ogeler (ust/alt simge) kendi satirlarini acmak yerine en yakin satira
+ *  katilir. Aksi halde 23. slayttaki "x_j^2" ifadesinin 2'si kendi satirina
+ *  dusuyor ve formul kareyi kaybediyordu. */
+function tabanSatirlari(boxes: PdfBox[]): PdfBox[][] {
+  const satirlar: Array<{ y: number; fs: number; items: PdfBox[] }> = []
+  for (const b of [...boxes].sort((a, b) => b.fs - a.fs || b.y - a.y)) {
+    const kisa = b.s.trim().length <= 4 && !/\s/.test(b.s.trim())
+    const ev = satirlar.find(l => {
+      const dy = Math.abs(l.y - b.y)
+      if (dy <= 0.4 * Math.max(l.fs, b.fs)) return true
+      return kisa && b.fs < 0.85 * l.fs && dy <= 0.7 * l.fs
+        && b.x0 >= Math.min(...l.items.map(i => i.x0)) - 2
+        && b.x0 <= Math.max(...l.items.map(i => i.x1)) + 0.6 * l.fs
+    })
+    if (ev) ev.items.push(b)
+    else satirlar.push({ y: b.y, fs: b.fs, items: [b] })
+  }
+  return satirlar
+    .sort((a, b) => b.y - a.y)
+    .map(l => l.items.sort((a, b) => a.x0 - b.x0))
+}
+
+/** Sayfa bir tabloysa satir satir metnini doner, degilse null.
+ *
+ *  OLCUT: ardisik satirlarda AYNI hucre sayisi. Sol kenar hizasi denenip
+ *  birakildi — 15. slaydin basligi sola, verisi ortaya hizali ve sapma
+ *  43 punto; hucre SAYISI ise alti satirda da tam olarak bes. Denklem
+ *  sayfalarinda ise sayi her satirda baska (3, 1, 18, 4, 14, 26...), cunku
+ *  formuller cok sayida kucuk parcaya boluniyor — bu yuzden ayni olcut
+ *  onlari tablo sanmiyor. */
+function tableLayout(boxes: PdfBox[]): string | null {
+  const satirlar = tabanSatirlari(boxes)
+  const sayilar = satirlar.map(r => r.length)
+  let enIyi: { n: number; bas: number; boy: number } | null = null
+  for (let i = 0; i < sayilar.length; i++) {
+    if (sayilar[i] < TABLO_SUTUN_MIN) continue
+    let j = i
+    while (j + 1 < sayilar.length && sayilar[j + 1] === sayilar[i]) j++
+    const boy = j - i + 1
+    if (boy >= TABLO_SATIR_MIN && (!enIyi || boy > enIyi.boy)) {
+      enIyi = { n: sayilar[i], bas: i, boy }
+    }
+    i = j
+  }
+  if (!enIyi) return null
+
+  const kosu = satirlar.slice(enIyi.bas, enIyi.bas + enIyi.boy)
+
+  // Hucreler kisa olmali: duz yazi satirlari da ayni sayida parcaya
+  // bolunebilir, ama parcalari uzundur.
+  const uzunluk: number[] = []
+  for (const r of kosu) for (const b of r) uzunluk.push(b.s.trim().length)
+  if (medianOf(uzunluk) > TABLO_HUCRE_MAX) return null
+
+  /* SUTUNLAR HIZALI OLMALI. Yalnizca "ayni sayida hucre" yetmiyordu: 30.
+     slayttaki denklem parcalari da ucer ucer bolunup tablo gibi gorunuyor ve
+     o sayfa tablo kipine girince sapkalari kaybediyordu (β̂_1 -> β_1).
+     Gercek tabloda k'inci hucrenin sol kenari satirdan satira ayni yerde
+     durur. Baslik satiri disarida tutulabiliyor: 15. slaytta baslik sola,
+     veri ortaya hizali. */
+  const hizaliMi = (rs: PdfBox[][]): boolean => {
+    if (rs.length < TABLO_SATIR_MIN) return false
+    const em = medianOf(rs.flat().map(b => b.fs)) || 12
+    for (let k = 0; k < enIyi!.n; k++) {
+      const xs = rs.map(r => r[k].x0)
+      if (Math.max(...xs) - Math.min(...xs) > TABLO_HIZA_EM * em) return false
+    }
+    return true
+  }
+  if (!hizaliMi(kosu) && !hizaliMi(kosu.slice(1))) return null
+
+  // Her satir leafLines'tan gecer: ust/alt simge ve genis bosluk kurallari
+  // tablo kipinde de aynen gecerli olsun diye. Tum sayfayi birlikte vermek
+  // denendi ve eksen etiketlerinin alt simgeleri komsu satira atladi; satir
+  // satir vermek hem sutunlari hem simgeleri dogru tutuyor.
+  // ATLANAN tek sey xyCut — sutunu once ayirip tabloyu devirten oydu.
+  const out: string[] = []
+  for (const r of satirlar) out.push(...leafLines(attachHats(r)))
+  return out
+    .map(l => l.replace(/[\t\r\n]+/g, ' ').replace(/ {3,}/g, '  ').trim())
+    .filter(Boolean)
+    .join('\n')
+    .normalize('NFC')
+}
+
+/** pdf.js metin ogelerini konumlu kutulara cevirir (PUA haritasi uygulanmis). */
+function pageBoxes(items: PdfTextItemLike[]): PdfBox[] {
   const boxes: PdfBox[] = []
   for (const it of items || []) {
     if (!it || typeof it.str !== 'string') continue
@@ -710,11 +856,18 @@ function rebuildPageText(items: PdfTextItemLike[]): string {
     const w = Math.max(0, Number(it.width) || 0)
     boxes.push({ s, x0, x1: x0 + w, y, fs, bot: y - 0.2 * fs, top: y + 0.8 * fs, role: '' })
   }
+  return boxes
+}
+
+/** Bir sayfanin pdf.js metin ogelerinden okuma sirasinda metin kur. */
+function rebuildPageText(items: PdfTextItemLike[]): string {
+  const boxes = pageBoxes(items)
   if (!boxes.length) return ''
   const lines: string[] = []
   for (const group of xyCut(attachHats(boxes))) lines.push(...leafLines(group))
   return lines
-    .map(l => l.replace(/\s+/g, ' ').trim())
+    // Sutun ayraci olan iki boslugu KORU; sekme/satir sonu ve uc+ boslugu sadelestir.
+    .map(l => l.replace(/[\t\r\n]+/g, ' ').replace(/ {3,}/g, '  ').trim())
     .filter(Boolean)
     .join('\n')
     // Geometrinin yerlestiremedigi sapka: gurultu birakmaktansa dusur.
@@ -740,15 +893,22 @@ const REBUILD_MIN_KEEP = 0.85
 
 function chooseEquationPageText(items: PdfTextItemLike[]): { text: string; rebuilt: boolean } {
   const stream = streamPageText(items)
-  if (countMathPua(stream) < MATH_PUA_MIN) return { text: mapSymbolPua(stream), rebuilt: false }
+  const matematik = countMathPua(stream) >= MATH_PUA_MIN
+  let rebuilt: string | null = null
   try {
-    const rebuilt = rebuildPageText(items)
+    // Once TABLO duzeni: sayfa gercekten bir tabloysa satir satir okunur
+    // (bkz. tableLayout). Degilse olagan xyCut duzeni.
+    rebuilt = tableLayout(pageBoxes(items)) ?? rebuildPageText(items)
+  } catch (_e) {
+    rebuilt = null
+  }
+  // Matematik yoksa da TABLO icin yeniden dizilir: akis metni sutun boslugu
+  // tasimadigi icin metindeki tablolar modele duz rakam dizisi gidiyordu.
+  if (rebuilt !== null && (matematik || tabloBicimliMi(rebuilt))) {
     const harf = (s: string) => s.replace(/[\ŝˆ]/g, '').length
     if (harf(rebuilt) >= REBUILD_MIN_KEEP * harf(mapSymbolPua(stream))) {
       return { text: rebuilt, rebuilt: true }
     }
-  } catch (_e) {
-    // Akis metnine dus.
   }
   return { text: mapSymbolPua(stream), rebuilt: false }
 }
@@ -1089,6 +1249,56 @@ const VISION_CALL_MS = 15_000
 // writer could sit out a whole TPM window, which pickLane now prevents.
 // Its own wait is budgeted separately, so this is the call alone.
 const NARRATIVE_WRITER_RESERVE_MS = 20_000
+
+/* ==========================================================================
+   PENCERE CIKIS TAVANI SERIT BUTCESINDEN TURETILIR (09.10.2026)
+
+   OLCUM. 42 slaytlik destede iki pencere de basarili kostu:
+       Window 1 token: prompt=2995 completion=2452 / max=3072   (%80)
+       Window 2 token: prompt=3248 completion=2887 / max=3072   (%94)
+   Referans ozete gore metinde VAR ama karta girmemis 8 maddenin 6'si
+   pencere 2'nin bolgesinde (slayt 22, 25, 32, 33, 39, 42 — teget dogrusu,
+   kubik model, rastgele artiklar, temel/etkilesimli terim ayrimi ve iki
+   kukla katsayi takimi: +%50.5/+%56.6 ile -%9.3/+%41.5). Pencere 2
+   yazacak yer kalmadigi icin kesiyor.
+
+   AYNI ANDA BOSTA DURAN BUTCE. Pencere 2'nin gercek harcamasi en kotu
+   3248 + 3072 = 6.320 token; serit tavani 7.200. 880 token hic
+   kullanilmadan duruyor. Duz 3072 bunu goremez cunku belgeye gore
+   degismiyor: kisa belgede gereginden genis, uzun pencerede dar.
+
+   TURETIM. Tavan, o pencerenin KENDI promptundan arta kalan paydir:
+       cikis = 7200 - (prompt karakteri / 3.2) - PAY
+   Bolme olculdu: 10.553 krk -> tahmin 3.298, Groq'un saydigi 3.248 (%2).
+   PAY o sapma icin; taban ve tavan arasinda kirpilir.
+
+   BEKLEME MALIYETI YOK. Pacer kendi hesabinda completion'i 0.6 ile
+   carpiyor (PACER_COMPLETION_FACTOR), yani buradaki TAM completion hesabi
+   pacer'in zorladigindan daha muhafazakar. Ustelik iki pencere AYRI
+   seritlerde kosuyor ve her biri kendi seridinde tek cagri; harcama artsa
+   da sonraki cagri yine bir pencere bekliyor.
+   ========================================================================== */
+const WINDOW_COMPLETION_MIN = 2048
+const WINDOW_COMPLETION_MAX = 4096
+// Tahminin tutmadigi durum icin pay: olculen sapma %2 (3.298 tahmin /
+// 3.248 gercek); 200 token bunun dort katindan fazlasini karsiliyor.
+const WINDOW_COMPLETION_MARGIN = 200
+
+function windowCompletionFor(systemPrompt: string, payload: string): number {
+  const promptTok = Math.ceil((String(systemPrompt || '').length + String(payload || '').length) / 3.2)
+  const kalan = Math.floor(DEFAULT_TPM_LIMIT * PACER_SAFETY) - promptTok - WINDOW_COMPLETION_MARGIN
+  return Math.max(WINDOW_COMPLETION_MIN, Math.min(WINDOW_COMPLETION_MAX, kalan))
+}
+
+/* TABAN BAGLAYINCA PENCERE COK BUYUK DEMEKTIR. 13.000 karakterlik tek bir
+   pencerede prompt tek basina ~5.150 token; uzerine eski duz 3.072 eklenince
+   8.221 ediyor ve bu GERCEK 8.000 TPM sinirinin USTUNDE — yani o cagri zaten
+   reddedilmeye adaydi. Taban, modelin semayi hic yazamamasindansa dar
+   yazmasini secer; dogru cozum pencereyi kucultmektir ve bu satir onu
+   gorunur kiliyor. */
+function windowCompletionFloored(systemPrompt: string, payload: string): boolean {
+  return windowCompletionFor(systemPrompt, payload) === WINDOW_COMPLETION_MIN
+}
 
 function computeAdaptiveTargets(charCount: number, lengthPreset: string) {
   const presets: Record<string, { summary: [number, number]; terms: [number, number]; points: [number, number]; quiz: [number, number]; capSummary: number; capTerms: number; capPoints: number; capQuiz: number }> = {
@@ -1767,30 +1977,39 @@ async function uploadFileToPdfCo(fileBytes: Uint8Array, apiKey: string, filename
 const FIGURE_CAPTION_RE =
   /^[ \t]*(FIGURE|TABLE|EXHIBIT|CHART|PLATE|Ş[EĖ]K[İIi]L|SEK[İIi]L|TABLO|GRAF[İIi]K|[ÇC][İIi]ZELGE)\b/im
 
-// Dense math/formula content has no reliable caption — "Figure 3" precedes
-// a chart, nothing precedes a derivation or a block of equations — so a page
-// that is packed with formulas matches neither FIGURE_CAPTION_RE above nor
-// the near-blank fallback below (it has plenty of extracted characters, just
-// not usable ones: unpdf turns most math notation into stray symbols/spacing
-// rather than dropping the page to near-empty). That left quantitative/
-// engineering pages invisible to the vision pass even though they are
-// exactly the content plain text-extraction mangles worst.
-//
-// Kept as a SECOND-TIER signal only — it fills slots the caption signal
-// above left empty, or stands in when there are no captions at all, so a
-// document that already has enough captioned figures keeps the exact
-// (measured, working) selection it had before this was added. Threshold is
-// a starting value, not a measurement: 2% of a page's characters being one
-// of these symbols is rare in ordinary prose (an occasional "=" in a
-// sentence) but common on a page of worked equations.
-const MATH_SYMBOL_RE = /[=∑∫√±≤≥≈≠∞ΔδπΣΩαβγθλμσφω×÷]/g
-function mathDensity(text: string): number {
-  const t = (text || '').trim()
-  if (t.length < 20) return 0
-  const matches = t.match(MATH_SYMBOL_RE)
-  return matches ? matches.length / t.length : 0
-}
-const MATH_DENSITY_THRESHOLD = 0.02
+/* Metin bir veri nesnesini OKUYOR ama nesne metinde yok. Kaliplar olculen
+   slaytlardan: "interpreted as", "this slope coefficient", "the dummy
+   variables for", "statistically significant/insignificant/different". */
+const DANGLING_DATA_RE = new RegExp([
+  '\\b(?:is|are)\\s+interpreted\\s+as\\b',
+  '\\bthis\\s+(?:slope\\s+)?coefficient\\b',
+  '\\bthe\\s+dummy\\s+variables?\\s+for\\b',
+  '\\bstatistically\\s+(?:significant|insignificant|different)\\b',
+  '\\bscatter\\s*plots?\\s+(?:shows?|of)\\b',
+  '\\b(?:shown|reported|summari[sz]ed)\\s+(?:in|below|above)\\b',
+  // Turkce ders materyali
+  'istatistiksel\\s+olarak\\s+anlaml',
+  'katsay[\u0131i]s[\u0131i]\\s+\\S{0,20}\\s*yorumlan'
+].join('|'), 'i')
+/* Yogun bir duz yazi sayfasi da "statistically significant" diyebilir; orada
+   bakilacak bir resim yoktur. Olculen hedef sayfalar 215-592 karakter. */
+const DANGLING_MAX_CHARS = 900
+
+/* ATIF TEK BASINA YETMIYOR: sayfa BU BELGENIN VERISINDEN soz etmeli.
+   Ilk olcumde yalnizca atif kuralı 4. ve 37. slaytlari da secti — ikisi de
+   kural anlatan teori slaytlari ("Regression intercepts are different if the
+   variable is statistically significant", "β1 is interpreted as β1·100%").
+   Orada okunacak bir cikti yok, ve iki yuvadan birini yiyorlardi. */
+const EMPIRICAL_ANCHOR_RE = new RegExp([
+  '\\bdependent variable\\b', '\\bexcel\\b', '\\bscatter\\s*plot',
+  '\\bsummary output\\b', '\\bR square\\b', '\\bobservations\\b',
+  '\\bregression is as follows\\b', '\\bis fit\\b', '\\bthe estimated\\b',
+  '\\bomitted group\\b',
+  'ba[\u011fg][\u0131i]ml[\u0131i]\\s+de[\u011fg]i[\u015fs]ken', 'g[\u00f6o]zlem say[\u0131i]s[\u0131i]'
+].join('|'), 'i')
+/* Genel model tanimi yapan sayfa ampirik degildir, kalipları tutsa bile. */
+const MODEL_DEFINITION_RE =
+  /\bpopulation regression\b|\bgeneral form\b|\bis specified as\b|\bpopulasyon regresyon\b/i
 
 function selectVisualPages(
   pdfPageTexts: string[],
@@ -1802,12 +2021,6 @@ function selectVisualPages(
     const t = pdfPageTexts[i] || ''
     if (FIGURE_CAPTION_RE.test(t)) captioned.push({ i, len: t.trim().length })
   }
-  const rankedMathPages = (excluding: Set<number>) =>
-    pdfPageTexts
-      .map((t, i) => ({ i, density: mathDensity(t) }))
-      .filter(p => !excluding.has(p.i) && p.density > MATH_DENSITY_THRESHOLD)
-      .sort((a, b) => b.density - a.density)
-
   if (captioned.length > 0) {
     // Only VISION_MAX_IMAGES of them can go, so which ones matter. Taking the
     // first N means a long document only ever shows its opening figures, and
@@ -1823,37 +2036,54 @@ function selectVisualPages(
     // last, which is the right order.
     const ranked = [...captioned].sort((a, b) => a.len - b.len || a.i - b.i)
     const picked = ranked.slice(0, maxPages).map(p => p.i).sort((a, b) => a - b)
-    if (picked.length >= maxPages) {
-      return {
-        indices: picked,
-        reason: `sekil basligi (${captioned.length} aday, en kisa altyaziliar secildi)`
-      }
-    }
-    // Fewer captioned pages than slots available — fill the rest with the
-    // most formula-dense remaining pages before falling back to near-blank.
-    const extra = rankedMathPages(new Set(picked)).slice(0, maxPages - picked.length).map(p => p.i)
-    if (extra.length > 0) {
-      return {
-        indices: [...picked, ...extra].sort((a, b) => a - b),
-        reason: `sekil basligi (${picked.length}) + formul yogun sayfa (${extra.length})`
-      }
-    }
     return {
       indices: picked,
       reason: `sekil basligi (${captioned.length} aday, en kisa altyaziliar secildi)`
     }
   }
+  /* IKINCI KATMAN: VERIYE ATIF EDEN AMA VERIYI TASIMAYAN SAYFA.
+     (09.10.2026)
 
-  // No figure/table captions anywhere — try formula-dense pages before the
-  // near-blank fallback, since a page full of equations is the opposite of
-  // blank and is likely the more valuable of the two to see as an image.
-  const mathPages = rankedMathPages(new Set())
-  if (mathPages.length > 0) {
+     Olculen durum: ekonometri destesinde FIGURE_CAPTION_RE hic tutmuyor
+     (slaytlarda "Figure 20.3" gibi bir altyazi yok) ve is dogrudan bos-sayfa
+     yedegine kaliyordu. O yedek 3. ve 17. sayfayi seciyor: 3 bir bolum
+     ayraci, 17'nin tablosu ise zaten metindeki denklemden turetilebiliyor
+     (18.30 + 22.44 = 40.74). Bu arada yedi Excel regresyon ciktisinin
+     hicbiri okunmuyor; referans ozete gore eksik kalan bes maddenin hepsi
+     orada (R² 0.124 / 0.92 / 0.50 / 0.68 ve p degerleri).
+
+     Bu sayfalarin ortak isareti su: METIN BIR VERI NESNESINE ATIF EDIYOR
+     ama nesnenin kendisi metinde yok — "This slope coefficient is
+     interpreted as...", "The dummy variables for Europe and N. America are
+     not statistically different...". Yani cumle bir tabloyu okuyor, tablo
+     ise resimde.
+
+     SIRALAMA: sayfanin KENDI metnindeki ayirt edici sayi sayisi, artan.
+     Gerekce, altyazi katmanindakiyle ayni: metninde sayi olan sayfanin
+     tablosu buyuk olcude turetilebilir, hic sayi tasimayaninki tamamen
+     kayiptir. Ayni destede bu siralama 27. (dogrusal uyum: metninde tek
+     sayi yok, tablosunda R²=0.124 ve p=0.261) ve 41. sayfayi (log-log,
+     R²=0.682) secer — ikisi de referansta eksik isaretlenmis maddeler.
+
+     UZUNLUK SINIRI: yogun bir duz yazi sayfasi "statistically significant"
+     dediginde bu katman tutmamali; o sayfada bakilacak bir resim yok. */
+  const dangling: Array<{ i: number; n: number }> = []
+  for (let i = 0; i < pdfPageTexts.length; i++) {
+    const t = (pdfPageTexts[i] || '').trim()
+    if (!t || t.length > DANGLING_MAX_CHARS) continue
+    if (!DANGLING_DATA_RE.test(t)) continue
+    if (!EMPIRICAL_ANCHOR_RE.test(t) || MODEL_DEFINITION_RE.test(t)) continue
+    dangling.push({ i, n: distinctiveNumbers(t).length })
+  }
+  if (dangling.length > 0) {
+    const ranked = [...dangling].sort((a, b) => a.n - b.n || a.i - b.i)
+    const picked = ranked.slice(0, maxPages).map(p => p.i).sort((a, b) => a - b)
     return {
-      indices: mathPages.slice(0, maxPages).map(p => p.i).sort((a, b) => a - b),
-      reason: `formul yogun sayfa (${mathPages.length} aday, sekil basligi yok)`
+      indices: picked,
+      reason: `veri referansi (${dangling.length} aday, metninde en az sayi olanlar secildi)`
     }
   }
+
   return {
     indices: nearBlankIndices.slice(0, maxPages),
     reason: `sekil basligi yok, bos sayfa yedegi (${nearBlankIndices.length} aday)`
@@ -3710,6 +3940,37 @@ function validateMermaid(raw: string): { ok: boolean; mermaid: string; reason?: 
   src = labelsFixed.mermaid
   const fixed = { repaired: arrowsFixed.repaired + labelsFixed.repaired }
 
+  /* TEK SATIR HER ZAMAN COPLUK DEGIL (09.10.2026).
+     Canli kosuda "Dummy Variable and Interaction Structure" diyagrami tam
+     bu satirda dustu ve karttaki diyagram sayisi 2'den 1'e indi. Modelin
+     tek satira sikistirmasinin iki olagan bicimi var ve ikisi de KAYIPSIZ
+     acilabiliyor:
+       "graph TD; A-->B; B-->C"   -> noktali virgul Mermaid'in KENDI ifade
+                                     ayraci, satir sonuna cevrilir
+       "flowchart TD A-->B"       -> tur basligi govdeyle ayni satirda;
+                                     baslik kendi satirina alinir
+     Bunun otesi (noktali virgulsuz birden fazla ifade) belirsiz, orada
+     reddetmek dogru. */
+  const tekSatirAc = (t: string): string => {
+    if (t.includes('\n')) return t
+    if (t.includes(';')) return t.split(';').map(x => x.trim()).filter(Boolean).join('\n')
+    const m = /^(\s*[A-Za-z][A-Za-z0-9]*(?:\s+(?:TD|TB|BT|LR|RL))?)\s+(\S.*)$/.exec(t)
+    // Kalan kisim GERCEKTEN bir ifade olmali: ok, dugum parantezi ya da iki
+    // nokta tasimali. Yoksa "flowchart TD" gibi govdesiz bir baslik
+    // "flowchart" + "TD" diye bolunup gecerli sayilirdi (mevcut test bunu
+    // yakaladi).
+    if (m && /(-{2,3}>|={2,3}>|-\.->|[[({:])/.test(m[2])
+        && MERMAID_TYPES.some(ty => m[1].toLowerCase().replace(/\s+/g, '').startsWith(ty))) {
+      return `${m[1].trim()}\n${m[2].trim()}`
+    }
+    return t
+  }
+  const acilmis = tekSatirAc(src)
+  if (acilmis !== src) {
+    src = acilmis
+    fixed.repaired++
+  }
+
   const lines = src.split('\n').map(l => l.trim()).filter(Boolean)
   if (lines.length < 2) return { ok: false, mermaid: src, reason: 'tek satir — govde yok' }
 
@@ -4651,9 +4912,20 @@ function gateWorkedExampleArithmetic(examples: any[]): { kept: any[]; dropped: s
       String(ex.final_answer || '')
     ]
     const failures: string[] = []
-    for (const p of parts) failures.push(...checkArithmetic(String(p || '')).failures)
+    let suclu = ''
+    for (const p of parts) {
+      const r = checkArithmetic(String(p || ''))
+      if (r.failures.length && !suclu) suclu = String(p || '').slice(0, 120)
+      failures.push(...r.failures)
+    }
     if (failures.length === 0) return true
-    dropped.push(`${String(ex.title || 'basliksiz').slice(0, 40)} (${failures[0]})`)
+    // ADIMIN KENDISI DE LOGA GIRER. 09.10.2026'da bir ornek
+    // "300 - 360 + 15 = -45, yazilan -45 + 15" diye atildi; kapinin hakli
+    // mi yoksa modelin yazim bicimini mi yanlis okudugu loga bakarak
+    // anlasilamadi. Adim metni olmadan bu ayrim yapilamiyor.
+    dropped.push(
+      `${String(ex.title || 'basliksiz').slice(0, 40)} (${failures[0]}) — adim: "${suclu}"`
+    )
     return false
   })
   return { kept, dropped }
@@ -5596,36 +5868,58 @@ ${styleInstruction}`
           const pdfcoApiKey = Deno.env.get('PDFCO_API_KEY')
           if (pdfcoApiKey) {
             try {
-              // This used to always request pages '0-7' (the first 8 pages,
-              // regardless of what was actually on them) and then send every
-              // one of those images to the vision model in a single request
-              // with no cap. Groq bills each image at a flat 2,048 input
-              // tokens on an 8,000 TPM account (see VISION_TOKENS_PER_IMAGE
-              // above) — 8 images is 16,384 tokens of images alone, so any
-              // document whose early pages were figure/diagram-heavy (a
-              // cover deck, a formula sheet, an engineering problem set)
-              // reliably blew the request's token budget, Groq rejected it,
-              // and the whole document silently fell back to text-only —
-              // exactly on the documents visual analysis mattered most for.
-              //
-              // Reuse the same page-selection heuristic as the long-document
-              // pipeline (selectVisualPages — figure/table/chart captions
-              // ranked by shortest caption first, then formula-dense pages,
-              // then near-blank pages as a last resort) and the same
-              // extractVisualImagesForLongDoc() helper, which already caps
-              // at VISION_MAX_IMAGES. Short documents now get the same
-              // budget-safe, content-aware page choice long ones do, instead
-              // of a blind "first 8" that both picked the wrong pages and
-              // ignored the token ceiling.
-              const visualPlan = selectVisualPages(pdfPageTexts, nearBlankPdfPageIndices, VISION_MAX_IMAGES)
-              console.log(`Fast-path visual analysis: selected page(s) [${visualPlan.indices.join(',')}] - ${visualPlan.reason}`)
-              const images = await extractVisualImagesForLongDoc(fileBytes, visualPlan.indices)
-              if (images.length > 0) {
-                base64Images = images
-                visualAnalysisUsed = true
-                console.log(`Successfully prepared ${base64Images.length} images for vision-based analysis.`)
+              console.log("PDF.co Visual analysis enabled. Uploading PDF to convert first 8 pages to images...")
+              // Denetim Raporu, 2026-08-31 — LIVE TEST FINDING: this used to
+              // POST the file directly as multipart form-data, which PDF.co's
+              // convert endpoint rejects with a 400 (it only accepts a `url`
+              // to an already-hosted file). See uploadFileToPdfCo() above —
+              // confirmed against PDF.co's own docs and against a real 400
+              // in this project's production logs.
+              const fileUrl = await uploadFileToPdfCo(fileBytes, pdfcoApiKey, 'document.pdf')
+
+              const pdfcoRes = fileUrl
+                ? await fetch('https://api.pdf.co/v1/pdf/convert/to/png', {
+                    method: 'POST',
+                    headers: { 'x-api-key': pdfcoApiKey, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: fileUrl, pages: '0-7' })
+                  })
+                : null
+
+              if (!fileUrl) {
+                console.warn('PDF.co file upload failed. Falling back to text-only analysis.')
+              } else if (pdfcoRes && pdfcoRes.ok) {
+                const pdfcoData = await pdfcoRes.json()
+                if (!pdfcoData.error && (pdfcoData.urls || pdfcoData.url)) {
+                  let imageUrls: string[] = []
+                  const rawUrls = pdfcoData.urls || pdfcoData.url
+                  if (Array.isArray(rawUrls)) {
+                    imageUrls = rawUrls
+                  } else if (typeof rawUrls === 'string') {
+                    imageUrls = [rawUrls]
+                  }
+
+                  console.log(`PDF.co converted ${imageUrls.length} pages. Downloading page images...`)
+                  for (const imgUrl of imageUrls) {
+                    try {
+                      const imgRes = await fetch(imgUrl)
+                      if (imgRes.ok) {
+                        const buffer = await imgRes.arrayBuffer()
+                        base64Images.push(bytesToBase64(new Uint8Array(buffer)))
+                      }
+                    } catch (imgDownloadErr) {
+                      console.error(`Failed to download page image from ${imgUrl}:`, imgDownloadErr)
+                    }
+                  }
+
+                  if (base64Images.length > 0) {
+                    visualAnalysisUsed = true
+                    console.log(`Successfully prepared ${base64Images.length} images for vision-based analysis.`)
+                  }
+                } else {
+                  console.warn("PDF.co API returned error:", pdfcoData)
+                }
               } else {
-                console.warn('Fast-path visual analysis: no images returned, falling back to text-only.')
+                console.warn(`PDF.co response status failed: ${pdfcoRes?.status ?? 'unknown'}`)
               }
             } catch (pdfcoErr) {
               console.error("PDF.co page conversion failed, falling back to text-only:", pdfcoErr)
@@ -6025,16 +6319,20 @@ Rules:
           // that lane's wait fits the remaining budget, and only falls back
           // to whatever is free when it does not — the rescue still happens,
           // it just prefers the model that can actually fill the schema.
+          // Cikis tavani serit butcesinden turetilir (bkz. windowCompletionFor).
+          // if/else'in DISINDA tanimli: asagidaki cagri bunu kullaniyor ve ilk
+          // yazimda else blogunun icinde kalmisti — scope-check yakaladi.
+          const winCompletion = windowCompletionFor(compactWindowPrompt(wi, windows.length), payload)
           let windowLane: string
           if (attempt === 0 && assignedLane) {
             windowLane = assignedLane
           } else {
-            const est = estimateTokens(compactWindowPrompt(wi, windows.length), payload, 3072)
-            const heavyWaitMs = tokenPacer.waitEstimate(est, MODEL_HEAVY, 3072)
+            const est = estimateTokens(compactWindowPrompt(wi, windows.length), payload, winCompletion)
+            const heavyWaitMs = tokenPacer.waitEstimate(est, MODEL_HEAVY, winCompletion)
             const affordHeavy = budgetLeft() > heavyWaitMs + WINDOW_CALL_MS + NARRATIVE_WRITER_RESERVE_MS
             windowLane = affordHeavy
               ? MODEL_HEAVY
-              : pickLane([MODEL_HEAVY, MODEL_EXTRACT], est, 3072)
+              : pickLane([MODEL_HEAVY, MODEL_EXTRACT], est, winCompletion)
             if (attempt > 0) {
               console.log(
                 `Window ${wi + 1}: tekrar denemesi ${windowLane} seridinde ` +
@@ -6058,7 +6356,7 @@ Rules:
                 // regression this fixes), and a Mermaid diagram or a table
                 // with several rows can genuinely need the extra tokens to
                 // avoid getting silently truncated mid-JSON.
-                maxCompletionTokens: 3072,
+                maxCompletionTokens: winCompletion,
                 timeoutMs: Math.min(40000, Math.max(15000, budgetLeft() - 10000)),
                 maxRetries: 0,
                 usageLabel: `Window ${wi + 1}`
@@ -6114,10 +6412,11 @@ Rules:
             if (/json_validate_failed|failed to generate json/i.test(msg) && attempt < 1) {
               // Ask what the retry would ACTUALLY cost on the lane it would
               // actually use, instead of assuming a full TPM window.
-              const retryEst = estimateTokens(compactWindowPrompt(wi, windows.length), payload, 3072)
+              const retryCompletion = windowCompletionFor(compactWindowPrompt(wi, windows.length), payload)
+              const retryEst = estimateTokens(compactWindowPrompt(wi, windows.length), payload, retryCompletion)
               const retryWaitMs = Math.min(
-                tokenPacer.waitEstimate(retryEst, MODEL_HEAVY, 3072),
-                tokenPacer.waitEstimate(retryEst, MODEL_EXTRACT, 3072)
+                tokenPacer.waitEstimate(retryEst, MODEL_HEAVY, retryCompletion),
+                tokenPacer.waitEstimate(retryEst, MODEL_EXTRACT, retryCompletion)
               )
               const retryNeedsMs = retryWaitMs + WINDOW_CALL_MS + NARRATIVE_WRITER_RESERVE_MS
               if (budgetLeft() > retryNeedsMs) {
@@ -6154,7 +6453,7 @@ Rules:
       const estWindowTokens = estimateTokens(
         compactWindowPrompt(0, windows.length),
         windows[0] || '',
-        3072
+        windowCompletionFor(compactWindowPrompt(0, windows.length), windows[0] || '')
       )
       // Windows alternate between two lanes (windowModel), so capacity is the
       // SUM of what each lane can take, not one lane's share. Computing it
@@ -6175,8 +6474,16 @@ Rules:
       console.log(
         `Window concurrency: ${windowConcurrency} ` +
         `(${perLane.map(l => `${l.model}: ${l.lane.limit} TPM${l.lane.limitKnown ? '' : '/varsayilan'} -> ${l.fits}`).join(', ')}, ` +
-        `~${estWindowTokens} token/pencere, tavan ${CHUNK_CONCURRENCY})`
+        `~${estWindowTokens} token/pencere, cikis tavani ` +
+        `${windowCompletionFor(compactWindowPrompt(0, windows.length), windows[0] || '')}, ` +
+        `tavan ${CHUNK_CONCURRENCY})`
       )
+      if (windowCompletionFloored(compactWindowPrompt(0, windows.length), windows[0] || '')) {
+        console.warn(
+          `Pencere cikis tavani TABANA dayandi (${WINDOW_COMPLETION_MIN}): pencere ` +
+          `${windows[0]?.length || 0} krk ile cok buyuk, model yazacak yer bulamayabilir`
+        )
+      }
 
       const windowResults: any[] = []
       // Dusen pencere SESSIZ kalmamali. 09.10.2026: 1. pencere (1-19.
@@ -6212,8 +6519,9 @@ Rules:
         const claimedLanes = new Set<string>()
         const batchLanes = batchIndices.map(wi => pickLane(
           [MODEL_HEAVY, MODEL_EXTRACT],
-          estimateTokens(compactWindowPrompt(wi, windows.length), windows[wi], 3072),
-          3072,
+          estimateTokens(compactWindowPrompt(wi, windows.length), windows[wi],
+            windowCompletionFor(compactWindowPrompt(wi, windows.length), windows[wi])),
+          windowCompletionFor(compactWindowPrompt(wi, windows.length), windows[wi]),
           claimedLanes
         ))
         const batchResults = await Promise.all(
@@ -7130,27 +7438,56 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
     // So: ask the pacer, add the work itself, compare to what is left. Still
     // skips when the lane really is full (waitEstimate returns the real ~55s
     // and the sum exceeds the budget), which is the case the 55s was for.
-    const reviewEstTokens = estimateTokens(
-      reviewSystemPrompt,
-      buildReviewUserPrompt(reviewTiers[0].sourceChars),
-      reviewTiers[0].maxCompletionTokens
-    )
+    /* ==========================================================================
+       KADEMEYI BUTCE SECER, HEP EN BUYUGU DEGIL (09.10.2026)
+
+       Review iki ardisik canli kosuda da hic calismadi:
+         "Review atlandi (budgetLeft=35070ms, gereken=83237ms
+          [pacer beklemesi 50237ms + 1 deneme x 25000ms + kuyruk 8000ms],
+          est=7200 token)"
+       Yani kalite kapisi ve duzeltme adimi bu belgede hic devreye girmiyor.
+
+       Sebep fiyatlamada: kapi HER ZAMAN reviewTiers[0]'i (11.000 karakter
+       kaynak) fiyatliyordu. O cagri tek basina ~7.200 token, yani bir seridin
+       butun dakikasi; pencereler ve gorsel gecis sonrasi butun seritler sicak
+       oldugu icin pacer tam bir pencere (50 sn) bekleme soyluyor ve kapi
+       review'i tamamen atiyordu. Oysa 5.000 ve 1.500 karakterlik iki kucuk
+       kademe zaten tanimli ve dongu onlari kullanabiliyor — kapi onlari hic
+       denemiyordu.
+
+       Artik kademeler sirayla fiyatlaniyor ve butceye SIGAN ilki seciliyor;
+       hicbiri sigmazsa review yine atlanir. Serit secimi de o kademenin
+       tahminiyle yapiliyor: kucuk kademe daha cok seride sigar.
+
+       Kucuk dilimin riski — review'in gormedigi konuyu "kaynakta yok"
+       sanmasi — bu projede ayrica kapatildi: filterReviewIssues o maddeyi
+       dusuruyor ve kaynakIcerigiSiliyor o duzeltmeyi reddediyor. Yani kucuk
+       kademe artik hic review yapmamaktan iyi.
+       ========================================================================== */
+    const reviewTierPlan = (tierIndex: number) => {
+      const t = reviewTiers[tierIndex]
+      const est = estimateTokens(reviewSystemPrompt, buildReviewUserPrompt(t.sourceChars), t.maxCompletionTokens)
+      const lane = pickLane([MODEL_FAST, MODEL_EXTRACT, MODEL_HEAVY], est, t.maxCompletionTokens)
+      const wait = tokenPacer.waitEstimate(est, lane, t.maxCompletionTokens)
+      const retries = budgetLeft() >= wait + REVIEW_ATTEMPT_TIMEOUT_MS * 2 + REVIEW_TAIL_MS ? 1 : 0
+      const needs = wait + REVIEW_ATTEMPT_TIMEOUT_MS * (retries + 1) + REVIEW_TAIL_MS
+      return { tierIndex, est, lane, wait, retries, needs }
+    }
+    let reviewPlan = reviewTierPlan(0)
+    let reviewStartTier = -1
+    for (let i = 0; i < reviewTiers.length; i++) {
+      const aday = reviewTierPlan(i)
+      if (budgetLeft() >= aday.needs) { reviewPlan = aday; reviewStartTier = i; break }
+    }
+    const reviewEstTokens = reviewPlan.est
     // The last call still pinned to one model. It was put on MODEL_FAST to
     // keep it off the draft's lane — which is exactly what pickLane does now,
     // and better, because it looks at what is actually free. Pinning also made
     // review inherit whatever the vision pass had just spent on qwen: on
     // 05.10.2026 vision finished 2 seconds earlier and review was quoted a 58s
     // wait on a lane it had no reason to be on.
-    const reviewLane = pickLane(
-      [MODEL_FAST, MODEL_EXTRACT, MODEL_HEAVY],
-      reviewEstTokens,
-      reviewTiers[0].maxCompletionTokens
-    )
-    const reviewWaitMs = tokenPacer.waitEstimate(
-      reviewEstTokens,
-      reviewLane,
-      reviewTiers[0].maxCompletionTokens
-    )
+    const reviewLane = reviewPlan.lane
+    const reviewWaitMs = reviewPlan.wait
     // The work half is derived, not guessed: one attempt can take at most the
     // fetch timeout, and everything after review (parse, grounding gate,
     // near-duplicate merge, citation anchoring, cloze build, save) is
@@ -7161,15 +7498,12 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
     // for a second attempt we simply do not allow one. That keeps the worst
     // case equal to the number actually checked here, instead of the old 55s
     // which was a guess at one attempt plus a retry.
-    const reviewAttemptMs = REVIEW_ATTEMPT_TIMEOUT_MS + REVIEW_TAIL_MS
-    const reviewRetries =
-      budgetLeft() >= reviewWaitMs + REVIEW_ATTEMPT_TIMEOUT_MS * 2 + REVIEW_TAIL_MS ? 1 : 0
-    const reviewNeedsMs =
-      reviewWaitMs + REVIEW_ATTEMPT_TIMEOUT_MS * (reviewRetries + 1) + REVIEW_TAIL_MS
+    const reviewRetries = reviewPlan.retries
+    const reviewNeedsMs = reviewPlan.needs
 
     const shouldSkipReview =
       (!useChunkedPipeline && extractedText.length <= SKIP_REVIEW_MAX_CHARS) ||
-      (useChunkedPipeline && budgetLeft() < reviewNeedsMs)
+      (useChunkedPipeline && reviewStartTier < 0)
 
     let rawFinalContent = ""
 
@@ -7177,17 +7511,19 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
       if (useChunkedPipeline) skippedStages.push('review')
       console.log(
         `Review atlandi (chunked=${useChunkedPipeline}, depth=${depth}, ` +
-        `budgetLeft=${budgetLeft()}ms, gereken=${reviewNeedsMs}ms ` +
-        `[pacer beklemesi ${reviewWaitMs}ms + ${reviewRetries + 1} deneme x ` +
-        `${REVIEW_ATTEMPT_TIMEOUT_MS}ms + kuyruk ${REVIEW_TAIL_MS}ms], est=${reviewEstTokens} token)`
+        `budgetLeft=${budgetLeft()}ms, hicbir kademe sigmadi — en kucugu ` +
+        `${reviewTiers[reviewTiers.length - 1].sourceChars} krk icin gereken ` +
+        `${reviewTierPlan(reviewTiers.length - 1).needs}ms ` +
+        `[pacer ${reviewTierPlan(reviewTiers.length - 1).wait}ms], est=${reviewEstTokens} token)`
       )
       rawFinalContent = rawContent
       await serviceClient.from('documents').update({ processing_stage: 'saving' }).eq('id', documentId)
     } else {
       console.log(
-        `Review BASLIYOR (model=${reviewLane}, budgetLeft=${budgetLeft()}ms, ` +
-        `gereken=${reviewNeedsMs}ms [pacer beklemesi ${reviewWaitMs}ms, ` +
-        `${reviewRetries + 1} deneme], est=${reviewEstTokens} token)`
+        `Review BASLIYOR (model=${reviewLane}, kademe ${reviewStartTier + 1}/` +
+        `${reviewTiers.length} = ${reviewTiers[reviewStartTier].sourceChars} krk kaynak, ` +
+        `budgetLeft=${budgetLeft()}ms, gereken=${reviewNeedsMs}ms ` +
+        `[pacer beklemesi ${reviewWaitMs}ms, ${reviewRetries + 1} deneme], est=${reviewEstTokens} token)`
       )
       // Update stage to reviewing
       await serviceClient
@@ -7197,7 +7533,7 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
 
       let groqReviewData: any = null
 
-      for (let i = 0; i < reviewTiers.length; i++) {
+      for (let i = Math.max(0, reviewStartTier); i < reviewTiers.length; i++) {
         const tier = reviewTiers[i]
         const attemptPrompt = buildReviewUserPrompt(tier.sourceChars)
         // Lane first (thinking room), ceiling second (qwen's OTPM).
@@ -7219,7 +7555,7 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
           tierCompletion
         )
         const tierNeedsMs = tierWaitMs + REVIEW_ATTEMPT_TIMEOUT_MS + REVIEW_TAIL_MS
-        if (i > 0 && budgetLeft() < tierNeedsMs) {
+        if (i > Math.max(0, reviewStartTier) && budgetLeft() < tierNeedsMs) {
           console.warn(
             `Review tier ${i + 1} atlandi — butce yetmiyor ` +
             `(kalan=${budgetLeft()}ms, gereken=${tierNeedsMs}ms [pacer ${tierWaitMs}ms]). ` +
