@@ -1231,6 +1231,31 @@ async function uploadFileToPdfCo(fileBytes: Uint8Array, apiKey: string, filename
 const FIGURE_CAPTION_RE =
   /^[ \t]*(FIGURE|TABLE|EXHIBIT|CHART|PLATE|Ş[EĖ]K[İIi]L|SEK[İIi]L|TABLO|GRAF[İIi]K|[ÇC][İIi]ZELGE)\b/im
 
+// Dense math/formula content has no reliable caption — "Figure 3" precedes
+// a chart, nothing precedes a derivation or a block of equations — so a page
+// that is packed with formulas matches neither FIGURE_CAPTION_RE above nor
+// the near-blank fallback below (it has plenty of extracted characters, just
+// not usable ones: unpdf turns most math notation into stray symbols/spacing
+// rather than dropping the page to near-empty). That left quantitative/
+// engineering pages invisible to the vision pass even though they are
+// exactly the content plain text-extraction mangles worst.
+//
+// Kept as a SECOND-TIER signal only — it fills slots the caption signal
+// above left empty, or stands in when there are no captions at all, so a
+// document that already has enough captioned figures keeps the exact
+// (measured, working) selection it had before this was added. Threshold is
+// a starting value, not a measurement: 2% of a page's characters being one
+// of these symbols is rare in ordinary prose (an occasional "=" in a
+// sentence) but common on a page of worked equations.
+const MATH_SYMBOL_RE = /[=∑∫√±≤≥≈≠∞ΔδπΣΩαβγθλμσφω×÷]/g
+function mathDensity(text: string): number {
+  const t = (text || '').trim()
+  if (t.length < 20) return 0
+  const matches = t.match(MATH_SYMBOL_RE)
+  return matches ? matches.length / t.length : 0
+}
+const MATH_DENSITY_THRESHOLD = 0.02
+
 function selectVisualPages(
   pdfPageTexts: string[],
   nearBlankIndices: number[],
@@ -1241,6 +1266,12 @@ function selectVisualPages(
     const t = pdfPageTexts[i] || ''
     if (FIGURE_CAPTION_RE.test(t)) captioned.push({ i, len: t.trim().length })
   }
+  const rankedMathPages = (excluding: Set<number>) =>
+    pdfPageTexts
+      .map((t, i) => ({ i, density: mathDensity(t) }))
+      .filter(p => !excluding.has(p.i) && p.density > MATH_DENSITY_THRESHOLD)
+      .sort((a, b) => b.density - a.density)
+
   if (captioned.length > 0) {
     // Only VISION_MAX_IMAGES of them can go, so which ones matter. Taking the
     // first N means a long document only ever shows its opening figures, and
@@ -1256,9 +1287,35 @@ function selectVisualPages(
     // last, which is the right order.
     const ranked = [...captioned].sort((a, b) => a.len - b.len || a.i - b.i)
     const picked = ranked.slice(0, maxPages).map(p => p.i).sort((a, b) => a - b)
+    if (picked.length >= maxPages) {
+      return {
+        indices: picked,
+        reason: `sekil basligi (${captioned.length} aday, en kisa altyaziliar secildi)`
+      }
+    }
+    // Fewer captioned pages than slots available — fill the rest with the
+    // most formula-dense remaining pages before falling back to near-blank.
+    const extra = rankedMathPages(new Set(picked)).slice(0, maxPages - picked.length).map(p => p.i)
+    if (extra.length > 0) {
+      return {
+        indices: [...picked, ...extra].sort((a, b) => a - b),
+        reason: `sekil basligi (${picked.length}) + formul yogun sayfa (${extra.length})`
+      }
+    }
     return {
       indices: picked,
       reason: `sekil basligi (${captioned.length} aday, en kisa altyaziliar secildi)`
+    }
+  }
+
+  // No figure/table captions anywhere — try formula-dense pages before the
+  // near-blank fallback, since a page full of equations is the opposite of
+  // blank and is likely the more valuable of the two to see as an image.
+  const mathPages = rankedMathPages(new Set())
+  if (mathPages.length > 0) {
+    return {
+      indices: mathPages.slice(0, maxPages).map(p => p.i).sort((a, b) => a - b),
+      reason: `formul yogun sayfa (${mathPages.length} aday, sekil basligi yok)`
     }
   }
   return {
@@ -4204,58 +4261,36 @@ ${styleInstruction}`
           const pdfcoApiKey = Deno.env.get('PDFCO_API_KEY')
           if (pdfcoApiKey) {
             try {
-              console.log("PDF.co Visual analysis enabled. Uploading PDF to convert first 8 pages to images...")
-              // Denetim Raporu, 2026-08-31 — LIVE TEST FINDING: this used to
-              // POST the file directly as multipart form-data, which PDF.co's
-              // convert endpoint rejects with a 400 (it only accepts a `url`
-              // to an already-hosted file). See uploadFileToPdfCo() above —
-              // confirmed against PDF.co's own docs and against a real 400
-              // in this project's production logs.
-              const fileUrl = await uploadFileToPdfCo(fileBytes, pdfcoApiKey, 'document.pdf')
-
-              const pdfcoRes = fileUrl
-                ? await fetch('https://api.pdf.co/v1/pdf/convert/to/png', {
-                    method: 'POST',
-                    headers: { 'x-api-key': pdfcoApiKey, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url: fileUrl, pages: '0-7' })
-                  })
-                : null
-
-              if (!fileUrl) {
-                console.warn('PDF.co file upload failed. Falling back to text-only analysis.')
-              } else if (pdfcoRes && pdfcoRes.ok) {
-                const pdfcoData = await pdfcoRes.json()
-                if (!pdfcoData.error && (pdfcoData.urls || pdfcoData.url)) {
-                  let imageUrls: string[] = []
-                  const rawUrls = pdfcoData.urls || pdfcoData.url
-                  if (Array.isArray(rawUrls)) {
-                    imageUrls = rawUrls
-                  } else if (typeof rawUrls === 'string') {
-                    imageUrls = [rawUrls]
-                  }
-
-                  console.log(`PDF.co converted ${imageUrls.length} pages. Downloading page images...`)
-                  for (const imgUrl of imageUrls) {
-                    try {
-                      const imgRes = await fetch(imgUrl)
-                      if (imgRes.ok) {
-                        const buffer = await imgRes.arrayBuffer()
-                        base64Images.push(bytesToBase64(new Uint8Array(buffer)))
-                      }
-                    } catch (imgDownloadErr) {
-                      console.error(`Failed to download page image from ${imgUrl}:`, imgDownloadErr)
-                    }
-                  }
-
-                  if (base64Images.length > 0) {
-                    visualAnalysisUsed = true
-                    console.log(`Successfully prepared ${base64Images.length} images for vision-based analysis.`)
-                  }
-                } else {
-                  console.warn("PDF.co API returned error:", pdfcoData)
-                }
+              // This used to always request pages '0-7' (the first 8 pages,
+              // regardless of what was actually on them) and then send every
+              // one of those images to the vision model in a single request
+              // with no cap. Groq bills each image at a flat 2,048 input
+              // tokens on an 8,000 TPM account (see VISION_TOKENS_PER_IMAGE
+              // above) — 8 images is 16,384 tokens of images alone, so any
+              // document whose early pages were figure/diagram-heavy (a
+              // cover deck, a formula sheet, an engineering problem set)
+              // reliably blew the request's token budget, Groq rejected it,
+              // and the whole document silently fell back to text-only —
+              // exactly on the documents visual analysis mattered most for.
+              //
+              // Reuse the same page-selection heuristic as the long-document
+              // pipeline (selectVisualPages — figure/table/chart captions
+              // ranked by shortest caption first, then formula-dense pages,
+              // then near-blank pages as a last resort) and the same
+              // extractVisualImagesForLongDoc() helper, which already caps
+              // at VISION_MAX_IMAGES. Short documents now get the same
+              // budget-safe, content-aware page choice long ones do, instead
+              // of a blind "first 8" that both picked the wrong pages and
+              // ignored the token ceiling.
+              const visualPlan = selectVisualPages(pdfPageTexts, nearBlankPdfPageIndices, VISION_MAX_IMAGES)
+              console.log(`Fast-path visual analysis: selected page(s) [${visualPlan.indices.join(',')}] - ${visualPlan.reason}`)
+              const images = await extractVisualImagesForLongDoc(fileBytes, visualPlan.indices)
+              if (images.length > 0) {
+                base64Images = images
+                visualAnalysisUsed = true
+                console.log(`Successfully prepared ${base64Images.length} images for vision-based analysis.`)
               } else {
-                console.warn(`PDF.co response status failed: ${pdfcoRes?.status ?? 'unknown'}`)
+                console.warn('Fast-path visual analysis: no images returned, falling back to text-only.')
               }
             } catch (pdfcoErr) {
               console.error("PDF.co page conversion failed, falling back to text-only:", pdfcoErr)
