@@ -271,12 +271,25 @@ test('buildGeminiDocInstruction: formul ve tablo okumasi istenir', () => {
    Sisirilmis kota (25-40 terim, 20-30 nokta, tavansiz her sey) tamamlanan
    tek kosuyu bir daha tamamlanmaz hale getirdi. Bu testler kotanin bir
    daha sisirilmemesini ve formul/tablo onceliginin kaybolmamasini korur. */
-test('geminiCoverageQuota: terim/nokta/soru sayilari SISIRILMIYOR', () => {
+test('geminiCoverageQuota: sayilar OLCULEN banda geri geldi, sisirilmedi', () => {
+  // Ilk hali 25-40 terim isteyip kosuyu tamamlanamaz hale getirmisti;
+  // kota tamamen kalkinca kosu tamamlandi ama 8 terim kaldi. Bu bant
+  // ikisinin arasi ve bir daha yukari kacmamali.
   const q = G.geminiCoverageQuota(42);
-  assert.doesNotMatch(q, /key_terms:\s*\d/, 'terim sayisi dayatmak sureyi patlatti, geri gelmemeli');
-  assert.doesNotMatch(q, /key_points:\s*\d/);
-  assert.doesNotMatch(q, /quiz_questions:\s*\d/);
-  assert.match(q, /do not inflate them/);
+  const alt = Number(q.match(/(\d+)-(\d+) key_terms/)[1]);
+  const ust = Number(q.match(/(\d+)-(\d+) key_terms/)[2]);
+  assert.ok(alt >= 15, `alt sinir ${alt} — Groq un 16 terimine yaklasmali`);
+  assert.ok(ust <= 30, `ust sinir ${ust} — 25-40 bandi kosuyu tamamlanamaz yapmisti`);
+  assert.match(q, /not a quota to fill/);
+});
+
+test('geminiCoverageQuota: sayilar formul ve tablodan SONRA isteniyor', () => {
+  // Sira onemli: tavan 78 sn ve olculen kosu 67,4 sn surdu. Model once
+  // degerli olani uretmeli, sayilar artan zamana kalmali.
+  const q = G.geminiCoverageQuota(42);
+  assert.ok(q.indexOf('"formulas"') < q.indexOf('key_terms'),
+    'formuller sayilardan sonra isteniyor — sira ters');
+  assert.match(q, /do those first/);
 });
 
 test('geminiCoverageQuota: formul ve tablo tavansiz kalir', () => {
@@ -768,31 +781,35 @@ test('sinirlar: butce payi cagri suresinden sonra review a yer birakir', () => {
    ugradi, Groq a 0 ms kaldi ve kart anlati yazarini, gorsel gecisini ve
    review u kaybetti. Asagidaki uc test o kombinasyonun geri gelmesini
    engeller. */
-test('zaman asimi olsa bile Groq a tam bir kosuluk sure kalir', () => {
-  // Olculen tam Groq kosusu 71 sn; 62 sn pencere + birlesimi garanti eder.
-  assert.ok(G.GEMINI_GROQ_RESERVE_MS >= 60_000,
-    `Groq a saklanan pay cok dar: ${G.GEMINI_GROQ_RESERVE_MS}ms`);
+test('zaman asimi olsa bile Groq a pencere+birlesim suresi kalir', () => {
+  // 62 -> 52 sn (09.10.2026 21:40): Gemini'nin calistigi olculdukten sonra
+  // takas onun lehine yapildi. 52 sn pencereleri ve birlesimi tasir
+  // (olculdu ~40 sn), review'u tasimaz — ama Gemini artik calisiyor.
+  assert.ok(G.GEMINI_GROQ_RESERVE_MS >= 45_000,
+    `Groq a saklanan pay ${G.GEMINI_GROQ_RESERVE_MS}ms — pencereler bile sigmaz`);
   assert.ok(
     G.GEMINI_PIPELINE_BUDGET_MS - G.GEMINI_MAX_CALL_MS >= G.GEMINI_GROQ_RESERVE_MS,
     'en uzun Gemini cagrisi zaman asimina ugrarsa Groq a saklanan pay kalmiyor'
   );
 });
 
-test('Gemini cagrisi 130 sn lik butcede olculen 72 sn ye yer aciyor', () => {
+test('Gemini cagrisi olculen 67,4 sn ye rahat pay birakiyor', () => {
   // Basarili kosu 72,4 sn surmustu. Tavan bunun altina inerse gölge yol
   // bu belgede hic tamamlanamaz — kirpma sonrasi sure olculene kadar
   // tavani bilerek 70 sn de tutuyoruz.
-  assert.ok(G.GEMINI_MAX_CALL_MS >= 60_000,
-    `cagri tavani ${G.GEMINI_MAX_CALL_MS}ms — 42 sayfalik PDF icin cok dar`);
+  // Tamamlanan kosu 67,4 sn surdu. Tavan ona yapisik kalirsa biraz daha
+  // icerik istemek dogrudan zaman asimi demek — ve gunluk kota 20 istek.
+  assert.ok(G.GEMINI_MAX_CALL_MS >= 75_000,
+    `cagri tavani ${G.GEMINI_MAX_CALL_MS}ms — olculen 67,4 sn ye pay birakmiyor`);
 });
 
 test('geminiDraft: butce cagriya 35 sn bile veremiyorsa hic denemez', async () => {
   stubFetch([]);
   {
     try {
-      // shadow modu: 90 sn butce, Groq a 62 sn saklaninca 28 sn kaliyor —
+      // shadow modu: 80 sn butce, Groq a 52 sn saklaninca 28 sn kaliyor —
       // esigin altinda, dolayisiyla hic denenmemeli.
-      const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 90_000, 'shadow'));
+      const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 80_000, 'shadow'));
       assert.equal(out, null);
       assert.equal(fetchCalls.length, 0,
         'yarim kalacagi belli bir cagri Groq tan zaman calmamali');
