@@ -91,6 +91,14 @@ const FULL_CARD = {
   summary_language: 'en',
   documentFileName: 'economy chapter 20.pdf',
   summary: 'Macroeconomics concerns output growth, unemployment and inflation. [1] The business cycle alternates between expansion and contraction. [2]',
+  outline: {
+    document_title_guess: 'Chapter 20 — Introduction to Macroeconomics',
+    items: [
+      { id: 'o1', heading: 'What Macroeconomics Studies', blurb: 'Output, unemployment, inflation.', level: 1, order: 1 },
+      { id: 'o2', heading: 'Output growth', blurb: '', level: 2, order: 2 },
+      { id: 'o3', heading: 'The Business Cycle', blurb: 'Expansion, peak, contraction, trough.', level: 1, order: 3 }
+    ]
+  },
   sections: [
     { heading: 'The Business Cycle', summary: 'Expansion, peak, contraction and trough.', key_points: ['A recession is two consecutive quarters of decline.'], order: 1 },
     { heading: 'Policy Instruments', summary: 'Fiscal and monetary policy.', key_points: ['The Fed sets short-term rates.'], order: 2 }
@@ -619,7 +627,50 @@ test('latexToUnicode: cift ters bolu, bitisik \\ln, \\cdots, \\left/\\right', ()
   assert.equal(latexToUnicode('UtilityBill = 484.12 - 12.08\\,temp + 0.09\\,temp^2', true),
     'UtilityBill = 484.12 - 12.08 temp + 0.09 temp²');
   assert.equal(latexToUnicode('a \\; b \\! c', true), 'a b c');
+  // `\ ` — canli PDF'te "H₀:\ β₂ = 0" diye basilmisti.
+  assert.equal(latexToUnicode('H_0:\\ \\beta_2 = 0', true), 'H₀: β₂ = 0');
   assert.ok(!latexToUnicode('\\left( x \\right)', false).includes('left'));
+});
+
+
+console.log('\nBELGE ISKELETI PDF ICINDE\n');
+
+/* 09.10.2026. Kart verisinde `outline` her kosuda uretiliyor ve web kartinda
+   gosteriliyor, ama PDF ihracinda HIC yoktu — dort ayri ozetin dordunde de.
+   Ogrenci karti indirdiginde belgenin yapisini kaybediyordu. */
+test('iskelet bolumu PDF e giriyor, basligi ve girintisiyle', () => {
+  const t = render(FULL_CARD);
+  assert.ok(/BELGE [İI]SKELET[İI]/.test(t), 'bolum basligi yok');
+  assert.ok(t.includes('Chapter 20'), 'belge basligi tahmini yok');
+  for (const h of ['What Macroeconomics Studies', 'Output growth', 'The Business Cycle']) {
+    assert.ok(t.includes(h), `iskelet maddesi yok: ${h}`);
+  }
+  assert.ok(t.includes('Output, unemployment, inflation.'), 'madde aciklamasi yok');
+  // Alt madde (level 2) daha icerden baslamali.
+  const satirlar = t.split('\n');
+  const ust = satirlar.find(l => l.includes('What Macroeconomics Studies')) || '';
+  const alt = satirlar.find(l => l.includes('Output growth')) || '';
+  const bosluk = (l) => l.length - l.trimStart().length;
+  assert.ok(bosluk(alt) > bosluk(ust), `girinti yok: ${bosluk(ust)} vs ${bosluk(alt)}`);
+});
+
+test('iskelet YOKSA bolum hic basilmaz', () => {
+  const { outline, ...iskeletsiz } = FULL_CARD;
+  const t = render(iskeletsiz);
+  assert.ok(!/BELGE [İI]SKELET[İI]/.test(t), 'bos iskelet bolumu basildi');
+  // Kartin geri kalani etkilenmemeli.
+  assert.ok(/ANAHTAR TER[İI]MLER/.test(t), 'kartin geri kalani da gitti');
+});
+
+test('iskelet ozetten SONRA, bolum ozetlerinden ONCE', () => {
+  const t = render(FULL_CARD);
+  // render() unicodeReady=false ile kosuyor: replaceTurkishChars basliklari
+  // ASCII'ye dusuruyor (ÖZET -> OZET). Aramalar iki yazimi da karsilamali.
+  const ozet = t.search(/\b[ÖO]ZET\b/);
+  const iskelet = t.search(/BELGE [İI]SKELET[İI]/);
+  const bolumler = t.search(/B[ÖO]L[ÜU]M [ÖO]ZETLER[İI]/);
+  assert.ok(ozet > -1 && iskelet > ozet, 'iskelet ozetten once');
+  assert.ok(bolumler > iskelet, 'iskelet bolum ozetlerinden sonra');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));
