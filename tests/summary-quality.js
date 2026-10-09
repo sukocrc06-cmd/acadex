@@ -83,7 +83,9 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'ISSUE_ABSENCE_RE', 'ISSUE_THESIS_RE', 'ISSUE_STOPWORDS', 'normalizeForIssueMatch',
   'filterReviewIssues', 'paragraphCount',
   // Review duzeltmesi kaynaktaki icerigi silemez (09.10.2026).
-  'DUZELTME_SILME_ORANI', 'DUZELTME_DAYANAK_ORANI', 'IDARI_GURULTU_RE', 'kaynakIcerigiSiliyor'
+  'DUZELTME_SILME_ORANI', 'DUZELTME_DAYANAK_ORANI', 'IDARI_GURULTU_RE', 'kaynakIcerigiSiliyor',
+  // Reddedilen uretimin kurtarilmasi (09.10.2026).
+  'salvageFailedGeneration'
 ]);
 
 const { test, summary } = makeRunner();
@@ -3672,6 +3674,97 @@ test('pencere cagrilarinin gercek token harcamasi loglaniyor', () => {
 
 test('olcu: denklem nesnesinin 7+ haneli bozuk dizisi sayi sayilmaz', () => {
   assert.deepEqual(A.distinctiveNumbers('3152143210 xxˆxxˆ ve 484.12'), [484.12]);
+});
+
+
+console.log('\nREDDEDILEN URETIMI KURTARMA (json_validate_failed)\n');
+
+/* 09.10.2026, canli kosu. Denklem sayfalari duzgun okunmaya baslayinca 1.
+   pencere (1-19. slaytlar) iki denemede de 400 json_validate_failed aldi;
+   ozetin yarisi karta hic girmedi ve ikinci deneme 60 sn pacer beklemesi
+   yiyip anlati yazarinin butcesini bitirdi. Groq reddettigi metni hata
+   govdesinde failed_generation olarak geri veriyor. */
+function groqHatasi(uretim) {
+  return {
+    error: {
+      message: "Failed to generate JSON. Please adjust your prompt. See 'failed_generation' for more details.",
+      type: 'invalid_request_error',
+      code: 'json_validate_failed',
+      failed_generation: uretim
+    }
+  };
+}
+
+test('LaTeX yuzunden reddedilen uretim onarilip ayristiriliyor', () => {
+  // Gecersiz JSON kacislari: \s (\sum), \h (\hat), \p (\partial), \( .
+  const ham = '{"summary":"Quadratic model.","formulas":[' +
+    '{"name":"Polynomial","latex":"y = \\beta_0 + \\sum_{j=1}^p \\beta_j x_j + \\varepsilon"},' +
+    '{"name":"Marginal effect","latex":"\\frac{\\partial \\hat y}{\\partial x_j} = \\hat\\beta_1 + 2\\hat\\beta_2 x_j"}]}';
+  assert.throws(() => JSON.parse(ham), 'fikstur zaten gecerli JSON — testin anlami kalmaz');
+  const r = A.salvageFailedGeneration(groqHatasi(ham));
+  assert.ok(r && typeof r === 'object', 'kurtarilamadi');
+  assert.equal(r.summary, 'Quadratic model.');
+  assert.equal(r.formulas.length, 2);
+  assert.ok(r.formulas[0].latex.includes('\\sum'), r.formulas[0].latex);
+  assert.ok(r.formulas[1].latex.includes('\\partial'), r.formulas[1].latex);
+});
+
+test('kod baska bir sey ya da uretim yoksa KURTARMA YOK', () => {
+  assert.equal(A.salvageFailedGeneration({ error: { code: 'rate_limit_exceeded', failed_generation: '{"a":1}' } }), null);
+  assert.equal(A.salvageFailedGeneration(groqHatasi('')), null);
+  assert.equal(A.salvageFailedGeneration(groqHatasi(undefined)), null);
+  assert.equal(A.salvageFailedGeneration({}), null);
+  // Onarim da kurtaramiyorsa (yarim kalmis JSON) hata yoluna donulur.
+  assert.equal(A.salvageFailedGeneration(groqHatasi('{"summary":"kesik')), null);
+  // JSON olmayan duz metin kurtarilmaz.
+  assert.equal(A.salvageFailedGeneration(groqHatasi('Bir ozet yazamadim.')), null);
+});
+
+test('```json sarmali ve <think> blogu soyuluyor', () => {
+  const r = A.salvageFailedGeneration(groqHatasi('```json\n{"summary":"x","latex":"\\alpha"}\n```'));
+  assert.equal(r.latex, '\\alpha');
+  const t = A.salvageFailedGeneration(groqHatasi('<think>dusunuyorum</think>{"summary":"y"}'));
+  assert.equal(t.summary, 'y');
+});
+
+test('kurtarma BORU HATTINA bagli: 400 atilmadan once deneniyor', () => {
+  const i = KAPSAMA_KOD.indexOf('const kurtarilan = salvageFailedGeneration(data)');
+  const j = KAPSAMA_KOD.indexOf('throw new Error(`Groq API error (${response.status})');
+  assert.ok(i > -1, 'kurtarma cagrilmiyor');
+  assert.ok(j > i, 'kurtarma hatadan SONRA — hic calismaz');
+  assert.ok(/if \(kurtarilan !== null\) \{[\s\S]{0,400}?return kurtarilan/.test(KAPSAMA_KOD),
+    'kurtarilan sonuc dondurulmuyor');
+});
+
+test('prompt JSON icinde ters bolunun IKI KEZ yazilmasini istiyor', () => {
+  for (const total of [1, 2]) {
+    const p = pencerePromptu(total, '');
+    const satir = p.split('\n').find(l => /backslash must be written TWICE/.test(l));
+    assert.ok(satir, 'kural yok');
+    // Modele GORUNEN ornek iki ters bolu tasimali; tek tersbolu ornegi
+    // kuralin kendisini curutur.
+    assert.ok(satir.includes('"\\\\beta_0"'), `ornek tek ters bolulu: ${satir}`);
+  }
+});
+
+test('anlati yazari kapisi OLCULUYOR, duz 35 sn degil', () => {
+  assert.ok(!/budgetLeft\(\) < 35_000/.test(KAPSAMA_KOD), 'duz 35 sn kapisi duruyor');
+  assert.ok(/const yazarBekleme = tokenPacer\.waitEstimate\(/.test(KAPSAMA_KOD), 'pacer sorulmuyor');
+  assert.ok(/const yazarGereken = yazarBekleme \+ WINDOW_CALL_MS/.test(KAPSAMA_KOD));
+  assert.ok(/budgetLeft\(\) < yazarGereken/.test(KAPSAMA_KOD), 'olculmus kapi kullanilmiyor');
+  // Ucuz taban yazarin kendi payindan buyuk olmamali.
+  assert.ok(/budgetLeft\(\) < NARRATIVE_WRITER_RESERVE_MS/.test(KAPSAMA_KOD), 'ucuz taban yok');
+});
+
+test('dusen pencere SESSIZ gecmiyor: log + karta yaziliyor', () => {
+  assert.ok(/if \(!result\) dusenPencereler\.push\(wi \+ 1\)/.test(KAPSAMA_KOD), 'dusen pencere sayilmiyor');
+  assert.ok(/EKSIK BELGE: \$\{dusenPencereler\.length\}\/\$\{windows\.length\} pencere dustu/.test(KAPSAMA_KOD),
+    'eksik belge logu yok');
+  assert.ok(/if \(eksikPencereler\) qualityMeta\.missing_windows = eksikPencereler/.test(KAPSAMA_KOD),
+    'karta yazilmiyor');
+  const bildirim = KAPSAMA_KOD.indexOf('qualityMeta.missing_windows = eksikPencereler');
+  const insert = KAPSAMA_KOD.indexOf(".from('study_cards').insert(cardPayload)");
+  assert.ok(bildirim > -1 && insert > bildirim, 'insert\'ten sonra yaziliyor — karta girmez');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));
