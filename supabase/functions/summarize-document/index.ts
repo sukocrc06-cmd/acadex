@@ -5167,7 +5167,11 @@ const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/intera
 // Model adlari hizli degisiyor. GEMINI_MODEL secret'i tanimliysa o one
 // gecer; tanimli degilse sirayla denenir ve "boyle bir model yok" cevabi
 // bir sonrakine gecisi tetikler (bkz. geminiModelMissing).
-const GEMINI_MODEL_CANDIDATES = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-2.5-flash']
+// gemini-2.5-flash listeden CIKARILDI (09.10.2026): bu hesapta 404 donuyor,
+// yani her basarisiz kosuda bosa giden bir istek demekti. Gunluk kota 100
+// istek ve ayni gun "project has exceeded a quota" 429'u yendik; bos istek
+// lukstu. Hesapta varsa GEMINI_MODEL ile geri getirilebilir.
+const GEMINI_MODEL_CANDIDATES = ['gemini-3.8-flash', 'gemini-3.6-flash']
 
 // Yukleme siniri zaten 20 MB. 18 MB'in ustunu Groq'a birakiyoruz: inline
 // base64 gonderim dosyayi 4/3 buyutuyor ve Files API'ye gecmek (resumable
@@ -5239,6 +5243,25 @@ const GEMINI_DUSURULEBILIR = ['response_format', 'generation_config', 'thinking_
  * dene. thinking_level artik bastan gonderilmiyor (olculdu, reddediliyor),
  * ama mekanizma bir sonraki surprizi de karsilar.
  */
+/**
+ * 429 PROJE KOTASI mi, yoksa anlik bir sikisiklik mi?
+ *
+ * 09.10.2026, ucuncu kosu: gemini-3.6-flash
+ *   429 {"message":"Your project has exceeded a quota..."}
+ * Kota PROJE seviyesinde — modele ozel degil. Yani baska bir adayi denemek
+ * de, 800 ms sonra tekrar denemek de ayni duvara carpar ve her deneme
+ * gunluk 100 isteklik kotadan bir tane daha goturur. Boyle bir 429'da
+ * gölge yoldan HEMEN cikilir.
+ *
+ * 503 ("high demand") farkli: o gercekten gecici ve tekrar denemeye deger —
+ * ikinci kosuda ilk deneme 503 aldi, ikincisi tuttu ve kart Gemini'den
+ * geldi.
+ */
+function geminiQuotaExhausted(status: number, body: string): boolean {
+  if (status !== 429) return false
+  return /exceeded a quota|quota exceeded|rate limit|resource[_ ]exhausted|too_many_requests/i.test(body)
+}
+
 function geminiUnknownParameter(status: number, body: string): string | null {
   if (status !== 400) return null
   const m = String(body || '').match(/Unknown (?:parameter|name|field)\s*['"`]?([A-Za-z0-9_.]+)/i)
@@ -5518,9 +5541,32 @@ async function geminiDraft(
   const dropped: string[] = []
   let gecici = 0   // 429/503/500 denemeleri — alan dusurme denemelerinden ayri sayilir
 
+  /* BASARISIZ DENEMELERIN TOPLAM SURESI.
+   *
+   * 09.10.2026 ucuncu kosu: Gemini hic taslak uretemedi (503, 503, 429, 404)
+   * ama denemeler 34 saniye yedi. Groq'a geriye 76 saniye kaldi ve o yuzden
+   * HEM gorsel gecisi HEM review atlandi — yani gölge yol calismadigi halde
+   * kartin kalitesini dusurdu. Kabul edilemez: bu yolun tek sozu "ne olursa
+   * olsun Groq yolunu bozmam".
+   *
+   * Basarili bir cagri bu sinirdan etkilenmez (kontrol denemeden ONCE
+   * yapiliyor ve basaridan sonra butce zaten genisliyor). */
+  const basladi = Date.now()
+  const GEMINI_FAIL_BUDGET_MS = 25_000
+
   for (const model of geminiModelCandidates()) {
     gecici = 0
     for (let attempt = 0; attempt < 5; attempt++) {
+      const gecen = Date.now() - basladi
+      if (attempt > 0 || model !== geminiModelCandidates()[0]) {
+        if (gecen > GEMINI_FAIL_BUDGET_MS) {
+          console.warn(
+            `Gemini: denemeler ${gecen}ms yedi (sinir ${GEMINI_FAIL_BUDGET_MS}ms) — ` +
+            `Groq'a yer birakmak icin durduruluyor`
+          )
+          return null
+        }
+      }
       const startedAt = Date.now()
       const res = await callGeminiOnce(
         apiKey, model, systemInstruction, fileBase64, fileMime, userText, callMs, dropped
@@ -5568,7 +5614,16 @@ async function geminiDraft(
         dropped.push('response_format')
         continue
       }
-      if (res.status === 429 || res.status === 503 || res.status === 500) {
+      // Proje kotasi: baska model de, tekrar deneme de ayni duvara carpar ve
+      // her deneme gunluk kotadan bir istek daha goturur. Hemen cikilir.
+      if (geminiQuotaExhausted(res.status, res.body)) {
+        console.warn(
+          `Gemini ${model}: PROJE KOTASI dolu (429) — baska aday denenmeyecek, ` +
+          `Groq yoluna dusuluyor: ${res.body.slice(0, 200)}`
+        )
+        return null
+      }
+      if (res.status === 503 || res.status === 500 || res.status === 429) {
         gecici++
         console.warn(`Gemini ${model}: gecici hata ${res.status} (deneme ${gecici}/2): ${res.body.slice(0, 200)}`)
         if (gecici < 2) continue
