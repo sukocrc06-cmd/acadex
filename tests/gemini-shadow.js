@@ -32,7 +32,8 @@ const NAMES = [
   'GEMINI_MAX_CALL_MS', 'GEMINI_MAX_OUTPUT_TOKENS',
   'bytesToBase64',
   'geminiModelCandidates', 'geminiNativeMime', 'geminiModelMissing',
-  'geminiFormatRejected', 'buildGeminiDocInstruction', 'extractGeminiText',
+  'geminiFormatRejected', 'GEMINI_DUSURULEBILIR', 'geminiUnknownParameter',
+  'buildGeminiDocInstruction', 'extractGeminiText',
   'geminiProblem', 'geminiFigureNotes', 'callGeminiOnce', 'geminiDraft'
 ];
 
@@ -151,6 +152,44 @@ test('geminiFormatRejected: yalnizca 400 ve bicim sikayetinde', () => {
   assert.equal(G.geminiFormatRejected(400, 'mime_type not supported'), true);
   assert.equal(G.geminiFormatRejected(400, 'file too large'), false);
   assert.equal(G.geminiFormatRejected(429, 'response_format'), false);
+});
+
+/* 09.10.2026 ILK CANLI KOSU — uc modelin ucu de soyle dondu:
+   400 {"error":{"message":"Unknown parameter 'thinking_level'."}}
+   Endpoint ve model adlari dogruydu; tek bir alan yuzunden butun kosu
+   Groq'a dustu. Bu testler o teshisi ve dusurme mekanizmasini korur. */
+test('geminiUnknownParameter: canli hatadan alan adini cikarir', () => {
+  const govde = '{"error":{"message":"Unknown parameter \'thinking_level\'.","code":"invalid_request"}}';
+  assert.equal(G.geminiUnknownParameter(400, govde), 'thinking_level');
+});
+
+test('geminiUnknownParameter: Unknown name/field yazimlarini da okur', () => {
+  assert.equal(G.geminiUnknownParameter(400, 'Unknown name "response_format"'), 'response_format');
+  assert.equal(G.geminiUnknownParameter(400, 'Unknown field `generation_config`'), 'generation_config');
+});
+
+test('geminiUnknownParameter: noktali yol en ust alana indirilir', () => {
+  assert.equal(G.geminiUnknownParameter(400, "Unknown parameter 'generation_config.seed'"), 'generation_config');
+});
+
+test('geminiUnknownParameter: dusurulemeyecek alan null doner', () => {
+  // system_instruction ve input atilirsa istek anlamini kaybeder; o hata
+  // Groq a dusmeyi hak eder, sonsuz tekrara degil.
+  assert.equal(G.geminiUnknownParameter(400, "Unknown parameter 'system_instruction'"), null);
+  assert.equal(G.geminiUnknownParameter(400, "Unknown parameter 'input'"), null);
+  assert.equal(G.geminiUnknownParameter(400, "Unknown parameter 'model'"), null);
+});
+
+test('geminiUnknownParameter: alan adi yoksa ve 400 degilse null', () => {
+  assert.equal(G.geminiUnknownParameter(400, 'file too large'), null);
+  assert.equal(G.geminiUnknownParameter(429, "Unknown parameter 'thinking_level'"), null);
+});
+
+test('thinking_level artik bastan gonderilmiyor', () => {
+  // Olculdu: bu hesapta reddediliyor. Gondermeye devam etmek her belgede
+  // bir istegi bosa harcar ve gunluk kota 100 istek.
+  assert.ok(G.GEMINI_DUSURULEBILIR.includes('thinking_level'),
+    'yine de dusurulebilir listesinde kalmali — bir gun kabul edilirse diye');
 });
 
 // ===========================================================================
@@ -328,7 +367,7 @@ test('geminiFigureNotes: cop girdi bos dizi dondurur, patlamaz', () => {
 test('callGeminiOnce: istek govdesi ve basliklar dogru', async () => {
   stubFetch([{ status: 200, json: OK_JSON }]);
   try {
-    const res = await G.callGeminiOnce('ANAHTAR', 'gemini-test', 'SISTEM', 'QkFTRTY0', 'application/pdf', 'KULLANICI', 5000, true);
+    const res = await G.callGeminiOnce('ANAHTAR', 'gemini-test', 'SISTEM', 'QkFTRTY0', 'application/pdf', 'KULLANICI', 5000, []);
     assert.equal(res.ok, true);
     assert.equal(fetchCalls.length, 1);
     assert.equal(fetchCalls[0].url, G.GEMINI_ENDPOINT);
@@ -342,14 +381,21 @@ test('callGeminiOnce: istek govdesi ve basliklar dogru', async () => {
     assert.equal(body.input[1].text, 'KULLANICI');
     assert.equal(body.generation_config.max_output_tokens, G.GEMINI_MAX_OUTPUT_TOKENS);
     assert.equal(body.response_format.mime_type, 'application/json');
+    assert.equal('thinking_level' in body, false, 'thinking_level bu yuzeyde 400 donduruyor');
+    assert.equal('thinking_summaries' in body, false);
   } finally { restoreFetch(); }
 });
 
-test('callGeminiOnce: jsonMode kapaliyken response_format gonderilmez', async () => {
+test('callGeminiOnce: dusurulen alanlar govdeye konmaz', async () => {
   stubFetch([{ status: 200, json: OK_JSON }]);
   try {
-    await G.callGeminiOnce('K', 'm', 's', 'b', 'application/pdf', 'u', 5000, false);
+    await G.callGeminiOnce('K', 'm', 's', 'b', 'application/pdf', 'u', 5000,
+      ['response_format', 'generation_config']);
     assert.equal('response_format' in fetchCalls[0].body, false);
+    assert.equal('generation_config' in fetchCalls[0].body, false);
+    // Dusurulemeyecekler yerinde durmali.
+    assert.equal(fetchCalls[0].body.system_instruction, 's');
+    assert.ok(Array.isArray(fetchCalls[0].body.input));
   } finally { restoreFetch(); }
 });
 
@@ -362,7 +408,7 @@ test('callGeminiOnce: cikis tavani Groq un 3.702 tavaninin cok ustunde', () => {
 test('callGeminiOnce: ok olmayan cevap status ve govdeyle doner', async () => {
   stubFetch([{ status: 429, text: 'quota exceeded' }]);
   try {
-    const res = await G.callGeminiOnce('K', 'm', 's', 'b', 'application/pdf', 'u', 5000, true);
+    const res = await G.callGeminiOnce('K', 'm', 's', 'b', 'application/pdf', 'u', 5000, []);
     assert.equal(res.ok, false);
     assert.equal(res.status, 429);
     assert.match(res.body, /quota/);
@@ -372,7 +418,7 @@ test('callGeminiOnce: ok olmayan cevap status ve govdeyle doner', async () => {
 test('callGeminiOnce: ag hatasi status 0 olarak doner, atmaz', async () => {
   stubFetch([{ throw: new Error('ECONNRESET') }]);
   try {
-    const res = await G.callGeminiOnce('K', 'm', 's', 'b', 'application/pdf', 'u', 5000, true);
+    const res = await G.callGeminiOnce('K', 'm', 's', 'b', 'application/pdf', 'u', 5000, []);
     assert.equal(res.ok, false);
     assert.equal(res.status, 0);
     assert.match(res.body, /ECONNRESET/);
@@ -383,7 +429,7 @@ test('callGeminiOnce: zaman asimi abort olarak raporlanir', async () => {
   const err = new Error('aborted'); err.name = 'AbortError';
   stubFetch([{ throw: err }]);
   try {
-    const res = await G.callGeminiOnce('K', 'm', 's', 'b', 'application/pdf', 'u', 5000, true);
+    const res = await G.callGeminiOnce('K', 'm', 's', 'b', 'application/pdf', 'u', 5000, []);
     assert.equal(res.ok, false);
     assert.match(res.body, /zaman asimi/);
   } finally { restoreFetch(); }
@@ -446,6 +492,53 @@ test('geminiDraft: response_format reddedilirse JSON modu kapatilip tekrar denen
     assert.equal('response_format' in fetchCalls[0].body, true);
     assert.equal('response_format' in fetchCalls[1].body, false, 'ikinci denemede alan dusmeliydi');
     assert.equal(fetchCalls[1].body.model, G.GEMINI_MODEL_CANDIDATES[0], 'ayni model tekrar denenmeli');
+  } finally { restoreFetch(); }
+});
+
+test('geminiDraft: taninmayan alan atilip AYNI model tekrar denenir', async () => {
+  // 09.10.2026 canli kosusunun birebir senaryosu.
+  stubFetch([
+    { status: 400, text: '{"error":{"message":"Unknown parameter \'generation_config\'."}}' },
+    { status: 200, json: OK_JSON }
+  ]);
+  try {
+    const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000));
+    assert.ok(out, 'alan atildiktan sonra taslak gelmeliydi');
+    assert.equal(out.model, G.GEMINI_MODEL_CANDIDATES[0], 'ayni model tekrar denenmeli');
+    assert.equal(fetchCalls.length, 2);
+    assert.equal('generation_config' in fetchCalls[0].body, true);
+    assert.equal('generation_config' in fetchCalls[1].body, false);
+  } finally { restoreFetch(); }
+});
+
+test('geminiDraft: atilan alan sonraki modellere de TASINIR', async () => {
+  // Tasinmazsa ayni hata her modelde tekrar yenir ve gunluk kotadan
+  // (100 istek) bosuna istek gider.
+  stubFetch([
+    { status: 400, text: "Unknown parameter 'generation_config'" },
+    { status: 404, text: 'model not found' },
+    { status: 200, json: OK_JSON }
+  ]);
+  try {
+    const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000));
+    assert.ok(out);
+    assert.equal(out.model, G.GEMINI_MODEL_CANDIDATES[1]);
+    assert.equal(fetchCalls.length, 3);
+    assert.equal('generation_config' in fetchCalls[2].body, false,
+      'ikinci modele giden istek alani yine tasimis');
+  } finally { restoreFetch(); }
+});
+
+test('geminiDraft: ayni alan iki kez atilmaya calisilmaz (sonsuz dongu yok)', async () => {
+  stubFetch(G.GEMINI_MODEL_CANDIDATES.flatMap(() => [
+    { status: 400, text: "Unknown parameter 'generation_config'" },
+    { status: 400, text: "Unknown parameter 'generation_config'" }
+  ]));
+  try {
+    const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000));
+    assert.equal(out, null);
+    // Ilk modelde 2 cagri (biri atma denemesi), sonrakilerde 1'er.
+    assert.equal(fetchCalls.length, G.GEMINI_MODEL_CANDIDATES.length + 1);
   } finally { restoreFetch(); }
 });
 
