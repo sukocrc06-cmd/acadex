@@ -44,12 +44,23 @@ const NEEDED = [
   // LaTeX -> Unicode donusturucu ve tablolari (08.10.2026).
   'LATEX_SEMBOL', 'LATEX_ALT', 'LATEX_UST', 'LATEX_ASCII', 'latexToUnicode',
   'mermaidPrettyLabels',
+  // Cozumlu ornek adimlari, para birimi, ozet paragraflari (09.10.2026).
+  'escapeHtml', 'normalizeWorkedSteps', 'splitStepCalc', 'prettyCalc', 'splitCalcChain',
+  'renderMathInText', 'renderWorkedStepHtml', 'acikVurgu', 'OZET_KISALTMA_RE', 'summaryParagraphs', 'inlineMarkdown',
+  'stripInlineMarkdown',
   'drawPdfTable', 'drawChartDataFallback', 'drawMermaidSourceFallback',
   'drawPdfCard', 'appendStudyCardToDoc'
 ];
 const body = NEEDED.map(n => sliceDeclaration(SRC, n)).join('\n\n');
-const { appendStudyCardToDoc, latexToUnicode, mermaidPrettyLabels } = new Function(
-  `${body}\nreturn { appendStudyCardToDoc, latexToUnicode, mermaidPrettyLabels };`
+// renderMathInText window.katex'e bakiyor; sahte KaTeX neyi matematik
+// saydigini gorunur kilar.
+global.window = global.window || {};
+const {
+  appendStudyCardToDoc, latexToUnicode, mermaidPrettyLabels,
+  normalizeWorkedSteps, splitStepCalc, prettyCalc, splitCalcChain, renderMathInText,
+  renderWorkedStepHtml, summaryParagraphs, inlineMarkdown, stripInlineMarkdown
+} = new Function(
+  `${body}\nreturn { appendStudyCardToDoc, latexToUnicode, mermaidPrettyLabels, normalizeWorkedSteps, splitStepCalc, prettyCalc, splitCalcChain, renderMathInText, renderWorkedStepHtml, summaryParagraphs, inlineMarkdown, stripInlineMarkdown };`
 )();
 
 /** Uretilen PDF'i pdftotext ile metne cevirip doner. */
@@ -477,6 +488,134 @@ test('donusum IDEMPOTENT', () => {
     const bir = latexToUnicode(o, true);
     assert.equal(latexToUnicode(bir, true), bir, `idempotent degil: ${o}`);
   }
+});
+
+
+console.log('\nCOZUMLU ORNEK GORUNUMU, PARA BIRIMI, OZET PARAGRAFLARI\n');
+
+/* 09.10.2026, kullanicinin ekran goruntusu: bes adim tek maddede, hesaplar
+   metnin icinde, ve "Sonuc" satirinda iki dolar isaretinin arasi KaTeX'e
+   matematik diye gitmis. Ornek, canli karttaki adim dizgisinin aynisi. */
+const EKRAN_ADIMLARI = ['1. Estimate model: UtilityBill = β0 + β1 Temp + β2 Temp^2 + ε. 2. Obtain coefficients: β1 = -9.0, β2 = 0.1212. 3. Compute marginal effect: dY/dTemp = β1 + 2β2 Temp. 4. At Temp=40: dY/dTemp = -9.0 + 2(0.1212)(40) = -5.06. 5. At Temp=80: dY/dTemp = -9.0 + 2(0.1212)(80) = 2.14.'];
+
+test('eski kartin tek dizgi adimlari bes ayri adim, numarasiz', () => {
+  const a = normalizeWorkedSteps(EKRAN_ADIMLARI);
+  assert.equal(a.length, 5, JSON.stringify(a));
+  assert.ok(a.every(x => !/^\d+\.\s/.test(x)));
+  assert.deepEqual(normalizeWorkedSteps(['1. A x.', '2. B y.']), ['A x.', 'B y.']);
+  assert.deepEqual(normalizeWorkedSteps(['β2 = 0.1212. Then compute.']), ['β2 = 0.1212. Then compute.']);
+});
+
+test('adim aciklama + hesap satirina ayriliyor', () => {
+  assert.deepEqual(splitStepCalc('At Temp=40: dY/dTemp = -9.0 + 2(0.1212)(40) = -5.06.'),
+    { label: 'At Temp=40', calc: 'dY/dTemp = -9.0 + 2(0.1212)(40) = -5.06' });
+  assert.deepEqual(splitStepCalc('Interpret: weeks with a holiday sell 15 more pies.'),
+    { label: 'Interpret: weeks with a holiday sell 15 more pies.', calc: '' });
+  assert.equal(splitStepCalc('-12.08 + 2(0.09)(39) = -12.08 + 7.02 = -5.06').calc,
+    '-12.08 + 2(0.09)(39) = -12.08 + 7.02 = -5.06');
+});
+
+test('hesap satiri matematik gibi yaziliyor', () => {
+  assert.equal(prettyCalc('-12.08 + 2(0.09)(39) = -12.08 + 7.02 = -5.06'),
+    '−12.08 + 2(0.09)(39) = −12.08 + 7.02 = −5.06');
+  assert.equal(prettyCalc('UtilityBill = β0 + β1 Temp + β2 Temp^2 + ε'),
+    'UtilityBill = β₀ + β₁ Temp + β₂ Temp² + ε');
+  assert.equal(prettyCalc('β1 + 2β2*39'), 'β₁ + 2β₂ × 39');
+  // "log-log" gibi kelimelerdeki tire eksi isaretine donmez.
+  assert.equal(prettyCalc('log-log: 0.69'), 'log-log: 0.69');
+  const satirlar = splitCalcChain(prettyCalc('484.12 - 12.08(67.11) + 0.09(67.11)^2 = 484.12 - 810.69 + 405.34 = 78.77'));
+  assert.ok(satirlar.length === 3 && satirlar[1].startsWith('= ') && satirlar[2] === '= 78.77', JSON.stringify(satirlar));
+  // Ikili eksi de eksi isareti olur.
+  assert.equal(satirlar[0], '484.12 − 12.08(67.11) + 0.09(67.11)²');
+  // Yalniz bir ad ilk satirda tek basina kalmaz.
+  assert.deepEqual(splitCalcChain('temp* = −(−12.08)/(2(0.09)) = 12.08/0.18 = 67.11'),
+    ['temp* = −(−12.08)/(2(0.09))', '= 12.08/0.18', '= 67.11']);
+});
+
+test('adim HTML: hesap ayri kutuda, uzun zincir satirlara bolunmus', () => {
+  const h = renderWorkedStepHtml('Bill there: 484.12 - 12.08(67.11) + 0.09(67.11)^2 = 484.12 - 810.69 + 405.34 = 78.77');
+  assert.ok(/<span class="ws-label">Bill there<\/span><div class="ws-calc">/.test(h), h);
+  assert.equal((h.match(/ws-calc-line/g) || []).length, 3);
+  assert.ok(/<li class="ws-step"><span class="ws-label">Interpret/.test(renderWorkedStepHtml('Interpret the sign.')));
+});
+
+test('PARA BIRIMI matematik sayilmiyor, gercek matematik sayiliyor', () => {
+  const cagrilar = [];
+  window.katex = { renderToString: (tex) => { cagrilar.push(tex); return `<k>${tex}</k>`; } };
+  try {
+    const metin = 'At 40°F the bill decreases by $5.06 per degree; at 80°F it increases by $2.14 per degree.';
+    assert.equal(renderMathInText(metin), metin.replace(/'/g, '&#39;'));
+    assert.equal(cagrilar.length, 0, `para birimi KaTeX'e gitti: ${cagrilar}`);
+    assert.equal(renderMathInText('costs $5 and $10 each'), 'costs $5 and $10 each');
+    assert.ok(renderMathInText('slope $\\beta_1$ here').includes('<k>\\beta_1</k>'));
+    assert.ok(renderMathInText('$x^2$ and $y$').includes('<k>x^2</k>'));
+  } finally {
+    delete window.katex;
+  }
+});
+
+test('ozet paragraflari: kalin giris ayrisiyor', () => {
+  const p = summaryParagraphs('**Dummy variables shift the intercept.** A qualitative variable…\n\n**Interactions change the slope.** Multiplying x by a dummy…');
+  assert.equal(p.length, 2);
+  assert.deepEqual(p[0], { lead: 'Dummy variables shift the intercept.', body: 'A qualitative variable…' });
+});
+
+test('TEK BLOK eski ozet bolunuyor — tek karakter dusmeden', () => {
+  // Canli ozet 2'nin ilk ~1.100 karakteri (tek paragraf).
+  const blok = 'This brief presents a concise guide to extending linear regression for categorical predictors, non-linear relationships, and interaction effects. It begins with a thesis that effective regression modeling requires appropriate encoding of categorical variables. The Dummy Variables section explains encoding a k-level categorical variable with k-1 binary dummies, where the omitted level serves as the reference. The Interaction Effects section shows how adding a product term between a dummy and a continuous predictor alters the slope; the marginal effect becomes β₁+β₃·D. The Polynomial section introduces the model y=β₀+β₁x+β₂x², derives the marginal effect β₁+2β₂x, identifies the minimizing x* = –β₁/(2β₂), and the bill of 484.12 dollars. Finally, the *Population vs. Sample Regression* section reminds readers that the true population model is unknown. Overall, the brief equips students with practical coding strategies and interpretation guidelines for categorical variables.';
+  const p = summaryParagraphs(blok);
+  assert.ok(p.length >= 2, `bolunmedi (${p.length})`);
+  const geri = p.map(x => x.body).join(' ');
+  assert.equal(geri.replace(/\s+/g, ' '), blok.replace(/\s+/g, ' '), 'metin degisti');
+  assert.ok(p.every(x => !/^\d/.test(x.body)), 'ondalik sayidan bolundu');
+  // Kisa ozet bolunmez.
+  assert.equal(summaryParagraphs('Kisa bir ozet. Iki cumle.').length, 1);
+  // Kisaltmadan ve acik vurgunun icinden bolunmez (canli: "*Population vs. Sample Regression*").
+  for (const pr of p) assert.ok(!/\bvs\.$/.test(pr.body), `"vs." sonrasi bolundu: ${pr.body.slice(-40)}`);
+  assert.ok(p.some(pr => pr.body.includes('*Population vs. Sample Regression*')), 'vurgu ikiye bolundu');
+});
+
+test('satir ici markdown: kalin/italik evet, formul yildizi hayir', () => {
+  assert.equal(inlineMarkdown('**Lead.** body'), '<strong>Lead.</strong> body');
+  assert.equal(inlineMarkdown('The *Dummy Variables* section'), 'The <em>Dummy Variables</em> section');
+  for (const f of ['x* = −β1/(2β2)', '2 * 3 = 6', 'a*b']) assert.equal(inlineMarkdown(f), f, f);
+  assert.equal(stripInlineMarkdown('**Lead.** The *X* part'), 'Lead. The X part');
+});
+
+test('PDF: ozet paragraflari kalin girisli, isaretsiz', () => {
+  const t = render({
+    ...FULL_CARD,
+    summary: '**Dummy variables shift the intercept.** With m levels use m - 1 dummies.\n\n**Logs give percent effects.** In the log-log model the slope is an elasticity.'
+  });
+  assert.ok(t.includes('Dummy variables shift the intercept.'), 'giris yok');
+  assert.ok(t.includes('Logs give percent effects.'));
+  assert.ok(!t.includes('**'), 'yildizlar basildi');
+});
+
+test('PDF: eski kartin tek dizgi adimlari "1. 1." OLMADAN, hesap ayri satirda', () => {
+  const t = render({
+    ...FULL_CARD,
+    worked_examples: [{
+      title: 'Utility Bill',
+      problem_statement: 'Compute marginal effects.',
+      steps: EKRAN_ADIMLARI,
+      final_answer: 'At 40°F the bill decreases by $5.06 per degree.'
+    }]
+  });
+  assert.ok(!/1\.\s+1\./.test(t), 'cift numara: ' + t.slice(t.indexOf('Utility Bill'), t.indexOf('Utility Bill') + 300));
+  assert.ok(/1\. Estimate model/.test(t), 'ilk adim yok');
+  assert.ok(/5\. At Temp=80/.test(t), 'besinci adim yok');
+  // Hesap aciklamadan ayri satirda: "At Temp=40" satirinin sonunda denklem yok.
+  const satir = t.split('\n').find(l => /4\. At Temp=40/.test(l)) || '';
+  assert.ok(!/=\s*-?9\.0/.test(satir), `hesap aciklamayla ayni satirda: ${satir}`);
+});
+
+test('latexToUnicode: cift ters bolu, bitisik \\ln, \\cdots, \\left/\\right', () => {
+  assert.equal(latexToUnicode('y=\\\\beta_0+\\\\beta_1x', true), 'y=β₀+β₁x');
+  assert.equal(latexToUnicode('\\ln y=\\beta_0+\\beta_1\\ln x+\\varepsilon', true), 'ln y=β₀+β₁ ln x+ε');
+  assert.ok(latexToUnicode('\\beta_2x^2 + \\cdots + \\beta_p x^p', true).includes('⋯'));
+  assert.equal(latexToUnicode('\\left( x + 1 \\right)^2', true), '( x + 1 )²');
+  assert.ok(!latexToUnicode('\\left( x \\right)', false).includes('left'));
 });
 
 summary().then(() => process.exit(process.exitCode || 0));
