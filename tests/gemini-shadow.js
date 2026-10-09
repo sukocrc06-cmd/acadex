@@ -33,6 +33,7 @@ const NAMES = [
   'bytesToBase64',
   'geminiModelCandidates', 'geminiNativeMime', 'geminiModelMissing',
   'geminiFormatRejected', 'GEMINI_DUSURULEBILIR', 'geminiUnknownParameter',
+  'PIPELINE_BUDGET_MS', 'GEMINI_PIPELINE_BUDGET_MS', 'geminiCoverageQuota',
   'buildGeminiDocInstruction', 'extractGeminiText',
   'geminiProblem', 'geminiFigureNotes', 'callGeminiOnce', 'geminiDraft'
 ];
@@ -234,6 +235,62 @@ test('buildGeminiDocInstruction: formul ve tablo okumasi istenir', () => {
   assert.match(s, /FORMULAS:/);
   assert.match(s, /TABLES:/);
   assert.match(s, /LaTeX/);
+});
+
+// ===========================================================================
+// geminiCoverageQuota
+//
+// 09.10.2026 ilk basarili kosu: Gemini 42 sayfayi okudu ama 7 terim / 9
+// nokta / 6 soru uretti; Groq ayni belgede 15/24/11 cikarmisti. Sebep
+// paylasilan promptun "5-15 key_terms" kotasiydi — o rakam kisa belgeler
+// icin yazilmis. Bu testler kotanin belgenin boyuna bagli kalmasini korur.
+// ===========================================================================
+test('geminiCoverageQuota: 42 sayfalik deste Groq un uretiminin ustunu ister', () => {
+  const q = G.geminiCoverageQuota(42);
+  assert.match(q, /key_terms: 25-40/);
+  assert.match(q, /key_points: 20-30/);
+  assert.match(q, /quiz_questions: 10-15/);
+  const altSinir = Number(q.match(/key_terms: (\d+)-/)[1]);
+  assert.ok(altSinir > 15, `alt sinir Groq un 15 terimini gecmeli, ${altSinir} bulundu`);
+});
+
+test('geminiCoverageQuota: kisa belgeye buyuk kota dayatilmaz', () => {
+  const q = G.geminiCoverageQuota(4);
+  assert.match(q, /key_terms: 10-18/);
+  assert.doesNotMatch(q, /25-40/);
+});
+
+test('geminiCoverageQuota: orta boy belge arada kalir', () => {
+  assert.match(G.geminiCoverageQuota(18), /key_terms: 18-28/);
+});
+
+test('geminiCoverageQuota: sayfa sayisi bilinmiyorsa sayi uydurulmaz', () => {
+  const q = G.geminiCoverageQuota(0);
+  assert.doesNotMatch(q, /\b0-page\b/);
+  assert.match(q, /this document/);
+});
+
+test('geminiCoverageQuota: formul ve tablo tavansiz istenir', () => {
+  // Gölge yolun butun gerekcesi bu ikisi; bir sayiyla sinirlanirlarsa
+  // 42 sayfalik bir destede en degerli icerik kesilir.
+  const q = G.geminiCoverageQuota(42);
+  assert.match(q, /formulas: EVERY distinct equation[^\n]*no cap/);
+  assert.match(q, /tables: EVERY table[^\n]*no cap/);
+});
+
+test('geminiCoverageQuota: dolgu acikca yasaklanir', () => {
+  assert.match(G.geminiCoverageQuota(42), /padding with restatements is worse/);
+});
+
+test('butce: Gemini yolu review a yer birakacak kadar genis, sert sinirin altinda', () => {
+  // Olculdu: 72,4 sn Gemini cagrisindan sonra 110 sn butcede 26,8 sn
+  // kaliyordu ve review un en kucuk kademesi 33 sn istiyor.
+  assert.ok(G.GEMINI_PIPELINE_BUDGET_MS > G.PIPELINE_BUDGET_MS,
+    'Gemini yolunda pencere cagrilari yok, butce dar kalmamali');
+  assert.ok(G.GEMINI_PIPELINE_BUDGET_MS - 72_400 > 33_000,
+    '72,4 sn lik bir cagridan sonra review (33 sn) hala sigmali');
+  assert.ok(G.GEMINI_PIPELINE_BUDGET_MS <= 135_000,
+    'Supabase nin ~150 sn sert sinirina emniyet payi kalmali');
 });
 
 // ===========================================================================
