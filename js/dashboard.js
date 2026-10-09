@@ -2414,7 +2414,14 @@ window.jumpToFootnote = jumpToFootnote;
 
 function formatSummaryText(summary, footnotes) {
   if (!summary) return "";
-  const withFootnotes = formatFootnoteMarkers(summary, footnotes);
+  // Tek blok gelen ozet paragraflara ayrilir (bkz. summaryParagraphs).
+  // Satir sonu tasiyan metne dokunulmaz — yazarin kendi yapisi korunur.
+  let kaynak = String(summary);
+  if (!/\n|\\n/.test(kaynak)) {
+    const paras = summaryParagraphs(kaynak);
+    if (paras.length > 1) kaynak = paras.map(p => (p.lead ? `**${p.lead}** ${p.body}` : p.body)).join('\n\n');
+  }
+  const withFootnotes = formatFootnoteMarkers(kaynak, footnotes);
   
   // Split on raw or escaped newline
   const lines = withFootnotes.split(/\n|\\n/);
@@ -2429,7 +2436,9 @@ function formatSummaryText(summary, footnotes) {
         html += "</ul>";
         insideList = false;
       }
-      html += "<br>";
+      // Paragraf arasi: tam bir <br> satiri paragraflari birbirinden kopuk
+      // gosteriyordu; kucuk bir aralik yeterli.
+      html += '<div style="height: 0.45rem;"></div>';
       return;
     }
 
@@ -2444,14 +2453,15 @@ function formatSummaryText(summary, footnotes) {
       return;
     }
 
-    // Check if line is a bullet item
-    const bulletMatch = trimmed.match(/^([-\*•])\s*(.*)$/);
+    // Check if line is a bullet item. "**Kalin giris.**" ile baslayan
+    // paragraf madde DEGIL; "-12.08 ..." de degil (tireden sonra bosluk yok).
+    const bulletMatch = trimmed.match(/^(•|[-*](?!\*)(?=\s))\s*(.*)$/);
     if (bulletMatch) {
       if (!insideList) {
         html += '<ul style="margin: 0.5rem 0; padding-left: 1.5rem; list-style-type: disc;">';
         insideList = true;
       }
-      html += `<li style="margin-bottom: 0.25rem; font-size: 0.85rem; color: var(--color-navy); line-height: 1.4;">${bulletMatch[2]}</li>`;
+      html += `<li style="margin-bottom: 0.25rem; font-size: 0.85rem; color: var(--color-navy); line-height: 1.4;">${inlineMarkdown(bulletMatch[2])}</li>`;
     } else {
       if (insideList) {
         html += "</ul>";
@@ -2466,7 +2476,7 @@ function formatSummaryText(summary, footnotes) {
       if (isNumberHeading || isShortTitleCase || isSyllabusHeading) {
         html += `<h4 style="font-size: 0.95rem; font-weight: 700; color: var(--color-teal); margin-top: 0.75rem; margin-bottom: 0.35rem; font-family: 'Outfit', sans-serif;">${trimmed}</h4>`;
       } else {
-        html += `<p style="margin: 0.35rem 0; font-size: 0.85rem; color: var(--color-navy); line-height: 1.5;">${trimmed}</p>`;
+        html += `<p style="margin: 0.35rem 0; font-size: 0.85rem; color: var(--color-navy); line-height: 1.5;">${inlineMarkdown(trimmed)}</p>`;
       }
     }
   });
@@ -2951,8 +2961,9 @@ async function populateStudyCardModalDetails(card, docName, readOnly) {
         cardEl.className = 'worked-example-card';
         
         let stepsHtml = '';
-        if (Array.isArray(ex.steps) && ex.steps.length > 0) {
-          stepsHtml = '<ol class="worked-example-steps">' + ex.steps.map(step => `<li>${renderMathInText(step)}</li>`).join('') + '</ol>';
+        const adimlar = normalizeWorkedSteps(ex.steps);
+        if (adimlar.length > 0) {
+          stepsHtml = '<ol class="worked-example-steps">' + adimlar.map(renderWorkedStepHtml).join('') + '</ol>';
         }
         
         cardEl.innerHTML = `
@@ -2970,11 +2981,102 @@ async function populateStudyCardModalDetails(card, docName, readOnly) {
 }
 window.populateStudyCardModalDetails = populateStudyCardModalDetails;
 
+/* ==========================================================================
+   COZUMLU ORNEK ADIMLARI, PARA BIRIMI VE OZET PARAGRAFLARI (09.10.2026)
+
+   Kullanicinin ekran goruntusu, ayni ornekte uc ayri sorunu gosterdi:
+     1. Bes adim TEK madde: "1. 1. Estimate model: ... 2. Obtain ... 5. ..."
+        Model adimlari tek dizgide yazmis, arayuz bir de kendi numarasini
+        eklemis.
+     2. Hesaplar duz metnin icinde kayboluyor — "Compute marginal effect:
+        dY/dTemp = β1 + 2β2 Temp" cumlenin devami gibi okunuyor.
+     3. "Sonuc": "decreases by $5.06 per degree; at 80°F it increases by $2.14"
+        iki dolar isaretinin arasi KaTeX'e matematik diye gitmis ve
+        "5.06perdegree;at80°Fitincreasesby" italik ve bosluksuz basilmis.
+   Sunucu artik adimlari ayirip numarasiz gonderiyor; buradaki karsiligi
+   veritabanindaki ESKI kartlarin da duzgun gorunmesi icin.
+   ========================================================================== */
+
+/** "1. A 2. B 3. C" -> ["A", "B", "C"]. Yalnizca 1'den baslayip ardisik
+ *  ilerleyen numaralar bolme noktasi: "0.1212." ya da tek bir "2." bolmez. */
+function normalizeWorkedSteps(steps) {
+  const raw = (Array.isArray(steps) ? steps : (steps == null ? [] : [steps]))
+    .map(x => (typeof x === 'string' ? x
+      : (x && typeof x === 'object' ? String(x.text || x.step || x.description || '') : String(x ?? ''))));
+  const out = [];
+  for (const text of raw) {
+    const re = /(^|\s)(\d{1,2})[.)]\s+(?=\D)/g;
+    const seq = [];
+    let m;
+    while ((m = re.exec(text)) !== null) {
+      const want = seq.length === 0 ? 1 : seq[seq.length - 1].n + 1;
+      if (Number(m[2]) === want) seq.push({ n: want, at: m.index + m[1].length });
+    }
+    const parts = (seq.length >= 2 && text.slice(0, seq[0].at).trim() === '')
+      ? seq.map((mk, i) => text.slice(mk.at, i + 1 < seq.length ? seq[i + 1].at : undefined))
+      : [text];
+    for (const part of parts) {
+      const clean = part.replace(/^\s*(?:(?:step|adım|adim)\s*)?\d{1,2}\s*[.):]\s+/i, '').trim();
+      if (clean) out.push(clean);
+    }
+  }
+  return out;
+}
+
+/** Adimi aciklama ve HESAP satirina ayirir: "At 39: -12.08 + 2(0.09)(39) =
+ *  -5.06" -> { label: 'At 39', calc: '-12.08 + ...' }. Esitlik ve rakam
+ *  tasimayan adim duz metin kalir. */
+function splitStepCalc(step) {
+  const s = String(step || '').trim();
+  const hesapMi = (t) => /=|≈/.test(t) && /\d/.test(t);
+  const colon = s.indexOf(': ');
+  if (colon > 0 && colon <= 90) {
+    const rest = s.slice(colon + 2).trim();
+    if (hesapMi(rest)) return { label: s.slice(0, colon), calc: rest.replace(/\.\s*$/, '') };
+  }
+  // Iki nokta yok ama adimin kendisi bir hesap: harf orani dusuk.
+  const harf = (s.match(/[A-Za-zÇĞİÖŞÜçğıöşü]/g) || []).length;
+  const dolu = s.replace(/\s/g, '').length || 1;
+  if (hesapMi(s) && harf / dolu < 0.35) return { label: '', calc: s.replace(/\.\s*$/, '') };
+  return { label: s, calc: '' };
+}
+
+/** Hesap satirini okunur matematige cevirir: LaTeX komutlari, β1 -> β₁,
+ *  sayilar arasi * -> ×, sayidan once gelen tire -> eksi isareti. */
+function prettyCalc(text, unicodeReady = true) {
+  let s = latexToUnicode(String(text || ''), unicodeReady);
+  if (unicodeReady) {
+    const alt = { 0: '₀', 1: '₁', 2: '₂', 3: '₃', 4: '₄', 5: '₅', 6: '₆', 7: '₇', 8: '₈', 9: '₉' };
+    s = s.replace(/([α-ωΑ-Ω]̂?)(\d{1,2})(?![\d.])/g, (_m, g, d) => g + [...d].map(c => alt[c]).join(''));
+    s = s.replace(/(^|[=(\s])-(?=\d|\.\d|\()/g, '$1−');
+    // Iki yani bosluklu ikili eksi: "484.12 - 12.08" -> "484.12 − 12.08".
+    s = s.replace(/([\d)²³₀-₉A-Za-z]) - (?=[\d(.A-Za-zα-ωΑ-Ω])/g, '$1 − ');
+    s = s.replace(/([\d)²³₀-₉])\s*\*\s*(?=[\d(.])/g, '$1 × ');
+  }
+  return s.replace(/\s{2,}/g, ' ').trim();
+}
+
+/** Uzun bir esitlik zincirini "= ..." satirlarina boler. */
+function splitCalcChain(calc, maxLen = 46) {
+  const s = String(calc || '');
+  if (s.length <= maxLen) return [s];
+  const parts = s.split(/\s+(?==|≈)/);
+  // Ilk parca yalnizca bir ad ("temp*", "ME") ise ilk esitlikle ayni satirda
+  // kalir — tek basina duran "temp*" satiri okunmuyor.
+  if (parts.length > 2 && parts[0].length < 14) parts.splice(0, 2, `${parts[0]} ${parts[1]}`);
+  return parts.length > 1 ? parts : [s];
+}
+
+/** Para birimi guvenli satir ici matematik. Kural pandoc'unki: acan $'in
+ *  sagi, kapayan $'in solu bosluk olamaz ve kapayan $'tan sonra rakam
+ *  gelemez. "$5.06 per degree; ... by $2.14" boylece matematik sayilmaz.
+ *  Icerik rakamla baslayip bosluk iceriyorsa da duz yazidir. */
 function renderMathInText(text) {
   if (!text) return '';
   const escaped = escapeHtml(String(text));
   if (!window.katex) return escaped;
-  return escaped.replace(/\$(.*?)\$/g, (match, latex) => {
+  return escaped.replace(/\$(?=\S)((?:[^$\\]|\\.)*?\S)\$(?!\d)/g, (match, latex) => {
+    if (/^\d[\d.,]*\s/.test(latex)) return match;
     try {
       return window.katex.renderToString(latex, { displayMode: false, throwOnError: false });
     } catch (e) {
@@ -2983,6 +3085,96 @@ function renderMathInText(text) {
   });
 }
 window.renderMathInText = renderMathInText;
+
+/** Bir cozumlu ornek adiminin HTML'i: aciklama ve altinda hesap satiri. */
+function renderWorkedStepHtml(step) {
+  const { label, calc } = splitStepCalc(step);
+  if (!calc) return `<li class="ws-step"><span class="ws-label">${renderMathInText(label)}</span></li>`;
+  const lines = splitCalcChain(prettyCalc(calc));
+  const calcHtml = lines.map((l, i) => `<span class="ws-calc-line${i ? ' ws-cont' : ''}">${escapeHtml(l)}</span>`).join('');
+  return `<li class="ws-step">${label ? `<span class="ws-label">${renderMathInText(label)}</span>` : ''}<div class="ws-calc">${calcHtml}</div></li>`;
+}
+
+/** Ozeti paragraflara ayirir. "**Giris.** govde" -> { lead, body }.
+ *  Tek blok gelen eski ozetler cumle sinirindan ~450 krk'lik paragraflara
+ *  bolunur — metinden tek karakter dusmez, yalnizca bosluk eklenir. */
+/** Metnin sonunda kapanmamis bir *vurgu* / **kalin** var mi? */
+function acikVurgu(seg) {
+  const re = /(^|[\s(“"])(\*{1,2})(?=[^*\s])/g;
+  let son = -1;
+  let m;
+  while ((m = re.exec(seg)) !== null) son = m.index + m[1].length + m[2].length;
+  return son >= 0 && seg.indexOf('*', son) === -1;
+}
+
+const OZET_KISALTMA_RE = /(?:^|[\s(])(?:vs|e\.g|i\.e|etc|fig|eq|approx|no|vol|pp|cf|al|örn|bkz|vb|yy|[A-Z])\.$/i;
+
+function summaryParagraphs(summary, target = 600) {
+  const text = String(summary || '').replace(/\r/g, '').replace(/\\n/g, '\n').trim();
+  if (!text) return [];
+  let paras = text.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+  if (paras.length === 1 && paras[0].includes('\n')) {
+    paras = paras[0].split('\n').map(p => p.trim()).filter(Boolean);
+  }
+  if (paras.length === 1 && paras[0].length > target * 1.6) {
+    // Cumle sinirlari elle: lookbehind'li bir split eski Safari'de tum
+    // dosyayi ayristirma hatasina dusururdu. Sinir = [.!?] + bosluk +
+    // buyuk harf/tirnak; "484.12" (bosluksuz) bolunmez.
+    const t = paras[0];
+    const cumleler = [];
+    let bas = 0;
+    for (let i = 0; i < t.length - 2; i++) {
+      if (!/[.!?]/.test(t[i]) || !/\s/.test(t[i + 1])) continue;
+      // "vs.", "e.g.", bas harf: cumle sonu degil.
+      if (t[i] === '.' && OZET_KISALTMA_RE.test(t.slice(Math.max(bas, i - 8), i + 1))) continue;
+      // Acik bir *vurgu* ya da **kalin** icindeyken bolme. Yalnizca ACAN
+      // yildiz sayilir (oncesi bosluk/baslangic, sonrasi harf): "x* = …"
+      // formul yildizi vurgu acmaz.
+      if (acikVurgu(t.slice(bas, i + 1))) continue;
+      let j = i + 1;
+      while (j < t.length && /\s/.test(t[j])) j++;
+      if (j < t.length && /[A-ZÇĞİÖŞÜ"“(*]/.test(t[j])) {
+        cumleler.push(t.slice(bas, i + 1));
+        bas = j;
+        i = j - 1;
+      }
+    }
+    cumleler.push(t.slice(bas));
+    const gruplar = [];
+    let cur = '';
+    for (const c of cumleler) {
+      if (cur && cur.length + c.length > target) { gruplar.push(cur.trim()); cur = ''; }
+      cur += (cur ? ' ' : '') + c;
+    }
+    if (cur.trim()) gruplar.push(cur.trim());
+    // Son parca cok kisaysa oncekine eklenir.
+    if (gruplar.length > 1 && gruplar[gruplar.length - 1].length < target / 3) {
+      const son = gruplar.pop();
+      gruplar[gruplar.length - 1] += ' ' + son;
+    }
+    paras = gruplar;
+  }
+  return paras.map(p => {
+    const m = p.match(/^\*\*([^*]+?)\*\*\s*([\s\S]*)$/);
+    return m ? { lead: m[1].trim(), body: m[2].trim() } : { lead: '', body: p };
+  });
+}
+
+/** Satir ici **kalin** ve *italik* isaretleri. Formuldeki yildiza ("x* = …",
+ *  "2 * x") dokunmaz: acan yildizin solu bosluk/baslangic, sagi bosluk
+ *  olmayan bir karakter olmali. */
+function inlineMarkdown(html) {
+  return String(html || '')
+    .replace(/\*\*([^*\n]+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[\s(“"])\*([^*\s][^*\n]*?[^*\s]|[^*\s])\*(?=[\s.,;:)!?”"]|$)/g, '$1<em>$2</em>');
+}
+
+/** PDF icin: isaretleri sil, metni koru. */
+function stripInlineMarkdown(text) {
+  return String(text || '')
+    .replace(/\*\*([^*\n]+?)\*\*/g, '$1')
+    .replace(/(^|[\s(“"])\*([^*\s][^*\n]*?[^*\s]|[^*\s])\*(?=[\s.,;:)!?”"]|$)/g, '$1$2');
+}
 
 async function viewStudyCard(docId, docName, readOnly = false, selectedCardId = null) {
   console.log("viewStudyCard fired for docId:", docId, "docName:", docName, "selectedCardId:", selectedCardId);
@@ -12891,6 +13083,7 @@ const LATEX_SEMBOL = {
   approx: '≈', neq: '≠', leq: '≤', geq: '≥', le: '≤', ge: '≥',
   rightarrow: '→', Rightarrow: '⇒', leftarrow: '←', to: '→',
   hat: '^', bar: '‾', ldots: '…', dots: '…', quad: ' ', qquad: '  ',
+  cdots: '⋯', ne: '≠', propto: '∝', sim: '∼', circ: '∘', in: '∈', ell: 'ℓ',
 };
 const LATEX_ALT = { '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄', '5': '₅',
   '6': '₆', '7': '₇', '8': '₈', '9': '₉', '+': '₊', '-': '₋', '=': '₌',
@@ -12916,6 +13109,7 @@ const LATEX_ASCII = {
   approx: '~=', neq: '!=', leq: '<=', geq: '>=', le: '<=', ge: '>=',
   rightarrow: '->', Rightarrow: '=>', leftarrow: '<-', to: '->',
   hat: '^', bar: '-', ldots: '...', dots: '...', quad: ' ', qquad: '  ',
+  cdots: '...', ne: '!=', propto: '~', sim: '~', circ: 'o', in: 'in', ell: 'l',
 };
 
 function latexToUnicode(raw, unicodeReady = true) {
@@ -12924,6 +13118,16 @@ function latexToUnicode(raw, unicodeReady = true) {
 
   // Dizgi sarmalayicilari: $...$, \(...\), \[...\]
   s = s.replace(/^\s*\$+|\$+\s*$/g, '').replace(/\\[()[\]]/g, '');
+
+  // Cift kacisli komut ("\\beta"): model JSON'da fazladan kacis yazinca
+  // metne iki ters bolu geliyor; asagidaki adimlar "\β" basiyordu (canli
+  // PDF: "y=\β₀+\∑ⱼ₌₁^k ... + cdots"). Harften once gelen cift ters bolu
+  // teke iner; gercek satir sonu ("a \\ b") arkasindan bosluk geldigi icin
+  // etkilenmez.
+  s = s.replace(/\\\\(?=[A-Za-z])/g, '\\');
+  // \left( ... \right) -> ( ... ): boyut komutlari duz metinde anlamsiz,
+  // ve asagidaki "tanimsiz komut" adimi onlari "left(" diye birakiyordu.
+  s = s.replace(/\\(?:left|right|big|Big|bigg|Bigg)\s*(?=[()[\]{}|.\\])/g, '').replace(/\\[{}]/g, m => m[1]);
 
   // \text{...}, \mathrm{...} -> icerik
   s = s.replace(/\\(?:text|mathrm|mathit|mathbf|operatorname)\s*\{([^{}]*)\}/g, '$1');
@@ -12948,7 +13152,10 @@ function latexToUnicode(raw, unicodeReady = true) {
   s = s.replace(new RegExp(`\\\\(${adlar.join('|')})(?![A-Za-z])`, 'g'),
     (_m, ad) => tablo[ad]);
   // \ln, \log, \exp, \min, \max gibi operatorler: ters bolu atilir.
-  s = s.replace(/\\(ln|log|exp|min|max|lim|sin|cos|tan|det|var|cov|arg)\b/g, '$1');
+  // Bitisik onceki simgeyle arasina bosluk girer: "\beta_1\ln x" yoksa
+  // "β_1ln x" olur ve alt simge kurali (2+ harf = snake_case) _1'i birakir.
+  s = s.replace(/([^\s(])?\\(ln|log|exp|min|max|lim|sin|cos|tan|det|var|cov|arg)\b/g,
+    (_m, once, ad) => (once ? `${once} ${ad}` : ad));
 
   // Alt/ust simge: once {..} grubu, sonra tek karakter.
   const cevir = (metin, tablo) => {
@@ -13401,6 +13608,16 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
      korunuyor) ve IDEMPOTENT, yani formul yolundaki acik cagriyla iki kez
      calismasi sorun degil. */
   const safeText = (txt) => pdfText(unicodeReady, latexToUnicode(txt, unicodeReady));
+  // Cozumlu ornek adimlari: numarasiz, aciklama + hesap satirlari (bkz.
+  // normalizeWorkedSteps / splitStepCalc). Hesap uzunsa "= ..." satirlarina
+  // bolunur.
+  const pdfWorkedSteps = (e) => normalizeWorkedSteps(e && e.steps).map((step, si) => {
+    const { label, calc } = splitStepCalc(step);
+    const calcLines = calc ? splitCalcChain(pdfText(unicodeReady, prettyCalc(calc, unicodeReady)), 60) : [];
+    // Aciklamasiz adimda numara hesabin ilk satirina gider.
+    if (!label && calcLines.length) calcLines[0] = `${si + 1}. ${calcLines[0]}`;
+    return { label, calcLines };
+  });
 
   doc.addPage(); // every card now starts on its own fresh page, after the cover (and, in bulk exports, the table of contents)
   let y = 35;
@@ -13444,20 +13661,49 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
   const cardState = () => ({ margin, maxWidth, pageHeight, y, unicodeReady });
 
   // 1. Summary — boxed card
+  //
+  // PARAGRAFLARLA (09.10.2026). Ozet tek splitTextToSize'a veriliyordu; tek
+  // blok gelen ozet PDF'te de tek blok kaliyor, "**Giris.**" isaretleri ham
+  // basiliyordu. Artik her paragraf ayri, kalin girisi kendi satirinda
+  // kalin; paragraflar arasi bosluk var. Tek blok eski ozetler cumle
+  // sinirindan bolunur (bkz. summaryParagraphs).
   if (studyCard.summary) {
+    const ozetParagraflari = summaryParagraphs(studyCard.summary);
+    const PARAGRAF_ARASI = 2.6;
     y = drawPdfCard(doc, cardState(), {
       label: 'ÖZET',
       accent: PDF_INK.teal,
       soft: PDF_INK.tealSoft,
       measure: (w) => {
-        pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5);
-        return doc.splitTextToSize(safeText(studyCard.summary), w).length * 5.2;
+        let h = 0;
+        ozetParagraflari.forEach((p, i) => {
+          if (p.lead) {
+            pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(9.5);
+            h += doc.splitTextToSize(safeText(stripInlineMarkdown(p.lead)), w).length * 5.2;
+          }
+          pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5);
+          if (p.body) h += doc.splitTextToSize(safeText(stripInlineMarkdown(p.body)), w).length * 5.2;
+          if (i < ozetParagraflari.length - 1) h += PARAGRAF_ARASI;
+        });
+        return h;
       },
       render: (x, ry, w, allowBreak) => {
-        pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.body);
-        doc.splitTextToSize(safeText(studyCard.summary), w).forEach(line => {
-          if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
-          doc.text(line, x, ry); ry += 5.2;
+        ozetParagraflari.forEach((p, i) => {
+          if (p.lead) {
+            pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.navy);
+            doc.splitTextToSize(safeText(stripInlineMarkdown(p.lead)), w).forEach(line => {
+              if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
+              doc.text(line, x, ry); ry += 5.2;
+            });
+          }
+          pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.body);
+          if (p.body) {
+            doc.splitTextToSize(safeText(stripInlineMarkdown(p.body)), w).forEach(line => {
+              if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
+              doc.text(line, x, ry); ry += 5.2;
+            });
+          }
+          if (i < ozetParagraflari.length - 1) ry += PARAGRAF_ARASI;
         });
         return ry;
       },
@@ -13708,8 +13954,10 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
             h += doc.splitTextToSize(safeText(e.title || `Örnek ${i + 1}`), w).length * 5.5 + 1;
             pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5);
             if (e.problem_statement) h += doc.splitTextToSize(safeText(e.problem_statement), w).length * 5.2 + 1;
-            (Array.isArray(e.steps) ? e.steps : []).forEach((s, si) => {
-              h += doc.splitTextToSize(safeText(`${si + 1}. ${s}`), w - 6).length * 5;
+            pdfWorkedSteps(e).forEach((st, si) => {
+              if (st.label) h += doc.splitTextToSize(safeText(`${si + 1}. ${st.label}`), w - 6).length * 5;
+              st.calcLines.forEach(l => { h += doc.splitTextToSize(l, w - 14).length * 5; });
+              h += 0.8;
             });
             pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(9.5);
             if (e.final_answer) h += doc.splitTextToSize(safeText(`Sonuç: ${e.final_answer}`), w).length * 5.2;
@@ -13734,12 +13982,24 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
               });
               ry += 1;
             }
-            pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.muted);
-            (Array.isArray(e.steps) ? e.steps : []).forEach((s, si) => {
-              doc.splitTextToSize(safeText(`${si + 1}. ${s}`), w - 6).forEach(line => {
-                if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
-                doc.text(line, x + 6, ry); ry += 5;
+            pdfWorkedSteps(e).forEach((st, si) => {
+              if (st.label) {
+                pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.muted);
+                doc.splitTextToSize(safeText(`${si + 1}. ${st.label}`), w - 6).forEach(line => {
+                  if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
+                  doc.text(line, x + 6, ry); ry += 5;
+                });
+              }
+              // Hesap satiri: girintili, koyu renk — metnin icinde kaybolmasin.
+              pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.navy);
+              st.calcLines.forEach((l, li) => {
+                const girinti = (st.label ? 12 : 6) + (li > 0 ? 4 : 0);
+                doc.splitTextToSize(l, w - 14).forEach(line => {
+                  if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
+                  doc.text(line, x + girinti, ry); ry += 5;
+                });
               });
+              ry += 0.8;
             });
             if (e.final_answer) {
               pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.amberDark);
