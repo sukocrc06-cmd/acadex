@@ -13596,9 +13596,12 @@ function drawMermaidSourceFallback(doc, unicodeReady, diagramObj, margin, y, max
   pdfSetFont(doc, unicodeReady, 'normal');
   doc.setFontSize(PDF_TYPE.bodySize);
   doc.setTextColor(...PDF_INK.body);
+  /* Gomulu Unicode font yoksa "—yes→" WinAnsi'de basilamaz; ASCII karsiligi
+     yazilir (bkz. LATEX_ASCII'deki ayni mantik). */
+  const okYaz = (s) => (unicodeReady ? s : String(s).replace(/—([^—→]*)→/g, '-$1->').replace(/→/g, '->'));
   const satirlar = adimlar.length ? adimlar : [String((diagramObj && diagramObj.mermaid) || '')];
   satirlar.forEach((adim) => {
-    doc.splitTextToSize(safeText(adim), maxWidth - 6).forEach((line, li) => {
+    doc.splitTextToSize(safeText(okYaz(adim)), maxWidth - 6).forEach((line, li) => {
       if (y > pageHeight - 15) { doc.addPage(); y = 35; }
       doc.text(line, margin + (li === 0 ? 0 : 6), y);
       y += 5;
@@ -13676,7 +13679,7 @@ function drawPdfCard(doc, state, opts) {
   const contentH = opts.measure(maxWidth);
   /* Baslik sayfanin dibinde yalniz kalmasin: ya bolumun tamami sigsin ya da
      en az bir baslik + birkac satirlik yer olsun. */
-  const MIN_BLOK = 30;
+  const MIN_BLOK = 26;
   if (y + Math.min(contentH + 10, MIN_BLOK) > pageBottom) {
     doc.addPage();
     y = 35;
@@ -14212,6 +14215,7 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
       y += 6;
       y = drawPdfTable(doc, unicodeReady, t.headers || [], t.rows || [], margin, y, maxWidth, safeText);
     });
+    y += PDF_TYPE.sectionGap;
   }
 
   // 6. Charts Section
@@ -14244,6 +14248,7 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
         y = drawChartDataFallback(doc, unicodeReady, c, margin, y, maxWidth, safeText);
       }
     });
+    y += PDF_TYPE.sectionGap;
   }
 
   // 7. Diagrams Section
@@ -14288,6 +14293,7 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
         y = drawMermaidSourceFallback(doc, unicodeReady, d, margin, y, maxWidth, safeText);
       }
     });
+    y += PDF_TYPE.sectionGap;
   }
 
   // 8. Cloze cards — prompts first, answers in a key at the end.
