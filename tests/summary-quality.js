@@ -42,6 +42,8 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'CHART_TYPES', 'CHART_MIN_POINTS', 'sanitizeCharts',
   // gorsel sayfa secimi
   'FIGURE_CAPTION_RE', 'selectVisualPages',
+  // Veriye atif eden ama veriyi tasimayan sayfa katmani (09.10.2026).
+  'DANGLING_DATA_RE', 'DANGLING_MAX_CHARS', 'EMPIRICAL_ANCHOR_RE', 'MODEL_DEFINITION_RE',
   'VISION_TOKENS_PER_IMAGE', 'VISION_MAX_IMAGES', 'VISUAL_MIN_BUDGET_MS',
   // bosluk doldurma kartlari
   'clozeTermPattern', 'turkishIClasses', 'blankAllOccurrences',
@@ -67,6 +69,9 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'JSON_GECERLI_KACIS', 'repairLatexEscapes',
   // Yokluk iddiasi kapisi (08.10.2026).
   'YOKLUK_IDDIASI',
+  // Pencere cikis tavani serit butcesinden turetilir (09.10.2026).
+  'WINDOW_COMPLETION_MIN', 'WINDOW_COMPLETION_MAX', 'WINDOW_COMPLETION_MARGIN',
+  'windowCompletionFor', 'windowCompletionFloored',
   // Sayisal kapsama olcusu (09.10.2026).
   'SAYFA_ISARETI_RE', 'SAYISAL_KAPSAMA_TOLERANS', 'SAYI_BELIRTECI', 'SAYISAL_KAPSAMA_ORNEK',
   'sayiOkumalari', 'distinctiveNumbers', 'outputNumbers', 'yakinDegerVar',
@@ -85,7 +90,11 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   // Review duzeltmesi kaynaktaki icerigi silemez (09.10.2026).
   'DUZELTME_SILME_ORANI', 'DUZELTME_DAYANAK_ORANI', 'IDARI_GURULTU_RE', 'kaynakIcerigiSiliyor',
   // Reddedilen uretimin kurtarilmasi (09.10.2026).
-  'salvageFailedGeneration'
+  'salvageFailedGeneration',
+  // Tablo sayfalarinin satir satir okunmasi (09.10.2026).
+  'SUTUN_BOSLUGU_EM', 'TABLO_SATIR_MIN', 'tabloBicimliMi', 'TABLO_SUTUN_MIN',
+  'TABLO_HUCRE_MAX', 'TABLO_HIZA_EM', 'tabanSatirlari', 'tableLayout', 'pageBoxes',
+  'detectAndFormatPdfTables'
 ]);
 
 const { test, summary } = makeRunner();
@@ -1253,6 +1262,84 @@ test('secilen sayfalar okuma sirasinda doner', () => {
   assert.deepEqual(r.indices, [...r.indices].sort((a, b) => a - b), 'sayfa sirasi artan olmali');
 });
 
+/* ---------------------------------------------------------------------------
+   IKINCI KATMAN: VERIYE ATIF EDEN AMA VERIYI TASIMAYAN SAYFA (09.10.2026)
+
+   Ekonometri destesinde FIGURE_CAPTION_RE hic tutmuyor (slaytlarda altyazi
+   yok) ve is bos-sayfa yedegine kaliyordu: secilen 3. sayfa bir bolum
+   ayraci, 17. sayfanin tablosu ise metindeki denklemden turetilebiliyor.
+   Bu arada yedi Excel regresyon ciktisinin hicbiri okunmuyordu; referansta
+   eksik kalan bes maddenin hepsi orada.
+   --------------------------------------------------------------------------- */
+// Canli desteden birebir alinmis metinler.
+const EKONOMETRI = (() => {
+  const p = Array.from({ length: 42 }, (_, i) => `Slayt ${i + 1} govdesi, duz metin.`);
+  p[2]  = '7-3';                                   // bolum ayraci, neredeyse bos
+  p[3]  = 'Construct and Use Qualitative Independent Variables\n' +
+          '• Qualitative explanatory variable (dummy variable) with two or more levels\n' +
+          '• Regression intercepts are different if the variable is statistically significant\n' +
+          '• Assumes equal slopes for the other variables';
+  p[10] = 'Excel Example\nWhat type of relationship exists between energy use per capita and GDP per Capita. ' +
+          'The initial regression is as follows:\nOn average, if GDP per capita increases by $1000 US dollars, ' +
+          'energy consumption per capita increases by .07 tons. This is statistically significant at the 1% level.';
+  p[26] = 'Utility Bill vs. Temperature – Simple Linear Regression\n' +
+          'Even though the scatter plot shows a clear relationship between utility bill and temperature, ' +
+          'there is no linear relationship between these two variables.';
+  p[27] = 'Utility Bill vs. Temperature – Quadratic Regression\n' +
+          'UtilityBill = 484.12 − 12.08temp + 0.09temp^2\n' +
+          'When a quadratic relationship is fit between utility bill and monthly temperature the linear and ' +
+          'quadratic terms are now statistically significant at the 1% level.';
+  p[36] = 'Log – Linear Model\nThe population regression function is specified as\nln y = β0 + β1x1 + ε\n' +
+          'and β1 is interpreted as, "on average, if x1 increases by 1 unit then y increases by β1100%"';
+  p[40] = 'Empirical Example of the Log – Log Model\nThe dependent variable is the natural log of energy per capita\n' +
+          'This slope coefficient on lngdppc is interpreted as, "on average, if GDP per capita increases by 1% ' +
+          'then energy consumption per capita goes up by .69%." This coefficient is statistically significant at the 1% level.';
+  return p;
+})();
+
+test('altyazi yoksa VERI REFERANSI katmani devreye girer, bos sayfa yedegi degil', () => {
+  const nearBlank = EKONOMETRI.map((t, i) => ({ i, len: t.trim().length }))
+    .filter(x => x.len < 150).map(x => x.i);
+  assert.ok(nearBlank.includes(2), 'fikstur: 3. sayfa neredeyse bos olmali');
+  const r = A.selectVisualPages(EKONOMETRI, nearBlank, A.VISION_MAX_IMAGES);
+  assert.match(r.reason, /veri referansi/, r.reason);
+  assert.ok(!r.indices.includes(2), 'bolum ayraci yine secildi');
+});
+
+test('TEORI slayti secilmez — veriye degil kurala atif ediyor', () => {
+  const r = A.selectVisualPages(EKONOMETRI, [], A.VISION_MAX_IMAGES);
+  assert.ok(!r.indices.includes(3), '4. slayt (kural anlatan madde listesi) secildi');
+  assert.ok(!r.indices.includes(36), '37. slayt (populasyon modeli tanimi) secildi');
+});
+
+test('metninde EN AZ sayi olan sayfa oncelikli', () => {
+  // 27. slayt metninde hic ayirt edici sayi yok (tablosunda R²=0.124, p=0.261);
+  // 41. slaytta yalnizca .69 var. 28. slayt denklemi zaten metninde tasiyor.
+  const r = A.selectVisualPages(EKONOMETRI, [], 2);
+  assert.deepEqual(r.indices, [26, 40], `secilen: ${r.indices}`);
+});
+
+test('katman sirasi: altyazi > veri referansi > bos sayfa', () => {
+  // Altyazili bir sayfa eklenince o kazanir.
+  const ikisi = EKONOMETRI.slice();
+  ikisi[5] = 'FIGURE 7.1  Energy per capita\n' + 'x'.repeat(120);
+  const r = A.selectVisualPages(ikisi, [2], A.VISION_MAX_IMAGES);
+  assert.match(r.reason, /sekil basligi/, r.reason);
+  assert.ok(r.indices.includes(5));
+  // Hicbiri yoksa bos sayfa yedegi kalir.
+  const duz = Array.from({ length: 10 }, (_, i) => `Slayt ${i + 1} duz metin, atif yok.`);
+  const y = A.selectVisualPages(duz, [1, 4], 2);
+  assert.match(y.reason, /bos sayfa yedegi/, y.reason);
+  assert.deepEqual(y.indices, [1, 4]);
+});
+
+test('UZUN duz yazi sayfasi veri referansi sayilmaz', () => {
+  const uzun = Array.from({ length: 5 }, () => 'duz metin');
+  uzun[2] = 'The dependent variable is income. This coefficient is statistically significant. ' + 'x'.repeat(1000);
+  const r = A.selectVisualPages(uzun, [0], 2);
+  assert.match(r.reason, /bos sayfa yedegi/, `uzun sayfa secildi: ${r.reason}`);
+});
+
 test('sekil basligi yoksa bos sayfa yedegine duser', () => {
   const plain = ['bir', 'iki', 'uc', 'dort', 'bes'];
   const r = A.selectVisualPages(plain, [1, 3], 2);
@@ -1544,9 +1631,14 @@ test('pencere token butcesi pacer tavaninin altinda', () => {
     SRC.slice(callIdx, callIdx + 400).includes('compactWindowPrompt(wi, windows.length)'),
     'capa dogru cagriyi gostermiyor — pencere cagrisi tasinmis olabilir'
   );
-  const mCompletion = SRC.slice(callIdx, callIdx + 1500).match(/maxCompletionTokens: (\d+)/);
-  assert.ok(mCompletion, 'pencere maxCompletionTokens bulunamadi');
-  const maxCompletion = Number(mCompletion[1]);
+  // 09.10.2026: tavan artik sabit degil, serit butcesinden turetiliyor
+  // (windowCompletionFor). Test sayiyi degil ILISKIYI koruyor: cagri
+  // turetilmis degeri kullanmali ve sonuc tavanin altinda kalmali.
+  assert.ok(
+    /maxCompletionTokens: winCompletion/.test(SRC.slice(callIdx, callIdx + 1500)),
+    'pencere cagrisi turetilmis cikis tavanini kullanmiyor'
+  );
+  const maxCompletion = A.windowCompletionFor(prompt, 'x'.repeat(WINDOW));
 
   const est = A.estimateTokens(prompt, 'x'.repeat(WINDOW), maxCompletion);
   const ceiling = Math.floor(A.DEFAULT_TPM_LIMIT * A.PACER_SAFETY);
@@ -1564,6 +1656,18 @@ test('pencere token butcesi pacer tavaninin altinda', () => {
     est > ceiling * 0.7,
     `pencere butcenin ${Math.round((est / ceiling) * 100)}%'ini kullaniyor — ` +
     `WINDOW gereksiz yere kucuk, bu her belgede fazladan pencere ve fazladan bekleme demek`
+  );
+
+  /* GERCEK TPM SINIRI. Pacer'in 7.200'u kendi guvenlik payi; Groq'un saydigi
+     8.000. Eski duz 3.072 tam burada hatali idi: WINDOW=13.000 ile prompt
+     tek basina ~5.150 token, uzerine 3.072 eklenince 8.221 ediyordu ve o
+     cagri reddedilmeye adaydi. Turetilmis tavan bunu yapisal olarak
+     engelliyor. */
+  const promptTok = Math.ceil((prompt.length + WINDOW) / 3.2);
+  assert.ok(
+    promptTok + maxCompletion <= A.DEFAULT_TPM_LIMIT,
+    `gercek en kotu ${promptTok} + ${maxCompletion} = ${promptTok + maxCompletion} ` +
+    `> ${A.DEFAULT_TPM_LIMIT} TPM — tek cagri sinirin ustunde`
   );
 });
 
@@ -2409,7 +2513,12 @@ test('review ve critic de serit secebiliyor', () => {
      gercekte neyin bos oldugana bakarak yapiyor. Sabitleme ayrica review u
      vision in az once qwen de harcadigina mahkum ediyordu: 05.10.2026'da
      vision 2 saniye once bitti ve review a 58sn bekleme cikarildi. */
-  assert.ok(/const reviewLane = pickLane/.test(SRC), 'review serit secmeli');
+  /* 09.10.2026: serit secimi reviewTierPlan'in icine girdi (kademeyi butce
+     seciyor, serit de o kademenin tahminiyle seciliyor). Testin iddiasi
+     degismedi: review serit SECMELI, sabitlenmemeli. */
+  assert.ok(/const lane = pickLane\(\[MODEL_FAST, MODEL_EXTRACT, MODEL_HEAVY\], est,/.test(SRC),
+    'review serit secmeli');
+  assert.ok(/const reviewLane = reviewPlan\.lane/.test(SRC), 'review secilen seridi kullanmali');
   assert.ok(/const criticLane = pickLane/.test(SRC), 'critic de secmeli');
   // Hicbir yerde MODEL_FAST e sabitlenmis cagri kalmamali (vision haric —
   // qwen tek gorme yetenekli model).
@@ -3396,6 +3505,16 @@ test('29. slayt: tahmin denklemi ve marjinal etki hesabi okunur hale geliyor', (
   assert.equal(A.countMathPua(r.text), 0, 'PUA kalmamali');
 });
 
+test('YAN YANA operatorler sutun ayraci URETMEZ', () => {
+  /* Sutun ayraci (iki bosluk) korunmaya baslayinca ortaya cikti: "= −"
+     ikilisi her operator kendi dolgusunu yazdigi icin "=  −" oluyordu ve
+     29. slaydin marjinal etki satiri tablo hucresi gibi bolunuyordu. */
+  const t = A.chooseEquationPageText(DENKLEM['ekonometri-29']).text;
+  const satir = t.split('\n').find(l => /2\(0\.09\)39/.test(l)) || '';
+  assert.ok(!/ {2,}/.test(satir), `denklem satirinda sutun ayraci var: ${JSON.stringify(satir)}`);
+  assert.ok(satir.includes('= − 12.08 + 7.02 = − 5.06'), satir);
+});
+
 test('17. slayt: etkilesim denklemi soldan saga, alt simgeli', () => {
   const r = A.chooseEquationPageText(DENKLEM['ekonometri-17']);
   assert.ok(r.text.includes('\u0177 = 18.30 + 98x_1 + 22.44x_2 + 16.38x_3 + 45x_1 x_2 + 32x_1 x_3'), r.text);
@@ -3554,6 +3673,9 @@ test('kapi: uydurma ornegi ATAR, dogru ornegi tutar', () => {
   assert.equal(r.kept[0].title, DOGRU_ORNEK.title);
   assert.equal(r.dropped.length, 1);
   assert.ok(/Utility Bill/.test(r.dropped[0]));
+  // Adim metni de loga girmeli: kapinin hakli mi oldugu ancak boyle anlasilir.
+  assert.ok(/adim: "/.test(r.dropped[0]), `adim metni yok: ${r.dropped[0]}`);
+  assert.ok(/0\.1212/.test(r.dropped[0]), `suclu adim yanlis: ${r.dropped[0]}`);
 });
 
 
@@ -3765,6 +3887,262 @@ test('dusen pencere SESSIZ gecmiyor: log + karta yaziliyor', () => {
   const bildirim = KAPSAMA_KOD.indexOf('qualityMeta.missing_windows = eksikPencereler');
   const insert = KAPSAMA_KOD.indexOf(".from('study_cards').insert(cardPayload)");
   assert.ok(bildirim > -1 && insert > bildirim, 'insert\'ten sonra yaziliyor — karta girmez');
+});
+
+
+console.log('\nPENCERE CIKIS TAVANI (serit butcesinden turetilir)\n');
+
+/* 09.10.2026, canli kosu — iki pencere de basarili:
+     Window 1 token: prompt=2995 completion=2452 / max=3072   (%80)
+     Window 2 token: prompt=3248 completion=2887 / max=3072   (%94)
+   Referansa gore metinde VAR ama karta girmemis 8 maddenin 6'si pencere
+   2'nin bolgesinde (slayt 22, 25, 32, 33, 39, 42). Pencere 2 yazacak yer
+   bulamiyor; ayni anda serit tavaninda 7200 - 3248 - 3072 = 880 token bos
+   duruyor. */
+const CANLI_PENCERE_KRK = 7172;   // 14.344 / 2
+const destePromptu = (total) => pencerePromptu(total, A.buildSlideDeckInstruction(true, 'slide'));
+
+test('canli pencere icin tavan 3072 den YUKSEK ve gercek sinirin altinda', () => {
+  const sys = destePromptu(2);
+  const c = A.windowCompletionFor(sys, 'x'.repeat(CANLI_PENCERE_KRK));
+  assert.ok(c > 3072, `tavan buyumedi: ${c}`);
+  // Olculen gercek prompt 3248; en kotu durum gercek TPM sinirinin altinda.
+  assert.ok(3248 + c <= A.DEFAULT_TPM_LIMIT, `gercek en kotu ${3248 + c} > TPM`);
+  // Pacer'in kendi hesabi da sigmali, yoksa her pencere bir dakika bekler.
+  const tavan = Math.floor(A.DEFAULT_TPM_LIMIT * A.PACER_SAFETY);
+  assert.ok(A.estimateTokens(sys, 'x'.repeat(CANLI_PENCERE_KRK), c) <= tavan, 'pacer tavanini asiyor');
+});
+
+test('BUYUYEN pencere tavani kucultur, kuculen buyutur', () => {
+  const sys = destePromptu(2);
+  const kucuk = A.windowCompletionFor(sys, 'x'.repeat(3000));
+  const orta = A.windowCompletionFor(sys, 'x'.repeat(CANLI_PENCERE_KRK));
+  const buyuk = A.windowCompletionFor(sys, 'x'.repeat(13000));
+  assert.ok(kucuk >= orta && orta >= buyuk, `monoton degil: ${kucuk}/${orta}/${buyuk}`);
+  assert.equal(kucuk, A.WINDOW_COMPLETION_MAX, 'kisa belgede tavan serbest kalmali');
+  assert.equal(buyuk, A.WINDOW_COMPLETION_MIN, 'cok buyuk pencerede tabana inmeli');
+});
+
+test('HER BOYUTTA gercek TPM sinirinin altinda kalinir', () => {
+  const sys = destePromptu(2);
+  for (let krk = 1000; krk <= 12000; krk += 500) {
+    const c = A.windowCompletionFor(sys, 'x'.repeat(krk));
+    const promptTok = Math.ceil((sys.length + krk) / 3.2);
+    assert.ok(promptTok + c <= A.DEFAULT_TPM_LIMIT,
+      `${krk} krk: ${promptTok} + ${c} = ${promptTok + c} > ${A.DEFAULT_TPM_LIMIT}`);
+  }
+});
+
+test('taban baglayinca UYARI veriliyor — pencere cok buyuk demek', () => {
+  const sys = destePromptu(2);
+  assert.equal(A.windowCompletionFloored(sys, 'x'.repeat(CANLI_PENCERE_KRK)), false);
+  assert.equal(A.windowCompletionFloored(sys, 'x'.repeat(13000)), true);
+  assert.ok(/Pencere cikis tavani TABANA dayandi/.test(KAPSAMA_KOD), 'uyari satiri yok');
+});
+
+test('duz 3072 pencere yolundan TAMAMEN kalkti', () => {
+  assert.ok(/maxCompletionTokens: winCompletion/.test(KAPSAMA_KOD), 'cagri hala sabit');
+  assert.ok(/pickLane\(\[MODEL_HEAVY, MODEL_EXTRACT\], est, winCompletion\)/.test(KAPSAMA_KOD), 'serit secimi sabit');
+  assert.ok(/const retryCompletion = windowCompletionFor\(/.test(KAPSAMA_KOD), 'yeniden deneme sabit');
+  // extractWindow govdesinde hic duz 3072 kalmamali.
+  const bas = KAPSAMA_KOD.indexOf('async function extractWindow');
+  const son = KAPSAMA_KOD.indexOf('const windowResults', bas);
+  assert.ok(bas > -1 && son > bas, 'extractWindow bulunamadi');
+  assert.ok(!/\b3072\b/.test(KAPSAMA_KOD.slice(bas, son)), 'extractWindow icinde hala 3072 var');
+});
+
+test('winCompletion if/else DISINDA tanimli (scope-check hatasi)', () => {
+  const i = KAPSAMA_KOD.indexOf('const winCompletion = windowCompletionFor(');
+  const j = KAPSAMA_KOD.indexOf('let windowLane: string');
+  assert.ok(i > -1 && j > i, 'winCompletion windowLane bildiriminden sonra tanimlanmis');
+});
+
+console.log('\nTABLO SAYFALARI SATIR SATIR\n');
+
+/* 09.10.2026. Iki canli kosuda da PENCERELERDEN SIFIR TABLO geldi; karttaki
+   iki tablo yalnizca gorsel gecisin okudugu 17. slayttan. Sebep: 15. slaydin
+   calisma tablosu modele devrik gidiyordu —
+     Case, i / 1 / 2 / 3 / 4 / yi / 1 / 4 / 1 / 3 / x1i / ...
+   cunku xyCut once SUTUNU ayiriyor (slaytta denklem solda, kutu sagda
+   oldugu icin dogru karar, tabloda yikici). Ayrica detectAndFormatPdfTables
+   sutunlari iki bosluktan tanir ve unpdf'in akis metninde hic bosluk yok —
+   yani o fonksiyon bu boru hattinda hic calisamiyordu. */
+
+test('15. slayt: calisma tablosu SATIR SATIR okunuyor', () => {
+  const r = A.chooseEquationPageText(DENKLEM['ekonometri-15']);
+  assert.ok(r.rebuilt, 'yeniden dizilmedi');
+  const satirlar = r.text.split('\n');
+  assert.ok(satirlar.some(l => /^Case, i {2,}yi {2,}x1i {2,}x2i {2,}x1i x2i$/.test(l)),
+    'baslik satiri sutunlu degil:\n' + r.text);
+  for (const veri of ['2  4  8  0  0', '4  3  5  1  5']) {
+    assert.ok(satirlar.includes(veri), `veri satiri yok: ${veri}\n${r.text}`);
+  }
+  // Devrik okuma: her hucre kendi satirinda olurdu.
+  assert.ok(!/^yi$/m.test(r.text), 'hala devrik okunuyor');
+});
+
+test('sutun ayraci detectAndFormatPdfTables ile markdown tabloya doneyor', () => {
+  const r = A.chooseEquationPageText(DENKLEM['ekonometri-15']);
+  const md = A.detectAndFormatPdfTables(r.text);
+  assert.ok(/\| Case, i \| yi \| x1i \| x2i \| x1i x2i \|/.test(md), md);
+  assert.ok(/\| 2 \| 4 \| 8 \| 0 \| 0 \|/.test(md), 'veri satiri markdown degil');
+  assert.equal((md.match(/^\| --- \|/gm) || []).length, 1, 'tam bir tablo bekleniyordu');
+});
+
+test('tablo kipinde alt simge ve ust simge KORUNUYOR', () => {
+  const t = A.chooseEquationPageText(DENKLEM['ekonometri-15']).text;
+  assert.ok(t.includes('multiply x_1 by x_2 to get x_1 x_2'), t);
+  assert.ok(!/multiply x {2,}1/.test(t), 'alt simge sutun ayracina donmus');
+});
+
+test('DENKLEM sayfalari tablo SAYILMIYOR (sapkalar korunur)', () => {
+  for (const k of ['ekonometri-29', 'ekonometri-30', 'ekonometri-10', 'ekonometri-17']) {
+    assert.equal(A.tableLayout(A.pageBoxes(DENKLEM[k])), null, `${k} tablo sanildi`);
+  }
+  // 30. slayt tablo kipine girerse sapkalari kaybediyordu.
+  assert.ok(/β̂_1 \+ 2β̂_2 x_j = 0/.test(A.chooseEquationPageText(DENKLEM['ekonometri-30']).text.normalize('NFC')),
+    'turev satirindaki sapkalar kayip');
+  // 23. slaytin ikinci derece formulu kareyi korumali.
+  assert.ok(/x\^2_j/.test(A.chooseEquationPageText(DENKLEM['ekonometri-23']).text), 'kare kayip');
+});
+
+test('duz yazi ve madde isaretli sayfalar tablo SAYILMIYOR', () => {
+  for (const k of ['muhasebe-38', 'ekonomi-27', 'muhasebe5-20']) {
+    assert.equal(A.tableLayout(A.pageBoxes(DENKLEM[k])), null, `${k} tablo sanildi`);
+    assert.equal(A.chooseEquationPageText(DENKLEM[k]).rebuilt, false, `${k} yeniden dizildi`);
+  }
+});
+
+test('tablo olcutu: ayni hucre sayisi + kisa hucre + hizali sutun', () => {
+  const kutu = (s, x, y, fs = 10) => ({ s, x0: x, x1: x + s.length * fs * 0.5, y, fs, bot: y - 2, top: y + 8, role: '' });
+  // Gercek tablo: uc satir, ucer hizali hucre.
+  const tablo = [
+    kutu('A', 10, 100), kutu('B', 60, 100), kutu('C', 110, 100),
+    kutu('1', 10, 80), kutu('2', 60, 80), kutu('3', 110, 80),
+    kutu('4', 10, 60), kutu('5', 60, 60), kutu('6', 110, 60)
+  ];
+  assert.ok(A.tableLayout(tablo), 'gercek tablo taninmadi');
+  // Hizasiz: ayni sayida hucre ama sutunlar kayiyor.
+  const kayik = [
+    kutu('A', 10, 100), kutu('B', 60, 100), kutu('C', 110, 100),
+    kutu('1', 40, 80), kutu('2', 95, 80), kutu('3', 150, 80),
+    kutu('4', 70, 60), kutu('5', 130, 60), kutu('6', 190, 60)
+  ];
+  assert.equal(A.tableLayout(kayik), null, 'hizasiz satirlar tablo sayildi');
+  // Uzun hucreler: duz yazi.
+  const yazi = [
+    kutu('Bu bir cumle parcasi', 10, 100), kutu('ve devami buradadir', 60, 100), kutu('ucuncu parca da var', 110, 100),
+    kutu('Ikinci satirin ilki', 10, 80), kutu('ikinci parcasi boyle', 60, 80), kutu('ucuncusu de uzundur', 110, 80),
+    kutu('Ucuncu satir basi', 10, 60), kutu('ortasi uzun metin', 60, 60), kutu('sonu da oyledir', 110, 60)
+  ];
+  assert.equal(A.tableLayout(yazi), null, 'duz yazi tablo sayildi');
+  // Iki satir yetmez.
+  assert.equal(A.tableLayout(tablo.slice(0, 6)), null, 'iki satir tablo sayildi');
+});
+
+test('ust simge kendi satirina DUSMUYOR (tabanSatirlari)', () => {
+  const satirlar = A.tabanSatirlari(A.pageBoxes(DENKLEM['ekonometri-23']));
+  const tek = satirlar.filter(r => r.length === 1 && /^\d$/.test(r[0].s.trim()));
+  assert.equal(tek.length, 0, 'yalniz rakamdan olusan satir var — ust simge kopmus');
+});
+
+
+console.log('\nTEK SATIRLIK MERMAID ACILIYOR\n');
+
+/* 09.10.2026 canli: "Mermaid validation: 1 kept, 1 dropped — Dummy Variable
+   and Interaction Structure(tek satir — govde yok)". Karttaki diyagram 2'den
+   1'e indi. Modelin tek satira sikistirmasinin iki olagan bicimi kayipsiz
+   acilabiliyor. */
+test('noktali virgulle ayrilmis tek satir acilir', () => {
+  const r = A.validateMermaid('graph TD; A[Kukla]-->B[Sabit kayar]; B-->C[t-testi]');
+  assert.ok(r.ok, r.reason);
+  assert.equal(r.mermaid.split('\n').length, 3, r.mermaid);
+  assert.ok(r.mermaid.startsWith('graph TD\n'), r.mermaid);
+  assert.ok(r.repaired >= 1, 'onarim sayilmadi');
+});
+
+test('tur basligi govdeyle ayni satirdaysa ayrilir', () => {
+  const r = A.validateMermaid('flowchart TD A[x1 x2]-->B[Egim degisir]');
+  assert.ok(r.ok, r.reason);
+  assert.deepEqual(r.mermaid.split('\n'), ['flowchart TD', 'A[x1 x2]-->B[Egim degisir]']);
+});
+
+test('BELIRSIZ tek satir hala reddedilir', () => {
+  // Noktali virgul yok, baslik yok: nerede bolunecegi belirsiz.
+  const r = A.validateMermaid('A-->B B-->C');
+  assert.equal(r.ok, false);
+  assert.ok(/tek satir|bilinmeyen diyagram turu/.test(r.reason || ''), r.reason);
+});
+
+test('cok satirli diyagrama DOKUNULMAZ', () => {
+  const src = 'flowchart TD\n  A[Baslangic] --> B[Son]';
+  const r = A.validateMermaid(src);
+  assert.ok(r.ok, r.reason);
+  assert.equal(r.mermaid, src, 'kaynak degisti');
+  // Noktali virgul iceren COK SATIRLI kaynak da bolunmemeli.
+  const iki = 'graph LR\n  A-->B; B-->C';
+  assert.equal(A.validateMermaid(iki).mermaid, iki);
+});
+
+
+console.log('\nREVIEW KADEMESINI BUTCE SECER\n');
+
+/* 09.10.2026, iki ardisik canli kosu:
+     "Review atlandi (budgetLeft=35070ms, gereken=83237ms
+      [pacer beklemesi 50237ms + 1 deneme x 25000ms + kuyruk 8000ms])"
+   Kalite kapisi ve duzeltme adimi bu belgede hic calismadi. Sebep: kapi her
+   zaman en buyuk kademeyi (11.000 krk) fiyatliyordu; o cagri tek basina bir
+   seridin butun dakikasi. 5.000 ve 1.500'luk kademeler zaten vardi. */
+
+test('kademeler buyukten kucuge, ucu de tanimli', () => {
+  const m = SRC.match(/const reviewTiers[\s\S]{0,400}?\]\n/);
+  assert.ok(m, 'reviewTiers bulunamadi');
+  const krk = [...m[0].matchAll(/sourceChars: (\d+)/g)].map(x => Number(x[1]));
+  assert.ok(krk.length >= 3, `yalnizca ${krk.length} kademe`);
+  for (let i = 1; i < krk.length; i++) {
+    assert.ok(krk[i] < krk[i - 1], `kademe ${i} kucuk degil: ${krk}`);
+  }
+});
+
+test('kapi EN BUYUK kademeye sabitlenmis degil', () => {
+  // Eski hali: estimateTokens(..., reviewTiers[0].sourceChars, ...) ve
+  // budgetLeft() < reviewNeedsMs. Artik kademeler taranıyor.
+  assert.ok(/const reviewTierPlan = \(tierIndex: number\)/.test(KAPSAMA_KOD), 'kademe planlayici yok');
+  assert.ok(/for \(let i = 0; i < reviewTiers\.length; i\+\+\) \{\s*const aday = reviewTierPlan\(i\)/.test(KAPSAMA_KOD),
+    'kademeler taranmiyor');
+  assert.ok(/if \(budgetLeft\(\) >= aday\.needs\) \{ reviewPlan = aday; reviewStartTier = i; break \}/.test(KAPSAMA_KOD),
+    'sigan ilk kademe secilmiyor');
+  assert.ok(/useChunkedPipeline && reviewStartTier < 0/.test(KAPSAMA_KOD),
+    'atlama karari hala tek kademeye bakiyor');
+});
+
+test('dongu secilen kademeden BASLAR, oncekileri tekrar denemez', () => {
+  assert.ok(/for \(let i = Math\.max\(0, reviewStartTier\); i < reviewTiers\.length; i\+\+\)/.test(KAPSAMA_KOD),
+    'dongu hala 0 dan basliyor');
+  assert.ok(/if \(i > Math\.max\(0, reviewStartTier\) && budgetLeft\(\) < tierNeedsMs\)/.test(KAPSAMA_KOD),
+    'ilk denenen kademe kendi kontrolune takilabilir');
+});
+
+test('serit secimi SECILEN kademenin tahminiyle yapilir', () => {
+  // Kucuk kademe daha cok seride sigar; serit tier[0] ile secilirse bu kazanc kaybolur.
+  assert.ok(/const reviewLane = reviewPlan\.lane/.test(KAPSAMA_KOD), 'serit plandan alinmiyor');
+  assert.ok(/const reviewWaitMs = reviewPlan\.wait/.test(KAPSAMA_KOD), 'bekleme plandan alinmiyor');
+  assert.ok(!/pickLane\(\s*\[MODEL_FAST, MODEL_EXTRACT, MODEL_HEAVY\],\s*reviewEstTokens/.test(KAPSAMA_KOD),
+    'serit hala tier[0] tahminiyle seciliyor');
+});
+
+test('log hangi kademenin kosacagini yaziyor', () => {
+  assert.ok(/kademe \$\{reviewStartTier \+ 1\}\//.test(KAPSAMA_KOD), 'baslama logunda kademe yok');
+  assert.ok(/hicbir kademe sigmadi/.test(KAPSAMA_KOD), 'atlama logu hala tek kademe diliyle');
+});
+
+test('kucuk dilimin riski ZATEN kapatilmis', () => {
+  // Kucuk kaynak dilimi review'in gormedigi konuyu "kaynakta yok" sanmasina
+  // yol acar; bu iki kapi olmadan kademe dusurmek tehlikeli olurdu.
+  assert.ok(/const suzulmus = filterReviewIssues\(qualityMeta\.issues, extractedText\)/.test(KAPSAMA_KOD),
+    'yokluk iddiasi suzgeci yok');
+  assert.ok(/kaynakIcerigiSiliyor\(find, replace, sourceNorm\)/.test(KAPSAMA_KOD),
+    'kaynaktaki icerigi silme kapisi yok');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));
