@@ -13445,6 +13445,97 @@ async function captureMermaidSvgAsImageData(containerId) {
   }
 }
 
+/* ==========================================================================
+   DIYAGRAMI MODAL ACIK OLMADAN DA GORSELE CEVIR (09.10.2026)
+
+   SORUN: captureMermaidSvgAsImageData calisan bir SVG'yi DOM'dan okuyor, ve
+   o SVG yalnizca kartin modali acikken var. Yani "Tumunu PDF'e aktar"
+   yolunda — ve modal kapaliyken tek kart ihracinda — diyagram HIC gorsel
+   olarak gitmiyordu; PDF'e mermaidToSteps'in metin dokumu dusuyordu. Metin
+   dokumu iyi bir yedek, ama diyagramin kendisi degil.
+
+   COZUM: kaynagi ekran disinda bir kutuya cizip oradan yakala. Mermaid
+   zaten istemci tarafinda ve ucretsiz calisiyor; eksik olan tek sey
+   cizilecek bir yerdi.
+
+   DIKKAT — display:none KULLANILMIYOR. Gizlenen bir dugum yerlesimden
+   cikar, getBoundingClientRect 0x0 doner ve yukaridaki yakalama 1x1'lik bos
+   bir PNG uretir. Kutu bu yuzden gorunur kalir ama ekranin disina
+   (left:-10000px) konur.
+
+   safeMermaidRender uzerinden gidiyor: gecersiz kaynak zaten orada
+   ayristirmada eleniyor, yani bozuk bir diyagram PDF'e "Syntax error"
+   bombasi olarak girmiyor, sessizce metin yedegine dusuyor. */
+async function captureMermaidSourceAsImageData(mermaidSrc, renderKey) {
+  const src = String(mermaidSrc || '').trim();
+  if (!src || !window.mermaid || typeof document === 'undefined') return null;
+  const containerId = `acadex-offscreen-mermaid-${renderKey}`;
+  let box = null;
+  try {
+    box = document.createElement('div');
+    box.id = containerId;
+    box.setAttribute('aria-hidden', 'true');
+    box.setAttribute(
+      'style',
+      'position:fixed;left:-10000px;top:0;width:900px;background:#ffffff;' +
+      'pointer-events:none;z-index:-1;'
+    );
+    document.body.appendChild(box);
+    const drawn = await safeMermaidRender(box, src, `${containerId}-svg`);
+    if (!drawn) return null;
+    return await captureMermaidSvgAsImageData(containerId);
+  } catch (err) {
+    console.warn('captureMermaidSourceAsImageData failed:', err);
+    return null;
+  } finally {
+    if (box && box.parentNode) box.parentNode.removeChild(box);
+  }
+}
+
+/* Bir kartin PDF gorselleri. Iki ihrac yolu da (tek kart ve toplu) BURADAN
+   gecer; eskiden yalnizca tek kart yolunda, yalnizca modal acikken gorsel
+   toplaniyordu.
+
+   Grafikler (Chart.js) hala yalnizca modal acikken yakalanabiliyor: bir
+   canvas'i ekran disinda yeniden cizmek Chart.js ornegini yeniden kurmayi
+   gerektirir, bu ayri bir is. Grafikler icin metin yedegi (deger listesi)
+   zaten calisiyor ve sayilari kaybetmiyor — diyagramda durum farkliydi,
+   orada kaybedilen seyin kendisi sekildi. */
+async function prepareStudyCardVisualAssets(studyCard) {
+  const visualAssets = { chartImages: {}, diagramImages: {} };
+  if (!studyCard) return visualAssets;
+
+  const openInModal = typeof currentActiveStudyCard !== 'undefined'
+    && currentActiveStudyCard && currentActiveStudyCard.id === studyCard.id;
+
+  if (openInModal && Array.isArray(studyCard.charts)) {
+    for (let idx = 0; idx < studyCard.charts.length; idx++) {
+      visualAssets.chartImages[idx] = await captureCanvasAsImageData(
+        `modal-chart-canvas-${studyCard.id}-${idx}`
+      );
+    }
+  }
+
+  if (Array.isArray(studyCard.diagrams)) {
+    for (let idx = 0; idx < studyCard.diagrams.length; idx++) {
+      let img = null;
+      if (openInModal) {
+        // Ekranda duran SVG varsa onu kullan: zaten cizilmis, bedava.
+        img = await captureMermaidSvgAsImageData(`study-card-mermaid-${studyCard.id}-${idx}`);
+      }
+      if (!img) {
+        img = await captureMermaidSourceAsImageData(
+          studyCard.diagrams[idx] && studyCard.diagrams[idx].mermaid,
+          `${studyCard.id || 'kart'}-${idx}`
+        );
+      }
+      visualAssets.diagramImages[idx] = img;
+    }
+  }
+
+  return visualAssets;
+}
+
 /** Manual bordered table drawn with jsPDF primitives (no autotable plugin is loaded). */
 function drawPdfTable(doc, unicodeReady, headers, rows, margin, y, maxWidth, safeText) {
   const pageHeight = doc.internal.pageSize.height;
@@ -13540,29 +13631,89 @@ function drawChartDataFallback(doc, unicodeReady, chartObj, margin, y, maxWidth,
      Qualitative predictor? —yes→ Create m-1 dummies
      Qualitative predictor? —no→ Use the variable directly
      Create m-1 dummies → Slopes differ by group?
-   Dugum kimlikleri ilk gorulduklerinde etiketleriyle eslenir, sonraki
-   satirlarda "B" yerine etiketi basilir. */
+   Dugum kimlikleri etiketleriyle eslenir, satirlarda "B" yerine etiketi
+   basilir.
+
+   IKI DUZELTME (09.10.2026) — ikisi de gercek kartlardan:
+
+   1) ETIKETLER IKI GECISTE TOPLANIR. Eskiden tek gecis vardi ve bir kimlik,
+      etiketi DAHA SONRAKI bir satirda tanimlanmissa cozulemiyordu:
+        flowchart TD
+          Intercept0 --> Slope1
+          Intercept0[Sabit terim]
+      ciktisi "Intercept0 → Slope1" + "Sabit terim" + "Egim" oluyordu. Model
+      kimlikleri "Intercept0", "Slope1" gibi bitisik yazdigi icin bu, PDF'de
+      kelimeye yapismis bir sayi gibi gorunuyordu. Artik once butun kaynak
+      taranip id→etiket haritasi kuruluyor, sonra satirlar yaziliyor.
+
+   2) BASLIK SATIRA YAPISIKSA SATIR ATILMIYOR. "flowchart TD" ayri satirdaysa
+      zaten atlaniyordu, ama model tek satir yazdiginda
+        flowchart TD A[Start] --> B[End]
+      butun satir basliga benzedigi icin DUSUYORDU: diyagram tamamen
+      kayboluyordu (olculdu, cikti bos dizi). Artik baslik ONEK olarak
+      kesiliyor, kalan kisim normal islenyor. Ayni sebeple tek basina kalmis
+      yon jetonlari (TD, LR, TB, RL, BT) de artik adim sayilmiyor — "TD"
+      ogrencinin sayfasinda bir akis adimi olarak goruluyordu.
+
+   Yalnizca etiket TANIMLAYAN satirlar (A[Giris] gibi, oku olmayan) artik
+   adim uretmiyor: tasidiklari bilgi zaten ok satirlarinda etiket olarak
+   basiliyor, ayrica basilinca ayni sey iki kere yaziliyordu. */
+const MERMAID_BASLIK =
+  /^(?:flowchart|graph|sequenceDiagram|classDiagram|stateDiagram(?:-v2)?|erDiagram|mindmap|gantt|pie|journey|requirementDiagram|gitGraph|timeline)\b[ \t]*(?:TB|TD|BT|RL|LR)?[ \t]*/i;
+const MERMAID_ATLA =
+  /^(?:subgraph|end|direction|style|classDef|class|click|linkStyle|accTitle|accDescr|%%)\b/i;
+const MERMAID_YON = /^(?:TB|TD|BT|RL|LR)$/i;
+const MERMAID_OK = /\s*(?:-\.->|==>|-->|---|-\.-)\s*/;
+
 function mermaidToSteps(src) {
   const metin = String(src || '');
   if (!metin.trim()) return [];
-  const etiketler = new Map();
+
   const temiz = (s) => String(s || '').replace(/<br\s*\/?>/gi, ' ').replace(/^["']|["']$/g, '').trim();
+  const DUGUM = /^([A-Za-z0-9_]+)\s*(?:\[([^\]]*)\]|\(\(([^)]*)\)\)|\(([^)]*)\)|\{([^}]*)\}|>([^\]]*)\])?/;
+
+  /* Ilgilendigimiz satirlar: baslik oneki kesilmis, yorum/stil satirlari
+     atilmis hali. Iki gecis de ayni listeyi okur ki ikisi ayrisamasin. */
+  const satirlar = [];
+  metin.split(/\r?\n|;/).forEach((ham) => {
+    let satir = ham.trim();
+    if (!satir) return;
+    satir = satir.replace(MERMAID_BASLIK, '').trim();
+    if (!satir || MERMAID_ATLA.test(satir) || MERMAID_YON.test(satir)) return;
+    satirlar.push(satir);
+  });
+
+  /* 1. gecis: butun kaynaktaki id→etiket eslemeleri. */
+  const etiketler = new Map();
+  satirlar.forEach((satir) => {
+    satir.split(MERMAID_OK).forEach((parca) => {
+      const s = parca.trim().replace(/^\|[^|]*\|\s*/, '');
+      const m = s.match(DUGUM);
+      if (!m) return;
+      const yazi = temiz(m[2] ?? m[3] ?? m[4] ?? m[5] ?? m[6] ?? '');
+      if (yazi && !etiketler.has(m[1])) etiketler.set(m[1], yazi);
+    });
+  });
+
   const dugum = (ham) => {
     const s = String(ham || '').trim();
     if (!s) return '';
-    const m = s.match(/^([A-Za-z0-9_]+)\s*(?:\[([^\]]*)\]|\(\(([^)]*)\)\)|\(([^)]*)\)|\{([^}]*)\})?/);
+    const m = s.match(DUGUM);
     if (!m) return s;
-    const yazi = temiz(m[2] ?? m[3] ?? m[4] ?? m[5] ?? '');
-    if (yazi) etiketler.set(m[1], yazi);
-    return etiketler.get(m[1]) || m[1];
+    return etiketler.get(m[1]) || temiz(m[2] ?? m[3] ?? m[4] ?? m[5] ?? m[6] ?? '') || m[1];
   };
-  const ATLA = /^(flowchart|graph|sequenceDiagram|classDiagram|stateDiagram(-v2)?|erDiagram|mindmap|gantt|pie|journey|subgraph|end|direction|style|classDef|class|click|linkStyle)\b/i;
+
+  /* 2. gecis: okunur satirlar. */
   const adimlar = [];
-  metin.split(/\r?\n|;/).forEach((ham) => {
-    const satir = ham.trim();
-    if (!satir || ATLA.test(satir)) return;
-    const parcalar = satir.split(/\s*(?:-\.->|==>|-->|---)\s*/);
+  satirlar.forEach((satir) => {
+    const parcalar = satir.split(MERMAID_OK);
     if (parcalar.length < 2) {
+      // Oku olmayan satir. Etiket tanimiysa (A[Giris]) adim degildir —
+      // etiketi zaten ok satirlarinda basiliyor. Tanim degilse tek basina
+      // duran bir dugumdur ve yazilir.
+      const m = satir.match(DUGUM);
+      const tanim = !!(m && (m[2] ?? m[3] ?? m[4] ?? m[5] ?? m[6]) !== undefined);
+      if (tanim) return;
       const tek = dugum(satir);
       if (tek) adimlar.push(tek);
       return;
@@ -14433,24 +14584,10 @@ async function exportStudyCardToPDF(studyCard) {
   const doc = new jsPDF();
   const unicodeReady = await loadPdfUnicodeFont(doc);
 
-  // Tables/charts/diagrams are drawn live by Chart.js/Mermaid onto the DOM
-  // only while this card's modal is open. Capture them as images now, before
-  // building the PDF, so they actually make it into the export instead of
-  // being silently skipped.
-  const visualAssets = { chartImages: {}, diagramImages: {} };
-  const isOpenInModal = currentActiveStudyCard && currentActiveStudyCard.id === studyCard.id;
-  if (isOpenInModal) {
-    if (Array.isArray(studyCard.charts)) {
-      for (let idx = 0; idx < studyCard.charts.length; idx++) {
-        visualAssets.chartImages[idx] = await captureCanvasAsImageData(`modal-chart-canvas-${studyCard.id}-${idx}`);
-      }
-    }
-    if (Array.isArray(studyCard.diagrams)) {
-      for (let idx = 0; idx < studyCard.diagrams.length; idx++) {
-        visualAssets.diagramImages[idx] = await captureMermaidSvgAsImageData(`study-card-mermaid-${studyCard.id}-${idx}`);
-      }
-    }
-  }
+  // Grafikler ve diyagramlar DOM'a canli ciziliyor. Diyagramlar artik modal
+  // kapaliyken de ekran disinda cizilip yakalaniyor; bkz.
+  // prepareStudyCardVisualAssets.
+  const visualAssets = await prepareStudyCardVisualAssets(studyCard);
 
   let titleStr = 'Bilgi Kartı';
   if (studyCard.documents?.file_name) titleStr = studyCard.documents.file_name;
@@ -14765,7 +14902,11 @@ async function exportAllFilteredCardsToPDF() {
       else if (cards[i].documentFileName) cardTitle = cards[i].documentFileName;
       tocEntries.push({ title: cardTitle, page: startPage });
 
-      appendStudyCardToDoc(doc, cards[i], unicodeReady);
+      // Toplu ihracta hicbir kartin modali acik degil. Diyagramlar artik
+      // burada da ekran disinda cizilip gorsel olarak gidiyor — eskiden
+      // bu yol gorsel ALMADAN cagriliyordu ve her diyagram metne dusuyordu.
+      const kartGorselleri = await prepareStudyCardVisualAssets(cards[i]);
+      appendStudyCardToDoc(doc, cards[i], unicodeReady, kartGorselleri);
     }
 
     fillPdfTocPages(doc, unicodeReady, tocEntries, firstTocPage, tocPageCount);

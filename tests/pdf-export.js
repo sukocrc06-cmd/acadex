@@ -48,7 +48,10 @@ const NEEDED = [
   'escapeHtml', 'normalizeWorkedSteps', 'splitStepCalc', 'prettyCalc', 'splitCalcChain',
   'renderMathInText', 'renderWorkedStepHtml', 'acikVurgu', 'OZET_KISALTMA_RE', 'summaryParagraphs', 'inlineMarkdown',
   'stripInlineMarkdown',
-  'PDF_TYPE', 'drawPdfSectionHeader', 'mermaidToSteps',
+  'PDF_TYPE', 'drawPdfSectionHeader',
+  // mermaidToSteps iki gecise cikti (09.10.2026); desenleri artik modul
+  // seviyesinde duruyor ve onlarsiz fonksiyon ReferenceError verir.
+  'MERMAID_BASLIK', 'MERMAID_ATLA', 'MERMAID_YON', 'MERMAID_OK', 'mermaidToSteps',
   'drawPdfTable', 'drawChartDataFallback', 'drawMermaidSourceFallback',
   'drawPdfCard', 'appendStudyCardToDoc'
 ];
@@ -748,6 +751,35 @@ test('mermaidToSteps okunur akis satirlari uretir', () => {
   assert.ok(!/\bB\b|\bD\b/.test(adimlar[2].replace(/[^A-Za-z? -]/g, ' ').replace(/Slopes differ by group/, '')),
     `dugum kimligi basilmis: ${adimlar[2]}`);
   assert.equal(mermaidToSteps('').length, 0, 'bos kaynak satir uretti');
+});
+
+/* 09.10.2026 — gercek kartlardan gelen iki kusur. Ikisi de PDF'te
+   goruluyordu: biri kelimeye yapismis bir kimlik, digeri tamamen kaybolmus
+   bir diyagram. */
+test('mermaidToSteps: etiket SONRA tanimlansa da kimlik basilmaz', () => {
+  const src = 'flowchart TD\n  Intercept0 --> Slope1\n  Intercept0[Sabit terim]\n  Slope1[Egim]';
+  const adimlar = mermaidToSteps(src);
+  assert.deepEqual(adimlar, ['Sabit terim → Egim'],
+    `gecikmeli etiket cozulmedi: ${JSON.stringify(adimlar)}`);
+  assert.ok(!adimlar.join(' ').includes('Intercept0'), 'ham dugum kimligi sizdi');
+});
+
+test('mermaidToSteps: baslik ilk ifadeye yapisikken diyagram kaybolmaz', () => {
+  const adimlar = mermaidToSteps('flowchart TD A[Start] --> B[End]');
+  assert.deepEqual(adimlar, ['Start → End'],
+    `tek satirlik kaynak dustu: ${JSON.stringify(adimlar)}`);
+});
+
+test('mermaidToSteps: yalniz basina kalan yon jetonu adim sayilmaz', () => {
+  const adimlar = mermaidToSteps('flowchart\nTD\nA[P] --> B[Q]');
+  assert.deepEqual(adimlar, ['P → Q'], `yon jetonu sizdi: ${JSON.stringify(adimlar)}`);
+  assert.ok(!adimlar.some(s => /^(TD|LR|TB|RL|BT)$/i.test(s)), 'TD/LR adim olarak basildi');
+});
+
+test('mermaidToSteps: salt etiket tanimi satiri ikinci kez yazilmaz', () => {
+  const adimlar = mermaidToSteps('flowchart TD\nA[Giris]\nB[Cikis]\nA-->B');
+  assert.deepEqual(adimlar, ['Giris → Cikis'],
+    `tanim satirlari adim olarak tekrarlandi: ${JSON.stringify(adimlar)}`);
 });
 
 test('diyagram bolumune ham mermaid kaynagi dusmez', () => {
