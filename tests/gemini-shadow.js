@@ -30,6 +30,7 @@ const NAMES = [
   'GEMINI_ENDPOINT', 'GEMINI_MODEL_CANDIDATES', 'GEMINI_INLINE_MAX_BYTES',
   'GEMINI_MAX_PAGES', 'GEMINI_MIN_BUDGET_MS', 'GEMINI_RESERVE_MS',
   'GEMINI_MAX_CALL_MS', 'GEMINI_MAX_OUTPUT_TOKENS', 'GEMINI_GROQ_RESERVE_MS',
+  'geminiMode', 'GEMINI_ONLY_BUDGET_MS', 'GEMINI_ONLY_MAX_CALL_MS',
   'bytesToBase64',
   'geminiModelCandidates', 'geminiNativeMime', 'geminiModelMissing',
   'geminiFormatRejected', 'GEMINI_DUSURULEBILIR', 'geminiUnknownParameter',
@@ -293,6 +294,63 @@ test('butce: Gemini yolu review a yer birakacak kadar genis, sert sinirin altind
     '72,4 sn lik bir cagridan sonra review (33 sn) hala sigmali');
   assert.ok(G.GEMINI_PIPELINE_BUDGET_MS <= 135_000,
     'Supabase nin ~150 sn sert sinirina emniyet payi kalmali');
+});
+
+// ===========================================================================
+// GEMINI_MODE — only (varsayilan) ve shadow
+//
+// Olculdu: Gemini ~72 sn, Groq'un tam kosusu ~71 sn, Supabase'in sert siniri
+// ~150 sn. Ikisi tek istege sigmiyor. only modunda Groq taslak icin hic
+// cagrilmaz ve butun butce Gemini'nindir.
+// ===========================================================================
+test('geminiMode: varsayilan only', () => {
+  denoEnv.delete('GEMINI_MODE');
+  assert.equal(G.geminiMode(), 'only');
+});
+
+test('geminiMode: shadow acikca secilir, yazim/bosluk onemsiz', () => {
+  denoEnv.set('GEMINI_MODE', '  SHADOW ');
+  assert.equal(G.geminiMode(), 'shadow');
+  denoEnv.delete('GEMINI_MODE');
+});
+
+test('geminiMode: taninmayan deger only sayilir', () => {
+  denoEnv.set('GEMINI_MODE', 'bilinmeyen');
+  assert.equal(G.geminiMode(), 'only');
+  denoEnv.delete('GEMINI_MODE');
+});
+
+test('only modu butun butceyi Gemini ye verir', () => {
+  // Olculen basarili cagri 72,4 sn. only tavani bunun RAHAT ustunde olmali,
+  // yoksa gölge yol bu belgede yine tamamlanamaz.
+  assert.ok(G.GEMINI_ONLY_MAX_CALL_MS >= 80_000,
+    `only tavani ${G.GEMINI_ONLY_MAX_CALL_MS}ms — olculen 72 sn ye pay birakmiyor`);
+  assert.ok(G.GEMINI_ONLY_BUDGET_MS - G.GEMINI_ONLY_MAX_CALL_MS >= G.GEMINI_RESERVE_MS - 5_000,
+    'cagri bittikten sonra kapilara ve kayda yer kalmiyor');
+  assert.ok(G.GEMINI_ONLY_BUDGET_MS <= 135_000,
+    'Supabase nin ~150 sn sert sinirina emniyet payi kalmali');
+});
+
+test('geminiDraft: only modunda cagri shadow dan uzun yasar', async () => {
+  // Ayni butce, iki mod: only modunda Groq a pay saklanmadigi icin cagri
+  // daha uzun surebilmeli. Fark gölge yolun bu belgede tamamlanip
+  // tamamlanamayacagini belirliyor.
+  let onlyMs = 0, shadowMs = 0;
+  const yakala = async (mode) => {
+    stubFetch([{ status: 200, json: OK_JSON }]);
+    const log = console.log;
+    let satir = '';
+    console.log = (s) => { if (typeof s === 'string' && /cagri zaman asimi/.test(s)) satir = s; };
+    try {
+      await G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 125_000, mode);
+    } finally { console.log = log; restoreFetch(); }
+    return Number((satir.match(/zaman asimi (\d+)ms/) || [])[1] || 0);
+  };
+  onlyMs = await yakala('only');
+  shadowMs = await yakala('shadow');
+  assert.ok(onlyMs > shadowMs,
+    `only (${onlyMs}ms) shadow dan (${shadowMs}ms) uzun olmaliydi`);
+  assert.ok(onlyMs >= 80_000, `only modunda cagri yalnizca ${onlyMs}ms yasiyor`);
 });
 
 // ===========================================================================
@@ -722,8 +780,9 @@ test('geminiDraft: butce cagriya 35 sn bile veremiyorsa hic denemez', async () =
   stubFetch([]);
   {
     try {
-      // 90 sn butce: 90 - 62 = 28 sn kaliyor, esigin altinda.
-      const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 90_000));
+      // shadow modu: 90 sn butce, Groq a 62 sn saklaninca 28 sn kaliyor —
+      // esigin altinda, dolayisiyla hic denenmemeli.
+      const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 90_000, 'shadow'));
       assert.equal(out, null);
       assert.equal(fetchCalls.length, 0,
         'yarim kalacagi belli bir cagri Groq tan zaman calmamali');

@@ -5220,6 +5220,41 @@ const GEMINI_MAX_CALL_MS = 68_000
  * tamamlanamaz. Olculecek sey tam olarak budur. */
 const GEMINI_GROQ_RESERVE_MS = 62_000
 
+/* ==========================================================================
+   GEMINI_MODE — gölge mi, tek yol mu (09.10.2026 aksami)
+   ==========================================================================
+   Olculen gercek: bu belgede Gemini ~72 sn (72,4 / 74,9 / 67,9 — biri
+   basarili, ikisi zaman asimi), Groq'un tam kosusu ~71 sn (57 sn'si kendi
+   TPM pacer beklemesi). 72 + 71 = 143 ve Supabase'in sert siniri ~150.
+   Yani TEK bir istek icinde "Gemini'yi dene, olmazsa Groq'u tam kostur"
+   yapisi aritmetik olarak kurulamiyor: hangi payi secersem secim birini
+   ac birakiyor. Son iki duzeltmem de bu yuzden yetmedi.
+
+   Karar: Groq KALDIRILMADI, yalnizca devre disi. Iki yol da kodda duruyor.
+
+     GEMINI_MODE=only   (VARSAYILAN) — PDF'ler yalnizca Gemini'den gecer,
+                        butun butce (GEMINI_ONLY_BUDGET_MS) onundur,
+                        basarisiz olursa belge 'failed' isaretlenir ve
+                        kullanici tekrar dener. Groq taslak icin HIC
+                        cagrilmaz. Deneme donemi icin bu.
+     GEMINI_MODE=shadow — eski davranis: Gemini dener, olmazsa Groq'a
+                        duser (ve ikisi butceyi paylastigi icin review
+                        genelde atlanir).
+
+   Ucuncu kapatma yolu zaten var: GEMINI_API_KEY secret'ini silmek. O zaman
+   mod ne olursa olsun Groq yolu bugunku haliyle calisir. */
+function geminiMode(): 'only' | 'shadow' {
+  return String(Deno.env.get('GEMINI_MODE') || '').trim().toLowerCase() === 'shadow'
+    ? 'shadow'
+    : 'only'
+}
+
+/* only modunda butun istek Gemini'nin: 120 sn butce, geriye kapilar ve
+   kayit icin GEMINI_RESERVE_MS kaliyor. Groq'a saklanan pay yok, cunku
+   Groq cagrilmayacak. */
+const GEMINI_ONLY_BUDGET_MS = 125_000
+const GEMINI_ONLY_MAX_CALL_MS = 95_000
+
 /* Groq'ta 3.702 token'da tavan yapan sey buydu; burada tavan sorun degil.
  * 32.768'den 16.384'e cekildi: olculen gercek cikti 30.374 karakter
  * (~8.000 token) yani tavanin dortte biri. Yuksek tavan uretimi
@@ -5557,23 +5592,28 @@ async function geminiDraft(
   fileBytes: Uint8Array,
   fileMime: string,
   userText: string,
-  budgetMs: number
+  budgetMs: number,
+  mode: 'only' | 'shadow' = 'only'
 ): Promise<{ raw: string; model: string; ms: number; usage: any } | null> {
-  /* Cagrinin zaman asimi IKI kisitin kucugu:
-     - GEMINI_RESERVE_MS: cagri BASARILI olursa review + kapilar + kayit
-     - GEMINI_GROQ_RESERVE_MS: cagri ZAMAN ASIMINA ugrarsa tam bir Groq kosusu
-     Ikincisi buyuk oldugu icin pratikte onu baglayici kilan odur — ve
-     baglayici olmasi gereken de odur (bkz. GEMINI_GROQ_RESERVE_MS). */
+  /* Cagrinin zaman asimi:
+     - her iki modda: GEMINI_RESERVE_MS, cagri BASARILI olursa kapilar+kayit
+     - YALNIZCA shadow modunda: GEMINI_GROQ_RESERVE_MS, cagri ZAMAN ASIMINA
+       ugrarsa Groq'un tam kosusu. only modunda Groq cagrilmayacagi icin
+       boyle bir pay yok ve butun butce Gemini'nin. */
   const basariPayi = budgetMs - GEMINI_RESERVE_MS
-  const basarisizlikPayi = budgetMs - GEMINI_GROQ_RESERVE_MS
-  const callMs = Math.min(GEMINI_MAX_CALL_MS, Math.max(0, basariPayi), Math.max(0, basarisizlikPayi))
+  const tavan = mode === 'only' ? GEMINI_ONLY_MAX_CALL_MS : GEMINI_MAX_CALL_MS
+  const paylar = [tavan, Math.max(0, basariPayi)]
+  if (mode === 'shadow') paylar.push(Math.max(0, budgetMs - GEMINI_GROQ_RESERVE_MS))
+  const callMs = Math.min(...paylar)
   if (callMs < 35_000) {
-    // 35 saniyenin altinda 42 sayfalik bir PDF'in donme ihtimali yok;
-    // denemek yalnizca Groq'tan zaman calar ve gunluk kotadan istek goturur.
+    // 35 saniyenin altinda 42 sayfalik bir PDF'in donme ihtimali yok.
     console.log(`Gemini: atlandi (cagri icin ${callMs}ms kaliyor, en az 35.000ms gerekli)`)
     return null
   }
-  console.log(`Gemini: cagri zaman asimi ${callMs}ms (butce ${budgetMs}ms, Groq'a ${GEMINI_GROQ_RESERVE_MS}ms saklandi)`)
+  console.log(
+    `Gemini: mod=${mode}, cagri zaman asimi ${callMs}ms (butce ${budgetMs}ms` +
+    (mode === 'shadow' ? `, Groq'a ${GEMINI_GROQ_RESERVE_MS}ms saklandi)` : `, Groq devre disi)`)
+  )
 
   let fileBase64 = ''
   try {
@@ -5598,9 +5638,15 @@ async function geminiDraft(
    * olsun Groq yolunu bozmam".
    *
    * Basarili bir cagri bu sinirdan etkilenmez (kontrol denemeden ONCE
-   * yapiliyor ve basaridan sonra butce zaten genisliyor). */
+   * yapiliyor ve basaridan sonra butce zaten genisliyor).
+   *
+   * only modunda bu sinir cok daha genis: korudugu sey Groq'un kosusuydu,
+   * o modda Groq zaten cagrilmiyor. Orada tek kisit isteginn kendi butcesi,
+   * yani tekrar denemeye yer kaldigi surece deniyoruz. */
   const basladi = Date.now()
-  const GEMINI_FAIL_BUDGET_MS = 25_000
+  const GEMINI_FAIL_BUDGET_MS = mode === 'only'
+    ? Math.max(0, budgetMs - GEMINI_RESERVE_MS - 20_000)
+    : 25_000
 
   for (const model of geminiModelCandidates()) {
     gecici = 0
@@ -5610,7 +5656,7 @@ async function geminiDraft(
         if (gecen > GEMINI_FAIL_BUDGET_MS) {
           console.warn(
             `Gemini: denemeler ${gecen}ms yedi (sinir ${GEMINI_FAIL_BUDGET_MS}ms) — ` +
-            `Groq'a yer birakmak icin durduruluyor`
+            (mode === 'only' ? 'butce bitti, durduruluyor' : "Groq'a yer birakmak icin durduruluyor")
           )
           return null
         }
@@ -6352,8 +6398,12 @@ ${styleInstruction}`
     let draftEngine: 'groq' | 'gemini' = 'groq'
     let geminiMeta: Record<string, unknown> | null = null
     let geminiResult: { raw: string; model: string; ms: number; usage: any } | null = null
+    // only modunda Gemini DENENDI ve BASARISIZ oldu mu? Oyleyse Groq'a
+    // dusulmez; belge 'failed' isaretlenir (bkz. geminiMode).
+    let geminiOnlyBasarisiz = false
 
     {
+      const mod = geminiMode()
       const geminiApiKey = Deno.env.get('GEMINI_API_KEY')
       const geminiMime = geminiNativeMime(mimeType)
       if (!geminiApiKey) {
@@ -6368,15 +6418,11 @@ ${styleInstruction}`
       } else if (budgetLeft() < GEMINI_MIN_BUDGET_MS) {
         console.log(`Gemini: atlandi (butce ${budgetLeft()}ms < ${GEMINI_MIN_BUDGET_MS}ms)`)
       } else {
-        /* Butce, cagridan SONRA degil ONCE genisletiliyor.
-         *
-         * Once sadece basari halinde genisliyordu ve o yuzden Gemini'ye
-         * ayrilabilen sure 110 - 62 = 48 saniyeydi — olculen basarili
-         * cagri 72,4 saniye surmustu, yani gölge yol kendi zaman asimina
-         * carpip hic tamamlanamazdi. 130 saniyelik butce ile Gemini ~66
-         * saniye aliyor ve zaman asimina ugrasa bile Groq'a tam 62 saniye
-         * kaliyor. Gemini hic DENENMEDIGINDE butce 110'da kalir. */
-        pipelineBudgetMs = GEMINI_PIPELINE_BUDGET_MS
+        /* Butce, cagridan SONRA degil ONCE genisletiliyor; Gemini hic
+           DENENMEDIGINDE 110 saniyede kalir.
+           only modunda butun butce Gemini'nin (Groq cagrilmayacak),
+           shadow modunda Groq'a 62 saniye saklanir. */
+        pipelineBudgetMs = mod === 'only' ? GEMINI_ONLY_BUDGET_MS : GEMINI_PIPELINE_BUDGET_MS
 
         await serviceClient
           .from('documents')
@@ -6408,9 +6454,29 @@ ${styleInstruction}`
           fileBytes,
           geminiMime,
           geminiUserText,
-          budgetLeft()
+          budgetLeft(),
+          mod
         )
+
+        if (!geminiResult && mod === 'only') {
+          // Groq'a DUSULMUYOR. only modunun anlami bu: kart ya Gemini'den
+          // gelir ya hic gelmez. Yarim bir Groq kosusu (pencereler var,
+          // review ve gorsel gecisi yok) karsilastirmayi da bozar, ogrenciye
+          // de kotu bir kart verir — tekrar denemek ikisinden de iyi.
+          geminiOnlyBasarisiz = true
+          console.error('Gemini (mod=only): taslak uretilemedi — Groq devre disi, belge basarisiz isaretleniyor')
+        }
       }
+    }
+
+    if (geminiOnlyBasarisiz) {
+      await markFailed(serviceClient, documentId)
+      return new Response(JSON.stringify({
+        error: 'Özet motoru şu anda yanıt vermedi — birkaç dakika sonra tekrar deneyin'
+      }), {
+        status: 503,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
     }
 
     if (geminiResult) {
