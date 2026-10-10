@@ -5849,7 +5849,9 @@ async function geminiDraft(
         if (gecen > GEMINI_FAIL_BUDGET_MS) {
           console.warn(
             `Gemini: denemeler ${gecen}ms yedi (sinir ${GEMINI_FAIL_BUDGET_MS}ms) — ` +
-            (mode === 'only' ? 'butce bitti, durduruluyor' : "Groq'a yer birakmak icin durduruluyor")
+            (mode === 'only'
+              ? 'yeni deneme baslatilmiyor'
+              : "Groq'a yer birakmak icin durduruluyor")
           )
           return null
         }
@@ -6676,9 +6678,14 @@ ${styleInstruction}`
              nerede oldugumuzu dogru gosteriyor. */
           const kalan = budgetLeft()
           if (kalan >= GEMINI_ONLY_FALLBACK_MIN_MS) {
+            /* "hizli basarisizlik" DEMIYOR (10.10.2026 17:59 dersi): esik
+               100 sn'den 32 sn'ye indikten sonra bu dal yavas hatalarda da
+               calisiyor ve o metin okuyani yaniltiyordu — 105 saniyelik
+               bir zaman asimina "hizli" diyen bir log, bir dahaki sefere
+               yanlis yerde hata aratir. Log ne olduğunu yazsin. */
             console.warn(
-              `Gemini (mod=only): taslak uretilemedi ama ${kalan}ms butce kaldi ` +
-              `(esik ${GEMINI_ONLY_FALLBACK_MIN_MS}ms) — hizli basarisizlik, Groq yoluna dusuluyor`
+              `Gemini (mod=only): taslak uretilemedi, ${kalan}ms butce kaldi ` +
+              `(esik ${GEMINI_ONLY_FALLBACK_MIN_MS}ms) — Groq yoluna dusuluyor`
             )
           } else {
             geminiOnlyBasarisiz = true
