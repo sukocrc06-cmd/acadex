@@ -389,27 +389,36 @@ test('geminiMode: taninmayan deger shadow sayilir', () => {
    O aksamin olcumleri ikiye ayriliyor ve arada bosluk var:
      HIZLI (503/429/400): 3,9 / 8,4 / 11,1 / 35,8 saniye
      YAVAS (zaman asimi): 67,9 / 74,9 / 77,9 / 89,9 / 105 saniye */
-test('only fallback esigi: hizli basarisizliklarin HEPSINI yakalar', () => {
-  const butce = G.GEMINI_ONLY_BUDGET_MS;
-  const enYavasHizli = 35_800;   // olculen en gec 503
-  assert.ok(butce - enYavasHizli >= G.GEMINI_ONLY_FALLBACK_MIN_MS,
-    `35,8 sn'de donen bir 503 Groq'a dusemiyor — esik cok yuksek`);
+/* 10.10.2026 17:40 — ILK ESIK (100 sn) YANLISTI.
+   O kosuda: deneme 1 -> 503 (3,5 sn), deneme 2 -> zaman asimi (105 sn),
+   toplam 111 sn, geriye 33,9 sn. Esigin altinda kaldi ve belge basarisiz
+   isaretlendi — oysa 33,9 saniye bir kart uretmeye yeterdi.
+
+   Iki duzeltme: (1) Gemini'nin TOPLAM duvar saati tavanla sinirli, yani
+   geriye her zaman en az butce-tavan kadar kaliyor; (2) esik "tam Groq
+   kosusu" degil "en az bir kart" olcusune indi. */
+test('only fallback: Gemini en cok tavani yakabilir, toplami degil', () => {
+  // geminiToplamTavan sayesinde en kotu halde geriye bu kadar kalir.
+  const enAzKalan = G.GEMINI_ONLY_BUDGET_MS - G.GEMINI_ONLY_MAX_CALL_MS;
+  assert.ok(enAzKalan >= G.GEMINI_ONLY_FALLBACK_MIN_MS,
+    `Gemini tavani tamamen yakarsa geriye ${enAzKalan}ms kaliyor ama esik ` +
+    `${G.GEMINI_ONLY_FALLBACK_MIN_MS}ms — fallback hic tetiklenemez`);
 });
 
-test('only fallback esigi: zaman asimlarinin HICBIRINI yakalamaz', () => {
-  const butce = G.GEMINI_ONLY_BUDGET_MS;
-  const enHizliZamanAsimi = 67_900;   // olculen en erken zaman asimi
-  assert.ok(butce - enHizliZamanAsimi < G.GEMINI_ONLY_FALLBACK_MIN_MS,
-    `67,9 sn'lik bir zaman asimindan sonra Groq'a dusuluyor — ` +
-    `toplam sure Supabase'in ~150 sn sinirini zorlar`);
+test('only fallback esigi: Groq un pencerelerine yetecek kadar', () => {
+  // Olculdu: Gemini'den sonra pacer butcesi taze, iki pencere 6 saniyede
+  // bitiyor. Pencereler + birlesim + kayit 30 saniyede siger.
+  assert.ok(G.GEMINI_ONLY_FALLBACK_MIN_MS >= 25_000,
+    'esik cok dusuk — Groq pencereleri bile bitiremeden butce doluyor');
+  assert.ok(G.GEMINI_ONLY_FALLBACK_MIN_MS <= 60_000,
+    'esik cok yuksek — 17:40 kosusundaki gibi uretilebilir kartlar atilir');
 });
 
-test('only fallback esigi: en kotu toplam sure sinirin altinda', () => {
-  // Esige tam otururken Gemini'nin yaktigi sure + Groq'un olculen tam
-  // kosusu (~71 sn) toplami.
-  const geminiEnCok = G.GEMINI_ONLY_BUDGET_MS - G.GEMINI_ONLY_FALLBACK_MIN_MS;
-  assert.ok(geminiEnCok + 71_000 <= 125_000,
-    `en kotu toplam ${geminiEnCok + 71_000}ms — ~150 sn sinirina pay kalmali`);
+test('only fallback: en kotu toplam sure Supabase sinirinin altinda', () => {
+  // Gemini tavani + geriye kalan butcenin tamami + kayit payi.
+  const enKotu = G.GEMINI_ONLY_MAX_CALL_MS +
+    (G.GEMINI_ONLY_BUDGET_MS - G.GEMINI_ONLY_MAX_CALL_MS) + 5_000;
+  assert.ok(enKotu <= 150_000, `en kotu toplam ${enKotu}ms`);
 });
 
 test('only modu butun butceyi Gemini ye verir', () => {
