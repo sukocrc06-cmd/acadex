@@ -259,9 +259,12 @@ test('buildGeminiDocInstruction: visual_findings alani istenir', () => {
 test('buildGeminiDocInstruction: sekil terimlerinin BIREBIR yazilmasi sart kosuluyor', () => {
   const s = G.buildGeminiDocInstruction('SAYFA', 42);
   assert.match(s, /VERBATIM/);
-  assert.match(s, /key_terms/);
+  assert.match(s, /key_term/);
   assert.ok(/paraphrase does not count/.test(s),
     'tarif etmenin yetmedigi acikca soylenmeli');
+  // Tarihce koda tasindi: modelin dikkati kurala gitmeli, anekdota degil.
+  assert.doesNotMatch(s, /Differential Intercept/,
+    'prompt icine olay kaydi yazilmis — orasi kod yorumunun yeri');
 });
 
 test('buildGeminiDocInstruction: formul ve tablo okumasi istenir', () => {
@@ -283,6 +286,19 @@ test('buildGeminiDocInstruction: formul ve tablo okumasi istenir', () => {
    Sisirilmis kota (25-40 terim, 20-30 nokta, tavansiz her sey) tamamlanan
    tek kosuyu bir daha tamamlanmaz hale getirdi. Bu testler kotanin bir
    daha sisirilmemesini ve formul/tablo onceliginin kaybolmamasini korur. */
+/* 10.10.2026 15:14: bant 22-28'e cikarildi ve nokta sayisi 18'den 11'e
+   DUSTU. Cikti tavana da carpmiyordu. Sebep kapsam metnindeki uc ayri
+   cekinceydi — sayilar istege donusmustu. */
+test('geminiCoverageQuota: sayilar EMIR, istek degil', () => {
+  const q = G.geminiCoverageQuota(42);
+  assert.doesNotMatch(q, /if and only if/i, 'cekince sayilari istege cevirir');
+  assert.doesNotMatch(q, /not a quota to fill/i);
+  assert.doesNotMatch(q, /stopping short of them is correct/i);
+  assert.match(q, /reach them/, 'sayilar duz emir olarak verilmeli');
+  // Dolguya karsi TEK cumle kalmali — uc tane birikince sayilar eriyor.
+  assert.match(q, /restating the same idea/);
+});
+
 test('geminiCoverageQuota: sayilar OLCULEN banda geri geldi, sisirilmedi', () => {
   // Ilk hali 25-40 terim isteyip kosuyu tamamlanamaz hale getirmisti;
   // kota tamamen kalkinca kosu tamamlandi ama 8 terim kaldi. Bu bant
@@ -292,7 +308,6 @@ test('geminiCoverageQuota: sayilar OLCULEN banda geri geldi, sisirilmedi', () =>
   const ust = Number(q.match(/(\d+)-(\d+) key_terms/)[2]);
   assert.ok(alt >= 15, `alt sinir ${alt} — Groq un 16 terimine yaklasmali`);
   assert.ok(ust <= 30, `ust sinir ${ust} — 25-40 bandi kosuyu tamamlanamaz yapmisti`);
-  assert.match(q, /not a quota to fill/);
 });
 
 test('geminiCoverageQuota: sayilar formul ve tablodan SONRA isteniyor', () => {
@@ -301,7 +316,7 @@ test('geminiCoverageQuota: sayilar formul ve tablodan SONRA isteniyor', () => {
   const q = G.geminiCoverageQuota(42);
   assert.ok(q.indexOf('"formulas"') < q.indexOf('key_terms'),
     'formuller sayilardan sonra isteniyor — sira ters');
-  assert.match(q, /do those first/);
+  assert.match(q, /do them first/);
 });
 
 test('geminiCoverageQuota: nokta bandi Groq un uretimine yetisiyor', () => {
@@ -318,7 +333,7 @@ test('geminiCoverageQuota: formul ve tablo tavansiz kalir', () => {
   // Gölge yolun butun gerekcesi bu ikisi: 42 sayfanin 22'sinde denklem
   // resim olarak duruyor ve Groq onlarin yalnizca 2'sini gorebiliyor.
   const q = G.geminiCoverageQuota(42);
-  assert.match(q, /NO cap/);
+  assert.match(q, /No cap/i);
   assert.match(q, /"formulas"/);
   assert.match(q, /"tables"/);
 });
