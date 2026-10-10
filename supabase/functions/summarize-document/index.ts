@@ -5349,12 +5349,21 @@ function geminiMode(): 'only' | 'shadow' {
  * yakip zaman asimina ugradiysa geriye Groq'un tam kosusuna (olculen ~71
  * sn) yer kalmiyor ve toplam Supabase'in ~150 sn sinirini zorlar.
  *
- * Ayrim, bu aksamin olcumlerinde net duruyor:
- *   HIZLI basarisizlik — 503/429/400: 3,9 / 8,4 / 11,1 / 35,8 saniye
- *   YAVAS basarisizlik — zaman asimi: 67,9 / 74,9 / 77,9 / 89,9 / 105 sn
- * Arada bosluk var. 45 saniye esigi hizli olanlarin HEPSINI yakalar,
- * yavaslarin hicbirini; ve en kotu halde toplam 45 + 71 = 116 saniye. */
-const GEMINI_ONLY_FALLBACK_MIN_MS = 100_000   // butcenin 145'inden geriye kalan
+ * ILK HALI YANLISTI (100 sn, yani Groq'un TAM kosusuna yer). 17:40
+ * kosusunda Gemini 111 saniye yakti, geriye 33,9 saniye kaldi ve belge
+ * basarisiz isaretlendi — oysa 33,9 saniye bir kart uretmeye yeterdi.
+ * Secim "tam Groq karti mi, hic kart mi" degil; "yarim Groq karti mi,
+ * hic kart mi". Ogrenci icin ikincisi her zaman daha kotu.
+ *
+ * Groq'un pencereleri, Gemini'den sonra pacer butcesi TAZE oldugu icin
+ * hizli doner — olculdu: iki pencere 6 saniyede bitti. Pencereler +
+ * birlesim + kayit 30 saniyede siger; review ve anlati yazari sigmazsa
+ * kartin quality_meta.skipped_stages alani bunu zaten yaziyor.
+ *
+ * Ayrica geminiToplamTavan sayesinde Gemini artik 105 saniyeden fazlasini
+ * yakamiyor, yani geriye en az 40 saniye kaliyor ve bu esik pratikte her
+ * zaman gecilir. */
+const GEMINI_ONLY_FALLBACK_MIN_MS = 32_000
 
 const GEMINI_ONLY_BUDGET_MS = 145_000
 const GEMINI_ONLY_MAX_CALL_MS = 105_000
@@ -5807,6 +5816,24 @@ async function geminiDraft(
     ? Math.max(0, budgetMs - GEMINI_RESERVE_MS - 20_000)
     : 25_000
 
+  /* GEMINI'NIN TOPLAM DUVAR SAATI TAVANI (10.10.2026 17:40 dersi).
+   *
+   * callMs dongu BASLAMADAN once bir kez hesaplaniyordu, yani her deneme
+   * ayri ayri tam tavani aliyordu. 17:40 kosusunda olan tam buydu:
+   *   deneme 1 -> 503, 3,5 saniyede dondu
+   *   deneme 2 -> 105 saniyede zaman asimi
+   *   toplam 111 saniye, geriye 33,9 saniye kaldi
+   * Yani HIZLI bir hatayi YAVAS bir hata izledi ve Groq'a donus esigini
+   * (o zaman 100 sn) altindan gecirdi. Fallback mantigi dogru calisti,
+   * ama korudugu butce zaten yanmisti.
+   *
+   * Artik her denemenin zaman asimi, toplam tavandan GERIYE KALANA gore
+   * yeniden hesaplaniyor: ilk deneme 3,5 saniye yerse ikincisine 101,5
+   * saniye kalir, toplam yine tavani asmaz. Boylece Gemini ne yaparsa
+   * yapsin Groq'a sabit bir pay kaliyor ve fallback esigi guvenilir
+   * oluyor. */
+  const geminiToplamTavan = tavan
+
   /* RPM 5 (panelden okundu). Istekleri arka arkaya atmak dakikalik limite
      carpiyor ve o 429 "project has exceeded a quota" diye geliyor — gunluk
      kota sanip bos yere paniklediğimiz hata buydu. Ilk istek beklemez;
@@ -5830,9 +5857,19 @@ async function geminiDraft(
       if (!ilkIstek) await new Promise((r) => setTimeout(r, GEMINI_RETRY_WAIT_MS))
       ilkIstek = false
 
+      // Toplam tavandan geriye kalan — bkz. geminiToplamTavan.
+      const buCagriMs = Math.min(callMs, geminiToplamTavan - (Date.now() - basladi))
+      if (buCagriMs < 20_000) {
+        console.warn(
+          `Gemini: toplam tavandan geriye ${buCagriMs}ms kaldi — ` +
+          `yeni deneme baslatilmiyor, Groq'a pay birakiliyor`
+        )
+        return null
+      }
+
       const startedAt = Date.now()
       const res = await callGeminiOnce(
-        apiKey, model, systemInstruction, fileBase64, fileMime, userText, callMs, dropped
+        apiKey, model, systemInstruction, fileBase64, fileMime, userText, buCagriMs, dropped
       )
       const ms = Date.now() - startedAt
 
