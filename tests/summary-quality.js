@@ -292,6 +292,82 @@ test('cok kelimeli terim parcali gecse de kabul edilir', () => {
   assert.equal(r.key_terms.length, 1);
 });
 
+/* ==========================================================================
+   SEKILLERDEN OKUNAN TERIMLER (10.10.2026 olcumu)
+
+   Kapi Groq icin yazildi: model yalnizca cikarilan metni gorur, dolayisiyla
+   metinde gecmeyen terim uydurmadir. Gemini sayfalarin KENDISINI okuyor ve
+   test destesinin 42 sayfasinin 22'sinde denklem resim olarak duruyor.
+
+   Canli kosuda kapi 18 terimin 7'sini atti — "Differential Intercept",
+   "Semi-Elasticity", "Reference (Omitted) Category"... hicbiri uydurma
+   degil, hepsi slaytlarda yazili. Ogrenci kartin %39'unu kaybetti.
+   ========================================================================== */
+const SEKILSIZ_METIN = (
+  'Regression analysis with qualitative variables. ' +
+  'The model uses indicator variables. Slides discuss interpretation. '
+).repeat(20);
+
+const SEKIL_NOTLARI = [
+  'Reference (omitted) category: the level left out of the dummy set',
+  'Differential intercept: the shift in intercept for a dummy group',
+  'Semi-elasticity: percentage change in y per unit change in x'
+].join('\n');
+
+test('sekillerden okunan terim figureText ile korunur', () => {
+  const terimler = [
+    { term: 'Reference (Omitted) Category', definition: '...' },
+    { term: 'Differential Intercept', definition: '...' },
+    { term: 'Semi-Elasticity', definition: '...' }
+  ];
+  const r = A.applyGroundingGate(terimler, [], SEKILSIZ_METIN, new Set(), SEKIL_NOTLARI);
+  assert.equal(r.stats.termsDropped, 0,
+    `sekilde yazan terimler atildi: ${r.stats.droppedTerms.join(', ')}`);
+  assert.equal(r.key_terms.length, 3);
+});
+
+test('figureText OLMADAN ayni terimler kaybedilirdi', () => {
+  // Duzeltmenin gercekten bir sey yaptigini kaniti: ayni girdi, bos
+  // figureText. Kapi hepsini atmaya kalkiyor (ve emniyet valfi devreye
+  // girdigi icin %100'de duruyor) — yani metin tek basina yetmiyor.
+  const terimler = [
+    { term: 'Reference (Omitted) Category', definition: '...' },
+    { term: 'Differential Intercept', definition: '...' },
+    { term: 'Semi-Elasticity', definition: '...' }
+  ];
+  const r = A.applyGroundingGate(terimler, [], SEKILSIZ_METIN);
+  assert.ok(r.stats.termsDropped > 0 || r.stats.aborted,
+    'metin tek basina bu terimleri dogruluyorsa test anlamsiz');
+});
+
+test('figureText uydurmaya GECIS IZNI vermiyor', () => {
+  // Sekil notlarinda gecmeyen bir terim yine atilir — figureText kapiyi
+  // acmiyor, yalnizca kaynagi genisletiyor.
+  const r = A.applyGroundingGate(
+    [
+      { term: 'Differential Intercept', definition: '...' },
+      { term: 'Fotosentez', definition: 'kloroplastlarda gerceklesir' }
+    ],
+    [], SOURCE, new Set(), SEKIL_NOTLARI
+  );
+  assert.ok(r.stats.droppedTerms.includes('Fotosentez'),
+    `alakasiz terim gecti: ${JSON.stringify(r.key_terms.map(t => t.term))}`);
+});
+
+test('figureText verilmezse davranis eskisiyle AYNI', () => {
+  const girdi = [
+    { term: 'Talep esnekligi', definition: '...' },
+    { term: 'Fotosentez', definition: '...' }
+  ];
+  const eski = A.applyGroundingGate(girdi, [], SOURCE);
+  const yeni = A.applyGroundingGate(girdi, [], SOURCE, new Set(), '');
+  assert.deepEqual(
+    yeni.key_terms.map(t => t.term),
+    eski.key_terms.map(t => t.term),
+    'bos figureText mevcut davranisi degistirdi'
+  );
+});
+
 test('SIFIR ortusmeli key_point atilir', () => {
   const r = A.applyGroundingGate([], [
     'Esneklik katsayisi birden buyukse talep esnektir',
