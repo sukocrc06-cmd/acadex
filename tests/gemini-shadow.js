@@ -31,6 +31,7 @@ const NAMES = [
   'GEMINI_MAX_PAGES', 'GEMINI_MIN_BUDGET_MS', 'GEMINI_RESERVE_MS',
   'GEMINI_MAX_CALL_MS', 'GEMINI_MAX_OUTPUT_TOKENS', 'GEMINI_GROQ_RESERVE_MS',
   'geminiMode', 'GEMINI_ONLY_BUDGET_MS', 'GEMINI_ONLY_MAX_CALL_MS',
+  'GEMINI_ONLY_FALLBACK_MIN_MS',
   'bytesToBase64',
   'geminiModelCandidates', 'geminiNativeMime', 'geminiModelMissing',
   'geminiFormatRejected', 'GEMINI_DUSURULEBILIR', 'geminiUnknownParameter',
@@ -378,6 +379,37 @@ test('geminiMode: taninmayan deger shadow sayilir', () => {
   denoEnv.set('GEMINI_MODE', 'bilinmeyen');
   assert.equal(G.geminiMode(), 'shadow');
   denoEnv.delete('GEMINI_MODE');
+});
+
+/* 10.10.2026 16:05 — only modu artik bir URUN yolu, karsilastirma modu
+   degil. Tek 503 ogrenciye bos ekran demek; ama her basarisizlikta Groq'a
+   dusmek de olmaz, cunku Gemini 105 saniyeyi yakmissa geriye Groq'un tam
+   kosusuna yer kalmiyor.
+
+   O aksamin olcumleri ikiye ayriliyor ve arada bosluk var:
+     HIZLI (503/429/400): 3,9 / 8,4 / 11,1 / 35,8 saniye
+     YAVAS (zaman asimi): 67,9 / 74,9 / 77,9 / 89,9 / 105 saniye */
+test('only fallback esigi: hizli basarisizliklarin HEPSINI yakalar', () => {
+  const butce = G.GEMINI_ONLY_BUDGET_MS;
+  const enYavasHizli = 35_800;   // olculen en gec 503
+  assert.ok(butce - enYavasHizli >= G.GEMINI_ONLY_FALLBACK_MIN_MS,
+    `35,8 sn'de donen bir 503 Groq'a dusemiyor — esik cok yuksek`);
+});
+
+test('only fallback esigi: zaman asimlarinin HICBIRINI yakalamaz', () => {
+  const butce = G.GEMINI_ONLY_BUDGET_MS;
+  const enHizliZamanAsimi = 67_900;   // olculen en erken zaman asimi
+  assert.ok(butce - enHizliZamanAsimi < G.GEMINI_ONLY_FALLBACK_MIN_MS,
+    `67,9 sn'lik bir zaman asimindan sonra Groq'a dusuluyor — ` +
+    `toplam sure Supabase'in ~150 sn sinirini zorlar`);
+});
+
+test('only fallback esigi: en kotu toplam sure sinirin altinda', () => {
+  // Esige tam otururken Gemini'nin yaktigi sure + Groq'un olculen tam
+  // kosusu (~71 sn) toplami.
+  const geminiEnCok = G.GEMINI_ONLY_BUDGET_MS - G.GEMINI_ONLY_FALLBACK_MIN_MS;
+  assert.ok(geminiEnCok + 71_000 <= 125_000,
+    `en kotu toplam ${geminiEnCok + 71_000}ms — ~150 sn sinirina pay kalmali`);
 });
 
 test('only modu butun butceyi Gemini ye verir', () => {
