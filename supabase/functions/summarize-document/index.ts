@@ -4948,7 +4948,8 @@ function applyGroundingGate(
   keyTerms: any[],
   keyPoints: any[],
   sourceText: string,
-  visionGrounded: Set<string> = new Set()
+  visionGrounded: Set<string> = new Set(),
+  figureText: string = ''
 ): { key_terms: any[]; key_points: any[]; stats: GroundingStats } {
   const terms = Array.isArray(keyTerms) ? keyTerms : []
   const points = Array.isArray(keyPoints) ? keyPoints : []
@@ -4965,8 +4966,33 @@ function applyGroundingGate(
     return { key_terms: terms, key_points: points, stats }
   }
 
-  const haystack = ' ' + gateNormalize(sourceText) + ' '
-  const docTerms = new Set(anchorTerms(sourceText))
+  /* KAPININ VARSAYIMI MOTORA GORE DEGISIR (10.10.2026).
+   *
+   * Bu kapi Groq icin yazildi ve dayandigi onerme suydu: model YALNIZCA
+   * cikarilan metni gordu, dolayisiyla metinde gecmeyen bir terim uydurma.
+   * Gemini icin bu onerme YANLIS — o, sayfalarin kendisini okuyor. Test
+   * destesinin 42 sayfasinin 22'sinde denklem resim olarak duruyor ve
+   * cikarilan metin sayfa basina 344 karakter.
+   *
+   * Olculdu: 10.10.2026'da kapi 18 terimin 7'sini atti — "Differential
+   * Intercept", "Semi-Elasticity", "Reference (Omitted) Category"...
+   * Hicbiri uydurma degil; hepsi slaytlarda yaziyor, cikarilan metinde
+   * yok. Ogrenci kartin %39'unu bu yuzden kaybetti.
+   *
+   * figureText: modelin SEKILLERDEN okudugunu bildirdigi satirlar. Metin
+   * gibi muamele goruyor, yani kapi ikisinin BIRLESIMINDE ariyor.
+   *
+   * DAIRESELLIK — acikca: burada modelin kendi raporunu kendi ciktisini
+   * dogrulamak icin kullaniyoruz. Bilincli bir takas. Kapinin zaten var
+   * olan visionGroundedClaims muafiyeti ayni seyi yapiyordu, yalnizca TAM
+   * ESLESME ile — yani pratikte hic calismiyordu, cunku muafiyet listesi
+   * cumlelerden olusuyor, terimler ise iki kelime. Uyduran bir modelin bu
+   * kapiyi gecmesi icin artik hem terimi hem onu iceren bir sekil bulgusu
+   * uydurmasi gerekiyor; bu, terimi tek basina uydurmaktan cok daha zor.
+   * Halusinasyon korumasinin asil yuku zaten review ve sanitizeCharts'ta. */
+  const birlesikKaynak = figureText ? sourceText + '\n' + figureText : sourceText
+  const haystack = ' ' + gateNormalize(birlesikKaynak) + ' '
+  const docTerms = new Set(anchorTerms(birlesikKaynak))
   const readText = (raw: any) => typeof raw === 'string' ? raw : String(raw?.text || raw?.point || '')
 
   // --- Key terms: the term itself must occur in the document ---
@@ -8781,7 +8807,10 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
         parsedContent.key_terms,
         parsedContent.key_points,
         extractedText,
-        visionGroundedClaims
+        visionGroundedClaims,
+        // Modelin sekillerden okudugunu bildirdigi satirlar da kaynak
+        // sayilir — bkz. applyGroundingGate'teki uzun not.
+        visionNotes.join('\n')
       )
       parsedContent.key_terms = gated.key_terms
       parsedContent.key_points = gated.key_points
