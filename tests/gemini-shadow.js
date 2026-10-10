@@ -566,10 +566,13 @@ test('callGeminiOnce: dusurulen alanlar govdeye konmaz', async () => {
   } finally { restoreFetch(); }
 });
 
-test('callGeminiOnce: cikis tavani Groq un 3.702 tavaninin cok ustunde', () => {
-  // Gölge yolun var olma sebeplerinden biri bu sayi. 8.000 in altina
-  // dusurulurse yol amacini kaybeder.
-  assert.ok(G.GEMINI_MAX_OUTPUT_TOKENS >= 16384, `tavan cok dusuk: ${G.GEMINI_MAX_OUTPUT_TOKENS}`);
+test('callGeminiOnce: cikis tavani olculen en buyuk ciktiyi RAHAT tasiyor', () => {
+  // 10.10.2026: 46.084 karakterlik JSON ~14.000 token tutuyor. 16.384
+  // tavanla iki kosuda da model tavana carpti ve JSON yarim dondu
+  // ("status=incomplete"), her biri ~88 saniye ve gunluk 20 istekten
+  // birini yakarak. Tavan o olcumun en az iki kati olmali.
+  assert.ok(G.GEMINI_MAX_OUTPUT_TOKENS >= 28_000,
+    `tavan ${G.GEMINI_MAX_OUTPUT_TOKENS} — olculen 14.000 token'lik ciktiya pay birakmiyor`);
 });
 
 test('callGeminiOnce: ok olmayan cevap status ve govdeyle doner', async () => {
@@ -767,6 +770,19 @@ test('geminiDraft: 200 ama incomplete ise null — yarim JSON karta girmez', asy
   try {
     const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000));
     assert.equal(out, null);
+  } finally { restoreFetch(); }
+});
+
+test('geminiDraft: cikti tavaninda TEK istekte durur, aday turlamaz', async () => {
+  // Ayni prompt + ayni tavan = ayni sonuc. Her deneme ~88 sn suruyor ve
+  // gunluk 20 istekten birini yakiyor; uc kez ayni duvara carpmanin
+  // hicbir kazanci yok.
+  stubFetch(G.GEMINI_MODEL_CANDIDATES.map(() => ({ status: 200, json: { status: 'incomplete', steps: [] } })));
+  try {
+    const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000));
+    assert.equal(out, null);
+    assert.equal(fetchCalls.length, 1,
+      `tavana carpinca ${fetchCalls.length} istek yapildi — biri yeterli`);
   } finally { restoreFetch(); }
 });
 
