@@ -5339,12 +5339,27 @@ function geminiMode(): 'only' | 'shadow' {
 const GEMINI_ONLY_BUDGET_MS = 145_000
 const GEMINI_ONLY_MAX_CALL_MS = 105_000
 
-/* Groq'ta 3.702 token'da tavan yapan sey buydu; burada tavan sorun degil.
- * 32.768'den 16.384'e cekildi: olculen gercek cikti 30.374 karakter
- * (~8.000 token) yani tavanin dortte biri. Yuksek tavan uretimi
- * artirmiyor ama modelin ayirdigi butceyi ve dolayisiyla sureyi
- * buyutebiliyor — ve su an darbogaz sure. */
-const GEMINI_MAX_OUTPUT_TOKENS = 16_384
+/* 16.384 -> 32.768, GERI ALINDI (10.10.2026 15:03).
+ *
+ * 09.10'da 32.768'den 16.384'e indirmistim, gerekcem suydu: "olculen
+ * cikti 30.374 karakter, yani tavanin dortte biri; yuksek tavan uretimi
+ * artirmiyor ama modelin ayirdigi butceyi ve dolayisiyla SUREYI
+ * buyutebiliyor". O gerekce bir OLCUM DEGIL, bir tahmindi — ve yanlisti.
+ *
+ * Olculen: 32.768 tavanla 30.374 karakter / 72,4 sn. 16.384 tavanla
+ * 46.084 karakter / 81,3 sn. Yani sureyi tavan degil, istenen ICERIK
+ * belirliyor; tavani kismak hicbir sey kazandirmadi.
+ *
+ * Kazandirmadigi gibi kaybettirdi: nokta bandi 22-28'e cikinca iki
+ * kosuda da model tavana carpti ve JSON yarim dondu —
+ *   "status=incomplete (cikti tavana carpti, JSON yarim)"
+ * 3.7'de de 3.8'de de. 46.084 karakterlik JSON zaten ~14.000 token;
+ * 16.384 tavanin hemen altindaydi, yani o basarili kosu da kil payiymis.
+ *
+ * 32.768, olculen en buyuk ciktinin iki katindan fazla. Gunluk kota 20
+ * istek ve tavana carpan her cagri ~88 saniye yakip hicbir sey
+ * uretmiyor; bu tarafta cimrilik etmenin karsiligi yok. */
+const GEMINI_MAX_OUTPUT_TOKENS = 32_768
 
 /** GEMINI_MODEL secret'i varsa basa alinmis model listesi. */
 function geminiModelCandidates(): string[] {
@@ -5785,6 +5800,11 @@ async function geminiDraft(
         const problem = geminiProblem(res.data)
         if (problem) {
           console.warn(`Gemini ${model}: cevap kullanilamaz — ${problem}`)
+          /* Cikti tavani: SONRAKI ADAYI DENEME. Ayni prompt, ayni tavan,
+             ayni sonuc — tek kazanci gunluk 20 istekten birini daha
+             yakmak, ustelik her deneme ~88 saniye suruyor. Kosuyu burada
+             bitirmek, uc kez ayni duvara carpmaktan iyidir. */
+          if (/incomplete/.test(problem)) return null
           break   // ayni modeli tekrar denemek ayni sonucu verir
         }
         const text = extractGeminiText(res.data)
