@@ -5484,9 +5484,16 @@ function geminiCoverageQuota(pageCount: number): string {
      kosu tamamlandi ama 8 terim / 9 nokta kaldi (Groq 16/25 veriyordu).
      Bu bant ikisinin arasi ve formul/tablodan SONRA isteniyor — oncelik
      sirasi promptta acik, cunku gölge yolun degeri orada. */
-  let terms = '12-18', points = '12-16', quiz = '8-10'
-  if (pageCount > 25) { terms = '18-26'; points = '16-22'; quiz = '10-13' }
-  else if (pageCount > 10) { terms = '15-22'; points = '14-18'; quiz = '9-12' }
+  /* 10.10.2026 14:51 — bant ILK KEZ yer oldugu icin yukseliyor.
+     O kosu 81,3 saniye surdu (tavan 105), yani 23,7 saniye bosluk vardi;
+     onceki kosu 101,2 saniyeydi, yani sure hala Google'in gecikmesiyle
+     oynuyor ve bant bu dalgalanmaya dayanacak kadar olculu kalmali.
+     Olculen uretim: 15 terim / 18 nokta / 10 soru. Groq'un ayni destedeki
+     en iyisi 16 / 25 / 13 idi — aradaki tek gercek fark NOKTALAR, o yuzden
+     once o bant aciliyor. */
+  let terms = '12-18', points = '14-18', quiz = '8-10'
+  if (pageCount > 25) { terms = '18-26'; points = '22-28'; quiz = '12-15' }
+  else if (pageCount > 10) { terms = '15-22'; points = '16-20'; quiz = '10-13' }
   const olcek = pageCount > 0 ? `all ${pageCount} pages` : 'the whole document'
   return `
 
@@ -5512,7 +5519,8 @@ ${extent} There is no ${unit} budget on this run.
 - DIAGRAMS: reconstruct process flows, hierarchies and comparison figures as Mermaid in "diagrams", and explain each in "description".
 - CHARTS — IMPORTANT: do NOT put a numeric series into "charts" unless those same numbers are also printed as text or in a table in the document. A series read off a plotted curve is a guess, and a downstream validator drops any series it cannot find in the text anyway. Instead, state what the chart shows IN WORDS as a key_point (axes, direction, named extremes and their labelled values if the ${unit} prints them).
 - FOOTNOTE PAGES: use the document's own 1-based ${unit} numbers in "footnotes[].page". You can see the ${unit} a claim came from — use it.
-- EXTRA FIELD FOR THIS RUN: "visual_findings": [ string ]. One short sentence per fact you read from a FIGURE, an EQUATION IMAGE or a TABLE SCREENSHOT rather than from the running text. A downstream validator can only read the extracted text; this list is how it is told that such a fact is grounded in a picture it cannot see. Use [] if everything you reported came from the text.`
+- EXTRA FIELD FOR THIS RUN: "visual_findings": [ string ]. One short sentence per fact you read from a FIGURE, an EQUATION IMAGE or a TABLE SCREENSHOT rather than from the running text. A downstream validator can only read the extracted text; this list is how it is told that such a fact is grounded in a picture it cannot see. Use [] if everything you reported came from the text.
+  WITHIN THAT FIELD, ONE RULE IS STRICT: if a term you put in "key_terms" is written on a ${unit} rather than in the running text, the term itself must appear VERBATIM — same words, same order — inside one of these visual_findings lines. Write the line as "<the term>: <what the ${unit} says about it>". The validator matches on the exact words, so a paraphrase does not count and the term is discarded as invented. This has already cost real terms: "Differential Intercept", "Differential Slope" and "Semi-Elasticity" were all read correctly off the slides and all thrown away, because the findings described them without naming them.`
 }
 
 /**
