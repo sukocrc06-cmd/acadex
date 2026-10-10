@@ -5336,6 +5336,26 @@ function geminiMode(): 'only' | 'shadow' {
  * yasayabiliyor, geriye 40 saniyelik nominal butce kaliyor ve review'un
  * 33 saniyelik kapisi rahat geciyor. En kotu halde gercek duvar saati
  * ~105 + 3 = 108 saniye, yani sert sinira 40 saniye pay var. */
+/* only modunda Groq'a DONUS ESIGI (10.10.2026 16:05).
+ *
+ * only modu bir KARSILASTIRMA modu olarak tasarlanmisti: kart ya
+ * Gemini'den gelir ya hic gelmez, boylece yarim bir Groq kosusu olcumu
+ * kirletmesin. Karsilastirma bitti — Gemini her sayida Groq'a esit ya da
+ * ustun, ustune formulleri, Excel tablolarini ve dogrulanmis atiflari
+ * koyuyor. Artik mod bir urun yolu, ve bu haliyle tek 503 ogrenciye bos
+ * ekran demek.
+ *
+ * Ama her basarisizlikta Groq'a dusmek de olmaz: Gemini 105 saniyeyi
+ * yakip zaman asimina ugradiysa geriye Groq'un tam kosusuna (olculen ~71
+ * sn) yer kalmiyor ve toplam Supabase'in ~150 sn sinirini zorlar.
+ *
+ * Ayrim, bu aksamin olcumlerinde net duruyor:
+ *   HIZLI basarisizlik — 503/429/400: 3,9 / 8,4 / 11,1 / 35,8 saniye
+ *   YAVAS basarisizlik — zaman asimi: 67,9 / 74,9 / 77,9 / 89,9 / 105 sn
+ * Arada bosluk var. 45 saniye esigi hizli olanlarin HEPSINI yakalar,
+ * yavaslarin hicbirini; ve en kotu halde toplam 45 + 71 = 116 saniye. */
+const GEMINI_ONLY_FALLBACK_MIN_MS = 100_000   // butcenin 145'inden geriye kalan
+
 const GEMINI_ONLY_BUDGET_MS = 145_000
 const GEMINI_ONLY_MAX_CALL_MS = 105_000
 
@@ -6613,12 +6633,24 @@ ${styleInstruction}`
         )
 
         if (!geminiResult && mod === 'only') {
-          // Groq'a DUSULMUYOR. only modunun anlami bu: kart ya Gemini'den
-          // gelir ya hic gelmez. Yarim bir Groq kosusu (pencereler var,
-          // review ve gorsel gecisi yok) karsilastirmayi da bozar, ogrenciye
-          // de kotu bir kart verir — tekrar denemek ikisinden de iyi.
-          geminiOnlyBasarisiz = true
-          console.error('Gemini (mod=only): taslak uretilemedi — Groq devre disi, belge basarisiz isaretleniyor')
+          /* Hizli basarisizlikta Groq'a duselim, yavasinda duselmeyelim —
+             bkz. GEMINI_ONLY_FALLBACK_MIN_MS. Esik butceden olculuyor,
+             sureden degil: ikisi ayni sey ama butce okumasi kosu icinde
+             nerede oldugumuzu dogru gosteriyor. */
+          const kalan = budgetLeft()
+          if (kalan >= GEMINI_ONLY_FALLBACK_MIN_MS) {
+            console.warn(
+              `Gemini (mod=only): taslak uretilemedi ama ${kalan}ms butce kaldi ` +
+              `(esik ${GEMINI_ONLY_FALLBACK_MIN_MS}ms) — hizli basarisizlik, Groq yoluna dusuluyor`
+            )
+          } else {
+            geminiOnlyBasarisiz = true
+            console.error(
+              `Gemini (mod=only): taslak uretilemedi ve yalnizca ${kalan}ms kaldi ` +
+              `(esik ${GEMINI_ONLY_FALLBACK_MIN_MS}ms) — Groq'un tam kosusuna yer yok, ` +
+              `belge basarisiz isaretleniyor`
+            )
+          }
         }
       }
     }
