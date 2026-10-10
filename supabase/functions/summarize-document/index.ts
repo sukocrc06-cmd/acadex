@@ -5286,8 +5286,32 @@ function geminiMode(): 'only' | 'shadow' {
 /* only modunda butun istek Gemini'nin: 120 sn butce, geriye kapilar ve
    kayit icin GEMINI_RESERVE_MS kaliyor. Groq'a saklanan pay yok, cunku
    Groq cagrilmayacak. */
-const GEMINI_ONLY_BUDGET_MS = 125_000
-const GEMINI_ONLY_MAX_CALL_MS = 95_000
+/* OLCULEN: 10.10.2026, ilk only-modu basarisi — ve kil payi.
+ *
+ *   Gemini cagrisi : 89.908 ms   /  tavan 89.960 ms  -> pay 52 MS
+ *   Review kapisi  : budgetLeft 33.096 ms / gereken 33.000 ms -> pay 96 MS
+ *
+ * Kart geldi ama ikisi de sans eseri. Bu halde kapsami artirmak, yani
+ * modelden daha fazla uretim istemek, dogrudan "kart hic gelmiyor" demek
+ * (only modunda Groq yedek degil).
+ *
+ * SURE BELGENIN BOYUNA BAGLI DEGIL. 42 sayfalik gorsel-yogun deste 67,4
+ * saniye surmustu; bu 9 sayfalik, sayfa basina 1.716 karakterlik METIN
+ * belgesi 89,9 saniye surdu. Yani sureyi belirleyen Google'in o andaki
+ * gecikmesi, bizim istedigimiz is degil. 67-90 saniye arasi oynuyor.
+ *
+ * YER NEREDE SAKLI: cagri bittikten SONRAKI gercek is 3,1 saniye surdu
+ * (taslak 983767'de geldi, kart 986900'de yazildi) — ama review kapisi
+ * 33 saniyelik BUTCE goruyor olmak istiyor. Yani 35 saniyelik pay'in
+ * neredeyse tamami nominal; gercekte kullanilmiyor.
+ *
+ * Toplam kosu 94,4 saniye surdu (Supabase'in sert siniri ~150 sn).
+ * Butce 145'e, tavan 105'e cikariliyor: cagri 105 saniyeye kadar
+ * yasayabiliyor, geriye 40 saniyelik nominal butce kaliyor ve review'un
+ * 33 saniyelik kapisi rahat geciyor. En kotu halde gercek duvar saati
+ * ~105 + 3 = 108 saniye, yani sert sinira 40 saniye pay var. */
+const GEMINI_ONLY_BUDGET_MS = 145_000
+const GEMINI_ONLY_MAX_CALL_MS = 105_000
 
 /* Groq'ta 3.702 token'da tavan yapan sey buydu; burada tavan sorun degil.
  * 32.768'den 16.384'e cekildi: olculen gercek cikti 30.374 karakter
