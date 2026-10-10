@@ -344,14 +344,19 @@ test('geminiMode: taninmayan deger shadow sayilir', () => {
 });
 
 test('only modu butun butceyi Gemini ye verir', () => {
-  // Olculen basarili cagri 72,4 sn. only tavani bunun RAHAT ustunde olmali,
-  // yoksa gölge yol bu belgede yine tamamlanamaz.
-  assert.ok(G.GEMINI_ONLY_MAX_CALL_MS >= 80_000,
-    `only tavani ${G.GEMINI_ONLY_MAX_CALL_MS}ms — olculen 72 sn ye pay birakmiyor`);
+  // Olculen (10.10.2026): 42 sayfalik gorsel deste 67,4 sn; 9 sayfalik
+  // metin belgesi 89,9 sn — ve o kosu 52 MS kala yetisti. Tavan olculen
+  // en uzun sureye rahat pay birakmali, yoksa kapsami artirmak dogrudan
+  // "kart hic gelmiyor" demek (only modunda Groq yedek degil).
+  assert.ok(G.GEMINI_ONLY_MAX_CALL_MS >= 100_000,
+    `only tavani ${G.GEMINI_ONLY_MAX_CALL_MS}ms — olculen 89,9 sn ye pay birakmiyor`);
   assert.ok(G.GEMINI_ONLY_BUDGET_MS - G.GEMINI_ONLY_MAX_CALL_MS >= G.GEMINI_RESERVE_MS - 5_000,
-    'cagri bittikten sonra kapilara ve kayda yer kalmiyor');
-  assert.ok(G.GEMINI_ONLY_BUDGET_MS <= 135_000,
-    'Supabase nin ~150 sn sert sinirina emniyet payi kalmali');
+    'cagri bittikten sonra review kapisina ve kayda yer kalmiyor');
+  // Sinir NOMINAL butce degil, GERCEK duvar saati: cagri tavani + cagri
+  // sonrasi is (olculdu: 3,1 sn). Toplam kosu 94,4 sn surmustu.
+  const gercekEnKotu = G.GEMINI_ONLY_MAX_CALL_MS + 10_000
+  assert.ok(gercekEnKotu <= 125_000,
+    `en kotu gercek sure ~${gercekEnKotu}ms — Supabase nin ~150 sn sinirina pay kalmali`);
 });
 
 test('geminiDraft: only modunda cagri shadow dan uzun yasar', async () => {
