@@ -252,6 +252,18 @@ test('buildGeminiDocInstruction: visual_findings alani istenir', () => {
   assert.match(s, /"visual_findings"/);
 });
 
+/* 10.10.2026 — iki kosuda ayni uc terim atildi (Differential Intercept,
+   Differential Slope, Semi-Elasticity). Kapi duzeltmesi 7 atilani 5'e
+   indirdi ama bu ucu kurtaramadi: model onlari visual_findings icinde
+   TARIF ediyor, ADINI yazmiyor, kapi ise tam kelime esliyor. */
+test('buildGeminiDocInstruction: sekil terimlerinin BIREBIR yazilmasi sart kosuluyor', () => {
+  const s = G.buildGeminiDocInstruction('SAYFA', 42);
+  assert.match(s, /VERBATIM/);
+  assert.match(s, /key_terms/);
+  assert.ok(/paraphrase does not count/.test(s),
+    'tarif etmenin yetmedigi acikca soylenmeli');
+});
+
 test('buildGeminiDocInstruction: formul ve tablo okumasi istenir', () => {
   const s = G.buildGeminiDocInstruction('SAYFA', 42);
   assert.match(s, /FORMULAS:/);
@@ -290,6 +302,16 @@ test('geminiCoverageQuota: sayilar formul ve tablodan SONRA isteniyor', () => {
   assert.ok(q.indexOf('"formulas"') < q.indexOf('key_terms'),
     'formuller sayilardan sonra isteniyor — sira ters');
   assert.match(q, /do those first/);
+});
+
+test('geminiCoverageQuota: nokta bandi Groq un uretimine yetisiyor', () => {
+  // Groq ayni destede 25 nokta veriyordu, Gemini 18. Aradaki tek gercek
+  // fark buydu ve 81,3 sn'lik kosuda 23,7 sn bosluk vardi.
+  const q = G.geminiCoverageQuota(42);
+  const alt = Number(q.match(/(\d+)-(\d+) key_points/)[1]);
+  assert.ok(alt >= 20, `nokta alt siniri ${alt} — Groq un 25'ine yaklasmiyor`);
+  assert.ok(Number(q.match(/(\d+)-(\d+) key_points/)[2]) <= 32,
+    'bant yine sisirildi — 09.10 aksami bu kosuyu tamamlanamaz yapmisti');
 });
 
 test('geminiCoverageQuota: formul ve tablo tavansiz kalir', () => {
