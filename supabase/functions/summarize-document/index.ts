@@ -5499,6 +5499,23 @@ function geminiCoverageQuota(pageCount: number): string {
      kosu tamamlandi ama 8 terim / 9 nokta kaldi (Groq 16/25 veriyordu).
      Bu bant ikisinin arasi ve formul/tablodan SONRA isteniyor — oncelik
      sirasi promptta acik, cunku gölge yolun degeri orada. */
+  /* 10.10.2026 15:14 — BANT SORUN DEGILMIS, CEKINCELER SORUNMUS.
+     Bandi 22-28'e cikardim ve nokta sayisi 18'den 11'e DUSTU, soru 10'dan
+     5'e. Cikti tavana da carpmiyordu (44.855 karakter, tavan 32.768 token
+     ~ 105.000 karakter). Yani model yer bulamadigi icin degil, IZIN
+     verildigi icin durdu: kapsam metninde uc ayri cekince vardi —
+     "if and only if the document genuinely supports it", "a floor to aim
+     at, not a quota to fill", "stopping short of them is correct". Dolgu
+     yapmasin diye yazmistim; sonucu, sayilarin istege donusmesi oldu.
+     Simdi tek cekince kaldi ve sayilar duz emir olarak veriliyor.
+
+     Ayni kosuda BIREBIR kurali ise tuttu: atilan terim 5'ten 1'e indi,
+     grounding %87'den %96'ya cikti, sayisal kapsama %69 ile rekor
+     (Groq'un en iyisi %67'ydi). Yani kalite yukseldi, nicelik dustu.
+
+     Prompttaki tarihce de koda tasindi: "Differential Intercept,
+     Differential Slope ve Semi-Elasticity iki kosuda da atildi" anekdotu
+     bizim icin degerli, model icin dikkat dagitici. */
   /* 10.10.2026 14:51 — bant ILK KEZ yer oldugu icin yukseliyor.
      O kosu 81,3 saniye surdu (tavan 105), yani 23,7 saniye bosluk vardi;
      onceki kosu 101,2 saniyeydi, yani sure hala Google'in gecikmesiyle
@@ -5510,12 +5527,15 @@ function geminiCoverageQuota(pageCount: number): string {
   if (pageCount > 25) { terms = '18-26'; points = '22-28'; quiz = '12-15' }
   else if (pageCount > 10) { terms = '15-22'; points = '16-20'; quiz = '10-13' }
   const olcek = pageCount > 0 ? `all ${pageCount} pages` : 'the whole document'
+  const destek = pageCount > 0
+    ? `A ${pageCount}-page lecture document`
+    : 'A document of this size'
   return `
 
 COVERAGE FOR THIS RUN:
-Draw your output from ${olcek}, not only the opening ones — a term or example from the last third is worth more than a third variation on the first idea.
-Two fields have NO cap and matter more than everything else, because they are the reason you were given the original file: "formulas" (every distinct equation, including the ones that exist only as images) and "tables" (every table, including spreadsheet screenshots and regression output — copy the figures exactly, to the last decimal). Be complete there, and do those first.
-Then, if and only if the document genuinely supports it: ${terms} key_terms, ${points} key_points, ${quiz} quiz_questions. These are a floor to aim at, not a quota to fill — stopping short of them is correct when the material runs out, and padding with restatements of the same idea is worse than a short list.`
+Cover ${olcek}, not only the opening ones — a term or example from the last third is worth more than a third variation on the first idea.
+No cap on "formulas" (every equation, including the image-only ones) or "tables" (every table, including spreadsheet screenshots and regression output — copy the figures exactly, to the last decimal). These two are why you were given the original file: do them first and be complete.
+Then produce ${terms} key_terms, ${points} key_points and ${quiz} quiz_questions. ${destek} supports these counts — reach them. The one thing worse than falling short is restating the same idea in different words to fill the list.`
 }
 
 function buildGeminiDocInstruction(pageMarkerLabel: string, pageCount: number): string {
@@ -5535,7 +5555,7 @@ ${extent} There is no ${unit} budget on this run.
 - CHARTS — IMPORTANT: do NOT put a numeric series into "charts" unless those same numbers are also printed as text or in a table in the document. A series read off a plotted curve is a guess, and a downstream validator drops any series it cannot find in the text anyway. Instead, state what the chart shows IN WORDS as a key_point (axes, direction, named extremes and their labelled values if the ${unit} prints them).
 - FOOTNOTE PAGES: use the document's own 1-based ${unit} numbers in "footnotes[].page". You can see the ${unit} a claim came from — use it.
 - EXTRA FIELD FOR THIS RUN: "visual_findings": [ string ]. One short sentence per fact you read from a FIGURE, an EQUATION IMAGE or a TABLE SCREENSHOT rather than from the running text. A downstream validator can only read the extracted text; this list is how it is told that such a fact is grounded in a picture it cannot see. Use [] if everything you reported came from the text.
-  WITHIN THAT FIELD, ONE RULE IS STRICT: if a term you put in "key_terms" is written on a ${unit} rather than in the running text, the term itself must appear VERBATIM — same words, same order — inside one of these visual_findings lines. Write the line as "<the term>: <what the ${unit} says about it>". The validator matches on the exact words, so a paraphrase does not count and the term is discarded as invented. This has already cost real terms: "Differential Intercept", "Differential Slope" and "Semi-Elasticity" were all read correctly off the slides and all thrown away, because the findings described them without naming them.`
+  ONE RULE IS STRICT HERE: every key_term written on a ${unit} rather than in the running text must appear VERBATIM — same words, same order — in one of these lines, written as "<the term>: <what the ${unit} says>". A paraphrase does not count; a validator matches exact words and discards the term as invented.`
 }
 
 /**
