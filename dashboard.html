@@ -129,52 +129,154 @@
       <!-- ==========================================
            TAB 0: HOME / OVERVIEW VIEW (PHASE 11)
            ========================================== -->
-      <section id="home-view" class="dashboard-view-section active ax">
-        <div class="ax-desk" data-desk="" data-tod="gun">
-          <div class="ax-desk-in">
-            <div>
-              <span class="ax-eyb" data-greet="">merhaba</span>
-              <h2>Masana hoş geldin.</h2>
-              <span class="ax-date" data-today=""></span>
-              <div data-desk-objs=""></div>
-            </div>
-            <div class="ax-streak">
-              <h3>seri <small>son iki hafta</small></h3>
-              <div class="ax-cal" data-cal="" aria-label="Son iki haftanın çalışma günleri"></div>
-              <p class="ax-tally"><b data-streak-n="">0</b> <span data-streak-t=""></span></p>
-              <div class="ax-goal" data-goal="" role="group" aria-label="Haftalık hedef"><span>bu hafta kaç gün?</span><button type="button">3</button><button type="button">4</button><button type="button">5</button><button type="button">6</button><button type="button">7</button></div>
-            </div>
-          </div>
-        </div>
-        <div style="display:none" aria-hidden="true">
-          <span id="home-user-avatar"></span><h2 id="home-welcome-greeting">…</h2><span id="home-welcome-sub"></span>
-          <div id="home-streak-container"><span id="home-streak-display"></span></div>
-        </div>
-        <div id="home-exam-banners-container" style="width: 100%; display: flex; flex-direction: column; gap: 0.75rem;"></div>
-        <div class="ax-stats">
-          <div class="ax-stat"><b id="home-stat-docs">0</b><span>yüklenen belge</span></div>
-          <div class="ax-stat"><b id="home-stat-cards">0</b><span>bilgi kartı destesi</span></div>
-          <div class="ax-stat"><b id="home-stat-exams">0</b><span>çözülen sınav</span></div>
-          <div class="ax-stat"><b id="home-stat-avg-grade">—</b><span>sınav ortalaman</span></div>
-        </div>
-        <div class="ax-card ax-week-card">
-          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap">
-            <h3 class="hand" style="margin:0;font-size:28px;color:#1A2A5C">bu hafta</h3>
-            <button type="button" class="ax-link" onclick="switchDashboardView('planner')">planlayıcıyı aç →</button>
-          </div>
-          <p class="hand" data-week-note="" style="font-size:19px;color:#6A7593;margin-top:2px"></p>
-          <ul class="ax-week" data-week=""></ul>
-        </div>
-        <div class="ax-grid2">
-          <div class="ax-card"><h3>duyurular</h3><div id="home-announcements-list" class="ax-legacy-list" style="display: flex; flex-direction: column; gap: 0.75rem;"><div class="hand" style="font-size:19px;color:#6A7593">yükleniyor…</div></div></div>
-          <div class="ax-card"><h3>paylaşılan materyaller</h3><div id="home-materials-list" class="ax-legacy-list" style="display: flex; flex-direction: column; gap: 0.75rem;"><div class="hand" style="font-size:19px;color:#6A7593">yükleniyor…</div></div></div>
-        </div>
-        <div class="ax-grid2">
-          <div class="ax-card"><h3>son yaptıkların</h3><div id="home-recent-activity-list" style="display: flex; flex-direction: column; gap: 0.75rem;"></div></div>
-          <div class="ax-card" id="home-weak-topics-card" style="display: none;"><h3>odaklanman gerekenler</h3><p class="hand" style="font-size:19px;color:#6A7593;margin-bottom:8px">sınav geçmişine göre sıradaki tekrar konuların</p><div id="home-weak-topics-list" style="display: flex; flex-direction: column; gap: 0.6rem;"></div></div>
-        </div>
-        <div class="ax-card" style="margin-top:22px"><h3>rozetlerim</h3><div class="achievement-grid" id="home-achievements-list"></div></div>
-      </section>
+      <section id="home-view" class="dashboard-view-section active axd">
+<div style="display:none" aria-hidden="true">
+<span id="home-user-avatar"></span><h2 id="home-welcome-greeting"></h2><span id="home-welcome-sub"></span>
+<div id="home-streak-container"><span id="home-streak-display"></span></div>
+<b id="home-stat-docs"></b><b id="home-stat-cards"></b><b id="home-stat-exams"></b><b id="home-stat-avg-grade"></b>
+<div id="home-recent-activity-list"></div><div id="home-announcements-list"></div><div id="home-materials-list"></div>
+</div>
+<div class="main-d">
+<svg class="defs" width="0" height="0" aria-hidden="true" focusable="false"><filter id="ink" x="-10%" y="-10%" width="120%" height="120%"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="7" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.6" xChannelSelector="R" yChannelSelector="G"/></filter></svg>
+
+<section class="band land" data-tod="" aria-labelledby="hello-t">
+<div class="sky">
+<div class="cone" aria-hidden="true"><i class="pool"></i></div>
+<div class="lamp-w" data-lamp="">
+<svg class="lamp" viewBox="0 0 100 84" aria-hidden="true"><path class="cord" d="M50 0 C51 12 49 24 50 36"/><path class="shade" d="M36 37 C44 35 56 35 64 37 C71 47 77 57 84 68 C64 72 36 72 16 68 C23 57 29 47 36 37 Z"/><path class="bulb" d="M41 71 C42 80 58 80 59 71"/></svg>
+<button type="button" class="pull" data-pull="" aria-pressed="true" aria-label="Lambayı kapat"><i class="pull-c"></i><i class="bead"></i></button>
+</div>
+</div>
+<div class="band-l">
+<span class="eyb" data-greet="">iyi çalışmalar</span>
+<h1 class="disp" id="hello-t">Masana hoş geldin.</h1>
+<p class="date hand" data-date="">—</p>
+<div class="win" aria-hidden="true"><div class="win-sky"><i class="sun"></i><i class="moon2"></i><i class="cloud"></i></div><i class="win-v"></i><i class="win-h"></i><i class="sill"></i></div>
+<div class="objs" hidden>
+<a class="pdf" href="#docs" data-go="docs" aria-label="Son belgeni aç">
+<i class="clip" aria-hidden="true"></i>
+<span class="pdf-k">PDF</span>
+<b></b>
+<span class="pdf-lines" aria-hidden="true"></span>
+<span class="pdf-d"></span>
+</a>
+<button type="button" class="deck" data-deck="" aria-pressed="false" aria-label="Bilgi kartı destesi, çevirmek için dokun">
+<i class="d3" aria-hidden="true"></i><i class="d2" aria-hidden="true"></i>
+<span class="dtop" aria-hidden="true">
+<span class="f-front"><span class="k" data-due-k="">BİLGİ KARTLARI</span><b></b><span class="hand">çevir ↻</span></span>
+<span class="f-back"><span class="hand">soru önde, cevap arkada.</span><span class="hand sm">çevirerek çalışırsın</span></span>
+</span>
+</button>
+<p class="hint hand" aria-hidden="true"><svg class="drw" viewBox="0 0 70 40"><path d="M66 6 C50 4 30 10 18 26"/><path d="M12 18 C14 23 15 27 16 32 C21 30 25 29 30 29"/></svg>bugün bunu tekrar et</p>
+</div>
+<div class="desk-empty" data-desk-empty="" hidden><b class="hand">masan şimdilik boş.</b><span>İlk belgeni yükle; özetini çıkarıp kart desteni hazırlayalım.</span><a class="btn btn-blue" href="#docs" data-go="docs">Belge yükle</a></div>
+<div class="desk-items" aria-hidden="true">
+<svg class="notes" viewBox="0 0 90 70"><g class="n1"><rect x="4" y="10" width="44" height="44" rx="1"/><path d="M11 24 C18 22 30 25 40 23 M11 32 C20 31 28 33 36 31"/></g><g class="n2"><rect x="38" y="16" width="44" height="44" rx="1"/><path d="M45 30 C52 28 64 31 74 29 M45 38 C52 37 60 39 66 37"/></g></svg>
+<svg class="pencil" viewBox="0 0 120 30"><path class="pc-body" d="M8 15 L22 7 L104 7 C108 7 110 11 110 15 C110 19 108 23 104 23 L22 23 Z"/><path class="pc-tip" d="M8 15 L22 7 L22 23 Z"/><path class="pc-line" d="M22 15 L102 15"/><path class="pc-end" d="M96 7 V23"/></svg>
+<div class="mug"><svg viewBox="0 0 80 84"><path class="steam s1" d="M26 26 C20 18 32 12 26 2"/><path class="steam s2" d="M40 24 C34 16 46 10 40 0"/><path class="steam s3" d="M54 26 C48 18 60 12 54 4"/><path class="mug-b" d="M12 32 C12 31 13 30 14 30 L64 30 C65 30 66 31 66 32 L62 76 C62 79 59 81 56 81 L22 81 C19 81 16 79 16 76 Z"/><path class="mug-h" d="M65 40 C76 39 79 48 75 56 C72 62 66 64 63 63"/><ellipse class="mug-t" cx="39" cy="31" rx="26" ry="3.5"/></svg><img src="assets/landing/acadex-logo.webp" alt="" width="22" height="22"></div>
+</div>
+<div class="go-row" hidden><button type="button" class="btn btn-blue" data-review="" data-mode="review">Tekrara başla <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 12.6 C8 11.4 13 12.9 19.2 11.7 M14.6 6.6 C16.4 8.6 18 10.3 19.6 11.6 C17.8 13.2 16.1 15 14.3 17.4"/></svg></button><a class="ghost" href="#exams" data-go="exams">ya da bu belgeden deneme oluştur</a></div>
+</div>
+<div class="band-r">
+<h2 class="hd hd-l">seri <small>son iki hafta</small></h2>
+<div class="seri-row">
+<div class="cal" data-cal="" role="img" aria-label="Son iki hafta: son 2 günde çalıştın."></div>
+<div class="goal goal-d" data-goal=""></div>
+</div>
+<p class="streak-note" data-streak-note=""></p>
+<div class="memo-w">
+<button type="button" class="memo-b" data-memo-b="" aria-expanded="false" aria-controls="memo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20 L5.5 15 L16 4.5 C17 3.5 18.5 3.5 19.5 4.5 C20.5 5.5 20.5 7 19.5 8 L9 18.5 Z"/><path d="M14 6.5 L17.5 10"/></svg><span data-memo-peek="">yarınki sana bir not bırak</span></button>
+<div class="memo" id="memo" data-memo="" hidden>
+<i class="memo-tape" aria-hidden="true"></i>
+<button type="button" class="memo-x" data-memo-x="" aria-label="Notu kapat">×</button>
+<label for="memo-t" class="hand" data-memo-l="">yarınki sana bir not bırak</label>
+<textarea id="memo-t" rows="4" maxlength="160" placeholder="mesela: önce 10 kart, sonra deneme…"></textarea>
+<small class="memo-s" data-memo-s="" aria-live="polite">yalnızca bu tarayıcıda kalır</small>
+</div>
+</div>
+<button type="button" class="tour" data-tour="">Bilgi tazelemek ister misin? Turu tekrar başlat</button>
+</div>
+</section>
+
+<div id="home-exam-banners-container" class="ax-banners"></div>
+<div class="grid">
+
+<section class="card c-full land" aria-labelledby="t-week">
+<div class="card-h"><h2 class="hd" id="t-week">bu hafta</h2><a class="more" href="#planner" data-go="planner">planlayıcıyı aç →</a></div>
+<svg class="doodle star drw" viewBox="0 0 30 30" aria-hidden="true"><path d="M15 3 C15.5 9 16 11 17 13 C21 13.5 24 14 27 15 C23 16 20 16.5 17 17.5 C16 21 15.5 24 15 27 C14 23 13.5 20 12.5 17.5 C9 16.5 6 16 3 15 C7 14 10 13.5 13 12.5 C14 10 14.5 7 15 3 Z"/></svg>
+<p class="hint-s hand">bu hafta henüz boş. bir güne dokun, not yapıştıralım.</p>
+<ol class="week" data-week=""></ol>
+</section>
+
+<section class="card c-7 land" aria-labelledby="t-docs">
+<div class="card-h"><h2 class="hd" id="t-docs">belgelerin</h2><a class="more" href="#docs" data-go="docs">tümü →</a></div>
+<div class="passport" data-passport=""></div>
+<div class="road" data-reveal="" data-road="" hidden>
+<svg viewBox="0 0 520 110" aria-hidden="true"><path class="road-base" d="M24 72 C80 22 140 30 190 62 S300 104 350 66 S440 18 496 44"/><path class="road-ink" pathLength="1" d="M24 72 C80 22 140 30 190 62 S300 104 350 66 S440 18 496 44"/></svg>
+<ol aria-label=" yol haritası">
+<li class="done" data-at="0"><span>yükledin</span></li>
+<li class="done" data-at=".36"><span>kartlar</span></li>
+<li class="next" data-at=".68"><a href="#exams" data-go="exams">deneme <small>sıradaki durak</small></a></li>
+<li data-at="1"><span>tekrar</span></li>
+</ol>
+</div>
+<a class="add-doc" href="#docs" data-go="docs"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5 V5 M8 8.6 C9.4 7.3 10.7 6 12 4.6 C13.3 6 14.6 7.3 16 8.6"/><path d="M5 14.5 V19 H19 V14.5"/></svg>Yeni belge yükle</a>
+</section>
+
+<section class="card c-5 land" aria-labelledby="t-log">
+<div class="card-h"><h2 class="hd" id="t-log">son yaptıkların</h2></div>
+<div class="tline" data-reveal="">
+<svg class="tl-ink drw" viewBox="0 0 20 200" preserveAspectRatio="none" aria-hidden="true"><path d="M10 4 C14 30 6 52 10 78 C14 104 6 128 10 152 C13 172 8 186 10 198"/></svg>
+<div data-log=""></div>
+</div>
+</section>
+
+<section class="card c-6 land" aria-labelledby="t-facts">
+<div class="card-h"><h2 class="hd" id="t-facts">şimdiye kadar</h2></div>
+<div class="shelf" data-reveal="" data-shelf="">
+<svg class="plank drw" viewBox="0 0 400 16" preserveAspectRatio="none" aria-hidden="true"><path d="M2 5 C80 3 160 7 240 4 S360 6 398 4"/><path d="M6 12 C120 10 260 13 394 11"/></svg>
+</div>
+<p class="avg hand" data-avg="">ortalama notun ilk denemeden sonra rafa gelecek.<svg class="doodle arrow drw" viewBox="0 0 60 50" aria-hidden="true"><path d="M4 44 C20 40 38 30 48 10"/><path d="M38 14 C42 12 46 10 49 8 C50 12 50 16 51 20"/></svg></p>
+</section>
+
+<section class="card c-6 land" aria-labelledby="t-short">
+<div class="card-h"><h2 class="hd" id="t-short">kısayollar</h2></div>
+<div class="shorts" data-reveal="">
+<a class="tile" href="#docs" data-go="docs"><svg class="drw" viewBox="0 0 48 48" aria-hidden="true"><path d="M10 28 V39 H38 V28"/><path d="M24 31 V9"/><path d="M16 16 C19 13 21 11 24 8 C27 11 29 13 32 16"/><path d="M15 34 H33" class="lt"/></svg>Belge yükle</a>
+<a class="tile" href="#notebook" data-go="notebook"><svg class="drw" viewBox="0 0 48 48" aria-hidden="true"><path d="M12 7 H34 C36 7 37 8 37 10 V41 H14 C12 41 11 40 11 38 V8"/><path d="M17 15 H31 M17 21 H31 M17 27 H26" class="lt"/><path d="M30 33 L40 20 L43 23 L33 36 L29 37 Z"/></svg>Çalışma defteri</a>
+<a class="tile" href="#exams" data-go="exams"><svg class="drw" viewBox="0 0 48 48" aria-hidden="true"><path d="M11 6 H31 L37 12 V42 H11 Z"/><path d="M15 17 L17 19 L21 14 M25 17 H32 M15 27 L17 29 L21 24 M25 27 H32" class="lt"/><path d="M15 35 H21 M25 37 H32"/></svg>Deneme sınavı</a>
+<a class="tile" href="#feed" data-go="feed"><svg class="drw" viewBox="0 0 48 48" aria-hidden="true"><circle cx="17" cy="17" r="6"/><path d="M6 39 C7 31 11 27 17 27 C23 27 27 31 28 39"/><circle cx="33" cy="19" r="4.5"/><path d="M30 28 C36 27 41 31 42 38" class="lt"/></svg>Bölüm akışı</a>
+<a class="tile" href="#planner" data-go="planner"><svg class="drw" viewBox="0 0 48 48" aria-hidden="true"><path d="M8 12 H40 V41 H8 Z"/><path d="M16 7 V16 M32 7 V16 M8 20 H40"/><path d="M14 28 H18 M22 28 H26 M30 28 H34 M14 34 H18 M22 34 H26" class="lt"/><circle cx="32" cy="34" r="3.2"/></svg>Planlayıcı</a>
+<a class="tile" href="#settings" data-go="settings"><svg class="drw" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="6"/><path d="M24 7 V13 M24 35 V41 M7 24 H13 M35 24 H41 M12 12 L16 16 M32 32 L36 36 M36 12 L32 16 M16 32 L12 36"/><circle cx="24" cy="24" r="12" class="lt"/></svg>Ayarlar</a>
+</div>
+</section>
+
+<section class="card c-6 c-pano land" aria-labelledby="t-news">
+<div class="card-h"><h2 class="hd" id="t-news">pano</h2></div>
+<div class="cork" data-cork=""></div>
+</section>
+
+<section class="card c-6 land" aria-labelledby="t-badge">
+<div class="card-h"><h2 class="hd" id="t-badge">rozetlerin</h2></div>
+<div class="achievement-grid ax-badges" id="home-achievements-list"></div>
+</section>
+
+<section class="card c-6 land" id="home-weak-topics-card" aria-labelledby="t-weak" style="display:none">
+<div class="card-h"><h2 class="hd" id="t-weak">odaklanman gerekenler</h2></div>
+<p class="hand" style="font-size:19px;color:#6A7593;margin:0 0 8px">sınav geçmişine göre sıradaki tekrar konuların</p>
+<div id="home-weak-topics-list" style="display:flex;flex-direction:column;gap:.6rem"></div>
+</section>
+
+<section class="card sched land" aria-labelledby="t-sched">
+<div class="card-h"><h2 class="hd" id="t-sched">bugünün saatleri</h2><a class="more" href="#planner" data-go="planner">planla →</a></div>
+<div class="hours-w" data-hours-w=""><ol class="hours" data-hours=""></ol></div>
+<p class="sched-n hand">bugün planın boş. istersen bir saat ayır, gerisi kendiliğinden gelir.</p>
+</section>
+
+</div>
+<div class="order-row"><button type="button" class="order-reset" data-order-reset="" hidden>kartların düzenini sıfırla</button><span class="vh" aria-live="polite" data-order-live=""></span></div>
+</div>
+</section>
 
       <!-- ==========================================
            TAB 0.5: STUDY PLANNER VIEW (PHASE 15)
@@ -2361,7 +2463,7 @@
         <circle cx="12" cy="12" r="10"></circle>
         <polyline points="12 6 12 12 16 14"></polyline>
       </svg>
-      <span>Focus Mode / Odaklan</span>
+      <span>Odak modu</span>
     </button>
   </div>
 

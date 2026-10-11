@@ -84,127 +84,6 @@
     var b = $('#btn-global-search'); if (b) { e.preventDefault(); b.click(); }
   });
 
-  /* ================= BUGÜN ================= */
-  var homeBusy = false;
-  var drawDeskHead = function () {
-    var desk = $('[data-desk]'); if (!desk) return;
-    var t = tod(); desk.setAttribute('data-tod', t);
-    var g = $('[data-greet]', desk); if (g) g.textContent = GREET[t] + (first() ? ', ' + first() : '');
-    var d = new Date(), DAYS = ['pazar', 'pazartesi', 'salı', 'çarşamba', 'perşembe', 'cuma', 'cumartesi'], MON = ['ocak', 'şubat', 'mart', 'nisan', 'mayıs', 'haziran', 'temmuz', 'ağustos', 'eylül', 'ekim', 'kasım', 'aralık'];
-    var dt = $('[data-today]', desk); if (dt) dt.textContent = d.getDate() + ' ' + MON[d.getMonth()] + ' ' + DAYS[d.getDay()];
-  };
-  var ymd = function (d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); };
-  var drawStreak = function () {
-    var cal = $('[data-cal]'); if (!cal) return;
-    var p = prof() || {}, streak = Number(p.current_streak) || 0, last = p.last_active_date ? new Date(p.last_active_date + 'T12:00:00') : null;
-    var on = {};
-    if (last && streak > 0) for (var k = 0; k < streak && k < 60; k++) { var x = new Date(last); x.setDate(x.getDate() - k); on[ymd(x)] = 1; }
-    var today = new Date(); today.setHours(12, 0, 0, 0);
-    var dow = (today.getDay() + 6) % 7; /* pazartesi = 0 */
-    var start = new Date(today); start.setDate(today.getDate() - dow - 7);
-    var out = ['Pt', 'Sa', 'Ça', 'Pe', 'Cu', 'Ct', 'Pz'].map(function (n) { return '<span class="dn">' + n + '</span>'; }).join('');
-    for (var i = 0; i < 14; i++) {
-      var dd = new Date(start); dd.setDate(start.getDate() + i);
-      var key = ymd(dd), isOn = !!on[key], isT = key === ymd(today);
-      out += '<i class="' + (isOn ? 'on' : '') + (isT ? ' today' : '') + '" title="' + dshort(dd) + (isOn ? ' · çalıştın' : '') + '">' + dd.getDate() + (isOn ? ICON.tick : '') + '</i>';
-    }
-    cal.innerHTML = out;
-    var n = $('[data-streak-n]'), tt = $('[data-streak-t]');
-    if (n) n.textContent = streak;
-    if (tt) tt.textContent = streak > 1 ? 'gündür üst üste çalışıyorsun. Yarın da uğrarsan ' + (streak + 1) + ' olur.' : streak === 1 ? 'gün: serin bugün başladı. Yarın da gel, iki olsun.' : 'gün: bugün başla, serin birden başlasın.';
-    var goal = $('[data-goal]');
-    if (goal && !goal.dataset.w) {
-      goal.dataset.w = '1';
-      var cur = store.get('acadex.weekgoal') || '';
-      $$('button', goal).forEach(function (b) {
-        b.setAttribute('aria-pressed', String(b.textContent.trim() === cur));
-        b.addEventListener('click', function () { store.set('acadex.weekgoal', b.textContent.trim()); $$('button', goal).forEach(function (o) { o.setAttribute('aria-pressed', String(o === b)); }); });
-      });
-    }
-  };
-  var drawDeskObjects = async function () {
-    var box = $('[data-desk-objs]'); if (!box || !me() || typeof supabaseClient === 'undefined') return;
-    try {
-      var r = await Promise.all([
-        supabaseClient.from('documents').select('id, file_name, uploaded_at, status').eq('user_id', me().id).order('uploaded_at', { ascending: false }).limit(1),
-        supabaseClient.from('study_cards').select('id, document_id, created_at, documents(file_name)').eq('user_id', me().id).order('created_at', { ascending: false }).limit(1)
-      ]);
-      var doc = (r[0].data || [])[0], card = (r[1].data || [])[0];
-      if (!doc && !card) {
-        box.innerHTML = '<div class="ax-desk-empty"><b>masan şimdilik boş.</b>İlk belgeni yükle; özetini çıkarıp kartlarını hazırlayalım.<div class="ax-desk-act"><button type="button" class="ax-btn ax-btn-blue" onclick="switchDashboardView(\'docs\')">' + ICON.up + 'Belge yükle</button></div></div>';
-        return;
-      }
-      var h = '<div class="ax-objs">';
-      if (doc) {
-        var k = extKind(doc.file_name);
-        h += '<div class="ax-paper"><i class="ax-clip"></i><span class="ext">' + k[1] + '</span><b>' + esc(baseName(doc.file_name)) + '</b><i></i><i></i><i style="width:70%"></i><i></i><small>' + esc(dshort(doc.uploaded_at).replace(/ \d{4}$/, '')) + '</small></div>';
-      }
-      if (card) h += '<div class="ax-deck"><span class="mono">BİLGİ KARTLARI</span><b>' + esc(baseName(card.documents && card.documents.file_name)) + '</b><span class="hand">bugün bunu tekrar et</span></div>';
-      h += '</div><div class="ax-desk-act">';
-      if (card) h += '<button type="button" class="ax-btn ax-btn-blue" data-review="' + card.id + '" data-name="' + esc(baseName(card.documents && card.documents.file_name)) + '">Tekrara başla ' + ICON.arrow + '</button><button type="button" class="ax-link" onclick="switchDashboardView(\'exams\')">ya da bu belgeden deneme oluştur</button>';
-      else h += '<button type="button" class="ax-btn ax-btn-blue" onclick="switchDashboardView(\'docs\')">Belgeyi özetle ' + ICON.arrow + '</button>';
-      h += '</div>';
-      box.innerHTML = h;
-      var rv = $('[data-review]', box);
-      if (rv) rv.addEventListener('click', async function () {
-        rv.disabled = true;
-        try {
-          if (typeof libraryCards !== 'undefined' && !libraryCards.some(function (c) { return c.id === rv.dataset.review; })) {
-            var q = await supabaseClient.from('study_cards').select('*, documents(file_name)').eq('id', rv.dataset.review).single();
-            if (q.data) libraryCards.push(q.data);
-          }
-          if (typeof openAdaptiveReview === 'function') await openAdaptiveReview(rv.dataset.review, rv.dataset.name);
-        } finally { rv.disabled = false; }
-      });
-    } catch (e) { console.warn('acadex-ink: masa çizilemedi', e); }
-  };
-  var drawWeek = async function () {
-    var ul = $('[data-week]'); if (!ul || !me() || typeof supabaseClient === 'undefined') return;
-    var today = new Date(); today.setHours(12, 0, 0, 0);
-    var mon = new Date(today); mon.setDate(today.getDate() - ((today.getDay() + 6) % 7));
-    var sun = new Date(mon); sun.setDate(mon.getDate() + 6);
-    var evs = [];
-    try {
-      var r = await supabaseClient.from('study_events').select('id, title, event_date, event_type, is_done').eq('user_id', me().id).gte('event_date', ymd(mon)).lte('event_date', ymd(sun) + 'T23:59:59').order('event_date', { ascending: true });
-      evs = r.data || [];
-    } catch (e) {}
-    var N = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'], out = '', total = 0;
-    for (var i = 0; i < 7; i++) {
-      var d = new Date(mon); d.setDate(mon.getDate() + i);
-      var key = ymd(d), mine = evs.filter(function (e) { return String(e.event_date).slice(0, 10) === key; });
-      total += mine.length;
-      out += '<li class="' + (key === ymd(today) ? 'today' : '') + '"><span class="d">' + N[i] + '<b>' + d.getDate() + '</b></span>' +
-        mine.slice(0, 4).map(function (e) { return '<span class="ev' + (e.is_done ? ' done' : '') + (/exam|sınav/i.test(e.event_type || '') ? ' exam' : '') + '">' + esc(e.title) + '</span>'; }).join('') +
-        (mine.length > 4 ? '<span class="hand" style="font-size:16px;color:var(--soft)">+' + (mine.length - 4) + ' daha</span>' : '') +
-        '<button type="button" class="add" data-add="' + key + '">+ ekle</button></li>';
-    }
-    ul.innerHTML = out;
-    var note = $('[data-week-note]'); if (note) note.textContent = total ? 'bu hafta ' + total + ' plan var.' : 'bu hafta henüz boş. bir güne dokun, plan yapıştıralım.';
-    $$('[data-add]', ul).forEach(function (b) {
-      b.addEventListener('click', function () {
-        switchDashboardView('planner');
-        setTimeout(function () {
-          if (typeof openAddEventModal === 'function') openAddEventModal();
-          var f = document.querySelector('#add-event-modal input[type="date"], #event-date');
-          if (f) f.value = b.dataset.add;
-        }, 450);
-      });
-    });
-  };
-  if (typeof loadDashboardHome === 'function') {
-    var origHome = loadDashboardHome;
-    loadDashboardHome = async function () {
-      drawDeskHead(); drawStreak();
-      if (homeBusy) return origHome.apply(this, arguments);
-      homeBusy = true;
-      try {
-        await Promise.all([origHome.apply(this, arguments), drawDeskObjects(), drawWeek()]);
-        drawStreak();
-      } finally { homeBusy = false; }
-    };
-  }
-  drawDeskHead();
-
   /* ================= BELGELERİM ================= */
   var docQ = '', docSort = 'new';
   var STAGES = { extracting: ['metin çıkarılıyor', 18], analyzing: ['özet oluşturuluyor', 40], synthesizing: ['parçalar birleştiriliyor', 58], sectioning: ['bölüm özetleri derinleşiyor', 62], writing: ['anlatı yazılıyor', 70], draft_ready: ['taslak hazır, kontrol ediliyor', 76], reviewing: ['doğruluk kontrol ediliyor', 86], critic: ['kalite kontrolü', 92], saving: ['kart kaydediliyor', 96] };
@@ -485,4 +364,600 @@
       return r;
     };
   }
+})();
+
+/* ================= BUGÜN · masa (tam tasarım, gerçek veri) ================= */
+(function () {
+  'use strict';
+  var root = document.getElementById('home-view');
+  if (!root || !root.classList.contains('axd')) return;
+  document.documentElement.classList.add('js');
+  var $ = function (s, r) { return (r || root).querySelector(s); };
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || root).querySelectorAll(s)); };
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var SVGNS = 'http://www.w3.org/2000/svg';
+  var esc = function (t) { return String(t == null ? '' : t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var lsafe = function (fn, fb) { try { return fn(); } catch (e) { return fb; } };
+  var prof = function () { return lsafe(function () { return currentUserProfile; }, null) || window.currentUserProfile || null; };
+  var me = function () { return lsafe(function () { return currentUser; }, null) || window.currentUser || null; };
+  var store = {
+    get: function (k) { try { return JSON.parse(localStorage.getItem('acadex.dash.' + k)); } catch (e) { return null; } },
+    set: function (k, v) { try { localStorage.setItem('acadex.dash.' + k, JSON.stringify(v)); return true; } catch (e) { return false; } },
+    del: function (k) { try { localStorage.removeItem('acadex.dash.' + k); } catch (e) {} }
+  };
+  var ymd = function (d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); };
+  var MON = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+  var dm = function (d) { d = new Date(d); return d.getDate() + ' ' + MON[d.getMonth()]; };
+  var dd2 = function (d) { d = new Date(d); return ('0' + d.getDate()).slice(-2) + ' · ' + ('0' + (d.getMonth() + 1)).slice(-2); };
+  var hm = function (d) { d = new Date(d); return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); };
+  var baseName = function (n) {
+    n = String(n || '').replace(/\.[a-z0-9]{2,5}$/i, '');
+    var m = n.match(/^\d{10,}_(?:\d{10,}_)?(.+)$/); if (m) n = m[1];
+    n = n.replace(/_+/g, ' ').trim();
+    return n || 'İsimsiz belge';
+  };
+  var extOf = function (n) { var e = String(n || '').split('.').pop().toUpperCase(); return e === 'DOCX' || e === 'DOC' ? 'DOC' : e === 'PPTX' || e === 'PPT' ? 'PPT' : e === 'PDF' ? 'PDF' : 'TXT'; };
+  var shortName = function (n) { var w = baseName(n).split(/\s+/); return w.length > 1 ? (w[0].charAt(0) + ' ' + w.slice(1).join(' ')).slice(0, 10) : w[0].slice(0, 10); };
+  var rng = function (seed) { var x = 0; for (var i = 0; i < seed.length; i++) x = (x * 31 + seed.charCodeAt(i)) >>> 0; return function () { x = (x * 1664525 + 1013904223) >>> 0; return x / 4294967296; }; };
+  var go = function (v) { if (typeof switchDashboardView === 'function') switchDashboardView(v); };
+  var now = new Date();
+
+  /* data-go: tasarımdaki bağlantılar panellere geçer */
+  root.addEventListener('click', function (e) {
+    var a = e.target.closest('[data-go]'); if (!a || !root.contains(a)) return;
+    e.preventDefault(); go(a.getAttribute('data-go'));
+  });
+
+  /* ---------- ölçüye göre çizgiler, sayım çizgileri, görününce çiz ---------- */
+  var io = (!reduce && 'IntersectionObserver' in window) ? new IntersectionObserver(function (es) {
+    es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('on'); io.unobserve(e.target); } });
+  }, { rootMargin: '0px 0px -12% 0px' }) : null;
+  var reveal = function (els) { els.forEach(function (el) { if (io) io.observe(el); else el.classList.add('on'); }); };
+  var prepDrw = function (scope) { $$('.drw', scope).forEach(function (s) { $$('path, circle', s).forEach(function (el, i) { el.setAttribute('pathLength', '1'); el.style.setProperty('--i', i); }); }); };
+  var tally = function (t, n) {
+    t.innerHTML = ''; if (!n) return;
+    var shown = Math.min(n, 20), groups = Math.ceil(shown / 5), w = groups * 34;
+    var s = document.createElementNS(SVGNS, 'svg'); s.setAttribute('viewBox', '0 0 ' + w + ' 36'); s.setAttribute('class', 'drw'); s.style.width = (w * 0.8) + 'px';
+    for (var k = 0; k < shown; k++) {
+      var g = Math.floor(k / 5), j = k % 5, x = g * 34 + 4 + j * 6, wob = ((k * 7) % 3 - 1) * 0.8;
+      var d = j < 4 ? 'M' + (x + wob) + ' 5 C' + (x + 1) + ' 14 ' + (x - 1) + ' 24 ' + (x + wob * -1) + ' 32' : 'M' + (g * 34 + 1) + ' 26 C' + (g * 34 + 10) + ' 20 ' + (g * 34 + 18) + ' 14 ' + (g * 34 + 27) + ' 9';
+      var p = document.createElementNS(SVGNS, 'path'); p.setAttribute('d', d); p.setAttribute('pathLength', '1'); p.style.setProperty('--i', k); s.appendChild(p);
+    }
+    t.appendChild(s); reveal([s]);
+  };
+  $$('.land').forEach(function (el, i) { el.style.setProperty('--hr', (((i * 37) % 11 - 5) * 0.3).toFixed(2) + 'deg'); el.style.setProperty('--hx', (((i * 53) % 9 - 4) * 2) + 'px'); });
+  prepDrw(root); reveal($$('.drw, [data-reveal]'));
+
+  /* ---------- selam, tarih, ışık ---------- */
+  var h = now.getHours(), tod = h >= 5 && h < 11 ? 'sabah' : h < 17 ? 'gun' : h < 22 ? 'aksam' : 'gece';
+  var band = $('.band'); band.setAttribute('data-tod', tod);
+  var greet = function () {
+    var p = prof(), n = (p && p.full_name) || ((me() && me().email) || '').split('@')[0] || '';
+    n = String(n).split(/\s+/)[0]; n = n ? n.charAt(0).toLocaleUpperCase('tr') + n.slice(1) : '';
+    $('[data-greet]').textContent = { sabah: 'günaydın', gun: 'iyi çalışmalar', aksam: 'iyi akşamlar', gece: 'geç saatte de buradasın' }[tod] + (n ? ', ' + n : '');
+  };
+  try { $('[data-date]').textContent = now.toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' }).toLocaleLowerCase('tr'); } catch (e) {}
+  greet();
+
+  /* ---------- kenar çizgileri (el çizimi) ---------- */
+  var drawEdge = function (card) {
+    var w = card.offsetWidth, ht = card.offsetHeight; if (!w || !ht) return;
+    var r = rng(card.getAttribute('aria-labelledby') || 'c');
+    var svg = card.querySelector(':scope > .edge');
+    if (!svg) { svg = document.createElementNS(SVGNS, 'svg'); svg.setAttribute('class', 'edge'); svg.setAttribute('aria-hidden', 'true'); card.insertBefore(svg, card.firstChild); }
+    svg.setAttribute('viewBox', '-1 -1 ' + (w + 2) + ' ' + (ht + 2));
+    var j = function (a) { return ((r() - 0.5) * 2 * a).toFixed(1); };
+    var line = function (x1, y1, x2, y2, horiz) {
+      var len = horiz ? Math.abs(x2 - x1) : Math.abs(y2 - y1), n = Math.max(2, Math.round(len / 90)), d = 'M' + x1 + ' ' + y1;
+      for (var k = 1; k <= n; k++) {
+        var t = k / n, x = x1 + (x2 - x1) * t, y = y1 + (y2 - y1) * t, cx = x1 + (x2 - x1) * (t - 0.5 / n), cy = y1 + (y2 - y1) * (t - 0.5 / n);
+        d += ' Q' + (horiz ? cx : +cx + +j(1.1)) + ' ' + (horiz ? +cy + +j(1.1) : cy) + ' ' + (horiz ? x : +x + +j(0.4)) + ' ' + (horiz ? +y + +j(0.4) : y);
+      }
+      return d;
+    };
+    var o = function () { return 2 + r() * 4; };
+    svg.innerHTML = '<path d="' + line(6 - o(), 0.5, w - 6 + o(), 0.5 + +j(0.8), true) + '"/><path d="' + line(w - 0.5, 6 - o(), w - 0.5 + +j(0.8), ht - 6 + o(), false) + '"/>' +
+      '<path d="' + line(w - 6 + o(), ht - 0.5, 6 - o(), ht - 0.5 + +j(0.8), true) + '"/><path d="' + line(0.5, ht - 6 + o(), 0.5 + +j(0.8), 6 - o(), false) + '"/>';
+  };
+  var grid = $('.grid'), cards = function () { return $$('.grid > .card'); };
+  var tones = ['#FFFFFF', '#FEFEFC', '#FBFCFF', '#FFFFFE', '#FCFCFD'];
+  cards().forEach(function (c, i) { c.style.setProperty('--tone', tones[i % tones.length]); });
+  var edges = function () { cards().forEach(drawEdge); };
+  if ('ResizeObserver' in window) { var ro = new ResizeObserver(function (es) { es.forEach(function (e) { drawEdge(e.target); }); }); cards().forEach(function (c) { ro.observe(c); }); }
+  else window.addEventListener('resize', edges);
+  var byId = function (id) { return $('.grid > .card[aria-labelledby="' + id + '"]'); };
+  ['t-log', 't-short'].forEach(function (k) { var c = byId(k); if (c) c.classList.add('curl'); });
+  var cf = byId('t-facts'); if (cf) cf.classList.add('taped');
+
+  /* ---------- yarınki sana not (bu tarayıcıda) ---------- */
+  (function () {
+    var todayK = ymd(now), memo = $('#memo-t'), memoL = $('[data-memo-l]'), memoS = $('[data-memo-s]'), saved = store.get('memo');
+    if (saved && saved.t) {
+      memo.value = saved.t;
+      if (saved.d !== todayK) {
+        var y = new Date(now); y.setDate(now.getDate() - 1);
+        var when = saved.d === ymd(y) ? 'dün' : new Date(saved.d + 'T12:00').toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' }) + ' günü';
+        memoL.textContent = when + ' kendine şunu yazmıştın:';
+      } else memoL.textContent = 'yarınki sana notun';
+    }
+    var memoB = $('[data-memo-b]'), memoP = $('[data-memo-peek]'), box = $('[data-memo]');
+    var peek = function () {
+      var v = memo.value.trim(); if (!v) { memoP.textContent = 'yarınki sana bir not bırak'; return; }
+      var pre = /yazmıştın/.test(memoL.textContent) ? memoL.textContent.replace(' kendine şunu yazmıştın:', ' yazmıştın: ') : 'notun: ';
+      memoP.textContent = pre + (v.length > 30 ? v.slice(0, 30).trim() + '…' : v);
+    };
+    peek();
+    var open = function (o) { box.hidden = !o; memoB.setAttribute('aria-expanded', String(o)); if (o) memo.focus(); else { peek(); memoB.focus(); } };
+    memoB.addEventListener('click', function () { open(box.hidden); });
+    $('[data-memo-x]').addEventListener('click', function () { open(false); });
+    box.addEventListener('keydown', function (e) { if (e.key === 'Escape') { e.stopPropagation(); open(false); } });
+    document.addEventListener('click', function (e) { if (!box.hidden && !e.target.closest('.memo-w')) { box.hidden = true; memoB.setAttribute('aria-expanded', 'false'); peek(); } });
+    var mt = 0;
+    memo.addEventListener('input', function () {
+      clearTimeout(mt);
+      mt = setTimeout(function () {
+        var v = memo.value.trim();
+        if (!v) { store.del('memo'); memoL.textContent = 'yarınki sana bir not bırak'; memoS.textContent = 'yalnızca bu tarayıcıda kalır'; return; }
+        memoS.textContent = store.set('memo', { t: v, d: todayK }) ? 'kaydedildi, yarın burada olacak' : 'bu tarayıcı notu saklamıyor';
+        memoL.textContent = 'yarınki sana notun';
+      }, 400);
+    });
+  })();
+
+  /* ---------- lamba: ipi çek ---------- */
+  (function () {
+    var pull = $('[data-pull]'), lampW = $('[data-lamp]');
+    var on = store.get('lamp'); if (on === null) on = true;
+    var ang = 0, vel = 0, raf = 0;
+    var swing = function () { vel += -0.05 * ang; vel *= 0.95; ang += vel; lampW.style.transform = 'rotate(' + ang.toFixed(2) + 'deg)'; if (Math.abs(ang) + Math.abs(vel) > 0.02) raf = requestAnimationFrame(swing); else { lampW.style.transform = ''; ang = vel = 0; raf = 0; } };
+    var set = function (v, anim) {
+      on = v; band.classList.toggle('lamp-on', on); pull.setAttribute('aria-pressed', String(on)); pull.setAttribute('aria-label', on ? 'Lambayı kapat' : 'Lambayı aç'); store.set('lamp', on);
+      if (anim && !reduce) { if (on) { band.classList.remove('flick'); void band.offsetWidth; band.classList.add('flick'); } vel += 1.6; if (!raf) raf = requestAnimationFrame(swing); }
+    };
+    set(on, false);
+    var st = null, moved = false;
+    pull.addEventListener('pointerdown', function (e) { if (e.button !== 0) return; e.preventDefault(); st = { y: e.clientY }; moved = false; pull.classList.add('pulling'); try { pull.setPointerCapture(e.pointerId); } catch (er) {} });
+    pull.addEventListener('pointermove', function (e) { if (!st) return; var d = Math.max(0, Math.min(34, e.clientY - st.y)); if (d > 3) moved = true; pull.style.setProperty('--pl', d + 'px'); });
+    var up = function () {
+      if (!st) return; var d = parseFloat(pull.style.getPropertyValue('--pl')) || 0; st = null;
+      pull.classList.remove('pulling'); pull.style.setProperty('--pl', '0px');
+      if (moved) { if (d > 12) set(!on, true); else { vel += 0.6; if (!raf && !reduce) raf = requestAnimationFrame(swing); } }
+    };
+    pull.addEventListener('pointerup', up); pull.addEventListener('pointercancel', up);
+    pull.addEventListener('click', function () { if (moved) { moved = false; return; } if (!reduce) { pull.style.setProperty('--pl', '16px'); setTimeout(function () { pull.style.setProperty('--pl', '0px'); }, 140); } set(!on, true); });
+  })();
+
+  /* ---------- masadaki nesneler: tut, fırlat, geri sallanır ---------- */
+  var throwable = function (el) {
+    if (el.dataset.thr) return; el.dataset.thr = '1';
+    var st = null, moved = false, x = 0, y = 0, vx = 0, vy = 0, raf = 0;
+    var put = function () { el.style.translate = x.toFixed(1) + 'px ' + y.toFixed(1) + 'px'; el.style.rotate = (x * 0.04 + vx * 0.6).toFixed(2) + 'deg'; };
+    var spring = function () { vx += -0.06 * x; vy += -0.06 * y; vx *= 0.86; vy *= 0.86; x += vx; y += vy; put(); if (Math.abs(x) + Math.abs(y) + Math.abs(vx) + Math.abs(vy) > 0.15) raf = requestAnimationFrame(spring); else { x = y = vx = vy = 0; el.style.translate = ''; el.style.rotate = ''; raf = 0; } };
+    el.addEventListener('pointerdown', function (e) { if (e.pointerType === 'touch' || e.button !== 0) return; cancelAnimationFrame(raf); st = { px: e.clientX - x, py: e.clientY - y, lx: e.clientX, ly: e.clientY }; moved = false; });
+    window.addEventListener('pointermove', function (e) {
+      if (!st) return; var nx = e.clientX - st.px, ny = e.clientY - st.py;
+      if (!moved && Math.abs(nx - x) + Math.abs(ny - y) < 5) return;
+      if (!moved) { moved = true; el.classList.add('grabbing'); try { el.setPointerCapture(e.pointerId); } catch (er) {} }
+      vx = e.clientX - st.lx; vy = e.clientY - st.ly; st.lx = e.clientX; st.ly = e.clientY;
+      x = Math.max(-260, Math.min(260, nx)); y = Math.max(-160, Math.min(160, ny)); put();
+    });
+    var up = function () { if (!st) return; st = null; el.classList.remove('grabbing'); if (moved) { if (reduce) { x = y = vx = vy = 0; el.style.translate = ''; el.style.rotate = ''; } else raf = requestAnimationFrame(spring); } };
+    window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+    el.addEventListener('click', function (e) { if (moved) { e.preventDefault(); e.stopImmediatePropagation(); moved = false; } }, true);
+    el.addEventListener('dragstart', function (e) { e.preventDefault(); });
+  };
+  $$('.objs .pdf, .objs .deck').forEach(throwable);
+  var deck = $('[data-deck]'), dtop = $('.dtop', deck);
+  deck.addEventListener('click', function () {
+    var flip = function () { deck.setAttribute('aria-pressed', String(deck.getAttribute('aria-pressed') !== 'true')); };
+    if (reduce) { flip(); return; }
+    dtop.classList.add('squash'); setTimeout(function () { flip(); dtop.classList.remove('squash'); }, 180);
+  });
+
+  /* ---------- haftalık hedef halkası ---------- */
+  var goalEl = $('[data-goal]'), doneWeek = 0;
+  var arc = function (cx, cy, rr, a0, a1, rnd) {
+    var p = function (a, rad) { return (cx + rad * Math.cos(a)).toFixed(1) + ' ' + (cy + rad * Math.sin(a)).toFixed(1); };
+    var m = (a0 + a1) / 2, rm = rr + (rnd() - 0.5) * 1.6;
+    return 'M' + p(a0, rr) + ' Q' + p(m, rm / Math.cos((a1 - a0) / 2)) + ' ' + p(a1, rr + (rnd() - 0.5));
+  };
+  var drawGoal = function (n, picking) {
+    if (!n || picking) {
+      goalEl.innerHTML = '<div class="goal-pick" role="group" aria-label="Bu hafta kaç gün çalışacaksın?"><span class="hand">bu hafta kaç gün?</span>' +
+        [3, 4, 5, 6, 7].map(function (k) { return '<button type="button" data-n="' + k + '" aria-label="' + k + ' gün">' + k + '</button>'; }).join('') + '</div>';
+      return;
+    }
+    var rnd = rng('goal' + n), segs = '', gap = 0.22, step = Math.PI * 2 / n;
+    for (var k = 0; k < n; k++) { var a0 = -Math.PI / 2 + k * step + gap / 2, a1 = a0 + step - gap; segs += '<path class="seg ' + (k < doneWeek ? 'on' : 'off') + '" pathLength="1" style="--i:' + k + '" d="' + arc(31, 31, 26, a0, a1, rnd) + '"/>'; }
+    var dn = Math.min(doneWeek, n);
+    goalEl.innerHTML = '<svg class="ring drw" viewBox="0 0 62 62" role="img" aria-label="Haftalık hedef: ' + n + ' günden ' + dn + ' tanesi tamam">' + segs + '<text x="31" y="36.5" text-anchor="middle">' + dn + '/' + n + '</text></svg>' +
+      '<div class="goal-t"><span class="hand">hedef: ' + n + ' gün</span><small>' + (doneWeek >= n ? 'bu haftalık tamam, helal olsun' : (n - doneWeek) + ' gün daha') + '</small></div><button type="button" class="g-ch" data-goal-ch="">değiştir</button>';
+    var ring = $('.ring', goalEl); $$('.seg.off', ring).forEach(function (s) { s.removeAttribute('pathLength'); });
+    if (reduce) ring.classList.add('on'); else requestAnimationFrame(function () { requestAnimationFrame(function () { ring.classList.add('on'); }); });
+  };
+  goalEl.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-n]');
+    if (b) { var n = +b.getAttribute('data-n'); store.set('goal', n); drawGoal(n); var c = $('[data-goal-ch]'); if (c) c.focus(); return; }
+    if (e.target.closest('[data-goal-ch]')) { drawGoal(store.get('goal'), true); var f = $('[data-n]', goalEl); if (f) f.focus(); }
+  });
+
+  /* ---------- seri: son iki hafta (profildeki gerçek seriden) ---------- */
+  var drawStreak = function () {
+    var p = prof() || {}, streak = Number(p.current_streak) || 0, last = p.last_active_date ? new Date(p.last_active_date + 'T12:00:00') : null;
+    var on = {};
+    if (last && streak > 0) for (var k = 0; k < Math.min(streak, 60); k++) { var x = new Date(last); x.setDate(last.getDate() - k); on[ymd(x)] = 1; }
+    var cal = $('[data-cal]'); cal.innerHTML = '';
+    ['Pt', 'Sa', 'Ça', 'Pe', 'Cu', 'Ct', 'Pz'].forEach(function (d) { var s = document.createElement('span'); s.textContent = d; cal.appendChild(s); });
+    var start = new Date(now); start.setDate(now.getDate() - 13);
+    for (var q = 0; q < (start.getDay() + 6) % 7; q++) { var pad = document.createElement('i'); pad.style.visibility = 'hidden'; cal.appendChild(pad); }
+    var ticks = 0, n14 = 0;
+    for (var i = 0; i < 14; i++) {
+      var day = new Date(start); day.setDate(start.getDate() + i);
+      var c = document.createElement('i'); c.textContent = day.getDate();
+      if (i === 13) c.className = 'today-c';
+      if (on[ymd(day)]) { n14++; c.insertAdjacentHTML('beforeend', '<svg viewBox="0 0 22 22"><path pathLength="1" style="--d:' + (0.4 + (ticks++) * 0.18).toFixed(2) + 's" d="M4 12 C6 13 7.6 15 9 17.5 C11.5 11 14.5 7 19.5 3.5"/></svg>'); }
+      cal.appendChild(c);
+    }
+    cal.setAttribute('aria-label', n14 ? 'Son iki hafta: ' + n14 + ' gün çalıştın.' : 'Son iki haftada henüz çalışma günü yok.');
+    var mon = new Date(now); mon.setDate(now.getDate() - ((now.getDay() + 6) % 7)); doneWeek = 0;
+    for (var w = 0; w < 7; w++) { var dd = new Date(mon); dd.setDate(mon.getDate() + w); if (dd <= now && on[ymd(dd)]) doneWeek++; }
+    drawGoal(store.get('goal'));
+    var alive = last && (ymd(last) === ymd(now) || ymd(last) === ymd(new Date(now.getTime() - 864e5)));
+    var s2 = alive ? streak : 0;
+    var note = $('[data-streak-note]');
+    note.innerHTML = '<span class="tally" aria-hidden="true"></span><span>' + (s2 > 1 ? '<b>' + s2 + ' gündür</b> çalışıyorsun. Yarın da uğrarsan ' + (s2 + 1) + ' olur.' : s2 === 1 ? '<b>1 gün:</b> serin başladı. Yarın da gel, iki olsun.' : '<b>bugün</b> yeni bir seriye başla.') + '</span>';
+    tally($('.tally', note), s2);
+  };
+
+  /* ---------- ders kartlarının yeri: tutamaçla taşı ---------- */
+  var live = $('[data-order-live]'), resetB = $('[data-order-reset]'), sched = $('.grid > .sched');
+  var movable = function () { return $$('.grid > .card:not(.sched)'); };
+  var keyOf = function (c) { return c.getAttribute('aria-labelledby'); };
+  var nameOf = function (c) { var h2 = $('#' + keyOf(c)); return h2 ? h2.textContent.trim() : ''; };
+  var defaultOrder = movable().map(keyOf);
+  var saveOrder = function () { var o = movable().map(keyOf), same = o.join() === defaultOrder.join(); if (same) store.del('order'); else store.set('order', o); resetB.hidden = same; };
+  var applyOrder = function (o) { o.forEach(function (k) { var c = byId(k); if (c) grid.insertBefore(c, sched); }); movable().forEach(function (c) { if (o.indexOf(keyOf(c)) < 0) grid.insertBefore(c, sched); }); };
+  var savedOrder = store.get('order');
+  if (savedOrder && savedOrder.length) { applyOrder(savedOrder); resetB.hidden = savedOrder.join() === defaultOrder.join(); }
+  var flip = function (fn, skip) {
+    var before = new Map(); movable().forEach(function (c) { before.set(c, c.getBoundingClientRect()); });
+    fn(); if (reduce) return;
+    movable().forEach(function (c) { if (c === skip) return; var a = before.get(c), b = c.getBoundingClientRect(); if (!a) return; var dx = a.left - b.left, dy = a.top - b.top; if (dx || dy) c.animate([{ transform: 'translate(' + dx + 'px,' + dy + 'px)' }, { transform: 'none' }], { duration: 320, easing: 'cubic-bezier(.2,.7,.2,1)' }); });
+  };
+  var gripSvg = '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="7" cy="5" r="1.6"/><circle cx="13" cy="5.3" r="1.6"/><circle cx="7.2" cy="10" r="1.6"/><circle cx="13" cy="10" r="1.6"/><circle cx="7" cy="15" r="1.6"/><circle cx="12.8" cy="15.2" r="1.6"/></svg>';
+  movable().forEach(function (card) {
+    var hd = $('.card-h', card); if (!hd) return;
+    var g = document.createElement('button'); g.type = 'button'; g.className = 'grip'; g.innerHTML = gripSvg;
+    g.setAttribute('aria-label', '“' + nameOf(card) + '” kartını taşı. Ok tuşlarıyla yerini değiştir.'); hd.appendChild(g);
+    g.addEventListener('keydown', function (e) {
+      var list = movable(), i = list.indexOf(card), to = -1;
+      if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') to = i - 1; else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') to = i + 1; else return;
+      e.preventDefault(); if (to < 0 || to >= list.length) return;
+      flip(function () { grid.insertBefore(card, to < i ? list[to] : list[to].nextSibling); });
+      g.focus(); saveOrder(); live.textContent = '“' + nameOf(card) + '” ' + (to + 1) + '. sıraya taşındı';
+    });
+    g.addEventListener('pointerdown', function (e) {
+      if (e.button !== 0) return; e.preventDefault();
+      var r0 = card.getBoundingClientRect(), offX = e.clientX - r0.left, offY = e.clientY - r0.top;
+      var place = function (px, py) { card.style.translate = '0 0'; var r = card.getBoundingClientRect(); card.style.translate = (px - offX - r.left) + 'px ' + (py - offY - r.top) + 'px'; };
+      card.classList.add('lift'); document.body.classList.add('reordering');
+      var last = 0;
+      var move = function (ev) {
+        place(ev.clientX, ev.clientY);
+        var n2 = Date.now(); if (n2 - last < 120) return;
+        var t = document.elementFromPoint(ev.clientX, ev.clientY), tc = t && t.closest('#home-view .grid > .card:not(.sched)');
+        if (!tc || tc === card) return; last = n2;
+        var list = movable(), i = list.indexOf(card), j = list.indexOf(tc);
+        flip(function () { grid.insertBefore(card, j < i ? tc : tc.nextSibling); }, card); place(ev.clientX, ev.clientY);
+      };
+      var end = function () {
+        window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', end); window.removeEventListener('pointercancel', end);
+        document.body.classList.remove('reordering');
+        var tr = card.style.translate.split(' '); card.style.translate = ''; card.classList.remove('lift');
+        if (!reduce && tr.length === 2) card.animate([{ translate: tr.join(' ') }, { translate: '0 0' }], { duration: 260, easing: 'cubic-bezier(.2,.7,.2,1)' });
+        saveOrder();
+      };
+      window.addEventListener('pointermove', move); window.addEventListener('pointerup', end); window.addEventListener('pointercancel', end);
+    });
+  });
+  resetB.addEventListener('click', function () { flip(function () { applyOrder(defaultOrder); }); store.del('order'); resetB.hidden = true; live.textContent = 'kartlar ilk düzenine döndü'; var f = $('.grid .grip'); if (f) f.focus(); });
+
+  /* ---------- tur: el yazısı notlar ve oklar ---------- */
+  var steps = [
+    ['#home-view .objs .pdf', 'belgelerin burada durur.', 'son yüklediğin belge masanda. yenisini “Belgelerim”den ya da kısayollardan eklersin.'],
+    ['#home-view .objs .deck', 'bilgi kartların bunlar.', 'Acadex belgeden kart destesi çıkarır. desteye dokun, kart çevrilir.'],
+    ['#home-view .go-row .btn', 'tek tıkla tekrara başla.', 'kaldığın yerden devam edersin.'],
+    ['#home-view [data-pull]', 'ışığı sen yak.', 'lambanın ipini çek ya da dokun; ışık açılır, kapanır.'],
+    ['#home-view .band-r', 'serin ve haftalık hedefin.', 'çalıştığın her gün işaretlenir. haftada kaç gün çalışacağını sen seçersin.'],
+    ['#home-view .grid > .card[aria-labelledby="t-week"]', 'haftanı buradan planla.', 'bir güne dokun, planlayıcıda o güne etkinlik eklersin.'],
+    ['#home-view .stamps .st:not(.on) a', 'sıradaki adım burada.', 'belgenin hangi aşamada olduğunu damgalar gösterir; boş damgaya basarak devam edersin.'],
+    ['#home-view .grid .grip', 'masayı kendine göre diz.', 'bu tutamaçtan tutup kartların yerini değiştirebilirsin.'],
+    ['#btn-acadia-toggle', 'takılırsan Acadia’ya sor.', 'notların hakkında sorunu yaz, belgelerine bakarak yanıtlar.']
+  ];
+  var tour = null;
+  var dq = function (s) { return document.querySelector(s); };
+  var visible = function (el) { if (!el) return false; var r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden'; };
+  var endTour = function () { if (!tour) return; tour.layer.remove(); document.removeEventListener('keydown', tour.key, true); window.removeEventListener('resize', tour.place); document.body.classList.remove('touring'); store.set('toured', 1); var back = tour.from; tour = null; if (back && back.focus) back.focus(); };
+  var showStep = function (i) {
+    var list = steps.filter(function (s) { return visible(dq(s[0])); });
+    if (i < 0 || i >= list.length) { endTour(); return; }
+    tour.i = i; tour.list = list;
+    var s = list[i], el = dq(s[0]);
+    el.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' });
+    tour.note.innerHTML = '<i class="t-tape" aria-hidden="true"></i><span class="t-n">' + (i + 1) + ' / ' + list.length + '</span><h3 id="tour-h">' + s[1] + '</h3><p>' + s[2] + '</p>' +
+      '<div class="t-row"><button type="button" class="t-skip" data-t="end">turu bitir</button>' + (i ? '<button type="button" class="t-back" data-t="back">← geri</button>' : '') +
+      '<button type="button" class="ax-btn ax-btn-blue t-next" data-t="next">' + (i === list.length - 1 ? 'masama dön' : 'devam →') + '</button></div>';
+    tour.note.classList.remove('in'); void tour.note.offsetWidth; tour.note.classList.add('in');
+    setTimeout(function () { if (tour && tour.i === i) { tour.place(); var nb = tour.note.querySelector('.t-next'); if (nb) nb.focus({ preventScroll: true }); } }, reduce ? 0 : 420);
+    tour.place();
+  };
+  var startTour = function (from) {
+    if (tour) return;
+    var layer = document.createElement('div'); layer.className = 'tour-l';
+    layer.innerHTML = '<div class="t-spot" aria-hidden="true"></div><svg class="t-arrow" aria-hidden="true"><path class="t-a1" pathLength="1"/><path class="t-a2" pathLength="1"/></svg><div class="t-note" role="dialog" aria-modal="true" aria-labelledby="tour-h" tabindex="-1"></div>';
+    document.body.appendChild(layer); document.body.classList.add('touring');
+    tour = { layer: layer, note: layer.querySelector('.t-note'), spot: layer.querySelector('.t-spot'), arrow: layer.querySelector('.t-arrow'), from: from, i: 0 };
+    tour.place = function () {
+      if (!tour) return; var el = dq(tour.list[tour.i][0]); if (!el) return;
+      var r = el.getBoundingClientRect(), sx = window.scrollX, sy = window.scrollY, pad = 8, sp = tour.spot.style;
+      sp.left = (r.left + sx - pad) + 'px'; sp.top = (r.top + sy - pad) + 'px'; sp.width = (r.width + pad * 2) + 'px'; sp.height = (r.height + pad * 2) + 'px';
+      var n = tour.note, nw = n.offsetWidth, nh = n.offsetHeight, vw = document.documentElement.clientWidth, vh = window.innerHeight, gap = 70;
+      var below = vh - r.bottom > nh + gap || r.top < nh + gap;
+      var nx = Math.max(12, Math.min(vw - nw - 12, r.left + r.width / 2 - nw / 2 + (r.width > 500 ? r.width / 4 : 50)));
+      var ny = below ? r.bottom + gap : r.top - gap - nh;
+      if (r.height > vh * 0.6) ny = Math.min(vh - nh - 20, Math.max(80, r.top + 40));
+      n.style.left = (nx + sx) + 'px'; n.style.top = (ny + sy) + 'px';
+      var ax = nx + Math.min(nw - 30, Math.max(30, nw * 0.3)), ay = below ? ny - 4 : ny + nh + 4;
+      var tx = Math.max(r.left + 10, Math.min(r.right - 10, ax - 20)), ty = below ? r.bottom + 12 : r.top - 12;
+      if (r.height > vh * 0.6) { ty = ay; tx = r.left + 20; ax = nx - 4; ay = ny + 30; }
+      var minx = Math.min(ax, tx) - 30, miny = Math.min(ay, ty) - 30, w = Math.abs(ax - tx) + 60, hh = Math.abs(ay - ty) + 60;
+      var A = tour.arrow; A.style.left = (minx + sx) + 'px'; A.style.top = (miny + sy) + 'px'; A.setAttribute('width', w); A.setAttribute('height', hh); A.setAttribute('viewBox', '0 0 ' + w + ' ' + hh);
+      var x1 = ax - minx, y1 = ay - miny, x2 = tx - minx, y2 = ty - miny, bend = (x2 - x1) * 0.4 + 26;
+      A.querySelector('.t-a1').setAttribute('d', 'M' + x1 + ' ' + y1 + ' C' + (x1 + bend) + ' ' + (y1 + (y2 - y1) * 0.2) + ' ' + (x2 - bend * 0.2) + ' ' + (y2 - (y2 - y1) * 0.5) + ' ' + x2 + ' ' + y2);
+      var ang = Math.atan2(y2 - (y2 - (y2 - y1) * 0.5), x2 - (x2 - bend * 0.2)), L = 13;
+      A.querySelector('.t-a2').setAttribute('d', 'M' + (x2 - L * Math.cos(ang - 0.5)) + ' ' + (y2 - L * Math.sin(ang - 0.5)) + ' L' + x2 + ' ' + y2 + ' L' + (x2 - L * Math.cos(ang + 0.5)) + ' ' + (y2 - L * Math.sin(ang + 0.5)));
+      A.classList.remove('on'); void A.getBoundingClientRect(); A.classList.add('on');
+    };
+    tour.key = function (e) {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); endTour(); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); showStep(tour.i + 1); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); showStep(tour.i - 1); }
+      else if (e.key === 'Tab') { var f = Array.prototype.slice.call(tour.note.querySelectorAll('button')); if (!f.length) return; var k = f.indexOf(document.activeElement); if (e.shiftKey && k <= 0) { e.preventDefault(); f[f.length - 1].focus(); } else if (!e.shiftKey && k === f.length - 1) { e.preventDefault(); f[0].focus(); } else if (k < 0) { e.preventDefault(); f[0].focus(); } }
+    };
+    document.addEventListener('keydown', tour.key, true);
+    window.addEventListener('resize', tour.place);
+    var st2 = 0; window.addEventListener('scroll', function () { if (!tour) return; clearTimeout(st2); st2 = setTimeout(tour.place, 80); }, { passive: true });
+    layer.addEventListener('click', function (e) { var b = e.target.closest('[data-t]'); if (!b) return; var t = b.getAttribute('data-t'); if (t === 'end') endTour(); else if (t === 'back') showStep(tour.i - 1); else showStep(tour.i + 1); });
+    showStep(0);
+  };
+  $('[data-tour]').addEventListener('click', function () { startTour(this); });
+
+
+  /* sınav uyarı şeritleri (dashboard.js çizer): Türkçe ve kâğıt görünümü */
+  var banners = document.getElementById('home-exam-banners-container');
+  if (banners && 'MutationObserver' in window) new MutationObserver(function () {
+    Array.prototype.forEach.call(banners.children, function (b) {
+      if (b.dataset.ink) return; b.dataset.ink = '1'; b.className = 'ax-exam';
+      var sp = b.querySelector('span'), bt = b.querySelector('button');
+      if (sp) { var m = sp.textContent.match(/"(.*)" is (TODAY|TOMORROW)/); if (m) sp.innerHTML = '<b class="hand">' + (m[2] === 'TODAY' ? 'bugün sınavın var' : 'yarın sınavın var') + '</b> ' + esc(m[1]); }
+      if (bt) bt.textContent = 'gördüm';
+    });
+  }).observe(banners, { childList: true });
+
+  /* ================= gerçek veriyle doldur ================= */
+  var DATA = null;
+  var fetchAll = async function () {
+    var u = me(); if (!u || typeof supabaseClient === 'undefined') return null;
+    var sb = supabaseClient, mon = new Date(now); mon.setHours(0, 0, 0, 0); mon.setDate(mon.getDate() - ((mon.getDay() + 6) % 7));
+    var sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+    var p = prof() || {};
+    var q = await Promise.all([
+      sb.from('documents').select('id, file_name, uploaded_at, status').eq('user_id', u.id).order('uploaded_at', { ascending: false }).limit(40),
+      sb.from('study_cards').select('id, document_id, created_at, summary_style, key_terms, documents(file_name)').eq('user_id', u.id).order('created_at', { ascending: false }).limit(40),
+      sb.from('exams').select('id, grade, completed_at, created_at, study_card_id').eq('user_id', u.id).order('created_at', { ascending: false }).limit(40),
+      sb.from('study_events').select('id, title, event_date, event_type, is_done').eq('user_id', u.id).gte('event_date', ymd(mon)).lte('event_date', ymd(sun) + 'T23:59:59').order('event_date', { ascending: true }),
+      sb.from('card_item_confidence').select('study_card_id, next_review_at, repetitions').eq('user_id', u.id),
+      sb.from('announcements').select('id, title, body, created_at').order('created_at', { ascending: false }).limit(2),
+      p.department ? sb.from('study_cards').select('id', { count: 'exact', head: true }).eq('is_shared', true).eq('department', p.department) : Promise.resolve({ count: 0 })
+    ].map(function (pr) { return Promise.resolve(pr).catch(function () { return { data: null }; }); }));
+    return { docs: (q[0].data || []).filter(function (d) { return d.status !== 'failed'; }), allDocs: q[0].data || [], cards: q[1].data || [], exams: q[2].data || [], events: q[3].data || [], conf: q[4].data || [], ann: q[5].data || [], shared: q[6].count || 0 };
+  };
+
+  var renderDesk = function (D) {
+    var doc = D.docs[0], card = D.cards[0];
+    var objs = $('.objs'), empty = $('[data-desk-empty]'), goRow = $('.go-row');
+    if (!doc && !card) { objs.hidden = true; empty.hidden = false; goRow.hidden = true; return; }
+    objs.hidden = false; empty.hidden = true; goRow.hidden = false;
+    var pdf = $('.objs .pdf');
+    if (doc) {
+      pdf.hidden = false;
+      $('.pdf-k', pdf).textContent = extOf(doc.file_name); $('b', pdf).textContent = baseName(doc.file_name); $('.pdf-d', pdf).textContent = dm(doc.uploaded_at);
+      pdf.setAttribute('aria-label', baseName(doc.file_name) + ' belgesini aç (' + extOf(doc.file_name) + ', ' + dm(doc.uploaded_at) + ')');
+    } else pdf.hidden = true;
+    var dk = $('.objs .deck'), hint = $('.objs .hint');
+    if (card) {
+      dk.hidden = false; hint.hidden = false;
+      var nm = baseName(card.documents && card.documents.file_name);
+      $('.f-front b', dk).textContent = nm;
+      dk.setAttribute('aria-label', nm + ' bilgi kartı destesi, çevirmek için dokun');
+      var t = (card.key_terms || [])[0], back = $('.f-back', dk);
+      if (t && (t.term || t.definition)) back.innerHTML = '<span class="hand">' + esc(t.term || '') + '</span><span class="hand sm">' + esc(String(t.definition || '').slice(0, 90)) + (String(t.definition || '').length > 90 ? '…' : '') + '</span>';
+      var due = D.conf.filter(function (c) { return c.study_card_id === card.id && c.next_review_at && new Date(c.next_review_at) <= now; }).length;
+      $('[data-due-k]').textContent = due ? 'BUGÜN ' + due + ' TEKRAR' : 'BİLGİ KARTLARI';
+      $('[data-review]').disabled = false;
+    } else { dk.hidden = true; hint.hidden = true; }
+    var rv = $('[data-review]');
+    rv.innerHTML = (card ? 'Tekrara başla ' : 'Belgeyi özetle ') + rv.querySelector('svg').outerHTML;
+    rv.dataset.mode = card ? 'review' : 'docs';
+  };
+  $('[data-review]').addEventListener('click', async function () {
+    var b = this; if (b.dataset.mode !== 'review') { go('docs'); return; }
+    var card = DATA && DATA.cards[0]; if (!card) return;
+    b.disabled = true;
+    try {
+      if (typeof libraryCards !== 'undefined' && !libraryCards.some(function (c) { return c.id === card.id; })) {
+        var r = await supabaseClient.from('study_cards').select('*, documents(file_name)').eq('id', card.id).single();
+        if (r.data) libraryCards.push(r.data);
+      }
+      if (typeof openAdaptiveReview === 'function') await openAdaptiveReview(card.id, baseName(card.documents && card.documents.file_name));
+    } finally { b.disabled = false; }
+  });
+
+  var renderWeek = function (D) {
+    var week = $('[data-week]'), dn = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'], count = 0;
+    var monday = new Date(now); monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+    week.innerHTML = '';
+    for (var w = 0; w < 7; w++) {
+      var d = new Date(monday); d.setDate(monday.getDate() + w);
+      var dk = ymd(d), evs = D.events.filter(function (e) { return String(e.event_date).slice(0, 10) === dk; });
+      count += evs.length;
+      var li = document.createElement('li'); if (dk === ymd(now)) { li.className = 'is-today'; li.setAttribute('aria-current', 'date'); }
+      li.innerHTML = '<span class="wd"><span>' + dn[w] + '</span><b>' + d.getDate() + '</b></span>' +
+        evs.map(function (e, n) { var ty = e.event_type === 'exam' ? 'sinav' : e.event_type === 'deadline' ? 'odev' : ''; return '<span class="plan ' + ty + '" style="--r:' + (((n * 37 + w * 11) % 7 - 3) * 0.6).toFixed(1) + 'deg' + (e.is_done ? ';text-decoration:line-through;opacity:.6' : '') + '">' + esc(e.title) + '</span>'; }).join('') +
+        '<a class="addp" href="#planner" data-add="' + dk + '" aria-label="' + dn[w] + ' ' + d.getDate() + ' için planlayıcıda etkinlik ekle">+ ekle</a>';
+      week.appendChild(li);
+    }
+    $('.hint-s').textContent = count ? 'bu hafta planlayıcında ' + count + ' etkinlik var.' : 'bu hafta henüz boş. bir güne dokun, not yapıştıralım.';
+    $$('[data-add]', week).forEach(function (a) {
+      a.addEventListener('click', function (e) {
+        e.preventDefault(); go('planner');
+        setTimeout(function () { if (typeof openAddEventModal === 'function') openAddEventModal(); var f = document.getElementById('planner-event-date'); if (f) f.value = a.dataset.add; }, 450);
+      });
+    });
+  };
+
+  var renderPassport = function (D) {
+    var doc = D.docs[0], pp = $('[data-passport]'), road = $('[data-road]');
+    if (!doc) {
+      pp.innerHTML = '<p class="hand" style="font-size:21px;color:var(--soft);margin:6px 0 10px">henüz belgen yok. ilk belgeni yüklediğinde yolculuğu buradan izlersin.</p>';
+      road.hidden = true; return;
+    }
+    road.hidden = false;
+    var card = D.cards.filter(function (c) { return c.document_id === doc.id; })[0];
+    var exam = card ? D.exams.filter(function (e) { return e.study_card_id === card.id && e.completed_at; })[0] : null;
+    var rev = card ? D.conf.some(function (c) { return c.study_card_id === card.id && Number(c.repetitions) > 0; }) : false;
+    var nm = baseName(doc.file_name), dn = [1, card ? 1 : 0, exam ? 1 : 0].reduce(function (a, b) { return a + b; }, 0);
+    var stamp = function (on, label, when, r, i, view, cta) {
+      return '<li class="st' + (on ? ' on' : '') + '" style="--r:' + r + 'deg' + (on ? ';--i:' + i : '') + '">' + (on ? '<span>' + label + '</span><small>' + when + '</small>' : '<a href="#' + view + '" data-go="' + view + '"><span>' + label + '</span><small>' + cta + '</small></a>') + '</li>';
+    };
+    pp.innerHTML = '<a class="doc-th" href="#docs" data-go="docs" aria-label="' + esc(nm) + ' belgesini aç"><b>' + esc(nm) + '</b><span class="pdf-lines" aria-hidden="true"></span><small>' + extOf(doc.file_name) + ' · ' + dm(doc.uploaded_at) + '</small></a>' +
+      '<ol class="stamps" data-reveal="" aria-label="' + esc(nm) + ' ilerlemesi: 3 adımdan ' + dn + "'" + (dn === 1 ? 'i' : dn === 2 ? 'si' : 'ü') + ' tamam">' +
+      stamp(true, 'YÜKLENDİ', dd2(doc.uploaded_at), -7, 0) +
+      stamp(!!card, 'KARTLAR', card ? dd2(card.created_at) : '', 6, 1, 'docs', 'özetle →') +
+      stamp(!!exam, 'DENEME', exam ? dd2(exam.completed_at) : '', -2, 2, 'exams', 'buraya bas →') + '</ol>';
+    reveal([$('.stamps', pp)]);
+    var lis = $$('li', road), stops = [true, !!card, !!exam, rev], lab = [['yükledin'], ['kartlar', 'docs'], ['deneme', 'exams'], ['tekrar', 'cards']], nextI = stops.indexOf(false);
+    lis.forEach(function (li, i) {
+      li.className = stops[i] ? 'done' : (i === nextI ? 'next' : '');
+      li.innerHTML = i === nextI ? '<a href="#' + lab[i][1] + '" data-go="' + lab[i][1] + '">' + lab[i][0] + ' <small>sıradaki durak</small></a>' : '<span>' + lab[i][0] + '</span>';
+    });
+    $('ol', road).setAttribute('aria-label', nm + ' yol haritası');
+    var at = [0, 0.36, 0.68, 1], lastDone = nextI < 0 ? 3 : nextI - 1, ink = nextI < 0 ? 1 : at[lastDone] + (at[nextI] - at[lastDone]) / 2;
+    $('.road-ink', road).style.strokeDasharray = ink.toFixed(3) + ' 1';
+    var rp = $('.road-base', road), RL = rp.getTotalLength ? rp.getTotalLength() : 0;
+    if (RL) lis.forEach(function (li) { var pt = rp.getPointAtLength(RL * +li.getAttribute('data-at')); li.style.left = (pt.x / 520 * 100).toFixed(2) + '%'; li.style.top = (pt.y / 110 * 100).toFixed(2) + '%'; });
+  };
+
+  var ICO = {
+    doc: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.5 H14 L18.5 8 V20.5 H7 Z"/><path d="M14 3.5 V8 H18.5"/></svg>',
+    card: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="7" width="13" height="10" rx="1.5"/><path d="M7 4.5 H19 C19.8 4.5 20.5 5.2 20.5 6 V14"/></svg>',
+    exam: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5 H16 L19 6.5 V20.5 H6 Z"/><path d="M9 11 L10.5 12.5 L13.5 9 M9 16 H15"/></svg>'
+  };
+  var STYLE = { standard: 'standart', bullet: 'maddeler', structured: 'yapılandırılmış', simplified: 'sade', exam: 'sınav odaklı' };
+  var renderLog = function (D) {
+    var ev = [];
+    D.allDocs.forEach(function (d) { ev.push({ t: d.uploaded_at, ic: 'doc', h: '<b>' + esc(baseName(d.file_name)) + '</b> yüklendi <em>' + extOf(d.file_name) + '</em>' }); });
+    D.cards.forEach(function (c) { ev.push({ t: c.created_at, ic: 'card', h: '<b>Kart destesi</b> oluşturdun <em>' + esc(baseName(c.documents && c.documents.file_name)) + ' · ' + (STYLE[c.summary_style] || 'standart') + ' stil</em>' }); });
+    D.exams.forEach(function (e) { if (e.completed_at) ev.push({ t: e.completed_at, ic: 'exam', h: '<b>Deneme</b> çözdün <em>' + (e.grade != null ? 'notun ' + Math.round(e.grade) : 'tamamlandı') + '</em>' }); });
+    ev = ev.filter(function (e) { return e.t; }).sort(function (a, b) { return new Date(b.t) - new Date(a.t); }).slice(0, 6);
+    var box = $('[data-log]');
+    if (!ev.length) { box.innerHTML = '<p class="tl-end hand" style="margin-top:4px">henüz bir şey yapmadın; ilk iz, ilk belgeyle düşer.</p>'; return; }
+    var out = '', day = '';
+    ev.forEach(function (e, i) {
+      var d = dm(e.t);
+      if (d !== day) {
+        if (day) out += '</ol>';
+        var label = ymd(new Date(e.t)) === ymd(now) ? 'bugün' : ymd(new Date(e.t)) === ymd(new Date(now.getTime() - 864e5)) ? 'dün' : d;
+        out += '<span class="tl-day hand">' + label + (i === 0 ? '<svg class="drw" viewBox="0 0 90 40" preserveAspectRatio="none" aria-hidden="true"><path d="M70 6 C50 0 14 4 6 16 C0 28 30 37 56 34 C76 32 88 22 84 12"/></svg>' : '') + '</span><ol>';
+        day = d;
+      }
+      out += '<li><i class="tl-dot" aria-hidden="true"></i>' + ICO[e.ic] + '<span>' + e.h + '</span><time datetime="' + esc(e.t) + '">' + hm(e.t) + '</time></li>';
+    });
+    out += '</ol>';
+    var hasCard = D.cards.length, hasExam = D.exams.some(function (e) { return e.completed_at; });
+    out += '<p class="tl-end hand">' + (!hasCard ? 'sıradaki durak: belgeni özetleyip kart destesi çıkarmak.' : !hasExam ? 'sıradaki durak ilk deneme, acele yok.' : 'güzel gidiyor; bugün biraz tekrar yeter.') + '</p>';
+    box.innerHTML = out; prepDrw(box); reveal($$('.drw', box));
+  };
+
+  var renderShelf = function (D) {
+    var docs = D.docs, cards = D.cards, ex = D.exams.filter(function (e) { return e.completed_at; });
+    var shelf = $('[data-shelf]'), avg = $('[data-avg]');
+    var g = ex.filter(function (e) { return e.grade != null; }), av = g.length ? Math.round(g.reduce(function (a, e) { return a + Number(e.grade || 0); }, 0) / g.length) : null;
+    var sh = '<div class="sh">' + (docs.length ? '<a class="book" href="#docs" data-go="docs" aria-label="' + docs.length + ' belge: ' + esc(baseName(docs[0].file_name)) + '"><span>' + esc(baseName(docs[0].file_name)) + '</span></a>' : '<a class="slot" href="#docs" data-go="docs"><span class="hand">ilk belgen burada duracak</span></a>') +
+      '<p>' + (docs.length ? '<span class="tally" data-t="' + docs.length + '" aria-hidden="true"></span>' : '') + '<span><b' + (docs.length ? '' : ' class="zero"') + '>' + docs.length + '</b> belge</span></p></div>' +
+      '<div class="sh">' + (cards.length ? '<a class="cards" href="#cards" data-go="cards" aria-label="' + cards.length + ' kart destesi"><i></i><i></i><i><span>' + esc(shortName(cards[0].documents && cards[0].documents.file_name)) + '</span></i></a>' : '<a class="slot" href="#cards" data-go="cards"><span class="hand">ilk desten burada duracak</span></a>') +
+      '<p>' + (cards.length ? '<span class="tally" data-t="' + cards.length + '" aria-hidden="true"></span>' : '') + '<span><b' + (cards.length ? '' : ' class="zero"') + '>' + cards.length + '</b> deste</span></p></div>' +
+      '<div class="sh">' + (ex.length ? '<a class="book" href="#exams" data-go="exams" style="--bk:#1E8A55" aria-label="' + ex.length + ' deneme"><span>deneme' + (av != null ? ' · ' + av : '') + '</span></a>' : '<a class="slot" href="#exams" data-go="exams"><span class="hand">ilk denemen burada duracak</span></a>') +
+      '<p>' + (ex.length ? '<span class="tally" data-t="' + ex.length + '" aria-hidden="true"></span>' : '') + '<span><b' + (ex.length ? '' : ' class="zero"') + '>' + ex.length + '</b> deneme</span></p></div>';
+    var plank = $('.plank', shelf); $$('.sh', shelf).forEach(function (n) { n.remove(); });
+    plank.insertAdjacentHTML('beforebegin', sh);
+    $$('[data-t]', shelf).forEach(function (t) { tally(t, +t.getAttribute('data-t')); });
+    avg.firstChild.nodeValue = av != null ? 'ortalama notun: ' + av + '. bir sonraki denemede bunu geçmeye çalış.' : 'ortalama notun ilk denemeden sonra rafa gelecek.';
+  };
+
+  var renderPano = function (D) {
+    var a = D.ann[0], cork = $('[data-cork]');
+    var n1 = a ? '<h3>duyurular</h3><p><b>' + esc(a.title) + '</b> ' + esc(String(a.body || '').slice(0, 110)) + (String(a.body || '').length > 110 ? '…' : '') + '</p><small class="hand">' + dm(a.created_at) + '</small>'
+      : '<h3>duyurular</h3><p>şimdilik sessiz. bölümünden bir duyuru gelince ilk buraya iğnelenecek.</p>';
+    var n2 = '<h3>bölüm akışı</h3><p>' + (D.shared ? 'koridor panosunda arkadaşlarının astığı <b>' + D.shared + ' özet</b> var.' : 'koridor panosu şimdilik boş; ilk özeti sen asabilirsin.') + '</p><a href="#feed" data-go="feed">panoya git →</a>';
+    cork.innerHTML = '<div class="pin-note" style="--r:-2.5deg"><i class="pin" aria-hidden="true"></i>' + n1 + '</div><div class="pin-note" style="--r:2deg"><i class="pin" aria-hidden="true"></i>' + n2 + '</div>';
+  };
+
+  var hoursBuilt = false;
+  var renderHours = function (D) {
+    var hours = $('[data-hours]'), H0 = 8, H1 = 24, ROW = 40, h2 = now.getHours();
+    if (!hoursBuilt) {
+      hoursBuilt = true;
+      for (var hh = H0; hh < H1; hh++) { var hl = document.createElement('li'); hl.textContent = ('0' + hh).slice(-2) + ':00'; if (hh < h2) hl.className = 'past'; hours.appendChild(hl); }
+      var mins = h2 + now.getMinutes() / 60;
+      if (mins >= H0 && mins < H1) {
+        var ln = document.createElement('div'); ln.className = 'now-ln'; ln.style.top = ((mins - H0) * ROW).toFixed(1) + 'px';
+        ln.innerHTML = '<i></i><svg class="drw" viewBox="0 0 200 14" preserveAspectRatio="none"><path pathLength="1" d="M2 7 C40 3 70 10 110 6 S170 4 198 8"/></svg><span>şimdi ' + ('0' + h2).slice(-2) + ':' + ('0' + now.getMinutes()).slice(-2) + '</span>';
+        hours.appendChild(ln); reveal([ln.querySelector('svg')]);
+        var hw = $('[data-hours-w]'); setTimeout(function () { hw.scrollTop = Math.max(0, (mins - H0) * ROW - 120); }, 60);
+      }
+    }
+    var todayEv = D.events.filter(function (e) { return String(e.event_date).slice(0, 10) === ymd(now); });
+    $$('.h-ev', hours).forEach(function (n) { n.remove(); });
+    todayEv.forEach(function (e) {
+      var t = String(e.event_date).match(/T(\d\d):(\d\d)/); if (!t) return;
+      var hr = Math.max(H0, +t[1]), row = hours.children[hr - H0];
+      if (row) row.insertAdjacentHTML('beforeend', '<span class="h-ev ' + (e.event_type === 'exam' ? 'sinav' : e.event_type === 'deadline' ? 'odev' : '') + '">' + esc(e.title) + '</span>');
+    });
+    var sn = $('.sched-n');
+    sn.textContent = todayEv.length ? 'bugün ' + todayEv.length + ' plan var: ' + todayEv.map(function (e) { return e.title; }).join(', ') + '.' : 'bugün planın boş. istersen bir saat ayır, gerisi kendiliğinden gelir.';
+  };
+
+  var busy = false;
+  var load = async function () {
+    greet(); drawStreak();
+    if (busy) return; busy = true;
+    try {
+      var D = await fetchAll(); if (!D) return;
+      DATA = D;
+      renderDesk(D); renderWeek(D); renderPassport(D); renderLog(D); renderShelf(D); renderPano(D); renderHours(D);
+      requestAnimationFrame(edges);
+      setTimeout(function () { var al = document.getElementById('home-achievements-list'); if (al && !al.children.length) al.innerHTML = '<p class="hand ach-empty" style="font-size:20px;color:#6A7593;margin:0">ilk rozetin, ilk belgeni özetlediğinde buraya iğnelenecek.</p>'; }, 2500);
+    } catch (e) { console.warn('acadex-ink: Bugün çizilemedi', e); }
+    finally { busy = false; }
+  };
+  if (typeof loadDashboardHome === 'function') {
+    var origHome = loadDashboardHome;
+    loadDashboardHome = async function () {
+      var r = origHome.apply(this, arguments);
+      load();
+      return r;
+    };
+  }
+  drawStreak();
 })();
