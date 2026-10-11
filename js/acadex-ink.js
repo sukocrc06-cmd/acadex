@@ -3145,3 +3145,1368 @@
   show(start && $('[data-sec="' + start + '"]') ? start : 'profil');
   paintPrefs(); paintLook();
 })();
+/* ===== Sandbox: Geliştirici + Etkileşim paneli ===== */
+(function () {
+
+/* ================= SANDBOX (Geliştirici + Etkileşim paneli) · veri katmanı =================
+   Gönderiler sandbox_projects'te, tepkiler sandbox_project_likes'ta, incelemeler
+   sandbox_project_comments'te. Kod projeleri sandbox_workspaces'te (yoksa bu tarayıcıda).
+   supabase/migrations/20261012_sandbox_workspaces.sql çalıştırılmadıysa yeni sütun ve
+   tabloların yokluğu yakalanır ve eski şemayla çalışılır. */
+var SBX = (function () {
+  'use strict';
+  var lsafe = function (fn, fb) { try { return fn(); } catch (e) { return fb; } };
+  var me = function () { return lsafe(function () { return currentUser; }, null) || window.currentUser || null; };
+  var myProf = function () { return lsafe(function () { return currentUserProfile; }, null) || window.currentUserProfile || {}; };
+  var sb = function () { return typeof supabaseClient !== 'undefined' ? supabaseClient : null; };
+  var G = function (k, d) { try { var v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
+  var S = function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } };
+  var uk = function (k) { var u = me(); return 'acadex.' + k + '.' + (u ? u.id : 'anon'); };
+  var missing = function (er) { if (!er) return false; var m = String(er.message || er.details || er.hint || ''); return /does not exist|schema cache|could not find|column .* of|relation/i.test(m) || ['42P01', '42703', 'PGRST204', 'PGRST205', 'PGRST200'].indexOf(er.code) > -1; };
+  var feat = { ws: null, px: null, rx: null, cx: null, fol: null, rep: null };
+  var layer = document.getElementById('axv-layer');
+  if (!layer) { layer = document.createElement('div'); layer.id = 'axv-layer'; document.body.appendChild(layer); }
+
+  /* ---------- kişiler ---------- */
+  var COLORS = ['#E4E8F1', '#D9EFE3', '#DCE6FF', '#DAEAF7', '#E7E1F4', '#F3E6D8', '#E6EEFF'];
+  var ini = function (n) { return String(n || '?').trim().split(/\s+/).slice(0, 2).map(function (w) { return w.charAt(0); }).join('').toLocaleUpperCase('tr') || '?'; };
+  var hash = function (s) { var h = 0; s = String(s || ''); for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; };
+  var DEPT = { 'Management Information Systems': 'YBS', 'Business Administration': 'İşletme', 'International Trade and Business': 'Uluslararası Ticaret', 'Banking and Finance': 'Bankacılık ve Finans' };
+  var deptKey = function (d) { d = String(d || '').toLowerCase(); return /information|mis/.test(d) ? 'mis' : /administration|business/.test(d) && !/international/.test(d) ? 'ba' : /international|trade/.test(d) ? 'itb' : /banking|finance/.test(d) ? 'bf' : ''; };
+  var PPL = {};
+  var person = function (pr, isMe) {
+    pr = pr || {};
+    var img = pr.avatar_url && /^https?:/.test(pr.avatar_url) ? pr.avatar_url : '';
+    return { n: pr.full_name || (isMe ? 'Sen' : 'Bir öğrenci'), s: isMe ? 'sen' : (DEPT[pr.department] || pr.department || ''), c: COLORS[hash(pr.id) % COLORS.length], i: ini(pr.full_name), img: img, dept: deptKey(pr.department), id: pr.id, gh: pr.github_url || '', li: pr.linkedin_url || '', web: pr.website_url || '', bio: pr.bio || '' };
+  };
+  var setMe = function () { var u = me(), p = myProf(); PPL.me = person(Object.assign({ id: u && u.id }, p), true); PPL.me.c = '#E6EEFF'; };
+  setMe();
+
+  /* ---------- etiket <-> tür/teknoloji (yeni sütunlar yoksa) ---------- */
+  var KK = ['web', 'oyun', 'veri', 'arac', 'mobil'];
+  var TECHN = { javascript: 'JavaScript', js: 'JavaScript', html: 'HTML', css: 'CSS', python: 'Python', typescript: 'TypeScript', canvas: 'Canvas', sql: 'SQL', react: 'React', java: 'Java', csharp: 'C#', php: 'PHP', excel: 'Excel', csv: 'CSV', json: 'JSON' };
+  var tagify = function (s) { return String(s || '').trim().toLowerCase().replace(/[^a-z0-9ğüşıöç\-]/gi, ''); };
+
+  /* ---------- gönderiler ---------- */
+  var st = { posts: [], limit: 20, more: false, sort: 'new', loaded: false, follow: [], reports: {}, myPosts: [] };
+  var toPost = function (r) {
+    var u = me(), mine = u && r.user_id === u.id, live = r.live_url || '', tags = Array.isArray(r.tags) ? r.tags : [];
+    var kind = r.kind || tags.filter(function (t) { return KK.indexOf(t) > -1; })[0] || '';
+    var tech = Array.isArray(r.tech) && r.tech.length ? r.tech : tags.filter(function (t) { return TECHN[t]; }).map(function (t) { return TECHN[t]; });
+    var ca = Date.parse(r.created_at) || Date.now(), ua = Date.parse(r.updated_at) || ca;
+    return { id: r.id, uid: r.user_id, by: mine ? 'me' : r.user_id, at: ca, edited: ua - ca > 60000, title: r.title || '', text: r.description || '', kind: kind, tech: tech, course: r.course || '', tags: tags,
+      links: { github: r.github_url || '', vercel: /\.vercel\.app/i.test(live) ? live : '', url: /\.vercel\.app/i.test(live) ? '' : live }, snap: r.snapshot || '', versions: r.versions_count || 0, langs: tech.slice(0, 6), image: r.image_url || '', projId: r.workspace_id || '',
+      status: 'live', likes: r.likes_count || 0, reacts: {}, myReact: '', cm: [], raw: r };
+  };
+  var loadPosts = async function () {
+    var u = me(); if (!u || !sb()) return st.posts;
+    var q = sb().from('sandbox_projects').select('*');
+    q = st.sort === 'popular' ? q.order('likes_count', { ascending: false }).order('created_at', { ascending: false }) : q.order('created_at', { ascending: false });
+    var r = await q.limit(st.limit);
+    if (r.error) throw r.error;
+    var rows = r.data || [], ids = rows.map(function (x) { return x.id; });
+    st.more = rows.length === st.limit;
+    var likes = [], cms = [];
+    if (ids.length) {
+      var lq = feat.rx === false ? null : await sb().from('sandbox_project_likes').select('project_id, user_id, reaction').in('project_id', ids);
+      if (!lq || lq.error) { if (lq && lq.error && !missing(lq.error)) console.warn(lq.error); feat.rx = false; lq = await sb().from('sandbox_project_likes').select('project_id, user_id').in('project_id', ids); } else feat.rx = true;
+      likes = (lq && lq.data) || [];
+      var cq = await sb().from('sandbox_project_comments').select('*').in('project_id', ids).order('created_at', { ascending: true });
+      cms = (cq && cq.data) || [];
+    }
+    var uids = {}; rows.forEach(function (x) { uids[x.user_id] = 1; }); cms.forEach(function (c) { uids[c.user_id] = 1; });
+    var ul = Object.keys(uids);
+    if (ul.length) {
+      var pq = await sb().from('profiles').select('id, full_name, department, avatar_url, bio, github_url, linkedin_url, website_url').in('id', ul);
+      ((pq && pq.data) || []).forEach(function (p) { PPL[p.id] = person(p, false); });
+    }
+    setMe();
+    var posts = rows.map(toPost), byId = {};
+    posts.forEach(function (p) { byId[p.id] = p; });
+    likes.forEach(function (l) { var p = byId[l.project_id]; if (!p) return; var k = feat.rx ? (l.reaction || 'ilham') : 'ilham'; p.reacts[k] = (p.reacts[k] || 0) + 1; if (l.user_id === u.id) p.myReact = k; });
+    var cById = {};
+    cms.forEach(function (c) { cById[c.id] = { id: c.id, uid: c.user_id, by: c.user_id === u.id ? 'me' : c.user_id, l: c.label || 'genel', t: c.content, at: Date.parse(c.created_at) || Date.now(), parent: c.parent_id || null, rep: [], pid: c.project_id }; if ('label' in c) feat.cx = true; });
+    Object.keys(cById).forEach(function (k) { var c = cById[k], p = byId[c.pid]; if (!p) return; if (c.parent && cById[c.parent]) cById[c.parent].rep.push(c); else p.cm.push(c); });
+    if (feat.cx == null) feat.cx = cms.length ? false : null;
+    st.posts = posts; st.loaded = true;
+    await loadFollow();
+    return posts;
+  };
+  var loadFollow = async function () {
+    var u = me(); if (!u) return;
+    if (feat.fol !== false) {
+      var r = await sb().from('sandbox_follows').select('followee_id').eq('follower_id', u.id);
+      if (r.error) { if (!missing(r.error)) console.warn(r.error); feat.fol = false; } else { feat.fol = true; st.follow = (r.data || []).map(function (x) { return x.followee_id; }); return; }
+    }
+    st.follow = G(uk('etk.follow'), []);
+  };
+  var loadMine = async function () {
+    var u = me(); if (!u || !sb()) return [];
+    var r = await sb().from('sandbox_projects').select('id, workspace_id, title').eq('user_id', u.id);
+    if (r.error) { r = await sb().from('sandbox_projects').select('id, title').eq('user_id', u.id); }
+    st.myPosts = ((r && r.data) || []).map(function (x) { return { id: x.id, projId: x.workspace_id || '', title: x.title, status: 'live' }; });
+    return st.myPosts;
+  };
+
+  /* tepki: kullanıcı başına bir satır (sandbox_project_likes) */
+  var react = async function (p, k) {
+    var u = me(); if (!u) return;
+    var was = p.myReact;
+    if (was) {
+      var d = await sb().from('sandbox_project_likes').delete().eq('project_id', p.id).eq('user_id', u.id);
+      if (d.error) throw d.error;
+      p.reacts[was] = Math.max(0, (p.reacts[was] || 1) - 1); p.myReact = ''; p.likes = Math.max(0, p.likes - 1);
+    }
+    if (was === k) return;
+    var row = { project_id: p.id, user_id: u.id }; if (feat.rx !== false) row.reaction = k;
+    var r = await sb().from('sandbox_project_likes').insert(row);
+    if (r.error && missing(r.error) && row.reaction) { feat.rx = false; delete row.reaction; r = await sb().from('sandbox_project_likes').insert(row); }
+    if (r.error) throw r.error;
+    var kk = feat.rx === false ? 'ilham' : k;
+    p.reacts[kk] = (p.reacts[kk] || 0) + 1; p.myReact = kk; p.likes++;
+  };
+  var comment = async function (p, text, label, parent) {
+    var u = me(); if (!u) return null;
+    var row = { project_id: p.id, user_id: u.id, content: text };
+    if (feat.cx !== false) { row.label = label || 'genel'; if (parent) row.parent_id = parent; }
+    var r = await sb().from('sandbox_project_comments').insert(row).select().single();
+    if (r.error && missing(r.error) && row.label) { feat.cx = false; delete row.label; delete row.parent_id; r = await sb().from('sandbox_project_comments').insert(row).select().single(); }
+    if (r.error) throw r.error;
+    var d = r.data || {};
+    var c = { id: d.id || ('t' + Date.now()), uid: u.id, by: 'me', l: d.label || (feat.cx === false ? 'genel' : label), t: text, at: Date.now(), parent: d.parent_id || null, rep: [] };
+    if (c.parent) { var host = null; p.cm.forEach(function (x) { if (x.id === c.parent) host = x; }); if (host) host.rep.push(c); else p.cm.push(c); } else p.cm.push(c);
+    return c;
+  };
+  var delComment = async function (p, cid) {
+    var r = await sb().from('sandbox_project_comments').delete().eq('id', cid);
+    if (r.error) throw r.error;
+    p.cm = p.cm.filter(function (c) { return c.id !== cid; }).map(function (c) { c.rep = c.rep.filter(function (x) { return x.id !== cid; }); return c; });
+  };
+  var follow = async function (uid) {
+    var u = me(); if (!u || !uid) return false;
+    var on = st.follow.indexOf(uid) > -1;
+    if (feat.fol) {
+      var r = on ? await sb().from('sandbox_follows').delete().eq('follower_id', u.id).eq('followee_id', uid) : await sb().from('sandbox_follows').insert({ follower_id: u.id, followee_id: uid });
+      if (r.error) throw r.error;
+    }
+    if (on) st.follow = st.follow.filter(function (x) { return x !== uid; }); else st.follow.push(uid);
+    if (!feat.fol) S(uk('etk.follow'), st.follow);
+    return !on;
+  };
+  var report = async function (pid, reason) {
+    var u = me(); st.reports = G(uk('etk.reports'), {});
+    if (feat.rep !== false) {
+      var r = await sb().from('sandbox_reports').insert({ project_id: pid, reporter_id: u.id, reason: reason });
+      if (r.error && missing(r.error)) feat.rep = false; else if (r.error && r.error.code !== '23505') throw r.error; else feat.rep = true;
+    }
+    st.reports[pid] = reason; S(uk('etk.reports'), st.reports);
+    return feat.rep !== false;
+  };
+  var removePost = async function (pid) {
+    var r = await sb().from('sandbox_projects').delete().eq('id', pid);
+    if (r.error) throw r.error;
+    st.posts = st.posts.filter(function (p) { return p.id !== pid; });
+    st.myPosts = st.myPosts.filter(function (p) { return p.id !== pid; });
+  };
+  /* kapak fotoğrafı: dashboard.js'teki gibi herkese açık 'avatars' kovasında kendi klasörüne */
+  var uploadCover = async function (file) {
+    var u = me(); if (!file) return null;
+    if (!/^image\//.test(file.type)) throw new Error('Kapak için bir resim dosyası seç.');
+    if (file.size > 5 * 1048576) throw new Error('Kapak fotoğrafı en fazla 5 MB olabilir.');
+    var ext = ((file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '')) || 'jpg', path = u.id + '/project-' + Date.now() + '.' + ext;
+    var up = await sb().storage.from('avatars').upload(path, file, { upsert: true, cacheControl: '3600' });
+    if (up.error) throw up.error;
+    return sb().storage.from('avatars').getPublicUrl(path).data.publicUrl;
+  };
+  var savePost = async function (p, cover) {
+    var u = me(); if (!u) throw new Error('Oturum bulunamadı.');
+    var img = p.image || null; if (cover) img = await uploadCover(cover);
+    var live = p.links.vercel || p.links.url || null;
+    var hashTags = ((p.text || '').match(/#([\wçğıöşüÇĞİÖŞÜ-]+)/g) || []).map(function (t) { return tagify(t.slice(1)); });
+    var tags = [p.kind].concat((p.tech || []).map(tagify), hashTags).filter(Boolean).filter(function (t, i, a) { return a.indexOf(t) === i; }).slice(0, 8);
+    var base = { title: p.title, description: p.text, github_url: p.links.github || null, live_url: live, tags: tags, image_url: img, updated_at: new Date().toISOString() };
+    var extra = { kind: p.kind || null, tech: p.tech || [], course: p.course || null, snapshot: p.snap || null, workspace_id: p.projId || null, versions_count: p.versions || 0 };
+    var isNew = !p.id || !/^[0-9a-f-]{36}$/i.test(p.id);
+    var go = function (row) { return isNew ? sb().from('sandbox_projects').insert(Object.assign({ user_id: u.id }, row)).select().single() : sb().from('sandbox_projects').update(row).eq('id', p.id).select().single(); };
+    var r = feat.px === false ? await go(base) : await go(Object.assign({}, base, extra));
+    if (r.error && missing(r.error) && feat.px !== false) { feat.px = false; r = await go(base); } else if (!r.error) feat.px = feat.px === false ? false : true;
+    if (r.error) throw r.error;
+    var row = r.data || Object.assign({ id: p.id, user_id: u.id, created_at: new Date().toISOString() }, base, extra);
+    if (feat.px === false) { row.kind = p.kind; row.tech = p.tech; row.course = p.course; row.snapshot = p.snap; row.workspace_id = p.projId; row.versions_count = p.versions; }
+    var np = toPost(row); np.snap = np.snap || (feat.px === false ? '' : p.snap);
+    var old = null; st.posts.forEach(function (x) { if (x.id === np.id) old = x; });
+    if (old) { np.reacts = old.reacts; np.myReact = old.myReact; np.cm = old.cm; np.likes = old.likes; st.posts = st.posts.map(function (x) { return x.id === np.id ? np : x; }); }
+    else st.posts.unshift(np);
+    if (!st.myPosts.some(function (x) { return x.id === np.id; })) st.myPosts.push({ id: np.id, projId: np.projId, title: np.title, status: 'live' });
+    if (isNew && typeof checkAndAwardSandboxProject === 'function') { try { await checkAndAwardSandboxProject(); } catch (e) {} }
+    return np;
+  };
+  /* taslaklar bu tarayıcıda */
+  var drafts = function () { return G(uk('etk.drafts'), []); };
+  var saveDraft = function (p) { var a = drafts(), i = -1; a.forEach(function (x, k) { if (x.id === p.id) i = k; }); p.status = 'draft'; if (!p.id) p.id = 'd' + Date.now().toString(36); if (i > -1) a[i] = p; else a.unshift(p); return S(uk('etk.drafts'), a) ? p : null; };
+  var dropDraft = function (id) { S(uk('etk.drafts'), drafts().filter(function (x) { return x.id !== id; })); };
+
+  /* ---------- kod projeleri ---------- */
+  var ws = { list: null, synced: {}, t: 0, busy: false };
+  var wsKey = function () { return uk('dev.projects'); };
+  var fromRow = function (r) { var m = r.meta || {}; return { id: r.id, name: r.name, status: r.status || 'taslak', course: r.course || '', due: r.due || '', files: r.files || {}, versions: r.versions || [], open: m.open || [], cur: m.cur || '', created: Date.parse(r.created_at) || Date.now(), updated: Date.parse(r.updated_at) || Date.now() }; };
+  var toRow = function (p) { return { id: p.id, user_id: me().id, name: p.name || 'Adsız proje', status: p.status || 'taslak', course: p.course || null, due: p.due || null, files: p.files || {}, versions: p.versions || [], meta: { open: p.open || [], cur: p.cur || '' }, created_at: new Date(p.created || Date.now()).toISOString(), updated_at: new Date(p.updated || Date.now()).toISOString() }; };
+  var wsLoad = async function () {
+    var local = G(wsKey(), []); if (!Array.isArray(local)) local = [];
+    ws.list = local;
+    if (!me() || !sb() || feat.ws === false) return ws.list;
+    var r = await sb().from('sandbox_workspaces').select('*').eq('user_id', me().id);
+    if (r.error) { if (!missing(r.error)) console.warn('acadex-ink: projeler buluttan okunamadı', r.error); feat.ws = false; return ws.list; }
+    feat.ws = true;
+    var byId = {}; local.forEach(function (p) { byId[p.id] = p; });
+    (r.data || []).forEach(function (row) { var p = fromRow(row); ws.synced[p.id] = p.updated; if (!byId[p.id] || byId[p.id].updated <= p.updated) byId[p.id] = p; });
+    ws.list.length = 0; Object.keys(byId).forEach(function (k) { ws.list.push(byId[k]); });
+    S(wsKey(), ws.list); wsSyncSoon(50);
+    return ws.list;
+  };
+  var wsSync = async function () {
+    if (!feat.ws || !ws.list || ws.busy) return; ws.busy = true;
+    try {
+      var dirty = ws.list.filter(function (p) { return ws.synced[p.id] !== p.updated; });
+      for (var i = 0; i < dirty.length; i++) {
+        var p = dirty[i], r = await sb().from('sandbox_workspaces').upsert(toRow(p), { onConflict: 'id' });
+        if (r.error) { console.warn('acadex-ink: proje buluta yazılamadı', r.error); if (missing(r.error)) feat.ws = false; break; }
+        ws.synced[p.id] = p.updated;
+      }
+    } finally { ws.busy = false; }
+    if (ws.onSync) ws.onSync();
+  };
+  var wsSyncSoon = function (ms) { clearTimeout(ws.t); ws.t = setTimeout(wsSync, ms == null ? 1500 : ms); };
+  var wsPersist = function () { var ok = S(wsKey(), ws.list || []); wsSyncSoon(); return ok; };
+  var wsDelete = async function (id) { delete ws.synced[id]; S(wsKey(), ws.list || []); if (feat.ws) { var r = await sb().from('sandbox_workspaces').delete().eq('id', id); if (r.error) console.warn(r.error); } };
+  var wsUndelete = function () { wsPersist(); };
+
+  /* ---------- Acadia (acadia-assistant) ---------- */
+  var acadia = async function (message) {
+    var s = await sb().auth.getSession(), tok = s && s.data && s.data.session && s.data.session.access_token;
+    if (!tok) throw new Error('Oturum bulunamadı.');
+    var url = (typeof SUPABASE_URL !== 'undefined' ? SUPABASE_URL : '') + '/functions/v1/acadia-assistant';
+    var res = await fetch(url, { method: 'POST', headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json', apikey: typeof SUPABASE_ANON_KEY !== 'undefined' ? SUPABASE_ANON_KEY : '' }, body: JSON.stringify({ message: message, history: [], language: 'tr' }) });
+    var d = await res.json().catch(function () { return {}; });
+    if (!res.ok || !d.reply) throw new Error(d.error || 'Acadia yanıt veremedi.');
+    return String(d.reply).replace(/```acadia-action[\s\S]*?```/g, '').trim();
+  };
+
+  return { st: st, feat: feat, PPL: PPL, person: function (k) { return PPL[k] || { n: 'Bir öğrenci', s: '', c: '#E4E8F1', i: '?', img: '' }; }, setMe: setMe, layer: layer, me: me, G: G, S: S, uk: uk,
+    loadPosts: loadPosts, loadMine: loadMine, react: react, comment: comment, delComment: delComment, follow: follow, report: report, removePost: removePost, savePost: savePost,
+    drafts: drafts, saveDraft: saveDraft, dropDraft: dropDraft, ws: ws, wsLoad: wsLoad, wsPersist: wsPersist, wsDelete: wsDelete, wsUndelete: wsUndelete, wsSync: wsSync, acadia: acadia, deptKey: deptKey };
+})();
+
+  /* ================= ETK · gönderi çekirdeği (sandbox + etkileşim paneli ortak) ================= */
+  var ETK = (function () {
+  var X = function (t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  var G = function (k, d) { try { var v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
+  var S = function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } };
+  var uid = function () { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); };
+  var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var PPL = SBX.PPL;
+  var person = SBX.person;
+  var KINDS = { web: 'web sitesi', oyun: 'oyun', veri: 'veri', arac: 'araç', mobil: 'mobil' };
+  var REACT = {
+    temiz: { l: 'temiz kod', svg: '<path d="M5 19 L13 11"/><path d="M14.5 3.5 L15.6 6.4 L18.5 7.5 L15.6 8.6 L14.5 11.5 L13.4 8.6 L10.5 7.5 L13.4 6.4 Z"/><path d="M18.5 13 L19.1 14.4 L20.5 15 L19.1 15.6 L18.5 17 L17.9 15.6 L16.5 15 L17.9 14.4 Z"/>' },
+    ilham: { l: 'ilham aldım', svg: '<path d="M9 17 C7.5 16 6.6 14.4 6.6 12.6 C6.6 9.6 9 7.2 12 7.2 C15 7.2 17.4 9.6 17.4 12.6 C17.4 14.4 16.5 16 15 17 V19 H9 Z"/><path d="M12 3 V4.5 M4.5 6 L5.6 7 M19.5 6 L18.4 7 M10 21 H14"/>' },
+    merge: { l: 'merge edilir', svg: '<circle cx="7" cy="5.5" r="2"/><circle cx="7" cy="18.5" r="2"/><circle cx="17" cy="12" r="2"/><path d="M7 7.5 V16.5 M7 7.5 C7 11 10 12 15 12"/>' },
+    sorun: { l: 'sorun var', svg: '<ellipse cx="12" cy="13.5" rx="4.5" ry="5.5"/><path d="M12 8 V19 M7.5 11 H4.5 M19.5 11 H16.5 M7.5 15 H4.5 M19.5 15 H16.5 M9.5 8.5 L8 6 M14.5 8.5 L16 6"/>' }
+  };
+  var KIND_SVG = { web: '<rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M3.5 9 H20.5"/>', oyun: '<rect x="3" y="8" width="18" height="10" rx="4"/><path d="M7.5 11 V15 M5.5 13 H9.5"/><circle cx="15.5" cy="12" r="1"/><circle cx="17.5" cy="14.5" r="1"/>', veri: '<path d="M4 19.5 H20"/><path d="M7 16 V11 M11 16 V7 M15 16 V10 M19 16 V5"/>', arac: '<path d="M14.5 5.5 C16.5 4.5 19 5.6 19.4 7.9 L16.8 9.7 L14.3 8.4 L14 5.7 Z"/><path d="M14.3 8.4 L5.5 17.2 C4.8 17.9 4.8 19 5.5 19.7 C6.2 20.4 7.3 20.4 8 19.7 L16.8 10.9"/>', mobil: '<rect x="7" y="3" width="10" height="18" rx="2"/><path d="M11 18 H13"/>' };
+
+  /* ---------- links ---------- */
+  var ghParse = function (u) { var m = /^https?:\/\/(?:www\.)?github\.com\/([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?(?:[#?].*)?$/i.exec((u || '').trim()); return m ? m[1] + '/' + m[2] : null; };
+  var isVercel = function (u) { return /^https:\/\/[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9-]+)*\.vercel\.app(\/[^\s]*)?$/i.test((u || '').trim()); };
+  var isUrl = function (u) { try { var x = new URL((u || '').trim()); return /^https?:$/.test(x.protocol) && x.hostname.indexOf('.') > 0; } catch (e) { return false; } };
+  var host = function (u) { try { var x = new URL(u); return x.hostname.replace(/^www\./, '') + (x.pathname !== '/' ? x.pathname : ''); } catch (e) { return u; } };
+  var liveUrl = function (p) { return (p.links && (p.links.vercel || p.links.url)) || ''; };
+  var GHK = 'acadex.etk.gh', ghCache = G(GHK, {});
+  var gh = function (repo) {
+    var c = ghCache[repo]; if (c && Date.now() - c.at < 36e5) return Promise.resolve(c.d);
+    var base = 'https://api.github.com/repos/' + repo;
+    return fetch(base, { headers: { Accept: 'application/vnd.github+json' } }).then(function (r) {
+      if (r.status === 404) throw { code: 404 }; if (r.status === 403) throw { code: 403 }; if (!r.ok) throw { code: r.status };
+      return r.json();
+    }).then(function (d) {
+      return fetch(base + '/languages').then(function (r) { return r.ok ? r.json() : {}; }, function () { return {}; }).then(function (lg) {
+        var o = { name: d.full_name, desc: d.description || '', stars: d.stargazers_count, forks: d.forks_count, lang: d.language, pushed: d.pushed_at, url: d.html_url, langs: lg };
+        ghCache[repo] = { at: Date.now(), d: o }; S(GHK, ghCache); return o;
+      });
+    });
+  };
+  var LGC = { JavaScript: '#E2B93B', TypeScript: '#3178C6', Python: '#3572A5', HTML: '#E34C26', CSS: '#563D7C', Java: '#B07219', 'C#': '#178600', PHP: '#4F5D95', SQL: '#E38C00', Shell: '#89E051' };
+  var ghCard = function (repo, d, err) {
+    if (err) return '<div class="ek-gh err"><b>' + X(repo) + '</b><span>' + (err.code === 404 ? 'depo bulunamadı ya da gizli.' : err.code === 403 ? 'GitHub şu an sınır koydu; biraz sonra tekrar dene.' : 'GitHub’a şu an ulaşılamadı.') + '</span><a href="https://github.com/' + X(repo) + '" target="_blank" rel="noopener">GitHub’da aç ↗</a></div>';
+    if (!d) return '<div class="ek-gh load"><b>' + X(repo) + '</b><span>GitHub’dan bilgiler geliyor…</span></div>';
+    var tot = 0, ls = Object.keys(d.langs || {}); ls.forEach(function (k) { tot += d.langs[k]; });
+    var bar = tot ? '<span class="lbar">' + ls.slice(0, 6).map(function (k) { return '<i style="width:' + (d.langs[k] / tot * 100).toFixed(1) + '%;background:' + (LGC[k] || '#8A93AB') + '" title="' + X(k) + '"></i>'; }).join('') + '</span><span class="lleg">' + ls.slice(0, 4).map(function (k) { return '<em><i style="background:' + (LGC[k] || '#8A93AB') + '"></i>' + X(k) + ' ' + Math.round(d.langs[k] / tot * 100) + '%</em>'; }).join('') + '</span>' : '';
+    var pd = d.pushed ? new Date(d.pushed) : null;
+    return '<div class="ek-gh"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 C7.3 3.5 3.5 7.3 3.5 12 C3.5 15.8 5.9 19 9.3 20.1 C9.7 20.2 9.9 19.9 9.9 19.6 V18.2 C7.5 18.7 7 17.2 7 17.2 C6.6 16.2 6.1 15.9 6.1 15.9 C5.3 15.4 6.2 15.4 6.2 15.4 C7 15.5 7.5 16.3 7.5 16.3 C8.3 17.6 9.5 17.2 10 17 C10.1 16.4 10.3 16 10.5 15.8 C8.6 15.6 6.6 14.9 6.6 11.6 C6.6 10.7 6.9 9.9 7.5 9.3 C7.4 9.1 7.1 8.2 7.6 7 C7.6 7 8.3 6.8 9.9 7.9 C10.6 7.7 11.3 7.6 12 7.6 C12.7 7.6 13.4 7.7 14.1 7.9 C15.7 6.8 16.4 7 16.4 7 C16.9 8.2 16.6 9.1 16.5 9.3 C17.1 9.9 17.4 10.7 17.4 11.6 C17.4 14.9 15.4 15.6 13.5 15.8 C13.8 16.1 14.1 16.6 14.1 17.4 V19.6 C14.1 19.9 14.3 20.2 14.7 20.1 C18.1 19 20.5 15.8 20.5 12 C20.5 7.3 16.7 3.5 12 3.5 Z"/></svg>' +
+      '<div class="gh-b"><a class="gh-n" href="' + X(d.url) + '" target="_blank" rel="noopener">' + X(d.name) + ' ↗</a>' + (d.desc ? '<p>' + X(d.desc) + '</p>' : '') + bar +
+      '<span class="gh-m"><span>★ ' + d.stars + '</span><span>⑂ ' + d.forks + '</span>' + (pd ? '<span>son push ' + pd.getDate() + '.' + (pd.getMonth() + 1) + '.' + pd.getFullYear() + '</span>' : '') + '</span></div></div>';
+  };
+  var hydrateGh = function (scope) {
+    Array.prototype.forEach.call(scope.querySelectorAll('[data-gh]:not([data-ghd])'), function (el) {
+      var repo = el.getAttribute('data-gh'); el.setAttribute('data-ghd', '1'); el.innerHTML = ghCard(repo, null);
+      gh(repo).then(function (d) { el.innerHTML = ghCard(repo, d); }, function (err) { el.innerHTML = ghCard(repo, null, err && err.code ? err : { code: 0 }); });
+    });
+  };
+
+  /* ---------- single-file snapshot from sandbox files ---------- */
+  var resolve = function (from, u) { var d = from.split('/').slice(0, -1); u.split('/').forEach(function (s) { if (s === '..') d.pop(); else if (s && s !== '.') d.push(s); }); return d.join('/'); };
+  var buildSingle = function (files) {
+    var ps = Object.keys(files), pages = ps.filter(function (p) { return /\.html?$/i.test(p); });
+    var page = pages.filter(function (p) { return /(^|\/)index\.html?$/i.test(p); })[0] || pages[0]; if (!page) return '';
+    var src = files[page];
+    src = src.replace(/<link\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>/gi, function (m, u) { var p = resolve(page, u); return /stylesheet/i.test(m) && files.hasOwnProperty(p) ? '<style>\n' + files[p] + '\n</style>' : m; });
+    src = src.replace(/<script\b([^>]*)\bsrc\s*=\s*["']([^"']+)["']([^>]*)>\s*<\/script>/gi, function (m, a, u, b) { var p = resolve(page, u); return files.hasOwnProperty(p) ? '<script' + a + b + '>\n' + files[p].replace(/<\/script/gi, '<\\/script') + '\n<\/script>' : m; });
+    if (/acadex\.oku/.test(src)) { var fm = '<script>window.acadex={oku:function(n){var f=' + JSON.stringify(files).replace(/<\//g, '<\\/') + ';if(!(n in f))throw new Error("dosya yok: "+n);return f[n]}};<\/script>'; src = /<head[^>]*>/i.test(src) ? src.replace(/<head[^>]*>/i, function (h) { return h + fm; }) : fm + src; }
+    return src;
+  };
+
+  /* ---------- store: canlı gönderiler veritabanında, taslaklar bu tarayıcıda ---------- */
+  var mine = function () { return SBX.st.myPosts.concat(SBX.drafts()); };
+  var saveMine = function () { return true; };
+  var upsert = function (p) { return !!SBX.saveDraft(p); };
+
+  /* ---------- one post: a browser window ---------- */
+  var ago = function (t) { var m = Math.round((Date.now() - t) / 60000); if (m < 1) return 'şimdi'; if (m < 60) return m + ' dk önce'; var h = Math.round(m / 60); if (h < 24) return h + ' sa önce'; var d = Math.floor(h / 24); return d === 1 ? 'dün' : d + ' gün önce'; };
+  var av = function (k, btn) { var u = person(k); return '<' + (btn ? 'button type="button" data-prof="' + X(k) + '" aria-label="' + X(u.n) + ' projelerini göster"' : 'span aria-hidden="true"') + ' class="ek-av" style="--bgc:' + u.c + '">' + (u.img ? '<img src="' + X(u.img) + '" alt="">' : X(u.i)) + '</' + (btn ? 'button' : 'span') + '>'; };
+  var EMPTY_RE = /^\s*(Ne yaptım|Neyi öğrendim|Sırada ne var|Problem|Çözümüm|Kullandığım teknolojiler|Sonuç|Kısaca)\s*:\s*$/i;
+  var emptyLines = function (t) { return (t || '').split('\n').filter(function (l) { return EMPTY_RE.test(l); }).map(function (l) { return l.replace(/:.*$/, '').trim(); }); };
+  var cleanText = function (t) { return (t || '').split('\n').filter(function (l) { return !EMPTY_RE.test(l); }).join('\n').replace(/\[proje adı\]/g, '').replace(/\n{3,}/g, '\n\n').trim(); };
+  var linkify = function (t) { return X(t).replace(/(^|\s)#([\wçğıöşüÇĞİÖŞÜ]+)/g, '$1<span class="ek-tag">#$2</span>'); };
+  var postHTML = function (p, o) {
+    o = o || {}; var u = person(p.by), live = liveUrl(p), repo = ghParse(p.links && p.links.github), addr = live ? host(live) : (p.snap ? 'sandbox://' + slugify(p.title) : repo ? 'github.com/' + repo : 'acadex://' + slugify(p.title));
+    var view;
+    if (p.snap && !live) view = '<div class="ek-view ek-sc" data-snapw="" data-dev="desk"><div class="ek-stage"><iframe class="ek-frame" title="' + X(p.title) + ' önizlemesi" sandbox="allow-scripts" data-snap="' + p.id + '" loading="lazy" tabindex="-1"></iframe></div>' + (o.preview ? '' : '<button type="button" class="ek-shield" data-shield=""><span>tıkla ve dene</span></button>') + '</div>';
+    else if (live) view = '<div class="ek-view ek-live"><div class="ek-poster"><span class="ek-pk">' + (KIND_SVG[p.kind] ? '<svg viewBox="0 0 24 24" aria-hidden="true">' + KIND_SVG[p.kind] + '</svg>' : '') + '</span><b>' + X(p.title) + '</b><span>' + X(host(live)) + '</span>' + (o.preview ? '' : '<button type="button" class="btn btn-blue" data-golive="">canlı aç</button>') + '<small>bazı siteler gömülmeye izin vermez; o zaman “yeni sekmede aç”.</small></div></div>';
+    else if (p.image) view = '<div class="ek-view ek-img"><img src="' + X(p.image) + '" alt="' + X(p.title) + ' kapak fotoğrafı" loading="lazy"></div>';
+    else if (repo) view = '<div class="ek-view ek-ghv"><div data-gh="' + X(repo) + '"></div></div>';
+    else view = '<div class="ek-view ek-none"><p class="hand">bu gönderide önizleme yok.</p></div>';
+    var tl = [];
+    if (p.versions) tl.push('<b>' + p.versions + '</b> sürüm');
+    if (p.langs && p.langs.length) tl.push(p.langs.map(X).join(' · '));
+    if (p.links && p.links.vercel) tl.push('vercel’de yayında');
+    if (repo) tl.push('github: ' + X(repo));
+    var reacts = p.reacts || {}, rtot = 0; Object.keys(REACT).forEach(function (k) { rtot += (reacts[k] || 0); });
+    var my = o.myReact || '';
+    return '<article class="ek-post' + (o.preview ? ' pv' : '') + '" data-pid="' + p.id + '" aria-labelledby="et-' + p.id + (o.preview ? '-pv' : '') + '">' +
+      '<header class="ek-ph">' + av(p.by, !o.preview) + '<span class="ek-who"><b>' + X(u.n) + '</b><small>' + X(u.s) + ' · ' + (p.at ? ago(p.at) : 'şimdi') + (p.edited ? ' · düzenlendi' : '') + (p.course ? ' · ' + X(p.course) : '') + '</small></span>' +
+      (o.preview || p.by === 'me' ? '' : '<button type="button" class="ek-follow" data-follow="' + X(p.by) + '" aria-pressed="' + !!o.following + '">' + (o.following ? 'takiptesin' : '+ takip et') + '</button>') + '</header>' +
+      '<div class="ek-text" data-text=""><h3 id="et-' + p.id + (o.preview ? '-pv' : '') + '">' + X(p.title || 'başlıksız proje') + '</h3><p>' + linkify(cleanText(p.text)) + '</p></div>' +
+      (cleanText(p.text).length > 260 && !o.preview ? '<button type="button" class="ek-more" data-more="" aria-expanded="false">…devamını gör</button>' : '') +
+      '<div class="ek-win"><div class="ek-chrome"><span class="ek-dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="ek-addr"><span class="ek-lock" aria-hidden="true">' + (live ? '⌂' : '◇') + '</span><span class="ek-url" style="--n:' + Math.min(addr.length, 46) + '">' + X(addr) + '</span></span>' +
+      '<span class="ek-ctl">' + ((p.snap || live) && !o.preview ? '<span class="ek-devs" role="group" aria-label="Önizleme boyutu"><button type="button" data-devb="desk" aria-pressed="true" aria-label="Masaüstü görünümü" title="masaüstü"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="11" rx="1.5"/><path d="M9 19.5 H15 M12 16 V19.5"/></svg></button><button type="button" data-devb="phone" aria-pressed="false" aria-label="Telefon görünümü" title="telefon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7.5" y="3.5" width="9" height="17" rx="2"/><path d="M11 17.5 H13"/></svg></button></span>' : '') + (live ? '<a href="' + X(live) + '" target="_blank" rel="noopener" aria-label="' + X(p.title) + ' yeni sekmede aç" title="yeni sekmede aç">↗</a>' : '') + (o.preview ? '' : '<button type="button" data-reload="" aria-label="Önizlemeyi yenile" title="yenile">↻</button>' + (p.snap || live ? '<button type="button" data-full="" aria-label="Tam ekran dene" title="tam ekran dene">⛶</button>' : '')) + '</span></div>' + view + '</div>' +
+      (tl.length ? '<div class="ek-term" aria-label="Proje bilgisi"><span class="pr">$ git log --özet</span>' + tl.map(function (t, i) { return '<span class="ln" style="--d:' + i + '">' + t + '</span>'; }).join('') + '</div>' : '') +
+      (repo && (live || p.snap || p.image) ? '<div data-gh="' + X(repo) + '"></div>' : '') +
+      '<div class="ek-tags">' + (p.kind ? '<span class="k">' + KINDS[p.kind] + '</span>' : '') + (p.tech || []).map(function (t) { return '<span>' + X(t) + '</span>'; }).join('') + '</div>' +
+      (o.preview ? '' :
+      '<div class="ek-rsum" data-rsum="">' + (rtot ? '<span class="ic">' + Object.keys(REACT).filter(function (k) { return reacts[k]; }).map(function (k) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + REACT[k].svg + '</svg>'; }).join('') + '</span>' + rtot + ' tepki' : 'ilk tepkiyi sen ver') + ' · <button type="button" data-cm="">' + (p.cm || []).length + ' inceleme</button></div>' +
+      '<div class="ek-acts" role="group" aria-label="Tepkiler">' + Object.keys(REACT).map(function (k) { return '<button type="button" class="ek-r r-' + k + '" data-react="' + k + '" aria-pressed="' + (my === k) + '"><svg viewBox="0 0 24 24" aria-hidden="true">' + REACT[k].svg + '</svg><span>' + REACT[k].l + '</span><b>' + (reacts[k] || 0) + '</b></button>'; }).join('') +
+      '<span class="sp"></span><button type="button" class="ek-ib" data-save="" aria-pressed="' + !!o.saved + '" aria-label="Kaydet" title="kaydet"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3.5 H16 C16.8 3.5 17.5 4.2 17.5 5 V20.5 L12 16.8 L6.5 20.5 V5 C6.5 4.2 7.2 3.5 8 3.5 Z"/></svg></button><button type="button" class="ek-ib" data-more-menu="" aria-haspopup="menu" aria-label="Diğer seçenekler">⋯</button></div>' +
+      '<div class="ek-cms" data-cms="" hidden></div>') +
+      '</article>';
+  };
+  var slugify = function (s) { return (s || 'proje').toLocaleLowerCase('tr').replace(/[çğıöşü]/g, function (c) { return { 'ç': 'c', 'ğ': 'g', 'ı': 'i', 'ö': 'o', 'ş': 's', 'ü': 'u' }[c]; }).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'proje'; };
+  var DEV = { desk: [1280, 800], phone: [390, 780] };
+  var fitOne = function (v) {
+    var st = v.querySelector('.ek-stage'); if (!st) return; var d = DEV[v.getAttribute('data-dev') || 'desk'], cw = v.clientWidth, ch = v.clientHeight; if (!cw || !ch) return;
+    var pad = v.getAttribute('data-dev') === 'phone' ? 26 : 0, k = Math.min((cw - pad * 2) / d[0], (ch - pad * 2) / d[1]); st.style.width = d[0] + 'px'; st.style.height = d[1] + 'px'; st.style.transform = 'translate(' + Math.round((cw - d[0] * k) / 2) + 'px,' + Math.round((ch - d[1] * k) / 2) + 'px) scale(' + k + ')';
+  };
+  var fitFrames = function (scope) { Array.prototype.forEach.call((scope || document).querySelectorAll('.ek-sc'), fitOne); };
+  var ro = 'ResizeObserver' in window ? new ResizeObserver(function (es) { es.forEach(function (e) { fitOne(e.target); }); }) : null;
+  var watchFrames = function (scope) { Array.prototype.forEach.call((scope || document).querySelectorAll('.ek-sc:not([data-ro])'), function (v) { v.setAttribute('data-ro', '1'); if (ro) ro.observe(v); fitOne(v); }); };
+  window.addEventListener('resize', function () { fitFrames(); });
+  var fillSnaps = function (scope, lookup) { Array.prototype.forEach.call(scope.querySelectorAll('iframe[data-snap]:not([data-sl])'), function (f) { var p = lookup(f.getAttribute('data-snap')); if (p && p.snap) { f.setAttribute('data-sl', '1'); f.srcdoc = p.snap; } }); };
+
+  /* ---------- composer ---------- */
+  var dlg = null, cur = null, onDone = null, fromEl = null, projects = [], coverFile = null;
+  var TPL = {
+    ogrendim: 'Bu hafta [proje adı] üzerinde çalıştım.\n\nNe yaptım: \nNeyi öğrendim: \nSırada ne var: \n\nGeri bildirimlerinizi bekliyorum!',
+    problem: 'Problem: \nÇözümüm: \nKullandığım teknolojiler: \nSonuç: \n\nDenemek için linke tıklayın.',
+    kisa: '[proje adı] yayında! Kısaca: \n\nDeneyip ne düşündüğünüzü yazar mısınız?'
+  };
+  var build = function () {
+    dlg = document.createElement('dialog'); dlg.className = 'ek-cdlg'; dlg.setAttribute('aria-labelledby', 'ek-ct');
+    dlg.innerHTML = '<div class="ek-c-in"><button type="button" class="ek-x" data-cx="" aria-label="Kapat">×</button>' +
+      '<form class="ek-c-form" data-cf="" novalidate><h2 id="ek-ct" class="disp">panele gönderi hazırla</h2>' +
+      '<label class="ek-f" data-cprojw=""><span>hangi proje?</span><select data-cproj=""></select></label>' +
+      '<label class="ek-f"><span>başlık</span><input type="text" maxlength="70" data-ctitle="" required></label>' +
+      '<fieldset class="ek-f ek-kinds"><legend>türü</legend>' + Object.keys(KINDS).map(function (k, i) { return '<label><input type="radio" name="ek-kind" value="' + k + '"' + (i === 0 ? ' checked' : '') + '><span><svg viewBox="0 0 24 24" aria-hidden="true">' + KIND_SVG[k] + '</svg>' + KINDS[k] + '</span></label>'; }).join('') + '</fieldset>' +
+      '<div class="ek-links"><p class="ek-lk">bağlantılar <small>(en az biri ya da sandbox projesi)</small></p>' +
+      '<label class="ek-f ek-lf"><span>GitHub deposu</span><span class="ek-lrow"><input type="url" inputmode="url" placeholder="https://github.com/kullanici/proje" data-lgh=""><button type="button" class="ek-mini" data-ghcheck="">kontrol et</button></span><small class="ek-st" data-sgh="" aria-live="polite"></small></label>' +
+      '<label class="ek-f ek-lf"><span>Vercel</span><input type="url" inputmode="url" placeholder="https://proje.vercel.app" data-lvc=""><small class="ek-st" data-svc="" aria-live="polite"></small></label>' +
+      '<label class="ek-f ek-lf"><span>başka bir adres <small>(site, oyun, itch.io…)</small></span><input type="url" inputmode="url" placeholder="https://" data-lurl=""><small class="ek-st" data-surl="" aria-live="polite"></small></label>' +
+      '<label class="ek-chk" data-csnapw=""><input type="checkbox" data-csnap="" checked><span>link yoksa sandbox’taki son hâli önizleme olarak göm</span></label></div>' +
+      '<div class="ek-f"><span class="ek-lab">yazı</span><div class="ek-tpls" role="group" aria-label="Yazı şablonları"><button type="button" data-tpl="ogrendim">ne yaptım · ne öğrendim</button><button type="button" data-tpl="problem">problem → çözüm</button><button type="button" data-tpl="kisa">kısa duyuru</button></div>' +
+      '<label class="vh" for="ek-ctext">Gönderi yazısı</label><textarea id="ek-ctext" rows="6" maxlength="1500" data-ctext="" placeholder="projeni anlat: ne yaptın, neden, neyi öğrendin?"></textarea><span class="ek-cnt"><span data-ccount="">0</span>/1500</span>' +
+      '<div class="ek-sug" data-csug="" aria-label="Etiket önerileri"></div></div>' +
+      '<label class="ek-f"><span>teknolojiler <small>(virgülle)</small></span><input type="text" maxlength="120" data-ctech="" placeholder="JavaScript, HTML, CSS"></label>' +
+      '<label class="ek-f"><span>ders <small>(isteğe bağlı)</small></span><input type="text" maxlength="50" data-ccourse=""></label>' +
+      '<div class="ek-f"><span class="ek-lab">kapak fotoğrafı <small>(isteğe bağlı · en fazla 5 MB)</small></span><span class="ek-cover"><img data-ccimg="" alt="" hidden><input type="file" accept="image/png,image/jpeg,image/webp,image/gif" data-ccover="" aria-label="Kapak fotoğrafı seç"><button type="button" class="ek-mini" data-ccx="" hidden>kaldır</button></span></div>' +
+      '<p class="ek-err" data-cerr="" role="alert" hidden></p>' +
+      '<div class="ek-c-b"><button type="button" class="ek-ghost" data-cdraft="">taslak olarak sakla</button><span></span><button type="button" class="ek-ghost" data-cx="">vazgeç</button><button type="submit" class="btn btn-blue">panele gönder</button></div></form>' +
+      '<div class="ek-c-prev" aria-label="Gönderinin panelde görünüşü"><p class="ek-pvk hand">panelde böyle görünecek</p><div data-cprev=""></div></div></div>';
+    SBX.layer.appendChild(dlg);
+    var Q = function (s) { return dlg.querySelector(s); };
+    dlg.addEventListener('click', function (e) { if (e.target === dlg || e.target.closest('[data-cx]')) dlg.close(); });
+    dlg.addEventListener('close', function () { if (fromEl && document.contains(fromEl)) fromEl.focus(); });
+    dlg.addEventListener('input', function (e) { if (e.target.matches('[data-ctext]')) Q('[data-ccount]').textContent = e.target.value.length; readForm(); paint(); if (e.target.matches('[data-lgh],[data-lvc],[data-lurl]')) validate(e.target); });
+    dlg.addEventListener('change', function (e) { if (e.target.matches('[data-cproj]')) { fillFrom(projects[e.target.selectedIndex - 1] || null); } readForm(); paint(); });
+    Q('[data-ghcheck]').addEventListener('click', function () { var repo = ghParse(Q('[data-lgh]').value), st = Q('[data-sgh]'); if (!repo) { st.className = 'ek-st no'; st.textContent = 'biçim: https://github.com/kullanici/depo'; return; } st.className = 'ek-st'; st.textContent = 'kontrol ediliyor…'; gh(repo).then(function (d) { st.className = 'ek-st ok'; st.textContent = '✓ ' + d.name + ' bulundu · ★ ' + d.stars + (d.lang ? ' · ' + d.lang : ''); if (!Q('[data-ctech]').value && d.langs) { Q('[data-ctech]').value = Object.keys(d.langs).slice(0, 4).join(', '); readForm(); paint(); } }, function (err) { st.className = 'ek-st no'; st.textContent = err && err.code === 404 ? 'depo bulunamadı ya da gizli; herkese açık olmalı.' : err && err.code === 403 ? 'GitHub şu an sınır koydu; gönderebilirsin, kart sonra dolar.' : 'şu an kontrol edilemedi; gönderebilirsin.'; }); });
+    dlg.addEventListener('click', function (e) {
+      var t = e.target.closest('[data-tpl]'); if (t) { var ta = Q('[data-ctext]'), s = TPL[t.getAttribute('data-tpl')].replace(/\[proje adı\]/g, Q('[data-ctitle]').value || 'projem'); ta.value = ta.value.trim() ? ta.value.replace(/\s*$/, '') + '\n\n' + s : s; ta.dispatchEvent(new Event('input', { bubbles: true })); ta.focus(); return; }
+      var g = e.target.closest('[data-addtag]'); if (g) { var tx = Q('[data-ctext]'); tx.value = tx.value.replace(/\s*$/, '') + (tx.value.trim() ? ' ' : '') + g.getAttribute('data-addtag'); tx.dispatchEvent(new Event('input', { bubbles: true })); return; }
+    });
+    Q('[data-ccover]').addEventListener('change', function () { var f = this.files && this.files[0]; coverFile = f || null; var im = Q('[data-ccimg]'); if (f) { im.src = URL.createObjectURL(f); im.hidden = false; Q('[data-ccx]').hidden = false; cur.image = ''; } readForm(); paint(); });
+    Q('[data-ccx]').addEventListener('click', function () { coverFile = null; cur.image = ''; Q('[data-ccover]').value = ''; Q('[data-ccimg]').hidden = true; this.hidden = true; paint(); });
+    Q('[data-cf]').addEventListener('submit', function (e) { e.preventDefault(); finish('live'); });
+    Q('[data-cdraft]').addEventListener('click', function () { finish('draft'); });
+  };
+  var validate = function (inp) {
+    var v = inp.value.trim(), st, ok, msg;
+    if (inp.matches('[data-lgh]')) { st = dlg.querySelector('[data-sgh]'); ok = !v || !!ghParse(v); msg = ok ? (v ? 'biçim doğru; “kontrol et” ile depoyu doğrula.' : '') : 'biçim: https://github.com/kullanici/depo'; }
+    else if (inp.matches('[data-lvc]')) { st = dlg.querySelector('[data-svc]'); ok = !v || isVercel(v); msg = ok ? (v ? '✓ vercel adresi' : '') : 'biçim: https://proje-adi.vercel.app'; }
+    else { st = dlg.querySelector('[data-surl]'); ok = !v || isUrl(v); msg = ok ? (v ? '✓ adres geçerli görünüyor' : '') : 'https:// ile başlayan tam bir adres yaz'; }
+    st.className = 'ek-st ' + (v ? (ok ? 'ok' : 'no') : ''); st.textContent = msg; return ok;
+  };
+  var readForm = function () {
+    var Q = function (s) { return dlg.querySelector(s); };
+    cur.title = Q('[data-ctitle]').value.trim(); cur.text = Q('[data-ctext]').value; cur.kind = (dlg.querySelector('input[name=ek-kind]:checked') || {}).value || 'web';
+    cur.links = { github: Q('[data-lgh]').value.trim(), vercel: Q('[data-lvc]').value.trim(), url: Q('[data-lurl]').value.trim() };
+    cur.tech = Q('[data-ctech]').value.split(',').map(function (s) { return s.trim(); }).filter(Boolean).slice(0, 8); cur.course = Q('[data-ccourse]').value.trim();
+    cur.useSnap = Q('[data-csnap]').checked;
+  };
+  var paint = function () {
+    var p = JSON.parse(JSON.stringify(cur)); p.links = { github: ghParse(cur.links.github) ? cur.links.github : '', vercel: isVercel(cur.links.vercel) ? cur.links.vercel : '', url: isUrl(cur.links.url) ? cur.links.url : '' }; p.snap = cur.useSnap ? cur.snap : ''; p.at = Date.now(); p.by = 'me'; if (coverFile) p.image = dlg.querySelector('[data-ccimg]').src;
+    var box = dlg.querySelector('[data-cprev]'); box.innerHTML = postHTML(p, { preview: true }); hydrateGh(box);
+    var f = box.querySelector('iframe[data-snap]'); if (f && p.snap) f.srcdoc = p.snap; watchFrames(box);
+    var sug = [], tags = (cur.tech || []).map(function (t) { return '#' + t.replace(/[^\wçğıöşüÇĞİÖŞÜ]/g, '').toLocaleLowerCase('tr'); });
+    if (cur.course) tags.push('#' + cur.course.replace(/[^\wçğıöşüÇĞİÖŞÜ]/g, '').toLocaleLowerCase('tr'));
+    tags.push('#' + (KINDS[cur.kind] || 'proje').replace(/\s/g, ''), '#acadex');
+    tags.forEach(function (t) { if (t.length > 2 && cur.text.indexOf(t) < 0 && sug.indexOf(t) < 0) sug.push(t); });
+    dlg.querySelector('[data-csug]').innerHTML = sug.length ? '<span>etiket ekle:</span>' + sug.slice(0, 6).map(function (t) { return '<button type="button" data-addtag="' + X(t) + '">' + X(t) + '</button>'; }).join('') : '';
+  };
+  var fillFrom = function (pr) {
+    var Q = function (s) { return dlg.querySelector(s); };
+    cur.projId = pr ? pr.id : ''; cur.snap = pr ? buildSingle(pr.files) : ''; cur.versions = pr ? (pr.versions || []).length : 0; cur.langs = pr ? langsOf(pr.files) : [];
+    Q('[data-csnapw]').hidden = !cur.snap;
+    if (!pr) return;
+    if (!Q('[data-ctitle]').value || Q('[data-ctitle]')._auto) { Q('[data-ctitle]').value = pr.name; Q('[data-ctitle]')._auto = true; }
+    var rd = null; Object.keys(pr.files).forEach(function (k) { if (/(^|\/)readme\.md$/i.test(k)) rd = pr.files[k]; });
+    if (rd && !Q('[data-ctext]').value) { var para = rd.split(/\n\s*\n/).map(function (s) { return s.trim(); }).filter(function (s) { return s && !/^#/.test(s) && !/^[-*]\s/.test(s) && !/^\*\*/.test(s) && !/amacını iki cümleyle yaz/.test(s); })[0]; if (para) { Q('[data-ctext]').value = para.replace(/`/g, ''); Q('[data-ccount]').textContent = Q('[data-ctext]').value.length; } }
+    if (!Q('[data-ctech]').value) Q('[data-ctech]').value = cur.langs.join(', ');
+    if (!Q('[data-ccourse]').value && pr.course) Q('[data-ccourse]').value = pr.course;
+    var k = /canvas|requestAnimationFrame|oyun|skor|tahmin/i.test(JSON.stringify(pr.files)) ? 'oyun' : Object.keys(pr.files).some(function (f) { return /\.(csv|py|sql)$/i.test(f); }) ? 'veri' : /hesap|calculator|hesapla/i.test(JSON.stringify(pr.files)) ? 'arac' : 'web';
+    var r = dlg.querySelector('input[name=ek-kind][value="' + k + '"]'); if (r) r.checked = true;
+  };
+  var LN = { html: 'HTML', htm: 'HTML', css: 'CSS', js: 'JavaScript', mjs: 'JavaScript', ts: 'TypeScript', py: 'Python', sql: 'SQL', csv: 'CSV', json: 'JSON' };
+  var langsOf = function (files) { var s = []; Object.keys(files).forEach(function (p) { var m = /\.([a-z0-9]+)$/i.exec(p), l = m && LN[m[1].toLowerCase()]; if (l && s.indexOf(l) < 0) s.push(l); }); return s; };
+  var finish = function (status) {
+    readForm(); var err = dlg.querySelector('[data-cerr]'), bad = [];
+    ['[data-lgh]', '[data-lvc]', '[data-lurl]'].forEach(function (s) { if (!validate(dlg.querySelector(s))) bad.push(s); });
+    var hasSrc = ghParse(cur.links.github) || isVercel(cur.links.vercel) || isUrl(cur.links.url) || (cur.useSnap && cur.snap) || coverFile || cur.image;
+    var em = status === 'live' ? emptyLines(cur.text) : [], warnEmpty = em.length && cur._warned !== cur.text; if (em.length) cur._warned = cur.text;
+    var msg = !cur.title ? 'Bir başlık yaz.' : bad.length ? 'İşaretli bağlantının biçimini düzelt.' : !hasSrc && status === 'live' ? 'En az bir bağlantı, kapak fotoğrafı ya da sandbox önizlemesi ekle.' : status === 'live' && cur.text.trim().length < 20 ? 'Birkaç cümleyle projeni anlat (en az 20 karakter).' : warnEmpty ? 'Şablonda boş kalan satırlar var: ' + em.join(', ') + '. Doldur ya da yine de gönder; boş satırlar panelde gizlenir.' : '';
+    if (msg) { err.textContent = msg; err.hidden = false; var f = !cur.title ? dlg.querySelector('[data-ctitle]') : bad.length ? dlg.querySelector(bad[0]) : !hasSrc ? dlg.querySelector('[data-lgh]') : dlg.querySelector('[data-ctext]'); if (f) f.focus(); return; }
+    err.hidden = true;
+    var p = { id: cur.id || '', by: 'me', at: Date.now(), title: cur.title, kind: cur.kind, tech: cur.tech, course: cur.course, text: cur.text.trim(), links: { github: ghParse(cur.links.github) ? cur.links.github : '', vercel: isVercel(cur.links.vercel) ? cur.links.vercel : '', url: isUrl(cur.links.url) ? cur.links.url : '' }, projId: cur.projId || '', snap: cur.useSnap ? cur.snap : '', versions: cur.versions || 0, langs: cur.langs || [], status: status, image: cur.image || '', reacts: cur.reacts || {}, cm: cur.cm || [] };
+    if (status === 'draft') {
+      if (/^[0-9a-f-]{36}$/i.test(p.id)) { err.textContent = 'Yayındaki bir gönderi taslağa çevrilemez; değişiklikleri “panele gönder” ile kaydet.'; err.hidden = false; return; }
+      var dp = SBX.saveDraft(p); if (!dp) { err.textContent = 'Taslak saklanamadı: tarayıcı alanı dolu.'; err.hidden = false; return; }
+      dlg.close(); if (onDone) onDone(dp); return;
+    }
+    var sub = dlg.querySelector('button[type=submit]'), wasDraft = /^d/.test(p.id) ? p.id : ''; if (wasDraft) p.id = '';
+    sub.disabled = true; sub.textContent = coverFile ? 'fotoğraf yükleniyor…' : 'gönderiliyor…';
+    SBX.savePost(p, coverFile).then(function (np) {
+      sub.disabled = false; sub.textContent = 'panele gönder'; if (wasDraft) SBX.dropDraft(wasDraft); coverFile = null;
+      dlg.close(); if (onDone) onDone(np);
+    }, function (er) { console.warn(er); sub.disabled = false; sub.textContent = 'panele gönder'; if (wasDraft) p.id = wasDraft; err.textContent = 'Gönderilemedi: ' + ((er && er.message) || 'bağlantını kontrol edip tekrar dene.'); err.hidden = false; });
+  };
+  var open = function (opts) {
+    if (!dlg) build(); var Q = function (s) { return dlg.querySelector(s); };
+    opts = opts || {}; onDone = opts.onDone || null; fromEl = opts.from || null; projects = opts.projects || [];
+    var ex = opts.post || null; cur = ex ? JSON.parse(JSON.stringify(ex)) : { id: '', by: 'me', reacts: {}, cm: [] };
+    Q('[data-cf]').reset(); coverFile = null; Q('[data-ccimg]').hidden = true; Q('[data-ccx]').hidden = true; Q('[data-ctitle]')._auto = false; Q('[data-cerr]').hidden = true; ['[data-sgh]', '[data-svc]', '[data-surl]'].forEach(function (s) { Q(s).textContent = ''; Q(s).className = 'ek-st'; });
+    var sel = Q('[data-cproj]'); sel.innerHTML = '<option value="">— sandbox projesi yok, sadece link —</option>' + projects.map(function (p) { return '<option value="' + p.id + '">' + X(p.name) + '</option>'; }).join('');
+    Q('[data-cprojw]').hidden = !projects.length;
+    var pid = ex ? ex.projId : opts.projectId; if (pid) projects.forEach(function (p, i) { if (p.id === pid) sel.selectedIndex = i + 1; });
+    if (ex) { Q('[data-ctitle]').value = ex.title || ''; Q('[data-ctext]').value = ex.text || ''; Q('[data-lgh]').value = ex.links.github || ''; Q('[data-lvc]').value = ex.links.vercel || ''; Q('[data-lurl]').value = ex.links.url || ''; Q('[data-ctech]').value = (ex.tech || []).join(', '); Q('[data-ccourse]').value = ex.course || ''; var r = dlg.querySelector('input[name=ek-kind][value="' + ex.kind + '"]'); if (r) r.checked = true; Q('[data-csnapw]').hidden = !ex.snap; Q('[data-csnap]').checked = !!ex.snap; if (ex.image) { Q('[data-ccimg]').src = ex.image; Q('[data-ccimg]').hidden = false; Q('[data-ccx]').hidden = false; } Q('[data-ctitle]').closest('form').querySelector('#ek-ct').textContent = /^[0-9a-f-]{36}$/i.test(ex.id || '') ? 'gönderiyi düzenle' : 'panele gönderi hazırla'; }
+    else { var pr = null; projects.forEach(function (p) { if (p.id === pid) pr = p; }); cur.snap = ''; Q('[data-csnapw]').hidden = true; fillFrom(pr); Q('#ek-ct').textContent = 'panele gönderi hazırla'; }
+    Q('[data-ccount]').textContent = Q('[data-ctext]').value.length; readForm(); paint();
+    if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', '');
+    (Q('[data-ctitle]').value ? Q('[data-ctext]') : Q('[data-ctitle]')).focus();
+  };
+
+  return { fitFrames: fitFrames, watchFrames: watchFrames, fitOne: fitOne, cleanText: cleanText, emptyLines: emptyLines, X: X, PPL: PPL, KINDS: KINDS, REACT: REACT, KIND_SVG: KIND_SVG, ghParse: ghParse, liveUrl: liveUrl, host: host, gh: gh, hydrateGh: hydrateGh, buildSingle: buildSingle, postHTML: postHTML, fillSnaps: fillSnaps, mine: mine, saveMine: saveMine, upsert: upsert, open: open, ago: ago, calm: calm, uid: uid };
+  })();
+
+  /* ================= SANDBOX ETKİLEŞİM PANELİ · akış ================= */
+  (function () {
+  var root = document.getElementById('etkilesim'); if (!root) return; var sec = document.getElementById('sandbox-interaction-view');
+  var Q = function (s, el) { return (el || root).querySelector(s); };
+  var QA = function (s, el) { return Array.prototype.slice.call((el || root).querySelectorAll(s)); };
+  var X = ETK.X, calm = ETK.calm;
+  var G = function (k, d) { try { var v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
+  var S = function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } };
+  var HR = 3600e3, NOW = Date.now();
+
+  /* toast */
+  var toast = Q('[data-toast]'), toastT = Q('[data-toast-t]'), toastB = Q('[data-toast-b]'), toastA = Q('[data-toast-a]'), tT = 0, undoFn = null;
+  SBX.layer.appendChild(toast);
+  var say = function (t, undo) { toastT.textContent = t; undoFn = undo || null; toastB.hidden = !undo; toastA.hidden = true; toast.hidden = false; clearTimeout(tT); tT = setTimeout(function () { toast.hidden = true; undoFn = null; }, 5600); };
+  toastB.addEventListener('click', function () { if (undoFn) undoFn(); toast.hidden = true; undoFn = null; });
+
+  /* ---------- bu tarayıcıdaki tercihler + veritabanındaki gönderiler ---------- */
+  var saved = G(SBX.uk('etk.saved'), []), hidden = G(SBX.uk('etk.hidden'), []), reports = G(SBX.uk('etk.reports'), {}), pendingDel = {};
+  var F = { kind: '', tech: '', course: '', mode: '', by: '', dept: '' }, openCm = {};
+  var all = function () { return SBX.st.posts.filter(function (p) { return hidden.indexOf(p.id) < 0 && !pendingDel[p.id]; }); };
+  var byId = function (id) { var r = null; SBX.st.posts.concat(SBX.drafts()).forEach(function (p) { if (p.id === id) r = p; }); return r; };
+  var withMine = function (p) { return p; };
+  var follow = SBX.st.follow;
+
+  /* ---------- feed ---------- */
+  var feedEl = Q('[data-feed]'), noneEl = Q('[data-none]'), fstate = Q('[data-fstate]');
+  var visible = function () { return all().filter(function (p) { if (F.by && p.uid !== F.by) return false; if (F.dept && (SBX.person(p.by).dept || '') !== F.dept) return false; if (F.kind && p.kind !== F.kind) return false; if (F.tech && (p.tech || []).indexOf(F.tech) < 0) return false; if (F.course && p.course !== F.course) return false; if (F.mode === 'follow' && p.by !== 'me' && SBX.st.follow.indexOf(p.uid) < 0) return false; if (F.mode === 'saved' && saved.indexOf(p.id) < 0) return false; return true; }); };
+  var io = (!calm && 'IntersectionObserver' in window) ? new IntersectionObserver(function (en) { en.forEach(function (e) { if (e.isIntersecting) { e.target.classList.remove('pre'); e.target.classList.add('in'); io.unobserve(e.target); ETK.fillSnaps(e.target, byId); ETK.hydrateGh(e.target); ETK.watchFrames(e.target); } }); }, { rootMargin: '0px 0px -10% 0px', threshold: .05 }) : null;
+  var one = function (p) { return ETK.postHTML(withMine(p), { myReact: p.myReact || '', saved: saved.indexOf(p.id) > -1, following: SBX.st.follow.indexOf(p.uid) > -1 }); };
+  /* ---------- pencil notes in the margins (derived from the post itself) ---------- */
+  var ARROW_DOWN = '<svg viewBox="0 0 46 40" aria-hidden="true"><path pathLength="1" d="M42 3 C30 4 16 10 10 30 M4 24 C6 28 8 31 10 36 C13 32 16 30 20 28"/></svg>';
+  var decorate = function (el, p) {
+    if (el.querySelector('.ek-anc')) return; var q = withMine(p), win = el.querySelector('.ek-win'), live = ETK.liveUrl(p), seed = 0; for (var i = 0; i < p.id.length; i++) seed = (seed * 31 + p.id.charCodeAt(i)) >>> 0;
+    var tryTxt = p.kind === 'oyun' ? 'oyna, çalışıyor!' : live ? 'canlı site burada' : p.snap ? 'dene, çalışıyor' : p.image ? 'ekran görüntüsü' : 'kodu burada';
+    if (win) win.insertAdjacentHTML('beforebegin', '<div class="ek-anc" aria-hidden="true"><span class="ek-note n-try" style="--nr:' + (-3 - seed % 4) + 'deg"><span>' + tryTxt + '</span>' + ARROW_DOWN + '</span></div>');
+    var term = el.querySelector('.ek-term'); if (term && p.versions > 1) term.insertAdjacentHTML('afterend', '<div class="ek-anc after-term" aria-hidden="true"><span class="ek-note ek-pen n-ver" style="--nd:.3s"><span>v' + (p.versions - 1) + ' → v' + p.versions + '</span><svg viewBox="0 0 34 20" aria-hidden="true"><path pathLength="1" d="M3 15 C10 4 20 3 31 9 M25 4 L31 9 L24 12"/></svg></span></div>');
+    var tot = 0, mx = 0; Object.keys(q.reacts || {}).forEach(function (k) { tot += q.reacts[k]; });
+    var top = null; all().forEach(function (x) { var w = withMine(x), t = 0; Object.keys(w.reacts || {}).forEach(function (k) { t += w.reacts[k]; }); if (t > mx) { mx = t; top = x.id; } });
+    var rs = el.querySelector('.ek-rsum');
+    if (rs && tot >= 6 && top === p.id) { rs.insertAdjacentHTML('afterbegin', '<svg class="ek-hot" viewBox="0 0 250 40" preserveAspectRatio="none" aria-hidden="true"><path pathLength="1" d="M8 22 C10 6 120 2 200 8 C246 12 248 32 196 36 C120 41 20 38 10 26 C6 20 18 12 36 10"/></svg><span class="ek-hotnote" aria-hidden="true">bölümün gözdesi</span>'); el.insertAdjacentHTML('afterbegin', '<svg class="ek-star" viewBox="0 0 30 30" aria-hidden="true"><path pathLength="1" d="M15 3 C16 9 17 11 19.5 12.5 C22.5 12.8 25 13 27 13.2 C24 15.5 22 17.2 20.6 18.6 C21.3 22 22 25 22.5 27.5 C19.5 25.6 17 24 15 22.8 C12.5 24.3 10 26 7.5 27.6 C8.3 24.5 9 21.6 9.6 18.6 C7.6 16.8 5.5 15 3 13.2 C6 13 8.5 12.8 10.6 12.5 C12.6 10.5 13.8 7 15 3 Z"/></svg>'); }
+    if (rs && q.cm.length >= 2) rs.insertAdjacentHTML('beforeend', '<span class="ek-note ek-pen n-talk" style="--nd:.5s" aria-hidden="true"><span>← tartışma var, oku</span></span>');
+  };
+  var arm = function (el) { var pp = byId(el.getAttribute('data-pid')); if (pp) decorate(el, pp); if (io) { el.classList.add('pre'); io.observe(el); } else { el.classList.add('in'); ETK.fillSnaps(el, byId); ETK.hydrateGh(el); ETK.watchFrames(el); ETK.watchFrames(el); } if (reports[el.getAttribute('data-pid')]) markReported(el); };
+  var renderFeed = function () {
+    var list = visible(); feedEl.innerHTML = list.map(one).join(''); noneEl.hidden = !!list.length || !SBX.st.loaded; if (!list.length && SBX.st.loaded && !all().length) { noneEl.hidden = true; feedEl.innerHTML = '<div class="ef-empty hand" style="padding:30px 6px;font-size:22px;color:#6A7593">panel henüz boş. ilk projeyi sen paylaş: “gönderi hazırla”.</div>'; }
+    var lm = Q('[data-loadmore]'); if (lm) lm.hidden = !SBX.st.more || !!(F.kind || F.tech || F.course || F.mode || F.by || F.dept);
+    QA('.ek-post', feedEl).forEach(arm);
+    var bits = []; if (F.kind) bits.push(ETK.KINDS[F.kind]); if (F.tech) bits.push(F.tech); if (F.course) bits.push(F.course); if (F.mode === 'follow') bits.push('takip ettiklerin'); if (F.mode === 'saved') bits.push('kaydettiklerin'); if (F.by) bits.push(SBX.person(F.by === (SBX.me() || {}).id ? 'me' : F.by).n + ' projeleri'); if (F.dept) bits.push(Q('[data-dept] option[value="' + F.dept + '"]').textContent);
+    fstate.textContent = bits.length ? 'süzgeç: ' + bits.join(' · ') + ' — ' + list.length + ' proje' : '';
+  };
+  var rePost = function (id, focusSel) { var old = feedEl.querySelector('[data-pid="' + id + '"]'), p = byId(id); if (!old || !p) return null; var w = document.createElement('div'); w.innerHTML = one(p); var n = w.firstChild; n.classList.add('in'); decorate(n, p); n.classList.add('noanim'); if (old.classList.contains('open')) n.classList.add('open'); var oldF = old.querySelector('iframe[data-sl]'); old.parentNode.replaceChild(n, old); ETK.fillSnaps(n, byId); ETK.hydrateGh(n); ETK.watchFrames(n); if (openCm[id]) paintCms(n, p); if (reports[id]) markReported(n); if (focusSel) { var f = n.querySelector(focusSel); if (f) f.focus(); } return n; };
+  var markReported = function (el) { var w = el.querySelector('.ek-win'); if (w && !el.querySelector('.ef-repd')) { var b = document.createElement('p'); b.className = 'ef-repd hand'; b.style.cssText = 'margin:8px 0 0;font-size:19px;color:var(--red)'; b.textContent = 'bunu bildirdin; moderatör inceleyecek.'; w.after(b); } };
+
+  /* tabs strip, filters, people, drafts */
+  var paintTabs = function () { var wk = all().filter(function (p) { return Date.now() - p.at < 7 * 24 * HR; }).slice(0, 8); Q('[data-tabrow]').innerHTML = wk.length ? wk.map(function (p) { var u = SBX.person(p.by); return '<button type="button" class="ef-tab" data-go="' + p.id + '"><b style="--bgc:' + u.c + '">' + X(u.i) + '</b><span>' + X(p.title) + '</span></button>'; }).join('') : '<span class="hand" style="font-size:19px;color:#6A7593;padding:0 0 8px">bu hafta henüz yeni proje yok.</span>'; };
+  var paintFilters = function () {
+    var ps = all(), kinds = [], techs = [], courses = [];
+    ps.forEach(function (p) { if (p.kind && kinds.indexOf(p.kind) < 0) kinds.push(p.kind); (p.tech || []).forEach(function (t) { if (techs.indexOf(t) < 0) techs.push(t); }); if (p.course && courses.indexOf(p.course) < 0) courses.push(p.course); });
+    Q('[data-kinds]').innerHTML = ['', ].concat(kinds).map(function (k) { return '<button type="button" data-fk="' + k + '" aria-pressed="' + (F.kind === k) + '">' + (k ? ETK.KINDS[k] : 'hepsi') + '</button>'; }).join('');
+    Q('[data-techs]').innerHTML = techs.map(function (t) { return '<button type="button" data-ft="' + X(t) + '" aria-pressed="' + (F.tech === t) + '">' + X(t) + '</button>'; }).join('');
+    Q('[data-course]').innerHTML = '<option value="">tüm dersler</option>' + courses.map(function (c) { return '<option' + (F.course === c ? ' selected' : '') + '>' + X(c) + '</option>'; }).join('');
+    QA('[data-mode]').forEach(function (b) { b.setAttribute('aria-pressed', String(F.mode === b.getAttribute('data-mode'))); });
+  };
+  var paintPeople = function () { var cnt = {}; all().forEach(function (p) { if (p.by !== 'me') cnt[p.by] = (cnt[p.by] || 0) + 1; }); var ks = Object.keys(cnt).sort(function (a, b) { return cnt[b] - cnt[a]; }).slice(0, 8); Q('[data-ppl]').innerHTML = ks.length ? ks.map(function (k) { var u = SBX.person(k), f = SBX.st.follow.indexOf(k) > -1; return '<li><button type="button" class="ek-av" data-prof="' + X(k) + '" style="--bgc:' + u.c + '" aria-label="' + X(u.n) + ' projelerini göster">' + (u.img ? '<img src="' + X(u.img) + '" alt="">' : X(u.i)) + '</button><span class="nm"><b>' + X(u.n) + '</b><small>' + X(u.s) + (u.s ? ' · ' : '') + cnt[k] + ' proje</small></span><button type="button" class="ek-follow" data-follow="' + X(k) + '" aria-pressed="' + f + '">' + (f ? 'takiptesin' : '+ takip et') + '</button></li>'; }).join('') : '<li class="none">henüz paylaşan yok.</li>'; };
+  var paintDrafts = function () { var d = SBX.drafts(); Q('[data-drafts]').innerHTML = d.length ? d.map(function (p) { return '<li><span>' + X(p.title || 'başlıksız') + '</span><button type="button" data-dedit="' + p.id + '">düzenle</button></li>'; }).join('') : '<li class="none">taslak yok.</li>'; };
+  var paintAll = function () { paintTabs(); paintFilters(); paintPeople(); paintDrafts(); renderFeed(); QA('[data-sort]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-sort') === SBX.st.sort)); }); var ma = Q('[data-myav]'); if (ma) { var u = SBX.person('me'); ma.style.setProperty('--bgc', u.c); ma.innerHTML = u.img ? '<img src="' + X(u.img) + '" alt="">' : X(u.i); } };
+
+  root.addEventListener('click', function (e) {
+    var b;
+    if ((b = e.target.closest('[data-fk]'))) { F.kind = b.getAttribute('data-fk'); paintFilters(); renderFeed(); Q('[data-fk="' + F.kind + '"]').focus(); return; }
+    if ((b = e.target.closest('[data-ft]'))) { var t = b.getAttribute('data-ft'); F.tech = F.tech === t ? '' : t; paintFilters(); renderFeed(); var fb = QA('[data-ft]').filter(function (x) { return x.getAttribute('data-ft') === t; })[0]; if (fb) fb.focus(); return; }
+    if ((b = e.target.closest('[data-mode]'))) { var m = b.getAttribute('data-mode'); F.mode = F.mode === m ? '' : m; paintFilters(); renderFeed(); return; }
+    if (e.target.closest('[data-clear]')) { F = { kind: '', tech: '', course: '', mode: '', by: '', dept: '' }; Q('[data-dept]').value = ''; paintFilters(); renderFeed(); return; }
+    if ((b = e.target.closest('[data-sort]'))) { var so = b.getAttribute('data-sort'); if (so !== SBX.st.sort) { SBX.st.sort = so; SBX.st.limit = 20; reload(); } return; }
+    if (e.target.closest('[data-loadmore]')) { SBX.st.limit += 20; reload(); return; }
+    if (e.target.closest('[data-godev]')) { if (typeof switchDashboardView === 'function') switchDashboardView('sandbox'); return; }
+    if ((b = e.target.closest('.ef-ppl [data-prof]'))) { showBy(b.getAttribute('data-prof')); return; }
+    if ((b = e.target.closest('[data-go]'))) { goTo(b.getAttribute('data-go')); return; }
+    if ((b = e.target.closest('[data-follow]'))) { var k = b.getAttribute('data-follow'); b.disabled = true; SBX.follow(k).then(function (on) { b.disabled = false; paintPeople(); QA('[data-follow="' + k + '"]', root).forEach(function (x) { x.setAttribute('aria-pressed', String(on)); x.textContent = on ? 'takiptesin' : '+ takip et'; }); var nm = SBX.person(k).n.split(' ')[0]; say(on ? nm + ' takip listende.' : nm + ' takipten çıktı.'); if (F.mode === 'follow') renderFeed(); }, function (er) { b.disabled = false; console.warn(er); say('Takip kaydedilemedi; tekrar dene.'); }); return; }
+    if ((b = e.target.closest('[data-dedit]'))) { var dp = byId(b.getAttribute('data-dedit')); withWs(function (ps) { ETK.open({ post: dp, from: b, projects: ps, onDone: afterCompose }); }); return; }
+    if (e.target.closest('[data-compose]')) { var cfrom = e.target.closest('[data-compose]'); withWs(function (ps) { ETK.open({ from: cfrom, projects: ps, onDone: afterCompose }); }); return; }
+  });
+  Q('[data-course]').addEventListener('change', function (e) { F.course = e.target.value; renderFeed(); });
+  Q('[data-dept]').addEventListener('change', function (e) { F.dept = e.target.value; renderFeed(); });
+  var showBy = function (uid) { if (uid === 'me') uid = (SBX.me() || {}).id; F = { kind: '', tech: '', course: '', mode: '', by: uid, dept: '' }; Q('[data-dept]').value = ''; paintFilters(); renderFeed(); var u = SBX.person(uid === (SBX.me() || {}).id ? 'me' : uid); say(u.n + ': ' + visible().length + ' proje.' + (u.bio ? ' ' + u.bio : '')); root.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' }); };
+  var withWs = function (cb) { if (SBX.ws.list) { cb(SBX.ws.list); return; } SBX.wsLoad().then(cb, function () { cb([]); }); };
+  var deployIn = function (el, p) {
+    var view = el.querySelector('.ek-view'); if (!view) return;
+    var live = ETK.liveUrl(p), files = p.langs && p.langs.length ? p.langs.join(', ') : 'proje', target = live ? ETK.host(live) : 'sandbox://' + (p.title || 'proje').toLocaleLowerCase('tr').replace(/\s+/g, '-');
+    var L = [['c', '$ acadex deploy'], ['d', '› dosyalar toplanıyor (' + files + ')'], ['d', '› building…', 1], ['d', '› önizleme hazırlanıyor'], ['ok', '✓ yayında · ' + target]];
+    if (calm) { el.classList.add('loading'); return; }
+    var box = document.createElement('div'); box.className = 'ek-deploy'; box.setAttribute('aria-hidden', 'true'); view.appendChild(box);
+    var i = 0, step = function () {
+      var prev = box.querySelector('.cur'); if (prev) prev.classList.remove('cur');
+      if (i >= L.length) { setTimeout(function () { box.classList.add('done'); el.classList.add('loading'); setTimeout(function () { box.remove(); }, 600); }, 500); return; }
+      var l = L[i++], pEl = document.createElement('p'); pEl.className = l[0] + ' cur'; pEl.textContent = l[1]; box.appendChild(pEl);
+      if (l[2]) { var bar = document.createElement('span'); bar.className = 'bar'; bar.innerHTML = '<i></i>'; box.appendChild(bar); var w = 0, t = setInterval(function () { w = Math.min(100, w + 18 + Math.random() * 14); bar.firstChild.style.setProperty('--w', w + '%'); if (w >= 100) { clearInterval(t); step(); } }, 140); return; }
+      setTimeout(step, 420);
+    };
+    step();
+  };
+  var afterCompose = function (p) { F = { kind: '', tech: '', course: '', mode: '', by: '', dept: '' }; Q('[data-dept]').value = ''; paintAll(); if (p.status === 'draft') { say('Taslak saklandı; sağdaki “taslaklarım”da.'); return; } var el = feedEl.querySelector('[data-pid="' + p.id + '"]'); if (el) { el.classList.remove('pre'); el.classList.add('in', 'fresh'); ETK.fillSnaps(el, byId); ETK.hydrateGh(el); ETK.watchFrames(el); deployIn(el, p); el.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' }); var h = el.querySelector('h3'); h.setAttribute('tabindex', '-1'); setTimeout(function () { h.focus({ preventScroll: true }); }, 300); } say('Gönderin panelde yayında.'); };
+  var goTo = function (id) {
+    if (!feedEl.querySelector('[data-pid="' + id + '"]')) { F = { kind: '', tech: '', course: '', mode: '', by: '', dept: '' }; paintFilters(); renderFeed(); }
+    var el = feedEl.querySelector('[data-pid="' + id + '"]'); if (!el) return; el.classList.remove('pre'); el.classList.add('in'); ETK.fillSnaps(el, byId); ETK.hydrateGh(el); ETK.watchFrames(el);
+    el.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' }); el.classList.add('flash'); setTimeout(function () { el.classList.remove('flash'); }, 1600);
+    var h = el.querySelector('h3'); h.setAttribute('tabindex', '-1'); setTimeout(function () { h.focus({ preventScroll: true }); }, calm ? 0 : 450);
+  };
+
+  /* post interactions */
+  var LBL = { genel: 'genel', tasarim: 'tasarım', performans: 'performans', erisim: 'erişilebilirlik', hata: 'hata' };
+  var cHTML = function (pid, c, isRep) { var u = SBX.person(c.by); return '<li class="ef-c l-' + (LBL[c.l] ? c.l : 'genel') + '" data-cid="' + c.id + '"><div class="ef-c-h"><b>' + X(c.by === 'me' ? 'sen' : u.n) + '</b><span class="ef-lb">' + (LBL[c.l] || 'genel') + '</span><span>' + ETK.ago(c.at) + '</span>' + (c.by === 'me' ? '<button type="button" class="del" data-cdel="' + c.id + '" aria-label="İncelemeni sil">sil</button>' : '') + '</div><p>' + X(c.t) + '</p>' + (isRep || SBX.feat.cx === false ? '' : '<button type="button" class="rp" data-rp="' + c.id + '">yanıtla</button>' + ((c.rep || []).length ? '<ul class="ef-rep">' + c.rep.map(function (r) { return cHTML(pid, r, true); }).join('') + '</ul>' : '')) + '</li>'; };
+  var paintCms = function (el, p) {
+    var q = withMine(p), box = el.querySelector('[data-cms]'); box.hidden = false;
+    box.innerHTML = (q.cm.length ? '<ul class="ef-th">' + q.cm.map(function (c) { return cHTML(p.id, c); }).join('') + '</ul>' : '') +
+      '<form class="ef-cf" data-cf=""><p class="to" data-to="" hidden></p>' + (SBX.feat.cx === false ? '<input type="hidden" data-cl="" value="genel">' : '<label class="vh" for="cl-' + p.id + '">İnceleme türü</label><select id="cl-' + p.id + '" data-cl="">' + Object.keys(LBL).map(function (k) { return '<option value="' + k + '">' + LBL[k] + '</option>'; }).join('') + '</select>') + '<label class="vh" for="ci-' + p.id + '">İnceleme yaz</label><input id="ci-' + p.id + '" type="text" maxlength="400" placeholder="incelemeni yaz: ne güzel, ne düzelir?" autocomplete="off"><button type="submit" class="btn btn-blue">gönder</button></form>';
+  };
+  var menu = Q('[data-menu]'), menuFor = null, menuFrom = null; SBX.layer.appendChild(menu);
+  var closeMenu = function (back) { if (menu.hidden) return; menu.hidden = true; if (menuFrom) { menuFrom.setAttribute('aria-expanded', 'false'); if (back) menuFrom.focus(); } };
+  feedEl.addEventListener('click', function (e) {
+    var post = e.target.closest('.ek-post'); if (!post) return; var id = post.getAttribute('data-pid'), p = byId(id), b;
+    if ((b = e.target.closest('[data-react]'))) {
+      var k = b.getAttribute('data-react'); QA('[data-react]', post).forEach(function (x) { x.disabled = true; });
+      SBX.react(p, k).then(function () {
+        var n = rePost(id, '[data-react="' + k + '"]'); if (n && p.myReact && !calm) { var rb = n.querySelector('[data-react="' + p.myReact + '"]'); if (rb) rb.classList.add('pop'); }
+        if (p.myReact && p.by !== 'me') say(SBX.feat.rx === false ? 'Beğenin gönderildi.' : '“' + ETK.REACT[p.myReact].l + '” tepkin gönderildi.');
+      }, function (er) { console.warn(er); rePost(id); say('Tepki kaydedilemedi; tekrar dene.'); });
+      return;
+    }
+    if ((b = e.target.closest('[data-cdel]'))) { var dc = b.getAttribute('data-cdel'); b.disabled = true; SBX.delComment(p, dc).then(function () { openCm[id] = true; rePost(id); say('İncelemen silindi.'); }, function () { b.disabled = false; say('Silinemedi; tekrar dene.'); }); return; }
+    if ((b = e.target.closest('[data-save]'))) { var i = saved.indexOf(id); if (i > -1) saved.splice(i, 1); else saved.push(id); S(SBX.uk('etk.saved'), saved); rePost(id, '[data-save]'); say(i > -1 ? 'Kaydettiklerinden çıkardım.' : 'Kaydedildi; “kaydettiklerim” süzgecinde.'); return; }
+    if (e.target.closest('[data-cm]')) { openCm[id] = !openCm[id]; var box = post.querySelector('[data-cms]'); if (openCm[id]) { paintCms(post, p); box.querySelector('input[type=text]').focus(); } else box.hidden = true; return; }
+    if ((b = e.target.closest('[data-rp]'))) { var f = post.querySelector('[data-cf]'), to = f.querySelector('[data-to]'), cid = b.getAttribute('data-rp'), c = withMine(p).cm.filter(function (x) { return x.id === cid; })[0]; f.setAttribute('data-reply', cid); to.hidden = false; to.innerHTML = 'yanıt: ' + X(c.by === 'me' ? 'kendine' : SBX.person(c.by).n) + ' <button type="button" data-unrp="">vazgeç</button>'; f.querySelector('input[type=text]').focus(); return; }
+    if (e.target.closest('[data-unrp]')) { var f2 = post.querySelector('[data-cf]'); f2.removeAttribute('data-reply'); f2.querySelector('[data-to]').hidden = true; f2.querySelector('input[type=text]').focus(); return; }
+    if (e.target.closest('[data-more]')) { var o = post.classList.toggle('open'); var mb = e.target.closest('[data-more]'); mb.setAttribute('aria-expanded', String(o)); mb.textContent = o ? 'daha az göster' : '…devamını gör'; return; }
+    if (e.target.closest('[data-golive]')) { var v = post.querySelector('.ek-live'), url = ETK.liveUrl(p); v.classList.add('ek-sc'); v.setAttribute('data-dev', post.querySelector('[data-devb=phone][aria-pressed=true]') ? 'phone' : 'desk'); v.innerHTML = '<div class="ek-stage"><iframe class="ek-frame" title="' + X(p.title) + ' canlı" src="' + X(url) + '" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" referrerpolicy="no-referrer"></iframe></div>'; v.removeAttribute('data-ro'); ETK.watchFrames(post); return; }
+    if ((b = e.target.closest('[data-shield]'))) { var vf = b.parentNode.querySelector('iframe'); b.remove(); if (vf) { vf.removeAttribute('tabindex'); vf.focus(); } return; }
+    if ((b = e.target.closest('[data-devb]'))) { var dv = b.getAttribute('data-devb'), vw = post.querySelector('.ek-view'); QA('[data-devb]', post).forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); if (vw) { vw.setAttribute('data-dev', dv); ETK.fitOne(vw); } return; }
+    if (e.target.closest('[data-reload]')) { var fr = post.querySelector('.ek-view iframe'); if (fr) { if (fr.hasAttribute('srcdoc')) { var sd = fr.srcdoc; fr.srcdoc = ''; fr.srcdoc = sd; } else fr.src = fr.src; } return; }
+    if (e.target.closest('[data-full]')) { openFull(p, e.target.closest('[data-full]')); return; }
+    if ((b = e.target.closest('[data-more-menu]'))) {
+      menuFor = id; menuFrom = b; b.setAttribute('aria-expanded', 'true');
+      menu.querySelector('[data-m="edit"]').hidden = p.by !== 'me'; menu.querySelector('[data-m="del"]').hidden = p.by !== 'me'; menu.querySelector('[data-m="report"]').hidden = p.by === 'me' || !!reports[id]; menu.querySelector('[data-m="hide"]').hidden = p.by === 'me';
+      menu.hidden = false; var r = b.getBoundingClientRect(); menu.style.left = (Math.min(window.innerWidth - 220, r.right - 200) + window.scrollX) + 'px'; menu.style.top = (r.bottom + 4 + window.scrollY) + 'px'; menu.querySelector('button:not([hidden])').focus(); return;
+    }
+    if ((b = e.target.closest('[data-prof]'))) { showBy(b.getAttribute('data-prof')); return; }
+  });
+  feedEl.addEventListener('submit', function (e) {
+    var f = e.target.closest('[data-cf]'); if (!f) return; e.preventDefault(); var post = f.closest('.ek-post'), id = post.getAttribute('data-pid'), inp = f.querySelector('input[type=text]'), v = inp.value.trim(); if (!v) { inp.focus(); return; }
+    var rp = f.getAttribute('data-reply'), p = byId(id), sbtn = f.querySelector('button[type=submit]'); sbtn.disabled = true;
+    SBX.comment(p, v, f.querySelector('[data-cl]').value, rp).then(function (c) {
+      openCm[id] = true; var n = rePost(id), li = n && n.querySelector('[data-cid="' + c.id + '"]'); if (li && !calm) li.classList.add('new'); if (n) n.querySelector('[data-cf] input[type=text]').focus();
+      say(rp ? 'Yanıtın eklendi.' : 'İncelemen eklendi.');
+    }, function (er) { console.warn(er); sbtn.disabled = false; say('İnceleme gönderilemedi; tekrar dene.'); });
+  });
+  menu.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-m]'); if (!b) return; var m = b.getAttribute('data-m'), p = byId(menuFor); closeMenu(m !== 'report' && m !== 'edit');
+    if (m === 'link') { var u = ETK.liveUrl(p) || (p.links.github || '') || location.href.split('#')[0] + '#sandbox-interaction'; (navigator.clipboard ? navigator.clipboard.writeText(u) : Promise.reject()).then(function () { say('Bağlantı kopyalandı.'); }, function () { say('Kopyalanamadı: ' + u); }); }
+    else if (m === 'hide') { hidden.push(p.id); S(SBX.uk('etk.hidden'), hidden); paintAll(); say('Akışından gizlendi.', function () { hidden.splice(hidden.indexOf(p.id), 1); S(SBX.uk('etk.hidden'), hidden); paintAll(); }); }
+    else if (m === 'del') { var pid = p.id; pendingDel[pid] = setTimeout(function () { SBX.removePost(pid).then(function () { delete pendingDel[pid]; paintAll(); }, function (er) { console.warn(er); delete pendingDel[pid]; paintAll(); say('Gönderi kaldırılamadı; tekrar dene.'); }); }, 6000); paintAll(); say('Gönderin panelden kaldırılıyor…', function () { clearTimeout(pendingDel[pid]); delete pendingDel[pid]; paintAll(); }); }
+    else if (m === 'edit') { var mf = menuFrom; withWs(function (ps) { ETK.open({ post: p, from: mf, projects: ps, onDone: afterCompose }); }); }
+    else if (m === 'report') { var d = Q('[data-report]'); d.querySelector('input[value=kirik]').checked = true; d.showModal(); }
+  });
+  menu.addEventListener('keydown', function (e) { var bs = QA('button:not([hidden])', menu), i = bs.indexOf(document.activeElement); if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); bs[(i + (e.key === 'ArrowDown' ? 1 : -1) + bs.length) % bs.length].focus(); } if (e.key === 'Escape') { e.preventDefault(); closeMenu(true); } });
+  document.addEventListener('click', function (e) { if (!menu.hidden && !menu.contains(e.target) && !e.target.closest('[data-more-menu]')) closeMenu(); });
+  var rpD = Q('[data-report]'); SBX.layer.appendChild(rpD);
+  rpD.addEventListener('close', function () { if (rpD.returnValue === 'ok' && menuFor) { var rid = menuFor, why = rpD.querySelector('input[name=rp]:checked').value; SBX.report(rid, why).then(function (srv) { reports[rid] = why; var el = feedEl.querySelector('[data-pid="' + rid + '"]'); if (el) markReported(el); say(srv ? 'Bildirimin moderatöre iletildi.' : 'Bildirimin kaydedildi.'); }, function (er) { console.warn(er); say('Bildirim gönderilemedi; tekrar dene.'); }); } if (menuFrom && document.contains(menuFrom)) menuFrom.focus(); rpD.returnValue = ''; });
+
+  /* full screen try */
+  var full = Q('[data-full]'), fullF = Q('[data-full-f]'), fullFrom = null; SBX.layer.appendChild(full);
+  var openFull = function (p, from) {
+    fullFrom = from; var live = ETK.liveUrl(p); Q('[data-full-t]', full).textContent = p.title + (live ? ' · ' + ETK.host(live) : ' · sandbox önizlemesi');
+    var a = Q('[data-full-a]', full); a.hidden = !live; if (live) a.href = live;
+    if (live) { fullF.removeAttribute('srcdoc'); fullF.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups'); fullF.src = live; } else { fullF.removeAttribute('src'); fullF.setAttribute('sandbox', 'allow-scripts'); fullF.srcdoc = p.snap; }
+    full.hidden = false; document.body.style.overflow = 'hidden'; Q('[data-full-x]', full).focus();
+  };
+  var closeFull = function () { if (full.hidden) return; full.hidden = true; fullF.removeAttribute('srcdoc'); fullF.removeAttribute('src'); document.body.style.overflow = ''; if (fullFrom && document.contains(fullFrom)) fullFrom.focus(); };
+  Q('[data-full-x]', full).addEventListener('click', closeFull);
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !full.hidden) { e.preventDefault(); closeFull(); } });
+  full.addEventListener('keydown', function (e) { if (e.key === 'Tab') { var f = QA('a:not([hidden]),button,iframe', full); var i = f.indexOf(document.activeElement); if (e.shiftKey && i <= 0) { e.preventDefault(); f[f.length - 1].focus(); } else if (!e.shiftKey && i === f.length - 1) { e.preventDefault(); f[0].focus(); } } });
+
+  /* ---------- yükleme ---------- */
+  var loading = false;
+  var reload = function () {
+    if (loading) return; loading = true; if (!SBX.st.loaded) { fstate.textContent = 'akış yükleniyor…'; }
+    feedEl.classList.add('ef-pend');
+    return SBX.loadPosts().then(function () { saved = G(SBX.uk('etk.saved'), []); hidden = G(SBX.uk('etk.hidden'), []); reports = G(SBX.uk('etk.reports'), {}); loading = false; feedEl.classList.remove('ef-pend'); fstate.textContent = ''; follow = SBX.st.follow; paintAll(); afterLoad(); },
+      function (er) { loading = false; feedEl.classList.remove('ef-pend'); console.warn('acadex-ink: proje akışı yüklenemedi', er); fstate.textContent = ''; feedEl.innerHTML = '<p class="hand" style="font-size:21px;color:#C9483B">akış yüklenemedi. sayfayı yenileyip tekrar dene.</p>'; });
+  };
+  var afterLoad = function () {
+    var just = null; try { just = sessionStorage.getItem('acadex.etk.just'); sessionStorage.removeItem('acadex.etk.just'); } catch (e) {}
+    if (just) setTimeout(function () { goTo(just); var el = feedEl.querySelector('[data-pid="' + just + '"]'), pp = byId(just); if (el && pp) deployIn(el, pp); }, 300);
+  };
+  ETK.reloadFeed = reload;
+  if (typeof loadDeveloperSandbox === 'function') { loadDeveloperSandbox = function () { reload(); }; window.loadDeveloperSandbox = loadDeveloperSandbox; }
+  if (typeof loadSandboxProjects === 'function') { loadSandboxProjects = function () { return reload(); }; window.loadSandboxProjects = loadSandboxProjects; }
+  paintAll();
+  if (sec && sec.classList.contains('active')) reload();
+  })();
+
+  /* ---- Geliştirici sandbox · başlangıç şablonları ---- */
+  var DV_TPLS = {
+    blank: { l: 'boş proje', d: 'tek bir index.html ile başla', files: {
+      'index.html': '<!doctype html>\n<html lang="tr">\n<head>\n  <meta charset="utf-8">\n  <title>Yeni proje</title>\n</head>\n<body>\n  <h1>Merhaba</h1>\n</body>\n</html>\n' } },
+    web: { l: 'web sayfası', d: 'HTML + CSS + JS, sayaçlı örnek', files: {
+      'index.html': '<!doctype html>\n<html lang="tr">\n<head>\n  <meta charset="utf-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1">\n  <title>İlk sayfam</title>\n  <link rel="stylesheet" href="style.css">\n</head>\n<body>\n  <main>\n    <h1>İlk sayfam</h1>\n    <p>Düğmeye bas, sayaç artsın.</p>\n    <button id="btn">tıkla</button>\n    <p>Sayaç: <b id="n">0</b></p>\n  </main>\n  <script src="app.js"><\/script>\n</body>\n</html>\n',
+      'style.css': 'body {\n  font-family: system-ui, sans-serif;\n  background: #F6F7FB;\n  color: #0D1838;\n}\nmain {\n  max-width: 520px;\n  margin: 40px auto;\n  padding: 24px;\n  background: #fff;\n  border-radius: 12px;\n}\nbutton {\n  padding: 10px 18px;\n  border: 0;\n  border-radius: 8px;\n  background: #2F6BFF;\n  color: #fff;\n  font-size: 16px;\n}\n',
+      'app.js': 'const btn = document.getElementById("btn");\nconst out = document.getElementById("n");\nlet sayac = 0;\n\nbtn.addEventListener("click", () => {\n  sayac = sayac + 1;\n  out.textContent = sayac;\n  console.log("sayaç:", sayac);\n});\n' } },
+    finans: { l: 'finans hesaplayıcı', d: 'bileşik faiz ve yıl yıl tablo', files: {
+      'index.html': '<!doctype html>\n<html lang="tr">\n<head>\n  <meta charset="utf-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1">\n  <title>Bileşik faiz hesaplayıcı</title>\n  <link rel="stylesheet" href="style.css">\n</head>\n<body>\n  <main>\n    <h1>Bileşik faiz</h1>\n    <form id="f">\n      <label>Anapara (TL) <input id="pv" type="number" value="1000"></label>\n      <label>Yıllık faiz (%) <input id="r" type="number" value="10" step="0.1"></label>\n      <label>Yıl <input id="n" type="number" value="3"></label>\n      <button>hesapla</button>\n    </form>\n    <p id="sonuc"></p>\n    <table id="tablo"></table>\n  </main>\n  <script src="faiz.js"><\/script>\n</body>\n</html>\n',
+      'style.css': 'body { font-family: system-ui, sans-serif; background: #F6F7FB; color: #0D1838; }\nmain { max-width: 560px; margin: 32px auto; padding: 24px; background: #fff; border-radius: 12px; }\nform { display: grid; gap: 10px; }\ninput { width: 100%; padding: 8px; font-size: 15px; }\nbutton { padding: 10px; border: 0; border-radius: 8px; background: #0D1838; color: #fff; }\ntable { width: 100%; border-collapse: collapse; margin-top: 12px; }\ntd, th { border-bottom: 1px solid #E1E5EE; padding: 6px; text-align: right; }\n',
+      'faiz.js': '// FV = PV × (1 + r)^n\nfunction gelecekDeger(pv, oran, yil) {\n  return pv * Math.pow(1 + oran, yil);\n}\n\nfunction tl(x) {\n  return x.toLocaleString("tr-TR", { maximumFractionDigits: 2 }) + " TL";\n}\n\ndocument.getElementById("f").addEventListener("submit", (e) => {\n  e.preventDefault();\n  const pv = Number(document.getElementById("pv").value);\n  const r = Number(document.getElementById("r").value) / 100;\n  const n = Number(document.getElementById("n").value);\n  let satirlar = "<tr><th>yıl</th><th>değer</th></tr>";\n  for (let y = 1; y <= n; y++) {\n    satirlar += "<tr><td>" + y + "</td><td>" + tl(gelecekDeger(pv, r, y)) + "</td></tr>";\n  }\n  document.getElementById("tablo").innerHTML = satirlar;\n  document.getElementById("sonuc").textContent = n + " yıl sonra: " + tl(gelecekDeger(pv, r, n));\n  console.log("FV =", gelecekDeger(pv, r, n).toFixed(2));\n});\n\n// kontrol: 1000 TL, %10, 2 yıl → 1210\nconsole.log("kontrol 1210 mu?", gelecekDeger(1000, 0.10, 2).toFixed(2));\n' } },
+    veri: { l: 'veri görselleştirme', d: 'CSV oku, çubuk grafik çiz', files: {
+      'index.html': '<!doctype html>\n<html lang="tr">\n<head>\n  <meta charset="utf-8">\n  <title>Şube mevduatları</title>\n  <style>body { font-family: system-ui, sans-serif; margin: 24px; color: #0D1838; } canvas { max-width: 100%; }</style>\n</head>\n<body>\n  <h1>Şubelere göre mevduat</h1>\n  <canvas id="c" width="560" height="300"></canvas>\n  <script src="grafik.js"><\/script>\n</body>\n</html>\n',
+      'veri/mevduat.csv': 'sube,mevduat\nMerkez,420\nKampüs,180\nSanayi,260\nÇarşı,310\n',
+      'grafik.js': '// acadex.oku(dosya) önizlemede proje dosyalarını okur\nconst satirlar = acadex.oku("veri/mevduat.csv").trim().split("\\n").slice(1);\nconst veri = satirlar.map((s) => {\n  const [ad, deger] = s.split(",");\n  return { ad, deger: Number(deger) };\n});\n\nconst c = document.getElementById("c");\nconst g = c.getContext("2d");\nconst enBuyuk = Math.max(...veri.map((v) => v.deger));\nconst gen = c.width / veri.length;\n\nveri.forEach((v, i) => {\n  const h = (v.deger / enBuyuk) * (c.height - 40);\n  g.fillStyle = "#2F6BFF";\n  g.fillRect(i * gen + 16, c.height - h - 20, gen - 32, h);\n  g.fillStyle = "#0D1838";\n  g.fillText(v.ad + " · " + v.deger, i * gen + 16, c.height - 6);\n});\nconsole.log(veri.length + " şube çizildi");\n' } },
+    python: { l: 'Python analiz', d: 'ortalama, medyan, mod, std', files: {
+      'analiz.py': 'import statistics as st\n\n# Bir şubedeki 9 müşterinin aylık geliri (bin TL)\ngelir = [18, 20, 21, 22, 23, 24, 25, 26, 160]\n\ndef ozet(veri):\n    return {\n        "ortalama": round(st.mean(veri), 2),\n        "medyan": st.median(veri),\n        "mod": st.multimode(veri),\n        "std": round(st.stdev(veri), 2),\n    }\n\nfor ad, deger in ozet(gelir).items():\n    print(f"{ad:>8}: {deger}")\n\nprint("aykırı değer çıkarılınca ortalama:", round(st.mean(gelir[:-1]), 2))\n',
+      'README.md': '# Gelir analizi\n\n`analiz.py` dosyasını çalıştır; sonuçlar konsola yazılır.\n' } }
+  };
+
+  /* ================= GELİŞTİRİCİ SANDBOX · sistem şeması tahtası ================= */
+  (function () {
+  var root = document.getElementById('gelistirici'); if (!root) return; var sec = document.getElementById('sandbox-view');
+  var Q = function (s, el) { return (el || root).querySelector(s); };
+  var QA = function (s, el) { return Array.prototype.slice.call((el || root).querySelectorAll(s)); };
+  var X = function (t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  var G = function (k, d) { try { var v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
+  var S = function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } };
+  var uid = function () { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); };
+  var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var p2 = function (n) { return ('0' + n).slice(-2); };
+  var clone = function (o) { return JSON.parse(JSON.stringify(o)); };
+  var MON = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+  var fmtT = function (t) { var d = new Date(t); return d.getDate() + ' ' + MON[d.getMonth()] + ' · ' + p2(d.getHours()) + ':' + p2(d.getMinutes()); };
+  var daysTo = function (ymd) { if (!ymd) return null; var p = ymd.split('-'), d = new Date(+p[0], +p[1] - 1, +p[2]), n = new Date(); n.setHours(0, 0, 0, 0); return Math.round((d - n) / 864e5); };
+
+  /* toast */
+  var toast = Q('[data-toast]'), toastT = Q('[data-toast-t]'), toastB = Q('[data-toast-b]'), toastA = Q('[data-toast-a]'), tT = 0, undoFn = null;
+  SBX.layer.appendChild(toast);
+  var toastGo = null;
+  toastA.addEventListener('click', function (e) { e.preventDefault(); toast.hidden = true; if (toastGo) toastGo(); });
+  var say = function (t, undo, go, label) { toastT.textContent = t; undoFn = undo || null; toastB.hidden = !undo; toastGo = typeof go === 'function' ? go : null; if (toastGo) { toastA.href = '#'; toastA.textContent = label; toastA.hidden = false; } else toastA.hidden = true; toast.hidden = false; clearTimeout(tT); tT = setTimeout(function () { toast.hidden = true; undoFn = null; }, 5600); };
+  toastB.addEventListener('click', function () { if (undoFn) undoFn(); toast.hidden = true; undoFn = null; });
+
+  /* ---------- store ---------- */
+  var KEY = SBX.uk('dev.projects');
+  var projects = [];
+  var P = null; /* open project */
+  var saveT = 0, savedEl = Q('[data-saved]');
+  var cloudEl = Q('[data-cloud]');
+  var paintCloud = function () { if (!cloudEl) return; cloudEl.hidden = SBX.feat.ws !== false; cloudEl.textContent = 'bu tarayıcıda saklanıyor'; cloudEl.title = 'Projelerin bu tarayıcıda; hesabına kaydedilmesi için sunucuda sandbox_workspaces tablosu gerekli.'; };
+  SBX.ws.onSync = paintCloud;
+  var saveNow = function () {
+    if (SBX.wsPersist()) { var d = new Date(); savedEl.textContent = 'kaydedildi · ' + p2(d.getHours()) + ':' + p2(d.getMinutes()); savedEl.style.color = ''; }
+    else { savedEl.textContent = 'kaydedilemedi: tarayıcı alanı doldu (eski durakları sil)'; savedEl.style.color = 'var(--red)'; }
+  };
+  var dirty = function () { if (P) P.updated = Date.now(); clearTimeout(saveT); saveT = setTimeout(saveNow, 600); };
+
+  /* ---------- file kinds ---------- */
+  var ext = function (p) { var m = /\.([a-z0-9]+)$/i.exec(p); return m ? m[1].toLowerCase() : ''; };
+  var KIND = { html: 'page', htm: 'page', css: 'style', js: 'code', mjs: 'code', ts: 'code', py: 'code', sql: 'db', csv: 'db', json: 'db', xml: 'db', md: 'doc', txt: 'doc', svg: 'doc' };
+  var kindOf = function (p) { return KIND[ext(p)] || 'doc'; };
+  var LANG = { html: 'HTML', htm: 'HTML', css: 'CSS', js: 'JavaScript', mjs: 'JavaScript', ts: 'TypeScript', py: 'Python', sql: 'SQL', csv: 'CSV', json: 'JSON', xml: 'XML', md: 'Markdown', txt: 'metin', svg: 'SVG' };
+  var TEXT_EXT = /\.(html?|css|m?js|ts|py|sql|csv|json|xml|md|txt|svg)$/i;
+  var paths = function (pr) { return Object.keys(pr.files).sort(function (a, b) { var ka = ['page', 'style', 'code', 'db', 'doc'].indexOf(kindOf(a)), kb = ['page', 'style', 'code', 'db', 'doc'].indexOf(kindOf(b)); return (a.split('/').length - b.split('/').length) || ka - kb || a.localeCompare(b, 'tr'); }); };
+  var base = function (p) { return p.split('/').pop(); };
+  var langs = function (pr) { var s = []; paths(pr).forEach(function (p) { var l = LANG[ext(p)]; if (l && s.indexOf(l) < 0) s.push(l); }); return s; };
+  var refsOf = function (pr, p) {
+    var t = pr.files[p] || '', out = [];
+    if (kindOf(p) === 'page') (t.match(/(?:href|src)\s*=\s*["']([^"'#?]+)["']/gi) || []).forEach(function (m) { var u = m.replace(/^[^"']*["']/, '').replace(/["']$/, ''); if (pr.files[u] && out.indexOf(u) < 0) out.push(u); });
+    var rd = t.match(/(?:acadex\.oku|open)\(\s*["']([^"']+)["']/g) || []; rd.forEach(function (m) { var u = m.replace(/^[^"']*["']/, '').replace(/["']$/, ''); if (pr.files[u] && out.indexOf(u) < 0) out.push(u); });
+    return out;
+  };
+
+  /* ---------- diagram shapes ---------- */
+  var shape = function (k, x, y, w, h) {
+    if (k === 'db') return '<path class="nd-db" d="M' + x + ' ' + (y + 5) + ' V' + (y + h - 5) + ' C' + x + ' ' + (y + h + 2) + ' ' + (x + w) + ' ' + (y + h + 2) + ' ' + (x + w) + ' ' + (y + h - 5) + ' V' + (y + 5) + '"/><ellipse class="nd-db" cx="' + (x + w / 2) + '" cy="' + (y + 5) + '" rx="' + (w / 2) + '" ry="5"/>';
+    if (k === 'style') return '<path class="nd-style" d="M' + (x + 8) + ' ' + y + ' H' + (x + w) + ' L' + (x + w - 8) + ' ' + (y + h) + ' H' + x + ' Z"/>';
+    if (k === 'code') return '<rect class="nd-code" x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="' + (h / 2) + '"/>';
+    if (k === 'doc') return '<path class="nd-doc" d="M' + x + ' ' + y + ' H' + (x + w - 8) + ' L' + (x + w) + ' ' + (y + 8) + ' V' + (y + h) + ' H' + x + ' Z"/>';
+    return '<rect class="nd-page" x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="3"/>';
+  };
+  var miniSchema = function (pr) {
+    var ps = paths(pr), pages = ps.filter(function (p) { return kindOf(p) === 'page'; }), rest = ps.filter(function (p) { return kindOf(p) !== 'page'; });
+    var left = pages.length ? pages.slice(0, 2) : ps.slice(0, 1), right = (pages.length ? rest : ps.slice(1)).slice(0, 4), H = 120, out = '';
+    var pos = {};
+    left.forEach(function (p, i) { var y = (H / (left.length + 1)) * (i + 1) - 14; pos[p] = [8, y, 104, 28]; });
+    right.forEach(function (p, i) { var y = (H / (right.length + 1)) * (i + 1) - 12; pos[p] = [170, y, 104, 24]; });
+    left.forEach(function (a) { right.forEach(function (b) { var A = pos[a], B = pos[b]; if (refsOf(pr, a).indexOf(b) > -1 || left.length === 1) out += '<path class="ln" d="M' + (A[0] + A[2]) + ' ' + (A[1] + A[3] / 2) + ' C' + (A[0] + A[2] + 30) + ' ' + (A[1] + A[3] / 2) + ' ' + (B[0] - 30) + ' ' + (B[1] + B[3] / 2) + ' ' + B[0] + ' ' + (B[1] + B[3] / 2) + '"/>'; }); });
+    Object.keys(pos).forEach(function (p) { var o = pos[p]; out += shape(kindOf(p), o[0], o[1], o[2], o[3]) + '<text x="' + (o[0] + 10) + '" y="' + (o[1] + o[3] / 2 + 3) + '">' + X(base(p).slice(0, 15)) + '</text>'; });
+    var more = ps.length - Object.keys(pos).length; if (more > 0) out += '<text x="200" y="' + (H - 2) + '">+' + more + ' dosya</text>';
+    return '<svg class="dv-mini-sch" viewBox="0 0 290 ' + H + '" aria-hidden="true">' + out + '</svg>';
+  };
+
+  /* ---------- the board (vitrin) ---------- */
+  var shelf = Q('[data-shelf]'), ws = Q('[data-ws]'), cardsEl = Q('[data-cards]'), filt = '';
+  var STL = { taslak: 'taslak', calisiyor: 'çalışıyor', teslim: 'teslim edildi' };
+  var dueTxt = function (pr) { var d = daysTo(pr.due); if (d == null) return ''; return d < 0 ? (pr.status === 'teslim' ? 'teslim tarihi geçti' : Math.abs(d) + ' gün gecikti') : d === 0 ? 'teslim bugün' : 'teslime ' + d + ' gün'; };
+  var renderCards = function () {
+    var list = projects.filter(function (p) { return !filt || p.status === filt; }).sort(function (a, b) { return b.updated - a.updated; });
+    if (!list.length) { cardsEl.innerHTML = '<div class="dv-empty"><svg viewBox="0 0 220 110" aria-hidden="true"><rect x="10" y="38" width="60" height="34" rx="3"/><path d="M70 55 H120"/><rect x="120" y="20" width="80" height="26" rx="13"/><path d="M120 86 V70 C120 64 200 64 200 70 V86 C200 92 120 92 120 86 Z"/></svg><p>' + (projects.length ? 'bu durumda proje yok.' : 'tahta boş. ilk sistemini çiz: yeni proje ya da yükle.') + '</p></div>'; return; }
+    cardsEl.innerHTML = list.map(function (pr, i) {
+      var d = daysTo(pr.due), dt = dueTxt(pr);
+      return '<article class="dv-card" style="--r:' + ((i % 3) - 1) * .6 + 'deg;--i:' + i + '" aria-labelledby="pc-' + pr.id + '"><span class="dv-stk ' + pr.status + '">' + STL[pr.status] + '</span>' +
+        '<h3 id="pc-' + pr.id + '">' + X(pr.name) + '</h3><p class="meta">' + Object.keys(pr.files).length + ' dosya · ' + (pr.versions || []).length + ' durak · son değişiklik ' + fmtT(pr.updated) + (pr.course ? ' · ' + X(pr.course) : '') + '</p>' +
+        miniSchema(pr) + '<div class="chips">' + langs(pr).map(function (l) { return '<span>' + l + '</span>'; }).join('') + '</div>' +
+        (dt ? '<p class="due' + (d != null && d <= 3 && pr.status !== 'teslim' ? ' soon' : '') + '">⏱ ' + dt + '</p>' : '') +
+        (posted(pr.id) ? '<button type="button" class="dv-live" data-golivep="' + posted(pr.id).id + '">● panelde yayında</button>' : '') + '<div class="acts"><button type="button" class="btn btn-dark" data-open="' + pr.id + '">aç</button><button type="button" class="dv-ghost" data-cshare="' + pr.id + '">panele gönder</button><button type="button" class="dv-ghost" data-czip="' + pr.id + '">.zip</button><button type="button" class="dv-ghost" data-cdel="' + pr.id + '" aria-label="' + X(pr.name) + ' projesini sil">sil</button></div></article>';
+    }).join('');
+  };
+  QA('[data-filt] button').forEach(function (b) { b.addEventListener('click', function () { filt = b.getAttribute('data-f'); QA('[data-filt] button').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); renderCards(); }); });
+  cardsEl.addEventListener('click', function (e) {
+    var b;
+    if ((b = e.target.closest('[data-open]'))) openProject(b.getAttribute('data-open'));
+    else if ((b = e.target.closest('[data-cshare]'))) shareProject(b.getAttribute('data-cshare'), b);
+    else if ((b = e.target.closest('[data-czip]'))) { var pr = byId(b.getAttribute('data-czip')); download(slug(pr.name) + '.zip', makeZip(pr.files), 'application/zip'); }
+    else if ((b = e.target.closest('[data-cdel]'))) { var id = b.getAttribute('data-cdel'), ix = -1; projects.forEach(function (p, i) { if (p.id === id) ix = i; }); var gone = projects.splice(ix, 1)[0]; SBX.wsDelete(id); renderCards(); say('“' + gone.name + '” tahtadan silindi.', function () { projects.splice(ix, 0, gone); gone.updated = Date.now(); SBX.wsUndelete(); renderCards(); }); }
+    else if ((b = e.target.closest('[data-golivep]'))) { try { sessionStorage.setItem('acadex.etk.just', b.getAttribute('data-golivep')); } catch (er) {} if (typeof switchDashboardView === 'function') switchDashboardView('sandbox-interaction'); }
+  });
+  var posted = function (pid) { var r = null; SBX.st.myPosts.forEach(function (p) { if (p.projId && p.projId === pid && !r) r = p; }); return r; };
+  var shareProject = function (pid, from) {
+    if (P) { commitTyping(); saveNow(); }
+    var ex = null, lp = posted(pid); if (lp) SBX.st.posts.forEach(function (p) { if (p.id === lp.id) ex = p; });
+    if (!ex) SBX.drafts().forEach(function (p) { if (p.projId === pid && !ex) ex = p; });
+    if (ex) { ex = JSON.parse(JSON.stringify(ex)); var pr = byId(pid); ex.snap = ETK.buildSingle(pr.files) || ex.snap; ex.versions = (pr.versions || []).length; ex.langs = langs(pr); }
+    ETK.open({ projectId: pid, post: ex, projects: projects, from: from, onDone: function (p) { renderCards(); var go = function () { if (p.status === 'live') { try { sessionStorage.setItem('acadex.etk.just', p.id); } catch (e) {} } if (typeof switchDashboardView === 'function') switchDashboardView('sandbox-interaction'); }; say(p.status === 'live' ? 'Gönderin Sandbox etkileşim panelinde yayında.' : 'Taslak saklandı; panelde “taslaklarım”da.', null, go, 'panelde gör →'); } });
+  };
+  var byId = function (id) { var r = null; projects.forEach(function (p) { if (p.id === id) r = p; }); return r; };
+  var slug = function (s) { return (s || 'proje').toLocaleLowerCase('tr').replace(/[çğıöşü]/g, function (c) { return { 'ç': 'c', 'ğ': 'g', 'ı': 'i', 'ö': 'o', 'ş': 's', 'ü': 'u' }[c]; }).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'proje'; };
+
+  /* ---------- new project ---------- */
+  var newDlg = Q('[data-newdlg]'), newFrom = null;
+  Q('[data-tpls]', newDlg).innerHTML = Object.keys(DV_TPLS).map(function (k, i) { var t = DV_TPLS[k]; return '<label class="dv-tpl"><input type="radio" name="np-tpl" value="' + k + '"' + (i === 1 ? ' checked' : '') + '><span><b>' + t.l + '</b><small>' + t.d + '</small><em>' + Object.keys(t.files).join(' · ') + '</em></span></label>'; }).join('');
+  var openDlg = function (d, from) { d._from = from; if (d.showModal) d.showModal(); else d.setAttribute('open', ''); };
+  QA('dialog', root).forEach(function (d) { d.addEventListener('close', function () { if (d._from && document.contains(d._from)) d._from.focus(); }); d.addEventListener('click', function (e) { if (e.target === d || e.target.closest('[data-dx]')) d.close(); }); });
+  Q('[data-newp]').addEventListener('click', function (e) { Q('[data-np-name]', newDlg).value = ''; openDlg(newDlg, e.currentTarget); Q('[data-np-name]', newDlg).focus(); });
+  var addProject = function (name, files, course, due, note) {
+    var pr = { id: uid(), name: name, status: 'taslak', course: course || '', due: due || '', files: files, open: [], cur: '', versions: [], created: Date.now(), updated: Date.now() };
+    pr.versions.push({ id: uid(), at: Date.now(), note: note || 'ilk çizim', files: clone(files) });
+    pr.updated = Date.now(); projects.push(pr); SBX.wsPersist(); return pr;
+  };
+  Q('[data-newf]', newDlg).addEventListener('submit', function (e) {
+    e.preventDefault(); var name = Q('[data-np-name]', newDlg).value.trim() || 'Adsız proje', k = newDlg.querySelector('input[name=np-tpl]:checked').value;
+    var pr = addProject(name, clone(DV_TPLS[k].files), Q('[data-np-course]', newDlg).value.trim(), Q('[data-np-due]', newDlg).value, DV_TPLS[k].l + ' şablonundan');
+    newDlg._from = null; newDlg.close(); openProject(pr.id); say('“' + name + '” çizildi. İlk durak kaydedildi.');
+  });
+
+  /* ---------- upload: files, folders, zip ---------- */
+  var drop = Q('[data-drop]'), inF = Q('[data-in-files]'), inD = Q('[data-in-dir]');
+  Q('[data-upload]').addEventListener('click', function () { drop.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'center' }); inF.click(); });
+  QA('[data-pick]').forEach(function (b) { b.addEventListener('click', function () { (b.getAttribute('data-pick') === 'dir' ? inD : inF).click(); }); });
+  var readText = function (f) { return new Promise(function (res) { var r = new FileReader(); r.onload = function () { res(r.result); }; r.onerror = function () { res(null); }; r.readAsText(f); }); };
+  var readBuf = function (f) { return new Promise(function (res) { var r = new FileReader(); r.onload = function () { res(r.result); }; r.readAsArrayBuffer(f); }); };
+  var ingest = function (items, label) {
+    /* items: [{path, file}] */
+    var skipped = 0, total = 0, files = {}, chain = Promise.resolve();
+    var zips = items.filter(function (it) { return /\.zip$/i.test(it.path); });
+    if (zips.length === 1 && items.length === 1) return readBuf(zips[0].file).then(unzip).then(function (fs) { finish(fs.files, fs.skipped, zips[0].path.replace(/\.zip$/i, '')); }).catch(function (e) { say('Zip açılamadı: ' + e.message); });
+    items.forEach(function (it) {
+      if (!TEXT_EXT.test(it.path)) { skipped++; return; }
+      chain = chain.then(function () { if (total + it.file.size > 2 * 1048576) { skipped++; return; } total += it.file.size; return readText(it.file).then(function (t) { if (t != null) files[it.path] = t; }); });
+    });
+    chain.then(function () { finish(files, skipped, label); });
+  };
+  var finish = function (files, skipped, label) {
+    var ks = Object.keys(files); if (!ks.length) { say('Okunabilir bir kod ya da metin dosyası bulamadım' + (skipped ? ' (' + skipped + ' dosya atlandı).' : '.')); return; }
+    var first = ks[0].split('/')[0]; if (ks.length > 1 && ks.every(function (k) { return k.indexOf(first + '/') === 0; })) { var nf = {}; ks.forEach(function (k) { nf[k.slice(first.length + 1)] = files[k]; }); files = nf; label = label || first; }
+    var pr = addProject(label || 'Yüklenen proje', files, '', '', 'yüklendi');
+    openProject(pr.id); say(Object.keys(files).length + ' dosya şemaya yerleşti' + (skipped ? '; ' + skipped + ' dosya (görsel/ikili ya da çok büyük) atlandı.' : '.'));
+  };
+  inF.addEventListener('change', function () { var it = Array.prototype.map.call(inF.files, function (f) { return { path: f.name, file: f }; }); inF.value = ''; if (it.length) ingest(it, it.length === 1 ? it[0].path.replace(/\.[^.]+$/, '') : 'Yüklenen proje'); });
+  inD.addEventListener('change', function () { var it = Array.prototype.map.call(inD.files, function (f) { return { path: f.webkitRelativePath || f.name, file: f }; }); inD.value = ''; if (it.length) ingest(it, ''); });
+  ['dragenter', 'dragover'].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('over'); }); });
+  ['dragleave', 'drop'].forEach(function (ev) { drop.addEventListener(ev, function () { drop.classList.remove('over'); }); });
+  drop.addEventListener('drop', function (e) {
+    e.preventDefault(); var dt = e.dataTransfer, entries = [];
+    if (dt.items && dt.items[0] && dt.items[0].webkitGetAsEntry) { for (var i = 0; i < dt.items.length; i++) { var en = dt.items[i].webkitGetAsEntry(); if (en) entries.push(en); } }
+    if (!entries.length) { ingest(Array.prototype.map.call(dt.files, function (f) { return { path: f.name, file: f }; }), ''); return; }
+    var out = [], walk = function (en, pre) {
+      return new Promise(function (res) {
+        if (en.isFile) en.file(function (f) { out.push({ path: pre + f.name, file: f }); res(); }, function () { res(); });
+        else { var rd = en.createReader(), all = []; var more = function () { rd.readEntries(function (es) { if (!es.length) { Promise.all(all.map(function (c) { return walk(c, pre + en.name + '/'); })).then(res); } else { all = all.concat(Array.prototype.slice.call(es)); more(); } }, function () { res(); }); }; more(); }
+      });
+    };
+    Promise.all(entries.map(function (en) { return walk(en, ''); })).then(function () { ingest(out, entries.length === 1 && entries[0].isDirectory ? entries[0].name : ''); });
+  });
+
+  /* ---------- zip (read: stored + deflate via DecompressionStream; write: stored) ---------- */
+  var unzip = function (buf) {
+    var dv = new DataView(buf), u8 = new Uint8Array(buf), eocd = -1;
+    for (var i = buf.byteLength - 22; i >= Math.max(0, buf.byteLength - 66000); i--) if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+    if (eocd < 0) return Promise.reject(new Error('zip dizini bulunamadı'));
+    var n = dv.getUint16(eocd + 10, true), off = dv.getUint32(eocd + 16, true), jobs = [], files = {}, skipped = 0, total = 0, td = new TextDecoder();
+    for (var k = 0; k < n; k++) {
+      if (dv.getUint32(off, true) !== 0x02014b50) break;
+      var method = dv.getUint16(off + 10, true), csize = dv.getUint32(off + 20, true), usize = dv.getUint32(off + 24, true), nl = dv.getUint16(off + 28, true), el = dv.getUint16(off + 30, true), cl = dv.getUint16(off + 32, true), lo = dv.getUint32(off + 42, true);
+      var name = td.decode(u8.subarray(off + 46, off + 46 + nl)); off += 46 + nl + el + cl;
+      if (/\/$/.test(name) || /(^|\/)(__MACOSX|\.git|node_modules)\//.test(name)) continue;
+      if (!TEXT_EXT.test(name) || total + usize > 2 * 1048576) { skipped++; continue; } total += usize;
+      var ds = lo + 30 + dv.getUint16(lo + 26, true) + dv.getUint16(lo + 28, true), data = u8.slice(ds, ds + csize);
+      (function (name, method, data) {
+        if (method === 0) files[name] = td.decode(data);
+        else if (method === 8 && 'DecompressionStream' in window) jobs.push(new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer().then(function (b) { files[name] = td.decode(b); }));
+        else skipped++;
+      })(name, method, data);
+    }
+    return Promise.all(jobs).then(function () { return { files: files, skipped: skipped }; });
+  };
+  var CRC = (function () { var t = new Uint32Array(256); for (var n = 0; n < 256; n++) { var c = n; for (var k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  var crc32 = function (u) { var c = 0xFFFFFFFF; for (var i = 0; i < u.length; i++) c = CRC[(c ^ u[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+  var makeZip = function (files) {
+    var te = new TextEncoder(), parts = [], cen = [], off = 0, d = new Date();
+    var dt = ((d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1)) & 0xFFFF, dd = (((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate()) & 0xFFFF;
+    Object.keys(files).forEach(function (p) {
+      var nm = te.encode(p), data = te.encode(files[p]), crc = crc32(data), h = new DataView(new ArrayBuffer(30));
+      h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true); h.setUint16(8, 0, true); h.setUint16(10, dt, true); h.setUint16(12, dd, true); h.setUint32(14, crc, true); h.setUint32(18, data.length, true); h.setUint32(22, data.length, true); h.setUint16(26, nm.length, true); h.setUint16(28, 0, true);
+      parts.push(new Uint8Array(h.buffer), nm, data);
+      var c = new DataView(new ArrayBuffer(46)); c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true); c.setUint16(10, 0, true); c.setUint16(12, dt, true); c.setUint16(14, dd, true); c.setUint32(16, crc, true); c.setUint32(20, data.length, true); c.setUint32(24, data.length, true); c.setUint16(28, nm.length, true); c.setUint32(42, off, true);
+      cen.push(new Uint8Array(c.buffer), nm); off += 30 + nm.length + data.length;
+    });
+    var csz = cen.reduce(function (a, b) { return a + b.length; }, 0), e = new DataView(new ArrayBuffer(22)), n = Object.keys(files).length;
+    e.setUint32(0, 0x06054b50, true); e.setUint16(8, n, true); e.setUint16(10, n, true); e.setUint32(12, csz, true); e.setUint32(16, off, true);
+    return new Blob(parts.concat(cen).concat([new Uint8Array(e.buffer)]), { type: 'application/zip' });
+  };
+  var download = function (name, blob, type) { var b = blob instanceof Blob ? blob : new Blob([blob], { type: type || 'text/plain' }), a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = name; document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 800); };
+
+  /* ---------- workspace ---------- */
+  var schEl = Q('[data-sch]'), tabsEl = Q('[data-tabs]'), ta = Q('[data-ta]'), hl = Q('[data-hl]'), gut = Q('[data-gut]'), area = Q('.dv-area'), codeBox = Q('[data-code]');
+  var openProject = function (id) {
+    P = byId(id); if (!P) return; if (!P.open) P.open = [];
+    var ps = paths(P); if (!P.cur || !P.files.hasOwnProperty(P.cur)) P.cur = ps.filter(function (p) { return kindOf(p) === 'page'; })[0] || ps[0] || '';
+    if (P.cur && P.open.indexOf(P.cur) < 0) P.open.unshift(P.cur);
+    P.open = P.open.filter(function (p) { return P.files.hasOwnProperty(p); });
+    shelf.hidden = true; ws.hidden = false; window.scrollTo(0, 0);
+    Q('[data-pname]').value = P.name; Q('[data-status]').value = P.status; Q('[data-pcourse]').value = P.course || ''; Q('[data-pdue]').value = P.due || '';
+    savedEl.textContent = ''; cons = []; paintCons(); lastErr = 0;
+    renderSchema(); renderTabs(); loadEditor(); renderStops(); paintDue(); refreshPreview(false); paintChecks();
+    Q('[data-back]').focus();
+  };
+  var closeProject = function () { commitTyping(); saveNow(); P = null; ws.hidden = true; shelf.hidden = false; renderCards(); var f = Q('[data-newp]'); f.focus(); };
+  Q('[data-back]').addEventListener('click', closeProject);
+  Q('[data-pname]').addEventListener('input', function (e) { P.name = e.target.value; dirty(); });
+  Q('[data-status]').addEventListener('change', function (e) { P.status = e.target.value; dirty(); paintChecks(); });
+  Q('[data-pcourse]').addEventListener('input', function (e) { P.course = e.target.value; dirty(); paintDue(); });
+  Q('[data-pdue]').addEventListener('change', function (e) { P.due = e.target.value; dirty(); paintDue(); });
+  var paintDue = function () { var el = Q('[data-due]'), d = daysTo(P.due); el.textContent = (P.course ? P.course + ' · ' : '') + dueTxt(P); el.classList.toggle('soon', d != null && d <= 3 && P.status !== 'teslim'); };
+
+  /* schema */
+  var renderSchema = function (flow) {
+    var ps = paths(P), html = '', lastDir = null;
+    ps.forEach(function (p, i) {
+      var parts = p.split('/'), dir = parts.slice(0, -1).join('/');
+      if (dir !== lastDir) { if (dir) html += '<p class="dv-folder" style="margin-left:' + (parts.length - 2) * 14 + 'px">▸ ' + X(dir) + '/</p>'; lastDir = dir; }
+      var sz = (P.files[p] || '').split('\n').length;
+      html += '<div class="dv-nwrap"><button type="button" class="dv-node k-' + kindOf(p) + '" data-node="' + X(p) + '" style="--ind:' + (parts.length - 1) * 14 + 'px;--r:' + ((i % 3) - 1) * .5 + 'deg"' + (p === P.cur ? ' aria-current="true"' : '') + '><span class="nm">' + X(parts[parts.length - 1]) + '</span><span class="sz">' + sz + ' st</span></button><button type="button" class="dv-nmenu" data-nmenu="' + X(p) + '" aria-label="' + X(p) + ' için seçenekler" aria-haspopup="menu">⋯</button></div>';
+    });
+    schEl.innerHTML = '<svg class="links" aria-hidden="true"></svg>' + html;
+    requestAnimationFrame(drawLinks);
+  };
+  var drawLinks = function () {
+    if (!P) return; var svg = schEl.querySelector('svg.links'); if (!svg) return; var box = schEl.getBoundingClientRect(), out = '', w = schEl.scrollWidth, h = schEl.scrollHeight, lane = 0;
+    svg.setAttribute('width', w); svg.setAttribute('height', h);
+    var pos = function (p) { var n = schEl.querySelector('[data-node="' + CSS.escape(p) + '"]'); if (!n) return null; var r = n.getBoundingClientRect(); return { x: r.right - box.left + schEl.scrollLeft, y: r.top - box.top + schEl.scrollTop + r.height / 2 }; };
+    paths(P).forEach(function (a) { refsOf(P, a).forEach(function (b) { var A = pos(a), B = pos(b); if (!A || !B) return; lane++; var bend = Math.min(w - Math.max(A.x, B.x) - 4, 14 + (lane % 3) * 7); out += '<path class="flow" d="M' + A.x + ' ' + A.y + ' C' + (A.x + bend) + ' ' + A.y + ' ' + (B.x + bend) + ' ' + B.y + ' ' + B.x + ' ' + B.y + '"/>'; }); });
+    svg.innerHTML = out;
+  };
+  window.addEventListener('resize', function () { if (P) drawLinks(); });
+  var pop = null;
+  var closePop = function (back) { if (!pop) return; var f = pop._from; pop.remove(); pop = null; if (back && f && document.contains(f)) f.focus(); };
+  var openPop = function (from, items) {
+    closePop(); pop = document.createElement('div'); pop.className = 'dv-pop'; pop.setAttribute('role', 'menu'); pop._from = from;
+    pop.innerHTML = items.map(function (it, i) { return '<button type="button" role="menuitem" data-pi="' + i + '"' + (it.danger ? ' class="danger"' : '') + '>' + X(it.l) + '</button>'; }).join('');
+    SBX.layer.appendChild(pop); var r = from.getBoundingClientRect();
+    pop.style.left = (Math.min(window.innerWidth - pop.offsetWidth - 10, r.left) + window.scrollX) + 'px'; pop.style.top = (r.bottom + 4 + window.scrollY) + 'px';
+    pop.addEventListener('click', function (e) { var b = e.target.closest('[data-pi]'); if (!b) return; var it = items[+b.getAttribute('data-pi')]; closePop(false); it.f(); });
+    pop.addEventListener('keydown', function (e) { var bs = QA('button', pop), i = bs.indexOf(document.activeElement); if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); bs[(i + (e.key === 'ArrowDown' ? 1 : -1) + bs.length) % bs.length].focus(); } if (e.key === 'Escape') { e.preventDefault(); closePop(true); } });
+    pop.querySelector('button').focus();
+  };
+  document.addEventListener('click', function (e) { if (pop && !pop.contains(e.target) && !e.target.closest('[data-nmenu]') && !e.target.closest('[data-commit]')) closePop(false); });
+  var renameInline = function (p, cb, initial) {
+    var wrap = p ? schEl.querySelector('[data-node="' + CSS.escape(p) + '"]').parentNode : null, inp = document.createElement('input');
+    inp.className = 'dv-renin'; inp.value = initial != null ? initial : p; inp.setAttribute('aria-label', p ? 'Yeni dosya adı' : 'Yeni dosyanın adı');
+    if (wrap) wrap.replaceWith(inp); else schEl.insertBefore(inp, schEl.children[1] || null);
+    inp.focus(); inp.setSelectionRange(0, (inp.value.lastIndexOf('.') > 0 ? inp.value.lastIndexOf('.') : inp.value.length));
+    var done = false, fin = function (ok) { if (done) return; done = true; var v = inp.value.trim().replace(/^\/+/, '').replace(/\\/g, '/'); if (ok && v) cb(v); else renderSchema(); };
+    inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); fin(true); } else if (e.key === 'Escape') { e.preventDefault(); fin(false); } });
+    inp.addEventListener('blur', function () { fin(true); });
+  };
+  var openFile = function (p) { commitTyping(); P.cur = p; if (P.open.indexOf(p) < 0) P.open.push(p); renderTabs(); loadEditor(); QA('.dv-node', schEl).forEach(function (n) { if (n.getAttribute('data-node') === p) n.setAttribute('aria-current', 'true'); else n.removeAttribute('aria-current'); }); dirty(); };
+  schEl.addEventListener('click', function (e) {
+    var n = e.target.closest('[data-node]'), m = e.target.closest('[data-nmenu]');
+    if (n) { openFile(n.getAttribute('data-node')); ta.focus(); return; }
+    if (m) { var p = m.getAttribute('data-nmenu'); openPop(m, [
+      { l: 'aç', f: function () { openFile(p); ta.focus(); } },
+      { l: 'yeniden adlandır', f: function () { renameInline(p, function (v) { if (v === p) { renderSchema(); return; } if (P.files.hasOwnProperty(v)) { say('Bu adda bir dosya zaten var.'); renderSchema(); return; } P.files[v] = P.files[p]; delete P.files[p]; P.open = P.open.map(function (x) { return x === p ? v : x; }); if (P.cur === p) P.cur = v; dirty(); renderSchema(); renderTabs(); loadEditor(); refreshPreview(false); }); } },
+      { l: 'çoğalt', f: function () { var v = p.replace(/(\.[^.]+)?$/, function (x) { return '-kopya' + (x || ''); }); P.files[v] = P.files[p]; dirty(); renderSchema(); } },
+      { l: 'sil', danger: true, f: function () { var txt = P.files[p]; delete P.files[p]; P.open = P.open.filter(function (x) { return x !== p; }); if (P.cur === p) P.cur = P.open[0] || paths(P)[0] || ''; dirty(); renderSchema(); renderTabs(); loadEditor(); refreshPreview(false); say(p + ' şemadan silindi.', function () { P.files[p] = txt; dirty(); renderSchema(); refreshPreview(false); }); } }
+    ]); }
+  });
+  Q('[data-addf]').addEventListener('click', function () { renameInline(null, function (v) { if (P.files.hasOwnProperty(v)) { say('Bu adda bir dosya zaten var.'); renderSchema(); return; } P.files[v] = ''; dirty(); renderSchema(); openFile(v); ta.focus(); }, 'yeni.js'); });
+
+  /* tabs */
+  var renderTabs = function () {
+    tabsEl.innerHTML = P.open.map(function (p) { return '<button type="button" role="tab" class="dv-tab" data-tab="' + X(p) + '" aria-selected="' + (p === P.cur) + '">' + X(base(p)) + '<span class="x" data-tclose="' + X(p) + '" aria-label="' + X(base(p)) + ' sekmesini kapat" role="button">×</span></button>'; }).join('');
+  };
+  tabsEl.addEventListener('click', function (e) {
+    var c = e.target.closest('[data-tclose]'); if (c) { e.stopPropagation(); var p = c.getAttribute('data-tclose'); commitTyping(); P.open = P.open.filter(function (x) { return x !== p; }); if (P.cur === p) P.cur = P.open[P.open.length - 1] || ''; renderTabs(); loadEditor(); return; }
+    var t = e.target.closest('[data-tab]'); if (t) openFile(t.getAttribute('data-tab'));
+  });
+
+  /* ---------- the editor: textarea over highlighted pre ---------- */
+  var hlKw = { js: /\b(const|let|var|function|return|if|else|for|while|of|in|new|class|import|export|from|await|async|try|catch|throw|true|false|null|undefined|this|typeof|switch|case|break|continue|default)\b/, py: /\b(def|return|if|elif|else|for|while|in|import|from|as|class|try|except|finally|raise|with|lambda|True|False|None|and|or|not|is|pass|break|continue|print|yield)\b/, sql: /\b(SELECT|FROM|WHERE|JOIN|LEFT|RIGHT|INNER|ON|GROUP|BY|ORDER|INSERT|INTO|VALUES|UPDATE|SET|DELETE|CREATE|TABLE|PRIMARY|KEY|FOREIGN|REFERENCES|INT|VARCHAR|AND|OR|NOT|NULL|AS|COUNT|SUM|AVG)\b/i };
+  var tokenize = function (src, lang) {
+    var rules;
+    if (lang === 'html' || lang === 'htm' || lang === 'xml' || lang === 'svg') rules = [[/<!--[\s\S]*?-->/, 'c'], [/<\/?[a-zA-Z][\w-]*/, 't'], [/\s[a-zA-Z-:]+(?==)/, 'a'], [/"[^"]*"|'[^']*'/, 's'], [/\/?>/, 't']];
+    else if (lang === 'css') rules = [[/\/\*[\s\S]*?\*\//, 'c'], [/[.#]?[a-zA-Z][\w-]*(?=[^{}]*\{)/, 'f'], [/[a-z-]+(?=\s*:)/, 'a'], [/"[^"]*"|'[^']*'/, 's'], [/#[0-9a-fA-F]{3,8}\b|-?\d*\.?\d+(px|rem|em|%|s|ms|vh|vw|deg)?/, 'n']];
+    else if (lang === 'py') rules = [[/#.*/, 'c'], [/"""[\s\S]*?"""|'''[\s\S]*?'''|f?"(?:\\.|[^"\\])*"|f?'(?:\\.|[^'\\])*'/, 's'], [hlKw.py, 'k'], [/\b\d+\.?\d*\b/, 'n'], [/\b[a-zA-Z_]\w*(?=\()/, 'f']];
+    else if (lang === 'sql') rules = [[/--.*/, 'c'], [/'(?:''|[^'])*'/, 's'], [hlKw.sql, 'k'], [/\b\d+\.?\d*\b/, 'n']];
+    else if (lang === 'json') rules = [[/"(?:\\.|[^"\\])*"(?=\s*:)/, 'a'], [/"(?:\\.|[^"\\])*"/, 's'], [/\b(true|false|null)\b/, 'k'], [/-?\d+\.?\d*/, 'n']];
+    else if (lang === 'md') rules = [[/^#{1,6} .*$/m, 'f'], [/`[^`]*`/, 's'], [/\*\*[^*]+\*\*/, 'k']];
+    else if (lang === 'js' || lang === 'mjs' || lang === 'ts') rules = [[/\/\/.*|\/\*[\s\S]*?\*\//, 'c'], [/`(?:\\.|[^`\\])*`|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/, 's'], [hlKw.js, 'k'], [/\b\d+\.?\d*\b/, 'n'], [/\b[a-zA-Z_$][\w$]*(?=\()/, 'f']];
+    else return X(src);
+    var out = '', rest = src;
+    while (rest.length) {
+      var best = null, bi = -1, bc = '';
+      for (var i = 0; i < rules.length; i++) { var m = rules[i][0].exec(rest); if (m && m[0].length && (best === null || m.index < best.index)) { best = m; bc = rules[i][1]; if (m.index === 0) break; } }
+      if (!best) { out += X(rest); break; }
+      out += X(rest.slice(0, best.index)) + '<span class="tk-' + bc + '">' + X(best[0]) + '</span>'; rest = rest.slice(best.index + best[0].length);
+    }
+    return out;
+  };
+  var charW = 8.1;
+  (function () { var s = document.createElement('span'); s.style.cssText = 'position:absolute;visibility:hidden;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:13.5px;white-space:pre'; s.textContent = 'x'.repeat(100); document.body.appendChild(s); charW = s.getBoundingClientRect().width / 100 || 8.1; s.remove(); })();
+  var paintCode = function () {
+    var v = ta.value, lines = v.split('\n'), lang = ext(P && P.cur || '');
+    hl.innerHTML = tokenize(v, lang) + '\n';
+    gut.textContent = lines.map(function (_, i) { return i + 1; }).join('\n');
+    var longest = 0; lines.forEach(function (l) { if (l.length > longest) longest = l.length; });
+    area.style.height = (lines.length * 21 + 52) + 'px'; area.style.minWidth = Math.ceil(longest * charW + 60) + 'px';
+  };
+  var typingT = 0;
+  var commitTyping = function () { if (P && P.cur && P.files.hasOwnProperty(P.cur) && P.files[P.cur] !== ta.value && !ta.disabled) { P.files[P.cur] = ta.value; dirty(); } };
+  var loadEditor = function () {
+    var has = P && P.cur && P.files.hasOwnProperty(P.cur);
+    ta.disabled = !has; ta.value = has ? P.files[P.cur] : '';
+    Q('[data-elang]').textContent = has ? (LANG[ext(P.cur)] || 'metin') + ' · ' + P.cur : 'dosya seçilmedi';
+    ta.setAttribute('aria-label', has ? P.cur + ' kodu' : 'Kod'); paintCode(); codeBox.scrollTop = 0; codeBox.scrollLeft = 0; paintPos();
+  };
+  var paintPos = function () { var b = ta.value.slice(0, ta.selectionStart).split('\n'); Q('[data-epos]').textContent = b.length + ':' + (b[b.length - 1].length + 1); };
+  ta.addEventListener('input', function () { paintCode(); paintPos(); clearTimeout(typingT); typingT = setTimeout(function () { commitTyping(); paintChecks(); var ln = schEl.querySelector('[data-node="' + CSS.escape(P.cur) + '"] .sz'); if (ln) ln.textContent = ta.value.split('\n').length + ' st'; if (autoRun) refreshPreview(false); }, 450); });
+  ['keyup', 'click', 'select'].forEach(function (ev) { ta.addEventListener(ev, paintPos); });
+  var autoRun = true;
+  var keepCaret = function (fn) { var s = ta.selectionStart, e = ta.selectionEnd, v = ta.value, r = fn(v, s, e); ta.value = r[0]; ta.setSelectionRange(r[1], r[2]); ta.dispatchEvent(new Event('input')); };
+  ta.addEventListener('keydown', function (e) {
+    if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) { e.preventDefault(); commitTyping(); openCommit(Q('[data-commit]')); return; }
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F')) { e.preventDefault(); openFind(); return; }
+    if (e.key === 'Escape') { ta.blur(); return; }
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      keepCaret(function (v, s, en) {
+        var ls = v.lastIndexOf('\n', s - 1) + 1;
+        if (s === en && !e.shiftKey) return [v.slice(0, s) + '  ' + v.slice(en), s + 2, s + 2];
+        var le = v.indexOf('\n', en); if (le < 0) le = v.length; var blk = v.slice(ls, le), nb;
+        nb = e.shiftKey ? blk.replace(/^ {1,2}/gm, '') : blk.replace(/^/gm, '  ');
+        return [v.slice(0, ls) + nb + v.slice(le), s === en ? Math.max(ls, s + (nb.length - blk.length)) : ls, ls + nb.length];
+      });
+    } else if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      keepCaret(function (v, s, en) { var ls = v.lastIndexOf('\n', s - 1) + 1, line = v.slice(ls, s), ind = (/^\s*/.exec(line) || [''])[0]; if (/[{[(:]\s*$/.test(line)) ind += '  '; var ins = '\n' + ind; return [v.slice(0, s) + ins + v.slice(en), s + ins.length, s + ins.length]; });
+    }
+  });
+
+  /* find & replace */
+  var findBar = Q('[data-find]'), fq = Q('[data-fq]'), fr = Q('[data-fr]'), fcount = Q('[data-fcount]');
+  var openFind = function () { findBar.hidden = false; var sel = ta.value.slice(ta.selectionStart, ta.selectionEnd); if (sel && sel.indexOf('\n') < 0) fq.value = sel; fq.focus(); fq.select(); countFind(); };
+  var countFind = function () { var q = fq.value; if (!q) { fcount.textContent = ''; return 0; } var n = ta.value.split(q).length - 1; fcount.textContent = n + ' eşleşme'; return n; };
+  var scrollToSel = function () { var ln = ta.value.slice(0, ta.selectionStart).split('\n').length; codeBox.scrollTop = Math.max(0, ln * 21 - codeBox.clientHeight / 2); };
+  var findNext = function () { var q = fq.value; if (!q) return; var i = ta.value.indexOf(q, ta.selectionEnd); if (i < 0) i = ta.value.indexOf(q); if (i < 0) { fcount.textContent = 'bulunamadı'; return; } ta.focus(); ta.setSelectionRange(i, i + q.length); scrollToSel(); };
+  fq.addEventListener('input', countFind);
+  fq.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); findNext(); fq.focus(); } if (e.key === 'Escape') { findBar.hidden = true; ta.focus(); } });
+  Q('[data-fnext]').addEventListener('click', findNext);
+  Q('[data-frep]').addEventListener('click', function () { var q = fq.value; if (!q) return; if (ta.value.slice(ta.selectionStart, ta.selectionEnd) !== q) { findNext(); return; } keepCaret(function (v, s, e) { return [v.slice(0, s) + fr.value + v.slice(e), s, s + fr.value.length]; }); countFind(); });
+  Q('[data-fall]').addEventListener('click', function () { var q = fq.value; if (!q) return; var n = countFind(); if (!n) return; var old = ta.value; ta.value = old.split(q).join(fr.value); ta.dispatchEvent(new Event('input')); countFind(); say(n + ' yer değiştirildi.', function () { ta.value = old; ta.dispatchEvent(new Event('input')); }); });
+  Q('[data-fx]').addEventListener('click', function () { findBar.hidden = true; ta.focus(); });
+
+  /* ---------- preview + console ---------- */
+  var frame = Q('[data-frame]'), framew = Q('[data-framew]'), noprev = Q('[data-noprev]'), consEl = Q('[data-cons]'), cons = [], lastErr = 0;
+  var pageOf = function () { var ps = paths(P).filter(function (p) { return kindOf(p) === 'page'; }); if (P.cur && kindOf(P.cur) === 'page') return P.cur; return ps.filter(function (p) { return /(^|\/)index\.html?$/i.test(p); })[0] || ps[0] || ''; };
+  var resolve = function (from, u) { var d = from.split('/').slice(0, -1); u.split('/').forEach(function (s) { if (s === '..') d.pop(); else if (s && s !== '.') d.push(s); }); return d.join('/'); };
+  var BRIDGE = '<script>(function(){var send=function(t,a){try{parent.postMessage({acadexDev:1,t:t,a:a},"*")}catch(e){}};["log","info","warn","error"].forEach(function(k){var o=console[k];console[k]=function(){var a=[].map.call(arguments,function(x){try{return typeof x==="object"?JSON.stringify(x):String(x)}catch(e){return String(x)}});send(k,a.join(" "));o&&o.apply(console,arguments)}});window.addEventListener("error",function(e){send("error",(e.message||"hata")+(e.filename?" @"+e.filename.split("/").pop()+":"+e.lineno:""))});window.addEventListener("unhandledrejection",function(e){send("error","yakalanmayan söz: "+(e.reason&&e.reason.message||e.reason))});window.acadex={oku:function(n){var f=window.__ACADEX_FILES__||{};if(!(n in f))throw new Error("dosya yok: "+n);return f[n]}};})();<\/script>';
+  var buildDoc = function (withBridge) {
+    var page = pageOf(); if (!page) return null; var src = P.files[page];
+    src = src.replace(/<link\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>/gi, function (m, u) { var p = resolve(page, u); return /stylesheet/i.test(m) && P.files.hasOwnProperty(p) ? '<style data-file="' + X(p) + '">\n' + P.files[p] + '\n</style>' : m; });
+    src = src.replace(/<script\b([^>]*)\bsrc\s*=\s*["']([^"']+)["']([^>]*)>\s*<\/script>/gi, function (m, a, u, b) { var p = resolve(page, u); return P.files.hasOwnProperty(p) ? '<script' + a + b + '>\n' + P.files[p].replace(/<\/script/gi, '<\\/script') + '\n//# sourceURL=' + p + '\n<\/script>' : m; });
+    if (withBridge) { var fm = '<script>window.__ACADEX_FILES__=' + JSON.stringify(P.files).replace(/<\//g, '<\\/') + ';<\/script>' + BRIDGE; src = /<head[^>]*>/i.test(src) ? src.replace(/<head[^>]*>/i, function (h) { return h + fm; }) : fm + src; }
+    return { page: page, html: src };
+  };
+  var refreshPreview = function (anim) {
+    if (!P) return; var d = buildDoc(true); noprev.hidden = !!d; if (d) { cons = cons.filter(function (c) { return c.t === 'sys' && anim; }); lastErr = 0; paintCons(); } Q('[data-prevfile]').textContent = d ? d.page : '';
+    if (d) frame.srcdoc = d.html; else frame.removeAttribute('srcdoc');
+    if (anim && !calm) { framew.classList.remove('run'); void framew.offsetWidth; framew.classList.add('run'); }
+  };
+  window.addEventListener('message', function (e) { if (!e.data || !e.data.acadexDev || e.source !== frame.contentWindow) return; log(e.data.t, e.data.a); });
+  var log = function (t, a) { cons.push({ t: t === 'log' || t === 'info' ? 'log' : t, a: a, at: Date.now() }); if (t === 'error') lastErr++; if (cons.length > 400) cons.shift(); paintCons(); };
+  var paintCons = function () {
+    consEl.innerHTML = cons.map(function (c) { var m = /@([^\s:]+):(\d+)$/.exec(c.a) || /line (\d+)/.exec(c.a); var go = m ? ' <button type="button" data-goline="' + X(m.length > 2 ? m[1] + '|' + m[2] : (P && P.cur || '') + '|' + m[1]) + '">satıra git</button>' : ''; return '<li class="' + (c.t === 'error' ? 'err' : c.t === 'warn' ? 'warn' : c.t === 'sys' ? 'sys' : '') + '">' + X(c.a) + go + '</li>'; }).join('');
+    consEl.scrollTop = consEl.scrollHeight;
+    var errs = cons.filter(function (c) { return c.t === 'error'; }).length, b = Q('[data-ccount]'); b.textContent = cons.length; b.classList.toggle('err', errs > 0);
+  };
+  consEl.addEventListener('click', function (e) { var b = e.target.closest('[data-goline]'); if (!b) return; var pr = b.getAttribute('data-goline').split('|'); goLine(pr[0], +pr[1]); });
+  var goLine = function (p, ln) { if (p && P.files.hasOwnProperty(p) && p !== P.cur) openFile(p); var lines = ta.value.split('\n'), s = 0; for (var i = 0; i < Math.min(ln - 1, lines.length); i++) s += lines[i].length + 1; ta.focus(); ta.setSelectionRange(s, s + (lines[ln - 1] || '').length); scrollToSel(); };
+  Q('[data-cclear]').addEventListener('click', function () { cons = []; lastErr = 0; paintCons(); });
+  QA('[data-dev]').forEach(function (b) { b.addEventListener('click', function () { framew.classList.toggle('phone', b.getAttribute('data-dev') === 'phone'); QA('[data-dev]').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); }); });
+  var outTab = function (k) { QA('[data-ot]').forEach(function (b) { b.setAttribute('aria-selected', String(b.getAttribute('data-ot') === k)); }); QA('[data-op]').forEach(function (p) { p.hidden = p.getAttribute('data-op') !== k; }); if (k === 'due') paintChecks(); };
+  QA('[data-ot]').forEach(function (b) { b.addEventListener('click', function () { outTab(b.getAttribute('data-ot')); }); });
+
+  /* run: signal flows through the schema */
+  var flowOn = function () { if (calm) return; schEl.classList.add('run'); setTimeout(function () { schEl.classList.remove('run'); }, 2400); };
+  Q('[data-share]').addEventListener('click', function (e) { shareProject(P.id, e.currentTarget); });
+  Q('[data-run]').addEventListener('click', function () {
+    commitTyping(); saveNow(); flowOn();
+    var py = P.cur && ext(P.cur) === 'py' ? P.cur : (!pageOf() ? paths(P).filter(function (p) { return ext(p) === 'py'; })[0] : '');
+    if (py) { runPython(py); return; }
+    cons.push({ t: 'sys', a: '— ' + fmtT(Date.now()) + ' · ' + (pageOf() || '') + ' çalıştırıldı —' }); lastErr = 0; paintCons();
+    refreshPreview(true); outTab('prev');
+  });
+
+  /* python via pyodide (on demand) */
+  var pyodide = null, pyLoading = null, pyOk = false, pyDlg = Q('[data-pydlg]');
+  var loadPy = function () {
+    if (pyodide) return Promise.resolve(pyodide); if (pyLoading) return pyLoading;
+    pyLoading = new Promise(function (res, rej) {
+      var s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js';
+      s.onload = function () { window.loadPyodide({ indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/' }).then(function (p) { pyodide = p; res(p); }, rej); };
+      s.onerror = function () { rej(new Error('Pyodide indirilemedi (bağlantı ya da ağ izni)')); }; document.head.appendChild(s);
+    }); pyLoading.catch(function () { pyLoading = null; }); return pyLoading;
+  };
+  var runPython = function (file) {
+    outTab('cons');
+    var go = function () {
+      log('sys', '— ' + file + ' çalışıyor' + (pyodide ? '' : ' · Python yükleniyor (ilk sefer biraz sürer)') + ' —'); lastErr = 0;
+      loadPy().then(function (py) {
+        Object.keys(P.files).forEach(function (p) { var d = p.split('/').slice(0, -1), acc = ''; d.forEach(function (x) { acc += (acc ? '/' : '') + x; try { py.FS.mkdir(acc); } catch (e) {} }); try { py.FS.writeFile(p, P.files[p]); } catch (e) {} });
+        py.setStdout({ batched: function (s) { log('log', s); } }); py.setStderr({ batched: function (s) { log('warn', s); } });
+        return py.loadPackagesFromImports(P.files[file]).then(function () { return py.runPythonAsync(P.files[file]); });
+      }).then(function () { log('sys', '— bitti —'); }, function (err) { var m = String(err && err.message || err), ln = /File "<exec>", line (\d+)/g, last = null, mm; while ((mm = ln.exec(m))) last = mm[1]; var tail = m.trim().split('\n').pop(); log('error', tail + (last ? ' @' + file + ':' + last : '')); });
+    };
+    if (pyOk || pyodide) go(); else { openDlg(pyDlg, Q('[data-run]')); pyDlg.onclose = function () { if (pyDlg.returnValue === 'ok') { pyOk = true; go(); } pyDlg.returnValue = ''; }; }
+  };
+
+  /* ---------- versions: the metro line ---------- */
+  var stopsEl = Q('[data-stops]');
+  var changedSince = function (v) { var a = v.files, b = P.files, n = 0; Object.keys(a).concat(Object.keys(b)).forEach(function (k, i, arr) { if (arr.indexOf(k) !== i) return; if (a[k] !== b[k]) n++; }); return n; };
+  var renderStops = function (fresh) {
+    var vs = P.versions || [], last = vs[vs.length - 1], ch = last ? changedSince(last) : Object.keys(P.files).length;
+    stopsEl.innerHTML = vs.map(function (v, i) { return '<li' + (fresh && i === vs.length - 1 ? ' class="new"' : '') + '><button type="button" class="dv-stop" data-stop="' + i + '" title="' + X(v.note) + '"><i aria-hidden="true"></i><span>' + X(v.note || 'durak') + '</span><small>' + fmtT(v.at) + '</small></button></li>'; }).join('') +
+      '<li class="now"><button type="button" class="dv-stop now" data-commitstop=""><i aria-hidden="true"></i><span>şimdi</span><small>' + (ch ? ch + ' dosya değişti' : 'durakla aynı') + '</small></button></li>';
+  };
+  var commitPop = null;
+  var openCommit = function (from) {
+    commitTyping(); closePop(); pop = document.createElement('div'); pop.className = 'dv-pop'; pop._from = from; pop.setAttribute('role', 'dialog'); pop.setAttribute('aria-label', 'Durak ekle');
+    pop.innerHTML = '<label class="dv-f" style="margin:4px 6px 6px"><span>durak notu</span><input type="text" maxlength="60" placeholder="ör. hesaplama fonksiyonu eklendi" data-cnote=""></label><button type="button" data-cgo="">durağı ekle</button>';
+    SBX.layer.appendChild(pop); pop.style.minWidth = '260px'; var r = from.getBoundingClientRect(); pop.style.left = (Math.min(window.innerWidth - 280, r.left) + window.scrollX) + 'px'; pop.style.top = (r.bottom + 6 + window.scrollY) + 'px';
+    var inp = pop.querySelector('input'), go = function () { var note = inp.value.trim() || 'durak ' + ((P.versions || []).length + 1); closePop(false); commit(note); from.focus(); };
+    inp.focus(); inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); go(); } if (e.key === 'Escape') { e.preventDefault(); closePop(true); } });
+    pop.querySelector('[data-cgo]').addEventListener('click', go);
+  };
+  var commit = function (note) {
+    commitTyping(); P.versions = P.versions || []; var last = P.versions[P.versions.length - 1];
+    if (last && !changedSince(last)) { say('Son duraktan beri değişiklik yok.'); return; }
+    P.versions.push({ id: uid(), at: Date.now(), note: note, files: clone(P.files) }); if (P.versions.length > 30) P.versions.splice(1, 1);
+    dirty(); saveNow(); renderStops(true); paintChecks(); say('“' + note + '” durağı eklendi.');
+  };
+  Q('[data-commit]').addEventListener('click', function (e) { openCommit(e.currentTarget); });
+  /* diff */
+  var diffDlg = Q('[data-diffdlg]'), dfV = null, dfFile = '';
+  var lcsDiff = function (a, b) {
+    var A = a.split('\n'), B = b.split('\n'), n = A.length, m = B.length;
+    if (n * m > 600000) return A.map(function (l) { return ['d', l]; }).concat(B.map(function (l) { return ['a', l]; }));
+    var dp = []; for (var i = 0; i <= n; i++) { dp.push(new Uint16Array(m + 1)); }
+    for (i = n - 1; i >= 0; i--) for (var j = m - 1; j >= 0; j--) dp[i][j] = A[i] === B[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    var out = []; i = 0; j = 0;
+    while (i < n && j < m) { if (A[i] === B[j]) { out.push(['s', A[i]]); i++; j++; } else if (dp[i + 1][j] >= dp[i][j + 1]) { out.push(['d', A[i]]); i++; } else { out.push(['a', B[j]]); j++; } }
+    while (i < n) out.push(['d', A[i++]]); while (j < m) out.push(['a', B[j++]]); return out;
+  };
+  var paintDiff = function () {
+    var a = dfV.files[dfFile], b = P.files[dfFile], rows = lcsDiff(a == null ? '' : a, b == null ? '' : b), keep = rows.map(function () { return false; });
+    rows.forEach(function (r, i) { if (r[0] !== 's') for (var k = Math.max(0, i - 2); k <= Math.min(rows.length - 1, i + 2); k++) keep[k] = true; });
+    var html = '', gap = false;
+    rows.forEach(function (r, i) { if (!keep[i]) { if (!gap) html += '<div class="gap"><span></span><span>⋯</span></div>'; gap = true; return; } gap = false; html += '<div class="' + r[0] + '"><span>' + (r[0] === 'a' ? '+' : r[0] === 'd' ? '−' : '') + '</span><span>' + X(r[1]) + '</span></div>'; });
+    Q('[data-diff]', diffDlg).innerHTML = html || '<div class="s"><span></span><span>bu dosyada fark yok.</span></div>';
+    QA('[data-dff]', diffDlg).forEach(function (b) { b.setAttribute('aria-selected', String(b.getAttribute('data-dff') === dfFile)); });
+  };
+  stopsEl.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-stop]');
+    if (e.target.closest('[data-commitstop]')) { openCommit(e.target.closest('[data-commitstop]')); return; }
+    if (!b) return; commitTyping(); dfV = P.versions[+b.getAttribute('data-stop')];
+    var all = Object.keys(dfV.files).concat(Object.keys(P.files)).filter(function (k, i, arr) { return arr.indexOf(k) === i; }).sort();
+    var ch = all.filter(function (k) { return dfV.files[k] !== P.files[k]; });
+    Q('[data-df-h]', diffDlg).textContent = '“' + dfV.note + '” durağı';
+    Q('[data-df-sub]', diffDlg).textContent = fmtT(dfV.at) + ' · bu duraktan bugüne ' + (ch.length ? ch.length + ' dosya değişti' : 'değişiklik yok') + '. Yeşil: şimdi eklenen, kırmızı: o günden beri silinen.';
+    dfFile = ch[0] || all[0];
+    Q('[data-df-files]', diffDlg).innerHTML = all.map(function (k) { var c = dfV.files[k] !== P.files[k]; return '<button type="button" role="tab" data-dff="' + X(k) + '">' + X(k) + (c ? '<span class="c">●</span>' : '') + '</button>'; }).join('');
+    paintDiff(); openDlg(diffDlg, b);
+  });
+  Q('[data-df-files]', diffDlg).addEventListener('click', function (e) { var b = e.target.closest('[data-dff]'); if (b) { dfFile = b.getAttribute('data-dff'); paintDiff(); } });
+  Q('[data-df-restore]', diffDlg).addEventListener('click', function () {
+    var last = P.versions[P.versions.length - 1]; if (last && changedSince(last)) P.versions.push({ id: uid(), at: Date.now(), note: 'dönmeden önceki hâl', files: clone(P.files) });
+    P.files = clone(dfV.files); P.open = P.open.filter(function (p) { return P.files.hasOwnProperty(p); }); if (!P.files.hasOwnProperty(P.cur)) P.cur = P.open[0] || paths(P)[0] || '';
+    diffDlg._from = null; diffDlg.close(); dirty(); saveNow(); renderSchema(); renderTabs(); loadEditor(); renderStops(true); refreshPreview(true); flowOn();
+    say('“' + dfV.note + '” durağına dönüldü. Önceki hâl de bir durak olarak saklandı.');
+  });
+
+  /* ---------- export ---------- */
+  var expDlg = Q('[data-expdlg]');
+  Q('[data-exp]').addEventListener('click', function (e) { commitTyping(); openDlg(expDlg, e.currentTarget); });
+  Q('[data-exz]', expDlg).addEventListener('click', function () { download(slug(P.name) + '.zip', makeZip(P.files)); expDlg.close(); say('.zip indiriliyor: ' + Object.keys(P.files).length + ' dosya.'); });
+  Q('[data-exh]', expDlg).addEventListener('click', function () { var d = buildDoc(false); if (!d) { say('Tek HTML için projede bir .html sayfası olmalı.'); return; } download(slug(P.name) + '.html', d.html, 'text/html'); expDlg.close(); say('Tek dosya HTML indiriliyor.'); });
+
+  /* ---------- Acadia: hızlı yerel kontrol + acadia-assistant ---------- */
+  var aiOut = Q('[data-aiout]');
+  var selOrFile = function () { var s = ta.value.slice(ta.selectionStart, ta.selectionEnd); return s.trim() ? { text: s, sel: true, off: ta.value.slice(0, ta.selectionStart).split('\n').length - 1 } : { text: ta.value, sel: false, off: 0 }; };
+  var funcsOf = function (t, lang) {
+    var out = [], re = lang === 'py' ? /^\s*def\s+([A-Za-z_]\w*)\s*\(([^)]*)\)/gm : /(?:function\s+([A-Za-z_$][\w$]*)\s*\(([^)]*)\)|(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?\(?([^)=]*)\)?\s*=>)/g, m;
+    while ((m = re.exec(t))) out.push({ name: m[1] || m[3], params: (m[2] != null ? m[2] : m[4] || '').trim(), line: t.slice(0, m.index).split('\n').length + (t.slice(m.index).match(/^\n*/)[0].length) });
+    return out;
+  };
+  var AIF = {
+    explain: function () {
+      var o = selOrFile(), lang = ext(P.cur), t = o.text, lines = t.split('\n').length, h = '<h4>' + (o.sel ? 'seçili ' + lines + ' satır' : X(P.cur)) + '</h4><ul>';
+      if (kindOf(P.cur) === 'page') { var tags = {}; (t.match(/<([a-z][a-z0-9-]*)/gi) || []).forEach(function (x) { var k = x.slice(1).toLowerCase(); tags[k] = (tags[k] || 0) + 1; }); h += '<li>' + Object.keys(tags).length + ' farklı etiket: ' + Object.keys(tags).slice(0, 10).map(function (k) { return '<code>' + k + '</code>×' + tags[k]; }).join(', ') + '</li>'; var rf = refsOf(P, P.cur); if (rf.length) h += '<li>bağlı dosyalar: ' + rf.map(function (r) { return '<code>' + X(r) + '</code>'; }).join(', ') + '</li>'; if (/<form/i.test(t)) h += '<li>bir form içeriyor; gönderim kodla yakalanıyor olabilir.</li>'; }
+      else if (lang === 'css') { h += '<li>' + (t.match(/\{/g) || []).length + ' kural bloğu</li>'; var sels = (t.match(/[^{}]+(?=\{)/g) || []).map(function (s) { return s.trim(); }).slice(0, 8); if (sels.length) h += '<li>seçiciler: ' + sels.map(function (s) { return '<code>' + X(s) + '</code>'; }).join(', ') + '</li>'; if (/@media/.test(t)) h += '<li>ekran boyutuna göre değişen kurallar (@media) var.</li>'; }
+      else {
+        var fs = funcsOf(t, lang); if (fs.length) h += '<li>' + fs.length + ' fonksiyon: ' + fs.map(function (f) { return '<code>' + X(f.name) + '(' + X(f.params) + ')</code>'; }).join(', ') + '</li>';
+        var bits = []; if (/\bfor\b|\bwhile\b|\.forEach\(|\.map\(/.test(t)) bits.push('döngü'); if (/\bif\b/.test(t)) bits.push('koşul'); if (/addEventListener/.test(t)) bits.push('kullanıcı olayını dinleme'); if (/getElementById|querySelector/.test(t)) bits.push('sayfadaki öğeyi bulma'); if (/console\.log|print\(/.test(t)) bits.push('konsola yazma'); if (/import\s/.test(t)) bits.push('kütüphane kullanımı'); if (/Math\.pow|\*\*/.test(t)) bits.push('üs alma');
+        if (bits.length) h += '<li>içerdiği kalıplar: ' + bits.join(', ') + '</li>';
+        var cm = (t.match(lang === 'py' ? /#.*/g : /\/\/.*|\/\*[\s\S]*?\*\//g) || []).slice(0, 3); if (cm.length) h += '<li>yorumlardan: ' + cm.map(function (c) { return '<code>' + X(c.replace(/^\/\/|^#|^\/\*|\*\/$/g, '').trim()) + '</code>'; }).join(' · ') + '</li>';
+      }
+      return h + '<li>' + lines + ' satır, ' + t.length + ' karakter</li></ul>';
+    },
+    lint: function () {
+      var t = ta.value, lang = ext(P.cur), iss = [];
+      var stack = [], pairs = { ')': '(', ']': '[', '}': '{' }, line = 1, inS = null, esc = false, inC = null;
+      if (/^(js|mjs|ts|css|json|py)$/.test(lang)) for (var i = 0; i < t.length; i++) {
+        var c = t[i], n2 = t[i + 1];
+        if (c === '\n') { line++; if (inC === 'line') inC = null; if (inS && lang !== 'js' && inS !== '`') inS = null; continue; }
+        if (inC === 'line') continue; if (inC === 'block') { if (c === '*' && n2 === '/') { inC = null; i++; } continue; }
+        if (inS) { if (esc) { esc = false; continue; } if (c === '\\') { esc = true; continue; } if (c === inS) inS = null; continue; }
+        if (lang === 'py' && c === '#') { inC = 'line'; continue; }
+        if (lang !== 'py' && c === '/' && n2 === '/' && lang !== 'css') { inC = 'line'; continue; }
+        if (c === '/' && n2 === '*' && lang !== 'py') { inC = 'block'; i++; continue; }
+        if (c === '"' || c === "'" || (c === '`' && lang !== 'py')) { inS = c; continue; }
+        if ('([{'.indexOf(c) > -1) stack.push([c, line]);
+        else if (')]}'.indexOf(c) > -1) { var top = stack.pop(); if (!top || top[0] !== pairs[c]) iss.push([line, 'kapanan <code>' + c + '</code> açılanla eşleşmiyor']); }
+      }
+      stack.forEach(function (s) { iss.push([s[1], 'açılan <code>' + s[0] + '</code> kapanmamış']); });
+      if (lang === 'py') t.split('\n').forEach(function (l, i) { if (/^\s*(def|class|if|elif|else|for|while|try|except|finally|with)\b/.test(l) && !/:\s*(#.*)?$/.test(l)) iss.push([i + 1, 'satır sonunda <code>:</code> eksik görünüyor']); if (/^\t+ +| +\t/.test(l)) iss.push([i + 1, 'sekme ve boşluk karışık girinti']); });
+      if (/^(js|mjs)$/.test(lang)) { try { new Function(t); } catch (e) { if (!iss.length) iss.push([0, 'sözdizimi: ' + X(e.message)]); } }
+      if (lang === 'json') { try { JSON.parse(t); } catch (e) { iss.push([0, 'JSON: ' + X(e.message)]); } }
+      if (kindOf(P.cur) === 'page') {
+        ['div', 'section', 'main', 'ul', 'ol', 'table', 'form', 'p', 'span', 'button', 'a'].forEach(function (tg) { var o = (t.match(new RegExp('<' + tg + '\\b', 'gi')) || []).length, c = (t.match(new RegExp('</' + tg + '>', 'gi')) || []).length; if (o !== c) iss.push([0, '<code>&lt;' + tg + '&gt;</code> ' + o + ' kez açılmış, ' + c + ' kez kapanmış']); });
+        (t.match(/(?:href|src)\s*=\s*["']([^"'#:?]+)["']/gi) || []).forEach(function (m) { var u = m.replace(/^[^"']*["']/, '').replace(/["']$/, ''), p = resolve(P.cur, u); if (!P.files.hasOwnProperty(p) && !/^(https?:|mailto:|data:)/.test(u)) { var ln = t.slice(0, t.indexOf(m)).split('\n').length; iss.push([ln, '<code>' + X(u) + '</code> projede yok']); } });
+      }
+      var errs = cons.filter(function (c) { return c.t === 'error'; }).slice(-3);
+      var h = '<h4>' + X(P.cur) + '</h4>';
+      h += iss.length ? '<ul>' + iss.map(function (s) { return '<li class="no">' + (s[0] ? '<button type="button" class="go" data-aigo="' + s[0] + '">satır ' + s[0] + '</button>: ' : '') + s[1] + '</li>'; }).join('') + '</ul>' : '<p class="ok">✓ parantez, tırnak ve yapı kontrolünde sorun bulmadım.</p>';
+      if (errs.length) h += '<p>son çalıştırmadaki hatalar:</p><ul>' + errs.map(function (e) { return '<li class="no"><code>' + X(e.a) + '</code></li>'; }).join('') + '</ul>';
+      return h;
+    },
+    comment: function () {
+      var lang = ext(P.cur); if (!/^(js|mjs|ts|py)$/.test(lang)) return '<p>Yorum satırı ekleme şimdilik JavaScript ve Python dosyalarında çalışıyor.</p>';
+      var lines = ta.value.split('\n'), fs = funcsOf(ta.value, lang), add = 0, cmt = lang === 'py' ? '# ' : '// ';
+      fs.slice().reverse().forEach(function (f) { var i = f.line - 1, prev = (lines[i - 1] || '').trim(); if (prev.indexOf(cmt.trim()) === 0) return; var ind = (/^\s*/.exec(lines[i]) || [''])[0]; lines.splice(i, 0, ind + cmt + f.name + '(' + f.params + '): ne yaptığını tek cümleyle yaz' + (f.params ? ' · girdiler: ' + f.params : '')); add++; });
+      if (!add) return '<p>Her fonksiyonun üstünde zaten bir yorum var.</p>';
+      var old = ta.value; ta.value = lines.join('\n'); ta.dispatchEvent(new Event('input')); commitTyping();
+      say(add + ' fonksiyonun üstüne yorum satırı eklendi.', function () { ta.value = old; ta.dispatchEvent(new Event('input')); commitTyping(); });
+      return '<p class="ok">✓ ' + add + ' fonksiyona yorum satırı eklendi; açıklamaları sen doldur ya da kodu seçip “açıkla”ya bas.</p>';
+    },
+    readme: function () {
+      var ps = paths(P).filter(function (p) { return !/^readme\.md$/i.test(p); }), D = { page: 'sayfa', style: 'stil dosyası', code: 'kod', db: 'veri', doc: 'belge' }, fl = [];
+      ps.forEach(function (p) { if (/^(js|mjs|ts|py)$/.test(ext(p))) funcsOf(P.files[p], ext(p)).forEach(function (f) { fl.push('- `' + f.name + '(' + f.params + ')` · ' + p); }); });
+      var run = pageOf() ? '`' + pageOf() + '` dosyasını tarayıcıda aç.' : (ps.filter(function (p) { return ext(p) === 'py'; })[0] ? '`python ' + ps.filter(function (p) { return ext(p) === 'py'; })[0] + '` ile çalıştır.' : 'Çalıştırma adımını yaz.');
+      var md = '# ' + P.name + '\n\n' + (P.course ? '**Ders:** ' + P.course + (P.due ? ' · **Teslim:** ' + P.due : '') + '\n\n' : '') + '## Ne yapıyor?\n\nBu projenin amacını iki cümleyle yaz.\n\n## Nasıl çalıştırılır?\n\n' + run + '\n\n## Dosyalar\n\n' + ps.map(function (p) { return '- `' + p + '` · ' + D[kindOf(p)] + ' (' + (LANG[ext(p)] || 'metin') + ')'; }).join('\n') + '\n' + (fl.length ? '\n## Fonksiyonlar\n\n' + fl.join('\n') + '\n' : '') + '\n## Sürümler\n\n' + (P.versions || []).map(function (v) { return '- ' + fmtT(v.at) + ': ' + v.note; }).join('\n') + '\n';
+      var had = P.files['README.md']; P.files['README.md'] = md; dirty(); renderSchema(); openFile('README.md'); paintChecks();
+      say('README.md yazıldı.', function () { if (had == null) delete P.files['README.md']; else P.files['README.md'] = had; P.open = P.open.filter(function (p) { return P.files.hasOwnProperty(p); }); P.cur = P.open[0] || ''; dirty(); renderSchema(); renderTabs(); loadEditor(); });
+      return '<p class="ok">✓ README.md dosyalardan, fonksiyonlardan ve duraklardan çıkarıldı. “Ne yapıyor?” kısmını sen doldur.</p>';
+    }
+  };
+  var mdLite = function (t) { var parts = String(t).split(/```[a-z]*\n?/); return parts.map(function (s, i) { return i % 2 ? '<pre class="ai-code"><code>' + X(s.replace(/\n$/, '')) + '</code></pre>' : '<div class="ai-txt">' + X(s.trim()).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>') + '</div>'; }).join(''); };
+  var codeFor = function (o) { var t = o.text; return t.length > 7000 ? t.slice(0, 7000) + '\n…(kısaltıldı)' : t; };
+  var aiAsk = function (kind) {
+    var o = selOrFile(), lang = LANG[ext(P.cur)] || 'metin', file = P.cur;
+    if (kind === 'explain') return 'Geliştirici sandbox\'ta yazdığım "' + file + '" dosyasındaki ' + (o.sel ? 'seçili ' : '') + lang + ' kodunu bir üniversite öğrencisine kısa ve sade Türkçe ile açıkla: ne yapıyor, önemli satırlar neler, dikkat edilecek bir şey var mı? Yalnızca bu kod hakkında konuş, aksiyon bloğu ekleme.\n\n```\n' + codeFor(o) + '\n```';
+    if (kind === 'lint') return '"' + file + '" dosyasındaki ' + lang + ' kodunda hata ya da mantık sorunu var mı? Varsa satırını ve nasıl düzeleceğini kısa maddelerle Türkçe yaz; yoksa "sorun görmedim" de. Yalnızca bu kod hakkında konuş, aksiyon bloğu ekleme.\n\n```\n' + codeFor({ text: ta.value }) + '\n```';
+    if (kind === 'readme') { var ps = paths(P), main = pageOf() || ps.filter(function (p) { return /\.(js|py)$/.test(p); })[0] || ps[0]; return '"' + P.name + '" adlı öğrenci projem için Türkçe bir README.md yaz. Başlıklar: Ne yapıyor?, Nasıl çalıştırılır?, Dosyalar, Öğrendiklerim. Yalnızca markdown döndür, açıklama ya da aksiyon bloğu ekleme.' + (P.course ? ' Ders: ' + P.course + '.' : '') + '\n\nDosyalar: ' + ps.join(', ') + '\n\nAna dosya (' + main + '):\n```\n' + String(P.files[main] || '').slice(0, 6000) + '\n```'; }
+    return '';
+  };
+  QA('[data-ai]').forEach(function (b) { b.addEventListener('click', function () {
+    if (!P || !P.cur) { aiOut.innerHTML = '<p>Önce şemadan bir dosya aç.</p>'; return; }
+    commitTyping(); var k = b.getAttribute('data-ai'), forFile = P.cur, forP = P;
+    if (k === 'comment') { aiOut.innerHTML = AIF.comment(); return; }
+    b.classList.add('busy'); QA('[data-ai]').forEach(function (x) { x.disabled = true; });
+    var quick = k === 'readme' ? '' : AIF[k]();
+    aiOut.innerHTML = quick + '<div class="ai-wait hand" data-aiwait="">Acadia okuyor…</div>';
+    SBX.acadia(aiAsk(k)).then(function (reply) {
+      if (P !== forP) return;
+      if (k === 'readme') {
+        var md = reply.replace(/^```(?:markdown|md)?\n?|```\s*$/g, '').trim() + '\n', had = P.files['README.md']; P.files['README.md'] = md; dirty(); renderSchema(); openFile('README.md'); paintChecks();
+        say('README.md Acadia ile yazıldı.', function () { if (had == null) delete P.files['README.md']; else P.files['README.md'] = had; P.open = P.open.filter(function (p) { return P.files.hasOwnProperty(p); }); P.cur = P.open[0] || ''; dirty(); renderSchema(); renderTabs(); loadEditor(); });
+        aiOut.innerHTML = '<p class="ok">✓ README.md yazıldı; kontrol edip kendi cümlelerinle düzelt.</p>';
+      } else aiOut.innerHTML = quick + '<h4>Acadia · ' + X(forFile) + '</h4>' + mdLite(reply) + '<span class="honest">Acadia hata yapabilir; önemli yerleri kodu çalıştırarak doğrula.</span>';
+    }, function (er) {
+      console.warn(er); if (P !== forP) return;
+      if (k === 'readme') { aiOut.innerHTML = AIF.readme() + '<span class="honest">Acadia’ya şu an ulaşılamadı; README dosyalardan ve duraklardan çıkarıldı.</span>'; }
+      else { var w = aiOut.querySelector('[data-aiwait]'); if (w) w.outerHTML = '<span class="honest">Acadia’ya şu an ulaşılamadı; yukarıdaki hızlı kontrol kodun kendisinden çıkarıldı. Biraz sonra tekrar dene.</span>'; }
+    }).then(function () { b.classList.remove('busy'); QA('[data-ai]').forEach(function (x) { x.disabled = false; }); });
+  }); });
+  aiOut.addEventListener('click', function (e) { var b = e.target.closest('[data-aigo]'); if (b) goLine(P.cur, +b.getAttribute('data-aigo')); });
+
+  /* ---------- delivery checklist ---------- */
+  var paintChecks = function () {
+    if (!P) return; var last = (P.versions || [])[P.versions.length - 1];
+    var items = [
+      ['README.md var', Object.keys(P.files).some(function (p) { return /(^|\/)readme\.md$/i.test(p); }), 'Acadia → README yaz'],
+      ['çalışan bir giriş dosyası var', !!pageOf() || paths(P).some(function (p) { return ext(p) === 'py'; }), '.html ya da .py'],
+      ['en az bir durak', (P.versions || []).length > 0, 'durak ekle'],
+      ['son hâl durakta kayıtlı', !!last && !changedSince(last), 'kaydedilmemiş değişiklik var'],
+      ['son çalıştırmada hata yok', !cons.some(function (c) { return c.t === 'error'; }), 'konsola bak'],
+      ['ders ve teslim tarihi girildi', !!(P.course && P.due), 'yukarıdaki alanlar']
+    ];
+    Q('[data-check]').innerHTML = items.map(function (it) { return '<li class="' + (it[1] ? 'ok' : '') + '"><i aria-hidden="true"></i>' + it[0] + '<span class="vh">' + (it[1] ? ': tamam' : ': eksik') + '</span>' + (it[1] ? '' : '<small>' + it[2] + '</small>') + '</li>'; }).join('');
+    var del = Q('[data-deliver]'); del.textContent = P.status === 'teslim' ? 'teslim edildi ✓' : 'teslim edildi olarak işaretle'; del.disabled = P.status === 'teslim';
+  };
+  Q('[data-deliver]').addEventListener('click', function () { commitTyping(); var last = P.versions[P.versions.length - 1]; if (!last || changedSince(last)) commit('teslim'); P.status = 'teslim'; Q('[data-status]').value = 'teslim'; dirty(); saveNow(); paintChecks(); paintDue(); say('Proje teslim edildi olarak işaretlendi; son hâl “teslim” durağında.'); });
+
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && pop) closePop(true); });
+  window.addEventListener('beforeunload', function () { if (P) { commitTyping(); SBX.wsPersist(); } });
+
+  /* ---------- örnek veri setleri ---------- */
+  var DSPY = {
+    'sales_dataset.csv': '# Bölgeye ve aya göre toplam ciro\nimport csv\nfrom collections import defaultdict\n\nwith open("sales_dataset.csv", encoding="utf-8") as f:\n    satirlar = list(csv.DictReader(f))\n\nprint(len(satirlar), "satış satırı")\nbolge = defaultdict(float)\nay = defaultdict(float)\nfor s in satirlar:\n    tutar = float(s["total_amount"])\n    bolge[s["region"]] += tutar\n    ay[s["date"][:7]] += tutar\n\nprint("\\nbölgeye göre ciro:")\nfor b, t in sorted(bolge.items(), key=lambda x: -x[1]):\n    print(f"  {b:<12} {t:>12,.2f}")\n\nprint("\\naya göre ciro:")\nfor a in sorted(ay):\n    print(f"  {a}  {ay[a]:>12,.2f}")\n',
+    'student_performance_dataset.csv': '# Çalışma saati ile final puanı arasındaki ilişki\nimport csv\nimport statistics as st\n\nwith open("student_performance_dataset.csv", encoding="utf-8") as f:\n    satirlar = list(csv.DictReader(f))\n\nsaat = [float(s["study_hours_per_week"]) for s in satirlar]\npuan = [float(s["final_exam_score"]) for s in satirlar]\n\nprint(len(satirlar), "öğrenci")\nprint("ortalama çalışma saati:", round(st.mean(saat), 2))\nprint("ortalama final puanı:", round(st.mean(puan), 2))\nprint("korelasyon (r):", round(st.correlation(saat, puan), 3))\n',
+    'customer_churn_dataset.csv': '# Sözleşme türüne göre müşteri kaybı oranı\nimport csv\nfrom collections import defaultdict\n\nwith open("customer_churn_dataset.csv", encoding="utf-8") as f:\n    satirlar = list(csv.DictReader(f))\n\ntoplam = defaultdict(int)\nkayip = defaultdict(int)\nfor s in satirlar:\n    tur = s["contract_type"]\n    toplam[tur] += 1\n    if str(s["churned"]).strip().lower() in ("1", "true", "yes", "evet"):\n        kayip[tur] += 1\n\nfor tur in sorted(toplam):\n    print(f"{tur:<16} %{kayip[tur] / toplam[tur] * 100:5.1f} kayıp  ({kayip[tur]}/{toplam[tur]})")\n'
+  };
+  root.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-dsopen]');
+    if (b) { var fn = b.getAttribute('data-dsopen'), nm = b.getAttribute('data-dsname'); b.disabled = true;
+      fetch('assets/datasets/' + fn).then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); }).then(function (txt) {
+        var files = {}; files[fn] = txt; files['analiz.py'] = DSPY[fn] || ('import csv\nwith open("' + fn + '", encoding="utf-8") as f:\n    print(next(csv.reader(f)))\n'); files['README.md'] = '# ' + nm + '\n\n`analiz.py` dosyasını “çalıştır” ile çalıştır; sonuçlar konsola yazılır.\n';
+        var pr = addProject(nm, files, '', '', 'veri setinden'); b.disabled = false; openProject(pr.id); P.cur = 'analiz.py'; if (P.open.indexOf('analiz.py') < 0) P.open.unshift('analiz.py'); renderTabs(); loadEditor(); say('“' + nm + '” hazır; “çalıştır”a bas, sonuçlar konsola düşer.');
+      }).catch(function () { b.disabled = false; say('Veri seti indirilemedi; .csv indir bağlantısını dene.'); }); return; }
+    if (e.target.closest('[data-goetk]')) { if (typeof switchDashboardView === 'function') switchDashboardView('sandbox-interaction'); }
+  });
+
+  /* ---------- yükleme: hesabındaki projeler (yoksa bu tarayıcı) ---------- */
+  var booted = false;
+  var boot = function () {
+    if (booted) { renderCards(); return; } booted = true;
+    cardsEl.innerHTML = '<p class="hand" style="font-size:21px;color:#6A7593">projelerin açılıyor…</p>';
+    Promise.all([SBX.wsLoad(), SBX.loadMine().catch(function () { return []; })]).then(function (r) { projects = SBX.ws.list; paintCloud(); renderCards(); }, function (er) { console.warn(er); projects = SBX.ws.list || []; paintCloud(); renderCards(); });
+  };
+  if (typeof initSandboxProjectUploadForm === 'function') { initSandboxProjectUploadForm = function () { boot(); }; window.initSandboxProjectUploadForm = initSandboxProjectUploadForm; }
+  if (sec && sec.classList.contains('active')) boot();
+  })();
+
+})();

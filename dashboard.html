@@ -753,43 +753,97 @@
            spot — this section has NO role check, so it's reachable by any
            account that loads dashboard.html, teacher or student alike.
            ========================================== -->
-      <section id="sandbox-interaction-view" class="dashboard-view-section">
-        <div class="dashboard-page-header">
-          <h2 class="dashboard-page-title">🧩 Sandbox Etkileşim Paneli</h2>
-          <p class="dashboard-page-desc">Geliştirici Sandbox'ta paylaşılan projeleri keşfedin, beğenin ve yorum yapın — öğrenciler ve hocalar için ortak alan.</p>
-        </div>
+      <section id="sandbox-interaction-view" class="dashboard-view-section axd axe">
+<div class="main-d etkilesim" id="etkilesim">
 
-        <div class="sandbox-section">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; border-bottom: 2px solid var(--color-teal); padding-bottom: 0.35rem; flex-wrap: wrap; gap: 0.5rem;">
-            <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--color-navy); margin: 0;">
-              🚀 <span data-i18n="sandbox.galleryTitle">Proje Akışı</span>
-            </h3>
-            <button class="btn btn-primary" id="btn-share-project" title="Proje yükleme, Geliştirici Sandbox sayfasında yapılır" style="border: none; font-size: 0.8rem; padding: 0.4rem 0.8rem; font-weight: 700;" data-i18n="sandbox.shareBtn">
-              🚀 Proje Yükle
-            </button>
-          </div>
+<header class="d-head land">
+<div class="d-head-l">
+<span class="eyb hand">yayına alınanlar</span>
+<h1 class="disp">Sandbox etkileşim paneli</h1>
+<p class="d-sub hand">bölümün yazılımcıları ne yaptı? siteler, oyunlar, araçlar; aç, dene, incele.</p>
+</div>
+<div class="d-head-r">
+<button type="button" class="hbtn" data-godev=""><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 L19.5 7.5 V16.5 L12 20.5 L4.5 16.5 V7.5 Z"/><path d="M4.5 7.5 L12 11.5 L19.5 7.5 M12 11.5 V20.5"/></svg>geliştirici sandbox</button>
+<button type="button" class="btn btn-dark ef-new" data-compose=""><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19 L6.2 14.6 L15.4 5.4 C16.2 4.6 17.4 4.6 18.2 5.4 L18.6 5.8 C19.4 6.6 19.4 7.8 18.6 8.6 L9.4 17.8 Z"/></svg>gönderi hazırla</button>
+</div>
+</header>
 
-          <!-- Sort + department + tag filters -->
-          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin-bottom: 1.1rem;">
-            <div style="display: flex; gap: 0.35rem;">
-              <button type="button" id="sandbox-sort-new" class="btn btn-primary" onclick="setSandboxFeedSort('new')" style="border: none; font-size: 0.75rem; padding: 0.4rem 0.75rem; font-weight: 700;">🆕 Yeni</button>
-              <button type="button" id="sandbox-sort-popular" class="btn btn-outline" onclick="setSandboxFeedSort('popular')" style="font-size: 0.75rem; padding: 0.4rem 0.75rem; font-weight: 700;">🔥 Popüler</button>
-            </div>
-            <select id="sandbox-filter-dept" onchange="setSandboxFeedDeptFilter(this.value)" style="font-size: 0.75rem; padding: 0.4rem 0.6rem; border-radius: var(--radius-sm); border: 1px solid rgba(22, 50, 92, 0.15); color: var(--color-text); background: var(--color-white);">
-              <option value="">Tüm Bölümler</option>
-              <option value="mis">MIS</option>
-              <option value="ba">İşletme (BA)</option>
-              <option value="itb">Uluslararası Ticaret (ITB)</option>
-              <option value="bf">Bankacılık ve Finans (BF)</option>
-            </select>
-            <div id="sandbox-tag-filters" style="display: flex; flex-wrap: wrap; gap: 0.35rem;"></div>
-          </div>
 
-          <div id="sandbox-projects-feed" style="display: flex; flex-direction: column; gap: 1.25rem; max-width: 720px;">
-            <!-- Populated dynamically -->
-          </div>
-        </div>
-      </section>
+<section class="ef-tabs land" aria-labelledby="tb-t">
+<h2 class="vh" id="tb-t">Bu hafta yayına alınanlar</h2>
+<span class="ef-tabs-k" aria-hidden="true">bu hafta</span>
+<div class="ef-tabrow" data-tabrow=""></div>
+</section>
+
+<div class="ef-wrap">
+<div class="ef-col">
+<div class="ef-compose-bar">
+<span class="ek-av" style="--bgc:#E6EEFF" aria-hidden="true" data-myav=""></span>
+<button type="button" class="ef-fake" data-compose="">yaptığın bir projeyi paylaş: GitHub, Vercel ya da link…</button>
+</div>
+<p class="ef-fstate hand" data-fstate="" aria-live="polite"></p>
+<div class="ef-feed" data-feed=""></div>
+<p class="ef-none hand" data-none="" hidden>bu süzgeçle gönderi yok. <button type="button" data-clear="">süzgeci kaldır</button></p>
+<button type="button" class="ef-more" data-loadmore="" hidden>daha fazla gönderi</button>
+<p class="ef-end" aria-hidden="true"><span>$ echo "akışın sonu"</span></p>
+</div>
+
+<aside class="ef-rail" aria-label="Süz ve keşfet">
+<section class="ef-card">
+<h2 class="ef-k">sırala</h2>
+<div class="ef-chips" role="group" aria-label="Sıralama"><button type="button" data-sort="new" aria-pressed="true">yeni</button><button type="button" data-sort="popular" aria-pressed="false">popüler</button></div>
+<h2 class="ef-k">bölüm</h2>
+<label class="vh" for="ef-dept">Bölüm</label><select id="ef-dept" class="ef-sel" data-dept=""><option value="">tüm bölümler</option><option value="mis">Yönetim Bilişim Sistemleri</option><option value="ba">İşletme</option><option value="itb">Uluslararası Ticaret</option><option value="bf">Bankacılık ve Finans</option></select>
+<h2 class="ef-k">tür</h2>
+<div class="ef-chips" data-kinds="" role="group" aria-label="Türe göre süz"></div>
+<h2 class="ef-k">teknoloji</h2>
+<div class="ef-chips" data-techs="" role="group" aria-label="Teknolojiye göre süz"></div>
+<h2 class="ef-k">ders</h2>
+<label class="vh" for="ef-course">Ders</label><select id="ef-course" class="ef-sel" data-course=""></select>
+<div class="ef-modes"><button type="button" data-mode="follow" aria-pressed="false">takip ettiklerim</button><button type="button" data-mode="saved" aria-pressed="false">kaydettiklerim</button></div>
+</section>
+<section class="ef-card">
+<h2 class="ef-k">yazılımcılar</h2>
+<ul class="ef-ppl" data-ppl=""></ul>
+</section>
+<section class="ef-card" data-draftsw="">
+<h2 class="ef-k">taslaklarım</h2>
+<ul class="ef-drafts" data-drafts=""></ul>
+</section>
+</aside>
+</div>
+
+<div class="ef-menu" data-menu="" role="menu" hidden>
+<button type="button" role="menuitem" data-m="link">bağlantıyı kopyala</button>
+<button type="button" role="menuitem" data-m="edit" hidden>düzenle</button>
+<button type="button" role="menuitem" data-m="hide">akışımdan gizle</button>
+<button type="button" role="menuitem" data-m="del" hidden class="danger">panelden kaldır</button>
+<button type="button" role="menuitem" data-m="report" class="danger">bildir</button>
+</div>
+
+<dialog class="ef-dlg" data-report="" aria-labelledby="rp-t">
+<form method="dialog" class="ef-dlg-in">
+<h2 id="rp-t" class="disp">bu gönderide sorun ne?</h2>
+<p class="ef-dlg-s">Bildirimin panel moderatörüne gider; paylaşan kişi kimin bildirdiğini görmez.</p>
+<fieldset><legend class="vh">Sebep</legend>
+<label><input type="radio" name="rp" value="kirik" checked><span>bağlantı kırık ya da çalışmıyor</span></label>
+<label><input type="radio" name="rp" value="izinsiz"><span>başkasının projesi / izinsiz kopya</span></label>
+<label><input type="radio" name="rp" value="zararli"><span>zararlı ya da şüpheli site</span></label>
+<label><input type="radio" name="rp" value="uygunsuz"><span>uygunsuz içerik</span></label>
+</fieldset>
+<div class="ef-dlg-b"><button type="submit" class="ek-ghost" value="no">vazgeç</button><button type="submit" class="btn btn-dark" value="ok">bildir</button></div>
+</form>
+</dialog>
+
+<div class="ef-full" data-full="" role="dialog" aria-modal="true" aria-label="Tam ekran dene" hidden>
+<div class="ef-full-bar"><span data-full-t=""></span><a data-full-a="" href="#" target="_blank" rel="noopener" hidden>yeni sekmede aç ↗</a><button type="button" class="btn btn-blue" data-full-x="">kapat (Esc)</button></div>
+<iframe class="ef-full-f" data-full-f="" title="Tam ekran önizleme"></iframe>
+</div>
+
+<div class="toast" data-toast="" role="status" aria-live="polite" hidden><span data-toast-t=""></span><a data-toast-a="" href="#" hidden></a><button type="button" data-toast-b="" hidden>geri al</button></div>
+</div>
+</section>
+
 
       <!-- ==========================================
            TAB 5: EXAM PLATFORM VIEW (SINAV PLATFORMU)
@@ -1197,129 +1251,179 @@
       <!-- ==========================================
            TAB 7: GELISIRICI SANDBOX VIEW (DEVELOPER SANDBOX)
            ========================================== -->
-      <section id="sandbox-view" class="dashboard-view-section">
-        <div class="dashboard-page-header">
-          <h2 class="dashboard-page-title" data-i18n="dash.sandbox.title">Geliştirici Sandbox</h2>
-          <p class="dashboard-page-desc">Practice data analysis with sample datasets, and upload your own projects below. Paylaşılan projeleri keşfetmek, beğenmek ve yorum yapmak için <strong>Sandbox Etkileşim Paneli</strong>'ne göz atın.</p>
-        </div>
+      <section id="sandbox-view" class="dashboard-view-section axd axv">
+<div class="main-d gelistirici" id="gelistirici">
 
-        <!-- Developer Sandbox Guide Section -->
-        <div class="doc-card" style="padding: 1.5rem; background-color: var(--color-bg-alt); border-left: 4px solid var(--color-teal); box-shadow: var(--shadow-sm);">
-          <h3 style="font-size: 1rem; font-weight: 800; color: var(--color-navy); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
-            💡 <span data-i18n="sandbox.guide.title">Sandbox Developer Guide</span>
-          </h3>
-          <p style="font-size: 0.85rem; line-height: 1.5; color: var(--color-text); margin: 0 0 0.75rem 0;">
-            <strong data-i18n="sandbox.guide.who">Who is this for?</strong>
-            <span data-i18n="sandbox.guide.whoText">Designed for MIS students and programming enthusiasts across all 4 departments to practice coding, analytics, and software design.</span>
-          </p>
-          <ul style="margin: 0; padding-left: 1.25rem; font-size: 0.8rem; line-height: 1.5; color: var(--color-text-muted); display: flex; flex-direction: column; gap: 0.35rem;">
-            <li><strong data-i18n="sandbox.guide.step1">Sample Datasets:</strong> <span data-i18n="sandbox.guide.step1Text">Download raw CSV structures below to run analyses in Jupyter, Python, Excel, or SQL.</span></li>
-            <li><strong>Proje Paylaşımı:</strong> Projenizi aşağıdaki formdan yükleyin — paylaşıldığında <strong>Sandbox Etkileşim Paneli</strong>'nde herkesin görebileceği, beğenip yorum yapabileceği bir gönderiye dönüşür.</li>
-          </ul>
-        </div>
+<!-- ============ VİTRİN: proje tahtası ============ -->
+<div class="dv-shelf" data-shelf="">
+<header class="d-head land">
+<div class="d-head-l">
+<span class="eyb hand">sistem şeması tahtası</span>
+<h1 class="disp">Geliştirici sandbox</h1>
+<p class="d-sub hand">projelerini yükle, şemasını gör, düzenle, çalıştır, teslim et.</p>
+</div>
+<div class="d-head-r">
+<button type="button" class="hbtn" data-upload=""><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5 V4.5 M8 8.5 C9.4 7.2 10.7 5.9 12 4.4 C13.3 5.9 14.6 7.2 16 8.5"/><path d="M5 14.5 V19.5 H19 V14.5"/></svg>proje yükle</button>
+<button type="button" class="btn btn-dark dv-new" data-newp=""><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="7" height="5" rx="1"/><rect x="13" y="14" width="7" height="5" rx="1"/><path d="M7.5 10 V16.5 H13"/></svg>yeni proje</button>
+</div>
+</header>
 
-        <!-- Proje Yükle — step 1 of the share flow: project details only
-             (title/GitHub/live demo/tags). Submitting opens the composer
-             (#project-compose-modal) for the description + cover photo,
-             which is what actually inserts the row into sandbox_projects
-             and publishes it to Sandbox Etkileşim Paneli. Kept as its own
-             page section (not a modal) so uploading always happens here,
-             on Geliştirici Sandbox, never on the shared panel itself. -->
-        <div class="doc-card" id="sandbox-upload-card" style="padding: 1.75rem; display: flex; flex-direction: column; gap: 1.1rem; border: 1px solid rgba(22, 50, 92, 0.08); box-shadow: var(--shadow-sm);">
-          <div>
-            <h3 style="font-size: 1.05rem; font-weight: 800; color: var(--color-navy); margin-bottom: 0.3rem; display: flex; align-items: center; gap: 0.5rem;">
-              🚀 Proje Yükle
-            </h3>
-            <p style="font-size: 0.82rem; color: var(--color-text-muted); margin: 0;">GitHub deponuzu ya da canlı demonuzu ekleyin — bir sonraki adımda kısa bir açıklama ve kapak fotoğrafıyla paylaşıma hazırlayacaksınız.</p>
-          </div>
-          <form id="sandbox-project-upload-form" style="display: flex; flex-direction: column; gap: 1rem;">
-            <div style="display: flex; flex-direction: column; gap: 0.3rem;">
-              <label for="sandbox-upload-title" style="font-size: 0.8rem; font-weight: 700; color: var(--color-navy);">Proje Başlığı *</label>
-              <input type="text" id="sandbox-upload-title" class="search-input" required placeholder="ör. Satış Analizi Paneli">
-            </div>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
-              <div style="display: flex; flex-direction: column; gap: 0.3rem;">
-                <label for="sandbox-upload-github" style="font-size: 0.8rem; font-weight: 700; color: var(--color-navy);">GitHub URL</label>
-                <input type="text" id="sandbox-upload-github" class="search-input" placeholder="https://github.com/kullanici/proje">
-                <div id="sandbox-upload-github-error" style="color: #EF4444; font-size: 0.72rem; font-weight: 600; display: none;"></div>
-              </div>
-              <div style="display: flex; flex-direction: column; gap: 0.3rem;">
-                <label for="sandbox-upload-live" style="font-size: 0.8rem; font-weight: 700; color: var(--color-navy);">Canlı Demo URL</label>
-                <input type="text" id="sandbox-upload-live" class="search-input" placeholder="https://proje.vercel.app">
-                <div id="sandbox-upload-live-error" style="color: #EF4444; font-size: 0.72rem; font-weight: 600; display: none;"></div>
-              </div>
-            </div>
-            <div style="display: flex; flex-direction: column; gap: 0.3rem;">
-              <label for="sandbox-upload-tags" style="font-size: 0.8rem; font-weight: 700; color: var(--color-navy);">Etiketler</label>
-              <input type="text" id="sandbox-upload-tags" class="search-input" placeholder="ör. web, mobil, veri-bilimi (virgülle ayırın)">
-            </div>
-            <button type="submit" class="btn btn-primary" style="border: none; align-self: flex-start; font-size: 0.85rem; padding: 0.6rem 1.25rem; font-weight: 700;">Devam Et: Gönderiyi Hazırla →</button>
-          </form>
-        </div>
+<section class="dv-drop land" data-drop="" aria-labelledby="dp-t">
+<h2 class="vh" id="dp-t">Proje yükle</h2>
+<svg class="dv-drop-svg" viewBox="0 0 120 70" aria-hidden="true"><rect x="6" y="18" width="40" height="30" rx="4"/><path d="M46 33 H72"/><path d="M66 27 L73 33 L66 39"/><path d="M76 20 H110 V46 C110 51 76 51 76 46 Z"/><ellipse cx="93" cy="20" rx="17" ry="5"/></svg>
+<p><b class="hand">klasörü, .zip’i ya da dosyaları buraya bırak</b><span>HTML · CSS · JS · Python · CSV · JSON · MD · en fazla 2 MB metin</span></p>
+<div class="dv-drop-b"><button type="button" class="sx-ghost dv-ghost" data-pick="files">dosya seç</button><button type="button" class="sx-ghost dv-ghost" data-pick="dir">klasör seç</button></div>
+<input type="file" multiple hidden data-in-files="" accept=".html,.htm,.css,.js,.mjs,.py,.csv,.json,.md,.txt,.zip,.sql,.xml,.svg">
+<input type="file" multiple hidden data-in-dir="" webkitdirectory>
+</section>
 
-        <!-- Section 1: Örnek Veri Setleri -->
-        <div class="sandbox-section">
-          <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.5rem; border-bottom: 2px solid var(--color-teal); padding-bottom: 0.35rem;">
-            📊 <span data-i18n="sandbox.datasetsTitle">Örnek Veri Setleri</span>
-          </h3>
-          <p style="font-size: 0.85rem; color: var(--color-text-muted); margin-bottom: 1.25rem;" data-i18n="sandbox.datasetsSub">
-            Practice your data analysis skills with these sample datasets — perfect for MIS students or anyone curious about coding and analytics.
-          </p>
+<section class="dv-board" aria-labelledby="bd-t">
+<div class="dv-sec-h"><h2 class="hd" id="bd-t">projelerim</h2>
+<div class="dv-filt" role="group" aria-label="Duruma göre süz" data-filt="">
+<button type="button" data-f="" aria-pressed="true">hepsi</button><button type="button" data-f="taslak" aria-pressed="false">taslak</button><button type="button" data-f="calisiyor" aria-pressed="false">çalışıyor</button><button type="button" data-f="teslim" aria-pressed="false">teslim edildi</button>
+</div></div>
+<div class="dv-cards" data-cards=""></div>
+</section>
 
-          <div class="docs-grid" style="grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));">
-            <!-- Sales Dataset Card -->
-            <div class="doc-card" style="display: flex; flex-direction: column; justify-content: space-between; gap: 0.75rem;">
-              <div>
-                <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.35rem;">Sales Dataset</h4>
-                <p style="font-size: 0.75rem; color: var(--color-text-muted); margin-bottom: 0.5rem; line-height: 1.4;">
-                  <strong>Columns:</strong> order_id, date, region, product_category, quantity, unit_price, total_amount.
-                </p>
-                <div style="background-color: var(--color-bg); padding: 0.5rem; border-radius: var(--radius-sm); border-left: 3px solid var(--color-teal);">
-                  <strong style="font-size: 0.7rem; color: var(--color-teal); text-transform: uppercase;">Suggested Exercise:</strong>
-                  <p style="font-size: 0.75rem; color: var(--color-text); margin: 0.15rem 0 0 0;">Try calculating total revenue by region and by month.</p>
-                </div>
-              </div>
-              <a href="assets/datasets/sales_dataset.csv" download="sales_dataset.csv" class="btn btn-outline" style="text-align: center; font-size: 0.75rem; padding: 0.5rem; font-weight: 700;">
-                Download CSV
-              </a>
-            </div>
+<section class="dv-data land" aria-labelledby="ds-t">
+<div class="dv-sec-h"><h2 class="hd" id="ds-t">örnek veri setleri</h2><small class="hand">indir ya da tek tıkla bir analiz projesinde aç</small></div>
+<div class="dv-dsets">
+<article class="dv-ds"><h3>Satış verisi</h3><p class="cols">order_id, date, region, product_category, quantity, unit_price, total_amount</p><p class="ex hand">bölgeye ve aya göre toplam ciroyu hesapla.</p><div class="acts"><button type="button" class="btn btn-dark" data-dsopen="sales_dataset.csv" data-dsname="Satış analizi">projede aç</button><a class="dv-ghost" href="assets/datasets/sales_dataset.csv" download="sales_dataset.csv">.csv indir</a></div></article>
+<article class="dv-ds"><h3>Öğrenci performansı</h3><p class="cols">student_id, department, gpa, study_hours_per_week, attendance_rate, final_exam_score</p><p class="ex hand">çalışma saati ile sınav puanı arasındaki ilişkiye bak.</p><div class="acts"><button type="button" class="btn btn-dark" data-dsopen="student_performance_dataset.csv" data-dsname="Öğrenci performansı analizi">projede aç</button><a class="dv-ghost" href="assets/datasets/student_performance_dataset.csv" download="student_performance_dataset.csv">.csv indir</a></div></article>
+<article class="dv-ds"><h3>Müşteri kaybı (churn)</h3><p class="cols">customer_id, tenure_months, monthly_charges, contract_type, churned</p><p class="ex hand">hangi etkenler müşteri kaybıyla birlikte artıyor?</p><div class="acts"><button type="button" class="btn btn-dark" data-dsopen="customer_churn_dataset.csv" data-dsname="Müşteri kaybı analizi">projede aç</button><a class="dv-ghost" href="assets/datasets/customer_churn_dataset.csv" download="customer_churn_dataset.csv">.csv indir</a></div></article>
+</div>
+<p class="dv-ds-n">Projelerini panele gönderince Sandbox etkileşim panelinde herkes deneyebilir, tepki verip inceleme yazabilir. <button type="button" class="dv-lnk" data-goetk="">panele git →</button></p>
+</section>
+</div>
 
-            <!-- Student Performance Dataset Card -->
-            <div class="doc-card" style="display: flex; flex-direction: column; justify-content: space-between; gap: 0.75rem;">
-              <div>
-                <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.35rem;">Student Performance Dataset</h4>
-                <p style="font-size: 0.75rem; color: var(--color-text-muted); margin-bottom: 0.5rem; line-height: 1.4;">
-                  <strong>Columns:</strong> student_id, department, gpa, study_hours_per_week, attendance_rate, final_exam_score.
-                </p>
-                <div style="background-color: var(--color-bg); padding: 0.5rem; border-radius: var(--radius-sm); border-left: 3px solid var(--color-teal);">
-                  <strong style="font-size: 0.7rem; color: var(--color-teal); text-transform: uppercase;">Suggested Exercise:</strong>
-                  <p style="font-size: 0.75rem; color: var(--color-text); margin: 0.15rem 0 0 0;">Explore the correlation between study hours and exam scores.</p>
-                </div>
-              </div>
-              <a href="assets/datasets/student_performance_dataset.csv" download="student_performance_dataset.csv" class="btn btn-outline" style="text-align: center; font-size: 0.75rem; padding: 0.5rem; font-weight: 700;">
-                Download CSV
-              </a>
-            </div>
+<!-- ============ ÇALIŞMA ALANI ============ -->
+<div class="dv-ws" data-ws="" hidden>
+<div class="dv-ws-top">
+<button type="button" class="dv-back" data-back="" aria-label="Projelere dön">← projeler</button>
+<label class="vh" for="dv-pname">Proje adı</label><input id="dv-pname" class="dv-pname" type="text" maxlength="60" data-pname="">
+<select class="dv-status" data-status="" aria-label="Proje durumu"><option value="taslak">taslak</option><option value="calisiyor">çalışıyor</option><option value="teslim">teslim edildi</option></select>
+<span class="dv-due" data-due=""></span>
+<span class="saved hand" data-saved="" aria-live="polite"></span><span class="dv-cloud hand" data-cloud="" hidden></span>
+<span class="dv-sp"></span>
+<button type="button" class="hbtn" data-commit=""><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.5"/><path d="M3 12 H8.5 M15.5 12 H21"/></svg>durak ekle</button>
+<button type="button" class="hbtn" data-exp=""><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.5 V15.5 M8 11.5 C9.4 12.8 10.7 14.1 12 15.6 C13.3 14.1 14.6 12.8 16 11.5"/><path d="M5 14.5 V19.5 H19 V14.5"/></svg>dışa aktar</button>
+<button type="button" class="hbtn dv-share" data-share=""><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M3.5 9 H20.5"/><path d="M12 16.5 V11.5 M9.8 13.6 L12 11.4 L14.2 13.6"/></svg>panele gönder</button>
+<button type="button" class="btn btn-blue dv-run" data-run=""><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5 L18.5 12 L8 18.5 Z"/></svg>çalıştır</button>
+</div>
 
-            <!-- Customer Churn Dataset Card -->
-            <div class="doc-card" style="display: flex; flex-direction: column; justify-content: space-between; gap: 0.75rem;">
-              <div>
-                <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.35rem;">Customer Churn Dataset</h4>
-                <p style="font-size: 0.75rem; color: var(--color-text-muted); margin-bottom: 0.5rem; line-height: 1.4;">
-                  <strong>Columns:</strong> customer_id, tenure_months, monthly_charges, contract_type, churned.
-                </p>
-                <div style="background-color: var(--color-bg); padding: 0.5rem; border-radius: var(--radius-sm); border-left: 3px solid var(--color-teal);">
-                  <strong style="font-size: 0.7rem; color: var(--color-teal); text-transform: uppercase;">Suggested Exercise:</strong>
-                  <p style="font-size: 0.75rem; color: var(--color-text); margin: 0.15rem 0 0 0;">Build a simple model or chart to see which factors correlate with churn.</p>
-                </div>
-              </div>
-              <a href="assets/datasets/customer_churn_dataset.csv" download="customer_churn_dataset.csv" class="btn btn-outline" style="text-align: center; font-size: 0.75rem; padding: 0.5rem; font-weight: 700;">
-                Download CSV
-              </a>
-            </div>
-          </div>
-        </div>
-      </section>
+<!-- metro: sürüm hattı -->
+<div class="dv-metro" aria-label="Sürüm geçmişi">
+<span class="dv-metro-k hand">sürüm hattı</span>
+<ol class="dv-stops" data-stops=""></ol>
+</div>
+
+<div class="dv-grid">
+<aside class="dv-schema" aria-label="Proje şeması">
+<div class="dv-sch-h"><h2 class="sn-k dv-k">şema</h2><button type="button" class="dv-mini" data-addf="" aria-label="Yeni dosya">+ dosya</button></div>
+<div class="dv-sch" data-sch=""></div>
+<div class="dv-sch-legend" aria-hidden="true"><span><i class="lg-page"></i>sayfa</span><span><i class="lg-style"></i>stil</span><span><i class="lg-code"></i>kod</span><span><i class="lg-db"></i>veri</span><span><i class="lg-doc"></i>belge</span></div>
+</aside>
+
+<section class="dv-editor" aria-label="Kod düzenleyici">
+<div class="dv-tabs" role="tablist" data-tabs=""></div>
+<div class="dv-find" data-find="" hidden>
+<label class="vh" for="dv-fq">Ara</label><input id="dv-fq" type="text" placeholder="ara…" data-fq="">
+<label class="vh" for="dv-fr">Değiştir</label><input id="dv-fr" type="text" placeholder="değiştir…" data-fr="">
+<span data-fcount="" aria-live="polite"></span>
+<button type="button" class="dv-mini" data-fnext="">sonraki</button><button type="button" class="dv-mini" data-frep="">değiştir</button><button type="button" class="dv-mini" data-fall="">hepsi</button><button type="button" class="dv-mini" data-fx="" aria-label="Aramayı kapat">×</button>
+</div>
+<div class="dv-code" data-code="">
+<pre class="dv-gut" aria-hidden="true" data-gut=""></pre>
+<div class="dv-area">
+<pre class="dv-hl" aria-hidden="true"><code data-hl=""></code></pre>
+<textarea class="dv-ta" data-ta="" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Kod"></textarea>
+</div>
+</div>
+<div class="dv-ebar"><span data-epos="">1:1</span><span data-elang=""></span><span class="dv-sp"></span><span class="dv-hint">Ctrl+S durak · Ctrl+F ara · Tab girinti</span></div>
+</section>
+
+<section class="dv-out" aria-label="Çıktı">
+<div class="dv-out-tabs" role="tablist">
+<button type="button" role="tab" data-ot="prev" aria-selected="true">önizleme</button>
+<button type="button" role="tab" data-ot="cons" aria-selected="false">konsol <b data-ccount="">0</b></button>
+<button type="button" role="tab" data-ot="aca" aria-selected="false">Acadia</button>
+<button type="button" role="tab" data-ot="due" aria-selected="false">teslim</button>
+</div>
+<div class="dv-op" data-op="prev">
+<div class="dv-dev" role="group" aria-label="Önizleme boyutu"><button type="button" data-dev="desk" aria-pressed="true">masaüstü</button><button type="button" data-dev="phone" aria-pressed="false">telefon</button><span data-prevfile=""></span></div>
+<div class="dv-frame-w" data-framew=""><div class="dv-signal" aria-hidden="true"></div><iframe class="dv-frame" data-frame="" title="Proje önizlemesi" sandbox="allow-scripts allow-modals"></iframe><p class="dv-noprev hand" data-noprev="" hidden>bu projede bir .html sayfası yok. Python için “çalıştır”a bas, çıktı konsola düşer.</p></div>
+</div>
+<div class="dv-op" data-op="cons" hidden><div class="dv-cons-b"><button type="button" class="dv-mini" data-cclear="">temizle</button></div><ol class="dv-cons" data-cons="" aria-live="polite"></ol></div>
+<div class="dv-op" data-op="aca" hidden>
+<p class="dv-aca-h hand">seçili kod ya da açık dosya için:</p>
+<div class="dv-acas"><button type="button" data-ai="explain">açıkla</button><button type="button" data-ai="lint">hata bul</button><button type="button" data-ai="comment">yorum satırı ekle</button><button type="button" data-ai="readme">README yaz</button></div>
+<div class="dv-aca-out" data-aiout="" aria-live="polite"></div>
+</div>
+<div class="dv-op" data-op="due" hidden>
+<div class="dv-due-f">
+<label class="sn-f dv-f"><span>ders</span><input type="text" maxlength="40" data-pcourse="" placeholder="ör. Sistem Analizi ve Tasarımı"></label>
+<label class="sn-f dv-f"><span>teslim tarihi</span><input type="date" data-pdue=""></label>
+</div>
+<p class="dv-k2">teslim kontrol listesi</p>
+<ul class="dv-check" data-check=""></ul>
+<button type="button" class="btn btn-dark" data-deliver="">teslim edildi olarak işaretle</button>
+</div>
+</section>
+</div>
+</div>
+
+<!-- yeni proje -->
+<dialog class="dv-dlg" data-newdlg="" aria-labelledby="np-t">
+<form class="dv-dlg-in" data-newf="">
+<button type="button" class="dv-x" data-dx="" aria-label="Kapat">×</button>
+<h2 id="np-t" class="disp">yeni proje</h2>
+<label class="sn-f dv-f"><span>proje adı</span><input type="text" maxlength="60" data-np-name="" required placeholder="ör. Kredi hesaplayıcı"></label>
+<fieldset class="dv-tpls"><legend>nereden başlayalım?</legend><div data-tpls=""></div></fieldset>
+<div class="dv-f2">
+<label class="sn-f dv-f"><span>ders <small>(isteğe bağlı)</small></span><input type="text" maxlength="40" data-np-course="" placeholder="ör. Yönetim Bilişim Sistemleri"></label>
+<label class="sn-f dv-f"><span>teslim tarihi <small>(isteğe bağlı)</small></span><input type="date" data-np-due=""></label>
+</div>
+<div class="dv-dlg-b"><span></span><button type="button" class="sx-ghost dv-ghost" data-dx="">vazgeç</button><button type="submit" class="btn btn-dark">şemayı çiz</button></div>
+</form>
+</dialog>
+
+<!-- sürüm karşılaştırma -->
+<dialog class="dv-dlg dv-wide" data-diffdlg="" aria-labelledby="df-t">
+<div class="dv-dlg-in">
+<button type="button" class="dv-x" data-dx="" aria-label="Kapat">×</button>
+<h2 id="df-t" class="disp" data-df-h="">durak</h2>
+<p class="dv-df-sub" data-df-sub=""></p>
+<div class="dv-df-files" data-df-files="" role="tablist" aria-label="Dosyalar"></div>
+<div class="dv-diff" data-diff=""></div>
+<div class="dv-dlg-b"><span></span><button type="button" class="sx-ghost dv-ghost" data-dx="">kapat</button><button type="button" class="btn btn-dark" data-df-restore="">bu durağa dön</button></div>
+</div>
+</dialog>
+
+<!-- dışa aktar -->
+<dialog class="dv-dlg" data-expdlg="" aria-labelledby="ex-t">
+<div class="dv-dlg-in">
+<button type="button" class="dv-x" data-dx="" aria-label="Kapat">×</button>
+<h2 id="ex-t" class="disp">dışa aktar</h2>
+<div class="dv-exps">
+<button type="button" data-exz=""><b>.zip</b><span>tüm dosyalar, klasörleriyle</span></button>
+<button type="button" data-exh=""><b>tek HTML</b><span>stil ve kod içine gömülü, tek dosya</span></button>
+</div>
+</div>
+</dialog>
+
+<!-- python izni -->
+<dialog class="dv-dlg" data-pydlg="" aria-labelledby="py-t">
+<form method="dialog" class="dv-dlg-in">
+<h2 id="py-t" class="disp">Python’u yükleyelim mi?</h2>
+<p class="dv-py-p">Python kodu tarayıcıda Pyodide ile çalışır. İlk seferde yaklaşık 10 MB indirilir; sonra bu sekmede hazır kalır. Kodun bilgisayarına dokunmaz.</p>
+<div class="dv-dlg-b"><span></span><button type="submit" class="sx-ghost dv-ghost" value="no">vazgeç</button><button type="submit" class="btn btn-blue" value="ok">yükle ve çalıştır</button></div>
+</form>
+</dialog>
+
+<div class="toast" data-toast="" role="status" aria-live="polite" hidden><span data-toast-t=""></span><a data-toast-a="" href="#" hidden></a><button type="button" data-toast-b="" hidden>geri al</button></div>
+</div>
+</section>
+
 
       <!-- ==========================================
            TAB 6: SETTINGS VIEW (AYARLAR)
