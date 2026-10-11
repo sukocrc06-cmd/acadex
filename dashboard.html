@@ -96,6 +96,7 @@
           <li class="sidebar-item" id="side-notebook"><a href="#notebook" onclick="switchDashboardView('notebook')"><svg viewBox="0 0 24 24"><path d="M6 4 H17 C18 4 19 5 19 6 V20 H7 C6 20 5 19 5 18 V5 C5 4.5 5.5 4 6 4 Z"/><path d="M9 8.5 H15 M9 12 H15"/></svg><span class="lbl">Çalışma defteri</span></a></li>
           <li class="sidebar-item" id="side-cards"><a href="#cards" onclick="switchDashboardView('cards')"><svg viewBox="0 0 24 24"><rect x="3.5" y="7" width="13" height="10" rx="1.5"/><path d="M7 4.5 H19 C19.8 4.5 20.5 5.2 20.5 6 V14"/></svg><span class="lbl">Bilgi kartları</span></a></li>
           <li class="sidebar-item" id="side-sourcehub"><a href="#sourcehub" onclick="switchDashboardView('sourcehub')"><svg viewBox="0 0 24 24"><path d="M4 5.5 C7 4.5 10 5 12 6.5 C14 5 17 4.5 20 5.5 V18.5 C17 17.5 14 18 12 19.5 C10 18 7 17.5 4 18.5 Z"/><path d="M12 6.5 V19.5"/></svg><span class="lbl">Kaynakla çalış</span></a></li>
+          <li class="sidebar-item" id="side-studylab"><a href="#studylab" onclick="switchDashboardView('studylab')"><svg viewBox="0 0 24 24"><path d="M9.5 3.5 H14.5 M10.5 3.5 V9 L5 18.5 C4.4 19.6 5.1 20.5 6.3 20.5 H17.7 C18.9 20.5 19.6 19.6 19 18.5 L13.5 9 V3.5"/><path d="M7.4 14.5 H16.6"/><circle cx="10.5" cy="17.2" r=".6"/><circle cx="13.6" cy="16.4" r=".5"/></svg><span class="lbl">Acadex Study Lab</span></a></li>
         </ul>
         <h4>belgeler</h4>
         <ul class="sidebar-nav">
@@ -1897,6 +1898,58 @@
 </section>
 
       <!-- Consolidated Admin Panel View (admin only) -->
+      <section id="studylab-view" class="dashboard-view-section axd axl">
+<div class="main-d lab" id="lab">
+<svg class="defs" width="0" height="0" aria-hidden="true" focusable="false"><filter id="lb-ink" x="-10%" y="-10%" width="120%" height="120%"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="4" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter><filter id="lb-chalk" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="1.6" numOctaves="1" seed="2" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="1.6"/></filter></svg>
+
+<header class="d-head land">
+<div class="d-head-l">
+<span class="eyb hand">deney masası</span>
+<h1 class="disp">Acadex Study Lab</h1>
+<p class="d-sub hand">işe yaradığı bilinen yedi çalışma yöntemi, her biri kendi istasyonunda. birini seç, kendi özetinle dene.</p>
+</div>
+<div class="d-head-r">
+<span class="lb-today hand" data-today="" aria-live="polite"></span>
+<button type="button" class="hbtn" data-golog=""><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4 H17 C18 4 19 5 19 6 V20 H7 C6 20 5 19 5 18 V5 C5 4.5 5.5 4 6 4 Z"/><path d="M9 9 H15 M9 12.5 H15 M9 16 H12.5"/></svg>deney defteri</button>
+</div>
+</header>
+
+<div class="lb-benchv" data-bench="">
+<section class="lb-bench land" aria-labelledby="lb-bt">
+<h2 class="vh" id="lb-bt">İstasyonlar</h2>
+<div class="lb-shelf" aria-hidden="true">
+<span class="lb-jar j1"><i></i></span><span class="lb-jar j2"><i></i></span><span class="lb-flask"><i></i></span><span class="lb-shelf-note hand">bugün hangi deneyi yapıyoruz?</span><span class="lb-jar j3"><i></i></span>
+</div>
+<ul class="lb-stations" data-stations=""></ul>
+<div class="lb-tabletop" aria-hidden="true"></div>
+</section>
+
+<section class="lb-log land" id="lb-log" aria-labelledby="lb-lt">
+<div class="lb-sec-h"><h2 class="hd" id="lb-lt">deney defteri</h2><small class="hand" data-logsrc=""></small></div>
+<div class="lb-log-grid">
+<div class="lb-card lb-week-c"><h3 class="lb-k">bu hafta</h3><div class="lb-week" data-week=""></div><p class="lb-week-t hand" data-weekt=""></p></div>
+<div class="lb-card lb-per-c"><h3 class="lb-k">yöntemlere göre</h3><ul class="lb-per" data-per=""></ul></div>
+<div class="lb-card lb-rec-c"><h3 class="lb-k">son deneyler</h3><ol class="lb-rec" data-recent=""></ol></div>
+</div>
+</section>
+</div>
+
+<div class="lb-work" data-work="" hidden>
+<div class="lb-work-top">
+<button type="button" class="lb-back" data-back=""><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12 H5 M11 5.5 L4.5 12 L11 18.5"/></svg>tezgâha dön</button>
+<div class="lb-wt"><span class="lb-wn mono" data-wn=""></span><h2 class="disp" data-wtitle="" tabindex="-1"></h2></div>
+<label class="lb-srcl"><span class="hand">kaynak</span><select data-src="" aria-label="Kaynak özet"></select></label>
+</div>
+<div class="lb-how" data-how=""></div>
+<div class="lb-stage" data-stage=""></div>
+<p class="lb-cite" data-cite=""></p>
+</div>
+
+<div class="toast" data-toast="" role="status" aria-live="polite" hidden><span data-toast-t=""></span><a data-toast-a="" href="#" hidden></a><button type="button" data-toast-b="" hidden>geri al</button></div>
+</div>
+<div id="axl-layer"><div class="lab axl-l"></div></div>
+</section>
+
       <section id="admin-view" class="dashboard-view-section">
         <div class="dashboard-page-header">
           <h2 class="dashboard-page-title">Yönetici Paneli</h2>

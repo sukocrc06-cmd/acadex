@@ -6019,3 +6019,766 @@ var SBX = (function () {
   paintAll();
 
   })();
+
+/* ================= ACADEX STUDY LAB · deney tezgâhı =================
+   Yedi istasyon: Pomodoro (saksıda büyüyen bitki), Aralıklı tekrar (Leitner kutusu),
+   Active Recall (kapaklı defter), Feynman (kara tahta), Interleaving (karışık çark),
+   Zihin haritası (mürekkep dalları), Cornell (üçe bölünmüş sayfa).
+   Kaynak: kullanıcının kendi özetleri (study_cards). Tekrar kayıtları Bilgi kartları ile aynı
+   SM-2 kuralıyla card_item_confidence'a yazılır. Oturumlar study_lab_sessions'a, haritalar /
+   Cornell sayfaları / Feynman sürümleri study_lab_items'a; tablo yoksa bu tarayıcıya. */
+(function () {
+  'use strict';
+  var sec = document.getElementById('studylab-view');
+  if (!sec || !sec.classList.contains('axl')) return;
+  var root = document.getElementById('lab');
+  var layer = document.getElementById('axl-layer'); if (layer) document.body.appendChild(layer);
+  var LY = layer ? layer.querySelector('.axl-l') : document.body;
+  var Q = function (s, el) { return (el || root).querySelector(s); };
+  var QA = function (s, el) { return Array.prototype.slice.call((el || root).querySelectorAll(s)); };
+  var X = function (t) { return String(t == null ? '' : t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var G = function (k, d) { try { var v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
+  var S = function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } };
+  var uid = function () { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); };
+  var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var lsafe = function (fn, fb) { try { return fn(); } catch (e) { return fb; } };
+  var me = function () { return lsafe(function () { return currentUser; }, null) || window.currentUser || null; };
+  var sbc = function () { return typeof supabaseClient !== 'undefined' ? supabaseClient : null; };
+  var MISSING = function (e) { if (!e) return false; var c = String(e.code || ''), m = String(e.message || e); return /^(42P01|42703|PGRST20[045])$/.test(c) || /does not exist|schema cache|Could not find/i.test(m); };
+  var baseName = function (n) { n = String(n || '').replace(/\.[a-z0-9]{2,5}$/i, ''); var m = n.match(/^\d{10,}_(?:\d{10,}_)?(.+)$/); if (m) n = m[1]; return n.replace(/_+/g, ' ').trim() || 'İsimsiz belge'; };
+  var stripMd = function (t) { var d = document.createElement('div'); d.innerHTML = String(t || ''); return (d.textContent || '').replace(/\$\$?[^$]*\$\$?/g, ' ').replace(/[#*_`>|]/g, '').replace(/\[(\d+)\]/g, '').replace(/\s+/g, ' ').trim(); };
+  var txt = function (x) { if (x == null) return ''; if (typeof x === 'string' || typeof x === 'number') return stripMd(x); return stripMd(x.point || x.text || x.title || x.heading || x.label || x.term || ''); };
+  var arr = function (x) { if (Array.isArray(x)) return x; if (typeof x === 'string') { try { var j = JSON.parse(x); return Array.isArray(j) ? j : []; } catch (e) { return []; } } return []; };
+  var cut = function (t, n) { t = String(t || ''); return t.length > n ? t.slice(0, n - 1).replace(/\s+\S*$/, '') + '…' : t; };
+  var p2 = function (n) { return ('0' + n).slice(-2); };
+  var mmss = function (s) { s = Math.max(0, Math.round(s)); return p2(Math.floor(s / 60)) + ':' + p2(s % 60); };
+  var ago = function (t) { var m = Math.round((Date.now() - t) / 60000); if (m < 1) return 'şimdi'; if (m < 60) return m + ' dk önce'; var h = Math.round(m / 60); if (h < 24) return h + ' sa önce'; var d = Math.floor(h / 24); return d === 1 ? 'dün' : d + ' gün önce'; };
+  var ymd = function (d) { d = new Date(d); return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()); };
+  var dk = function (m) { m = Math.round(m); return m >= 60 ? Math.floor(m / 60) + ' sa' + (m % 60 ? ' ' + (m % 60) + ' dk' : '') : m + ' dk'; };
+  var norm = function (t) { return String(t || '').toLocaleLowerCase('tr').replace(/[^a-zçğıöşü0-9\s]/gi, ' ').replace(/\s+/g, ' ').trim(); };
+  var UID = null, LK = function (k) { return 'acadex.lab.' + (UID || 'anon') + '.' + k; };
+
+  /* bildirim */
+  var toast = Q('[data-toast]'), toastT = Q('[data-toast-t]'), toastB = Q('[data-toast-b]'), toastA = Q('[data-toast-a]'), tT = 0, undoFn = null;
+  LY.appendChild(toast);
+  var say = function (t, undo, view, label) {
+    toastT.textContent = t; undoFn = undo || null; toastB.hidden = !undo;
+    if (view) { toastA.setAttribute('href', '#' + view); toastA.textContent = label || 'git →'; toastA.hidden = false; } else toastA.hidden = true;
+    toast.hidden = false; clearTimeout(tT); tT = setTimeout(function () { toast.hidden = true; undoFn = null; }, 6000);
+  };
+  toastB.addEventListener('click', function () { if (undoFn) undoFn(); toast.hidden = true; undoFn = null; });
+  toastA.addEventListener('click', function (e) { e.preventDefault(); toast.hidden = true; var v = (toastA.getAttribute('href') || '').slice(1); if (v === 'studylab') { if (!sec.classList.contains('active')) switchDashboardView('studylab'); openStation('pomodoro'); } else if (v && typeof switchDashboardView === 'function') switchDashboardView(v); });
+
+  /* ---------- yöntemler ---------- */
+  var M = [
+    { k: 'pomodoro', n: 'Pomodoro', st: 'saksı', c: '#E2A33B', one: '25 dakika odak, 5 dakika mola. Zamanlayıcı ilerledikçe bitkin büyür, tur bitince çiçek açar.',
+      how: ['Bir konu seç, telefonu uzağa koy.', 'Saat dolana kadar yalnızca ona çalış.', 'Molada bitkini sula; dört turdan sonra uzun mola.'], cite: 'Kaynak: Francesco Cirillo’nun 1980’lerin sonunda geliştirdiği zaman yönetimi yöntemi.' },
+    { k: 'tekrar', n: 'Aralıklı tekrar', st: 'Leitner kutusu', c: '#8A5A2B', one: 'Bildiğin kart seyrek, zorlandığın kart sık karşına çıkar. Kutu senin yerine tutulur.',
+      how: ['Bugün sırası gelen kartlar öne çıkar.', 'Bildiysen kart bir sonraki bölmeye geçer.', 'Unuttuysan başa döner, yarın yine sorulur.'], cite: 'Kaynak: Sebastian Leitner, So lernt man lernen (1972); aralıklar SM-2 kuralıyla hesaplanır.' },
+    { k: 'recall', n: 'Active Recall', st: 'kapaklı defter', c: '#2F6BFF', one: 'Cevaba bakmadan önce kendin hatırla, sonra kapağı kaldır ve kontrol et.',
+      how: ['Soruyu oku, cevabı kendin yaz.', 'Kapağı kaldır, karşılaştır.', 'Bilemediğin soru tekrar kutusuna gider.'], cite: 'Kaynak: “test etkisi” araştırmaları, ör. Roediger ve Karpicke (2006).' },
+    { k: 'feynman', n: 'Feynman tekniği', st: 'kara tahta', c: '#1E8A55', one: 'Konuyu hiç bilmeyen birine anlat; anlatamadığın yer, henüz anlamadığın yerdir.',
+      how: ['Konuyu sade cümlelerle anlat.', 'Takıldığın yeri bul; Acadia da dinlesin.', 'Kaynağa dön, daha sade yeniden yaz.'], cite: 'Adını fizikçi Richard Feynman’ın basit anlatarak öğrenme yaklaşımından alır.' },
+    { k: 'karma', n: 'Interleaving', st: 'karışık çark', c: '#C9483B', one: 'Farklı derslerin sorularını karıştırarak çöz; hangi bilginin gerektiğini seçmeyi öğrenirsin.',
+      how: ['En az iki deste seç.', 'Çarkı çevir: soru hangi desteden gelecek bilmezsin.', 'Tur sonunda hangi konuları karıştırdığını gör.'], cite: 'Kaynak: Rohrer ve Taylor (2007), karışık alıştırma (interleaved practice) etkisi.' },
+    { k: 'harita', n: 'Zihin haritası', st: 'mürekkep dalları', c: '#5B8CFF', one: 'Konuyu merkezden dallanan bir haritaya dök; bölümler arasındaki bağlar görünür olur.',
+      how: ['Merkeze konuyu koy.', 'Ana başlıkları dal, ayrıntıları yaprak yap.', 'Kendi bağlantılarını ekle, sürükleyerek düzenle.'], cite: 'Kaynak: Tony Buzan’ın 1970’lerde yaygınlaştırdığı zihin haritası yaklaşımı.' },
+    { k: 'cornell', n: 'Cornell not sistemi', st: 'üçe bölünmüş sayfa', c: '#6A4FA8', one: 'Sayfayı ipucu, not ve özet olarak böl; sonra ipuçlarıyla kendini sına.',
+      how: ['Sağa notlarını yaz.', 'Sola her not için bir ipucu sorusu koy.', 'Altta 2–3 cümlelik özet; sonra notları kapatıp sına.'], cite: 'Kaynak: Walter Pauk, How to Study in College (1962), Cornell Üniversitesi.' }
+  ];
+  var MK = {}; M.forEach(function (m, i) { m.i = i; MK[m.k] = m; });
+
+  /* istasyon çizimleri */
+  var ART = {
+    pomodoro: '<svg viewBox="0 0 200 150" class="lb-art a-pom" aria-hidden="true"><circle class="glow" cx="128" cy="44" r="20"/><path class="d d1" pathLength="1" d="M128 118 C126 100 132 90 128 76 C124 64 131 54 128 44"/><path class="d d2" pathLength="1" d="M128 98 C116 90 104 92 96 100 C106 108 120 106 128 98 Z"/><path class="d d3" pathLength="1" d="M129 78 C140 70 152 71 160 78 C151 87 138 87 129 78 Z"/><g class="fl"><path d="M128 44 C121 35 122 26 128 21 C134 26 135 35 128 44 Z"/><path d="M128 44 C121 35 122 26 128 21 C134 26 135 35 128 44 Z" transform="rotate(72 128 44)"/><path d="M128 44 C121 35 122 26 128 21 C134 26 135 35 128 44 Z" transform="rotate(144 128 44)"/><path d="M128 44 C121 35 122 26 128 21 C134 26 135 35 128 44 Z" transform="rotate(216 128 44)"/><path d="M128 44 C121 35 122 26 128 21 C134 26 135 35 128 44 Z" transform="rotate(288 128 44)"/><circle cx="128" cy="44" r="4.5"/></g><path class="pot" d="M100 118 H156 V126 H100 Z M104 126 L110 146 H146 L152 126"/><circle class="tm" cx="54" cy="96" r="32"/><path class="tw" d="M54 96 L54 72 A24 24 0 0 1 75 108 Z"/><path class="tm" d="M54 64 V58 M46 58 H62"/><path class="hand2" d="M54 96 L54 76"/></svg>',
+    tekrar: '<svg viewBox="0 0 200 150" class="lb-art a-lt" aria-hidden="true"><path class="lid" d="M24 62 L176 62 L170 44 L30 44 Z"/><path class="bx" d="M20 66 H180 V132 H20 Z"/><path class="sep" d="M52 66 V132 M84 66 V132 M116 66 V132 M148 66 V132"/><rect class="cd c1" x="26" y="54" width="20" height="28" rx="2"/><rect class="cd c2" x="58" y="58" width="20" height="28" rx="2"/><rect class="cd c3" x="90" y="60" width="20" height="28" rx="2"/><rect class="cd hop" x="58" y="54" width="20" height="28" rx="2"/><text x="36" y="124">1</text><text x="68" y="124">2</text><text x="100" y="124">3</text><text x="132" y="124">4</text><text x="164" y="124">5</text></svg>',
+    recall: '<svg viewBox="0 0 200 150" class="lb-art a-rc" aria-hidden="true"><path class="pg" d="M36 26 H164 V136 H36 Z"/><path class="ln" d="M48 48 H112 M48 64 H104 M48 84 H116 M48 100 H100 M48 118 H110"/><path class="ans" d="M124 46 H154 M124 62 H150 M124 82 H156 M124 98 H148 M124 116 H152"/><g class="cover"><path d="M120 30 H162 V132 H120 Z"/><text x="126" y="86">kapalı</text></g><path class="pen" d="M70 140 L96 112 L102 116 L76 144 Z"/></svg>',
+    feynman: '<svg viewBox="0 0 200 150" class="lb-art a-fy" aria-hidden="true"><path class="fr" d="M16 18 H184 V118 H16 Z"/><path class="bd" d="M22 24 H178 V112 H22 Z"/><path class="ch c1" pathLength="1" d="M36 48 C50 44 62 50 76 46 S104 44 118 48"/><path class="ch c2" pathLength="1" d="M36 66 C52 62 70 68 88 64 S120 62 140 66"/><path class="ch c3" pathLength="1" d="M36 86 C46 82 58 88 70 84"/><path class="q" d="M150 84 C150 76 162 76 162 84 C162 90 156 90 156 96 M156 101 V102"/><path class="tray" d="M12 118 H188 V124 H12 Z"/><path class="ck" d="M60 116 H80"/><path class="bulb" d="M166 34 C166 26 178 26 178 34 C178 39 174 40 174 44 H170 C170 40 166 39 166 34 Z"/></svg>',
+    karma: '<svg viewBox="0 0 200 150" class="lb-art a-km" aria-hidden="true"><g class="wh"><path d="M100 75 L100 19 A56 56 0 0 1 148.5 47 Z" fill="#F4DDDA"/><path d="M100 75 L148.5 47 A56 56 0 0 1 148.5 103 Z" fill="#DCE6FF"/><path d="M100 75 L148.5 103 A56 56 0 0 1 100 131 Z" fill="#D9EFE3"/><path d="M100 75 L100 131 A56 56 0 0 1 51.5 103 Z" fill="#FFF0BF"/><path d="M100 75 L51.5 103 A56 56 0 0 1 51.5 47 Z" fill="#E7E1F4"/><path d="M100 75 L51.5 47 A56 56 0 0 1 100 19 Z" fill="#E4E8F1"/><circle cx="100" cy="75" r="56" class="rim"/></g><circle cx="100" cy="75" r="7" class="hub"/><path class="ptr" d="M100 8 L92 -4 H108 Z" transform="translate(0 6)"/><path class="stand" d="M84 132 L76 146 H124 L116 132"/></svg>',
+    harita: '<svg viewBox="0 0 200 150" class="lb-art a-mm" aria-hidden="true"><path class="br b1" pathLength="1" d="M100 75 C80 70 66 52 44 46"/><path class="br b2" pathLength="1" d="M100 75 C122 66 134 48 158 42"/><path class="br b3" pathLength="1" d="M100 75 C82 84 66 102 42 108"/><path class="br b4" pathLength="1" d="M100 75 C120 88 136 102 160 110"/><path class="lf l1" pathLength="1" d="M44 46 C34 38 28 30 22 26"/><path class="lf l2" pathLength="1" d="M158 42 C168 34 174 26 182 22"/><path class="lf l3" pathLength="1" d="M160 110 C170 116 176 124 184 128"/><ellipse class="ctr" cx="100" cy="75" rx="22" ry="14"/><circle class="nod" cx="44" cy="46" r="5"/><circle class="nod" cx="158" cy="42" r="5"/><circle class="nod" cx="42" cy="108" r="5"/><circle class="nod" cx="160" cy="110" r="5"/></svg>',
+    cornell: '<svg viewBox="0 0 200 150" class="lb-art a-cn" aria-hidden="true"><path class="pg" d="M34 14 H166 V140 H34 Z"/><path class="hd" d="M34 30 H166"/><path class="vl" d="M78 30 V110"/><path class="hz" d="M34 110 H166"/><path class="ln" d="M86 46 H154 M86 60 H148 M86 74 H156 M86 88 H144"/><path class="cue" d="M42 50 H70 M42 78 H66"/><path class="sm" d="M42 122 H150 M42 132 H118"/><path class="flap" d="M80 32 H164 V108 H80 Z"/></svg>'
+  };
+
+  /* ---------- veri: desteler, tekrar kayıtları, oturumlar, çalışmalar ---------- */
+  var DECKS = null, decksP = null, CONF = null, SESS = [], OK = { sess: true, items: true }, sessReady = false;
+  var deckName = function (d) { return d ? baseName(d.documents && d.documents.file_name) + (d.course_tag ? ' · ' + d.course_tag : '') : ''; };
+  var deckById = function (id) { var r = null; (DECKS || []).forEach(function (d) { if (String(d.id) === String(id)) r = d; }); return r; };
+  var loadDecks = function (force) {
+    if (DECKS && !force) return Promise.resolve(DECKS); if (decksP) return decksP;
+    var c = sbc(), u = me(); if (!c || !u) return Promise.resolve([]);
+    decksP = c.from('study_cards').select('*, documents(file_name)').eq('user_id', u.id).order('created_at', { ascending: false }).limit(60).then(function (r) {
+      decksP = null; if (r.error) { console.warn('acadex-lab: desteler', r.error); DECKS = DECKS || []; return DECKS; } DECKS = r.data || []; return DECKS;
+    }, function () { decksP = null; DECKS = DECKS || []; return DECKS; });
+    return decksP;
+  };
+  var loadConf = function () {
+    if (CONF) return Promise.resolve(CONF);
+    var m = lsafe(function () { return libraryConfidenceMap; }, null);
+    if (m && Object.keys(m).length) { CONF = m; return Promise.resolve(CONF); }
+    if (typeof fetchAllConfidenceForUser === 'function') return fetchAllConfidenceForUser().then(function (x) { CONF = x || {}; lsafe(function () { if (!Object.keys(libraryConfidenceMap || {}).length) libraryConfidenceMap = CONF; }); return CONF; }, function () { CONF = {}; return CONF; });
+    CONF = {}; return Promise.resolve(CONF);
+  };
+  var keyOf = function (item, type, i) { return typeof getReviewItemKey === 'function' ? getReviewItemKey(item, type, i) : type + ':' + i; };
+  var itemsOf = function (deck) {
+    if (!deck) return [];
+    var out = [], src = baseName(deck.documents && deck.documents.file_name), cm = CONF || {}, now = Date.now();
+    arr(deck.key_terms).forEach(function (t, i) { if (!t || !(t.term && t.definition)) return; out.push({ id: deck.id + '|t|' + i, deck: deck.id, type: 'terms', key: keyOf(t, 'terms', i), front: stripMd(t.term), back: stripMd(t.definition), q: stripMd(t.term) + ' nedir?', src: src }); });
+    arr(deck.quiz_questions).forEach(function (q, i) {
+      if (!q || !q.question) return; var ans = q.answer != null ? String(q.answer) : '';
+      if (/^[A-Da-d]$/.test(ans) && Array.isArray(q.options)) { var o = q.options['ABCD'.indexOf(ans.toUpperCase())]; if (o) ans = o; }
+      out.push({ id: deck.id + '|q|' + i, deck: deck.id, type: 'quiz', key: keyOf(q, 'quiz', i), front: stripMd(q.question), back: stripMd(ans) + (q.explanation ? ' — ' + stripMd(q.explanation) : ''), q: stripMd(q.question), src: src });
+    });
+    arr(deck.cloze_cards).forEach(function (c, i) { if (!c || !c.prompt) return; var full = stripMd(c.full || c.sentence || c.answer || ''); out.push({ id: deck.id + '|c|' + i, deck: deck.id, type: 'cloze', key: keyOf(c, 'cloze', i), front: stripMd(c.prompt), back: full || stripMd(c.answer || ''), q: stripMd(c.prompt), src: src }); });
+    out.forEach(function (c) { var r = cm[c.deck + ':' + c.key]; c.conf = r || null; c.box = !r ? 1 : Math.min(5, 1 + (Number(r.repetitions) || 0)); c.due = !r || !r.next_review_at || new Date(r.next_review_at).getTime() <= now; });
+    return out;
+  };
+  var allItems = function (deckId) { return deckId ? itemsOf(deckById(deckId)) : (DECKS || []).reduce(function (a, d) { return a.concat(itemsOf(d)); }, []); };
+  var record = function (c, knew) {
+    var u = me(), cl = sbc(); if (!u || !cl || typeof computeSm2 !== 'function') return Promise.resolve();
+    var s = computeSm2(c.conf, knew ? 'good' : 'again');
+    var row = { user_id: u.id, study_card_id: c.deck, item_key: c.key, card_type: c.type, rating: s.rating, last_rating: s.last_rating, ease_factor: s.ease_factor, interval_days: s.interval_days, repetitions: s.repetitions, lapses: s.lapses, next_review_at: s.next_review_at, updated_at: new Date().toISOString() };
+    var rec = { study_card_id: c.deck, item_key: c.key, next_review_at: s.next_review_at, ease_factor: s.ease_factor, repetitions: s.repetitions, interval_days: s.interval_days, lapses: s.lapses };
+    (CONF = CONF || {})[c.deck + ':' + c.key] = rec; lsafe(function () { libraryConfidenceMap[c.deck + ':' + c.key] = rec; });
+    c.conf = rec; c.box = Math.min(5, 1 + (Number(rec.repetitions) || 0)); c.due = new Date(rec.next_review_at).getTime() <= Date.now();
+    return cl.from('card_item_confidence').upsert(row, { onConflict: 'user_id,study_card_id,item_key' }).then(function (r) { if (r.error) { console.warn('acadex-lab: tekrar', r.error); say('Bu cevap kaydedilemedi; bağlantını kontrol et.'); } });
+  };
+
+  var loadSess = function () {
+    var c = sbc(), u = me(); if (!c || !u) return Promise.resolve(SESS);
+    var since = new Date(Date.now() - 35 * 864e5).toISOString();
+    return c.from('study_lab_sessions').select('id, method, minutes, card_id, detail, created_at').eq('user_id', u.id).gte('created_at', since).order('created_at', { ascending: false }).limit(500).then(function (r) {
+      if (r.error) { if (MISSING(r.error)) OK.sess = false; else console.warn('acadex-lab: oturumlar', r.error); SESS = G(LK('sess'), []); }
+      else { OK.sess = true; SESS = (r.data || []).map(function (x) { return { id: x.id, method: x.method, minutes: Number(x.minutes) || 0, card: x.card_id, at: Date.parse(x.created_at) || Date.now(), detail: x.detail || {} }; }); }
+      sessReady = true; return SESS;
+    }, function () { SESS = G(LK('sess'), []); sessReady = true; return SESS; });
+  };
+  var logSession = function (method, minutes, cardId, detail) {
+    minutes = Math.max(1, Math.min(240, Math.round(minutes)));
+    var s = { id: 'l' + uid(), method: method, minutes: minutes, card: cardId || null, at: Date.now(), detail: detail || {} };
+    SESS.unshift(s); paintLog(); paintStations();
+    var c = sbc(), u = me();
+    var local = function () { var L = G(LK('sess'), []); L.unshift(s); S(LK('sess'), L.slice(0, 600)); };
+    if (!c || !u || !OK.sess) { local(); return; }
+    var row = { user_id: u.id, method: method, minutes: minutes, detail: s.detail };
+    if (/^[0-9a-f-]{36}$/i.test(String(cardId || ''))) row.card_id = cardId;
+    c.from('study_lab_sessions').insert(row).select('id').single().then(function (r) {
+      if (r.error) { if (MISSING(r.error)) { OK.sess = false; } else console.warn('acadex-lab: oturum', r.error); local(); paintLog(); return; }
+      s.id = r.data.id;
+    });
+  };
+  var ITEMS = {}, itemT = {};
+  var getItem = function (kind, ref) {
+    var k = kind + ':' + ref; if (ITEMS[k] !== undefined) return Promise.resolve(ITEMS[k]);
+    var c = sbc(), u = me(), loc = G(LK('item.' + k), null);
+    if (!c || !u || !OK.items) { ITEMS[k] = loc; return Promise.resolve(loc); }
+    return c.from('study_lab_items').select('data, updated_at').eq('user_id', u.id).eq('kind', kind).eq('ref', String(ref)).limit(1).then(function (r) {
+      if (r.error) { if (MISSING(r.error)) OK.items = false; else console.warn('acadex-lab: çalışma', r.error); ITEMS[k] = loc; return loc; }
+      var d = r.data && r.data[0] ? r.data[0].data : null;
+      if (loc && (!d || (loc._at || 0) > Date.parse(r.data[0].updated_at || 0))) d = loc;
+      ITEMS[k] = d; return d;
+    }, function () { ITEMS[k] = loc; return loc; });
+  };
+  var putItem = function (kind, ref, title, data) {
+    var k = kind + ':' + ref; data._at = Date.now(); ITEMS[k] = data; S(LK('item.' + k), data);
+    clearTimeout(itemT[k]); itemT[k] = setTimeout(function () {
+      var c = sbc(), u = me(); if (!c || !u || !OK.items) return;
+      c.from('study_lab_items').upsert({ user_id: u.id, kind: kind, ref: String(ref), title: cut(title || '', 140), data: data, updated_at: new Date().toISOString() }, { onConflict: 'user_id,kind,ref' }).then(function (r) {
+        if (r.error) { if (MISSING(r.error)) OK.items = false; else console.warn('acadex-lab: çalışma kaydı', r.error); }
+      });
+    }, 900);
+  };
+  var acadia = function (message, cardId) {
+    var c = sbc(); if (!c || !c.functions) return Promise.reject(new Error('bağlantı yok'));
+    var body = { message: message, history: [], language: 'tr' }; if (cardId) body.studyCardId = cardId;
+    return Promise.race([c.functions.invoke('acadia-assistant', { body: body }), new Promise(function (_, rej) { setTimeout(function () { rej(new Error('zaman aşımı')); }, 45000); })]).then(function (r) {
+      if (r.error) throw r.error; var d = r.data; if (typeof d === 'string') { try { d = JSON.parse(d); } catch (e) { d = { reply: d }; } }
+      if (!d || !d.reply) throw new Error((d && d.error) || 'boş yanıt'); return String(d.reply).replace(/```acadia-action[\s\S]*?```/g, '').trim();
+    });
+  };
+
+  /* ---------- tezgâh ---------- */
+  var stationsEl = Q('[data-stations]');
+  var weekMin = function (k) { var mon = monday(); return SESS.filter(function (s) { return (!k || s.method === k) && s.at >= mon; }).reduce(function (a, s) { return a + s.minutes; }, 0); };
+  var monday = function () { var d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); };
+  var todayStart = function () { var d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); };
+  var metaOf = function (m) {
+    if (m.k === 'pomodoro') { if (POM.phase !== 'idle') return (POM.phase === 'focus' ? 'odakta · ' : 'molada · ') + mmss(pomLeft()); var n = SESS.filter(function (s) { return s.method === 'pomodoro' && s.at >= todayStart(); }).length; return n ? 'bugün ' + n + ' tur · ' + n + ' çiçek' : 'bugün henüz tur yok'; }
+    if (m.k === 'tekrar' && DECKS && CONF) { var due = allItems('').filter(function (c) { return c.due; }).length; return due ? due + ' kart bugün sırada' : (DECKS.length ? 'bugünlük kutu boş' : 'önce bir özet çıkar'); }
+    var w = weekMin(m.k); return w ? 'bu hafta ' + dk(w) : 'henüz denemedin';
+  };
+  var paintStations = function () {
+    if (!stationsEl.children.length) {
+      stationsEl.innerHTML = M.map(function (m, i) {
+        return '<li class="lb-st s-' + m.k + '" style="--mc:' + m.c + ';--r:' + (((i * 37) % 7) - 3) * 0.35 + 'deg;--i:' + i + '"><button type="button" class="lb-stb" data-open="' + m.k + '" aria-describedby="lb-d-' + m.k + '">' +
+          '<span class="lb-art-w">' + ART[m.k] + '</span><span class="lb-tag hand">' + X(m.st) + '</span>' +
+          '<span class="lb-no mono">' + p2(i + 1) + (i > 3 ? ' · yeni' : '') + '</span><strong class="disp">' + X(m.n) + '</strong><span class="lb-one" id="lb-d-' + m.k + '">' + X(m.one) + '</span>' +
+          '<span class="lb-meta hand" data-meta="' + m.k + '"></span><span class="lb-go">istasyonu aç →</span></button></li>';
+      }).join('');
+    }
+    M.forEach(function (m) { var e = stationsEl.querySelector('[data-meta="' + m.k + '"]'); if (e) e.textContent = metaOf(m); });
+    var t = SESS.filter(function (s) { return s.at >= todayStart(); }).reduce(function (a, s) { return a + s.minutes; }, 0);
+    Q('[data-today]').textContent = t ? 'bugün ' + dk(t) + ' deney' : '';
+  };
+  stationsEl.addEventListener('click', function (e) { var b = e.target.closest('[data-open]'); if (b) openStation(b.getAttribute('data-open')); });
+
+  /* ---------- deney defteri ---------- */
+  var DAYS = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+  var paintLog = function () {
+    Q('[data-logsrc]').textContent = OK.sess ? 'hesabına kaydediliyor' : 'yalnızca bu tarayıcıda (tablo kurulmamış)';
+    var mon = monday(), cols = [], max = 30;
+    for (var i = 0; i < 7; i++) { var a = mon + i * 864e5, b = a + 864e5, per = {}; SESS.forEach(function (s) { if (s.at >= a && s.at < b) per[s.method] = (per[s.method] || 0) + s.minutes; }); var tot = 0; for (var k in per) tot += per[k]; max = Math.max(max, tot); cols.push({ per: per, tot: tot, today: ymd(a) === ymd(Date.now()) }); }
+    Q('[data-week]').innerHTML = cols.map(function (c, i) {
+      var segs = M.filter(function (m) { return c.per[m.k]; }).map(function (m) { return '<i style="height:' + (c.per[m.k] / max * 100).toFixed(1) + '%;background:' + m.c + '" title="' + X(m.n + ': ' + dk(c.per[m.k])) + '"></i>'; }).join('');
+      return '<div class="lb-day' + (c.today ? ' now' : '') + '"><span class="lb-bar" role="img" aria-label="' + DAYS[i] + ': ' + (c.tot ? dk(c.tot) : 'boş') + '">' + segs + '</span><b>' + DAYS[i] + '</b><small>' + (c.tot ? dk(c.tot) : '') + '</small></div>';
+    }).join('');
+    var wk = weekMin(''); Q('[data-weekt]').textContent = wk ? 'bu hafta toplam ' + dk(wk) + '.' : 'bu hafta defter boş. bir istasyon aç, ilk deneyini yaz.';
+    var wmax = Math.max.apply(null, M.map(function (m) { return weekMin(m.k); }).concat([1]));
+    Q('[data-per]').innerHTML = M.map(function (m) {
+      var w = weekMin(m.k), n = SESS.filter(function (s) { return s.method === m.k && s.at >= mon; }).length;
+      return '<li><button type="button" data-open="' + m.k + '"><i class="dot" style="background:' + m.c + '"></i><span class="nm">' + X(m.n) + '</span><span class="v mono">' + (w ? dk(w) : '—') + '</span><span class="br"><i style="width:' + (w / wmax * 100).toFixed(1) + '%;background:' + m.c + '"></i></span><small>' + (n ? n + ' oturum' : 'denenmedi') + '</small></button></li>';
+    }).join('');
+    var rec = SESS.slice(0, 8);
+    Q('[data-recent]').innerHTML = rec.length ? rec.map(function (s) { var m = MK[s.method] || { n: s.method, c: '#6A7593' }, d = s.card && deckById(s.card); return '<li><i class="dot" style="background:' + m.c + '"></i><span><b>' + X(m.n) + '</b> · ' + dk(s.minutes) + (d ? ' · ' + X(cut(deckName(d), 34)) : '') + (s.detail && s.detail.score ? ' · ' + X(s.detail.score) : '') + '</span><time>' + ago(s.at) + '</time></li>'; }).join('') : '<li class="none hand">henüz deney yok.</li>';
+  };
+  Q('[data-per]').addEventListener('click', function (e) { var b = e.target.closest('[data-open]'); if (b) openStation(b.getAttribute('data-open')); });
+  Q('[data-golog]').addEventListener('click', function () { if (cur) closeStation(); setTimeout(function () { var l = document.getElementById('lb-log'); if (l) l.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' }); }, 30); });
+
+  /* ---------- istasyon aç / kapa ---------- */
+  var benchEl = Q('[data-bench]'), workEl = Q('[data-work]'), stage = Q('[data-stage]'), srcSel = Q('[data-src]');
+  var cur = null, tool = null, openedAt = 0, acted = false;
+  var touch = function () { acted = true; };
+  var flushTime = function () {
+    if (!cur || cur === 'pomodoro' || !acted || !openedAt) return;
+    var m = (Date.now() - openedAt) / 60000; if (m >= 1) logSession(cur, m, srcSel.value || null, tool && tool.detail ? tool.detail() : {});
+    openedAt = Date.now(); acted = false;
+  };
+  var fillSrc = function (k) {
+    var D = DECKS || [], last = G(LK('src'), ''), allOk = k === 'tekrar' || k === 'recall' || k === 'pomodoro';
+    var opts = (allOk ? ['<option value="">' + (k === 'pomodoro' ? 'serbest çalışma' : 'tüm destelerim') + '</option>'] : []).concat(D.map(function (d) { return '<option value="' + X(d.id) + '">' + X(cut(deckName(d), 60)) + '</option>'; }));
+    srcSel.innerHTML = opts.join('') || '<option value="">özetin yok</option>';
+    srcSel.disabled = !D.length && !allOk;
+    if (last && deckById(last)) srcSel.value = last; else if (!allOk && D[0]) srcSel.value = D[0].id;
+    srcSel.closest('.lb-srcl').hidden = k === 'karma';
+  };
+  var noDecks = function () { return '<div class="lb-empty"><b class="hand">önce bir özet lazım</b><p>Bu istasyon senin özetlerinle çalışır. Belgelerim’e bir belge yükleyip özetlediğinde burada kendi konularınla deneyebilirsin.</p><button type="button" class="btn btn-dark" data-gov="docs">Belgelerim’e git</button></div>'; };
+  var openStation = function (k) {
+    var m = MK[k]; if (!m) return;
+    if (cur) closeStation(true);
+    cur = k; openedAt = Date.now(); acted = false;
+    benchEl.hidden = true; workEl.hidden = false; workEl.setAttribute('data-m', k); workEl.style.setProperty('--mc', m.c);
+    Q('[data-wn]').textContent = p2(m.i + 1) + ' · ' + m.st; Q('[data-wtitle]').textContent = m.n;
+    Q('[data-how]').innerHTML = '<ol>' + m.how.map(function (h, i) { return '<li><b class="mono">' + (i + 1) + '</b>' + X(h) + '</li>'; }).join('') + '</ol>';
+    Q('[data-cite]').textContent = m.cite;
+    stage.innerHTML = '<p class="lb-wait hand">istasyon hazırlanıyor…</p>';
+    window.scrollTo && sec.scrollIntoView && sec.scrollIntoView({ behavior: 'auto', block: 'start' });
+    Q('[data-wtitle]').focus({ preventScroll: true });
+    Promise.all([loadDecks(), loadConf()]).then(function () {
+      if (cur !== k) return; fillSrc(k);
+      tool = TOOLS[k](stage) || null; paintStations();
+    });
+  };
+  var closeStation = function (quiet) {
+    flushTime(); if (tool && tool.close) tool.close(); tool = null;
+    var was = cur; cur = null; workEl.hidden = true; benchEl.hidden = false; stage.innerHTML = '';
+    paintStations(); paintLog();
+    if (!quiet && was) { var b = stationsEl.querySelector('[data-open="' + was + '"]'); if (b) b.focus({ preventScroll: false }); }
+  };
+  Q('[data-back]').addEventListener('click', function () { closeStation(); });
+  srcSel.addEventListener('change', function () { flushTime(); S(LK('src'), srcSel.value); if (tool && tool.onSrc) tool.onSrc(srcSel.value); });
+  root.addEventListener('click', function (e) { var g = e.target.closest('[data-gov]'); if (g && typeof switchDashboardView === 'function') switchDashboardView(g.getAttribute('data-gov')); });
+
+  /* ================= 01 POMODORO · saksı ================= */
+  var POM = { phase: 'idle', endAt: 0, left: 1500, round: 0, focus: 25, brk: 5, lng: 15, setN: 4, src: '', paused: false, pausedLeft: 0, startAt: 0 };
+  var FLC = ['#FFE27A', '#9DB8FF', '#F4A9A0', '#A8DDBE', '#E7C6F2'];
+  var pomSave = function () { S(LK('pom'), POM); };
+  var pomTotal = function () { return (POM.phase === 'break' ? (POM.round % POM.setN === 0 ? POM.lng : POM.brk) : POM.focus) * 60; };
+  var pomLeft = function () { if (POM.phase === 'idle') return POM.focus * 60; if (POM.paused) return POM.pausedLeft; return Math.max(0, (POM.endAt - Date.now()) / 1000); };
+  var beep = function () {
+    try { var A = window.AudioContext || window.webkitAudioContext; if (!A) return; var ac = beep.ac || (beep.ac = new A()), t = ac.currentTime;
+      [0, .22].forEach(function (d, i) { var o = ac.createOscillator(), g = ac.createGain(); o.type = 'sine'; o.frequency.value = i ? 880 : 660; g.gain.setValueAtTime(.0001, t + d); g.gain.exponentialRampToValueAtTime(.18, t + d + .02); g.gain.exponentialRampToValueAtTime(.0001, t + d + .35); o.connect(g); g.connect(ac.destination); o.start(t + d); o.stop(t + d + .4); }); } catch (e) {}
+  };
+  var titleOrig = document.title, titleT = 0;
+  var flashTitle = function (t) { if (!document.hidden) return; document.title = t; clearInterval(titleT); titleT = setInterval(function () { if (!document.hidden) { document.title = titleOrig; clearInterval(titleT); } }, 1000); };
+  var pomStart = function (phase) {
+    POM.phase = phase; POM.paused = false; POM.startAt = Date.now(); POM.endAt = Date.now() + pomTotal() * 1000; pomSave(); pomTick();
+  };
+  var pomComplete = function () {
+    if (POM.phase === 'focus') {
+      POM.round++; logSession('pomodoro', POM.focus, POM.src || null, { round: POM.round });
+      beep(); var long = POM.round % POM.setN === 0;
+      say(POM.round + '. tur bitti, çiçeğin açtı. ' + (long ? 'Uzun mola: ' + POM.lng + ' dk.' : POM.brk + ' dk mola; bitkini sula.'), null, cur === 'pomodoro' ? null : 'studylab', 'saksıya git →');
+      flashTitle('🌼 Tur bitti · Acadex'); pomStart('break');
+    } else {
+      beep(); POM.phase = 'idle'; POM.paused = false; pomSave(); say('Mola bitti. Hazır olduğunda yeni turu başlat.', null, cur === 'pomodoro' ? null : 'studylab', 'saksıya git →'); flashTitle('⏰ Mola bitti · Acadex');
+    }
+  };
+  var sideBadge = function () {
+    var a = document.querySelector('#side-studylab a'); if (!a) return; var b = a.querySelector('.lb-sbadge');
+    if (POM.phase === 'idle') { if (b) b.remove(); return; }
+    if (!b) { b = document.createElement('span'); b.className = 'lb-sbadge'; a.appendChild(b); }
+    b.textContent = (POM.paused ? '❚❚ ' : '') + mmss(pomLeft()); b.classList.toggle('brk', POM.phase === 'break');
+  };
+  var pomTick = function () {
+    if (POM.phase !== 'idle' && !POM.paused && Date.now() >= POM.endAt) { pomComplete(); return; }
+    sideBadge(); if (pomUI) pomUI.paint();
+    var e = stationsEl.querySelector('[data-meta="pomodoro"]'); if (e) e.textContent = metaOf(MK.pomodoro);
+  };
+  setInterval(pomTick, 1000);
+  var pomUI = null;
+  var plantSVG = function () {
+    var L = function (cls, d, extra) { return '<path class="pl ' + cls + '" pathLength="1" d="' + d + '"' + (extra || '') + '/>'; };
+    var pet = ''; for (var i = 0; i < 6; i++) pet += '<path class="pt" d="M150 92 C138 76 140 58 150 50 C160 58 162 76 150 92 Z" transform="rotate(' + i * 60 + ' 150 92)"/>';
+    return '<svg class="lb-plant" viewBox="0 0 300 380" role="img" aria-label="Saksıdaki bitki: odak süresi ilerledikçe büyür, tur bitince çiçek açar." data-plant="">' +
+      '<circle class="sun" cx="150" cy="92" r="46"/>' +
+      L('stem', 'M150 300 C147 270 156 250 150 222 C143 196 157 172 151 146 C147 126 153 110 150 92') +
+      L('lf1', 'M150 262 C128 248 104 250 88 266 C106 280 132 278 150 262 Z') + L('lv1', 'M150 262 C130 263 108 264 90 266', ' class="pl lv1 thin"') +
+      L('lf2', 'M152 214 C176 196 202 198 218 212 C200 228 172 228 152 214 Z') + L('lv2', 'M152 214 C172 212 196 212 216 212') +
+      L('lf3', 'M151 166 C130 152 108 154 96 166 C112 180 134 180 151 166 Z') + L('lv3', 'M151 166 C132 166 114 166 98 166') +
+      L('bud', 'M150 92 C142 84 143 72 150 66 C157 72 158 84 150 92 Z') +
+      '<g class="bloom">' + pet + '<circle class="ctr" cx="150" cy="92" r="9"/></g>' +
+      '<path class="soil" d="M90 300 H210 V312 H90 Z"/><path class="pot" d="M84 300 H216 V316 H84 Z M92 316 L104 372 H196 L208 316"/><path class="pot thin" d="M180 326 L172 362 M190 326 L184 352"/>' +
+      '<g class="can"><path d="M222 196 H262 V232 H222 Z"/><path d="M222 204 L192 186 L188 192 L216 214"/><path d="M262 204 C276 204 278 224 262 226"/><path class="drop" d="M186 196 C184 202 188 204 190 200 Z"/><path class="drop d2" d="M178 206 C176 212 180 214 182 210 Z"/><path class="drop d3" d="M184 214 C182 220 186 222 188 218 Z"/></g>' +
+      '</svg>';
+  };
+  var seg = function (g, a, b) { return Math.max(0, Math.min(1, (g - a) / (b - a))); };
+  TOOLS_POM = function (st) {
+    var saved = G(LK('pomset'), null); if (saved) { POM.focus = saved.focus || 25; POM.brk = saved.brk || 5; POM.lng = saved.lng || 15; POM.setN = saved.setN || 4; }
+    st.innerHTML = '<div class="lb-pom">' +
+      '<div class="lb-pom-l">' +
+      '<div class="lb-clock"><svg viewBox="0 0 240 240" aria-hidden="true"><circle class="face" cx="120" cy="120" r="104"/><circle class="track" cx="120" cy="120" r="88"/><circle class="arc" data-arc="" cx="120" cy="120" r="88" pathLength="1" transform="rotate(-90 120 120)"/>' +
+      (function () { var t = ''; for (var i = 0; i < 60; i++) { var a = i / 60 * Math.PI * 2, r1 = i % 5 ? 98 : 94; t += '<line x1="' + (120 + Math.sin(a) * r1).toFixed(1) + '" y1="' + (120 - Math.cos(a) * r1).toFixed(1) + '" x2="' + (120 + Math.sin(a) * 103).toFixed(1) + '" y2="' + (120 - Math.cos(a) * 103).toFixed(1) + '" class="tk' + (i % 5 ? '' : ' big') + '"/>'; } return t; })() +
+      '</svg><div class="lb-clock-in"><span class="lb-ph hand" data-ph=""></span><output class="lb-time mono" data-time="" aria-live="off"></output><span class="lb-rnd hand" data-rnd=""></span></div></div>' +
+      '<div class="lb-pctl"><button type="button" class="btn btn-dark" data-pgo=""></button><button type="button" class="hbtn" data-pskip="">atla</button><button type="button" class="hbtn" data-preset="">sıfırla</button></div>' +
+      '<p class="lb-dots" data-dots="" aria-live="polite"></p>' +
+      '<details class="lb-pset"><summary class="hand">süreleri ayarla</summary><div class="lb-psrow">' +
+      '<label>odak <select data-pf=""><option>15</option><option>20</option><option>25</option><option>30</option><option>45</option><option>50</option></select> dk</label>' +
+      '<label>mola <select data-pb=""><option>3</option><option>5</option><option>10</option></select> dk</label>' +
+      '<label>uzun mola <select data-pl=""><option>10</option><option>15</option><option>20</option><option>30</option></select> dk</label>' +
+      '<label>her <select data-pn=""><option>2</option><option>3</option><option>4</option><option>5</option></select> turda bir</label></div></details>' +
+      '</div>' +
+      '<div class="lb-pom-r"><div class="lb-window" aria-hidden="true"><i></i><i></i></div>' + plantSVG() + '<p class="lb-pcap hand" data-pcap=""></p>' +
+      '<div class="lb-sill"><span class="lb-k">bugünün pencere önü</span><ol class="lb-pots" data-pots=""></ol></div></div>' +
+      '</div>';
+    var plant = Q('[data-plant]', st), arc = Q('[data-arc]', st);
+    var sel = function (a, v) { var s = Q(a, st); s.value = String(v); return s; };
+    var setSel = function () { sel('[data-pf]', POM.focus); sel('[data-pb]', POM.brk); sel('[data-pl]', POM.lng); sel('[data-pn]', POM.setN); };
+    setSel();
+    QA('.lb-psrow select', st).forEach(function (s) { s.addEventListener('change', function () {
+      POM.focus = +Q('[data-pf]', st).value; POM.brk = +Q('[data-pb]', st).value; POM.lng = +Q('[data-pl]', st).value; POM.setN = +Q('[data-pn]', st).value;
+      S(LK('pomset'), { focus: POM.focus, brk: POM.brk, lng: POM.lng, setN: POM.setN }); pomSave(); paint();
+    }); });
+    if (POM.phase === 'idle') { srcSel.value = POM.src || srcSel.value; } else srcSel.value = POM.src;
+    var paint = function () {
+      var left = pomLeft(), tot = pomTotal(), g = POM.phase === 'focus' ? 1 - left / tot : POM.phase === 'break' ? 1 : 0;
+      Q('[data-time]', st).textContent = mmss(left);
+      Q('[data-ph]', st).textContent = POM.phase === 'focus' ? (POM.paused ? 'durakladı' : 'odak') : POM.phase === 'break' ? (POM.round % POM.setN === 0 ? 'uzun mola' : 'mola') : 'hazır';
+      Q('[data-rnd]', st).textContent = (POM.round % POM.setN) + (POM.phase === 'focus' ? 1 : 0) + '. tur / ' + POM.setN;
+      arc.style.strokeDashoffset = POM.phase === 'idle' ? 1 : (left / tot).toFixed(4);
+      arc.classList.toggle('brk', POM.phase === 'break'); arc.classList.toggle('idle', POM.phase === 'idle');
+      var go = Q('[data-pgo]', st); go.textContent = POM.phase === 'idle' ? 'odağı başlat' : POM.paused ? 'devam et' : 'duraklat';
+      Q('[data-pskip]', st).disabled = POM.phase === 'idle';
+      var parts = [['stem', 0, .32], ['lf1', .18, .38], ['lv1', .3, .42], ['lf2', .36, .56], ['lv2', .48, .6], ['lf3', .54, .74], ['lv3', .66, .78], ['bud', .74, .94]];
+      parts.forEach(function (p) { var el = plant.querySelector('.' + p[0]); if (el) el.style.strokeDashoffset = (1 - seg(g, p[1], p[2])).toFixed(3); });
+      var bl = plant.querySelector('.bloom'); bl.style.setProperty('--b', POM.phase === 'break' ? 1 : seg(g, .94, 1).toFixed(3)); bl.style.setProperty('--fc', FLC[((POM.phase === 'break' ? POM.round - 1 : POM.round) % FLC.length + FLC.length) % FLC.length]);
+      plant.querySelector('.sun').style.opacity = (0.15 + g * 0.6).toFixed(2);
+      plant.classList.toggle('water', POM.phase === 'break'); plant.classList.toggle('grow', POM.phase === 'focus' && !POM.paused);
+      Q('[data-pcap]', st).textContent = POM.phase === 'focus' ? (g < .3 ? 'filiz toprağı itiyor…' : g < .75 ? 'yapraklar açılıyor' : 'tomurcuk geldi, az kaldı') : POM.phase === 'break' ? 'çiçek açtı. mola: bitkini sula, gözlerini dinlendir.' : 'tohum toprakta. odağı başlatınca büyümeye başlar.';
+      var dots = ''; for (var i = 0; i < POM.setN; i++) dots += '<i class="' + (i < POM.round % POM.setN || (POM.phase === 'break' && POM.round % POM.setN === 0 && POM.round) ? 'on' : '') + '" style="--fc:' + FLC[i % FLC.length] + '"></i>';
+      Q('[data-dots]', st).innerHTML = dots;
+      var today = SESS.filter(function (s) { return s.method === 'pomodoro' && s.at >= todayStart(); }).reverse();
+      var pots = Q('[data-pots]', st), want = today.length;
+      if (pots.dataset.n !== String(want)) {
+        pots.dataset.n = String(want);
+        pots.innerHTML = want ? today.map(function (s, i) { var d = s.card && deckById(s.card); return '<li title="' + X((i + 1) + '. tur' + (d ? ' · ' + deckName(d) : '')) + '"><svg viewBox="0 0 40 52" aria-hidden="true"><path class="st" d="M20 40 C19 32 21 26 20 18"/><path class="lf" d="M20 32 C14 28 10 29 8 32 C12 35 17 35 20 32 Z"/>' + (function () { var p = ''; for (var j = 0; j < 5; j++) p += '<path class="pt" style="fill:' + FLC[i % FLC.length] + '" d="M20 18 C16 13 17 8 20 6 C23 8 24 13 20 18 Z" transform="rotate(' + j * 72 + ' 20 18)"/>'; return p; })() + '<circle cx="20" cy="18" r="2.6" class="c"/><path class="pot" d="M10 40 H30 L27 51 H13 Z"/></svg></li>'; }).join('') : '<li class="none hand">ilk turunu bitir, pencere önüne ilk saksı gelsin.</li>';
+      }
+    };
+    Q('[data-pgo]', st).addEventListener('click', function () {
+      touch();
+      if (POM.phase === 'idle') { POM.src = srcSel.value; pomStart('focus'); beep(); return; }
+      if (POM.paused) { POM.paused = false; POM.endAt = Date.now() + POM.pausedLeft * 1000; }
+      else { POM.paused = true; POM.pausedLeft = pomLeft(); }
+      pomSave(); pomTick();
+    });
+    Q('[data-pskip]', st).addEventListener('click', function () {
+      if (POM.phase === 'focus') { var done = (Date.now() - POM.startAt) / 60000; if (done >= 5) logSession('pomodoro', done, POM.src || null, { partial: true }); POM.phase = 'idle'; POM.paused = false; pomSave(); say('Tur yarıda bırakıldı' + (done >= 5 ? '; çalıştığın ' + Math.round(done) + ' dakika deftere yazıldı.' : '.')); }
+      else if (POM.phase === 'break') { POM.phase = 'idle'; POM.paused = false; pomSave(); }
+      pomTick();
+    });
+    Q('[data-preset]', st).addEventListener('click', function () { var was = JSON.parse(JSON.stringify(POM)); POM.phase = 'idle'; POM.paused = false; POM.round = 0; pomSave(); pomTick(); say('Zamanlayıcı sıfırlandı.', function () { POM = was; pomSave(); pomTick(); }); });
+    pomUI = { paint: paint }; paint();
+    return { close: function () { pomUI = null; }, onSrc: function (v) { if (POM.phase === 'idle') POM.src = v; } };
+  };
+
+  /* ================= 02 ARALIKLI TEKRAR · Leitner kutusu ================= */
+  var BOXL = ['her gün', '3 günde bir', 'haftada bir', '2 haftada bir', 'ayda bir'];
+  var TOOLS_LT = function (st) {
+    var queue = [], idx = 0, flipped = false, score = { y: 0, n: 0 }, busy = false, all = false;
+    st.innerHTML = '<div class="lb-lt"><div class="lb-ltbox" data-ltbox=""></div><div class="lb-ltplay"><div class="lb-fc" data-fc="" tabindex="0" role="button"></div><div class="lb-judge" data-judge="" hidden><button type="button" class="lb-no" data-j="0">✗ bilemedim</button><button type="button" class="lb-yes" data-j="1">✓ bildim</button></div><p class="lb-prog hand" data-prog=""></p></div></div>';
+    var items = function () { return allItems(srcSel.value); };
+    var paintBox = function (pulse) {
+      var its = items(), by = [[], [], [], [], []]; its.forEach(function (c) { by[c.box - 1].push(c); });
+      Q('[data-ltbox]', st).innerHTML = '<div class="lb-wood">' + by.map(function (L, i) {
+        var due = L.filter(function (c) { return c.due; }).length, stack = ''; for (var j = 0; j < Math.min(7, L.length); j++) stack += '<i style="--j:' + j + ';--rr:' + ((j * 41) % 9 - 4) * .6 + 'deg"></i>';
+        return '<div class="lb-comp' + (pulse === i ? ' pulse' : '') + (due ? ' due' : '') + '"><span class="lb-stack">' + stack + '</span><b class="disp">' + (i + 1) + '</b><em class="hand">' + BOXL[i] + '</em><small class="mono">' + L.length + ' kart' + (due ? ' · ' + due + ' sırada' : '') + '</small></div>';
+      }).join('') + '</div>';
+      return its;
+    };
+    var build = function () { var its = paintBox(); queue = (all ? its.slice() : its.filter(function (c) { return c.due; })).sort(function (a, b) { return a.box - b.box || Math.random() - .5; }).slice(0, 40); idx = 0; score = { y: 0, n: 0 }; flipped = false; face(); };
+    var face = function () {
+      var fc = Q('[data-fc]', st), jd = Q('[data-judge]', st), c = queue[idx];
+      if (!DECKS.length) { fc.innerHTML = noDecks(); fc.removeAttribute('tabindex'); jd.hidden = true; Q('[data-prog]', st).textContent = ''; return; }
+      if (!c) {
+        jd.hidden = true; fc.classList.remove('back');
+        var tot = items().length;
+        fc.innerHTML = '<span class="side mono">KUTU</span><span class="q">' + (!tot ? 'Bu kaynakta kart yok. Bilgi kartlarında deste oluşturunca burada tekrar edersin.' : score.y + score.n ? 'Bugünlük tur bitti: ' + score.y + ' bildin, ' + score.n + ' tekrar.' : 'Bugün sırası gelen kart yok. Kutun dinleniyor.') + '</span>' + (tot ? '<button type="button" class="lb-lnk" data-all="">yine de hepsini çevir →</button>' : '<button type="button" class="lb-lnk" data-gov="cards">Bilgi kartlarına git →</button>');
+        Q('[data-prog]', st).textContent = ''; return;
+      }
+      jd.hidden = !flipped; fc.classList.toggle('back', flipped);
+      fc.innerHTML = flipped ? '<span class="side mono">CEVAP · ' + c.box + '. bölme</span><span class="a">' + X(c.back) + '</span><span class="src hand">— ' + X(c.src) + '</span>' : '<span class="side mono">' + (c.type === 'quiz' ? 'TEST SORUSU' : c.type === 'cloze' ? 'BOŞLUK' : 'KAVRAM') + ' · ' + c.box + '. bölme</span><span class="q">' + X(c.front) + '</span><span class="hint hand">dokun, çevir ↻</span>';
+      fc.setAttribute('aria-label', (flipped ? 'Cevap: ' + c.back : 'Soru: ' + c.front) + '. Çevirmek için dokun.');
+      Q('[data-prog]', st).textContent = (idx + 1) + ' / ' + queue.length + ' · ' + score.y + ' bildin · ' + score.n + ' tekrar';
+    };
+    var flip = function () { if (!queue[idx] || busy) return; touch(); var fc = Q('[data-fc]', st); if (calm) { flipped = !flipped; face(); return; } fc.classList.add('squash'); setTimeout(function () { flipped = !flipped; face(); fc.classList.remove('squash'); }, 170); };
+    var judge = function (knew) {
+      var c = queue[idx]; if (!c || busy || !flipped) return; busy = true; touch();
+      if (knew) score.y++; else score.n++;
+      record(c, knew); var fc = Q('[data-fc]', st); fc.classList.add(knew ? 'fly-r' : 'fly-l');
+      setTimeout(function () { fc.classList.remove('fly-r', 'fly-l'); paintBox(c.box - 1); idx++; flipped = false; busy = false; face(); if (!queue[idx]) logDone(); }, calm ? 0 : 420);
+    };
+    var logged = false;
+    var logDone = function () { if (logged || score.y + score.n < 3) return; logged = true; var m = Math.max(1, (Date.now() - openedAt) / 60000); logSession('tekrar', m, srcSel.value || null, { score: score.y + '/' + (score.y + score.n) }); openedAt = Date.now(); acted = false; };
+    st.addEventListener('click', function (e) {
+      if (e.target.closest('[data-all]')) { all = true; build(); return; }
+      var j = e.target.closest('[data-j]'); if (j) { judge(j.getAttribute('data-j') === '1'); return; }
+      if (e.target.closest('[data-fc]') && !e.target.closest('button')) flip();
+    });
+    var key = function (e) { if (cur !== 'tekrar' || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return; if (e.key === ' ' || e.key === 'Enter') { if (e.target.closest && e.target.closest('[data-fc]')) { e.preventDefault(); flip(); } } else if (e.key === '1') judge(false); else if (e.key === '2') judge(true); };
+    document.addEventListener('keydown', key);
+    build();
+    return { close: function () { document.removeEventListener('keydown', key); }, onSrc: function () { all = false; logged = false; build(); }, detail: function () { return score.y + score.n ? { score: score.y + '/' + (score.y + score.n) } : {}; } };
+  };
+
+  /* ================= 03 ACTIVE RECALL · kapaklı defter ================= */
+  var overlap = function (a, b) { var A = norm(a).split(' ').filter(function (w) { return w.length > 2; }), B = norm(b).split(' ').filter(function (w) { return w.length > 2; }); if (!A.length || !B.length) return 0; var hit = 0; B.forEach(function (w) { if (A.some(function (x) { return x.slice(0, 5) === w.slice(0, 5); })) hit++; }); return Math.round(hit / B.length * 100); };
+  var TOOLS_RC = function (st) {
+    var rows = [], res = {};
+    st.innerHTML = '<div class="lb-rc"><div class="lb-rc-head mono"><span>SORU · önce kendin yaz</span><span>CEVAP</span></div><ol class="lb-rc-rows" data-rows=""></ol><div class="lb-rc-foot"><p class="hand" data-rcsum=""></p><button type="button" class="btn btn-dark" data-rcnew="">yeni tur</button></div></div>';
+    var build = function () {
+      if (!DECKS.length) { Q('[data-rows]', st).innerHTML = '<li class="lb-rc-empty">' + noDecks() + '</li>'; Q('[data-rcnew]', st).hidden = true; return; }
+      var its = allItems(srcSel.value).filter(function (c) { return c.back && c.q; });
+      its.sort(function (a, b) { return (b.due ? 1 : 0) - (a.due ? 1 : 0) || a.box - b.box || Math.random() - .5; });
+      rows = its.slice(0, 5); res = {}; Q('[data-rcnew]', st).hidden = false;
+      Q('[data-rows]', st).innerHTML = rows.length ? rows.map(function (c, i) {
+        return '<li class="lb-rr" data-i="' + i + '" style="--i:' + i + '"><div class="lb-rq"><b>' + X(c.q) + '</b><label class="vh" for="rc-' + i + '">Senin cevabın</label><textarea id="rc-' + i + '" rows="2" class="hand" placeholder="aklına geleni yaz…"></textarea><button type="button" class="lb-lift" data-lift="">kapağı kaldır</button></div>' +
+          '<div class="lb-ra"><div class="lb-cover hand" aria-hidden="true">kapalı — önce hatırla</div><p class="ans" hidden>' + X(c.back) + '</p><p class="sim hand" hidden></p><div class="lb-rj" hidden><button type="button" data-ok="1">✓ biliyordum</button><button type="button" data-ok="0">✗ tekrar listesine</button></div></div></li>';
+      }).join('') : '<li class="lb-rc-empty"><b class="hand">bu kaynakta soru yok</b><p>Bilgi kartlarında bu özetten kart ya da test sorusu oluşturunca burada kendini sınarsın.</p></li>';
+      paintSum();
+    };
+    var paintSum = function () { var n = Object.keys(res).length, y = 0; for (var k in res) if (res[k]) y++; Q('[data-rcsum]', st).textContent = !rows.length ? '' : n < rows.length ? n + ' / ' + rows.length + ' soru kontrol edildi' : 'tur bitti: ' + y + ' / ' + rows.length + ' biliyordun. bilemediklerin Leitner kutusunun 1. bölmesine gitti.'; };
+    st.addEventListener('click', function (e) {
+      var li = e.target.closest('.lb-rr'); if (e.target.closest('[data-rcnew]')) { build(); return; } if (!li) return; var i = +li.getAttribute('data-i'), c = rows[i];
+      if (e.target.closest('[data-lift]')) {
+        touch(); var mine = Q('textarea', li).value.trim(); li.classList.add('open'); Q('[data-lift]', li).hidden = true; Q('textarea', li).readOnly = true;
+        Q('.ans', li).hidden = false; Q('.lb-rj', li).hidden = false; var sm = Q('.sim', li);
+        if (mine) { var p = overlap(mine, c.back); sm.hidden = false; sm.textContent = p >= 60 ? 'cevabınla güçlü örtüşme (%' + p + ')' : p >= 30 ? 'kısmen örtüşüyor (%' + p + '), eksik yeri bul' : 'pek örtüşmüyor (%' + p + '); kendin karar ver'; }
+        else { sm.hidden = false; sm.textContent = 'boş bıraktın; dürüst ol :)'; }
+        Q('[data-ok="1"]', li).focus(); return;
+      }
+      var ok = e.target.closest('[data-ok]'); if (ok && res[i] === undefined) {
+        var knew = ok.getAttribute('data-ok') === '1'; res[i] = knew; record(c, knew); li.classList.add(knew ? 'yes' : 'no'); Q('.lb-rj', li).innerHTML = '<span class="mk hand">' + (knew ? '✓ biliyordun' : '✗ tekrar kutusunda') + '</span>'; paintSum();
+        if (Object.keys(res).length === rows.length) { var y = 0; for (var k in res) if (res[k]) y++; logSession('recall', Math.max(1, (Date.now() - openedAt) / 60000), srcSel.value || null, { score: y + '/' + rows.length }); openedAt = Date.now(); acted = false; }
+        var nx = st.querySelector('.lb-rr:not(.open) textarea'); if (nx) nx.focus();
+      }
+    });
+    build();
+    return { onSrc: build };
+  };
+
+  /* ================= 04 FEYNMAN · kara tahta ================= */
+  var TOOLS_FY = function (st) {
+    var deck = null, data = null, step = 1;
+    st.innerHTML = '<div class="lb-fy"><ol class="lb-fysteps mono" data-fysteps=""><li data-s="1">1 anlat</li><li data-s="2">2 takıldığını bul</li><li data-s="3">3 kaynağa dön</li><li data-s="4">4 sadeleştir</li></ol>' +
+      '<div class="lb-board"><label class="lb-fyq hand" for="fy-topic">hiç bilmeyen birine anlat:</label><input id="fy-topic" class="lb-fytopic hand" data-fytopic="" maxlength="80"><label class="vh" for="fy-t">Açıklaman</label><textarea id="fy-t" class="lb-chalk" data-fyt="" rows="9" placeholder="“Diyelim ki…” diye başla. kısa cümleler, günlük kelimeler, bir örnek."></textarea><div class="lb-tray" aria-hidden="true"><i></i><i></i></div></div>' +
+      '<div class="lb-fyside"><div class="lb-card"><h3 class="lb-k">tahtadaki ölçüler</h3><p class="lb-fym" data-fym=""></p><p class="lb-fyj" data-fyj=""></p></div>' +
+      '<div class="lb-card"><h3 class="lb-k">değindiğin kavramlar</h3><div class="lb-chips" data-chips=""></div></div>' +
+      '<div class="lb-fyacts"><button type="button" class="btn btn-dark" data-fyask="">Acadia dinlesin</button><button type="button" class="hbtn" data-fysrc="">kaynağa dön</button><button type="button" class="hbtn" data-fysave="">bu sürümü kaydet</button></div>' +
+      '<div class="lb-sticky" data-fynote="" hidden></div><details class="lb-vers" data-vers="" hidden><summary class="hand"></summary><ol></ol></details></div></div>';
+    var ta = Q('[data-fyt]', st), tp = Q('[data-fytopic]', st);
+    var setStep = function (n) { step = Math.max(step, n); QA('[data-s]', st).forEach(function (l) { var s = +l.getAttribute('data-s'); l.classList.toggle('on', s <= step); l.classList.toggle('now', s === step); }); };
+    var terms = function () { return deck ? arr(deck.key_terms).map(function (t) { return stripMd(t.term || ''); }).filter(Boolean).slice(0, 14) : []; };
+    var measure = function () {
+      var t = ta.value, words = norm(t).split(' ').filter(Boolean), sents = t.split(/[.!?]+/).map(function (x) { return x.trim(); }).filter(Boolean);
+      var avg = sents.length ? Math.round(words.length / sents.length) : 0, long = sents.filter(function (x) { return x.split(/\s+/).length > 24; }).length;
+      var jar = []; t.split(/[\s,.;:!?()"“”]+/).forEach(function (w) { if (w.length >= 13 && jar.indexOf(w) < 0) jar.push(w); });
+      Q('[data-fym]', st).innerHTML = words.length ? '<b class="mono">' + words.length + '</b> kelime · <b class="mono">' + sents.length + '</b> cümle · cümle başına <b class="mono">' + avg + '</b> kelime' + (avg > 20 ? ' <em>· cümlelerin uzun, böl</em>' : '') + (long ? ' <em>· ' + long + ' çok uzun cümle</em>' : '') : 'yazmaya başlayınca burada ölçerim.';
+      Q('[data-fyj]', st).innerHTML = jar.length ? 'ağır kelimeler: ' + jar.slice(0, 6).map(function (w) { return '<mark>' + X(w) + '</mark>'; }).join(' ') + ' <em>daha basit söyleyebilir misin?</em>' : '';
+      var T = terms(), nt = norm(t); Q('[data-chips]', st).innerHTML = T.length ? T.map(function (x) { var k = norm(x).slice(0, 5), on = k && nt.indexOf(k) > -1; return '<span class="' + (on ? 'on' : '') + '">' + (on ? '✓ ' : '') + X(x) + '</span>'; }).join('') : '<em class="hand">bu özette kavram listesi yok.</em>';
+    };
+    var paintVers = function () { var v = Q('[data-vers]', st), L = (data && data.versions) || []; v.hidden = !L.length; if (!L.length) return; Q('summary', v).textContent = L.length + ' kayıtlı sürüm'; Q('ol', v).innerHTML = L.slice().reverse().map(function (x, i) { return '<li><time class="mono">' + ago(x.at) + '</time><p>' + X(x.t) + '</p></li>'; }).join(''); };
+    var load = function () {
+      deck = deckById(srcSel.value); var ref = deck ? deck.id : 'serbest';
+      tp.value = deck ? baseName(deck.documents && deck.documents.file_name) : ''; ta.value = ''; step = 1; setStep(1); Q('[data-fynote]', st).hidden = true; Q('[data-fysrc]', st).disabled = !deck;
+      getItem('feynman', ref).then(function (d) { if ((deckById(srcSel.value) || null) !== deck) return; data = d || { versions: [] }; if (data.topic) tp.value = data.topic; if (data.draft) ta.value = data.draft; measure(); paintVers(); });
+      measure();
+    };
+    var saveDraft = function () { if (!data) return; data.draft = ta.value; data.topic = tp.value; putItem('feynman', deck ? deck.id : 'serbest', tp.value, data); };
+    var dT = 0; ta.addEventListener('input', function () { touch(); setStep(1); measure(); clearTimeout(dT); dT = setTimeout(saveDraft, 800); });
+    tp.addEventListener('input', function () { clearTimeout(dT); dT = setTimeout(saveDraft, 800); });
+    Q('[data-fyask]', st).addEventListener('click', function () {
+      var b = this, t = ta.value.trim(); if (t.split(/\s+/).length < 12) { ta.focus(); say('Önce birkaç cümleyle anlat; Acadia sonra dinlesin.'); return; }
+      touch(); b.disabled = true; b.textContent = 'Acadia dinliyor…'; var note = Q('[data-fynote]', st);
+      var msg = 'Feynman tekniğiyle çalışıyorum. Konu: "' + (tp.value || 'konu') + '". Aşağıdaki açıklamayı hiç bilmeyen birine anlatır gibi yazdım. Kısa ve Türkçe cevap ver: 1) yanlış ya da eksik olan yerler, 2) hâlâ karmaşık ya da jargon kalan yerler, 3) daha sade anlatmam için tek bir öneri. Uzun açıklama yapma.\n\nAçıklamam:\n"""' + t.slice(0, 3000) + '"""';
+      acadia(msg, deck ? deck.id : null).then(function (r) { note.innerHTML = '<b class="hand">Acadia’nın notu</b><div>' + X(r).replace(/\n/g, '<br>') + '</div>'; note.hidden = false; setStep(2); },
+        function (er) { console.warn('acadex-lab: feynman', er); var T = terms(), nt = norm(t), miss = T.filter(function (x) { return nt.indexOf(norm(x).slice(0, 5)) < 0; }); note.innerHTML = '<b class="hand">Acadia’ya şu an ulaşılamadı</b><div>' + (miss.length ? 'Özetindeki şu kavramlara hiç değinmedin: ' + X(miss.slice(0, 5).join(', ')) + '. Onları kendi cümlelerinle eklemeyi dene.' : 'Özetteki kavramların hepsine değinmişsin. Şimdi en uzun cümleni ikiye böl ve bir örnek ekle.') + '</div>'; note.hidden = false; setStep(2); })
+        .then(function () { b.disabled = false; b.textContent = 'Acadia yine dinlesin'; });
+    });
+    var srcBtn = Q('[data-fysrc]', st);
+    srcBtn.addEventListener('click', function () { if (!deck) return; touch(); setStep(3); srcBtn.classList.add('btn-view-summary'); srcBtn.setAttribute('data-doc-id', deck.document_id || ''); srcBtn.setAttribute('data-doc-name', (deck.documents && deck.documents.file_name) || ''); srcBtn.setAttribute('data-card-id', deck.id); srcBtn.setAttribute('data-read-only', 'false'); });
+    srcBtn.addEventListener('mousedown', function () { if (deck) { srcBtn.classList.add('btn-view-summary'); srcBtn.setAttribute('data-doc-id', deck.document_id || ''); srcBtn.setAttribute('data-doc-name', (deck.documents && deck.documents.file_name) || ''); srcBtn.setAttribute('data-card-id', deck.id); srcBtn.setAttribute('data-read-only', 'false'); } });
+    Q('[data-fysave]', st).addEventListener('click', function () {
+      var t = ta.value.trim(); if (!t) { ta.focus(); return; } touch(); data = data || { versions: [] }; data.versions = (data.versions || []).concat([{ t: t, at: Date.now() }]).slice(-12); saveDraft(); paintVers(); setStep(4);
+      say(data.versions.length + '. sürüm kaydedildi. Şimdi daha sade bir sürüm yaz; tahtayı silmeden üstünden geç.');
+    });
+    load();
+    return { onSrc: load, close: function () { clearTimeout(dT); if (data) saveDraft(); } };
+  };
+
+  /* ================= 05 INTERLEAVING · karışık çark ================= */
+  var WC = ['#F4DDDA', '#DCE6FF', '#D9EFE3', '#FFF0BF', '#E7E1F4', '#E4E8F1'], WD = ['#C9483B', '#2F6BFF', '#1E8A55', '#B4781F', '#6A4FA8', '#4B5675'];
+  var TOOLS_KM = function (st) {
+    var pick = G(LK('karma'), null), tally = {}, n = 0, turn = 0, curQ = null, flipped = false, spinning = false, ROUND = 10;
+    var usable = function () { return (DECKS || []).filter(function (d) { return itemsOf(d).length; }); };
+    if (!pick) pick = usable().slice(0, 3).map(function (d) { return d.id; });
+    st.innerHTML = '<div class="lb-km"><div class="lb-kmpick"><h3 class="lb-k">çarka giren desteler</h3><div class="lb-kmchips" data-kmchips=""></div><p class="lb-kmnote hand" data-kmnote=""></p></div>' +
+      '<div class="lb-kmwheel"><div class="lb-wheel"><svg viewBox="-110 -110 220 220" aria-hidden="true"><g data-wheel=""></g><circle r="9" class="hub"/></svg><i class="lb-ptr" aria-hidden="true"></i></div><button type="button" class="btn btn-dark" data-spin="">çarkı çevir</button><p class="lb-kmcount mono" data-kmcount=""></p></div>' +
+      '<div class="lb-kmq"><div class="lb-fc" data-kmq=""></div><div class="lb-judge" data-kmj="" hidden><button type="button" class="lb-no" data-kj="0">✗ karıştırdım</button><button type="button" class="lb-yes" data-kj="1">✓ bildim</button></div><div class="lb-kmtally" data-tally=""></div></div></div>';
+    var chosen = function () { return pick.map(deckById).filter(function (d) { return d && itemsOf(d).length; }); };
+    var paintChips = function () {
+      var U = usable(); Q('[data-kmchips]', st).innerHTML = U.length ? U.map(function (d) { var on = pick.indexOf(d.id) > -1; return '<button type="button" aria-pressed="' + on + '" data-kd="' + X(d.id) + '">' + X(cut(deckName(d), 40)) + ' <small>' + itemsOf(d).length + '</small></button>'; }).join('') : '';
+      var c = chosen(); Q('[data-kmnote]', st).innerHTML = !U.length ? noDecks() : c.length < 2 ? 'Karıştırmak için en az iki deste seç. ' + (U.length < 2 ? 'Şu an tek desten var; ikinci bir özet çıkarınca çark dolar.' : '') : c.length + ' deste karışıyor; soru hangisinden gelecek bilmeyeceksin.';
+      Q('[data-spin]', st).disabled = c.length < 2 || spinning;
+      var g = Q('[data-wheel]', st), N = c.length, h = '';
+      if (N) c.forEach(function (d, i) { var a0 = i / N * Math.PI * 2 - Math.PI / 2, a1 = (i + 1) / N * Math.PI * 2 - Math.PI / 2, x0 = Math.cos(a0) * 100, y0 = Math.sin(a0) * 100, x1 = Math.cos(a1) * 100, y1 = Math.sin(a1) * 100, mid = (a0 + a1) / 2;
+        h += '<path d="M0 0 L' + x0.toFixed(1) + ' ' + y0.toFixed(1) + ' A100 100 0 ' + (a1 - a0 > Math.PI ? 1 : 0) + ' 1 ' + x1.toFixed(1) + ' ' + y1.toFixed(1) + ' Z" fill="' + WC[i % WC.length] + '"/>' +
+          '<text x="' + (Math.cos(mid) * 60).toFixed(1) + '" y="' + (Math.sin(mid) * 60).toFixed(1) + '" transform="rotate(' + (mid * 180 / Math.PI + 90).toFixed(1) + ' ' + (Math.cos(mid) * 60).toFixed(1) + ' ' + (Math.sin(mid) * 60).toFixed(1) + ')" fill="' + WD[i % WD.length] + '">' + X(cut(baseName(d.documents && d.documents.file_name), 14)) + '</text>'; });
+      g.innerHTML = h + '<circle r="100" class="rim"/>';
+      paintTally();
+    };
+    var paintTally = function () {
+      var c = chosen(); Q('[data-kmcount]', st).textContent = n ? n + ' / ' + ROUND + ' soru' : '';
+      Q('[data-tally]', st).innerHTML = c.map(function (d, i) { var t = tally[d.id] || { y: 0, n: 0 }, tot = t.y + t.n; return '<div><span style="--c:' + WD[i % WD.length] + '">' + X(cut(baseName(d.documents && d.documents.file_name), 26)) + '</span><b class="mono">' + (tot ? t.y + '/' + tot : '—') + '</b><i><em style="width:' + (tot ? t.y / tot * 100 : 0) + '%;background:' + WD[i % WD.length] + '"></em></i></div>'; }).join('');
+    };
+    var faceQ = function () {
+      var fc = Q('[data-kmq]', st), jd = Q('[data-kmj]', st);
+      if (!curQ) { jd.hidden = true; fc.classList.remove('back'); fc.innerHTML = n >= ROUND ? karne() : '<span class="side mono">KARIŞIK TUR</span><span class="q">' + (chosen().length < 2 ? 'Önce en az iki deste seç.' : 'Çarkı çevir; soru rastgele bir desteden gelecek.') + '</span>'; return; }
+      jd.hidden = !flipped; fc.classList.toggle('back', flipped);
+      fc.innerHTML = '<span class="side mono" style="color:' + curQ.col + '">' + X(cut(curQ.src, 30)) + (flipped ? ' · CEVAP' : '') + '</span>' + (flipped ? '<span class="a">' + X(curQ.back) + '</span>' : '<span class="q">' + X(curQ.q) + '</span><span class="hint hand">dokun, cevabı gör ↻</span>');
+    };
+    var karne = function () {
+      var c = chosen(), worst = null, wv = 2; c.forEach(function (d) { var t = tally[d.id]; if (t && t.y + t.n) { var v = t.y / (t.y + t.n); if (v < wv) { wv = v; worst = d; } } });
+      var y = 0; for (var k in tally) y += tally[k].y;
+      return '<span class="side mono">TUR KARNESİ</span><span class="q">' + y + ' / ' + n + ' doğru.</span><span class="hint hand">' + (worst && wv < 1 ? 'en çok “' + X(cut(baseName(worst.documents && worst.documents.file_name), 30)) + '” sorularında zorlandın.' : 'hiçbir desteyi karıştırmadın, harika.') + '</span><button type="button" class="lb-lnk" data-kmagain="">yeni karışık tur →</button>';
+    };
+    var spin = function () {
+      var c = chosen(); if (c.length < 2 || spinning) return; if (n >= ROUND) { n = 0; tally = {}; }
+      touch(); spinning = true; curQ = null; flipped = false; faceQ(); Q('[data-spin]', st).disabled = true;
+      var i = Math.floor(Math.random() * c.length), segA = 360 / c.length, target = 360 * (3 + Math.floor(Math.random() * 2)) + (360 - (i + .5) * segA) + (Math.random() - .5) * segA * .6;
+      turn = turn - (turn % 360) + target; var g = Q('[data-wheel]', st);
+      g.style.transition = calm ? 'none' : 'transform 1.6s cubic-bezier(.15,.85,.25,1)'; g.style.transform = 'rotate(' + turn + 'deg)';
+      setTimeout(function () {
+        var d = c[i], its = itemsOf(d).filter(function (x) { return x.q && x.back; }); its.sort(function (a, b) { return (b.due ? 1 : 0) - (a.due ? 1 : 0) || Math.random() - .5; });
+        var it = its[Math.floor(Math.random() * Math.min(its.length, 6))]; curQ = it ? { item: it, deck: d.id, q: it.q, back: it.back, src: baseName(d.documents && d.documents.file_name), col: WD[i % WD.length] } : null;
+        spinning = false; Q('[data-spin]', st).disabled = false; faceQ(); var fc = Q('[data-kmq]', st); fc.focus();
+      }, calm ? 30 : 1650);
+    };
+    st.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-kd]'); if (b) { var id = b.getAttribute('data-kd'), i = pick.indexOf(id); if (i > -1) pick.splice(i, 1); else pick.push(id); S(LK('karma'), pick); n = 0; tally = {}; curQ = null; paintChips(); faceQ(); return; }
+      if (e.target.closest('[data-spin]') || e.target.closest('[data-kmagain]')) { if (e.target.closest('[data-kmagain]')) { n = 0; tally = {}; } spin(); return; }
+      var j = e.target.closest('[data-kj]'); if (j && curQ && flipped) {
+        var knew = j.getAttribute('data-kj') === '1', t = tally[curQ.deck] = tally[curQ.deck] || { y: 0, n: 0 }; if (knew) t.y++; else t.n++; n++; record(curQ.item, knew); curQ = null; flipped = false; paintTally(); faceQ();
+        if (n >= ROUND) { var y = 0; for (var k in tally) y += tally[k].y; logSession('karma', Math.max(1, (Date.now() - openedAt) / 60000), null, { score: y + '/' + n, decks: chosen().length }); openedAt = Date.now(); acted = false; }
+        else Q('[data-spin]', st).focus(); return;
+      }
+      if (e.target.closest('[data-kmq]') && curQ && !flipped) { flipped = true; faceQ(); }
+    });
+    Q('[data-kmq]', st).setAttribute('tabindex', '0');
+    Q('[data-kmq]', st).addEventListener('keydown', function (e) { if ((e.key === ' ' || e.key === 'Enter') && curQ && !flipped) { e.preventDefault(); flipped = true; faceQ(); } });
+    paintChips(); faceQ();
+    return {};
+  };
+
+  /* ================= 06 ZİHİN HARİTASI · mürekkep dalları ================= */
+  var BRC = ['#2F6BFF', '#C9483B', '#1E8A55', '#B4781F', '#6A4FA8', '#0D1838', '#D9677F'];
+  var TOOLS_MM = function (st) {
+    var deck = null, nodes = [], selId = null, drag = null, dirtyT = 0, first = true;
+    st.innerHTML = '<div class="lb-mm"><div class="lb-mmbar"><button type="button" class="hbtn" data-mmadd="">+ dal ekle</button><label class="lb-mmedit"><span class="vh">Seçili dalın yazısı</span><input type="text" maxlength="60" data-mmtxt="" placeholder="bir dal seç, yazısını değiştir"></label><button type="button" class="hbtn" data-mmdel="">sil</button><span class="lb-sp"></span><button type="button" class="lb-lnk" data-mmre="">özetten baştan çiz</button><button type="button" class="lb-lnk" data-mmnb="">deftere yapıştır</button></div>' +
+      '<div class="lb-mmpaper"><svg viewBox="0 0 1000 640" data-mm="" role="application" aria-label="Zihin haritası. Dalı seçmek için dokun, sürükleyerek taşı."></svg></div><p class="lb-mmtip hand">dala dokun: seç · sürükle: taşı · çift dokun: yazısını değiştir</p></div>';
+    var svg = Q('[data-mm]', st), tin = Q('[data-mmtxt]', st);
+    var byId = function (id) { for (var i = 0; i < nodes.length; i++) if (nodes[i].id === id) return nodes[i]; return null; };
+    var depth = function (n) { var d = 0; while (n && n.p) { n = byId(n.p); d++; } return d; };
+    var branchIx = function (n) { while (n && n.p && byId(n.p) && byId(n.p).p) n = byId(n.p); return n && n.p ? nodes.filter(function (x) { return x.p === nodes[0].id; }).indexOf(n) : -1; };
+    var gen = function () {
+      var title = deck ? baseName(deck.documents && deck.documents.file_name) : 'Konum';
+      var out = [{ id: 'c', t: cut(title, 34), x: 500, y: 320, p: null }];
+      var br = [];
+      if (deck) {
+        arr(deck.sections).slice(0, 6).forEach(function (s) { var kids = arr(s.key_points).map(txt).filter(Boolean); if (kids.length < 2) kids = kids.concat(stripMd(s.summary || '').split(/(?<=[.!?])\s+/).filter(function (x) { return x.length > 8; })); br.push({ t: txt(s.heading || s.title), k: kids.slice(0, 2) }); });
+        if (br.length < 3) arr(deck.key_terms).slice(0, 6 - br.length).forEach(function (t) { br.push({ t: stripMd(t.term), k: [cut(stripMd(t.definition), 40)] }); });
+        if (br.length < 3) arr(deck.key_points).slice(0, 6 - br.length).forEach(function (p) { br.push({ t: cut(txt(p), 40), k: [] }); });
+      }
+      if (!br.length) br = [{ t: 'ana fikir', k: [] }, { t: 'örnek', k: [] }, { t: 'neden önemli?', k: [] }];
+      var N = br.length;
+      br.forEach(function (b, i) {
+        var a = -Math.PI / 2 + (i + .5) / N * Math.PI * 2, bx = 500 + Math.cos(a) * 270, by = 320 + Math.sin(a) * 175, id = 'b' + i;
+        out.push({ id: id, t: cut(b.t || 'dal', 40), x: Math.round(bx), y: Math.round(by), p: 'c' });
+        b.k.forEach(function (k, j) { var aa = a + (j - (b.k.length - 1) / 2) * .38; out.push({ id: id + 'l' + j, t: cut(k, 38), x: Math.round(500 + Math.cos(aa) * 420), y: Math.round(320 + Math.sin(aa) * 275), p: id }); });
+      });
+      out.forEach(function (n) { n.x = Math.max(80, Math.min(920, n.x)); n.y = Math.max(40, Math.min(600, n.y)); });
+      return out;
+    };
+    var wrap = function (t, w) { var words = String(t).split(' '), L = [], cur2 = ''; words.forEach(function (x) { if ((cur2 + ' ' + x).trim().length > w && cur2) { L.push(cur2); cur2 = x; } else cur2 = (cur2 + ' ' + x).trim(); }); if (cur2) L.push(cur2); return L.slice(0, 3); };
+    var render = function (anim) {
+      var h = '<defs><filter id="lb-mmink"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="3" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="1.6"/></filter></defs><g class="lb-links">';
+      nodes.forEach(function (n, i) { if (!n.p) return; var p = byId(n.p); if (!p) return; var d = depth(n), bi = branchIx(n), col = BRC[(bi < 0 ? 0 : bi) % BRC.length], mx = (p.x + n.x) / 2;
+        h += '<path class="lk d' + d + (anim ? ' draw' : '') + '" pathLength="1" style="--dl:' + (anim ? (d * .35 + i * .04).toFixed(2) : 0) + 's;stroke:' + col + '" d="M' + p.x + ' ' + p.y + ' C' + (p.x + (n.x - p.x) * .45) + ' ' + (p.y + (n.y - p.y) * .05) + ' ' + (mx + (n.x - mx) * .2) + ' ' + n.y + ' ' + n.x + ' ' + n.y + '"/>'; });
+      h += '</g><g class="lb-nodes">';
+      nodes.forEach(function (n, i) {
+        var d = depth(n), bi = branchIx(n), col = d ? BRC[(bi < 0 ? 0 : bi) % BRC.length] : '#0D1838', lines = wrap(n.t, d === 0 ? 16 : d === 1 ? 18 : 22), lh = d === 0 ? 22 : d === 1 ? 18 : 15, w = Math.max.apply(null, lines.map(function (l) { return l.length; }).concat([4])) * (d === 0 ? 11.5 : d === 1 ? 9.2 : 7.6) + 26, hh = lines.length * lh + 16;
+        h += '<g class="nd d' + Math.min(d, 2) + (n.id === selId ? ' sel' : '') + (anim ? ' pop' : '') + '" data-n="' + X(n.id) + '" transform="translate(' + n.x + ' ' + n.y + ')" style="--c:' + col + ';--dl:' + (anim ? (d * .35 + .25 + i * .03).toFixed(2) : 0) + 's" tabindex="0" role="button" aria-label="' + X(n.t) + '">' +
+          (d === 0 ? '<ellipse rx="' + (w / 2 + 12) + '" ry="' + (hh / 2 + 10) + '" filter="url(#lb-mmink)"/>' : '<rect x="' + (-w / 2) + '" y="' + (-hh / 2) + '" width="' + w + '" height="' + hh + '" rx="' + (d === 1 ? 8 : 4) + '"/>') +
+          lines.map(function (l, k) { return '<text y="' + ((k - (lines.length - 1) / 2) * lh + lh * .32).toFixed(1) + '">' + X(l) + '</text>'; }).join('') + '</g>';
+      });
+      svg.innerHTML = h + '</g>';
+      var s = byId(selId); tin.value = s ? s.t : ''; tin.disabled = !s; Q('[data-mmdel]', st).disabled = !s || !s.p;
+    };
+    var save = function () { clearTimeout(dirtyT); dirtyT = setTimeout(function () { putItem('harita', deck ? deck.id : 'serbest', nodes[0] && nodes[0].t, { nodes: nodes }); }, 500); };
+    var load = function () {
+      deck = deckById(srcSel.value); selId = null;
+      if (!deck && !(DECKS || []).length) { st.querySelector('.lb-mmpaper').innerHTML = noDecks(); return; }
+      getItem('harita', deck ? deck.id : 'serbest').then(function (d) { nodes = d && Array.isArray(d.nodes) && d.nodes.length ? d.nodes : gen(); render(first && !calm); first = false; });
+    };
+    var pt = function (e) { var p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY; var m = svg.getScreenCTM(); return m ? p.matrixTransform(m.inverse()) : { x: 0, y: 0 }; };
+    svg.addEventListener('pointerdown', function (e) {
+      var g = e.target.closest('.nd'); if (!g) { selId = null; render(); return; }
+      var n = byId(g.getAttribute('data-n')); selId = n.id; QA('.nd.sel', svg).forEach(function (x) { x.classList.remove('sel'); }); g.classList.add('sel'); tin.value = n.t; tin.disabled = false; Q('[data-mmdel]', st).disabled = !n.p;
+      var p = pt(e); drag = { n: n, dx: p.x - n.x, dy: p.y - n.y, moved: false }; try { svg.setPointerCapture(e.pointerId); } catch (x) {} e.preventDefault();
+    });
+    svg.addEventListener('pointermove', function (e) { if (!drag) return; var p = pt(e), nx = Math.round(Math.max(30, Math.min(970, p.x - drag.dx))), ny = Math.round(Math.max(20, Math.min(620, p.y - drag.dy))); if (!drag.moved && Math.abs(nx - drag.n.x) + Math.abs(ny - drag.n.y) < 3) return; drag.moved = true; drag.n.x = nx; drag.n.y = ny; render(); });
+    var end = function () { if (drag && drag.moved) { touch(); save(); } drag = null; };
+    svg.addEventListener('pointerup', end); svg.addEventListener('pointercancel', end);
+    svg.addEventListener('dblclick', function (e) { if (e.target.closest('.nd')) { tin.focus(); tin.select(); } });
+    svg.addEventListener('keydown', function (e) { var g = e.target.closest('.nd'); if (!g) return; var n = byId(g.getAttribute('data-n')); if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selId = n.id; render(); tin.focus(); tin.select(); } else if (/^Arrow/.test(e.key)) { e.preventDefault(); var s = e.shiftKey ? 30 : 8; if (e.key === 'ArrowLeft') n.x -= s; if (e.key === 'ArrowRight') n.x += s; if (e.key === 'ArrowUp') n.y -= s; if (e.key === 'ArrowDown') n.y += s; selId = n.id; render(); var f = svg.querySelector('[data-n="' + n.id + '"]'); if (f) f.focus(); touch(); save(); } });
+    tin.addEventListener('input', function () { var n = byId(selId); if (!n) return; n.t = tin.value || '…'; touch(); render(); save(); });
+    tin.addEventListener('keydown', function (e) { if (e.key === 'Enter') { var f = svg.querySelector('[data-n="' + selId + '"]'); if (f) f.focus(); } });
+    Q('[data-mmadd]', st).addEventListener('click', function () {
+      var p = byId(selId) || nodes[0]; if (!p) return; var kids = nodes.filter(function (x) { return x.p === p.id; }).length, a = p.p ? Math.atan2(p.y - 320, p.x - 500) + (kids - 1) * .35 : -Math.PI / 2 + kids * .9, r = p.p ? 120 : 260;
+      var n = { id: 'u' + uid(), t: 'yeni dal', x: Math.round(Math.max(60, Math.min(940, p.x + Math.cos(a) * r))), y: Math.round(Math.max(30, Math.min(610, p.y + Math.sin(a) * r * .7))), p: p.id };
+      nodes.push(n); selId = n.id; touch(); render(); save(); tin.focus(); tin.select();
+    });
+    Q('[data-mmdel]', st).addEventListener('click', function () {
+      var n = byId(selId); if (!n || !n.p) return; var was = nodes.slice(), kill = [n.id], grow = true;
+      while (grow) { grow = false; nodes.forEach(function (x) { if (x.p && kill.indexOf(x.p) > -1 && kill.indexOf(x.id) < 0) { kill.push(x.id); grow = true; } }); }
+      nodes = nodes.filter(function (x) { return kill.indexOf(x.id) < 0; }); selId = null; touch(); render(); save();
+      say('“' + cut(n.t, 30) + '” ' + (kill.length > 1 ? 've ' + (kill.length - 1) + ' alt dalı ' : '') + 'silindi.', function () { nodes = was; render(); save(); });
+    });
+    Q('[data-mmre]', st).addEventListener('click', function () { var was = nodes.slice(); nodes = gen(); selId = null; render(!calm); save(); say('Harita özetinden yeniden çizildi.', function () { nodes = was; render(); save(); }); });
+    Q('[data-mmnb]', st).addEventListener('click', function () {
+      if (typeof addStickyNoteToNotebook !== 'function') { say('Çalışma defteri şu an açılamadı.'); return; }
+      var c = nodes[0]; if (!c) return; var body = nodes.filter(function (x) { return x.p === c.id; }).map(function (b) { var ks = nodes.filter(function (x) { return x.p === b.id; }).map(function (k) { return X(k.t); }); return '• <b>' + X(b.t) + '</b>' + (ks.length ? ': ' + ks.join('; ') : ''); }).join('<br>');
+      flushTime(); addStickyNoteToNotebook(deck ? deck.id : 'lab', X(c.t) + ' · zihin haritası', body);
+    });
+    load();
+    return { onSrc: function () { first = true; load(); }, close: function () { clearTimeout(dirtyT); if (nodes.length) putItem('harita', deck ? deck.id : 'serbest', nodes[0].t, { nodes: nodes }); } };
+  };
+
+  /* ================= 07 CORNELL · üçe bölünmüş sayfa ================= */
+  var TOOLS_CN = function (st) {
+    var deck = null, data = null, test = false, open = {}, sT = 0, marks = {};
+    st.innerHTML = '<div class="lb-cn"><div class="lb-cnbar"><div class="lb-seg" role="radiogroup" aria-label="Kip"><button type="button" role="radio" aria-checked="true" data-cm="write">yaz</button><button type="button" role="radio" aria-checked="false" data-cm="test">kendini sına</button></div><span class="lb-sp"></span><button type="button" class="lb-lnk" data-cnre="">özetten doldur</button><button type="button" class="lb-lnk" data-cnnb="">deftere yapıştır</button></div>' +
+      '<div class="lb-paper" data-paper=""><div class="lb-phead"><input class="disp" data-cnt="" maxlength="80" aria-label="Sayfa başlığı"><span class="mono" data-cnd=""></span></div><div class="lb-pcols"><span class="hand">ipucu / soru</span><span class="hand">notlar</span></div><ol class="lb-crows" data-crows=""></ol><button type="button" class="lb-addrow" data-addrow="">+ satır</button>' +
+      '<div class="lb-psum"><label class="hand" for="cn-sum">özet · kendi cümlelerinle 2–3 cümle</label><textarea id="cn-sum" rows="3" data-sum=""></textarea></div></div><p class="lb-cnres hand" data-cnres=""></p></div>';
+    var gen = function () {
+      var rows = [];
+      if (deck) {
+        arr(deck.sections).slice(0, 6).forEach(function (s) { var h = txt(s.heading || s.title), kp = arr(s.key_points).map(txt).filter(Boolean), sm = stripMd(s.summary || ''); if (h) rows.push({ q: h + ' nedir, neden önemli?', n: (kp.length ? kp.map(function (k) { return '• ' + k; }).join('\n') : sm) }); });
+        if (rows.length < 3) arr(deck.key_terms).slice(0, 6 - rows.length).forEach(function (t) { rows.push({ q: stripMd(t.term) + '?', n: stripMd(t.definition) }); });
+      }
+      if (!rows.length) rows = [{ q: '', n: '' }, { q: '', n: '' }, { q: '', n: '' }];
+      return { title: deck ? baseName(deck.documents && deck.documents.file_name) : 'Ders notu', rows: rows, sum: '', at0: Date.now() };
+    };
+    var grow = function (ta) { ta.style.height = 'auto'; ta.style.height = Math.max(54, ta.scrollHeight + 2) + 'px'; };
+    var paint = function () {
+      st.querySelector('.lb-paper').classList.toggle('test', test);
+      Q('[data-cnt]', st).value = data.title || ''; Q('[data-cnd]', st).textContent = new Date(data.at0 || Date.now()).toLocaleDateString('tr-TR');
+      Q('[data-crows]', st).innerHTML = data.rows.map(function (r, i) {
+        return '<li class="lb-crow' + (open[i] ? ' open' : '') + (marks[i] != null ? (marks[i] ? ' yes' : ' no') : '') + '" data-r="' + i + '"><div class="cue"><label class="vh" for="cq-' + i + '">' + (i + 1) + '. ipucu</label><textarea id="cq-' + i + '" data-f="q" rows="2" class="hand" placeholder="soru ya da anahtar kelime">' + X(r.q) + '</textarea></div>' +
+          '<div class="note"><label class="vh" for="cn-' + i + '">' + (i + 1) + '. not</label><textarea id="cn-' + i + '" data-f="n" rows="2" placeholder="not">' + X(r.n) + '</textarea>' +
+          '<div class="flap" aria-hidden="' + !test + '"><button type="button" data-reveal="">kapağı kaldır</button></div><div class="cj"><button type="button" data-cj="1" aria-label="Biliyordum">✓</button><button type="button" data-cj="0" aria-label="Bilemedim">✗</button></div>' +
+          (test ? '' : '<button type="button" class="rm" data-rm="" aria-label="' + (i + 1) + '. satırı sil">×</button>') + '</div></li>';
+      }).join('');
+      Q('[data-sum]', st).value = data.sum || ''; QA('textarea', st).forEach(grow);
+      QA('[data-crows] textarea', st).forEach(function (t) { t.readOnly = test; });
+      Q('[data-addrow]', st).hidden = test; Q('[data-sum]', st).readOnly = false;
+      var n = Object.keys(marks).length, y = 0; for (var k in marks) if (marks[k]) y++;
+      Q('[data-cnres]', st).textContent = test ? (n ? y + ' hatırladın, ' + (n - y) + ' bilemedin' + (n === data.rows.length ? '. bilemediklerini özete kendi cümlelerinle tekrar yaz.' : ' · ' + (data.rows.length - n) + ' ipucu kaldı') : 'notlar kapalı. ipucuna bak, cevabı içinden söyle, sonra kapağı kaldır.') : '';
+    };
+    var save = function () { clearTimeout(sT); sT = setTimeout(function () { putItem('cornell', deck ? deck.id : 'serbest', data.title, data); }, 600); };
+    var load = function () { deck = deckById(srcSel.value); open = {}; marks = {}; if (!deck && !(DECKS || []).length) { st.querySelector('.lb-paper').innerHTML = noDecks(); return; } getItem('cornell', deck ? deck.id : 'serbest').then(function (d) { data = d && Array.isArray(d.rows) ? d : gen(); paint(); }); };
+    st.addEventListener('input', function (e) {
+      if (!data) return; touch(); var t = e.target;
+      if (t.matches('[data-cnt]')) data.title = t.value; else if (t.matches('[data-sum]')) data.sum = t.value; else { var li = t.closest('[data-r]'); if (li) data.rows[+li.getAttribute('data-r')][t.getAttribute('data-f')] = t.value; }
+      if (t.tagName === 'TEXTAREA') grow(t); save();
+    });
+    st.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-cm]'); if (b) { test = b.getAttribute('data-cm') === 'test'; open = {}; marks = {}; QA('[data-cm]', st).forEach(function (x) { x.setAttribute('aria-checked', String(x === b)); }); paint(); if (test) touch(); return; }
+      if (!data) return;
+      var li = e.target.closest('[data-r]'), i = li ? +li.getAttribute('data-r') : -1;
+      if (e.target.closest('[data-reveal]')) { open[i] = true; li.classList.add('open'); var y = li.querySelector('[data-cj="1"]'); if (y) y.focus(); return; }
+      var j = e.target.closest('[data-cj]'); if (j && test) { marks[i] = j.getAttribute('data-cj') === '1'; paint(); if (Object.keys(marks).length === data.rows.length) { var yy = 0; for (var k in marks) if (marks[k]) yy++; logSession('cornell', Math.max(1, (Date.now() - openedAt) / 60000), deck ? deck.id : null, { score: yy + '/' + data.rows.length }); openedAt = Date.now(); acted = false; } return; }
+      if (e.target.closest('[data-rm]')) { var was = JSON.parse(JSON.stringify(data.rows)); data.rows.splice(i, 1); paint(); save(); say('Satır silindi.', function () { data.rows = was; paint(); save(); }); return; }
+      if (e.target.closest('[data-addrow]')) { data.rows.push({ q: '', n: '' }); paint(); save(); var q = st.querySelector('[data-r="' + (data.rows.length - 1) + '"] textarea'); if (q) q.focus(); return; }
+      if (e.target.closest('[data-cnre]')) { var old = data; data = gen(); paint(); save(); say('Sayfa özetinden yeniden dolduruldu.', function () { data = old; paint(); save(); }); return; }
+      if (e.target.closest('[data-cnnb]')) {
+        if (typeof addStickyNoteToNotebook !== 'function') { say('Çalışma defteri şu an açılamadı.'); return; }
+        var body = data.rows.filter(function (r) { return r.q || r.n; }).map(function (r) { return '<b>' + X(r.q) + '</b> ' + X(r.n).replace(/\n/g, '<br>'); }).join('<br>') + (data.sum ? '<br><i>' + X(data.sum) + '</i>' : '');
+        flushTime(); addStickyNoteToNotebook(deck ? deck.id : 'lab', X(data.title) + ' · Cornell', body);
+      }
+    });
+    load();
+    return { onSrc: load, close: function () { clearTimeout(sT); if (data) putItem('cornell', deck ? deck.id : 'serbest', data.title, data); } };
+  };
+  var TOOLS_POM;
+  var TOOLS = { pomodoro: function (s) { return TOOLS_POM(s); }, tekrar: TOOLS_LT, recall: TOOLS_RC, feynman: TOOLS_FY, karma: TOOLS_KM, harita: TOOLS_MM, cornell: TOOLS_CN };
+
+  /* ---------- açılış ve dashboard bağlantısı ---------- */
+  var booted = null;
+  var boot = function () {
+    var u = me(); if (!u) return;
+    if (UID !== u.id) { UID = u.id; var p = G(LK('pom'), null); if (p && p.phase) { POM = p; } DECKS = null; CONF = null; ITEMS = {}; SESS = []; booted = null; }
+    paintStations(); paintLog();
+    if (!booted) booted = Promise.all([loadSess(), loadDecks(), loadConf()]).then(function () { paintStations(); paintLog(); });
+    else { loadSess().then(function () { paintStations(); paintLog(); }); loadDecks(true).then(function () { paintStations(); }); }
+    pomTick();
+  };
+  if (typeof loadViewContent === 'function') { var origLVC = loadViewContent; loadViewContent = function (v) { if (v === 'studylab') { boot(); return; } return origLVC.apply(this, arguments); }; window.loadViewContent = loadViewContent; }
+  if (typeof switchDashboardView === 'function') {
+    var origSwitch = switchDashboardView;
+    switchDashboardView = function (v) {
+      var side = document.getElementById('side-studylab'); if (side) side.classList.toggle('active', v === 'studylab');
+      if (v !== 'studylab' && cur) flushTime();
+      if (v === 'studylab' && !document.querySelector('.dashboard-view-section.active')) {
+        sec.classList.add('active'); lsafe(function () { currentActiveTab = 'studylab'; });
+        QA('.sidebar-item.active', document).forEach(function (x) { if (x !== side) x.classList.remove('active'); });
+        boot(); return;
+      }
+      var r = origSwitch.apply(this, arguments);
+      if (v === 'studylab') QA('.sidebar-item.active', document).forEach(function (x) { if (x !== side) x.classList.remove('active'); });
+      return r;
+    };
+    window.switchDashboardView = switchDashboardView;
+  }
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) pomTick(); });
+  paintStations(); paintLog();
+  var wait = setInterval(function () { if (me()) { clearInterval(wait); UID = me().id; var p = G(LK('pom'), null); if (p && p.phase) POM = p; pomTick(); } }, 800);
+  setTimeout(function () { clearInterval(wait); }, 30000);
+})();
