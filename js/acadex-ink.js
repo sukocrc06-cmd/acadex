@@ -1485,3 +1485,206 @@
   }
   renderAll(); setView(store.get('view') || (mobile() ? 'list' : 'cal'));
 })();
+
+/* ================= ÇALIŞMA DEFTERİ (tasarım kabuğu, dashboard.js'in defter motoru) =================
+   Çizim, yazı, tablo, şekil, resim, sesli not, sayfalar, şablonlar, paylaşım, bilgi deposu ve
+   buluta kaydetme dashboard.js'te olduğu gibi çalışır (notebooks tablosu, eski sayfalar aynen açılır).
+   Bu dosya görünümü, kart listesini, özet panelini, fosforlu kalemi, kâğıt türünü, tam ekranı,
+   dokunmatik çizimi ve kayıt durumunu ekler. */
+(function () {
+  'use strict';
+  var root = document.getElementById('notebook-view');
+  if (!root || !root.classList.contains('axn')) return;
+  var $ = function (s, r) { return (r || root).querySelector(s); };
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || root).querySelectorAll(s)); };
+  var lsafe = function (fn, fb) { try { return fn(); } catch (e) { return fb; } };
+  var esc = function (t) { return String(t == null ? '' : t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var jsq = function (s) { return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\r?\n/g, ' '); };
+  var baseName = function (n) { n = String(n || '').replace(/\.[a-z0-9]{2,5}$/i, ''); var m = n.match(/^\d{10,}_(?:\d{10,}_)?(.+)$/); if (m) n = m[1]; return n.replace(/_+/g, ' ').trim() || 'İsimsiz belge'; };
+  var MON = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+  var dshort = function (d) { d = new Date(d); return isNaN(d) ? '' : d.getDate() + ' ' + MON[d.getMonth()] + ' ' + d.getFullYear(); };
+  var STY = { standard: 'standart', bullet: 'maddeler', structured: 'yapılandırılmış', simplified: 'sade', exam: 'sınav odaklı' };
+  var store = { get: function (k) { try { return localStorage.getItem('acadex.defter.' + k); } catch (e) { return null; } }, set: function (k, v) { try { localStorage.setItem('acadex.defter.' + k, v); } catch (e) {} } };
+  $$('.land').forEach(function (el, i) { el.style.setProperty('--hr', (((i * 37) % 11 - 5) * 0.3).toFixed(2) + 'deg'); el.style.setProperty('--hx', (((i * 53) % 9 - 4) * 2) + 'px'); });
+
+  /* ---------- kart listesi (klasör) ---------- */
+  var ICO_DOC = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5 C5 3.7 5.7 3 6.5 3 H19 V18 H6.5 C5.7 18 5 18.7 5 19.5 Z"/><path d="M5 19.5 C5 20.3 5.7 21 6.5 21 H19"/></svg>';
+  var ICO_DEL = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5 H20 M9 6.5 V4 H15 V6.5 M6.5 6.5 L7.5 20 H16.5 L17.5 6.5"/></svg>';
+  var activeCard = null;
+  var showSummary = function (card) {
+    var box = $('[data-sumcard]');
+    if (!card) { box.hidden = true; return; }
+    activeCard = card;
+    $('[data-sum-n]').textContent = baseName(card.documents && card.documents.file_name);
+    var html = typeof formatSummaryText === 'function' ? formatSummaryText(card.summary, card.footnotes) : esc(card.summary || '');
+    $('[data-sum]').innerHTML = html || '<p>Bu kartta özet yok.</p>';
+    box.hidden = false;
+    $$('.kc').forEach(function (k) { k.classList.toggle('is-on', k.getAttribute('data-card') === card.id); });
+  };
+  var renderList = function (cards) {
+    var ul = $('#notebook-sidebar-list'); if (!ul) return;
+    cards = cards || [];
+    if (!cards.length) {
+      var all = lsafe(function () { return notebookCards; }, []) || [];
+      ul.innerHTML = all.length ? '<li class="cards-none">bu aramayla kart bulamadım.</li>' : '<li class="cards-none">henüz kartın yok. Belgelerim\'den bir belge özetlediğinde kartların burada durur.</li>';
+      showSummary(null); return;
+    }
+    ul.innerHTML = cards.map(function (c) {
+      var full = (c.documents && c.documents.file_name) || 'İsimsiz belge', nm = baseName(full);
+      return '<li class="kc" draggable="true" data-card="' + c.id + '">' +
+        '<div class="kc-top"><span class="kc-ic" aria-hidden="true">' + ICO_DOC + '</span><div class="kc-n"><b title="' + esc(nm) + '">' + esc(nm) + '</b><small title="' + esc(full) + '">' + esc(full) + '</small></div>' +
+        '<button type="button" class="kc-del" aria-label="Kartı sil" title="Kartı sil" onclick="deleteStudyCard(event, \'' + c.id + '\', \'' + c.document_id + '\')">' + ICO_DEL + '</button></div>' +
+        '<p class="kc-meta">' + esc(dshort(c.created_at)) + '</p>' +
+        '<p class="kc-tags"><span>' + esc((STY[c.summary_style] || c.summary_style || 'standart').toLocaleUpperCase('tr')) + '</span><span>' + (c.summary_language === 'tr' ? 'TR' : 'EN') + '</span>' + (c.course_tag ? '<span>' + esc(c.course_tag) + '</span>' : '') + '</p>' +
+        '<div class="kc-row"><span class="kc-share"><label class="ax-sw" title="Bölüm akışında paylaş"><input type="checkbox" id="share-switch-' + c.id + '"' + (c.is_shared ? ' checked' : '') + ' onchange="toggleShareStudyCard(\'' + c.id + '\', this.checked)" aria-label="' + esc(nm) + ' kartını paylaş"><i></i></label>paylaş</span>' +
+        '<button type="button" class="kc-b btn-view-summary" data-doc-id="' + c.document_id + '" data-doc-name="' + esc(full) + '" data-card-id="' + c.id + '">Görüntüle</button>' +
+        '<button type="button" class="kc-b kc-add" data-add="' + c.id + '">Deftere ekle</button></div></li>';
+    }).join('');
+    var keep = activeCard && cards.filter(function (c) { return c.id === activeCard.id; })[0];
+    showSummary(keep || cards[0]);
+  };
+  var cardById = function (id) { return (lsafe(function () { return notebookCards; }, []) || []).filter(function (c) { return c.id === id; })[0]; };
+  var addNote = function (card, text, at) {
+    if (!card || typeof addStickyNoteToNotebook !== 'function') return;
+    var nm = baseName(card.documents && card.documents.file_name);
+    addStickyNoteToNotebook(card.id, nm, text != null ? text : (card.summary || ''));
+    if (at) setTimeout(function () {
+      var notes = $$('#notebook-overlay-container .draggable-note'), n = notes[notes.length - 1];
+      if (n) { n.style.left = Math.max(0, at.x - 100) + 'px'; n.style.top = Math.max(0, at.y - 30) + 'px'; }
+    }, 160);
+  };
+  var ul = $('#notebook-sidebar-list');
+  ul.addEventListener('click', function (e) {
+    var add = e.target.closest('[data-add]'); if (add) { addNote(cardById(add.getAttribute('data-add'))); return; }
+    if (e.target.closest('button, input, label, a')) return;
+    var li = e.target.closest('.kc'); if (li) showSummary(cardById(li.getAttribute('data-card')));
+  });
+  ul.addEventListener('dragstart', function (e) { var li = e.target.closest('.kc'); if (!li) return; e.dataTransfer.setData('text/acadex-card', li.getAttribute('data-card')); e.dataTransfer.effectAllowed = 'copy'; });
+  var vp = $('#canvas-viewport');
+  vp.addEventListener('dragover', function (e) { if (Array.prototype.indexOf.call(e.dataTransfer.types, 'text/acadex-card') > -1) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } });
+  vp.addEventListener('drop', function (e) {
+    var id = e.dataTransfer.getData('text/acadex-card'); if (!id) return; e.preventDefault();
+    var r = vp.getBoundingClientRect(); addNote(cardById(id), null, { x: e.clientX - r.left, y: e.clientY - r.top });
+  });
+  if (typeof renderNotebookSidebarList === 'function') { renderNotebookSidebarList = renderList; window.renderNotebookSidebarList = renderList; }
+
+  /* ---------- özetten seç: deftere not olarak as / kopyala ---------- */
+  var bubble = $('[data-bubble]'), sumEl = $('[data-sum]'), picked = '';
+  var hideBubble = function () { bubble.hidden = true; };
+  sumEl.addEventListener('mouseup', function () {
+    setTimeout(function () {
+      var sel = window.getSelection(), t = sel ? String(sel).trim() : '';
+      if (!t || !sel.rangeCount || !sumEl.contains(sel.anchorNode)) { hideBubble(); return; }
+      picked = t.slice(0, 600);
+      var r = sel.getRangeAt(0).getBoundingClientRect();
+      bubble.hidden = false;
+      var bw = bubble.offsetWidth, x = Math.max(8, Math.min(window.innerWidth - bw - 8, r.left + r.width / 2 - bw / 2));
+      bubble.style.left = x + 'px'; bubble.style.top = Math.max(70, r.top - bubble.offsetHeight - 12) + 'px';
+      bubble.style.setProperty('--ax', (r.left + r.width / 2 - x) + 'px');
+    }, 10);
+  });
+  document.addEventListener('mousedown', function (e) { if (!bubble.hidden && !bubble.contains(e.target)) hideBubble(); });
+  window.addEventListener('scroll', hideBubble, { passive: true });
+  bubble.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-clip]'); if (!b) return;
+    if (b.getAttribute('data-clip') === 'note') addNote(activeCard, picked);
+    else if (navigator.clipboard) navigator.clipboard.writeText(picked).catch(function () {});
+    hideBubble(); try { window.getSelection().removeAllRanges(); } catch (er) {}
+  });
+
+  /* ---------- araçlar: basılı görünüm, fosforlu kalem, kalınlık noktası ---------- */
+  var HL = 'rgba(255,209,0,0.38)', hl = null;
+  var syncTools = function () {
+    var hlOn = !!hl;
+    $$('.tools .tl').forEach(function (b) {
+      var on = b.id === 'ax-tool-hl' ? hlOn : (b.classList.contains('active') && !(hlOn && b.id === 'tool-pen'));
+      b.setAttribute('aria-pressed', String(on)); b.classList.toggle('is-on', on);
+    });
+    root.classList.toggle('hl-mode', hlOn);
+  };
+  var leaveHl = function () {
+    if (!hl) return;
+    try { currentPenColor = hl.color; currentBrushSize = hl.size; } catch (er) {}
+    var s = $('#brush-size'); if (s) { s.value = hl.size; $('#brush-size-val').textContent = hl.size + 'px'; }
+    hl = null; dot();
+  };
+  $('#ax-tool-hl').addEventListener('click', function () {
+    if (hl) { leaveHl(); syncTools(); return; }
+    if (typeof setNotebookMode === 'function') setNotebookMode('pen');
+    hl = { color: lsafe(function () { return currentPenColor; }, '#000000'), size: lsafe(function () { return currentBrushSize; }, 4) };
+    try { currentPenColor = HL; currentBrushSize = 16; } catch (er) {}
+    var s = $('#brush-size'); if (s) { s.value = 16; $('#brush-size-val').textContent = '16px'; }
+    dot(); syncTools();
+  });
+  $$('.tools .tool-btn').forEach(function (b) { b.addEventListener('click', function () { leaveHl(); setTimeout(syncTools, 0); }); });
+  $$('.color-swatch').forEach(function (b) { b.addEventListener('click', function () { if (hl) { hl = null; root.classList.remove('hl-mode'); syncTools(); } }); });
+  $('#tool-color-picker').addEventListener('input', function () { if (hl) { hl = null; syncTools(); } });
+  var dot = function () { var s = $('#brush-size'), d = $('[data-size-dot]'); if (s && d) d.style.setProperty('--d', Math.max(3, Math.min(20, +s.value)) + 'px'); };
+  $('#brush-size').addEventListener('input', dot); dot();
+  document.addEventListener('click', function (e) { var m = $('#shape-menu'); if (m && m.style.display === 'block' && !e.target.closest('.ax-shape-w')) m.style.display = 'none'; });
+  if ('MutationObserver' in window) new MutationObserver(function () { syncTools(); }).observe($('.tools'), { subtree: true, attributes: true, attributeFilter: ['class'] });
+  syncTools();
+
+  /* ---------- kâğıt türü (bu tarayıcıda hatırlanır) ---------- */
+  var book = $('[data-book]'), paperSel = $('[data-paper]');
+  var setPaper = function (v) { ['lined', 'grid', 'dots', 'plain', 'cornell'].forEach(function (p) { book.classList.toggle('p-' + p, p === v); }); paperSel.value = v; store.set('paper', v); };
+  paperSel.addEventListener('change', function () { setPaper(paperSel.value); });
+  setPaper(store.get('paper') || 'lined');
+
+  /* ---------- tam ekran ---------- */
+  var nb = $('.nb'), fullB = $('[data-full]');
+  fullB.addEventListener('click', function () {
+    if (document.fullscreenElement) { document.exitFullscreen(); return; }
+    if (nb.requestFullscreen) nb.requestFullscreen().catch(function () {});
+  });
+  document.addEventListener('fullscreenchange', function () {
+    var on = document.fullscreenElement === nb;
+    fullB.setAttribute('aria-pressed', String(on)); nb.classList.toggle('is-full', on);
+    setTimeout(function () { if (typeof resizeCanvasToDisplaySize === 'function') resizeCanvasToDisplaySize(); }, 120);
+  });
+
+  /* ---------- parmakla ya da tabletle çizim (eski motor yalnızca fareyi dinliyordu) ---------- */
+  var cv = $('#notebook-canvas');
+  cv.style.touchAction = 'none';
+  var tp = null;
+  var fake = function (e) { return { clientX: e.clientX, clientY: e.clientY, target: cv, preventDefault: function () { e.preventDefault(); } }; };
+  cv.addEventListener('pointerdown', function (e) { if (e.pointerType !== 'touch') return; tp = e.pointerId; e.preventDefault(); if (typeof startDrawing === 'function') startDrawing(fake(e)); });
+  cv.addEventListener('pointermove', function (e) { if (e.pointerId !== tp) return; e.preventDefault(); if (typeof draw === 'function') draw(fake(e)); });
+  var tEnd = function (e) { if (e.pointerId !== tp) return; tp = null; if (typeof stopDrawing === 'function') stopDrawing(fake(e)); };
+  cv.addEventListener('pointerup', tEnd); cv.addEventListener('pointercancel', tEnd);
+
+  /* ---------- sayfa göstergesi Türkçe, kayıt durumu ---------- */
+  var ind = $('#notebook-page-indicator');
+  var fixInd = function () { var m = ind.textContent.match(/(\d+)\s*(?:\/|of)\s*(\d+)/i); var t = m ? 'sayfa ' + m[1] + ' / ' + m[2] : ind.textContent; if (ind.textContent !== t) ind.textContent = t; };
+  if ('MutationObserver' in window) new MutationObserver(fixInd).observe(ind, { childList: true, characterData: true, subtree: true });
+  var saved = $('[data-saved]'), lastSave = null, wasDirty = false;
+  var paintSaved = function () {
+    var dirty = lsafe(function () { return notebookHasUnsavedChanges; }, false);
+    if (dirty === wasDirty && saved.dataset.init) return;
+    saved.dataset.init = '1'; wasDirty = dirty;
+    saved.classList.toggle('ok', !dirty && !!lastSave);
+    saved.textContent = dirty ? 'kaydedilmemiş değişiklik var' : lastSave ? 'kaydedildi ✓ ' + lastSave : 'bulutta';
+  };
+  setInterval(paintSaved, 1200);
+  if (typeof saveNotebookData === 'function') {
+    var origSave = saveNotebookData;
+    saveNotebookData = async function () {
+      saved.textContent = 'kaydediliyor…'; saved.classList.remove('ok');
+      var r = await origSave.apply(this, arguments);
+      if (!lsafe(function () { return notebookHasUnsavedChanges; }, true)) {
+        var d = new Date(); lastSave = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+        saved.classList.remove('thump'); void saved.offsetWidth; saved.classList.add('thump');
+      }
+      saved.dataset.init = ''; paintSaved();
+      return r;
+    };
+    window.saveNotebookData = saveNotebookData;
+  }
+  window.addEventListener('beforeunload', function (e) {
+    if (root.classList.contains('active') && lsafe(function () { return notebookHasUnsavedChanges; }, false)) { e.preventDefault(); e.returnValue = ''; }
+  });
+  /* Ctrl+S: defteri kaydet */
+  document.addEventListener('keydown', function (e) {
+    if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S') && root.classList.contains('active')) { e.preventDefault(); $('#btn-save-notebook').click(); }
+  });
+})();

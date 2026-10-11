@@ -438,171 +438,103 @@
       <!-- ==========================================
            TAB 3: STUDY NOTEBOOK VIEW
            ========================================== -->
-      <section id="notebook-view" class="dashboard-view-section">
-        <div class="dashboard-page-header">
-          <h2 class="dashboard-page-title" data-i18n="dash.notebook.title">Digital Study Notebook</h2>
-          <p class="dashboard-page-desc" data-i18n="dash.notebook.desc">Create freehand drawings, drag cards as sticky notes, type texts, and construct tables.</p>
-        </div>
+      <section id="notebook-view" class="dashboard-view-section axd axn">
+<div class="main-d defter">
+<header class="d-head land">
+<div class="d-head-l">
+<span class="eyb hand">defter</span>
+<h1 class="disp">Çalışma defteri</h1>
+<p class="d-sub hand">özetten al, deftere yaz, çiz, sakla.</p>
+</div>
+<div class="d-head-r">
+<span class="saved hand" data-saved="" aria-live="polite">açılıyor…</span>
+<button type="button" class="hbtn" id="btn-depot-modal" title="Bilgi deposu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5 L12 4.5 L20 8.5 V18 L12 21 L4 18 Z"/><path d="M4 8.5 L12 12.5 L20 8.5 M12 12.5 V21"/></svg>Bilgi deposu <span class="depot-badge" id="depot-count-badge">0</span></button>
+<button type="button" class="hbtn" id="btn-share-page" onclick="openPageShareModal()" title="Bu sayfayı bir sınıf arkadaşınla paylaş"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="7" cy="12" r="2.6"/><circle cx="17" cy="6.5" r="2.6"/><circle cx="17" cy="17.5" r="2.6"/><path d="M9.3 10.8 L14.7 7.7 M9.3 13.2 L14.7 16.3"/></svg>Paylaş</button>
+<button type="button" class="hbtn" id="btn-download-notebook" title="Sayfayı görsel olarak indir"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4 V15 M8 11.4 C9.4 12.7 10.7 14 12 15.4 C13.3 14 14.6 12.7 16 11.4"/><path d="M5 15.5 V19.5 H19 V15.5"/></svg>Sayfayı indir</button>
+<button type="button" class="btn btn-dark" id="btn-save-notebook">Defteri kaydet</button>
+</div>
+</header>
 
-        <!-- Small viewport screen warning notice -->
-        <div class="notebook-screen-notice" data-i18n="dash.notebook.screenNotice">
-          For the best experience, use a larger screen to access your drawing notebook.
-        </div>
+<div class="desk-d">
+<aside class="src" aria-label="Kaynaklar">
+<div class="folder land">
+<span class="f-tab hand">bilgi kartları</span>
+<label class="vh" for="notebook-search">Kartlarda ara</label>
+<div class="card-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.6 15.8 C17.4 17.4 18.8 18.9 20.4 20.6"/></svg><input id="notebook-search" type="search" placeholder="kartlarda ara…" autocomplete="off"></div>
+<ul class="cards-l" id="notebook-sidebar-list"></ul>
+</div>
+<article class="summary land" data-sumcard="" aria-labelledby="oz-t" hidden>
+<i class="staple" aria-hidden="true"></i>
+<div class="sum-h"><h2 id="oz-t" class="hd">özet <small data-sum-n=""></small></h2></div>
+<div class="sum-body" data-sum=""></div>
+<p class="sum-tip hand">bir cümleyi seç: deftere not olarak as ya da kopyala.</p>
+</article>
+</aside>
 
-        <div class="notebook-workspace-container">
-          <!-- Left Column: Compact Study Cards -->
-          <div class="notebook-left-panel">
-            <h3 style="font-size: 1rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.25rem;" data-i18n="dash.notebook.sidebar.title">Your Study Cards</h3>
-            
-            <div class="search-container" style="margin-bottom: 0.5rem; width: 100%;">
-              <input type="text" id="notebook-search" class="search-input" data-i18n-placeholder="dash.notebook.searchPlaceholder" placeholder="Search cards..." style="padding: 0.5rem 0.75rem; font-size: 0.8rem;">
-            </div>
-
-            <!-- List wrapper -->
-            <div id="notebook-sidebar-list" style="display: flex; flex-direction: column; gap: 0.75rem;">
-              <!-- Populated dynamically: compact study card nodes -->
-            </div>
-          </div>
-
-          <!-- Right Column: Whiteboard Workspace -->
-          <div class="notebook-main-area">
-            <!-- Redesigned Whiteboard Toolbar Wrapper -->
-            <div class="notebook-toolbar-wrapper">
-              <!-- Primary Toolbar Row (Draw, Insert, Edit, Page Navigation) -->
-              <div class="notebook-primary-toolbar">
-                <!-- Group 1: Draw Tools -->
-                <div class="toolbar-group">
-                  <button class="tool-btn active" id="tool-pen" title="Kalem Aracı (Pen Tool — Click to toggle color/size bar)" aria-label="Pen Tool">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M12 20h9"></path>
-                      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
-                    </svg>
-                  </button>
-                  <button class="tool-btn" id="tool-eraser" title="Silgi Aracı (Eraser Tool)" aria-label="Eraser Tool">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M20 20H4"></path>
-                      <path d="M20 7L12 15l-4-4 8-8 4 4z"></path>
-                      <rect x="3" y="11" width="9" height="9" rx="2"></rect>
-                    </svg>
-                  </button>
-                  <div class="shape-dropdown" style="position: relative; display: inline-block;">
-                    <button class="tool-btn" id="tool-shape" title="Şekil Çizimi (Shapes: Dikdörtgen, Daire, Çizgi, Ok)" aria-label="Shape Tool" onclick="toggleShapeDropdown(event)">
-                      🔺
-                    </button>
-                    <div id="shape-menu" style="display: none; position: absolute; top: 100%; left: 0; background: var(--color-white); border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); box-shadow: var(--shadow-md); z-index: 10000; min-width: 120px;">
-                      <button class="shape-option-btn" onclick="selectShapeMode('rectangle', event)" style="display: block; width: 100%; padding: 0.5rem; text-align: left; background: none; border: none; font-size: 0.8rem; cursor: pointer; color: var(--color-navy); font-family: inherit;">Rectangle</button>
-                      <button class="shape-option-btn" onclick="selectShapeMode('circle', event)" style="display: block; width: 100%; padding: 0.5rem; text-align: left; background: none; border: none; font-size: 0.8rem; cursor: pointer; color: var(--color-navy); font-family: inherit;">Circle</button>
-                      <button class="shape-option-btn" onclick="selectShapeMode('line', event)" style="display: block; width: 100%; padding: 0.5rem; text-align: left; background: none; border: none; font-size: 0.8rem; cursor: pointer; color: var(--color-navy); font-family: inherit;">Line</button>
-                      <button class="shape-option-btn" onclick="selectShapeMode('arrow', event)" style="display: block; width: 100%; padding: 0.5rem; text-align: left; background: none; border: none; font-size: 0.8rem; cursor: pointer; color: var(--color-navy); font-family: inherit;">Arrow</button>
-                    </div>
-                  </div>
-                  <button class="tool-btn" id="tool-text" title="Metin Kutusu Ekle (Text Tool)" aria-label="Text Tool">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <polyline points="4 7 4 4 20 4 20 7"></polyline>
-                      <line x1="9" y1="20" x2="15" y2="20"></line>
-                      <line x1="12" y1="4" x2="12" y2="20"></line>
-                    </svg>
-                  </button>
-                  <button class="tool-btn" id="tool-mic" title="Sesli Not Al (Speech to Text)" aria-label="Voice Notes Tool">
-                    🎤
-                  </button>
-                </div>
-
-                <div class="toolbar-divider"></div>
-
-                <!-- Group 2: Insert Elements -->
-                <div class="toolbar-group">
-                  <button class="tool-btn" id="tool-table" title="Tablo Oluştur (Table Creator)" aria-label="Table Creator Tool">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M3 3h18v18H3zM21 9H3M21 15H3M12 3v18"></path>
-                    </svg>
-                  </button>
-                  <button class="tool-btn" id="tool-image" title="Görsel Yükle (Insert Image)" aria-label="Insert Image" onclick="triggerNotebookImageUpload(event)">
-                    🖼️
-                  </button>
-                  <input type="file" id="notebook-image-uploader" accept="image/*" style="display: none;" onchange="handleNotebookImageUpload(event)">
-                </div>
-
-                <div class="toolbar-divider"></div>
-
-                <!-- Group 3: History Edit (Undo/Redo) -->
-                <div class="toolbar-group">
-                  <button class="tool-btn" id="btn-undo-notebook" title="Geri Al (Undo — Ctrl+Z)" onclick="undoNotebookAction()" disabled>↶</button>
-                  <button class="tool-btn" id="btn-redo-notebook" title="İleri Al (Redo — Ctrl+Y)" onclick="redoNotebookAction()" disabled>↷</button>
-                </div>
-
-                <!-- Group 4: Page Navigation Cluster (Right Aligned) -->
-                <div class="toolbar-group nav-cluster" style="margin-left: auto;">
-                  <button class="tool-btn" id="btn-page-prev" title="Önceki Sayfa" onclick="navigateNotebookPage(-1)">←</button>
-                  <span id="notebook-page-indicator" title="Mevcut Sayfa Konumu" style="font-size: 0.8rem; font-weight: 700; color: var(--color-navy); padding: 0 0.25rem; white-space: nowrap;">Page 1 of 1</span>
-                  <button class="tool-btn" id="btn-page-next" title="Sonraki Sayfa" onclick="navigateNotebookPage(1)">→</button>
-                  <button class="tool-btn" id="btn-pages-overview" title="Tüm Sayfalar Önizlemesi (Grid View)" onclick="openNotebookPagesOverview()" style="font-size: 0.8rem; font-weight: 600;" data-i18n="dash.notebook.allPages">📑 All Pages</button>
-                  <button class="tool-btn" id="btn-page-new" title="Yeni Sayfa Oluştur (Şablon Seçimi)" onclick="openTemplatePickerModal()" style="font-weight: bold; font-size: 1.1rem; color: var(--color-teal);">+</button>
-                  <button class="tool-btn" id="btn-page-delete" title="Mevcut Sayfayı Sil" onclick="deleteCurrentNotebookPage()" style="color: #EF4444; font-size: 0.95rem;">🗑️</button>
-                  <button class="tool-btn" id="btn-share-page" title="Bu Sayfayı Sınıf Arkadaşınla Paylaş" onclick="openPageShareModal()" style="font-size: 0.8rem; font-weight: 600; color: var(--color-navy);" data-i18n="dash.notebook.share">👥 Share</button>
-                </div>
-              </div>
-
-              <!-- Contextual Color & Brush/Font Size Panel (Shown when Pen or Text tool active) -->
-              <div class="notebook-contextual-bar" id="notebook-contextual-panel" style="display: flex;">
-                <div class="contextual-label">Color:</div>
-                <div class="swatch-container">
-                  <button class="color-swatch active" style="background-color: #000000;" data-color="#000000" title="Black color" aria-label="Black color"></button>
-                  <button class="color-swatch" style="background-color: #0F172A;" data-color="#0F172A" title="Dark Navy color" aria-label="Dark Navy color"></button>
-                  <button class="color-swatch" style="background-color: #115E59;" data-color="#115E59" title="Teal color" aria-label="Teal color"></button>
-                  <button class="color-swatch" style="background-color: #EF4444;" data-color="#EF4444" title="Red color" aria-label="Red color"></button>
-                  <button class="color-swatch" style="background-color: #3B82F6;" data-color="#3B82F6" title="Blue color" aria-label="Blue color"></button>
-                  <button class="color-swatch" style="background-color: #10B981;" data-color="#10B981" title="Green color" aria-label="Green color"></button>
-                  <button class="color-swatch" style="background-color: #F59E0B;" data-color="#F59E0B" title="Orange color" aria-label="Orange color"></button>
-                  <button class="color-swatch" style="background-color: #8B5CF6;" data-color="#8B5CF6" title="Purple color" aria-label="Purple color"></button>
-                  <input type="color" id="tool-color-picker" title="Özel Renk Seç (Custom Color Picker)" aria-label="Custom Color Picker" style="width: 22px; height: 22px; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: 50%; padding: 0; cursor: pointer; background: none; margin-left: 0.25rem;">
-                </div>
-
-                <div class="toolbar-divider" style="height: 18px;"></div>
-
-                <div id="contextual-brush-size-group" style="display: inline-flex; align-items: center; gap: 0.35rem;">
-                  <span class="brush-slider-label">Size: <span id="brush-size-val">4px</span></span>
-                  <input type="range" id="brush-size" class="brush-slider" min="1" max="20" value="4">
-                </div>
-
-                <div id="contextual-font-size-group" style="display: none; align-items: center; gap: 0.35rem;">
-                  <span class="brush-slider-label">Font:</span>
-                  <select id="text-font-size" class="font-size-select" title="Text Font Size" aria-label="Text Font Size">
-                    <option value="12px">12px</option>
-                    <option value="16px" selected>16px</option>
-                    <option value="20px">20px</option>
-                    <option value="24px">24px</option>
-                    <option value="32px">32px</option>
-                  </select>
-                </div>
-              </div>
-
-              <!-- Bottom Document-level Actions Row -->
-              <div class="notebook-bottom-actions">
-                <button class="btn btn-outline" id="btn-clear-canvas" title="Tüm Çizimleri Temizle" style="padding: 0.35rem 0.75rem; font-size: 0.78rem;" data-i18n="dash.notebook.btn.clearDrawings">Çizimleri Temizle</button>
-                <button class="btn btn-outline" id="btn-download-notebook" title="Sayfayı Görsel Olarak İndir" style="padding: 0.35rem 0.75rem; font-size: 0.78rem;" data-i18n="dash.notebook.btn.download">Defteri İndir</button>
-                <button class="btn btn-outline" id="btn-depot-modal" title="Bilgi Deposu Staging Paneli" style="padding: 0.35rem 0.75rem; font-size: 0.78rem; position: relative; display: flex; align-items: center; gap: 0.5rem; margin-left: auto;" data-i18n="dash.notebook.btn.depot">
-                  📦 Bilgi Deposu
-                  <span class="depot-badge" id="depot-count-badge" style="display: none; background-color: #EF4444; color: white; font-size: 0.7rem; width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; position: absolute; top: -6px; right: -6px; transform: none;">0</span>
-                </button>
-                <button class="btn btn-primary" id="btn-save-notebook" title="Defter Verisini Buluta Kaydet" style="border: none; padding: 0.35rem 1rem; font-size: 0.78rem;" data-i18n="dash.notebook.btn.save">Defteri Kaydet</button>
-              </div>
-            </div>
-            
-            <!-- Warning hint display -->
-            <div style="display: flex; justify-content: flex-end; margin-top: -0.25rem;">
-              <span class="save-hint-text" data-i18n="dash.notebook.saveHint">Remember to save your notebook before leaving this page.</span>
-            </div>
-
-            <!-- Canvas whiteboard viewport container -->
-            <div class="canvas-viewport" id="canvas-viewport">
-              <canvas id="notebook-canvas" width="800" height="700"></canvas>
-              <!-- Absolute draggable element overlays -->
-              <div id="notebook-overlay-container"></div>
-            </div>
-          </div>
-        </div>
-      </section>
+<section class="nb" aria-label="Defter">
+<div class="nb-top">
+<div class="case" role="toolbar" aria-label="Defter araçları">
+<div class="tools">
+<button type="button" class="tl tool-btn active" id="tool-pen" data-tool="pen" aria-pressed="true" title="Kalem"><svg viewBox="0 0 30 64" aria-hidden="true"><path class="tl-body" d="M9 62 V16 H21 V62 Z"/><path class="tl-wood" d="M9 16 L15 3 L21 16 Z"/><path class="tl-tip ink" d="M13 7.5 L15 3 L17 7.5 Z"/><path class="tl-band" d="M9 54 H21"/></svg><span>kalem</span></button>
+<button type="button" class="tl" id="ax-tool-hl" data-tool="hl" aria-pressed="false" title="Fosforlu kalem"><svg viewBox="0 0 30 64" aria-hidden="true"><path class="tl-body hl-body" d="M7 62 V22 C7 20 8 19 10 19 H20 C22 19 23 20 23 22 V62 Z"/><path class="tl-tip ink" d="M10 19 L11 9 L20 6 L20 19 Z"/><path class="tl-band" d="M7 30 H23"/></svg><span>fosforlu</span></button>
+<button type="button" class="tl tool-btn" id="tool-eraser" data-tool="eraser" aria-pressed="false" title="Silgi"><svg viewBox="0 0 30 64" aria-hidden="true"><path class="er-a" d="M6 36 H24 V60 H6 Z"/><path class="er-b" d="M6 24 C6 22 7 21 9 21 H21 C23 21 24 22 24 24 V36 H6 Z"/></svg><span>silgi</span></button>
+<div class="shape-dropdown ax-shape-w">
+<button type="button" class="tl tool-btn" id="tool-shape" data-tool="shape" aria-pressed="false" title="Şekil: dikdörtgen, daire, çizgi, ok" onclick="toggleShapeDropdown(event)"><svg viewBox="0 0 24 52" aria-hidden="true"><rect class="tl-paper" x="2" y="22" width="13" height="13" rx="1.5"/><circle class="tl-note2" cx="16" cy="33" r="6.5"/><path class="tl-ink" d="M3 47 L21 41"/></svg><span>şekil</span></button>
+<div id="shape-menu" class="ax-shape-menu" style="display: none;">
+<button type="button" class="shape-option-btn" onclick="selectShapeMode('rectangle', event)">dikdörtgen</button>
+<button type="button" class="shape-option-btn" onclick="selectShapeMode('circle', event)">daire</button>
+<button type="button" class="shape-option-btn" onclick="selectShapeMode('line', event)">çizgi</button>
+<button type="button" class="shape-option-btn" onclick="selectShapeMode('arrow', event)">ok</button>
+</div>
+</div>
+<button type="button" class="tl tool-btn" id="tool-text" data-tool="text" aria-pressed="false" title="Yazı kutusu"><svg viewBox="0 0 30 64" aria-hidden="true"><path class="tl-paper" d="M4 22 H26 V60 H4 Z"/><path class="tl-ink" d="M10 32 H20 M15 32 V50"/></svg><span>yazı</span></button>
+<button type="button" class="tl tool-btn" id="tool-table" data-tool="table" aria-pressed="false" title="Tablo"><svg viewBox="0 0 30 64" aria-hidden="true"><path class="tl-paper" d="M4 26 H26 V58 H4 Z"/><path class="tl-ink" d="M4 36 H26 M4 47 H26 M14 26 V58"/></svg><span>tablo</span></button>
+<button type="button" class="tl tool-btn" id="tool-image" data-tool="img" aria-pressed="false" title="Resim ekle" onclick="triggerNotebookImageUpload(event)"><svg viewBox="0 0 30 64" aria-hidden="true"><path class="tl-paper" d="M3 26 H27 V56 H3 Z"/><path class="tl-ink" d="M6 52 L13 42 L18 48 L21 44 L25 52 Z"/><circle class="tl-ink" cx="21" cy="33" r="2.5"/></svg><span>resim</span></button>
+<input type="file" id="notebook-image-uploader" accept="image/*" style="display: none;" onchange="handleNotebookImageUpload(event)">
+<button type="button" class="tl tool-btn" id="tool-mic" data-tool="mic" aria-pressed="false" title="Sesli not: konuş, yazıya dönsün"><svg viewBox="0 0 24 52" aria-hidden="true"><rect class="tl-paper" x="7" y="18" width="10" height="18" rx="5"/><path class="tl-ink" d="M4 30 C4 38 20 38 20 30 M12 38 V45 M8 45 H16" style="fill:none"/></svg><span>ses</span></button>
+</div>
+<div class="inks ax-ctx" id="notebook-contextual-panel" role="group" aria-label="Renk ve kalınlık">
+<button type="button" class="color-swatch active" data-color="#000000" title="siyah" aria-label="siyah mürekkep"><i style="--c:#000000"></i></button><button type="button" class="color-swatch" data-color="#0D1838" title="lacivert" aria-label="lacivert mürekkep"><i style="--c:#0D1838"></i></button><button type="button" class="color-swatch" data-color="#2F6BFF" title="mavi" aria-label="mavi mürekkep"><i style="--c:#2F6BFF"></i></button><button type="button" class="color-swatch" data-color="#C9483B" title="kırmızı" aria-label="kırmızı mürekkep"><i style="--c:#C9483B"></i></button><button type="button" class="color-swatch" data-color="#1E8A55" title="yeşil" aria-label="yeşil mürekkep"><i style="--c:#1E8A55"></i></button><button type="button" class="color-swatch" data-color="#B4511F" title="turuncu" aria-label="turuncu mürekkep"><i style="--c:#B4511F"></i></button><button type="button" class="color-swatch" data-color="#7A4FD6" title="mor" aria-label="mor mürekkep"><i style="--c:#7A4FD6"></i></button>
+<label class="ax-pick" title="Özel renk"><span class="vh">Özel renk</span><input type="color" id="tool-color-picker" value="#2F6BFF"></label>
+<label class="size" id="contextual-brush-size-group"><span class="vh">Kalınlık</span><i class="size-dot" data-size-dot="" aria-hidden="true"></i><input type="range" id="brush-size" min="1" max="20" value="4" aria-label="Kalınlık"><output id="brush-size-val">4px</output></label>
+<label class="ax-font" id="contextual-font-size-group" style="display: none;"><span class="hand">yazı</span><select id="text-font-size" aria-label="Yazı boyutu"><option value="12px">12</option><option value="16px" selected>16</option><option value="20px">20</option><option value="24px">24</option><option value="32px">32</option></select></label>
+</div>
+<div class="case-r">
+<button type="button" class="ib2" id="btn-undo-notebook" onclick="undoNotebookAction()" aria-label="Geri al (Ctrl+Z)" title="Geri al (Ctrl+Z)" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7 L4.5 11 L9 15"/><path d="M5 11 H14 C17 11 19.5 13 19.5 16 C19.5 18 18.5 19 17 19.5"/></svg></button>
+<button type="button" class="ib2" id="btn-redo-notebook" onclick="redoNotebookAction()" aria-label="İleri al (Ctrl+Y)" title="İleri al (Ctrl+Y)" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 7 L19.5 11 L15 15"/><path d="M19 11 H10 C7 11 4.5 13 4.5 16 C4.5 18 5.5 19 7 19.5"/></svg></button>
+<label class="paper-s"><span class="vh">Kâğıt türü</span><select data-paper="" aria-label="Kâğıt türü"><option value="lined">çizgili</option><option value="grid">kareli</option><option value="dots">noktalı</option><option value="plain">düz</option><option value="cornell">Cornell</option></select></label>
+<button type="button" class="ib2 txt" id="btn-clear-canvas">çizimleri temizle</button>
+<button type="button" class="ib2" data-full="" aria-pressed="false" aria-label="Tam ekran defter" title="Tam ekran (Esc ile çık)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9 V4 H9 M15 4 H20 V9 M20 15 V20 H15 M9 20 H4 V15"/></svg></button>
+</div>
+</div>
+<div class="pages-bar">
+<button type="button" class="ib2" id="btn-page-prev" onclick="navigateNotebookPage(-1)" aria-label="Önceki sayfa">‹</button>
+<span class="pg-n hand" id="notebook-page-indicator" aria-live="polite">sayfa 1 / 1</span>
+<button type="button" class="ib2" id="btn-page-next" onclick="navigateNotebookPage(1)" aria-label="Sonraki sayfa">›</button>
+<button type="button" class="ib2 txt" id="btn-page-new" onclick="openTemplatePickerModal()">+ yeni sayfa</button>
+<button type="button" class="ib2 txt" id="btn-pages-overview" onclick="openNotebookPagesOverview()">tüm sayfalar</button>
+<button type="button" class="ib2 txt danger" id="btn-page-delete" onclick="deleteCurrentNotebookPage()">sayfayı sil</button>
+</div>
+</div>
+<div class="nbook p-lined" data-book="">
+<div class="spiral" aria-hidden="true"></div>
+<div class="ax-page-wrap">
+<div class="canvas-viewport npage" id="canvas-viewport">
+<div class="paper" aria-hidden="true"><span class="cn cn1">ipuçları · sorular</span><span class="cn cn2">notlar</span><span class="cn cn3">özet</span></div>
+<canvas id="notebook-canvas" width="800" height="760"></canvas>
+<div id="notebook-overlay-container"></div>
+</div>
+</div>
+</div>
+<p class="nb-hint hand" data-hint="">çiz, yaz, karttan not as · bitince “Defteri kaydet”; kaydetmeden sayfadan çıkma.</p>
+</section>
+</div>
+<div class="bubble" data-bubble="" role="toolbar" aria-label="Seçili metinle ne yapayım?" hidden>
+<button type="button" data-clip="note">deftere not olarak as</button>
+<button type="button" data-clip="copy">kopyala</button>
+</div>
+</div>
+</section>
 
       <!-- ==========================================
            TAB 4: BILGI KARTLARI VIEW (INFO CARDS)
