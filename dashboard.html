@@ -281,92 +281,97 @@
       <!-- ==========================================
            TAB 0.5: STUDY PLANNER VIEW (PHASE 15)
            ========================================== -->
-      <section id="planner-view" class="dashboard-view-section">
-        <div class="dashboard-page-header">
-          <h2 class="dashboard-page-title" data-i18n="dash.planner.title">Çalışma Planlayıcı</h2>
-          <p class="dashboard-page-desc" data-i18n="dash.planner.desc">Akademik takviminizi yönetin, sınav tarihlerinizi ve çalışma hedeflerinizi takip edin.</p>
+      <section id="planner-view" class="dashboard-view-section axd axp">
+<div style="display:none" aria-hidden="true"><span id="reminders-status-text"></span><div id="planner-events-this-week"></div><div id="planner-events-later"></div><div id="planner-calendar-days"></div><span id="planner-calendar-month-year"></span></div>
+<div class="main-d planner">
 
-          <!-- Exam Notification Opt-in UI (Part E) -->
-          <div class="notification-optin-container" style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; background-color: var(--color-bg-alt); padding: 0.75rem 1rem; border-radius: var(--radius-sm); border: 1px solid rgba(22, 50, 92, 0.08); max-width: fit-content;">
-            <button id="btn-enable-reminders" class="btn btn-outline" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; display: flex; align-items: center; gap: 0.4rem; cursor: pointer;" onclick="requestExamNotificationPermission()">
-              🔔 Enable Exam Reminders
-            </button>
-            <span id="reminders-status-text" style="font-size: 0.8rem; font-weight: 700; color: var(--color-text-muted);">Status: Checking...</span>
-            <small style="font-size: 0.72rem; color: var(--color-text-muted); font-weight: 500; display: block; width: 100%; margin-top: 0.25rem;">* Reminders work while Acadex is open in your browser.</small>
-          </div>
-        </div>
+<section class="p-head land" aria-labelledby="p-title">
+<div class="p-head-l">
+<span class="eyb hand">planlayıcı</span>
+<h1 class="disp" id="p-title">Çalışma planlayıcı</h1>
+<p class="p-sub hand">sınavlarını, çalışmalarını ve ödevlerini tek takvimde tut.</p>
+<div class="p-bar">
+<button type="button" class="btn btn-blue" data-new="">+ Etkinlik ekle</button>
+<form class="quick" data-quick="" autocomplete="off">
+<label class="vh" for="quick-in">Hızlı yaz</label>
+<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20 L5.5 15 L16 4.5 C17 3.5 18.5 3.5 19.5 4.5 C20.5 5.5 20.5 7 19.5 8 L9 18.5 Z"/><path d="M14 6.5 L17.5 10"/></svg>
+<input id="quick-in" type="text" placeholder="hızlı yaz: cuma 14:00 finans sınavı" aria-describedby="quick-h">
+<button type="submit" class="quick-go" aria-label="Ekle">↵</button>
+<small id="quick-h" class="vh">Gün, saat ve tür yazıdan anlaşılır. Örnek: yarın 10:00 Week 1.2 tekrarı.</small>
+</form>
+</div>
+</div>
+<div class="count" data-count="" aria-live="polite"></div>
+</section>
 
-        <div style="display: flex; flex-direction: column; gap: 2rem;">
-          <!-- Action Buttons / Calendar togglers -->
-          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
-            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-              <button onclick="openAddEventModal()" class="btn btn-primary" style="border: none; display: flex; align-items: center; gap: 0.5rem; background: var(--color-teal); color: white;">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                <span data-i18n="dash.planner.addBtn">+ Add Event</span>
-              </button>
-              <button onclick="exportPlannerToICal()" id="btn-export-ical" class="btn btn-outline" title="Google Calendar / Outlook için .ics dosyası indir" style="display: flex; align-items: center; gap: 0.5rem;">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                <span>Takvime Aktar</span>
-              </button>
-            </div>
-            <div style="display: flex; gap: 0.5rem;">
-              <button onclick="togglePlannerLayout('list')" id="btn-planner-view-list" class="btn btn-outline" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; background-color: var(--color-teal); color: white;">List View</button>
-              <button onclick="togglePlannerLayout('calendar')" id="btn-planner-view-calendar" class="btn btn-outline" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;">Calendar View</button>
-            </div>
-          </div>
+<div class="p-tools">
+<div class="remind" data-remind="">
+<button type="button" class="switch" role="switch" aria-checked="false" data-remind-sw="" aria-labelledby="remind-l"><i></i></button>
+<span id="remind-l" class="remind-l">Sınav hatırlatıcıları</span>
+<span class="remind-s" data-remind-s="">kapalı</span>
+<small class="remind-n">yalnızca Acadex bu tarayıcıda açıkken çalışır: sınavdan 1 gün ve 1 saat önce haber verir.</small>
+</div>
+<div class="p-tools-r">
+<button type="button" class="btn btn-line" data-ics=""><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4 V15 M8 11.4 C9.4 12.7 10.7 14 12 15.4 C13.3 14 14.6 12.7 16 11.4"/><path d="M5 15.5 V19.5 H19 V15.5"/></svg>Takvime aktar <small>.ics</small></button>
+<div class="views" role="tablist" aria-label="Görünüm">
+<button type="button" role="tab" id="tab-cal" aria-selected="true" aria-controls="v-cal" data-view="cal">takvim</button>
+<button type="button" role="tab" id="tab-list" aria-selected="false" aria-controls="v-list" data-view="list">liste</button>
+</div>
+</div>
+</div>
 
-          <!-- Calendar View (lightweight CSS Grid) -->
-          <div id="planner-calendar-container" style="display: none; background: var(--color-white); padding: 1.5rem; border-radius: var(--radius); border: 1px solid rgba(22, 50, 92, 0.08); box-shadow: var(--shadow-sm);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-              <button onclick="navigatePlannerCalendar(-1)" class="btn btn-outline" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;">&larr;</button>
-              <h3 id="planner-calendar-month-year" style="font-size: 1.1rem; font-weight: 800; color: var(--color-navy); margin: 0;">Month Year</h3>
-              <button onclick="navigatePlannerCalendar(1)" class="btn btn-outline" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;">&rarr;</button>
-            </div>
-            
-            <!-- Calendar Grid -->
-            <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.5rem; text-align: center; border-bottom: 1px solid rgba(22, 50, 92, 0.08); padding-bottom: 0.5rem;">
-              <div style="font-weight: 700; font-size: 0.75rem; color: var(--color-text-muted);">Mon</div>
-              <div style="font-weight: 700; font-size: 0.75rem; color: var(--color-text-muted);">Tue</div>
-              <div style="font-weight: 700; font-size: 0.75rem; color: var(--color-text-muted);">Wed</div>
-              <div style="font-weight: 700; font-size: 0.75rem; color: var(--color-text-muted);">Thu</div>
-              <div style="font-weight: 700; font-size: 0.75rem; color: var(--color-text-muted);">Fri</div>
-              <div style="font-weight: 700; font-size: 0.75rem; color: var(--color-text-muted);">Sat</div>
-              <div style="font-weight: 700; font-size: 0.75rem; color: var(--color-text-muted);">Sun</div>
-            </div>
-            <div id="planner-calendar-days" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.5rem; margin-top: 0.5rem;">
-              <!-- Populated dynamically -->
-            </div>
-          </div>
+<div class="suggest" data-suggest="" hidden></div>
 
-          <!-- List View -->
-          <div id="planner-list-container">
-            <div id="planner-empty-state" style="display: none; text-align: center; padding: 3rem 1rem; color: var(--color-text-muted);">
-              <div style="font-size: 3rem; margin-bottom: 1rem;">📅</div>
-              <p style="margin: 0; font-size: 0.95rem; font-weight: 600;" data-i18n="dash.planner.empty">No events yet. Add your first exam date or study goal to get started!</p>
-            </div>
+<section class="wall land" id="v-cal" role="tabpanel" aria-labelledby="tab-cal">
+<div class="rings" aria-hidden="true"></div>
+<div class="wall-h">
+<button type="button" class="mnav" data-month="-1" aria-label="Önceki ay">‹</button>
+<h2 class="month" data-month-t="" aria-live="polite">—</h2>
+<button type="button" class="mnav" data-month="1" aria-label="Sonraki ay">›</button>
+<button type="button" class="to-today" data-today="">bugüne dön</button>
+</div>
+<div class="dnames" aria-hidden="true"><span>Pzt</span><span>Sal</span><span>Çar</span><span>Per</span><span>Cum</span><span>Cmt</span><span>Paz</span></div>
+<div class="days" data-days=""></div>
+<p class="legend"><span class="lg sinav">sınav</span><span class="lg calisma">çalışma</span><span class="lg odev">ödev</span><span class="lg taslak">öneri (taslak)</span><span class="lg-hint hand">bir güne dokun, ekle · notu tutup başka güne taşı</span></p>
+</section>
 
-            <!-- Group 1: This Week -->
-            <div id="planner-group-this-week" style="margin-bottom: 2rem;">
-              <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--color-navy); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem; border-bottom: 2px solid var(--color-teal); padding-bottom: 0.35rem;">
-                📅 <span data-i18n="dash.planner.thisWeek">This Week</span>
-              </h3>
-              <div id="planner-events-this-week" style="display: flex; flex-direction: column; gap: 0.75rem;">
-                <!-- Populated dynamically -->
-              </div>
-            </div>
+<section class="agenda land" id="v-list" role="tabpanel" aria-labelledby="tab-list" hidden>
+<div class="agenda-in" data-agenda=""></div>
+</section>
 
-            <!-- Group 2: Later -->
-            <div id="planner-group-later">
-              <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--color-navy); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem; border-bottom: 2px solid #6B7280; padding-bottom: 0.35rem;">
-                ⏳ <span data-i18n="dash.planner.later">Later</span>
-              </h3>
-              <div id="planner-events-later" style="display: flex; flex-direction: column; gap: 0.75rem;">
-                <!-- Populated dynamically -->
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+<dialog class="note-form" data-form="" aria-labelledby="f-t">
+<form method="dialog" data-form-f="">
+<i class="nf-tape" aria-hidden="true"></i>
+<h2 id="f-t" class="hand" data-form-t="">yeni etkinlik</h2>
+<label class="fl" for="f-title">başlık</label>
+<input id="f-title" name="title" type="text" required maxlength="80" placeholder="ör. Finans vize sınavı">
+<fieldset class="types"><legend class="fl">tür</legend>
+<label><input type="radio" name="type" value="sinav"><span>SINAV</span></label>
+<label><input type="radio" name="type" value="calisma" checked><span>ÇALIŞMA</span></label>
+<label><input type="radio" name="type" value="odev"><span>ÖDEV</span></label>
+</fieldset>
+<div class="frow">
+<div><label class="fl" for="f-date">tarih</label><input id="f-date" name="date" type="date" required></div>
+<div><label class="fl" for="f-time">saat <small>(isteğe bağlı)</small></label><input id="f-time" name="time" type="time"></div>
+</div>
+<label class="fl" for="f-doc">belge <small>(isteğe bağlı)</small></label>
+<select id="f-doc" name="doc"><option value="">—</option></select>
+<label class="fl" for="f-notes">not <small>(isteğe bağlı)</small></label>
+<textarea id="f-notes" name="notes" maxlength="500" placeholder="ör. 3. ve 4. bölümler, formül kâğıdı"></textarea>
+<label class="f-done"><input type="checkbox" name="done"> tamamlandı</label>
+<p class="f-err" data-f-err="" role="alert" hidden></p>
+<div class="f-row">
+<button type="button" class="f-del" data-f-del="" hidden>sil</button>
+<button type="button" class="f-cancel" data-f-cancel="">vazgeç</button>
+<button type="submit" class="btn btn-blue" value="save">yapıştır</button>
+</div>
+</form>
+</dialog>
+
+<div class="toast" data-toast="" role="status" aria-live="polite" hidden><span data-toast-t=""></span><button type="button" data-toast-b="" hidden>geri al</button></div>
+</div>
+
+</section>
 
       <!-- ==========================================
            TAB 1: MY DOCUMENTS VIEW
