@@ -2004,3 +2004,278 @@
   }
   paintAll();
 })();
+
+/* ================= KAYNAKLA ÇALIŞ (tam tasarım, gerçek belge + özet + Acadia) =================
+   Veriyi ve sohbeti dashboard.js'in kendi Kaynakla Çalış kodu yürütür (loadSourceHubView,
+   loadSourceHubCard, chat-with-document fonksiyonu, görsel ekleme, "çözümümü kontrol et",
+   Mermaid diyagramları, dipnotla belgeye atlama). Burada yalnızca çizim değişir ve tasarımın
+   ekleri gelir: bölüm sekmeleri, okuma işaretleri, seçip sor, alıntı, karta çevir. */
+(function () {
+  'use strict';
+  var root = document.getElementById('sourcehub-view');
+  if (!root || !root.classList.contains('axy')) return;
+  var $ = function (s, r) { return (r || root).querySelector(s); };
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || root).querySelectorAll(s)); };
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var lsafe = function (fn, fb) { try { return fn(); } catch (e) { return fb; } };
+  var me = function () { return lsafe(function () { return currentUser; }, null) || window.currentUser || null; };
+  var sb = function () { return typeof supabaseClient !== 'undefined' ? supabaseClient : null; };
+  var esc = function (t) { return String(t == null ? '' : t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var baseName = function (n) { n = String(n || '').replace(/\.[a-z0-9]{2,5}$/i, ''); var m = n.match(/^\d{10,}_(?:\d{10,}_)?(.+)$/); if (m) n = m[1]; return n.replace(/_+/g, ' ').trim() || 'İsimsiz belge'; };
+  var get = function (k, d) { try { var v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
+  var put = function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+  var STY = { standard: 'STANDART', bullet: 'MADDELER', structured: 'YAPILANDIRILMIŞ', simplified: 'SADE', exam: 'SINAV ODAKLI' };
+  var TC = ['#2F6BFF', '#1A2A5C', '#5B8CFF', '#33478A', '#7FA6FF', '#0D1838', '#4A6FD8'];
+  $$('.land').forEach(function (el, i) { el.style.setProperty('--hr', (((i * 37) % 11 - 5) * 0.3).toFixed(2) + 'deg'); el.style.setProperty('--hx', (((i * 53) % 9 - 4) * 2) + 'px'); });
+
+  var cards = function () { return lsafe(function () { return sourceHubCards; }, []) || []; };
+  var activeId = function () { return lsafe(function () { return sourceHubActiveCardId; }, null); };
+  var active = function () { var id = activeId(); return cards().filter(function (c) { return c.id === id; })[0] || null; };
+
+  /* bildirim */
+  var toast = $('[data-toast]'), toastT = $('[data-toast-t]'), toastA = $('[data-toast-a]'), toastTimer = 0;
+  var say = function (t, link) { toastT.textContent = t; toastA.hidden = !link; toast.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(function () { toast.hidden = true; }, 5600); };
+  toastA.addEventListener('click', function (e) { e.preventDefault(); toast.hidden = true; if (typeof switchDashboardView === 'function') switchDashboardView('cards'); });
+  $('[data-go-docs]').addEventListener('click', function () { if (typeof switchDashboardView === 'function') switchDashboardView('docs'); });
+
+  /* ---------- belge kenara konabilir ---------- */
+  var desk = $('[data-desk]'), docOpen = $('[data-doc-open]'), docClose = $('[data-doc-close]');
+  var setDoc = function (on, focus) {
+    desk.classList.toggle('no-doc', !on); docOpen.hidden = on || desk.style.display === 'none'; put('acadex.kaynak.nodoc', !on);
+    if (focus) (on ? docClose : docOpen).focus();
+  };
+  docClose.addEventListener('click', function () { setDoc(false, true); });
+  docOpen.addEventListener('click', function () { setDoc(true, true); });
+  /* dipnota dokununca belge kapalıysa açılsın (belge o sayfaya atlar) */
+  document.addEventListener('click', function (e) { if (e.target.closest && e.target.closest('#sourcehub-view .footnote-marker') && desk.classList.contains('no-doc')) setDoc(true); }, true);
+
+  /* ---------- özet: bölüm sekmeleri, okuma işaretleri ---------- */
+  var secsEl = $('[data-secs]'), tabsEl = $('[data-tabs]'), sumEl = $('#sourcehub-summary-text');
+  var readKey = function () { return 'acadex.kaynak.read.' + (activeId() || ''); };
+  var markKey = function () { return 'acadex.kaynak.marks.' + (activeId() || ''); };
+  var readS = [], marks = {};
+  var paintRead = function () {
+    $$('[data-tk]', tabsEl).forEach(function (t) { t.textContent = readS.indexOf(+t.getAttribute('data-tk')) > -1 ? '✓' : ''; });
+    $$('[data-rd]', secsEl).forEach(function (t) { t.textContent = readS.indexOf(+t.getAttribute('data-rd')) > -1 ? 'okundu' : ''; });
+  };
+  var openSec = function (i, scroll) {
+    $$('.sec-b', secsEl).forEach(function (b) {
+      var k = +b.getAttribute('data-sec'), on = k === i && b.getAttribute('aria-expanded') !== 'true', c = $('#axy-secc-' + k);
+      b.setAttribute('aria-expanded', String(on)); c.hidden = !on;
+      var t = $('[data-tab="' + k + '"]', tabsEl); if (t) t.setAttribute('aria-selected', String(on));
+      if (on && !reduce) { c.classList.remove('unfold'); void c.offsetWidth; c.classList.add('unfold'); }
+    });
+    if (readS.indexOf(i) < 0) { readS.push(i); put(readKey(), readS); paintRead(); }
+    if (scroll) $('#axy-sec-' + i).scrollIntoView({ block: 'nearest', behavior: reduce ? 'auto' : 'smooth' });
+  };
+  secsEl.addEventListener('click', function (e) { var b = e.target.closest('[data-sec]'); if (b) openSec(+b.getAttribute('data-sec')); });
+  tabsEl.addEventListener('click', function (e) { var b = e.target.closest('[data-tab]'); if (!b) return; var i = +b.getAttribute('data-tab'); if ($('[data-sec="' + i + '"]').getAttribute('aria-expanded') === 'true') return; openSec(i, true); });
+
+  /* özet paragraflarını cümlelere böl (yalnızca düz metinli paragraflar; dipnotlu/biçimli olanlar tek parça) */
+  var splitSentences = function () {
+    var n = 0;
+    $$('p, li', sumEl).forEach(function (p) {
+      if (p.closest('.sn') || p.querySelector('p, li, ul, ol, table')) return;
+      var simple = Array.prototype.every.call(p.childNodes, function (c) { return c.nodeType === 3 || (c.nodeType === 1 && /^(STRONG|B|EM|I|BR)$/.test(c.tagName)); });
+      if (simple && p.children.length === 0) {
+        var parts = p.textContent.match(/[^.!?…]+(?:[.!?…]+["”’)]*|$)\s*/g) || [p.textContent];
+        p.innerHTML = parts.filter(function (s) { return s.trim(); }).map(function (s) { return '<span class="sn" data-s="' + (n++) + '">' + esc(s.trim()) + '</span>'; }).join(' ');
+      } else {
+        var w = document.createElement('span'); w.className = 'sn'; w.setAttribute('data-s', n++);
+        while (p.firstChild) w.appendChild(p.firstChild); p.appendChild(w);
+      }
+    });
+    $$('.sn', sumEl).forEach(function (s) { s.tabIndex = 0; s.setAttribute('role', 'button'); s.setAttribute('aria-label', 'Cümleyi işaretle: ' + s.textContent.slice(0, 60)); });
+    paintMarks();
+  };
+  var paintMarks = function () { $$('.sn', sumEl).forEach(function (s) { var m = marks[s.getAttribute('data-s')]; if (m) s.setAttribute('data-m', m); else s.removeAttribute('data-m'); }); };
+
+  var renderSummary = function (card, docName) {
+    readS = get(readKey(), []); marks = get(markKey(), {});
+    $('[data-doc-name]').textContent = baseName(docName); $('[data-doc-name]').title = docName || '';
+    /* etiketler */
+    var tags = [STY[card.summary_style] || 'STANDART', card.summary_language === 'tr' ? 'TÜRKÇE' : 'İNGİLİZCE'];
+    if (typeof getDocumentTypeBadgeHtml === 'function') { var d = document.createElement('div'); d.innerHTML = getDocumentTypeBadgeHtml(card.document_type) || ''; var tt = d.textContent.replace(/[^\wçğıöşüÇĞİÖŞÜ\s]/g, '').trim(); if (tt) tags.push(tt.toLocaleUpperCase('tr')); }
+    if (card.course_tag) tags.push(String(card.course_tag));
+    $('#sourcehub-summary-badges').innerHTML = tags.map(function (t) { return '<span>' + esc(t) + '</span>'; }).join('');
+    /* bölümler */
+    var secs = Array.isArray(card.sections) ? card.sections.filter(function (s) { return s && (s.heading || s.summary); }) : [];
+    $('[data-secs-w]').hidden = !secs.length;
+    var fmt = function (t) { return typeof formatSummaryText === 'function' ? formatSummaryText(t || '', card.footnotes) : esc(t); };
+    secsEl.innerHTML = secs.map(function (s, i) {
+      var kps = Array.isArray(s.key_points) ? s.key_points.filter(Boolean) : [], c = TC[i % TC.length];
+      return '<li class="sec" style="--tc:' + c + '" id="axy-sec-' + i + '"><button type="button" class="sec-b" aria-expanded="false" aria-controls="axy-secc-' + i + '" data-sec="' + i + '"><span class="no">' + (i + 1) + '</span><span class="st-t">' + esc(s.heading || ('Bölüm ' + (i + 1))) + '</span><span class="rd" data-rd="' + i + '"></span><span class="ch" aria-hidden="true">⌄</span></button>' +
+        '<div class="sec-c" id="axy-secc-' + i + '" hidden>' + fmt(s.summary) + (kps.length ? '<div class="kp"><b>önemli noktalar</b><ul>' + kps.map(function (p) { return '<li>' + esc(p) + '</li>'; }).join('') + '</ul></div>' : '') + '</div></li>';
+    }).join('');
+    tabsEl.innerHTML = secs.slice(0, 12).map(function (s, i) { return '<button type="button" class="tab" role="tab" aria-selected="false" style="--tc:' + TC[i % TC.length] + '" data-tab="' + i + '" aria-label="Bölüm ' + (i + 1) + ': ' + esc(s.heading || '') + '">' + (i + 1) + '<span class="tk" data-tk="' + i + '"></span></button>'; }).join('');
+    tabsEl.hidden = !secs.length;
+    /* giriş özeti */
+    sumEl.innerHTML = fmt(card.summary) || '<p>Bu belge için özet yok.</p>';
+    splitSentences(); paintRead();
+    /* önemli noktalar */
+    var kp = card.key_points || [];
+    $('[data-pts-w]').hidden = !kp.length;
+    $('#sourcehub-points-container').innerHTML = kp.map(function (p) { return '<li>' + (typeof formatFootnoteMarkers === 'function' ? formatFootnoteMarkers(p, card.footnotes) : esc(p)) + '</li>'; }).join('');
+    if (typeof renderStudyCardImagesGallery === 'function') renderStudyCardImagesGallery(card.chat_attachments || [], card.id, 'sourcehub-images-section', 'sourcehub-images-container');
+  };
+
+  /* okuma işareti: ✓ anladım, ? sorum var */
+  var mpop = $('[data-mpop]'), mTarget = null;
+  var showPop = function (s) {
+    mTarget = s; mpop.hidden = false; $('[data-mk="x"]', mpop).hidden = !s.getAttribute('data-m');
+    var r = s.getBoundingClientRect(), w = mpop.offsetWidth, h = mpop.offsetHeight;
+    mpop.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, r.left)) + 'px'; mpop.style.top = (r.top - h - 10 < 70 ? r.bottom + 10 : r.top - h - 10) + 'px';
+    $('button', mpop).focus();
+  };
+  var hidePop = function () { mpop.hidden = true; mTarget = null; };
+  sumEl.addEventListener('click', function (e) { if (e.target.closest('a, sup, button')) return; var s = e.target.closest('.sn'); if (!s) return; var sel = window.getSelection(); if (sel && !sel.isCollapsed) return; showPop(s); });
+  sumEl.addEventListener('keydown', function (e) { var s = e.target.closest('.sn'); if (s && e.target === s && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); showPop(s); } });
+  mpop.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-mk]'); if (!b || !mTarget) return; var k = b.getAttribute('data-mk'), s = mTarget, id = s.getAttribute('data-s');
+    if (k === 'x') delete marks[id]; else marks[id] = k;
+    put(markKey(), marks); paintMarks(); hidePop(); s.focus();
+    if (k === 'q') { attach(s.textContent.trim()); say('Sorduğun cümle soru kutusuna iliştirildi; sorunu yaz.'); }
+  });
+  document.addEventListener('click', function (e) { if (!mpop.hidden && !e.target.closest('[data-mpop]') && !e.target.closest('#sourcehub-view .sn')) hidePop(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !mpop.hidden) { var s = mTarget; hidePop(); if (s) s.focus(); } });
+
+  /* ---------- seç → Acadia'ya sor ---------- */
+  var bubble = $('[data-bubble]'), lastSel = '', selT = 0, paper = $('.sumf-paper');
+  document.addEventListener('selectionchange', function () {
+    if (!root.classList.contains('active')) return;
+    clearTimeout(selT);
+    selT = setTimeout(function () {
+      var s = window.getSelection(); if (!s || s.isCollapsed || !s.rangeCount || !paper.contains(s.getRangeAt(0).commonAncestorContainer)) { if (!bubble.contains(document.activeElement)) bubble.hidden = true; return; }
+      var t = s.toString().replace(/\s+/g, ' ').trim(); if (!t) return; lastSel = t.slice(0, 500); hidePop();
+      var r = s.getRangeAt(0).getBoundingClientRect(); bubble.hidden = false;
+      var w = bubble.offsetWidth, h = bubble.offsetHeight, cx = r.left + r.width / 2, x = Math.max(8, Math.min(window.innerWidth - w - 8, cx - w / 2));
+      bubble.style.left = x + 'px'; bubble.style.top = (r.top - h - 14 < 70 ? r.bottom + 14 : r.top - h - 14) + 'px'; bubble.style.setProperty('--ax', Math.max(16, Math.min(w - 16, cx - x)) + 'px');
+    }, 220);
+  });
+  bubble.addEventListener('mousedown', function (e) { e.preventDefault(); });
+  window.addEventListener('scroll', function () { if (!bubble.hidden) bubble.hidden = true; }, { passive: true });
+  bubble.addEventListener('click', function () { if (!lastSel) return; attach(lastSel); window.getSelection().removeAllRanges(); bubble.hidden = true; });
+
+  /* ---------- soru kutusu: alıntı iliştirme, Enter ile gönder ---------- */
+  var form = $('#sourcehub-chat-input-form'), qEl = $('#sourcehub-chat-input'), att = $('[data-att]'), attText = '';
+  var attach = function (t) {
+    attText = t; att.hidden = false; att.innerHTML = '“' + esc(t.length > 220 ? t.slice(0, 220) + '…' : t) + '”<button type="button" aria-label="Alıntıyı kaldır" data-att-x="">×</button>';
+    qEl.focus();
+  };
+  att.addEventListener('click', function (e) { if (e.target.closest('[data-att-x]')) { attText = ''; att.hidden = true; qEl.focus(); } });
+  /* dashboard.js'in gönderme dinleyicisinden ÖNCE çalışır: alıntıyı sorunun başına ekler */
+  document.addEventListener('submit', function (e) {
+    if (e.target !== form) return;
+    var q = qEl.value.trim();
+    if (attText) { qEl.value = '“' + attText + '”\n\n' + (q || 'Bu kısmı açıklar mısın?'); attText = ''; att.hidden = true; }
+    qEl.style.height = '';
+  }, true);
+  qEl.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); if (form.requestSubmit) form.requestSubmit(); else form.dispatchEvent(new Event('submit', { cancelable: true })); } });
+  qEl.addEventListener('input', function () { qEl.style.height = ''; qEl.style.height = Math.min(140, qEl.scrollHeight) + 'px'; });
+
+  /* ---------- sohbet balonları: kâğıt mektuplar ---------- */
+  var feed = $('#sourcehub-chat-messages');
+  var tilt = function () { return ((Math.random() * 1.6) - 0.8).toFixed(2); };
+  var lastQ = '';
+  var writeOut = function (el) {
+    if (reduce) return;
+    var walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT), nodes = [], n;
+    while ((n = walker.nextNode())) { var pn = n.parentNode; if (n.data.trim() && !pn.closest('.acts, button, .katex, svg, sup')) nodes.push(n); }
+    var spans = [];
+    nodes.forEach(function (tn) {
+      var frag = document.createDocumentFragment();
+      tn.data.split(/(\s+)/).forEach(function (w) { if (!w) return; if (/^\s+$/.test(w)) { frag.appendChild(document.createTextNode(w)); return; } var s = document.createElement('span'); s.className = 'w'; s.style.opacity = '0'; s.textContent = w; frag.appendChild(s); spans.push(s); });
+      tn.parentNode.replaceChild(frag, tn);
+    });
+    var step = spans.length > 260 ? 6 : 24;
+    spans.forEach(function (s, i) { setTimeout(function () { s.style.opacity = ''; s.classList.add('in'); if (i % 8 === 0) feed.scrollTop = feed.scrollHeight; }, step * i); });
+  };
+  var dress = function (bub, role, text, saveable) {
+    bub.removeAttribute('style');
+    bub.className = 'msg ' + (role === 'user' ? 'me' : 'ac');
+    bub.style.setProperty('--r', tilt() + 'deg');
+    if (role === 'user') {
+      lastQ = text;
+      var td = bub.lastElementChild && bub.lastElementChild.tagName === 'DIV' && !bub.lastElementChild.querySelector('button') ? bub.lastElementChild : null;
+      if (!td) $$(':scope > div', bub).forEach(function (d) { if (!td && !d.querySelector('button')) td = d; });
+      var m = String(text).match(/^“([\s\S]*?)”\n\n([\s\S]*)$/);
+      if (td && m) td.innerHTML = '<span class="quote">“' + esc(m[1].length > 160 ? m[1].slice(0, 160) + '…' : m[1]) + '”</span>' + esc(m[2]);
+      $$(':scope > div', bub).forEach(function (d) { if (d.querySelector('button')) { d.removeAttribute('style'); d.className = 'acts'; } });
+      return;
+    }
+    $$(':scope > div', bub).forEach(function (d) {
+      if (d.querySelector('button') && !d.querySelector('svg, img')) {
+        d.removeAttribute('style'); d.className = 'acts';
+        $$('button', d).forEach(function (b) { b.textContent = b.textContent.replace(/^[^\wçğıöşüÇĞİÖŞÜ]+/, '').replace(/^Deftere Ekle$/, 'deftere').replace(/^Add to Notebook$/, 'deftere'); });
+      }
+    });
+    if (saveable && text && text.trim()) {
+      var row = $('.acts', bub);
+      if (!row) { row = document.createElement('div'); row.className = 'acts'; bub.appendChild(row); }
+      var cb = document.createElement('button'); cb.type = 'button'; cb.textContent = 'karta çevir';
+      var q = lastQ, a = text;
+      cb.addEventListener('click', function () { toCard(q, a, cb); });
+      row.appendChild(cb);
+    } else if (!saveable && text && /tekrar deneyin|try again|kota|limit/i.test(text)) bub.classList.add('err');
+    if (bub.parentNode === feed && feed.children.length > 1) { bub.classList.add('drop'); if (saveable) writeOut(bub); }
+  };
+  if (typeof renderSourceHubChatMessage === 'function') {
+    var origMsg = renderSourceHubChatMessage;
+    renderSourceHubChatMessage = function (role, text, citations, imageDataUrl, visionUsed, mermaidCode, saveable) {
+      if (saveable === undefined) saveable = true;
+      var before = feed.lastElementChild;
+      var r = origMsg.apply(this, arguments);
+      var bub = feed.lastElementChild;
+      if (bub && bub !== before) dress(bub, role, text, role !== 'user' && saveable);
+      return r;
+    };
+    window.renderSourceHubChatMessage = renderSourceHubChatMessage;
+  }
+
+  /* Acadia'nın cevabını bilgi kartına çevir: soru ön yüz, cevap arka yüz (bu destenin kartlarına eklenir) */
+  var toCard = async function (q, a, btn) {
+    var card = active(); if (!card || !sb()) return;
+    var front = String(q || '').replace(/^“[\s\S]*?”\n\n/, '').trim().slice(0, 300) || 'Bu kısım ne anlatıyor?';
+    var back = String(a || '').replace(/\[\d+\]/g, '').trim(); if (back.length > 600) back = back.slice(0, 597) + '…';
+    var list = (card.key_terms || []).slice(); list.push({ term: front, definition: back, user: true, source: 'acadia' });
+    btn.disabled = true;
+    try {
+      var r = await sb().from('study_cards').update({ key_terms: list }).eq('id', card.id);
+      if (r.error) throw r.error;
+      card.key_terms = list;
+      var lib = lsafe(function () { return libraryCards; }, []) || []; lib.forEach(function (c) { if (c.id === card.id) c.key_terms = list; });
+      btn.textContent = 'kart oldu ✓';
+      say('Bilgi kartı yapıldı: soru ön yüzde, Acadia\'nın cevabı arka yüzde.', true);
+    } catch (er) { console.warn(er); btn.disabled = false; say('Kart yapılamadı; bağlantını kontrol edip tekrar dene.'); }
+  };
+
+  /* temizle */
+  $('[data-clear]').addEventListener('click', function () {
+    var had = lsafe(function () { return sourceHubChatHistory.length; }, 0);
+    if (typeof clearSourceHubChat === 'function') clearSourceHubChat();
+    attText = ''; att.hidden = true;
+    say(had ? 'Sohbet temizlendi.' : 'Sohbet zaten boş.');
+  });
+
+  /* ---------- dashboard.js'in Kaynakla Çalış çizimleri yerine ---------- */
+  if (typeof renderSourceHubSummary === 'function') { renderSourceHubSummary = renderSummary; window.renderSourceHubSummary = renderSummary; }
+  var afterLoad = function () {
+    var has = cards().length;
+    $('[data-pick-w]').hidden = !has;
+    var sel = $('#sourcehub-card-select');
+    $$('option', sel).forEach(function (o) { var c = cards().filter(function (x) { return x.id === o.value; })[0]; if (c) o.textContent = baseName(c.documents && c.documents.file_name) + ' — ' + ((STY[c.summary_style] || 'STANDART').toLocaleLowerCase('tr')) + ' · ' + new Date(c.created_at || Date.now()).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' }); });
+    setDoc(!get('acadex.kaynak.nodoc', false));
+    if (!has) docOpen.hidden = true;
+  };
+  if (typeof loadSourceHubView === 'function') {
+    var origView = loadSourceHubView;
+    loadSourceHubView = async function () {
+      if (typeof initSourceHubChatForm === 'function') initSourceHubChatForm();
+      var r = await origView.apply(this, arguments);
+      afterLoad();
+      return r;
+    };
+    window.loadSourceHubView = loadSourceHubView;
+  }
+  setDoc(!get('acadex.kaynak.nodoc', false)); docOpen.hidden = true;
+})();
