@@ -1,253 +1,606 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="tr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Create your Acadex student account. Unlock automatic summarization, interaktif whiteboard notebook, and graded quizzes.">
-  <title data-i18n="register.title">Sign Up — Acadex</title>
-  
-  <!-- Favicon Link -->
-  <link rel="icon" type="image/png" href="assets/logo.png">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kayıt ol · Acadex</title>
+<meta name="description" content="Acadex öğrenci hesabını oluştur: pilot program açık, kayıt ücretsiz.">
+<meta name="theme-color" content="#0D1838">
+<link rel="icon" type="image/png" href="assets/logo-icon-only.png">
+<link rel="preload" href="assets/landing/fonts/caveat-latin.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+@font-face{font-family:'Bricolage Grotesque';font-style:normal;font-display:swap;font-weight:200 800;src:url(assets/landing/fonts/bricolage-latin-ext.woff2) format('woff2-variations');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:'Bricolage Grotesque';font-style:normal;font-display:swap;font-weight:200 800;src:url(assets/landing/fonts/bricolage-latin.woff2) format('woff2-variations');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'Instrument Sans';font-style:normal;font-display:swap;font-weight:400 700;src:url(assets/landing/fonts/instrument-latin-ext.woff2) format('woff2-variations');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:'Instrument Sans';font-style:normal;font-display:swap;font-weight:400 700;src:url(assets/landing/fonts/instrument-latin.woff2) format('woff2-variations');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'JetBrains Mono';font-style:normal;font-display:swap;font-weight:500;src:url(assets/landing/fonts/jbmono-latin-ext.woff2) format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:'JetBrains Mono';font-style:normal;font-display:swap;font-weight:500;src:url(assets/landing/fonts/jbmono-latin.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'Caveat';font-style:normal;font-display:swap;font-weight:500 600;src:url(assets/landing/fonts/caveat-latin-ext.woff2) format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:'Caveat';font-style:normal;font-display:swap;font-weight:500 600;src:url(assets/landing/fonts/caveat-latin.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+:root{--ink:#1A2A5C;--navy:#0D1838;--blue:#2F6BFF;--blue-l:#9DB8FF;--muted:#4B5675;--soft:#6A7593;--paper:#F6F7FB;--red:#C9483B;--green:#1E8A55;
+ --ease:cubic-bezier(.2,.7,.2,1);--ease-io:cubic-bezier(.65,0,.35,1);
+ --grain:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.24 0 0 0 0 0.2 0 0 0 0 0.14 0 0 0 0.32 -0.12'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E");
+ --inkline:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 12' preserveAspectRatio='none'%3E%3Cpath d='M3 7 C46 3 90 10 130 6 S180 4 197 8' fill='none' stroke='%235B8CFF' stroke-width='2.4' stroke-linecap='round' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E");
+ --torn:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 600' preserveAspectRatio='none'%3E%3Cpath d='M0 0 H9 L5 14 L11 27 L6 41 L12 55 L4 70 L10 84 L7 98 L12 113 L5 127 L9 141 L4 156 L11 170 L6 185 L12 199 L5 214 L10 228 L6 242 L12 257 L4 271 L9 286 L6 300 L11 314 L5 329 L10 343 L4 358 L11 372 L7 386 L12 401 L5 415 L9 430 L4 444 L11 458 L6 473 L12 487 L5 502 L10 516 L6 530 L12 545 L4 559 L9 574 L6 588 L9 600 H0 Z'/%3E%3C/svg%3E");
+ --tornh:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 16' preserveAspectRatio='none'%3E%3Cpath d='M0 16 V7 L14 11 L27 5 L41 10 L55 4 L70 12 L84 6 L98 9 L113 4 L127 11 L141 7 L156 12 L170 5 L185 10 L199 4 L214 11 L228 6 L242 10 L257 4 L271 12 L286 7 L300 10 L314 5 L329 11 L343 4 L358 12 L372 6 L386 9 L401 4 L415 11 L430 7 L444 12 L458 5 L473 10 L487 4 L502 11 L516 6 L530 10 L545 4 L559 12 L574 7 L588 10 L600 6 V16 Z'/%3E%3C/svg%3E")}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:'Instrument Sans',system-ui,-apple-system,'Segoe UI',sans-serif;color:var(--navy);background:var(--paper);background-image:var(--grain);background-size:220px;-webkit-font-smoothing:antialiased;line-height:1.5}
+.disp{font-family:'Bricolage Grotesque',system-ui,sans-serif}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace}
+.hand{font-family:'Caveat','Segoe Print','Bradley Hand',cursive;font-weight:600}
+a{color:inherit}
+.vh{position:absolute !important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 
-  <!-- Google Fonts - Inter -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+/* top bar (same as the landing) */
+.top{display:flex;align-items:center;justify-content:space-between;gap:20px;max-width:1240px;margin:0 auto;padding:18px 28px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--navy);font-weight:700;font-size:20px;min-height:44px}
+.brand img{width:34px;height:34px;object-fit:contain}
+.nav{display:flex;gap:4px}
+.nav a{position:relative;display:inline-flex;align-items:center;min-height:44px;padding:10px 12px;color:var(--muted);text-decoration:none;font-size:14.5px;font-weight:600}
+.nav a::before{content:"";position:absolute;inset:3px -3px 2px -5px;pointer-events:none;clip-path:inset(0 100% 0 0);transition:clip-path .45s var(--ease-io);
+ background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 50' preserveAspectRatio='none'%3E%3Cpath d='M70 5 C30 2 5 12 6 26 C7 42 44 47 78 44 C108 41 117 28 110 16 C102 5 78 3 52 7' fill='none' stroke='%232F6BFF' stroke-width='2' stroke-linecap='round' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E") no-repeat center/100% 100%}
+.nav a:hover{color:var(--navy)}
+.nav a:hover::before{clip-path:inset(0 0 0 0)}
+.btn{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:48px;padding:12px 22px;border-radius:7px;border:0;font:inherit;font-weight:600;font-size:15px;text-decoration:none;cursor:pointer}
+.btn::after{content:"";position:absolute;left:12%;right:10%;bottom:-9px;height:7px;pointer-events:none;background:var(--inkline) no-repeat 0 50%/100% 100%;opacity:.5;transition:opacity .25s,height .25s,bottom .25s}
+.btn:hover::after{opacity:1;height:10px;bottom:-11px}
+.btn-dark{background:var(--navy);color:#fff}
+.btn-blue{background:var(--blue);color:#fff}
+.btn:focus-visible,.nav a:focus-visible,.brand:focus-visible{outline:2px solid var(--blue);outline-offset:3px}
 
-  <!-- Core Stylesheet -->
-  <link rel="stylesheet" href="css/style.css">
+/* the page: dark ID-card side + paper form side */
+.wrap{max-width:1180px;margin:10px auto 0;padding:0 28px 90px}
+.sheet{display:grid;grid-template-columns:minmax(0,0.95fr) minmax(0,1.05fr);background:#FFFEFB;border-radius:6px;box-shadow:0 1px 0 #E6E2D6,0 30px 60px -40px rgba(13,24,56,0.45);overflow:hidden;min-height:640px}
+.side{position:relative;background:var(--navy);color:#F1F4FA;padding:44px 48px 40px;display:flex;flex-direction:column;overflow:hidden}
+.side::after{content:"";position:absolute;top:0;bottom:0;right:-1px;width:14px;background:#FFFEFB;-webkit-mask:var(--torn) repeat-y 0 0/14px 600px;mask:var(--torn) repeat-y 0 0/14px 600px;transform:scaleX(-1)}
+.side .eyb{font-size:25px;color:var(--blue-l);transform:rotate(-2.5deg);transform-origin:0 100%;display:inline-block}
+.side h1{margin:8px 0 0;font-size:clamp(34px,3.4vw,46px);line-height:1.04;letter-spacing:-0.02em;font-weight:800}
+.side p.lead{margin:14px 0 0;font-size:17px;color:#B4C0DA;max-width:360px}
+/* the student card on its lanyard */
+.idc{position:relative;flex:1;display:flex;justify-content:center;min-height:330px;margin-top:6px}
+.idc-sw{display:flex;flex-direction:column;align-items:center;transform-origin:50% 0}
+.idc-cord{display:block;width:14px;height:120px;background:linear-gradient(90deg,#24346A,#2F6BFF 45%,#24346A)}
+.idc-card{position:relative;width:280px;margin-top:-4px;background:#F7F8FB;border-radius:14px;color:var(--navy);box-shadow:0 30px 44px -26px rgba(0,0,0,0.75);padding:16px 18px 18px}
+.idc-clip{position:absolute;left:50%;top:-11px;width:34px;height:18px;margin-left:-17px;border-radius:5px;background:#B9C2D6;box-shadow:inset 0 -3px 0 rgba(0,0,0,0.12)}
+.idc-top{display:flex;align-items:center;gap:8px;padding-bottom:10px;border-bottom:1px solid #DCE2EE}
+.idc-top img{width:28px;height:28px;object-fit:contain}
+.idc-top .mono{font-size:10px;letter-spacing:.1em;color:#33405F}
+.idc-body{display:flex;gap:14px;padding-top:14px}
+.idc-ph{width:58px;height:70px;border-radius:7px;flex:none;background:#DCE2EE;background-image:radial-gradient(circle at 50% 36%,#A8B3C9 0 12px,transparent 13px),radial-gradient(ellipse 26px 17px at 50% 100%,#A8B3C9 0 100%,transparent 101%)}
+.idc-txt{display:flex;flex-direction:column;gap:2px;min-width:0}
+.idc-txt small{font-size:10px;letter-spacing:.08em;color:#6A7593}
+.idc-name{font-size:30px;line-height:1.05;color:var(--ink);min-height:32px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:170px}
+.idc-txt em{font-style:normal;font-size:12.5px;color:#5B6787}
+.idc-line{margin-top:12px;height:22px;border-radius:3px;background:repeating-linear-gradient(90deg,#1A2A5C 0 2px,transparent 2px 4px,#1A2A5C 4px 5px,transparent 5px 9px);opacity:.55;width:70%}
+.idc-stamp{position:absolute;right:14px;bottom:18px;padding:4px 10px;border:2.5px solid var(--green);border-radius:5px;color:var(--green);font-size:15px;letter-spacing:.16em;transform:rotate(-12deg);opacity:0}
+.idc.in .idc-stamp{animation:stampIn .7s var(--ease) both}
+@keyframes stampIn{0%{opacity:0;transform:rotate(-12deg) scale(2.3)}70%{opacity:.95;transform:rotate(-12deg) scale(.94)}100%{opacity:.88;transform:rotate(-12deg) scale(1)}}
+.side-note{margin-top:auto;font-size:15px;color:#8FA2CC}
+.side-note b{color:#F1F4FA;font-weight:600}
+
+/* form side */
+.main{position:relative;padding:48px 56px 44px;display:flex;flex-direction:column}
+.main .eyb{font-size:24px;color:var(--soft);transform:rotate(-2.5deg);transform-origin:0 100%;display:inline-block}
+.main h2{margin:6px 0 4px;font-size:34px;line-height:1.08;letter-spacing:-0.02em;font-weight:800}
+.main .sub{margin:0 0 26px;color:var(--muted);font-size:15.5px}
+.sso{display:grid;gap:12px}
+.sso button{display:flex;align-items:center;justify-content:center;gap:12px;min-height:50px;width:100%;border-radius:8px;font:inherit;font-weight:600;font-size:15.5px;cursor:pointer;transition:transform .2s var(--ease),box-shadow .2s}
+.sso button:hover{transform:translateY(-1px);box-shadow:0 10px 18px -14px rgba(13,24,56,0.55)}
+.sso button:focus-visible{outline:2px solid var(--blue);outline-offset:3px}
+.sso svg{width:20px;height:20px;flex:none}
+.sso-apple{background:#000;color:#fff;border:1px solid #000}
+.sso-google{background:#fff;color:#1F1F1F;border:1px solid #C9D1E1}
+.sso button::after{content:"yakında";position:absolute;right:12px;top:50%;transform:translateY(-50%) rotate(-3deg);padding:1px 7px;border-radius:5px;font-family:'Caveat',cursive;font-weight:700;font-size:15px;line-height:1.3;background:#EEF3FF;color:#2F6BFF}
+.sso-apple::after{background:#2A2A2A !important;color:#C9D6F5 !important}
+.or{display:flex;align-items:center;gap:14px;margin:24px 0 8px;color:var(--soft);font-size:21px}
+.or::before,.or::after{content:"";flex:1;height:6px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1000 6' preserveAspectRatio='none'%3E%3Cpath d='M0 3 C120 1.5 260 4.5 400 2.8 S700 1.6 1000 3.4' fill='none' stroke='%23B9C2D6' stroke-width='1.4' stroke-linecap='round' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E") no-repeat center/100% 100%}
+form{display:flex;flex-direction:column;gap:16px}
+.field{display:flex;flex-direction:column;gap:2px;position:relative}
+.field label{font-size:14px;font-weight:600}
+.row{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.row a{font-size:14px;color:var(--ink);text-underline-offset:3px;min-height:44px;display:inline-flex;align-items:center}
+.fld{font:inherit;font-size:16px;color:var(--navy);width:100%;min-height:48px;padding:10px 2px 6px;border:0;border-bottom:1.5px solid #9AA6C0;border-radius:0;background:transparent;outline:none;transition:border-color .2s,box-shadow .2s}
+.fld::placeholder{font-family:'Caveat','Segoe Print',cursive;font-size:21px;color:#8A93AB;opacity:1}
+.fld:hover{border-bottom-color:#5B6787}
+.fld:focus{border-bottom-color:var(--blue);box-shadow:0 2px 0 var(--blue)}
+.fld[aria-invalid="true"]{border-bottom-color:var(--red)}
+.pw{position:relative}
+.pw .fld{padding-right:56px}
+.eye{position:absolute;right:0;bottom:2px;width:48px;height:44px;border:0;background:none;color:var(--soft);cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:6px}
+.eye:hover{color:var(--navy)}
+.eye:focus-visible{outline:2px solid var(--blue);outline-offset:1px}
+.eye svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.eye .slash{display:none}
+.eye[aria-pressed="true"] .slash{display:block}
+.err{min-height:0;font-size:20px;line-height:1.1;color:var(--red);transform:rotate(-1.5deg);transform-origin:0 0}
+.err:empty{display:none}
+.caps{font-size:19px;color:#B4511F;transform:rotate(-1.5deg)}
+.caps[hidden]{display:none}
+.remember{display:flex;align-items:center;gap:12px;font-size:15px;color:var(--muted);cursor:pointer;min-height:44px;align-self:flex-start}
+.remember input{position:absolute;opacity:0;width:1px;height:1px}
+.box{width:22px;height:22px;flex:none;border:1.6px solid var(--ink);border-radius:3px;display:flex;align-items:center;justify-content:center}
+.box svg{width:22px;height:22px;fill:none;stroke:var(--blue);stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;overflow:visible}
+.box path{stroke-dasharray:1 1;stroke-dashoffset:1;transition:stroke-dashoffset .35s var(--ease-io)}
+.remember input:checked + .box path{stroke-dashoffset:0}
+.remember input:focus-visible + .box{outline:2px solid var(--blue);outline-offset:3px}
+.submit{margin-top:6px;width:100%}
+.mode{align-self:center;margin-top:2px;border:0;background:none;font:inherit;font-size:15px;color:var(--ink);cursor:pointer;min-height:44px;padding:8px 6px;text-decoration:underline;text-decoration-style:wavy;text-decoration-color:#9DB8FF;text-underline-offset:5px}
+.mode:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.is-link .pw-field,.is-link .row a,.is-link .remember{display:none}
+.status{margin:6px 0 0;padding:12px 14px;border-radius:4px;background:#FFFDF6;border:1px solid #ECE4D0;font-size:15px;color:var(--muted)}
+.status[hidden]{display:none}
+.status .hand{font-size:21px;color:var(--green);display:block;transform:rotate(-1.5deg)}
+.signup{margin-top:auto;padding-top:26px;text-align:center;font-size:15px;color:var(--muted)}
+.signup a{color:var(--ink);font-weight:600;text-underline-offset:3px;display:inline-flex;align-items:center;min-height:44px}
+.preview{margin:18px 0 0;font-size:12.5px;color:#8A93AB;text-align:center}
+
+/* footer (same as the landing) */
+.foot{position:relative;background:var(--navy);color:#8FA2CC;font-size:14px}
+.foot::before{content:"";position:absolute;left:0;right:0;top:0;height:14px;background:var(--paper);-webkit-mask:var(--tornh) repeat-x 0 0/600px 14px;mask:var(--tornh) repeat-x 0 0/600px 14px;transform:scaleY(-1)}
+.foot-in{max-width:1240px;margin:0 auto;padding:44px 28px 30px;display:flex;flex-wrap:wrap;justify-content:space-between;gap:20px}
+.foot p{margin:4px 0 0;font-size:13px;color:#7E8BAE}
+.foot p a{color:#B4C0DA;text-underline-offset:3px}
+.foot .hand{font-size:20px;color:#B4C0DA;margin-left:6px}
+.fnav{display:flex;flex-wrap:wrap;gap:4px 8px}
+.fnav a{display:inline-flex;align-items:center;min-height:44px;padding:10px;color:#B4C0DA;text-decoration:none}
+.fnav a:hover{color:#fff}
+
+/* motion: the card drops in, the form pieces land by hand */
+@media (prefers-reduced-motion: no-preference){
+.idc-sw{animation:idcDrop 1.5s cubic-bezier(.3,.7,.3,1) .2s both}
+.land{animation:land .7s cubic-bezier(.3,1.35,.5,1) both}
+.shake{animation:shake .4s ease}
+}
+@keyframes idcDrop{0%{transform:translateY(-360px) rotate(0)}45%{transform:translateY(0) rotate(7deg)}65%{transform:rotate(-4deg)}80%{transform:rotate(2deg)}92%{transform:rotate(-0.8deg)}100%{transform:none}}
+@keyframes land{from{opacity:0;transform:translate(var(--hx,0),24px) rotate(var(--hr,0deg))}to{opacity:1;transform:none}}
+@keyframes shake{0%,100%{transform:none}25%{transform:translateX(-5px) rotate(-1deg)}75%{transform:translateX(5px) rotate(1deg)}}
+
+@media (max-width: 900px){
+.nav{display:none}
+.sheet{grid-template-columns:1fr}
+.side{padding:34px 24px 28px}
+.side{order:2;padding-top:40px}
+.side::after{top:-1px;bottom:auto;left:0;right:0;width:auto;height:14px;-webkit-mask:var(--tornh) repeat-x 0 0/600px 14px;mask:var(--tornh) repeat-x 0 0/600px 14px;transform:scaleY(-1);background:#FFFEFB}
+.idc{min-height:0;margin:18px 0 6px}
+.idc-cord{height:46px}
+.side-note{margin-top:14px}
+.main{padding:34px 22px 30px}
+.wrap{padding:0 14px 70px}
+}
+@media (max-width: 420px){.top{padding:14px 16px}.top .btn{padding:10px 14px}.idc-card{width:250px}}
+/* ---------- round 2 ---------- */
+/* time of day on the dark side */
+.side::before{content:"";position:absolute;inset:0;pointer-events:none;transition:background .6s}
+.side[data-tod="sabah"]::before{background:radial-gradient(circle at 10% 0%,rgba(255,226,170,0.16),transparent 55%)}
+.side[data-tod="gun"]::before{background:radial-gradient(circle at 50% 0%,rgba(157,184,255,0.14),transparent 60%)}
+.side[data-tod="aksam"]::before{background:radial-gradient(circle at 85% 15%,rgba(255,200,130,0.16),transparent 50%)}
+.side[data-tod="gece"]::before{background:radial-gradient(circle at 80% 8%,rgba(255,226,160,0.22),rgba(255,226,160,0.05) 30%,transparent 55%),linear-gradient(rgba(0,0,0,0.12),rgba(0,0,0,0.12))}
+.side > *{position:relative}
+/* draggable, flippable card */
+.idc{pointer-events:none}
+.idc-card{pointer-events:auto;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;transition:scale .22s ease-in}
+.idc-card.grab{cursor:grabbing}
+.idc-card.turning{scale:0 1}
+.idc-back{display:none;min-height:182px;flex-direction:column;gap:8px;padding:6px 2px 0}
+.idc-card.flipped .idc-front{display:none}
+.idc-card.flipped .idc-back{display:flex}
+.idc-back .hand{font-size:23px;line-height:1.15;color:var(--ink)}
+.idc-back .mono{font-size:10px;letter-spacing:.08em;color:#6A7593;margin-top:auto}
+.idc-hint{position:absolute;right:12px;top:12px;font-size:16px;color:#8A93AB}
+.idc-sw.free{animation:none !important}
+/* tabs: login / register */
+.tabs{display:flex;gap:6px;margin:0 0 20px -2px}
+.tab{font-family:'Caveat','Segoe Print',cursive;font-weight:600;font-size:22px;line-height:1;color:var(--ink);background:#EEF1F6;border:1px solid #DDE2EC;border-bottom:0;border-radius:7px 7px 0 0;
+ padding:10px 18px 8px;min-height:44px;cursor:pointer;transform:translateY(5px);transition:transform .25s var(--ease),background .25s;box-shadow:inset 0 -1px 0 #DDE2EC}
+.tab[aria-selected="true"]{background:#FFF1BF;transform:translateY(0)}
+.tab:hover{transform:translateY(1px)}
+.tab:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.tabline{height:1.5px;background:#1A2A5C;margin:-20px 0 22px;opacity:.85}
+[data-view="login"] [data-only="register"],[data-view="register"] [data-only="login"]{display:none !important}
+select.fld{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M5 8 C7 10 8.5 11.5 10 13 C11.5 11.5 13 10 15 8' fill='none' stroke='%231A2A5C' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 4px center;background-size:18px;cursor:pointer}
+.hint{font-size:19px;color:var(--soft);transform:rotate(-1deg)}
+.hint.ok{color:var(--green)}
+.kvkk{font-size:14px;line-height:1.4}
+.kvkk a{color:var(--ink);text-underline-offset:3px}
+/* e-mail typo suggestion */
+.suggest{align-self:flex-start;border:0;background:none;padding:6px 0;min-height:36px;font-family:'Caveat','Segoe Print',cursive;font-weight:600;font-size:21px;color:#B4511F;cursor:pointer;transform:rotate(-1.5deg);text-align:left}
+.suggest b{text-decoration:underline;text-decoration-style:wavy;text-decoration-color:#F2B8B0;text-underline-offset:4px}
+.suggest[hidden]{display:none}
+.suggest:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+/* last used method */
+.sso button{position:relative}
+.last{position:absolute;right:-6px;top:-14px;font-family:'Caveat','Segoe Print',cursive;font-weight:600;font-size:18px;line-height:1;color:var(--ink);background:#FFF1BF;padding:3px 8px 4px;transform:rotate(4deg);box-shadow:0 3px 6px -4px rgba(13,24,56,0.5);pointer-events:none}
+.last[hidden]{display:none}
+.or .last{position:static;transform:rotate(-2deg);font-size:17px;margin-left:6px}
+/* after login: the page turns and you head to your desk */
+.goto{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;background:#FFFEFB;background-image:var(--grain);background-size:220px;
+ clip-path:inset(0 0 0 100%);pointer-events:none;visibility:hidden}
+.goto.on{visibility:visible;pointer-events:auto;clip-path:inset(0 0 0 0);transition:clip-path .9s cubic-bezier(.65,0,.35,1)}
+.goto-in{text-align:center;max-width:460px;padding:24px}
+.goto .hand{font-size:40px;color:var(--ink);display:block;transform:rotate(-2deg)}
+.goto svg{display:block;width:280px;height:36px;margin:14px auto 18px;fill:none;stroke:#2F6BFF;stroke-width:2.6;stroke-linecap:round;overflow:visible}
+.goto svg path{stroke-dasharray:1 1;stroke-dashoffset:1}
+.goto.on svg path{transition:stroke-dashoffset 1.8s cubic-bezier(.4,0,.2,1) .7s;stroke-dashoffset:0}
+.goto p{margin:0 0 18px;color:var(--muted);font-size:15px}
+.goto .pen{position:absolute}
+@media (prefers-reduced-motion: reduce){.goto.on{transition:none}.goto.on svg path{transition:none}}
+
+
+/* ---------- canlı sürüm ekleri ---------- */
+.skip{position:absolute;left:12px;top:-60px;z-index:60;background:var(--navy);color:#fff;padding:10px 14px;border-radius:6px;text-decoration:none}
+.skip:focus{top:10px}
+.tabs a.tab{text-decoration:none;display:inline-flex;align-items:center}
+.tab[aria-current="page"]{background:#FFF1BF;transform:translateY(0)}
+.form-error{display:block;margin-top:2px;font-family:'Caveat','Segoe Print',cursive;font-weight:600;font-size:20px;line-height:1.1;color:var(--red);transform:rotate(-1.5deg);transform-origin:0 0}
+.fld.error{border-bottom-color:var(--red)}
+.remember .box{transition:border-color .2s}
+.form-group:has(.form-error) .box{border-color:var(--red)}
+.alert.status{display:block}
+.alert.status[hidden]{display:none}
+.alert.is-err{border-color:#F0CFC9;background:#FFF8F6}
+.alert.is-err .hand{color:var(--red)}
+#acadex-maintenance-notice{margin:0 0 18px;padding:12px 14px;border-radius:4px;background:#FFF8F6;border:1px solid #F0CFC9;color:var(--red);font-size:15px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn:disabled::after{opacity:0}
+.btn .spin{width:16px;height:16px;border:2px solid rgba(255,255,255,.45);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){.btn .spin{animation-duration:2.4s}}
+.hp{position:absolute !important;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden}
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.strength{display:flex;align-items:center;gap:10px;margin-top:8px}
+.strength-track{flex:1;height:5px;border-radius:3px;background:#E6E9F0;overflow:hidden}
+#password-strength-bar{display:block;height:100%;width:0;background:#9AA6C0;border-radius:3px;transition:width .35s var(--ease),background .35s}
+#password-strength-bar.strength-weak{background:var(--red)}
+#password-strength-bar.strength-medium{background:#D98A1B}
+#password-strength-bar.strength-strong{background:var(--green)}
+#password-strength-label{font-family:'Caveat','Segoe Print',cursive;font-weight:600;font-size:19px;min-width:46px;color:var(--soft)}
+.sn-warn{margin-top:4px;padding:8px 10px;border-left:3px solid #D98A1B;background:#FFFBF0;font-size:14px;color:var(--muted)}
+.sn-warn a{color:var(--ink) !important;font-weight:600}
+/* kart fotoğrafı */
+.ava-pick{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:6px}
+.ava-pick button.av{width:48px;height:48px;padding:0;border-radius:10px 12px 9px 11px;border:1.5px solid #C9D1E1;background:#F2F4F9;cursor:pointer;overflow:hidden;transition:transform .2s var(--ease),border-color .2s}
+.ava-pick button.av:nth-child(2n){transform:rotate(1.5deg)}
+.ava-pick button.av:nth-child(3n){transform:rotate(-1.5deg)}
+.ava-pick button.av:hover{transform:translateY(-2px) rotate(0)}
+.ava-pick button.av[aria-pressed="true"]{border-color:var(--blue);box-shadow:0 0 0 3px rgba(47,107,255,.18);transform:none}
+.ava-pick button.av img{width:100%;height:100%;display:block}
+.ava-pick .linkbtn{font-size:14px;min-height:40px}
+.ava-note{font-family:'Caveat','Segoe Print',cursive;font-weight:600;font-size:19px;color:var(--soft);transform:rotate(-1deg)}
+.idc-ph{overflow:hidden;position:relative}
+.idc-ph img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#E8ECF4}
+.alt-link{margin:4px 0 0;text-align:center;font-size:14px;color:var(--soft)}
+.alt-link a{color:var(--ink);text-underline-offset:3px;display:inline-flex;align-items:center;min-height:40px}
+.linkbtn{border:0;background:none;font:inherit;font-size:15px;color:var(--ink);cursor:pointer;min-height:44px;padding:8px 0;text-decoration:underline;text-decoration-style:wavy;text-decoration-color:#9DB8FF;text-underline-offset:5px}
+.linkbtn:disabled{color:#8A93AB;cursor:default;text-decoration-color:#DCE2EE}
+.linkbtn:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+@media (max-width:560px){.duo{grid-template-columns:1fr}}
+
+</style>
 </head>
 <body>
+<a class="skip" href="#title">İçeriğe geç</a>
+<header class="top">
+<a class="brand" href="index.html"><img src="assets/landing/acadex-logo.webp" alt="" width="34" height="34">Acadex</a>
+<nav class="nav" aria-label="Ana menü">
+<a href="index.html#nasil">Nasıl çalışır</a>
+<a href="index.html#alanlar">Neden Acadex</a>
+<a href="index.html#yontemler">Yöntemler</a>
+<a href="index.html#gizlilik">Gizlilik</a>
+<a href="index.html#soru">Soru sor</a>
+</nav>
+<a class="btn btn-dark" href="login.html">Giriş yap</a>
+</header>
 
-  <!-- Keyboard Accessibility Skip Link -->
-  <a href="#main-content" class="skip-link" data-i18n="splash.skip">Skip to main content</a>
+<main class="wrap" id="main-content">
+<div class="sheet" data-view="register">
 
-  <!-- ==========================================
-       HEADER & NAVIGATION BAR
-       ========================================== -->
-  <header class="header scrolled">
-    <div class="container header-container">
-      <a href="index.html" class="brand-logo" data-i18n="brand.name">ACADEX</a>
+<section class="side" aria-label="Acadex öğrenci kartı" data-tod="gun">
+<span class="eyb hand" data-greet="" data-reg="">hoş geldin</span>
+<h1 class="disp">Kartını hazırlayalım.</h1>
+<p class="lead">Birkaç satır yaz, öğrenci kartın hazır olsun.</p>
+<div class="idc" aria-hidden="true" data-idc="">
+<div class="idc-sw" data-swing="">
+<i class="idc-cord"></i>
+<div class="idc-card" data-card="">
+<i class="idc-clip"></i>
+<div class="idc-front">
+<span class="idc-hint hand">↻ çevir</span>
+<div class="idc-top"><img src="assets/landing/acadex-logo.webp" alt=""><span class="mono">ACADEX · ÖĞRENCİ</span></div>
+<div class="idc-body"><span class="idc-ph" data-ph=""></span><span class="idc-txt"><small class="mono">AD</small><b class="idc-name hand" data-name="">Sen</b><em data-dept="">Her bölüm</em><em class="mono" data-no="">Pilot · 2026</em></span></div>
+<div class="idc-line"></div>
+</div>
+<div class="idc-back">
+<span class="hand">Bu kart sana ait.</span>
+<span class="hand">Bir sorun olursa şifreni değil, bizi ara — birlikte çözeriz.</span>
+<span class="mono">ACADEX PİLOT EKİBİ · bize yaz</span>
+</div>
+<span class="idc-stamp mono" data-stamp="">KAYIT</span>
+</div>
+</div>
+</div>
 
-      <nav aria-label="Main Navigation">
-        <ul class="nav-menu" id="nav-menu">
-          <li><a href="index.html#home" class="nav-link" data-i18n="common.home">Home</a></li>
-          <li><a href="index.html#about" class="nav-link" data-i18n="common.about">About</a></li>
-          <li><a href="index.html#departments" class="nav-link" data-i18n="common.departments">Departments</a></li>
-          <li><a href="index.html#how-it-works" class="nav-link" data-i18n="common.howItWorks">How It Works</a></li>
-          
-          <li class="nav-actions" style="display: flex; align-items: center; gap: 0.5rem;">
-            <!-- Language switcher -->
-            <select class="lang-switcher-select" aria-label="Select Language" onchange="applyLanguage(this.value)" style="margin-right: 0.25rem;">
-              <option value="en">EN</option>
-              <option value="tr">TR</option>
-            </select>
-            <a href="login.html" class="btn btn-outline" data-i18n="common.login">Log In</a>
-            <a href="register.html" class="btn btn-primary" style="background: var(--color-teal); border-color: var(--color-teal);" data-i18n="common.signup">Sign Up</a>
-          </li>
-        </ul>
-      </nav>
+<p class="side-note">Pilot program açık. <b>Kayıt ücretsiz.</b></p>
+</section>
 
-      <button class="menu-toggle" id="menu-toggle" aria-label="Toggle navigation menu" aria-expanded="false">
-        <span class="menu-icon"></span>
-      </button>
-    </div>
-  </header>
+<section class="main" aria-labelledby="title">
+<nav class="tabs land" aria-label="Giriş ya da kayıt" style="--hr:-.6deg">
+<a class="tab" href="login.html">Giriş yap</a>
+<a class="tab" href="register.html" aria-current="page">Kayıt ol</a>
+</nav>
+<div class="tabline" aria-hidden="true"></div>
+<h2 class="disp land" id="title" tabindex="-1" style="animation-delay:.05s">Acadex'e kayıt ol</h2>
+<p class="sub land" style="animation-delay:.1s">Pilot program açık, kayıt ücretsiz.</p>
+<div class="sso land" style="animation-delay:.15s;--hr:.6deg">
+<button type="button" class="sso-apple" data-sso="Apple"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M16.37 12.6c-.02-2.2 1.8-3.26 1.88-3.31-1.02-1.5-2.62-1.7-3.19-1.72-1.36-.14-2.65.8-3.34.8-.69 0-1.75-.78-2.88-.76-1.48.02-2.85.86-3.61 2.19-1.54 2.67-.39 6.62 1.11 8.79.73 1.06 1.6 2.25 2.75 2.2 1.1-.04 1.52-.71 2.85-.71 1.33 0 1.71.71 2.88.69 1.19-.02 1.94-1.08 2.66-2.14.84-1.23 1.19-2.42 1.21-2.48-.03-.01-2.31-.89-2.33-3.55zM14.18 6.13c.61-.74 1.02-1.76.91-2.78-.88.04-1.94.58-2.57 1.32-.56.65-1.06 1.7-.93 2.7.98.08 1.98-.5 2.59-1.24z"/></svg><span>Apple ile kayıt ol</span></button>
+<button type="button" class="sso-google" data-sso="Google"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.76h3.56c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.56-2.76c-.98.66-2.24 1.06-3.72 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.84 14.11A6.6 6.6 0 0 1 5.5 12c0-.73.13-1.44.34-2.11V7.05H2.18A11 11 0 0 0 1 12c0 1.78.43 3.45 1.18 4.95l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1A11 11 0 0 0 2.18 7.05l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38z"/></svg><span>Google ile kayıt ol</span></button>
+</div>
+<div class="alert status" role="status" data-sso-note="" hidden></div>
+<div class="or hand land" style="animation-delay:.2s">ya da e-postayla</div>
 
-  <!-- ==========================================
-       MAIN CONTENT (REGISTRATION FORM)
-       ========================================== -->
-  <main class="auth-main" id="main-content">
-    <div class="auth-shell">
-      <aside class="auth-brand-panel">
-        <div>
-          <span class="auth-brand-tag">🎓 Akademik Çalışma Ağı</span>
-          <div class="auth-brand-name">ACADEX</div>
-          <p class="auth-brand-desc">Bölümüne ait sınıf arkadaşlarınla aynı ortak alanda çalış — özetler, sınav pratiği ve proje paylaşımı bir arada.</p>
-        </div>
-        <div class="auth-brand-stats">
-          <div>
-            <div class="auth-brand-stat-num">1.2M+</div>
-            <div class="auth-brand-stat-label">Doküman</div>
-          </div>
-          <div>
-            <div class="auth-brand-stat-num">200+</div>
-            <div class="auth-brand-stat-label">Bölüm</div>
-          </div>
-          <div>
-            <div class="auth-brand-stat-num">%99.9</div>
-            <div class="auth-brand-stat-label">Erişim</div>
-          </div>
-        </div>
-      </aside>
-    <div class="auth-card">
-      <h1 class="auth-title" data-i18n="register.title">Create Account</h1>
-      <p class="auth-subtitle" data-i18n="register.subtitle">Join the Acadex Faculty pilot program</p>
-      
-      <form id="register-form" novalidate>
+<form id="register-form" novalidate class="land" style="animation-delay:.25s;--hr:-.5deg">
+<div class="hp" aria-hidden="true"><label for="website">Web siten</label><input id="website" name="website" type="text" tabindex="-1" autocomplete="off"></div>
+<div class="duo">
+<div class="field form-group">
+<label for="full-name">Ad soyad</label>
+<input id="full-name" name="full_name" type="text" class="fld form-control" autocomplete="name" placeholder="adın ve soyadın" required>
+</div>
+<div class="field form-group">
+<label for="student-number">Öğrenci numarası</label>
+<input id="student-number" name="student_number" type="text" class="fld form-control" inputmode="numeric" pattern="[0-9]*" maxlength="12" autocomplete="off" placeholder="6–12 rakam" required>
+<div id="student-number-warning" class="sn-warn" role="status" style="display:none"></div>
+</div>
+</div>
+<div class="field form-group">
+<label for="department">Bölüm</label>
+<select id="department" name="department" class="fld form-control" required>
+<option value="">bölümünü seç</option>
+<option value="Management Information Systems">Yönetim Bilişim Sistemleri</option>
+<option value="Business Administration">İşletme</option>
+<option value="International Trade and Business">Uluslararası Ticaret ve İşletmecilik</option>
+<option value="Banking and Finance">Bankacılık ve Finans</option>
+</select>
+</div>
+<div class="field form-group">
+<label for="email">E-posta</label>
+<input id="email" name="email" type="email" class="fld form-control" autocomplete="email" placeholder="ornek@universite.edu.tr" required>
+<button type="button" class="suggest" data-suggest="" hidden></button>
+</div>
+<div class="duo">
+<div class="field form-group">
+<label for="password">Şifre</label>
+<div class="pw"><input id="password" name="password" type="password" class="fld form-control" autocomplete="new-password" placeholder="bir şifre belirle" required><button type="button" class="eye" aria-pressed="false" aria-label="Şifreyi göster" data-eye="password"><svg viewBox="0 0 24 24"><path d="M2 12.5 C5 6.5 9 5 12 5 C15 5 19 6.5 22 12.5 C19 18 15 19.5 12 19.5 C9 19.5 5 18 2 12.5 Z"/><circle cx="12" cy="12.3" r="3.3"/><path class="slash" d="M4 21 L20.5 3.5"/></svg></button></div>
+<div class="strength" aria-live="polite"><span class="strength-track"><span id="password-strength-bar"></span></span><span id="password-strength-label">—</span></div>
+<span class="caps hand" id="caps" hidden>büyük harf açık</span>
+</div>
+<div class="field form-group">
+<label for="confirm-password">Şifre (tekrar)</label>
+<div class="pw"><input id="confirm-password" name="confirm_password" type="password" class="fld form-control" autocomplete="new-password" placeholder="bir kez daha" required><button type="button" class="eye" aria-pressed="false" aria-label="Şifreyi göster" data-eye="confirm-password"><svg viewBox="0 0 24 24"><path d="M2 12.5 C5 6.5 9 5 12 5 C15 5 19 6.5 22 12.5 C19 18 15 19.5 12 19.5 C9 19.5 5 18 2 12.5 Z"/><circle cx="12" cy="12.3" r="3.3"/><path class="slash" d="M4 21 L20.5 3.5"/></svg></button></div>
+</div>
+</div>
+<div class="field">
+<span class="label-like" style="font-size:14px;font-weight:600" id="ava-l">Kart fotoğrafı <span class="ava-note">— isteğe bağlı</span></span>
+<div class="ava-pick" role="group" aria-labelledby="ava-l" data-ava=""></div>
+</div>
+<div class="form-group">
+<label class="remember kvkk"><input type="checkbox" id="legal-agree" name="legal_agree"><span class="box"><svg viewBox="0 0 22 22" aria-hidden="true"><path pathLength="1" d="M4 12 C6 13 7.6 15 9 17.5 C11.5 11 14.5 7 19.5 3.5"/></svg></span><span><a href="legal.html#privacy" target="_blank" rel="noopener">Gizlilik Politikası</a>'nı ve <a href="legal.html#terms" target="_blank" rel="noopener">Kullanım Şartları</a>'nı okudum, kabul ediyorum.</span></label>
+</div>
+<button type="submit" id="btn-signup" class="btn btn-blue submit" disabled><span>Kayıt ol</span> <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 12.6 C8 11.4 13 12.9 19.2 11.7 M14.6 6.6 C16.4 8.6 18 10.3 19.6 11.6 C17.8 13.2 16.1 15 14.3 17.4"/></svg></button>
+</form>
+<p class="signup">Zaten hesabın var mı? <a href="login.html">Giriş yap</a></p>
+<p class="alt-link">Akademisyen misin? <a href="register-academic.html">Akademik hesap için buradan</a></p>
+</section>
 
-        <!-- Honeypot anti-bot field: invisible to real users, only bots that
-             fill every input will populate it. Kept out of the tab order and
-             hidden from screen readers so it never confuses real students. -->
-        <div style="position: absolute; left: -9999px; top: -9999px; width: 1px; height: 1px; overflow: hidden;" aria-hidden="true">
-          <label for="website">Leave this field empty</label>
-          <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
-        </div>
+</div>
+</main>
 
-        <!-- Full Name -->
-        <div class="form-group">
-          <label for="full-name" class="form-label" data-i18n="register.label.fullName">Full Name</label>
-          <input type="text" id="full-name" class="form-control" placeholder="e.g. John Doe" required autocomplete="name" autofocus>
-        </div>
+<footer class="foot">
+<div class="foot-in">
+<div><span>© 2026 Acadex · Pilot program · Koordinatör: Şükrü Çerçi</span>
+<p>Bu sayfayı Acadex pilot ekibi hazırladı. Bir hata görürsen <a href="index.html#soru">bize yaz</a>. <span class="hand">— Acadex ekibi</span></p></div>
+<nav class="fnav" aria-label="Alt menü"><a href="legal.html#privacy">KVKK ve gizlilik</a><a href="legal.html#terms">Kullanım şartları</a><a href="index.html#soru">Bize soru sor</a></nav>
+</div>
+</footer>
 
-        <!-- Student Number -->
-        <div class="form-group">
-          <label for="student-number" class="form-label" data-i18n="register.label.studentNumber">Student Number</label>
-          <input type="text" id="student-number" class="form-control" placeholder="e.g. 202612345" required autocomplete="off">
-          <span class="form-helper">Numeric digits only (6-12 length).</span>
-          <div id="student-number-warning" style="display:none; color:#EF4444; font-size:0.75rem; margin-top:0.25rem; font-weight:700;"></div>
-        </div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="js/supabase-config.js"></script>
+<script src="js/i18n.js"></script>
+<script src="js/auth.js"></script>
+<script>
 
-        <!-- Department Select -->
-        <div class="form-group">
-          <label for="department" class="form-label" data-i18n="register.label.department">Department</label>
-          <select id="department" class="form-control" required autocomplete="organization">
-            <option value="" disabled selected data-i18n="register.label.selectDept">Select your department</option>
-            <option value="Management Information Systems" data-i18n="dept.mis">Management Information Systems</option>
-            <option value="Business Administration" data-i18n="dept.ba">Business Administration</option>
-            <option value="International Trade and Business" data-i18n="dept.itb">International Trade and Business</option>
-            <option value="Banking and Finance" data-i18n="dept.bf">Banking and Finance</option>
-          </select>
-        </div>
+(function () {
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  window.__acx = { reduce: reduce };
 
-        <!-- Email -->
-        <div class="form-group">
-          <label for="email" class="form-label" data-i18n="login.label.email">Email Address</label>
-          <input type="email" id="email" class="form-control" placeholder="e.g. student@faculty.edu" required autocomplete="email">
-        </div>
+  $$('.land').forEach(function (el, i) {
+    if (!el.style.getPropertyValue('--hr')) el.style.setProperty('--hr', (((i * 37) % 11 - 5) * 0.3).toFixed(2) + 'deg');
+    el.style.setProperty('--hx', (((i * 53) % 9 - 4) * 2) + 'px');
+  });
 
-        <!-- Password -->
-        <div class="form-group">
-          <label for="password" class="form-label" data-i18n="register.label.password">Password</label>
-          <input type="password" id="password" class="form-control" data-i18n-placeholder="register.label.password" placeholder="Minimum 6 characters" required autocomplete="new-password">
-          
-          <!-- Password Strength Indicator -->
-          <div class="password-strength-container" style="margin-top: 0.5rem;">
-            <div class="password-strength-bar-bg" style="background: rgba(15, 37, 55, 0.1); height: 4px; border-radius: 2px; overflow: hidden; width: 100%;">
-              <div id="password-strength-bar" style="height: 100%; width: 0%; transition: width 0.3s ease, background-color 0.3s ease;"></div>
-            </div>
-            <div style="display:flex; justify-content:space-between; margin-top:0.25rem; font-size: 0.7rem; font-weight:700;">
-              <span data-i18n="register.strength.label" style="color: var(--color-text-muted);">Password Strength</span>
-              <span id="password-strength-label" style="color: var(--color-text-muted);">—</span>
-            </div>
-          </div>
-        </div>
+  /* greeting by the visitor's clock */
+  var h = new Date().getHours(), tod = h >= 5 && h < 11 ? 'sabah' : h < 17 ? 'gun' : h < 22 ? 'aksam' : 'gece';
+  var side = $('.side'); if (side) side.setAttribute('data-tod', tod);
+  var g = $('[data-greet]');
+  if (g) g.textContent = { sabah: 'günaydın', gun: 'iyi çalışmalar', aksam: 'iyi akşamlar', gece: 'geç saatte de buradasın' }[tod] + (g.hasAttribute('data-reg') ? ', hoş geldin' : '');
 
-        <!-- Confirm Password -->
-        <div class="form-group">
-          <label for="confirm-password" class="form-label">Confirm Password</label>
-          <input type="password" id="confirm-password" class="form-control" placeholder="Re-enter password" required autocomplete="new-password">
-        </div>
+  /* show / hide password + caps lock */
+  $$('[data-eye]').forEach(function (eye) {
+    eye.addEventListener('click', function () {
+      var f = document.getElementById(eye.getAttribute('data-eye')), show = f.type === 'password';
+      f.type = show ? 'text' : 'password';
+      eye.setAttribute('aria-pressed', String(show)); eye.setAttribute('aria-label', show ? 'Şifreyi gizle' : 'Şifreyi göster');
+    });
+  });
+  var caps = $('#caps'), pw = $('#password');
+  if (caps && pw) {
+    var capsCheck = function (e) { if (e.getModifierState) caps.hidden = !e.getModifierState('CapsLock'); };
+    pw.addEventListener('keydown', capsCheck); pw.addEventListener('keyup', capsCheck);
+    pw.addEventListener('blur', function () { caps.hidden = true; });
+  }
 
-        <!-- Legal Checkbox -->
-        <div class="form-group" style="display: flex; align-items: flex-start; gap: 0.5rem; margin-top: 1rem; margin-bottom: 1rem;">
-          <input type="checkbox" id="legal-agree" required style="width: 18px; height: 18px; accent-color: var(--color-teal); cursor: pointer; margin-top: 0.15rem;">
-          <label for="legal-agree" style="font-size: 0.8rem; line-height: 1.4; color: var(--color-navy); cursor: pointer; font-weight: 500; user-select: none;">
-            I have read and agree to the <a href="legal.html#privacy" target="_blank" style="color: var(--color-teal); text-decoration: underline;">Privacy Policy</a> and <a href="legal.html#terms" target="_blank" style="color: var(--color-teal); text-decoration: underline;">Terms of Use</a>
-          </label>
-        </div>
+  /* e-mail typo suggestion */
+  var email = $('#email'), sug = $('[data-suggest]');
+  var fixes = { 'gmial.com': 'gmail.com', 'gmal.com': 'gmail.com', 'gamil.com': 'gmail.com', 'gmail.co': 'gmail.com', 'gmail.con': 'gmail.com', 'gmaill.com': 'gmail.com', 'gnail.com': 'gmail.com',
+    'hotmial.com': 'hotmail.com', 'hotmal.com': 'hotmail.com', 'hotmai.com': 'hotmail.com', 'hotmail.co': 'hotmail.com', 'hotmail.con': 'hotmail.com', 'hotamil.com': 'hotmail.com',
+    'outlok.com': 'outlook.com', 'outloo.com': 'outlook.com', 'outlook.co': 'outlook.com', 'yaho.com': 'yahoo.com', 'yahoo.co': 'yahoo.com', 'iclod.com': 'icloud.com', 'icloud.co': 'icloud.com' };
+  if (email && sug) {
+    var checkTypo = function () {
+      var v = email.value.trim(), at = v.lastIndexOf('@'), dom = at > 0 ? v.slice(at + 1).toLowerCase() : '', fix = fixes[dom];
+      if (fix) { sug.textContent = 'acaba '; var b = document.createElement('b'); b.textContent = fix; sug.appendChild(b); sug.appendChild(document.createTextNode(' mu demek istedin?')); sug.hidden = false; sug.dataset.fix = v.slice(0, at + 1) + fix; }
+      else sug.hidden = true;
+    };
+    email.addEventListener('input', checkTypo); email.addEventListener('blur', checkTypo);
+    sug.addEventListener('click', function () { email.value = sug.dataset.fix; sug.hidden = true; email.dispatchEvent(new Event('input')); email.focus(); });
+    try { var qe = new URLSearchParams(location.search).get('e'); if (qe && !email.value) email.value = qe; } catch (e) {}
+  }
 
-        <!-- Optional Avatar Builder -->
-        <div id="reg-avatar-builder" style="margin-top: 0.5rem; margin-bottom: 0.5rem;">
-          <button type="button" id="btn-toggle-reg-avatar" style="width:100%; padding:0.6rem 1rem; font-size:0.85rem; font-weight:700; background:rgba(31,138,147,0.08); border:1px dashed var(--color-teal); border-radius:var(--radius-sm); cursor:pointer; color:var(--color-teal); transition:background 0.2s;">🎨 Customize Avatar (Optional)</button>
-          <div id="reg-avatar-panel" style="display:none; margin-top:0.75rem; padding:1rem; border:1px solid rgba(22,50,92,0.08); border-radius:var(--radius-sm); background:var(--color-bg-alt);">
-            <div id="reg-avatar-styles" style="display:flex; gap:0.4rem; flex-wrap:wrap; justify-content:center; margin-bottom:0.75rem;"></div>
-            <div id="reg-avatar-preview" style="display:flex; align-items:center; justify-content:center; margin-bottom:0.75rem; min-height:90px;"></div>
-            <div style="display:flex; gap:0.5rem; justify-content:center; flex-wrap:wrap;">
-              <button type="button" id="btn-reg-avatar-random" class="btn btn-outline" style="padding:0.35rem 1rem; font-size:0.8rem;">🎲 Shuffle</button>
-              <button type="button" id="btn-reg-avatar-select" class="btn btn-primary" style="border:none; padding:0.35rem 1rem; font-size:0.8rem;">✅ Use This Avatar</button>
-              <button type="button" id="btn-skip-avatar" class="btn btn-outline" style="padding:0.35rem 0.75rem; font-size:0.75rem; color:var(--color-text-muted); border-color:rgba(22,50,92,0.15);">Skip</button>
-            </div>
-          </div>
-        </div>
+  /* Apple / Google: not connected yet — they only say "yakında" */
+  var note = $('[data-sso-note]');
+  $$('[data-sso]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      note.innerHTML = '<span class="hand">bağlantı yakında</span>';
+      note.appendChild(document.createTextNode(b.getAttribute('data-sso') + ' ile ' + (b.closest('[data-view="register"]') ? 'kayıt' : 'giriş') + ' henüz açık değil. Şimdilik e-postanla devam edebilirsin.'));
+      note.hidden = false;
+    });
+  });
 
-        <!-- Submit Button -->
-        <button type="submit" id="btn-signup" class="btn btn-primary" style="width: 100%; margin-top: 1rem; border: none;" disabled data-i18n="register.btn">Sign Up</button>
-      </form>
+  /* the card hangs on its cord: grab it and it swings; click it and it turns over */
+  var swing = $('[data-swing]'), card = $('[data-card]');
+  if (swing && card) {
+    var ang = 0, vel = 0, dragging = false, moved = false, raf = 0, sx = 0, sy = 0, pivot = null, freed = false;
+    var free = function () { if (!freed) { freed = true; swing.classList.add('free'); } };
+    swing.addEventListener('animationend', free);
+    if (reduce) free();
+    var apply = function () { swing.style.transform = 'rotate(' + ang.toFixed(2) + 'deg)'; };
+    var step = function () {
+      if (dragging) return;
+      vel += -0.045 * ang; vel *= 0.955; ang += vel; apply();
+      if (Math.abs(ang) > 0.05 || Math.abs(vel) > 0.05) raf = requestAnimationFrame(step); else { ang = 0; vel = 0; apply(); raf = 0; }
+    };
+    card.addEventListener('pointerdown', function (e) {
+      free(); dragging = true; moved = false; sx = e.clientX; sy = e.clientY;
+      var r = swing.getBoundingClientRect(); pivot = { x: r.left + r.width / 2, y: r.top };
+      card.classList.add('grab'); card.setPointerCapture(e.pointerId); cancelAnimationFrame(raf);
+    });
+    card.addEventListener('pointermove', function (e) {
+      if (!dragging) return;
+      if (Math.abs(e.clientX - sx) + Math.abs(e.clientY - sy) > 5) moved = true;
+      if (!moved || reduce) return;
+      var a = Math.atan2(-(e.clientX - pivot.x), Math.max(40, e.clientY - pivot.y)) * 180 / Math.PI;
+      var na = Math.max(-38, Math.min(38, a)); vel = na - ang; ang = na; apply();
+    });
+    var turnT = 0;
+    var turn = function () {
+      if (reduce) { card.classList.toggle('flipped'); return; }
+      clearTimeout(turnT); card.classList.add('turning');
+      turnT = setTimeout(function () { card.classList.toggle('flipped'); card.classList.remove('turning'); if (!raf) { vel = 2.2; raf = requestAnimationFrame(step); } }, 220);
+    };
+    var release = function () {
+      if (!dragging) return; dragging = false; card.classList.remove('grab');
+      if (!moved) { turn(); return; }
+      if (!reduce) raf = requestAnimationFrame(step); else { ang = 0; apply(); }
+    };
+    card.addEventListener('pointerup', release); card.addEventListener('pointercancel', release);
+  }
+  window.__acx.stamp = function () { var idc = $('[data-idc]'); if (!idc) return; idc.classList.remove('in'); void idc.offsetWidth; idc.classList.add('in'); };
+  window.__acx.nudge = function (el) { if (reduce || !el) return; el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); };
+})();
 
-      <div class="auth-footer">
-        <span data-i18n="register.hasAccount">Already have an account?</span> <a href="login.html" data-i18n="login.registerLink">Log in here</a>
-      </div>
-      <div class="auth-footer" style="margin-top: 0.5rem;">
-        <span data-i18n="registerAcademic.notStudent">Are you faculty?</span> <a href="register-academic.html" data-i18n="registerAcademic.academicSignupLink">Apply for an academic account</a>
-      </div>
-    </div>
-    </div>
-  </main>
+/* ---- Turkish, hand-drawn versions of auth.js's UI helpers ----
+   auth.js stays exactly as it is; these global functions are what it calls. */
+(function () {
+  var friendly = getFriendlyError;
+  getFriendlyError = function (message) {
+    var m = String(message || '').toLowerCase();
+    if (!m) return 'Beklenmedik bir şey oldu. Bir daha dener misin?';
+    if (m.indexOf('already registered') > -1 || m.indexOf('user_already_exists') > -1) return 'Bu e-posta zaten kayıtlı. Giriş yapmayı dene.';
+    if (m.indexOf('invalid login credentials') > -1 || m.indexOf('invalid_credentials') > -1) return 'E-posta ya da şifre tutmadı. Bir kez daha bak.';
+    if (m.indexOf('email not confirmed') > -1) return 'E-postanı henüz doğrulamamışsın. Gelen kutuna gönderdiğimiz bağlantıya tıkla.';
+    if (m.indexOf('password should be') > -1) return 'Şifre en az 6 karakter olmalı.';
+    if (m.indexOf('network') > -1 || m.indexOf('fetch') > -1) return 'Bağlantı kopmuş gibi. İnternetini kontrol edip tekrar dene.';
+    if (m.indexOf('database error') > -1 || m.indexOf('unexpected_failure') > -1) return 'Hesap açılırken sunucuda bir sorun çıktı. Biraz sonra tekrar dene; sürerse bize yaz.';
+    if (m.indexOf('rate limit') > -1) return 'Kısa sürede çok deneme oldu. Birkaç dakika bekleyip tekrar dene.';
+    return friendly(message);
+  };
 
-  <!-- ==========================================
-       FOOTER
-       ========================================== -->
-  <footer class="footer">
-    <div class="container">
-      <div class="footer-grid">
-        <div class="footer-info">
-          <div class="footer-logo">
-            <img src="assets/logo.png" alt="Acadex Logo Logo" class="footer-logo-img">
-            <span class="footer-logo-text" data-i18n="brand.name">ACADEX</span>
-          </div>
-          <p class="footer-desc">
-            An academic development portal for the Business Faculty, providing students with state-of-the-art learning aids.
-          </p>
-        </div>
+  showFormAlert = function (form, type, message) {
+    var old = form.querySelector('.alert'); if (old) old.remove();
+    var box = document.createElement('div');
+    box.className = 'alert status ' + (type === 'error' ? 'is-err' : 'is-ok');
+    box.setAttribute('role', type === 'error' ? 'alert' : 'status');
+    var t = document.createElement('span'); t.className = 'hand';
+    t.textContent = type === 'error' ? 'bir şey ters gitti' : 'tamam ✓';
+    box.appendChild(t); box.appendChild(document.createTextNode(message));
+    form.appendChild(box);
+    if (type === 'error') window.__acx.nudge(form);
+    if (type === 'success' && typeof window.__acxOnSuccess === 'function') window.__acxOnSuccess(form);
+  };
 
-        <div>
-          <h4 class="footer-title" data-i18n="common.about">About</h4>
-          <ul class="footer-links">
-            <li><a href="index.html#home" data-i18n="common.home">Home</a></li>
-            <li><a href="index.html#about" data-i18n="common.about">About</a></li>
-            <li><a href="index.html#departments" data-i18n="common.departments">Departments</a></li>
-            <li><a href="index.html#how-it-works" data-i18n="common.howItWorks">How It Works</a></li>
-          </ul>
-        </div>
+  var LOAD = { 'Logging In...': 'giriş yapılıyor…', 'Creating Account...': 'kartın hazırlanıyor…', 'Sending Reset Link...': 'bağlantı gönderiliyor…' };
+  setButtonLoading = function (button, isLoading, text) {
+    if (!button) return;
+    if (isLoading) {
+      button.disabled = true; button.dataset.originalText = button.innerHTML;
+      button.innerHTML = '<span class="spin" aria-hidden="true"></span><span></span>';
+      button.lastChild.textContent = LOAD[text] || text || 'bekle…';
+      button.setAttribute('aria-busy', 'true');
+    } else {
+      button.disabled = false; button.removeAttribute('aria-busy');
+      if (button.dataset.originalText) button.innerHTML = button.dataset.originalText;
+    }
+  };
 
-        <div>
-          <h4 class="footer-title">Portal Links</h4>
-          <ul class="footer-links">
-            <li><a href="login.html" data-i18n="common.login">Log In</a></li>
-            <li><a href="register.html" data-i18n="common.signup">Sign Up</a></li>
-            <li><a href="dashboard.html" data-i18n="common.dashboard">Student Dashboard</a></li>
-          </ul>
-        </div>
-      </div>
+  /* showFieldError points aria-describedby at the error; keep it readable */
+  var sfe = showFieldError;
+  showFieldError = function (id, msg) { sfe(id, msg); var f = document.getElementById(id); if (f && f.type === 'checkbox') { var b = f.parentNode.querySelector('.box'); if (b) window.__acx.nudge(b); } };
+})();
 
-      <div class="footer-bottom">
-        <p>&copy; 2026 Acadex — Academic Development Portal. All rights reserved.</p>
-        <div class="footer-socials">
-          <a href="#" class="social-link" aria-label="LinkedIn">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path>
-              <rect x="2" y="9" width="4" height="12"></rect>
-              <circle cx="4" cy="4" r="2"></circle>
-            </svg>
-          </a>
-          <a href="#" class="social-link" aria-label="Twitter">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M23 3a10.9 10.9 0 0 1-3.14 1.53 4.48 4.48 0 0 0-7.86 3v1A10.66 10.66 0 0 1 3 4s-4 9 5 13a11.64 11.64 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.08-.83A7.72 7.72 0 0 0 23 3z"></path>
-            </svg>
-          </a>
-        </div>
-      </div>
-    </div>
-  </footer>
+(function () {
+  var $ = function (s) { return document.querySelector(s); };
+  var fn = $('#full-name'), no = $('#student-number'), dep = $('#department'), email = $('#email');
+  var nameEl = $('[data-name]'), deptEl = $('[data-dept]'), noEl = $('[data-no]'), ph = $('[data-ph]');
+  var cap = function (w) { return w ? w.charAt(0).toLocaleUpperCase('tr') + w.slice(1).toLocaleLowerCase('tr') : ''; };
+  var upd = function () {
+    var n = fn.value.trim().split(/\s+/).filter(Boolean).map(cap).join(' ');
+    nameEl.textContent = n || 'Sen';
+    deptEl.textContent = dep.value ? dep.options[dep.selectedIndex].text : 'Her bölüm';
+    noEl.textContent = no.value.trim() ? 'No · ' + no.value.trim() : 'Pilot · 2026';
+  };
+  [fn, no].forEach(function (f) { f.addEventListener('input', upd); });
+  dep.addEventListener('change', upd); upd();
+  no.addEventListener('input', function () { var d = no.value.replace(/\D/g, ''); if (d !== no.value) no.value = d; });
 
-  <!-- Supabase & Auth Scripts -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-  <script src="js/supabase-config.js"></script>
-  <script src="js/i18n.js"></script>
-  <script src="js/auth.js"></script>
+  /* card photo: a DiceBear avatar, only if the student picks one */
+  var STY = ['adventurer', 'avataaars', 'micah', 'personas', 'bottts'];
+  var seed = 'acx-' + Math.random().toString(36).slice(2, 8), chosen = '';
+  var url = function (s, sd) { return 'https://api.dicebear.com/9.x/' + s + '/svg?seed=' + encodeURIComponent(sd); };
+  var box = $('[data-ava]');
+  var draw = function () {
+    box.innerHTML = '';
+    STY.forEach(function (s) {
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'av'; b.setAttribute('aria-pressed', String(chosen === s));
+      b.setAttribute('aria-label', s + ' tarzı fotoğraf');
+      var im = document.createElement('img'); im.alt = ''; im.loading = 'lazy'; im.src = url(s, seed);
+      im.onerror = function () { b.hidden = true; };
+      b.appendChild(im);
+      b.addEventListener('click', function () { chosen = chosen === s ? '' : s; apply(); draw(); box.querySelector('[aria-pressed="true"]') && box.querySelector('[aria-pressed="true"]').focus(); });
+      box.appendChild(b);
+    });
+    var sh = document.createElement('button'); sh.type = 'button'; sh.className = 'linkbtn'; sh.textContent = 'başka yüzler';
+    sh.addEventListener('click', function () { seed = 'acx-' + Math.random().toString(36).slice(2, 8); apply(); draw(); box.querySelector('.linkbtn').focus(); });
+    box.appendChild(sh);
+  };
+  var apply = function () {
+    window.__registrationAvatarUrl = chosen ? url(chosen, seed) : null;
+    ph.innerHTML = '';
+    if (chosen) { var im = document.createElement('img'); im.alt = ''; im.src = url(chosen, seed); ph.appendChild(im); }
+  };
+  draw(); apply();
 
-  <!-- Page Interaction JavaScript -->
-  <script src="js/main.js"></script>
+  $('#register-form').addEventListener('submit', function () { if ($('#legal-agree').checked) window.__acx.stamp(); });
+})();
+</script>
 </body>
 </html>
