@@ -413,27 +413,159 @@
       <!-- ==========================================
            TAB 2: DEPARTMENT FEED VIEW
            ========================================== -->
-      <section id="feed-view" class="dashboard-view-section ax">
-        <header class="ax-head"><div>
-          <span class="ax-eyb">koridor panosu</span>
-          <h2 class="ax-h">Bölüm akışı</h2>
-          <p class="ax-sub" data-feed-sub="">arkadaşlarının paylaştığı özetler.</p>
-        </div>
-        <div class="ax-head-r"><button type="button" class="ax-btn ax-btn-dark" onclick="switchDashboardView('cards')"><svg viewBox="0 0 24 24"><circle cx="12" cy="7.5" r="4"/><path d="M12 11.5 C12 15 12.2 18 12 21.5"/></svg>panoya özet as</button></div></header>
-        <div style="display:none" aria-hidden="true">
-          <span id="feed-title"></span>
-          <div class="filter-bar" id="feed-filter-bar"><select id="feed-filter-course"><option value="all">all</option></select></div>
-        </div>
-        <div class="ax-chips" data-feed-chips="" role="group" aria-label="Derse göre süz"></div>
-        <div class="ax-feed-wrap">
-          <div id="feed-list-section"></div>
-          <aside class="ax-roll" aria-label="Panoya asanlar">
-            <h3>panoya asanlar</h3>
-            <small>bu akıştaki paylaşımlardan</small>
-            <ul data-roll-list=""><li class="none">yükleniyor…</li></ul>
-          </aside>
-        </div>
-      </section>
+      <section id="feed-view" class="dashboard-view-section axd axb">
+<div style="display:none" aria-hidden="true"><span id="feed-title"></span><div class="filter-bar" id="feed-filter-bar"><select id="feed-filter-course"><option value="all">all</option></select></div><div id="feed-list-section"></div></div>
+<div class="main-d bolum" id="bolum">
+
+<header class="d-head land">
+<div class="d-head-l">
+<span class="eyb hand">koridor panosu</span>
+<h1 class="disp">Bölüm akışı</h1>
+<p class="d-sub hand" data-sub="">arkadaşlarının özetleri, raptiyeler ve kenar notları.</p>
+</div>
+<div class="d-head-r">
+<button type="button" class="hbtn" data-decorate="" aria-expanded="false" aria-controls="bp-deco"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 L14.2 8.6 L19.8 9.1 L15.6 12.8 L16.9 18.3 L12 15.4 L7.1 18.3 L8.4 12.8 L4.2 9.1 L9.8 8.6 Z"/></svg>panomu süsle</button>
+<button type="button" class="btn btn-dark bp-new" data-compose=""><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 C13.6 3.5 14.6 4.6 14.6 6 C14.6 7.2 13.9 8 13.2 8.4 L14 13 H10 L10.8 8.4 C10.1 8 9.4 7.2 9.4 6 C9.4 4.6 10.4 3.5 12 3.5 Z"/><path d="M12 13 V20.5"/></svg>panoya özet as</button>
+</div>
+</header>
+
+
+<section class="bp-stories land" aria-labelledby="st-t">
+<h2 class="vh" id="st-t">Son 24 saatte asanlar</h2>
+<span class="bp-st-k hand" aria-hidden="true">bugün asanlar →</span>
+<ul class="bp-st-list" data-stories=""></ul>
+</section>
+
+<div class="bp-wrap">
+
+<div class="bp-col">
+<div class="bp-filters" role="group" aria-label="Akışı süz">
+<div class="bp-tapes" data-tapes=""></div>
+<div class="bp-modes">
+<button type="button" class="bp-mode" data-mode="follow" aria-pressed="false">takip ettiklerim</button>
+<button type="button" class="bp-mode" data-mode="saved" aria-pressed="false">kaydettiklerim</button>
+</div>
+<p class="bp-fstate hand" data-fstate="" aria-live="polite"></p>
+</div>
+
+<div class="bp-board">
+<i class="bp-frame-l" aria-hidden="true"></i><i class="bp-frame-r" aria-hidden="true"></i>
+<div class="bp-stk-l" data-stk="" aria-label="Pano süslerin"></div>
+<p class="bp-load hand" data-load="">pano açılıyor…</p>
+<div class="bp-emptyb" data-emptyb="" hidden></div>
+<div class="bp-feed" data-feed=""></div>
+<p class="bp-none hand" data-none="" hidden>bu süzgeçle panoda bir şey kalmadı. <button type="button" data-clear-f="">süzgeci kaldır</button></p>
+<button type="button" class="bp-older" data-older="" hidden>daha eski kâğıtlar</button>
+<div class="bp-end" aria-hidden="true"><span class="hand">koridorun sonu · hepsi bu kadar</span></div>
+</div>
+</div>
+
+<aside class="bp-rail" aria-label="Bölüm">
+<details class="bp-r-sec bp-roll" open data-roll-d="">
+<summary><h2 class="hd">yoklama listesi</h2><small class="hand" data-roll-n="">bölüm arkadaşların</small></summary>
+<ol class="bp-roll-list" data-roll=""></ol>
+</details>
+<section class="bp-r-sec bp-notes" aria-labelledby="nt-t">
+<h2 class="hd" id="nt-t">pano notları</h2>
+<ul class="bp-ntf" data-ntf=""></ul>
+<fieldset class="bp-prefs">
+<legend class="hand">bana haber ver</legend>
+<label><input type="checkbox" data-pref="pin" checked><i aria-hidden="true"></i>özetime raptiye takılınca</label>
+<label><input type="checkbox" data-pref="note" checked><i aria-hidden="true"></i>özetime not yazılınca</label>
+<label><input type="checkbox" data-pref="line" checked><i aria-hidden="true"></i>bir satırıma not düşülünce</label>
+</fieldset>
+</section>
+</aside>
+
+</div>
+
+<div class="bp-menu" data-menu="" role="menu" hidden>
+<button type="button" role="menuitem" data-m="nb">defterime al</button>
+<button type="button" role="menuitem" data-m="hide">akışımdan gizle</button>
+<button type="button" role="menuitem" data-m="del" hidden>panodan kaldır</button>
+<button type="button" role="menuitem" data-m="report" class="danger">bildir</button>
+</div>
+
+<dialog class="bp-dlg bp-report" data-report="" aria-labelledby="rp-t">
+<form method="dialog" class="bp-rp-in">
+<h2 id="rp-t" class="hand">bu paylaşımda ne sorun var?</h2>
+<p class="bp-rp-s">Bildirimin Acadex yöneticilerine gider; paylaşan kişi kimin bildirdiğini görmez.</p>
+<fieldset><legend class="vh">Sebep</legend>
+<label><input type="radio" name="rp" value="yanlis" checked><span>yanlış ya da yanıltıcı bilgi</span></label>
+<label><input type="radio" name="rp" value="izinsiz"><span>izinsiz kopyalanmış içerik</span></label>
+<label><input type="radio" name="rp" value="dil"><span>kırıcı ya da uygunsuz dil</span></label>
+<label><input type="radio" name="rp" value="spam"><span>reklam / alakasız</span></label>
+</fieldset>
+<div class="bp-rp-b"><button type="button" class="bp-ghost" data-rp-no="">vazgeç</button><button type="submit" class="btn btn-dark" value="ok">bildir</button></div>
+</form>
+</dialog>
+
+<dialog class="bp-dlg bp-comp" data-comp="" aria-labelledby="cp-t">
+<div class="bp-cp-in">
+<button type="button" class="bp-x" data-cp-x="" aria-label="Kapat">×</button>
+<div class="bp-cp-form">
+<h2 id="cp-t" class="disp">panoya özet as</h2>
+<label class="bp-f"><span>hangi özetini asıyorsun?</span><select data-cp-doc=""></select></label>
+<p class="bp-cp-st" data-cp-st="" hidden></p>
+<label class="bp-f"><span>başlık</span><input type="text" maxlength="60" data-cp-title="" required></label>
+<label class="bp-f"><span>ders etiketi</span><input type="text" maxlength="24" list="cp-tags" data-cp-tag="" placeholder="ör. Pazarlama"><datalist id="cp-tags" data-cp-tags=""></datalist></label>
+<label class="bp-f"><span>özetten satırlar <small>(her satır ayrı madde · en fazla 6)</small></span><textarea rows="6" data-cp-lines=""></textarea></label>
+<fieldset class="bp-f bp-paper"><legend>kâğıt</legend>
+<label><input type="radio" name="cp-paper" value="lined" checked><i class="pp-lined" aria-hidden="true"></i><span>çizgili</span></label>
+<label><input type="radio" name="cp-paper" value="grid"><i class="pp-grid" aria-hidden="true"></i><span>kareli</span></label>
+<label><input type="radio" name="cp-paper" value="card"><i class="pp-card" aria-hidden="true"></i><span>fiş</span></label>
+<label><input type="radio" name="cp-paper" value="copy"><i class="pp-copy" aria-hidden="true"></i><span>fotokopi</span></label>
+</fieldset>
+<fieldset class="bp-f bp-pinc"><legend>raptiye</legend>
+<label><input type="radio" name="cp-pin" value="blue" checked><i style="--pc:#2F6BFF" aria-hidden="true"></i><span class="vh">mavi</span></label>
+<label><input type="radio" name="cp-pin" value="navy"><i style="--pc:#0D1838" aria-hidden="true"></i><span class="vh">lacivert</span></label>
+<label><input type="radio" name="cp-pin" value="red"><i style="--pc:#C9483B" aria-hidden="true"></i><span class="vh">kırmızı</span></label>
+<label><input type="radio" name="cp-pin" value="green"><i style="--pc:#1E8A55" aria-hidden="true"></i><span class="vh">yeşil</span></label>
+</fieldset>
+<label class="bp-f"><span>arkadaşlarına kısa not <small>(isteğe bağlı)</small></span><input type="text" maxlength="90" data-cp-note="" placeholder="ör. vizeye kadar şu üçü yeter bence"></label>
+<p class="bp-cp-err" data-cp-err="" role="alert" hidden></p>
+<div class="bp-cp-b"><button type="button" class="bp-ghost" data-cp-no="">vazgeç</button><button type="button" class="btn btn-blue" data-cp-ok="">panoya as</button></div>
+</div>
+<div class="bp-cp-prev" aria-hidden="true"><span class="hand bp-cp-pk">böyle görünecek</span><div class="bp-cp-cork" data-cp-prev=""></div></div>
+</div>
+</dialog>
+
+<aside class="bp-deco" id="bp-deco" data-deco="" aria-labelledby="dc-t" hidden>
+<h2 id="dc-t" class="disp">panomu süsle</h2>
+<p>Pano sana göre görünsün. Süsler yalnızca senin ekranında, bu tarayıcıda durur; özetlerin arkasında kalır.</p>
+<fieldset><legend>zemin</legend>
+<label class="bp-sw"><input type="radio" name="dc-bg" value="cork" checked><i class="sw-cork" aria-hidden="true"></i>mantar</label>
+<label class="bp-sw"><input type="radio" name="dc-bg" value="felt"><i class="sw-felt" aria-hidden="true"></i>lacivert keçe</label>
+<label class="bp-sw"><input type="radio" name="dc-bg" value="grey"><i class="sw-grey" aria-hidden="true"></i>gri keçe</label>
+</fieldset>
+<fieldset><legend>çerçeve</legend>
+<label class="bp-sw"><input type="radio" name="dc-fr" value="alu" checked><i class="sw-alu" aria-hidden="true"></i>alüminyum</label>
+<label class="bp-sw"><input type="radio" name="dc-fr" value="wood"><i class="sw-wood" aria-hidden="true"></i>ahşap</label>
+<label class="bp-sw"><input type="radio" name="dc-fr" value="none"><i class="sw-none" aria-hidden="true"></i>yok</label>
+</fieldset>
+<fieldset><legend>süs ekle</legend>
+<div class="bp-adds">
+<button type="button" class="bp-add" data-add="star"><b aria-hidden="true">☆</b>yıldız</button>
+<button type="button" class="bp-add" data-add="vize"><b aria-hidden="true">◎</b>vize!</button>
+<button type="button" class="bp-add" data-add="plane"><b aria-hidden="true">➹</b>uçak</button>
+<button type="button" class="bp-add" data-add="coffee"><b aria-hidden="true">○</b>kahve izi</button>
+<button type="button" class="bp-add" data-add="polar"><b aria-hidden="true">▢</b>polaroid</button>
+<button type="button" class="bp-add" data-add="tape"><b aria-hidden="true">▬</b>bant</button>
+<button type="button" class="bp-add" data-add="hl"><b aria-hidden="true">≡</b>fosforlu</button>
+</div>
+<div class="bp-motto"><label class="vh" for="dc-motto">Kendi notun</label><input id="dc-motto" type="text" maxlength="40" placeholder="kendi notun… ör. bu dönem bitecek" data-motto=""><button type="button" class="btn btn-blue" data-add="motto">as</button></div>
+</fieldset>
+<p class="bp-deco-tip">Süsü sürükleyerek taşı. Seçip ok tuşlarıyla kaydır, R ile döndür, Delete ile kaldır.</p>
+<div class="bp-deco-b"><button type="button" class="bp-ghost" data-deco-reset="">panoyu sıfırla</button><button type="button" class="btn btn-dark" data-deco-done="">bitti</button></div>
+</aside>
+
+<div class="bp-card-pop" data-prof="" role="dialog" aria-label="Arkadaş kartı" hidden></div>
+
+<div class="toast" data-toast="" role="status" aria-live="polite" hidden><span data-toast-t=""></span><a data-toast-a="" href="#" hidden></a><button type="button" data-toast-b="" hidden>geri al</button></div>
+</div>
+<div id="axb-layer"><div class="bolum axb-l"></div></div>
+</section>
+
 
       <!-- ==========================================
            TAB 3: STUDY NOTEBOOK VIEW
@@ -1244,9 +1376,267 @@
            TAB: ACADEX SUNUM (embedded presentation builder,
            iframe → acadex-sunum.html)
            ========================================== -->
-      <section id="acadexsunum-view" class="dashboard-view-section">
-        <iframe id="acadexsunum-iframe" title="Acadex Sunum" loading="lazy"></iframe>
-      </section>
+      <section id="acadexsunum-view" class="dashboard-view-section axd axu">
+<div class="main-d sunum" id="sunum">
+
+<header class="d-head land">
+<div class="d-head-l">
+<span class="eyb hand">tepegözün başında</span>
+<h1 class="disp">Acadex sunum</h1>
+<p class="d-sub hand">asetatlarını hazırla, Acadia ile kurgula, prova et, lambayı yak.</p>
+</div>
+<div class="d-head-r">
+<span class="saved hand" data-saved="" aria-live="polite"></span>
+<button type="button" class="btn btn-dark sx-acadia" data-plot=""><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18 C7 17 9 14 10 10 C11 6 13 4 16 4"/><path d="M14 20 C16 17 18 15 20 14"/><circle cx="17.5" cy="7.5" r="1.4"/></svg>Acadia ile kurgula</button>
+<button type="button" class="hbtn" data-rehearse=""><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="7.5"/><path d="M12 9 V13 L14.5 15"/><path d="M10 3.5 H14"/></svg>prova</button>
+<button type="button" class="btn btn-blue sx-go" data-present=""><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 V5 M5.6 5.6 L7 7 M18.4 5.6 L17 7 M3 12 H5 M19 12 H21"/><path d="M9 17 C7.5 16 6.8 14.5 6.8 12.8 C6.8 10 9.1 7.8 12 7.8 C14.9 7.8 17.2 10 17.2 12.8 C17.2 14.5 16.5 16 15 17 V19 H9 Z"/></svg>lambayı yak · sun</button>
+</div>
+</header>
+
+<div class="sx-decks land" role="group" aria-label="Sunumlarım">
+<label class="vh" for="sx-decks">Açık sunum</label><select id="sx-decks" class="sx-dsel" data-decks=""></select>
+<button type="button" class="sx-lnk" data-newdeck="">+ yeni sunum</button>
+<button type="button" class="sx-lnk danger" data-deldeck="">bu sunumu sil</button>
+<span class="sx-sp"></span>
+<a class="sx-lnk" href="acadex-sunum.html" target="_blank" rel="noopener">klasik stüdyo ↗</a>
+</div>
+<div class="sx-title land">
+<label class="vh" for="sx-deck">Sunum adı</label>
+<input id="sx-deck" type="text" maxlength="70" data-deck-title="" placeholder="sunumuna bir ad ver…">
+<span class="sx-count hand" data-count=""></span>
+<span class="sx-cloud hand" data-cloud="" aria-live="polite"></span>
+<button type="button" class="sx-lnk" data-pdf="">PDF indir</button>
+<button type="button" class="sx-lnk danger" data-wipe="">tepegözü boşalt</button>
+</div>
+
+<div class="sx-desk">
+
+<section class="sx-stack" aria-labelledby="stk-t">
+<h2 class="hd" id="stk-t">asetat yığını</h2>
+<ol class="sx-thumbs" data-thumbs="" aria-label="Slaytlar"></ol>
+<button type="button" class="sx-blank" data-blank=""><span aria-hidden="true">+</span>boş asetat</button>
+</section>
+
+<section class="sx-ohp" aria-label="Tepegöz camı">
+<form class="sx-ask land" data-ask="" role="search" aria-label="Konudan sunum">
+<div class="sx-ask-in">
+<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20 L5.4 15 L15.5 4.9 C16.3 4.1 17.6 4.1 18.4 4.9 L19.1 5.6 C19.9 6.4 19.9 7.7 19.1 8.5 L9 18.6 Z"/><path d="M14 6.5 L17.5 10"/></svg>
+<label class="vh" for="sx-q">Sunum konusu</label>
+<input id="sx-q" type="text" maxlength="90" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sx-sug" placeholder="ne anlatmak istiyorsun? ör. mod, medyan ve ortalama" data-q="">
+<button type="submit" class="btn btn-blue sx-ask-go">Acadia yazsın</button>
+</div>
+<ul class="sx-sug" id="sx-sug" role="listbox" aria-label="Konu önerileri" data-sug="" hidden></ul>
+<div class="sx-ask-row">
+<div class="sx-step" role="group" aria-label="Sayfa sayısı"><button type="button" data-n="-1" aria-label="Bir sayfa azalt">−</button><output data-nv="" aria-live="polite">8</output><span>sayfa</span><button type="button" data-n="1" aria-label="Bir sayfa artır">+</button></div>
+<div class="sx-tones sx-ask-tones" role="radiogroup" aria-label="Anlatım">
+<label><input type="radio" name="ask-tone" value="akademik" checked><span>akademik</span></label>
+<label><input type="radio" name="ask-tone" value="ozet"><span>özet</span></label>
+<label><input type="radio" name="ask-tone" value="kurumsal"><span>kurumsal</span></label>
+<label><input type="radio" name="ask-tone" value="hikaye"><span>hikâyeleştir</span></label>
+</div>
+</div>
+<p class="sx-ask-alt">ya da <button type="button" data-plot-src="doc">belgemden</button> · <button type="button" data-plot-src="cards">kartlarımdan</button> kurgula</p>
+</form>
+<div class="sx-body">
+<span class="sx-plate" aria-hidden="true">ACADEX · TEPEGÖZ</span>
+<i class="sx-arm" aria-hidden="true"><i class="sx-head"></i></i>
+<i class="sx-fan" aria-hidden="true"></i>
+<i class="sx-vent" aria-hidden="true"></i>
+<div class="sx-glass" data-glass="">
+<div class="sx-frame" data-frame="">
+<div class="sx-fit" data-fit="">
+<div class="sx-slide" data-stage="" tabindex="-1" aria-label="Slayt düzenleme alanı"></div>
+</div>
+</div>
+<div class="sx-empty" data-empty="" hidden>
+<p class="hand">tepegöz boş.</p>
+<p>Acadia ile bir kurgu çıkar ya da yığına boş bir asetat koy.</p>
+<div><button type="button" class="btn btn-dark" data-plot="">Acadia ile kurgula</button><button type="button" class="hbtn" data-blank="">boş asetat</button></div>
+</div>
+</div>
+<div class="sx-knobs" aria-hidden="true"><i></i><i></i></div>
+</div>
+<div class="sx-under">
+<p class="sx-pos hand" data-pos=""></p>
+<div class="sx-notes">
+<label for="sx-notes" class="hand">konuşmacı notu</label>
+<textarea id="sx-notes" rows="3" data-notes="" placeholder="bu asetatı anlatırken ne diyeceksin?"></textarea>
+</div>
+</div>
+</section>
+
+<aside class="sx-box" aria-label="Kalem kutusu">
+<h2 class="hd">kalem kutusu</h2>
+
+<div class="sx-sec">
+<h3 class="sx-k">ekle</h3>
+<div class="sx-grid4">
+<button type="button" class="sx-tool" data-add="h"><b aria-hidden="true">Aa</b>başlık</button>
+<button type="button" class="sx-tool" data-add="t"><b aria-hidden="true">¶</b>metin</button>
+<button type="button" class="sx-tool" data-add="ul"><b aria-hidden="true">•≡</b>madde</button>
+<button type="button" class="sx-tool" data-add="img"><b aria-hidden="true">▣</b>görsel</button>
+<button type="button" class="sx-tool" data-add="rect"><b aria-hidden="true">□</b>kutu</button>
+<button type="button" class="sx-tool" data-add="ellipse"><b aria-hidden="true">○</b>daire</button>
+<button type="button" class="sx-tool" data-add="arrow"><b aria-hidden="true">→</b>ok</button>
+<button type="button" class="sx-tool" data-add="mark"><b aria-hidden="true">✎</b>vurgu</button>
+</div>
+<input type="file" accept="image/*" data-img="" hidden>
+</div>
+
+<div class="sx-sec">
+<h3 class="sx-k">düzen</h3>
+<div class="sx-lays" data-lays=""></div>
+</div>
+
+<div class="sx-sec sx-selsec" data-selsec="">
+<h3 class="sx-k">seçili <span data-seln="">nesne yok</span></h3>
+<div class="sx-row" role="group" aria-label="Renk">
+<button type="button" class="sx-sw" data-col="#0D1838" aria-label="lacivert" style="--c:#0D1838"></button>
+<button type="button" class="sx-sw" data-col="#2F6BFF" aria-label="mavi" style="--c:#2F6BFF"></button>
+<button type="button" class="sx-sw" data-col="#C9483B" aria-label="kırmızı" style="--c:#C9483B"></button>
+<button type="button" class="sx-sw" data-col="#1E8A55" aria-label="yeşil" style="--c:#1E8A55"></button>
+<button type="button" class="sx-sw" data-col="#6A7593" aria-label="gri" style="--c:#6A7593"></button>
+<button type="button" class="sx-sw" data-col="#FFFFFF" aria-label="beyaz" style="--c:#FFFFFF"></button>
+</div>
+<div class="sx-row">
+<button type="button" class="sx-mini" data-op="smaller" aria-label="Yazıyı küçült">A−</button>
+<button type="button" class="sx-mini" data-op="bigger" aria-label="Yazıyı büyüt">A+</button>
+<button type="button" class="sx-mini" data-op="bold" aria-label="Kalın">B</button>
+<button type="button" class="sx-mini" data-op="left" aria-label="Sola hizala">⇤</button>
+<button type="button" class="sx-mini" data-op="center" aria-label="Ortala">↔</button>
+<button type="button" class="sx-mini" data-op="right" aria-label="Sağa hizala">⇥</button>
+</div>
+<div class="sx-row">
+<button type="button" class="sx-mini w" data-op="front">öne</button>
+<button type="button" class="sx-mini w" data-op="back">arkaya</button>
+<button type="button" class="sx-mini w" data-op="dup">çoğalt</button>
+<button type="button" class="sx-mini w danger" data-op="del">sil</button>
+</div>
+<p class="sx-tip">Çift tıkla: yazıyı düzenle · sürükle: taşı · köşeden: boyutla · ok tuşları: kaydır</p>
+</div>
+
+<div class="sx-sec">
+<h3 class="sx-k">asetat</h3>
+<div class="sx-row" role="radiogroup" aria-label="Asetat rengi" data-bgs="">
+<button type="button" class="sx-bg" role="radio" data-bg="clear" aria-checked="true">şeffaf</button>
+<button type="button" class="sx-bg" role="radio" data-bg="blue" aria-checked="false">mavi</button>
+<button type="button" class="sx-bg" role="radio" data-bg="navy" aria-checked="false">gece</button>
+</div>
+</div>
+
+<div class="sx-sec sx-ac">
+<h3 class="sx-k">Acadia bu asetata</h3>
+<div class="sx-acs">
+<button type="button" data-ai="short">kısalt</button>
+<button type="button" data-ai="rich">zenginleştir</button>
+<button type="button" data-ai="list">maddeye çevir</button>
+<button type="button" data-ai="note">konuşmacı notu yaz</button>
+<button type="button" data-ai="q">soru ekle</button>
+</div>
+</div>
+
+<div class="sx-hist"><button type="button" class="sx-mini w" data-undo="" aria-label="Geri al (Ctrl+Z)">↶ geri</button><button type="button" class="sx-mini w" data-redo="" aria-label="İleri al (Ctrl+Y)">ileri ↷</button></div>
+</aside>
+
+</div>
+
+<!-- Acadia: kurgu masası -->
+<dialog class="sx-dlg sx-plot" data-plotdlg="" aria-labelledby="pl-t">
+<div class="sx-pl-in">
+<button type="button" class="sx-x" data-pl-x="" aria-label="Kapat">×</button>
+<ol class="sx-steps" aria-label="Adımlar"><li data-st="1" aria-current="step">kaynak</li><li data-st="2">kurgu</li><li data-st="3">bas</li></ol>
+<h2 id="pl-t" class="disp" data-pl-h="">Acadia neyi anlatsın?</h2>
+
+<div class="sx-pl-step" data-step="1">
+<div class="sx-srcs" role="radiogroup" aria-label="Kaynak">
+<label class="sx-src"><input type="radio" name="pl-src" value="doc" checked><span><b>belgem</b><small>Belgelerim'deki bir özetten</small></span></label>
+<label class="sx-src"><input type="radio" name="pl-src" value="cards"><span><b>ders kartlarım</b><small>Bilgi kartlarından</small></span></label>
+<label class="sx-src"><input type="radio" name="pl-src" value="topic"><span><b>konu yaz</b><small>serbest başlık</small></span></label>
+</div>
+<label class="sx-f" data-srcf="doc"><span>hangi belge?</span><select data-pl-doc=""></select></label>
+<p class="sx-f-note" data-srcf="doc" data-docnote="" hidden></p>
+<label class="sx-f" data-srcf="topic" hidden><span>konu</span><input type="text" maxlength="80" data-pl-topic="" placeholder="ör. Merkez bankasının para politikası araçları"></label>
+<p class="sx-f-note" data-srcf="cards" hidden data-cardsnote=""></p>
+<fieldset class="sx-f sx-tones"><legend>anlatım</legend>
+<label><input type="radio" name="pl-tone" value="akademik" checked><span>akademik</span></label>
+<label><input type="radio" name="pl-tone" value="ozet"><span>özet</span></label>
+<label><input type="radio" name="pl-tone" value="kurumsal"><span>kurumsal</span></label>
+<label><input type="radio" name="pl-tone" value="hikaye"><span>hikâyeleştir</span></label>
+</fieldset>
+<label class="sx-f sx-len"><span>kaç asetat? <b data-pl-nv="">7</b></span><input type="range" min="4" max="12" value="7" data-pl-n=""></label>
+<div class="sx-pl-b"><button type="button" class="bp-ghost sx-ghost" data-pl-no="">vazgeç</button><button type="button" class="btn btn-dark" data-pl-go="">kurguyu çıkar</button></div>
+</div>
+
+<div class="sx-pl-step" data-step="2" hidden>
+<p class="sx-pl-think hand" data-think="" hidden><svg viewBox="0 0 120 24" aria-hidden="true"><path d="M2 14 C14 6 22 20 34 12 C46 4 54 20 66 12 C78 4 86 20 98 12 C106 7 112 10 118 12"/></svg>Acadia kurguyu çiziyor…</p>
+<p class="sx-pl-help" data-plhelp="">Şeritleri sürükleyerek sırala, başlıkları düzelt, türünü değiştir. Onaylayınca asetatlara basılır.</p>
+<ol class="sx-strips" data-strips=""></ol>
+<button type="button" class="sx-lnk" data-strip-add="">+ şerit ekle</button>
+<div class="sx-pl-b"><button type="button" class="bp-ghost sx-ghost" data-pl-back="">geri</button><button type="button" class="btn btn-blue" data-pl-ok="">asetatlara bas</button></div>
+</div>
+
+<div class="sx-pl-step" data-step="3" hidden>
+<fieldset class="sx-f sx-tones"><legend>mevcut asetatlar ne olsun?</legend>
+<label><input type="radio" name="pl-mode" value="replace" checked><span>yerine koy</span></label>
+<label><input type="radio" name="pl-mode" value="append"><span>sonuna ekle</span></label>
+</fieldset>
+<div class="sx-pl-b"><button type="button" class="bp-ghost sx-ghost" data-pl-back2="">geri</button><button type="button" class="btn btn-blue" data-pl-print="">bas</button></div>
+</div>
+<p class="sx-pl-honest" data-honest="">Acadia seçtiğin kaynaktan yazar. Bağlantı kurulamazsa kurgu, özetinin kendi bölümlerinden çıkarılır; soluk kalan yerleri sen doldurursun.</p>
+</div>
+</dialog>
+
+<!-- prova -->
+<div class="sx-rh" data-rh="" role="dialog" aria-modal="true" aria-label="Prova" hidden>
+<div class="sx-rh-top">
+<span class="sx-rh-k hand">prova</span>
+<span class="sx-rh-t" data-rh-total="" aria-live="off">00:00</span>
+<label class="sx-rh-goal">hedef <select data-rh-goal=""><option value="5">5 dk</option><option value="10" selected>10 dk</option><option value="15">15 dk</option><option value="20">20 dk</option></select></label>
+<div class="sx-rh-bar" aria-hidden="true"><i data-rh-bar=""></i></div>
+<button type="button" class="btn btn-blue" data-rh-end="">provayı bitir</button>
+</div>
+<div class="sx-rh-main">
+<div class="sx-rh-cur"><div class="sx-rh-fit" data-rh-cur=""></div><p class="sx-rh-pos" data-rh-pos=""></p></div>
+<div class="sx-rh-side">
+<p class="sx-k">bu asetatta</p>
+<p class="sx-rh-st" data-rh-slide="">00:00</p>
+<p class="sx-k">sıradaki</p>
+<div class="sx-rh-next" data-rh-next=""></div>
+<p class="sx-k">not</p>
+<div class="sx-rh-notes" data-rh-notes=""></div>
+<div class="sx-rh-nav"><button type="button" class="hbtn" data-rh-prev="">← önceki</button><button type="button" class="btn btn-dark" data-rh-nxt="">sonraki →</button></div>
+</div>
+</div>
+<div class="sx-rh-card" data-rh-card="" hidden></div>
+</div>
+
+<!-- sunum: duvara yansıyan -->
+<div class="sx-pr" data-pr="" role="dialog" aria-modal="true" aria-label="Sunum" hidden>
+<div class="sx-wall" data-wall="">
+<div class="sx-beam" aria-hidden="true"></div>
+<div class="sx-pfit" data-pfit=""></div>
+<canvas class="sx-ink" data-ink=""></canvas>
+<i class="sx-laser" data-laser="" hidden></i>
+</div>
+<div class="sx-pbar">
+<button type="button" data-pt="pen" aria-pressed="false">kalem</button>
+<button type="button" data-pt="laser" aria-pressed="false">lazer</button>
+<button type="button" data-pt="clear">sil</button>
+<button type="button" data-pt="steps" aria-pressed="false">maddeleri tek tek</button>
+<span class="sx-pnum" data-pnum=""></span>
+<button type="button" data-pnav="-1" aria-label="Önceki slayt">←</button>
+<button type="button" data-pnav="1" aria-label="Sonraki slayt">→</button>
+<button type="button" data-pclose="">lambayı söndür</button>
+</div>
+</div>
+
+<div class="sx-print" data-print="" aria-hidden="true"></div>
+
+<div class="toast" data-toast="" role="status" aria-live="polite" hidden><span data-toast-t=""></span><a data-toast-a="" href="#" hidden></a><button type="button" data-toast-b="" hidden>geri al</button></div>
+</div>
+<div id="axu-layer"><div class="sunum axu-l"></div></div>
+</section>
+
 
       <!-- ==========================================
            TAB 7: GELISIRICI SANDBOX VIEW (DEVELOPER SANDBOX)
