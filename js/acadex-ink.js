@@ -267,103 +267,6 @@
     };
   }
 
-  /* ================= BİLGİ KARTLARI ================= */
-  var boxOf = function (conf) { var d = Number(conf.interval_days) || 0; return d <= 1 ? 0 : d <= 2 ? 1 : d <= 4 ? 2 : d <= 7 ? 3 : 4; };
-  var cardStats = function (card) {
-    var pool = typeof buildCardReviewPool === 'function' ? buildCardReviewPool(card) : [];
-    var map = lsafe(function () { return libraryConfidenceMap; }, {}) || {}, now = Date.now();
-    var boxes = [0, 0, 0, 0, 0], due = 0, fresh = 0, seen = 0;
-    pool.forEach(function (it) {
-      var c = map[it._studyCardId + ':' + it._key];
-      if (!c) { fresh++; return; }
-      seen++; boxes[boxOf(c)]++;
-      if (!c.next_review_at || new Date(c.next_review_at).getTime() <= now) due++;
-    });
-    return { total: pool.length, boxes: boxes, due: due, fresh: fresh, seen: seen };
-  };
-  var dueLabel = function () {
-    var el = $('[data-due]'); if (!el) return;
-    var all = lsafe(function () { return libraryCards; }, []) || [], due = 0;
-    all.forEach(function (c) { due += cardStats(c).due; });
-    el.textContent = all.length ? (due ? 'bugün ' + due + ' kart tekrar bekliyor' : 'bugün tekrar yok') : '';
-  };
-  var detail = function (cardId, cards) {
-    var pane = $('#lib-md-detail'); if (!pane) return;
-    var all = lsafe(function () { return libraryCards; }, []) || [];
-    var card = (cards || []).find(function (c) { return c.id === cardId; }) || all.find(function (c) { return c.id === cardId; });
-    if (!card) { pane.innerHTML = '<div class="ax-empty"><b>bir deste seç</b><p>Soldaki kutulardan birine dokun.</p></div>'; return; }
-    var nm = (card.documents && card.documents.file_name) || 'İsimsiz belge', safe = jsq(nm);
-    var s = cardStats(card);
-    var terms = (card.key_terms || []).length, pts = (card.key_points || []).length, quiz = (card.quiz_questions || []).length, cl = (card.cloze_cards || []).length;
-    var sumHtml = typeof formatSummaryText === 'function' ? formatSummaryText(card.summary) : esc(card.summary || '');
-    var mode = function (type, title, hint, n) { return '<button type="button" class="ax-mode" ' + (n ? '' : 'disabled ') + 'onclick="openFlashcardViewer(\'' + card.id + '\', \'' + type + '\', \'' + safe + '\')"><span class="n">' + n + '</span><b>' + title + '</b><small>' + hint + '</small></button>'; };
-    var LB = ['her gün', '2 günde', '4 günde', 'haftada', '2 haftada'], mx = Math.max.apply(null, s.boxes.concat([1]));
-    pane.innerHTML =
-      '<div class="ax-detail">' +
-      '<div class="ax-sum"><h3>özet <small>' + esc(baseName(nm)) + '</small></h3>' +
-      '<div class="ax-sum-t">' + (sumHtml || '<p>Bu kartta özet metni yok.</p>') + '</div>' +
-      '<div class="ax-sum-act">' +
-      '<button type="button" class="ax-btn ax-btn-line btn-view-summary" data-doc-id="' + card.document_id + '" data-doc-name="' + esc(nm) + '" data-card-id="' + card.id + '">' + ICON.eye + 'Tam özeti aç</button>' +
-      '<button type="button" class="ax-btn ax-btn-line" onclick="addStickyNoteToNotebook(\'' + card.id + '\', \'' + safe + '\', \'' + jsq(card.summary || '') + '\')">Deftere gönder</button>' +
-      '<label class="ax-switch" title="Bölüm akışına as"><input type="checkbox" id="share-switch-lib-' + card.id + '"' + (card.is_shared ? ' checked' : '') + ' onchange="toggleShareStudyCard(\'' + card.id + '\', this.checked)"><i></i>bölümümle paylaş</label>' +
-      '<span class="sp" style="flex:1"></span>' +
-      '<button type="button" class="ax-iconbtn del" title="Desteyi sil" aria-label="Desteyi sil" onclick="deleteStudyCard(event, \'' + card.id + '\', \'' + card.document_id + '\')">' + ICON.del + '</button>' +
-      '</div></div>' +
-      '<div><div class="ax-modes">' +
-      '<button type="button" class="ax-mode big" ' + (s.total ? '' : 'disabled ') + 'onclick="openAdaptiveReview(\'' + card.id + '\', \'' + safe + '\')"><b>Akıllı tekrar</b><small>' + (s.total ? (s.due ? s.due + ' kart vadesi geldi' : s.fresh ? s.fresh + ' kart hiç görülmedi' : 'şimdilik hepsi yerinde') : 'bu destede soru yok') + '</small><span class="n">' + s.total + '</span></button>' +
-      mode('terms', 'Anahtar terimler', 'tanımları çevir', terms) + mode('points', 'Önemli noktalar', 'sınavlık fikirler', pts) +
-      mode('quiz', 'Kendini test et', 'soru–cevap turu', quiz) + mode('cloze', 'Boşluk doldurma', 'eksik kelimeyi bul', cl) +
-      '</div>' +
-      '<div class="ax-leit"><h4>tekrar kutusu</h4><div class="ax-leit-box">' + s.boxes.map(function (n, i) { return '<div><small>' + LB[i] + '</small><i style="height:' + Math.round(6 + 40 * n / mx) + 'px"></i><b>' + n + '</b></div>'; }).join('') + '</div>' +
-      '<p>' + (s.seen ? 'bildiğin kart bir bölme ileri gider; bilemediğin baştan başlar.' : 'henüz tekrar yapmadın; ilk turdan sonra kartların kutulara dağılır.') + '</p></div></div>' +
-      '</div>';
-  };
-  var renderLib = function (cards) {
-    var sec = $('#cards-list-section'); if (!sec) return;
-    var all = lsafe(function () { return libraryCards; }, []) || [];
-    if (!cards) cards = window.filteredLibraryCardsList || all;
-    dueLabel();
-    if (!cards.length) {
-      sec.innerHTML = all.length
-        ? '<div class="ax-card ax-empty"><b>bu filtreye uyan kart yok</b><p>Aramayı ya da filtreleri değiştir.</p><button type="button" class="ax-btn ax-btn-line" onclick="document.getElementById(\'btn-clear-filters\').click(); setCardsStatusFilter(\'all\')">Filtreleri temizle</button></div>'
-        : '<div class="ax-card ax-empty"><b>henüz bir desten yok</b><p>Belgelerim\'den bir dosya yükleyip özetlediğinde kart destesi burada belirir.</p><button type="button" class="ax-btn ax-btn-dark" onclick="switchDashboardView(\'docs\')">Belgelerime git</button></div>';
-      return;
-    }
-    var act = lsafe(function () { return libraryActiveCardId; }, null);
-    if (!act || !cards.some(function (c) { return c.id === act; })) act = cards[0].id;
-    try { libraryActiveCardId = act; } catch (e) {}
-    var h = '<div class="ax-lib"><div class="ax-decks" id="lib-md-list" role="list" aria-label="Kart desteleri">';
-    cards.forEach(function (c) {
-      var nm = baseName(c.documents && c.documents.file_name), st = typeof getCardProgressStats === 'function' ? getCardProgressStats(c) : { total: 0, percent: 0 };
-      h += '<button type="button" class="ax-dbox lib-md-item" role="listitem" data-card-id="' + c.id + '" aria-current="' + (c.id === act) + '" onclick="selectLibraryCard(\'' + c.id + '\')">' +
-        (c.is_shared ? '<span class="sh">panoda</span>' : '') +
-        '<span class="lab"><b>' + esc(nm) + '</b><small>' + esc(dshort(c.created_at)) + '</small></span>' +
-        '<span class="tags"><span>' + esc(typeof getStyleLabel === 'function' ? getStyleLabel(c.summary_style) : (c.summary_style || '')) + '</span><span>' + (c.summary_language === 'tr' ? 'TR' : 'EN') + '</span>' + (c.course_tag ? '<span>' + esc(c.course_tag) + '</span>' : '') + '</span>' +
-        '<span class="pr">' + (st.total ? '<i><b style="width:' + st.percent + '%"></b></i>%' + st.percent : 'çalışılacak madde yok') + '</span></button>';
-    });
-    h += '</div><div id="lib-md-detail"></div></div>';
-    sec.innerHTML = h;
-    detail(act, cards);
-  };
-  if (typeof renderCardsLibraryList === 'function') { renderCardsLibraryList = renderLib; window.renderCardsLibraryList = renderLib; }
-  if (typeof renderLibraryDetailPane === 'function') { renderLibraryDetailPane = detail; window.renderLibraryDetailPane = detail; }
-  if (typeof selectLibraryCard === 'function') {
-    selectLibraryCard = function (id) {
-      try { libraryActiveCardId = id; } catch (e) {}
-      $$('#lib-md-list .ax-dbox').forEach(function (b) { b.setAttribute('aria-current', String(b.dataset.cardId === id)); });
-      detail(id, window.filteredLibraryCardsList || lsafe(function () { return libraryCards; }, []));
-      if (window.innerWidth <= 900) { var d = $('#lib-md-detail'); if (d) d.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' }); }
-    };
-    window.selectLibraryCard = selectLibraryCard;
-  }
-  if (typeof loadCardsLibrary === 'function') {
-    var origLib = loadCardsLibrary;
-    loadCardsLibrary = async function () {
-      var r = await origLib.apply(this, arguments);
-      var o = $('#cards-filter-course option[value="all"]'); if (o) o.textContent = 'tüm dersler';
-      return r;
-    };
-  }
 })();
 
 /* ================= BUGÜN · masa (tam tasarım, gerçek veri) ================= */
@@ -1687,4 +1590,417 @@
   document.addEventListener('keydown', function (e) {
     if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S') && root.classList.contains('active')) { e.preventDefault(); $('#btn-save-notebook').click(); }
   });
+})();
+
+/* ================= BİLGİ KARTLARI (tam tasarım, gerçek desteler) =================
+   Desteler: study_cards. Kartlar: her destenin anahtar terimleri, test soruları ve boşluk doldurmaları
+   + öğrencinin özetten kendi yaptığı kartlar (aynı destenin key_terms / cloze_cards listesine "user": true
+   olarak eklenir). Tekrar kayıtları card_item_confidence tablosuna, Akıllı Tekrar'la aynı SM-2 kuralıyla
+   ve aynı anahtarlarla yazılır; iki ekran birbirinin ilerlemesini görür. */
+(function () {
+  'use strict';
+  var root = document.getElementById('cards-view');
+  if (!root || !root.classList.contains('axk')) return;
+  var $ = function (s, r) { return (r || root).querySelector(s); };
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || root).querySelectorAll(s)); };
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var lsafe = function (fn, fb) { try { return fn(); } catch (e) { return fb; } };
+  var me = function () { return lsafe(function () { return currentUser; }, null) || window.currentUser || null; };
+  var sb = function () { return typeof supabaseClient !== 'undefined' ? supabaseClient : null; };
+  var esc = function (t) { return String(t == null ? '' : t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var baseName = function (n) { n = String(n || '').replace(/\.[a-z0-9]{2,5}$/i, ''); var m = n.match(/^\d{10,}_(?:\d{10,}_)?(.+)$/); if (m) n = m[1]; return n.replace(/_+/g, ' ').trim() || 'İsimsiz belge'; };
+  var MON = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+  var dshort = function (d) { d = new Date(d); return isNaN(d) ? '' : d.getDate() + ' ' + MON[d.getMonth()] + ' ' + d.getFullYear(); };
+  var STY = { standard: 'STANDART', bullet: 'MADDELER', structured: 'YAPILANDIRILMIŞ', simplified: 'SADE', exam: 'SINAV ODAKLI' };
+  var LB = ['her gün', '2 günde', '4 günde', 'hafta', '2 hafta'];
+  $$('.land').forEach(function (el, i) { el.style.setProperty('--hr', (((i * 37) % 11 - 5) * 0.3).toFixed(2) + 'deg'); el.style.setProperty('--hx', (((i * 53) % 9 - 4) * 2) + 'px'); });
+
+  var decks = function () { return lsafe(function () { return libraryCards; }, []) || []; };
+  var confMap = function () { var m = lsafe(function () { return libraryConfidenceMap; }, null); return m || {}; };
+  var activeId = null;
+  var activeDeck = function () { return decks().filter(function (d) { return d.id === activeId; })[0] || null; };
+  var keyOf = function (item, type, i) { return typeof getReviewItemKey === 'function' ? getReviewItemKey(item, type, i) : type + ':' + i; };
+  var stripTags = function (h) { var d = document.createElement('div'); d.innerHTML = String(h || ''); return (d.textContent || '').trim(); };
+
+  /* bir destenin kartları */
+  var cardsOf = function (deck) {
+    if (!deck) return [];
+    var out = [], src = baseName(deck.documents && deck.documents.file_name);
+    (deck.key_terms || []).forEach(function (t, i) { if (!t || !(t.term || t.definition)) return; out.push({ id: deck.id + '|t|' + i, deck: deck.id, type: 'terms', idx: i, key: keyOf(t, 'terms', i), front: stripTags(t.term), back: stripTags(t.definition), user: !!t.user, src: src }); });
+    (deck.quiz_questions || []).forEach(function (q, i) {
+      if (!q || !q.question) return;
+      var ans = q.answer != null ? String(q.answer) : '';
+      if (/^[A-Da-d]$/.test(ans) && Array.isArray(q.options)) { var o = q.options['ABCD'.indexOf(ans.toUpperCase())]; if (o) ans = ans.toUpperCase() + ') ' + o; }
+      out.push({ id: deck.id + '|q|' + i, deck: deck.id, type: 'quiz', idx: i, key: keyOf(q, 'quiz', i), front: stripTags(q.question), back: stripTags(ans) + (q.explanation ? ' — ' + stripTags(q.explanation) : ''), user: false, src: src });
+    });
+    (deck.cloze_cards || []).forEach(function (c, i) { if (!c || !c.prompt) return; out.push({ id: deck.id + '|c|' + i, deck: deck.id, type: 'cloze', idx: i, key: keyOf(c, 'cloze', i), front: stripTags(c.prompt), back: stripTags(c.full || c.sentence || c.answer), cloze: stripTags(c.answer), user: !!c.user, src: src }); });
+    var cm = confMap(), now = Date.now();
+    out.forEach(function (c) {
+      var r = cm[c.deck + ':' + c.key]; c.conf = r || null;
+            c.box = !r ? 1 : Math.min(5, 1 + (Number(r.repetitions) || 0));
+      c.due = !r || !r.next_review_at || new Date(r.next_review_at).getTime() <= now;
+    });
+    return out;
+  };
+
+  /* bildirim */
+  var toast = $('[data-toast]'), toastT = $('[data-toast-t]'), toastB = $('[data-toast-b]'), toastA = $('[data-toast-a]'), toastTimer = 0, undoFn = null;
+  var say = function (t, undo, link) { toastT.textContent = t; undoFn = undo || null; toastB.hidden = !undo; toastA.hidden = !link; toast.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(function () { toast.hidden = true; undoFn = null; }, 5600); };
+  toastB.addEventListener('click', function () { if (undoFn) undoFn(); toast.hidden = true; undoFn = null; });
+  toastA.addEventListener('click', function (e) { e.preventDefault(); toast.hidden = true; if (typeof switchDashboardView === 'function') switchDashboardView('notebook'); });
+
+  /* ---------- kutular ---------- */
+  var dots = function (b) { var h = ''; for (var i = 1; i <= 5; i++) h += '<i class="' + (i <= b ? 'on' : '') + '"></i>'; return h; };
+  var renderBoxes = function (list) {
+    var sec = $('#cards-list-section'); if (!sec) return;
+    list = list || window.filteredLibraryCardsList || decks();
+    if (!list.length) {
+      sec.innerHTML = '<p class="none">' + (decks().length ? 'bu aramayla deste bulamadım.' : 'henüz desten yok. “Belgeden deste oluştur” ile bir belgeni özetlediğinde kutun burada belirir.') + '</p>';
+      if (!decks().length) { activeId = null; paintAll(); }
+      return;
+    }
+    if (!activeId || !list.some(function (d) { return d.id === activeId; })) activeId = list[0].id;
+    try { libraryActiveCardId = activeId; } catch (e) {}
+    sec.innerHTML = list.map(function (d) {
+      var full = (d.documents && d.documents.file_name) || 'İsimsiz belge', nm = baseName(full), cs = cardsOf(d), due = cs.filter(function (c) { return c.due; }).length, mine = cs.filter(function (c) { return c.user; }).length;
+      var stack = ''; for (var i = 0; i < Math.min(cs.length, 6); i++) stack += '<i style="--o:' + (6 - i) * 2 + 'px;--r:' + ((i % 3) - 1) * 1.5 + 'deg;bottom:' + (-i * 2) + 'px"></i>';
+      return '<div class="kbox land lib-md-item" role="listitem" tabindex="0" data-card-id="' + d.id + '" aria-current="' + (d.id === activeId) + '" aria-label="' + esc(nm) + ' destesi, ' + cs.length + ' kart">' +
+        '<div class="kbox-lid" aria-hidden="true"></div><div class="kbox-front">' +
+        '<span class="kbox-label"><b>' + esc(nm) + '</b><small>' + esc(dshort(d.created_at)) + '</small></span>' +
+        '<p class="kc-tags"><span>' + esc(STY[d.summary_style] || 'STANDART') + '</span><span>' + (d.summary_language === 'tr' ? 'TR' : 'EN') + '</span>' + (d.course_tag ? '<span>' + esc(d.course_tag) + '</span>' : '') + '</p>' +
+        '<p class="kbox-n hand">' + (cs.length ? cs.length + ' kart' + (mine ? ' · ' + mine + ' senin' : '') + (due ? ' · bugün ' + due : '') : 'bu destede kart yok') + '</p>' +
+        '<div class="kc-row"><span class="kc-share"><label class="ax-sw" title="Bölüm akışında paylaş"><input type="checkbox" id="share-switch-lib-' + d.id + '"' + (d.is_shared ? ' checked' : '') + ' onchange="toggleShareStudyCard(\'' + d.id + '\', this.checked)" aria-label="' + esc(nm) + ' destesini paylaş"><i></i></label>paylaş</span>' +
+        '<button type="button" class="kc-b btn-view-summary" data-doc-id="' + d.document_id + '" data-doc-name="' + esc(full) + '" data-card-id="' + d.id + '">Görüntüle</button>' +
+        '<button type="button" class="ax-kdel" title="Desteyi sil" onclick="deleteStudyCard(event, \'' + d.id + '\', \'' + d.document_id + '\')">sil</button></div>' +
+        '</div><div class="kbox-cards" aria-hidden="true">' + stack + '</div></div>';
+    }).join('');
+    paintAll();
+  };
+  var pick = function (id) {
+    if (id === activeId) return;
+    activeId = id; try { libraryActiveCardId = id; } catch (e) {}
+    $$('.kbox').forEach(function (b) { b.setAttribute('aria-current', String(b.getAttribute('data-card-id') === id)); });
+    paintAll();
+  };
+  $('#cards-list-section').addEventListener('click', function (e) { if (e.target.closest('button, input, label, a')) return; var b = e.target.closest('.kbox'); if (b) pick(b.getAttribute('data-card-id')); });
+  $('#cards-list-section').addEventListener('keydown', function (e) { if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('kbox')) { e.preventDefault(); pick(e.target.getAttribute('data-card-id')); } });
+
+  /* ---------- tekrar kutusu, özet, yelpaze, başlıktaki sayaç ---------- */
+  var leit = $('[data-leit]'), fan = $('[data-fan]'), fanW = $('[data-fan-w]'), listN = $('[data-list-n]'), dueEl = $('[data-due]');
+  var paintSide = function () {
+    var deck = activeDeck(), cs = cardsOf(deck), cnt = [0, 0, 0, 0, 0, 0], due = [0, 0, 0, 0, 0, 0];
+    cs.forEach(function (c) { cnt[c.box]++; if (c.due) due[c.box]++; });
+    var lh = '';
+    for (var b = 1; b <= 5; b++) {
+      var fi = ''; for (var k = 0; k < Math.min(cnt[b], 14); k++) fi += '<i style="--k:' + k + ';--t:' + (((k * 7 + b) % 5) - 2) * 0.8 + 'deg"></i>';
+      lh += '<div class="cp' + (due[b] ? ' due' : '') + (cnt[b] ? '' : ' empty') + '" data-cp="' + b + '" role="img" aria-label="' + LB[b - 1] + ' bölmesi: ' + cnt[b] + ' kart' + (due[b] ? ', ' + due[b] + ' tanesi bugün' : '') + '"><span class="cp-l hand">' + LB[b - 1] + '</span><span class="cp-in">' + (cnt[b] ? fi : '<em class="hand">boş</em>') + '</span><span class="cp-n hand">' + cnt[b] + '</span></div>';
+    }
+    leit.innerHTML = lh;
+    var all = 0; decks().forEach(function (d) { all += cardsOf(d).filter(function (c) { return c.due; }).length; });
+    dueEl.textContent = all ? 'bugün ' + all + ' kart seni bekliyor' : (decks().length ? 'bugünlük tekrar bitti' : 'bugün tekrar yok'); dueEl.classList.toggle('on', !!all);
+    listN.textContent = cs.length; fanW.hidden = !cs.length;
+    var n = cs.length, mid = (n - 1) / 2;
+    fan.innerHTML = cs.map(function (c, i) {
+      var r = n > 1 ? (i - mid) * Math.min(5, 26 / n) : 0;
+      return '<button type="button" role="listitem" class="fc" data-id="' + esc(c.id) + '" style="--fr:' + r.toFixed(1) + 'deg;--fy:' + (Math.abs(i - mid) * Math.min(6, 30 / n)).toFixed(1) + 'px"' + (cur && cur.id === c.id ? ' aria-current="true"' : '') + ' aria-label="Kartı aç: ' + esc(c.front) + ', ' + c.box + '. bölme">' + (c.user ? '<span class="fc-u">senin</span>' : '') +
+        '<span class="fc-q">' + esc(c.front.length > 90 ? c.front.slice(0, 90) + '…' : c.front) + '</span><span class="fc-d" aria-hidden="true">' + dots(c.box) + '</span></button>';
+    }).join('');
+  };
+  var sumEl = $('[data-sum]');
+  var paintSummary = function () {
+    var deck = activeDeck();
+    $('[data-sum-n]').textContent = deck ? baseName(deck.documents && deck.documents.file_name) : '';
+    $('[data-sum-act]').hidden = !deck;
+    if (!deck) { sumEl.innerHTML = '<p class="hand" style="font-size:20px;color:#6A7593">bir deste seç; özeti burada açılır.</p>'; return; }
+    sumEl.innerHTML = (typeof formatSummaryText === 'function' ? formatSummaryText(deck.summary, deck.footnotes) : esc(deck.summary || '')) || '<p>Bu destede özet yok.</p>';
+    var vb = $('[data-view-sum]'); vb.setAttribute('data-doc-id', deck.document_id); vb.setAttribute('data-doc-name', (deck.documents && deck.documents.file_name) || ''); vb.setAttribute('data-card-id', deck.id);
+  };
+  $('[data-smart]').addEventListener('click', function () { var d = activeDeck(); if (d && typeof openAdaptiveReview === 'function') openAdaptiveReview(d.id, baseName(d.documents && d.documents.file_name)); });
+  var paintAll = function () { paintSummary(); buildQueue(); load(); };
+
+  /* ---------- çalışma masası ---------- */
+  var mode = 'due', queue = [], idx = 0, cur = null, flipped = false, score = { y: 0, n: 0 }, busy = false;
+  var bigB = $('[data-big]'), bigIn = $('[data-big-in]'), prog = $('[data-prog]'), judgeEl = $('[data-judge]'), keysEl = $('[data-keys]'), tallyEl = $('[data-tally]'), jBtns = $$('[data-j]');
+  var paintTally = function () {
+    var n = score.y, w = Math.max(1, Math.ceil(n / 5)) * 34, h = '<svg viewBox="0 0 ' + w + ' 36" style="width:' + (w * 0.8) + 'px" aria-hidden="true">';
+    for (var k = 0; k < n; k++) { var g = Math.floor(k / 5), j = k % 5, x = g * 34 + 4 + j * 6; h += j < 4 ? '<path d="M' + x + ' 5 C' + (x + 1) + ' 14 ' + (x - 1) + ' 24 ' + x + ' 32"/>' : '<path d="M' + (g * 34 + 1) + ' 26 C' + (g * 34 + 10) + ' 20 ' + (g * 34 + 18) + ' 14 ' + (g * 34 + 27) + ' 9"/>'; }
+    tallyEl.innerHTML = n ? h + '</svg>' : '';
+    var last = tallyEl.querySelector('path:last-child'); if (last && !reduce) { last.setAttribute('pathLength', '1'); last.classList.add('fresh'); }
+  };
+  var steps = '<span class="how" aria-hidden="true"><span class="hw"><svg viewBox="0 0 64 48"><path d="M6 18 H50 M6 28 H34"/><path class="hl" d="M14 23 H44" /><path d="M46 30 L52 44 L55 38 L61 41 Z"/></svg><b>seç</b></span><i>→</i><span class="hw"><svg viewBox="0 0 64 48"><path d="M8 10 H50 V40 H8 Z"/><path d="M14 20 H32"/><path d="M36 38 L56 12 L60 15 L40 41 L35 42 Z"/></svg><b>soruyu yaz</b></span><i>→</i><span class="hw"><svg viewBox="0 0 64 48"><path d="M14 8 H46 V40 H14 Z"/><path d="M8 20 C2 26 4 34 12 36"/><path d="M8 30 L12 36 L5 37"/></svg><b>çevir</b></span></span>';
+  var setInteractive = function (on) { if (on) { bigB.setAttribute('role', 'button'); bigB.tabIndex = 0; } else { bigB.removeAttribute('role'); bigB.removeAttribute('tabindex'); bigB.removeAttribute('aria-pressed'); bigB.removeAttribute('aria-label'); } };
+  var firstSentence = function () { var t = (sumEl.textContent || '').trim(); var m = t.search(/[.!?](\s|$)/); return m < 0 ? t.slice(0, 200) : t.slice(0, m + 1); };
+  var face = function () {
+    var c = cur, deck = activeDeck();
+    $$('.imprint', bigIn.parentNode).forEach(function (x) { x.remove(); });
+    if (!c) {
+      var cs = cardsOf(deck), done = queue.length && idx >= queue.length;
+      bigB.classList.remove('back'); setInteractive(false); judgeEl.hidden = !done; keysEl.hidden = true; jBtns.forEach(function (b) { b.disabled = true; });
+      if (!deck) { bigIn.innerHTML = '<span class="side">DESTE YOK</span><span class="empty-t">kart çalışmak için önce bir belgeden deste oluştur.</span><button type="button" class="first" data-new-deck="">belgeden deste oluştur →</button>'; prog.textContent = ''; }
+      else if (done) {
+        bigIn.innerHTML = '<span class="side">BUGÜNLÜK BU KADAR</span><span class="done-n">' + score.y + ' / ' + (score.y + score.n) + '</span><span class="a">' + (score.n ? 'kartı bildin. bilmediklerin en başa döndü, yakında yine sorulur.' : 'hepsini bildin, hepsi bir bölme ileri gitti.') + '</span><span class="note hand">' + (score.y >= score.n ? 'iyi gidiyorsun, yarın da uğra.' : 'zor kartlar böyledir; bir tur daha?') + '</span>' + (score.n ? '<button type="button" class="again" data-again="">bilmediklerimi bir daha sor</button>' : '');
+        prog.textContent = 'bitti';
+      } else if (!cs.length) {
+        var fs = firstSentence();
+        bigIn.innerHTML = '<span class="side">İLK KARTIN</span>' + steps + (fs ? '<span class="seed hand">“' + esc(fs.length > 110 ? fs.slice(0, 110) + '…' : fs) + '”</span><button type="button" class="first" data-first="">bu cümleden ilk kartımı yap →</button>' : '') + '<span class="k-src">bu destede hazır kart yok; özetten kendi kartlarını yapabilirsin.</span>';
+        prog.textContent = '';
+      } else {
+        bigIn.innerHTML = '<span class="side">BUGÜN</span><span class="empty-t">bu destede bugün sorulacak kart kalmadı. istersen hepsine bir göz at.</span><button type="button" class="first" data-go-all="">sırayla çevir →</button>';
+        prog.textContent = '';
+      }
+      return;
+    }
+    setInteractive(true); judgeEl.hidden = false; keysEl.hidden = false; jBtns.forEach(function (b) { b.disabled = false; });
+    var lvl = '<span class="lvl" aria-hidden="true">' + dots(c.box) + '</span>', kind = c.type === 'quiz' ? 'TEST SORUSU' : c.type === 'cloze' ? 'BOŞLUK' : 'SORU';
+    if (!flipped) bigIn.innerHTML = '<span class="side">' + kind + '</span>' + lvl + '<span class="q">' + esc(c.front) + '</span><span class="k-hint">dokun, çevir ↻</span>';
+    else bigIn.innerHTML = '<span class="side">CEVAP</span>' + lvl + '<span class="a">' + (c.cloze && c.back.indexOf(c.cloze) > -1 ? esc(c.back).replace(esc(c.cloze), '<mark>' + esc(c.cloze) + '</mark>') : esc(c.back)) + '</span><span class="k-src">— ' + esc(c.src) + (c.user ? ' · senin kartın' : '') + '</span><span class="tools"><button type="button" class="send" data-send-cur="" tabindex="-1">deftere gönder</button>' + (c.user ? '<button type="button" class="send del" data-del-cur="" tabindex="-1">sil</button>' : '') + '</span>';
+    bigB.classList.toggle('back', flipped); bigB.setAttribute('aria-pressed', String(flipped));
+    bigB.setAttribute('aria-label', (flipped ? 'Cevap: ' + c.back : 'Soru: ' + c.front) + '. Çevirmek için dokun.');
+    prog.textContent = (idx + 1) + ' / ' + queue.length;
+  };
+  var byId = function (id) { var cs = cardsOf(activeDeck()); for (var i = 0; i < cs.length; i++) if (cs[i].id === id) return cs[i]; return null; };
+  var load = function () { cur = idx < queue.length ? byId(queue[idx]) : null; flipped = false; face(); paintSide(); };
+  var buildQueue = function () {
+    var cs = cardsOf(activeDeck());
+    queue = (mode === 'due' ? cs.filter(function (c) { return c.due; }).sort(function (a, b) { return a.box - b.box || (a.conf ? 1 : 0) - (b.conf ? 1 : 0); }) : cs).slice(0, mode === 'due' ? 40 : 999).map(function (c) { return c.id; });
+    idx = 0; score = { y: 0, n: 0 }; paintTally();
+  };
+  var flip = function () { if (!cur || busy) return; if (reduce) { flipped = !flipped; face(); return; } bigIn.classList.add('squash'); setTimeout(function () { flipped = !flipped; face(); bigIn.classList.remove('squash'); }, 190); };
+
+  /* SM-2 kaydı (Akıllı Tekrar ile aynı) */
+  var record = async function (c, knew) {
+    var u = me(); if (!u || !sb() || typeof computeSm2 !== 'function') return;
+    var s = computeSm2(c.conf, knew ? 'good' : 'again');
+    var row = { user_id: u.id, study_card_id: c.deck, item_key: c.key, card_type: c.type, rating: s.rating, last_rating: s.last_rating, ease_factor: s.ease_factor, interval_days: s.interval_days, repetitions: s.repetitions, lapses: s.lapses, next_review_at: s.next_review_at, updated_at: new Date().toISOString() };
+    try {
+      var r = await sb().from('card_item_confidence').upsert(row, { onConflict: 'user_id,study_card_id,item_key' });
+      if (r.error) throw r.error;
+      var m = confMap(); m[c.deck + ':' + c.key] = { study_card_id: c.deck, item_key: c.key, next_review_at: s.next_review_at, ease_factor: s.ease_factor, repetitions: s.repetitions, interval_days: s.interval_days, lapses: s.lapses };
+      try { if (!libraryConfidenceMap) libraryConfidenceMap = m; } catch (e) {}
+      paintSide(); renderBoxesKeep();
+    } catch (er) { console.warn('acadex-ink: tekrar kaydedilemedi', er); say('Bu cevap kaydedilemedi; bağlantını kontrol et.'); }
+  };
+  var judge = function (knew) {
+    if (!cur || busy) return; busy = true;
+    var c = cur, nb = knew ? Math.min(5, c.box + 1) : 1;
+    if (knew) score.y++; else score.n++;
+    record(c, knew);
+    var im = document.createElement('span'); im.className = 'imprint ' + (knew ? 'yes' : 'no'); im.textContent = knew ? 'BİLİYORUM' : 'TEKRAR';
+    im.style.setProperty('--ir', ((Math.random() * 16) - 8).toFixed(1) + 'deg'); im.style.left = (28 + Math.random() * 30) + '%'; im.style.top = (30 + Math.random() * 25) + '%';
+    bigIn.appendChild(im);
+    var btn = $('[data-j="' + (knew ? 1 : 0) + '"]'); btn.classList.remove('press'); void btn.offsetWidth; btn.classList.add('press');
+    paintTally();
+    var next = function () { busy = false; idx++; load(); if (!reduce) { bigIn.classList.add('come'); setTimeout(function () { bigIn.classList.remove('come'); }, 420); } };
+    if (reduce) { setTimeout(next, 250); return; }
+    setTimeout(function () {
+      var cp = leit.querySelector('[data-cp="' + nb + '"]'), a = bigIn.getBoundingClientRect(), b = cp ? cp.getBoundingClientRect() : null;
+      var f = bigIn.cloneNode(true); f.classList.add('flyc'); f.style.left = a.left + 'px'; f.style.top = a.top + 'px'; f.style.width = a.width + 'px'; f.style.height = a.height + 'px';
+      root.appendChild(f);
+      var vis = b && b.bottom > 0 && b.top < window.innerHeight;
+      var anim = vis ? [{ transform: 'none' }, { transform: 'translate(' + ((b.left + b.width / 2) - (a.left + a.width / 2)) * 0.5 + 'px,' + (((b.top) - (a.top + a.height / 2)) * 0.5 - 60) + 'px) scale(.45) rotate(' + (knew ? 10 : -10) + 'deg)', offset: 0.5 }, { transform: 'translate(' + ((b.left + b.width / 2) - (a.left + a.width / 2)) + 'px,' + ((b.top + b.height / 2) - (a.top + a.height / 2)) + 'px) scale(' + (b.width / a.width * 0.9).toFixed(3) + ',.05)', opacity: 0.6 }]
+        : [{ transform: 'none' }, { transform: 'translate(' + (knew ? 140 : -140) + '%,-30px) rotate(' + (knew ? 18 : -18) + 'deg)', opacity: 0 }];
+      f.animate(anim, { duration: vis ? 620 : 380, easing: 'cubic-bezier(.5,0,.3,1)' }).onfinish = function () {
+        f.remove(); var nc = leit.querySelector('[data-cp="' + nb + '"]'); if (nc) { nc.classList.remove('bump'); void nc.offsetWidth; nc.classList.add('bump'); }
+      };
+      next();
+    }, 420);
+  };
+  var swiped = false;
+  bigB.addEventListener('click', function (e) {
+    if (swiped) { swiped = false; return; }
+    if (e.target.closest('[data-send-cur]')) { sendToDepot(cur); return; }
+    if (e.target.closest('[data-del-cur]')) { removeCard(cur); return; }
+    if (e.target.closest('[data-first]')) { openMaker('', firstSentence(), '', 'ilk kartın'); return; }
+    if (e.target.closest('[data-go-all]')) { $('#m-all').click(); return; }
+    if (e.target.closest('[data-new-deck]')) { openRecipe(); return; }
+    if (e.target.closest('[data-again]')) { var cs = cardsOf(activeDeck()); queue = cs.filter(function (c) { return c.box === 1 && c.due; }).map(function (c) { return c.id; }); idx = 0; score = { y: 0, n: 0 }; paintTally(); load(); return; }
+    if (cur) flip();
+  });
+  jBtns.forEach(function (b) { b.addEventListener('click', function () { judge(b.getAttribute('data-j') === '1'); }); });
+  bigB.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target === bigB) { e.preventDefault(); flip(); } });
+  document.addEventListener('keydown', function (e) {
+    if (!root.classList.contains('active')) return;
+    var t = e.target; if (document.querySelector('dialog[open]') || document.querySelector('.modal-overlay.active') || /INPUT|TEXTAREA|SELECT/.test(t.tagName) || t.isContentEditable || (t.closest && t.closest('.modes'))) return;
+    if (e.key === ' ' && (t === document.body || t === bigB)) { e.preventDefault(); flip(); }
+    else if (e.key === 'ArrowRight' && cur) { e.preventDefault(); judge(true); }
+    else if (e.key === 'ArrowLeft' && cur) { e.preventDefault(); judge(false); }
+  });
+  bigB.addEventListener('pointerdown', function (e) {
+    if (!cur || busy || e.button !== 0 || e.target.closest('button')) return;
+    var sx = e.clientX, dx = 0, on = false;
+    var mv = function (m) { dx = m.clientX - sx; if (!on && Math.abs(dx) < 8) return; on = true; bigB.classList.add('dragging'); bigIn.style.transform = 'translateX(' + dx + 'px) rotate(' + dx / 22 + 'deg)'; };
+    var up = function () {
+      window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up);
+      bigB.classList.remove('dragging'); bigIn.style.transform = '';
+      if (!on) return; swiped = true; setTimeout(function () { swiped = false; }, 60);
+      if (Math.abs(dx) > 90) judge(dx > 0);
+    };
+    window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+  });
+  var tabs = $$('[data-mode]');
+  tabs.forEach(function (b, i) {
+    b.addEventListener('click', function () { mode = b.getAttribute('data-mode'); tabs.forEach(function (x) { x.setAttribute('aria-selected', String(x === b)); x.tabIndex = x === b ? 0 : -1; }); $('#ktable').setAttribute('aria-labelledby', b.id); buildQueue(); load(); });
+    b.addEventListener('keydown', function (e) { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); var n = tabs[(i + 1) % 2]; n.focus(); n.click(); } });
+  });
+  fan.addEventListener('click', function (e) {
+    var b = e.target.closest('.fc'); if (!b) return; var id = b.getAttribute('data-id');
+    mode = 'all'; tabs.forEach(function (x) { var on = x.getAttribute('data-mode') === 'all'; x.setAttribute('aria-selected', String(on)); x.tabIndex = on ? 0 : -1; });
+    buildQueue(); idx = Math.max(0, queue.indexOf(id)); load(); $('#ktable').scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' });
+  });
+
+  /* ---------- deftere gönder: Bilgi deposu (defterin hazırlık rafı) ---------- */
+  var sendToDepot = async function (c) {
+    if (!c || !me() || !sb()) return;
+    try {
+      var r = await sb().from('card_depot').insert({ user_id: me().id, source_type: 'key_term', title: c.front.slice(0, 300), content: c.back, study_card_id: c.deck });
+      if (r.error) throw r.error;
+      if (typeof updateDepotCountBadge === 'function') updateDepotCountBadge();
+      if (!reduce) {
+        var src = bigB.getBoundingClientRect(), f = document.createElement('div'); f.className = 'flycard';
+        f.style.cssText = 'left:' + src.left + 'px;top:' + src.top + 'px;width:' + src.width + 'px;height:' + src.height + 'px;background:#fff;border-top:4px solid #2F6BFF;border-radius:4px;box-shadow:0 20px 30px -16px rgba(13,24,56,.5)';
+        root.appendChild(f);
+        f.animate([{ transform: 'none', opacity: 1 }, { transform: 'translate(' + (window.innerWidth - src.right + 40) + 'px,-' + (src.top + 60) + 'px) rotate(24deg) scale(.3)', opacity: 0 }], { duration: 620, easing: 'cubic-bezier(.5,0,.75,.4)' }).onfinish = function () { f.remove(); };
+      }
+      say('Kart defterin Bilgi deposuna gitti; defterden sayfaya ekleyebilirsin.', null, true);
+    } catch (er) { console.warn(er); say('Depoya gönderilemedi; tekrar dene.'); }
+  };
+
+  /* ---------- kendi kartın: destenin listesine yazılır ---------- */
+  var saveDeckField = async function (deck, field, arr) {
+    var upd = {}; upd[field] = arr;
+    var r = await sb().from('study_cards').update(upd).eq('id', deck.id);
+    if (r.error) throw r.error;
+    deck[field] = arr;
+  };
+  var removeCard = function (c) {
+    if (!c || !c.user) return; var deck = activeDeck(); if (!deck) return;
+    var field = c.type === 'cloze' ? 'cloze_cards' : 'key_terms', before = (deck[field] || []).slice(), item = before[c.idx];
+    var after = before.filter(function (x, i) { return i !== c.idx; });
+    var go = async function () {
+      try { await saveDeckField(deck, field, after); } catch (er) { say('Kart silinemedi; tekrar dene.'); return; }
+      buildQueue(); load(); renderBoxesKeep();
+      say('Kartın silindi.', async function () { try { await saveDeckField(deck, field, before); buildQueue(); load(); renderBoxesKeep(); } catch (er) { say('Geri alınamadı.'); } });
+    };
+    if (reduce) { go(); return; }
+    bigIn.classList.add('torn'); setTimeout(function () { bigIn.classList.remove('torn'); go(); }, 420);
+    return item;
+  };
+  var renderBoxesKeep = function () {
+    var b = $('.kbox[aria-current="true"] .kbox-n'), d = activeDeck(); if (!b || !d) return;
+    var cs = cardsOf(d), due = cs.filter(function (c) { return c.due; }).length, mine = cs.filter(function (c) { return c.user; }).length;
+    b.textContent = cs.length ? cs.length + ' kart' + (mine ? ' · ' + mine + ' senin' : '') + (due ? ' · bugün ' + due : '') : 'bu destede kart yok';
+  };
+
+  /* özetten seç → karta çevir / boşluk yap */
+  var bubble = $('[data-bubble]'), lastSel = null, selT = 0;
+  var selInfo = function () {
+    var s = window.getSelection(); if (!s || s.isCollapsed || !s.rangeCount) return null;
+    var rg = s.getRangeAt(0); if (!sumEl.contains(rg.commonAncestorContainer)) return null;
+    var t = s.toString().replace(/\s+/g, ' ').trim(); if (!t) return null;
+    var n = rg.startContainer.nodeType === 3 ? rg.startContainer.parentNode : rg.startContainer;
+    var p = n.closest ? n.closest('p, li') : null;
+    return { text: t, rect: rg.getBoundingClientRect(), para: p ? p.textContent : t };
+  };
+  var showBubble = function (info) {
+    bubble.hidden = false;
+    var bw = bubble.offsetWidth, bh = bubble.offsetHeight, cx = info.rect.left + info.rect.width / 2;
+    var x = Math.max(8, Math.min(window.innerWidth - bw - 8, cx - bw / 2)), y = info.rect.top - bh - 14; if (y < 70) y = info.rect.bottom + 14;
+    bubble.style.left = x + 'px'; bubble.style.top = y + 'px'; bubble.style.setProperty('--ax', Math.max(16, Math.min(bw - 16, cx - x)) + 'px');
+  };
+  document.addEventListener('selectionchange', function () {
+    if (!root.classList.contains('active')) return;
+    clearTimeout(selT);
+    selT = setTimeout(function () { var info = selInfo(); if (!info) { if (!bubble.contains(document.activeElement)) bubble.hidden = true; return; } lastSel = info; showBubble(info); }, 220);
+  });
+  bubble.addEventListener('mousedown', function (e) { e.preventDefault(); });
+  window.addEventListener('scroll', function () { if (!bubble.hidden) bubble.hidden = true; }, { passive: true });
+  var sentenceOf = function (para, piece) {
+    var i = para.indexOf(piece); if (i < 0) return piece;
+    var a = Math.max(para.lastIndexOf('. ', i), para.lastIndexOf('! ', i), para.lastIndexOf('? ', i)); a = a < 0 ? 0 : a + 2;
+    var m = para.slice(i + piece.length).search(/[.!?](\s|$)/), b = m < 0 ? para.length : i + piece.length + m + 1;
+    return para.slice(a, b).trim();
+  };
+  var maker = $('[data-maker]'), mkF = $('[data-maker-f]'), mkErr = $('[data-mk-err]'), mkCloze = '', lastFocus = null;
+  var openMaker = function (front, back, cloze, title) {
+    if (!activeDeck()) return;
+    lastFocus = document.activeElement; mkCloze = cloze || '';
+    $('[data-mk-t]').textContent = title || 'yeni kart';
+    $('[data-mk-src]').textContent = '— ' + baseName(activeDeck().documents && activeDeck().documents.file_name) + ' · özet';
+    mkF.elements.front.value = front || ''; mkF.elements.back.value = back || ''; mkErr.hidden = true;
+    if (typeof maker.showModal === 'function') maker.showModal(); else maker.setAttribute('open', '');
+    setTimeout(function () { var f = mkF.elements.front; f.focus(); if (front) f.setSelectionRange(f.value.length, f.value.length); }, 40);
+  };
+  maker.addEventListener('close', function () { if (lastFocus && document.contains(lastFocus)) lastFocus.focus(); });
+  $('[data-mk-cancel]').addEventListener('click', function () { maker.close(); });
+  bubble.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-mk]'); if (!b || !lastSel) return; var info = lastSel; bubble.hidden = true; window.getSelection().removeAllRanges();
+    if (b.getAttribute('data-mk') === 'card') openMaker('', info.text, '', 'karta çevir');
+    else {
+      if (info.text.length > 60) { say('Boşluk için bir kelime ya da kısa bir ifade seç.'); return; }
+      var sent = sentenceOf(info.para, info.text);
+      openMaker(sent.replace(info.text, '_____'), sent, info.text, 'boşluk doldurma kartı');
+    }
+  });
+  mkF.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var deck = activeDeck(); if (!deck) return;
+    var f = mkF.elements.front.value.trim(), bk = mkF.elements.back.value.trim();
+    if (!f) { mkErr.hidden = false; mkErr.textContent = 'ön yüze bir soru yaz.'; mkF.elements.front.focus(); return; }
+    if (!bk) { mkErr.hidden = false; mkErr.textContent = 'arka yüz boş kalmasın.'; mkF.elements.back.focus(); return; }
+    var isCloze = mkCloze && bk.indexOf(mkCloze) > -1 && f.indexOf('_____') > -1;
+    var field = isCloze ? 'cloze_cards' : 'key_terms', before = (deck[field] || []).slice();
+    var item = isCloze ? { id: 'u' + Date.now().toString(36), prompt: f, answer: mkCloze, full: bk, source: 'user', user: true } : { term: f, definition: bk, user: true };
+    var sub = $('button[type="submit"]', mkF); sub.disabled = true;
+    try { await saveDeckField(deck, field, before.concat([item])); }
+    catch (er) { sub.disabled = false; mkErr.hidden = false; mkErr.textContent = 'kaydedemedim; bağlantını kontrol edip tekrar dene.'; console.warn(er); return; }
+    sub.disabled = false;
+    var from = mkF.querySelector('.ic-f').getBoundingClientRect(); maker.close();
+    var boxEl = $('.kbox[aria-current="true"]');
+    if (!reduce && boxEl) {
+      var to = boxEl.getBoundingClientRect(), fl = document.createElement('div'); fl.className = 'flycard';
+      fl.style.cssText = 'left:' + from.left + 'px;top:' + from.top + 'px;width:' + from.width + 'px;height:' + from.height + 'px;background:#fff;border-top:4px solid #2F6BFF;border-radius:4px;box-shadow:0 20px 30px -16px rgba(13,24,56,.5);transform-origin:0 0';
+      root.appendChild(fl);
+      var k = (to.width - 30) / from.width;
+      fl.animate([{ transform: 'none' }, { transform: 'translate(' + (to.left + 15 - from.left) + 'px,' + (to.top - 30 - from.top) + 'px) scale(' + k + ',' + k * 0.5 + ') rotate(-4deg)', offset: 0.75 }, { transform: 'translate(' + (to.left + 15 - from.left) + 'px,' + (to.top + 6 - from.top) + 'px) scale(' + k + ',' + k * 0.4 + ')', opacity: 0 }], { duration: 760, easing: 'cubic-bezier(.45,0,.3,1)' }).onfinish = function () { fl.remove(); boxEl.classList.remove('gulp'); void boxEl.offsetWidth; boxEl.classList.add('gulp'); };
+    }
+    buildQueue(); load(); renderBoxesKeep();
+    say('Kart desteye katıldı; tekrarda karşına çıkacak.', async function () { try { await saveDeckField(deck, field, before); buildQueue(); load(); renderBoxesKeep(); } catch (er) { say('Geri alınamadı.'); } });
+  });
+
+  /* ---------- belgeden deste oluştur: mevcut özetleme akışı ---------- */
+  var recipe = $('[data-recipe]'), rcF = $('[data-recipe-f]');
+  var openRecipe = async function () {
+    var sel = rcF.elements.doc; sel.innerHTML = '<option value="">yükleniyor…</option>';
+    if (typeof recipe.showModal === 'function') recipe.showModal(); else recipe.setAttribute('open', '');
+    try {
+      var r = await sb().from('documents').select('id, file_name, status, uploaded_at').eq('user_id', me().id).order('uploaded_at', { ascending: false });
+      var docs = (r.data || []).filter(function (d) { return d.status !== 'processing'; });
+      sel.innerHTML = docs.length ? docs.map(function (d) { return '<option value="' + d.id + '">' + esc(baseName(d.file_name)) + (d.status === 'summarized' ? ' · özeti var' : '') + '</option>'; }).join('') : '<option value="">önce Belgelerim\'e bir belge yükle</option>';
+      $('button[type="submit"]', rcF).disabled = !docs.length;
+    } catch (er) { sel.innerHTML = '<option value="">belgeler yüklenemedi</option>'; }
+  };
+  root.addEventListener('click', function (e) { if (e.target.closest('.d-head [data-new-deck]')) openRecipe(); });
+  $('[data-rc-cancel]').addEventListener('click', function () { recipe.close(); });
+  rcF.addEventListener('submit', function (e) {
+    e.preventDefault(); var id = rcF.elements.doc.value; recipe.close(); if (!id) return;
+    if (typeof switchDashboardView === 'function') switchDashboardView('docs');
+    setTimeout(function () { if (typeof summarizeDocument === 'function') summarizeDocument(id); }, 400);
+  });
+
+  /* ---------- dashboard.js'in kart kütüphanesi çizimleri yerine ---------- */
+  if (typeof renderCardsLibraryList === 'function') { renderCardsLibraryList = renderBoxes; window.renderCardsLibraryList = renderBoxes; }
+  if (typeof renderLibraryDetailPane === 'function') { renderLibraryDetailPane = function (id) { if (id) pick(id); }; window.renderLibraryDetailPane = renderLibraryDetailPane; }
+  if (typeof selectLibraryCard === 'function') { selectLibraryCard = pick; window.selectLibraryCard = pick; }
+  if (typeof loadCardsLibrary === 'function') {
+    var origLib = loadCardsLibrary;
+    loadCardsLibrary = async function () {
+      var sec = $('#cards-list-section'); if (sec && !sec.children.length) sec.innerHTML = '<p class="none">kutular açılıyor…</p>';
+      var r = await origLib.apply(this, arguments);
+      var o = $('#cards-filter-course option[value="all"]'); if (o) o.textContent = 'tüm dersler';
+      renderBoxes(window.filteredLibraryCardsList || decks());
+      return r;
+    };
+    window.loadCardsLibrary = loadCardsLibrary;
+  }
+  paintAll();
 })();

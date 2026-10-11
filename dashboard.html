@@ -539,36 +539,111 @@
       <!-- ==========================================
            TAB 4: BILGI KARTLARI VIEW (INFO CARDS)
            ========================================== -->
-      <section id="cards-view" class="dashboard-view-section ax">
-        <header class="ax-head"><div>
-          <span class="ax-eyb">kartlar</span>
-          <h2 class="ax-h">Bilgi kartları</h2>
-          <p class="ax-sub">özetten kart yap, çevir, tekrar et, deftere gönder.</p>
-        </div>
-        <div class="ax-head-r"><span class="hand" data-due="" style="font-size:21px;color:#6A7593"></span><button type="button" class="ax-btn ax-btn-dark" onclick="switchDashboardView('docs')">+ Belgeden deste oluştur</button></div></header>
-        <div class="ax-cards-tools">
-          <div class="cards-status-chips" role="group" aria-label="Duruma göre">
-            <button type="button" class="cards-status-chip active" data-status="all" onclick="setCardsStatusFilter('all')">tümü</button>
-            <button type="button" class="cards-status-chip" data-status="inprogress" onclick="setCardsStatusFilter('inprogress')">devam eden</button>
-            <button type="button" class="cards-status-chip" data-status="new" onclick="setCardsStatusFilter('new')">yeni</button>
-          </div>
-          <div class="search-container"><input type="text" id="cards-search" class="ax-input search-input" placeholder="kartlarda ara…" aria-label="Kartlarda ara"></div>
-          <select id="cards-filter-style" class="ax-select" aria-label="Özet stili">
-            <option value="all">tüm stiller</option><option value="standard">standart</option><option value="bullet">maddeler</option><option value="structured">yapılandırılmış</option><option value="simplified">sadeleştirilmiş</option><option value="exam">sınav odaklı</option>
-          </select>
-          <select id="cards-filter-lang" class="ax-select" aria-label="Dil"><option value="all">tüm diller</option><option value="tr">Türkçe</option><option value="en">English</option></select>
-          <select id="cards-filter-course" class="ax-select" aria-label="Ders"><option value="all">tüm dersler</option></select>
-          <button id="btn-clear-filters" type="button" class="ax-link">filtreleri temizle</button>
-          <span class="ax-sp"></span>
-          <button id="btn-open-knowledge-graph" type="button" class="ax-btn ax-btn-line" onclick="openKnowledgeGraphModal()">Kavram ağı</button>
-          <button id="btn-export-all-pdf" type="button" class="ax-btn ax-btn-line">Hepsini PDF yap</button>
-        </div>
-        <div id="cards-list-section"></div>
-        <div class="ax-card-misc">
-          <div id="global-review-widget"></div>
-          <div id="past-comparisons-section" class="ax-card"><h3>geçmiş karşılaştırmalar</h3><div id="past-comparisons-list" style="display: flex; flex-direction: column; gap: 0.6rem;"></div></div>
-        </div>
-      </section>
+      <section id="cards-view" class="dashboard-view-section axd axk">
+<div style="display:none" aria-hidden="true">
+<div class="cards-status-chips"><button type="button" class="cards-status-chip active" data-status="all"></button><button type="button" class="cards-status-chip" data-status="inprogress"></button><button type="button" class="cards-status-chip" data-status="new"></button></div>
+<select id="cards-filter-style"><option value="all">all</option></select><select id="cards-filter-lang"><option value="all">all</option></select>
+<button type="button" id="btn-clear-filters"></button>
+</div>
+<div class="main-d kartlar">
+<header class="d-head land">
+<div class="d-head-l">
+<span class="eyb hand">kartlar</span>
+<h1 class="disp">Bilgi kartları</h1>
+<p class="d-sub hand">özetten kart yap, çevir, tekrar et, deftere gönder.</p>
+</div>
+<div class="d-head-r">
+<span class="due-st hand" data-due="" aria-live="polite"></span>
+<button type="button" class="hbtn" id="btn-open-knowledge-graph" onclick="openKnowledgeGraphModal()">Kavram ağı</button>
+<button type="button" class="hbtn" id="btn-export-all-pdf">Hepsini PDF yap</button>
+<button type="button" class="btn btn-dark" data-new-deck="">+ Belgeden deste oluştur</button>
+</div>
+</header>
+
+<div class="k-desk">
+<aside class="k-left" aria-label="Kart kutuları">
+<div class="card-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.6 15.8 C17.4 17.4 18.8 18.9 20.4 20.6"/></svg><label class="vh" for="cards-search">Destelerde ara</label><input id="cards-search" type="search" placeholder="destelerde ara…" autocomplete="off"></div>
+<label class="ax-course"><span class="hand">ders</span><select id="cards-filter-course" aria-label="Derse göre süz"><option value="all">tüm dersler</option></select></label>
+<div id="cards-list-section" class="ax-boxes" role="list" aria-label="Desteler"></div>
+<section class="leit land" aria-labelledby="leit-t">
+<h2 class="hd" id="leit-t">tekrar kutusu</h2>
+<div class="leit-top" data-leit=""></div>
+<p class="leit-n hand">bildiğin kart bir bölme ileri gider, daha seyrek sorulur. bilmediğin en başa döner.</p>
+<small class="leit-s">aralıklı tekrar (SM-2) · yapay zeka değil · Akıllı Tekrar'la aynı kayıt</small>
+</section>
+</aside>
+
+<div class="k-mid">
+<article class="summary land" id="ozet-k" aria-labelledby="oz-tk">
+<i class="staple" aria-hidden="true"></i>
+<div class="sum-h"><h2 id="oz-tk" class="hd">özet <small data-sum-n=""></small></h2></div>
+<div class="sum-body" data-sum=""><p class="hand" style="font-size:20px;color:#6A7593">bir deste seç; özeti burada açılır.</p></div>
+<p class="sum-tip hand">bir cümle seç → “karta çevir”: cümle cevap olur, sen soruyu yazarsın. bir kelime seç → “boşluk yap”: kelime kartta _____ olur.</p>
+<div class="ax-sum-act" data-sum-act="" hidden>
+<button type="button" class="hbtn btn-view-summary" data-view-sum="">Tam özeti aç</button>
+<button type="button" class="hbtn" data-smart="">Akıllı tekrar</button>
+</div>
+</article>
+</div>
+
+<section class="study" aria-label="Çalışma">
+<div class="modes" role="tablist" aria-label="Çalışma biçimi">
+<button type="button" role="tab" id="m-due" aria-selected="true" aria-controls="ktable" data-mode="due">bugünkü tekrar</button>
+<button type="button" role="tab" id="m-all" aria-selected="false" aria-controls="ktable" data-mode="all">sırayla çevir</button>
+</div>
+<div class="table" id="ktable" role="tabpanel" aria-labelledby="m-due">
+<div class="deck-under" aria-hidden="true"><i></i><i></i></div>
+<div class="big" data-big="" role="button" tabindex="0" aria-pressed="false" aria-describedby="big-h">
+<div class="big-in" data-big-in=""></div>
+</div>
+<p class="vh" id="big-h">Çevirmek için boşluk tuşu, biliyorum için sağ ok, tekrar için sol ok.</p>
+</div>
+<div class="judge" data-judge="" hidden>
+<button type="button" class="stampb no" data-j="0" aria-label="Tekrar (sol ok)"><span class="sb-h" aria-hidden="true"></span><span class="sb-f">TEKRAR</span></button>
+<div class="tally-w"><span class="tally-c" data-tally="" aria-hidden="true"></span><span class="j-prog hand" data-prog="" aria-live="polite"></span></div>
+<button type="button" class="stampb yes" data-j="1" aria-label="Biliyorum (sağ ok)"><span class="sb-h" aria-hidden="true"></span><span class="sb-f">BİLİYORUM</span></button>
+</div>
+<p class="keys hand" data-keys="" hidden>boşluk: çevir · ←: tekrar · →: biliyorum · telefonda kartı sağa/sola kaydır</p>
+<div class="fan-w" data-fan-w="" hidden><h2 class="hd fan-t">destedeki kartların <small data-list-n="">0</small></h2><div class="fan" data-fan="" role="list"></div></div>
+</section>
+</div>
+
+<div class="ax-k-misc">
+<div id="global-review-widget"></div>
+<div id="past-comparisons-section" class="ax-k-comp"><h2 class="hd">geçmiş karşılaştırmalar</h2><div id="past-comparisons-list" style="display:flex;flex-direction:column;gap:.6rem"></div></div>
+</div>
+
+<div class="bubble" data-bubble="" role="toolbar" aria-label="Seçili metinle ne yapayım?" hidden>
+<button type="button" data-mk="card">karta çevir</button>
+<button type="button" data-mk="cloze">boşluk yap</button>
+</div>
+
+<dialog class="maker" data-maker="" aria-labelledby="mk-t">
+<form method="dialog" data-maker-f="">
+<h2 id="mk-t" class="hand" data-mk-t="">yeni kart</h2>
+<div class="mk-cards">
+<label class="ic ic-f"><span class="ic-k">ÖN YÜZ · SORU</span><textarea name="front" rows="4" required maxlength="300" placeholder="soruyu yaz…"></textarea></label>
+<label class="ic ic-b"><span class="ic-k">ARKA YÜZ · CEVAP</span><textarea name="back" rows="4" required maxlength="600"></textarea><span class="ic-src hand" data-mk-src=""></span></label>
+</div>
+<p class="f-err" data-mk-err="" role="alert" hidden></p>
+<div class="f-row"><button type="button" class="f-cancel" data-mk-cancel="">vazgeç</button><button type="submit" class="btn btn-blue">desteye kat</button></div>
+</form>
+</dialog>
+
+<dialog class="recipe" data-recipe="" aria-labelledby="rc-t">
+<form method="dialog" data-recipe-f="">
+<i class="nf-tape" aria-hidden="true"></i>
+<h2 id="rc-t" class="hand">belgeden deste oluştur</h2>
+<label class="fl" for="rc-doc">belge</label>
+<select id="rc-doc" name="doc"></select>
+<p class="rc-n" data-rc-n="">Belgeyi seç; ardından özet stilini ve dilini seçeceğin pencere açılır. Acadex özeti ve kart destesini hazırlar, ilerlemesini Belgelerim'de görürsün.</p>
+<div class="f-row"><button type="button" class="f-cancel" data-rc-cancel="">vazgeç</button><button type="submit" class="btn btn-blue">devam</button></div>
+</form>
+</dialog>
+
+<div class="toast" data-toast="" role="status" aria-live="polite" hidden><span data-toast-t=""></span><a data-toast-a="" href="#notebook" hidden>deftere git →</a><button type="button" data-toast-b="" hidden>geri al</button></div>
+</div>
+</section>
 
       <!-- ==========================================
            TAB: KAYNAKLA ÇALIŞ (Source Hub) — PDF + Özet + Sohbet, tek sayfada
