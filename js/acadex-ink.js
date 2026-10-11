@@ -2279,3 +2279,604 @@
   }
   setDoc(!get('acadex.kaynak.nodoc', false)); docOpen.hidden = true;
 })();
+
+/* ================= SINAV PLATFORMU (tam tasarım, gerçek sınavlar) =================
+   Soruları dashboard.js'in kendi akışı üretir ve okur: generateExam → generate-exam,
+   ipucu → get-exam-hint, teslim → grade-exam, sonra rozet ve planlayıcıya tekrar hatırlatması.
+   Burada çizim değişir: sınav takvimi (study_events · sınav), ders sıraları, karne
+   (exams tablosundan), hata defteri (yanlış cevaplar + zayıf konular), sınav salonu
+   (kitapçık, optik form, saat) ve kırmızı kalemli sonuç kâğıdı. */
+(function () {
+  'use strict';
+  var root = document.getElementById('exams-view');
+  if (!root || !root.classList.contains('axs')) return;
+  var layer = document.getElementById('axs-layer');
+  if (layer) document.body.appendChild(layer);
+  var $ = function (s, r) { return (r || root).querySelector(s); };
+  var $L = function (s) { return layer.querySelector(s); };
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || root).querySelectorAll(s)); };
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var lsafe = function (fn, fb) { try { return fn(); } catch (e) { return fb; } };
+  var me = function () { return lsafe(function () { return currentUser; }, null) || window.currentUser || null; };
+  var prof = function () { return lsafe(function () { return currentUserProfile; }, null) || {}; };
+  var sb = function () { return typeof supabaseClient !== 'undefined' ? supabaseClient : null; };
+  var esc = function (t) { return String(t == null ? '' : t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var rich = function (t) { return typeof renderMathInText === 'function' ? renderMathInText(String(t == null ? '' : t)) : esc(t); };
+  var baseName = function (n) { n = String(n || '').replace(/\.[a-z0-9]{2,5}$/i, ''); var m = n.match(/^\d{10,}_(?:\d{10,}_)?(.+)$/); if (m) n = m[1]; return n.replace(/_+/g, ' ').trim() || 'İsimsiz belge'; };
+  var get = function (k, d) { try { var v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
+  var put = function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+  var pad = function (n) { return ('0' + n).slice(-2); };
+  var MON = ['OCA', 'ŞUB', 'MAR', 'NİS', 'MAY', 'HAZ', 'TEM', 'AĞU', 'EYL', 'EKİ', 'KAS', 'ARA'];
+  var dloc = function (d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
+  var today = function () { return dloc(new Date()); };
+  var dayDiff = function (s) { var a = new Date(String(s).slice(0, 10) + 'T00:00:00'), b = new Date(today() + 'T00:00:00'); return Math.round((a - b) / 864e5); };
+  var dshort = function (s) { var d = new Date(s); return isNaN(d) ? '' : pad(d.getDate()) + '.' + pad(d.getMonth() + 1) + '.' + String(d.getFullYear()).slice(2); };
+  var TYPE = { classic: 'klasik', test: 'test', mixed: 'karışık', calculation: 'hesaplama' };
+  var DIFF = { easy: 'kolay', medium: 'orta', hard: 'zor' };
+  var QT = { multiple_choice: 'test', true_false: 'doğru-yanlış', fill_blank: 'boşluk', calculation: 'hesaplama', open_ended: 'açık uçlu' };
+  $$('.land').forEach(function (el, i) { el.style.setProperty('--hr', (((i * 37) % 11 - 5) * 0.3).toFixed(2) + 'deg'); el.style.setProperty('--hx', (((i * 53) % 9 - 4) * 2) + 'px'); });
+
+  /* bildirim */
+  var toast = $L('[data-toast]'), toastT = $L('[data-toast-t]'), toastB = $L('[data-toast-b]'), toastA = $L('[data-toast-a]'), toastTimer = 0, undoFn = null;
+  var say = function (t, undo, link) { toastT.textContent = t; undoFn = undo || null; toastB.hidden = !undo; toastA.hidden = !link; toast.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(function () { toast.hidden = true; undoFn = null; }, 6000); };
+  toastB.addEventListener('click', function () { if (undoFn) undoFn(); toast.hidden = true; undoFn = null; });
+  toastA.addEventListener('click', function (e) { e.preventDefault(); toast.hidden = true; closeHall(); if (typeof switchDashboardView === 'function') switchDashboardView('planner'); });
+
+  /* ---------- veri ---------- */
+  var EX = [], EV = [], loading = null;
+  var cards = function () { return lsafe(function () { return cachedExamCards; }, []) || []; };
+  var hoca = get('acadex.sinav.prof', {});
+  var hidden = get('acadex.sinav.hidden', []);
+  var done = get('acadex.sinav.errs.done', []);
+  var cardById = function (id) { return cards().filter(function (c) { return String(c.id) === String(id); })[0] || null; };
+  var keyOfCard = function (c) { return c.course_tag && String(c.course_tag).trim() ? 'c:' + String(c.course_tag).trim().toUpperCase() : 's:' + c.id; };
+  var keyOfExam = function (e) {
+    if (e.source_type === 'course' && e.course_code) return 'c:' + String(e.course_code).toUpperCase();
+    var c = cardById(e.study_card_id), tag = (e.study_cards && e.study_cards.course_tag) || (c && c.course_tag);
+    if (tag && String(tag).trim()) return 'c:' + String(tag).trim().toUpperCase();
+    return 's:' + e.study_card_id;
+  };
+  var nameOfKey = function (k) {
+    if (hoca[k] && hoca[k].name) return hoca[k].name;
+    if (k.indexOf('c:') === 0) return k.slice(2);
+    var c = cardById(k.slice(2)); if (c) return baseName(c.documents && c.documents.file_name);
+    var e = EX.filter(function (x) { return 's:' + x.study_card_id === k; })[0];
+    return e && e.study_cards && e.study_cards.documents ? baseName(e.study_cards.documents.file_name) : 'Belge';
+  };
+  var desks = function () {
+    var m = {};
+    cards().forEach(function (c) { var k = keyOfCard(c); (m[k] = m[k] || { key: k, cards: [], ex: [], last: 0 }).cards.push(c.id); m[k].last = Math.max(m[k].last, new Date(c.created_at || 0).getTime() / 10); });
+    EX.forEach(function (e) { var k = keyOfExam(e); (m[k] = m[k] || { key: k, cards: [], ex: [], last: 0 }).ex.push(e); m[k].last = Math.max(m[k].last, new Date(e.completed_at || 0).getTime()); });
+    return Object.keys(m).map(function (k) { var d = m[k]; d.name = nameOfKey(k); d.code = k.indexOf('c:') === 0 ? k.slice(2) : null; return d; })
+      .filter(function (d) { return hidden.indexOf(d.key) < 0; }).sort(function (a, b) { return b.last - a.last; });
+  };
+  var loadData = function () {
+    if (!me() || !sb()) return Promise.resolve();
+    if (loading) return loading;
+    loading = Promise.all([
+      sb().from('exams').select('*, study_cards(course_tag, documents(file_name))').eq('user_id', me().id).not('completed_at', 'is', null).order('completed_at', { ascending: true }).limit(300),
+      sb().from('study_events').select('*').eq('user_id', me().id).eq('event_type', 'exam').order('event_date', { ascending: true })
+    ]).then(function (r) {
+      if (r[0].error) console.warn('acadex-ink: sınavlar yüklenemedi', r[0].error); else EX = (r[0].data || []).filter(function (e) { return e.completed_at; });
+      if (r[1].error) console.warn('acadex-ink: takvim yüklenemedi', r[1].error); else EV = r[1].data || [];
+    }).catch(function (e) { console.warn(e); }).then(function () { loading = null; paintAll(); });
+    return loading;
+  };
+
+  /* ---------- kapı: sınav takvimi ---------- */
+  var calEl = $('[data-cal]'), calTip = $('[data-cal-tip]');
+  var paintCal = function () {
+    var list = EV.filter(function (e) { return e.event_date && dayDiff(e.event_date) >= -2; }).slice(0, 10);
+    if (!list.length) { calEl.innerHTML = '<li class="sn-cal-empty">takvim boş. vize ve final tarihlerini as; geri sayım burada görünür.</li>'; calTip.textContent = ''; return; }
+    calEl.innerHTML = list.map(function (e, i) {
+      var n = dayDiff(e.event_date), d = new Date(e.event_date.slice(0, 10) + 'T00:00:00'), cls = n < 0 ? ' past' : n <= 7 ? ' soon' : '';
+      var when = n < 0 ? (-n) + ' gün önceydi' : n === 0 ? 'bugün!' : n === 1 ? 'yarın' : n + ' gün kaldı';
+      return '<li class="sn-tk' + cls + '" style="--r:' + (((i * 7) % 5) - 2) * 0.6 + 'deg"><span class="sn-tk-d"><b>' + d.getDate() + '</b><small>' + MON[d.getMonth()] + '</small></span><span class="sn-tk-b"><b>' + esc(e.title) + '</b><span>' + when + '</span></span><button type="button" class="sn-tk-x" data-ev-x="' + esc(e.id) + '" aria-label="' + esc(e.title) + ' tarihini kaldır">×</button></li>';
+    }).join('');
+    var next = list.filter(function (e) { return dayDiff(e.event_date) >= 0; })[0];
+    calTip.textContent = next ? (dayDiff(next.event_date) === 0 ? 'bugün ' + next.title + '. kolay gelsin!' : 'en yakını ' + next.title + ': ' + dayDiff(next.event_date) + ' gün. ' + (dayDiff(next.event_date) <= 7 ? 'her gün bir deneme iyi gider.' : 'şimdiden haftada iki deneme yeter.')) : '';
+  };
+  calEl.addEventListener('click', async function (e) {
+    var b = e.target.closest('[data-ev-x]'); if (!b) return;
+    var ev = EV.filter(function (x) { return String(x.id) === b.getAttribute('data-ev-x'); })[0]; if (!ev) return;
+    var r = await sb().from('study_events').delete().eq('id', ev.id);
+    if (r.error) { say('Tarih kaldırılamadı; tekrar dene.'); return; }
+    EV = EV.filter(function (x) { return x !== ev; }); paintCal();
+    say(ev.title + ' takvimden kalktı.', async function () {
+      var row = {}; Object.keys(ev).forEach(function (k) { if (k !== 'id' && k !== 'created_at') row[k] = ev[k]; });
+      var r2 = await sb().from('study_events').insert(row).select(); if (!r2.error) { EV.push((r2.data && r2.data[0]) || ev); EV.sort(function (a, b) { return a.event_date < b.event_date ? -1 : 1; }); paintCal(); }
+    });
+  });
+  var calDlg = $('[data-caldlg]'), calF = $('[data-calf]');
+  $('[data-cal-add]').addEventListener('click', function () {
+    $('#axs-courses').innerHTML = desks().map(function (d) { return '<option value="' + esc(d.name) + '">'; }).join('');
+    calF.reset(); $('[data-cl-date]').min = today(); calDlg.showModal(); setTimeout(function () { $('[data-cl-course]').focus(); }, 30);
+  });
+  calF.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var course = $('[data-cl-course]').value.trim(), kind = $('[data-cl-kind]').value, date = $('[data-cl-date]').value; if (!course || !date) return;
+    var sub = $('button[type="submit"]', calF); sub.disabled = true;
+    var r = await sb().from('study_events').insert({ user_id: me().id, title: course + ' ' + kind, event_date: date, event_type: 'exam', notes: '', is_done: false }).select();
+    sub.disabled = false;
+    if (r.error) { say('Tarih eklenemedi; tekrar dene.'); return; }
+    calDlg.close(); EV.push((r.data && r.data[0]) || { id: 'n' + Date.now(), title: course + ' ' + kind, event_date: date, event_type: 'exam' });
+    EV.sort(function (a, b) { return a.event_date < b.event_date ? -1 : 1; }); paintCal();
+    say('Kapıya asıldı; planlayıcına da düştü.', null, true);
+  });
+
+  /* ---------- sıralar ---------- */
+  var deskEl = $('[data-desks]');
+  var spark = function (vals, target) {
+    var w = 120, h = 34, n = vals.length, x = function (i) { return n < 2 ? w / 2 : 4 + i * (w - 8) / (n - 1); }, y = function (v) { return 3 + (100 - v) * (h - 6) / 100; };
+    var p = vals.map(function (v, i) { return (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1); }).join(' ');
+    return '<svg viewBox="0 0 ' + w + ' ' + h + '" aria-hidden="true"><path class="tg" d="M0 ' + y(target).toFixed(1) + ' H' + w + '"/>' + (n > 1 ? '<path d="' + p + '"/>' : '') + '<circle cx="' + x(n - 1).toFixed(1) + '" cy="' + y(vals[n - 1]).toFixed(1) + '" r="3.2"/></svg>';
+  };
+  var paintDesks = function () {
+    var ds = desks();
+    deskEl.innerHTML = ds.map(function (d, i) {
+      var h = hoca[d.key] || {}, ex = d.ex, last = ex.length ? ex[ex.length - 1].grade : null, tgt = +(h.target || 70);
+      var chips = [h.type ? TYPE[h.type] : '', h.diff ? DIFF[h.diff] : '', h.lang ? (h.lang === 'tr' ? 'TR' : 'EN') : '', h.sim ? 'süreli' : ''].filter(Boolean);
+      var sticky = (h.who || h.note || chips.length) ? '<div class="sn-sticky"><b>' + esc(h.who || 'hocanın tarzı') + '</b>' + (chips.length ? '<span class="chips">' + chips.map(function (c) { return '<span>' + esc(c) + '</span>'; }).join('') + '</span>' : '') + (h.note ? '<i>' + esc(h.note) + '</i>' : '') + '</div>' : '';
+      var src = [d.cards.length ? d.cards.length + ' belge' : (d.code ? 'ders ağacı' : ''), ex.length ? ex.length + ' deneme' : ''].filter(Boolean).join(' · ');
+      return '<div class="sn-desk" style="--i:' + i + '"><div class="sn-top" style="--r:' + (((i * 5) % 5) - 2) * 0.4 + 'deg">' +
+        '<h3 class="sn-dname">' + esc(d.name) + '</h3>' + (src ? '<p class="sn-dsrc">' + esc(src) + '</p>' : '') + sticky +
+        '<div class="sn-dstat">' + (ex.length ? '<b>' + last + '</b><small>son<br>deneme</small>' + spark(ex.slice(-8).map(function (x) { return +x.grade || 0; }), tgt) : '<span class="none">henüz deneme yok · hedef ' + tgt + '</span>') + '</div>' +
+        '<div class="sn-dbtns"><button type="button" class="btn btn-blue" data-try="' + esc(d.key) + '">deneme yap</button><button type="button" class="sn-ghost" data-prof="' + esc(d.key) + '">hoca dosyası</button></div>' +
+        '</div><div class="sn-legs" aria-hidden="true"></div>' + (i % 3 === 0 ? '<i class="sn-pencil" aria-hidden="true"></i>' : '') + '</div>';
+    }).join('') + '<div class="sn-desk add" style="--i:' + ds.length + '"><div class="sn-top"><button type="button" data-add-desk="">+ ' + (ds.length ? 'ders ağacından sıra aç' : 'ilk sıranı aç: ders ağacından bir ders seç') + '</button></div><div class="sn-legs" aria-hidden="true"></div></div>';
+  };
+  deskEl.addEventListener('click', function (e) {
+    var t = e.target.closest('[data-try]'); if (t) { openBuild(t.getAttribute('data-try')); return; }
+    var p = e.target.closest('[data-prof]'); if (p) { openProf(p.getAttribute('data-prof')); return; }
+    if (e.target.closest('[data-add-desk]')) openBuild(null, 'course');
+  });
+
+  /* hoca dosyası */
+  var pfDlg = $('[data-profdlg]'), pfF = $('[data-proff]'), pfKey = null;
+  var openProf = function (k) {
+    pfKey = k; var h = hoca[k] || {};
+    $('[data-pf-h]').textContent = nameOfKey(k) + ' · hocanın tarzı';
+    $('[data-pf-name]').value = nameOfKey(k); $('[data-pf-who]').value = h.who || ''; $('[data-pf-type]').value = h.type || 'classic';
+    $('[data-pf-diff]').value = h.diff || 'medium'; $('[data-pf-target]').value = String(h.target || 70); $('[data-pf-lang]').value = h.lang || 'en';
+    $('[data-pf-sim]').checked = !!h.sim; $('[data-pf-note]').value = h.note || '';
+    pfDlg.showModal();
+  };
+  pfF.addEventListener('submit', function (e) {
+    e.preventDefault(); if (!pfKey) return;
+    var nm = $('[data-pf-name]').value.trim();
+    hoca[pfKey] = { name: nm && nm !== (pfKey.indexOf('c:') === 0 ? pfKey.slice(2) : '') ? nm : '', who: $('[data-pf-who]').value.trim(), type: $('[data-pf-type]').value, diff: $('[data-pf-diff]').value, target: +$('[data-pf-target]').value, lang: $('[data-pf-lang]').value, sim: $('[data-pf-sim]').checked, note: $('[data-pf-note]').value.trim() };
+    if (hoca[pfKey].name === nameOfKeyRaw(pfKey)) hoca[pfKey].name = '';
+    put('acadex.sinav.prof', hoca); pfDlg.close(); paintAll(); say('Hoca dosyası kaydedildi; yeni denemeler bu tarza göre hazırlanır.');
+  });
+  var nameOfKeyRaw = function (k) { var s = hoca[k] && hoca[k].name; if (hoca[k]) hoca[k].name = ''; var n = nameOfKey(k); if (hoca[k]) hoca[k].name = s; return n; };
+  $('[data-pf-del]').addEventListener('click', function () {
+    var k = pfKey; if (!k) return; pfDlg.close(); hidden.push(k); put('acadex.sinav.hidden', hidden); paintAll();
+    say(nameOfKey(k) + ' sırası kaldırıldı; denemelerin silinmedi.', function () { hidden = hidden.filter(function (x) { return x !== k; }); put('acadex.sinav.hidden', hidden); paintAll(); });
+  });
+  $$('[data-dlg-x]').forEach(function (b) { b.addEventListener('click', function () { var d = b.closest('dialog'); if (d) d.close(); }); });
+
+  /* ---------- sınav hazırla (dashboard.js'in alanları) ---------- */
+  var bdDlg = $('[data-builddlg]'), cover = $('[data-bd-cover]'), bdErr = $('[data-bd-err]'), bdKey = null, topicEl = $('[data-bd-topic]');
+  var checkRadio = function (name, val) { var r = root.querySelector('input[name="' + name + '"][value="' + val + '"]'); if (r && !r.disabled) { r.checked = true; r.dispatchEvent(new Event('change', { bubbles: true })); } };
+  var openBuild = async function (k, forceSrc) {
+    bdKey = k; bdErr.hidden = true; topicEl.value = '';
+    var d = k ? desks().filter(function (x) { return x.key === k; })[0] : null, h = (k && hoca[k]) || {};
+    if (!bdDlg.open) bdDlg.showModal();
+    if (d && d.cards.length && forceSrc !== 'course') {
+      checkRadio('exam-source', 'study_card');
+      var sel = $('#exam-card-select'); if (sel) sel.value = d.cards[0];
+      await (typeof onExamSourceChange === 'function' ? onExamSourceChange() : null);
+    } else if (d && d.code || forceSrc === 'course') {
+      if (d && d.code) window.pendingExamCourse = { code: d.code, deptCode: null };
+      var cr = root.querySelector('input[name="exam-source"][value="course"]'); if (cr) cr.checked = true;
+      await (typeof onExamSourceChange === 'function' ? onExamSourceChange() : null);
+    } else await (typeof onExamSourceChange === 'function' ? onExamSourceChange() : null);
+    if (h.type) checkRadio('exam-type', h.type);
+    if (h.diff) checkRadio('exam-difficulty', h.diff);
+    if (h.lang) checkRadio('exam-lang', h.lang);
+    if (h.sim != null) $('#exam-simulation-toggle').checked = !!h.sim;
+    paintCover();
+  };
+  $('[data-build]').addEventListener('click', function () { openBuild(null); });
+  var countEl = $('#exam-question-count');
+  $$('[data-cnt]').forEach(function (b) { b.addEventListener('click', function () { var v = (+countEl.value || 10) + (+b.getAttribute('data-cnt')), mn = +countEl.min || 1, mx = +countEl.max || 20; countEl.value = Math.max(mn, Math.min(mx, v)); countEl.dispatchEvent(new Event('change')); paintCover(); }); });
+  var val = function (n) { var r = root.querySelector('input[name="' + n + '"]:checked'); return r ? r.value : ''; };
+  var paintCover = function () {
+    var src = val('exam-source'), name = '';
+    if (src === 'course') { var cs = $('#exam-course-select'); name = cs && cs.selectedOptions[0] ? cs.selectedOptions[0].textContent : 'ders ağacı'; }
+    else { var c = cardById($('#exam-card-select') && $('#exam-card-select').value); name = c ? (c.course_tag ? c.course_tag + ' · ' : '') + baseName(c.documents && c.documents.file_name) : 'belge seç'; }
+    var sim = $('#exam-simulation-toggle').checked, p = prof();
+    $('[data-bd-note]').textContent = sim ? 'süre bitince kâğıt kendiliğinden toplanır.' : '';
+    cover.innerHTML = '<span class="uni">ACADEX · SINAV SALONU</span><h3>' + esc(name.length > 60 ? name.slice(0, 58) + '…' : name) + '</h3><span class="sub">' + esc((TYPE[val('exam-type')] || '') + ' · ' + (DIFF[val('exam-difficulty')] || '') + ' · ' + (val('exam-lang') === 'tr' ? 'Türkçe' : 'English')) + '</span>' +
+      '<div class="lines"><span>Ad Soyad: ' + esc(p.full_name || '') + '</span><span>Öğrenci no: ' + esc(p.student_number || '') + '</span><span>Tarih: ' + dshort(new Date()) + '</span></div>' +
+      '<table><tr><th>SORU</th><td>' + esc(countEl.value) + '</td></tr><tr><th>SÜRE</th><td>' + (sim ? 'gerçek sınav süresi' : 'serbest') + '</td></tr><tr><th>İPUCU</th><td>' + (sim ? 'yok' : 'soru başına bir') + '</td></tr>' + (topicEl.value.trim() && src === 'course' ? '<tr><th>ODAK</th><td>' + esc(topicEl.value.trim()) + '</td></tr>' : '') + '</table>' +
+      '<p class="warn">' + (sim ? 'KİTAPÇIĞI AÇINCA SÜRE BAŞLAR' : 'KOLAY GELSİN') + '</p>';
+  };
+  bdDlg.addEventListener('change', function () { setTimeout(paintCover, 0); });
+  bdDlg.addEventListener('input', function () { setTimeout(paintCover, 0); });
+  if (typeof generateExam === 'function') {
+    var origGen = generateExam;
+    generateExam = async function () {
+      bdErr.hidden = true;
+      var t = topicEl.value.trim();
+      if (t && val('exam-source') === 'course') { try { examFocusConcept = t; } catch (e) {} }
+      var n = $('[data-bd-note]'); n.textContent = 'Acadia soruları yazıyor; bu biraz sürebilir…';
+      var r = await origGen.apply(this, arguments);
+      if (n.textContent.indexOf('Acadia') === 0) n.textContent = '';
+      return r;
+    };
+    window.generateExam = generateExam;
+  }
+
+  /* panelin uyarıları: diyalog ya da salon açıkken kendi notumuzda göster */
+  if (typeof showDashboardAlert === 'function') {
+    var origAlert = showDashboardAlert;
+    showDashboardAlert = function (type, msg) {
+      if (bdDlg.open) { if (type === 'error') { bdErr.textContent = msg; bdErr.hidden = false; } return; }
+      if (!hall.hidden) { if (type === 'error' || /hatırlatma|reminder/i.test(msg)) say(msg, null, /hatırlatma|reminder/i.test(msg)); return; }
+      return origAlert.apply(this, arguments);
+    };
+    window.showDashboardAlert = showDashboardAlert;
+  }
+
+  /* ---------- salon ---------- */
+  var hall = $L('[data-hall]'), book = $L('[data-book]'), opt = $L('[data-opt]'), res = $L('[data-res]'), hMain = $L('[data-hall-main]');
+  var clockW = $L('[data-clockw]'), wedge = $L('[data-wedge]'), leftEl = $L('[data-left]'), leftNote = $L('[data-left-note]'), tabw = $L('[data-tabw]');
+  var subBtn = $L('[data-submit]'), exitBtn = $L('[data-exit]'), subDlg = $L('[data-subdlg]');
+  (function () { var t = ''; for (var i = 0; i < 12; i++) { var a = i * Math.PI / 6, r1 = i % 3 ? 40 : 36; t += '<line x1="' + (50 + Math.sin(a) * r1).toFixed(1) + '" y1="' + (50 - Math.cos(a) * r1).toFixed(1) + '" x2="' + (50 + Math.sin(a) * 44).toFixed(1) + '" y2="' + (50 - Math.cos(a) * 44).toFixed(1) + '"/>'; } $L('[data-ticks]').innerHTML = t; })();
+  var EXM = null, QS = [], cur = -1, started = 0, ticker = 0, tabOut = 0, mode = 'off', lastFocus = null;
+  var wedgeD = function (f) { f = Math.max(0, Math.min(1, f)); if (f >= 0.9999) return 'M50 50 m-46 0 a46 46 0 1 0 92 0 a46 46 0 1 0 -92 0'; var a = f * 2 * Math.PI, x = 50 + 46 * Math.sin(a), y = 50 - 46 * Math.cos(a); return 'M50 50 L50 4 A46 46 0 ' + (f > 0.5 ? 1 : 0) + ' 1 ' + x.toFixed(2) + ' ' + y.toFixed(2) + ' Z'; };
+  var mmss = function (s) { s = Math.max(0, Math.round(s)); return pad(Math.floor(s / 60)) + ':' + pad(s % 60); };
+  var tick = function () {
+    if (!EXM) return;
+    var lim = EXM.is_simulation && EXM.time_limit_seconds ? +EXM.time_limit_seconds : 0;
+    if (lim && started) {
+      var left = lsafe(function () { return examTimerRemainingSeconds; }, 0);
+      leftEl.textContent = mmss(left); leftNote.textContent = 'kalan süre'; wedge.setAttribute('d', wedgeD(left / lim));
+      clockW.classList.toggle('warn', left <= Math.max(60, lim * 0.1)); clockW.classList.toggle('last', left <= 10);
+    } else {
+      var el = started ? (Date.now() - started) / 1000 : 0;
+      leftEl.textContent = mmss(el); leftNote.textContent = lim ? 'süre kitapçığı açınca başlar' : 'geçen süre · sınır yok'; wedge.setAttribute('d', wedgeD(lim ? 1 : (el % 3600) / 3600));
+      clockW.classList.remove('warn', 'last');
+    }
+  };
+  var openHall = function () {
+    if (hall.hidden) { lastFocus = document.activeElement; hall.hidden = false; document.documentElement.style.overflow = 'hidden'; document.body.classList.add('axs-hall-on'); }
+    $L('[data-opt-name]').textContent = prof().full_name || '';
+  };
+  var closeHall = function () {
+    if (hall.hidden) return;
+    clearInterval(ticker); ticker = 0; hall.hidden = true; document.documentElement.style.overflow = ''; document.body.classList.remove('axs-hall-on'); mode = 'off'; EXM = null;
+    if (typeof stopExamTimer === 'function') stopExamTimer();
+    if (lastFocus && document.contains(lastFocus)) lastFocus.focus();
+  };
+  var anim = function (cls, ms) { if (reduce) return; hall.classList.remove('deal', 'lift', 'collect'); void hall.offsetWidth; hall.classList.add(cls); setTimeout(function () { hall.classList.remove(cls); }, ms || 700); };
+  var letter = function (i) { return 'ABCDEFGH'.charAt(i); };
+  var qHtml = function (q, i) {
+    var name = 'answer-q-' + q.id, body = '', txt = rich(q.question);
+    if (q.type === 'multiple_choice' || q.type === 'true_false') {
+      var opts = q.options || [], dy = q.type === 'true_false';
+      body = (dy ? '<div class="sn-dy" role="radiogroup" aria-label="Cevap">' : '<ol class="sn-opts" role="radiogroup" aria-label="Şıklar">') + opts.map(function (o, k) {
+        var lb = dy ? (String(o).charAt(0).toUpperCase() || letter(k)) : letter(k);
+        var inner = '<label class="sn-opt-b" aria-pressed="false" data-letter="' + esc(lb) + '"><input type="radio" name="' + name + '" value="' + esc(o) + '"><span class="l" aria-hidden="true">' + esc(lb) + '</span><span>' + esc(o) + '</span></label>';
+        return dy ? inner : '<li>' + inner + '</li>';
+      }).join('') + (dy ? '</div>' : '</ol>');
+    } else if (q.type === 'fill_blank') {
+      var inp = '<input type="text" class="sn-blank" name="' + name + '" autocomplete="off" aria-label="Boşluğa gelecek cevap">';
+      if (/_{3,}/.test(txt)) { txt = txt.replace(/_{3,}/, inp); body = ''; } else body = '<p>' + inp + '</p>';
+    } else if (q.type === 'calculation') {
+      var pre = q.units && /^[$€₺£]$/.test(q.units);
+      body = '<div class="sn-calc">' + (pre ? '<span>' + esc(q.units) + '</span>' : '') + '<input type="number" step="any" class="sn-blank" name="' + name + '" aria-label="Sayısal cevap" placeholder="cevap">' + (!pre && q.units ? '<span>' + esc(q.units) + '</span>' : '') + '</div>';
+    } else {
+      body = '<div class="sn-answ"><textarea class="sn-ans" name="' + name + '" aria-label="Cevabın" placeholder="cevabını buraya yaz…"></textarea></div><p class="sn-wc"><span>kelime: <b data-wc="">0</b></span><span class="hand">anahtar kavramları kullanmayı unutma</span></p>';
+    }
+    var hintB = EXM.is_simulation ? '' : '<button type="button" class="sn-ghost" id="btn-hint-' + esc(q.id) + '" data-hint="' + esc(q.id) + '">ipucu al</button>';
+    var hintBox = EXM.is_simulation ? '' : '<div id="hint-box-' + esc(q.id) + '" class="exam-hint-box sn-hint" style="display:none"></div>';
+    return '<section class="sn-q" data-qi="' + i + '" aria-label="Soru ' + (i + 1) + '" hidden><div class="sn-qn"><b>' + (i + 1) + '</b><span class="ty">' + esc(QT[q.type] || q.type) + '</span><span class="pt">' + (i + 1) + ' / ' + QS.length + '</span></div>' +
+      '<div class="sn-qtext">' + txt + '</div>' + body + hintBox +
+      '<div class="sn-book-nav"><button type="button" class="sn-ghost" data-prev=""' + (i ? '' : ' disabled') + '>← önceki</button><button type="button" class="sn-ghost sn-flag" aria-pressed="false" data-flag="">işaretle</button>' + hintB + '<span class="sp"></span>' +
+      (i < QS.length - 1 ? '<button type="button" class="btn btn-dark" data-next="">sonraki →</button>' : '<button type="button" class="btn btn-blue" data-hand="">kâğıdı teslim et</button>') + '</div></section>';
+  };
+  var answered = function (q) {
+    var name = 'answer-q-' + q.id;
+    if (q.type === 'multiple_choice' || q.type === 'true_false') return !!book.querySelector('input[name="' + name + '"]:checked');
+    var el = book.querySelector('[name="' + name + '"]'); return !!(el && String(el.value).trim());
+  };
+  var paintOpt = function () {
+    var info = QS.map(function (q, i) {
+      var sec = book.querySelector('[data-qi="' + i + '"]'), fb = sec && sec.querySelector('[data-flag]');
+      var ch = (q.type === 'multiple_choice' || q.type === 'true_false') ? book.querySelector('input[name="answer-q-' + q.id + '"]:checked') : null;
+      return { fl: !!(fb && fb.getAttribute('aria-pressed') === 'true'), an: answered(q), sec: sec, ch: ch };
+    });
+    if (opt.children.length !== QS.length || opt.getAttribute('data-for') !== String(EXM && EXM.id) + ':' + (cur >= 0)) {
+      opt.setAttribute('data-for', String(EXM && EXM.id) + ':' + (cur >= 0));
+      opt.innerHTML = QS.map(function (q, i) {
+        var bb, sec = info[i].sec;
+        if ((q.type === 'multiple_choice' || q.type === 'true_false') && sec) bb = '<span class="bb" aria-hidden="true">' + $$('.sn-opt-b', sec).map(function (l) { return '<i>' + esc(l.getAttribute('data-letter')) + '</i>'; }).join('') + '</span>';
+        else bb = '<span class="tl">' + (q.type === 'fill_blank' ? 'boşluk' : q.type === 'calculation' ? 'sayı' : q.type === 'open_ended' ? 'yazılı' : 'test') + '</span>';
+        return '<li><button type="button" data-go="' + i + '"><span class="n">' + (i + 1) + '</span>' + bb + '<span class="st"></span></button></li>';
+      }).join('');
+    }
+    QS.forEach(function (q, i) {
+      var b = opt.children[i].firstChild, it = info[i];
+      if (i === cur) b.setAttribute('aria-current', 'true'); else b.removeAttribute('aria-current');
+      b.setAttribute('aria-label', 'Soru ' + (i + 1) + (it.an ? ', cevaplı' : ', boş') + (it.fl ? ', işaretli' : ''));
+      b.querySelector('.st').className = 'st' + (it.fl ? ' g' : it.an ? ' f' : '');
+      if (it.sec) $$('.bb i', b).forEach(function (bi, k) { var l = $$('.sn-opt-b', it.sec)[k]; bi.classList.toggle('f', !!(it.ch && l && l.contains(it.ch))); });
+    });
+  };
+  var go = function (i, focus) {
+    if (i < 0 || i >= QS.length) return; cur = i;
+    $$('.sn-q', book).forEach(function (s) { s.hidden = +s.getAttribute('data-qi') !== i; });
+    $('.sn-book-h .pg', book).textContent = 'sayfa ' + (i + 1) + ' / ' + QS.length;
+    if (!reduce) { book.classList.remove('turn'); void book.offsetWidth; book.classList.add('turn'); }
+    paintOpt();
+    book.parentNode.scrollTop = 0;
+    if (focus) { var f = book.querySelector('[data-qi="' + i + '"] input, [data-qi="' + i + '"] textarea'); if (f) f.focus({ preventScroll: true }); }
+  };
+  var coverPage = function () {
+    var e = EXM, lim = e.is_simulation && e.time_limit_seconds ? Math.round(e.time_limit_seconds / 60) : 0;
+    book.className = 'sn-book cover';
+    book.innerHTML = '<span class="sn-k">' + esc($L('[data-hl-course]').textContent) + '</span><h3>' + esc((TYPE[e.exam_type] || 'deneme') + ' sınavı') + '</h3><p class="meta">' + QS.length + ' soru · ' + (DIFF[e.difficulty] || '') + ' · ' + (e.language === 'tr' ? 'Türkçe' : 'English') + '</p>' +
+      '<ul><li>' + (lim ? 'süre: ' + lim + ' dakika; bitince kâğıt kendiliğinden toplanır' : 'süre sınırı yok; kendi hızında çöz') + '</li><li>' + (e.is_simulation ? 'ipucu yok, gerçek sınav gibi' : 'her soruda bir ipucu alabilirsin') + '</li><li>sorular arasında optik formdan gezebilirsin</li><li>emin olmadığını “işaretle”, sonra dön</li></ul>' +
+      (e.is_simulation ? '<p class="warn">SEKMEDEN ÇIKARSAN NOT EDİLİR</p>' : '') + '<button type="button" class="btn btn-blue" data-open-book="">kitapçığı aç</button>';
+    setTimeout(function () { var b = book.querySelector('[data-open-book]'); if (b) b.focus(); }, 60);
+  };
+  var openBook = function () {
+    var paint = function () {
+      book.className = 'sn-book';
+      book.innerHTML = '<div class="sn-book-h"><span class="nm">' + esc(prof().full_name || '') + ' · ' + esc($L('[data-hl-course]').textContent) + '</span><span class="pg"></span></div>' + QS.map(qHtml).join('');
+      started = Date.now();
+      if (EXM.is_simulation && EXM.time_limit_seconds && typeof startExamTimer === 'function') startExamTimer(EXM.time_limit_seconds);
+      tick(); go(0, true);
+    };
+    if (reduce) paint(); else { anim('lift', 560); setTimeout(paint, 520); }
+  };
+  if (typeof startActiveExam === 'function') {
+    startActiveExam = function (exam) {
+      if (bdDlg.open) bdDlg.close();
+      EXM = exam; QS = exam.questions || []; cur = -1; started = 0; tabOut = 0; tabw.hidden = true; mode = 'exam';
+      if (typeof stopExamTimer === 'function') stopExamTimer();
+      var c = cardById(exam.study_card_id);
+      $L('[data-hl-course]').textContent = exam.source_type === 'course' ? (exam.course_code || 'ders ağacı') : (c ? (c.course_tag ? c.course_tag + ' · ' : '') + baseName(c.documents && c.documents.file_name) : 'belge');
+      $L('[data-hl-title]').textContent = (TYPE[exam.exam_type] || 'deneme') + ' deneme' + (exam.is_simulation ? ' · gerçek süre' : '');
+      hMain.hidden = false; res.hidden = true; res.innerHTML = ''; clockW.hidden = false; subBtn.hidden = false; exitBtn.hidden = false; exitBtn.textContent = 'çık';
+      openHall(); coverPage(); paintOpt(); tick(); anim('deal', 760);
+      clearInterval(ticker); ticker = setInterval(tick, 1000);
+    };
+    window.startActiveExam = startActiveExam;
+  }
+  book.addEventListener('click', function (e) {
+    var t = e.target;
+    if (t.closest('[data-open-book]')) { openBook(); return; }
+    if (t.closest('[data-next]')) { go(cur + 1, true); return; }
+    if (t.closest('[data-prev]')) { go(cur - 1, true); return; }
+    if (t.closest('[data-hand]')) { askSubmit(); return; }
+    var f = t.closest('[data-flag]'); if (f) { f.setAttribute('aria-pressed', String(f.getAttribute('aria-pressed') !== 'true')); f.textContent = f.getAttribute('aria-pressed') === 'true' ? 'işaretli' : 'işaretle'; paintOpt(); return; }
+    var h = t.closest('[data-hint]'); if (h && typeof revealExamHint === 'function') revealExamHint(h.getAttribute('data-hint'));
+  });
+  book.addEventListener('change', function (e) {
+    var r = e.target; if (r.type === 'radio') { $$('input[name="' + r.name + '"]', book).forEach(function (x) { x.closest('.sn-opt-b').setAttribute('aria-pressed', String(x.checked)); }); }
+    paintOpt();
+    if (r.type === 'radio') { var b = opt.querySelector('[data-go="' + cur + '"] .bb i.f'); if (b) b.classList.add('new'); }
+  });
+  book.addEventListener('input', function (e) {
+    var t = e.target; if (t.classList.contains('sn-ans')) { var n = (t.value.trim().match(/\S+/g) || []).length, w = t.closest('.sn-q').querySelector('[data-wc]'); if (w) w.textContent = n; }
+    clearTimeout(book._t); book._t = setTimeout(paintOpt, 250);
+  });
+  opt.addEventListener('click', function (e) { var b = e.target.closest('[data-go]'); if (b && cur >= 0) go(+b.getAttribute('data-go'), true); });
+  document.addEventListener('keydown', function (e) {
+    if (hall.hidden || mode !== 'exam' || cur < 0 || subDlg.open) return;
+    var t = e.target; if (/INPUT|TEXTAREA|SELECT/.test(t.tagName) && t.type !== 'radio') return;
+    if (e.key === 'ArrowRight' && t.type !== 'radio') { e.preventDefault(); go(cur + 1, false); }
+    else if (e.key === 'ArrowLeft' && t.type !== 'radio') { e.preventDefault(); go(cur - 1, false); }
+    else if (/^[a-eA-E]$/.test(e.key) && !e.ctrlKey && !e.metaKey) {
+      var sec = book.querySelector('[data-qi="' + cur + '"]'), l = sec && $$('.sn-opt-b', sec)['abcde'.indexOf(e.key.toLowerCase())];
+      if (l) { e.preventDefault(); var inp = l.querySelector('input'); inp.checked = true; inp.dispatchEvent(new Event('change', { bubbles: true })); inp.focus(); }
+    }
+  });
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden && !hall.hidden && mode === 'exam' && started && EXM && EXM.is_simulation) { tabOut++; tabw.hidden = false; tabw.textContent = 'sekmeden çıktın · ' + tabOut; }
+  });
+  var subAction = null;
+  var askSubmit = function () {
+    if (cur < 0) { say('Önce kitapçığı aç.'); return; }
+    var a = QS.filter(answered).length, fl = $$('[data-flag][aria-pressed="true"]', book).length;
+    $L('[data-sb-h]').textContent = 'kâğıdı teslim ediyor musun?';
+    $L('[data-sb-info]').textContent = QS.length + ' sorudan ' + a + ' tanesi cevaplı' + (QS.length - a ? ', ' + (QS.length - a) + ' tanesi boş' : '') + (fl ? ', ' + fl + ' tanesi işaretli' : '') + '. Teslim edince Acadia kâğıdını okur.';
+    $L('[data-sb-ok]').textContent = 'teslim et'; $L('[data-sb-no]').textContent = 'devam et';
+    subAction = 'submit'; subDlg.returnValue = ''; subDlg.showModal();
+  };
+  subBtn.addEventListener('click', function () { if (mode === 'exam') askSubmit(); });
+  exitBtn.addEventListener('click', function () {
+    if (mode === 'result') { closeHall(); if (typeof loadExamsPlatform === 'function') loadExamsPlatform(); return; }
+    $L('[data-sb-h]').textContent = 'sınavdan çıkıyor musun?';
+    $L('[data-sb-info]').textContent = 'Cevapların kaydedilmez; bu deneme karnene işlenmez.';
+    $L('[data-sb-ok]').textContent = 'çık'; $L('[data-sb-no]').textContent = 'devam et';
+    subAction = 'exit'; subDlg.returnValue = ''; subDlg.showModal();
+  });
+  subDlg.addEventListener('close', function () {
+    if (subDlg.returnValue !== 'ok') return;
+    if (subAction === 'exit') { closeHall(); if (typeof loadExamsPlatform === 'function') loadExamsPlatform(); }
+    else if (subAction === 'submit' && typeof submitExam === 'function') submitExam();
+  });
+  var readingState = function () {
+    var cl = book.cloneNode(true); cl.removeAttribute('data-book'); cl.className = 'sn-book sn-reading'; cl.setAttribute('data-reading', '');
+    cl.innerHTML = '<svg viewBox="0 0 120 60" aria-hidden="true"><path pathLength="1" d="M6 40 C20 10 30 50 44 26 C56 6 66 44 80 24 C90 10 100 38 114 18"/></svg><p>kâğıdın okunuyor… kırmızı kalem iş başında.</p>';
+    book.hidden = true; book.parentNode.appendChild(cl); subBtn.disabled = true; exitBtn.disabled = true;
+    return function () { cl.remove(); book.hidden = false; subBtn.disabled = false; exitBtn.disabled = false; };
+  };
+  if (typeof submitExam === 'function') {
+    var origSubmit = submitExam;
+    submitExam = async function () {
+      var ex = EXM, el = started ? Math.round((Date.now() - started) / 1000) : 0, undo = null;
+      if (!hall.hidden && mode === 'exam') { anim('collect', 600); undo = readingState(); }
+      lastElapsed = { id: ex && ex.id, s: el };
+      var r;
+      try { r = await origSubmit.apply(this, arguments); } finally {
+        if (undo) undo();
+        if (mode === 'exam' && !hall.hidden) { subBtn.textContent = 'kâğıdı teslim et'; say('Kâğıt gönderilemedi; cevapların duruyor, tekrar dene.'); }
+      }
+      return r;
+    };
+    window.submitExam = submitExam;
+  }
+  var lastElapsed = null;
+
+  /* ---------- sonuç: kırmızı kalem ---------- */
+  var MK = { ok: '<path pathLength="1" d="M5 18 L13 27 L29 6"/>', no: '<path pathLength="1" d="M6 6 L28 28 M28 6 L6 28"/>', half: '<path pathLength="1" d="M6 26 L28 8"/>' };
+  if (typeof showExamResults === 'function') {
+    showExamResults = function (exam) {
+      if (typeof stopExamTimer === 'function') stopExamTimer();
+      clearInterval(ticker); ticker = 0; mode = 'result';
+      var rs = exam.question_results || [], isTr = true, g = Math.round(+exam.grade || 0);
+      var cnt = { ok: 0, half: 0, no: 0, blank: 0 };
+      rs.forEach(function (r) { if (!String(r.student_answer || '').trim()) cnt.blank++; if (r.score >= 80) cnt.ok++; else if (r.score >= 50) cnt.half++; else cnt.no++; });
+      var sid = exam.study_card_id || (EXM && EXM.id === exam.id ? EXM.study_card_id : null), c = cardById(sid);
+      if (!exam.source_type && EXM && EXM.id === exam.id) { exam.source_type = EXM.source_type; exam.course_code = exam.course_code || EXM.course_code; }
+      if (!exam.study_card_id && sid) exam.study_card_id = sid;
+      var course = exam.source_type === 'course' ? (exam.course_code || 'ders ağacı') : (c ? (c.course_tag ? c.course_tag + ' · ' : '') + baseName(c.documents && c.documents.file_name) : (exam.study_cards && exam.study_cards.documents ? baseName(exam.study_cards.documents.file_name) : 'belge'));
+      var el = lastElapsed && lastElapsed.id === exam.id ? lastElapsed.s : 0;
+      var verdict = g >= 85 ? 'harika; konuyu neredeyse tamamen kavramışsın.' : g >= 70 ? 'güzel; ufak eksikler dışında hakimsin.' : g >= 50 ? 'geçtin; yine de birkaç konunun üstünden geç.' : 'bu konuya biraz daha zaman ayır; yanlışların hata defterinde.';
+      var weak = {}; rs.forEach(function (r) { if (!r.concept) return; (weak[r.concept] = weak[r.concept] || { t: 0, n: 0 }); weak[r.concept].t += +r.score || 0; weak[r.concept].n++; });
+      var wl = Object.keys(weak).map(function (k) { return { c: k, a: weak[k].t / weak[k].n }; }).sort(function (a, b) { return a.a - b.a; });
+      var label = keyOfExam(exam), code = label.indexOf('c:') === 0 ? label.slice(2) : null;
+      var practice = wl.length && wl[0].a < 75 ? (code ? '<button type="button" class="sn-ghost" data-practice="' + esc(code) + '" data-concept="' + esc(wl[0].c) + '">“' + esc(wl[0].c) + '” konusundan yeni deneme</button>' : '<button type="button" class="sn-ghost" data-retry="' + esc(label) + '">bu belgeden yeni deneme</button>') : '';
+      res.innerHTML = '<article class="sn-paper"><div class="sn-ph"><div><span class="sn-k">' + esc(course) + '</span><h2 class="disp">' + esc((TYPE[exam.exam_type] || 'deneme') + ' deneme') + (exam.is_simulation ? ' · gerçek süre' : '') + '</h2><p>' + esc(dshort(exam.completed_at || new Date())) + ' · ' + rs.length + ' soru · ' + (exam.language === 'tr' ? 'Türkçe' : 'English') + ' · ' + verdict + '</p></div>' +
+        '<div class="sn-score" role="img" aria-label="Puan ' + g + ' / 100"><svg viewBox="0 0 118 96" aria-hidden="true"><path pathLength="1" d="M60 6 C24 4 4 26 8 52 C12 80 50 94 82 86 C110 78 118 50 104 28 C94 12 74 6 52 10"/></svg><b>' + g + '</b><small>/ 100</small></div></div>' +
+        '<p class="sn-sum"><span>doğru <b>' + cnt.ok + '</b></span><span>kısmen <b>' + cnt.half + '</b></span><span>yanlış <b>' + cnt.no + '</b></span>' + (cnt.blank ? '<span>boş <b>' + cnt.blank + '</b></span>' : '') + (el ? '<span>süre <b>' + mmss(el) + '</b></span>' : '') + '</p>' +
+        rs.map(function (r, i) {
+          var k = r.score >= 80 ? 'ok' : r.score >= 50 ? 'half' : 'no', blank = !String(r.student_answer || '').trim();
+          var steps = Array.isArray(r.solution_steps) && r.solution_steps.length ? '<div class="sn-model"><b>çözüm adımları</b><ol>' + r.solution_steps.map(function (s) { return '<li>' + rich(s) + '</li>'; }).join('') + '</ol></div>' : '';
+          var unit = r.units ? ' ' + esc(r.units) : '';
+          return '<div class="sn-ri" style="--i:' + i + '"><svg class="mk ' + k + '" viewBox="0 0 34 34" aria-hidden="true">' + MK[k] + '</svg><div class="sn-ri-h"><b>' + (i + 1) + '</b><span class="ty">' + esc(QT[r.type] || r.type || '') + '</span>' + (r.concept ? '<span class="cpt">' + esc(r.concept) + '</span>' : '') + '<span class="pt">' + (+r.score || 0) + '</span></div>' +
+            '<p class="q">' + rich(r.question) + '</p><p class="yours' + (k === 'no' && !blank ? ' wrong' : '') + '">senin cevabın: <span>' + (blank ? 'boş bıraktın' : esc(r.student_answer) + (r.student_answer && r.units ? unit : '')) + '</span></p>' +
+            (r.type !== 'open_ended' && r.correct_answer != null && r.correct_answer !== '' ? '<p class="right">doğrusu: ' + esc(r.correct_answer) + unit + (r.tolerance_percent ? ' (±%' + esc(r.tolerance_percent) + ')' : '') + '</p>' : '') +
+            (r.feedback ? '<p class="fb">' + rich(r.feedback) + '</p>' : '') + steps + '</div>';
+        }).join('') +
+        '<div class="sn-res-b">' + practice + '<button type="button" class="sn-ghost" data-to-errs="">hata defterine bak</button><button type="button" class="btn btn-dark" data-back="">salona dön</button></div>' +
+        '<p class="sn-honest">Puanları Acadex’in yapay zekası verdi. Açık uçlu sorularda hocanın okuması farklı olabilir; geri bildirimi bir öneri olarak oku.</p></article>';
+      $L('[data-hl-course]').textContent = course; $L('[data-hl-title]').textContent = 'sonuç kâğıdı';
+      hMain.hidden = true; res.hidden = false; clockW.hidden = true; subBtn.hidden = true; exitBtn.hidden = false; exitBtn.disabled = false; exitBtn.textContent = 'salona dön'; tabw.hidden = true;
+      openHall(); res.scrollTop = 0; setTimeout(function () { var b = res.querySelector('[data-back]'); if (b) b.focus({ preventScroll: true }); }, 50);
+      loadData();
+    };
+    window.showExamResults = showExamResults;
+  }
+  res.addEventListener('click', function (e) {
+    if (e.target.closest('[data-back]')) { closeHall(); if (typeof loadExamsPlatform === 'function') loadExamsPlatform(); return; }
+    if (e.target.closest('[data-to-errs]')) { closeHall(); if (typeof loadExamsPlatform === 'function') loadExamsPlatform(); setTimeout(function () { $('#hata-defteri').scrollIntoView({ behavior: reduce ? 'auto' : 'smooth' }); }, 300); return; }
+    var p = e.target.closest('[data-practice]'); if (p) { closeHall(); practice(p.getAttribute('data-practice'), p.getAttribute('data-concept')); return; }
+    var r = e.target.closest('[data-retry]'); if (r) { closeHall(); openBuild(r.getAttribute('data-retry')); }
+  });
+  var practice = function (code, concept) {
+    window.pendingExamCourse = { code: code, deptCode: null }; window.pendingFocusConcept = concept;
+    var cr = root.querySelector('input[name="exam-source"][value="course"]'); if (cr) cr.checked = true;
+    bdKey = 'c:' + code; bdErr.hidden = true; topicEl.value = '';
+    if (!bdDlg.open) bdDlg.showModal();
+    Promise.resolve(typeof onExamSourceChange === 'function' ? onExamSourceChange() : null).then(function () { topicEl.value = concept || ''; paintCover(); });
+  };
+
+  /* ---------- karne ---------- */
+  var rtabs = $('[data-rtabs]'), chartEl = $('[data-chart]'), timeEl = $('[data-time]'), attsEl = $('[data-atts]'), rSel = 'all';
+  var paintReport = function () {
+    var ds = desks().filter(function (d) { return d.ex.length; });
+    if (rSel !== 'all' && !ds.some(function (d) { return d.key === rSel; })) rSel = 'all';
+    rtabs.innerHTML = '<button type="button" class="sn-rtab" role="tab" aria-selected="' + (rSel === 'all') + '" data-rk="all">tümü</button>' + ds.map(function (d) { return '<button type="button" class="sn-rtab" role="tab" aria-selected="' + (rSel === d.key) + '" data-rk="' + esc(d.key) + '">' + esc(d.name) + '</button>'; }).join('');
+    var ex = rSel === 'all' ? EX.slice() : (ds.filter(function (d) { return d.key === rSel; })[0] || { ex: [] }).ex;
+    var tgt = rSel !== 'all' && hoca[rSel] && hoca[rSel].target ? +hoca[rSel].target : 70;
+    /* puan grafiği */
+    if (!ex.length) chartEl.innerHTML = '<p class="sn-empty">ilk denemeni çözünce puanların burada çizilir.</p>';
+    else {
+      var pts = ex.slice(-12), W = 600, H = 230, L = 34, Rr = 16, T = 18, Bm = 34, n = pts.length;
+      var x = function (i) { return n < 2 ? (L + W - Rr) / 2 : L + i * (W - L - Rr) / (n - 1); }, y = function (v) { return T + (100 - v) * (H - T - Bm) / 100; };
+      var d = pts.map(function (p, i) { return (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(+p.grade || 0).toFixed(1); }).join(' ');
+      var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Son ' + n + ' denemenin puanları: ' + pts.map(function (p) { return p.grade; }).join(', ') + '">';
+      s += '<path class="ax" d="M' + L + ' ' + (H - Bm) + ' H' + (W - Rr) + '"/>';
+      s += '<path class="tg" d="M' + L + ' ' + y(tgt).toFixed(1) + ' H' + (W - Rr) + '"/><text class="tl" x="' + (W - Rr) + '" y="' + (y(tgt) - 6).toFixed(1) + '" text-anchor="end">hedef ' + tgt + '</text>';
+      [0, 50, 100].forEach(function (v) { s += '<text x="' + (L - 8) + '" y="' + (y(v) + 5).toFixed(1) + '" text-anchor="end">' + v + '</text>'; });
+      if (n > 1) s += '<path class="ln" pathLength="1" d="' + d + '"/>'; else s += '<path class="ghost" d="M' + L + ' ' + y(+pts[0].grade || 0).toFixed(1) + ' H' + (W - Rr) + '"/>';
+      pts.forEach(function (p, i) { s += '<circle class="pt" cx="' + x(i).toFixed(1) + '" cy="' + y(+p.grade || 0).toFixed(1) + '" r="5.5"/><text class="vl" x="' + x(i).toFixed(1) + '" y="' + (y(+p.grade || 0) - 11).toFixed(1) + '" text-anchor="middle">' + (+p.grade || 0) + '</text>'; if (n <= 8 || i % 2 === 0 || i === n - 1) s += '<text x="' + x(i).toFixed(1) + '" y="' + (H - 10) + '" text-anchor="middle">' + dshort(p.completed_at).slice(0, 5) + '</text>'; });
+      chartEl.innerHTML = s + '</svg>' + (n === 1 ? '<p class="sn-tnote">bir deneme daha çöz; çizgi buradan başlar.</p>' : '');
+    }
+    /* soru türleri */
+    var by = {}; ex.forEach(function (e) { (e.question_results || []).forEach(function (r) { var t = r.type || 'open_ended'; (by[t] = by[t] || { t: 0, n: 0 }); by[t].t += +r.score || 0; by[t].n++; }); });
+    var rows = Object.keys(by).map(function (k) { return { k: k, a: Math.round(by[k].t / by[k].n), n: by[k].n }; }).sort(function (a, b) { return a.a - b.a; });
+    timeEl.innerHTML = rows.length ? rows.map(function (r) { return '<div class="sn-trow"><span class="nm">' + esc(QT[r.k] || r.k) + '</span><span class="bar" role="img" aria-label="ortalama ' + r.a + '"><i class="' + (r.a < 50 ? 'lo' : r.a < 75 ? 'mid' : '') + '" style="width:' + r.a + '%"></i></span><span class="v">ort. ' + r.a + ' · ' + r.n + ' soru</span></div>'; }).join('') + (rows.length > 1 && rows[0].a < 75 ? '<p class="sn-tnote">en çok zorlandığın: ' + esc(QT[rows[0].k] || rows[0].k) + ' soruları.</p>' : '')
+      : '<p class="sn-empty">denemelerden sonra hangi soru türünde zorlandığını burada görürsün.</p>';
+    /* denemeler */
+    var list = ex.slice().reverse();
+    attsEl.innerHTML = list.length ? list.slice(0, 20).map(function (e) {
+      var gg = Math.round(+e.grade || 0);
+      return '<li tabindex="0" role="button" data-ex="' + esc(e.id) + '" aria-label="' + esc(nameOfKey(keyOfExam(e))) + ' denemesi, ' + gg + ' puan, sonucu aç"><span class="dt">' + dshort(e.completed_at) + '</span><span class="ti">' + esc((TYPE[e.exam_type] || 'deneme') + ' · ' + nameOfKey(keyOfExam(e))) + (e.is_simulation ? ' · ⏱' : '') + '</span><span class="du">' + (e.question_count || (e.question_results || []).length) + ' soru' + (e.difficulty ? ' · ' + (DIFF[e.difficulty] || '') : '') + '</span><span class="sc' + (gg >= 75 ? ' ok' : gg >= 50 ? ' mid' : '') + '">' + gg + '</span></li>';
+    }).join('') : '<li class="sn-empty" style="display:block;border:0">henüz tamamlanmış deneme yok.</li>';
+  };
+  rtabs.addEventListener('click', function (e) { var b = e.target.closest('[data-rk]'); if (b) { rSel = b.getAttribute('data-rk'); paintReport(); } });
+  var openAtt = function (li) { var e = EX.filter(function (x) { return String(x.id) === li.getAttribute('data-ex'); })[0]; if (e) { lastElapsed = null; showExamResults(e); } };
+  attsEl.addEventListener('click', function (e) { var li = e.target.closest('[data-ex]'); if (li) openAtt(li); });
+  attsEl.addEventListener('keydown', function (e) { var li = e.target.closest('[data-ex]'); if (li && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openAtt(li); } });
+
+  /* ---------- hata defteri ---------- */
+  var errsEl = $('[data-errs]');
+  var paintErrs = function () {
+    var groups = {}, total = 0;
+    EX.slice().reverse().forEach(function (e) {
+      var k = keyOfExam(e);
+      (e.question_results || []).forEach(function (r, i) {
+        var g = groups[k] = groups[k] || { key: k, items: [], con: {} };
+        if (r.concept) { (g.con[r.concept] = g.con[r.concept] || { t: 0, n: 0 }); g.con[r.concept].t += +r.score || 0; g.con[r.concept].n++; }
+        var id = e.id + ':' + i;
+        if ((+r.score || 0) < 50 && done.indexOf(id) < 0) { g.items.push({ id: id, r: r }); total++; }
+      });
+    });
+    $('[data-errn]').textContent = total;
+    var gs = Object.keys(groups).map(function (k) { return groups[k]; }).filter(function (g) { return g.items.length; });
+    if (!gs.length) { errsEl.innerHTML = '<p class="sn-empty">' + (EX.length ? 'hata defterin temiz. yanlış yaptıkça buraya yazılır.' : 'henüz yanlış yok. ilk denemeni çözünce yanlışların burada birikir.') + '</p>'; return; }
+    errsEl.innerHTML = gs.map(function (g) {
+      var wk = Object.keys(g.con).map(function (c) { return { c: c, a: Math.round(g.con[c].t / g.con[c].n) }; }).filter(function (x) { return x.a < 75; }).sort(function (a, b) { return a.a - b.a; }).slice(0, 4);
+      var code = g.key.indexOf('c:') === 0 ? g.key.slice(2) : null;
+      var btn = code && wk.length ? '<button type="button" class="btn btn-dark" data-practice="' + esc(code) + '" data-concept="' + esc(wk[0].c) + '">zayıf konudan deneme</button>' : '<button type="button" class="btn btn-dark" data-retry="' + esc(g.key) + '">yeniden deneme</button>';
+      return '<div class="sn-eg"><div class="sn-eg-h"><h3>' + esc(nameOfKey(g.key)) + '</h3><small>' + g.items.length + ' yanlış</small>' + btn + '</div>' +
+        (wk.length ? '<p class="axs-wk">' + wk.map(function (w) { return '<span>' + esc(w.c) + ' <b>' + w.a + '</b></span>'; }).join('') + '</p>' : '') +
+        '<ol>' + g.items.slice(0, 8).map(function (it) {
+          var r = it.r;
+          return '<li><span><span class="q">' + rich(String(r.question || '').slice(0, 220)) + '</span><span class="a">senin: <s>' + esc(String(r.student_answer || '').trim() ? String(r.student_answer).slice(0, 120) : 'boş') + '</s>' + (r.type !== 'open_ended' && r.correct_answer != null && r.correct_answer !== '' ? ' · doğrusu: <b>' + esc(String(r.correct_answer).slice(0, 120)) + '</b>' : '') + '</span></span><button type="button" data-done="' + esc(it.id) + '" aria-label="Öğrendim, defterden sil" title="öğrendim">✓</button></li>';
+        }).join('') + '</ol>' + (g.items.length > 8 ? '<p class="sn-empty" style="font-size:18px">+' + (g.items.length - 8) + ' yanlış daha</p>' : '') + '</div>';
+    }).join('');
+  };
+  errsEl.addEventListener('click', function (e) {
+    var d = e.target.closest('[data-done]');
+    if (d) { var id = d.getAttribute('data-done'); done.push(id); put('acadex.sinav.errs.done', done); paintErrs(); say('Defterden silindi.', function () { done = done.filter(function (x) { return x !== id; }); put('acadex.sinav.errs.done', done); paintErrs(); }); return; }
+    var p = e.target.closest('[data-practice]'); if (p) { practice(p.getAttribute('data-practice'), p.getAttribute('data-concept')); return; }
+    var r = e.target.closest('[data-retry]'); if (r) openBuild(r.getAttribute('data-retry'));
+  });
+  $('[data-goerr]').addEventListener('click', function () { $('#hata-defteri').scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' }); });
+
+  if (typeof revealExamHint === 'function') {
+    var origHint = revealExamHint;
+    revealExamHint = async function (qId) {
+      var r = await origHint.apply(this, arguments);
+      var b = document.getElementById('btn-hint-' + qId), h = document.getElementById('hint-box-' + qId);
+      if (b && b.disabled) { b.textContent = 'ipucu alındı'; b.style.borderColor = ''; b.style.color = ''; }
+      if (h) { var st = h.querySelector('strong'); if (st && /Hint|İpucu/.test(st.textContent)) st.textContent = 'ipucu:'; }
+      return r;
+    };
+    window.revealExamHint = revealExamHint;
+  }
+  var paintAll = function () { paintCal(); paintDesks(); paintReport(); paintErrs(); };
+
+  /* ---------- dashboard.js'in sınav ekranı yerine ---------- */
+  if (typeof loadExamsPlatform === 'function') {
+    var origLoad = loadExamsPlatform;
+    loadExamsPlatform = async function () {
+      var r = await origLoad.apply(this, arguments);
+      var ss = document.getElementById('exam-setup-screen'); if (ss) ss.style.display = '';
+      await loadData();
+      return r;
+    };
+    window.loadExamsPlatform = loadExamsPlatform;
+  }
+  if (typeof cancelExam === 'function') { cancelExam = function () { exitBtn.click(); }; window.cancelExam = cancelExam; }
+  if (typeof backToExamSetup === 'function') { backToExamSetup = function () { closeHall(); return loadExamsPlatform(); }; window.backToExamSetup = backToExamSetup; }
+  paintAll();
+})();

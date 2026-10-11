@@ -794,255 +794,181 @@
       <!-- ==========================================
            TAB 5: EXAM PLATFORM VIEW (SINAV PLATFORMU)
            ========================================== -->
-      <section id="exams-view" class="dashboard-view-section">
-        <!-- 1. Exam Configuration Screen -->
-        <div id="exam-setup-screen">
-          <div class="dashboard-page-header">
-            <h2 class="dashboard-page-title" data-i18n="dash.exams.title">Sınav Platformu</h2>
-            <p class="dashboard-page-desc" data-i18n="dash.exams.desc">Çalışma kartlarınızdan yapay zeka destekli sınavlar oluşturun, kendinizi test edin.</p>
-          </div>
+      <section id="exams-view" class="dashboard-view-section axd axs">
+<div style="display:none" aria-hidden="true">
+<div id="exam-empty-state"></div>
+<div id="exam-active-screen"><h2 id="active-exam-title"></h2><p id="active-exam-desc"></p><div id="exam-timer-display"></div><div id="exam-questions-container"></div></div>
+<div id="exam-results-screen"><div id="result-score-circle"></div><h3 id="result-feedback-title"></h3><p id="result-feedback-desc"></p><div id="result-details-container"></div></div>
+<div id="past-attempts-list"></div><div id="exam-weak-concepts-list"></div>
+</div>
+<div class="main-d sinav" id="exam-setup-screen">
+<header class="d-head land">
+<div class="d-head-l">
+<span class="eyb hand">sınav salonu</span>
+<h1 class="disp">Sınav platformu</h1>
+<p class="d-sub hand">hocanın tarzına göre deneme kur, gerçek süresiyle prova et, karneni izle.</p>
+</div>
+<div class="d-head-r">
+<button type="button" class="hbtn" data-goerr=""><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4 H17 C18 4 19 5 19 6 V20 H7 C6 20 5 19 5 18 V5 C5 4.5 5.5 4 6 4 Z"/><path d="M9.5 9 L14.5 14 M14.5 9 L9.5 14"/></svg>hata defteri <b data-errn="">0</b></button>
+<button type="button" class="hbtn axs-calc" onclick="openGradeCalculator()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5 H18 V20.5 H6 Z"/><path d="M9 7.5 H15 M9 12 H10 M12 12 H13 M15 12 H15.5 M9 16 H10 M12 16 H13 M15 16 H15.5"/></svg>not hesapla</button>
+<button type="button" class="btn btn-dark sn-new" data-build=""><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.5 H15 L19 7.5 V20.5 H7 Z"/><path d="M10 11 H16 M10 14.5 H16 M10 18 H13"/></svg>yeni sınav hazırla</button>
+</div>
+</header>
 
-          <div id="exam-empty-state" class="empty-state" style="display: none;">
-            <svg class="empty-state-icon" xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-              <polyline points="14 2 14 8 20 8"></polyline>
-            </svg>
-            <h3 class="empty-state-title" data-i18n="dash.exams.emptyTitle">Öncelikle bir belge özetlemelisiniz</h3>
-            <p class="empty-state-text" data-i18n="dash.exams.emptyText">Sınav oluşturmak için en az bir adet özetlenmiş belgenizin olması gerekir. <a href="#" onclick="switchDashboardView('docs')" style="color: var(--color-teal); text-decoration: underline;">Belgelerim</a> sekmesinden dosya yükleyip özetleyebilirsiniz.</p>
-          </div>
+<section class="sn-door land" aria-labelledby="cal-t">
+<div class="sn-door-frame" aria-hidden="true"><i class="sn-knob"></i><span class="sn-plate">B-112 · SINAV SALONU</span></div>
+<div class="sn-notice">
+<i class="sn-tape l" aria-hidden="true"></i><i class="sn-tape r" aria-hidden="true"></i>
+<div class="sn-notice-h"><h2 id="cal-t" class="disp">sınav takvimi</h2><button type="button" class="sn-lnk" data-cal-add="">+ tarih ekle</button></div>
+<ol class="sn-cal" data-cal=""><li class="sn-cal-empty">takvim açılıyor…</li></ol>
+<p class="sn-cal-tip hand" data-cal-tip=""></p>
+</div>
+</section>
 
-          <div id="exam-setup-content" style="display: none; flex-direction: column; gap: 1.5rem;">
-            <!-- Source selector card -->
-            <div class="doc-card" style="box-shadow: var(--shadow-sm); padding: 1.5rem;">
-              <div style="margin-bottom: 1.5rem;">
-                <span style="display: block; font-size: 0.9rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.75rem;">Kaynak</span>
-                <div class="exam-type-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
-                  <label class="exam-type-option" style="display: block; cursor: pointer;">
-                    <input type="radio" name="exam-source" value="study_card" checked style="display: none;" onchange="onExamSourceChange()">
-                    <div class="option-box">
-                      <strong>Çalışma Kartım</strong>
-                      <span>Daha önce özetlediğiniz bir belgeden sınav oluşturun.</span>
-                    </div>
-                  </label>
-                  <label class="exam-type-option" style="display: block; cursor: pointer;">
-                    <input type="radio" name="exam-source" value="course" style="display: none;" onchange="onExamSourceChange()">
-                    <div class="option-box">
-                      <strong>Ders Ağacından</strong>
-                      <span>Bölümünüzün müfredatındaki bir dersten doğrudan sınav oluşturun — özet gerekmez.</span>
-                    </div>
-                  </label>
-                </div>
-              </div>
+<section class="sn-room" aria-labelledby="room-t">
+<div class="sn-sec-h"><h2 class="hd" id="room-t">sıralar <small class="hand">her sıra bir ders</small></h2></div>
+<div class="sn-desks" data-desks=""></div>
+</section>
 
-              <!-- Study Card source -->
-              <div id="exam-card-source-wrap" style="margin-bottom: 1.5rem;">
-                <label for="exam-card-select" style="display: block; font-size: 0.9rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.5rem;" data-i18n="dash.exams.cardSelect">Çalışma Kartı Seçin</label>
-                <select id="exam-card-select" class="font-size-select" style="width: 100%; max-width: 500px; padding: 0.6rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); font-size: 0.85rem;" onchange="onExamCardChange()">
-                  <!-- Dynamically populated -->
-                </select>
-                <p id="exam-card-empty-hint" style="display: none; font-size: 0.8rem; color: var(--color-text-muted); margin-top: 0.5rem;">Henüz bir çalışma kartınız yok. <a href="#" onclick="switchDashboardView('docs')" style="color: var(--color-teal); text-decoration: underline;">Belgelerim</a> sekmesinden dosya yükleyip özetleyebilir, ya da "Ders Ağacından" kaynağını seçip özet gerektirmeden sınav oluşturabilirsiniz.</p>
-              </div>
+<section class="sn-report" aria-labelledby="rep-t" data-report="">
+<div class="sn-sec-h"><h2 class="hd" id="rep-t">karne</h2><div class="sn-rtabs" role="tablist" aria-label="Ders seç" data-rtabs=""></div></div>
+<div class="sn-rep-grid">
+<div class="sn-card sn-chart-c"><h3 class="sn-k">deneme puanları</h3><div class="sn-chart" data-chart=""></div></div>
+<div class="sn-card sn-time-c"><h3 class="sn-k">soru türlerine göre</h3><div data-time=""></div></div>
+<div class="sn-card sn-atts-c"><h3 class="sn-k">denemeler</h3><ol class="sn-atts" data-atts=""></ol></div>
+</div>
+</section>
 
-              <!-- Course (Ders Ağacı) source -->
-              <div id="exam-course-source-wrap" style="display: none; margin-bottom: 1.5rem;">
-                <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
-                  <div style="flex: 1; min-width: 200px;">
-                    <label for="exam-course-dept-select" style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.4rem;">Bölüm</label>
-                    <select id="exam-course-dept-select" class="font-size-select" style="width: 100%; padding: 0.6rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); font-size: 0.85rem;" onchange="onExamCourseDeptChange()">
-                      <option value="">Yükleniyor...</option>
-                    </select>
-                  </div>
-                  <div style="flex: 1; min-width: 200px;">
-                    <label for="exam-course-select" style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.4rem;">Ders</label>
-                    <select id="exam-course-select" class="font-size-select" style="width: 100%; padding: 0.6rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); font-size: 0.85rem;" onchange="onExamCourseChange()">
-                      <option value="">Önce bölüm seçin</option>
-                    </select>
-                  </div>
-                </div>
-                <p id="exam-course-grounded-hint" style="font-size: 0.8rem; color: var(--color-text-muted); margin-top: 0.6rem;"></p>
-                <div id="exam-focus-concept-banner" style="display: none; align-items: center; justify-content: space-between; gap: 0.75rem; background: rgba(31,138,147,0.08); border: 1px solid rgba(31,138,147,0.25); color: var(--color-teal); padding: 0.6rem 0.9rem; border-radius: var(--radius-sm); font-size: 0.8rem; margin-top: 0.6rem;">
-                  <span id="exam-focus-concept-text"></span>
-                  <button type="button" onclick="clearExamFocusConcept()" style="background: none; border: none; color: var(--color-teal); font-weight: 700; cursor: pointer; font-size: 0.9rem;" title="Odağı kaldır">✕</button>
-                </div>
-              </div>
+<section class="sn-errs" aria-labelledby="err-t" id="hata-defteri">
+<div class="sn-sec-h"><h2 class="hd" id="err-t">hata defteri</h2><small class="hand">yanlışların ve zayıf konuların burada birikir; o konudan yeni deneme kur.</small></div>
+<div class="sn-err-wrap" data-errs=""></div>
+</section>
 
-              <!-- Setup parameters -->
-              <div id="exam-form-params" style="display: none;">
-                <!-- Exam Type -->
-                <div style="margin-bottom: 1.5rem;">
-                  <span style="display: block; font-size: 0.9rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.75rem;" data-i18n="dash.exams.typeTitle">Sınav Türü</span>
-                  <div class="exam-type-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
-                    <label class="exam-type-option" style="display: block; cursor: pointer;">
-                      <input type="radio" name="exam-type" value="classic" checked style="display: none;">
-                      <div class="option-box">
-                        <strong data-i18n="dash.exams.typeClassic">Klasik Sınav</strong>
-                        <span data-i18n="dash.exams.typeClassicSub">Tüm sorular açık uçludur. Yapay zeka tarafından değerlendirilir.</span>
-                      </div>
-                    </label>
-                    <label class="exam-type-option" style="display: block; cursor: pointer;">
-                      <input type="radio" name="exam-type" value="test" style="display: none;">
-                      <div class="option-box">
-                        <strong data-i18n="dash.exams.typeTest">Çoktan Seçmeli (Test)</strong>
-                        <span data-i18n="dash.exams.typeTestSub">Tüm sorular 4 şıklı test formatındadır. Tek bir doğru cevap vardır.</span>
-                      </div>
-                    </label>
-                    <label class="exam-type-option" style="display: block; cursor: pointer;">
-                      <input type="radio" name="exam-type" value="mixed" style="display: none;">
-                      <div class="option-box">
-                        <strong data-i18n="dash.exams.typeMixed">Karışık Sınav</strong>
-                        <span data-i18n="dash.exams.typeMixedSub">Doğru/Yanlış ve Boşluk Doldurma sorularından oluşan karışık test.</span>
-                      </div>
-                    </label>
-                    <label class="exam-type-option" id="exam-type-option-calc" style="display: block; cursor: pointer;">
-                      <input type="radio" name="exam-type" value="calculation" style="display: none;">
-                      <div class="option-box">
-                        <strong data-i18n="dash.exams.typeCalc">Hesaplama Sınavı</strong>
-                        <span data-i18n="dash.exams.typeCalcSub">Formül uygulaması ve sayısal işlem bazlı hesaplama soruları.</span>
-                      </div>
-                    </label>
-                  </div>
-                  <span id="exam-calc-hint" style="display: none; font-size: 0.75rem; color: var(--color-text-muted); margin-top: 0.5rem; font-weight: 500;" data-i18n="dash.exams.calcOnlyQuant">* Hesaplama sınavı seçeneği sadece Sayısal Dersler için kullanılabilir.</span>
-                </div>
+<!-- hoca dosyası -->
+<dialog class="sn-dlg" data-profdlg="" aria-labelledby="pf-t">
+<form class="sn-dlg-in sn-folder" data-proff="">
+<button type="button" class="sn-x" data-dlg-x="" aria-label="Kapat">×</button>
+<span class="sn-tab" aria-hidden="true">HOCA DOSYASI</span>
+<h2 id="pf-t" class="disp" data-pf-h="">hocanın tarzı</h2>
+<div class="sn-f2">
+<label class="sn-f"><span>ders adı</span><input type="text" maxlength="40" data-pf-name="" required></label>
+<label class="sn-f"><span>hoca <small>(isteğe bağlı)</small></span><input type="text" maxlength="40" data-pf-who="" placeholder="ör. Doç. Dr. …"></label>
+</div>
+<div class="sn-f3">
+<label class="sn-f"><span>genelde sorduğu</span><select data-pf-type=""><option value="classic">klasik</option><option value="test">test</option><option value="mixed">karışık (D/Y, boşluk)</option><option value="calculation">hesaplama</option></select></label>
+<label class="sn-f"><span>zorluk</span><select data-pf-diff=""><option value="easy">kolay</option><option value="medium" selected>orta</option><option value="hard">zor</option></select></label>
+<label class="sn-f"><span>hedef puan</span><select data-pf-target=""><option>50</option><option>60</option><option selected>70</option><option>80</option><option>90</option></select></label>
+</div>
+<div class="sn-f2">
+<label class="sn-f"><span>sınav dili</span><select data-pf-lang=""><option value="en">English</option><option value="tr">Türkçe</option></select></label>
+<label class="sn-f sn-chk"><input type="checkbox" data-pf-sim=""><span>hep gerçek süreyle prova et</span></label>
+</div>
+<label class="sn-f"><span>hocanın alışkanlıkları</span><textarea rows="2" maxlength="200" data-pf-note="" placeholder="ör. hep vaka sorar, formül kâğıdı vermez, essay’de örnek ister"></textarea></label>
+<p class="axs-pf-n">Bu dosya yeni deneme hazırlarken varsayılanları doldurur. Bu tarayıcıda saklanır.</p>
+<div class="sn-dlg-b"><button type="button" class="sn-ghost danger" data-pf-del="">sırayı kaldır</button><span></span><button type="button" class="sn-ghost" data-dlg-x="">vazgeç</button><button type="submit" class="btn btn-dark">dosyaya kaydet</button></div>
+</form>
+</dialog>
 
-                <!-- Difficulty Level -->
-                <div style="margin-bottom: 1.5rem;">
-                  <span style="display: block; font-size: 0.9rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.75rem;" data-i18n="dash.exams.difficultyTitle">Zorluk Seviyesi</span>
-                  <div class="exam-type-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem;">
-                    <label class="exam-type-option" style="display: block; cursor: pointer;">
-                      <input type="radio" name="exam-difficulty" value="easy" style="display: none;">
-                      <div class="option-box">
-                        <strong data-i18n="dash.exams.diffEasy">Kolay</strong>
-                        <span data-i18n="dash.exams.diffEasySub">Temel hatırlama ve tanımlar. Konuya yeni başlarken idealdir.</span>
-                      </div>
-                    </label>
-                    <label class="exam-type-option" style="display: block; cursor: pointer;">
-                      <input type="radio" name="exam-difficulty" value="medium" checked style="display: none;">
-                      <div class="option-box">
-                        <strong data-i18n="dash.exams.diffMedium">Orta</strong>
-                        <span data-i18n="dash.exams.diffMediumSub">Kavrama ve uygulama düzeyinde, sınava hazırlık için dengeli.</span>
-                      </div>
-                    </label>
-                    <label class="exam-type-option" style="display: block; cursor: pointer;">
-                      <input type="radio" name="exam-difficulty" value="hard" style="display: none;">
-                      <div class="option-box">
-                        <strong data-i18n="dash.exams.diffHard">Zor</strong>
-                        <span data-i18n="dash.exams.diffHardSub">Analiz ve senaryo bazlı sorular. İleri düzey tekrar için.</span>
-                      </div>
-                    </label>
-                  </div>
-                </div>
+<!-- sınav hazırla (dashboard.js'in sınav kurulum alanları burada) -->
+<dialog class="sn-dlg sn-wide" data-builddlg="" aria-labelledby="bd-t">
+<div class="sn-dlg-in sn-build" id="exam-setup-content">
+<button type="button" class="sn-x" data-dlg-x="" aria-label="Kapat">×</button>
+<div class="sn-bd-form">
+<h2 id="bd-t" class="disp">sınav kâğıdı hazırla</h2>
+<fieldset class="sn-f sn-srcs axs-srcs"><legend>sorular nereden?</legend>
+<label><input type="radio" name="exam-source" value="study_card" checked onchange="onExamSourceChange()"><span><b>belgem</b><small>özetlediğin bir belgeden</small></span></label>
+<label><input type="radio" name="exam-source" value="course" onchange="onExamSourceChange()"><span><b>ders ağacı</b><small>müfredattaki bir dersten, özet gerekmez</small></span></label>
+</fieldset>
+<div id="exam-card-source-wrap">
+<label class="sn-f"><span>hangi belge?</span><select id="exam-card-select" onchange="onExamCardChange()"></select></label>
+<p id="exam-card-empty-hint" class="sn-bd-src" style="display:none">Henüz özetlenmiş belgen yok. Belgelerim'den bir belge yükleyip özetleyebilir ya da “ders ağacı”nı seçebilirsin.</p>
+</div>
+<div id="exam-course-source-wrap" style="display:none">
+<div class="sn-f2">
+<label class="sn-f"><span>bölüm</span><select id="exam-course-dept-select" onchange="onExamCourseDeptChange()"><option value="">yükleniyor…</option></select></label>
+<label class="sn-f"><span>ders</span><select id="exam-course-select" onchange="onExamCourseChange()"><option value="">önce bölüm seç</option></select></label>
+</div>
+<p id="exam-course-grounded-hint" class="sn-bd-src"></p>
+<label class="sn-f"><span>odak konu <small>(isteğe bağlı)</small></span><input type="text" maxlength="80" data-bd-topic="" placeholder="ör. varyans ve standart sapma"></label>
+<div id="exam-focus-concept-banner" class="axs-focus" style="display:none"><span id="exam-focus-concept-text"></span><button type="button" onclick="clearExamFocusConcept()" aria-label="Odağı kaldır">×</button></div>
+</div>
+<div id="exam-form-params">
+<fieldset class="sn-f"><legend>soru türü</legend>
+<div class="axs-types">
+<label class="axs-opt"><input type="radio" name="exam-type" value="classic" checked><span><b>klasik</b><small>açık uçlu, yapay zeka okur</small></span></label>
+<label class="axs-opt"><input type="radio" name="exam-type" value="test"><span><b>test</b><small>4 şıklı, tek doğru</small></span></label>
+<label class="axs-opt"><input type="radio" name="exam-type" value="mixed"><span><b>karışık</b><small>doğru-yanlış ve boşluk</small></span></label>
+<label class="axs-opt" id="exam-type-option-calc"><input type="radio" name="exam-type" value="calculation"><span><b>hesaplama</b><small>formül ve sayısal işlem</small></span></label>
+</div>
+<small id="exam-calc-hint" class="axs-hint" style="display:none">hesaplama sınavı yalnızca sayısal derslerde açılır.</small>
+</fieldset>
+<fieldset class="sn-f"><legend>zorluk</legend>
+<div class="axs-types three">
+<label class="axs-opt"><input type="radio" name="exam-difficulty" value="easy"><span><b>kolay</b><small>tanım ve hatırlama</small></span></label>
+<label class="axs-opt"><input type="radio" name="exam-difficulty" value="medium" checked><span><b>orta</b><small>kavrama ve uygulama</small></span></label>
+<label class="axs-opt"><input type="radio" name="exam-difficulty" value="hard"><span><b>zor</b><small>analiz ve senaryo</small></span></label>
+</div>
+</fieldset>
+<div class="sn-f3">
+<label class="sn-f axs-cnt"><span>soru sayısı</span><span class="sn-mx on"><button type="button" data-cnt="-1" aria-label="Bir azalt">−</button><input type="number" id="exam-question-count" value="10" min="1" max="20" aria-label="Soru sayısı"><button type="button" data-cnt="1" aria-label="Bir artır">+</button></span><small id="exam-question-count-range-hint" class="axs-hint"></small></label>
+<fieldset class="sn-f axs-lang"><legend>dil</legend><label><input type="radio" name="exam-lang" value="en" checked><span>English</span></label><label><input type="radio" name="exam-lang" value="tr"><span>Türkçe</span></label></fieldset>
+<label class="sn-f sn-chk"><input type="checkbox" id="exam-simulation-toggle"><span>gerçek sınav provası <small>süreli, ipucu yok, süre bitince teslim</small></span></label>
+</div>
+<p class="sn-err" data-bd-err="" role="alert" hidden></p>
+<div class="sn-dlg-b"><span class="axs-bd-note hand" data-bd-note=""></span><button type="button" class="sn-ghost" data-dlg-x="">vazgeç</button><button type="button" class="btn btn-blue" id="btn-generate-exam" onclick="generateExam()">kitapçığı dağıt</button></div>
+</div>
+</div>
+<div class="sn-bd-prev" aria-hidden="true"><div class="sn-cover" data-bd-cover=""></div></div>
+</div>
+</dialog>
 
-                <!-- Language Selection -->
-                <div style="margin-bottom: 1.5rem;">
-                  <span style="display: block; font-size: 0.9rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.5rem;" data-i18n="dash.exams.langTitle">Sınav Dili</span>
-                  <div style="display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap;">
-                    <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; font-weight: 600; cursor: pointer;">
-                      <input type="radio" name="exam-lang" value="en" checked> English
-                    </label>
-                    <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; font-weight: 600; cursor: pointer;">
-                      <input type="radio" name="exam-lang" value="tr"> Türkçe
-                    </label>
-                    <span style="font-size: 0.75rem; color: var(--color-text-muted);" data-i18n="dash.exams.langHint">* English is recommended since courses are taught in English.</span>
-                  </div>
-                </div>
+<!-- takvim -->
+<dialog class="sn-dlg" data-caldlg="" aria-labelledby="cl-t">
+<form class="sn-dlg-in" data-calf="">
+<button type="button" class="sn-x" data-dlg-x="" aria-label="Kapat">×</button>
+<h2 id="cl-t" class="disp">takvime sınav ekle</h2>
+<label class="sn-f"><span>ders</span><input type="text" maxlength="60" data-cl-course="" list="axs-courses" required placeholder="ör. FIN201 Finansal Yönetim"><datalist id="axs-courses"></datalist></label>
+<div class="sn-f2">
+<label class="sn-f"><span>tür</span><select data-cl-kind=""><option>vize</option><option>final</option><option>quiz</option><option>bütünleme</option></select></label>
+<label class="sn-f"><span>tarih</span><input type="date" data-cl-date="" required></label>
+</div>
+<p class="axs-pf-n">Tarih çalışma planlayıcına da “sınav” olarak düşer.</p>
+<div class="sn-dlg-b"><span></span><button type="button" class="sn-ghost" data-dlg-x="">vazgeç</button><button type="submit" class="btn btn-dark">kapıya as</button></div>
+</form>
+</dialog>
+</div>
 
-                <!-- Question Count -->
-                <div style="margin-bottom: 1.5rem;">
-                  <div style="display: flex; align-items: center; gap: 0.5rem;">
-                    <input type="number" id="exam-question-count" value="10" min="1" max="20" style="width: 100px; padding: 0.5rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); font-size: 0.85rem;">
-                    <span id="exam-question-count-range-hint" style="font-size: 0.75rem; color: var(--color-text-muted); font-weight: 600;">(Range: 1 - 20)</span>
-                  </div>
-                </div>
-
-                <!-- Real Exam Simulation Mode -->
-                <div style="margin-bottom: 2rem; padding: 1rem; background: var(--color-bg); border-radius: var(--radius-sm); border: 1px solid rgba(22,50,92,0.08);">
-                  <label style="display: flex; align-items: center; gap: 0.6rem; cursor: pointer; font-size: 0.9rem; font-weight: 700; color: var(--color-navy);">
-                    <input type="checkbox" id="exam-simulation-toggle" style="width: 18px; height: 18px; margin-right: 0.6rem;">
-                    ⏱️ Gerçek Sınav Simülasyonu
-                  </label>
-                  <p style="font-size: 0.78rem; color: var(--color-text-muted); margin-top: 0.4rem; margin-left: 1.8rem;">Süreli, tek çekimlik mod: ipuçları kapalı, süre dolunca sınav otomatik gönderilir. Gerçek vize/final koşullarına alışmak için kullanın.</p>
-                </div>
-
-                <!-- Generate Trigger -->
-                <button class="btn btn-primary" id="btn-generate-exam" onclick="generateExam()" style="border: none; padding: 0.75rem 2rem;" data-i18n="dash.exams.generateBtn">Sınavı Oluştur</button>
-              </div>
-            </div>
-
-            <!-- Weak Concept Map -->
-            <div class="past-attempts-card" style="box-shadow: var(--shadow-sm); padding: 1.5rem; background-color: var(--color-white); border-radius: var(--radius-md);">
-              <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.25rem; border-bottom: 1px solid rgba(22,50,92,0.08); padding-bottom: 0.5rem;">📊 Zayıf Konularınız</h3>
-              <p style="font-size: 0.78rem; color: var(--color-text-muted); margin: 0.5rem 0 0.75rem;">Tüm sınav denemeleriniz birleştirilerek en düşük ortalamaya sahip konular aşağıda listelenir.</p>
-              <div id="exam-weak-concepts-list">
-                <!-- Populated dynamically -->
-              </div>
-            </div>
-
-            <!-- Past Attempts list -->
-            <div class="past-attempts-card" style="box-shadow: var(--shadow-sm); padding: 1.5rem; background-color: var(--color-white); border-radius: var(--radius-md);">
-              <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(22,50,92,0.08); padding-bottom: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
-                <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--color-navy);" data-i18n="dash.exams.pastAttempts">Geçmiş Sınav Denemeleri</h3>
-                <button type="button" class="btn btn-outline" style="padding: 0.4rem 0.8rem; font-size: 0.78rem;" onclick="openGradeCalculator()">🎯 Not Hesaplayıcı</button>
-              </div>
-              <div id="past-attempts-list">
-                <!-- Populated dynamically -->
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 2. Active Exam Sheet Screen -->
-        <div id="exam-active-screen" style="display: none;">
-          <div class="dashboard-page-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(22,50,92,0.08); padding-bottom: 1rem;">
-            <div>
-              <h2 class="dashboard-page-title" id="active-exam-title">Sınav</h2>
-              <p class="dashboard-page-desc" id="active-exam-desc">Lütfen tüm soruları dikkatlice cevaplayın.</p>
-            </div>
-            <div style="display: flex; align-items: center; gap: 1rem;">
-              <div id="exam-timer-display" style="display: none; font-size: 1.15rem; font-weight: 800; color: var(--color-navy); background: var(--color-bg); border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); padding: 0.5rem 1rem;">⏱️ --:--</div>
-              <button class="btn btn-outline" onclick="cancelExam()" style="padding: 0.5rem 1rem;" data-i18n="dash.exams.cancel">Sınavdan Çık</button>
-            </div>
-          </div>
-
-          <div id="exam-questions-container" style="margin: 2rem 0; display: flex; flex-direction: column; gap: 1.5rem;">
-            <!-- Questions rendered dynamically -->
-          </div>
-
-          <div style="display: flex; gap: 1rem; margin-top: 2rem; border-top: 1px solid rgba(22,50,92,0.08); padding-top: 1.5rem;">
-            <button class="btn btn-primary" id="btn-submit-exam" onclick="submitExam()" style="border: none; padding: 0.75rem 2.5rem;" data-i18n="dash.exams.submit">Sınavı Tamamla ve Gönder</button>
-          </div>
-        </div>
-
-        <!-- 3. Exam Results Screen -->
-        <div id="exam-results-screen" style="display: none;">
-          <div class="dashboard-page-header">
-            <h2 class="dashboard-page-title" data-i18n="dash.exams.resultsTitle">Sınav Sonucu</h2>
-            <p class="dashboard-page-desc" data-i18n="dash.exams.resultsDesc">Yapay zeka tarafından değerlendirilen sınav sonuçlarınız.</p>
-          </div>
-
-          <div class="results-container" style="display: flex; flex-direction: column; gap: 1.5rem;">
-            <!-- Score box -->
-            <div class="results-score-card" style="display: flex; gap: 2rem; align-items: center; padding: 2rem; background: var(--color-white); border-radius: var(--radius-md); box-shadow: var(--shadow-sm);">
-              <div class="score-circle-container" style="position: relative;">
-                <div class="score-circle" id="result-score-circle" style="width: 100px; height: 100px; border-radius: 50%; background: var(--color-teal-light); color: var(--color-teal); display: flex; align-items: center; justify-content: center; font-size: 2.25rem; font-weight: 800;">0</div>
-                <div class="score-label" style="text-align: center; font-size: 0.75rem; font-weight: 700; color: var(--color-text-muted); margin-top: 0.25rem;" data-i18n="dash.exams.totalScore">Toplam Puan</div>
-              </div>
-              <div class="score-feedback-text">
-                <h3 id="result-feedback-title" style="font-size: 1.25rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.5rem;" data-i18n="dash.exams.completed">Sınav Tamamlandı</h3>
-                <p id="result-feedback-desc" style="font-size: 0.9rem; color: var(--color-text-muted);" data-i18n="dash.exams.completedDesc">Aşağıdan detaylı soru analizlerini inceleyebilirsiniz.</p>
-              </div>
-            </div>
-
-            <!-- Detailed Question Results -->
-            <div id="result-details-container" style="display: flex; flex-direction: column; gap: 1.5rem;">
-              <!-- Dynamic details -->
-            </div>
-
-            <div>
-              <button class="btn btn-primary" onclick="backToExamSetup()" style="border: none; padding: 0.75rem 2rem;" data-i18n="dash.exams.backToSetup">Sınav Kütüphanesine Dön</button>
-            </div>
-          </div>
-        </div>
-      </section>
+<!-- SALON: sınav anı ve sonuç (açılınca body'ye taşınır) -->
+<div id="axs-layer">
+<div class="sn-hall" data-hall="" role="dialog" aria-modal="true" aria-labelledby="hl-t" hidden>
+<div class="sn-hall-top">
+<div class="sn-hall-l"><span class="sn-k" data-hl-course=""></span><h2 id="hl-t" class="disp" data-hl-title="">deneme</h2></div>
+<div class="sn-clockw" data-clockw=""><svg class="sn-clock" viewBox="0 0 100 100" aria-hidden="true" data-clock=""><circle class="face" cx="50" cy="50" r="46"/><path class="wedge" data-wedge="" d=""/><g class="ticks" data-ticks=""></g><circle class="hub" cx="50" cy="50" r="4"/></svg><div><span class="sn-left" data-left="" role="timer" aria-live="off">00:00</span><small data-left-note="">kalan süre</small></div></div>
+<div class="sn-hall-r"><span class="sn-tabw" data-tabw="" hidden></span><button type="button" class="sn-ghost" data-exit="">çık</button><button type="button" class="btn btn-blue" id="btn-submit-exam" data-submit="">kâğıdı teslim et</button></div>
+</div>
+<div class="sn-hall-main" data-hall-main="">
+<div class="sn-deskbig">
+<div class="sn-book" data-book=""></div>
+</div>
+<aside class="sn-optik" aria-label="Optik form ve soru haritası">
+<p class="sn-k">optik form</p>
+<p class="sn-opt-name">AD SOYAD <b data-opt-name=""></b></p>
+<ol class="sn-opt" data-opt=""></ol>
+<p class="sn-opt-leg"><span><i class="f"></i>cevaplı</span><span><i class="g"></i>işaretli</span><span><i></i>boş</span></p>
+</aside>
+</div>
+<div class="sn-res" data-res="" hidden></div>
+<dialog class="sn-dlg" data-subdlg="" aria-labelledby="sb-t">
+<form method="dialog" class="sn-dlg-in">
+<h2 id="sb-t" class="disp" data-sb-h="">kâğıdı teslim ediyor musun?</h2>
+<p data-sb-info=""></p>
+<div class="sn-dlg-b"><span></span><button type="submit" class="sn-ghost" value="no" data-sb-no="">devam et</button><button type="submit" class="btn btn-dark" value="ok" data-sb-ok="">teslim et</button></div>
+</form>
+</dialog>
+</div>
+<div class="toast" data-toast="" role="status" aria-live="polite" hidden><span data-toast-t=""></span><a data-toast-a="" href="#planner" hidden>planlayıcıya git →</a><button type="button" data-toast-b="" hidden>geri al</button></div>
+</div>
+</section>
 
       <!-- ==========================================
            TAB: AKADEMIK SUNUM (Academic Presentation Studio)
