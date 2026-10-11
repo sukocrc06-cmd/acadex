@@ -2471,6 +2471,11 @@
       var cr = root.querySelector('input[name="exam-source"][value="course"]'); if (cr) cr.checked = true;
       await (typeof onExamSourceChange === 'function' ? onExamSourceChange() : null);
     } else await (typeof onExamSourceChange === 'function' ? onExamSourceChange() : null);
+    var pf = get('acadex.prefs', {});
+    if (pf.examLang) checkRadio('exam-lang', pf.examLang);
+    if (pf.examDiff) checkRadio('exam-difficulty', pf.examDiff);
+    if (pf.examCount) { countEl.value = pf.examCount; countEl.dispatchEvent(new Event('change')); }
+    if (pf.examSim != null) $('#exam-simulation-toggle').checked = !!pf.examSim;
     if (h.type) checkRadio('exam-type', h.type);
     if (h.diff) checkRadio('exam-difficulty', h.diff);
     if (h.lang) checkRadio('exam-lang', h.lang);
@@ -2879,4 +2884,264 @@
   if (typeof cancelExam === 'function') { cancelExam = function () { exitBtn.click(); }; window.cancelExam = cancelExam; }
   if (typeof backToExamSetup === 'function') { backToExamSetup = function () { closeHall(); return loadExamsPlatform(); }; window.backToExamSetup = backToExamSetup; }
   paintAll();
+})();
+
+/* ================= AYARLAR (tam tasarım, gerçek profil) =================
+   Profil, kapak ve avatar, bildirim tercihleri, şifre ve hesap silme dashboard.js'in kendi
+   fonksiyonlarıyla Supabase'e yazılır (saveProfileSettings, uploadProfilePhoto,
+   uploadProfileBanner, saveNotificationPrefs, changeUserPassword, openDeleteAccountModal).
+   Görünüm, erişilebilirlik ve çalışma tercihleri bu tarayıcıda (acadex.prefs) saklanır ve
+   sayfa her açıldığında uygulanır. */
+(function () {
+  'use strict';
+  var PK = 'acadex.prefs';
+  var getP = function () { try { return JSON.parse(localStorage.getItem(PK)) || {}; } catch (e) { return {}; } };
+  var P = getP();
+  var putP = function () { try { localStorage.setItem(PK, JSON.stringify(P)); } catch (e) {} };
+  var html = document.documentElement;
+  var applyGlobal = function () {
+    html.classList.toggle('axa-rm', !!P.rm); html.classList.toggle('axa-hc', !!P.hc); html.classList.toggle('axa-dys', !!P.dys);
+    var c = document.querySelector('.dashboard-content'); if (c) c.style.zoom = P.fs && +P.fs !== 100 ? (+P.fs / 100) : '';
+  };
+  applyGlobal();
+  /* klavye kısayolları kapalıysa sayfa kısayollarını durdur (yazı alanlarında zaten çalışmazlar) */
+  window.addEventListener('keydown', function (e) {
+    if (P.ks !== false) return;
+    var t = e.target; if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (/^(\/| |ArrowLeft|ArrowRight|[a-eA-E1-8])$/.test(e.key)) e.stopImmediatePropagation();
+  }, true);
+
+  var root = document.getElementById('settings-view');
+  if (!root || !root.classList.contains('axa')) return;
+  var $ = function (s, r) { return (r || root).querySelector(s); };
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || root).querySelectorAll(s)); };
+  var lsafe = function (fn, fb) { try { return fn(); } catch (e) { return fb; } };
+  var me = function () { return lsafe(function () { return currentUser; }, null) || window.currentUser || null; };
+  var sb = function () { return typeof supabaseClient !== 'undefined' ? supabaseClient : null; };
+  var esc = function (t) { return String(t == null ? '' : t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  $$('.land').forEach(function (el, i) { el.style.setProperty('--hr', (((i * 37) % 11 - 5) * 0.2).toFixed(2) + 'deg'); });
+
+  /* bildirim */
+  var toast = $('[data-toast]'), toastT = $('[data-toast-t]'), toastB = $('[data-toast-b]'), toastTimer = 0, undoFn = null;
+  var say = function (t, undo) { toastT.textContent = t; undoFn = undo || null; toastB.hidden = !undo; toast.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(function () { toast.hidden = true; undoFn = null; }, 5000); };
+  toastB.addEventListener('click', function () { if (undoFn) undoFn(); toast.hidden = true; undoFn = null; });
+  var savedMark = function () { var s = $('.axa-pg:not([hidden]) [data-sav]'); if (!s) return; s.classList.remove('on'); void s.offsetWidth; s.classList.add('on'); };
+
+  if (typeof showDashboardAlert === 'function') {
+    var origAlert = showDashboardAlert, TR = { 'Profile updated!': 'Profil kaydedildi.', 'Password updated successfully!': 'Şifren güncellendi.', 'Exam reminders enabled successfully!': 'Sınav hatırlatmaları açıldı.' };
+    showDashboardAlert = function (type, msg) {
+      if (root.classList.contains('active')) { say(TR[msg] || msg); return; }
+      return origAlert.apply(this, arguments);
+    };
+    window.showDashboardAlert = showDashboardAlert;
+  }
+
+  /* ---------- bölümler (sekmeler) ---------- */
+  var tabs = $$('[data-sec]'), cur = null;
+  var show = function (k, focus) {
+    var t = $('[data-sec="' + k + '"]'); if (!t) return; cur = k;
+    tabs.forEach(function (b) { var on = b === t; b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1; });
+    $$('[data-pg]').forEach(function (p) { var on = p.getAttribute('data-pg') === k; if (on && p.hidden) { p.hidden = false; p.classList.remove('in'); void p.offsetWidth; p.classList.add('in'); } else if (!on) p.hidden = true; });
+    if (focus) t.focus();
+    try { history.replaceState(null, '', '#settings'); } catch (e) {}
+    try { sessionStorage.setItem('acadex.ayar.sec', k); } catch (e) {}
+    if (k === 'plan') paintUse();
+    if (k === 'cihaz') paintDev();
+    if (k === 'bildirim') paintPerm();
+  };
+  $('[data-tabs]').addEventListener('click', function (e) { var b = e.target.closest('[data-sec]'); if (b) show(b.getAttribute('data-sec')); });
+  $('[data-tabs]').addEventListener('keydown', function (e) {
+    var vis = tabs.filter(function (b) { return !b.hidden; }), i = vis.indexOf(document.activeElement); if (i < 0) return;
+    var n = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[e.key];
+    if (n) { e.preventDefault(); e.stopPropagation(); var t = vis[(i + n + vis.length) % vis.length]; show(t.getAttribute('data-sec'), true); }
+    else if (e.key === 'Home' || e.key === 'End') { e.preventDefault(); var t2 = e.key === 'Home' ? vis[0] : vis[vis.length - 1]; show(t2.getAttribute('data-sec'), true); }
+  });
+  document.addEventListener('keydown', function (e) {
+    if (!root.classList.contains('active') || P.ks === false || e.ctrlKey || e.metaKey || e.altKey) return;
+    var t = e.target; if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+    if (/^[1-8]$/.test(e.key) && tabs[+e.key - 1]) { e.preventDefault(); qEl.value = ''; filter(); show(tabs[+e.key - 1].getAttribute('data-sec'), true); }
+  });
+  /* ayarlarda ara: bölüm adı ve içindeki etiketlere bakar */
+  var qEl = $('[data-q]'), norm = function (s) { return String(s || '').toLocaleLowerCase('tr'); };
+  var filter = function () {
+    var q = norm(qEl.value.trim()), first = null;
+    tabs.forEach(function (b) { var pg = $('[data-pg="' + b.getAttribute('data-sec') + '"]'), hit = !q || norm(b.textContent + ' ' + pg.textContent).indexOf(q) > -1; b.hidden = !hit; if (hit && !first) first = b; });
+    $('[data-none]').hidden = !!first;
+    if (first && (!cur || $('[data-sec="' + cur + '"]').hidden)) show(first.getAttribute('data-sec'));
+  };
+  qEl.addEventListener('input', filter);
+  qEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); var f = tabs.filter(function (b) { return !b.hidden; })[0]; if (f) show(f.getAttribute('data-sec'), true); } });
+
+  /* ---------- profil ---------- */
+  var pf = $('#profile-settings-form'), dirty = $('[data-dirty]'), bio = $('#settings-bio'), bioN = $('[data-bio-n]');
+  var paintBio = function () { bioN.textContent = bio.value.length; };
+  bio.addEventListener('input', paintBio);
+  pf.addEventListener('input', function () { dirty.hidden = false; });
+  pf.addEventListener('change', function () { dirty.hidden = false; });
+  if (typeof saveProfileSettings === 'function') {
+    var origSave = saveProfileSettings;
+    saveProfileSettings = async function (ev) {
+      var btn = $('button[type="submit"]', pf); btn.disabled = true;
+      try { await origSave.apply(this, arguments); } finally { btn.disabled = false; }
+      dirty.hidden = true; savedMark();
+      var p = lsafe(function () { return currentUserProfile; }, null);
+      if (p && typeof renderUserAvatarHtml === 'function') { var a = $('#settings-avatar-preview'); if (a && !a.innerHTML.trim()) a.innerHTML = renderUserAvatarHtml(p, 76); }
+    };
+    window.saveProfileSettings = saveProfileSettings;
+  }
+  /* şifre gücü */
+  var np = $('#settings-new-pass'), cp = $('#settings-confirm-pass'), pm = $('[data-pw-m]'), pt = $('[data-pw-t]');
+  var paintPw = function () {
+    var v = np.value, s = 0; if (v.length >= 6) s++; if (v.length >= 10) s++; if (/[A-ZÇĞİÖŞÜ]/.test(v) && /[a-zçğıöşü]/.test(v)) s++; if (/\d/.test(v)) s++; if (/[^\w\sçğıöşüÇĞİÖŞÜ]/.test(v)) s++;
+    var w = v ? Math.max(12, s * 20) : 0, c = s <= 1 ? '#C9483B' : s <= 3 ? '#E2A33B' : '#1E8A55';
+    pm.style.width = w + '%'; pm.style.background = c;
+    pt.textContent = !v ? '' : v.length < 6 ? 'en az 6 karakter olmalı' : s <= 2 ? 'zayıf: büyük harf, rakam ya da işaret ekle' : s <= 3 ? 'fena değil' : 'güçlü şifre';
+    if (cp.value && cp.value !== v) pt.textContent += ' · tekrarı aynı değil';
+  };
+  np.addEventListener('input', paintPw); cp.addEventListener('input', paintPw);
+  if (typeof changeUserPassword === 'function') {
+    var origPw = changeUserPassword;
+    changeUserPassword = async function () { var r = await origPw.apply(this, arguments); if (!np.value) { paintPw(); savedMark(); } return r; };
+    window.changeUserPassword = changeUserPassword;
+  }
+  var fixAvatar = function () { var a = $('#settings-avatar-preview'), p = lsafe(function () { return currentUserProfile; }, null); if (a && p && typeof renderUserAvatarHtml === 'function') a.innerHTML = renderUserAvatarHtml(p, 76); };
+  ['uploadProfilePhoto', 'uploadProfileBanner'].forEach(function (fn) {
+    if (typeof window[fn] !== 'function') return;
+    var o = window[fn];
+    var w = async function () { var r = await o.apply(this, arguments); if (fn === 'uploadProfilePhoto') fixAvatar(); savedMark(); return r; };
+    if (fn === 'uploadProfilePhoto') { uploadProfilePhoto = w; } else { uploadProfileBanner = w; }
+    window[fn] = w;
+  });
+
+  /* ---------- bildirim tercihleri: her değişiklikte kaydet ---------- */
+  var nT = 0;
+  $$('[id^="notif-pref-"]').forEach(function (c) {
+    c.addEventListener('change', function () {
+      clearTimeout(nT);
+      nT = setTimeout(async function () { if (typeof saveNotificationPrefs === 'function') { await saveNotificationPrefs(); savedMark(); } }, 400);
+    });
+  });
+  var paintPerm = function () {
+    var s = $('#reminders-status-text'); if (!s) return;
+    if (!('Notification' in window)) { s.textContent = 'bu tarayıcı bildirim desteklemiyor'; return; }
+    s.textContent = Notification.permission === 'granted' ? 'izin verildi ✓' : Notification.permission === 'denied' ? 'engellendi; tarayıcı ayarlarından açabilirsin' : 'henüz izin verilmedi';
+  };
+  $('[data-perm]').addEventListener('click', function () {
+    if (!('Notification' in window)) { say('Bu tarayıcı bildirim desteklemiyor.'); return; }
+    Notification.requestPermission().then(function (p) { paintPerm(); say(p === 'granted' ? 'Bildirim izni verildi; sınavından bir gün önce hatırlatırım.' : 'Bildirim izni verilmedi.'); if (p === 'granted' && typeof checkAndTriggerExamNotifications === 'function') checkAndTriggerExamNotifications(); });
+  });
+  $('[data-testn]').addEventListener('click', function () {
+    if (!('Notification' in window) || Notification.permission !== 'granted') { say('Önce tarayıcı bildirimine izin ver.'); return; }
+    try { new Notification('Acadex', { body: 'Bildirimler çalışıyor. Bugün bir deneme çözmeye ne dersin?', icon: 'assets/landing/acadex-logo.webp' }); } catch (e) { say('Bildirim gösterilemedi.'); }
+  });
+
+  /* ---------- görünüm ---------- */
+  var radio = function (sel, attr, val) { $$(sel).forEach(function (b) { b.setAttribute('aria-checked', String(b.getAttribute(attr) === String(val))); }); };
+  var curLang = function () { try { return localStorage.getItem('acadexUILang') || 'tr'; } catch (e) { return 'tr'; } };
+  var paintLook = function () {
+    radio('[data-lang]', 'data-lang', curLang()); radio('[data-fs]', 'data-fs', P.fs || 100);
+    var pp = null; try { pp = localStorage.getItem('acadex.defter.paper'); } catch (e) {} radio('[data-ppr]', 'data-ppr', pp || 'lined');
+    var nc = $('[data-p="navc"]'); if (nc) nc.checked = html.classList.contains('nav-c');
+  };
+  root.addEventListener('click', function (e) {
+    var l = e.target.closest('[data-lang]');
+    if (l) { var v = l.getAttribute('data-lang'); if (typeof applyLanguage === 'function') applyLanguage(v); else try { localStorage.setItem('acadexUILang', v); } catch (er) {} var sel = document.querySelector('.lang-switcher-select'); if (sel) sel.value = v; paintLook(); savedMark(); say(v === 'tr' ? 'Arayüz dili Türkçe.' : 'Interface language set to English. Yeni tasarımlı paneller Türkçe kalır.'); return; }
+    var f = e.target.closest('[data-fs]');
+    if (f) { P.fs = +f.getAttribute('data-fs'); putP(); applyGlobal(); paintLook(); savedMark(); return; }
+    var pr = e.target.closest('[data-ppr]');
+    if (pr) { var v2 = pr.getAttribute('data-ppr'); try { localStorage.setItem('acadex.defter.paper', v2); } catch (er) {} var ds = document.querySelector('#notebook-view [data-paper]'); if (ds) { ds.value = v2; ds.dispatchEvent(new Event('change')); } paintLook(); savedMark(); }
+  });
+  $$('.themes').forEach(function (g) {
+    g.addEventListener('keydown', function (e) {
+      var bs = $$('.th', g), i = bs.indexOf(document.activeElement), n = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+      if (i < 0 || !n) return; e.preventDefault(); e.stopPropagation(); var t = bs[(i + n + bs.length) % bs.length]; t.focus(); t.click();
+    });
+  });
+
+  /* ---------- tercih anahtarları (data-p) ---------- */
+  var DEF = { ks: true };
+  var paintPrefs = function () {
+    $$('[data-p]').forEach(function (el) {
+      var k = el.getAttribute('data-p'); if (k === 'navc') return;
+      var v = P[k] == null ? DEF[k] : P[k];
+      if (el.type === 'checkbox') el.checked = !!v; else el.value = v == null ? '' : String(v);
+    });
+    var g = $('[data-goal]'); if (g) { var gv = null; try { gv = JSON.parse(localStorage.getItem('acadex.dash.goal')); } catch (e) {} g.value = gv ? String(gv) : ''; }
+  };
+  root.addEventListener('change', function (e) {
+    var el = e.target, k = el.getAttribute && el.getAttribute('data-p');
+    if (k === 'navc') { html.classList.toggle('nav-c', el.checked); try { localStorage.setItem('acadex.nav.c', el.checked ? '1' : '0'); } catch (er) {} var tg = document.getElementById('menu-toggle'); if (tg) tg.setAttribute('aria-expanded', String(!el.checked)); setTimeout(function () { window.dispatchEvent(new Event('resize')); }, 330); savedMark(); return; }
+    if (k) { P[k] = el.type === 'checkbox' ? el.checked : (el.value === '' ? null : (/^\d+$/.test(el.value) ? +el.value : el.value)); putP(); applyGlobal(); savedMark(); return; }
+    if (el.hasAttribute && el.hasAttribute('data-goal')) { try { if (el.value) localStorage.setItem('acadex.dash.goal', el.value); else localStorage.removeItem('acadex.dash.goal'); } catch (er) {} savedMark(); }
+  });
+
+  /* ---------- veri: dışa aktar, yerel tercihleri sıfırla ---------- */
+  $('[data-export]').addEventListener('click', async function () {
+    var b = this, t = $('[data-export-t]'), u = me(); if (!u || !sb()) return;
+    b.disabled = true; t.textContent = 'toplanıyor…';
+    var T = [['profil', 'profiles', 'id'], ['belgeler', 'documents', 'user_id'], ['ozetler_ve_kartlar', 'study_cards', 'user_id'], ['kart_tekrarlari', 'card_item_confidence', 'user_id'], ['bilgi_deposu', 'card_depot', 'user_id'], ['defter', 'notebooks', 'user_id'], ['planlayici', 'study_events', 'user_id'], ['sinavlar', 'exams', 'user_id'], ['rozetler', 'user_achievements', 'user_id']];
+    var out = { hesap: { id: u.id, eposta: u.email, olusturma: u.created_at }, disa_aktarma: new Date().toISOString() }, miss = [];
+    for (var i = 0; i < T.length; i++) {
+      try { var r = await sb().from(T[i][1]).select('*').eq(T[i][2], u.id); if (r.error) throw r.error; out[T[i][0]] = r.data || []; }
+      catch (er) { miss.push(T[i][0]); }
+    }
+    var tr = {}; try { Object.keys(localStorage).forEach(function (k) { if (/^acadex[.-]/.test(k)) tr[k] = localStorage.getItem(k); }); } catch (er) {}
+    out.bu_tarayici = tr;
+    var blob = new Blob([JSON.stringify(out, null, 1)], { type: 'application/json' }), a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'acadex-verilerim-' + new Date().toISOString().slice(0, 10) + '.json'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+    b.disabled = false; t.textContent = miss.length ? 'indi; okunamayanlar: ' + miss.join(', ') : 'indi ✓';
+  });
+  $('[data-reset-local]').addEventListener('click', function () {
+    var keep = {}; try { Object.keys(localStorage).forEach(function (k) { if (/^acadex[.-]/.test(k) && !/^acadex-?ui/i.test(k) && k !== 'acadexUILang') keep[k] = localStorage.getItem(k); }); } catch (e) {}
+    var ks = Object.keys(keep); if (!ks.length) { say('Bu tarayıcıda sıfırlanacak tercih yok.'); return; }
+    ks.forEach(function (k) { try { localStorage.removeItem(k); } catch (e) {} });
+    P = {}; applyGlobal(); html.classList.remove('nav-c'); paintPrefs(); paintLook();
+    say(ks.length + ' tercih sıfırlandı.', function () { ks.forEach(function (k) { try { localStorage.setItem(k, keep[k]); } catch (e) {} }); P = getP(); applyGlobal(); if (keep['acadex.nav.c'] === '1') html.classList.add('nav-c'); paintPrefs(); paintLook(); });
+  });
+
+  /* ---------- oturumlar ---------- */
+  var paintDev = function () {
+    var ua = navigator.userAgent, br = /Edg\//.test(ua) ? 'Edge' : /OPR\//.test(ua) ? 'Opera' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'Tarayıcı';
+    var os = /Windows/.test(ua) ? 'Windows' : /iPhone|iPad/.test(ua) ? 'iOS' : /Android/.test(ua) ? 'Android' : /Mac OS X/.test(ua) ? 'macOS' : /Linux/.test(ua) ? 'Linux' : '';
+    $('[data-dev-n]').textContent = (os ? os + ' · ' : '') + br;
+    var u = me(), d = u && u.last_sign_in_at ? new Date(u.last_sign_in_at) : null;
+    $('[data-dev-d]').textContent = (u && u.email ? u.email + ' · ' : '') + (d ? 'son giriş ' + d.toLocaleString('tr-TR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) : 'şu an açık');
+  };
+  $('[data-out-others]').addEventListener('click', async function () {
+    var b = this; if (!sb()) return; b.disabled = true;
+    try { var r = await sb().auth.signOut({ scope: 'others' }); if (r && r.error) throw r.error; say('Diğer cihazlardaki oturumlar kapatıldı.'); savedMark(); }
+    catch (er) { console.warn(er); say('Oturumlar kapatılamadı; tekrar dene.'); }
+    b.disabled = false;
+  });
+  $('[data-out-here]').addEventListener('click', function () { var b = document.getElementById('btn-logout'); if (b) b.click(); });
+
+  /* ---------- kullanım ---------- */
+  var useBusy = false;
+  var paintUse = async function () {
+    var u = me(), el = $('[data-use]'); if (!u || !sb() || useBusy) return; useBusy = true;
+    var cnt = async function (t) { try { var r = await sb().from(t).select('id', { count: 'exact', head: true }).eq('user_id', u.id); return r.error ? null : r.count; } catch (e) { return null; } };
+    var res = await Promise.all([cnt('documents'), cnt('study_cards'), cnt('exams'), cnt('study_events'), cnt('card_depot'),
+      sb().from('documents').select('file_size').eq('user_id', u.id).then(function (r) { return r.error ? null : (r.data || []).reduce(function (a, d) { return a + (+d.file_size || 0); }, 0); }, function () { return null; })]);
+    var mb = function (b) { return b == null ? '–' : b < 1048576 ? Math.max(1, Math.round(b / 1024)) + ' KB' : (b / 1048576).toFixed(1).replace('.', ',') + ' MB'; };
+    var rows = [['belge', res[0], 'Belgelerim'], ['özet ve deste', res[1], 'Bilgi kartları'], ['sınav denemesi', res[2], 'Sınav platformu'], ['planlayıcı kaydı', res[3], 'Çalışma planlayıcı'], ['depodaki not', res[4], 'Çalışma defteri']];
+    el.innerHTML = rows.map(function (r, i) { return '<div class="u" style="--r:' + (((i * 7) % 5) - 2) * 0.5 + 'deg"><b>' + (r[1] == null ? '–' : r[1]) + '</b><span>' + r[0] + '</span><small>' + r[2] + '</small></div>'; }).join('') +
+      '<div class="u" style="--r:.6deg"><b>' + mb(res[5]) + '</b><span>yüklediğin dosyalar</span><small>toplam boyut</small></div>';
+    useBusy = false;
+  };
+
+  /* ---------- dashboard.js'in ayar yüklemesi ---------- */
+  if (typeof loadSettingsView === 'function') {
+    var origLoad = loadSettingsView;
+    loadSettingsView = async function () {
+      var r = await origLoad.apply(this, arguments);
+      fixAvatar(); paintBio(); dirty.hidden = true; paintPrefs(); paintLook(); paintPerm();
+      if (cur === 'plan') paintUse(); if (cur === 'cihaz') paintDev();
+      return r;
+    };
+    window.loadSettingsView = loadSettingsView;
+  }
+  var start = null; try { start = sessionStorage.getItem('acadex.ayar.sec'); } catch (e) {}
+  show(start && $('[data-sec="' + start + '"]') ? start : 'profil');
+  paintPrefs(); paintLook();
 })();

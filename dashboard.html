@@ -1324,187 +1324,83 @@
       <!-- ==========================================
            TAB 6: SETTINGS VIEW (AYARLAR)
            ========================================== -->
-      <section id="settings-view" class="dashboard-view-section">
-        <div class="dashboard-page-header">
-          <h2 class="dashboard-page-title" data-i18n="dash.settings.title">Ayarlar</h2>
-          <p class="dashboard-page-desc" data-i18n="dash.settings.desc">Hesap ayarlarınızı, şifrenizi ve kişisel tercihlerinizi yönetin.</p>
-        </div>
-
-        <div class="settings-container" style="display: flex; flex-direction: column; gap: 1.5rem; max-width: 600px;">
-          
-          <!-- PART A: Profile Info Card -->
-          <div class="doc-card" style="box-shadow: var(--shadow-sm); padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem;">
-            <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--color-navy); border-bottom: 1px solid rgba(22,50,92,0.08); padding-bottom: 0.5rem; margin: 0;" data-i18n="dash.settings.profileInfo">Profil Bilgileri</h3>
-            
-            <form id="profile-settings-form" onsubmit="saveProfileSettings(event)" style="display: flex; flex-direction: column; gap: 1.25rem;">
-              <div>
-                <label for="settings-fullname" style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.35rem;" data-i18n="dash.settings.fullName">Ad Soyad</label>
-                <input type="text" id="settings-fullname" class="search-input" style="width: 100%; padding: 0.6rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); font-size: 0.85rem;" required>
-              </div>
-
-              <div>
-                <label style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.35rem;" data-i18n="dash.settings.studentNo">Öğrenci Numarası</label>
-                <div id="settings-student-no" style="font-size: 0.85rem; color: var(--color-text-muted); background: var(--color-bg-alt); padding: 0.6rem; border-radius: var(--radius-sm); border: 1px solid rgba(22, 50, 92, 0.08); font-family: monospace;">-</div>
-              </div>
-
-              <div>
-                <label style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.35rem;" data-i18n="dash.settings.email">E-posta</label>
-                <div id="settings-email" style="font-size: 0.85rem; color: var(--color-text-muted); background: var(--color-bg-alt); padding: 0.6rem; border-radius: var(--radius-sm); border: 1px solid rgba(22, 50, 92, 0.08); font-family: monospace;">-</div>
-              </div>
-
-              <div>
-                <label for="settings-dept" style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.35rem;" data-i18n="dash.settings.department">Bölüm</label>
-                <select id="settings-dept" class="font-size-select" style="width: 100%; padding: 0.6rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); font-size: 0.85rem;" required>
-                  <option value="Management Information Systems" data-i18n="dept.mis">Management Information Systems</option>
-                  <option value="Business Administration" data-i18n="dept.ba">Business Administration</option>
-                  <option value="International Trade and Business" data-i18n="dept.itb">International Trade and Business</option>
-                  <option value="Banking and Finance" data-i18n="dept.bf">Banking and Finance</option>
-                </select>
-                <span style="display: block; font-size: 0.75rem; color: var(--color-text-muted); margin-top: 0.35rem; line-height: 1.3;" data-i18n="dash.settings.deptHint">
-                  * Changing your department affects which classmates can see your future shared study cards. Past shared cards keep their original department.
-                </span>
-              </div>
-
-              <div>
-                <label for="settings-bio" style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.35rem;">Hakkımda</label>
-                <textarea id="settings-bio" class="search-input" maxlength="240" rows="3" placeholder="Kendinden kısaca bahset (ör. bölüm, ilgi alanların)..." style="width: 100%; padding: 0.6rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); font-size: 0.85rem; font-family: inherit; resize: vertical;"></textarea>
-                <span style="display: block; font-size: 0.7rem; color: var(--color-text-muted); margin-top: 0.25rem;">Sandbox Etkileşim Paneli'nde paylaştığın projelerin yanında görünür. En fazla 240 karakter.</span>
-              </div>
-
-              <!-- Sosyal / Portföy Linkleri — sandbox proje kartlarında yazar
-                   adının yanında küçük ikonlar olarak gösterilir
-                   (renderAuthorSocialLinksHtml() in js/dashboard.js). -->
-              <div>
-                <label style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.5rem;">Sosyal / Portföy Linkleri</label>
-                <div style="display: flex; flex-direction: column; gap: 0.6rem;">
-                  <input type="url" id="settings-github-url" class="search-input" placeholder="GitHub bağlantısı (https://github.com/...)" style="width: 100%; padding: 0.6rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); font-size: 0.85rem;">
-                  <input type="url" id="settings-linkedin-url" class="search-input" placeholder="LinkedIn bağlantısı (https://linkedin.com/in/...)" style="width: 100%; padding: 0.6rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); font-size: 0.85rem;">
-                  <input type="url" id="settings-website-url" class="search-input" placeholder="Kişisel site / portföy bağlantısı" style="width: 100%; padding: 0.6rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); font-size: 0.85rem;">
-                </div>
-              </div>
-
-              <div style="display: flex; justify-content: flex-end; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-                <button type="submit" class="btn btn-primary" style="border: none; padding: 0.5rem 1.5rem; font-size: 0.85rem;" data-i18n="dash.settings.save">Kaydet</button>
-              </div>
-            </form>
-          </div>
-
-          <!-- PART A1: Cover Photo (Banner) Card -->
-          <div class="doc-card" style="box-shadow: var(--shadow-sm); padding: 0; overflow: hidden; display: flex; flex-direction: column;">
-            <div id="settings-banner-preview" style="width: 100%; height: 140px; background: linear-gradient(135deg, var(--color-navy) 0%, #1a365d 100%); display: flex; align-items: center; justify-content: center; background-size: cover; background-position: center;">
-              <span style="color: rgba(255,255,255,0.6); font-size: 0.8rem; font-weight: 600;">Henüz kapak fotoğrafı yok</span>
-            </div>
-            <div style="padding: 1.25rem; display: flex; flex-direction: column; gap: 0.6rem; align-items: center;">
-              <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--color-navy); margin: 0; align-self: flex-start;">Kapak Fotoğrafı</h3>
-              <label class="btn btn-outline" style="padding: 0.5rem 1.5rem; font-size: 0.85rem; cursor: pointer; margin: 0;">
-                🖼️ Kapak Fotoğrafı Yükle
-                <input type="file" id="settings-banner-photo-input" accept="image/png,image/jpeg,image/webp" style="display: none;" onchange="uploadProfileBanner(event)">
-              </label>
-              <span id="settings-banner-upload-status" style="font-size: 0.75rem; color: var(--color-text-muted); min-height: 1em;"></span>
-            </div>
-          </div>
-
-          <!-- PART A2: Avatar Card -->
-          <div class="doc-card" style="box-shadow: var(--shadow-sm); padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; align-items: center;">
-            <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--color-navy); border-bottom: 1px solid rgba(22,50,92,0.08); padding-bottom: 0.5rem; margin: 0; width: 100;">Avatar</h3>
-            <div id="settings-avatar-preview" style="margin-top: 0.5rem;"></div>
-            <div style="display: flex; gap: 0.6rem; flex-wrap: wrap; justify-content: center;">
-              <button type="button" class="btn btn-primary" onclick="openAvatarBuilder()" style="border: none; padding: 0.5rem 1.5rem; font-size: 0.85rem;">🎨 Emoji Avatar</button>
-              <!-- Real photo upload — goes to the 'avatars' storage bucket
-                   (supabase/migrations/20260830d_avatars_storage_bucket.sql),
-                   own-folder-scoped RLS, public read. Same profiles.avatar_url
-                   column as the emoji builder, so renderUserAvatarHtml() and
-                   every existing avatar display need no changes. -->
-              <label class="btn btn-outline" style="padding: 0.5rem 1.5rem; font-size: 0.85rem; cursor: pointer; margin: 0;">
-                📷 Fotoğraf Yükle
-                <input type="file" id="settings-avatar-photo-input" accept="image/png,image/jpeg,image/webp" style="display: none;" onchange="uploadProfilePhoto(event)">
-              </label>
-            </div>
-            <span id="settings-avatar-upload-status" style="font-size: 0.75rem; color: var(--color-text-muted); min-height: 1em;"></span>
-          </div>
-
-          <!-- PART A3: Notification Preferences Card — controls the live
-               toast+sound notifications (pollForLiveNotifications /
-               showSocialNotificationToast in js/dashboard.js). "Sesli
-               Bildirimler" mutes the chime only (toasts still pop silently);
-               each category checkbox controls whether that event type
-               generates a notification at all. Exam-feedback and achievement
-               notifications stay always-on since they're academically
-               important, not just social noise. -->
-          <div class="doc-card" style="box-shadow: var(--shadow-sm); padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem;">
-            <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--color-navy); border-bottom: 1px solid rgba(22,50,92,0.08); padding-bottom: 0.5rem; margin: 0;">Bildirim Tercihleri</h3>
-
-            <label style="display: flex; align-items: center; gap: 0.6rem; font-size: 0.85rem; color: var(--color-navy); font-weight: 700; cursor: pointer;">
-              <input type="checkbox" id="notif-pref-sound" style="width: 16px; height: 16px;">
-              🔊 Sesli bildirimler
-            </label>
-            <span style="font-size: 0.75rem; color: var(--color-text-muted); margin-top: -0.6rem;">Kapatırsan bildirimler yine ekranda belirir, sadece ses çalmaz.</span>
-
-            <div style="height: 1px; background: rgba(22,50,92,0.08); margin: 0.25rem 0;"></div>
-
-            <span style="font-size: 0.8rem; font-weight: 700; color: var(--color-navy);">Hangi olaylarda bildirim almak istersin?</span>
-            <div style="display: flex; flex-direction: column; gap: 0.6rem;">
-              <label style="display: flex; align-items: center; gap: 0.6rem; font-size: 0.85rem; color: var(--color-text); cursor: pointer;">
-                <input type="checkbox" id="notif-pref-comments" style="width: 16px; height: 16px;">
-                💬 Projelerime biri yorum yaptığında
-              </label>
-              <label style="display: flex; align-items: center; gap: 0.6rem; font-size: 0.85rem; color: var(--color-text); cursor: pointer;">
-                <input type="checkbox" id="notif-pref-likes" style="width: 16px; height: 16px;">
-                ❤️ Projelerimi biri beğendiğinde
-              </label>
-              <label style="display: flex; align-items: center; gap: 0.6rem; font-size: 0.85rem; color: var(--color-text); cursor: pointer;">
-                <input type="checkbox" id="notif-pref-announcements" style="width: 16px; height: 16px;">
-                📢 Yeni bir duyuru yayınlandığında
-              </label>
-              <label style="display: flex; align-items: center; gap: 0.6rem; font-size: 0.85rem; color: var(--color-text); cursor: pointer;">
-                <input type="checkbox" id="notif-pref-materials" style="width: 16px; height: 16px;">
-                📚 Yeni bir materyal paylaşıldığında
-              </label>
-            </div>
-
-            <div style="display: flex; justify-content: flex-end;">
-              <button type="button" class="btn btn-primary" onclick="saveNotificationPrefs()" style="border: none; padding: 0.5rem 1.5rem; font-size: 0.85rem;">Kaydet</button>
-            </div>
-          </div>
-
-          <!-- PART B: Change Password Card -->
-          <div class="doc-card" style="box-shadow: var(--shadow-sm); padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem;">
-            <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--color-navy); border-bottom: 1px solid rgba(22,50,92,0.08); padding-bottom: 0.5rem; margin: 0;" data-i18n="dash.settings.passwordTitle">Şifre Değiştir</h3>
-            
-            <form id="password-settings-form" onsubmit="changeUserPassword(event)" style="display: flex; flex-direction: column; gap: 1.25rem;">
-              <div>
-                <label for="settings-new-pass" style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.35rem;" data-i18n="dash.settings.newPass">Yeni Şifre</label>
-                <input type="password" id="settings-new-pass" class="search-input" style="width: 100%; padding: 0.6rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); font-size: 0.85rem;" required minlength="6">
-              </div>
-
-              <div>
-                <label for="settings-confirm-pass" style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.35rem;" data-i18n="dash.settings.confirmPass">Yeni Şifre (Tekrar)</label>
-                <input type="password" id="settings-confirm-pass" class="search-input" style="width: 100%; padding: 0.6rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); font-size: 0.85rem;" required minlength="6">
-              </div>
-
-              <div id="password-error-message" style="display: none; color: #DC2626; font-size: 0.75rem;"></div>
-
-              <div style="display: flex; justify-content: flex-end;">
-                <button type="submit" class="btn btn-primary" style="border: none; padding: 0.5rem 1.5rem; font-size: 0.85rem;" data-i18n="dash.settings.updatePass">Şifreyi Güncelle</button>
-              </div>
-            </form>
-          </div>
-
-          <!-- PART C: Danger Zone -->
-          <div class="doc-card" style="box-shadow: var(--shadow-sm); padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; border: 1px solid #FEE2E2; background-color: #FFF5F5;">
-            <h3 style="font-size: 1.1rem; font-weight: 700; color: #DC2626; border-bottom: 1px solid #FEE2E2; padding-bottom: 0.5rem; margin: 0;" data-i18n="dash.settings.dangerTitle">Danger Zone (Tehlikeli Bölge)</h3>
-            
-            <p style="font-size: 0.85rem; color: #991B1B; line-height: 1.4; margin: 0;" data-i18n="dash.settings.dangerDesc">
-              Hesabınızı sildiğinizde profiliniz, yüklediğiniz belgeler, çalışma kartlarınız, çizimleriniz ve sınav geçmişiniz <strong>kalıcı olarak kaldırılacaktır</strong>. Bu işlem geri alınamaz.
-            </p>
-
-            <div style="display: flex; justify-content: flex-start; margin-top: 0.5rem;">
-              <button class="btn" onclick="openDeleteAccountModal()" style="background-color: #DC2626; color: var(--color-white); border: none; padding: 0.5rem 1.5rem; font-size: 0.85rem; border-radius: var(--radius-sm); cursor: pointer; font-weight: 600;" data-i18n="dash.settings.deleteBtn">Hesabımı Sil</button>
-            </div>
-          </div>
-
-        </div>
-      </section>
+      <section id="settings-view" class="dashboard-view-section axd axa">
+<div class="main-d axa-main">
+<header class="d-head land">
+<div class="d-head-l">
+<span class="eyb hand">senin masan, senin kurallar</span>
+<h1 class="disp">Ayarlar</h1>
+<p class="d-sub hand">görünüm ve tercihler anında kaydedilir; profil ve şifre için “kaydet”e bas.</p>
+</div>
+</header>
+<div class="book ay land">
+<div class="page l">
+<label class="axa-q"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 L20 20"/></svg><span class="vh">Ayarlarda ara</span><input type="search" data-q="" placeholder="ayarlarda ara…" autocomplete="off"></label>
+<div class="sn" role="tablist" aria-label="Ayar bölümleri" aria-orientation="vertical" data-tabs=""><button type="button" role="tab" id="axa-t-profil" aria-controls="axa-p-profil" data-sec="profil" aria-selected="false" tabindex="-1"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.6-4 3.4-6 7-6s6.4 2 7 6"/></svg><span>Profil ve hesap</span><kbd class="kb" aria-hidden="true">1</kbd></button><button type="button" role="tab" id="axa-t-gorunum" aria-controls="axa-p-gorunum" data-sec="gorunum" aria-selected="false" tabindex="-1"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg><span>Görünüm ve dil</span><kbd class="kb" aria-hidden="true">2</kbd></button><button type="button" role="tab" id="axa-t-bildirim" aria-controls="axa-p-bildirim" data-sec="bildirim" aria-selected="false" tabindex="-1"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16.5V11c0-3.6 2.6-6 6-6s6 2.4 6 6v5.5l1.5 1.5h-15z"/><path d="M10 20.5c.6.9 1.3 1.1 2 1.1s1.4-.2 2-1.1"/></svg><span>Bildirimler</span><kbd class="kb" aria-hidden="true">3</kbd></button><button type="button" role="tab" id="axa-t-calisma" aria-controls="axa-p-calisma" data-sec="calisma" aria-selected="false" tabindex="-1"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5.5" width="16" height="14" rx="2"/><path d="M8 3.5v4M16 3.5v4M4 10h16"/></svg><span>Çalışma tercihleri</span><kbd class="kb" aria-hidden="true">4</kbd></button><button type="button" role="tab" id="axa-t-erisim" aria-controls="axa-p-erisim" data-sec="erisim" aria-selected="false" tabindex="-1"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2"/><path d="M5 9h14M12 9v6M9 21l3-6 3 6"/></svg><span>Erişilebilirlik</span><kbd class="kb" aria-hidden="true">5</kbd></button><button type="button" role="tab" id="axa-t-veri" aria-controls="axa-p-veri" data-sec="veri" aria-selected="false" tabindex="-1"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg><span>Veri ve gizlilik</span><kbd class="kb" aria-hidden="true">6</kbd></button><button type="button" role="tab" id="axa-t-cihaz" aria-controls="axa-p-cihaz" data-sec="cihaz" aria-selected="false" tabindex="-1"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="13" height="10" rx="1.5"/><path d="M8 19h3M17 9h3v10h-3z"/></svg><span>Oturumlar ve cihaz</span><kbd class="kb" aria-hidden="true">7</kbd></button><button type="button" role="tab" id="axa-t-plan" aria-controls="axa-p-plan" data-sec="plan" aria-selected="false" tabindex="-1"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5L20.5 8 12 12.5 3.5 8z"/><path d="M3.5 12L12 16.5 20.5 12"/></svg><span>Kullanım</span><kbd class="kb" aria-hidden="true">8</kbd></button></div>
+<p class="mut axa-none" data-none="" hidden>bu aramayla bir ayar bulamadım.</p>
+</div>
+<div class="page pg"><section class="axa-pg" role="tabpanel" id="axa-p-profil" aria-labelledby="axa-t-profil" data-pg="profil" hidden><h2 class="hd">Profil ve hesap<span class="sav" data-sav="" aria-hidden="true">kaydedildi</span></h2><div class="row axa-me"><span class="bigav" id="settings-avatar-preview" aria-label="Profil fotoğrafın"></span>
+<div class="row"><label class="btn btn-line sm axa-file">Fotoğraf yükle<input type="file" id="settings-avatar-photo-input" accept="image/png,image/jpeg,image/webp" onchange="uploadProfilePhoto(event)"></label><button type="button" class="btn btn-line sm" onclick="openAvatarBuilder()">Emoji avatar</button><span id="settings-avatar-upload-status" class="mut" aria-live="polite"></span></div></div>
+<div class="axa-banner" id="settings-banner-preview"><span>Henüz kapak fotoğrafı yok</span></div>
+<div class="row axa-bnr"><label class="btn btn-line sm axa-file">Kapak fotoğrafı yükle<input type="file" id="settings-banner-photo-input" accept="image/png,image/jpeg,image/webp" onchange="uploadProfileBanner(event)"></label><span id="settings-banner-upload-status" class="mut" aria-live="polite"></span><small class="mut">bölüm akışında ve proje kartlarında profilinin üstünde görünür</small></div>
+<form id="profile-settings-form" onsubmit="saveProfileSettings(event)">
+<div class="f2">
+<label class="fld">Ad soyad<input type="text" id="settings-fullname" required maxlength="80" autocomplete="name"></label>
+<label class="fld">Bölüm<select id="settings-dept" required><option value="Management Information Systems">Yönetim Bilişim Sistemleri</option><option value="Business Administration">İşletme</option><option value="International Trade and Business">Uluslararası Ticaret ve İşletmecilik</option><option value="Banking and Finance">Bankacılık ve Finans</option></select></label>
+<div class="fld">Öğrenci numarası<span class="axa-ro" id="settings-student-no">-</span></div>
+<div class="fld">E-posta<span class="axa-ro" id="settings-email">-</span></div>
+</div>
+<p class="mut axa-n">Bölümünü değiştirirsen bundan sonra paylaştığın özetleri o bölümün arkadaşları görür; eski paylaşımların eski bölümde kalır.</p>
+<label class="fld">Hakkımda<textarea id="settings-bio" maxlength="240" rows="3" placeholder="kendinden kısaca bahset: ilgi alanların, hangi derslerdesin…"></textarea><small class="mut"><span data-bio-n="">0</span>/240 · paylaştığın projelerin yanında görünür</small></label>
+<h3>bağlantılar</h3>
+<div class="f2">
+<label class="fld">GitHub<input type="url" id="settings-github-url" placeholder="https://github.com/…"></label>
+<label class="fld">LinkedIn<input type="url" id="settings-linkedin-url" placeholder="https://linkedin.com/in/…"></label>
+<label class="fld">Kişisel site<input type="url" id="settings-website-url" placeholder="https://…"></label>
+</div>
+<div class="row"><button type="submit" class="btn btn-dark sm">Profili kaydet</button><span class="hand axa-dirty" data-dirty="" hidden>kaydedilmemiş değişiklik var</span></div>
+</form>
+<h3>şifre değiştir</h3>
+<form id="password-settings-form" onsubmit="changeUserPassword(event)" autocomplete="off">
+<div class="f2">
+<label class="fld">Yeni şifre <small class="mut">(en az 6 karakter)</small><input type="password" id="settings-new-pass" required minlength="6" autocomplete="new-password"></label>
+<label class="fld">Yeni şifre (tekrar)<input type="password" id="settings-confirm-pass" required minlength="6" autocomplete="new-password"></label>
+</div>
+<div class="axa-meter" aria-hidden="true"><i data-pw-m=""></i></div><p class="mut" data-pw-t=""></p>
+<p id="password-error-message" class="axa-err" role="alert" style="display:none"></p>
+<button type="submit" class="btn btn-dark sm">Şifreyi güncelle</button>
+</form></section><section class="axa-pg" role="tabpanel" id="axa-p-gorunum" aria-labelledby="axa-t-gorunum" data-pg="gorunum" hidden><h2 class="hd">Görünüm ve dil<span class="sav" data-sav="" aria-hidden="true">kaydedildi</span></h2><h3 style="margin-top:0">arayüz dili</h3>
+<div class="themes axa-lang" role="radiogroup" aria-label="Arayüz dili"><button type="button" class="th" role="radio" aria-checked="false" data-lang="tr"><s class="axa-flag">TR</s>Türkçe</button><button type="button" class="th" role="radio" aria-checked="false" data-lang="en"><s class="axa-flag">EN</s>English</button></div>
+<h3>yazı boyutu</h3>
+<div class="themes axa-fs" role="radiogroup" aria-label="Yazı boyutu">
+<button type="button" class="th" role="radio" data-fs="90" aria-checked="false"><s style="font-size:14px">Aa</s>küçük</button><button type="button" class="th" role="radio" data-fs="100" aria-checked="false"><s style="font-size:18px">Aa</s>normal</button><button type="button" class="th" role="radio" data-fs="115" aria-checked="false"><s style="font-size:22px">Aa</s>büyük</button><button type="button" class="th" role="radio" data-fs="130" aria-checked="false"><s style="font-size:26px">Aa</s>çok büyük</button></div>
+<h3>menü</h3><label class="sw"><span><b>Yan menüyü dar başlat</b><small>Sol menü yalnızca simgelerle açılır; ekranda daha çok yer kalır.</small></span><input type="checkbox" role="switch" data-p="navc"><i></i></label>
+<h3>defter kâğıdı</h3>
+<div class="themes axa-paper" role="radiogroup" aria-label="Defterin varsayılan kâğıdı">
+<button type="button" class="th" role="radio" data-ppr="lined" aria-checked="false"><s class="pp-l"></s>çizgili</button><button type="button" class="th" role="radio" data-ppr="grid" aria-checked="false"><s class="pp-g"></s>kareli</button><button type="button" class="th" role="radio" data-ppr="dots" aria-checked="false"><s class="pp-d"></s>noktalı</button><button type="button" class="th" role="radio" data-ppr="plain" aria-checked="false"><s></s>düz</button><button type="button" class="th" role="radio" data-ppr="cornell" aria-checked="false"><s class="pp-c"></s>Cornell</button></div></section><section class="axa-pg" role="tabpanel" id="axa-p-bildirim" aria-labelledby="axa-t-bildirim" data-pg="bildirim" hidden><h2 class="hd">Bildirimler<span class="sav" data-sav="" aria-hidden="true">kaydedildi</span></h2><div class="sticky b axa-st">Bildirimler Acadex açıkken sağ altta belirir. İstersen sesi kapat, istemediğin türleri kapat.</div><label class="sw"><span><b>Sesli bildirimler</b><small>Kapatırsan bildirimler yine görünür, sadece ses çalmaz.</small></span><input type="checkbox" role="switch" id="notif-pref-sound"><i></i></label><h3>hangi olaylarda?</h3><label class="sw"><span><b>Projeme yorum yapıldığında</b></span><input type="checkbox" role="switch" id="notif-pref-comments"><i></i></label><label class="sw"><span><b>Projem beğenildiğinde</b></span><input type="checkbox" role="switch" id="notif-pref-likes"><i></i></label><label class="sw"><span><b>Yeni duyuru yayınlandığında</b></span><input type="checkbox" role="switch" id="notif-pref-announcements"><i></i></label><label class="sw"><span><b>Yeni ders materyali paylaşıldığında</b></span><input type="checkbox" role="switch" id="notif-pref-materials"><i></i></label><p class="mut">Sınav sonuçları ve rozetler her zaman bildirilir.</p>
+<h3>sınav hatırlatması</h3>
+<p class="mut">Takvimdeki sınavın bir gün önce ve sınav günü tarayıcı bildirimiyle hatırlatılır.</p>
+<div class="row"><button type="button" class="btn btn-blue sm" data-perm="">Tarayıcı bildirimine izin ver</button><button type="button" class="btn btn-line sm" data-testn="">Deneme bildirimi gönder</button><span class="hand axa-perm" id="reminders-status-text" aria-live="polite"></span></div></section><section class="axa-pg" role="tabpanel" id="axa-p-calisma" aria-labelledby="axa-t-calisma" data-pg="calisma" hidden><h2 class="hd">Çalışma tercihleri<span class="sav" data-sav="" aria-hidden="true">kaydedildi</span></h2><label class="fld">Haftalık çalışma hedefi<select data-goal=""><option value="">seçilmedi</option><option value="2">haftada 2 gün</option><option value="3">haftada 3 gün</option><option value="4">haftada 4 gün</option><option value="5">haftada 5 gün</option><option value="6">haftada 6 gün</option><option value="7">her gün</option></select><small class="mut">Bugün sayfasındaki hedef halkası buna göre dolar.</small></label>
+<h3>yeni sınavlarda varsayılan</h3>
+<div class="f2">
+<label class="fld">Sınav dili<select data-p="examLang"><option value="">her seferinde seçerim</option><option value="en">English</option><option value="tr">Türkçe</option></select></label>
+<label class="fld">Zorluk<select data-p="examDiff"><option value="">her seferinde seçerim</option><option value="easy">kolay</option><option value="medium">orta</option><option value="hard">zor</option></select></label>
+<label class="fld">Soru sayısı<select data-p="examCount"><option value="">10 (standart)</option><option value="5">5</option><option value="10">10</option><option value="15">15</option><option value="20">20</option></select></label>
+</div><label class="sw"><span><b>Denemeleri gerçek süreyle başlat</b><small>Süreli, ipucusuz prova; süre bitince kâğıt toplanır.</small></span><input type="checkbox" role="switch" data-p="examSim"><i></i></label><p class="mut">Bir dersin hoca dosyasında farklı bir tarz yazdıysan o ders için hoca dosyası geçerli olur.</p></section><section class="axa-pg" role="tabpanel" id="axa-p-erisim" aria-labelledby="axa-t-erisim" data-pg="erisim" hidden><h2 class="hd">Erişilebilirlik<span class="sav" data-sav="" aria-hidden="true">kaydedildi</span></h2><label class="sw"><span><b>Hareketi azalt</b><small>Kart uçuşları, sayfa çevirme ve diğer animasyonlar kapanır.</small></span><input type="checkbox" role="switch" data-p="rm"><i></i></label><label class="sw"><span><b>Yüksek kontrast</b><small>Soluk yazılar koyulaşır, kenarlıklar belirginleşir.</small></span><input type="checkbox" role="switch" data-p="hc"><i></i></label><label class="sw"><span><b>Disleksi dostu yazı</b><small>El yazısı başlıklar düz yazıya döner; harf ve satır aralığı açılır.</small></span><input type="checkbox" role="switch" data-p="dys"><i></i></label><label class="sw"><span><b>Klavye kısayolları</b><small>Kapatırsan aşağıdaki tuşlar bir şey yapmaz.</small></span><input type="checkbox" role="switch" data-p="ks"><i></i></label>
+<h3>kısayollar</h3><ul class="axa-keys"><li><kbd class="kb">/</kbd> arama</li><li><kbd class="kb">1</kbd>–<kbd class="kb">8</kbd> ayarlarda bölüme git</li><li><kbd class="kb">boşluk</kbd> bilgi kartını çevir</li><li><kbd class="kb">←</kbd> <kbd class="kb">→</kbd> kartta tekrar / biliyorum, sınavda sayfa</li><li><kbd class="kb">A</kbd>–<kbd class="kb">E</kbd> sınavda şık seç</li><li><kbd class="kb">Ctrl</kbd>+<kbd class="kb">S</kbd> defteri kaydet</li></ul></section><section class="axa-pg" role="tabpanel" id="axa-p-veri" aria-labelledby="axa-t-veri" data-pg="veri" hidden><h2 class="hd">Veri ve gizlilik<span class="sav" data-sav="" aria-hidden="true">kaydedildi</span></h2><div class="sticky b axa-st">Belgelerin, özetlerin, kartların, defterin ve sınavların hesabında durur. İstediğin zaman bir kopyasını indirebilirsin.</div>
+<div class="row" style="margin:14px 0 4px"><button type="button" class="btn btn-blue sm" data-export="">Verilerimi indir (JSON)</button><span class="mut" data-export-t="" aria-live="polite"></span></div>
+<p class="mut">Dosyaların kendisi değil, kayıtların iner: profil, belge listesi, özetler ve kartlar, tekrar geçmişi, defter sayfaları, planlayıcı ve sınavlar.</p>
+<h3>bu tarayıcı</h3>
+<p class="mut">Hoca dosyaları, okuma işaretleri, hedefin ve bu sayfadaki görünüm ayarları bu tarayıcıda saklanır.</p>
+<button type="button" class="btn btn-line sm" data-reset-local="">Bu tarayıcıdaki Acadex tercihlerini sıfırla</button>
+<h3 class="axa-danger-h">tehlikeli bölge</h3>
+<div class="axa-danger"><p>Hesabını silersen profilin, belgelerin, kartların, defterin ve sınav geçmişin <b>kalıcı olarak</b> silinir. Bu işlem geri alınamaz.</p><button type="button" class="btn btn-red sm" onclick="openDeleteAccountModal()">Hesabımı sil</button></div></section><section class="axa-pg" role="tabpanel" id="axa-p-cihaz" aria-labelledby="axa-t-cihaz" data-pg="cihaz" hidden><h2 class="hd">Oturumlar ve cihaz<span class="sav" data-sav="" aria-hidden="true">kaydedildi</span></h2><div class="dev"><span class="doc-ic" aria-hidden="true"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="5" width="13" height="10" rx="1.5"/><path d="M8 19h3"/></svg></span><div><b data-dev-n="">Bu cihaz</b><div class="mut" data-dev-d=""></div></div><span class="tag" style="--tc:#1E8A55">bu cihaz</span></div>
+<p class="mut" style="margin-top:12px">Başka bir bilgisayarda ya da telefonda açık kalan oturumların varsa hepsini tek seferde kapatabilirsin. Bu cihazda açık kalırsın.</p>
+<div class="row"><button type="button" class="btn btn-line sm" data-out-others="">Diğer cihazlardaki oturumları kapat</button><button type="button" class="btn btn-dark sm" data-out-here="">Bu cihazdan çıkış yap</button></div></section><section class="axa-pg" role="tabpanel" id="axa-p-plan" aria-labelledby="axa-t-plan" data-pg="plan" hidden><h2 class="hd">Kullanım<span class="sav" data-sav="" aria-hidden="true">kaydedildi</span></h2><p class="mut" style="margin-top:0">Hesabında şu an duranlar:</p><div class="axa-use" data-use=""><p class="hand">sayılıyor…</p></div></section></div>
+</div>
+</div>
+<div class="toast" data-toast="" role="status" aria-live="polite" hidden><span data-toast-t=""></span><button type="button" data-toast-b="" hidden>geri al</button></div>
+</section>
 
       <!-- Consolidated Admin Panel View (admin only) -->
       <section id="admin-view" class="dashboard-view-section">
