@@ -7620,19 +7620,126 @@ var SBX = (function () {
   var RATE = 1, podSig = '';
   if (window.speechSynthesis && window.speechSynthesis.speak && !window.speechSynthesis.__axr) {
     var oSpeak = window.speechSynthesis.speak.bind(window.speechSynthesis);
-    window.speechSynthesis.speak = function (u) { try { if (RATE !== 1 && u && modal.classList.contains('active')) u.rate = Math.min(2, (u.rate || 1) * RATE); } catch (e) {} return oSpeak(u); };
+    window.speechSynthesis.speak = function (u) { try { if (RATE !== 1 && u && modal.classList.contains('active')) u.rate = Math.min(2, (u.rate || 1) * RATE); } catch (e) {} try { if (u && !u.__axr) { u.__axr = 1; u.addEventListener('start', function () { CAST.tts = true; }); u.addEventListener('end', function () { CAST.tts = false; }); u.addEventListener('error', function () { CAST.tts = false; }); u.addEventListener('boundary', function () { CAST.pulse = 1; }); } } catch (e) {} return oSpeak(u); };
     window.speechSynthesis.__axr = 1;
   }
   var PS = function () { return lsafe(function () { return podcastState; }, null); };
+  /* ---------- Ela & Kaan: stüdyo sahnesi (özgün çizim, SVG) ---------- */
+  var CAST = { tts: false, pulse: 0, ask: null, raf: 0, t0: 0 };
+  var EYES = function (cls) { return '<g class="eyes ' + cls + '"><circle cx="-15" cy="132" r="4.2"/><circle cx="15" cy="132" r="4.2"/><circle class="gl" cx="-13.6" cy="130.6" r="1.3"/><circle class="gl" cx="16.4" cy="130.6" r="1.3"/></g>'; };
+  var MOUTH = '<g class="mouth" transform="translate(0 158)"><path class="mc" d="M-9 0 Q0 6 9 0"/><ellipse class="mo" cx="0" cy="2" rx="8.5" ry="0"/><path class="tg" d="M-5 4 Q0 1 5 4" opacity="0"/></g>';
+  var ELA = '<g class="cw" transform="translate(180 0)"><g class="ch ela" data-host="A">' +
+    '<path class="hairb" d="M-50 118 C-58 58 58 58 50 118 L56 206 C30 220 -30 220 -56 206 Z"/>' +
+    '<path class="body" d="M-72 300 C-72 232 -48 204 0 204 C48 204 72 232 72 300 Z" fill="#FFD86B"/><path class="ln" d="M-30 222 Q0 240 30 222"/>' +
+    '<rect class="skin" x="-10" y="176" width="20" height="32" rx="6"/>' +
+    '<g class="head"><ellipse class="skin" cx="0" cy="130" rx="40" ry="46"/><ellipse class="cheek" cx="-24" cy="148" rx="7" ry="4.5"/><ellipse class="cheek" cx="24" cy="148" rx="7" ry="4.5"/>' +
+    '<path class="hairf" d="M-43 118 C-40 74 34 70 45 114 C30 96 6 92 -8 100 C-18 108 -30 112 -43 118 Z"/>' +
+    '<path class="brow" d="M-24 117 Q-15 112 -7 116"/><path class="brow" d="M7 116 Q15 112 24 117"/>' + EYES('e1') +
+    '<g class="glasses"><circle cx="-15" cy="132" r="11"/><circle cx="15" cy="132" r="11"/><path d="M-4 131 Q0 128 4 131"/></g>' +
+    '<path class="nose" d="M0 138 Q-3 146 1 147"/>' + MOUTH + '</g></g></g>';
+  var KAAN = '<g class="cw" transform="translate(460 0)"><g class="ch kaan" data-host="B">' +
+    '<path class="body" d="M-74 300 C-74 230 -50 204 0 204 C50 204 74 230 74 300 Z" fill="#6E93E8"/><path class="shirt" d="M-18 206 L0 236 L18 206 Z"/><path class="ln" d="M-18 206 L0 236 L18 206 M0 236 V300"/>' +
+    '<rect class="skin2" x="-11" y="176" width="22" height="32" rx="6"/>' +
+    '<g class="head"><ellipse class="skin2" cx="-41" cy="134" rx="6" ry="9"/><ellipse class="skin2" cx="41" cy="134" rx="6" ry="9"/><ellipse class="skin2" cx="0" cy="132" rx="40" ry="46"/>' +
+    '<g class="curl">' + [[-34, 104], [-22, 92], [-8, 86], [8, 86], [22, 92], [34, 104], [-40, 118], [40, 118], [-14, 98], [14, 98], [0, 94]].map(function (p) { return '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="' + (p[1] > 110 ? 9 : 12) + '"/>'; }).join('') + '</g>' +
+    '<path class="brow thick" d="M-25 118 Q-15 113 -6 117"/><path class="brow thick" d="M6 117 Q15 113 25 118"/>' + EYES('e2') +
+    '<path class="nose" d="M0 138 Q-4 147 1 148"/><path class="stub" d="M-22 160 Q0 182 22 160"/>' + MOUTH + '</g></g></g>';
+  var MIC = function (x, flip) { return '<g class="mic" transform="translate(' + x + ' 0)' + (flip ? ' scale(-1 1)' : '') + '"><path d="M0 246 V214 L-16 192"/><rect x="-30" y="166" width="22" height="34" rx="11" transform="rotate(-28 -19 183)"/><path class="grill" d="M-27 178 L-13 171 M-25 186 L-11 179" transform="rotate(-28 -19 183)"/></g>'; };
+  var stageHTML = function (names) {
+    return '<div class="axr-stage" data-stage=""><svg viewBox="0 0 640 300" role="img" aria-label="' + X(names[0] + ' ve ' + names[1] + ' sesli özet stüdyosunda') + '">' +
+      '<rect class="wall" x="0" y="0" width="640" height="300"/><g class="foam">' + [40, 120, 520, 600].map(function (x) { return '<rect x="' + (x - 26) + '" y="40" width="52" height="120" rx="6"/><path d="M' + (x - 26) + ' 70 H' + (x + 26) + ' M' + (x - 26) + ' 100 H' + (x + 26) + ' M' + (x - 26) + ' 130 H' + (x + 26) + '"/>'; }).join('') + '</g>' +
+      '<g class="onair" data-onair=""><rect x="262" y="22" width="116" height="32" rx="6"/><text x="320" y="44">YAYINDA</text></g>' +
+      KAAN + ELA +
+      '<path class="desk" d="M0 244 H640 V300 H0 Z"/><path class="deskline" d="M0 244 H640"/>' + [[138, '#FFD86B', 'skin'], [214, '#FFD86B', 'skin'], [414, '#6E93E8', 'skin2'], [506, '#6E93E8', 'skin2']].map(function (h) { var x = h[0]; return '<g class="hand"><path d="M' + (x - 15) + ' 228 Q' + x + ' 222 ' + (x + 15) + ' 228 L' + (x + 13) + ' 250 L' + (x - 13) + ' 250 Z" fill="' + h[1] + '"/><ellipse class="' + h[2] + '" cx="' + x + '" cy="253" rx="14" ry="8"/></g>'; }).join('') + MIC(232, false) + MIC(408, true) +
+      '<g class="mug"><path d="M306 214 h28 v24 a6 6 0 0 1 -6 6 h-16 a6 6 0 0 1 -6 -6 Z"/><path d="M334 220 q10 0 10 9 q0 8 -10 8"/><path class="steam" d="M314 206 q-4 -8 2 -14 M324 206 q-4 -8 2 -14"/></g>' +
+      '<text class="tag hand" x="150" y="280">' + X(names[0]) + '</text><text class="tag hand" x="452" y="280">' + X(names[1]) + '</text>' +
+      '</svg><div class="axr-think hand" data-think="" hidden>düşünüyor…</div></div>';
+  };
+  var askHTML = function (names) {
+    return '<div class="axr-ask" data-ask=""><div class="axr-askb"><span class="hand">aklına bir şey mi takıldı?</span><button type="button" class="axr-mini" data-askwho="A">' + X(names[0]) + '’ya sor</button><button type="button" class="axr-mini" data-askwho="B">' + X(names[1]) + '’a sor</button></div>' +
+      '<form class="axr-askf" data-askf="" hidden><label class="vh" for="axr-askq">Sorun</label><input id="axr-askq" maxlength="300" autocomplete="off" placeholder="sorunu yaz…"><button type="submit" class="btn btn-dark">sor</button><button type="button" class="axr-mini" data-askx="">vazgeç</button></form>' +
+      '<div class="axr-askans" data-askans="" hidden></div></div>';
+  };
+  var hostNames = function () { var ps = PS(); var n = ps && ps.hostNames; return (n && n.length === 2 && !/^[AB]$/.test(n[0])) ? n : ['Ela', 'Kaan']; };
+  var mouthLevel = function (t) { return Math.max(0, Math.min(1, .25 + .75 * Math.abs(Math.sin(t * 17) * Math.sin(t * 6.1 + 1)) + CAST.pulse * .5)); };
+  var castLoop = function (now) {
+    CAST.raf = 0; if (!modal.classList.contains('active')) return;
+    var st = Q('[data-stage]', flow);
+    if (st) {
+      var ps = PS(), who = null, talking = false;
+      if (CAST.ask) { who = CAST.ask.who; talking = CAST.ask.talking; }
+      else if (ps && ps.isPlaying && ps.currentIndex >= 0 && ps.script[ps.currentIndex]) {
+        who = ps.script[ps.currentIndex].speaker === 'B' ? 'B' : 'A';
+        talking = (ps.audioEl && ps.audioEl.src && !ps.audioEl.paused) || CAST.tts;
+      }
+      var t = now / 1000; CAST.pulse *= .9;
+      QA('.ch', st).forEach(function (c) {
+        var me = c.getAttribute('data-host') === who, open = me && talking ? mouthLevel(t) : 0;
+        c.classList.toggle('talk', me && talking); c.classList.toggle('listen', !!who && !me);
+        var mo = c.querySelector('.mo'), mc = c.querySelector('.mc'), tg = c.querySelector('.tg');
+        mo.setAttribute('ry', (open * 8).toFixed(2)); mc.style.opacity = open < .12 ? 1 : 0; tg.style.opacity = open > .55 ? .9 : 0;
+      });
+      var air = st.querySelector('[data-onair]'); if (air) air.classList.toggle('on', !!(ps && ps.isPlaying) || !!CAST.ask);
+    }
+    CAST.raf = requestAnimationFrame(castLoop);
+  };
+  var castStart = function () { if (!CAST.raf) CAST.raf = requestAnimationFrame(castLoop); };
+  var askStop = function () { if (CAST.ask) { CAST.ask = null; try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) {} } };
+  var askSpeak = async function (who, text) {
+    var ps = PS(); if (!window.speechSynthesis) return;
+    if (ps && typeof ensurePodcastVoicesLoaded === 'function' && typeof pickPodcastVoices === 'function' && !ps.voiceA && !ps.voiceB) { try { pickPodcastVoices(await ensurePodcastVoicesLoaded(), ps.lang); } catch (e) {} }
+    var u = new SpeechSynthesisUtterance(text), v = ps ? (who === 'B' ? ps.voiceB : ps.voiceA) : null, lang = (R.card && R.card.summary_language) === 'en' ? 'en-US' : 'tr-TR';
+    if (v) { u.voice = v; u.lang = v.lang; } else u.lang = lang;
+    var same = !(ps && ps.voicesConfirmedGenderPair); u.rate = who === 'B' ? .96 : 1.04; u.pitch = same ? (who === 'B' ? .82 : 1.3) : 1;
+    CAST.ask = { who: who, talking: false };
+    u.onstart = function () { if (CAST.ask) CAST.ask.talking = true; };
+    u.onboundary = function () { CAST.pulse = 1; };
+    u.onend = u.onerror = function () { CAST.ask = null; };
+    try { window.speechSynthesis.cancel(); } catch (e) {}
+    window.speechSynthesis.speak(u);
+  };
+  var askSend = function (who, q) {
+    var box = Q('[data-ask]', flow), out = Q('[data-askans]', box), think = Q('[data-think]', flow), names = hostNames(), nm = who === 'B' ? names[1] : names[0], cl = sbc();
+    if (typeof stopPodcast === 'function') stopPodcast(); askStop();
+    out.hidden = false; out.innerHTML = '<p class="q"><span class="hand">sen:</span> ' + X(q) + '</p><p class="a hand">' + X(nm) + ' düşünüyor…</p>';
+    if (think) { think.hidden = false; think.className = 'axr-think hand ' + (who === 'B' ? 'r' : 'l'); }
+    var st = Q('[data-stage]', flow); if (st) st.classList.add('thinking-' + who);
+    var en = (R.card && R.card.summary_language) === 'en';
+    var prompt = en
+      ? 'You are ' + nm + ', a friendly co-host of this study card\'s audio summary. A student asks about it: "' + q + '". Answer in at most 4 short spoken sentences, plain text, no markdown, warm and clear.'
+      : 'Sen bu özetin sesli anlatımındaki sunuculardan ' + nm + '’sın. Öğrenci özetle ilgili şunu soruyor: "' + q + '". Konuşur gibi, samimi ve sade Türkçeyle en fazla 4 kısa cümleyle cevap ver; madde işareti ve markdown kullanma.';
+    var done = function () { if (think) think.hidden = true; if (st) st.classList.remove('thinking-A', 'thinking-B'); };
+    if (!cl || !cl.functions) { done(); out.querySelector('.a').textContent = 'Şu an bağlanamadım.'; return; }
+    Promise.race([cl.functions.invoke('acadia-assistant', { body: { message: prompt, history: [], language: en ? 'en' : 'tr', studyCardId: R.card && R.card.id } }), new Promise(function (_, rej) { setTimeout(function () { rej(new Error('zaman aşımı')); }, 40000); })])
+      .then(function (r) { var d = r && r.data; if (typeof d === 'string') { try { d = JSON.parse(d); } catch (x) { d = { reply: d }; } } var rep = d && d.reply ? String(d.reply).replace(/```[\s\S]*?```/g, '').replace(/[*_#>`]/g, '').trim() : ''; if (!rep) throw new Error('boş'); return rep; })
+      .then(function (rep) {
+        done(); var a = out.querySelector('.a'); a.className = 'a'; a.innerHTML = '<b class="hand">' + X(nm) + ':</b> ' + X(rep);
+        out.insertAdjacentHTML('beforeend', '<div class="row"><button type="button" class="axr-mini" data-askreplay="' + who + '">tekrar dinle</button><button type="button" class="axr-mini" data-askmute="">sustur</button></div>');
+        out._rep = rep; askSpeak(who, rep);
+      }, function () { done(); var a = out.querySelector('.a'); a.className = 'a hand'; a.textContent = nm + ' şu an cevap veremedi; birazdan tekrar dene.'; });
+  };
+  flow.addEventListener('click', function (e) {
+    var b;
+    if ((b = e.target.closest('[data-askwho]'))) { var f = Q('[data-askf]', flow), who = b.getAttribute('data-askwho'), nm = hostNames()[who === 'B' ? 1 : 0]; f.hidden = false; f.setAttribute('data-who', who); var inp = f.querySelector('input'); inp.placeholder = nm + '’ya sorunu yaz…'.replace('’ya', who === 'B' ? '’a' : '’ya'); inp.focus(); QA('[data-askwho]', flow).forEach(function (x) { x.classList.toggle('on', x === b); }); return; }
+    if (e.target.closest('[data-askx]')) { Q('[data-askf]', flow).hidden = true; QA('[data-askwho]', flow).forEach(function (x) { x.classList.remove('on'); }); return; }
+    if ((b = e.target.closest('[data-askreplay]'))) { var o = Q('[data-askans]', flow); if (o._rep) { if (typeof stopPodcast === 'function') stopPodcast(); askSpeak(b.getAttribute('data-askreplay'), o._rep); } return; }
+    if (e.target.closest('[data-askmute]')) { askStop(); return; }
+  });
+  flow.addEventListener('submit', function (e) {
+    var f = e.target.closest('[data-askf]'); if (!f) return; e.preventDefault(); var q = f.querySelector('input').value.trim(); if (!q) return;
+    f.querySelector('input').value = ''; askSend(f.getAttribute('data-who') || 'A', q);
+  });
+
   var paintPod = function (force) {
     var box = Q('[data-pod]', flow); if (!box) return; var ps = PS(), sc = ps && Array.isArray(ps.script) ? ps.script : [];
     var sig = sc.length + ':' + (R.card && R.card.id); if (!force && sig === podSig) return; podSig = sig;
     var own = !R.ro && lsafe(function () { return !!activeModalCardId; }, false);
-    if (!sc.length) { box.innerHTML = '<div class="axr-podcta"><div class="axr-wave idle" aria-hidden="true">' + new Array(28).join('<i></i>') + '</div><p><b>Sesli özet</b> iki sunucu (Ela ve Kaan) bu özeti sohbet eder gibi anlatır.</p>' + (own ? '<button type="button" class="btn btn-dark" data-podgen="">sesli özeti hazırla</button>' : '<p class="hand">bu kart için sesli özet hazırlanmamış.</p>') + '</div>'; return; }
+    var nm0 = hostNames(); castStart();
+    if (!sc.length) { box.innerHTML = stageHTML(nm0) + '<div class="axr-podcta"><p><b>Sesli özet</b> iki sunucu (Ela ve Kaan) bu özeti sohbet eder gibi anlatır.</p>' + (own ? '<button type="button" class="btn btn-dark" data-podgen="">sesli özeti hazırla</button>' : '<p class="hand">bu kart için sesli özet hazırlanmamış.</p>') + '</div>' + askHTML(nm0); return; }
     var names = (ps.hostNames && ps.hostNames.length === 2) ? ps.hostNames : ['Ela', 'Kaan'];
-    box.innerHTML = '<div class="axr-player"><button type="button" class="axr-play" data-podplay="" aria-label="Oynat">' + ICON.up + '</button><div class="axr-pmid"><div class="axr-wave" data-wave="" aria-hidden="true">' + new Array(48).join('<i></i>') + '</div><div class="axr-pbar"><i data-podfill=""></i></div></div><span class="mono axr-pcount" data-podcount="">0 / ' + sc.length + '</span>' +
+    box.innerHTML = stageHTML(nm0) + '<div class="axr-player"><button type="button" class="axr-play" data-podplay="" aria-label="Oynat">' + ICON.up + '</button><div class="axr-pmid"><div class="axr-wave" data-wave="" aria-hidden="true">' + new Array(48).join('<i></i>') + '</div><div class="axr-pbar"><i data-podfill=""></i></div></div><span class="mono axr-pcount" data-podcount="">0 / ' + sc.length + '</span>' +
       '<label class="axr-rate"><span class="vh">Hız</span><select data-rate=""><option value="0.8">0.8×</option><option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option></select></label><button type="button" class="axr-mini" data-podstop="">durdur</button></div>' +
-      '<ol class="axr-trans" data-trans="">' + sc.map(function (l, i) { var b = l.speaker === 'B'; return '<li data-li="' + i + '" class="' + (b ? 'b' : 'a') + '"><button type="button" data-podfrom="' + i + '"><b>' + X(b ? names[1] : names[0]) + '</b><span>' + X(l.text) + '</span></button></li>'; }).join('') + '</ol>';
+      '<ol class="axr-trans" data-trans="">' + sc.map(function (l, i) { var b = l.speaker === 'B'; return '<li data-li="' + i + '" class="' + (b ? 'b' : 'a') + '"><button type="button" data-podfrom="' + i + '"><b>' + X(b ? names[1] : names[0]) + '</b><span>' + X(l.text) + '</span></button></li>'; }).join('') + '</ol>' + askHTML(nm0);
     Q('[data-rate]', box).value = String(RATE);
   };
   var podTick = function () {
@@ -7648,7 +7755,7 @@ var SBX = (function () {
   };
   setInterval(podTick, 300);
   var playFrom = async function (i) {
-    var ps = PS(); if (!ps || !ps.script.length) return;
+    askStop(); var ps = PS(); if (!ps || !ps.script.length) return;
     if (typeof stopPodcast === 'function') stopPodcast();
     if (!ps.audioFetchAttempted && typeof generatePodcastAudio === 'function') { ps.audioFetchAttempted = true; await generatePodcastAudio(); }
     if (!ps.audioUrls.length && typeof ensurePodcastVoicesLoaded === 'function') { var v = await ensurePodcastVoicesLoaded(); if (typeof pickPodcastVoices === 'function') pickPodcastVoices(v, ps.lang); }
@@ -7657,7 +7764,7 @@ var SBX = (function () {
   flow.addEventListener('click', function (e) {
     var b;
     if ((b = e.target.closest('[data-podgen]'))) { b.disabled = true; b.textContent = 'hazırlanıyor…'; Promise.resolve(lsafe(function () { return generatePodcastScript(); }, null)).then(function () { paintPod(true); }); return; }
-    if (e.target.closest('[data-podplay]')) { if (typeof togglePodcastPlayback === 'function') togglePodcastPlayback(); return; }
+    if (e.target.closest('[data-podplay]')) { askStop(); if (typeof togglePodcastPlayback === 'function') togglePodcastPlayback(); return; }
     if (e.target.closest('[data-podstop]')) { if (typeof stopPodcast === 'function') stopPodcast(); return; }
     if ((b = e.target.closest('[data-podfrom]'))) { playFrom(+b.getAttribute('data-podfrom')); }
   });
@@ -7836,7 +7943,7 @@ var SBX = (function () {
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !story.hidden) { e.stopPropagation(); closeStory(); } }, true);
   var origLbl = document.getElementById('btn-toggle-original-label');
   if (origLbl) new MutationObserver(function () { var t = origLbl.textContent, c = t.replace(/^[^\p{L}\p{N}]+/u, '').trim(); if (c !== t) origLbl.textContent = c; }).observe(origLbl, { childList: true, characterData: true, subtree: true });
-  new MutationObserver(function () { document.body.classList.toggle('axr-open', modal.classList.contains('active')); if (!modal.classList.contains('active')) { closeStory(); tb.hidden = true; pop.hidden = true; cf.hidden = true; } }).observe(modal, { attributes: true, attributeFilter: ['class'] });
+  new MutationObserver(function () { document.body.classList.toggle('axr-open', modal.classList.contains('active')); if (!modal.classList.contains('active')) { askStop(); closeStory(); tb.hidden = true; pop.hidden = true; cf.hidden = true; } }).observe(modal, { attributes: true, attributeFilter: ['class'] });
   applyPrefs();
 })();
 

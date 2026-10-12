@@ -7963,3 +7963,83 @@ body.acx .ax-folder.axp-landed{animation:axpLand .9s cubic-bezier(.3,1.4,.5,1) b
   body.acx .axp-hd small{margin-left:0;flex-basis:100%}
 }
 @media (prefers-reduced-motion:reduce){body.acx .axp-press *{animation:none!important}}
+
+/* ---------- Ela & Kaan stüdyosu ---------- */
+#study-card-modal.axr .axr-stage{position:relative;margin:-16px -18px 14px;border-radius:14px 14px 0 0;overflow:hidden;border-bottom:1px solid #E3DECF}
+#study-card-modal.axr .axr-stage svg{display:block;width:100%;height:auto}
+.axr-stage .wall{fill:#F3EEDF}
+.axr-stage .foam rect{fill:#E6DFCB;stroke:#CFC6AE;stroke-width:1.5}
+.axr-stage .foam path{stroke:#D7CFB8;stroke-width:1.5}
+.axr-stage .onair rect{fill:#E4DFD2;stroke:#1A2A5C;stroke-width:2;transition:fill .3s}
+.axr-stage .onair text{font:700 14px 'JetBrains Mono',monospace;letter-spacing:.18em;text-anchor:middle;fill:#9A9382;transition:fill .3s}
+.axr-stage .onair.on rect{fill:#C9483B;filter:drop-shadow(0 0 8px rgba(201,72,59,.7))}
+.axr-stage .onair.on text{fill:#fff}
+.axr-stage .desk{fill:#D9C39A;stroke:#1A2A5C;stroke-width:2.2}
+.axr-stage .deskline{stroke:#1A2A5C;stroke-width:3;stroke-linecap:round}
+.axr-stage .ch path,.axr-stage .ch ellipse,.axr-stage .ch rect,.axr-stage .ch circle{stroke:#1A2A5C;stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round}
+.axr-stage .ch .skin{fill:#F4CDAA}
+.axr-stage .ch .skin2{fill:#D7A47C}
+.axr-stage .ch .cheek{fill:#F29C94;stroke:none!important;opacity:.45}
+.axr-stage .ela .hairb,.axr-stage .ela .hairf{fill:#C9483B}
+.axr-stage .kaan .curl circle{fill:#3B2A22}
+.axr-stage .kaan .shirt{fill:#fff}
+.axr-stage .ch .ln{fill:none;stroke-width:1.6}
+.axr-stage .ch .brow{fill:none;stroke-width:2.6}
+.axr-stage .ch .brow.thick{stroke-width:3.6}
+.axr-stage .ch .nose{fill:none;stroke-width:1.8}
+.axr-stage .ch .stub{fill:none;stroke:#8A6A55!important;stroke-width:1.4;stroke-dasharray:1 4;opacity:.7}
+.axr-stage .ch .eyes circle{fill:#1A2A5C;stroke:none}
+.axr-stage .ch .eyes .gl{fill:#fff}
+.axr-stage .ch .glasses circle,.axr-stage .ch .glasses path{fill:rgba(255,255,255,.18);stroke-width:2}
+.axr-stage .ch .mc{fill:none;stroke-width:2.4}
+.axr-stage .ch .mo{fill:#7A2430;stroke-width:2}
+.axr-stage .ch .tg{fill:none;stroke:#E8838C!important;stroke-width:2.4}
+.axr-stage .mic path{fill:none;stroke:#1A2A5C;stroke-width:3;stroke-linecap:round}
+.axr-stage .mic rect{fill:#2B3550;stroke:#1A2A5C;stroke-width:2}
+.axr-stage .mic .grill{stroke:#8C96B2!important;stroke-width:1.4!important}
+.axr-stage .hand path,.axr-stage .hand ellipse{stroke:#1A2A5C;stroke-width:2.2;stroke-linejoin:round}
+.axr-stage .hand .skin{fill:#F4CDAA}.axr-stage .hand .skin2{fill:#D7A47C}
+.axr-stage .mug path{fill:#fff;stroke:#1A2A5C;stroke-width:2.2;stroke-linejoin:round}
+.axr-stage .mug path+path{fill:none}
+.axr-stage .mug .steam{fill:none!important;stroke:#9AA3BA;stroke-width:1.8;stroke-linecap:round;animation:axrSteam 3s ease-in-out infinite}
+@keyframes axrSteam{0%,100%{opacity:.2;transform:translateY(2px)}50%{opacity:.9;transform:translateY(-3px)}}
+.axr-stage .tag{font-family:'Caveat',cursive;font-size:24px;font-weight:700;fill:#1A2A5C}
+/* canlılık: nefes, göz kırpma, konuşurken öne eğilme */
+.axr-stage .ch{transform-box:fill-box;transform-origin:50% 100%;transition:transform .45s cubic-bezier(.2,.7,.2,1);animation:axrBreath 4.2s ease-in-out infinite}
+.axr-stage .kaan{animation-delay:-1.7s}
+@keyframes axrBreath{0%,100%{translate:0 0}50%{translate:0 -2px}}
+.axr-stage .ch .head{transform-box:fill-box;transform-origin:50% 90%;transition:transform .4s cubic-bezier(.2,.7,.2,1)}
+.axr-stage .ch.talk{transform:rotate(1.2deg) translateY(-3px)}
+.axr-stage .kaan.talk{transform:rotate(-1.2deg) translateY(-3px)}
+.axr-stage .ch.talk .head{animation:axrNodTalk 1.6s ease-in-out infinite}
+.axr-stage .ch.listen .head{transform:rotate(-4deg)}
+.axr-stage .kaan.listen .head{transform:rotate(4deg)}
+.axr-stage .ch.listen .brow{translate:0 -2px;transition:translate .3s}
+@keyframes axrNodTalk{0%,100%{rotate:0deg}30%{rotate:-2.5deg}65%{rotate:2deg}}
+.axr-stage .ch .eyes{transform-box:fill-box;transform-origin:50% 50%;animation:axrBlink 4.6s infinite}
+.axr-stage .kaan .eyes{animation-duration:5.3s;animation-delay:-2s}
+@keyframes axrBlink{0%,93%,100%{transform:scaleY(1)}95.5%{transform:scaleY(.08)}}
+#study-card-modal.axr .axr-stage.thinking-A .ela .eyes,#study-card-modal.axr .axr-stage.thinking-B .kaan .eyes{translate:4px -4px;transition:translate .3s}
+#study-card-modal.axr .axr-stage.thinking-A .ela .head,#study-card-modal.axr .axr-stage.thinking-B .kaan .head{transform:rotate(-6deg)}
+#study-card-modal.axr .axr-think{position:absolute;top:18%;padding:6px 14px;border-radius:18px;background:#fff;border:2px solid #1A2A5C;font-size:20px;color:#1A2A5C;animation:axrPop .3s both}
+#study-card-modal.axr .axr-think.l{left:34%}
+#study-card-modal.axr .axr-think.r{right:34%}
+#study-card-modal.axr .axr-think::after{content:'';position:absolute;bottom:-9px;width:12px;height:12px;background:#fff;border:2px solid #1A2A5C;border-radius:50%}
+#study-card-modal.axr .axr-think.l::after{left:8px}
+#study-card-modal.axr .axr-think.r::after{right:8px}
+#study-card-modal.axr .axr-podcta{margin-top:4px}
+/* karaktere sor */
+#study-card-modal.axr .axr-ask{margin-top:14px;padding-top:12px;border-top:1px dashed #DDD6C3}
+#study-card-modal.axr .axr-askb{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+#study-card-modal.axr .axr-askb .hand{font-size:20px;color:var(--soft);margin-right:4px}
+#study-card-modal.axr .axr-askf{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+#study-card-modal.axr .axr-askf input{flex:1 1 220px;min-height:44px;padding:0 14px;border:1.5px solid #CFC8B6;border-radius:999px;background:#fff;font:inherit;font-size:15px;color:var(--navy)}
+#study-card-modal.axr .axr-askf input:focus{outline:none;border-color:var(--blue)}
+#study-card-modal.axr .axr-askf .btn{min-height:44px;border-radius:999px!important;padding:0 20px!important;background:var(--navy)!important;color:#fff!important;border:0!important}
+#study-card-modal.axr .axr-askans{margin-top:12px;padding:12px 14px;border-radius:12px;background:#FBF8EE;border:1px solid #E7E0CC;font-size:15px;line-height:1.55;color:#1E2747;animation:axrPop .3s both}
+#study-card-modal.axr .axr-askans p{margin:0 0 6px}
+#study-card-modal.axr .axr-askans .q{color:var(--muted);font-size:14px}
+#study-card-modal.axr .axr-askans .hand{font-size:19px;color:var(--blue)}
+#study-card-modal.axr .axr-askans .row{display:flex;gap:8px;margin-top:8px}
+@media (max-width:900px){#study-card-modal.axr .axr-stage{margin:-16px -18px 12px}.axr-stage .tag{font-size:28px}}
+@media (prefers-reduced-motion:reduce){.axr-stage .ch,.axr-stage .ch .head,.axr-stage .ch .eyes,.axr-stage .mug .steam{animation:none!important}}
