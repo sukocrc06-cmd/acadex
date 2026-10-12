@@ -7240,3 +7240,662 @@ var SBX = (function () {
   var wait = setInterval(function () { if (me()) { clearInterval(wait); UID = me().id; var p = G(LK('pom'), null); if (p && p.phase) POM = p; pomTick(); } }, 800);
   setTimeout(function () { clearInterval(wait); }, 30000);
 })();
+
+/* ================= ÖZET KARTI · dergi + hikâye açılışı =================
+   Eski modalın bütün kimlikleri (paylaş, oy, orijinal, PDF, sesli özet, yenile, görsel üret)
+   korunur; dashboard.js kartı yine kendi doldurur. Bu dosya aynı kartı veriden yeniden çizer:
+   hikâye açılışı, bölüm şeridi, el çizimi grafikler, adım adım diyagramlar, canlı kavram ağı,
+   sayaçlar, formül / tablo stüdyosu, fosforlu kalem + kenar notu, sesli özet karaokesi,
+   okuma konforu. Vurgular study_card_highlights tablosunda (yoksa bu tarayıcıda) saklanır. */
+(function () {
+  'use strict';
+  var modal = document.getElementById('study-card-modal');
+  if (!modal || !modal.classList.contains('axr')) return;
+  var layer = document.getElementById('axr-layer'); if (layer) document.body.appendChild(layer);
+  var LY = layer ? layer.querySelector('.axr-l') : document.body;
+  var Q = function (s, el) { return (el || modal).querySelector(s); };
+  var QA = function (s, el) { return Array.prototype.slice.call((el || modal).querySelectorAll(s)); };
+  var X = function (t) { return String(t == null ? '' : t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var G = function (k, d) { try { var v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
+  var S = function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } };
+  var lsafe = function (fn, fb) { try { return fn(); } catch (e) { return fb; } };
+  var me = function () { return lsafe(function () { return currentUser; }, null) || window.currentUser || null; };
+  var sbc = function () { return typeof supabaseClient !== 'undefined' ? supabaseClient : null; };
+  var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var MISSING = function (e) { if (!e) return false; var c = String(e.code || ''), m = String(e.message || e); return /^(42P01|42703|PGRST20[045])$/.test(c) || /does not exist|schema cache|Could not find/i.test(m); };
+  var uid = function () { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); };
+  var baseName = function (n) { n = String(n || '').replace(/\.[a-z0-9]{2,5}$/i, ''); var m = n.match(/^\d{10,}_(?:\d{10,}_)?(.+)$/); if (m) n = m[1]; return n.replace(/_+/g, ' ').replace(/\s*\(\d+\)$/, '').trim() || 'İsimsiz belge'; };
+  var plain = function (h) { var d = document.createElement('div'); d.innerHTML = String(h == null ? '' : h); return (d.textContent || '').replace(/\s+/g, ' ').trim(); };
+  var arr = function (x) { if (Array.isArray(x)) return x; if (typeof x === 'string') { try { var j = JSON.parse(x); return Array.isArray(j) ? j : []; } catch (e) { return []; } } return []; };
+  var cut = function (t, n) { t = String(t || ''); return t.length > n ? t.slice(0, n - 1).replace(/\s+\S*$/, '') + '…' : t; };
+  var fmtS = function (t, fn) { return typeof formatSummaryText === 'function' ? formatSummaryText(t, fn) : '<p>' + X(t) + '</p>'; };
+  var math = function (t) { return typeof renderMathInText === 'function' ? renderMathInText(String(t || '')) : X(t); };
+  var COL = ['#2F6BFF', '#C9483B', '#1E8A55', '#C88A1C', '#6A4FA8', '#0F7C8A', '#D9677F', '#0D1838'];
+  var ICON = {
+    up: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5 L19 12 L8 19 Z"/></svg>',
+    pause: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5 V19 M16 5 V19"/></svg>',
+    redo: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 8 A8 8 0 1 0 20 13"/><path d="M19 3.5 V8.5 H14"/></svg>',
+    chart: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20 H20 M7 17 V11 M12 17 V6 M17 17 V13"/></svg>'
+  };
+
+  /* bildirim (katmanda) */
+  var toast = document.createElement('div'); toast.className = 'axr-toast'; toast.setAttribute('role', 'status'); toast.hidden = true; LY.appendChild(toast);
+  var tT = 0, say = function (t) { toast.textContent = t; toast.hidden = false; clearTimeout(tT); tT = setTimeout(function () { toast.hidden = true; }, 4200); };
+
+  /* ---------- tercihler ---------- */
+  var PK = 'acadex.reader.prefs';
+  var prefs = G(PK, { size: 1, lh: 1, font: 'sans', focus: false, story: true });
+  var applyPrefs = function () {
+    var m = Q('.axr-main'); m.style.setProperty('--fs', [15, 16.5, 18, 20][prefs.size] + 'px'); m.style.setProperty('--lh', [1.55, 1.75, 1.95][prefs.lh]);
+    m.setAttribute('data-font', prefs.font); m.classList.toggle('focus', !!prefs.focus);
+  };
+
+  /* ---------- durum ---------- */
+  var R = { card: null, name: '', ro: false, words: 0, hl: [], hlCard: null, hlOK: true, charts: [], io: null, visIO: null };
+  var scroller = Q('[data-axr-scroll]'), flow = Q('[data-axr-flow]'), mast = Q('[data-axr-mast]'), rail = Q('[data-axr-rail]'), story = Q('[data-axr-story]');
+
+  /* ---------- sayılar: özetten öne çıkanlar ---------- */
+  var findNumbers = function (card) {
+    var src = [card.summary_executive || ''].concat(arr(card.key_points).map(plain)).concat([plain(card.summary || '')]).join(' \n ');
+    var sents = src.split(/(?<=[.!?])\s+|\n/), out = [], seen = {};
+    var re = /(%\s?\d+(?:[.,]\d+)?|\d+(?:[.,]\d+)?\s?%|[$€₺]\s?\d+(?:[.,]\d+)?|\d+(?:[.,]\d+)?\s?(?:milyon|milyar|bin|TL|USD|dolar|yıl|ay|gün|adım|aşama|faktör|kat)\b|\b\dP\b)/i;
+    sents.forEach(function (s) {
+      if (out.length >= 3) return; var m = s.match(re); if (!m) return; var tok = m[1].trim(), key = tok.toLowerCase(); if (seen[key]) return; seen[key] = 1;
+      var num = parseFloat(tok.replace(/[^\d.,]/g, '').replace(',', '.')); if (isNaN(num)) return;
+      out.push({ v: num, raw: tok, pre: tok.match(/^[%$€₺]/) ? tok.match(/^[%$€₺]/)[0] : '', post: tok.replace(/^[%$€₺]\s?/, '').replace(/^\d+(?:[.,]\d+)?\s?/, ''), dec: /[.,]\d/.test(tok), cap: cut(plain(s), 90) });
+    });
+    var secs = arr(card.sections).length, terms = arr(card.key_terms).length;
+    if (out.length < 3 && secs) out.push({ v: secs, pre: '', post: ' bölüm', cap: 'belge bu kadar ana başlığa ayrılıyor' });
+    if (out.length < 3 && terms) out.push({ v: terms, pre: '', post: ' kavram', cap: 'özette tanımlanan anahtar kavram' });
+    if (out.length < 3) out.push({ v: Math.max(1, Math.round(R.words / 200)), pre: '~', post: ' dk', cap: 'tamamını okuma süresi' });
+    return out.slice(0, 3);
+  };
+  var counterHTML = function (n, i) { return '<div class="axr-num" style="--c:' + COL[i % COL.length] + '"><b class="disp" data-count="' + n.v + '" data-dec="' + (n.dec ? 1 : 0) + '" data-pre="' + X(n.pre || '') + '" data-post="' + X(n.post || '') + '">' + X((n.pre || '') + (n.dec ? n.v : Math.round(n.v)) + (n.post || '')) + '</b><span>' + X(n.cap) + '</span></div>'; };
+  var runCount = function (el) {
+    if (el.dataset.ran) return; el.dataset.ran = '1'; var to = +el.dataset.count, dec = el.dataset.dec === '1', pre = el.dataset.pre, post = el.dataset.post;
+    if (calm) return; var t0 = performance.now(), dur = 1100;
+    var step = function (t) { var k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3), v = to * e; el.textContent = pre + (dec ? v.toFixed(1).replace('.', ',') : Math.round(v)) + post; if (k < 1) requestAnimationFrame(step); else el.textContent = pre + (dec ? String(to).replace('.', ',') : to) + post; };
+    requestAnimationFrame(step);
+  };
+
+  /* ---------- el çizimi grafikler (SVG) ---------- */
+  var wob = function (x1, y1, x2, y2, k) { var mx = (x1 + x2) / 2 + (Math.random() - .5) * k, my = (y1 + y2) / 2 + (Math.random() - .5) * k; return 'M' + x1.toFixed(1) + ' ' + y1.toFixed(1) + ' Q' + mx.toFixed(1) + ' ' + my.toFixed(1) + ' ' + x2.toFixed(1) + ' ' + y2.toFixed(1); };
+  var fmtV = function (v) { return Math.abs(v) >= 1000 ? (v / 1000).toFixed(v % 1000 ? 1 : 0).replace('.', ',') + 'B' : (Math.round(v * 10) / 10).toString().replace('.', ','); };
+  var chartSVG = function (c) {
+    var type = String(c.type || 'bar').toLowerCase(), labels = arr(c.labels).map(String), data = arr(c.data).map(function (v) { return typeof v === 'object' && v ? +(v.value || v.y || 0) : +v || 0; });
+    if (!data.length && Array.isArray(c.datasets) && c.datasets[0]) data = arr(c.datasets[0].data).map(function (v) { return +v || 0; });
+    var n = Math.min(labels.length || data.length, data.length); labels = labels.slice(0, n); data = data.slice(0, n);
+    if (!n) return '';
+    var W = 560, H = 330, h = '';
+    if (type === 'pie' || type === 'doughnut') {
+      var tot = data.reduce(function (a, b) { return a + Math.max(0, b); }, 0) || 1, acc = 0, cx = 170, cy = 165, r = 112, sw = type === 'doughnut' ? 52 : 112, rr = type === 'doughnut' ? r : r / 2;
+      h += '<g class="pie">';
+      data.forEach(function (v, i) {
+        var p = Math.max(0, v) / tot * 100;
+        h += '<circle class="arc" data-i="' + i + '" cx="' + cx + '" cy="' + cy + '" r="' + rr + '" pathLength="100" style="--c:' + COL[i % COL.length] + ';--p:' + p.toFixed(2) + ';--o:' + (-acc).toFixed(2) + ';--d:' + (i * .28).toFixed(2) + 's;stroke-width:' + sw + 'px" transform="rotate(-90 ' + cx + ' ' + cy + ')"><title>' + X(labels[i] + ': ' + fmtV(v) + ' (%' + Math.round(p) + ')') + '</title></circle>';
+        acc += p;
+      });
+      h += '<circle cx="' + cx + '" cy="' + cy + '" r="' + (type === 'doughnut' ? r + 26 : r) + '" class="rim" filter="url(#axr-rough)"/>';
+      if (type === 'doughnut') h += '<text class="ctr disp" x="' + cx + '" y="' + (cy + 8) + '">' + fmtV(tot) + '</text>';
+      h += '</g><g class="leg">' + labels.map(function (l, i) { var p = Math.max(0, data[i]) / tot * 100; return '<g class="li" data-i="' + i + '" style="--d:' + (i * .28 + .3).toFixed(2) + 's"><rect x="318" y="' + (70 + i * 40) + '" width="20" height="20" rx="3" fill="url(#axr-hatch-' + (i % 8) + ')" stroke="' + COL[i % COL.length] + '"/><text class="hand" x="346" y="' + (86 + i * 40) + '">' + X(cut(l, 14)) + '</text><text class="mono v" x="' + (W - 20) + '" y="' + (86 + i * 40) + '">%' + Math.round(p) + '</text></g>'; }).join('') + '</g>';
+      return '<svg viewBox="0 0 ' + W + ' ' + H + '" class="axr-chart t-pie" role="img" aria-label="' + X((c.title || 'grafik') + ': ' + labels.map(function (l, i) { return l + ' ' + fmtV(data[i]); }).join(', ')) + '">' + h + '</svg>';
+    }
+    var max = Math.max.apply(null, data.concat([0])), min = Math.min.apply(null, data.concat([0])), L = 58, Rt = W - 18, T = 26, B = H - 52, span = (max - min) || 1;
+    var y = function (v) { return B - (v - min) / span * (B - T); };
+    var ticks = 4; h += '<g class="grid">';
+    for (var t = 0; t <= ticks; t++) { var tv = min + span * t / ticks, ty = y(tv); h += '<path d="' + wob(L, ty, Rt, ty, 2) + '"/><text class="mono" x="' + (L - 8) + '" y="' + (ty + 4) + '">' + fmtV(tv) + '</text>'; }
+    h += '</g><path class="axis" d="' + wob(L, T - 8, L, B, 3) + ' ' + wob(L, B, Rt + 6, B, 3).replace('M', 'M') + '" filter="url(#axr-rough)"/>';
+    var bw = (Rt - L) / n;
+    if (type === 'line') {
+      var pts = data.map(function (v, i) { return [L + bw * (i + .5), y(v)]; }), d = 'M' + pts[0][0] + ' ' + pts[0][1];
+      for (var i = 1; i < pts.length; i++) { var p0 = pts[i - 1], p1 = pts[i], cx1 = p0[0] + (p1[0] - p0[0]) / 2; d += ' C' + cx1 + ' ' + p0[1] + ' ' + cx1 + ' ' + p1[1] + ' ' + p1[0] + ' ' + p1[1]; }
+      h += '<path class="area" d="' + d + ' L' + pts[pts.length - 1][0] + ' ' + B + ' L' + pts[0][0] + ' ' + B + ' Z"/>';
+      h += '<path class="ln" pathLength="1" d="' + d + '"/>';
+      pts.forEach(function (p, i) { h += '<g class="pt" data-i="' + i + '" style="--d:' + (.6 + i * .12).toFixed(2) + 's"><circle cx="' + p[0] + '" cy="' + p[1] + '" r="6"/><text class="hand v" x="' + p[0] + '" y="' + (p[1] - 14) + '">' + fmtV(data[i]) + '</text><title>' + X(labels[i] + ': ' + fmtV(data[i])) + '</title></g>'; });
+    } else {
+      data.forEach(function (v, i) {
+        var x = L + bw * i + bw * .18, w = bw * .64, yt = y(Math.max(v, 0)), yb = y(Math.min(v, 0)), hh = Math.max(2, yb - yt), r = Math.min(8, w / 3);
+        h += '<g class="bar" data-i="' + i + '" style="--d:' + (i * .12).toFixed(2) + 's"><path class="b" d="M' + x + ' ' + (yt + hh) + ' V' + (yt + r) + ' Q' + x + ' ' + yt + ' ' + (x + r) + ' ' + yt + ' H' + (x + w - r) + ' Q' + (x + w) + ' ' + yt + ' ' + (x + w) + ' ' + (yt + r) + ' V' + (yt + hh) + '" fill="url(#axr-hatch-' + (i % 8) + ')" stroke="' + COL[i % COL.length] + '" filter="url(#axr-rough)"/><text class="hand v" x="' + (x + w / 2) + '" y="' + (yt - 8) + '">' + fmtV(v) + '</text><title>' + X(labels[i] + ': ' + fmtV(v)) + '</title></g>';
+      });
+    }
+    var rot = n > 6 || labels.some(function (l) { return l.length > 12; });
+    h += '<g class="xl">' + labels.map(function (l, i) { var x = L + bw * (i + .5); return '<text x="' + x + '" y="' + (B + 20) + '"' + (rot ? ' transform="rotate(-18 ' + x + ' ' + (B + 20) + ')" text-anchor="end"' : '') + '>' + X(cut(l, rot ? 16 : 18)) + '</text>'; }).join('') + '</g>';
+    return '<svg viewBox="0 0 ' + W + ' ' + H + '" class="axr-chart t-' + (type === 'line' ? 'line' : 'bar') + '" role="img" aria-label="' + X((c.title || 'grafik') + ': ' + labels.map(function (l, i) { return l + ' ' + fmtV(data[i]); }).join(', ')) + '">' + h + '</svg>';
+  };
+  var chartCard = function (c, i) {
+    return '<figure class="axr-fig axr-chartw" data-chart="' + i + '"><figcaption><span class="mono">ŞEKİL ' + (i + 1) + '</span><b>' + X(c.title || 'Grafik') + '</b></figcaption>' + chartSVG(c) + '<div class="axr-tip hand" data-tip="" hidden></div>' +
+      (c.description ? '<p class="axr-figp">' + X(c.description) + '</p>' : '') + '<button type="button" class="axr-mini" data-redraw="">' + ICON.redo + 'yeniden çiz</button></figure>';
+  };
+  var drawIn = function (fig) { if (!fig || fig.classList.contains('in')) return; fig.classList.add('in'); };
+
+  /* ---------- diyagramlar (mermaid → mürekkep, adım adım) ---------- */
+  var diagCard = function (d, i) {
+    return '<figure class="axr-fig axr-dg" data-dg="' + i + '"><figcaption><span class="mono">DİYAGRAM ' + (i + 1) + '</span><b>' + X(d.title || 'Diyagram') + '</b></figcaption>' + (d.description ? '<p class="axr-figp">' + X(d.description) + '</p>' : '') +
+      '<div class="axr-dgbox" data-dgbox=""><p class="hand axr-wait">diyagram çiziliyor…</p></div><div class="axr-dgbar"><button type="button" class="axr-mini" data-dgstep="">adım adım</button><span class="axr-dgnav" hidden><button type="button" class="axr-mini" data-dgprev="" aria-label="Önceki adım">◀</button><span class="mono" data-dgpos=""></span><button type="button" class="axr-mini" data-dgnext="" aria-label="Sonraki adım">▶</button></span><span class="hand axr-dgcap" data-dgcap=""></span></div></figure>';
+  };
+  var renderDiagram = async function (fig, d, i) {
+    var box = Q('[data-dgbox]', fig); if (!d.mermaid || !window.mermaid) { fig.hidden = true; return; }
+    var ok = false;
+    try { if (typeof safeMermaidRender === 'function') ok = await safeMermaidRender(box, d.mermaid, 'axr-mmd-' + uid()); else { var r = await window.mermaid.render('axr-mmd-' + uid(), d.mermaid); box.innerHTML = r.svg; ok = true; } } catch (e) { ok = false; }
+    var svg = box.querySelector('svg'); if (!ok || !svg) { fig.hidden = true; return; }
+    svg.removeAttribute('height'); svg.style.maxWidth = '100%'; svg.classList.add('axr-inked');
+    var nodes = QA('g.node', svg), edges = QA('path.flowchart-link, g.edgePath path, .edgePaths path', svg), labels = QA('g.edgeLabel', svg);
+    nodes.forEach(function (n, k) { n.style.setProperty('--i', k); n.setAttribute('tabindex', '0'); });
+    edges.forEach(function (e, k) { e.setAttribute('pathLength', '1'); e.style.setProperty('--i', k); });
+    fig._dg = { nodes: nodes, edges: edges, labels: labels, step: -1 };
+    fig.classList.add('ready');
+  };
+  var nodeName = function (n) { var m = String(n.id || '').match(/^flowchart-(.+)-\d+$/); return m ? m[1] : n.id; };
+  var dgPaint = function (fig) {
+    var D = fig._dg; if (!D) return; var on = {};
+    D.nodes.forEach(function (n, k) { var vis = D.step < 0 || k <= D.step; n.classList.toggle('off', !vis); n.classList.toggle('cur', k === D.step); if (vis) on[nodeName(n)] = 1; });
+    D.edges.forEach(function (e, k) {
+      var cl = Array.prototype.slice.call(e.classList), a = (cl.filter(function (c) { return c.indexOf('LS-') === 0; })[0] || '').slice(3), b = (cl.filter(function (c) { return c.indexOf('LE-') === 0; })[0] || '').slice(3);
+      var vis = D.step < 0 || (a && b ? on[a] && on[b] : k < D.step); e.classList.toggle('off', !vis); if (D.labels[k]) D.labels[k].classList.toggle('off', !vis);
+    });
+    Q('[data-dgpos]', fig).textContent = D.step < 0 ? '' : (D.step + 1) + ' / ' + D.nodes.length;
+    var cur = D.nodes[D.step]; Q('[data-dgcap]', fig).textContent = cur ? plain(cur.textContent) : '';
+  };
+
+  /* ---------- kavram ağı ---------- */
+  var netData = function (card) {
+    var g = card.concept_graph || {}, nodes = arr(g.nodes).map(function (n) { return { id: String(n.id), t: String(n.label || n.id) }; }), edges = arr(g.edges).map(function (e) { return { a: String(e.from), b: String(e.to), r: String(e.relation || '') }; });
+    if (nodes.length < 2) {
+      var terms = arr(card.key_terms).slice(0, 9); if (terms.length < 2) return null;
+      nodes = [{ id: 'c', t: cut(baseName(R.name), 26), core: 1 }].concat(terms.map(function (t, i) { return { id: 't' + i, t: plain(t.term) }; }));
+      edges = terms.map(function (t, i) { return { a: 'c', b: 't' + i, r: '' }; });
+    }
+    var ids = {}; nodes.forEach(function (n) { ids[n.id] = n; }); edges = edges.filter(function (e) { return ids[e.a] && ids[e.b]; });
+    return { nodes: nodes, edges: edges };
+  };
+  var defOf = function (label) { var l = String(label).toLocaleLowerCase('tr'), r = ''; arr(R.card && R.card.key_terms).forEach(function (t) { if (!r && String(plain(t.term)).toLocaleLowerCase('tr') === l) r = plain(t.definition); }); return r; };
+  var layoutNet = function (N, W, H) {
+    var n = N.nodes.length; N.nodes.forEach(function (p, i) { var a = i / n * Math.PI * 2; p.x = W / 2 + Math.cos(a) * W * .3 + (Math.random() - .5) * 10; p.y = H / 2 + Math.sin(a) * H * .3 + (Math.random() - .5) * 10; });
+    var byId = {}; N.nodes.forEach(function (p) { byId[p.id] = p; });
+    for (var it = 0; it < 260; it++) {
+      N.nodes.forEach(function (p) { p.fx = 0; p.fy = 0; });
+      for (var i = 0; i < n; i++) for (var j = i + 1; j < n; j++) { var a = N.nodes[i], b = N.nodes[j], dx = a.x - b.x, dy = a.y - b.y, d2 = Math.max(80, dx * dx + dy * dy), f = 9000 / d2, d = Math.sqrt(d2); a.fx += dx / d * f; a.fy += dy / d * f; b.fx -= dx / d * f; b.fy -= dy / d * f; }
+      N.edges.forEach(function (e) { var a = byId[e.a], b = byId[e.b], dx = b.x - a.x, dy = b.y - a.y, d = Math.sqrt(dx * dx + dy * dy) || 1, f = (d - 150) * .04; a.fx += dx / d * f; a.fy += dy / d * f; b.fx -= dx / d * f; b.fy -= dy / d * f; });
+      N.nodes.forEach(function (p) { p.fx += (W / 2 - p.x) * .012; p.fy += (H / 2 - p.y) * .012; p.x = Math.max(70, Math.min(W - 70, p.x + Math.max(-8, Math.min(8, p.fx)))); p.y = Math.max(30, Math.min(H - 30, p.y + Math.max(-8, Math.min(8, p.fy)))); });
+    }
+  };
+  var netSVG = function (N, W, H) {
+    var byId = {}; N.nodes.forEach(function (p) { byId[p.id] = p; });
+    var h = '<g class="ed">' + N.edges.map(function (e, i) { var a = byId[e.a], b = byId[e.b], mx = (a.x + b.x) / 2 + (a.y - b.y) * .12, my = (a.y + b.y) / 2 + (b.x - a.x) * .12; return '<path pathLength="1" style="--d:' + (i * .08).toFixed(2) + 's" d="M' + a.x.toFixed(1) + ' ' + a.y.toFixed(1) + ' Q' + mx.toFixed(1) + ' ' + my.toFixed(1) + ' ' + b.x.toFixed(1) + ' ' + b.y.toFixed(1) + '"/>' + (e.r ? '<text class="hand" x="' + mx.toFixed(1) + '" y="' + (my - 4).toFixed(1) + '">' + X(cut(e.r, 22)) + '</text>' : ''); }).join('') + '</g><g class="nd">';
+    h += N.nodes.map(function (p, i) { var w = Math.min(190, p.t.length * 7.6 + 26); return '<g class="n' + (p.core ? ' core' : '') + '" data-n="' + X(p.id) + '" tabindex="0" role="button" aria-label="' + X(p.t) + '" transform="translate(' + p.x.toFixed(1) + ' ' + p.y.toFixed(1) + ')" style="--d:' + (.25 + i * .06).toFixed(2) + 's"><rect x="' + (-w / 2) + '" y="-17" width="' + w + '" height="34" rx="17"/><text y="5">' + X(cut(p.t, 24)) + '</text></g>'; }).join('') + '</g>';
+    return '<svg viewBox="0 0 ' + W + ' ' + H + '" class="axr-net" role="application" aria-label="Kavram ağı: düğümü sürükleyebilir, tanımını görmek için dokunabilirsin.">' + h + '</svg>';
+  };
+  var mountNet = function (wrap) {
+    var N = netData(R.card); if (!N) { wrap.closest('.axr-netw').hidden = true; return; }
+    var W = 860, H = 440; layoutNet(N, W, H); wrap.innerHTML = netSVG(N, W, H); wrap._N = N;
+    var svg = wrap.querySelector('svg'), drag = null, byId = {}; N.nodes.forEach(function (p) { byId[p.id] = p; });
+    var redraw = function () { var keep = drag && drag.p.id; wrap.innerHTML = netSVG(N, W, H); svg = wrap.querySelector('svg'); wrap.classList.add('in', 'static'); bind(); if (keep) { var g = svg.querySelector('[data-n="' + keep + '"]'); if (g) g.classList.add('sel'); } };
+    var pt = function (e) { var p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY; var m = svg.getScreenCTM(); return m ? p.matrixTransform(m.inverse()) : { x: 0, y: 0 }; };
+    var show = function (p) { var info = wrap.closest('.axr-netw').querySelector('[data-netinfo]'), d = defOf(p.t), rel = N.edges.filter(function (e) { return e.a === p.id || e.b === p.id; }).map(function (e) { var o = byId[e.a === p.id ? e.b : e.a]; return (e.r ? e.r + ' → ' : '') + o.t; }); info.innerHTML = '<b>' + X(p.t) + '</b>' + (d ? '<p>' + X(d) + '</p>' : '') + (rel.length ? '<p class="mono">' + X(rel.join(' · ')) + '</p>' : ''); info.hidden = false; };
+    var bind = function () {
+      svg.addEventListener('pointerdown', function (e) { var g = e.target.closest('.n'); if (!g) return; var p = byId[g.getAttribute('data-n')], q = pt(e); drag = { p: p, dx: q.x - p.x, dy: q.y - p.y, moved: false }; try { svg.setPointerCapture(e.pointerId); } catch (x) {} e.preventDefault(); show(p); QA('.n.sel', svg).forEach(function (x) { x.classList.remove('sel'); }); g.classList.add('sel'); });
+      svg.addEventListener('pointermove', function (e) { if (!drag) return; var q = pt(e); drag.p.x = Math.max(60, Math.min(W - 60, q.x - drag.dx)); drag.p.y = Math.max(24, Math.min(H - 24, q.y - drag.dy)); drag.moved = true; redraw(); });
+      svg.addEventListener('pointerup', function () { drag = null; });
+      svg.addEventListener('keydown', function (e) { var g = e.target.closest('.n'); if (g && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); show(byId[g.getAttribute('data-n')]); } });
+    };
+    bind();
+  };
+
+  /* ---------- tablolar ---------- */
+  var isNum = function (v) { return v !== '' && v != null && !isNaN(parseFloat(String(v).replace(',', '.'))) && /^[\s\-+]?[\d.,]+\s?%?$/.test(String(v).trim()); };
+  var tableCard = function (t, i) {
+    var hd = arr(t.headers).map(String), rows = arr(t.rows).map(function (r) { return arr(r); }), numCol = hd.map(function (h, c) { return rows.length && rows.every(function (r) { return isNum(r[c]); }); });
+    return '<figure class="axr-fig axr-tbl" data-tbl="' + i + '"><figcaption><span class="mono">TABLO ' + (i + 1) + '</span><b>' + X(t.title || 'Tablo') + '</b></figcaption><div class="axr-tscroll"><table><thead><tr>' +
+      hd.map(function (h, c) { return '<th scope="col"><button type="button" data-sort="' + c + '" aria-label="' + X(h) + ' sütununa göre sırala">' + X(h) + '<i aria-hidden="true"></i></button>' + (numCol[c] && c > 0 ? '<button type="button" class="axr-colc" data-colchart="' + c + '" aria-label="' + X(h) + ' sütununu grafiğe çevir">' + ICON.chart + '</button>' : '') + '</th>'; }).join('') +
+      '</tr></thead><tbody>' + rows.map(function (r, k) { return '<tr data-r="' + k + '" tabindex="0">' + hd.map(function (h, c) { return '<td' + (numCol[c] ? ' class="n"' : '') + '>' + X(r[c] == null ? '' : r[c]) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table></div><div class="axr-colchart" data-colout=""></div></figure>';
+  };
+
+  /* ---------- formül / çözümlü örnek ---------- */
+  var formulaCard = function (f, i) {
+    return '<figure class="axr-fig axr-chalk"><figcaption><span class="mono">FORMÜL</span><b>' + X(f.name || 'Formül') + '</b></figcaption><div class="axr-tex" data-tex="' + i + '"></div>' +
+      (arr(f.variables).length ? '<dl class="axr-vars">' + arr(f.variables).map(function (v) { return '<div><dt>' + X(v.symbol || '') + '</dt><dd>' + X(v.meaning || '') + '</dd></div>'; }).join('') + '</dl>' : '') + '</figure>';
+  };
+  var exampleCard = function (ex, i) {
+    var steps = typeof normalizeWorkedSteps === 'function' ? normalizeWorkedSteps(ex.steps) : arr(ex.steps).map(String);
+    return '<figure class="axr-fig axr-chalk axr-ex" data-ex="' + i + '" data-shown="0"><figcaption><span class="mono">ÇÖZÜMLÜ ÖRNEK</span><b>' + X(ex.title || 'Örnek') + '</b></figcaption><div class="axr-prob">' + math(ex.problem_statement || '') + '</div>' +
+      '<ol class="axr-steps">' + steps.map(function (s, k) { return '<li data-k="' + k + '"' + (k ? ' hidden' : ' hidden') + '>' + (typeof renderWorkedStepHtml === 'function' ? renderWorkedStepHtml(s).replace(/^<li[^>]*>|<\/li>$/g, '') : math(s)) + '</li>'; }).join('') + '</ol>' +
+      (ex.final_answer ? '<div class="axr-final" hidden><span class="hand">sonuç</span> ' + math(ex.final_answer) + '</div>' : '') +
+      '<div class="axr-exbar"><button type="button" class="axr-mini on" data-exnext="">ilk adımı göster</button><button type="button" class="axr-mini" data-exall="">hepsini göster</button><span class="mono" data-expos="">0 / ' + steps.length + '</span></div></figure>';
+  };
+
+  /* ---------- akış ---------- */
+  var styleLabel = function (s) { return lsafe(function () { return getStyleLabel(s); }, s) || s; };
+  var chip = function (t, cls) { return t ? '<span class="axr-chip' + (cls ? ' ' + cls : '') + '">' + X(t) + '</span>' : ''; };
+  var cleanHTML = function (html) { var d = document.createElement('div'); d.innerHTML = html; QA('[style]', d).forEach(function (e) { e.removeAttribute('style'); }); QA('div', d).forEach(function (e) { if (!e.textContent.trim() && !e.querySelector('img,svg')) e.remove(); }); return d.innerHTML; };
+  var CH = [];
+  var ch = function (key, label, inner, cls) { CH.push({ k: key, l: label }); return '<section class="axr-ch' + (cls ? ' ' + cls : '') + '" id="axr-ch-' + key + '" data-ch="' + key + '" aria-label="' + X(label) + '">' + inner + '</section>'; };
+  var renderFlow = function () {
+    var c = R.card, own = !R.ro && lsafe(function () { return !!activeModalCardId; }, false);
+    CH = []; var h = '', secs = arr(c.sections);
+    R.words = plain(c.summary || '').split(/\s+/).length + secs.reduce(function (a, s) { return a + plain(s.summary || '').split(/\s+/).length; }, 0);
+    var mins = Math.max(1, Math.round(R.words / 200));
+    /* başlık */
+    var qm = c.quality_meta || {}, typ = plain(lsafe(function () { return getDocumentTypeBadgeHtml(c.document_type); }, '')), len = plain(lsafe(function () { return getLengthBadgeHtml(c.summary_length); }, ''));
+    Q('#study-card-title').textContent = baseName(R.name);
+    Q('[data-axr-eyb]').textContent = (c.course_tag ? c.course_tag + ' · ' : '') + 'ÖZET KARTI';
+    mast.innerHTML = '<div class="axr-mastin"><span class="axr-kicker hand">' + X(c.course_tag ? c.course_tag + ' dersi' : 'çalışma kartın') + '</span><h1 class="disp axr-h1"><span>' + X(baseName(R.name)) + '</span></h1>' +
+      '<div class="axr-chips">' + chip(c.summary_language === 'tr' ? 'Türkçe' : c.summary_language === 'en' ? 'English' : '') + chip(styleLabel(c.summary_style || 'standard')) + chip(typ) + chip(len) + (c.is_quantitative ? chip('sayısal ders', 'q') : '') + (qm.grounded ? chip('kaynağa bağlı', 'ok') : '') + (qm.pass !== false && qm.grounded ? chip('kalite kontrolünden geçti', 'ok') : '') + '</div>' +
+      '<p class="axr-meta mono"><span>~' + mins + ' dk okuma</span>' + (secs.length ? '<span>' + secs.length + ' bölüm</span>' : '') + (arr(c.key_terms).length ? '<span>' + arr(c.key_terms).length + ' kavram</span>' : '') + (arr(c.quiz_questions).length ? '<span>' + arr(c.quiz_questions).length + ' soru</span>' : '') + '<span data-left=""></span></p></div>';
+    /* 30 saniye + sayılar */
+    var ex = String(c.summary_executive || '').trim(), nums = findNumbers(c);
+    h += ch('hiz', '30 saniyede', '<div class="axr-pull"><span class="axr-lbl mono">30 SANİYEDE</span>' + (ex ? '<blockquote data-b="x-0">' + cleanHTML(fmtS(ex, c.footnotes)) + '</blockquote>' : '<blockquote>' + X(cut(plain(c.summary || ''), 320)) + '</blockquote>') + '</div><div class="axr-nums">' + nums.map(counterHTML).join('') + '</div>');
+    /* dinle */
+    h += ch('dinle', 'Sesli özet', '<div class="axr-pod" data-pod=""></div>');
+    /* anlatı */
+    h += ch('anlati', 'Anlatı', '<div class="axr-sech"><span class="axr-lbl mono">ANLATI</span><h2 class="disp">Profesyonel özet</h2>' + (own ? '<button type="button" class="axr-mini" data-regen="summary">' + ICON.redo + 'yeniden yaz</button>' : '') + '</div><div class="axr-prose dropcap" data-prose="n">' + cleanHTML(fmtS(c.summary || 'Bu kart için özet metni yok.', c.footnotes)) + '</div>');
+    /* bölümler */
+    secs.forEach(function (s, i) {
+      var kps = arr(s.key_points).filter(Boolean);
+      h += ch('b' + (i + 1), (i + 1) + '. ' + plain(s.heading || 'Bölüm'), '<div class="axr-sheet" style="--r:' + ((i % 3) - 1) * .25 + 'deg"><span class="axr-secn disp" aria-hidden="true">' + (i + 1 < 10 ? '0' : '') + (i + 1) + '</span><h2 class="disp">' + X(plain(s.heading || 'Bölüm ' + (i + 1))) + '</h2>' +
+        '<div class="axr-prose" data-prose="s' + (i + 1) + '">' + cleanHTML(fmtS(s.summary || '', c.footnotes)) + '</div>' +
+        (kps.length ? '<ul class="axr-kps" data-prose="k' + (i + 1) + '">' + kps.map(function (p) { return '<li>' + X(plain(p)) + '</li>'; }).join('') + '</ul>' : '') +
+        (own ? '<div class="axr-secvis"><span class="hand">bu bölüme görsel:</span><button type="button" class="axr-mini" onclick="generateSectionVisual(event, ' + i + ', \'diagram\')">diyagram</button><button type="button" class="axr-mini" onclick="generateSectionVisual(event, ' + i + ', \'table\')">tablo</button><button type="button" class="axr-mini" onclick="generateSectionVisual(event, ' + i + ', \'chart\')">grafik</button></div>' : '') + '</div>', 'sec');
+    });
+    /* görseller */
+    var charts = arr(c.charts), dgs = arr(c.diagrams), tbls = arr(c.tables), fms = arr(c.formulas), exs = arr(c.worked_examples);
+    if (charts.length || dgs.length || tbls.length || fms.length || exs.length || arr(c.chat_attachments).length) {
+      h += ch('gorsel', 'Görseller', '<div class="axr-sech"><span class="axr-lbl mono">GÖRSELLER</span><h2 class="disp">Grafikler, diyagramlar ve tablolar</h2></div>' +
+        (charts.length ? '<div class="axr-grid2">' + charts.map(chartCard).join('') + '</div>' : '') + dgs.map(diagCard).join('') + tbls.map(tableCard).join('') +
+        (fms.length || exs.length ? '<div class="axr-studio"><h3 class="hand">formül stüdyosu</h3><div class="axr-grid2">' + fms.map(formulaCard).join('') + '</div>' + exs.map(exampleCard).join('') + '</div>' : '') + '<div data-imgslot=""></div>');
+    }
+    /* kavramlar */
+    var terms = arr(c.key_terms), kp = arr(c.key_points);
+    if (terms.length || kp.length || (c.concept_graph && arr(c.concept_graph.nodes).length)) {
+      var hasNet = !!netData(c);
+      h += ch('kavram', 'Kavramlar', '<div class="axr-sech"><span class="axr-lbl mono">KAVRAMLAR</span><h2 class="disp">' + (hasNet ? 'Kavram ağı' : 'Akılda kalsın') + '</h2>' + (own ? '<button type="button" class="axr-mini" data-regen="key_terms">' + ICON.redo + 'kavramları yenile</button>' : '') + '</div>' +
+        (hasNet ? '<div class="axr-netw"><div class="axr-netbox" data-net=""></div><div class="axr-netinfo" data-netinfo="" hidden></div><p class="hand axr-tipline">düğümü sürükle, dokununca tanımını gör</p></div>' : '') +
+        (terms.length ? '<div class="axr-terms">' + terms.map(function (t, i) { return '<button type="button" class="axr-term" style="--r:' + ((i % 5) - 2) * .6 + 'deg" aria-pressed="false"><span class="f"><b>' + X(plain(t.term)) + '</b><i class="hand">çevir</i></span><span class="b">' + X(plain(t.definition)) + '</span></button>'; }).join('') + '</div>' : '') +
+        (kp.length ? (hasNet || terms.length ? '<h3 class="hand axr-h3">akılda kalsın</h3>' : '') + '<ul class="axr-kps big" data-prose="kp">' + kp.map(function (p) { return '<li>' + (typeof formatFootnoteMarkers === 'function' ? formatFootnoteMarkers(String(p), c.footnotes) : X(p)) + '</li>'; }).join('') + '</ul>' : ''));
+    }
+    /* kendini sına */
+    var qz = arr(c.quiz_questions);
+    if (qz.length) h += ch('sina', 'Kendini sına', '<div class="axr-sech"><span class="axr-lbl mono">KENDİNİ SINA</span><h2 class="disp">' + qz.length + ' soru</h2></div><ol class="axr-quiz">' + qz.map(function (q, i) { return '<li><button type="button" aria-expanded="false" data-q="' + i + '"><span class="mono">S' + (i + 1) + '</span>' + X(plain(q.question)) + '</button><div class="axr-ans" hidden><span class="hand">cevap</span> ' + X(plain(q.answer != null ? (/^[A-Da-d]$/.test(String(q.answer)) && Array.isArray(q.options) ? q.options['ABCD'.indexOf(String(q.answer).toUpperCase())] || q.answer : q.answer) : '')) + (q.explanation ? '<small>' + X(plain(q.explanation)) + '</small>' : '') + '</div></li>'; }).join('') + '</ol>');
+    /* ilgili + kaynakça */
+    var rel = lsafe(function () { return findRelatedStudyCards(c.id, 6); }, []) || [], fn = arr(c.footnotes);
+    if (rel.length || fn.length) h += ch('kaynak', 'Kaynak ve bağlantılar', (rel.length ? '<div class="axr-sech"><span class="axr-lbl mono">BAĞLANTILI KARTLAR</span></div><div class="axr-rel">' + rel.map(function (r) { return '<button type="button" onclick="viewStudyCardFromLibrary(\'' + X(r.card.id) + '\')"><b>' + X(baseName(r.card.documents && r.card.documents.file_name)) + '</b><small>ortak: ' + X(arr(r.sharedLabels).join(', ')) + '</small></button>'; }).join('') + '</div>' : '') +
+      (fn.length ? '<div class="axr-fn">' + cleanHTML(lsafe(function () { return renderFootnotesSectionHtml(fn); }, '')) + '</div>' : ''));
+    flow.innerHTML = h;
+    /* görsellerin kalıcı düğümü (sohbetten kaydedilen görseller) */
+    var imgs = document.getElementById('study-card-images-section'), slot = Q('[data-imgslot]', flow);
+    if (imgs && slot && arr(c.chat_attachments).length) slot.appendChild(imgs); else if (imgs) Q('.axr-legacy').appendChild(imgs);
+    /* bloklara kimlik (vurgular için) */
+    QA('[data-prose]', flow).forEach(function (p) { var k = p.getAttribute('data-prose'); QA('p, li, h4, blockquote', p).forEach(function (b, i) { if (!b.querySelector('p, li')) b.setAttribute('data-b', k + '-' + i); }); });
+    paintRail(); bindFlow(); paintPod(true); applyHL();
+    QA('.axr-tex', flow).forEach(function (el) { var f = arr(c.formulas)[+el.getAttribute('data-tex')]; if (!f) return; if (window.katex && f.latex) { try { window.katex.render(f.latex, el, { throwOnError: false, displayMode: true }); } catch (e) { el.textContent = f.latex; } } else el.textContent = f.latex || ''; });
+    var nb = Q('[data-net]', flow); if (nb) mountNet(nb);
+    QA('.axr-dg', flow).forEach(function (fig) { renderDiagram(fig, arr(c.diagrams)[+fig.getAttribute('data-dg')]); });
+    watch();
+  };
+
+  /* ---------- bölüm şeridi + ilerleme ---------- */
+  var paintRail = function () {
+    rail.innerHTML = '<span class="axr-rk mono">İÇİNDEKİLER</span><ol>' + CH.map(function (x, i) { return '<li><a href="#axr-ch-' + x.k + '" data-go="' + x.k + '"><i style="--p:0"></i><span>' + X(cut(x.l, 34)) + '</span></a></li>'; }).join('') + '</ol>';
+  };
+  rail.addEventListener('click', function (e) { var a = e.target.closest('[data-go]'); if (!a) return; e.preventDefault(); var t = Q('#axr-ch-' + a.getAttribute('data-go')); if (t) scroller.scrollTo({ top: t.offsetTop - 70, behavior: calm ? 'auto' : 'smooth' }); });
+  var onScroll = function () {
+    var top = scroller.scrollTop, max = scroller.scrollHeight - scroller.clientHeight || 1, p = Math.min(1, top / max);
+    Q('[data-axr-prog]').style.width = (p * 100).toFixed(1) + '%';
+    var left = Q('[data-left]', mast); if (left) left.textContent = p > .97 ? 'bitti ✓' : '~' + Math.max(1, Math.round(R.words * (1 - p) / 200)) + ' dk kaldı';
+    var cur = null;
+    QA('.axr-ch', flow).forEach(function (s) {
+      var a = rail.querySelector('[data-go="' + s.getAttribute('data-ch') + '"]'); if (!a) return;
+      var st = s.offsetTop - 90, h = s.offsetHeight || 1, f = Math.max(0, Math.min(1, (top - st + scroller.clientHeight * .5) / h));
+      a.querySelector('i').style.setProperty('--p', f.toFixed(3)); a.classList.toggle('done', f >= .98);
+      if (top >= st - scroller.clientHeight * .4) cur = a;
+    });
+    QA('a.cur', rail).forEach(function (a) { a.classList.remove('cur'); }); if (cur) { cur.classList.add('cur'); if (window.innerWidth < 900) { var r = cur.getBoundingClientRect(), rr = rail.getBoundingClientRect(); if (r.left < rr.left || r.right > rr.right) rail.scrollLeft += r.left - rr.left - 20; } }
+    if (prefs.focus) { var mid = scroller.getBoundingClientRect().top + scroller.clientHeight * .45, best = null, bd = 1e9; QA('[data-b]', flow).forEach(function (b) { var r = b.getBoundingClientRect(), d = Math.abs((r.top + r.bottom) / 2 - mid); if (d < bd) { bd = d; best = b; } }); QA('[data-b].now', flow).forEach(function (b) { if (b !== best) b.classList.remove('now'); }); if (best) best.classList.add('now'); }
+  };
+  var sT = 0; scroller.addEventListener('scroll', function () { if (sT) return; sT = requestAnimationFrame(function () { sT = 0; onScroll(); }); }, { passive: true });
+
+  /* görünür olunca canlan */
+  var watch = function () {
+    if (R.visIO) R.visIO.disconnect();
+    var go = function (el) { if (el.classList.contains('axr-chartw')) drawIn(el); else if (el.hasAttribute('data-count')) runCount(el); else el.classList.add('in'); };
+    var els = QA('.axr-chartw, [data-count], .axr-netbox, .axr-dg, .axr-sheet, .axr-pull, .axr-terms, .axr-tbl', flow);
+    if (!('IntersectionObserver' in window) || calm) { els.forEach(go); return; }
+    R.visIO = new IntersectionObserver(function (en) { en.forEach(function (e) { if (e.isIntersecting) { go(e.target); R.visIO.unobserve(e.target); } }); }, { root: scroller, threshold: .18 });
+    els.forEach(function (el) { R.visIO.observe(el); });
+    onScroll();
+  };
+
+  /* ---------- akış içi etkileşimler ---------- */
+  var bindFlow = function () {
+    if (flow.dataset.bound) return; flow.dataset.bound = '1';
+    flow.addEventListener('click', function (e) {
+      var b;
+      if ((b = e.target.closest('[data-q]'))) { var a = b.nextElementSibling, o = b.getAttribute('aria-expanded') !== 'true'; b.setAttribute('aria-expanded', String(o)); a.hidden = !o; return; }
+      if ((b = e.target.closest('.axr-term'))) { var on = b.getAttribute('aria-pressed') !== 'true'; b.setAttribute('aria-pressed', String(on)); return; }
+      if ((b = e.target.closest('[data-redraw]'))) { var f = b.closest('.axr-chartw'); f.classList.remove('in'); void f.offsetWidth; f.classList.add('in'); return; }
+      if ((b = e.target.closest('[data-regen]'))) { regen(b); return; }
+      if ((b = e.target.closest('[data-sort]'))) { sortTable(b); return; }
+      if ((b = e.target.closest('[data-colchart]'))) { colChart(b); return; }
+      if ((b = e.target.closest('tr[data-r]'))) { b.classList.toggle('mark'); return; }
+      if ((b = e.target.closest('[data-exnext]'))) { exStep(b.closest('.axr-ex'), 1); return; }
+      if ((b = e.target.closest('[data-exall]'))) { exStep(b.closest('.axr-ex'), 99); return; }
+      if ((b = e.target.closest('[data-dgstep]'))) { var fg = b.closest('.axr-dg'); if (!fg._dg) return; var stepOn = fg._dg.step < 0; fg._dg.step = stepOn ? 0 : -1; fg.classList.toggle('stepping', stepOn); b.textContent = stepOn ? 'tümünü göster' : 'adım adım'; Q('.axr-dgnav', fg).hidden = !stepOn; dgPaint(fg); return; }
+      if ((b = e.target.closest('[data-dgnext]')) || (b = e.target.closest('[data-dgprev]'))) { var fg2 = b.closest('.axr-dg'), D = fg2._dg; D.step = Math.max(0, Math.min(D.nodes.length - 1, D.step + (b.hasAttribute('data-dgnext') ? 1 : -1))); dgPaint(fg2); return; }
+      if ((b = e.target.closest('.axr-dg g.node'))) { var fg3 = b.closest('.axr-dg'); Q('[data-dgcap]', fg3).textContent = plain(b.textContent); return; }
+    });
+    flow.addEventListener('pointermove', function (e) {
+      var m = e.target.closest('.axr-chart [data-i], .axr-chart .arc'); var fig = e.target.closest('.axr-chartw'); if (!fig) return; var tip = Q('[data-tip]', fig);
+      if (!m) { tip.hidden = true; return; } var t = m.querySelector('title') || (m.tagName === 'circle' ? m.querySelector('title') : null); var txt = t ? t.textContent : ''; if (!txt) { tip.hidden = true; return; }
+      var r = fig.getBoundingClientRect(); tip.textContent = txt; tip.hidden = false; tip.style.left = (e.clientX - r.left + 12) + 'px'; tip.style.top = (e.clientY - r.top - 34) + 'px';
+    });
+    flow.addEventListener('pointerleave', function () { QA('[data-tip]', flow).forEach(function (t) { t.hidden = true; }); }, true);
+  };
+  var exStep = function (fig, n) {
+    var L = QA('.axr-steps li', fig), s = +fig.getAttribute('data-shown'), to = Math.min(L.length, s + n);
+    L.forEach(function (li, k) { if (k < to && li.hidden) { li.hidden = false; li.classList.add('pop'); } }); fig.setAttribute('data-shown', to);
+    Q('[data-expos]', fig).textContent = to + ' / ' + L.length;
+    var nx = Q('[data-exnext]', fig); nx.textContent = to >= L.length ? 'bitti' : 'sonraki adım'; nx.disabled = to >= L.length;
+    if (to >= L.length) { var fin = Q('.axr-final', fig); if (fin && fin.hidden) { fin.hidden = false; fin.classList.add('stamp'); } }
+  };
+  var sortTable = function (b) {
+    var tb = b.closest('table'), c = +b.getAttribute('data-sort'), th = b.closest('th'), dir = th.getAttribute('aria-sort') === 'ascending' ? 'descending' : 'ascending';
+    QA('th', tb).forEach(function (x) { x.removeAttribute('aria-sort'); }); th.setAttribute('aria-sort', dir);
+    var rows = QA('tbody tr', tb), val = function (r) { var t = r.children[c].textContent.trim(); return isNum(t) ? parseFloat(t.replace(',', '.')) : t.toLocaleLowerCase('tr'); };
+    rows.sort(function (a, b2) { var x = val(a), y = val(b2), k = typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y), 'tr'); return dir === 'ascending' ? k : -k; });
+    var body = Q('tbody', tb); rows.forEach(function (r, i) { body.appendChild(r); if (!calm) { r.style.animation = 'none'; void r.offsetWidth; r.style.animation = ''; r.style.setProperty('--i', i); r.classList.add('slide'); } });
+  };
+  var colChart = function (b) {
+    var fig = b.closest('.axr-tbl'), t = arr(R.card.tables)[+fig.getAttribute('data-tbl')], c = +b.getAttribute('data-colchart'), out = Q('[data-colout]', fig);
+    if (out.getAttribute('data-col') === String(c)) { out.innerHTML = ''; out.removeAttribute('data-col'); return; }
+    var rows = arr(t.rows); out.setAttribute('data-col', c);
+    out.innerHTML = '<div class="axr-chartw">' + chartSVG({ type: 'bar', labels: rows.map(function (r) { return String(arr(r)[0]); }), data: rows.map(function (r) { return parseFloat(String(arr(r)[c]).replace(',', '.')) || 0; }) }) + '<div class="axr-tip hand" data-tip="" hidden></div></div>';
+    requestAnimationFrame(function () { drawIn(out.firstChild); });
+  };
+  var regen = function (b) {
+    if (typeof triggerSectionRegeneration !== 'function') return; var k = b.getAttribute('data-regen');
+    b.disabled = true; b.classList.add('busy'); b.lastChild.textContent = 'yenileniyor…';
+    Promise.resolve(triggerSectionRegeneration(k)).then(function () { var c = lsafe(function () { return currentActiveStudyCard; }, null); if (c && R.card && c.id === R.card.id) { R.card = c; var y = scroller.scrollTop; renderFlow(); scroller.scrollTop = y; say('Yenilendi.'); } }, function () { b.disabled = false; });
+  };
+
+  /* ---------- sesli özet + karaoke ---------- */
+  var RATE = 1, podSig = '';
+  if (window.speechSynthesis && window.speechSynthesis.speak && !window.speechSynthesis.__axr) {
+    var oSpeak = window.speechSynthesis.speak.bind(window.speechSynthesis);
+    window.speechSynthesis.speak = function (u) { try { if (RATE !== 1 && u && modal.classList.contains('active')) u.rate = Math.min(2, (u.rate || 1) * RATE); } catch (e) {} return oSpeak(u); };
+    window.speechSynthesis.__axr = 1;
+  }
+  var PS = function () { return lsafe(function () { return podcastState; }, null); };
+  var paintPod = function (force) {
+    var box = Q('[data-pod]', flow); if (!box) return; var ps = PS(), sc = ps && Array.isArray(ps.script) ? ps.script : [];
+    var sig = sc.length + ':' + (R.card && R.card.id); if (!force && sig === podSig) return; podSig = sig;
+    var own = !R.ro && lsafe(function () { return !!activeModalCardId; }, false);
+    if (!sc.length) { box.innerHTML = '<div class="axr-podcta"><div class="axr-wave idle" aria-hidden="true">' + new Array(28).join('<i></i>') + '</div><p><b>Sesli özet</b> iki sunucu (Ela ve Kaan) bu özeti sohbet eder gibi anlatır.</p>' + (own ? '<button type="button" class="btn btn-dark" data-podgen="">sesli özeti hazırla</button>' : '<p class="hand">bu kart için sesli özet hazırlanmamış.</p>') + '</div>'; return; }
+    var names = (ps.hostNames && ps.hostNames.length === 2) ? ps.hostNames : ['Ela', 'Kaan'];
+    box.innerHTML = '<div class="axr-player"><button type="button" class="axr-play" data-podplay="" aria-label="Oynat">' + ICON.up + '</button><div class="axr-pmid"><div class="axr-wave" data-wave="" aria-hidden="true">' + new Array(48).join('<i></i>') + '</div><div class="axr-pbar"><i data-podfill=""></i></div></div><span class="mono axr-pcount" data-podcount="">0 / ' + sc.length + '</span>' +
+      '<label class="axr-rate"><span class="vh">Hız</span><select data-rate=""><option value="0.8">0.8×</option><option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option></select></label><button type="button" class="axr-mini" data-podstop="">durdur</button></div>' +
+      '<ol class="axr-trans" data-trans="">' + sc.map(function (l, i) { var b = l.speaker === 'B'; return '<li data-li="' + i + '" class="' + (b ? 'b' : 'a') + '"><button type="button" data-podfrom="' + i + '"><b>' + X(b ? names[1] : names[0]) + '</b><span>' + X(l.text) + '</span></button></li>'; }).join('') + '</ol>';
+    Q('[data-rate]', box).value = String(RATE);
+  };
+  var podTick = function () {
+    if (!modal.classList.contains('active')) return; var ps = PS(); if (!ps) return; paintPod(false);
+    var box = Q('[data-pod]', flow); if (!box || !Q('[data-trans]', box)) return;
+    var i = ps.currentIndex, n = ps.script.length;
+    var play = Q('[data-podplay]', box); play.innerHTML = ps.isPlaying ? ICON.pause : ICON.up; play.setAttribute('aria-label', ps.isPlaying ? 'Duraklat' : 'Oynat');
+    Q('[data-wave]', box).classList.toggle('on', !!ps.isPlaying);
+    Q('[data-podfill]', box).style.width = (n ? Math.max(0, i + 1) / n * 100 : 0) + '%'; Q('[data-podcount]', box).textContent = Math.max(0, i + 1) + ' / ' + n;
+    var cur = Q('[data-li].cur', box), nx = i >= 0 ? Q('[data-li="' + i + '"]', box) : null;
+    if (cur !== nx) { if (cur) cur.classList.remove('cur'); if (nx) { nx.classList.add('cur'); var tr = Q('[data-trans]', box); tr.scrollTo({ top: nx.offsetTop - tr.offsetTop - 40, behavior: calm ? 'auto' : 'smooth' }); } }
+    if (ps.audioEl && RATE !== 1) { try { ps.audioEl.playbackRate = RATE; } catch (e) {} }
+  };
+  setInterval(podTick, 300);
+  var playFrom = async function (i) {
+    var ps = PS(); if (!ps || !ps.script.length) return;
+    if (typeof stopPodcast === 'function') stopPodcast();
+    if (!ps.audioFetchAttempted && typeof generatePodcastAudio === 'function') { ps.audioFetchAttempted = true; await generatePodcastAudio(); }
+    if (!ps.audioUrls.length && typeof ensurePodcastVoicesLoaded === 'function') { var v = await ensurePodcastVoicesLoaded(); if (typeof pickPodcastVoices === 'function') pickPodcastVoices(v, ps.lang); }
+    ps.currentIndex = i - 1; ps.isPlaying = true; if (typeof updatePodcastPlayPauseIcon === 'function') updatePodcastPlayPauseIcon(); if (typeof speakPodcastLine === 'function') speakPodcastLine();
+  };
+  flow.addEventListener('click', function (e) {
+    var b;
+    if ((b = e.target.closest('[data-podgen]'))) { b.disabled = true; b.textContent = 'hazırlanıyor…'; Promise.resolve(lsafe(function () { return generatePodcastScript(); }, null)).then(function () { paintPod(true); }); return; }
+    if (e.target.closest('[data-podplay]')) { if (typeof togglePodcastPlayback === 'function') togglePodcastPlayback(); return; }
+    if (e.target.closest('[data-podstop]')) { if (typeof stopPodcast === 'function') stopPodcast(); return; }
+    if ((b = e.target.closest('[data-podfrom]'))) { playFrom(+b.getAttribute('data-podfrom')); }
+  });
+  flow.addEventListener('change', function (e) { if (e.target.matches('[data-rate]')) { RATE = +e.target.value || 1; var ps = PS(); if (ps && ps.audioEl) try { ps.audioEl.playbackRate = RATE; } catch (x) {} } });
+
+  /* ---------- hikâye açılışı ---------- */
+  var SK = 'acadex.reader.seen';
+  var story_i = 0, story_n = 0, storyT = 0;
+  var openStory = function () {
+    var c = R.card; if (!c) return; var secs = arr(c.sections), nums = findNumbers(c), chart = arr(c.charts)[0], terms = arr(c.key_terms).slice(0, 8);
+    var ex = String(c.summary_executive || '').trim() || cut(plain(c.summary || ''), 260);
+    var F = [];
+    F.push('<div class="f f-title"><span class="hand k">' + X(c.course_tag ? c.course_tag + ' · ' : '') + 'bugün okuyacağın</span><h2 class="disp"><span>' + X(baseName(R.name)) + '</span></h2><svg class="ink" viewBox="0 0 300 20" aria-hidden="true"><path pathLength="1" d="M4 12 C60 4 120 18 180 10 S270 6 296 12"/></svg><p class="mono">' + (secs.length ? secs.length + ' bölüm · ' : '') + '~' + Math.max(1, Math.round(R.words / 200)) + ' dk</p></div>');
+    F.push('<div class="f f-quote"><span class="mono k">30 SANİYEDE</span><p class="disp">' + ex.split(/\s+/).map(function (w, i) { return '<span style="--i:' + i + '">' + X(w) + ' </span>'; }).join('') + '</p></div>');
+    F.push('<div class="f f-nums"><span class="mono k">ÖNE ÇIKANLAR</span><div class="axr-nums">' + nums.map(counterHTML).join('') + '</div></div>');
+    if (chart) F.push('<div class="f f-chart"><span class="mono k">' + X(chart.title || 'grafik') + '</span><div class="axr-chartw">' + chartSVG(chart) + '</div></div>');
+    else if (terms.length) F.push('<div class="f f-terms"><span class="mono k">KAVRAMLAR</span><div class="drop">' + terms.map(function (t, i) { return '<span style="--i:' + i + ';--r:' + ((i % 5) - 2) * 3 + 'deg">' + X(plain(t.term)) + '</span>'; }).join('') + '</div></div>');
+    F.push('<div class="f f-toc"><span class="mono k">İÇİNDEKİLER</span><ol>' + (secs.length ? secs : [{ heading: 'Anlatı' }]).slice(0, 7).map(function (s, i) { return '<li style="--i:' + i + '"><b class="disp">' + (i + 1) + '</b>' + X(plain(s.heading || '')) + '</li>'; }).join('') + '</ol><button type="button" class="btn btn-blue" data-sclose="">okumaya başla →</button></div>');
+    story_n = F.length; story_i = 0;
+    story.innerHTML = '<div class="axr-sbars">' + F.map(function () { return '<i><b></b></i>'; }).join('') + '</div><button type="button" class="axr-sskip" data-sclose="">atla</button><div class="axr-frames">' + F.join('') + '</div><button type="button" class="axr-sprev" data-sprev="" aria-label="Önceki"></button><button type="button" class="axr-snext" data-snext="" aria-label="Sonraki"></button>';
+    story.hidden = false; story.classList.add('on'); showFrame(0); Q('[data-snext]', story).focus();
+    var seen = G(SK, {}); seen[c.id] = Date.now(); S(SK, seen);
+  };
+  var showFrame = function (i) {
+    clearTimeout(storyT); story_i = i; var fr = QA('.f', story);
+    fr.forEach(function (f, k) { f.classList.toggle('cur', k === i); f.classList.toggle('past', k < i); });
+    QA('.axr-sbars i', story).forEach(function (b, k) { b.classList.toggle('done', k < i); b.classList.toggle('run', k === i); });
+    var f = fr[i]; QA('[data-count]', f).forEach(function (el) { el.dataset.ran = ''; runCount(el); }); QA('.axr-chartw', f).forEach(function (w) { w.classList.remove('in'); void w.offsetWidth; w.classList.add('in'); });
+    var dur = f.classList.contains('f-quote') ? Math.min(9000, 2200 + QA('.f-quote span', story).length * 140) : 3600;
+    story.style.setProperty('--dur', dur + 'ms');
+    if (!calm && i < story_n - 1) storyT = setTimeout(function () { showFrame(i + 1); }, dur);
+  };
+  var closeStory = function () { clearTimeout(storyT); story.classList.remove('on'); story.hidden = true; story.innerHTML = ''; var t = Q('#study-card-title'); if (t) t.focus && t.focus({ preventScroll: true }); };
+  story.addEventListener('click', function (e) { if (e.target.closest('[data-sclose]')) { closeStory(); return; } if (e.target.closest('[data-snext]')) { if (story_i < story_n - 1) showFrame(story_i + 1); else closeStory(); return; } if (e.target.closest('[data-sprev]')) { if (story_i > 0) showFrame(story_i - 1); } });
+  story.addEventListener('keydown', function (e) { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeStory(); } else if (e.key === 'ArrowRight') { e.preventDefault(); Q('[data-snext]', story).click(); } else if (e.key === 'ArrowLeft') { e.preventDefault(); Q('[data-sprev]', story).click(); } });
+  Q('[data-story-again]').addEventListener('click', openStory);
+
+  /* ---------- fosforlu kalem + kenar notu ---------- */
+  var HL_COLS = { y: 'sarı', b: 'mavi', p: 'pembe' };
+  var hlKey = function () { return 'acadex.reader.hl.' + ((me() || {}).id || 'anon') + '.' + (R.card && R.card.id); };
+  var loadHL = function () {
+    var c = R.card, u = me(), cl = sbc(); R.hl = G(hlKey(), []); R.hlCard = c.id;
+    if (!u || !cl || !R.hlOK) return Promise.resolve();
+    return cl.from('study_card_highlights').select('data, updated_at').eq('user_id', u.id).eq('card_id', c.id).limit(1).then(function (r) {
+      if (r.error) { if (MISSING(r.error)) R.hlOK = false; return; }
+      var d = r.data && r.data[0] && r.data[0].data; if (d && Array.isArray(d.items) && R.card && R.card.id === c.id) { R.hl = d.items; S(hlKey(), R.hl); applyHL(); }
+    }, function () {});
+  };
+  var hlSaveT = 0, saveHL = function () {
+    S(hlKey(), R.hl); clearTimeout(hlSaveT); var c = R.card, items = R.hl.slice();
+    hlSaveT = setTimeout(function () { var u = me(), cl = sbc(); if (!u || !cl || !R.hlOK || !c) return; cl.from('study_card_highlights').upsert({ user_id: u.id, card_id: c.id, data: { items: items }, updated_at: new Date().toISOString() }, { onConflict: 'user_id,card_id' }).then(function (r) { if (r.error) { if (MISSING(r.error)) R.hlOK = false; else console.warn('axr: vurgu', r.error); } }); }, 700);
+  };
+  var textNodes = function (el) { var w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null), out = [], n; while ((n = w.nextNode())) out.push(n); return out; };
+  var wrapRange = function (block, s, e, h) {
+    var pos = 0; textNodes(block).forEach(function (t) {
+      var len = t.nodeValue.length, a = Math.max(s, pos), b = Math.min(e, pos + len);
+      if (a < b && !(t.parentNode.closest && t.parentNode.closest('mark.axr-hl'))) { var mid = t; if (a - pos > 0) mid = t.splitText(a - pos); if (b - a < mid.nodeValue.length) mid.splitText(b - a); var m = document.createElement('mark'); m.className = 'axr-hl c-' + h.c + (h.n ? ' has-n' : ''); m.setAttribute('data-hl', h.id); mid.parentNode.insertBefore(m, mid); m.appendChild(mid); }
+      pos += len;
+    });
+  };
+  var applyHL = function () {
+    QA('mark.axr-hl', flow).forEach(function (m) { var p = m.parentNode; while (m.firstChild) p.insertBefore(m.firstChild, m); p.removeChild(m); p.normalize(); });
+    QA('.axr-mnote', flow).forEach(function (n) { n.remove(); });
+    R.hl.forEach(function (h) {
+      var b = Q('[data-b="' + h.b + '"]', flow); if (!b) return; wrapRange(b, h.s, h.e, h);
+      if (h.n) { var note = document.createElement('aside'); note.className = 'axr-mnote c-' + h.c; note.setAttribute('data-note', h.id); note.innerHTML = '<span class="hand">' + X(h.n) + '</span><button type="button" data-noteedit="' + h.id + '" aria-label="Notu düzenle">düzenle</button>'; b.appendChild(note); }
+    });
+  };
+  var tb = document.createElement('div'); tb.className = 'axr-selbar'; tb.hidden = true; tb.setAttribute('role', 'toolbar'); tb.setAttribute('aria-label', 'Seçili metin');
+  tb.innerHTML = '<button type="button" class="sw y" data-hlc="y" aria-label="Sarı fosfor"></button><button type="button" class="sw b" data-hlc="b" aria-label="Mavi fosfor"></button><button type="button" class="sw p" data-hlc="p" aria-label="Pembe fosfor"></button><span class="sep"></span><button type="button" data-hlact="note">not</button><button type="button" data-hlact="card">karta çevir</button><button type="button" data-hlact="nb">deftere</button><button type="button" data-hlact="aca">Acadia açıklasın</button><button type="button" data-hlact="del" hidden>vurguyu kaldır</button>';
+  LY.appendChild(tb);
+  var pop = document.createElement('div'); pop.className = 'axr-pop'; pop.hidden = true; LY.appendChild(pop);
+  var SEL = null;
+  var selInfo = function () {
+    var s = window.getSelection(); if (!s || s.rangeCount === 0 || s.isCollapsed) return null; var r = s.getRangeAt(0);
+    var a = r.startContainer.nodeType === 1 ? r.startContainer : r.startContainer.parentNode, b = r.endContainer.nodeType === 1 ? r.endContainer : r.endContainer.parentNode;
+    var ba = a.closest && a.closest('[data-b]'), bb = b.closest && b.closest('[data-b]'); if (!ba || ba !== bb || !flow.contains(ba)) return null;
+    var pre = document.createRange(); pre.selectNodeContents(ba); pre.setEnd(r.startContainer, r.startOffset); var st = pre.toString().length, txt = r.toString();
+    if (!txt.trim()) return null; return { b: ba.getAttribute('data-b'), s: st, e: st + txt.length, t: txt.trim(), rect: r.getBoundingClientRect() };
+  };
+  var placeBar = function (rect) { tb.hidden = false; var w = tb.offsetWidth, x = Math.max(8, Math.min(window.innerWidth - w - 8, rect.left + rect.width / 2 - w / 2)), y = rect.top - tb.offsetHeight - 10; if (y < 8) y = rect.bottom + 10; tb.style.left = x + 'px'; tb.style.top = y + 'px'; };
+  document.addEventListener('selectionchange', function () {
+    if (!modal.classList.contains('active')) return; clearTimeout(SEL && SEL.t);
+    var t = setTimeout(function () { var i = selInfo(); if (!i) { if (SEL && SEL.hit) return; if (!tb.contains(document.activeElement)) tb.hidden = true; return; } SEL = i; SEL.hit = null; Q('[data-hlact="del"]', tb).hidden = true; placeBar(i.rect); }, 120); SEL = SEL || {}; SEL.t = t;
+  });
+  flow.addEventListener('click', function (e) {
+    var m = e.target.closest('mark.axr-hl'); if (m && window.getSelection().isCollapsed) { var h = R.hl.filter(function (x) { return x.id === m.getAttribute('data-hl'); })[0]; if (!h) return; SEL = { b: h.b, s: h.s, e: h.e, t: h.t, hit: h }; Q('[data-hlact="del"]', tb).hidden = false; placeBar(m.getBoundingClientRect()); }
+    var ed = e.target.closest('[data-noteedit]'); if (ed) { var hh = R.hl.filter(function (x) { return x.id === ed.getAttribute('data-noteedit'); })[0]; if (hh) noteBox(hh, ed.getBoundingClientRect()); }
+  });
+  var addHL = function (c) { if (!SEL || !SEL.b) return null; R.hl = R.hl.filter(function (h) { return !(h.b === SEL.b && h.s < SEL.e && h.e > SEL.s); }); var h = { id: uid(), b: SEL.b, s: SEL.s, e: SEL.e, c: c, t: SEL.t, at: Date.now() }; R.hl.push(h); saveHL(); applyHL(); window.getSelection().removeAllRanges(); return h; };
+  var noteBox = function (h, rect) {
+    pop.innerHTML = '<label class="hand" for="axr-note">kenar notu</label><textarea id="axr-note" rows="3" maxlength="400">' + X(h.n || '') + '</textarea><div class="row"><button type="button" class="axr-mini" data-pnclose="">vazgeç</button><button type="button" class="btn btn-dark" data-pnsave="">yapıştır</button></div>';
+    pop.hidden = false; var x = Math.max(8, Math.min(window.innerWidth - 320, rect.left)), y = Math.min(window.innerHeight - 200, rect.bottom + 10); pop.style.left = x + 'px'; pop.style.top = y + 'px';
+    var ta = Q('textarea', pop); ta.focus();
+    Q('[data-pnsave]', pop).onclick = function () { h.n = ta.value.trim(); saveHL(); applyHL(); pop.hidden = true; say(h.n ? 'Not kenara yapıştırıldı.' : 'Not kaldırıldı.'); };
+    Q('[data-pnclose]', pop).onclick = function () { pop.hidden = true; };
+  };
+  tb.addEventListener('mousedown', function (e) { e.preventDefault(); });
+  tb.addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b || !SEL) return; var hit = SEL.hit, rect = tb.getBoundingClientRect();
+    if (b.hasAttribute('data-hlc')) { if (hit) { hit.c = b.getAttribute('data-hlc'); saveHL(); applyHL(); } else addHL(b.getAttribute('data-hlc')); tb.hidden = true; return; }
+    var a = b.getAttribute('data-hlact'), text = SEL.t;
+    if (a === 'del' && hit) { R.hl = R.hl.filter(function (x) { return x !== hit; }); saveHL(); applyHL(); tb.hidden = true; say('Vurgu kaldırıldı.'); return; }
+    if (a === 'note') { var h = hit || addHL('y'); tb.hidden = true; if (h) noteBox(h, rect); return; }
+    if (a === 'nb') { tb.hidden = true; if (typeof addStickyNoteToNotebook === 'function') { addStickyNoteToNotebook(R.card.id, X(baseName(R.name)), X(text)); say('Deftere yapıştırıldı.'); } return; }
+    if (a === 'card') {
+      tb.hidden = true; var own = !R.ro && lsafe(function () { return !!activeModalCardId; }, false);
+      if (!own) { say('Başkasının kartına kart ekleyemezsin; deftere yapıştırabilirsin.'); return; }
+      var term = cut(text.split(/[:.;—–-]/)[0].trim(), 60), def = text.length > term.length + 3 ? text : '';
+      pop.innerHTML = '<label class="hand" for="axr-ct">kartın ön yüzü</label><input id="axr-ct" maxlength="80" value="' + X(term) + '"><label class="hand" for="axr-cd">arka yüzü</label><textarea id="axr-cd" rows="3" maxlength="400">' + X(def || text) + '</textarea><div class="row"><button type="button" class="axr-mini" data-pnclose="">vazgeç</button><button type="button" class="btn btn-dark" data-pcsave="">karta ekle</button></div>';
+      pop.hidden = false; pop.style.left = Math.max(8, Math.min(window.innerWidth - 320, rect.left)) + 'px'; pop.style.top = Math.min(window.innerHeight - 260, rect.bottom + 10) + 'px'; Q('input', pop).focus();
+      Q('[data-pnclose]', pop).onclick = function () { pop.hidden = true; };
+      Q('[data-pcsave]', pop).onclick = function () {
+        var t = Q('input', pop).value.trim(), d = Q('textarea', pop).value.trim(), cl = sbc(), u = me(); if (!t || !d || !cl || !u) return;
+        var terms = arr(R.card.key_terms).concat([{ term: t, definition: d, user: true }]);
+        cl.from('study_cards').update({ key_terms: terms }).eq('id', R.card.id).eq('user_id', u.id).then(function (r) { if (r.error) { say('Kart eklenemedi; bağlantını kontrol et.'); return; } R.card.key_terms = terms; lsafe(function () { currentActiveStudyCard.key_terms = terms; }); pop.hidden = true; say('“' + cut(t, 30) + '” Bilgi kartlarına eklendi.'); });
+      };
+      return;
+    }
+    if (a === 'aca') {
+      tb.hidden = true; pop.innerHTML = '<span class="hand">Acadia düşünüyor…</span>'; pop.hidden = false; pop.style.left = Math.max(8, Math.min(window.innerWidth - 340, rect.left)) + 'px'; pop.style.top = Math.min(window.innerHeight - 220, rect.bottom + 10) + 'px';
+      var cl = sbc(); if (!cl || !cl.functions) return;
+      Promise.race([cl.functions.invoke('acadia-assistant', { body: { message: 'Bu özetten seçtiğim kısmı bir öğrenciye 3-4 cümleyle, sade Türkçe ve bir örnekle açıkla: "' + text.slice(0, 900) + '"', history: [], language: 'tr', studyCardId: R.card.id } }), new Promise(function (_, rej) { setTimeout(function () { rej(new Error('zaman aşımı')); }, 40000); })])
+        .then(function (r) { var d = r && r.data; if (typeof d === 'string') { try { d = JSON.parse(d); } catch (x) { d = { reply: d }; } } var rep = d && d.reply ? String(d.reply).replace(/```acadia-action[\s\S]*?```/g, '').trim() : ''; if (!rep) throw new Error('boş'); return rep; })
+        .then(function (rep) { pop.innerHTML = '<b class="hand">Acadia açıklıyor</b><div class="txt">' + X(rep).replace(/\n/g, '<br>') + '</div><div class="row"><button type="button" class="axr-mini" data-pnclose="">kapat</button><button type="button" class="btn btn-dark" data-pkeep="">kenara yapıştır</button></div>'; Q('[data-pnclose]', pop).onclick = function () { pop.hidden = true; }; Q('[data-pkeep]', pop).onclick = function () { var h = addHLFrom(text, rep); pop.hidden = true; if (h) say('Açıklama kenara yapıştırıldı.'); }; },
+          function () { pop.innerHTML = '<span class="hand">Acadia’ya şu an ulaşılamadı.</span><div class="row"><button type="button" class="axr-mini" data-pnclose="">kapat</button></div>'; Q('[data-pnclose]', pop).onclick = function () { pop.hidden = true; }; });
+    }
+  });
+  var addHLFrom = function (text, note) { var h = SEL && SEL.hit ? SEL.hit : addHL('b'); if (!h) return null; h.n = cut(note, 400); saveHL(); applyHL(); return h; };
+  document.addEventListener('mousedown', function (e) { if (!pop.hidden && !pop.contains(e.target)) pop.hidden = true; if (!tb.hidden && !tb.contains(e.target) && !e.target.closest('mark.axr-hl')) { if (SEL) SEL.hit = null; setTimeout(function () { if (!selInfo()) tb.hidden = true; }, 0); } });
+
+  /* ---------- okuma konforu ---------- */
+  var cf = document.createElement('div'); cf.className = 'axr-comfort'; cf.hidden = true; cf.setAttribute('role', 'dialog'); cf.setAttribute('aria-label', 'Okuma ayarları'); LY.appendChild(cf);
+  var paintCf = function () {
+    cf.innerHTML = '<h3 class="hand">okuma ayarları</h3>' +
+      '<div class="row"><span>yazı boyu</span><div class="seg">' + ['S', 'M', 'L', 'XL'].map(function (l, i) { return '<button type="button" data-pf="size" data-v="' + i + '" aria-pressed="' + (prefs.size === i) + '">' + l + '</button>'; }).join('') + '</div></div>' +
+      '<div class="row"><span>satır aralığı</span><div class="seg">' + ['sık', 'orta', 'geniş'].map(function (l, i) { return '<button type="button" data-pf="lh" data-v="' + i + '" aria-pressed="' + (prefs.lh === i) + '">' + l + '</button>'; }).join('') + '</div></div>' +
+      '<div class="row"><span>yazı tipi</span><div class="seg">' + [['sans', 'sade'], ['serif', 'kitap'], ['dys', 'disleksi dostu']].map(function (x) { return '<button type="button" data-pf="font" data-v="' + x[0] + '" aria-pressed="' + (prefs.font === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div></div>' +
+      '<label class="chk"><input type="checkbox" data-pf2="focus"' + (prefs.focus ? ' checked' : '') + '> odak modu <small>yalnızca okuduğun paragraf net</small></label>' +
+      '<label class="chk"><input type="checkbox" data-pf2="story"' + (prefs.story !== false ? ' checked' : '') + '> yeni kartta hikâye açılsın</label>';
+  };
+  var cfBtn = Q('[data-comfort]');
+  cfBtn.addEventListener('click', function () { if (!cf.hidden) { cf.hidden = true; cfBtn.setAttribute('aria-expanded', 'false'); return; } paintCf(); cf.hidden = false; cfBtn.setAttribute('aria-expanded', 'true'); var r = cfBtn.getBoundingClientRect(); cf.style.top = (r.bottom + 8) + 'px'; cf.style.left = Math.max(8, Math.min(window.innerWidth - cf.offsetWidth - 8, r.right - cf.offsetWidth)) + 'px'; var f = cf.querySelector('button'); if (f) f.focus(); });
+  cf.addEventListener('click', function (e) { var b = e.target.closest('[data-pf]'); if (!b) return; var k = b.getAttribute('data-pf'), v = b.getAttribute('data-v'); prefs[k] = k === 'font' ? v : +v; S(PK, prefs); applyPrefs(); paintCf(); onScroll(); });
+  cf.addEventListener('change', function (e) { var k = e.target.getAttribute('data-pf2'); if (!k) return; prefs[k] = e.target.checked; S(PK, prefs); applyPrefs(); if (!prefs.focus) QA('[data-b].now', flow).forEach(function (b) { b.classList.remove('now'); }); onScroll(); });
+  document.addEventListener('mousedown', function (e) { if (!cf.hidden && !cf.contains(e.target) && !cfBtn.contains(e.target)) { cf.hidden = true; cfBtn.setAttribute('aria-expanded', 'false'); } });
+
+  /* ---------- dashboard.js bağlantıları ---------- */
+  var render = function (card, name, ro) {
+    R.card = card; R.name = name || (card.documents && card.documents.file_name) || ''; R.ro = !!ro; podSig = '';
+    tb.hidden = true; pop.hidden = true; cf.hidden = true;
+    renderFlow(); applyPrefs(); scroller.scrollTop = 0; onScroll();
+    loadHL();
+    var seen = G(SK, {});
+    if (prefs.story !== false && !seen[card.id]) setTimeout(function () { if (modal.classList.contains('active') && R.card === card) openStory(); }, 250); else closeStory();
+  };
+  if (typeof populateStudyCardModalDetails === 'function') {
+    var origPop = populateStudyCardModalDetails;
+    populateStudyCardModalDetails = async function (card, docName, readOnly) {
+      var r = origPop.apply(this, arguments);
+      try { render(card, docName, readOnly); } catch (e) { console.error('axr: özet çizilemedi', e); }
+      try { await r; } catch (e) {}
+      return r;
+    };
+    window.populateStudyCardModalDetails = populateStudyCardModalDetails;
+  }
+  ['renderStudyCardCharts', 'renderStudyCardTables', 'renderStudyCardDiagrams'].forEach(function (fnm) {
+    var o = lsafe(function () { return window[fnm]; }, null); if (typeof o !== 'function') return;
+    var w = function (card) { var res = o.apply(this, arguments); if (R.card && card && card.id === R.card.id && modal.classList.contains('active')) { R.card = card; var y = scroller.scrollTop; renderFlow(); scroller.scrollTop = y; } return res; };
+    window[fnm] = w; try { if (fnm === 'renderStudyCardCharts') renderStudyCardCharts = w; else if (fnm === 'renderStudyCardTables') renderStudyCardTables = w; else renderStudyCardDiagrams = w; } catch (e) {}
+  });
+  if (typeof scrollStudyCardTo === 'function') {
+    scrollStudyCardTo = function (id) { var map = { 'study-card-charts-section': 'gorsel', 'study-card-tables-section': 'gorsel', 'study-card-diagrams-section': 'gorsel', 'study-card-podcast-section': 'dinle', 'study-card-executive-section': 'hiz', 'study-card-narrative-section': 'anlati' }; var t = Q('#axr-ch-' + (map[id] || 'anlati')); if (t) scroller.scrollTo({ top: t.offsetTop - 70, behavior: calm ? 'auto' : 'smooth' }); };
+    window.scrollStudyCardTo = scrollStudyCardTo;
+  }
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !story.hidden) { e.stopPropagation(); closeStory(); } }, true);
+  var origLbl = document.getElementById('btn-toggle-original-label');
+  if (origLbl) new MutationObserver(function () { var t = origLbl.textContent, c = t.replace(/^[^\p{L}\p{N}]+/u, '').trim(); if (c !== t) origLbl.textContent = c; }).observe(origLbl, { childList: true, characterData: true, subtree: true });
+  new MutationObserver(function () { document.body.classList.toggle('axr-open', modal.classList.contains('active')); if (!modal.classList.contains('active')) { closeStory(); tb.hidden = true; pop.hidden = true; cf.hidden = true; } }).observe(modal, { attributes: true, attributeFilter: ['class'] });
+  applyPrefs();
+})();
+
+/* ================= MATBAA · özetlenen belgeler =================
+   Belgelerim'in üstünde, işlenmekte olan belgeleri bir baskı makinesinden geçiyormuş gibi
+   gösterir; adımlar documents.processing_stage alanından okunur. İşlem bitince kart masaya
+   düşer ve "özeti aç" düğmesi çıkar. Veri: activeDocuments / activeStudyCards (dashboard.js). */
+(function () {
+  'use strict';
+  if (typeof renderDocumentsList !== 'function') return;
+  var lsafe = function (fn, fb) { try { return fn(); } catch (e) { return fb; } };
+  var X = function (t) { return String(t == null ? '' : t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var baseName = function (n) { n = String(n || '').replace(/\.[a-z0-9]{2,5}$/i, ''); var m = n.match(/^\d{10,}_(?:\d{10,}_)?(.+)$/); if (m) n = m[1]; return n.replace(/_+/g, ' ').trim() || 'İsimsiz belge'; };
+  var STEPS = ['okunuyor', 'bölümleniyor', 'kavramlar çıkıyor', 'anlatı yazılıyor', 'kontrol ediliyor', 'mürekkep kuruyor'];
+  var stepOf = function (st) {
+    st = String(st || ''); var m = st.match(/chunking:(\d+)\/(\d+)/);
+    if (m) return { i: 1, note: 'parça ' + m[1] + '/' + m[2] };
+    var map = { extracting: 0, analyzing: 2, chunking: 1, synthesizing: 2, sectioning: 2, writing: 3, draft_ready: 4, reviewing: 4, critic: 4, saving: 5 };
+    return { i: map[st.split(':')[0]] != null ? map[st.split(':')[0]] : 0, note: '' };
+  };
+  var MACH = '<svg class="axp-mach" viewBox="0 0 200 110" aria-hidden="true"><circle class="gear" cx="36" cy="26" r="12"/><circle class="gear g2" cx="164" cy="26" r="12"/>' +
+    '<path class="frame" d="M20 92 H180 M30 92 V44 H170 V92 M60 44 V20 H140 V44"/><rect class="plate" x="70" y="30" width="60" height="16" rx="2"/><circle class="ink" cx="100" cy="52" r="3"/>' +
+    '<g class="sheet"><rect x="70" y="70" width="44" height="20" rx="1"/><line x1="76" y1="76" x2="104" y2="76"/><line x1="76" y1="82" x2="98" y2="82"/></g><g class="sheet s2"><rect x="70" y="70" width="44" height="20" rx="1"/><line x1="76" y1="76" x2="104" y2="76"/><line x1="76" y1="82" x2="98" y2="82"/></g></svg>';
+  var prevProc = null, done = [];
+  var paint = function () {
+    var sec = document.getElementById('docs-list-section'); if (!sec) return;
+    var docs = lsafe(function () { return activeDocuments; }, []) || [], cards = lsafe(function () { return activeStudyCards; }, []) || [];
+    var proc = docs.filter(function (d) { return d.status === 'processing'; });
+    var ids = proc.map(function (d) { return d.id; });
+    if (prevProc) prevProc.forEach(function (id) {
+      if (ids.indexOf(id) > -1) return; var d = docs.filter(function (x) { return x.id === id; })[0];
+      if (d && d.status === 'summarized' && !done.some(function (x) { return x.id === id; })) done.unshift({ id: id, name: d.file_name, at: Date.now() });
+    });
+    prevProc = ids; done = done.filter(function (x) { return Date.now() - x.at < 10 * 60 * 1000; }).slice(0, 2);
+    var old = sec.querySelector('.axp-press'); if (old) old.remove();
+    if (!proc.length && !done.length) return;
+    var h = '<section class="axp-press" aria-live="polite" aria-label="Özetlenen belgeler"><div class="axp-hd"><span class="k">MATBAA</span><b>' + (proc.length ? 'Özetin basılıyor' : 'Baskı tamam') + '</b><small>' + (proc.length ? 'sayfayı kapatsan da devam eder' : 'yeni kartın masada') + '</small></div>';
+    proc.slice(0, 2).forEach(function (d) {
+      var s = stepOf(d.processing_stage), upd = new Date(d.updated_at || d.created_at || Date.now()).getTime();
+      h += '<div class="axp-row">' + MACH + '<div><span class="axp-nm" title="' + X(d.file_name) + '">' + X(baseName(d.file_name)) + '</span><ol class="axp-steps">' + STEPS.map(function (t, i) { return '<li class="' + (i < s.i ? 'done' : i === s.i ? 'cur' : '') + '">' + t + '</li>'; }).join('') + '</ol>' +
+        '<div class="axp-now"><span class="hand">' + STEPS[s.i] + '…</span>' + (s.note ? '<span>' + X(s.note) + '</span>' : '') + '<span class="mono">' + Math.round((s.i + .5) / STEPS.length * 100) + '%</span></div>' +
+        ((Date.now() - upd) > 210000 ? '<button type="button" class="axp-stuck" onclick="resetStuckDocument(\'' + X(d.id) + '\')">takıldı gibi: sıfırla ve tekrar dene</button>' : '') + '</div></div>';
+    });
+    if (proc.length > 2) h += '<p class="axp-more">+' + (proc.length - 2) + ' belge sırada bekliyor</p>';
+    done.forEach(function (x) {
+      var c = cards.filter(function (k) { return k.document_id === x.id; })[0];
+      h += '<div class="axp-row"><div></div><div class="axp-done"><span class="card" aria-hidden="true"></span><p><b>' + X(baseName(x.name)) + '</b> özeti hazır.</p>' +
+        '<button type="button" class="ax-btn ax-btn-blue btn-view-summary" data-doc-id="' + X(x.id) + '" data-doc-name="' + X(x.name) + '" data-card-id="' + X(c ? c.id : '') + '">özeti aç</button><button type="button" class="x" data-axp-x="' + X(x.id) + '">kapat</button></div></div>';
+    });
+    h += '</section>';
+    sec.insertAdjacentHTML('afterbegin', h);
+    done.forEach(function (x) { if (x.landed) return; x.landed = 1; var el = document.getElementById('doc-card-' + x.id); if (el) el.classList.add('axp-landed'); });
+  };
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-axp-x]'); if (b) { var id = b.getAttribute('data-axp-x'); done = done.filter(function (x) { return x.id !== id; }); paint(); return; }
+    var v = e.target.closest('.axp-done .btn-view-summary'); if (v) { var id2 = v.getAttribute('data-doc-id'); setTimeout(function () { done = done.filter(function (x) { return x.id !== id2; }); paint(); }, 400); }
+  });
+  var base = renderDocumentsList;
+  renderDocumentsList = function () { var r = base.apply(this, arguments); try { paint(); } catch (e) { console.warn('axp', e); } return r; };
+  window.renderDocumentsList = renderDocumentsList;
+  window.__axpPaint = paint;
+})();

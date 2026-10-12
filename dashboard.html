@@ -1975,304 +1975,89 @@
   </div>
 
   <!-- Custom Study Card Viewer Modal -->
-  <div class="modal-overlay" id="study-card-modal" role="dialog" aria-modal="true" aria-labelledby="study-card-title">
-    <div class="modal-card study-card-modal-card">
-      <div class="study-card-modal-header" style="display: flex; flex-direction: column; align-items: flex-start; gap: 0.5rem; width: 100%;">
-        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-          <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-            <h3 class="modal-title" id="study-card-title" style="margin: 0;">Study Card</h3>
-            <span id="study-card-modal-style-badge" class="style-badge style-standard" style="margin-left: 0;">Standard</span>
-            <span id="study-card-modal-lang-badge" class="style-badge" style="background-color: var(--color-teal-light); color: var(--color-teal); border: 1px solid rgba(22, 50, 92, 0.08); font-weight: 700;">English</span>
-            <span id="study-card-modal-type-badge"></span>
-            <span id="study-card-modal-length-badge"></span>
-            <span id="study-card-modal-visual-badge"></span>
-            <span id="study-card-modal-quantitative-badge" class="style-badge" style="display: none; background-color: rgba(99, 102, 241, 0.12); color: #4F46E5; border: 1px solid rgba(99, 102, 241, 0.2); font-weight: 700;">🔢 Sayısal Ders</span>
-            
-            <div class="feedback-vote-container" style="display: flex; align-items: center; gap: 0.25rem; margin-left: 0.5rem; border-left: 1px solid rgba(22, 50, 92, 0.1); padding-left: 0.5rem;">
-              <span style="font-size: 0.725rem; color: var(--color-text-muted); font-weight: 500;" data-i18n="dash.cards.helpful">Helpful?</span>
-              <button class="vote-btn" id="btn-vote-up" onclick="submitSummaryFeedback('up')" title="Helpful" style="padding: 0.2rem 0.35rem; font-size: 0.85rem; line-height: 1; border-radius: var(--radius-sm); border: 1px solid rgba(22, 50, 92, 0.1); background: var(--color-white); cursor: pointer; transition: all 0.2s;">👍</button>
-              <button class="vote-btn" id="btn-vote-down" onclick="submitSummaryFeedback('down')" title="Not Helpful" style="padding: 0.2rem 0.35rem; font-size: 0.85rem; line-height: 1; border-radius: var(--radius-sm); border: 1px solid rgba(22, 50, 92, 0.1); background: var(--color-white); cursor: pointer; transition: all 0.2s;">👎</button>
-            </div>
+  <div class="modal-overlay axr" id="study-card-modal" role="dialog" aria-modal="true" aria-labelledby="study-card-title">
+    <div class="modal-card study-card-modal-card axr-card">
+      <svg class="axr-defs" width="0" height="0" aria-hidden="true" focusable="false"><defs>
+        <filter id="axr-rough" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="3" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="1.8" xChannelSelector="R" yChannelSelector="G"/></filter>
+        <pattern id="axr-hatch-0" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="7" height="7" fill="#DCE6FF"/><line x1="0" y1="0" x2="0" y2="7" stroke="#2F6BFF" stroke-width="2.2"/></pattern>
+        <pattern id="axr-hatch-1" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="7" height="7" fill="#F8DEDA"/><line x1="0" y1="0" x2="0" y2="7" stroke="#C9483B" stroke-width="2.2"/></pattern>
+        <pattern id="axr-hatch-2" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="7" height="7" fill="#D9EFE3"/><line x1="0" y1="0" x2="0" y2="7" stroke="#1E8A55" stroke-width="2.2"/></pattern>
+        <pattern id="axr-hatch-3" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="7" height="7" fill="#FFF0BF"/><line x1="0" y1="0" x2="0" y2="7" stroke="#C88A1C" stroke-width="2.2"/></pattern>
+        <pattern id="axr-hatch-4" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="7" height="7" fill="#E7E1F4"/><line x1="0" y1="0" x2="0" y2="7" stroke="#6A4FA8" stroke-width="2.2"/></pattern>
+        <pattern id="axr-hatch-5" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="7" height="7" fill="#D6EEF1"/><line x1="0" y1="0" x2="0" y2="7" stroke="#0F7C8A" stroke-width="2.2"/></pattern>
+        <pattern id="axr-hatch-6" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="7" height="7" fill="#F7DCE4"/><line x1="0" y1="0" x2="0" y2="7" stroke="#D9677F" stroke-width="2.2"/></pattern>
+        <pattern id="axr-hatch-7" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="7" height="7" fill="#E4E8F1"/><line x1="0" y1="0" x2="0" y2="7" stroke="#0D1838" stroke-width="2.2"/></pattern>
+      </defs></svg>
+
+      <header class="study-card-modal-header axr-top">
+        <div class="axr-top-l">
+          <span class="axr-eyb mono" data-axr-eyb="">ÖZET KARTI</span>
+          <h3 class="modal-title" id="study-card-title">Özet</h3>
+        </div>
+        <div class="axr-top-r">
+          <div class="feedback-vote-container axr-vote">
+            <span class="hand">işe yaradı mı?</span>
+            <button class="vote-btn" id="btn-vote-up" onclick="submitSummaryFeedback('up')" title="İşe yaradı" aria-label="İşe yaradı"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 11 V20 H4.5 V11 Z"/><path d="M7.5 11 L11 4.5 C12.6 4.5 13.4 5.6 13 7.2 L12.4 10 H18 C19.3 10 20.1 11.2 19.7 12.4 L17.8 18.6 C17.5 19.5 16.8 20 15.9 20 H7.5"/></svg></button>
+            <button class="vote-btn" id="btn-vote-down" onclick="submitSummaryFeedback('down')" title="İşe yaramadı" aria-label="İşe yaramadı"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.5 13 V4 H19.5 V13 Z"/><path d="M16.5 13 L13 19.5 C11.4 19.5 10.6 18.4 11 16.8 L11.6 14 H6 C4.7 14 3.9 12.8 4.3 11.6 L6.2 5.4 C6.5 4.5 7.2 4 8.1 4 H16.5"/></svg></button>
           </div>
-          <div style="display: flex; align-items: center; gap: 0.5rem;">
-            <button class="btn btn-outline" id="btn-toggle-original-view" onclick="toggleOriginalDocumentViewer()" style="font-size: 0.75rem; padding: 0.35rem 0.75rem; font-weight: 700; border-radius: var(--radius-sm); display: flex; align-items: center; gap: 0.25rem; border-color: var(--color-teal); color: var(--color-teal);">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                <polyline points="14 2 14 8 20 8"></polyline>
-              </svg>
-              <span id="btn-toggle-original-label" data-i18n="dash.cards.viewOriginal">📄 Orijinali Görüntüle</span>
-            </button>
-            <button class="btn btn-outline" id="btn-export-pdf" style="font-size: 0.75rem; padding: 0.35rem 0.75rem; font-weight: 700; border-radius: var(--radius-sm); display: flex; align-items: center; gap: 0.25rem; border-color: var(--color-teal); color: var(--color-teal);">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                <polyline points="14 2 14 8 20 8"></polyline>
-              </svg>
-              <span>PDF Olarak İndir</span>
-            </button>
-            <button class="btn-icon" id="btn-close-study-card" aria-label="Close Study Card Modal">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
-            </button>
+          <button type="button" class="axr-tb" data-story-again="" title="Hikâyeyi yeniden izle"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5 L19 12 L8 19 Z"/></svg><span>hikâye</span></button>
+          <button type="button" class="axr-tb" data-comfort="" aria-expanded="false" title="Okuma ayarları"><b aria-hidden="true">Aa</b><span class="vh">Okuma ayarları</span></button>
+          <button class="btn btn-outline axr-tb" id="btn-toggle-original-view" onclick="toggleOriginalDocumentViewer()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.5 H14 L18.5 8 V20.5 H7 Z"/><path d="M14 3.5 V8 H18.5"/></svg><span id="btn-toggle-original-label">Orijinali görüntüle</span></button>
+          <button class="btn btn-outline axr-tb" id="btn-export-pdf"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4 V15 M7.5 10.5 L12 15 L16.5 10.5"/><path d="M5 19.5 H19"/></svg><span>PDF</span></button>
+          <button class="btn-icon axr-x" id="btn-close-study-card" aria-label="Özeti kapat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6 L18 18 M18 6 L6 18"/></svg></button>
+        </div>
+        <div class="axr-prog" aria-hidden="true"><i data-axr-prog=""></i></div>
+      </header>
+      <div id="modal-style-selector-container" class="axr-styles"></div>
+
+      <div id="study-card-split-wrapper" class="study-card-split-wrapper axr-split">
+        <div class="study-card-modal-body axr-body" id="study-card-left-pane" data-axr-scroll="">
+          <div class="axr-mag">
+            <nav class="axr-rail" data-axr-rail="" aria-label="Özetin bölümleri"></nav>
+            <article class="axr-main" data-axr-main="">
+              <div data-axr-mast=""></div>
+              <div id="modal-share-container" class="share-toggle-container axr-share">
+                <span>Bölümümle paylaş <small>açınca bölüm arkadaşların Bölüm akışında görür</small></span>
+                <label class="switch"><input type="checkbox" id="modal-share-toggle"><span class="slider"></span></label>
+              </div>
+              <div data-axr-flow=""></div>
+            </article>
+          </div>
+
+          <div class="axr-legacy" hidden aria-hidden="true">
+            <span id="study-card-modal-style-badge" class="style-badge"></span><span id="study-card-modal-lang-badge" class="style-badge"></span><span id="study-card-modal-type-badge"></span><span id="study-card-modal-length-badge"></span><span id="study-card-modal-visual-badge"></span><span id="study-card-modal-quantitative-badge" class="style-badge"></span>
+            <div id="study-card-reading-nav"></div>
+            <section id="study-card-podcast-section">
+              <div id="study-card-podcast-cta"><button type="button" id="btn-generate-podcast" onclick="generatePodcastScript()">Sesli özet oluştur</button></div>
+              <div id="study-card-podcast-player"><span id="podcast-host-chip-a"><span id="podcast-host-name-a"></span></span><span id="podcast-host-chip-b"><span id="podcast-host-name-b"></span></span><div id="podcast-caption"></div><div><div id="podcast-progress-fill"></div></div><button type="button" id="btn-podcast-playpause" onclick="togglePodcastPlayback()"></button><button type="button" id="btn-podcast-stop" onclick="stopPodcast()"></button><span id="podcast-line-counter"></span></div>
+            </section>
+            <section id="study-card-executive-section"><div id="study-card-executive-text"></div></section>
+            <section id="study-card-outline-section"><div id="study-card-outline-title"></div><ol id="study-card-outline-list"></ol></section>
+            <section id="study-card-narrative-section"><button class="btn-regenerate-section" onclick="triggerSectionRegeneration('summary')"><span class="btn-regen-text">yenile</span></button><div class="study-card-summary-text" id="study-card-summary-text"></div></section>
+            <section id="study-card-deep-sections-section"><div id="study-card-deep-sections-container"></div></section>
+            <div id="study-card-study-tools-divider"></div>
+            <section><button class="btn-regenerate-section" onclick="triggerSectionRegeneration('key_points')"><span class="btn-regen-text">yenile</span></button><ul id="study-card-points-container"></ul></section>
+            <section><button class="btn-regenerate-section" onclick="triggerSectionRegeneration('key_terms')"><span class="btn-regen-text">yenile</span></button><div id="study-card-terms-container"></div></section>
+            <section id="study-card-concept-graph-section"><div id="study-card-concept-graph-container"></div></section>
+            <section id="study-card-related-section"><div id="study-card-related-container"></div></section>
+            <section><button class="btn-regenerate-section" onclick="triggerSectionRegeneration('quiz_questions')"><span class="btn-regen-text">yenile</span></button><div id="study-card-quiz-container"></div></section>
+            <section id="study-card-tables-section"><div id="study-card-tables-container"></div></section>
+            <section id="study-card-charts-section"><div id="study-card-charts-container"></div></section>
+            <section id="study-card-images-section" class="axr-images-holder"><h4 class="axr-h4">sohbetten kaydettiğin görseller</h4><div id="study-card-images-container"></div></section>
+            <section id="study-card-formulas-section"><div id="study-card-formulas-container"></div></section>
+            <section id="study-card-diagrams-section"><div id="study-card-diagrams-container"></div></section>
+            <section id="study-card-examples-section"><div id="study-card-examples-container"></div></section>
+            <div id="study-card-footnotes-container"></div>
           </div>
         </div>
-        <div id="modal-style-selector-container" style="display: none; width: 100%; margin-top: 0.25rem;">
-          <!-- Dynamically populated if multiple summaries exist -->
-        </div>
-      </div>
-      
-      <div id="study-card-split-wrapper" class="study-card-split-wrapper">
-        <div class="study-card-modal-body" id="study-card-left-pane">
-        <!-- Sharing Toggle Container (hidden in read-only mode) -->
-        <div id="modal-share-container" class="share-toggle-container">
-          <span>Share with my department</span>
-          <label class="switch">
-            <input type="checkbox" id="modal-share-toggle">
-            <span class="slider"></span>
-          </label>
-        </div>
-
-        <!-- ===== NotebookLM Madde 5: Reading experience ===== -->
-        <div id="study-card-reading-nav" style="display:flex; flex-wrap:wrap; gap:0.4rem; margin:0 0 1rem; padding:0.5rem; background:rgba(22,50,92,0.03); border-radius:12px; border:1px solid rgba(22,50,92,0.06);">
-          <button type="button" class="btn btn-outline" onclick="scrollStudyCardTo('study-card-podcast-section')" style="font-size:0.72rem; padding:0.3rem 0.65rem; border-radius:999px; font-weight:700; border-color:var(--color-teal); color:var(--color-teal);">🎧 Dinle</button>
-          <button type="button" class="btn btn-outline" onclick="scrollStudyCardTo('study-card-executive-section')" style="font-size:0.72rem; padding:0.3rem 0.65rem; border-radius:999px; font-weight:700;">⚡ 30 sn</button>
-          <button type="button" class="btn btn-outline" onclick="scrollStudyCardTo('study-card-outline-section')" style="font-size:0.72rem; padding:0.3rem 0.65rem; border-radius:999px; font-weight:700;">📑 İskelet</button>
-          <button type="button" class="btn btn-outline" onclick="scrollStudyCardTo('study-card-narrative-section')" style="font-size:0.72rem; padding:0.3rem 0.65rem; border-radius:999px; font-weight:700;">📖 Anlatı</button>
-          <button type="button" class="btn btn-outline" onclick="scrollStudyCardTo('study-card-deep-sections-section')" style="font-size:0.72rem; padding:0.3rem 0.65rem; border-radius:999px; font-weight:700;">📚 Bölümler</button>
-          <button type="button" class="btn btn-outline" onclick="scrollStudyCardTo('study-card-study-tools-divider')" style="font-size:0.72rem; padding:0.3rem 0.65rem; border-radius:999px; font-weight:700; border-color:var(--color-teal); color:var(--color-teal);">🧠 Çalışma</button>
-        </div>
-
-        <!-- 0) Sesli Özet (AI Podcast) — free browser-TTS audio overview -->
-        <section class="study-card-section" id="study-card-podcast-section">
-          <h4 class="study-card-section-title" style="display: flex; align-items: center; width: 100%;">
-            <span>🎧</span>
-            <span style="margin-left: 0.4rem;">Sesli Özet</span>
-            <span style="margin-left:0.4rem; font-size:0.65rem; color:var(--color-text-muted); font-weight:600;">AI Podcast — 2 sunucu</span>
-          </h4>
-
-          <div id="study-card-podcast-cta" style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem; flex-wrap:wrap; background:linear-gradient(135deg, rgba(31,138,147,0.08), rgba(22,50,92,0.05)); border-radius:12px; padding:0.9rem 1rem;">
-            <div style="font-size:0.85rem; color:var(--color-navy); line-height:1.5; flex:1; min-width:220px;">
-              Bu özeti, iki sunucunun sohbet ettiği kısa bir sesli anlatıma dönüştürün — tarayıcınızın yerleşik sesiyle, tamamen ücretsiz dinleyin.
-            </div>
-            <button type="button" id="btn-generate-podcast" class="btn btn-primary" onclick="generatePodcastScript()" style="white-space:nowrap; font-size:0.8rem; font-weight:700;">🎙️ Sesli Özet Oluştur</button>
-          </div>
-
-          <div id="study-card-podcast-player" class="podcast-player" style="display:none;">
-            <div class="podcast-player-hosts">
-              <span class="podcast-host-chip" id="podcast-host-chip-a" data-speaker="A">🅰️ <span id="podcast-host-name-a"></span></span>
-              <span class="podcast-host-chip" id="podcast-host-chip-b" data-speaker="B">🅱️ <span id="podcast-host-name-b"></span></span>
-            </div>
-            <div class="podcast-caption" id="podcast-caption"></div>
-            <div class="podcast-progress-track">
-              <div class="podcast-progress-fill" id="podcast-progress-fill"></div>
-            </div>
-            <div class="podcast-controls">
-              <button type="button" class="podcast-ctrl-btn" id="btn-podcast-playpause" onclick="togglePodcastPlayback()" title="Oynat/Duraklat">▶️</button>
-              <button type="button" class="podcast-ctrl-btn" id="btn-podcast-stop" onclick="stopPodcast()" title="Durdur">⏹️</button>
-              <span class="podcast-line-counter" id="podcast-line-counter"></span>
-            </div>
-          </div>
-        </section>
-
-        <!-- 1) Executive -->
-        <section class="study-card-section" id="study-card-executive-section" style="display: none;">
-          <h4 class="study-card-section-title" style="display: flex; align-items: center; width: 100%;">
-            <span>⚡</span>
-            <span style="margin-left: 0.4rem;" data-i18n="dash.cards.executive">30 Saniyelik Özet</span>
-          </h4>
-          <div id="study-card-executive-text" style="background: linear-gradient(135deg, rgba(20,184,166,0.08), rgba(22,50,92,0.06)); border-left: 3px solid var(--color-teal); border-radius: 8px; padding: 0.85rem 1rem; font-size: 0.95rem; line-height: 1.55; color: var(--color-navy); font-weight: 500;">
-          </div>
-        </section>
-
-        <!-- 2) Outline TOC (click → jump to deep section) -->
-        <section class="study-card-section" id="study-card-outline-section" style="display: none;">
-          <h4 class="study-card-section-title" style="display: flex; align-items: center; width: 100%;">
-            <span>📑</span>
-            <span style="margin-left: 0.4rem;" data-i18n="dash.cards.outline">Belge İskeleti</span>
-            <span style="margin-left:0.4rem; font-size:0.65rem; color:var(--color-text-muted); font-weight:600;">tıkla → bölüme git</span>
-          </h4>
-          <div id="study-card-outline-title" style="font-size: 0.85rem; color: var(--color-text-muted); margin-bottom: 0.5rem; display: none;"></div>
-          <ol id="study-card-outline-list" style="margin: 0; padding-left: 1.25rem; display: flex; flex-direction: column; gap: 0.45rem;"></ol>
-        </section>
-
-        <!-- 3) Professional narrative only -->
-        <section class="study-card-section" id="study-card-narrative-section">
-          <h4 class="study-card-section-title" style="display: flex; align-items: center; width: 100%;">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="section-icon">
-              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
-              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
-            </svg>
-            <span data-i18n="dash.cards.summary">Profesyonel Özet</span>
-            <span style="margin-left:0.4rem; font-size:0.65rem; font-weight:700; color:var(--color-teal); background:rgba(31,138,147,0.1); padding:0.15rem 0.45rem; border-radius:999px;">Narrative</span>
-            <button class="btn-regenerate-section" onclick="triggerSectionRegeneration('summary')" title="Regenerate Summary" style="display: none; background: none; border: none; padding: 0.15rem 0.35rem; color: var(--color-teal); cursor: pointer; transition: opacity 0.2s; align-items: center; justify-content: center; gap: 0.2rem; font-size: 0.725rem; font-weight: 700; margin-left: auto;">
-              <span>🔄</span> <span class="btn-regen-text">Regenerate</span>
-            </button>
-          </h4>
-          <div class="study-card-summary-text" id="study-card-summary-text" style="font-size:0.95rem; line-height:1.7; color:var(--color-navy);">Loading summary...</div>
-        </section>
-
-        <!-- 4) Deep sections accordion (separate from narrative) -->
-        <section class="study-card-section" id="study-card-deep-sections-section" style="display: none;">
-          <h4 class="study-card-section-title" style="display: flex; align-items: center; width: 100%;">
-            <span>📚</span>
-            <span style="margin-left: 0.4rem;">Bölüm Bölüm Derinleşme</span>
-          </h4>
-          <div id="study-card-deep-sections-container"></div>
-        </section>
-
-        <!-- Study tools divider -->
-        <div id="study-card-study-tools-divider" style="margin:1.25rem 0 0.75rem; padding:0.65rem 0.85rem; border-radius:10px; background:linear-gradient(90deg, rgba(31,138,147,0.12), rgba(22,50,92,0.06)); display:flex; align-items:center; gap:0.5rem;">
-          <span style="font-size:1.1rem;">🧠</span>
-          <div>
-            <div style="font-weight:800; color:var(--color-navy); font-size:0.9rem;">Çalışma Araçları</div>
-            <div style="font-size:0.75rem; color:var(--color-text-muted);">Terimler, quiz, kavram ağı ve tekrar</div>
-          </div>
-        </div>
-
-        <!-- Key Points -->
-        <section class="study-card-section">
-          <h4 class="study-card-section-title" style="display: flex; align-items: center; width: 100%;">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="section-icon">
-              <polyline points="9 11 12 14 22 4"></polyline>
-              <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
-            </svg>
-            <span data-i18n="dash.cards.points">Key Points</span>
-            <button class="btn-regenerate-section" onclick="triggerSectionRegeneration('key_points')" title="Regenerate Key Points" style="display: none; background: none; border: none; padding: 0.15rem 0.35rem; color: var(--color-teal); cursor: pointer; transition: opacity 0.2s; align-items: center; justify-content: center; gap: 0.2rem; font-size: 0.725rem; font-weight: 700; margin-left: auto;">
-              <span>🔄</span> <span class="btn-regen-text">Regenerate</span>
-            </button>
-          </h4>
-          <ul class="study-card-points-list" id="study-card-points-container">
-          </ul>
-        </section>
-
-        <!-- Key Terms -->
-        <section class="study-card-section">
-          <h4 class="study-card-section-title" style="display: flex; align-items: center; width: 100%;">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="section-icon">
-              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-              <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-              <line x1="12" y1="22.08" x2="12" y2="12"></line>
-            </svg>
-            <span data-i18n="dash.cards.terms">Key Terms</span>
-            <button class="btn-regenerate-section" onclick="triggerSectionRegeneration('key_terms')" title="Regenerate Key Terms" style="display: none; background: none; border: none; padding: 0.15rem 0.35rem; color: var(--color-teal); cursor: pointer; transition: opacity 0.2s; align-items: center; justify-content: center; gap: 0.2rem; font-size: 0.725rem; font-weight: 700; margin-left: auto;">
-              <span>🔄</span> <span class="btn-regen-text">Regenerate</span>
-            </button>
-          </h4>
-          <div class="key-terms-grid" id="study-card-terms-container">
-          </div>
-        </section>
-
-        <!-- Concept Graph -->
-        <section class="study-card-section" id="study-card-concept-graph-section" style="display: none;">
-          <h4 class="study-card-section-title" style="display: flex; align-items: center; width: 100%;">
-            <span>🕸️</span>
-            <span style="margin-left: 0.4rem;" data-i18n="dash.cards.conceptGraph">Kavram Grafiği</span>
-          </h4>
-          <div id="study-card-concept-graph-container"></div>
-        </section>
-
-        <!-- Related cards -->
-        <section class="study-card-section" id="study-card-related-section" style="display: none;">
-          <h4 class="study-card-section-title" style="display: flex; align-items: center; width: 100%;">
-            <span>🔗</span>
-            <span style="margin-left: 0.4rem;" data-i18n="dash.cards.relatedCards">İlgili Kartlar</span>
-          </h4>
-          <div id="study-card-related-container" style="display: flex; flex-direction: column; gap: 0.5rem;">
-          </div>
-        </section>
-
-        <!-- Self-Test -->
-        <section class="study-card-section">
-          <h4 class="study-card-section-title" style="display: flex; align-items: center; width: 100%;">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="section-icon">
-              <circle cx="12" cy="12" r="10"></circle>
-              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
-              <line x1="12" y1="17" x2="12.01" y2="17"></line>
-            </svg>
-            <span data-i18n="dash.cards.quiz">Self-Test Questions</span>
-            <button class="btn-regenerate-section" onclick="triggerSectionRegeneration('quiz_questions')" title="Regenerate Quiz Questions" style="display: none; background: none; border: none; padding: 0.15rem 0.35rem; color: var(--color-teal); cursor: pointer; transition: opacity 0.2s; align-items: center; justify-content: center; gap: 0.2rem; font-size: 0.725rem; font-weight: 700; margin-left: auto;">
-              <span>🔄</span> <span class="btn-regen-text">Regenerate</span>
-            </button>
-          </h4>
-          <div class="quiz-container" id="study-card-quiz-container">
-          </div>
-        </section>
-
-        <!-- Tables Section -->
-        <section class="study-card-section" id="study-card-tables-section" style="display: none;">
-          <h4 class="study-card-section-title" style="display: flex; align-items: center; width: 100%;">
-            <span>📊</span> <span style="margin-left: 0.4rem;">Tables</span>
-          </h4>
-          <div id="study-card-tables-container">
-            <!-- Dynamically populated -->
-          </div>
-        </section>
-
-        <!-- Charts Section -->
-        <section class="study-card-section" id="study-card-charts-section" style="display: none;">
-          <h4 class="study-card-section-title" style="display: flex; align-items: center; width: 100%;">
-            <span>📈</span> <span style="margin-left: 0.4rem;">Charts</span>
-          </h4>
-          <div id="study-card-charts-container">
-            <!-- Dynamically populated -->
-          </div>
-        </section>
-
-        <!-- Attached Images Section (from Kaynakla Sohbet: uploaded photos, AI diagrams/illustrations) -->
-        <section class="study-card-section" id="study-card-images-section" style="display: none;">
-          <h4 class="study-card-section-title" style="display: flex; align-items: center; width: 100%;">
-            <span>🖼️</span> <span style="margin-left: 0.4rem;" data-i18n="dash.cards.attachedImages">Eklenen Görseller</span>
-          </h4>
-          <div id="study-card-images-container" style="display: flex; flex-wrap: wrap; gap: 0.7rem;">
-            <!-- Dynamically populated -->
-          </div>
-        </section>
-
-        <!-- Formulas Section -->
-        <section class="study-card-section" id="study-card-formulas-section" style="display: none;">
-          <h4 class="study-card-section-title" style="display: flex; align-items: center; width: 100%;">
-            <span>🔢</span> <span style="margin-left: 0.4rem;" data-i18n="dash.cards.formulas">Formüller</span>
-          </h4>
-          <div id="study-card-formulas-container" class="formulas-grid">
-            <!-- Dynamically populated -->
-          </div>
-        </section>
-
-        <!-- Diagrams Section (AI-reconstructed Mermaid process flows / hierarchies / comparisons) -->
-        <section class="study-card-section" id="study-card-diagrams-section" style="display: none;">
-          <h4 class="study-card-section-title" style="display: flex; align-items: center; width: 100%;">
-            <span>🔀</span> <span style="margin-left: 0.4rem;" data-i18n="dash.cards.diagrams">Diyagramlar</span>
-          </h4>
-          <div id="study-card-diagrams-container" class="diagrams-list" style="display: flex; flex-direction: column; gap: 1.25rem;">
-            <!-- Dynamically populated -->
-          </div>
-        </section>
-
-        <!-- Worked Examples Section -->
-        <section class="study-card-section" id="study-card-examples-section" style="display: none;">
-          <h4 class="study-card-section-title" style="display: flex; align-items: center; width: 100%;">
-            <span>📝</span> <span style="margin-left: 0.4rem;" data-i18n="dash.cards.examples">Çözümlü Örnekler</span>
-          </h4>
-          <div id="study-card-examples-container" class="worked-examples-list">
-            <!-- Dynamically populated -->
-          </div>
-        </section>
-
-        <!-- Footnotes / References Section -->
-        <div id="study-card-footnotes-container">
-          <!-- Dynamically populated -->
-        </div>
+        <div id="original-doc-viewer-pane" class="axr-orig" style="display: none;"></div>
       </div>
 
-      <!-- Right Pane: Original Document Viewer -->
-      <div id="original-doc-viewer-pane" class="original-doc-viewer-pane" style="display: none;">
-        <!-- Dynamically populated iframe or download box -->
-      </div>
-
+      <div class="axr-story" data-axr-story="" role="dialog" aria-label="Özetin kısa hikâyesi" hidden></div>
     </div>
   </div>
-</div>
+
+  <div id="axr-layer"><div class="axr-l"></div></div>
 
   <!-- ==========================================
        CARD DEPOT MODAL (PHASE 11)
