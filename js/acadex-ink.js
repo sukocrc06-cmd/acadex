@@ -318,7 +318,7 @@
     var ang = 0, vel = 0, raf = 0;
     var swing = function () { vel += -0.05 * ang; vel *= 0.95; ang += vel; lampW.style.transform = 'rotate(' + ang.toFixed(2) + 'deg)'; if (Math.abs(ang) + Math.abs(vel) > 0.02) raf = requestAnimationFrame(swing); else { lampW.style.transform = ''; ang = vel = 0; raf = 0; } };
     var set = function (v, anim) {
-      on = v; band.classList.toggle('lamp-on', on); pull.setAttribute('aria-pressed', String(on)); pull.setAttribute('aria-label', on ? 'Lambayı kapat' : 'Lambayı aç'); store.set('lamp', on);
+      on = v; band.classList.toggle('lamp-on', on); if (!on) band.classList.remove('flick'); pull.setAttribute('aria-pressed', String(on)); pull.setAttribute('aria-label', on ? 'Lambayı kapat' : 'Lambayı aç'); store.set('lamp', on);
       if (anim && !reduce) { if (on) { band.classList.remove('flick'); void band.offsetWidth; band.classList.add('flick'); } vel += 1.6; if (!raf) raf = requestAnimationFrame(swing); }
     };
     set(on, false);
@@ -6458,14 +6458,58 @@ var SBX = (function () {
   };
   var pomComplete = function () {
     if (POM.phase === 'focus') {
-      POM.round++; logSession('pomodoro', POM.focus, POM.src || null, { round: POM.round });
+      POM.round++; var spc = POM.seed || seedOf(); logSession('pomodoro', POM.focus, POM.src || null, { round: POM.round, species: spc }); S(LK('pomlife'), (G(LK('pomlife'), 0) || 0) + 1); if (LIFE.n != null) LIFE.n++;
+      var newly = SP.filter(function (x) { return x.need && !G(LK('seen.' + x.id), false) && unlocked(x); }); newly.forEach(function (x) { S(LK('seen.' + x.id), true); });
       beep(); var long = POM.round % POM.setN === 0;
-      say(POM.round + '. tur bitti, çiçeğin açtı. ' + (long ? 'Uzun mola: ' + POM.lng + ' dk.' : POM.brk + ' dk mola; bitkini sula.'), null, cur === 'pomodoro' ? null : 'studylab', 'saksıya git →');
+      say(POM.round + '. tur bitti, ' + (SPI[spc] || SP[0]).n.toLocaleLowerCase('tr') + ' tezgâha kondu. ' + (newly.length ? 'Yeni tohum açıldı: ' + newly.map(function (x) { return x.n; }).join(', ') + '! ' : '') + (long ? 'Uzun mola: ' + POM.lng + ' dk.' : POM.brk + ' dk mola; bitkini sula.'), null, cur === 'pomodoro' ? null : 'studylab', 'saksıya git →');
       flashTitle('🌼 Tur bitti · Acadex'); pomStart('break');
     } else {
       beep(); POM.phase = 'idle'; POM.paused = false; pomSave(); say('Mola bitti. Hazır olduğunda yeni turu başlat.', null, cur === 'pomodoro' ? null : 'studylab', 'saksıya git →'); flashTitle('⏰ Mola bitti · Acadex');
     }
   };
+  /* yarıda bırakılan tur: bitki solar, kuruyan saksı olarak tezgâha düşer */
+  var pomWilt = function (why) {
+    var done = (Date.now() - POM.startAt) / 60000 - (POM.paused ? 0 : 0), spc = POM.seed || seedOf();
+    if (done >= 2) logSession('pomodoro', done, POM.src || null, { partial: true, wilted: true, species: spc });
+    POM.phase = 'idle'; POM.paused = false; pomSave();
+    var pl = pomUI && pomUI.plant && pomUI.plant();
+    if (pl && !calm) { pl.classList.add('wilting'); var cap = pl.closest('.lb-pom-r') && pl.closest('.lb-pom-r').querySelector('[data-pcap]'); if (cap) cap.textContent = 'bitkin soldu…'; setTimeout(function () { pl.classList.remove('wilting'); pomTick(); }, 2600); }
+    say(why + '; ' + (SPI[spc] || SP[0]).n.toLocaleLowerCase('tr') + ' soldu' + (done >= 2 ? ', kuruyan saksı tezgâha kondu (' + Math.round(done) + ' dk deftere yazıldı).' : '.'));
+    pomTick();
+  };
+  var hidAt = 0;
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) { hidAt = Date.now(); return; }
+    if (hidAt && POM.phase === 'focus' && !POM.paused && Date.now() - hidAt >= 300000 && Date.now() < POM.endAt) { pomWilt('5 dakikadan uzun başka sekmedeydin'); }
+    hidAt = 0;
+  });
+  /* sera tezgâhı: bugün önde, haftanın günleri raflarda, önceki ay arşivde */
+  var DAYN = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'];
+  var potLi = function (x) { var sp = SPI[(x.detail && x.detail.species) || 'papatya'] || SP[0], w = !!(x.detail && x.detail.wilted); return '<li><button type="button" class="lb-gpot' + (w ? ' w' : '') + '" data-pot="' + x.at + '" aria-label="' + X((w ? 'kuruyan ' : '') + sp.n + ', ' + x.minutes + ' dakika') + '">' + miniPlant(sp.id, w) + '</button></li>'; };
+  var paintBench = function (el) {
+    var all = SESS.filter(function (x) { return x.method === 'pomodoro' && (!(x.detail && x.detail.partial) || (x.detail && x.detail.wilted)); }).slice().sort(function (a, b) { return a.at - b.at; });
+    var t0 = todayStart(), today = all.filter(function (x) { return x.at >= t0; }), week = [];
+    for (var k = 6; k >= 1; k--) { var a = t0 - k * 864e5, b = a + 864e5, L = all.filter(function (x) { return x.at >= a && x.at < b; }); week.push({ d: new Date(a), L: L }); }
+    var mStart = new Date(); mStart.setDate(1); mStart.setHours(0, 0, 0, 0);
+    var older = all.filter(function (x) { return x.at < mStart.getTime(); }), byM = {};
+    older.forEach(function (x) { var d = new Date(x.at), k2 = d.getFullYear() + '-' + d.getMonth(); (byM[k2] = byM[k2] || { d: d, L: [] }).L.push(x); });
+    var month = all.filter(function (x) { return x.at >= mStart.getTime(); }), dead = month.filter(function (x) { return x.detail && x.detail.wilted; }).length;
+    el.innerHTML = '<div class="lb-sec-h"><h3 class="hd">sera tezgâhı</h3><small class="hand">bu ay ' + (month.length - dead) + ' bitki' + (dead ? ' · ' + dead + ' kurudu' : '') + '</small></div>' +
+      '<div class="lb-gh2"><div class="roof" aria-hidden="true"></div>' +
+      '<div class="lb-shelf2"><ol class="days">' + week.map(function (w) { return '<li><span class="dn mono">' + DAYN[w.d.getDay()] + ' ' + w.d.getDate() + '</span><ol class="pots">' + (w.L.length ? w.L.map(potLi).join('') : '<li class="e" aria-hidden="true"></li>') + '</ol></li>'; }).join('') + '</ol></div>' +
+      '<div class="lb-table2"><span class="tl hand">bugün</span><ol class="pots big">' + (today.length ? today.map(potLi).join('') : '<li class="none hand">ilk turunu bitir, tezgâha ilk saksı gelsin.</li>') + '</ol></div></div>' +
+      (Object.keys(byM).length ? '<div class="lb-arch"><span class="lb-k">arşiv rafı</span>' + Object.keys(byM).map(function (k2) { var m = byM[k2], c = {}; m.L.forEach(function (x) { var id = (x.detail && x.detail.species) || 'papatya'; if (!(x.detail && x.detail.wilted)) c[id] = (c[id] || 0) + 1; }); return '<div class="ar"><b>' + m.d.toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' }) + '</b><span>' + Object.keys(c).map(function (id) { return '<i>' + miniPlant(id) + '×' + c[id] + '</i>'; }).join('') + '</span></div>'; }).join('') + '</div>' : '') +
+      '<div class="lb-gpop" data-gpop="" hidden></div>';
+  };
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('#studylab-view [data-pot]'); var pop = document.querySelector('#studylab-view [data-gpop]');
+    if (!b) { if (pop && !e.target.closest('[data-gpop]')) pop.hidden = true; return; }
+    var x = null; SESS.forEach(function (s) { if (s.method === 'pomodoro' && String(s.at) === b.getAttribute('data-pot')) x = s; }); if (!x || !pop) return;
+    var sp = SPI[(x.detail && x.detail.species) || 'papatya'] || SP[0], w = !!(x.detail && x.detail.wilted), d = x.card && deckById(x.card), dt = new Date(x.at);
+    pop.innerHTML = '<b class="disp">' + X((w ? 'Kuruyan ' : '') + sp.n) + '</b><span class="mono">' + dt.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', weekday: 'short' }) + ' · ' + p2(dt.getHours()) + ':' + p2(dt.getMinutes()) + '</span><span>' + x.minutes + ' dk odak' + (d ? ' · ' + X(deckName(d)) : '') + '</span>' + (w ? '<span class="hand">tur yarıda kaldı, bitki soldu.</span>' : '');
+    var r = b.getBoundingClientRect(), host = pop.parentElement.getBoundingClientRect(); pop.hidden = false;
+    pop.style.left = Math.max(6, Math.min(host.width - pop.offsetWidth - 6, r.left - host.left + r.width / 2 - pop.offsetWidth / 2)) + 'px'; pop.style.top = (r.top - host.top - pop.offsetHeight - 8) + 'px';
+  });
   var sideBadge = function () {
     var a = document.querySelector('#side-studylab a'); if (!a) return; var b = a.querySelector('.lb-sbadge');
     if (POM.phase === 'idle') { if (b) b.remove(); return; }
@@ -6479,20 +6523,73 @@ var SBX = (function () {
   };
   setInterval(pomTick, 1000);
   var pomUI = null;
-  var plantSVG = function () {
-    var L = function (cls, d, extra) { return '<path class="pl ' + cls + '" pathLength="1" d="' + d + '"' + (extra || '') + '/>'; };
-    var pet = ''; for (var i = 0; i < 6; i++) pet += '<path class="pt" d="M150 92 C138 76 140 58 150 50 C160 58 162 76 150 92 Z" transform="rotate(' + i * 60 + ' 150 92)"/>';
-    return '<svg class="lb-plant" viewBox="0 0 300 380" role="img" aria-label="Saksıdaki bitki: odak süresi ilerledikçe büyür, tur bitince çiçek açar." data-plant="">' +
-      '<circle class="sun" cx="150" cy="92" r="46"/>' +
-      L('stem', 'M150 300 C147 270 156 250 150 222 C143 196 157 172 151 146 C147 126 153 110 150 92') +
-      L('lf1', 'M150 262 C128 248 104 250 88 266 C106 280 132 278 150 262 Z') + L('lv1', 'M150 262 C130 263 108 264 90 266', ' class="pl lv1 thin"') +
-      L('lf2', 'M152 214 C176 196 202 198 218 212 C200 228 172 228 152 214 Z') + L('lv2', 'M152 214 C172 212 196 212 216 212') +
-      L('lf3', 'M151 166 C130 152 108 154 96 166 C112 180 134 180 151 166 Z') + L('lv3', 'M151 166 C132 166 114 166 98 166') +
-      L('bud', 'M150 92 C142 84 143 72 150 66 C157 72 158 84 150 92 Z') +
-      '<g class="bloom">' + pet + '<circle class="ctr" cx="150" cy="92" r="9"/></g>' +
-      '<path class="soil" d="M90 300 H210 V312 H90 Z"/><path class="pot" d="M84 300 H216 V316 H84 Z M92 316 L104 372 H196 L208 316"/><path class="pot thin" d="M180 326 L172 362 M190 326 L184 352"/>' +
-      '<g class="can"><path d="M222 196 H262 V232 H222 Z"/><path d="M222 204 L192 186 L188 192 L216 214"/><path d="M262 204 C276 204 278 224 262 226"/><path class="drop" d="M186 196 C184 202 188 204 190 200 Z"/><path class="drop d2" d="M178 206 C176 212 180 214 182 210 Z"/><path class="drop d3" d="M184 214 C182 220 186 222 188 218 Z"/></g>' +
-      '</svg>';
+  /* ---------- tohum koleksiyonu: her Pomodoro turu seçilen bitkiyi büyütür ---------- */
+  var rot = function (d, a, cx, cy) { return '<g transform="rotate(' + a + ' ' + cx + ' ' + cy + ')">' + d + '</g>'; };
+  var petals = function (n, cx, cy, len, w, fill, cls) { var o = ''; for (var i = 0; i < n; i++) o += '<path class="' + (cls || 'pt') + '" style="fill:' + fill + '" d="M' + cx + ' ' + cy + ' C' + (cx - w) + ' ' + (cy - len * .45) + ' ' + (cx - w * .6) + ' ' + (cy - len) + ' ' + cx + ' ' + (cy - len) + ' C' + (cx + w * .6) + ' ' + (cy - len) + ' ' + (cx + w) + ' ' + (cy - len * .45) + ' ' + cx + ' ' + cy + ' Z" transform="rotate(' + (i * 360 / n).toFixed(1) + ' ' + cx + ' ' + cy + ')"/>'; return o; };
+  var leafAt = function (x, y, a, s, cls) { return '<path class="pl ' + (cls || 'lf') + '" pathLength="1" d="M0 0 C-' + 14 * s + ' -' + 10 * s + ' -' + 16 * s + ' -' + 30 * s + ' 0 -' + 44 * s + ' C' + 16 * s + ' -' + 30 * s + ' ' + 14 * s + ' -' + 10 * s + ' 0 0 Z" transform="translate(' + x + ' ' + y + ') rotate(' + a + ')"/>'; };
+  /* her tür: parts = [sınıf, yol, başla, bitir] (çizilerek gelir), pops = [işaret, başla, bitir, cx, cy] (büyüyerek gelir) */
+  var SP = [
+    { id: 'papatya', n: 'Papatya', c: '#FFFFFF', need: null, why: 'başlangıç tohumu',
+      parts: [['stem', 'M150 300 C147 270 156 250 150 222 C143 196 157 172 151 146 C147 126 153 110 150 98', 0, .35], ['lf', 'M150 262 C128 248 104 250 88 266 C106 280 132 278 150 262 Z', .2, .42], ['lf', 'M152 214 C176 196 202 198 218 212 C200 228 172 228 152 214 Z', .38, .6], ['lf', 'M151 166 C130 152 108 154 96 166 C112 180 134 180 151 166 Z', .55, .78], ['bud', 'M150 98 C143 90 144 80 150 74 C156 80 157 90 150 98 Z', .76, .93]],
+      pops: [[petals(14, 150, 98, 34, 6, '#FFFFFF') + '<circle class="ctr" cx="150" cy="98" r="10" style="fill:#F2B830"/>', .93, 1, 150, 98]] },
+    { id: 'lale', n: 'Lale', c: '#E2574C', need: null, why: 'başlangıç tohumu',
+      parts: [['stem', 'M150 300 C150 262 148 214 150 156', 0, .42], ['lf', 'M150 296 C118 262 110 222 116 182 C134 214 146 252 150 296 Z', .2, .52], ['lf', 'M150 296 C180 264 190 228 186 196 C168 226 156 258 150 296 Z', .36, .66]],
+      pops: [['<path class="pt" style="fill:#E2574C" d="M127 152 C124 128 132 110 139 104 L150 120 L161 104 C168 110 176 128 173 152 C165 164 135 164 127 152 Z"/><path class="pt" style="fill:#C9483B" d="M150 120 C144 132 144 148 150 160 C156 148 156 132 150 120 Z"/>', .74, 1, 150, 156]] },
+    { id: 'kaktus', n: 'Kaktüs', c: '#F29CB5', need: { tur: 3 }, why: '3 tur bitir',
+      parts: [['cac', 'M136 300 V174 C136 148 164 148 164 174 V300 Z', 0, .5], ['cac', 'M136 238 H120 C110 238 106 232 106 222 V200 C106 188 122 188 122 200 V222 H136', .45, .7], ['cac', 'M164 212 H180 C190 212 194 206 194 196 V182 C194 170 178 170 178 182 V198 H164', .6, .82], ['thin', 'M150 296 V160 M143 296 V170 M157 296 V170', .5, .85]],
+      pops: [[petals(6, 150, 152, 16, 6, '#F29CB5') + '<circle class="ctr" cx="150" cy="152" r="4" style="fill:#F2B830"/>', .9, 1, 150, 152]] },
+    { id: 'sukulent', n: 'Sukulent', c: '#9FD3B0', need: { gun: 3 }, why: '3 farklı günde tur bitir',
+      parts: [0, 45, 90, 135, 180, 225, 270, 315].map(function (a, i) { return ['suc', 'M150 284 C136 264 138 242 150 228 C162 242 164 264 150 284 Z" transform="rotate(' + (a + 22) + ' 150 284)', i * .06, .35 + i * .06]; }).concat([-40, 0, 40].map(function (a, i) { return ['suc2', 'M150 284 C141 270 142 256 150 246 C158 256 159 270 150 284 Z" transform="rotate(' + a + ' 150 284)', .6 + i * .08, .85 + i * .05]; })),
+      pops: [['<path class="stem" d="M150 284 C152 250 160 226 168 210"/>' + petals(5, 168, 208, 9, 4, '#F29CB5') , .92, 1, 168, 208]] },
+    { id: 'lavanta', n: 'Lavanta', c: '#9B7BD4', need: { tur: 6 }, why: '6 tur bitir',
+      parts: [['stem', 'M150 300 C148 250 144 200 136 148', 0, .45], ['stem', 'M150 300 C152 244 158 196 166 136', .08, .52], ['stem', 'M150 300 C150 250 151 196 151 122', .14, .58], ['thin', 'M150 290 C138 282 130 284 124 290 M150 280 C162 272 170 274 176 280', .3, .5]],
+      pops: [[136, 148], [166, 136], [151, 122]].map(function (p, i) { var o = ''; for (var k = 0; k < 6; k++) o += '<ellipse class="pt" style="fill:#9B7BD4" cx="' + (p[0] + (k % 2 ? 3 : -3)) + '" cy="' + (p[1] + k * 7) + '" rx="4" ry="5.5"/>'; return [o, .6 + i * .12, .78 + i * .1, p[0], p[1] + 18]; }) },
+    { id: 'aycicegi', n: 'Ayçiçeği', c: '#F2B830', need: { tur: 10 }, why: '10 tur bitir',
+      parts: [['stem thick', 'M150 300 C147 246 154 186 150 118', 0, .45], ['lf', 'M149 250 C124 236 100 240 88 256 C106 272 132 268 149 250 Z', .3, .55], ['lf', 'M151 200 C176 184 204 188 214 204 C196 220 168 216 151 200 Z', .45, .7]],
+      pops: [[petals(18, 150, 108, 32, 7, '#F2B830') + '<circle class="ctr" cx="150" cy="108" r="18" style="fill:#7A4A1E"/><g class="seed">' + [0, 60, 120, 180, 240, 300].map(function (a) { return '<circle cx="' + (150 + Math.cos(a * Math.PI / 180) * 9).toFixed(1) + '" cy="' + (108 + Math.sin(a * Math.PI / 180) * 9).toFixed(1) + '" r="1.6"/>'; }).join('') + '</g>', .82, 1, 150, 108]] },
+    { id: 'orkide', n: 'Orkide', c: '#C86FD6', need: { seri: 5 }, why: '5 gün üst üste tur bitir',
+      parts: [['lf', 'M150 296 C116 292 92 278 82 262 C112 258 138 272 150 296 Z', 0, .3], ['lf', 'M150 296 C184 292 208 278 218 262 C188 258 162 272 150 296 Z', .1, .38], ['stem', 'M150 294 C150 240 150 200 156 170 C164 140 186 124 208 128', .3, .65]],
+      pops: [[164, 150], [184, 132], [208, 130]].map(function (p, i) { return [petals(5, p[0], p[1], 14, 8, '#E3A6EC') + '<path class="pt" style="fill:#C86FD6" d="M' + p[0] + ' ' + p[1] + ' C' + (p[0] - 6) + ' ' + (p[1] + 6) + ' ' + (p[0] - 3) + ' ' + (p[1] + 13) + ' ' + p[0] + ' ' + (p[1] + 13) + ' C' + (p[0] + 3) + ' ' + (p[1] + 13) + ' ' + (p[0] + 6) + ' ' + (p[1] + 6) + ' ' + p[0] + ' ' + p[1] + ' Z"/>', .68 + i * .1, .8 + i * .08, p[0], p[1]]; }) },
+    { id: 'monstera', n: 'Monstera', c: '#3E9B66', need: { tur: 15 }, why: '15 tur bitir',
+      parts: [['stem', 'M150 300 C146 262 130 232 108 212', 0, .38], ['stem', 'M150 300 C156 254 176 224 198 204', .1, .45], ['stem', 'M150 300 C150 252 150 206 150 160', .2, .5]].concat([[108, 212, -40], [198, 204, 38], [150, 160, 0]].map(function (p, i) { return ['mon', 'M0 0 C-30 -6 -48 -30 -40 -56 C-34 -74 -10 -80 0 -66 C10 -80 34 -74 40 -56 C48 -30 30 -6 0 0 Z" transform="translate(' + p[0] + ' ' + p[1] + ') rotate(' + p[2] + ')', .4 + i * .14, .66 + i * .12]; })),
+      pops: [[108, 212, -40], [198, 204, 38], [150, 160, 0]].map(function (p, i) { return ['<path class="split" transform="translate(' + p[0] + ' ' + p[1] + ') rotate(' + p[2] + ')" d="M0 -8 L-26 -40 M0 -8 L24 -44 M0 -30 L-16 -62 M0 -30 L14 -64"/>', .7 + i * .1, .82 + i * .08, p[0], p[1] - 30]; }) },
+    { id: 'bonsai', n: 'Bonsai', c: '#4E8A3E', need: { tur: 25 }, why: '25 tur bitir',
+      parts: [['trunk', 'M150 300 C138 272 168 252 156 222 C146 198 120 198 110 178', 0, .45], ['trunk2', 'M156 224 C176 212 196 210 208 194', .3, .55], ['trunk2', 'M146 204 C150 186 160 170 164 152', .4, .6]],
+      pops: [[[110, 170, 30], .55, .75], [[208, 186, 26], .65, .85], [[164, 142, 32], .75, 1]].map(function (q) { var p = q[0]; return ['<g class="cnp"><circle cx="' + p[0] + '" cy="' + p[1] + '" r="' + p[2] + '"/><circle cx="' + (p[0] - p[2] * .7) + '" cy="' + (p[1] + 6) + '" r="' + p[2] * .65 + '"/><circle cx="' + (p[0] + p[2] * .7) + '" cy="' + (p[1] + 6) + '" r="' + p[2] * .65 + '"/></g>', q[1], q[2], p[0], p[1]]; }) },
+    { id: 'limon', n: 'Limon ağacı', c: '#F5D63D', need: { tur: 40 }, why: '40 tur bitir',
+      parts: [['trunk', 'M150 300 C150 262 146 232 150 196', 0, .4], ['trunk2', 'M150 232 C136 220 126 210 120 196 M150 220 C166 208 176 198 182 184', .3, .5]],
+      pops: [['<g class="cnp"><circle cx="150" cy="150" r="56"/><circle cx="108" cy="168" r="36"/><circle cx="194" cy="166" r="36"/></g>', .45, .8, 150, 160]].concat([[118, 160], [176, 132], [190, 178], [140, 186], [158, 112]].map(function (p, i) { return ['<ellipse class="fruit" cx="' + p[0] + '" cy="' + p[1] + '" rx="9" ry="7" transform="rotate(-20 ' + p[0] + ' ' + p[1] + ')"/>', .82 + i * .03, .9 + i * .02, p[0], p[1]]; })) }
+  ];
+  var SPI = {}; SP.forEach(function (s) { SPI[s.id] = s; });
+  var POT = '<path class="soil" d="M90 300 H210 V312 H90 Z"/><path class="pot" d="M84 300 H216 V316 H84 Z M92 316 L104 372 H196 L208 316"/><path class="pot thin" d="M180 326 L172 362 M190 326 L184 352"/>';
+  var plantInner = function (sp, full) {
+    return '<g class="stalk">' + sp.parts.map(function (p, i) { return '<path class="pl ' + p[0] + '" pathLength="1" data-g="' + p[2] + ',' + p[3] + '" d="' + p[1] + '"' + (full ? ' style="stroke-dashoffset:0"' : '') + '/>'; }).join('') +
+      sp.pops.map(function (p) { return '<g class="pop" data-g="' + p[1] + ',' + p[2] + '" style="transform-origin:' + p[3] + 'px ' + p[4] + 'px' + (full ? ';--b:1' : '') + '">' + p[0] + '</g>'; }).join('') + '</g>';
+  };
+  var miniPlant = function (id, wilted) { var sp = SPI[id] || SP[0]; return '<svg class="lb-mini' + (wilted ? ' wilt' : '') + '" viewBox="70 70 160 306" aria-hidden="true">' + plantInner(sp, true) + POT + '</svg>'; };
+  /* kilit kuralları: tamamlanan turlar (yarıda kalan / kuruyanlar sayılmaz) */
+  var LIFE = { n: null };
+  var pomDone = function () { return SESS.filter(function (s) { return s.method === 'pomodoro' && !(s.detail && (s.detail.partial || s.detail.wilted)); }); };
+  var dayKey = function (t) { var d = new Date(t); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); };
+  var gardenStats = function () {
+    var done = pomDone(), days = {}; done.forEach(function (s) { days[dayKey(s.at)] = 1; });
+    var streak = 0, d = new Date(); if (!days[dayKey(d)]) d.setDate(d.getDate() - 1);
+    while (days[dayKey(d)]) { streak++; d.setDate(d.getDate() - 1); }
+    var local = G(LK('pomlife'), 0);
+    return { tur: Math.max(done.length, LIFE.n || 0, local || 0), gun: Object.keys(days).length, seri: streak };
+  };
+  var unlocked = function (sp, st) { if (!sp.need) return true; st = st || gardenStats(); return Object.keys(sp.need).every(function (k) { return (st[k] || 0) >= sp.need[k]; }); };
+  var loadLife = function () {
+    var c = sbc(), u = me(); if (!c || !u || !OK.sess || LIFE.loading) return Promise.resolve();
+    LIFE.loading = true;
+    return c.from('study_lab_sessions').select('id', { count: 'exact', head: true }).eq('user_id', u.id).eq('method', 'pomodoro').is('detail->partial', null).is('detail->wilted', null).then(function (r) { LIFE.loading = false; if (!r.error && typeof r.count === 'number') LIFE.n = r.count; }, function () { LIFE.loading = false; });
+  };
+  var seedOf = function () { var id = POM.seed || G(LK('seed'), 'papatya'); return unlocked(SPI[id] || SP[0]) ? (SPI[id] ? id : 'papatya') : 'papatya'; };
+  var CAN = '<g class="can"><path d="M222 196 H262 V232 H222 Z"/><path d="M222 204 L192 186 L188 192 L216 214"/><path d="M262 204 C276 204 278 224 262 226"/><path class="drop" d="M186 196 C184 202 188 204 190 200 Z"/><path class="drop d2" d="M178 206 C176 212 180 214 182 210 Z"/><path class="drop d3" d="M184 214 C182 220 186 222 188 218 Z"/></g>';
+  var plantSVG = function (id) {
+    var sp = SPI[id] || SP[0];
+    return '<svg class="lb-plant sp-' + sp.id + '" viewBox="0 0 300 380" role="img" aria-label="Saksıdaki ' + X(sp.n.toLocaleLowerCase('tr')) + ': odak süresi ilerledikçe büyür, tur bitince açar." data-plant="" data-sp="' + sp.id + '">' +
+      '<circle class="sun" cx="150" cy="96" r="46"/>' + plantInner(sp, false) + POT + CAN + '</svg>';
   };
   var seg = function (g, a, b) { return Math.max(0, Math.min(1, (g - a) / (b - a))); };
   TOOLS_POM = function (st) {
@@ -6503,17 +6600,30 @@ var SBX = (function () {
       (function () { var t = ''; for (var i = 0; i < 60; i++) { var a = i / 60 * Math.PI * 2, r1 = i % 5 ? 98 : 94; t += '<line x1="' + (120 + Math.sin(a) * r1).toFixed(1) + '" y1="' + (120 - Math.cos(a) * r1).toFixed(1) + '" x2="' + (120 + Math.sin(a) * 103).toFixed(1) + '" y2="' + (120 - Math.cos(a) * 103).toFixed(1) + '" class="tk' + (i % 5 ? '' : ' big') + '"/>'; } return t; })() +
       '</svg><div class="lb-clock-in"><span class="lb-ph hand" data-ph=""></span><output class="lb-time mono" data-time="" aria-live="off"></output><span class="lb-rnd hand" data-rnd=""></span></div></div>' +
       '<div class="lb-pctl"><button type="button" class="btn btn-dark" data-pgo=""></button><button type="button" class="hbtn" data-pskip="">atla</button><button type="button" class="hbtn" data-preset="">sıfırla</button></div>' +
-      '<p class="lb-dots" data-dots="" aria-live="polite"></p>' +
+      '<p class="lb-dots" data-dots="" aria-live="polite"></p><div class="lb-seeds" data-seeds="" role="radiogroup" aria-label="Tohum seç"></div>' +
       '<details class="lb-pset"><summary class="hand">süreleri ayarla</summary><div class="lb-psrow">' +
       '<label>odak <select data-pf=""><option>15</option><option>20</option><option>25</option><option>30</option><option>45</option><option>50</option></select> dk</label>' +
       '<label>mola <select data-pb=""><option>3</option><option>5</option><option>10</option></select> dk</label>' +
       '<label>uzun mola <select data-pl=""><option>10</option><option>15</option><option>20</option><option>30</option></select> dk</label>' +
       '<label>her <select data-pn=""><option>2</option><option>3</option><option>4</option><option>5</option></select> turda bir</label></div></details>' +
       '</div>' +
-      '<div class="lb-pom-r"><div class="lb-window" aria-hidden="true"><i></i><i></i></div>' + plantSVG() + '<p class="lb-pcap hand" data-pcap=""></p>' +
-      '<div class="lb-sill"><span class="lb-k">bugünün pencere önü</span><ol class="lb-pots" data-pots=""></ol></div></div>' +
-      '</div>';
-    var plant = Q('[data-plant]', st), arc = Q('[data-arc]', st);
+      '<div class="lb-pom-r"><div class="lb-window" aria-hidden="true"><i></i><i></i></div><div class="lb-pwrap" data-pwrap="">' + plantSVG(seedOf()) + '</div><p class="lb-pcap hand" data-pcap=""></p></div>' +
+      '</div><section class="lb-gb" data-gb="" aria-label="Sera tezgâhı"></section>';
+    var plant = Q('[data-plant]', st), arc = Q('[data-arc]', st), pwrap = Q('[data-pwrap]', st), seedsEl = Q('[data-seeds]', st), gb = Q('[data-gb]', st);
+    var setPlant = function (id) { if (plant.getAttribute('data-sp') === id) return; pwrap.innerHTML = plantSVG(id); plant = Q('[data-plant]', st); };
+    var paintSeeds = function () {
+      var stt = gardenStats(), cur2 = seedOf(), lock = POM.phase !== 'idle';
+      seedsEl.innerHTML = '<span class="lb-k">tohum paketi</span><div class="lb-pk">' + SP.map(function (sp) {
+        var ok = unlocked(sp, stt), on = sp.id === cur2;
+        return '<button type="button" role="radio" aria-checked="' + on + '" data-seed="' + sp.id + '" class="' + (ok ? '' : 'lock') + (on ? ' on' : '') + '"' + (ok && !lock ? '' : ' aria-disabled="true"') + ' title="' + X(sp.n + (ok ? '' : ' · kilitli: ' + sp.why)) + '" style="--sc:' + sp.c + '">' + miniPlant(sp.id) + '<b>' + X(sp.n) + '</b>' + (ok ? '' : '<small>' + X(sp.why) + '</small>') + '</button>';
+      }).join('') + '</div>' + (lock ? '<p class="lb-pkn hand">tur sürerken tohum değişmez</p>' : '');
+    };
+    seedsEl.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-seed]'); if (!b) return; var sp = SPI[b.getAttribute('data-seed')];
+      if (!unlocked(sp)) { say(sp.n + ' kilitli: ' + sp.why + '.'); return; }
+      if (POM.phase !== 'idle') { say('Tur sürerken tohum değiştirilemez.'); return; }
+      POM.seed = sp.id; S(LK('seed'), sp.id); pomSave(); setPlant(sp.id); paintSeeds(); paint();
+    });
     var sel = function (a, v) { var s = Q(a, st); s.value = String(v); return s; };
     var setSel = function () { sel('[data-pf]', POM.focus); sel('[data-pb]', POM.brk); sel('[data-pl]', POM.lng); sel('[data-pn]', POM.setN); };
     setSel();
@@ -6531,35 +6641,34 @@ var SBX = (function () {
       arc.classList.toggle('brk', POM.phase === 'break'); arc.classList.toggle('idle', POM.phase === 'idle');
       var go = Q('[data-pgo]', st); go.textContent = POM.phase === 'idle' ? 'odağı başlat' : POM.paused ? 'devam et' : 'duraklat';
       Q('[data-pskip]', st).disabled = POM.phase === 'idle';
-      var parts = [['stem', 0, .32], ['lf1', .18, .38], ['lv1', .3, .42], ['lf2', .36, .56], ['lv2', .48, .6], ['lf3', .54, .74], ['lv3', .66, .78], ['bud', .74, .94]];
-      parts.forEach(function (p) { var el = plant.querySelector('.' + p[0]); if (el) el.style.strokeDashoffset = (1 - seg(g, p[1], p[2])).toFixed(3); });
-      var bl = plant.querySelector('.bloom'); bl.style.setProperty('--b', POM.phase === 'break' ? 1 : seg(g, .94, 1).toFixed(3)); bl.style.setProperty('--fc', FLC[((POM.phase === 'break' ? POM.round - 1 : POM.round) % FLC.length + FLC.length) % FLC.length]);
+      setPlant(POM.phase === 'idle' ? seedOf() : (POM.seed || seedOf()));
+      if (!plant.classList.contains('wilting')) {
+        QA('.pl[data-g]', plant).forEach(function (el) { var r = el.getAttribute('data-g').split(','), k = seg(g, +r[0], +r[1]); el.style.strokeDashoffset = (1 - k).toFixed(3); el.style.fillOpacity = Math.min(1, k * 1.4).toFixed(3); });
+        QA('.pop[data-g]', plant).forEach(function (el) { var r = el.getAttribute('data-g').split(','); el.style.setProperty('--b', seg(g, +r[0], +r[1]).toFixed(3)); });
+      }
       plant.querySelector('.sun').style.opacity = (0.15 + g * 0.6).toFixed(2);
       plant.classList.toggle('water', POM.phase === 'break'); plant.classList.toggle('grow', POM.phase === 'focus' && !POM.paused);
-      Q('[data-pcap]', st).textContent = POM.phase === 'focus' ? (g < .3 ? 'filiz toprağı itiyor…' : g < .75 ? 'yapraklar açılıyor' : 'tomurcuk geldi, az kaldı') : POM.phase === 'break' ? 'çiçek açtı. mola: bitkini sula, gözlerini dinlendir.' : 'tohum toprakta. odağı başlatınca büyümeye başlar.';
+      var spn = (SPI[POM.phase === 'idle' ? seedOf() : POM.seed] || SP[0]).n.toLocaleLowerCase('tr');
+      if (!plant.classList.contains('wilting')) Q('[data-pcap]', st).textContent = POM.phase === 'focus' ? (POM.paused ? spn + ' bekliyor; devam edince büyümeyi sürdürür.' : g < .3 ? spn + ' filizi toprağı itiyor…' : g < .75 ? spn + ' büyüyor' : 'az kaldı, ' + spn + ' açmak üzere') : POM.phase === 'break' ? spn + ' tezgâha kondu. mola: bitkini sula, gözlerini dinlendir.' : spn + ' tohumu toprakta. odak sırasında 5 dakikadan uzun başka sekmede kalırsan solar.';
       var dots = ''; for (var i = 0; i < POM.setN; i++) dots += '<i class="' + (i < POM.round % POM.setN || (POM.phase === 'break' && POM.round % POM.setN === 0 && POM.round) ? 'on' : '') + '" style="--fc:' + FLC[i % FLC.length] + '"></i>';
       Q('[data-dots]', st).innerHTML = dots;
-      var today = SESS.filter(function (s) { return s.method === 'pomodoro' && s.at >= todayStart(); }).reverse();
-      var pots = Q('[data-pots]', st), want = today.length;
-      if (pots.dataset.n !== String(want)) {
-        pots.dataset.n = String(want);
-        pots.innerHTML = want ? today.map(function (s, i) { var d = s.card && deckById(s.card); return '<li title="' + X((i + 1) + '. tur' + (d ? ' · ' + deckName(d) : '')) + '"><svg viewBox="0 0 40 52" aria-hidden="true"><path class="st" d="M20 40 C19 32 21 26 20 18"/><path class="lf" d="M20 32 C14 28 10 29 8 32 C12 35 17 35 20 32 Z"/>' + (function () { var p = ''; for (var j = 0; j < 5; j++) p += '<path class="pt" style="fill:' + FLC[i % FLC.length] + '" d="M20 18 C16 13 17 8 20 6 C23 8 24 13 20 18 Z" transform="rotate(' + j * 72 + ' 20 18)"/>'; return p; })() + '<circle cx="20" cy="18" r="2.6" class="c"/><path class="pot" d="M10 40 H30 L27 51 H13 Z"/></svg></li>'; }).join('') : '<li class="none hand">ilk turunu bitir, pencere önüne ilk saksı gelsin.</li>';
-      }
+      var sig = SESS.filter(function (x) { return x.method === 'pomodoro'; }).length + ':' + POM.phase;
+      if (gb.dataset.sig !== sig) { gb.dataset.sig = sig; paintBench(gb); paintSeeds(); }
     };
     Q('[data-pgo]', st).addEventListener('click', function () {
       touch();
-      if (POM.phase === 'idle') { POM.src = srcSel.value; pomStart('focus'); beep(); return; }
+      if (POM.phase === 'idle') { POM.src = srcSel.value; POM.seed = seedOf(); pomStart('focus'); beep(); return; }
       if (POM.paused) { POM.paused = false; POM.endAt = Date.now() + POM.pausedLeft * 1000; }
       else { POM.paused = true; POM.pausedLeft = pomLeft(); }
       pomSave(); pomTick();
     });
     Q('[data-pskip]', st).addEventListener('click', function () {
-      if (POM.phase === 'focus') { var done = (Date.now() - POM.startAt) / 60000; if (done >= 5) logSession('pomodoro', done, POM.src || null, { partial: true }); POM.phase = 'idle'; POM.paused = false; pomSave(); say('Tur yarıda bırakıldı' + (done >= 5 ? '; çalıştığın ' + Math.round(done) + ' dakika deftere yazıldı.' : '.')); }
+      if (POM.phase === 'focus') { pomWilt('Tur yarıda bırakıldı'); return; }
       else if (POM.phase === 'break') { POM.phase = 'idle'; POM.paused = false; pomSave(); }
       pomTick();
     });
-    Q('[data-preset]', st).addEventListener('click', function () { var was = JSON.parse(JSON.stringify(POM)); POM.phase = 'idle'; POM.paused = false; POM.round = 0; pomSave(); pomTick(); say('Zamanlayıcı sıfırlandı.', function () { POM = was; pomSave(); pomTick(); }); });
-    pomUI = { paint: paint }; paint();
+    Q('[data-preset]', st).addEventListener('click', function () { if (POM.phase === 'focus') { pomWilt('Zamanlayıcı sıfırlandı'); POM.round = 0; pomSave(); return; } var was = JSON.parse(JSON.stringify(POM)); POM.phase = 'idle'; POM.paused = false; POM.round = 0; pomSave(); pomTick(); say('Zamanlayıcı sıfırlandı.', function () { POM = was; pomSave(); pomTick(); }); });
+    pomUI = { paint: paint, plant: function () { return plant; } }; paintSeeds(); paint(); loadLife().then(function () { paintSeeds(); });
     return { close: function () { pomUI = null; }, onSrc: function (v) { if (POM.phase === 'idle') POM.src = v; } };
   };
 
