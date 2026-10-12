@@ -8043,3 +8043,98 @@ body.acx .ax-folder.axp-landed{animation:axpLand .9s cubic-bezier(.3,1.4,.5,1) b
 #study-card-modal.axr .axr-askans .row{display:flex;gap:8px;margin-top:8px}
 @media (max-width:900px){#study-card-modal.axr .axr-stage{margin:-16px -18px 12px}.axr-stage .tag{font-size:28px}}
 @media (prefers-reduced-motion:reduce){.axr-stage .ch,.axr-stage .ch .head,.axr-stage .ch .eyes,.axr-stage .mug .steam{animation:none!important}}
+
+/* ===== Acadia ===== */
+
+/* ===== Acadia paneli ===== */
+#axa-layer{--ink:#1A2A5C;--navy:#0D1838;--blue:#2F6BFF;--muted:#4B5675;--soft:#6A7593;--red:#C9483B;--green:#1E8A55;--hand:'Caveat','Segoe Print',cursive;--disp:'Bricolage Grotesque',system-ui,sans-serif;--mono:'JetBrains Mono',ui-monospace,monospace;--ease:cubic-bezier(.2,.7,.2,1);font-family:'Instrument Sans',system-ui,sans-serif;color:var(--navy)}
+#axa-layer [hidden]{display:none!important}
+#axa-layer .vh{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
+#axa-layer .hand{font-family:var(--hand);font-weight:600}
+#axa-layer .mono{font-family:var(--mono)}
+#axa-layer .disp{font-family:var(--disp)}
+#axa-layer button{font:inherit;color:inherit;cursor:pointer}
+#axa-layer :focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+#axa-layer .axa{position:fixed;top:76px;right:14px;bottom:14px;z-index:10040;width:min(430px,calc(100vw - 28px));display:flex;flex-direction:column;background:#FFFDF8;background-image:var(--grain);background-size:220px;border:1px solid #D9D3C3;border-radius:16px;box-shadow:0 30px 60px -30px rgba(13,24,56,.55),0 0 0 1px rgba(255,255,255,.6) inset;transform:translateX(30px);opacity:0;transition:transform .3s var(--ease),opacity .25s}
+#axa-layer .axa.in{transform:none;opacity:1}
+body.axr-open #axa-layer .axa{z-index:10065;top:14px}
+#axa-layer .axa-h{display:flex;align-items:center;gap:10px;padding:14px 12px 10px 16px;border-bottom:1px solid #E7E1D0}
+#axa-layer .axa-mark{width:34px;height:34px;flex:none}
+#axa-layer .axa-mark path,#axa-layer .axa-hi svg path{fill:#FFD86B;stroke:var(--ink);stroke-width:2.6;stroke-linejoin:round}
+#axa-layer .axa.busy .axa-mark{animation:axaSpin 2.4s linear infinite}
+@keyframes axaSpin{to{transform:rotate(360deg)}}
+#axa-layer .axa-ht{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.05}
+#axa-layer .axa-ht h2{margin:0;font-size:21px;font-weight:800;color:var(--navy)}
+#axa-layer .axa-ht .hand{font-size:16.5px;color:var(--soft)}
+#axa-layer .axa-ib{width:38px;height:38px;border:0;border-radius:10px;background:none;display:inline-flex;align-items:center;justify-content:center;color:var(--ink)}
+#axa-layer .axa-ib:hover{background:#F1EDE2}
+#axa-layer .axa-ib svg,#axa-layer .axa-send svg,#axa-layer .axa-stop svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+#axa-layer .axa-ctx{padding:6px 16px;font-size:12.5px;color:var(--muted);border-bottom:1px dashed #E7E1D0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#axa-layer .axa-ctx .mono{font-size:9.5px;letter-spacing:.16em;color:var(--red);border:1.2px solid var(--red);border-radius:3px;padding:0 4px;margin-right:4px}
+#axa-layer .axa-log{flex:1;min-height:0;overflow-y:auto;padding:14px 14px 8px;display:flex;flex-direction:column;gap:8px;overscroll-behavior:contain}
+/* karşılama */
+#axa-layer .axa-hi{margin:auto 0;padding:10px 4px;animation:axaUp .4s var(--ease) both}
+#axa-layer .axa-hi svg{width:46px;height:46px;animation:axaSpin 14s linear infinite}
+#axa-layer .axa-hi h3{margin:8px 0 6px;font-size:26px;line-height:1.1;font-weight:800}
+#axa-layer .axa-hi p{margin:0 0 14px;font-size:14px;line-height:1.5;color:var(--muted)}
+#axa-layer .axa-starts{display:flex;flex-direction:column;gap:6px}
+#axa-layer .axa-starts button{text-align:left;padding:10px 12px;border:1px solid #DDD6C3;border-radius:10px;background:#fff;font-size:14px;font-weight:600;color:var(--ink);min-height:44px;transition:border-color .15s,transform .15s}
+#axa-layer .axa-starts button:hover{border-color:var(--ink);transform:translateX(3px)}
+#axa-layer .axa-starts button::before{content:'→ ';color:var(--blue)}
+/* mesajlar */
+#axa-layer .axa-m{max-width:100%;animation:axaUp .28s var(--ease) both;font-size:14.5px;line-height:1.55}
+@keyframes axaUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+#axa-layer .axa-m p{margin:0 0 .4em}#axa-layer .axa-m p:last-child{margin:0}
+#axa-layer .axa-m ul{margin:.2em 0 .4em;padding-left:1.2em}
+#axa-layer .axa-m.user{align-self:flex-end;max-width:86%;padding:9px 13px;border-radius:14px 14px 4px 14px;background:var(--navy);color:#fff}
+#axa-layer .axa-m.bot{align-self:flex-start;max-width:94%;padding:10px 13px;border-radius:14px 14px 14px 4px;background:#fff;border:1px solid #E7E1D0;color:#1E2747}
+#axa-layer .axa-m.bot.aside{background:transparent;border:0;padding:2px 4px;color:var(--muted);font-size:13.5px}
+#axa-layer .axa-m.bot.err{border-color:#F0C9C3;background:#FFF5F3}
+#axa-layer .axa-m.bot.note{background:transparent;border:0;padding:0 4px;color:var(--soft)}
+#axa-layer .axa-m.think{display:flex;align-items:center;gap:8px;color:var(--soft);font-size:17px;padding:2px 4px}
+#axa-layer .dots{display:inline-flex;gap:4px}
+#axa-layer .dots i{width:6px;height:6px;border-radius:50%;background:var(--blue);animation:axaDot 1s ease-in-out infinite}
+#axa-layer .dots i:nth-child(2){animation-delay:.15s}#axa-layer .dots i:nth-child(3){animation-delay:.3s}
+@keyframes axaDot{0%,100%{opacity:.25;transform:translateY(0)}50%{opacity:1;transform:translateY(-3px)}}
+/* adımlar */
+#axa-layer .axa-m.step{display:flex;flex-wrap:wrap;align-items:center;gap:6px 9px;padding:7px 10px;border-radius:10px;background:#F6F3EA;border:1px solid #ECE6D6;font-size:13.5px;color:var(--ink)}
+#axa-layer .axa-m.step span{flex:1 1 160px;min-width:0}
+#axa-layer .axa-m.step .ic{flex:none;width:18px;height:18px;border-radius:50%;border:2px solid #C8C0AA;position:relative}
+#axa-layer .axa-m.step.run .ic{border-color:var(--blue) transparent var(--blue) transparent;animation:axaSpin .8s linear infinite}
+#axa-layer .axa-m.step.ok .ic{border-color:var(--green);background:var(--green)}
+#axa-layer .axa-m.step.ok .ic::after{content:'';position:absolute;left:4px;top:1px;width:5px;height:9px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+#axa-layer .axa-m.step.bad{background:#FFF5F3;border-color:#F0C9C3;color:#8A2F25}
+#axa-layer .axa-m.step.bad .ic{border-color:var(--red);background:var(--red)}
+#axa-layer .axa-m.step.bad .ic::after{content:'!';position:absolute;inset:0;color:#fff;font:700 11px/14px var(--mono);text-align:center}
+#axa-layer .axa-m.step.undone span{text-decoration:line-through;color:var(--soft)}
+#axa-layer .axa-m.step .undo,#axa-layer .axa-m.step .chip{min-height:30px;padding:0 10px;border-radius:999px;border:1px solid #D4CDBB;background:#fff;font-size:12.5px;font-weight:600}
+#axa-layer .axa-m.step .chip{border-color:var(--navy);background:var(--navy);color:#fff}
+#axa-layer .axa-m.step .undo:hover{border-color:var(--ink)}
+/* onay */
+#axa-layer .axa-m.confirm{padding:12px 14px;border-radius:12px;background:#FFF8DD;border:1.5px solid #E8CF7A;box-shadow:3px 3px 0 #E8CF7A}
+#axa-layer .axa-m.confirm.danger{background:#FFF1EE;border-color:#E9A79C;box-shadow:3px 3px 0 #E9A79C}
+#axa-layer .axa-m.confirm b{display:block;font-size:16px;margin-bottom:2px}
+#axa-layer .axa-m.confirm p{color:var(--muted);font-size:13.5px}
+#axa-layer .axa-m.confirm .row{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}
+#axa-layer .axa-m.confirm .row button{min-height:40px;padding:0 16px;border-radius:999px;border:1px solid #D4CDBB;background:#fff;font-weight:700;font-size:13.5px}
+#axa-layer .axa-m.confirm .row .yes{background:var(--navy);border-color:var(--navy);color:#fff}
+#axa-layer .axa-m.confirm.danger .row .yes{background:var(--red);border-color:var(--red)}
+#axa-layer .axa-m.confirm .row .hand{font-size:18px;color:var(--soft)}
+#axa-layer .axa-m.confirm.ok,#axa-layer .axa-m.confirm.off{box-shadow:none;opacity:.8}
+/* yazma alanı */
+#axa-layer .axa-in{display:flex;align-items:flex-end;gap:8px;margin:6px 12px 4px;padding:6px 6px 6px 12px;border:1.5px solid #CFC8B6;border-radius:16px;background:#fff;transition:border-color .2s}
+#axa-layer .axa-in:focus-within{border-color:var(--blue)}
+#axa-layer .axa-in textarea{flex:1;min-width:0;border:0;outline:none;resize:none;background:none;font:inherit;font-size:15px;line-height:1.45;color:var(--navy);padding:7px 0;max-height:140px}
+#axa-layer .axa-send,#axa-layer .axa-stop{flex:none;width:40px;height:40px;border:0;border-radius:12px;background:var(--navy);color:#fff;display:inline-flex;align-items:center;justify-content:center}
+#axa-layer .axa-stop{background:var(--red)}
+#axa-layer .axa-stop svg rect{fill:#fff;stroke:none}
+#axa-layer .axa-foot{margin:0 0 10px;text-align:center;font-size:10px;letter-spacing:.06em;color:#9A9382}
+#axa-layer .axa-toast{position:fixed;left:50%;bottom:24px;z-index:10080;transform:translateX(-50%);display:flex;align-items:center;gap:12px;max-width:calc(100vw - 32px);padding:10px 12px 10px 18px;border-radius:999px;background:var(--navy);color:#fff;font-size:14px;font-weight:600;box-shadow:0 14px 28px -12px rgba(0,0,0,.6);animation:axaUp .25s both}
+#axa-layer .axa-toast button{min-height:34px;padding:0 12px;border:0;border-radius:999px;background:#FFD86B;color:var(--navy);font-weight:700}
+body.axa-open #btn-acadia-toggle,body.axa-open .acadia-fab-wrap,body.axa-open #pomodoro-widget-container{opacity:0;pointer-events:none}
+#acadia-panel{display:none!important}
+@media (max-width:759px){
+  #axa-layer .axa{top:0;right:0;bottom:0;left:0;width:auto;border-radius:0;border:0}
+  body.axr-open #axa-layer .axa{top:0}
+}
+@media (prefers-reduced-motion:reduce){#axa-layer *{animation:none!important;transition:none!important}}

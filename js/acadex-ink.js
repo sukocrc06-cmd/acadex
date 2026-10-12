@@ -2470,6 +2470,21 @@
       '<p class="warn">' + (sim ? 'KİTAPÇIĞI AÇINCA SÜRE BAŞLAR' : 'KOLAY GELSİN') + '</p>';
   };
   bdDlg.addEventListener('change', function () { setTimeout(paintCover, 0); });
+  /* Acadia: sınav formunu verilen değerlerle hazırla */
+  window.axSinavPrepare = async function (o) {
+    o = o || {}; if (typeof switchDashboardView === 'function') switchDashboardView('exams');
+    await new Promise(function (r) { setTimeout(r, 300); });
+    if (!bdDlg.open) bdDlg.showModal();
+    checkRadio('exam-source', 'study_card');
+    await (typeof onExamSourceChange === 'function' ? onExamSourceChange() : null);
+    var sel = $('#exam-card-select'); if (sel && o.cardId) { if (!sel.querySelector('option[value="' + o.cardId + '"]')) { var op = document.createElement('option'); op.value = o.cardId; op.textContent = o.cardName || 'özet'; sel.appendChild(op); } sel.value = o.cardId; sel.dispatchEvent(new Event('change')); }
+    if (o.type) checkRadio('exam-type', o.type);
+    if (o.difficulty) checkRadio('exam-difficulty', o.difficulty);
+    checkRadio('exam-lang', o.lang || 'tr');
+    if (o.count) { countEl.value = Math.max(+countEl.min || 1, Math.min(+countEl.max || 20, o.count)); countEl.dispatchEvent(new Event('change')); }
+    $('#exam-simulation-toggle').checked = !!o.timed;
+    paintCover(); return true;
+  };
   bdDlg.addEventListener('input', function () { setTimeout(paintCover, 0); });
   if (typeof generateExam === 'function') {
     var origGen = generateExam;
@@ -4934,6 +4949,19 @@ var SBX = (function () {
   };
   var fillDocs = function () { var sel = Q('[data-pl-doc]', plot), v = sel.value; sel.innerHTML = docs().map(function (d) { return '<option value="' + X(d.id) + '">' + X(docLabel(d)) + '</option>'; }).join(''); if (v) sel.value = v; };
   QA('[data-plot]').forEach(function (b) { b.addEventListener('click', function () { openPlot(b); }); });
+  /* Acadia: kurgu penceresini karttan ya da konudan doldurup aç */
+  window.axSunumPlot = function (o) {
+    o = o || {}; if (typeof switchDashboardView === 'function') switchDashboardView('acadexsunum');
+    return new Promise(function (res) { setTimeout(function () {
+      openPlot(null);
+      var src = o.cardId ? 'doc' : 'topic', r = plot.querySelector('input[name=pl-src][value="' + src + '"]'); if (r) r.checked = true;
+      if (o.topic) Q('[data-pl-topic]', plot).value = o.topic;
+      if (o.n) { var nn = Q('[data-pl-n]', plot); nn.value = Math.max(+nn.min || 3, Math.min(+nn.max || 20, o.n)); nn.dispatchEvent(new Event('input')); }
+      if (o.tone) { var t = plot.querySelector('input[name=pl-tone][value="' + o.tone + '"]'); if (t) t.checked = true; }
+      paintSrc();
+      loadSrc().then(function () { fillDocs(); if (o.cardId) Q('[data-pl-doc]', plot).value = String(o.cardId); paintSrc(); res(true); });
+    }, 250); });
+  };
   plot.addEventListener('click', function (e) { var g = e.target.closest('[data-gov]'); if (g) { plot.close(); if (typeof switchDashboardView === 'function') switchDashboardView(g.getAttribute('data-gov')); } });
   plot.addEventListener('change', function (e) { if (e.target.name === 'pl-src') paintSrc(); });
   Q('[data-pl-n]', plot).addEventListener('input', function (e) { Q('[data-pl-nv]', plot).textContent = e.target.value; paintSrc(); });
@@ -7236,6 +7264,17 @@ var SBX = (function () {
     window.switchDashboardView = switchDashboardView;
   }
   document.addEventListener('visibilitychange', function () { if (!document.hidden) pomTick(); });
+  /* Acadia: istasyonu (isteğe bağlı bir kartla) aç */
+  window.axLabOpen = function (k, cardId) {
+    if (!MK[k]) return Promise.resolve(false);
+    if (typeof switchDashboardView === 'function') switchDashboardView('studylab');
+    if (cardId) S(LK('src'), String(cardId));
+    return loadDecks().then(function () {
+      openStation(k);
+      if (cardId && deckById(cardId) && srcSel.value !== String(cardId)) { srcSel.value = String(cardId); srcSel.dispatchEvent(new Event('change')); }
+      return true;
+    });
+  };
   paintStations(); paintLog();
   var wait = setInterval(function () { if (me()) { clearInterval(wait); UID = me().id; var p = G(LK('pom'), null); if (p && p.phase) POM = p; pomTick(); } }, 800);
   setTimeout(function () { clearInterval(wait); }, 30000);
@@ -7981,6 +8020,12 @@ var SBX = (function () {
     window.scrollStudyCardTo = scrollStudyCardTo;
   }
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !story.hidden) { e.stopPropagation(); closeStory(); } }, true);
+  /* Acadia: açık kartta bir bölüme git */
+  window.axReaderGo = function (section) {
+    closeStory(); var k = { audio: 'dinle', narrative: 'anlati', visuals: 'gorsel', concepts: 'kavram', quiz: 'sina' }[section];
+    var t = k ? Q('#axr-ch-' + k) : null; if (t) scroller.scrollTo({ top: t.offsetTop - 70, behavior: calm ? 'auto' : 'smooth' }); else scroller.scrollTop = 0;
+    return !!t || !k;
+  };
   var origLbl = document.getElementById('btn-toggle-original-label');
   if (origLbl) new MutationObserver(function () { var t = origLbl.textContent, c = t.replace(/^[^\p{L}\p{N}]+/u, '').trim(); if (c !== t) origLbl.textContent = c; }).observe(origLbl, { childList: true, characterData: true, subtree: true });
   new MutationObserver(function () { document.body.classList.toggle('axr-open', modal.classList.contains('active')); if (!modal.classList.contains('active')) { askStop(); closeStory(); tb.hidden = true; pop.hidden = true; cf.hidden = true; } }).observe(modal, { attributes: true, attributeFilter: ['class'] });
@@ -8045,4 +8090,340 @@ var SBX = (function () {
   renderDocumentsList = function () { var r = base.apply(this, arguments); try { paint(); } catch (e) { console.warn('axp', e); } return r; };
   window.renderDocumentsList = renderDocumentsList;
   window.__axpPaint = paint;
+})();
+
+/* ================= ACADIA · araç kullanan asistan =================
+   Sağdan açılan panel. Acadia (supabase/functions/acadia-assistant, mode:'agent') her adımda ya
+   cevap yazar ya da araç çağırır; araçlar burada, öğrencinin kendi oturumuyla çalışır (RLS geçerli).
+   Geri alınamayan / kota harcayan işlerde önce onay kartı çıkar; yazma işlerinde "geri al" olur.
+   Sohbet yalnızca bu sayfa açıkken bellekte tutulur. */
+(function () {
+  'use strict';
+  var layer = document.getElementById('axa-layer'); if (!layer) return;
+  document.body.appendChild(layer);
+  var P = layer.querySelector('[data-axa]');
+  var Q = function (s, el) { return (el || P).querySelector(s); };
+  var QA = function (s, el) { return Array.prototype.slice.call((el || P).querySelectorAll(s)); };
+  var X = function (t) { return String(t == null ? '' : t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var lsafe = function (fn, fb) { try { return fn(); } catch (e) { return fb; } };
+  var me = function () { return lsafe(function () { return currentUser; }, null) || window.currentUser || null; };
+  var sbc = function () { return typeof supabaseClient !== 'undefined' ? supabaseClient : null; };
+  var MISSING = function (e) { if (!e) return false; var c = String(e.code || ''), m = String(e.message || e); return /^(42P01|42703|PGRST20[045])$/.test(c) || /does not exist|schema cache|Could not find/i.test(m); };
+  var arr = function (x) { if (Array.isArray(x)) return x; if (typeof x === 'string') { try { var j = JSON.parse(x); return Array.isArray(j) ? j : []; } catch (e) { return []; } } return []; };
+  var plain = function (h) { var d = document.createElement('div'); d.innerHTML = String(h == null ? '' : h); return (d.textContent || '').replace(/\s+/g, ' ').trim(); };
+  var cut = function (t, n) { t = String(t || ''); return t.length > n ? t.slice(0, n - 1) + '…' : t; };
+  var baseName = function (n) { n = String(n || '').replace(/\.[a-z0-9]{2,5}$/i, ''); var m = n.match(/^\d{10,}_(?:\d{10,}_)?(.+)$/); if (m) n = m[1]; return n.replace(/_+/g, ' ').trim() || 'İsimsiz belge'; };
+  var iso = function (d) { var z = new Date(d.getTime() - d.getTimezoneOffset() * 60000); return z.toISOString().slice(0, 10); };
+  var today = function () { return iso(new Date()); };
+  var addDays = function (s, n) { var d = new Date(s + 'T12:00:00'); d.setDate(d.getDate() + n); return iso(d); };
+  var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+  var norm = function (t) { return String(t || '').toLocaleLowerCase('tr').replace(/[_\-.]+/g, ' ').replace(/\s+/g, ' ').trim(); };
+  var hit = function (q, s) { q = norm(q); if (!q) return true; s = norm(s); return q.split(' ').every(function (w) { return s.indexOf(w) > -1; }); };
+  var dlong = function (s) { try { return new Date(s + 'T12:00:00').toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', weekday: 'short' }); } catch (e) { return s; } };
+  var mobile = function () { return window.innerWidth < 760; };
+
+  /* ---------- panel ---------- */
+  var log = Q('[data-log]'), form = Q('[data-form]'), ta = Q('[data-in]'), sendB = Q('[data-send]'), stopB = Q('[data-stop]'), ctxEl = Q('[data-ctx]');
+  var toast = layer.querySelector('[data-axa-toast]');
+  var S = { msgs: [], running: false, stop: false, n: 0 };
+  var VIEWS = { home: 'Bugün', docs: 'Belgelerim', cards: 'Bilgi kartları', feed: 'Bölüm akışı', planner: 'Planlayıcı', notebook: 'Çalışma defteri', sourcehub: 'Kaynakla çalış', exams: 'Sınav platformu', studylab: 'Study Lab', acadexsunum: 'Acadex sunum', sandbox: 'Geliştirici sandbox', 'sandbox-interaction': 'Sandbox paneli', settings: 'Ayarlar' };
+  var modalOpen = function () { var m = document.getElementById('study-card-modal'); return !!(m && m.classList.contains('active')); };
+  var openCard = function () { return modalOpen() ? lsafe(function () { return currentActiveStudyCard; }, null) : null; };
+  var pageCtx = function () {
+    var v = lsafe(function () { return currentActiveTab; }, '') || 'home', c = openCard();
+    return { view: c ? 'study_card_reader' : v, label: c ? 'Özet kartı' : (VIEWS[v] || v), cardId: c ? c.id : null, cardTitle: c ? baseName((c.documents && c.documents.file_name) || '') : null };
+  };
+  var paintCtx = function () { var p = pageCtx(); ctxEl.innerHTML = '<span class="mono">ŞU AN</span> ' + X(p.label) + (p.cardTitle ? ' · <b>' + X(cut(p.cardTitle, 40)) + '</b>' : ''); };
+  var open = function () {
+    if (!P.hidden) { ta.focus(); return; }
+    P.hidden = false; layer.classList.add('on'); document.body.classList.add('axa-open'); paintCtx();
+    if (!log.children.length) welcome();
+    requestAnimationFrame(function () { P.classList.add('in'); }); setTimeout(function () { ta.focus(); }, 60);
+  };
+  var close = function () { P.classList.remove('in'); document.body.classList.remove('axa-open'); setTimeout(function () { if (!P.classList.contains('in')) { P.hidden = true; layer.classList.remove('on'); } }, 260); };
+  var toggle = function (force) { if (force === false || (force !== true && !P.hidden)) close(); else open(); };
+  if (typeof toggleAcadiaPanel === 'function') { toggleAcadiaPanel = toggle; window.toggleAcadiaPanel = toggle; } else window.toggleAcadiaPanel = toggle;
+  window.axAcadiaAsk = function (text) { open(); if (text) send(text); };
+  Q('[data-close]').addEventListener('click', function () { close(); });
+  Q('[data-new]').addEventListener('click', function () { if (S.running) return; S.msgs = []; log.innerHTML = ''; welcome(); ta.focus(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !P.hidden && !document.querySelector('dialog[open]') && !modalOpen()) close(); });
+  var say = function (t, act) { toast.innerHTML = '<span>' + X(t) + '</span>' + (act ? '<button type="button">Acadia’ya dön</button>' : ''); toast.hidden = false; clearTimeout(say.t); say.t = setTimeout(function () { toast.hidden = true; }, 6000); var b = toast.querySelector('button'); if (b) b.onclick = function () { toast.hidden = true; open(); }; };
+
+  /* ---------- sohbet görünümü ---------- */
+  var STARTERS = ['Bu hafta için çalışma planı kur', 'En zayıf konumdan 10 soruluk sınav hazırla', 'Son özetimden bilgi kartları çıkar', 'Tekrarı gelen kartlarım hangileri?', 'Bugün hangi yöntemle çalışayım?'];
+  var welcome = function () {
+    var u = lsafe(function () { return currentUserProfile; }, null) || {}, nm = String(u.full_name || '').split(' ')[0];
+    log.innerHTML = '<div class="axa-hi"><svg viewBox="0 0 64 64" aria-hidden="true"><path class="s" d="M32 6 L37 25 L56 32 L37 39 L32 58 L27 39 L8 32 L27 25 Z"/></svg><h3 class="disp">' + (nm ? 'Merhaba ' + X(nm) + ',' : 'Merhaba,') + '<br>ne yapalım?</h3><p>Belgelerin, özetlerin, planlayıcın ve sınavların üzerinde senin yerine iş yapabilirim. Silme, paylaşma ve kota harcayan işlerden önce sana sorarım.</p>' +
+      '<div class="axa-starts">' + STARTERS.map(function (s) { return '<button type="button" data-start="">' + X(s) + '</button>'; }).join('') + '</div></div>';
+  };
+  log.addEventListener('click', function (e) { var b = e.target.closest('[data-start]'); if (b) send(b.textContent); });
+  var md = function (t) {
+    var lines = X(String(t || '').trim()).replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').split(/\n/), out = '', inL = false;
+    lines.forEach(function (l) { var m = l.match(/^\s*(?:[-•*]|\d+[.)])\s+(.*)$/); if (m) { if (!inL) { out += '<ul>'; inL = true; } out += '<li>' + m[1] + '</li>'; } else { if (inL) { out += '</ul>'; inL = false; } if (l.trim()) out += '<p>' + l + '</p>'; } });
+    return out + (inL ? '</ul>' : '');
+  };
+  var add = function (cls, html) { var hi = log.querySelector('.axa-hi'); if (hi) hi.remove(); var d = document.createElement('div'); d.className = 'axa-m ' + cls; d.innerHTML = html; log.appendChild(d); log.scrollTop = log.scrollHeight; return d; };
+  var thinking = null;
+  var think = function (on) { if (on && !thinking) { thinking = add('think', '<span class="dots"><i></i><i></i><i></i></span><span class="hand">Acadia düşünüyor</span>'); } else if (!on && thinking) { thinking.remove(); thinking = null; } };
+
+  /* ---------- araçlar ---------- */
+  var db = function () { var c = sbc(), u = me(); if (!c || !u) throw new Error('Oturum bulunamadı.'); return { c: c, u: u }; };
+  var need = function (r) { if (r.error) throw new Error(r.error.message || 'veritabanı hatası'); return r.data; };
+  var cardRow = async function (id) { var d = db(); var r = await d.c.from('study_cards').select('id, user_id, document_id, course_tag, summary_style, is_shared, documents(file_name, storage_path)').eq('id', id).limit(1); var x = need(r); if (!x || !x[0]) throw new Error('Bu kart bulunamadı ya da erişimin yok.'); return x[0]; };
+  var cardName = function (c) { return baseName(c && c.documents && c.documents.file_name); };
+  var VIEWMAP = { home: 'home', documents: 'docs', study_cards: 'cards', department_feed: 'feed', planner: 'planner', notebook: 'notebook', source_hub: 'sourcehub', exams: 'exams', study_lab: 'studylab', presentations: 'acadexsunum', developer_sandbox: 'sandbox', sandbox_feed: 'sandbox-interaction', settings: 'settings' };
+  var go = function (view) { if (modalOpen() && typeof closeStudyCardModal === 'function') closeStudyCardModal(); if (typeof switchDashboardView === 'function') switchDashboardView(view); if (mobile()) { close(); say('Acadia: ' + (VIEWS[view] || view) + ' açıldı.', true); } };
+  var away = function () { if (mobile()) { close(); say('Acadia: hallettim.', true); } };
+  var T_OUT = { study: 'goal', exam: 'exam', deadline: 'deadline' };
+  var pack = function (e) { var s = (e.time && /^\d{1,2}:\d{2}$/.test(e.time) ? '[' + (e.time.length === 4 ? '0' + e.time : e.time) + '] ' : '') + (e.document ? '[belge: ' + String(e.document).slice(0, 80) + '] ' : '') + (e.notes || ''); s = s.trim(); return s || null; };
+  var unpack = function (n) { var o = { time: '', doc: '', notes: '' }; n = String(n || ''); var m = n.match(/^\[(\d{2}:\d{2})\]\s*/); if (m) { o.time = m[1]; n = n.slice(m[0].length); } m = n.match(/^\[belge: ([^\]]+)\]\s*/); if (m) { o.doc = m[1]; n = n.slice(m[0].length); } o.notes = n.trim(); return o; };
+  var refreshPlanner = function () { if (lsafe(function () { return currentActiveTab; }, '') === 'planner' && typeof loadPlannerEvents === 'function') try { loadPlannerEvents(); } catch (e) {} };
+  var validDate = function (s) { return /^\d{4}-\d{2}-\d{2}$/.test(String(s || '')) && !isNaN(new Date(s + 'T12:00:00')); };
+
+  /* her araç: label(a) adım yazısı, risk ('read'|'write'|'confirm'), ask(a) onay metni, run(a) → sonuç */
+  var TOOLS = {
+    list_documents: { label: function () { return 'belgelerine bakıyorum'; }, run: async function (a) {
+      var d = db(); var r = await d.c.from('documents').select('id, file_name, status, course_tag, uploaded_at, processing_stage').eq('user_id', d.u.id).order('uploaded_at', { ascending: false }).limit(100);
+      var docs = need(r) || [], cr = await d.c.from('study_cards').select('id, document_id').eq('user_id', d.u.id).limit(300), cards = cr.data || [];
+      var out = docs.filter(function (x) { return hit(a.query, x.file_name + ' ' + (x.course_tag || '')); }).slice(0, 40).map(function (x) { return { id: x.id, name: baseName(x.file_name), status: x.status, course: x.course_tag || null, uploaded: String(x.uploaded_at || '').slice(0, 10), card_ids: cards.filter(function (c) { return c.document_id === x.id; }).map(function (c) { return c.id; }) }; });
+      return { count: out.length, documents: out };
+    } },
+    list_study_cards: { label: function () { return 'özetlerine bakıyorum'; }, run: async function (a) {
+      var d = db(); var r = await d.c.from('study_cards').select('id, document_id, course_tag, summary_style, summary_language, created_at, is_shared, documents(file_name)').eq('user_id', d.u.id).order('created_at', { ascending: false }).limit(150);
+      var out = (need(r) || []).filter(function (c) { return hit(a.query, cardName(c) + ' ' + (c.course_tag || '')) && (!a.course || hit(a.course, c.course_tag || '')); }).slice(0, 40)
+        .map(function (c) { return { id: c.id, name: cardName(c), course: c.course_tag || null, style: c.summary_style, language: c.summary_language, created: String(c.created_at || '').slice(0, 10), shared: !!c.is_shared }; });
+      return { count: out.length, study_cards: out };
+    } },
+    read_study_card: { label: function () { return 'özeti okuyorum'; }, run: async function (a) {
+      var d = db(); var r = await d.c.from('study_cards').select('id, user_id, course_tag, summary, summary_executive, sections, key_points, key_terms, quiz_questions, documents(file_name)').eq('id', a.card_id).limit(1); var c = (need(r) || [])[0];
+      if (!c) return { error: 'Kart bulunamadı ya da erişim yok.' };
+      var want = arr(a.parts).length ? a.parts : ['summary', 'sections', 'key_points', 'key_terms', 'quiz'], o = { id: c.id, name: cardName(c), course: c.course_tag || null, own: c.user_id === d.u.id };
+      if (want.indexOf('summary') > -1) o.summary = cut(plain(c.summary_executive ? c.summary_executive + '\n' + c.summary : c.summary), 3000);
+      if (want.indexOf('sections') > -1) o.sections = arr(c.sections).slice(0, 12).map(function (s) { return { heading: plain(s.heading), gist: cut(plain(s.summary), 220) }; });
+      if (want.indexOf('key_points') > -1) o.key_points = arr(c.key_points).slice(0, 25).map(function (p) { return cut(plain(typeof p === 'string' ? p : p && p.point), 220); });
+      if (want.indexOf('key_terms') > -1) o.key_terms = arr(c.key_terms).slice(0, 30).map(function (t) { return { term: plain(t.term), definition: cut(plain(t.definition), 200) }; });
+      if (want.indexOf('quiz') > -1) o.quiz = arr(c.quiz_questions).slice(0, 10).map(function (q) { return { q: cut(plain(q.question), 220), a: cut(plain(q.answer || q.correct_answer), 160) }; });
+      return o;
+    } },
+    list_planner_events: { label: function () { return 'planlayıcına bakıyorum'; }, run: async function (a) {
+      var d = db(), from = validDate(a.from) ? a.from : today(), to = validDate(a.to) ? a.to : addDays(from, 30);
+      var q = d.c.from('study_events').select('*').eq('user_id', d.u.id).gte('event_date', from).lte('event_date', to).order('event_date', { ascending: true }).limit(120);
+      if (!a.include_done) q = q.eq('is_done', false);
+      var rows = need(await q) || [];
+      return { from: from, to: to, events: rows.map(function (e) { var p = unpack(e.notes); return { id: e.id, title: e.title, date: String(e.event_date).slice(0, 10), time: p.time || null, type: e.event_type === 'exam' ? 'exam' : e.event_type === 'deadline' ? 'deadline' : 'study', document: p.doc || null, done: !!e.is_done }; }) };
+    } },
+    get_exam_history: { label: function () { return 'sınav sonuçlarına bakıyorum'; }, run: async function (a) {
+      var d = db(); var r = await d.c.from('exams').select('id, grade, completed_at, exam_type, difficulty, question_results, study_card_id, study_cards(course_tag, documents(file_name))').eq('user_id', d.u.id).not('completed_at', 'is', null).order('completed_at', { ascending: false }).limit(Math.min(20, a.limit || 10));
+      var ex = need(r) || [], st = {};
+      ex.forEach(function (e) { arr(e.question_results).forEach(function (q) { var k = String(q.concept || '').trim(); if (!k) return; st[k] = st[k] || { t: 0, n: 0 }; st[k].t += +q.score || 0; st[k].n++; }); });
+      var weak = Object.keys(st).map(function (k) { return { concept: k, avg: Math.round(st[k].t / st[k].n), questions: st[k].n }; }).sort(function (x, y) { return x.avg - y.avg; }).slice(0, 6);
+      return { exams: ex.map(function (e) { return { id: e.id, grade: e.grade, date: String(e.completed_at).slice(0, 10), type: e.exam_type, difficulty: e.difficulty, card_id: e.study_card_id, card: e.study_cards ? cardName(e.study_cards) : null, course: e.study_cards ? e.study_cards.course_tag : null }; }), weakest_concepts: weak, average: ex.length ? Math.round(ex.reduce(function (s, e) { return s + (+e.grade || 0); }, 0) / ex.length) : null };
+    } },
+    get_due_reviews: { label: function () { return 'tekrar takvimine bakıyorum'; }, run: async function () {
+      var d = db(); var r = await d.c.from('card_item_confidence').select('study_card_id, next_review_at').limit(2000); if (r.error && MISSING(r.error)) return { note: 'Tekrar takibi bu hesapta henüz yok.' };
+      var rows = need(r) || [], now = new Date(), by = {};
+      rows.forEach(function (x) { var k = x.study_card_id; by[k] = by[k] || { due: 0, tracked: 0 }; by[k].tracked++; if (x.next_review_at && new Date(x.next_review_at) <= now) by[k].due++; });
+      var ids = Object.keys(by), names = {};
+      if (ids.length) { var cr = await d.c.from('study_cards').select('id, course_tag, documents(file_name)').in('id', ids.slice(0, 100)); (cr.data || []).forEach(function (c) { names[c.id] = cardName(c) + (c.course_tag ? ' · ' + c.course_tag : ''); }); }
+      return { total_due: ids.reduce(function (s, k) { return s + by[k].due; }, 0), cards: ids.map(function (k) { return { card_id: k, name: names[k] || null, due: by[k].due, tracked: by[k].tracked }; }).sort(function (x, y) { return y.due - x.due; }).slice(0, 20) };
+    } },
+    get_study_stats: { label: function () { return 'çalışma geçmişine bakıyorum'; }, run: async function () {
+      var d = db(), since = new Date(Date.now() - 14 * 864e5).toISOString(); var r = await d.c.from('study_lab_sessions').select('method, minutes, created_at, card_id').eq('user_id', d.u.id).gte('created_at', since).order('created_at', { ascending: false }).limit(300);
+      if (r.error) return MISSING(r.error) ? { note: 'Study Lab kayıtları veritabanında yok; bu tarayıcıda tutuluyor olabilir.' } : { error: r.error.message };
+      var by = {}; (r.data || []).forEach(function (s) { by[s.method] = (by[s.method] || 0) + (+s.minutes || 0); });
+      return { days: 14, minutes_by_method: by, total_minutes: Object.keys(by).reduce(function (s, k) { return s + by[k]; }, 0), recent: (r.data || []).slice(0, 10).map(function (s) { return { method: s.method, minutes: s.minutes, date: String(s.created_at).slice(0, 10) }; }) };
+    } },
+    search_department_feed: { label: function () { return 'bölüm akışında arıyorum'; }, run: async function (a) {
+      var d = db(), pr = await d.c.from('profiles').select('department').eq('id', d.u.id).limit(1), dept = pr.data && pr.data[0] && pr.data[0].department;
+      if (!dept) return { note: 'Öğrencinin bölümü Ayarlar’da seçili değil.' };
+      var r = await d.c.from('study_cards').select('id, user_id, document_id, course_tag, summary, shared_at, documents(file_name)').eq('is_shared', true).eq('department', dept).order('shared_at', { ascending: false }).limit(80);
+      var out = (need(r) || []).filter(function (c) { return c.user_id !== d.u.id && hit(a.query, cardName(c) + ' ' + (c.course_tag || '') + ' ' + plain(c.summary).slice(0, 400)) && (!a.course || hit(a.course, c.course_tag || '')); }).slice(0, 15)
+        .map(function (c) { return { card_id: c.id, name: cardName(c), course: c.course_tag || null, shared: String(c.shared_at || '').slice(0, 10), gist: cut(plain(c.summary), 160) }; });
+      return { department: dept, results: out };
+    } },
+    open_page: { label: function (a) { return (VIEWS[VIEWMAP[a.page]] || 'sayfa') + ' açılıyor'; }, run: async function (a) { var v = VIEWMAP[a.page]; if (!v) return { error: 'Böyle bir sayfa yok.' }; go(v); return { opened: v }; } },
+    open_study_card: { label: function () { return 'özet kartını açıyorum'; }, run: async function (a) {
+      var c = await cardRow(a.card_id), u = me(); away();
+      try { var seen = JSON.parse(localStorage.getItem('acadex.reader.seen') || '{}'); if (a.section && a.section !== 'top') { seen[c.id] = seen[c.id] || Date.now(); localStorage.setItem('acadex.reader.seen', JSON.stringify(seen)); } } catch (e) {}
+      await viewStudyCard(c.document_id, (c.documents && c.documents.file_name) || '', c.user_id !== (u && u.id), c.id);
+      if (a.section && a.section !== 'top' && typeof window.axReaderGo === 'function') { await sleep(700); window.axReaderGo(a.section); }
+      return { opened: cardName(c) };
+    } },
+    start_smart_review: { label: function () { return 'akıllı tekrarı başlatıyorum'; }, run: async function (a) { if (typeof window.axKartSmart !== 'function') return { error: 'Kart masası yüklenemedi.' }; if (modalOpen() && typeof closeStudyCardModal === 'function') closeStudyCardModal(); away(); window.axKartSmart(a.card_id || null); return { started: true }; } },
+    open_study_method: { label: function (a) { return 'Study Lab’de ' + (a.method || '') + ' istasyonunu açıyorum'; }, run: async function (a) { if (typeof window.axLabOpen !== 'function') return { error: 'Study Lab yüklenemedi.' }; if (modalOpen() && typeof closeStudyCardModal === 'function') closeStudyCardModal(); away(); var ok = await window.axLabOpen(a.method, a.card_id || null); return ok ? { opened: a.method } : { error: 'Bilinmeyen yöntem.' }; } },
+    prepare_presentation: { label: function () { return 'sunum kurgusunu hazırlıyorum'; }, run: async function (a) { if (typeof window.axSunumPlot !== 'function') return { error: 'Sunum stüdyosu yüklenemedi.' }; if (modalOpen() && typeof closeStudyCardModal === 'function') closeStudyCardModal(); away(); await window.axSunumPlot({ cardId: a.card_id, topic: a.topic, n: a.slide_count || 8, tone: a.tone }); return { opened: true, note: 'Kurgu penceresi açıldı; öğrenci "kurgula" ile devam edecek.' }; } },
+    add_planner_events: { risk: 'write', label: function (a) { return arr(a.events).length + ' etkinlik planlayıcıya ekleniyor'; }, run: async function (a) {
+      var d = db(), ev = arr(a.events).filter(function (e) { return e && e.title && validDate(e.date); }).slice(0, 30); if (!ev.length) return { error: 'Geçerli tarihli etkinlik yok.' };
+      var rows = ev.map(function (e) { return { user_id: d.u.id, title: String(e.title).slice(0, 150), event_date: e.date, event_type: T_OUT[e.type] || 'goal', notes: pack(e), is_done: false }; });
+      var r = await d.c.from('study_events').insert(rows).select('id'); var ids = (need(r) || []).map(function (x) { return x.id; }); refreshPlanner();
+      return { added: ids.length, dates: ev.map(function (e) { return e.date; }), _undo: async function () { await d.c.from('study_events').delete().in('id', ids); refreshPlanner(); }, _chip: ['planlayıcıda gör', function () { go('planner'); }] };
+    } },
+    update_planner_event: { risk: 'write', label: function () { return 'planlayıcıdaki etkinlik güncelleniyor'; }, run: async function (a) {
+      var d = db(), r0 = await d.c.from('study_events').select('*').eq('id', a.event_id).eq('user_id', d.u.id).limit(1), old = (need(r0) || [])[0]; if (!old) return { error: 'Etkinlik bulunamadı.' };
+      var p = unpack(old.notes), up = {}; if (a.title) up.title = String(a.title).slice(0, 150); if (validDate(a.date)) up.event_date = a.date; if (typeof a.done === 'boolean') up.is_done = a.done; if (a.time) up.notes = pack({ time: a.time, document: p.doc, notes: p.notes });
+      need(await d.c.from('study_events').update(up).eq('id', old.id)); refreshPlanner();
+      return { updated: old.title, _undo: async function () { await d.c.from('study_events').update({ title: old.title, event_date: old.event_date, is_done: old.is_done, notes: old.notes }).eq('id', old.id); refreshPlanner(); } };
+    } },
+    add_notebook_notes: { risk: 'write', label: function (a) { return arr(a.notes).length + ' not deftere yapıştırılıyor'; }, run: async function (a) {
+      if (typeof addStickyNoteToNotebook !== 'function') return { error: 'Defter yüklenemedi.' }; var n = 0;
+      arr(a.notes).slice(0, 20).forEach(function (x, i) { if (!x || !x.text) return; addStickyNoteToNotebook('acadia-' + Date.now() + '-' + i, X(cut(x.title || 'Acadia', 80)), X(cut(x.text, 500))); n++; });
+      return { added: n, _chip: ['deftere git', function () { go('notebook'); }] };
+    } },
+    add_flashcards: { risk: 'write', label: function (a) { return arr(a.cards).length + ' bilgi kartı ekleniyor'; }, run: async function (a) {
+      var d = db(), r0 = await d.c.from('study_cards').select('id, key_terms, documents(file_name)').eq('id', a.card_id).eq('user_id', d.u.id).limit(1), c = (need(r0) || [])[0]; if (!c) return { error: 'Yalnızca kendi özetine kart ekleyebilirsin.' };
+      var old = arr(c.key_terms), add = arr(a.cards).filter(function (x) { return x && x.front && x.back; }).slice(0, 20).map(function (x) { return { term: String(x.front).slice(0, 120), definition: String(x.back).slice(0, 500), user: true, by: 'acadia' }; });
+      var have = {}; old.forEach(function (t) { have[norm(t.term)] = 1; }); add = add.filter(function (t) { return !have[norm(t.term)]; }); if (!add.length) return { added: 0, note: 'Bu kartlar zaten vardı.' };
+      need(await d.c.from('study_cards').update({ key_terms: old.concat(add) }).eq('id', c.id));
+      return { added: add.length, card: cardName(c), _undo: async function () { await d.c.from('study_cards').update({ key_terms: old }).eq('id', c.id); }, _chip: ['kartlara çalış', function () { if (window.axKartSmart) window.axKartSmart(c.id); away(); }] };
+    } },
+    set_course_tag: { risk: 'write', label: function (a) { return 'ders etiketi “' + cut(a.course, 20) + '” yapılıyor'; }, run: async function (a) {
+      var d = db(), r0 = await d.c.from('documents').select('id, course_tag').eq('id', a.document_id).eq('user_id', d.u.id).limit(1), doc = (need(r0) || [])[0]; if (!doc) return { error: 'Belge bulunamadı.' };
+      var tag = String(a.course).trim().slice(0, 40), sync = function (v) { lsafe(function () { activeDocuments.forEach(function (x) { if (x.id === doc.id) x.course_tag = v; }); if (typeof renderDocumentsList === 'function') renderDocumentsList(); }); };
+      need(await d.c.from('documents').update({ course_tag: tag }).eq('id', doc.id)); await d.c.from('study_cards').update({ course_tag: tag }).eq('document_id', doc.id).eq('user_id', d.u.id); sync(tag);
+      return { tagged: tag, _undo: async function () { await d.c.from('documents').update({ course_tag: doc.course_tag }).eq('id', doc.id); await d.c.from('study_cards').update({ course_tag: doc.course_tag }).eq('document_id', doc.id).eq('user_id', d.u.id); sync(doc.course_tag); } };
+    } },
+    summarize_document: { label: function () { return 'özetleme penceresini açıyorum'; }, run: async function (a) {
+      var d = db(), r = await d.c.from('documents').select('id, file_name, status').eq('id', a.document_id).eq('user_id', d.u.id).limit(1), doc = (need(r) || [])[0]; if (!doc) return { error: 'Belge bulunamadı.' };
+      if (doc.status === 'processing') return { note: 'Bu belge zaten özetleniyor.' };
+      go('docs'); await sleep(300); if (typeof summarizeDocument !== 'function') return { error: 'Özetleme yüklenemedi.' }; summarizeDocument(doc.id); if (!mobile()) close();
+      return { opened: 'Stil seçme penceresi açıldı; öğrenci stili seçip başlatacak.', document: baseName(doc.file_name) };
+    } },
+    create_exam: { risk: 'confirm', ask: async function (a) { var c = await cardRow(a.card_id); return { t: 'Sınav hazırlayayım mı?', d: cardName(c) + ' · ' + (a.question_count || 10) + ' soru · ' + ({ easy: 'kolay', medium: 'orta', hard: 'zor' }[a.difficulty] || 'orta') + ' · ' + ({ test: 'test', classic: 'klasik', mixed: 'karışık', calculation: 'hesaplama' }[a.type] || 'test') + (a.timed ? ' · süreli' : ''), ok: 'sınavı hazırla' }; }, label: function () { return 'sınav hazırlanıyor'; }, run: async function (a) {
+      var c = await cardRow(a.card_id); if (typeof window.axSinavPrepare !== 'function' || typeof generateExam !== 'function') return { error: 'Sınav platformu yüklenemedi.' };
+      if (modalOpen() && typeof closeStudyCardModal === 'function') closeStudyCardModal();
+      await window.axSinavPrepare({ cardId: c.id, cardName: cardName(c), count: Math.max(3, Math.min(20, a.question_count || 10)), difficulty: a.difficulty || 'medium', type: a.type || 'test', timed: !!a.timed });
+      close(); await generateExam();
+      var started = !!lsafe(function () { return currentActiveExam; }, null);
+      return started ? { started: true, card: cardName(c) } : { error: 'Sınav oluşturulamadı; sınav penceresinde hata yazıyor olabilir.' };
+    } },
+    generate_audio_summary: { risk: 'confirm', ask: async function (a) { var c = await cardRow(a.card_id); return { t: 'Sesli özet hazırlayayım mı?', d: cardName(c) + ' · Ela ve Kaan bu özeti sohbet eder gibi anlatacak (birkaç dakika sürebilir).', ok: 'hazırla' }; }, label: function () { return 'sesli özet hazırlanıyor'; }, run: async function (a) {
+      var c = await cardRow(a.card_id), u = me(); if (c.user_id !== (u && u.id)) return { error: 'Yalnızca kendi özetin için sesli özet hazırlanabilir.' };
+      away(); await viewStudyCard(c.document_id, (c.documents && c.documents.file_name) || '', false, c.id); await sleep(600);
+      if (window.axReaderGo) window.axReaderGo('audio');
+      var ps = lsafe(function () { return podcastState; }, null); if (ps && ps.script && ps.script.length) return { note: 'Bu kartın sesli özeti zaten vardı; açtım.' };
+      if (typeof generatePodcastScript !== 'function') return { error: 'Sesli özet yüklenemedi.' }; await generatePodcastScript();
+      ps = lsafe(function () { return podcastState; }, null); return ps && ps.script && ps.script.length ? { created: true, lines: ps.script.length } : { error: 'Sesli özet hazırlanamadı.' };
+    } },
+    share_study_card: { risk: 'confirm', ask: async function (a) { var c = await cardRow(a.card_id); return { t: a.share ? 'Bölüm akışında paylaşayım mı?' : 'Paylaşımı kaldırayım mı?', d: cardName(c) + (a.share ? ' · bölüm arkadaşların görebilecek.' : ''), ok: a.share ? 'paylaş' : 'kaldır' }; }, label: function (a) { return a.share ? 'özet paylaşılıyor' : 'paylaşım kaldırılıyor'; }, run: async function (a) {
+      var c = await cardRow(a.card_id), u = me(); if (c.user_id !== (u && u.id)) return { error: 'Bu kart senin değil.' }; if (typeof toggleShareStudyCard !== 'function') return { error: 'Paylaşım yüklenemedi.' };
+      await toggleShareStudyCard(c.id, !!a.share); var r = await sbc().from('study_cards').select('is_shared').eq('id', c.id).limit(1), now = r.data && r.data[0] && r.data[0].is_shared;
+      return now === !!a.share ? { shared: !!a.share, card: cardName(c), _chip: a.share ? ['bölüm akışında gör', function () { go('feed'); }] : null } : { error: 'Paylaşım değişmedi (bölümün Ayarlar’da seçili olmalı).' };
+    } },
+    delete_planner_event: { risk: 'confirm', ask: async function (a) { var d = db(), r = await d.c.from('study_events').select('title, event_date').eq('id', a.event_id).eq('user_id', d.u.id).limit(1), e = (r.data || [])[0]; if (!e) throw new Error('Etkinlik bulunamadı.'); return { t: 'Planlayıcıdan sileyim mi?', d: e.title + ' · ' + dlong(String(e.event_date).slice(0, 10)), ok: 'sil', danger: true }; }, label: function () { return 'etkinlik siliniyor'; }, run: async function (a) {
+      var d = db(), r0 = await d.c.from('study_events').select('*').eq('id', a.event_id).eq('user_id', d.u.id).limit(1), old = (need(r0) || [])[0]; if (!old) return { error: 'Etkinlik bulunamadı.' };
+      need(await d.c.from('study_events').delete().eq('id', old.id)); refreshPlanner();
+      return { deleted: old.title, _undo: async function () { var row = {}; ['user_id', 'title', 'event_date', 'event_type', 'notes', 'is_done'].forEach(function (k) { row[k] = old[k]; }); await d.c.from('study_events').insert(row); refreshPlanner(); } };
+    } },
+    delete_document: { label: function () { return 'silme onayı açılıyor'; }, run: async function (a) {
+      var d = db(), r = await d.c.from('documents').select('id, file_name, storage_path, status').eq('id', a.document_id).eq('user_id', d.u.id).limit(1), doc = (need(r) || [])[0]; if (!doc) return { error: 'Belge bulunamadı.' };
+      if (typeof confirmDeleteDocument !== 'function') return { error: 'Silme yüklenemedi.' }; go('docs'); await sleep(250); confirmDeleteDocument(doc.id, doc.storage_path);
+      return { note: 'Silme onay penceresi açıldı; belge ancak öğrenci onaylarsa silinir.', document: baseName(doc.file_name) };
+    } }
+  };
+
+  /* ---------- onay kartı ---------- */
+  var confirmCard = function (info) {
+    return new Promise(function (res) {
+      var el = add('confirm' + (info.danger ? ' danger' : ''), '<b class="disp">' + X(info.t) + '</b><p>' + X(info.d) + '</p><div class="row"><button type="button" class="no">vazgeç</button><button type="button" class="yes">' + X(info.ok || 'evet') + '</button></div>');
+      var done = function (v) { QA('button', el).forEach(function (b) { b.disabled = true; }); el.classList.add(v ? 'ok' : 'off'); el.querySelector('.row').innerHTML = '<span class="hand">' + (v ? 'onayladın ✓' : 'vazgeçtin') + '</span>'; res(v); };
+      el.querySelector('.yes').onclick = function () { done(true); }; el.querySelector('.no').onclick = function () { done(false); };
+      S.pendingNo = function () { done(false); };
+      el.querySelector('.yes').focus();
+    });
+  };
+
+  /* ---------- adım satırı ---------- */
+  var stepRow = function (label) { var el = add('step run', '<i class="ic" aria-hidden="true"></i><span>' + X(label) + '…</span>'); return el; };
+  var stepDone = function (el, ok, text, res) {
+    el.classList.remove('run'); el.classList.add(ok ? 'ok' : 'bad'); el.querySelector('span').textContent = text;
+    if (res && res._undo) { var u = document.createElement('button'); u.type = 'button'; u.className = 'undo'; u.textContent = 'geri al'; u.onclick = async function () { u.disabled = true; try { await res._undo(); el.classList.add('undone'); u.textContent = 'geri alındı'; } catch (e) { u.textContent = 'geri alınamadı'; } }; el.appendChild(u); }
+    if (res && res._chip) { var c = document.createElement('button'); c.type = 'button'; c.className = 'chip'; c.textContent = res._chip[0] + ' →'; c.onclick = res._chip[1]; el.appendChild(c); }
+  };
+  var doneText = function (name, a, r) {
+    if (r.error) return r.error;
+    switch (name) {
+      case 'add_planner_events': return r.added + ' etkinlik planlayıcına eklendi';
+      case 'add_notebook_notes': return r.added + ' not deftere yapıştırıldı';
+      case 'add_flashcards': return r.added ? r.added + ' bilgi kartı “' + cut(r.card, 30) + '” kartına eklendi' : (r.note || 'eklenecek yeni kart yoktu');
+      case 'set_course_tag': return 'ders etiketi “' + r.tagged + '” oldu';
+      case 'update_planner_event': return '“' + cut(r.updated, 40) + '” güncellendi';
+      case 'delete_planner_event': return '“' + cut(r.deleted, 40) + '” silindi';
+      case 'create_exam': return 'sınav hazır, kitapçık açıldı';
+      case 'generate_audio_summary': return r.note || 'sesli özet hazır';
+      case 'share_study_card': return r.shared ? 'özet bölüm akışında' : 'paylaşım kaldırıldı';
+      case 'open_study_card': return '“' + cut(r.opened, 40) + '” açıldı';
+      case 'summarize_document': return 'özet stili penceresi açıldı';
+      case 'delete_document': return 'silme onayı sende';
+      case 'prepare_presentation': return 'sunum kurgusu penceresi açıldı';
+      case 'open_page': return (VIEWS[r.opened] || 'sayfa') + ' açıldı';
+      case 'open_study_method': return 'istasyon açıldı';
+      case 'start_smart_review': return 'akıllı tekrar açıldı';
+      default: return (TOOLS[name].label(a) || 'baktım').replace(/ıyorum$|iyorum$|uyorum$|üyorum$/, 'dım').replace(/bakıdım/, 'baktım').replace(/okudım/, 'okudum');
+    }
+  };
+  var READ_DONE = { list_documents: 'belgelerine baktım', list_study_cards: 'özetlerine baktım', read_study_card: 'özeti okudum', list_planner_events: 'planlayıcına baktım', get_exam_history: 'sınav sonuçlarına baktım', get_due_reviews: 'tekrar takvimine baktım', get_study_stats: 'çalışma geçmişine baktım', search_department_feed: 'bölüm akışına baktım' };
+
+  var runTool = async function (call) {
+    var name = call.function && call.function.name, t = TOOLS[name], a = {};
+    try { a = JSON.parse(call.function.arguments || '{}') || {}; } catch (e) { return { error: 'Araç girdisi okunamadı.' }; }
+    if (!t) return { error: 'Bilinmeyen araç: ' + name };
+    if (t.risk === 'confirm') {
+      var info; try { info = await t.ask(a); } catch (e) { return { error: e.message || String(e) }; }
+      var yes = await confirmCard(info); if (!yes) return { declined: true, note: 'Öğrenci onaylamadı.' };
+    }
+    var row = stepRow(t.label(a)), res;
+    try { res = await t.run(a) || {}; } catch (e) { res = { error: e && e.message ? e.message : String(e) }; }
+    stepDone(row, !res.error, READ_DONE[name] && !res.error ? READ_DONE[name] : doneText(name, a, res), res);
+    var clean = {}; Object.keys(res).forEach(function (k) { if (k[0] !== '_') clean[k] = res[k]; });
+    return clean;
+  };
+
+  /* ---------- döngü ---------- */
+  var call = async function () {
+    var c = sbc(); if (!c || !c.functions) throw new Error('bağlantı yok');
+    var r = await Promise.race([c.functions.invoke('acadia-assistant', { body: { mode: 'agent', messages: S.msgs, language: (localStorage.getItem('acadexUILang') || 'tr') === 'en' ? 'en' : 'tr', page: pageCtx() } }), new Promise(function (_, rej) { setTimeout(function () { rej(new Error('zaman aşımı')); }, 60000); })]);
+    var d = r && r.data; if (typeof d === 'string') { try { d = JSON.parse(d); } catch (e) { d = null; } }
+    if (r && r.error && !d) throw r.error; if (!d || !d.message) throw new Error((d && d.error) || 'boş yanıt');
+    return d.message;
+  };
+  var busy = function (on) { S.running = on; sendB.hidden = on; stopB.hidden = !on; ta.disabled = false; P.classList.toggle('busy', on); };
+  var send = async function (text) {
+    text = String(text || '').trim(); if (!text || S.running) return;
+    add('user', md(text)); S.msgs.push({ role: 'user', content: text }); busy(true); S.stop = false;
+    try {
+      for (var step = 0; step < 8; step++) {
+        think(true); var m; try { m = await call(); } finally { think(false); }
+        var calls = arr(m.tool_calls).filter(function (x) { return x && x.function && x.function.name; });
+        S.msgs.push({ role: 'assistant', content: m.content || '', tool_calls: calls.length ? calls : undefined });
+        if (m.content && m.content.trim()) add('bot' + (calls.length ? ' aside' : ''), md(m.content));
+        if (!calls.length) break;
+        for (var i = 0; i < calls.length; i++) {
+          if (S.stop) { S.msgs.push({ role: 'tool', tool_call_id: calls[i].id, content: JSON.stringify({ cancelled: true }) }); continue; }
+          var res = await runTool(calls[i]);
+          var s = JSON.stringify(res); if (s.length > 5000) s = s.slice(0, 5000) + '…"}';
+          S.msgs.push({ role: 'tool', tool_call_id: calls[i].id, content: s });
+        }
+        if (S.stop) { add('bot note', '<p class="hand">durdurdum.</p>'); break; }
+        if (step === 7) add('bot note', '<p>Bu iş çok adım sürdü, burada durdum. Devam etmemi istersen “devam et” yaz.</p>');
+      }
+    } catch (e) {
+      console.warn('acadia', e);
+      add('bot err', '<p>Şu an Acadia’ya ulaşamadım. Birazdan tekrar dener misin?</p>');
+      // yarım kalan araç çağrılarını sohbetten temizle
+      while (S.msgs.length && S.msgs[S.msgs.length - 1].role !== 'user' && !(S.msgs[S.msgs.length - 1].role === 'assistant' && !S.msgs[S.msgs.length - 1].tool_calls)) S.msgs.pop();
+    } finally { busy(false); paintCtx(); if (S.msgs.length > 60) S.msgs = S.msgs.slice(-40); while (S.msgs.length && S.msgs[0].role !== 'user') S.msgs.shift(); }
+  };
+  form.addEventListener('submit', function (e) { e.preventDefault(); var t = ta.value; if (S.running) return; ta.value = ''; fit(); send(t); });
+  ta.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); form.requestSubmit ? form.requestSubmit() : form.dispatchEvent(new Event('submit')); } });
+  var fit = function () { ta.style.height = 'auto'; ta.style.height = Math.min(140, ta.scrollHeight) + 'px'; };
+  ta.addEventListener('input', fit);
+  stopB.addEventListener('click', function () { S.stop = true; if (S.pendingNo) S.pendingNo(); });
+
+  /* eski paneli gizle; açık kalmışsa kapat */
+  var old = document.getElementById('acadia-panel'); if (old) old.style.display = 'none';
+  /* sayfa değişince "şu an" satırını güncelle */
+  var mo = new MutationObserver(function () { if (!P.hidden) paintCtx(); });
+  var scm = document.getElementById('study-card-modal'); if (scm) mo.observe(scm, { attributes: true, attributeFilter: ['class'] });
+  if (typeof switchDashboardView === 'function') { var oSw = switchDashboardView; switchDashboardView = function () { var r = oSw.apply(this, arguments); setTimeout(function () { if (!P.hidden) paintCtx(); }, 50); return r; }; window.switchDashboardView = switchDashboardView; }
+  window.__axaTools = TOOLS;
 })();
