@@ -8230,3 +8230,72 @@ body.axa-open #btn-acadia-toggle,body.axa-open .acadia-fab-wrap,body.axa-open #p
 }
 @media (prefers-reduced-motion:reduce){#axa-layer *{animation:none!important;transition:none!important}}
 #axa-layer .axa-why{font-size:10.5px;color:#9A9382;margin-top:4px!important;word-break:break-word}
+#axa-layer .axa-hint{position:fixed;right:96px;bottom:34px;z-index:10030;display:flex;flex-direction:column;align-items:flex-start;gap:2px;max-width:270px;padding:10px 34px 10px 14px;border:1.5px solid #1A2A5C;border-radius:14px 14px 4px 14px;background:#FFFDF8;box-shadow:3px 3px 0 #1A2A5C;text-align:left;cursor:pointer;animation:axaHint .45s cubic-bezier(.3,1.5,.5,1) both}
+#axa-layer .axa-hint .k{font-size:9.5px;letter-spacing:.16em;color:#C9483B}
+#axa-layer .axa-hint .t{font-size:14px;font-weight:700;line-height:1.3;color:#0D1838}
+#axa-layer .axa-hint .x{position:absolute;top:4px;right:8px;font-style:normal;font-size:18px;color:#6A7593;padding:2px 4px}
+#axa-layer .axa-hint:hover{transform:translateY(-2px)}
+@keyframes axaHint{from{opacity:0;transform:translateX(16px) scale(.9)}to{opacity:1;transform:none}}
+
+/* ===== Genel: geçişler, gece masası, alt menü ===== */
+
+/* sayfa geçişi: kâğıt masaya bırakılır */
+@media (prefers-reduced-motion:no-preference){
+  body.acx .dashboard-view-section.active.ax-enter{animation:axEnter .55s cubic-bezier(.2,.75,.2,1) both;transform-origin:50% 0}
+}
+@keyframes axEnter{0%{opacity:0;transform:translate(calc(var(--dir,1) * 26px),14px) rotate(calc(var(--dir,1) * .5deg))}60%{opacity:1}100%{opacity:1;transform:none}}
+
+/* tema düğmesi */
+body.acx .ax-theme svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;overflow:visible}
+body.acx .ax-theme .sun,body.acx .ax-theme .auto{display:none}
+body.acx .ax-theme[data-mode="dark"] .moon{display:none}
+body.acx .ax-theme[data-mode="dark"] .sun{display:inline}
+body.acx .ax-theme[data-mode="auto"] .auto{display:inline;font:700 8px var(--mono);fill:currentColor;stroke:none}
+body.acx .ax-theme svg{transition:transform .5s cubic-bezier(.3,1.5,.5,1)}
+body.acx .ax-theme:active svg{transform:rotate(-30deg) scale(.9)}
+
+/* üst bardaki saksılı Pomodoro sayacı */
+body.acx .axl-chip{display:inline-flex;align-items:center;gap:6px;height:38px;padding:0 6px 0 8px;margin-right:4px;border:1.5px solid #E2A33B;border-radius:999px;background:#FFF6E3;color:#5A3A16;cursor:pointer;font:inherit;animation:axChipIn .4s cubic-bezier(.3,1.5,.5,1) both}
+body.acx .axl-chip[hidden]{display:none}
+@keyframes axChipIn{from{opacity:0;transform:scale(.7)}to{opacity:1;transform:none}}
+body.acx .axl-chip .pot{width:22px;height:22px;fill:none;stroke:#1A2A5C;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;overflow:visible}
+body.acx .axl-chip .pot .pt{fill:#E7B98A}
+body.acx .axl-chip .pot .l1,body.acx .axl-chip .pot .l2{fill:#7EC996;transform-origin:12px 15px;transform:scale(var(--g,0));transition:transform 1s}
+body.acx .axl-chip .pot .sp{stroke:#3E7A4E;transform-origin:12px 15px;transform:scaleY(var(--g,0));transition:transform 1s}
+body.acx .axl-chip .t{font-size:13px;font-weight:700;letter-spacing:.02em;font-variant-numeric:tabular-nums}
+body.acx .axl-chip .pp{position:relative;width:26px;height:26px;border-radius:50%;background:#1A2A5C}
+body.acx .axl-chip .pp::before,body.acx .axl-chip .pp::after{content:'';position:absolute;top:8px;width:3px;height:10px;border-radius:1px;background:#fff}
+body.acx .axl-chip .pp::before{left:9px}body.acx .axl-chip .pp::after{left:14px}
+body.acx .axl-chip.paused .pp::before{left:10px;width:0;height:0;border-radius:0;background:none;border-style:solid;border-width:5px 0 5px 8px;border-color:transparent transparent transparent #fff}
+body.acx .axl-chip.paused .pp::after{display:none}
+body.acx .axl-chip.brk{border-color:#5B8CFF;background:#EEF3FF}
+body.acx .axl-chip.brk .pp{display:none}
+body.acx .axl-chip.paused .t{opacity:.6}
+@media (max-width:760px){body.acx .axl-chip{position:fixed;top:72px;right:12px;z-index:990;box-shadow:0 10px 18px -12px rgba(13,24,56,.7)}}
+
+/* telefon alt menüsü */
+body.acx .ax-bnav{display:none}
+@media (max-width:760px){
+  body.acx .ax-bnav{position:fixed;left:0;right:0;bottom:0;z-index:1500;display:grid;grid-template-columns:repeat(5,1fr);padding:6px 6px calc(6px + env(safe-area-inset-bottom));background:rgba(251,251,248,.97);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-top:1px solid #E1E5EE;box-shadow:0 -10px 24px -18px rgba(13,24,56,.5)}
+  body.acx .ax-bnav button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:52px;border:0;border-radius:12px;background:none;color:#5B6787;font:inherit;font-size:11px;font-weight:600;cursor:pointer;position:relative}
+  body.acx .ax-bnav svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transition:transform .25s cubic-bezier(.3,1.5,.5,1)}
+  body.acx .ax-bnav button.on{color:#0D1838}
+  body.acx .ax-bnav button.on svg{transform:translateY(-2px)}
+  body.acx .ax-bnav button.on::after{content:'';position:absolute;bottom:4px;left:30%;right:30%;height:3px;border-radius:2px;background:#2F6BFF}
+  body.acx .ax-bnav .aca svg{fill:#FFD86B;stroke:#1A2A5C}
+  body.acx .dashboard-content,body.acx .main-content,body.acx main{padding-bottom:calc(84px + env(safe-area-inset-bottom))!important}
+  body.acx #btn-acadia-toggle,body.acx .acadia-fab-wrap{display:none!important}
+  body.acx.axr-open .ax-bnav,body.acx.axa-open .ax-bnav,body.acx.exam-active .ax-bnav,html.ax-exam body.acx .ax-bnav{display:none}
+  body.acx .axr-toast,#axa-layer .axa-toast{bottom:86px!important}
+}
+
+/* ===== gece masası: kök öğe ters çevrilir; görseller ve "zaten karanlık" sahneler geri çevrilir ===== */
+html.ax-dark{filter:invert(1) hue-rotate(180deg) contrast(.94);background:#fff}
+html.ax-dark img,html.ax-dark video,html.ax-dark iframe,html.ax-dark canvas,html.ax-dark picture,html.ax-dark embed,html.ax-dark object,
+html.ax-dark .lb-plant,html.ax-dark .lb-mini,html.ax-dark .axl-chip .pot,html.ax-dark .axr-chart,html.ax-dark .axr-stage,html.ax-dark .axr-story,html.ax-dark .axr-chalk,html.ax-dark .axr-pull,
+html.ax-dark #home-view .band,html.ax-dark .axp-press,html.ax-dark .katex,html.ax-dark [style*="background-image: url"],html.ax-dark .ax-ficon,
+html.ax-dark #topbar-user-avatar,html.ax-dark .axa-mark,html.ax-dark .axa-hi svg,html.ax-dark .ax-bnav .aca svg{filter:invert(1) hue-rotate(180deg)}
+/* geri çevrilenin içindeki görsel iki kez çevrilmesin */
+html.ax-dark .axr-stage img,html.ax-dark .axr-story img,html.ax-dark #home-view .band img,html.ax-dark .axr-pull img,html.ax-dark .axr-chalk .katex,html.ax-dark .axr-story .axr-chart{filter:none}
+html.ax-dark ::selection{background:#2b4a9e;color:#fff}
+html.ax-themefx{transition:filter .6s ease}

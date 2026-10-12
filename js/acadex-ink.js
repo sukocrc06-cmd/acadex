@@ -6516,9 +6516,27 @@ var SBX = (function () {
     if (!b) { b = document.createElement('span'); b.className = 'lb-sbadge'; a.appendChild(b); }
     b.textContent = (POM.paused ? '❚❚ ' : '') + mmss(pomLeft()); b.classList.toggle('brk', POM.phase === 'break');
   };
+  /* üst bardaki saksılı sayaç: her sayfada aynı tur */
+  var chip = document.getElementById('axl-chip');
+  var chipPaint = function () {
+    if (!chip) return; if (POM.phase === 'idle') { chip.hidden = true; return; }
+    chip.hidden = false; var tot = pomTotal(), g = POM.phase === 'break' ? 1 : 1 - pomLeft() / tot;
+    chip.querySelector('[data-chip-t]').textContent = mmss(pomLeft()); chip.style.setProperty('--g', Math.max(.08, g).toFixed(3));
+    chip.classList.toggle('paused', !!POM.paused); chip.classList.toggle('brk', POM.phase === 'break');
+    var pp = chip.querySelector('[data-chip-pp]'); pp.setAttribute('aria-label', POM.paused ? 'Devam et' : 'Duraklat');
+    chip.setAttribute('aria-label', 'Pomodoro: ' + (POM.phase === 'break' ? 'mola' : POM.paused ? 'durakladı' : 'odak') + ', ' + mmss(pomLeft()) + ' kaldı. Study Lab’e git');
+  };
+  if (chip) {
+    var chipToggle = function () { if (POM.phase !== 'focus') return; if (POM.paused) { POM.paused = false; POM.endAt = Date.now() + POM.pausedLeft * 1000; } else { POM.pausedLeft = pomLeft(); POM.paused = true; } pomSave(); pomTick(); };
+    chip.addEventListener('click', function (e) {
+      if (e.target.closest('[data-chip-pp]')) { e.stopPropagation(); chipToggle(); return; }
+      if (typeof switchDashboardView === 'function') switchDashboardView('studylab'); setTimeout(function () { if (cur !== 'pomodoro') openStation('pomodoro'); }, 60);
+    });
+    chip.querySelector('[data-chip-pp]').addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); chipToggle(); } });
+  }
   var pomTick = function () {
     if (POM.phase !== 'idle' && !POM.paused && Date.now() >= POM.endAt) { pomComplete(); return; }
-    sideBadge(); if (pomUI) pomUI.paint();
+    sideBadge(); chipPaint(); if (pomUI) pomUI.paint();
     var e = stationsEl.querySelector('[data-meta="pomodoro"]'); if (e) e.textContent = metaOf(MK.pomodoro);
   };
   setInterval(pomTick, 1000);
@@ -6659,7 +6677,7 @@ var SBX = (function () {
       touch();
       if (POM.phase === 'idle') { POM.src = srcSel.value; POM.seed = seedOf(); pomStart('focus'); beep(); return; }
       if (POM.paused) { POM.paused = false; POM.endAt = Date.now() + POM.pausedLeft * 1000; }
-      else { POM.paused = true; POM.pausedLeft = pomLeft(); }
+      else { POM.pausedLeft = pomLeft(); POM.paused = true; }
       pomSave(); pomTick();
     });
     Q('[data-pskip]', st).addEventListener('click', function () {
@@ -8238,15 +8256,16 @@ var SBX = (function () {
   var VIEWS = { home: 'Bugün', docs: 'Belgelerim', cards: 'Bilgi kartları', feed: 'Bölüm akışı', planner: 'Planlayıcı', notebook: 'Çalışma defteri', sourcehub: 'Kaynakla çalış', exams: 'Sınav platformu', studylab: 'Study Lab', acadexsunum: 'Acadex sunum', sandbox: 'Geliştirici sandbox', 'sandbox-interaction': 'Sandbox paneli', settings: 'Ayarlar' };
   var modalOpen = function () { var m = document.getElementById('study-card-modal'); return !!(m && m.classList.contains('active')); };
   var openCard = function () { return modalOpen() ? lsafe(function () { return currentActiveStudyCard; }, null) : null; };
+  var VIEWNOW = null;
   var pageCtx = function () {
-    var v = lsafe(function () { return currentActiveTab; }, '') || 'home', c = openCard();
+    var v = VIEWNOW || lsafe(function () { return currentActiveTab; }, '') || 'home', c = openCard();
     return { view: c ? 'study_card_reader' : v, label: c ? 'Özet kartı' : (VIEWS[v] || v), cardId: c ? c.id : null, cardTitle: c ? baseName((c.documents && c.documents.file_name) || '') : null };
   };
   var paintCtx = function () { var p = pageCtx(); ctxEl.innerHTML = '<span class="mono">ŞU AN</span> ' + X(p.label) + (p.cardTitle ? ' · <b>' + X(cut(p.cardTitle, 40)) + '</b>' : ''); };
   var open = function () {
     if (!P.hidden) { ta.focus(); return; }
     P.hidden = false; layer.classList.add('on'); document.body.classList.add('axa-open'); paintCtx();
-    if (!log.children.length) welcome();
+    hintEl.hidden = true; if (!log.children.length || (log.children.length === 1 && log.querySelector('.axa-hi'))) welcome();
     requestAnimationFrame(function () { P.classList.add('in'); }); setTimeout(function () { ta.focus(); }, 60);
   };
   var close = function () { P.classList.remove('in'); document.body.classList.remove('axa-open'); setTimeout(function () { if (!P.classList.contains('in')) { P.hidden = true; layer.classList.remove('on'); } }, 260); };
@@ -8260,10 +8279,41 @@ var SBX = (function () {
 
   /* ---------- sohbet görünümü ---------- */
   var STARTERS = ['Bu hafta için çalışma planı kur', 'En zayıf konumdan 10 soruluk sınav hazırla', 'Son özetimden bilgi kartları çıkar', 'Tekrarı gelen kartlarım hangileri?', 'Bugün hangi yöntemle çalışayım?'];
+  /* sayfaya göre öneriler */
+  var SUG = {
+    home: ['Bugün ne çalışmalıyım?', 'Bu hafta için çalışma planı kur', 'Tekrarı gelen kartlarım hangileri?'],
+    docs: ['Özetlenmemiş belgelerimi göster ve özetle', 'Belgelerime ders etiketi ver', 'En son özetimden 10 soruluk sınav hazırla'],
+    cards: ['Son özetimden 10 bilgi kartı çıkar', 'Akıllı tekrarı başlat', 'Hangi konularda zorlanıyorum?'],
+    feed: ['Derslerime uygun paylaşımları bul', 'Bu hafta bölümümde neler paylaşıldı?'],
+    planner: ['Bu haftamı dengele', 'Yaklaşan sınavıma göre tekrar planı kur', 'Bugünkü işlerimi göster'],
+    notebook: ['Son özetimin ana fikirlerini deftere yapıştır', 'Zayıf olduğum kavramları deftere not et'],
+    sourcehub: ['Son özetimi oku ve bana 3 soru sor', 'Bu belgenin en önemli 5 kavramını açıkla'],
+    exams: ['En zayıf konumdan sınav hazırla', 'Son sınav sonucumu yorumla', 'Yanlışlarımdan bilgi kartı çıkar'],
+    studylab: ['Bugün hangi yöntemle çalışayım?', 'Feynman istasyonunu son özetimle aç', 'Bu hafta ne kadar çalıştım?'],
+    acadexsunum: ['Son özetimden 8 slaytlık sunum kurgula', 'Sunum için kurumsal tonda kurgu hazırla'],
+    study_card_reader: ['Bu özetten 5 soruluk sınav hazırla', 'Bu özetten bilgi kartı çıkar', 'Bu özetin sesli anlatımını hazırla'],
+    sandbox: ['Projem için yapılacaklar listesini deftere yaz'], 'sandbox-interaction': ['Bölümümdeki projeleri aç'], settings: ['Bu hafta için çalışma planı kur']
+  };
+  var startersFor = function (p) { var L = SUG[p && p.view] || []; return L.concat(STARTERS.filter(function (x) { return L.indexOf(x) < 0; })).slice(0, 5); };
+  /* sayfa değişince Acadia düğmesinin yanında tek bir öneri balonu (oturumda sayfa başına bir kez) */
+  var hintEl = document.createElement('button'); hintEl.type = 'button'; hintEl.className = 'axa-hint'; hintEl.hidden = true; layer.appendChild(hintEl);
+  var hinted = {}, hintT = 0;
+  var showHint = function () {
+    if (!hintEl.hidden && hintEl.getAttribute('data-v') === pageCtx().view) return;
+    clearTimeout(hintT); hintEl.hidden = true; if (!P.hidden || S.running) return;
+    var p = pageCtx(), L = SUG[p.view]; if (!L || hinted[p.view] || mobile()) return;
+    var fab = document.getElementById('btn-acadia-toggle'); if (!fab || !fab.offsetParent) return;
+    hintT = setTimeout(function () {
+      if (!P.hidden || pageCtx().view !== p.view) return; hinted[p.view] = 1;
+      var t = L[0]; hintEl.innerHTML = '<span class="k mono">ACADIA ÖNERİYOR</span><span class="t">' + X(t) + '</span><i class="x" aria-label="kapat">×</i>'; hintEl.setAttribute('data-t', t); hintEl.setAttribute('data-v', p.view); hintEl.hidden = false;
+      clearTimeout(hintT); hintT = setTimeout(function () { hintEl.hidden = true; }, 9000);
+    }, 1600);
+  };
+  hintEl.addEventListener('click', function (e) { hintEl.hidden = true; if (e.target.closest('.x')) return; open(); send(hintEl.getAttribute('data-t')); });
   var welcome = function () {
     var u = lsafe(function () { return currentUserProfile; }, null) || {}, nm = String(u.full_name || '').split(' ')[0];
     log.innerHTML = '<div class="axa-hi"><svg viewBox="0 0 64 64" aria-hidden="true"><path class="s" d="M32 6 L37 25 L56 32 L37 39 L32 58 L27 39 L8 32 L27 25 Z"/></svg><h3 class="disp">' + (nm ? 'Merhaba ' + X(nm) + ',' : 'Merhaba,') + '<br>ne yapalım?</h3><p>Belgelerin, özetlerin, planlayıcın ve sınavların üzerinde senin yerine iş yapabilirim. Silme, paylaşma ve kota harcayan işlerden önce sana sorarım.</p>' +
-      '<div class="axa-starts">' + STARTERS.map(function (s) { return '<button type="button" data-start="">' + X(s) + '</button>'; }).join('') + '</div></div>';
+      '<div class="axa-starts">' + startersFor(pageCtx()).map(function (s) { return '<button type="button" data-start="">' + X(s) + '</button>'; }).join('') + '</div></div>';
   };
   log.addEventListener('click', function (e) { var b = e.target.closest('[data-start]'); if (b) send(b.textContent); });
   var md = function (t) {
@@ -8562,8 +8612,69 @@ var SBX = (function () {
   /* eski paneli gizle; açık kalmışsa kapat */
   var old = document.getElementById('acadia-panel'); if (old) old.style.display = 'none';
   /* sayfa değişince "şu an" satırını güncelle */
-  var mo = new MutationObserver(function () { if (!P.hidden) paintCtx(); });
+  var mo = new MutationObserver(function () { if (!P.hidden) paintCtx(); else hintEl.hidden = true; });
   var scm = document.getElementById('study-card-modal'); if (scm) mo.observe(scm, { attributes: true, attributeFilter: ['class'] });
-  if (typeof switchDashboardView === 'function') { var oSw = switchDashboardView; switchDashboardView = function () { var r = oSw.apply(this, arguments); setTimeout(function () { if (!P.hidden) paintCtx(); }, 50); return r; }; window.switchDashboardView = switchDashboardView; }
+  if (typeof switchDashboardView === 'function') { var oSw = switchDashboardView; switchDashboardView = function (v) { if (typeof v === 'string') VIEWNOW = v; var r = oSw.apply(this, arguments); setTimeout(function () { if (!P.hidden) paintCtx(); else showHint(); }, 50); return r; }; window.switchDashboardView = switchDashboardView; }
+  setTimeout(showHint, 2500);
   window.__axaTools = TOOLS;
+})();
+/* ================= GENEL: sayfa geçişleri, gece masası, telefon alt menüsü ================= */
+(function () {
+  'use strict';
+  var html = document.documentElement, calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var lsafe = function (fn, fb) { try { return fn(); } catch (e) { return fb; } };
+  var G = function (k, d) { try { var v = localStorage.getItem(k); return v == null ? d : v; } catch (e) { return d; } };
+  var S = function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} };
+
+  /* ---------- sayfa geçişi: yeni sayfa masaya bırakılan kâğıt gibi gelir ---------- */
+  var ORDER = ['home', 'planner', 'notebook', 'cards', 'sourcehub', 'studylab', 'docs', 'feed', 'acadexsunum', 'exams', 'settings', 'sandbox-interaction', 'sandbox'];
+  var last = lsafe(function () { return currentActiveTab; }, 'home') || 'home';
+  if (typeof switchDashboardView === 'function') {
+    var oSw = switchDashboardView;
+    switchDashboardView = function (v) {
+      var from = last, r = oSw.apply(this, arguments);
+      if (v !== from && !calm) {
+        var sec = document.getElementById(v + '-view') || document.querySelector('.dashboard-view-section.active');
+        if (sec) {
+          var dir = ORDER.indexOf(v) >= ORDER.indexOf(from) ? 1 : -1;
+          sec.classList.remove('ax-enter'); sec.style.setProperty('--dir', dir); void sec.offsetWidth; sec.classList.add('ax-enter');
+          clearTimeout(sec._axT); sec._axT = setTimeout(function () { sec.classList.remove('ax-enter'); }, 650);
+        }
+      }
+      last = v; paintNav(v);
+      return r;
+    };
+    window.switchDashboardView = switchDashboardView;
+  }
+
+  /* ---------- gece masası (koyu tema): açık → koyu → saate göre ---------- */
+  var tb = document.getElementById('ax-theme');
+  var LBL = { light: 'Tema: açık (gece masasına geç)', dark: 'Tema: gece masası (saate göre yap)', auto: 'Tema: saate göre, 19:00–07:00 arası gece (açık temaya geç)' };
+  var applyTheme = function (anim) {
+    var t = G('acadex.theme', 'light'), h = new Date().getHours(), dark = t === 'dark' || (t === 'auto' && (h >= 19 || h < 7));
+    if (anim && !calm) { html.classList.add('ax-themefx'); setTimeout(function () { html.classList.remove('ax-themefx'); }, 700); }
+    html.classList.toggle('ax-dark', dark);
+    if (tb) { tb.setAttribute('data-mode', t); tb.setAttribute('aria-label', LBL[t]); tb.title = LBL[t]; }
+    var mc = document.querySelector('meta[name="theme-color"]'); if (mc) mc.setAttribute('content', dark ? '#06080F' : '#0D1838');
+  };
+  if (tb) tb.addEventListener('click', function () { var t = G('acadex.theme', 'light'); S('acadex.theme', t === 'light' ? 'dark' : t === 'dark' ? 'auto' : 'light'); applyTheme(true); });
+  applyTheme(false); setInterval(function () { if (G('acadex.theme', 'light') === 'auto') applyTheme(false); }, 60000);
+
+  /* ---------- telefon alt menüsü ---------- */
+  var nav = document.getElementById('ax-bnav');
+  var paintNav = function (v) {
+    if (!nav) return; v = v || lsafe(function () { return currentActiveTab; }, 'home');
+    Array.prototype.forEach.call(nav.querySelectorAll('[data-bv]'), function (b) { var on = b.getAttribute('data-bv') === v; b.classList.toggle('on', on); if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
+  };
+  if (nav) {
+    document.body.appendChild(nav);
+    nav.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-bv]'); if (!b) return; var v = b.getAttribute('data-bv');
+      if (v === 'acadia') { if (typeof window.toggleAcadiaPanel === 'function') window.toggleAcadiaPanel(); return; }
+      if (typeof window.toggleAcadiaPanel === 'function' && document.body.classList.contains('axa-open')) window.toggleAcadiaPanel(false);
+      if (typeof switchDashboardView === 'function') switchDashboardView(v);
+      try { window.scrollTo({ top: 0, behavior: calm ? 'auto' : 'smooth' }); } catch (er) {}
+    });
+    paintNav();
+  }
 })();
