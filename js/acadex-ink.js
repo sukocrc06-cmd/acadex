@@ -565,9 +565,11 @@
       sb.from('study_events').select('id, title, event_date, event_type, is_done').eq('user_id', u.id).gte('event_date', ymd(mon)).lte('event_date', ymd(sun) + 'T23:59:59').order('event_date', { ascending: true }),
       sb.from('card_item_confidence').select('study_card_id, next_review_at, repetitions').eq('user_id', u.id),
       sb.from('announcements').select('id, title, body, created_at').order('created_at', { ascending: false }).limit(2),
-      p.department ? sb.from('study_cards').select('id', { count: 'exact', head: true }).eq('is_shared', true).eq('department', p.department) : Promise.resolve({ count: 0 })
+      p.department ? sb.from('study_cards').select('id', { count: 'exact', head: true }).eq('is_shared', true).eq('department', p.department) : Promise.resolve({ count: 0 }),
+      sb.from('study_lab_sessions').select('method, minutes, created_at').eq('user_id', u.id).gte('created_at', new Date(now.getTime() - 7 * 864e5).toISOString()).order('created_at', { ascending: false }).limit(200)
     ].map(function (pr) { return Promise.resolve(pr).catch(function () { return { data: null }; }); }));
-    return { docs: (q[0].data || []).filter(function (d) { return d.status !== 'failed'; }), allDocs: q[0].data || [], cards: q[1].data || [], exams: q[2].data || [], events: q[3].data || [], conf: q[4].data || [], ann: q[5].data || [], shared: q[6].count || 0 };
+    var labS = q[7] && !q[7].error && Array.isArray(q[7].data) ? q[7].data : (function () { try { var L = JSON.parse(localStorage.getItem('acadex.lab.' + u.id + '.sess')) || []; return L.map(function (x) { return { method: x.method, minutes: x.minutes, created_at: new Date(x.at).toISOString() }; }); } catch (e) { return []; } })();
+    return { lab: labS, docs: (q[0].data || []).filter(function (d) { return d.status !== 'failed'; }), allDocs: q[0].data || [], cards: q[1].data || [], exams: q[2].data || [], events: q[3].data || [], conf: q[4].data || [], ann: q[5].data || [], shared: q[6].count || 0 };
   };
 
   var renderDesk = function (D) {
@@ -671,11 +673,13 @@
     exam: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5 H16 L19 6.5 V20.5 H6 Z"/><path d="M9 11 L10.5 12.5 L13.5 9 M9 16 H15"/></svg>'
   };
   var STYLE = { standard: 'standart', bullet: 'maddeler', structured: 'yapılandırılmış', simplified: 'sade', exam: 'sınav odaklı' };
+  var LABN = { pomodoro: 'Pomodoro', tekrar: 'Aralıklı tekrar', recall: 'Active Recall', feynman: 'Feynman', karma: 'Interleaving', harita: 'Zihin haritası', cornell: 'Cornell', loci: 'Hafıza sarayı', blurt: 'Blurting', sq3r: 'SQ3R', neden: 'Neden zinciri' };
   var renderLog = function (D) {
     var ev = [];
     D.allDocs.forEach(function (d) { ev.push({ t: d.uploaded_at, ic: 'doc', h: '<b>' + esc(baseName(d.file_name)) + '</b> yüklendi <em>' + extOf(d.file_name) + '</em>' }); });
     D.cards.forEach(function (c) { ev.push({ t: c.created_at, ic: 'card', h: '<b>Kart destesi</b> oluşturdun <em>' + esc(baseName(c.documents && c.documents.file_name)) + ' · ' + (STYLE[c.summary_style] || 'standart') + ' stil</em>' }); });
     D.exams.forEach(function (e) { if (e.completed_at) ev.push({ t: e.completed_at, ic: 'exam', h: '<b>Deneme</b> çözdün <em>' + (e.grade != null ? 'notun ' + Math.round(e.grade) : 'tamamlandı') + '</em>' }); });
+    (D.lab || []).forEach(function (l) { ev.push({ t: l.created_at, ic: 'card', h: '<b>' + esc(LABN[l.method] || 'Study Lab') + '</b> ile ' + Math.round(l.minutes) + ' dk çalıştın <em>Study Lab</em>' }); });
     ev = ev.filter(function (e) { return e.t; }).sort(function (a, b) { return new Date(b.t) - new Date(a.t); }).slice(0, 6);
     var box = $('[data-log]');
     if (!ev.length) { box.innerHTML = '<p class="tl-end hand" style="margin-top:4px">henüz bir şey yapmadın; ilk iz, ilk belgeyle düşer.</p>'; return; }
@@ -741,8 +745,14 @@
       var hr = Math.max(H0, +t[1]), row = hours.children[hr - H0];
       if (row) row.insertAdjacentHTML('beforeend', '<span class="h-ev ' + (e.event_type === 'exam' ? 'sinav' : e.event_type === 'deadline' ? 'odev' : '') + '">' + esc(e.title) + '</span>');
     });
+    var labToday = (D.lab || []).filter(function (l) { return ymd(new Date(l.created_at)) === ymd(now); });
+    labToday.forEach(function (l) {
+      var end = new Date(l.created_at), st = new Date(end.getTime() - l.minutes * 60000), hr = Math.max(H0, st.getHours()), row = hours.children[hr - H0];
+      if (row) row.insertAdjacentHTML('beforeend', '<span class="h-ev lab" title="Study Lab">' + esc(LABN[l.method] || 'Study Lab') + ' · ' + Math.round(l.minutes) + ' dk</span>');
+    });
+    var labMin = labToday.reduce(function (a, l) { return a + (Number(l.minutes) || 0); }, 0);
     var sn = $('.sched-n');
-    sn.textContent = todayEv.length ? 'bugün ' + todayEv.length + ' plan var: ' + todayEv.map(function (e) { return e.title; }).join(', ') + '.' : 'bugün planın boş. istersen bir saat ayır, gerisi kendiliğinden gelir.';
+    sn.textContent = (todayEv.length ? 'bugün ' + todayEv.length + ' plan var: ' + todayEv.map(function (e) { return e.title; }).join(', ') + '.' : 'bugün planın boş. istersen bir saat ayır, gerisi kendiliğinden gelir.') + (labMin ? ' Study Lab’de bugün ' + labMin + ' dk çalıştın.' : '');
   };
 
   var busy = false;
@@ -1490,6 +1500,26 @@
   window.addEventListener('beforeunload', function (e) {
     if (root.classList.contains('active') && lsafe(function () { return notebookHasUnsavedChanges; }, false)) { e.preventDefault(); e.returnValue = ''; }
   });
+
+  /* düz yazı: kutu yok, doğrudan kâğıdın çizgisine yazılır */
+  if (typeof insertTextBox === 'function') {
+    var origIns = insertTextBox;
+    insertTextBox = function (e) {
+      origIns.apply(this, arguments);
+      var ov = document.getElementById('notebook-overlay-container'), tb = ov && ov.lastElementChild;
+      if (!tb || !tb.classList.contains('draggable-text-box')) return;
+      var fs = parseFloat(tb.getAttribute('data-font-size')) || 16, big = Math.round(Math.max(22, fs * 1.45));
+      var mode = ['lined', 'cornell', 'grid', 'dots', 'plain'].filter(function (p) { return book.classList.contains('p-' + p); })[0] || 'lined';
+      var step = mode === 'grid' ? 24 : mode === 'dots' ? 26 : 32, off = mode === 'grid' ? 14 : mode === 'dots' ? 14 : 5;
+      var x = parseFloat(tb.style.left) || 0, y = parseFloat(tb.style.top) || 0;
+      var lineY = Math.max(off + step, Math.ceil((y - off) / step) * step + off);
+      if ((mode === 'lined') && x < 86) x = 86; if (mode === 'cornell' && x > 200 && x < 236) x = 236;
+      tb.classList.add('ax-ink-text'); tb.style.setProperty('--lh', step + 'px');
+      tb.style.left = (x - 2) + 'px'; tb.style.top = (lineY - step + Math.round(step * 0.16)) + 'px'; tb.style.fontSize = big + 'px';
+      tb.setAttribute('data-font-size', big + 'px');
+    };
+    window.insertTextBox = insertTextBox;
+  }
   /* Ctrl+S: defteri kaydet */
   document.addEventListener('keydown', function (e) {
     if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S') && root.classList.contains('active')) { e.preventDefault(); $('#btn-save-notebook').click(); }
@@ -1619,7 +1649,8 @@
     sumEl.innerHTML = (typeof formatSummaryText === 'function' ? formatSummaryText(deck.summary, deck.footnotes) : esc(deck.summary || '')) || '<p>Bu destede özet yok.</p>';
     var vb = $('[data-view-sum]'); vb.setAttribute('data-doc-id', deck.document_id); vb.setAttribute('data-doc-name', (deck.documents && deck.documents.file_name) || ''); vb.setAttribute('data-card-id', deck.id);
   };
-  $('[data-smart]').addEventListener('click', function () { var d = activeDeck(); if (d && typeof openAdaptiveReview === 'function') openAdaptiveReview(d.id, baseName(d.documents && d.documents.file_name)); });
+  var startSmart = function () { var t = $('#m-smart'); if (t) t.click(); var k = $('#ktable'); if (k) k.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' }); };
+  $('[data-smart]').addEventListener('click', startSmart);
   var paintAll = function () { paintSummary(); buildQueue(); load(); };
 
   /* ---------- çalışma masası ---------- */
@@ -1639,7 +1670,7 @@
     $$('.imprint', bigIn.parentNode).forEach(function (x) { x.remove(); });
     if (!c) {
       var cs = cardsOf(deck), done = queue.length && idx >= queue.length;
-      bigB.classList.remove('back'); setInteractive(false); judgeEl.hidden = !done; keysEl.hidden = true; jBtns.forEach(function (b) { b.disabled = true; });
+      bigB.classList.remove('back'); setInteractive(false); judgeEl.hidden = !done; keysEl.hidden = true; jBtns.forEach(function (b) { b.disabled = true; }); j4.hidden = true; j4h.hidden = true;
       if (!deck) { bigIn.innerHTML = '<span class="side">DESTE YOK</span><span class="empty-t">kart çalışmak için önce bir belgeden deste oluştur.</span><button type="button" class="first" data-new-deck="">belgeden deste oluştur →</button>'; prog.textContent = ''; }
       else if (done) {
         bigIn.innerHTML = '<span class="side">BUGÜNLÜK BU KADAR</span><span class="done-n">' + score.y + ' / ' + (score.y + score.n) + '</span><span class="a">' + (score.n ? 'kartı bildin. bilmediklerin en başa döndü, yakında yine sorulur.' : 'hepsini bildin, hepsi bir bölme ileri gitti.') + '</span><span class="note hand">' + (score.y >= score.n ? 'iyi gidiyorsun, yarın da uğra.' : 'zor kartlar böyledir; bir tur daha?') + '</span>' + (score.n ? '<button type="button" class="again" data-again="">bilmediklerimi bir daha sor</button>' : '');
@@ -1654,7 +1685,8 @@
       }
       return;
     }
-    setInteractive(true); judgeEl.hidden = false; keysEl.hidden = false; jBtns.forEach(function (b) { b.disabled = false; });
+    setInteractive(true); judgeEl.hidden = mode === 'smart'; keysEl.hidden = mode === 'smart'; jBtns.forEach(function (b) { b.disabled = false; });
+    paintJ4();
     var lvl = '<span class="lvl" aria-hidden="true">' + dots(c.box) + '</span>', kind = c.type === 'quiz' ? 'TEST SORUSU' : c.type === 'cloze' ? 'BOŞLUK' : 'SORU';
     if (!flipped) bigIn.innerHTML = '<span class="side">' + kind + '</span>' + lvl + '<span class="q">' + esc(c.front) + '</span><span class="k-hint">dokun, çevir ↻</span>';
     else bigIn.innerHTML = '<span class="side">CEVAP</span>' + lvl + '<span class="a">' + (c.cloze && c.back.indexOf(c.cloze) > -1 ? esc(c.back).replace(esc(c.cloze), '<mark>' + esc(c.cloze) + '</mark>') : esc(c.back)) + '</span><span class="k-src">— ' + esc(c.src) + (c.user ? ' · senin kartın' : '') + '</span><span class="tools"><button type="button" class="send" data-send-cur="" tabindex="-1">deftere gönder</button>' + (c.user ? '<button type="button" class="send del" data-del-cur="" tabindex="-1">sil</button>' : '') + '</span>';
@@ -1666,15 +1698,17 @@
   var load = function () { cur = idx < queue.length ? byId(queue[idx]) : null; flipped = false; face(); paintSide(); };
   var buildQueue = function () {
     var cs = cardsOf(activeDeck());
-    queue = (mode === 'due' ? cs.filter(function (c) { return c.due; }).sort(function (a, b) { return a.box - b.box || (a.conf ? 1 : 0) - (b.conf ? 1 : 0); }) : cs).slice(0, mode === 'due' ? 40 : 999).map(function (c) { return c.id; });
+    var lap = function (c) { return c.conf ? Number(c.conf.lapses) || 0 : 0; }, ov = function (c) { return c.conf && c.conf.next_review_at ? Date.now() - new Date(c.conf.next_review_at).getTime() : 0; };
+    if (mode === 'smart') queue = cs.filter(function (c) { return c.due; }).sort(function (a, b) { return lap(b) - lap(a) || a.box - b.box || ov(b) - ov(a) || (a.conf ? 0 : 1) - (b.conf ? 0 : 1); }).slice(0, 60).map(function (c) { return c.id; });
+    else queue = (mode === 'due' ? cs.filter(function (c) { return c.due; }).sort(function (a, b) { return a.box - b.box || (a.conf ? 1 : 0) - (b.conf ? 1 : 0); }) : cs).slice(0, mode === 'due' ? 40 : 999).map(function (c) { return c.id; });
     idx = 0; score = { y: 0, n: 0 }; paintTally();
   };
   var flip = function () { if (!cur || busy) return; if (reduce) { flipped = !flipped; face(); return; } bigIn.classList.add('squash'); setTimeout(function () { flipped = !flipped; face(); bigIn.classList.remove('squash'); }, 190); };
 
   /* SM-2 kaydı (Akıllı Tekrar ile aynı) */
-  var record = async function (c, knew) {
+  var record = async function (c, knew, rating) {
     var u = me(); if (!u || !sb() || typeof computeSm2 !== 'function') return;
-    var s = computeSm2(c.conf, knew ? 'good' : 'again');
+    var s = computeSm2(c.conf, rating || (knew ? 'good' : 'again'));
     var row = { user_id: u.id, study_card_id: c.deck, item_key: c.key, card_type: c.type, rating: s.rating, last_rating: s.last_rating, ease_factor: s.ease_factor, interval_days: s.interval_days, repetitions: s.repetitions, lapses: s.lapses, next_review_at: s.next_review_at, updated_at: new Date().toISOString() };
     try {
       var r = await sb().from('card_item_confidence').upsert(row, { onConflict: 'user_id,study_card_id,item_key' });
@@ -1684,11 +1718,11 @@
       paintSide(); renderBoxesKeep();
     } catch (er) { console.warn('acadex-ink: tekrar kaydedilemedi', er); say('Bu cevap kaydedilemedi; bağlantını kontrol et.'); }
   };
-  var judge = function (knew) {
+  var judge = function (knew, rating) {
     if (!cur || busy) return; busy = true;
     var c = cur, nb = knew ? Math.min(5, c.box + 1) : 1;
     if (knew) score.y++; else score.n++;
-    record(c, knew);
+    record(c, knew, rating);
     var im = document.createElement('span'); im.className = 'imprint ' + (knew ? 'yes' : 'no'); im.textContent = knew ? 'BİLİYORUM' : 'TEKRAR';
     im.style.setProperty('--ir', ((Math.random() * 16) - 8).toFixed(1) + 'deg'); im.style.left = (28 + Math.random() * 30) + '%'; im.style.top = (30 + Math.random() * 25) + '%';
     bigIn.appendChild(im);
@@ -1709,6 +1743,13 @@
       next();
     }, 420);
   };
+  var j4 = $('[data-judge4]'), j4h = $('[data-j4hint]');
+  var IVL = function (iv) { if (iv < 0.04) return '~15 dk'; if (iv < 1) return Math.round(iv * 24) + ' sa'; if (iv < 30) return Math.round(iv) + ' gün'; return Math.round(iv / 30) + ' ay'; };
+  var paintJ4 = function () {
+    var on = mode === 'smart' && !!cur; j4.hidden = !on || !flipped; j4h.hidden = !on || flipped;
+    if (on && flipped && typeof computeSm2 === 'function') ['again', 'hard', 'good', 'easy'].forEach(function (r) { var s2 = computeSm2(cur.conf, r), el = j4.querySelector('[data-iv="' + r + '"]'); if (el) el.textContent = IVL(s2.interval_days); });
+  };
+  $$('[data-r]', j4).forEach(function (b) { b.addEventListener('click', function () { var r = b.getAttribute('data-r'); b.classList.remove('press'); void b.offsetWidth; b.classList.add('press'); judge(r !== 'again', r); }); });
   var swiped = false;
   bigB.addEventListener('click', function (e) {
     if (swiped) { swiped = false; return; }
@@ -1726,6 +1767,8 @@
     if (!root.classList.contains('active')) return;
     var t = e.target; if (document.querySelector('dialog[open]') || document.querySelector('.modal-overlay.active') || /INPUT|TEXTAREA|SELECT/.test(t.tagName) || t.isContentEditable || (t.closest && t.closest('.modes'))) return;
     if (e.key === ' ' && (t === document.body || t === bigB)) { e.preventDefault(); flip(); }
+    else if (mode === 'smart' && cur && flipped && /^[1-4]$/.test(e.key)) { e.preventDefault(); judge(e.key !== '1', ['again', 'hard', 'good', 'easy'][+e.key - 1]); }
+    else if (mode === 'smart' && cur && !flipped && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) { e.preventDefault(); flip(); }
     else if (e.key === 'ArrowRight' && cur) { e.preventDefault(); judge(true); }
     else if (e.key === 'ArrowLeft' && cur) { e.preventDefault(); judge(false); }
   });
@@ -1737,14 +1780,14 @@
       window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up);
       bigB.classList.remove('dragging'); bigIn.style.transform = '';
       if (!on) return; swiped = true; setTimeout(function () { swiped = false; }, 60);
-      if (Math.abs(dx) > 90) judge(dx > 0);
+      if (Math.abs(dx) > 90) { if (mode === 'smart') { if (!flipped) flip(); else judge(dx > 0, dx > 0 ? 'good' : 'again'); } else judge(dx > 0); }
     };
     window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
   });
   var tabs = $$('[data-mode]');
   tabs.forEach(function (b, i) {
     b.addEventListener('click', function () { mode = b.getAttribute('data-mode'); tabs.forEach(function (x) { x.setAttribute('aria-selected', String(x === b)); x.tabIndex = x === b ? 0 : -1; }); $('#ktable').setAttribute('aria-labelledby', b.id); buildQueue(); load(); });
-    b.addEventListener('keydown', function (e) { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); var n = tabs[(i + 1) % 2]; n.focus(); n.click(); } });
+    b.addEventListener('keydown', function (e) { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); var n = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length]; n.focus(); n.click(); } });
   });
   fan.addEventListener('click', function (e) {
     var b = e.target.closest('.fc'); if (!b) return; var id = b.getAttribute('data-id');
@@ -1907,6 +1950,31 @@
     window.loadCardsLibrary = loadCardsLibrary;
   }
   paintAll();
+})();
+
+/* eski "Akıllı Tekrar" pencerelerini yeni kart masasına yönlendir */
+(function () {
+  var root = document.getElementById('cards-view'); if (!root || !root.classList.contains('axk')) return;
+  var go = function (cardId) {
+    if (typeof switchDashboardView === 'function' && !root.classList.contains('active')) switchDashboardView('cards');
+    var t0 = Date.now();
+    var tick = function () {
+      var L = []; try { L = libraryCards || []; } catch (e) {}
+      if (!L.length && Date.now() - t0 < 6000) { setTimeout(tick, 200); return; }
+      var id = cardId;
+      if (!id && L.length) { var best = null, bn = -1, cm = {}; try { cm = libraryConfidenceMap || {}; } catch (e) {} L.forEach(function (d) { var n = 0; for (var k in cm) if (k.indexOf(d.id + ':') === 0 && cm[k].next_review_at && new Date(cm[k].next_review_at) <= new Date()) n++; if (n > bn) { bn = n; best = d; } }); id = best && best.id; }
+      if (id && typeof selectLibraryCard === 'function') selectLibraryCard(id);
+      setTimeout(function () { var t = root.querySelector('#m-smart'); if (t) t.click(); var k = root.querySelector('#ktable'); if (k) k.scrollIntoView({ block: 'center' }); }, 150);
+    };
+    setTimeout(tick, 350);
+  };
+  ['openAdaptiveReview', 'openGlobalAdaptiveReview', 'openFlashcardViewer'].forEach(function (nm) {
+    if (typeof window[nm] !== 'function') return;
+    var f = function (cardId) { go(typeof cardId === 'string' || typeof cardId === 'number' ? String(cardId) : null); };
+    try { if (nm === 'openAdaptiveReview') openAdaptiveReview = f; else if (nm === 'openGlobalAdaptiveReview') openGlobalAdaptiveReview = f; else openFlashcardViewer = f; } catch (e) {}
+    window[nm] = f;
+  });
+  window.axKartSmart = go;
 })();
 
 /* ================= KAYNAKLA ÇALIŞ (tam tasarım, gerçek belge + özet + Acadia) =================
@@ -3046,6 +3114,44 @@
     window.loadSettingsView = loadSettingsView;
   }
   var start = null; try { start = sessionStorage.getItem('acadex.ayar.sec'); } catch (e) {}
+
+  /* ---------- tehlikeli bölge: hesabı kalıcı sil ---------- */
+  (function () {
+    var dz = $('[data-dz]'); if (!dz) return;
+    var ph = $('[data-dz-phrase]', dz), pw = $('[data-dz-pw]', dz), go = $('[data-dz-go]', dz), err = $('[data-dz-err]', dz), pwRow = $('[data-dz-pwrow]', dz);
+    var usesPw = function () { var u = me(); var p = u && u.app_metadata && (u.app_metadata.provider || ''); var ps = (u && u.app_metadata && u.app_metadata.providers) || []; return !p || p === 'email' || ps.indexOf('email') > -1; };
+    var check = function () { pwRow.hidden = !usesPw(); go.disabled = ph.value.trim().toLocaleLowerCase('tr') !== 'hesabımı sil' || (usesPw() && pw.value.length < 6); };
+    ph.addEventListener('input', check); pw.addEventListener('input', check); check();
+    var gz = $('[data-godz]'); if (gz) gz.addEventListener('click', function () { show('veri'); setTimeout(function () { dz.scrollIntoView({ behavior: 'smooth', block: 'center' }); ph.focus({ preventScroll: true }); }, 60); });
+    $('[data-dz-export]', dz).addEventListener('click', function () { var b = $('[data-export]'); if (b) b.click(); });
+    var fail = function (m) { err.textContent = m; err.hidden = false; go.disabled = false; go.textContent = 'Hesabımı kalıcı olarak sil'; };
+    go.addEventListener('click', async function () {
+      var u = me(), c = sb(); if (!u || !c || go.disabled) return;
+      err.hidden = true; go.disabled = true; go.textContent = 'siliniyor…';
+      try {
+        if (usesPw()) { var a = await c.auth.signInWithPassword({ email: u.email, password: pw.value }); if (a.error) { fail('Şifre doğru değil. Hesabın silinmedi.'); return; } }
+        /* önce dosya adlarını topla; hesap silinemezse hiçbir dosyaya dokunma */
+        var files = {};
+        for (var bk of ['documents', 'avatars']) {
+          try { var l = await c.storage.from(bk).list(u.id, { limit: 1000 }); files[bk] = ((l && l.data) || []).map(function (f) { return u.id + '/' + f.name; }); } catch (e) { files[bk] = []; }
+        }
+        var r = await c.rpc('delete_my_account');
+        if (r.error) {
+          var tried = false;
+          if (/PGRST202|42883|not find|does not exist/i.test(String(r.error.code || '') + ' ' + r.error.message)) {
+            try { var s2 = await c.auth.getSession(), tok = s2.data.session && s2.data.session.access_token;
+              var res = await fetch((typeof SUPABASE_URL !== 'undefined' ? SUPABASE_URL : '') + '/functions/v1/delete-account', { method: 'POST', headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json', apikey: typeof SUPABASE_ANON_KEY !== 'undefined' ? SUPABASE_ANON_KEY : '' } });
+              tried = res.ok; } catch (e) {}
+            if (!tried) { fail('Hesap silme bu sunucuda henüz kurulmamış (delete_my_account). Acadex yöneticisine haber ver; hesabın silinmedi.'); return; }
+          } else { console.warn('acadex-ayar: hesap silme', r.error); fail('Hesap silinemedi: ' + (r.error.message || 'bilinmeyen hata') + '. Hesabın olduğu gibi duruyor.'); return; }
+        }
+        for (var bk2 in files) { try { if (files[bk2].length) await c.storage.from(bk2).remove(files[bk2]); } catch (e) {} }
+        try { Object.keys(localStorage).forEach(function (k) { if (/^acadex/.test(k)) localStorage.removeItem(k); }); } catch (e) {}
+        await c.auth.signOut();
+        window.location.replace('index.html?accountDeleted=true');
+      } catch (e) { console.warn('acadex-ayar: hesap silme', e); fail('Bağlantı hatası; hesabın silinmedi. Tekrar dene.'); }
+    });
+  })();
   show(start && $('[data-sec="' + start + '"]') ? start : 'profil');
   paintPrefs(); paintLook();
 })();
@@ -3324,7 +3430,13 @@ var SBX = (function () {
   var isVercel = function (u) { return /^https:\/\/[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9-]+)*\.vercel\.app(\/[^\s]*)?$/i.test((u || '').trim()); };
   var isUrl = function (u) { try { var x = new URL((u || '').trim()); return /^https?:$/.test(x.protocol) && x.hostname.indexOf('.') > 0; } catch (e) { return false; } };
   var host = function (u) { try { var x = new URL(u); return x.hostname.replace(/^www\./, '') + (x.pathname !== '/' ? x.pathname : ''); } catch (e) { return u; } };
-  var liveUrl = function (p) { return (p.links && (p.links.vercel || p.links.url)) || ''; };
+  var liveUrl = function (p) {
+    var u = String((p.links && (p.links.vercel || p.links.url)) || '').trim(); if (!u) return '';
+    if (/^\/\//.test(u)) u = 'https:' + u; else if (!/^https?:\/\//i.test(u)) u = 'https://' + u.replace(/^\/+/, '');
+    u = u.replace(/^http:\/\//i, 'https://'); try { return new URL(u).href; } catch (e) { return ''; }
+  };
+  var shotUrl = function (u) { return 'https://s.wordpress.com/mshots/v1/' + encodeURIComponent(u) + '?w=1200&h=750'; };
+  var liveBar = function (u) { return '<div class="ek-livebar"><span>Boş ya da “bağlanmayı reddetti” görünüyorsa site gömülmeye izin vermiyordur.</span><a href="' + X(u) + '" target="_blank" rel="noopener noreferrer">yeni sekmede aç ↗</a></div>'; };
   var GHK = 'acadex.etk.gh', ghCache = G(GHK, {});
   var gh = function (repo) {
     var c = ghCache[repo]; if (c && Date.now() - c.at < 36e5) return Promise.resolve(c.d);
@@ -3385,7 +3497,7 @@ var SBX = (function () {
     o = o || {}; var u = person(p.by), live = liveUrl(p), repo = ghParse(p.links && p.links.github), addr = live ? host(live) : (p.snap ? 'sandbox://' + slugify(p.title) : repo ? 'github.com/' + repo : 'acadex://' + slugify(p.title));
     var view;
     if (p.snap && !live) view = '<div class="ek-view ek-sc" data-snapw="" data-dev="desk"><div class="ek-stage"><iframe class="ek-frame" title="' + X(p.title) + ' önizlemesi" sandbox="allow-scripts" data-snap="' + p.id + '" loading="lazy" tabindex="-1"></iframe></div>' + (o.preview ? '' : '<button type="button" class="ek-shield" data-shield=""><span>tıkla ve dene</span></button>') + '</div>';
-    else if (live) view = '<div class="ek-view ek-live"><div class="ek-poster"><span class="ek-pk">' + (KIND_SVG[p.kind] ? '<svg viewBox="0 0 24 24" aria-hidden="true">' + KIND_SVG[p.kind] + '</svg>' : '') + '</span><b>' + X(p.title) + '</b><span>' + X(host(live)) + '</span>' + (o.preview ? '' : '<button type="button" class="btn btn-blue" data-golive="">canlı aç</button>') + '<small>bazı siteler gömülmeye izin vermez; o zaman “yeni sekmede aç”.</small></div></div>';
+    else if (live) view = '<div class="ek-view ek-live"><div class="ek-poster"><span class="ek-pk">' + (KIND_SVG[p.kind] ? '<svg viewBox="0 0 24 24" aria-hidden="true">' + KIND_SVG[p.kind] + '</svg>' : '') + '</span><b>' + X(p.title) + '</b><span>' + X(host(live)) + '</span>' + (o.preview ? '' : '<span class="ek-lacts"><button type="button" class="btn btn-blue" data-golive="">canlı dene</button><a class="ek-newtab" href="' + X(live) + '" target="_blank" rel="noopener noreferrer">yeni sekmede aç ↗</a></span>') + '</div><img class="ek-shot" src="' + X(shotUrl(live)) + '" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()"></div>';
     else if (p.image) view = '<div class="ek-view ek-img"><img src="' + X(p.image) + '" alt="' + X(p.title) + ' kapak fotoğrafı" loading="lazy"></div>';
     else if (repo) view = '<div class="ek-view ek-ghv"><div data-gh="' + X(repo) + '"></div></div>';
     else view = '<div class="ek-view ek-none"><p class="hand">bu gönderide önizleme yok.</p></div>';
@@ -3544,7 +3656,7 @@ var SBX = (function () {
     (Q('[data-ctitle]').value ? Q('[data-ctext]') : Q('[data-ctitle]')).focus();
   };
 
-  return { fitFrames: fitFrames, watchFrames: watchFrames, fitOne: fitOne, cleanText: cleanText, emptyLines: emptyLines, X: X, PPL: PPL, KINDS: KINDS, REACT: REACT, KIND_SVG: KIND_SVG, ghParse: ghParse, liveUrl: liveUrl, host: host, gh: gh, hydrateGh: hydrateGh, buildSingle: buildSingle, postHTML: postHTML, fillSnaps: fillSnaps, mine: mine, saveMine: saveMine, upsert: upsert, open: open, ago: ago, calm: calm, uid: uid };
+  return { liveBar: liveBar, shotUrl: shotUrl, fitFrames: fitFrames, watchFrames: watchFrames, fitOne: fitOne, cleanText: cleanText, emptyLines: emptyLines, X: X, PPL: PPL, KINDS: KINDS, REACT: REACT, KIND_SVG: KIND_SVG, ghParse: ghParse, liveUrl: liveUrl, host: host, gh: gh, hydrateGh: hydrateGh, buildSingle: buildSingle, postHTML: postHTML, fillSnaps: fillSnaps, mine: mine, saveMine: saveMine, upsert: upsert, open: open, ago: ago, calm: calm, uid: uid };
   })();
 
   /* ================= SANDBOX ETKİLEŞİM PANELİ · akış ================= */
@@ -3682,7 +3794,7 @@ var SBX = (function () {
     if ((b = e.target.closest('[data-rp]'))) { var f = post.querySelector('[data-cf]'), to = f.querySelector('[data-to]'), cid = b.getAttribute('data-rp'), c = withMine(p).cm.filter(function (x) { return x.id === cid; })[0]; f.setAttribute('data-reply', cid); to.hidden = false; to.innerHTML = 'yanıt: ' + X(c.by === 'me' ? 'kendine' : SBX.person(c.by).n) + ' <button type="button" data-unrp="">vazgeç</button>'; f.querySelector('input[type=text]').focus(); return; }
     if (e.target.closest('[data-unrp]')) { var f2 = post.querySelector('[data-cf]'); f2.removeAttribute('data-reply'); f2.querySelector('[data-to]').hidden = true; f2.querySelector('input[type=text]').focus(); return; }
     if (e.target.closest('[data-more]')) { var o = post.classList.toggle('open'); var mb = e.target.closest('[data-more]'); mb.setAttribute('aria-expanded', String(o)); mb.textContent = o ? 'daha az göster' : '…devamını gör'; return; }
-    if (e.target.closest('[data-golive]')) { var v = post.querySelector('.ek-live'), url = ETK.liveUrl(p); v.classList.add('ek-sc'); v.setAttribute('data-dev', post.querySelector('[data-devb=phone][aria-pressed=true]') ? 'phone' : 'desk'); v.innerHTML = '<div class="ek-stage"><iframe class="ek-frame" title="' + X(p.title) + ' canlı" src="' + X(url) + '" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" referrerpolicy="no-referrer"></iframe></div>'; v.removeAttribute('data-ro'); ETK.watchFrames(post); return; }
+    if (e.target.closest('[data-golive]')) { var v = post.querySelector('.ek-live'), url = ETK.liveUrl(p); v.classList.add('ek-sc'); v.setAttribute('data-dev', post.querySelector('[data-devb=phone][aria-pressed=true]') ? 'phone' : 'desk'); if (!url) return; v.innerHTML = '<div class="ek-stage"><iframe class="ek-frame" title="' + X(p.title) + ' canlı" src="' + X(url) + '" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer" loading="eager"></iframe></div>' + ETK.liveBar(url); v.removeAttribute('data-ro'); ETK.watchFrames(post); return; }
     if ((b = e.target.closest('[data-shield]'))) { var vf = b.parentNode.querySelector('iframe'); b.remove(); if (vf) { vf.removeAttribute('tabindex'); vf.focus(); } return; }
     if ((b = e.target.closest('[data-devb]'))) { var dv = b.getAttribute('data-devb'), vw = post.querySelector('.ek-view'); QA('[data-devb]', post).forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); if (vw) { vw.setAttribute('data-dev', dv); ETK.fitOne(vw); } return; }
     if (e.target.closest('[data-reload]')) { var fr = post.querySelector('.ek-view iframe'); if (fr) { if (fr.hasAttribute('srcdoc')) { var sd = fr.srcdoc; fr.srcdoc = ''; fr.srcdoc = sd; } else fr.src = fr.src; } return; }
@@ -6084,12 +6196,24 @@ var SBX = (function () {
     { k: 'harita', n: 'Zihin haritası', st: 'mürekkep dalları', c: '#5B8CFF', one: 'Konuyu merkezden dallanan bir haritaya dök; bölümler arasındaki bağlar görünür olur.',
       how: ['Merkeze konuyu koy.', 'Ana başlıkları dal, ayrıntıları yaprak yap.', 'Kendi bağlantılarını ekle, sürükleyerek düzenle.'], cite: 'Kaynak: Tony Buzan’ın 1970’lerde yaygınlaştırdığı zihin haritası yaklaşımı.' },
     { k: 'cornell', n: 'Cornell not sistemi', st: 'üçe bölünmüş sayfa', c: '#6A4FA8', one: 'Sayfayı ipucu, not ve özet olarak böl; sonra ipuçlarıyla kendini sına.',
-      how: ['Sağa notlarını yaz.', 'Sola her not için bir ipucu sorusu koy.', 'Altta 2–3 cümlelik özet; sonra notları kapatıp sına.'], cite: 'Kaynak: Walter Pauk, How to Study in College (1962), Cornell Üniversitesi.' }
+      how: ['Sağa notlarını yaz.', 'Sola her not için bir ipucu sorusu koy.', 'Altta 2–3 cümlelik özet; sonra notları kapatıp sına.'], cite: 'Kaynak: Walter Pauk, How to Study in College (1962), Cornell Üniversitesi.' },
+    { k: 'loci', n: 'Hafıza sarayı', st: 'hafıza odası', c: '#B4581F', one: 'Kavramları odadaki eşyalara yerleştir; sonra odada gezerek hatırla. Ezber dersleri için çok güçlü.',
+      how: ['Sağdan bir kavram seç, odada bir eşyaya koy.', 'Eşyayla kavramı abartılı bir görüntüyle eşleştir.', 'Kapıdan gir, her durakta ne bıraktığını hatırla.'], cite: 'Kaynak: Simonides’e atfedilen loci yöntemi; Yates, The Art of Memory (1966).' },
+    { k: 'blurt', n: 'Blurting', st: 'boş sayfa', c: '#D9677F', one: 'Kitaba bakmadan hatırladığın her şeyi boş sayfaya dök; özetinle kıyasla, eksikler kırmızı kalemle belirir.',
+      how: ['Süreyi seç, yazmaya başla.', 'Aklına gelen her şeyi dök; sıra önemli değil.', 'Özetinle kıyasla; unuttuklarını tekrar et.'], cite: 'Serbest hatırlama (free recall) araştırmalarına dayanır; ör. Karpicke ve Blunt (2011).' },
+    { k: 'sq3r', n: 'SQ3R okuma', st: 'beş çekmeceli masa', c: '#0F7C8A', one: 'Göz at, soru sor, oku, anlat, gözden geçir. Özetini beş adımda okursun; her adım bir çekmece.',
+      how: ['Göz at ve başlıkları soruya çevir.', 'Okurken cevapları kısaca not al.', 'Özete bakmadan anlat, sonra gözden geçir.'], cite: 'Kaynak: Francis P. Robinson, Effective Study (1946).' },
+    { k: 'neden', n: 'Neden zinciri', st: 'halka halka', c: '#6E7F16', one: 'Her bilgiye “neden?” ve “nasıl?” diye sorarak zincir kur; Acadia her halkada bir sonraki soruyu sorar.',
+      how: ['Özetinden bir bilgi seç.', 'Acadia’nın sorusunu kendi cümlelerinle cevapla.', '4–5 halkada konu oturur; zinciri deftere yapıştır.'], cite: 'Kaynak: elaborative interrogation; Pressley ve ark. (1987), Dunlosky ve ark. (2013).' }
   ];
   var MK = {}; M.forEach(function (m, i) { m.i = i; MK[m.k] = m; });
 
   /* istasyon çizimleri */
   var ART = {
+    loci: '<svg viewBox="0 0 200 150" class="lb-art a-lo" aria-hidden="true"><path class="wl" d="M20 20 H180 V110 H20 Z"/><path class="fl" d="M20 110 H180 L192 144 H8 Z"/><path class="dr" d="M30 50 H56 V110 H30 Z"/><path class="wn" d="M84 34 H124 V70 H84 Z M104 34 V70 M84 52 H124"/><path class="lp" d="M150 30 V46 M140 46 H160 L166 60 H134 Z"/><path class="tb" d="M136 84 H178 V90 H136 Z M140 90 V110 M174 90 V110"/><path class="wk" pathLength="1" d="M44 96 C70 70 92 60 104 56 C130 52 146 58 150 64 C156 80 160 84 156 88"/><circle class="pin p1" cx="44" cy="96" r="5"/><circle class="pin p2" cx="104" cy="56" r="5"/><circle class="pin p3" cx="150" cy="64" r="5"/><circle class="pin p4" cx="156" cy="88" r="5"/></svg>',
+    blurt: '<svg viewBox="0 0 200 150" class="lb-art a-bl" aria-hidden="true"><path class="pg" d="M40 12 H160 V142 H40 Z"/><path class="wr w1" pathLength="1" d="M52 32 C70 28 90 34 112 30 S140 30 148 32"/><path class="wr w2" pathLength="1" d="M52 50 C66 46 84 52 100 48 S126 48 136 50"/><path class="wr w3" pathLength="1" d="M52 68 C68 64 92 70 120 66"/><path class="wr w4" pathLength="1" d="M52 86 C64 82 80 88 96 84 S118 84 128 86"/><path class="rd" pathLength="1" d="M60 106 C80 100 110 112 140 104 M56 118 L66 128 L86 108"/><path class="pen" d="M150 120 L178 92 L184 98 L156 126 Z"/></svg>',
+    sq3r: '<svg viewBox="0 0 200 150" class="lb-art a-sq" aria-hidden="true"><path class="cb" d="M40 14 H160 V140 H40 Z"/><g class="dw d1"><path d="M46 20 H154 V42 H46 Z"/><path class="kn" d="M92 31 H108"/><text x="56" y="36">S</text></g><g class="dw d2"><path d="M46 44 H154 V66 H46 Z"/><path class="kn" d="M92 55 H108"/><text x="56" y="60">Q</text></g><g class="dw d3"><path d="M46 68 H154 V90 H46 Z"/><path class="kn" d="M92 79 H108"/><text x="56" y="84">R</text></g><g class="dw d4"><path d="M46 92 H154 V114 H46 Z"/><path class="kn" d="M92 103 H108"/><text x="56" y="108">R</text></g><g class="dw d5"><path d="M46 116 H154 V136 H46 Z"/><path class="kn" d="M92 126 H108"/><text x="56" y="131">R</text></g></svg>',
+    neden: '<svg viewBox="0 0 200 150" class="lb-art a-nz" aria-hidden="true"><ellipse class="rg r1" cx="40" cy="110" rx="20" ry="12" transform="rotate(-30 40 110)"/><ellipse class="rg r2" cx="72" cy="88" rx="20" ry="12" transform="rotate(-30 72 88)"/><ellipse class="rg r3" cx="104" cy="66" rx="20" ry="12" transform="rotate(-30 104 66)"/><ellipse class="rg r4" cx="136" cy="44" rx="20" ry="12" transform="rotate(-30 136 44)"/><text class="qm" x="160" y="34">?</text><text class="qm q2" x="176" y="20">?</text></svg>',
     pomodoro: '<svg viewBox="0 0 200 150" class="lb-art a-pom" aria-hidden="true"><circle class="glow" cx="128" cy="44" r="20"/><path class="d d1" pathLength="1" d="M128 118 C126 100 132 90 128 76 C124 64 131 54 128 44"/><path class="d d2" pathLength="1" d="M128 98 C116 90 104 92 96 100 C106 108 120 106 128 98 Z"/><path class="d d3" pathLength="1" d="M129 78 C140 70 152 71 160 78 C151 87 138 87 129 78 Z"/><g class="fl"><path d="M128 44 C121 35 122 26 128 21 C134 26 135 35 128 44 Z"/><path d="M128 44 C121 35 122 26 128 21 C134 26 135 35 128 44 Z" transform="rotate(72 128 44)"/><path d="M128 44 C121 35 122 26 128 21 C134 26 135 35 128 44 Z" transform="rotate(144 128 44)"/><path d="M128 44 C121 35 122 26 128 21 C134 26 135 35 128 44 Z" transform="rotate(216 128 44)"/><path d="M128 44 C121 35 122 26 128 21 C134 26 135 35 128 44 Z" transform="rotate(288 128 44)"/><circle cx="128" cy="44" r="4.5"/></g><path class="pot" d="M100 118 H156 V126 H100 Z M104 126 L110 146 H146 L152 126"/><circle class="tm" cx="54" cy="96" r="32"/><path class="tw" d="M54 96 L54 72 A24 24 0 0 1 75 108 Z"/><path class="tm" d="M54 64 V58 M46 58 H62"/><path class="hand2" d="M54 96 L54 76"/></svg>',
     tekrar: '<svg viewBox="0 0 200 150" class="lb-art a-lt" aria-hidden="true"><path class="lid" d="M24 62 L176 62 L170 44 L30 44 Z"/><path class="bx" d="M20 66 H180 V132 H20 Z"/><path class="sep" d="M52 66 V132 M84 66 V132 M116 66 V132 M148 66 V132"/><rect class="cd c1" x="26" y="54" width="20" height="28" rx="2"/><rect class="cd c2" x="58" y="58" width="20" height="28" rx="2"/><rect class="cd c3" x="90" y="60" width="20" height="28" rx="2"/><rect class="cd hop" x="58" y="54" width="20" height="28" rx="2"/><text x="36" y="124">1</text><text x="68" y="124">2</text><text x="100" y="124">3</text><text x="132" y="124">4</text><text x="164" y="124">5</text></svg>',
     recall: '<svg viewBox="0 0 200 150" class="lb-art a-rc" aria-hidden="true"><path class="pg" d="M36 26 H164 V136 H36 Z"/><path class="ln" d="M48 48 H112 M48 64 H104 M48 84 H116 M48 100 H100 M48 118 H110"/><path class="ans" d="M124 46 H154 M124 62 H150 M124 82 H156 M124 98 H148 M124 116 H152"/><g class="cover"><path d="M120 30 H162 V132 H120 Z"/><text x="126" y="86">kapalı</text></g><path class="pen" d="M70 140 L96 112 L102 116 L76 144 Z"/></svg>',
@@ -6211,7 +6335,7 @@ var SBX = (function () {
       stationsEl.innerHTML = M.map(function (m, i) {
         return '<li class="lb-st s-' + m.k + '" style="--mc:' + m.c + ';--r:' + (((i * 37) % 7) - 3) * 0.35 + 'deg;--i:' + i + '"><button type="button" class="lb-stb" data-open="' + m.k + '" aria-describedby="lb-d-' + m.k + '">' +
           '<span class="lb-art-w">' + ART[m.k] + '</span><span class="lb-tag hand">' + X(m.st) + '</span>' +
-          '<span class="lb-no mono">' + p2(i + 1) + (i > 3 ? ' · yeni' : '') + '</span><strong class="disp">' + X(m.n) + '</strong><span class="lb-one" id="lb-d-' + m.k + '">' + X(m.one) + '</span>' +
+          '<span class="lb-no mono">' + p2(i + 1) + (i > 6 ? ' · yeni' : '') + '</span><strong class="disp">' + X(m.n) + '</strong><span class="lb-one" id="lb-d-' + m.k + '">' + X(m.one) + '</span>' +
           '<span class="lb-meta hand" data-meta="' + m.k + '"></span><span class="lb-go">istasyonu aç →</span></button></li>';
       }).join('');
     }
@@ -6224,6 +6348,8 @@ var SBX = (function () {
   /* ---------- deney defteri ---------- */
   var DAYS = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
   var paintLog = function () {
+    if (typeof paintSera === 'function') { try { paintSera(); } catch (e) { console.warn('acadex-lab: sera', e); } }
+    if (typeof paintRx === 'function') { try { paintRx(); } catch (e) { console.warn('acadex-lab: reçete', e); } }
     Q('[data-logsrc]').textContent = OK.sess ? 'hesabına kaydediliyor' : 'yalnızca bu tarayıcıda (tablo kurulmamış)';
     var mon = monday(), cols = [], max = 30;
     for (var i = 0; i < 7; i++) { var a = mon + i * 864e5, b = a + 864e5, per = {}; SESS.forEach(function (s) { if (s.at >= a && s.at < b) per[s.method] = (per[s.method] || 0) + s.minutes; }); var tot = 0; for (var k in per) tot += per[k]; max = Math.max(max, tot); cols.push({ per: per, tot: tot, today: ymd(a) === ymd(Date.now()) }); }
@@ -6747,8 +6873,340 @@ var SBX = (function () {
     load();
     return { onSrc: load, close: function () { clearTimeout(sT); if (data) putItem('cornell', deck ? deck.id : 'serbest', data.title, data); } };
   };
+
+  /* ================= ortak: kavram çıkarımı ================= */
+  var conceptsOf = function (deck) {
+    if (!deck) return [];
+    var out = [], seen = {};
+    var add = function (t, kind, def) { t = stripMd(t).replace(/[.:;]+$/, '').trim(); if (!t || t.length < 2 || t.length > 70) return; var k = norm(t); if (seen[k]) return; seen[k] = 1; out.push({ t: t, kind: kind, def: def || '' }); };
+    arr(deck.key_terms).forEach(function (x) { add(x.term, 'kavram', stripMd(x.definition || '')); });
+    arr(deck.sections).forEach(function (sc) { add(txt(sc.heading || sc.title), 'başlık', stripMd(sc.summary || '')); });
+    return out;
+  };
+  var mentioned = function (text, concept) {
+    var nt = ' ' + norm(text) + ' ', words = norm(concept).split(' ').filter(function (w) { return w.length > 2; });
+    if (!words.length) return false;
+    var hit = words.filter(function (w) { return nt.indexOf(' ' + w.slice(0, Math.max(4, Math.min(6, w.length - 1)))) > -1; }).length;
+    return hit / words.length >= (words.length > 2 ? 0.6 : 0.99);
+  };
+  var keyPoints = function (deck) {
+    if (!deck) return [];
+    var kp = arr(deck.key_points).map(txt).filter(Boolean);
+    arr(deck.sections).forEach(function (sc) { arr(sc.key_points).map(txt).forEach(function (x) { if (x) kp.push(x); }); });
+    arr(deck.key_terms).forEach(function (t) { if (t && t.term && t.definition) kp.push(stripMd(t.term) + ': ' + stripMd(t.definition)); });
+    return kp.filter(function (x, i) { return kp.indexOf(x) === i; }).slice(0, 30);
+  };
+
+  /* ================= 08 HAFIZA SARAYI · oda ================= */
+  var SPOTS = [
+    { k: 'kapi', n: 'kapı', x: 90, y: 300 }, { k: 'aski', n: 'askılık', x: 215, y: 215 }, { k: 'kitap', n: 'kitaplık', x: 365, y: 170 },
+    { k: 'pencere', n: 'pencere', x: 540, y: 130 }, { k: 'lamba', n: 'lamba', x: 705, y: 175 }, { k: 'masa', n: 'çalışma masası', x: 760, y: 360 },
+    { k: 'saksi', n: 'saksı', x: 900, y: 300 }, { k: 'koltuk', n: 'koltuk', x: 560, y: 430 }, { k: 'hali', n: 'halı', x: 330, y: 470 }
+  ];
+  var ROOM = '<svg viewBox="0 0 1000 560" class="lb-room" aria-hidden="true">' +
+    '<path class="wall" d="M20 40 H980 V400 H20 Z"/><path class="floor" d="M20 400 H980 L1000 550 H0 Z"/><path class="ln" d="M20 400 H980"/>' +
+    '<g class="door"><path d="M50 160 H140 V400 H50 Z"/><circle cx="126" cy="290" r="5"/></g>' +
+    '<g class="rack"><path d="M215 140 V400 M190 400 H240"/><path d="M200 165 L230 165 M215 150 L198 178 M215 150 L232 178"/><path class="coat" d="M198 178 C190 220 194 250 204 262 H226 C236 250 240 220 232 178 Z"/></g>' +
+    '<g class="shelf"><path d="M300 90 H430 V400 H300 Z"/><path d="M300 170 H430 M300 250 H430 M300 330 H430"/><path class="bk" d="M312 110 V168 M326 120 V168 M338 104 V168 M360 116 V168 M318 190 V248 M340 196 V248 M372 186 V248 M396 200 V248"/></g>' +
+    '<g class="win"><path d="M470 70 H610 V220 H470 Z"/><path d="M540 70 V220 M470 145 H610"/><path class="sky" d="M474 74 H536 V141 H474 Z"/></g>' +
+    '<g class="lamp"><path d="M705 70 V120"/><path class="sh" d="M680 120 H730 L745 160 H665 Z"/><path class="glow" d="M665 160 L600 330 H810 L745 160 Z"/></g>' +
+    '<g class="desk"><path d="M660 330 H880 V345 H660 Z"/><path d="M675 345 V420 M865 345 V420"/><path class="pc" d="M720 290 H800 V330 H720 Z"/></g>' +
+    '<g class="plant"><path class="pot" d="M880 330 H930 L922 390 H888 Z"/><path d="M905 330 C900 300 890 280 875 270 M905 330 C910 296 925 280 940 274 M905 330 V284"/></g>' +
+    '<g class="sofa"><path d="M470 400 C470 370 650 370 650 400 V460 H470 Z"/><path d="M460 410 H480 V470 H460 Z M640 410 H660 V470 H640 Z"/></g>' +
+    '<ellipse class="rug" cx="330" cy="485" rx="150" ry="40"/>' +
+    '<path class="walk" pathLength="1" d="M90 330 C150 260 200 240 215 230 C280 210 330 190 365 185 C450 160 500 150 540 145 C620 150 670 170 705 190 C740 260 760 320 760 360 C820 360 870 320 900 315 C840 420 700 440 560 440 C470 450 400 470 330 480"/>' +
+    '</svg>';
+  var TOOLS_LOCI = function (st) {
+    var deck = null, data = null, pickItem = null, tour = -1, score = { y: 0, n: 0 }, sT = 0;
+    st.innerHTML = '<div class="lb-loci"><div class="lb-locibar"><div class="lb-seg" role="radiogroup" aria-label="Kip"><button type="button" role="radio" aria-checked="true" data-lm="place">yerleştir</button><button type="button" role="radio" aria-checked="false" data-lm="walk">odada gez</button></div><span class="lb-sp"></span><button type="button" class="lb-lnk" data-lauto="">otomatik yerleştir</button><button type="button" class="lb-lnk" data-lclear="">odayı boşalt</button></div>' +
+      '<div class="lb-locigrid"><div class="lb-roomw"><div class="lb-roomin">' + ROOM + '<div class="lb-spots" data-spots=""></div></div><p class="lb-tip hand" data-ltip=""></p></div>' +
+      '<aside class="lb-locis"><h3 class="lb-k" data-lsh="">yerleştirilecekler</h3><ul class="lb-litems" data-litems=""></ul><div class="lb-lwalk" data-lwalk="" hidden></div></aside></div></div>';
+    var mode = 'place';
+    var items = function () { return conceptsOf(deck).filter(function (c) { return c.def; }).slice(0, 18); };
+    var placedIn = function (spot) { return data && data.place ? data.place[spot] : null; };
+    var save = function () { clearTimeout(sT); sT = setTimeout(function () { putItem('loci', deck ? deck.id : 'serbest', deck ? baseName(deck.documents && deck.documents.file_name) : 'serbest', data); }, 500); };
+    var paint = function () {
+      var sp = Q('[data-spots]', st), placedTs = {};
+      SPOTS.forEach(function (s) { var p = placedIn(s.k); if (p) placedTs[norm(p.t)] = 1; });
+      sp.innerHTML = SPOTS.map(function (s, i) {
+        var p = placedIn(s.k), now = mode === 'walk' && tour === i, done = mode === 'walk' && tour > i;
+        return '<button type="button" class="lb-spot' + (p ? ' has' : '') + (now ? ' now' : '') + (done ? ' done' : '') + (pickItem && !p ? ' drop' : '') + '" data-spot="' + s.k + '" style="left:' + (s.x / 10) + '%;top:' + (s.y / 5.6) + '%" aria-label="' + X(s.n + (p && mode === 'place' ? ': ' + p.t : '')) + '"><i class="mono">' + (i + 1) + '</i>' + (p && (mode === 'place' || done) ? '<span class="hand">' + X(cut(p.t, 22)) + '</span>' : '<span class="nm">' + X(s.n) + '</span>') + '</button>';
+      }).join('');
+      var L = items();
+      Q('[data-litems]', st).innerHTML = mode !== 'place' ? '' : L.length ? L.map(function (c, i) { var on = placedTs[norm(c.t)]; return '<li><button type="button" class="lb-li' + (on ? ' on' : '') + (pickItem && pickItem.t === c.t ? ' pick' : '') + '" data-li="' + i + '"' + (on ? ' disabled' : '') + '><b>' + X(c.t) + '</b><small>' + X(cut(c.def, 70)) + '</small></button></li>'; }).join('') : '<li class="hand none">bu özette tanımlı kavram yok; Bilgi kartlarından kavram ekleyince buraya gelir.</li>';
+      Q('[data-lsh]', st).textContent = mode === 'place' ? 'yerleştirilecekler' : 'odada gezinti';
+      Q('[data-ltip]', st).textContent = mode === 'place' ? (pickItem ? '“' + cut(pickItem.t, 30) + '” için odada bir yer seç.' : 'Sağdan bir kavram seç, sonra odada bir eşyaya koy. Eşyayı abartılı bir görüntüyle hayal et.') : (tour < 0 ? 'Kapıdan gir; her durakta orada ne bıraktığını hatırla.' : tour >= SPOTS.length ? 'Gezinti bitti.' : '');
+      Q('[data-lwalk]', st).hidden = mode !== 'walk'; if (mode === 'walk') paintWalk();
+      st.querySelector('.lb-room').classList.toggle('walking', mode === 'walk' && tour >= 0);
+    };
+    var stops = function () { return SPOTS.map(function (s, i) { return { s: s, i: i, p: placedIn(s.k) }; }).filter(function (x) { return x.p; }); };
+    var paintWalk = function () {
+      var w = Q('[data-lwalk]', st), S2 = stops();
+      if (!S2.length) { w.innerHTML = '<p class="hand">Önce odaya birkaç kavram yerleştir.</p>'; return; }
+      var at = S2.filter(function (x) { return x.i >= tour; })[0];
+      if (tour < 0) { w.innerHTML = '<p>' + S2.length + ' durak var. Her durakta bıraktığın kavramı ve anlamını hatırlamaya çalış.</p><button type="button" class="btn btn-dark" data-lstart="">kapıdan gir</button>'; return; }
+      if (!at) { w.innerHTML = '<p class="lb-lres hand">' + score.y + ' / ' + (score.y + score.n) + ' durakta hatırladın.</p><button type="button" class="btn btn-dark" data-lstart="">bir tur daha</button>'; return; }
+      w.innerHTML = '<p class="mono lb-lstop">' + (at.i + 1) + '. durak · ' + X(at.s.n) + '</p><label class="vh" for="lw-a">Burada ne vardı?</label><textarea id="lw-a" rows="3" class="hand" placeholder="burada ne bırakmıştın?"></textarea>' +
+        '<div class="lb-lrev" hidden><b>' + X(at.p.t) + '</b><p>' + X(at.p.def) + '</p></div><div class="lb-lbtns"><button type="button" class="hbtn" data-lshow="">bak</button><button type="button" class="lb-yes" data-lok="1" hidden>✓ hatırladım</button><button type="button" class="lb-no" data-lok="0" hidden>✗ unutmuşum</button></div>';
+      tour = at.i; var ta = w.querySelector('textarea'); if (ta) ta.focus({ preventScroll: true });
+    };
+    var load = function () {
+      deck = deckById(srcSel.value); pickItem = null; tour = -1; score = { y: 0, n: 0 };
+      if (!deck && !(DECKS || []).length) { st.querySelector('.lb-locigrid').innerHTML = noDecks(); return; }
+      getItem('loci', deck ? deck.id : 'serbest').then(function (d) { data = d && d.place ? d : { place: {} }; paint(); });
+    };
+    st.addEventListener('click', function (e) {
+      var b;
+      if ((b = e.target.closest('[data-lm]'))) { mode = b.getAttribute('data-lm'); tour = -1; score = { y: 0, n: 0 }; pickItem = null; QA('[data-lm]', st).forEach(function (x) { x.setAttribute('aria-checked', String(x === b)); }); paint(); return; }
+      if ((b = e.target.closest('[data-li]'))) { var c = items()[+b.getAttribute('data-li')]; pickItem = pickItem && pickItem.t === c.t ? null : c; paint(); return; }
+      if ((b = e.target.closest('[data-spot]')) && mode === 'place') {
+        var k = b.getAttribute('data-spot'); touch();
+        if (pickItem) { data.place[k] = { t: pickItem.t, def: pickItem.def }; pickItem = null; save(); paint(); var nb = st.querySelector('[data-spot="' + k + '"]'); if (nb && !calm) nb.classList.add('pop'); }
+        else if (placedIn(k)) { var was = data.place[k]; delete data.place[k]; save(); paint(); say('“' + cut(was.t, 30) + '” ' + (SPOTS.filter(function (s) { return s.k === k; })[0] || {}).n + ' üzerinden kaldırıldı.', function () { data.place[k] = was; save(); paint(); }); }
+        return;
+      }
+      if (e.target.closest('[data-lauto]')) { var L = items(), free = SPOTS.filter(function (s) { return !placedIn(s.k); }), used = {}; SPOTS.forEach(function (s) { var p = placedIn(s.k); if (p) used[norm(p.t)] = 1; }); L.filter(function (c) { return !used[norm(c.t)]; }).slice(0, free.length).forEach(function (c, i) { data.place[free[i].k] = { t: c.t, def: c.def }; }); touch(); save(); paint(); return; }
+      if (e.target.closest('[data-lclear]')) { var old = JSON.parse(JSON.stringify(data)); data.place = {}; save(); paint(); say('Oda boşaltıldı.', function () { data = old; save(); paint(); }); return; }
+      if (e.target.closest('[data-lstart]')) { tour = 0; score = { y: 0, n: 0 }; touch(); paint(); return; }
+      if (e.target.closest('[data-lshow]')) { var w = Q('[data-lwalk]', st); w.querySelector('.lb-lrev').hidden = false; e.target.closest('[data-lshow]').hidden = true; QA('[data-lok]', w).forEach(function (x) { x.hidden = false; }); return; }
+      if ((b = e.target.closest('[data-lok]'))) {
+        if (b.getAttribute('data-lok') === '1') score.y++; else score.n++; tour++; paint();
+        if (!stops().filter(function (x) { return x.i >= tour; }).length) { logSession('loci', Math.max(1, (Date.now() - openedAt) / 60000), deck ? deck.id : null, { score: score.y + '/' + (score.y + score.n) }); openedAt = Date.now(); acted = false; }
+      }
+    });
+    load();
+    return { onSrc: load, close: function () { clearTimeout(sT); if (data) putItem('loci', deck ? deck.id : 'serbest', '', data); } };
+  };
+
+  /* ================= 09 BLURTING · boş sayfa ================= */
+  var TOOLS_BL = function (st) {
+    var deck = null, data = null, t0 = 0, tick = 0, limit = 0, phase = 'write';
+    st.innerHTML = '<div class="lb-bl"><div class="lb-blbar"><span class="hand" data-bltopic=""></span><span class="lb-sp"></span><label class="lb-bltime">süre <select data-blmin=""><option value="0">serbest</option><option value="3">3 dk</option><option value="5" selected>5 dk</option><option value="10">10 dk</option></select></label><output class="mono lb-blclock" data-blclock=""></output></div>' +
+      '<div class="lb-blgrid"><div class="lb-blpage"><label class="vh" for="bl-t">Hatırladıkların</label><textarea id="bl-t" data-blt="" placeholder="kitaba bakmadan, aklına gelen her şeyi dök: kavramlar, tanımlar, örnekler, formüller… sıra önemli değil."></textarea><div class="lb-blmarks" data-blmarks="" hidden></div></div>' +
+      '<aside class="lb-blside"><div class="lb-card" data-blres="" hidden></div><div class="lb-blacts"><button type="button" class="btn btn-dark" data-blcheck="">özetimle kıyasla</button><button type="button" class="hbtn" data-blagain="" hidden>yeniden dene</button><button type="button" class="hbtn" data-blaca="" hidden>Acadia da baksın</button></div><div class="lb-sticky" data-blnote="" hidden></div><details class="lb-vers" data-blhist="" hidden><summary class="hand"></summary><ol></ol></details></aside></div></div>';
+    var ta = Q('[data-blt]', st), clock = Q('[data-blclock]', st);
+    var setClock = function () { var sec = Math.round((Date.now() - t0) / 1000); clock.textContent = !t0 ? '' : limit ? mmss(Math.max(0, limit * 60 - sec)) : mmss(sec); if (limit && t0 && sec >= limit * 60 && phase === 'write') { clearInterval(tick); ta.classList.add('timeup'); say('Süre doldu. Şimdi özetinle kıyasla.'); } };
+    ta.addEventListener('input', function () { touch(); if (!t0) { t0 = Date.now(); limit = +Q('[data-blmin]', st).value; tick = setInterval(setClock, 1000); } });
+    var load = function () {
+      deck = deckById(srcSel.value); phase = 'write'; t0 = 0; clearInterval(tick); clock.textContent = ''; ta.value = ''; ta.readOnly = false; ta.classList.remove('timeup');
+      Q('[data-bltopic]', st).textContent = deck ? '“' + baseName(deck.documents && deck.documents.file_name) + '” hakkında ne hatırlıyorsun?' : '';
+      Q('[data-blres]', st).hidden = true; Q('[data-blmarks]', st).hidden = true; Q('[data-blagain]', st).hidden = true; Q('[data-blaca]', st).hidden = true; Q('[data-blnote]', st).hidden = true; Q('[data-blcheck]', st).hidden = false;
+      if (!deck) { st.querySelector('.lb-blgrid').innerHTML = noDecks(); return; }
+      getItem('blurt', deck.id).then(function (d) { data = d && d.tries ? d : { tries: [] }; paintHist(); });
+    };
+    var paintHist = function () { var h = Q('[data-blhist]', st), L = (data && data.tries) || []; h.hidden = !L.length; if (!L.length) return; Q('summary', h).textContent = L.length + ' deneme · en iyi %' + Math.max.apply(null, L.map(function (x) { return x.p; })); Q('ol', h).innerHTML = L.slice().reverse().slice(0, 8).map(function (x) { return '<li><time class="mono">' + ago(x.at) + '</time><p>%' + x.p + ' · ' + x.got + '/' + x.tot + ' kavram' + (x.miss && x.miss.length ? ' · eksik: ' + X(x.miss.slice(0, 4).join(', ')) : '') + '</p></li>'; }).join(''); };
+    var check = function () {
+      var text = ta.value.trim(); if (text.split(/\s+/).length < 5) { ta.focus(); say('Önce hatırladıklarını yaz; birkaç kelime bile olur.'); return; }
+      phase = 'check'; clearInterval(tick); ta.readOnly = true; touch();
+      var C = conceptsOf(deck), got = C.filter(function (c) { return mentioned(text, c.t); }), miss = C.filter(function (c) { return !mentioned(text, c.t); }), p = C.length ? Math.round(got.length / C.length * 100) : 0;
+      var res = Q('[data-blres]', st); res.hidden = false;
+      res.innerHTML = '<h3 class="lb-k">kırmızı kalem</h3><p class="lb-blscore"><b class="disp">%' + p + '</b> <span>' + got.length + ' / ' + C.length + ' kavramı hatırladın</span></p>' +
+        (got.length ? '<p class="lb-k">hatırladıkların</p><div class="lb-chips">' + got.map(function (c) { return '<span class="on">✓ ' + X(c.t) + '</span>'; }).join('') + '</div>' : '') +
+        (miss.length ? '<p class="lb-k" style="margin-top:10px">unuttukların</p><ul class="lb-blmiss">' + miss.map(function (c) { return '<li><b>' + X(c.t) + '</b>' + (c.def ? '<span>' + X(cut(c.def, 110)) + '</span>' : '') + '</li>'; }).join('') + '</ul>' : '<p class="hand">hiçbir kavramı atlamadın!</p>');
+      var mk = Q('[data-blmarks]', st); mk.hidden = !miss.length; mk.innerHTML = miss.slice(0, 6).map(function (c, i) { return '<span class="hand" style="--i:' + i + '">+ ' + X(cut(c.t, 26)) + '</span>'; }).join('');
+      Q('[data-blcheck]', st).hidden = true; Q('[data-blagain]', st).hidden = false; Q('[data-blaca]', st).hidden = false;
+      data = data || { tries: [] }; data.tries = (data.tries || []).concat([{ at: Date.now(), p: p, got: got.length, tot: C.length, miss: miss.map(function (c) { return c.t; }).slice(0, 12) }]).slice(-20);
+      putItem('blurt', deck.id, baseName(deck.documents && deck.documents.file_name), data); paintHist();
+      logSession('blurt', Math.max(1, ((t0 ? Date.now() - t0 : Date.now() - openedAt)) / 60000), deck.id, { score: '%' + p }); openedAt = Date.now(); acted = false;
+    };
+    st.addEventListener('click', function (e) {
+      if (e.target.closest('[data-blcheck]')) { check(); return; }
+      if (e.target.closest('[data-blagain]')) { load(); ta.focus(); return; }
+      if (e.target.closest('[data-blaca]')) {
+        var b = e.target.closest('[data-blaca]'), note = Q('[data-blnote]', st); b.disabled = true; b.textContent = 'Acadia okuyor…';
+        acadia('Blurting tekniğiyle çalışıyorum: konuyu kitaba bakmadan hatırladığım kadar yazdım. Özetime göre kısa ve Türkçe söyle: 1) yanlış hatırladığım şeyler, 2) en önemli 3 eksik, 3) bir sonraki denemede neye odaklanmalıyım. Yazdıklarım:\n"""' + ta.value.slice(0, 3000) + '"""', deck && deck.id)
+          .then(function (r) { note.innerHTML = '<b class="hand">Acadia’nın notu</b><div>' + X(r).replace(/\n/g, '<br>') + '</div>'; note.hidden = false; }, function () { note.innerHTML = '<b class="hand">Acadia’ya şu an ulaşılamadı</b><div>Kırmızı kalemdeki eksiklere odaklan; onları kendi cümlelerinle yazıp tekrar dene.</div>'; note.hidden = false; })
+          .then(function () { b.disabled = false; b.textContent = 'Acadia da baksın'; });
+      }
+    });
+    load();
+    return { onSrc: load, close: function () { clearInterval(tick); } };
+  };
+
+  /* ================= 10 SQ3R · beş çekmeceli okuma masası ================= */
+  var SQ = [['S', 'Göz at', 'Başlıklara ve kavramlara hızlıca bak; büyük resmi gör.'], ['Q', 'Soru sor', 'Her başlığı bir soruya çevir; okurken cevabını arayacaksın.'], ['R', 'Oku', 'Bölümleri sırayla oku; her sorunun cevabını bulunca kısaca not al.'], ['R', 'Anlat', 'Özete bakmadan soruları kendi cümlelerinle cevapla.'], ['R', 'Gözden geçir', 'Soru-cevapları gözden geçir; iyi olanları karta çevir.']];
+  var TOOLS_SQ = function (st) {
+    var deck = null, data = null, sT = 0;
+    st.innerHTML = '<div class="lb-sq"><div class="lb-cab" data-cab="" role="tablist" aria-label="SQ3R adımları"></div><div class="lb-sqdesk" data-sqdesk=""></div></div>';
+    var secs = function () { var S2 = arr(deck && deck.sections).map(function (s) { return { h: txt(s.heading || s.title), b: stripMd(s.summary || ''), kp: arr(s.key_points).map(txt).filter(Boolean) }; }).filter(function (s) { return s.h; }); if (!S2.length && deck) S2 = [{ h: baseName(deck.documents && deck.documents.file_name), b: stripMd(deck.summary || ''), kp: arr(deck.key_points).map(txt) }]; return S2; };
+    var save = function () { clearTimeout(sT); sT = setTimeout(function () { putItem('sq3r', deck ? deck.id : 'serbest', deck ? baseName(deck.documents && deck.documents.file_name) : '', data); }, 500); };
+    var paintCab = function () {
+      Q('[data-cab]', st).innerHTML = SQ.map(function (d, i) { var done = data.done[i], on = data.step === i; return '<button type="button" role="tab" aria-selected="' + on + '" class="lb-drawer' + (on ? ' open' : '') + (done ? ' done' : '') + '" data-step="' + i + '"><span class="lb-dl mono">' + d[0] + '</span><span class="lb-dn">' + X(d[1]) + '</span>' + (done ? '<i class="lb-dck" aria-label="tamam">✓</i>' : '') + '<i class="lb-knob" aria-hidden="true"></i></button>'; }).join('');
+    };
+    var paintDesk = function () {
+      var dk = Q('[data-sqdesk]', st), i = data.step, S2 = secs(), h = '<div class="lb-sqhead"><span class="mono">' + (i + 1) + ' / 5</span><h3 class="disp">' + X(SQ[i][1]) + '</h3><p>' + X(SQ[i][2]) + '</p></div>';
+      if (i === 0) h += '<ol class="lb-sqsurvey">' + S2.map(function (s) { return '<li><b>' + X(s.h) + '</b>' + (s.kp.length ? '<small>' + X(s.kp.slice(0, 3).join(' · ')) + '</small>' : '') + '</li>'; }).join('') + '</ol>' + (conceptsOf(deck).length ? '<p class="lb-k">kavramlar</p><div class="lb-chips">' + conceptsOf(deck).filter(function (c) { return c.kind === 'kavram'; }).slice(0, 14).map(function (c) { return '<span>' + X(c.t) + '</span>'; }).join('') + '</div>' : '');
+      if (i === 1) h += '<ol class="lb-sqq">' + data.qs.map(function (q, j) { return '<li><label class="vh" for="sq-q' + j + '">' + (j + 1) + '. soru</label><input id="sq-q' + j + '" class="hand" data-q="' + j + '" value="' + X(q.q) + '" maxlength="140"><button type="button" class="rm" data-qrm="' + j + '" aria-label="Soruyu sil">×</button></li>'; }).join('') + '</ol><button type="button" class="lb-addrow" data-qadd="">+ soru ekle</button>';
+      if (i === 2) h += '<div class="lb-sqread">' + S2.map(function (s, j) { var q = data.qs[j]; return '<article><h4>' + X(s.h) + '</h4>' + (q ? '<p class="lb-sqask hand">soru: ' + X(q.q) + '</p>' : '') + '<p>' + X(s.b) + '</p>' + (s.kp.length ? '<ul>' + s.kp.map(function (k) { return '<li>' + X(k) + '</li>'; }).join('') + '</ul>' : '') + (q ? '<label class="lb-sqnote"><span class="hand">bulduğun cevap (kısa not)</span><textarea rows="2" data-rn="' + j + '">' + X(q.note || '') + '</textarea></label>' : '') + '</article>'; }).join('') + '</div>';
+      if (i === 3) h += '<ol class="lb-sqrec">' + data.qs.map(function (q, j) { return '<li><b>' + X(q.q) + '</b><textarea rows="2" class="hand" data-ra="' + j + '" placeholder="özete bakmadan cevapla">' + X(q.recite || '') + '</textarea>' + (q.shown ? '<p class="lb-sqcmp"><span class="mono">notun:</span> ' + X(q.note || '—') + '</p>' : '<button type="button" class="lb-lnk" data-rshow="' + j + '">notumla karşılaştır</button>') + '</li>'; }).join('') + '</ol>';
+      if (i === 4) h += '<ol class="lb-sqrev">' + data.qs.map(function (q, j) { return '<li class="' + (q.ok === true ? 'yes' : q.ok === false ? 'no' : '') + '"><b>' + X(q.q) + '</b><p>' + X(q.recite || q.note || '—') + '</p><div class="lb-rj"><button type="button" data-ok="1" data-qj="' + j + '">✓ oturdu</button><button type="button" data-ok="0" data-qj="' + j + '">✗ tekrar bakmalıyım</button></div></li>'; }).join('') + '</ol><button type="button" class="btn btn-dark" data-tocards="">iyi olanları karta çevir</button>';
+      h += '<div class="lb-sqnav">' + (i ? '<button type="button" class="hbtn" data-sqgo="' + (i - 1) + '">← ' + X(SQ[i - 1][1]) + '</button>' : '<span></span>') + (i < 4 ? '<button type="button" class="btn btn-dark" data-sqgo="' + (i + 1) + '" data-sqdone="' + i + '">' + X(SQ[i + 1][1]) + ' →</button>' : '<button type="button" class="btn btn-dark" data-sqfin="">turu bitir</button>') + '</div>';
+      dk.innerHTML = h;
+    };
+    var paint = function () { paintCab(); paintDesk(); };
+    var load = function () {
+      deck = deckById(srcSel.value);
+      if (!deck) { Q('[data-sqdesk]', st).innerHTML = noDecks(); Q('[data-cab]', st).innerHTML = ''; return; }
+      getItem('sq3r', deck.id).then(function (d) { data = d && d.qs ? d : { step: 0, done: {}, qs: secs().map(function (s) { return { q: s.h + ' nedir, neden önemli?' }; }) }; paint(); });
+    };
+    st.addEventListener('input', function (e) { if (!data) return; touch(); var t = e.target, j;
+      if (t.hasAttribute('data-q')) data.qs[+t.getAttribute('data-q')].q = t.value; else if (t.hasAttribute('data-rn')) data.qs[+t.getAttribute('data-rn')].note = t.value; else if (t.hasAttribute('data-ra')) data.qs[+t.getAttribute('data-ra')].recite = t.value; else return; save(); });
+    st.addEventListener('click', function (e) {
+      if (!data) return; var b;
+      if ((b = e.target.closest('[data-step]'))) { data.step = +b.getAttribute('data-step'); save(); paint(); return; }
+      if ((b = e.target.closest('[data-sqgo]'))) { if (b.hasAttribute('data-sqdone')) data.done[+b.getAttribute('data-sqdone')] = true; data.step = +b.getAttribute('data-sqgo'); touch(); save(); paint(); var dk = Q('[data-sqdesk]', st); if (dk.getBoundingClientRect().top < 0) dk.scrollIntoView({ block: 'start', behavior: calm ? 'auto' : 'smooth' }); return; }
+      if (e.target.closest('[data-qadd]')) { data.qs.push({ q: '' }); save(); paint(); var ins = QA('[data-q]', st); if (ins.length) ins[ins.length - 1].focus(); return; }
+      if ((b = e.target.closest('[data-qrm]'))) { data.qs.splice(+b.getAttribute('data-qrm'), 1); save(); paint(); return; }
+      if ((b = e.target.closest('[data-rshow]'))) { data.qs[+b.getAttribute('data-rshow')].shown = true; save(); paint(); return; }
+      if ((b = e.target.closest('[data-qj]'))) { data.qs[+b.getAttribute('data-qj')].ok = b.getAttribute('data-ok') === '1'; touch(); save(); paint(); return; }
+      if (e.target.closest('[data-tocards]')) {
+        var good = data.qs.filter(function (q) { return q.ok === true && q.q && (q.recite || q.note); }); if (!good.length) { say('Önce “oturdu” dediğin soru-cevaplar lazım.'); return; }
+        var c = sbc(), terms = arr(deck.key_terms).concat(good.map(function (q) { return { term: q.q, definition: q.recite || q.note, user: true }; }));
+        if (!c) return; c.from('study_cards').update({ key_terms: terms }).eq('id', deck.id).then(function (r) { if (r.error) { say('Kartlar eklenemedi; bağlantını kontrol et.'); return; } deck.key_terms = terms; say(good.length + ' soru-cevap Bilgi kartlarına eklendi.', null, 'cards', 'kartlara git →'); });
+        return;
+      }
+      if (e.target.closest('[data-sqfin]')) { data.done[4] = true; save(); paint(); var ok = data.qs.filter(function (q) { return q.ok === true; }).length; logSession('sq3r', Math.max(1, (Date.now() - openedAt) / 60000), deck.id, { score: ok + '/' + data.qs.length }); openedAt = Date.now(); acted = false; say('SQ3R turu bitti: ' + ok + ' / ' + data.qs.length + ' soru oturdu.'); }
+    });
+    load();
+    return { onSrc: load, close: function () { clearTimeout(sT); if (data && deck) putItem('sq3r', deck.id, '', data); } };
+  };
+
+  /* ================= 11 NEDEN ZİNCİRİ · halkalar ================= */
+  var LOCALQ = ['Bu neden doğru?', 'Bu nasıl işliyor? Adım adım anlat.', 'Bunun gerçek hayattan bir örneği ne olur?', 'Tersi olsaydı ne değişirdi?', 'Bu, konudaki başka hangi fikirle bağlantılı?', 'Bunu hiç bilmeyen birine tek cümleyle nasıl söylersin?'];
+  var TOOLS_NZ = function (st) {
+    var deck = null, data = null, chain = null, sT = 0, busy = false;
+    st.innerHTML = '<div class="lb-nz"><div class="lb-nzpick"><label class="lb-k" for="nz-f">zincirin ilk halkası: bir bilgi seç ya da yaz</label><div class="lb-nzrow"><select id="nz-pick" data-nzpick="" aria-label="Özetten bir bilgi"></select><span class="hand">ya da</span><input id="nz-f" data-nzown="" maxlength="200" placeholder="kendi cümlen…"><button type="button" class="btn btn-dark" data-nzstart="">zinciri başlat</button></div></div>' +
+      '<div class="lb-chain" data-chain=""></div><details class="lb-vers" data-nzhist="" hidden><summary class="hand"></summary><ol></ol></details></div>';
+    var save = function () { clearTimeout(sT); sT = setTimeout(function () { putItem('neden', deck ? deck.id : 'serbest', '', data); }, 500); };
+    var paintHist = function () { var h = Q('[data-nzhist]', st), L = (data && data.chains || []).filter(function (c) { return c !== chain && c.links.length > 1; }); h.hidden = !L.length; if (!L.length) return; Q('summary', h).textContent = L.length + ' eski zincir'; Q('ol', h).innerHTML = L.slice().reverse().slice(0, 6).map(function (c) { return '<li><time class="mono">' + ago(c.at) + '</time><p><b>' + X(cut(c.fact, 80)) + '</b> · ' + (c.links.length - 1) + ' halka</p></li>'; }).join(''); };
+    var paint = function () {
+      var el = Q('[data-chain]', st);
+      if (!chain) { el.innerHTML = '<p class="lb-nzempty hand">bir bilgi seç; her halkada “neden?” ya da “nasıl?” diye derinleşeceğiz. 4–5 halka genelde konuyu oturtur.</p>'; return; }
+      el.innerHTML = '<ol>' + chain.links.map(function (l, i) {
+        return '<li class="lb-link' + (i === 0 ? ' first' : '') + (l.a ? ' ans' : '') + '" style="--i:' + i + '"><span class="lb-ring" aria-hidden="true"></span><div class="lb-lq">' + (i === 0 ? '<span class="mono">BİLGİ</span><b>' + X(chain.fact) + '</b>' : '<span class="mono">' + i + '. HALKA' + (l.ai ? ' · Acadia' : '') + '</span><b>' + X(l.q) + '</b><label class="vh" for="nz-a' + i + '">Cevabın</label><textarea id="nz-a' + i + '" rows="2" class="hand" data-nza="' + i + '" placeholder="cevabını yaz…">' + X(l.a || '') + '</textarea>') + '</div></li>';
+      }).join('') + '</ol><div class="lb-nzacts"><button type="button" class="btn btn-dark" data-nznext="">' + (chain.links.length < 2 ? 'ilk soruyu sor' : 'bir halka daha') + '</button><button type="button" class="hbtn" data-nzend="">zinciri bitir</button><button type="button" class="lb-lnk" data-nznb="">deftere yapıştır</button></div>';
+    };
+    var load = function () {
+      deck = deckById(srcSel.value); chain = null;
+      var kp = keyPoints(deck); Q('[data-nzpick]', st).innerHTML = kp.length ? kp.map(function (k, i) { return '<option value="' + i + '">' + X(cut(k, 90)) + '</option>'; }).join('') : '<option value="">özetten bilgi bulunamadı</option>';
+      getItem('neden', deck ? deck.id : 'serbest').then(function (d) { data = d && d.chains ? d : { chains: [] }; paintHist(); paint(); });
+    };
+    var nextQ = function () {
+      if (busy || !chain) return; var last = chain.links[chain.links.length - 1];
+      if (chain.links.length > 1 && !(last.a || '').trim()) { var f = st.querySelector('[data-nza="' + (chain.links.length - 1) + '"]'); if (f) f.focus(); say('Önce bu halkayı cevapla.'); return; }
+      busy = true; touch(); var b = Q('[data-nznext]', st); if (b) { b.disabled = true; b.textContent = 'Acadia düşünüyor…'; }
+      var hist = chain.links.map(function (l, i) { return i === 0 ? 'Bilgi: ' + chain.fact : 'Soru: ' + l.q + '\nCevabım: ' + (l.a || ''); }).join('\n');
+      var add = function (q, ai) { chain.links.push({ q: q, a: '', ai: ai }); busy = false; save(); paint(); var f = st.querySelector('[data-nza="' + (chain.links.length - 1) + '"]'); if (f) f.focus(); };
+      acadia('"Neden zinciri" (elaborative interrogation) ile çalışıyorum. Aşağıdaki zincire bakarak beni bir adım daha derine götürecek TEK bir kısa soru sor ("Neden…?" ya da "Nasıl…?" ile başlasın). Sadece soruyu yaz, açıklama yapma.\n\n' + hist, deck && deck.id)
+        .then(function (r) { var q = String(r).split('\n').map(function (x) { return x.replace(/^[\s*\-\d.)"“]+|["”]+$/g, '').trim(); }).filter(Boolean)[0]; add(q && q.length < 220 ? q : LOCALQ[(chain.links.length - 1) % LOCALQ.length], !!q); },
+              function () { add(LOCALQ[(chain.links.length - 1) % LOCALQ.length], false); });
+    };
+    st.addEventListener('input', function (e) { var t = e.target; if (chain && t.hasAttribute('data-nza')) { chain.links[+t.getAttribute('data-nza')].a = t.value; touch(); save(); } });
+    st.addEventListener('click', function (e) {
+      if (e.target.closest('[data-nzstart]')) {
+        var own = Q('[data-nzown]', st).value.trim(), kp = keyPoints(deck), f = own || kp[+Q('[data-nzpick]', st).value]; if (!f) { Q('[data-nzown]', st).focus(); return; }
+        chain = { fact: f, at: Date.now(), links: [{ q: '', a: f }] }; data.chains = (data.chains || []).concat([chain]).slice(-20); Q('[data-nzown]', st).value = ''; save(); paint(); nextQ(); return;
+      }
+      if (e.target.closest('[data-nznext]')) { nextQ(); return; }
+      if (e.target.closest('[data-nzend]')) { var n = chain ? chain.links.filter(function (l, i) { return i && (l.a || '').trim(); }).length : 0; if (n) { logSession('neden', Math.max(1, (Date.now() - openedAt) / 60000), deck ? deck.id : null, { score: n + ' halka' }); openedAt = Date.now(); acted = false; } say(n ? 'Zincir kaydedildi: ' + n + ' halka.' : 'Zincir boş kaldı.'); chain = null; paintHist(); paint(); return; }
+      if (e.target.closest('[data-nznb]')) { if (!chain || typeof addStickyNoteToNotebook !== 'function') return; flushTime(); addStickyNoteToNotebook(deck ? deck.id : 'lab', 'Neden zinciri', '<b>' + X(chain.fact) + '</b><br>' + chain.links.slice(1).map(function (l) { return '→ ' + X(l.q) + '<br><i>' + X(l.a || '') + '</i>'; }).join('<br>')); }
+    });
+    load();
+    return { onSrc: load, close: function () { clearTimeout(sT); if (data) putItem('neden', deck ? deck.id : 'serbest', '', data); } };
+  };
+
+  /* ================= SERA + ROZETLER ================= */
+  var PLANT = { pomodoro: 'fl', tekrar: 'suc', recall: 'tul', feynman: 'fern', karma: 'cac', harita: 'vine', cornell: 'bam', loci: 'bon', blurt: 'dan', sq3r: 'sun', neden: 'ivy' };
+  var plantSmall = function (m, i) {
+    var c = (MK[m] || {}).c || '#6A7593', kind = PLANT[m] || 'fl', g = '';
+    if (kind === 'fl' || kind === 'sun') { for (var j = 0; j < (kind === 'sun' ? 10 : 5); j++) g += '<path class="pt" style="fill:' + (kind === 'sun' ? '#FFD45E' : c) + '" d="M20 16 C17 11 18 7 20 5 C22 7 23 11 20 16 Z" transform="rotate(' + j * (kind === 'sun' ? 36 : 72) + ' 20 16)"/>'; g += '<circle cx="20" cy="16" r="' + (kind === 'sun' ? 3.6 : 2.4) + '" class="c"/>'; }
+    else if (kind === 'tul') g = '<path class="pt" style="fill:' + c + '" d="M14 10 C14 18 26 18 26 10 L23 13 L20 8 L17 13 Z"/>';
+    else if (kind === 'suc') { for (var k = 0; k < 6; k++) g += '<path class="lf" style="fill:#9CCFA8" d="M20 30 C16 24 17 18 20 14 C23 18 24 24 20 30 Z" transform="rotate(' + (k * 60) + ' 20 28)"/>'; }
+    else if (kind === 'cac') g = '<path class="lf" style="fill:#7DB88E" d="M17 38 V14 C17 9 23 9 23 14 V38 Z M17 26 H13 V20 M23 22 H27 V16"/><circle cx="20" cy="9" r="2.2" style="fill:' + c + '"/>';
+    else if (kind === 'fern' || kind === 'ivy' || kind === 'vine') g = '<path d="M20 38 C20 28 22 18 ' + (kind === 'vine' ? '30 10' : '20 8') + '"/>' + [12, 18, 24, 30].map(function (y, j) { return '<path class="lf" style="fill:' + (kind === 'ivy' ? '#6FAF7E' : '#A8DDBE') + '" d="M20 ' + y + ' C' + (j % 2 ? 28 : 12) + ' ' + (y - 4) + ' ' + (j % 2 ? 30 : 10) + ' ' + (y + 2) + ' 20 ' + (y + 2) + ' Z"/>'; }).join('');
+    else if (kind === 'bam') g = '<path d="M16 38 V8 M24 38 V12" style="stroke:#6FA86F;stroke-width:3"/><path d="M14 22 H18 M22 26 H26 M14 14 H18" />';
+    else if (kind === 'bon') g = '<path d="M20 38 C18 30 24 26 20 20"/><ellipse cx="14" cy="18" rx="8" ry="5" class="lf" style="fill:#7DB88E"/><ellipse cx="26" cy="14" rx="8" ry="5" class="lf" style="fill:#8CC79A"/>';
+    else if (kind === 'dan') { g = '<path d="M20 38 V14"/>'; for (var d = 0; d < 12; d++) g += '<path d="M20 12 L20 4" transform="rotate(' + d * 30 + ' 20 12)" style="stroke:#AEB7CC;stroke-width:1"/>'; }
+    if (kind === 'fl' || kind === 'sun' || kind === 'tul') g = '<path d="M20 38 C19 30 21 24 20 ' + (kind === 'tul' ? 14 : 18) + '"/><path class="lf" d="M20 31 C14 27 10 28 8 31 C12 34 17 34 20 31 Z"/>' + g;
+    return '<svg viewBox="0 0 40 52" aria-hidden="true">' + g + '<path class="pot" d="M11 38 H29 L26 50 H14 Z"/></svg>';
+  };
+  var BADGES = [
+    { id: 'tohum', n: 'İlk tohum', d: 'İlk Study Lab oturumu', ok: function (c) { return c.all >= 1; } },
+    { id: 'bahcivan', n: 'Bahçıvan', d: '25 Pomodoro turu', m: 'pomodoro', need: 25 },
+    { id: 'kutu', n: 'Kutu ustası', d: '20 aralıklı tekrar oturumu', m: 'tekrar', need: 20 },
+    { id: 'hatirlayici', n: 'Hatırlayıcı', d: '15 Active Recall turu', m: 'recall', need: 15 },
+    { id: 'anlatici', n: 'Anlatıcı', d: '10 Feynman oturumu', m: 'feynman', need: 10 },
+    { id: 'karistirici', n: 'Karıştırıcı', d: '10 karışık tur', m: 'karma', need: 10 },
+    { id: 'haritaci', n: 'Haritacı', d: '5 zihin haritası oturumu', m: 'harita', need: 5 },
+    { id: 'notcu', n: 'Not ustası', d: '8 Cornell sınavı', m: 'cornell', need: 8 },
+    { id: 'mimar', n: 'Hafıza mimarı', d: '5 hafıza sarayı gezisi', m: 'loci', need: 5 },
+    { id: 'bosluk', n: 'Boş sayfa cesareti', d: '10 blurting denemesi', m: 'blurt', need: 10 },
+    { id: 'okur', n: 'Derin okur', d: '5 SQ3R turu', m: 'sq3r', need: 5 },
+    { id: 'merakli', n: 'Meraklı', d: '10 neden zinciri', m: 'neden', need: 10 },
+    { id: 'yedi', n: 'Gökkuşağı', d: '7 farklı yöntemi dene', ok: function (c) { return c.kinds >= 7; } },
+    { id: 'saat', n: 'Saat tutan', d: 'Toplam 10 saat', ok: function (c) { return c.min >= 600; } }
+  ];
+  var LV = [[0, 'acemi'], [3, 'çırak'], [10, 'kalfa'], [25, 'usta'], [50, 'üstat']];
+  var levelOf = function (n) { var l = LV[0]; LV.forEach(function (x) { if (n >= x[0]) l = x; }); return l; };
+  var paintSera = function () {
+    var gh = Q('[data-gh]'); if (!gh) return;
+    var since = Date.now() - 30 * 864e5, recent = SESS.filter(function (s) { return s.at >= since; }).slice().reverse().slice(-48);
+    var cnt = { all: SESS.length, kinds: 0, min: 0 }, per = {};
+    SESS.forEach(function (s) { per[s.method] = (per[s.method] || 0) + 1; cnt.min += s.minutes; }); cnt.kinds = Object.keys(per).length;
+    Q('[data-serasub]').textContent = recent.length ? 'son 30 günde ' + recent.length + ' bitki yetiştirdin' : 'her biten oturum seraya bir bitki bırakır';
+    var rows = [[], [], []]; recent.forEach(function (s, i) { rows[Math.min(2, Math.floor(i / 16))].push(s); });
+    gh.innerHTML = '<div class="lb-glass" aria-hidden="true"><i></i><i></i><i></i><i></i></div>' + (recent.length ? rows.filter(function (r) { return r.length; }).map(function (r) { return '<ol class="lb-ghrow">' + r.map(function (s) { var m = MK[s.method] || { n: s.method }; return '<li title="' + X(m.n + ' · ' + dk(s.minutes) + ' · ' + ago(s.at)) + '">' + plantSmall(s.method) + '</li>'; }).join('') + '</ol>'; }).join('') : '<p class="lb-ghempty hand">sera boş. bir istasyon aç, ilk tohumu dik.</p>');
+    Q('[data-levels]').innerHTML = M.map(function (m) { var n = per[m.k] || 0, l = levelOf(n), nx = LV.filter(function (x) { return x[0] > n; })[0]; return '<li style="--mc:' + m.c + '"><span class="nm">' + X(m.n) + '</span><b class="hand">' + l[1] + '</b><span class="br"><i style="width:' + (nx ? Math.round((n - l[0]) / (nx[0] - l[0]) * 100) : 100) + '%"></i></span><small class="mono">' + n + (nx ? ' / ' + nx[0] : '') + '</small></li>'; }).join('');
+    Q('[data-badges]').innerHTML = BADGES.map(function (b) {
+      var have = b.ok ? b.ok(cnt) : (per[b.m] || 0) >= b.need, prog = b.m ? Math.min(per[b.m] || 0, b.need) + ' / ' + b.need : '';
+      return '<li class="lb-badge' + (have ? ' on' : '') + '" style="--mc:' + (b.m ? (MK[b.m] || {}).c : '#B4781F') + '"><span class="lb-seal" aria-hidden="true"><svg viewBox="0 0 60 60"><path d="M30 4 L36 10 L44 8 L46 16 L54 20 L50 28 L54 36 L46 40 L44 48 L36 46 L30 52 L24 46 L16 48 L14 40 L6 36 L10 28 L6 20 L14 16 L16 8 L24 10 Z"/><circle cx="30" cy="28" r="12"/></svg><i class="hand">' + X(b.n.charAt(0)) + '</i></span><b>' + X(b.n) + '</b><small>' + X(b.d) + (prog && !have ? ' · ' + prog : '') + '</small></li>';
+    }).join('');
+  };
+
+  /* ================= ACADIA REÇETESİ ================= */
+  var RX = { exams: null, weak: null, loading: false, note: '' };
+  var loadRxData = function () {
+    if (RX.loading || RX.exams) return Promise.resolve(); var c = sbc(), u = me(); if (!c || !u) return Promise.resolve(); RX.loading = true;
+    var d0 = new Date(), today = d0.getFullYear() + '-' + p2(d0.getMonth() + 1) + '-' + p2(d0.getDate());
+    return Promise.all([
+      c.from('study_events').select('title, event_date').eq('user_id', u.id).eq('event_type', 'exam').gte('event_date', today).order('event_date', { ascending: true }).limit(3).then(function (r) { return r.data || []; }, function () { return []; }),
+      c.from('exams').select('question_results, completed_at').eq('user_id', u.id).order('created_at', { ascending: false }).limit(8).then(function (r) { return r.data || []; }, function () { return []; })
+    ]).then(function (r) {
+      RX.exams = r[0]; var w = {}; r[1].forEach(function (e) { arr(e.question_results).forEach(function (q) { if (q && q.concept && Number(q.score) < 60) w[q.concept] = (w[q.concept] || 0) + 1; }); });
+      RX.weak = Object.keys(w).sort(function (a, b) { return w[b] - w[a]; }).slice(0, 3); RX.loading = false;
+    });
+  };
+  var rxItems = function () {
+    var out = [], due = DECKS && CONF ? allItems('').filter(function (c) { return c.due; }).length : 0, ex = RX.exams && RX.exams[0], dd = ex ? Math.round((new Date(String(ex.event_date).slice(0, 10) + 'T00:00:00') - new Date(ymd(Date.now()) + 'T00:00:00')) / 864e5) : null;
+    var wk = function (k) { return SESS.some(function (s) { return s.method === k && s.at >= monday(); }); };
+    if (due) out.push({ k: 'tekrar', t: Math.min(due, 30) + ' kart tekrar', m: Math.max(5, Math.round(Math.min(due, 30) * 0.4)), why: 'kutunda bugün sırası gelen ' + due + ' kart var' });
+    if (dd != null && dd <= 3) out.push({ k: 'blurt', t: '“' + cut(ex.title, 24) + '” için boş sayfa', m: 10, why: 'sınava ' + (dd ? dd + ' gün' : 'bugün') + ' kaldı; neyi bilmediğini gör' });
+    if (dd != null && dd <= 10) out.push({ k: 'karma', t: '10 soruluk karışık tur', m: 12, why: 'sınav yaklaşırken konuları karıştırmak gerçek sınava benzer' });
+    if (RX.weak && RX.weak.length) out.push({ k: 'feynman', t: '“' + cut(RX.weak[0], 28) + '” konusunu anlat', m: 15, why: 'denemelerde bu kavramda zorlandın' });
+    else if (!wk('recall') && (DECKS || []).length) out.push({ k: 'recall', t: '1 tur Active Recall', m: 8, why: 'bu hafta henüz kendini sınamadın' });
+    if ((DECKS || []).length && !wk('harita') && !wk('cornell')) out.push({ k: (DECKS.length % 2 ? 'harita' : 'cornell'), t: (DECKS.length % 2 ? 'Zihin haritası' : 'Cornell sayfası') + ': ' + cut(deckName(DECKS[0]), 26), m: 15, why: 'en yeni özetini bir kez yapılandır' });
+    out.push({ k: 'pomodoro', t: '2 Pomodoro turu', m: 50, why: 'gerisini odakla, bitkin büyüsün' });
+    return out.slice(0, 4);
+  };
+  var paintRx = function () {
+    var el = Q('[data-rx]'); if (!el) return;
+    var L = rxItems(), tot = L.reduce(function (a, x) { return a + x.m; }, 0);
+    el.innerHTML = '<div class="lb-rxpad"><span class="lb-rxk mono">Rx · ' + new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' }) + '</span><h2 class="hand">bugünün reçetesi</h2><ol>' + L.map(function (x) { var m = MK[x.k]; return '<li style="--mc:' + m.c + '"><button type="button" data-open="' + x.k + '"><b>' + X(x.t) + '</b><small>' + X(m.n) + ' · ~' + x.m + ' dk · ' + X(x.why) + '</small></button></li>'; }).join('') + '</ol><p class="lb-rxt mono">toplam ~' + dk(tot) + '</p>' +
+      '<div class="lb-rxacts"><button type="button" class="lb-lnk" data-rxaca="">Acadia yorumlasın</button></div>' + (RX.note ? '<div class="lb-rxnote">' + X(RX.note).replace(/\n/g, '<br>') + '</div>' : '') + '<i class="lb-rxsig hand" aria-hidden="true">— Acadia</i></div>';
+  };
+  root.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-rx] [data-open]'); if (b) { openStation(b.getAttribute('data-open')); return; }
+    if (e.target.closest('[data-rxaca]')) {
+      var bt = e.target.closest('[data-rxaca]'); bt.disabled = true; bt.textContent = 'Acadia yazıyor…';
+      var facts = rxItems().map(function (x) { return '- ' + x.t + ' (' + x.why + ')'; }).join('\n'), ex = RX.exams && RX.exams[0];
+      acadia('Bugün için çalışma reçetemi yorumla. Kısa, sıcak ve Türkçe yaz; en fazla 4 cümle; hangi sırayla yapmam gerektiğini ve nedenini söyle.\nVeriler:\n' + facts + (ex ? '\nEn yakın sınav: ' + ex.title + ' (' + String(ex.event_date).slice(0, 10) + ')' : '') + (RX.weak && RX.weak.length ? '\nZorlandığım kavramlar: ' + RX.weak.join(', ') : '') + '\nBu hafta Study Lab: ' + weekMin('') + ' dk', null)
+        .then(function (r) { RX.note = r; }, function () { RX.note = 'Acadia’ya şu an ulaşılamadı. Reçeteyi yukarıdan aşağı sırayla uygula: önce tekrar, sonra derinleştirme, en son odak turları.'; })
+        .then(paintRx);
+    }
+  });
+
   var TOOLS_POM;
-  var TOOLS = { pomodoro: function (s) { return TOOLS_POM(s); }, tekrar: TOOLS_LT, recall: TOOLS_RC, feynman: TOOLS_FY, karma: TOOLS_KM, harita: TOOLS_MM, cornell: TOOLS_CN };
+  var TOOLS = { pomodoro: function (s) { return TOOLS_POM(s); }, tekrar: TOOLS_LT, recall: TOOLS_RC, feynman: TOOLS_FY, karma: TOOLS_KM, harita: TOOLS_MM, cornell: TOOLS_CN, loci: TOOLS_LOCI, blurt: TOOLS_BL, sq3r: TOOLS_SQ, neden: TOOLS_NZ };
 
   /* ---------- açılış ve dashboard bağlantısı ---------- */
   var booted = null;
@@ -6756,7 +7214,7 @@ var SBX = (function () {
     var u = me(); if (!u) return;
     if (UID !== u.id) { UID = u.id; var p = G(LK('pom'), null); if (p && p.phase) { POM = p; } DECKS = null; CONF = null; ITEMS = {}; SESS = []; booted = null; }
     paintStations(); paintLog();
-    if (!booted) booted = Promise.all([loadSess(), loadDecks(), loadConf()]).then(function () { paintStations(); paintLog(); });
+    if (!booted) booted = Promise.all([loadSess(), loadDecks(), loadConf()]).then(function () { paintStations(); paintLog(); return loadRxData(); }).then(function () { paintRx(); });
     else { loadSess().then(function () { paintStations(); paintLog(); }); loadDecks(true).then(function () { paintStations(); }); }
     pomTick();
   };

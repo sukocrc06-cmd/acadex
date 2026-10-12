@@ -224,6 +224,28 @@ select.fld{appearance:none;-webkit-appearance:none;background-image:url("data:im
 .goto.on svg path{transition:stroke-dashoffset 1.8s cubic-bezier(.4,0,.2,1) .7s;stroke-dashoffset:0}
 .goto p{margin:0 0 18px;color:var(--muted);font-size:15px}
 .goto .pen{position:absolute}
+.goto-in{position:relative;z-index:1}
+.gt-hi{min-height:48px}
+.gt-hi.write{display:inline-block;clip-path:inset(0 100% 0 0);animation:gtWrite 1.1s cubic-bezier(.5,0,.3,1) .2s forwards}
+@keyframes gtWrite{to{clip-path:inset(0 0 0 0)}}
+.gt-cards{display:flex;justify-content:center;gap:14px;margin:6px 0 18px;perspective:600px}
+.gt-c{width:128px;padding:14px 10px 12px;background:#fff;border-radius:4px;box-shadow:0 1px 0 #E1E5EE,0 18px 22px -16px rgba(13,24,56,.6);opacity:0;transform:translateY(-60px) rotate(var(--r,-4deg));text-align:center}
+.gt-c::before{content:"";display:block;width:44px;height:12px;margin:-22px auto 8px;background:rgba(157,184,255,.7);transform:rotate(-3deg)}
+.gt-c b{display:block;font-size:34px;line-height:1.05;color:var(--ink)}
+.gt-c span{display:block;margin-top:4px;font-size:13px;color:var(--muted)}
+.gt-c.c1{--r:-4deg}.gt-c.c2{--r:2.5deg}.gt-c.c3{--r:-1.5deg}
+.gt-cards.in .gt-c{animation:gtDrop .6s cubic-bezier(.3,1.5,.5,1) forwards}
+.gt-cards.in .c2{animation-delay:.18s}.gt-cards.in .c3{animation-delay:.36s}
+@keyframes gtDrop{to{opacity:1;transform:rotate(var(--r))}}
+.gt-c.hot b{color:#C9483B}
+.gt-go{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px 12px}
+.gt-skip{border:0;background:none;padding:6px 4px;min-height:40px;font:inherit;font-weight:600;color:#2F6BFF;text-decoration:underline;text-underline-offset:4px;cursor:pointer}
+.gt-door{position:absolute;top:0;bottom:0;width:50.5%;background:#FFFEFB;background-image:var(--grain);background-size:220px;z-index:2;pointer-events:none;transform:scaleX(0);transition:transform .7s cubic-bezier(.65,0,.35,1)}
+.gt-door.l{left:0;transform-origin:0 50%;box-shadow:inset -8px 0 18px -12px rgba(13,24,56,.4)}
+.gt-door.r{right:0;transform-origin:100% 50%;box-shadow:inset 8px 0 18px -12px rgba(13,24,56,.4)}
+.goto.leave .gt-door{transform:scaleX(1)}
+@media (max-width:520px){.gt-cards{gap:8px}.gt-c{width:31%;padding:12px 6px 10px}.gt-c b{font-size:26px}}
+@media (prefers-reduced-motion: reduce){.gt-hi.write{animation:none;clip-path:none}.gt-cards.in .gt-c{animation:none;opacity:1;transform:none}.gt-door{transition:none}}
 @media (prefers-reduced-motion: reduce){.goto.on{transition:none}.goto.on svg path{transition:none}}
 
 
@@ -364,10 +386,16 @@ select.fld{appearance:none;-webkit-appearance:none;background-image:url("data:im
 
 <div class="goto" data-goto="" role="status" aria-live="polite" aria-hidden="true">
 <div class="goto-in">
-<span class="hand">masana gidiyorsun…</span>
+<span class="hand gt-hi" data-gt-hi="">masana gidiyorsun…</span>
 <svg viewBox="0 0 300 36" aria-hidden="true"><path pathLength="1" d="M4 22 C40 10 70 30 110 18 S180 8 220 20 S270 28 296 14"/></svg>
-<p>Kartın damgalandı; çalışma alanın açılıyor.</p>
+<div class="gt-cards" data-gt-cards="" hidden>
+<div class="gt-c c1" data-gt="due"><b class="disp">·</b><span>kart bugün sırada</span></div>
+<div class="gt-c c2" data-gt="exam"><b class="disp">·</b><span>sınav takvimin</span></div>
+<div class="gt-c c3" data-gt="streak"><b class="disp">·</b><span>günlük serin</span></div>
 </div>
+<p class="gt-go"><span data-gt-msg="">Kartın damgalandı; çalışma alanın açılıyor.</span> <button type="button" class="gt-skip" data-gt-skip="" hidden>hemen geç →</button></p>
+</div>
+<i class="gt-door l" aria-hidden="true"></i><i class="gt-door r" aria-hidden="true"></i>
 </div>
 
 <footer class="foot">
@@ -542,6 +570,37 @@ select.fld{appearance:none;-webkit-appearance:none;background-image:url("data:im
   document.querySelector('[data-forgot]').addEventListener('click', function () {
     var v = email.value.trim(); this.setAttribute('href', 'reset-password.html' + (v ? '?e=' + encodeURIComponent(v) : ''));
   });
+
+  /* karşılama: isim, bugün sırası gelen kartlar, en yakın sınav, seri — sonra kapı açılır */
+  window.__acxGoto = function (destination, session) {
+    var g = document.querySelector('[data-goto]'), go = function () { if (go.done) return; go.done = true; window.location.href = destination; };
+    var skip = document.querySelector('[data-gt-skip]'); skip.hidden = false; skip.addEventListener('click', go);
+    var reduce = window.__acx.reduce, sb = typeof supabaseClient !== 'undefined' ? supabaseClient : null, uid = session && session.user && session.user.id;
+    var timeout = function (p, ms) { return Promise.race([Promise.resolve(p).catch(function () { return {}; }), new Promise(function (r) { setTimeout(function () { r({}); }, ms); })]); };
+    var pad = function (n) { return ('0' + n).slice(-2); }, d0 = new Date(), today = d0.getFullYear() + '-' + pad(d0.getMonth() + 1) + '-' + pad(d0.getDate());
+    var h = d0.getHours(), hello = h >= 5 && h < 11 ? 'Günaydın' : h < 17 ? 'İyi günler' : h < 22 ? 'İyi akşamlar' : 'İyi geceler';
+    var q = !sb || !uid ? Promise.resolve([{}, {}, {}]) : Promise.all([
+      timeout(sb.from('profiles').select('full_name, current_streak').eq('id', uid).single(), 1800),
+      timeout(sb.from('card_item_confidence').select('item_key', { count: 'exact', head: true }).eq('user_id', uid).lte('next_review_at', new Date().toISOString()), 1800),
+      timeout(sb.from('study_events').select('title, event_date').eq('user_id', uid).eq('event_type', 'exam').gte('event_date', today).order('event_date', { ascending: true }).limit(1), 1800)
+    ]);
+    q.then(function (r) {
+      var p = (r[0] && r[0].data) || {}, first = String(p.full_name || '').trim().split(/\s+/)[0];
+      var hi = document.querySelector('[data-gt-hi]'); hi.textContent = hello + (first ? ' ' + first.charAt(0).toLocaleUpperCase('tr') + first.slice(1) : '');
+      hi.classList.remove('write'); void hi.offsetWidth; if (!reduce) hi.classList.add('write');
+      var set = function (k, big, small, hot) { var c = document.querySelector('[data-gt="' + k + '"]'); c.querySelector('b').textContent = big; c.querySelector('span').textContent = small; c.classList.toggle('hot', !!hot); };
+      var due = r[1] && typeof r[1].count === 'number' ? r[1].count : null;
+      set('due', due == null ? '—' : String(due), due ? 'kart bugün tekrar sırasında' : 'bugün tekrar sırası boş');
+      var ex = r[2] && r[2].data && r[2].data[0];
+      if (ex) { var dd = Math.round((new Date(ex.event_date.slice(0, 10) + 'T00:00:00') - new Date(today + 'T00:00:00')) / 864e5); set('exam', dd ? dd + ' gün' : 'bugün', (ex.title || 'sınav').slice(0, 26) + (dd ? ' için' : ''), dd <= 3); }
+      else set('exam', '—', 'yakında sınav yok');
+      var st = Number(p.current_streak) || 0; set('streak', st ? st + ' gün' : 'ilk gün', st ? 'aralıksız çalışıyorsun' : 'serine bugün başla');
+      var cards = document.querySelector('[data-gt-cards]'); cards.hidden = false; void cards.offsetWidth; cards.classList.add('in');
+      document.querySelector('[data-gt-msg]').textContent = due ? 'masan hazırlanıyor; önce tekrarlar seni bekliyor.' : 'masan hazırlanıyor.';
+      setTimeout(function () { if (go.done) return; g.classList.add('leave'); setTimeout(go, reduce ? 0 : 650); }, reduce ? 900 : 2300);
+    });
+    setTimeout(go, 7000);
+  };
   /* successful sign-in: stamp the card, turn the page while auth.js redirects */
   window.__acxOnSuccess = function () {
     window.__acx.stamp();

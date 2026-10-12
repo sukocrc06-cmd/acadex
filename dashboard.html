@@ -116,7 +116,6 @@
         <ul class="sidebar-nav team">
           <li class="sidebar-item" id="side-sandbox-interaction"><a href="#sandbox-interaction" onclick="switchDashboardView('sandbox-interaction')"><svg viewBox="0 0 24 24"><path d="M5 7.5 C5 5.6 6.6 4.5 8.5 4.5 H15.5 C17.4 4.5 19 5.6 19 7.5 V13 C19 14.9 17.4 16 15.5 16 H10 L6 19.5 V16 C5.4 15.6 5 14.6 5 13 Z"/></svg><span class="lbl">Sandbox etkileşim paneli</span></a></li>
           <li class="sidebar-item" id="side-sandbox"><a href="#sandbox" onclick="switchDashboardView('sandbox')"><svg viewBox="0 0 24 24"><path d="M12 3.5 L19.5 7.5 V16.5 L12 20.5 L4.5 16.5 V7.5 Z"/><path d="M4.5 7.5 L12 11.5 L19.5 7.5 M12 11.5 V20.5"/></svg><span class="lbl">Geliştirici sandbox</span></a></li>
-          <li class="sidebar-item" id="side-admin" style="display: none;"><a href="#admin" onclick="switchDashboardView('admin')"><span class="lbl">Admin</span></a></li>
         </ul>
       </nav>
     </aside>
@@ -723,6 +722,7 @@
 <div class="modes" role="tablist" aria-label="Çalışma biçimi">
 <button type="button" role="tab" id="m-due" aria-selected="true" aria-controls="ktable" data-mode="due">bugünkü tekrar</button>
 <button type="button" role="tab" id="m-all" aria-selected="false" aria-controls="ktable" data-mode="all">sırayla çevir</button>
+<button type="button" role="tab" id="m-smart" aria-selected="false" aria-controls="ktable" data-mode="smart">akıllı tekrar</button>
 </div>
 <div class="table" id="ktable" role="tabpanel" aria-labelledby="m-due">
 <div class="deck-under" aria-hidden="true"><i></i><i></i></div>
@@ -731,6 +731,13 @@
 </div>
 <p class="vh" id="big-h">Çevirmek için boşluk tuşu, biliyorum için sağ ok, tekrar için sol ok.</p>
 </div>
+<div class="judge4" data-judge4="" hidden role="group" aria-label="Ne kadar iyi hatırladın?">
+<button type="button" class="j4 again" data-r="again"><b>bilmedim</b><small data-iv="again"></small><kbd>1</kbd></button>
+<button type="button" class="j4 hard" data-r="hard"><b>zor</b><small data-iv="hard"></small><kbd>2</kbd></button>
+<button type="button" class="j4 good" data-r="good"><b>bildim</b><small data-iv="good"></small><kbd>3</kbd></button>
+<button type="button" class="j4 easy" data-r="easy"><b>kolay</b><small data-iv="easy"></small><kbd>4</kbd></button>
+</div>
+<p class="j4-hint hand" data-j4hint="" hidden>önce cevabı içinden söyle, sonra kartı çevir; ne kadar kolay hatırladığını işaretle.</p>
 <div class="judge" data-judge="" hidden>
 <button type="button" class="stampb no" data-j="0" aria-label="Tekrar (sol ok)"><span class="sb-h" aria-hidden="true"></span><span class="sb-f">TEKRAR</span></button>
 <div class="tally-w"><span class="tally-c" data-tally="" aria-hidden="true"></span><span class="j-prog hand" data-prog="" aria-live="polite"></span></div>
@@ -1160,218 +1167,7 @@
       <!-- ==========================================
            TAB: AKADEMIK SUNUM (Academic Presentation Studio)
            ========================================== -->
-      <section id="presentation-view" class="dashboard-view-section">
-        <style>
-          .pres-studio { display: flex; flex-direction: column; gap: 0.75rem; height: calc(100vh - 140px); min-height: 560px; }
-          .pres-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; background: #fff; border: 1px solid rgba(22,50,92,0.08); border-radius: var(--radius); padding: 0.65rem 1rem; box-shadow: var(--shadow-sm); }
-          .pres-toolbar-left { display: flex; align-items: center; gap: 0.6rem; flex: 1; min-width: 200px; }
-          .pres-toolbar-right { display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; }
-          .pres-title-input { border: 1px solid rgba(22,50,92,0.12); border-radius: var(--radius-sm); padding: 0.45rem 0.7rem; font-size: 0.9rem; font-weight: 700; color: var(--color-navy); min-width: 180px; max-width: 320px; width: 100%; background: var(--color-bg-alt, #f8fafc); }
-          .pres-title-input:focus { outline: none; border-color: var(--color-teal); box-shadow: 0 0 0 3px rgba(31,138,147,0.12); }
-          .pres-btn { border: 1px solid rgba(22,50,92,0.12); background: #fff; color: var(--color-navy); border-radius: var(--radius-sm); padding: 0.4rem 0.75rem; font-size: 0.8rem; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem; transition: all 0.15s; }
-          .pres-btn:hover { border-color: var(--color-teal); color: var(--color-teal); }
-          .pres-btn-primary { background: var(--color-teal); color: #fff; border-color: var(--color-teal); }
-          .pres-btn-primary:hover { background: #187a82; color: #fff; }
-          .pres-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-          .pres-body { display: grid; grid-template-columns: 180px 1fr 280px; gap: 0.75rem; flex: 1; min-height: 0; }
-          .pres-panel { background: #fff; border: 1px solid rgba(22,50,92,0.08); border-radius: var(--radius); box-shadow: var(--shadow-sm); display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
-          .pres-panel-header { padding: 0.65rem 0.85rem; border-bottom: 1px solid rgba(22,50,92,0.08); font-size: 0.78rem; font-weight: 800; color: var(--color-navy); text-transform: uppercase; letter-spacing: 0.03em; display: flex; align-items: center; justify-content: space-between; }
-          .pres-slides-list { flex: 1; overflow-y: auto; padding: 0.6rem; display: flex; flex-direction: column; gap: 0.5rem; }
-          .pres-slide-thumb { border: 1.5px solid rgba(22,50,92,0.1); border-radius: var(--radius-sm); padding: 0.5rem; cursor: pointer; background: var(--color-bg-alt, #f8fafc); transition: all 0.15s; }
-          .pres-slide-thumb:hover { border-color: rgba(31,138,147,0.4); }
-          .pres-slide-thumb.active { border-color: var(--color-teal); background: var(--color-teal-light); box-shadow: 0 0 0 2px rgba(31,138,147,0.15); }
-          .pres-slide-thumb-num { font-size: 0.7rem; font-weight: 800; color: var(--color-teal); margin-bottom: 0.25rem; }
-          .pres-slide-thumb-preview { height: 48px; background: #fff; border-radius: 4px; border: 1px solid rgba(22,50,92,0.06); display: flex; align-items: center; justify-content: center; font-size: 0.65rem; color: var(--color-text-muted); overflow: hidden; padding: 0.25rem; text-align: center; line-height: 1.2; }
-          .pres-canvas-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; padding: 1rem; background: #f1f5f9; }
-          .pres-canvas { flex: 1; background: #fff; border-radius: var(--radius); box-shadow: var(--shadow-md); aspect-ratio: 16/9; max-height: 100%; width: 100%; margin: 0 auto; display: flex; flex-direction: column; padding: 1.5rem 1.75rem; position: relative; overflow: auto; }
-          .pres-slide-title { font-size: 1.35rem; font-weight: 800; color: var(--color-navy); border: none; border-bottom: 2px solid transparent; width: 100%; background: transparent; padding: 0.15rem 0; margin-bottom: 0.75rem; }
-          .pres-slide-title:focus { outline: none; border-bottom-color: var(--color-teal); }
-          .pres-slide-content { flex: 1; font-size: 0.95rem; color: var(--color-text); line-height: 1.55; border: none; resize: none; width: 100%; background: transparent; font-family: inherit; }
-          .pres-slide-content:focus { outline: none; }
-          .pres-speaker-notes { margin-top: 0.75rem; border-top: 1px dashed rgba(22,50,92,0.12); padding-top: 0.6rem; }
-          .pres-speaker-notes label { font-size: 0.7rem; font-weight: 800; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.04em; display: block; margin-bottom: 0.3rem; }
-          .pres-speaker-notes textarea { width: 100%; border: 1px solid rgba(22,50,92,0.1); border-radius: var(--radius-sm); padding: 0.45rem 0.6rem; font-size: 0.8rem; resize: vertical; min-height: 52px; font-family: inherit; color: var(--color-text); background: var(--color-bg-alt, #f8fafc); }
-          .pres-right-body { flex: 1; overflow-y: auto; padding: 0.75rem; display: flex; flex-direction: column; gap: 0.85rem; }
-          .pres-tool-card { border: 1px solid rgba(22,50,92,0.08); border-radius: var(--radius-sm); padding: 0.7rem; background: var(--color-bg-alt, #f8fafc); }
-          .pres-tool-card h4 { font-size: 0.78rem; font-weight: 800; color: var(--color-navy); margin: 0 0 0.45rem 0; }
-          .pres-upload-zone { border: 1.5px dashed rgba(22,50,92,0.18); border-radius: var(--radius-sm); padding: 1rem 0.75rem; text-align: center; cursor: pointer; transition: all 0.15s; background: #fff; }
-          .pres-upload-zone:hover { border-color: var(--color-teal); background: var(--color-teal-light); }
-          .pres-upload-zone svg { color: var(--color-teal); margin-bottom: 0.35rem; }
-          .pres-upload-zone p { font-size: 0.75rem; color: var(--color-text-muted); margin: 0; }
-          .pres-layout-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
-          .pres-layout-btn { border: 1px solid rgba(22,50,92,0.1); background: #fff; border-radius: 6px; padding: 0.4rem; font-size: 0.68rem; font-weight: 700; color: var(--color-navy); cursor: pointer; text-align: center; }
-          .pres-layout-btn:hover, .pres-layout-btn.active { border-color: var(--color-teal); background: var(--color-teal-light); color: var(--color-teal); }
-          .pres-acadia-box { border: 1px solid rgba(22,50,92,0.08); border-radius: var(--radius-sm); background: #fff; display: flex; flex-direction: column; min-height: 160px; }
-          .pres-acadia-messages { flex: 1; padding: 0.6rem; font-size: 0.78rem; color: var(--color-text-muted); overflow-y: auto; max-height: 140px; }
-          .pres-acadia-input-row { display: flex; gap: 0.35rem; padding: 0.5rem; border-top: 1px solid rgba(22,50,92,0.08); }
-          .pres-acadia-input-row input { flex: 1; border: 1px solid rgba(22,50,92,0.12); border-radius: var(--radius-sm); padding: 0.4rem 0.55rem; font-size: 0.78rem; }
-          .pres-acadia-input-row input:focus { outline: none; border-color: var(--color-teal); }
-          .pres-footer { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; background: #fff; border: 1px solid rgba(22,50,92,0.08); border-radius: var(--radius); padding: 0.55rem 1rem; box-shadow: var(--shadow-sm); }
-          .pres-empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; text-align: center; padding: 2rem; color: var(--color-text-muted); }
-          @media (max-width: 1100px) {
-            .pres-body { grid-template-columns: 150px 1fr; }
-            .pres-panel-right { display: none; }
-          }
-          @media (max-width: 720px) {
-            .pres-body { grid-template-columns: 1fr; }
-            .pres-panel-left { max-height: 160px; }
-          }
-        </style>
-
-        <!-- LIST MODE: when no presentation is open -->
-        <div id="pres-list-mode">
-          <div class="dashboard-page-header" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
-            <div>
-              <h2 class="dashboard-page-title" data-i18n="dash.presentation.title">Akademik Sunum</h2>
-              <p class="dashboard-page-desc" data-i18n="dash.presentation.desc">Ders sunumlarınızı AI ile oluşturun, düzenleyin ve indirin.</p>
-            </div>
-            <button type="button" class="btn btn-primary" id="presentation-new-btn" style="padding: 0.65rem 1.25rem; font-weight: 700;">
-              <span data-i18n="dash.presentation.newBtn">+ Yeni Sunum</span>
-            </button>
-          </div>
-          <div id="pres-list-container" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem;">
-            <div class="pres-empty-state" id="pres-list-empty" style="grid-column: 1 / -1; min-height: 280px; background: #fff; border: 1px dashed rgba(22,50,92,0.15); border-radius: var(--radius);">
-              <div style="width: 56px; height: 56px; border-radius: 14px; background: rgba(31,138,147,0.1); display: flex; align-items: center; justify-content: center; margin-bottom: 1rem;">
-                <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--color-teal)" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-              </div>
-              <p style="font-size: 0.95rem; font-weight: 700; color: var(--color-navy); margin: 0 0 0.35rem 0;" data-i18n="dash.presentation.emptyTitle">Henüz sunumunuz yok</p>
-              <p style="font-size: 0.85rem; max-width: 360px; margin: 0;" data-i18n="dash.presentation.emptyDesc">Yeni bir sunum oluşturarak başlayın. Konu, Study Card veya belge ile AI destekli sunum hazırlayabilirsiniz.</p>
-            </div>
-          </div>
-        </div>
-
-        <!-- STUDIO MODE: 3-column editor -->
-        <div id="pres-studio-mode" class="pres-studio" style="display: none;">
-          <div class="pres-toolbar">
-            <div class="pres-toolbar-left">
-              <button type="button" class="pres-btn" id="pres-back-btn" title="Sunum listesine dön">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-                <span data-i18n="dash.presentation.back">Liste</span>
-              </button>
-              <input type="text" class="pres-title-input" id="pres-title-input" placeholder="Sunum başlığı..." value="">
-            </div>
-            <div class="pres-toolbar-right">
-              <button type="button" class="pres-btn" id="pres-ai-btn">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/></svg>
-                <span data-i18n="dash.presentation.aiAssist">AI Asistan</span>
-              </button>
-              <button type="button" class="pres-btn" id="pres-save-btn">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-                <span data-i18n="dash.presentation.save">Kaydet</span>
-              </button>
-              <button type="button" class="pres-btn" id="pres-preview-btn">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                <span data-i18n="dash.presentation.preview">Önizle</span>
-              </button>
-              <button type="button" class="pres-btn pres-btn-primary" id="pres-export-btn">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                <span data-i18n="dash.presentation.export">PPTX / PDF</span>
-              </button>
-            </div>
-          </div>
-
-          <div class="pres-body">
-            <div class="pres-panel pres-panel-left">
-              <div class="pres-panel-header">
-                <span data-i18n="dash.presentation.slides">Slaytlar</span>
-                <button type="button" class="pres-btn" id="pres-add-slide-btn" style="padding: 0.2rem 0.45rem; font-size: 0.75rem;">+</button>
-              </div>
-              <div class="pres-slides-list" id="pres-slides-list">
-                <div class="pres-slide-thumb active" data-slide-index="0">
-                  <div class="pres-slide-thumb-num">1</div>
-                  <div class="pres-slide-thumb-preview">Başlık slaytı</div>
-                </div>
-                <div class="pres-slide-thumb" data-slide-index="1">
-                  <div class="pres-slide-thumb-num">2</div>
-                  <div class="pres-slide-thumb-preview">İçerik</div>
-                </div>
-              </div>
-            </div>
-
-            <div class="pres-panel" style="background: transparent; border: none; box-shadow: none;">
-              <div class="pres-canvas-wrap">
-                <div class="pres-canvas" id="pres-canvas">
-                  <input type="text" class="pres-slide-title" id="pres-slide-title" placeholder="Slayt başlığı..." value="Sunum Başlığı Ekleyin">
-                  <textarea class="pres-slide-content" id="pres-slide-content" placeholder="İçeriğinizi buraya yazın…">• Hedef pazar analizi özetlenmiş ve yapılandırılmıştır.
-• Önizleme pazar analizi sonuçlarıdır.
-• Stratejik adımlar belirlenen akademik hedeflerle uyumludur.</textarea>
-                  <div class="pres-speaker-notes">
-                    <label data-i18n="dash.presentation.speakerNotes">Konuşma Notları</label>
-                    <textarea id="pres-speaker-notes" placeholder="Bu slaytta söyleyeceklerinizi yazın…"></textarea>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="pres-panel pres-panel-right">
-              <div class="pres-panel-header">
-                <span data-i18n="dash.presentation.tools">İçerik & Araçlar</span>
-              </div>
-              <div class="pres-right-body">
-                <div class="pres-tool-card">
-                  <h4 data-i18n="dash.presentation.layouts">Düzen (Layout)</h4>
-                  <div class="pres-layout-grid" id="pres-layout-grid">
-                    <button type="button" class="pres-layout-btn active" data-layout="title-content">Başlık + İçerik</button>
-                    <button type="button" class="pres-layout-btn" data-layout="two-column">İki Sütun</button>
-                    <button type="button" class="pres-layout-btn" data-layout="image-left">Görsel Sol</button>
-                    <button type="button" class="pres-layout-btn" data-layout="image-right">Görsel Sağ</button>
-                    <button type="button" class="pres-layout-btn" data-layout="chart">Grafik</button>
-                    <button type="button" class="pres-layout-btn" data-layout="table">Tablo</button>
-                  </div>
-                </div>
-
-                <div class="pres-tool-card">
-                  <h4 data-i18n="dash.presentation.imageUpload">Görsel Yükle</h4>
-                  <div class="pres-upload-zone" id="pres-upload-zone">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                    <p data-i18n="dash.presentation.uploadHint">Tıkla veya sürükle</p>
-                  </div>
-                  <input type="file" id="pres-image-input" accept="image/jpeg,image/png,image/webp,image/gif" style="display:none;">
-                  <button type="button" class="pres-btn" id="pres-upload-btn" style="width:100%; margin-top:0.45rem; justify-content:center;" data-i18n="dash.presentation.chooseFile">Bilgisayardan Seç</button>
-                </div>
-
-                <div class="pres-tool-card">
-                  <h4 data-i18n="dash.presentation.insert">Hızlı Ekle</h4>
-                  <div style="display:flex; flex-direction:column; gap:0.35rem;">
-                    <button type="button" class="pres-btn" id="pres-insert-table-btn" style="justify-content:flex-start;">📊 <span data-i18n="dash.presentation.insertTable">Tablo Ekle</span></button>
-                    <button type="button" class="pres-btn" id="pres-insert-chart-btn" style="justify-content:flex-start;">📈 <span data-i18n="dash.presentation.insertChart">Grafik Ekle</span></button>
-                  </div>
-                </div>
-
-                <div class="pres-tool-card" style="padding:0; overflow:hidden;">
-                  <div style="padding:0.65rem 0.7rem 0.4rem; font-size:0.78rem; font-weight:800; color:var(--color-navy);">✨ Acadia</div>
-                  <div class="pres-acadia-box" style="border:none; border-radius:0;">
-                    <div class="pres-acadia-messages" id="pres-acadia-messages">
-                      <div style="background:var(--color-teal-light); border-radius:8px; padding:0.45rem 0.55rem; margin-bottom:0.35rem; color:var(--color-navy);">
-                        Bu slaytı daha akademik hale getirebilirim. Ne istersin?
-                      </div>
-                    </div>
-                    <div class="pres-acadia-input-row">
-                      <input type="text" id="pres-acadia-input" placeholder="Acadia'ya sor...">
-                      <button type="button" class="pres-btn pres-btn-primary" id="pres-acadia-send" style="padding:0.4rem 0.55rem;">→</button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="pres-footer">
-            <button type="button" class="pres-btn" id="pres-settings-btn">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-              <span data-i18n="dash.presentation.settings">Sunum Ayarları</span>
-            </button>
-            <div style="display:flex; gap:0.45rem;">
-              <button type="button" class="pres-btn" id="pres-add-slide-footer-btn">
-                <span data-i18n="dash.presentation.addSlide">+ Yeni Slayt</span>
-              </button>
-              <button type="button" class="pres-btn pres-btn-primary" id="pres-complete-btn">
-                <span data-i18n="dash.presentation.complete">Sunumu Tamamla</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
+      
 
       <!-- ==========================================
            TAB: ACADEX SUNUM (embedded presentation builder,
@@ -1398,8 +1194,6 @@
 <label class="vh" for="sx-decks">Açık sunum</label><select id="sx-decks" class="sx-dsel" data-decks=""></select>
 <button type="button" class="sx-lnk" data-newdeck="">+ yeni sunum</button>
 <button type="button" class="sx-lnk danger" data-deldeck="">bu sunumu sil</button>
-<span class="sx-sp"></span>
-<a class="sx-lnk" href="acadex-sunum.html" target="_blank" rel="noopener">klasik stüdyo ↗</a>
 </div>
 <div class="sx-title land">
 <label class="vh" for="sx-deck">Sunum adı</label>
@@ -1831,7 +1625,7 @@
 <div class="book ay land">
 <div class="page l">
 <label class="axa-q"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 L20 20"/></svg><span class="vh">Ayarlarda ara</span><input type="search" data-q="" placeholder="ayarlarda ara…" autocomplete="off"></label>
-<div class="sn" role="tablist" aria-label="Ayar bölümleri" aria-orientation="vertical" data-tabs=""><button type="button" role="tab" id="axa-t-profil" aria-controls="axa-p-profil" data-sec="profil" aria-selected="false" tabindex="-1"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.6-4 3.4-6 7-6s6.4 2 7 6"/></svg><span>Profil ve hesap</span><kbd class="kb" aria-hidden="true">1</kbd></button><button type="button" role="tab" id="axa-t-gorunum" aria-controls="axa-p-gorunum" data-sec="gorunum" aria-selected="false" tabindex="-1"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg><span>Görünüm ve dil</span><kbd class="kb" aria-hidden="true">2</kbd></button><button type="button" role="tab" id="axa-t-bildirim" aria-controls="axa-p-bildirim" data-sec="bildirim" aria-selected="false" tabindex="-1"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16.5V11c0-3.6 2.6-6 6-6s6 2.4 6 6v5.5l1.5 1.5h-15z"/><path d="M10 20.5c.6.9 1.3 1.1 2 1.1s1.4-.2 2-1.1"/></svg><span>Bildirimler</span><kbd class="kb" aria-hidden="true">3</kbd></button><button type="button" role="tab" id="axa-t-calisma" aria-controls="axa-p-calisma" data-sec="calisma" aria-selected="false" tabindex="-1"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5.5" width="16" height="14" rx="2"/><path d="M8 3.5v4M16 3.5v4M4 10h16"/></svg><span>Çalışma tercihleri</span><kbd class="kb" aria-hidden="true">4</kbd></button><button type="button" role="tab" id="axa-t-erisim" aria-controls="axa-p-erisim" data-sec="erisim" aria-selected="false" tabindex="-1"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2"/><path d="M5 9h14M12 9v6M9 21l3-6 3 6"/></svg><span>Erişilebilirlik</span><kbd class="kb" aria-hidden="true">5</kbd></button><button type="button" role="tab" id="axa-t-veri" aria-controls="axa-p-veri" data-sec="veri" aria-selected="false" tabindex="-1"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg><span>Veri ve gizlilik</span><kbd class="kb" aria-hidden="true">6</kbd></button><button type="button" role="tab" id="axa-t-cihaz" aria-controls="axa-p-cihaz" data-sec="cihaz" aria-selected="false" tabindex="-1"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="13" height="10" rx="1.5"/><path d="M8 19h3M17 9h3v10h-3z"/></svg><span>Oturumlar ve cihaz</span><kbd class="kb" aria-hidden="true">7</kbd></button><button type="button" role="tab" id="axa-t-plan" aria-controls="axa-p-plan" data-sec="plan" aria-selected="false" tabindex="-1"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5L20.5 8 12 12.5 3.5 8z"/><path d="M3.5 12L12 16.5 20.5 12"/></svg><span>Kullanım</span><kbd class="kb" aria-hidden="true">8</kbd></button></div>
+<div class="sn" role="tablist" aria-label="Ayar bölümleri" aria-orientation="vertical" data-tabs=""><button type="button" role="tab" id="axa-t-profil" aria-controls="axa-p-profil" data-sec="profil" aria-selected="false" tabindex="-1"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.6-4 3.4-6 7-6s6.4 2 7 6"/></svg><span>Profil ve hesap</span><kbd class="kb" aria-hidden="true">1</kbd></button><button type="button" role="tab" id="axa-t-gorunum" aria-controls="axa-p-gorunum" data-sec="gorunum" aria-selected="false" tabindex="-1"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg><span>Görünüm ve dil</span><kbd class="kb" aria-hidden="true">2</kbd></button><button type="button" role="tab" id="axa-t-bildirim" aria-controls="axa-p-bildirim" data-sec="bildirim" aria-selected="false" tabindex="-1"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16.5V11c0-3.6 2.6-6 6-6s6 2.4 6 6v5.5l1.5 1.5h-15z"/><path d="M10 20.5c.6.9 1.3 1.1 2 1.1s1.4-.2 2-1.1"/></svg><span>Bildirimler</span><kbd class="kb" aria-hidden="true">3</kbd></button><button type="button" role="tab" id="axa-t-calisma" aria-controls="axa-p-calisma" data-sec="calisma" aria-selected="false" tabindex="-1"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5.5" width="16" height="14" rx="2"/><path d="M8 3.5v4M16 3.5v4M4 10h16"/></svg><span>Çalışma tercihleri</span><kbd class="kb" aria-hidden="true">4</kbd></button><button type="button" role="tab" id="axa-t-erisim" aria-controls="axa-p-erisim" data-sec="erisim" aria-selected="false" tabindex="-1"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2"/><path d="M5 9h14M12 9v6M9 21l3-6 3 6"/></svg><span>Erişilebilirlik</span><kbd class="kb" aria-hidden="true">5</kbd></button><button type="button" role="tab" id="axa-t-veri" aria-controls="axa-p-veri" data-sec="veri" aria-selected="false" tabindex="-1"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg><span>Veri, gizlilik ve hesap</span><kbd class="kb" aria-hidden="true">6</kbd></button><button type="button" role="tab" id="axa-t-cihaz" aria-controls="axa-p-cihaz" data-sec="cihaz" aria-selected="false" tabindex="-1"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="13" height="10" rx="1.5"/><path d="M8 19h3M17 9h3v10h-3z"/></svg><span>Oturumlar ve cihaz</span><kbd class="kb" aria-hidden="true">7</kbd></button><button type="button" role="tab" id="axa-t-plan" aria-controls="axa-p-plan" data-sec="plan" aria-selected="false" tabindex="-1"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5L20.5 8 12 12.5 3.5 8z"/><path d="M3.5 12L12 16.5 20.5 12"/></svg><span>Kullanım</span><kbd class="kb" aria-hidden="true">8</kbd></button></div>
 <p class="mut axa-none" data-none="" hidden>bu aramayla bir ayar bulamadım.</p>
 </div>
 <div class="page pg"><section class="axa-pg" role="tabpanel" id="axa-p-profil" aria-labelledby="axa-t-profil" data-pg="profil" hidden><h2 class="hd">Profil ve hesap<span class="sav" data-sav="" aria-hidden="true">kaydedildi</span></h2><div class="row axa-me"><span class="bigav" id="settings-avatar-preview" aria-label="Profil fotoğrafın"></span>
@@ -1864,7 +1658,7 @@
 <div class="axa-meter" aria-hidden="true"><i data-pw-m=""></i></div><p class="mut" data-pw-t=""></p>
 <p id="password-error-message" class="axa-err" role="alert" style="display:none"></p>
 <button type="submit" class="btn btn-dark sm">Şifreyi güncelle</button>
-</form></section><section class="axa-pg" role="tabpanel" id="axa-p-gorunum" aria-labelledby="axa-t-gorunum" data-pg="gorunum" hidden><h2 class="hd">Görünüm ve dil<span class="sav" data-sav="" aria-hidden="true">kaydedildi</span></h2><h3 style="margin-top:0">arayüz dili</h3>
+</form><p class="axa-dz-link">Hesabını kapatmak mı istiyorsun? <button type="button" class="axa-lnk" data-godz="">Tehlikeli bölgeye git →</button></p></section><section class="axa-pg" role="tabpanel" id="axa-p-gorunum" aria-labelledby="axa-t-gorunum" data-pg="gorunum" hidden><h2 class="hd">Görünüm ve dil<span class="sav" data-sav="" aria-hidden="true">kaydedildi</span></h2><h3 style="margin-top:0">arayüz dili</h3>
 <div class="themes axa-lang" role="radiogroup" aria-label="Arayüz dili"><button type="button" class="th" role="radio" aria-checked="false" data-lang="tr"><s class="axa-flag">TR</s>Türkçe</button><button type="button" class="th" role="radio" aria-checked="false" data-lang="en"><s class="axa-flag">EN</s>English</button></div>
 <h3>yazı boyutu</h3>
 <div class="themes axa-fs" role="radiogroup" aria-label="Yazı boyutu">
@@ -1882,14 +1676,19 @@
 <label class="fld">Zorluk<select data-p="examDiff"><option value="">her seferinde seçerim</option><option value="easy">kolay</option><option value="medium">orta</option><option value="hard">zor</option></select></label>
 <label class="fld">Soru sayısı<select data-p="examCount"><option value="">10 (standart)</option><option value="5">5</option><option value="10">10</option><option value="15">15</option><option value="20">20</option></select></label>
 </div><label class="sw"><span><b>Denemeleri gerçek süreyle başlat</b><small>Süreli, ipucusuz prova; süre bitince kâğıt toplanır.</small></span><input type="checkbox" role="switch" data-p="examSim"><i></i></label><p class="mut">Bir dersin hoca dosyasında farklı bir tarz yazdıysan o ders için hoca dosyası geçerli olur.</p></section><section class="axa-pg" role="tabpanel" id="axa-p-erisim" aria-labelledby="axa-t-erisim" data-pg="erisim" hidden><h2 class="hd">Erişilebilirlik<span class="sav" data-sav="" aria-hidden="true">kaydedildi</span></h2><label class="sw"><span><b>Hareketi azalt</b><small>Kart uçuşları, sayfa çevirme ve diğer animasyonlar kapanır.</small></span><input type="checkbox" role="switch" data-p="rm"><i></i></label><label class="sw"><span><b>Yüksek kontrast</b><small>Soluk yazılar koyulaşır, kenarlıklar belirginleşir.</small></span><input type="checkbox" role="switch" data-p="hc"><i></i></label><label class="sw"><span><b>Disleksi dostu yazı</b><small>El yazısı başlıklar düz yazıya döner; harf ve satır aralığı açılır.</small></span><input type="checkbox" role="switch" data-p="dys"><i></i></label><label class="sw"><span><b>Klavye kısayolları</b><small>Kapatırsan aşağıdaki tuşlar bir şey yapmaz.</small></span><input type="checkbox" role="switch" data-p="ks"><i></i></label>
-<h3>kısayollar</h3><ul class="axa-keys"><li><kbd class="kb">/</kbd> arama</li><li><kbd class="kb">1</kbd>–<kbd class="kb">8</kbd> ayarlarda bölüme git</li><li><kbd class="kb">boşluk</kbd> bilgi kartını çevir</li><li><kbd class="kb">←</kbd> <kbd class="kb">→</kbd> kartta tekrar / biliyorum, sınavda sayfa</li><li><kbd class="kb">A</kbd>–<kbd class="kb">E</kbd> sınavda şık seç</li><li><kbd class="kb">Ctrl</kbd>+<kbd class="kb">S</kbd> defteri kaydet</li></ul></section><section class="axa-pg" role="tabpanel" id="axa-p-veri" aria-labelledby="axa-t-veri" data-pg="veri" hidden><h2 class="hd">Veri ve gizlilik<span class="sav" data-sav="" aria-hidden="true">kaydedildi</span></h2><div class="sticky b axa-st">Belgelerin, özetlerin, kartların, defterin ve sınavların hesabında durur. İstediğin zaman bir kopyasını indirebilirsin.</div>
+<h3>kısayollar</h3><ul class="axa-keys"><li><kbd class="kb">/</kbd> arama</li><li><kbd class="kb">1</kbd>–<kbd class="kb">8</kbd> ayarlarda bölüme git</li><li><kbd class="kb">boşluk</kbd> bilgi kartını çevir</li><li><kbd class="kb">←</kbd> <kbd class="kb">→</kbd> kartta tekrar / biliyorum, sınavda sayfa</li><li><kbd class="kb">A</kbd>–<kbd class="kb">E</kbd> sınavda şık seç</li><li><kbd class="kb">Ctrl</kbd>+<kbd class="kb">S</kbd> defteri kaydet</li></ul></section><section class="axa-pg" role="tabpanel" id="axa-p-veri" aria-labelledby="axa-t-veri" data-pg="veri" hidden><h2 class="hd">Veri, gizlilik ve hesap<span class="sav" data-sav="" aria-hidden="true">kaydedildi</span></h2><div class="sticky b axa-st">Belgelerin, özetlerin, kartların, defterin ve sınavların hesabında durur. İstediğin zaman bir kopyasını indirebilirsin.</div>
 <div class="row" style="margin:14px 0 4px"><button type="button" class="btn btn-blue sm" data-export="">Verilerimi indir (JSON)</button><span class="mut" data-export-t="" aria-live="polite"></span></div>
 <p class="mut">Dosyaların kendisi değil, kayıtların iner: profil, belge listesi, özetler ve kartlar, tekrar geçmişi, defter sayfaları, planlayıcı ve sınavlar.</p>
 <h3>bu tarayıcı</h3>
 <p class="mut">Hoca dosyaları, okuma işaretleri, hedefin ve bu sayfadaki görünüm ayarları bu tarayıcıda saklanır.</p>
 <button type="button" class="btn btn-line sm" data-reset-local="">Bu tarayıcıdaki Acadex tercihlerini sıfırla</button>
 <h3 class="axa-danger-h">tehlikeli bölge</h3>
-<div class="axa-danger"><p>Hesabını silersen profilin, belgelerin, kartların, defterin ve sınav geçmişin <b>kalıcı olarak</b> silinir. Bu işlem geri alınamaz.</p><button type="button" class="btn btn-red sm" onclick="openDeleteAccountModal()">Hesabımı sil</button></div></section><section class="axa-pg" role="tabpanel" id="axa-p-cihaz" aria-labelledby="axa-t-cihaz" data-pg="cihaz" hidden><h2 class="hd">Oturumlar ve cihaz<span class="sav" data-sav="" aria-hidden="true">kaydedildi</span></h2><div class="dev"><span class="doc-ic" aria-hidden="true"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="5" width="13" height="10" rx="1.5"/><path d="M8 19h3"/></svg></span><div><b data-dev-n="">Bu cihaz</b><div class="mut" data-dev-d=""></div></div><span class="tag" style="--tc:#1E8A55">bu cihaz</span></div>
+<div class="axa-danger" id="tehlikeli-bolge" data-dz=""><p>Hesabını silersen profilin, belgelerin ve dosyaların, özetlerin, kartların ve tekrar geçmişin, defter sayfaların, planlayıcın, sınavların, Study Lab çalışmaların ve bölüm akışındaki paylaşımların <b>kalıcı olarak</b> silinir. Bu işlem geri alınamaz.</p>
+<ol class="axa-dz-steps"><li><b>1</b><span>İstersen önce <button type="button" class="axa-lnk" data-dz-export="">verilerini indir (JSON)</button>.</span></li>
+<li><b>2</b><label for="dz-phrase">Onaylamak için <q>hesabımı sil</q> yaz</label><input id="dz-phrase" class="fld" type="text" autocomplete="off" spellcheck="false" data-dz-phrase=""></li>
+<li data-dz-pwrow=""><b>3</b><label for="dz-pw">Şifren</label><input id="dz-pw" class="fld" type="password" autocomplete="current-password" data-dz-pw=""></li></ol>
+<p class="axa-dz-err" data-dz-err="" role="alert" hidden></p>
+<button type="button" class="btn btn-red sm" data-dz-go="" disabled>Hesabımı kalıcı olarak sil</button></div></section><section class="axa-pg" role="tabpanel" id="axa-p-cihaz" aria-labelledby="axa-t-cihaz" data-pg="cihaz" hidden><h2 class="hd">Oturumlar ve cihaz<span class="sav" data-sav="" aria-hidden="true">kaydedildi</span></h2><div class="dev"><span class="doc-ic" aria-hidden="true"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="5" width="13" height="10" rx="1.5"/><path d="M8 19h3"/></svg></span><div><b data-dev-n="">Bu cihaz</b><div class="mut" data-dev-d=""></div></div><span class="tag" style="--tc:#1E8A55">bu cihaz</span></div>
 <p class="mut" style="margin-top:12px">Başka bir bilgisayarda ya da telefonda açık kalan oturumların varsa hepsini tek seferde kapatabilirsin. Bu cihazda açık kalırsın.</p>
 <div class="row"><button type="button" class="btn btn-line sm" data-out-others="">Diğer cihazlardaki oturumları kapat</button><button type="button" class="btn btn-dark sm" data-out-here="">Bu cihazdan çıkış yap</button></div></section><section class="axa-pg" role="tabpanel" id="axa-p-plan" aria-labelledby="axa-t-plan" data-pg="plan" hidden><h2 class="hd">Kullanım<span class="sav" data-sav="" aria-hidden="true">kaydedildi</span></h2><p class="mut" style="margin-top:0">Hesabında şu an duranlar:</p><div class="axa-use" data-use=""><p class="hand">sayılıyor…</p></div></section></div>
 </div>
@@ -1906,7 +1705,7 @@
 <div class="d-head-l">
 <span class="eyb hand">deney masası</span>
 <h1 class="disp">Acadex Study Lab</h1>
-<p class="d-sub hand">işe yaradığı bilinen yedi çalışma yöntemi, her biri kendi istasyonunda. birini seç, kendi özetinle dene.</p>
+<p class="d-sub hand">işe yaradığı bilinen on bir çalışma yöntemi, her biri kendi istasyonunda. birini seç, kendi özetinle dene.</p>
 </div>
 <div class="d-head-r">
 <span class="lb-today hand" data-today="" aria-live="polite"></span>
@@ -1915,6 +1714,7 @@
 </header>
 
 <div class="lb-benchv" data-bench="">
+<section class="lb-rx land" data-rx="" aria-label="Bugünün reçetesi"></section>
 <section class="lb-bench land" aria-labelledby="lb-bt">
 <h2 class="vh" id="lb-bt">İstasyonlar</h2>
 <div class="lb-shelf" aria-hidden="true">
@@ -1930,6 +1730,15 @@
 <div class="lb-card lb-week-c"><h3 class="lb-k">bu hafta</h3><div class="lb-week" data-week=""></div><p class="lb-week-t hand" data-weekt=""></p></div>
 <div class="lb-card lb-per-c"><h3 class="lb-k">yöntemlere göre</h3><ul class="lb-per" data-per=""></ul></div>
 <div class="lb-card lb-rec-c"><h3 class="lb-k">son deneyler</h3><ol class="lb-rec" data-recent=""></ol></div>
+</div>
+</section>
+
+<section class="lb-sera land" aria-labelledby="lb-st2">
+<div class="lb-sec-h"><h2 class="hd" id="lb-st2">sera</h2><small class="hand" data-serasub=""></small></div>
+<div class="lb-gh" data-gh=""></div>
+<div class="lb-sera-grid">
+<div class="lb-card"><h3 class="lb-k">yöntem seviyeleri</h3><ul class="lb-levels" data-levels=""></ul></div>
+<div class="lb-card"><h3 class="lb-k">rozetler</h3><ul class="lb-badges" data-badges=""></ul></div>
 </div>
 </section>
 </div>
@@ -1950,112 +1759,7 @@
 <div id="axl-layer"><div class="lab axl-l"></div></div>
 </section>
 
-      <section id="admin-view" class="dashboard-view-section">
-        <div class="dashboard-page-header">
-          <h2 class="dashboard-page-title">Yönetici Paneli</h2>
-          <p class="dashboard-page-desc">Platform yönetim, istatistik ve denetim araçları.</p>
-        </div>
-
-        <!-- Internal Tab Navigation -->
-        <div class="admin-tab-bar" style="display: flex; gap: 0.5rem; border-bottom: 2px solid rgba(22, 50, 92, 0.08); margin: 0; padding-bottom: 0px; flex-wrap: wrap;">
-          <button class="btn-admin-tab active" id="btn-admin-tab-overview" onclick="switchAdminTab('overview')" style="background: none; border: none; padding: 0.6rem 1.2rem; font-weight: 700; font-size: 0.9rem; color: var(--color-navy); cursor: pointer; border-bottom: 3px solid var(--color-teal); margin-bottom: -2px; transition: all 0.2s;">Genel Bakış</button>
-          <button class="btn-admin-tab" id="btn-admin-tab-students" onclick="switchAdminTab('students')" style="background: none; border: none; padding: 0.6rem 1.2rem; font-weight: 700; font-size: 0.9rem; color: var(--color-text-muted); cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; transition: all 0.2s;">Öğrenciler</button>
-          <button class="btn-admin-tab" id="btn-admin-tab-inbox" onclick="switchAdminTab('inbox')" style="background: none; border: none; padding: 0.6rem 1.2rem; font-weight: 700; font-size: 0.9rem; color: var(--color-text-muted); cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; transition: all 0.2s; display: flex; align-items: center; gap: 0.5rem;">
-            <span>Gelen Kutusu</span>
-            <span id="admin-tab-inbox-badge" style="width: 18px; height: 18px; background-color: #EF4444; border-radius: 50%; color: white; display: none; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 800; line-height: 1;">0</span>
-          </button>
-          <button class="btn-admin-tab" id="btn-admin-tab-moderation" onclick="switchAdminTab('moderation')" style="background: none; border: none; padding: 0.6rem 1.2rem; font-weight: 700; font-size: 0.9rem; color: var(--color-text-muted); cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; transition: all 0.2s;">İçerik Denetimi</button>
-        </div>
-
-        <!-- TAB: Genel Bakış (Overview) -->
-        <div id="admin-tab-content-overview" class="admin-tab-content" style="display: block;">
-          <div id="report-content">
-            <!-- Populated dynamically via JS -->
-          </div>
-        </div>
-
-        <!-- TAB: Öğrenciler (Students) -->
-        <div id="admin-tab-content-students" class="admin-tab-content" style="display: none;">
-          <div class="students-filters-bar" style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin-bottom: 1.5rem;">
-            <input type="text" id="students-search-input" placeholder="Search by name, student number or email..." style="flex: 1; min-width: 250px; padding: 0.6rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); font-size: 0.85rem;" oninput="filterAdminStudentsTable()">
-            
-            <select id="students-dept-filter" style="padding: 0.6rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); font-size: 0.85rem;" onchange="filterAdminStudentsTable()">
-              <option value="all">All Departments / Tüm Bölümler</option>
-              <option value="İşletme">Business / İşletme</option>
-              <option value="İktisat">Economics / İktisat</option>
-              <option value="Siyaset Bilimi ve Kamu Yönetimi">Political Science / Siyaset Bilimi</option>
-              <option value="Uluslararası İlişkiler">International Relations / Uluslararası İlişkiler</option>
-            </select>
-            
-            <span id="students-count-label" style="font-size: 0.85rem; font-weight: 700; color: var(--color-text-muted);">Showing 0 of 0 students</span>
-          </div>
-
-          <div style="overflow-x: auto; background: white; border: 1px solid rgba(22, 50, 92, 0.08); border-radius: var(--radius); box-shadow: var(--shadow-sm);">
-            <table class="admin-table" style="width: 100%; border-collapse: collapse; font-size: 0.85rem; text-align: left;">
-              <thead>
-                <tr style="background-color: var(--color-bg-alt); border-bottom: 1px solid rgba(22, 50, 92, 0.08); cursor: pointer; user-select: none;">
-                  <th onclick="sortAdminStudents('full_name')" style="padding: 0.75rem 1rem; font-weight: 700; color: var(--color-navy);">Full Name ↕</th>
-                  <th onclick="sortAdminStudents('student_number')" style="padding: 0.75rem 1rem; font-weight: 700; color: var(--color-navy);">Student No ↕</th>
-                  <th onclick="sortAdminStudents('email')" style="padding: 0.75rem 1rem; font-weight: 700; color: var(--color-navy);">Email ↕</th>
-                  <th onclick="sortAdminStudents('department')" style="padding: 0.75rem 1rem; font-weight: 700; color: var(--color-navy);">Department ↕</th>
-                  <th onclick="sortAdminStudents('created_at')" style="padding: 0.75rem 1rem; font-weight: 700; color: var(--color-navy);">Registered ↕</th>
-                  <th onclick="sortAdminStudents('current_streak')" style="padding: 0.75rem 1rem; font-weight: 700; color: var(--color-navy);">Streak ↕</th>
-                  <th onclick="sortAdminStudents('document_count')" style="padding: 0.75rem 1rem; font-weight: 700; color: var(--color-navy);">Docs ↕</th>
-                  <th onclick="sortAdminStudents('study_card_count')" style="padding: 0.75rem 1rem; font-weight: 700; color: var(--color-navy);">Cards ↕</th>
-                  <th onclick="sortAdminStudents('exam_count')" style="padding: 0.75rem 1rem; font-weight: 700; color: var(--color-navy);">Exams ↕</th>
-                </tr>
-              </thead>
-              <tbody id="students-table-body">
-                <!-- Populated dynamically -->
-              </tbody>
-            </table>
-          </div>
-          <div id="students-error-container" style="display: none; padding: 2rem; text-align: center; color: #DC2626;"></div>
-        </div>
-
-        <!-- TAB: Gelen Kutusu (Inbox) -->
-        <div id="admin-tab-content-inbox" class="admin-tab-content" style="display: none;">
-          <div style="display: flex; flex-direction: column; gap: 1.25rem; max-width: 900px;" id="admin-messages-list">
-            <!-- Populated dynamically via JS -->
-          </div>
-        </div>
-
-        <!-- TAB: İçerik Denetimi (Moderation) -->
-        <div id="admin-tab-content-moderation" class="admin-tab-content" style="display: none; flex-direction: column; gap: 2rem;">
-          <!-- Shared Study Cards Subsection -->
-          <div class="moderation-section">
-            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid rgba(22, 50, 92, 0.08); padding-bottom: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
-              <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--color-navy); margin: 0;">Paylaşılan Çalışma Kartları (Shared Study Cards)</h3>
-              <input type="text" id="mod-cards-search" placeholder="Filter shared cards..." style="padding: 0.4rem 0.75rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); font-size: 0.8rem; width: 220px;" oninput="filterModerationCards()">
-            </div>
-            <div id="mod-cards-list" style="display: flex; flex-direction: column; gap: 0.75rem;">
-              <!-- Loaded dynamically -->
-            </div>
-          </div>
-
-          <!-- Sandbox Projects Subsection -->
-          <div class="moderation-section">
-            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid rgba(22, 50, 92, 0.08); padding-bottom: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
-              <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--color-navy); margin: 0;">Sandbox Projeleri (Sandbox Projects)</h3>
-              <input type="text" id="mod-projects-search" placeholder="Filter sandbox projects..." style="padding: 0.4rem 0.75rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); font-size: 0.8rem; width: 220px;" oninput="filterModerationProjects()">
-            </div>
-            <div id="mod-projects-list" style="display: flex; flex-direction: column; gap: 0.75rem;">
-              <!-- Loaded dynamically -->
-            </div>
-          </div>
-
-          <!-- Sandbox Project Comments Subsection -->
-          <div class="moderation-section">
-            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid rgba(22, 50, 92, 0.08); padding-bottom: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
-              <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--color-navy); margin: 0;">Proje Yorumları (Project Comments)</h3>
-              <input type="text" id="mod-comments-search" placeholder="Filter comments..." style="padding: 0.4rem 0.75rem; border: 1px solid rgba(22, 50, 92, 0.15); border-radius: var(--radius-sm); font-size: 0.8rem; width: 220px;" oninput="filterModerationComments()">
-            </div>
-            <div id="mod-comments-list" style="display: flex; flex-direction: column; gap: 0.75rem;">
-              <!-- Loaded dynamically -->
-            </div>
-          </div>
-        </div>
-      </section>
+      
 
     </main>
   </div>

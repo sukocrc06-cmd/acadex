@@ -16,7 +16,7 @@
 create table if not exists public.study_lab_sessions (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
-  method text not null check (method in ('pomodoro', 'tekrar', 'recall', 'feynman', 'karma', 'harita', 'cornell')),
+  method text not null check (method in ('pomodoro', 'tekrar', 'recall', 'feynman', 'karma', 'harita', 'cornell', 'loci', 'blurt', 'sq3r', 'neden')),
   minutes integer not null check (minutes between 1 and 240),
   card_id uuid references public.study_cards(id) on delete set null,
   detail jsonb not null default '{}'::jsonb,
@@ -31,7 +31,7 @@ create policy "study_lab_sessions_own" on public.study_lab_sessions
 create table if not exists public.study_lab_items (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
-  kind text not null check (kind in ('harita', 'cornell', 'feynman')),
+  kind text not null check (kind in ('harita', 'cornell', 'feynman', 'loci', 'blurt', 'sq3r', 'neden')),
   ref text not null,
   title text,
   data jsonb not null default '{}'::jsonb,

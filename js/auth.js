@@ -30,7 +30,8 @@ async function getPostLoginDestination(userId) {
       .single();
 
     if (error || !profile) return 'dashboard.html';
-    if (profile.is_admin) return 'admin.html';
+    // Eski admin paneli kaldırıldı: yöneticiler de doğrudan çalışma masasına gider.
+    if (profile.is_admin) return 'dashboard.html';
     if (profile.is_teacher) return 'teacher.html';
     return 'dashboard.html';
   } catch (e) {
@@ -425,7 +426,9 @@ function initLoginForm() {
 
         // Maintenance mode: only admins are allowed through while it's on.
         // (site-status.js, loaded before this script, exposes the check.)
-        if (destination !== 'admin.html' && typeof window.acadexGetSiteSettings === 'function') {
+        let isAdminUser = false;
+        try { const { data: ap } = await supabaseClient.from('profiles').select('is_admin').eq('id', data.session.user.id).single(); isAdminUser = !!(ap && ap.is_admin); } catch (e) {}
+        if (!isAdminUser && typeof window.acadexGetSiteSettings === 'function') {
           try {
             const settings = await window.acadexGetSiteSettings();
             if (settings.maintenance && settings.maintenance.enabled) {
@@ -441,9 +444,14 @@ function initLoginForm() {
 
         const successMsg = getMsg('validation.loginSuccess', 'Login successful! Accessing portal...');
         showFormAlert(form, 'success', successMsg);
-        setTimeout(() => {
-          window.location.href = destination;
-        }, 1200);
+        // login.html'deki karşılama ekranı (masana gidiyorsun) yönlendirmeyi kendisi yapar.
+        if (typeof window.__acxGoto === 'function') {
+          window.__acxGoto(destination, data.session);
+        } else {
+          setTimeout(() => {
+            window.location.href = destination;
+          }, 1200);
+        }
       }
     } catch (err) {
       console.error("Login exception: ", err);
