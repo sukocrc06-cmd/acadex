@@ -8383,8 +8383,24 @@ var SBX = (function () {
     var c = sbc(); if (!c || !c.functions) throw new Error('bağlantı yok');
     var r = await Promise.race([c.functions.invoke('acadia-assistant', { body: { mode: 'agent', messages: S.msgs, language: (localStorage.getItem('acadexUILang') || 'tr') === 'en' ? 'en' : 'tr', page: pageCtx() } }), new Promise(function (_, rej) { setTimeout(function () { rej(new Error('zaman aşımı')); }, 60000); })]);
     var d = r && r.data; if (typeof d === 'string') { try { d = JSON.parse(d); } catch (e) { d = null; } }
-    if (r && r.error && !d) throw r.error; if (!d || !d.message) throw new Error((d && d.error) || 'boş yanıt');
+    if (r && r.error && !d) throw await why(r.error);
+    if (!d || !d.message) { var er = new Error((d && d.error) || (d && d.reply ? 'sunucudaki Acadia eski sürüm (ajan modu yok)' : 'boş yanıt')); er.old = !!(d && d.reply); throw er; }
     return d.message;
+  };
+  /* sunucu hatasının asıl sebebini oku (FunctionsHttpError → yanıt gövdesi) */
+  var why = async function (err) {
+    var msg = (err && err.message) || String(err), st = 0, old = false;
+    try { var ctx = err && err.context; if (ctx) { st = ctx.status || 0; var b = await ctx.clone().json().catch(function () { return null; }); if (b && b.error) msg = b.error; if (b && /Missing "message"/.test(b.error || '')) { old = true; msg = 'sunucudaki Acadia eski sürüm (ajan modu yok)'; } } } catch (e) {}
+    var e2 = new Error(msg + (st ? ' (' + st + ')' : '')); e2.old = old; return e2;
+  };
+  /* ajan modu çalışmazsa klasik sohbetle cevap ver (araçsız) */
+  var classic = async function (text) {
+    var c = sbc(); if (!c || !c.functions) throw new Error('bağlantı yok');
+    var hist = S.msgs.filter(function (m) { return (m.role === 'user' || m.role === 'assistant') && m.content; }).slice(-7, -1).map(function (m) { return { role: m.role, content: m.content }; });
+    var r = await c.functions.invoke('acadia-assistant', { body: { message: text, history: hist, language: 'tr', studyCardId: pageCtx().cardId || undefined } });
+    var d = r && r.data; if (typeof d === 'string') { try { d = JSON.parse(d); } catch (e) { d = { reply: d }; } }
+    if (r && r.error && !(d && d.reply)) throw await why(r.error);
+    return String((d && d.reply) || '').replace(/```acadia-action[\s\S]*?```/g, '').trim();
   };
   var busy = function (on) { S.running = on; sendB.hidden = on; stopB.hidden = !on; ta.disabled = false; P.classList.toggle('busy', on); };
   var send = async function (text) {
@@ -8408,7 +8424,14 @@ var SBX = (function () {
       }
     } catch (e) {
       console.warn('acadia', e);
-      add('bot err', '<p>Şu an Acadia’ya ulaşamadım. Birazdan tekrar dener misin?</p>');
+      var acted = S.msgs.slice(S.msgs.lastIndexOf(S.msgs.filter(function (m) { return m.role === 'user'; }).slice(-1)[0])).some(function (m) { return m.role === 'tool'; });
+      var reply = '';
+      if (!acted) { try { think(true); reply = await classic(text); } catch (e2) { console.warn('acadia klasik', e2); } finally { think(false); } }
+      if (reply) {
+        add('bot', md(reply));
+        add('bot note', '<p class="mono axa-why">işlem yapma modu şu an çalışmadı, yalnızca sohbet ettim · ' + X(cut(e.message || String(e), 140)) + '</p>');
+        S.msgs.push({ role: 'assistant', content: reply });
+      } else add('bot err', '<p>Şu an Acadia’ya ulaşamadım. Birazdan tekrar dener misin?</p><p class="mono axa-why">' + X(cut(e.message || String(e), 160)) + '</p>');
       // yarım kalan araç çağrılarını sohbetten temizle
       while (S.msgs.length && S.msgs[S.msgs.length - 1].role !== 'user' && !(S.msgs[S.msgs.length - 1].role === 'assistant' && !S.msgs[S.msgs.length - 1].tool_calls)) S.msgs.pop();
     } finally { busy(false); paintCtx(); if (S.msgs.length > 60) S.msgs = S.msgs.slice(-40); while (S.msgs.length && S.msgs[0].role !== 'user') S.msgs.shift(); }

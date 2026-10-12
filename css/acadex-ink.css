@@ -8138,3 +8138,4 @@ body.axa-open #btn-acadia-toggle,body.axa-open .acadia-fab-wrap,body.axa-open #p
   body.axr-open #axa-layer .axa{top:0}
 }
 @media (prefers-reduced-motion:reduce){#axa-layer *{animation:none!important;transition:none!important}}
+#axa-layer .axa-why{font-size:10.5px;color:#9A9382;margin-top:4px!important;word-break:break-word}
