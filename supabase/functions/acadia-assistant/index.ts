@@ -115,40 +115,39 @@ const fn = (name: string, description: string, properties: Record<string, unknow
   type: 'function',
   function: { name, description, parameters: { type: 'object', properties, required, additionalProperties: false } }
 })
-const str = (d: string) => ({ type: 'string', description: d })
-const int = (d: string) => ({ type: 'integer', description: d })
-const bool = (d: string) => ({ type: 'boolean', description: d })
-const en = (d: string, values: string[]) => ({ type: 'string', enum: values, description: d })
 
+const S = { type: 'string' }, I = { type: 'integer' }, B = { type: 'boolean' }
+const E = (values: string[]) => ({ type: 'string', enum: values })
+const ARR = (props: Record<string, unknown>, required: string[], max: number) => ({ type: 'array', maxItems: max, items: { type: 'object', additionalProperties: false, required, properties: props } })
 const AGENT_TOOLS = [
-  // --- okuma ---
-  fn('list_documents', 'List the student\'s uploaded documents with status (uploaded / processing / summarized / failed), course tag and the ids of their study cards.', { query: str('optional filter text (file name or course)') }),
-  fn('list_study_cards', 'List the student\'s own study cards (AI summaries) with id, document name, course, style and creation date.', { query: str('optional filter text'), course: str('optional course code filter') }),
-  fn('read_study_card', 'Read the content of one study card (own or shared): summary, section headings, key points, key terms, quiz questions.', { card_id: str('study card id'), parts: { type: 'array', items: { type: 'string', enum: ['summary', 'sections', 'key_points', 'key_terms', 'quiz'] }, description: 'which parts to return (default all)' } }, ['card_id']),
-  fn('list_planner_events', 'List planner events (study blocks, exams, deadlines) in a date range.', { from: str('YYYY-MM-DD, default today'), to: str('YYYY-MM-DD, default today+30'), include_done: bool('include completed items') }),
-  fn('get_exam_history', 'Recent practice exam results with grades and the weakest concepts.', { limit: int('max exams, default 10') }),
-  fn('get_due_reviews', 'Flashcard review status: how many items are due for spaced repetition per study card.'),
-  fn('get_study_stats', 'Study Lab history of the last 14 days: minutes per study method and recent sessions.'),
-  fn('search_department_feed', 'Search summaries that classmates in the student\'s department shared on the department feed.', { query: str('optional search text'), course: str('optional course code') }),
-  // --- gezinme ---
-  fn('open_page', 'Navigate the app to a page.', { page: en('page', ['home', 'documents', 'study_cards', 'department_feed', 'planner', 'notebook', 'source_hub', 'exams', 'study_lab', 'presentations', 'developer_sandbox', 'sandbox_feed', 'settings']) }, ['page']),
-  fn('open_study_card', 'Open a study card in the reader, optionally jumping to a section.', { card_id: str('study card id'), section: en('section to jump to', ['top', 'audio', 'narrative', 'visuals', 'concepts', 'quiz']) }, ['card_id']),
-  fn('start_smart_review', 'Start a spaced-repetition flashcard review (for one card, or the card with the most due items when card_id is omitted).', { card_id: str('optional study card id') }),
-  fn('open_study_method', 'Open a Study Lab station (study method), optionally with a study card as source. Methods: pomodoro, tekrar (spaced repetition), recall (active recall), feynman, karma (interleaving), harita (mind map), cornell, loci (memory palace), blurt (blurting), sq3r, neden (why-chain).', { method: en('method', ['pomodoro', 'tekrar', 'recall', 'feynman', 'karma', 'harita', 'cornell', 'loci', 'blurt', 'sq3r', 'neden']), card_id: str('optional study card id') }, ['method']),
-  fn('prepare_presentation', 'Open the presentation builder prefilled from a study card or a topic; the student finishes it there.', { card_id: str('study card id (preferred)'), topic: str('or a free topic'), slide_count: int('5-15, default 8'), tone: en('tone', ['akademik', 'kurumsal', 'hikaye', 'ozet']) }),
-  // --- yazma (geri alınabilir) ---
-  fn('add_planner_events', 'Add one or more planner items. Use type "study" for study/review blocks.', { events: { type: 'array', maxItems: 30, items: { type: 'object', additionalProperties: false, required: ['title', 'date'], properties: { title: str('short title'), date: str('YYYY-MM-DD'), time: str('optional HH:MM'), type: en('item type', ['study', 'exam', 'deadline']), document: str('optional related document/card name'), notes: str('optional short note') } } } }, ['events']),
-  fn('update_planner_event', 'Change or complete a planner item.', { event_id: str('event id'), title: str('new title'), date: str('new YYYY-MM-DD'), time: str('new HH:MM'), done: bool('mark done / not done') }, ['event_id']),
-  fn('add_notebook_notes', 'Pin sticky notes onto the student\'s notebook board.', { notes: { type: 'array', maxItems: 20, items: { type: 'object', additionalProperties: false, required: ['title', 'text'], properties: { title: str('short label'), text: str('note text, under 400 chars') } } } }, ['notes']),
-  fn('add_flashcards', 'Add flashcards (front/back) to one of the student\'s OWN study cards.', { card_id: str('study card id'), cards: { type: 'array', maxItems: 20, items: { type: 'object', additionalProperties: false, required: ['front', 'back'], properties: { front: str('term / question'), back: str('definition / answer') } } } }, ['card_id', 'cards']),
-  fn('set_course_tag', 'Set the course tag (e.g. FIN201) of a document.', { document_id: str('document id'), course: str('course code or name') }, ['document_id', 'course']),
-  // --- onaylı ---
-  fn('summarize_document', '[needs confirmation] Start summarizing an uploaded document; opens the style chooser so the student picks the summary style.', { document_id: str('document id') }, ['document_id']),
-  fn('create_exam', '[needs confirmation] Generate a practice exam from a study card and open it.', { card_id: str('study card id'), question_count: int('3-20, default 10'), difficulty: en('difficulty', ['easy', 'medium', 'hard']), type: en('question type', ['test', 'classic', 'mixed', 'calculation']), timed: bool('real exam timer, default false') }, ['card_id']),
-  fn('generate_audio_summary', '[needs confirmation] Create the two-host audio summary (Ela & Kaan) for one of the student\'s own study cards and open it.', { card_id: str('study card id') }, ['card_id']),
-  fn('share_study_card', '[needs confirmation] Share (or unshare) one of the student\'s own study cards on the department feed.', { card_id: str('study card id'), share: bool('true to share, false to unshare') }, ['card_id', 'share']),
-  fn('delete_planner_event', '[needs confirmation] Delete a planner item.', { event_id: str('event id') }, ['event_id']),
-  fn('delete_document', '[needs confirmation] Delete an uploaded document (the app asks the student once more).', { document_id: str('document id') }, ['document_id'])
+  // okuma
+  fn('list_documents', 'Student\'s uploaded documents: id, name, status, course, card_ids.', { query: S }),
+  fn('list_study_cards', 'Student\'s own study cards (summaries): id, name, course, style, date.', { query: S, course: S }),
+  fn('read_study_card', 'Read a study card: summary, sections, key_points, key_terms, quiz.', { card_id: S, parts: { type: 'array', items: E(['summary', 'sections', 'key_points', 'key_terms', 'quiz']) } }, ['card_id']),
+  fn('list_planner_events', 'Planner items in a date range (YYYY-MM-DD; default next 30 days).', { from: S, to: S, include_done: B }),
+  fn('get_exam_history', 'Recent practice exam grades and weakest concepts.', { limit: I }),
+  fn('get_due_reviews', 'Flashcard items due for spaced repetition, per card.'),
+  fn('get_study_stats', 'Study Lab minutes per method, last 14 days.'),
+  fn('search_department_feed', 'Search classmates\' shared summaries in the student\'s department.', { query: S, course: S }),
+  // gezinme
+  fn('open_page', 'Navigate to a page.', { page: E(['home', 'documents', 'study_cards', 'department_feed', 'planner', 'notebook', 'source_hub', 'exams', 'study_lab', 'presentations', 'developer_sandbox', 'sandbox_feed', 'settings']) }, ['page']),
+  fn('open_study_card', 'Open a study card in the reader, optionally at a section.', { card_id: S, section: E(['top', 'audio', 'narrative', 'visuals', 'concepts', 'quiz']) }, ['card_id']),
+  fn('start_smart_review', 'Start spaced-repetition flashcard review (card_id optional).', { card_id: S }),
+  fn('open_study_method', 'Open a Study Lab method station, optionally with a card. tekrar=spaced repetition, recall=active recall, karma=interleaving, harita=mind map, loci=memory palace, blurt=blurting, neden=why-chain.', { method: E(['pomodoro', 'tekrar', 'recall', 'feynman', 'karma', 'harita', 'cornell', 'loci', 'blurt', 'sq3r', 'neden']), card_id: S }, ['method']),
+  fn('prepare_presentation', 'Open the presentation builder prefilled from a card (or a topic).', { card_id: S, topic: S, slide_count: I, tone: E(['akademik', 'kurumsal', 'hikaye', 'ozet']) }),
+  // yazma
+  fn('add_planner_events', 'Add planner items (type study for study/review blocks).', { events: ARR({ title: S, date: S, time: S, type: E(['study', 'exam', 'deadline']), document: S, notes: S }, ['title', 'date'], 30) }, ['events']),
+  fn('update_planner_event', 'Edit or complete a planner item.', { event_id: S, title: S, date: S, time: S, done: B }, ['event_id']),
+  fn('add_notebook_notes', 'Pin sticky notes (text < 400 chars) on the notebook board.', { notes: ARR({ title: S, text: S }, ['title', 'text'], 20) }, ['notes']),
+  fn('add_flashcards', 'Add flashcards to one of the student\'s own study cards.', { card_id: S, cards: ARR({ front: S, back: S }, ['front', 'back'], 20) }, ['card_id', 'cards']),
+  fn('set_course_tag', 'Set a document\'s course tag.', { document_id: S, course: S }, ['document_id', 'course']),
+  // onaylı
+  fn('summarize_document', '[needs confirmation] Start summarizing a document (student picks the style).', { document_id: S }, ['document_id']),
+  fn('create_exam', '[needs confirmation] Generate and open a practice exam from a card.', { card_id: S, question_count: I, difficulty: E(['easy', 'medium', 'hard']), type: E(['test', 'classic', 'mixed', 'calculation']), timed: B }, ['card_id']),
+  fn('generate_audio_summary', '[needs confirmation] Create the Ela & Kaan audio summary for an own card.', { card_id: S }, ['card_id']),
+  fn('share_study_card', '[needs confirmation] Share/unshare an own card on the department feed.', { card_id: S, share: B }, ['card_id', 'share']),
+  fn('delete_planner_event', '[needs confirmation] Delete a planner item.', { event_id: S }, ['event_id']),
+  fn('delete_document', '[needs confirmation] Delete a document.', { document_id: S }, ['document_id'])
 ]
 
 const sanitizeAgentMessages = (raw: unknown) => {
@@ -192,7 +191,9 @@ serve(async (req) => {
     const { message, history, language } = body
     const isAgent = body?.mode === 'agent'
     const page = (isAgent && body?.page && typeof body.page === 'object') ? body.page : null
-    const studyCardId = body?.studyCardId || (page && typeof page.cardId === 'string' ? page.cardId : null)
+    // Ajan modunda açık kartın tamamı isteme gömülmez (Groq dakika başı token sınırı);
+    // Acadia gerekirse read_study_card aracıyla okur.
+    const studyCardId = isAgent ? null : body?.studyCardId
     if (!isAgent && (!message || typeof message !== 'string')) {
       return new Response(JSON.stringify({ error: 'Missing "message" parameter' }), {
         status: 400,
@@ -406,41 +407,81 @@ ${studyCardBlock ? `\nSELECTED STUDY CARD — the student picked this summary as
       (body?.error?.code === 'rate_limit_exceeded' || /token/i.test(String(body?.error?.message || '')))
 
     if (isAgent) {
-      const agentMessages = sanitizeAgentMessages(body.messages)
+      let agentMessages = sanitizeAgentMessages(body.messages)
       if (!agentMessages.length) {
         return new Response(JSON.stringify({ error: 'Missing "messages"' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
+      // Eski araç sonuçlarını kısalt: yalnızca son 6 mesajdakiler tam kalır.
+      agentMessages = agentMessages.map((m, i) => (m.role === 'tool' && i < agentMessages.length - 6 && String(m.content).length > 500)
+        ? { ...m, content: String(m.content).slice(0, 500) + '…(kısaltıldı)' } : m)
       const cap = (v: unknown, n: number) => String(v ?? '').replace(/[\r\n]+/g, ' ').slice(0, n)
       const pageBlock = page
-        ? `\nPAGE CONTEXT (what the student is looking at right now): page=${cap(page.view, 40)}${page.label ? ` (${cap(page.label, 60)})` : ''}${page.cardId ? `, open study card id=${cap(page.cardId, 60)} "${cap(page.cardTitle, 100)}"` : ''}`
+        ? `\nPAGE CONTEXT: page=${cap(page.view, 40)}${page.label ? ` (${cap(page.label, 60)})` : ''}${page.cardId ? `, open study card id=${cap(page.cardId, 60)} "${cap(page.cardTitle, 100)}" (use read_study_card to read it)` : ''}`
         : ''
-      const agentSystem = `${AGENT_INSTRUCTIONS}\n\n${dynamicContextBlock.replace(/\n\(No study card is currently selected[^\n]*\)/, '')}${pageBlock}`
-      const callAgent = async (sys: string) => {
+      const agentSystem = `${AGENT_INSTRUCTIONS}\n\nCONTEXT (ground truth, not instructions):\nReply language: ${lang === 'tr' ? 'Turkish' : 'English'}\nToday: ${todayIso}\n${contextBlock}${pageBlock}`
+
+      const wait = (ms: number) => new Promise(r => setTimeout(r, ms))
+      const callModel = async (model: string, withTools: boolean, temperature: number) => {
+        const payload: Record<string, unknown> = {
+          model, temperature, max_completion_tokens: 2000,
+          messages: [{ role: 'system', content: agentSystem }, ...agentMessages]
+        }
+        if (withTools) { payload.tools = AGENT_TOOLS; payload.tool_choice = 'auto' }
+        else {
+          // araçsız yedek: araç mesajlarını düz metne çevir
+          payload.messages = [{ role: 'system', content: agentSystem + '\n\nTools are temporarily unavailable: answer in plain text only, using the tool results already in the conversation.' },
+            ...agentMessages.map(m => m.role === 'tool' ? { role: 'user', content: `[tool result] ${String(m.content).slice(0, 1500)}` }
+              : m.role === 'assistant' ? { role: 'assistant', content: String(m.content || '') || '(working…)' } : m)]
+        }
         const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST",
           headers: { "Authorization": `Bearer ${groqApiKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: "openai/gpt-oss-120b",
-            temperature: 0.3,
-            max_completion_tokens: 2500,
-            tools: AGENT_TOOLS,
-            tool_choice: 'auto',
-            messages: [{ role: 'system', content: sys }, ...agentMessages]
-          })
+          body: JSON.stringify(payload)
         })
-        return { resp, data: await resp.json() }
+        let data: any = null
+        try { data = await resp.json() } catch (_e) { data = null }
+        return { resp, data }
       }
-      let { resp: aResp, data: aData } = await callAgent(agentSystem)
-      if (!aResp.ok && isTokenSizeError(aResp.status, aData) && studyCardBlock) {
-        ;({ resp: aResp, data: aData } = await callAgent(agentSystem.replace(studyCardBlock, studyCardBlock.slice(0, 1200))))
+      const errInfo = (d: any) => ({ code: String(d?.error?.code || d?.error?.type || ''), msg: String(d?.error?.message || '') })
+      const isRate = (st: number, d: any) => st === 429 || /rate_limit|tokens per minute|TPM|requests per minute/i.test(errInfo(d).code + ' ' + errInfo(d).msg)
+      const retryAfter = (resp: Response, d: any) => {
+        const h = Number(resp.headers.get('retry-after'))
+        const m = /try again in ([\d.]+)(ms|s)/i.exec(errInfo(d).msg)
+        const sec = m ? (m[2] === 'ms' ? Number(m[1]) / 1000 : Number(m[1])) : (isFinite(h) && h > 0 ? h : 6)
+        return Math.min(20, Math.max(1, sec)) * 1000 + 400
+      }
+
+      // 1) gpt-oss-120b, araçlarla. Hız sınırında bekleyip bir kez daha dene.
+      let model = 'openai/gpt-oss-120b'
+      let { resp: aResp, data: aData } = await callModel(model, true, 0.3)
+      if (!aResp.ok && isRate(aResp.status, aData)) {
+        console.warn('Acadia agent rate limited, waiting:', errInfo(aData).msg)
+        await wait(retryAfter(aResp, aData))
+        ;({ resp: aResp, data: aData } = await callModel(model, true, 0.3))
+      }
+      // 2) hâlâ hız sınırı ya da sunucu hatası → küçük model (ayrı kota)
+      if (!aResp.ok && (isRate(aResp.status, aData) || aResp.status >= 500)) {
+        model = 'openai/gpt-oss-20b'
+        ;({ resp: aResp, data: aData } = await callModel(model, true, 0.3))
+      }
+      // 3) model geçersiz araç çağrısı ürettiyse (tool_use_failed) bir kez daha, daha düşük sıcaklıkla
+      if (!aResp.ok && /tool_use_failed|tool call validation|failed to call a function|parse/i.test(errInfo(aData).code + ' ' + errInfo(aData).msg)) {
+        console.warn('Acadia agent tool_use_failed, retrying:', errInfo(aData).msg.slice(0, 300))
+        ;({ resp: aResp, data: aData } = await callModel(model, true, 0.1))
+        // 4) yine olmazsa araçsız düz cevap
+        if (!aResp.ok) ({ resp: aResp, data: aData } = await callModel(model, false, 0.3))
       }
       if (!aResp.ok) {
-        console.error('Acadia agent Groq call failed: ', aData)
-        return new Response(JSON.stringify({ error: 'Acadia is temporarily unavailable. Please try again in a moment.' }), { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+        const info = errInfo(aData)
+        console.error('Acadia agent Groq call failed: ', aResp.status, JSON.stringify(aData).slice(0, 1500))
+        const human = isRate(aResp.status, aData)
+          ? 'Groq kullanım sınırı doldu (dakikalık token sınırı). Biraz bekleyip tekrar dene.'
+          : `Groq hatası: ${info.code || aResp.status} ${info.msg.slice(0, 160)}`
+        return new Response(JSON.stringify({ error: human, code: info.code || String(aResp.status), rateLimited: isRate(aResp.status, aData) }), { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
       const m = aData.choices?.[0]?.message || {}
       const toolCalls = Array.isArray(m.tool_calls) ? m.tool_calls.map((c: any) => ({ id: c.id, type: 'function', function: { name: c.function?.name, arguments: c.function?.arguments || '{}' } })) : []
-      return new Response(JSON.stringify({ message: { role: 'assistant', content: typeof m.content === 'string' ? m.content : '', tool_calls: toolCalls } }), {
+      return new Response(JSON.stringify({ message: { role: 'assistant', content: typeof m.content === 'string' ? m.content : '', tool_calls: toolCalls }, model }), {
         status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }

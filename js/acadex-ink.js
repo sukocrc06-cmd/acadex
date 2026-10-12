@@ -8185,12 +8185,12 @@ var SBX = (function () {
     list_documents: { label: function () { return 'belgelerine bakıyorum'; }, run: async function (a) {
       var d = db(); var r = await d.c.from('documents').select('id, file_name, status, course_tag, uploaded_at, processing_stage').eq('user_id', d.u.id).order('uploaded_at', { ascending: false }).limit(100);
       var docs = need(r) || [], cr = await d.c.from('study_cards').select('id, document_id').eq('user_id', d.u.id).limit(300), cards = cr.data || [];
-      var out = docs.filter(function (x) { return hit(a.query, x.file_name + ' ' + (x.course_tag || '')); }).slice(0, 40).map(function (x) { return { id: x.id, name: baseName(x.file_name), status: x.status, course: x.course_tag || null, uploaded: String(x.uploaded_at || '').slice(0, 10), card_ids: cards.filter(function (c) { return c.document_id === x.id; }).map(function (c) { return c.id; }) }; });
+      var out = docs.filter(function (x) { return hit(a.query, x.file_name + ' ' + (x.course_tag || '')); }).slice(0, 25).map(function (x) { return { id: x.id, name: baseName(x.file_name), status: x.status, course: x.course_tag || null, uploaded: String(x.uploaded_at || '').slice(0, 10), card_ids: cards.filter(function (c) { return c.document_id === x.id; }).map(function (c) { return c.id; }) }; });
       return { count: out.length, documents: out };
     } },
     list_study_cards: { label: function () { return 'özetlerine bakıyorum'; }, run: async function (a) {
       var d = db(); var r = await d.c.from('study_cards').select('id, document_id, course_tag, summary_style, summary_language, created_at, is_shared, documents(file_name)').eq('user_id', d.u.id).order('created_at', { ascending: false }).limit(150);
-      var out = (need(r) || []).filter(function (c) { return hit(a.query, cardName(c) + ' ' + (c.course_tag || '')) && (!a.course || hit(a.course, c.course_tag || '')); }).slice(0, 40)
+      var out = (need(r) || []).filter(function (c) { return hit(a.query, cardName(c) + ' ' + (c.course_tag || '')) && (!a.course || hit(a.course, c.course_tag || '')); }).slice(0, 25)
         .map(function (c) { return { id: c.id, name: cardName(c), course: c.course_tag || null, style: c.summary_style, language: c.summary_language, created: String(c.created_at || '').slice(0, 10), shared: !!c.is_shared }; });
       return { count: out.length, study_cards: out };
     } },
@@ -8198,11 +8198,11 @@ var SBX = (function () {
       var d = db(); var r = await d.c.from('study_cards').select('id, user_id, course_tag, summary, summary_executive, sections, key_points, key_terms, quiz_questions, documents(file_name)').eq('id', a.card_id).limit(1); var c = (need(r) || [])[0];
       if (!c) return { error: 'Kart bulunamadı ya da erişim yok.' };
       var want = arr(a.parts).length ? a.parts : ['summary', 'sections', 'key_points', 'key_terms', 'quiz'], o = { id: c.id, name: cardName(c), course: c.course_tag || null, own: c.user_id === d.u.id };
-      if (want.indexOf('summary') > -1) o.summary = cut(plain(c.summary_executive ? c.summary_executive + '\n' + c.summary : c.summary), 3000);
-      if (want.indexOf('sections') > -1) o.sections = arr(c.sections).slice(0, 12).map(function (s) { return { heading: plain(s.heading), gist: cut(plain(s.summary), 220) }; });
-      if (want.indexOf('key_points') > -1) o.key_points = arr(c.key_points).slice(0, 25).map(function (p) { return cut(plain(typeof p === 'string' ? p : p && p.point), 220); });
-      if (want.indexOf('key_terms') > -1) o.key_terms = arr(c.key_terms).slice(0, 30).map(function (t) { return { term: plain(t.term), definition: cut(plain(t.definition), 200) }; });
-      if (want.indexOf('quiz') > -1) o.quiz = arr(c.quiz_questions).slice(0, 10).map(function (q) { return { q: cut(plain(q.question), 220), a: cut(plain(q.answer || q.correct_answer), 160) }; });
+      if (want.indexOf('summary') > -1) o.summary = cut(plain(c.summary_executive ? c.summary_executive + '\n' + c.summary : c.summary), 1600);
+      if (want.indexOf('sections') > -1) o.sections = arr(c.sections).slice(0, 10).map(function (s) { return { heading: plain(s.heading), gist: cut(plain(s.summary), 140) }; });
+      if (want.indexOf('key_points') > -1) o.key_points = arr(c.key_points).slice(0, 15).map(function (p) { return cut(plain(typeof p === 'string' ? p : p && p.point), 220); });
+      if (want.indexOf('key_terms') > -1) o.key_terms = arr(c.key_terms).slice(0, 20).map(function (t) { return { term: plain(t.term), definition: cut(plain(t.definition), 140) }; });
+      if (want.indexOf('quiz') > -1) o.quiz = arr(c.quiz_questions).slice(0, 8).map(function (q) { return { q: cut(plain(q.question), 220), a: cut(plain(q.answer || q.correct_answer), 160) }; });
       return o;
     } },
     list_planner_events: { label: function () { return 'planlayıcına bakıyorum'; }, run: async function (a) {
@@ -8384,14 +8384,15 @@ var SBX = (function () {
     var r = await Promise.race([c.functions.invoke('acadia-assistant', { body: { mode: 'agent', messages: S.msgs, language: (localStorage.getItem('acadexUILang') || 'tr') === 'en' ? 'en' : 'tr', page: pageCtx() } }), new Promise(function (_, rej) { setTimeout(function () { rej(new Error('zaman aşımı')); }, 60000); })]);
     var d = r && r.data; if (typeof d === 'string') { try { d = JSON.parse(d); } catch (e) { d = null; } }
     if (r && r.error && !d) throw await why(r.error);
+    if (d && !d.message && d.rateLimited) { var rl = new Error(d.error || 'hız sınırı'); rl.rate = true; throw rl; }
     if (!d || !d.message) { var er = new Error((d && d.error) || (d && d.reply ? 'sunucudaki Acadia eski sürüm (ajan modu yok)' : 'boş yanıt')); er.old = !!(d && d.reply); throw er; }
     return d.message;
   };
   /* sunucu hatasının asıl sebebini oku (FunctionsHttpError → yanıt gövdesi) */
   var why = async function (err) {
-    var msg = (err && err.message) || String(err), st = 0, old = false;
-    try { var ctx = err && err.context; if (ctx) { st = ctx.status || 0; var b = await ctx.clone().json().catch(function () { return null; }); if (b && b.error) msg = b.error; if (b && /Missing "message"/.test(b.error || '')) { old = true; msg = 'sunucudaki Acadia eski sürüm (ajan modu yok)'; } } } catch (e) {}
-    var e2 = new Error(msg + (st ? ' (' + st + ')' : '')); e2.old = old; return e2;
+    var msg = (err && err.message) || String(err), st = 0, old = false, rate = false;
+    try { var ctx = err && err.context; if (ctx) { st = ctx.status || 0; var b = await ctx.clone().json().catch(function () { return null; }); if (b && b.error) msg = b.error; if (b && b.rateLimited) rate = true; if (b && /Missing "message"/.test(b.error || '')) { old = true; msg = 'sunucudaki Acadia eski sürüm (ajan modu yok)'; } } } catch (e) {}
+    var e2 = new Error(msg + (st ? ' (' + st + ')' : '')); e2.old = old; e2.rate = rate || st === 429; return e2;
   };
   /* ajan modu çalışmazsa klasik sohbetle cevap ver (araçsız) */
   var classic = async function (text) {
@@ -8408,7 +8409,14 @@ var SBX = (function () {
     add('user', md(text)); S.msgs.push({ role: 'user', content: text }); busy(true); S.stop = false;
     try {
       for (var step = 0; step < 8; step++) {
-        think(true); var m; try { m = await call(); } finally { think(false); }
+        think(true); var m;
+        try { m = await call(); }
+        catch (e1) {
+          if (!e1.rate || S.stop) throw e1;
+          think(false); var wn = add('bot note', '<p class="hand">Groq’un dakikalık sınırı doldu; 15 saniye bekleyip devam ediyorum…</p>');
+          await sleep(15000); wn.remove(); if (S.stop) throw e1; think(true);
+          m = await call();
+        } finally { think(false); }
         var calls = arr(m.tool_calls).filter(function (x) { return x && x.function && x.function.name; });
         S.msgs.push({ role: 'assistant', content: m.content || '', tool_calls: calls.length ? calls : undefined });
         if (m.content && m.content.trim()) add('bot' + (calls.length ? ' aside' : ''), md(m.content));
@@ -8416,7 +8424,7 @@ var SBX = (function () {
         for (var i = 0; i < calls.length; i++) {
           if (S.stop) { S.msgs.push({ role: 'tool', tool_call_id: calls[i].id, content: JSON.stringify({ cancelled: true }) }); continue; }
           var res = await runTool(calls[i]);
-          var s = JSON.stringify(res); if (s.length > 5000) s = s.slice(0, 5000) + '…"}';
+          var s = JSON.stringify(res); if (s.length > 3500) s = s.slice(0, 3500) + '…"}';
           S.msgs.push({ role: 'tool', tool_call_id: calls[i].id, content: s });
         }
         if (S.stop) { add('bot note', '<p class="hand">durdurdum.</p>'); break; }
