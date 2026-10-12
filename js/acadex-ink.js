@@ -7684,19 +7684,59 @@ var SBX = (function () {
     CAST.raf = requestAnimationFrame(castLoop);
   };
   var castStart = function () { if (!CAST.raf) CAST.raf = requestAnimationFrame(castLoop); };
-  var askStop = function () { if (CAST.ask) { CAST.ask = null; try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) {} } };
-  var askSpeak = async function (who, text) {
-    var ps = PS(); if (!window.speechSynthesis) return;
-    if (ps && typeof ensurePodcastVoicesLoaded === 'function' && typeof pickPodcastVoices === 'function' && !ps.voiceA && !ps.voiceB) { try { pickPodcastVoices(await ensurePodcastVoicesLoaded(), ps.lang); } catch (e) {} }
-    var u = new SpeechSynthesisUtterance(text), v = ps ? (who === 'B' ? ps.voiceB : ps.voiceA) : null, lang = (R.card && R.card.summary_language) === 'en' ? 'en-US' : 'tr-TR';
-    if (v) { u.voice = v; u.lang = v.lang; } else u.lang = lang;
-    var same = !(ps && ps.voicesConfirmedGenderPair); u.rate = who === 'B' ? .96 : 1.04; u.pitch = same ? (who === 'B' ? .82 : 1.3) : 1;
-    CAST.ask = { who: who, talking: false };
-    u.onstart = function () { if (CAST.ask) CAST.ask.talking = true; };
+  var askStop = function () { var had = !!CAST.ask; CAST.ask = null; if (typeof askStopAudio === 'function') askStopAudio(); if (had) { try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) {} } };
+  /* Ela kadın, Kaan erkek sesiyle: önce sesli özetteki gerçek sesler (ElevenLabs, sunucu),
+     olmazsa tarayıcıdaki uygun cinsiyetli ses; hiçbiri yoksa perdeyle ayırt edilir. */
+  var FH = ['female', 'kadın', 'emel', 'yelda', 'seda', 'elif', 'filiz', 'zira', 'hazel', 'susan', 'aria', 'jenny', 'michelle', 'emma', 'samantha', 'victoria', 'karen', 'ava', 'allison', 'zoe', 'joanna', 'amy', 'linda', 'heather', 'catherine', 'sabina'];
+  var MH = ['male', 'erkek', 'ahmet', 'tolga', 'cem', 'david', 'mark', 'james', 'guy', 'ryan', 'christopher', 'eric', 'roger', 'alex', 'daniel', 'fred', 'oliver', 'thomas', 'george', 'brian', 'matthew', 'tom'];
+  var vGender = function (v) { var n = String(v && v.name || '').toLowerCase(); if (FH.some(function (h) { return n.indexOf(h) > -1; })) return 'f'; if (MH.some(function (h) { return n.indexOf(h) > -1; })) return 'm'; if (/google/.test(n) && /^tr/i.test(v.lang || '')) return 'f'; return '?'; };
+  var vQual = function (v) { return /neural|online|natural|wavenet|enhanced|premium|google/i.test(v.name || '') ? 1 : 0; };
+  var voiceFor = function (who, lang) {
+    var all = []; try { all = window.speechSynthesis.getVoices() || []; } catch (e) {}
+    if (!all.length) return { v: null, sure: false };
+    var pool = all.filter(function (v) { return String(v.lang || '').toLowerCase().indexOf(lang) === 0; }); if (!pool.length) pool = all;
+    var want = who === 'B' ? 'm' : 'f', avoid = who === 'B' ? 'f' : 'm', by = function (a, b) { return vQual(b) - vQual(a); };
+    var hit = pool.filter(function (v) { return vGender(v) === want; }).sort(by)[0];
+    if (hit) return { v: hit, sure: true };
+    var neutral = pool.filter(function (v) { return vGender(v) !== avoid; }).sort(by)[0];
+    return { v: neutral || pool.slice().sort(by)[0] || null, sure: false };
+  };
+  var voicesReady = function () { return new Promise(function (res) { var s = window.speechSynthesis; if (!s) return res(); if ((s.getVoices() || []).length) return res(); var done = false, fin = function () { if (!done) { done = true; res(); } }; try { s.addEventListener('voiceschanged', fin, { once: true }); } catch (e) {} setTimeout(fin, 1200); }); };
+  var askAudio = null;
+  var askStopAudio = function () { if (askAudio) { try { askAudio.pause(); askAudio.src = ''; } catch (e) {} askAudio = null; } };
+  var askSpeakBrowser = async function (who, text, tok) {
+    if (!window.speechSynthesis) { CAST.ask = null; return; }
+    var en = (R.card && R.card.summary_language) === 'en';
+    await voicesReady(); if (CAST.ask !== tok) return;
+    var pick = voiceFor(who, en ? 'en' : 'tr'), u = new SpeechSynthesisUtterance(text);
+    if (pick.v) { u.voice = pick.v; u.lang = pick.v.lang; } else u.lang = en ? 'en-US' : 'tr-TR';
+    if (pick.sure) { u.pitch = 1; u.rate = who === 'B' ? .98 : 1.04; }
+    else { u.pitch = who === 'B' ? .75 : 1.6; u.rate = who === 'B' ? .95 : 1.06; }
+    u.onstart = function () { if (CAST.ask === tok) tok.talking = true; };
     u.onboundary = function () { CAST.pulse = 1; };
-    u.onend = u.onerror = function () { CAST.ask = null; };
+    u.onend = u.onerror = function () { if (CAST.ask === tok) CAST.ask = null; };
     try { window.speechSynthesis.cancel(); } catch (e) {}
     window.speechSynthesis.speak(u);
+  };
+  var askSpeak = async function (who, text) {
+    askStop(); var tok = { who: who, talking: false }; CAST.ask = tok;
+    var cl = sbc(), en = (R.card && R.card.summary_language) === 'en';
+    if (cl && cl.functions && R.card) {
+      try {
+        var r = await Promise.race([cl.functions.invoke('generate-podcast-audio', { body: { studyCardId: R.card.id, answerText: text, speaker: who, lang: en ? 'en' : 'tr' } }), new Promise(function (_, rej) { setTimeout(function () { rej(new Error('zaman aşımı')); }, 20000); })]);
+        var d = r && r.data; if (typeof d === 'string') { try { d = JSON.parse(d); } catch (x) { d = null; } }
+        if (CAST.ask !== tok) return;
+        if (d && d.success && d.audioBase64) {
+          var a = new Audio('data:' + (d.mime || 'audio/mpeg') + ';base64,' + d.audioBase64); askAudio = a;
+          if (RATE !== 1) a.playbackRate = RATE;
+          a.onplaying = function () { if (CAST.ask === tok) tok.talking = true; };
+          a.onpause = function () { if (CAST.ask === tok) tok.talking = false; };
+          a.onended = function () { if (CAST.ask === tok) CAST.ask = null; };
+          await a.play(); return;
+        }
+      } catch (e) { if (CAST.ask !== tok) return; }
+    }
+    askSpeakBrowser(who, text, tok);
   };
   var askSend = function (who, q) {
     var box = Q('[data-ask]', flow), out = Q('[data-askans]', box), think = Q('[data-think]', flow), names = hostNames(), nm = who === 'B' ? names[1] : names[0], cl = sbc();

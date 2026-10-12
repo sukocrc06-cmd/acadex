@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+import { encode as base64Encode } from "https://deno.land/std@0.168.0/encoding/base64.ts"
 
 // ==========================================================================
 // Sesli Özet (AI Podcast) — real neural voice audio.
@@ -73,7 +74,7 @@ async function findPremadeVoiceId(gender: 'female' | 'male', apiKey: string): Pr
   return voice?.voice_id || null
 }
 
-async function synthesizeElevenLabsTts(text: string, voiceId: string, apiKey: string): Promise<Uint8Array> {
+async function synthesizeElevenLabsTts(text: string, voiceId: string, apiKey: string, lang = 'tr'): Promise<Uint8Array> {
   const response = await fetchWithRetry(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
     method: 'POST',
     headers: {
@@ -84,7 +85,7 @@ async function synthesizeElevenLabsTts(text: string, voiceId: string, apiKey: st
     body: JSON.stringify({
       text,
       model_id: ELEVENLABS_MODEL_ID,
-      language_code: 'tr'
+      language_code: lang
     })
   })
   if (!response.ok) {
@@ -107,7 +108,7 @@ serve(async (req) => {
       })
     }
 
-    const { studyCardId } = await req.json()
+    const { studyCardId, answerText, speaker, lang } = await req.json()
     if (!studyCardId) {
       return new Response(JSON.stringify({ error: 'studyCardId is required' }), {
         status: 400,
@@ -140,6 +141,31 @@ serve(async (req) => {
       console.error('Study card not found or access denied:', cardError)
       return new Response(JSON.stringify({ error: 'Study card not found or access denied' }), {
         status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
+    // Özet kartı > "Ela'ya / Kaan'a sor": tek bir kısa cevabı, sesli özetteki
+    // aynı kadın (A) ya da erkek (B) sesle okur. Depoya yazmaz, önbelleğe
+    // almaz; MP3'ü doğrudan base64 olarak döndürür.
+    if (typeof answerText === 'string' && answerText.trim()) {
+      const key = Deno.env.get('ELEVENLABS_API_KEY')
+      if (!key) {
+        return new Response(JSON.stringify({ error: 'Neural voice audio is not configured yet' }), {
+          status: 501,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+      const voiceId = await findPremadeVoiceId(speaker === 'B' ? 'male' : 'female', key)
+      if (!voiceId) {
+        return new Response(JSON.stringify({ error: 'Could not find a suitable voice' }), {
+          status: 502,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+      const bytes = await synthesizeElevenLabsTts(answerText.trim().slice(0, 700), voiceId, key, lang === 'en' ? 'en' : 'tr')
+      return new Response(JSON.stringify({ success: true, mime: 'audio/mpeg', audioBase64: base64Encode(bytes) }), {
+        status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
