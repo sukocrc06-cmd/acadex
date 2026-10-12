@@ -7508,6 +7508,9 @@ html.nav-c #side-studylab .lb-sbadge{position:absolute;right:2px;top:2px;padding
 :is(#studylab-view.axl,#axl-layer) .lb-plant .pl{transition:stroke-dashoffset 1s linear,fill-opacity 1s linear}
 @media (max-width:700px){:is(#studylab-view.axl,#axl-layer) .lb-shelf2 .days{border-bottom:0;box-shadow:none}:is(#studylab-view.axl,#axl-layer) .lb-shelf2 .days>li{border-bottom:8px solid #B88A55}}
 
+/* eski "Odak modu" Pomodoro düğmesi kaldırıldı: Pomodoro artık yalnızca Study Lab’de */
+#pomodoro-widget-container,#pomodoro-dim-overlay{display:none!important}
+
 /* ===== Özet kartı + matbaa ===== */
 
 /* ---------- kabuk ---------- */
