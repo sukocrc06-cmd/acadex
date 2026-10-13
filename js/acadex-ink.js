@@ -2995,10 +2995,29 @@
     window.changeUserPassword = changeUserPassword;
   }
   var fixAvatar = function () { var a = $('#settings-avatar-preview'), p = lsafe(function () { return currentUserProfile; }, null); if (a && p && typeof renderUserAvatarHtml === 'function') a.innerHTML = renderUserAvatarHtml(p, 76); };
+  ['saveAvatar', 'removeAvatar'].forEach(function (fn) {
+    if (typeof window[fn] !== 'function') return; var o = window[fn];
+    window[fn] = async function () { var r = await o.apply(this, arguments); fixAvatar(); try { window.dispatchEvent(new CustomEvent('ax:profile')); } catch (e) {} return r; };
+  });
   ['uploadProfilePhoto', 'uploadProfileBanner'].forEach(function (fn) {
     if (typeof window[fn] !== 'function') return;
     var o = window[fn];
-    var w = async function () { var r = await o.apply(this, arguments); if (fn === 'uploadProfilePhoto') fixAvatar(); savedMark(); return r; };
+    var w = async function () {
+      var col = fn === 'uploadProfilePhoto' ? 'avatar_url' : 'banner_url', pr = lsafe(function () { return currentUserProfile; }, null) || {}, before = pr[col];
+      var ev = arguments[0], had = !!(ev && ev.target && ev.target.files && ev.target.files[0]);
+      var r = await o.apply(this, arguments);
+      var after = (lsafe(function () { return currentUserProfile; }, null) || {})[col];
+      var st = $(fn === 'uploadProfilePhoto' ? '#settings-avatar-upload-status' : '#settings-banner-upload-status');
+      if (had && after === before) {
+        /* yükleme olmadıysa uyarı kaybolmasın: satırın yanında kalıcı yaz */
+        if (st) { st.className = 'axa-uperr'; st.textContent = 'Yüklenemedi. Supabase\'de "avatars" deposu ya da ' + col + ' sütunu eksik olabilir (Ayarlar → SQL adımı).'; }
+        return r;
+      }
+      if (st) st.className = 'mut';
+      if (fn === 'uploadProfilePhoto') fixAvatar(); savedMark();
+      try { window.dispatchEvent(new CustomEvent('ax:profile')); } catch (e) {}
+      return r;
+    };
     if (fn === 'uploadProfilePhoto') { uploadProfilePhoto = w; } else { uploadProfileBanner = w; }
     window[fn] = w;
   });
@@ -3204,7 +3223,8 @@ var SBX = (function () {
   var person = function (pr, isMe) {
     pr = pr || {};
     var img = pr.avatar_url && /^https?:/.test(pr.avatar_url) ? pr.avatar_url : '';
-    return { n: pr.full_name || (isMe ? 'Sen' : 'Bir öğrenci'), s: isMe ? 'sen' : (DEPT[pr.department] || pr.department || ''), c: COLORS[hash(pr.id) % COLORS.length], i: ini(pr.full_name), img: img, dept: deptKey(pr.department), id: pr.id, gh: pr.github_url || '', li: pr.linkedin_url || '', web: pr.website_url || '', bio: pr.bio || '' };
+    var cover = pr.banner_url && /^https?:/.test(pr.banner_url) ? pr.banner_url : '';
+    return { cover: cover, n: pr.full_name || (isMe ? 'Sen' : 'Bir öğrenci'), s: isMe ? 'sen' : (DEPT[pr.department] || pr.department || ''), c: COLORS[hash(pr.id) % COLORS.length], i: ini(pr.full_name), img: img, dept: deptKey(pr.department), id: pr.id, gh: pr.github_url || '', li: pr.linkedin_url || '', web: pr.website_url || '', bio: pr.bio || '' };
   };
   var setMe = function () { var u = me(), p = myProf(); PPL.me = person(Object.assign({ id: u && u.id }, p), true); PPL.me.c = '#E6EEFF'; };
   setMe();
@@ -3244,7 +3264,8 @@ var SBX = (function () {
     var uids = {}; rows.forEach(function (x) { uids[x.user_id] = 1; }); cms.forEach(function (c) { uids[c.user_id] = 1; });
     var ul = Object.keys(uids);
     if (ul.length) {
-      var pq = await sb().from('profiles').select('id, full_name, department, avatar_url, bio, github_url, linkedin_url, website_url').in('id', ul);
+      var pq = await sb().from('profiles').select('id, full_name, department, avatar_url, banner_url, bio, github_url, linkedin_url, website_url').in('id', ul);
+      if (pq && pq.error) pq = await sb().from('profiles').select('id, full_name, department, avatar_url, bio, github_url, linkedin_url, website_url').in('id', ul); /* banner_url sütunu yoksa */
       ((pq && pq.data) || []).forEach(function (p) { PPL[p.id] = person(p, false); });
     }
     setMe();
@@ -3453,6 +3474,36 @@ var SBX = (function () {
     u = u.replace(/^http:\/\//i, 'https://'); try { return new URL(u).href; } catch (e) { return ''; }
   };
   var shotUrl = function (u) { return 'https://s.wordpress.com/mshots/v1/' + encodeURIComponent(u) + '?w=1200&h=750'; };
+  /* ---------- canlı önizleme: site çerçeve içinde açılmaya izin veriyor mu? ---------- */
+  var FRK = 'acadex.sbx.frame.';
+  var frameCheck = function (u) {
+    var h = host(u), c = null; try { c = JSON.parse(localStorage.getItem(FRK + h)); } catch (e) {}
+    if (c && Date.now() - c.t < 6 * 3600e3) return Promise.resolve(c.e);
+    var cl = typeof supabaseClient !== 'undefined' ? supabaseClient : null; if (!cl || !cl.functions) return Promise.resolve(null);
+    return Promise.race([cl.functions.invoke('acadia-assistant', { body: { mode: 'frame_check', url: u } }), new Promise(function (r) { setTimeout(function () { r(null); }, 7000); })]).then(function (r) {
+      var d = r && r.data; if (typeof d === 'string') { try { d = JSON.parse(d); } catch (e) { d = null; } }
+      if (!d || typeof d.embeddable !== 'boolean') return null;
+      try { localStorage.setItem(FRK + h, JSON.stringify({ e: d.embeddable, t: Date.now() })); } catch (e) {}
+      return d.embeddable;
+    }, function () { return null; });
+  };
+  var tallShot = function (u, phone) { return 'https://s.wordpress.com/mshots/v1/' + encodeURIComponent(u) + (phone ? '?w=390&h=1690&vpw=390&vph=1690' : '?w=1100&h=2600&vpw=1280&vph=3026'); };
+  var noFrame = function (u, phone, mine) {
+    var snip = '{\n  "headers": [\n    {\n      "source": "/(.*)",\n      "headers": [\n        { "key": "Content-Security-Policy", "value": "frame-ancestors \'self\' ' + location.origin + '" }\n      ]\n    }\n  ]\n}';
+    return '<div class="ek-nofr" data-nofr="">' +
+      '<div class="ek-nofr-scroll" tabindex="0" aria-label="Sitenin kaydırılabilir ekran görüntüsü"><img class="ek-nofr-img" src="' + X(tallShot(u, phone)) + '" alt="' + X(host(u)) + ' sayfasının görüntüsü" referrerpolicy="no-referrer" data-shotretry="0"><span class="ek-nofr-load hand">ekran görüntüsü hazırlanıyor…</span></div>' +
+      '<div class="ek-nofr-card"><b class="hand">bu site kendini başka sitelerin içinde açtırmıyor</b><span>Aşağıda kaydırarak önizleyebilir ya da canlı açabilirsin.</span>' +
+      '<span class="ek-nofr-acts"><button type="button" class="btn btn-blue" data-popwin="' + X(u) + '">yan pencerede canlı aç</button><a class="ek-newtab" href="' + X(u) + '" target="_blank" rel="noopener noreferrer">yeni sekmede aç ↗</a></span>' +
+      (mine ? '<details class="ek-nofr-own"><summary>kendi siten mi? Acadex\'te canlı görünsün</summary><p>Projenin <code>vercel.json</code> dosyasına bunu ekle (dosyada <code>X-Frame-Options</code> varsa onu sil), commit et; Vercel yeniden yayınlayınca burada canlı açılır.</p><pre>' + X(snip) + '</pre><button type="button" class="btn btn-line sm" data-copysnip="">kopyala</button></details>' : '') +
+      '</div></div>';
+  };
+  var armShot = function (scope) { Array.prototype.forEach.call(scope.querySelectorAll('img[data-shotretry]'), function (im) {
+    var done = function () { var ld = im.parentNode && im.parentNode.querySelector('.ek-nofr-load'); if (ld) ld.remove(); };
+    im.addEventListener('load', function () { /* mshots önce "hazırlanıyor" görseli verir (400x300); gerçeği gelene kadar yeniden dene */
+      var n = +im.getAttribute('data-shotretry'); if (im.naturalWidth === 400 && im.naturalHeight === 300 && n < 6) { im.setAttribute('data-shotretry', n + 1); setTimeout(function () { im.src = im.src.replace(/&r=\d+$/, '') + '&r=' + (n + 1); }, 2500); } else done(); });
+    im.addEventListener('error', done);
+  }); };
+  var popWin = function (u, phone) { var w = phone ? 420 : Math.min(1280, screen.availWidth - 80), h = Math.min(phone ? 860 : 900, screen.availHeight - 80); var win = window.open(u, 'axlive', 'popup,width=' + w + ',height=' + h + ',left=' + Math.max(0, screen.availWidth - w - 40) + ',top=40'); if (!win) window.open(u, '_blank', 'noopener'); else try { win.opener = null; } catch (e) {} };
   var liveBar = function (u) { return '<div class="ek-livebar"><span>Boş ya da “bağlanmayı reddetti” görünüyorsa site gömülmeye izin vermiyordur.</span><a href="' + X(u) + '" target="_blank" rel="noopener noreferrer">yeni sekmede aç ↗</a></div>'; };
   var GHK = 'acadex.etk.gh', ghCache = G(GHK, {});
   var gh = function (repo) {
@@ -3673,7 +3724,7 @@ var SBX = (function () {
     (Q('[data-ctitle]').value ? Q('[data-ctext]') : Q('[data-ctitle]')).focus();
   };
 
-  return { liveBar: liveBar, shotUrl: shotUrl, fitFrames: fitFrames, watchFrames: watchFrames, fitOne: fitOne, cleanText: cleanText, emptyLines: emptyLines, X: X, PPL: PPL, KINDS: KINDS, REACT: REACT, KIND_SVG: KIND_SVG, ghParse: ghParse, liveUrl: liveUrl, host: host, gh: gh, hydrateGh: hydrateGh, buildSingle: buildSingle, postHTML: postHTML, fillSnaps: fillSnaps, mine: mine, saveMine: saveMine, upsert: upsert, open: open, ago: ago, calm: calm, uid: uid };
+  return { frameCheck: frameCheck, noFrame: noFrame, armShot: armShot, popWin: popWin, liveBar: liveBar, shotUrl: shotUrl, fitFrames: fitFrames, watchFrames: watchFrames, fitOne: fitOne, cleanText: cleanText, emptyLines: emptyLines, X: X, PPL: PPL, KINDS: KINDS, REACT: REACT, KIND_SVG: KIND_SVG, ghParse: ghParse, liveUrl: liveUrl, host: host, gh: gh, hydrateGh: hydrateGh, buildSingle: buildSingle, postHTML: postHTML, fillSnaps: fillSnaps, mine: mine, saveMine: saveMine, upsert: upsert, open: open, ago: ago, calm: calm, uid: uid };
   })();
 
   /* ================= SANDBOX ETKİLEŞİM PANELİ · akış ================= */
@@ -3719,8 +3770,23 @@ var SBX = (function () {
     if (rs && q.cm.length >= 2) rs.insertAdjacentHTML('beforeend', '<span class="ek-note ek-pen n-talk" style="--nd:.5s" aria-hidden="true"><span>← tartışma var, oku</span></span>');
   };
   var arm = function (el) { var pp = byId(el.getAttribute('data-pid')); if (pp) decorate(el, pp); if (io) { el.classList.add('pre'); io.observe(el); } else { el.classList.add('in'); ETK.fillSnaps(el, byId); ETK.hydrateGh(el); ETK.watchFrames(el); ETK.watchFrames(el); } if (reports[el.getAttribute('data-pid')]) markReported(el); };
+  /* kişi profili: kapak + fotoğraf + bilgiler (birinin adına/fotoğrafına basınca akışın üstünde) */
+  var profCard = function (uid) {
+    var isMe = uid === (SBX.me() || {}).id, u = SBX.person(isMe ? 'me' : uid), mine = all().filter(function (p) { return p.uid === uid || (isMe && p.by === 'me'); });
+    var rx = mine.reduce(function (a, p) { return a + Object.keys(p.reacts || {}).reduce(function (b, k) { return b + (p.reacts[k] || 0); }, 0); }, 0);
+    var techs = {}; mine.forEach(function (p) { (p.tech || []).forEach(function (t) { techs[t] = (techs[t] || 0) + 1; }); });
+    var tl = Object.keys(techs).sort(function (a, b) { return techs[b] - techs[a]; }).slice(0, 5);
+    var lk = function (h, t) { return h && /^https?:/.test(h) ? '<a href="' + X(h) + '" target="_blank" rel="noopener noreferrer">' + t + ' ↗</a>' : ''; };
+    var on = (SBX.st.follow || []).indexOf(uid) > -1;
+    return '<section class="ef-prof" aria-label="' + X(u.n) + ' profili"><div class="ef-prof-cover' + (u.cover ? '' : ' none') + '" style="--bgc:' + u.c + '">' + (u.cover ? '<img src="' + X(u.cover) + '" alt="" loading="lazy" onerror="this.parentNode.classList.add(\'none\');this.remove()">' : '') + (isMe && !u.cover ? '<button type="button" class="ef-prof-addc hand" data-gocover="">+ kapak fotoğrafı ekle</button>' : '') + '<button type="button" class="ef-prof-x" data-clear="" aria-label="Profili kapat, tüm panele dön">×</button></div>' +
+      '<div class="ef-prof-body"><span class="ef-prof-av" style="--bgc:' + u.c + '">' + (u.img ? '<img src="' + X(u.img) + '" alt="" onerror="this.remove()">' : '') + '<i>' + X(u.i) + '</i></span>' +
+      '<div class="ef-prof-who"><h3 class="disp">' + X(u.n) + '</h3><span class="ef-prof-dep">' + X(isMe ? 'senin profilin' : (u.s || 'öğrenci')) + '</span>' + (u.bio ? '<p>' + X(u.bio) + '</p>' : isMe ? '<p class="hand ef-prof-nob">Ayarlar\'dan kısa bir “hakkımda” yazabilirsin.</p>' : '') +
+      '<div class="ef-prof-links">' + lk(u.gh, 'GitHub') + lk(u.li, 'LinkedIn') + lk(u.web, 'web sitesi') + '</div></div>' +
+      (isMe ? '<button type="button" class="btn btn-line sm" data-goset="">profili düzenle</button>' : '<button type="button" class="ek-follow" data-follow="' + X(uid) + '" aria-pressed="' + on + '">' + (on ? 'takiptesin' : '+ takip et') + '</button>') + '</div>' +
+      '<div class="ef-prof-stats mono"><span><b>' + mine.length + '</b> proje</span><span><b>' + rx + '</b> tepki</span>' + (tl.length ? '<span class="ef-prof-tech">' + tl.map(function (t) { return '<i>' + X(t) + '</i>'; }).join('') + '</span>' : '') + '</div></section>';
+  };
   var renderFeed = function () {
-    var list = visible(); feedEl.innerHTML = list.map(one).join(''); noneEl.hidden = !!list.length || !SBX.st.loaded; if (!list.length && SBX.st.loaded && !all().length) { noneEl.hidden = true; feedEl.innerHTML = '<div class="ef-empty hand" style="padding:30px 6px;font-size:22px;color:#6A7593">panel henüz boş. ilk projeyi sen paylaş: “gönderi hazırla”.</div>'; }
+    var list = visible(); feedEl.innerHTML = (F.by ? profCard(F.by) : '') + list.map(one).join(''); noneEl.hidden = !!list.length || !SBX.st.loaded; if (!list.length && SBX.st.loaded && !all().length) { noneEl.hidden = true; feedEl.innerHTML = '<div class="ef-empty hand" style="padding:30px 6px;font-size:22px;color:#6A7593">panel henüz boş. ilk projeyi sen paylaş: “gönderi hazırla”.</div>'; }
     var lm = Q('[data-loadmore]'); if (lm) lm.hidden = !SBX.st.more || !!(F.kind || F.tech || F.course || F.mode || F.by || F.dept);
     QA('.ek-post', feedEl).forEach(arm);
     var bits = []; if (F.kind) bits.push(ETK.KINDS[F.kind]); if (F.tech) bits.push(F.tech); if (F.course) bits.push(F.course); if (F.mode === 'follow') bits.push('takip ettiklerin'); if (F.mode === 'saved') bits.push('kaydettiklerin'); if (F.by) bits.push(SBX.person(F.by === (SBX.me() || {}).id ? 'me' : F.by).n + ' projeleri'); if (F.dept) bits.push(Q('[data-dept] option[value="' + F.dept + '"]').textContent);
@@ -3751,6 +3817,7 @@ var SBX = (function () {
     if (e.target.closest('[data-clear]')) { F = { kind: '', tech: '', course: '', mode: '', by: '', dept: '' }; Q('[data-dept]').value = ''; paintFilters(); renderFeed(); return; }
     if ((b = e.target.closest('[data-sort]'))) { var so = b.getAttribute('data-sort'); if (so !== SBX.st.sort) { SBX.st.sort = so; SBX.st.limit = 20; reload(); } return; }
     if (e.target.closest('[data-loadmore]')) { SBX.st.limit += 20; reload(); return; }
+    if (e.target.closest('[data-goset]') || e.target.closest('[data-gocover]')) { if (typeof switchDashboardView === 'function') switchDashboardView('settings'); return; }
     if (e.target.closest('[data-godev]')) { if (typeof switchDashboardView === 'function') switchDashboardView('sandbox'); return; }
     if ((b = e.target.closest('.ef-ppl [data-prof]'))) { showBy(b.getAttribute('data-prof')); return; }
     if ((b = e.target.closest('[data-go]'))) { goTo(b.getAttribute('data-go')); return; }
@@ -3761,6 +3828,8 @@ var SBX = (function () {
   Q('[data-course]').addEventListener('change', function (e) { F.course = e.target.value; renderFeed(); });
   Q('[data-dept]').addEventListener('change', function (e) { F.dept = e.target.value; renderFeed(); });
   var showBy = function (uid) { if (uid === 'me') uid = (SBX.me() || {}).id; F = { kind: '', tech: '', course: '', mode: '', by: uid, dept: '' }; Q('[data-dept]').value = ''; paintFilters(); renderFeed(); var u = SBX.person(uid === (SBX.me() || {}).id ? 'me' : uid); say(u.n + ': ' + visible().length + ' proje.' + (u.bio ? ' ' + u.bio : '')); root.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' }); };
+  /* profil fotoğrafı / kapak değişince panel hemen güncellensin */
+  window.addEventListener('ax:profile', function () { SBX.setMe(); if (SBX.st.loaded) paintAll(); });
   var withWs = function (cb) { if (SBX.ws.list) { cb(SBX.ws.list); return; } SBX.wsLoad().then(cb, function () { cb([]); }); };
   var deployIn = function (el, p) {
     var view = el.querySelector('.ek-view'); if (!view) return;
@@ -3811,9 +3880,16 @@ var SBX = (function () {
     if ((b = e.target.closest('[data-rp]'))) { var f = post.querySelector('[data-cf]'), to = f.querySelector('[data-to]'), cid = b.getAttribute('data-rp'), c = withMine(p).cm.filter(function (x) { return x.id === cid; })[0]; f.setAttribute('data-reply', cid); to.hidden = false; to.innerHTML = 'yanıt: ' + X(c.by === 'me' ? 'kendine' : SBX.person(c.by).n) + ' <button type="button" data-unrp="">vazgeç</button>'; f.querySelector('input[type=text]').focus(); return; }
     if (e.target.closest('[data-unrp]')) { var f2 = post.querySelector('[data-cf]'); f2.removeAttribute('data-reply'); f2.querySelector('[data-to]').hidden = true; f2.querySelector('input[type=text]').focus(); return; }
     if (e.target.closest('[data-more]')) { var o = post.classList.toggle('open'); var mb = e.target.closest('[data-more]'); mb.setAttribute('aria-expanded', String(o)); mb.textContent = o ? 'daha az göster' : '…devamını gör'; return; }
-    if (e.target.closest('[data-golive]')) { var v = post.querySelector('.ek-live'), url = ETK.liveUrl(p); v.classList.add('ek-sc'); v.setAttribute('data-dev', post.querySelector('[data-devb=phone][aria-pressed=true]') ? 'phone' : 'desk'); if (!url) return; v.innerHTML = '<div class="ek-stage"><iframe class="ek-frame" title="' + X(p.title) + ' canlı" src="' + X(url) + '" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer" loading="eager"></iframe></div>' + ETK.liveBar(url); v.removeAttribute('data-ro'); ETK.watchFrames(post); return; }
+    if (e.target.closest('[data-golive]')) { var v = post.querySelector('.ek-live'), url = ETK.liveUrl(p), ph = !!post.querySelector('[data-devb=phone][aria-pressed=true]'); v.classList.add('ek-sc'); v.setAttribute('data-dev', ph ? 'phone' : 'desk'); if (!url) return;
+      var showNo = function () { v.classList.add('ek-nofrv'); v.innerHTML = ETK.noFrame(url, ph, p.by === 'me'); ETK.armShot(v); };
+      var c0 = null; try { c0 = JSON.parse(localStorage.getItem('acadex.sbx.frame.' + ETK.host(url))); } catch (er) {}
+      if (c0 && c0.e === false && Date.now() - c0.t < 6 * 3600e3) { showNo(); return; }
+      v.innerHTML = '<div class="ek-stage"><iframe class="ek-frame" title="' + X(p.title) + ' canlı" src="' + X(url) + '" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer" loading="eager"></iframe></div>' + ETK.liveBar(url); v.removeAttribute('data-ro'); ETK.watchFrames(post);
+      ETK.frameCheck(url).then(function (ok) { if (ok === false && v.isConnected && v.querySelector('iframe.ek-frame')) showNo(); }); return; }
+    if ((b = e.target.closest('[data-popwin]'))) { ETK.popWin(b.getAttribute('data-popwin'), !!post.querySelector('[data-devb=phone][aria-pressed=true]')); return; }
+    if ((b = e.target.closest('[data-copysnip]'))) { var pre = b.parentNode.querySelector('pre'); try { navigator.clipboard.writeText(pre.textContent); b.textContent = 'kopyalandı'; } catch (er) { b.textContent = 'seçip kopyala'; } return; }
     if ((b = e.target.closest('[data-shield]'))) { var vf = b.parentNode.querySelector('iframe'); b.remove(); if (vf) { vf.removeAttribute('tabindex'); vf.focus(); } return; }
-    if ((b = e.target.closest('[data-devb]'))) { var dv = b.getAttribute('data-devb'), vw = post.querySelector('.ek-view'); QA('[data-devb]', post).forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); if (vw) { vw.setAttribute('data-dev', dv); ETK.fitOne(vw); } return; }
+    if ((b = e.target.closest('[data-devb]'))) { var dv = b.getAttribute('data-devb'), vw = post.querySelector('.ek-view'); QA('[data-devb]', post).forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); if (vw) { vw.setAttribute('data-dev', dv); if (vw.querySelector('[data-nofr]')) { vw.innerHTML = ETK.noFrame(ETK.liveUrl(p), dv === 'phone', p.by === 'me'); ETK.armShot(vw); } else ETK.fitOne(vw); } return; }
     if (e.target.closest('[data-reload]')) { var fr = post.querySelector('.ek-view iframe'); if (fr) { if (fr.hasAttribute('srcdoc')) { var sd = fr.srcdoc; fr.srcdoc = ''; fr.srcdoc = sd; } else fr.src = fr.src; } return; }
     if (e.target.closest('[data-full]')) { openFull(p, e.target.closest('[data-full]')); return; }
     if ((b = e.target.closest('[data-more-menu]'))) {
