@@ -200,4 +200,28 @@ test('depodan yapistirma transcript tipini tanıyor', () => {
     'pasteDepotItem transcript\'i yapiskan nota dusuruyor — konusmaci ayrimi kaybolur');
 });
 
+console.log('\nGONDERIM SONRASI DUGME DURUMU\n');
+
+// 2026-10-13 geri bildirimi: dugme "Gonderildi" deyip 1.5 saniye sonra eski
+// haline donuyordu; kullanici gonderimin olup olmadigindan emin olamiyordu.
+// Tek seferlik gonderimde etiket KALICI olmali.
+test('sendToDepot kalici bitis etiketini destekliyor', () => {
+  assert.ok(/async function sendToDepot\([^)]*doneHtml\)/.test(DASH_SRC),
+    'sendToDepot doneHtml parametresi almiyor');
+  assert.ok(/if \(!doneHtml\) \{\s*setTimeout/.test(DASH_SRC),
+    'doneHtml verildiginde geri alma zamanlayicisi atlanmiyor — dugme yine eski haline doner');
+});
+
+test('sendToDepot basari/basarisizlik donduruyor', () => {
+  assert.ok(/return true;/.test(DASH_SRC) && /return false;/.test(DASH_SRC),
+    'cagiran gonderimin basarili olup olmadigini anlayamaz');
+});
+
+test('dokum gonderildikten sonra dugme tekrar gondermiyor', () => {
+  assert.ok(/removeAttribute\('data-podnote'\)/.test(DASH_SRC),
+    'dugme hala data-podnote tasiyor — ikinci tikla ayni dokum depoya tekrar gider');
+  assert.ok(/setAttribute\('data-depotopen', ''\)/.test(DASH_SRC),
+    'dugme depoyu acma kisayoluna donusmuyor');
+});
+
 summary();
