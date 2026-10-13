@@ -8140,6 +8140,24 @@ body.acx .ax-folder.axp-landed{animation:axpLand .9s cubic-bezier(.3,1.4,.5,1) b
 @media (max-width:900px){#study-card-modal.axr .axr-stage{margin:-16px -18px 12px}.axr-stage .tag{font-size:28px}}
 @media (prefers-reduced-motion:reduce){.axr-stage .ch,.axr-stage .ch .head,.axr-stage .ch .eyes,.axr-stage .mug .steam{animation:none!important}}
 
+/* bölüm dili: TR / EN */
+#study-card-modal.axr .axr-lt{display:inline-flex;gap:2px;padding:3px;border-radius:999px;background:#ECE7DA;border:1px solid #DDD6C3}
+#study-card-modal.axr .axr-lt button{min-width:44px;min-height:32px;padding:0 10px;border:0;border-radius:999px;background:none;font-family:var(--mono)!important;font-size:12px!important;font-weight:700;letter-spacing:.08em;color:#6A7593!important;cursor:pointer;transition:background .2s,color .2s}
+#study-card-modal.axr .axr-lt button[aria-pressed="true"]{background:#0D1838;color:#fff!important}
+#study-card-modal.axr .axr-lt button:not([aria-pressed="true"]):hover{background:#fff;color:#0D1838!important}
+#study-card-modal.axr .axr-lt.busy button[aria-busy]{background:repeating-linear-gradient(-45deg,#fff 0 6px,#E8E1CE 6px 12px);background-size:200% 100%;animation:axrLtBusy 1s linear infinite;color:#0D1838!important}
+@keyframes axrLtBusy{to{background-position:-34px 0}}
+#study-card-modal.axr .axr-sheet>.axr-lt{position:absolute;top:16px;right:16px;z-index:1}
+#study-card-modal.axr .axr-sheet .axr-secn{right:118px}
+#study-card-modal.axr .axr-sheet h2{padding-right:190px}
+#study-card-modal.axr .axr-sech .axr-lt{order:1;margin-left:auto}
+#study-card-modal.axr .axr-sech .axr-lt+.axr-mini{margin-left:0}
+#study-card-modal.axr .axr-ch.lt-wait .axr-prose,#study-card-modal.axr .axr-ch.lt-wait .axr-kps{opacity:.45;filter:blur(.6px);transition:opacity .3s,filter .3s}
+#study-card-modal.axr .axr-ch[data-alt] .axr-prose,#study-card-modal.axr .axr-ch[data-alt] .axr-kps{animation:axrLtIn .45s var(--ease) both}
+@keyframes axrLtIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+#study-card-modal.axr .axr-ltnote{margin:0 0 .4em!important;font-size:18px;color:#2F6BFF}
+@media (max-width:900px){#study-card-modal.axr .axr-sheet h2{padding-right:0;padding-top:34px}#study-card-modal.axr .axr-sheet .axr-secn{right:auto;left:18px;top:14px;font-size:30px}}
+
 /* ===== Acadia ===== */
 
 /* ===== Acadia paneli ===== */
