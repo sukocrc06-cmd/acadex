@@ -1978,6 +1978,105 @@ async function generatePodcastScript() {
 }
 window.generatePodcastScript = generatePodcastScript;
 
+// ==========================================================================
+// Sesli özet → defter aktarımı
+//
+// Hiçbir ses metne çevrilmiyor: generate-podcast-script diyaloğu zaten METIN
+// olarak üretip study_cards.podcast_script üzerinde saklıyor, ses o metinden
+// sonra geliyor. Buradaki iş, o metni konuşmacı ayrımını KAYBETMEDEN depoya
+// (card_depot, source_type='transcript') göndermek — deftere yapıştırma
+// pasteDepotItem üzerinden olur.
+// ==========================================================================
+
+// Ham podcast_script kaydını deponun saklayacağı biçime çevirir. Ekrandaki
+// oynatıcıya değil kayda bakar, çünkü kullanıcı özeti dinlemeden de aktarmak
+// isteyebilir. Boş satırlar atılır; bilinmeyen konuşmacı A sayılır (iki
+// sunuculu şemada tek alternatif B'dir).
+function buildPodcastTranscriptPayload(podcast, lang, docName) {
+  const uiLang = lang === 'tr' ? 'tr' : 'en';
+  const hostNames = (podcast && Array.isArray(podcast.hostNames) && podcast.hostNames.length === 2)
+    ? podcast.hostNames.map(n => String(n || '').trim()).filter(Boolean)
+    : [];
+  const names = hostNames.length === 2
+    ? hostNames
+    : (uiLang === 'tr' ? ['Ela', 'Kaan'] : ['Alex', 'Sam']);
+
+  const rawLines = (podcast && Array.isArray(podcast.script)) ? podcast.script : [];
+  const lines = rawLines
+    .map(l => ({
+      speaker: (l && l.speaker === 'B') ? 'B' : 'A',
+      text: String((l && l.text) || '').trim()
+    }))
+    .filter(l => l.text.length > 0);
+
+  return { hostNames: names, lang: uiLang, docName: String(docName || '').trim(), lines };
+}
+
+// "Ela: ...\nKaan: ..." — depo önizlemesinin tooltip'i ve deftere PNG olarak
+// indirilemeyen yerler için düz metin karşılığı.
+function formatTranscriptPlainText(payload) {
+  if (!payload || !Array.isArray(payload.lines)) return '';
+  const names = Array.isArray(payload.hostNames) && payload.hostNames.length === 2
+    ? payload.hostNames
+    : ['A', 'B'];
+  return payload.lines
+    .map(l => `${l.speaker === 'B' ? names[1] : names[0]}: ${l.text}`)
+    .join('\n');
+}
+
+// Defter öğesinin ve depo önizlemesinin paylaştığı satır listesi.
+function renderTranscriptLinesHtml(payload) {
+  if (!payload || !Array.isArray(payload.lines) || payload.lines.length === 0) return '';
+  const names = Array.isArray(payload.hostNames) && payload.hostNames.length === 2
+    ? payload.hostNames
+    : ['A', 'B'];
+  return payload.lines.map(l => {
+    const isB = l.speaker === 'B';
+    return `<p class="transcript-line ${isB ? 'speaker-b' : 'speaker-a'}">` +
+      `<b>${escapeHtml(isB ? names[1] : names[0])}</b> ` +
+      `<span>${escapeHtml(l.text)}</span></p>`;
+  }).join('');
+}
+
+// Oynatıcıdaki "📝 Deftere aktar" düğmesi. Depoya gider, deftere değil:
+// öğrenci defterin hangi sayfasına ve nereye koyacağına depo panelinden
+// karar versin (tablolar, grafikler ve görseller de aynı yolu izliyor).
+async function sendPodcastTranscriptToDepot(event, btn) {
+  const isTr = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
+  const card = currentActiveStudyCard;
+  const podcast = card && card.podcast_script;
+
+  const payload = buildPodcastTranscriptPayload(
+    podcast,
+    (card && card.summary_language) || podcastState.lang,
+    (card && card.documents && card.documents.file_name) || ''
+  );
+
+  if (payload.lines.length === 0) {
+    showDashboardAlert('error', isTr
+      ? 'Aktarılacak sesli özet metni yok. Önce sesli özeti hazırla.'
+      : 'There is no podcast script to send yet. Generate the podcast first.');
+    return;
+  }
+
+  const title = payload.docName
+    ? `${isTr ? 'Sesli özet' : 'Podcast transcript'} — ${payload.docName}`
+    : (isTr ? 'Sesli özet dökümü' : 'Podcast transcript');
+
+  const ok = await sendToDepot(event, btn, card.id, 'transcript', title, JSON.stringify(payload),
+    isTr ? '✓ depoda — depoyu aç' : '✓ in depot — open it');
+
+  // Gonderim tek seferlik: dugme artik ayni dokumu tekrar gondermesin, bunun
+  // yerine dokumun bekledigi yere (bilgi deposu) goturup isi bitirsin.
+  if (ok) {
+    btn.disabled = false;
+    btn.removeAttribute('data-podnote');
+    btn.setAttribute('data-depotopen', '');
+    btn.title = isTr ? 'Bilgi deposunu aç' : 'Open the depot';
+  }
+}
+window.sendPodcastTranscriptToDepot = sendPodcastTranscriptToDepot;
+
 // Fetches (and, the very first time, generates) real neural TTS audio for the
 // current card's podcast script via the generate-podcast-audio edge function
 // (Azure Speech — genuine "Emel"/"Ahmet" Turkish neural voices, not a browser
@@ -4311,6 +4410,14 @@ async function saveNotebookData() {
             content: chartJson
           });
         }
+        else if (type === 'transcript') {
+          const title = el.getAttribute('data-transcript-title');
+          const transcriptJson = el.getAttribute('data-transcript-json');
+          elementsArray.push({
+            type, id, left, top, width, height, title,
+            content: transcriptJson
+          });
+        }
       });
     }
 
@@ -4632,6 +4739,9 @@ function renderCurrentPageData() {
     }
     else if (item.type === 'ai_chart') {
       insertAiChartCanvasElement(item.content, item.title, item.left, item.top, item.width, item.height, item.id);
+    }
+    else if (item.type === 'transcript') {
+      insertTranscriptCanvasElement(item.content, item.title, item.left, item.top, item.width, item.height, item.id);
     }
   });
 
@@ -8786,7 +8896,11 @@ function initDepotModalListeners() {
   btnOpen.setAttribute('data-bound', 'true');
 }
 
-async function sendToDepot(event, btn, cardId, sourceType, title, content) {
+// doneHtml verilirse dugme eski haline DONMEZ: etiket kalici kalir. Tek
+// seferlik gonderimlerde (sesli ozet dokumu) dugmenin geri gelmesi "gitti mi,
+// gitmedi mi?" sorusu yaratiyordu. Verilmezse davranis eskisi gibi.
+// Donus: gonderim basarili mi.
+async function sendToDepot(event, btn, cardId, sourceType, title, content, doneHtml) {
   if (event) {
     event.preventDefault();
     event.stopPropagation();
@@ -8819,27 +8933,32 @@ async function sendToDepot(event, btn, cardId, sourceType, title, content) {
       showDashboardAlert('error', `Depoya gönderilemedi: ${error.message || 'Hata oluştu'}`);
       btn.disabled = false;
       btn.innerHTML = originalHtml;
-      return;
+      return false;
     }
 
-    btn.innerHTML = '✓ Sent! / Gönderildi!';
+    btn.innerHTML = doneHtml || '✓ Sent! / Gönderildi!';
     btn.style.backgroundColor = 'var(--color-teal)';
     btn.style.color = 'white';
 
     await updateDepotCountBadge();
 
-    setTimeout(() => {
-      btn.disabled = false;
-      btn.innerHTML = originalHtml;
-      btn.style.backgroundColor = '';
-      btn.style.color = '';
-    }, 1500);
+    if (!doneHtml) {
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+        btn.style.backgroundColor = '';
+        btn.style.color = '';
+      }, 1500);
+    }
+
+    return true;
 
   } catch (err) {
     console.error("Exception in sendToDepot:", err);
     showDashboardAlert('error', 'Depoya gönderirken hata oluştu.');
     btn.disabled = false;
     btn.innerHTML = originalHtml;
+    return false;
   }
 }
 
@@ -8910,6 +9029,8 @@ async function loadDepotItems() {
         typeTag = '<span class="depot-item-tag" style="background:#ECFDF5; color:#059669; font-weight:700;">📈 Grafik</span>';
       } else if (item.source_type === 'image') {
         typeTag = '<span class="depot-item-tag" style="background:#FEF3C7; color:#B45309; font-weight:700;">🖼️ Görsel</span>';
+      } else if (item.source_type === 'transcript') {
+        typeTag = '<span class="depot-item-tag" style="background:#EDE9FE; color:#6D28D9; font-weight:700;">🎙️ Döküm</span>';
       } else {
         typeTag = '<span class="depot-item-tag depot-tag-question">Question</span>';
       }
@@ -8952,6 +9073,20 @@ async function loadDepotItems() {
             <img src="${item.content}" alt="" style="max-width: 100%; max-height: 120px; border-radius: 6px; object-fit: contain;">
           </div>
         `;
+      } else if (item.source_type === 'transcript') {
+        try {
+          const payload = JSON.parse(item.content);
+          const total = (payload.lines || []).length;
+          const preview = { ...payload, lines: (payload.lines || []).slice(0, 3) };
+          displayContentHtml = `
+            <div class="depot-preview-transcript" title="${escapeHtml(formatTranscriptPlainText(payload))}">
+              ${renderTranscriptLinesHtml(preview)}
+              ${total > 3 ? `<p class="transcript-more">+${total - 3} satır daha</p>` : ''}
+            </div>
+          `;
+        } catch (e) {
+          displayContentHtml = `<div class="depot-item-text">${escapeHtml(item.content)}</div>`;
+        }
       } else {
         const maxTextLen = 140;
         let textVal = item.content || '';
@@ -9052,6 +9187,12 @@ async function pasteDepotItem(event, itemId, title, content) {
     }
   } else if (sourceType === 'image') {
     insertImageElement(content, 120, 120, 260, 200);
+  } else if (sourceType === 'transcript') {
+    try {
+      insertTranscriptCanvasElement(content, title);
+    } catch (e) {
+      addDepotStickyNoteToCanvas(studyCardId, title, content);
+    }
   } else {
     addDepotStickyNoteToCanvas(studyCardId, title, content);
   }
@@ -9181,6 +9322,63 @@ function insertAiTableCanvasElement(tableData, title, left, top, width, height, 
         <thead><tr>${headersHtml}</tr></thead>
         <tbody>${rowsHtml}</tbody>
       </table>
+    </div>
+  `;
+
+  overlay.appendChild(wrapper);
+  makeElementDraggable(wrapper, wrapper.querySelector('.drag-handle-bar'));
+
+  const resizer = document.createElement('div');
+  resizer.className = 'table-resizer';
+  resizer.innerHTML = `
+    <svg width="10" height="10" viewBox="0 0 10 10" style="position: absolute; bottom: 1px; right: 1px; pointer-events: none;">
+      <path d="M10 0 L0 10 M10 4 L4 10 M10 8 L8 10" stroke="#94A3B8" stroke-width="1.5"/>
+    </svg>
+  `;
+  wrapper.appendChild(resizer);
+  makeElementResizable(wrapper, resizer);
+  notebookHasUnsavedChanges = true;
+}
+
+// Sesli özet dökümünü defter sayfasına sürüklenebilir/boyutlandırılabilir bir
+// kart olarak koyar. Yapisi ai_table ile aynidir (surukleme cubugu + resizer)
+// cunku kaydetme/geri yukleme yolu da aynidir: data-transcript-json
+// attribute'u tek dogruluk kaynagi, DOM yalnizca onun gorunumu.
+function insertTranscriptCanvasElement(transcriptData, title, left, top, width, height, id) {
+  const overlay = document.getElementById('notebook-overlay-container');
+  if (!overlay) return;
+
+  const payload = typeof transcriptData === 'string' ? JSON.parse(transcriptData) : transcriptData;
+  if (!payload || !Array.isArray(payload.lines)) throw new Error('Gecersiz dokum verisi');
+
+  const elementId = id || 'transcript-' + Date.now();
+  const elWidth = width || 360;
+  const elHeight = height || 280;
+
+  const rect = overlay.getBoundingClientRect();
+  const posX = left !== undefined ? left : ((rect.width > elWidth) ? (rect.width - elWidth) / 2 : 50);
+  const posY = top !== undefined ? top : ((rect.height > elHeight) ? (rect.height - elHeight) / 2 : 50);
+
+  const headerTitle = title || payload.docName || 'Sesli özet dökümü';
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'draggable-element draggable-transcript-wrapper';
+  wrapper.id = elementId;
+  wrapper.style.left = `${posX}px`;
+  wrapper.style.top = `${posY}px`;
+  wrapper.style.width = `${elWidth}px`;
+  wrapper.style.height = `${elHeight}px`;
+  wrapper.setAttribute('data-type', 'transcript');
+  wrapper.setAttribute('data-transcript-title', headerTitle);
+  wrapper.setAttribute('data-transcript-json', typeof transcriptData === 'string' ? transcriptData : JSON.stringify(payload));
+
+  wrapper.innerHTML = `
+    <div class="drag-handle-bar" style="background: var(--color-navy); color: #fff; padding: 0.25rem 0.5rem; font-size: 0.725rem; font-weight: 700; display: flex; justify-content: space-between; align-items: center; cursor: move;">
+      <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 80%;">🎙️ ${escapeHtml(headerTitle)}</span>
+      <button class="delete-overlay-btn" title="Dökümü Sil" onclick="removeOverlayElement('${elementId}')" style="background: none; border: none; color: #fff; font-size: 1rem; cursor: pointer; line-height: 1;">×</button>
+    </div>
+    <div class="transcript-content-area">
+      ${renderTranscriptLinesHtml(payload)}
     </div>
   `;
 

@@ -7964,7 +7964,7 @@ var SBX = (function () {
     if (!sc.length) { box.innerHTML = stageHTML(nm0) + '<div class="axr-podcta"><p><b>Sesli özet</b> iki sunucu (' + X(nm0[0]) + ' ve ' + X(nm0[1]) + ') bu özeti sohbet eder gibi anlatır.</p>' + (own ? '<button type="button" class="btn btn-dark" data-podgen="">sesli özeti hazırla</button>' : '<p class="hand">bu kart için sesli özet hazırlanmamış.</p>') + '</div>' + askHTML(nm0); return; }
     var names = hostNames();
     box.innerHTML = stageHTML(nm0) + '<div class="axr-player"><button type="button" class="axr-play" data-podplay="" aria-label="Oynat">' + ICON.up + '</button><div class="axr-pmid"><div class="axr-wave" data-wave="" aria-hidden="true">' + new Array(48).join('<i></i>') + '</div><div class="axr-pbar"><i data-podfill=""></i></div></div><span class="mono axr-pcount" data-podcount="">0 / ' + sc.length + '</span>' +
-      '<label class="axr-rate"><span class="vh">Hız</span><select data-rate=""><option value="0.8">0.8×</option><option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option></select></label><button type="button" class="axr-mini" data-podstop="">durdur</button></div>' +
+      '<label class="axr-rate"><span class="vh">Hız</span><select data-rate=""><option value="0.8">0.8×</option><option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option></select></label><button type="button" class="axr-mini" data-podstop="">durdur</button><button type="button" class="axr-mini" data-podnote="" title="Konuşmayı defterine döküm olarak gönder">📝 deftere aktar</button></div>' +
       '<ol class="axr-trans" data-trans="">' + sc.map(function (l, i) { var b = l.speaker === 'B'; return '<li data-li="' + i + '" class="' + (b ? 'b' : 'a') + '"><button type="button" data-podfrom="' + i + '"><b>' + X(b ? names[1] : names[0]) + '</b><span>' + X(l.text) + '</span></button></li>'; }).join('') + '</ol>' + askHTML(nm0);
     Q('[data-rate]', box).value = String(RATE);
   };
@@ -7992,6 +7992,10 @@ var SBX = (function () {
     if ((b = e.target.closest('[data-podgen]'))) { b.disabled = true; b.textContent = 'hazırlanıyor…'; Promise.resolve(lsafe(function () { return generatePodcastScript(); }, null)).then(function () { paintPod(true); }); return; }
     if (e.target.closest('[data-podplay]')) { askStop(); if (typeof togglePodcastPlayback === 'function') togglePodcastPlayback(); return; }
     if (e.target.closest('[data-podstop]')) { if (typeof stopPodcast === 'function') stopPodcast(); return; }
+    /* Dokum zaten metin olarak elimizde (podcast_script); sadece depoya gidiyor. */
+    if ((b = e.target.closest('[data-podnote]'))) { if (typeof sendPodcastTranscriptToDepot === 'function') sendPodcastTranscriptToDepot(e, b); return; }
+    /* Gonderildikten sonra ayni dugme depoyu acar — dokumun nereye gittigi belli olsun. */
+    if (e.target.closest('[data-depotopen]')) { var dp = document.getElementById('btn-depot-modal'); if (dp) dp.click(); return; }
     if ((b = e.target.closest('[data-podfrom]'))) { playFrom(+b.getAttribute('data-podfrom')); }
   });
   flow.addEventListener('change', function (e) { if (e.target.matches('[data-rate]')) { RATE = +e.target.value || 1; var ps = PS(); if (ps && ps.audioEl) try { ps.audioEl.playbackRate = RATE; } catch (x) {} } });
