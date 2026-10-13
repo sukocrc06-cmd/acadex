@@ -236,8 +236,10 @@
   prepDrw(root); reveal($$('.drw, [data-reveal]'));
 
   /* ---------- selam, tarih, ışık ---------- */
-  var h = now.getHours(), tod = h >= 5 && h < 11 ? 'sabah' : h < 17 ? 'gun' : h < 22 ? 'aksam' : 'gece';
+  var todOf = function (h) { return h < 5 || h >= 22 ? 'gece' : h < 11 ? 'sabah' : h < 17 ? 'gun' : 'aksam'; };
+  var h = now.getHours(), tod = todOf(h);
   var band = $('.band'); band.setAttribute('data-tod', tod);
+  setInterval(function () { var t = todOf(new Date().getHours()); if (band.getAttribute('data-tod') !== t) band.setAttribute('data-tod', t); }, 60000);
   var greet = function () {
     var p = prof(), n = (p && p.full_name) || ((me() && me().email) || '').split('@')[0] || '';
     n = String(n).split(/\s+/)[0]; n = n ? n.charAt(0).toLocaleUpperCase('tr') + n.slice(1) : '';
@@ -8302,7 +8304,7 @@ var SBX = (function () {
     if (!hintEl.hidden && hintEl.getAttribute('data-v') === pageCtx().view) return;
     clearTimeout(hintT); hintEl.hidden = true; if (!P.hidden || S.running) return;
     var p = pageCtx(), L = SUG[p.view]; if (!L || hinted[p.view] || mobile()) return;
-    var fab = document.getElementById('btn-acadia-toggle'); if (!fab || !fab.offsetParent) return;
+    if (!mas || getComputedStyle(mas).display === 'none') return;
     hintT = setTimeout(function () {
       if (!P.hidden || pageCtx().view !== p.view) return; hinted[p.view] = 1;
       var t = L[0]; hintEl.innerHTML = '<span class="k mono">ACADIA ÖNERİYOR</span><span class="t">' + X(t) + '</span><i class="x" aria-label="kapat">×</i>'; hintEl.setAttribute('data-t', t); hintEl.setAttribute('data-v', p.view); hintEl.hidden = false;
@@ -8616,6 +8618,27 @@ var SBX = (function () {
   var scm = document.getElementById('study-card-modal'); if (scm) mo.observe(scm, { attributes: true, attributeFilter: ['class'] });
   if (typeof switchDashboardView === 'function') { var oSw = switchDashboardView; switchDashboardView = function (v) { if (typeof v === 'string') VIEWNOW = v; var r = oSw.apply(this, arguments); setTimeout(function () { if (!P.hidden) paintCtx(); else showHint(); }, 50); return r; }; window.switchDashboardView = switchDashboardView; }
   setTimeout(showHint, 2500);
+  /* ---------- sağ kenardaki mürekkep yıldız maskot ---------- */
+  var mas = document.createElement('button'); mas.type = 'button'; mas.className = 'axa-mas'; mas.setAttribute('aria-label', 'Acadia’ya sor');
+  mas.innerHTML = '<span class="lbl">Acadia’ya sor</span><svg viewBox="-60 -60 120 120" aria-hidden="true"><g class="bd"><path class="st" d="M0 -50 C6 -18 18 -6 50 0 C18 6 6 18 0 50 C-6 18 -18 6 -50 0 C-18 -6 -6 -18 0 -50 Z"/><ellipse class="ck" cx="-17" cy="10" rx="6" ry="3.5"/><ellipse class="ck" cx="17" cy="10" rx="6" ry="3.5"/><g class="eyes"><g class="ey" transform="translate(-10 -4)"><ellipse class="w" rx="6.5" ry="8"/><circle class="pu" r="3.6"/><circle class="gl" cx="1.4" cy="-2.2" r="1.2"/></g><g class="ey" transform="translate(10 -4)"><ellipse class="w" rx="6.5" ry="8"/><circle class="pu" r="3.6"/><circle class="gl" cx="1.4" cy="-2.2" r="1.2"/></g></g><path class="mo" d="M-6 10 Q0 16 6 10"/></g></svg>';
+  layer.appendChild(mas);
+  mas.addEventListener('click', function () { toggle(); });
+  /* gözler fareyi izler */
+  var pus = mas.querySelectorAll('.pu, .gl'), eyeRaf = 0, mx = 0, my = 0;
+  document.addEventListener('pointermove', function (e) {
+    mx = e.clientX; my = e.clientY; if (eyeRaf) return;
+    eyeRaf = requestAnimationFrame(function () {
+      eyeRaf = 0; var r = mas.querySelector('svg').getBoundingClientRect(); if (!r.width) return;
+      var dx = mx - (r.left + r.width / 2), dy = my - (r.top + r.height / 2), d = Math.sqrt(dx * dx + dy * dy) || 1, k = Math.min(2.6, d / 60);
+      Array.prototype.forEach.call(pus, function (el) { el.style.transform = 'translate(' + (dx / d * k).toFixed(2) + 'px,' + (dy / d * k * 1.2).toFixed(2) + 'px)'; });
+    });
+  }, { passive: true });
+  /* durumlar: düşünüyor / bitti zıplaması */
+  var masState = function () { mas.classList.toggle('think', !!S.running); };
+  setInterval(masState, 400);
+  var oBusy = busy; busy = function (on) { var was = S.running; oBusy(on); masState(); if (was && !on) { mas.classList.remove('hop'); void mas.offsetWidth; mas.classList.add('hop'); } };
+  /* ara sıra kendiliğinden selam */
+  setInterval(function () { if (document.hidden || !P.hidden || mas.matches(':hover')) return; mas.classList.remove('peek'); void mas.offsetWidth; mas.classList.add('peek'); }, 45000);
   window.__axaTools = TOOLS;
 })();
 /* ================= GENEL: sayfa geçişleri, gece masası, telefon alt menüsü ================= */
