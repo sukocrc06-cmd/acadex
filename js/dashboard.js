@@ -2063,7 +2063,17 @@ async function sendPodcastTranscriptToDepot(event, btn) {
     ? `${isTr ? 'Sesli özet' : 'Podcast transcript'} — ${payload.docName}`
     : (isTr ? 'Sesli özet dökümü' : 'Podcast transcript');
 
-  await sendToDepot(event, btn, card.id, 'transcript', title, JSON.stringify(payload));
+  const ok = await sendToDepot(event, btn, card.id, 'transcript', title, JSON.stringify(payload),
+    isTr ? '✓ depoda — depoyu aç' : '✓ in depot — open it');
+
+  // Gonderim tek seferlik: dugme artik ayni dokumu tekrar gondermesin, bunun
+  // yerine dokumun bekledigi yere (bilgi deposu) goturup isi bitirsin.
+  if (ok) {
+    btn.disabled = false;
+    btn.removeAttribute('data-podnote');
+    btn.setAttribute('data-depotopen', '');
+    btn.title = isTr ? 'Bilgi deposunu aç' : 'Open the depot';
+  }
 }
 window.sendPodcastTranscriptToDepot = sendPodcastTranscriptToDepot;
 
@@ -8886,7 +8896,11 @@ function initDepotModalListeners() {
   btnOpen.setAttribute('data-bound', 'true');
 }
 
-async function sendToDepot(event, btn, cardId, sourceType, title, content) {
+// doneHtml verilirse dugme eski haline DONMEZ: etiket kalici kalir. Tek
+// seferlik gonderimlerde (sesli ozet dokumu) dugmenin geri gelmesi "gitti mi,
+// gitmedi mi?" sorusu yaratiyordu. Verilmezse davranis eskisi gibi.
+// Donus: gonderim basarili mi.
+async function sendToDepot(event, btn, cardId, sourceType, title, content, doneHtml) {
   if (event) {
     event.preventDefault();
     event.stopPropagation();
@@ -8919,27 +8933,32 @@ async function sendToDepot(event, btn, cardId, sourceType, title, content) {
       showDashboardAlert('error', `Depoya gönderilemedi: ${error.message || 'Hata oluştu'}`);
       btn.disabled = false;
       btn.innerHTML = originalHtml;
-      return;
+      return false;
     }
 
-    btn.innerHTML = '✓ Sent! / Gönderildi!';
+    btn.innerHTML = doneHtml || '✓ Sent! / Gönderildi!';
     btn.style.backgroundColor = 'var(--color-teal)';
     btn.style.color = 'white';
 
     await updateDepotCountBadge();
 
-    setTimeout(() => {
-      btn.disabled = false;
-      btn.innerHTML = originalHtml;
-      btn.style.backgroundColor = '';
-      btn.style.color = '';
-    }, 1500);
+    if (!doneHtml) {
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+        btn.style.backgroundColor = '';
+        btn.style.color = '';
+      }, 1500);
+    }
+
+    return true;
 
   } catch (err) {
     console.error("Exception in sendToDepot:", err);
     showDashboardAlert('error', 'Depoya gönderirken hata oluştu.');
     btn.disabled = false;
     btn.innerHTML = originalHtml;
+    return false;
   }
 }
 
