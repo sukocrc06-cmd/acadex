@@ -31,6 +31,7 @@ const NAMES = [
   'GEMINI_MAX_PAGES', 'GEMINI_MIN_BUDGET_MS', 'GEMINI_RESERVE_MS',
   'GEMINI_MAX_CALL_MS', 'GEMINI_MAX_OUTPUT_TOKENS', 'GEMINI_GROQ_RESERVE_MS',
   'geminiMode', 'GEMINI_ONLY_BUDGET_MS', 'GEMINI_ONLY_MAX_CALL_MS',
+  'GEMINI_ONLY_FALLBACK_MIN_MS',
   'bytesToBase64',
   'geminiModelCandidates', 'geminiNativeMime', 'geminiModelMissing',
   'geminiFormatRejected', 'GEMINI_DUSURULEBILIR', 'geminiUnknownParameter',
@@ -252,6 +253,21 @@ test('buildGeminiDocInstruction: visual_findings alani istenir', () => {
   assert.match(s, /"visual_findings"/);
 });
 
+/* 10.10.2026 — iki kosuda ayni uc terim atildi (Differential Intercept,
+   Differential Slope, Semi-Elasticity). Kapi duzeltmesi 7 atilani 5'e
+   indirdi ama bu ucu kurtaramadi: model onlari visual_findings icinde
+   TARIF ediyor, ADINI yazmiyor, kapi ise tam kelime esliyor. */
+test('buildGeminiDocInstruction: sekil terimlerinin BIREBIR yazilmasi sart kosuluyor', () => {
+  const s = G.buildGeminiDocInstruction('SAYFA', 42);
+  assert.match(s, /VERBATIM/);
+  assert.match(s, /key_term/);
+  assert.ok(/paraphrase does not count/.test(s),
+    'tarif etmenin yetmedigi acikca soylenmeli');
+  // Tarihce koda tasindi: modelin dikkati kurala gitmeli, anekdota degil.
+  assert.doesNotMatch(s, /Differential Intercept/,
+    'prompt icine olay kaydi yazilmis — orasi kod yorumunun yeri');
+});
+
 test('buildGeminiDocInstruction: formul ve tablo okumasi istenir', () => {
   const s = G.buildGeminiDocInstruction('SAYFA', 42);
   assert.match(s, /FORMULAS:/);
@@ -271,6 +287,19 @@ test('buildGeminiDocInstruction: formul ve tablo okumasi istenir', () => {
    Sisirilmis kota (25-40 terim, 20-30 nokta, tavansiz her sey) tamamlanan
    tek kosuyu bir daha tamamlanmaz hale getirdi. Bu testler kotanin bir
    daha sisirilmemesini ve formul/tablo onceliginin kaybolmamasini korur. */
+/* 10.10.2026 15:14: bant 22-28'e cikarildi ve nokta sayisi 18'den 11'e
+   DUSTU. Cikti tavana da carpmiyordu. Sebep kapsam metnindeki uc ayri
+   cekinceydi — sayilar istege donusmustu. */
+test('geminiCoverageQuota: sayilar EMIR, istek degil', () => {
+  const q = G.geminiCoverageQuota(42);
+  assert.doesNotMatch(q, /if and only if/i, 'cekince sayilari istege cevirir');
+  assert.doesNotMatch(q, /not a quota to fill/i);
+  assert.doesNotMatch(q, /stopping short of them is correct/i);
+  assert.match(q, /reach them/, 'sayilar duz emir olarak verilmeli');
+  // Dolguya karsi TEK cumle kalmali — uc tane birikince sayilar eriyor.
+  assert.match(q, /restating the same idea/);
+});
+
 test('geminiCoverageQuota: sayilar OLCULEN banda geri geldi, sisirilmedi', () => {
   // Ilk hali 25-40 terim isteyip kosuyu tamamlanamaz hale getirmisti;
   // kota tamamen kalkinca kosu tamamlandi ama 8 terim kaldi. Bu bant
@@ -280,7 +309,6 @@ test('geminiCoverageQuota: sayilar OLCULEN banda geri geldi, sisirilmedi', () =>
   const ust = Number(q.match(/(\d+)-(\d+) key_terms/)[2]);
   assert.ok(alt >= 15, `alt sinir ${alt} — Groq un 16 terimine yaklasmali`);
   assert.ok(ust <= 30, `ust sinir ${ust} — 25-40 bandi kosuyu tamamlanamaz yapmisti`);
-  assert.match(q, /not a quota to fill/);
 });
 
 test('geminiCoverageQuota: sayilar formul ve tablodan SONRA isteniyor', () => {
@@ -289,14 +317,24 @@ test('geminiCoverageQuota: sayilar formul ve tablodan SONRA isteniyor', () => {
   const q = G.geminiCoverageQuota(42);
   assert.ok(q.indexOf('"formulas"') < q.indexOf('key_terms'),
     'formuller sayilardan sonra isteniyor — sira ters');
-  assert.match(q, /do those first/);
+  assert.match(q, /do them first/);
+});
+
+test('geminiCoverageQuota: nokta bandi Groq un uretimine yetisiyor', () => {
+  // Groq ayni destede 25 nokta veriyordu, Gemini 18. Aradaki tek gercek
+  // fark buydu ve 81,3 sn'lik kosuda 23,7 sn bosluk vardi.
+  const q = G.geminiCoverageQuota(42);
+  const alt = Number(q.match(/(\d+)-(\d+) key_points/)[1]);
+  assert.ok(alt >= 20, `nokta alt siniri ${alt} — Groq un 25'ine yaklasmiyor`);
+  assert.ok(Number(q.match(/(\d+)-(\d+) key_points/)[2]) <= 32,
+    'bant yine sisirildi — 09.10 aksami bu kosuyu tamamlanamaz yapmisti');
 });
 
 test('geminiCoverageQuota: formul ve tablo tavansiz kalir', () => {
   // Gölge yolun butun gerekcesi bu ikisi: 42 sayfanin 22'sinde denklem
   // resim olarak duruyor ve Groq onlarin yalnizca 2'sini gorebiliyor.
   const q = G.geminiCoverageQuota(42);
-  assert.match(q, /NO cap/);
+  assert.match(q, /No cap/i);
   assert.match(q, /"formulas"/);
   assert.match(q, /"tables"/);
 });
@@ -341,6 +379,46 @@ test('geminiMode: taninmayan deger shadow sayilir', () => {
   denoEnv.set('GEMINI_MODE', 'bilinmeyen');
   assert.equal(G.geminiMode(), 'shadow');
   denoEnv.delete('GEMINI_MODE');
+});
+
+/* 10.10.2026 16:05 — only modu artik bir URUN yolu, karsilastirma modu
+   degil. Tek 503 ogrenciye bos ekran demek; ama her basarisizlikta Groq'a
+   dusmek de olmaz, cunku Gemini 105 saniyeyi yakmissa geriye Groq'un tam
+   kosusuna yer kalmiyor.
+
+   O aksamin olcumleri ikiye ayriliyor ve arada bosluk var:
+     HIZLI (503/429/400): 3,9 / 8,4 / 11,1 / 35,8 saniye
+     YAVAS (zaman asimi): 67,9 / 74,9 / 77,9 / 89,9 / 105 saniye */
+/* 10.10.2026 17:40 — ILK ESIK (100 sn) YANLISTI.
+   O kosuda: deneme 1 -> 503 (3,5 sn), deneme 2 -> zaman asimi (105 sn),
+   toplam 111 sn, geriye 33,9 sn. Esigin altinda kaldi ve belge basarisiz
+   isaretlendi — oysa 33,9 saniye bir kart uretmeye yeterdi.
+
+   Iki duzeltme: (1) Gemini'nin TOPLAM duvar saati tavanla sinirli, yani
+   geriye her zaman en az butce-tavan kadar kaliyor; (2) esik "tam Groq
+   kosusu" degil "en az bir kart" olcusune indi. */
+test('only fallback: Gemini en cok tavani yakabilir, toplami degil', () => {
+  // geminiToplamTavan sayesinde en kotu halde geriye bu kadar kalir.
+  const enAzKalan = G.GEMINI_ONLY_BUDGET_MS - G.GEMINI_ONLY_MAX_CALL_MS;
+  assert.ok(enAzKalan >= G.GEMINI_ONLY_FALLBACK_MIN_MS,
+    `Gemini tavani tamamen yakarsa geriye ${enAzKalan}ms kaliyor ama esik ` +
+    `${G.GEMINI_ONLY_FALLBACK_MIN_MS}ms — fallback hic tetiklenemez`);
+});
+
+test('only fallback esigi: Groq un pencerelerine yetecek kadar', () => {
+  // Olculdu: Gemini'den sonra pacer butcesi taze, iki pencere 6 saniyede
+  // bitiyor. Pencereler + birlesim + kayit 30 saniyede siger.
+  assert.ok(G.GEMINI_ONLY_FALLBACK_MIN_MS >= 25_000,
+    'esik cok dusuk — Groq pencereleri bile bitiremeden butce doluyor');
+  assert.ok(G.GEMINI_ONLY_FALLBACK_MIN_MS <= 60_000,
+    'esik cok yuksek — 17:40 kosusundaki gibi uretilebilir kartlar atilir');
+});
+
+test('only fallback: en kotu toplam sure Supabase sinirinin altinda', () => {
+  // Gemini tavani + geriye kalan butcenin tamami + kayit payi.
+  const enKotu = G.GEMINI_ONLY_MAX_CALL_MS +
+    (G.GEMINI_ONLY_BUDGET_MS - G.GEMINI_ONLY_MAX_CALL_MS) + 5_000;
+  assert.ok(enKotu <= 150_000, `en kotu toplam ${enKotu}ms`);
 });
 
 test('only modu butun butceyi Gemini ye verir', () => {
@@ -544,10 +622,13 @@ test('callGeminiOnce: dusurulen alanlar govdeye konmaz', async () => {
   } finally { restoreFetch(); }
 });
 
-test('callGeminiOnce: cikis tavani Groq un 3.702 tavaninin cok ustunde', () => {
-  // Gölge yolun var olma sebeplerinden biri bu sayi. 8.000 in altina
-  // dusurulurse yol amacini kaybeder.
-  assert.ok(G.GEMINI_MAX_OUTPUT_TOKENS >= 16384, `tavan cok dusuk: ${G.GEMINI_MAX_OUTPUT_TOKENS}`);
+test('callGeminiOnce: cikis tavani olculen en buyuk ciktiyi RAHAT tasiyor', () => {
+  // 10.10.2026: 46.084 karakterlik JSON ~14.000 token tutuyor. 16.384
+  // tavanla iki kosuda da model tavana carpti ve JSON yarim dondu
+  // ("status=incomplete"), her biri ~88 saniye ve gunluk 20 istekten
+  // birini yakarak. Tavan o olcumun en az iki kati olmali.
+  assert.ok(G.GEMINI_MAX_OUTPUT_TOKENS >= 28_000,
+    `tavan ${G.GEMINI_MAX_OUTPUT_TOKENS} — olculen 14.000 token'lik ciktiya pay birakmiyor`);
 });
 
 test('callGeminiOnce: ok olmayan cevap status ve govdeyle doner', async () => {
@@ -745,6 +826,19 @@ test('geminiDraft: 200 ama incomplete ise null — yarim JSON karta girmez', asy
   try {
     const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000));
     assert.equal(out, null);
+  } finally { restoreFetch(); }
+});
+
+test('geminiDraft: cikti tavaninda TEK istekte durur, aday turlamaz', async () => {
+  // Ayni prompt + ayni tavan = ayni sonuc. Her deneme ~88 sn suruyor ve
+  // gunluk 20 istekten birini yakiyor; uc kez ayni duvara carpmanin
+  // hicbir kazanci yok.
+  stubFetch(G.GEMINI_MODEL_CANDIDATES.map(() => ({ status: 200, json: { status: 'incomplete', steps: [] } })));
+  try {
+    const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000));
+    assert.equal(out, null);
+    assert.equal(fetchCalls.length, 1,
+      `tavana carpinca ${fetchCalls.length} istek yapildi — biri yeterli`);
   } finally { restoreFetch(); }
 });
 

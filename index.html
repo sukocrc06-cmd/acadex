@@ -877,6 +877,7 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 .idc.restamp .idc-stamp{animation:idcStamp .9s var(--ease) both !important}
 /* pencil cursor over the paper scenes */
 @media (pointer: fine){.desk,.desk *,.dsk-rig,.dsk-rig *{cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cg transform='rotate(45 16 16)'%3E%3Crect x='13' y='2' width='6' height='20' rx='1' fill='%23FFD966' stroke='%231A2A5C' stroke-width='1.2'/%3E%3Crect x='13' y='2' width='6' height='4' fill='%23F2B8B0' stroke='%231A2A5C' stroke-width='1.2'/%3E%3Cpath d='M13 22 L16 29 L19 22 Z' fill='%23F1D6A8' stroke='%231A2A5C' stroke-width='1.2'/%3E%3Cpath d='M15.2 27 L16 29 L16.8 27 Z' fill='%231A2A5C'/%3E%3C/g%3E%3C/svg%3E") 5 27, auto !important}.sheet-c{cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cg transform='rotate(45 16 16)'%3E%3Crect x='13' y='2' width='6' height='20' rx='1' fill='%23FFD966' stroke='%231A2A5C' stroke-width='1.2'/%3E%3Crect x='13' y='2' width='6' height='4' fill='%23F2B8B0' stroke='%231A2A5C' stroke-width='1.2'/%3E%3Cpath d='M13 22 L16 29 L19 22 Z' fill='%23F1D6A8' stroke='%231A2A5C' stroke-width='1.2'/%3E%3Cpath d='M15.2 27 L16 29 L16.8 27 Z' fill='%231A2A5C'/%3E%3C/g%3E%3C/svg%3E") 5 27, auto !important}}
+@media (prefers-reduced-motion: no-preference){.ftag{transition:transform .35s cubic-bezier(.2,.7,.2,1)}}
 /* reduced motion: keep everything, drop the movement */
 @media (prefers-reduced-motion: reduce){
 *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important}
@@ -984,10 +985,24 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 
 <!-- ===== MANIFESTO (highlight on scroll) ===== -->
 <section data-mfs="" style="background: #FFFFFF; position: relative; overflow: hidden; --mp: 1; --mp2: 0.5">
-<div class="mf-wrap" style="position: relative; max-width: 900px; margin: 0 auto; padding: 190px 28px">
-<span class="mf-note mf-n1 nb-hand" aria-hidden="true" style="--t: 5"><svg viewBox="0 0 90 50"><path pathLength="1" d="M86 8 C60 2 30 10 10 38 M10 38 L12 24 M10 38 L23 34"></path></svg>asıl mesele bu</span>
-<span class="mf-note mf-n2 nb-hand" aria-hidden="true" style="--t: 13.5"><svg viewBox="0 0 90 50"><path pathLength="1" d="M4 44 C30 46 60 36 82 12 M82 12 L70 16 M82 12 L80 25"></path></svg>sınavdan önce<br>bunu bil</span>
-<p class="disp" data-mf="" style="margin: 0; font-size: clamp(32px, 4.4vw, 58px); line-height: 1.18; letter-spacing: -0.016em; font-weight: 600; color: #0D1838"><span class="w" style="--k: 0">Acadex</span> <mark class="hl hlw" style="--k: 2"><span class="w" style="--k: 1">okumanın</span> <span class="w" style="--k: 1">yerini</span> <span class="w" style="--k: 2">almaz</span></mark><span class="w" style="--k: 2">,</span> <mark class="hl hlw" style="--k: 4"><span class="w" style="--k: 3">anlamayı</span> <span class="w" style="--k: 4">hızlandırır.</span></mark> <span class="w" style="--k: 5">Notunu</span> <span class="w" style="--k: 6">özetler,</span> <span class="w" style="--k: 7">seni</span> <span class="mf-circle"><mark class="hl hlw" style="--k: 8"><span class="w" style="--k: 8">sınar</span></mark><svg viewBox="0 0 120 60" preserveAspectRatio="none" aria-hidden="true"><path pathLength="1" d="M70 6 C30 2 4 16 6 32 C8 50 50 58 86 52 C112 46 118 26 104 14 C90 4 62 4 46 8"></path></svg></span> <span class="w" style="--k: 9">ve</span> <span class="w" style="--k: 10">tam</span> <span class="w" style="--k: 11">olarak</span> <mark class="hl hlw" style="--k: 13"><span class="w" style="--k: 12">nerede</span> <span class="w" style="--k: 13">takıldığını</span></mark> <span class="w" style="--k: 14">gösterir.</span></p>
+<div class="mfloat" aria-hidden="true">
+<span class="ftag" style="--z: 1.1; left: 4%; top: 12%">NBD</span>
+<span class="ftag" style="--z: 0.5; left: 16%; top: 4%">Laplace dönüşümü</span>
+<span class="ftag" style="--z: 0.8; left: 72%; top: 8%">Ölçülülük ilkesi</span>
+<span class="ftag" style="--z: 0.35; left: 88%; top: 22%">WACC</span>
+<span class="ftag" style="--z: 1.25; left: 84%; top: 46%">Termodinamik</span>
+<span class="ftag" style="--z: 0.6; left: 2%; top: 44%">Anayasa m.13</span>
+<span class="ftag" style="--z: 0.9; left: 8%; top: 76%">Sönüm oranı ζ</span>
+<span class="ftag" style="--z: 0.4; left: 30%; top: 88%">Ekonometri</span>
+<span class="ftag" style="--z: 1.0; left: 58%; top: 84%">Arz–talep</span>
+<span class="ftag" style="--z: 0.55; left: 78%; top: 72%">Portföy teorisi</span>
+<span class="ftag" style="--z: 0.3; left: 46%; top: 3%">Devre analizi</span>
+<span class="ftag" style="--z: 0.7; left: 92%; top: 90%">Sosyoloji</span>
+<span class="ftag" style="--z: 0.45; left: 40%; top: 94%">Veri yapıları</span>
+<span class="ftag" style="--z: 0.75; left: 26%; top: 18%">İç verim oranı</span>
+</div>
+<div style="position: relative; max-width: 1040px; margin: 0 auto; padding: 190px 28px">
+<p class="disp" data-mf="" style="margin: 0; font-size: clamp(32px, 4.4vw, 58px); line-height: 1.18; letter-spacing: -0.03em; font-weight: 600; color: #0D1838"><span class="w" style="--k: 0">Acadex</span> <mark class="hl hlw" style="--k: 2"><span class="w" style="--k: 1">okumayı</span> <span class="w" style="--k: 2">kısaltmaz</span></mark><span class="w" style="--k: 2">,</span> <mark class="hl hlw" style="--k: 4"><span class="w" style="--k: 3">anlamayı</span> <span class="w" style="--k: 4">hızlandırır.</span></mark> <span class="w" style="--k: 5">Notunu</span> <span class="w" style="--k: 6">özetler,</span> <span class="w" style="--k: 7">seni</span> <mark class="hl hlw" style="--k: 8"><span class="w" style="--k: 8">sınar</span></mark> <span class="w" style="--k: 9">ve</span> <span class="w" style="--k: 10">tam</span> <span class="w" style="--k: 11">olarak</span> <mark class="hl hlw" style="--k: 13"><span class="w" style="--k: 12">nerede</span> <span class="w" style="--k: 13">takıldığını</span></mark> <span class="w" style="--k: 14">gösterir.</span></p>
 </div>
 </section>
 
@@ -1763,9 +1778,9 @@ transform:translateY(calc(var(--hp,0) * 90px))}
         }
         if (mtOn) {
           var mtot = m.mH - vh, mp = mtot > 0 ? clamp(-m.mTop / mtot) : 0;
-          var ma = clamp(mp / 0.18), mb = clamp((mp - 0.27) / 0.18), mc = clamp((mp - 0.52) / 0.18), mf = clamp((mp - 0.77) / 0.19);
+          var ma = clamp(mp / 0.18), mb = clamp((mp - 0.27) / 0.18), mc = clamp((mp - 0.52) / 0.18), mfv = clamp((mp - 0.77) / 0.19);
           mtSec.style.setProperty('--a', ma.toFixed(4)); mtSec.style.setProperty('--b', mb.toFixed(4));
-          mtSec.style.setProperty('--c', mc.toFixed(4)); mtSec.style.setProperty('--f', mf.toFixed(4));
+          mtSec.style.setProperty('--c', mc.toFixed(4)); mtSec.style.setProperty('--f', mfv.toFixed(4));
           for (var qq = 0; qq < 4; qq++) {
             var tin = qq === 0 || mp >= qq * 0.25 - 0.045, uu = qq === 3 ? 0 : clamp((mp - ((qq + 1) * 0.25 - 0.045)) / 0.07);
             mtSec.style.setProperty('--u' + (qq + 1), uu.toFixed(3)); mtSec.style.setProperty('--v' + (qq + 1), (!tin || uu >= 0.99) ? 'hidden' : 'visible');
@@ -1773,8 +1788,8 @@ transform:translateY(calc(var(--hp,0) * 90px))}
           var st = String(Math.min(4, Math.floor(mp * 4) + 1));
           if (st !== mtStep) { mtSec.setAttribute('data-mt-step', st); mtStep = st; }
           /* 25:00 counts down with the scroll; at the end the round completes and the break starts */
-          var done = ma >= 0.985, secs = Math.round((1 - ma) * 1500);
-          var txt = done ? '05:00' : (('0' + Math.floor(secs / 60)).slice(-2) + ':' + ('0' + (secs % 60)).slice(-2));
+          var done = ma >= 0.985, mtS = Math.round((1 - ma) * 1500);
+          var txt = done ? '05:00' : (('0' + Math.floor(mtS / 60)).slice(-2) + ':' + ('0' + (mtS % 60)).slice(-2));
           /* Leitner box: slide cards between compartments, stack cards that share one */
           var s = mb * 4.2, xs = ltCards.map(function (c, i) {
             var x = 0;
@@ -1849,6 +1864,11 @@ transform:translateY(calc(var(--hp,0) * 90px))}
       var update = function () { ticking = false; frames[0] = 0; apply(measure()); };
       var onScroll = function () { if (!ticking) { ticking = true; frames[0] = window.requestAnimationFrame(update); } };
       on(window, 'scroll', onScroll, { passive: true });
+      if (mfs && desktop) {
+        on(mfs, 'pointermove', function (e) { var r = mfs.getBoundingClientRect(); mfs.style.setProperty('--mx', ((e.clientX - r.left) / r.width - 0.5).toFixed(3)); mfs.style.setProperty('--my', ((e.clientY - r.top) / r.height - 0.5).toFixed(3)); });
+        on(mfs, 'pointerleave', function () { mfs.style.setProperty('--mx', '0'); mfs.style.setProperty('--my', '0'); });
+      }
+      onScroll();
       on(window, 'resize', onScroll, { passive: true });
       if (snav) on(snav, 'focusin', onScroll);
 

@@ -4948,7 +4948,8 @@ function applyGroundingGate(
   keyTerms: any[],
   keyPoints: any[],
   sourceText: string,
-  visionGrounded: Set<string> = new Set()
+  visionGrounded: Set<string> = new Set(),
+  figureText: string = ''
 ): { key_terms: any[]; key_points: any[]; stats: GroundingStats } {
   const terms = Array.isArray(keyTerms) ? keyTerms : []
   const points = Array.isArray(keyPoints) ? keyPoints : []
@@ -4965,8 +4966,33 @@ function applyGroundingGate(
     return { key_terms: terms, key_points: points, stats }
   }
 
-  const haystack = ' ' + gateNormalize(sourceText) + ' '
-  const docTerms = new Set(anchorTerms(sourceText))
+  /* KAPININ VARSAYIMI MOTORA GORE DEGISIR (10.10.2026).
+   *
+   * Bu kapi Groq icin yazildi ve dayandigi onerme suydu: model YALNIZCA
+   * cikarilan metni gordu, dolayisiyla metinde gecmeyen bir terim uydurma.
+   * Gemini icin bu onerme YANLIS — o, sayfalarin kendisini okuyor. Test
+   * destesinin 42 sayfasinin 22'sinde denklem resim olarak duruyor ve
+   * cikarilan metin sayfa basina 344 karakter.
+   *
+   * Olculdu: 10.10.2026'da kapi 18 terimin 7'sini atti — "Differential
+   * Intercept", "Semi-Elasticity", "Reference (Omitted) Category"...
+   * Hicbiri uydurma degil; hepsi slaytlarda yaziyor, cikarilan metinde
+   * yok. Ogrenci kartin %39'unu bu yuzden kaybetti.
+   *
+   * figureText: modelin SEKILLERDEN okudugunu bildirdigi satirlar. Metin
+   * gibi muamele goruyor, yani kapi ikisinin BIRLESIMINDE ariyor.
+   *
+   * DAIRESELLIK — acikca: burada modelin kendi raporunu kendi ciktisini
+   * dogrulamak icin kullaniyoruz. Bilincli bir takas. Kapinin zaten var
+   * olan visionGroundedClaims muafiyeti ayni seyi yapiyordu, yalnizca TAM
+   * ESLESME ile — yani pratikte hic calismiyordu, cunku muafiyet listesi
+   * cumlelerden olusuyor, terimler ise iki kelime. Uyduran bir modelin bu
+   * kapiyi gecmesi icin artik hem terimi hem onu iceren bir sekil bulgusu
+   * uydurmasi gerekiyor; bu, terimi tek basina uydurmaktan cok daha zor.
+   * Halusinasyon korumasinin asil yuku zaten review ve sanitizeCharts'ta. */
+  const birlesikKaynak = figureText ? sourceText + '\n' + figureText : sourceText
+  const haystack = ' ' + gateNormalize(birlesikKaynak) + ' '
+  const docTerms = new Set(anchorTerms(birlesikKaynak))
   const readText = (raw: any) => typeof raw === 'string' ? raw : String(raw?.text || raw?.point || '')
 
   // --- Key terms: the term itself must occur in the document ---
@@ -5310,15 +5336,64 @@ function geminiMode(): 'only' | 'shadow' {
  * yasayabiliyor, geriye 40 saniyelik nominal butce kaliyor ve review'un
  * 33 saniyelik kapisi rahat geciyor. En kotu halde gercek duvar saati
  * ~105 + 3 = 108 saniye, yani sert sinira 40 saniye pay var. */
+<<<<<<< HEAD
+const GEMINI_ONLY_BUDGET_MS = 145_000
+const GEMINI_ONLY_MAX_CALL_MS = 105_000
+=======
+/* only modunda Groq'a DONUS ESIGI (10.10.2026 16:05).
+ *
+ * only modu bir KARSILASTIRMA modu olarak tasarlanmisti: kart ya
+ * Gemini'den gelir ya hic gelmez, boylece yarim bir Groq kosusu olcumu
+ * kirletmesin. Karsilastirma bitti — Gemini her sayida Groq'a esit ya da
+ * ustun, ustune formulleri, Excel tablolarini ve dogrulanmis atiflari
+ * koyuyor. Artik mod bir urun yolu, ve bu haliyle tek 503 ogrenciye bos
+ * ekran demek.
+ *
+ * Ama her basarisizlikta Groq'a dusmek de olmaz: Gemini 105 saniyeyi
+ * yakip zaman asimina ugradiysa geriye Groq'un tam kosusuna (olculen ~71
+ * sn) yer kalmiyor ve toplam Supabase'in ~150 sn sinirini zorlar.
+ *
+ * ILK HALI YANLISTI (100 sn, yani Groq'un TAM kosusuna yer). 17:40
+ * kosusunda Gemini 111 saniye yakti, geriye 33,9 saniye kaldi ve belge
+ * basarisiz isaretlendi — oysa 33,9 saniye bir kart uretmeye yeterdi.
+ * Secim "tam Groq karti mi, hic kart mi" degil; "yarim Groq karti mi,
+ * hic kart mi". Ogrenci icin ikincisi her zaman daha kotu.
+ *
+ * Groq'un pencereleri, Gemini'den sonra pacer butcesi TAZE oldugu icin
+ * hizli doner — olculdu: iki pencere 6 saniyede bitti. Pencereler +
+ * birlesim + kayit 30 saniyede siger; review ve anlati yazari sigmazsa
+ * kartin quality_meta.skipped_stages alani bunu zaten yaziyor.
+ *
+ * Ayrica geminiToplamTavan sayesinde Gemini artik 105 saniyeden fazlasini
+ * yakamiyor, yani geriye en az 40 saniye kaliyor ve bu esik pratikte her
+ * zaman gecilir. */
+const GEMINI_ONLY_FALLBACK_MIN_MS = 32_000
+>>>>>>> 9b539048df0fb6b38577d80399add0d7c7c46e3c
+
 const GEMINI_ONLY_BUDGET_MS = 145_000
 const GEMINI_ONLY_MAX_CALL_MS = 105_000
 
-/* Groq'ta 3.702 token'da tavan yapan sey buydu; burada tavan sorun degil.
- * 32.768'den 16.384'e cekildi: olculen gercek cikti 30.374 karakter
- * (~8.000 token) yani tavanin dortte biri. Yuksek tavan uretimi
- * artirmiyor ama modelin ayirdigi butceyi ve dolayisiyla sureyi
- * buyutebiliyor — ve su an darbogaz sure. */
-const GEMINI_MAX_OUTPUT_TOKENS = 16_384
+/* 16.384 -> 32.768, GERI ALINDI (10.10.2026 15:03).
+ *
+ * 09.10'da 32.768'den 16.384'e indirmistim, gerekcem suydu: "olculen
+ * cikti 30.374 karakter, yani tavanin dortte biri; yuksek tavan uretimi
+ * artirmiyor ama modelin ayirdigi butceyi ve dolayisiyla SUREYI
+ * buyutebiliyor". O gerekce bir OLCUM DEGIL, bir tahmindi — ve yanlisti.
+ *
+ * Olculen: 32.768 tavanla 30.374 karakter / 72,4 sn. 16.384 tavanla
+ * 46.084 karakter / 81,3 sn. Yani sureyi tavan degil, istenen ICERIK
+ * belirliyor; tavani kismak hicbir sey kazandirmadi.
+ *
+ * Kazandirmadigi gibi kaybettirdi: nokta bandi 22-28'e cikinca iki
+ * kosuda da model tavana carpti ve JSON yarim dondu —
+ *   "status=incomplete (cikti tavana carpti, JSON yarim)"
+ * 3.7'de de 3.8'de de. 46.084 karakterlik JSON zaten ~14.000 token;
+ * 16.384 tavanin hemen altindaydi, yani o basarili kosu da kil payiymis.
+ *
+ * 32.768, olculen en buyuk ciktinin iki katindan fazla. Gunluk kota 20
+ * istek ve tavana carpan her cagri ~88 saniye yakip hicbir sey
+ * uretmiyor; bu tarafta cimrilik etmenin karsiligi yok. */
+const GEMINI_MAX_OUTPUT_TOKENS = 32_768
 
 /** GEMINI_MODEL secret'i varsa basa alinmis model listesi. */
 function geminiModelCandidates(): string[] {
@@ -5458,16 +5533,43 @@ function geminiCoverageQuota(pageCount: number): string {
      kosu tamamlandi ama 8 terim / 9 nokta kaldi (Groq 16/25 veriyordu).
      Bu bant ikisinin arasi ve formul/tablodan SONRA isteniyor — oncelik
      sirasi promptta acik, cunku gölge yolun degeri orada. */
-  let terms = '12-18', points = '12-16', quiz = '8-10'
-  if (pageCount > 25) { terms = '18-26'; points = '16-22'; quiz = '10-13' }
-  else if (pageCount > 10) { terms = '15-22'; points = '14-18'; quiz = '9-12' }
+  /* 10.10.2026 15:14 — BANT SORUN DEGILMIS, CEKINCELER SORUNMUS.
+     Bandi 22-28'e cikardim ve nokta sayisi 18'den 11'e DUSTU, soru 10'dan
+     5'e. Cikti tavana da carpmiyordu (44.855 karakter, tavan 32.768 token
+     ~ 105.000 karakter). Yani model yer bulamadigi icin degil, IZIN
+     verildigi icin durdu: kapsam metninde uc ayri cekince vardi —
+     "if and only if the document genuinely supports it", "a floor to aim
+     at, not a quota to fill", "stopping short of them is correct". Dolgu
+     yapmasin diye yazmistim; sonucu, sayilarin istege donusmesi oldu.
+     Simdi tek cekince kaldi ve sayilar duz emir olarak veriliyor.
+
+     Ayni kosuda BIREBIR kurali ise tuttu: atilan terim 5'ten 1'e indi,
+     grounding %87'den %96'ya cikti, sayisal kapsama %69 ile rekor
+     (Groq'un en iyisi %67'ydi). Yani kalite yukseldi, nicelik dustu.
+
+     Prompttaki tarihce de koda tasindi: "Differential Intercept,
+     Differential Slope ve Semi-Elasticity iki kosuda da atildi" anekdotu
+     bizim icin degerli, model icin dikkat dagitici. */
+  /* 10.10.2026 14:51 — bant ILK KEZ yer oldugu icin yukseliyor.
+     O kosu 81,3 saniye surdu (tavan 105), yani 23,7 saniye bosluk vardi;
+     onceki kosu 101,2 saniyeydi, yani sure hala Google'in gecikmesiyle
+     oynuyor ve bant bu dalgalanmaya dayanacak kadar olculu kalmali.
+     Olculen uretim: 15 terim / 18 nokta / 10 soru. Groq'un ayni destedeki
+     en iyisi 16 / 25 / 13 idi — aradaki tek gercek fark NOKTALAR, o yuzden
+     once o bant aciliyor. */
+  let terms = '12-18', points = '14-18', quiz = '8-10'
+  if (pageCount > 25) { terms = '18-26'; points = '22-28'; quiz = '12-15' }
+  else if (pageCount > 10) { terms = '15-22'; points = '16-20'; quiz = '10-13' }
   const olcek = pageCount > 0 ? `all ${pageCount} pages` : 'the whole document'
+  const destek = pageCount > 0
+    ? `A ${pageCount}-page lecture document`
+    : 'A document of this size'
   return `
 
 COVERAGE FOR THIS RUN:
-Draw your output from ${olcek}, not only the opening ones — a term or example from the last third is worth more than a third variation on the first idea.
-Two fields have NO cap and matter more than everything else, because they are the reason you were given the original file: "formulas" (every distinct equation, including the ones that exist only as images) and "tables" (every table, including spreadsheet screenshots and regression output — copy the figures exactly, to the last decimal). Be complete there, and do those first.
-Then, if and only if the document genuinely supports it: ${terms} key_terms, ${points} key_points, ${quiz} quiz_questions. These are a floor to aim at, not a quota to fill — stopping short of them is correct when the material runs out, and padding with restatements of the same idea is worse than a short list.`
+Cover ${olcek}, not only the opening ones — a term or example from the last third is worth more than a third variation on the first idea.
+No cap on "formulas" (every equation, including the image-only ones) or "tables" (every table, including spreadsheet screenshots and regression output — copy the figures exactly, to the last decimal). These two are why you were given the original file: do them first and be complete.
+Then produce ${terms} key_terms, ${points} key_points and ${quiz} quiz_questions. ${destek} supports these counts — reach them. The one thing worse than falling short is restating the same idea in different words to fill the list.`
 }
 
 function buildGeminiDocInstruction(pageMarkerLabel: string, pageCount: number): string {
@@ -5486,7 +5588,8 @@ ${extent} There is no ${unit} budget on this run.
 - DIAGRAMS: reconstruct process flows, hierarchies and comparison figures as Mermaid in "diagrams", and explain each in "description".
 - CHARTS — IMPORTANT: do NOT put a numeric series into "charts" unless those same numbers are also printed as text or in a table in the document. A series read off a plotted curve is a guess, and a downstream validator drops any series it cannot find in the text anyway. Instead, state what the chart shows IN WORDS as a key_point (axes, direction, named extremes and their labelled values if the ${unit} prints them).
 - FOOTNOTE PAGES: use the document's own 1-based ${unit} numbers in "footnotes[].page". You can see the ${unit} a claim came from — use it.
-- EXTRA FIELD FOR THIS RUN: "visual_findings": [ string ]. One short sentence per fact you read from a FIGURE, an EQUATION IMAGE or a TABLE SCREENSHOT rather than from the running text. A downstream validator can only read the extracted text; this list is how it is told that such a fact is grounded in a picture it cannot see. Use [] if everything you reported came from the text.`
+- EXTRA FIELD FOR THIS RUN: "visual_findings": [ string ]. One short sentence per fact you read from a FIGURE, an EQUATION IMAGE or a TABLE SCREENSHOT rather than from the running text. A downstream validator can only read the extracted text; this list is how it is told that such a fact is grounded in a picture it cannot see. Use [] if everything you reported came from the text.
+  ONE RULE IS STRICT HERE: every key_term written on a ${unit} rather than in the running text must appear VERBATIM — same words, same order — in one of these lines, written as "<the term>: <what the ${unit} says>". A paraphrase does not count; a validator matches exact words and discards the term as invented.`
 }
 
 /**
@@ -5718,6 +5821,24 @@ async function geminiDraft(
     ? Math.max(0, budgetMs - GEMINI_RESERVE_MS - 20_000)
     : 25_000
 
+  /* GEMINI'NIN TOPLAM DUVAR SAATI TAVANI (10.10.2026 17:40 dersi).
+   *
+   * callMs dongu BASLAMADAN once bir kez hesaplaniyordu, yani her deneme
+   * ayri ayri tam tavani aliyordu. 17:40 kosusunda olan tam buydu:
+   *   deneme 1 -> 503, 3,5 saniyede dondu
+   *   deneme 2 -> 105 saniyede zaman asimi
+   *   toplam 111 saniye, geriye 33,9 saniye kaldi
+   * Yani HIZLI bir hatayi YAVAS bir hata izledi ve Groq'a donus esigini
+   * (o zaman 100 sn) altindan gecirdi. Fallback mantigi dogru calisti,
+   * ama korudugu butce zaten yanmisti.
+   *
+   * Artik her denemenin zaman asimi, toplam tavandan GERIYE KALANA gore
+   * yeniden hesaplaniyor: ilk deneme 3,5 saniye yerse ikincisine 101,5
+   * saniye kalir, toplam yine tavani asmaz. Boylece Gemini ne yaparsa
+   * yapsin Groq'a sabit bir pay kaliyor ve fallback esigi guvenilir
+   * oluyor. */
+  const geminiToplamTavan = tavan
+
   /* RPM 5 (panelden okundu). Istekleri arka arkaya atmak dakikalik limite
      carpiyor ve o 429 "project has exceeded a quota" diye geliyor — gunluk
      kota sanip bos yere paniklediğimiz hata buydu. Ilk istek beklemez;
@@ -5733,7 +5854,9 @@ async function geminiDraft(
         if (gecen > GEMINI_FAIL_BUDGET_MS) {
           console.warn(
             `Gemini: denemeler ${gecen}ms yedi (sinir ${GEMINI_FAIL_BUDGET_MS}ms) — ` +
-            (mode === 'only' ? 'butce bitti, durduruluyor' : "Groq'a yer birakmak icin durduruluyor")
+            (mode === 'only'
+              ? 'yeni deneme baslatilmiyor'
+              : "Groq'a yer birakmak icin durduruluyor")
           )
           return null
         }
@@ -5741,9 +5864,19 @@ async function geminiDraft(
       if (!ilkIstek) await new Promise((r) => setTimeout(r, GEMINI_RETRY_WAIT_MS))
       ilkIstek = false
 
+      // Toplam tavandan geriye kalan — bkz. geminiToplamTavan.
+      const buCagriMs = Math.min(callMs, geminiToplamTavan - (Date.now() - basladi))
+      if (buCagriMs < 20_000) {
+        console.warn(
+          `Gemini: toplam tavandan geriye ${buCagriMs}ms kaldi — ` +
+          `yeni deneme baslatilmiyor, Groq'a pay birakiliyor`
+        )
+        return null
+      }
+
       const startedAt = Date.now()
       const res = await callGeminiOnce(
-        apiKey, model, systemInstruction, fileBase64, fileMime, userText, callMs, dropped
+        apiKey, model, systemInstruction, fileBase64, fileMime, userText, buCagriMs, dropped
       )
       const ms = Date.now() - startedAt
 
@@ -5751,6 +5884,11 @@ async function geminiDraft(
         const problem = geminiProblem(res.data)
         if (problem) {
           console.warn(`Gemini ${model}: cevap kullanilamaz — ${problem}`)
+          /* Cikti tavani: SONRAKI ADAYI DENEME. Ayni prompt, ayni tavan,
+             ayni sonuc — tek kazanci gunluk 20 istekten birini daha
+             yakmak, ustelik her deneme ~88 saniye suruyor. Kosuyu burada
+             bitirmek, uc kez ayni duvara carpmaktan iyidir. */
+          if (/incomplete/.test(problem)) return null
           break   // ayni modeli tekrar denemek ayni sonucu verir
         }
         const text = extractGeminiText(res.data)
@@ -6539,12 +6677,29 @@ ${styleInstruction}`
         )
 
         if (!geminiResult && mod === 'only') {
-          // Groq'a DUSULMUYOR. only modunun anlami bu: kart ya Gemini'den
-          // gelir ya hic gelmez. Yarim bir Groq kosusu (pencereler var,
-          // review ve gorsel gecisi yok) karsilastirmayi da bozar, ogrenciye
-          // de kotu bir kart verir — tekrar denemek ikisinden de iyi.
-          geminiOnlyBasarisiz = true
-          console.error('Gemini (mod=only): taslak uretilemedi — Groq devre disi, belge basarisiz isaretleniyor')
+          /* Hizli basarisizlikta Groq'a duselim, yavasinda duselmeyelim —
+             bkz. GEMINI_ONLY_FALLBACK_MIN_MS. Esik butceden olculuyor,
+             sureden degil: ikisi ayni sey ama butce okumasi kosu icinde
+             nerede oldugumuzu dogru gosteriyor. */
+          const kalan = budgetLeft()
+          if (kalan >= GEMINI_ONLY_FALLBACK_MIN_MS) {
+            /* "hizli basarisizlik" DEMIYOR (10.10.2026 17:59 dersi): esik
+               100 sn'den 32 sn'ye indikten sonra bu dal yavas hatalarda da
+               calisiyor ve o metin okuyani yaniltiyordu — 105 saniyelik
+               bir zaman asimina "hizli" diyen bir log, bir dahaki sefere
+               yanlis yerde hata aratir. Log ne olduğunu yazsin. */
+            console.warn(
+              `Gemini (mod=only): taslak uretilemedi, ${kalan}ms butce kaldi ` +
+              `(esik ${GEMINI_ONLY_FALLBACK_MIN_MS}ms) — Groq yoluna dusuluyor`
+            )
+          } else {
+            geminiOnlyBasarisiz = true
+            console.error(
+              `Gemini (mod=only): taslak uretilemedi ve yalnizca ${kalan}ms kaldi ` +
+              `(esik ${GEMINI_ONLY_FALLBACK_MIN_MS}ms) — Groq'un tam kosusuna yer yok, ` +
+              `belge basarisiz isaretleniyor`
+            )
+          }
         }
       }
     }
@@ -8781,7 +8936,10 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
         parsedContent.key_terms,
         parsedContent.key_points,
         extractedText,
-        visionGroundedClaims
+        visionGroundedClaims,
+        // Modelin sekillerden okudugunu bildirdigi satirlar da kaynak
+        // sayilir — bkz. applyGroundingGate'teki uzun not.
+        visionNotes.join('\n')
       )
       parsedContent.key_terms = gated.key_terms
       parsedContent.key_points = gated.key_points

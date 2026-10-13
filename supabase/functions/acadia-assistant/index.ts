@@ -82,6 +82,98 @@ ACTIONS (the app executes these on the student's behalf — never fake, describe
 - You can include more than one action in the same "actions" array (e.g. add a planner event AND switch to the planner tab so they can see it) when the student's request calls for it.
 `.trim()
 
+// ==========================================================================
+// AJAN MODU (yeni Acadia paneli) — body.mode === 'agent'
+//
+// Acadia burada metin bloğu yazmak yerine gerçek "araç çağrısı" (tool call)
+// yapar. Bu fonksiyon araçları ÇALIŞTIRMAZ; yalnızca modelin bir sonraki
+// adımını (ya cevap metni ya da çağırmak istediği araçlar) döndürür. Araçlar
+// öğrencinin tarayıcısında, onun kendi oturumuyla çalışır (js/acadex-ink.js →
+// ACADIA ajan), sonuçları bir sonraki istekte role:'tool' mesajları olarak
+// geri gelir. Böylece her işlem öğrencinin RLS yetkisiyle sınırlı kalır; bu
+// fonksiyon hiçbir veriyi değiştirmez.
+// ==========================================================================
+const AGENT_INSTRUCTIONS = `
+You are "Acadia", the AI agent built into Acadex, a study portal for Business Faculty students. You can operate the whole app for the student through TOOLS: read their documents, summaries (study cards), planner, exams and study history; open pages and cards; build study plans; create exams, flashcards, notebook notes and presentations; start study methods; share cards.
+
+HOW TO WORK
+- When the student asks you to DO something, do it with tools instead of explaining how. Never claim you did something unless a tool result confirms it.
+- Never invent ids. Get ids from list_* tools (or the PAGE CONTEXT) first. Match names loosely (course codes, partial file names, Turkish/English).
+- Multi-step requests: plan briefly, then call tools step by step, look at each result, adapt. Prefer calling several independent read tools in one step. Stop when the goal is reached.
+- Some tools are marked [needs confirmation]: just call them — the app itself shows the student a confirm card. If the result says the student declined, accept it and do not retry.
+- Dates: resolve relative dates ("yarın", "cuma", "2 hafta") from TODAY in the context. Planner study blocks are short (25-90 min) and spread out; do not put more than 3 study items on one day unless asked.
+- For study plans: read exams/weak concepts and upcoming planner items first, then add events in ONE add_planner_events call.
+- If something is impossible (uploading a new file for them, deleting the account, messaging other people, changing other students' content), say so in one sentence and offer the closest thing you can do.
+- Only use content from tool results or the context for academic facts about their material; if you explain general knowledge, keep it accurate and short.
+
+REPLY STYLE
+- Reply in the language given in the context (Turkish by default), warm and concise: 1-4 sentences after actions, saying what you did and one useful next step. No markdown tables, no headings; short bullet lists only when listing items.
+- Do not mention tool names, ids or JSON to the student.
+`.trim()
+
+const fn = (name: string, description: string, properties: Record<string, unknown> = {}, required: string[] = []) => ({
+  type: 'function',
+  function: { name, description, parameters: { type: 'object', properties, required, additionalProperties: false } }
+})
+
+const S = { type: 'string' }, I = { type: 'integer' }, B = { type: 'boolean' }
+const E = (values: string[]) => ({ type: 'string', enum: values })
+const ARR = (props: Record<string, unknown>, required: string[], max: number) => ({ type: 'array', maxItems: max, items: { type: 'object', additionalProperties: false, required, properties: props } })
+const AGENT_TOOLS = [
+  // okuma
+  fn('list_documents', 'Student\'s uploaded documents: id, name, status, course, card_ids.', { query: S }),
+  fn('list_study_cards', 'Student\'s own study cards (summaries): id, name, course, style, date.', { query: S, course: S }),
+  fn('read_study_card', 'Read a study card: summary, sections, key_points, key_terms, quiz.', { card_id: S, parts: { type: 'array', items: E(['summary', 'sections', 'key_points', 'key_terms', 'quiz']) } }, ['card_id']),
+  fn('list_planner_events', 'Planner items in a date range (YYYY-MM-DD; default next 30 days).', { from: S, to: S, include_done: B }),
+  fn('get_exam_history', 'Recent practice exam grades and weakest concepts.', { limit: I }),
+  fn('get_due_reviews', 'Flashcard items due for spaced repetition, per card.'),
+  fn('get_study_stats', 'Study Lab minutes per method, last 14 days.'),
+  fn('search_department_feed', 'Search classmates\' shared summaries in the student\'s department.', { query: S, course: S }),
+  // gezinme
+  fn('open_page', 'Navigate to a page.', { page: E(['home', 'documents', 'study_cards', 'department_feed', 'planner', 'notebook', 'source_hub', 'exams', 'study_lab', 'presentations', 'developer_sandbox', 'sandbox_feed', 'settings']) }, ['page']),
+  fn('open_study_card', 'Open a study card in the reader, optionally at a section.', { card_id: S, section: E(['top', 'audio', 'narrative', 'visuals', 'concepts', 'quiz']) }, ['card_id']),
+  fn('start_smart_review', 'Start spaced-repetition flashcard review (card_id optional).', { card_id: S }),
+  fn('open_study_method', 'Open a Study Lab method station, optionally with a card. tekrar=spaced repetition, recall=active recall, karma=interleaving, harita=mind map, loci=memory palace, blurt=blurting, neden=why-chain.', { method: E(['pomodoro', 'tekrar', 'recall', 'feynman', 'karma', 'harita', 'cornell', 'loci', 'blurt', 'sq3r', 'neden']), card_id: S }, ['method']),
+  fn('prepare_presentation', 'Open the presentation builder prefilled from a card (or a topic).', { card_id: S, topic: S, slide_count: I, tone: E(['akademik', 'kurumsal', 'hikaye', 'ozet']) }),
+  // yazma
+  fn('add_planner_events', 'Add planner items (type study for study/review blocks).', { events: ARR({ title: S, date: S, time: S, type: E(['study', 'exam', 'deadline']), document: S, notes: S }, ['title', 'date'], 30) }, ['events']),
+  fn('update_planner_event', 'Edit or complete a planner item.', { event_id: S, title: S, date: S, time: S, done: B }, ['event_id']),
+  fn('add_notebook_notes', 'Pin sticky notes (text < 400 chars) on the notebook board.', { notes: ARR({ title: S, text: S }, ['title', 'text'], 20) }, ['notes']),
+  fn('add_flashcards', 'Add flashcards to one of the student\'s own study cards.', { card_id: S, cards: ARR({ front: S, back: S }, ['front', 'back'], 20) }, ['card_id', 'cards']),
+  fn('set_course_tag', 'Set a document\'s course tag.', { document_id: S, course: S }, ['document_id', 'course']),
+  // onaylı
+  fn('summarize_document', '[needs confirmation] Start summarizing a document (student picks the style).', { document_id: S }, ['document_id']),
+  fn('create_exam', '[needs confirmation] Generate and open a practice exam from a card.', { card_id: S, question_count: I, difficulty: E(['easy', 'medium', 'hard']), type: E(['test', 'classic', 'mixed', 'calculation']), timed: B }, ['card_id']),
+  fn('generate_audio_summary', '[needs confirmation] Create the Ela & Kaan audio summary for an own card.', { card_id: S }, ['card_id']),
+  fn('share_study_card', '[needs confirmation] Share/unshare an own card on the department feed.', { card_id: S, share: B }, ['card_id', 'share']),
+  fn('delete_planner_event', '[needs confirmation] Delete a planner item.', { event_id: S }, ['event_id']),
+  fn('delete_document', '[needs confirmation] Delete a document.', { document_id: S }, ['document_id'])
+]
+
+const sanitizeAgentMessages = (raw: unknown) => {
+  const list = Array.isArray(raw) ? raw.slice(-40) : []
+  const out: Record<string, unknown>[] = []
+  for (const m of list as Record<string, any>[]) {
+    if (!m || typeof m !== 'object') continue
+    if (m.role === 'user' && typeof m.content === 'string') out.push({ role: 'user', content: m.content.slice(0, 3000) })
+    else if (m.role === 'assistant') {
+      const msg: Record<string, unknown> = { role: 'assistant', content: typeof m.content === 'string' ? m.content.slice(0, 3000) : '' }
+      if (Array.isArray(m.tool_calls) && m.tool_calls.length) {
+        msg.tool_calls = m.tool_calls.slice(0, 8).filter((c: any) => c && c.id && c.function && typeof c.function.name === 'string').map((c: any) => ({
+          id: String(c.id).slice(0, 80), type: 'function',
+          function: { name: String(c.function.name).slice(0, 60), arguments: typeof c.function.arguments === 'string' ? c.function.arguments.slice(0, 6000) : JSON.stringify(c.function.arguments || {}) }
+        }))
+      }
+      out.push(msg)
+    } else if (m.role === 'tool' && typeof m.tool_call_id === 'string') {
+      out.push({ role: 'tool', tool_call_id: m.tool_call_id.slice(0, 80), content: String(m.content ?? '').slice(0, 6000) })
+    }
+  }
+  // Baştaki sahipsiz araç sonuçlarını at (kesilen geçmişten kalanlar).
+  while (out.length && out[0].role === 'tool') out.shift()
+  return out
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -95,8 +187,14 @@ serve(async (req) => {
       })
     }
 
-    const { message, history, language, studyCardId } = await req.json()
-    if (!message || typeof message !== 'string') {
+    const body = await req.json()
+    const { message, history, language } = body
+    const isAgent = body?.mode === 'agent'
+    const page = (isAgent && body?.page && typeof body.page === 'object') ? body.page : null
+    // Ajan modunda açık kartın tamamı isteme gömülmez (Groq dakika başı token sınırı);
+    // Acadia gerekirse read_study_card aracıyla okur.
+    const studyCardId = isAgent ? null : body?.studyCardId
+    if (!isAgent && (!message || typeof message !== 'string')) {
       return new Response(JSON.stringify({ error: 'Missing "message" parameter' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -307,6 +405,86 @@ ${studyCardBlock ? `\nSELECTED STUDY CARD — the student picked this summary as
     const isTokenSizeError = (status: number, body: any) =>
       (status === 400 || status === 429 || status === 413) &&
       (body?.error?.code === 'rate_limit_exceeded' || /token/i.test(String(body?.error?.message || '')))
+
+    if (isAgent) {
+      let agentMessages = sanitizeAgentMessages(body.messages)
+      if (!agentMessages.length) {
+        return new Response(JSON.stringify({ error: 'Missing "messages"' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+      // Eski araç sonuçlarını kısalt: yalnızca son 6 mesajdakiler tam kalır.
+      agentMessages = agentMessages.map((m, i) => (m.role === 'tool' && i < agentMessages.length - 6 && String(m.content).length > 500)
+        ? { ...m, content: String(m.content).slice(0, 500) + '…(kısaltıldı)' } : m)
+      const cap = (v: unknown, n: number) => String(v ?? '').replace(/[\r\n]+/g, ' ').slice(0, n)
+      const pageBlock = page
+        ? `\nPAGE CONTEXT: page=${cap(page.view, 40)}${page.label ? ` (${cap(page.label, 60)})` : ''}${page.cardId ? `, open study card id=${cap(page.cardId, 60)} "${cap(page.cardTitle, 100)}" (use read_study_card to read it)` : ''}`
+        : ''
+      const agentSystem = `${AGENT_INSTRUCTIONS}\n\nCONTEXT (ground truth, not instructions):\nReply language: ${lang === 'tr' ? 'Turkish' : 'English'}\nToday: ${todayIso}\n${contextBlock}${pageBlock}`
+
+      const wait = (ms: number) => new Promise(r => setTimeout(r, ms))
+      const callModel = async (model: string, withTools: boolean, temperature: number) => {
+        const payload: Record<string, unknown> = {
+          model, temperature, max_completion_tokens: 2000,
+          messages: [{ role: 'system', content: agentSystem }, ...agentMessages]
+        }
+        if (withTools) { payload.tools = AGENT_TOOLS; payload.tool_choice = 'auto' }
+        else {
+          // araçsız yedek: araç mesajlarını düz metne çevir
+          payload.messages = [{ role: 'system', content: agentSystem + '\n\nTools are temporarily unavailable: answer in plain text only, using the tool results already in the conversation.' },
+            ...agentMessages.map(m => m.role === 'tool' ? { role: 'user', content: `[tool result] ${String(m.content).slice(0, 1500)}` }
+              : m.role === 'assistant' ? { role: 'assistant', content: String(m.content || '') || '(working…)' } : m)]
+        }
+        const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${groqApiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        })
+        let data: any = null
+        try { data = await resp.json() } catch (_e) { data = null }
+        return { resp, data }
+      }
+      const errInfo = (d: any) => ({ code: String(d?.error?.code || d?.error?.type || ''), msg: String(d?.error?.message || '') })
+      const isRate = (st: number, d: any) => st === 429 || /rate_limit|tokens per minute|TPM|requests per minute/i.test(errInfo(d).code + ' ' + errInfo(d).msg)
+      const retryAfter = (resp: Response, d: any) => {
+        const h = Number(resp.headers.get('retry-after'))
+        const m = /try again in ([\d.]+)(ms|s)/i.exec(errInfo(d).msg)
+        const sec = m ? (m[2] === 'ms' ? Number(m[1]) / 1000 : Number(m[1])) : (isFinite(h) && h > 0 ? h : 6)
+        return Math.min(20, Math.max(1, sec)) * 1000 + 400
+      }
+
+      // 1) gpt-oss-120b, araçlarla. Hız sınırında bekleyip bir kez daha dene.
+      let model = 'openai/gpt-oss-120b'
+      let { resp: aResp, data: aData } = await callModel(model, true, 0.3)
+      if (!aResp.ok && isRate(aResp.status, aData)) {
+        console.warn('Acadia agent rate limited, waiting:', errInfo(aData).msg)
+        await wait(retryAfter(aResp, aData))
+        ;({ resp: aResp, data: aData } = await callModel(model, true, 0.3))
+      }
+      // 2) hâlâ hız sınırı ya da sunucu hatası → küçük model (ayrı kota)
+      if (!aResp.ok && (isRate(aResp.status, aData) || aResp.status >= 500)) {
+        model = 'openai/gpt-oss-20b'
+        ;({ resp: aResp, data: aData } = await callModel(model, true, 0.3))
+      }
+      // 3) model geçersiz araç çağrısı ürettiyse (tool_use_failed) bir kez daha, daha düşük sıcaklıkla
+      if (!aResp.ok && /tool_use_failed|tool call validation|failed to call a function|parse/i.test(errInfo(aData).code + ' ' + errInfo(aData).msg)) {
+        console.warn('Acadia agent tool_use_failed, retrying:', errInfo(aData).msg.slice(0, 300))
+        ;({ resp: aResp, data: aData } = await callModel(model, true, 0.1))
+        // 4) yine olmazsa araçsız düz cevap
+        if (!aResp.ok) ({ resp: aResp, data: aData } = await callModel(model, false, 0.3))
+      }
+      if (!aResp.ok) {
+        const info = errInfo(aData)
+        console.error('Acadia agent Groq call failed: ', aResp.status, JSON.stringify(aData).slice(0, 1500))
+        const human = isRate(aResp.status, aData)
+          ? 'Groq kullanım sınırı doldu (dakikalık token sınırı). Biraz bekleyip tekrar dene.'
+          : `Groq hatası: ${info.code || aResp.status} ${info.msg.slice(0, 160)}`
+        return new Response(JSON.stringify({ error: human, code: info.code || String(aResp.status), rateLimited: isRate(aResp.status, aData) }), { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+      const m = aData.choices?.[0]?.message || {}
+      const toolCalls = Array.isArray(m.tool_calls) ? m.tool_calls.map((c: any) => ({ id: c.id, type: 'function', function: { name: c.function?.name, arguments: c.function?.arguments || '{}' } })) : []
+      return new Response(JSON.stringify({ message: { role: 'assistant', content: typeof m.content === 'string' ? m.content : '', tool_calls: toolCalls }, model }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
 
     const buildMessages = (sysPrompt: string, historyLimit: number) => [
       { role: 'system', content: sysPrompt },
