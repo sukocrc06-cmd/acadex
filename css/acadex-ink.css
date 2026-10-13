@@ -8147,16 +8147,18 @@ body.acx .ax-folder.axp-landed{animation:axpLand .9s cubic-bezier(.3,1.4,.5,1) b
 #study-card-modal.axr .axr-lt button:not([aria-pressed="true"]):hover{background:#fff;color:#0D1838!important}
 #study-card-modal.axr .axr-lt.busy button[aria-busy]{background:repeating-linear-gradient(-45deg,#fff 0 6px,#E8E1CE 6px 12px);background-size:200% 100%;animation:axrLtBusy 1s linear infinite;color:#0D1838!important}
 @keyframes axrLtBusy{to{background-position:-34px 0}}
-#study-card-modal.axr .axr-sheet>.axr-lt{position:absolute;top:16px;right:16px;z-index:1}
-#study-card-modal.axr .axr-sheet .axr-secn{right:118px}
-#study-card-modal.axr .axr-sheet h2{padding-right:190px}
-#study-card-modal.axr .axr-sech .axr-lt{order:1;margin-left:auto}
-#study-card-modal.axr .axr-sech .axr-lt+.axr-mini{margin-left:0}
 #study-card-modal.axr .axr-ch.lt-wait .axr-prose,#study-card-modal.axr .axr-ch.lt-wait .axr-kps{opacity:.45;filter:blur(.6px);transition:opacity .3s,filter .3s}
 #study-card-modal.axr .axr-ch[data-alt] .axr-prose,#study-card-modal.axr .axr-ch[data-alt] .axr-kps{animation:axrLtIn .45s var(--ease) both}
 @keyframes axrLtIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 #study-card-modal.axr .axr-ltnote{margin:0 0 .4em!important;font-size:18px;color:#2F6BFF}
-@media (max-width:900px){#study-card-modal.axr .axr-sheet h2{padding-right:0;padding-top:34px}#study-card-modal.axr .axr-sheet .axr-secn{right:auto;left:18px;top:14px;font-size:30px}}
+#study-card-modal.axr .axr-ltbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 14px}
+#study-card-modal.axr .axr-ltlbl{font-size:11px;letter-spacing:.14em;color:#6A7593}
+#study-card-modal.axr .axr-ltall{padding:4px;box-shadow:0 2px 0 #DDD6C3}
+#study-card-modal.axr .axr-ltall button{min-width:72px;min-height:36px;font-size:13px!important}
+#study-card-modal.axr .axr-ltprog{font-size:18px;color:#2F6BFF;min-height:1em}
+@media (min-width:901px){#study-card-modal.axr .axr-mastin{position:relative}#study-card-modal.axr .axr-ltbar{position:absolute;top:4px;right:0;margin:0;flex-direction:row-reverse}#study-card-modal.axr .axr-ltbar~.axr-h1{padding-right:250px}}
+#study-card-modal.axr .axr-ch.lt-wait .axr-pull blockquote{opacity:.45;filter:blur(.6px);transition:opacity .3s,filter .3s}
+#study-card-modal.axr .axr-ch[data-alt] .axr-sheet>h2,#study-card-modal.axr .axr-ch[data-alt] .axr-pull blockquote{animation:axrLtIn .45s var(--ease) both}
 
 /* ===== Acadia ===== */
 

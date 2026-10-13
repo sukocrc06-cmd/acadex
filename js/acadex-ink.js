@@ -7637,21 +7637,23 @@ var SBX = (function () {
   var cleanHTML = function (html) { var d = document.createElement('div'); d.innerHTML = html; QA('[style]', d).forEach(function (e) { e.removeAttribute('style'); }); QA('div', d).forEach(function (e) { if (!e.textContent.trim() && !e.querySelector('img,svg')) e.remove(); }); return d.innerHTML; };
   /* ---------- bölüm bölüm Türkçe / İngilizce ---------- */
   var cardLang = function () { return (R.card && R.card.summary_language) === 'en' ? 'en' : 'tr'; };
-  var langTog = function (k) { var L = cardLang(); return '<div class="axr-lt" role="group" aria-label="Bu bölümün dili" data-lt="' + k + '"><button type="button" data-ltl="tr" aria-pressed="' + (L === 'tr') + '">TR</button><button type="button" data-ltl="en" aria-pressed="' + (L === 'en') + '">EN</button></div>'; };
+  var langTog = function (k) { var L = cardLang(); return '<div class="axr-lt' + (k === 'all' ? ' axr-ltall' : '') + '" role="group" aria-label="' + (k === 'all' ? 'Özetin dili' : 'Bu bölümün dili') + '" data-lt="' + k + '"><button type="button" data-ltl="tr" aria-pressed="' + (L === 'tr') + '">TR</button><button type="button" data-ltl="en" aria-pressed="' + (L === 'en') + '">EN</button></div>'; };
   var LT = { sib: {}, mem: {} };
-  var ltKey = function (lang, k) { return 'acadex.reader.lt.' + R.card.id + '.' + lang + '.' + k; };
+  /* önbellek anahtarı metnin özetini de içerir: bölüm yeniden yazılırsa eski çeviri kullanılmaz */
+  var ltHash = function (o) { var t = JSON.stringify(o || ''), h = 5381; for (var i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
+  var ltKey = function (lang, k, src) { return 'acadex.reader.lt.' + R.card.id + '.' + lang + '.' + k + '.' + ltHash(src || srcOf(k)); };
   /* aynı belgenin diğer dildeki özeti varsa (özetleme penceresinde "İkisi de"), çeviri yerine onu kullan */
   var sibling = function (lang) {
     var c = R.card; if (!c || !c.document_id) return Promise.resolve(null); var key = c.id + lang;
     if (LT.sib[key] !== undefined) return LT.sib[key];
     var L = lsafe(function () { return activeStudyCards; }, []) || [], m = L.filter(function (x) { return x.document_id === c.document_id && x.id !== c.id && (x.summary_language || 'en') === lang; })[0], cl = sbc();
-    LT.sib[key] = !m || !cl ? Promise.resolve(null) : cl.from('study_cards').select('id, summary, sections').eq('id', m.id).limit(1).then(function (r) { return r.data && r.data[0] ? r.data[0] : null; }, function () { return null; });
+    LT.sib[key] = !m || !cl ? Promise.resolve(null) : cl.from('study_cards').select('id, summary, summary_executive, sections').eq('id', m.id).limit(1).then(function (r) { return r.data && r.data[0] ? r.data[0] : null; }, function () { return null; });
     return LT.sib[key];
   };
   var LTQ = {};
   var translate = function (lang, k, src) {
-    var mk = lang + '.' + k; if (LT.mem[mk]) return Promise.resolve(LT.mem[mk]);
-    var cached = G(ltKey(lang, k), null); if (cached) { LT.mem[mk] = cached; return Promise.resolve(cached); }
+    var mk = lang + '.' + k + '.' + ltHash(src); if (LT.mem[mk]) return Promise.resolve(LT.mem[mk]);
+    var cached = G(ltKey(lang, k, src), null); if (cached) { LT.mem[mk] = cached; return Promise.resolve(cached); }
     if (LTQ[mk]) return LTQ[mk];
     var cl = sbc(); if (!cl || !cl.functions) return Promise.reject(new Error('bağlantı yok'));
     var timeout = function (ms) { return new Promise(function (_, rej) { setTimeout(function () { rej(new Error('zaman aşımı')); }, ms); }); };
@@ -7679,47 +7681,67 @@ var SBX = (function () {
       return Promise.all(jobs).then(function () { if (!ok(o)) throw new Error('boş çeviri'); return o; });
     };
     LTQ[mk] = fast.catch(function (e) { console.warn('axr çeviri: hızlı mod olmadı, sohbet yoluyla', e && e.message); return slow(); })
-      .then(function (o) { LT.mem[mk] = o; S(ltKey(lang, k), o); delete LTQ[mk]; return o; }, function (e) { delete LTQ[mk]; throw e; });
+      .then(function (o) { LT.mem[mk] = o; S(ltKey(lang, k, src), o); delete LTQ[mk]; return o; }, function (e) { delete LTQ[mk]; throw e; });
     return LTQ[mk];
   };
-  var srcOf = function (k) { var c = R.card, s2 = arr(c.sections)[+k] || {}; return k === 'n' ? { summary: String(c.summary || '') } : { heading: plain(s2.heading || ''), summary: String(s2.summary || ''), key_points: arr(s2.key_points).filter(Boolean).map(function (p) { return plain(p); }) }; };
+  var srcOf = function (k) { var c = R.card, s2 = arr(c.sections)[+k] || {}; return k === 'n' ? { summary: String(c.summary || '') } : k === 'x' ? { summary: String(c.summary_executive || '') } : { heading: plain(s2.heading || ''), summary: String(s2.summary || ''), key_points: arr(s2.key_points).filter(Boolean).map(function (p) { return plain(p); }) }; };
   /* ilk çeviriden sonra diğer bölümleri arka planda sırayla hazırla: sonraki tıklamalar anında açılır */
   var prefetch = function (lang) {
-    var c = R.card, keys = ['n'].concat(arr(c.sections).map(function (_, i) { return String(i); })), id = c.id;
-    var step = function (i) { if (i >= keys.length || !R.card || R.card.id !== id) return; var k = keys[i]; if (LT.mem[lang + '.' + k] || G(ltKey(lang, k), null)) return step(i + 1); translate(lang, k, srcOf(k)).then(function () { step(i + 1); }, function () {}); };
+    var c = R.card, keys = (String(c.summary_executive || '').trim() ? ['x', 'n'] : ['n']).concat(arr(c.sections).map(function (_, i) { return String(i); })), id = c.id;
+    var step = function (i) { if (i >= keys.length || !R.card || R.card.id !== id) return; var k = keys[i]; var sk = ltKey(lang, k); if (G(sk, null)) return step(i + 1); translate(lang, k, srcOf(k)).then(function () { step(i + 1); }, function () {}); };
     sibling(lang).then(function (sib) { if (!sib) step(0); });
   };
   var altFor = function (lang, k) {
-    var c = R.card, secs = arr(c.sections), src = k === 'n' ? { summary: String(c.summary || '') } : (function (s) { return { heading: plain(s.heading || ''), summary: String(s.summary || ''), key_points: arr(s.key_points).filter(Boolean).map(function (p) { return plain(p); }) }; })(secs[+k] || {});
+    var c = R.card, secs = arr(c.sections), src = srcOf(k);
     return sibling(lang).then(function (sib) {
       if (sib) {
         if (k === 'n' && sib.summary) return { summary: sib.summary, from: 'card' };
+        if (k === 'x' && sib.summary_executive) return { summary: sib.summary_executive, from: 'card' };
         var ss = arr(sib.sections); if (k !== 'n' && ss.length === secs.length && ss[+k]) return { heading: plain(ss[+k].heading || ''), summary: ss[+k].summary || '', key_points: arr(ss[+k].key_points).filter(Boolean).map(function (p) { return plain(p); }), from: 'card' };
       }
-      return translate(lang, k, src).then(function (o) { o = Object.assign({}, o, { from: 'ai' }); setTimeout(function () { prefetch(lang); }, 300); return o; });
+      return translate(lang, k, src).then(function (o) { return Object.assign({}, o, { from: 'ai' }); });
     });
   };
   var paintSec = function (box, data, orig) {
-    var isN = box.getAttribute('data-ch') === 'anlati', prose = Q('.axr-prose', box), h2 = Q('.axr-sheet > h2', box), kps = Q('.axr-kps', box);
-    if (orig) { prose.innerHTML = box._orig.prose; if (h2) h2.innerHTML = box._orig.h2; if (kps) kps.innerHTML = box._orig.kps; QA('[data-prose]', box).forEach(function (p) { var k = p.getAttribute('data-prose'); QA('p, li, h4, blockquote', p).forEach(function (b, i) { if (!b.querySelector('p, li')) b.setAttribute('data-b', k + '-' + i); }); }); applyHL(); return; }
+    var isX = box.getAttribute('data-ch') === 'hiz', prose = Q('.axr-prose', box) || Q('.axr-pull blockquote', box), h2 = Q('.axr-sheet > h2', box), kps = Q('.axr-kps', box);
+    if (orig) { prose.innerHTML = box._orig.prose; if (h2) h2.innerHTML = box._orig.h2; if (kps) kps.innerHTML = box._orig.kps; QA('[data-prose]', box).forEach(function (p) { var k = p.getAttribute('data-prose'); QA('p, li, h4, blockquote', p).forEach(function (b, i) { if (!b.querySelector('p, li')) b.setAttribute('data-b', k + '-' + i); }); }); if (isX) prose.setAttribute('data-b', 'x-0'); applyHL(); return; }
     QA('mark.axr-hl', box).forEach(function (m) { var p = m.parentNode; while (m.firstChild) p.insertBefore(m.firstChild, m); p.removeChild(m); });
     QA('.axr-mnote', box).forEach(function (n) { n.remove(); });
     prose.innerHTML = cleanHTML(fmtS(String(data.summary || ''), null));
     if (h2 && data.heading) h2.textContent = data.heading;
     if (kps && Array.isArray(data.key_points) && data.key_points.length) kps.innerHTML = data.key_points.map(function (p) { return '<li>' + X(p) + '</li>'; }).join('');
     QA('[data-b]', box).forEach(function (b) { b.removeAttribute('data-b'); });
-    prose.insertAdjacentHTML('afterbegin', '<p class="axr-ltnote hand">' + (data.from === 'card' ? (isN ? 'diğer dildeki özetten' : 'diğer dildeki özetten') : 'Acadia çevirisi') + '</p>');
+    if (!isX) prose.insertAdjacentHTML('afterbegin', '<p class="axr-ltnote hand">' + (data.from === 'card' ? 'diğer dildeki özetten' : 'Acadia çevirisi') + '</p>');
   };
+  /* tek düğme: özetin tamamını (30 saniyede, anlatı, bütün bölümler) aynı anda çevirir */
+  var LTJOB = 0;
+  var ltBoxes = function () { var L = []; if (String(R.card.summary_executive || '').trim() && Q('#axr-ch-hiz .axr-pull blockquote')) L.push({ k: 'x', box: Q('#axr-ch-hiz') }); if (Q('#axr-ch-anlati')) L.push({ k: 'n', box: Q('#axr-ch-anlati') }); QA('.axr-sheet[data-sec]', flow).forEach(function (sh) { L.push({ k: sh.getAttribute('data-sec'), box: sh.closest('.axr-ch') }); }); return L; };
   var switchLang = function (btn) {
-    var tog = btn.closest('[data-lt]'), lang = btn.getAttribute('data-ltl'), box = btn.closest('.axr-ch'), k = tog.getAttribute('data-lt');
-    if (btn.getAttribute('aria-pressed') === 'true' || tog.classList.contains('busy')) return;
-    if (!box._orig) box._orig = { prose: Q('.axr-prose', box).innerHTML, h2: (Q('.axr-sheet > h2', box) || {}).innerHTML || '', kps: (Q('.axr-kps', box) || {}).innerHTML || '' };
-    var set = function () { QA('[data-ltl]', tog).forEach(function (b) { b.setAttribute('aria-pressed', String(b === btn)); }); box.setAttribute('lang', lang); };
-    if (lang === cardLang()) { paintSec(box, null, true); set(); box.removeAttribute('data-alt'); return; }
-    tog.classList.add('busy'); btn.setAttribute('aria-busy', 'true'); box.classList.add('lt-wait');
-    altFor(lang, k).then(function (d) { paintSec(box, d, false); set(); box.setAttribute('data-alt', lang); }, function (e) { say(lang === 'en' ? 'İngilizcesi şu an hazırlanamadı; birazdan tekrar dene.' : 'Türkçesi şu an hazırlanamadı; birazdan tekrar dene.'); console.warn('axr çeviri', e); })
-      .then(function () { tog.classList.remove('busy'); btn.removeAttribute('aria-busy'); box.classList.remove('lt-wait'); });
+    var tog = btn.closest('[data-lt]'), lang = btn.getAttribute('data-ltl'), job = ++LTJOB, orig = lang === cardLang();
+    if (btn.getAttribute('aria-pressed') === 'true' && !tog._fail) return;
+    QA('[data-ltl]', tog).forEach(function (b) { b.setAttribute('aria-pressed', String(b === btn)); b.removeAttribute('aria-busy'); });
+    tog._fail = 0; S('acadex.reader.lang.' + R.card.id, orig ? null : lang);
+    var list = ltBoxes(), done = 0, fail = 0, prog = Q('[data-ltprog]');
+    list.forEach(function (o) { if (!o.box._orig) { var pr = Q('.axr-prose', o.box) || Q('.axr-pull blockquote', o.box); o.box._orig = { prose: pr ? pr.innerHTML : '', h2: (Q('.axr-sheet > h2', o.box) || {}).innerHTML || '', kps: (Q('.axr-kps', o.box) || {}).innerHTML || '' }; } });
+    if (orig) { list.forEach(function (o) { o.box.classList.remove('lt-wait'); if (o.box.hasAttribute('data-alt')) paintSec(o.box, null, true); o.box.removeAttribute('data-alt'); o.box.setAttribute('lang', lang); }); tog.classList.remove('busy'); if (prog) prog.textContent = ''; return; }
+    tog.classList.add('busy'); btn.setAttribute('aria-busy', 'true');
+    var tick = function () { if (prog) prog.textContent = done < list.length ? 'çevriliyor ' + done + '/' + list.length : ''; };
+    list.forEach(function (o) { o.box.classList.add('lt-wait'); }); tick();
+    /* ekranda görünen bölüm önce gelsin; aynı anda en çok 3 istek (Groq sınırı) */
+    var vh = window.innerHeight, q = list.slice().sort(function (a, b) { var ra = a.box.getBoundingClientRect(), rb = b.box.getBoundingClientRect(); var da = ra.bottom < 0 ? 1e5 + Math.abs(ra.top) : Math.max(0, ra.top - vh * .2), db = rb.bottom < 0 ? 1e5 + Math.abs(rb.top) : Math.max(0, rb.top - vh * .2); return da - db; });
+    var finish = function () {
+      if (job !== LTJOB) return; tog.classList.remove('busy'); btn.removeAttribute('aria-busy'); tick();
+      if (fail) { tog._fail = fail; say((lang === 'en' ? 'İngilizcesi' : 'Türkçesi') + ' ' + fail + ' bölümde hazırlanamadı; düğmeye tekrar basınca kalanlar denenir.'); }
+    };
+    var run = function () {
+      var o = q.shift(); if (!o) return Promise.resolve();
+      return altFor(lang, o.k).then(function (d) { if (job !== LTJOB) return; paintSec(o.box, d, false); o.box.setAttribute('data-alt', lang); o.box.setAttribute('lang', lang); }, function (e) { fail++; console.warn('axr çeviri', o.k, e); })
+        .then(function () { if (job !== LTJOB) return; o.box.classList.remove('lt-wait'); done++; tick(); return run(); });
+    };
+    Promise.all([run(), run(), run()]).then(finish);
   };
+  /* düğmenin üstüne gelince diğer dili arka planda hazırlamaya başla: basınca anında değişsin */
+  var warm = function (lang) { if (!R.card || lang === cardLang() || LT['w' + lang + R.card.id]) return; LT['w' + lang + R.card.id] = 1; prefetch(lang); };
   var CH = [];
   var ch = function (key, label, inner, cls) { CH.push({ k: key, l: label }); return '<section class="axr-ch' + (cls ? ' ' + cls : '') + '" id="axr-ch-' + key + '" data-ch="' + key + '" aria-label="' + X(label) + '">' + inner + '</section>'; };
   var renderFlow = function () {
@@ -7731,7 +7753,7 @@ var SBX = (function () {
     var qm = c.quality_meta || {}, typ = plain(lsafe(function () { return getDocumentTypeBadgeHtml(c.document_type); }, '')), len = plain(lsafe(function () { return getLengthBadgeHtml(c.summary_length); }, ''));
     Q('#study-card-title').textContent = baseName(R.name);
     Q('[data-axr-eyb]').textContent = (c.course_tag ? c.course_tag + ' · ' : '') + 'ÖZET KARTI';
-    mast.innerHTML = '<div class="axr-mastin"><span class="axr-kicker hand">' + X(c.course_tag ? c.course_tag + ' dersi' : 'çalışma kartın') + '</span><h1 class="disp axr-h1"><span>' + X(baseName(R.name)) + '</span></h1>' +
+    mast.innerHTML = '<div class="axr-mastin"><div class="axr-ltbar"><span class="axr-ltlbl mono">ÖZETİN DİLİ</span>' + langTog('all') + '<span class="axr-ltprog hand" data-ltprog="" aria-live="polite"></span></div><span class="axr-kicker hand">' + X(c.course_tag ? c.course_tag + ' dersi' : 'çalışma kartın') + '</span><h1 class="disp axr-h1"><span>' + X(baseName(R.name)) + '</span></h1>' +
       '<div class="axr-chips">' + chip(c.summary_language === 'tr' ? 'Türkçe' : c.summary_language === 'en' ? 'English' : '') + chip(styleLabel(c.summary_style || 'standard')) + chip(typ) + chip(len) + (c.is_quantitative ? chip('sayısal ders', 'q') : '') + (qm.grounded ? chip('kaynağa bağlı', 'ok') : '') + (qm.pass !== false && qm.grounded ? chip('kalite kontrolünden geçti', 'ok') : '') + '</div>' +
       '<p class="axr-meta mono"><span>~' + mins + ' dk okuma</span>' + (secs.length ? '<span>' + secs.length + ' bölüm</span>' : '') + (arr(c.key_terms).length ? '<span>' + arr(c.key_terms).length + ' kavram</span>' : '') + (arr(c.quiz_questions).length ? '<span>' + arr(c.quiz_questions).length + ' soru</span>' : '') + '<span data-left=""></span></p></div>';
     /* 30 saniye + sayılar */
@@ -7740,11 +7762,11 @@ var SBX = (function () {
     /* dinle */
     h += ch('dinle', 'Sesli özet', '<div class="axr-pod" data-pod=""></div>');
     /* anlatı */
-    h += ch('anlati', 'Anlatı', '<div class="axr-sech"><span class="axr-lbl mono">ANLATI</span><h2 class="disp">Profesyonel özet</h2>' + langTog('n') + (own ? '<button type="button" class="axr-mini" data-regen="summary">' + ICON.redo + 'yeniden yaz</button>' : '') + '</div><div class="axr-prose dropcap" data-prose="n">' + cleanHTML(fmtS(c.summary || 'Bu kart için özet metni yok.', c.footnotes)) + '</div>');
+    h += ch('anlati', 'Anlatı', '<div class="axr-sech"><span class="axr-lbl mono">ANLATI</span><h2 class="disp">Profesyonel özet</h2>' + (own ? '<button type="button" class="axr-mini" data-regen="summary">' + ICON.redo + 'yeniden yaz</button>' : '') + '</div><div class="axr-prose dropcap" data-prose="n">' + cleanHTML(fmtS(c.summary || 'Bu kart için özet metni yok.', c.footnotes)) + '</div>');
     /* bölümler */
     secs.forEach(function (s, i) {
       var kps = arr(s.key_points).filter(Boolean);
-      h += ch('b' + (i + 1), (i + 1) + '. ' + plain(s.heading || 'Bölüm'), '<div class="axr-sheet" data-sec="' + i + '" style="--r:' + ((i % 3) - 1) * .25 + 'deg">' + langTog(i) + '<span class="axr-secn disp" aria-hidden="true">' + (i + 1 < 10 ? '0' : '') + (i + 1) + '</span><h2 class="disp">' + X(plain(s.heading || 'Bölüm ' + (i + 1))) + '</h2>' +
+      h += ch('b' + (i + 1), (i + 1) + '. ' + plain(s.heading || 'Bölüm'), '<div class="axr-sheet" data-sec="' + i + '" style="--r:' + ((i % 3) - 1) * .25 + 'deg"><span class="axr-secn disp" aria-hidden="true">' + (i + 1 < 10 ? '0' : '') + (i + 1) + '</span><h2 class="disp">' + X(plain(s.heading || 'Bölüm ' + (i + 1))) + '</h2>' +
         '<div class="axr-prose" data-prose="s' + (i + 1) + '">' + cleanHTML(fmtS(s.summary || '', c.footnotes)) + '</div>' +
         (kps.length ? '<ul class="axr-kps" data-prose="k' + (i + 1) + '">' + kps.map(function (p) { return '<li>' + X(plain(p)) + '</li>'; }).join('') + '</ul>' : '') +
         (own ? '<div class="axr-secvis"><span class="hand">bu bölüme görsel:</span><button type="button" class="axr-mini" onclick="generateSectionVisual(event, ' + i + ', \'diagram\')">diyagram</button><button type="button" class="axr-mini" onclick="generateSectionVisual(event, ' + i + ', \'table\')">tablo</button><button type="button" class="axr-mini" onclick="generateSectionVisual(event, ' + i + ', \'chart\')">grafik</button></div>' : '') + '</div>', 'sec');
@@ -7779,6 +7801,8 @@ var SBX = (function () {
     /* bloklara kimlik (vurgular için) */
     QA('[data-prose]', flow).forEach(function (p) { var k = p.getAttribute('data-prose'); QA('p, li, h4, blockquote', p).forEach(function (b, i) { if (!b.querySelector('p, li')) b.setAttribute('data-b', k + '-' + i); }); });
     paintRail(); bindFlow(); paintPod(true); applyHL();
+    /* öğrenci bu kartı en son diğer dilde okuduysa öyle aç */
+    LTJOB++; var rl = G('acadex.reader.lang.' + c.id, null), rb = rl && rl !== cardLang() && Q('.axr-ltall [data-ltl="' + rl + '"]', mast); if (rb) setTimeout(function () { if (R.card === c && rb.isConnected) switchLang(rb); }, 30);
     QA('.axr-tex', flow).forEach(function (el) { var f = arr(c.formulas)[+el.getAttribute('data-tex')]; if (!f) return; if (window.katex && f.latex) { try { window.katex.render(f.latex, el, { throwOnError: false, displayMode: true }); } catch (e) { el.textContent = f.latex; } } else el.textContent = f.latex || ''; });
     var nb = Q('[data-net]', flow); if (nb) mountNet(nb);
     QA('.axr-dg', flow).forEach(function (fig) { renderDiagram(fig, arr(c.diagrams)[+fig.getAttribute('data-dg')]); });
@@ -7820,6 +7844,9 @@ var SBX = (function () {
   /* ---------- akış içi etkileşimler ---------- */
   var bindFlow = function () {
     if (flow.dataset.bound) return; flow.dataset.bound = '1';
+    mast.addEventListener('click', function (e) { var b = e.target.closest('[data-ltl]'); if (b) switchLang(b); });
+    mast.addEventListener('pointerover', function (e) { var b = e.target.closest('[data-ltl]'); if (b) warm(b.getAttribute('data-ltl')); });
+    mast.addEventListener('focusin', function (e) { var b = e.target.closest('[data-ltl]'); if (b) warm(b.getAttribute('data-ltl')); });
     flow.addEventListener('click', function (e) {
       var b;
       if ((b = e.target.closest('[data-q]'))) { var a = b.nextElementSibling, o = b.getAttribute('aria-expanded') !== 'true'; b.setAttribute('aria-expanded', String(o)); a.hidden = !o; return; }
@@ -8230,7 +8257,7 @@ var SBX = (function () {
 
   /* ---------- dashboard.js bağlantıları ---------- */
   var render = function (card, name, ro) {
-    R.card = card; R.name = name || (card.documents && card.documents.file_name) || ''; R.ro = !!ro; podSig = ''; LT.sib = {}; LT.mem = {};
+    R.card = card; R.name = name || (card.documents && card.documents.file_name) || ''; R.ro = !!ro; podSig = ''; LT = { sib: {}, mem: {} }; LTJOB++;
     tb.hidden = true; pop.hidden = true; cf.hidden = true;
     renderFlow(); applyPrefs(); scroller.scrollTop = 0; onScroll();
     loadHL();
