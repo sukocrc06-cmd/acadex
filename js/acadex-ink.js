@@ -7637,7 +7637,9 @@ var SBX = (function () {
   var cleanHTML = function (html) { var d = document.createElement('div'); d.innerHTML = html; QA('[style]', d).forEach(function (e) { e.removeAttribute('style'); }); QA('div', d).forEach(function (e) { if (!e.textContent.trim() && !e.querySelector('img,svg')) e.remove(); }); return d.innerHTML; };
   /* ---------- bölüm bölüm Türkçe / İngilizce ---------- */
   var cardLang = function () { return (R.card && R.card.summary_language) === 'en' ? 'en' : 'tr'; };
-  var langTog = function (k) { var L = cardLang(); return '<div class="axr-lt' + (k === 'all' ? ' axr-ltall' : '') + '" role="group" aria-label="' + (k === 'all' ? 'Özetin dili' : 'Bu bölümün dili') + '" data-lt="' + k + '"><button type="button" data-ltl="tr" aria-pressed="' + (L === 'tr') + '">TR</button><button type="button" data-ltl="en" aria-pressed="' + (L === 'en') + '">EN</button></div>'; };
+  var langTog = function (k) { var L = cardLang(), dis = LT_ON ? '' : ' disabled'; return '<div class="axr-lt' + (k === 'all' ? ' axr-ltall' : '') + '" role="group" aria-label="' + (k === 'all' ? 'Özetin dili' : 'Bu bölümün dili') + '" data-lt="' + k + '"><button type="button" data-ltl="tr" aria-pressed="' + (L === 'tr') + '"' + dis + '>TR</button><button type="button" data-ltl="en" aria-pressed="' + (L === 'en') + '"' + dis + '>EN</button></div>'; };
+  /* Türkçe/İngilizce geçişi şimdilik kapalı ("yakında"); açmak için true yap */
+  var LT_ON = false;
   var LT = { sib: {}, mem: {} };
   /* önbellek anahtarı metnin özetini de içerir: bölüm yeniden yazılırsa eski çeviri kullanılmaz */
   var ltHash = function (o) { var t = JSON.stringify(o || ''), h = 5381; for (var i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
@@ -7753,7 +7755,7 @@ var SBX = (function () {
     var qm = c.quality_meta || {}, typ = plain(lsafe(function () { return getDocumentTypeBadgeHtml(c.document_type); }, '')), len = plain(lsafe(function () { return getLengthBadgeHtml(c.summary_length); }, ''));
     Q('#study-card-title').textContent = baseName(R.name);
     Q('[data-axr-eyb]').textContent = (c.course_tag ? c.course_tag + ' · ' : '') + 'ÖZET KARTI';
-    mast.innerHTML = '<div class="axr-mastin"><div class="axr-ltbar"><span class="axr-ltlbl mono">ÖZETİN DİLİ</span>' + langTog('all') + '<span class="axr-ltprog hand" data-ltprog="" aria-live="polite"></span></div><span class="axr-kicker hand">' + X(c.course_tag ? c.course_tag + ' dersi' : 'çalışma kartın') + '</span><h1 class="disp axr-h1"><span>' + X(baseName(R.name)) + '</span></h1>' +
+    mast.innerHTML = '<div class="axr-mastin"><div class="axr-ltbar' + (LT_ON ? '' : ' soon') + '"><span class="axr-ltlbl mono">ÖZETİN DİLİ</span>' + langTog('all') + (LT_ON ? '<span class="axr-ltprog hand" data-ltprog="" aria-live="polite"></span>' : '<span class="axr-ltsoon hand">yakında</span>') + '</div><span class="axr-kicker hand">' + X(c.course_tag ? c.course_tag + ' dersi' : 'çalışma kartın') + '</span><h1 class="disp axr-h1"><span>' + X(baseName(R.name)) + '</span></h1>' +
       '<div class="axr-chips">' + chip(c.summary_language === 'tr' ? 'Türkçe' : c.summary_language === 'en' ? 'English' : '') + chip(styleLabel(c.summary_style || 'standard')) + chip(typ) + chip(len) + (c.is_quantitative ? chip('sayısal ders', 'q') : '') + (qm.grounded ? chip('kaynağa bağlı', 'ok') : '') + (qm.pass !== false && qm.grounded ? chip('kalite kontrolünden geçti', 'ok') : '') + '</div>' +
       '<p class="axr-meta mono"><span>~' + mins + ' dk okuma</span>' + (secs.length ? '<span>' + secs.length + ' bölüm</span>' : '') + (arr(c.key_terms).length ? '<span>' + arr(c.key_terms).length + ' kavram</span>' : '') + (arr(c.quiz_questions).length ? '<span>' + arr(c.quiz_questions).length + ' soru</span>' : '') + '<span data-left=""></span></p></div>';
     /* 30 saniye + sayılar */
@@ -7802,7 +7804,7 @@ var SBX = (function () {
     QA('[data-prose]', flow).forEach(function (p) { var k = p.getAttribute('data-prose'); QA('p, li, h4, blockquote', p).forEach(function (b, i) { if (!b.querySelector('p, li')) b.setAttribute('data-b', k + '-' + i); }); });
     paintRail(); bindFlow(); paintPod(true); applyHL();
     /* öğrenci bu kartı en son diğer dilde okuduysa öyle aç */
-    LTJOB++; var rl = G('acadex.reader.lang.' + c.id, null), rb = rl && rl !== cardLang() && Q('.axr-ltall [data-ltl="' + rl + '"]', mast); if (rb) setTimeout(function () { if (R.card === c && rb.isConnected) switchLang(rb); }, 30);
+    LTJOB++; var rl = LT_ON && G('acadex.reader.lang.' + c.id, null), rb = rl && rl !== cardLang() && Q('.axr-ltall [data-ltl="' + rl + '"]', mast); if (rb) setTimeout(function () { if (R.card === c && rb.isConnected) switchLang(rb); }, 30);
     QA('.axr-tex', flow).forEach(function (el) { var f = arr(c.formulas)[+el.getAttribute('data-tex')]; if (!f) return; if (window.katex && f.latex) { try { window.katex.render(f.latex, el, { throwOnError: false, displayMode: true }); } catch (e) { el.textContent = f.latex; } } else el.textContent = f.latex || ''; });
     var nb = Q('[data-net]', flow); if (nb) mountNet(nb);
     QA('.axr-dg', flow).forEach(function (fig) { renderDiagram(fig, arr(c.diagrams)[+fig.getAttribute('data-dg')]); });
@@ -7844,9 +7846,9 @@ var SBX = (function () {
   /* ---------- akış içi etkileşimler ---------- */
   var bindFlow = function () {
     if (flow.dataset.bound) return; flow.dataset.bound = '1';
-    mast.addEventListener('click', function (e) { var b = e.target.closest('[data-ltl]'); if (b) switchLang(b); });
-    mast.addEventListener('pointerover', function (e) { var b = e.target.closest('[data-ltl]'); if (b) warm(b.getAttribute('data-ltl')); });
-    mast.addEventListener('focusin', function (e) { var b = e.target.closest('[data-ltl]'); if (b) warm(b.getAttribute('data-ltl')); });
+    mast.addEventListener('click', function (e) { var b = LT_ON && e.target.closest('[data-ltl]'); if (b) switchLang(b); });
+    mast.addEventListener('pointerover', function (e) { var b = LT_ON && e.target.closest('[data-ltl]'); if (b) warm(b.getAttribute('data-ltl')); });
+    mast.addEventListener('focusin', function (e) { var b = LT_ON && e.target.closest('[data-ltl]'); if (b) warm(b.getAttribute('data-ltl')); });
     flow.addEventListener('click', function (e) {
       var b;
       if ((b = e.target.closest('[data-q]'))) { var a = b.nextElementSibling, o = b.getAttribute('aria-expanded') !== 'true'; b.setAttribute('aria-expanded', String(o)); a.hidden = !o; return; }
@@ -8854,7 +8856,7 @@ var SBX = (function () {
       var multi = lsafe(function () { return isMergeSummarize || isBulkSummarize; }, false);
       var last = null; try { last = localStorage.getItem(LK); } catch (e) {}
       if (!last) last = (lsafe(function () { return localStorage.getItem('acadexUILang'); }, 'tr') || 'tr') === 'en' ? 'en' : 'tr';
-      if (multi && last === 'both') last = 'tr';
+      if (last === 'both') last = 'tr'; /* İkisi de: yakında */
       radio('summary-language-choice', last);
       M.querySelector('[data-sd-both]').hidden = !!multi;
       var doc = lsafe(function () { return activeDocuments.find(function (d) { return d.id === activeSummarizingDocId; }); }, null);

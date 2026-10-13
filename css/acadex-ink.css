@@ -8159,6 +8159,11 @@ body.acx .ax-folder.axp-landed{animation:axpLand .9s cubic-bezier(.3,1.4,.5,1) b
 @media (min-width:901px){#study-card-modal.axr .axr-mastin{position:relative}#study-card-modal.axr .axr-ltbar{position:absolute;top:4px;right:0;margin:0;flex-direction:row-reverse}#study-card-modal.axr .axr-ltbar~.axr-h1{padding-right:250px}}
 #study-card-modal.axr .axr-ch.lt-wait .axr-pull blockquote{opacity:.45;filter:blur(.6px);transition:opacity .3s,filter .3s}
 #study-card-modal.axr .axr-ch[data-alt] .axr-sheet>h2,#study-card-modal.axr .axr-ch[data-alt] .axr-pull blockquote{animation:axrLtIn .45s var(--ease) both}
+#study-card-modal.axr .axr-ltbar.soon{position:relative}
+#study-card-modal.axr .axr-ltbar.soon .axr-lt{opacity:.55;filter:grayscale(1)}
+#study-card-modal.axr .axr-ltbar.soon .axr-lt button{cursor:not-allowed}
+#study-card-modal.axr .axr-ltbar.soon .axr-lt button[aria-pressed="true"]{background:#6A7593}
+#study-card-modal.axr .axr-ltsoon{padding:2px 10px;border-radius:999px;background:#E8B53A;color:#0D1838;font-size:17px;transform:rotate(-3deg);box-shadow:2px 2px 0 #0D1838;white-space:nowrap}
 
 /* ===== Acadia ===== */
 
@@ -8415,3 +8420,7 @@ html.ax-themefx{transition:filter .6s ease}
   #summary-style-modal.axs2 .axs2-foot{flex-wrap:wrap}
   #summary-style-modal.axs2 .axs2-go{flex:1;justify-content:center}
 }
+#summary-style-modal.axs2 .axs2-tile.soon{cursor:not-allowed}
+#summary-style-modal.axs2 .axs2-tile.soon .tl{background:repeating-linear-gradient(-45deg,#FBF9F3 0 8px,#F3EFE4 8px 16px);border-style:dashed;opacity:.75;transform:none!important;box-shadow:none!important}
+#summary-style-modal.axs2 .axs2-tile.soon .tk{display:none}
+#summary-style-modal.axs2 .axs2-soon{position:absolute;top:-10px;right:10px;padding:2px 10px;border-radius:999px;background:#E8B53A;color:#0D1838;font-size:17px;transform:rotate(3deg);box-shadow:2px 2px 0 #0D1838}
