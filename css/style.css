@@ -4792,6 +4792,64 @@ input:checked + .slider:before {
   padding: 0.4rem;
 }
 
+/* Sesli özet dökümü — defter öğesi + depo önizlemesi.
+   Yapı ai_table/ai_chart ile aynı (sürükleme çubuğu + resizer), sadece
+   içerik alanı metin akışı. */
+.draggable-transcript-wrapper {
+  position: absolute;
+  background: #ffffff;
+  border: 1px solid rgba(15, 37, 55, 0.18);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  z-index: 10;
+}
+
+.draggable-transcript-wrapper .transcript-content-area {
+  flex: 1;
+  width: 100%;
+  height: calc(100% - 28px);
+  overflow: auto;
+  padding: 0.5rem 0.6rem;
+}
+
+.transcript-line {
+  font-size: 0.72rem;
+  line-height: 1.45;
+  margin: 0 0 0.4rem 0;
+  color: var(--color-navy);
+}
+
+.transcript-line b {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  margin-right: 0.3rem;
+  color: var(--color-teal);
+}
+
+.transcript-line.speaker-b b {
+  color: #6D28D9;
+}
+
+.depot-preview-transcript {
+  background: #F8FAFC;
+  border-radius: 6px;
+  padding: 0.4rem 0.5rem;
+  max-height: 120px;
+  overflow: hidden;
+}
+
+.depot-preview-transcript .transcript-more {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  margin: 0.2rem 0 0 0;
+}
+
 /* ── Footnote Markers & References ── */
 .footnote-marker {
   font-size: 0.75em;
