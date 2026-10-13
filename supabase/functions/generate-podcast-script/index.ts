@@ -132,7 +132,8 @@ serve(async (req) => {
 
     const lang = card.summary_language || 'en'
     const langLabel = lang === 'tr' ? 'Turkish / Türkçe' : 'English'
-    const hostNames = lang === 'tr' ? ['Ela', 'Kaan'] : ['Alex', 'Sam']
+    // A her zaman kadın, B her zaman erkek sunucu (ses seçimi buna göre yapılır).
+    const hostNames = lang === 'tr' ? ['Ela', 'Kaan'] : ['Dalia', 'Robert']
 
     const sections = Array.isArray(card.sections) ? card.sections : []
     const keyPoints = Array.isArray(card.key_points) ? card.key_points : []
@@ -157,7 +158,7 @@ serve(async (req) => {
       })
     }
 
-    const systemPrompt = `You write short, natural two-host podcast scripts that turn a student's study material into an engaging spoken conversation — the same idea as an AI "audio overview" feature. The two hosts are named "${hostNames[0]}" (speaker "A") and "${hostNames[1]}" (speaker "B").
+    const systemPrompt = `You write short, natural two-host podcast scripts that turn a student's study material into an engaging spoken conversation — the same idea as an AI "audio overview" feature. The two hosts are named "${hostNames[0]}" (speaker "A", a woman) and "${hostNames[1]}" (speaker "B", a man). When a host addresses the other by name, use these exact names.
 
 Respond with ONLY valid JSON: { "title": string, "script": [ { "speaker": "A" | "B", "text": string } ] }. No markdown fences, no commentary.
 

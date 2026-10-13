@@ -1875,69 +1875,42 @@
   </div>
 
   <!-- Choose Summary Style Modal Overlay -->
-  <div class="modal-overlay" id="summary-style-modal" role="dialog" aria-modal="true" aria-labelledby="style-modal-title">
-    <div class="modal-card" style="max-width: 600px; width: 92%; max-height: 85vh; padding: 0; display: flex; flex-direction: column; text-align: left; gap: 0; position: relative; overflow: hidden;">
-
-      <!-- ═══ Fixed Header ═══ -->
-      <div style="padding: 1.25rem 1.5rem 0.75rem; border-bottom: 1px solid rgba(22, 50, 92, 0.08); display: flex; align-items: flex-start; justify-content: space-between; flex-shrink: 0;">
-        <div>
-          <h3 class="modal-title" id="style-modal-title" style="margin: 0; font-size: 1.1rem; color: var(--color-navy); font-weight: 800; text-align: left;">Generate Summary</h3>
-          <p style="font-size: 0.78rem; color: var(--color-text-muted); margin: 0.2rem 0 0 0; text-align: left; line-height: 1.3;">
-            Acadex picks the best format and depth automatically based on your document.
-          </p>
-        </div>
-        <button class="btn-icon" style="background: none; border: none; font-size: 1.5rem; font-weight: bold; color: var(--color-text-muted); cursor: pointer; line-height: 1; padding: 0.1rem 0.2rem; margin-left: 0.75rem; transition: color 0.2s;" onclick="closeSummaryStyleModal()" aria-label="Close modal">×</button>
+  <div class="modal-overlay axs2" id="summary-style-modal" role="dialog" aria-modal="true" aria-labelledby="style-modal-title">
+    <div class="modal-card axs2-card">
+      <button type="button" class="axs2-x" onclick="closeSummaryStyleModal()" aria-label="Kapat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6 L18 18 M18 6 L6 18"/></svg></button>
+      <div class="axs2-h">
+        <span class="hand axs2-eyb">özet masası</span>
+        <h3 class="modal-title disp" id="style-modal-title">Özeti hazırlayalım</h3>
+        <p class="axs2-doc" data-sd-doc=""></p>
+        <p class="axs2-sub">Biçimi ve derinliği Acadex belgene bakarak kendisi seçer; sen yalnızca dili ve görselleri seç.</p>
       </div>
-
-      <!-- ═══ Scrollable Body ═══ -->
-      <!-- Denetim Raporu, 2026-08-31 — UI SIMPLIFICATION: this modal used to
-           ask for Format (5 radios), Depth & Length (4 radios), and a visual
-           checkbox — students found it confusing, and the two controls could
-           silently disagree with each other. Now it only asks two questions:
-           language, and whether to spend extra time analyzing charts/
-           diagrams/visuals. Format is always the balanced "Standard" style,
-           and depth/length are chosen automatically server-side from the
-           document's own length (see summarize-document/index.ts, "AUTO
-           DEPTH SELECTION"). -->
-      <div style="flex: 1 1 auto; overflow-y: auto; padding: 1rem 1.5rem; display: flex; flex-direction: column; gap: 0.85rem;">
-
-        <!-- Language Selector -->
-        <div>
-          <label style="display: block; font-size: 0.78rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.3rem; text-transform: uppercase; letter-spacing: 0.03em;">Language</label>
-          <div style="display: flex; gap: 1.5rem; align-items: center;">
-            <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; color: var(--color-navy); cursor: pointer; font-weight: 600;">
-              <input type="radio" name="summary-language-choice" value="en" checked style="accent-color: var(--color-teal); cursor: pointer; width: 14px; height: 14px;"> English
-            </label>
-            <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; color: var(--color-navy); cursor: pointer; font-weight: 600;">
-              <input type="radio" name="summary-language-choice" value="tr" style="accent-color: var(--color-teal); cursor: pointer; width: 14px; height: 14px;"> Türkçe
-            </label>
+      <fieldset class="axs2-f">
+        <legend class="mono">ÖZET DİLİ</legend>
+        <div class="axs2-langs">
+          <label class="axs2-tile"><input type="radio" name="summary-language-choice" value="tr"><span class="tl"><b class="disp">Türkçe</b><small>Türkçe özet, sunucular Ela &amp; Kaan</small></span><i class="tk" aria-hidden="true"></i></label>
+          <label class="axs2-tile"><input type="radio" name="summary-language-choice" value="en" checked><span class="tl"><b class="disp">English</b><small>English summary, hosts Dalia &amp; Robert</small></span><i class="tk" aria-hidden="true"></i></label>
+          <label class="axs2-tile both" data-sd-both=""><input type="radio" name="summary-language-choice" value="both"><span class="tl"><b class="disp">İkisi de</b><small>iki ayrı kart: TR + EN · yaklaşık iki kat sürer</small></span><i class="tk" aria-hidden="true"></i></label>
+        </div>
+      </fieldset>
+      <fieldset class="axs2-f" id="visual-analysis-container" style="display: none;">
+        <legend class="mono">GÖRSELLER</legend>
+        <div class="axs2-vis">
+          <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20 H20 M7 17 V11 M12 17 V6 M17 17 V13"/></svg>
+          <div class="t"><b>Grafik, tablo ve diyagramlar da okunsun mu?</b><small>Belgedeki görseller incelenip özete eklenir; biraz daha uzun sürer.</small></div>
+          <div class="axs2-seg" role="radiogroup" aria-label="Görseller">
+            <label><input type="radio" name="want-visuals-choice" value="no" checked><span>hayır</span></label>
+            <label><input type="radio" name="want-visuals-choice" value="yes"><span>evet</span></label>
           </div>
         </div>
-
-        <!-- Visual Analysis — simple yes/no, only shown when the file type supports it (PDF/DOCX/PPTX) -->
-        <div id="visual-analysis-container" style="display: none; padding-top: 0.6rem; border-top: 1px solid rgba(22, 50, 92, 0.06);">
-          <label style="display: block; font-size: 0.78rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.3rem; text-transform: uppercase; letter-spacing: 0.03em;">🖼️ Görsel eklensin mi? / Add visuals?</label>
-          <p style="font-size: 0.68rem; color: var(--color-text-muted); margin: 0 0 0.4rem 0;">Belgedeki grafik, tablo ve diyagramlar analiz edilip özete eklenir (biraz daha uzun sürer). / Charts, tables and diagrams in the document are analyzed and added to the summary (takes a bit longer).</p>
-          <div style="display: flex; gap: 1.5rem; align-items: center;">
-            <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; color: var(--color-navy); cursor: pointer; font-weight: 600;">
-              <input type="radio" name="want-visuals-choice" value="yes" style="accent-color: var(--color-teal); cursor: pointer; width: 14px; height: 14px;"> Evet / Yes
-            </label>
-            <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; color: var(--color-navy); cursor: pointer; font-weight: 600;">
-              <input type="radio" name="want-visuals-choice" value="no" checked style="accent-color: var(--color-teal); cursor: pointer; width: 14px; height: 14px;"> Hayır / No
-            </label>
-          </div>
-        </div>
-
+      </fieldset>
+      <div class="axs2-foot">
+        <span class="hand axs2-time" data-sd-time="">yaklaşık 30 sn</span>
+        <button type="button" class="axs2-no" onclick="closeSummaryStyleModal()">vazgeç</button>
+        <button type="button" class="axs2-go" id="btn-confirm-summarize" onclick="proceedWithSummarization()">özetle <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12 H18 M12 6 L18 12 L12 18"/></svg></button>
       </div>
-
-      <!-- ═══ Sticky Footer — always visible ═══ -->
-      <div style="padding: 0.85rem 1.5rem; border-top: 1px solid rgba(22, 50, 92, 0.1); background: linear-gradient(to bottom, #f8fafc, #f1f5f9); display: flex; justify-content: flex-end; gap: 0.75rem; flex-shrink: 0; box-shadow: 0 -2px 8px rgba(22, 50, 92, 0.04);">
-        <button class="btn btn-outline" style="padding: 0.5rem 1.2rem; font-size: 0.85rem;" onclick="closeSummaryStyleModal()">Vazgeç</button>
-        <button class="btn btn-primary" id="btn-confirm-summarize" style="padding: 0.5rem 1.5rem; font-size: 0.85rem; border: none;" onclick="proceedWithSummarization()">Generate Summary</button>
-      </div>
-
     </div>
   </div>
+
 
   <div class="modal-overlay" id="delete-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
     <div class="modal-card" style="position: relative;">

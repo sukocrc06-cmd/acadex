@@ -7828,7 +7828,13 @@ var SBX = (function () {
       '<form class="axr-askf" data-askf="" hidden><label class="vh" for="axr-askq">Sorun</label><input id="axr-askq" maxlength="300" autocomplete="off" placeholder="sorunu yaz…"><button type="submit" class="btn btn-dark">sor</button><button type="button" class="axr-mini" data-askx="">vazgeç</button></form>' +
       '<div class="axr-askans" data-askans="" hidden></div></div>';
   };
-  var hostNames = function () { var ps = PS(); var n = ps && ps.hostNames; return (n && n.length === 2 && !/^[AB]$/.test(n[0])) ? n : ['Ela', 'Kaan']; };
+  /* sunucular: A her zaman kadın, B her zaman erkek. Türkçe Ela & Kaan, İngilizce Dalia & Robert */
+  var hostNames = function () {
+    var ps = PS(), en = (R.card && R.card.summary_language) === 'en' || (ps && ps.lang === 'en');
+    var n = ps && ps.hostNames, def = en ? ['Dalia', 'Robert'] : ['Ela', 'Kaan'];
+    if (!n || n.length !== 2 || /^[AB]$/.test(n[0])) return def;
+    return n.map(function (x, i) { return x === 'Alex' || x === 'Sam' ? def[i] : x; });
+  };
   var mouthLevel = function (t) { return Math.max(0, Math.min(1, .25 + .75 * Math.abs(Math.sin(t * 17) * Math.sin(t * 6.1 + 1)) + CAST.pulse * .5)); };
   var castLoop = function (now) {
     CAST.raf = 0; if (!modal.classList.contains('active')) return;
@@ -7870,6 +7876,18 @@ var SBX = (function () {
     return { v: neutral || pool.slice().sort(by)[0] || null, sure: false };
   };
   var voicesReady = function () { return new Promise(function (res) { var s = window.speechSynthesis; if (!s) return res(); if ((s.getVoices() || []).length) return res(); var done = false, fin = function () { if (!done) { done = true; res(); } }; try { s.addEventListener('voiceschanged', fin, { once: true }); } catch (e) {} setTimeout(fin, 1200); }); };
+  /* sesli özet de tarayıcı sesine düşerse: A kadın, B erkek sesi zorunlu */
+  if (typeof pickPodcastVoices === 'function') {
+    var oPick = pickPodcastVoices;
+    pickPodcastVoices = function (voices, lang) {
+      try { oPick.apply(this, arguments); } catch (e) {}
+      var L = lang === 'tr' ? 'tr' : 'en', a = voiceFor('A', L), b = voiceFor('B', L), ps = PS(); if (!ps) return;
+      if (a.v) ps.voiceA = a.v; if (b.v) ps.voiceB = b.v;
+      ps.sameVoice = !ps.voiceA || !ps.voiceB || ps.voiceA.name === ps.voiceB.name;
+      ps.voicesConfirmedGenderPair = a.sure && b.sure && !ps.sameVoice;
+    };
+    window.pickPodcastVoices = pickPodcastVoices;
+  }
   var askAudio = null;
   var askStopAudio = function () { if (askAudio) { try { askAudio.pause(); askAudio.src = ''; } catch (e) {} askAudio = null; } };
   var askSpeakBrowser = async function (who, text, tok) {
@@ -7943,8 +7961,8 @@ var SBX = (function () {
     var sig = sc.length + ':' + (R.card && R.card.id); if (!force && sig === podSig) return; podSig = sig;
     var own = !R.ro && lsafe(function () { return !!activeModalCardId; }, false);
     var nm0 = hostNames(); castStart();
-    if (!sc.length) { box.innerHTML = stageHTML(nm0) + '<div class="axr-podcta"><p><b>Sesli özet</b> iki sunucu (Ela ve Kaan) bu özeti sohbet eder gibi anlatır.</p>' + (own ? '<button type="button" class="btn btn-dark" data-podgen="">sesli özeti hazırla</button>' : '<p class="hand">bu kart için sesli özet hazırlanmamış.</p>') + '</div>' + askHTML(nm0); return; }
-    var names = (ps.hostNames && ps.hostNames.length === 2) ? ps.hostNames : ['Ela', 'Kaan'];
+    if (!sc.length) { box.innerHTML = stageHTML(nm0) + '<div class="axr-podcta"><p><b>Sesli özet</b> iki sunucu (' + X(nm0[0]) + ' ve ' + X(nm0[1]) + ') bu özeti sohbet eder gibi anlatır.</p>' + (own ? '<button type="button" class="btn btn-dark" data-podgen="">sesli özeti hazırla</button>' : '<p class="hand">bu kart için sesli özet hazırlanmamış.</p>') + '</div>' + askHTML(nm0); return; }
+    var names = hostNames();
     box.innerHTML = stageHTML(nm0) + '<div class="axr-player"><button type="button" class="axr-play" data-podplay="" aria-label="Oynat">' + ICON.up + '</button><div class="axr-pmid"><div class="axr-wave" data-wave="" aria-hidden="true">' + new Array(48).join('<i></i>') + '</div><div class="axr-pbar"><i data-podfill=""></i></div></div><span class="mono axr-pcount" data-podcount="">0 / ' + sc.length + '</span>' +
       '<label class="axr-rate"><span class="vh">Hız</span><select data-rate=""><option value="0.8">0.8×</option><option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option></select></label><button type="button" class="axr-mini" data-podstop="">durdur</button></div>' +
       '<ol class="axr-trans" data-trans="">' + sc.map(function (l, i) { var b = l.speaker === 'B'; return '<li data-li="' + i + '" class="' + (b ? 'b' : 'a') + '"><button type="button" data-podfrom="' + i + '"><b>' + X(b ? names[1] : names[0]) + '</b><span>' + X(l.text) + '</span></button></li>'; }).join('') + '</ol>' + askHTML(nm0);
@@ -8699,5 +8717,61 @@ var SBX = (function () {
       try { window.scrollTo({ top: 0, behavior: calm ? 'auto' : 'smooth' }); } catch (er) {}
     });
     paintNav();
+  }
+})();
+/* ================= ÖZETLEME PENCERESİ: dil (TR / EN / ikisi), görseller ================= */
+(function () {
+  'use strict';
+  var M = document.getElementById('summary-style-modal'); if (!M || !M.classList.contains('axs2')) return;
+  var lsafe = function (fn, fb) { try { return fn(); } catch (e) { return fb; } };
+  var LK = 'acadex.sumLang';
+  var radio = function (n, v) { var r = M.querySelector('input[name="' + n + '"][value="' + v + '"]'); if (r) r.checked = true; return r; };
+  var val = function (n) { var r = M.querySelector('input[name="' + n + '"]:checked'); return r ? r.value : ''; };
+  var baseName = function (n) { n = String(n || '').replace(/\.[a-z0-9]{2,5}$/i, ''); var m = n.match(/^\d{10,}_(?:\d{10,}_)?(.+)$/); if (m) n = m[1]; return n.replace(/_+/g, ' ').trim(); };
+  var paintTime = function () { var b = val('summary-language-choice') === 'both', v = val('want-visuals-choice') === 'yes' && M.querySelector('#visual-analysis-container').style.display !== 'none'; M.querySelector('[data-sd-time]').textContent = 'yaklaşık ' + (b ? (v ? '1,5–2 dk' : '1–1,5 dk') : (v ? '45–60 sn' : '30–40 sn')); };
+  M.addEventListener('change', paintTime);
+  if (typeof openSummaryStyleModal === 'function') {
+    var oOpen = openSummaryStyleModal;
+    openSummaryStyleModal = function () {
+      var r = oOpen.apply(this, arguments);
+      var multi = lsafe(function () { return isMergeSummarize || isBulkSummarize; }, false);
+      var last = null; try { last = localStorage.getItem(LK); } catch (e) {}
+      if (!last) last = (lsafe(function () { return localStorage.getItem('acadexUILang'); }, 'tr') || 'tr') === 'en' ? 'en' : 'tr';
+      if (multi && last === 'both') last = 'tr';
+      radio('summary-language-choice', last);
+      M.querySelector('[data-sd-both]').hidden = !!multi;
+      var doc = lsafe(function () { return activeDocuments.find(function (d) { return d.id === activeSummarizingDocId; }); }, null);
+      var n = multi ? (lsafe(function () { return (isMergeSummarize ? pendingMergeDocIds : selectedDocIds).length; }, 0) + ' belge') : doc ? baseName(doc.file_name) : '';
+      var de = M.querySelector('[data-sd-doc]'); de.textContent = n; de.hidden = !n;
+      paintTime();
+      return r;
+    };
+    window.openSummaryStyleModal = openSummaryStyleModal;
+  }
+  /* "ikisi de": önce Türkçe, bitince aynı belge için İngilizce; ilk kart kendiliğinden açılmaz */
+  var skipOpen = null;
+  if (typeof viewStudyCard === 'function') {
+    var oView = viewStudyCard;
+    viewStudyCard = function (docId) { if (skipOpen && skipOpen === docId) { skipOpen = null; return Promise.resolve(); } return oView.apply(this, arguments); };
+    window.viewStudyCard = viewStudyCard;
+  }
+  if (typeof proceedWithSummarization === 'function') {
+    var oGo = proceedWithSummarization;
+    proceedWithSummarization = async function () {
+      var lang = val('summary-language-choice'); try { localStorage.setItem(LK, lang); } catch (e) {}
+      if (lang !== 'both') return oGo.apply(this, arguments);
+      var docId = lsafe(function () { return activeSummarizingDocId; }, null), vis = val('want-visuals-choice');
+      if (!docId) return oGo.apply(this, arguments);
+      radio('summary-language-choice', 'tr'); skipOpen = docId;
+      await oGo.apply(this, arguments);
+      if (skipOpen === docId) skipOpen = null;
+      var d = lsafe(function () { return activeDocuments.find(function (x) { return x.id === docId; }); }, null);
+      if (!d || d.status === 'failed') return;
+      if (typeof showDashboardAlert === 'function') showDashboardAlert('info', 'Türkçe özet hazır; şimdi İngilizcesi hazırlanıyor…');
+      try { activeSummarizingDocId = docId; } catch (e) {}
+      radio('summary-language-choice', 'en'); radio('want-visuals-choice', vis);
+      await oGo.apply(this, arguments);
+    };
+    window.proceedWithSummarization = proceedWithSummarization;
   }
 })();

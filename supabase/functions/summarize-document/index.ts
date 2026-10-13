@@ -6062,46 +6062,51 @@ serve(async (req) => {
     // behavior instead of erroring the whole summarization out.
     // ==========================================================================
     let courseCatalogBlock = "No official course catalog is available for this student — suggest a course code or subject label only if one is explicitly evident in the document text itself."
-    try {
-      const { data: ownerProfile } = await serviceClient
-        .from('profiles')
-        .select('department')
-        .eq('id', document.user_id)
-        .single()
+    // HIZ (13.10.2026): ders kataloğu, durum güncellemesi ve dosya indirme paralel.
+    const catalogTask = (async () => {
+      try {
+        const { data: ownerProfile } = await serviceClient
+          .from('profiles')
+          .select('department')
+          .eq('id', document.user_id)
+          .single()
 
-      if (ownerProfile?.department) {
-        const { data: deptRow } = await serviceClient
-          .from('departments')
-          .select('code')
-          .eq('name', ownerProfile.department)
-          .maybeSingle()
+        if (ownerProfile?.department) {
+          const { data: deptRow } = await serviceClient
+            .from('departments')
+            .select('code')
+            .eq('name', ownerProfile.department)
+            .maybeSingle()
 
-        if (deptRow?.code) {
-          const { data: deptCourses } = await serviceClient
-            .from('courses')
-            .select('course_code, course_name')
-            .eq('department_code', deptRow.code)
-            .order('course_code')
+          if (deptRow?.code) {
+            const { data: deptCourses } = await serviceClient
+              .from('courses')
+              .select('course_code, course_name')
+              .eq('department_code', deptRow.code)
+              .order('course_code')
 
-          if (deptCourses && deptCourses.length > 0) {
-            courseCatalogBlock = deptCourses.map((c: any) => `${c.course_code} — ${c.course_name}`).join('\n')
+            if (deptCourses && deptCourses.length > 0) {
+              courseCatalogBlock = deptCourses.map((c: any) => `${c.course_code} — ${c.course_name}`).join('\n')
+            }
           }
         }
+      } catch (catalogErr) {
+        console.warn('Course catalog lookup failed, continuing with free-text course guessing: ', catalogErr)
       }
-    } catch (catalogErr) {
-      console.warn('Course catalog lookup failed, continuing with free-text course guessing: ', catalogErr)
-    }
+    })()
 
     // 1. Instantly set document status to processing
-    await serviceClient
+    const statusTask = serviceClient
       .from('documents')
       .update({ status: 'processing' })
       .eq('id', documentId)
 
     // 2. Download file blob from private storage bucket
-    const { data: fileBlob, error: downloadError } = await serviceClient.storage
-      .from('documents')
-      .download(document.storage_path)
+    const [{ data: fileBlob, error: downloadError }] = await Promise.all([
+      serviceClient.storage.from('documents').download(document.storage_path),
+      statusTask,
+      catalogTask
+    ])
 
     if (downloadError || !fileBlob) {
       console.error('Download error: ', downloadError)
@@ -6225,13 +6230,15 @@ serve(async (req) => {
         })
 
         let pptxText = ""
-        for (const slidePath of slideFiles) {
+        // HIZ (13.10.2026): slaytların XML'i paralel okunur, sıra korunur.
+        const slideXmls = await Promise.all(slideFiles.map(p => zip.files[p].async("text")))
+        for (const [slideIdx, slidePath] of slideFiles.entries()) {
           // Use the slide's real numeric filename (slideN.xml), not the loop
           // index — slides can be non-contiguous if some were deleted, so
           // the index alone could point students to the wrong slide.
           const slideNumMatch = slidePath.match(/slide(\d+)\.xml$/)
           const slideNum = slideNumMatch ? parseInt(slideNumMatch[1], 10) : (slideFiles.indexOf(slidePath) + 1)
-          const slideXml = await zip.files[slidePath].async("text")
+          const slideXml = slideXmls[slideIdx]
           const slideText = parsePptxSlideXml(slideXml)
           if (slideText) {
             // "--- SLAYT N ---" marker mirrors the PDF path's page markers so
@@ -6931,7 +6938,10 @@ In addition to the text below, you are shown images of this document's pages. Us
                   type: "text",
                   text: `Here is the extracted text from the document:\n\n${textToSend}`
                 },
-                ...base64Images.map(b64 => ({
+                // HIZ (13.10.2026): Groq istek başına en fazla 3 görsel kabul eder ve her
+                // görsel 2.048 token; 8 görsel istek reddedilip 25 sn zaman aşımına düşüyordu.
+                // 2 görsel dakikalık sınıra sığar (bkz. VISION_TOKENS_PER_IMAGE notu).
+                ...base64Images.slice(0, 2).map(b64 => ({
                   type: "image_url",
                   image_url: {
                     url: `data:image/png;base64,${b64}`
@@ -7303,7 +7313,8 @@ Rules:
           } else {
             const est = estimateTokens(compactWindowPrompt(wi, windows.length), payload, winCompletion)
             const heavyWaitMs = tokenPacer.waitEstimate(est, MODEL_HEAVY, winCompletion)
-            const affordHeavy = budgetLeft() > heavyWaitMs + WINDOW_CALL_MS + NARRATIVE_WRITER_RESERVE_MS
+            // HIZ (13.10.2026): tekrar denemesi büyük modeli en fazla 8 sn bekler; daha uzunsa boş şeride geçer.
+            const affordHeavy = heavyWaitMs <= 8_000 && budgetLeft() > heavyWaitMs + WINDOW_CALL_MS + NARRATIVE_WRITER_RESERVE_MS
             windowLane = affordHeavy
               ? MODEL_HEAVY
               : pickLane([MODEL_HEAVY, MODEL_EXTRACT], est, winCompletion)
@@ -8784,7 +8795,16 @@ ${String(draftObj.summary || '').slice(0, 3500)}`
       criticCompletion
     )
     const criticNeedsMs = criticWaitMs + 30_000
-    if (qualityMeta.pass === false && qualityMeta.issues.length > 0 && budgetLeft() < criticNeedsMs) {
+    // HIZ (13.10.2026): Ücretsiz Groq planında eleştirmen çoğu zaman 30-60 sn
+    // dakikalık token penceresini bekliyordu; tek başına toplam sürenin yarısı.
+    // Review'un düzeltmeleri zaten uygulandı; eleştirmen yalnızca neredeyse
+    // beklemeden çalışabiliyorsa koşar. Plan yükseltilince bekleme 0'a iner
+    // ve eleştirmen kendiliğinden yine her seferinde devreye girer.
+    const CRITIC_MAX_WAIT_MS = 5_000
+    if (qualityMeta.pass === false && qualityMeta.issues.length > 0 && criticWaitMs > CRITIC_MAX_WAIT_MS) {
+      skippedStages.push('critic')
+      console.log(`HIZ: critic atlandi (pacer bekleme ${criticWaitMs}ms > ${CRITIC_MAX_WAIT_MS}ms); review duzeltmeleri uygulandi`)
+    } else if (qualityMeta.pass === false && qualityMeta.issues.length > 0 && budgetLeft() < criticNeedsMs) {
       skippedStages.push('critic')
       console.log(
         `Madde 4: critic atlandi (budgetLeft=${budgetLeft()}ms, ` +
