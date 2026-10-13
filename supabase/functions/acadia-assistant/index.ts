@@ -190,11 +190,12 @@ serve(async (req) => {
     const body = await req.json()
     const { message, history, language } = body
     const isAgent = body?.mode === 'agent'
+    const isTranslate = body?.mode === 'translate'
     const page = (isAgent && body?.page && typeof body.page === 'object') ? body.page : null
     // Ajan modunda açık kartın tamamı isteme gömülmez (Groq dakika başı token sınırı);
     // Acadia gerekirse read_study_card aracıyla okur.
     const studyCardId = isAgent ? null : body?.studyCardId
-    if (!isAgent && (!message || typeof message !== 'string')) {
+    if (!isAgent && !isTranslate && (!message || typeof message !== 'string')) {
       return new Response(JSON.stringify({ error: 'Missing "message" parameter' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -232,6 +233,45 @@ serve(async (req) => {
     // Used both by the planner-items query below and by the system prompt,
     // so the model can turn relative dates ("yarın", "bu hafta sonu") into
     // concrete event_date values when it emits an add_planner_event action.
+    // ------------------------------------------------------------------
+    // ÇEVİRİ MODU (özet kartındaki bölüm TR/EN düğmesi): body.mode === 'translate'
+    // Bağlam sorgusu yapmaz, küçük ve hızlı modelle JSON çevirir.
+    // body.payload: { heading?, summary?, key_points?[] }  body.target: 'tr' | 'en'
+    // ------------------------------------------------------------------
+    if (isTranslate) {
+      const target = body?.target === 'tr' ? 'Turkish (Türkçe)' : 'English'
+      const payload = body?.payload && typeof body.payload === 'object' ? body.payload : null
+      const src = JSON.stringify(payload || {}).slice(0, 14000)
+      if (!payload || src.length < 5) {
+        return new Response(JSON.stringify({ error: 'Missing "payload"' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+      const key = Deno.env.get('GROQ_API_KEY')
+      if (!key) return new Response(JSON.stringify({ error: 'Groq API key not configured' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      const sys = `You translate university study-summary sections into ${target}. Translate every string value of the JSON you receive and return ONLY a JSON object with exactly the same keys and array lengths. Keep numbers, formulas, LaTeX, code, course codes and proper names exactly as they are; keep **bold** markers and \n paragraph breaks; use natural academic ${target}. Do not add commentary.`
+      const run = async (model: string) => {
+        const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ model, temperature: 0.1, max_completion_tokens: 4000, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: sys }, { role: 'user', content: src }] })
+        })
+        let data: any = null
+        try { data = await resp.json() } catch (_e) { data = null }
+        return { resp, data }
+      }
+      let r = await run('openai/gpt-oss-20b')
+      if (!r.resp.ok) { console.warn('translate 20b failed, retrying on 120b:', r.resp.status, JSON.stringify(r.data).slice(0, 300)); r = await run('openai/gpt-oss-120b') }
+      if (!r.resp.ok) {
+        console.error('translate failed:', r.resp.status, JSON.stringify(r.data).slice(0, 600))
+        return new Response(JSON.stringify({ error: 'Translation unavailable', status: r.resp.status }), { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+      let out: any = null
+      try { out = JSON.parse(r.data?.choices?.[0]?.message?.content || '') } catch (_e) { out = null }
+      if (!out || typeof out !== 'object') {
+        return new Response(JSON.stringify({ error: 'Translation could not be parsed' }), { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+      return new Response(JSON.stringify({ translation: out }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
     const todayIso = new Date().toISOString().split('T')[0]
 
     // ------------------------------------------------------------------

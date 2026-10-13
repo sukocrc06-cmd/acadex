@@ -7648,18 +7648,46 @@ var SBX = (function () {
     LT.sib[key] = !m || !cl ? Promise.resolve(null) : cl.from('study_cards').select('id, summary, sections').eq('id', m.id).limit(1).then(function (r) { return r.data && r.data[0] ? r.data[0] : null; }, function () { return null; });
     return LT.sib[key];
   };
+  var LTQ = {};
   var translate = function (lang, k, src) {
     var mk = lang + '.' + k; if (LT.mem[mk]) return Promise.resolve(LT.mem[mk]);
     var cached = G(ltKey(lang, k), null); if (cached) { LT.mem[mk] = cached; return Promise.resolve(cached); }
+    if (LTQ[mk]) return LTQ[mk];
     var cl = sbc(); if (!cl || !cl.functions) return Promise.reject(new Error('bağlantı yok'));
-    var target = lang === 'en' ? 'English' : 'Turkish (Türkçe)';
-    var msg = 'Translate this study-summary section into ' + target + '. Keep the meaning, every number, formula and technical term exact; keep **bold** markers and paragraph breaks. Reply with ONLY valid JSON of the same shape, no commentary:\n' + JSON.stringify(src);
-    return Promise.race([cl.functions.invoke('acadia-assistant', { body: { message: msg, history: [], language: lang } }), new Promise(function (_, rej) { setTimeout(function () { rej(new Error('zaman aşımı')); }, 45000); })]).then(function (r) {
-      var d = r && r.data; if (typeof d === 'string') { try { d = JSON.parse(d); } catch (e) { d = { reply: d }; } }
-      var t = String((d && d.reply) || '').replace(/```acadia-action[\s\S]*?```/g, ''), j = t.match(/\{[\s\S]*\}/); if (!j) throw new Error('çeviri okunamadı');
-      var o = JSON.parse(j[0]); if (!o || (!o.summary && !o.heading)) throw new Error('boş çeviri');
-      LT.mem[mk] = o; S(ltKey(lang, k), o); return o;
+    var timeout = function (ms) { return new Promise(function (_, rej) { setTimeout(function () { rej(new Error('zaman aşımı')); }, ms); }); };
+    var ok = function (o) { return o && typeof o === 'object' && (o.summary || o.heading); };
+    /* 1) hızlı çeviri modu (acadia-assistant mode:'translate') */
+    var fast = Promise.race([cl.functions.invoke('acadia-assistant', { body: { mode: 'translate', target: lang, payload: src } }), timeout(30000)]).then(function (r) {
+      var d = r && r.data; if (typeof d === 'string') { try { d = JSON.parse(d); } catch (e) { d = null; } }
+      if (!d || !ok(d.translation)) throw new Error((d && d.error) || 'çeviri modu yok'); return d.translation;
     });
+    /* 2) sunucu henüz güncellenmediyse eski sohbet yoluyla, parça parça (sohbet modu 2000 karakter kabul ediyor) */
+    var slow = function () {
+      var target = lang === 'en' ? 'English' : 'Turkish';
+      var one = function (text) {
+        var msg = 'Translate the following text into ' + target + '. Reply with ONLY the translation, no commentary, keep numbers and formulas.\n\n' + text;
+        return Promise.race([cl.functions.invoke('acadia-assistant', { body: { message: msg, history: [], language: lang } }), timeout(40000)]).then(function (r) {
+          var d = r && r.data; if (typeof d === 'string') { try { d = JSON.parse(d); } catch (e) { d = { reply: d }; } }
+          var t = String((d && d.reply) || '').replace(/```acadia-action[\s\S]*?```/g, '').trim(); if (!t) throw new Error('boş'); return t;
+        });
+      };
+      var chunks = function (t) { var out = [], cur = ''; String(t || '').split(/\n\n+/).forEach(function (p) { if ((cur + '\n\n' + p).length > 1700 && cur) { out.push(cur); cur = p; } else cur = cur ? cur + '\n\n' + p : p; }); if (cur) out.push(cur); return out; };
+      var o = {}, jobs = [];
+      if (src.heading) jobs.push(one(src.heading).then(function (t) { o.heading = t.split('\n')[0]; }));
+      if (src.summary) jobs.push(Promise.all(chunks(src.summary).map(one)).then(function (L) { o.summary = L.join('\n\n'); }));
+      if (src.key_points && src.key_points.length) jobs.push(one(src.key_points.map(function (x, i) { return (i + 1) + '. ' + x; }).join('\n')).then(function (t) { o.key_points = t.split('\n').map(function (x) { return x.replace(/^\s*\d+[.)]\s*/, '').trim(); }).filter(Boolean); }));
+      return Promise.all(jobs).then(function () { if (!ok(o)) throw new Error('boş çeviri'); return o; });
+    };
+    LTQ[mk] = fast.catch(function (e) { console.warn('axr çeviri: hızlı mod olmadı, sohbet yoluyla', e && e.message); return slow(); })
+      .then(function (o) { LT.mem[mk] = o; S(ltKey(lang, k), o); delete LTQ[mk]; return o; }, function (e) { delete LTQ[mk]; throw e; });
+    return LTQ[mk];
+  };
+  var srcOf = function (k) { var c = R.card, s2 = arr(c.sections)[+k] || {}; return k === 'n' ? { summary: String(c.summary || '') } : { heading: plain(s2.heading || ''), summary: String(s2.summary || ''), key_points: arr(s2.key_points).filter(Boolean).map(function (p) { return plain(p); }) }; };
+  /* ilk çeviriden sonra diğer bölümleri arka planda sırayla hazırla: sonraki tıklamalar anında açılır */
+  var prefetch = function (lang) {
+    var c = R.card, keys = ['n'].concat(arr(c.sections).map(function (_, i) { return String(i); })), id = c.id;
+    var step = function (i) { if (i >= keys.length || !R.card || R.card.id !== id) return; var k = keys[i]; if (LT.mem[lang + '.' + k] || G(ltKey(lang, k), null)) return step(i + 1); translate(lang, k, srcOf(k)).then(function () { step(i + 1); }, function () {}); };
+    sibling(lang).then(function (sib) { if (!sib) step(0); });
   };
   var altFor = function (lang, k) {
     var c = R.card, secs = arr(c.sections), src = k === 'n' ? { summary: String(c.summary || '') } : (function (s) { return { heading: plain(s.heading || ''), summary: String(s.summary || ''), key_points: arr(s.key_points).filter(Boolean).map(function (p) { return plain(p); }) }; })(secs[+k] || {});
@@ -7668,7 +7696,7 @@ var SBX = (function () {
         if (k === 'n' && sib.summary) return { summary: sib.summary, from: 'card' };
         var ss = arr(sib.sections); if (k !== 'n' && ss.length === secs.length && ss[+k]) return { heading: plain(ss[+k].heading || ''), summary: ss[+k].summary || '', key_points: arr(ss[+k].key_points).filter(Boolean).map(function (p) { return plain(p); }), from: 'card' };
       }
-      return translate(lang, k, src).then(function (o) { o.from = 'ai'; return o; });
+      return translate(lang, k, src).then(function (o) { o = Object.assign({}, o, { from: 'ai' }); setTimeout(function () { prefetch(lang); }, 300); return o; });
     });
   };
   var paintSec = function (box, data, orig) {
