@@ -7976,6 +7976,8 @@ var SBX = (function () {
     if (e.target.closest('[data-podstop]')) { if (typeof stopPodcast === 'function') stopPodcast(); return; }
     /* Dokum zaten metin olarak elimizde (podcast_script); sadece depoya gidiyor. */
     if ((b = e.target.closest('[data-podnote]'))) { if (typeof sendPodcastTranscriptToDepot === 'function') sendPodcastTranscriptToDepot(e, b); return; }
+    /* Gonderildikten sonra ayni dugme depoyu acar — dokumun nereye gittigi belli olsun. */
+    if (e.target.closest('[data-depotopen]')) { var dp = document.getElementById('btn-depot-modal'); if (dp) dp.click(); return; }
     if ((b = e.target.closest('[data-podfrom]'))) { playFrom(+b.getAttribute('data-podfrom')); }
   });
   flow.addEventListener('change', function (e) { if (e.target.matches('[data-rate]')) { RATE = +e.target.value || 1; var ps = PS(); if (ps && ps.audioEl) try { ps.audioEl.playbackRate = RATE; } catch (x) {} } });
