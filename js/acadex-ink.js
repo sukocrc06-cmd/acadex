@@ -7,6 +7,32 @@
    Demo veri yok: her şey Supabase'den gelen gerçek kayıtlardan çizilir;
    kayıt yoksa boş durum gösterilir.
    ========================================================================== */
+/* ---------- isimler: her panelde aynı kural ----------
+   1) Unicode NFC: Mac/iPhone'dan yazılan "Ş" bazen "S + ayrı çengel" olarak
+      kaydediliyor; yazı tipi çengeli ayrı çizince isim eksik görünüyor.
+   2) Profil yüklenmeden e-posta önekiyle ("suko.crc06") selamlamıyoruz;
+      profil gelince isim yerine oturuyor.
+   3) Tamamı büyük ya da küçük yazılmışsa Türkçe kurala göre baş harf büyük. */
+window.axNm = function (s) { s = String(s == null ? '' : s); try { s = s.normalize('NFC'); } catch (e) {} return s.replace(/[​-‍﻿]/g, '').replace(/\s+/g, ' ').trim(); };
+window.axCapWord = function (w) { w = window.axNm(w); if (!w) return ''; if (w === w.toLocaleLowerCase('tr') || w === w.toLocaleUpperCase('tr')) w = w.toLocaleLowerCase('tr'); return w.charAt(0).toLocaleUpperCase('tr') + w.slice(1); };
+window.axFirstName = function (p, email) {
+  var n = window.axNm(p && p.full_name);
+  if (n) return window.axCapWord(n.split(' ')[0]);
+  if (!email) return '';
+  var w = String(email).split('@')[0].split(/[._\-+\d]+/).filter(function (x) { return x.length > 1; })[0] || '';
+  return window.axCapWord(w);
+};
+window.axWhenProfile = function (cb) {
+  var t0 = Date.now(), done = false;
+  var get = function () { try { return currentUserProfile; } catch (e) { return window.currentUserProfile || null; } };
+  var tick = function () {
+    if (done) return; var p = get();
+    if (p && p.full_name !== undefined) { done = true; if (p.full_name) p.full_name = window.axNm(p.full_name); cb(p); return; }
+    if (Date.now() - t0 > 15000) { done = true; cb(null); return; }
+    setTimeout(tick, 250);
+  };
+  tick();
+};
 (function () {
   'use strict';
   var $ = function (s, r) { return (r || document).querySelector(s); };
@@ -19,9 +45,9 @@
   var prof = function () { return lsafe(function () { return currentUserProfile; }, null) || window.currentUserProfile || null; };
   var me = function () { return lsafe(function () { return currentUser; }, null) || window.currentUser || null; };
   var trDept = function (d) { return (typeof translateDepartment === 'function' ? translateDepartment(d) : d) || ''; };
-  var initials = function (n) { n = String(n || '').trim(); if (!n) return '?'; var p = n.split(/\s+/); return ((p[0][0] || '') + (p.length > 1 ? p[p.length - 1][0] : (p[0][1] || ''))).toLocaleUpperCase('tr'); };
+  var initials = function (n) { n = window.axNm(n); if (!n) return '?'; var p = n.split(/\s+/); return ((p[0][0] || '') + (p.length > 1 ? p[p.length - 1][0] : (p[0][1] || ''))).toLocaleUpperCase('tr'); };
   var cap = function (w) { return w ? w.charAt(0).toLocaleUpperCase('tr') + w.slice(1) : ''; };
-  var first = function () { var p = prof(); var n = (p && p.full_name) || ((me() && me().email) || '').split('@')[0]; return cap(String(n).split(/\s+/)[0] || ''); };
+  var first = function () { var p = prof(); return p ? window.axFirstName(p, p.full_name ? '' : (me() && me().email)) : ''; };
   var avatar = function (p, cls) {
     var n = (p && p.full_name) || '';
     if (p && p.avatar_url) return '<span class="ax-av ' + (cls || '') + '"><img src="' + esc(p.avatar_url) + '" alt="" loading="lazy" onerror="this.remove()">' + '</span>';
@@ -98,6 +124,7 @@
     var p = prof(); var hello = $('[data-hello]'); if (hello) hello.textContent = 'tekrar hoş geldin' + (first() ? ', ' + first() : '');
     var sub = $('[data-docs-sub]'); if (sub && p && p.department) sub.textContent = trDept(p.department) + ' · slaytlarını, notlarını, müfredat belgelerini yükle; özetleri burada dursun.';
   };
+  window.axWhenProfile(function () { docsHead(); });
   var renderDocs = function () {
     docsHead();
     var sec = $('#docs-list-section'); if (!sec) return;
@@ -241,12 +268,11 @@
   var band = $('.band'); band.setAttribute('data-tod', tod);
   setInterval(function () { var t = todOf(new Date().getHours()); if (band.getAttribute('data-tod') !== t) band.setAttribute('data-tod', t); }, 60000);
   var greet = function () {
-    var p = prof(), n = (p && p.full_name) || ((me() && me().email) || '').split('@')[0] || '';
-    n = String(n).split(/\s+/)[0]; n = n ? n.charAt(0).toLocaleUpperCase('tr') + n.slice(1) : '';
+    var p = prof(), n = p ? window.axFirstName(p, p.full_name ? '' : (me() && me().email)) : '';
     $('[data-greet]').textContent = { sabah: 'günaydın', gun: 'iyi çalışmalar', aksam: 'iyi akşamlar', gece: 'geç saatte de buradasın' }[tod] + (n ? ', ' + n : '');
   };
   try { $('[data-date]').textContent = now.toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' }).toLocaleLowerCase('tr'); } catch (e) {}
-  greet();
+  greet(); window.axWhenProfile(function (p) { greet(); if (!p || !p.full_name) { var m = lsafe(function () { return currentUser; }, null); var n = window.axFirstName(null, m && m.email); if (n) { var g = $('[data-greet]'); g.textContent = g.textContent.replace(/,.*$/, '') + ', ' + n; } } });
 
   /* ---------- kenar çizgileri (el çizimi) ---------- */
   var drawEdge = function (card) {
@@ -3221,7 +3247,7 @@ var SBX = (function () {
   var deptKey = function (d) { d = String(d || '').toLowerCase(); return /information|mis/.test(d) ? 'mis' : /administration|business/.test(d) && !/international/.test(d) ? 'ba' : /international|trade/.test(d) ? 'itb' : /banking|finance/.test(d) ? 'bf' : ''; };
   var PPL = {};
   var person = function (pr, isMe) {
-    pr = pr || {};
+    pr = Object.assign({}, pr || {}); pr.full_name = window.axNm ? window.axNm(pr.full_name) : pr.full_name; pr.bio = window.axNm ? window.axNm(pr.bio) : pr.bio;
     var img = pr.avatar_url && /^https?:/.test(pr.avatar_url) ? pr.avatar_url : '';
     var cover = pr.banner_url && /^https?:/.test(pr.banner_url) ? pr.banner_url : '';
     return { cover: cover, n: pr.full_name || (isMe ? 'Sen' : 'Bir öğrenci'), s: isMe ? 'sen' : (DEPT[pr.department] || pr.department || ''), c: COLORS[hash(pr.id) % COLORS.length], i: ini(pr.full_name), img: img, dept: deptKey(pr.department), id: pr.id, gh: pr.github_url || '', li: pr.linkedin_url || '', web: pr.website_url || '', bio: pr.bio || '' };
@@ -3485,7 +3511,7 @@ var SBX = (function () {
       if (!d || typeof d.embeddable !== 'boolean') return null;
       try { localStorage.setItem(FRK + h, JSON.stringify({ e: d.embeddable, t: Date.now() })); } catch (e) {}
       return d.embeddable;
-    }, function () { return null; });
+    }, function (er) { console.warn('çerçeve kontrolü yapılamadı (acadia-assistant güncel mi?)', er); return null; });
   };
   var tallShot = function (u, phone) { return 'https://s.wordpress.com/mshots/v1/' + encodeURIComponent(u) + (phone ? '?w=390&h=1690&vpw=390&vph=1690' : '?w=1100&h=2600&vpw=1280&vph=3026'); };
   var noFrame = function (u, phone, mine) {
@@ -3885,7 +3911,15 @@ var SBX = (function () {
       var c0 = null; try { c0 = JSON.parse(localStorage.getItem('acadex.sbx.frame.' + ETK.host(url))); } catch (er) {}
       if (c0 && c0.e === false && Date.now() - c0.t < 6 * 3600e3) { showNo(); return; }
       v.innerHTML = '<div class="ek-stage"><iframe class="ek-frame" title="' + X(p.title) + ' canlı" src="' + X(url) + '" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer" loading="eager"></iframe></div>' + ETK.liveBar(url); v.removeAttribute('data-ro'); ETK.watchFrames(post);
-      ETK.frameCheck(url).then(function (ok) { if (ok === false && v.isConnected && v.querySelector('iframe.ek-frame')) showNo(); }); return; }
+      v._showNo = showNo;
+      ETK.frameCheck(url).then(function (ok) {
+        if (!v.isConnected || !v.querySelector('iframe.ek-frame')) return;
+        if (ok === false) { showNo(); return; }
+        if (ok === null) { /* sunucu kontrolü yapılamadı: gri ekran görürse tek dokunuşla önizlemeye geçebilsin */
+          if (!v.querySelector('.ek-frhint')) v.insertAdjacentHTML('beforeend', '<div class="ek-frhint"><span>gri / boş mu görünüyor? site gömülmeye izin vermiyor olabilir</span><button type="button" data-tonofr="">önizlemeye geç</button><button type="button" data-popwin="' + X(url) + '">yan pencerede aç</button></div>');
+        }
+      }); return; }
+    if (e.target.closest('[data-tonofr]')) { var vv = post.querySelector('.ek-live'); try { localStorage.setItem('acadex.sbx.frame.' + ETK.host(ETK.liveUrl(p)), JSON.stringify({ e: false, t: Date.now() })); } catch (er) {} if (vv && vv._showNo) vv._showNo(); return; }
     if ((b = e.target.closest('[data-popwin]'))) { ETK.popWin(b.getAttribute('data-popwin'), !!post.querySelector('[data-devb=phone][aria-pressed=true]')); return; }
     if ((b = e.target.closest('[data-copysnip]'))) { var pre = b.parentNode.querySelector('pre'); try { navigator.clipboard.writeText(pre.textContent); b.textContent = 'kopyalandı'; } catch (er) { b.textContent = 'seçip kopyala'; } return; }
     if ((b = e.target.closest('[data-shield]'))) { var vf = b.parentNode.querySelector('iframe'); b.remove(); if (vf) { vf.removeAttribute('tabindex'); vf.focus(); } return; }
@@ -5541,7 +5575,7 @@ var SBX = (function () {
   var AVC = ['#DCE6FF', '#E4E8F1', '#D9EFE3', '#F4DDDA', '#E7E1F4', '#DAEAF7', '#F6EBD3'];
   var PPL = {}, ROLL = [];
   var person = function (k) { return PPL[k] || { n: 'Bir arkadaşın', s: 'bölüm arkadaşın', c: '#E4E8F1', i: '?', d: [], av: '' }; };
-  var mkPerson = function (p, isMe) { var n = (p && p.full_name) || (isMe ? 'Sen' : 'Bir arkadaşın'); return { n: n, s: isMe ? 'sen' : 'bölüm arkadaşın', c: AVC[hash(p ? p.id : n) % AVC.length], i: initials(n), d: [], av: (p && p.avatar_url) || '' }; };
+  var mkPerson = function (p, isMe) { var n = (p && window.axNm(p.full_name)) || (isMe ? 'Sen' : 'Bir arkadaşın'); return { n: n, s: isMe ? 'sen' : 'bölüm arkadaşın', c: AVC[hash(p ? p.id : n) % AVC.length], i: initials(n), d: [], av: (p && p.avatar_url) || '' }; };
   var first = function (k) { return k === 'me' ? 'sen' : person(k).n.split(' ')[0]; };
   var PINC = { blue: '#2F6BFF', navy: '#0D1838', red: '#C9483B', green: '#1E8A55' };
   var LIKEC = ['#2F6BFF', '#0D1838', '#C9483B', '#1E8A55', '#5B8CFF', '#33478A'];
@@ -8526,7 +8560,7 @@ var SBX = (function () {
   };
   hintEl.addEventListener('click', function (e) { hintEl.hidden = true; if (e.target.closest('.x')) return; open(); send(hintEl.getAttribute('data-t')); });
   var welcome = function () {
-    var u = lsafe(function () { return currentUserProfile; }, null) || {}, nm = String(u.full_name || '').split(' ')[0];
+    var u = lsafe(function () { return currentUserProfile; }, null) || {}, nm = window.axFirstName ? window.axFirstName(u) : String(u.full_name || '').split(' ')[0];
     log.innerHTML = '<div class="axa-hi"><svg viewBox="0 0 64 64" aria-hidden="true"><path class="s" d="M32 6 L37 25 L56 32 L37 39 L32 58 L27 39 L8 32 L27 25 Z"/></svg><h3 class="disp">' + (nm ? 'Merhaba ' + X(nm) + ',' : 'Merhaba,') + '<br>ne yapalım?</h3><p>Belgelerin, özetlerin, planlayıcın ve sınavların üzerinde senin yerine iş yapabilirim. Silme, paylaşma ve kota harcayan işlerden önce sana sorarım.</p>' +
       '<div class="axa-starts">' + startersFor(pageCtx()).map(function (s) { return '<button type="button" data-start="">' + X(s) + '</button>'; }).join('') + '</div></div>';
   };
@@ -8913,6 +8947,14 @@ var SBX = (function () {
     });
     paintNav();
   }
+})();
+/* ---------- sayfa dili: büyük harfe çevrilen Türkçe yazılar (CSS uppercase) "i → İ" kuralını
+   ancak <html lang="tr"> ile doğru uygular; aksi halde "BİLGİ" yerine "BILGI" çıkar ---------- */
+(function () {
+  var setL = function (l) { try { document.documentElement.setAttribute('lang', l === 'en' ? 'en' : 'tr'); } catch (e) {} };
+  var cur = 'tr'; try { cur = localStorage.getItem('acadexUILang') || 'tr'; } catch (e) {}
+  setL(cur);
+  if (typeof window.applyLanguage === 'function') { var o = window.applyLanguage; window.applyLanguage = function (l) { var r = o.apply(this, arguments); var v = l; if (!v) { try { v = localStorage.getItem('acadexUILang'); } catch (e) {} } setL(v || 'tr'); return r; }; try { applyLanguage = window.applyLanguage; } catch (e) {} }
 })();
 /* ================= ÖZETLEME PENCERESİ: dil (TR / EN / ikisi), görseller ================= */
 (function () {

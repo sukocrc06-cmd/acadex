@@ -5455,6 +5455,10 @@ html.js :is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ek-post
 :is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ef-prof-tech i{font-style:normal;padding:2px 8px;border-radius:999px;background:#F1EEE4;color:#0D1838}
 @media (max-width:640px){:is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ef-prof-cover{height:120px}:is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ef-prof-body{flex-wrap:wrap;padding:0 14px 10px}:is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ef-prof-av{width:80px;height:80px;margin-top:-40px}:is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ef-prof-who{flex-basis:100%;padding-top:0}}
 @media (prefers-reduced-motion:reduce){:is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ef-prof,:is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ek-nofr-load{animation:none}}
+:is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ek-frhint{position:absolute;left:12px;right:12px;bottom:12px;z-index:3;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:10px 14px;background:#FFF6E3;border:1.5px solid #0D1838;border-radius:12px;box-shadow:3px 3px 0 #0D1838;font-size:13px;color:#5A3A16;animation:efProfIn .4s 2s both}
+:is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ek-frhint span{flex:1;min-width:180px}
+:is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ek-frhint button{min-height:36px;padding:0 14px;border-radius:999px;border:1.5px solid #0D1838;background:#fff;font-weight:700;color:#0D1838;cursor:pointer}
+:is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ek-frhint button[data-tonofr]{background:#2F6BFF;border-color:#2F6BFF;color:#fff}
 
 /* ===== Acadex sunum ===== */
 :is(#acadexsunum-view.axu,#axu-layer) *{box-sizing:border-box}
