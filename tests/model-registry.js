@@ -21,8 +21,8 @@
         gecmemeli (yorumlarda gecebilir — gocu anlatan yorumlar degerlidir).
      2. reasoning_effort model ailesine uymali: gpt-oss "none"u 400 ile
         reddeder, qwen tam da onu ister.
-     3. max_completion_tokens borcu BUYUMEMELI. Bugun 10 fonksiyon bunu
-        gondermiyor; bu bir mandal (ratchet), onbirincisi testi dusurur.
+     3. max_completion_tokens borcu BUYUMEMELI. Bugun 9 fonksiyon bunu
+        gondermiyor; bu bir mandal (ratchet), onuncusu testi dusurur.
    ========================================================================== */
 
 'use strict';
@@ -71,7 +71,8 @@ const KAPATILDI = {
    uzamamali. Her biri 8.000 TPM'e karsi Groq'un buyuk varsayilan completion
    rezervini birakiyor: istek kucukken bile "Request too large" alabilir. */
 const BUTCESIZ_BORC = [
-  'acadia-assistant',
+  /* acadia-assistant 17.10.2026'da listeden cikti: iki cagri yerinin
+     ikisi de butce gonderiyor (translate 4000, sohbet 2000). */
   'acadia-chat',
   'compare-documents',
   'generate-exam',
@@ -201,8 +202,8 @@ test('max_completion_tokens borcu BUYUMUYOR', () => {
      rezervi ayiriyor — kucuk bir istek bile "Request too large" alabilir.
      summarize-document ve chat-with-document bu dersi pahaliya ogrendi.
 
-     Bu test borcu KAPATMIYOR, donduruyor: listedeki 10 fonksiyon bilinen
-     borc, onbirincisi bu testi dusurur. */
+     Bu test borcu KAPATMIYOR, donduruyor: listedeki 9 fonksiyon bilinen
+     borc, onuncusu bu testi dusurur. */
   const butcesiz = GROQ_FNS
     .filter(f => !/max_completion_tokens/.test(f.kod))
     .map(f => f.ad)

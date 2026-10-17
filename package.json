@@ -1,0 +1,11 @@
+{
+  "name": "acadex",
+  "private": true,
+  "description": "Testler icin yerel gelistirme bagimliliklari. Uygulama vanilla HTML/CSS/JS; bu dosya SADECE tests/ icin var.",
+  "scripts": {
+    "test": "node tests/run-all.js"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}
