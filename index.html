@@ -867,7 +867,7 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 .note-page{--nf:1;transform-origin:50% 0;transform:rotateX(calc((1 - var(--nf)) * 62deg)) scaleY(calc(0.36 + var(--nf) * 0.64));
  background-image:linear-gradient(transparent calc(33.3% - 1px),rgba(13,24,56,calc((1 - var(--nf)) * 0.25 + 0.04)) 33.3%,transparent calc(33.3% + 2px)),linear-gradient(transparent calc(66.6% - 1px),rgba(13,24,56,calc((1 - var(--nf)) * 0.25 + 0.04)) 66.6%,transparent calc(66.6% + 2px)),linear-gradient(#E9EDF4 1px,transparent 1px),linear-gradient(90deg,#E9EDF4 1px,transparent 1px) !important;
  background-size:100% 100%,100% 100%,24px 24px,24px 24px !important}
-.note-page > p,.note-page > .note-eyebrow,.note-page > .note-sign{opacity:clamp(0, var(--nf) * 2.4 - 1.3, 1)}
+.note-page > p,.note-page > .note-eyebrow,.note-page > .note-sign,.note-page > .nt-li,.note-page > .nt-smile,.note-page > .nt-sticky{opacity:clamp(0, var(--nf) * 2.4 - 1.3, 1)}
 .js .note-page .tape{opacity:clamp(0, var(--nf) * 12 - 10.6, 1);animation:none !important}
 .js .note-page .note-sig{transition:none;clip-path:inset(-20% calc((1 - clamp(0, var(--nf) * 6 - 5, 1)) * 100%) -20% -5%)}
 .js .rise:not(.on) .note-sig{clip-path:none}
@@ -878,6 +878,22 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 /* pencil cursor over the paper scenes */
 @media (pointer: fine){.desk,.desk *,.dsk-rig,.dsk-rig *{cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cg transform='rotate(45 16 16)'%3E%3Crect x='13' y='2' width='6' height='20' rx='1' fill='%23FFD966' stroke='%231A2A5C' stroke-width='1.2'/%3E%3Crect x='13' y='2' width='6' height='4' fill='%23F2B8B0' stroke='%231A2A5C' stroke-width='1.2'/%3E%3Cpath d='M13 22 L16 29 L19 22 Z' fill='%23F1D6A8' stroke='%231A2A5C' stroke-width='1.2'/%3E%3Cpath d='M15.2 27 L16 29 L16.8 27 Z' fill='%231A2A5C'/%3E%3C/g%3E%3C/svg%3E") 5 27, auto !important}.sheet-c{cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cg transform='rotate(45 16 16)'%3E%3Crect x='13' y='2' width='6' height='20' rx='1' fill='%23FFD966' stroke='%231A2A5C' stroke-width='1.2'/%3E%3Crect x='13' y='2' width='6' height='4' fill='%23F2B8B0' stroke='%231A2A5C' stroke-width='1.2'/%3E%3Cpath d='M13 22 L16 29 L19 22 Z' fill='%23F1D6A8' stroke='%231A2A5C' stroke-width='1.2'/%3E%3Cpath d='M15.2 27 L16 29 L16.8 27 Z' fill='%231A2A5C'/%3E%3C/g%3E%3C/svg%3E") 5 27, auto !important}}
 @media (prefers-reduced-motion: no-preference){.ftag{transition:transform .35s cubic-bezier(.2,.7,.2,1)}}
+/* ================= TEAM NOTES (two pages) ================= */
+.note-duo{max-width:1220px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:48px;align-items:start}
+.note-duo .note-page{padding:44px 44px 36px 76px}
+.note-duo .note-page p{font-size:17.5px;line-height:1.7}
+.note-duo .note-page:first-child{rotate:-.6deg}
+.note-test{rotate:.8deg;margin-top:28px}
+.nt-li{display:grid;grid-template-columns:28px minmax(0,1fr);gap:14px;align-items:start}
+.nt-li p{margin-bottom:16px}
+.nt-ic{width:26px;height:26px;margin-top:4px;fill:none;stroke:#2F6BFF;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.nt-smile{position:absolute;right:30px;top:26px;width:58px;height:40px;fill:none;stroke:#1A2A5C;stroke-width:2;stroke-linecap:round;transform:rotate(6deg)}
+.nt-heart{width:26px;height:20px;margin-left:6px;vertical-align:middle;fill:none;stroke:#2F6BFF;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.note-test .note-sign{padding-right:170px}
+.nt-sticky{position:absolute;right:26px;bottom:40px;width:150px;padding:10px 12px;box-sizing:border-box;font-size:19px;line-height:1.15;color:#2F6BFF;text-align:center;background:#F3F7FF;border:1.6px dashed #9DB8FF;border-radius:6px;transform:rotate(-7deg);box-shadow:0 10px 18px -14px rgba(13,24,56,0.45)}
+@media (max-width: 960px){.note-duo{grid-template-columns:minmax(0,1fr);max-width:780px;gap:56px}.note-test{margin-top:0}}
+@media (max-width: 760px){.note-duo .note-page{padding:30px 22px 26px 40px}.note-duo .note-page p{font-size:16.5px}.nt-li{grid-template-columns:22px minmax(0,1fr);gap:10px}.nt-ic{width:22px;height:22px}.nt-smile{right:16px;top:18px;width:46px}.note-test .note-sign{padding-right:0}.nt-sticky{position:relative;right:auto;bottom:auto;display:block;margin:18px 0 0 auto;width:170px}}
+
 /* ================= TRY IT: mini flashcard deck ================= */
 .tq{display:none}
 .js-tq .tq{display:block}
@@ -1573,16 +1589,27 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 </div>
 </section>
 
-<!-- ===== COORDINATOR NOTE ===== -->
+<!-- ===== TEAM NOTES: founder + test unit ===== -->
 <section class="note-sec" style="background: #F6F7FB">
-<div class="note-wrap">
+<div class="note-wrap note-duo">
 <figure class="nb-page note-page" data-nf="">
 <svg class="dd-ring" viewBox="0 0 120 120" aria-hidden="true"><path d="M60 10 C90 9 111 32 110 60 C109 90 86 111 58 110 C30 109 9 88 10 60 C11 33 31 12 56 11"></path><path d="M64 16 C92 20 106 44 103 66" class="t"></path></svg><i class="tape tape-l" aria-hidden="true"></i><i class="tape tape-r" aria-hidden="true"></i>
-<div class="mono note-eyebrow eyb">Koordinatörden not</div>
+<div class="mono note-eyebrow eyb">Kurucudan not</div>
 <p>Öğrencilerin sınav haftalarında hep aynı şeyi yaşadığını gördük: yüzlerce sayfa, az zaman ve neyi bilmediğini bilmemek.</p>
 <p>Acadex'i bunun için başlattık. Amacımız ders çalışmayı senin yerine yapmak değil; okuduğunu anlamanı, düzenli tekrar etmeni ve kendini ölçmeni kolaylaştırmak.</p>
 <p>Pilot süresince gelen her geri bildirimi okuyoruz. İşine yaramayan ya da eksik gördüğün bir şey olursa <a href="#soru">bize yaz</a>.</p>
-<div class="note-sign"><span class="nb-hand note-sig">Şükrü Çerçi</span><span class="note-role">Program Koordinatörü, Acadex</span></div>
+<div class="note-sign"><span class="nb-hand note-sig">Şükrü Çerçi</span><span class="note-role">Kurucu &amp; Proje Sahibi, Acadex</span></div>
+</figure>
+<figure class="nb-page note-page note-test" data-nf="">
+<i class="tape tape-l" aria-hidden="true"></i><i class="tape tape-r" aria-hidden="true"></i>
+<svg class="nt-smile" viewBox="0 0 64 44" aria-hidden="true"><circle cx="22" cy="24" r="15"></circle><path d="M16 21 v1.5 M28 21 v1.5"></path><path d="M15 28 C19 33 25 33 29 28"></path><path d="M44 10 L52 4 M46 20 L57 18 M44 30 L53 34"></path></svg>
+<div class="mono note-eyebrow eyb">Test koordinatöründen not</div>
+<div class="nt-li"><svg class="nt-ic" viewBox="0 0 32 32" aria-hidden="true"><rect x="6" y="7" width="20" height="13" rx="2"></rect><path d="M3 24 H29 L27 21 H5 Z"></path></svg><p>Bir özelliğin çalışması kadar, gerçekten işe yaraması da önemli. Acadex'te panellerimizi ve yapay zekâmızı farklı senaryolarda test ediyor, eksikleri fark edip daha iyi bir öğrenme deneyimi için çalışıyoruz.</p></div>
+<div class="nt-li"><svg class="nt-ic" viewBox="0 0 32 32" aria-hidden="true"><circle cx="15" cy="17" r="11"></circle><circle cx="15" cy="17" r="6"></circle><circle cx="15" cy="17" r="1.6"></circle><path d="M15 17 L27 5 M23 5 H27 V9"></path></svg><p>Amacımız yalnızca hataları bulmak değil; öğrencilerin güvenle kullanabileceği, anlaşılır ve tutarlı bir sistem oluşturmak. Her test, her geri bildirim ve her küçük ayrıntı Acadex'i biraz daha ileri taşıyor.</p></div>
+<div class="nt-li"><svg class="nt-ic" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 5 C24 5 29 10 29 15.5 C29 21 24 26 16 26 C14 26 12 25.6 10.5 25 L4 28 L6 22 C4 20 3 18 3 15.5 C3 10 8 5 16 5 Z"></path><path d="M10.5 15.5 h.1 M16 15.5 h.1 M21.5 15.5 h.1"></path></svg><p>Sen de kullanırken bir sorunla karşılaşırsan ya da geliştirebileceğimizi düşündüğün bir şey fark edersen <a href="#soru">bize yaz</a>. Geri bildirimin, Acadex'in gelişmesinde önemli bir parça.</p></div>
+<div class="note-sign"><span class="nb-hand note-sig">Şevval Aksakal<svg class="nt-heart" viewBox="0 0 40 30" aria-hidden="true"><path d="M14 26 C6 20 2 15 4 10 C6 5 12 5 14 10 C16 5 22 5 24 10 C26 15 22 20 14 26 Z"></path><path d="M30 8 L36 4 M31 15 L38 15"></path></svg></span><span class="note-role">Test Birimi Koordinatörü, Acadex</span></div>
+<span class="nt-sticky nb-hand" aria-hidden="true">Daha iyi bir Acadex, daha iyi bir öğrenme yolculuğu mümkün! ♡</span>
+<svg class="dd-ring" viewBox="0 0 120 120" aria-hidden="true"><path d="M60 10 C90 9 111 32 110 60 C109 90 86 111 58 110 C30 109 9 88 10 60 C11 33 31 12 56 11"></path><path d="M64 16 C92 20 106 44 103 66" class="t"></path></svg>
 </figure>
 </div>
 </section>
@@ -1614,7 +1641,7 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 </div>
 <footer style="border-top: 1px solid #1F2D5C">
 <div style="max-width: 1240px; margin: 0 auto; padding: 28px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 20px; font-size: 14px; color: #8FA2CC">
-<div class="fsig"><span>© 2026 Acadex · Pilot program · Koordinatör: Şükrü Çerçi</span>
+<div class="fsig"><span>© 2026 Acadex · Pilot program · Kurucu &amp; Proje Sahibi: Şükrü Çerçi · Test Birimi Koordinatörü: Şevval Aksakal</span>
 <p>Bu sayfayı Acadex pilot ekibi hazırladı. Bir hata görürsen <a href="#soru">bize yaz</a>. <span class="nb-hand">— Acadex ekibi</span></p></div>
 <nav class="fnav" aria-label="Alt menü" style="display: flex; flex-wrap: wrap; gap: 4px 8px">
 <a href="legal.html#privacy" style="color: #B4C0DA; text-decoration: none">KVKK</a>
@@ -1853,7 +1880,7 @@ transform:translateY(calc(var(--hp,0) * 90px))}
       var mf = root.querySelector('[data-mf]');
       var qs = root.querySelector('[data-qs]');
       var gz = root.querySelector('[data-gz]');
-      var nfEl = root.querySelector('[data-nf]');
+      var nfEls = Array.prototype.slice.call(root.querySelectorAll('[data-nf]')), nfEl = nfEls[0];
       var flEl = root.querySelector('[data-fl] .fl-board');
       var akisEl = root.querySelector('#akis');
       var flSec = root.querySelector('[data-fl]'), flDoc = root.querySelector('[data-fl-doc]'), flRes = root.querySelector('[data-fl-res]'), flLoop = root.querySelector('#flLoop');
@@ -1971,7 +1998,7 @@ transform:translateY(calc(var(--hp,0) * 90px))}
         if (mfs && mf) { var a = mfs.getBoundingClientRect(), b = mf.getBoundingClientRect(); m.mfsTop = a.top; m.mfsH = a.height; m.mfTop = b.top; m.mfH = b.height; }
         if (qs) m.qTop = qs.getBoundingClientRect().top;
         if (gz) m.gzTop = gz.getBoundingClientRect().top;
-        if (nfEl) m.nfTop = nfEl.parentNode.getBoundingClientRect().top;
+        if (nfEl) m.nfTops = nfEls.map(function (el) { return el.getBoundingClientRect().top; });
         if (flEl) m.flTop = flEl.getBoundingClientRect().top;
         if (flOn) { m.flSTop = flSec.getBoundingClientRect().top; m.flSH = flSec.offsetHeight; }
         if (pkEl) m.pkTop = pkEl.getBoundingClientRect().top;
@@ -2102,7 +2129,7 @@ transform:translateY(calc(var(--hp,0) * 90px))}
           var fst = String(jp < 0.15 ? 1 : jp < 0.35 ? 2 : jp < 0.55 ? 3 : jp < 0.75 ? 4 : 5);
           if (fst !== flStep) { flSec.setAttribute('data-fl-step', fst); flStep = fst; flLis.forEach(function (li, i) { li.classList.toggle('drawn', i < +fst); }); }
         } else if (flEl) flEl.style.setProperty('--fp', clamp((vh * 0.92 - m.flTop) / (vh * 0.75)).toFixed(3));
-        if (nfEl) nfEl.style.setProperty('--nf', clamp((vh * 0.8 - m.nfTop) / (vh * 0.55)).toFixed(3));
+        if (nfEl) nfEls.forEach(function (el, i) { var lag = i && Math.abs(m.nfTops[i] - m.nfTops[0]) < 80 ? vh * 0.1 : 0; el.style.setProperty('--nf', clamp((vh * 0.8 - m.nfTops[i] - lag) / (vh * 0.55)).toFixed(3)); });
         if (gz) gz.style.setProperty('--gp', clamp((vh * 0.92 - m.gzTop) / (vh * 0.5)).toFixed(3));
         if (qs) qs.style.setProperty('--qp', clamp((vh - m.qTop) / (vh * 0.95)).toFixed(3));
         if (pgBar) pgBar.parentNode.style.setProperty('--pg', clamp(m.y / m.max).toFixed(4));
