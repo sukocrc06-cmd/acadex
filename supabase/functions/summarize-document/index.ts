@@ -6450,6 +6450,95 @@ serve(async (req) => {
     }
 
     // ==========================================================================
+    // KOTA + OZET CACHE'I (19.10.2026) — bkz. 20261019_ozet_cache_ve_kota.sql
+    //
+    // Burada, yani metin cikarildiktan ve document_chunks yazildiktan SONRA,
+    // ilk model cagrisindan ONCE duruyor: cache'ten gelen belgede de
+    // chat-with-document calismaya devam eder, ama hicbir LLM token'i harcanmaz.
+    //
+    // Sira bilincli: once cache, sonra kota. Cache isabeti maliyetsiz oldugu
+    // icin sayfa kotasindan dusulmez ve kotasi dolmus kullanici da ayni
+    // dosyanin hazir ozetini alabilir.
+    //
+    // Migration uygulanmamissa her iki adim da uyari yazip atlanir.
+    // ==========================================================================
+    const billablePages = pdfPageTexts.length > 0
+      ? pdfPageTexts.length
+      : Math.max(1, Math.ceil(extractedText.length / 3000))
+    let summaryCacheKey: string | null = null
+    try {
+      const contentHash = await sha256Hex(fileBytes)
+      summaryCacheKey = [contentHash, lang, style, len, analyzeVisuals ? 'v' : 'nv', SUMMARY_CACHE_VERSION].join(':')
+      const { data: cached, error: cacheErr } = await serviceClient
+        .from('summary_cache')
+        .select('card')
+        .eq('cache_key', summaryCacheKey)
+        .maybeSingle()
+      if (cacheErr) {
+        console.warn(`summary_cache okunamadi (${cacheErr.message}) — cache atlandi`)
+      } else if (cached?.card) {
+        const cachedPayload: Record<string, unknown> = {
+          ...cached.card,
+          document_id: documentId,
+          user_id: document.user_id,
+          course_tag: document.course_tag ?? null
+        }
+        let hit = await serviceClient.from('study_cards').insert(cachedPayload).select('id').single()
+        if (hit.error && /quality_meta/i.test(String(hit.error.message || hit.error.details || ''))) {
+          delete cachedPayload.quality_meta
+          hit = await serviceClient.from('study_cards').insert(cachedPayload).select('id').single()
+        }
+        if (hit.error) {
+          console.warn(`Cache isabeti kaydedilemedi (${hit.error.message}) — normal akisa devam`)
+        } else {
+          await serviceClient
+            .from('documents')
+            .update({ status: 'summarized', processing_stage: null })
+            .eq('id', documentId)
+          await bestEffortRpc(serviceClient, 'touch_summary_cache', { p_key: summaryCacheKey })
+          await bestEffortRpc(serviceClient, 'record_summary_usage', { p_user: document.user_id, p_pages: 0, p_cache_hit: true })
+          console.log(`CACHE ISABETI: ${summaryCacheKey.slice(0, 16)}… — ${Date.now() - requestStartedAt}ms, model cagrisi yok`)
+          return new Response(JSON.stringify({ success: true, studyCardId: hit.data.id, cached: true }), {
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          })
+        }
+      }
+    } catch (cacheEx) {
+      console.warn('summary_cache: beklenmeyen hata, atlandi:', cacheEx)
+    }
+
+    {
+      const { data: quota, error: quotaErr } = await serviceClient
+        .rpc('get_summary_quota', { p_user: document.user_id })
+      if (quotaErr || !quota) {
+        console.warn(`Kota okunamadi (${quotaErr?.message ?? 'bos'}) — kota kontrolu atlandi`)
+      } else {
+        const isTr = lang === 'tr'
+        let quotaError: string | null = null
+        if (billablePages > quota.max_pages_per_doc) {
+          quotaError = isTr
+            ? `Bu belge ${billablePages} sayfa. ${quota.plan === 'premium' ? 'Premium' : 'Lite'} planında belge başına en fazla ${quota.max_pages_per_doc} sayfa özetlenebilir.`
+            : `This document has ${billablePages} pages. The ${quota.plan} plan allows up to ${quota.max_pages_per_doc} pages per document.`
+        } else if (quota.pages_used + billablePages > quota.monthly_pages) {
+          const kalan = Math.max(0, quota.monthly_pages - quota.pages_used)
+          quotaError = isTr
+            ? `Aylık sayfa kotan doldu (${quota.pages_used}/${quota.monthly_pages}, kalan ${kalan}). Bu belge ${billablePages} sayfa.`
+            : `Monthly page quota reached (${quota.pages_used}/${quota.monthly_pages}, ${kalan} left). This document has ${billablePages} pages.`
+        }
+        if (quotaError) {
+          console.warn(`Erken cikis 403 (kota): plan=${quota.plan}, sayfa=${billablePages}, kullanilan=${quota.pages_used}/${quota.monthly_pages}`)
+          await markFailed(serviceClient, documentId)
+          return new Response(JSON.stringify({ error: quotaError, code: 'QUOTA_EXCEEDED' }), {
+            status: 403,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          })
+        }
+        console.log(`Kota: plan=${quota.plan}, bu belge ${billablePages} sayfa, ay icinde ${quota.pages_used}/${quota.monthly_pages}`)
+      }
+    }
+
+    // ==========================================================================
     // VISUAL-DENSITY SIGNAL (Denetim Raporu, 2026-08-31)
     // CHUNK_THRESHOLD below only ever measures character COUNT. That is the
     // right signal for deciding whether the text needs the chunked/map-reduce
@@ -9290,6 +9379,24 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
       .update({ status: 'summarized', processing_stage: null })
       .eq('id', documentId)
 
+    // Kota: yalnizca BASARILI ozet kullanimdan duser.
+    await bestEffortRpc(serviceClient, 'record_summary_usage', { p_user: document.user_id, p_pages: billablePages, p_cache_hit: false })
+
+    // Cache: yarim kalan (eksik pencereli) bir ozet baska ogrencilere
+    // dagitilmamali — o belge bir sonraki yuklemede tam kosuyla denenir.
+    if (summaryCacheKey && !eksikPencereler) {
+      const { document_id: _d, user_id: _u, course_tag: _c, ...shareable } = cardPayload
+      const { error: cacheWriteErr } = await serviceClient
+        .from('summary_cache')
+        .upsert({
+          cache_key: summaryCacheKey,
+          content_hash: summaryCacheKey.split(':')[0],
+          page_count: billablePages,
+          card: shareable
+        }, { onConflict: 'cache_key', ignoreDuplicates: true })
+      if (cacheWriteErr) console.warn(`summary_cache yazilamadi: ${cacheWriteErr.message}`)
+    }
+
     return new Response(JSON.stringify({ success: true, studyCardId: newCard.id }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -9303,6 +9410,26 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
     })
   }
 })
+
+/* Ozet cache surumu. Prompt, model ya da kart semasi ozeti GORUNUR sekilde
+ * degistirdiginde arttir: eski cache kayitlari anahtar uyusmadigi icin
+ * kendiliginden devre disi kalir (silmeye gerek yok). */
+const SUMMARY_CACHE_VERSION = 'c1'
+
+async function sha256Hex(bytes: Uint8Array): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', bytes as BufferSource)
+  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+/** Kota/cache RPC'leri ozet akisini asla dusurmemeli. */
+async function bestEffortRpc(client: any, fn: string, args: Record<string, unknown>) {
+  try {
+    const { error } = await client.rpc(fn, args)
+    if (error) console.warn(`${fn} basarisiz: ${error.message}`)
+  } catch (e) {
+    console.warn(`${fn} istisna:`, e)
+  }
+}
 
 async function markFailed(client: any, documentId: string) {
   try {
