@@ -2839,6 +2839,27 @@ async function populateStudyCardModalDetails(card, docName, readOnly) {
     } else if (passed && grounded) {
       badge += `<span style="display:inline-flex;align-items:center;gap:0.25rem;font-size:0.7rem;font-weight:800;color:#166534;background:rgba(22,163,74,0.12);padding:0.2rem 0.55rem;border-radius:999px;">✓ Kalite kapısı</span>`;
     }
+    /* EKSIK KAPSAMA UYARISI (17.10.2026).
+     *
+     * Edge function iki alani zaten yaziyordu ama arayuzde hicbir sey
+     * okumuyordu: quality_meta.missing_windows (belgenin bir bolumu hic
+     * karta girmedi) ve quality_meta.skipped_stages (butce yetmedigi icin
+     * atlanan asamalar). Yani %23 kapsamali bir kart, tam bir kartla
+     * BIREBIR AYNI gorunuyordu — ogrenci eksigi fark edemiyor, biz de
+     * geri bildirim alamiyoruz.
+     *
+     * Rozet sessizce guven vermek yerine ne kaybedildigini soyluyor. */
+    const mw = qm.missing_windows;
+    if (mw && mw.dusen > 0) {
+      const yuzde = mw.toplam > 0 ? Math.round((mw.dusen / mw.toplam) * 100) : 0;
+      const krk = mw.kayipKrk ? ` (~${mw.kayipKrk.toLocaleString('tr-TR')} karakter)` : '';
+      badge += `<span title="Belgenin ${yuzde}%'i özete hiç girmedi${krk}. Yeniden özetlemeyi deneyebilirsin." style="display:inline-flex;align-items:center;gap:0.25rem;font-size:0.7rem;font-weight:800;color:#b45309;background:rgba(245,158,11,0.15);padding:0.2rem 0.55rem;border-radius:999px;margin-right:0.35rem;">⚠️ Kısmi özet — belgenin ${yuzde}%'i işlenemedi</span>`;
+    }
+    const ss = Array.isArray(qm.skipped_stages) ? qm.skipped_stages : [];
+    if (ss.length > 0) {
+      badge += `<span title="Süre yetmediği için atlanan aşamalar: ${escapeHtml(ss.join(', '))}" style="display:inline-flex;align-items:center;gap:0.25rem;font-size:0.7rem;font-weight:800;color:#64748b;background:rgba(100,116,139,0.12);padding:0.2rem 0.55rem;border-radius:999px;margin-right:0.35rem;">⏱️ ${ss.length} aşama atlandı</span>`;
+    }
+
     const badgeRow = badge ? `<div style="margin-bottom:0.65rem;display:flex;flex-wrap:wrap;gap:0.25rem;">${badge}</div>` : '';
     summaryText.innerHTML = badgeRow + (formatSummaryText(card.summary, card.footnotes) || "No summary generated for this document.");
   }
