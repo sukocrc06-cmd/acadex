@@ -59,6 +59,11 @@ function isDailyQuotaError(body: string): boolean {
 }
 
 async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2, timeoutMs = 25000): Promise<Response> {
+  // GEMINI_MODE=parallel: Groq'a giden HER cagri (callGroqJson, gorsel
+  // gecisler, review) burada Gemini'ye cevrilir — bkz. groqViaGemini.
+  if (url === GROQ_CHAT_URL && geminiParallelActive()) {
+    return groqViaGemini(options, maxRetries, timeoutMs)
+  }
   let lastRateLimitedResponse: Response | null = null
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const controller = new AbortController()
@@ -1610,6 +1615,8 @@ const tokenPacer = {
 
   /** Clamp a requested completion budget to what this model can actually emit. */
   clampCompletion(model: string, requested: number): number {
+    // Gemini paralel modunda OTPM tavani Groq'a ait, Gemini'yi baglamaz.
+    if (geminiParallelActive()) return requested
     const cap = this.maxCompletion(model)
     if (cap === null || !(requested > cap)) return requested
     console.log(`TokenPacer[${model}]: max_completion ${requested} -> ${cap} (OTPM tavani)`)
@@ -1671,6 +1678,7 @@ const tokenPacer = {
    * full window, but now that lanes are per model the pacer can simply say.
    */
   waitEstimate(estTokens: number, model: string, estCompletion = 0): number {
+    if (geminiParallelActive()) return 0
     return Math.max(
       this.waitFor(this.lane(model).spent, this.lane(model).limit * PACER_SAFETY, estTokens, model, false),
       this.waitFor(this.lane(model).outSpent, this.maxCompletion(model) ?? Infinity, estCompletion, model, true)
@@ -1701,6 +1709,9 @@ const tokenPacer = {
 
   /** Block until this call's estimated cost fits in that model's rolling budget. */
   async acquire(estTokens: number, model: string, estCompletion = 0): Promise<void> {
+    // Gemini paralel modunda cagrilar Groq'a gitmiyor (bkz. groqViaGemini);
+    // 8.000 TPM defterine gore beklemek, paralelligin tamamini geri alirdi.
+    if (geminiParallelActive()) return
     const lane = this.lane(model)
     const budget = lane.limit * PACER_SAFETY
     const outBudget = this.maxCompletion(model)

@@ -208,7 +208,7 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 .js .hl-scroll{transition:background-size var(--d-slow) var(--ease-io)}
 .js .mark-in{transform:scale(.92);transition:opacity var(--d-slow) var(--ease),transform var(--d-slow) var(--ease)}
 /* story: crossfade + modest 3D, no blur */
-.js-story .story{height:440vh}
+.js-story .story{height:340vh}
 
 
 .js-story .steps > .step{opacity:.58;transition:opacity var(--d) var(--ease),background var(--d) var(--ease),box-shadow var(--d) var(--ease)}
@@ -336,7 +336,7 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 .lt-n2{opacity:clamp(0, var(--b, 1) * 5 - 2.9, 1);color:#B4511F}
 .lt-acadex{margin:0;font-size:15px;color:#33405F}
 /* desktop + motion: sticky, crossfading pages */
-.js-mt .mt{height:640vh}
+.js-mt .mt{height:460vh}
 .js-mt .mt-sticky{position:sticky;top:0;height:100vh;display:flex;align-items:center;overflow:hidden}
 .js-mt .mt-wrap{padding:48px 28px}
 .js-mt .mt-stage{display:grid}
@@ -789,7 +789,7 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 /* flow: the course file travels; the current box is marked with a highlighter */
 .fl-i{border-radius:4px;transition:background .45s var(--ease)}
 .fl-doc,.fl-res{display:none}
-.js-fl .fl{height:380vh}
+.js-fl .fl{height:300vh}
 .js-fl .fl-wrap{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;justify-content:center;padding-top:24px;padding-bottom:24px}
 .js-fl .fl-head{margin-bottom:22px}
 .js-fl .fl-board{max-width:1000px;width:min(100%,calc((100vh - 260px) * 1.923))}
@@ -966,7 +966,7 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 /* ================= MOBILE MOTION (≤860px) ================= */
 @media (max-width: 860px){
 /* "Nasıl çalışır": the desk stays pinned, papers land as you scroll */
-.js-story-m .story{height:400vh}
+.js-story-m .story{height:320vh}
 .js-story-m .story-sticky{position:sticky;top:0;height:100vh;height:100svh;display:flex;flex-direction:column;justify-content:center;box-sizing:border-box;padding-top:58px !important;padding-bottom:10px !important;overflow:hidden}
 .js-story-m .story-grid{gap:18px;width:100%}
 .js-story-m .story-grid > div:first-child{gap:20px !important}
@@ -1055,6 +1055,19 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 .js-tw .tw-h .ink-u{transition:background-size .8s var(--ease-io) calc(var(--tn, 4) * 60ms + .25s)}
 .js-tw .tw-h:not(.tw-on) .ink-u{background-size:0% .32em !important}
 .acx-lite .tw{filter:none !important}
+
+/* back to top: a small pencil that shows up near the end */
+.totop{position:fixed;right:20px;bottom:20px;z-index:55;width:52px;height:52px;border-radius:50%;border:1.6px solid #1A2A5C;background:#FFFFFF;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;
+ box-shadow:0 14px 26px -16px rgba(13,24,56,0.6);opacity:0;visibility:hidden;transform:translateY(14px) rotate(-8deg);transition:opacity .35s var(--ease),transform .45s cubic-bezier(.3,1.4,.5,1),visibility 0s linear .45s,box-shadow .25s}
+.totop.show{opacity:1;visibility:visible;transform:none;transition:opacity .35s var(--ease),transform .45s cubic-bezier(.3,1.4,.5,1),visibility 0s,box-shadow .25s}
+.totop svg{width:16px;height:27px;transition:transform .3s var(--ease)}
+.tt-tip{fill:#F1D6A8}.tt-nib{fill:#1A2A5C}.tt-body{fill:#FFD966}.tt-cap{fill:#F2B8B0}
+.totop span{position:absolute;right:62px;top:50%;margin-top:-13px;white-space:nowrap;font-size:22px;line-height:26px;color:#1A2A5C;background:#FFFFFF;padding:0 10px 2px;border-radius:999px;box-shadow:0 8px 18px -12px rgba(13,24,56,0.6);opacity:0;transform:translateX(6px);transition:opacity .25s var(--ease),transform .3s var(--ease);pointer-events:none}
+.totop:hover svg{transform:translateY(-3px)}
+.totop:hover span,.totop:focus-visible span{opacity:1;transform:none}
+@media (max-width: 760px){.totop{right:14px;bottom:14px;width:48px;height:48px}.totop span{display:none}}
+#kayit > footer > div{padding-right:92px !important}
+@media (max-width: 760px){#kayit > footer > div{padding-right:28px !important;padding-bottom:84px !important}}
 
 /* reduced motion: keep everything, drop the movement */
 @media (prefers-reduced-motion: reduce){
@@ -1716,6 +1729,7 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 </footer>
 </section>
 
+<button type="button" class="totop" data-totop="" aria-label="Sayfanın başına dön" tabindex="-1"><svg viewBox="0 0 24 40" aria-hidden="true"><path class="tt-tip" d="M12 2 L17 11 H7 Z"></path><rect class="tt-nib" x="7" y="10" width="10" height="5"></rect><rect class="tt-body" x="7" y="14" width="10" height="17" rx="1"></rect><rect class="tt-cap" x="7" y="30" width="10" height="7" rx="2"></rect></svg><span class="nb-hand" aria-hidden="true">başa dön</span></button>
 </div>
 <script>
 (function(){
@@ -1789,6 +1803,27 @@ transform:translateY(calc(var(--hp,0) * 90px))}
         on(form, 'input', onFormInput);
         on(form, 'change', onFormInput);
         onFormInput();
+      }
+
+      /* ---------- Back to top: appears for the last part of the page ---------- */
+      var glideTo = null; /* set by the smooth-scroll block when it runs */
+      var toTop = root.querySelector('[data-totop]');
+      if (toTop) {
+        var ttShown = false, ttTick = false;
+        var ttCheck = function () {
+          ttTick = false;
+          var d = document.documentElement, max = d.scrollHeight - window.innerHeight;
+          var want = max > 0 && window.scrollY > max * 0.62;
+          if (want !== ttShown) { ttShown = want; toTop.classList.toggle('show', want); toTop.tabIndex = want ? 0 : -1; }
+        };
+        on(window, 'scroll', function () { if (!ttTick) { ttTick = true; window.requestAnimationFrame(ttCheck); } }, { passive: true });
+        on(toTop, 'click', function () {
+          if (glideTo) glideTo(0);
+          else window.scrollTo({ top: 0, behavior: mq('(prefers-reduced-motion: reduce)') ? 'auto' : 'smooth' });
+          var logo = root.querySelector('[data-hero] header a');
+          if (logo) { try { logo.focus({ preventScroll: true }); } catch (er) {} }
+        });
+        ttCheck();
       }
 
       /* ---------- Try-it deck: always on; a card you miss goes to the back once ---------- */
@@ -2345,7 +2380,8 @@ transform:translateY(calc(var(--hp,0) * 90px))}
           sGo(t.getBoundingClientRect().top + window.scrollY - mt);
           if (history.replaceState) history.replaceState(null, '', '#' + id);
         });
-        offs.push(function () { if (frames[9]) window.cancelAnimationFrame(frames[9]); });
+        glideTo = sGo;
+        offs.push(function () { glideTo = null; if (frames[9]) window.cancelAnimationFrame(frames[9]); });
       }
 
       update();
