@@ -5336,10 +5336,6 @@ function geminiMode(): 'only' | 'shadow' {
  * yasayabiliyor, geriye 40 saniyelik nominal butce kaliyor ve review'un
  * 33 saniyelik kapisi rahat geciyor. En kotu halde gercek duvar saati
  * ~105 + 3 = 108 saniye, yani sert sinira 40 saniye pay var. */
-<<<<<<< HEAD
-const GEMINI_ONLY_BUDGET_MS = 145_000
-const GEMINI_ONLY_MAX_CALL_MS = 105_000
-=======
 /* only modunda Groq'a DONUS ESIGI (10.10.2026 16:05).
  *
  * only modu bir KARSILASTIRMA modu olarak tasarlanmisti: kart ya
@@ -5368,7 +5364,6 @@ const GEMINI_ONLY_MAX_CALL_MS = 105_000
  * yakamiyor, yani geriye en az 40 saniye kaliyor ve bu esik pratikte her
  * zaman gecilir. */
 const GEMINI_ONLY_FALLBACK_MIN_MS = 32_000
->>>>>>> 9b539048df0fb6b38577d80399add0d7c7c46e3c
 
 /* Bir yuklemenin harcayabilecegi en fazla Gemini istegi (17.10.2026).
    Gunluk kota 20; tek bir PDF'in hepsini yakmasi kabul edilemez.
