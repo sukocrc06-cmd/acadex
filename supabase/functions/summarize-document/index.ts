@@ -5370,6 +5370,31 @@ const GEMINI_ONLY_MAX_CALL_MS = 105_000
 const GEMINI_ONLY_FALLBACK_MIN_MS = 32_000
 >>>>>>> 9b539048df0fb6b38577d80399add0d7c7c46e3c
 
+/* Bir yuklemenin harcayabilecegi en fazla Gemini istegi (17.10.2026).
+   Gunluk kota 20; tek bir PDF'in hepsini yakmasi kabul edilemez.
+   Dis dongu 4 aday model x ic dongu 5 deneme = kagit uzerinde 20, yani
+   gunun tamami. Tavan bunu kesiyor ama mesru akislari kesmiyor: dort aday
+   modelin her birini bir kez denemek (4) ya da taninmayan alanlari
+   dusurerek istegi duzeltmek (GEMINI_DUSURULEBILIR dort kalem) hala
+   sigiyor. Alti istek, en kotu halde gunluk kotanin ucte biri. */
+const GEMINI_MAX_REQUESTS_PER_RUN = 6
+
+/* Dakikalik limite (RPM 5) carpinca beklenecek sure. Pencere 60 saniye;
+   20 saniye onu garanti ETMEZ ama 2,5 saniyelik eski payla ayni dakikaya
+   tekrar girmek kesin basarisizlikti. Yalnizca butcede gercek bos yer
+   varsa kullanilir (bkz. cagri noktasi). Testler ve operasyon icin
+   GEMINI_RPM_WAIT_MS secret'iyla ezilebilir — surenin kendisi bir tahmin,
+   olcum geldikce degisecek. */
+function geminiRpmWaitMs(): number {
+  const ham = Number(Deno.env.get('GEMINI_RPM_WAIT_MS') || '')
+  return Number.isFinite(ham) && ham >= 0 ? ham : 20_000
+}
+
+/* Dakikalik 429'u bekleyip tekrar denemek, ancak bir Gemini cagrisina
+   (olculen 67-111 sn) hala yer kaliyorsa mantikli. Altinda beklemek kalan
+   zamani yakip hicbir sey uretmemek demek. */
+const GEMINI_RPM_RETRY_MIN_REMAINING_MS = 90_000
+
 const GEMINI_ONLY_BUDGET_MS = 145_000
 const GEMINI_ONLY_MAX_CALL_MS = 105_000
 
@@ -5463,9 +5488,23 @@ const GEMINI_DUSURULEBILIR = ['response_format', 'generation_config', 'thinking_
  * ikinci kosuda ilk deneme 503 aldi, ikincisi tuttu ve kart Gemini'den
  * geldi.
  */
+/* 17.10.2026 DUZELTMESI — dakikalik limit GUNLUK kota sanilıyordu.
+ *
+ * Eski hali her 429'u olumcul sayiyordu: govdede "quota" ya da "rate limit"
+ * gecmesi yetiyordu. Ama RPM 5 limitine carpan 429 de tam bu sozlerle
+ * geliyor (bkz. :5841 civarindaki GEMINI_RETRY_WAIT_MS yorumu, ayni seyi
+ * zaten soyluyor) ve o hata GECICI: birkac saniye beklenince gecer.
+ *
+ * Sonuc: dakikalik bir sinirlama yuzunden Gemini yolu tamamen terk ediliyor,
+ * ustelik bu kontrol :5933'teki 503/500/429 gecici-hata dalindan ONCE
+ * oldugu icin o dal 429 icin hic calismiyordu — yani tekrar deneme sansi
+ * olan tek hata sinifi sessizce oluyordu.
+ *
+ * Artik yalnizca GUNLUK bir metrik adi gecerse olumcul sayiliyor. Groq
+ * tarafindaki isDailyQuotaError (:56) ayni ayrimi zaten yapiyor. */
 function geminiQuotaExhausted(status: number, body: string): boolean {
   if (status !== 429) return false
-  return /exceeded a quota|quota exceeded|rate limit|resource[_ ]exhausted|too_many_requests/i.test(body)
+  return /per[ _-]?day|\bRPD\b|\bTPD\b|requests per day|PerDay|daily limit|gunluk/i.test(body)
 }
 
 function geminiUnknownParameter(status: number, body: string): string | null {
@@ -5637,6 +5676,14 @@ function geminiProblem(data: any): string | null {
   const status = String(data.status || '')
   if (status === 'failed' || status === 'cancelled') return `status=${status}`
   if (status === 'incomplete') return 'status=incomplete (cikti tavana carpti, JSON yarim)'
+  /* Interactions API'nin terminal OLMAYAN durumlari (in_progress, queued,
+     requires_action). Bugun stream:false + background yokken donmemeleri
+     gerekir; ama donduklerinde eski kod bunlari "sorun yok" sayip bos
+     metin goruyor ve "cevapta metin yok" deyip SONRAKI MODELI yakiyordu —
+     gunluk kotadan bos yere bir istek daha. Adiyla anilsin. */
+  if (status === 'in_progress' || status === 'queued' || status === 'requires_action') {
+    return `status=${status} (terminal degil — yanit henuz hazir degil)`
+  }
   if (Array.isArray(data.errors) && data.errors.length > 0) {
     return `errors=${JSON.stringify(data.errors).slice(0, 300)}`
   }
@@ -5817,6 +5864,7 @@ async function geminiDraft(
    * o modda Groq zaten cagrilmiyor. Orada tek kisit isteginn kendi butcesi,
    * yani tekrar denemeye yer kaldigi surece deniyoruz. */
   const basladi = Date.now()
+  let toplamIstek = 0
   const GEMINI_FAIL_BUDGET_MS = mode === 'only'
     ? Math.max(0, budgetMs - GEMINI_RESERVE_MS - 20_000)
     : 25_000
@@ -5874,6 +5922,20 @@ async function geminiDraft(
         return null
       }
 
+      /* GUNLUK KOTA KORUMASI (17.10.2026).
+       * Dis dongu 4 aday model, ic dongu 5 deneme: ust sinir 20 istek, yani
+       * TAM GUNLUK KOTA (RPD 20). Gercekte bu kadarina ulasmak icin hatalarin
+       * hizli donmesi gerekir, ama o durum tam olarak kotanin en hizli
+       * yandigi durum. Bir yuklemenin gunun tamamini yakmasina izin yok. */
+      if (toplamIstek >= GEMINI_MAX_REQUESTS_PER_RUN) {
+        console.warn(
+          `Gemini: bu yuklemede ${toplamIstek} istek harcandi (tavan ` +
+          `${GEMINI_MAX_REQUESTS_PER_RUN}) — gunluk kotayi korumak icin duruluyor`
+        )
+        return null
+      }
+      toplamIstek++
+
       const startedAt = Date.now()
       const res = await callGeminiOnce(
         apiKey, model, systemInstruction, fileBase64, fileMime, userText, buCagriMs, dropped
@@ -5888,7 +5950,23 @@ async function geminiDraft(
              ayni sonuc — tek kazanci gunluk 20 istekten birini daha
              yakmak, ustelik her deneme ~88 saniye suruyor. Kosuyu burada
              bitirmek, uc kez ayni duvara carpmaktan iyidir. */
-          if (/incomplete/.test(problem)) return null
+          if (/incomplete/.test(problem)) {
+            /* 17.10.2026: once OLC, sonra kurtarmaya karar ver. Kesilen
+               govdede ne kadar metin oldugunu bilmiyoruz; "neredeyse tam
+               JSON" varsayimi bu repoda daha once olcumsuz yapilip geri
+               alinmisti. Log once gelsin. */
+            const kismi = extractGeminiText(res.data)
+            console.warn(
+              `Gemini ${model}: yarim cikti — kurtarilabilir metin ` +
+              `${kismi.length} karakter (esik yok, simdilik sadece olculuyor)`
+            )
+            return null
+          }
+          /* Terminal olmayan durum (in_progress/queued/requires_action):
+             baska aday model denemek anlamsiz, cunku sorun modelde degil —
+             yanit henuz hazir degil. Sonraki adayi denemek gunluk kotadan
+             bos yere bir istek goturur. */
+          if (/terminal degil/.test(problem)) return null
           break   // ayni modeli tekrar denemek ayni sonucu verir
         }
         const text = extractGeminiText(res.data)
@@ -5926,16 +6004,52 @@ async function geminiDraft(
         dropped.push('response_format')
         continue
       }
-      // Proje kotasi: baska model de, tekrar deneme de ayni duvara carpar ve
+      // GUNLUK kota: baska model de, tekrar deneme de ayni duvara carpar ve
       // her deneme gunluk kotadan bir istek daha goturur. Hemen cikilir.
       if (geminiQuotaExhausted(res.status, res.body)) {
         console.warn(
-          `Gemini ${model}: PROJE KOTASI dolu (429) — baska aday denenmeyecek, ` +
+          `Gemini ${model}: GUNLUK KOTA dolu (429) — baska aday denenmeyecek, ` +
           `Groq yoluna dusuluyor: ${res.body.slice(0, 200)}`
         )
         return null
       }
-      if (res.status === 503 || res.status === 500 || res.status === 429) {
+      /* GUNLUK OLMAYAN 429 = dakikalik limit (RPM 5).
+       *
+       * Google'in govdesi ikisini ayirt etmiyor: "Your project has exceeded
+       * a quota" hem gunluk hem dakikalik limitte geliyor. Eski kod hepsini
+       * olumcul sayiyordu ve dakikalik bir sinirlama Gemini yolunu tamamen
+       * kapatiyordu.
+       *
+       * Ama durust olmak gerekirse: RPM penceresi 60 saniye ve bizim tek
+       * istegimizin TAMAMI 150 saniye. Yani bu hatayi "bekleyip gecmek"
+       * ancak butce genisken mumkun. Butce dar ise beklemek, kalan zamani
+       * da yakip hicbir sey uretmemek demek — o yuzden cikiyoruz.
+       *
+       * Aday model turlamak da yok: limit projenin, modelin degil. */
+      if (res.status === 429) {
+        /* Kalan GERCEK zaman: cagri tavanindan degil, isin butcesinden
+           olculur — tavan 105 saniye sabit, butce ise kosu icinde erir. */
+        const kalanButce = budgetMs - (Date.now() - basladi)
+        const bekleme = Math.min(
+          geminiRpmWaitMs(),
+          Math.max(0, kalanButce - GEMINI_RPM_RETRY_MIN_REMAINING_MS)
+        )
+        if (gecici < 1 && kalanButce > GEMINI_RPM_RETRY_MIN_REMAINING_MS) {
+          gecici++
+          console.warn(
+            `Gemini ${model}: dakikalik limit (429) — ${bekleme}ms beklenip ` +
+            `BIR kez tekrar denenecek (kalan butce ${kalanButce}ms): ${res.body.slice(0, 160)}`
+          )
+          if (bekleme > 0) await new Promise((r) => setTimeout(r, bekleme))
+          continue
+        }
+        console.warn(
+          `Gemini ${model}: dakikalik limit (429) ve beklemeye yer yok ` +
+          `(kalan ${kalanButce}ms) — Groq yoluna dusuluyor: ${res.body.slice(0, 160)}`
+        )
+        return null
+      }
+      if (res.status === 503 || res.status === 500) {
         gecici++
         console.warn(`Gemini ${model}: gecici hata ${res.status} (deneme ${gecici}/2): ${res.body.slice(0, 200)}`)
         if (gecici < 2) continue
@@ -5955,6 +6069,18 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
+
+  /* ISTEGIN GERCEK BASLANGICI (17.10.2026).
+   *
+   * Butce bugune kadar pipelineStartedAt'ten olculuyordu — ama o an
+   * indirme, PDF metin cikarma, OCR ve document_chunks yazimindan SONRA
+   * geliyor. Yani 145.000 ms'lik butce aslinda "145 saniye + olculmemis
+   * hazirlik suresi" demekti ve Supabase'in ~150 saniyelik duvariyla
+   * arasindaki pay kagit uzerinde oldugundan dardi.
+   *
+   * Artik hazirlik suresi butceden DUSULUYOR: butce ne olursa olsun
+   * istegin tamami duvarin altinda kaliyor. */
+  const requestStartedAt = Date.now()
 
   try {
     if (req.method !== 'POST') {
@@ -6425,7 +6551,10 @@ serve(async (req) => {
     const skippedStages: string[] = []
     // Gemini taslagi geldiginde GEMINI_PIPELINE_BUDGET_MS'e yukseltilir;
     // Groq yolunda hic degismez.
-    let pipelineBudgetMs = PIPELINE_BUDGET_MS
+    /* Hazirlik (indirme + metin cikarma + chunk yazimi) zaten harcandi;
+       butce ondan GERIYE KALANDIR. bkz. requestStartedAt. */
+    const hazirlikMs = pipelineStartedAt - requestStartedAt
+    let pipelineBudgetMs = Math.max(0, PIPELINE_BUDGET_MS - hazirlikMs)
     const budgetLeft = () => Math.max(0, pipelineBudgetMs - (Date.now() - pipelineStartedAt))
 
     // ==========================================================================
@@ -6640,7 +6769,11 @@ ${styleInstruction}`
            DENENMEDIGINDE 110 saniyede kalir.
            only modunda butun butce Gemini'nin (Groq cagrilmayacak),
            shadow modunda Groq'a 62 saniye saklanir. */
-        pipelineBudgetMs = mod === 'only' ? GEMINI_ONLY_BUDGET_MS : GEMINI_PIPELINE_BUDGET_MS
+        pipelineBudgetMs = Math.max(0,
+          (mod === 'only' ? GEMINI_ONLY_BUDGET_MS : GEMINI_PIPELINE_BUDGET_MS) - hazirlikMs)
+        if (hazirlikMs > 5_000) {
+          console.log(`Butce: hazirlik ${hazirlikMs}ms dusuldu, kalan butce ${pipelineBudgetMs}ms`)
+        }
 
         await serviceClient
           .from('documents')
@@ -6675,6 +6808,31 @@ ${styleInstruction}`
           budgetLeft(),
           mod
         )
+
+        /* TASLAK GECERLI MI? (17.10.2026)
+         *
+         * Eskiden bu kontrol yoktu: bozuk bir Gemini taslagi 1900 satir
+         * asagiya kadar tasiniyordu. Review KOSARSA zararsiz, cunku
+         * rawFinalContent review ciktisindan geliyor ve bozuk metin
+         * degistiriliyor. Ama review ATLANDIGINDA — yani tam da Gemini'nin
+         * yavas oldugu, butcenin daraldigi kosularda — ayni metin tekrar
+         * JSON.parse ediliyor, orada patliyor ve ogrenci 500 goruyor.
+         * O noktada Groq'a dusmek icin gereken zaman coktan yanmis oluyor.
+         *
+         * Artik taslak daha DOGARKEN dogrulanıyor: ayristirilamiyorsa yok
+         * sayiliyor ve asagidaki normal butce kurali isliyor — Groq yolu
+         * payini aliyor, ogrenci yarim da olsa bir kart aliyor. */
+        if (geminiResult) {
+          try {
+            JSON.parse(repairLatexEscapes(geminiResult.raw.replace(/```json\s*|```/g, '').trim()))
+          } catch (_bozuk) {
+            console.warn(
+              `Gemini taslagi JSON olarak ayristirilamadi (${geminiResult.raw.length} karakter) — ` +
+              `taslak yok sayiliyor, normal yedek yolu isleyecek`
+            )
+            geminiResult = null
+          }
+        }
 
         if (!geminiResult && mod === 'only') {
           /* Hizli basarisizlikta Groq'a duselim, yavasinda duselmeyelim —

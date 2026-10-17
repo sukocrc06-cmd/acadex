@@ -190,11 +190,13 @@ serve(async (req) => {
     const body = await req.json()
     const { message, history, language } = body
     const isAgent = body?.mode === 'agent'
+    const isTranslate = body?.mode === 'translate'
+    const isFrame = body?.mode === 'frame_check'
     const page = (isAgent && body?.page && typeof body.page === 'object') ? body.page : null
     // Ajan modunda açık kartın tamamı isteme gömülmez (Groq dakika başı token sınırı);
     // Acadia gerekirse read_study_card aracıyla okur.
     const studyCardId = isAgent ? null : body?.studyCardId
-    if (!isAgent && (!message || typeof message !== 'string')) {
+    if (!isAgent && !isTranslate && !isFrame && (!message || typeof message !== 'string')) {
       return new Response(JSON.stringify({ error: 'Missing "message" parameter' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -232,6 +234,99 @@ serve(async (req) => {
     // Used both by the planner-items query below and by the system prompt,
     // so the model can turn relative dates ("yarın", "bu hafta sonu") into
     // concrete event_date values when it emits an add_planner_event action.
+    // ------------------------------------------------------------------
+    // ÇEVİRİ MODU (özet kartındaki bölüm TR/EN düğmesi): body.mode === 'translate'
+    // Bağlam sorgusu yapmaz, küçük ve hızlı modelle JSON çevirir.
+    // body.payload: { heading?, summary?, key_points?[] }  body.target: 'tr' | 'en'
+    // ------------------------------------------------------------------
+    if (isTranslate) {
+      const target = body?.target === 'tr' ? 'Turkish (Türkçe)' : 'English'
+      const payload = body?.payload && typeof body.payload === 'object' ? body.payload : null
+      const src = JSON.stringify(payload || {}).slice(0, 14000)
+      if (!payload || src.length < 5) {
+        return new Response(JSON.stringify({ error: 'Missing "payload"' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+      const key = Deno.env.get('GROQ_API_KEY')
+      if (!key) return new Response(JSON.stringify({ error: 'Groq API key not configured' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      const sys = `You translate university study-summary sections into ${target}. Translate every string value of the JSON you receive and return ONLY a JSON object with exactly the same keys and array lengths. Keep numbers, formulas, LaTeX, code, course codes and proper names exactly as they are; keep **bold** markers and \n paragraph breaks; use natural academic ${target}. Do not add commentary.`
+      const run = async (model: string) => {
+        const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ model, temperature: 0.1, max_completion_tokens: 4000, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: sys }, { role: 'user', content: src }] })
+        })
+        let data: any = null
+        try { data = await resp.json() } catch (_e) { data = null }
+        return { resp, data }
+      }
+      let r = await run('openai/gpt-oss-20b')
+      if (!r.resp.ok) { console.warn('translate 20b failed, retrying on 120b:', r.resp.status, JSON.stringify(r.data).slice(0, 300)); r = await run('openai/gpt-oss-120b') }
+      if (!r.resp.ok) {
+        console.error('translate failed:', r.resp.status, JSON.stringify(r.data).slice(0, 600))
+        return new Response(JSON.stringify({ error: 'Translation unavailable', status: r.resp.status }), { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+      let out: any = null
+      try { out = JSON.parse(r.data?.choices?.[0]?.message?.content || '') } catch (_e) { out = null }
+      if (!out || typeof out !== 'object') {
+        return new Response(JSON.stringify({ error: 'Translation could not be parsed' }), { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+      return new Response(JSON.stringify({ translation: out }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
+    // ------------------------------------------------------------------
+    // ÇERÇEVE KONTROLÜ (Sandbox "canlı dene"): body.mode === 'frame_check'
+    // Paylaşılan site X-Frame-Options / CSP frame-ancestors ile başka
+    // sitelerin içinde açılmayı yasaklıyor mu? Tarayıcı bunu JS'e söylemediği
+    // için başlıklara sunucudan bakılır. Yalnız https ve herkese açık alan
+    // adları; IP, localhost ve iç ağ adları reddedilir; gövde okunmaz.
+    // ------------------------------------------------------------------
+    if (isFrame) {
+      const J = (o: unknown, st = 200) => new Response(JSON.stringify(o), { status: st, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      const safeUrl = (raw: string): URL | null => {
+        let u: URL
+        try { u = new URL(String(raw || '')) } catch (_e) { return null }
+        const h = u.hostname.toLowerCase()
+        if (u.protocol !== 'https:' || (u.port && u.port !== '443') || u.username || u.password) return null
+        if (!h.includes('.') || /^[\d.]+$/.test(h) || h.includes(':') || h.startsWith('[')) return null
+        if (/(^|\.)(localhost|local|internal|intranet|lan|home|corp|supabase\.co)$/.test(h) || h.endsWith('.arpa')) return null
+        return u
+      }
+      let target = safeUrl(body?.url)
+      if (!target) return J({ error: 'Invalid url' }, 400)
+      const origin = (req.headers.get('origin') || '').replace(/\/$/, '')
+      let resp: Response | null = null
+      try {
+        for (let hop = 0; hop < 4; hop++) {
+          const ac = new AbortController(); const tm = setTimeout(() => ac.abort(), 6000)
+          try {
+            resp = await fetch(target.toString(), { method: 'GET', redirect: 'manual', signal: ac.signal, headers: { 'User-Agent': 'AcadexPreviewCheck/1.0', 'Accept': 'text/html' } })
+          } finally { clearTimeout(tm) }
+          try { await resp.body?.cancel() } catch (_e) { /* yok say */ }
+          const loc = resp.status >= 300 && resp.status < 400 ? resp.headers.get('location') : null
+          if (!loc) break
+          const next = safeUrl(new URL(loc, target).toString())
+          if (!next) return J({ embeddable: false, reason: 'redirect' })
+          target = next
+        }
+      } catch (e) {
+        return J({ embeddable: null, reason: 'unreachable', detail: String((e as Error)?.message || e).slice(0, 120) })
+      }
+      if (!resp) return J({ embeddable: null, reason: 'unreachable' })
+      const xfo = (resp.headers.get('x-frame-options') || '').toLowerCase()
+      const csp = (resp.headers.get('content-security-policy') || '')
+      const fa = csp.split(';').map(x => x.trim()).find(x => /^frame-ancestors\s/i.test(x))
+      let embeddable = true, reason = 'ok'
+      if (fa) {
+        const srcs = fa.split(/\s+/).slice(1).map(x => x.replace(/^'|'$/g, '').toLowerCase())
+        let oh = ''; try { oh = new URL(origin).hostname } catch (_e) { oh = '' }
+        const okSrc = (s: string) => s === '*' || s === 'https:' || (!!origin && s.replace(/\/$/, '') === origin.toLowerCase()) || (s.startsWith('https://*.') && !!oh && oh.endsWith(s.slice(9))) || (s.startsWith('*.') && !!oh && oh.endsWith(s.slice(1)))
+        embeddable = srcs.some(okSrc); reason = embeddable ? 'csp-allows' : 'csp-frame-ancestors'
+      } else if (xfo.includes('deny') || xfo.includes('sameorigin')) {
+        embeddable = false; reason = 'x-frame-options'
+      }
+      return J({ embeddable, reason, status: resp.status })
+    }
+
     const todayIso = new Date().toISOString().split('T')[0]
 
     // ------------------------------------------------------------------

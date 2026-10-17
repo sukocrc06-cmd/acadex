@@ -32,6 +32,8 @@ const NAMES = [
   'GEMINI_MAX_CALL_MS', 'GEMINI_MAX_OUTPUT_TOKENS', 'GEMINI_GROQ_RESERVE_MS',
   'geminiMode', 'GEMINI_ONLY_BUDGET_MS', 'GEMINI_ONLY_MAX_CALL_MS',
   'GEMINI_ONLY_FALLBACK_MIN_MS',
+  'GEMINI_MAX_REQUESTS_PER_RUN', 'geminiRpmWaitMs',
+  'GEMINI_RPM_RETRY_MIN_REMAINING_MS',
   'bytesToBase64',
   'geminiModelCandidates', 'geminiNativeMime', 'geminiModelMissing',
   'geminiFormatRejected', 'GEMINI_DUSURULEBILIR', 'geminiUnknownParameter',
@@ -43,6 +45,8 @@ const NAMES = [
 
 // Deno global'i: cikarilan kod Deno.env.get cagiriyor. Node'da yok, kukla.
 const denoEnv = new Map();
+// Dakikalik 429 beklemesi gercekte 20 saniye; testi uyutmasin.
+denoEnv.set('GEMINI_RPM_WAIT_MS', '10');
 globalThis.Deno = { env: { get: (k) => (denoEnv.has(k) ? denoEnv.get(k) : undefined) } };
 
 const G = loadFromSource('supabase/functions/summarize-document/index.ts', NAMES);
@@ -787,9 +791,31 @@ test('geminiDraft: 503 bir kez tekrar denenir, sonra sonraki modele gecer', asyn
 // ===========================================================================
 // Proje kotasi — 09.10.2026 ucuncu kosu
 // ===========================================================================
-test('geminiQuotaExhausted: proje kotasi 429 u taninir', () => {
-  const govde = '{"error":{"message":"Your project has exceeded a quota. See https://ai.dev/rate-limit to manage your rate limits.","code":"too_many_requests"}}';
-  assert.equal(G.geminiQuotaExhausted(429, govde), true);
+/* 17.10.2026'da DEGISTI — bu test eskiden tam tersini iddia ediyordu.
+ *
+ * Govdedeki "Your project has exceeded a quota" mesaji Google'in HEM gunluk
+ * (RPD) HEM dakikalik (RPM 5) limitte dondurdugu ortak metin. Eski
+ * siniflandirma hepsini olumcul sayiyor, yani dakikalik bir sinirlama
+ * Gemini yolunu gun boyu kapatiyordu. Repo bunu zaten BILIYORDU: geminiDraft
+ * icindeki GEMINI_RETRY_WAIT_MS yorumu "dakikalik limite carpiyor ve o 429
+ * 'project has exceeded a quota' diye geliyor — gunluk kota sanip bos yere
+ * panikledigimiz hata buydu" diyor. Siniflandirma o yorumu takip etmiyordu.
+ *
+ * Artik yalnizca GUNLUK bir metrik adi geciyorsa olumcul. Ayirt edilemeyen
+ * genel mesaj dakikalik kabul edilip cagri noktasinda bir kez bekleniyor
+ * (bkz. GEMINI_RPM_WAIT_MS) — yanlis tahminin bedeli bir istek, dogrunun
+ * karsiligi kartin gelmesi. */
+test('geminiQuotaExhausted: yalnizca GUNLUK kota olumcul sayilir', () => {
+  const gunluk = '{"error":{"message":"Quota exceeded for metric generate_requests_per_day","code":"RESOURCE_EXHAUSTED"}}';
+  assert.equal(G.geminiQuotaExhausted(429, gunluk), true, 'gunluk metrik adi olumcul olmali');
+  assert.equal(G.geminiQuotaExhausted(429, 'exceeded your quota: GenerateRequestsPerDay'), true);
+  assert.equal(G.geminiQuotaExhausted(429, 'requests per day limit reached'), true);
+});
+
+test('geminiQuotaExhausted: ayirt edilemeyen 429 olumcul DEGIL (dakikalik olabilir)', () => {
+  const genel = '{"error":{"message":"Your project has exceeded a quota. See https://ai.dev/rate-limit to manage your rate limits.","code":"too_many_requests"}}';
+  assert.equal(G.geminiQuotaExhausted(429, genel), false,
+    'bu metin dakikalik limitte de geliyor — olumcul saymak Gemini yolunu gereksiz kapatir');
 });
 
 test('geminiQuotaExhausted: 503 ve 500 kota degildir', () => {
@@ -798,18 +824,46 @@ test('geminiQuotaExhausted: 503 ve 500 kota degildir', () => {
   assert.equal(G.geminiQuotaExhausted(400, 'exceeded a quota'), false);
 });
 
-test('geminiDraft: proje kotasi dolunca TEK istekte durur', async () => {
-  // Kota proje seviyesinde: baska modeli denemek de, tekrar denemek de ayni
-  // duvara carpar ve gunluk 100 isteklik kotadan bosuna istek goturur.
-  stubFetch([{ status: 429, text: 'Your project has exceeded a quota.' }]);
+test('geminiDraft: GUNLUK kota dolunca TEK istekte durur', async () => {
+  // Gunluk kota proje seviyesinde: baska modeli denemek de, tekrar denemek de
+  // ayni duvara carpar ve kotadan bosuna istek goturur.
+  stubFetch([{ status: 429, text: 'Quota exceeded for metric generate_requests_per_day' }]);
   {
     try {
       const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000));
       assert.equal(out, null);
       assert.equal(fetchCalls.length, 1,
-        `kota 429 undan sonra ${fetchCalls.length} istek yapildi — biri yeterli`);
+        `gunluk kota 429 undan sonra ${fetchCalls.length} istek yapildi — biri yeterli`);
     } finally { restoreFetch(); }
   }
+});
+
+test('geminiDraft: dakikalik 429 BIR kez tekrar denenir, aday turlanmaz', async () => {
+  /* RPM limiti gecicidir, ama penceresi 60 saniye ve tek istegin tamami 150
+     saniye — o yuzden bekleme yalnizca butce genisken yapilir, ve ikinci kez
+     denenmez. Aday model turlamak da anlamsiz: limit projenin, modelin
+     degil. Iki istekten fazlasi gunluk kotayi bos yere yakar. */
+  stubFetch([
+    { status: 429, text: 'Your project has exceeded a quota.' },
+    { status: 429, text: 'Your project has exceeded a quota.' }
+  ]);
+  try {
+    const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 200_000));
+    assert.equal(out, null);
+    assert.equal(fetchCalls.length, 2,
+      `dakikalik 429 dan sonra ${fetchCalls.length} istek yapildi — tam iki olmali`);
+  } finally { restoreFetch(); }
+});
+
+test('geminiDraft: butce darsa dakikalik 429 BEKLENMEZ, hemen cikilir', async () => {
+  // Beklemek kalan zamani yakip hicbir sey uretmemek demek.
+  stubFetch([{ status: 429, text: 'Your project has exceeded a quota.' }]);
+  try {
+    // 80 sn butce, esik 90 sn: beklemeye yer yok.
+    const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 80_000));
+    assert.equal(out, null);
+    assert.equal(fetchCalls.length, 1, 'dar butcede beklemeden cikilmali');
+  } finally { restoreFetch(); }
 });
 
 test('geminiDraft: her aday tukenirse null (cagiran Groq a duser)', async () => {

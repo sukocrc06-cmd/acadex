@@ -133,7 +133,7 @@ serve(async (req) => {
     // 1. Verify ownership and pull the already-generated script
     const { data: card, error: cardError } = await userClient
       .from('study_cards')
-      .select('id, podcast_script')
+      .select('id, podcast_script, summary_language')
       .eq('id', studyCardId)
       .single()
 
@@ -236,7 +236,7 @@ serve(async (req) => {
         const idx = start + bi
         const voiceId = line.speaker === 'B' ? maleVoiceId : femaleVoiceId
         try {
-          const audioBytes = await synthesizeElevenLabsTts(line.text, voiceId, elevenLabsKey)
+          const audioBytes = await synthesizeElevenLabsTts(line.text, voiceId, elevenLabsKey, card.summary_language === 'en' ? 'en' : 'tr')
           const path = `${studyCardId}/${idx}.mp3`
           const { error: uploadError } = await serviceClient.storage
             .from(STORAGE_BUCKET)
