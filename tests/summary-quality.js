@@ -17,7 +17,13 @@
 const assert = require('node:assert/strict');
 const { loadFromSource, makeRunner } = require('./_ts-extract.js');
 
+// tokenPacer, Gemini paralel modunu soruyor (geminiParallelActive -> Deno.env).
+// Bos kukla: GEMINI_MODE tanimsiz, yani bu dosyadaki pacer testleri Groq
+// davranisini olcmeye devam eder.
+if (!globalThis.Deno) globalThis.Deno = { env: { get: () => undefined } };
+
 const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
+  'geminiMode', 'geminiParallelActive',
   'ANCHOR_STOPWORDS', 'anchorTerms',
   // Reasoning parametrelerinin model ailesine gore turetilmesi.
   // DIKKAT: bu dosyada loadFromSource SADECE burada cagrilmali. Her cagri
