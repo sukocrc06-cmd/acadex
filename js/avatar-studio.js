@@ -16,8 +16,17 @@
    - Rozet parçaları: user_achievements'taki rozetlerle açılan Acadex'e özel
      parçalar (kep, kulaklık, kalem, rozet, çerçeve, arka plan).
    - Canlı kart: avatar imlece / telefon eğimine göre hafifçe döner ve göz kırpar.
-   - Ruh hali: bugün çalıştıysan mutlu, uzun aradan sonra "seni özledim".
+   - Ruh hali: Pomodoro odak turunda odaklanmış, yeni bitmiş sınavın puanına göre
+     gururlu / mutlu / düşünceli (2 saat), bugün çalıştıysan mutlu, uzun aradan
+     sonra "seni özledim".
    - Öğrenci kartı: avatar + ad + bölümle indirilebilir / paylaşılabilir PNG.
+   - Kombinler: yüzü değiştirmeden kıyafet + aksesuar + zemin setleri.
+   - Dolabım: 3 kayıtlı görünüş; tarayıcıda ve avatars/<id>/avatar-dolap.json'da.
+   - Renkler: her paletin yanında renk çarkı ve "son kullandıkların".
+   - Bölüm parçaları (xDept): steteskop, terazi, baret, kod rozeti...; kendi
+     bölümüne uyan başta önerilir.
+   - Acadia: senin mesajlarının yanında avatarın; cevap beklerken düşünür,
+     cevap gelince göz kırpar. Kaydedince sayfadaki eski avatarlar anında değişir.
    ========================================================================== */
 (function () {
   'use strict';
@@ -55,7 +64,12 @@
   ];
   var MOODS = {
     mutlu: { eyes: 'happy', eyebrows: 'defaultNatural', mouth: 'smile' },
-    ozlemis: { eyes: 'default', eyebrows: 'sadConcernedNatural', mouth: 'smile' }
+    ozlemis: { eyes: 'default', eyebrows: 'sadConcernedNatural', mouth: 'smile' },
+    odak: { eyes: 'default', eyebrows: 'flatNatural', mouth: 'serious' },
+    gurur: { eyes: 'happy', eyebrows: 'raisedExcitedNatural', mouth: 'smile' },
+    dusunceli: { eyes: 'side', eyebrows: 'sadConcernedNatural', mouth: 'serious' },
+    kirpan: { eyes: 'wink', eyebrows: 'defaultNatural', mouth: 'twinkle' },
+    saskin: { eyes: 'surprised', eyebrows: 'raisedExcitedNatural', mouth: 'disbelief' }
   };
   var BLINK = { eyes: 'closed' };
 
@@ -69,11 +83,35 @@
     { k: 'yildiz', slot: 'xBg', label: 'yıldızlı gece', need: 'streak_30' }
   ];
 
+  /* bölüme göre parçalar: herkese açık, kendi bölümün başta önerilir */
+  var DEPTX = [
+    { k: 'kod', label: 'kod rozeti', fac: 'Bilişim · YBS', re: /bilgisayar|computer|yaz[ıi]l[ıi]m|software|bili[şs]im|information|ybs|veri|data/i },
+    { k: 'dunya', label: 'dünya rozeti', fac: 'Uluslararası', re: /uluslararas|international|d[ıi][şs] ticaret|trade|ili[şs]kiler|relations/i },
+    { k: 'grafik', label: 'yükselen grafik', fac: 'Finans · Bankacılık', re: /bankac[ıi]l[ıi]k|banking|finans|finance|muhasebe|account|ekonomi|economics|iktisat/i },
+    { k: 'steteskop', label: 'steteskop', fac: 'Tıp · Sağlık', re: /t[ıi]p|medic|hem[şs]ire|nurs|sa[ğg]l[ıi]k|health|eczac|pharm|di[şs] hek|dent|veteriner|vet/i },
+    { k: 'terazi', label: 'adalet terazisi', fac: 'Hukuk', re: /hukuk|law|adalet/i },
+    { k: 'baret', label: 'baret', fac: 'Mühendislik · Mimarlık', re: /m[üu]hendis|engineer|mimar|architect|in[şs]aat|civil/i },
+    { k: 'elma', label: 'öğretmen elması', fac: 'Eğitim', re: /e[ğg]itim|education|[öo][ğg]retmen|teach|pedagoj/i },
+    { k: 'kravat', label: 'kravat', fac: 'İşletme · Yönetim', re: /i[şs]letme|business|y[öo]netim|management|pazarlama|marketing/i }
+  ];
+  var deptOf = function (d) { d = String(d || ''); for (var i = 0; i < DEPTX.length; i++) if (DEPTX[i].re.test(d)) return DEPTX[i].k; return ''; };
+  /* hazır kombinler: yüzüne, tenine, saçına dokunmaz; sadece üstünü, aksesuarı ve zemini değiştirir */
+  var OUTFITS = [
+    { k: 'sinav', label: 'Sınav haftası', note: 'kapüşonlu, gözlük, fosfor zemin', set: { clothing: 'hoodie', clothesColor: '3c4f5c', accessories: 'prescription02', accessoriesColor: '262e33', bg: 'fff1b8' } },
+    { k: 'kutuphane', label: 'Kütüphane', note: 'yakalı kazak, yuvarlak gözlük', set: { clothing: 'collarAndSweater', clothesColor: '25557c', accessories: 'round', accessoriesColor: '3c4f5c', bg: 'd1d4f9' } },
+    { k: 'sunum', label: 'Sunum günü', note: 'ceket gömlek, acadex mavisi', set: { clothing: 'blazerAndShirt', clothesColor: '262e33', bg: 'dbe6ff' } },
+    { k: 'kampus', label: 'Kampüs', note: 'baskılı tişört, gök mavisi', set: { clothing: 'graphicShirt', clothesColor: '5199e4', clothingGraphic: 'bear', bg: 'b6e3f4' } },
+    { k: 'gece', label: 'Gece çalışması', note: 'siyah kapüşonlu, gece zemin', set: { clothing: 'hoodie', clothesColor: '262e33', accessories: 'prescription01', accessoriesColor: '262e33', bg: '0d1838' } },
+    { k: 'kis', label: 'Kış sabahı', note: 'ponponlu bere, açık gri', set: { top: 'winterHat02', hatColor: 'ff5c5c', clothing: 'hoodie', clothesColor: 'e6e6e6', bg: 'e7f6ec' } },
+    { k: 'bahar', label: 'Bahar şenliği', note: 'geniş yaka, pudra', set: { clothing: 'shirtScoopNeck', clothesColor: 'ffafb9', bg: 'ffdfbf' } },
+    { k: 'spor', label: 'Spor', note: 'tişört, kırmızı', set: { clothing: 'shirtCrewNeck', clothesColor: 'ff5c5c', bg: 'ffd5dc' } }
+  ];
+
   var PRESETS = {
     kiz: { top: 'straight01', hairColor: '4a312c', eyes: 'default', eyebrows: 'defaultNatural', mouth: 'smile', facialHair: '', accessories: '', clothing: 'shirtScoopNeck', clothesColor: 'ff488e', bg: 'ffd5dc' },
     erkek: { top: 'shortFlat', hairColor: '2c1b18', eyes: 'default', eyebrows: 'defaultNatural', mouth: 'smile', facialHair: '', accessories: '', clothing: 'hoodie', clothesColor: '25557c', bg: 'b6e3f4' }
   };
-  var DEF = { skinColor: 'edb98a', top: 'shortFlat', hairColor: '2c1b18', hatColor: '25557c', eyes: 'default', eyebrows: 'defaultNatural', mouth: 'smile', facialHair: '', facialHairColor: '2c1b18', accessories: '', accessoriesColor: '262e33', clothing: 'hoodie', clothesColor: '25557c', clothingGraphic: 'bear', bg: 'b6e3f4', xHead: '', xEar: '', xChest: '', xFrame: '', xBg: '' };
+  var DEF = { skinColor: 'edb98a', top: 'shortFlat', hairColor: '2c1b18', hatColor: '25557c', eyes: 'default', eyebrows: 'defaultNatural', mouth: 'smile', facialHair: '', facialHairColor: '2c1b18', accessories: '', accessoriesColor: '262e33', clothing: 'hoodie', clothesColor: '25557c', clothingGraphic: 'bear', bg: 'b6e3f4', xHead: '', xEar: '', xChest: '', xFrame: '', xBg: '', xDept: '' };
 
   var KEYS = Object.keys(DEF);
   var assign = function (a) { for (var i = 1; i < arguments.length; i++) { var b = arguments[i]; if (b) for (var k in b) if (Object.prototype.hasOwnProperty.call(b, k)) a[k] = b[k]; } return a; };
@@ -120,7 +158,7 @@
     Object.keys(o).forEach(function (k) { var v = o[k]; q.push(encodeURIComponent(k) + '=' + encodeURIComponent(Array.isArray(v) ? v.join(',') : String(v))); });
     return API + '?' + q.join('&');
   };
-  var hasExtras = function (c) { return !!(c.xHead || c.xEar || c.xChest || c.xFrame || c.xBg); };
+  var hasExtras = function (c) { return !!(c.xHead || c.xEar || c.xChest || c.xFrame || c.xBg || c.xDept); };
 
   /* Acadex parçaları — avataaars düzleminde baş merkezi (140, 92), yarıçap 56; göğüs y≈200 */
   var STARS = [[28, 34, 3], [62, 18, 2], [246, 26, 3], [262, 66, 2], [22, 120, 2], [256, 140, 3], [36, 196, 2], [248, 214, 2], [204, 16, 2], [90, 248, 2], [196, 252, 3], [14, 74, 2]];
@@ -134,13 +172,22 @@
     kulaklik: '<path d="M78 108 C74 18 206 18 202 108" fill="none" stroke="#1A2A5C" stroke-width="10" stroke-linecap="round"/><path d="M78 108 C74 18 206 18 202 108" fill="none" stroke="#3A4F8F" stroke-width="4" stroke-linecap="round"/><rect x="62" y="86" width="26" height="44" rx="12" fill="#2F6BFF" stroke="#1A2A5C" stroke-width="4"/><rect x="192" y="86" width="26" height="44" rx="12" fill="#2F6BFF" stroke="#1A2A5C" stroke-width="4"/>',
     kalem: '<g transform="rotate(28 214 78)"><rect x="207" y="30" width="14" height="70" rx="2" fill="#FFD966" stroke="#1A2A5C" stroke-width="3"/><rect x="207" y="24" width="14" height="10" rx="2" fill="#F2B8B0" stroke="#1A2A5C" stroke-width="3"/><path d="M207 100 L221 100 L214 118 Z" fill="#F1D6A8" stroke="#1A2A5C" stroke-width="3" stroke-linejoin="round"/><path d="M211.5 111 L216.5 111 L214 118 Z" fill="#1A2A5C"/></g>',
     rozet: '<circle cx="102" cy="230" r="15" fill="#2F6BFF" stroke="#FFFFFF" stroke-width="4"/><path d="M102 220 l3 7 7 .5 -5.4 4.6 1.8 7 -6.4 -4 -6.4 4 1.8 -7 -5.4 -4.6 7 -.5z" fill="#FFD966"/>',
+    /* bölüm parçaları: göğüs rozetleri sağ göğüste (178, 232), sol taraftaki Acadex rozetiyle çakışmaz */
+    kod: '<circle cx="178" cy="232" r="15" fill="#0D1838" stroke="#FFFFFF" stroke-width="4"/><path d="M171 226 L165 232 L171 238 M185 226 L191 232 L185 238 M180 224 L176 240" fill="none" stroke="#7FE3B5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>',
+    dunya: '<circle cx="178" cy="232" r="15" fill="#2F6BFF" stroke="#FFFFFF" stroke-width="4"/><ellipse cx="178" cy="232" rx="6" ry="13" fill="none" stroke="#DCE6FF" stroke-width="2"/><path d="M165 232 H191 M167 225 H189 M167 239 H189" stroke="#DCE6FF" stroke-width="2"/><path d="M172 222 C176 226 170 230 176 233 C181 235 178 240 182 242" fill="none" stroke="#7FE3B5" stroke-width="3" stroke-linecap="round"/>',
+    grafik: '<rect x="161" y="218" width="34" height="28" rx="6" fill="#FFFFFF" stroke="#1A2A5C" stroke-width="3"/><path d="M166 240 L174 233 L180 236 L190 225" fill="none" stroke="#1E8A55" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M184 224 H190 V230" fill="none" stroke="#1E8A55" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>',
+    steteskop: '<path d="M108 178 C100 206 110 230 128 240 C136 244 142 247 145 252" fill="none" stroke="#2B3A55" stroke-width="5" stroke-linecap="round"/><path d="M172 178 C180 206 170 228 154 238 C149 242 146 246 145 252" fill="none" stroke="#2B3A55" stroke-width="5" stroke-linecap="round"/><circle cx="108" cy="178" r="3.5" fill="#C9D1E1"/><circle cx="172" cy="178" r="3.5" fill="#C9D1E1"/><circle cx="145" cy="261" r="10" fill="#DCE2EE" stroke="#2B3A55" stroke-width="4"/><circle cx="145" cy="261" r="3.5" fill="#2B3A55"/>',
+    terazi: '<circle cx="178" cy="232" r="15" fill="#FFF3C2" stroke="#FFFFFF" stroke-width="4"/><path d="M178 222 V242 M172 243 H184 M168 227 H188" stroke="#8A6A10" stroke-width="2.4" stroke-linecap="round"/><path d="M165 235 L168 227 L171 235 Z M185 235 L188 227 L191 235 Z" fill="#E8B931" stroke="#8A6A10" stroke-width="1.6" stroke-linejoin="round"/>',
+    baret: '<g transform="translate(0 -5)"><path d="M80 72 C80 18 200 18 200 72 Z" fill="#F2C14E" stroke="#8A6A10" stroke-width="3"/><path d="M128 26 C126 44 126 58 128 72 M152 26 C154 44 154 58 152 72" fill="none" stroke="#D9A22E" stroke-width="6" stroke-linecap="round"/><path d="M66 72 H214 Q220 84 206 86 H74 Q60 84 66 72 Z" fill="#F2C14E" stroke="#8A6A10" stroke-width="3" stroke-linejoin="round"/></g>',
+    elma: '<path d="M178 228 C170 220 160 226 162 236 C164 246 172 250 178 247 C184 250 192 246 194 236 C196 226 186 220 178 228 Z" fill="#E5484D" stroke="#FFFFFF" stroke-width="3"/><path d="M178 228 C178 222 180 218 183 216" fill="none" stroke="#6B3E1E" stroke-width="2.4" stroke-linecap="round"/><path d="M182 220 C188 216 192 218 192 222 C187 224 184 223 182 220 Z" fill="#3FAE6A"/>',
+    kravat: '<path d="M133 184 H147 L144 197 H136 Z" fill="#B4351F" stroke="#7A2314" stroke-width="2" stroke-linejoin="round"/><path d="M136 197 H144 L151 248 L140 262 L129 248 Z" fill="#C9483B" stroke="#7A2314" stroke-width="2" stroke-linejoin="round"/><path d="M138 210 L148 220 M135 226 L149 240 M133 242 L143 252" stroke="#E58C8A" stroke-width="3" stroke-linecap="round"/>',
     altin: '<rect x="7" y="7" width="266" height="266" rx="30" fill="none" stroke="#E8B931" stroke-width="12"/><rect x="15" y="15" width="250" height="250" rx="24" fill="none" stroke="#FFF3C2" stroke-width="3"/><path d="M30 14 l3 7 7 3 -7 3 -3 7 -3 -7 -7 -3 7 -3z" fill="#FFF3C2"/><path d="M250 246 l3 7 7 3 -7 3 -3 7 -3 -7 -7 -3 7 -3z" fill="#FFF3C2"/>'
   };
   /* DiceBear SVG'sini Acadex katmanlarıyla birleştir; sticker'da zemin ve çerçeve olmaz */
   var compose = function (svg, c, sticker) {
     if (!hasExtras(c)) return svg;
     var bg = !sticker && c.xBg && EXTRA_BG[c.xBg] ? EXTRA_BG[c.xBg] : '';
-    var fg = [c.xHead, c.xEar, c.xChest].concat(sticker ? [] : [c.xFrame]).filter(Boolean).map(function (k) { return EXTRA_FG[k] || ''; }).join('');
+    var fg = [c.xDept, c.xHead, c.xEar, c.xChest].concat(sticker ? [] : [c.xFrame]).filter(Boolean).map(function (k) { return EXTRA_FG[k] || ''; }).join('');
     var inner = String(svg).replace(/^\s*<\?xml[^>]*>\s*/, '');
     return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 280" width="280" height="280">' + bg + inner + fg + '</svg>';
   };
@@ -247,6 +294,29 @@
     '.avs-ok:hover{background:#1F5FD6}.avs-ok:disabled{opacity:.6;cursor:default}',
     '.avs button:focus-visible{outline:2px solid #2F6BFF;outline-offset:2px}',
     '@media (max-width:760px){.avs-back{padding:0;align-items:stretch}.avs{height:100%;border-radius:0}.avs-head{padding:14px 16px 10px}.avs-head h2{font-size:23px}.avs-body{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}.avs-side{border-right:0;border-bottom:1px solid #E6E2D6;padding:12px 16px;display:grid;grid-template-columns:112px minmax(0,1fr);gap:8px 12px;align-items:center;overflow:visible}.avs-prev{width:112px;height:112px;grid-row:span 4}.avs-prev .avs-live,.avs-prev img{border-radius:20px}.avs-row{justify-content:flex-start}.avs-chip{padding:5px 11px;min-height:34px;font-size:13px}.avs-dl{min-height:34px;padding:5px 11px;font-size:13px;flex:none}.avs-lbl,.avs-ex{display:none}.avs-tabs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin;padding:10px 16px 6px}.avs-panel{padding:4px 16px 16px}.avs-grid{grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:8px}.avs-opt img{width:54px;height:54px}.avs-foot{padding:10px 16px}}',
+    /* renk çarkı, son renkler */
+    '.avs-pick{position:relative;display:inline-flex;align-items:center;justify-content:center;background:conic-gradient(#ff5c5c,#ffd966,#7fe3b5,#65c9ff,#2f6bff,#c0aede,#ff488e,#ff5c5c);overflow:hidden;cursor:pointer}',
+    '.avs-pick span{width:22px;height:22px;border-radius:50%;background:#FFFFFF;color:#0D1838;font-weight:700;font-size:16px;line-height:22px;text-align:center;pointer-events:none}',
+    '.avs-pick input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:0;padding:0}',
+    '.avs-pick:focus-within{box-shadow:0 0 0 2.5px #2F6BFF}',
+    '.avs-rec{margin-top:8px;align-items:center}',
+    '.avs-rec-l{font-family:Caveat,"Segoe Print",cursive;font-size:18px;color:#5B6787;margin-right:4px}',
+    '.avs-rec .avs-swb{width:30px;height:30px}',
+    /* kombinler, dolap, bölüm */
+    '.avs-big{grid-template-columns:repeat(auto-fill,minmax(112px,1fr))}',
+    '.avs-big .avs-opt img{width:84px;height:84px}',
+    '.avs-opt b{font-weight:700;color:#0D1838}',
+    '.avs-why{font-size:10.5px;color:#6A7593;line-height:1.25;text-align:center}',
+    '.avs-closet{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;max-width:420px}',
+    '.avs-slot{position:relative}',
+    '.avs-slot .avs-opt{width:100%;min-height:118px;justify-content:center}',
+    '.avs-empty{border-style:dashed;background:#FBFAF6;color:#4B5675}',
+    '.avs-empty b{width:44px;height:44px;border-radius:50%;border:1.6px dashed #9DA8C3;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:600;color:#2F6BFF;margin:6px 0 4px}',
+    '.avs-slot-x{position:absolute;top:-8px;right:-8px;width:28px;height:28px;border-radius:50%;border:1.6px solid #C9D1E1;background:#FFFFFF;color:#B4351F;font-size:18px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}',
+    '.avs-slot-x:hover{border-color:#B4351F}',
+    '.avs-opt.mine{border-color:#E8B931;background:#FFFBEA}',
+    '.avs-mine{position:absolute;top:-9px;left:50%;transform:translateX(-50%) rotate(-3deg);background:#E8B931;color:#0D1838;font-style:normal;font-family:Caveat,"Segoe Print",cursive;font-size:15px;line-height:1;padding:2px 8px 3px;border-radius:999px;white-space:nowrap}',
+    '@media (max-width:760px){.avs-big{grid-template-columns:repeat(auto-fill,minmax(96px,1fr))}.avs-big .avs-opt img{width:66px;height:66px}.avs-slot .avs-opt{min-height:100px}}',
     /* sticker'lar */
     '.avs-st{pointer-events:none;filter:drop-shadow(1.5px 0 0 #fff) drop-shadow(-1.5px 0 0 #fff) drop-shadow(0 1.5px 0 #fff) drop-shadow(0 -1.5px 0 #fff) drop-shadow(0 5px 6px rgba(13,24,56,0.3))}',
     '.avs-ex img{filter:drop-shadow(1.5px 0 0 #fff) drop-shadow(-1.5px 0 0 #fff) drop-shadow(0 1.5px 0 #fff) drop-shadow(0 -1.5px 0 #fff) drop-shadow(0 4px 5px rgba(13,24,56,0.25))}',
@@ -262,6 +332,10 @@
     '.avs-live.tilt{box-shadow:calc(var(--sx,0) * -10px) calc(12px + var(--sy,0) * -6px) 22px -14px rgba(13,24,56,0.55)}',
     '@media (prefers-reduced-motion:no-preference){.avs-live.idle{animation:avsSway 7s ease-in-out infinite}@keyframes avsSway{0%,100%{transform:perspective(520px) rotateX(2deg) rotateY(-5deg)}50%{transform:perspective(520px) rotateX(-2deg) rotateY(5deg)}}}',
     '.avs-miss{position:fixed;z-index:100001;padding:6px 12px 7px;border-radius:14px 14px 14px 4px;background:#FFFFFF;border:1.6px solid #1A2A5C;color:#1A2A5C;font-family:Caveat,"Segoe Print",cursive;font-size:20px;line-height:1;box-shadow:0 12px 22px -14px rgba(13,24,56,0.6);pointer-events:none}',
+    '#axa-layer .axa-m.user.avs-me{position:relative;margin-right:36px;overflow:visible}',
+    '.avs-me-av{position:absolute;right:-36px;bottom:-2px;width:28px;height:28px;border-radius:50%;object-fit:cover;background:#DCE6FF;box-shadow:0 0 0 2px #FFFFFF,0 4px 8px -4px rgba(13,24,56,0.5)}',
+    '.sn-score{position:relative}.sn-score > .avs-st,#result-score-circle > .avs-st{position:absolute;right:-58px;top:-26px;width:66px;height:66px;transform:rotate(8deg);z-index:2}',
+    '@media (max-width:760px){.sn-score > .avs-st,#result-score-circle > .avs-st{right:-18px;top:-34px;width:52px;height:52px}}',
     '@media (prefers-reduced-motion:no-preference){.avs-st,.avs-miss{animation:avsPop .45s cubic-bezier(.3,1.5,.5,1) both}@keyframes avsPop{from{opacity:0;scale:.6}to{opacity:1;scale:1}}}'
   ].join('\n');
   var injectCss = function () {
@@ -282,9 +356,9 @@
 
   /* ---------- editör ---------- */
   var TABS = [
-    { id: 'ten', label: 'Ten' }, { id: 'sac', label: 'Saç' }, { id: 'goz', label: 'Gözler' }, { id: 'kas', label: 'Kaşlar' },
+    { id: 'kombin', label: 'Kombinler' }, { id: 'ten', label: 'Ten' }, { id: 'sac', label: 'Saç' }, { id: 'goz', label: 'Gözler' }, { id: 'kas', label: 'Kaşlar' },
     { id: 'agiz', label: 'Ağız' }, { id: 'sakal', label: 'Sakal' }, { id: 'gozluk', label: 'Gözlük' }, { id: 'kiyafet', label: 'Kıyafet' }, { id: 'arka', label: 'Arka plan' },
-    { id: 'rozet', label: '★ Rozet parçaları', star: true }
+    { id: 'bolum', label: 'Bölüm' }, { id: 'rozet', label: '★ Rozet parçaları', star: true }
   ];
   var cfg = null, tab = 'sac', back = null, lastFocus = null, busy = false, hist = [];
   var LOCK = '<span class="lk" aria-hidden="true"><svg viewBox="0 0 12 12"><rect x="2.5" y="5.5" width="7" height="5" rx="1"/><path d="M4 5.5V4a2 2 0 0 1 4 0v1.5"/></svg></span>';
@@ -323,6 +397,12 @@
       var pr = t.closest('[data-avs-preset]'); if (pr) { change(assign({}, cfg, PRESETS[pr.getAttribute('data-avs-preset')], { skinColor: cfg.skinColor })); return; }
       if (t.closest('[data-avs-dice]')) { change(randomCfg()); return; }
       if (t.closest('[data-avs-undo]')) { undo(); return; }
+      var of = t.closest('[data-outfit]'); if (of) { var o = OUTFITS.filter(function (x) { return x.k === of.getAttribute('data-outfit'); })[0]; if (o) change(outfitCfg(o), '[data-outfit="' + o.k + '"]'); return; }
+      var dp = t.closest('[data-dept]'); if (dp) { var dk = dp.getAttribute('data-dept'), nd = assign({}, cfg); nd.xDept = cfg.xDept === dk ? '' : dk; change(nd, dk ? '[data-dept="' + dk + '"]' : null); return; }
+      var wr = t.closest('[data-wear]'); if (wr) { var sc = closet.slots[+wr.getAttribute('data-wear')]; if (sc) change(clean(sc), '[data-wear="' + wr.getAttribute('data-wear') + '"]'); return; }
+      var kp = t.closest('[data-keep]'); if (kp) { var ki = +kp.getAttribute('data-keep'); closetSave(ki); renderPanel(); var w2 = back.querySelector('[data-wear="' + ki + '"]'); if (w2) w2.focus(); alertMsg('success', (ki + 1) + '. stil dolabına kondu.'); return; }
+      var dr = t.closest('[data-drop]'); if (dr) { var di = +dr.getAttribute('data-drop'); closetDrop(di); renderPanel(); var k2 = back.querySelector('[data-keep="' + di + '"]'); if (k2) k2.focus(); return; }
+      if (t.closest('.avs-pick')) return; /* renk çarkı kendi açılır */
       var xo = t.closest('[data-x]'); if (xo) {
         if (xo.classList.contains('locked')) return;
         var it = EXTRAS.filter(function (x) { return x.k === xo.getAttribute('data-x'); })[0];
@@ -331,6 +411,7 @@
       }
       var op = t.closest('[data-k]'); if (op) {
         var k = op.getAttribute('data-k'), v = op.getAttribute('data-v'), c2 = assign({}, cfg); c2[k] = v;
+        if (op.classList.contains('avs-swb')) pushRecent(k, v);
         change(c2, '[data-k="' + k + '"][data-v="' + (window.CSS && CSS.escape ? CSS.escape(v) : v) + '"]'); return;
       }
       if (t.closest('[data-avs-dl]')) { download(); return; }
@@ -354,6 +435,22 @@
         tab = TABS[(i + (e.key === 'ArrowRight' ? 1 : n - 1)) % n].id; renderTabs(); renderPanel();
         back.querySelector('[data-avs-tab="' + tab + '"]').focus();
       }
+    });
+    /* renk çarkı: sürüklerken önizleme canlı değişir, bırakınca kaydedilir (geri alınabilir) */
+    var pickRaf = 0, pickBase = null;
+    back.addEventListener('input', function (e) {
+      var inp = e.target.closest && e.target.closest('[data-pick]'); if (!inp) return;
+      var k = inp.getAttribute('data-pick'), hex = String(inp.value || '').replace('#', '').toLowerCase(); if (!HEX.test(hex)) return;
+      if (!pickBase) pickBase = assign({}, cfg);
+      cfg = assign({}, cfg); cfg[k] = hex;
+      if (!pickRaf) pickRaf = requestAnimationFrame(function () { pickRaf = 0; renderSide(); });
+    });
+    back.addEventListener('change', function (e) {
+      var inp = e.target.closest && e.target.closest('[data-pick]'); if (!inp) return;
+      var k = inp.getAttribute('data-pick'), hex = String(inp.value || '').replace('#', '').toLowerCase(); if (!HEX.test(hex)) return;
+      var next = assign({}, cfg); next[k] = hex;
+      if (pickBase) { cfg = pickBase; pickBase = null; }
+      pushRecent(k, hex); change(next, '[data-pick="' + k + '"]');
     });
     /* önizleme imlece göre eğilir */
     var pv = back.querySelector('[data-avs-live]');
@@ -393,11 +490,83 @@
         '<img alt="" loading="lazy" src="' + esc(srcOf(c)) + '"><span>' + esc(o[1]) + '</span></button>';
     }).join('') + '</div>';
   };
+  /* renkler: hazır palet + son kullandıkların + serbest seçici (renk çarkı) */
+  var HEX = /^[0-9a-f]{6}$/i;
+  var recentKey = function (key) { return key === 'skinColor' ? 'ten' : key === 'bg' ? 'zemin' : 'renk'; };
+  var recents = function (key) { var r = ls.get('acx-avatar-recent') || {}; return (r[recentKey(key)] || []).filter(function (h) { return HEX.test(h); }); };
+  var pushRecent = function (key, hex) {
+    if (!HEX.test(hex)) return;
+    var r = ls.get('acx-avatar-recent') || {}, k = recentKey(key), l = (r[k] || []).filter(function (h) { return h !== hex; });
+    l.unshift(hex); r[k] = l.slice(0, 6); ls.set('acx-avatar-recent', r);
+  };
+  var swb = function (key, hex, name, extra) {
+    var t = hex === 'transparent';
+    return '<button type="button" class="avs-swb' + (t ? ' t' : '') + (extra || '') + '" data-k="' + key + '" data-v="' + hex + '" aria-pressed="' + (cfg[key] === hex) + '" aria-label="' + esc(name) + '" title="' + esc(name) + '"' + (t ? '' : ' style="background:#' + hex + '"') + '></button>';
+  };
   var swatches = function (key, list, title) {
-    return '<h3 class="avs-sub">' + esc(title) + '</h3><div class="avs-sw">' + list.map(function (o) {
-      var t = o[0] === 'transparent';
-      return '<button type="button" class="avs-swb' + (t ? ' t' : '') + '" data-k="' + key + '" data-v="' + o[0] + '" aria-pressed="' + (cfg[key] === o[0]) + '" aria-label="' + esc(o[1]) + '" title="' + esc(o[1]) + '"' + (t ? '' : ' style="background:#' + o[0] + '"') + '></button>';
+    var inList = function (h) { return list.some(function (o) { return o[0] === h; }); };
+    var rec = recents(key).filter(function (h) { return !inList(h); });
+    var cur = cfg[key];
+    if (HEX.test(cur) && !inList(cur) && rec.indexOf(cur) < 0) rec.unshift(cur);
+    var val = HEX.test(cur) ? '#' + cur : '#ffffff';
+    return '<h3 class="avs-sub">' + esc(title) + '</h3><div class="avs-sw">' + list.map(function (o) { return swb(key, o[0], o[1]); }).join('') +
+      '<label class="avs-swb avs-pick" title="Kendi rengini seç"><input type="color" data-pick="' + key + '" value="' + val + '" aria-label="' + esc(title) + ': kendi rengini seç"><span aria-hidden="true">+</span></label></div>' +
+      (rec.length ? '<div class="avs-sw avs-rec"><span class="avs-rec-l">son kullandıkların</span>' + rec.slice(0, 6).map(function (h) { return swb(key, h, 'özel renk #' + h); }).join('') + '</div>' : '');
+  };
+  /* dolabım: 3 kayıtlı görünüş; bu cihazda saklanır, hesabına da yedeklenir */
+  var CLOSET_N = 3, closet = null;
+  var uidOf = function () { var u = g('currentUser'); return (u && u.id) || 'anon'; };
+  var closetKey = function () { return 'acx-avatar-closet:' + uidOf(); };
+  var closetLocal = function () { var c = ls.get(closetKey()); return c && Array.isArray(c.slots) ? c : { at: 0, slots: [] }; };
+  var closetPath = function () { return uidOf() + '/avatar-dolap.json'; };
+  var closetPush = function () {
+    var sb = g('supabaseClient'); if (!sb || uidOf() === 'anon') return;
+    try {
+      var blob = new Blob([JSON.stringify(closet)], { type: 'application/json' });
+      Promise.resolve(sb.storage.from('avatars').upload(closetPath(), blob, { upsert: true, cacheControl: '0', contentType: 'application/json' })).catch(function () { /* yalnızca bu cihazda kalır */ });
+    } catch (e) { /* yok */ }
+  };
+  var closetPull = function () {
+    var sb = g('supabaseClient'); if (!sb || uidOf() === 'anon') return Promise.resolve();
+    try {
+      var pub = sb.storage.from('avatars').getPublicUrl(closetPath()), url = pub && pub.data && pub.data.publicUrl;
+      if (!url) return Promise.resolve();
+      /* önce dosya var mı bak (yoksa konsolda 404 kalabalığı olmasın) */
+      return Promise.resolve(sb.storage.from('avatars').list(uidOf(), { search: 'avatar-dolap.json', limit: 1 })).then(function (r) {
+        if (!r || r.error || !r.data || !r.data.some(function (f) { return f && f.name === 'avatar-dolap.json'; })) return null;
+        return fetch(url + '?t=' + Date.now(), { cache: 'no-store' }).then(function (r2) { return r2.ok ? r2.json() : null; });
+      }).then(function (rem) {
+        if (rem && Array.isArray(rem.slots) && (rem.at || 0) > (closet.at || 0)) { closet = rem; ls.set(closetKey(), closet); return true; }
+      }).catch(function () { });
+    } catch (e) { return Promise.resolve(); }
+  };
+  var closetSave = function (i) { closet.slots[i] = assign({}, cfg); closet.at = Date.now(); ls.set(closetKey(), closet); closetPush(); };
+  var closetDrop = function (i) { closet.slots[i] = null; closet.at = Date.now(); ls.set(closetKey(), closet); closetPush(); };
+  var closetHtml = function () {
+    var h = '<h3 class="avs-sub">dolabım</h3><p class="avs-note">Beğendiğin görünüşleri sakla, tek dokunuşla geri dön. Hesabına da yedeklenir.</p><div class="avs-closet">';
+    for (var i = 0; i < CLOSET_N; i++) {
+      var c = closet.slots[i];
+      if (c) h += '<div class="avs-slot"><button type="button" class="avs-opt" data-wear="' + i + '" aria-label="' + (i + 1) + '. stili giy"><img alt="" src="' + esc(srcOf(clean(c))) + '"><span>' + (i + 1) + '. stil · giy</span></button>' +
+        '<button type="button" class="avs-slot-x" data-drop="' + i + '" aria-label="' + (i + 1) + '. stili sil" title="Sil">×</button></div>';
+      else h += '<div class="avs-slot"><button type="button" class="avs-opt avs-empty" data-keep="' + i + '"><b aria-hidden="true">+</b><span>şu anki görünüşü sakla</span></button></div>';
+    }
+    return h + '</div>';
+  };
+  var outfitCfg = function (o) { return assign({}, cfg, o.set); };
+  var outfitOn = function (o) { var c = outfitCfg(o); return Object.keys(o.set).every(function (k) { return cfg[k] === c[k]; }); };
+  var outfitsHtml = function () {
+    return '<h3 class="avs-sub">hazır kombinler</h3><p class="avs-note">Yüzün, tenin ve saçın aynı kalır; kıyafet, aksesuar ve zemin değişir.</p><div class="avs-grid avs-big">' + OUTFITS.map(function (o) {
+      return '<button type="button" class="avs-opt" data-outfit="' + o.k + '" aria-pressed="' + outfitOn(o) + '" aria-label="' + esc(o.label + ': ' + o.note) + '"><img alt="" loading="lazy" src="' + esc(srcOf(outfitCfg(o))) + '"><span><b>' + esc(o.label) + '</b></span><small class="avs-why">' + esc(o.note) + '</small></button>';
     }).join('') + '</div>';
+  };
+  var deptHtml = function () {
+    var p = profile(), mine = deptOf(p && p.department);
+    var list = DEPTX.slice().sort(function (a, b) { return (b.k === mine) - (a.k === mine); });
+    return '<p class="avs-note">Bölümünü anlatan bir parça tak. ' + (mine ? 'Senin bölümüne uygun olan başta.' : 'Hepsi herkese açık.') + '</p><div class="avs-grid">' + list.map(function (x) {
+      var c = assign({}, cfg, { xDept: x.k }), on = cfg.xDept === x.k;
+      return '<button type="button" class="avs-opt' + (x.k === mine ? ' mine' : '') + '" data-dept="' + x.k + '" aria-pressed="' + on + '" aria-label="' + esc(x.label + ' (' + x.fac + ')' + (x.k === mine ? ', senin bölümün' : '')) + '">' +
+        (x.k === mine ? '<em class="avs-mine">senin bölümün</em>' : '') + '<img alt="" loading="lazy" src="' + esc(srcOf(c)) + '"><span>' + esc(x.label) + '</span><small class="avs-why">' + esc(x.fac) + '</small></button>';
+    }).join('') + '</div>' + (cfg.xDept ? '<div class="avs-row" style="justify-content:flex-start;margin-top:12px"><button type="button" class="avs-chip ghost" data-dept="">Bölüm parçasını çıkar</button></div>' : '');
   };
   var extrasGrid = function () {
     if (!unlocked) return '<p class="avs-note">Rozetlerin yükleniyor…</p>';
@@ -425,6 +594,8 @@
     else if (tab === 'kiyafet') h = optGrid('clothing', CLOTH, '') + swatches('clothesColor', CLOTH_C, 'kıyafet rengi');
     else if (tab === 'arka') h = swatches('bg', BG, 'arka plan') + (cfg.xBg ? '<p class="avs-note">Şu an rozet arka planı (yıldızlı gece) seçili; renk için onu "Rozet parçaları"ndan kaldır.</p>' : '');
     else if (tab === 'rozet') h = extrasGrid();
+    else if (tab === 'kombin') h = closetHtml() + outfitsHtml();
+    else if (tab === 'bolum') h = deptHtml();
     p.innerHTML = h;
   };
   var renderSide = function () {
@@ -447,6 +618,7 @@
     var p = profile();
     cfg = clean(cfgFromUrl(p && p.avatar_url) || ls.get('acx-avatar-cfg') || DEF);
     hist = []; tab = 'sac';
+    closet = closetLocal(); closetPull().then(function (ch) { if (ch && !back.hidden && tab === 'kombin') renderPanel(); });
     back.hidden = false; document.documentElement.style.overflow = 'hidden';
     renderTabs(); refresh();
     back.querySelector('[data-avs-tab="sac"]').focus();
@@ -546,9 +718,11 @@
     var okBtn = back.querySelector('[data-avs-save]'); okBtn.disabled = true; okBtn.textContent = 'Kaydediliyor…';
     var tag = encodeCfg(cfg), saved = assign({}, cfg);
     var finish = function (url, note) {
+      var oldUrl = p && p.avatar_url;
       return sb.from('profiles').update({ avatar_url: url }).eq('id', user.id).then(function (r) {
         if (r && r.error) throw r.error;
         if (p) p.avatar_url = url;
+        retire(oldUrl, url);
         ls.set('acx-avatar-cfg', saved);
         var up = window.updateAllAvatarDisplays || g('updateAllAvatarDisplays'); if (typeof up === 'function') up();
         alertMsg('success', note || 'Avatarın kaydedildi.');
@@ -671,47 +845,149 @@
     }
   };
 
-  /* ---------- ruh hali ---------- */
-  var setMood = function (m) { if (mood === m) return; mood = m; lives.forEach(paintLive); };
-  var markStudied = function () {
-    var st = ls.get('acx-mood') || {}; st.studied = today(); ls.set('acx-mood', st); setMood('mutlu');
+  /* ---------- her yerde aynı avatar: kaydedince sayfadaki eski resimler de anında değişir ---------- */
+  var retired = {};
+  var retire = function (from, to) {
+    if (!from || !to || from === to) return;
+    retired[from] = to;
+    Object.keys(retired).forEach(function (k) { if (retired[k] === from) retired[k] = to; });
+    swapOld();
   };
-  var missBubble = function () {
+  var swapOld = function () {
+    if (!Object.keys(retired).length) return;
+    Array.prototype.forEach.call(document.querySelectorAll('img'), function (im) { var s0 = im.getAttribute('src'); if (s0 && retired[s0]) im.setAttribute('src', retired[s0]); });
+  };
+
+  /* ---------- ruh hali: avatar o anki duruma göre yüz ifadesi takınır ----------
+     öncelik: Pomodoro odak turu > yeni bitmiş sınavın sonucu (2 saat) > bugün çalıştın > uzun aradan sonra özlem */
+  var EXAM_KEY = 'acx-mood-exam', pomFocus = false, baseMood = null;
+  var computeMood = function () {
+    if (pomFocus) return 'odak';
+    var ex = ls.get(EXAM_KEY); if (ex && ex.until > Date.now() && MOODS[ex.m]) return ex.m;
+    var st = ls.get('acx-mood') || {}; if (st.studied === today()) return 'mutlu';
+    return baseMood;
+  };
+  var setMood = function (m) { if (mood === m) return; mood = m; lives.forEach(paintLive); };
+  var moodNow = function () { setMood(computeMood()); };
+  var markStudied = function () {
+    var st = ls.get('acx-mood') || {}; st.studied = today(); ls.set('acx-mood', st); baseMood = null; moodNow();
+  };
+  /* üst bardaki avatarın yanında küçük el yazısı balon */
+  var say = function (text, delay) {
     setTimeout(function () {
-      var w = lives.filter(function (x) { var r = x.getBoundingClientRect(); return r.width && r.top >= 0 && r.top < 160; })[0];
+      /* yalnızca gerçekten görünen (üstü kapanmamış) bir avatarın yanında konuş */
+      var w = lives.filter(function (x) {
+        var r = x.getBoundingClientRect(); if (!r.width || r.top < 0 || r.top >= 160) return false;
+        var hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return !!hit && (hit === x || x.contains(hit));
+      })[0];
       if (!w) return;
       injectCss();
-      var r = w.getBoundingClientRect(), b = document.createElement('div'); b.className = 'avs-miss'; b.setAttribute('role', 'status'); b.textContent = 'seni özledim!';
+      Array.prototype.forEach.call(document.querySelectorAll('.avs-miss'), function (o) { o.remove(); });
+      var r = w.getBoundingClientRect(), b = document.createElement('div'); b.className = 'avs-miss'; b.setAttribute('role', 'status'); b.textContent = text;
       document.body.appendChild(b);
       b.style.left = Math.max(8, Math.min(innerWidth - b.offsetWidth - 8, r.left + r.width / 2 - b.offsetWidth / 2)) + 'px';
       b.style.top = (r.bottom + 10) + 'px';
-      setTimeout(function () { b.remove(); }, 6000);
-    }, 1200);
+      setTimeout(function () { b.remove(); }, 5000);
+    }, delay == null ? 300 : delay);
   };
   var initMood = function () {
     var st = ls.get('acx-mood') || {}, t = today();
-    if (st.studied === t) mood = 'mutlu';
-    else if (st.last && dayDiff(st.last, t) >= 3 && st.missShown !== t) { mood = 'ozlemis'; st.missShown = t; missBubble(); }
+    if (st.studied !== t && st.last && dayDiff(st.last, t) >= 3) { baseMood = 'ozlemis'; if (st.missShown !== t) { st.missShown = t; say('seni özledim!', 1200); } }
     st.last = t; ls.set('acx-mood', st);
+    mood = computeMood();
     /* çalışma sinyali: panelin başarı bildirimleri (özet, kart, sınav, defter kaydı...) */
     var prev = window.showDashboardAlert;
     if (typeof prev === 'function' && !prev.__avs) {
       var wrapped = function (type, msg) {
-        try { if (type === 'success' && !/avatar|fotoğraf|kapak/i.test(String(msg || ''))) markStudied(); } catch (e) { /* yok */ }
+        try { if (type === 'success' && !/avatar|fotoğraf|kapak|stil/i.test(String(msg || ''))) markStudied(); } catch (e) { /* yok */ }
         return prev.apply(this, arguments);
       };
       wrapped.__avs = true; window.showDashboardAlert = wrapped;
     }
   };
+  /* Pomodoro: Study Lab'in üst çubuktaki sayaç çipi odak turundayken görünür */
+  var pomWatch = function () {
+    var chip = document.getElementById('axl-chip'); if (!chip || chip.__avs) return; chip.__avs = true;
+    var check = function (first) {
+      var f = !chip.hidden && !chip.classList.contains('brk') && !chip.classList.contains('paused');
+      if (f === pomFocus) return;
+      pomFocus = f; moodNow();
+      if (!first) say(f ? 'odaktayım, sonra konuşuruz' : (chip.hidden ? 'tur bitti, aferin!' : 'kısa bir mola'), 150);
+    };
+    new MutationObserver(function () { check(false); }).observe(chip, { attributes: true, attributeFilter: ['hidden', 'class'] });
+    check(true);
+  };
+  /* sınav: yeni gönderilen bir denemenin sonucu açılınca puana göre yüz */
+  var examAt = 0;
+  var examMood = function (exam) {
+    var gr = Math.round(+(exam && exam.grade) || 0);
+    var m = gr >= 70 ? 'gurur' : gr >= 50 ? 'mutlu' : 'dusunceli';
+    ls.set(EXAM_KEY, { m: m, until: Date.now() + 2 * 3600e3 });
+    var st = ls.get('acx-mood') || {}; st.studied = today(); ls.set('acx-mood', st); baseMood = null;
+    moodNow();
+    setTimeout(function () {
+      var host = document.querySelector('.sn-score') || document.getElementById('result-score-circle');
+      if (host && myCfg()) addSticker(host, gr >= 85 ? 'heyecanli' : m, true);
+      else say(gr >= 85 ? 'harikayız!' : gr >= 70 ? 'gurur duydum!' : gr >= 50 ? 'fena değil, devam!' : 'bir daha deneriz, olur', 400);
+    }, 120);
+  };
+  var examWatch = function () {
+    var sub = window.submitExam;
+    if (typeof sub === 'function' && !sub.__avs) { var ws = function () { examAt = Date.now(); return sub.apply(this, arguments); }; ws.__avs = true; window.submitExam = ws; }
+    var show = window.showExamResults;
+    if (typeof show === 'function' && !show.__avs) {
+      var wr = function (exam) {
+        var r = show.apply(this, arguments);
+        try { if (examAt && Date.now() - examAt < 15 * 60e3) { examAt = 0; examMood(exam); } } catch (e) { /* yok */ }
+        return r;
+      };
+      wr.__avs = true; window.showExamResults = wr;
+    }
+  };
+
+  /* ---------- Acadia: senin mesajlarında avatarın, cevap beklerken düşünür, cevap gelince göz kırpar ---------- */
+  var acadia = function () {
+    var layer = document.getElementById('axa-layer'); if (!layer || layer.__avs) return;
+    var log = layer.querySelector('[data-log]'), P = layer.querySelector('[data-axa]'); if (!log || !P) return;
+    layer.__avs = true;
+    var lastMe = function () { var l = log.querySelectorAll('.avs-me-av'); return l[l.length - 1] || null; };
+    var face = function (im, key) {
+      var c = myCfg(), p = profile(); if (!im || !p || !p.avatar_url) return;
+      clearTimeout(im.__avsT);
+      if (!key || !c) { im.src = p.avatar_url; return; }
+      srcAsync(withExpr(c, MOODS[key])).then(function (s0) { im.src = s0; });
+    };
+    var tag = function (m) {
+      var p = profile(); if (m.__avs || !p || !p.avatar_url) return;
+      m.__avs = true; m.classList.add('avs-me');
+      var im = document.createElement('img'); im.className = 'avs-me-av'; im.alt = ''; im.setAttribute('aria-hidden', 'true'); im.__avs = true;
+      im.src = p.avatar_url; im.onerror = function () { im.remove(); m.classList.remove('avs-me'); };
+      m.appendChild(im);
+    };
+    Array.prototype.forEach.call(log.querySelectorAll('.axa-m.user'), tag);
+    new MutationObserver(function (ms) {
+      ms.forEach(function (mu) { Array.prototype.forEach.call(mu.addedNodes, function (n) { if (n.nodeType === 1 && n.classList.contains('axa-m') && n.classList.contains('user')) tag(n); }); });
+    }).observe(log, { childList: true });
+    var was = P.classList.contains('busy');
+    new MutationObserver(function () {
+      var on = P.classList.contains('busy'); if (on === was) return; was = on;
+      var im = lastMe(); if (!im) return;
+      if (on) { face(im, 'dusunceli'); return; }
+      var bots = log.querySelectorAll('.axa-m.bot'), lb = bots[bots.length - 1];
+      face(im, lb && lb.classList.contains('err') ? 'saskin' : 'kirpan');
+      im.__avsT = setTimeout(function () { face(im, null); }, 2600);
+    }).observe(P, { attributes: true, attributeFilter: ['class'] });
+  };
 
   /* ---------- sticker'lar: Acadia önerisi + başarı bildirimi ---------- */
   var stickerSrc = function (key) {
     var c = myCfg(); if (!c) return null; /* fotoğraf ya da eski avatar: sticker yok */
-    var ex = EXPR.filter(function (x) { return x.k === key; })[0] || EXPR[0];
+    var ex = EXPR.filter(function (x) { return x.k === key; })[0] || MOODS[key] || EXPR[0];
     return srcOf(withExpr(c, ex), true);
   };
-  var addSticker = function (host, key) {
-    if (!host || host.querySelector(':scope > .avs-st')) return;
+  var addSticker = function (host, key, replace) {
+    if (!host) return;
+    var old = host.querySelector(':scope > .avs-st'); if (old) { if (!replace) return; old.remove(); }
     var src = stickerSrc(key); if (!src) return;
     injectCss();
     var im = document.createElement('img'); im.className = 'avs-st'; im.alt = ''; im.setAttribute('aria-hidden', 'true'); im.src = src;
@@ -738,14 +1014,15 @@
     var look = function () {
       watchHint(document.querySelector('.axa-hint'));
       watchToasts(document.getElementById('achievement-toast-container'));
+      pomWatch(); acadia(); examWatch();
       liveScan();
-      if (++tries < 30 && (!document.querySelector('.axa-hint') || !lives.length)) setTimeout(look, 1000);
+      if (++tries < 30 && (!document.querySelector('.axa-hint') || !lives.length || !document.getElementById('axl-chip'))) setTimeout(look, 1000);
     };
     /* yeni eklenen avatar resimlerini ve bildirim kutusunu yakala (toplu, kare başına bir kez) */
     var pend = false;
     new MutationObserver(function (ms) {
       ms.forEach(function (m) { Array.prototype.forEach.call(m.addedNodes, function (n) { if (n.nodeType === 1) { if (n.id === 'achievement-toast-container') watchToasts(n); if (n.classList && n.classList.contains('axa-hint')) watchHint(n); } }); });
-      if (!pend) { pend = true; requestAnimationFrame(function () { pend = false; liveScan(); }); }
+      if (!pend) { pend = true; requestAnimationFrame(function () { pend = false; swapOld(); liveScan(); }); }
     }).observe(document.body, { childList: true, subtree: true });
     initMood();
     loadLib().then(function () { lives.forEach(paintLive); });
@@ -756,7 +1033,7 @@
   /* ---------- dışarıya açılan ---------- */
   window.openAvatarBuilder = open;
   window.closeAvatarBuilder = close;
-  window.AcxAvatar = { open: open, close: close, sticker: stickerSrc, expressions: EXPR.map(function (x) { return x.k; }), markStudied: markStudied };
+  window.AcxAvatar = { open: open, close: close, sticker: stickerSrc, expressions: EXPR.map(function (x) { return x.k; }), moods: Object.keys(MOODS), markStudied: markStudied, mood: function () { return mood; } };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
