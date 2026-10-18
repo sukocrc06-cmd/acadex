@@ -1,8 +1,7 @@
 /* ==========================================================================
    Acadex · Yönetim paneli (js/admin-app.js)
    Güvenlik tarayıcıda değil, veritabanında: her veri ve işlem admin_* SQL
-   fonksiyonlarıyla gelir; her fonksiyon "yönetici mi + iki adımlı doğrulama
-   (aal2) yapılmış mı" diye kendisi bakar ve işlemleri admin_audit_log'a yazar.
+   fonksiyonlarıyla gelir; her fonksiyon "yönetici mi" diye kendisi bakar ve işlemleri admin_audit_log'a yazar.
    Bu dosya yalnızca gösterir. Gizli anahtar yok; anon/publishable anahtar ve
    oturum yeterli.
    ========================================================================== */
@@ -23,7 +22,7 @@
 
   var toastT = 0;
   var toast = function (msg, bad) { var t = $('#toast'); t.textContent = msg; t.className = 'toast' + (bad ? ' bad' : ''); t.hidden = false; clearTimeout(toastT); toastT = setTimeout(function () { t.hidden = true; }, bad ? 6000 : 3200); };
-  var errMsg = function (e) { var m = (e && (e.message || e.error_description)) || String(e || 'bilinmeyen hata'); if (/42501|yetki/i.test(m + (e && e.code))) return 'Yetki yok: yönetici hesabı ve iki adımlı doğrulama gerekli.'; return m; };
+  var errMsg = function (e) { var m = (e && (e.message || e.error_description)) || String(e || 'bilinmeyen hata'); if (/42501|yetki/i.test(m + (e && e.code))) return 'Yetki yok: bu işlem için yönetici hesabı gerekli.'; return m; };
   var rpc = async function (fn, args) { var r = await sb.rpc(fn, args || {}); if (r.error) throw r.error; return r.data; };
 
   /* =========================== giriş + 2FA =========================== */
@@ -100,8 +99,6 @@
       if (!s.data || !s.data.session) { var q = new URLSearchParams(location.hash.slice(1) + '&' + location.search.slice(1)); loginView(q.get('error_description') ? q.get('error_description').replace(/\+/g, ' ') : ''); return; }
       var who = await rpc('admin_whoami');
       if (!who || !who.is_admin) { notAdminView(who || {}); return; }
-      var al = await sb.auth.mfa.getAuthenticatorAssuranceLevel();
-      if (!al.data || al.data.currentLevel !== 'aal2') { await mfaView(); return; }
       ME = who; start();
     } catch (e) { gate('<h2 class="disp">Bir sorun çıktı</h2><p class="err">' + X(errMsg(e)) + '</p><div class="acts-g"><button type="button" class="btn blue" id="g-retry">Tekrar dene</button> <button type="button" class="lnk" id="g-out">çıkış yap</button></div>'); $('#g-retry').addEventListener('click', boot); $('#g-out').addEventListener('click', signOut); }
   };
@@ -365,7 +362,7 @@
       '<form class="card" data-key="maintenance_mode"><h2>Bakım modu</h2><p class="sub">Açıkken giriş sayfasında bakım uyarısı görünür.</p><div style="display:flex;flex-direction:column;gap:12px"><label class="switch"><input type="checkbox" name="en"' + (mm.enabled ? ' checked' : '') + '><i></i>bakım modu</label><label class="fld">Mesaj<input class="in" name="msg" maxlength="200" value="' + X(mm.message || '') + '" placeholder="Acadex şu anda bakımda…"></label><div class="acts"><button class="btn blue sm" type="submit">Kaydet</button></div></div></form>' +
       '<form class="card" data-key="site_banner"><h2>Site bandı</h2><p class="sub">Sayfaların en üstünde ince duyuru şeridi.</p><div style="display:flex;flex-direction:column;gap:12px"><label class="switch"><input type="checkbox" name="en"' + (bn.enabled ? ' checked' : '') + '><i></i>bandı göster</label><label class="fld">Mesaj<input class="in" name="msg" maxlength="200" value="' + X(bn.message || '') + '" placeholder="örn. Vize haftası: özetleme önceliği sende"></label><div class="acts"><button class="btn blue sm" type="submit">Kaydet</button></div></div></form>' +
       '<form class="card" data-key="registration_domains"><h2>Kayıt alan adları</h2><p class="sub">Boş bırakırsan herkes kayıt olabilir. Örnek: ogr.universite.edu.tr</p><div style="display:flex;flex-direction:column;gap:12px"><label class="fld">Alan adları <small>(virgülle ayır)</small><input class="in" name="dom" value="' + X((rd.domains || []).join(', ')) + '"></label><div class="acts"><button class="btn blue sm" type="submit">Kaydet</button></div></div></form>' +
-      '<div class="card"><h2>Güvenlik</h2><p class="sub">Bu panel nasıl korunuyor</p><dl class="kv"><dt>Yetki</dt><dd>Veritabanında: her işlem "yönetici + iki adımlı doğrulama" kontrolünden geçer.</dd><dt>Kayıt</dt><dd>Her değişiklik Denetim kaydına yazılır.</dd><dt>Yönetici atama</dt><dd>Panelden yapılamaz; yalnızca veritabanından.</dd></dl></div>' +
+      '<div class="card"><h2>Güvenlik</h2><p class="sub">Bu panel nasıl korunuyor</p><dl class="kv"><dt>Yetki</dt><dd>Veritabanında: her işlem "yönetici mi" kontrolünden geçer.</dd><dt>Kayıt</dt><dd>Her değişiklik Denetim kaydına yazılır.</dd><dt>Yönetici atama</dt><dd>Panelden yapılamaz; yalnızca veritabanından.</dd></dl></div>' +
       '</div>';
     $$('form[data-key]', m).forEach(function (f) { f.addEventListener('submit', async function (ev) {
       ev.preventDefault(); var key = f.getAttribute('data-key'), val;
