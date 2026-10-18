@@ -509,4 +509,33 @@ test('cleanHTML KaTeX satir ici stillerini KORUR', () => {
     'temizlik tamamen kalkmis: formatSummaryText stilleri ink temasiyla kavga eder');
 });
 
+
+test('KACISLA BITEN formul yakalanir', () => {
+  /* 18.10.2026 CANLI HATA: ekranda ham kalan formullerin HEPSI ayni
+     sekilde bitiyordu — $1\\%$ , $(\\beta_1 \\times 100)\\%$ ,
+     $\\beta_1\\%$ . Eski desen kapanis $ isaretinden once AYRI bir
+     \\S karakteri istiyordu; kacisli bir komutla biten formulde o
+     karakter kacisin ICINDE kaliyor, geriye \\S icin bir sey kalmiyor ve
+     eslesme olmuyordu. Formul de ham basiliyordu. */
+  const c = sahteKatexKur();
+  try {
+    const html = UI.renderMathInText('yaklasik $1\\%$ degisim');
+    assert.ok(html.includes('<KTX>'), 'kacisla biten formul hala ham: ' + html);
+    assert.deepEqual(c, ['1\\%'], 'KaTeX e giden formul yanlis: ' + JSON.stringify(c));
+
+    const uzun = UI.renderMathInText('approximately $(\\beta_1 \\times 100)\\%$ change');
+    assert.ok(uzun.includes('<KTX>'), 'uzun kacisli formul hala ham: ' + uzun);
+  } finally { katexKaldir(); }
+});
+
+test('PARA ve BOS durumlar hala reddediliyor', () => {
+  // Desen gevsetildi; gevsemenin bu ikisini icine almadigi kilitleniyor.
+  const c = sahteKatexKur();
+  try {
+    assert.equal(UI.inlineMath('costs $100 and $200'), 'costs $100 and $200');
+    assert.equal(UI.inlineMath('bir $ $ iki'), 'bir $ $ iki');
+    assert.deepEqual(c, [], 'para ya da bos parca KaTeX e gonderilmis');
+  } finally { katexKaldir(); }
+});
+
 summary().then(() => process.exit(process.exitCode || 0));

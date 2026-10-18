@@ -3221,7 +3221,11 @@ function splitCalcChain(calc, maxLen = 46) {
 function renderMathInText(text) {
   if (!text) return '';
   const s = String(text);
-  const re = /\$(?=\S)((?:[^$\\]|\\.)*?\S)\$(?!\d)/g;
+  /* Kapanis $'inin ONUNDE bosluk olmadigi kontrol edilir. Eski desen
+     sondaki \S icin AYRI bir karakter istiyordu; $1\%$ gibi KACISLA
+     biten formulde o karakter kacisin icinde kaldigi icin eslesme
+     olmuyor ve formul ham basiliyordu (18.10.2026). */
+  const re = /\$(?=\S)((?:[^$\\]|\\.)+?)(?<!\s)\$(?!\d)/g;
   let out = '', son = 0, m;
   while ((m = re.exec(s)) !== null) {
     const latex = m[1];
@@ -3417,7 +3421,8 @@ function summaryParagraphs(summary, target = 600) {
 function inlineMath(html) {
   const s = String(html == null ? '' : html);
   if (!window.katex || s.indexOf('$') === -1) return s;
-  return s.replace(/\$(?=\S)((?:[^\$\\]|\\.)*?\S)\$(?!\d)/g, (match, latex) => {
+  // Desen notu icin bkz. renderMathInText: kacisla biten formul.
+  return s.replace(/\$(?=\S)((?:[^\$\\]|\\.)+?)(?<!\s)\$(?!\d)/g, (match, latex) => {
     if (/^\d[\d.,]*\s/.test(latex)) return match;
     try {
       return window.katex.renderToString(latex, { displayMode: false, throwOnError: false });
