@@ -33,13 +33,21 @@
 
   var loginView = function (msg) {
     gate('<h2 class="disp">Yönetim girişi</h2><p>Yalnızca Acadex yöneticileri içindir. Her işlem kayda geçer.</p>' + (msg ? '<p class="err" role="alert">' + X(msg) + '</p>' : '') +
-      '<button type="button" class="btn gbtn" id="g-google" style="width:100%"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.76h3.56c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.56-2.76c-.98.66-2.23 1.06-3.72 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.84 14.11a6.6 6.6 0 0 1 0-4.22V7.05H2.18a11 11 0 0 0 0 9.9l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15A10.96 10.96 0 0 0 12 1 11 11 0 0 0 2.18 7.05l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38z"/></svg>Google ile giriş</button>' +
-      '<div class="or">ya da e-postayla</div><form id="g-form" novalidate><label class="fld">E-posta<input class="in" type="email" name="e" autocomplete="username" required></label><label class="fld">Şifre<input class="in" type="password" name="p" autocomplete="current-password" required></label><button class="btn blue" type="submit">Giriş yap</button></form>');
-    $('#g-google').addEventListener('click', async function () { this.disabled = true; var r = await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + location.pathname } }); if (r.error) { this.disabled = false; toast(errMsg(r.error), true); } });
+'<form id="g-form" novalidate><label class="fld">E-posta<input class="in" type="email" name="e" autocomplete="username" required></label><label class="fld">Şifre<input class="in" type="password" name="p" autocomplete="current-password" required></label><button class="btn blue" type="submit">Giriş yap</button><button type="button" class="lnk" id="g-forgot">şifremi unuttum / şifre belirle</button></form>');
+    $('#g-forgot').addEventListener('click', async function () {
+      var f = $('#g-form'), em = f.e.value.trim();
+      if (!/^\S+@\S+\.\S+$/.test(em)) { showErr(gateBody, 'Önce e-posta adresini yaz.'); f.e.focus(); return; }
+      this.disabled = true;
+      var r = await sb.auth.resetPasswordForEmail(em, { redirectTo: location.origin + '/reset-password.html' });
+      this.disabled = false;
+      if (r.error) { showErr(gateBody, errMsg(r.error)); return; }
+      var e = $('.err', gateBody); if (e) e.remove();
+      toast(em + ' adresine şifre belirleme bağlantısı gönderildi.');
+    });
     $('#g-form').addEventListener('submit', async function (e) {
       e.preventDefault(); var b = $('button', this); b.disabled = true; b.textContent = 'giriş yapılıyor…';
       var r = await sb.auth.signInWithPassword({ email: this.e.value.trim(), password: this.p.value });
-      if (r.error) { b.disabled = false; b.textContent = 'Giriş yap'; showErr(gateBody, /invalid/i.test(r.error.message) ? 'E-posta ya da şifre hatalı.' : errMsg(r.error)); return; }
+      if (r.error) { b.disabled = false; b.textContent = 'Giriş yap'; showErr(gateBody, /invalid/i.test(r.error.message) ? 'E-posta ya da şifre hatalı. Hesabın Google ile açıldıysa henüz şifresi yoktur: aşağıdan "şifre belirle"ye bas.' : errMsg(r.error)); return; }
       boot();
     });
   };
