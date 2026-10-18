@@ -244,7 +244,10 @@
         (self ? '<p class="muted" style="font-size:13px">Kendi hesabın: askıya alma kapalı.</p>' : p.is_admin ? '<p class="muted" style="font-size:13px">Yönetici hesapları panelden askıya alınamaz.</p>' :
           '<div class="danger"><h3>' + (p.is_suspended ? 'Askıyı kaldır' : 'Hesabı askıya al') + '</h3><p class="muted" style="font-size:13px;margin:0 0 10px">' + (p.is_suspended ? 'Öğrenci yeniden giriş yapıp Acadex\'i kullanabilir.' : 'Öğrenci giriş yaptığında panel yerine "hesabın askıda" ekranını görür. Verisi silinmez.') + '</p>' +
           (p.is_suspended ? '' : '<label class="fld" style="margin-bottom:10px">Sebep <small>(kayda geçer)</small><input class="in" id="d-reason" maxlength="200" placeholder="örn. tekrarlanan uygunsuz paylaşım"></label>') +
-          '<button type="button" class="btn ' + (p.is_suspended ? 'green' : 'red') + ' sm" id="d-susp">' + (p.is_suspended ? 'Askıyı kaldır' : 'Askıya al') + '</button></div>') +
+          '<button type="button" class="btn ' + (p.is_suspended ? 'green' : 'red') + ' sm" id="d-susp">' + (p.is_suspended ? 'Askıyı kaldır' : 'Askıya al') + '</button></div>' +
+          '<div class="danger" style="border-style:solid"><h3>Hesabı kalıcı olarak sil</h3><p class="muted" style="font-size:13px;margin:0 0 10px">Öğrencinin hesabı, belgeleri, özet kartları, notları ve diğer tüm kayıtları silinir. <b>Geri alınamaz.</b> Silme işlemi denetim kaydına geçer.</p>' +
+          '<label class="fld" style="margin-bottom:10px">Onaylamak için e-postasını yaz <small>' + X(p.email) + '</small><input class="in" id="d-delmail" autocomplete="off" spellcheck="false"></label>' +
+          '<button type="button" class="btn red sm" id="d-del" disabled>Hesabı kalıcı sil</button></div>') +
         (d.log && d.log.length ? '<div><h3 style="margin:0 0 8px;font-size:15px">Bu öğrenciyle ilgili kayıtlar</h3><div class="list">' + d.log.map(function (l) { return '<div class="item" style="padding:10px 12px"><div class="item-h"><b style="font-size:13.5px">' + X(ACTION[l.action] || l.action) + '</b><span class="t">' + AGO(l.created_at) + '</span></div><span class="muted" style="font-size:12.5px">' + X(l.actor_name || 'sistem') + (l.details && l.details.reason ? ' · ' + X(l.details.reason) : '') + '</span></div>'; }).join('') + '</div></div>' : '');
       $('#d-reset').addEventListener('click', async function () {
         if (!confirmBox(p.email + ' adresine şifre sıfırlama bağlantısı gönderilsin mi?')) return;
@@ -253,6 +256,16 @@
         try { await rpc('admin_note_password_reset', { p_id: p.id }); } catch (e) {}
         this.textContent = 'gönderildi ✓'; toast('Şifre sıfırlama e-postası gönderildi.');
       });
+      var dm = $('#d-delmail'), db = $('#d-del');
+      if (dm && db) {
+        dm.addEventListener('input', function () { db.disabled = this.value.trim().toLowerCase() !== String(p.email || '').toLowerCase(); });
+        db.addEventListener('click', async function () {
+          if (!confirmBox((p.full_name || p.email) + ' hesabı ve tüm verileri kalıcı olarak silinecek. Emin misin?')) return;
+          db.disabled = true; db.textContent = 'siliniyor…';
+          try { await rpc('admin_delete_user', { p_id: p.id, p_confirm_email: dm.value.trim() }); toast((p.full_name || p.email) + ' hesabı silindi.'); closeDrawer(); loadUsers(); refreshCounts(); }
+          catch (e) { db.disabled = false; db.textContent = 'Hesabı kalıcı sil'; toast(/admin_delete_user|could not find|does not exist|PGRST202/i.test((e && (e.message + e.code)) || '') ? 'Silme özelliği veritabanında henüz kurulu değil (SQL adımı yapılmalı).' : errMsg(e), true); }
+        });
+      }
       var sb2 = $('#d-susp'); if (sb2) sb2.addEventListener('click', async function () {
         var to = !p.is_suspended, reason = ($('#d-reason') || {}).value || '';
         if (to && !reason.trim()) { toast('Askıya alma sebebini yaz.', true); $('#d-reason').focus(); return; }
@@ -376,7 +389,7 @@
   };
 
   /* ---------- denetim kaydı ---------- */
-  var ACTION = { user_suspend: 'Hesap askıya alındı', user_unsuspend: 'Askı kaldırıldı', user_password_reset_email: 'Şifre sıfırlama e-postası', report_hide: 'Şikâyet: içerik gizlendi', report_dismiss: 'Şikâyet kapatıldı', report_reopen: 'Şikâyet yeniden açıldı', content_hide: 'İçerik gizlendi', content_unhide: 'İçerik görünür yapıldı', setting_change: 'Site ayarı değişti', announcement_create: 'Duyuru yayınlandı', announcement_update: 'Duyuru güncellendi', announcement_archive: 'Duyuru arşivlendi', set_is_admin: 'Yönetici atandı', set_is_teacher: 'Hoca yetkisi (eski)', teacher_system_removed: 'Hoca sistemi kaldırıldı', campuso_sso_login: 'Campuso girişi (eski)' };
+  var ACTION = { user_suspend: 'Hesap askıya alındı', user_unsuspend: 'Askı kaldırıldı', user_password_reset_email: 'Şifre sıfırlama e-postası', user_delete: 'Hesap kalıcı silindi', report_hide: 'Şikâyet: içerik gizlendi', report_dismiss: 'Şikâyet kapatıldı', report_reopen: 'Şikâyet yeniden açıldı', content_hide: 'İçerik gizlendi', content_unhide: 'İçerik görünür yapıldı', setting_change: 'Site ayarı değişti', announcement_create: 'Duyuru yayınlandı', announcement_update: 'Duyuru güncellendi', announcement_archive: 'Duyuru arşivlendi', set_is_admin: 'Yönetici atandı', set_is_teacher: 'Hoca yetkisi (eski)', teacher_system_removed: 'Hoca sistemi kaldırıldı', campuso_sso_login: 'Campuso girişi (eski)' };
   var AF = '';
   VIEWS.audit = async function (m) {
     var d = await rpc('admin_audit', { p_action: AF, p_limit: 200, p_offset: 0 }), rows = d.rows || [];
