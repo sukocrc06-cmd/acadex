@@ -3064,6 +3064,9 @@ async function populateStudyCardModalDetails(card, docName, readOnly) {
           if (latexTarget && window.katex && f.latex) {
             try {
               window.katex.render(f.latex, latexTarget, { throwOnError: false, displayMode: true });
+              // Sigmayan formul kaydirma cubugu birakmasin (bkz.
+              // sigdirFormulKutusu): cubuk ciktida formulun sagini yiyor.
+              sigdirFormulKutusu(latexTarget);
             } catch (e) {
               latexTarget.textContent = f.latex;
             }
@@ -3242,6 +3245,58 @@ function renderMathSymbol(sym) {
   }
 }
 window.renderMathSymbol = renderMathSymbol;
+
+/** Formul kutusunun taban puntosu (rem). Altina inmek okunmaz yapiyor. */
+const FORMUL_MIN_REM = 0.62;
+
+/**
+ * KaTeX dizdikten SONRA cagrilir: formul kutuya sigmiyorsa puntoyu
+ * dusurur. Kutudaki overflow-x:auto aksi halde kartin ortasinda bir
+ * kaydirma cubugu birakiyor ve formulun sagi hem ekranda hem ciktida
+ * kayboluyor.
+ *
+ * transform:scale DEGIL: metni bulaniklastirir ve kutunun yuksekligini
+ * bozar. Punto dusurmek KaTeX yerlesimini yeniden hesaplatir — metin
+ * keskin kalir, yukseklik dogru olur.
+ *
+ * Olcum yapilamayan ortamda (kutu henuz yerlesmemis, genislik 0) hicbir
+ * sey yapilmaz: yanlis bir kucultme, kaydirma cubugundan daha kotudur.
+ */
+function sigdirFormulKutusu(kutu) {
+  if (!kutu) return null;
+  const ic = kutu.querySelector('.katex-display') || kutu.querySelector('.katex') || kutu.firstElementChild;
+  if (!ic) return null;
+  kutu.style.fontSize = '';
+  const sonuc = { genis: false, oran: null };
+  const sigmiyor = () => {
+    const alan = kutu.clientWidth;
+    const genislik = ic.scrollWidth;
+    // Olculemeyen ortamda (kutu henuz yerlesmemis) hicbir sey yapma.
+    if (!alan || !genislik) return 0;
+    return genislik > alan ? alan / genislik : 0;
+  };
+
+  let oran = sigmiyor();
+  if (!oran) return null;
+
+  /* 1. KADEME: karti tum genislige yay. Formul kartlari auto-fit bir
+     izgarada duruyor (minmax(280px,1fr)); tek sutuna sigmayan formul
+     iki sutunda cogu zaman punto dusurmeden siginiyor. */
+  const kart = kutu.closest ? kutu.closest('.formula-card') : null;
+  if (kart && kart.classList && !kart.classList.contains('formula-card-wide')) {
+    kart.classList.add('formula-card-wide');
+    sonuc.genis = true;
+    oran = sigmiyor();
+    if (!oran) return sonuc;
+  }
+
+  /* 2. KADEME: punto. Taban altina inmek formulu okunmaz yapar; orada
+     overflow-x:auto'ya birakiliyor, yani en kotu hal eski davranis. */
+  sonuc.oran = Math.max(FORMUL_MIN_REM, oran * 0.98);
+  kutu.style.fontSize = sonuc.oran + 'rem';
+  return sonuc;
+}
+window.sigdirFormulKutusu = sigdirFormulKutusu;
 
 /** Bir cozumlu ornek adiminin HTML'i: aciklama ve altinda hesap satiri. */
 function renderWorkedStepHtml(step) {

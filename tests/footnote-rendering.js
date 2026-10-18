@@ -27,7 +27,9 @@ const UI = loadFromSource('js/dashboard.js', [
   'escapeHtml', 'formatFootnoteMarkers', 'renderFootnotesSectionHtml',
   'renderSuggestedTagChipHtml',
   // Formul degiskenlerinin matematik yolu (18.10.2026).
-  'renderMathInText', 'renderMathSymbol'
+  'renderMathInText', 'renderMathSymbol',
+  // Formul kutusuna sigdirma (18.10.2026).
+  'FORMUL_MIN_REM', 'sigdirFormulKutusu'
 ]);
 
 const DASH_SRC = require('node:fs').readFileSync(
@@ -292,6 +294,92 @@ test('degisken listesi gercekten bu yoldan geciyor', () => {
   const blok = DASH_SRC.slice(i, i + 400);
   assert.ok(/renderMathSymbol\(v\.symbol\)/.test(blok), 'sembol matematik yolundan gecmiyor');
   assert.ok(/renderMathInText\(v\.meaning/.test(blok), 'aciklama metin yolundan gecmiyor');
+});
+
+
+// ==========================================================================
+// FORMUL KUTUSUNA SIGDIRMA
+//
+// Uzun formul kutuya sigmayinca overflow-x:auto devreye giriyordu: kartin
+// ortasinda kaydirma cubugu, formulun sagi hem ekranda hem ciktida
+// kayboluyor. Punto dusurulerek sigdiriliyor.
+// ==========================================================================
+
+/* Sahte kutu. Karti genisletmek GERCEKTEN alani buyutsun: izgarada tek
+   sutundan tum genislige gecmek alani yaklasik ikiye katliyor, ve
+   sigdirmanin ilk kademesi tam buna dayaniyor. */
+function sahteKutu(alan, genislik) {
+  const ic = { scrollWidth: genislik };
+  const kart = {
+    siniflar: new Set(),
+    classList: {
+      add(c) { kart.siniflar.add(c); kutu.clientWidth = alan * 2; },
+      contains: (c) => kart.siniflar.has(c)
+    }
+  };
+  const kutu = {
+    clientWidth: alan,
+    style: {},
+    querySelector: (sec) => (sec === '.katex-display' ? ic : null),
+    firstElementChild: ic,
+    closest: (sec) => (sec === '.formula-card' ? kart : null),
+    ic,
+    kart
+  };
+  return kutu;
+}
+
+test('sigan formule DOKUNULMAZ', () => {
+  const k = sahteKutu(400, 320);
+  assert.equal(UI.sigdirFormulKutusu(k), null);
+  assert.equal(k.style.fontSize, '', 'sigan formulun puntosu degistirilmis');
+  assert.equal(k.kart.siniflar.size, 0, 'sigan kart genisletilmis');
+});
+
+test('ILK KADEME genisletmek: punto dusurulmeden siginir', () => {
+  /* Iki kat tasan formul icin gereken punto 0,49 — tabanin altinda, yani
+     kucultmek tek basina cozmuyor. Karti tum genislige yaymak alani ikiye
+     katliyor ve formul oldugu puntoda siginiyor. */
+  const k = sahteKutu(400, 800);
+  const r = UI.sigdirFormulKutusu(k);
+  assert.ok(r && r.genis, 'kart genisletilmedi');
+  assert.equal(r.oran, null, 'genisletmek yetmisken punto da dusurulmus');
+  assert.equal(k.style.fontSize, '', 'punto bosuna degistirilmis');
+});
+
+test('IKINCI KADEME punto: genisletmek yetmezse kuculur', () => {
+  const k = sahteKutu(400, 2000);         // 800'e yayilsa bile tasiyor
+  const r = UI.sigdirFormulKutusu(k);
+  assert.ok(r.genis, 'once genisletilmeliydi');
+  assert.ok(r.oran > 0 && r.oran < 1, 'punto dusurulmedi: ' + r.oran);
+  assert.equal(k.style.fontSize, r.oran + 'rem');
+});
+
+test('TABAN var: okunmaz kuculme yok', () => {
+  // Cok uzun formulde sonsuza kadar kucultmek yerine kaydirma cubuguna
+  // birakiliyor; 0.3rem'lik bir formul zaten okunmuyor.
+  const k = sahteKutu(400, 40000);
+  assert.equal(UI.sigdirFormulKutusu(k).oran, UI.FORMUL_MIN_REM);
+  assert.ok(UI.FORMUL_MIN_REM >= 0.5, 'taban cok dusuk — formul okunmaz');
+});
+
+test('olculemeyen ortamda hicbir sey yapilmaz', () => {
+  /* Kutu henuz yerlesmemisse clientWidth 0 gelir. O anda kucultmek ya da
+     genisletmek, kaydirma cubugundan daha kotu bir sonuc uretir. */
+  const k = sahteKutu(0, 800);
+  assert.equal(UI.sigdirFormulKutusu(k), null);
+  assert.equal(k.style.fontSize, '');
+  assert.equal(k.kart.siniflar.size, 0);
+  assert.equal(UI.sigdirFormulKutusu(null), null);
+});
+
+test('sigdirma KaTeX render edildikten SONRA cagriliyor', () => {
+  // Once olcup sonra dizmek yanlis olcum demek.
+  const i = DASH_SRC.indexOf('window.katex.render(f.latex, latexTarget');
+  assert.ok(i > 0, 'formul render cagrisi bulunamadi');
+  const blok = DASH_SRC.slice(i, i + 300);
+  assert.ok(/sigdirFormulKutusu\(latexTarget\)/.test(blok),
+    'render sonrasi sigdirma cagrilmiyor');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));
