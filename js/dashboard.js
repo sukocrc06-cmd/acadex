@@ -3206,18 +3206,41 @@ function splitCalcChain(calc, maxLen = 46) {
  *  sagi, kapayan $'in solu bosluk olamaz ve kapayan $'tan sonra rakam
  *  gelemez. "$5.06 per degree; ... by $2.14" boylece matematik sayilmaz.
  *  Icerik rakamla baslayip bosluk iceriyorsa da duz yazidir. */
+/**
+ * Metindeki $...$ parcalarini dizer, geri kalanini KACIRIR.
+ *
+ * PARCA PARCA islenir ve sira onemlidir (18.10.2026). Eski hali once
+ * metnin TAMAMINI escapeHtml'den geciriyor, sonra $...$ ariyordu;
+ * formulde bir esitsizlik gecer gecmez KaTeX'e "&gt;" ulasiyor ve
+ * ayristiramiyordu. Ekranda bunun karsiligi, KaTeX'in hata rengiyle
+ * yazilmis kirmizi "\hat{\beta}_2 &gt; 0" oluyordu.
+ *
+ * Artik sinirlar HAM metinde bulunur: formul ham haliyle KaTeX'e gider,
+ * aradaki duz metin kacirilir. Hem dogru dizgi hem kacis korunur.
+ */
 function renderMathInText(text) {
   if (!text) return '';
-  const escaped = escapeHtml(String(text));
-  if (!window.katex) return escaped;
-  return escaped.replace(/\$(?=\S)((?:[^$\\]|\\.)*?\S)\$(?!\d)/g, (match, latex) => {
-    if (/^\d[\d.,]*\s/.test(latex)) return match;
-    try {
-      return window.katex.renderToString(latex, { displayMode: false, throwOnError: false });
-    } catch (e) {
-      return match;
+  const s = String(text);
+  const re = /\$(?=\S)((?:[^$\\]|\\.)*?\S)\$(?!\d)/g;
+  let out = '', son = 0, m;
+  while ((m = re.exec(s)) !== null) {
+    const latex = m[1];
+    // Para bicimi formul degil: "$100 and $200".
+    if (/^\d[\d.,]*\s/.test(latex)) continue;
+    out += escapeHtml(s.slice(son, m.index));
+    let dizgi = null;
+    if (window.katex) {
+      try {
+        dizgi = window.katex.renderToString(latex, { displayMode: false, throwOnError: false });
+      } catch (e) {
+        dizgi = null;
+      }
     }
-  });
+    out += dizgi == null ? escapeHtml(m[0]) : dizgi;
+    son = m.index + m[0].length;
+  }
+  out += escapeHtml(s.slice(son));
+  return out;
 }
 window.renderMathInText = renderMathInText;
 

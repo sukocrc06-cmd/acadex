@@ -483,7 +483,11 @@ test('ink madde listeleri de bu yoldan geciyor', () => {
      yalnizca inlineMarkdown'i duzeltmek onlara ulasmazdi. */
   const INK = require('node:fs').readFileSync(
     require('node:path').join(__dirname, '..', 'js/acadex-ink.js'), 'utf8');
-  assert.ok(INK.includes('imath(X(plain(p)))'), 'bolum maddeleri matematikten gecmiyor');
+  /* ONCE matematik, SONRA kacis — tersi KaTeX e &gt; gonderiyordu ve
+     formul kirmizi hata metni olarak basiliyordu (18.10.2026). math()
+     ikisini dogru sirada yapan tek huni. */
+  assert.ok(INK.includes('math(plain(p))'), 'bolum maddeleri matematikten gecmiyor');
+  assert.ok(!INK.includes('imath(X(plain'), 'kacir-sonra-diz sirasi geri gelmis');
   assert.ok(INK.includes('imath(typeof formatFootnoteMarkers'), 'kart maddeleri matematikten gecmiyor');
 });
 
