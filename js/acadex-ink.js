@@ -7548,6 +7548,10 @@ var SBX = (function () {
   var cut = function (t, n) { t = String(t || ''); return t.length > n ? t.slice(0, n - 1).replace(/\s+\S*$/, '') + '…' : t; };
   var fmtS = function (t, fn) { return typeof formatSummaryText === 'function' ? formatSummaryText(t, fn) : '<p>' + X(t) + '</p>'; };
   var math = function (t) { return typeof renderMathInText === 'function' ? renderMathInText(String(t || '')) : X(t); };
+  /* Formul degiskeninin SEMBOLU: $...$ ayiraci olmadan gelen LaTeX.
+     math() yalnizca ayirac icindekini dizdigi icin sembolleri goremiyor
+     ve liste ham kaynak gosteriyordu (18.10.2026). */
+  var sym = function (t) { return typeof renderMathSymbol === 'function' ? renderMathSymbol(t) : X(t); };
   var COL = ['#2F6BFF', '#C9483B', '#1E8A55', '#C88A1C', '#6A4FA8', '#0F7C8A', '#D9677F', '#0D1838'];
   var ICON = {
     up: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5 L19 12 L8 19 Z"/></svg>',
@@ -7731,7 +7735,7 @@ var SBX = (function () {
   /* ---------- formül / çözümlü örnek ---------- */
   var formulaCard = function (f, i) {
     return '<figure class="axr-fig axr-chalk"><figcaption><span class="mono">FORMÜL</span><b>' + X(f.name || 'Formül') + '</b></figcaption><div class="axr-tex" data-tex="' + i + '"></div>' +
-      (arr(f.variables).length ? '<dl class="axr-vars">' + arr(f.variables).map(function (v) { return '<div><dt>' + X(v.symbol || '') + '</dt><dd>' + X(v.meaning || '') + '</dd></div>'; }).join('') + '</dl>' : '') + '</figure>';
+      (arr(f.variables).length ? '<dl class="axr-vars">' + arr(f.variables).map(function (v) { return '<div><dt>' + sym(v.symbol || '') + '</dt><dd>' + math(v.meaning || '') + '</dd></div>'; }).join('') + '</dl>' : '') + '</figure>';
   };
   var exampleCard = function (ex, i) {
     var steps = typeof normalizeWorkedSteps === 'function' ? normalizeWorkedSteps(ex.steps) : arr(ex.steps).map(String);
@@ -7915,7 +7919,7 @@ var SBX = (function () {
     paintRail(); bindFlow(); paintPod(true); applyHL();
     /* öğrenci bu kartı en son diğer dilde okuduysa öyle aç */
     LTJOB++; var rl = LT_ON && G('acadex.reader.lang.' + c.id, null), rb = rl && rl !== cardLang() && Q('.axr-ltall [data-ltl="' + rl + '"]', mast); if (rb) setTimeout(function () { if (R.card === c && rb.isConnected) switchLang(rb); }, 30);
-    QA('.axr-tex', flow).forEach(function (el) { var f = arr(c.formulas)[+el.getAttribute('data-tex')]; if (!f) return; if (window.katex && f.latex) { try { window.katex.render(f.latex, el, { throwOnError: false, displayMode: true }); } catch (e) { el.textContent = f.latex; } } else el.textContent = f.latex || ''; });
+    QA('.axr-tex', flow).forEach(function (el) { var f = arr(c.formulas)[+el.getAttribute('data-tex')]; if (!f) return; if (window.katex && f.latex) { try { window.katex.render(f.latex, el, { throwOnError: false, displayMode: true }); if (typeof sigdirFormulKutusu === 'function') sigdirFormulKutusu(el); } catch (e) { el.textContent = f.latex; } } else el.textContent = f.latex || ''; });
     var nb = Q('[data-net]', flow); if (nb) mountNet(nb);
     QA('.axr-dg', flow).forEach(function (fig) { renderDiagram(fig, arr(c.diagrams)[+fig.getAttribute('data-dg')]); });
     watch();

@@ -322,7 +322,13 @@ function sahteKutu(alan, genislik) {
     style: {},
     querySelector: (sec) => (sec === '.katex-display' ? ic : null),
     firstElementChild: ic,
-    closest: (sec) => (sec === '.formula-card' ? kart : null),
+    /* Secici IKI kart tasarimini da kapsamali: .formula-card (dashboard)
+       ve .axr-fig (acadex-ink). Kullanicinin gordugu kart ink tarafindan
+       uretiliyor; sabit tek secici ile test yesil gecip ekran bozuk kalir. */
+    closest: (sec) => {
+      if (!/formula-card/.test(sec) || !/axr-fig/.test(sec)) return null;
+      return kart;
+    },
     ic,
     kart
   };
@@ -371,6 +377,21 @@ test('olculemeyen ortamda hicbir sey yapilmaz', () => {
   assert.equal(k.style.fontSize, '');
   assert.equal(k.kart.siniflar.size, 0);
   assert.equal(UI.sigdirFormulKutusu(null), null);
+});
+
+test('ink kart yolu da matematik ve sigdirma kullaniyor', () => {
+  /* 18.10.2026: ilk duzeltme yalnizca dashboard.js yoluna yapildi, oysa
+     kullanicinin gordugu formul karti js/acadex-ink.js icindeki
+     formulaCard tarafindan uretiliyor. Ekranda hicbir sey degismedi.
+     Iki yol da kontrol ediliyor ki ayni hata tekrar etmesin. */
+  const INK = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'js/acadex-ink.js'), 'utf8');
+  const i = INK.indexOf('axr-vars');
+  assert.ok(i > 0, 'ink degisken listesi bulunamadi');
+  const blok = INK.slice(i, i + 300);
+  assert.ok(blok.includes('sym(v.symbol'), 'ink sembolu matematik yolundan gecmiyor');
+  assert.ok(blok.includes('math(v.meaning'), 'ink aciklamasi matematik yolundan gecmiyor');
+  assert.ok(INK.includes('sigdirFormulKutusu(el)'), 'ink formulu sigdirilmiyor');
 });
 
 test('sigdirma KaTeX render edildikten SONRA cagriliyor', () => {

@@ -3282,7 +3282,10 @@ function sigdirFormulKutusu(kutu) {
   /* 1. KADEME: karti tum genislige yay. Formul kartlari auto-fit bir
      izgarada duruyor (minmax(280px,1fr)); tek sutuna sigmayan formul
      iki sutunda cogu zaman punto dusurmeden siginiyor. */
-  const kart = kutu.closest ? kutu.closest('.formula-card') : null;
+  // Iki kart tasarimi da destekleniyor: .formula-card (dashboard) ve
+  // .axr-fig (acadex-ink). Kullanicinin gordugu kart ink tarafindan
+  // uretiliyor; secici tek tasarima baglanirsa duzeltme oraya ulasmaz.
+  const kart = kutu.closest ? kutu.closest('.formula-card, .axr-fig') : null;
   if (kart && kart.classList && !kart.classList.contains('formula-card-wide')) {
     kart.classList.add('formula-card-wide');
     sonuc.genis = true;

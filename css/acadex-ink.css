@@ -7719,6 +7719,10 @@ body.axr-open #pomodoro-widget-container,body.axr-open #acadia-widget-container,
 #study-card-modal.axr .axr-figp{margin:8px 0 0;font-size:13.5px;line-height:1.5;color:var(--muted)}
 #study-card-modal.axr .axr-grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(330px,100%),1fr));gap:16px}
 #study-card-modal.axr .axr-grid2>.axr-fig{margin:0}
+/* Tek sutuna sigmayan formul tum genislige yayilir (bkz.
+   sigdirFormulKutusu): .axr-tex'teki overflow-x kaydirma cubugu birakiyor
+   ve formulun sagi hem ekranda hem ciktida kayboluyor. */
+#study-card-modal.axr .axr-grid2>.axr-fig.formula-card-wide{grid-column:1/-1}
 #study-card-modal.axr .axr-grid2+*{margin-top:22px}
 #study-card-modal.axr .axr-chartw{position:relative}
 #study-card-modal.axr .axr-chartw [data-redraw]{position:absolute;top:12px;right:12px;min-height:30px;opacity:0;transition:opacity .2s}
