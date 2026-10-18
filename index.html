@@ -1088,6 +1088,78 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 .dsk-apf{background:linear-gradient(#D8B585,#C29D6B)}
 .dsk-aps{background:linear-gradient(#CCA674,#B68F5C)}
 
+/* ================= HERO PAPERS: same real paper as the desk ================= */
+.sheet-a,.sheet-b{background-image:url(assets/landing/kagit.webp);background-image:image-set(url(assets/landing/kagit.avif) type("image/avif"),url(assets/landing/kagit.webp) type("image/webp"));background-size:520px auto;background-blend-mode:multiply;
+ box-shadow:0 1px 1px rgba(0,0,0,0.35),-6px 12px 16px -8px rgba(0,0,0,0.45),-20px 36px 54px -26px rgba(0,0,0,0.75)}
+.sheet-a{background-color:#FFFFFF}
+.fc-face{background-image:linear-gradient(#F2B8B0,#F2B8B0),repeating-linear-gradient(transparent 0 25px,#DCE3EF 25px 26px),url(assets/landing/kagit.webp);
+ background-image:linear-gradient(#F2B8B0,#F2B8B0),repeating-linear-gradient(transparent 0 25px,#DCE3EF 25px 26px),image-set(url(assets/landing/kagit.avif) type("image/avif"),url(assets/landing/kagit.webp) type("image/webp"));
+ background-size:100% 2px,100% 100%,520px auto;background-position:0 38px,0 38px,0 0;background-repeat:no-repeat,no-repeat,repeat;background-blend-mode:normal,normal,multiply;
+ box-shadow:0 1px 1px rgba(0,0,0,0.35),-6px 12px 16px -8px rgba(0,0,0,0.45),-20px 36px 54px -26px rgba(0,0,0,0.75)}
+.sheet-a::after,.sheet-b::after,.fc-face::after{content:"";position:absolute;inset:0;pointer-events:none;border-radius:inherit;
+ background:linear-gradient(to top left,rgba(40,30,20,0.16),rgba(40,30,20,0) 16%),linear-gradient(to bottom right,rgba(255,255,255,0.5),rgba(255,255,255,0) 22%)}
+
+/* ================= PRIVACY CABINET: opens, the notes drop in, it shuts and locks ================= */
+.gz-fig{--op:calc(clamp(0, (var(--gp, 1) - 0.06) * 4.5, 1) - clamp(0, (var(--gp, 1) - 0.62) * 5.5, 1));--fd:clamp(0, (var(--gp, 1) - 0.22) * 2.6, 1);--lk:clamp(0, (var(--gp, 1) - 0.84) * 8, 1)}
+.gz-files{clip-path:none}
+.gz-files > g{transform:translateY(calc(-74px + var(--fd) * 104px)) !important}
+.gz-drawer{transform:translateY(calc(var(--op) * 40px)) scale(calc(1 + var(--op) * 0.22)) !important}
+.gz-key{transform:rotate(calc(var(--lk) * 90deg)) !important}
+.gz-lock circle{fill:color-mix(in srgb,#B8923F calc((1 - var(--lk)) * 100%),#E8B931)}
+.gz-lock{transform-box:view-box;transform-origin:170px 150px;transform:scale(calc(1 + sin(var(--lk) * 3.1416) * 0.18))}
+.gz-note{opacity:clamp(0, (var(--gp, 1) - 0.92) * 12, 1)}
+
+/* ================= THE DAY GOES BY AS YOU SCROLL ================= */
+.dayfx{display:none}
+.js-day .dayfx{display:block;position:fixed;inset:0;z-index:44;pointer-events:none;
+ background:radial-gradient(130% 90% at var(--sun-x, 85%) -12%,rgba(var(--beam, 255,240,210), var(--beam-a, 0)),rgba(var(--beam, 255,240,210), 0) 62%),rgba(var(--tint, 255,255,255), var(--tint-a, 0))}
+/* the desk lamp at the sign-up turns on at night */
+.ctl{display:none}
+.js-day .ctl{display:block;position:absolute;left:6%;top:60px;width:160px;height:200px;z-index:1;pointer-events:none}
+.ctl svg{width:100%;height:100%;overflow:visible}
+.ctl-bulb{opacity:var(--lamp, 0)}
+.ctl-cone{position:absolute;left:118px;top:84px;width:760px;height:560px;transform-origin:0 0;transform:rotate(-8deg);opacity:calc(var(--lamp, 0) * 0.95);
+ background:radial-gradient(ellipse 70% 80% at 6% 0%,rgba(255,224,150,0.30),rgba(255,224,150,0.10) 45%,rgba(255,224,150,0) 72%);clip-path:polygon(0 0,9% 0,100% 82%,100% 100%,38% 100%)}
+.ctl.flick .ctl-bulb,.ctl.flick .ctl-cone{animation:ctlFlick .7s steps(1) both}
+@keyframes ctlFlick{0%{opacity:0}18%{opacity:.8}26%{opacity:.1}40%{opacity:.9}52%{opacity:.35}64%,100%{opacity:1}}
+@media (max-width: 900px){.js-day .ctl{display:none}}
+
+/* ================= ONE SHEET OF PAPER TRAVELS THE WHOLE PAGE ================= */
+.jr{position:fixed;left:0;top:0;z-index:45;pointer-events:none;display:none;transform-origin:50% 50%;will-change:transform,width,height,opacity}
+.jr.on{display:block}
+.jr-in{position:absolute;inset:0;transform-origin:50% 50%}
+.jr-f{position:absolute;inset:0;box-sizing:border-box;border-radius:.3em;opacity:0;overflow:hidden;color:#1A2A5C;
+ background-color:#FFFFFF;background-image:url(assets/landing/kagit.webp);background-image:image-set(url(assets/landing/kagit.avif) type("image/avif"),url(assets/landing/kagit.webp) type("image/webp"));background-size:520px auto;background-blend-mode:multiply;
+ box-shadow:0 1px 1px rgba(40,30,20,0.25),calc(var(--lift, 0) * -18px - 3px) calc(var(--lift, 0) * 26px + 6px) calc(var(--lift, 0) * 30px + 10px) rgba(30,24,16,calc(0.34 - var(--lift, 0) * 0.12))}
+.jr-f.on{opacity:1}
+.jr-f::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(to top left,rgba(70,46,14,0.12),rgba(70,46,14,0) 16%),linear-gradient(to bottom right,rgba(255,255,255,0.5),rgba(255,255,255,0) 22%)}
+.jr-pdf{padding:1.1em 1em}
+.jr-pdf b,.jr-ozet b,.jr-sinav b{display:block;font-family:'Bricolage Grotesque',system-ui,sans-serif;font-size:1.15em;line-height:1.15;letter-spacing:-0.01em;margin:.35em 0 .55em;color:#0D1838}
+.jr-m{display:block;font-family:'JetBrains Mono',monospace;font-size:.5em;letter-spacing:.08em;color:#6A7593;white-space:nowrap;overflow:hidden}
+.jr-l{display:block;height:.32em;border-radius:.2em;background:#D9DEE8;margin:.42em 0}
+.jr-l.h{background:linear-gradient(#FFD966,#FFD966) no-repeat 0 0/70% 100%,#D9DEE8}
+.jr-l.s{width:62%}
+.jr-ozet{padding:1.1em 1em;background-color:#FBFBF8}
+.jr-ozet i{display:block;font-style:normal;font-size:.62em;line-height:1.35;margin:.35em 0;padding-left:.9em;position:relative;color:#33405F}
+.jr-ozet i::before{content:"–";position:absolute;left:0;color:#2F6BFF}
+.jr-kart{padding:.8em .9em;background-image:linear-gradient(#F2B8B0,#F2B8B0),repeating-linear-gradient(transparent 0 1.2em,#DCE3EF 1.2em calc(1.2em + 1px)),url(assets/landing/kagit.webp);background-size:100% 2px,100% 100%,520px auto;background-position:0 1.9em,0 1.9em,0 0;background-repeat:no-repeat,no-repeat,repeat;background-blend-mode:normal,normal,multiply}
+.jr-kart .jr-m{display:flex;justify-content:space-between}
+.jr-kart b{display:block;margin-top:1.1em;font-family:'Bricolage Grotesque',system-ui,sans-serif;font-size:.86em;line-height:1.38;color:#0D1838}
+.jr-kart em{position:absolute;right:.8em;bottom:.45em;font-family:Caveat,'Segoe Print',cursive;font-style:normal;font-size:.9em;color:#2F6BFF;transform:rotate(-4deg)}
+.jr-sinav{padding:1em}
+.jr-sinav u{text-decoration:none;position:absolute;right:.7em;top:.7em;font-family:Caveat,'Segoe Print',cursive;font-size:1.35em;color:#C9483B;transform:rotate(-6deg);border:2px solid #C9483B;border-radius:50%;padding:0 .3em}
+.jr-sinav i{display:flex;align-items:center;gap:.5em;font-style:normal;font-family:'JetBrains Mono',monospace;font-size:.55em;color:#33405F;border-bottom:1px solid #E6EAF2;padding:.25em 0}
+.jr-sinav i s{text-decoration:none;color:#1E8A55;margin-left:auto}.jr-sinav i s.x{color:#C9483B}
+.jr-kimlik{padding:.75em .85em;background-color:#F7F8FB;border-radius:.6em}
+.jr-kimlik .jr-m{color:#33405F;border-bottom:1px solid #DCE2EE;padding-bottom:.5em}
+.jr-kimlik span{display:flex;gap:.7em;margin-top:.7em}
+.jr-kimlik span i{flex:none;width:2.7em;height:3.2em;border-radius:.35em;background:#DCE2EE;background-image:radial-gradient(circle at 50% 36%,#A8B3C9 0 .6em,transparent .62em),radial-gradient(ellipse 1.3em .85em at 50% 100%,#A8B3C9 0 100%,transparent 101%)}
+.jr-kimlik span b{font-family:'Bricolage Grotesque',system-ui,sans-serif;font-size:1em;line-height:1.1;color:#0D1838}
+.jr-kimlik span em{display:block;font-style:normal;font-size:.55em;color:#5B6787;margin-top:.3em}
+.jr-clip{position:absolute;left:50%;top:-.7em;width:1.1em;height:2.2em;margin-left:-.55em;border:.16em solid #8A93AB;border-radius:.6em;opacity:0;transition:opacity .3s}
+.jr.attach .jr-clip{opacity:1}
+.jr-hide{opacity:0 !important}
+
 /* back to top: a small pencil that shows up near the end */
 .totop{position:fixed;right:20px;bottom:20px;z-index:55;width:52px;height:52px;border-radius:50%;border:1.6px solid #1A2A5C;background:#FFFFFF;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;
  box-shadow:0 14px 26px -16px rgba(13,24,56,0.6);opacity:0;visibility:hidden;transform:translateY(14px) rotate(-8deg);transition:opacity .35s var(--ease),transform .45s cubic-bezier(.3,1.4,.5,1),visibility 0s linear .45s,box-shadow .25s}
@@ -1723,6 +1795,7 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 <!-- ===== CTA (dark) ===== -->
 <section id="kayit" class="dk" style="background: #0D1838; color: #F1F4FA; overflow: hidden; position: relative">
 <i class="tear tear-top" aria-hidden="true" style="--tc: #F6F7FB"></i>
+<aside class="ctl" data-ctl="" aria-hidden="true"><i class="ctl-cone"></i><svg viewBox="0 0 160 200"><ellipse cx="44" cy="188" rx="36" ry="9" fill="#1A2A5C"/><ellipse cx="44" cy="185" rx="36" ry="9" fill="#24366E"/><path d="M44 182 L60 108 L118 64" fill="none" stroke="#33478A" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="60" cy="108" r="6.5" fill="#1A2A5C"/><circle cx="44" cy="182" r="5" fill="#1A2A5C"/><circle cx="118" cy="64" r="6" fill="#1A2A5C"/><path d="M108 56 C114 42 132 40 140 50 L160 92 C154 104 124 112 112 104 Z" fill="#2F6BFF" stroke="#1A2A5C" stroke-width="3" stroke-linejoin="round"/><ellipse class="ctl-bulb" cx="137" cy="99" rx="24" ry="8" transform="rotate(-24 137 99)" fill="#FFE9A8"/><path d="M118 52 C122 46 130 46 134 50" fill="none" stroke="#9DB8FF" stroke-width="3" stroke-linecap="round"/></svg></aside>
 <aside class="idc" aria-hidden="true">
 <div class="idc-sw">
 <i class="idc-cord"></i>
@@ -1761,6 +1834,7 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 </footer>
 </section>
 
+<div class="dayfx" aria-hidden="true"></div>
 <button type="button" class="totop" data-totop="" aria-label="Sayfanın başına dön" tabindex="-1"><svg viewBox="0 0 24 40" aria-hidden="true"><path class="tt-tip" d="M12 2 L17 11 H7 Z"></path><rect class="tt-nib" x="7" y="10" width="10" height="5"></rect><rect class="tt-body" x="7" y="14" width="10" height="17" rx="1"></rect><rect class="tt-cap" x="7" y="30" width="10" height="7" rx="2"></rect></svg><span class="nb-hand" aria-hidden="true">başa dön</span></button>
 </div>
 <script>
@@ -1776,7 +1850,7 @@ transform:translateY(calc(var(--hp,0) * 90px))}
         offs.forEach(function (f) { f(); });
         frames.forEach(function (id) { if (id) window.cancelAnimationFrame(id); });
         root.removeAttribute('data-acx-ready');
-        ['js', 'js-story', 'js-form', 'js-mt', 'js-hc', 'js-tr', 'js-pt', 'js-tw', 'acx-lite', 'js-tq', 'js-story-m', 'js-fl-m'].forEach(function (c) { root.classList.remove(c); });
+        ['js', 'js-story', 'js-form', 'js-mt', 'js-day', 'js-hc', 'js-tr', 'js-pt', 'js-tw', 'acx-lite', 'js-tq', 'js-story-m', 'js-fl-m'].forEach(function (c) { root.classList.remove(c); });
       };
       var clamp = function (v) { return v < 0 ? 0 : v > 1 ? 1 : v; };
       var sv = function (el, k, v) { var c = el.__acx || (el.__acx = {}); if (c[k] !== v) { c[k] = v; el.style.setProperty(k, v); } };
@@ -2133,6 +2207,185 @@ transform:translateY(calc(var(--hp,0) * 90px))}
         offs.push(function () { twIo.disconnect(); });
       }
 
+      /* ---------- The day goes by: morning light at the top, night (and the lamp) at sign-up ---------- */
+      var dayEl = root.querySelector('.dayfx'), ctl = root.querySelector('[data-ctl]'), kayitSec = root.querySelector('#kayit');
+      var dayOn = !lite && !!dayEl;
+      if (dayOn) root.classList.add('js-day');
+      /* [page progress, tint rgb, tint alpha, beam rgb, beam alpha, sun x %] */
+      var DAY = [
+        [0.00, [255, 232, 196], 0.00, [255, 240, 210], 0.00, 86],
+        [0.10, [255, 228, 182], 0.05, [255, 238, 204], 0.12, 86],
+        [0.40, [255, 255, 255], 0.00, [255, 252, 244], 0.07, 55],
+        [0.70, [255, 176, 96], 0.07, [255, 196, 128], 0.11, 24],
+        [0.88, [78, 88, 168], 0.09, [255, 150, 110], 0.05, 10],
+        [1.00, [20, 28, 70], 0.10, [255, 150, 110], 0.00, 5]
+      ];
+      var lampLit = false;
+      var dayPaint = function (p, lampV) {
+        var i = 0; while (i < DAY.length - 2 && p > DAY[i + 1][0]) i++;
+        var a = DAY[i], b = DAY[i + 1], u = clamp((p - a[0]) / (b[0] - a[0])), L = function (x, y) { return x + (y - x) * u; };
+        var rgb = function (x, y) { return [0, 1, 2].map(function (k) { return Math.round(L(x[k], y[k])); }).join(','); };
+        sv(dayEl, '--tint', rgb(a[1], b[1])); sv(dayEl, '--tint-a', L(a[2], b[2]).toFixed(3));
+        sv(dayEl, '--beam', rgb(a[3], b[3])); sv(dayEl, '--beam-a', L(a[4], b[4]).toFixed(3));
+        sv(dayEl, '--sun-x', L(a[5], b[5]).toFixed(1) + '%');
+        if (ctl) {
+          sv(ctl, '--lamp', lampV.toFixed(3));
+          if (lampV > 0.6 && !lampLit) { lampLit = true; ctl.classList.remove('flick'); void ctl.offsetWidth; ctl.classList.add('flick'); }
+          else if (lampV < 0.2 && lampLit) { lampLit = false; ctl.classList.remove('flick'); }
+        }
+      };
+
+      /* ---------- One sheet of paper travels the page: PDF → özet → kart → sınav → kimlik ----------
+         Each section has a "dock". Between two docks the sheet flies with the scroll (and turns
+         over into its next form half way); at a dock it either hands over to that section's own
+         paper or stays clipped on (attach). */
+      var jr = null, docks = [], jrOn = !lite && !!hero;
+      if (jrOn) {
+        jr = document.createElement('div'); jr.className = 'jr'; jr.setAttribute('aria-hidden', 'true');
+        jr.innerHTML = '<div class="jr-in"><i class="jr-clip"></i>' +
+          '<div class="jr-f jr-pdf" data-l="pdf"><span class="jr-m">FİNANSAL YÖNETİM · PDF</span><b>4.2 Sermaye bütçelemesi</b><i class="jr-l"></i><i class="jr-l h"></i><i class="jr-l"></i><i class="jr-l s"></i><i class="jr-l"></i><i class="jr-l h"></i><i class="jr-l s"></i></div>' +
+          '<div class="jr-f jr-ozet" data-l="ozet"><span class="jr-m">ACADEX · ÖZET</span><b>Sermaye bütçelemesi</b><i>NBD &gt; 0 ise proje kabul edilir.</i><i>İç verim oranı NBD\'yi sıfırlar.</i><i>Geri ödeme süresi zaman değerini dikkate almaz.</i></div>' +
+          '<div class="jr-f jr-kart" data-l="kart"><span class="jr-m"><span>KART 4 / 12</span><span>FİNANS</span></span><b>NBD pozitifse proje için ne söylenir?</b><em>yarın tekrar</em></div>' +
+          '<div class="jr-f jr-sinav" data-l="sinav"><span class="jr-m">DENEME 2 · FİNANS</span><b>10 soru</b><u>8/10</u><i>1 · B<s>✓</s></i><i>2 · D<s>✓</s></i><i>3 · A<s class="x">✗</s></i><i>4 · C<s>✓</s></i></div>' +
+          '<div class="jr-f jr-kimlik" data-l="kimlik"><span class="jr-m">ACADEX · ÖĞRENCİ</span><span><i></i><b>Sen<em>Her bölüm · Pilot</em></b></span></div>' +
+        '</div>';
+        root.appendChild(jr);
+        offs.push(function () { if (jr.parentNode) jr.parentNode.removeChild(jr); });
+        var jrIn = jr.firstChild, jrFaces = Array.prototype.slice.call(jr.querySelectorAll('.jr-f'));
+        var R = function (el) { return el ? el.getBoundingClientRect() : null; };
+        var shown = function (el) { if (!el) return false; var r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+        var mid = function (r) { return r.top + r.height / 2; };
+        /* a box from an element's centre and its own (unrotated) size × scale */
+        var elBox = function (el, rot, sc) { var r = el.getBoundingClientRect(); sc = sc || 1; var w = el.offsetWidth * sc, h = el.offsetHeight * sc; return { x: r.left + r.width / 2 - w / 2, y: r.top + r.height / 2 - h / 2, w: w, h: h, r: rot || 0 }; };
+
+        /* 1 · hero: the PDF sheet (after the cinematic it comes back from the desk spot) */
+        var sheetA = root.querySelector('.sheet-a'), deskEl = root.querySelector('[data-hero] .desk');
+        if (sheetA && deskEl) docks.push({ look: 'pdf',
+          b: function () { return R(hero).bottom; }, dep: 0.95,
+          box: function () {
+            if (hcOn) { var d = R(deskEl), w = Math.min(250, d.width * 0.55), h = w * 1.3; return { x: d.left + d.width / 2 - w / 2, y: d.top + d.height / 2 - h / 2, w: w, h: h, r: -5 }; }
+            return elBox(sheetA, -5);
+          },
+          hide: sheetA, hideIf: function () { return !hcOn; }, fadeIn: function () { return hcOn; } });
+
+        /* 2 · the desk in "Nasıl çalışır": lands where the PDF drops, leaves as the summary */
+        var rig = story && story.querySelector('.dsk-rig'), stageEl = story && story.querySelector('.stage'), sceneEl = story && story.querySelector('.dsk-scene');
+        var dskSum = story && story.querySelector('.dsk-sum');
+        var rigBox = function () {
+          if (storyOn) {
+            var st = R(stageEl), zm = parseFloat(getComputedStyle(sceneEl).getPropertyValue('--zm')) || 1;
+            var cx = st.left + rig.offsetLeft + 310, cy = st.top + rig.offsetTop + 270 + (zm - 1) * 40;
+            return { x: cx - 310 * zm, y: cy - 270 * zm, s: zm };
+          }
+          var r = R(rig); return { x: r.left, y: r.top, s: r.width / 620 };
+        };
+        if (rig && stageEl && shown(rig)) docks.push({ look: 'pdf', outLook: 'ozet', mode: 'hold',
+          a: function () { return R(story).top; }, arr: 0.02,
+          b: function () { return R(story).bottom; }, dep: 0.7,
+          box: function () { var g = rigBox(); return { x: g.x + 6 * g.s, y: g.y + 20 * g.s, w: 262 * g.s, h: 344 * g.s, r: -4 }; },
+          outBox: function () { var g = rigBox(); return { x: g.x + 300 * g.s, y: g.y, w: 238 * g.s, h: 262 * g.s, r: 3 }; },
+          hold: function () { var c = story.__acx; return !!c && c['--l1'] !== undefined && parseFloat(c['--l1']) < 0.5; },
+          hide: dskSum });
+
+        /* 3 · "Fark": lands on the one-page summary at the bottom of the 42-page stack */
+        var pkLastEl = root.querySelector('.pk-last'), pkStack = root.querySelector('.pk-stack');
+        if (pkLastEl && shown(pkStack)) docks.push({ look: 'ozet', mode: 'hand',
+          a: function () { return mid(R(pkStack)); }, arr: 0.62,
+          b: function () { return mid(R(pkStack)); }, dep: 0.28,
+          box: function () { return elBox(pkLastEl, -1.5); } });
+
+        /* 4 · study methods: clipped to the notebook as a flashcard */
+        var mtStageEl = mtSec && mtSec.querySelector('.mt-stage');
+        if (mtStageEl && shown(mtStageEl)) docks.push({ look: 'kart', mode: 'attach',
+          a: function () { return mtOn ? R(mtSec).top : mid(R(mtStageEl)); }, arr: mtOn ? 0.02 : 0.7,
+          b: function () { return mtOn ? R(mtSec).bottom : mid(R(mtStageEl)); }, dep: mtOn ? 0.75 : 0.25,
+          box: function () { var s = R(mtStageEl), w = Math.max(104, Math.min(150, s.width * 0.2)), h = w * 0.68; return { x: s.right - w * 0.82, y: s.top - h * 0.38, w: w, h: h, r: 7 }; } });
+
+        /* 5 · the flow board (desktop): pinned to its corner as the practice exam */
+        var flBoard = root.querySelector('[data-fl] .fl-board');
+        if (flOn && flBoard) docks.push({ look: 'sinav', mode: 'attach',
+          a: function () { return R(flSec).top; }, arr: 0.02,
+          b: function () { return R(flSec).bottom; }, dep: 0.75,
+          box: function () { var f = R(flBoard), w = Math.max(100, Math.min(136, f.width * 0.13)), h = w * 1.28; return { x: f.left + f.width * 0.035, y: f.top + f.height * 0.86, w: w, h: h, r: -6 }; } });
+
+        /* 6 · privacy: dropped into the open drawer */
+        var gzSlot = root.querySelector('[data-gz] .gz-slot');
+        if (gz && gzSlot) docks.push({ look: 'sinav', mode: 'hand',
+          a: function () { return mid(R(gz)); }, arr: 0.8,
+          b: function () { return mid(R(gz)); }, dep: 0.3,
+          box: function () { var s = R(gzSlot), w = s.width * 0.42, h = w * 1.25; return { x: s.left + s.width / 2 - w / 2, y: s.top + s.height * 0.55 - h, w: w, h: h, r: 0 }; } });
+
+        /* 7 · sign-up: becomes the student ID (onto the hanging card, or into the logo on smaller screens) */
+        var idcCard = root.querySelector('.idc .idc-card'), markIn = root.querySelector('#kayit .mark-in');
+        var endEl = idcCard && shown(idcCard) ? idcCard : markIn;
+        if (endEl) docks.push({ look: 'kimlik', mode: 'hand',
+          a: function () { return mid(R(endEl)); }, arr: 0.62,
+          box: function () {
+            if (endEl === idcCard) return elBox(idcCard, 0);
+            var m = R(endEl), w = m.width * 1.05, h = w * 0.7; return { x: m.left + m.width / 2 - w / 2, y: m.top + m.height / 2 - h / 2, w: w, h: h, r: 0 };
+          } });
+
+        if (docks.length < 3) { jrOn = false; root.removeChild(jr); jr = null; }
+      }
+      var jrMeasure = function (vh) {
+        var n = docks.length, d = 0;
+        for (var i = 1; i < n; i++) if (docks[i].a() <= docks[i].arr * vh) d = i;
+        var cur = docks[d], out = { d: d, fly: false };
+        if (d < n - 1 && cur.b && cur.b() < cur.dep * vh) {
+          var nx = docks[d + 1], da = cur.dep * vh - cur.b(), db = nx.a() - nx.arr * vh;
+          out.fly = true; out.t = clamp(da / Math.max(1, da + Math.max(0, db)));
+          out.A = (cur.outBox || cur.box)(); out.B = nx.box();
+        } else out.A = d > 0 ? cur.box() : null;
+        out.hold = cur.hold ? cur.hold() : false;
+        return out;
+      };
+      var jrLook = '', jrHidden = [];
+      var jrApply = function (g) {
+        var show = false, box = null, look = '', flipX = 1, lift = 0, op = 1, attach = false, cur = docks[g.d];
+        if (g.fly) {
+          var nx = docks[g.d + 1], t = g.t, e = t * t * (3 - 2 * t), A = g.A, B = g.B, arc = Math.sin(Math.PI * t);
+          var lA = cur.outLook || cur.look, lB = nx.look;
+          look = lA === lB || t < 0.5 ? lA : lB;
+          if (lA !== lB) flipX = Math.max(0.03, clamp(Math.abs(t - 0.5) / 0.12));
+          lift = arc;
+          var sc = 1 + arc * 0.08;
+          box = { x: A.x + (B.x - A.x) * e, y: A.y + (B.y - A.y) * e - arc * 40, w: (A.w + (B.w - A.w) * e) * sc, h: (A.h + (B.h - A.h) * e) * sc, r: A.r + (B.r - A.r) * e + arc * (g.d % 2 ? -9 : 9) };
+          /* narrow screens: mid-flight the sheet gets small and keeps to the right edge, off the text */
+          if (window.innerWidth < 700) {
+            var k2 = 1 - arc * 0.5, vw = window.innerWidth;
+            box.w *= k2; box.h *= k2;
+            box.x += ((vw - box.w - 10) - box.x) * arc * 0.9;
+          }
+          show = true;
+          if (g.d === 0 && cur.fadeIn && cur.fadeIn()) op = clamp(t * 7);
+          if (nx.mode === 'hand') op = Math.min(op, 1 - clamp((t - 0.9) / 0.1));
+          /* both ends off screen: the sheet leaves the frame instead of hovering over unrelated content */
+          var vhh = window.innerHeight, near = function (q) { return clamp(1 - Math.max(0, -(q.y + q.h), q.y - vhh) / 160); };
+          op = Math.min(op, Math.max(near(A), near(B)));
+        } else if (g.d > 0 && g.A) {
+          if (cur.mode === 'attach') { show = true; attach = true; box = g.A; look = cur.look; }
+          else if (cur.mode === 'hold' && g.hold) { show = true; box = g.A; look = cur.look; }
+        }
+        /* the source paper of a dock is "taken" once the sheet has left it */
+        docks.forEach(function (k, i) {
+          if (!k.hide) return;
+          var gone = (g.d > i || (g.d === i && g.fly)) && (!k.hideIf || k.hideIf());
+          if (gone !== !!jrHidden[i]) { jrHidden[i] = gone; k.hide.classList.toggle('jr-hide', gone); }
+        });
+        jr.classList.toggle('on', show);
+        if (!show) return;
+        jr.classList.toggle('attach', attach);
+        var w = Math.max(20, box.w), h = Math.max(20, box.h);
+        jr.style.width = w.toFixed(1) + 'px'; jr.style.height = h.toFixed(1) + 'px';
+        jr.style.fontSize = (Math.min(w, h * 0.8) / 11).toFixed(2) + 'px';
+        jr.style.transform = 'translate(' + box.x.toFixed(1) + 'px,' + box.y.toFixed(1) + 'px) rotate(' + box.r.toFixed(2) + 'deg)';
+        jr.style.opacity = op.toFixed(3);
+        jrIn.style.transform = flipX < 1 ? 'scaleX(' + flipX.toFixed(3) + ')' : '';
+        sv(jr, '--lift', lift.toFixed(3));
+        if (look !== jrLook) { jrLook = look; jrFaces.forEach(function (f) { f.classList.toggle('on', f.getAttribute('data-l') === look); }); }
+      };
+      offs.push(function () { docks.forEach(function (k) { if (k.hide) k.hide.classList.remove('jr-hide'); }); });
+
       /* ---------- Scroll: read everything, then write everything (one rAF per frame) ---------- */
       var lastY = window.scrollY, dirAcc = 0, navShown = false, curSec = -1, lastStep = '';
       var measure = function () {
@@ -2149,6 +2402,8 @@ transform:translateY(calc(var(--hp,0) * 90px))}
         if (flEl) m.flTop = flEl.getBoundingClientRect().top;
         if (flOn) { m.flSTop = flSec.getBoundingClientRect().top; m.flSH = flSec.offsetHeight; }
         if (pkEl) m.pkTop = pkEl.getBoundingClientRect().top;
+        if (jrOn) m.jr = jrMeasure(vh);
+        if (dayOn && kayitSec) m.kTop = kayitSec.getBoundingClientRect().top;
         m.secs = secs.map(function (s) { if (!s) return null; var r = s.getBoundingClientRect(), bot = r.bottom; if (s.id === 'yontemler' && akisEl) bot = akisEl.getBoundingClientRect().bottom; return [r.top, bot]; });
         return m;
       };
@@ -2246,6 +2501,8 @@ transform:translateY(calc(var(--hp,0) * 90px))}
         if (nfEl) nfEls.forEach(function (el, i) { var lag = i && Math.abs(m.nfTops[i] - m.nfTops[0]) < 80 ? vh * 0.1 : 0; sv(el, '--nf', clamp((vh * 0.8 - m.nfTops[i] - lag) / (vh * 0.55)).toFixed(3)); });
         if (gz) sv(gz, '--gp', clamp((vh * 0.92 - m.gzTop) / (vh * 0.5)).toFixed(3));
         if (qs) sv(qs, '--qp', clamp((vh - m.qTop) / (vh * 0.95)).toFixed(3));
+        if (jrOn && m.jr) jrApply(m.jr);
+        if (dayOn) dayPaint(clamp(m.y / m.max), kayitSec ? clamp((vh * 0.75 - m.kTop) / (vh * 0.35)) : 0);
         if (pgBar) sv(pgBar.parentNode, '--pg', clamp(m.y / m.max).toFixed(4));
         if (snav) {
           /* direction with hysteresis: 32px of travel before the bar changes state */
@@ -2358,6 +2615,26 @@ transform:translateY(calc(var(--hp,0) * 90px))}
         }, { threshold: 0.35, rootMargin: '0px 0px -6% 0px' });
         flLis.forEach(function (li) { fio.observe(li); });
         offs.push(function () { fio.disconnect(); });
+      }
+
+      /* ---------- Sign-up ID card swings on its cord with the scroll (spring) ---------- */
+      var idcBox = root.querySelector('.idc'), idcSw = root.querySelector('.idc .idc-sw');
+      if (idcBox && idcSw && getComputedStyle(idcBox).display !== 'none') {
+        var swA = 0, swV = 0, swReady = false, swLastY = window.scrollY;
+        on(idcSw, 'animationend', function () { swReady = true; });
+        var swStep = function () {
+          swV += -0.055 * swA; swV *= 0.94; swA += swV;
+          if (Math.abs(swA) < 0.03 && Math.abs(swV) < 0.03) { swA = swV = 0; idcSw.style.rotate = ''; frames[7] = 0; return; }
+          idcSw.style.rotate = swA.toFixed(2) + 'deg';
+          frames[7] = window.requestAnimationFrame(swStep);
+        };
+        on(window, 'scroll', function () {
+          var y = window.scrollY, dy = y - swLastY; swLastY = y;
+          if (!swReady) return;
+          var r = idcBox.getBoundingClientRect(); if (r.bottom < 0 || r.top > window.innerHeight) return;
+          swV += Math.max(-2.4, Math.min(2.4, dy * 0.04)); swA = Math.max(-20, Math.min(20, swA));
+          if (!frames[7]) frames[7] = window.requestAnimationFrame(swStep);
+        }, { passive: true });
       }
 
       /* ---------- Smooth wheel scrolling (desktop mouse/trackpad only) ---------- */
