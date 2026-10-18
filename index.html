@@ -1147,7 +1147,7 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 .jr-kart b{display:block;margin-top:1.1em;font-family:'Bricolage Grotesque',system-ui,sans-serif;font-size:.86em;line-height:1.38;color:#0D1838}
 .jr-kart em{position:absolute;right:.8em;bottom:.45em;font-family:Caveat,'Segoe Print',cursive;font-style:normal;font-size:.9em;color:#2F6BFF;transform:rotate(-4deg)}
 .jr-sinav{padding:1em}
-.jr-sinav u{text-decoration:none;position:absolute;right:.7em;top:.7em;font-family:Caveat,'Segoe Print',cursive;font-size:1.35em;color:#C9483B;transform:rotate(-6deg);border:2px solid #C9483B;border-radius:50%;padding:0 .3em}
+.jr-sinav u{text-decoration:none;transition:opacity .3s;position:absolute;right:.7em;top:.7em;font-family:Caveat,'Segoe Print',cursive;font-size:1.35em;color:#C9483B;transform:rotate(-6deg);border:2px solid #C9483B;border-radius:50%;padding:0 .3em}
 .jr-sinav i{display:flex;align-items:center;gap:.5em;font-style:normal;font-family:'JetBrains Mono',monospace;font-size:.55em;color:#33405F;border-bottom:1px solid #E6EAF2;padding:.25em 0}
 .jr-sinav i s{text-decoration:none;color:#1E8A55;margin-left:auto}.jr-sinav i s.x{color:#C9483B}
 .jr-kimlik{padding:.75em .85em;background-color:#F7F8FB;border-radius:.6em}
@@ -1159,6 +1159,41 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 .jr-clip{position:absolute;left:50%;top:-.7em;width:1.1em;height:2.2em;margin-left:-.55em;border:.16em solid #8A93AB;border-radius:.6em;opacity:0;transition:opacity .3s}
 .jr.attach .jr-clip{opacity:1}
 .jr-hide{opacity:0 !important}
+/* hand work on the travelling sheet */
+.jr-crease,.jr-piece,.jr-cutl,.jr-sc,.jr-pen,.jr-stamp,.jr-shine{position:absolute;pointer-events:none;opacity:0;display:block}
+.jr-crease{left:0;right:0;top:50%;height:.5em;margin-top:-.25em;background:linear-gradient(rgba(60,40,15,0) 0,rgba(60,40,15,.28) 45%,rgba(255,255,255,.7) 55%,rgba(60,40,15,0) 100%);z-index:3}
+.jr[data-tx=fold] .jr-crease{opacity:var(--crease,0)}
+.jr-piece{left:0;right:0;bottom:0;height:38%;border-radius:0 0 .3em .3em;background:#FBFBF8 url(assets/landing/kagit.webp) 0 0/520px auto;background-blend-mode:multiply;box-shadow:0 .3em .8em rgba(30,24,16,.25);z-index:2;
+ transform:translate(calc(var(--fall,0) * 14%),calc(var(--fall,0) * 190%)) rotate(calc(var(--fall,0) * 24deg));transform-origin:10% 0;clip-path:polygon(0 0,8% 4%,17% 0,26% 5%,35% 1%,44% 4%,53% 0,62% 5%,71% 1%,80% 4%,89% 0,100% 4%,100% 100%,0 100%)}
+.jr[data-tx=cut] .jr-piece{opacity:calc(min(1, var(--fall,0) * 30) * (1 - var(--fall,0) * var(--fall,0) * var(--fall,0)))}
+.jr-cutl{left:-2%;width:104%;top:62%;height:.3em;margin-top:-.15em;overflow:visible;z-index:3}
+.jr-cutl path{fill:none;stroke:#6A7593;stroke-width:1.4;vector-effect:non-scaling-stroke;stroke-dasharray:.035 .025;stroke-dashoffset:0}
+.jr[data-tx=cut] .jr-cutl{opacity:calc(1 - var(--fall,0) * 2);clip-path:inset(0 calc(100% - var(--cut,0) * 100%) 0 0)}
+.jr-sc{width:2.4em;height:1.45em;top:62%;margin-top:-.72em;left:calc(var(--cut,0) * 100% - 1.6em);z-index:4;transform:rotate(calc(sin(var(--cut,0) * 40rad) * 9deg))}
+.jr-sc circle{fill:none;stroke:#C9483B;stroke-width:2.4}.jr-sc path{stroke:#8A93AB;stroke-width:3;stroke-linecap:round}
+.jr[data-tx=cut] .jr-sc{opacity:calc(min(1, var(--cut,0) * 12) * (1 - var(--fall,0) * 3))}
+.jr-pen{width:1.1em;height:3em;left:var(--px,20%);top:var(--py,50%);margin:-2.85em 0 0 -.3em;transform:rotate(28deg);transform-origin:50% 100%;z-index:4;filter:drop-shadow(.15em .3em .2em rgba(30,24,16,.3))}
+.jr-pen .b{fill:#F2C14E}.jr-pen .e{fill:#E58C8A}.jr-pen .t{fill:#EBD3A8}.jr-pen .l{fill:#33405F}
+.jr[data-tx=pen] .jr-pen{opacity:var(--pv,0);transition:opacity .2s}
+.jr-stamp{width:3.4em;height:4em;left:50%;top:50%;margin:-3.2em 0 0 -1.7em;z-index:4;transform:translateY(var(--sy,-130%)) scale(var(--ss,1));transform-origin:50% 100%;filter:drop-shadow(.2em .5em .4em rgba(30,24,16,.35))}
+.jr-stamp .h{fill:#7A4A2C}.jr-stamp .k{fill:#5B3A22}.jr-stamp .r{fill:#2F6BFF}
+.jr[data-tx=stamp] .jr-stamp{opacity:var(--so,0)}
+.jr-shine{inset:0;border-radius:.6em;z-index:3;background:linear-gradient(105deg,transparent calc(var(--shine,0) * 140% - 30%),rgba(255,255,255,.75) calc(var(--shine,0) * 140% - 18%),transparent calc(var(--shine,0) * 140% - 6%))}
+.jr[data-tx=stamp] .jr-shine{opacity:calc(min(1, var(--shine,0) * 20) * (1 - var(--shine,0) * var(--shine,0)))}
+/* marks the sheet collects on its way (they stay) */
+.jr-mk{position:absolute;inset:0;pointer-events:none;z-index:2}
+.jr-mk>*{position:absolute;display:block}
+.mk-coffee{width:3.6em;height:3.6em;right:-.9em;bottom:-.7em;opacity:calc(var(--mk-coffee,0) * .8);transform:rotate(-20deg) scale(calc(.9 + var(--mk-coffee,0) * .1));mix-blend-mode:multiply}
+.mk-coffee path{fill:none;stroke:#8B5A2B;stroke-width:3.2;stroke-opacity:.38;stroke-linecap:round}.mk-coffee path.t{stroke-width:5;stroke-opacity:.18}
+.mk-hl{left:6%;top:31%;height:.95em;width:60%;border-radius:.15em .4em .2em .3em;background:rgba(255,217,102,.55);mix-blend-mode:multiply;transform:rotate(-1.2deg) skewX(-6deg);transform-origin:0 50%;clip-path:inset(0 calc(100% - var(--mk-hl,0) * 100%) 0 0)}
+.mk-note{left:-1.6em;top:44%;font:400 .9em/1 Caveat,'Segoe Print',cursive;color:#2F6BFF;transform:rotate(-14deg);opacity:var(--mk-note,0);white-space:nowrap}
+.mk-note svg{display:block;width:1.8em;height:.9em;margin:.05em 0 0 1.1em}.mk-note path{fill:none;stroke:#2F6BFF;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.mk-red{right:2%;top:1%;width:46%;height:2.4em;overflow:visible}
+.mk-red path{fill:none;stroke:#C9483B;stroke-width:2;stroke-linecap:round;vector-effect:non-scaling-stroke;stroke-dasharray:1;stroke-dashoffset:calc(1 - var(--mk-red,0));opacity:.8}
+.mk-cr{inset:0;width:100%;height:100%;opacity:calc(var(--mk-cr,0) * .9);mix-blend-mode:multiply}
+.mk-cr path{fill:none;stroke:rgba(70,50,25,.16);stroke-width:1;vector-effect:non-scaling-stroke}.mk-cr path.d{stroke:rgba(255,255,255,.55)}
+.mk-ink{right:.5em;bottom:.45em;font:700 .5em/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:#2F6BFF;border:.16em solid #2F6BFF;border-radius:.3em;padding:.25em .4em;transform:rotate(-9deg);opacity:calc(var(--mk-ink,0) * .78);mix-blend-mode:multiply;clip-path:polygon(0 8%,30% 0,62% 6%,100% 0,96% 60%,100% 100%,55% 94%,20% 100%,0 92%)}
+.mk-ink b{margin-left:.35em}
 
 /* back to top: a small pencil that shows up near the end */
 .totop{position:fixed;right:20px;bottom:20px;z-index:55;width:52px;height:52px;border-radius:50%;border:1.6px solid #1A2A5C;background:#FFFFFF;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;
@@ -2235,10 +2270,15 @@ transform:translateY(calc(var(--hp,0) * 90px))}
         }
       };
 
-      /* ---------- One sheet of paper travels the page: PDF → özet → kart → sınav → kimlik ----------
-         Each section has a "dock". Between two docks the sheet flies with the scroll (and turns
-         over into its next form half way); at a dock it either hands over to that section's own
-         paper or stays clipped on (attach). */
+/* ---------- One sheet of paper travels the page: PDF → özet → kart → sınav → kimlik ----------
+         Three layers, kept apart on purpose:
+         1. choreography — from the scroll, where the sheet *should* be on this leg's own path
+            (each leg is hand-tuned: dropped, tossed, slid, peeled, slipped, lifted);
+         2. physics — the sheet follows that target on a spring, so it lags, flutters in the
+            air in proportion to its speed, and overshoots a touch when it lands;
+         3. hand work — it is folded, cut, written on and stamped (never "morphed"), and it
+            keeps what happens to it on the way: coffee ring, highlighter, margin note,
+            red pen, creases. */
       var jr = null, docks = [], jrOn = !lite && !!hero;
       if (jrOn) {
         jr = document.createElement('div'); jr.className = 'jr'; jr.setAttribute('aria-hidden', 'true');
@@ -2248,10 +2288,28 @@ transform:translateY(calc(var(--hp,0) * 90px))}
           '<div class="jr-f jr-kart" data-l="kart"><span class="jr-m"><span>KART 4 / 12</span><span>FİNANS</span></span><b>NBD pozitifse proje için ne söylenir?</b><em>yarın tekrar</em></div>' +
           '<div class="jr-f jr-sinav" data-l="sinav"><span class="jr-m">DENEME 2 · FİNANS</span><b>10 soru</b><u>8/10</u><i>1 · B<s>✓</s></i><i>2 · D<s>✓</s></i><i>3 · A<s class="x">✗</s></i><i>4 · C<s>✓</s></i></div>' +
           '<div class="jr-f jr-kimlik" data-l="kimlik"><span class="jr-m">ACADEX · ÖĞRENCİ</span><span><i></i><b>Sen<em>Her bölüm · Pilot</em></b></span></div>' +
+          /* hand tools */
+          '<i class="jr-crease"></i><i class="jr-piece"></i>' +
+          '<svg class="jr-cutl" viewBox="0 0 100 4" preserveAspectRatio="none"><path pathLength="1" d="M0 2 H100"/></svg>' +
+          '<svg class="jr-sc" viewBox="0 0 40 24"><circle cx="7" cy="6" r="5"/><circle cx="7" cy="18" r="5"/><path d="M11 8 L38 16 M11 16 L38 8"/></svg>' +
+          '<svg class="jr-pen" viewBox="0 0 24 64"><rect x="7" y="2" width="10" height="44" rx="2" class="b"/><rect x="7" y="0" width="10" height="7" rx="2" class="e"/><path d="M7 46 L17 46 L12 60 Z" class="t"/><path d="M10.2 55 L13.8 55 L12 60 Z" class="l"/></svg>' +
+          '<svg class="jr-stamp" viewBox="0 0 60 70"><rect x="22" y="2" width="16" height="30" rx="7" class="h"/><rect x="10" y="30" width="40" height="12" rx="3" class="k"/><rect x="6" y="42" width="48" height="14" rx="2" class="r"/></svg>' +
+          '<i class="jr-shine"></i>' +
+          /* what it collects on the way */
+          '<div class="jr-mk">' +
+            '<svg class="mk-coffee" viewBox="0 0 100 100"><path d="M50 8 C76 7 93 26 92 50 C91 76 72 93 48 92 C24 91 7 72 8 49 C9 27 26 9 46 9" /><path class="t" d="M58 14 C78 20 88 36 87 52" /></svg>' +
+            '<i class="mk-hl"></i>' +
+            '<span class="mk-note">tekrar!<svg viewBox="0 0 40 20"><path d="M2 14 C12 4 24 4 36 10 M30 4 L37 10 L29 15"/></svg></span>' +
+            '<svg class="mk-red" viewBox="0 0 120 60" preserveAspectRatio="none"><path pathLength="1" d="M70 6 C30 2 6 14 8 30 C10 50 50 56 84 52 C112 48 116 28 102 16 C90 6 66 4 46 8"/></svg>' +
+            '<svg class="mk-cr" viewBox="0 0 100 130" preserveAspectRatio="none"><path d="M0 38 L34 52 L62 30 L100 46" /><path d="M18 130 L40 84 L30 52" /><path d="M100 96 L70 88 L58 130" /><path class="d" d="M0 39 L34 53 L62 31 L100 47" /></svg>' +
+            '<span class="mk-ink">ACADEX<b>✓</b></span>' +
+          '</div>' +
         '</div>';
         root.appendChild(jr);
         offs.push(function () { if (jr.parentNode) jr.parentNode.removeChild(jr); });
-        var jrIn = jr.firstChild, jrFaces = Array.prototype.slice.call(jr.querySelectorAll('.jr-f'));
+        var jrIn = jr.firstChild, jrFaces = {};
+        Array.prototype.forEach.call(jr.querySelectorAll('.jr-f'), function (f) { jrFaces[f.getAttribute('data-l')] = f; });
+        var jrRows = Array.prototype.slice.call(jr.querySelectorAll('.jr-sinav i')); var jrScore = jr.querySelector('.jr-sinav u');
         var R = function (el) { return el ? el.getBoundingClientRect() : null; };
         var shown = function (el) { if (!el) return false; var r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
         var mid = function (r) { return r.top + r.height / 2; };
@@ -2260,7 +2318,7 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 
         /* 1 · hero: the PDF sheet (after the cinematic it comes back from the desk spot) */
         var sheetA = root.querySelector('.sheet-a'), deskEl = root.querySelector('[data-hero] .desk');
-        if (sheetA && deskEl) docks.push({ look: 'pdf',
+        if (sheetA && deskEl) docks.push({ id: 'hero', look: 'pdf',
           b: function () { return R(hero).bottom; }, dep: 0.95,
           box: function () {
             if (hcOn) { var d = R(deskEl), w = Math.min(250, d.width * 0.55), h = w * 1.3; return { x: d.left + d.width / 2 - w / 2, y: d.top + d.height / 2 - h / 2, w: w, h: h, r: -5 }; }
@@ -2268,9 +2326,9 @@ transform:translateY(calc(var(--hp,0) * 90px))}
           },
           hide: sheetA, hideIf: function () { return !hcOn; }, fadeIn: function () { return hcOn; } });
 
-        /* 2 · the desk in "Nasıl çalışır": lands where the PDF drops, leaves as the summary */
+        /* 2 · the desk in "Nasıl çalışır": lands where the PDF drops, and later takes it off the desk again */
         var rig = story && story.querySelector('.dsk-rig'), stageEl = story && story.querySelector('.stage'), sceneEl = story && story.querySelector('.dsk-scene');
-        var dskSum = story && story.querySelector('.dsk-sum');
+        var dskPdf = story && story.querySelector('.dsk-pdf');
         var rigBox = function () {
           if (storyOn) {
             var st = R(stageEl), zm = parseFloat(getComputedStyle(sceneEl).getPropertyValue('--zm')) || 1;
@@ -2279,54 +2337,65 @@ transform:translateY(calc(var(--hp,0) * 90px))}
           }
           var r = R(rig); return { x: r.left, y: r.top, s: r.width / 620 };
         };
-        if (rig && stageEl && shown(rig)) docks.push({ look: 'pdf', outLook: 'ozet', mode: 'hold',
+        if (rig && stageEl && shown(rig)) docks.push({ id: 'masa', look: 'pdf', mode: 'hold',
           a: function () { return R(story).top; }, arr: 0.02,
           b: function () { return R(story).bottom; }, dep: 0.7,
           box: function () { var g = rigBox(); return { x: g.x + 6 * g.s, y: g.y + 20 * g.s, w: 262 * g.s, h: 344 * g.s, r: -4 }; },
-          outBox: function () { var g = rigBox(); return { x: g.x + 300 * g.s, y: g.y, w: 238 * g.s, h: 262 * g.s, r: 3 }; },
           hold: function () { var c = story.__acx; return !!c && c['--l1'] !== undefined && parseFloat(c['--l1']) < 0.5; },
-          hide: dskSum });
+          hide: dskPdf });
 
         /* 3 · "Fark": lands on the one-page summary at the bottom of the 42-page stack */
         var pkLastEl = root.querySelector('.pk-last'), pkStack = root.querySelector('.pk-stack');
-        if (pkLastEl && shown(pkStack)) docks.push({ look: 'ozet', mode: 'hand',
+        if (pkLastEl && shown(pkStack)) docks.push({ id: 'fark', look: 'ozet', mode: 'hand',
           a: function () { return mid(R(pkStack)); }, arr: 0.62,
           b: function () { return mid(R(pkStack)); }, dep: 0.28,
           box: function () { return elBox(pkLastEl, -1.5); } });
 
         /* 4 · study methods: clipped to the notebook as a flashcard */
         var mtStageEl = mtSec && mtSec.querySelector('.mt-stage');
-        if (mtStageEl && shown(mtStageEl)) docks.push({ look: 'kart', mode: 'attach',
+        if (mtStageEl && shown(mtStageEl)) docks.push({ id: 'mt', look: 'kart', mode: 'attach',
           a: function () { return mtOn ? R(mtSec).top : mid(R(mtStageEl)); }, arr: mtOn ? 0.02 : 0.7,
           b: function () { return mtOn ? R(mtSec).bottom : mid(R(mtStageEl)); }, dep: mtOn ? 0.75 : 0.25,
-          box: function () { var s = R(mtStageEl), w = Math.max(104, Math.min(150, s.width * 0.2)), h = w * 0.68; return { x: s.right - w * 0.82, y: s.top - h * 0.38, w: w, h: h, r: 7 }; } });
+          box: function () { var s = R(mtStageEl), w = Math.max(104, Math.min(150, s.width * 0.2)), h = w * 0.68; return { x: s.right - w * 0.82, y: s.top - h * 0.38, w: w, h: h, r: 7 }; },
+          /* before it leaves, the card is pulled down from under the clip and the answers are pencilled in */
+          after: 'sinav', grow: 1.28,
+          outBox: function () { var b = this.box(); b.h = b.w * this.grow; return b; } });
 
         /* 5 · the flow board (desktop): pinned to its corner as the practice exam */
         var flBoard = root.querySelector('[data-fl] .fl-board');
-        if (flOn && flBoard) docks.push({ look: 'sinav', mode: 'attach',
+        if (flOn && flBoard) docks.push({ id: 'akis', look: 'sinav', mode: 'attach',
           a: function () { return R(flSec).top; }, arr: 0.02,
           b: function () { return R(flSec).bottom; }, dep: 0.75,
           box: function () { var f = R(flBoard), w = Math.max(100, Math.min(136, f.width * 0.13)), h = w * 1.28; return { x: f.left + f.width * 0.035, y: f.top + f.height * 0.86, w: w, h: h, r: -6 }; } });
 
-        /* 6 · privacy: dropped into the open drawer */
+        /* 6 · privacy: slipped into the open drawer */
         var gzSlot = root.querySelector('[data-gz] .gz-slot');
-        if (gz && gzSlot) docks.push({ look: 'sinav', mode: 'hand',
+        if (gz && gzSlot) docks.push({ id: 'gz', look: 'sinav', mode: 'hand',
           a: function () { return mid(R(gz)); }, arr: 0.8,
           b: function () { return mid(R(gz)); }, dep: 0.3,
           box: function () { var s = R(gzSlot), w = s.width * 0.42, h = w * 1.25; return { x: s.left + s.width / 2 - w / 2, y: s.top + s.height * 0.55 - h, w: w, h: h, r: 0 }; } });
 
-        /* 7 · sign-up: becomes the student ID (onto the hanging card, or into the logo on smaller screens) */
+        /* 7 · sign-up: stamped into the student ID (onto the hanging card, or into the logo on smaller screens) */
         var idcCard = root.querySelector('.idc .idc-card'), markIn = root.querySelector('#kayit .mark-in');
         var endEl = idcCard && shown(idcCard) ? idcCard : markIn;
-        if (endEl) docks.push({ look: 'kimlik', mode: 'hand',
-          a: function () { return mid(R(endEl)); }, arr: 0.62,
+        if (endEl) docks.push({ id: 'kayit', look: 'kimlik', mode: 'hand',
+          /* the hanging card drops and swings in on its own; the sheet aims for where it comes to rest */
+          a: function () { var b = this.box(); return b.y + b.h / 2; }, arr: 0.62,
           box: function () {
-            if (endEl === idcCard) return elBox(idcCard, 0);
+            if (endEl === idcCard) { var q = R(idcCard.parentNode.parentNode), cw = idcCard.offsetWidth, ch = idcCard.offsetHeight, top = idcCard.offsetTop + q.top; return { x: q.left + q.width / 2 - cw / 2, y: top, w: cw, h: ch, r: 0 }; }
             var m = R(endEl), w = m.width * 1.05, h = w * 0.7; return { x: m.left + m.width / 2 - w / 2, y: m.top + m.height / 2 - h / 2, w: w, h: h, r: 0 };
           } });
 
         if (docks.length < 3) { jrOn = false; root.removeChild(jr); jr = null; }
       }
+      var dockIx = function (id) { for (var i = 0; i < docks.length; i++) if (docks[i].id === id) return i; return -1; };
+
+      /* each leg leaves from a dock in its own way */
+      var LEG = { hero: 'drop', masa: 'toss', fark: 'slide', mt: 'peel', akis: 'slip', gz: 'rise' };
+      /* hand work between two forms, and when on the leg it happens */
+      var WORK = { 'pdf>ozet': ['fold', 0.08, 0.4], 'ozet>kart': ['cut', 0.1, 0.5], 'kart>sinav': ['pen', 0.16, 0.6], 'sinav>kimlik': ['stamp', 0.58, 0.9] };
+      var ss = function (x) { return x * x * (3 - 2 * x); }, eOut = function (x) { return 1 - (1 - x) * (1 - x); }, eIn = function (x) { return x * x; };
+
       var jrMeasure = function (vh) {
         var n = docks.length, d = 0;
         for (var i = 1; i < n; i++) if (docks[i].a() <= docks[i].arr * vh) d = i;
@@ -2334,57 +2403,169 @@ transform:translateY(calc(var(--hp,0) * 90px))}
         if (d < n - 1 && cur.b && cur.b() < cur.dep * vh) {
           var nx = docks[d + 1], da = cur.dep * vh - cur.b(), db = nx.a() - nx.arr * vh;
           out.fly = true; out.t = clamp(da / Math.max(1, da + Math.max(0, db)));
-          out.A = (cur.outBox || cur.box)(); out.B = nx.box();
-        } else out.A = d > 0 ? cur.box() : null;
+          out.A = cur.outBox ? cur.outBox() : cur.box(); out.B = nx.box(); out.L = da + Math.max(0, db);
+        } else { out.A = d > 0 ? cur.box() : null; if (cur.after && cur.b) out.pre = clamp(1 - (cur.b() - cur.dep * vh) / (0.45 * vh)); }
+        out.vh = vh;
         out.hold = cur.hold ? cur.hold() : false;
         return out;
       };
-      var jrLook = '', jrHidden = [];
+
+      /* --- target from the scroll (choreography) --- */
+      var jrOp = 1, T = null, Tmode = 'fly', jrShow = false, jrHidden = [], jrFace = '', jrTx = '';
+      var setFace = function (f, op, tf) {
+        if (!f) return;
+        f.style.opacity = op >= 0.999 ? '' : op.toFixed(3);
+        f.classList.toggle('on', op > 0.001);
+        f.style.transform = tf || '';
+      };
       var jrApply = function (g) {
-        var show = false, box = null, look = '', flipX = 1, lift = 0, op = 1, attach = false, cur = docks[g.d];
+        var show = false, box = null, op = 1, cur = docks[g.d], lift = 0, peel = 0, mode = 'fly';
+        var lookA = cur.look, lookB = cur.look, work = null, m = 0;
         if (g.fly) {
-          var nx = docks[g.d + 1], t = g.t, e = t * t * (3 - 2 * t), A = g.A, B = g.B, arc = Math.sin(Math.PI * t);
-          var lA = cur.outLook || cur.look, lB = nx.look;
-          look = lA === lB || t < 0.5 ? lA : lB;
-          if (lA !== lB) flipX = Math.max(0.03, clamp(Math.abs(t - 0.5) / 0.12));
+          var nx = docks[g.d + 1], t = g.t, A = g.A, B = g.B, arc = Math.sin(Math.PI * t), leg = LEG[cur.id] || 'slide';
+          lookA = cur.after || cur.look; lookB = nx.look;
+          var ex = ss(t), ey = ss(t), dr = 0, dx = 0, dy = 0;
+          var D = Math.hypot(B.x - A.x, B.y - A.y), w0 = A.w + (B.w - A.w) * t;
+          if (leg === 'drop') { /* a dropped sheet: falls, swinging side to side like a leaf, the swing dying out */
+            ey = eIn(t) * 0.55 + t * 0.45; ex = ss(t);
+            dx = Math.sin(t * Math.PI * 3) * w0 * 0.42 * (1 - t);
+            dr = Math.sin(t * Math.PI * 3 + 0.8) * 16 * (1 - t * 0.7);
+          } else if (leg === 'toss') { /* tossed: shoots out, climbs, comes down on the far side */
+            ex = eOut(t); ey = ss(t);
+            dy = -arc * Math.min(240, D * 0.38); dr = arc * 26 + Math.sin(t * Math.PI * 2) * 6;
+          } else if (leg === 'slide') { /* slid across: low, quick start, skids a little at the end */
+            ex = eOut(t); ey = ss(t);
+            dy = -arc * 26; dr = -Math.sin(Math.PI * t * t) * 11;
+          } else if (leg === 'peel') { /* peeled off the notebook like a sticky note, then carried */
+            peel = clamp(t / 0.12) * (1 - clamp((t - 0.22) / 0.2));
+            ex = ss(clamp((t - 0.06) / 0.94)); ey = ss(clamp((t - 0.06) / 0.94));
+            dr = -arc * 12; dy = -arc * 40;
+          } else if (leg === 'slip') { /* slipped into the drawer: drifts over, then gravity takes it */
+            ex = eOut(t); ey = eIn(t);
+            dr = Math.sin(t * Math.PI * 2) * 7 * (1 - t);
+          } else if (leg === 'rise') { /* lifted out and carried up to the card */
+            ex = ss(t); ey = eOut(t);
+            dr = arc * 9; dy = -arc * 30;
+          }
           lift = arc;
-          var sc = 1 + arc * 0.08;
-          box = { x: A.x + (B.x - A.x) * e, y: A.y + (B.y - A.y) * e - arc * 40, w: (A.w + (B.w - A.w) * e) * sc, h: (A.h + (B.h - A.h) * e) * sc, r: A.r + (B.r - A.r) * e + arc * (g.d % 2 ? -9 : 9) };
+          box = { x: A.x + (B.x - A.x) * ex + dx, y: A.y + (B.y - A.y) * ey + dy, w: A.w + (B.w - A.w) * ss(t), h: A.h + (B.h - A.h) * ss(t), r: A.r + (B.r - A.r) * ss(t) + dr };
           /* narrow screens: mid-flight the sheet gets small and keeps to the right edge, off the text */
           if (window.innerWidth < 700) {
             var k2 = 1 - arc * 0.5, vw = window.innerWidth;
             box.w *= k2; box.h *= k2;
             box.x += ((vw - box.w - 10) - box.x) * arc * 0.9;
           }
-          show = true;
+          show = true; mode = 'fly';
           if (g.d === 0 && cur.fadeIn && cur.fadeIn()) op = clamp(t * 7);
-          if (nx.mode === 'hand') op = Math.min(op, 1 - clamp((t - 0.9) / 0.1));
-          /* both ends off screen: the sheet leaves the frame instead of hovering over unrelated content */
-          var vhh = window.innerHeight, near = function (q) { return clamp(1 - Math.max(0, -(q.y + q.h), q.y - vhh) / 160); };
-          op = Math.min(op, Math.max(near(A), near(B)));
+          var rem = (1 - t) * (g.L || 0);
+          if (nx.id === 'kayit') op = Math.min(op, clamp(rem / (0.05 * g.vh)));
+          else if (nx.mode === 'hand') op = Math.min(op, 1 - clamp((t - 0.9) / 0.1));
+          /* both ends off screen: the sheet leaves the frame (except the first drop, which floats down over the manifesto) */
+          if (leg !== 'drop') {
+            var vhh = window.innerHeight, near = function (q) { return clamp(1 - Math.max(0, -(q.y + q.h), q.y - vhh) / 160); };
+            op = Math.min(op, Math.max(near(A), near(B)));
+          }
+          var wk = WORK[lookA + '>' + lookB];
+          if (wk) { work = wk[0]; m = wk[0] === 'stamp' ? clamp((0.32 * g.vh - rem) / (0.25 * g.vh)) : clamp((t - wk[1]) / (wk[2] - wk[1])); }
         } else if (g.d > 0 && g.A) {
-          if (cur.mode === 'attach') { show = true; attach = true; box = g.A; look = cur.look; }
-          else if (cur.mode === 'hold' && g.hold) { show = true; box = g.A; look = cur.look; }
+          lookA = lookB = cur.look;
+          if (cur.mode === 'attach') {
+            show = true; mode = 'attach'; box = g.A;
+            if (cur.after && g.pre > 0) {
+              work = 'pen'; m = g.pre; lookB = cur.after;
+              box = { x: box.x, y: box.y, w: box.w, h: box.w * (box.h / box.w + (cur.grow - box.h / box.w) * ss(clamp(m / 0.2))), r: box.r };
+            }
+          }
+          else if (cur.mode === 'hold' && g.hold) { show = true; mode = 'hold'; box = g.A; }
         }
-        /* the source paper of a dock is "taken" once the sheet has left it */
+        /* the dock's own paper is "taken" while the sheet is away from it */
         docks.forEach(function (k, i) {
           if (!k.hide) return;
           var gone = (g.d > i || (g.d === i && g.fly)) && (!k.hideIf || k.hideIf());
           if (gone !== !!jrHidden[i]) { jrHidden[i] = gone; k.hide.classList.toggle('jr-hide', gone); }
         });
-        jr.classList.toggle('on', show);
-        if (!show) return;
-        jr.classList.toggle('attach', attach);
-        var w = Math.max(20, box.w), h = Math.max(20, box.h);
-        jr.style.width = w.toFixed(1) + 'px'; jr.style.height = h.toFixed(1) + 'px';
-        jr.style.fontSize = (Math.min(w, h * 0.8) / 11).toFixed(2) + 'px';
-        jr.style.transform = 'translate(' + box.x.toFixed(1) + 'px,' + box.y.toFixed(1) + 'px) rotate(' + box.r.toFixed(2) + 'deg)';
-        jr.style.opacity = op.toFixed(3);
-        jrIn.style.transform = flipX < 1 ? 'scaleX(' + flipX.toFixed(3) + ')' : '';
+        jr.classList.toggle('attach', mode === 'attach');
+        if (!show) { if (jrShow) { jrShow = false; jr.classList.remove('on'); } return; }
+        if (!jrShow) { jrShow = true; jr.classList.add('on'); P = null; } /* reappearing: start where it should be */
+        jr.style.opacity = op.toFixed(3); jrOp = op;
         sv(jr, '--lift', lift.toFixed(3));
-        if (look !== jrLook) { jrLook = look; jrFaces.forEach(function (f) { f.classList.toggle('on', f.getAttribute('data-l') === look); }); }
+        jrIn.style.transform = peel > 0.001 ? 'perspective(420px) rotateX(' + (peel * 38).toFixed(1) + 'deg)' : '';
+        T = box; Tmode = mode;
+
+        /* --- hand work: fold, cut, write, stamp --- */
+        var fa = jrFaces[lookA], fb = jrFaces[lookB];
+        if (jrTx !== (work || '')) { jrTx = work || ''; if (jrTx) jr.setAttribute('data-tx', jrTx); else jr.removeAttribute('data-tx'); }
+        Object.keys(jrFaces).forEach(function (k) { if (jrFaces[k] !== fa && jrFaces[k] !== fb) setFace(jrFaces[k], 0); });
+        jrRows.forEach(function (r) { r.style.clipPath = ''; }); jrScore.style.opacity = '';
+        sv(jr, '--m', m.toFixed(3));
+        if (!work) { setFace(fa, 1); if (fb !== fa) setFace(fb, 0); }
+        else if (work === 'fold') {          /* the PDF is folded in half … and opened again as the summary */
+          var f1 = clamp(m * 2), f2 = clamp(m * 2 - 1);
+          setFace(fa, m < 0.5 ? 1 : 0, 'perspective(600px) rotateX(' + (f1 * 62).toFixed(1) + 'deg) scaleY(' + (1 - f1 * 0.45).toFixed(3) + ')');
+          setFace(fb, m < 0.5 ? 0 : 1, 'perspective(600px) rotateX(' + ((1 - f2) * -62).toFixed(1) + 'deg) scaleY(' + (0.55 + f2 * 0.45).toFixed(3) + ')');
+          sv(jr, '--crease', (Math.sin(Math.PI * m) * 0.9).toFixed(3));
+        } else if (work === 'cut') {         /* scissors along a dashed line; the rest of the page falls away */
+          var c1 = clamp(m / 0.45), c2 = clamp((m - 0.45) / 0.3), c3 = clamp((m - 0.66) / 0.26);
+          sv(jr, '--cut', c1.toFixed(3)); sv(jr, '--fall', c2.toFixed(3));
+          setFace(fa, c3 < 1 ? 1 : 0); fa.style.clipPath = c2 > 0 ? 'inset(0 0 38% 0)' : '';
+          setFace(fb, c3);
+        } else if (work === 'pen') {         /* answers written in by pencil, row by row */
+          var p0 = clamp(m / 0.14), rowsP = (m - 0.14) / 0.68, n = jrRows.length;
+          setFace(fa, p0 < 1 ? 1 : 0); setFace(fb, p0);
+          var k = Math.max(0, Math.min(n - 1, Math.floor(rowsP * n))), pk = clamp(rowsP * n - k);
+          jrRows.forEach(function (r, i) { var v = i < k ? 1 : i > k ? 0 : pk; if (rowsP >= 1) v = 1; r.style.clipPath = v >= 1 ? '' : 'inset(0 ' + ((1 - v) * 100).toFixed(1) + '% 0 0)'; });
+          var rw = jrRows[k], fh = fb.offsetHeight || 1, fw = fb.offsetWidth || 1;
+          sv(jr, '--px', ((rw.offsetLeft + rw.offsetWidth * Math.min(pk, 0.9)) / fw * 100).toFixed(1) + '%'); sv(jr, '--py', ((rw.offsetTop + rw.offsetHeight * 0.75) / fh * 100).toFixed(1) + '%');
+          jrScore.style.opacity = rowsP >= 1 ? '' : '0';
+          sv(jr, '--pv', (m > 0.1 && m < 0.9 ? 1 : 0).toString());
+        } else if (work === 'stamp') {       /* a rubber stamp comes down: it is an ID now */
+          var s1 = clamp(m / 0.42), s3 = clamp((m - 0.52) / 0.3), s4 = clamp((m - 0.5) / 0.2);
+          sv(jr, '--sy', (s3 > 0 ? -130 * eIn(s3) : -130 * (1 - eIn(s1))).toFixed(1) + '%');
+          sv(jr, '--ss', (m > 0.4 && m < 0.52 ? 0.9 : 1).toString()); sv(jr, '--so', (1 - s3).toFixed(3));
+          setFace(fa, s4 < 1 ? 1 : 0); setFace(fb, s4);
+          sv(jr, '--shine', clamp((m - 0.66) / 0.34).toFixed(3));
+        }
+        if (work !== 'cut' && fa) fa.style.clipPath = '';
+
+        /* --- what the sheet has collected so far (by where it is on its way) --- */
+        var st = g.d + (g.fly ? g.t : 0);
+        var at = function (id, from, len) { var i = dockIx(id); return i < 0 ? -1 : clamp((st - (i + from)) / len); };
+        var iAk = dockIx('akis') >= 0 ? 'akis' : 'gz';
+        sv(jr, '--mk-coffee', Math.max(0, at('masa', 0.02, 0.08)).toFixed(3));
+        sv(jr, '--mk-hl', Math.max(0, at('fark', -0.22, 0.2)).toFixed(3));
+        sv(jr, '--mk-note', Math.max(0, at('mt', -0.18, 0.16)).toFixed(3));
+        sv(jr, '--mk-red', Math.max(0, at(iAk, -0.2, 0.18)).toFixed(3));
+        sv(jr, '--mk-cr', Math.max(0, at('gz', 0.04, 0.2)).toFixed(3));
+        sv(jr, '--mk-ink', (work === 'stamp' ? (m >= 0.45 ? 1 : 0) : (st >= dockIx('kayit') && dockIx('kayit') > 0 ? 1 : 0)).toString());
+        jrKick();
       };
       offs.push(function () { docks.forEach(function (k) { if (k.hide) k.hide.classList.remove('jr-hide'); }); });
+
+      /* --- the sheet itself (physics): a spring towards the target, flutter in the air, a soft landing --- */
+      var P = null, V = { x: 0, y: 0, w: 0, h: 0, r: 0 }, jrRaf = 0, jrLast = 0, jrClock = 0;
+      var jrStep = function (now) {
+        jrRaf = 0;
+        if (!jrShow || !T) return;
+        var dt = jrLast ? Math.min(0.05, (now - jrLast) / 1000) : 1 / 60; jrLast = now; jrClock += dt;
+        if (!P) { P = { x: T.x, y: T.y, w: T.w, h: T.h, r: T.r }; V = { x: 0, y: 0, w: 0, h: 0, r: 0 }; }
+        var k = Tmode !== 'fly' ? 170 : 58, c = Tmode !== 'fly' ? 22 : 11.5, moving = false;
+        ['x', 'y', 'w', 'h', 'r'].forEach(function (q) {
+          var a = (T[q] - P[q]) * k - V[q] * c;
+          V[q] += a * dt; P[q] += V[q] * dt;
+          if (Math.abs(T[q] - P[q]) > 0.25 || Math.abs(V[q]) > 0.25) moving = true;
+        });
+        /* flutter: a sheet in the air never hangs still; the faster it goes, the more it swings */
+        var speed = clamp((Math.abs(V.y) + Math.abs(V.x) * 0.6) / 1100), air = Tmode === 'fly' ? 1 : 0;
+        var rx = Math.sin(jrClock * 5.1) * (0.9 * air + 8 * speed) + Math.sin(jrClock * 8.3) * 1.6 * speed;
+        var xx = Math.sin(jrClock * 2.6) * (2.2 * air + 12 * speed);
+        var w = Math.max(20, P.w), h = Math.max(20, P.h);
+        jr.style.width = w.toFixed(1) + 'px'; jr.style.height = h.toFixed(1) + 'px';
+        jr.style.fontSize = (Math.min(w, h * 0.8) / 11).toFixed(2) + 'px';
+        jr.style.transform = 'translate(' + (P.x + xx).toFixed(1) + 'px,' + P.y.toFixed(1) + 'px) rotate(' + (P.r + rx).toFixed(2) + 'deg)';
+        if ((moving || air) && jrOp > 0.01) jrRaf = window.requestAnimationFrame(jrStep); else jrLast = 0;
+      };
+      var jrKick = function () { if (!jrRaf && jrShow) { jrLast = 0; jrRaf = window.requestAnimationFrame(jrStep); } };
+      offs.push(function () { if (jrRaf) window.cancelAnimationFrame(jrRaf); });
 
       /* ---------- Scroll: read everything, then write everything (one rAF per frame) ---------- */
       var lastY = window.scrollY, dirAcc = 0, navShown = false, curSec = -1, lastStep = '';
