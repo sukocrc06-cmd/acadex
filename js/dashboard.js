@@ -2855,6 +2855,15 @@ async function populateStudyCardModalDetails(card, docName, readOnly) {
       const krk = mw.kayipKrk ? ` (~${mw.kayipKrk.toLocaleString('tr-TR')} karakter)` : '';
       badge += `<span title="Belgenin ${yuzde}%'i özete hiç girmedi${krk}. Yeniden özetlemeyi deneyebilirsin." style="display:inline-flex;align-items:center;gap:0.25rem;font-size:0.7rem;font-weight:800;color:#b45309;background:rgba(245,158,11,0.15);padding:0.2rem 0.55rem;border-radius:999px;margin-right:0.35rem;">⚠️ Kısmi özet — belgenin ${yuzde}%'i işlenemedi</span>`;
     }
+    /* KISMI GEMINI KARTI (18.10.2026). Akis kesildiginde elde kalan JSON
+     * kurtarilip kart uretiliyor (bkz. closeTruncatedJson). Kart calisir
+     * ama belgenin sonu icinde YOK; missing_windows gibi bir yuzde
+     * hesaplanamiyor, cunku burada pencere yok — rozet bu yuzden yuzde
+     * degil ne oldugunu soyluyor. */
+    const gp = qm.gemini_partial;
+    if (gp && gp.kurtarilanKrk > 0) {
+      badge += `<span title="Özet motoruna bağlantı özet tamamlanmadan kesildi; elde kalan kısım kurtarıldı. Yeniden özetlemeyi deneyebilirsin." style="display:inline-flex;align-items:center;gap:0.25rem;font-size:0.7rem;font-weight:800;color:#b45309;background:rgba(245,158,11,0.15);padding:0.2rem 0.55rem;border-radius:999px;margin-right:0.35rem;">⚠️ Kısmi özet — belgenin sonu işlenemedi</span>`;
+    }
     const ss = Array.isArray(qm.skipped_stages) ? qm.skipped_stages : [];
     if (ss.length > 0) {
       badge += `<span title="Süre yetmediği için atlanan aşamalar: ${escapeHtml(ss.join(', '))}" style="display:inline-flex;align-items:center;gap:0.25rem;font-size:0.7rem;font-weight:800;color:#64748b;background:rgba(100,116,139,0.12);padding:0.2rem 0.55rem;border-radius:999px;margin-right:0.35rem;">⏱️ ${ss.length} aşama atlandı</span>`;
@@ -3036,7 +3045,10 @@ async function populateStudyCardModalDetails(card, docName, readOnly) {
         
         let varsHtml = '';
         if (Array.isArray(f.variables) && f.variables.length > 0) {
-          varsHtml = '<ul class="formula-vars-list">' + f.variables.map(v => `<li><strong>${escapeHtml(v.symbol || '')}:</strong> ${escapeHtml(v.meaning || '')}</li>`).join('') + '</ul>';
+          // Sembol matematik olarak dizilir, aciklama $...$ parcalari icin
+          // metin yolundan gecer. Ikisi de escapeHtml'de kalinca liste ham
+          // LaTeX gosteriyordu (18.10.2026).
+          varsHtml = '<ul class="formula-vars-list">' + f.variables.map(v => `<li><strong>${renderMathSymbol(v.symbol)}:</strong> ${renderMathInText(v.meaning || '')}</li>`).join('') + '</ul>';
         }
         
         const latexId = `formula-latex-${card.id || 'preview'}-${idx}`;
@@ -3052,6 +3064,9 @@ async function populateStudyCardModalDetails(card, docName, readOnly) {
           if (latexTarget && window.katex && f.latex) {
             try {
               window.katex.render(f.latex, latexTarget, { throwOnError: false, displayMode: true });
+              // Sigmayan formul kaydirma cubugu birakmasin (bkz.
+              // sigdirFormulKutusu): cubuk ciktida formulun sagini yiyor.
+              sigdirFormulKutusu(latexTarget);
             } catch (e) {
               latexTarget.textContent = f.latex;
             }
@@ -3191,20 +3206,127 @@ function splitCalcChain(calc, maxLen = 46) {
  *  sagi, kapayan $'in solu bosluk olamaz ve kapayan $'tan sonra rakam
  *  gelemez. "$5.06 per degree; ... by $2.14" boylece matematik sayilmaz.
  *  Icerik rakamla baslayip bosluk iceriyorsa da duz yazidir. */
+/**
+ * Metindeki $...$ parcalarini dizer, geri kalanini KACIRIR.
+ *
+ * PARCA PARCA islenir ve sira onemlidir (18.10.2026). Eski hali once
+ * metnin TAMAMINI escapeHtml'den geciriyor, sonra $...$ ariyordu;
+ * formulde bir esitsizlik gecer gecmez KaTeX'e "&gt;" ulasiyor ve
+ * ayristiramiyordu. Ekranda bunun karsiligi, KaTeX'in hata rengiyle
+ * yazilmis kirmizi "\hat{\beta}_2 &gt; 0" oluyordu.
+ *
+ * Artik sinirlar HAM metinde bulunur: formul ham haliyle KaTeX'e gider,
+ * aradaki duz metin kacirilir. Hem dogru dizgi hem kacis korunur.
+ */
 function renderMathInText(text) {
   if (!text) return '';
-  const escaped = escapeHtml(String(text));
-  if (!window.katex) return escaped;
-  return escaped.replace(/\$(?=\S)((?:[^$\\]|\\.)*?\S)\$(?!\d)/g, (match, latex) => {
-    if (/^\d[\d.,]*\s/.test(latex)) return match;
-    try {
-      return window.katex.renderToString(latex, { displayMode: false, throwOnError: false });
-    } catch (e) {
-      return match;
+  const s = String(text);
+  /* Kapanis $'inin ONUNDE bosluk olmadigi kontrol edilir. Eski desen
+     sondaki \S icin AYRI bir karakter istiyordu; $1\%$ gibi KACISLA
+     biten formulde o karakter kacisin icinde kaldigi icin eslesme
+     olmuyor ve formul ham basiliyordu (18.10.2026). */
+  const re = /\$(?=\S)((?:[^$\\]|\\.)+?)(?<!\s)\$(?!\d)/g;
+  let out = '', son = 0, m;
+  while ((m = re.exec(s)) !== null) {
+    const latex = m[1];
+    // Para bicimi formul degil: "$100 and $200".
+    if (/^\d[\d.,]*\s/.test(latex)) continue;
+    out += escapeHtml(s.slice(son, m.index));
+    let dizgi = null;
+    if (window.katex) {
+      try {
+        dizgi = window.katex.renderToString(latex, { displayMode: false, throwOnError: false });
+      } catch (e) {
+        dizgi = null;
+      }
     }
-  });
+    out += dizgi == null ? escapeHtml(m[0]) : dizgi;
+    son = m.index + m[0].length;
+  }
+  out += escapeHtml(s.slice(son));
+  return out;
 }
 window.renderMathInText = renderMathInText;
+
+/**
+ * Bir MATEMATIK SEMBOLUNU dizer. renderMathInText'ten farki: burada
+ * $...$ ayiraci beklenmiyor, cunku formul degiskenleri
+ * (\beta_1, x_1, \frac{\partial y}{\partial x_1}) ayiracsiz geliyor ve
+ * tam bu yuzden ekranda ham kaynak olarak gorunuyorlardi.
+ *
+ * Duz kelimeler KaTeX'e GITMEZ: "Temperature" gibi bir sembolu KaTeX
+ * italik matematik olarak dizer ve tuhaf gorunur. LaTeX isareti (ters
+ * bolu, alt/ust simge, suslu parantez) tasimayan sembol escapeHtml
+ * yolundan gider.
+ */
+function renderMathSymbol(sym) {
+  const s = String(sym == null ? '' : sym).trim();
+  if (!s) return '';
+  if (s.indexOf('$') !== -1) return renderMathInText(s);   // ayiracli gelmis
+  const latexGibi = /[\\_^{}]/.test(s);
+  if (!latexGibi || !window.katex) return escapeHtml(s);
+  try {
+    return window.katex.renderToString(s, { displayMode: false, throwOnError: false });
+  } catch (e) {
+    return escapeHtml(s);
+  }
+}
+window.renderMathSymbol = renderMathSymbol;
+
+/** Formul kutusunun taban puntosu (rem). Altina inmek okunmaz yapiyor. */
+const FORMUL_MIN_REM = 0.62;
+
+/**
+ * KaTeX dizdikten SONRA cagrilir: formul kutuya sigmiyorsa puntoyu
+ * dusurur. Kutudaki overflow-x:auto aksi halde kartin ortasinda bir
+ * kaydirma cubugu birakiyor ve formulun sagi hem ekranda hem ciktida
+ * kayboluyor.
+ *
+ * transform:scale DEGIL: metni bulaniklastirir ve kutunun yuksekligini
+ * bozar. Punto dusurmek KaTeX yerlesimini yeniden hesaplatir — metin
+ * keskin kalir, yukseklik dogru olur.
+ *
+ * Olcum yapilamayan ortamda (kutu henuz yerlesmemis, genislik 0) hicbir
+ * sey yapilmaz: yanlis bir kucultme, kaydirma cubugundan daha kotudur.
+ */
+function sigdirFormulKutusu(kutu) {
+  if (!kutu) return null;
+  const ic = kutu.querySelector('.katex-display') || kutu.querySelector('.katex') || kutu.firstElementChild;
+  if (!ic) return null;
+  kutu.style.fontSize = '';
+  const sonuc = { genis: false, oran: null };
+  const sigmiyor = () => {
+    const alan = kutu.clientWidth;
+    const genislik = ic.scrollWidth;
+    // Olculemeyen ortamda (kutu henuz yerlesmemis) hicbir sey yapma.
+    if (!alan || !genislik) return 0;
+    return genislik > alan ? alan / genislik : 0;
+  };
+
+  let oran = sigmiyor();
+  if (!oran) return null;
+
+  /* 1. KADEME: karti tum genislige yay. Formul kartlari auto-fit bir
+     izgarada duruyor (minmax(280px,1fr)); tek sutuna sigmayan formul
+     iki sutunda cogu zaman punto dusurmeden siginiyor. */
+  // Iki kart tasarimi da destekleniyor: .formula-card (dashboard) ve
+  // .axr-fig (acadex-ink). Kullanicinin gordugu kart ink tarafindan
+  // uretiliyor; secici tek tasarima baglanirsa duzeltme oraya ulasmaz.
+  const kart = kutu.closest ? kutu.closest('.formula-card, .axr-fig') : null;
+  if (kart && kart.classList && !kart.classList.contains('formula-card-wide')) {
+    kart.classList.add('formula-card-wide');
+    sonuc.genis = true;
+    oran = sigmiyor();
+    if (!oran) return sonuc;
+  }
+
+  /* 2. KADEME: punto. Taban altina inmek formulu okunmaz yapar; orada
+     overflow-x:auto'ya birakiliyor, yani en kotu hal eski davranis. */
+  sonuc.oran = Math.max(FORMUL_MIN_REM, oran * 0.98);
+  kutu.style.fontSize = sonuc.oran + 'rem';
+  return sonuc;
+}
+window.sigdirFormulKutusu = sigdirFormulKutusu;
 
 /** Bir cozumlu ornek adiminin HTML'i: aciklama ve altinda hesap satiri. */
 function renderWorkedStepHtml(step) {
@@ -3283,8 +3405,38 @@ function summaryParagraphs(summary, target = 600) {
 /** Satir ici **kalin** ve *italik* isaretleri. Formuldeki yildiza ("x* = …",
  *  "2 * x") dokunmaz: acan yildizin solu bosluk/baslangic, sagi bosluk
  *  olmayan bir karakter olmali. */
+/**
+ * Metin icindeki $...$ parcalarini KaTeX ile dizer ve geri kalanina
+ * DOKUNMAZ.
+ *
+ * renderMathInText'ten farki kacirma: o, metnin tamamini escapeHtml'den
+ * gecirir. Burada gelen metin o noktada ZATEN HTML iceriyor
+ * (formatFootnoteMarkers atif isaretlerini <sup> olarak yerlestirmis),
+ * dolayisiyla kacirmak o isaretleri metne cevirirdi.
+ *
+ * Para korumasi aynen korunuyor: "$100 bin" gibi bir parca formul
+ * degil (rakamla baslayip bosluk geliyor) ve kapanis $'inin ardindan
+ * rakam gelen durumlar ($5-$10) zaten eslesmez.
+ */
+function inlineMath(html) {
+  const s = String(html == null ? '' : html);
+  if (!window.katex || s.indexOf('$') === -1) return s;
+  // Desen notu icin bkz. renderMathInText: kacisla biten formul.
+  return s.replace(/\$(?=\S)((?:[^\$\\]|\\.)+?)(?<!\s)\$(?!\d)/g, (match, latex) => {
+    if (/^\d[\d.,]*\s/.test(latex)) return match;
+    try {
+      return window.katex.renderToString(latex, { displayMode: false, throwOnError: false });
+    } catch (e) {
+      return match;
+    }
+  });
+}
+window.inlineMath = inlineMath;
+
 function inlineMarkdown(html) {
-  return String(html || '')
+  // Once matematik, sonra kalin/italik: tersi olsaydi $a*b$ gibi bir
+  // formuldeki yildiz italige donusup LaTeX'i bozardi.
+  return inlineMath(String(html || ''))
     .replace(/\*\*([^*\n]+?)\*\*/g, '<strong>$1</strong>')
     .replace(/(^|[\s(“"])\*([^*\s][^*\n]*?[^*\s]|[^*\s])\*(?=[\s.,;:)!?”"]|$)/g, '$1<em>$2</em>');
 }
@@ -13459,7 +13611,9 @@ function applyBrandedLayout(doc, unicodeReady, startPage) {
   const pageCount = doc.internal.getNumberOfPages();
   const pageWidth = doc.internal.pageSize.width;
   const pageHeight = doc.internal.pageSize.height;
-  const margin = 14;
+  // appendStudyCardToDoc ile AYNI deger olmali: serit metnin kenarina
+  // hizalanmazsa cizgi govdenin disina tasar.
+  const margin = 18;
   const firstBandedPage = startPage || 1; // the cover page (page 1) gets its own full-page treatment instead of this thin header/footer band
 
   for (let i = firstBandedPage; i <= pageCount; i++) {
@@ -14010,14 +14164,19 @@ function drawMermaidSourceFallback(doc, unicodeReady, diagramObj, margin, y, max
 /* Dort kademeli olcek. Onceden bolum etiketi 10.5, alt baslik 10, madde
    basligi 9.5, govde 9.5 idi — dort kademe iki punto icine sikismisti ve
    hicbiri digerinden ayirt edilemiyordu. Artik aralar aciliyor. */
+/* OLCEK (18.10.2026'da genisletildi).
+   Eski degerler 11,5 / 10 / 9,5 / 8,5 idi: dort kademe uc puntoluk bir
+   araliga sikismis, yani sayfada hicbir sey baslik gibi okunmuyordu —
+   uretilen PDF olculup gorulen asil kusur buydu. Kademeler arasi fark
+   artik en az 1,5 punto ve bolum etiketi govdenin 1,3 kati. */
 const PDF_TYPE = {
-  sectionSize: 11.5,   // BOLUM ETIKETI (buyuk harf, altinda cizgi)
-  headSize: 10,        // madde basligi: bolum basligi, terim, formul adi, ornek basligi, soru
-  bodySize: 9.5,       // govde
-  smallSize: 8.5,      // ikincil: blurb, degisken listesi, kaynaklar, cevap anahtari
-  headLead: 5.4,
-  sectionGap: 9,       // bolumler arasi
-  afterHeader: 5.6,    // cizgiden ilk satira
+  sectionSize: 13.5,   // BOLUM ETIKETI (buyuk harf, altinda cizgi)
+  headSize: 11.5,      // madde basligi: bolum basligi, terim, formul adi, ornek basligi, soru
+  bodySize: 10.5,      // govde
+  smallSize: 9,        // ikincil: blurb, degisken listesi, kaynaklar, cevap anahtari
+  headLead: 6,
+  sectionGap: 12,      // bolumler arasi — nefes alani basligin isini yariya indiriyor
+  afterHeader: 6.4,    // cizgiden ilk satira
 };
 
 /** Her bolumun ortak acilisi: etiket + altinda vurgu renkli ince cizgi. */
@@ -14061,7 +14220,9 @@ function drawPdfCard(doc, state, opts) {
 }
 
 function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
-  const margin = 14;
+  /* 18mm: 10,5 puntoluk metinde 14mm kenar satiri 90+ karaktere cikariyor,
+     okunabilir aralik 55-75. applyBrandedLayout ayni degeri kullanmali. */
+  const margin = 18;
   const pageWidth = doc.internal.pageSize.width;
   const pageHeight = doc.internal.pageSize.height;
   const maxWidth = pageWidth - (margin * 2);
@@ -14094,7 +14255,8 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
 
   // Document Title
   pdfSetFont(doc, unicodeReady, 'bold');
-  doc.setFontSize(16);
+  // Baslik govdenin iki kati: kartin ilk bakista ne oldugu belli olsun.
+  doc.setFontSize(20);
   doc.setTextColor(...PDF_INK.navy);
 
   let titleStr = '';
@@ -14109,13 +14271,13 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
   doc.splitTextToSize(safeText(titleStr), maxWidth).forEach(line => {
     if (y > 270) { doc.addPage(); y = 35; }
     doc.text(line, margin, y);
-    y += 8;
+    y += 9.5;
   });
-  y += 2;
+  y += 3.5;
 
   // Metadata block
   pdfSetFont(doc, unicodeReady, 'normal');
-  doc.setFontSize(9);
+  doc.setFontSize(PDF_TYPE.smallSize);
   doc.setTextColor(128, 128, 128);
   const styleLabel = getStyleLabel(studyCard.summary_style);
   const langLabel = studyCard.summary_language === 'tr' ? 'Türkçe' : 'İngilizce';
@@ -14148,10 +14310,10 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
         let h = 0;
         ozetParagraflari.forEach((p, i) => {
           if (p.lead) {
-            pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(9.5);
+            pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(PDF_TYPE.bodySize);
             h += doc.splitTextToSize(safeText(stripInlineMarkdown(p.lead)), w).length * 5.2;
           }
-          pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5);
+          pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(PDF_TYPE.bodySize);
           if (p.body) h += doc.splitTextToSize(safeText(stripInlineMarkdown(p.body)), w).length * 5.2;
           if (i < ozetParagraflari.length - 1) h += PARAGRAF_ARASI;
         });
@@ -14160,13 +14322,13 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
       render: (x, ry, w, allowBreak) => {
         ozetParagraflari.forEach((p, i) => {
           if (p.lead) {
-            pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.navy);
+            pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(PDF_TYPE.bodySize); doc.setTextColor(...PDF_INK.navy);
             doc.splitTextToSize(safeText(stripInlineMarkdown(p.lead)), w).forEach(line => {
               if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
               doc.text(line, x, ry); ry += 5.2;
             });
           }
-          pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.body);
+          pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(PDF_TYPE.bodySize); doc.setTextColor(...PDF_INK.body);
           if (p.body) {
             doc.splitTextToSize(safeText(stripInlineMarkdown(p.body)), w).forEach(line => {
               if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
@@ -14206,16 +14368,16 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
           let h = 0;
           const baslik = String((studyCard.outline && studyCard.outline.document_title_guess) || '').trim();
           if (baslik) {
-            pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(10);
+            pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(PDF_TYPE.headSize);
             h += doc.splitTextToSize(safeText(baslik), w).length * 5.4 + 1.5;
           }
           maddeler.forEach(it => {
             const g = girinti(it.level);
-            pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(9.5);
+            pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(PDF_TYPE.bodySize);
             h += doc.splitTextToSize(safeText(it.heading), w - g).length * 5.2;
             const blurb = String(it.blurb || '').trim();
             if (blurb) {
-              pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9);
+              pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(PDF_TYPE.smallSize);
               h += doc.splitTextToSize(safeText(blurb), w - g - 4).length * 4.8;
             }
             h += 1.5;
@@ -14225,7 +14387,7 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
         render: (x, ry, w, allowBreak) => {
           const baslik = String((studyCard.outline && studyCard.outline.document_title_guess) || '').trim();
           if (baslik) {
-            pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(10); doc.setTextColor(...PDF_INK.navy);
+            pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(PDF_TYPE.headSize); doc.setTextColor(...PDF_INK.navy);
             doc.splitTextToSize(safeText(baslik), w).forEach(line => {
               if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
               doc.text(line, x, ry); ry += 5.4;
@@ -14234,14 +14396,14 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
           }
           maddeler.forEach(it => {
             const g = girinti(it.level);
-            pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.navy);
+            pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(PDF_TYPE.bodySize); doc.setTextColor(...PDF_INK.navy);
             doc.splitTextToSize(safeText(it.heading), w - g).forEach(line => {
               if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
               doc.text(line, x + g, ry); ry += 5.2;
             });
             const blurb = String(it.blurb || '').trim();
             if (blurb) {
-              pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9); doc.setTextColor(...PDF_INK.muted);
+              pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(PDF_TYPE.smallSize); doc.setTextColor(...PDF_INK.muted);
               doc.splitTextToSize(safeText(blurb), w - g - 4).forEach(line => {
                 if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
                 doc.text(line, x + g + 4, ry); ry += 4.8;
@@ -14280,9 +14442,9 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
         measure: (w) => {
           let h = 0;
           sections.forEach(s => {
-            pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(10);
+            pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(PDF_TYPE.headSize);
             h += doc.splitTextToSize(safeText(s.heading), w).length * 5.5 + 1;
-            pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5);
+            pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(PDF_TYPE.bodySize);
             h += doc.splitTextToSize(safeText(s.summary), w).length * 5.2;
             (Array.isArray(s.key_points) ? s.key_points : []).forEach(p => {
               h += doc.splitTextToSize(safeText(`– ${p}`), w - 6).length * 5;
@@ -14294,13 +14456,13 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
         render: (x, ry, w, allowBreak) => {
           sections.forEach(s => {
             if (allowBreak && ry > 265) { doc.addPage(); ry = 35; }
-            pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(10); doc.setTextColor(...PDF_INK.navy);
+            pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(PDF_TYPE.headSize); doc.setTextColor(...PDF_INK.navy);
             doc.splitTextToSize(safeText(s.heading), w).forEach(line => {
               if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
               doc.text(line, x, ry); ry += 5.5;
             });
             ry += 1;
-            pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.body);
+            pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(PDF_TYPE.bodySize); doc.setTextColor(...PDF_INK.body);
             doc.splitTextToSize(safeText(s.summary), w).forEach(line => {
               if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
               doc.text(line, x, ry); ry += 5.2;
@@ -14343,7 +14505,7 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
           if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
           pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(PDF_TYPE.headSize); doc.setTextColor(...PDF_INK.navy);
           doc.text(safeText(`• ${kt.term}`), x, ry); ry += PDF_TYPE.headLead;
-          pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.body);
+          pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(PDF_TYPE.bodySize); doc.setTextColor(...PDF_INK.body);
           doc.splitTextToSize(safeText(kt.definition), w - 6).forEach(line => {
             if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
             doc.text(line, x + 6, ry); ry += 5;
@@ -14362,13 +14524,13 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
       accent: PDF_INK.teal,
       soft: PDF_INK.tealSoft,
       measure: (w) => {
-        pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5);
+        pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(PDF_TYPE.bodySize);
         let h = 0;
         studyCard.key_points.forEach(pt => { h += doc.splitTextToSize(safeText(`– ${pt}`), w).length * 5.5; });
         return h;
       },
       render: (x, ry, w, allowBreak) => {
-        pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.body);
+        pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(PDF_TYPE.bodySize); doc.setTextColor(...PDF_INK.body);
         studyCard.key_points.forEach(pt => {
           doc.splitTextToSize(safeText(`– ${pt}`), w).forEach(line => {
             if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
@@ -14391,7 +14553,7 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
         studyCard.quiz_questions.forEach((q) => {
           pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(PDF_TYPE.headSize);
           h += doc.splitTextToSize(safeText(`S: ${q.question}`), w).length * PDF_TYPE.headLead;
-          pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5);
+          pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(PDF_TYPE.bodySize);
           h += doc.splitTextToSize(safeText(`C: ${q.answer}`), w).length * 5.5 + 3.5;
         });
         return h;
@@ -14403,7 +14565,7 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
             if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
             doc.text(line, x, ry); ry += PDF_TYPE.headLead;
           });
-          pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.body);
+          pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(PDF_TYPE.bodySize); doc.setTextColor(...PDF_INK.body);
           doc.splitTextToSize(safeText(`C: ${q.answer}`), w).forEach(line => {
             if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
             doc.text(line, x, ry); ry += 5.5;
@@ -14434,9 +14596,9 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
           formulas.forEach(f => {
             pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(PDF_TYPE.headSize);
             if (f.name) h += doc.splitTextToSize(safeText(f.name), w).length * PDF_TYPE.headLead;
-            pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(10);
+            pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(PDF_TYPE.headSize);
             if (f.latex) h += doc.splitTextToSize(safeText(latexToUnicode(f.latex, unicodeReady)), w - 6).length * 5.5;
-            pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9);
+            pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(PDF_TYPE.smallSize);
             (Array.isArray(f.variables) ? f.variables : []).forEach(v => {
               h += doc.splitTextToSize(safeText(`${latexToUnicode(v?.symbol || '', unicodeReady)} = ${v?.meaning || ''}`), w - 6).length * 4.6;
             });
@@ -14455,13 +14617,13 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
               });
             }
             if (f.latex) {
-              pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(10); doc.setTextColor(...PDF_INK.teal);
+              pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(PDF_TYPE.headSize); doc.setTextColor(...PDF_INK.teal);
               doc.splitTextToSize(safeText(latexToUnicode(f.latex, unicodeReady)), w - 6).forEach(line => {
                 if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
                 doc.text(line, x + 6, ry); ry += 5.5;
               });
             }
-            pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9); doc.setTextColor(...PDF_INK.muted);
+            pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(PDF_TYPE.smallSize); doc.setTextColor(...PDF_INK.muted);
             (Array.isArray(f.variables) ? f.variables : []).forEach(v => {
               doc.splitTextToSize(safeText(`${latexToUnicode(v?.symbol || '', unicodeReady)} = ${v?.meaning || ''}`), w - 6).forEach(line => {
                 if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
@@ -14496,16 +14658,16 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
         measure: (w) => {
           let h = 0;
           examples.forEach((e, i) => {
-            pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(10);
+            pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(PDF_TYPE.headSize);
             h += doc.splitTextToSize(safeText(e.title || `Örnek ${i + 1}`), w).length * 5.5 + 1;
-            pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5);
+            pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(PDF_TYPE.bodySize);
             if (e.problem_statement) h += doc.splitTextToSize(safeText(e.problem_statement), w).length * 5.2 + 1;
             pdfWorkedSteps(e).forEach((st, si) => {
               if (st.label) h += doc.splitTextToSize(safeText(`${si + 1}. ${st.label}`), w - 6).length * 5;
               st.calcLines.forEach(l => { h += doc.splitTextToSize(l, w - 14).length * 5; });
               h += 0.8;
             });
-            pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(9.5);
+            pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(PDF_TYPE.bodySize);
             if (e.final_answer) h += doc.splitTextToSize(safeText(`Sonuç: ${e.final_answer}`), w).length * 5.2;
             h += 5;
           });
@@ -14514,14 +14676,14 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
         render: (x, ry, w, allowBreak) => {
           examples.forEach((e, i) => {
             if (allowBreak && ry > 262) { doc.addPage(); ry = 35; }
-            pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(10); doc.setTextColor(...PDF_INK.navy);
+            pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(PDF_TYPE.headSize); doc.setTextColor(...PDF_INK.navy);
             doc.splitTextToSize(safeText(e.title || `Örnek ${i + 1}`), w).forEach(line => {
               if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
               doc.text(line, x, ry); ry += 5.5;
             });
             ry += 1;
             if (e.problem_statement) {
-              pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.body);
+              pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(PDF_TYPE.bodySize); doc.setTextColor(...PDF_INK.body);
               doc.splitTextToSize(safeText(e.problem_statement), w).forEach(line => {
                 if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
                 doc.text(line, x, ry); ry += 5.2;
@@ -14530,14 +14692,14 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
             }
             pdfWorkedSteps(e).forEach((st, si) => {
               if (st.label) {
-                pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.muted);
+                pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(PDF_TYPE.bodySize); doc.setTextColor(...PDF_INK.muted);
                 doc.splitTextToSize(safeText(`${si + 1}. ${st.label}`), w - 6).forEach(line => {
                   if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
                   doc.text(line, x + 6, ry); ry += 5;
                 });
               }
               // Hesap satiri: girintili, koyu renk — metnin icinde kaybolmasin.
-              pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.navy);
+              pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(PDF_TYPE.bodySize); doc.setTextColor(...PDF_INK.navy);
               st.calcLines.forEach((l, li) => {
                 const girinti = (st.label ? 12 : 6) + (li > 0 ? 4 : 0);
                 doc.splitTextToSize(l, w - 14).forEach(line => {
@@ -14548,7 +14710,7 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
               ry += 0.8;
             });
             if (e.final_answer) {
-              pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.amberDark);
+              pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(PDF_TYPE.bodySize); doc.setTextColor(...PDF_INK.amberDark);
               doc.splitTextToSize(safeText(`Sonuç: ${e.final_answer}`), w).forEach(line => {
                 if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
                 doc.text(line, x, ry); ry += 5.2;
@@ -14579,7 +14741,7 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
     studyCard.tables.forEach((t, idx) => {
       if (y > 260) { doc.addPage(); y = 35; }
       pdfSetFont(doc, unicodeReady, 'bold');
-      doc.setFontSize(10);
+      doc.setFontSize(PDF_TYPE.headSize);
       doc.setTextColor(...PDF_INK.navy);
       doc.text(safeText(t.title || `Tablo ${idx + 1}`), margin, y);
       y += 6;
@@ -14595,7 +14757,7 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
     studyCard.charts.forEach((c, idx) => {
       if (y > 260) { doc.addPage(); y = 35; }
       pdfSetFont(doc, unicodeReady, 'bold');
-      doc.setFontSize(10);
+      doc.setFontSize(PDF_TYPE.headSize);
       doc.setTextColor(...PDF_INK.navy);
       doc.text(safeText(c.title || `Grafik ${idx + 1}`), margin, y);
       y += 6;
@@ -14628,14 +14790,14 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
     studyCard.diagrams.forEach((d, idx) => {
       if (y > 260) { doc.addPage(); y = 35; }
       pdfSetFont(doc, unicodeReady, 'bold');
-      doc.setFontSize(10);
+      doc.setFontSize(PDF_TYPE.headSize);
       doc.setTextColor(...PDF_INK.navy);
       doc.text(safeText(d.title || `Diyagram ${idx + 1}`), margin, y);
       y += 6;
 
       if (d.description) {
         pdfSetFont(doc, unicodeReady, 'normal');
-        doc.setFontSize(9);
+        doc.setFontSize(PDF_TYPE.smallSize);
         doc.setTextColor(...PDF_INK.body);
         doc.splitTextToSize(safeText(d.description), maxWidth).forEach(line => {
           if (y > 270) { doc.addPage(); y = 35; }
@@ -14700,7 +14862,7 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
         soft: PDF_INK.tealSoft,
         measure: (w) => {
           let h = 0;
-          pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5);
+          pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(PDF_TYPE.bodySize);
           clozes.forEach((c, idx) => {
             if (idx === SPLIT_AT) h += SPLIT_H;
             h += doc.splitTextToSize(safeText(`${idx + 1}. ${c.prompt}`), w).length * 5.5 + 1.5;
@@ -14708,19 +14870,19 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
           // Answer key: heading plus the wrapped, comma-joined answers.
           h += 7;
           const key = clozes.map((c, idx) => `${idx + 1}. ${c.answer}`).join('   ');
-          pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(8.5);
+          pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(PDF_TYPE.smallSize);
           h += doc.splitTextToSize(safeText(key), w).length * 4.6;
           return h;
         },
         render: (x, ry, w, allowBreak) => {
-          pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.body);
+          pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(PDF_TYPE.bodySize); doc.setTextColor(...PDF_INK.body);
           clozes.forEach((c, idx) => {
             if (idx === SPLIT_AT) {
               ry += 2;
               if (allowBreak && ry > 265) { doc.addPage(); ry = 35; }
-              pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(9); doc.setTextColor(...PDF_INK.teal);
+              pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(PDF_TYPE.smallSize); doc.setTextColor(...PDF_INK.teal);
               doc.text(safeText('Terim testi — tanımdan terime'), x, ry); ry += 5;
-              pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(9.5); doc.setTextColor(...PDF_INK.body);
+              pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(PDF_TYPE.bodySize); doc.setTextColor(...PDF_INK.body);
             }
             doc.splitTextToSize(safeText(`${idx + 1}. ${c.prompt}`), w).forEach(line => {
               if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
@@ -14731,12 +14893,12 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
 
           ry += 2;
           if (allowBreak && ry > 265) { doc.addPage(); ry = 35; }
-          pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(9); doc.setTextColor(...PDF_INK.teal);
+          pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(PDF_TYPE.smallSize); doc.setTextColor(...PDF_INK.teal);
           doc.text(safeText('Cevap anahtarı'), x, ry); ry += 5;
 
           // Muted and smaller so the eye does not land on it while working
           // through the prompts above.
-          pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(8.5); doc.setTextColor(...PDF_INK.muted);
+          pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(PDF_TYPE.smallSize); doc.setTextColor(...PDF_INK.muted);
           const key = clozes.map((c, idx) => `${idx + 1}. ${c.answer}`).join('   ');
           doc.splitTextToSize(safeText(key), w).forEach(line => {
             if (allowBreak && ry > 272) { doc.addPage(); ry = 35; }
@@ -14774,13 +14936,13 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
         accent: PDF_INK.muted,
         soft: PDF_INK.navySoft,
         measure: (w) => {
-          pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(8.5);
+          pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(PDF_TYPE.smallSize);
           let h = 0;
           notes.forEach((f, i) => { h += doc.splitTextToSize(safeText(lineFor(f, i)), w).length * 4.6 + 1; });
           return h;
         },
         render: (x, ry, w, allowBreak) => {
-          pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(8.5); doc.setTextColor(...PDF_INK.muted);
+          pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(PDF_TYPE.smallSize); doc.setTextColor(...PDF_INK.muted);
           notes.forEach((f, i) => {
             doc.splitTextToSize(safeText(lineFor(f, i)), w).forEach(line => {
               if (allowBreak && ry > 272) { doc.addPage(); ry = 35; }

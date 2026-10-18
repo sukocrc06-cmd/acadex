@@ -7719,6 +7719,10 @@ body.axr-open #pomodoro-widget-container,body.axr-open #acadia-widget-container,
 #study-card-modal.axr .axr-figp{margin:8px 0 0;font-size:13.5px;line-height:1.5;color:var(--muted)}
 #study-card-modal.axr .axr-grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(330px,100%),1fr));gap:16px}
 #study-card-modal.axr .axr-grid2>.axr-fig{margin:0}
+/* Tek sutuna sigmayan formul tum genislige yayilir (bkz.
+   sigdirFormulKutusu): .axr-tex'teki overflow-x kaydirma cubugu birakiyor
+   ve formulun sagi hem ekranda hem ciktida kayboluyor. */
+#study-card-modal.axr .axr-grid2>.axr-fig.formula-card-wide{grid-column:1/-1}
 #study-card-modal.axr .axr-grid2+*{margin-top:22px}
 #study-card-modal.axr .axr-chartw{position:relative}
 #study-card-modal.axr .axr-chartw [data-redraw]{position:absolute;top:12px;right:12px;min-height:30px;opacity:0;transition:opacity .2s}
@@ -7806,6 +7810,15 @@ body.axr-open #pomodoro-widget-container,body.axr-open #acadia-widget-container,
 #study-card-modal.axr .axr-chalk{background:#1F3A33;background-image:radial-gradient(rgba(255,255,255,.05) 1px,transparent 1px);background-size:6px 6px;border:8px solid #8A5A35;border-radius:8px;color:#F2F0E6;box-shadow:inset 0 0 40px rgba(0,0,0,.35)}
 #study-card-modal.axr .axr-chalk figcaption .mono{color:#B9D4C6}
 #study-card-modal.axr .axr-chalk figcaption b{color:#FFF}
+/* SATIR ICI MATEMATIK: anlati ve maddelerde cevresindeki metinden ayirt
+   edilsin. Koyu temada cok sonuk kaliyordu. */
+#study-card-modal.axr .axr-prose .katex,
+#study-card-modal.axr .axr-kps .katex{color:var(--amber)}
+/* Gece masasi kok ogeyi ters ceviriyor ve .katex'i GERI ceviriyor; satir
+   ici matematik boylece cevresindeki metnin tersine donup koyu kaliyordu.
+   Burada geri cevirme iptal: metinle ayni mantikta cevrilsin. */
+html.ax-dark #study-card-modal.axr .axr-prose .katex,
+html.ax-dark #study-card-modal.axr .axr-kps .katex{filter:none}
 #study-card-modal.axr .axr-tex{font-size:20px;overflow-x:auto;padding:8px 0;color:#FFFBEA;text-align:center}
 #study-card-modal.axr .axr-tex .katex{color:#FFFBEA}
 #study-card-modal.axr .axr-vars{display:grid;gap:4px;margin:8px 0 0;font-size:13.5px}

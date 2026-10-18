@@ -5302,6 +5302,13 @@ input:checked + .slider:before {
   box-shadow: var(--shadow-sm);
 }
 
+/* Tek sutuna sigmayan formul tum genislige yayilir (bkz.
+   sigdirFormulKutusu): kaydirma cubugu formulun sagini hem ekranda hem
+   ciktida yiyordu. */
+.formula-card-wide {
+  grid-column: 1 / -1;
+}
+
 .formula-card-title {
   font-size: 0.95rem;
   font-weight: 700;

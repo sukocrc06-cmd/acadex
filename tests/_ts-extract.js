@@ -145,13 +145,54 @@ function sliceDeclaration(js, name) {
   );
 }
 
+/* KAYNAK OKUMA — SATIR SONU NORMALIZE EDILIR (18.10.2026).
+
+   Bu dosyadaki testlerin cogu kaynagin SEKLINE bakiyor: "su talimat prompt'ta
+   duruyor mu", "clampCompletion once lane sonra tavan mi aliyor". Bu
+   kontroller cok satirli dize ve regex ile yazili, yani `\n` varsayiyor.
+
+   Edge function'lar GitHub web arayuzunden Windows'tan yuklendigi icin repo
+   blob'u CRLF tasiyor (.gitattributes'taki `* text=auto` web yuklemesine
+   islemiyor: blob API ile dogrudan yaziliyor). Sonuc: `/NOT yours to\nrewrite/`
+   gibi her kontrol, kaynak DOGRU oldugu halde dusuyor — summary-quality.js'te
+   dokuz, chat-retrieval.js'te bir basarisizlik tam buydu. Hepsi "kod bozuk"
+   gibi gorunup aslinda satir sonundan geliyordu.
+
+   Repoyu bir kez LF'ye cevirmek bunu kalici cozmez: bir sonraki web yuklemesi
+   CRLF'i geri getirir. Bu yuzden normalize okuma tarafinda yapiliyor — test
+   ne okudugunu kontrol ediyorsa, satir sonu bicimini degil ICERIGI kontrol
+   etmeli. */
+/* ...VE OKUMANIN TAMAMI ICIN GECERLI. Testlerin cogu kaynagi readSource ile
+   degil, kendi `fs.readFileSync(..., 'utf8')` cagrisiyla okuyor
+   (summary-quality, chat-retrieval, model-registry, scope-check). Her birini
+   tek tek degistirmek yerine okuma burada normalize ediliyor: bu dosya her
+   test tarafindan zaten require ediliyor, yani yama testler dosyalara
+   bakmadan once yerine oturuyor — yeni yazilan testler de bedava korunuyor.
+
+   Yama SADECE metin okumalarini (encoding verilmis, string donen cagrilari)
+   sariyor; Buffer donen cagrilar dokunulmadan geciyor. */
+const CR = String.fromCharCode(13);
+const LF = String.fromCharCode(10);
+const _origReadFileSync = fs.readFileSync;
+fs.readFileSync = function (file, options) {
+  const out = _origReadFileSync.call(fs, file, options);
+  return typeof out === 'string' ? out.split(CR + LF).join(LF) : out;
+};
+
+function readSource(relativePath) {
+  const abs = path.isAbsolute(relativePath)
+    ? relativePath
+    : path.join(__dirname, '..', relativePath);
+  return fs.readFileSync(abs, 'utf8');
+}
+
 /** Verilen .ts dosyasindan adi gecen bildirimleri cikarip bir nesne olarak doner. */
 function loadFromSource(relativePath, names) {
   const abs = path.isAbsolute(relativePath)
     ? relativePath
     : path.join(__dirname, '..', relativePath);
   if (!fs.existsSync(abs)) throw new Error(`Kaynak bulunamadi: ${abs}`);
-  const js = ts.transpileModule(fs.readFileSync(abs, 'utf8'), {
+  const js = ts.transpileModule(readSource(abs), {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext }
   }).outputText;
   const body = names.map(n => sliceDeclaration(js, n)).join('\n\n');
@@ -238,4 +279,4 @@ function makeRunner() {
   return { test, summary, state };
 }
 
-module.exports = { loadFromSource, sliceDeclaration, scanFrom, makeRunner };
+module.exports = { loadFromSource, readSource, sliceDeclaration, scanFrom, makeRunner };

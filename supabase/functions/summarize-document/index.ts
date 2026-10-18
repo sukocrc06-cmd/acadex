@@ -5700,7 +5700,9 @@ function geminiFormatRejected(status: number, body: string): boolean {
    tavanla cevap veriyor. system_instruction ve input bu listede DEGIL —
    onlar dusurulurse istek anlamini kaybeder, o yuzden onlara takilan bir
    hata Groq'a dusmeyi hak eder. */
-const GEMINI_DUSURULEBILIR = ['response_format', 'generation_config', 'thinking_level', 'thinking_summaries']
+/* 'stream' ve 'store' da burada: yuzey akisi reddederse ("Unknown parameter
+   'stream'") callGeminiOnce AKISSIZ eski yola duser, hat durmaz. */
+const GEMINI_DUSURULEBILIR = ['response_format', 'generation_config', 'thinking_level', 'thinking_summaries', 'stream', 'store']
 
 /**
  * "Unknown parameter 'X'" hatasindan X'i cikarir, dusurulebilir degilse null.
@@ -5972,8 +5974,416 @@ function geminiFigureNotes(parsed: any): string[] {
   return out
 }
 
+/* ==========================================================================
+   GEMINI AKIS (SSE) — 18.10.2026
+   ==========================================================================
+   NE DEGISTI: istek `stream: true` ile gidiyor ve cevap Server-Sent Events
+   olarak okunuyor. Dokumanda (ai.google.dev/api/interactions-v1) olaylar
+   sunlar: `interaction.status_update` (status=in_progress), `step.delta`
+   ({delta:{type:'text',text:'...'}}), `step.stop`, `interaction.completed`,
+   `error`. Her olay bir `event_id` tasiyabiliyor.
+
+   NEDEN. Eski hali tek atislik bir zaman asimiydi: 105 saniye boyunca
+   modelin calisip calismadigi BILINMIYOR, sonra her sey copa gidiyordu.
+   10.10 ve 17.10 kosularinda olculen Gemini gecikmesi 67-111 saniye, yani
+   tavan nereye konursa konsun bir kismi her zaman kesilecek. Akis bu soruyu
+   ikiye boluyor:
+
+     - MODEL CALISIYOR AMA YAVAS  -> delta geliyor, beklemeye devam
+     - BAGLANTI OLDU              -> delta gelmiyor, hemen bitir
+
+   Eskiden ikisi ayni hataydi. Simdi zaman asimi SESSIZLIK sayacina bagli
+   (GEMINI_SILENCE_MS): her olayda sifirlanir, yalnizca gercekten hicbir sey
+   gelmiyorsa tetiklenir. Mutlak tavan yine duruyor (Supabase'in ~150 sn
+   duvarina karsi emniyet), ama artik istisna degil son durak.
+
+   VE KESILEN CIKTI ARTIK KURTARILIYOR. Akis kesildiginde elde o ana kadar
+   gelen metin var; closeTruncatedJson onu kapatip ayristirmayi deniyor.
+   105 saniye yanip elde hicbir sey kalmamasi bitti.
+
+   DUSURULEBILIR: `stream` ve `store` GEMINI_DUSURULEBILIR listesinde. Yuzey
+   bu alanlari reddederse ("Unknown parameter 'stream'") mevcut dusur-ve-
+   tekrar-dene mekanizmasi devreye girer ve cagri AKISSIZ eski yoldan gider.
+   Yani akisin kabul edilmedigi bir anahtarda bile hat calismaya devam eder.
+   ========================================================================== */
+
+/* AKIS BASLADIKTAN SONRA iki olay arasinda gecebilecek en uzun sure.
+   Olaylar akmaya basladiysa 25 saniyelik bir bosluk olu baglanti demektir;
+   o noktada beklemeye devam etmek 105 saniyeye kadar bos bekleyen eski
+   davranisin ta kendisi olurdu. */
+const GEMINI_SILENCE_MS = 25_000
+
+/* ILK BYTE'A kadar beklenecek sure — SESSIZLIKTEN AYRI, ve bu ayrim bir
+   OLCUMUN sonucu (18.10.2026, ilk akisli canli kosu).
+
+   O kosuda uc model ust uste "sessizlik (25000ms olay gelmedi)" ile
+   dustu ve elde 0 karakter kaldi. Istek 400 ALMADI, yani yuzey
+   `stream: true`'yu reddetmiyor — YOK SAYIYOR: yanit eskisi gibi tek
+   parca ve olculen 90-111 saniyede geliyor. Tek bir sayac bu iki durumu
+   ayirt edemez:
+     - ilk byte 90 saniye sonra gelebilir (normal, yok sayilan akis)
+     - olaylar arasi 25 saniye bosluk ise anormal (olu baglanti)
+   Tek esik 25 saniye olunca birinci durum ikinci sanildi ve her model
+   gunluk kotadan (RPD 20) bir istek yakti. Simdi ilk byte mutlak tavana
+   kadar bekleniyor; sessizlik sayaci yalnizca akis GERCEKTEN basladiktan
+   sonra devreye giriyor. Yuzey bir gun delta gondermeye baslarsa kazanc
+   kendiliginden geri gelir. */
+const GEMINI_FIRST_BYTE_MS = 100_000
+
+/* Kurtarmaya deger en kucuk kismi cikti. Bunun altinda bir tampon zaten bir
+   karta donusmez; kurtarmayi denemek yalnizca logu kirletir. */
+const GEMINI_PARTIAL_MIN_CHARS = 2_000
+
+/* Kopan akisin GET ile kac kez devam ettirilebilecegi. Devam ettirme YENI
+   bir uretim istegi degil (ayni etkilesim okunuyor), ama yine de bir HTTP
+   istegi — sinirsiz birakmak bir dongude butceyi yiyebilir. */
+const GEMINI_MAX_RESUMES = 2
+
+type GeminiAkisDurum = {
+  metin: string
+  interactionId: string
+  lastEventId: string
+  status: string
+  tamamlandi: boolean
+  hata: string | null
+  olaySayisi: number
+  /* Akisin kendisi token sayisi tasimiyor; `interaction.completed` olayinin
+     kismi kaynaginda bulunursa alinir, yoksa null kalir. */
+  usage: any
+  /* Govdenin tamami, ayristirilmadan. Yuzey akisi yok sayarsa buradaki
+     metin duz bir Interaction JSON'u olur (bkz. geminiAkisiTuket). */
+  ham: string
+  /* Akis hic olay vermediyse ve ham govde duz JSON olarak ayristirildiysa
+     yanit nesnesi. Varsa cagri BASARILI sayilir. */
+  duzYanit: any
+  /* OLCUM (18.10.2026). Istegin basindan itibaren ms: ilk veri parcasi ve
+     ilk ayristirilan olay. -1 = hic gelmedi. Ikisi birbirine YAKIN ve
+     toplam sureden KUCUK ise akis gercekten akiyor; ikisi de toplam sureye
+     esitse yuzey her seyi sonda tek seferde gondermis demektir. */
+  t0: number
+  ilkByteMs: number
+  ilkOlayMs: number
+}
+
+function geminiAkisDurumu(): GeminiAkisDurum {
+  return {
+    metin: '', interactionId: '', lastEventId: '', status: '', tamamlandi: false,
+    hata: null, olaySayisi: 0, usage: null, ham: '', duzYanit: null,
+    t0: 0, ilkByteMs: -1, ilkOlayMs: -1
+  }
+}
+
+/** Tek bir SSE blogunu (bos satira kadar olan kisim) durum uzerine isler. */
+function geminiSseBlogunuIsle(blok: string, durum: GeminiAkisDurum): void {
+  const veri: string[] = []
+  for (const satir of blok.split('\n')) {
+    const t = satir.trim()
+    if (!t || t.startsWith(':')) continue            // yorum / heartbeat
+    if (t.startsWith('id:')) {
+      const id = t.slice(3).trim()
+      if (id) durum.lastEventId = id
+      continue
+    }
+    if (t.startsWith('data:')) veri.push(t.slice(5).trim())
+  }
+  if (veri.length === 0) return
+  let olay: any
+  try { olay = JSON.parse(veri.join('\n')) } catch (_e) { return }
+  durum.olaySayisi++
+  if (durum.ilkOlayMs < 0 && durum.t0 > 0) durum.ilkOlayMs = Date.now() - durum.t0
+
+  if (typeof olay?.event_id === 'string' && olay.event_id) durum.lastEventId = olay.event_id
+  if (typeof olay?.interaction_id === 'string' && olay.interaction_id) durum.interactionId = olay.interaction_id
+  if (typeof olay?.interaction?.id === 'string' && olay.interaction.id) durum.interactionId = olay.interaction.id
+
+  switch (String(olay?.event_type || '')) {
+    case 'step.delta': {
+      const d = olay.delta
+      if (d && (!d.type || d.type === 'text') && typeof d.text === 'string') durum.metin += d.text
+      return
+    }
+    case 'interaction.status_update':
+      if (olay.status) durum.status = String(olay.status)
+      return
+    case 'interaction.completed':
+      /* Olayin tasidigi kismi kaynak kendi `status` alanini verebiliyor:
+         incomplete (cikti tavani), failed, cancelled. Korumak ZORUNLU —
+         geminiProblem bu durumlara gore karar veriyor ve 'completed'
+         yazmak yarim bir JSON'u tam sanmak olurdu. */
+      durum.status = String(olay?.interaction?.status || 'completed')
+      durum.tamamlandi = true
+      if (olay?.interaction?.usage) durum.usage = olay.interaction.usage
+      return
+    case 'error':
+      durum.hata = String(olay?.error?.message || olay?.error?.code || 'akis hatasi')
+      return
+    default:
+      return
+  }
+}
+
 /**
- * Tek Gemini cagrisi: belgenin tamami inline, JSON modu, kendi zaman asimi.
+ * Akisi tuketir. `dokun` her veri parcasinda cagrilir — sessizlik sayacini
+ * sifirlayan sey bu, yani "yavas model" ile "olu baglanti" burada ayriliyor.
+ */
+async function geminiAkisiTuket(
+  res: Response,
+  durum: GeminiAkisDurum,
+  dokun: (veriGeldi?: boolean) => void
+): Promise<void> {
+  const reader = res.body?.getReader?.()
+  if (!reader) { durum.hata = 'akis govdesi okunamadi'; return }
+  const dec = new TextDecoder()
+  let tampon = ''
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    dokun(true)
+    const parca = dec.decode(value, { stream: true })
+    durum.ham += parca
+    tampon += parca
+    let kes = tampon.indexOf('\n\n')
+    while (kes !== -1) {
+      geminiSseBlogunuIsle(tampon.slice(0, kes), durum)
+      tampon = tampon.slice(kes + 2)
+      kes = tampon.indexOf('\n\n')
+    }
+  }
+  if (tampon.trim()) geminiSseBlogunuIsle(tampon, durum)
+
+  /* YUZEY AKISI YOK SAYDIYSA. Tek bir olay bile cikmadiysa gelen sey SSE
+     degil, duz bir Interaction JSON'udur — 18.10.2026 kosusunda olan tam
+     buydu. Bunu copa atmak, akis uygulanmadan ONCE calisan bir yolu
+     kirmak olurdu; ayristirip normal yanit gibi kullaniyoruz. */
+  if (durum.olaySayisi === 0 && durum.ham.trim()) {
+    try {
+      const d = JSON.parse(durum.ham)
+      if (d && typeof d === 'object') {
+        durum.duzYanit = d
+        durum.tamamlandi = true
+        durum.status = String(d.status || 'completed')
+        durum.interactionId = String(d.id || durum.interactionId)
+        console.warn(
+          `Gemini: yuzey stream'i yok saydi (olay yok, ${durum.ham.length} karakter ` +
+          `duz JSON geldi) — yanit akissiz yoldaki gibi okundu, status=${durum.status}`
+        )
+      }
+    } catch (_e) {
+      /* Ne SSE ne JSON. Govdenin basi loga girsin, bir daha teshis
+         gerekmesin — sessiz bir basarisizlik en pahali olani. */
+      console.warn(
+        `Gemini: akisda olay yok ve govde JSON degil (${durum.ham.length} karakter): ` +
+        durum.ham.slice(0, 200)
+      )
+    }
+  }
+}
+
+/**
+ * Akisli bir Gemini istegi: mutlak tavan + sessizlik sayaci. HTTP hatasinda
+ * {status, body} doner; akis okunduysa null doner ve sonuc `durum`da olur.
+ */
+async function geminiAkisIstegi(
+  url: string,
+  init: RequestInit,
+  durum: GeminiAkisDurum,
+  mutlakMs: number,
+  sessizlikMs: number,
+  /* Ilk byte toleransi. Varsayilan sabit; parametre oldugu icin testler
+     100 saniye beklemeden hangi sayacin kestigini olcebiliyor. */
+  ilkByteMsIstenen: number = GEMINI_FIRST_BYTE_MS
+): Promise<{ status: number; body: string } | null> {
+  const controller = new AbortController()
+  let sebep = ''
+  const mutlak = setTimeout(() => { sebep = `mutlak tavan (${mutlakMs}ms)`; controller.abort() }, mutlakMs)
+  /* IKI AYRI BEKLEME. Ilk byte'a kadar GEMINI_FIRST_BYTE_MS (yok sayilan
+     akista yanitin tamami 90+ saniyede geliyor), ondan sonra sessizlikMs.
+     Tek sayac bu ikisini ayirt edemiyordu — bkz. GEMINI_FIRST_BYTE_MS. */
+  const ilkByteMs = Math.min(mutlakMs, ilkByteMsIstenen)
+  /* Olcum saati her istek icin yeniden kuruluyor: devam ettirme de kendi
+     ilk byte'ini olcsun. */
+  durum.t0 = Date.now()
+  durum.ilkByteMs = -1
+  durum.ilkOlayMs = -1
+  let veriGeldi = false
+  let sessiz: number | undefined
+  const dokun = (veri = false) => {
+    if (veri) {
+      veriGeldi = true
+      if (durum.ilkByteMs < 0) durum.ilkByteMs = Date.now() - durum.t0
+    }
+    if (sessiz !== undefined) clearTimeout(sessiz)
+    const sure = veriGeldi ? sessizlikMs : ilkByteMs
+    sessiz = setTimeout(() => {
+      sebep = veriGeldi
+        ? `sessizlik (${sessizlikMs}ms olay gelmedi)`
+        : `ilk byte gelmedi (${ilkByteMs}ms)`
+      controller.abort()
+    }, sure)
+  }
+  dokun()
+  try {
+    const res = await fetch(url, { ...init, signal: controller.signal })
+    if (!res.ok) {
+      let text = ''
+      try { text = (await res.text()).slice(0, 1200) } catch (_e) { /* govde okunamadi */ }
+      return { status: res.status, body: text }
+    }
+    await geminiAkisiTuket(res, durum, dokun)
+    return null
+  } catch (err) {
+    const iptal = (err as any)?.name === 'AbortError'
+    /* sebep bos ise iptal BIZIM sayaclarimizdan gelmedi (cagiranin
+       iptali ya da platform zaman asimi). Eski sozlesme bu durumu
+       "zaman asimi (Xms)" diye raporluyordu; aynen korunuyor. */
+    durum.hata = durum.hata ||
+      (iptal ? (sebep || `zaman asimi (${mutlakMs}ms)`) : String((err as any)?.message || err))
+    return null
+  } finally {
+    clearTimeout(mutlak)
+    if (sessiz !== undefined) clearTimeout(sessiz)
+  }
+}
+
+/** Olcum satiri: akis gercekten akti mi, yoksa sonda tek parca mi geldi. */
+function geminiAkisOlcumu(durum: GeminiAkisDurum, toplamMs: number): string {
+  const ms = (v: number) => (v < 0 ? 'yok' : `${v}ms`)
+  const akisVar = durum.olaySayisi > 1 && durum.ilkOlayMs >= 0 && durum.ilkOlayMs < toplamMs * 0.8
+  return (
+    `ilk byte ${ms(durum.ilkByteMs)}, ilk olay ${ms(durum.ilkOlayMs)}, ` +
+    `${durum.olaySayisi} olay, ${durum.metin.length} karakter, toplam ${toplamMs}ms — ` +
+    (durum.duzYanit
+      ? 'AKIS YOK (duz JSON)'
+      : akisVar
+        ? 'AKIS GERCEK (olaylar sureye yayildi)'
+        : 'AKIS SOZDE (olaylar sonda toplu geldi)')
+  )
+}
+
+/** Akistan tam bir Interaction kaynagi gibi gorunen nesne uretir. */
+function geminiAkisSonucu(durum: GeminiAkisDurum): any {
+  return {
+    id: durum.interactionId || '',
+    object: 'interaction',
+    /* Durum once olaydan gelir. `tamamlandi` yalnizca VARSAYILANI secer:
+       completed olayi incomplete/failed/cancelled tasiyabiliyor ve onu
+       'completed' diye yazmak yarim JSON'u tam saymak olurdu. */
+    status: durum.status || (durum.tamamlandi ? 'completed' : 'in_progress'),
+    steps: [{ type: 'model_output', content: [{ type: 'text', text: durum.metin }] }],
+    usage: durum.usage ?? null
+  }
+}
+
+/**
+ * Kopan akisi kaldigi yerden devam ettirir:
+ *   GET /v1beta/interactions/{id}?stream=true&last_event_id=<event_id>
+ * Dokumanda last_event_id "akisi bu olaydan SONRAKI parcadan surdurur"
+ * diyor, yani yeni bir uretim degil ayni etkilesimin okunmasi.
+ */
+async function geminiAkisiDevamEttir(
+  apiKey: string,
+  durum: GeminiAkisDurum,
+  mutlakMs: number
+): Promise<void> {
+  const q = new URLSearchParams({ stream: 'true' })
+  if (durum.lastEventId) q.set('last_event_id', durum.lastEventId)
+  durum.hata = null
+  await geminiAkisIstegi(
+    `${GEMINI_ENDPOINT}/${encodeURIComponent(durum.interactionId)}?${q.toString()}`,
+    { method: 'GET', headers: { 'x-goog-api-key': apiKey } },
+    durum,
+    mutlakMs,
+    GEMINI_SILENCE_MS
+  )
+}
+
+/**
+ * Yarim kalmis JSON'u kapatmayi dener; kurtarilamazsa null.
+ *
+ * Akis kesildiginde elde kalan metin neredeyse her zaman gecerli JSON'un bir
+ * ONEKI: aciklar kapanmamis, son eleman yarim. Strateji: once oldugu gibi,
+ * sonra son virgullerden geri cekilerek dene; acik parantezleri kapat ve
+ * JSON.parse ile DOGRULA. Dogrulanmayan bir sey asla dondurulmez — bu
+ * fonksiyonun ciktisi dogrudan karta gidiyor.
+ */
+function closeTruncatedJson(text: string): string | null {
+  const temiz = String(text || '').replace(/```json\s*|```/g, '').trim()
+  const bas = temiz.search(/[{[]/)
+  if (bas === -1) return null
+  const s = temiz.slice(bas)
+
+  // Dize icinde olmayan virgullerin konumlari + acik yapi yigini.
+  const tara = (parca: string) => {
+    const stack: string[] = []
+    const virguller: number[] = []
+    let inStr = false, esc = false
+    for (let i = 0; i < parca.length; i++) {
+      const c = parca[i]
+      if (inStr) {
+        if (esc) { esc = false; continue }
+        if (c === '\\') { esc = true; continue }
+        if (c === '"') inStr = false
+        continue
+      }
+      if (c === '"') { inStr = true; continue }
+      if (c === '{') stack.push('}')
+      else if (c === '[') stack.push(']')
+      else if (c === '}' || c === ']') stack.pop()
+      else if (c === ',') virguller.push(i)
+    }
+    return { stack, virguller, inStr }
+  }
+
+  const dene = (parca: string): string | null => {
+    const { stack, inStr } = tara(parca)
+    /* Dize ORTASINDA bitmis bir parca kapatilamaz: tirnagi kendimiz
+       kapatsak uydurma bir deger uretiriz. Cagiran taraf bir virgul
+       geri cekilip tekrar deniyor. Yigin BOS olmasi ise hata degil —
+       tam JSON de buradan geciyor. */
+    if (inStr) return null
+    let kesik = parca.replace(/[\s,]+$/, '')
+    /* Degeri gelmemis anahtar: `"key":` kuyrugu. Iki nokta ust uste
+       ZORUNLU, cunku onsuz bu desen tamamlanmis bir DIZI ELEMANINI de
+       siliyordu (`["bir","iki"` -> `["bir"`). */
+    kesik = kesik.replace(/,?\s*"(?:[^"\\]|\\.)*"\s*:\s*$/, '')
+    kesik = kesik.replace(/[\s,]+$/, '')
+    if (!kesik) return null
+    const aday = kesik + stack.slice().reverse().join('')
+    try {
+      const p = JSON.parse(repairLatexEscapes(aday))
+      if (!p || typeof p !== 'object') return null
+      /* BOS kurtarma kurtarma degildir: '{' girdisi '{}' olarak
+         ayristirilabiliyor ama kart uretmez, ustelik asagidaki JSON.parse
+         kapisini gecip ic bos bir karta donusur. */
+      if (Array.isArray(p) ? p.length === 0 : Object.keys(p).length === 0) return null
+      return aday
+    } catch (_e) { /* bir sonraki kesim denenecek */ }
+    return null
+  }
+
+  const tamam = dene(s)
+  if (tamam) return tamam
+
+  const { virguller } = tara(s)
+  let denenen = 0
+  for (let i = virguller.length - 1; i >= 0 && denenen < 80; i--, denenen++) {
+    const aday = dene(s.slice(0, virguller[i]))
+    if (aday) return aday
+  }
+  return null
+}
+
+
+/* `durum` IKI kolda da tanimli (yalnizca hata kolunda doluyor): boyle
+   olmazsa `res.durum` okumasi birlesimi daraltmayi bozuyor ve asagidaki
+   `res.status` erisimleri derlenmiyor. */
+type GeminiCagriSonucu =
+  | { ok: true; data: any; durum?: GeminiAkisDurum }
+  | { ok: false; status: number; body: string; durum?: GeminiAkisDurum }
+
+/**
+ * Tek Gemini cagrisi: belgenin tamami inline, JSON modu, AKIS (SSE) ve
+ * sessizlik sayaci. Akis blogundaki nota bakin.
  *
  * fetchWithRetry KULLANILMIYOR: o fonksiyon Groq'un 429 govdesini ve gunluk
  * kota mesajini ayristiriyor (parseGroqRetryAfterMs, isDailyQuotaError) ve
@@ -5988,7 +6398,7 @@ async function callGeminiOnce(
   userText: string,
   timeoutMs: number,
   drop: string[] = []
-): Promise<{ ok: true; data: any } | { ok: false; status: number; body: string }> {
+): Promise<GeminiCagriSonucu> {
   const dusuruldu = (ad: string) => drop.indexOf(ad) !== -1
 
   const body: Record<string, unknown> = {
@@ -6014,18 +6424,49 @@ async function callGeminiOnce(
   // Yine de geminiUnknownParameter onlari da dusurebiliyor, cunku bir gun
   // kabul edilmeye baslarlarsa buraya geri eklemek tek satir.
 
+  /* AKIS. `stream` dusurulebilir: yuzey reddederse ayni dongu alani atip
+     tekrar deniyor ve asagidaki AKISSIZ yola giriyoruz. `store` ise GET ile
+     devam ettirmenin onkosulu (bkz. geminiAkisiDevamEttir). */
+  const akisli = !dusuruldu('stream')
+  if (akisli) body.stream = true
+  if (!dusuruldu('store')) body.store = true
+
+  const init: RequestInit = {
+    method: 'POST',
+    headers: {
+      'x-goog-api-key': apiKey,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  }
+
+  if (akisli) {
+    const durum = geminiAkisDurumu()
+    const akisBasladi = Date.now()
+    const hata = await geminiAkisIstegi(GEMINI_ENDPOINT, init, durum, timeoutMs, GEMINI_SILENCE_MS)
+    if (hata) return { ok: false, status: hata.status, body: hata.body }
+    console.log(`Gemini akis [${model}]: ${geminiAkisOlcumu(durum, Date.now() - akisBasladi)}`)
+    /* Yuzey akisi yok saydiysa elimizde GERCEK yanit nesnesi var; sentez
+       etmeye gerek yok ve etmemek daha dogru (usage, steps, errors alanlari
+       oldugu gibi kaliyor). */
+    if (durum.duzYanit) return { ok: true, data: durum.duzYanit }
+    if (durum.tamamlandi) return { ok: true, data: geminiAkisSonucu(durum) }
+    /* Akis tamamlanmadan bitti. Elde kismi metin VAR — cagiran taraf once
+       devam ettirmeyi, sonra kurtarmayi deneyecek (bkz. geminiDraft). */
+    return {
+      ok: false,
+      status: 0,
+      body: durum.hata || 'akis tamamlanmadan bitti',
+      durum
+    }
+  }
+
+  /* AKISSIZ YOL — yalnizca yuzey `stream` alanini reddettiginde. Eski
+     davranis birebir korunuyor: tek atislik zaman asimi, tam JSON. */
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    const res = await fetch(GEMINI_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'x-goog-api-key': apiKey,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal
-    })
+    const res = await fetch(GEMINI_ENDPOINT, { ...init, signal: controller.signal })
     if (!res.ok) {
       let text = ''
       try { text = (await res.text()).slice(0, 1200) } catch (_e) { /* govde okunamadi */ }
@@ -6042,6 +6483,7 @@ async function callGeminiOnce(
   }
 }
 
+
 /**
  * Gölge yolun tamami. Basarisizlikta HER ZAMAN null doner — cagiran taraf
  * null gorunce Groq yoluna duser, yani bu fonksiyon hicbir durumda bir
@@ -6055,7 +6497,7 @@ async function geminiDraft(
   userText: string,
   budgetMs: number,
   mode: 'only' | 'shadow' = 'only'
-): Promise<{ raw: string; model: string; ms: number; usage: any } | null> {
+): Promise<{ raw: string; model: string; ms: number; usage: any; kismi?: boolean } | null> {
   /* Cagrinin zaman asimi:
      - her iki modda: GEMINI_RESERVE_MS, cagri BASARILI olursa kapilar+kayit
      - YALNIZCA shadow modunda: GEMINI_GROQ_RESERVE_MS, cagri ZAMAN ASIMINA
@@ -6182,6 +6624,77 @@ async function geminiDraft(
         apiKey, model, systemInstruction, fileBase64, fileMime, userText, buCagriMs, dropped
       )
       const ms = Date.now() - startedAt
+
+      /* AKIS YARIM KALDI (18.10.2026).
+       *
+       * Burasi eskiden yoktu, cunku yarim bir cikti diye bir sey yoktu: cagri
+       * ya tam JSON dondururdu ya 105 saniye sonra hicbir sey. Akisla birlikte
+       * ucuncu bir hal var — elde o ana kadar gelen metin.
+       *
+       * SIRA ONEMLI. Once DEVAM ETTIRMEYI deniyoruz (GET ile ayni etkilesime
+       * geri baglanmak, yeni bir uretim istegi degil), cunku tam bir kart yarim
+       * bir karttan her zaman iyidir ve gunluk kotadan (RPD 20) istek
+       * goturmuyor. Ancak o da olmazsa kurtarmaya iniyoruz.
+       *
+       * KURTARMA DOGRULANIR: closeTruncatedJson ayristiramadigi hicbir seyi
+       * dondurmuyor, yani buradan cikan taslak asagidaki JSON.parse kapisini
+       * zaten gecer. 17.10'da olculup kullanilmayan kismi metin artik
+       * ogrencinin karti oluyor. */
+      if (!res.ok && res.durum) {
+        const durum = res.durum
+        for (let devam = 0; devam < GEMINI_MAX_RESUMES && !durum.tamamlandi && durum.interactionId; devam++) {
+          const kalanMs = geminiToplamTavan - (Date.now() - basladi)
+          if (kalanMs < 10_000) {
+            console.warn(`Gemini ${model}: devam ettirmeye yer kalmadi (${kalanMs}ms)`)
+            break
+          }
+          console.warn(
+            `Gemini ${model}: akis kesildi (${durum.hata}), ${durum.metin.length} karakter elde — ` +
+            `GET ile devam ettiriliyor (${devam + 1}/${GEMINI_MAX_RESUMES}, ${kalanMs}ms kaldi)`
+          )
+          await geminiAkisiDevamEttir(apiKey, durum, Math.min(kalanMs, buCagriMs))
+        }
+        if (durum.tamamlandi && durum.metin.trim()) {
+          console.log(
+            `Gemini ${model}: akis DEVAM ETTIRILEREK tamamlandi, ` +
+            `${durum.metin.length} karakter, ${Date.now() - startedAt}ms`
+          )
+          return { raw: durum.metin, model, ms: Date.now() - startedAt, usage: durum.usage }
+        }
+        if (durum.metin.length >= GEMINI_PARTIAL_MIN_CHARS) {
+          const kurtarilan = closeTruncatedJson(durum.metin)
+          if (kurtarilan) {
+            console.warn(
+              `Gemini ${model}: akis tamamlanmadi (${durum.hata}) — KISMI JSON kurtarildi, ` +
+              `${durum.metin.length} karakterden ${kurtarilan.length} karakter, ${Date.now() - startedAt}ms`
+            )
+            return { raw: kurtarilan, model, ms: Date.now() - startedAt, usage: durum.usage, kismi: true }
+          }
+          console.warn(
+            `Gemini ${model}: kismi cikti KURTARILAMADI (${durum.metin.length} karakter, ` +
+            `${durum.olaySayisi} olay) — ${durum.hata}`
+          )
+        } else {
+          console.warn(
+            `Gemini ${model}: akis ${durum.metin.length} karakterde kesildi ` +
+            `(esik ${GEMINI_PARTIAL_MIN_CHARS}) — kurtarma denenmiyor: ${durum.hata}`
+          )
+        }
+        /* TERMINAL OLMAYAN DURUM, AKIS SURUMU. Akissiz yolda bu karari
+           geminiProblem veriyor: in_progress/queued/requires_action ise
+           sorun modelde DEGIL, yanit henuz hazir degil — sonraki aday
+           modeli denemek gunluk kotadan (RPD 20) bos yere istek goturur.
+           Akista ayni bilgi status_update olayindan geliyor, yani ayni
+           karar burada veriliyor. Devam ettirme ZATEN denendi (yukarida);
+           o da tutmadiysa yapacak sey Groq yoluna dusmek. */
+        if (durum.status === 'in_progress' || durum.status === 'queued' || durum.status === 'requires_action') {
+          console.warn(
+            `Gemini ${model}: akis status=${durum.status} ile bitti (terminal degil) — ` +
+            `baska aday model denenmiyor`
+          )
+          return null
+        }
+      }
 
       if (res.ok) {
         const problem = geminiProblem(res.data)
@@ -7083,6 +7596,10 @@ ${styleInstruction}`
     // Dusen pencere varsa karta yazilir: ogrenci ozetin eksik oldugunu
     // bilmeli, ve iki kosu loglar gittikten sonra da karsilastirilabilmeli.
     let eksikPencereler: { dusen: number; toplam: number; kayipKrk: number } | null = null
+    /* Kart kesilen bir Gemini akisindan KURTARILDIysa kurtarilan karakter
+       sayisi. Sifir degilse kart tam degil: rozet yaziliyor ve onbellege
+       ALINMIYOR (bkz. summary_cache yazimi). */
+    let geminiKismiKrk = 0
     let visualAnalysisUsed = false
 
     // ==========================================================================
@@ -7093,7 +7610,7 @@ ${styleInstruction}`
     // ==========================================================================
     let draftEngine: 'groq' | 'gemini' = 'groq'
     let geminiMeta: Record<string, unknown> | null = null
-    let geminiResult: { raw: string; model: string; ms: number; usage: any } | null = null
+    let geminiResult: { raw: string; model: string; ms: number; usage: any; kismi?: boolean } | null = null
     // only modunda Gemini DENENDI ve BASARISIZ oldu mu? Oyleyse Groq'a
     // dusulmez; belge 'failed' isaretlenir (bkz. geminiMode).
     let geminiOnlyBasarisiz = false
@@ -7188,6 +7705,18 @@ ${styleInstruction}`
             )
             geminiResult = null
           }
+        }
+
+        /* Kurtarilmis taslak: kart uretilecek ama TAM DEGIL. Sessizce
+           tam bir kart gibi gostermek, 17.10'da missing_windows rozetinin
+           eklenme sebebiyle ayni hata olurdu — ogrenci eksigi fark
+           edemiyor, biz de geri bildirim alamiyoruz. */
+        if (geminiResult && geminiResult.kismi) {
+          geminiKismiKrk = geminiResult.raw.length
+          console.warn(
+            `Gemini taslagi KISMI (kurtarilan ${geminiKismiKrk} karakter) — ` +
+            `kart uretilecek, rozet yazilacak ve onbellege alinmayacak`
+          )
         }
 
         if (!geminiResult && mod === 'only') {
@@ -9646,6 +10175,7 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
         qualityMeta.numeric_coverage = { kept: kapsama.kept, total: kapsama.total }
       }
       if (eksikPencereler) qualityMeta.missing_windows = eksikPencereler
+      if (geminiKismiKrk > 0) qualityMeta.gemini_partial = { kurtarilanKrk: geminiKismiKrk }
       // Paralel modun gercek maliyeti: belge basina token, model dagilimi, sure.
       if (geminiParallelUsage.calls > 0) {
         qualityMeta.gemini_parallel = {
@@ -9697,7 +10227,9 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
 
     // Cache: yarim kalan (eksik pencereli) bir ozet baska ogrencilere
     // dagitilmamali — o belge bir sonraki yuklemede tam kosuyla denenir.
-    if (summaryCacheKey && !eksikPencereler) {
+    /* Kismi kart onbellege GIRMEZ: girerse ayni belgeyi bir daha ozetlemek
+       isteyen herkes yarim karti alir ve bir daha hic tam kart uretilmez. */
+    if (summaryCacheKey && !eksikPencereler && geminiKismiKrk === 0) {
       const { document_id: _d, user_id: _u, course_tag: _c, ...shareable } = cardPayload
       const { error: cacheWriteErr } = await serviceClient
         .from('summary_cache')

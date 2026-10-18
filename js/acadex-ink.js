@@ -7548,6 +7548,13 @@ var SBX = (function () {
   var cut = function (t, n) { t = String(t || ''); return t.length > n ? t.slice(0, n - 1).replace(/\s+\S*$/, '') + '…' : t; };
   var fmtS = function (t, fn) { return typeof formatSummaryText === 'function' ? formatSummaryText(t, fn) : '<p>' + X(t) + '</p>'; };
   var math = function (t) { return typeof renderMathInText === 'function' ? renderMathInText(String(t || '')) : X(t); };
+  /* Formul degiskeninin SEMBOLU: $...$ ayiraci olmadan gelen LaTeX.
+     math() yalnizca ayirac icindekini dizdigi icin sembolleri goremiyor
+     ve liste ham kaynak gosteriyordu (18.10.2026). */
+  var sym = function (t) { return typeof renderMathSymbol === 'function' ? renderMathSymbol(t) : X(t); };
+  /* Kacirmayan matematik: madde listeleri formatSummaryText'ten gecmiyor,
+     kendi HTML'lerini kuruyorlar (bkz. axr-kps). */
+  var imath = function (h) { return typeof inlineMath === 'function' ? inlineMath(h) : h; };
   var COL = ['#2F6BFF', '#C9483B', '#1E8A55', '#C88A1C', '#6A4FA8', '#0F7C8A', '#D9677F', '#0D1838'];
   var ICON = {
     up: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5 L19 12 L8 19 Z"/></svg>',
@@ -7731,7 +7738,7 @@ var SBX = (function () {
   /* ---------- formül / çözümlü örnek ---------- */
   var formulaCard = function (f, i) {
     return '<figure class="axr-fig axr-chalk"><figcaption><span class="mono">FORMÜL</span><b>' + X(f.name || 'Formül') + '</b></figcaption><div class="axr-tex" data-tex="' + i + '"></div>' +
-      (arr(f.variables).length ? '<dl class="axr-vars">' + arr(f.variables).map(function (v) { return '<div><dt>' + X(v.symbol || '') + '</dt><dd>' + X(v.meaning || '') + '</dd></div>'; }).join('') + '</dl>' : '') + '</figure>';
+      (arr(f.variables).length ? '<dl class="axr-vars">' + arr(f.variables).map(function (v) { return '<div><dt>' + sym(v.symbol || '') + '</dt><dd>' + math(v.meaning || '') + '</dd></div>'; }).join('') + '</dl>' : '') + '</figure>';
   };
   var exampleCard = function (ex, i) {
     var steps = typeof normalizeWorkedSteps === 'function' ? normalizeWorkedSteps(ex.steps) : arr(ex.steps).map(String);
@@ -7744,7 +7751,17 @@ var SBX = (function () {
   /* ---------- akış ---------- */
   var styleLabel = function (s) { return lsafe(function () { return getStyleLabel(s); }, s) || s; };
   var chip = function (t, cls) { return t ? '<span class="axr-chip' + (cls ? ' ' + cls : '') + '">' + X(t) + '</span>' : ''; };
-  var cleanHTML = function (html) { var d = document.createElement('div'); d.innerHTML = html; QA('[style]', d).forEach(function (e) { e.removeAttribute('style'); }); QA('div', d).forEach(function (e) { if (!e.textContent.trim() && !e.querySelector('img,svg')) e.remove(); }); return d.innerHTML; };
+  /* formatSummaryText kendi satir ici stillerini (punto, renk, kenar
+     bosluklari) HTML'e gomuyor ve bunlar ink temasiyla kavga ediyor; bu
+     yuzden siliniyorlar.
+
+     AMA KaTeX HARIC (18.10.2026). KaTeX ciktisinin yerlesimi TAMAMEN
+     satir ici stillere dayaniyor: alt/ust simgeleri .vlist icinde
+     top/height ile konumlandiriyor. Stiller silininde simgeler satirin
+     altina dusuyor ve formul okunmaz hale geliyor — anlati metninde tam
+     bu oldu. Formul kartlari saglam gorunuyordu cunku onlar cleanHTML'den
+     GECMIYOR; iki yol arasindaki fark buydu. */
+  var cleanHTML = function (html) { var d = document.createElement('div'); d.innerHTML = html; QA('[style]', d).forEach(function (e) { if (e.closest && e.closest('.katex')) return; e.removeAttribute('style'); }); QA('div', d).forEach(function (e) { if (!e.textContent.trim() && !e.querySelector('img,svg')) e.remove(); }); return d.innerHTML; };
   /* ---------- bölüm bölüm Türkçe / İngilizce ---------- */
   var cardLang = function () { return (R.card && R.card.summary_language) === 'en' ? 'en' : 'tr'; };
   var langTog = function (k) { var L = cardLang(), dis = LT_ON ? '' : ' disabled'; return '<div class="axr-lt' + (k === 'all' ? ' axr-ltall' : '') + '" role="group" aria-label="' + (k === 'all' ? 'Özetin dili' : 'Bu bölümün dili') + '" data-lt="' + k + '"><button type="button" data-ltl="tr" aria-pressed="' + (L === 'tr') + '"' + dis + '>TR</button><button type="button" data-ltl="en" aria-pressed="' + (L === 'en') + '"' + dis + '>EN</button></div>'; };
@@ -7880,7 +7897,7 @@ var SBX = (function () {
       var kps = arr(s.key_points).filter(Boolean);
       h += ch('b' + (i + 1), (i + 1) + '. ' + plain(s.heading || 'Bölüm'), '<div class="axr-sheet" data-sec="' + i + '" style="--r:' + ((i % 3) - 1) * .25 + 'deg"><span class="axr-secn disp" aria-hidden="true">' + (i + 1 < 10 ? '0' : '') + (i + 1) + '</span><h2 class="disp">' + X(plain(s.heading || 'Bölüm ' + (i + 1))) + '</h2>' +
         '<div class="axr-prose" data-prose="s' + (i + 1) + '">' + cleanHTML(fmtS(s.summary || '', c.footnotes)) + '</div>' +
-        (kps.length ? '<ul class="axr-kps" data-prose="k' + (i + 1) + '">' + kps.map(function (p) { return '<li>' + X(plain(p)) + '</li>'; }).join('') + '</ul>' : '') +
+        (kps.length ? '<ul class="axr-kps" data-prose="k' + (i + 1) + '">' + kps.map(function (p) { return '<li>' + math(plain(p)) + '</li>'; }).join('') + '</ul>' : '') +
         (own ? '<div class="axr-secvis"><span class="hand">bu bölüme görsel:</span><button type="button" class="axr-mini" onclick="generateSectionVisual(event, ' + i + ', \'diagram\')">diyagram</button><button type="button" class="axr-mini" onclick="generateSectionVisual(event, ' + i + ', \'table\')">tablo</button><button type="button" class="axr-mini" onclick="generateSectionVisual(event, ' + i + ', \'chart\')">grafik</button></div>' : '') + '</div>', 'sec');
     });
     /* görseller */
@@ -7897,7 +7914,7 @@ var SBX = (function () {
       h += ch('kavram', 'Kavramlar', '<div class="axr-sech"><span class="axr-lbl mono">KAVRAMLAR</span><h2 class="disp">' + (hasNet ? 'Kavram ağı' : 'Akılda kalsın') + '</h2>' + (own ? '<button type="button" class="axr-mini" data-regen="key_terms">' + ICON.redo + 'kavramları yenile</button>' : '') + '</div>' +
         (hasNet ? '<div class="axr-netw"><div class="axr-netbox" data-net=""></div><div class="axr-netinfo" data-netinfo="" hidden></div><p class="hand axr-tipline">düğümü sürükle, dokununca tanımını gör</p></div>' : '') +
         (terms.length ? '<div class="axr-terms">' + terms.map(function (t, i) { return '<button type="button" class="axr-term" style="--r:' + ((i % 5) - 2) * .6 + 'deg" aria-pressed="false"><span class="f"><b>' + X(plain(t.term)) + '</b><i class="hand">çevir</i></span><span class="b">' + X(plain(t.definition)) + '</span></button>'; }).join('') + '</div>' : '') +
-        (kp.length ? (hasNet || terms.length ? '<h3 class="hand axr-h3">akılda kalsın</h3>' : '') + '<ul class="axr-kps big" data-prose="kp">' + kp.map(function (p) { return '<li>' + (typeof formatFootnoteMarkers === 'function' ? formatFootnoteMarkers(String(p), c.footnotes) : X(p)) + '</li>'; }).join('') + '</ul>' : ''));
+        (kp.length ? (hasNet || terms.length ? '<h3 class="hand axr-h3">akılda kalsın</h3>' : '') + '<ul class="axr-kps big" data-prose="kp">' + kp.map(function (p) { return '<li>' + imath(typeof formatFootnoteMarkers === 'function' ? formatFootnoteMarkers(String(p), c.footnotes) : X(p)) + '</li>'; }).join('') + '</ul>' : ''));
     }
     /* kendini sına */
     var qz = arr(c.quiz_questions);
@@ -7915,7 +7932,7 @@ var SBX = (function () {
     paintRail(); bindFlow(); paintPod(true); applyHL();
     /* öğrenci bu kartı en son diğer dilde okuduysa öyle aç */
     LTJOB++; var rl = LT_ON && G('acadex.reader.lang.' + c.id, null), rb = rl && rl !== cardLang() && Q('.axr-ltall [data-ltl="' + rl + '"]', mast); if (rb) setTimeout(function () { if (R.card === c && rb.isConnected) switchLang(rb); }, 30);
-    QA('.axr-tex', flow).forEach(function (el) { var f = arr(c.formulas)[+el.getAttribute('data-tex')]; if (!f) return; if (window.katex && f.latex) { try { window.katex.render(f.latex, el, { throwOnError: false, displayMode: true }); } catch (e) { el.textContent = f.latex; } } else el.textContent = f.latex || ''; });
+    QA('.axr-tex', flow).forEach(function (el) { var f = arr(c.formulas)[+el.getAttribute('data-tex')]; if (!f) return; if (window.katex && f.latex) { try { window.katex.render(f.latex, el, { throwOnError: false, displayMode: true }); if (typeof sigdirFormulKutusu === 'function') sigdirFormulKutusu(el); } catch (e) { el.textContent = f.latex; } } else el.textContent = f.latex || ''; });
     var nb = Q('[data-net]', flow); if (nb) mountNet(nb);
     QA('.axr-dg', flow).forEach(function (fig) { renderDiagram(fig, arr(c.diagrams)[+fig.getAttribute('data-dg')]); });
     watch();

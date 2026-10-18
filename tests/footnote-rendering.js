@@ -25,8 +25,17 @@ const { loadFromSource, makeRunner } = require('./_ts-extract.js');
 
 const UI = loadFromSource('js/dashboard.js', [
   'escapeHtml', 'formatFootnoteMarkers', 'renderFootnotesSectionHtml',
-  'renderSuggestedTagChipHtml'
+  'renderSuggestedTagChipHtml',
+  // Formul degiskenlerinin matematik yolu (18.10.2026).
+  'renderMathInText', 'renderMathSymbol',
+  // Formul kutusuna sigdirma (18.10.2026).
+  'FORMUL_MIN_REM', 'sigdirFormulKutusu',
+  // Anlati ve maddelerdeki $...$ (18.10.2026).
+  'inlineMath', 'inlineMarkdown'
 ]);
+
+const DASH_SRC = require('node:fs').readFileSync(
+  require('node:path').join(__dirname, '..', 'js/dashboard.js'), 'utf8');
 
 const { test, summary } = makeRunner();
 
@@ -214,6 +223,319 @@ test('etiket HTML kacirilmis olarak gosteriliyor', () => {
 
 test('bos etiket bos string doner', () => {
   assert.equal(UI.renderSuggestedTagChipHtml('d1', 'c1', ''), '');
+});
+
+
+// ==========================================================================
+// FORMUL DEGISKENLERI: SEMBOL MATEMATIK OLARAK DIZILIR
+//
+// 18.10.2026 CANLI HATA: formulun kendisi KaTeX'ten gecip duzgun
+// diziliyordu, hemen altindaki degisken listesi ise kaynak kodunu
+// gosteriyordu — ekranda yan yana "∂y/∂x₁ = β₁ + β₃x₂" ve
+// "\frac{\partial y}{\partial x_1}". Liste escapeHtml'de kaldigi icin
+// LaTeX bilerek METIN olarak basiliyordu.
+// ==========================================================================
+
+/** KaTeX taklidi: neyin matematik olarak dizildigini GORUNUR kilar. */
+function sahteKatex() {
+  const cagrilar = [];
+  global.window = global.window || {};
+  window.katex = { renderToString: (tex) => { cagrilar.push(tex); return '<KTX>' + tex + '</KTX>'; } };
+  return cagrilar;
+}
+function katexYok() { global.window = global.window || {}; delete window.katex; }
+
+test('ayiracsiz LaTeX sembolu KaTeX ile dizilir', () => {
+  const c = sahteKatex();
+  try {
+    const html = UI.renderMathSymbol('\\beta_3');
+    assert.ok(html.includes('<KTX>'), 'sembol KaTeX e gitmedi: ' + html);
+    assert.deepEqual(c, ['\\beta_3']);
+  } finally { katexYok(); }
+});
+
+test('cok parcali LaTeX (\\frac, \\partial) da dizilir', () => {
+  const c = sahteKatex();
+  try {
+    UI.renderMathSymbol('\\frac{\\partial y}{\\partial x_1}');
+    assert.equal(c.length, 1, 'tek parca olarak gitmeliydi');
+  } finally { katexYok(); }
+});
+
+test('DUZ KELIME KaTeX e GITMEZ', () => {
+  // "Temperature" italik matematik olarak dizilirse tuhaf gorunur.
+  const c = sahteKatex();
+  try {
+    const html = UI.renderMathSymbol('Temperature');
+    assert.equal(html, 'Temperature');
+    assert.deepEqual(c, [], 'duz kelime KaTeX e gonderilmis');
+  } finally { katexYok(); }
+});
+
+test('$....$ ile gelen sembol metin yolundan gecer', () => {
+  const c = sahteKatex();
+  try {
+    const html = UI.renderMathSymbol('$x_1$');
+    assert.ok(html.includes('<KTX>'), 'ayiracli sembol dizilmedi: ' + html);
+    assert.deepEqual(c, ['x_1'], 'ayiraclar KaTeX e gonderilmis');
+  } finally { katexYok(); }
+});
+
+test('KaTeX yoksa cokmez, kacirarak basar', () => {
+  katexYok();
+  assert.equal(UI.renderMathSymbol('\\beta_1 <b>'), '\\beta_1 &lt;b&gt;');
+  assert.equal(UI.renderMathSymbol(''), '');
+  assert.equal(UI.renderMathSymbol(null), '');
+});
+
+test('degisken listesi gercekten bu yoldan geciyor', () => {
+  /* Fonksiyonun var olmasi yetmez: cagri yerinde escapeHtml geri gelirse
+     hata sessizce doner ve bunu ancak ekrana bakan biri fark eder. */
+  const i = DASH_SRC.indexOf("formula-vars-list");
+  assert.ok(i > 0, 'degisken listesi render yeri bulunamadi');
+  const blok = DASH_SRC.slice(i, i + 400);
+  assert.ok(/renderMathSymbol\(v\.symbol\)/.test(blok), 'sembol matematik yolundan gecmiyor');
+  assert.ok(/renderMathInText\(v\.meaning/.test(blok), 'aciklama metin yolundan gecmiyor');
+});
+
+
+// ==========================================================================
+// FORMUL KUTUSUNA SIGDIRMA
+//
+// Uzun formul kutuya sigmayinca overflow-x:auto devreye giriyordu: kartin
+// ortasinda kaydirma cubugu, formulun sagi hem ekranda hem ciktida
+// kayboluyor. Punto dusurulerek sigdiriliyor.
+// ==========================================================================
+
+/* Sahte kutu. Karti genisletmek GERCEKTEN alani buyutsun: izgarada tek
+   sutundan tum genislige gecmek alani yaklasik ikiye katliyor, ve
+   sigdirmanin ilk kademesi tam buna dayaniyor. */
+function sahteKutu(alan, genislik) {
+  const ic = { scrollWidth: genislik };
+  const kart = {
+    siniflar: new Set(),
+    classList: {
+      add(c) { kart.siniflar.add(c); kutu.clientWidth = alan * 2; },
+      contains: (c) => kart.siniflar.has(c)
+    }
+  };
+  const kutu = {
+    clientWidth: alan,
+    style: {},
+    querySelector: (sec) => (sec === '.katex-display' ? ic : null),
+    firstElementChild: ic,
+    /* Secici IKI kart tasarimini da kapsamali: .formula-card (dashboard)
+       ve .axr-fig (acadex-ink). Kullanicinin gordugu kart ink tarafindan
+       uretiliyor; sabit tek secici ile test yesil gecip ekran bozuk kalir. */
+    closest: (sec) => {
+      if (!/formula-card/.test(sec) || !/axr-fig/.test(sec)) return null;
+      return kart;
+    },
+    ic,
+    kart
+  };
+  return kutu;
+}
+
+test('sigan formule DOKUNULMAZ', () => {
+  const k = sahteKutu(400, 320);
+  assert.equal(UI.sigdirFormulKutusu(k), null);
+  assert.equal(k.style.fontSize, '', 'sigan formulun puntosu degistirilmis');
+  assert.equal(k.kart.siniflar.size, 0, 'sigan kart genisletilmis');
+});
+
+test('ILK KADEME genisletmek: punto dusurulmeden siginir', () => {
+  /* Iki kat tasan formul icin gereken punto 0,49 — tabanin altinda, yani
+     kucultmek tek basina cozmuyor. Karti tum genislige yaymak alani ikiye
+     katliyor ve formul oldugu puntoda siginiyor. */
+  const k = sahteKutu(400, 800);
+  const r = UI.sigdirFormulKutusu(k);
+  assert.ok(r && r.genis, 'kart genisletilmedi');
+  assert.equal(r.oran, null, 'genisletmek yetmisken punto da dusurulmus');
+  assert.equal(k.style.fontSize, '', 'punto bosuna degistirilmis');
+});
+
+test('IKINCI KADEME punto: genisletmek yetmezse kuculur', () => {
+  const k = sahteKutu(400, 2000);         // 800'e yayilsa bile tasiyor
+  const r = UI.sigdirFormulKutusu(k);
+  assert.ok(r.genis, 'once genisletilmeliydi');
+  assert.ok(r.oran > 0 && r.oran < 1, 'punto dusurulmedi: ' + r.oran);
+  assert.equal(k.style.fontSize, r.oran + 'rem');
+});
+
+test('TABAN var: okunmaz kuculme yok', () => {
+  // Cok uzun formulde sonsuza kadar kucultmek yerine kaydirma cubuguna
+  // birakiliyor; 0.3rem'lik bir formul zaten okunmuyor.
+  const k = sahteKutu(400, 40000);
+  assert.equal(UI.sigdirFormulKutusu(k).oran, UI.FORMUL_MIN_REM);
+  assert.ok(UI.FORMUL_MIN_REM >= 0.5, 'taban cok dusuk — formul okunmaz');
+});
+
+test('olculemeyen ortamda hicbir sey yapilmaz', () => {
+  /* Kutu henuz yerlesmemisse clientWidth 0 gelir. O anda kucultmek ya da
+     genisletmek, kaydirma cubugundan daha kotu bir sonuc uretir. */
+  const k = sahteKutu(0, 800);
+  assert.equal(UI.sigdirFormulKutusu(k), null);
+  assert.equal(k.style.fontSize, '');
+  assert.equal(k.kart.siniflar.size, 0);
+  assert.equal(UI.sigdirFormulKutusu(null), null);
+});
+
+test('ink kart yolu da matematik ve sigdirma kullaniyor', () => {
+  /* 18.10.2026: ilk duzeltme yalnizca dashboard.js yoluna yapildi, oysa
+     kullanicinin gordugu formul karti js/acadex-ink.js icindeki
+     formulaCard tarafindan uretiliyor. Ekranda hicbir sey degismedi.
+     Iki yol da kontrol ediliyor ki ayni hata tekrar etmesin. */
+  const INK = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'js/acadex-ink.js'), 'utf8');
+  const i = INK.indexOf('axr-vars');
+  assert.ok(i > 0, 'ink degisken listesi bulunamadi');
+  const blok = INK.slice(i, i + 300);
+  assert.ok(blok.includes('sym(v.symbol'), 'ink sembolu matematik yolundan gecmiyor');
+  assert.ok(blok.includes('math(v.meaning'), 'ink aciklamasi matematik yolundan gecmiyor');
+  assert.ok(INK.includes('sigdirFormulKutusu(el)'), 'ink formulu sigdirilmiyor');
+});
+
+test('sigdirma KaTeX render edildikten SONRA cagriliyor', () => {
+  // Once olcup sonra dizmek yanlis olcum demek.
+  const i = DASH_SRC.indexOf('window.katex.render(f.latex, latexTarget');
+  assert.ok(i > 0, 'formul render cagrisi bulunamadi');
+  const blok = DASH_SRC.slice(i, i + 300);
+  assert.ok(/sigdirFormulKutusu\(latexTarget\)/.test(blok),
+    'render sonrasi sigdirma cagrilmiyor');
+});
+
+
+// ==========================================================================
+// ANLATI VE MADDELERDE $...$
+//
+// CANLI HATA: formul kartlari duzgun dizilirken anlati metni kaynak kodu
+// gosteriyordu: "...term, $y = \beta_0 + \beta_1 x_j + \varepsilon$,
+// allowing...". Anlati da maddeler de inlineMarkdown'dan geciyor ve orada
+// $...$ hic ele alinmiyordu.
+// ==========================================================================
+
+function sahteKatexKur() {
+  const c = [];
+  global.window = global.window || {};
+  window.katex = { renderToString: (t) => { c.push(t); return '<KTX>' + t + '</KTX>'; } };
+  return c;
+}
+function katexKaldir() { global.window = global.window || {}; delete window.katex; }
+
+test('anlatidaki $...$ dizilir', () => {
+  const c = sahteKatexKur();
+  try {
+    const html = UI.inlineMarkdown('adds a term, $y = \\beta_0 + \\varepsilon$, allowing');
+    assert.ok(html.includes('<KTX>'), 'matematik dizilmedi: ' + html);
+    assert.deepEqual(c, ['y = \\beta_0 + \\varepsilon']);
+    assert.ok(html.startsWith('adds a term, '), 'cevresindeki metin bozulmus');
+  } finally { katexKaldir(); }
+});
+
+test('ATIF ISARETLERI bozulmaz: gelen metin zaten HTML', () => {
+  /* inlineMarkdown'a gelen metin o noktada formatFootnoteMarkers'tan
+     gecmis durumda, yani <sup> iceriyor. Kacirmayan bir matematik yolu
+     kullanilmasinin sebebi bu — renderMathInText o isaretleri metne
+     cevirirdi. */
+  const c = sahteKatexKur();
+  try {
+    const girdi = 'curvature <sup class="fn">[20]</sup> with $x_j$';
+    const html = UI.inlineMarkdown(girdi);
+    assert.ok(html.includes('<sup class="fn">[20]</sup>'), 'atif isareti bozulmus: ' + html);
+    assert.ok(html.includes('<KTX>x_j</KTX>'), 'matematik dizilmedi');
+  } finally { katexKaldir(); }
+});
+
+test('PARA bicimi formul sanilmaz', () => {
+  // "costs $100 and $200" iki dolar isareti tasiyor ama formul degil.
+  const c = sahteKatexKur();
+  try {
+    const html = UI.inlineMath('costs $100 and $200');
+    assert.equal(html, 'costs $100 and $200');
+    assert.deepEqual(c, [], 'para KaTeX e gonderilmis');
+  } finally { katexKaldir(); }
+});
+
+test('SIRA: matematik kalin/italikten ONCE', () => {
+  /* Tersi olsaydi $a*b$ icindeki yildiz italige donusup LaTeX'i
+     bozardi. */
+  const c = sahteKatexKur();
+  try {
+    UI.inlineMarkdown('bak $a*b*c$ burada');
+    assert.deepEqual(c, ['a*b*c'], 'yildizlar matematige girmeden yenmis');
+  } finally { katexKaldir(); }
+});
+
+test('kalin/italik calismaya devam ediyor', () => {
+  katexKaldir();
+  assert.equal(UI.inlineMarkdown('**kalin** ve *egik*'), '<strong>kalin</strong> ve <em>egik</em>');
+});
+
+test('KaTeX yoksa metin AYNEN kalir', () => {
+  katexKaldir();
+  const girdi = 'su $x_1$ burada';
+  assert.equal(UI.inlineMath(girdi), girdi);
+});
+
+test('ink madde listeleri de bu yoldan geciyor', () => {
+  /* Maddeler formatSummaryText'ten GECMIYOR, kendi HTML'lerini kuruyorlar;
+     yalnizca inlineMarkdown'i duzeltmek onlara ulasmazdi. */
+  const INK = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'js/acadex-ink.js'), 'utf8');
+  /* ONCE matematik, SONRA kacis — tersi KaTeX e &gt; gonderiyordu ve
+     formul kirmizi hata metni olarak basiliyordu (18.10.2026). math()
+     ikisini dogru sirada yapan tek huni. */
+  assert.ok(INK.includes('math(plain(p))'), 'bolum maddeleri matematikten gecmiyor');
+  assert.ok(!INK.includes('imath(X(plain'), 'kacir-sonra-diz sirasi geri gelmis');
+  assert.ok(INK.includes('imath(typeof formatFootnoteMarkers'), 'kart maddeleri matematikten gecmiyor');
+});
+
+
+test('cleanHTML KaTeX satir ici stillerini KORUR', () => {
+  /* 18.10.2026 CANLI HATA: anlati metnindeki formullerin alt simgeleri
+     satirin altina dusuyordu. Sebep cleanHTML'in BUTUN style
+     attribute'larini silmesiydi; KaTeX ust/alt simgeleri .vlist icinde
+     top/height ile konumlandiriyor ve o stiller olmadan yerlesim cokuyor.
+     Formul kartlari saglamdi cunku cleanHTML'den gecmiyorlar. */
+  const INK = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'js/acadex-ink.js'), 'utf8');
+  const i = INK.indexOf('var cleanHTML = function');
+  assert.ok(i > 0, 'cleanHTML bulunamadi');
+  const blok = INK.slice(i, i + 420);
+  assert.ok(blok.includes("closest('.katex')"),
+    'cleanHTML KaTeX ciktisini atlamiyor — alt simgeler satirin altina duser');
+  assert.ok(blok.includes("removeAttribute('style')"),
+    'temizlik tamamen kalkmis: formatSummaryText stilleri ink temasiyla kavga eder');
+});
+
+
+test('KACISLA BITEN formul yakalanir', () => {
+  /* 18.10.2026 CANLI HATA: ekranda ham kalan formullerin HEPSI ayni
+     sekilde bitiyordu — $1\\%$ , $(\\beta_1 \\times 100)\\%$ ,
+     $\\beta_1\\%$ . Eski desen kapanis $ isaretinden once AYRI bir
+     \\S karakteri istiyordu; kacisli bir komutla biten formulde o
+     karakter kacisin ICINDE kaliyor, geriye \\S icin bir sey kalmiyor ve
+     eslesme olmuyordu. Formul de ham basiliyordu. */
+  const c = sahteKatexKur();
+  try {
+    const html = UI.renderMathInText('yaklasik $1\\%$ degisim');
+    assert.ok(html.includes('<KTX>'), 'kacisla biten formul hala ham: ' + html);
+    assert.deepEqual(c, ['1\\%'], 'KaTeX e giden formul yanlis: ' + JSON.stringify(c));
+
+    const uzun = UI.renderMathInText('approximately $(\\beta_1 \\times 100)\\%$ change');
+    assert.ok(uzun.includes('<KTX>'), 'uzun kacisli formul hala ham: ' + uzun);
+  } finally { katexKaldir(); }
+});
+
+test('PARA ve BOS durumlar hala reddediliyor', () => {
+  // Desen gevsetildi; gevsemenin bu ikisini icine almadigi kilitleniyor.
+  const c = sahteKatexKur();
+  try {
+    assert.equal(UI.inlineMath('costs $100 and $200'), 'costs $100 and $200');
+    assert.equal(UI.inlineMath('bir $ $ iki'), 'bir $ $ iki');
+    assert.deepEqual(c, [], 'para ya da bos parca KaTeX e gonderilmis');
+  } finally { katexKaldir(); }
 });
 
 summary().then(() => process.exit(process.exitCode || 0));
