@@ -14818,9 +14818,29 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
 function printStudyCard() {
   const modal = document.getElementById('study-card-modal');
   if (!modal) return false;
+
+  /* GIZLENECEKLERI BURADA ISARETLIYORUZ. Ilk surum CSS'te
+     `body.axr-printing>*{display:none}` yaziyordu, yani modalin body'nin
+     DOGRUDAN cocugu oldugunu varsayiyordu. Degil — bir sarmalayicinin
+     icinde, dolayisiyla kural o sarmalayiciyi gizliyor ve kart da onunla
+     birlikte gidiyordu. Modalden body'ye yurunup her ata DUZEYINDE
+     diger cocuklar isaretlenirse yerlesim derinliginden bagimsiz calisir
+     ve modal tasinirsa da bozulmaz. */
+  const gizlenen = [];
+  for (let el = modal; el && el !== document.body; el = el.parentElement) {
+    const ebeveyn = el.parentElement;
+    if (!ebeveyn) break;
+    for (const kardes of ebeveyn.children) {
+      if (kardes === el) continue;
+      kardes.classList.add('axr-print-gizle');
+      gizlenen.push(kardes);
+    }
+  }
+
   document.body.classList.add('axr-printing');
   const temizle = () => {
     document.body.classList.remove('axr-printing');
+    for (const el of gizlenen) el.classList.remove('axr-print-gizle');
     window.removeEventListener('afterprint', temizle);
   };
   window.addEventListener('afterprint', temizle);

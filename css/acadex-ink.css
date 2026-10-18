@@ -8505,9 +8505,14 @@ html.ax-themefx{transition:filter .6s ease}
 
   body.axr-printing{background:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 
-  /* Sayfadaki diğer her şey çıkar; yalnızca kart kalır. */
-  body.axr-printing>*{display:none!important}
-  body.axr-printing>#study-card-modal{display:block!important}
+  /* Sayfadaki diğer her şey çıkar; yalnızca kart kalır.
+     GİZLENECEKLERİ JS İŞARETLİYOR (printStudyCard): modal body'nin
+     doğrudan çocuğu DEĞİL, bir sarmalayıcının içinde. `body>*` yazmak
+     o sarmalayıcıyı gizliyordu ve kart da onunla birlikte gidiyordu —
+     çıktı boş kalıyor, sebebi görünmüyordu. */
+  body.axr-printing .axr-print-gizle{display:none!important}
+  body.axr-printing #study-card-modal{display:block!important}
+  body.axr-printing,html:has(body.axr-printing){height:auto!important;overflow:visible!important}
 
   /* Modal kabuğu kağıda açılıyor: sabit konum, yükseklik ve scroll yok. */
   body.axr-printing #study-card-modal.axr,
@@ -8521,6 +8526,19 @@ html.ax-themefx{transition:filter .6s ease}
     border-radius:0!important;padding:0!important;margin:0!important;
     transform:none!important;opacity:1!important;backdrop-filter:none!important
   }
+  /* FİLTRELER VE HAREKET KAĞIDA GELMEZ. Mermaid düğümleri
+     filter:url(#axr-rough) taşıyor (feTurbulence + feDisplacementMap);
+     ekranda ucuz, baskı rasterleştirmesinde Chrome'un önizlemesini
+     kilitliyor. Doku kağıtta zaten görünmez, animasyon hiç görünmez. */
+  body.axr-printing #study-card-modal,
+  body.axr-printing #study-card-modal *{
+    filter:none!important;-webkit-filter:none!important;
+    backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
+    animation:none!important;transition:none!important;
+    mix-blend-mode:normal!important;will-change:auto!important
+  }
+  body.axr-printing #study-card-modal .axr-defs{display:none!important}
+
   body.axr-printing #study-card-modal.axr .axr-mag{
     display:block!important;max-width:none!important;padding:0!important;margin:0!important
   }

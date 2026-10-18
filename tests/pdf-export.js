@@ -910,4 +910,33 @@ test('TOPLU disa aktarma jsPDF yolunda KALIYOR', () => {
     'toplu disa aktarma artik jsPDF kullanmiyor');
 });
 
+
+test('gizleme DOM DERINLIGINE bagli degil', () => {
+  /* 18.10.2026: ilk surum `body.axr-printing>*{display:none}` yaziyordu,
+     yani modalin body'nin DOGRUDAN cocugu oldugunu varsayiyordu. Degil —
+     bir sarmalayicinin icinde. Kural o sarmalayiciyi gizledi, kart da onunla
+     gitti ve Chrome onizlemesi bos/kilitli kaldi. Varsayim geri gelmesin. */
+  const blok = printBlogu();
+  assert.ok(!blok.includes('body.axr-printing>*'),
+    'dogrudan-cocuk varsayimi geri gelmis — modal sarmalayici icinde');
+  assert.ok(blok.includes('.axr-print-gizle'), 'JS isaretlemesi kullanilmiyor');
+  const g = sliceDeclaration(DASH_SRC, "printStudyCard");
+  assert.ok(/parentElement/.test(g) && /axr-print-gizle/.test(g),
+    'ata yolu isaretlenmiyor');
+  assert.ok(g.includes("classList.remove('axr-print-gizle')"),
+    'isaretler geri alinmiyor — ekranda yarim sayfa kalir');
+});
+
+test('baskida filtre ve animasyon KAPALI', () => {
+  /* Mermaid dugumleri filter:url(#axr-rough) tasiyor (feTurbulence +
+     feDisplacementMap). Ekranda ucuz, baski rasterlestirmesinde Chrome'un
+     onizlemesini kilitliyor — "Onizleme yukleniyor" orada takiliyordu. */
+  const blok = printBlogu();
+  assert.match(blok, /filter:none!important/, 'SVG filtreleri baskida acik');
+  assert.match(blok, /backdrop-filter:none!important/, 'backdrop-filter acik');
+  assert.match(blok, /animation:none!important/, 'animasyonlar acik');
+  assert.ok(blok.includes('.axr-defs{display:none!important}'),
+    'filtre tanimlari SVG si kagida giriyor');
+});
+
 summary().then(() => process.exit(process.exitCode || 0));
