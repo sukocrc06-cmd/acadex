@@ -98,6 +98,8 @@ mark.hl{background-color:transparent;color:inherit}
 .cta-main:hover{background:#2258E6 !important;transform:translateY(-2px)}
 .cta-main svg{transition:transform .25s}
 .cta-main:hover svg{transform:translateX(3px)}
+/* tablets and landscape phones: the menu links don't fit on one line with the buttons; the sticky bar carries them */
+@media (max-width: 1000px){.hnav{display:none !important}}
 @media (max-width: 760px){
 .hnav{display:none !important}
 [data-hero] > header{padding:14px 20px !important;gap:8px !important}
@@ -113,6 +115,9 @@ mark.hl{background-color:transparent;color:inherit}
 .snav-links a.cur{color:#0D1838;background:#EEF1F6}
 .snav-links a.cur::after{content:"";position:absolute;left:50%;bottom:3px;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:#2F6BFF}
 @media (max-width: 760px){.snav-links{display:none}}
+/* tablets: keep each link on one line; if they still don't fit, the strip scrolls sideways instead of wrapping */
+.snav-links a{white-space:nowrap}
+@media (min-width: 761px) and (max-width: 940px){.snav-in{padding:8px 18px;gap:10px}.snav-links{gap:0;min-width:0;overflow-x:auto;scrollbar-width:none}.snav-links::-webkit-scrollbar{display:none}.snav-links a{font-size:13px;padding:10px 9px}}
 /* hero 3D exploded stack */
 
 
@@ -1111,8 +1116,11 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 
 /* ================= THE DAY GOES BY AS YOU SCROLL ================= */
 .dayfx{display:none}
-.js-day .dayfx{display:block;position:fixed;inset:0;z-index:44;pointer-events:none;
- background:radial-gradient(130% 90% at var(--sun-x, 85%) -12%,rgba(var(--beam, 255,240,210), var(--beam-a, 0)),rgba(var(--beam, 255,240,210), 0) 62%),rgba(var(--tint, 255,255,255), var(--tint-a, 0))}
+.js-day .dayfx{display:block;position:fixed;inset:0;z-index:44;pointer-events:none;overflow:hidden;contain:strict}
+/* two fixed layers that only fade and slide (compositor work): no full-screen repaint while scrolling */
+.js-day .dayfx::before,.js-day .dayfx::after{content:"";position:absolute;top:0;height:100%;will-change:opacity,transform}
+.js-day .dayfx::before{left:0;width:100%;background:rgb(var(--tint, 255,255,255));opacity:var(--tint-a, 0)}
+.js-day .dayfx::after{left:-150vw;width:300vw;background:radial-gradient(130vw 90vh at 50% -12%,rgb(var(--beam, 255,240,210)),rgba(var(--beam, 255,240,210), 0) 62%);opacity:var(--beam-a, 0);transform:translateX(var(--sun-x, 85vw))}
 /* the desk lamp at the sign-up turns on at night */
 .ctl{display:none}
 .js-day .ctl{display:block;position:absolute;left:6%;top:60px;width:160px;height:200px;z-index:1;pointer-events:none}
@@ -1125,7 +1133,8 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 @media (max-width: 900px){.js-day .ctl{display:none}}
 
 /* ================= ONE SHEET OF PAPER TRAVELS THE WHOLE PAGE ================= */
-.jr{position:fixed;left:0;top:0;z-index:45;pointer-events:none;display:none;transform-origin:50% 50%;will-change:transform,width,height,opacity}
+.jr-stage{position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:45;pointer-events:none;contain:strict}
+.jr{position:absolute;left:0;top:0;pointer-events:none;display:none;transform-origin:50% 50%;will-change:transform,width,height,opacity}
 .jr.on{display:block}
 .jr-in{position:absolute;inset:0;transform-origin:50% 50%}
 .jr-f{position:absolute;inset:0;box-sizing:border-box;border-radius:.3em;opacity:0;overflow:hidden;color:#1A2A5C;
@@ -1882,13 +1891,27 @@ transform:translateY(calc(var(--hp,0) * 90px))}
       var on = function (t, ev, fn, opt) { if (!t) return; t.addEventListener(ev, fn, opt); offs.push(function () { t.removeEventListener(ev, fn, opt); }); };
       var frames = [];
       var teardown = function () {
-        offs.forEach(function (f) { f(); });
+        offs.forEach(function (f) { f(); }); offs.length = 0;
+        /* forget every scroll-driven value so a restart (new screen set-up) begins from a clean page */
+        svEls.forEach(function (el) {
+          var c = el.__acx || {}, f = el.__fan || {};
+          Object.keys(c).forEach(function (k) { (f[k] || [el]).forEach(function (t) { t.style.removeProperty(k); }); });
+          el.__acx = null; el.__fan = null;
+        });
+        svEls.length = 0;
         frames.forEach(function (id) { if (id) window.cancelAnimationFrame(id); });
         root.removeAttribute('data-acx-ready');
-        ['js', 'js-story', 'js-form', 'js-mt', 'js-day', 'js-hc', 'js-tr', 'js-pt', 'js-tw', 'acx-lite', 'js-tq', 'js-story-m', 'js-fl-m'].forEach(function (c) { root.classList.remove(c); });
+        ['js', 'js-story', 'js-form', 'js-mt', 'js-day', 'js-hc', 'js-tr', 'js-pt', 'js-tw', 'acx-lite', 'js-tq', 'js-story-m', 'js-fl-m', 'js-fl'].forEach(function (c) { root.classList.remove(c); });
       };
       var clamp = function (v) { return v < 0 ? 0 : v > 1 ? 1 : v; };
-      var sv = function (el, k, v) { var c = el.__acx || (el.__acx = {}); if (c[k] !== v) { c[k] = v; el.style.setProperty(k, v); } };
+      /* writes a CSS variable once per change; for section-wide variables (see fanOut) it is written
+         straight onto the few elements that use it, so a scroll frame doesn't restyle whole sections */
+      var svEls = [];
+      var sv = function (el, k, v) {
+        var c = el.__acx; if (!c) { c = el.__acx = {}; svEls.push(el); } if (c[k] === v) return; c[k] = v;
+        var t = el.__fan && el.__fan[k];
+        if (t) for (var i = 0; i < t.length; i++) t[i].style.setProperty(k, v); else el.style.setProperty(k, v);
+      };
       var mq = function (q) { return !!(window.matchMedia && window.matchMedia(q).matches); };
 
       /* ---------- Ask-us form: always on (no animation dependency) ---------- */
@@ -1948,16 +1971,21 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 
       /* ---------- Back to top: appears for the last part of the page ---------- */
       var glideTo = null; /* set by the smooth-scroll block when it runs */
+      var ttLoop = false, ttSet = null;
       var toTop = root.querySelector('[data-totop]');
       if (toTop) {
         var ttShown = false, ttTick = false;
-        var ttCheck = function () {
-          ttTick = false;
-          var d = document.documentElement, max = d.scrollHeight - window.innerHeight;
-          var want = max > 0 && window.scrollY > max * 0.62;
+        offs.push(function () { toTop.classList.remove('show'); toTop.tabIndex = -1; });
+        var ttSet = function (y, max) {
+          var want = max > 0 && y > max * 0.62;
           if (want !== ttShown) { ttShown = want; toTop.classList.toggle('show', want); toTop.tabIndex = want ? 0 : -1; }
         };
-        on(window, 'scroll', function () { if (!ttTick) { ttTick = true; window.requestAnimationFrame(ttCheck); } }, { passive: true });
+        var ttCheck = function () {
+          ttTick = false;
+          var d = document.documentElement; ttSet(window.scrollY, d.scrollHeight - window.innerHeight);
+        };
+        /* once the scroll animations run, they feed this from the frame's own measurements instead */
+        on(window, 'scroll', function () { if (!ttTick && !ttLoop) { ttTick = true; window.requestAnimationFrame(ttCheck); } }, { passive: true });
         on(toTop, 'click', function () {
           if (glideTo) glideTo(0);
           else window.scrollTo({ top: 0, behavior: mq('(prefers-reduced-motion: reduce)') ? 'auto' : 'smooth' });
@@ -2063,6 +2091,7 @@ transform:translateY(calc(var(--hp,0) * 90px))}
       var doc = document.documentElement;
       if (doc.scrollHeight <= window.innerHeight + 40) return teardown; /* non-scrolling preview */
       root.classList.add('js');
+      ttLoop = true; offs.push(function () { ttLoop = false; });
       var desktop = mq('(min-width: 861px)');
       var finePointer = mq('(pointer: fine)');
       /* light mode for weak devices / data saver: keep the story, skip the heaviest extras */
@@ -2086,7 +2115,7 @@ transform:translateY(calc(var(--hp,0) * 90px))}
       var nfEls = Array.prototype.slice.call(root.querySelectorAll('[data-nf]')), nfEl = nfEls[0];
       var flEl = root.querySelector('[data-fl] .fl-board');
       var akisEl = root.querySelector('#akis');
-      var flSec = root.querySelector('[data-fl]'), flDoc = root.querySelector('[data-fl-doc]'), flRes = root.querySelector('[data-fl-res]'), flLoop = root.querySelector('#flLoop');
+      var flSec = root.querySelector('[data-fl]'), flDoc = root.querySelector('[data-fl-doc]'), flRes = root.querySelector('[data-fl-res]'), flLoop = root.querySelector('#flLoop'), flPts = null;
       var flOn = desktop && !!flSec && !!flDoc && window.innerHeight >= 720 && window.innerWidth >= 861;
       if (flOn) root.classList.add('js-fl');
       var flStep = '';
@@ -2095,6 +2124,7 @@ transform:translateY(calc(var(--hp,0) * 90px))}
       var flWay = [[240, 150], [604, 152], [922, 190], [840, 262], [604, 448]];
       var pkEl = root.querySelector('[data-pk]'), pkN = root.querySelector('[data-pk-n]'), pkLast = '';
       var snav = root.querySelector('[data-snav]');
+      if (snav) offs.push(function () { snav.classList.remove('show'); });
       var pgBar = root.querySelector('[data-pg]');
       var navLinks = Array.prototype.slice.call(root.querySelectorAll('[data-sec]'));
       var secs = navLinks.map(function (a) { return document.getElementById(a.getAttribute('data-sec')); });
@@ -2214,6 +2244,7 @@ transform:translateY(calc(var(--hp,0) * 90px))}
       if (twHeads.length) {
         root.classList.add('js-tw');
         twHeads.forEach(function (h) {
+          if (h.classList.contains('tw-h')) return; /* already split (restart after a rotate) */
           var n = 0;
           var walk = function (node) {
             Array.prototype.slice.call(node.childNodes).forEach(function (ch) {
@@ -2262,7 +2293,7 @@ transform:translateY(calc(var(--hp,0) * 90px))}
         var rgb = function (x, y) { return [0, 1, 2].map(function (k) { return Math.round(L(x[k], y[k])); }).join(','); };
         sv(dayEl, '--tint', rgb(a[1], b[1])); sv(dayEl, '--tint-a', L(a[2], b[2]).toFixed(3));
         sv(dayEl, '--beam', rgb(a[3], b[3])); sv(dayEl, '--beam-a', L(a[4], b[4]).toFixed(3));
-        sv(dayEl, '--sun-x', L(a[5], b[5]).toFixed(1) + '%');
+        sv(dayEl, '--sun-x', L(a[5], b[5]).toFixed(1) + 'vw');
         if (ctl) {
           sv(ctl, '--lamp', lampV.toFixed(3));
           if (lampV > 0.6 && !lampLit) { lampLit = true; ctl.classList.remove('flick'); void ctl.offsetWidth; ctl.classList.add('flick'); }
@@ -2305,8 +2336,11 @@ transform:translateY(calc(var(--hp,0) * 90px))}
             '<span class="mk-ink">ACADEX<b>✓</b></span>' +
           '</div>' +
         '</div>';
-        root.appendChild(jr);
-        offs.push(function () { if (jr.parentNode) jr.parentNode.removeChild(jr); });
+        /* the sheet lives on its own fixed, fully contained stage: resizing it every frame then
+           only re-lays-out the sheet, never the (long) page under it */
+        var jrStage = document.createElement('div'); jrStage.className = 'jr-stage'; jrStage.setAttribute('aria-hidden', 'true');
+        jrStage.appendChild(jr); root.appendChild(jrStage);
+        offs.push(function () { if (jrStage.parentNode) jrStage.parentNode.removeChild(jrStage); });
         var jrIn = jr.firstChild, jrFaces = {};
         Array.prototype.forEach.call(jr.querySelectorAll('.jr-f'), function (f) { jrFaces[f.getAttribute('data-l')] = f; });
         var jrRows = Array.prototype.slice.call(jr.querySelectorAll('.jr-sinav i')); var jrScore = jr.querySelector('.jr-sinav u');
@@ -2329,9 +2363,12 @@ transform:translateY(calc(var(--hp,0) * 90px))}
         /* 2 · the desk in "Nasıl çalışır": lands where the PDF drops, and later takes it off the desk again */
         var rig = story && story.querySelector('.dsk-rig'), stageEl = story && story.querySelector('.stage'), sceneEl = story && story.querySelector('.dsk-scene');
         var dskPdf = story && story.querySelector('.dsk-pdf');
+        /* the desk's zoom comes from a media query; read it once per resize, not every frame */
+        var jrZmV = null, jrZm = function () { if (jrZmV === null) jrZmV = parseFloat(getComputedStyle(sceneEl).getPropertyValue('--zm')) || 1; return jrZmV; };
+        on(window, 'resize', function () { jrZmV = null; }, { passive: true });
         var rigBox = function () {
           if (storyOn) {
-            var st = R(stageEl), zm = parseFloat(getComputedStyle(sceneEl).getPropertyValue('--zm')) || 1;
+            var st = R(stageEl), zm = jrZm();
             var cx = st.left + rig.offsetLeft + 310, cy = st.top + rig.offsetTop + 270 + (zm - 1) * 40;
             return { x: cx - 310 * zm, y: cy - 270 * zm, s: zm };
           }
@@ -2386,14 +2423,14 @@ transform:translateY(calc(var(--hp,0) * 90px))}
             var m = R(endEl), w = m.width * 1.05, h = w * 0.7; return { x: m.left + m.width / 2 - w / 2, y: m.top + m.height / 2 - h / 2, w: w, h: h, r: 0 };
           } });
 
-        if (docks.length < 3) { jrOn = false; root.removeChild(jr); jr = null; }
+        if (docks.length < 3) { jrOn = false; root.removeChild(jrStage); jr = null; }
       }
       var dockIx = function (id) { for (var i = 0; i < docks.length; i++) if (docks[i].id === id) return i; return -1; };
 
       /* each leg leaves from a dock in its own way */
       var LEG = { hero: 'drop', masa: 'toss', fark: 'slide', mt: 'peel', akis: 'slip', gz: 'rise' };
       /* hand work between two forms, and when on the leg it happens */
-      var WORK = { 'pdf>ozet': ['fold', 0.08, 0.4], 'ozet>kart': ['cut', 0.1, 0.5], 'kart>sinav': ['pen', 0.16, 0.6], 'sinav>kimlik': ['stamp', 0.58, 0.9] };
+      var WORK = { 'pdf>ozet': ['fold', 0.38, 0.82], 'ozet>kart': ['cut', 0.1, 0.5], 'kart>sinav': ['pen', 0.16, 0.6], 'sinav>kimlik': ['stamp', 0.58, 0.9] };
       var ss = function (x) { return x * x * (3 - 2 * x); }, eOut = function (x) { return 1 - (1 - x) * (1 - x); }, eIn = function (x) { return x * x; };
 
       var jrMeasure = function (vh) {
@@ -2405,7 +2442,7 @@ transform:translateY(calc(var(--hp,0) * 90px))}
           out.fly = true; out.t = clamp(da / Math.max(1, da + Math.max(0, db)));
           out.A = cur.outBox ? cur.outBox() : cur.box(); out.B = nx.box(); out.L = da + Math.max(0, db);
         } else { out.A = d > 0 ? cur.box() : null; if (cur.after && cur.b) out.pre = clamp(1 - (cur.b() - cur.dep * vh) / (0.45 * vh)); }
-        out.vh = vh;
+        out.vh = vh; out.vw = window.innerWidth;
         out.hold = cur.hold ? cur.hold() : false;
         return out;
       };
@@ -2449,24 +2486,24 @@ transform:translateY(calc(var(--hp,0) * 90px))}
           }
           lift = arc;
           box = { x: A.x + (B.x - A.x) * ex + dx, y: A.y + (B.y - A.y) * ey + dy, w: A.w + (B.w - A.w) * ss(t), h: A.h + (B.h - A.h) * ss(t), r: A.r + (B.r - A.r) * ss(t) + dr };
-          /* narrow screens: mid-flight the sheet gets small and keeps to the right edge, off the text */
-          if (window.innerWidth < 700) {
-            var k2 = 1 - arc * 0.5, vw = window.innerWidth;
+          /* phones and portrait tablets (one column): mid-flight the sheet gets small and keeps to the right edge, off the text */
+          if (g.vw < 900) {
+            var k2 = 1 - arc * 0.5, vw = g.vw;
             box.w *= k2; box.h *= k2;
             box.x += ((vw - box.w - 10) - box.x) * arc * 0.9;
           }
           show = true; mode = 'fly';
           if (g.d === 0 && cur.fadeIn && cur.fadeIn()) op = clamp(t * 7);
           var rem = (1 - t) * (g.L || 0);
-          if (nx.id === 'kayit') op = Math.min(op, clamp(rem / (0.05 * g.vh)));
+          if (nx.id === 'kayit') op = Math.min(op, clamp(rem / (0.035 * g.vh)));
           else if (nx.mode === 'hand') op = Math.min(op, 1 - clamp((t - 0.9) / 0.1));
           /* both ends off screen: the sheet leaves the frame (except the first drop, which floats down over the manifesto) */
           if (leg !== 'drop') {
-            var vhh = window.innerHeight, near = function (q) { return clamp(1 - Math.max(0, -(q.y + q.h), q.y - vhh) / 160); };
+            var vhh = g.vh, near = function (q) { return clamp(1 - Math.max(0, -(q.y + q.h), q.y - vhh) / 160); };
             op = Math.min(op, Math.max(near(A), near(B)));
           }
           var wk = WORK[lookA + '>' + lookB];
-          if (wk) { work = wk[0]; m = wk[0] === 'stamp' ? clamp((0.32 * g.vh - rem) / (0.25 * g.vh)) : clamp((t - wk[1]) / (wk[2] - wk[1])); }
+          if (wk) { work = wk[0]; m = wk[0] === 'stamp' ? clamp((0.25 * g.vh - rem) / (0.2 * g.vh)) : clamp((t - wk[1]) / (wk[2] - wk[1])); }
         } else if (g.d > 0 && g.A) {
           lookA = lookB = cur.look;
           if (cur.mode === 'attach') {
@@ -2488,7 +2525,7 @@ transform:translateY(calc(var(--hp,0) * 90px))}
         if (!show) { if (jrShow) { jrShow = false; jr.classList.remove('on'); } return; }
         if (!jrShow) { jrShow = true; jr.classList.add('on'); P = null; } /* reappearing: start where it should be */
         jr.style.opacity = op.toFixed(3); jrOp = op;
-        sv(jr, '--lift', lift.toFixed(3));
+        sv(jr, '--lift', lift.toFixed(2));
         jrIn.style.transform = peel > 0.001 ? 'perspective(420px) rotateX(' + (peel * 38).toFixed(1) + 'deg)' : '';
         T = box; Tmode = mode;
 
@@ -2497,7 +2534,6 @@ transform:translateY(calc(var(--hp,0) * 90px))}
         if (jrTx !== (work || '')) { jrTx = work || ''; if (jrTx) jr.setAttribute('data-tx', jrTx); else jr.removeAttribute('data-tx'); }
         Object.keys(jrFaces).forEach(function (k) { if (jrFaces[k] !== fa && jrFaces[k] !== fb) setFace(jrFaces[k], 0); });
         jrRows.forEach(function (r) { r.style.clipPath = ''; }); jrScore.style.opacity = '';
-        sv(jr, '--m', m.toFixed(3));
         if (!work) { setFace(fa, 1); if (fb !== fa) setFace(fb, 0); }
         else if (work === 'fold') {          /* the PDF is folded in half … and opened again as the summary */
           var f1 = clamp(m * 2), f2 = clamp(m * 2 - 1);
@@ -2537,16 +2573,22 @@ transform:translateY(calc(var(--hp,0) * 90px))}
         sv(jr, '--mk-red', Math.max(0, at(iAk, -0.2, 0.18)).toFixed(3));
         sv(jr, '--mk-cr', Math.max(0, at('gz', 0.04, 0.2)).toFixed(3));
         sv(jr, '--mk-ink', (work === 'stamp' ? (m >= 0.45 ? 1 : 0) : (st >= dockIx('kayit') && dockIx('kayit') > 0 ? 1 : 0)).toString());
-        jrKick();
+        jrStep(performance.now(), true);
       };
       offs.push(function () { docks.forEach(function (k) { if (k.hide) k.hide.classList.remove('jr-hide'); }); });
 
       /* --- the sheet itself (physics): a spring towards the target, flutter in the air, a soft landing --- */
       var P = null, V = { x: 0, y: 0, w: 0, h: 0, r: 0 }, jrRaf = 0, jrLast = 0, jrClock = 0;
-      var jrStep = function (now) {
-        jrRaf = 0;
+      var JR_F = 14, jrBw = 0, jrBh = 0;
+      if (jr) jr.style.fontSize = JR_F + 'px';
+      /* runs right after the scroll frame has read the layout (so its writes never force one);
+         keeps going on its own only while nothing scrolls */
+      var jrStep = function (now, fromScroll) {
+        if (!fromScroll) { jrRaf = 0; if (ticking) return; }
+        else if (jrRaf) { window.cancelAnimationFrame(jrRaf); jrRaf = 0; }
         if (!jrShow || !T) return;
-        var dt = jrLast ? Math.min(0.05, (now - jrLast) / 1000) : 1 / 60; jrLast = now; jrClock += dt;
+        now = performance.now();
+        var dt = jrLast ? Math.max(0.001, Math.min(0.05, (now - jrLast) / 1000)) : 1 / 60; jrLast = now; jrClock += dt;
         if (!P) { P = { x: T.x, y: T.y, w: T.w, h: T.h, r: T.r }; V = { x: 0, y: 0, w: 0, h: 0, r: 0 }; }
         var k = Tmode !== 'fly' ? 170 : 58, c = Tmode !== 'fly' ? 22 : 11.5, moving = false;
         ['x', 'y', 'w', 'h', 'r'].forEach(function (q) {
@@ -2559,18 +2601,57 @@ transform:translateY(calc(var(--hp,0) * 90px))}
         var rx = Math.sin(jrClock * 5.1) * (0.9 * air + 8 * speed) + Math.sin(jrClock * 8.3) * 1.6 * speed;
         var xx = Math.sin(jrClock * 2.6) * (2.2 * air + 12 * speed);
         var w = Math.max(20, P.w), h = Math.max(20, P.h);
-        jr.style.width = w.toFixed(1) + 'px'; jr.style.height = h.toFixed(1) + 'px';
-        jr.style.fontSize = (Math.min(w, h * 0.8) / 11).toFixed(2) + 'px';
-        jr.style.transform = 'translate(' + (P.x + xx).toFixed(1) + 'px,' + P.y.toFixed(1) + 'px) rotate(' + (P.r + rx).toFixed(2) + 'deg)';
+        /* laid out at a fixed type size and scaled with a transform: while only the size changes,
+           nothing is laid out again; only a change of shape (aspect) costs a re-layout */
+        var sc = Math.min(w, h * 0.8) / 11 / JR_F, bw = Math.round(w / sc), bh = Math.round(h / sc);
+        if (bw !== jrBw) { jrBw = bw; jr.style.width = bw + 'px'; }
+        if (bh !== jrBh) { jrBh = bh; jr.style.height = bh + 'px'; }
+        jr.style.transform = 'translate(' + (P.x + xx + (w - bw) / 2).toFixed(1) + 'px,' + (P.y + (h - bh) / 2).toFixed(1) + 'px) rotate(' + (P.r + rx).toFixed(2) + 'deg) scale(' + sc.toFixed(4) + ')';
         if ((moving || air) && jrOp > 0.01) jrRaf = window.requestAnimationFrame(jrStep); else jrLast = 0;
       };
-      var jrKick = function () { if (!jrRaf && jrShow) { jrLast = 0; jrRaf = window.requestAnimationFrame(jrStep); } };
       offs.push(function () { if (jrRaf) window.cancelAnimationFrame(jrRaf); });
 
       /* ---------- Scroll: read everything, then write everything (one rAF per frame) ---------- */
       var lastY = window.scrollY, dirAcc = 0, navShown = false, curSec = -1, lastStep = '';
+      /* find, from the stylesheet, which elements inside a section actually read a variable */
+      var cssRules = null;
+      var fanOut = function (host, names) {
+        if (!host) return;
+        if (!cssRules) {
+          cssRules = [];
+          var walk = function (list) { for (var i = 0; i < list.length; i++) { var r = list[i]; if (r.selectorText && r.style) cssRules.push(r); else if (r.cssRules) { try { walk(r.cssRules); } catch (e) { } } } };
+          for (var si = 0; si < document.styleSheets.length; si++) { try { walk(document.styleSheets[si].cssRules); } catch (e) { cssRules.bad = true; } }
+        }
+        if (cssRules.bad) return; /* a sheet we can't read: keep writing on the section */
+        var uses = function (txt, k) { var at = txt.indexOf('var(' + k); while (at >= 0) { var ch = txt.charAt(at + 4 + k.length); if (ch === ')' || ch === ',' || ch === ' ') return true; at = txt.indexOf('var(' + k, at + 1); } return false; };
+        var fan = {};
+        names.forEach(function (k) {
+          var set = [], ok = true;
+          var add = function (el) { if (set.indexOf(el) < 0) set.push(el); };
+          cssRules.forEach(function (r) {
+            if (!ok || !uses(r.style.cssText, k)) return;
+            r.selectorText.split(',').forEach(function (sel) {
+              /* last compound, first simple selector of it: a safe superset of the elements that can match */
+              var last = sel.trim().split(/[\s>+~]+/).pop().replace(/::?[\w-]+(\([^)]*\))?/g, '');
+              var head = (last.match(/^(\*|[a-zA-Z][\w-]*)?([.#][\w-]+|\[[^\]]+\])?/) || [''])[0];
+              if (!head) { ok = false; return; }
+              try { if (host.matches(head)) add(host); Array.prototype.forEach.call(host.querySelectorAll(head), add); } catch (e) { ok = false; }
+            });
+          });
+          Array.prototype.forEach.call(host.querySelectorAll('[style*="var(' + k + '"]'), add);
+          if (ok && set.length && set.length <= 40) fan[k] = set;
+        });
+        host.__fan = fan;
+      };
+      fanOut(story, ['--sp', '--cam', '--pp', '--l1', '--l2', '--l3', '--l4']);
+      fanOut(hero, ['--hp', '--hc']);
+      fanOut(mfs, ['--mp', '--mp2']);
+      if (jr) fanOut(jr, ['--lift', '--crease', '--cut', '--fall', '--px', '--py', '--pv', '--sy', '--ss', '--so', '--shine', '--mk-coffee', '--mk-hl', '--mk-note', '--mk-red', '--mk-cr', '--mk-ink']);
+
       var measure = function () {
-        var vh = window.innerHeight, m = { vh: vh, y: window.scrollY, max: Math.max(1, doc.scrollHeight - vh) };
+        var vh = window.innerHeight, m = { vh: vh, vw: window.innerWidth, y: window.scrollY, max: Math.max(1, doc.scrollHeight - vh) };
+        /* the flow board's loop path, sampled once: asking the SVG for points every frame forces a style + layout pass */
+        if (flOn && flLoop && !flPts && flLoop.getTotalLength) { var fL = flLoop.getTotalLength(); flPts = []; for (var fi = 0; fi <= 48; fi++) { var fq = flLoop.getPointAtLength(fi / 48 * fL); flPts.push([fq.x, fq.y]); } }
         if (hero) { var hr = hero.getBoundingClientRect(); m.heroTop = hr.top; m.heroH = hr.height; }
         if (tears.length) m.tearY = tears.map(function (t) { var r = t.getBoundingClientRect(); return t.classList.contains('tear-bot') ? r.bottom : r.top; });
         if (ptSecs.length) m.ptTop = ptSecs.map(function (sc) { return sc.getBoundingClientRect().top; });
@@ -2658,7 +2739,7 @@ transform:translateY(calc(var(--hp,0) * 90px))}
           sv(mfs, '--mp2', clamp((vh - m.mfsTop) / (vh + m.mfsH)).toFixed(3));
           sv(mfs, '--mp', clamp((vh * 0.82 - m.mfTop) / (vh * 0.42 + m.mfH)).toFixed(3));
         }
-        if (pkEl) { var bp = window.innerWidth <= 1100 ? clamp((vh * 0.88 - m.pkTop) / (vh * 0.5)) : clamp((vh * 0.7 - m.pkTop) / (vh * 0.75)); sv(pkEl, '--bp', bp.toFixed(3)); var pn = String(bp >= 0.999 ? 1 : Math.max(1, Math.round(42 - 41 * bp))); if (pn !== pkLast && pkN) { pkN.textContent = pn; pkLast = pn; } }
+        if (pkEl) { var bp = m.vw <= 1100 ? clamp((vh * 0.88 - m.pkTop) / (vh * 0.5)) : clamp((vh * 0.7 - m.pkTop) / (vh * 0.75)); sv(pkEl, '--bp', bp.toFixed(3)); var pn = String(bp >= 0.999 ? 1 : Math.max(1, Math.round(42 - 41 * bp))); if (pn !== pkLast && pkN) { pkN.textContent = pn; pkLast = pn; } }
         if (flOn) {
           var ftotal = m.flSH - vh, jp = ftotal > 0 ? clamp(-m.flSTop / ftotal) : 0;
           sv(flEl, '--fp', clamp((vh - m.flSTop) / (vh * 0.85)).toFixed(3));
@@ -2672,8 +2753,9 @@ transform:translateY(calc(var(--hp,0) * 90px))}
           for (var si = 0; si < 5; si++) sv(flDoc, '--s' + (si + 1), svv[si].toFixed(3));
           var lp = clamp((jp - 0.86) / 0.12);
           if (flLoop && flRes) {
-            var L = flLoop.getTotalLength ? flLoop.getTotalLength() : 0, pt = L ? flLoop.getPointAtLength(lp * L) : { x: 500, y: 462 };
-            flRes.style.left = (pt.x / 10).toFixed(2) + '%'; flRes.style.top = (pt.y / 5.2).toFixed(2) + '%';
+            var pt = { x: 500, y: 462 };
+            if (flPts) { var fk = lp * 48, f0 = Math.min(47, Math.floor(fk)), fu = fk - f0; pt = { x: flPts[f0][0] + (flPts[f0 + 1][0] - flPts[f0][0]) * fu, y: flPts[f0][1] + (flPts[f0 + 1][1] - flPts[f0][1]) * fu }; }
+            sv(flRes, 'left', (pt.x / 10).toFixed(2) + '%'); sv(flRes, 'top', (pt.y / 5.2).toFixed(2) + '%');
             sv(flRes, '--lop', (lp > 0 && lp < 1 ? 1 : (lp >= 1 ? clamp(1.0) : 0)).toFixed(2));
           }
           var fst = String(jp < 0.15 ? 1 : jp < 0.35 ? 2 : jp < 0.55 ? 3 : jp < 0.75 ? 4 : 5);
@@ -2683,6 +2765,7 @@ transform:translateY(calc(var(--hp,0) * 90px))}
         if (gz) sv(gz, '--gp', clamp((vh * 0.92 - m.gzTop) / (vh * 0.5)).toFixed(3));
         if (qs) sv(qs, '--qp', clamp((vh - m.qTop) / (vh * 0.95)).toFixed(3));
         if (jrOn && m.jr) jrApply(m.jr);
+        if (ttSet) ttSet(m.y, m.max);
         if (dayOn) dayPaint(clamp(m.y / m.max), kayitSec ? clamp((vh * 0.75 - m.kTop) / (vh * 0.35)) : 0);
         if (pgBar) sv(pgBar.parentNode, '--pg', clamp(m.y / m.max).toFixed(4));
         if (snav) {
@@ -2878,7 +2961,18 @@ transform:translateY(calc(var(--hp,0) * 90px))}
       return teardown;
     };
     
-function go(){acxInit();}
+/* rotating a tablet/phone or resizing the window can switch the page between its phone, tablet
+   and desktop set-ups; when that happens, start the animations again for the new one
+   (the address bar sliding in and out on phones only changes the height and is ignored) */
+function modeKey(){var w=window.innerWidth,h=window.innerHeight,d=w>=861,f=!!(window.matchMedia&&matchMedia('(pointer: fine)').matches);
+  return [d,w>=1181,w>=900,w>=700,f,d?(h>=640)+''+(h>=680)+(h>=720)+(h>=820):''].join('|');}
+function go(){
+  var stop=acxInit(),key=modeKey(),t=0;
+  window.addEventListener('resize',function(){clearTimeout(t);t=setTimeout(function(){
+    var k=modeKey(); if(k===key)return; key=k;
+    if(typeof stop==='function')stop(); stop=acxInit();
+  },250);},{passive:true});
+}
 if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',go);}else{go();}
 })();
 </script>
