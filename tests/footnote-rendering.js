@@ -25,8 +25,13 @@ const { loadFromSource, makeRunner } = require('./_ts-extract.js');
 
 const UI = loadFromSource('js/dashboard.js', [
   'escapeHtml', 'formatFootnoteMarkers', 'renderFootnotesSectionHtml',
-  'renderSuggestedTagChipHtml'
+  'renderSuggestedTagChipHtml',
+  // Formul degiskenlerinin matematik yolu (18.10.2026).
+  'renderMathInText', 'renderMathSymbol'
 ]);
+
+const DASH_SRC = require('node:fs').readFileSync(
+  require('node:path').join(__dirname, '..', 'js/dashboard.js'), 'utf8');
 
 const { test, summary } = makeRunner();
 
@@ -214,6 +219,79 @@ test('etiket HTML kacirilmis olarak gosteriliyor', () => {
 
 test('bos etiket bos string doner', () => {
   assert.equal(UI.renderSuggestedTagChipHtml('d1', 'c1', ''), '');
+});
+
+
+// ==========================================================================
+// FORMUL DEGISKENLERI: SEMBOL MATEMATIK OLARAK DIZILIR
+//
+// 18.10.2026 CANLI HATA: formulun kendisi KaTeX'ten gecip duzgun
+// diziliyordu, hemen altindaki degisken listesi ise kaynak kodunu
+// gosteriyordu — ekranda yan yana "∂y/∂x₁ = β₁ + β₃x₂" ve
+// "\frac{\partial y}{\partial x_1}". Liste escapeHtml'de kaldigi icin
+// LaTeX bilerek METIN olarak basiliyordu.
+// ==========================================================================
+
+/** KaTeX taklidi: neyin matematik olarak dizildigini GORUNUR kilar. */
+function sahteKatex() {
+  const cagrilar = [];
+  global.window = global.window || {};
+  window.katex = { renderToString: (tex) => { cagrilar.push(tex); return '<KTX>' + tex + '</KTX>'; } };
+  return cagrilar;
+}
+function katexYok() { global.window = global.window || {}; delete window.katex; }
+
+test('ayiracsiz LaTeX sembolu KaTeX ile dizilir', () => {
+  const c = sahteKatex();
+  try {
+    const html = UI.renderMathSymbol('\\beta_3');
+    assert.ok(html.includes('<KTX>'), 'sembol KaTeX e gitmedi: ' + html);
+    assert.deepEqual(c, ['\\beta_3']);
+  } finally { katexYok(); }
+});
+
+test('cok parcali LaTeX (\\frac, \\partial) da dizilir', () => {
+  const c = sahteKatex();
+  try {
+    UI.renderMathSymbol('\\frac{\\partial y}{\\partial x_1}');
+    assert.equal(c.length, 1, 'tek parca olarak gitmeliydi');
+  } finally { katexYok(); }
+});
+
+test('DUZ KELIME KaTeX e GITMEZ', () => {
+  // "Temperature" italik matematik olarak dizilirse tuhaf gorunur.
+  const c = sahteKatex();
+  try {
+    const html = UI.renderMathSymbol('Temperature');
+    assert.equal(html, 'Temperature');
+    assert.deepEqual(c, [], 'duz kelime KaTeX e gonderilmis');
+  } finally { katexYok(); }
+});
+
+test('$....$ ile gelen sembol metin yolundan gecer', () => {
+  const c = sahteKatex();
+  try {
+    const html = UI.renderMathSymbol('$x_1$');
+    assert.ok(html.includes('<KTX>'), 'ayiracli sembol dizilmedi: ' + html);
+    assert.deepEqual(c, ['x_1'], 'ayiraclar KaTeX e gonderilmis');
+  } finally { katexYok(); }
+});
+
+test('KaTeX yoksa cokmez, kacirarak basar', () => {
+  katexYok();
+  assert.equal(UI.renderMathSymbol('\\beta_1 <b>'), '\\beta_1 &lt;b&gt;');
+  assert.equal(UI.renderMathSymbol(''), '');
+  assert.equal(UI.renderMathSymbol(null), '');
+});
+
+test('degisken listesi gercekten bu yoldan geciyor', () => {
+  /* Fonksiyonun var olmasi yetmez: cagri yerinde escapeHtml geri gelirse
+     hata sessizce doner ve bunu ancak ekrana bakan biri fark eder. */
+  const i = DASH_SRC.indexOf("formula-vars-list");
+  assert.ok(i > 0, 'degisken listesi render yeri bulunamadi');
+  const blok = DASH_SRC.slice(i, i + 400);
+  assert.ok(/renderMathSymbol\(v\.symbol\)/.test(blok), 'sembol matematik yolundan gecmiyor');
+  assert.ok(/renderMathInText\(v\.meaning/.test(blok), 'aciklama metin yolundan gecmiyor');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));

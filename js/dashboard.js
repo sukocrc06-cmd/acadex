@@ -3045,7 +3045,10 @@ async function populateStudyCardModalDetails(card, docName, readOnly) {
         
         let varsHtml = '';
         if (Array.isArray(f.variables) && f.variables.length > 0) {
-          varsHtml = '<ul class="formula-vars-list">' + f.variables.map(v => `<li><strong>${escapeHtml(v.symbol || '')}:</strong> ${escapeHtml(v.meaning || '')}</li>`).join('') + '</ul>';
+          // Sembol matematik olarak dizilir, aciklama $...$ parcalari icin
+          // metin yolundan gecer. Ikisi de escapeHtml'de kalinca liste ham
+          // LaTeX gosteriyordu (18.10.2026).
+          varsHtml = '<ul class="formula-vars-list">' + f.variables.map(v => `<li><strong>${renderMathSymbol(v.symbol)}:</strong> ${renderMathInText(v.meaning || '')}</li>`).join('') + '</ul>';
         }
         
         const latexId = `formula-latex-${card.id || 'preview'}-${idx}`;
@@ -3214,6 +3217,31 @@ function renderMathInText(text) {
   });
 }
 window.renderMathInText = renderMathInText;
+
+/**
+ * Bir MATEMATIK SEMBOLUNU dizer. renderMathInText'ten farki: burada
+ * $...$ ayiraci beklenmiyor, cunku formul degiskenleri
+ * (\beta_1, x_1, \frac{\partial y}{\partial x_1}) ayiracsiz geliyor ve
+ * tam bu yuzden ekranda ham kaynak olarak gorunuyorlardi.
+ *
+ * Duz kelimeler KaTeX'e GITMEZ: "Temperature" gibi bir sembolu KaTeX
+ * italik matematik olarak dizer ve tuhaf gorunur. LaTeX isareti (ters
+ * bolu, alt/ust simge, suslu parantez) tasimayan sembol escapeHtml
+ * yolundan gider.
+ */
+function renderMathSymbol(sym) {
+  const s = String(sym == null ? '' : sym).trim();
+  if (!s) return '';
+  if (s.indexOf('$') !== -1) return renderMathInText(s);   // ayiracli gelmis
+  const latexGibi = /[\\_^{}]/.test(s);
+  if (!latexGibi || !window.katex) return escapeHtml(s);
+  try {
+    return window.katex.renderToString(s, { displayMode: false, throwOnError: false });
+  } catch (e) {
+    return escapeHtml(s);
+  }
+}
+window.renderMathSymbol = renderMathSymbol;
 
 /** Bir cozumlu ornek adiminin HTML'i: aciklama ve altinda hesap satiri. */
 function renderWorkedStepHtml(step) {
