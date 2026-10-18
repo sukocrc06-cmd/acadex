@@ -487,4 +487,22 @@ test('ink madde listeleri de bu yoldan geciyor', () => {
   assert.ok(INK.includes('imath(typeof formatFootnoteMarkers'), 'kart maddeleri matematikten gecmiyor');
 });
 
+
+test('cleanHTML KaTeX satir ici stillerini KORUR', () => {
+  /* 18.10.2026 CANLI HATA: anlati metnindeki formullerin alt simgeleri
+     satirin altina dusuyordu. Sebep cleanHTML'in BUTUN style
+     attribute'larini silmesiydi; KaTeX ust/alt simgeleri .vlist icinde
+     top/height ile konumlandiriyor ve o stiller olmadan yerlesim cokuyor.
+     Formul kartlari saglamdi cunku cleanHTML'den gecmiyorlar. */
+  const INK = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'js/acadex-ink.js'), 'utf8');
+  const i = INK.indexOf('var cleanHTML = function');
+  assert.ok(i > 0, 'cleanHTML bulunamadi');
+  const blok = INK.slice(i, i + 420);
+  assert.ok(blok.includes("closest('.katex')"),
+    'cleanHTML KaTeX ciktisini atlamiyor — alt simgeler satirin altina duser');
+  assert.ok(blok.includes("removeAttribute('style')"),
+    'temizlik tamamen kalkmis: formatSummaryText stilleri ink temasiyla kavga eder');
+});
+
 summary().then(() => process.exit(process.exitCode || 0));

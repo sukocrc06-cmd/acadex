@@ -7751,7 +7751,17 @@ var SBX = (function () {
   /* ---------- akış ---------- */
   var styleLabel = function (s) { return lsafe(function () { return getStyleLabel(s); }, s) || s; };
   var chip = function (t, cls) { return t ? '<span class="axr-chip' + (cls ? ' ' + cls : '') + '">' + X(t) + '</span>' : ''; };
-  var cleanHTML = function (html) { var d = document.createElement('div'); d.innerHTML = html; QA('[style]', d).forEach(function (e) { e.removeAttribute('style'); }); QA('div', d).forEach(function (e) { if (!e.textContent.trim() && !e.querySelector('img,svg')) e.remove(); }); return d.innerHTML; };
+  /* formatSummaryText kendi satir ici stillerini (punto, renk, kenar
+     bosluklari) HTML'e gomuyor ve bunlar ink temasiyla kavga ediyor; bu
+     yuzden siliniyorlar.
+
+     AMA KaTeX HARIC (18.10.2026). KaTeX ciktisinin yerlesimi TAMAMEN
+     satir ici stillere dayaniyor: alt/ust simgeleri .vlist icinde
+     top/height ile konumlandiriyor. Stiller silininde simgeler satirin
+     altina dusuyor ve formul okunmaz hale geliyor — anlati metninde tam
+     bu oldu. Formul kartlari saglam gorunuyordu cunku onlar cleanHTML'den
+     GECMIYOR; iki yol arasindaki fark buydu. */
+  var cleanHTML = function (html) { var d = document.createElement('div'); d.innerHTML = html; QA('[style]', d).forEach(function (e) { if (e.closest && e.closest('.katex')) return; e.removeAttribute('style'); }); QA('div', d).forEach(function (e) { if (!e.textContent.trim() && !e.querySelector('img,svg')) e.remove(); }); return d.innerHTML; };
   /* ---------- bölüm bölüm Türkçe / İngilizce ---------- */
   var cardLang = function () { return (R.card && R.card.summary_language) === 'en' ? 'en' : 'tr'; };
   var langTog = function (k) { var L = cardLang(), dis = LT_ON ? '' : ' disabled'; return '<div class="axr-lt' + (k === 'all' ? ' axr-ltall' : '') + '" role="group" aria-label="' + (k === 'all' ? 'Özetin dili' : 'Bu bölümün dili') + '" data-lt="' + k + '"><button type="button" data-ltl="tr" aria-pressed="' + (L === 'tr') + '"' + dis + '>TR</button><button type="button" data-ltl="en" aria-pressed="' + (L === 'en') + '"' + dis + '>EN</button></div>'; };
