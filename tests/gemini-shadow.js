@@ -46,7 +46,7 @@ const NAMES = [
   'GEMINI_MAX_RESUMES',
   'geminiAkisDurumu', 'geminiSseBlogunuIsle', 'geminiAkisiTuket',
   'geminiAkisIstegi', 'geminiAkisSonucu', 'geminiAkisiDevamEttir',
-  'closeTruncatedJson', 'repairLatexEscapes'
+  'closeTruncatedJson', 'repairLatexEscapes', 'geminiAkisOlcumu'
 ];
 
 // Deno global'i: cikarilan kod Deno.env.get cagiriyor. Node'da yok, kukla.

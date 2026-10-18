@@ -66,7 +66,7 @@ const G = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'GEMINI_MAX_RESUMES',
   'geminiAkisDurumu', 'geminiSseBlogunuIsle', 'geminiAkisiTuket',
   'geminiAkisIstegi', 'geminiAkisSonucu', 'geminiAkisiDevamEttir',
-  'closeTruncatedJson', 'repairLatexEscapes'
+  'closeTruncatedJson', 'repairLatexEscapes', 'geminiAkisOlcumu'
 ]);
 
 // --- kukla fetch -----------------------------------------------------------
@@ -506,6 +506,47 @@ test('devam ettirme GET ile ve last_event_id vererek yapiliyor', async () => {
   assert.ok(String(c.url).includes('v1_abc'), 'etkilesim id adreste yok');
   assert.ok(/stream=true/.test(String(c.url)), 'stream=true yok');
   assert.ok(/last_event_id=ev42/.test(String(c.url)), 'last_event_id gonderilmiyor — akis bastan baslar');
+});
+
+test('OLCUM: ilk byte ve ilk olay ayri ayri yaziliyor', async () => {
+  /* 18.10.2026 kosusu taslagi 88,1 saniyede getirdi ve olaylar islendi,
+     ama log olaylarin sureye YAYILIP yayilmadigini soylemiyordu. Bu iki
+     sayi olmadan "akis gercekten calisiyor mu" sorusu her koşuda yeniden
+     tahmin olurdu. */
+  fetchCalls = [];
+  stubGecikmeliAkis([
+    { ms: 60, metin: DELTA('{"a":1') },
+    { ms: 30, metin: DELTA(',"b":2}') },
+    { ms: 10, metin: TAMAM }
+  ], { hangSonda: false });
+  const d = G.geminiAkisDurumu();
+  try {
+    await quiet(() => G.geminiAkisIstegi('http://x', { method: 'POST' }, d, 10_000, 500));
+  } finally { restoreFetch(); }
+  assert.ok(d.ilkByteMs >= 0, 'ilk byte olculmemis');
+  assert.ok(d.ilkOlayMs >= 0, 'ilk olay olculmemis');
+  assert.equal(d.olaySayisi, 3);
+  assert.ok(d.ilkOlayMs >= d.ilkByteMs, 'ilk olay ilk byte tan once olamaz');
+});
+
+test('OLCUM: olaylar sureye yayilirsa AKIS GERCEK denir', () => {
+  const d = G.geminiAkisDurumu();
+  d.olaySayisi = 40; d.ilkByteMs = 900; d.ilkOlayMs = 1000; d.metin = 'x'.repeat(5000);
+  assert.match(G.geminiAkisOlcumu(d, 60_000), /AKIS GERCEK/);
+});
+
+test('OLCUM: olaylar SONDA toplu gelirse AKIS SOZDE denir', () => {
+  // Yuzey stream'i kabul edip her seyi sonda gonderirse akis sozde
+  // kalir: kismi kurtarma ve devam ettirme pratikte hic calismaz.
+  const d = G.geminiAkisDurumu();
+  d.olaySayisi = 40; d.ilkByteMs = 88_000; d.ilkOlayMs = 88_010; d.metin = 'x'.repeat(5000);
+  assert.match(G.geminiAkisOlcumu(d, 88_200), /AKIS SOZDE/);
+});
+
+test('OLCUM: duz JSON yolunda AKIS YOK denir', () => {
+  const d = G.geminiAkisDurumu();
+  d.duzYanit = { status: 'completed' }; d.ilkByteMs = 88_000;
+  assert.match(G.geminiAkisOlcumu(d, 88_100), /AKIS YOK/);
 });
 
 console.log('\n7 — KESIK JSON KURTARMA\n');

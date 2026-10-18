@@ -6056,12 +6056,20 @@ type GeminiAkisDurum = {
   /* Akis hic olay vermediyse ve ham govde duz JSON olarak ayristirildiysa
      yanit nesnesi. Varsa cagri BASARILI sayilir. */
   duzYanit: any
+  /* OLCUM (18.10.2026). Istegin basindan itibaren ms: ilk veri parcasi ve
+     ilk ayristirilan olay. -1 = hic gelmedi. Ikisi birbirine YAKIN ve
+     toplam sureden KUCUK ise akis gercekten akiyor; ikisi de toplam sureye
+     esitse yuzey her seyi sonda tek seferde gondermis demektir. */
+  t0: number
+  ilkByteMs: number
+  ilkOlayMs: number
 }
 
 function geminiAkisDurumu(): GeminiAkisDurum {
   return {
     metin: '', interactionId: '', lastEventId: '', status: '', tamamlandi: false,
-    hata: null, olaySayisi: 0, usage: null, ham: '', duzYanit: null
+    hata: null, olaySayisi: 0, usage: null, ham: '', duzYanit: null,
+    t0: 0, ilkByteMs: -1, ilkOlayMs: -1
   }
 }
 
@@ -6082,6 +6090,7 @@ function geminiSseBlogunuIsle(blok: string, durum: GeminiAkisDurum): void {
   let olay: any
   try { olay = JSON.parse(veri.join('\n')) } catch (_e) { return }
   durum.olaySayisi++
+  if (durum.ilkOlayMs < 0 && durum.t0 > 0) durum.ilkOlayMs = Date.now() - durum.t0
 
   if (typeof olay?.event_id === 'string' && olay.event_id) durum.lastEventId = olay.event_id
   if (typeof olay?.interaction_id === 'string' && olay.interaction_id) durum.interactionId = olay.interaction_id
@@ -6191,10 +6200,18 @@ async function geminiAkisIstegi(
      akista yanitin tamami 90+ saniyede geliyor), ondan sonra sessizlikMs.
      Tek sayac bu ikisini ayirt edemiyordu — bkz. GEMINI_FIRST_BYTE_MS. */
   const ilkByteMs = Math.min(mutlakMs, ilkByteMsIstenen)
+  /* Olcum saati her istek icin yeniden kuruluyor: devam ettirme de kendi
+     ilk byte'ini olcsun. */
+  durum.t0 = Date.now()
+  durum.ilkByteMs = -1
+  durum.ilkOlayMs = -1
   let veriGeldi = false
   let sessiz: number | undefined
   const dokun = (veri = false) => {
-    if (veri) veriGeldi = true
+    if (veri) {
+      veriGeldi = true
+      if (durum.ilkByteMs < 0) durum.ilkByteMs = Date.now() - durum.t0
+    }
     if (sessiz !== undefined) clearTimeout(sessiz)
     const sure = veriGeldi ? sessizlikMs : ilkByteMs
     sessiz = setTimeout(() => {
@@ -6226,6 +6243,21 @@ async function geminiAkisIstegi(
     clearTimeout(mutlak)
     if (sessiz !== undefined) clearTimeout(sessiz)
   }
+}
+
+/** Olcum satiri: akis gercekten akti mi, yoksa sonda tek parca mi geldi. */
+function geminiAkisOlcumu(durum: GeminiAkisDurum, toplamMs: number): string {
+  const ms = (v: number) => (v < 0 ? 'yok' : `${v}ms`)
+  const akisVar = durum.olaySayisi > 1 && durum.ilkOlayMs >= 0 && durum.ilkOlayMs < toplamMs * 0.8
+  return (
+    `ilk byte ${ms(durum.ilkByteMs)}, ilk olay ${ms(durum.ilkOlayMs)}, ` +
+    `${durum.olaySayisi} olay, ${durum.metin.length} karakter, toplam ${toplamMs}ms — ` +
+    (durum.duzYanit
+      ? 'AKIS YOK (duz JSON)'
+      : akisVar
+        ? 'AKIS GERCEK (olaylar sureye yayildi)'
+        : 'AKIS SOZDE (olaylar sonda toplu geldi)')
+  )
 }
 
 /** Akistan tam bir Interaction kaynagi gibi gorunen nesne uretir. */
@@ -6410,8 +6442,10 @@ async function callGeminiOnce(
 
   if (akisli) {
     const durum = geminiAkisDurumu()
+    const akisBasladi = Date.now()
     const hata = await geminiAkisIstegi(GEMINI_ENDPOINT, init, durum, timeoutMs, GEMINI_SILENCE_MS)
     if (hata) return { ok: false, status: hata.status, body: hata.body }
+    console.log(`Gemini akis [${model}]: ${geminiAkisOlcumu(durum, Date.now() - akisBasladi)}`)
     /* Yuzey akisi yok saydiysa elimizde GERCEK yanit nesnesi var; sentez
        etmeye gerek yok ve etmemek daha dogru (usage, steps, errors alanlari
        oldugu gibi kaliyor). */
