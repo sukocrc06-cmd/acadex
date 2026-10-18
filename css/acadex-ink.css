@@ -8512,6 +8512,14 @@ html.ax-themefx{transition:filter .6s ease}
      çıktı boş kalıyor, sebebi görünmüyordu. */
   body.axr-printing .axr-print-gizle{display:none!important}
   body.axr-printing #study-card-modal{display:block!important}
+  /* Ata zinciri: yükseklik sınırı, kırpma ve sabit konum kağıtta çıktıyı
+     tek sayfaya indirir. Zincir düz bloğa çevriliyor. */
+  body.axr-printing .axr-print-yol{
+    display:block!important;position:static!important;
+    height:auto!important;max-height:none!important;min-height:0!important;
+    overflow:visible!important;transform:none!important;
+    filter:none!important;opacity:1!important;background:#fff!important
+  }
   body.axr-printing,html:has(body.axr-printing){height:auto!important;overflow:visible!important}
 
   /* Modal kabuğu kağıda açılıyor: sabit konum, yükseklik ve scroll yok. */

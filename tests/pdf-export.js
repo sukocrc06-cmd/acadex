@@ -939,4 +939,18 @@ test('baskida filtre ve animasyon KAPALI', () => {
     'filtre tanimlari SVG si kagida giriyor');
 });
 
+
+test('ata zinciri kagida ACILIYOR', () => {
+  /* 18.10.2026 canli cikti: 20 sayfa, metin YOK — her sayfada yalnizca
+     tarayicinin ustbilgisi. Iki sebepten biri buydu: modalin atasi
+     height:100vh + overflow:hidden tasiyor. Kardesleri gizlemek yetmiyor,
+     zincirin kendisi de duz bloga cevrilmeli. */
+  const blok = printBlogu();
+  assert.ok(blok.includes('.axr-print-yol'), 'ata zinciri acilmiyor');
+  assert.match(blok, /max-height:none!important/, 'yukseklik sinirli kaliyor');
+  const g = sliceDeclaration(DASH_SRC, "printStudyCard");
+  assert.ok(g.includes("classList.add('axr-print-yol')"), 'zincir isaretlenmiyor');
+  assert.ok(g.includes("classList.remove('axr-print-yol')"), 'isaret geri alinmiyor');
+});
+
 summary().then(() => process.exit(process.exitCode || 0));

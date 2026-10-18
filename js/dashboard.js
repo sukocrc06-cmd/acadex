@@ -14827,6 +14827,7 @@ function printStudyCard() {
      diger cocuklar isaretlenirse yerlesim derinliginden bagimsiz calisir
      ve modal tasinirsa da bozulmaz. */
   const gizlenen = [];
+  const yol = [];
   for (let el = modal; el && el !== document.body; el = el.parentElement) {
     const ebeveyn = el.parentElement;
     if (!ebeveyn) break;
@@ -14835,12 +14836,20 @@ function printStudyCard() {
       kardes.classList.add('axr-print-gizle');
       gizlenen.push(kardes);
     }
+    /* Ata zinciri de isaretleniyor: kardesleri gizlemek yetmez, bir ata
+       height:100vh ya da overflow:hidden tasiyorsa cikti TEK SAYFAYA
+       kirpilir ve bunun sebebi ciktidan anlasilmaz. */
+    if (ebeveyn !== document.body) {
+      ebeveyn.classList.add('axr-print-yol');
+      yol.push(ebeveyn);
+    }
   }
 
   document.body.classList.add('axr-printing');
   const temizle = () => {
     document.body.classList.remove('axr-printing');
     for (const el of gizlenen) el.classList.remove('axr-print-gizle');
+    for (const el of yol) el.classList.remove('axr-print-yol');
     window.removeEventListener('afterprint', temizle);
   };
   window.addEventListener('afterprint', temizle);
