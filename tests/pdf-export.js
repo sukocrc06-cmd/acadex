@@ -792,4 +792,122 @@ test('diyagram bolumune ham mermaid kaynagi dusmez', () => {
   assert.ok(t.includes('Baslangic') && t.includes('Son'), 'dugum etiketleri kaybolmus');
 });
 
+
+/* ==========================================================================
+   TEK KART: YAZDIRMA YOLU (18.10.2026)
+
+   Tek kartin "PDF" butonu artik jsPDF ile yeniden cizmiyor; tarayicinin
+   baskisini kullaniyor ve sayfa duzenini css/acadex-ink.css'teki
+   `@media print` blogu kuruyor. Bu testler o blogun SESSIZCE kopmasini
+   engelliyor: gizlenen parcalarin sinif adlari dashboard.html'de gercekten
+   var mi, blok hala body.axr-printing'e bagli mi, buton hangi yola gidiyor.
+
+   Neden onemli: bir sinif adi degisirse print blogu HATA VERMEZ — sadece
+   o parca ciktida gorunur (ornegin "İçindekiler" paneli ya da PDF butonu
+   kagida basilir) ve bunu kimse yukleme yapana kadar fark etmez.
+   ========================================================================== */
+const CSS_SRC = fs.readFileSync(path.join(__dirname, '..', 'css/acadex-ink.css'), 'utf8');
+const HTML_SRC = fs.readFileSync(path.join(__dirname, '..', 'dashboard.html'), 'utf8');
+
+/** Yazdirma blogunun tamami (ic ice suslu parantezleri sayarak kesilir). */
+function printBlogu() {
+  const im = CSS_SRC.indexOf('A4 YAZDIRMA');
+  if (im === -1) return '';
+  const bas = CSS_SRC.indexOf('@media print{', im);
+  if (bas === -1) return '';
+  let d = 0;
+  for (let i = CSS_SRC.indexOf('{', bas); i < CSS_SRC.length; i++) {
+    if (CSS_SRC[i] === '{') d++;
+    else if (CSS_SRC[i] === '}') { d--; if (d === 0) return CSS_SRC.slice(bas, i + 1); }
+  }
+  return '';
+}
+
+test('kart icin A4 yazdirma blogu var', () => {
+  const blok = printBlogu();
+  assert.ok(blok, 'A4 yazdirma blogu bulunamadi');
+  assert.match(blok, /@page\{size:A4/, 'sayfa boyutu A4 degil');
+  assert.match(blok, /margin:14mm/, 'kenar boslugu yok — metin kagidin kenarina dayanir');
+});
+
+test('yazdirma yalnizca body.axr-printing varken calisir', () => {
+  /* Anahtar sinif olmasaydi sayfanin baska bir yerinden gelen Ctrl+P de bu
+     kurallari yerdi ve kullanici ne bastigini bilmezdi. */
+  const blok = printBlogu();
+  const secici = blok.split('\n').filter(s => /^\s*body[ .#]/.test(s) || /^\s*#study-card-modal/.test(s));
+  const kacak = secici.filter(s => !s.includes('axr-printing'));
+  assert.deepEqual(kacak, [], 'axr-printing ile sinirlanmamis secici: ' + kacak.join(' | '));
+});
+
+test('ekrana ait parcalar kagitta gizleniyor VE sinif adlari gercek', () => {
+  /* Her biri dashboard.html'de GERCEKTEN bulunmali: sinif adi degisirse
+     print blogu hata vermez, parca sessizce kagida basilir. */
+  const blok = printBlogu();
+  for (const sinif of ['axr-top', 'axr-styles', 'axr-rail', 'axr-share', 'axr-prog', 'axr-legacy']) {
+    assert.ok(HTML_SRC.includes(sinif), `${sinif} dashboard.html'de yok — print blogu eskimis`);
+    assert.ok(blok.includes('.' + sinif), `${sinif} yazdirmada gizlenmiyor`);
+  }
+  assert.match(blok, /#study-card-modal button\{|#study-card-modal button,/, 'butonlar kagida basiliyor');
+});
+
+test('gizlenen sag bolmelerin id leri gercek', () => {
+  const blok = printBlogu();
+  for (const id of ['original-doc-viewer-pane', 'study-card-chat-pane']) {
+    assert.ok(DASH_SRC.includes(id), `${id} dashboard.js'de yok — secici eskimis`);
+    assert.ok(blok.includes('#' + id), `${id} yazdirmada gizlenmiyor`);
+  }
+});
+
+test('kagit beyaz, murekkep siyah', () => {
+  // Koyu temadaki karti oldugu gibi basmak hem okunmaz hem de cogu yazici
+  // zemini zaten basmaz.
+  const blok = printBlogu();
+  assert.match(blok, /body\.axr-printing\{background:#fff!important/, 'sayfa zemini beyaza cevrilmiyor');
+  assert.match(blok, /color:#111!important/, 'metin rengi zorlanmiyor — koyu temada gorunmez olur');
+  assert.match(blok, /print-color-adjust:exact/, 'gorsellerin rengi korunmuyor');
+});
+
+test('scroll kapsayicisi kagida aciliyor', () => {
+  /* .axr-body ekranda overflow-y:auto!important tasiyor. Acilmazsa ciktida
+     yalnizca ilk ekran dolusu basilir — sessiz ve en pahali hata. */
+  const blok = printBlogu();
+  assert.match(blok, /max-height:none!important/, 'yukseklik sinirlandirilmis kaliyor');
+  assert.match(blok, /overflow:visible!important/, 'scroll kapsayicisi acilmiyor');
+});
+
+test('sayfa sonlari: baslik yalniz kalmaz, tablo ortadan bolunmez', () => {
+  const blok = printBlogu();
+  assert.match(blok, /break-after:avoid/, 'baslik sayfanin dibinde yalniz kalabilir');
+  assert.match(blok, /table\{[^}]*break-inside:avoid/, 'tablo sayfa ortasindan bolunebilir');
+  assert.match(blok, /orphans:3;widows:3/, 'tek satirlik artiklar engellenmemis');
+});
+
+test('tek kart butonu YAZDIRMA yoluna gidiyor', () => {
+  const i = DASH_SRC.indexOf('if (btnExportPdf) {');
+  assert.ok(i > 0, 'PDF butonunun baglandigi yer bulunamadi');
+  const blok = DASH_SRC.slice(i, i + 900);
+  assert.ok(/printStudyCard\(\)/.test(blok), 'buton yazdirma yolunu cagirmiyor');
+  assert.ok(!/exportStudyCardToPDF/.test(blok),
+    'buton hala jsPDF yolunda — cikti ekrandaki kartla ilgisiz olur');
+});
+
+test('printStudyCard anahtar sinifi ekliyor VE geri aliyor', () => {
+  const g = sliceDeclaration(DASH_SRC, 'printStudyCard');
+  assert.ok(/classList\.add\('axr-printing'\)/.test(g), 'anahtar sinif eklenmiyor');
+  assert.ok(/classList\.remove\('axr-printing'\)/.test(g), 'sinif geri alinmiyor');
+  assert.ok(/addEventListener\('afterprint'/.test(g), 'afterprint dinlenmiyor');
+  assert.ok(/window\.print\(\)/.test(g), 'yazdirma cagrilmiyor');
+});
+
+test('TOPLU disa aktarma jsPDF yolunda KALIYOR', () => {
+  /* Yazdirma penceresi tek seferde tek kart basar; "Hepsini PDF yap" bu
+     yuzden eski yola dayanmak zorunda. Silinirse o dugme oluyor. */
+  assert.ok(/async function exportStudyCardToPDF\(/.test(DASH_SRC),
+    'jsPDF yolu silinmis — toplu disa aktarma coker');
+  const i = DASH_SRC.indexOf('async function exportAllFilteredCardsToPDF');
+  assert.ok(i > 0, 'toplu disa aktarma bulunamadi');
+  assert.ok(/appendStudyCardToDoc|jsPDF/.test(DASH_SRC.slice(i, i + 3000)),
+    'toplu disa aktarma artik jsPDF kullanmiyor');
+});
+
 summary().then(() => process.exit(process.exitCode || 0));

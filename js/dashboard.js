@@ -12661,24 +12661,16 @@ function initPhase11Listeners() {
     btnStartCompare.addEventListener('click', startDocumentComparison);
   }
   if (btnExportPdf) {
-    btnExportPdf.addEventListener('click', async (e) => {
+    /* Yazdirma yolu (bkz. printStudyCard). Tarayicinin "PDF olarak kaydet"
+       hedefi ekrandaki kartin birebir ayni A4 ciktisini veriyor. */
+    btnExportPdf.addEventListener('click', (e) => {
       e.preventDefault();
-      if (currentActiveStudyCard) {
-        const originalText = btnExportPdf.textContent;
-        btnExportPdf.disabled = true;
-        btnExportPdf.textContent = 'Exporting...';
-        try {
-          await exportStudyCardToPDF(currentActiveStudyCard);
-          showDashboardAlert('success', 'PDF exported successfully!');
-        } catch (err) {
-          console.error("PDF export failed: ", err);
-          showDashboardAlert('error', 'Failed to export study card to PDF. Please try again.');
-        } finally {
-          btnExportPdf.disabled = false;
-          btnExportPdf.textContent = originalText;
-        }
-      } else {
+      if (!currentActiveStudyCard) {
         showDashboardAlert('error', 'No active study card data found to export.');
+        return;
+      }
+      if (!printStudyCard()) {
+        showDashboardAlert('error', 'Yazdırma penceresi açılamadı. Tarayıcından Ctrl+P ile deneyebilirsin.');
       }
     });
   }
@@ -14803,6 +14795,45 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
     }
   }
 }
+
+/* ÖZET KARTINI YAZDIR (18.10.2026).
+ *
+ * Tek kartin "PDF" butonu artik buraya baglı. Eskiden exportStudyCardToPDF
+ * calisiyordu: karti jsPDF ile sifirdan yeniden cizen, metni elle satir
+ * satir yerlestiren ve LaTeX'i Unicode'a cevirmeye calisan 275 satir. Cikti
+ * ekrandaki kartla ilgisizdi — cunku ekrandaki karttan uretilmiyordu.
+ *
+ * Burada basilan sey DOM'un kendisi: KaTeX formulleri vektor, Mermaid
+ * diyagramlari yerinde, metin secilebilir, dosya birkac yuz KB. Sayfa
+ * duzenini css/acadex-ink.css'teki `@media print` blogu kuruyor (A4,
+ * beyaz zemin, ekran parcalarini gizleme, sayfa sonlari).
+ *
+ * body.axr-printing sinifi o blogun TEK anahtari: sayfanin baska bir
+ * yerinden gelen Ctrl+P bu kurallari yemiyor. Sinif ekranda hicbir sey
+ * yapmadigi icin, afterprint bazi tarayicilarda atilmasa bile zararsiz —
+ * yine de temizliyoruz.
+ *
+ * exportStudyCardToPDF SILINMIYOR: "Hepsini PDF yap" toplu disa aktarma
+ * hala ona dayaniyor, cunku yazdirma penceresi tek seferde tek kart basar. */
+function printStudyCard() {
+  const modal = document.getElementById('study-card-modal');
+  if (!modal) return false;
+  document.body.classList.add('axr-printing');
+  const temizle = () => {
+    document.body.classList.remove('axr-printing');
+    window.removeEventListener('afterprint', temizle);
+  };
+  window.addEventListener('afterprint', temizle);
+  try {
+    window.print();
+  } catch (err) {
+    console.error('[yazdir] window.print() basarisiz:', err);
+    temizle();
+    return false;
+  }
+  return true;
+}
+window.printStudyCard = printStudyCard;
 
 async function exportStudyCardToPDF(studyCard) {
   if (window.loadScript) {
