@@ -93,6 +93,8 @@ a{color:inherit}
 .sso-google{background:#fff;color:#1F1F1F;border:1px solid #C9D1E1}
 .sso button::after{content:"yakında";position:absolute;right:12px;top:50%;transform:translateY(-50%) rotate(-3deg);padding:1px 7px;border-radius:5px;font-family:'Caveat',cursive;font-weight:700;font-size:15px;line-height:1.3;background:#EEF3FF;color:#2F6BFF}
 .sso-apple::after{background:#2A2A2A !important;color:#C9D6F5 !important}
+.sso button.ready::after{display:none}
+.sso button[aria-busy="true"]{opacity:.7;cursor:progress}
 .or{display:flex;align-items:center;gap:14px;margin:24px 0 8px;color:var(--soft);font-size:21px}
 .or::before,.or::after{content:"";flex:1;height:6px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1000 6' preserveAspectRatio='none'%3E%3Cpath d='M0 3 C120 1.5 260 4.5 400 2.8 S700 1.6 1000 3.4' fill='none' stroke='%23B9C2D6' stroke-width='1.4' stroke-linecap='round' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E") no-repeat center/100% 100%}
 form{display:flex;flex-direction:column;gap:16px}
@@ -461,13 +463,36 @@ select.fld{appearance:none;-webkit-appearance:none;background-image:url("data:im
     try { var qe = new URLSearchParams(location.search).get('e'); if (qe && !email.value) email.value = qe; } catch (e) {}
   }
 
-  /* Apple / Google: not connected yet — they only say "yakında" */
+  /* Apple / Google: Supabase'de açık olan sağlayıcı çalışır; açılmamış olan "yakında" der.
+     Dönüşte login.html'e gelinir; auth.js oturumu görüp kullanıcıyı paneline yönlendirir. */
   var note = $('[data-sso-note]');
+  var PROV = { Apple: 'apple', Google: 'google' }, ready = {};
+  var say = function (hand, text) { note.innerHTML = '<span class="hand"></span>'; note.firstChild.textContent = hand; note.appendChild(document.createTextNode(text)); note.hidden = false; };
+  try {
+    if (typeof SUPABASE_URL !== 'undefined' && window.fetch) {
+      fetch(SUPABASE_URL + '/auth/v1/settings', { headers: { apikey: SUPABASE_ANON_KEY } })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (s) {
+          var ex = (s && s.external) || {};
+          $$('[data-sso]').forEach(function (b) { var p = PROV[b.getAttribute('data-sso')]; if (p && ex[p]) { ready[p] = true; b.classList.add('ready'); } });
+        }).catch(function () { /* ayarlar okunamadı: butonlar "yakında" kalır */ });
+    }
+  } catch (e) { /* yok */ }
+  /* sağlayıcıdan hata ile dönüldüyse göster */
+  try {
+    var back = new URLSearchParams(location.search.slice(1) + '&' + location.hash.replace(/^#/, ''));
+    var err = back.get('error_description') || back.get('error');
+    if (err) say('giriş tamamlanmadı', ' ' + err.replace(/\+/g, ' ') + ' — tekrar deneyebilir ya da e-postanla devam edebilirsin.');
+  } catch (e) { /* yok */ }
   $$('[data-sso]').forEach(function (b) {
     b.addEventListener('click', function () {
-      note.innerHTML = '<span class="hand">bağlantı yakında</span>';
-      note.appendChild(document.createTextNode(b.getAttribute('data-sso') + ' ile ' + (b.closest('[data-view="register"]') ? 'kayıt' : 'giriş') + ' henüz açık değil. Şimdilik e-postanla devam edebilirsin.'));
-      note.hidden = false;
+      var name = b.getAttribute('data-sso'), p = PROV[name], reg = !!b.closest('[data-view="register"]');
+      if (!ready[p] || typeof supabaseClient === 'undefined') { say('bağlantı yakında', name + ' ile ' + (reg ? 'kayıt' : 'giriş') + ' henüz açık değil. Şimdilik e-postanla devam edebilirsin.'); return; }
+      b.disabled = true; b.setAttribute('aria-busy', 'true');
+      say('yönlendiriliyorsun', ' ' + name + ' penceresine gidiyorsun; dönünce Acadex seni panele alır.');
+      supabaseClient.auth.signInWithOAuth({ provider: p, options: { redirectTo: location.origin + '/login.html' } }).then(function (r) {
+        if (r && r.error) { b.disabled = false; b.removeAttribute('aria-busy'); say('olmadı', ' ' + (r.error.message || name + ' bağlantısı kurulamadı') + '. Biraz sonra tekrar dener misin?'); }
+      }).catch(function (e) { b.disabled = false; b.removeAttribute('aria-busy'); say('olmadı', ' ' + name + ' bağlantısı kurulamadı. Biraz sonra tekrar dener misin?'); });
     });
   });
 
