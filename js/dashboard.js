@@ -3378,8 +3378,37 @@ function summaryParagraphs(summary, target = 600) {
 /** Satir ici **kalin** ve *italik* isaretleri. Formuldeki yildiza ("x* = …",
  *  "2 * x") dokunmaz: acan yildizin solu bosluk/baslangic, sagi bosluk
  *  olmayan bir karakter olmali. */
+/**
+ * Metin icindeki $...$ parcalarini KaTeX ile dizer ve geri kalanina
+ * DOKUNMAZ.
+ *
+ * renderMathInText'ten farki kacirma: o, metnin tamamini escapeHtml'den
+ * gecirir. Burada gelen metin o noktada ZATEN HTML iceriyor
+ * (formatFootnoteMarkers atif isaretlerini <sup> olarak yerlestirmis),
+ * dolayisiyla kacirmak o isaretleri metne cevirirdi.
+ *
+ * Para korumasi aynen korunuyor: "$100 bin" gibi bir parca formul
+ * degil (rakamla baslayip bosluk geliyor) ve kapanis $'inin ardindan
+ * rakam gelen durumlar ($5-$10) zaten eslesmez.
+ */
+function inlineMath(html) {
+  const s = String(html == null ? '' : html);
+  if (!window.katex || s.indexOf('$') === -1) return s;
+  return s.replace(/\$(?=\S)((?:[^\$\\]|\\.)*?\S)\$(?!\d)/g, (match, latex) => {
+    if (/^\d[\d.,]*\s/.test(latex)) return match;
+    try {
+      return window.katex.renderToString(latex, { displayMode: false, throwOnError: false });
+    } catch (e) {
+      return match;
+    }
+  });
+}
+window.inlineMath = inlineMath;
+
 function inlineMarkdown(html) {
-  return String(html || '')
+  // Once matematik, sonra kalin/italik: tersi olsaydi $a*b$ gibi bir
+  // formuldeki yildiz italige donusup LaTeX'i bozardi.
+  return inlineMath(String(html || ''))
     .replace(/\*\*([^*\n]+?)\*\*/g, '<strong>$1</strong>')
     .replace(/(^|[\s(“"])\*([^*\s][^*\n]*?[^*\s]|[^*\s])\*(?=[\s.,;:)!?”"]|$)/g, '$1<em>$2</em>');
 }

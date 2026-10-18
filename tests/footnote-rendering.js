@@ -29,7 +29,9 @@ const UI = loadFromSource('js/dashboard.js', [
   // Formul degiskenlerinin matematik yolu (18.10.2026).
   'renderMathInText', 'renderMathSymbol',
   // Formul kutusuna sigdirma (18.10.2026).
-  'FORMUL_MIN_REM', 'sigdirFormulKutusu'
+  'FORMUL_MIN_REM', 'sigdirFormulKutusu',
+  // Anlati ve maddelerdeki $...$ (18.10.2026).
+  'inlineMath', 'inlineMarkdown'
 ]);
 
 const DASH_SRC = require('node:fs').readFileSync(
@@ -401,6 +403,88 @@ test('sigdirma KaTeX render edildikten SONRA cagriliyor', () => {
   const blok = DASH_SRC.slice(i, i + 300);
   assert.ok(/sigdirFormulKutusu\(latexTarget\)/.test(blok),
     'render sonrasi sigdirma cagrilmiyor');
+});
+
+
+// ==========================================================================
+// ANLATI VE MADDELERDE $...$
+//
+// CANLI HATA: formul kartlari duzgun dizilirken anlati metni kaynak kodu
+// gosteriyordu: "...term, $y = \beta_0 + \beta_1 x_j + \varepsilon$,
+// allowing...". Anlati da maddeler de inlineMarkdown'dan geciyor ve orada
+// $...$ hic ele alinmiyordu.
+// ==========================================================================
+
+function sahteKatexKur() {
+  const c = [];
+  global.window = global.window || {};
+  window.katex = { renderToString: (t) => { c.push(t); return '<KTX>' + t + '</KTX>'; } };
+  return c;
+}
+function katexKaldir() { global.window = global.window || {}; delete window.katex; }
+
+test('anlatidaki $...$ dizilir', () => {
+  const c = sahteKatexKur();
+  try {
+    const html = UI.inlineMarkdown('adds a term, $y = \\beta_0 + \\varepsilon$, allowing');
+    assert.ok(html.includes('<KTX>'), 'matematik dizilmedi: ' + html);
+    assert.deepEqual(c, ['y = \\beta_0 + \\varepsilon']);
+    assert.ok(html.startsWith('adds a term, '), 'cevresindeki metin bozulmus');
+  } finally { katexKaldir(); }
+});
+
+test('ATIF ISARETLERI bozulmaz: gelen metin zaten HTML', () => {
+  /* inlineMarkdown'a gelen metin o noktada formatFootnoteMarkers'tan
+     gecmis durumda, yani <sup> iceriyor. Kacirmayan bir matematik yolu
+     kullanilmasinin sebebi bu — renderMathInText o isaretleri metne
+     cevirirdi. */
+  const c = sahteKatexKur();
+  try {
+    const girdi = 'curvature <sup class="fn">[20]</sup> with $x_j$';
+    const html = UI.inlineMarkdown(girdi);
+    assert.ok(html.includes('<sup class="fn">[20]</sup>'), 'atif isareti bozulmus: ' + html);
+    assert.ok(html.includes('<KTX>x_j</KTX>'), 'matematik dizilmedi');
+  } finally { katexKaldir(); }
+});
+
+test('PARA bicimi formul sanilmaz', () => {
+  // "costs $100 and $200" iki dolar isareti tasiyor ama formul degil.
+  const c = sahteKatexKur();
+  try {
+    const html = UI.inlineMath('costs $100 and $200');
+    assert.equal(html, 'costs $100 and $200');
+    assert.deepEqual(c, [], 'para KaTeX e gonderilmis');
+  } finally { katexKaldir(); }
+});
+
+test('SIRA: matematik kalin/italikten ONCE', () => {
+  /* Tersi olsaydi $a*b$ icindeki yildiz italige donusup LaTeX'i
+     bozardi. */
+  const c = sahteKatexKur();
+  try {
+    UI.inlineMarkdown('bak $a*b*c$ burada');
+    assert.deepEqual(c, ['a*b*c'], 'yildizlar matematige girmeden yenmis');
+  } finally { katexKaldir(); }
+});
+
+test('kalin/italik calismaya devam ediyor', () => {
+  katexKaldir();
+  assert.equal(UI.inlineMarkdown('**kalin** ve *egik*'), '<strong>kalin</strong> ve <em>egik</em>');
+});
+
+test('KaTeX yoksa metin AYNEN kalir', () => {
+  katexKaldir();
+  const girdi = 'su $x_1$ burada';
+  assert.equal(UI.inlineMath(girdi), girdi);
+});
+
+test('ink madde listeleri de bu yoldan geciyor', () => {
+  /* Maddeler formatSummaryText'ten GECMIYOR, kendi HTML'lerini kuruyorlar;
+     yalnizca inlineMarkdown'i duzeltmek onlara ulasmazdi. */
+  const INK = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'js/acadex-ink.js'), 'utf8');
+  assert.ok(INK.includes('imath(X(plain(p)))'), 'bolum maddeleri matematikten gecmiyor');
+  assert.ok(INK.includes('imath(typeof formatFootnoteMarkers'), 'kart maddeleri matematikten gecmiyor');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));

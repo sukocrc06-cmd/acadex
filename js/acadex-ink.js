@@ -7552,6 +7552,9 @@ var SBX = (function () {
      math() yalnizca ayirac icindekini dizdigi icin sembolleri goremiyor
      ve liste ham kaynak gosteriyordu (18.10.2026). */
   var sym = function (t) { return typeof renderMathSymbol === 'function' ? renderMathSymbol(t) : X(t); };
+  /* Kacirmayan matematik: madde listeleri formatSummaryText'ten gecmiyor,
+     kendi HTML'lerini kuruyorlar (bkz. axr-kps). */
+  var imath = function (h) { return typeof inlineMath === 'function' ? inlineMath(h) : h; };
   var COL = ['#2F6BFF', '#C9483B', '#1E8A55', '#C88A1C', '#6A4FA8', '#0F7C8A', '#D9677F', '#0D1838'];
   var ICON = {
     up: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5 L19 12 L8 19 Z"/></svg>',
@@ -7884,7 +7887,7 @@ var SBX = (function () {
       var kps = arr(s.key_points).filter(Boolean);
       h += ch('b' + (i + 1), (i + 1) + '. ' + plain(s.heading || 'Bölüm'), '<div class="axr-sheet" data-sec="' + i + '" style="--r:' + ((i % 3) - 1) * .25 + 'deg"><span class="axr-secn disp" aria-hidden="true">' + (i + 1 < 10 ? '0' : '') + (i + 1) + '</span><h2 class="disp">' + X(plain(s.heading || 'Bölüm ' + (i + 1))) + '</h2>' +
         '<div class="axr-prose" data-prose="s' + (i + 1) + '">' + cleanHTML(fmtS(s.summary || '', c.footnotes)) + '</div>' +
-        (kps.length ? '<ul class="axr-kps" data-prose="k' + (i + 1) + '">' + kps.map(function (p) { return '<li>' + X(plain(p)) + '</li>'; }).join('') + '</ul>' : '') +
+        (kps.length ? '<ul class="axr-kps" data-prose="k' + (i + 1) + '">' + kps.map(function (p) { return '<li>' + imath(X(plain(p))) + '</li>'; }).join('') + '</ul>' : '') +
         (own ? '<div class="axr-secvis"><span class="hand">bu bölüme görsel:</span><button type="button" class="axr-mini" onclick="generateSectionVisual(event, ' + i + ', \'diagram\')">diyagram</button><button type="button" class="axr-mini" onclick="generateSectionVisual(event, ' + i + ', \'table\')">tablo</button><button type="button" class="axr-mini" onclick="generateSectionVisual(event, ' + i + ', \'chart\')">grafik</button></div>' : '') + '</div>', 'sec');
     });
     /* görseller */
@@ -7901,7 +7904,7 @@ var SBX = (function () {
       h += ch('kavram', 'Kavramlar', '<div class="axr-sech"><span class="axr-lbl mono">KAVRAMLAR</span><h2 class="disp">' + (hasNet ? 'Kavram ağı' : 'Akılda kalsın') + '</h2>' + (own ? '<button type="button" class="axr-mini" data-regen="key_terms">' + ICON.redo + 'kavramları yenile</button>' : '') + '</div>' +
         (hasNet ? '<div class="axr-netw"><div class="axr-netbox" data-net=""></div><div class="axr-netinfo" data-netinfo="" hidden></div><p class="hand axr-tipline">düğümü sürükle, dokununca tanımını gör</p></div>' : '') +
         (terms.length ? '<div class="axr-terms">' + terms.map(function (t, i) { return '<button type="button" class="axr-term" style="--r:' + ((i % 5) - 2) * .6 + 'deg" aria-pressed="false"><span class="f"><b>' + X(plain(t.term)) + '</b><i class="hand">çevir</i></span><span class="b">' + X(plain(t.definition)) + '</span></button>'; }).join('') + '</div>' : '') +
-        (kp.length ? (hasNet || terms.length ? '<h3 class="hand axr-h3">akılda kalsın</h3>' : '') + '<ul class="axr-kps big" data-prose="kp">' + kp.map(function (p) { return '<li>' + (typeof formatFootnoteMarkers === 'function' ? formatFootnoteMarkers(String(p), c.footnotes) : X(p)) + '</li>'; }).join('') + '</ul>' : ''));
+        (kp.length ? (hasNet || terms.length ? '<h3 class="hand axr-h3">akılda kalsın</h3>' : '') + '<ul class="axr-kps big" data-prose="kp">' + kp.map(function (p) { return '<li>' + imath(typeof formatFootnoteMarkers === 'function' ? formatFootnoteMarkers(String(p), c.footnotes) : X(p)) + '</li>'; }).join('') + '</ul>' : ''));
     }
     /* kendini sına */
     var qz = arr(c.quiz_questions);
