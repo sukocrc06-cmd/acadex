@@ -579,5 +579,16 @@ select.fld{appearance:none;-webkit-appearance:none;background-image:url("data:im
   $('#register-form').addEventListener('submit', function () { if ($('#legal-agree').checked) window.__acx.stamp(); });
 })();
 </script>
+<script>
+/* Ana sayfada kimlik kartına yazılan ad ve seçilen bölüm buraya taşınır (?ad=...&bolum=...). */
+(function () {
+  try {
+    var q = new URLSearchParams(location.search), ad = String(q.get('ad') || '').replace(/[<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, 60), bol = q.get('bolum') || '';
+    var fn = document.getElementById('full-name'), dep = document.getElementById('department');
+    if (fn && ad && !fn.value) { fn.value = ad; fn.dispatchEvent(new Event('input', { bubbles: true })); }
+    if (dep && bol && !dep.value && Array.prototype.some.call(dep.options, function (o) { return o.value === bol; })) { dep.value = bol; dep.dispatchEvent(new Event('change', { bubbles: true })); }
+  } catch (e) { /* eski tarayıcı: elle doldurulur */ }
+})();
+</script>
 </body>
 </html>
