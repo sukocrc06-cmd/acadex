@@ -32,7 +32,7 @@ async function getPostLoginDestination(userId) {
     if (error || !profile) return 'dashboard.html';
     // Eski admin paneli kaldırıldı: yöneticiler de doğrudan çalışma masasına gider.
     if (profile.is_admin) return 'dashboard.html';
-    if (profile.is_teacher) return 'teacher.html';
+    // Hoca paneli kaldırıldı (19.10.2026): herkes çalışma masasına gider.
     return 'dashboard.html';
   } catch (e) {
     console.error('getPostLoginDestination error:', e);

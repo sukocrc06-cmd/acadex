@@ -8973,6 +8973,19 @@ var SBX = (function () {
   setL(cur);
   if (typeof window.applyLanguage === 'function') { var o = window.applyLanguage; window.applyLanguage = function (l) { var r = o.apply(this, arguments); var v = l; if (!v) { try { v = localStorage.getItem('acadexUILang'); } catch (e) {} } setL(v || 'tr'); return r; }; try { applyLanguage = window.applyLanguage; } catch (e) {} }
 })();
+/* ---------- askıya alınan hesap: yönetim panelinden askıya alınan öğrenci paneli kullanamaz ---------- */
+(function () {
+  if (typeof window.axWhenProfile !== 'function') return;
+  window.axWhenProfile(function (p) {
+    if (!p || !p.is_suspended || document.getElementById('ax-susp')) return;
+    var d = document.createElement('div'); d.id = 'ax-susp'; d.setAttribute('role', 'alertdialog'); d.setAttribute('aria-modal', 'true'); d.setAttribute('aria-labelledby', 'ax-susp-t');
+    d.style.cssText = 'position:fixed;inset:0;z-index:2147483600;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(13,24,56,.72);backdrop-filter:blur(4px)';
+    d.innerHTML = '<div style="width:min(440px,100%);background:#FFFDF7;border:1.5px solid #0D1838;border-radius:16px;box-shadow:6px 6px 0 #0D1838;padding:28px 26px;font-family:Instrument Sans,system-ui,sans-serif;color:#0D1838"><p style="margin:0;font-family:Caveat,cursive;font-size:24px;color:#C9483B">hesabın askıda</p><h2 id="ax-susp-t" style="margin:4px 0 8px;font-family:Bricolage Grotesque,sans-serif;font-size:26px">Şu an Acadex\'i kullanamıyorsun</h2><p style="margin:0 0 18px;font-size:15px;line-height:1.5;color:#2A3550">Hesabın yönetici tarafından geçici olarak askıya alındı. Verilerin silinmedi. Bir yanlışlık olduğunu düşünüyorsan iletişim formundan bize yaz.</p><div style="display:flex;gap:10px;flex-wrap:wrap"><a href="index.html" style="display:inline-flex;align-items:center;min-height:44px;padding:0 18px;border-radius:999px;background:#2F6BFF;color:#fff;font-weight:700;text-decoration:none">bize yaz</a><button type="button" data-susp-out style="min-height:44px;padding:0 18px;border-radius:999px;border:1.5px solid #0D1838;background:#fff;font:inherit;font-weight:700;cursor:pointer">çıkış yap</button></div></div>';
+    document.body.appendChild(d); document.documentElement.style.overflow = 'hidden';
+    var b = d.querySelector('[data-susp-out]'); b.focus();
+    b.addEventListener('click', function () { var c = null; try { c = supabaseClient; } catch (e) {} Promise.resolve(c && c.auth.signOut()).then(function () { location.replace('login.html'); }, function () { location.replace('login.html'); }); });
+  });
+})();
 /* ================= ÖZETLEME PENCERESİ: dil (TR / EN / ikisi), görseller ================= */
 (function () {
   'use strict';
