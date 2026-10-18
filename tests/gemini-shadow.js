@@ -42,7 +42,8 @@ const NAMES = [
   'buildGeminiDocInstruction', 'extractGeminiText',
   'geminiProblem', 'geminiFigureNotes', 'callGeminiOnce', 'geminiDraft',
   // Akis (SSE) yolu — 18.10.2026.
-  'GEMINI_SILENCE_MS', 'GEMINI_PARTIAL_MIN_CHARS', 'GEMINI_MAX_RESUMES',
+  'GEMINI_SILENCE_MS', 'GEMINI_FIRST_BYTE_MS', 'GEMINI_PARTIAL_MIN_CHARS',
+  'GEMINI_MAX_RESUMES',
   'geminiAkisDurumu', 'geminiSseBlogunuIsle', 'geminiAkisiTuket',
   'geminiAkisIstegi', 'geminiAkisSonucu', 'geminiAkisiDevamEttir',
   'closeTruncatedJson', 'repairLatexEscapes'

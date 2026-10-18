@@ -3329,17 +3329,36 @@ test('onarim HER ayristirma noktasina bagli', () => {
   // canli birakirdi.
   const cagri = (SRC.match(/JSON\.parse\(repairLatexEscapes\(/g) || []).length;
   assert.ok(cagri >= 5, `yalnizca ${cagri} ayristirma noktasi onariliyor`);
-  /* Onarimdan gecmeyen cagri kalmamali. Dort bilinen istisna var ve
-     hicbiri MODEL CIKTISI ayristirmiyor:
-       1. dosyanin basindaki yorumda gecen ornek (kod degil),
-       2. salvageFailedGeneration'in onarim TUTMAZSA denedigi ham kopya,
-       3. groqViaGemini'nin KENDI istek govdesini okumasi,
-       4. SSE zarfi (geminiSseBlogunuIsle): API'nin olay nesnesi. Bunu
-          onarimdan gecirmek, modelin dize icindeki GECERLI kacislarini
-          bozardi — yani tam ters yonde bir hata. */
-  const toplam = (SRC.match(/JSON\.parse\(/g) || []).length;
-  assert.ok(cagri >= toplam - 4,
-    `${toplam} JSON.parse var, yalnizca ${cagri} onariliyor`);
+  /* Onarimdan gecmeyen her cagri, MODEL CIKTISI OLMAYAN bilinen bir
+     bicimde olmak zorunda. Sayi tutmak yerine gerekce tutuluyor: eskiden
+     "en fazla N tanesi onarimsiz" yaziyordu ve her yeni zarf ayristirmasi
+     N'i buyutuyordu — mandal gevsiyordu. Simdi yeni bir onarimsiz cagri
+     eklenirse test onu ADIYLA soyluyor.
+
+     Izin verilenler ve nedenleri:
+       temiz          — salvageFailedGeneration'in onarim TUTMAZSA denedigi
+                        ham kopya (onarimli hali hemen ustte).
+       options.body   — groqViaGemini'nin KENDI istek govdesi.
+       veri.join      — SSE zarfi: API'nin olay nesnesi. Onarimdan
+                        gecirmek modelin dize icindeki GECERLI kacislarini
+                        bozardi, yani tam ters yonde bir hata.
+       durum.ham      — yuzey akisi yok saydiginda gelen duz Interaction
+                        JSON'u; yine zarf, yine model ciktisi degil.
+       '{"p":"...    — dosyanin basindaki yorumda gecen ornek, kod degil. */
+  const IZINLI = ['temiz', 'options.body', 'veri.join', 'durum.ham', '\'{"p"'];
+  const onarimsiz = [];
+  const re = /JSON\.parse\(([^)\n]{0,40})/g;
+  let m;
+  while ((m = re.exec(SRC)) !== null) {
+    const arg = m[1];
+    if (/^repairLatexEscapes\(/.test(arg)) continue;
+    if (IZINLI.some(i => arg.includes(i))) continue;
+    onarimsiz.push(arg.trim().slice(0, 40));
+  }
+  assert.deepEqual(onarimsiz, [],
+    'onarimdan gecmeyen JSON.parse: ' + onarimsiz.join(' | ') +
+    '\n  Model ciktisi ayristiran her nokta repairLatexEscapes ile sarilmali;' +
+    '\n  zarf ayristirmasi ise bu testteki IZINLI listesine gerekcesiyle eklenmeli.');
 });
 
 

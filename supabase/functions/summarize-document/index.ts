@@ -6007,11 +6007,28 @@ function geminiFigureNotes(parsed: any): string[] {
    Yani akisin kabul edilmedigi bir anahtarda bile hat calismaya devam eder.
    ========================================================================== */
 
-/* Hicbir SSE olayi gelmeden gecebilecek en uzun sure. 25 saniye: olculen en
-   uzun kosuda (111 sn) olaylar arasi bosluk bunun cok altindaydi, yani normal
-   bir yavas kosu kesilmiyor; olu bir baglanti ise 105 saniye yerine 25
-   saniyede bitiyor. */
+/* AKIS BASLADIKTAN SONRA iki olay arasinda gecebilecek en uzun sure.
+   Olaylar akmaya basladiysa 25 saniyelik bir bosluk olu baglanti demektir;
+   o noktada beklemeye devam etmek 105 saniyeye kadar bos bekleyen eski
+   davranisin ta kendisi olurdu. */
 const GEMINI_SILENCE_MS = 25_000
+
+/* ILK BYTE'A kadar beklenecek sure — SESSIZLIKTEN AYRI, ve bu ayrim bir
+   OLCUMUN sonucu (18.10.2026, ilk akisli canli kosu).
+
+   O kosuda uc model ust uste "sessizlik (25000ms olay gelmedi)" ile
+   dustu ve elde 0 karakter kaldi. Istek 400 ALMADI, yani yuzey
+   `stream: true`'yu reddetmiyor — YOK SAYIYOR: yanit eskisi gibi tek
+   parca ve olculen 90-111 saniyede geliyor. Tek bir sayac bu iki durumu
+   ayirt edemez:
+     - ilk byte 90 saniye sonra gelebilir (normal, yok sayilan akis)
+     - olaylar arasi 25 saniye bosluk ise anormal (olu baglanti)
+   Tek esik 25 saniye olunca birinci durum ikinci sanildi ve her model
+   gunluk kotadan (RPD 20) bir istek yakti. Simdi ilk byte mutlak tavana
+   kadar bekleniyor; sessizlik sayaci yalnizca akis GERCEKTEN basladiktan
+   sonra devreye giriyor. Yuzey bir gun delta gondermeye baslarsa kazanc
+   kendiliginden geri gelir. */
+const GEMINI_FIRST_BYTE_MS = 100_000
 
 /* Kurtarmaya deger en kucuk kismi cikti. Bunun altinda bir tampon zaten bir
    karta donusmez; kurtarmayi denemek yalnizca logu kirletir. */
@@ -6033,10 +6050,19 @@ type GeminiAkisDurum = {
   /* Akisin kendisi token sayisi tasimiyor; `interaction.completed` olayinin
      kismi kaynaginda bulunursa alinir, yoksa null kalir. */
   usage: any
+  /* Govdenin tamami, ayristirilmadan. Yuzey akisi yok sayarsa buradaki
+     metin duz bir Interaction JSON'u olur (bkz. geminiAkisiTuket). */
+  ham: string
+  /* Akis hic olay vermediyse ve ham govde duz JSON olarak ayristirildiysa
+     yanit nesnesi. Varsa cagri BASARILI sayilir. */
+  duzYanit: any
 }
 
 function geminiAkisDurumu(): GeminiAkisDurum {
-  return { metin: '', interactionId: '', lastEventId: '', status: '', tamamlandi: false, hata: null, olaySayisi: 0, usage: null }
+  return {
+    metin: '', interactionId: '', lastEventId: '', status: '', tamamlandi: false,
+    hata: null, olaySayisi: 0, usage: null, ham: '', duzYanit: null
+  }
 }
 
 /** Tek bir SSE blogunu (bos satira kadar olan kisim) durum uzerine isler. */
@@ -6091,7 +6117,11 @@ function geminiSseBlogunuIsle(blok: string, durum: GeminiAkisDurum): void {
  * Akisi tuketir. `dokun` her veri parcasinda cagrilir — sessizlik sayacini
  * sifirlayan sey bu, yani "yavas model" ile "olu baglanti" burada ayriliyor.
  */
-async function geminiAkisiTuket(res: Response, durum: GeminiAkisDurum, dokun: () => void): Promise<void> {
+async function geminiAkisiTuket(
+  res: Response,
+  durum: GeminiAkisDurum,
+  dokun: (veriGeldi?: boolean) => void
+): Promise<void> {
   const reader = res.body?.getReader?.()
   if (!reader) { durum.hata = 'akis govdesi okunamadi'; return }
   const dec = new TextDecoder()
@@ -6099,8 +6129,10 @@ async function geminiAkisiTuket(res: Response, durum: GeminiAkisDurum, dokun: ()
   while (true) {
     const { done, value } = await reader.read()
     if (done) break
-    dokun()
-    tampon += dec.decode(value, { stream: true })
+    dokun(true)
+    const parca = dec.decode(value, { stream: true })
+    durum.ham += parca
+    tampon += parca
     let kes = tampon.indexOf('\n\n')
     while (kes !== -1) {
       geminiSseBlogunuIsle(tampon.slice(0, kes), durum)
@@ -6109,6 +6141,33 @@ async function geminiAkisiTuket(res: Response, durum: GeminiAkisDurum, dokun: ()
     }
   }
   if (tampon.trim()) geminiSseBlogunuIsle(tampon, durum)
+
+  /* YUZEY AKISI YOK SAYDIYSA. Tek bir olay bile cikmadiysa gelen sey SSE
+     degil, duz bir Interaction JSON'udur — 18.10.2026 kosusunda olan tam
+     buydu. Bunu copa atmak, akis uygulanmadan ONCE calisan bir yolu
+     kirmak olurdu; ayristirip normal yanit gibi kullaniyoruz. */
+  if (durum.olaySayisi === 0 && durum.ham.trim()) {
+    try {
+      const d = JSON.parse(durum.ham)
+      if (d && typeof d === 'object') {
+        durum.duzYanit = d
+        durum.tamamlandi = true
+        durum.status = String(d.status || 'completed')
+        durum.interactionId = String(d.id || durum.interactionId)
+        console.warn(
+          `Gemini: yuzey stream'i yok saydi (olay yok, ${durum.ham.length} karakter ` +
+          `duz JSON geldi) — yanit akissiz yoldaki gibi okundu, status=${durum.status}`
+        )
+      }
+    } catch (_e) {
+      /* Ne SSE ne JSON. Govdenin basi loga girsin, bir daha teshis
+         gerekmesin — sessiz bir basarisizlik en pahali olani. */
+      console.warn(
+        `Gemini: akisda olay yok ve govde JSON degil (${durum.ham.length} karakter): ` +
+        durum.ham.slice(0, 200)
+      )
+    }
+  }
 }
 
 /**
@@ -6120,15 +6179,30 @@ async function geminiAkisIstegi(
   init: RequestInit,
   durum: GeminiAkisDurum,
   mutlakMs: number,
-  sessizlikMs: number
+  sessizlikMs: number,
+  /* Ilk byte toleransi. Varsayilan sabit; parametre oldugu icin testler
+     100 saniye beklemeden hangi sayacin kestigini olcebiliyor. */
+  ilkByteMsIstenen: number = GEMINI_FIRST_BYTE_MS
 ): Promise<{ status: number; body: string } | null> {
   const controller = new AbortController()
   let sebep = ''
   const mutlak = setTimeout(() => { sebep = `mutlak tavan (${mutlakMs}ms)`; controller.abort() }, mutlakMs)
+  /* IKI AYRI BEKLEME. Ilk byte'a kadar GEMINI_FIRST_BYTE_MS (yok sayilan
+     akista yanitin tamami 90+ saniyede geliyor), ondan sonra sessizlikMs.
+     Tek sayac bu ikisini ayirt edemiyordu — bkz. GEMINI_FIRST_BYTE_MS. */
+  const ilkByteMs = Math.min(mutlakMs, ilkByteMsIstenen)
+  let veriGeldi = false
   let sessiz: number | undefined
-  const dokun = () => {
+  const dokun = (veri = false) => {
+    if (veri) veriGeldi = true
     if (sessiz !== undefined) clearTimeout(sessiz)
-    sessiz = setTimeout(() => { sebep = `sessizlik (${sessizlikMs}ms olay gelmedi)`; controller.abort() }, sessizlikMs)
+    const sure = veriGeldi ? sessizlikMs : ilkByteMs
+    sessiz = setTimeout(() => {
+      sebep = veriGeldi
+        ? `sessizlik (${sessizlikMs}ms olay gelmedi)`
+        : `ilk byte gelmedi (${ilkByteMs}ms)`
+      controller.abort()
+    }, sure)
   }
   dokun()
   try {
@@ -6338,6 +6412,10 @@ async function callGeminiOnce(
     const durum = geminiAkisDurumu()
     const hata = await geminiAkisIstegi(GEMINI_ENDPOINT, init, durum, timeoutMs, GEMINI_SILENCE_MS)
     if (hata) return { ok: false, status: hata.status, body: hata.body }
+    /* Yuzey akisi yok saydiysa elimizde GERCEK yanit nesnesi var; sentez
+       etmeye gerek yok ve etmemek daha dogru (usage, steps, errors alanlari
+       oldugu gibi kaliyor). */
+    if (durum.duzYanit) return { ok: true, data: durum.duzYanit }
     if (durum.tamamlandi) return { ok: true, data: geminiAkisSonucu(durum) }
     /* Akis tamamlanmadan bitti. Elde kismi metin VAR — cagiran taraf once
        devam ettirmeyi, sonra kurtarmayi deneyecek (bkz. geminiDraft). */

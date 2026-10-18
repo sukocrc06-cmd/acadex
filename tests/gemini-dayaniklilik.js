@@ -62,7 +62,8 @@ const G = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'geminiUnknownParameter', 'geminiQuotaExhausted', 'extractGeminiText',
   'geminiProblem', 'callGeminiOnce', 'geminiDraft',
   // Akis (SSE) yolu — 18.10.2026.
-  'GEMINI_SILENCE_MS', 'GEMINI_PARTIAL_MIN_CHARS', 'GEMINI_MAX_RESUMES',
+  'GEMINI_SILENCE_MS', 'GEMINI_FIRST_BYTE_MS', 'GEMINI_PARTIAL_MIN_CHARS',
+  'GEMINI_MAX_RESUMES',
   'geminiAkisDurumu', 'geminiSseBlogunuIsle', 'geminiAkisiTuket',
   'geminiAkisIstegi', 'geminiAkisSonucu', 'geminiAkisiDevamEttir',
   'closeTruncatedJson', 'repairLatexEscapes'
@@ -375,10 +376,41 @@ test('tek TCP parcasinda birden fazla olay gelirse ikisi de islenir', () => {
   assert.equal(d.olaySayisi, 2);
 });
 
-test('SESSIZLIK sayaci: hic olay gelmezse MUTLAK TAVANDAN once keser', async () => {
-  // Asil kazanc bu: olu bir baglanti 105 saniye beklemiyor.
+test('ILK BYTE hic gelmezse sebep ILK BYTE, sessizlik DEGIL', async () => {
+  /* 18.10.2026 CANLI KOSU — bu testin dogdugu yer. Ilk surumde tek sayac
+     vardi: 25 saniye olay gelmezse kes. Yuzey stream'i yok saydigi icin
+     ilk byte 90+ saniyede geliyor ve uc model ust uste "sessizlik" diye
+     kesildi — gunluk kotadan uc istek. Iki bekleme AYRI olmali ve log
+     hangisinin tetiklendigini SOYLEMELI, yoksa ayni teshis bastan
+     yapilir. */
   fetchCalls = [];
   stubGecikmeliAkis([], { hangSonda: true });
+  const d = G.geminiAkisDurumu();
+  const t0 = Date.now();
+  try {
+    // mutlak 10 sn, ilk byte 400 ms: kesen seyin ILK BYTE sayaci oldugu kesin.
+    await quiet(() => G.geminiAkisIstegi('http://x', { method: 'POST' }, d, 10_000, 200, 400));
+  } finally { restoreFetch(); }
+  const gecen = Date.now() - t0;
+  assert.ok(/ilk byte/.test(String(d.hata)), `sebep ilk byte olmali, gelen: ${d.hata}`);
+  assert.ok(gecen < 3_000, `${gecen}ms beklendi`);
+});
+
+test('ILK BYTE toleransi sessizlikten BELIRGIN sekilde uzun', () => {
+  // Olculen yanit suresi 90-111 sn (yok sayilan akis). Ilk byte toleransi
+  // bunun altinda kalirsa her kosu bos yere kesilir.
+  assert.ok(G.GEMINI_FIRST_BYTE_MS >= 90_000,
+    `ilk byte toleransi ${G.GEMINI_FIRST_BYTE_MS}ms — olculen 90-111 sn yanit suresinin altinda`);
+  assert.ok(G.GEMINI_FIRST_BYTE_MS > G.GEMINI_SILENCE_MS * 2,
+    'iki bekleme birbirine cok yakin — ayirmanin anlami kalmiyor');
+});
+
+test('SESSIZLIK sayaci akis BASLADIKTAN SONRA devreye girer', async () => {
+  /* Ilk parca geldikten sonra akis gercekten var demektir; o noktadan
+     itibaren 25 saniyelik bosluk olu baglanti sayilir. Mutlak tavan
+     buyuk tutuluyor ki kesen seyin sessizlik oldugu kesin olsun. */
+  fetchCalls = [];
+  stubGecikmeliAkis([{ ms: 10, metin: DELTA('{"a":1') }], { hangSonda: true });
   const d = G.geminiAkisDurumu();
   const t0 = Date.now();
   try {
@@ -386,7 +418,44 @@ test('SESSIZLIK sayaci: hic olay gelmezse MUTLAK TAVANDAN once keser', async () 
   } finally { restoreFetch(); }
   const gecen = Date.now() - t0;
   assert.ok(/sessizlik/.test(String(d.hata)), `sebep sessizlik olmali, gelen: ${d.hata}`);
+  assert.equal(d.metin, '{"a":1', 'gelen parca tutulmamis');
   assert.ok(gecen < 3_000, `${gecen}ms beklendi — mutlak tavana (10.000ms) kadar bekliyor`);
+});
+
+test('YUZEY AKISI YOK SAYARSA govde DUZ JSON olarak okunur', async () => {
+  /* 18.10.2026 canli kosusunun ikinci yarisi: yuzey stream:true'yu
+     reddetmiyor, yok sayiyor. O zaman govde SSE degil duz Interaction
+     JSON'u olur. Bunu copa atmak, akis eklenmeden ONCE calisan bir yolu
+     kirmak demekti. */
+  fetchCalls = [];
+  const duz = JSON.stringify({
+    id: 'v1_duz', object: 'interaction', status: 'completed',
+    steps: [{ type: 'model_output', content: [{ type: 'text', text: '{"summary":"duz"}' }] }]
+  });
+  stubGecikmeliAkis([{ ms: 0, metin: duz }], { hangSonda: false });
+  try {
+    const r = await quiet(() => G.callGeminiOnce('K', 'm', 'sis', 'AAA', 'application/pdf', 'kul', 5000, []));
+    assert.equal(r.ok, true, 'duz JSON yanit basarisiz sayildi — akissiz yol kirilmis');
+    assert.equal(G.extractGeminiText(r.data), '{"summary":"duz"}');
+    assert.equal(r.data.id, 'v1_duz', 'yanit nesnesi sentezlenmis, oldugu gibi kullanilmamis');
+  } finally { restoreFetch(); }
+});
+
+test('ne SSE ne JSON olan govde SESSIZ gecmez', async () => {
+  // Sessiz basarisizlik en pahali olani: bir daha bastan teshis demek.
+  fetchCalls = [];
+  stubGecikmeliAkis([{ ms: 0, metin: '<html>502 Bad Gateway</html>' }], { hangSonda: false });
+  const d = G.geminiAkisDurumu();
+  const basildi = [];
+  const w = console.warn;
+  console.warn = (...a) => basildi.push(a.join(' '));
+  try {
+    await G.geminiAkisIstegi('http://x', { method: 'POST' }, d, 5000, 200);
+  } finally { console.warn = w; restoreFetch(); }
+  assert.equal(d.duzYanit, null);
+  assert.ok(basildi.some(l => /govde JSON degil/.test(l)),
+    `govde loga girmedi: ${JSON.stringify(basildi)}`);
+  assert.ok(basildi.some(l => /502 Bad Gateway/.test(l)), 'govdenin basi loga girmiyor');
 });
 
 test('SESSIZLIK sayaci olay geldikce SIFIRLANIYOR', async () => {
