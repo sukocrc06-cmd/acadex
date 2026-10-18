@@ -40,7 +40,12 @@ const NAMES = [
   'geminiQuotaExhausted',
   'PIPELINE_BUDGET_MS', 'GEMINI_PIPELINE_BUDGET_MS', 'geminiCoverageQuota',
   'buildGeminiDocInstruction', 'extractGeminiText',
-  'geminiProblem', 'geminiFigureNotes', 'callGeminiOnce', 'geminiDraft'
+  'geminiProblem', 'geminiFigureNotes', 'callGeminiOnce', 'geminiDraft',
+  // Akis (SSE) yolu — 18.10.2026.
+  'GEMINI_SILENCE_MS', 'GEMINI_PARTIAL_MIN_CHARS', 'GEMINI_MAX_RESUMES',
+  'geminiAkisDurumu', 'geminiSseBlogunuIsle', 'geminiAkisiTuket',
+  'geminiAkisIstegi', 'geminiAkisSonucu', 'geminiAkisiDevamEttir',
+  'closeTruncatedJson', 'repairLatexEscapes'
 ];
 
 // Deno global'i: cikarilan kod Deno.env.get cagiriyor. Node'da yok, kukla.
@@ -62,7 +67,12 @@ function stubFetch(responses) {
   fetchCalls = [];
   fetchQueue = responses.slice();
   globalThis.fetch = async (url, options) => {
-    fetchCalls.push({ url, body: JSON.parse(options.body), headers: options.headers });
+    fetchCalls.push({
+      url,
+      method: (options && options.method) || 'POST',
+      body: options && options.body ? JSON.parse(options.body) : null,
+      headers: options && options.headers
+    });
     const next = fetchQueue.shift();
     if (!next) throw new Error('kukla fetch: beklenenden fazla cagri yapildi');
     if (next.throw) throw next.throw;
@@ -70,11 +80,68 @@ function stubFetch(responses) {
       ok: next.status >= 200 && next.status < 300,
       status: next.status,
       json: async () => next.json,
-      text: async () => (typeof next.text === 'string' ? next.text : JSON.stringify(next.json ?? {}))
+      text: async () => (typeof next.text === 'string' ? next.text : JSON.stringify(next.json ?? {})),
+      body: akisGovdesi(next, options)
     };
   };
 }
 function restoreFetch() { globalThis.fetch = realFetch; }
+
+/* 18.10.2026 — AKIS. Cagri artik stream: true gonderiyor ve cevabi SSE
+   olarak okuyor, yani kuklanin json() dondurmesi yetmiyor. Bu yardimci,
+   testlerde yazili `json` cevabini DENK bir olay akisina ceviriyor:
+   metin step.delta olarak, durum da interaction.completed olayinin
+   tasidigi kismi kaynakta. Boylece 89 testin kurdugu senaryolar
+   degismeden akis yolunu olcuyor.
+
+   `sse` alani verilirse olaylar aynen kullanilir (akisa ozgu testler),
+   `hang: true` ise hicbir sey gonderilmez (sessizlik sayaci testi). */
+function akisGovdesi(next, options) {
+  if (!(next.status >= 200 && next.status < 300)) return undefined;
+  const enc = new TextEncoder();
+  const olay = (o) => `data: ${JSON.stringify(o)}\n\n`;
+  let parcalar;
+  if (next.hang) parcalar = null;
+  else if (next.sse) parcalar = next.sse.map(o => (typeof o === 'string' ? o : olay(o)));
+  else {
+    const d = next.json || {};
+    const durum = String(d.status || 'completed');
+    const metin = G.extractGeminiText(d);
+    parcalar = [];
+    if (metin) parcalar.push(olay({ event_type: 'step.delta', delta: { type: 'text', text: metin } }));
+    if (durum === 'in_progress' || durum === 'queued' || durum === 'requires_action') {
+      parcalar.unshift(olay({ event_type: 'interaction.status_update', interaction_id: d.id || 'v1_x', status: durum }));
+    } else {
+      parcalar.push(olay({
+        event_type: 'interaction.completed',
+        event_id: 'e1',
+        interaction: { id: d.id || 'v1_x', status: durum, usage: d.usage }
+      }));
+    }
+  }
+  let i = 0;
+  return {
+    getReader() {
+      return {
+        read() {
+          if (parcalar && i < parcalar.length) {
+            return Promise.resolve({ done: false, value: enc.encode(parcalar[i++]) });
+          }
+          if (!parcalar) {
+            return new Promise((_res, rej) => {
+              const sig = options && options.signal;
+              if (!sig) return;
+              sig.addEventListener('abort', () => {
+                const e = new Error('iptal'); e.name = 'AbortError'; rej(e);
+              });
+            });
+          }
+          return Promise.resolve({ done: true, value: undefined });
+        }
+      };
+    }
+  };
+}
 
 /** geminiDraft bilerek cok log basiyor; testlerde sessize alinir. */
 async function quiet(fn) {

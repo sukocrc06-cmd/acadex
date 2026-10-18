@@ -60,7 +60,12 @@ const G = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'GEMINI_ONLY_FALLBACK_MIN_MS', 'bytesToBase64', 'geminiModelCandidates',
   'geminiModelMissing', 'geminiFormatRejected', 'GEMINI_DUSURULEBILIR',
   'geminiUnknownParameter', 'geminiQuotaExhausted', 'extractGeminiText',
-  'geminiProblem', 'callGeminiOnce', 'geminiDraft'
+  'geminiProblem', 'callGeminiOnce', 'geminiDraft',
+  // Akis (SSE) yolu — 18.10.2026.
+  'GEMINI_SILENCE_MS', 'GEMINI_PARTIAL_MIN_CHARS', 'GEMINI_MAX_RESUMES',
+  'geminiAkisDurumu', 'geminiSseBlogunuIsle', 'geminiAkisiTuket',
+  'geminiAkisIstegi', 'geminiAkisSonucu', 'geminiAkisiDevamEttir',
+  'closeTruncatedJson', 'repairLatexEscapes'
 ]);
 
 // --- kukla fetch -----------------------------------------------------------
@@ -78,11 +83,48 @@ function stubFetch(responses) {
       ok: r.status >= 200 && r.status < 300,
       status: r.status,
       json: async () => r.json ?? {},
-      text: async () => r.text ?? JSON.stringify(r.json ?? {})
+      text: async () => r.text ?? JSON.stringify(r.json ?? {}),
+      body: sseBody(r, init)
     };
   };
 }
 function restoreFetch() { globalThis.fetch = realFetch; }
+
+/* Kukla SSE govdesi. `sse`: olay nesneleri (her biri ayri parca olarak
+   gonderilir, yani deltalarin BIRLESMESI gercekten test edilir).
+   `sseRaw`: ham metin, parcalanma sinirlarini elle kurmak icin.
+   `hang`: hic veri gondermez, yalnizca iptali bekler — sessizlik sayacinin
+   testi bu. */
+function sseBody(r, init) {
+  if (!r.sse && !r.sseRaw && !r.hang) return undefined;
+  const enc = new TextEncoder();
+  const parcalar = r.sseRaw !== undefined
+    ? [r.sseRaw]
+    : (r.sse || []).map(o => (typeof o === 'string' ? o : `data: ${JSON.stringify(o)}\n\n`));
+  let i = 0;
+  return {
+    getReader() {
+      return {
+        read() {
+          if (r.hang || i >= parcalar.length) {
+            // Iptal edilene kadar hicbir sey dondurmeyen okuma.
+            if (r.hang) {
+              return new Promise((_res, rej) => {
+                const sig = init && init.signal;
+                if (!sig) return;
+                sig.addEventListener('abort', () => {
+                  const e = new Error('iptal'); e.name = 'AbortError'; rej(e);
+                });
+              });
+            }
+            return Promise.resolve({ done: true, value: undefined });
+          }
+          return Promise.resolve({ done: false, value: enc.encode(parcalar[i++]) });
+        }
+      };
+    }
+  };
+}
 
 const BYTES = new Uint8Array([1, 2, 3, 4]);
 async function quiet(fn) {
@@ -132,12 +174,25 @@ for (const durum of ['in_progress', 'queued', 'requires_action']) {
 test('terminal olmayan durumda SONRAKI ADAY MODEL denenmez', async () => {
   // Sorun modelde degil: yanit henuz hazir degil. Aday turlamak gunluk
   // kotadan bos yere istek goturur.
-  stubFetch(new Array(10).fill({ status: 200, json: { status: 'in_progress', steps: [] } }));
+  // AKIS SURUMU: status_update in_progress gelir, completed GELMEZ.
+  stubFetch(new Array(10).fill({
+    status: 200,
+    sse: [{ event_type: 'interaction.status_update', interaction_id: 'v1_x', status: 'in_progress' }]
+  }));
   try {
     const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 300_000));
     assert.equal(out, null);
-    assert.equal(fetchCalls.length, 1,
-      `${fetchCalls.length} istek yapildi — terminal olmayan durumda tek istek yeterli`);
+    /* AKIS SURUMU (18.10.2026): sayilan sey URETIM istegi, yani POST.
+       status=in_progress ise etkilesim SUNUCUDA calisiyor olabilir ve
+       dogru hamle GET ile ayni etkilesime geri baglanmak — bu gunluk
+       kotadan istek goturmuyor. Yasak olan sey SONRAKI ADAY MODELI
+       denemek; o da tam olarak ikinci bir POST olurdu. */
+    const postlar = fetchCalls.filter(c => !c.init || !c.init.method || c.init.method === 'POST');
+    const getler = fetchCalls.filter(c => c.init && c.init.method === 'GET');
+    assert.equal(postlar.length, 1,
+      `${postlar.length} POST yapildi — terminal olmayan durumda tek uretim istegi yeterli`);
+    assert.ok(getler.length <= G.GEMINI_MAX_RESUMES,
+      `${getler.length} devam ettirme istegi, tavan ${G.GEMINI_MAX_RESUMES}`);
   } finally { restoreFetch(); }
 });
 
@@ -219,6 +274,249 @@ test('rozet metni kacis uygulanmis veriden uretiliyor', () => {
   const blok = DASH_SRC.slice(i, i + 700);
   assert.ok(/escapeHtml\(ss\.join/.test(blok),
     'atlanan asama adlari kacirilmadan HTML e giriyor');
+});
+
+
+console.log('\n6 — AKIS (SSE), SESSIZLIK SAYACI VE KISMI KURTARMA\n');
+
+/* Gecikmeli parcalar gonderen kukla akis. `adimlar`: [{ms, metin}] —
+   her parca kendinden once verilen kadar bekler. Sessizlik sayacinin
+   OLAY GELDIKCE SIFIRLANDIGINI ancak zamanla olcebiliriz. */
+function stubGecikmeliAkis(adimlar, { hangSonda = true } = {}) {
+  const enc = new TextEncoder();
+  globalThis.fetch = async (url, init) => {
+    fetchCalls.push({ url, init });
+    let i = 0;
+    return {
+      ok: true, status: 200, json: async () => ({}), text: async () => '',
+      body: {
+        getReader() {
+          return {
+            read() {
+              if (i < adimlar.length) {
+                const a = adimlar[i++];
+                return new Promise((res, rej) => {
+                  const sig = init && init.signal;
+                  const t = setTimeout(() => res({ done: false, value: enc.encode(a.metin) }), a.ms);
+                  if (sig) sig.addEventListener('abort', () => {
+                    clearTimeout(t);
+                    const e = new Error('iptal'); e.name = 'AbortError'; rej(e);
+                  });
+                });
+              }
+              if (!hangSonda) return Promise.resolve({ done: true, value: undefined });
+              return new Promise((_res, rej) => {
+                const sig = init && init.signal;
+                if (!sig) return;
+                sig.addEventListener('abort', () => {
+                  const e = new Error('iptal'); e.name = 'AbortError'; rej(e);
+                });
+              });
+            }
+          };
+        }
+      }
+    };
+  };
+}
+
+const olay = (o) => `data: ${JSON.stringify(o)}\n\n`;
+const DELTA = (t) => olay({ event_type: 'step.delta', delta: { type: 'text', text: t } });
+const TAMAM = olay({ event_type: 'interaction.completed', event_id: 'e9', interaction: { id: 'v1_a' } });
+
+test('istek AKISLI gidiyor: stream ve store gonderiliyor', async () => {
+  fetchCalls = [];
+  stubGecikmeliAkis([{ ms: 0, metin: DELTA('{"a":1}') }, { ms: 0, metin: TAMAM }], { hangSonda: false });
+  try {
+    await quiet(() => G.callGeminiOnce('K', 'm', 'sis', 'AAA', 'application/pdf', 'kul', 5000, []));
+    const govde = JSON.parse(fetchCalls[0].init.body);
+    assert.equal(govde.stream, true, 'stream gonderilmiyor — ilk byte beklemesi geri gelir');
+    assert.equal(govde.store, true, 'store gonderilmiyor — GET ile devam ettirme calismaz');
+  } finally { restoreFetch(); }
+});
+
+test("'stream' DUSURULEBILIR: yuzey reddederse akissiz yola dusulur", async () => {
+  // Hat, akisin kabul edilmedigi bir anahtarda da calismak ZORUNDA.
+  assert.ok(G.GEMINI_DUSURULEBILIR.includes('stream'), "'stream' dusurulebilir degil");
+  assert.ok(G.GEMINI_DUSURULEBILIR.includes('store'), "'store' dusurulebilir degil");
+  fetchCalls = [];
+  stubFetch([{ status: 200, json: { status: 'completed', steps: [{ type: 'model_output', content: [{ type: 'text', text: '{"a":1}' }] }] } }]);
+  try {
+    const r = await quiet(() => G.callGeminiOnce('K', 'm', 'sis', 'AAA', 'application/pdf', 'kul', 5000, ['stream', 'store']));
+    assert.equal(r.ok, true, 'akissiz yol calismiyor');
+    assert.equal(G.extractGeminiText(r.data), '{"a":1}');
+    const govde = JSON.parse(fetchCalls[0].init.body);
+    assert.ok(!('stream' in govde), 'dusurulen alan yine gonderiliyor');
+  } finally { restoreFetch(); }
+});
+
+test('step.delta parcalari BIRLESIYOR', async () => {
+  fetchCalls = [];
+  stubGecikmeliAkis([
+    { ms: 0, metin: DELTA('{"sum') },
+    { ms: 0, metin: DELTA('mary":"x"') },
+    { ms: 0, metin: DELTA('}') },
+    { ms: 0, metin: TAMAM }
+  ], { hangSonda: false });
+  try {
+    const r = await quiet(() => G.callGeminiOnce('K', 'm', 'sis', 'AAA', 'application/pdf', 'kul', 5000, []));
+    assert.equal(r.ok, true);
+    assert.equal(G.extractGeminiText(r.data), '{"summary":"x"}');
+  } finally { restoreFetch(); }
+});
+
+test('tek TCP parcasinda birden fazla olay gelirse ikisi de islenir', () => {
+  // Akis sinirlari olay sinirlariyla ortusmek zorunda degil.
+  const d = G.geminiAkisDurumu();
+  for (const blok of (DELTA('a') + DELTA('b')).split('\n\n')) {
+    if (blok.trim()) G.geminiSseBlogunuIsle(blok, d);
+  }
+  assert.equal(d.metin, 'ab');
+  assert.equal(d.olaySayisi, 2);
+});
+
+test('SESSIZLIK sayaci: hic olay gelmezse MUTLAK TAVANDAN once keser', async () => {
+  // Asil kazanc bu: olu bir baglanti 105 saniye beklemiyor.
+  fetchCalls = [];
+  stubGecikmeliAkis([], { hangSonda: true });
+  const d = G.geminiAkisDurumu();
+  const t0 = Date.now();
+  try {
+    await quiet(() => G.geminiAkisIstegi('http://x', { method: 'POST' }, d, 10_000, 200));
+  } finally { restoreFetch(); }
+  const gecen = Date.now() - t0;
+  assert.ok(/sessizlik/.test(String(d.hata)), `sebep sessizlik olmali, gelen: ${d.hata}`);
+  assert.ok(gecen < 3_000, `${gecen}ms beklendi — mutlak tavana (10.000ms) kadar bekliyor`);
+});
+
+test('SESSIZLIK sayaci olay geldikce SIFIRLANIYOR', async () => {
+  /* Sayac toplam sureye baglansaydi bu kosu kesilirdi: olaylar 5 x 80ms =
+     400ms boyunca geliyor, sessizlik esigi 200ms. Her olayda sifirlandigi
+     icin kesilmemeli — "yavas ama calisiyor" ile "olu baglanti" ayrimi
+     tam olarak bu. */
+  fetchCalls = [];
+  stubGecikmeliAkis([
+    { ms: 80, metin: DELTA('{"a') },
+    { ms: 80, metin: DELTA('":1') },
+    { ms: 80, metin: DELTA(',"b"') },
+    { ms: 80, metin: DELTA(':2}') },
+    { ms: 80, metin: TAMAM }
+  ], { hangSonda: false });
+  const d = G.geminiAkisDurumu();
+  try {
+    await quiet(() => G.geminiAkisIstegi('http://x', { method: 'POST' }, d, 10_000, 200));
+  } finally { restoreFetch(); }
+  assert.equal(d.hata, null, `akis kesilmemeliydi: ${d.hata}`);
+  assert.equal(d.tamamlandi, true);
+  assert.equal(d.metin, '{"a":1,"b":2}');
+});
+
+test('error olayi cagriyi dusurur ve sebebi tasir', async () => {
+  fetchCalls = [];
+  stubGecikmeliAkis([
+    { ms: 0, metin: olay({ event_type: 'error', event_id: 'e1', error: { code: 'not_found', message: 'Result not found.' } }) }
+  ], { hangSonda: false });
+  try {
+    const r = await quiet(() => G.callGeminiOnce('K', 'm', 'sis', 'AAA', 'application/pdf', 'kul', 5000, []));
+    assert.equal(r.ok, false);
+    assert.ok(/Result not found/.test(r.body), `sebep tasinmiyor: ${r.body}`);
+  } finally { restoreFetch(); }
+});
+
+test('devam ettirme GET ile ve last_event_id vererek yapiliyor', async () => {
+  fetchCalls = [];
+  stubGecikmeliAkis([{ ms: 0, metin: TAMAM }], { hangSonda: false });
+  const d = G.geminiAkisDurumu();
+  d.interactionId = 'v1_abc';
+  d.lastEventId = 'ev42';
+  try {
+    await quiet(() => G.geminiAkisiDevamEttir('K', d, 5000));
+  } finally { restoreFetch(); }
+  const c = fetchCalls[0];
+  assert.equal(c.init.method, 'GET', 'devam ettirme POST atiyor — bu yeni bir uretim istegi olurdu');
+  assert.ok(String(c.url).includes('v1_abc'), 'etkilesim id adreste yok');
+  assert.ok(/stream=true/.test(String(c.url)), 'stream=true yok');
+  assert.ok(/last_event_id=ev42/.test(String(c.url)), 'last_event_id gonderilmiyor — akis bastan baslar');
+});
+
+console.log('\n7 — KESIK JSON KURTARMA\n');
+
+test('kesik nesne kapatilip ayristirilir', () => {
+  const kesik = '{"summary":"Makro", "key_terms":[{"term":"GSYIH","definition":"toplam"},{"term":"Enf';
+  const r = G.closeTruncatedJson(kesik);
+  assert.ok(r, 'kurtarilamadi');
+  const p = JSON.parse(r);
+  assert.equal(p.summary, 'Makro');
+  assert.equal(p.key_terms.length, 1, 'yarim eleman atilmali');
+  assert.equal(p.key_terms[0].term, 'GSYIH');
+});
+
+test('kesik dizi ortasindaki yarim DIZE atilir', () => {
+  const r = G.closeTruncatedJson('{"a":1,"list":["bir","iki","uc');
+  assert.ok(r);
+  const p = JSON.parse(r);
+  assert.deepEqual(p.list, ['bir', 'iki']);
+});
+
+test('degeri gelmemis ANAHTAR atilir', () => {
+  const r = G.closeTruncatedJson('{"a":1,"b":');
+  assert.ok(r);
+  assert.deepEqual(JSON.parse(r), { a: 1 });
+});
+
+test('kod blogu sarmalayicisi siyrilir', () => {
+  const r = G.closeTruncatedJson('```json\n{"a":1,"b":[2,3');
+  assert.ok(r);
+  assert.deepEqual(JSON.parse(r), { a: 1, b: [2, 3] });
+});
+
+test('TAM JSON oldugu gibi gecer', () => {
+  const r = G.closeTruncatedJson('{"a":1}');
+  assert.deepEqual(JSON.parse(r), { a: 1 });
+});
+
+test('kurtarilamayan girdi NULL doner (dogrulanmamis metin asla donmez)', () => {
+  assert.equal(G.closeTruncatedJson(''), null);
+  assert.equal(G.closeTruncatedJson('bu JSON degil'), null);
+  assert.equal(G.closeTruncatedJson('{'), null);
+  // Her kurtarma JSON.parse ile dogrulanir; aksi halde kart uretim yolunda
+  // 1900 satir asagida patlar (17.10.2026 dersi).
+  const r = G.closeTruncatedJson('{"a":1,"b":[1,2');
+  if (r !== null) JSON.parse(r);
+});
+
+test('dize icindeki suslu parantez yapiyi bozmuyor', () => {
+  const r = G.closeTruncatedJson('{"t":"a { b } [ c ]","x":[1,2');
+  assert.ok(r);
+  const p = JSON.parse(r);
+  assert.equal(p.t, 'a { b } [ c ]');
+});
+
+test('esik: cok kisa kismi cikti kurtarmaya GIRMEZ', () => {
+  // Sayinin kendisi bir karar: altinda kalan bir tampon zaten karta donusmez.
+  assert.ok(G.GEMINI_PARTIAL_MIN_CHARS >= 500,
+    'esik cok kucuk — ic bos bir kart ogrenciye tam kart gibi gorunur');
+  assert.ok(G.GEMINI_SILENCE_MS <= 40_000,
+    'sessizlik esigi cok buyuk — olu baglanti yine uzun bekletir');
+  assert.ok(G.GEMINI_SILENCE_MS >= 10_000,
+    'sessizlik esigi cok kucuk — dusunen model sessiz kalirken kesilir');
+});
+
+test('KISMI taslaktan uretilen kart ONBELLEGE ALINMAZ', () => {
+  // Alinirsa ayni belgeyi ozetleyen herkes yarim karti alir ve bir daha
+  // hic tam kart uretilmez.
+  assert.ok(/if \(summaryCacheKey && !eksikPencereler && geminiKismiKrk === 0\)/.test(FN_SRC),
+    'onbellek kapisi kismi karti disarida tutmuyor');
+  assert.ok(/qualityMeta\.gemini_partial = \{ kurtarilanKrk: geminiKismiKrk \}/.test(FN_SRC),
+    'kismi kart isaretlenmiyor — arayuz rozeti okuyamaz');
+});
+
+test('arayuz KISMI GEMINI rozetini okuyor', () => {
+  assert.ok(/qm\.gemini_partial/.test(DASH_SRC),
+    'dashboard gemini_partial okumuyor — kart tam kart gibi gorunur');
+  const i = DASH_SRC.indexOf('qm.gemini_partial');
+  const blok = DASH_SRC.slice(i, i + 800);
+  assert.ok(/Kısmi özet/.test(blok), 'ogrenciye gosterilen metin yok');
 });
 
 summary();

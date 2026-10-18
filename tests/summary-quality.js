@@ -3329,10 +3329,16 @@ test('onarim HER ayristirma noktasina bagli', () => {
   // canli birakirdi.
   const cagri = (SRC.match(/JSON\.parse\(repairLatexEscapes\(/g) || []).length;
   assert.ok(cagri >= 5, `yalnizca ${cagri} ayristirma noktasi onariliyor`);
-  // Onarimdan gecmeyen cagri kalmamali (vision ve kucuk yardimcilar haric
-  // tutulmuyor: hepsi model ciktisi ayristiriyor).
+  /* Onarimdan gecmeyen cagri kalmamali. Dort bilinen istisna var ve
+     hicbiri MODEL CIKTISI ayristirmiyor:
+       1. dosyanin basindaki yorumda gecen ornek (kod degil),
+       2. salvageFailedGeneration'in onarim TUTMAZSA denedigi ham kopya,
+       3. groqViaGemini'nin KENDI istek govdesini okumasi,
+       4. SSE zarfi (geminiSseBlogunuIsle): API'nin olay nesnesi. Bunu
+          onarimdan gecirmek, modelin dize icindeki GECERLI kacislarini
+          bozardi — yani tam ters yonde bir hata. */
   const toplam = (SRC.match(/JSON\.parse\(/g) || []).length;
-  assert.ok(cagri >= toplam - 3,
+  assert.ok(cagri >= toplam - 4,
     `${toplam} JSON.parse var, yalnizca ${cagri} onariliyor`);
 });
 

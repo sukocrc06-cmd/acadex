@@ -2855,6 +2855,15 @@ async function populateStudyCardModalDetails(card, docName, readOnly) {
       const krk = mw.kayipKrk ? ` (~${mw.kayipKrk.toLocaleString('tr-TR')} karakter)` : '';
       badge += `<span title="Belgenin ${yuzde}%'i özete hiç girmedi${krk}. Yeniden özetlemeyi deneyebilirsin." style="display:inline-flex;align-items:center;gap:0.25rem;font-size:0.7rem;font-weight:800;color:#b45309;background:rgba(245,158,11,0.15);padding:0.2rem 0.55rem;border-radius:999px;margin-right:0.35rem;">⚠️ Kısmi özet — belgenin ${yuzde}%'i işlenemedi</span>`;
     }
+    /* KISMI GEMINI KARTI (18.10.2026). Akis kesildiginde elde kalan JSON
+     * kurtarilip kart uretiliyor (bkz. closeTruncatedJson). Kart calisir
+     * ama belgenin sonu icinde YOK; missing_windows gibi bir yuzde
+     * hesaplanamiyor, cunku burada pencere yok — rozet bu yuzden yuzde
+     * degil ne oldugunu soyluyor. */
+    const gp = qm.gemini_partial;
+    if (gp && gp.kurtarilanKrk > 0) {
+      badge += `<span title="Özet motoruna bağlantı özet tamamlanmadan kesildi; elde kalan kısım kurtarıldı. Yeniden özetlemeyi deneyebilirsin." style="display:inline-flex;align-items:center;gap:0.25rem;font-size:0.7rem;font-weight:800;color:#b45309;background:rgba(245,158,11,0.15);padding:0.2rem 0.55rem;border-radius:999px;margin-right:0.35rem;">⚠️ Kısmi özet — belgenin sonu işlenemedi</span>`;
+    }
     const ss = Array.isArray(qm.skipped_stages) ? qm.skipped_stages : [];
     if (ss.length > 0) {
       badge += `<span title="Süre yetmediği için atlanan aşamalar: ${escapeHtml(ss.join(', '))}" style="display:inline-flex;align-items:center;gap:0.25rem;font-size:0.7rem;font-weight:800;color:#64748b;background:rgba(100,116,139,0.12);padding:0.2rem 0.55rem;border-radius:999px;margin-right:0.35rem;">⏱️ ${ss.length} aşama atlandı</span>`;
