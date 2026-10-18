@@ -51,6 +51,8 @@ a{color:inherit}
 
 /* the page: dark ID-card side + paper form side */
 .wrap{max-width:1180px;margin:10px auto 0;padding:0 28px 90px}
+/* single column: the form alone, centred */
+.sheet{grid-template-columns:minmax(0,1fr) !important;max-width:640px;margin:0 auto}
 .sheet{display:grid;grid-template-columns:minmax(0,0.95fr) minmax(0,1.05fr);background:#FFFEFB;border-radius:6px;box-shadow:0 1px 0 #E6E2D6,0 30px 60px -40px rgba(13,24,56,0.45);overflow:hidden;min-height:640px}
 .side{position:relative;background:var(--navy);color:#F1F4FA;padding:44px 48px 40px;display:flex;flex-direction:column;overflow:hidden}
 .side::after{content:"";position:absolute;top:0;bottom:0;right:-1px;width:14px;background:#FFFEFB;-webkit-mask:var(--torn) repeat-y 0 0/14px 600px;mask:var(--torn) repeat-y 0 0/14px 600px;transform:scaleX(-1)}
@@ -295,33 +297,6 @@ select.fld{appearance:none;-webkit-appearance:none;background-image:url("data:im
 <main class="wrap" id="main-content">
 <div class="sheet" data-view="register">
 
-<section class="side" aria-label="Acadex öğrenci kartı" data-tod="gun">
-<span class="eyb hand" data-greet="" data-reg="">hoş geldin</span>
-<h1 class="disp">Kartını hazırlayalım.</h1>
-<p class="lead">Birkaç satır yaz, öğrenci kartın hazır olsun.</p>
-<div class="idc" aria-hidden="true" data-idc="">
-<div class="idc-sw" data-swing="">
-<i class="idc-cord"></i>
-<div class="idc-card" data-card="">
-<i class="idc-clip"></i>
-<div class="idc-front">
-<span class="idc-hint hand">↻ çevir</span>
-<div class="idc-top"><img src="assets/landing/acadex-logo.webp" alt=""><span class="mono">ACADEX · ÖĞRENCİ</span></div>
-<div class="idc-body"><span class="idc-ph" data-ph=""></span><span class="idc-txt"><small class="mono">AD</small><b class="idc-name hand" data-name="">Sen</b><em data-dept="">Her bölüm</em><em class="mono" data-no="">Pilot · 2026</em></span></div>
-<div class="idc-line"></div>
-</div>
-<div class="idc-back">
-<span class="hand">Bu kart sana ait.</span>
-<span class="hand">Bir sorun olursa şifreni değil, bizi ara — birlikte çözeriz.</span>
-<span class="mono">ACADEX PİLOT EKİBİ · bize yaz</span>
-</div>
-<span class="idc-stamp mono" data-stamp="">KAYIT</span>
-</div>
-</div>
-</div>
-
-<p class="side-note">Pilot program açık. <b>Kayıt ücretsiz.</b></p>
-</section>
 
 <section class="main" aria-labelledby="title">
 <nav class="tabs land" aria-label="Giriş ya da kayıt" style="--hr:-.6deg">
@@ -563,6 +538,7 @@ select.fld{appearance:none;-webkit-appearance:none;background-image:url("data:im
   var nameEl = $('[data-name]'), deptEl = $('[data-dept]'), noEl = $('[data-no]'), ph = $('[data-ph]');
   var cap = function (w) { return w ? w.charAt(0).toLocaleUpperCase('tr') + w.slice(1).toLocaleLowerCase('tr') : ''; };
   var upd = function () {
+    if (!nameEl || !deptEl || !noEl) return; /* the card panel is optional */
     var n = fn.value.trim().split(/\s+/).filter(Boolean).map(cap).join(' ');
     nameEl.textContent = n || 'Sen';
     deptEl.textContent = dep.value ? dep.options[dep.selectedIndex].text : 'Her bölüm';
@@ -594,6 +570,7 @@ select.fld{appearance:none;-webkit-appearance:none;background-image:url("data:im
   };
   var apply = function () {
     window.__registrationAvatarUrl = chosen ? url(chosen, seed) : null;
+    if (!ph) return;
     ph.innerHTML = '';
     if (chosen) { var im = document.createElement('img'); im.alt = ''; im.src = url(chosen, seed); ph.appendChild(im); }
   };

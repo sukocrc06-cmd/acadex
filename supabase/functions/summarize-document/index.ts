@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 import { extractText, getDocumentProxy } from "npm:unpdf"
 import mammoth from "npm:mammoth@1.6.0"
 import JSZip from "npm:jszip@3.10.1"
+import { PDFDocument } from "npm:pdf-lib@1.17.1"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -59,6 +60,11 @@ function isDailyQuotaError(body: string): boolean {
 }
 
 async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2, timeoutMs = 25000): Promise<Response> {
+  // GEMINI_MODE=parallel: Groq'a giden HER cagri (callGroqJson, gorsel
+  // gecisler, review) burada Gemini'ye cevrilir — bkz. groqViaGemini.
+  if (url === GROQ_CHAT_URL && geminiParallelActive()) {
+    return groqViaGemini(options, maxRetries, timeoutMs)
+  }
   let lastRateLimitedResponse: Response | null = null
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const controller = new AbortController()
@@ -1610,6 +1616,8 @@ const tokenPacer = {
 
   /** Clamp a requested completion budget to what this model can actually emit. */
   clampCompletion(model: string, requested: number): number {
+    // Gemini paralel modunda OTPM tavani Groq'a ait, Gemini'yi baglamaz.
+    if (geminiParallelActive()) return requested
     const cap = this.maxCompletion(model)
     if (cap === null || !(requested > cap)) return requested
     console.log(`TokenPacer[${model}]: max_completion ${requested} -> ${cap} (OTPM tavani)`)
@@ -1671,6 +1679,7 @@ const tokenPacer = {
    * full window, but now that lanes are per model the pacer can simply say.
    */
   waitEstimate(estTokens: number, model: string, estCompletion = 0): number {
+    if (geminiParallelActive()) return 0
     return Math.max(
       this.waitFor(this.lane(model).spent, this.lane(model).limit * PACER_SAFETY, estTokens, model, false),
       this.waitFor(this.lane(model).outSpent, this.maxCompletion(model) ?? Infinity, estCompletion, model, true)
@@ -1701,6 +1710,9 @@ const tokenPacer = {
 
   /** Block until this call's estimated cost fits in that model's rolling budget. */
   async acquire(estTokens: number, model: string, estCompletion = 0): Promise<void> {
+    // Gemini paralel modunda cagrilar Groq'a gitmiyor (bkz. groqViaGemini);
+    // 8.000 TPM defterine gore beklemek, paralelligin tamamini geri alirdi.
+    if (geminiParallelActive()) return
     const lane = this.lane(model)
     const budget = lane.limit * PACER_SAFETY
     const outBudget = this.maxCompletion(model)
@@ -5303,10 +5315,244 @@ const GEMINI_GROQ_RESERVE_MS = 52_000
    bos donuyor. Gemini guvenilir sekilde tamamlanana kadar Groq agda
    kalir: yarim bir Groq karti, karti olmamasindan iyidir. GEMINI_MODE=only
    ile deneme modu istenildigi zaman acilabilir. */
-function geminiMode(): 'only' | 'shadow' {
-  return String(Deno.env.get('GEMINI_MODE') || '').trim().toLowerCase() === 'only'
-    ? 'only'
-    : 'shadow'
+function geminiMode(): 'only' | 'shadow' | 'parallel' {
+  const m = String(Deno.env.get('GEMINI_MODE') || '').trim().toLowerCase()
+  if (m === 'only') return 'only'
+  if (m === 'parallel') return 'parallel'
+  return 'shadow'
+}
+
+/* ==========================================================================
+   GEMINI PARALEL MODU (19.10.2026) — GEMINI_MODE=parallel
+   ==========================================================================
+   NEDEN: only/shadow modlari PDF'in TAMAMINI tek cagrida gonderiyor. Olculen
+   sure 67-111 sn (yukaridaki yorumlar) ve her sayfa gorsel olarak
+   ucretlendiriliyor. Hedef 10-20 sn ve sayfa basina dusuk maliyet.
+
+   NE YAPAR: Groq icin yazilmis hattin TAMAMI (pencereler, birlesim, sentez,
+   anlati yazari, review, kalite kapilari, atif baglama) oldugu gibi calisir;
+   yalnizca LLM cagrilari Groq yerine Gemini'ye gider:
+
+     - fetchWithRetry, Groq adresine giden istegi yakalar ve groqViaGemini'ye
+       verir. Hattin bes ayri cagri noktasinin hicbiri degismedi.
+     - tokenPacer bu modda beklemez: Groq'un 8.000 TPM'i burada yok.
+     - Uzun belgede pencereler AYNI ANDA gonderilir (GEMINI_PARALLEL_CONCURRENCY).
+     - Metin sayfalari METIN olarak gider (sayfa basina ~400-700 token);
+       yalnizca metni bos sayfalar kucuk bir PDF'e kesilip gorsel olarak
+       gider (bkz. buildPdfSubsetBase64). Taranmis/gorsel sayfa disinda
+       hicbir sayfa resim olarak ucretlendirilmez.
+
+   MODELLER: pencereler ve kontrol gecisleri GEMINI_FAST_MODEL (varsayilan
+   Flash-Lite), MODEL_HEAVY seridi (sentez, anlati yazari) GEMINI_MODEL.
+   Model adlari hizli degisiyor; ikisi de secret ile ezilebilir.
+
+   ON KOSUL: Gemini UCRETLI katmani. Ucretsiz katmanin RPM 5 / RPD 20
+   limiti tek bir paralel kosuyu bile kaldirmaz.
+
+   KAPATMAK: GEMINI_MODE secret'ini 'shadow' yapmak ya da silmek.
+   ========================================================================== */
+function geminiParallelActive(): boolean {
+  return geminiMode() === 'parallel' && !!Deno.env.get('GEMINI_API_KEY')
+}
+
+const GROQ_CHAT_URL = 'https://api.groq.com/openai/v1/chat/completions'
+const GEMINI_GENERATE_BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
+const GEMINI_FAST_MODEL_DEFAULT = 'gemini-3.5-flash-lite'
+/** Ayni anda ucusta olabilecek pencere sayisi. Ucretli katmanin RPM'i bunu rahat kaldirir. */
+const GEMINI_PARALLEL_CONCURRENCY = 10
+/** Paralel modda okunabilecek en fazla pencere (13.000 krk x 40 ~ 200+ sayfa). */
+const GEMINI_PARALLEL_MAX_WINDOWS = 40
+/** Gorsel gecise kesilip gonderilecek en fazla sayfa (tek mini-PDF). */
+const GEMINI_VISION_MAX_PAGES = 12
+/** Groq'un dar cikis tavanlari Gemini'de gereksiz; JSON'un yarim kalmamasi icin taban. */
+const GEMINI_PARALLEL_MIN_OUTPUT = 8192
+
+/** Bu istekteki Gemini harcamasi — maliyeti olcmek icin karta (quality_meta) yazilir. */
+const geminiParallelUsage = { calls: 0, prompt: 0, output: 0, thoughts: 0, models: {} as Record<string, number> }
+function resetGeminiParallelUsage() {
+  geminiParallelUsage.calls = 0
+  geminiParallelUsage.prompt = 0
+  geminiParallelUsage.output = 0
+  geminiParallelUsage.thoughts = 0
+  geminiParallelUsage.models = {}
+}
+
+/**
+ * PDF'in yalnizca verilen (0 tabanli) sayfalarindan yeni bir PDF uretir ve
+ * base64 dondurur. Gemini bunu native okur: PNG'ye cevirme (PDF.co) adimi ve
+ * metni zaten cikarilmis sayfalarin gorsel ucreti yok. Basarisizlikta null.
+ */
+async function buildPdfSubsetBase64(fileBytes: Uint8Array, pageIndices: number[]): Promise<string | null> {
+  try {
+    const src = await PDFDocument.load(fileBytes, { ignoreEncryption: true })
+    const total = src.getPageCount()
+    const indices = Array.from(new Set(pageIndices)).filter(i => i >= 0 && i < total).sort((a, b) => a - b)
+    if (indices.length === 0) return null
+    const out = await PDFDocument.create()
+    const pages = await out.copyPages(src, indices)
+    for (const p of pages) out.addPage(p)
+    return bytesToBase64(await out.save())
+  } catch (err) {
+    console.warn('buildPdfSubsetBase64: mini-PDF uretilemedi:', err)
+    return null
+  }
+}
+
+/** Groq model seridine karsilik gelen Gemini aday listesi. */
+function geminiModelsForLane(groqModel: string): string[] {
+  const heavy = String(Deno.env.get('GEMINI_MODEL') || '').trim() || GEMINI_MODEL_CANDIDATES[0]
+  const fast = String(Deno.env.get('GEMINI_FAST_MODEL') || '').trim() || GEMINI_FAST_MODEL_DEFAULT
+  const first = groqModel === MODEL_HEAVY ? heavy : fast
+  const out: string[] = []
+  for (const m of [first, fast, heavy, ...GEMINI_MODEL_CANDIDATES]) {
+    if (m && out.indexOf(m) === -1) out.push(m)
+  }
+  return out
+}
+
+/** OpenAI bicimindeki bir mesaj icerigini Gemini part listesine cevirir. */
+function openAiContentToGeminiParts(content: unknown): any[] {
+  if (typeof content === 'string') return content ? [{ text: content }] : []
+  if (!Array.isArray(content)) return []
+  const parts: any[] = []
+  for (const c of content) {
+    if (!c || typeof c !== 'object') continue
+    if (c.type === 'text' && typeof c.text === 'string') {
+      parts.push({ text: c.text })
+    } else if (c.type === 'image_url') {
+      const url = String(c.image_url?.url || '')
+      const m = url.match(/^data:([^;,]+);base64,(.*)$/s)
+      if (m) parts.push({ inlineData: { mimeType: m[1], data: m[2] } })
+    }
+  }
+  return parts
+}
+
+/**
+ * Groq chat-completions istegini Gemini generateContent'e cevirir ve cevabi
+ * Groq'un bicimiyle (choices[0].message.content + usage) geri verir. Cagiran
+ * kodun hicbir satiri hangi saglayicinin cevap verdigini bilmez.
+ */
+async function groqViaGemini(options: RequestInit, maxRetries: number, timeoutMs: number): Promise<Response> {
+  const apiKey = Deno.env.get('GEMINI_API_KEY') || ''
+  let req: any
+  try {
+    req = JSON.parse(String(options.body || '{}'))
+  } catch (_e) {
+    return new Response(JSON.stringify({ error: { message: 'groqViaGemini: istek govdesi okunamadi' } }), { status: 400 })
+  }
+  const messages: any[] = Array.isArray(req.messages) ? req.messages : []
+  const systemText = messages
+    .filter(m => m?.role === 'system')
+    .map(m => typeof m.content === 'string' ? m.content : openAiContentToGeminiParts(m.content).map(p => p.text || '').join('\n'))
+    .join('\n\n')
+  const contents = messages
+    .filter(m => m?.role !== 'system')
+    .map(m => ({ role: m?.role === 'assistant' ? 'model' : 'user', parts: openAiContentToGeminiParts(m?.content) }))
+    .filter(c => c.parts.length > 0)
+
+  const generationConfig: Record<string, unknown> = {
+    maxOutputTokens: Math.max(Number(req.max_completion_tokens || req.max_tokens || 0), GEMINI_PARALLEL_MIN_OUTPUT)
+  }
+  if (typeof req.temperature === 'number') generationConfig.temperature = req.temperature
+  if (req.response_format?.type === 'json_object') generationConfig.responseMimeType = 'application/json'
+  // Dusuk dusunme: hiz ve maliyet icin. Yuzey reddederse asagida dusurulur.
+  let thinking: Record<string, unknown> | null = {
+    thinkingLevel: String(Deno.env.get('GEMINI_THINKING_LEVEL') || 'low').trim()
+  }
+
+  const body = () => JSON.stringify({
+    ...(systemText ? { systemInstruction: { parts: [{ text: systemText }] } } : {}),
+    contents,
+    generationConfig: thinking ? { ...generationConfig, thinkingConfig: thinking } : generationConfig
+  })
+
+  let lastStatus = 0
+  let lastBody = ''
+  for (const model of geminiModelsForLane(String(req.model || ''))) {
+    for (let attempt = 0; attempt <= Math.max(1, maxRetries); attempt++) {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), timeoutMs)
+      let res: Response
+      try {
+        res = await fetch(`${GEMINI_GENERATE_BASE}/${encodeURIComponent(model)}:generateContent`, {
+          method: 'POST',
+          headers: { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json' },
+          body: body(),
+          signal: controller.signal
+        })
+      } catch (err) {
+        clearTimeout(timer)
+        lastStatus = 0
+        lastBody = (err as any)?.name === 'AbortError' ? `zaman asimi (${timeoutMs}ms)` : String((err as any)?.message || err)
+        console.warn(`Gemini[${model}] paralel: ${lastBody}`)
+        continue
+      }
+      clearTimeout(timer)
+
+      if (res.ok) {
+        const data = await res.json()
+        const text = extractGeminiText(data)
+        const finish = String(data?.candidates?.[0]?.finishReason || 'STOP')
+        if (!text.trim()) {
+          lastStatus = 502
+          lastBody = `bos cevap (finishReason=${finish})`
+          console.warn(`Gemini[${model}] paralel: ${lastBody}`)
+          break
+        }
+        const u = data?.usageMetadata || {}
+        const promptTok = Number(u.promptTokenCount) || 0
+        const outTok = Number(u.candidatesTokenCount) || 0
+        const thoughtTok = Number(u.thoughtsTokenCount) || 0
+        geminiParallelUsage.calls++
+        geminiParallelUsage.prompt += promptTok
+        geminiParallelUsage.output += outTok
+        geminiParallelUsage.thoughts += thoughtTok
+        geminiParallelUsage.models[model] = (geminiParallelUsage.models[model] || 0) + 1
+        return new Response(JSON.stringify({
+          model,
+          choices: [{
+            message: { role: 'assistant', content: text },
+            finish_reason: finish === 'MAX_TOKENS' ? 'length' : 'stop'
+          }],
+          usage: {
+            prompt_tokens: promptTok,
+            completion_tokens: outTok + thoughtTok,
+            total_tokens: Number(u.totalTokenCount) || promptTok + outTok + thoughtTok
+          }
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+
+      lastStatus = res.status
+      try { lastBody = (await res.text()).slice(0, 800) } catch (_e) { lastBody = '' }
+
+      if (thinking && res.status === 400 && /thinking/i.test(lastBody)) {
+        console.warn(`Gemini[${model}] paralel: thinkingConfig reddedildi — dusurulup tekrar deneniyor`)
+        thinking = null
+        attempt--
+        continue
+      }
+      if (geminiModelMissing(res.status, lastBody)) {
+        console.warn(`Gemini[${model}] paralel: model yok (${res.status}) — sonraki aday`)
+        break
+      }
+      if (res.status === 429 || res.status >= 500) {
+        if (geminiQuotaExhausted(res.status, lastBody)) {
+          console.error(`Gemini[${model}] paralel: GUNLUK kota dolu — ucretli katman acik mi?`)
+          return new Response(lastBody, { status: 429 })
+        }
+        console.warn(`Gemini[${model}] paralel: gecici ${res.status} (deneme ${attempt + 1}) — ${lastBody.slice(0, 160)}`)
+        await new Promise(r => setTimeout(r, 1200 * (attempt + 1)))
+        continue
+      }
+      console.warn(`Gemini[${model}] paralel: basarisiz ${res.status} — ${lastBody.slice(0, 240)}`)
+      return new Response(lastBody || JSON.stringify({ error: { message: `Gemini ${res.status}` } }), { status: res.status })
+    }
+  }
+  return new Response(
+    JSON.stringify({ error: { message: `Gemini paralel: hicbir model cevap vermedi (${lastStatus}: ${lastBody.slice(0, 200)})` } }),
+    { status: lastStatus >= 400 ? lastStatus : 502 }
+  )
 }
 
 /* only modunda butun istek Gemini'nin: 120 sn butce, geriye kapilar ve
@@ -6091,8 +6337,11 @@ serve(async (req) => {
     // nothing else — which is exactly what the student's "first press errors,
     // second press works" looks like in the logs, with no way to tell WHICH
     // of the five exits it took. Each one now names itself.
-    const { documentId, summaryStyle, language, summaryLength, analyzeVisuals, depth: depthRaw } = await req.json()
-    console.log(`Istek alindi: documentId=${documentId ?? '(yok)'}, visuals=${analyzeVisuals ? 'evet' : 'hayir'}`)
+    const { documentId, summaryStyle, language, summaryLength, analyzeVisuals: analyzeVisualsRequested, depth: depthRaw } = await req.json()
+    // let: Lite planinda gorsel analiz kapali — kota okununca dusurulebilir.
+    let analyzeVisuals = !!analyzeVisualsRequested
+    resetGeminiParallelUsage()
+    console.log(`Istek alindi: documentId=${documentId ?? '(yok)'}, visuals=${analyzeVisuals ? 'evet' : 'hayir'}, gemini_mode=${geminiMode()}`)
     if (!documentId) {
       console.warn('Erken cikis 400: documentId gonderilmedi')
       return new Response(JSON.stringify({ error: 'documentId is required' }), {
@@ -6450,6 +6699,109 @@ serve(async (req) => {
     }
 
     // ==========================================================================
+    // KOTA + OZET CACHE'I (19.10.2026) — bkz. 20261019_ozet_cache_ve_kota.sql
+    //
+    // Burada, yani metin cikarildiktan ve document_chunks yazildiktan SONRA,
+    // ilk model cagrisindan ONCE duruyor: cache'ten gelen belgede de
+    // chat-with-document calismaya devam eder, ama hicbir LLM token'i harcanmaz.
+    //
+    // Sira bilincli: once cache, sonra kota. Cache isabeti maliyetsiz oldugu
+    // icin sayfa kotasindan dusulmez ve kotasi dolmus kullanici da ayni
+    // dosyanin hazir ozetini alabilir.
+    //
+    // Migration uygulanmamissa her iki adim da uyari yazip atlanir.
+    // ==========================================================================
+    const billablePages = pdfPageTexts.length > 0
+      ? pdfPageTexts.length
+      : Math.max(1, Math.ceil(extractedText.length / 3000))
+
+    // Kota cache'ten ONCE okunur ama ancak cache'ten SONRA uygulanir: plan
+    // gorsel analizi kapatiyorsa bu, cache anahtarina da yansimali.
+    let quota: any = null
+    {
+      const { data, error: quotaErr } = await serviceClient
+        .rpc('get_summary_quota', { p_user: document.user_id })
+      if (quotaErr || !data) {
+        console.warn(`Kota okunamadi (${quotaErr?.message ?? 'bos'}) — kota kontrolu atlandi`)
+      } else {
+        quota = data
+        if (analyzeVisuals && quota.visual_analysis === false) {
+          analyzeVisuals = false
+          console.log(`Gorsel analiz kapatildi: ${quota.plan} planinda yok`)
+        }
+      }
+    }
+
+    let summaryCacheKey: string | null = null
+    try {
+      const contentHash = await sha256Hex(fileBytes)
+      summaryCacheKey = [contentHash, lang, style, len, analyzeVisuals ? 'v' : 'nv', SUMMARY_CACHE_VERSION].join(':')
+      const { data: cached, error: cacheErr } = await serviceClient
+        .from('summary_cache')
+        .select('card')
+        .eq('cache_key', summaryCacheKey)
+        .maybeSingle()
+      if (cacheErr) {
+        console.warn(`summary_cache okunamadi (${cacheErr.message}) — cache atlandi`)
+      } else if (cached?.card) {
+        const cachedPayload: Record<string, unknown> = {
+          ...cached.card,
+          document_id: documentId,
+          user_id: document.user_id,
+          course_tag: document.course_tag ?? null
+        }
+        let hit = await serviceClient.from('study_cards').insert(cachedPayload).select('id').single()
+        if (hit.error && /quality_meta/i.test(String(hit.error.message || hit.error.details || ''))) {
+          delete cachedPayload.quality_meta
+          hit = await serviceClient.from('study_cards').insert(cachedPayload).select('id').single()
+        }
+        if (hit.error) {
+          console.warn(`Cache isabeti kaydedilemedi (${hit.error.message}) — normal akisa devam`)
+        } else {
+          await serviceClient
+            .from('documents')
+            .update({ status: 'summarized', processing_stage: null })
+            .eq('id', documentId)
+          await bestEffortRpc(serviceClient, 'touch_summary_cache', { p_key: summaryCacheKey })
+          await bestEffortRpc(serviceClient, 'record_summary_usage', { p_user: document.user_id, p_pages: 0, p_cache_hit: true })
+          console.log(`CACHE ISABETI: ${summaryCacheKey.slice(0, 16)}… — ${Date.now() - requestStartedAt}ms, model cagrisi yok`)
+          return new Response(JSON.stringify({ success: true, studyCardId: hit.data.id, cached: true }), {
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          })
+        }
+      }
+    } catch (cacheEx) {
+      console.warn('summary_cache: beklenmeyen hata, atlandi:', cacheEx)
+    }
+
+    {
+      if (quota) {
+        const isTr = lang === 'tr'
+        let quotaError: string | null = null
+        if (billablePages > quota.max_pages_per_doc) {
+          quotaError = isTr
+            ? `Bu belge ${billablePages} sayfa. ${quota.plan === 'premium' ? 'Premium' : 'Lite'} planında belge başına en fazla ${quota.max_pages_per_doc} sayfa özetlenebilir.`
+            : `This document has ${billablePages} pages. The ${quota.plan} plan allows up to ${quota.max_pages_per_doc} pages per document.`
+        } else if (quota.pages_used + billablePages > quota.monthly_pages) {
+          const kalan = Math.max(0, quota.monthly_pages - quota.pages_used)
+          quotaError = isTr
+            ? `Aylık sayfa kotan doldu (${quota.pages_used}/${quota.monthly_pages}, kalan ${kalan}). Bu belge ${billablePages} sayfa.`
+            : `Monthly page quota reached (${quota.pages_used}/${quota.monthly_pages}, ${kalan} left). This document has ${billablePages} pages.`
+        }
+        if (quotaError) {
+          console.warn(`Erken cikis 403 (kota): plan=${quota.plan}, sayfa=${billablePages}, kullanilan=${quota.pages_used}/${quota.monthly_pages}`)
+          await markFailed(serviceClient, documentId)
+          return new Response(JSON.stringify({ error: quotaError, code: 'QUOTA_EXCEEDED' }), {
+            status: 403,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          })
+        }
+        console.log(`Kota: plan=${quota.plan}, bu belge ${billablePages} sayfa, ay icinde ${quota.pages_used}/${quota.monthly_pages}`)
+      }
+    }
+
+    // ==========================================================================
     // VISUAL-DENSITY SIGNAL (Denetim Raporu, 2026-08-31)
     // CHUNK_THRESHOLD below only ever measures character COUNT. That is the
     // right signal for deciding whether the text needs the chunked/map-reduce
@@ -6598,8 +6950,10 @@ serve(async (req) => {
     // ==========================================================================
     // STEP 2 — CALL GROQ API WITH THE EXTRACTED TEXT
     // ==========================================================================
-    const groqApiKey = Deno.env.get('GROQ_API_KEY')
-    if (!groqApiKey) {
+    // Paralel modda Groq'a hic cagri gitmez (bkz. groqViaGemini); anahtar
+    // yoksa bos string yeter.
+    const groqApiKey = Deno.env.get('GROQ_API_KEY') || (geminiParallelActive() ? '' : undefined)
+    if (groqApiKey === undefined) {
       console.error('Missing GROQ_API_KEY env secret')
       await markFailed(serviceClient, documentId)
       return new Response(JSON.stringify({ error: 'AI summarization key not configured' }), {
@@ -6751,6 +7105,13 @@ ${styleInstruction}`
       if (!geminiApiKey) {
         // Tek satir, her kosuda: hangi yolun calistigi loglardan belli olsun.
         console.log('Gemini: GEMINI_API_KEY yok — Groq yolu')
+      } else if (mod === 'parallel') {
+        // Tek-cagri yolu atlanir; asagidaki hat calisir ve LLM cagrilari
+        // groqViaGemini uzerinden Gemini'ye gider.
+        console.log(
+          `Gemini: mod=parallel — tum-PDF cagrisi yok, hat paralel pencerelerle ` +
+          `(${useChunkedPipeline ? 'uzun belge' : 'kisa belge'}) Gemini'de kosacak`
+        )
       } else if (!geminiMime) {
         console.log(`Gemini: atlandi (mime=${mimeType || '(yok)'}, gölge yol yalnizca PDF)`)
       } else if (fileBytes.byteLength > GEMINI_INLINE_MAX_BYTES) {
@@ -7415,7 +7776,13 @@ Rules:
       // adding more windows once time is genuinely short — that check is
       // what should decide "when to stop", not a fixed window count guessed
       // in advance.
-      const windows: string[] = splitIntoWindows(extractedText, WINDOW, MAX_CHUNKS)
+      // Paralel modda pencereler ayni anda kostugu icin tavan sureyi degil
+      // yalnizca maliyeti buyutur: 12 pencere (~156.000 krk) yerine belgenin
+      // tamami okunur. README'deki "%28 kapsama" sorunu bu modda yok.
+      const parallelGemini = geminiParallelActive()
+      const windows: string[] = splitIntoWindows(
+        extractedText, WINDOW, parallelGemini ? GEMINI_PARALLEL_MAX_WINDOWS : MAX_CHUNKS
+      )
       const windowedChars = windows.reduce((n, w) => n + w.length, 0)
       console.log(
         `Long-doc compact: ${windows.length} window(s), totalChars=${extractedText.length}, ` +
@@ -7456,7 +7823,10 @@ Rules:
           // yazimda else blogunun icinde kalmisti — scope-check yakaladi.
           const winCompletion = windowCompletionFor(compactWindowPrompt(wi, windows.length), payload)
           let windowLane: string
-          if (attempt === 0 && assignedLane) {
+          if (parallelGemini) {
+            // Pencereler toplam token'in cogu: ucuz serit (Flash-Lite).
+            windowLane = MODEL_EXTRACT
+          } else if (attempt === 0 && assignedLane) {
             windowLane = assignedLane
           } else {
             const est = estimateTokens(compactWindowPrompt(wi, windows.length), payload, winCompletion)
@@ -7599,10 +7969,12 @@ Rules:
         fits: tokenPacer.safeConcurrency(estWindowTokens, m),
         lane: tokenPacer.lane(m)
       }))
-      const windowConcurrency = Math.min(
-        CHUNK_CONCURRENCY,
-        Math.max(1, perLane.reduce((n, l) => n + l.fits, 0))
-      )
+      const windowConcurrency = parallelGemini
+        ? Math.max(1, Math.min(GEMINI_PARALLEL_CONCURRENCY, windows.length))
+        : Math.min(
+          CHUNK_CONCURRENCY,
+          Math.max(1, perLane.reduce((n, l) => n + l.fits, 0))
+        )
       console.log(
         `Window concurrency: ${windowConcurrency} ` +
         `(${perLane.map(l => `${l.model}: ${l.lane.limit} TPM${l.lane.limitKnown ? '' : '/varsayilan'} -> ${l.fits}`).join(', ')}, ` +
@@ -7629,7 +8001,9 @@ Rules:
           break
         }
         // Enough good extractions already?
-        if (windowResults.length >= 4) {
+        // Paralel modda DEGIL: orada bir sonraki parti beklemesizdir ve bu
+        // kisayol 10'luk ilk partiden sonra belgenin geri kalanini atardi.
+        if (!parallelGemini && windowResults.length >= 4) {
           const termsSoFar = windowResults.reduce((n, r) => n + (r.key_terms?.length || 0), 0)
           if (termsSoFar >= 12) {
             console.log('Enough extractions — skipping remaining windows')
@@ -7890,7 +8264,7 @@ Use CONCRETE topic names from digests and terms. No meta filler.`
       // as the compact synthesis above.
       // ------------------------------------------------------------------
       const visualPlan = analyzeVisuals
-        ? selectVisualPages(pdfPageTexts, nearBlankPdfPageIndices, VISION_MAX_IMAGES)
+        ? selectVisualPages(pdfPageTexts, nearBlankPdfPageIndices, parallelGemini ? GEMINI_VISION_MAX_PAGES : VISION_MAX_IMAGES)
         : { indices: [] as number[], reason: 'kapali' }
 
       // Budget the vision pass the way the review gate is budgeted: what the
@@ -7923,7 +8297,17 @@ Use CONCRETE topic names from digests and terms. No meta filler.`
         try {
           console.log(`Gorsel sayfa secimi: [${visualPlan.indices.join(',')}] — ${visualPlan.reason}`)
           await serviceClient.from('documents').update({ processing_stage: 'visual_analysis' }).eq('id', documentId)
-          const visualImages = await extractVisualImagesForLongDoc(fileBytes, visualPlan.indices)
+          // Paralel modda PNG yok: secilen sayfalar TEK bir mini-PDF olarak
+          // gider (PDF.co adimi ve sayfa sayfa gorsel ucreti yok). Dizi tek
+          // elemanli olur; asagidaki data URL mime'i PDF'i tanir.
+          let visualImages: string[]
+          if (parallelGemini) {
+            const subset = await buildPdfSubsetBase64(fileBytes, visualPlan.indices)
+            visualImages = subset ? [subset] : []
+            console.log(`Gorsel gecis (paralel): ${visualPlan.indices.length} sayfa tek mini-PDF${subset ? '' : ' — URETILEMEDI, atlaniyor'}`)
+          } else {
+            visualImages = await extractVisualImagesForLongDoc(fileBytes, visualPlan.indices)
+          }
 
           if (visualImages.length > 0) {
             const knownTermsHint = mergedKeyTerms.slice(0, 25).map((t: any) => t.term).filter(Boolean).join(', ')
@@ -7936,7 +8320,12 @@ The example that used to sit here named a real-looking percentage, and a live ru
 
             const visualUserContent = [
               { type: "text", text: "Analyze these slide images for exam-relevant content not already covered." },
-              ...visualImages.map(b64 => ({ type: "image_url", image_url: { url: `data:image/png;base64,${b64}` } }))
+              // "JVBER" = "%PDF" base64'te: paralel moddaki mini-PDF. Groq bu
+              // mime'i hic gormez, groqViaGemini onu inlineData'ya cevirir.
+              ...visualImages.map(b64 => ({
+                type: "image_url",
+                image_url: { url: `data:${b64.startsWith('JVBER') ? 'application/pdf' : 'image/png'};base64,${b64}` }
+              }))
             ]
 
             // This call does NOT go through callGroqJson, so it has to pay the
@@ -9257,6 +9646,19 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
         qualityMeta.numeric_coverage = { kept: kapsama.kept, total: kapsama.total }
       }
       if (eksikPencereler) qualityMeta.missing_windows = eksikPencereler
+      // Paralel modun gercek maliyeti: belge basina token, model dagilimi, sure.
+      if (geminiParallelUsage.calls > 0) {
+        qualityMeta.gemini_parallel = {
+          ...geminiParallelUsage,
+          pages: billablePages,
+          total_ms: Date.now() - requestStartedAt
+        }
+        console.log(
+          `Gemini paralel maliyet: ${geminiParallelUsage.calls} cagri, ` +
+          `prompt=${geminiParallelUsage.prompt} cikti=${geminiParallelUsage.output} dusunme=${geminiParallelUsage.thoughts} token, ` +
+          `${billablePages} sayfa, ${Date.now() - requestStartedAt}ms, modeller=${JSON.stringify(geminiParallelUsage.models)}`
+        )
+      }
     }
 
     let newCard: any = null
@@ -9290,6 +9692,24 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
       .update({ status: 'summarized', processing_stage: null })
       .eq('id', documentId)
 
+    // Kota: yalnizca BASARILI ozet kullanimdan duser.
+    await bestEffortRpc(serviceClient, 'record_summary_usage', { p_user: document.user_id, p_pages: billablePages, p_cache_hit: false })
+
+    // Cache: yarim kalan (eksik pencereli) bir ozet baska ogrencilere
+    // dagitilmamali — o belge bir sonraki yuklemede tam kosuyla denenir.
+    if (summaryCacheKey && !eksikPencereler) {
+      const { document_id: _d, user_id: _u, course_tag: _c, ...shareable } = cardPayload
+      const { error: cacheWriteErr } = await serviceClient
+        .from('summary_cache')
+        .upsert({
+          cache_key: summaryCacheKey,
+          content_hash: summaryCacheKey.split(':')[0],
+          page_count: billablePages,
+          card: shareable
+        }, { onConflict: 'cache_key', ignoreDuplicates: true })
+      if (cacheWriteErr) console.warn(`summary_cache yazilamadi: ${cacheWriteErr.message}`)
+    }
+
     return new Response(JSON.stringify({ success: true, studyCardId: newCard.id }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -9303,6 +9723,26 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
     })
   }
 })
+
+/* Ozet cache surumu. Prompt, model ya da kart semasi ozeti GORUNUR sekilde
+ * degistirdiginde arttir: eski cache kayitlari anahtar uyusmadigi icin
+ * kendiliginden devre disi kalir (silmeye gerek yok). */
+const SUMMARY_CACHE_VERSION = 'c1'
+
+async function sha256Hex(bytes: Uint8Array): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', bytes as BufferSource)
+  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+/** Kota/cache RPC'leri ozet akisini asla dusurmemeli. */
+async function bestEffortRpc(client: any, fn: string, args: Record<string, unknown>) {
+  try {
+    const { error } = await client.rpc(fn, args)
+    if (error) console.warn(`${fn} basarisiz: ${error.message}`)
+  } catch (e) {
+    console.warn(`${fn} istisna:`, e)
+  }
+}
 
 async function markFailed(client: any, documentId: string) {
   try {
