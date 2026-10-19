@@ -6058,6 +6058,30 @@ body.axu-on #pomodoro-widget-container,body.axu-on #acadia-widget-container,body
 :is(#acadexsunum-view.axu,#axu-layer) .sx-slide.bg-navy .sx-tb th{background:rgba(255,255,255,.12);border-color:#fff}
 :is(#acadexsunum-view.axu,#axu-layer) .sx-slide.bg-navy .sx-tb tr:nth-child(even) td{background:rgba(255,255,255,.05)}
 :is(#acadexsunum-view.axu,#axu-layer) .sx-glass.flip .sx-el[data-type=chart] rect,:is(#acadexsunum-view.axu,#axu-layer) .sx-glass.flip .sx-el[data-type=chart] path{animation:axu-fadeUp .5s .4s both}
+/* aşama 2: web araştırması, doğrulama, görsel kütüphanesi */
+:is(#acadexsunum-view.axu,#axu-layer) .sx-chk{display:flex;gap:10px;align-items:flex-start;margin:-4px 0 14px;padding:10px 12px;border:1.4px dashed #C9D3E8;border-radius:4px 7px 5px 6px;background:#F7F9FD;cursor:pointer}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-chk input{margin:3px 0 0;width:18px;height:18px;accent-color:var(--blue);flex:none}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-chk b{display:block;font-size:15px;color:var(--navy)}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-chk small{display:block;font-size:13px;color:var(--muted);line-height:1.35}
+:is(#acadexsunum-view.axu,#axu-layer) [data-stage] .sx-el li.warn{text-decoration:underline wavy #C9483B;text-decoration-thickness:1.5px;text-underline-offset:5px}
+:is(#acadexsunum-view.axu,#axu-layer) [data-stage] .sx-el li.warn::after{content:"kaynakta yok";display:inline-block;margin-left:.5em;padding:1px 6px;border-radius:3px;background:#F4DDDA;color:#8E2A20;font-size:11px;font-weight:700;letter-spacing:.02em;vertical-align:.25em;text-decoration:none}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-imgs{width:min(860px,calc(100vw - 24px))}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-im-f{display:flex;gap:8px;margin:4px 0 8px}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-im-f input{flex:1;min-width:0;min-height:44px;padding:8px 12px;border:1.6px solid #DCE2EE;border-radius:5px;font:inherit;font-size:16px}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-im-f input:focus-visible{outline:2.5px solid var(--blue);outline-offset:1px}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-im-grid{list-style:none;margin:0;padding:4px 2px 6px;display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-im-grid[aria-busy=true]{opacity:.45}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-im-grid button{display:block;width:100%;padding:6px 6px 4px;border:0;background:#fff;box-shadow:0 6px 14px -8px rgba(13,24,56,.45);transform:rotate(var(--r,0deg));cursor:pointer;transition:transform .18s,box-shadow .18s}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-im-grid button:hover,:is(#acadexsunum-view.axu,#axu-layer) .sx-im-grid button:focus-visible{transform:rotate(0) translateY(-3px);box-shadow:0 14px 22px -10px rgba(13,24,56,.55);outline:2.5px solid var(--blue);outline-offset:2px}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-im-grid img{display:block;width:100%;height:auto;aspect-ratio:3/2;object-fit:cover;background:#EEF1F6}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-im-grid small{display:block;padding-top:4px;font-size:12px;color:var(--muted);text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (prefers-reduced-motion:reduce){:is(#acadexsunum-view.axu,#axu-layer) .sx-im-grid button{transform:none;transition:none}}
+:is(#acadexsunum-view.axu,#axu-layer) .ly-chart{background:linear-gradient(#0D1838,#0D1838) 8% 16%/40% 4px,linear-gradient(#9DB8FF,#9DB8FF) 20% 88%/12% 34%,linear-gradient(#9DB8FF,#9DB8FF) 40% 88%/12% 50%,linear-gradient(#2F6BFF,#2F6BFF) 60% 88%/12% 64%,linear-gradient(#9DB8FF,#9DB8FF) 80% 88%/12% 44%,#F4F6FA}
+:is(#acadexsunum-view.axu,#axu-layer) .ly-table{background:linear-gradient(#0D1838,#0D1838) 8% 16%/40% 4px,linear-gradient(#DCE6FF,#DCE6FF) 50% 42%/84% 10px,repeating-linear-gradient(#F4F6FA 0 7px,#C9D3E8 7px 8px) 50% 82%/84% 40%,#F4F6FA}
+:is(#acadexsunum-view.axu,#axu-layer) .ly-math{background:linear-gradient(#0D1838,#0D1838) 8% 16%/40% 4px,linear-gradient(#2F6BFF,#2F6BFF) 30% 52%/40% 3px,linear-gradient(#2F6BFF,#2F6BFF) 30% 72%/30% 3px,linear-gradient(#AEB7CC,#AEB7CC) 88% 60%/22% 2px,#F4F6FA}
+:is(#acadexsunum-view.axu,#axu-layer) .ly-diagram{background:linear-gradient(#0D1838,#0D1838) 8% 16%/40% 4px,linear-gradient(#DCE6FF,#DCE6FF) 14% 66%/20% 26%,linear-gradient(#2F6BFF,#2F6BFF) 34% 64%/14% 2px,linear-gradient(#DCE6FF,#DCE6FF) 50% 66%/20% 26%,linear-gradient(#2F6BFF,#2F6BFF) 70% 64%/14% 2px,linear-gradient(#DCE6FF,#DCE6FF) 86% 66%/20% 26%,#F4F6FA}
+:is(#acadexsunum-view.axu,#axu-layer) .ly-refs{background:linear-gradient(#0D1838,#0D1838) 8% 16%/36% 4px,repeating-linear-gradient(transparent 0 6px,#AEB7CC 6px 7.5px) 50% 78%/84% 52%,#F4F6FA}
+:is(#acadexsunum-view.axu,#axu-layer) [data-stage] .sx-el li.warn{overflow-wrap:anywhere}
 
 /* ===== Bölüm akışı ===== */
 :is(#feed-view.axb,#axb-layer) *{box-sizing:border-box}

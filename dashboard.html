@@ -1272,6 +1272,7 @@
 <button type="button" class="sx-tool" data-add="t"><b aria-hidden="true">¶</b>metin</button>
 <button type="button" class="sx-tool" data-add="ul"><b aria-hidden="true">•≡</b>madde</button>
 <button type="button" class="sx-tool" data-add="img"><b aria-hidden="true">▣</b>görsel</button>
+<button type="button" class="sx-tool" data-imgsearch=""><b aria-hidden="true">⌕</b>görsel ara</button>
 <button type="button" class="sx-tool" data-add="rect"><b aria-hidden="true">□</b>kutu</button>
 <button type="button" class="sx-tool" data-add="ellipse"><b aria-hidden="true">○</b>daire</button>
 <button type="button" class="sx-tool" data-add="arrow"><b aria-hidden="true">→</b>ok</button>
@@ -1353,6 +1354,7 @@
 <label class="sx-f" data-srcf="doc"><span>hangi belge?</span><select data-pl-doc=""></select></label>
 <p class="sx-f-note" data-srcf="doc" data-docnote="" hidden></p>
 <label class="sx-f" data-srcf="topic" hidden><span>konu</span><input type="text" maxlength="80" data-pl-topic="" placeholder="ör. Merkez bankasının para politikası araçları"></label>
+<label class="sx-chk" data-srcf="topic" hidden><input type="checkbox" data-pl-web="" checked><span><b>webde araştır</b><small>güncel kaynaklardan yazar, rakamları kaynakla karşılaştırır, sona kaynakça ekler</small></span></label>
 <p class="sx-f-note" data-srcf="cards" hidden data-cardsnote=""></p>
 <fieldset class="sx-f sx-tones"><legend>anlatım</legend>
 <label><input type="radio" name="pl-tone" value="akademik" checked><span>akademik</span></label>
@@ -1369,7 +1371,7 @@
 </div>
 
 <div class="sx-pl-step" data-step="2" hidden>
-<p class="sx-pl-think hand" data-think="" hidden><svg viewBox="0 0 120 24" aria-hidden="true"><path d="M2 14 C14 6 22 20 34 12 C46 4 54 20 66 12 C78 4 86 20 98 12 C106 7 112 10 118 12"/></svg>Acadia kurguyu çiziyor…</p>
+<p class="sx-pl-think hand" data-think="" hidden><svg viewBox="0 0 120 24" aria-hidden="true"><path d="M2 14 C14 6 22 20 34 12 C46 4 54 20 66 12 C78 4 86 20 98 12 C106 7 112 10 118 12"/></svg><span data-think-t="">Acadia kurguyu çiziyor…</span></p>
 <p class="sx-pl-help" data-plhelp="">Şeritleri sürükleyerek sırala, başlıkları düzelt, türünü değiştir. Onaylayınca asetatlara basılır.</p>
 <ol class="sx-strips" data-strips=""></ol>
 <button type="button" class="sx-lnk" data-strip-add="">+ şerit ekle</button>
@@ -1384,6 +1386,16 @@
 <div class="sx-pl-b"><button type="button" class="bp-ghost sx-ghost" data-pl-back2="">geri</button><button type="button" class="btn btn-blue" data-pl-print="">bas</button></div>
 </div>
 <p class="sx-pl-honest" data-honest="">Acadia seçtiğin kaynaktan yazar. Bağlantı kurulamazsa kurgu, özetinin kendi bölümlerinden çıkarılır; soluk kalan yerleri sen doldurursun.</p>
+</div>
+</dialog>
+
+<dialog class="sx-dlg sx-imgs" data-imgdlg="" aria-labelledby="im-t">
+<div class="sx-pl-in">
+<button type="button" class="sx-x" data-im-x="" aria-label="Kapat">×</button>
+<h2 id="im-t" class="disp">görsel kütüphanesi</h2>
+<form class="sx-im-f" data-im-f="" role="search"><label class="vh" for="im-q">ne arıyorsun?</label><input id="im-q" type="search" maxlength="100" data-im-q="" placeholder="ör. merkez bankası, enflasyon, pazar"><button type="submit" class="btn btn-dark">ara</button></form>
+<p class="sx-f-note" data-im-note="" aria-live="polite">Telifsiz fotoğraflar Unsplash'ten gelir; fotoğrafçının adı asetata kendiliğinden yazılır. İngilizce kelimeler daha çok sonuç verir.</p>
+<ul class="sx-im-grid" data-im-grid=""></ul>
 </div>
 </dialog>
 
