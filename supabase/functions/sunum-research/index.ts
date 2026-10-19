@@ -154,16 +154,50 @@ Deno.serve(async (req) => {
       return J({ error: "UNSPLASH_ACCESS_KEY tanımlı değil", code: "no_key" }, 503);
     }
 
+    // ---------------- prova yorumu: söylenenler + notlar → asetat başına geri bildirim ----------------
+    if (action === "coach") {
+      const gk = Deno.env.get("GROQ_API_KEY");
+      if (!gk) return J({ error: "GROQ_API_KEY tanımlı değil" }, 500);
+      const items = (Array.isArray(body?.slides) ? body.slides : []).slice(0, 25).map((x: any, i: number) => ({
+        n: i + 1, title: String(x?.title || "").slice(0, 120), slide: String(x?.text || "").slice(0, 600),
+        notes: String(x?.notes || "").slice(0, 600), said: String(x?.said || "").slice(0, 1500), seconds: Math.round(Number(x?.seconds) || 0),
+      }));
+      if (!items.some((x: any) => x.said.trim().length > 8)) return J({ error: "Provada konuşma duyulmadı" }, 400);
+      const LL = lang === "en" ? "English" : "Turkish (Türkçe)";
+      const sysC = `You are a warm but honest presentation coach for a university Business Faculty student. Write in ${LL}.
+For each slide you get: what is on the slide, the speaker notes, and the transcript of what the student actually SAID (speech-to-text, may contain recognition errors; ignore spelling).
+For every slide where the student spoke, give: "good" = one specific thing done well (max 14 words); "tip" = one concrete improvement, ideally a better sentence the student could literally say (max 28 words); "issue" = only if something said is factually wrong, contradicts the slide/notes, or is confusing (else empty).
+Then "overall" = 2 sentences: the biggest strength and the single most important thing to practise. Do not invent content that is not on the slide or notes, and keep every fact exactly as labelled on the slide (a measurement stays a measurement, not a forecast).
+Return ONLY JSON: {"overall":"","slides":[{"n":1,"good":"","tip":"","issue":""}]}`;
+      const g0 = await groq(gk, "openai/gpt-oss-120b", sysC, JSON.stringify(items), 3500);
+      let c0: any = null; try { c0 = JSON.parse(g0.data?.choices?.[0]?.message?.content || ""); } catch { c0 = null; }
+      if (!g0.ok || !c0) return J({ error: "Acadia yorum yazamadı", status: g0.status }, 502);
+      return J({ overall: String(c0.overall || ""), slides: (Array.isArray(c0.slides) ? c0.slides : []).map((x: any) => ({ n: Number(x?.n) || 0, good: String(x?.good || ""), tip: String(x?.tip || ""), issue: String(x?.issue || "") })) });
+    }
+
     // ---------------- araştırma ----------------
     const tKey = Deno.env.get("TAVILY_API_KEY");
     const gKey = Deno.env.get("GROQ_API_KEY");
-    if (!tKey) return J({ error: "TAVILY_API_KEY tanımlı değil", code: "no_key" }, 503);
+    const docText = String(body?.sourceText || "").slice(0, 24000).trim();
+    if (!tKey && !docText) return J({ error: "TAVILY_API_KEY tanımlı değil", code: "no_key" }, 503);
     if (!gKey) return J({ error: "GROQ_API_KEY tanımlı değil" }, 500);
     const topic = String(body?.topic || "").slice(0, 160).trim();
     if (topic.length < 2) return J({ error: "Konu boş" }, 400);
     const n = Math.max(3, Math.min(14, Number(body?.slideCount) || 7));
     const tone = String(body?.tone || "academic");
+    const STORY: Record<string, string> = {
+      problem: "Story arc PROBLEM → SOLUTION → RESULT: open with the problem and why it matters, then causes, then the solution(s), then evidence/results, end with the takeaway.",
+      scqa: "Story arc SCQA: Situation (context everyone agrees on) → Complication (what changed / the tension) → Question (the key question this raises) → Answer (the answer, supported by evidence).",
+      compare: "Story arc COMPARISON: introduce the two (or more) options, compare them criterion by criterion (use a table or two-column slide), then give a verdict on when each fits.",
+      chrono: "Story arc CHRONOLOGICAL: past → turning points → present situation → outlook; keep dates in order and use a timeline slide.",
+    };
+    const story = STORY[String(body?.story || "")] || "Story arc: introduction (why it matters) → body → conclusion with key takeaways.";
 
+    let srcs: Src[] = [];
+    if (docText) {
+      const dt = String(body?.sourceTitle || topic).slice(0, 200);
+      srcs = [{ id: 1, title: dt, url: "", site: "", date: "", text: docText, snippet: docText.slice(0, 1400) }];
+    } else {
     const tv = await fetch("https://api.tavily.com/search", {
       method: "POST",
       headers: { "Authorization": `Bearer ${tKey}`, "Content-Type": "application/json" },
@@ -171,11 +205,12 @@ Deno.serve(async (req) => {
     });
     if (!tv.ok) { const t = await tv.text().catch(() => ""); console.error("tavily", tv.status, t.slice(0, 300)); return J({ error: "Web araması yapılamadı", status: tv.status }, 502); }
     const tj = await tv.json();
-    const srcs: Src[] = (tj.results || []).filter((r: any) => r?.url && (r.content || r.raw_content) && !blocked(hostOf(r.url))).slice(0, 6).map((r: any, i: number) => ({
+    srcs = (tj.results || []).filter((r: any) => r?.url && (r.content || r.raw_content) && !blocked(hostOf(r.url))).slice(0, 6).map((r: any, i: number) => ({
       id: i + 1, title: String(r.title || hostOf(r.url)).replace(/\s+[|–-]\s+[^|–-]{2,40}$/, "").slice(0, 200), url: r.url, site: hostOf(r.url), date: String(r.published_date || "") || findYear(String(r.raw_content || r.content || ""), r.url),
       text: String(r.raw_content || r.content || "").slice(0, 20000), snippet: String(r.content || "").slice(0, 1400),
     }));
     if (srcs.length < 2) return J({ error: "Bu konuda yeterli kaynak bulunamadı", code: "few_sources" }, 422);
+    }
 
     const L = lang === "en" ? "English" : "Turkish (Türkçe)";
     const sys = `You build a factual university presentation in ${L} for a Business Faculty student, using ONLY the numbered SOURCES given.
@@ -183,6 +218,7 @@ Rules:
 - Every fact, number, date and name must come from the sources. If the sources do not contain something, leave it out. Never invent numbers.
 - Label every number exactly as the source does: a measured/realised value is not a forecast, a target is not a result, an estimate is not an official figure. Name who reported it (e.g. "TÜİK ölçümü", "ENAG hesaplaması", "TCMB tahmini").
 - Write ${n - 2} content slides (cover and closing are added separately). Tone: ${tone}.
+- ${story} Slide titles should make this arc visible; the last content slide is the conclusion.
 - For each slide pick the layout that fits the content:
   "stat": exactly 3 key numbers from the sources (value + short label);
   "chart": a numeric series of 3-8 points that appears in the sources (labels + numeric values, same unit);
@@ -192,7 +228,7 @@ Rules:
   Use at least 3 different layouts across the deck; avoid more than 2 "list" slides in a row.
 - "src" = the source ids used on that slide. "notes" = 2-3 natural spoken sentences for the presenter.
 Return ONLY JSON: {"title":"short deck title","slides":[{"title":"","kind":"list|two|time|stat|chart|quote|table","bullets":[""],"heads":["",""],"stats":[{"value":"","label":""}],"chart":{"type":"bar|line|pie","labels":[""],"values":[0],"unit":""},"table":{"headers":[""],"rows":[[""]]},"notes":"","src":[1]}]}`;
-    const user = `TOPIC: ${topic}\n\nSOURCES:\n` + srcs.map((s) => `[${s.id}] ${s.title} (${s.site}${s.date ? ", " + s.date.slice(0, 10) : ""})\n${s.snippet}\n${s.text.slice(0, 900)}`).join("\n\n");
+    const user = `TOPIC: ${topic}\n\nSOURCES:\n` + (docText ? `[1] ${srcs[0].title}\n${docText.slice(0, 14000)}` : srcs.map((s) => `[${s.id}] ${s.title} (${s.site}${s.date ? ", " + s.date.slice(0, 10) : ""})\n${s.snippet}\n${s.text.slice(0, 900)}`).join("\n\n"));
 
     let g = await groq(gKey, "openai/gpt-oss-120b", sys, user, 6000);
     if (!g.ok) { console.warn("groq 120b", g.status, JSON.stringify(g.data).slice(0, 300)); g = await groq(gKey, "openai/gpt-oss-20b", sys, user, 6000); }
@@ -236,10 +272,58 @@ Return ONLY JSON: {"title":"short deck title","slides":[{"title":"","kind":"list
       return { title: String(s.title || "").trim(), kind: k, bullets, warn, heads: Array.isArray(s.heads) ? s.heads.slice(0, 2).map(String) : [], stats: stats.filter((x: any) => x.ok).slice(0, 3), chart: k === "chart" ? chart : null, table: k === "table" ? table : null, notes: String(s.notes || "").trim(), src: ids };
     });
 
+    // ---------- anlam doğrulaması: her iddia kaynağın ilgili paragrafıyla karşılaştırılır ----------
+    const ctxFor = (ids: number[], claim: string) => {
+      const pool = srcs.filter((x) => !ids.length || ids.includes(x.id));
+      const keys = (claim.match(/\d+(?:[.,]\d+)*|[\p{L}]{6,}/gu) || []).slice(0, 6);
+      const parts: string[] = [];
+      for (const s0 of pool) {
+        const low = s0.text.toLocaleLowerCase("tr");
+        for (const k of keys) { const at = low.indexOf(k.toLocaleLowerCase("tr")); if (at >= 0) { parts.push(`[${s0.id}] …${s0.text.slice(Math.max(0, at - 260), at + 260)}…`); break; } }
+      }
+      return (parts.length ? parts : pool.slice(0, 2).map((x) => `[${x.id}] ${x.snippet.slice(0, 500)}`)).join("\n").slice(0, 1100);
+    };
+    const claims: { k: string; si: number; bi: number; text: string; ctx: string }[] = [];
+    slides.forEach((s: any, si: number) => {
+      s.bullets.forEach((b: string, bi: number) => { if (b.length > 12) claims.push({ k: `${si}.b${bi}`, si, bi, text: b, ctx: ctxFor(s.src, b) }); });
+      s.stats.forEach((x: any, bi: number) => claims.push({ k: `${si}.s${bi}`, si, bi, text: `${x.value} — ${x.label}`, ctx: ctxFor(s.src, x.value + " " + x.label) }));
+    });
+    const meaning = { checked: 0, flagged: 0, fixed: 0 };
+    if (claims.length && body?.meaningCheck !== false) {
+      const LL = lang === "en" ? "English" : "Turkish (Türkçe)";
+      const sysV = `You are a strict fact checker. For each CLAIM, read its SOURCE EXCERPTS and decide:
+"ok" = the excerpts support the claim as worded; "mislabel" = the number/fact is in the source but the claim labels it wrongly (e.g. a measured value called a forecast, wrong year, wrong institution, wrong unit); "unsupported" = the excerpts do not support it or contradict it.
+For "mislabel" give "fix": the corrected claim in ${LL}, same length and style, keeping the number. For others "fix" is "". "why" = max 10 words in ${LL}.
+Be lenient on paraphrase and rounding; be strict on meaning. Return ONLY JSON: {"r":[{"k":"","v":"ok|mislabel|unsupported","fix":"","why":""}]}`;
+      const payload = claims.slice(0, 40).map((c) => ({ k: c.k, claim: c.text, source: c.ctx }));
+      // ayrı model: aynı dakikada ana yazımla aynı token sınırına takılmasın
+      let gv = await groq(gKey, "openai/gpt-oss-20b", sysV, JSON.stringify(payload), 4000);
+      if (!gv.ok) { await new Promise((r) => setTimeout(r, 1500)); gv = await groq(gKey, "openai/gpt-oss-120b", sysV, JSON.stringify(payload), 4000); }
+      let rv: any = null; try { rv = JSON.parse(gv.data?.choices?.[0]?.message?.content || ""); } catch { rv = null; }
+      if (gv.ok && rv && Array.isArray(rv.r)) {
+        meaning.checked = payload.length;
+        for (const r of rv.r) {
+          const c = claims.find((x) => x.k === r?.k); if (!c) continue;
+          const s: any = slides[c.si]; const why = String(r?.why || "").slice(0, 90); const fix = String(r?.fix || "").trim();
+          if (r.v === "mislabel" && fix && numTokens(fix).every((t) => numTokens(c.text).includes(t))) {
+            meaning.fixed++;
+            if (c.k.includes(".s")) { const parts = fix.split(/\s+[—–-]\s+/); if (parts.length > 1) s.stats[c.bi].label = parts.slice(1).join(" — "); }
+            else s.bullets[c.bi] = fix;
+            (s.fixed = s.fixed || []).push({ kind: c.k.includes(".s") ? "stat" : "bullet", i: c.bi, was: c.text, why });
+          } else if (r.v === "unsupported" || r.v === "mislabel") {
+            meaning.flagged++;
+            if (c.k.includes(".b")) { if (!s.warn.includes(c.bi)) s.warn.push(c.bi); (s.why = s.why || {})[c.bi] = why || "kaynakta bu anlamda geçmiyor"; }
+            else s.stats[c.bi].weak = why || "kaynakla tam örtüşmüyor";
+          }
+        }
+        slides.forEach((s: any) => { const weak = s.stats.filter((x: any) => x.weak); if (s.kind === "stat" && weak.length) { s.kind = "list"; s.stats.forEach((x: any) => { const i = s.bullets.length; s.bullets.push(`${x.value} — ${x.label}`); if (x.weak) { s.warn.push(i); (s.why = s.why || {})[i] = x.weak; } }); s.stats = []; } });
+      } else console.warn("meaning check", gv.status);
+    }
+
     const accessed = new Date().toLocaleDateString(lang === "en" ? "en-US" : "tr-TR", { day: "numeric", month: "long", year: "numeric" });
     const used = new Set<number>(); slides.forEach((s: any) => s.src.forEach((x: number) => used.add(x)));
     const sources = srcs.filter((s) => used.has(s.id) || !used.size).map((s) => ({ id: s.id, title: s.title, url: s.url, site: s.site, date: s.date, apa: apa(s, lang, accessed) }));
-    return J({ title: String(out.title || topic).trim(), slides, sources, check: { checked, unverified } });
+    return J({ title: String(out.title || topic).trim(), slides, sources: docText ? [] : sources, check: { checked, unverified, meaning } });
   } catch (e) {
     console.error("sunum-research", e);
     return J({ error: String((e as Error)?.message || e).slice(0, 200) }, 500);

@@ -4810,7 +4810,7 @@ var SBX = (function () {
     if (e.type === 'math') return '<div class="sx-math">' + mathHTML(e.latex) + '</div>';
     if (e.type === 'mmd') return e.svg ? '<div class="sx-mmd">' + e.svg + '</div>' : '<span class="ph">diyagram</span>';
     if (e.type === 'h' || e.type === 't') return X(e.text);
-    if (e.type === 'ul') return '<ul>' + e.text.split('\n').filter(function (l) { return l.trim(); }).map(function (l) { return e.warn && e.warn.indexOf(l) >= 0 ? '<li class="warn" title="Bu rakam kaynak metinde bulunamadı; kontrol et ya da düzelt.">' + X(l) + '</li>' : '<li>' + X(l) + '</li>'; }).join('') + '</ul>';
+    if (e.type === 'ul') return '<ul>' + e.text.split('\n').filter(function (l) { return l.trim(); }).map(function (l) { var wy = e.why && e.why[l]; return e.warn && e.warn.indexOf(l) >= 0 ? '<li class="warn" data-why="' + X(wy ? String(wy).slice(0, 40) : 'kaynakta yok') + '" title="' + X(wy ? 'Acadia: ' + wy + '. Kontrol et ya da düzelt.' : 'Bu rakam kaynak metinde bulunamadı; kontrol et ya da düzelt.') + '">' + X(l) + '</li>' : '<li>' + X(l) + '</li>'; }).join('') + '</ul>';
     if (e.type === 'arrow') return '<svg viewBox="0 0 100 20" preserveAspectRatio="none"><path vector-effect="non-scaling-stroke" d="M1 10 H98 M90 3 L98 10 L90 17"/></svg>';
     if (e.type === 'mark') return '<svg viewBox="0 0 100 12" preserveAspectRatio="none"><path pathLength="1" vector-effect="non-scaling-stroke" d="M2 7 C20 3 38 10 56 6 S86 4 98 8"/></svg>';
     if (e.type === 'img') return e.src ? '<img src="' + e.src + '" alt="' + X(e.alt || 'görsel') + '">' : '<span class="ph">görsel</span>';
@@ -4824,6 +4824,26 @@ var SBX = (function () {
       (edit ? ' tabindex="0" role="button" aria-label="' + X(lab + (e.text ? ': ' + e.text.slice(0, 40) : '')) + '"' : '') + '>' + elInner(e) + (edit ? '<i class="sx-rs" data-rs="" aria-hidden="true"></i>' : '') + '</div>';
   };
   var slideHTML = function (s) { return '<div class="sx-slide bg-' + (s.bg || 'clear') + '" aria-hidden="true">' + s.els.map(function (e) { return elHTML(e, false); }).join('') + '</div>'; };
+  /* otomatik sığdırma: taşan yazıyı asetata sığana dek küçült, taşan kutuyu asetat içine çek */
+  var fitBox = null, FMIN = { h: 22, t: 12, ul: 13 };
+  var fitEl = function (e) {
+    if (!FMIN[e.type] || !e.text || e.muted) return false;
+    var ch = false;
+    if (e.x + e.w > W - 8) { e.w = Math.max(120, W - 8 - e.x); ch = true; }
+    if (e.y + e.h > H - 4) { e.h = Math.max(30, H - 4 - e.y); ch = true; }
+    if (!fitBox) { fitBox = document.createElement('div'); fitBox.className = 'sx-slide'; fitBox.setAttribute('aria-hidden', 'true'); fitBox.style.cssText = 'position:fixed;left:-20000px;top:0;visibility:hidden;pointer-events:none'; LY.appendChild(fitBox); }
+    var guard = 0;
+    while (guard++ < 30) {
+      fitBox.innerHTML = elHTML(e, false); var n = fitBox.firstChild; if (!n) break;
+      n.style.height = 'auto'; n.style.overflow = 'visible';
+      var tooTall = n.scrollHeight > e.h + 3, tooWide = n.scrollWidth > e.w + 3;
+      if ((!tooTall && !tooWide) || e.size <= FMIN[e.type]) break;
+      e.size = Math.max(FMIN[e.type], Math.floor(e.size * 0.92)); ch = true;
+    }
+    fitBox.innerHTML = '';
+    return ch;
+  };
+  var fitSlide = function (sl) { var n = 0; if (sl && sl.els) sl.els.forEach(function (e) { if (fitEl(e)) n++; }); return n; };
   var fitInto = function (box) { var sl = box.querySelector('.sx-slide'); if (sl) { var k = box.clientWidth / W; sl.style.setProperty('--sc', k); sl.style.transform = 'scale(' + k + ')'; } };
 
   var stage = Q('[data-stage]'), fit = Q('[data-fit]'), frame = Q('[data-frame]'), glass = Q('[data-glass]'), emptyEl = Q('[data-empty]'), thumbsEl = Q('[data-thumbs]');
@@ -4878,7 +4898,7 @@ var SBX = (function () {
     editId = null; if (!el || !o) return;
     var v = o.type === 'ul' ? (QA('li', el).length ? QA('li', el).map(function (li) { return li.textContent.trim(); }).filter(Boolean).join('\n') : el.innerText.trim()) : el.innerText.replace(/\n$/, '');
     el.removeAttribute('contenteditable'); el.classList.remove('editing');
-    if (v !== o.text) { push(); o.text = v; o.muted = false; dirty(); }
+    if (v !== o.text) { push(); o.text = v; o.muted = false; var s0 = o.size; if (fitEl(o) && o.size < s0) say('Yazı kutusuna sığsın diye harf boyutu ' + s0 + ' → ' + o.size + ' oldu.'); dirty(); }
     renderStage(); select(o.id); refreshThumb(); var n = selEl(); if (n) n.focus({ preventScroll: true });
   };
   var startEdit = function (el) {
@@ -5030,7 +5050,7 @@ var SBX = (function () {
       if (p.track) fn('sunum-research', { action: 'track', url: p.track }, 15000).catch(function () {});
       selId = old.id; renderStage(); refreshThumb(); dirty(); imgDlg.close(); say('Fotoğraf değiştirildi.', undo); return;
     }
-    s0 = ensureSlide(); var im = placePhoto(s0, p, imQ.value.trim()); selId = im.id; renderStage(); refreshThumb(); paintMeta(); dirty(); imgDlg.close();
+    s0 = ensureSlide(); var im = placePhoto(s0, p, imQ.value.trim()); fitSlide(s0); selId = im.id; renderStage(); refreshThumb(); paintMeta(); dirty(); imgDlg.close();
     var el = selEl(); if (el) el.focus({ preventScroll: true });
     say('Fotoğraf eklendi; fotoğrafçının adı altına yazıldı.', undo);
   });
@@ -5041,7 +5061,7 @@ var SBX = (function () {
     push();
     if (!s) { deck.slides.push(newSlide(k, k === 'cover' ? (deck.title || 'Sunumun adı') : k === 'end' ? 'Teşekkürler' : 'Başlık')); deck.cur = deck.slides.length - 1; renderAll(); dirty(); return; }
     var t = titleOf(s), bl = []; s.els.forEach(function (x) { if (x.type === 'ul' && !x.muted) bl = bl.concat(x.text.split('\n').filter(Boolean)); });
-    s.els = LAY[k].f(t || (k === 'end' ? 'Teşekkürler' : 'Başlık'), bl); s.lay = k; selId = null; renderStage(); refreshThumb(); dirty();
+    s.els = LAY[k].f(t || (k === 'end' ? 'Teşekkürler' : 'Başlık'), bl); s.lay = k; fitSlide(s); selId = null; renderStage(); refreshThumb(); dirty();
     say('Asetat “' + LAY[k].l + '” düzenine geçti; başlığın ve maddelerin taşındı.', undo);
   });
   QA('[data-bg]').forEach(function (b) { b.addEventListener('click', function () {
@@ -5100,6 +5120,7 @@ var SBX = (function () {
         s.els.forEach(function (e) { if (e.type === 'ul' && !u) u = e; });
         if (u) { u.text = lines.join('\n'); u.muted = false; }
         else { var t = null; s.els.forEach(function (e) { if (e.type === 't' && !t && e.y > 120) t = e; }); if (t) { t.type = 'ul'; t.text = lines.join('\n'); t.muted = false; t.h = Math.max(t.h, 220); } else s.els.push(E('ul', 90, 160, 780, 330, { text: lines.join('\n'), size: 24 })); }
+        fitSlide(s);
         return 'Acadia asetatı zenginleştirdi.';
       });
     },
@@ -5287,12 +5308,20 @@ var SBX = (function () {
     });
     return { title: txt(pres.title), items: out };
   };
+  /* özet kartının düz metni: iskeletli kurgu ve anlam doğrulaması için kaynak */
+  var cardText = function (c) {
+    var out = [txt(c.summary)];
+    arr(c.sections).forEach(function (sec) { out.push('## ' + txt(sec.heading || sec.title)); out.push(stripMd(sec.summary || sec.content || '')); arr(sec.key_points).forEach(function (k) { out.push('- ' + txt(k)); }); });
+    arr(c.key_points).forEach(function (k) { out.push('- ' + txt(k)); });
+    arr(c.key_terms).forEach(function (t) { var a = txt(t.term || t), d = txt(t.definition || ''); if (a && d) out.push(a + ': ' + d); });
+    return out.filter(Boolean).join('\n').slice(0, 22000);
+  };
   /* sunum-research: web kaynaklı kurgu → şeritler (düzen, gerçek veri, doğrulanamayan satırlar) */
   var fromResearch = function (d) {
     var sl = arr(d && d.slides); if (!sl.length) throw new Error('boş kurgu');
     var items = sl.map(function (x) {
       var k = String(x.kind || 'list'), b = arr(x.bullets).map(txt).filter(Boolean), st = arr(x.stats).filter(function (v) { return v && v.value; });
-      var s = { t: txt(x.title) || 'Asetat', k: 'list', b: b, notes: txt(x.notes), src: arr(x.src), warnI: arr(x.warn).filter(function (i) { return b[i]; }) };
+      var s = { t: txt(x.title) || 'Asetat', k: 'list', b: b, notes: txt(x.notes), src: arr(x.src), warnI: arr(x.warn).filter(function (i) { return b[i]; }), why: x.why || {}, fixed: arr(x.fixed) };
       if (k === 'stat' && st.length >= 3) { s.k = 'stat'; s.b = st.slice(0, 3).map(function (v) { return txt(v.value) + ' — ' + txt(v.label); }); s.data = { stats: st.slice(0, 3) }; s.warnI = []; }
       else if (k === 'chart' && x.chart && arr(x.chart.values).length >= 2) { s.k = 'chart'; s.data = { type: x.chart.type || 'bar', labels: arr(x.chart.labels).map(txt), data: arr(x.chart.values) }; s.b = b.length ? [b[0]] : x.chart.unit ? ['(' + txt(x.chart.unit) + ')'] : []; s.warnI = []; }
       else if (k === 'table' && x.table && arr(x.table.rows).length) { s.k = 'table'; s.data = { headers: arr(x.table.headers).map(txt), rows: arr(x.table.rows).map(function (r) { return arr(r).map(txt); }) }; s.warnI = []; }
@@ -5344,8 +5373,10 @@ var SBX = (function () {
         if (!c) { say('Önce Belgelerim’de bir belgeyi özetle.', null, '#docs', 'belgelere git →'); return null; }
         var title = baseName(c.documents && c.documents.file_name);
         plotMeta = { sub: [c.course_tag, subLine()].filter(Boolean).join(' · '), source: 'study_card', sourceId: c.id };
-        return fn('acadia-presentation-director', { action: 'generate', sourceType: 'study_card', sourceId: c.id, mode: MODE[o.tone] || 'academic', slideCount: o.n, language: o.lang || 'tr', detailLevel: 'detailed' }, 75000)
-          .then(function (d) { var r = fromDirector(d); plotMeta.via = 'ai'; o.ai = true; return shape(r.items, o, r.title || title); },
+        var viaDir = function () { return fn('acadia-presentation-director', { action: 'generate', sourceType: 'study_card', sourceId: c.id, mode: MODE[o.tone] || 'academic', slideCount: o.n, language: o.lang || 'tr', detailLevel: 'detailed' }, 75000).then(function (d) { var r = fromDirector(d); plotMeta.via = 'ai'; o.ai = true; return shape(r.items, o, r.title || title); }); };
+        var st0 = o.story && o.story !== 'auto' && cardText(c).length > 200 ? fn('sunum-research', { action: 'research', topic: title, sourceTitle: title, sourceText: cardText(c), story: o.story, slideCount: o.n, tone: TONE[o.tone] || 'academic', language: o.lang || 'tr' }, 95000).then(fromResearch).then(function (r) { plotMeta.via = 'docstory'; plotMeta.check = r.check; o.ai = true; o.researched = true; return shape(r.items, o, r.title || title); }, function (e) { console.warn('acadex-sunum: belge iskeleti', e); return viaDir(); }) : viaDir();
+        return st0
+          .then(function (st) { return st; },
                 function (e) { console.warn('acadex-sunum: director', e); plotMeta.via = 'local'; return shape(fromCard(c), o, title); })
           .then(function (st) { o.card = c; return st; });
       });
@@ -5361,7 +5392,7 @@ var SBX = (function () {
     var title = tp.charAt(0).toLocaleUpperCase('tr') + tp.slice(1), web = o.web !== false;
     plotMeta = { sub: subLine(), source: 'topic', sourceId: null };
     var tt = Q('[data-think-t]', plot); if (tt) tt.textContent = web ? 'Acadia webde kaynak arıyor, okuyor ve kurguyu çiziyor… (20–40 sn)' : 'Acadia kurguyu çiziyor…';
-    var research = web ? fn('sunum-research', { action: 'research', topic: tp, slideCount: o.n, tone: TONE[o.tone] || 'academic', language: o.lang || 'tr' }, 95000).then(fromResearch) : Promise.reject(new Error('kapalı'));
+    var research = web ? fn('sunum-research', { action: 'research', topic: tp, story: o.story || 'auto', slideCount: o.n, tone: TONE[o.tone] || 'academic', language: o.lang || 'tr' }, 95000).then(fromResearch) : Promise.reject(new Error('kapalı'));
     return research.then(function (r) { plotMeta.via = 'research'; plotMeta.sources = r.sources; plotMeta.check = r.check; o.ai = true; o.researched = true; return shape(r.items, o, r.title || title); }, function (e) {
       if (web) { console.warn('acadex-sunum: research', e); plotMeta.webFail = true; }
       return legacyTopic(tp, o, title);
@@ -5394,7 +5425,7 @@ var SBX = (function () {
       var head0 = st[0] && st[0].k === 'cover' ? st.shift() : null, tail = st.length && st[st.length - 1].k === 'end' ? st.pop() : null;
       var vis = o.card ? cardVisuals(o.card, o.lang) : Promise.resolve([]);
       return vis.then(function (v) {
-        st = st.concat(v);
+        var lastC = st.length ? st[st.length - 1] : null; if (v.length && lastC && OUTRO.test(lastC.t)) st.splice(st.length - 1, 0, ...v); else st = st.concat(v);
         return fillEmpty(st, o.lang, plotMeta.title || o.topic);
       }).then(function (f) {
         st = f.strips; plotMeta.fixed = { filled: f.filled, dropped: f.dropped };
@@ -5410,9 +5441,11 @@ var SBX = (function () {
     var src = srcVal();
     if (src === 'topic' && !Q('[data-pl-topic]', plot).value.trim()) { Q('[data-pl-topic]', plot).focus(); say('Bir konu yaz.'); return null; }
     var wb = Q('[data-pl-web]', plot);
-    return makeOutline({ src: src, web: !wb || wb.checked, topic: Q('[data-pl-topic]', plot).value, docId: Q('[data-pl-doc]', plot).value, n: +Q('[data-pl-n]', plot).value, tone: plot.querySelector('input[name=pl-tone]:checked').value });
+    var sy = Q('[data-pl-story]', plot);
+    return makeOutline({ src: src, story: sy ? sy.value : 'auto', web: !wb || wb.checked, topic: Q('[data-pl-topic]', plot).value, docId: Q('[data-pl-doc]', plot).value, n: +Q('[data-pl-n]', plot).value, tone: plot.querySelector('input[name=pl-tone]:checked').value });
   };
   var VIA = {
+    docstory: 'Acadia belgenin özetinden, seçtiğin iskelete göre yazdı ve her rakamı belgenin metniyle karşılaştırdı. Sırala, düzelt, türünü değiştir.',
     research: 'Acadia konuyu webde araştırdı ve yalnız bulduğu kaynaklardan yazdı; her asetata uyan düzeni kendisi seçti. Sırala, düzelt, türünü değiştir.',
     ai: 'Acadia kaynağından yazdı. Şeritleri sürükleyerek sırala, başlıkları düzelt, türünü değiştir.',
     local: 'Acadia’ya şu an ulaşılamadı; kurgu özetinin kendi bölümlerinden çıkarıldı. Sırala, düzelt, türünü değiştir.',
@@ -5436,6 +5469,7 @@ var SBX = (function () {
         if (fx.filled) extra.push(fx.filled + ' boş asetat dolduruldu');
         if (fx.dropped) extra.push(fx.dropped + ' boş asetat çıkarıldı');
         var nv = strips.filter(function (x) { return /^(chart|table|math|diagram)$/.test(x.k); }).length; if (nv && !plotMeta.check) extra.push('özetten ' + nv + ' grafik/tablo/formül/diyagram eklendi');
+        var mc = plotMeta.check && plotMeta.check.meaning; if (mc && mc.checked) extra.push(mc.checked + ' iddia kaynağın kendi paragrafıyla karşılaştırıldı' + (mc.fixed ? ', ' + mc.fixed + ' yanlış etiket düzeltildi' : '') + (mc.flagged ? ', ' + mc.flagged + ' iddia şüpheli (editörde işaretli)' : ', anlamca sorun yok'));
         var ck = plotMeta.check; if (ck && ck.checked) extra.push(ck.checked + ' rakam kaynak metniyle karşılaştırıldı' + (ck.unverified ? ', ' + ck.unverified + ' tanesi kaynakta bulunamadı (editörde kırmızı altı çizili)' : ', hepsi kaynakta var'));
         if (arr(plotMeta.sources).length) extra.push(plotMeta.sources.length + ' kaynak; sona kaynakça eklendi');
         if (plotMeta.webFail) extra.push('web araştırması şu an yapılamadı, bu yüzden kaynakça yok');
@@ -5514,7 +5548,7 @@ var SBX = (function () {
     if (!cand.length) return;
     fn('sunum-research', { action: 'images', query: q, language: curLang() }, 25000).then(function (d) {
       var ph = arr(d && d.photos).filter(function (p) { return p && p.large; }); if (!ph.length) return;
-      var n = 0; cand.forEach(function (sl, i) { if (!ph[i] || deck.slides.indexOf(sl) < 0) return; placePhoto(sl, ph[i], q); n++; });
+      var n = 0; cand.forEach(function (sl, i) { if (!ph[i] || deck.slides.indexOf(sl) < 0) return; placePhoto(sl, ph[i], q); fitSlide(sl); n++; });
       if (!n) return; renderAll(); dirty();
       say(n + ' asetata fotoğraf önerdim. Beğenmediğini seçip silebilir ya da “görsel ara” ile değiştirebilirsin.');
     }, function (e) { console.warn('acadex-sunum: otomatik görsel', e); });
@@ -5522,7 +5556,8 @@ var SBX = (function () {
   var printDeck = function (mode) {
     strips = strips.filter(function (s) { return s.t.trim() || s.k === 'end'; }); if (!strips.length) return;
     push(); var made = strips.map(function (s) { var cx = clone(plotMeta); cx.heads = s.heads; cx.viz = s.viz; cx.data = s.data; var sl = newSlide(s.k, s.t.trim(), s.b, cx); if (s.notes) sl.notes = s.notes;
-      var wl = arr(s.warnI).map(function (i) { return s.b && s.b[i]; }).filter(Boolean); if (wl.length) sl.els.forEach(function (e) { if (e.type === 'ul') e.warn = wl; }); if (arr(s.src).length) sl.src = s.src; else if (s.k !== 'cover' && s.k !== 'end') AI.note(sl, true); if (s.k === 'cover') sl.els.forEach(function (e) { if (e.type === 't') e.text = plotMeta.sub || e.text; }); return sl; });
+      var wl = arr(s.warnI).map(function (i) { return s.b && s.b[i]; }).filter(Boolean), wy = {}; arr(s.warnI).forEach(function (i) { if (s.b && s.b[i] && s.why && s.why[i]) wy[s.b[i]] = String(s.why[i]); }); if (wl.length) sl.els.forEach(function (e) { if (e.type === 'ul') { e.warn = wl; e.why = wy; } }); if (arr(s.src).length) sl.src = s.src; else if (s.k !== 'cover' && s.k !== 'end') AI.note(sl, true); if (s.k === 'cover') sl.els.forEach(function (e) { if (e.type === 't') e.text = plotMeta.sub || e.text; }); return sl; });
+    var fitted = 0; made.forEach(function (sl) { fitted += fitSlide(sl); });
     var start = mode === 'append' ? deck.slides.length : 0;
     if (mode === 'append') deck.slides = deck.slides.concat(made); else deck.slides = made;
     if (!deck.title || mode !== 'append') deck.title = plotMeta.title || deck.title;
@@ -5533,7 +5568,7 @@ var SBX = (function () {
     var b = thumbsEl.querySelector('[data-go="' + start + '"]'); if (b) b.focus();
     if (!calm) { glass.classList.remove('printing'); void glass.offsetWidth; glass.classList.add('printing'); } flipGlass();
     var wantPh = Q('[data-pl-photo]', plot); if (wantPh && wantPh.checked) autoPhotos(made, plotMeta.title || deck.title);
-    say(made.length + ' asetat basıldı.' + (plotMeta.via === 'skeleton' ? ' Soluk yerler senin; asetatı seçip “zenginleştir” dersen Acadia doldurur.' : ''), undo);
+    say(made.length + ' asetat basıldı.' + (fitted ? ' ' + fitted + ' yazı asetata sığacak şekilde ayarlandı.' : '') + (plotMeta.via === 'skeleton' ? ' Soluk yerler senin; asetatı seçip “zenginleştir” dersen Acadia doldurur.' : ''), undo);
   };
   Q('[data-pl-ok]', plot).addEventListener('click', function () { if (deck.slides.length) { step(3); plot.querySelector('input[name=pl-mode]:checked').focus(); } else printDeck('replace'); });
   Q('[data-pl-print]', plot).addEventListener('click', function () { printDeck(plot.querySelector('input[name=pl-mode]:checked').value); });
@@ -5623,7 +5658,7 @@ var SBX = (function () {
     if (noNotes) tips.push(noNotes + ' asetatın konuşmacı notu yok; Acadia’ya “konuşmacı notu yaz” dedirtebilirsin.');
     var card = Q('[data-rh-card]', rh), co = coachReport(tot); if (co) tips = co.tips.concat(tips);
     card.innerHTML = '<h2>prova karnesi</h2><p class="big">toplam <b>' + mmss(tot) + '</b> · hedef ' + mmss(goal) + (co ? ' · <b>' + co.wpm + '</b> kelime/dk · ' + co.fill + ' dolgu' : '') + '</p><ol' + (co ? ' class="co"' : '') + '>' + deck.slides.map(function (s, i) { var c = co && co.per[i]; return '<li' + (i === longI && deck.slides.length > 1 ? ' class="long"' : '') + '><span class="n">' + (i + 1) + '</span><span class="t">' + X(titleOf(s) || 'başlıksız') + '</span><span class="b"><i style="width:' + Math.round(rhAcc[i] / mx * 100) + '%"></i></span><span class="s">' + mmss(rhAcc[i]) + '</span>' + (co ? '<span class="c' + (c && c.pct < 50 ? ' lo' : '') + '" title="notlardaki ve asetattaki ana fikirlerin ne kadarını söyledin">' + (c ? '%' + c.pct : '—') + '</span>' : '') + '</li>'; }).join('') + '</ol>' +
-      '<ul class="tips">' + tips.map(function (t) { return '<li>' + X(t) + '</li>'; }).join('') + '</ul><div class="row"><button type="button" class="hbtn" data-rh-again="">tekrar prova</button><button type="button" class="btn btn-dark" data-rh-close="">kapat</button></div>';
+      '<ul class="tips">' + tips.map(function (t) { return '<li>' + X(t) + '</li>'; }).join('') + '</ul>' + (co ? '<div class="sx-rh-ai" data-rh-aibox=""><button type="button" class="btn btn-blue" data-rh-ai="">Acadia’dan yorum al</button><small>Söylediklerini asetat ve notlarla karşılaştırıp her asetat için bir güçlü yan ve bir cümle önerisi yazar.</small></div>' : '') + '<div class="row"><button type="button" class="hbtn" data-rh-again="">tekrar prova</button><button type="button" class="btn btn-dark" data-rh-close="">kapat</button></div>';
     card.hidden = false; card.querySelector('[data-rh-close]').focus();
     S('acadex.sunum.lastRehearsal', { at: Date.now(), total: tot, goal: goal, per: rhAcc, wpm: co ? co.wpm : null, fill: co ? co.fill : null, cover: co ? co.per.map(function (c) { return c ? c.pct : null; }) : null });
   };
@@ -5634,7 +5669,16 @@ var SBX = (function () {
   Q('[data-rh-nxt]', rh).addEventListener('click', function () { rhStep(1); });
   Q('[data-rh-prev]', rh).addEventListener('click', function () { rhStep(-1); });
   Q('[data-rh-end]', rh).addEventListener('click', rhEnd);
-  rh.addEventListener('click', function (e) { if (e.target.closest('[data-rh-close]')) rhClose(); else if (e.target.closest('[data-rh-again]')) { var f = rhFrom; rhClose(); rhOpen(f); } });
+  var coachAI = function (btn) {
+    var box = btn.closest('[data-rh-aibox]'); btn.disabled = true; btn.textContent = 'Acadia dinlediklerini okuyor…';
+    var payload = deck.slides.map(function (s, i) { return { title: titleOf(s) || '', text: bodyOf(s) || '', notes: s.notes || '', said: (coach.text[i] || '').trim(), seconds: Math.round((rhAcc[i] || 0) / 1000) }; });
+    fn('sunum-research', { action: 'coach', language: curLang(), slides: payload }, 60000).then(function (d) {
+      var rows = arr(d && d.slides).filter(function (x) { return x && (x.good || x.tip || x.issue); });
+      box.innerHTML = '<h3>Acadia’nın yorumu</h3>' + (d.overall ? '<p class="ov">' + X(d.overall) + '</p>' : '') + '<ol>' + rows.map(function (x) { var s = deck.slides[x.n - 1]; return '<li><b>' + x.n + '. ' + X(s ? titleOf(s) || '' : '') + '</b>' + (x.good ? '<span class="g">✓ ' + X(x.good) + '</span>' : '') + (x.tip ? '<span class="t">→ ' + X(x.tip) + '</span>' : '') + (x.issue ? '<span class="i">! ' + X(x.issue) + '</span>' : '') + '</li>'; }).join('') + '</ol>';
+      S('acadex.sunum.lastCoach', { at: Date.now(), overall: d.overall, slides: rows });
+    }, function (e) { btn.disabled = false; btn.textContent = 'tekrar dene'; var m = box.querySelector('small'); if (m) m.textContent = 'Acadia şu an yorum yazamadı; biraz sonra tekrar dene.'; console.warn('acadex-sunum: prova yorumu', e); });
+  };
+  rh.addEventListener('click', function (e) { var ai = e.target.closest('[data-rh-ai]'); if (ai) { coachAI(ai); return; } if (e.target.closest('[data-rh-close]')) rhClose(); else if (e.target.closest('[data-rh-again]')) { var f = rhFrom; rhClose(); rhOpen(f); } });
   rh.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') { e.preventDefault(); if (Q('[data-rh-card]', rh).hidden) rhEnd(); else rhClose(); return; }
     if (!Q('[data-rh-card]', rh).hidden || /^(SELECT|BUTTON)$/.test(e.target.tagName) && (e.key === ' ' || e.key === 'Enter')) return;
