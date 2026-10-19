@@ -6041,6 +6041,24 @@ body.axu-on #pomodoro-widget-container,body.axu-on #acadia-widget-container,body
  body.axu-print #axu-layer .sx-print .sx-slide{position:relative!important;transform:none!important;page-break-after:always;break-after:page;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
 
+/* ===== özetten taşınan çizimler: grafik, tablo, formül, diyagram ===== */
+:is(#acadexsunum-view.axu,#axu-layer) .sx-el[data-type=chart] svg{display:block;width:100%;height:100%;overflow:visible}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-el[data-type=table]{overflow:hidden;white-space:normal}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-tb{width:100%;border-collapse:collapse;line-height:1.3;color:#0D1838}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-tb th{background:#EEF3FF;font-weight:700;text-align:left;padding:8px 12px;border-bottom:2px solid #0D1838}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-tb td{padding:7px 12px;border-bottom:1px solid #E3DECF}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-tb tr:nth-child(even) td{background:#FBF9F3}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-el[data-type=math]{display:flex;align-items:center;white-space:normal}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-math{width:100%;overflow:hidden}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-math .katex-display{margin:0;text-align:left}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-el[data-type=mmd]{white-space:normal}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-mmd{width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-mmd svg{max-width:100%;max-height:100%;width:100%;height:100%}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-slide.bg-navy .sx-tb{color:#fff}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-slide.bg-navy .sx-tb th{background:rgba(255,255,255,.12);border-color:#fff}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-slide.bg-navy .sx-tb tr:nth-child(even) td{background:rgba(255,255,255,.05)}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-glass.flip .sx-el[data-type=chart] rect,:is(#acadexsunum-view.axu,#axu-layer) .sx-glass.flip .sx-el[data-type=chart] path{animation:axu-fadeUp .5s .4s both}
+
 /* ===== Bölüm akışı ===== */
 :is(#feed-view.axb,#axb-layer) *{box-sizing:border-box}
 :is(#feed-view.axb,#axb-layer) .disp{font-family:"Bricolage Grotesque",system-ui,sans-serif}
