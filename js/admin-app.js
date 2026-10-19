@@ -161,6 +161,16 @@
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('#drawer').hidden) closeDrawer(); });
 
   var confirmBox = function (msg) { return window.confirm(msg); };
+  /* profil fotoğrafını büyük göster */
+  var lightbox = function (src, name) {
+    var d = document.createElement('div'); d.className = 'lbox'; d.setAttribute('role', 'dialog'); d.setAttribute('aria-modal', 'true'); d.setAttribute('aria-label', (name || '') + ' profil fotoğrafı');
+    d.innerHTML = '<figure><img src="' + X(src) + '" alt="' + X(name || '') + ' profil fotoğrafı" referrerpolicy="no-referrer"><figcaption>' + X(name || '') + '</figcaption></figure><button type="button" class="x" aria-label="Kapat">×</button>';
+    var prev = document.activeElement, close = function () { d.remove(); document.removeEventListener('keydown', key, true); if (prev && prev.focus) prev.focus(); };
+    var key = function (e) { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
+    d.addEventListener('click', function (e) { if (!e.target.closest('img')) close(); });
+    document.addEventListener('keydown', key, true); document.body.appendChild(d); d.querySelector('.x').focus();
+  };
+  document.addEventListener('click', function (e) { var b = e.target.closest('[data-bigav]'); if (b) lightbox(b.getAttribute('data-bigav'), ($('#drawer-t') || {}).textContent); });
 
   /* =========================== görünümler =========================== */
   var VIEWS = {};
@@ -234,7 +244,8 @@
       var d = await rpc('admin_user_detail', { p_id: id }), p = d.profile || {}, a = d.auth || {}, c = d.counts || {};
       var self = ME && p.email === ME.email;
       $('#drawer-t').textContent = p.full_name || 'Öğrenci';
-      $('#drawer-body').innerHTML = '<div class="who">' + av(p) + '<span><b>' + X(p.full_name || '(adsız)') + '</b><small>' + X(p.email) + '</small></span></div>' +
+      var hasImg = p.avatar_url && /^https?:/.test(p.avatar_url);
+      $('#drawer-body').innerHTML = '<div class="who big"><button type="button" class="av av-lg"' + (hasImg ? ' data-bigav="' + X(p.avatar_url) + '" aria-label="Profil fotoğrafını büyüt" title="büyüt"' : ' disabled aria-label="Profil fotoğrafı yok"') + '>' + X(ini(p.full_name || p.email)) + (hasImg ? '<img src="' + X(p.avatar_url) + '" alt="" referrerpolicy="no-referrer" onerror="this.parentNode.removeAttribute(\'data-bigav\');this.remove()">' : '') + '</button><span><b>' + X(p.full_name || '(adsız)') + '</b><small>' + X(p.email) + '</small>' + (hasImg ? '<small class="muted" style="margin-top:2px">fotoğrafa tıkla, büyüt</small>' : '') + '</span></div>' +
         '<div>' + (p.is_suspended ? '<span class="pill bad">askıda</span> ' : '<span class="pill ok">aktif</span> ') + (p.is_admin ? '<span class="pill blue">yönetici</span> ' : '') + '<span class="pill">' + (a.provider === 'google' ? 'Google ile' : 'e-postayla') + ' giriş</span> ' + (a.confirmed ? '' : '<span class="pill warn">e-posta onaysız</span>') + '</div>' +
         '<div class="minis"><div class="mini"><b>' + NF(c.docs) + '</b><span>belge</span></div><div class="mini"><b>' + NF(c.cards) + '</b><span>özet kartı</span></div><div class="mini"><b>' + NF(c.shared) + '</b><span>paylaşılan</span></div><div class="mini"><b>' + NF(c.reports_against) + '</b><span>şikâyet aldı</span></div></div>' +
         '<dl class="kv"><dt>Bölüm</dt><dd>' + X(dept(p.department)) + '</dd><dt>Öğrenci no</dt><dd>' + (/^oauth-/.test(p.student_number || '') ? '<span class="pill warn">girilmedi</span>' : X(p.student_number)) + '</dd><dt>Kayıt</dt><dd>' + DT(p.created_at, true) + '</dd><dt>Son giriş</dt><dd>' + (a.last_sign_in_at ? DT(a.last_sign_in_at, true) + ' (' + AGO(a.last_sign_in_at) + ')' : '—') + '</dd><dt>Son aktif gün</dt><dd>' + DT(p.last_active_date) + '</dd><dt>Seri</dt><dd>' + NF(p.current_streak) + ' gün</dd><dt>Plan</dt><dd>' + X((d.plan && d.plan.plan) || 'lite') + ' <span class="muted">(planlar yakında düzenlenebilecek)</span></dd>' + (p.bio ? '<dt>Hakkında</dt><dd>' + X(p.bio) + '</dd>' : '') + '</dl>' +
