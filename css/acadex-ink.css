@@ -6096,6 +6096,21 @@ body.axu-on #pomodoro-widget-container,body.axu-on #acadia-widget-container,body
 :is(#acadexsunum-view.axu,#axu-layer) .sx-rh-card li .c{font-family:"JetBrains Mono",monospace;font-size:12.5px;text-align:right;color:#1E8A55}
 :is(#acadexsunum-view.axu,#axu-layer) .sx-rh-card li .c.lo{color:#C9483B;font-weight:700}
 @media (prefers-reduced-motion:reduce){:is(#acadexsunum-view.axu,#axu-layer) .sx-rh-mic[aria-pressed=true]::before,:is(#acadexsunum-view.axu,#axu-layer) .sx-rh-live .dot{animation:none}}
+/* aşama 4: akış kontrolü, fotoğraf önerisi, paylaşım */
+:is(#acadexsunum-view.axu,#axu-layer) .sx-chk-s{margin:0 0 14px}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-flow{margin:0 0 12px;padding:10px 14px;border:1.4px solid #E8B53A;border-radius:4px 7px 5px 6px;background:#FFF8E6}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-flow[aria-busy=true]{opacity:.6}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-flow:has(.ok){border-color:#9ED3B5;background:#EEF8F2}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-flow-h{margin:0;font-size:14px;color:var(--navy)}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-flow-h b{font-family:"Caveat",cursive;font-size:21px;margin-right:2px}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-flow ul{list-style:none;margin:6px 0 0;padding:0}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-flow li{display:flex;gap:12px;align-items:baseline;justify-content:space-between;padding:5px 0;border-top:1px dashed #EAD9A6;font-size:14px;line-height:1.4}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-flow li .sx-lnk{flex:none;white-space:nowrap;font-weight:700}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-strip.flag{box-shadow:inset 4px 0 0 #E8B53A}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-share{width:min(560px,calc(100vw - 24px))}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-share-row{display:flex;gap:8px;margin:8px 0 10px}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-share-row input{flex:1;min-width:0;min-height:44px;padding:8px 12px;border:1.6px solid #DCE2EE;border-radius:5px;font:inherit;font-size:14px;font-family:"JetBrains Mono",monospace;background:#F7F9FD}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-share-b{display:flex;gap:10px;justify-content:space-between;align-items:center;margin-top:12px}
 
 /* ===== Bölüm akışı ===== */
 :is(#feed-view.axb,#axb-layer) *{box-sizing:border-box}

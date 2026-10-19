@@ -1202,7 +1202,7 @@
 <input id="sx-deck" type="text" maxlength="70" data-deck-title="" placeholder="sunumuna bir ad ver…">
 <span class="sx-count hand" data-count=""></span>
 <span class="sx-cloud hand" data-cloud="" aria-live="polite"></span>
-<button type="button" class="sx-lnk" data-pdf="">PDF indir</button><button type="button" class="sx-lnk" data-pptx="">PowerPoint indir</button>
+<button type="button" class="sx-lnk" data-pdf="">PDF indir</button><button type="button" class="sx-lnk" data-pptx="">PowerPoint indir</button><button type="button" class="sx-lnk" data-share="">paylaş</button>
 <button type="button" class="sx-lnk danger" data-wipe="">tepegözü boşalt</button>
 </div>
 
@@ -1366,6 +1366,7 @@
 <label><input type="radio" name="pl-lang" value="tr" checked><span>Türkçe</span></label>
 <label><input type="radio" name="pl-lang" value="en"><span>English</span></label>
 </fieldset>
+<label class="sx-chk sx-chk-s"><input type="checkbox" data-pl-photo="" checked><span><b>fotoğraf öner</b><small>kapağa ve metni az asetatlara Unsplash'ten uygun fotoğraf koyar</small></span></label>
 <label class="sx-f sx-len"><span>kaç asetat? <b data-pl-nv="">7</b></span><input type="range" min="4" max="12" value="7" data-pl-n=""></label>
 <div class="sx-pl-b"><button type="button" class="bp-ghost sx-ghost" data-pl-no="">vazgeç</button><button type="button" class="btn btn-dark" data-pl-go="">kurguyu çıkar</button></div>
 </div>
@@ -1373,6 +1374,7 @@
 <div class="sx-pl-step" data-step="2" hidden>
 <p class="sx-pl-think hand" data-think="" hidden><svg viewBox="0 0 120 24" aria-hidden="true"><path d="M2 14 C14 6 22 20 34 12 C46 4 54 20 66 12 C78 4 86 20 98 12 C106 7 112 10 118 12"/></svg><span data-think-t="">Acadia kurguyu çiziyor…</span></p>
 <p class="sx-pl-help" data-plhelp="">Şeritleri sürükleyerek sırala, başlıkları düzelt, türünü değiştir. Onaylayınca asetatlara basılır.</p>
+<div class="sx-flow" data-flow="" aria-live="polite" hidden></div>
 <ol class="sx-strips" data-strips=""></ol>
 <button type="button" class="sx-lnk" data-strip-add="">+ şerit ekle</button>
 <div class="sx-pl-b"><button type="button" class="bp-ghost sx-ghost" data-pl-back="">geri</button><button type="button" class="btn btn-blue" data-pl-ok="">asetatlara bas</button></div>
@@ -1386,6 +1388,17 @@
 <div class="sx-pl-b"><button type="button" class="bp-ghost sx-ghost" data-pl-back2="">geri</button><button type="button" class="btn btn-blue" data-pl-print="">bas</button></div>
 </div>
 <p class="sx-pl-honest" data-honest="">Acadia seçtiğin kaynaktan yazar. Bağlantı kurulamazsa kurgu, özetinin kendi bölümlerinden çıkarılır; soluk kalan yerleri sen doldurursun.</p>
+</div>
+</dialog>
+
+<dialog class="sx-dlg sx-share" data-sharedlg="" aria-labelledby="sh-t">
+<div class="sx-pl-in">
+<button type="button" class="sx-x" data-sh-x="" aria-label="Kapat">×</button>
+<h2 id="sh-t" class="disp">sunumu paylaş</h2>
+<p class="sx-f-note" data-sh-note="" aria-live="polite">bağlantı hazırlanıyor…</p>
+<div class="sx-share-row" data-sh-row="" hidden><label class="vh" for="sh-link">paylaşım bağlantısı</label><input id="sh-link" type="text" readonly data-sh-link=""><button type="button" class="btn btn-dark" data-sh-copy="">kopyala</button></div>
+<p class="sx-f-note">Bağlantıyı bilen herkes giriş yapmadan asetatları izler; konuşmacı notların görünmez. Sunumu değiştirdikçe bağlantıdaki kopya da güncellenir.</p>
+<div class="sx-share-b"><button type="button" class="sx-lnk" data-sh-off="" hidden style="color:var(--red)">paylaşımı kapat</button><button type="button" class="btn btn-blue" data-sh-on="">bağlantı oluştur</button></div>
 </div>
 </dialog>
 

@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Sunum · Acadex</title>
+<link rel="icon" type="image/png" href="assets/logo-icon-only.png">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<link rel="stylesheet" href="css/acadex-ink.css">
+<style>
+  html,body{margin:0;height:100%;background:#151A26;color:#E8ECF5;font-family:"Instrument Sans",system-ui,sans-serif}
+  .vw{display:flex;flex-direction:column;min-height:100%;}
+  .vw-top{display:flex;align-items:center;gap:14px;padding:12px 20px;border-bottom:1px solid rgba(255,255,255,.08)}
+  .vw-top img{width:24px;height:24px}
+  .vw-top h1{margin:0;font-size:17px;font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .vw-top a{color:#9DB8FF;font-size:13px;text-decoration:underline;text-underline-offset:3px}
+  .vw-stage{flex:1;display:flex;align-items:center;justify-content:center;padding:16px}
+  #axu-layer .vw-box{position:relative;width:min(calc(100vw - 32px),calc((100vh - 150px) * 16 / 9));aspect-ratio:16/9;overflow:hidden;background:#fff;box-shadow:0 30px 60px -20px #000;border-radius:3px}
+  #axu-layer .vw-box > .sx-slide{position:absolute;left:0;top:0;transform-origin:0 0}
+  .vw-nav{display:flex;align-items:center;justify-content:center;gap:14px;padding:6px 16px 18px}
+  .vw-nav button{min-width:44px;min-height:44px;padding:0 16px;border:1.4px solid rgba(255,255,255,.25);border-radius:6px;background:transparent;color:#fff;font:inherit;font-size:15px;cursor:pointer}
+  .vw-nav button:hover:not(:disabled){background:rgba(255,255,255,.08)}
+  .vw-nav button:disabled{opacity:.35;cursor:default}
+  .vw-nav button:focus-visible{outline:2.5px solid #9DB8FF;outline-offset:2px}
+  .vw-pos{font-family:"JetBrains Mono",monospace;font-size:14px;min-width:70px;text-align:center}
+  .vw-msg{max-width:440px;margin:auto;padding:40px 20px;text-align:center;font-size:16px;line-height:1.5;color:#C9D3E8}
+  .vw-msg b{display:block;font-size:22px;color:#fff;margin-bottom:8px}
+  .vw:fullscreen .vw-top{display:none}
+  #axu-layer .vw-top h1,#axu-layer .vw-pos{color:#fff}
+  #axu-layer .vw-top a{color:#9DB8FF}
+  #axu-layer .vw-nav button{color:#fff}
+  @media (max-width:600px){.vw-top{padding:10px 14px}.vw-stage{padding:8px}}
+</style>
+</head>
+<body>
+<div id="axu-layer">
+<main class="vw" id="vw">
+  <header class="vw-top"><img src="assets/logo-icon-only.png" alt=""><h1 id="vw-t">Sunum yükleniyor…</h1><a href="/">Acadex ile hazırlandı</a></header>
+  <div class="vw-stage" id="vw-stage"><p class="vw-msg">yükleniyor…</p></div>
+  <nav class="vw-nav" id="vw-nav" aria-label="Asetatlar" hidden>
+    <button type="button" id="vw-prev" aria-label="Önceki asetat">←</button>
+    <span class="vw-pos" id="vw-pos" aria-live="polite">1 / 1</span>
+    <button type="button" id="vw-next" aria-label="Sonraki asetat">→</button>
+    <button type="button" id="vw-fs">tam ekran</button>
+  </nav>
+</main>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="js/supabase-config.js"></script>
+<script>
+(function () {
+  var W = 960, H = 540, slides = [], i = 0;
+  var stage = document.getElementById('vw-stage'), pos = document.getElementById('vw-pos'), nav = document.getElementById('vw-nav');
+  var msg = function (t, d) { stage.innerHTML = '<p class="vw-msg"><b>' + t + '</b>' + (d || '') + '</p>'; nav.hidden = true; };
+  var clean = function (h) { return window.DOMPurify ? DOMPurify.sanitize(h, { USE_PROFILES: { html: true, svg: true, svgFilters: true, mathMl: true }, FORBID_TAGS: ['style', 'form', 'input', 'iframe'], FORBID_ATTR: ['onerror', 'onload'] }) : ''; };
+  var fit = function () { var box = stage.querySelector('.vw-box'), sl = box && box.querySelector('.sx-slide'); if (sl) { var k = box.clientWidth / W; sl.style.setProperty('--sc', k); sl.style.transform = 'scale(' + k + ')'; } };
+  var show = function (n) {
+    i = Math.max(0, Math.min(slides.length - 1, n)); var s = slides[i] || {};
+    var bg = /^[a-z]+$/.test(s.bg || '') ? s.bg : 'clear';
+    stage.innerHTML = '<div class="vw-box" role="img" aria-label="Asetat ' + (i + 1) + '"><div class="sx-slide bg-' + bg + '">' + clean(String(s.html || '')) + '</div></div>';
+    fit(); pos.textContent = (i + 1) + ' / ' + slides.length;
+    document.getElementById('vw-prev').disabled = i === 0; document.getElementById('vw-next').disabled = i === slides.length - 1;
+  };
+  var k = new URLSearchParams(location.search).get('k') || '';
+  if (!/^[A-Za-z0-9_-]{24,64}$/.test(k)) { msg('Bağlantı geçersiz', 'Bağlantıyı eksiksiz kopyaladığından emin ol.'); document.getElementById('vw-t').textContent = 'Acadex'; return; }
+  if (!window.DOMPurify || typeof supabaseClient === 'undefined') { msg('Sunum açılamadı', 'Sayfanın bir parçası yüklenemedi; sayfayı yenile.'); return; }
+  supabaseClient.rpc('get_shared_presentation', { p_token: k }).then(function (r) {
+    var d = r.data;
+    if (r.error || !d) { msg('Bu sunum paylaşımda değil', 'Sahibi paylaşımı kapatmış ya da bağlantı hatalı olabilir.'); document.getElementById('vw-t').textContent = 'Acadex'; return; }
+    slides = Array.isArray(d.slides) ? d.slides : [];
+    document.title = (d.title || 'Sunum') + ' · Acadex'; document.getElementById('vw-t').textContent = d.title || 'Sunum';
+    if (d.language === 'en') document.documentElement.lang = 'en';
+    if (!slides.length) { msg('Sunum boş', ''); return; }
+    nav.hidden = false; show(0);
+  }, function () { msg('Sunum açılamadı', 'Bağlantını kontrol edip sayfayı yenile.'); });
+  document.getElementById('vw-prev').addEventListener('click', function () { show(i - 1); });
+  document.getElementById('vw-next').addEventListener('click', function () { show(i + 1); });
+  document.getElementById('vw-fs').addEventListener('click', function () { var v = document.getElementById('vw'); if (document.fullscreenElement) document.exitFullscreen(); else if (v.requestFullscreen) v.requestFullscreen(); });
+  document.addEventListener('keydown', function (e) { if (!slides.length) return; if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); show(i + 1); } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); show(i - 1); } else if (e.key === 'Home') show(0); else if (e.key === 'End') show(slides.length - 1); });
+  var tx = null; stage.addEventListener('touchstart', function (e) { tx = e.touches[0].clientX; }, { passive: true });
+  stage.addEventListener('touchend', function (e) { if (tx == null) return; var dx = e.changedTouches[0].clientX - tx; if (Math.abs(dx) > 40) show(i + (dx < 0 ? 1 : -1)); tx = null; });
+  window.addEventListener('resize', fit);
+})();
+</script>
+</body>
+</html>
