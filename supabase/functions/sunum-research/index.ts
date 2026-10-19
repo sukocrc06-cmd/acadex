@@ -58,6 +58,26 @@ const verified = (claim: string, idx: Set<string>): boolean => {
   return toks.every((t) => variants(t).some((x) => idx.has(x)));
 };
 
+// akademik sunuma uymayan kaynaklar (video, sosyal medya, forum)
+const BLOCK = ["youtube.com", "youtu.be", "facebook.com", "instagram.com", "tiktok.com", "x.com", "twitter.com", "reddit.com", "quora.com", "pinterest.com", "linkedin.com", "eksisozluk.com", "uludagsozluk.com", "incisozluk.com.tr", "dailymotion.com", "vimeo.com", "scribd.com", "slideshare.net"];
+const blocked = (h: string) => BLOCK.some((b) => h === b || h.endsWith("." + b));
+// yayın yılı: Tavily tarih vermezse sayfanın başındaki tarihten ya da adresten bul
+const AY = "ocak|şubat|mart|nisan|mayıs|haziran|temmuz|ağustos|eylül|ekim|kasım|aralık|january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec";
+const findYear = (text: string, url: string): string => {
+  const now = new Date().getFullYear();
+  const ok = (y: number) => y >= 1990 && y <= now;
+  const head = String(text || "").slice(0, 4000);
+  const pats = [
+    /\b(?:published|updated|yayın(?:lanma)?(?: tarihi)?|güncelleme(?: tarihi)?|tarih)\s*[:\-]?\s*[^\n]{0,40}?\b((?:19|20)\d{2})\b/i,
+    new RegExp(`\\b\\d{1,2}\\s+(?:${AY})\\.?\\s+((?:19|20)\\d{2})\\b`, "i"),
+    new RegExp(`\\b(?:${AY})\\.?\\s+\\d{1,2},?\\s+((?:19|20)\\d{2})\\b`, "i"),
+    /\b\d{1,2}[./]\d{1,2}[./]((?:19|20)\d{2})\b/,
+    /\b((?:19|20)\d{2})-\d{2}-\d{2}\b/,
+  ];
+  for (const re of pats) { const m = head.match(re); if (m && ok(+m[1])) return m[1]; }
+  const u = String(url || "").match(/[/_-]((?:19|20)\d{2})[/_-]/); if (u && ok(+u[1])) return u[1];
+  return "";
+};
 const hostOf = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return ""; } };
 const yearOf = (d: string) => { const m = String(d || "").match(/(19|20)\d{2}/); return m ? m[0] : ""; };
 const apa = (s: Src, lang: string, accessed: string) => {
@@ -147,12 +167,12 @@ Deno.serve(async (req) => {
     const tv = await fetch("https://api.tavily.com/search", {
       method: "POST",
       headers: { "Authorization": `Bearer ${tKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ query: topic, search_depth: "advanced", max_results: 7, include_raw_content: true, include_answer: false, chunks_per_source: 3 }),
+      body: JSON.stringify({ query: topic, search_depth: "advanced", max_results: 10, include_raw_content: true, include_answer: false, chunks_per_source: 3, exclude_domains: BLOCK }),
     });
     if (!tv.ok) { const t = await tv.text().catch(() => ""); console.error("tavily", tv.status, t.slice(0, 300)); return J({ error: "Web araması yapılamadı", status: tv.status }, 502); }
     const tj = await tv.json();
-    const srcs: Src[] = (tj.results || []).filter((r: any) => r?.url && (r.content || r.raw_content)).slice(0, 6).map((r: any, i: number) => ({
-      id: i + 1, title: String(r.title || hostOf(r.url)).slice(0, 200), url: r.url, site: hostOf(r.url), date: String(r.published_date || ""),
+    const srcs: Src[] = (tj.results || []).filter((r: any) => r?.url && (r.content || r.raw_content) && !blocked(hostOf(r.url))).slice(0, 6).map((r: any, i: number) => ({
+      id: i + 1, title: String(r.title || hostOf(r.url)).replace(/\s+[|–-]\s+[^|–-]{2,40}$/, "").slice(0, 200), url: r.url, site: hostOf(r.url), date: String(r.published_date || "") || findYear(String(r.raw_content || r.content || ""), r.url),
       text: String(r.raw_content || r.content || "").slice(0, 20000), snippet: String(r.content || "").slice(0, 1400),
     }));
     if (srcs.length < 2) return J({ error: "Bu konuda yeterli kaynak bulunamadı", code: "few_sources" }, 422);
@@ -161,6 +181,7 @@ Deno.serve(async (req) => {
     const sys = `You build a factual university presentation in ${L} for a Business Faculty student, using ONLY the numbered SOURCES given.
 Rules:
 - Every fact, number, date and name must come from the sources. If the sources do not contain something, leave it out. Never invent numbers.
+- Label every number exactly as the source does: a measured/realised value is not a forecast, a target is not a result, an estimate is not an official figure. Name who reported it (e.g. "TÜİK ölçümü", "ENAG hesaplaması", "TCMB tahmini").
 - Write ${n - 2} content slides (cover and closing are added separately). Tone: ${tone}.
 - For each slide pick the layout that fits the content:
   "stat": exactly 3 key numbers from the sources (value + short label);

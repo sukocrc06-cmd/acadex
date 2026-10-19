@@ -6082,6 +6082,20 @@ body.axu-on #pomodoro-widget-container,body.axu-on #acadia-widget-container,body
 :is(#acadexsunum-view.axu,#axu-layer) .ly-diagram{background:linear-gradient(#0D1838,#0D1838) 8% 16%/40% 4px,linear-gradient(#DCE6FF,#DCE6FF) 14% 66%/20% 26%,linear-gradient(#2F6BFF,#2F6BFF) 34% 64%/14% 2px,linear-gradient(#DCE6FF,#DCE6FF) 50% 66%/20% 26%,linear-gradient(#2F6BFF,#2F6BFF) 70% 64%/14% 2px,linear-gradient(#DCE6FF,#DCE6FF) 86% 66%/20% 26%,#F4F6FA}
 :is(#acadexsunum-view.axu,#axu-layer) .ly-refs{background:linear-gradient(#0D1838,#0D1838) 8% 16%/36% 4px,repeating-linear-gradient(transparent 0 6px,#AEB7CC 6px 7.5px) 50% 78%/84% 52%,#F4F6FA}
 :is(#acadexsunum-view.axu,#axu-layer) [data-stage] .sx-el li.warn{overflow-wrap:anywhere}
+/* aşama 3: prova koçu */
+:is(#acadexsunum-view.axu,#axu-layer) .sx-rh-mic{white-space:nowrap}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-rh-mic[aria-pressed=true]{background:#C9483B;border-color:#C9483B;color:#fff}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-rh-mic[aria-pressed=true]::before{content:"";display:inline-block;width:8px;height:8px;margin-right:7px;border-radius:50%;background:#fff;animation:sxRec 1.2s ease-in-out infinite}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-rh-mic:disabled{opacity:.55;cursor:not-allowed}
+@keyframes sxRec{50%{opacity:.25}}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-rh-live{margin:10px 0 0;padding:8px 10px;border-left:3px solid #C9483B;background:rgba(255,255,255,.06);font-size:13px;line-height:1.4;color:#C9D3E8}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-rh-live[hidden]{display:none}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-rh-live b{display:block;font-family:"JetBrains Mono",monospace;font-size:15px;color:#fff}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-rh-live .dot{float:right;width:9px;height:9px;margin-top:4px;border-radius:50%;background:#C9483B;animation:sxRec 1.2s ease-in-out infinite}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-rh-card ol.co li{grid-template-columns:28px minmax(0,1fr) 70px 50px 44px}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-rh-card li .c{font-family:"JetBrains Mono",monospace;font-size:12.5px;text-align:right;color:#1E8A55}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-rh-card li .c.lo{color:#C9483B;font-weight:700}
+@media (prefers-reduced-motion:reduce){:is(#acadexsunum-view.axu,#axu-layer) .sx-rh-mic[aria-pressed=true]::before,:is(#acadexsunum-view.axu,#axu-layer) .sx-rh-live .dot{animation:none}}
 
 /* ===== Bölüm akışı ===== */
 :is(#feed-view.axb,#axb-layer) *{box-sizing:border-box}

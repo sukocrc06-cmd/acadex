@@ -4787,7 +4787,7 @@ var SBX = (function () {
   };
   var mathHTML = function (latex) { if (window.katex && latex) { try { return window.katex.renderToString(latex, { displayMode: true, throwOnError: false }); } catch (e) {} } return X(latex || ''); };
   LAY.chart = { l: 'grafik', f: function (t, b, c) { var d = (c && c.data) || {}; return head(t).concat([E('chart', 90, 146, 780, 316, { chart: { type: d.type || 'bar', labels: arr(d.labels), data: chartVals(d) } }), E('t', 90, 470, 780, 40, b && b[0] ? { text: b[0], size: 18, color: SOFT } : { text: 'grafiğin söylediğini bir cümleyle yaz', size: 18, color: SOFT, muted: true })]); } };
-  LAY.table = { l: 'tablo', f: function (t, b, c) { var d = (c && c.data) || { headers: ['başlık', 'başlık'], rows: [['', '']] }; return head(t).concat([E('table', 70, 150, 820, 340, { table: { headers: arr(d.headers).map(txt), rows: arr(d.rows).slice(0, 6).map(function (r) { return arr(r).map(txt); }) }, size: arr(d.rows).length > 4 || arr(d.headers).length > 4 ? 16 : 19 })]); } };
+  LAY.table = { l: 'tablo', f: function (t, b, c) { var d = (c && c.data) || { headers: ['başlık', 'başlık'], rows: [['', '']] }; var out = head(t).concat([E('table', 70, 150, 820, b && b[0] ? 320 : 340, { table: { headers: arr(d.headers).map(txt), rows: arr(d.rows).slice(0, 6).map(function (r) { return arr(r).map(txt); }) }, size: arr(d.rows).length > 4 || arr(d.headers).length > 4 ? 16 : 19 })]); if (b && b[0]) out.push(E('t', 70, 478, 820, 34, { text: b[0], size: 15, color: SOFT })); return out; } };
   LAY.math = { l: 'formül', f: function (t, b, c) { var fs = arr(c && c.data).slice(0, 3), out = head(t), hh = fs.length > 1 ? Math.floor(340 / fs.length) : 300;
     fs.forEach(function (f, i) { var y = 150 + i * hh; out.push(E('math', 70, y, 520, hh - 16, { latex: f.latex || '', size: fs.length > 2 ? 22 : 28 })); var vars = arr(f.variables).slice(0, 4).map(function (v) { return txt(v.symbol) + ': ' + txt(v.meaning); }).filter(function (x) { return x.length > 2; }); out.push(E('t', 610, y, 290, hh - 16, { text: (f.name ? txt(f.name) + (vars.length ? '\n' : '') : '') + vars.join('\n'), size: 16, color: SOFT })); });
     if (!fs.length) out.push(E('math', 70, 160, 820, 200, { latex: 'a^2 + b^2 = c^2', size: 32, muted: true })); return out; } };
@@ -5356,6 +5356,18 @@ var SBX = (function () {
       .then(function (r) { plotMeta.via = 'ai'; o.ai = true; return shape(r.items, o, r.title || title); },
             function (e) { console.warn('acadex-sunum: topic', e); plotMeta.via = 'skeleton'; return shape(generic(tp), o, title); });
   };
+  /* asetat içi atıf: kaynak numarası kaynakçadaki sırayla; rakamlı maddelere, yoksa son maddeye */
+  var cite = function (st, srcs) {
+    var num = {}; srcs.forEach(function (x, i) { num[x.id] = i + 1; });
+    st.forEach(function (s) {
+      var ns = arr(s.src).map(function (id) { return num[id]; }).filter(Boolean).filter(function (v, i, a) { return a.indexOf(v) === i; }).sort(function (a, b) { return a - b; });
+      if (!ns.length || s.k === 'cover' || s.k === 'end' || s.k === 'refs') return;
+      var tag = ' [' + ns.join(', ') + ']', b = s.b || [];
+      if (s.k === 'stat' || s.k === 'chart' || s.k === 'table') { if (s.k === 'stat') s.b = b.map(function (x) { return x + tag; }); else s.b = [(b[0] ? b[0] + tag : (curLang() === 'en' ? 'Source:' : 'Kaynak:') + tag)]; return; }
+      var hit = false; s.b = b.map(function (x) { if (/\d/.test(x)) { hit = true; return x + tag; } return x; });
+      if (!hit && s.b.length) s.b[s.b.length - 1] += tag;
+    });
+  };
   var makeOutline = function (o) {
     o.lang = o.lang || plotLang();
     var tt = Q('[data-think-t]', plot); if (tt) tt.textContent = 'Acadia kurguyu çiziyor…';
@@ -5372,7 +5384,7 @@ var SBX = (function () {
         var all = (head0 ? [head0] : []).concat(st).concat(tail ? [tail] : []);
         return lockLang(all, o.lang, plotMeta.title).then(function (r) { if (r.title) { plotMeta.title = r.title; if (head0) head0.t = r.title; } plotMeta.fixed.lang = r.n; plotMeta.lang = o.lang;
           var out = r.strips, srcs = arr(plotMeta.sources);
-          if (srcs.length) { var at = out.length && out[out.length - 1].k === 'end' ? out.length - 1 : out.length; out.splice(at, 0, { t: o.lang === 'en' ? 'References' : 'Kaynakça', k: 'refs', b: srcs.map(function (x) { return String(x.apa || x.url); }), notes: o.lang === 'en' ? 'Every fact and number in this deck comes from these sources; the full links are on the slide.' : 'Sunumdaki her bilgi ve rakam bu kaynaklardan geliyor; bağlantıların tamamı asetatta.' }); }
+          if (srcs.length) { cite(out, srcs); var at = out.length && out[out.length - 1].k === 'end' ? out.length - 1 : out.length; out.splice(at, 0, { t: o.lang === 'en' ? 'References' : 'Kaynakça', k: 'refs', b: srcs.map(function (x, i) { return '[' + (i + 1) + '] ' + String(x.apa || x.url); }), notes: o.lang === 'en' ? 'Every fact and number in this deck comes from these sources; the full links are on the slide.' : 'Sunumdaki her bilgi ve rakam bu kaynaklardan geliyor; bağlantıların tamamı asetatta.' }); }
           return out; });
       });
     });
@@ -5461,6 +5473,56 @@ var SBX = (function () {
   Q('[data-pl-ok]', plot).addEventListener('click', function () { if (deck.slides.length) { step(3); plot.querySelector('input[name=pl-mode]:checked').focus(); } else printDeck('replace'); });
   Q('[data-pl-print]', plot).addEventListener('click', function () { printDeck(plot.querySelector('input[name=pl-mode]:checked').value); });
 
+  /* ---------- prova koçu: tarayıcının konuşma tanıması ile hız, dolgu, kapsama ---------- */
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var coach = { on: false, rec: null, text: [], live: '' };
+  var FILL = { tr: ['ııı', 'ıı', 'eee', 'ee', 'ıhm', 'hmm', 'şey', 'yani', 'hani', 'işte', 'falan', 'filan', 'aslında', 'açıkçası'], en: ['um', 'uh', 'erm', 'hmm', 'like', 'you know', 'basically', 'actually', 'kind of', 'sort of', 'i mean'] };
+  var STOP = /^(ve|ile|bir|bu|şu|için|gibi|daha|çok|olan|olarak|ama|veya|ancak|kadar|sonra|önce|göre|değil|ise|the|and|for|with|that|this|from|are|was|were|have|has|into|their|about|which|also)$/;
+  var lower = function (t) { return String(t || '').toLocaleLowerCase(curLang() === 'en' ? 'en' : 'tr'); };
+  var wordsOf = function (t) { return lower(t).replace(/\[\d+\]/g, ' ').match(/[\p{L}\p{N}%]+/gu) || []; };
+  var keyTerms = function (s) {
+    var src = [s.notes || ''].concat(s.els.filter(function (e) { return /^(h|t|ul)$/.test(e.type) && !e.muted; }).map(function (e) { return e.text; }), s.els.filter(function (e) { return e.type === 'table' && e.table; }).map(function (e) { return arr(e.table.rows).map(function (r) { return arr(r).join(' '); }).join(' '); })).join(' ').replace(/\b(kaynak|source|fotoğraf|photo|pexels|unsplash)\b:?/gi, ' ');
+    var seen = {}, out = [];
+    wordsOf(src).forEach(function (w) { if (w.length >= 5 && !/\d/.test(w) && !STOP.test(w)) { var k = w.slice(0, 5); if (!seen[k]) { seen[k] = 1; out.push(w); } } });
+    return out.slice(0, 8);
+  };
+  var covered = function (term, heard) { var k = term.slice(0, /\d/.test(term) ? term.length : 5); return heard.some(function (w) { return w.indexOf(k) === 0 || (/\d/.test(term) && w === term); }); };
+  var fillCount = function (t) {
+    var w = ' ' + wordsOf(t).join(' ') + ' ', out = {};
+    FILL[curLang() === 'en' ? 'en' : 'tr'].forEach(function (f) { var n = w.split(' ' + f + ' ').length - 1; if (n) out[f] = n; });
+    return out;
+  };
+  var coachStart = function () {
+    if (!SR) return false;
+    var r = new SR(); r.lang = curLang() === 'en' ? 'en-US' : 'tr-TR'; r.continuous = true; r.interimResults = true;
+    r.onresult = function (e) { var interim = ''; for (var i = e.resultIndex; i < e.results.length; i++) { var t = e.results[i][0].transcript; if (e.results[i].isFinal) coach.text[rhI] = (coach.text[rhI] || '') + ' ' + t; else interim += t; } coach.live = interim; coachPaint(); };
+    r.onerror = function (e) { if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { coachStop(); say('Mikrofon izni verilmedi; koçluk kapandı. Tarayıcının adres çubuğundaki mikrofon simgesinden izin verebilirsin.'); } };
+    r.onend = function () { if (coach.on && coach.rec === r) { try { r.start(); } catch (x) {} } };
+    try { r.start(); } catch (x) { return false; }
+    coach.rec = r; coach.on = true; return true;
+  };
+  var coachStop = function () { coach.on = false; if (coach.rec) { try { coach.rec.stop(); } catch (x) {} } coach.rec = null; var b = Q('[data-rh-mic]', rh); if (b) { b.setAttribute('aria-pressed', 'false'); b.textContent = 'mikrofonla koçluk'; } var l = Q('[data-rh-live]', rh); if (l) l.hidden = true; };
+  var coachPaint = function () {
+    if (!coach.on) return; var l = Q('[data-rh-live]', rh); l.hidden = false;
+    var all = coach.text.join(' '), n = wordsOf(all).length, spoken = rhAcc.reduce(function (a, b) { return a + b; }, 0) + (Date.now() - rhSlideT0);
+    Q('[data-rh-wpm]', l).textContent = (spoken > 15000 && n ? Math.round(n / (spoken / 60000)) : '—') + ' kelime/dk';
+    var tail = ((coach.text[rhI] || '') + ' ' + coach.live).trim().split(/\s+/).slice(-9).join(' ');
+    Q('[data-rh-heard]', l).textContent = tail ? '“…' + tail + '”' : ' dinliyorum…';
+  };
+  var coachReport = function (tot) {
+    if (!coach.text.some(function (t) { return t && t.trim(); })) return null;
+    var all = coach.text.join(' '), n = wordsOf(all).length, wpm = Math.round(n / Math.max(tot / 60000, .1)), en = curLang() === 'en';
+    var lo = en ? 110 : 95, hi = en ? 170 : 150, fc = fillCount(all), fl = Object.keys(fc).sort(function (a, b) { return fc[b] - fc[a]; }), fsum = fl.reduce(function (a, k) { return a + fc[k]; }, 0);
+    var per = deck.slides.map(function (s, i) { var terms = keyTerms(s), heard = wordsOf(coach.text[i] || ''); if (!terms.length || s.lay === 'cover' || s.lay === 'end' || s.lay === 'refs') return null; var miss = terms.filter(function (t) { return !covered(t, heard); }); return { pct: Math.round((terms.length - miss.length) / terms.length * 100), miss: miss.slice(0, 3), said: heard.length }; });
+    var tips = [];
+    tips.push('Hızın dakikada ' + wpm + ' kelime: ' + (wpm < lo ? 'biraz yavaş; cümleleri kısaltıp akışı hızlandırabilirsin.' : wpm > hi ? 'hızlı; önemli rakamlardan sonra bir nefes durakla.' : 'dinleyicinin rahat izleyeceği aralıkta (' + lo + '–' + hi + ').'));
+    if (fsum) tips.push('Dolgu sözcükleri: ' + fl.slice(0, 3).map(function (k) { return '“' + k + '” ' + fc[k] + ' kez'; }).join(', ') + (fsum / Math.max(n, 1) > .03 ? '. Bunların yerine kısa bir sessizlik daha güçlü durur.' : '. Az, sorun değil.'));
+    else tips.push('Dolgu sözcüğü duymadım (tarayıcı “ııı” gibi sesleri her zaman yazmaz).');
+    var weak = per.map(function (p, i) { return p && p.pct < 50 ? i : -1; }).filter(function (i) { return i >= 0; });
+    if (weak.length) tips.push(weak.slice(0, 3).map(function (i) { return (i + 1) + '. asetatta ' + per[i].miss.map(function (m) { return '“' + m + '”'; }).join(', '); }).join(' · ') + ' geçmedi; nota bakarak bu fikirleri ekle.');
+    var silent = per.map(function (p, i) { return p && p.said < 4 ? i + 1 : 0; }).filter(Boolean); if (silent.length) tips.push(silent.slice(0, 4).join(', ') + '. asetat(lar)da neredeyse hiç konuşmadın.');
+    return { wpm: wpm, words: n, fill: fsum, per: per, tips: tips };
+  };
   /* ---------- rehearsal (prova) ---------- */
   var rh = Q('[data-rh]'), rhI = 0, rhT0 = 0, rhSlideT0 = 0, rhAcc = [], rhTick = 0, rhFrom = null;
   LY.appendChild(rh);
@@ -5474,6 +5536,7 @@ var SBX = (function () {
   };
   var rhStep = function (d) { var j = rhI + d; if (j < 0) return; var now = Date.now(); rhAcc[rhI] += now - rhSlideT0; rhSlideT0 = now; if (j >= deck.slides.length) { rhEnd(); return; } rhI = j; rhPaint(); };
   var rhLoop = function () {
+    if (coach.on && Date.now() % 1000 < 260) coachPaint();
     var now = Date.now(), tot = now - rhT0, goal = +Q('[data-rh-goal]', rh).value * 60000;
     Q('[data-rh-total]', rh).textContent = mmss(tot); Q('[data-rh-slide]', rh).textContent = mmss(rhAcc[rhI] + now - rhSlideT0);
     var bar = Q('[data-rh-bar]', rh); bar.style.width = Math.min(100, tot / goal * 100) + '%'; bar.classList.toggle('over', tot > goal);
@@ -5481,25 +5544,28 @@ var SBX = (function () {
   var rhOpen = function (from) {
     if (!deck.slides.length) { say('Prova için önce birkaç asetat hazırla.'); return; }
     commitEdit(); rhFrom = from; rhI = 0; rhAcc = deck.slides.map(function () { return 0; }); rhT0 = rhSlideT0 = Date.now();
+    coach.text = deck.slides.map(function () { return ''; }); coach.live = ''; if (coach.wanted) { coachStart(); var mb = Q('[data-rh-mic]', rh); mb.setAttribute('aria-pressed', 'true'); mb.textContent = 'koç dinliyor'; coachPaint(); }
     rh.hidden = false; document.body.classList.add('axu-on'); Q('[data-rh-card]', rh).hidden = true; document.body.style.overflow = 'hidden'; rhPaint(); rhLoop(); rhTick = setInterval(rhLoop, 250); Q('[data-rh-nxt]', rh).focus();
   };
   var rhEnd = function () {
     if (Q('[data-rh-card]', rh).hidden === false) return;
-    var now = Date.now(); if (rhI < deck.slides.length) rhAcc[rhI] += now - rhSlideT0; rhSlideT0 = now; clearInterval(rhTick);
+    var now = Date.now(); if (rhI < deck.slides.length) rhAcc[rhI] += now - rhSlideT0; rhSlideT0 = now; clearInterval(rhTick); coachStop();
     var tot = rhAcc.reduce(function (a, b) { return a + b; }, 0), goal = +Q('[data-rh-goal]', rh).value * 60000, mx = Math.max.apply(null, rhAcc.concat([1])), avg = tot / deck.slides.length;
     var tips = [], longI = rhAcc.indexOf(mx), fast = rhAcc.filter(function (t) { return t < 4000; }).length, noNotes = deck.slides.filter(function (s) { return !s.notes; }).length;
     if (tot > goal) tips.push('Hedefi ' + mmss(tot - goal) + ' aştın. En uzun durduğun ' + (longI + 1) + '. asetattan başla.'); else tips.push('Hedefin içindesin; ' + mmss(goal - tot) + ' payın var.');
     if (deck.slides.length > 2 && mx > avg * 1.8) tips.push((longI + 1) + '. asetatta ortalamanın çok üstünde kaldın; ikiye bölmeyi düşün.');
     if (fast) tips.push(fast + ' asetatı 4 saniyeden kısa geçtin; gerçekten gerekli mi?');
     if (noNotes) tips.push(noNotes + ' asetatın konuşmacı notu yok; Acadia’ya “konuşmacı notu yaz” dedirtebilirsin.');
-    var card = Q('[data-rh-card]', rh);
-    card.innerHTML = '<h2>prova karnesi</h2><p class="big">toplam <b>' + mmss(tot) + '</b> · hedef ' + mmss(goal) + '</p><ol>' + deck.slides.map(function (s, i) { return '<li' + (i === longI && deck.slides.length > 1 ? ' class="long"' : '') + '><span class="n">' + (i + 1) + '</span><span class="t">' + X(titleOf(s) || 'başlıksız') + '</span><span class="b"><i style="width:' + Math.round(rhAcc[i] / mx * 100) + '%"></i></span><span class="s">' + mmss(rhAcc[i]) + '</span></li>'; }).join('') + '</ol>' +
+    var card = Q('[data-rh-card]', rh), co = coachReport(tot); if (co) tips = co.tips.concat(tips);
+    card.innerHTML = '<h2>prova karnesi</h2><p class="big">toplam <b>' + mmss(tot) + '</b> · hedef ' + mmss(goal) + (co ? ' · <b>' + co.wpm + '</b> kelime/dk · ' + co.fill + ' dolgu' : '') + '</p><ol' + (co ? ' class="co"' : '') + '>' + deck.slides.map(function (s, i) { var c = co && co.per[i]; return '<li' + (i === longI && deck.slides.length > 1 ? ' class="long"' : '') + '><span class="n">' + (i + 1) + '</span><span class="t">' + X(titleOf(s) || 'başlıksız') + '</span><span class="b"><i style="width:' + Math.round(rhAcc[i] / mx * 100) + '%"></i></span><span class="s">' + mmss(rhAcc[i]) + '</span>' + (co ? '<span class="c' + (c && c.pct < 50 ? ' lo' : '') + '" title="notlardaki ve asetattaki ana fikirlerin ne kadarını söyledin">' + (c ? '%' + c.pct : '—') + '</span>' : '') + '</li>'; }).join('') + '</ol>' +
       '<ul class="tips">' + tips.map(function (t) { return '<li>' + X(t) + '</li>'; }).join('') + '</ul><div class="row"><button type="button" class="hbtn" data-rh-again="">tekrar prova</button><button type="button" class="btn btn-dark" data-rh-close="">kapat</button></div>';
     card.hidden = false; card.querySelector('[data-rh-close]').focus();
-    S('acadex.sunum.lastRehearsal', { at: Date.now(), total: tot, goal: goal, per: rhAcc });
+    S('acadex.sunum.lastRehearsal', { at: Date.now(), total: tot, goal: goal, per: rhAcc, wpm: co ? co.wpm : null, fill: co ? co.fill : null, cover: co ? co.per.map(function (c) { return c ? c.pct : null; }) : null });
   };
-  var rhClose = function () { clearInterval(rhTick); rh.hidden = true; document.body.classList.remove('axu-on'); document.body.style.overflow = ''; if (rhFrom && document.contains(rhFrom)) rhFrom.focus(); };
+  var rhClose = function () { clearInterval(rhTick); coachStop(); rh.hidden = true; document.body.classList.remove('axu-on'); document.body.style.overflow = ''; if (rhFrom && document.contains(rhFrom)) rhFrom.focus(); };
   Q('[data-rehearse]').addEventListener('click', function (e) { rhOpen(e.currentTarget); });
+  (function () { var mb = Q('[data-rh-mic]', rh); if (!SR) { mb.disabled = true; mb.title = 'Bu tarayıcı konuşma tanımayı desteklemiyor; Chrome ya da Edge ile dene.'; mb.textContent = 'koçluk: Chrome/Edge'; return; }
+    mb.addEventListener('click', function () { if (coach.on) { coachStop(); coach.wanted = false; say('Koç kapandı; o ana kadar duyduklarım karnede.'); return; } coach.wanted = true; if (coachStart()) { mb.setAttribute('aria-pressed', 'true'); mb.textContent = 'koç dinliyor'; coachPaint(); say('Koç dinliyor. Konuşman tarayıcının konuşma tanıma hizmetine gider; Acadex kaydetmez.'); } }); })();
   Q('[data-rh-nxt]', rh).addEventListener('click', function () { rhStep(1); });
   Q('[data-rh-prev]', rh).addEventListener('click', function () { rhStep(-1); });
   Q('[data-rh-end]', rh).addEventListener('click', rhEnd);
