@@ -4956,6 +4956,116 @@ function gateWorkedExampleArithmetic(examples: any[]): { kept: any[]; dropped: s
   return { kept, dropped }
 }
 
+/* ==========================================================================
+   BILGI YOGUNLUGU KAPISI (20.10.2026)
+   ==========================================================================
+   SIKAYET: "neredeyse her seyi cikariyor ama bos seyleri de cikardigina
+   eminim". Dogru teshis: sistem ogrenmedigi icin degil, ona HER SEYI
+   cikarmasi soylendigi icin boyle. Prompt "her denklemi, her sayiyi al"
+   diyor; model de uyuyor ve arasina dolgu cumleler karisiyor:
+
+     "Logarithmic transformations help linearize power-law relationships"
+     "These specifications are widely used in economic modeling"
+
+   Ikisi de DOGRU, ikisi de kaynakta geciyor — yani ne grounding kapisi ne
+   kopya birlestirme bunlari eliyor. Eksik olan sey farkli: bu cumleler
+   SOMUT hicbir sey tasimiyor. Ogrenci bunlari okuyup bir sey ogrenmiyor.
+
+   OLCU, MODEL DEGIL. Bir maddenin somut capasi var mi:
+     - SAYI            ("0.045", "%67", "43.96 thousand")
+     - FORMUL IZI      (=, ^, _, Yunan harfi, ters bolu)
+     - KAYNAK TERIMI   (belgede gecen, iki kelimeden uzun ayirt edici terim)
+   Ucunden HICBIRI yoksa madde dolgudur.
+
+   GUVENLIK VALFI: kapi maddelerin ucte birinden fazlasini atacaksa HICBIR
+   SEY atmiyor. Bu, grounding kapisinin valfiyle ayni mantik ve ayni
+   sebeple var: olcum yanlissa kartin yarisini silmektense hicbir sey
+   silmemek iyidir. Valf devreye girdiginde log bunu SOYLUYOR, sessizce
+   gecmiyor.
+   ========================================================================== */
+/* Kapi su an ELEMIYOR, yalnizca olcuyor. Gercek loglara bakip kurali
+   koyduktan sonra true yapilacak — tek satir. */
+const YOGUNLUK_KAPISI_ELIYOR = false
+
+type YogunlukStats = {
+  kept: number
+  dropped: number
+  droppedPoints: string[]
+  valfAcildi: boolean
+}
+
+/** Somut capa tasiyan bir maddede bulunan isaretler. Bos dizi = dolgu. */
+function yogunlukIsaretleri(text: string, docTerms: Set<string>): string[] {
+  const t = String(text || '')
+  const isaretler: string[] = []
+
+  // SAYI: yil ve madde numarasi disinda bir sayi. "k - 1" gibi tek haneli
+  // sembolik ifadeler de sayilir, cunku onlar kuralin kendisi.
+  if (/\d/.test(t.replace(/\[\d+(?:\s*,\s*\d+)*\]/g, ''))) isaretler.push('sayi')
+
+  // FORMUL IZI: esitlik, us, alt simge, Yunan harfi ya da LaTeX komutu.
+  if (/[=^_\\]|[α-ωΑ-Ω]/.test(t)) isaretler.push('formul')
+
+  /* KAYNAK TERIMI BILEREK SAYILMIYOR. Her dolgu cumle de kaynakta gecen
+     terimleri tasiyor ("logarithmic transformations help linearize..."),
+     yani terim capasi olcuyu anlamsiz kiliyordu: hicbir sey dolgu
+     sayilmiyordu. docTerms yine de parametrede duruyor; kurali veriye
+     bakip yeniden kurarken gerekecek. */
+  void docTerms
+
+  return isaretler
+}
+
+/**
+ * Somut capasi olmayan maddeleri eler.
+ *
+ * Kaynak metin yoksa ya da kisaysa HICBIR SEY yapmaz: terim capasini
+ * kuracak zemin yok demektir ve o durumda elemek, kotu bir olcumle karti
+ * budamak olur.
+ */
+function applyDensityGate(
+  keyPoints: any[],
+  sourceText: string,
+  figureText: string = ''
+): { key_points: any[]; stats: YogunlukStats } {
+  const points = Array.isArray(keyPoints) ? keyPoints : []
+  const stats: YogunlukStats = { kept: points.length, dropped: 0, droppedPoints: [], valfAcildi: false }
+  if (!sourceText || sourceText.length < 200 || points.length === 0) return { key_points: points, stats }
+
+  const birlesik = figureText ? sourceText + '\n' + figureText : sourceText
+  const docTerms = new Set(anchorTerms(birlesik))
+  const oku = (raw: any) => typeof raw === 'string' ? raw : String(raw?.text || raw?.point || '')
+
+  const tutulan: any[] = []
+  const atilan: any[] = []
+  for (const p of points) {
+    const metin = oku(p)
+    if (yogunlukIsaretleri(metin, docTerms).length > 0) tutulan.push(p)
+    else atilan.push(p)
+  }
+
+  /* OLCUM MODU: aday isaretlenir, kart DEGISMEZ. Yanlis olcuyle elemek,
+     olcmemekten kotudur (bkz. ustteki not). */
+  stats.dropped = atilan.length
+  stats.droppedPoints = atilan.map(p => oku(p).slice(0, 90))
+  stats.kept = tutulan.length
+  if (!YOGUNLUK_KAPISI_ELIYOR) {
+    stats.kept = points.length
+    return { key_points: points, stats }
+  }
+
+  /* VALF: ucte birden fazlasi gidecekse hicbiri gitmesin. Boyle bir oran,
+     maddelerin dolgu oldugunu degil OLCUMUN yanlis oldugunu gosterir —
+     ornegin kaynak metin cok kisa cikmistir ve terim capasi hic
+     kurulamamistir. */
+  if (atilan.length > Math.floor(points.length / 3)) {
+    stats.valfAcildi = true
+    return { key_points: points, stats }
+  }
+
+  return { key_points: tutulan, stats }
+}
+
 function applyGroundingGate(
   keyTerms: any[],
   keyPoints: any[],
@@ -7615,6 +7725,9 @@ ${styleInstruction}`
        sayisi. Sifir degilse kart tam degil: rozet yaziliyor ve onbellege
        ALINMIYOR (bkz. summary_cache yazimi). */
     let geminiKismiKrk = 0
+    /* Yogunluk kapisinin OLCUM modundaki bulgusu; kapi eledigi gun bu
+       alan karari degil gecmisi tutacak. */
+    let yogunlukOlcumu: { dropped: number; toplam: number; ornekler: string[] } | null = null
     let visualAnalysisUsed = false
 
     // ==========================================================================
@@ -10037,6 +10150,32 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
         (gated.stats.droppedPoints.length ? ` | uydurma nokta: ${gated.stats.droppedPoints.map(p => `"${p}"`).join(' ')}` : '')
       )
 
+      /* --- (b0) BILGI YOGUNLUGU KAPISI.
+         Grounding kapisi "uydurma mi" diye bakar; bu kapi "bir sey
+         soyluyor mu" diye. Dolgu cumleler dogru VE kaynakta gecer, o
+         yuzden oteki kapidan rahatca gecerler. */
+      // Olcum asagida quality_meta ye yazilacak.
+      const yogunluk = applyDensityGate(
+        parsedContent.key_points,
+        extractedText,
+        visionNotes.join('\n')
+      )
+      parsedContent.key_points = yogunluk.key_points
+      yogunlukOlcumu = yogunluk.stats.dropped > 0
+        ? { dropped: yogunluk.stats.dropped, toplam: yogunluk.stats.kept, ornekler: yogunluk.stats.droppedPoints.slice(0, 5) }
+        : null
+      if (yogunluk.stats.valfAcildi) {
+        console.warn(
+          `Yogunluk kapisi: VALF ACILDI — maddelerin ucte birinden fazlasi elenecekti, ` +
+          `hicbiri elenmedi (olcum guvenilmez sayildi)`
+        )
+      } else if (yogunluk.stats.dropped > 0) {
+        console.log(
+          `Yogunluk olcumu: ${yogunluk.stats.dropped}/${yogunluk.stats.kept} madde somut capa tasimiyor` +
+          ` | dolgu: ${yogunluk.stats.droppedPoints.map((x) => '"' + x + '"').join(' ')}`
+        )
+      }
+
       // --- (b1) Cozumlu orneklerin VERILEN sayilari da dayandirilir.
       // Kapi uzun sure yalnizca terim ve noktaya bakiyordu; uydurma sayinin
       // en cok zarar verdigi yer ise cozumlu ornek (bkz. gateWorkedExamples).
@@ -10191,6 +10330,10 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
       }
       if (eksikPencereler) qualityMeta.missing_windows = eksikPencereler
       if (geminiKismiKrk > 0) qualityMeta.gemini_partial = { kurtarilanKrk: geminiKismiKrk }
+      /* Olcum modundaki yogunluk kapisinin bulgusu karta da yaziliyor:
+         loglar birkac gunde kayboluyor, kart kaliyor. Kurali veriye bakip
+         koyarken bu alan kaynak olacak. */
+      if (yogunlukOlcumu && yogunlukOlcumu.dropped > 0) qualityMeta.dolgu_adayi = yogunlukOlcumu
       // Paralel modun gercek maliyeti: belge basina token, model dagilimi, sure.
       if (geminiParallelUsage.calls > 0) {
         qualityMeta.gemini_parallel = {

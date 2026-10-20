@@ -4329,4 +4329,74 @@ test('hangi anahtarin isabet ettigi LOGLANIYOR', () => {
     'isabet turu metin/dosya ayrimi yapmiyor');
 });
 
+
+// ==========================================================================
+// BILGI YOGUNLUGU: OLCUM MODU (20.10.2026)
+//
+// "Bos seyleri de cikardigina eminim" sikayetinin olculebilir hali. Kapi
+// su an ELEMIYOR: sozcuk duzeyinde bir olcu "dolgu" ile "degerli kavram"i
+// ayiramiyor ve bu repoda yanlis olcuyle elemenin bedeli zaten odendi
+// (grounding kapisi 10.10'da 18 terimin 7'sini atti, hicbiri uydurma
+// degildi). Once olcuyoruz.
+// ==========================================================================
+
+const YOG = loadFromSource('supabase/functions/summarize-document/index.ts', [
+  'ANCHOR_STOPWORDS', 'gateNormalize', 'anchorTerms', 'YOGUNLUK_KAPISI_ELIYOR',
+  'yogunlukIsaretleri', 'applyDensityGate'
+]);
+
+const KAYNAK = 'Dummy variables and interaction terms in multiple linear regression. '
+  + 'The omitted category serves as the baseline. Logarithmic transformations '
+  + 'linearize power-law relationships. The quadratic model has a turning point. '
+  + 'Elasticity measures percentage response.';
+
+test('SAYI tasiyan madde somut sayilir', () => {
+  const i = YOG.yogunlukIsaretleri('A categorical variable with k levels requires k - 1 dummies', new Set());
+  assert.ok(i.includes('sayi'), 'sayi capasi gorulmedi: ' + JSON.stringify(i));
+});
+
+test('ATIF NUMARASI sayi sayilmaz', () => {
+  /* Her madde [4] ya da [21, 22] tasiyor. Bunlar sayi sayilsaydi hicbir
+     madde dolgu adayi olmazdi ve olcum hep sifir cikardi. */
+  const i = YOG.yogunlukIsaretleri('These specifications are widely used [21, 22]', new Set());
+  assert.deepEqual(i, [], 'atif numarasi somut capa sayilmis: ' + JSON.stringify(i));
+});
+
+test('FORMUL izi somut sayilir', () => {
+  assert.ok(YOG.yogunlukIsaretleri('The vertex occurs at x_j = -b_1/(2b_2)', new Set()).includes('formul'));
+  assert.ok(YOG.yogunlukIsaretleri('marginal effect \u2202y/\u2202x uses \u03b2 coefficients', new Set()).includes('formul'));
+});
+
+test('DOLGU cumle hicbir capa tasimaz', () => {
+  const i = YOG.yogunlukIsaretleri('Logarithmic transformations help linearize power-law relationships', new Set());
+  assert.deepEqual(i, [], 'dolgu cumlede capa bulundu: ' + JSON.stringify(i));
+});
+
+test('KAPI SU AN ELEMIYOR: kart aynen doner', () => {
+  /* Olcum modu. Bayrak true olana kadar kart DEGISMEMELI; aksi halde
+     yanlis olcu sessizce icerik siler. */
+  assert.equal(YOG.YOGUNLUK_KAPISI_ELIYOR, false);
+  const points = [
+    'Logarithmic transformations help linearize power-law relationships',
+    'A categorical variable with k levels requires k - 1 dummies'
+  ];
+  const r = YOG.applyDensityGate(points, KAYNAK);
+  assert.equal(r.key_points.length, 2, 'olcum modunda madde silinmis');
+  assert.equal(r.stats.dropped, 1, 'dolgu aday olarak isaretlenmedi');
+  assert.ok(r.stats.droppedPoints[0].startsWith('Logarithmic'));
+});
+
+test('KAYNAK YOKSA olcum yapilmaz', () => {
+  // Cikarim basarisizsa her madde dolgu gorunur; o durumda olcum yaniltir.
+  const r = YOG.applyDensityGate(['bir sey'], 'kisa');
+  assert.equal(r.stats.dropped, 0);
+});
+
+test('olcum KARTA da yaziliyor', () => {
+  /* Loglar birkac gunde kayboluyor, kart kaliyor. Kurali veriye bakip
+     koyarken bu alan kaynak olacak. */
+  assert.ok(/qualityMeta\.dolgu_adayi = yogunlukOlcumu/.test(SRC),
+    'olcum quality_meta ye yazilmiyor');
+});
+
 summary().then(() => process.exit(process.exitCode || 0));
