@@ -5981,3 +5981,173 @@ input:checked + .slider:before {
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+/* ==========================================================================
+   Sınav soru motoru (js/exam-engine.js) — Faz 1, 14.10.2026
+   Soru haritası, işaretleme, tek tek görünüm.
+   ========================================================================== */
+#exam-navigator-host {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  margin-top: 1.25rem;
+}
+.exam-navigator {
+  background: var(--color-white);
+  border: 1px solid rgba(15, 37, 55, 0.1);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  padding: 0.75rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.exam-nav-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  font-size: 0.82rem;
+}
+.exam-nav-title { color: var(--color-navy); }
+.exam-nav-count { color: var(--color-text-muted); font-weight: 600; }
+.exam-nav-save { color: var(--color-teal); font-size: 0.75rem; font-weight: 600; }
+.exam-nav-mode { margin-left: auto; padding: 0.35rem 0.75rem; font-size: 0.75rem; min-height: unset; }
+.exam-nav-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.exam-nav-btn {
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(15, 37, 55, 0.18);
+  background: var(--color-bg-alt);
+  color: var(--color-navy);
+  font-weight: 700;
+  font-size: 0.8rem;
+  cursor: pointer;
+  position: relative;
+}
+.exam-nav-btn:hover { border-color: var(--color-teal); }
+.exam-nav-btn:focus-visible { outline: 2px solid var(--color-teal); outline-offset: 2px; }
+.exam-nav-btn.is-answered {
+  background: var(--color-teal);
+  border-color: var(--color-teal);
+  color: #FFFFFF;
+}
+.exam-nav-btn.is-flagged {
+  background: #FEF3C7;
+  border-color: #F59E0B;
+  color: #92400E;
+}
+.exam-nav-btn.is-answered.is-flagged {
+  background: var(--color-teal);
+  color: #FFFFFF;
+  box-shadow: inset 0 -4px 0 #F59E0B;
+}
+.exam-nav-btn.is-current {
+  outline: 2px solid var(--color-navy);
+  outline-offset: 2px;
+}
+.exam-nav-legend { font-size: 0.72rem; color: var(--color-text-muted); }
+
+.exam-q-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+.exam-q-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+/* .exam-question-card display:flex tanımlı; hidden özniteliği tek başına
+   gizlemiyor. Tek tek görünüm buna dayanıyor. */
+.exam-question-card[hidden] { display: none !important; }
+.exam-q-actions .btn { white-space: nowrap; }
+.exam-flag-btn {
+  padding: 0.35rem 0.65rem;
+  font-size: 0.7rem;
+  min-height: unset;
+  line-height: 1;
+}
+.exam-flag-btn[aria-pressed="true"] {
+  background: #FEF3C7;
+  border-color: #F59E0B;
+  color: #92400E;
+}
+.exam-question-card.is-flagged { border-left: 4px solid #F59E0B; }
+.exam-question-card.is-current { border-color: rgba(18, 110, 122, 0.45); }
+.exam-choice-letter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  border: 1px solid rgba(15, 37, 55, 0.2);
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: var(--color-text-muted);
+}
+.exam-choice-label.selected .exam-choice-letter,
+.exam-choice-label input[type="radio"]:checked + .exam-choice-letter {
+  border-color: var(--color-teal);
+  background: var(--color-teal);
+  color: #FFFFFF;
+}
+.exam-input-row { margin-top: 0.5rem; }
+.exam-text-input {
+  width: 100%;
+  max-width: 400px;
+  padding: 0.6rem;
+  border: 1px solid rgba(22, 50, 92, 0.15);
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+}
+.exam-textarea {
+  width: 100%;
+  padding: 0.65rem;
+  border: 1px solid rgba(22, 50, 92, 0.15);
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  font-family: inherit;
+  resize: vertical;
+}
+.exam-single-nav { display: none; }
+.exam-mode-single .exam-single-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-top: 1px solid rgba(15, 37, 55, 0.08);
+  padding-top: 0.9rem;
+}
+.exam-single-nav .btn { padding: 0.45rem 0.9rem; font-size: 0.8rem; min-height: unset; }
+.exam-single-pos { font-size: 0.8rem; font-weight: 700; color: var(--color-text-muted); white-space: nowrap; }
+
+.exam-resume-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+  background: var(--color-teal-light);
+  border: 1px solid rgba(18, 110, 122, 0.3);
+  border-radius: var(--radius-md);
+  font-size: 0.85rem;
+  color: var(--color-navy);
+}
+.exam-resume-banner .exam-resume-actions { display: flex; gap: 0.5rem; }
+.exam-resume-banner .btn { padding: 0.45rem 0.9rem; font-size: 0.8rem; min-height: unset; }
+
+@media (max-width: 720px) {
+  .exam-q-head { flex-direction: column; }
+  .exam-nav-mode { margin-left: 0; }
+}
