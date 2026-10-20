@@ -47,28 +47,201 @@ EXAM TYPE RULES:
    - For 'open_ended': options = null.
    - For 'multiple_choice': exactly 4 options, correct_answer matches one option.
    - For 'true_false': options = ['True', 'False'] (if en) or ['Doğru', 'Yanlış'] (if tr).
-   - For 'fill_blank': use '______' in question text. options = null.
+   - For 'fill_blank': use '______' in question text. options = null. The blank must be a single word or short term. Also give "accepted_answers": other spellings or exact synonyms that are equally correct (e.g. an abbreviation and its full form), or [] if none.
    - For 'calculation': use the calculation question format above.
 The user message states exactly which exam type and how many questions to generate.
 
 RESPONSE FORMAT:
-You must output ONLY a valid JSON array of questions, with no markdown code fences (do NOT use \`\`\`json or similar), no introductory or concluding text, and no conversational commentary.
-The array's length must exactly equal the question count requested in the user message. Each object must match this JSON schema:
-[
-  {
-    "id": number (1-based index),
-    "type": "multiple_choice" | "open_ended" | "true_false" | "fill_blank" | "calculation",
-    "question": "string",
-    "options": ["string"] | null,
-    "correct_answer": "string" | number,
-    "tolerance_percent": number | null,
-    "units": "string" | null,
-    "solution_steps": ["string"] | null,
-    "hint": "string (short helpful clue)",
-    "concept": "string"
-  }
-]
+You must output ONLY a valid JSON object of the form {"questions": [ ... ]}, with no markdown code fences (do NOT use \`\`\`json or similar), no introductory or concluding text, and no conversational commentary.
+The "questions" array's length must exactly equal the question count requested in the user message. Each object in it must match this JSON schema:
+{
+  "id": number (1-based index),
+  "type": "multiple_choice" | "open_ended" | "true_false" | "fill_blank" | "calculation",
+  "question": "string",
+  "options": ["string"] | null,
+  "correct_answer": "string" | number,
+  "accepted_answers": ["string"] | null,
+  "tolerance_percent": number | null,
+  "units": "string" | null,
+  "solution_steps": ["string"] | null,
+  "hint": "string (short helpful clue that does NOT reveal the answer)",
+  "concept": "string"
+}
+For 'multiple_choice', the 4 options must be distinct and exactly one must be correct.
 `.trim()
+
+// ==========================================================================
+// FAZ 0 — SINAV BÜTÜNLÜĞÜ (14.10.2026)
+//
+// Aşağıdaki saf fonksiyonlar tests/exam-integrity.js tarafından kaynaktan
+// çıkarılarak test ediliyor; yeniden adlandırılırlarsa test açık hata verir.
+//
+//  - Model çıktısı artık soru soru doğrulanıyor (şık anahtarda mı, şıklar
+//    tekrar ediyor mu, sayı gerçekten sayı mı...). Geçmeyen soru atılıyor,
+//    eksik kalan sayı için bir kez daha üretim isteniyor.
+//  - Çoktan seçmeli şıklar sunucuda karıştırılıyor: modeller doğru cevabı
+//    belli bir harfe yığma eğiliminde.
+//  - Cevap anahtarı (correct_answer, accepted_answers, solution_steps,
+//    tolerance_percent, hint) soru metninden ayrılıp exam_answer_keys
+//    tablosuna yazılıyor; tarayıcıya yalnızca soru gidiyor.
+// ==========================================================================
+
+const MAX_QUESTION_COUNT = 20
+// Kullanıcı başına sınav üretim limiti. Groq kotası tüm kullanıcılarla
+// paylaşılıyor (README: hesapta 8.000 TPM gözlendi); tek bir kullanıcının
+// döngüye girip kotayı bitirmesini engeller. Gerektiğinde buradan ayarla.
+const EXAM_RATE_LIMIT_PER_HOUR = 12
+const EXAM_RATE_LIMIT_PER_DAY = 40
+const ALLOWED_EXAM_TYPES = ['classic', 'test', 'mixed', 'calculation']
+const ALLOWED_LANGUAGES = ['tr', 'en']
+const TRUE_FALSE_OPTIONS: Record<string, [string, string]> = { tr: ['Doğru', 'Yanlış'], en: ['True', 'False'] }
+const KEY_FIELDS = ['correct_answer', 'accepted_answers', 'solution_steps', 'tolerance_percent', 'hint']
+
+/** Model yanıtını soru dizisine çevirir: {"questions":[...]}, düz dizi veya
+ *  tek anahtarlı başka bir nesne kabul edilir. Ayrıştırılamazsa null. */
+function parseQuestionArray(raw: string): unknown[] | null {
+  const cleaned = String(raw || '').replace(/```json\s*|```/g, '').trim()
+  if (!cleaned) return null
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(cleaned)
+  } catch (_e) {
+    return null
+  }
+  if (Array.isArray(parsed)) return parsed
+  if (parsed && typeof parsed === 'object') {
+    const obj = parsed as Record<string, unknown>
+    if (Array.isArray(obj.questions)) return obj.questions as unknown[]
+    const firstArray = Object.values(obj).find(v => Array.isArray(v))
+    if (firstArray) return firstArray as unknown[]
+  }
+  return null
+}
+
+/** Cevap karşılaştırması için metin normalizasyonu: Unicode NFC, Türkçe
+ *  küçük harf (I→ı, İ→i), baştaki/sondaki noktalama ve fazla boşluklar
+ *  atılır. "KIRILMA".toLowerCase() "kirilma" verirdi; bu "kırılma" verir. */
+function normalizeAnswerText(value: unknown): string {
+  return String(value ?? '')
+    .normalize('NFC')
+    .toLocaleLowerCase('tr-TR')
+    .replace(/\s+/g, ' ')
+    .replace(/^[\s"'“”‘’.,;:!?()\[\]]+|[\s"'“”‘’.,;:!?()\[\]]+$/g, '')
+    .trim()
+}
+
+/** Sayıyı esnek okur: 1432.5, "1.432,50", "1,432.50", "%12", "₺1.000",
+ *  "-3,5". Yalnızca virgül varsa ondalık ayırıcı sayılır (Türkçe yazım).
+ *  Okunamazsa NaN. */
+function parseLooseNumber(value: unknown): number {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : NaN
+  let s = String(value ?? '').trim().replace(/\s+/g, '')
+  s = s.replace(/[^0-9.,\-+eE]/g, '')
+  if (!s || !/\d/.test(s)) return NaN
+  const hasComma = s.includes(','), hasDot = s.includes('.')
+  if (hasComma && hasDot) {
+    if (s.lastIndexOf(',') > s.lastIndexOf('.')) s = s.replace(/\./g, '').replace(',', '.')
+    else s = s.replace(/,/g, '')
+  } else if (hasComma) {
+    s = (s.match(/,/g) || []).length > 1 ? s.replace(/,/g, '') : s.replace(',', '.')
+  } else if (hasDot && (s.match(/\./g) || []).length > 1) {
+    s = s.replace(/\./g, '')
+  }
+  const n = Number(s)
+  return Number.isFinite(n) ? n : NaN
+}
+
+/** Sınav türüne göre kabul edilen soru tipleri. */
+function allowedTypesFor(examType: string, isQuant: boolean): string[] {
+  if (examType === 'classic') return ['open_ended']
+  if (examType === 'test') return ['multiple_choice']
+  if (examType === 'calculation') return ['calculation']
+  const mixed = ['open_ended', 'multiple_choice', 'true_false', 'fill_blank']
+  return isQuant ? [...mixed, 'calculation'] : mixed
+}
+
+/** Tek bir soruyu denetler ve temizlenmiş halini döner. Geçmezse
+ *  { ok: false, reason } — soru atılır. */
+function validateQuestion(raw: unknown, allowedTypes: string[], language: string): { ok: boolean; question?: Record<string, unknown>; reason?: string } {
+  if (!raw || typeof raw !== 'object') return { ok: false, reason: 'not_object' }
+  const q = { ...(raw as Record<string, unknown>) }
+  const type = String(q.type || '')
+  if (!allowedTypes.includes(type)) return { ok: false, reason: `type_not_allowed:${type}` }
+  const text = typeof q.question === 'string' ? q.question.trim() : ''
+  if (text.length < 5) return { ok: false, reason: 'empty_question' }
+  q.question = text
+  q.concept = typeof q.concept === 'string' ? q.concept.trim().slice(0, 120) : null
+  q.hint = typeof q.hint === 'string' ? q.hint.trim() : null
+
+  if (type === 'multiple_choice') {
+    const options = Array.isArray(q.options) ? q.options.map(o => String(o ?? '').trim()).filter(Boolean) : []
+    if (options.length !== 4) return { ok: false, reason: 'mc_option_count' }
+    if (new Set(options.map(normalizeAnswerText)).size !== options.length) return { ok: false, reason: 'mc_duplicate_options' }
+    const correctNorm = normalizeAnswerText(q.correct_answer)
+    let match = options.filter(o => normalizeAnswerText(o) === correctNorm)
+    // Model bazen "B" ya da "B) ..." biçiminde harf döndürüyor.
+    if (match.length === 0) {
+      const letter = String(q.correct_answer ?? '').trim().match(/^([A-Da-d])(?:[).:\s]|$)/)
+      if (letter) match = [options['abcd'.indexOf(letter[1].toLowerCase())]]
+    }
+    if (match.length !== 1) return { ok: false, reason: 'mc_answer_not_in_options' }
+    q.options = options
+    q.correct_answer = match[0]
+  } else if (type === 'true_false') {
+    const pair = TRUE_FALSE_OPTIONS[language] || TRUE_FALSE_OPTIONS.en
+    const c = normalizeAnswerText(q.correct_answer)
+    const isTrue = ['doğru', 'dogru', 'd', 'true', 't', 'evet', 'yes'].includes(c)
+    const isFalse = ['yanlış', 'yanlis', 'y', 'false', 'f', 'hayır', 'hayir', 'no'].includes(c)
+    if (isTrue === isFalse) return { ok: false, reason: 'tf_answer_unclear' }
+    q.options = [...pair]
+    q.correct_answer = isTrue ? pair[0] : pair[1]
+  } else if (type === 'fill_blank') {
+    const answer = String(q.correct_answer ?? '').trim()
+    if (!answer) return { ok: false, reason: 'fill_blank_no_answer' }
+    q.correct_answer = answer
+    q.accepted_answers = Array.isArray(q.accepted_answers)
+      ? q.accepted_answers.map(a => String(a ?? '').trim()).filter(Boolean).slice(0, 8)
+      : []
+    q.options = null
+  } else if (type === 'calculation') {
+    const n = parseLooseNumber(q.correct_answer)
+    if (!Number.isFinite(n)) return { ok: false, reason: 'calc_answer_not_number' }
+    q.correct_answer = n
+    const tol = parseLooseNumber(q.tolerance_percent)
+    q.tolerance_percent = Number.isFinite(tol) ? Math.min(10, Math.max(0.1, tol)) : 2
+    q.units = typeof q.units === 'string' ? q.units.trim().slice(0, 12) : ''
+    q.solution_steps = Array.isArray(q.solution_steps) ? q.solution_steps.map(s => String(s ?? '')).filter(Boolean) : []
+    q.options = null
+  } else if (type === 'open_ended') {
+    const ref = String(q.correct_answer ?? '').trim()
+    if (!ref) return { ok: false, reason: 'open_no_reference' }
+    q.correct_answer = ref
+    q.options = null
+  }
+  return { ok: true, question: q }
+}
+
+/** Fisher–Yates; rand testte sabitlenebilsin diye parametre. */
+function shuffleInPlace<T>(items: T[], rand: () => number = Math.random): T[] {
+  for (let i = items.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1))
+    const tmp = items[i]
+    items[i] = items[j]
+    items[j] = tmp
+  }
+  return items
+}
+
+/** Soruyu tarayıcıya gidecek kısım ile cevap anahtarına ayırır. */
+function splitPublicAndKey(q: Record<string, unknown>): { pub: Record<string, unknown>; key: Record<string, unknown> } {
+  const pub: Record<string, unknown> = {}
+  const key: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(q)) {
+    if (KEY_FIELDS.includes(k)) key[k] = v
+    else pub[k] = v
+  }
+  return { pub, key }
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -109,6 +282,15 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
+    // Arayüz 1–20 sınırını koyuyor ama sunucu da koymalı: aksi halde tek bir
+    // istek 500 soruluk bir üretimle Groq kotasını tüketebilir.
+    if (!ALLOWED_EXAM_TYPES.includes(examType) || !ALLOWED_LANGUAGES.includes(language)) {
+      return new Response(JSON.stringify({ error: 'Geçersiz sınav türü veya dil.' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+    const requestedCount = Math.min(MAX_QUESTION_COUNT, Math.max(1, Math.floor(Number(questionCount) || 0)))
 
     // Difficulty is optional for backward compatibility with older clients; default to 'medium'.
     const allowedDifficulties = ['easy', 'medium', 'hard']
@@ -128,7 +310,7 @@ serve(async (req) => {
         calculation: 180   // working through a calculation takes longest
       }
       const perQ = secondsPerQuestion[examType] || 100
-      timeLimitSeconds = Math.max(300, Math.round(questionCount * perQ))
+      timeLimitSeconds = Math.max(300, Math.round(requestedCount * perQ))
     }
 
     // Optional: focus every question on one specific concept (used by the
@@ -160,6 +342,38 @@ serve(async (req) => {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
+    }
+
+    // Service role client: rate limit sayımı, sınav kaydı ve cevap anahtarı.
+    const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    const serviceClient = createClient(supabaseUrl, supabaseServiceRoleKey)
+
+    // Kullanıcı başına üretim limiti. Sayım başarısız olursa (ör. created_at
+    // kolonu yoksa) üretimi engelleme — en iyi gayret.
+    try {
+      const now = Date.now()
+      const countSince = async (ms: number) => {
+        const { count, error } = await serviceClient
+          .from('exams')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .gte('created_at', new Date(now - ms).toISOString())
+        if (error) throw error
+        return count ?? 0
+      }
+      const [lastHour, lastDay] = await Promise.all([countSince(3600_000), countSince(86400_000)])
+      if (lastHour >= EXAM_RATE_LIMIT_PER_HOUR || lastDay >= EXAM_RATE_LIMIT_PER_DAY) {
+        const tr = language === 'tr'
+        const msg = lastHour >= EXAM_RATE_LIMIT_PER_HOUR
+          ? (tr ? `Son bir saatte ${EXAM_RATE_LIMIT_PER_HOUR} sınav oluşturdun. Biraz sonra tekrar dene.` : `You created ${EXAM_RATE_LIMIT_PER_HOUR} exams in the last hour. Please try again later.`)
+          : (tr ? `Bugünkü ${EXAM_RATE_LIMIT_PER_DAY} sınav hakkını kullandın. Yarın tekrar dene.` : `You have used today's ${EXAM_RATE_LIMIT_PER_DAY} exams. Please try again tomorrow.`)
+        return new Response(JSON.stringify({ error: msg }), {
+          status: 429,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+    } catch (rateErr) {
+      console.warn('generate-exam: rate limit sayimi yapilamadi, limit atlandi:', rateErr)
     }
 
     let isQuant = false
@@ -368,87 +582,132 @@ ${context}
     // their optional focus concept, and a variation seed). Keeping this
     // short and putting everything reusable above in the system message
     // is what makes the system message worth caching in the first place.
-    const userPrompt = `Generate exactly ${questionCount} questions of type '${examType}' in the language '${language}' (en = English, tr = Turkish), at difficulty level '${resolvedDifficulty}'.${resolvedFocusConcept ? `\n\nIMPORTANT FOCUS RULE:\n- The student specifically wants to practice ONE topic: "${resolvedFocusConcept}". EVERY question must test this exact topic, approached from different angles (definition, application, comparison, scenario) — do not drift to unrelated concepts. Set the "concept" field on every question to "${resolvedFocusConcept}" (or a very close variant in the requested language).` : ''}
+    const buildUserPrompt = (count: number, avoid: string[]) => `Generate exactly ${count} questions of type '${examType}' in the language '${language}' (en = English, tr = Turkish), at difficulty level '${resolvedDifficulty}'.${resolvedFocusConcept ? `\n\nIMPORTANT FOCUS RULE:\n- The student specifically wants to practice ONE topic: "${resolvedFocusConcept}". EVERY question must test this exact topic, approached from different angles (definition, application, comparison, scenario) — do not drift to unrelated concepts. Set the "concept" field on every question to "${resolvedFocusConcept}" (or a very close variant in the requested language).` : ''}${avoid.length > 0 ? `\n\nDo NOT repeat these questions that were already generated:\n${avoid.map(t => `- ${t.slice(0, 160)}`).join('\n')}` : ''}
 
 Additional variation seed: ${Date.now()}`
 
-    const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${groqApiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        // llama-3.3-70b-versatile was retired by Groq on 2026-08-16 — every
-        // exam generation was failing with a decommissioned-model error,
-        // which is why "Sınav Platformu" looked broken/nonexistent.
-        model: "openai/gpt-oss-120b",
-        temperature: 0.9,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: sysPrompt },
-          { role: "user", content: userPrompt }
-        ]
+    // Tek bir üretim çağrısı. Başarısızsa { error } döner, istisna fırlatmaz.
+    const requestQuestions = async (count: number, avoid: string[]): Promise<{ items?: unknown[]; error?: string }> => {
+      const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${groqApiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          // llama-3.3-70b-versatile was retired by Groq on 2026-08-16 — every
+          // exam generation was failing with a decommissioned-model error,
+          // which is why "Sınav Platformu" looked broken/nonexistent.
+          model: "openai/gpt-oss-120b",
+          temperature: 0.9,
+          // JSON modu üst düzeyde NESNE döndürür; prompt bu yüzden artık
+          // {"questions":[...]} istiyor. Eskiden dizi istenip json_object
+          // modu kullanılıyordu — ara sıra görülen "invalid formatting"
+          // hatalarının olası kaynağı buydu.
+          response_format: { type: "json_object" },
+          messages: [
+            { role: "system", content: sysPrompt },
+            { role: "user", content: buildUserPrompt(count, avoid) }
+          ]
+        })
       })
-    })
 
-    const groqData = await groqResponse.json()
-    if (!groqResponse.ok) {
-      console.error("Groq generation failed: ", groqData)
-      const groqDetail = groqData?.error?.message || groqData?.error?.code || `HTTP ${groqResponse.status}`
-      return new Response(JSON.stringify({ error: `AI generation service failed: ${groqDetail}` }), {
+      const groqData = await groqResponse.json().catch(() => ({}))
+      if (!groqResponse.ok) {
+        console.error("Groq generation failed: ", groqData)
+        return { error: groqData?.error?.message || groqData?.error?.code || `HTTP ${groqResponse.status}` }
+      }
+      const rawContent = groqData.choices?.[0]?.message?.content ?? ""
+      const items = parseQuestionArray(rawContent)
+      if (!items) {
+        console.error("Failed to parse Groq response as a question list. Content: ", String(rawContent).slice(0, 2000))
+        return { error: 'invalid_format' }
+      }
+      return { items }
+    }
+
+    const allowedTypes = allowedTypesFor(examType, isQuant)
+    const accepted: Record<string, unknown>[] = []
+    const seenTexts = new Set<string>()
+    const rejectReasons: string[] = []
+
+    const absorb = (items: unknown[]) => {
+      for (const raw of items) {
+        if (accepted.length >= requestedCount) break
+        const result = validateQuestion(raw, allowedTypes, language)
+        if (!result.ok || !result.question) {
+          rejectReasons.push(result.reason || 'unknown')
+          continue
+        }
+        const textKey = normalizeAnswerText(result.question.question)
+        if (seenTexts.has(textKey)) {
+          rejectReasons.push('duplicate_question')
+          continue
+        }
+        seenTexts.add(textKey)
+        accepted.push(result.question)
+      }
+    }
+
+    const first = await requestQuestions(requestedCount, [])
+    if (first.error && !first.items) {
+      const detail = first.error === 'invalid_format' ? 'AI returned invalid question formatting. Please try again.' : `AI generation service failed: ${first.error}`
+      return new Response(JSON.stringify({ error: detail }), {
         status: 502,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
+    absorb(first.items || [])
 
-    const rawContent = groqData.choices?.[0]?.message?.content ?? ""
-    const cleaned = rawContent.replace(/```json\s*|```/g, "").trim()
-
-    let questionsArray
-    try {
-      questionsArray = JSON.parse(cleaned)
-    } catch (e) {
-      console.error("Failed to parse Groq response as JSON. Content: ", rawContent, e)
-      return new Response(JSON.stringify({ error: 'AI returned invalid question formatting. Please try again.' }), {
-        status: 502,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
+    // Eksik kalan soru varsa bir kez daha, yalnızca eksik sayı kadar iste.
+    if (accepted.length < requestedCount) {
+      const shortfall = requestedCount - accepted.length
+      console.warn(`generate-exam: ${rejectReasons.length} soru dogrulamadan gecmedi (${rejectReasons.join(', ')}); ${shortfall} soru icin yeniden uretim isteniyor`)
+      const second = await requestQuestions(shortfall, accepted.map(q => String(q.question)))
+      if (second.items) absorb(second.items)
+      else console.warn('generate-exam: ikinci uretim basarisiz:', second.error)
     }
 
-    if (!Array.isArray(questionsArray) || questionsArray.length === 0) {
-      console.error("AI response is not a valid non-empty array: ", questionsArray)
+    if (accepted.length === 0) {
+      console.error('generate-exam: gecerli soru kalmadi. Nedenler:', rejectReasons.join(', '))
       return new Response(JSON.stringify({ error: 'AI failed to generate a list of questions.' }), {
         status: 502,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
 
-    // Stamp the requested difficulty onto every question server-side (rather than
-    // trusting the model to echo it back correctly). Stored inside the questions
-    // JSONB array so it works without any 'exams' table schema changes.
-    questionsArray = questionsArray.map((q: Record<string, unknown>) => ({
-      ...q,
-      difficulty: resolvedDifficulty
-    }))
+    // Sıra numaralarını yeniden ver, zorluğu sunucuda damgala (modelin geri
+    // yansıtmasına güvenme), çoktan seçmeli şıkları karıştır.
+    const finalQuestions = accepted.map((q, i) => {
+      const out: Record<string, unknown> = { ...q, id: i + 1, difficulty: resolvedDifficulty }
+      if (out.type === 'multiple_choice' && Array.isArray(out.options)) {
+        out.options = shuffleInPlace([...(out.options as string[])])
+      }
+      return out
+    })
 
-    // Service role client to insert exam record
-    const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    const serviceClient = createClient(supabaseUrl, supabaseServiceRoleKey)
+    const publicQuestions: Record<string, unknown>[] = []
+    const answerKeys: Record<string, Record<string, unknown>> = {}
+    for (const q of finalQuestions) {
+      const { pub, key } = splitPublicAndKey(q)
+      publicQuestions.push(pub)
+      answerKeys[String(q.id)] = key
+    }
 
     const examInsertPayload: Record<string, unknown> = {
       user_id: user.id,
       exam_type: examType,
       language: language,
-      question_count: questionCount,
-      questions: questionsArray,
+      question_count: finalQuestions.length,
+      questions: publicQuestions,
       answers: null,
       question_results: null,
       grade: null,
       completed_at: null,
       source_type: resolvedSourceType,
       is_simulation: resolvedIsSimulation,
-      time_limit_seconds: timeLimitSeconds
+      time_limit_seconds: timeLimitSeconds,
+      started_at: new Date().toISOString()
     }
     if (resolvedSourceType === 'course') {
       examInsertPayload.study_card_id = null
@@ -461,11 +720,21 @@ Additional variation seed: ${Date.now()}`
       examInsertPayload.is_grounded = true
     }
 
-    const { data: newExam, error: insertError } = await serviceClient
+    let { data: newExam, error: insertError } = await serviceClient
       .from('exams')
       .insert(examInsertPayload)
       .select()
       .single()
+
+    // 20261014_exam_integrity.sql henüz çalıştırılmadıysa started_at kolonu
+    // yoktur: onsuz bir kez daha dene ki sınav üretimi durmasın.
+    if (insertError && /started_at/.test(`${insertError.message || ''} ${insertError.details || ''}`)) {
+      console.warn('generate-exam: started_at kolonu yok — 20261014_exam_integrity.sql migration i calistirilmamis. Sure kontrolu sunucuda yapilamayacak.')
+      delete examInsertPayload.started_at
+      const retry = await serviceClient.from('exams').insert(examInsertPayload).select().single()
+      newExam = retry.data
+      insertError = retry.error
+    }
 
     if (insertError || !newExam) {
       console.error("Failed to insert exam record: ", insertError)
@@ -475,6 +744,36 @@ Additional variation seed: ${Date.now()}`
       const insertDetail = insertError?.message || insertError?.details || insertError?.hint || insertError?.code || 'unknown error'
       return new Response(JSON.stringify({ error: `Failed to save generated exam: ${insertDetail}` }), {
         status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
+    // Cevap anahtarını ayrı tabloya yaz. Tablo yoksa (migration
+    // çalıştırılmamış) sınavı ESKİ düzene, yani anahtar soruların içinde
+    // olacak şekilde güncelle: puanlama çalışmaya devam etsin, yalnızca
+    // anahtar gizlenemesin.
+    const { error: keyError } = await serviceClient
+      .from('exam_answer_keys')
+      .insert({ exam_id: newExam.id, user_id: user.id, keys: answerKeys })
+
+    if (keyError) {
+      console.error('generate-exam: exam_answer_keys yazilamadi — cevap anahtari GIZLENEMIYOR. 20261014_exam_integrity.sql calistirildi mi?', keyError)
+      const { data: legacyExam, error: legacyErr } = await serviceClient
+        .from('exams')
+        .update({ questions: finalQuestions })
+        .eq('id', newExam.id)
+        .select()
+        .single()
+      if (legacyErr || !legacyExam) {
+        console.error('generate-exam: eski duzene donus de basarisiz:', legacyErr)
+        return new Response(JSON.stringify({ error: 'Failed to save generated exam answer key.' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+      // Eski düzende bile tarayıcıya giden yanıtta anahtar olmasın.
+      return new Response(JSON.stringify({ ...legacyExam, questions: publicQuestions }), {
+        status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
