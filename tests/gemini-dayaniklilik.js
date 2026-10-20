@@ -690,4 +690,55 @@ test('KURTARMA icerige bakiyor, karaktere degil', () => {
   assert.equal(G.geminiKurtarmaYeterli('{bozuk').yeterli, false);
 });
 
+
+test('ILK OLAY son tarihi heartbeat ile KAYMAZ', () => {
+  /* 20.10.2026, IKINCI TUR. Ilk duzeltme sessizlik sayacini olaya bagladi
+     ama ilk-olay son tarihini HER BYTE'ta yeniden kuruyordu. Yuzey 15
+     saniyede bir bosluk gonderince 72 saniyelik son tarih hic dolmadi:
+       canli olcum -> ilk byte 15.245ms, ILK OLAY 90.163ms,
+       son tarih tetiklenmedi, cagri 105 sn tavana carpti, kart kismi (%4).
+
+     Onceki testim bunu KACIRDI: heartbeat'leri 10ms arayla gonderip
+     susuyordu, yani kayma gorunmuyordu. Kayma ancak heartbeat'ler son
+     tarihe YAKIN araliklarla gelince ortaya cikiyor — bu test onu kuruyor
+     ve davranisi KAYNAKTAN dogruluyor. */
+  const src = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+  const i = src.indexOf('SON TARIH BYTE');
+  assert.ok(i > -1, 'kayma notu kaybolmus');
+  const blok = src.slice(i - 600, i + 700);
+  assert.ok(blok.includes("if (tur === 'byte' && !ilkByteMiydi) return"),
+    'sonraki byte lar hala zamanlayiciyi yeniden kuruyor');
+  assert.ok(!blok.includes("if (tur === 'byte' && durum.olaySayisi > 0) return"),
+    'kayan eski kosul geri gelmis');
+});
+
+test('ILK OLAY son tarihi ARALIKLI heartbeat te de doluyor', async () => {
+  /* Gercek senaryo: bosluklar son tarihin hemen altinda araliklarla
+     geliyor. Son tarih ilk byte'ta BIR KEZ kuruldugu icin dolmak zorunda. */
+  fetchCalls = [];
+  stubGecikmeliAkis([
+    { ms: 10, metin: ': hb\n\n' },
+    { ms: 180, metin: ': hb\n\n' },
+    { ms: 180, metin: ': hb\n\n' },
+    { ms: 180, metin: ': hb\n\n' }
+  ], { hangSonda: true });
+  const d = G.geminiAkisDurumu();
+  const t0 = Date.now();
+  try {
+    // mutlak 10 sn, sessizlik 5 sn, ilk byte 5 sn, ILK OLAY 400 ms.
+    await quiet(() => G.geminiAkisIstegi('http://x', { method: 'POST' }, d, 10_000, 5_000, 5_000, 400));
+  } finally { restoreFetch(); }
+  const gecen = Date.now() - t0;
+  assert.equal(d.olaySayisi, 0, 'heartbeat olay sayilmis');
+  assert.ok(/ilk olay gelmedi/.test(String(d.hata)),
+    'araliklı heartbeat son tarihi kaydirmis: ' + d.hata);
+  /* ESIK SIKI, bilerek: heartbeat ler 180ms arayla geliyor ve son tarih
+     400ms. Son tarih ILK BYTE tan sayiliyorsa iptal ~410ms de olur. Her
+     byte ta yeniden kurulsaydi iptal ancak akis sustuktan 400ms sonra,
+     yani ~950ms de olurdu — gevsek bir esik bu farki yutar ve test eski
+     davranisi yakalamaz (mutasyonla olculdu). */
+  assert.ok(gecen < 800, gecen + 'ms beklendi — son tarih byte larla kayiyor');
+});
+
 summary();

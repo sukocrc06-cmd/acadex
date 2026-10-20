@@ -6385,13 +6385,20 @@ async function geminiAkisIstegi(
      kart bos cikti. Artik byte yalnizca ILK BYTE kademesini kapatiyor;
      sessizlik sayacini OLAY sifirliyor. */
   const dokun = (tur: 'byte' | 'olay' | 'baslangic' = 'baslangic') => {
+    const ilkByteMiydi = (tur === 'byte' || tur === 'olay') && durum.ilkByteMs < 0
     if (tur === 'byte' || tur === 'olay') {
       veriGeldi = true
-      if (durum.ilkByteMs < 0) durum.ilkByteMs = Date.now() - durum.t0
+      if (ilkByteMiydi) durum.ilkByteMs = Date.now() - durum.t0
     }
-    /* Sessizlik sayaci YALNIZCA olayla sifirlanir. Byte geldiginde sayac
-       kurulur ama suresi 'ilk olay' kademesidir. */
-    if (tur === 'byte' && durum.olaySayisi > 0) return
+    /* SON TARIH BYTE'LARLA KAYMAZ (20.10.2026, ikinci tur).
+       Ilk surum her byte'ta zamanlayiciyi yeniden kuruyordu; yuzey 15
+       saniyede bir heartbeat gonderince 72 saniyelik ilk-olay son tarihi
+       hic dolmuyordu. Canli olcum: ilk byte 15.245ms, ilk olay 90.163ms,
+       son tarih tetiklenmedi ve kart yine kismi cikti.
+
+       Artik ilk-olay son tarihi ILK BYTE'ta bir kez kuruluyor; sonraki
+       byte'lar ona dokunmuyor. Sayaci yalnizca ISLENEN OLAY ileri tasir. */
+    if (tur === 'byte' && !ilkByteMiydi) return
     if (sessiz !== undefined) clearTimeout(sessiz)
     const sure = durum.olaySayisi > 0
       ? sessizlikMs
