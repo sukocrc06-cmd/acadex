@@ -3235,7 +3235,7 @@ function renderMathInText(text) {
     let dizgi = null;
     if (window.katex) {
       try {
-        dizgi = window.katex.renderToString(latex, { displayMode: false, throwOnError: false });
+        dizgi = window.katex.renderToString(sadeKatexKomutu(latex), { displayMode: false, throwOnError: false });
       } catch (e) {
         dizgi = null;
       }
@@ -3418,6 +3418,24 @@ function summaryParagraphs(summary, target = 600) {
  * degil (rakamla baslayip bosluk geliyor) ve kapanis $'inin ardindan
  * rakam gelen durumlar ($5-$10) zaten eslesmez.
  */
+/**
+ * SATIR ICI formulde cift ters boluyu sadelestirir.
+ *
+ * KaTeX'te \\\\ satir sonudur. Veri tarafinda onarim iki kez
+ * uygulandiginda \\beta \\\\beta oluyor ve formul "satir sonu +
+ * beta" diye diziliyor: ekranda parcalar alt alta dusuyor, Yunan harfi
+ * yerine harf harf 'beta' goruluyor (20.10.2026).
+ *
+ * Tek satirlik bir ifadede satir sonu zaten anlamsiz, bu yuzden burada
+ * sadelestiriliyor. DAR tutuldu: yalnizca ardindan HARF gelen durum
+ * (\\\\beta, \\\\ln). Matris/hizalama icin kullanilan \\\\ — ardindan
+ * bosluk, [ ya da satir sonu gelir — dokunulmuyor; display matematikte
+ * mesru.
+ */
+function sadeKatexKomutu(latex) {
+  return String(latex == null ? '' : latex).replace(/\\\\(?=[A-Za-z])/g, '\\');
+}
+
 function inlineMath(html) {
   const s = String(html == null ? '' : html);
   if (!window.katex || s.indexOf('$') === -1) return s;
@@ -3425,7 +3443,7 @@ function inlineMath(html) {
   return s.replace(/\$(?=\S)((?:[^\$\\]|\\.)+?)(?<!\s)\$(?!\d)/g, (match, latex) => {
     if (/^\d[\d.,]*\s/.test(latex)) return match;
     try {
-      return window.katex.renderToString(latex, { displayMode: false, throwOnError: false });
+      return window.katex.renderToString(sadeKatexKomutu(latex), { displayMode: false, throwOnError: false });
     } catch (e) {
       return match;
     }

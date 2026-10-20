@@ -46,7 +46,7 @@ const NEEDED = [
   'mermaidPrettyLabels',
   // Cozumlu ornek adimlari, para birimi, ozet paragraflari (09.10.2026).
   'escapeHtml', 'normalizeWorkedSteps', 'splitStepCalc', 'prettyCalc', 'splitCalcChain',
-  'renderMathInText', 'renderWorkedStepHtml', 'acikVurgu', 'OZET_KISALTMA_RE', 'summaryParagraphs', 'inlineMath', 'inlineMarkdown',
+  'sadeKatexKomutu', 'renderMathInText', 'renderWorkedStepHtml', 'acikVurgu', 'OZET_KISALTMA_RE', 'summaryParagraphs', 'inlineMath', 'inlineMarkdown',
   'stripInlineMarkdown',
   'PDF_TYPE', 'drawPdfSectionHeader',
   // mermaidToSteps iki gecise cikti (09.10.2026); desenleri artik modul
