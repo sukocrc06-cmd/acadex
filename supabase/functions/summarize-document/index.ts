@@ -7246,14 +7246,23 @@ serve(async (req) => {
     }
 
     let summaryCacheKey: string | null = null
+    let metinCacheKey: string | null = null
     try {
+      const ayarlar = [lang, style, len, analyzeVisuals ? 'v' : 'nv', SUMMARY_CACHE_VERSION]
       const contentHash = await sha256Hex(fileBytes)
-      summaryCacheKey = [contentHash, lang, style, len, analyzeVisuals ? 'v' : 'nv', SUMMARY_CACHE_VERSION].join(':')
-      const { data: cached, error: cacheErr } = await serviceClient
+      summaryCacheKey = [contentHash, ...ayarlar].join(':')
+      /* IKINCI ANAHTAR: cikarilan metnin hash'i. Ayni sunum yeniden
+         kaydedilmis ya da baska bir araçla taranmissa bayt dizisi degisir,
+         metin degismez — dosya hash'i iskalar, bu yakalar. */
+      const metinHash = await sha256Metin(extractedText)
+      metinCacheKey = metinHash ? ['t' + metinHash, ...ayarlar].join(':') : null
+      const anahtarlar = metinCacheKey ? [summaryCacheKey, metinCacheKey] : [summaryCacheKey]
+      const { data: cachedRows, error: cacheErr } = await serviceClient
         .from('summary_cache')
-        .select('card')
-        .eq('cache_key', summaryCacheKey)
-        .maybeSingle()
+        .select('card, cache_key')
+        .in('cache_key', anahtarlar)
+        .limit(1)
+      const cached = Array.isArray(cachedRows) ? cachedRows[0] : null
       if (cacheErr) {
         console.warn(`summary_cache okunamadi (${cacheErr.message}) — cache atlandi`)
       } else if (cached?.card) {
@@ -7277,7 +7286,13 @@ serve(async (req) => {
             .eq('id', documentId)
           await bestEffortRpc(serviceClient, 'touch_summary_cache', { p_key: summaryCacheKey })
           await bestEffortRpc(serviceClient, 'record_summary_usage', { p_user: document.user_id, p_pages: 0, p_cache_hit: true })
-          console.log(`CACHE ISABETI: ${summaryCacheKey.slice(0, 16)}… — ${Date.now() - requestStartedAt}ms, model cagrisi yok`)
+          /* Hangi anahtarin isabet ettigi loga giriyor: metin anahtarinin
+             gercekten is gorup gormedigi ancak boyle olculur. */
+          const isabetTuru = (cached as any)?.cache_key === metinCacheKey ? 'METIN' : 'DOSYA'
+          console.log(
+            `CACHE ISABETI [${isabetTuru}]: ${String((cached as any)?.cache_key || summaryCacheKey).slice(0, 18)}… ` +
+            `— ${Date.now() - requestStartedAt}ms, model cagrisi yok`
+          )
           return new Response(JSON.stringify({ success: true, studyCardId: hit.data.id, cached: true }), {
             status: 200,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -10231,14 +10246,17 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
        isteyen herkes yarim karti alir ve bir daha hic tam kart uretilmez. */
     if (summaryCacheKey && !eksikPencereler && geminiKismiKrk === 0) {
       const { document_id: _d, user_id: _u, course_tag: _c, ...shareable } = cardPayload
+      /* IKI SATIR: dosya hash'i ve metin hash'i. Ikisi de ayni karti
+         gosteriyor; hangisi once isabet ederse o kullanilir. */
+      const satirlar = [summaryCacheKey, metinCacheKey].filter(Boolean).map((k) => ({
+        cache_key: k as string,
+        content_hash: (k as string).split(':')[0],
+        page_count: billablePages,
+        card: shareable
+      }))
       const { error: cacheWriteErr } = await serviceClient
         .from('summary_cache')
-        .upsert({
-          cache_key: summaryCacheKey,
-          content_hash: summaryCacheKey.split(':')[0],
-          page_count: billablePages,
-          card: shareable
-        }, { onConflict: 'cache_key', ignoreDuplicates: true })
+        .upsert(satirlar, { onConflict: 'cache_key', ignoreDuplicates: true })
       if (cacheWriteErr) console.warn(`summary_cache yazilamadi: ${cacheWriteErr.message}`)
     }
 
@@ -10260,6 +10278,27 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
  * degistirdiginde arttir: eski cache kayitlari anahtar uyusmadigi icin
  * kendiliginden devre disi kalir (silmeye gerek yok). */
 const SUMMARY_CACHE_VERSION = 'c1'
+
+/* Ikinci (metin) cache anahtarinin devreye girdigi en kisa metin.
+   400 karakterin altinda — bos kapak, "Hafta 3" gibi — iki ayri belgenin
+   ayni metne sahip olmasi gercek bir ihtimal ve yanlis isabet, yavas
+   ozetten cok daha kotu. */
+const CACHE_METIN_MIN_KRK = 400
+
+/** Cache icin metin normalizasyonu: bosluk sadelestirme + kucuk harf.
+ *  Ayni destenin iki ayri taramasi bayt duzeyinde farkli, metin
+ *  duzeyinde ayni oluyor; esitligi burada kuruyoruz. */
+function cacheMetniNormalize(text: string): string {
+  return String(text || '').replace(/\s+/g, ' ').trim().toLowerCase()
+}
+
+/** Metnin ikinci cache anahtari icin hash'i. Kisa metinde null:
+ *  carpisma riski kazanctan buyuk. */
+async function sha256Metin(text: string): Promise<string | null> {
+  const norm = cacheMetniNormalize(text)
+  if (norm.length < CACHE_METIN_MIN_KRK) return null
+  return await sha256Hex(new TextEncoder().encode(norm))
+}
 
 async function sha256Hex(bytes: Uint8Array): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', bytes as BufferSource)

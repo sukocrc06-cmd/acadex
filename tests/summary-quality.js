@@ -4252,4 +4252,81 @@ test('kucuk dilimin riski ZATEN kapatilmis', () => {
     'kaynaktaki icerigi silme kapisi yok');
 });
 
+
+// ==========================================================================
+// ONBELLEGIN IKINCI ANAHTARI: CIKARILAN METNIN HASH'I (20.10.2026)
+//
+// Mevcut anahtar DOSYANIN baytlarini hashliyordu. Ayni sunum yeniden
+// kaydedilmis ya da baska bir araçla taranmissa bayt dizisi degisiyor ve
+// sistem her seyi bastan ozetliyordu — oysa icerik ayni. Ikinci anahtar
+// metni hashliyor: dosya farkli, metin ayniysa isabet ediyor.
+// ==========================================================================
+
+const CACHE = loadFromSource('supabase/functions/summarize-document/index.ts', [
+  'CACHE_METIN_MIN_KRK', 'cacheMetniNormalize'
+]);
+
+test('ayni metnin farkli bicimlenmis hali AYNI anahtari verir', () => {
+  /* Iki tarama arasindaki fark genelde bosluk ve satir sonu: biri
+     sutunlari bosluklarla hizalar, digeri tek bosluk birakir. Metin ayni
+     oldugu halde bayt dizisi farkli olur. */
+  const a = CACHE.cacheMetniNormalize('Dummy   Variables\n\nIntercept  Shift');
+  const b = CACHE.cacheMetniNormalize('dummy variables intercept shift');
+  assert.equal(a, b);
+});
+
+test('normalizasyon ICERIGI degistirmiyor', () => {
+  // Sadece bosluk ve buyuk/kucuk harf. Sayi ya da sembol atilirsa iki
+  // AYRI belge ayni anahtara duser ve yanlis kart dagitilir.
+  const n = CACHE.cacheMetniNormalize('beta_1 = 0.045 ve R^2 = 0.72');
+  assert.ok(n.includes('0.045') && n.includes('0.72') && n.includes('r^2'),
+    'sayi ya da sembol kaybolmus: ' + n);
+  assert.notEqual(
+    CACHE.cacheMetniNormalize('intercept 43.96'),
+    CACHE.cacheMetniNormalize('intercept 40.27'),
+    'farkli sayilar ayni anahtara dusuyor');
+});
+
+test('KISA metin ikinci anahtari KULLANMAZ', () => {
+  /* Bos kapak ya da "Hafta 3" gibi bir sayfada iki ayri belgenin ayni
+     metne sahip olmasi gercek bir ihtimal; yanlis isabet, yavas ozetten
+     cok daha kotu. */
+  assert.ok(CACHE.CACHE_METIN_MIN_KRK >= 300,
+    'esik cok dusuk: ' + CACHE.CACHE_METIN_MIN_KRK);
+  assert.ok(/if \(norm\.length < CACHE_METIN_MIN_KRK\) return null/.test(SRC),
+    'kisa metinde ikinci anahtar yine uretiliyor');
+});
+
+test('arama IKI anahtari birden soruyor', () => {
+  assert.ok(/\.in\('cache_key', anahtarlar\)/.test(SRC),
+    'tek anahtarla aranmaya devam ediyor');
+  assert.ok(/const anahtarlar = metinCacheKey \? \[summaryCacheKey, metinCacheKey\]/.test(SRC),
+    'metin anahtari aramaya katilmiyor');
+});
+
+test('yazma IKI satir birden koyuyor', () => {
+  /* Yalnizca dosya anahtari yazilirsa metin anahtari hicbir zaman isabet
+     etmez: arama onu sorar ama tabloda karsiligi olmaz. */
+  assert.ok(/\[summaryCacheKey, metinCacheKey\]\.filter\(Boolean\)/.test(SRC),
+    'iki anahtar birden yazilmiyor');
+  assert.ok(/\.upsert\(satirlar, \{ onConflict: 'cache_key', ignoreDuplicates: true \}\)/.test(SRC),
+    'carpisma korumasi kalkmis');
+});
+
+test('anahtar AYARLARI tasimaya devam ediyor', () => {
+  /* Dil/stil/uzunluk/gorsel ve surum anahtarin parcasi olmazsa Turkce
+     isteyen ogrenciye Ingilizce kart verilir. */
+  assert.ok(/const ayarlar = \[lang, style, len, analyzeVisuals \? 'v' : 'nv', SUMMARY_CACHE_VERSION\]/.test(SRC),
+    'ayarlar anahtardan dusmus');
+  assert.ok(/metinCacheKey = metinHash \? \['t' \+ metinHash, \.\.\.ayarlar\]/.test(SRC),
+    'metin anahtari ayarlari tasimiyor');
+});
+
+test('hangi anahtarin isabet ettigi LOGLANIYOR', () => {
+  // Metin anahtarinin is gorup gormedigi ancak boyle olculur.
+  assert.ok(/CACHE ISABETI \[\$\{isabetTuru\}\]/.test(SRC), 'isabet turu loglanmiyor');
+  assert.ok(/isabetTuru = .*cache_key === metinCacheKey \? 'METIN' : 'DOSYA'/.test(SRC),
+    'isabet turu metin/dosya ayrimi yapmiyor');
+});
+
 summary().then(() => process.exit(process.exitCode || 0));
