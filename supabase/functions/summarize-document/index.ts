@@ -6182,6 +6182,20 @@ const GEMINI_SILENCE_MS = 25_000
    kendiliginden geri gelir. */
 const GEMINI_FIRST_BYTE_MS = 100_000
 
+/* ILK OLAYA kadar beklenecek sure — ilk BYTE'tan ayri.
+
+   20.10.2026 olcumu, ayni belgenin iki kosusu:
+     ilk byte 15.235ms, ilk olay  55.441ms -> 307 olay, 29.557 krk (iyi)
+     ilk byte 15.229ms, ilk olay 101.843ms ->  23 olay,  2.148 krk (bos)
+   Yani baglanti aciliyor ama olay gelmiyor; aradaki fark kartin dolu
+   olmasiyla bos olmasi arasindaki fark.
+
+   72 saniye: mesru dusunme suresi olarak 55,4 saniye OLCULDU, esik onun
+   belirgin ustunde kalmali. Ote yandan bu sure dolunca Groq'un tam bir
+   kosusu icin hala ~70 saniye kaliyor — vazgecmenin bedeli bos bir
+   karttan kucuk. */
+const GEMINI_ILK_OLAY_MS = 72_000
+
 /* Kurtarmaya deger en kucuk kismi cikti. Bunun altinda bir tampon zaten bir
    karta donusmez; kurtarmayi denemek yalnizca logu kirletir. */
 const GEMINI_PARTIAL_MIN_CHARS = 2_000
@@ -6281,7 +6295,7 @@ function geminiSseBlogunuIsle(blok: string, durum: GeminiAkisDurum): void {
 async function geminiAkisiTuket(
   res: Response,
   durum: GeminiAkisDurum,
-  dokun: (veriGeldi?: boolean) => void
+  dokun: (tur?: 'byte' | 'olay' | 'baslangic') => void
 ): Promise<void> {
   const reader = res.body?.getReader?.()
   if (!reader) { durum.hata = 'akis govdesi okunamadi'; return }
@@ -6290,13 +6304,16 @@ async function geminiAkisiTuket(
   while (true) {
     const { done, value } = await reader.read()
     if (done) break
-    dokun(true)
+    dokun('byte')
     const parca = dec.decode(value, { stream: true })
     durum.ham += parca
     tampon += parca
     let kes = tampon.indexOf('\n\n')
     while (kes !== -1) {
+      const oncekiOlay = durum.olaySayisi
       geminiSseBlogunuIsle(tampon.slice(0, kes), durum)
+      // Sayaci sifirlayan sey ISLENEN olay; bosluk ya da heartbeat degil.
+      if (durum.olaySayisi > oncekiOlay) dokun('olay')
       tampon = tampon.slice(kes + 2)
       kes = tampon.indexOf('\n\n')
     }
@@ -6343,7 +6360,9 @@ async function geminiAkisIstegi(
   sessizlikMs: number,
   /* Ilk byte toleransi. Varsayilan sabit; parametre oldugu icin testler
      100 saniye beklemeden hangi sayacin kestigini olcebiliyor. */
-  ilkByteMsIstenen: number = GEMINI_FIRST_BYTE_MS
+  ilkByteMsIstenen: number = GEMINI_FIRST_BYTE_MS,
+  /* Ilk OLAY son tarihi — ayni sebeple parametre. */
+  ilkOlayMsIstenen: number = GEMINI_ILK_OLAY_MS
 ): Promise<{ status: number; body: string } | null> {
   const controller = new AbortController()
   let sebep = ''
@@ -6352,6 +6371,7 @@ async function geminiAkisIstegi(
      akista yanitin tamami 90+ saniyede geliyor), ondan sonra sessizlikMs.
      Tek sayac bu ikisini ayirt edemiyordu — bkz. GEMINI_FIRST_BYTE_MS. */
   const ilkByteMs = Math.min(mutlakMs, ilkByteMsIstenen)
+  const ilkOlayMs = Math.min(mutlakMs, ilkOlayMsIstenen)
   /* Olcum saati her istek icin yeniden kuruluyor: devam ettirme de kendi
      ilk byte'ini olcsun. */
   durum.t0 = Date.now()
@@ -6359,17 +6379,29 @@ async function geminiAkisIstegi(
   durum.ilkOlayMs = -1
   let veriGeldi = false
   let sessiz: number | undefined
-  const dokun = (veri = false) => {
-    if (veri) {
+  /* UC KADEME, ve ikincisi 20.10.2026'da eklendi.
+     Eski hali sayaci her veri PARCASINDA sifirliyordu; yuzey bosluk ya da
+     heartbeat gonderdikce 86 saniyelik gercek sessizlik gorunmez kaldi ve
+     kart bos cikti. Artik byte yalnizca ILK BYTE kademesini kapatiyor;
+     sessizlik sayacini OLAY sifirliyor. */
+  const dokun = (tur: 'byte' | 'olay' | 'baslangic' = 'baslangic') => {
+    if (tur === 'byte' || tur === 'olay') {
       veriGeldi = true
       if (durum.ilkByteMs < 0) durum.ilkByteMs = Date.now() - durum.t0
     }
+    /* Sessizlik sayaci YALNIZCA olayla sifirlanir. Byte geldiginde sayac
+       kurulur ama suresi 'ilk olay' kademesidir. */
+    if (tur === 'byte' && durum.olaySayisi > 0) return
     if (sessiz !== undefined) clearTimeout(sessiz)
-    const sure = veriGeldi ? sessizlikMs : ilkByteMs
+    const sure = durum.olaySayisi > 0
+      ? sessizlikMs
+      : (veriGeldi ? ilkOlayMs : ilkByteMs)
     sessiz = setTimeout(() => {
-      sebep = veriGeldi
+      sebep = durum.olaySayisi > 0
         ? `sessizlik (${sessizlikMs}ms olay gelmedi)`
-        : `ilk byte gelmedi (${ilkByteMs}ms)`
+        : (veriGeldi
+          ? `ilk olay gelmedi (${ilkOlayMs}ms, baglanti acik ama veri yok)`
+          : `ilk byte gelmedi (${ilkByteMs}ms)`)
       controller.abort()
     }, sure)
   }
@@ -6458,6 +6490,31 @@ async function geminiAkisiDevamEttir(
  * JSON.parse ile DOGRULA. Dogrulanmayan bir sey asla dondurulmez — bu
  * fonksiyonun ciktisi dogrudan karta gidiyor.
  */
+/**
+ * Kurtarilan taslak bir KART olmaya yetiyor mu?
+ *
+ * 20.10.2026: 2.074 karakterlik bir kurtarma karakter esigini gecti ve
+ * kart uretildi — icinde 2 terim, 0 nokta, 0 soru vardi, kapsama %0.
+ * Karakter sayisi icerik olcusu degil; bir JSON'da 2.000 karakter
+ * yalnizca summary alaninda da birikebilir.
+ *
+ * Esik mutevazi: ogrenciye verilebilecek en az sey. Altinda kalan taslak
+ * yok sayilir ve normal yedek yolu (Groq) isler.
+ */
+function geminiKurtarmaYeterli(json: string): { yeterli: boolean; ozet: string } {
+  try {
+    const p = JSON.parse(repairLatexEscapes(json))
+    const terim = Array.isArray(p?.key_terms) ? p.key_terms.length : 0
+    const nokta = Array.isArray(p?.key_points) ? p.key_points.length : 0
+    const soru = Array.isArray(p?.quiz_questions) ? p.quiz_questions.length : 0
+    const ozetVar = String(p?.summary || '').trim().length >= 200
+    const yeterli = ozetVar && (nokta >= 3 || terim >= 6)
+    return { yeterli, ozet: `${terim} terim, ${nokta} nokta, ${soru} soru, ozet ${ozetVar ? 'var' : 'yok'}` }
+  } catch (_e) {
+    return { yeterli: false, ozet: 'ayristirilamadi' }
+  }
+}
+
 function closeTruncatedJson(text: string): string | null {
   const temiz = String(text || '').replace(/```json\s*|```/g, '').trim()
   const bas = temiz.search(/[{[]/)
@@ -6819,6 +6876,17 @@ async function geminiDraft(
         }
         if (durum.metin.length >= GEMINI_PARTIAL_MIN_CHARS) {
           const kurtarilan = closeTruncatedJson(durum.metin)
+          /* Karakter esigi yetmiyor: ICERIGE de bakiliyor (20.10.2026,
+             bkz. geminiKurtarmaYeterli). Bos bir kart, Groq'a dusmekten
+             kotudur. */
+          const yeterlilik = kurtarilan ? geminiKurtarmaYeterli(kurtarilan) : { yeterli: false, ozet: 'kurtarilamadi' }
+          if (kurtarilan && !yeterlilik.yeterli) {
+            console.warn(
+              `Gemini ${model}: kismi JSON kurtarildi ama KART OLMAYA YETMIYOR ` +
+              `(${yeterlilik.ozet}) — taslak yok sayiliyor, Groq yoluna dusuluyor`
+            )
+            return null
+          }
           if (kurtarilan) {
             console.warn(
               `Gemini ${model}: akis tamamlanmadi (${durum.hata}) — KISMI JSON kurtarildi, ` +
