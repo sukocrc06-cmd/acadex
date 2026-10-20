@@ -5730,6 +5730,21 @@ const GEMINI_ONLY_FALLBACK_MIN_MS = 32_000
    sigiyor. Alti istek, en kotu halde gunluk kotanin ucte biri. */
 const GEMINI_MAX_REQUESTS_PER_RUN = 6
 
+/* Ust uste kac gecici hata (503/500) sonrasi Gemini birakilir.
+
+   20.10.2026 olcumu: 76 sayfalik bir destede ALTI istegin altisi da 503
+   "high demand" dondu. 48 saniye ve gunluk kotanin %30'u hicbir ise
+   yaramadan yandi; geriye kalan butce review'a yetmedi ve kart %43
+   kapsamayla cikti.
+
+   Ust uste 503 almak "bu model yogun" degil, "yuzey yogun" demektir —
+   sonraki aday modeli denemek ayni duvara carpmaktir. Iki ardisik
+   gecici hata yeter.
+
+   IKI, bir degil: 09.10.2026'da ilk deneme 503 alip ikincisi tutmustu ve
+   kart Gemini'den geldi. O vakayi kaybetmiyoruz. */
+const GEMINI_ARDISIK_GECICI_MAX = 2
+
 /* Dakikalik limite (RPM 5) carpinca beklenecek sure. Pencere 60 saniye;
    20 saniye onu garanti ETMEZ ama 2,5 saniyelik eski payla ayni dakikaya
    tekrar girmek kesin basarisizlikti. Yalnizca butcede gercek bos yer
@@ -6641,6 +6656,10 @@ async function geminiDraft(
      ayni hatayi uc kez yemek gunluk kotadan uc istek goturur. */
   const dropped: string[] = []
   let gecici = 0   // 429/503/500 denemeleri — alan dusurme denemelerinden ayri sayilir
+  /* MODELLER ARASI ardisik gecici hata. `gecici` her modelde sifirlaniyor;
+     bu sayac sifirlanmiyor ve yuzeyin tamaminin yogun oldugunu gormemizi
+     sagliyor (bkz. GEMINI_ARDISIK_GECICI_MAX). */
+  let ardisikGecici = 0
 
   /* BASARISIZ DENEMELERIN TOPLAM SURESI.
    *
@@ -6807,6 +6826,8 @@ async function geminiDraft(
       }
 
       if (res.ok) {
+        // Yuzey cevap veriyor: ardisiklik bozuldu.
+        ardisikGecici = 0
         const problem = geminiProblem(res.data)
         if (problem) {
           console.warn(`Gemini ${model}: cevap kullanilamaz — ${problem}`)
@@ -6915,7 +6936,17 @@ async function geminiDraft(
       }
       if (res.status === 503 || res.status === 500) {
         gecici++
+        ardisikGecici++
         console.warn(`Gemini ${model}: gecici hata ${res.status} (deneme ${gecici}/2): ${res.body.slice(0, 200)}`)
+        /* Yuzeyin tamami yogunsa sonraki aday modeli denemek ayni duvara
+           carpmak: istek de sure de bosa gidiyor. */
+        if (ardisikGecici >= GEMINI_ARDISIK_GECICI_MAX) {
+          console.warn(
+            `Gemini: ${ardisikGecici} ardisik gecici hata — yuzey yogun sayiliyor, ` +
+            `kalan aday modeller denenmiyor, Groq yoluna dusuluyor`
+          )
+          return null
+        }
         if (gecici < 2) continue
         break
       }

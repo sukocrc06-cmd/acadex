@@ -32,7 +32,7 @@ const NAMES = [
   'GEMINI_MAX_CALL_MS', 'GEMINI_MAX_OUTPUT_TOKENS', 'GEMINI_GROQ_RESERVE_MS',
   'geminiMode', 'GEMINI_ONLY_BUDGET_MS', 'GEMINI_ONLY_MAX_CALL_MS',
   'GEMINI_ONLY_FALLBACK_MIN_MS',
-  'GEMINI_MAX_REQUESTS_PER_RUN', 'geminiRpmWaitMs',
+  'GEMINI_MAX_REQUESTS_PER_RUN', 'GEMINI_ARDISIK_GECICI_MAX', 'geminiRpmWaitMs',
   'GEMINI_RPM_RETRY_MIN_REMAINING_MS',
   'bytesToBase64',
   'geminiModelCandidates', 'geminiNativeMime', 'geminiModelMissing',
@@ -840,9 +840,32 @@ test('geminiDraft: ayni alan iki kez atilmaya calisilmaz (sonsuz dongu yok)', as
   } finally { restoreFetch(); }
 });
 
-test('geminiDraft: 503 bir kez tekrar denenir, sonra sonraki modele gecer', async () => {
-  // Olculdu: ikinci kosuda ilk deneme 503 aldi, ikincisi tuttu ve kart
-  // Gemini'den geldi. 503 gercekten gecici.
+test('geminiDraft: TEK 503 sonrasi ayni model tekrar denenir ve tutar', async () => {
+  /* Olculdu (09.10.2026): ilk deneme 503 aldi, ikincisi tuttu ve kart
+     Gemini'den geldi. 503 gercekten gecici — bu vaka korunuyor. */
+  stubFetch([
+    { status: 503, text: 'currently experiencing high demand' },
+    { status: 200, json: OK_JSON }
+  ]);
+  try {
+    const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000));
+    assert.ok(out, 'tek 503 sonrasi tekrar deneme yapilmadi');
+    assert.equal(fetchCalls.length, 2);
+    assert.equal(out.model, G.GEMINI_MODEL_CANDIDATES[0], 'ayni model denenmeliydi');
+  } finally { restoreFetch(); }
+});
+
+test('geminiDraft: IKI ARDISIK 503te durulur, sonraki aday DENENMEZ', async () => {
+  /* 20.10.2026 OLCUMU — bu testin davranisi burada DEGISTI.
+
+     Eski hali iki 503'ten sonra sonraki aday modelle devam ediyordu. O
+     gun 76 sayfalik bir destede ALTI istegin altisi da 503 dondu: 48
+     saniye ve gunluk kotanin (RPD 20) %30'u hicbir ise yaramadan yandi,
+     geriye kalan butce review'a yetmedi ve kart %43 kapsamayla cikti.
+
+     Ust uste 503 almak "bu model yogun" degil "yuzey yogun" demek;
+     sonraki adayi denemek ayni duvara carpmak. Ucuncu istek ARTIK
+     YAPILMIYOR — kukla siradaki 200'u hic gormemeli. */
   stubFetch([
     { status: 503, text: 'currently experiencing high demand' },
     { status: 503, text: 'currently experiencing high demand' },
@@ -850,10 +873,19 @@ test('geminiDraft: 503 bir kez tekrar denenir, sonra sonraki modele gecer', asyn
   ]);
   try {
     const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000));
-    assert.ok(out);
-    assert.equal(fetchCalls.length, 3);
-    assert.equal(out.model, G.GEMINI_MODEL_CANDIDATES[1]);
+    assert.equal(out, null, 'ardisik 503te Groq yoluna dusulmeliydi');
+    assert.equal(fetchCalls.length, G.GEMINI_ARDISIK_GECICI_MAX,
+      `${fetchCalls.length} istek yapildi — esik ${G.GEMINI_ARDISIK_GECICI_MAX}`);
   } finally { restoreFetch(); }
+});
+
+test('ardisik sayaci BASARIYLA sifirlanir', () => {
+  /* Bir modelin tek seferlik aksakligi sonraki modeli cezalandirmamali:
+     arada basarili bir cevap varsa ardisiklik bozulur. */
+  const src = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+  assert.ok(src.includes('ardisikGecici = 0'), 'sayac basarida sifirlanmiyor');
+  assert.ok(src.includes('ardisikGecici >= GEMINI_ARDISIK_GECICI_MAX'), 'esik kontrolu yok');
 });
 
 // ===========================================================================
