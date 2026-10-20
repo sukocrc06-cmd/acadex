@@ -2868,7 +2868,10 @@ test('pencere tekrar denemesi BUYUK modeli tercih ediyor', () => {
      modele vermek amaci bozuyor. */
   const i = SRC.indexOf('A RETRY PREFERS THE BIG MODEL');
   assert.ok(i > -1, 'tekrar denemesi serit tercihi aciklamasi kaybolmus');
-  const blok = SRC.slice(i, i + 2600);   // aciklama yorumu uzun, kodu da kapsamali
+  /* Pencere 2600 -> 4400: 20.10.2026 de ayni dalin icine "atanan serit
+     bekletiyorsa devret" kontrolu girdi (bkz. PENCERE_DEVIR_ESIGI_MS) ve
+     tekrar-deneme kodunu pencerenin disina itti. Iddialar degismedi. */
+  const blok = SRC.slice(i, i + 4400);   // aciklama yorumu uzun, kodu da kapsamali
   assert.ok(/const heavyWaitMs = tokenPacer\.waitEstimate\(est, MODEL_HEAVY/.test(blok),
     'buyuk seridin beklemesi olculmeli');
   assert.ok(/windowLane = affordHeavy\s*\n?\s*\? MODEL_HEAVY/.test(blok),
@@ -4397,6 +4400,51 @@ test('olcum KARTA da yaziliyor', () => {
      koyarken bu alan kaynak olacak. */
   assert.ok(/qualityMeta\.dolgu_adayi = yogunlukOlcumu/.test(SRC),
     'olcum quality_meta ye yazilmiyor');
+});
+
+
+test('ATANAN serit bekletiyorsa bos seride devrediliyor', () => {
+  /* 20.10.2026 OLCUMU: 76 sayfalik destede uc pencere vardi.
+       Window 1 -> gpt-oss-120b, dondu
+       Window 2 -> gpt-oss-20b,  dondu
+       Window 3 -> gpt-oss-20b:  TokenPacer 58.534ms BEKLEDI
+     Kosunun yarisi o beklemede gecti; review'a 26,6 saniye kaldi, 33
+     gerekiyordu ve review atlandi, kart %43 kapsamayla cikti.
+
+     Sebep: ilk deneme seridi batch'in attigi haliyle kullaniyor ve
+     beklemesini HIC olcmuyordu. pickLane zaten beklemeye gore seciyor;
+     yalnizca bu dal onu atliyordu. */
+  const i = SRC.indexOf('ATANAN SERIT BEKLETIYORSA DEVRET');
+  assert.ok(i > -1, 'devretme aciklamasi kaybolmus');
+  const blok = SRC.slice(i, i + 1800);
+  assert.ok(/tokenPacer\.waitEstimate\(atananEst, windowLane/.test(blok),
+    'atanan seridin beklemesi olculmuyor — hata tam buydu');
+  assert.ok(/atananBekleme >= PENCERE_DEVIR_ESIGI_MS/.test(blok),
+    'esik kontrolu yok: her kucuk bekleme icin serit degistirmek de yanlis');
+  assert.ok(/altBekleme \+ PENCERE_DEVIR_KAZANC_MS <= atananBekleme/.test(blok),
+    'kazanc esigi yok: iki serit de doluyken bosuna zipla(n)ir');
+  assert.ok(/alternatif !== windowLane/.test(blok),
+    'ayni seride devretmek anlamsiz');
+});
+
+test('devir esikleri makul araliklarda', () => {
+  /* TPM penceresi 60 saniye. Esik cok kucukse her pencere serit
+     degistirir ve zayif modele dusme riski bedavaya alinir; cok buyukse
+     bugunku 58 saniyelik bekleme yine yasanir. */
+  const T = loadFromSource('supabase/functions/summarize-document/index.ts', [
+    'PENCERE_DEVIR_ESIGI_MS', 'PENCERE_DEVIR_KAZANC_MS'
+  ]);
+  assert.ok(T.PENCERE_DEVIR_ESIGI_MS >= 5_000 && T.PENCERE_DEVIR_ESIGI_MS <= 30_000,
+    'devir esigi arali' + 'k disi: ' + T.PENCERE_DEVIR_ESIGI_MS);
+  assert.ok(T.PENCERE_DEVIR_KAZANC_MS > 0 && T.PENCERE_DEVIR_KAZANC_MS <= T.PENCERE_DEVIR_ESIGI_MS,
+    'kazanc esigi devir esiginden buyuk olamaz');
+});
+
+test('devir KARARI loglaniyor (iki yonlu)', () => {
+  /* Devredildiginde de devredilemediginde de log var: "neden hala
+     bekledik" sorusu bir dahaki sefere tahmin olmasin. */
+  assert.ok(/devrediliyor \(\$\{altBekleme\}ms, kazanc/.test(SRC), 'devir logu yok');
+  assert.ok(/devredilecek bos serit yok/.test(SRC), 'devredilemedi logu yok');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));

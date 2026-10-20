@@ -5745,6 +5745,17 @@ const GEMINI_MAX_REQUESTS_PER_RUN = 6
    kart Gemini'den geldi. O vakayi kaybetmiyoruz. */
 const GEMINI_ARDISIK_GECICI_MAX = 2
 
+/* Atanan seridin beklemesi bu esigi asarsa bos serit aranir.
+   20.10.2026 olcumu: ucuncu pencere atanan seridinde 58.534ms bekledi,
+   kosunun yarisi orada gecti ve review'a yer kalmadi. 15 saniyenin
+   altindaki beklemeler icin devretmiyoruz: TPM penceresi 60 saniye,
+   kisa bekleme modeli degistirmenin riskinden ucuz. */
+const PENCERE_DEVIR_ESIGI_MS = 15_000
+
+/* Devretmenin en az bu kadar kazandirmasi gerekir. Iki serit de
+   doluyken bir oraya bir buraya gecip hicbir sey kazanmamak icin. */
+const PENCERE_DEVIR_KAZANC_MS = 10_000
+
 /* Dakikalik limite (RPM 5) carpinca beklenecek sure. Pencere 60 saniye;
    20 saniye onu garanti ETMEZ ama 2,5 saniyelik eski payla ayni dakikaya
    tekrar girmek kesin basarisizlikti. Yalnizca butcede gercek bos yer
@@ -8516,6 +8527,30 @@ Rules:
             windowLane = MODEL_EXTRACT
           } else if (attempt === 0 && assignedLane) {
             windowLane = assignedLane
+            /* ATANAN SERIT BEKLETIYORSA DEVRET (20.10.2026).
+               Ilk deneme seridi batch'in attigi haliyle kullaniyordu ve
+               beklemesini HIC olcmuyordu. Olculen kosuda ucuncu pencere
+               bu yuzden 58,5 saniye bekledi — kosunun yarisi — ve
+               review'a yer kalmadi. pickLane zaten beklemeye gore
+               seciyor; yalnizca bu dal onu atliyordu. */
+            const atananEst = estimateTokens(compactWindowPrompt(wi, windows.length), payload, winCompletion)
+            const atananBekleme = tokenPacer.waitEstimate(atananEst, windowLane, winCompletion)
+            if (atananBekleme >= PENCERE_DEVIR_ESIGI_MS) {
+              const alternatif = pickLane([MODEL_HEAVY, MODEL_EXTRACT], atananEst, winCompletion)
+              const altBekleme = tokenPacer.waitEstimate(atananEst, alternatif, winCompletion)
+              if (alternatif !== windowLane && altBekleme + PENCERE_DEVIR_KAZANC_MS <= atananBekleme) {
+                console.log(
+                  `Window ${wi + 1}: ${windowLane} ${atananBekleme}ms bekletiyor — ` +
+                  `${alternatif} seridine devrediliyor (${altBekleme}ms, kazanc ${atananBekleme - altBekleme}ms)`
+                )
+                windowLane = alternatif
+              } else {
+                console.log(
+                  `Window ${wi + 1}: ${windowLane} ${atananBekleme}ms bekletiyor ama ` +
+                  `devredilecek bos serit yok (en iyi alternatif ${altBekleme}ms)`
+                )
+              }
+            }
           } else {
             const est = estimateTokens(compactWindowPrompt(wi, windows.length), payload, winCompletion)
             const heavyWaitMs = tokenPacer.waitEstimate(est, MODEL_HEAVY, winCompletion)
