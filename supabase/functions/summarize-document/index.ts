@@ -5975,8 +5975,24 @@ function geminiCoverageQuota(pageCount: number): string {
      Olculen uretim: 15 terim / 18 nokta / 10 soru. Groq'un ayni destedeki
      en iyisi 16 / 25 / 13 idi — aradaki tek gercek fark NOKTALAR, o yuzden
      once o bant aciliyor. */
+  /* 20.10.2026 — BAND COK BUYUK BELGEDE GERI INIYOR.
+     Band 25 sayfada tavana vurup bir daha inmiyordu: 86 sayfalik bir
+     bolumde modelden 18-26 terim + 22-28 nokta + 12-15 soru + tavansiz
+     formul/tablo isteniyordu. Yani sayfa basina en az zamani oldugu anda
+     EN COK cikti.
+
+     Olculdu: 86 sayfa / 68.205 krk metinde model 55 saniye dusundu,
+     kalan ~50 saniyede 29.557 karakter yazdi (~600 krk/sn) ve yetisemedi.
+     Kart KISMI cikti, kapsama %31, onbellege alinmadi.
+
+     60 sayfa ustunde terim/nokta/soru geri iniyor. Formul ve tablo
+     TAVANSIZ kaliyor: golge yolun var olma sebebi onlar. Takas bilincli —
+     biraz daha az terim tasiyan TAM bir kart, yarim bir karttan iyidir;
+     ustelik tam kart onbellege girer ve ayni belge bir daha 105 saniye
+     yakmaz. */
   let terms = '12-18', points = '14-18', quiz = '8-10'
-  if (pageCount > 25) { terms = '18-26'; points = '22-28'; quiz = '12-15' }
+  if (pageCount > 60) { terms = '14-18'; points = '16-20'; quiz = '8-10' }
+  else if (pageCount > 25) { terms = '18-26'; points = '22-28'; quiz = '12-15' }
   else if (pageCount > 10) { terms = '15-22'; points = '16-20'; quiz = '10-13' }
   const olcek = pageCount > 0 ? `all ${pageCount} pages` : 'the whole document'
   const destek = pageCount > 0

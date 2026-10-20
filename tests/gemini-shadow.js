@@ -1070,4 +1070,31 @@ test('geminiDraft: butce cagriya 35 sn bile veremiyorsa hic denemez', async () =
   }
 });
 
+
+test('kapsam bandi COK BUYUK belgede geri iniyor', () => {
+  /* 20.10.2026 OLCUMU: 86 sayfalik bolumde (68.205 krk cikarilan metin)
+     model 55 saniye dusundu, kalan ~50 saniyede 29.557 karakter yazdi
+     (~600 krk/sn) ve YETISEMEDI — mutlak tavanda kesildi, kart KISMI
+     cikti, kapsama %31, onbellege de alinmadi.
+
+     Sebep: band 25 sayfada tavana vurup bir daha inmiyordu, yani sayfa
+     basina en az zamani oldugu anda EN COK cikti isteniyordu. */
+  const bant = (q) => (q.match(/\b\d+-\d+\b/g) || []).slice(0, 3).join('/');
+  assert.equal(bant(G.geminiCoverageQuota(42)), '18-26/22-28/12-15', 'orta bant degismis');
+  assert.equal(bant(G.geminiCoverageQuota(86)), '14-18/16-20/8-10', 'dev belgede band geri inmiyor');
+  assert.notEqual(
+    bant(G.geminiCoverageQuota(86)),
+    bant(G.geminiCoverageQuota(42)),
+    'dev belge orta belgeyle ayni miktarda cikti istiyor');
+});
+
+test('FORMUL ve TABLO dev belgede de TAVANSIZ', () => {
+  /* Golge yolun var olma sebebi onlar: slaytlarda resim olarak duran
+     denklemleri Groq goremiyor. Band inerken bunlara DOKUNULMAMALI —
+     kisilan sey terim/nokta/soru. */
+  const dev = G.geminiCoverageQuota(86);
+  assert.ok(/No cap on/.test(dev), 'formul/tablo tavansizligi kaybolmus');
+  assert.ok(/every equation/.test(dev), 'her denklem istegi kaybolmus');
+});
+
 summary();
