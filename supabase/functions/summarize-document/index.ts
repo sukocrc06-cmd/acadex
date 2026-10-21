@@ -6205,6 +6205,27 @@ const GEMINI_PARTIAL_MIN_CHARS = 2_000
    istegi — sinirsiz birakmak bir dongude butceyi yiyebilir. */
 const GEMINI_MAX_RESUMES = 2
 
+/* DEVAM ETTIRME PENCERESI (21.10.2026).
+ *
+ * geminiToplamTavan URETIM istekleri icindir: toplami 105 saniyede tutup
+ * Groq'a sabit pay birakir. Devam ettirme ise uretim istegi degil — ayni
+ * etkilesim GET ile okunuyor, gunluk kotadan (RPD 20) istek goturmuyor.
+ * Ikisini ayni tavana baglamak devam ettirmeyi OLU KOD yapiyordu: akis tam
+ * `tavan` ms'de abort ediliyor, dolayisiyla resume dongusune varildiginda
+ * geriye daima ~0 kaliyor. 20.10 kosusu: "devam ettirmeye yer kalmadi
+ * (-12ms)" — tesadüf degil, aritmetik zorunluluk. O kosuda tam JSON'a
+ * 59 KARAKTER kalmisti ve ogrenci kismi kart gordu.
+ *
+ * Pencere GEMINI_RESERVE_MS'ten (review + kapilar + kayit) aliniyor.
+ * Olculen: review 33 saniye istedi, 2,66 saniyede bitti; daralan butceyi
+ * review'in kademe makinesi zaten yonetiyor. Karsiliginda kart tamamlanir
+ * ve ONBELLEGE YAZILIR — kismi kart yazilmiyor, yani bu pencere olmadan
+ * ayni PDF her yuklemede 105 saniye + 1 RPD yakmaya devam ediyor. */
+const GEMINI_DEVAM_PAYI_MS = 15_000
+/* Devam ettirme ne kadar yer bulursa bulsun kapilar + kayit icin bu kadari
+   dokunulmaz kalir; pencere butcenin sonunu yiyemez. */
+const GEMINI_DEVAM_KAYIT_PAYI_MS = 20_000
+
 type GeminiAkisDurum = {
   metin: string
   interactionId: string
@@ -6475,17 +6496,48 @@ async function geminiAkisiDevamEttir(
   apiKey: string,
   durum: GeminiAkisDurum,
   mutlakMs: number
-): Promise<void> {
+): Promise<{ status: number; body: string } | null> {
   const q = new URLSearchParams({ stream: 'true' })
   if (durum.lastEventId) q.set('last_event_id', durum.lastEventId)
   durum.hata = null
-  await geminiAkisIstegi(
+  const oncekiUzunluk = durum.metin.length
+  const oncekiOlay = durum.olaySayisi
+  const http = await geminiAkisIstegi(
     `${GEMINI_ENDPOINT}/${encodeURIComponent(durum.interactionId)}?${q.toString()}`,
     { method: 'GET', headers: { 'x-goog-api-key': apiKey } },
     durum,
     mutlakMs,
     GEMINI_SILENCE_MS
   )
+
+  /* HTTP HATASI YUTULUYORDU (21.10.2026).
+   *
+   * geminiAkisIstegi ok OLMAYAN cevapta {status, body} DONDURUYOR, durum.hata'ya
+   * hicbir sey yazmiyor. Bu fonksiyon donen degeri atiyordu ve ustunde
+   * durum.hata'yi null'a cekiyordu — yani GET ne dondurursa dondursun geriye
+   * hicbir iz kalmiyordu. 21.10 kosusunun logu tam bunu gosteriyor:
+   *
+   *   akis kesildi (mutlak tavan (95445ms)) — GET ile devam ettiriliyor (1/2)
+   *   akis kesildi (null) — GET ile devam ettiriliyor (2/2)
+   *   akis tamamlanmadi (null) — KISMI JSON kurtarildi
+   *
+   * Ikinci satirdaki `null` sebebin yoklugu degil, SILINMIS sebep. Iki GET
+   * 679ms ve 596ms surdu, tek karakter getirmedi ve neden basarisiz
+   * olduklarini soylemedi. Artik sebep yaziliyor; bos donen bir devam
+   * ettirme de sessiz gecmiyor. */
+  if (http) {
+    durum.hata = `devam ettirme HTTP ${http.status}: ${String(http.body || '').slice(0, 300)}`
+  } else if (durum.metin.length === oncekiUzunluk && !durum.tamamlandi) {
+    durum.hata = durum.hata ||
+      `devam ettirme bos dondu (last_event_id ${durum.lastEventId ? 'gonderildi' : 'YOK'}, ` +
+      `etkilesim durumu ${durum.status || 'bildirilmedi'})`
+  }
+  console.log(
+    `Gemini devam ettirme: +${durum.metin.length - oncekiUzunluk} karakter, ` +
+    `+${durum.olaySayisi - oncekiOlay} olay, tamamlandi=${durum.tamamlandi}` +
+    (durum.hata ? ` — ${durum.hata}` : '')
+  )
+  return http
 }
 
 /**
@@ -6789,6 +6841,13 @@ async function geminiDraft(
    * yapsin Groq'a sabit bir pay kaliyor ve fallback esigi guvenilir
    * oluyor. */
   const geminiToplamTavan = tavan
+  /* Devam ettirmenin tavani URETIM tavanindan ayri — bkz.
+     GEMINI_DEVAM_PAYI_MS. Pencere butcede gercekten yer varsa aciliyor,
+     yoksa uretim tavaninda kaliyor ve davranis eskisi gibi. */
+  const geminiDevamTavan = Math.min(
+    geminiToplamTavan + GEMINI_DEVAM_PAYI_MS,
+    Math.max(geminiToplamTavan, budgetMs - GEMINI_DEVAM_KAYIT_PAYI_MS)
+  )
 
   /* RPM 5 (panelden okundu). Istekleri arka arkaya atmak dakikalik limite
      carpiyor ve o 429 "project has exceeded a quota" diye geliyor — gunluk
@@ -6863,7 +6922,7 @@ async function geminiDraft(
       if (!res.ok && res.durum) {
         const durum = res.durum
         for (let devam = 0; devam < GEMINI_MAX_RESUMES && !durum.tamamlandi && durum.interactionId; devam++) {
-          const kalanMs = geminiToplamTavan - (Date.now() - basladi)
+          const kalanMs = geminiDevamTavan - (Date.now() - basladi)
           if (kalanMs < 10_000) {
             console.warn(`Gemini ${model}: devam ettirmeye yer kalmadi (${kalanMs}ms)`)
             break
@@ -6872,7 +6931,17 @@ async function geminiDraft(
             `Gemini ${model}: akis kesildi (${durum.hata}), ${durum.metin.length} karakter elde — ` +
             `GET ile devam ettiriliyor (${devam + 1}/${GEMINI_MAX_RESUMES}, ${kalanMs}ms kaldi)`
           )
-          await geminiAkisiDevamEttir(apiKey, durum, Math.min(kalanMs, buCagriMs))
+          const devamHata = await geminiAkisiDevamEttir(apiKey, durum, Math.min(kalanMs, buCagriMs))
+          /* 4xx kendi kendine duzelmez: etkilesim yok, bitmis ya da
+             last_event_id kabul edilmiyor. Ikinci GET'i yakmanin anlami
+             yok. 5xx gecici olabilir, ona pencere kalmissa devam. */
+          if (devamHata && devamHata.status >= 400 && devamHata.status < 500) {
+            console.warn(
+              `Gemini ${model}: devam ettirme kalici hatayla dustu (HTTP ${devamHata.status}) — ` +
+              `yeniden denenmiyor`
+            )
+            break
+          }
         }
         if (durum.tamamlandi && durum.metin.trim()) {
           console.log(

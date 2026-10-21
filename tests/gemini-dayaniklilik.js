@@ -63,7 +63,7 @@ const G = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'geminiProblem', 'callGeminiOnce', 'geminiDraft',
   // Akis (SSE) yolu — 18.10.2026.
   'GEMINI_SILENCE_MS', 'GEMINI_FIRST_BYTE_MS', 'GEMINI_ILK_OLAY_MS', 'geminiKurtarmaYeterli', 'GEMINI_PARTIAL_MIN_CHARS',
-  'GEMINI_MAX_RESUMES',
+  'GEMINI_MAX_RESUMES', 'GEMINI_DEVAM_PAYI_MS', 'GEMINI_DEVAM_KAYIT_PAYI_MS',
   'geminiAkisDurumu', 'geminiSseBlogunuIsle', 'geminiAkisiTuket',
   'geminiAkisIstegi', 'geminiAkisSonucu', 'geminiAkisiDevamEttir',
   'closeTruncatedJson', 'repairLatexEscapes', 'geminiAkisOlcumu'
@@ -739,6 +739,151 @@ test('ILK OLAY son tarihi ARALIKLI heartbeat te de doluyor', async () => {
      yani ~950ms de olurdu — gevsek bir esik bu farki yutar ve test eski
      davranisi yakalamaz (mutasyonla olculdu). */
   assert.ok(gecen < 800, gecen + 'ms beklendi — son tarih byte larla kayiyor');
+});
+
+/* ==========================================================================
+   8 — DEVAM ETTIRME PENCERESI (21.10.2026)
+
+   20.10 kosusu: ilk byte 15.193ms, ilk olay 60.166ms (72 sn kapisi dogru
+   davrandi, tetiklenmedi), 290 olay, mutlak tavan 105.008ms de abort.
+   Taslak tam JSON a 59 KARAKTER uzaktaydi. Devam ettirme tam bu is icin
+   yazilmisti ve su satiri basti:
+
+     Gemini gemini-3.7-flash: devam ettirmeye yer kalmadi (-12ms)
+
+   -12ms tesadüf degil. geminiToplamTavan = tavan oldugu, akisin da tam
+   `tavan` ms de abort edildigi icin resume dongusune varildiginda kalan
+   daima ~0. Yani devam ettirme, en cok gerektigi senaryoda yapisal olarak
+   OLU KODDU — ve bu, kota yakmayan tek kurtarma yolu.
+
+   Kesildigi anda butcede 38,1 saniye vardi (review budgetLeft=35.887ms
+   olarak gordu ve 2,66 saniyede bitti). Pencere oradan aliniyor.
+   ========================================================================== */
+console.log('\n8 — DEVAM ETTIRME PENCERESI\n');
+
+test('devam ettirme tavani URETIM tavanindan ayri hesaplaniyor', () => {
+  const i = FN_SRC.indexOf('const geminiToplamTavan = tavan');
+  assert.ok(i > 0, 'geminiToplamTavan bulunamadi');
+  assert.ok(/const geminiDevamTavan = Math\.min\(/.test(FN_SRC.slice(i, i + 600)),
+    'geminiDevamTavan yok — devam ettirme uretim tavanina bagli kalmis');
+});
+
+test('resume dongusu geminiDevamTavan okuyor, geminiToplamTavan DEGIL', () => {
+  const i = FN_SRC.indexOf('devam < GEMINI_MAX_RESUMES');
+  assert.ok(i > 0, 'resume dongusu bulunamadi');
+  const blok = FN_SRC.slice(i, i + 400);
+  assert.ok(/const kalanMs = geminiDevamTavan - \(Date\.now\(\) - basladi\)/.test(blok),
+    'kalanMs uretim tavanindan olculuyor — akis tam o tavanda abort edildigi ' +
+    'icin resume daima ~0 gorur ve hic calismaz');
+});
+
+test('uretim denemeleri HALA toplam tavana bagli — Groq payi korunuyor', () => {
+  assert.ok(
+    /const buCagriMs = Math\.min\(callMs, geminiToplamTavan - \(Date\.now\(\) - basladi\)\)/
+      .test(FN_SRC),
+    'uretim denemesi devam tavanina baglanmis — Groq fallback payi yanar'
+  );
+});
+
+// Kaynaktaki formulun aynisi; sabitler degisirse asagidaki esikler uyarir.
+function devamTavani(budgetMs) {
+  const tavan = G.GEMINI_ONLY_MAX_CALL_MS;
+  return Math.min(
+    tavan + G.GEMINI_DEVAM_PAYI_MS,
+    Math.max(tavan, budgetMs - G.GEMINI_DEVAM_KAYIT_PAYI_MS)
+  );
+}
+
+test('ARITMETIK: tavan tamamen yandiginda resume penceresi 10 sn esigini geciyor', () => {
+  // 20.10 kosusunun sayilari: hazirlik ~5 sn, uretim tavani sonuna kadar yandi.
+  const budgetMs = G.GEMINI_ONLY_BUDGET_MS - 5_000;
+  const kalan = devamTavani(budgetMs) - G.GEMINI_ONLY_MAX_CALL_MS;
+  assert.ok(kalan >= 10_000,
+    `devam penceresi ${kalan}ms — resume dongusunun 10.000ms esigini gecmiyor, ` +
+    'yani duzeltme kagit uzerinde kaldi');
+});
+
+test('pencere kapilar + kayit payini yemiyor', () => {
+  const budgetMs = G.GEMINI_ONLY_BUDGET_MS - 5_000;
+  const kalanSonra = budgetMs - devamTavani(budgetMs);
+  assert.ok(kalanSonra >= G.GEMINI_DEVAM_KAYIT_PAYI_MS,
+    `devam tavaninden sonra ${kalanSonra}ms kaliyor — kapilar + kayit icin yetmez`);
+});
+
+test('dar butcede pencere ACILMIYOR, davranis eskisi gibi kaliyor', () => {
+  /* Hazirlik uzun surerse (indirme + OCR) butce daralir. O zaman pencere
+     acilmamali: Supabase nin ~150 sn duvari pencereden onemli. */
+  const dar = G.GEMINI_ONLY_MAX_CALL_MS + 5_000;
+  assert.equal(devamTavani(dar), G.GEMINI_ONLY_MAX_CALL_MS,
+    'yer yokken pencere acilmis — toplam butce asilir');
+});
+
+/* ==========================================================================
+   9 — DEVAM ETTIRME SEBEBINI SOYLUYOR (21.10.2026)
+
+   Pencere acildi ve devam ettirme GERCEKTEN kostu — 21.10 kosusu:
+
+     akis kesildi (mutlak tavan (95445ms)) — GET ile devam ettiriliyor (1/2, 14994ms kaldi)
+     akis kesildi (null)                   — GET ile devam ettiriliyor (2/2, 14316ms kaldi)
+     akis tamamlanmadi (null)              — KISMI JSON kurtarildi
+
+   Iki GET 679ms ve 596ms surdu, TEK KARAKTER getirmedi (36680 sabit kaldi)
+   ve neden basarisiz olduklarini soylemedi. O `null` sebebin yoklugu degil:
+   geminiAkisiDevamEttir once durum.hata'yi null'a cekiyor, sonra
+   geminiAkisIstegi'nin ok OLMAYAN cevapta DONDURDUGU {status, body} degerini
+   atiyordu. Yani HTTP hatasi yapisal olarak goze gorunmezdi.
+   ========================================================================== */
+console.log('\n9 — DEVAM ETTIRME SEBEBINI SOYLUYOR\n');
+
+test('devam ettirme HTTP hatasi durum.hata ya YAZILIYOR', async () => {
+  stubFetch([{ status: 404, text: '{"error":{"message":"Interaction not found"}}' }]);
+  const d = G.geminiAkisDurumu();
+  d.interactionId = 'v1_abc'; d.lastEventId = 'ev42'; d.metin = '{"a":1';
+  let http;
+  try {
+    http = await quiet(() => G.geminiAkisiDevamEttir('K', d, 5_000));
+  } finally { restoreFetch(); }
+  assert.ok(http && http.status === 404, 'HTTP sonucu cagirana donmuyor');
+  assert.ok(/HTTP 404/.test(String(d.hata)),
+    'sebep yutuldu — log yine "akis kesildi (null)" yazar: ' + d.hata);
+  assert.ok(/Interaction not found/.test(String(d.hata)),
+    'cevap govdesi tasinmiyor: ' + d.hata);
+});
+
+test('BOS donen devam ettirme sessiz gecmiyor', async () => {
+  /* 200 ve OKUNABILIR bir govde, ama icinde tek olay yok (yalnizca
+     heartbeat yorumu). Govde okunamadiginda sebebi geminiAkisiTuket zaten
+     yaziyor; SESSIZ kalan hal bu. */
+  stubFetch([{ status: 200, sseRaw: ': hb\n\n' }]);
+  const d = G.geminiAkisDurumu();
+  d.interactionId = 'v1_abc'; d.metin = '{"a":1';
+  try {
+    await quiet(() => G.geminiAkisiDevamEttir('K', d, 5_000));
+  } finally { restoreFetch(); }
+  assert.equal(d.metin, '{"a":1', 'metin degismemeliydi');
+  assert.ok(/bos dondu/.test(String(d.hata)),
+    'bos devam ettirme sebepsiz kaldi: ' + d.hata);
+  assert.ok(/last_event_id YOK/.test(String(d.hata)),
+    'last_event_id gonderildi mi yazilmiyor — tani icin gerekli: ' + d.hata);
+});
+
+test('devam ettirme TAMAMLANIRSA sebep YAZILMIYOR', async () => {
+  stubGecikmeliAkis([{ ms: 0, metin: TAMAM }], { hangSonda: false });
+  const d = G.geminiAkisDurumu();
+  d.interactionId = 'v1_abc';
+  try {
+    await quiet(() => G.geminiAkisiDevamEttir('K', d, 5_000));
+  } finally { restoreFetch(); }
+  assert.equal(d.tamamlandi, true, 'devam ettirme tamamlanmadi');
+  assert.equal(d.hata, null, 'basarili devam ettirmeye sebep yazilmis: ' + d.hata);
+});
+
+test('kalici 4xx ten sonra IKINCI GET yakilmiyor', () => {
+  const i = FN_SRC.indexOf('const devamHata = await geminiAkisiDevamEttir(');
+  assert.ok(i > 0, 'devam ettirmenin donen degeri okunmuyor — hata yine yutulur');
+  const blok = FN_SRC.slice(i, i + 600);
+  assert.ok(/devamHata\.status >= 400 && devamHata\.status < 500/.test(blok),
+    'kalici 4xx de dongu kirilmiyor, ikinci GET bos yere yaniyor');
 });
 
 summary();

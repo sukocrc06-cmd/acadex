@@ -43,7 +43,7 @@ const NAMES = [
   'geminiProblem', 'geminiFigureNotes', 'callGeminiOnce', 'geminiDraft',
   // Akis (SSE) yolu — 18.10.2026.
   'GEMINI_SILENCE_MS', 'GEMINI_FIRST_BYTE_MS', 'GEMINI_ILK_OLAY_MS', 'geminiKurtarmaYeterli', 'GEMINI_PARTIAL_MIN_CHARS',
-  'GEMINI_MAX_RESUMES',
+  'GEMINI_MAX_RESUMES', 'GEMINI_DEVAM_PAYI_MS', 'GEMINI_DEVAM_KAYIT_PAYI_MS',
   'geminiAkisDurumu', 'geminiSseBlogunuIsle', 'geminiAkisiTuket',
   'geminiAkisIstegi', 'geminiAkisSonucu', 'geminiAkisiDevamEttir',
   'closeTruncatedJson', 'repairLatexEscapes', 'geminiAkisOlcumu'
