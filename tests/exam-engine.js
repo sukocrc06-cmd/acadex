@@ -112,4 +112,88 @@ test('registerType: yeni bir tip eklenebilir', () => {
   assert.equal(E.getType('deneme_tipi').readAnswer(), '1');
 });
 
+// ---------------------------------------------------------------------------
+// Başsız mod (attach): acadex-ink kitapçığının işaretlemesini taklit eden
+// küçük sahte DOM. Kartlar [data-qi="i"], işaret düğmesi [data-flag].
+// ---------------------------------------------------------------------------
+function fakeEnv() {
+  const store = new Map();
+  globalThis.localStorage = {
+    getItem: k => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)),
+    removeItem: k => store.delete(k), key: i => Array.from(store.keys())[i] ?? null, get length() { return store.size; }
+  };
+  globalThis.window = { addEventListener() {}, removeEventListener() {}, innerWidth: 1200 };
+  globalThis.document = { addEventListener() {}, removeEventListener() {}, querySelector: () => null, visibilityState: 'visible' };
+  return store;
+}
+function fakeCard(q) {
+  const radios = (q.options || []).map(v => ({ type: 'radio', value: v, checked: false }));
+  const text = { value: '' };
+  const flag = { attrs: { 'aria-pressed': 'false' }, textContent: 'işaretle',
+    getAttribute(a) { return this.attrs[a] ?? null; }, setAttribute(a, v) { this.attrs[a] = String(v); } };
+  return {
+    radios, text, flag,
+    contains: el => el === flag || el === text || radios.includes(el),
+    querySelector(sel) {
+      if (sel === '[data-flag]') return flag;
+      if (/:checked$/.test(sel)) return radios.find(r => r.checked) || null;
+      if (/^\[name=/.test(sel)) return radios.length ? radios[0] : text;
+      return null;
+    },
+    querySelectorAll(sel) { return /radio|name=/.test(sel) ? radios : []; }
+  };
+}
+function fakeRoot(questions) {
+  const cards = questions.map(fakeCard);
+  return { cards, addEventListener() {}, removeEventListener() {}, contains: () => true,
+    querySelector(sel) { const m = /^\[data-qi="(\d+)"\]$/.exec(sel); return m ? cards[Number(m[1])] || null : null; } };
+}
+
+test('hasType: yalnizca gercekten kayitli tipler', () => {
+  assert.equal(E.hasType('multiple_choice'), true);
+  assert.equal(E.hasType('grafik_ciz'), false);
+});
+
+test('attach: taslagi ekranin kartlarina geri yazar, isaret dugmesini cevirir', () => {
+  const store = fakeEnv();
+  const qs = [{ id: 1, type: 'multiple_choice', options: ['Artar', 'Azalır'] }, { id: 2, type: 'fill_blank' }, { id: 3, type: 'open_ended' }];
+  const root = fakeRoot(qs);
+  const written = [];
+  E.attach({ id: 'ex-9', questions: qs }, {
+    root, userId: 'u', getCurrent: () => 2,
+    draft: { answers: { 1: 'Azalır', 2: 'yüzde' }, flags: ['3'], current: 2 },
+    writeFlag: (btn, on) => { written.push(on); btn.textContent = 'işaretli'; }
+  });
+  assert.equal(E.isActive(), true);
+  assert.equal(E.isHeadless(), true);
+  assert.equal(root.cards[0].radios[1].checked, true);
+  assert.equal(root.cards[1].text.value, 'yüzde');
+  assert.equal(root.cards[2].flag.getAttribute('aria-pressed'), 'true');
+  assert.deepEqual(written, [true]);
+  assert.deepEqual(E.collectAnswers(), { 1: 'Azalır', 2: 'yüzde', 3: '' });
+  assert.deepEqual(E.getFlags(), ['3']);
+  // işaretler ekrandan okunur: ekran düğmeyi kapatınca motor da görür
+  root.cards[2].flag.setAttribute('aria-pressed', 'false');
+  assert.deepEqual(E.getFlags(), []);
+  // save(): tarayıcı taslağına o anki soru sırasıyla yazar
+  E.save();
+  const saved = JSON.parse(store.get('acadex_exam_draft_v1:u:ex-9'));
+  assert.equal(saved.current, 2);
+  assert.equal(saved.answers[2], 'yüzde');
+  E.destroy();
+  assert.equal(E.isActive(), false);
+  assert.equal(E.isHeadless(), false);
+});
+
+test('attach + discardDraft: cikista tarayici taslagi silinir', () => {
+  const store = fakeEnv();
+  const qs = [{ id: 1, type: 'open_ended' }];
+  E.attach({ id: 'ex-10', questions: qs }, { root: fakeRoot(qs), userId: 'u' });
+  E.save();
+  assert.ok(store.has('acadex_exam_draft_v1:u:ex-10'));
+  E.discardDraft('u', 'ex-10');
+  assert.ok(!store.has('acadex_exam_draft_v1:u:ex-10'));
+  E.destroy();
+});
+
 summary();

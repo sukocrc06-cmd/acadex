@@ -20,6 +20,15 @@
        yerden devam eder.
      - Gönderim öncesi özet: kaç soru boş, kaç soru işaretli.
 
+   İki çalışma biçimi var:
+     - mount(exam, opts): motor soruları ve soru haritasını KENDİSİ çizer.
+     - attach(exam, opts): "başsız" mod (21.10.2026). Soruları başka bir
+       ekran çizer — bugün js/acadex-ink.js'in kitapçık salonu — motor o
+       ekranın kartlarına ([data-qi="i"]) bağlanır; cevap okuma/geri yazma,
+       otomatik kayıt ve kaldığın yerden devam motordan gelir. Ink'in
+       bilmediği yeni bir soru tipi gelirse ink giriş alanını yine buradaki
+       kayıttan (getType(tip).renderInput) çizer.
+
    Saf yardımcılar (computeSummary, computeRemainingSeconds, ...) tarayıcı
    olmadan tests/exam-engine.js tarafından test edilir.
    ========================================================================== */
@@ -179,6 +188,11 @@
     return types[name] || types.open_ended;
   }
 
+  /** Tip gerçekten kayıtlı mı (getType bilinmeyende open_ended'a düşer). */
+  function hasType(name) {
+    return Object.prototype.hasOwnProperty.call(types, name);
+  }
+
   const choiceType = {
     renderInput(q, ctx) {
       const options = Array.isArray(q.options) ? q.options : [];
@@ -295,7 +309,31 @@
   }
 
   function cardFor(index) {
-    return active ? active.container.querySelector(`.exam-question-card[data-index="${index}"]`) : null;
+    if (!active) return null;
+    if (active.headless) return active.container.querySelector(active.cardSelector(index));
+    return active.container.querySelector(`.exam-question-card[data-index="${index}"]`);
+  }
+
+  /** Başsız modda işaretler ekranın kendi düğmelerinden okunur
+   *  ([data-flag][aria-pressed="true"]); motor ayrıca tutmaz. */
+  function currentFlags() {
+    if (!active) return [];
+    if (!active.headless) return Array.from(active.flags);
+    const out = [];
+    active.questions.forEach((q, i) => {
+      const card = cardFor(i);
+      const btn = card && card.querySelector(active.flagSelector);
+      if (btn && btn.getAttribute('aria-pressed') === 'true') out.push(String(q.id));
+    });
+    return out;
+  }
+
+  function currentIndex() {
+    if (active && active.headless && typeof active.getCurrent === 'function') {
+      const i = Number(active.getCurrent());
+      return Number.isInteger(i) && i >= 0 ? i : 0;
+    }
+    return active ? active.current : 0;
   }
 
   function readAll() {
@@ -310,8 +348,8 @@
   function snapshot() {
     return {
       answers: readAll(),
-      flags: Array.from(active.flags),
-      current: active.current,
+      flags: currentFlags(),
+      current: currentIndex(),
       mode: active.mode,
       updatedAt: new Date().toISOString()
     };
@@ -493,6 +531,11 @@
   }
 
   function onInput(e) {
+    if (active.headless) {
+      const hIdx = headlessIndexOf(e.target);
+      if (hIdx >= 0) onAnswerChanged(hIdx);
+      return;
+    }
     const idx = indexOfCard(e.target);
     if (idx < 0) return;
     if (idx !== active.current) { active.current = idx; applyMode(); }
@@ -532,6 +575,29 @@
       inputs[choice].checked = true;
       onAnswerChanged(active.current);
     }
+  }
+
+  function headlessIndexOf(el) {
+    for (let i = 0; i < active.questions.length; i++) {
+      const card = cardFor(i);
+      if (card && card.contains(el)) return i;
+    }
+    return -1;
+  }
+
+  // Başsız mod: işaret düğmesini ekran kendisi çeviriyor; motor yalnızca
+  // tıklamadan sonra (ekranın dinleyicisi çalıştıktan sonra) kaydeder.
+  function onHeadlessClick(e) {
+    const btn = e.target && e.target.closest ? e.target.closest(active.flagSelector) : null;
+    if (!btn || !active.container.contains(btn)) return;
+    setTimeout(save, 0);
+  }
+
+  /** Taslağı hemen tarayıcıya, kısa bir gecikmeyle sunucuya yazar. */
+  function save() {
+    if (!active) return;
+    saveLocal();
+    scheduleRemoteSave();
   }
 
   function onPageHide() {
@@ -595,6 +661,74 @@
     return api;
   }
 
+  /**
+   * Başsız mod: soruları başka bir ekran çizer (ör. js/acadex-ink.js
+   * kitapçığı); motor yalnızca cevap okuma/yazma, otomatik kayıt ve
+   * taslaktan geri yükleme yapar. Soru haritası, klavye ve görünüm o ekranın.
+   *
+   * opts: { root, userId, lang, draft, saveRemote(snapshot),
+   *         cardSelector(i) -> CSS seçici (varsayılan [data-qi="i"]),
+   *         flagSelector (varsayılan [data-flag]),
+   *         getCurrent() -> o an açık sorunun sırası,
+   *         writeFlag(button, on) -> taslaktan işaret geri yüklenince
+   *                                  düğmenin yazısını ekran günceller }
+   */
+  function attach(exam, opts) {
+    destroy();
+    active = {
+      headless: true,
+      exam,
+      questions: Array.isArray(exam.questions) ? exam.questions : [],
+      container: opts.root,
+      nav: null,
+      userId: opts.userId || null,
+      lang: opts.lang || exam.language || 'tr',
+      esc: defaultEscape,
+      math: defaultEscape,
+      renderHintButton: null,
+      saveRemote: opts.saveRemote || null,
+      answers: {},
+      flags: new Set(),
+      current: 0,
+      mode: null,
+      saveTimer: null,
+      cardSelector: typeof opts.cardSelector === 'function' ? opts.cardSelector : (i => `[data-qi="${i}"]`),
+      flagSelector: opts.flagSelector || '[data-flag]',
+      getCurrent: opts.getCurrent || null,
+      writeFlag: typeof opts.writeFlag === 'function' ? opts.writeFlag : null
+    };
+
+    const draft = opts.draft || null;
+    if (draft) {
+      active.questions.forEach((q, i) => {
+        const value = draft.answers ? draft.answers[String(q.id)] : undefined;
+        const card = cardFor(i);
+        if (value !== undefined && card) getType(q.type).writeAnswer(card, q, value);
+      });
+      const flagged = new Set((draft.flags || []).map(String));
+      active.questions.forEach((q, i) => {
+        if (!flagged.has(String(q.id))) return;
+        const card = cardFor(i);
+        const btn = card && card.querySelector(active.flagSelector);
+        if (!btn) return;
+        btn.setAttribute('aria-pressed', 'true');
+        if (active.writeFlag) active.writeFlag(btn, true);
+      });
+    }
+    active.answers = readAll();
+
+    active.container.addEventListener('change', onInput);
+    active.container.addEventListener('input', onInput);
+    active.container.addEventListener('click', onHeadlessClick);
+    window.addEventListener('pagehide', onPageHide);
+    document.addEventListener('visibilitychange', onVisibility);
+    return api;
+  }
+
+  function isHeadless() {
+    return !!(active && active.headless);
+  }
+
   function onVisibility() {
     if (document.visibilityState === 'hidden') onPageHide();
   }
@@ -602,6 +736,7 @@
   function destroy() {
     if (!active) return;
     clearTimeout(active.saveTimer);
+    active.container.removeEventListener('click', onHeadlessClick);
     active.container.removeEventListener('click', onClick);
     active.container.removeEventListener('change', onInput);
     active.container.removeEventListener('input', onInput);
@@ -631,11 +766,11 @@
 
   function getSummary() {
     if (!active) return computeSummary([], {}, []);
-    return computeSummary(active.questions, readAll(), Array.from(active.flags));
+    return computeSummary(active.questions, readAll(), currentFlags());
   }
 
   function getFlags() {
-    return active ? Array.from(active.flags) : [];
+    return currentFlags();
   }
 
   function isActive() {
@@ -646,10 +781,14 @@
     // tip kaydı
     registerType,
     getType,
+    hasType,
     // yaşam döngüsü
     mount,
+    attach,
     destroy,
     isActive,
+    isHeadless,
+    save,
     collectAnswers,
     getSummary,
     getFlags,

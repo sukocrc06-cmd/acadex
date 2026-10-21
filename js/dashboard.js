@@ -7846,7 +7846,7 @@ async function submitExam(opts = {}) {
 
   // FAZ 1: boş ya da işaretli soru varsa önce sor. Süre bitince yapılan
   // otomatik gönderimde (opts.auto) sorulmaz.
-  if (!opts.auto && !opts.confirmed && E && E.isActive()) {
+  if (!opts.auto && !opts.confirmed && E && E.isActive() && !(E.isHeadless && E.isHeadless())) {
     const warning = E.formatSubmitWarning(E.getSummary(), currentActiveExam.language);
     if (warning) {
       showConfirmModal(isTrExam ? 'Sınavı gönder' : 'Submit exam', warning, () => submitExam({ confirmed: true }));
