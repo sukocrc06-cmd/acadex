@@ -251,6 +251,29 @@ function groqRetryDelayMs(status: number, retryAfter: string | null, message: un
   return Math.ceil(ms) + 500
 }
 
+// 22.10.2026 (canlı test): model ara sıra doğru cevabı düz metin "null"
+// olarak yazıyor (boşluk doldurma ve klasikte). Böyle bir değer cevap sayılmaz.
+const PLACEHOLDER_ANSWERS = ['null', 'none', 'undefined', 'n/a', 'nan']
+
+function isPlaceholderAnswer(value: unknown): boolean {
+  if (typeof value === 'number') return false
+  return PLACEHOLDER_ANSWERS.includes(normalizeAnswerText(value))
+}
+
+/** Puanlamada kullanılacak doğru cevap. Faz 2a'nın ilk sürümüyle üretilip
+ *  anahtarı "null" kalmış sınavlar için: boşlukta ilk alternatif, klasikte
+ *  açıklama. */
+function effectiveCorrectAnswer(q: Record<string, unknown>): string {
+  const raw = typeof q.correct_answer === 'number' ? String(q.correct_answer) : String(q.correct_answer ?? '').trim()
+  if (!isPlaceholderAnswer(raw)) return raw
+  if (q.type === 'fill_blank' && Array.isArray(q.accepted_answers)) {
+    const alt = (q.accepted_answers as unknown[]).map(a => String(a ?? '').trim()).find(a => a && !isPlaceholderAnswer(a))
+    if (alt) return alt
+  }
+  if (q.type === 'open_ended' && typeof q.explanation === 'string' && q.explanation.trim()) return q.explanation.trim()
+  return ''
+}
+
 const VERDICT_SHARE: Record<string, number> = { met: 1, partial: 0.5, missing: 0 }
 
 type RubricItem = { criterion: string; points: number }
@@ -408,7 +431,7 @@ serve(async (req) => {
     for (const q of questions) {
       const qid = Number(q.id)
       const studentAns = String((answers as Record<string, unknown>)[String(q.id)] ?? '').trim()
-      const correctAns = typeof q.correct_answer === 'number' ? String(q.correct_answer) : String(q.correct_answer ?? '').trim()
+      const correctAns = effectiveCorrectAnswer(q)
       const base = {
         question_id: qid,
         type: q.type,

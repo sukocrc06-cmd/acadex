@@ -34,12 +34,14 @@ const G = loadFromSource(GEN_PATH, [
   'TRUE_FALSE_OPTIONS', 'KEY_FIELDS', 'INTERNAL_FIELDS', 'GROQ_RETRY_MAX_WAIT_MS', 'groqRetryDelayMs', 'sourceUnitFor',
   'GEN_TOKENS_BASE', 'GEN_TOKENS_PER_QUESTION', 'GEN_TOKENS_MAX', 'completionBudgetFor', 'salvageQuestionObjects', 'parseQuestionArray',
   'EXPLANATION_MAX_CHARS', 'RATIONALE_MAX_CHARS', 'RUBRIC_MIN_ITEMS', 'RUBRIC_MAX_ITEMS',
-  'normalizeAnswerText', 'parseLooseNumber', 'cleanText', 'normalizeOptionRationales', 'normalizeRubric',
+  'normalizeAnswerText', 'parseLooseNumber', 'PLACEHOLDER_ANSWERS', 'isPlaceholderAnswer', 'cleanText', 'normalizeOptionRationales', 'normalizeRubric',
+  'termRegex', 'anchorByExactTerms',
   'validateQuestion', 'splitPublicAndKey', 'shuffleInPlace',
   ...ANCHOR_NAMES, 'CHUNK_STORE_SIZE', 'joinChunkParts', 'buildPageIndexFromChunks', 'anchorQuestionToSource'
 ]);
 const R = loadFromSource(GRADE_PATH, [
-  'GROQ_RETRY_MAX_WAIT_MS', 'groqRetryDelayMs', 'VERDICT_SHARE', 'parseCriteria', 'parseGradesResponse', 'scoreFromRubric', 'teachingFields'
+  'GROQ_RETRY_MAX_WAIT_MS', 'groqRetryDelayMs', 'normalizeAnswerText', 'PLACEHOLDER_ANSWERS', 'isPlaceholderAnswer', 'effectiveCorrectAnswer',
+  'VERDICT_SHARE', 'parseCriteria', 'parseGradesResponse', 'scoreFromRubric', 'teachingFields'
 ]);
 
 const { test, summary } = makeRunner();
@@ -94,6 +96,79 @@ test('groqRetryDelayMs: Groq mesaji ve retry-after basligi okunur; uzun bekleme 
   assert.equal(G.groqRetryDelayMs(429, null, 'Please try again in 1m2.5s.'), null, '62 sn bekleme siniri asar');
   assert.equal(G.groqRetryDelayMs(500, null, msg), null);
   assert.equal(G.groqRetryDelayMs(429, null, 'quota exceeded'), null);
+});
+
+test('isPlaceholderAnswer iki dosyada birebir ayni', () => {
+  const ts = require('typescript');
+  const toJs = p => ts.transpileModule(fs.readFileSync(path.join(__dirname, '..', p), 'utf8'), {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext }
+  }).outputText;
+  const a = toJs(GEN_PATH), b = toJs(GRADE_PATH);
+  for (const name of ['PLACEHOLDER_ANSWERS', 'isPlaceholderAnswer']) assert.equal(sliceDeclaration(a, name), sliceDeclaration(b, name), name);
+});
+
+test('"null" cevap: boslukta ilk alternatif cevap olur, alternatif yoksa soru atilir', () => {
+  // Canlı testte (22.10.2026) anahtar: correct_answer "null", accepted ["option","seçenek"].
+  const fb = (extra) => G.validateQuestion({ type: 'fill_blank', question: 'CHOOSE indeks numarasına göre ______ döndürür.', ...extra }, ['fill_blank'], 'tr');
+  const r = fb({ correct_answer: 'null', accepted_answers: ['option', 'seçenek', 'None'] });
+  assert.equal(r.question.correct_answer, 'option');
+  assert.deepEqual(r.question.accepted_answers, ['seçenek']);
+  assert.equal(fb({ correct_answer: 'NULL', accepted_answers: [] }).reason, 'fill_blank_no_answer');
+  assert.equal(fb({ correct_answer: 'seçenek', accepted_answers: ['null'] }).question.accepted_answers.length, 0);
+});
+
+test('"null" cevap: klasikte aciklama, o da yoksa rubrik maddeleri ornek cevap olur', () => {
+  const oe = (extra) => G.validateQuestion({ type: 'open_ended', question: 'INDEX ve MATCH birlikte neden kullanılır?', correct_answer: 'null', ...extra }, ['open_ended'], 'tr');
+  assert.equal(oe({ explanation: 'MATCH konumu bulur, INDEX değeri getirir.' }).question.correct_answer, 'MATCH konumu bulur, INDEX değeri getirir.');
+  assert.equal(oe({ rubric: [{ criterion: 'INDEX tanımı', points: 50 }, { criterion: 'MATCH tanımı', points: 50 }] }).question.correct_answer, 'INDEX tanımı; MATCH tanımı');
+  assert.equal(oe({}).reason, 'open_no_reference');
+  assert.equal(G.isPlaceholderAnswer(0), false);
+  assert.equal(G.isPlaceholderAnswer(' None. '), true);
+  assert.equal(G.isPlaceholderAnswer('nullify'), false);
+});
+
+test('effectiveCorrectAnswer: eski "null" anahtarli sinavlar dogru puanlanir', () => {
+  assert.equal(R.effectiveCorrectAnswer({ type: 'fill_blank', correct_answer: 'null', accepted_answers: ['option', 'seçenek'] }), 'option');
+  assert.equal(R.effectiveCorrectAnswer({ type: 'open_ended', correct_answer: 'null', explanation: 'Neden böyle.' }), 'Neden böyle.');
+  assert.equal(R.effectiveCorrectAnswer({ type: 'calculation', correct_answer: 0 }), '0');
+  assert.equal(R.effectiveCorrectAnswer({ type: 'multiple_choice', correct_answer: 'Artar' }), 'Artar');
+});
+
+test('kisa fonksiyon adlari (IF, AND, LEN): birebir terimle dogru slayt; ingilizce "and" sayilmaz', () => {
+  const rows = [
+    { page_start: 1, page_end: 4, text: 'Advanced Excel formulas. INDEX and MATCH replace VLOOKUP and HLOOKUP for lookups in rows and columns.' },
+    { page_start: 6, page_end: 8, text: '2. IF combined with AND / OR. Formula: =IF(AND(C2>=C4,C2<=C5),C6,C7). Nested IF formulas are hard to audit.' },
+    { page_start: 16, page_end: 16, text: '8. LEN and TRIM. Formulas: =LEN(text) and =TRIM(text). These count characters and remove extra spaces.' }
+  ];
+  const { index, pageEnd } = G.buildPageIndexFromChunks(rows);
+  const idf = G.buildAnchorIdf(index);
+  const ifq = { type: 'true_false', question: 'IF(AND(...)) formülü iki koşulu birlikte sınar.', correct_answer: 'Doğru', source_terms: ['IF', 'AND', 'OR'] };
+  const a = G.anchorQuestionToSource(ifq, index, idf, pageEnd, 'slide');
+  assert.equal(a.page, 6);
+  assert.equal(a.page_end, 8);
+  assert.match(a.quote, /IF combined with AND/);
+  const len = G.anchorQuestionToSource({ type: 'multiple_choice', question: 'Metnin uzunluğunu hangi formül verir?', correct_answer: '=LEN(A1)', source_terms: ['LEN', 'TRIM'] }, index, idf, pageEnd, 'slide');
+  assert.equal(len.page, 16);
+  assert.equal(G.anchorByExactTerms(['and', 'or'], index), null, 'kucuk harf kisa terimler her sayfada: kazanan yok');
+  assert.equal(G.anchorByExactTerms(['IF'], index), null, 'tek terim yetmez');
+  assert.ok(G.termRegex('IF').test('=IF(AND('));
+  assert.ok(!G.termRegex('IF').test('SUMIF'));
+  assert.ok(G.termRegex('cash flows').test('discounted Cash Flows here'));
+});
+
+test('alinti terimlerden hicbirini icermiyorsa gosterilmez, sayfa kalir', () => {
+  // Canlı testte CHOOSE sorusu doğru slayta (9–10) bağlandı ama alıntı OFFSET cümlesiydi.
+  const rows = [
+    { page_start: 1, page_end: 2, text: 'INDEX MATCH replaces VLOOKUP and HLOOKUP lookups.' },
+    { page_start: 9, page_end: 10, text: 'As you can see in cell F7, the sum of cells B4:D4 is 15 which is what the offset and sum formula returned. The CHOOSE function returns a value from a list based on an index number position.' }
+  ];
+  const { index, pageEnd } = G.buildPageIndexFromChunks(rows);
+  const idf = G.buildAnchorIdf(index);
+  const q = { type: 'fill_blank', question: 'CHOOSE fonksiyonu indeks numarasına göre ______ döndürür.', correct_answer: 'değer',
+    explanation: 'CHOOSE returns a value from a list based on an index number.', source_terms: ['CHOOSE', 'index number', 'list'] };
+  const src = G.anchorQuestionToSource(q, index, idf, pageEnd, 'slide');
+  assert.equal(src.page, 9);
+  assert.ok(src.quote === null || /CHOOSE|index number|list/i.test(src.quote), 'konu disi alinti gosterildi: ' + src.quote);
 });
 
 test('completionBudgetFor: soru sayisiyla buyur, tavani asmaz, tek istek 8.000 TPM ye sigar', () => {
