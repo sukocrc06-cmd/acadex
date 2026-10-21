@@ -169,6 +169,15 @@ function parseLooseNumber(value: unknown): number {
   return Number.isFinite(n) ? n : NaN
 }
 
+// 22.10.2026 (canlı test): model ara sıra doğru cevabı düz metin "null"
+// olarak yazıyor (boşluk doldurma ve klasikte). Böyle bir değer cevap sayılmaz.
+const PLACEHOLDER_ANSWERS = ['null', 'none', 'undefined', 'n/a', 'nan']
+
+function isPlaceholderAnswer(value: unknown): boolean {
+  if (typeof value === 'number') return false
+  return PLACEHOLDER_ANSWERS.includes(normalizeAnswerText(value))
+}
+
 /** Sınav türüne göre kabul edilen soru tipleri. */
 function allowedTypesFor(examType: string, isQuant: boolean): string[] {
   if (examType === 'classic') return ['open_ended']
@@ -214,12 +223,15 @@ function validateQuestion(raw: unknown, allowedTypes: string[], language: string
     q.options = [...pair]
     q.correct_answer = isTrue ? pair[0] : pair[1]
   } else if (type === 'fill_blank') {
-    const answer = String(q.correct_answer ?? '').trim()
+    let answer = String(q.correct_answer ?? '').trim()
+    const accepted = Array.isArray(q.accepted_answers)
+      ? q.accepted_answers.map(a => String(a ?? '').trim()).filter(a => a && !isPlaceholderAnswer(a))
+      : []
+    // Cevap "null" ama alternatifler dolu: ilk alternatif cevap olur.
+    if (!answer || isPlaceholderAnswer(answer)) answer = accepted.shift() || ''
     if (!answer) return { ok: false, reason: 'fill_blank_no_answer' }
     q.correct_answer = answer
-    q.accepted_answers = Array.isArray(q.accepted_answers)
-      ? q.accepted_answers.map(a => String(a ?? '').trim()).filter(Boolean).slice(0, 8)
-      : []
+    q.accepted_answers = accepted.slice(0, 8)
     q.options = null
   } else if (type === 'calculation') {
     const n = parseLooseNumber(q.correct_answer)
@@ -231,7 +243,13 @@ function validateQuestion(raw: unknown, allowedTypes: string[], language: string
     q.solution_steps = Array.isArray(q.solution_steps) ? q.solution_steps.map(s => String(s ?? '')).filter(Boolean) : []
     q.options = null
   } else if (type === 'open_ended') {
-    const ref = String(q.correct_answer ?? '').trim()
+    let ref = String(q.correct_answer ?? '').trim()
+    // Örnek cevap "null": açıklama, o da yoksa rubrik maddeleri yerine geçer
+    // (soruyu atıp yeniden üretmek TPM sınırında pahalı).
+    if (!ref || isPlaceholderAnswer(ref)) {
+      const rubric = normalizeRubric(q.rubric)
+      ref = cleanText(q.explanation, EXPLANATION_MAX_CHARS) || (rubric ? rubric.map(r => r.criterion).join('; ') : '')
+    }
     if (!ref) return { ok: false, reason: 'open_no_reference' }
     q.correct_answer = ref
     q.options = null
@@ -309,7 +327,8 @@ const GROQ_RETRY_MAX_WAIT_MS = 30_000
 // Üretimde Groq hatası sonrası en fazla bu kadar yeniden deneme.
 const GEN_MAX_RETRIES = 2
 // Çıktı bütçesi: sabit pay (düşünme + sarmalayıcı) + soru başına pay.
-// 8 soru ≈ 4.560 token; ~2.600 tokenlık istemle tek istek 8.000 TPM'ye sığar.
+// 8 soru ≈ 4.560 token. Canlı ölçüm (22.10.2026, 8 soru): istem 4.000,
+// gerçek çıktı 2.046 token, finish=stop.
 const GEN_TOKENS_BASE = 1200
 const GEN_TOKENS_PER_QUESTION = 420
 const GEN_TOKENS_MAX = 7000
@@ -651,8 +670,48 @@ function anchorQuestionToSource(q: Record<string, unknown>, index: PageSegment[]
     const hit = anchorClaimToPage(claim, index, idf)
     if (hit && (!best || hit.score > best.score)) best = hit
   }
-  if (!best) return null
-  return { page: best.page, page_end: pageEnd.get(best.page) ?? null, quote: best.quote, unit }
+  const termList = Array.isArray(q.source_terms) ? (q.source_terms as unknown[]).map(t => String(t ?? '').trim()).filter(Boolean) : []
+  if (!best) {
+    // Atıf motoru 4 harften kısa kelimeleri saymıyor; "IF", "AND", "LEN"
+    // gibi fonksiyon adlarıyla kurulan sorular hiç bağlanamıyordu.
+    const byTerms = anchorByExactTerms(termList, index)
+    return byTerms ? { page: byTerms.page, page_end: pageEnd.get(byTerms.page) ?? null, quote: byTerms.quote, unit } : null
+  }
+  // Sayfa doğru olsa da alıntı başka bir konudan olabiliyor (canlı testte
+  // CHOOSE sorusuna OFFSET cümlesi). Terimlerden hiçbirini içermeyen alıntı
+  // gösterilmez; sayfa kalır.
+  let quote = best.quote
+  if (quote && termList.length && !termList.some(t => termRegex(t).test(quote as string))) quote = null
+  return { page: best.page, page_end: pageEnd.get(best.page) ?? null, quote, unit }
+}
+
+/** Terimi kelime sınırlarıyla arayan düzenli ifade. Kısa terimler (≤4
+ *  harf, ör. "IF", "AND") büyük/küçük harfe duyarlı: İngilizce "and"
+ *  her sayfada geçer, fonksiyon adı "AND" geçmez. */
+function termRegex(term: string): RegExp {
+  const esc = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(`(?<![\\p{L}\\p{N}])${esc}(?![\\p{L}\\p{N}])`, term.length <= 4 ? 'u' : 'iu')
+}
+
+/** Yedek eşleştirme: modelin kaynaktan kopyaladığı terimlerden en çoğunun
+ *  birebir geçtiği sayfa. En az 2 farklı terim ve tek bir kazanan şart
+ *  (beraberlikte sayfa verilmez). Alıntı: en çok terim içeren cümle. */
+function anchorByExactTerms(terms: string[], index: PageSegment[]): { page: number; quote: string | null } | null {
+  const uniq = [...new Set(terms.filter(t => t.length >= 2))].slice(0, 8)
+  if (uniq.length < 2 || !index.length) return null
+  const res = uniq.map(termRegex)
+  const scored = index.map(seg => ({ seg, hits: res.filter(r => r.test(seg.body)).length }))
+    .sort((a, b) => b.hits - a.hits)
+  const top = scored[0]
+  if (!top || top.hits < 2 || (scored[1] && scored[1].hits === top.hits)) return null
+  let quote: string | null = null, quoteHits = 0
+  for (const sentence of splitSentences(top.seg.body)) {
+    if (sentence.length < QUOTE_MIN_CHARS) continue
+    const h = res.filter(r => r.test(sentence)).length
+    if (h > quoteHits) { quoteHits = h; quote = sentence }
+  }
+  if (quote && quote.length > QUOTE_MAX_CHARS) quote = quote.slice(0, QUOTE_MAX_CHARS).replace(/\s+\S*$/, '') + '…'
+  return { page: top.seg.page, quote }
 }
 
 /** Sunum dosyasında "slayt", ötekilerde "sayfa" (summarize-document da

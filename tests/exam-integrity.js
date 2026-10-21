@@ -27,7 +27,7 @@ const G = loadFromSource(GEN_PATH, [
   'TRUE_FALSE_OPTIONS', 'KEY_FIELDS', 'INTERNAL_FIELDS',
   'EXPLANATION_MAX_CHARS', 'RATIONALE_MAX_CHARS', 'RUBRIC_MIN_ITEMS', 'RUBRIC_MAX_ITEMS',
   'parseQuestionArray', 'normalizeAnswerText', 'parseLooseNumber',
-  'cleanText', 'normalizeOptionRationales', 'normalizeRubric',
+  'PLACEHOLDER_ANSWERS', 'isPlaceholderAnswer', 'cleanText', 'normalizeOptionRationales', 'normalizeRubric',
   'allowedTypesFor', 'validateQuestion', 'shuffleInPlace', 'splitPublicAndKey'
 ]);
 const R = loadFromSource(GRADE_PATH, [
