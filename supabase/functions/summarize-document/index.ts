@@ -5990,9 +5990,36 @@ function geminiCoverageQuota(pageCount: number): string {
      biraz daha az terim tasiyan TAM bir kart, yarim bir karttan iyidir;
      ustelik tam kart onbellege girer ve ayni belge bir daha 105 saniye
      yakmaz. */
+  /* 21.10.2026 — EN BUYUK BANT 25-60 ARALIGINDAYDI.
+     20.10'da band 60 sayfa USTUNDE geri indirildi, ama zirve orada degildi:
+     25-60 araligi hem en yuksek istegi tasiyordu hem de gunluk kullanimin
+     tamami o araliga dusuyor. Ucu uce iki olcum, ikisi de bu bantta:
+
+       38 sayfa (economy ch.21): 22 terim / 25 nokta / 13 soru
+                                 36.680 krk, 105 sn tavanda kesildi, KISMI
+       42 sayfa (IPPT dummy):    16 terim / 27 nokta / 13 soru
+                                 34.372 krk, 96,9 sn tavanda kesildi, KISMI
+
+     Pencere hesabi: yazma hizi olculen 560 krk/sn, ilk olay 26-30 sn. Yani
+     tavan 105 sn iken yazilabilir en fazla ~44 KB; 503 tavani 96,9 sn'ye
+     indirdiginde ~40 KB. Band bu iki belgede modelden o siniri gecen bir
+     uretim istiyor ve kart her seferinde yarim kaliyor — onbellege de
+     girmedigi icin ayni dosya her yuklemede bastan 105 saniye yakiyor.
+
+     Bu fonksiyonun kendi tarihcesi ayni seyi zaten yaziyor: AYNI 42
+     sayfalik destede kota yokken kosu 30.374 karakterle 72,4 saniyede
+     TAMAMLANMISTI ve "modelden uc dort kati uretim istenince sure 68 sn'ye
+     de 90 sn'ye de sigmadi". 10.10'da band yer varmis gibi gorundugu icin
+     yukseltildi (o kosu 81,3 sn surmustu, 23,7 sn bosluk vardi) — ama o
+     olcumde ne 503 vardi ne de ilk olay 26 saniyeye kadar gecikiyordu.
+
+     Simdi 25-60 araligi 10-25 bandiyla ayni: bant 10 sayfadan 60 sayfaya
+     duz gidiyor. Takas yine bilincli ve yonu 20.10 ile ayni — biraz daha az
+     nokta tasiyan TAM bir kart, yarim karttan iyidir. En pahali kalem
+     noktalar (27 adet); formul ve tablo TAVANSIZ kaliyor, golge yolun var
+     olma sebebi onlar. */
   let terms = '12-18', points = '14-18', quiz = '8-10'
   if (pageCount > 60) { terms = '14-18'; points = '16-20'; quiz = '8-10' }
-  else if (pageCount > 25) { terms = '18-26'; points = '22-28'; quiz = '12-15' }
   else if (pageCount > 10) { terms = '15-22'; points = '16-20'; quiz = '10-13' }
   const olcek = pageCount > 0 ? `all ${pageCount} pages` : 'the whole document'
   const destek = pageCount > 0
@@ -6221,6 +6248,19 @@ const GEMINI_MAX_RESUMES = 2
  * review'in kademe makinesi zaten yonetiyor. Karsiliginda kart tamamlanir
  * ve ONBELLEGE YAZILIR — kismi kart yazilmiyor, yani bu pencere olmadan
  * ayni PDF her yuklemede 105 saniye + 1 RPD yakmaya devam ediyor. */
+/* DEVAM ETTIRME BU MODELDE DESTEKLENMIYOR (21.10.2026, aksam kosusu).
+ *
+ * Sebep yazilmaya baslandigi ilk kosuda cevap geldi:
+ *
+ *   devam ettirme HTTP 400: {"error":{"message":"Streaming retrieval of
+ *   interactions is not supported for this model","code":"invalid_request"}}
+ *
+ * Yani GET ile kaldigi yerden okuma gemini-3.7-flash'ta hic yok. Dun acilan
+ * 15 saniyelik pencere dogru tasarlanmisti ama yuzey onu kabul etmiyor;
+ * bedeli her kesik akista bir bos HTTP istegi ve ~600ms. Model bir kez
+ * reddettiyse ayni ornekte bir daha denenmiyor. */
+const geminiDevamDesteklemeyen = new Set<string>()
+
 const GEMINI_DEVAM_PAYI_MS = 15_000
 /* Devam ettirme ne kadar yer bulursa bulsun kapilar + kayit icin bu kadari
    dokunulmaz kalir; pencere butcenin sonunu yiyemez. */
@@ -6922,6 +6962,13 @@ async function geminiDraft(
       if (!res.ok && res.durum) {
         const durum = res.durum
         for (let devam = 0; devam < GEMINI_MAX_RESUMES && !durum.tamamlandi && durum.interactionId; devam++) {
+          if (geminiDevamDesteklemeyen.has(model)) {
+            console.warn(
+              `Gemini ${model}: GET ile devam ettirme bu modelde desteklenmiyor — ` +
+              `denenmiyor, dogrudan kurtarmaya iniliyor`
+            )
+            break
+          }
           const kalanMs = geminiDevamTavan - (Date.now() - basladi)
           if (kalanMs < 10_000) {
             console.warn(`Gemini ${model}: devam ettirmeye yer kalmadi (${kalanMs}ms)`)
@@ -6936,6 +6983,15 @@ async function geminiDraft(
              last_event_id kabul edilmiyor. Ikinci GET'i yakmanin anlami
              yok. 5xx gecici olabilir, ona pencere kalmissa devam. */
           if (devamHata && devamHata.status >= 400 && devamHata.status < 500) {
+            /* "not supported for this model" kalici bir YETENEK eksigi, gecici
+               bir hata degil: bu ornek yasadikca bir daha denenmemeli. */
+            if (/not supported/i.test(String(devamHata.body || ''))) {
+              geminiDevamDesteklemeyen.add(model)
+              console.warn(
+                `Gemini ${model}: yuzey GET ile devam ettirmeyi desteklemiyor — ` +
+                `bu model icin kalici olarak kapatildi`
+              )
+            }
             console.warn(
               `Gemini ${model}: devam ettirme kalici hatayla dustu (HTTP ${devamHata.status}) — ` +
               `yeniden denenmiyor`

@@ -63,7 +63,7 @@ const G = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'geminiProblem', 'callGeminiOnce', 'geminiDraft',
   // Akis (SSE) yolu — 18.10.2026.
   'GEMINI_SILENCE_MS', 'GEMINI_FIRST_BYTE_MS', 'GEMINI_ILK_OLAY_MS', 'geminiKurtarmaYeterli', 'GEMINI_PARTIAL_MIN_CHARS',
-  'GEMINI_MAX_RESUMES', 'GEMINI_DEVAM_PAYI_MS', 'GEMINI_DEVAM_KAYIT_PAYI_MS',
+  'GEMINI_MAX_RESUMES', 'GEMINI_DEVAM_PAYI_MS', 'GEMINI_DEVAM_KAYIT_PAYI_MS', 'geminiDevamDesteklemeyen',
   'geminiAkisDurumu', 'geminiSseBlogunuIsle', 'geminiAkisiTuket',
   'geminiAkisIstegi', 'geminiAkisSonucu', 'geminiAkisiDevamEttir',
   'closeTruncatedJson', 'repairLatexEscapes', 'geminiAkisOlcumu'
@@ -771,7 +771,7 @@ test('devam ettirme tavani URETIM tavanindan ayri hesaplaniyor', () => {
 test('resume dongusu geminiDevamTavan okuyor, geminiToplamTavan DEGIL', () => {
   const i = FN_SRC.indexOf('devam < GEMINI_MAX_RESUMES');
   assert.ok(i > 0, 'resume dongusu bulunamadi');
-  const blok = FN_SRC.slice(i, i + 400);
+  const blok = FN_SRC.slice(i, i + 900);
   assert.ok(/const kalanMs = geminiDevamTavan - \(Date\.now\(\) - basladi\)/.test(blok),
     'kalanMs uretim tavanindan olculuyor — akis tam o tavanda abort edildigi ' +
     'icin resume daima ~0 gorur ve hic calismaz');
@@ -876,6 +876,33 @@ test('devam ettirme TAMAMLANIRSA sebep YAZILMIYOR', async () => {
   } finally { restoreFetch(); }
   assert.equal(d.tamamlandi, true, 'devam ettirme tamamlanmadi');
   assert.equal(d.hata, null, 'basarili devam ettirmeye sebep yazilmis: ' + d.hata);
+});
+
+/* 21.10.2026 aksami — SEBEP YAZILINCA CEVAP GELDI:
+
+     devam ettirme HTTP 400: {"error":{"message":"Streaming retrieval of
+     interactions is not supported for this model","code":"invalid_request"}}
+
+   Yani dun acilan 15 saniyelik pencere dogru tasarlanmisti ama yuzey GET
+   ile kaldigi yerden okumayi gemini-3.7-flash'ta hic desteklemiyor. Pencere
+   zararsiz (kullanilmazsa harcanmiyor) ama her kesik akista bir bos HTTP
+   istegi ve ~600ms gidiyordu. */
+test('yuzey devam ettirmeyi reddederse model KALICI olarak isaretleniyor', () => {
+  const i = FN_SRC.indexOf('const geminiDevamDesteklemeyen');
+  assert.ok(i > 0, 'desteklemeyen modeller tutulmuyor — her kesikte bos GET gider');
+  assert.ok(/geminiDevamDesteklemeyen\.add\(model\)/.test(FN_SRC),
+    'reddeden model isaretlenmiyor');
+  assert.ok(/not supported/i.test(FN_SRC.slice(FN_SRC.indexOf('devamHata.status >= 400'), FN_SRC.indexOf('devamHata.status >= 400') + 600)),
+    '"not supported" gecici hatadan ayirt edilmiyor');
+});
+
+test('isaretli modelde devam ettirme HIC denenmiyor', () => {
+  const i = FN_SRC.indexOf('devam < GEMINI_MAX_RESUMES');
+  const blok = FN_SRC.slice(i, i + 500);
+  assert.ok(/geminiDevamDesteklemeyen\.has\(model\)/.test(blok),
+    'dongu isaretli modeli atlamiyor — bos GET yine gidiyor');
+  assert.ok(blok.indexOf('geminiDevamDesteklemeyen.has(model)') < blok.indexOf('const kalanMs'),
+    'kontrol pencere hesabindan SONRA — once bos yere yer ayriliyor');
 });
 
 test('kalici 4xx ten sonra IKINCI GET yakilmiyor', () => {

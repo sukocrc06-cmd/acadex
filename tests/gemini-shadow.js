@@ -43,7 +43,7 @@ const NAMES = [
   'geminiProblem', 'geminiFigureNotes', 'callGeminiOnce', 'geminiDraft',
   // Akis (SSE) yolu — 18.10.2026.
   'GEMINI_SILENCE_MS', 'GEMINI_FIRST_BYTE_MS', 'GEMINI_ILK_OLAY_MS', 'geminiKurtarmaYeterli', 'GEMINI_PARTIAL_MIN_CHARS',
-  'GEMINI_MAX_RESUMES', 'GEMINI_DEVAM_PAYI_MS', 'GEMINI_DEVAM_KAYIT_PAYI_MS',
+  'GEMINI_MAX_RESUMES', 'GEMINI_DEVAM_PAYI_MS', 'GEMINI_DEVAM_KAYIT_PAYI_MS', 'geminiDevamDesteklemeyen',
   'geminiAkisDurumu', 'geminiSseBlogunuIsle', 'geminiAkisiTuket',
   'geminiAkisIstegi', 'geminiAkisSonucu', 'geminiAkisiDevamEttir',
   'closeTruncatedJson', 'repairLatexEscapes', 'geminiAkisOlcumu'
@@ -392,14 +392,51 @@ test('geminiCoverageQuota: sayilar formul ve tablodan SONRA isteniyor', () => {
   assert.match(q, /do them first/);
 });
 
-test('geminiCoverageQuota: nokta bandi Groq un uretimine yetisiyor', () => {
-  // Groq ayni destede 25 nokta veriyordu, Gemini 18. Aradaki tek gercek
-  // fark buydu ve 81,3 sn'lik kosuda 23,7 sn bosluk vardi.
+/* 21.10.2026 — BU TEST ESKIDEN "nokta bandi Groq un uretimine yetisiyor"
+   diye alt siniri 20'de TUTUYORDU. Gerekcesi 10.10'daki olcumdu: Groq ayni
+   destede 25 nokta veriyordu, Gemini 18, ve 81,3 sn'lik kosuda 23,7 saniye
+   bosluk vardi. O bosluk artik yok — 21.10'da ayni deste 96,9 saniyede
+   kesildi, cunku ilk olay 26 saniyeye gecikiyor ve ilk denemeyi 503 yakiyor.
+   Groq'un nokta sayisina yetismek, olculdugu uzere, kartin kendisine mal
+   oluyor: iki belgede de 27 nokta uretildi ve ikisi de KISMI kaldi.
+
+   Artik korunan sey tersi: bandin pencereye sigmasi. */
+test('geminiCoverageQuota: nokta bandi PENCEREYE sigiyor', () => {
   const q = G.geminiCoverageQuota(42);
-  const alt = Number(q.match(/(\d+)-(\d+) key_points/)[1]);
-  assert.ok(alt >= 20, `nokta alt siniri ${alt} — Groq un 25'ine yaklasmiyor`);
-  assert.ok(Number(q.match(/(\d+)-(\d+) key_points/)[2]) <= 32,
-    'bant yine sisirildi — 09.10 aksami bu kosuyu tamamlanamaz yapmisti');
+  const ust = Number(q.match(/(\d+)-(\d+) key_points/)[2]);
+  /* 560 krk/sn olculen yazma hizi, ilk olay 26-30 sn, tavan 105 sn (503
+     varsa 96,9): yazilabilir en fazla ~40-44 KB. 22-28 bandi iki olcumde de
+     34-37 KB uretti ve bitiremedi. */
+  assert.ok(ust <= 20,
+    `nokta ust siniri ${ust} — 22-28 bandi iki belgede de karti yarim birakti`);
+  assert.ok(Number(q.match(/(\d+)-(\d+) key_points/)[1]) >= 14,
+    'alt sinir cok dustu, kart icerik tasimaz');
+});
+
+const QUOTA_RE = /(\d+)-(\d+) key_terms, (\d+)-(\d+) key_points and (\d+)-(\d+) quiz_questions/;
+const quotaBant = (n) => G.geminiCoverageQuota(n).match(QUOTA_RE).slice(1).map(Number);
+
+test('geminiCoverageQuota: 25-60 araligi ARTIK zirve degil', () => {
+  /* 20.10'da band 60 sayfa USTUNDE geri indirilmisti, ama zirve orada
+     degildi: gunluk kullanimin tamami 25-60 araligina dusuyor ve en yuksek
+     istek oradaydi. 38 ve 42 sayfalik iki belge, iki KISMI kart. */
+  assert.deepEqual(quotaBant(42), quotaBant(20),
+    '42 sayfa 20 sayfadan daha fazla uretim istiyor — zirve yine 25-60 arasinda');
+  assert.deepEqual(quotaBant(38), quotaBant(20),
+    '38 sayfa icin band hala yukseltilmis');
+});
+
+test('geminiCoverageQuota: HICBIR sayfa sayisi 10-25 bandini gecmiyor', () => {
+  /* "Sayfa basina en az zamani oldugu anda en cok cikti" hatasinin genel
+     hali. Bir daha herhangi bir araliga gizlice zirve eklenmesin. */
+  const tavan = quotaBant(20);
+  for (const n of [0, 5, 10, 11, 25, 26, 42, 60, 61, 86, 200]) {
+    const b = quotaBant(n);
+    for (let i = 0; i < b.length; i++) {
+      assert.ok(b[i] <= tavan[i],
+        `${n} sayfa icin band 10-25 bandini geciyor: ${b} > ${tavan}`);
+    }
+  }
 });
 
 test('geminiCoverageQuota: formul ve tablo tavansiz kalir', () => {
@@ -1080,7 +1117,12 @@ test('kapsam bandi COK BUYUK belgede geri iniyor', () => {
      Sebep: band 25 sayfada tavana vurup bir daha inmiyordu, yani sayfa
      basina en az zamani oldugu anda EN COK cikti isteniyordu. */
   const bant = (q) => (q.match(/\b\d+-\d+\b/g) || []).slice(0, 3).join('/');
-  assert.equal(bant(G.geminiCoverageQuota(42)), '18-26/22-28/12-15', 'orta bant degismis');
+  /* 21.10.2026: orta bant 18-26/22-28/12-15 DEGIL artik. O bant 38 ve 42
+     sayfalik iki belgede de karti yarim birakti (34-37 KB, 96,9 ve 105 sn
+     tavanlarinda kesildi), yani 20.10'da 86 sayfa icin verilen karar 25-60
+     araligi icin de gecerliydi. Bant 10-25 ile ayni; asagidaki notEqual
+     hala tutuyor, cunku dev belge terim ve soru bandinda daha da iniyor. */
+  assert.equal(bant(G.geminiCoverageQuota(42)), '15-22/16-20/10-13', 'orta bant degismis');
   assert.equal(bant(G.geminiCoverageQuota(86)), '14-18/16-20/8-10', 'dev belgede band geri inmiyor');
   assert.notEqual(
     bant(G.geminiCoverageQuota(86)),
