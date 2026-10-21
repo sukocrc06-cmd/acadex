@@ -542,6 +542,10 @@ ${JSON.stringify(batch.map(c => ({
             model: "openai/gpt-oss-120b",
             // FAZ 2: 0 — aynı cevap iki kez gönderilse aynı kararlar çıksın.
             temperature: 0,
+            // Bütçe verilmezse Groq büyük bir varsayılan çıktı payını 8.000
+            // TPM'den peşin ayırıyor (bkz. get-exam-hint). Düşünme payı
+            // varsayılanda bırakıldı: madde kararlarının kalitesi önemli.
+            max_completion_tokens: Math.min(6000, 1500 + 350 * batch.length),
             response_format: { type: "json_object" },
             messages: [
               { role: "system", content: STATIC_GRADING_INSTRUCTIONS },

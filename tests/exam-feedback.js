@@ -32,6 +32,7 @@ const ANCHOR_NAMES = [
 
 const G = loadFromSource(GEN_PATH, [
   'TRUE_FALSE_OPTIONS', 'KEY_FIELDS', 'INTERNAL_FIELDS', 'GROQ_RETRY_MAX_WAIT_MS', 'groqRetryDelayMs', 'sourceUnitFor',
+  'GEN_TOKENS_BASE', 'GEN_TOKENS_PER_QUESTION', 'GEN_TOKENS_MAX', 'completionBudgetFor', 'salvageQuestionObjects', 'parseQuestionArray',
   'EXPLANATION_MAX_CHARS', 'RATIONALE_MAX_CHARS', 'RUBRIC_MIN_ITEMS', 'RUBRIC_MAX_ITEMS',
   'normalizeAnswerText', 'parseLooseNumber', 'cleanText', 'normalizeOptionRationales', 'normalizeRubric',
   'validateQuestion', 'splitPublicAndKey', 'shuffleInPlace',
@@ -93,6 +94,29 @@ test('groqRetryDelayMs: Groq mesaji ve retry-after basligi okunur; uzun bekleme 
   assert.equal(G.groqRetryDelayMs(429, null, 'Please try again in 1m2.5s.'), null, '62 sn bekleme siniri asar');
   assert.equal(G.groqRetryDelayMs(500, null, msg), null);
   assert.equal(G.groqRetryDelayMs(429, null, 'quota exceeded'), null);
+});
+
+test('completionBudgetFor: soru sayisiyla buyur, tavani asmaz, tek istek 8.000 TPM ye sigar', () => {
+  assert.equal(G.completionBudgetFor(1), 1620);
+  assert.equal(G.completionBudgetFor(8), 4560);
+  assert.equal(G.completionBudgetFor(20), G.GEN_TOKENS_MAX);
+  assert.equal(G.completionBudgetFor('bozuk'), 1620);
+  assert.ok(G.completionBudgetFor(8) + 2700 < 8000, '8 soruluk istek istem dahil 8.000 TPM ye sigmali');
+});
+
+test('salvageQuestionObjects: butcede kesilen yanittan tamamlanmis sorular kurtarilir', () => {
+  const full = JSON.stringify({ questions: [
+    { id: 1, type: 'true_false', question: 'SUMIF yalnızca metin "kriter" kabul eder {x}.', correct_answer: 'Yanlış' },
+    { id: 2, type: 'multiple_choice', question: 'XNPV?', options: ['a', 'b', 'c', 'd'], correct_answer: 'a', explanation: 'tırnak \\" ve } parantez' }
+  ] });
+  const cut = full.slice(0, full.length - 40);
+  assert.equal(G.parseQuestionArray(cut), null, 'kesik JSON normal yoldan ayrismamali');
+  const got = G.salvageQuestionObjects(cut);
+  assert.equal(got.length, 1);
+  assert.equal(got[0].question, 'SUMIF yalnızca metin "kriter" kabul eder {x}.');
+  assert.equal(G.salvageQuestionObjects(full).length, 2);
+  assert.deepEqual(G.salvageQuestionObjects(''), []);
+  assert.deepEqual(G.salvageQuestionObjects('{"questions": ['), []);
 });
 
 test('diller arasi: Ingilizce slayt + Turkce soru, source_terms ile dogru slayta baglanir', () => {
