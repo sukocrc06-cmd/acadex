@@ -1263,28 +1263,35 @@ const VISUAL_MIN_BUDGET_MS = 100_000
 // Vision call, PDF.co render to merged patch, across four live runs:
 //   6.7s, 6.0s, 7.2s, 6.5s  -> ~6.6s average. The old 30s was 4.5x reality.
 const VISION_CALL_MS = 15_000
-/* GORSEL GECIS ICIN BEKLEME TAVANI (21.10.2026).
+/* OPSIYONEL ADIMLAR ICIN BEKLEME TAVANI (21.10.2026).
  *
- * Kapi bugune kadar yalnizca "yer var mi" diye soruyordu: budgetLeft() >
- * visionNeedsMs. Gemini iki 503 ile erken dustugu bir kosuda geriye 130
- * saniye kaldi, yani yer bol goruldu ve gecis onaylandi. Olculen sonuc:
+ * IKI YERDE kullaniliyor: compact synthesis ve gorsel gecis. Ikisi de
+ * zenginlestirme — kartin kendisi pencerelerden cikiyor, bu ikisi onun
+ * ustune bir seyler koyuyor. Dolayisiyla ikisi de "yer varsa kos" degil
+ * "deger ediyorsa kos" kuralina tabi.
  *
- *   TokenPacer[openai/gpt-oss-20b]: 57657ms bekliyor (used=5891/7200, est=1795)
- *   Long-doc visual patch: +2 terms, +2 points, +2 quiz, +2 sections, +2 tables
+ * ILK HALI YALNIZCA GORSEL GECISI KORUYORDU VE ISE YARAMADI (ayni gun,
+ * iki saat sonra olculdu). Tavan dogru fikirdi, yanlis cagriya kondu:
  *
- * Pencereler 20,9. saniyede bitmisti; kart 90,6. saniyede cikti. 91
- * saniyelik kosunun 57,7 saniyesi, yani %63'u, iki sekil sayfasindan 2
- * terim almak icin Groq'un dakikalik token penceresinin donmesini
- * beklemekle gecti. Ucretsiz katmanda TPM 7200 ve iki pencere cagrisi
- * 5891 token yemis durumda; bekleme GERCEK ve gerekli, sorun beklemenin
- * NEYE harcandigi.
+ *   t=34,4  Window 1 ok / Window 2 ok
+ *   t=34,5  TokenPacer[openai/gpt-oss-20b]: 57955ms bekliyor (used=6095/7200)
+ *   t=93,6  Gorsel sayfa secimi [26,40]
  *
- * Kapi artik "yer var mi"nin yanina "deger mi"yi de koyuyor: gorsel gecis
- * kartin kendisi degil, zenginlestirme. Cagrinin kendisi ~6,6 saniye
- * olculdu; onun uc katindan uzun bir kuyruk beklemesi bu zenginlestirmeye
- * degmiyor. Atlanirsa quality_meta.skipped_stages'e yaziliyor, yani kart
- * neyi kaybettigini soyluyor. */
-const VISION_PACER_MAX_WAIT_MS = 20_000
+ * Bekleme gorsel cagridan ONCE, compact synthesis cagrisinda oluyor
+ * (callGroqJson -> tokenPacer.acquire). Gorsel kapisi sahneye geldiginde
+ * dakikalik pencere coktan donmustu, yani waitEstimate kucuk bir sayi
+ * dondurdu ve kapi — kendi mantigina gore DOGRU olarak — gecirdi.
+ *
+ * Kokeni yapisal: iki pencere cagrisi paralel kosuyor ve Groq'un iki
+ * seridini birlikte bosaltiyor (ucretsiz katmanda TPM 7200; W1 120b'de
+ * 5747, W2 20b'de 6095 token). Sonraki cagri hangi seride giderse gitsin
+ * dakikanin donmesini bekliyor. Iki ayri kosuda olculen bekleme 57.657ms
+ * ve 57.955ms — sabit, cunku bekledigi sey dakikalik pencerenin kendisi.
+ *
+ * 20 saniye: gorsel cagri dort canli kosuda 6,0-7,2 saniye olculdu, synthesis
+ * benzeri. Cagrinin kendisinin ucundan uzun bir kuyruk, zenginlestirmeye
+ * degmiyor. Atlanan adim quality_meta.skipped_stages'e yaziliyor. */
+const OPSIYONEL_ADIM_MAX_BEKLEME_MS = 20_000
 // Narrative writer, merge to accepted, once it stopped queueing for a busy
 // lane: 1.8s. The old 40s reserve was 22x reality — a figure from when the
 // writer could sit out a whole TPM window, which pickLane now prevents.
@@ -9263,16 +9270,33 @@ Use CONCRETE topic names from digests and terms. No meta filler.`
             estimateTokens(synSys, synUser, 2048),
             2048
           )
-          const syn = await callGroqJson(
-            groqApiKey,
-            synSys,
-            synUser,
-            { model: synLane, temperature: 0.25, maxCompletionTokens: 2048, timeoutMs: 30000, maxRetries: 0 }
+          /* SENTEZ DE OPSIYONEL — bkz. OPSIYONEL_ADIM_MAX_BEKLEME_MS.
+             21.10 kosusunda 57.955ms'lik pacer beklemesi TAM BURADA olustu:
+             iki pencere her iki seridi bosaltmis durumdaydi ve bu cagri
+             dakikalik pencerenin donmesini bekledi. Kartin icerigi
+             pencerelerden zaten gelmis; sentez onun uzerine ozet/anahat
+             koyuyor. 58 saniyelik kuyruk buna degmiyor. */
+          const synBekleme = tokenPacer.waitEstimate(
+            estimateTokens(synSys, synUser, 2048), synLane, 2048
           )
-          if (syn?.summary && String(syn.summary).length > 80) bestSummary = String(syn.summary)
-          if (syn?.summary_executive) bestExec = String(syn.summary_executive)
-          if (syn?.outline?.items?.length) bestOutline = syn.outline
-          if (Array.isArray(syn?.sections) && syn.sections.length) bestSections = syn.sections
+          if (synBekleme > OPSIYONEL_ADIM_MAX_BEKLEME_MS) {
+            skippedStages.push('compact synthesis')
+            console.log(
+              `Compact synthesis atlandi: pacer ${synBekleme}ms bekletiyor ` +
+              `(tavan ${OPSIYONEL_ADIM_MAX_BEKLEME_MS}ms) — pencerelerin ciktisi korunuyor`
+            )
+          } else {
+            const syn = await callGroqJson(
+              groqApiKey,
+              synSys,
+              synUser,
+              { model: synLane, temperature: 0.25, maxCompletionTokens: 2048, timeoutMs: 30000, maxRetries: 0 }
+            )
+            if (syn?.summary && String(syn.summary).length > 80) bestSummary = String(syn.summary)
+            if (syn?.summary_executive) bestExec = String(syn.summary_executive)
+            if (syn?.outline?.items?.length) bestOutline = syn.outline
+            if (Array.isArray(syn?.sections) && syn.sections.length) bestSections = syn.sections
+          }
         } catch (synErr) {
           console.warn('Compact synthesis skipped:', synErr)
         }
@@ -9321,16 +9345,16 @@ Use CONCRETE topic names from digests and terms. No meta filler.`
       const visionEstTokens = visualPlan.indices.length * VISION_TOKENS_PER_IMAGE + 2000
       const visionWaitMs = tokenPacer.waitEstimate(visionEstTokens, MODEL_FAST, VISION_MAX_COMPLETION)
       const visionNeedsMs = visionWaitMs + VISION_CALL_MS + NARRATIVE_WRITER_RESERVE_MS
-      /* "Yer var mi" ile "deger mi" ayri sorular — bkz. VISION_PACER_MAX_WAIT_MS.
+      /* "Yer var mi" ile "deger mi" ayri sorular — bkz. OPSIYONEL_ADIM_MAX_BEKLEME_MS.
          Iki kol ayni karari okuyor ki birbirinden kayamasinlar. */
-      const visionBeklemeAsiri = visionWaitMs > VISION_PACER_MAX_WAIT_MS
+      const visionBeklemeAsiri = visionWaitMs > OPSIYONEL_ADIM_MAX_BEKLEME_MS
       const visionAtlanir = budgetLeft() <= visionNeedsMs || visionBeklemeAsiri
       if (analyzeVisuals && visualPlan.indices.length > 0 && visionAtlanir) {
         skippedStages.push('gorsel analiz')
         console.log(
           visionBeklemeAsiri
             ? `Gorsel gecis atlandi: pacer ${visionWaitMs}ms bekletiyor ` +
-              `(tavan ${VISION_PACER_MAX_WAIT_MS}ms, cagrinin kendisi ~6600ms) — ` +
+              `(tavan ${OPSIYONEL_ADIM_MAX_BEKLEME_MS}ms, cagrinin kendisi ~6600ms) — ` +
               `butce ${budgetLeft()}ms olsa bile zenginlestirme icin bu kuyruk beklenmez`
             : `Gorsel gecis atlandi: butce ${budgetLeft()}ms <= ${visionNeedsMs}ms ` +
               `[pacer ${visionWaitMs}ms + cagri ${VISION_CALL_MS}ms + yazar payi ${NARRATIVE_WRITER_RESERVE_MS}ms] — ` +

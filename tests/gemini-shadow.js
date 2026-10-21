@@ -32,7 +32,7 @@ const NAMES = [
   'GEMINI_MAX_CALL_MS', 'GEMINI_MAX_OUTPUT_TOKENS', 'GEMINI_GROQ_RESERVE_MS',
   'geminiMode', 'GEMINI_ONLY_BUDGET_MS', 'GEMINI_ONLY_MAX_CALL_MS',
   'GEMINI_ONLY_FALLBACK_MIN_MS',
-  'GEMINI_MAX_REQUESTS_PER_RUN', 'GEMINI_ARDISIK_GECICI_MAX', 'geminiRpmWaitMs', 'VISION_PACER_MAX_WAIT_MS',
+  'GEMINI_MAX_REQUESTS_PER_RUN', 'GEMINI_ARDISIK_GECICI_MAX', 'geminiRpmWaitMs', 'OPSIYONEL_ADIM_MAX_BEKLEME_MS',
   'GEMINI_RPM_RETRY_MIN_REMAINING_MS',
   'bytesToBase64',
   'geminiModelCandidates', 'geminiNativeMime', 'geminiModelMissing',
@@ -443,9 +443,9 @@ test('geminiCoverageQuota: 25-60 araligi ARTIK zirve degil', () => {
 test('gorsel gecis: pacer kuyrugu uzunsa butce bol olsa bile ATLANIR', () => {
   const src = require('node:fs').readFileSync(
     require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
-  assert.ok(/const VISION_PACER_MAX_WAIT_MS = /.test(src),
+  assert.ok(/const OPSIYONEL_ADIM_MAX_BEKLEME_MS = /.test(src),
     'bekleme tavani yok — kapi yine yalnizca butceye bakar');
-  assert.ok(src.includes('visionWaitMs > VISION_PACER_MAX_WAIT_MS'),
+  assert.ok(src.includes('visionWaitMs > OPSIYONEL_ADIM_MAX_BEKLEME_MS'),
     'pacer beklemesi tavanla karsilastirilmiyor');
   /* Iki kol ayni karari okumali: biri atlarken digeri cagirirsa gorsel
      gecis hem atlanmis sayilir hem kosar. */
@@ -457,14 +457,56 @@ test('gorsel gecis: pacer kuyrugu uzunsa butce bol olsa bile ATLANIR', () => {
     'cagri kolu hala dogrudan butceye bakiyor — iki kol birbirinden kayabilir');
 });
 
+/* 21.10.2026, IKINCI TUR — TAVAN YANLIS CAGRIYA KONMUSTU.
+ *
+ * Ilk hali yalnizca gorsel gecisi koruyordu ve kosu yine 57,9 saniye
+ * bekledi:
+ *
+ *   t=34,4  Window 1 ok / Window 2 ok
+ *   t=34,5  TokenPacer[openai/gpt-oss-20b]: 57955ms bekliyor (used=6095/7200)
+ *   t=93,6  Gorsel sayfa secimi [26,40]
+ *
+ * Bekleme gorsel cagridan ONCE, compact synthesis'te olusuyor. Gorsel kapisi
+ * sahneye geldiginde dakikalik pencere donmustu, waitEstimate kucuk cikti ve
+ * kapi kendi mantigina gore dogru olarak gecirdi. Iki pencere cagrisi her iki
+ * seridi birlikte bosaltiyor; sonraki cagri hangi seride giderse gitsin
+ * bekliyor (olculen: 57.657ms ve 57.955ms — dakikalik pencerenin kendisi). */
+test('compact synthesis de pacer kuyrugu uzunsa ATLANIYOR', () => {
+  const src = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+  const i = src.indexOf('const synBekleme = tokenPacer.waitEstimate');
+  assert.ok(i > 0,
+    'sentez cagrisinin pacer beklemesi hic olculmuyor — 58 saniyelik kuyruk yine yanar');
+  const blok = src.slice(i, i + 900);
+  assert.ok(blok.includes('synBekleme > OPSIYONEL_ADIM_MAX_BEKLEME_MS'),
+    'sentez beklemesi tavanla karsilastirilmiyor');
+  assert.ok(blok.includes("skippedStages.push('compact synthesis')"),
+    'atlanan sentez karta yazilmiyor — ogrenci neyi kaybettigini bilmiyor');
+  /* Atlama try/catch'e throw ile degil, else koluyla yapilmali: catch
+     'Compact synthesis skipped:' basiyor ve iki log birbiriyle celisirdi. */
+  assert.ok(/\} else \{\s*\n\s*const syn = await callGroqJson/.test(blok),
+    'sentez atlamasi else koluyla yapilmiyor');
+});
+
+test('tavan IKI opsiyonel adimi da kapsiyor', () => {
+  const src = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+  const kullanim = (src.match(/OPSIYONEL_ADIM_MAX_BEKLEME_MS/g) || []).length;
+  // 1 tanim + sentez kapisi + gorsel kapisi + iki log satiri
+  assert.ok(kullanim >= 4,
+    `tavan ${kullanim} yerde geciyor — iki opsiyonel adimdan biri korunmasiz`);
+  assert.ok(!/VISION_PACER_MAX_WAIT_MS/.test(src),
+    'eski isim kalmis — tavan artik yalnizca gorsel gecise ait degil');
+});
+
 test('gorsel bekleme tavani cagrinin kendisinden buyuk ama kuyruga izin vermiyor', () => {
   /* Cagrinin kendisi dort canli kosuda 6,0-7,2 saniye olculdu. Tavan onun
      uzerinde olmali (kisa bir pacer beklemesi mesru), ama 57,7 saniyelik
      kuyrugu gecirmemeli. */
-  assert.ok(G.VISION_PACER_MAX_WAIT_MS > 7_200,
-    `tavan ${G.VISION_PACER_MAX_WAIT_MS}ms — mesru kisa beklemeleri de keser`);
-  assert.ok(G.VISION_PACER_MAX_WAIT_MS < 57_657,
-    `tavan ${G.VISION_PACER_MAX_WAIT_MS}ms — 21.10'daki 57,7 saniyelik kuyrugu gecirir`);
+  assert.ok(G.OPSIYONEL_ADIM_MAX_BEKLEME_MS > 7_200,
+    `tavan ${G.OPSIYONEL_ADIM_MAX_BEKLEME_MS}ms — mesru kisa beklemeleri de keser`);
+  assert.ok(G.OPSIYONEL_ADIM_MAX_BEKLEME_MS < 57_657,
+    `tavan ${G.OPSIYONEL_ADIM_MAX_BEKLEME_MS}ms — 21.10'daki 57,7 saniyelik kuyrugu gecirir`);
 });
 
 test('geminiCoverageQuota: TOPLAM uzunluk butcesi veriliyor', () => {
