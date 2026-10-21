@@ -24,7 +24,7 @@ const GEN_PATH = 'supabase/functions/generate-exam/index.ts';
 const GRADE_PATH = 'supabase/functions/grade-exam/index.ts';
 
 const G = loadFromSource(GEN_PATH, [
-  'TRUE_FALSE_OPTIONS', 'KEY_FIELDS',
+  'TRUE_FALSE_OPTIONS', 'KEY_FIELDS', 'INTERNAL_FIELDS',
   'EXPLANATION_MAX_CHARS', 'RATIONALE_MAX_CHARS', 'RUBRIC_MIN_ITEMS', 'RUBRIC_MAX_ITEMS',
   'parseQuestionArray', 'normalizeAnswerText', 'parseLooseNumber',
   'cleanText', 'normalizeOptionRationales', 'normalizeRubric',

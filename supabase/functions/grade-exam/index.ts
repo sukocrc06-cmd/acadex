@@ -234,6 +234,23 @@ function parseCriteria(raw: unknown): CriterionVerdict[] | null {
 // küçük tutuyor (yol haritası kontrolü: fark 10 puanı geçmemeli).
 // Rubriği olmayan (eski) soru eskisi gibi bütüncül puanlanır.
 // ==========================================================================
+const GROQ_RETRY_MAX_WAIT_MS = 30_000
+
+/** Groq 429 yanıtından beklenecek süre (ms); generate-exam'deki ile birebir
+ *  aynı (tests/exam-feedback.js denetler). */
+function groqRetryDelayMs(status: number, retryAfter: string | null, message: unknown): number | null {
+  if (status !== 429) return null
+  let ms = NaN
+  const header = Number(retryAfter)
+  if (retryAfter && Number.isFinite(header)) ms = header * 1000
+  if (!Number.isFinite(ms)) {
+    const m = String(message ?? '').match(/try again in\s+(?:(\d+)m)?\s*(?:([\d.]+)s|(\d+)ms)/i)
+    if (m) ms = (Number(m[1] || 0) * 60 + Number(m[2] || 0)) * 1000 + Number(m[3] || 0)
+  }
+  if (!Number.isFinite(ms) || ms <= 0 || ms > GROQ_RETRY_MAX_WAIT_MS) return null
+  return Math.ceil(ms) + 500
+}
+
 const VERDICT_SHARE: Record<string, number> = { met: 1, partial: 0.5, missing: 0 }
 
 type RubricItem = { criterion: string; points: number }
@@ -498,7 +515,7 @@ serve(async (req) => {
       const groqApiKey = Deno.env.get('GROQ_API_KEY')
       if (!groqApiKey) return json({ error: 'Groq API key not configured' }, 500)
 
-      const gradeBatch = async (batch: typeof classicToGrade) => {
+      const gradeBatch = async (batch: typeof classicToGrade, attempt = 0): Promise<ParsedGrade[] | null> => {
         // Only the truly per-request bits (language, how many questions, and
         // the student's own unique answers) go in the user message -- the
         // system message above stays fully static so it caches across every
@@ -534,6 +551,12 @@ ${JSON.stringify(batch.map(c => ({
         })
         const groqData = await groqResponse.json().catch(() => ({}))
         if (!groqResponse.ok) {
+          const waitMs = attempt === 0 ? groqRetryDelayMs(groqResponse.status, groqResponse.headers.get('retry-after'), groqData?.error?.message) : null
+          if (waitMs !== null) {
+            console.warn(`grade-exam: Groq hiz siniri, ${Math.round(waitMs / 1000)} sn beklenip yeniden deneniyor`)
+            await new Promise(r => setTimeout(r, waitMs))
+            return gradeBatch(batch, attempt + 1)
+          }
           console.error("Groq AI grading failed: ", groqData)
           return null
         }

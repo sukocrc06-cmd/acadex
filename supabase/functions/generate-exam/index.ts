@@ -68,7 +68,8 @@ The "questions" array's length must exactly equal the question count requested i
   "concept": "string",
   "explanation": "string",
   "option_rationales": [{"option": "string", "why": "string"}] | null,
-  "rubric": [{"criterion": "string", "points": number}] | null
+  "rubric": [{"criterion": "string", "points": number}] | null,
+  "source_terms": ["string"]
 }
 For 'multiple_choice', the 4 options must be distinct and exactly one must be correct.
 
@@ -76,6 +77,7 @@ FEEDBACK FIELDS (the student reads these only AFTER submitting the exam):
 - "explanation" (every question): 1-2 sentences saying WHY the correct answer is correct. Reuse the source material's own key terms and wording so the claim can be traced back to the source.
 - "option_rationales" ('multiple_choice' only, otherwise null): one entry per option, "option" copied exactly from "options", "why" one short sentence — for a wrong option the specific misconception behind it, for the correct option why it is right.
 - "rubric" ('open_ended' only, otherwise null): 3 to 5 criteria a full-marks answer must satisfy, each a specific, observable element (a key idea, a correct definition, a required link between concepts, an example). "points" must add up to exactly 100. Write criteria in the exam language.
+- "source_terms" (every question): 3 to 6 distinctive terms or short phrases copied VERBATIM from the SOURCE MATERIAL that this question is built on (names of concepts, functions, formulas, models, people). Keep them in the source material's own language and spelling even when the exam is written in another language. They are used to locate the question in the original document and are never shown to the student.
 `.trim()
 
 // ==========================================================================
@@ -106,6 +108,8 @@ const TRUE_FALSE_OPTIONS: Record<string, [string, string]> = { tr: ['Doğru', 'Y
 // FAZ 2: açıklama, şık gerekçeleri, rubrik ve kaynak sayfası da anahtarda
 // durur; öğrenci bunları ancak sınav puanlandıktan sonra görür.
 const KEY_FIELDS = ['correct_answer', 'accepted_answers', 'solution_steps', 'tolerance_percent', 'hint', 'explanation', 'option_rationales', 'rubric', 'source']
+// Yalnızca sunucuda kullanılan alanlar: ne tarayıcıya ne anahtara yazılır.
+const INTERNAL_FIELDS = ['source_terms']
 const EXPLANATION_MAX_CHARS = 600
 const RATIONALE_MAX_CHARS = 300
 const RUBRIC_MIN_ITEMS = 2
@@ -237,6 +241,9 @@ function validateQuestion(raw: unknown, allowedTypes: string[], language: string
   q.explanation = cleanText(q.explanation, EXPLANATION_MAX_CHARS)
   q.option_rationales = type === 'multiple_choice' ? normalizeOptionRationales(q.option_rationales, q.options as string[]) : null
   q.rubric = type === 'open_ended' ? normalizeRubric(q.rubric) : null
+  q.source_terms = Array.isArray(q.source_terms)
+    ? q.source_terms.map(t => String(t ?? '').replace(/\s+/g, ' ').trim().slice(0, 80)).filter(t => t.length >= 2).slice(0, 8)
+    : []
   return { ok: true, question: q }
 }
 
@@ -298,6 +305,24 @@ function normalizeRubric(raw: unknown): Array<{ criterion: string; points: numbe
   return scaled
 }
 
+const GROQ_RETRY_MAX_WAIT_MS = 30_000
+
+/** Groq 429 yanıtından beklenecek süre (ms). Önce retry-after başlığı, yoksa
+ *  mesajdaki "Please try again in 1m2.5s" / "in 750ms". Süre okunamazsa ya
+ *  da GROQ_RETRY_MAX_WAIT_MS'ten uzunsa null — o zaman beklemeye değmez. */
+function groqRetryDelayMs(status: number, retryAfter: string | null, message: unknown): number | null {
+  if (status !== 429) return null
+  let ms = NaN
+  const header = Number(retryAfter)
+  if (retryAfter && Number.isFinite(header)) ms = header * 1000
+  if (!Number.isFinite(ms)) {
+    const m = String(message ?? '').match(/try again in\s+(?:(\d+)m)?\s*(?:([\d.]+)s|(\d+)ms)/i)
+    if (m) ms = (Number(m[1] || 0) * 60 + Number(m[2] || 0)) * 1000 + Number(m[3] || 0)
+  }
+  if (!Number.isFinite(ms) || ms <= 0 || ms > GROQ_RETRY_MAX_WAIT_MS) return null
+  return Math.ceil(ms) + 500
+}
+
 /** Fisher–Yates; rand testte sabitlenebilsin diye parametre. */
 function shuffleInPlace<T>(items: T[], rand: () => number = Math.random): T[] {
   for (let i = items.length - 1; i > 0; i--) {
@@ -314,6 +339,7 @@ function splitPublicAndKey(q: Record<string, unknown>): { pub: Record<string, un
   const pub: Record<string, unknown> = {}
   const key: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(q)) {
+    if (INTERNAL_FIELDS.includes(k)) continue
     if (KEY_FIELDS.includes(k)) key[k] = v
     else pub[k] = v
   }
@@ -522,7 +548,7 @@ function joinChunkParts(parts: string[]): string {
   }
   return out
 }
-type SourceAnchor = { page: number; page_end: number | null; quote: string | null }
+type SourceAnchor = { page: number; page_end: number | null; quote: string | null; unit: 'page' | 'slide' }
 
 /** document_chunks satırlarından (chunk_index sırasıyla) sayfa dizini.
  *  Kısa sayfalar kayıtta tek parçada birleşmiş olabilir (page_start <
@@ -557,15 +583,23 @@ function buildPageIndexFromChunks(rows: ChunkRow[]): { index: PageSegment[]; pag
 }
 
 /** Bir sorunun kaynağı: birkaç aday iddia (açıklama + doğru cevap, soru +
- *  doğru cevap, açık uçluda örnek cevap) denenir, en yüksek puanlı eşleşme
- *  alınır. Hiçbiri eşiği geçmezse null. */
-function anchorQuestionToSource(q: Record<string, unknown>, index: PageSegment[], idf: Map<string, number>, pageEnd: Map<number, number>): SourceAnchor | null {
+ *  doğru cevap, açık uçluda örnek cevap, modelin kaynaktan birebir aldığı
+ *  terimler) denenir, en yüksek puanlı eşleşme alınır. Hiçbiri eşiği
+ *  geçmezse null.
+ *
+ *  source_terms neden var (21.10.2026, canlı test): belge İngilizce, sınav
+ *  Türkçe olunca soru metniyle sayfa arasında ortak kelime kalmıyor ve
+ *  hiçbir soru bağlanamıyordu (0/6). Model kaynaktaki terimleri kaynağın
+ *  kendi dilinde kopyalıyor; eşleşme o terimlerle de deneniyor. */
+function anchorQuestionToSource(q: Record<string, unknown>, index: PageSegment[], idf: Map<string, number>, pageEnd: Map<number, number>, unit: 'page' | 'slide' = 'page'): SourceAnchor | null {
   if (!index.length) return null
   const answer = typeof q.correct_answer === 'string' ? q.correct_answer : ''
+  const terms = Array.isArray(q.source_terms) ? (q.source_terms as unknown[]).map(t => String(t ?? '')).join(' ') : ''
   const claims = [
     [q.explanation, answer].filter(Boolean).join(' '),
     [q.question, answer].filter(Boolean).join(' '),
-    q.type === 'open_ended' ? answer : ''
+    q.type === 'open_ended' ? answer : '',
+    terms
   ].map(c => String(c || '').trim()).filter(c => c.length > 0)
   let best: ReturnType<typeof anchorClaimToPage> = null
   for (const claim of claims) {
@@ -573,7 +607,13 @@ function anchorQuestionToSource(q: Record<string, unknown>, index: PageSegment[]
     if (hit && (!best || hit.score > best.score)) best = hit
   }
   if (!best) return null
-  return { page: best.page, page_end: pageEnd.get(best.page) ?? null, quote: best.quote }
+  return { page: best.page, page_end: pageEnd.get(best.page) ?? null, quote: best.quote, unit }
+}
+
+/** Sunum dosyasında "slayt", ötekilerde "sayfa" (summarize-document da
+ *  PPTX'e SLAYT işaretçisi koyuyor). */
+function sourceUnitFor(fileName: unknown): 'page' | 'slide' {
+  return /\.(pptx?|ppsx?|odp|key)$/i.test(String(fileName || '')) ? 'slide' : 'page'
 }
 
 /** Belgenin chunk'larını okur (en fazla 3.000 satır, 1.000'lik sayfalarla). */
@@ -939,7 +979,7 @@ ${context}
 Additional variation seed: ${Date.now()}`
 
     // Tek bir üretim çağrısı. Başarısızsa { error } döner, istisna fırlatmaz.
-    const requestQuestions = async (count: number, avoid: string[]): Promise<{ items?: unknown[]; error?: string }> => {
+    const requestQuestions = async (count: number, avoid: string[], attempt = 0): Promise<{ items?: unknown[]; error?: string }> => {
       const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -966,6 +1006,15 @@ Additional variation seed: ${Date.now()}`
 
       const groqData = await groqResponse.json().catch(() => ({}))
       if (!groqResponse.ok) {
+        // FAZ 2 (canlı test): eksik sorular için yapılan ikinci istek
+        // dakikalık token sınırına (TPM) takılıyordu. Groq'un söylediği süre
+        // kısaysa bekleyip bir kez daha dene.
+        const waitMs = attempt === 0 ? groqRetryDelayMs(groqResponse.status, groqResponse.headers.get('retry-after'), groqData?.error?.message) : null
+        if (waitMs !== null) {
+          console.warn(`generate-exam: Groq hiz siniri, ${Math.round(waitMs / 1000)} sn beklenip yeniden deneniyor`)
+          await new Promise(r => setTimeout(r, waitMs))
+          return requestQuestions(count, avoid, attempt + 1)
+        }
         console.error("Groq generation failed: ", groqData)
         return { error: groqData?.error?.message || groqData?.error?.code || `HTTP ${groqResponse.status}` }
       }
@@ -1046,9 +1095,11 @@ Additional variation seed: ${Date.now()}`
         const { index, pageEnd } = buildPageIndexFromChunks(chunks)
         if (index.length) {
           const idf = buildAnchorIdf(index)
+          const { data: docRow } = await serviceClient.from('documents').select('file_name').eq('id', sourceDocumentId).maybeSingle()
+          const unit = sourceUnitFor(docRow && (docRow as Record<string, unknown>).file_name)
           let anchored = 0
           for (const q of finalQuestions) {
-            const src = anchorQuestionToSource(q, index, idf, pageEnd)
+            const src = anchorQuestionToSource(q, index, idf, pageEnd, unit)
             if (src) { q.source = src; anchored++ }
           }
           console.log(`generate-exam: ${anchored}/${finalQuestions.length} soru kaynak sayfaya baglandi (${index.length} sayfa)`)
@@ -1057,6 +1108,9 @@ Additional variation seed: ${Date.now()}`
         console.warn('generate-exam: kaynak sayfa baglama atlandi:', e)
       }
     }
+
+    // source_terms yalnızca eşleştirme için; ne tarayıcıya ne anahtara gider.
+    for (const q of finalQuestions) delete q.source_terms
 
     const publicQuestions: Record<string, unknown>[] = []
     const answerKeys: Record<string, Record<string, unknown>> = {}
