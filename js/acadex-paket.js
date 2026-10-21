@@ -11,11 +11,10 @@
   var X = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
 
   var css = [
-    ':root{--pkd-navy:#0D1838;--pkd-blue:#2F6BFF;--pkd-gold:#E8B53A;--pkd-soft:#6A7593;--pkd-ink:#1F2533;--pkd-paper:#FFFFFF;--pkd-cork:#EEF1F6;--pkd-line:#DCE2EE;--pkd-ease:cubic-bezier(.2,.7,.2,1)}',
-    'html.ax-dark{--pkd-paper:#141B2B;--pkd-cork:#0F1522;--pkd-ink:#E6EAF3;--pkd-soft:#9AA6C2;--pkd-line:#2A3550}',
+    ':root{--pkd-side:#FBFBF8;--pkd-navy:#0D1838;--pkd-blue:#2F6BFF;--pkd-gold:#E8B53A;--pkd-soft:#6A7593;--pkd-ink:#1F2533;--pkd-paper:#FFFFFF;--pkd-cork:#EEF1F6;--pkd-line:#DCE2EE;--pkd-ease:cubic-bezier(.2,.7,.2,1)}',
     /* menü köşesi */
-    '.pkd{position:relative;margin:30px 2px 6px;padding-top:58px}',
-    '.pkd-kid{position:absolute;right:8px;top:0;z-index:2;width:92px;height:96px;padding:0;border:0;background:none;cursor:pointer;-webkit-tap-highlight-color:transparent}',
+    '.pkd{position:sticky;bottom:-30px;z-index:3;margin:26px -14px -30px -16px;padding:46px 14px 14px 16px;background:linear-gradient(to bottom,rgba(251,251,248,0),var(--pkd-side) 38%)}',
+    '.pkd-kid{position:absolute;right:20px;top:0;z-index:2;width:72px;height:76px;padding:0;border:0;background:none;cursor:pointer;-webkit-tap-highlight-color:transparent}',
     '.pkd-kid:focus-visible{outline:2px solid var(--pkd-blue);outline-offset:3px;border-radius:12px}',
     '.pkd-kid svg{display:block;width:100%;height:100%;overflow:visible}',
     '.pkd-kid .leg{transform-box:fill-box;transform-origin:50% 0;animation:pkdLeg 2.2s ease-in-out infinite}',
@@ -30,16 +29,16 @@
     '@keyframes pkdWave{0%,100%{transform:rotate(0)}50%{transform:rotate(-24deg)}}',
     '.pkd-kid .lid{transform-box:fill-box;transform-origin:center;animation:pkdBlink 5s infinite}',
     '@keyframes pkdBlink{0%,93%,100%{transform:scaleY(0)}96%{transform:scaleY(1)}}',
-    '.pkd-card{position:relative;padding:16px 14px 12px;border-radius:4px 6px 5px 4px;background:var(--pkd-paper);border:1.4px solid var(--pkd-line);box-shadow:0 10px 22px -16px rgba(13,24,56,.55);color:var(--pkd-ink)}',
+    '.pkd-card{position:relative;padding:12px 12px 8px;border-radius:4px 6px 5px 4px;background:var(--pkd-paper);border:1.4px solid var(--pkd-line);box-shadow:0 10px 22px -16px rgba(13,24,56,.55);color:var(--pkd-ink)}',
     '.pkd-card h5{margin:0 0 6px;font-family:var(--hand,"Caveat",cursive);font-size:24px;font-weight:600;line-height:1;color:var(--pkd-ink)}',
     '.pkd-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:999px;background:var(--pkd-navy);color:#F1F4FA;font-size:12.5px;font-weight:600}',
-    'html.ax-dark .pkd-badge{background:#25335E}',
     '.pkd-badge i{width:7px;height:7px;border-radius:50%;background:var(--pkd-gold);box-shadow:0 0 0 3px rgba(232,181,58,.25)}',
-    '.pkd-note{margin:8px 0 10px;font-size:12.5px;line-height:1.4;color:var(--pkd-soft)}',
+    '.pkd-note{margin:6px 0 4px;font-size:12.5px;line-height:1.4;color:var(--pkd-soft)}',
     '.pkd-go{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0;border:0;background:none;color:var(--pkd-blue);font:inherit;font-size:14px;font-weight:600;cursor:pointer;text-decoration:underline;text-underline-offset:3px}',
     '.pkd-go:focus-visible{outline:2px solid var(--pkd-blue);outline-offset:2px;border-radius:3px}',
     '.pkd-mini{display:none}',
-    'html.nav-c .pkd{margin-top:24px;padding-top:0}',
+    'html.ax-dark .pkd-kid svg,html.ax-dark .pkd-mini svg,html.ax-dark .pkq-kid{filter:invert(1) hue-rotate(180deg)}',
+    'html.nav-c .pkd{margin:24px -10px -30px;padding:10px 0 14px}',
     'html.nav-c .pkd-kid,html.nav-c .pkd-card{display:none}',
     'html.nav-c .pkd-mini{display:flex;align-items:center;justify-content:center;width:48px;height:48px;margin:0 auto;padding:0;border:1.4px solid var(--pkd-line);border-radius:50%;background:var(--pkd-paper);cursor:pointer}',
     'html.nav-c .pkd-mini svg{width:36px;height:36px}',
@@ -66,7 +65,6 @@
     '.pkd-head h2{margin:0;font-family:"Bricolage Grotesque",system-ui,sans-serif;font-size:clamp(24px,3vw,32px);letter-spacing:-.02em;color:var(--pkd-ink)}',
     '.pkd-head p{margin:0;font-family:var(--hand,"Caveat",cursive);font-size:22px;color:var(--pkd-soft)}',
     '.pkd-beta{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin:0 0 16px;padding:10px 14px;border-radius:4px;background:var(--pkd-navy);color:#F1F4FA;font-size:14.5px;line-height:1.4}',
-    'html.ax-dark .pkd-beta{background:#1C2747}',
     '.pkd-beta b{color:var(--pkd-gold)}',
     '.pkd-beta .tag{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.12em;padding:3px 8px;border-radius:3px;background:var(--pkd-gold);color:var(--pkd-navy)}',
     '.pkd-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:start}',
@@ -89,7 +87,6 @@
     '.pkd-foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-top:18px}',
     '.pkd-foot small{font-size:12.5px;color:var(--pkd-soft);max-width:540px}',
     '.pkd-ok{display:inline-flex;align-items:center;min-height:46px;padding:0 22px;border:0;border-radius:999px;background:var(--pkd-navy);color:#fff;font:inherit;font-weight:600;font-size:15px;cursor:pointer}',
-    'html.ax-dark .pkd-ok{background:var(--pkd-blue)}',
     '.pkd-ok:focus-visible{outline:2px solid var(--pkd-blue);outline-offset:3px}',
     /* hak doldu: tabelayla inen öğrenci */
     '.pkq{position:fixed;left:50%;top:0;z-index:2147482990;width:min(420px,calc(100vw - 24px));transform:translate(-50%,-110%);visibility:hidden}',
@@ -202,7 +199,7 @@
     var box = document.createElement('div'); box.className = 'pkd';
     box.innerHTML = '<button type="button" class="pkd-kid" aria-label="Paketleri aç" title="Paketleri aç">' + KID + '</button>' +
       '<div class="pkd-card"><h5>Paketim</h5><span class="pkd-badge"><i aria-hidden="true"></i>Beta · Premium</span>' +
-      '<p class="pkd-note">Beta boyunca her şey açık. Kurucu üyelere lansmanda %50 indirim.</p>' +
+      '<p class="pkd-note">Beta’da her şey açık · kurucu üyelere %50</p>' +
       '<button type="button" class="pkd-go">paketleri gör <span aria-hidden="true">→</span></button></div>' +
       '<button type="button" class="pkd-mini" aria-label="Paketim: Beta · Premium. Paketleri aç" title="Paketim · Beta Premium">' + KID + '</button>';
     (side.querySelector('nav') || side).appendChild(box);
