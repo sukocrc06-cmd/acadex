@@ -132,11 +132,11 @@
 
   var CARDS = '<div class="pkd-cards">' +
     '<article class="pkd-c"><h3>Ücretsiz</h3><p class="who">denemek ve ara sıra çalışmak için</p><p class="pkd-price"><b>0 TL</b><span>her zaman</span></p><p class="pkd-alt">kredi kartı gerekmez</p><ul>' +
-      '<li>Ayda <b>4</b> belge özeti (25 sayfaya kadar)</li><li>Acadia ile günde <b>10</b> mesaj</li><li>Ayda <b>3</b> sunum, 1’i web araştırmalı</li><li>Ayda <b>4</b> sınav</li><li>Kaynak gösterme ve doğrulama</li><li>Bilgi kartları, planlayıcı, defter: sınırsız</li><li class="no">Prova koçunun Acadia yorumu</li></ul></article>' +
+      '<li>Ayda <b>4</b> belge özeti (25 sayfaya kadar)</li><li>Ayda <b>150</b> Acadia mesajı (günde en fazla 10)</li><li>Ayda <b>3</b> sunum, 1’i web araştırmalı</li><li>Ayda <b>4</b> sınav</li><li>Kaynak gösterme ve doğrulama</li><li>Bilgi kartları, planlayıcı, defter: sınırsız</li><li class="no">Prova koçunun Acadia yorumu</li></ul></article>' +
     '<article class="pkd-c"><h3>Lite</h3><p class="who">düzenli ders çalışanlar için</p><p class="pkd-price"><b>119 TL</b><span>/ ay</span></p><p class="pkd-alt">dönemlik 419 TL · yıllık 1.069 TL</p><ul>' +
       '<li>Ayda <b>20</b> belge özeti (60 sayfaya kadar)</li><li>Ayda <b>600</b> Acadia mesajı</li><li>Ayda <b>15</b> sunum, 10’u web araştırmalı</li><li>Ayda <b>20</b> sınav</li><li>Prova koçu + ayda 5 Acadia yorumu</li><li>Notsuz PDF ve PowerPoint, sınırsız paylaşım</li><li><b>2 GB</b> dosya alanı</li></ul></article>' +
-    '<article class="pkd-c cur"><span class="rib">ŞU AN SENDE</span><h3>Premium</h3><p class="who">yoğun dönem, proje ve tez için</p><p class="pkd-price"><b>229 TL</b><span>/ ay</span></p><p class="pkd-alt">dönemlik 799 TL · yıllık 1.949 TL</p><ul>' +
-      '<li>Ayda <b>60</b> belge özeti (150 sayfaya kadar)</li><li>Ayda <b>1.500</b> Acadia mesajı</li><li>Ayda <b>40</b> sunum, 30’u web araştırmalı</li><li>Sınırsız sınav</li><li>Sınırsız prova yorumu</li><li>Sınav haftasında <b>öncelikli sıra</b></li><li><b>10 GB</b> dosya alanı</li></ul></article>' +
+    '<article class="pkd-c cur"><span class="rib">ŞU AN SENDE</span><h3>Premium</h3><p class="who">yoğun dönem, proje ve tez için</p><p class="pkd-price"><b>229 TL</b><span>/ ay</span></p><p class="pkd-alt">dönemlik 799 TL · yıllık 2.049 TL</p><ul>' +
+      '<li>Ayda <b>50</b> belge özeti (150 sayfaya kadar)</li><li>Ayda <b>900</b> Acadia mesajı</li><li>Ayda <b>40</b> sunum, 25’i web araştırmalı</li><li>Ayda <b>60</b> sınav</li><li>Ayda <b>30</b> prova yorumu</li><li>Sınav haftasında <b>öncelikli sıra</b></li><li><b>10 GB</b> dosya alanı</li></ul></article>' +
     '</div>';
 
   var veil = document.createElement('div'); veil.className = 'pkd-veil';
