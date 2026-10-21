@@ -7804,6 +7804,37 @@ function cancelExam() {
 }
 window.cancelExam = cancelExam;
 
+/** Cevapları doğrudan sayfadan okur. Her soru için name="answer-q-<id>"
+ *  alanı aranır; hem soru motoru hem acadex-ink alanları böyle adlandırdığı
+ *  için iki sınav ekranında da çalışır. Soru id'leri sayı olduğundan
+ *  seçicide kaçış gerekmiyor. */
+function readExamAnswersFromDom(exam) {
+  const answers = {};
+  ((exam && exam.questions) || []).forEach(q => {
+    const name = `answer-q-${q.id}`;
+    if (q.type === 'multiple_choice' || q.type === 'true_false') {
+      const selected = document.querySelector(`input[name="${name}"]:checked`);
+      answers[q.id] = selected ? selected.value : '';
+    } else {
+      const input = document.querySelector(`[name="${name}"]`);
+      answers[q.id] = input ? input.value : '';
+    }
+  });
+  return answers;
+}
+
+/** İşaretli sorular (question_attempts.flagged için). acadex-ink her sorunun
+ *  bölümüne aria-pressed taşıyan bir [data-flag] düğmesi koyuyor. */
+function readExamFlagsFromDom(exam) {
+  const flags = [];
+  ((exam && exam.questions) || []).forEach((q, i) => {
+    const section = document.querySelector(`[data-qi="${i}"]`);
+    const btn = section && section.querySelector('[data-flag]');
+    if (btn && btn.getAttribute('aria-pressed') === 'true') flags.push(String(q.id));
+  });
+  return flags;
+}
+
 async function submitExam(opts = {}) {
   if (!currentActiveExam) return;
 
@@ -7823,9 +7854,19 @@ async function submitExam(opts = {}) {
     }
   }
 
-  // Cevaplar motorun kendisinden (soru tipi kayıtları okur).
-  const answers = E && E.isActive() ? E.collectAnswers() : {};
-  const flags = E && E.isActive() ? E.getFlags() : [];
+  // Cevaplar: soru motoru açıksa ondan, değilse doğrudan sayfadaki
+  // alanlardan okunur.
+  //
+  // İKİNCİ YOL ŞART (21.10.2026'da bulunan hata): js/acadex-ink.js bu
+  // dosyadan SONRA yükleniyor ve startActiveExam'in üzerine yazıp sınavı
+  // kendi "kitapçık" ekranıyla çiziyor — yani motor hiç mount edilmiyor.
+  // Burada yalnızca motordan okunduğu sürece gönderilen cevap paketi boş
+  // ({}) kalıyordu ve öğrenci her soruyu doğru işaretlese bile sonuç
+  // "boş bıraktın / 0" çıkıyordu. Ink kendi alanlarını da answer-q-<id>
+  // diye adlandırdığı için sayfadan okumak iki ekranda da çalışır.
+  const engineActive = !!(E && E.isActive());
+  const answers = engineActive ? E.collectAnswers() : readExamAnswersFromDom(currentActiveExam);
+  const flags = engineActive ? E.getFlags() : readExamFlagsFromDom(currentActiveExam);
 
   const originalText = btn.textContent;
   btn.disabled = true;
