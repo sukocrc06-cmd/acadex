@@ -106,8 +106,37 @@
     '#home-view .band.axm .band-l>.eyb,#home-view .band.axm .band-l>.date{color:var(--a-txts)!important}',
     '#home-view .band.axm .band-l .hint{text-shadow:0 1px 10px rgba(4,8,30,.8),0 0 2px rgba(4,8,30,.8)}',
     '#home-view .band.axm .go-row .ghost{color:#FFF6EA!important;text-shadow:0 1px 4px rgba(40,20,0,.55)}',
-    /* seri paneli: pencerenin önünde buzlu cam */
-    '#home-view .band.axm>.band-r{align-self:start;background:rgba(10,18,56,.62);-webkit-backdrop-filter:blur(14px) saturate(1.2);backdrop-filter:blur(14px) saturate(1.2);border:1px solid rgba(255,255,255,.14);border-radius:18px;padding:18px 20px;box-shadow:0 18px 40px rgba(5,10,40,.35),inset 0 1px 0 rgba(255,255,255,.12)}',
+    /* seri paneli: duvar takvimi (spiralli, kırmızı başlıklı kâğıt) */
+    '#home-view.axd .band.axm>.band-r{align-self:start;position:relative;background:linear-gradient(#FFFDF7,#F6F0E2);color:#1F2A4D;border:0;border-radius:3px 3px 6px 6px;padding:50px 24px 16px;transform:rotate(1.1deg);transform-origin:50% 0;-webkit-backdrop-filter:none;backdrop-filter:none;',
+    'box-shadow:0 1px 0 #E8E1D2,0 3px 0 #F3EEE2,0 4px 0 #E1D8C6,0 6px 0 #F1EBDD,0 7px 0 #DCD2BE,0 26px 44px rgba(8,12,40,.38);transition:transform .5s cubic-bezier(.3,1.4,.5,1)}',
+    '#home-view.axd .band.axm>.band-r:hover{transform:rotate(.4deg)}',
+    '#home-view.axd .band.axm>.band-r::before{content:attr(data-am-month);position:absolute;left:0;right:0;top:0;height:34px;border-radius:3px 3px 0 0;background:radial-gradient(circle,#7E241C 0 3px,transparent 3.6px) 11px 6px/22px 10px repeat-x,linear-gradient(#D24B3C,#B93A2E);color:#fff;font:700 12px/40px "JetBrains Mono",monospace;letter-spacing:.32em;text-align:center;text-indent:.32em}',
+    '#home-view.axd .band.axm>.band-r::after{content:"";position:absolute;left:14px;right:14px;top:-9px;height:20px;pointer-events:none;background:repeating-linear-gradient(90deg,transparent 0 6px,#5A5F78 6px 7px,#C9CEDB 7px 9px,#4A4F66 9px 10px,transparent 10px 22px);-webkit-mask:linear-gradient(#000 0 75%,transparent);mask:linear-gradient(#000 0 75%,transparent)}',
+    '#home-view.axd .band.axm .band-r .hd-l{color:#1F2A4D}',
+    '#home-view.axd .band.axm .band-r .hd-l small{color:#9A8F7A}',
+    '#home-view.axd .band.axm .band-r .cal{gap:0;border-top:1px solid #E4DCCB;border-left:1px solid #E4DCCB}',
+    '#home-view.axd .band.axm .band-r .cal span{color:#9A8F7A;padding:4px 0;border-right:1px solid #E4DCCB;border-bottom:1px solid #E4DCCB;background:#F3ECDD}',
+    '#home-view.axd .band.axm .band-r .cal i{border:0;border-right:1px solid #E4DCCB;border-bottom:1px solid #E4DCCB;border-radius:0;background:transparent;color:#3A3F58;font-family:"JetBrains Mono",monospace;font-size:11px}',
+    '#home-view.axd .band.axm .band-r .cal i[style*=hidden]{visibility:visible!important;color:transparent;background:repeating-linear-gradient(135deg,transparent 0 5px,rgba(154,143,122,.12) 5px 6px)}',
+    '#home-view.axd .band.axm .band-r .cal i.today-c{color:#2F6BFF;font-weight:700;box-shadow:inset 0 0 0 2px #2F6BFF;border-radius:48% 52% 46% 54%/54% 46% 54% 46%}',
+    '#home-view.axd .band.axm .band-r .cal i svg{stroke:#C9483B}',
+    '@supports selector(:has(a)){#home-view.axd .band.axm .band-r .cal i:has(svg) svg{display:none}',
+    '#home-view.axd .band.axm .band-r .cal i:has(svg)::before,#home-view.axd .band.axm .band-r .cal i:has(svg)::after{content:"";position:absolute;left:16%;right:16%;top:50%;height:2.6px;margin-top:-1.3px;border-radius:2px;background:#C9483B;opacity:.9;transform:rotate(40deg) scaleX(0);animation:amX .35s cubic-bezier(.3,1.2,.5,1) .4s forwards}',
+    '#home-view.axd .band.axm .band-r .cal i:has(svg)::after{transform:rotate(-36deg) scaleX(0);animation-name:amX2;animation-delay:.6s}}',
+    '@keyframes amX{to{transform:rotate(40deg) scaleX(1)}}@keyframes amX2{to{transform:rotate(-36deg) scaleX(1)}}',
+    '#home-view.axd .band.axm .band-r .goal-d .ring .seg.off{stroke:#DCD3C0}',
+    '#home-view.axd .band.axm .band-r .goal-d .ring .seg.on{stroke:#C9483B}',
+    '#home-view.axd .band.axm .band-r .goal-d .ring text{fill:#1F2A4D}',
+    '#home-view.axd .band.axm .band-r .goal-d .goal-t .hand,#home-view.axd .band.axm .band-r .goal-d .goal-pick .hand{color:#1F2A4D}',
+    '#home-view.axd .band.axm .band-r .goal-d .goal-t small{color:#8E8571}',
+    '#home-view.axd .band.axm .band-r .goal-d .g-ch{color:#2F6BFF;text-decoration-color:#9DB8FF}',
+    '#home-view.axd .band.axm .band-r .goal-d .goal-pick button{color:#1F2A4D;border-color:#CFC6B2!important;background:transparent}',
+    '#home-view.axd .band.axm .band-r .goal-d .goal-pick button:hover,#home-view.axd .band.axm .band-r .goal-d .goal-pick button:focus-visible{border-color:#2F6BFF!important;color:#2F6BFF;background:rgba(47,107,255,.07)}',
+    '#home-view.axd .band.axm .band-r .streak-note{color:#4A4F66}',
+    '#home-view.axd .band.axm .band-r .streak-note b{color:#1F2A4D}',
+    '#home-view.axd .band.axm .band-r .tally svg{color:#C9483B}',
+    '#home-view.axd .band.axm .band-r .memo-b{color:#2F6BFF}',
+    '#home-view.axd .band.axm .band-r .tour{color:#6B6F82;text-decoration-color:#C9483B}',
     /* şehir seçici */
     '.am-pick{position:relative;display:inline-block;margin-top:4px;z-index:5}',
     '.am-pick>button{display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(255,255,255,.35);background:rgba(10,18,56,.35);color:#fff;border-radius:999px;padding:4px 12px 4px 9px;font:600 13px/1.4 "Instrument Sans",system-ui,sans-serif;cursor:pointer;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}',
@@ -120,6 +149,7 @@
     '.am-pick li button:hover{background:#EEF3FF}.am-pick li button[aria-current=true]{background:#0D1838;color:#fff}',
     /* koyu mod: sayfa ters çevrilir, bant aynı kalsın */
     'html.ax-dark #home-view .band.axm{filter:invert(1) hue-rotate(180deg)}',
+    '@media (max-width:760px){#home-view .band.axm .band-l>.am-pick{margin-bottom:64px}}',
     '@media (prefers-reduced-motion:reduce){.am-scene *{animation:none!important;transition:none!important}}'
   ].join('\n');
 
@@ -407,7 +437,7 @@
       '<path d="M66 50 C80 48 82 62 76 70 C72 76 66 77 63 76" fill="none" stroke="#24356F" stroke-width="6"/><path d="M12 38 L68 38 L64 90 C64 94 60 96 56 96 L24 96 C20 96 16 94 16 90 Z" fill="#2B3F82"/>' +
       '<path d="M14 40 L22 40 L24 94 C20 94 17 92 17 89 Z" fill="#fff" opacity=".12"/><path d="M58 40 L67 40 L63 90 C63 93 61 95 58 95 Z" fill="#000" opacity=".18"/><path d="M18 46 L66 46" stroke="#9DB8FF" stroke-width="2" opacity=".6"/>' +
       '<ellipse cx="40" cy="38" rx="28" ry="5" fill="#3E2416"/><ellipse cx="40" cy="38" rx="28" ry="5" fill="none" stroke="#3C55A3" stroke-width="2"/>' +
-      '<text x="40" y="76" text-anchor="middle" font-family="Bricolage Grotesque,sans-serif" font-weight="800" font-size="18" fill="#9DB8FF">A</text></svg></div>' +
+      '<text x="40" y="76" text-anchor="middle" font-family="Bricolage Grotesque,sans-serif" font-weight="800" font-size="20" fill="#9DB8FF" class="am-ini">A</text></svg></div>' +
       '<i class="am-screen"></i></div>';
   }
 
@@ -508,6 +538,17 @@
     var stars = scene.querySelector('.am-stars'); seed = 20261021;
     for (var i = 0; i < 110; i++) { var c = document.createElementNS(NS, 'circle'); c.setAttribute('cx', (R() * 1600).toFixed(0)); c.setAttribute('cy', (R() * 380).toFixed(0)); c.setAttribute('r', (R() * 1.3 + .4).toFixed(1)); c.style.animationDelay = (-R() * 4).toFixed(2) + 's'; stars.appendChild(c); }
     picker();
+    // takvim başlığı: ay ve yıl
+    var br = band.querySelector('.band-r'), nowD = new Date();
+    if (br) br.setAttribute('data-am-month', nowD.toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' }).toLocaleUpperCase('tr'));
+    // kupadaki baş harf: selamdaki ad ("iyi çalışmalar, Suko" → S)
+    var ini = scene.querySelector('.am-ini'), gr = band.querySelector('[data-greet]');
+    var setIni = function () {
+      var t = gr ? gr.textContent : '', n = t.indexOf(',') > -1 ? t.split(',').pop().trim() : '';
+      var ch = n ? n.charAt(0).toLocaleUpperCase('tr') : 'A';
+      if (ini.textContent !== ch) ini.textContent = ch;
+    };
+    setIni(); if (gr && 'MutationObserver' in window) new MutationObserver(setIni).observe(gr, { childList: true, characterData: true, subtree: true });
     setCity(store.get('axm-city') || 'ankara', false);
     layout(); parallax();
     if ('ResizeObserver' in window) { var ro = new ResizeObserver(function () { layout(); }); ro.observe(band); var bl = band.querySelector('.band-l'); bl && ro.observe(bl); }
