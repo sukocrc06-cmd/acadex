@@ -4107,6 +4107,33 @@ body.axs-hall-on #pomodoro-widget-container,body.axs-hall-on #acadia-widget-cont
 :is(#exams-view.axs,#axs-layer) .sn-reading p{font-family:'Caveat',cursive;font-size:24px;color:#4B5675;margin:0}
 @media (prefers-reduced-motion: no-preference){:is(#exams-view.axs,#axs-layer) .sn-reading path{stroke-dasharray:1;stroke-dashoffset:1;animation:axs-snDraw 1.4s ease-in-out infinite}}
 :is(#exams-view.axs,#axs-layer) .sn-ri .fb{margin:4px 0 0;padding:8px 10px;background:#F7F8FB;border-left:3px solid #C9D1E1;font-size:13px;line-height:1.5;color:#4B5675}
+/* FAZ 2 (21.10.2026): sonuç kâğıdında neden / seçtiğin şık / rubrik / kaynak */
+:is(#exams-view.axs,#axs-layer) .sn-why,:is(#exams-view.axs,#axs-layer) .sn-mine,:is(#exams-view.axs,#axs-layer) .sn-src{margin:6px 0 0;font-size:13.5px;line-height:1.5;color:var(--ink)}
+:is(#exams-view.axs,#axs-layer) .sn-why b,:is(#exams-view.axs,#axs-layer) .sn-mine b,:is(#exams-view.axs,#axs-layer) .sn-src b,:is(#exams-view.axs,#axs-layer) .sn-rubr>b{font-family:"JetBrains Mono",monospace;font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-right:6px}
+:is(#exams-view.axs,#axs-layer) .sn-why b{color:var(--green)}
+:is(#exams-view.axs,#axs-layer) .sn-mine{padding:6px 10px;background:#FFF4F1;border-left:3px solid var(--red)}
+:is(#exams-view.axs,#axs-layer) .sn-mine b{color:var(--red)}
+:is(#exams-view.axs,#axs-layer) .sn-src{color:var(--muted)}
+:is(#exams-view.axs,#axs-layer) .sn-src b{color:var(--blue)}
+:is(#exams-view.axs,#axs-layer) .sn-src q{font-style:italic;color:var(--ink)}
+:is(#exams-view.axs,#axs-layer) .sn-optwhy{margin:6px 0 0;font-size:13px}
+:is(#exams-view.axs,#axs-layer) .sn-optwhy summary{cursor:pointer;color:var(--blue);font-weight:600;width:max-content;max-width:100%}
+:is(#exams-view.axs,#axs-layer) .sn-optwhy ul{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:4px}
+:is(#exams-view.axs,#axs-layer) .sn-optwhy li{display:flex;gap:8px;line-height:1.45;color:var(--muted)}
+:is(#exams-view.axs,#axs-layer) .sn-optwhy li.ok{color:var(--green)}
+:is(#exams-view.axs,#axs-layer) .sn-optwhy .l{flex:none;width:20px;height:20px;border-radius:50%;border:1.3px solid currentColor;display:inline-grid;place-items:center;font-family:"JetBrains Mono",monospace;font-size:10.5px}
+:is(#exams-view.axs,#axs-layer) .sn-rubr{margin:8px 0 0;font-size:13px}
+:is(#exams-view.axs,#axs-layer) .sn-rubr>b{color:var(--ink)}
+:is(#exams-view.axs,#axs-layer) .sn-rubr ul{list-style:none;margin:6px 0 0;padding:0;border-top:1px solid #E4E8F1}
+:is(#exams-view.axs,#axs-layer) .sn-rubr li{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:4px 12px;align-items:baseline;padding:6px 0;border-bottom:1px solid #E4E8F1}
+:is(#exams-view.axs,#axs-layer) .sn-rubr .c{color:var(--ink);line-height:1.4}
+:is(#exams-view.axs,#axs-layer) .sn-rubr .c small{display:block;margin-top:2px;font-size:11.5px;color:var(--soft)}
+:is(#exams-view.axs,#axs-layer) .sn-rubr .v{font-family:"Caveat",cursive;font-weight:700;font-size:18px}
+:is(#exams-view.axs,#axs-layer) .sn-rubr li.ok .v{color:var(--green)}
+:is(#exams-view.axs,#axs-layer) .sn-rubr li.half .v{color:#B47A1F}
+:is(#exams-view.axs,#axs-layer) .sn-rubr li.no .v{color:var(--red)}
+:is(#exams-view.axs,#axs-layer) .sn-rubr .p{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:var(--muted);white-space:nowrap}
+@media (max-width:560px){:is(#exams-view.axs,#axs-layer) .sn-rubr li{grid-template-columns:minmax(0,1fr) auto}:is(#exams-view.axs,#axs-layer) .sn-rubr .p{grid-column:2}}
 :is(#exams-view.axs,#axs-layer) .sn-ri .cpt{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.06em;color:#6A7593;margin-left:6px}
 :is(#exams-view.axs,#axs-layer) .sn-model ol{margin:4px 0 0;padding-left:20px}
 @media (max-width:760px){:is(#exams-view.axs,#axs-layer) .axs-types{grid-template-columns:repeat(2,minmax(0,1fr))}:is(#exams-view.axs,#axs-layer) .axs-types.three{grid-template-columns:repeat(3,minmax(0,1fr))}:is(#exams-view.axs,#axs-layer) .sn-f3{grid-template-columns:minmax(0,1fr)}:is(#exams-view.axs,#axs-layer) .sn-hall-top{flex-wrap:wrap;padding:8px 12px;gap:8px}:is(#exams-view.axs,#axs-layer) .sn-hall-main{padding:10px;gap:10px}:is(#exams-view.axs,#axs-layer) .sn-book{padding:22px 16px 18px 26px}:is(#exams-view.axs,#axs-layer) .sn-paper{padding:22px 16px 22px 40px}:is(#exams-view.axs,#axs-layer) .sn-paper::before{left:22px}:is(#exams-view.axs,#axs-layer) .sn-ri .mk{left:-36px;width:28px;height:28px}:is(#exams-view.axs,#axs-layer) .sn-atts li{grid-template-columns:minmax(0,1fr) 60px}:is(#exams-view.axs,#axs-layer) .sn-atts .dt,:is(#exams-view.axs,#axs-layer) .sn-atts .du{display:none}}

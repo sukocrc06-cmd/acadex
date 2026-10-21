@@ -25,7 +25,9 @@ const GRADE_PATH = 'supabase/functions/grade-exam/index.ts';
 
 const G = loadFromSource(GEN_PATH, [
   'TRUE_FALSE_OPTIONS', 'KEY_FIELDS',
+  'EXPLANATION_MAX_CHARS', 'RATIONALE_MAX_CHARS', 'RUBRIC_MIN_ITEMS', 'RUBRIC_MAX_ITEMS',
   'parseQuestionArray', 'normalizeAnswerText', 'parseLooseNumber',
+  'cleanText', 'normalizeOptionRationales', 'normalizeRubric',
   'allowedTypesFor', 'validateQuestion', 'shuffleInPlace', 'splitPublicAndKey'
 ]);
 const R = loadFromSource(GRADE_PATH, [
@@ -33,7 +35,7 @@ const R = loadFromSource(GRADE_PATH, [
   'normalizeAnswerText', 'foldTurkish', 'parseLooseNumber',
   'checkSubmissionWindow', 'mergeQuestionWithKey',
   'gradeChoice', 'gradeFillBlank', 'gradeCalculation',
-  'parseGradesResponse', 'computeFinalGrade', 'buildAttemptRows'
+  'parseCriteria', 'parseGradesResponse', 'computeFinalGrade', 'buildAttemptRows'
 ]);
 
 const { test, summary } = makeRunner();
@@ -141,8 +143,8 @@ test('simulasyon olmayan ya da started_at i olmayan eski sinav sure kontrolune t
 // Puanlayıcı yanıtı ve not hesabı
 // ---------------------------------------------------------------------------
 test('parseGradesResponse: nesne, dizi, kod blogu; puan 0-100 araligina kistirilir', () => {
-  assert.deepEqual(R.parseGradesResponse('{"grades":[{"question_id":1,"score":80,"feedback":"iyi"}]}'), [{ question_id: 1, score: 80, feedback: 'iyi' }]);
-  assert.deepEqual(R.parseGradesResponse('```json\n[{"question_id":"2","score":140,"feedback":"x"}]\n```'), [{ question_id: 2, score: 100, feedback: 'x' }]);
+  assert.deepEqual(R.parseGradesResponse('{"grades":[{"question_id":1,"score":80,"feedback":"iyi"}]}'), [{ question_id: 1, score: 80, feedback: 'iyi', criteria: null }]);
+  assert.deepEqual(R.parseGradesResponse('```json\n[{"question_id":"2","score":140,"feedback":"x"}]\n```'), [{ question_id: 2, score: 100, feedback: 'x', criteria: null }]);
   assert.equal(R.parseGradesResponse('bozuk'), null);
   assert.deepEqual(R.parseGradesResponse('{"grades":[{"question_id":1}]}'), []);
 });

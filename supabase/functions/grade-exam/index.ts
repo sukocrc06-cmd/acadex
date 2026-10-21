@@ -15,16 +15,24 @@ const corsHeaders = {
 // calls to this function at all. The per-request specifics (language,
 // how many questions) move into the user message below.
 const STATIC_GRADING_INSTRUCTIONS = `
-You are an academic grader. You will be given a list of open-ended questions, their correct/sample reference answers, and the student's submitted answers.
-Your task is to grade each answer out of 100 based on accuracy, depth, and relevance.
+You are an academic grader. You will be given a list of open-ended questions, their correct/sample reference answers, and the student's submitted answers. Some questions also carry a "rubric": a numbered list of criteria a full-marks answer must satisfy.
+
+HOW TO GRADE:
+- If a question has a rubric, judge EACH criterion separately and independently, in order, as one of:
+  "met" (the answer clearly and correctly covers it), "partial" (touches it but incompletely or with an error), "missing" (absent or wrong).
+  Judge only what the student actually wrote; do not reward length, confidence or repetition. A criterion is not "met" because the reference answer mentions it — the student's answer must.
+  Give each criterion a short "note" (max 15 words) quoting or pointing to the part of the student's answer that decided it.
+  Also give "score": your overall 0-100 estimate (used only if the criteria cannot be read).
+- If a question has no rubric, grade it out of 100 on accuracy, depth and relevance against the reference answer.
 
 RESPONSE FORMAT:
 You must respond with ONLY a valid JSON object of the form {"grades": [ ... ]}, with no markdown code fences (do NOT use \`\`\`json or similar), no introductory or concluding text, and no conversational commentary.
 The "grades" array must contain exactly one object per question given to you in the user message, each matching this JSON schema:
 {
   "question_id": number,
+  "criteria": [{"index": number (1-based, as given), "verdict": "met" | "partial" | "missing", "note": "string"}] | null (null when the question has no rubric),
   "score": number (0 to 100),
-  "feedback": "string (a short 1-2 sentence explanation of why they received this score and what was correct or missing)"
+  "feedback": "string (1-2 sentences for the student: what was good and the single most important thing missing)"
 }
 `.trim()
 
@@ -165,7 +173,10 @@ function gradeCalculation(studentAns: unknown, correctAns: unknown, tolerancePer
 }
 
 /** Puanlayıcı yanıtını ayrıştırır: {"grades":[...]} veya düz dizi. */
-function parseGradesResponse(raw: string): Array<{ question_id: number; score: number; feedback: string }> | null {
+type CriterionVerdict = { index: number; verdict: 'met' | 'partial' | 'missing'; note: string }
+type ParsedGrade = { question_id: number; score: number; feedback: string; criteria: CriterionVerdict[] | null }
+
+function parseGradesResponse(raw: string): ParsedGrade[] | null {
   const cleaned = String(raw || '').replace(/```json\s*|```/g, '').trim()
   let parsed: unknown
   try {
@@ -179,15 +190,81 @@ function parseGradesResponse(raw: string): Array<{ question_id: number; score: n
     list = Array.isArray(obj.grades) ? obj.grades : Object.values(obj).find(v => Array.isArray(v))
   }
   if (!Array.isArray(list)) return null
-  const out: Array<{ question_id: number; score: number; feedback: string }> = []
+  const out: ParsedGrade[] = []
   for (const item of list) {
     if (!item || typeof item !== 'object') continue
     const g = item as Record<string, unknown>
     const id = Number(g.question_id)
     const score = Number(g.score)
-    if (!Number.isFinite(id) || !Number.isFinite(score)) continue
-    out.push({ question_id: id, score: Math.max(0, Math.min(100, Math.round(score))), feedback: String(g.feedback ?? '') })
+    const criteria = parseCriteria(g.criteria)
+    if (!Number.isFinite(id) || (!Number.isFinite(score) && !criteria)) continue
+    out.push({
+      question_id: id,
+      score: Number.isFinite(score) ? Math.max(0, Math.min(100, Math.round(score))) : NaN,
+      feedback: String(g.feedback ?? ''),
+      criteria
+    })
   }
+  return out
+}
+
+/** Modelin madde kararları. Tanınmayan karar atlanır. */
+function parseCriteria(raw: unknown): CriterionVerdict[] | null {
+  if (!Array.isArray(raw)) return null
+  const out: CriterionVerdict[] = []
+  raw.forEach((c, i) => {
+    if (!c || typeof c !== 'object') return
+    const rec = c as Record<string, unknown>
+    const v = String(rec.verdict ?? '').trim().toLowerCase()
+    const verdict = v === 'met' || v === 'partial' || v === 'missing' ? v : null
+    if (!verdict) return
+    const idx = Number(rec.index)
+    out.push({ index: Number.isInteger(idx) && idx > 0 ? idx : i + 1, verdict, note: String(rec.note ?? '').trim().slice(0, 200) })
+  })
+  return out.length ? out : null
+}
+
+// ==========================================================================
+// FAZ 2 — RUBRİKLE PUANLAMA (21.10.2026)
+//
+// Klasik soruda puanı artık model "uydurmuyor": soru üretilirken yazılan
+// 3–5 maddelik rubriğin her maddesi için model yalnızca karar veriyor
+// (karşılandı / kısmen / eksik), puan burada koddan hesaplanıyor. Ayrık
+// kararlar + temperature 0 aynı cevabın iki puanlaması arasındaki farkı
+// küçük tutuyor (yol haritası kontrolü: fark 10 puanı geçmemeli).
+// Rubriği olmayan (eski) soru eskisi gibi bütüncül puanlanır.
+// ==========================================================================
+const VERDICT_SHARE: Record<string, number> = { met: 1, partial: 0.5, missing: 0 }
+
+type RubricItem = { criterion: string; points: number }
+type RubricResult = { criterion: string; points: number; verdict: 'met' | 'partial' | 'missing'; earned: number; note: string }
+
+/** Rubrik + madde kararları → puan ve madde madde döküm. Her madde için
+ *  karar yoksa null (çağıran bütüncül puana döner). */
+function scoreFromRubric(rubric: RubricItem[], criteria: CriterionVerdict[] | null): { score: number; items: RubricResult[] } | null {
+  if (!Array.isArray(rubric) || rubric.length === 0 || !criteria) return null
+  const byIndex = new Map<number, CriterionVerdict>()
+  for (const c of criteria) if (!byIndex.has(c.index)) byIndex.set(c.index, c)
+  const items: RubricResult[] = []
+  for (let i = 0; i < rubric.length; i++) {
+    const c = byIndex.get(i + 1)
+    if (!c) return null
+    const points = Number(rubric[i].points) || 0
+    const earned = Math.round(points * VERDICT_SHARE[c.verdict] * 10) / 10
+    items.push({ criterion: rubric[i].criterion, points, verdict: c.verdict, earned, note: c.note })
+  }
+  const total = rubric.reduce((a, r) => a + (Number(r.points) || 0), 0) || 100
+  const earnedSum = items.reduce((a, it) => a + it.earned, 0)
+  return { score: Math.max(0, Math.min(100, Math.round(earnedSum * 100 / total))), items }
+}
+
+/** Sonuç kâğıdına giden öğretici alanlar (anahtardan; sınav tamamlandığı
+ *  için artık gösterilebilir). */
+function teachingFields(q: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  if (typeof q.explanation === 'string' && q.explanation) out.explanation = q.explanation
+  if (q.option_rationales && typeof q.option_rationales === 'object') out.option_rationales = q.option_rationales
+  if (q.source && typeof q.source === 'object') out.source = q.source
   return out
 }
 
@@ -309,7 +386,7 @@ serve(async (req) => {
 
     type Result = Record<string, unknown> & { question_id: number; score: number | null }
     const results: Result[] = []
-    const classicToGrade: Array<{ id: number; question: string; correct_answer: string; student_answer: string; concept: string | null }> = []
+    const classicToGrade: Array<{ id: number; question: string; correct_answer: string; student_answer: string; concept: string | null; rubric: RubricItem[] | null; teach: Record<string, unknown> }> = []
 
     for (const q of questions) {
       const qid = Number(q.id)
@@ -322,6 +399,7 @@ serve(async (req) => {
         options: q.options ?? null,
         concept: q.concept || null,
         student_answer: studentAns,
+        ...teachingFields(q),
       }
 
       if (q.type === 'multiple_choice' || q.type === 'true_false') {
@@ -397,6 +475,7 @@ serve(async (req) => {
             correct_answer: correctAns,
             is_correct: false,
             score: 0,
+            rubric_results: Array.isArray(q.rubric) ? (q.rubric as RubricItem[]).map(r => ({ criterion: r.criterion, points: r.points, verdict: 'missing', earned: 0, note: '' })) : null,
             feedback: isTr ? "Bu soruya herhangi bir cevap verilmedi." : "No answer was provided for this question."
           })
         } else {
@@ -405,7 +484,9 @@ serve(async (req) => {
             question: String(q.question ?? ''),
             correct_answer: correctAns,
             student_answer: studentAns,
-            concept: (q.concept as string) || null
+            concept: (q.concept as string) || null,
+            rubric: Array.isArray(q.rubric) && q.rubric.length ? (q.rubric as RubricItem[]) : null,
+            teach: teachingFields(q)
           })
         }
       }
@@ -424,7 +505,13 @@ serve(async (req) => {
         // grading call app-wide, not just repeats from the same student.
         const gradingUserPrompt = `Write the grading feedback strictly in the requested language: '${language}' (en = English, tr = Turkish).
 Grade exactly these ${batch.length} question(s):
-${JSON.stringify(batch)}`
+${JSON.stringify(batch.map(c => ({
+  question_id: c.id,
+  question: c.question,
+  reference_answer: c.correct_answer,
+  rubric: c.rubric ? c.rubric.map((r, i) => ({ index: i + 1, criterion: r.criterion, points: r.points })) : null,
+  student_answer: c.student_answer
+})))}`
         const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -436,7 +523,8 @@ ${JSON.stringify(batch)}`
             // grading call was failing with a decommissioned-model error, so
             // submitted exams could never actually be graded.
             model: "openai/gpt-oss-120b",
-            temperature: 0.2,
+            // FAZ 2: 0 — aynı cevap iki kez gönderilse aynı kararlar çıksın.
+            temperature: 0,
             response_format: { type: "json_object" },
             messages: [
               { role: "system", content: STATIC_GRADING_INSTRUCTIONS },
@@ -454,11 +542,17 @@ ${JSON.stringify(batch)}`
         return parsed
       }
 
-      const graded = new Map<number, { score: number; feedback: string }>()
-      const absorb = (list: Array<{ question_id: number; score: number; feedback: string }> | null) => {
+      const graded = new Map<number, { score: number; feedback: string; rubric_results: RubricResult[] | null }>()
+      const absorb = (list: ParsedGrade[] | null) => {
         for (const g of list || []) {
-          if (classicToGrade.some(c => c.id === g.question_id) && !graded.has(g.question_id)) {
-            graded.set(g.question_id, { score: g.score, feedback: g.feedback })
+          const c = classicToGrade.find(x => x.id === g.question_id)
+          if (!c || graded.has(g.question_id)) continue
+          const fromRubric = c.rubric ? scoreFromRubric(c.rubric, g.criteria) : null
+          if (fromRubric) {
+            graded.set(g.question_id, { score: fromRubric.score, feedback: g.feedback, rubric_results: fromRubric.items })
+          } else if (Number.isFinite(g.score)) {
+            if (c.rubric) console.warn(`grade-exam: soru ${g.question_id} icin rubrik kararlari eksik, butuncul puan kullanildi`)
+            graded.set(g.question_id, { score: g.score, feedback: g.feedback, rubric_results: null })
           }
         }
       }
@@ -480,6 +574,8 @@ ${JSON.stringify(batch)}`
           concept: c.concept,
           student_answer: c.student_answer,
           correct_answer: c.correct_answer,
+          ...c.teach,
+          rubric_results: g ? g.rubric_results : null,
           is_correct: g ? g.score >= 50 : null,
           score: g ? g.score : null,
           grading_failed: !g,
