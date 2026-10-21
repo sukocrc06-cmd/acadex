@@ -74,13 +74,73 @@ serve(async (req) => {
       })
     }
 
+    // FAZ 0 (14.10.2026): simülasyonda ipucu kapalı — eskiden yalnızca
+    // arayüz düğmeyi gizliyordu, sunucu yine de ipucu veriyordu. Tamamlanmış
+    // sınavda da ipucunun anlamı yok.
+    const isTrExam = exam.language === 'tr'
+    if (exam.is_simulation) {
+      return new Response(JSON.stringify({ error: isTrExam ? 'Simülasyon modunda ipucu kullanılamaz.' : 'Hints are disabled in simulation mode.' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+    if (exam.completed_at) {
+      return new Response(JSON.stringify({ error: isTrExam ? 'Bu sınav zaten tamamlanmış.' : 'This exam is already completed.' }), {
+        status: 409,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
     const questions = exam.questions || []
-    
+
     // Find the requested question by matching id or index
     const q = questions.find((item: any) => item.id == questionIndex)
     if (!q) {
       return new Response(JSON.stringify({ error: 'Question not found inside this exam' }), {
         status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
+    // Cevap anahtarı tablosu (20261014_exam_integrity.sql) yalnızca service
+    // role ile okunabiliyor. Üretim sırasında yazılmış bir ipucu varsa onu
+    // döndür: Groq çağrısı gerekmez, kota korunur. İpucu kullanımı da
+    // exams.hints_used dizisine kaydedilir (en iyi gayret).
+    const serviceClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
+    const recordHintUse = async () => {
+      try {
+        const used = Array.isArray(exam.hints_used) ? exam.hints_used : []
+        if (used.some((x: unknown) => x == q.id)) return
+        const { error } = await serviceClient
+          .from('exams')
+          .update({ hints_used: [...used, q.id] })
+          .eq('id', exam.id)
+          .is('completed_at', null)
+        if (error) console.warn('get-exam-hint: hints_used yazilamadi (migration calistirildi mi?):', error.message)
+      } catch (e) {
+        console.warn('get-exam-hint: hints_used kaydi basarisiz:', e)
+      }
+    }
+
+    let storedHint = ''
+    try {
+      const { data: keyRow } = await serviceClient
+        .from('exam_answer_keys')
+        .select('keys')
+        .eq('exam_id', exam.id)
+        .maybeSingle()
+      const keyEntry = keyRow?.keys?.[String(q.id)]
+      if (keyEntry && typeof keyEntry.hint === 'string') storedHint = keyEntry.hint.trim()
+    } catch (_e) {
+      // Tablo yoksa LLM yoluna düş.
+    }
+    if (storedHint) {
+      await recordHintUse()
+      return new Response(JSON.stringify({ hint: storedHint }), {
+        status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
@@ -214,6 +274,7 @@ ${q.options ? `OPTIONS: ${JSON.stringify(q.options)}` : ''}
       })
     }
 
+    await recordHintUse()
     return new Response(JSON.stringify({ hint: hintText.trim() }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }

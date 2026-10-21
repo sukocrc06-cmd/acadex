@@ -2868,7 +2868,10 @@ test('pencere tekrar denemesi BUYUK modeli tercih ediyor', () => {
      modele vermek amaci bozuyor. */
   const i = SRC.indexOf('A RETRY PREFERS THE BIG MODEL');
   assert.ok(i > -1, 'tekrar denemesi serit tercihi aciklamasi kaybolmus');
-  const blok = SRC.slice(i, i + 2600);   // aciklama yorumu uzun, kodu da kapsamali
+  /* Pencere 2600 -> 4400: 20.10.2026 de ayni dalin icine "atanan serit
+     bekletiyorsa devret" kontrolu girdi (bkz. PENCERE_DEVIR_ESIGI_MS) ve
+     tekrar-deneme kodunu pencerenin disina itti. Iddialar degismedi. */
+  const blok = SRC.slice(i, i + 4400);   // aciklama yorumu uzun, kodu da kapsamali
   assert.ok(/const heavyWaitMs = tokenPacer\.waitEstimate\(est, MODEL_HEAVY/.test(blok),
     'buyuk seridin beklemesi olculmeli');
   assert.ok(/windowLane = affordHeavy\s*\n?\s*\? MODEL_HEAVY/.test(blok),
@@ -4250,6 +4253,198 @@ test('kucuk dilimin riski ZATEN kapatilmis', () => {
     'yokluk iddiasi suzgeci yok');
   assert.ok(/kaynakIcerigiSiliyor\(find, replace, sourceNorm\)/.test(KAPSAMA_KOD),
     'kaynaktaki icerigi silme kapisi yok');
+});
+
+
+// ==========================================================================
+// ONBELLEGIN IKINCI ANAHTARI: CIKARILAN METNIN HASH'I (20.10.2026)
+//
+// Mevcut anahtar DOSYANIN baytlarini hashliyordu. Ayni sunum yeniden
+// kaydedilmis ya da baska bir araçla taranmissa bayt dizisi degisiyor ve
+// sistem her seyi bastan ozetliyordu — oysa icerik ayni. Ikinci anahtar
+// metni hashliyor: dosya farkli, metin ayniysa isabet ediyor.
+// ==========================================================================
+
+const CACHE = loadFromSource('supabase/functions/summarize-document/index.ts', [
+  'CACHE_METIN_MIN_KRK', 'cacheMetniNormalize'
+]);
+
+test('ayni metnin farkli bicimlenmis hali AYNI anahtari verir', () => {
+  /* Iki tarama arasindaki fark genelde bosluk ve satir sonu: biri
+     sutunlari bosluklarla hizalar, digeri tek bosluk birakir. Metin ayni
+     oldugu halde bayt dizisi farkli olur. */
+  const a = CACHE.cacheMetniNormalize('Dummy   Variables\n\nIntercept  Shift');
+  const b = CACHE.cacheMetniNormalize('dummy variables intercept shift');
+  assert.equal(a, b);
+});
+
+test('normalizasyon ICERIGI degistirmiyor', () => {
+  // Sadece bosluk ve buyuk/kucuk harf. Sayi ya da sembol atilirsa iki
+  // AYRI belge ayni anahtara duser ve yanlis kart dagitilir.
+  const n = CACHE.cacheMetniNormalize('beta_1 = 0.045 ve R^2 = 0.72');
+  assert.ok(n.includes('0.045') && n.includes('0.72') && n.includes('r^2'),
+    'sayi ya da sembol kaybolmus: ' + n);
+  assert.notEqual(
+    CACHE.cacheMetniNormalize('intercept 43.96'),
+    CACHE.cacheMetniNormalize('intercept 40.27'),
+    'farkli sayilar ayni anahtara dusuyor');
+});
+
+test('KISA metin ikinci anahtari KULLANMAZ', () => {
+  /* Bos kapak ya da "Hafta 3" gibi bir sayfada iki ayri belgenin ayni
+     metne sahip olmasi gercek bir ihtimal; yanlis isabet, yavas ozetten
+     cok daha kotu. */
+  assert.ok(CACHE.CACHE_METIN_MIN_KRK >= 300,
+    'esik cok dusuk: ' + CACHE.CACHE_METIN_MIN_KRK);
+  assert.ok(/if \(norm\.length < CACHE_METIN_MIN_KRK\) return null/.test(SRC),
+    'kisa metinde ikinci anahtar yine uretiliyor');
+});
+
+test('arama IKI anahtari birden soruyor', () => {
+  assert.ok(/\.in\('cache_key', anahtarlar\)/.test(SRC),
+    'tek anahtarla aranmaya devam ediyor');
+  assert.ok(/const anahtarlar = metinCacheKey \? \[summaryCacheKey, metinCacheKey\]/.test(SRC),
+    'metin anahtari aramaya katilmiyor');
+});
+
+test('yazma IKI satir birden koyuyor', () => {
+  /* Yalnizca dosya anahtari yazilirsa metin anahtari hicbir zaman isabet
+     etmez: arama onu sorar ama tabloda karsiligi olmaz. */
+  assert.ok(/\[summaryCacheKey, metinCacheKey\]\.filter\(Boolean\)/.test(SRC),
+    'iki anahtar birden yazilmiyor');
+  assert.ok(/\.upsert\(satirlar, \{ onConflict: 'cache_key', ignoreDuplicates: true \}\)/.test(SRC),
+    'carpisma korumasi kalkmis');
+});
+
+test('anahtar AYARLARI tasimaya devam ediyor', () => {
+  /* Dil/stil/uzunluk/gorsel ve surum anahtarin parcasi olmazsa Turkce
+     isteyen ogrenciye Ingilizce kart verilir. */
+  assert.ok(/const ayarlar = \[lang, style, len, analyzeVisuals \? 'v' : 'nv', SUMMARY_CACHE_VERSION\]/.test(SRC),
+    'ayarlar anahtardan dusmus');
+  assert.ok(/metinCacheKey = metinHash \? \['t' \+ metinHash, \.\.\.ayarlar\]/.test(SRC),
+    'metin anahtari ayarlari tasimiyor');
+});
+
+test('hangi anahtarin isabet ettigi LOGLANIYOR', () => {
+  // Metin anahtarinin is gorup gormedigi ancak boyle olculur.
+  assert.ok(/CACHE ISABETI \[\$\{isabetTuru\}\]/.test(SRC), 'isabet turu loglanmiyor');
+  assert.ok(/isabetTuru = .*cache_key === metinCacheKey \? 'METIN' : 'DOSYA'/.test(SRC),
+    'isabet turu metin/dosya ayrimi yapmiyor');
+});
+
+
+// ==========================================================================
+// BILGI YOGUNLUGU: OLCUM MODU (20.10.2026)
+//
+// "Bos seyleri de cikardigina eminim" sikayetinin olculebilir hali. Kapi
+// su an ELEMIYOR: sozcuk duzeyinde bir olcu "dolgu" ile "degerli kavram"i
+// ayiramiyor ve bu repoda yanlis olcuyle elemenin bedeli zaten odendi
+// (grounding kapisi 10.10'da 18 terimin 7'sini atti, hicbiri uydurma
+// degildi). Once olcuyoruz.
+// ==========================================================================
+
+const YOG = loadFromSource('supabase/functions/summarize-document/index.ts', [
+  'ANCHOR_STOPWORDS', 'gateNormalize', 'anchorTerms', 'YOGUNLUK_KAPISI_ELIYOR',
+  'yogunlukIsaretleri', 'applyDensityGate'
+]);
+
+const KAYNAK = 'Dummy variables and interaction terms in multiple linear regression. '
+  + 'The omitted category serves as the baseline. Logarithmic transformations '
+  + 'linearize power-law relationships. The quadratic model has a turning point. '
+  + 'Elasticity measures percentage response.';
+
+test('SAYI tasiyan madde somut sayilir', () => {
+  const i = YOG.yogunlukIsaretleri('A categorical variable with k levels requires k - 1 dummies', new Set());
+  assert.ok(i.includes('sayi'), 'sayi capasi gorulmedi: ' + JSON.stringify(i));
+});
+
+test('ATIF NUMARASI sayi sayilmaz', () => {
+  /* Her madde [4] ya da [21, 22] tasiyor. Bunlar sayi sayilsaydi hicbir
+     madde dolgu adayi olmazdi ve olcum hep sifir cikardi. */
+  const i = YOG.yogunlukIsaretleri('These specifications are widely used [21, 22]', new Set());
+  assert.deepEqual(i, [], 'atif numarasi somut capa sayilmis: ' + JSON.stringify(i));
+});
+
+test('FORMUL izi somut sayilir', () => {
+  assert.ok(YOG.yogunlukIsaretleri('The vertex occurs at x_j = -b_1/(2b_2)', new Set()).includes('formul'));
+  assert.ok(YOG.yogunlukIsaretleri('marginal effect \u2202y/\u2202x uses \u03b2 coefficients', new Set()).includes('formul'));
+});
+
+test('DOLGU cumle hicbir capa tasimaz', () => {
+  const i = YOG.yogunlukIsaretleri('Logarithmic transformations help linearize power-law relationships', new Set());
+  assert.deepEqual(i, [], 'dolgu cumlede capa bulundu: ' + JSON.stringify(i));
+});
+
+test('KAPI SU AN ELEMIYOR: kart aynen doner', () => {
+  /* Olcum modu. Bayrak true olana kadar kart DEGISMEMELI; aksi halde
+     yanlis olcu sessizce icerik siler. */
+  assert.equal(YOG.YOGUNLUK_KAPISI_ELIYOR, false);
+  const points = [
+    'Logarithmic transformations help linearize power-law relationships',
+    'A categorical variable with k levels requires k - 1 dummies'
+  ];
+  const r = YOG.applyDensityGate(points, KAYNAK);
+  assert.equal(r.key_points.length, 2, 'olcum modunda madde silinmis');
+  assert.equal(r.stats.dropped, 1, 'dolgu aday olarak isaretlenmedi');
+  assert.ok(r.stats.droppedPoints[0].startsWith('Logarithmic'));
+});
+
+test('KAYNAK YOKSA olcum yapilmaz', () => {
+  // Cikarim basarisizsa her madde dolgu gorunur; o durumda olcum yaniltir.
+  const r = YOG.applyDensityGate(['bir sey'], 'kisa');
+  assert.equal(r.stats.dropped, 0);
+});
+
+test('olcum KARTA da yaziliyor', () => {
+  /* Loglar birkac gunde kayboluyor, kart kaliyor. Kurali veriye bakip
+     koyarken bu alan kaynak olacak. */
+  assert.ok(/qualityMeta\.dolgu_adayi = yogunlukOlcumu/.test(SRC),
+    'olcum quality_meta ye yazilmiyor');
+});
+
+
+test('ATANAN serit bekletiyorsa bos seride devrediliyor', () => {
+  /* 20.10.2026 OLCUMU: 76 sayfalik destede uc pencere vardi.
+       Window 1 -> gpt-oss-120b, dondu
+       Window 2 -> gpt-oss-20b,  dondu
+       Window 3 -> gpt-oss-20b:  TokenPacer 58.534ms BEKLEDI
+     Kosunun yarisi o beklemede gecti; review'a 26,6 saniye kaldi, 33
+     gerekiyordu ve review atlandi, kart %43 kapsamayla cikti.
+
+     Sebep: ilk deneme seridi batch'in attigi haliyle kullaniyor ve
+     beklemesini HIC olcmuyordu. pickLane zaten beklemeye gore seciyor;
+     yalnizca bu dal onu atliyordu. */
+  const i = SRC.indexOf('ATANAN SERIT BEKLETIYORSA DEVRET');
+  assert.ok(i > -1, 'devretme aciklamasi kaybolmus');
+  const blok = SRC.slice(i, i + 1800);
+  assert.ok(/tokenPacer\.waitEstimate\(atananEst, windowLane/.test(blok),
+    'atanan seridin beklemesi olculmuyor — hata tam buydu');
+  assert.ok(/atananBekleme >= PENCERE_DEVIR_ESIGI_MS/.test(blok),
+    'esik kontrolu yok: her kucuk bekleme icin serit degistirmek de yanlis');
+  assert.ok(/altBekleme \+ PENCERE_DEVIR_KAZANC_MS <= atananBekleme/.test(blok),
+    'kazanc esigi yok: iki serit de doluyken bosuna zipla(n)ir');
+  assert.ok(/alternatif !== windowLane/.test(blok),
+    'ayni seride devretmek anlamsiz');
+});
+
+test('devir esikleri makul araliklarda', () => {
+  /* TPM penceresi 60 saniye. Esik cok kucukse her pencere serit
+     degistirir ve zayif modele dusme riski bedavaya alinir; cok buyukse
+     bugunku 58 saniyelik bekleme yine yasanir. */
+  const T = loadFromSource('supabase/functions/summarize-document/index.ts', [
+    'PENCERE_DEVIR_ESIGI_MS', 'PENCERE_DEVIR_KAZANC_MS'
+  ]);
+  assert.ok(T.PENCERE_DEVIR_ESIGI_MS >= 5_000 && T.PENCERE_DEVIR_ESIGI_MS <= 30_000,
+    'devir esigi arali' + 'k disi: ' + T.PENCERE_DEVIR_ESIGI_MS);
+  assert.ok(T.PENCERE_DEVIR_KAZANC_MS > 0 && T.PENCERE_DEVIR_KAZANC_MS <= T.PENCERE_DEVIR_ESIGI_MS,
+    'kazanc esigi devir esiginden buyuk olamaz');
+});
+
+test('devir KARARI loglaniyor (iki yonlu)', () => {
+  /* Devredildiginde de devredilemediginde de log var: "neden hala
+     bekledik" sorusu bir dahaki sefere tahmin olmasin. */
+  assert.ok(/devrediliyor \(\$\{altBekleme\}ms, kazanc/.test(SRC), 'devir logu yok');
+  assert.ok(/devredilecek bos serit yok/.test(SRC), 'devredilemedi logu yok');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));

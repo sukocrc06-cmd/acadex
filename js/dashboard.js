@@ -3235,7 +3235,7 @@ function renderMathInText(text) {
     let dizgi = null;
     if (window.katex) {
       try {
-        dizgi = window.katex.renderToString(latex, { displayMode: false, throwOnError: false });
+        dizgi = window.katex.renderToString(sadeKatexKomutu(latex), { displayMode: false, throwOnError: false });
       } catch (e) {
         dizgi = null;
       }
@@ -3418,6 +3418,24 @@ function summaryParagraphs(summary, target = 600) {
  * degil (rakamla baslayip bosluk geliyor) ve kapanis $'inin ardindan
  * rakam gelen durumlar ($5-$10) zaten eslesmez.
  */
+/**
+ * SATIR ICI formulde cift ters boluyu sadelestirir.
+ *
+ * KaTeX'te \\\\ satir sonudur. Veri tarafinda onarim iki kez
+ * uygulandiginda \\beta \\\\beta oluyor ve formul "satir sonu +
+ * beta" diye diziliyor: ekranda parcalar alt alta dusuyor, Yunan harfi
+ * yerine harf harf 'beta' goruluyor (20.10.2026).
+ *
+ * Tek satirlik bir ifadede satir sonu zaten anlamsiz, bu yuzden burada
+ * sadelestiriliyor. DAR tutuldu: yalnizca ardindan HARF gelen durum
+ * (\\\\beta, \\\\ln). Matris/hizalama icin kullanilan \\\\ — ardindan
+ * bosluk, [ ya da satir sonu gelir — dokunulmuyor; display matematikte
+ * mesru.
+ */
+function sadeKatexKomutu(latex) {
+  return String(latex == null ? '' : latex).replace(/\\\\(?=[A-Za-z])/g, '\\');
+}
+
 function inlineMath(html) {
   const s = String(html == null ? '' : html);
   if (!window.katex || s.indexOf('$') === -1) return s;
@@ -3425,7 +3443,7 @@ function inlineMath(html) {
   return s.replace(/\$(?=\S)((?:[^\$\\]|\\.)+?)(?<!\s)\$(?!\d)/g, (match, latex) => {
     if (/^\d[\d.,]*\s/.test(latex)) return match;
     try {
-      return window.katex.renderToString(latex, { displayMode: false, throwOnError: false });
+      return window.katex.renderToString(sadeKatexKomutu(latex), { displayMode: false, throwOnError: false });
     } catch (e) {
       return match;
     }
@@ -6738,7 +6756,7 @@ function startExamTimer(seconds) {
       showDashboardAlert('success', isTr
         ? 'Süre doldu, sınavınız otomatik gönderiliyor...'
         : 'Time is up, your exam is being submitted automatically...');
-      submitExam();
+      submitExam({ auto: true });
     }
   }, 1000);
 }
@@ -6762,6 +6780,14 @@ async function loadExamsPlatform() {
   const resultsScreen = document.getElementById('exam-results-screen');
 
   if (!cardSelect) return;
+
+  // Ekrandan çıkılırken açık bir sınav varsa taslağını kaydedip motoru kapat;
+  // kurulum ekranındaki "devam et" kutusundan geri açılır.
+  if (window.AcadexExamEngine && window.AcadexExamEngine.isActive()) {
+    window.AcadexExamEngine.flush();
+    window.AcadexExamEngine.destroy();
+    stopExamTimer();
+  }
 
   // Reset screens
   setupScreen.style.display = 'block';
@@ -6820,6 +6846,7 @@ async function loadExamsPlatform() {
   }
   await onExamSourceChange();
   await loadWeakConceptMap();
+  await checkResumableExam();
 }
 window.loadExamsPlatform = loadExamsPlatform;
 
@@ -7140,7 +7167,7 @@ function renderPastAttemptsList(exams, emptyMessage) {
       minute: '2-digit'
     });
 
-    const typeLabel = exam.exam_type === 'classic' ? 'Klasik' : (exam.exam_type === 'test' ? 'Çoktan Seçmeli' : 'Karışık');
+    const typeLabel = ({ classic: 'Klasik', test: 'Çoktan Seçmeli', calculation: 'Hesaplama', mixed: 'Karışık' })[exam.exam_type] || 'Karışık';
     const langLabel = exam.language === 'tr' ? 'Türkçe' : 'English';
     // Course-sourced exams generated without any shared study material for
     // that course get a small warning icon here, since their content leans
@@ -7288,15 +7315,16 @@ async function loadWeakConceptMap() {
 
     container.innerHTML = rows.map(r => {
       const color = r.avg < 50 ? '#DC2626' : (r.avg < 75 ? '#D97706' : 'var(--color-teal)');
-      const escapedConcept = r.concept.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+      // Kavram adı yapay zekâ çıktısı: HTML'e kaçışla, onclick argümanına
+      // JSON + HTML kaçışıyla girer (tırnak içeren kavramlar da güvenli).
       const practiceBtn = r.courseLabel
-        ? `<button type="button" class="btn btn-outline" style="padding: 0.3rem 0.7rem; font-size: 0.72rem; white-space: nowrap;" onclick="practiceWeakConcept('${r.courseLabel}', '${escapedConcept}')">Bu konudan pratik yap</button>`
+        ? `<button type="button" class="btn btn-outline" style="padding: 0.3rem 0.7rem; font-size: 0.72rem; white-space: nowrap;" onclick="practiceWeakConcept(${escapeHtml(JSON.stringify(String(r.courseLabel)))}, ${escapeHtml(JSON.stringify(String(r.concept)))})">Bu konudan pratik yap</button>`
         : '';
       return `
         <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.6rem 0; border-bottom: 1px solid rgba(22,50,92,0.06); flex-wrap: wrap;">
           <div>
-            <strong style="font-size: 0.85rem; color: var(--color-navy);">${r.concept}</strong>
-            <div style="font-size: 0.72rem; color: var(--color-text-muted);">${r.courseLabel ? r.courseLabel : 'Genel'} · ${r.count} soru</div>
+            <strong style="font-size: 0.85rem; color: var(--color-navy);">${escapeHtml(r.concept)}</strong>
+            <div style="font-size: 0.72rem; color: var(--color-text-muted);">${r.courseLabel ? escapeHtml(r.courseLabel) : 'Genel'} · ${r.count} soru</div>
           </div>
           <div style="display: flex; align-items: center; gap: 0.75rem;">
             <span style="font-weight: 800; color: ${color};">${r.avg}</span>
@@ -7487,13 +7515,14 @@ async function generateExam() {
 }
 window.generateExam = generateExam;
 
-function startActiveExam(exam) {
+function startActiveExam(exam, opts = {}) {
   const setupScreen = document.getElementById('exam-setup-screen');
   const activeScreen = document.getElementById('exam-active-screen');
   const container = document.getElementById('exam-questions-container');
 
   if (!setupScreen || !activeScreen || !container) return;
 
+  currentActiveExam = exam;
   setupScreen.style.display = 'none';
   activeScreen.style.display = 'block';
 
@@ -7509,84 +7538,169 @@ function startActiveExam(exam) {
     ? (isTr ? 'Gerçek sınav modu: ipuçları kapalı, süre dolunca otomatik gönderilir.' : 'Real exam mode: hints disabled, auto-submits when time runs out.')
     : (isTr ? 'Lütfen tüm soruları dikkatlice cevaplayın.' : 'Please answer all questions carefully.');
 
+  // Soru haritası, soru listesinin hemen üstünde. Tek seferlik oluşturulur.
+  let navHost = document.getElementById('exam-navigator-host');
+  if (!navHost) {
+    navHost = document.createElement('div');
+    navHost.id = 'exam-navigator-host';
+    container.parentNode.insertBefore(navHost, container);
+  }
+
+  // FAZ 1: soruları soru motoru çizer (js/exam-engine.js). Giriş alanlarının
+  // adları (answer-q-<id>) ve ipucu kutularının id'leri eskisiyle aynı;
+  // revealExamHint değişmeden çalışır.
+  window.AcadexExamEngine.mount(exam, {
+    container,
+    navContainer: navHost,
+    userId: currentUser ? currentUser.id : null,
+    lang: exam.language || 'tr',
+    draft: opts.draft || null,
+    escape: escapeHtml,
+    renderMath: (text) => renderMathInText(String(text || '')),
+    // Simülasyon gerçek sınavı taklit eder: ipucu yok.
+    renderHintButton: (q) => exam.is_simulation
+      ? ''
+      : `<button type="button" class="btn btn-outline" id="btn-hint-${escapeHtml(String(q.id))}" style="padding: 0.35rem 0.65rem; font-size: 0.7rem; border-color: #F59E0B; color: #F59E0B; min-height: unset; line-height: 1;" onclick="revealExamHint(${escapeHtml(JSON.stringify(String(q.id)))})">+ ${isTr ? 'İpucu Al' : 'Hint'}</button>`,
+    saveRemote: (snap) => saveExamDraftRemote(exam.id, snap)
+  });
+
+  // Süre: simülasyonda sunucudaki started_at'e göre kalan süre (yarım kalan
+  // bir sınava dönüldüğünde de doğru kalsın diye).
   stopExamTimer();
   const timerDisplay = document.getElementById('exam-timer-display');
   if (exam.is_simulation && exam.time_limit_seconds) {
     if (timerDisplay) timerDisplay.style.display = 'block';
-    startExamTimer(exam.time_limit_seconds);
+    const remaining = window.AcadexExamEngine.computeRemainingSeconds(exam, Date.now());
+    if (remaining !== null && remaining <= 0) {
+      showDashboardAlert('error', isTr ? 'Bu simülasyonun süresi dolmuş; cevaplar gönderiliyor...' : 'This simulation has run out of time; submitting your answers...');
+      submitExam({ auto: true });
+    } else {
+      startExamTimer(remaining !== null ? remaining : exam.time_limit_seconds);
+    }
   } else if (timerDisplay) {
     timerDisplay.style.display = 'none';
   }
-
-  container.innerHTML = '';
-
-  const questions = exam.questions || [];
-  questions.forEach((q, idx) => {
-    const card = document.createElement('div');
-    card.className = 'exam-question-card';
-    card.id = `question-card-${q.id}`;
-
-    let inputHtml = '';
-    if (q.type === 'multiple_choice' || q.type === 'true_false') {
-      inputHtml = `<div class="exam-choice-list">`;
-      const options = q.options || [];
-      options.forEach(opt => {
-        const optionId = `q-${q.id}-opt-${opt.replace(/\s+/g, '-')}`;
-        inputHtml += `
-          <label class="exam-choice-label" id="label-${optionId}">
-            <input type="radio" name="answer-q-${q.id}" value="${opt}" onchange="selectChoiceOption('${optionId}', 'q-${q.id}')">
-            <span>${opt}</span>
-          </label>
-        `;
-      });
-      inputHtml += `</div>`;
-    } 
-    else if (q.type === 'fill_blank') {
-      inputHtml = `
-        <div style="margin-top: 0.5rem;">
-          <input type="text" name="answer-q-${q.id}" class="search-input" style="width: 100%; max-width: 400px; padding: 0.6rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.85rem;" placeholder="${exam.language === 'tr' ? 'Cevabınızı girin...' : 'Enter your answer...'}">
-        </div>
-      `;
-    } 
-    else if (q.type === 'calculation') {
-      const isPrefix = q.units && (q.units === '$' || q.units === '€' || q.units === '₺');
-      inputHtml = `
-        <div class="calculation-input-wrapper">
-          ${isPrefix ? `<span class="calculation-unit">${q.units}</span>` : ''}
-          <input type="number" step="any" name="answer-q-${q.id}" class="calculation-input" placeholder="${exam.language === 'tr' ? 'Sayısal cevabınız...' : 'Your numeric answer...'}">
-          ${!isPrefix && q.units ? `<span class="calculation-unit">${q.units}</span>` : ''}
-        </div>
-      `;
-    }
-    else if (q.type === 'open_ended') {
-      inputHtml = `
-        <div style="margin-top: 0.5rem;">
-          <textarea name="answer-q-${q.id}" class="search-input" rows="4" style="width: 100%; padding: 0.65rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.85rem; font-family: inherit; resize: vertical;" placeholder="${exam.language === 'tr' ? 'Cevabınızı buraya yazın...' : 'Write your answer here...'}"></textarea>
-        </div>
-      `;
-    }
-
-    // Simulation mode mimics real exam conditions — no hints available.
-    const hintButtonHtml = exam.is_simulation
-      ? ''
-      : `<button class="btn btn-outline" id="btn-hint-${q.id}" style="padding: 0.35rem 0.65rem; font-size: 0.7rem; border-color: #F59E0B; color: #F59E0B; min-height: unset; line-height: 1;" onclick="revealExamHint('${q.id}')">+ İpucu Al</button>`;
-
-    card.innerHTML = `
-      <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;">
-        <span class="exam-question-text">Soru ${idx + 1}: ${q.question}</span>
-        ${hintButtonHtml}
-      </div>
-      <div id="hint-box-${q.id}" class="exam-hint-box" style="display: none;"></div>
-      ${inputHtml}
-    `;
-
-    container.appendChild(card);
-  });
 }
+
+// ==========================================
+// Sınav taslağı (exam_drafts) — FAZ 1
+// Motor her değişiklikte tarayıcıya, birkaç saniyede bir de buraya yazar.
+// Tablo yoksa (20261014b_exam_engine.sql çalıştırılmamış) sessizce yalnızca
+// tarayıcı kaydıyla devam edilir.
+// ==========================================
+let examDraftTableMissingWarned = false;
+
+async function saveExamDraftRemote(examId, snap) {
+  if (!currentUser || !examId) return;
+  const { error } = await supabaseClient
+    .from('exam_drafts')
+    .upsert({
+      exam_id: examId,
+      user_id: currentUser.id,
+      answers: snap.answers || {},
+      flags: snap.flags || [],
+      current_index: Number.isInteger(snap.current) ? snap.current : 0,
+      view_mode: snap.mode || null,
+      updated_at: snap.updatedAt || new Date().toISOString()
+    }, { onConflict: 'exam_id' });
+  if (error) {
+    if (!examDraftTableMissingWarned) {
+      console.warn('exam_drafts yazilamadi (20261014b_exam_engine.sql calistirildi mi?):', error.message);
+      examDraftTableMissingWarned = true;
+    }
+    throw error;
+  }
+}
+
+async function deleteExamDraftRemote(examId) {
+  if (!currentUser || !examId) return;
+  try {
+    await supabaseClient.from('exam_drafts').delete().eq('exam_id', examId).eq('user_id', currentUser.id);
+  } catch (e) {
+    console.warn('exam_drafts silinemedi:', e);
+  }
+}
+
+/** Yarım kalan bir sınav varsa kurulum ekranının başına "devam et" kutusu koyar. */
+async function checkResumableExam() {
+  const setupScreen = document.getElementById('exam-setup-screen');
+  if (!setupScreen || !currentUser || !window.AcadexExamEngine) return;
+  const E = window.AcadexExamEngine;
+  document.getElementById('exam-resume-banner')?.remove();
+
+  // Aday taslaklar: sunucu + tarayıcı, en yeni önce.
+  const candidates = new Map();
+  try {
+    const { data: rows, error } = await supabaseClient
+      .from('exam_drafts')
+      .select('exam_id, answers, flags, current_index, view_mode, updated_at')
+      .eq('user_id', currentUser.id)
+      .order('updated_at', { ascending: false })
+      .limit(5);
+    if (!error) (rows || []).forEach(r => candidates.set(String(r.exam_id), E.draftFromRow(r)));
+  } catch (_e) { /* tablo yoksa yalnızca tarayıcı taslakları */ }
+  E.listLocalDrafts(currentUser.id).forEach(({ examId, draft }) => {
+    candidates.set(String(examId), E.pickNewerDraft(candidates.get(String(examId)), draft));
+  });
+  const ordered = Array.from(candidates.entries())
+    .sort((a, b) => (Date.parse(b[1]?.updatedAt || '') || 0) - (Date.parse(a[1]?.updatedAt || '') || 0));
+
+  for (const [examId, draft] of ordered) {
+    const { data: exam } = await supabaseClient
+      .from('exams')
+      .select('*')
+      .eq('id', examId)
+      .eq('user_id', currentUser.id)
+      .maybeSingle();
+    if (!exam || exam.completed_at) {
+      E.removeLocalDraft(currentUser.id, examId);
+      if (exam && exam.completed_at) deleteExamDraftRemote(examId);
+      continue;
+    }
+    const remaining = E.computeRemainingSeconds(exam, Date.now());
+    // Süresi 2 dakikalık payı da aşmış simülasyon artık gönderilemez.
+    if (remaining !== null && remaining <= 0 && exam.started_at &&
+        Date.now() > Date.parse(exam.started_at) + exam.time_limit_seconds * 1000 + 120000) {
+      E.removeLocalDraft(currentUser.id, examId);
+      deleteExamDraftRemote(examId);
+      continue;
+    }
+
+    const isTr = exam.language !== 'en';
+    const summary = E.computeSummary(exam.questions || [], draft.answers || {}, draft.flags || []);
+    const typeLabel = ({ classic: 'Klasik', test: 'Çoktan Seçmeli', calculation: 'Hesaplama', mixed: 'Karışık' })[exam.exam_type] || 'Sınav';
+    const timeNote = remaining !== null ? ` · ${isTr ? 'kalan süre' : 'time left'} ${Math.floor(remaining / 60)} dk` : '';
+    const banner = document.createElement('div');
+    banner.id = 'exam-resume-banner';
+    banner.className = 'exam-resume-banner';
+    banner.innerHTML = `
+      <div>
+        <strong>${isTr ? 'Yarım kalan bir sınavın var' : 'You have an unfinished exam'}</strong>
+        <div style="color: var(--color-text-muted); font-size: 0.8rem; margin-top: 0.2rem;">${escapeHtml(typeLabel)}${exam.is_simulation ? ' · Simülasyon' : ''} · ${summary.answered} / ${summary.total} ${isTr ? 'cevaplı' : 'answered'}${timeNote}</div>
+      </div>
+      <div class="exam-resume-actions">
+        <button type="button" class="btn btn-primary" data-resume="continue">${isTr ? 'Devam et' : 'Continue'}</button>
+        <button type="button" class="btn btn-outline" data-resume="discard">${isTr ? 'Vazgeç' : 'Discard'}</button>
+      </div>`;
+    banner.querySelector('[data-resume="continue"]').addEventListener('click', () => {
+      banner.remove();
+      startActiveExam(exam, { draft });
+    });
+    banner.querySelector('[data-resume="discard"]').addEventListener('click', () => {
+      E.removeLocalDraft(currentUser.id, examId);
+      deleteExamDraftRemote(examId);
+      banner.remove();
+    });
+    setupScreen.insertBefore(banner, setupScreen.firstChild);
+    return;
+  }
+}
+window.checkResumableExam = checkResumableExam;
 
 function selectChoiceOption(optionId, radioName) {
   // Clear other selections
-  const labels = document.querySelectorAll(`[id^="label-${radioName}"]`);
+  // "-opt-" son eki şart: yoksa label-q-1 öneki label-q-10..19'u da yakalıyordu.
+  const labels = document.querySelectorAll(`[id^="label-${radioName}-opt-"]`);
   labels.forEach(l => l.classList.remove('selected'));
 
   const targetLabel = document.getElementById(`label-${optionId}`);
@@ -7646,7 +7760,7 @@ async function revealExamHint(qId) {
       return;
     }
 
-    hintBox.innerHTML = `<strong>${isTr ? 'İpucu:' : 'Hint:'}</strong> ${data.hint}`;
+    hintBox.innerHTML = `<strong>${isTr ? 'İpucu:' : 'Hint:'}</strong> ${renderMathInText(String(data.hint || ''))}`;
     hintBox.dataset.loaded = 'true';
     if (btn) {
       btn.disabled = true;
@@ -7669,35 +7783,90 @@ window.revealExamHint = revealExamHint;
 function cancelExam() {
   const isTr = currentActiveExam?.language === 'tr';
   const title = isTr ? "Sınavdan Çık" : "Exit Exam";
-  const text = isTr 
-    ? "Sınavı iptal etmek istediğinize emin misiniz? Cevaplarınız silinecektir." 
-    : "Are you sure you want to exit the exam? Your answers will be lost.";
-  showConfirmModal(title, text, () => {
+  // FAZ 1: cevaplar otomatik kaydedildiği için çıkmak artık silmek değil.
+  // Sınav kurulum ekranındaki "Yarım kalan bir sınavın var" kutusundan
+  // devam edilir ya da oradan vazgeçilir. Simülasyonda süre işlemeye devam eder.
+  const text = isTr
+    ? (currentActiveExam?.is_simulation
+        ? "Sınavdan çıkmak istiyor musun? Cevapların kaydedildi, ama simülasyon süresi işlemeye devam ediyor."
+        : "Sınavdan çıkmak istiyor musun? Cevapların kaydedildi; sınav ekranından kaldığın yerden devam edebilirsin.")
+    : (currentActiveExam?.is_simulation
+        ? "Exit the exam? Your answers are saved, but the simulation timer keeps running."
+        : "Exit the exam? Your answers are saved; you can continue later from the exam screen.");
+  showConfirmModal(title, text, async () => {
     stopExamTimer();
+    if (window.AcadexExamEngine?.isActive()) {
+      await window.AcadexExamEngine.flush();
+      window.AcadexExamEngine.destroy();
+    }
     loadExamsPlatform();
   });
 }
 window.cancelExam = cancelExam;
 
-async function submitExam() {
+/** Cevapları doğrudan sayfadan okur. Her soru için name="answer-q-<id>"
+ *  alanı aranır; hem soru motoru hem acadex-ink alanları böyle adlandırdığı
+ *  için iki sınav ekranında da çalışır. Soru id'leri sayı olduğundan
+ *  seçicide kaçış gerekmiyor. */
+function readExamAnswersFromDom(exam) {
+  const answers = {};
+  ((exam && exam.questions) || []).forEach(q => {
+    const name = `answer-q-${q.id}`;
+    if (q.type === 'multiple_choice' || q.type === 'true_false') {
+      const selected = document.querySelector(`input[name="${name}"]:checked`);
+      answers[q.id] = selected ? selected.value : '';
+    } else {
+      const input = document.querySelector(`[name="${name}"]`);
+      answers[q.id] = input ? input.value : '';
+    }
+  });
+  return answers;
+}
+
+/** İşaretli sorular (question_attempts.flagged için). acadex-ink her sorunun
+ *  bölümüne aria-pressed taşıyan bir [data-flag] düğmesi koyuyor. */
+function readExamFlagsFromDom(exam) {
+  const flags = [];
+  ((exam && exam.questions) || []).forEach((q, i) => {
+    const section = document.querySelector(`[data-qi="${i}"]`);
+    const btn = section && section.querySelector('[data-flag]');
+    if (btn && btn.getAttribute('aria-pressed') === 'true') flags.push(String(q.id));
+  });
+  return flags;
+}
+
+async function submitExam(opts = {}) {
   if (!currentActiveExam) return;
 
   const btn = document.getElementById('btn-submit-exam');
   if (!btn) return;
 
-  // Collect answers
-  const answers = {};
-  const questions = currentActiveExam.questions || [];
-  
-  questions.forEach(q => {
-    if (q.type === 'multiple_choice' || q.type === 'true_false') {
-      const selected = document.querySelector(`input[name="answer-q-${q.id}"]:checked`);
-      answers[q.id] = selected ? selected.value : "";
-    } else {
-      const input = document.querySelector(`[name="answer-q-${q.id}"]`);
-      answers[q.id] = input ? input.value : "";
+  const E = window.AcadexExamEngine;
+  const isTrExam = currentActiveExam.language === 'tr';
+
+  // FAZ 1: boş ya da işaretli soru varsa önce sor. Süre bitince yapılan
+  // otomatik gönderimde (opts.auto) sorulmaz.
+  if (!opts.auto && !opts.confirmed && E && E.isActive() && !(E.isHeadless && E.isHeadless())) {
+    const warning = E.formatSubmitWarning(E.getSummary(), currentActiveExam.language);
+    if (warning) {
+      showConfirmModal(isTrExam ? 'Sınavı gönder' : 'Submit exam', warning, () => submitExam({ confirmed: true }));
+      return;
     }
-  });
+  }
+
+  // Cevaplar: soru motoru açıksa ondan, değilse doğrudan sayfadaki
+  // alanlardan okunur.
+  //
+  // İKİNCİ YOL ŞART (21.10.2026'da bulunan hata): js/acadex-ink.js bu
+  // dosyadan SONRA yükleniyor ve startActiveExam'in üzerine yazıp sınavı
+  // kendi "kitapçık" ekranıyla çiziyor — yani motor hiç mount edilmiyor.
+  // Burada yalnızca motordan okunduğu sürece gönderilen cevap paketi boş
+  // ({}) kalıyordu ve öğrenci her soruyu doğru işaretlese bile sonuç
+  // "boş bıraktın / 0" çıkıyordu. Ink kendi alanlarını da answer-q-<id>
+  // diye adlandırdığı için sayfadan okumak iki ekranda da çalışır.
+  const engineActive = !!(E && E.isActive());
+  const answers = engineActive ? E.collectAnswers() : readExamAnswersFromDom(currentActiveExam);
+  const flags = engineActive ? E.getFlags() : readExamFlagsFromDom(currentActiveExam);
 
   const originalText = btn.textContent;
   btn.disabled = true;
@@ -7719,7 +7888,7 @@ async function submitExam() {
         'Content-Type': 'application/json',
         'apikey': SUPABASE_ANON_KEY
       },
-      body: JSON.stringify({ examId: currentActiveExam.id, answers })
+      body: JSON.stringify({ examId: currentActiveExam.id, answers, flags })
     });
 
     const data = await response.json();
@@ -7728,7 +7897,24 @@ async function submitExam() {
       showDashboardAlert('error', data.error || 'Sınav gönderilemedi.');
       btn.disabled = false;
       btn.textContent = originalText;
+      // 409: zaten tamamlanmış, 403: simülasyon süresi doldu. İkisinde de bu
+      // deneme bir daha gönderilemez — sayacı durdurup kurulum ekranına dön.
+      if (response.status === 409 || response.status === 403) {
+        stopExamTimer();
+        if (E) {
+          E.discardDraft(currentUser?.id, currentActiveExam.id);
+          E.destroy();
+        }
+        deleteExamDraftRemote(currentActiveExam.id);
+        loadExamsPlatform();
+      }
       return;
+    }
+
+    // Puanlandı: taslağı kapat (sunucu taslağını grade-exam siliyor).
+    if (E) {
+      E.discardDraft(currentUser?.id, currentActiveExam.id);
+      E.destroy();
     }
 
     showDashboardAlert('success', 'Sınav başarıyla tamamlandı ve notlandırıldı!');
@@ -7809,14 +7995,19 @@ function showExamResults(exam) {
   const results = exam.question_results || [];
   results.forEach((res, idx) => {
     const item = document.createElement('div');
-    const statusClass = res.score >= 80 ? 'correct' : (res.score >= 50 ? 'partial' : 'incorrect');
+    // score === null: yapay zekâ bu soruyu puanlayamadı (grade-exam bunu
+    // ortalamaya katmıyor) — "0 puan" gibi gösterme.
+    const ungraded = typeof res.score !== 'number';
+    const statusClass = ungraded ? 'partial' : (res.score >= 80 ? 'correct' : (res.score >= 50 ? 'partial' : 'incorrect'));
     item.className = `question-result-box ${statusClass}`;
+    const scoreColor = ungraded ? 'var(--color-text-muted)' : (res.score >= 80 ? 'var(--color-teal)' : (res.score >= 50 ? '#D97706' : '#DC2626'));
+    const scoreText = ungraded ? (isTr ? 'Puanlanamadı' : 'Not graded') : `${res.score} / 100 Puan`;
 
     let correctBlock = '';
     if (res.type !== 'open_ended') {
-      const unitStr = res.units ? ` ${res.units}` : '';
-      const tolStr = res.tolerance_percent ? ` (±${res.tolerance_percent}% ${isTr ? 'tolerans' : 'margin'})` : '';
-      correctBlock = `<div style="font-size: 0.8rem; color: var(--color-teal); font-weight: 700; margin-top: 0.25rem;">${isTr ? 'Doğru Cevap' : 'Correct Answer'}: ${res.correct_answer}${unitStr}${tolStr}</div>`;
+      const unitStr = res.units ? ` ${escapeHtml(String(res.units))}` : '';
+      const tolStr = res.tolerance_percent ? ` (±${escapeHtml(String(res.tolerance_percent))}% ${isTr ? 'tolerans' : 'margin'})` : '';
+      correctBlock = `<div style="font-size: 0.8rem; color: var(--color-teal); font-weight: 700; margin-top: 0.25rem;">${isTr ? 'Doğru Cevap' : 'Correct Answer'}: ${renderMathInText(String(res.correct_answer ?? ''))}${unitStr}${tolStr}</div>`;
     }
 
     let solutionStepsHtml = '';
@@ -7825,7 +8016,7 @@ function showExamResults(exam) {
         <div class="solution-steps-box">
           <div class="solution-steps-title">📋 ${isTr ? 'Çözüm Adımları' : 'Solution Steps'}</div>
           <ol class="solution-steps-list">
-            ${res.solution_steps.map(step => `<li>${renderMathInText(step)}</li>`).join('')}
+            ${res.solution_steps.map(step => `<li>${renderMathInText(String(step))}</li>`).join('')}
           </ol>
         </div>
       `;
@@ -7833,15 +8024,15 @@ function showExamResults(exam) {
 
     item.innerHTML = `
       <div style="display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 700; color: var(--color-navy);">
-        <span>Soru ${idx + 1}: ${res.question}</span>
-        <span style="color: ${res.score >= 80 ? 'var(--color-teal)' : (res.score >= 50 ? '#D97706' : '#DC2626')};">${res.score} / 100 Puan</span>
+        <span>Soru ${idx + 1}: ${renderMathInText(String(res.question || ''))}</span>
+        <span style="color: ${scoreColor};">${scoreText}</span>
       </div>
       <div style="font-size: 0.8rem; margin-top: 0.5rem;">
-        <strong>${isTr ? 'Sizin Cevabınız' : 'Your Answer'}:</strong> ${res.student_answer || (isTr ? '[Boş bırakıldı]' : '[Left blank]')} ${res.units && res.student_answer ? res.units : ''}
+        <strong>${isTr ? 'Sizin Cevabınız' : 'Your Answer'}:</strong> ${res.student_answer ? escapeHtml(String(res.student_answer)) : (isTr ? '[Boş bırakıldı]' : '[Left blank]')} ${res.units && res.student_answer ? escapeHtml(String(res.units)) : ''}
       </div>
       ${correctBlock}
       <div style="font-size: 0.8rem; color: var(--color-text-muted); margin-top: 0.5rem; background-color: var(--color-bg-alt); padding: 0.5rem; border-radius: var(--radius-sm); border-left: 3px solid rgba(22,50,92,0.15);">
-        <strong>${isTr ? 'Değerlendirme' : 'Evaluation'}:</strong> ${res.feedback}
+        <strong>${isTr ? 'Değerlendirme' : 'Evaluation'}:</strong> ${renderMathInText(String(res.feedback || ''))}
       </div>
       ${solutionStepsHtml}
     `;
@@ -7873,8 +8064,10 @@ async function scheduleRemediationPlan(exam) {
     results.forEach(res => {
       const concept = (res.concept || '').trim();
       if (!concept) return;
+      // Puanlanamayan (score === null) soru ortalamaya girmez.
+      if (typeof res.score !== 'number') return;
       if (!conceptScores[concept]) conceptScores[concept] = { total: 0, count: 0 };
-      conceptScores[concept].total += (typeof res.score === 'number' ? res.score : 0);
+      conceptScores[concept].total += res.score;
       conceptScores[concept].count += 1;
     });
 
@@ -12023,8 +12216,10 @@ function renderWeakTopicsPanel(examsData) {
     (exam.question_results || []).forEach(res => {
       const concept = (res.concept || '').trim();
       if (!concept) return;
+      // Puanlanamayan (score === null) soru ortalamaya girmez.
+      if (typeof res.score !== 'number') return;
       if (!conceptStats[concept]) conceptStats[concept] = { totalScore: 0, count: 0 };
-      conceptStats[concept].totalScore += (typeof res.score === 'number' ? res.score : 0);
+      conceptStats[concept].totalScore += res.score;
       conceptStats[concept].count += 1;
     });
   });
@@ -12051,7 +12246,7 @@ function renderWeakTopicsPanel(examsData) {
     row.style.cssText = 'display: flex; flex-direction: column; gap: 0.3rem;';
     row.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
-        <span style="font-weight: 700; color: var(--color-navy);">${item.concept}</span>
+        <span style="font-weight: 700; color: var(--color-navy);">${escapeHtml(item.concept)}</span>
         <span style="font-weight: 800; color: ${barColor};">${item.avgScore}/100 <span style="font-weight: 500; color: var(--color-text-muted); font-size: 0.72rem;">(${item.count} ${isTr ? 'soru' : 'questions'})</span></span>
       </div>
       <div style="background: rgba(22, 50, 92, 0.08); border-radius: 10px; height: 6px; overflow: hidden;">

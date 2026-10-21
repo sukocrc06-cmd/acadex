@@ -4956,6 +4956,116 @@ function gateWorkedExampleArithmetic(examples: any[]): { kept: any[]; dropped: s
   return { kept, dropped }
 }
 
+/* ==========================================================================
+   BILGI YOGUNLUGU KAPISI (20.10.2026)
+   ==========================================================================
+   SIKAYET: "neredeyse her seyi cikariyor ama bos seyleri de cikardigina
+   eminim". Dogru teshis: sistem ogrenmedigi icin degil, ona HER SEYI
+   cikarmasi soylendigi icin boyle. Prompt "her denklemi, her sayiyi al"
+   diyor; model de uyuyor ve arasina dolgu cumleler karisiyor:
+
+     "Logarithmic transformations help linearize power-law relationships"
+     "These specifications are widely used in economic modeling"
+
+   Ikisi de DOGRU, ikisi de kaynakta geciyor — yani ne grounding kapisi ne
+   kopya birlestirme bunlari eliyor. Eksik olan sey farkli: bu cumleler
+   SOMUT hicbir sey tasimiyor. Ogrenci bunlari okuyup bir sey ogrenmiyor.
+
+   OLCU, MODEL DEGIL. Bir maddenin somut capasi var mi:
+     - SAYI            ("0.045", "%67", "43.96 thousand")
+     - FORMUL IZI      (=, ^, _, Yunan harfi, ters bolu)
+     - KAYNAK TERIMI   (belgede gecen, iki kelimeden uzun ayirt edici terim)
+   Ucunden HICBIRI yoksa madde dolgudur.
+
+   GUVENLIK VALFI: kapi maddelerin ucte birinden fazlasini atacaksa HICBIR
+   SEY atmiyor. Bu, grounding kapisinin valfiyle ayni mantik ve ayni
+   sebeple var: olcum yanlissa kartin yarisini silmektense hicbir sey
+   silmemek iyidir. Valf devreye girdiginde log bunu SOYLUYOR, sessizce
+   gecmiyor.
+   ========================================================================== */
+/* Kapi su an ELEMIYOR, yalnizca olcuyor. Gercek loglara bakip kurali
+   koyduktan sonra true yapilacak — tek satir. */
+const YOGUNLUK_KAPISI_ELIYOR = false
+
+type YogunlukStats = {
+  kept: number
+  dropped: number
+  droppedPoints: string[]
+  valfAcildi: boolean
+}
+
+/** Somut capa tasiyan bir maddede bulunan isaretler. Bos dizi = dolgu. */
+function yogunlukIsaretleri(text: string, docTerms: Set<string>): string[] {
+  const t = String(text || '')
+  const isaretler: string[] = []
+
+  // SAYI: yil ve madde numarasi disinda bir sayi. "k - 1" gibi tek haneli
+  // sembolik ifadeler de sayilir, cunku onlar kuralin kendisi.
+  if (/\d/.test(t.replace(/\[\d+(?:\s*,\s*\d+)*\]/g, ''))) isaretler.push('sayi')
+
+  // FORMUL IZI: esitlik, us, alt simge, Yunan harfi ya da LaTeX komutu.
+  if (/[=^_\\]|[α-ωΑ-Ω]/.test(t)) isaretler.push('formul')
+
+  /* KAYNAK TERIMI BILEREK SAYILMIYOR. Her dolgu cumle de kaynakta gecen
+     terimleri tasiyor ("logarithmic transformations help linearize..."),
+     yani terim capasi olcuyu anlamsiz kiliyordu: hicbir sey dolgu
+     sayilmiyordu. docTerms yine de parametrede duruyor; kurali veriye
+     bakip yeniden kurarken gerekecek. */
+  void docTerms
+
+  return isaretler
+}
+
+/**
+ * Somut capasi olmayan maddeleri eler.
+ *
+ * Kaynak metin yoksa ya da kisaysa HICBIR SEY yapmaz: terim capasini
+ * kuracak zemin yok demektir ve o durumda elemek, kotu bir olcumle karti
+ * budamak olur.
+ */
+function applyDensityGate(
+  keyPoints: any[],
+  sourceText: string,
+  figureText: string = ''
+): { key_points: any[]; stats: YogunlukStats } {
+  const points = Array.isArray(keyPoints) ? keyPoints : []
+  const stats: YogunlukStats = { kept: points.length, dropped: 0, droppedPoints: [], valfAcildi: false }
+  if (!sourceText || sourceText.length < 200 || points.length === 0) return { key_points: points, stats }
+
+  const birlesik = figureText ? sourceText + '\n' + figureText : sourceText
+  const docTerms = new Set(anchorTerms(birlesik))
+  const oku = (raw: any) => typeof raw === 'string' ? raw : String(raw?.text || raw?.point || '')
+
+  const tutulan: any[] = []
+  const atilan: any[] = []
+  for (const p of points) {
+    const metin = oku(p)
+    if (yogunlukIsaretleri(metin, docTerms).length > 0) tutulan.push(p)
+    else atilan.push(p)
+  }
+
+  /* OLCUM MODU: aday isaretlenir, kart DEGISMEZ. Yanlis olcuyle elemek,
+     olcmemekten kotudur (bkz. ustteki not). */
+  stats.dropped = atilan.length
+  stats.droppedPoints = atilan.map(p => oku(p).slice(0, 90))
+  stats.kept = tutulan.length
+  if (!YOGUNLUK_KAPISI_ELIYOR) {
+    stats.kept = points.length
+    return { key_points: points, stats }
+  }
+
+  /* VALF: ucte birden fazlasi gidecekse hicbiri gitmesin. Boyle bir oran,
+     maddelerin dolgu oldugunu degil OLCUMUN yanlis oldugunu gosterir —
+     ornegin kaynak metin cok kisa cikmistir ve terim capasi hic
+     kurulamamistir. */
+  if (atilan.length > Math.floor(points.length / 3)) {
+    stats.valfAcildi = true
+    return { key_points: points, stats }
+  }
+
+  return { key_points: tutulan, stats }
+}
+
 function applyGroundingGate(
   keyTerms: any[],
   keyPoints: any[],
@@ -5620,6 +5730,32 @@ const GEMINI_ONLY_FALLBACK_MIN_MS = 32_000
    sigiyor. Alti istek, en kotu halde gunluk kotanin ucte biri. */
 const GEMINI_MAX_REQUESTS_PER_RUN = 6
 
+/* Ust uste kac gecici hata (503/500) sonrasi Gemini birakilir.
+
+   20.10.2026 olcumu: 76 sayfalik bir destede ALTI istegin altisi da 503
+   "high demand" dondu. 48 saniye ve gunluk kotanin %30'u hicbir ise
+   yaramadan yandi; geriye kalan butce review'a yetmedi ve kart %43
+   kapsamayla cikti.
+
+   Ust uste 503 almak "bu model yogun" degil, "yuzey yogun" demektir —
+   sonraki aday modeli denemek ayni duvara carpmaktir. Iki ardisik
+   gecici hata yeter.
+
+   IKI, bir degil: 09.10.2026'da ilk deneme 503 alip ikincisi tutmustu ve
+   kart Gemini'den geldi. O vakayi kaybetmiyoruz. */
+const GEMINI_ARDISIK_GECICI_MAX = 2
+
+/* Atanan seridin beklemesi bu esigi asarsa bos serit aranir.
+   20.10.2026 olcumu: ucuncu pencere atanan seridinde 58.534ms bekledi,
+   kosunun yarisi orada gecti ve review'a yer kalmadi. 15 saniyenin
+   altindaki beklemeler icin devretmiyoruz: TPM penceresi 60 saniye,
+   kisa bekleme modeli degistirmenin riskinden ucuz. */
+const PENCERE_DEVIR_ESIGI_MS = 15_000
+
+/* Devretmenin en az bu kadar kazandirmasi gerekir. Iki serit de
+   doluyken bir oraya bir buraya gecip hicbir sey kazanmamak icin. */
+const PENCERE_DEVIR_KAZANC_MS = 10_000
+
 /* Dakikalik limite (RPM 5) carpinca beklenecek sure. Pencere 60 saniye;
    20 saniye onu garanti ETMEZ ama 2,5 saniyelik eski payla ayni dakikaya
    tekrar girmek kesin basarisizlikti. Yalnizca butcede gercek bos yer
@@ -5839,8 +5975,24 @@ function geminiCoverageQuota(pageCount: number): string {
      Olculen uretim: 15 terim / 18 nokta / 10 soru. Groq'un ayni destedeki
      en iyisi 16 / 25 / 13 idi — aradaki tek gercek fark NOKTALAR, o yuzden
      once o bant aciliyor. */
+  /* 20.10.2026 — BAND COK BUYUK BELGEDE GERI INIYOR.
+     Band 25 sayfada tavana vurup bir daha inmiyordu: 86 sayfalik bir
+     bolumde modelden 18-26 terim + 22-28 nokta + 12-15 soru + tavansiz
+     formul/tablo isteniyordu. Yani sayfa basina en az zamani oldugu anda
+     EN COK cikti.
+
+     Olculdu: 86 sayfa / 68.205 krk metinde model 55 saniye dusundu,
+     kalan ~50 saniyede 29.557 karakter yazdi (~600 krk/sn) ve yetisemedi.
+     Kart KISMI cikti, kapsama %31, onbellege alinmadi.
+
+     60 sayfa ustunde terim/nokta/soru geri iniyor. Formul ve tablo
+     TAVANSIZ kaliyor: golge yolun var olma sebebi onlar. Takas bilincli —
+     biraz daha az terim tasiyan TAM bir kart, yarim bir karttan iyidir;
+     ustelik tam kart onbellege girer ve ayni belge bir daha 105 saniye
+     yakmaz. */
   let terms = '12-18', points = '14-18', quiz = '8-10'
-  if (pageCount > 25) { terms = '18-26'; points = '22-28'; quiz = '12-15' }
+  if (pageCount > 60) { terms = '14-18'; points = '16-20'; quiz = '8-10' }
+  else if (pageCount > 25) { terms = '18-26'; points = '22-28'; quiz = '12-15' }
   else if (pageCount > 10) { terms = '15-22'; points = '16-20'; quiz = '10-13' }
   const olcek = pageCount > 0 ? `all ${pageCount} pages` : 'the whole document'
   const destek = pageCount > 0
@@ -6030,6 +6182,20 @@ const GEMINI_SILENCE_MS = 25_000
    kendiliginden geri gelir. */
 const GEMINI_FIRST_BYTE_MS = 100_000
 
+/* ILK OLAYA kadar beklenecek sure — ilk BYTE'tan ayri.
+
+   20.10.2026 olcumu, ayni belgenin iki kosusu:
+     ilk byte 15.235ms, ilk olay  55.441ms -> 307 olay, 29.557 krk (iyi)
+     ilk byte 15.229ms, ilk olay 101.843ms ->  23 olay,  2.148 krk (bos)
+   Yani baglanti aciliyor ama olay gelmiyor; aradaki fark kartin dolu
+   olmasiyla bos olmasi arasindaki fark.
+
+   72 saniye: mesru dusunme suresi olarak 55,4 saniye OLCULDU, esik onun
+   belirgin ustunde kalmali. Ote yandan bu sure dolunca Groq'un tam bir
+   kosusu icin hala ~70 saniye kaliyor — vazgecmenin bedeli bos bir
+   karttan kucuk. */
+const GEMINI_ILK_OLAY_MS = 72_000
+
 /* Kurtarmaya deger en kucuk kismi cikti. Bunun altinda bir tampon zaten bir
    karta donusmez; kurtarmayi denemek yalnizca logu kirletir. */
 const GEMINI_PARTIAL_MIN_CHARS = 2_000
@@ -6129,7 +6295,7 @@ function geminiSseBlogunuIsle(blok: string, durum: GeminiAkisDurum): void {
 async function geminiAkisiTuket(
   res: Response,
   durum: GeminiAkisDurum,
-  dokun: (veriGeldi?: boolean) => void
+  dokun: (tur?: 'byte' | 'olay' | 'baslangic') => void
 ): Promise<void> {
   const reader = res.body?.getReader?.()
   if (!reader) { durum.hata = 'akis govdesi okunamadi'; return }
@@ -6138,13 +6304,16 @@ async function geminiAkisiTuket(
   while (true) {
     const { done, value } = await reader.read()
     if (done) break
-    dokun(true)
+    dokun('byte')
     const parca = dec.decode(value, { stream: true })
     durum.ham += parca
     tampon += parca
     let kes = tampon.indexOf('\n\n')
     while (kes !== -1) {
+      const oncekiOlay = durum.olaySayisi
       geminiSseBlogunuIsle(tampon.slice(0, kes), durum)
+      // Sayaci sifirlayan sey ISLENEN olay; bosluk ya da heartbeat degil.
+      if (durum.olaySayisi > oncekiOlay) dokun('olay')
       tampon = tampon.slice(kes + 2)
       kes = tampon.indexOf('\n\n')
     }
@@ -6191,7 +6360,9 @@ async function geminiAkisIstegi(
   sessizlikMs: number,
   /* Ilk byte toleransi. Varsayilan sabit; parametre oldugu icin testler
      100 saniye beklemeden hangi sayacin kestigini olcebiliyor. */
-  ilkByteMsIstenen: number = GEMINI_FIRST_BYTE_MS
+  ilkByteMsIstenen: number = GEMINI_FIRST_BYTE_MS,
+  /* Ilk OLAY son tarihi — ayni sebeple parametre. */
+  ilkOlayMsIstenen: number = GEMINI_ILK_OLAY_MS
 ): Promise<{ status: number; body: string } | null> {
   const controller = new AbortController()
   let sebep = ''
@@ -6200,6 +6371,7 @@ async function geminiAkisIstegi(
      akista yanitin tamami 90+ saniyede geliyor), ondan sonra sessizlikMs.
      Tek sayac bu ikisini ayirt edemiyordu — bkz. GEMINI_FIRST_BYTE_MS. */
   const ilkByteMs = Math.min(mutlakMs, ilkByteMsIstenen)
+  const ilkOlayMs = Math.min(mutlakMs, ilkOlayMsIstenen)
   /* Olcum saati her istek icin yeniden kuruluyor: devam ettirme de kendi
      ilk byte'ini olcsun. */
   durum.t0 = Date.now()
@@ -6207,17 +6379,36 @@ async function geminiAkisIstegi(
   durum.ilkOlayMs = -1
   let veriGeldi = false
   let sessiz: number | undefined
-  const dokun = (veri = false) => {
-    if (veri) {
+  /* UC KADEME, ve ikincisi 20.10.2026'da eklendi.
+     Eski hali sayaci her veri PARCASINDA sifirliyordu; yuzey bosluk ya da
+     heartbeat gonderdikce 86 saniyelik gercek sessizlik gorunmez kaldi ve
+     kart bos cikti. Artik byte yalnizca ILK BYTE kademesini kapatiyor;
+     sessizlik sayacini OLAY sifirliyor. */
+  const dokun = (tur: 'byte' | 'olay' | 'baslangic' = 'baslangic') => {
+    const ilkByteMiydi = (tur === 'byte' || tur === 'olay') && durum.ilkByteMs < 0
+    if (tur === 'byte' || tur === 'olay') {
       veriGeldi = true
-      if (durum.ilkByteMs < 0) durum.ilkByteMs = Date.now() - durum.t0
+      if (ilkByteMiydi) durum.ilkByteMs = Date.now() - durum.t0
     }
+    /* SON TARIH BYTE'LARLA KAYMAZ (20.10.2026, ikinci tur).
+       Ilk surum her byte'ta zamanlayiciyi yeniden kuruyordu; yuzey 15
+       saniyede bir heartbeat gonderince 72 saniyelik ilk-olay son tarihi
+       hic dolmuyordu. Canli olcum: ilk byte 15.245ms, ilk olay 90.163ms,
+       son tarih tetiklenmedi ve kart yine kismi cikti.
+
+       Artik ilk-olay son tarihi ILK BYTE'ta bir kez kuruluyor; sonraki
+       byte'lar ona dokunmuyor. Sayaci yalnizca ISLENEN OLAY ileri tasir. */
+    if (tur === 'byte' && !ilkByteMiydi) return
     if (sessiz !== undefined) clearTimeout(sessiz)
-    const sure = veriGeldi ? sessizlikMs : ilkByteMs
+    const sure = durum.olaySayisi > 0
+      ? sessizlikMs
+      : (veriGeldi ? ilkOlayMs : ilkByteMs)
     sessiz = setTimeout(() => {
-      sebep = veriGeldi
+      sebep = durum.olaySayisi > 0
         ? `sessizlik (${sessizlikMs}ms olay gelmedi)`
-        : `ilk byte gelmedi (${ilkByteMs}ms)`
+        : (veriGeldi
+          ? `ilk olay gelmedi (${ilkOlayMs}ms, baglanti acik ama veri yok)`
+          : `ilk byte gelmedi (${ilkByteMs}ms)`)
       controller.abort()
     }, sure)
   }
@@ -6306,6 +6497,31 @@ async function geminiAkisiDevamEttir(
  * JSON.parse ile DOGRULA. Dogrulanmayan bir sey asla dondurulmez — bu
  * fonksiyonun ciktisi dogrudan karta gidiyor.
  */
+/**
+ * Kurtarilan taslak bir KART olmaya yetiyor mu?
+ *
+ * 20.10.2026: 2.074 karakterlik bir kurtarma karakter esigini gecti ve
+ * kart uretildi — icinde 2 terim, 0 nokta, 0 soru vardi, kapsama %0.
+ * Karakter sayisi icerik olcusu degil; bir JSON'da 2.000 karakter
+ * yalnizca summary alaninda da birikebilir.
+ *
+ * Esik mutevazi: ogrenciye verilebilecek en az sey. Altinda kalan taslak
+ * yok sayilir ve normal yedek yolu (Groq) isler.
+ */
+function geminiKurtarmaYeterli(json: string): { yeterli: boolean; ozet: string } {
+  try {
+    const p = JSON.parse(repairLatexEscapes(json))
+    const terim = Array.isArray(p?.key_terms) ? p.key_terms.length : 0
+    const nokta = Array.isArray(p?.key_points) ? p.key_points.length : 0
+    const soru = Array.isArray(p?.quiz_questions) ? p.quiz_questions.length : 0
+    const ozetVar = String(p?.summary || '').trim().length >= 200
+    const yeterli = ozetVar && (nokta >= 3 || terim >= 6)
+    return { yeterli, ozet: `${terim} terim, ${nokta} nokta, ${soru} soru, ozet ${ozetVar ? 'var' : 'yok'}` }
+  } catch (_e) {
+    return { yeterli: false, ozet: 'ayristirilamadi' }
+  }
+}
+
 function closeTruncatedJson(text: string): string | null {
   const temiz = String(text || '').replace(/```json\s*|```/g, '').trim()
   const bas = temiz.search(/[{[]/)
@@ -6531,6 +6747,10 @@ async function geminiDraft(
      ayni hatayi uc kez yemek gunluk kotadan uc istek goturur. */
   const dropped: string[] = []
   let gecici = 0   // 429/503/500 denemeleri — alan dusurme denemelerinden ayri sayilir
+  /* MODELLER ARASI ardisik gecici hata. `gecici` her modelde sifirlaniyor;
+     bu sayac sifirlanmiyor ve yuzeyin tamaminin yogun oldugunu gormemizi
+     sagliyor (bkz. GEMINI_ARDISIK_GECICI_MAX). */
+  let ardisikGecici = 0
 
   /* BASARISIZ DENEMELERIN TOPLAM SURESI.
    *
@@ -6663,6 +6883,17 @@ async function geminiDraft(
         }
         if (durum.metin.length >= GEMINI_PARTIAL_MIN_CHARS) {
           const kurtarilan = closeTruncatedJson(durum.metin)
+          /* Karakter esigi yetmiyor: ICERIGE de bakiliyor (20.10.2026,
+             bkz. geminiKurtarmaYeterli). Bos bir kart, Groq'a dusmekten
+             kotudur. */
+          const yeterlilik = kurtarilan ? geminiKurtarmaYeterli(kurtarilan) : { yeterli: false, ozet: 'kurtarilamadi' }
+          if (kurtarilan && !yeterlilik.yeterli) {
+            console.warn(
+              `Gemini ${model}: kismi JSON kurtarildi ama KART OLMAYA YETMIYOR ` +
+              `(${yeterlilik.ozet}) — taslak yok sayiliyor, Groq yoluna dusuluyor`
+            )
+            return null
+          }
           if (kurtarilan) {
             console.warn(
               `Gemini ${model}: akis tamamlanmadi (${durum.hata}) — KISMI JSON kurtarildi, ` +
@@ -6697,6 +6928,8 @@ async function geminiDraft(
       }
 
       if (res.ok) {
+        // Yuzey cevap veriyor: ardisiklik bozuldu.
+        ardisikGecici = 0
         const problem = geminiProblem(res.data)
         if (problem) {
           console.warn(`Gemini ${model}: cevap kullanilamaz — ${problem}`)
@@ -6805,7 +7038,17 @@ async function geminiDraft(
       }
       if (res.status === 503 || res.status === 500) {
         gecici++
+        ardisikGecici++
         console.warn(`Gemini ${model}: gecici hata ${res.status} (deneme ${gecici}/2): ${res.body.slice(0, 200)}`)
+        /* Yuzeyin tamami yogunsa sonraki aday modeli denemek ayni duvara
+           carpmak: istek de sure de bosa gidiyor. */
+        if (ardisikGecici >= GEMINI_ARDISIK_GECICI_MAX) {
+          console.warn(
+            `Gemini: ${ardisikGecici} ardisik gecici hata — yuzey yogun sayiliyor, ` +
+            `kalan aday modeller denenmiyor, Groq yoluna dusuluyor`
+          )
+          return null
+        }
         if (gecici < 2) continue
         break
       }
@@ -7246,14 +7489,23 @@ serve(async (req) => {
     }
 
     let summaryCacheKey: string | null = null
+    let metinCacheKey: string | null = null
     try {
+      const ayarlar = [lang, style, len, analyzeVisuals ? 'v' : 'nv', SUMMARY_CACHE_VERSION]
       const contentHash = await sha256Hex(fileBytes)
-      summaryCacheKey = [contentHash, lang, style, len, analyzeVisuals ? 'v' : 'nv', SUMMARY_CACHE_VERSION].join(':')
-      const { data: cached, error: cacheErr } = await serviceClient
+      summaryCacheKey = [contentHash, ...ayarlar].join(':')
+      /* IKINCI ANAHTAR: cikarilan metnin hash'i. Ayni sunum yeniden
+         kaydedilmis ya da baska bir araçla taranmissa bayt dizisi degisir,
+         metin degismez — dosya hash'i iskalar, bu yakalar. */
+      const metinHash = await sha256Metin(extractedText)
+      metinCacheKey = metinHash ? ['t' + metinHash, ...ayarlar].join(':') : null
+      const anahtarlar = metinCacheKey ? [summaryCacheKey, metinCacheKey] : [summaryCacheKey]
+      const { data: cachedRows, error: cacheErr } = await serviceClient
         .from('summary_cache')
-        .select('card')
-        .eq('cache_key', summaryCacheKey)
-        .maybeSingle()
+        .select('card, cache_key')
+        .in('cache_key', anahtarlar)
+        .limit(1)
+      const cached = Array.isArray(cachedRows) ? cachedRows[0] : null
       if (cacheErr) {
         console.warn(`summary_cache okunamadi (${cacheErr.message}) — cache atlandi`)
       } else if (cached?.card) {
@@ -7277,7 +7529,13 @@ serve(async (req) => {
             .eq('id', documentId)
           await bestEffortRpc(serviceClient, 'touch_summary_cache', { p_key: summaryCacheKey })
           await bestEffortRpc(serviceClient, 'record_summary_usage', { p_user: document.user_id, p_pages: 0, p_cache_hit: true })
-          console.log(`CACHE ISABETI: ${summaryCacheKey.slice(0, 16)}… — ${Date.now() - requestStartedAt}ms, model cagrisi yok`)
+          /* Hangi anahtarin isabet ettigi loga giriyor: metin anahtarinin
+             gercekten is gorup gormedigi ancak boyle olculur. */
+          const isabetTuru = (cached as any)?.cache_key === metinCacheKey ? 'METIN' : 'DOSYA'
+          console.log(
+            `CACHE ISABETI [${isabetTuru}]: ${String((cached as any)?.cache_key || summaryCacheKey).slice(0, 18)}… ` +
+            `— ${Date.now() - requestStartedAt}ms, model cagrisi yok`
+          )
           return new Response(JSON.stringify({ success: true, studyCardId: hit.data.id, cached: true }), {
             status: 200,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -7600,6 +7858,9 @@ ${styleInstruction}`
        sayisi. Sifir degilse kart tam degil: rozet yaziliyor ve onbellege
        ALINMIYOR (bkz. summary_cache yazimi). */
     let geminiKismiKrk = 0
+    /* Yogunluk kapisinin OLCUM modundaki bulgusu; kapi eledigi gun bu
+       alan karari degil gecmisi tutacak. */
+    let yogunlukOlcumu: { dropped: number; toplam: number; ornekler: string[] } | null = null
     let visualAnalysisUsed = false
 
     // ==========================================================================
@@ -8357,6 +8618,30 @@ Rules:
             windowLane = MODEL_EXTRACT
           } else if (attempt === 0 && assignedLane) {
             windowLane = assignedLane
+            /* ATANAN SERIT BEKLETIYORSA DEVRET (20.10.2026).
+               Ilk deneme seridi batch'in attigi haliyle kullaniyordu ve
+               beklemesini HIC olcmuyordu. Olculen kosuda ucuncu pencere
+               bu yuzden 58,5 saniye bekledi — kosunun yarisi — ve
+               review'a yer kalmadi. pickLane zaten beklemeye gore
+               seciyor; yalnizca bu dal onu atliyordu. */
+            const atananEst = estimateTokens(compactWindowPrompt(wi, windows.length), payload, winCompletion)
+            const atananBekleme = tokenPacer.waitEstimate(atananEst, windowLane, winCompletion)
+            if (atananBekleme >= PENCERE_DEVIR_ESIGI_MS) {
+              const alternatif = pickLane([MODEL_HEAVY, MODEL_EXTRACT], atananEst, winCompletion)
+              const altBekleme = tokenPacer.waitEstimate(atananEst, alternatif, winCompletion)
+              if (alternatif !== windowLane && altBekleme + PENCERE_DEVIR_KAZANC_MS <= atananBekleme) {
+                console.log(
+                  `Window ${wi + 1}: ${windowLane} ${atananBekleme}ms bekletiyor — ` +
+                  `${alternatif} seridine devrediliyor (${altBekleme}ms, kazanc ${atananBekleme - altBekleme}ms)`
+                )
+                windowLane = alternatif
+              } else {
+                console.log(
+                  `Window ${wi + 1}: ${windowLane} ${atananBekleme}ms bekletiyor ama ` +
+                  `devredilecek bos serit yok (en iyi alternatif ${altBekleme}ms)`
+                )
+              }
+            }
           } else {
             const est = estimateTokens(compactWindowPrompt(wi, windows.length), payload, winCompletion)
             const heavyWaitMs = tokenPacer.waitEstimate(est, MODEL_HEAVY, winCompletion)
@@ -10022,6 +10307,32 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
         (gated.stats.droppedPoints.length ? ` | uydurma nokta: ${gated.stats.droppedPoints.map(p => `"${p}"`).join(' ')}` : '')
       )
 
+      /* --- (b0) BILGI YOGUNLUGU KAPISI.
+         Grounding kapisi "uydurma mi" diye bakar; bu kapi "bir sey
+         soyluyor mu" diye. Dolgu cumleler dogru VE kaynakta gecer, o
+         yuzden oteki kapidan rahatca gecerler. */
+      // Olcum asagida quality_meta ye yazilacak.
+      const yogunluk = applyDensityGate(
+        parsedContent.key_points,
+        extractedText,
+        visionNotes.join('\n')
+      )
+      parsedContent.key_points = yogunluk.key_points
+      yogunlukOlcumu = yogunluk.stats.dropped > 0
+        ? { dropped: yogunluk.stats.dropped, toplam: yogunluk.stats.kept, ornekler: yogunluk.stats.droppedPoints.slice(0, 5) }
+        : null
+      if (yogunluk.stats.valfAcildi) {
+        console.warn(
+          `Yogunluk kapisi: VALF ACILDI — maddelerin ucte birinden fazlasi elenecekti, ` +
+          `hicbiri elenmedi (olcum guvenilmez sayildi)`
+        )
+      } else if (yogunluk.stats.dropped > 0) {
+        console.log(
+          `Yogunluk olcumu: ${yogunluk.stats.dropped}/${yogunluk.stats.kept} madde somut capa tasimiyor` +
+          ` | dolgu: ${yogunluk.stats.droppedPoints.map((x) => '"' + x + '"').join(' ')}`
+        )
+      }
+
       // --- (b1) Cozumlu orneklerin VERILEN sayilari da dayandirilir.
       // Kapi uzun sure yalnizca terim ve noktaya bakiyordu; uydurma sayinin
       // en cok zarar verdigi yer ise cozumlu ornek (bkz. gateWorkedExamples).
@@ -10176,6 +10487,10 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
       }
       if (eksikPencereler) qualityMeta.missing_windows = eksikPencereler
       if (geminiKismiKrk > 0) qualityMeta.gemini_partial = { kurtarilanKrk: geminiKismiKrk }
+      /* Olcum modundaki yogunluk kapisinin bulgusu karta da yaziliyor:
+         loglar birkac gunde kayboluyor, kart kaliyor. Kurali veriye bakip
+         koyarken bu alan kaynak olacak. */
+      if (yogunlukOlcumu && yogunlukOlcumu.dropped > 0) qualityMeta.dolgu_adayi = yogunlukOlcumu
       // Paralel modun gercek maliyeti: belge basina token, model dagilimi, sure.
       if (geminiParallelUsage.calls > 0) {
         qualityMeta.gemini_parallel = {
@@ -10231,14 +10546,17 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
        isteyen herkes yarim karti alir ve bir daha hic tam kart uretilmez. */
     if (summaryCacheKey && !eksikPencereler && geminiKismiKrk === 0) {
       const { document_id: _d, user_id: _u, course_tag: _c, ...shareable } = cardPayload
+      /* IKI SATIR: dosya hash'i ve metin hash'i. Ikisi de ayni karti
+         gosteriyor; hangisi once isabet ederse o kullanilir. */
+      const satirlar = [summaryCacheKey, metinCacheKey].filter(Boolean).map((k) => ({
+        cache_key: k as string,
+        content_hash: (k as string).split(':')[0],
+        page_count: billablePages,
+        card: shareable
+      }))
       const { error: cacheWriteErr } = await serviceClient
         .from('summary_cache')
-        .upsert({
-          cache_key: summaryCacheKey,
-          content_hash: summaryCacheKey.split(':')[0],
-          page_count: billablePages,
-          card: shareable
-        }, { onConflict: 'cache_key', ignoreDuplicates: true })
+        .upsert(satirlar, { onConflict: 'cache_key', ignoreDuplicates: true })
       if (cacheWriteErr) console.warn(`summary_cache yazilamadi: ${cacheWriteErr.message}`)
     }
 
@@ -10260,6 +10578,27 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
  * degistirdiginde arttir: eski cache kayitlari anahtar uyusmadigi icin
  * kendiliginden devre disi kalir (silmeye gerek yok). */
 const SUMMARY_CACHE_VERSION = 'c1'
+
+/* Ikinci (metin) cache anahtarinin devreye girdigi en kisa metin.
+   400 karakterin altinda — bos kapak, "Hafta 3" gibi — iki ayri belgenin
+   ayni metne sahip olmasi gercek bir ihtimal ve yanlis isabet, yavas
+   ozetten cok daha kotu. */
+const CACHE_METIN_MIN_KRK = 400
+
+/** Cache icin metin normalizasyonu: bosluk sadelestirme + kucuk harf.
+ *  Ayni destenin iki ayri taramasi bayt duzeyinde farkli, metin
+ *  duzeyinde ayni oluyor; esitligi burada kuruyoruz. */
+function cacheMetniNormalize(text: string): string {
+  return String(text || '').replace(/\s+/g, ' ').trim().toLowerCase()
+}
+
+/** Metnin ikinci cache anahtari icin hash'i. Kisa metinde null:
+ *  carpisma riski kazanctan buyuk. */
+async function sha256Metin(text: string): Promise<string | null> {
+  const norm = cacheMetniNormalize(text)
+  if (norm.length < CACHE_METIN_MIN_KRK) return null
+  return await sha256Hex(new TextEncoder().encode(norm))
+}
 
 async function sha256Hex(bytes: Uint8Array): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', bytes as BufferSource)

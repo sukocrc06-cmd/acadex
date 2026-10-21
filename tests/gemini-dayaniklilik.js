@@ -51,7 +51,7 @@ const denoEnv = new Map();
 globalThis.Deno = { env: { get: (k) => (denoEnv.has(k) ? denoEnv.get(k) : undefined) } };
 
 const G = loadFromSource('supabase/functions/summarize-document/index.ts', [
-  'GEMINI_MODEL_CANDIDATES', 'GEMINI_MAX_REQUESTS_PER_RUN',
+  'GEMINI_MODEL_CANDIDATES', 'GEMINI_MAX_REQUESTS_PER_RUN', 'GEMINI_ARDISIK_GECICI_MAX',
   'GEMINI_RPM_RETRY_MIN_REMAINING_MS', 'geminiRpmWaitMs',
   'GEMINI_ENDPOINT', 'GEMINI_INLINE_MAX_BYTES', 'GEMINI_MAX_PAGES',
   'GEMINI_MIN_BUDGET_MS', 'GEMINI_RESERVE_MS', 'GEMINI_MAX_CALL_MS',
@@ -62,7 +62,7 @@ const G = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'geminiUnknownParameter', 'geminiQuotaExhausted', 'extractGeminiText',
   'geminiProblem', 'callGeminiOnce', 'geminiDraft',
   // Akis (SSE) yolu — 18.10.2026.
-  'GEMINI_SILENCE_MS', 'GEMINI_FIRST_BYTE_MS', 'GEMINI_PARTIAL_MIN_CHARS',
+  'GEMINI_SILENCE_MS', 'GEMINI_FIRST_BYTE_MS', 'GEMINI_ILK_OLAY_MS', 'geminiKurtarmaYeterli', 'GEMINI_PARTIAL_MIN_CHARS',
   'GEMINI_MAX_RESUMES',
   'geminiAkisDurumu', 'geminiSseBlogunuIsle', 'geminiAkisiTuket',
   'geminiAkisIstegi', 'geminiAkisSonucu', 'geminiAkisiDevamEttir',
@@ -627,6 +627,118 @@ test('arayuz KISMI GEMINI rozetini okuyor', () => {
   const i = DASH_SRC.indexOf('qm.gemini_partial');
   const blok = DASH_SRC.slice(i, i + 800);
   assert.ok(/Kısmi özet/.test(blok), 'ogrenciye gosterilen metin yok');
+});
+
+
+test('ILK OLAY gelmezse kesiliyor: baglanti acik ama veri yok', async () => {
+  /* 20.10.2026 CANLI HATA. Ayni belgenin iki kosusu:
+       ilk byte 15.235ms, ilk olay  55.441ms -> 307 olay, 29.557 krk (iyi)
+       ilk byte 15.229ms, ilk olay 101.843ms ->  23 olay,  2.148 krk (bos)
+     Ikincisinde baglanti 15. saniyede acildi, 86 SANIYE boyunca tek olay
+     gelmedi ve kart 2 terim / 0 nokta / 0 soru ile cikti.
+
+     Sessizlik sayaci bunu GORMEDI, cunku her veri PARCASINDA
+     sifirlaniyordu: yuzey bosluk/heartbeat gonderdikce 25 saniyelik esik
+     hic devreye girmedi. Artik sayaci ISLENEN OLAY sifirliyor ve ilk
+     olayin kendi son tarihi var. */
+  fetchCalls = [];
+  // Byte akiyor (hicbiri olay degil), olay hic gelmiyor.
+  stubGecikmeliAkis([
+    { ms: 10, metin: ': heartbeat\n\n' },
+    { ms: 10, metin: ': heartbeat\n\n' },
+    { ms: 10, metin: ': heartbeat\n\n' }
+  ], { hangSonda: true });
+  const d = G.geminiAkisDurumu();
+  const t0 = Date.now();
+  try {
+    // mutlak 10 sn, ilk byte 5 sn, sessizlik 200 ms, ILK OLAY 1 sn.
+    await quiet(() => G.geminiAkisIstegi('http://x', { method: 'POST' }, d, 10_000, 200, 5_000, 1_000));
+  } finally { restoreFetch(); }
+  assert.equal(d.olaySayisi, 0, 'heartbeat olay sayilmis');
+  assert.ok(/ilk olay gelmedi/.test(String(d.hata)),
+    'heartbeat akarken ilk-olay son tarihi tetiklenmedi: ' + d.hata);
+  assert.ok(Date.now() - t0 < 9_000, 'mutlak tavana kadar beklenmis');
+});
+
+test('ILK OLAY esigi olculen dusunme suresinin USTUNDE', () => {
+  /* Mesru dusunme suresi 55,4 saniye olculdu ve o kosu 29.557 karakter
+     uretti. Esik onun altina inerse iyi kosulari da keseriz. */
+  assert.ok(G.GEMINI_ILK_OLAY_MS > 55_441,
+    'esik olculen mesru dusunme suresinin altinda: ' + G.GEMINI_ILK_OLAY_MS);
+  assert.ok(G.GEMINI_ILK_OLAY_MS <= 80_000,
+    'esik cok yuksek — Groq a tam kosu icin yer kalmaz: ' + G.GEMINI_ILK_OLAY_MS);
+});
+
+test('KURTARMA icerige bakiyor, karaktere degil', () => {
+  /* 2.074 karakterlik kurtarma karakter esigini gecip kart uretmisti:
+     2 terim, 0 nokta, 0 soru, kapsama %0. */
+  const bos = JSON.stringify({ summary: 'x'.repeat(400), key_terms: [1, 2], key_points: [], quiz_questions: [] });
+  assert.equal(G.geminiKurtarmaYeterli(bos).yeterli, false, 'bos kart yeterli sayildi');
+
+  const dolu = JSON.stringify({
+    summary: 'x'.repeat(400),
+    key_terms: [1, 2, 3, 4, 5, 6],
+    key_points: [1, 2, 3],
+    quiz_questions: [1]
+  });
+  assert.equal(G.geminiKurtarmaYeterli(dolu).yeterli, true, 'dolu kart reddedildi');
+
+  // Ozet yoksa terim/nokta sayisi ne olursa olsun yetmez.
+  const ozetsiz = JSON.stringify({ summary: '', key_terms: [1, 2, 3, 4, 5, 6, 7], key_points: [1, 2, 3, 4] });
+  assert.equal(G.geminiKurtarmaYeterli(ozetsiz).yeterli, false, 'ozetsiz kart yeterli sayildi');
+
+  assert.equal(G.geminiKurtarmaYeterli('{bozuk').yeterli, false);
+});
+
+
+test('ILK OLAY son tarihi heartbeat ile KAYMAZ', () => {
+  /* 20.10.2026, IKINCI TUR. Ilk duzeltme sessizlik sayacini olaya bagladi
+     ama ilk-olay son tarihini HER BYTE'ta yeniden kuruyordu. Yuzey 15
+     saniyede bir bosluk gonderince 72 saniyelik son tarih hic dolmadi:
+       canli olcum -> ilk byte 15.245ms, ILK OLAY 90.163ms,
+       son tarih tetiklenmedi, cagri 105 sn tavana carpti, kart kismi (%4).
+
+     Onceki testim bunu KACIRDI: heartbeat'leri 10ms arayla gonderip
+     susuyordu, yani kayma gorunmuyordu. Kayma ancak heartbeat'ler son
+     tarihe YAKIN araliklarla gelince ortaya cikiyor — bu test onu kuruyor
+     ve davranisi KAYNAKTAN dogruluyor. */
+  const src = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+  const i = src.indexOf('SON TARIH BYTE');
+  assert.ok(i > -1, 'kayma notu kaybolmus');
+  const blok = src.slice(i - 600, i + 700);
+  assert.ok(blok.includes("if (tur === 'byte' && !ilkByteMiydi) return"),
+    'sonraki byte lar hala zamanlayiciyi yeniden kuruyor');
+  assert.ok(!blok.includes("if (tur === 'byte' && durum.olaySayisi > 0) return"),
+    'kayan eski kosul geri gelmis');
+});
+
+test('ILK OLAY son tarihi ARALIKLI heartbeat te de doluyor', async () => {
+  /* Gercek senaryo: bosluklar son tarihin hemen altinda araliklarla
+     geliyor. Son tarih ilk byte'ta BIR KEZ kuruldugu icin dolmak zorunda. */
+  fetchCalls = [];
+  stubGecikmeliAkis([
+    { ms: 10, metin: ': hb\n\n' },
+    { ms: 180, metin: ': hb\n\n' },
+    { ms: 180, metin: ': hb\n\n' },
+    { ms: 180, metin: ': hb\n\n' }
+  ], { hangSonda: true });
+  const d = G.geminiAkisDurumu();
+  const t0 = Date.now();
+  try {
+    // mutlak 10 sn, sessizlik 5 sn, ilk byte 5 sn, ILK OLAY 400 ms.
+    await quiet(() => G.geminiAkisIstegi('http://x', { method: 'POST' }, d, 10_000, 5_000, 5_000, 400));
+  } finally { restoreFetch(); }
+  const gecen = Date.now() - t0;
+  assert.equal(d.olaySayisi, 0, 'heartbeat olay sayilmis');
+  assert.ok(/ilk olay gelmedi/.test(String(d.hata)),
+    'araliklı heartbeat son tarihi kaydirmis: ' + d.hata);
+  /* ESIK SIKI, bilerek: heartbeat ler 180ms arayla geliyor ve son tarih
+     400ms. Son tarih ILK BYTE tan sayiliyorsa iptal ~410ms de olur. Her
+     byte ta yeniden kurulsaydi iptal ancak akis sustuktan 400ms sonra,
+     yani ~950ms de olurdu — gevsek bir esik bu farki yutar ve test eski
+     davranisi yakalamaz (mutasyonla olculdu). */
+  assert.ok(gecen < 800, gecen + 'ms beklendi — son tarih byte larla kayiyor');
 });
 
 summary();

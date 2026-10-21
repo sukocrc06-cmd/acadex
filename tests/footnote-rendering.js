@@ -31,7 +31,9 @@ const UI = loadFromSource('js/dashboard.js', [
   // Formul kutusuna sigdirma (18.10.2026).
   'FORMUL_MIN_REM', 'sigdirFormulKutusu',
   // Anlati ve maddelerdeki $...$ (18.10.2026).
-  'inlineMath', 'inlineMarkdown'
+  'inlineMath', 'inlineMarkdown',
+  // Cift ters bolu sadelestirmesi (20.10.2026).
+  'sadeKatexKomutu'
 ]);
 
 const DASH_SRC = require('node:fs').readFileSync(
@@ -536,6 +538,36 @@ test('PARA ve BOS durumlar hala reddediliyor', () => {
     assert.equal(UI.inlineMath('bir $ $ iki'), 'bir $ $ iki');
     assert.deepEqual(c, [], 'para ya da bos parca KaTeX e gonderilmis');
   } finally { katexKaldir(); }
+});
+
+
+test('CIFT ters bolu sadelestirilir (KaTeX satir sonu)', () => {
+  /* 20.10.2026 CANLI HATA: madde ekranda soyle cikiyordu —
+       "Log-linear models ( lny = / beta_0 + / beta_1x_1 + / varepsilon )"
+     Kirilma noktalari tam olarak ters bolunun bulundugu yerlerdi. KaTeX'te
+     \\\\ SATIR SONU demek; veride onarim iki kez uygulaninca \\beta
+     \\\\beta oluyor ve formul 'satir sonu + beta' diye diziliyor. */
+  assert.equal(UI.sadeKatexKomutu('\\\\beta_0 + \\\\ln y'), '\\beta_0 + \\ln y');
+});
+
+test('TEK ters bolu ve mesru \\\\ DOKUNULMAZ', () => {
+  /* Sadelestirme dar tutulmali: matris ve hizalamada \\\\ gercekten satir
+     sonudur ve display matematikte mesrudur. Ardindan HARF gelen durum
+     disinda hicbir seye dokunulmuyor. */
+  assert.equal(UI.sadeKatexKomutu('\\beta_0'), '\\beta_0');
+  assert.equal(UI.sadeKatexKomutu('a \\\\ b'), 'a \\\\ b');
+  assert.equal(UI.sadeKatexKomutu('\\\\[ x \\\\]'), '\\\\[ x \\\\]');
+  assert.equal(UI.sadeKatexKomutu(''), '');
+  assert.equal(UI.sadeKatexKomutu(null), '');
+});
+
+test('dizim yolu sadelestirmeden GECIYOR', () => {
+  // Fonksiyonun var olmasi yetmez: render cagrisinda kullanilmazsa
+  // ekranda hicbir sey degismez.
+  const DASH = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'js/dashboard.js'), 'utf8');
+  const n = DASH.split('renderToString(sadeKatexKomutu(latex)').length - 1;
+  assert.equal(n, 2, 'iki render noktasinin ikisi de sadelestirmeden gecmeli, gecen: ' + n);
 });
 
 summary().then(() => process.exit(process.exitCode || 0));
