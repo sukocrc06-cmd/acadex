@@ -2545,6 +2545,21 @@ window.axWhenProfile = function (cb) {
   var subBtn = $L('[data-submit]'), exitBtn = $L('[data-exit]'), subDlg = $L('[data-subdlg]');
   (function () { var t = ''; for (var i = 0; i < 12; i++) { var a = i * Math.PI / 6, r1 = i % 3 ? 40 : 36; t += '<line x1="' + (50 + Math.sin(a) * r1).toFixed(1) + '" y1="' + (50 - Math.cos(a) * r1).toFixed(1) + '" x2="' + (50 + Math.sin(a) * 44).toFixed(1) + '" y2="' + (50 - Math.cos(a) * 44).toFixed(1) + '"/>'; } $L('[data-ticks]').innerHTML = t; })();
   var EXM = null, QS = [], cur = -1, started = 0, ticker = 0, tabOut = 0, mode = 'off', lastFocus = null;
+  /* Soru motoru (js/exam-engine.js) bu salonun altında başsız çalışır:
+     cevap okuma, otomatik kayıt (tarayıcı + exam_drafts) ve "kaldığın
+     yerden devam". Ekran, optik form, işaretleme ve teslim onayı ink'te. */
+  var resumeDraft = null;
+  var ENG = function () { var E = window.AcadexExamEngine; return E && typeof E.attach === 'function' ? E : null; };
+  var myId = function () { return lsafe(function () { return currentUser && currentUser.id; }, null); };
+  var INK_TYPES = { multiple_choice: 1, true_false: 1, fill_blank: 1, calculation: 1, open_ended: 1 };
+  var engineOff = function (discard) {
+    var E = ENG(); if (!E) return;
+    if (discard && EXM) {
+      E.discardDraft(myId(), EXM.id);
+      if (typeof deleteExamDraftRemote === 'function') deleteExamDraftRemote(EXM.id);
+    }
+    if (E.isHeadless()) E.destroy();
+  };
   var wedgeD = function (f) { f = Math.max(0, Math.min(1, f)); if (f >= 0.9999) return 'M50 50 m-46 0 a46 46 0 1 0 92 0 a46 46 0 1 0 -92 0'; var a = f * 2 * Math.PI, x = 50 + 46 * Math.sin(a), y = 50 - 46 * Math.cos(a); return 'M50 50 L50 4 A46 46 0 ' + (f > 0.5 ? 1 : 0) + ' 1 ' + x.toFixed(2) + ' ' + y.toFixed(2) + ' Z'; };
   var mmss = function (s) { s = Math.max(0, Math.round(s)); return pad(Math.floor(s / 60)) + ':' + pad(s % 60); };
   var tick = function () {
@@ -2566,7 +2581,8 @@ window.axWhenProfile = function (cb) {
   };
   var closeHall = function () {
     if (hall.hidden) return;
-    clearInterval(ticker); ticker = 0; hall.hidden = true; document.documentElement.style.overflow = ''; document.body.classList.remove('axs-hall-on'); mode = 'off'; EXM = null;
+    engineOff(false);
+    clearInterval(ticker); ticker = 0; hall.hidden = true; document.documentElement.style.overflow = ''; document.body.classList.remove('axs-hall-on'); mode = 'off'; EXM = null; resumeDraft = null;
     if (typeof stopExamTimer === 'function') stopExamTimer();
     if (lastFocus && document.contains(lastFocus)) lastFocus.focus();
   };
@@ -2587,6 +2603,8 @@ window.axWhenProfile = function (cb) {
     } else if (q.type === 'calculation') {
       var pre = q.units && /^[$€₺£]$/.test(q.units);
       body = '<div class="sn-calc">' + (pre ? '<span>' + esc(q.units) + '</span>' : '') + '<input type="number" step="any" class="sn-blank" name="' + name + '" aria-label="Sayısal cevap" placeholder="cevap">' + (!pre && q.units ? '<span>' + esc(q.units) + '</span>' : '') + '</div>';
+    } else if (!INK_TYPES[q.type] && ENG() && ENG().hasType(q.type)) {
+      body = '<div class="sn-ext">' + ENG().getType(q.type).renderInput(q, { esc: esc, math: rich, lang: EXM.language || 'tr', name: name }) + '</div>';
     } else {
       body = '<div class="sn-answ"><textarea class="sn-ans" name="' + name + '" aria-label="Cevabın" placeholder="cevabını buraya yaz…"></textarea></div><p class="sn-wc"><span>kelime: <b data-wc="">0</b></span><span class="hand">anahtar kavramları kullanmayı unutma</span></p>';
     }
@@ -2599,6 +2617,10 @@ window.axWhenProfile = function (cb) {
   };
   var answered = function (q) {
     var name = 'answer-q-' + q.id;
+    if (!INK_TYPES[q.type] && ENG() && ENG().hasType(q.type)) {
+      var sx = book.querySelector('[data-qi="' + QS.indexOf(q) + '"]');
+      return !!(sx && ENG().isAnswerFilled(ENG().getType(q.type).readAnswer(sx, q)));
+    }
     if (q.type === 'multiple_choice' || q.type === 'true_false') return !!book.querySelector('input[name="' + name + '"]:checked');
     var el = book.querySelector('[name="' + name + '"]'); return !!(el && String(el.value).trim());
   };
@@ -2631,6 +2653,7 @@ window.axWhenProfile = function (cb) {
     $('.sn-book-h .pg', book).textContent = 'sayfa ' + (i + 1) + ' / ' + QS.length;
     if (!reduce) { book.classList.remove('turn'); void book.offsetWidth; book.classList.add('turn'); }
     paintOpt();
+    if (ENG() && ENG().isHeadless()) ENG().save();
     book.parentNode.scrollTop = 0;
     if (focus) { var f = book.querySelector('[data-qi="' + i + '"] input, [data-qi="' + i + '"] textarea'); if (f) f.focus({ preventScroll: true }); }
   };
@@ -2638,31 +2661,77 @@ window.axWhenProfile = function (cb) {
     var e = EXM, lim = e.is_simulation && e.time_limit_seconds ? Math.round(e.time_limit_seconds / 60) : 0;
     book.className = 'sn-book cover';
     book.innerHTML = '<span class="sn-k">' + esc($L('[data-hl-course]').textContent) + '</span><h3>' + esc((TYPE[e.exam_type] || 'deneme') + ' sınavı') + '</h3><p class="meta">' + QS.length + ' soru · ' + (DIFF[e.difficulty] || '') + ' · ' + (e.language === 'tr' ? 'Türkçe' : 'English') + '</p>' +
-      '<ul><li>' + (lim ? 'süre: ' + lim + ' dakika; bitince kâğıt kendiliğinden toplanır' : 'süre sınırı yok; kendi hızında çöz') + '</li><li>' + (e.is_simulation ? 'ipucu yok, gerçek sınav gibi' : 'her soruda bir ipucu alabilirsin') + '</li><li>sorular arasında optik formdan gezebilirsin</li><li>emin olmadığını “işaretle”, sonra dön</li></ul>' +
+      '<ul><li>' + (lim ? 'süre: ' + lim + ' dakika; sayaç sınav hazırlanınca başladı, bitince kâğıt kendiliğinden toplanır' : 'süre sınırı yok; kendi hızında çöz') + '</li><li>' + (e.is_simulation ? 'ipucu yok, gerçek sınav gibi' : 'her soruda bir ipucu alabilirsin') + '</li><li>sorular arasında optik formdan gezebilirsin</li><li>emin olmadığını “işaretle”, sonra dön</li></ul>' +
       (e.is_simulation ? '<p class="warn">SEKMEDEN ÇIKARSAN NOT EDİLİR</p>' : '') + '<button type="button" class="btn btn-blue" data-open-book="">kitapçığı aç</button>';
     setTimeout(function () { var b = book.querySelector('[data-open-book]'); if (b) b.focus(); }, 60);
   };
-  var openBook = function () {
+  /* Taslaktan geri gelen cevapları ink'in görünümüne yansıt: seçili şık
+     etiketleri ve uzun cevapların kelime sayısı. */
+  var syncFromDom = function () {
+    $$('.sn-opt-b input[type="radio"]', book).forEach(function (x) { x.closest('.sn-opt-b').setAttribute('aria-pressed', String(x.checked)); });
+    $$('textarea.sn-ans', book).forEach(function (t) { var w = t.closest('.sn-q').querySelector('[data-wc]'); if (w) w.textContent = (t.value.trim().match(/\S+/g) || []).length; });
+  };
+  var openBook = function (instant) {
     var paint = function () {
+      if (!EXM || cur >= 0) return;
       book.className = 'sn-book';
       book.innerHTML = '<div class="sn-book-h"><span class="nm">' + esc(prof().full_name || '') + ' · ' + esc($L('[data-hl-course]').textContent) + '</span><span class="pg"></span></div>' + QS.map(qHtml).join('');
-      started = Date.now();
-      if (EXM.is_simulation && EXM.time_limit_seconds && typeof startExamTimer === 'function') startExamTimer(EXM.time_limit_seconds);
-      tick(); go(0, true);
+      var draft = resumeDraft; resumeDraft = null;
+      var E = ENG();
+      if (E) {
+        var ex = EXM;
+        E.attach(ex, {
+          root: book, userId: myId(), lang: ex.language || 'tr', draft: draft,
+          saveRemote: typeof saveExamDraftRemote === 'function' ? function (snap) { return saveExamDraftRemote(ex.id, snap); } : null,
+          getCurrent: function () { return cur < 0 ? 0 : cur; },
+          writeFlag: function (btn, on) { btn.textContent = on ? 'işaretli' : 'işaretle'; }
+        });
+        if (draft) syncFromDom();
+      }
+      // Simülasyonda sayaç startActiveExam'de, sunucudaki başlangıca göre kuruldu.
+      if (!(EXM.is_simulation && EXM.time_limit_seconds)) started = Date.now();
+      tick();
+      var at = draft && Number.isInteger(draft.current) ? Math.max(0, Math.min(QS.length - 1, draft.current)) : 0;
+      go(at, true);
     };
-    if (reduce) paint(); else { anim('lift', 560); setTimeout(paint, 520); }
+    if (reduce || instant) paint(); else { anim('lift', 560); setTimeout(paint, 520); }
   };
   if (typeof startActiveExam === 'function') {
-    startActiveExam = function (exam) {
+    startActiveExam = function (exam, opts) {
       if (bdDlg.open) bdDlg.close();
+      engineOff(false);
       EXM = exam; QS = exam.questions || []; cur = -1; started = 0; tabOut = 0; tabw.hidden = true; mode = 'exam';
+      resumeDraft = (opts && opts.draft) || null;
+      // dashboard.js'in submitExam'i bu değişkenden okuyor; "devam et" yolu
+      // generateExam'den geçmediği için burada da kurulmalı.
+      try { currentActiveExam = exam; } catch (e) { /* dashboard.js yok */ }
       if (typeof stopExamTimer === 'function') stopExamTimer();
       var c = cardById(exam.study_card_id);
       $L('[data-hl-course]').textContent = exam.source_type === 'course' ? (exam.course_code || 'ders ağacı') : (c ? (c.course_tag ? c.course_tag + ' · ' : '') + baseName(c.documents && c.documents.file_name) : 'belge');
       $L('[data-hl-title]').textContent = (TYPE[exam.exam_type] || 'deneme') + ' deneme' + (exam.is_simulation ? ' · gerçek süre' : '');
       hMain.hidden = false; res.hidden = true; res.innerHTML = ''; clockW.hidden = false; subBtn.hidden = false; exitBtn.hidden = false; exitBtn.textContent = 'çık';
-      openHall(); coverPage(); paintOpt(); tick(); anim('deal', 760);
+      openHall(); coverPage(); paintOpt();
+      /* Simülasyon süresi sunucuda sınavın oluşturulduğu andan (started_at)
+         sayılıyor; 2 dakikalık paydan sonra gönderim reddediliyor. Sayaç da
+         aynı andan sayar — kapakta beklemek ya da sayfayı yenilemek süreyi
+         baştan başlatmaz. */
+      var lim = exam.is_simulation && exam.time_limit_seconds ? +exam.time_limit_seconds : 0, left = null;
+      if (lim && typeof startExamTimer === 'function') {
+        var E = ENG();
+        left = E ? E.computeRemainingSeconds(exam, Date.now()) : lim;
+        if (left === null) left = lim;
+        started = Date.now() - (lim - left) * 1000;
+        if (left > 0) startExamTimer(left);
+      }
+      tick(); anim('deal', 760);
       clearInterval(ticker); ticker = setInterval(tick, 1000);
+      // Yarım kalan sınava dönüldüyse kapağı atla, kitapçığı cevaplarla aç.
+      var expired = !!lim && left !== null && left <= 0;
+      if (resumeDraft || expired) openBook(true);
+      if (expired && typeof submitExam === 'function') {
+        say('Bu denemenin süresi dolmuş; kâğıdın olduğu gibi teslim ediliyor.');
+        submitExam({ auto: true });
+      }
     };
     window.startActiveExam = startActiveExam;
   }
@@ -2717,8 +2786,9 @@ window.axWhenProfile = function (cb) {
   });
   subDlg.addEventListener('close', function () {
     if (subDlg.returnValue !== 'ok') return;
-    if (subAction === 'exit') { closeHall(); if (typeof loadExamsPlatform === 'function') loadExamsPlatform(); }
-    else if (subAction === 'submit' && typeof submitExam === 'function') submitExam();
+    if (subAction === 'exit') { engineOff(true); closeHall(); if (typeof loadExamsPlatform === 'function') loadExamsPlatform(); }
+    // Onay burada alındı; dashboard.js ikinci bir onay sormasın.
+    else if (subAction === 'submit' && typeof submitExam === 'function') submitExam({ confirmed: true });
   });
   var readingState = function () {
     var cl = book.cloneNode(true); cl.removeAttribute('data-book'); cl.className = 'sn-book sn-reading'; cl.setAttribute('data-reading', '');
