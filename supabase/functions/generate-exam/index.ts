@@ -65,9 +65,17 @@ The "questions" array's length must exactly equal the question count requested i
   "units": "string" | null,
   "solution_steps": ["string"] | null,
   "hint": "string (short helpful clue that does NOT reveal the answer)",
-  "concept": "string"
+  "concept": "string",
+  "explanation": "string",
+  "option_rationales": [{"option": "string", "why": "string"}] | null,
+  "rubric": [{"criterion": "string", "points": number}] | null
 }
 For 'multiple_choice', the 4 options must be distinct and exactly one must be correct.
+
+FEEDBACK FIELDS (the student reads these only AFTER submitting the exam):
+- "explanation" (every question): 1-2 sentences saying WHY the correct answer is correct. Reuse the source material's own key terms and wording so the claim can be traced back to the source.
+- "option_rationales" ('multiple_choice' only, otherwise null): one entry per option, "option" copied exactly from "options", "why" one short sentence — for a wrong option the specific misconception behind it, for the correct option why it is right.
+- "rubric" ('open_ended' only, otherwise null): 3 to 5 criteria a full-marks answer must satisfy, each a specific, observable element (a key idea, a correct definition, a required link between concepts, an example). "points" must add up to exactly 100. Write criteria in the exam language.
 `.trim()
 
 // ==========================================================================
@@ -95,7 +103,13 @@ const EXAM_RATE_LIMIT_PER_DAY = 40
 const ALLOWED_EXAM_TYPES = ['classic', 'test', 'mixed', 'calculation']
 const ALLOWED_LANGUAGES = ['tr', 'en']
 const TRUE_FALSE_OPTIONS: Record<string, [string, string]> = { tr: ['Doğru', 'Yanlış'], en: ['True', 'False'] }
-const KEY_FIELDS = ['correct_answer', 'accepted_answers', 'solution_steps', 'tolerance_percent', 'hint']
+// FAZ 2: açıklama, şık gerekçeleri, rubrik ve kaynak sayfası da anahtarda
+// durur; öğrenci bunları ancak sınav puanlandıktan sonra görür.
+const KEY_FIELDS = ['correct_answer', 'accepted_answers', 'solution_steps', 'tolerance_percent', 'hint', 'explanation', 'option_rationales', 'rubric', 'source']
+const EXPLANATION_MAX_CHARS = 600
+const RATIONALE_MAX_CHARS = 300
+const RUBRIC_MIN_ITEMS = 2
+const RUBRIC_MAX_ITEMS = 6
 
 /** Model yanıtını soru dizisine çevirir: {"questions":[...]}, düz dizi veya
  *  tek anahtarlı başka bir nesne kabul edilir. Ayrıştırılamazsa null. */
@@ -218,7 +232,70 @@ function validateQuestion(raw: unknown, allowedTypes: string[], language: string
     q.correct_answer = ref
     q.options = null
   }
+  // FAZ 2: geri bildirim alanları isteğe bağlı — eksik ya da bozuksa soru
+  // atılmaz, yalnızca o alan boş kalır.
+  q.explanation = cleanText(q.explanation, EXPLANATION_MAX_CHARS)
+  q.option_rationales = type === 'multiple_choice' ? normalizeOptionRationales(q.option_rationales, q.options as string[]) : null
+  q.rubric = type === 'open_ended' ? normalizeRubric(q.rubric) : null
   return { ok: true, question: q }
+}
+
+function cleanText(value: unknown, max: number): string | null {
+  if (typeof value !== 'string') return null
+  const t = value.replace(/\s+/g, ' ').trim()
+  if (t.length < 3) return null
+  return t.length > max ? t.slice(0, max).replace(/\s+\S*$/, '') + '…' : t
+}
+
+/** Şık gerekçelerini şık METNİNE bağlar ({ "şık metni": "neden" }). Şıklar
+ *  sonradan karıştırıldığı için sıra ya da harf değil metin anahtar olur.
+ *  Model harf ("B") ya da "B) ..." döndürürse karıştırmadan ÖNCEKİ sıraya
+ *  göre eşlenir — bu fonksiyon karıştırmadan önce çağrılıyor. */
+function normalizeOptionRationales(raw: unknown, options: string[]): Record<string, string> | null {
+  if (!Array.isArray(options) || options.length === 0) return null
+  const out: Record<string, string> = {}
+  const byNorm = new Map(options.map(o => [normalizeAnswerText(o), o]))
+  const entries: Array<[unknown, unknown]> = Array.isArray(raw)
+    ? raw.map(e => (e && typeof e === 'object') ? [(e as Record<string, unknown>).option, (e as Record<string, unknown>).why] as [unknown, unknown] : [null, null])
+    : (raw && typeof raw === 'object') ? Object.entries(raw as Record<string, unknown>) : []
+  for (const [optRaw, whyRaw] of entries) {
+    const why = cleanText(whyRaw, RATIONALE_MAX_CHARS)
+    if (!why) continue
+    let opt = byNorm.get(normalizeAnswerText(optRaw))
+    if (!opt) {
+      const letter = String(optRaw ?? '').trim().match(/^([A-Ea-e])(?:[).:\s]|$)/)
+      if (letter) opt = options['abcde'.indexOf(letter[1].toLowerCase())]
+    }
+    if (opt && !out[opt]) out[opt] = why
+  }
+  return Object.keys(out).length ? out : null
+}
+
+/** Rubrik: 2–6 madde, puanlar tam sayı ve toplamı tam 100 olacak şekilde
+ *  ölçeklenir. Geçerli madde 2'den azsa null — puanlayıcı o soruda eskisi
+ *  gibi bütüncül puan verir. */
+function normalizeRubric(raw: unknown): Array<{ criterion: string; points: number }> | null {
+  if (!Array.isArray(raw)) return null
+  const items: Array<{ criterion: string; points: number }> = []
+  for (const r of raw) {
+    if (!r || typeof r !== 'object') continue
+    const rec = r as Record<string, unknown>
+    const criterion = cleanText(rec.criterion ?? rec.text ?? rec.item, 240)
+    const points = parseLooseNumber(rec.points ?? rec.weight)
+    if (!criterion || !Number.isFinite(points) || points <= 0) continue
+    items.push({ criterion, points })
+    if (items.length >= RUBRIC_MAX_ITEMS) break
+  }
+  if (items.length < RUBRIC_MIN_ITEMS) return null
+  const total = items.reduce((a, i) => a + i.points, 0)
+  const scaled = items.map(i => ({ criterion: i.criterion, points: Math.max(1, Math.round(i.points * 100 / total)) }))
+  const diff = 100 - scaled.reduce((a, i) => a + i.points, 0)
+  if (diff !== 0) {
+    let k = 0
+    scaled.forEach((it, idx) => { if (it.points > scaled[k].points) k = idx })
+    scaled[k].points += diff
+  }
+  return scaled
 }
 
 /** Fisher–Yates; rand testte sabitlenebilsin diye parametre. */
@@ -241,6 +318,279 @@ function splitPublicAndKey(q: Record<string, unknown>): { pub: Record<string, un
     else pub[k] = v
   }
   return { pub, key }
+}
+
+// ==========================================================================
+// FAZ 2 — SORUYU KAYNAK SAYFAYA BAĞLAMA (21.10.2026)
+//
+// Öğrenci sonuç kâğıdında "bu soru belgenin 7. sayfasından" ve o sayfadaki
+// cümleyi görür. Sayfa, özet kartlarındaki atıflarla AYNI deterministik
+// motorla bulunur: summarize-document'ın kaydettiği document_chunks
+// satırlarından sayfa dizini kurulur, sorunun açıklaması ve doğru cevabı
+// sayfalarla terim örtüşmesiyle eşlenir. Ek yapay zekâ çağrısı yok.
+// Eşik tutturulamazsa soru sayfasız kalır — yanlış sayfa göstermek hiç
+// göstermemekten kötü.
+//
+// Aşağıdaki ANCHOR_STOPWORDS … anchorClaimToPage bloğu
+// supabase/functions/summarize-document/index.ts'ten BİREBİR kopya (edge
+// function'lar dashboard'dan tek dosya olarak deploy ediliyor, ortak modül
+// yok). tests/exam-feedback.js iki kopyanın aynı kaldığını denetler; birini
+// değiştirirsen ötekini de değiştir.
+// ==========================================================================
+
+// Terms this common carry no signal about WHICH page a claim came from.
+const ANCHOR_STOPWORDS = new Set([
+  // Turkish
+  'ancak', 'ayrıca', 'bunun', 'burada', 'çünkü', 'daha', 'değil', 'diğer', 'fakat',
+  'gibi', 'göre', 'için', 'ile', 'olan', 'olarak', 'olduğu', 'olur', 'sonra', 'şekilde',
+  'bütün', 'böyle', 'kadar', 'sadece', 'tüm', 'üzerinde', 'vardır', 'veya', 'yani',
+  'bazı', 'birlikte', 'eğer', 'hem', 'ise', 'yine', 'çok', 'önemli', 'bölüm', 'konu',
+  // English
+  'about', 'after', 'also', 'because', 'been', 'between', 'both', 'does', 'each',
+  'from', 'have', 'however', 'into', 'more', 'most', 'other', 'should', 'such',
+  'than', 'that', 'their', 'then', 'there', 'these', 'this', 'those', 'through',
+  'under', 'when', 'where', 'which', 'while', 'will', 'with', 'would', 'they',
+  'important', 'section', 'chapter', 'example', 'following'
+])
+
+/** Content-bearing terms of a string: >=4 chars, not a stopword, diacritics kept. */
+function anchorTerms(s: string): string[] {
+  return String(s == null ? '' : s)
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .split(/\s+/)
+    .filter(w => w.length >= 4 && !ANCHOR_STOPWORDS.has(w))
+}
+
+type PageSegment = { page: number; terms: Set<string>; head: string; body: string }
+
+// Abbreviations whose trailing dot must NOT end a sentence. Without this a
+// Turkish academic page splits at "s. 42", "vb.", "Prof. Dr." and the quote
+
+const SENTENCE_ABBREV = new Set([
+  's', 'ss', 'vb', 'vs', 'bkz', 'örn', 'orn', 'age', 'agm', 'yy', 'bkz',
+  'dr', 'doç', 'doc', 'prof', 'yrd', 'arş', 'ars', 'gör', 'gor', 'no', 'nr',
+  'yay', 'çev', 'cev', 'ed', 'vol', 'pp', 'fig', 'eq', 'etc', 'al'
+])
+
+/**
+ * Split prose into sentences, conservatively. Over-merging two sentences is
+ * harmless here (the quote is simply a little longer); splitting mid-sentence
+ * is not, because the fragment is shown to the student as the source text.
+ */
+function splitSentences(text: string): string[] {
+  const rough = String(text || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(/(?<=[.!?…])\s+/)
+  const out: string[] = []
+  for (const piece of rough) {
+    const prevNeedsMerge = out.length > 0 && (() => {
+      const prev = out[out.length - 1]
+      const lastWord = (prev.match(/([\p{L}\p{N}]+)\.$/u) || [])[1]
+      if (!lastWord) return false
+      // "...vb." / "...s." / a bare initial like "A." / a list number "3."
+      return SENTENCE_ABBREV.has(lastWord.toLowerCase())
+        || lastWord.length <= 2
+        || /^\d+$/.test(lastWord)
+    })()
+    if (prevNeedsMerge) out[out.length - 1] += ' ' + piece
+    else out.push(piece)
+  }
+  return out.map(s => s.trim()).filter(s => s.length > 0)
+}
+
+// A quote shorter than this carries no context; longer than this is a wall of
+// text in a tooltip.
+const QUOTE_MIN_CHARS = 25
+const QUOTE_MAX_CHARS = 220
+
+/**
+ * The sentence on this page that best supports the claim, returned VERBATIM
+ * so it can be checked against the source. This is what turns "page 7" into
+ * "page 7 says this", which is the whole difference between a citation a
+ * student trusts and one they learn to ignore.
+ *
+ * Returns null when no sentence matches well enough; the caller then falls
+ * back to the page's heading line.
+ */
+function bestQuoteForClaim(claim: string, body: string, idf: Map<string, number>): string | null {
+  const claimTerms = [...new Set(anchorTerms(claim))]
+  if (!claimTerms.length) return null
+  const fallbackIdf = Math.log(2)
+  const totalWeight = claimTerms.reduce((a, t) => a + (idf.get(t) ?? fallbackIdf), 0)
+  if (totalWeight <= 0) return null
+
+  let best: { text: string; score: number } | null = null
+  for (const raw of splitSentences(body)) {
+    if (raw.length < QUOTE_MIN_CHARS) continue
+    const sentTerms = new Set(anchorTerms(raw))
+    if (!sentTerms.size) continue
+    let w = 0, matched = 0
+    for (const t of claimTerms) {
+      if (sentTerms.has(t)) { w += (idf.get(t) ?? fallbackIdf); matched++ }
+    }
+    if (matched < 2) continue
+    // Normalising by the claim's own weight (not the sentence's) keeps a long
+    // rambling sentence from winning just by containing more words.
+    const score = w / totalWeight
+    if (!best || score > best.score) best = { text: raw, score }
+  }
+  if (!best || best.score < 0.3) return null
+  return best.text.length > QUOTE_MAX_CHARS
+    ? best.text.slice(0, QUOTE_MAX_CHARS).replace(/\s+\S*$/, '') + '…'
+    : best.text
+}
+
+
+/** Inverse page frequency: a term on every page discriminates nothing. */
+function buildAnchorIdf(pageIndex: PageSegment[]): Map<string, number> {
+  const df = new Map<string, number>()
+  for (const seg of pageIndex) {
+    for (const t of seg.terms) df.set(t, (df.get(t) || 0) + 1)
+  }
+  const N = Math.max(1, pageIndex.length)
+  const idf = new Map<string, number>()
+  for (const [t, d] of df) idf.set(t, Math.log((N + 1) / (d + 0.5)))
+  return idf
+}
+
+// Precision-first thresholds: a missing citation is a small loss, a wrong one
+// costs the student's trust in every other citation on the card.
+const ANCHOR_MIN_SCORE = 0.42   // share of the claim's weighted vocabulary found on the page
+const ANCHOR_MIN_TERMS = 3      // distinct matched content terms
+
+/**
+ * Best page for a single claim, or null when no page matches it well enough.
+ * Score = matched idf weight / total idf weight of the claim's own terms.
+ */
+function anchorClaimToPage(
+  claim: string,
+  pageIndex: PageSegment[],
+  idf: Map<string, number>
+): { page: number; score: number; matched: number; head: string; quote: string | null } | null {
+  if (!pageIndex.length) return null
+  const terms = [...new Set(anchorTerms(claim))]
+  if (terms.length === 0) return null
+  const totalWeight = terms.reduce((a, t) => a + (idf.get(t) ?? Math.log(pageIndex.length + 1)), 0)
+  if (totalWeight <= 0) return null
+
+  let best: { seg: PageSegment; score: number; matched: number } | null = null
+  for (const seg of pageIndex) {
+    let w = 0, matched = 0
+    for (const t of terms) {
+      if (seg.terms.has(t)) { w += (idf.get(t) ?? 0); matched++ }
+    }
+    if (matched === 0) continue
+    const score = w / totalWeight
+    // Strictly-greater keeps the EARLIEST page on a tie, which is where a
+    // topic is normally introduced.
+    if (!best || score > best.score) best = { seg, score, matched }
+  }
+  if (!best) return null
+  if (best.matched < ANCHOR_MIN_TERMS || best.score < ANCHOR_MIN_SCORE) return null
+  return {
+    page: best.seg.page,
+    score: best.score,
+    matched: best.matched,
+    head: best.seg.head,
+    // Verbatim sentence from that page, so the student sees what the source
+    // actually says rather than just a page number.
+    quote: bestQuoteForClaim(claim, best.seg.body, idf)
+  }
+}
+
+// ---- (kopya bloğun sonu) ----
+
+// summarize-document'taki kayıt parça boyu (kopya; testte denetleniyor).
+const CHUNK_STORE_SIZE = 1200
+
+type ChunkRow = { page_start: number | null; page_end: number | null; text: string }
+
+/** Aynı sayfanın kayıt parçalarını yeniden birleştirir. Çok uzun bir
+ *  paragraf kayıtta tam CHUNK_STORE_SIZE karakterde, çoğu zaman kelimenin
+ *  ortasından kesiliyor; o parçanın arkasına boşluk koymak alıntıda
+ *  "azal ır" gibi kırık kelime üretir. Tam boyda biten parça kesik sayılır
+ *  ve sonrakiyle boşluksuz birleşir; öteki parçalar paragraf arasıyla. */
+function joinChunkParts(parts: string[]): string {
+  let out = ''
+  let prev: string | null = null
+  for (const part of parts) {
+    if (prev === null) out = part
+    else out += (prev.length === CHUNK_STORE_SIZE ? '' : '\n\n') + part
+    prev = part
+  }
+  return out
+}
+type SourceAnchor = { page: number; page_end: number | null; quote: string | null }
+
+/** document_chunks satırlarından (chunk_index sırasıyla) sayfa dizini.
+ *  Kısa sayfalar kayıtta tek parçada birleşmiş olabilir (page_start <
+ *  page_end); o parça başlangıç sayfasıyla dizine girer, bitişi ayrıca
+ *  tutulur ki "s. 3–5" diye gösterilebilsin. Sayfasız belgede (DOCX, düz
+ *  metin) boş dizin döner ve sorular sayfasız kalır. */
+function buildPageIndexFromChunks(rows: ChunkRow[]): { index: PageSegment[]; pageEnd: Map<number, number> } {
+  const groups = new Map<number, { end: number; parts: string[] }>()
+  for (const r of rows || []) {
+    const start = Number(r && r.page_start)
+    if (!Number.isInteger(start) || start <= 0) continue
+    const endRaw = Number(r.page_end)
+    const end = Number.isInteger(endRaw) && endRaw >= start ? endRaw : start
+    const g = groups.get(start)
+    if (g) { g.end = Math.max(g.end, end); g.parts.push(String(r.text || '')) }
+    else groups.set(start, { end, parts: [String(r.text || '')] })
+  }
+  const index: PageSegment[] = []
+  const pageEnd = new Map<number, number>()
+  for (const [page, g] of [...groups.entries()].sort((a, b) => a[0] - b[0])) {
+    const body = joinChunkParts(g.parts).trim()
+    if (!body) continue
+    index.push({
+      page,
+      terms: new Set(anchorTerms(body)),
+      head: (body.split('\n').map(l => l.trim()).find(l => l.length > 3) || '').slice(0, 70),
+      body
+    })
+    if (g.end > page) pageEnd.set(page, g.end)
+  }
+  return { index, pageEnd }
+}
+
+/** Bir sorunun kaynağı: birkaç aday iddia (açıklama + doğru cevap, soru +
+ *  doğru cevap, açık uçluda örnek cevap) denenir, en yüksek puanlı eşleşme
+ *  alınır. Hiçbiri eşiği geçmezse null. */
+function anchorQuestionToSource(q: Record<string, unknown>, index: PageSegment[], idf: Map<string, number>, pageEnd: Map<number, number>): SourceAnchor | null {
+  if (!index.length) return null
+  const answer = typeof q.correct_answer === 'string' ? q.correct_answer : ''
+  const claims = [
+    [q.explanation, answer].filter(Boolean).join(' '),
+    [q.question, answer].filter(Boolean).join(' '),
+    q.type === 'open_ended' ? answer : ''
+  ].map(c => String(c || '').trim()).filter(c => c.length > 0)
+  let best: ReturnType<typeof anchorClaimToPage> = null
+  for (const claim of claims) {
+    const hit = anchorClaimToPage(claim, index, idf)
+    if (hit && (!best || hit.score > best.score)) best = hit
+  }
+  if (!best) return null
+  return { page: best.page, page_end: pageEnd.get(best.page) ?? null, quote: best.quote }
+}
+
+/** Belgenin chunk'larını okur (en fazla 3.000 satır, 1.000'lik sayfalarla). */
+async function loadDocumentChunks(client: ReturnType<typeof createClient>, documentId: string): Promise<ChunkRow[]> {
+  const out: ChunkRow[] = []
+  for (let from = 0; from < 3000; from += 1000) {
+    const { data, error } = await client
+      .from('document_chunks')
+      .select('page_start, page_end, text')
+      .eq('document_id', documentId)
+      .order('chunk_index', { ascending: true })
+      .range(from, from + 999)
+    if (error) { console.warn('generate-exam: document_chunks okunamadi:', error.message); break }
+    out.push(...((data || []) as ChunkRow[]))
+    if (!data || data.length < 1000) break
+  }
+  return out
 }
 
 serve(async (req) => {
@@ -383,6 +733,7 @@ serve(async (req) => {
     let canonicalCourseCode: string | null = null
     let canonicalCourseName: string | null = null
     let courseDeptName: string | null = null
+    let sourceDocumentId: string | null = null
     let conceptRuleText = '- For every question, set a "concept" field to the single key term (from the KEY TERMS list provided) that the question is primarily testing.'
 
     // Evenly samples up to maxCount items across an array, so a very large
@@ -413,6 +764,7 @@ serve(async (req) => {
       }
 
       isQuant = !!card.is_quantitative
+      sourceDocumentId = typeof card.document_id === 'string' ? card.document_id : null
       context = `
 SUMMARY:
 ${card.summary || ''}
@@ -685,6 +1037,26 @@ Additional variation seed: ${Date.now()}`
       }
       return out
     })
+
+    // FAZ 2: kaynak sayfa. Belge sayfalıysa her soru bir sayfaya bağlanmaya
+    // çalışılır; başarısızlık sınav üretimini asla durdurmaz.
+    if (sourceDocumentId) {
+      try {
+        const chunks = await loadDocumentChunks(serviceClient, sourceDocumentId)
+        const { index, pageEnd } = buildPageIndexFromChunks(chunks)
+        if (index.length) {
+          const idf = buildAnchorIdf(index)
+          let anchored = 0
+          for (const q of finalQuestions) {
+            const src = anchorQuestionToSource(q, index, idf, pageEnd)
+            if (src) { q.source = src; anchored++ }
+          }
+          console.log(`generate-exam: ${anchored}/${finalQuestions.length} soru kaynak sayfaya baglandi (${index.length} sayfa)`)
+        }
+      } catch (e) {
+        console.warn('generate-exam: kaynak sayfa baglama atlandi:', e)
+      }
+    }
 
     const publicQuestions: Record<string, unknown>[] = []
     const answerKeys: Record<string, Record<string, unknown>> = {}

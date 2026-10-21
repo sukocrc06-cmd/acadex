@@ -2814,6 +2814,44 @@ window.axWhenProfile = function (cb) {
   var lastElapsed = null;
 
   /* ---------- sonuç: kırmızı kalem ---------- */
+  /* FAZ 2: her sorunun altında "neden", seçilen şıkkın neden yanlış
+     olduğu, klasik soruda rubrik dökümü ve belgedeki sayfa. Alanlar
+     puanlamadan sonra grade-exam'den gelir; eski sınavlarda yoktur ve
+     hiçbir şey çizilmez. */
+  var VERD = { met: ['karşıladın', 'ok'], partial: ['kısmen', 'half'], missing: ['eksik', 'no'] };
+  var rationaleFor = function (map, ans) {
+    if (!map || !ans) return null;
+    if (map[ans]) return map[ans];
+    var n = String(ans).trim().toLocaleLowerCase('tr-TR');
+    for (var k in map) if (String(k).trim().toLocaleLowerCase('tr-TR') === n) return map[k];
+    return null;
+  };
+  var teach = function (r, blank) {
+    var h = '', choice = r.type === 'multiple_choice' || r.type === 'true_false';
+    if (Array.isArray(r.rubric_results) && r.rubric_results.length) {
+      h += '<div class="sn-rubr"><b>madde madde</b><ul>' + r.rubric_results.map(function (it) {
+        var v = VERD[it.verdict] || VERD.missing;
+        return '<li class="' + v[1] + '"><span class="c">' + esc(it.criterion) + (it.note ? '<small>' + esc(it.note) + '</small>' : '') + '</span><span class="v">' + v[0] + '</span><span class="p">' + esc(String(+it.earned || 0)) + ' / ' + esc(String(+it.points || 0)) + '</span></li>';
+      }).join('') + '</ul></div>';
+    }
+    var mine = choice && !blank && !r.is_correct ? rationaleFor(r.option_rationales, r.student_answer) : null;
+    if (mine) h += '<p class="sn-mine"><b>seçtiğin şık neden yanlış:</b> ' + rich(mine) + '</p>';
+    if (r.explanation) h += '<p class="sn-why"><b>neden</b> ' + rich(r.explanation) + '</p>';
+    if (r.type === 'multiple_choice' && r.option_rationales && Array.isArray(r.options) && r.options.length) {
+      var rows = r.options.map(function (o, k) {
+        var why = rationaleFor(r.option_rationales, o); if (!why) return '';
+        var right = String(o) === String(r.correct_answer);
+        return '<li class="' + (right ? 'ok' : '') + '"><span class="l">' + letter(k) + '</span><span>' + esc(o) + ' — ' + rich(why) + '</span></li>';
+      }).join('');
+      if (rows) h += '<details class="sn-optwhy"><summary>tüm şıkların açıklaması</summary><ul>' + rows + '</ul></details>';
+    }
+    var src = r.source;
+    if (src && +src.page > 0) {
+      var pg = 's. ' + (+src.page) + (src.page_end && +src.page_end > +src.page ? '–' + (+src.page_end) : '');
+      h += '<p class="sn-src"><b>kaynak</b> belgede ' + pg + (src.quote ? ': <q>' + esc(src.quote) + '</q>' : '') + '</p>';
+    }
+    return h;
+  };
   var MK = { ok: '<path pathLength="1" d="M5 18 L13 27 L29 6"/>', no: '<path pathLength="1" d="M6 6 L28 28 M28 6 L6 28"/>', half: '<path pathLength="1" d="M6 26 L28 8"/>' };
   if (typeof showExamResults === 'function') {
     showExamResults = function (exam) {
@@ -2842,7 +2880,7 @@ window.axWhenProfile = function (cb) {
           return '<div class="sn-ri" style="--i:' + i + '"><svg class="mk ' + k + '" viewBox="0 0 34 34" aria-hidden="true">' + MK[k] + '</svg><div class="sn-ri-h"><b>' + (i + 1) + '</b><span class="ty">' + esc(QT[r.type] || r.type || '') + '</span>' + (r.concept ? '<span class="cpt">' + esc(r.concept) + '</span>' : '') + '<span class="pt">' + (+r.score || 0) + '</span></div>' +
             '<p class="q">' + rich(r.question) + '</p><p class="yours' + (k === 'no' && !blank ? ' wrong' : '') + '">senin cevabın: <span>' + (blank ? 'boş bıraktın' : esc(r.student_answer) + (r.student_answer && r.units ? unit : '')) + '</span></p>' +
             (r.type !== 'open_ended' && r.correct_answer != null && r.correct_answer !== '' ? '<p class="right">doğrusu: ' + esc(r.correct_answer) + unit + (r.tolerance_percent ? ' (±%' + esc(r.tolerance_percent) + ')' : '') + '</p>' : '') +
-            (r.feedback ? '<p class="fb">' + rich(r.feedback) + '</p>' : '') + steps + '</div>';
+            (r.feedback ? '<p class="fb">' + rich(r.feedback) + '</p>' : '') + teach(r, blank) + steps + '</div>';
         }).join('') +
         '<div class="sn-res-b">' + practice + '<button type="button" class="sn-ghost" data-to-errs="">hata defterine bak</button><button type="button" class="btn btn-dark" data-back="">salona dön</button></div>' +
         '<p class="sn-honest">Puanları Acadex’in yapay zekası verdi. Açık uçlu sorularda hocanın okuması farklı olabilir; geri bildirimi bir öneri olarak oku.</p></article>';
