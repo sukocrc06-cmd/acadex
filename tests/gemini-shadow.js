@@ -33,6 +33,7 @@ const NAMES = [
   'geminiMode', 'GEMINI_ONLY_BUDGET_MS', 'GEMINI_ONLY_MAX_CALL_MS',
   'GEMINI_ONLY_FALLBACK_MIN_MS',
   'GEMINI_MAX_REQUESTS_PER_RUN', 'GEMINI_ARDISIK_GECICI_MAX', 'geminiRpmWaitMs', 'OPSIYONEL_ADIM_MAX_BEKLEME_MS',
+  'PACER_COMPLETION_FACTOR', 'DEFAULT_TPM_LIMIT', 'PACER_SAFETY',
   'GEMINI_RPM_RETRY_MIN_REMAINING_MS',
   'bytesToBase64',
   'geminiModelCandidates', 'geminiNativeMime', 'geminiModelMissing',
@@ -486,6 +487,136 @@ test('compact synthesis de pacer kuyrugu uzunsa ATLANIYOR', () => {
      'Compact synthesis skipped:' basiyor ve iki log birbiriyle celisirdi. */
   assert.ok(/\} else \{\s*\n\s*const syn = await callGroqJson/.test(blok),
     'sentez atlamasi else koluyla yapilmiyor');
+});
+
+/* 21.10.2026, UCUNCU TUR — BEKLEMENIN SEBEBI METIN DEGIL REZERVASYONDU.
+ *
+ * Logdaki `est=1795`in 1.229'u PACER_COMPLETION_FACTOR (0,6) x 2048
+ * rezervasyonu; gercek prompt ~566 token. Yani pacer, sentezin
+ * harcamayacagi bir yer icin dakikanin donmesini bekletiyordu:
+ *   6.095 (kullanilmis) + 1.816 (est) = 7.911 > 7.200 -> 57.955ms bekleme
+ * completion 768 olunca est ~1.048 ve 6.095 + 1.048 = 7.143 <= 7.200,
+ * yani bekleme sifir ve sentez ATLANMAK yerine kosuyor.
+ *
+ * Bu testin korudugu sey bir sayi degil, UC YERIN AYNI sayiyi kullanmasi:
+ * pickLane, waitEstimate ve cagrinin kendisi. Biri 2048'de kalirsa kapi
+ * sigacak bir cagriyi atlar ve rezervasyon hatasi geri doner. */
+/* 21.10.2026 — YAZARIN ISTEGI GERCEK TPM TAVANINI ASIYORDU.
+ *
+ * Olculen: writerSys 2.205 krk, writerUser tavanlarinin toplami 20.300 krk.
+ * est = (2.205 + 20.300)/3,2 + 0,6x2048 = 8.271 token; derin modda
+ * (completion 3072) 8.886. Seridin GERCEK limiti 8.000 — yani yazarin istegi
+ * TEK BASINA tavani asiyordu ve soguk seritte gectiginde Groq'un kendisi
+ * "Request too large" ile reddetmeye adaydi.
+ *
+ * ONEMLI: bu kirpma SURE KAZANDIRMIYOR. Pencerelerin biraktigi bosluk
+ * HEAVY'de 7.200-5.747 = 1.453, EXTRACT'te 1.105 token; kirpilmis est 7.012
+ * bile bunun dort kati. Yazar yine yalnizca `used === 0` kolundan geciyor ve
+ * seridin bosalmasini bekliyor; harcama tek kayit olarak atomik eskidigi icin
+ * daha kucuk est beklemeyi kisaltmiyor da. Test bu yuzden sureyi degil
+ * TAVANI koruyor. */
+test('anlati yazarinin istegi gercek TPM tavaninin ALTINDA', () => {
+  const src = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+  const i = src.indexOf('const writerSys = `');
+  assert.ok(i > 0, 'writerSys bulunamadi');
+  const sysLen = src.slice(i + 19, src.indexOf('`', i + 19)).length;
+
+  /* writerUser'in tavanlari. Kaynakta slice(0, N) olarak duruyorlar; biri
+     buyutulurse bu liste de guncellenmeli, yoksa test yanlis sayiyi korur. */
+  const caps = [
+    500,    // summary_executive
+    2500,   // terms/konu basliklari blogu
+    5000,   // sectionsBlock  <- 7000'den indirildi
+    2000,   // key_terms
+    2000,   // key_points
+    1600,   // formuller
+    1200,   // cozumlu ornekler
+    1500    // taslak ozet    <- 3500'den indirildi
+  ];
+  const userLen = caps.reduce((a, b) => a + b, 0);
+  const est = (c) => Math.ceil((sysLen + userLen) / 3.2) + Math.ceil(c * G.PACER_COMPLETION_FACTOR);
+
+  for (const [ad, completion] of [['standard', 2048], ['derin', 3072]]) {
+    assert.ok(est(completion) <= G.DEFAULT_TPM_LIMIT,
+      `${ad} modda yazar istegi ${est(completion)} token — gercek tavan ` +
+      `${G.DEFAULT_TPM_LIMIT}; Groq "Request too large" ile reddedebilir`);
+  }
+
+  // Kaynaktaki iki sayinin gercekten indirildigini de kilitle.
+  assert.ok(/\.slice\(0, 5000\)/.test(src), 'sectionsBlock kirpmasi geri alinmis');
+  assert.ok(!/slice\(0, depthFlags\.longNarrative \? 10000 : 7000\)/.test(src),
+    'sectionsBlock hala 7000/10000 — est tavani asar');
+  assert.ok(!/draftObj\.summary \|\| ''\)\.slice\(0, 3500\)/.test(src),
+    'taslak ozet hala 3500 — est tavani asar');
+});
+
+test('yazar kirpmasi sureyi DEGIL tavani koruyor (aritmetik)', () => {
+  /* Bu test bir iddiayi degil bir YANLIS BEKLENTIYI kilitliyor: kirpmanin
+     ~48 sn kazandirdigi soylenmisti, aritmetik tutmuyor. Birisi ileride
+     "yazar neden hala bekliyor" diye sorarsa cevap burada. */
+  const seritButcesi = Math.floor(G.DEFAULT_TPM_LIMIT * G.PACER_SAFETY);
+  assert.equal(seritButcesi, 7200, 'serit butcesi degismis, asagidaki sayilar yeniden hesaplanmali');
+  const w1 = 5747, w2 = 6095;   // olculen pencere harcamalari
+  const kalanHeavy = seritButcesi - w1;
+  const kalanExtract = seritButcesi - w2;
+  assert.ok(kalanHeavy < 2000 && kalanExtract < 2000,
+    'pencereler seritleri bosaltmiyor — yazarin beklemesi baska sebepten');
+  /* Yazarin en iyi haldeki est'i bile bu bosluklarin katlari; yani bekleme
+     promptu kirparak kaldirilamaz. Kaldirmanin yolu kapasite artirmak. */
+  assert.ok(7012 > kalanHeavy * 3,
+    'aritmetik degismis: kirpilmis est artik bosluga sigiyor olabilir, yeniden olc');
+});
+
+test('sentezin completion degeri UC yerde de ayni', () => {
+  const src = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+  const i = src.indexOf('const synCompletion =');
+  assert.ok(i > 0, 'sentez completion degeri tek degiskene baglanmamis');
+  const blok = src.slice(i, i + 1800);
+  assert.ok(/const synCompletion = (\d+)/.test(blok), 'synCompletion sayisi okunamadi');
+  const deger = Number(blok.match(/const synCompletion = (\d+)/)[1]);
+  assert.ok(deger <= 1024,
+    `synCompletion ${deger} — 0,6 carpaniyla rezervasyon ${Math.round(deger * 0.6)} token, ` +
+    'olculen 6.095 kullanimin ustune eklenince 7.200 asilir ve bekleme geri doner');
+  assert.ok(deger >= 512, `synCompletion ${deger} — ozet + anahat bu kadara sigmaz`);
+  // pickLane, waitEstimate ve cagri: ucu de degiskeni okumali, sabit yazmamali.
+  /* Tanim ile cagri arasi ~40 satir (araya gerekceli yorum giriyor), o yuzden
+     bu iki kontrol pencerede degil TUM kaynakta yapiliyor; isimler tekil. */
+  assert.equal(
+    (src.match(/estimateTokens\(synSys, synUser, synCompletion\)/g) || []).length, 2,
+    'pickLane ve waitEstimate ikisi de degiskeni okumali');
+  assert.ok(src.includes('maxCompletionTokens: synCompletion'),
+    'cagrinin kendisi hala sabit completion kullaniyor');
+  assert.ok(!/estimateTokens\(synSys, synUser, 2048\)/.test(src),
+    '2048 ile tahmin eden bir yer kalmis — kapi sigacak cagriyi atlar');
+});
+
+/* `kept=0` BENI YANLIS TESHISE GOTURDU (21.10.2026).
+   Groq uzun-belge yolunda `kept` her zaman 0, cunku o yolda modelden atif
+   istenmiyor: pencere semasinda `footnotes` yok, birlesim sabit `[]`
+   gonderiyor. Ben bunu Gemini'nin `kept=30`uyla yan yana koyup "atiflarin
+   tamami dusuyor" diye okudum. Dusen yok; istenen yok. */
+test('citation anchoring logu atif ISTENMEDIGI hali soyluyor', () => {
+  const src = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+  assert.ok(src.includes('const atifIstenmedi ='),
+    'log kept=0 halini ayirt etmiyor — ayni yanlis teshis tekrar edilir');
+  const i = src.indexOf('const atifIstenmedi =');
+  const blok = src.slice(i, i + 700);
+  assert.ok(/kept === 0 && anchored\.stats\.demoted === 0/.test(blok),
+    'ayrim demoted ile birlikte yapilmali: dizi dolu olup sayfalari hatali olsaydi demoted artardi');
+  assert.ok(/atif YOKTU/.test(blok), 'log metni durumu yazmiyor');
+});
+
+test('long-doc birlesimi atif istemiyor — bu BILINCLI, log da oyle demeli', () => {
+  const src = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+  /* Semaya footnotes eklemek olculerek reddedilmis bir taviz: her ek alan
+     maxCompletionTokens'i key_terms/key_points'ten caliyor. Bu test o
+     tavizi KORUYOR, degistirmek isteyen bilerek bu testi dusurecek. */
+  assert.ok(src.includes('footnotes: [],'),
+    'long-doc birlesimi artik footnotes gonderiyor — kota tavizi gozden gecirilmeli');
 });
 
 test('tavan IKI opsiyonel adimi da kapsiyor', () => {

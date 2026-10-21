@@ -6426,6 +6426,30 @@ async function geminiAkisiTuket(
     if (done) break
     dokun('byte')
     const parca = dec.decode(value, { stream: true })
+    /* ILK BYTE'IN ICERIGI (21.10.2026).
+     *
+     * Dort kosuda ilk byte 15.193 / 15.215 / 15.299 / 15.303ms — varyans
+     * 110ms, oysa govde %13,7 degisiyor (438-504 KB dosya + ~19 KB sistem
+     * promptu + ~40 KB userText). Boyuttan bagimsiz sabit bir sayi gecikme
+     * olcmez, PERIYOT olcer; en guclu aciklama Google'in SSE keepalive'i,
+     * yani `:` ile baslayan bir yorum satiri.
+     *
+     * `durum.ham` bugune kadar YALNIZCA olay hic gelmediginde logluyordu
+     * (asagidaki blok), yani basarili kosuda ilk byte'in ne oldugunu hic
+     * gormedik. Bu satir onu kesinlestiriyor:
+     *   `:` ile basliyorsa  -> dolgu, ilk byte kovalanacak bir sey degil,
+     *                          butun caba ilkOlayMs'e kayar
+     *   `data:` ile baslarsa -> icerik, o zaman gecikme gercek ve Files API
+     *                          olcmeye deger hale gelir
+     * dokun('byte') BU SATIRDAN ONCE cagriliyor, cunku ilkByteMs mumkun
+     * olan en erken anda kurulmali; bu yuzden icerik `durum.ham`'dan degil
+     * `parca`'dan okunuyor — ham henuz bos. */
+    if (durum.ham.length === 0) {
+      console.log(
+        `Gemini ilk byte icerigi (${durum.ilkByteMs}ms, ${value?.byteLength ?? 0} bayt): ` +
+        JSON.stringify(parca.slice(0, 120))
+      )
+    }
     durum.ham += parca
     tampon += parca
     let kes = tampon.indexOf('\n\n')
@@ -6535,6 +6559,13 @@ async function geminiAkisIstegi(
   dokun()
   try {
     const res = await fetch(url, { ...init, signal: controller.signal })
+    /* BASLIK SURESI (TTFB) — ilk byte'tan AYRI olcum (21.10.2026).
+       `ilkByteMs` tek basina "baglanti 15 saniye kuruldu" ile "basliklar
+       hemen geldi ama govde 15 saniye sustu" durumlarini ayirt edemiyor.
+       Ikisi cok farkli sey: ilki bizim odedigimiz bir maliyet (govde
+       yuklemesi, kabul kuyrugu), ikincisi Google'in keepalive takvimi ve
+       bize ait degil. Bu satir ayrimi yapiyor. */
+    console.log(`Gemini baslik suresi: ${Date.now() - durum.t0}ms (HTTP ${res.status})`)
     if (!res.ok) {
       let text = ''
       try { text = (await res.text()).slice(0, 1200) } catch (_e) { /* govde okunamadi */ }
@@ -9265,10 +9296,15 @@ Use CONCRETE topic names from digests and terms. No meta filler.`
           // the structuring and the better one stays free for the writing,
           // which is where the difference is visible. Either falls back if its
           // preferred lane is busy.
+          /* Sentezin completion rezervasyonu — bkz. cagri yerindeki yorum.
+             pickLane, waitEstimate ve cagrinin kendisi UCU de bu degeri
+             kullaniyor; biri 2048'de kalirsa serit secimi yanlis seride
+             gider ya da kapi sigacak bir cagriyi atlar. */
+          const synCompletion = 768
           const synLane = pickLane(
             [MODEL_EXTRACT, MODEL_HEAVY],
-            estimateTokens(synSys, synUser, 2048),
-            2048
+            estimateTokens(synSys, synUser, synCompletion),
+            synCompletion
           )
           /* SENTEZ DE OPSIYONEL — bkz. OPSIYONEL_ADIM_MAX_BEKLEME_MS.
              21.10 kosusunda 57.955ms'lik pacer beklemesi TAM BURADA olustu:
@@ -9277,7 +9313,7 @@ Use CONCRETE topic names from digests and terms. No meta filler.`
              pencerelerden zaten gelmis; sentez onun uzerine ozet/anahat
              koyuyor. 58 saniyelik kuyruk buna degmiyor. */
           const synBekleme = tokenPacer.waitEstimate(
-            estimateTokens(synSys, synUser, 2048), synLane, 2048
+            estimateTokens(synSys, synUser, synCompletion), synLane, synCompletion
           )
           if (synBekleme > OPSIYONEL_ADIM_MAX_BEKLEME_MS) {
             skippedStages.push('compact synthesis')
@@ -9290,7 +9326,22 @@ Use CONCRETE topic names from digests and terms. No meta filler.`
               groqApiKey,
               synSys,
               synUser,
-              { model: synLane, temperature: 0.25, maxCompletionTokens: 2048, timeoutMs: 30000, maxRetries: 0 }
+              /* COMPLETION REZERVASYONU BEKLEMENIN ASIL SEBEBIYDI (21.10.2026).
+               *
+               * Logdaki `est=1795`in 1.229'u metin degil, rezervasyon:
+               * PACER_COMPLETION_FACTOR (0,6) x maxCompletionTokens (2048).
+               * Gercek prompt yalnizca ~566 token. Yani pacer, sentezin
+               * harcamayacagi bir yer icin dakikanin donmesini bekletiyordu.
+               *
+               * 768'e inince est ~1.048 oluyor ve olculen iki kosu da
+               * siğiyor: 6.095 + 1.048 = 7.143 <= 7.200 (sinir PACER_SAFETY
+               * ile kirpilmis 8.000). Yani bekleme SIFIRLANIYOR ve sentez
+               * ATLANMAK yerine gercekten kosuyor — kart da kazaniyor.
+               *
+               * En kotu hal "atlamakla ayni": 768 token cikti kesilirse JSON
+               * ayristirilamaz, asagidaki catch yutar ve pencerelerin ciktisi
+               * korunur. Ustteki atlama kapisi yine duruyor, ag olarak. */
+              { model: synLane, temperature: 0.25, maxCompletionTokens: synCompletion, timeoutMs: 30000, maxRetries: 0 }
             )
             if (syn?.summary && String(syn.summary).length > 80) bestSummary = String(syn.summary)
             if (syn?.summary_executive) bestExec = String(syn.summary_executive)
@@ -9804,7 +9855,29 @@ ${narrative}`
         const sectionsBlock = sectionItems
           .map((s: any) => `## ${s.heading}\n${(s.summary || '').slice(0, depthFlags.longNarrative ? 900 : 600)}`)
           .join('\n\n')
-          .slice(0, depthFlags.longNarrative ? 10000 : 7000)
+          /* YAZARIN ISTEGI GERCEK TPM TAVANINI ASIYORDU (21.10.2026).
+           *
+           * Olculen: writerSys 2.234 krk, writerUser tavanlarinin toplami
+           * 20.300 krk. estimateTokens = (2.234 + 20.300)/3,2 + 0,6x2048 =
+           * 8.271 token; derin modda (completion 3072) 8.886. Seridin
+           * GERCEK limiti 8.000 (DEFAULT_TPM_LIMIT) — yani yazarin istegi
+           * tek basina tavani asiyor ve sogùk seritte gectiginde Groq'un
+           * kendisi "Request too large" ile reddetmeye adaydi.
+           *
+           * BU KIRPMA SURE KAZANDIRMIYOR, bilerek yaziyorum: pencerelerin
+           * biraktigi bosluk HEAVY'de 7.200-5.747 = 1.453, EXTRACT'te 1.105
+           * token. Kirpilmis est 6.709 bile bunun dort kati, yani yazar yine
+           * yalnizca `used === 0` kolundan (bkz. waitFor) geciyor ve seridin
+           * tamamen bosalmasini bekliyor. Harcama tek bir kayit olarak
+           * atomik eskidigi icin daha kucuk bir est beklemeyi kisaltmiyor da.
+           * Kazanc: istek gercek tavanin altina iniyor ve tahmin durustlesiyor.
+           *
+           * Sureyi dusuren sey ucuncu bir serit; bkz. pacer denetimi. */
+          /* Derin modda da 5.000: o yol completion'i 2048 yerine 3072
+             istiyor, yani rezervasyon 1.229 degil 1.844 token. Bolum
+             metnine fazladan 500 krk vermek payi 216 token'a dusuruyordu;
+             tek sayi hem daha basit hem daha guvenli (pay 373). */
+          .slice(0, 5000)
 
         const lengthHint =
           depthFlags.longNarrative || len === 'detailed' || len === 'long'
@@ -9886,7 +9959,7 @@ Worked results (numbers you may state):
 ${workedBlock || '(none)'}
 
 Existing draft summary (keep factual content; rewrite only for flow):
-${String(draftObj.summary || '').slice(0, 3500)}`
+${String(draftObj.summary || '').slice(0, 1500)}`
 
         // MODEL_HEAVY first — this is the one call where prose quality is the
         // product. But a 57s queue for it, measured on 05.10.2026, is not a
@@ -10660,11 +10733,29 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
       if (typeof parsedContent.summary === 'string') {
         parsedContent.summary = applyFootnoteRemap(parsedContent.summary, anchored.idMap)
       }
+      /* `kept=0` YANLIS TESHISE YOL ACTI (21.10.2026).
+       *
+       * Groq uzun-belge yolunda `kept` HER ZAMAN 0, cunku o yolda modelden
+       * atif hic istenmiyor: pencere semasinda `footnotes` yok ve birlesim
+       * onu sabit `footnotes: []` olarak gonderiyor. `kept` yalnizca GELEN
+       * atiflar uzerinde donen dongude artiyor, yani gelen bos oldugunda
+       * artabilecegi tek yer hic calismiyor.
+       *
+       * Bu satiri Gemini yolunun `kept=30` degeriyle yan yana koyup "Groq
+       * yolunda atiflarin tamami dusuyor" diye okudum — yanlisti. Dusen bir
+       * sey yok; istenen bir sey yok. `demoted=0` bunu zaten kesinlestiriyor
+       * (dizi dolu olup sayfalari hatali olsaydi demoted artardi).
+       *
+       * Artik log hangi halde oldugunu kendisi soyluyor. */
+      const atifIstenmedi = anchored.stats.kept === 0 && anchored.stats.demoted === 0
       console.log(
         `Citation anchoring: pages=${pageIndex.length} ` +
         `kept=${anchored.stats.kept} demoted=${anchored.stats.demoted} ` +
         `added=${anchored.stats.added} quoted=${anchored.stats.quoted} ` +
-        `unanchored=${anchored.stats.skipped}`
+        `unanchored=${anchored.stats.skipped}` +
+        (atifIstenmedi
+          ? ' — taslakta atif YOKTU (modelden istenmedi), tamami hesaplandi'
+          : '')
       )
     }
 
