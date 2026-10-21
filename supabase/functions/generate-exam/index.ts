@@ -306,6 +306,51 @@ function normalizeRubric(raw: unknown): Array<{ criterion: string; points: numbe
 }
 
 const GROQ_RETRY_MAX_WAIT_MS = 30_000
+// Üretimde Groq hatası sonrası en fazla bu kadar yeniden deneme.
+const GEN_MAX_RETRIES = 2
+// Çıktı bütçesi: sabit pay (düşünme + sarmalayıcı) + soru başına pay.
+// 8 soru ≈ 4.560 token; ~2.600 tokenlık istemle tek istek 8.000 TPM'ye sığar.
+const GEN_TOKENS_BASE = 1200
+const GEN_TOKENS_PER_QUESTION = 420
+const GEN_TOKENS_MAX = 7000
+
+function completionBudgetFor(count: number): number {
+  const n = Math.max(1, Math.floor(Number(count) || 1))
+  return Math.min(GEN_TOKENS_MAX, GEN_TOKENS_BASE + GEN_TOKENS_PER_QUESTION * n)
+}
+
+/** Kesik ya da bozuk bir JSON çıktısından TAMAMLANMIŞ soru nesnelerini
+ *  çıkarır: "questions" dizisinin (yoksa ilk dizinin) içindeki üst düzey
+ *  {...} blokları tek tek ayrıştırılır, yarım kalan son nesne atılır.
+ *  Dize içindeki parantezler ve kaçış karakterleri hesaba katılır. */
+function salvageQuestionObjects(raw: string): unknown[] {
+  const text = String(raw || '')
+  const key = text.indexOf('"questions"')
+  const start = text.indexOf('[', key >= 0 ? key : 0)
+  if (start < 0) return []
+  const out: unknown[] = []
+  let depth = 0, inStr = false, esc = false, objStart = -1
+  for (let i = start + 1; i < text.length; i++) {
+    const c = text[i]
+    if (inStr) {
+      if (esc) esc = false
+      else if (c === '\\') esc = true
+      else if (c === '"') inStr = false
+      continue
+    }
+    if (c === '"') { inStr = true; continue }
+    if (c === '{') { if (depth === 0) objStart = i; depth++ }
+    else if (c === '}') {
+      depth--
+      if (depth === 0 && objStart >= 0) {
+        try { out.push(JSON.parse(text.slice(objStart, i + 1))) } catch (_e) { /* bozuk nesne: atla */ }
+        objStart = -1
+      }
+      if (depth < 0) break
+    } else if (c === ']' && depth === 0) break
+  }
+  return out
+}
 
 /** Groq 429 yanıtından beklenecek süre (ms). Önce retry-after başlığı, yoksa
  *  mesajdaki "Please try again in 1m2.5s" / "in 750ms". Süre okunamazsa ya
@@ -992,6 +1037,12 @@ Additional variation seed: ${Date.now()}`
           // which is why "Sınav Platformu" looked broken/nonexistent.
           model: "openai/gpt-oss-120b",
           temperature: 0.9,
+          // 22.10.2026 (canlı test): gpt-oss akıl yürütme modeli; görünmeyen
+          // düşünme tokenları çıktı bütçesini yiyince yanıt boş ya da tek
+          // soruda kesik geliyordu. Düşünme payı kısıldı, bütçe soru
+          // sayısına göre açıkça veriliyor (hesap 8.000 TPM ile sınırlı).
+          reasoning_effort: "low",
+          max_completion_tokens: completionBudgetFor(count),
           // JSON modu üst düzeyde NESNE döndürür; prompt bu yüzden artık
           // {"questions":[...]} istiyor. Eskiden dizi istenip json_object
           // modu kullanılıyordu — ara sıra görülen "invalid formatting"
@@ -1006,10 +1057,20 @@ Additional variation seed: ${Date.now()}`
 
       const groqData = await groqResponse.json().catch(() => ({}))
       if (!groqResponse.ok) {
+        // JSON modu doğrulaması düştüyse (ör. yanıt bütçede kesildi) Groq ham
+        // çıktıyı failed_generation'da verir: içindeki tam soruları kurtar;
+        // hiçbiri yoksa bir kez daha dene.
+        if (groqData?.error?.code === 'json_validate_failed') {
+          const salvaged = salvageQuestionObjects(String(groqData.error.failed_generation ?? ''))
+          console.warn(`generate-exam: Groq JSON dogrulamasi dustu; ${salvaged.length} soru kurtarildi`)
+          if (salvaged.length > 0) return { items: salvaged }
+          if (attempt < GEN_MAX_RETRIES) return requestQuestions(count, avoid, attempt + 1)
+        }
         // FAZ 2 (canlı test): eksik sorular için yapılan ikinci istek
         // dakikalık token sınırına (TPM) takılıyordu. Groq'un söylediği süre
-        // kısaysa bekleyip bir kez daha dene.
-        const waitMs = attempt === 0 ? groqRetryDelayMs(groqResponse.status, groqResponse.headers.get('retry-after'), groqData?.error?.message) : null
+        // kısaysa bekleyip yeniden dene (kayan dakika penceresi yüzünden bir
+        // bekleme her zaman yetmiyor; en fazla GEN_MAX_RETRIES kez).
+        const waitMs = attempt < GEN_MAX_RETRIES ? groqRetryDelayMs(groqResponse.status, groqResponse.headers.get('retry-after'), groqData?.error?.message) : null
         if (waitMs !== null) {
           console.warn(`generate-exam: Groq hiz siniri, ${Math.round(waitMs / 1000)} sn beklenip yeniden deneniyor`)
           await new Promise(r => setTimeout(r, waitMs))
@@ -1018,8 +1079,19 @@ Additional variation seed: ${Date.now()}`
         console.error("Groq generation failed: ", groqData)
         return { error: groqData?.error?.message || groqData?.error?.code || `HTTP ${groqResponse.status}` }
       }
-      const rawContent = groqData.choices?.[0]?.message?.content ?? ""
-      const items = parseQuestionArray(rawContent)
+      const choice = groqData.choices?.[0]
+      const rawContent = choice?.message?.content ?? ""
+      const usage = groqData.usage || {}
+      console.log(`generate-exam: groq finish=${choice?.finish_reason} istenen=${count} prompt=${usage.prompt_tokens} cikti=${usage.completion_tokens} butce=${completionBudgetFor(count)}`)
+      let items = parseQuestionArray(rawContent)
+      // Bütçede kesilen yanıt: tamamlanmış soru nesnelerini kurtar.
+      if (!items && rawContent) {
+        const salvaged = salvageQuestionObjects(String(rawContent))
+        if (salvaged.length > 0) {
+          console.warn(`generate-exam: yanit kesik (finish=${choice?.finish_reason}); ${salvaged.length} soru kurtarildi`)
+          items = salvaged
+        }
+      }
       if (!items) {
         console.error("Failed to parse Groq response as a question list. Content: ", String(rawContent).slice(0, 2000))
         return { error: 'invalid_format' }
