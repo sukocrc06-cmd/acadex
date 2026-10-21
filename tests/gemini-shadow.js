@@ -1013,6 +1013,83 @@ test('geminiDraft: IKI AYRI modelde 503 alinirsa durulur', async () => {
   } finally { restoreFetch(); }
 });
 
+/* 21.10.2026 — ZAYIF YEDEK KART KALICILASIYORDU.
+ *
+ * Ilk kez gozlenen cache isabeti:
+ *
+ *   CACHE ISABETI [DOSYA]: 231eb9e17d522b74e1… — 1929ms, model cagrisi yok
+ *
+ * 1,9 saniye, harika. Ama donen kart bir onceki kosunun GROQ YEDEK karti:
+ * Gemini iki 503 almis, Groq devralmis, kart TAM oldugu icin (eksik pencere
+ * yok, Gemini kismi degil) onbellege girmis. Olculen fark, ayni deste:
+ *
+ *   Gemini yolu : kapsama %72-77, citation anchoring kept=30 / kept=15
+ *   Groq yedegi : kapsama %56,   citation anchoring kept=0
+ *
+ * Yani yuzeyin bir dakikalik yogunlugu, o dosya icin KALICI kalite kaybina
+ * dondu ve Gemini'nin bir daha denenmesi imkansiz hale geldi. Ilk iki kosul
+ * "kart tam mi" diye soruyor; eksik olan "kart ISTENEN kart mi". */
+test('gecici hatayla dusuldugunde tani cagirana BILDIRILIYOR', async () => {
+  stubFetch([
+    { status: 503, text: 'gemini-3.7-flash is currently experiencing high demand' },
+    { status: 503, text: 'gemini-3.7-flash is currently experiencing high demand' },
+    { status: 503, text: 'gemini-3.8-flash is currently experiencing high demand' }
+  ]);
+  const tani = {};
+  try {
+    const out = await quiet(() =>
+      G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000, 'only', tani));
+    assert.equal(out, null, 'gecici hatalarda Groq yoluna dusulmeliydi');
+    assert.equal(tani.geciciDustu, true,
+      'gecici dusus bildirilmiyor — zayif yedek kart yine onbellege girer');
+  } finally { restoreFetch(); }
+});
+
+test('esik dolmadan liste tukenirse de gecici dusus bildiriliyor', async () => {
+  /* Bir model 503, digerleri "boyle model yok": esik (AYRI iki model)
+     dolmuyor ama tasiyici sebep hala gecici. */
+  stubFetch([
+    { status: 503, text: 'gemini-3.7-flash is currently experiencing high demand' },
+    { status: 503, text: 'gemini-3.7-flash is currently experiencing high demand' },
+    { status: 404, text: 'models/gemini-3.8-flash is not found' },
+    { status: 404, text: 'models/gemini-3.5-flash is not found' },
+    { status: 404, text: 'models/gemini-3.6-flash is not found' }
+  ]);
+  const tani = {};
+  try {
+    await quiet(() =>
+      G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000, 'only', tani));
+    assert.equal(tani.geciciDustu, true, 'gecici hata gormus kosu temiz sayiliyor');
+  } finally { restoreFetch(); }
+});
+
+test('BASARILI kosuda gecici dusus BILDIRILMIYOR', async () => {
+  // Yoksa her kart onbellek disi kalir ve cache hic calismaz.
+  stubFetch([{ status: 200, json: OK_JSON }]);
+  const tani = {};
+  try {
+    const out = await quiet(() =>
+      G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000, 'only', tani));
+    assert.ok(out, 'taslak gelmeliydi');
+    assert.ok(!tani.geciciDustu, 'basarili kosu gecici dusmus sayilmis — cache hic yazilmaz');
+  } finally { restoreFetch(); }
+});
+
+test('onbellek kapisi gecici dusus KOSULUNU okuyor', () => {
+  const src = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+  assert.ok(src.includes('!geminiTani.geciciDustu'),
+    'cache kapisi yedek yolu ayirt etmiyor — zayif kart kalicilasir');
+  const kapi = src.indexOf('if (summaryCacheKey && !eksikPencereler');
+  assert.ok(kapi > 0, 'cache yazma kapisi bulunamadi');
+  /* Uc kosul birlikte: tam kart (iki) + istenen kart (bir). Biri dusunce
+     digerleri de gitmesin diye tek satirda tutuluyor. */
+  const satir = src.slice(kapi, src.indexOf('\n', kapi));
+  for (const k of ['!eksikPencereler', 'geminiKismiKrk === 0', '!geminiTani.geciciDustu']) {
+    assert.ok(satir.includes(k), `cache kapisinda ${k} yok: ${satir}`);
+  }
+});
+
 test('gecici hata sayaci MODEL ayirt ediyor', () => {
   const src = require('node:fs').readFileSync(
     require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');

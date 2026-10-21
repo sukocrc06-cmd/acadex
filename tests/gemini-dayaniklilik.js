@@ -615,8 +615,14 @@ test('esik: cok kisa kismi cikti kurtarmaya GIRMEZ', () => {
 test('KISMI taslaktan uretilen kart ONBELLEGE ALINMAZ', () => {
   // Alinirsa ayni belgeyi ozetleyen herkes yarim karti alir ve bir daha
   // hic tam kart uretilmez.
-  assert.ok(/if \(summaryCacheKey && !eksikPencereler && geminiKismiKrk === 0\)/.test(FN_SRC),
-    'onbellek kapisi kismi karti disarida tutmuyor');
+  /* 21.10.2026: kapiya DORDUNCU kosul eklendi (!geminiTani.geciciDustu),
+     o yuzden kapanis parantezine kadar birebir eslesme aranmiyor. Burada
+     korunan sey hala ayni: KISMI kart disarida kalmali. */
+  const kapi = FN_SRC.indexOf('if (summaryCacheKey && !eksikPencereler');
+  assert.ok(kapi > 0, 'onbellek yazma kapisi bulunamadi');
+  const kapiSatiri = FN_SRC.slice(kapi, FN_SRC.indexOf('\n', kapi));
+  assert.ok(kapiSatiri.includes('geminiKismiKrk === 0'),
+    `onbellek kapisi kismi karti disarida tutmuyor: ${kapiSatiri}`);
   assert.ok(/qualityMeta\.gemini_partial = \{ kurtarilanKrk: geminiKismiKrk \}/.test(FN_SRC),
     'kismi kart isaretlenmiyor — arayuz rozeti okuyamaz');
 });

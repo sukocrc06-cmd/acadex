@@ -6856,7 +6856,11 @@ async function geminiDraft(
   fileMime: string,
   userText: string,
   budgetMs: number,
-  mode: 'only' | 'shadow' = 'only'
+  mode: 'only' | 'shadow' = 'only',
+  /* Cagiran icin TANI. Su an tek alani var: Gemini GECICI hatalar (503/500)
+     yuzunden hic taslak uretemediyse true. Cikan kart yedek yoldan geliyor
+     ve KALICI cevap sayilmamali — bkz. summary_cache yazimi. */
+  tani?: { geciciDustu?: boolean }
 ): Promise<{ raw: string; model: string; ms: number; usage: any; kismi?: boolean } | null> {
   /* Cagrinin zaman asimi:
      - her iki modda: GEMINI_RESERVE_MS, cagri BASARILI olursa kapilar+kayit
@@ -7246,6 +7250,7 @@ async function geminiDraft(
             `(${[...geciciModeller].join(', ')}, ${ardisikGecici} deneme) — ` +
             `yuzey yogun sayiliyor, kalan aday modeller denenmiyor, Groq yoluna dusuluyor`
           )
+          if (tani) tani.geciciDustu = true
           return null
         }
         if (gecici < 2) continue
@@ -7256,7 +7261,14 @@ async function geminiDraft(
     }
   }
 
-  console.warn('Gemini: hicbir aday model taslak uretemedi — Groq yoluna dusuluyor')
+  /* Esik dolmadan liste tukendiginde de (ornegin bir model 503, digerleri
+     404) tasiyici sebep GECICI: yarin ayni belge Gemini kartini uretebilir,
+     yani bugunun yedek karti kalicilastirilmamali. */
+  if (tani && geciciModeller.size > 0) tani.geciciDustu = true
+  console.warn(
+    'Gemini: hicbir aday model taslak uretemedi — Groq yoluna dusuluyor' +
+    (geciciModeller.size > 0 ? ` (gecici hata veren: ${[...geciciModeller].join(', ')})` : '')
+  )
   return null
 }
 
@@ -8057,6 +8069,17 @@ ${styleInstruction}`
        sayisi. Sifir degilse kart tam degil: rozet yaziliyor ve onbellege
        ALINMIYOR (bkz. summary_cache yazimi). */
     let geminiKismiKrk = 0
+    /* Gemini GECICI hatalar yuzunden hic taslak uretemediyse true. Cikan
+       kart Groq yedek yolundan geliyor; tam olabilir ama ISTENEN kart
+       degil. Olculdu (21.10.2026, ayni 42 sayfalik deste):
+
+         Gemini yolu : kapsama %72-77, citation anchoring kept=30 / kept=15
+         Groq yedegi : kapsama %56,   citation anchoring kept=0
+
+       Onbellege yazilirsa o dosya icin KALICI cevap bu olur ve Gemini bir
+       daha hic denenmez — yuzeyin bir dakikalik yogunlugu kalici kalite
+       kaybina doner. Bkz. summary_cache yazimi. */
+    const geminiTani: { geciciDustu?: boolean } = {}
     /* Yogunluk kapisinin OLCUM modundaki bulgusu; kapi eledigi gun bu
        alan karari degil gecmisi tutacak. */
     let yogunlukOlcumu: { dropped: number; toplam: number; ornekler: string[] } | null = null
@@ -8139,7 +8162,8 @@ ${styleInstruction}`
           geminiMime,
           geminiUserText,
           budgetLeft(),
-          mod
+          mod,
+          geminiTani
         )
 
         /* TASLAK GECERLI MI? (17.10.2026)
@@ -10751,7 +10775,19 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
     // dagitilmamali — o belge bir sonraki yuklemede tam kosuyla denenir.
     /* Kismi kart onbellege GIRMEZ: girerse ayni belgeyi bir daha ozetlemek
        isteyen herkes yarim karti alir ve bir daha hic tam kart uretilmez. */
-    if (summaryCacheKey && !eksikPencereler && geminiKismiKrk === 0) {
+    /* UCUNCU KOSUL (21.10.2026): yedek yoldan gelen kart kalicilastirilmaz.
+       Ilk iki kosul "kart TAM mi" diye soruyor; bu "kart ISTENEN kart mi"
+       diye soruyor. 21.10'da ayni deste icin Gemini iki 503 aldi, Groq
+       karti uretti (tam, yani iki kosul da gecti) ve onbellege girdi —
+       sonraki yukleme 1.929ms'de %56 kapsamali o karti dondurdu ve
+       Gemini'nin bir daha denenmesi imkansiz hale geldi. */
+    if (geminiTani.geciciDustu) {
+      console.log(
+        'summary_cache: yazilmadi — kart Gemini gecici hatasindan sonra Groq yedek ' +
+        'yolundan geldi, kalici cevap sayilmiyor (ayni belge sonraki yuklemede yeniden denenir)'
+      )
+    }
+    if (summaryCacheKey && !eksikPencereler && geminiKismiKrk === 0 && !geminiTani.geciciDustu) {
       const { document_id: _d, user_id: _u, course_tag: _c, ...shareable } = cardPayload
       /* IKI SATIR: dosya hash'i ve metin hash'i. Ikisi de ayni karti
          gosteriyor; hangisi once isabet ederse o kullanilir. */
