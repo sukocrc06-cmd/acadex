@@ -3290,45 +3290,40 @@ if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded'
 <!-- ===== PAKETLER: kenardan bakan kepli öğrenci + ipten inen pano ===== -->
 <style>
 .pkt{--pkt-navy:#0D1838;--pkt-blue:#2F6BFF;--pkt-ink:#1F2533;--pkt-soft:#6A7593;--pkt-paper:#FFFFFF;--pkt-cork:#EEF1F6;--pkt-gold:#E8B53A;--pkt-skin:#F2C7A1;--pkt-hair:#2A2F45;--pkt-ease:cubic-bezier(.2,.7,.2,1)}
-.pkt-dock{position:fixed;left:0;bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:40;width:250px;height:170px;pointer-events:none;transform:translateX(-110%);transition:transform .7s var(--pkt-ease)}
-.pkt-dock.on{transform:none}
-.pkt-dock *{pointer-events:auto}
-.pkt-mount{position:absolute;left:0;top:0;width:92px;height:10px;border-radius:0 5px 5px 0;background:var(--pkt-navy);box-shadow:0 3px 8px -4px rgba(13,24,56,.6)}
-.pkt-mount::after{content:"";position:absolute;right:4px;top:6px;width:10px;height:10px;border-radius:50%;border:2px solid var(--pkt-navy);background:#fff}
-.pkt-rope{position:absolute;z-index:2;left:76px;top:12px;width:44px;height:120px;margin:0;padding:0;border:0;background:none;cursor:grab;touch-action:none;-webkit-tap-highlight-color:transparent}
-.pkt-rope:focus-visible{outline:2.5px solid var(--pkt-blue);outline-offset:4px;border-radius:10px}
-.pkt-rope .cord{position:absolute;left:21px;top:0;width:3px;height:70px;border-radius:2px;background:repeating-linear-gradient(170deg,#C9A36A 0 4px,#9C7A45 4px 7px);transform-origin:top center;transition:height .35s var(--pkt-ease)}
-.pkt-rope .knob{position:absolute;left:10px;top:66px;width:25px;height:34px;border-radius:12px 12px 14px 14px;background:radial-gradient(circle at 35% 30%,#F4C95D,var(--pkt-gold) 55%,#B98A22);box-shadow:0 6px 10px -5px rgba(13,24,56,.55),inset 0 -3px 0 rgba(0,0,0,.12);transition:top .35s var(--pkt-ease)}
-.pkt-rope .knob::after{content:"";position:absolute;left:10px;top:-5px;width:5px;height:8px;border-radius:2px;background:#9C7A45}
-.pkt-rope.tug .cord{height:104px}
-.pkt-rope.tug .knob{top:100px}
-.pkt-dock.idle .pkt-rope .cord{animation:pktSway 3.6s ease-in-out infinite}
-@keyframes pktSway{0%,100%{transform:rotate(0)}50%{transform:rotate(2.2deg)}}
-.pkt-kid{position:absolute;cursor:pointer;left:-14px;bottom:0;width:100px;height:108px;transform-origin:0 100%;animation:pktPeek 5s ease-in-out infinite}
-.pkt-dock:not(.on) .pkt-kid{animation:none}
-@keyframes pktPeek{0%,100%{transform:rotate(0)}45%{transform:rotate(-3deg) translateX(3px)}55%{transform:rotate(-2deg) translateX(3px)}}
-.pkt-kid .pup{transition:transform .25s ease-out}
+.pkt-dock{position:fixed;left:40px;top:0;z-index:40;width:1px;height:1px;pointer-events:none;opacity:0;transition:opacity .6s}
+.pkt-dock.on{opacity:1}
+.pkt-hang{position:absolute;left:0;top:0;width:0;height:0;transform-origin:0 0;transform:rotate(var(--a,0deg));transition:transform .9s cubic-bezier(.25,1.6,.4,1)}
+.pkt-hang.drag{transition:none}
+.pkt-swing{position:absolute;left:0;top:0;transform-origin:0 0;animation:pktSway 4.8s ease-in-out infinite}
+@keyframes pktSway{0%,100%{transform:rotate(1.6deg)}50%{transform:rotate(-1.6deg)}}
+.pkt-dock.nudge .pkt-swing{animation:pktNudge 1.6s ease-in-out 1}
+@keyframes pktNudge{0%{transform:rotate(0)}30%{transform:rotate(-9deg)}55%{transform:rotate(4deg)}75%{transform:rotate(-2deg)}100%{transform:rotate(0)}}
+.pkt-cord{position:absolute;left:-1.5px;top:-10px;width:3px;height:calc(var(--len) + 10px);border-radius:2px;background:repeating-linear-gradient(170deg,#C9A36A 0 4px,#9C7A45 4px 7px);box-shadow:1px 0 0 rgba(0,0,0,.12)}
+.pkt-grab{position:absolute;left:-48px;top:calc(var(--len) - 34px);width:96px;height:180px;margin:0;padding:0;border:0;background:none;cursor:grab;touch-action:none;pointer-events:auto;-webkit-tap-highlight-color:transparent}
+.pkt-grab:active{cursor:grabbing}
+.pkt-grab:focus-visible{outline:2.5px solid var(--pkt-gold);outline-offset:4px;border-radius:14px}
+.pkt-grab svg{display:block;width:96px;height:180px;overflow:visible}
 .pkt-kid .lid{transform-box:fill-box;transform-origin:center;animation:pktBlink 5.5s infinite}
 @keyframes pktBlink{0%,92%,100%{transform:scaleY(0)}95%{transform:scaleY(1)}}
-.pkt-bub{position:absolute;left:118px;top:40px;width:150px;padding:9px 12px 10px;border-radius:14px 14px 14px 4px;background:var(--pkt-paper);color:var(--pkt-navy);font-family:'Caveat','Segoe Print',cursive;font-size:22px;line-height:1.05;font-weight:600;box-shadow:0 10px 24px -12px rgba(13,24,56,.55);border:1.5px solid #DCE2EE;transform-origin:0 100%;transition:opacity .35s,transform .35s var(--pkt-ease)}
-.pkt-bub::before{content:"";position:absolute;left:-9px;bottom:6px;border:8px solid transparent;border-right-color:#DCE2EE;border-left:0}
-.pkt-bub::after{content:"";position:absolute;left:-6px;bottom:7px;border:7px solid transparent;border-right-color:var(--pkt-paper);border-left:0}
+.pkt-kid .pup{transition:transform .25s ease-out}
+.pkt-kid .legs{transform-origin:48px 128px;animation:pktKick 2.4s ease-in-out infinite}
+@keyframes pktKick{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(4deg)}}
+.pkt-bub{position:absolute;left:-22px;top:calc(var(--len) + 156px);box-sizing:border-box;width:106px;font-size:17px;margin:0;padding:8px 10px 9px;border-radius:4px 14px 14px 14px;background:var(--pkt-paper);color:var(--pkt-navy);font-family:'Caveat','Segoe Print',cursive;line-height:1.05;font-weight:600;box-shadow:0 10px 24px -12px rgba(0,0,0,.55);border:1.5px solid #DCE2EE;transform-origin:0 100%;transition:opacity .35s,transform .35s var(--pkt-ease);pointer-events:none}
+.pkt-bub::before{content:"";position:absolute;left:44px;top:-9px;border:8px solid transparent;border-bottom-color:#DCE2EE;border-top:0}
+.pkt-bub::after{content:"";position:absolute;left:45px;top:-6px;border:7px solid transparent;border-bottom-color:var(--pkt-paper);border-top:0}
 .pkt-bub b{color:var(--pkt-blue);font-weight:600}
+.pkt-bub i{display:inline-block;font-style:normal;animation:pktArrow 1.4s ease-in-out infinite}
+@keyframes pktArrow{0%,100%{transform:translateX(0)}50%{transform:translateX(5px)}}
 .pkt-bub.hide{opacity:0;transform:scale(.85) translateY(6px)}
 .pkt-dock:hover .pkt-bub.hide{opacity:1;transform:none}
-
 .pkt-veil{position:fixed;inset:0;z-index:80;background:rgba(13,24,56,.5);opacity:0;visibility:hidden;transition:opacity .4s,visibility 0s linear .4s}
 .pkt-veil.on{opacity:1;visibility:visible;transition:opacity .4s}
-.pkt-board{position:fixed;left:50%;top:0;z-index:81;width:min(980px,calc(100vw - 32px));margin-left:calc(min(980px,calc(100vw - 32px)) / -2);padding-top:max(46px,calc(env(safe-area-inset-top,0px) + 30px));transform:translateY(-120%);visibility:hidden;transform-origin:50% 0}
+.pkt-board{position:fixed;left:50%;top:50%;z-index:81;width:min(980px,calc(100vw - 32px));transform:translate(-50%,-50%);visibility:hidden;transform-origin:-40vw -50vh}
 .pkt-board.on{visibility:visible;animation:pktDrop 1.25s var(--pkt-ease) both}
 .pkt-board.off{visibility:visible;animation:pktLift .55s cubic-bezier(.6,0,.8,.4) both}
-@keyframes pktDrop{0%{transform:translateY(-120%) rotate(0)}46%{transform:translateY(3%) rotate(-2.6deg)}62%{transform:translateY(-1%) rotate(1.8deg)}76%{transform:rotate(-1deg)}88%{transform:rotate(.45deg)}100%{transform:none}}
-@keyframes pktLift{0%{transform:none}100%{transform:translateY(-125%) rotate(1deg)}}
-.pkt-board::before,.pkt-board::after{content:"";position:absolute;top:-100vh;width:3px;height:calc(100vh + 58px);background:repeating-linear-gradient(170deg,#C9A36A 0 4px,#9C7A45 4px 7px)}
-.pkt-board::before{left:14%}.pkt-board::after{right:14%}
-.pkt-panel{position:relative;max-height:calc(100vh - 80px);max-height:calc(100dvh - 80px);overflow:auto;padding:22px 22px 18px;border-radius:6px;background:var(--pkt-cork);border-top:7px solid var(--pkt-navy);box-shadow:0 40px 70px -24px rgba(0,0,0,.55);color:var(--pkt-ink);font-family:'Instrument Sans',system-ui,sans-serif;overscroll-behavior:contain}
-.pkt-panel::before,.pkt-panel::after{content:"";position:absolute;top:-13px;width:14px;height:14px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#F4C95D,#B98A22)}
-.pkt-panel::before{left:calc(14% - 6px)}.pkt-panel::after{right:calc(14% - 6px)}
+@keyframes pktDrop{0%{transform:translate(-50%,-50%) translateX(-110vw) rotate(-14deg)}50%{transform:translate(-50%,-50%) translateX(3vw) rotate(2.2deg)}66%{transform:translate(-50%,-50%) translateX(-1vw) rotate(-1.2deg)}82%{transform:translate(-50%,-50%) rotate(.5deg)}100%{transform:translate(-50%,-50%)}}
+@keyframes pktLift{0%{transform:translate(-50%,-50%)}100%{transform:translate(-50%,-50%) translateX(-115vw) rotate(-10deg)}}
+.pkt-panel{position:relative;max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);overflow:auto;padding:22px 22px 18px;border-radius:6px;background:var(--pkt-cork);border-top:7px solid var(--pkt-navy);box-shadow:0 40px 70px -24px rgba(0,0,0,.55);color:var(--pkt-ink);font-family:'Instrument Sans',system-ui,sans-serif;overscroll-behavior:contain}
 .pkt-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:8px 16px;margin:0 0 14px}
 .pkt-head h2{margin:0;font-family:'Bricolage Grotesque',system-ui,sans-serif;font-size:clamp(24px,3.4vw,34px);letter-spacing:-.02em;color:var(--pkt-navy);text-wrap:balance}
 .pkt-head p{margin:0;font-family:'Caveat','Segoe Print',cursive;font-size:22px;color:var(--pkt-soft)}
@@ -3363,72 +3358,66 @@ if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded'
 .pkt-cta:focus-visible{outline:2.5px solid var(--pkt-blue);outline-offset:3px}
 
 @media (max-width:1099px){
-  .pkt-dock{left:auto;right:0;bottom:calc(14px + env(safe-area-inset-bottom,0px));width:150px;height:150px;transform:translateX(110%)}
-  .pkt-dock.on{transform:none}
-  .pkt-mount{left:auto;right:0;width:76px;border-radius:5px 0 0 5px}
-  .pkt-mount::after{right:auto;left:4px}
-  .pkt-rope{left:auto;right:56px;height:96px}
-  .pkt-rope .cord{height:58px}.pkt-rope .knob{top:54px}
-  .pkt-rope.tug .cord{height:90px}.pkt-rope.tug .knob{top:86px}
-  .pkt-kid{left:auto;right:-16px;width:96px;height:104px;transform-origin:100% 100%}
-  .pkt-kid svg{transform:scaleX(-1)}
-  .pkt-bub{left:auto;right:108px;top:auto;bottom:86px;width:auto;white-space:nowrap;font-size:19px;border-radius:14px 14px 4px 14px}
-  .pkt-bub::before{left:auto;right:-9px;bottom:6px;border:8px solid transparent;border-left-color:#DCE2EE;border-right:0}
-  .pkt-bub::after{left:auto;right:-6px;bottom:7px;border:7px solid transparent;border-left-color:var(--pkt-paper);border-right:0}
-  .pkt-bub .long{display:none}
+  .pkt-dock{left:auto;right:46px;top:calc(100vh - 262px);top:calc(100dvh - 262px - env(safe-area-inset-bottom,0px));--len:58px!important}
+  .pkt-dock::before{content:"";position:absolute;left:-7px;top:-14px;width:10px;height:10px;border-radius:50%;border:2.5px solid #C9A36A;background:transparent}
+  .pkt-grab{transform:scale(.72);transform-origin:50% 0}
+  .pkt-bub{left:auto;right:30px;top:calc(var(--len) + 30px);width:auto;white-space:nowrap;font-size:17px;border-radius:14px 14px 4px 14px}
+  .pkt-bub::before{left:auto;right:-9px;top:auto;bottom:8px;border:8px solid transparent;border-left-color:#DCE2EE;border-right:0}
+  .pkt-bub::after{left:auto;right:-6px;top:auto;bottom:9px;border:7px solid transparent;border-left-color:var(--pkt-paper);border-right:0}
 }
 @media (max-width:760px){
   .pkt-cards{grid-template-columns:1fr}
   .pkt-card{transform:none}
   .pkt-panel{padding:18px 16px 16px}
-  .pkt-board::before{left:10%}.pkt-board::after{right:10%}
-  .pkt-panel::before{left:calc(10% - 6px)}.pkt-panel::after{right:calc(10% - 6px)}
 }
 @media (prefers-reduced-motion:reduce){
-  .pkt-dock,.pkt-rope .cord,.pkt-rope .knob,.pkt-veil{transition:none}
-  .pkt-kid,.pkt-kid .lid,.pkt-dock.idle .pkt-rope .cord{animation:none}
+  .pkt-dock,.pkt-hang,.pkt-veil{transition:none}
+  .pkt-swing,.pkt-kid .lid,.pkt-kid .legs,.pkt-bub i,.pkt-dock.nudge .pkt-swing{animation:none}
   .pkt-board.on{animation:pktFade .2s both}.pkt-board.off{animation:pktFade .2s reverse both}
-  @keyframes pktFade{from{opacity:0;transform:none}to{opacity:1;transform:none}}
+  @keyframes pktFade{from{opacity:0;transform:translate(-50%,-50%)}to{opacity:1;transform:translate(-50%,-50%)}}
 }
 @media print{.pkt{display:none}}
 </style>
 
 <div class="pkt" data-pkt="">
-  <div class="pkt-dock" data-pkt-dock="" aria-label="Paketler">
-    <span class="pkt-mount" aria-hidden="true"></span>
-    <button type="button" class="pkt-rope" data-pkt-rope="" aria-expanded="false" aria-controls="pkt-board" aria-label="İpi çek: Acadex paketlerini göster"><span class="cord" aria-hidden="true"></span><span class="knob" aria-hidden="true"></span></button>
-    <p class="pkt-bub" data-pkt-bub="" aria-hidden="true">ipi çek, <b>paketleri</b> gör!</p>
-    <div class="pkt-kid" aria-hidden="true">
-      <svg viewBox="0 0 132 142" width="100%" height="100%">
-        <!-- omuz ve gövde (kenarın arkasından) -->
-        <path d="M-6 142 C2 112 30 104 58 106 C80 108 92 124 96 142 Z" fill="#2F6BFF"/>
-        <path d="M40 106 L58 122 L70 106" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linejoin="round"/>
-        <!-- boyun -->
-        <rect x="46" y="94" width="20" height="16" rx="6" fill="#E3B48C"/>
-        <!-- kafa -->
-        <ellipse cx="56" cy="70" rx="36" ry="34" fill="#F2C7A1"/>
-        <ellipse cx="92" cy="74" rx="6" ry="8" fill="#E3B48C"/>
-        <!-- saç -->
-        <path d="M22 66 C20 44 36 34 58 34 C78 34 92 44 92 60 C84 52 72 50 60 54 C46 58 34 56 22 66 Z" fill="#2A2F45"/>
-        <!-- kep -->
-        <path d="M18 40 L60 24 L102 40 L60 54 Z" fill="#0D1838"/>
-        <path d="M34 44 L34 54 C46 60 74 60 86 54 L86 44 L60 54 Z" fill="#16244F"/>
-        <circle cx="60" cy="39" r="3" fill="#E8B53A"/>
-        <path d="M60 39 C78 40 94 42 98 48 L98 66" fill="none" stroke="#E8B53A" stroke-width="2.5" stroke-linecap="round"/>
-        <path d="M95 64 l3 10 l3 -10 z" fill="#E8B53A"/>
-        <!-- gözler -->
-        <g><ellipse cx="44" cy="72" rx="8" ry="9" fill="#FFFFFF"/><ellipse cx="70" cy="72" rx="8" ry="9" fill="#FFFFFF"/>
-        <g class="pup" data-pkt-pup=""><circle cx="46" cy="73" r="4.2" fill="#1F2533"/><circle cx="72" cy="73" r="4.2" fill="#1F2533"/><circle cx="47.5" cy="71.5" r="1.3" fill="#FFFFFF"/><circle cx="73.5" cy="71.5" r="1.3" fill="#FFFFFF"/></g>
-        <ellipse class="lid" cx="44" cy="72" rx="8.6" ry="9.6" fill="#E3B48C"/><ellipse class="lid" cx="70" cy="72" rx="8.6" ry="9.6" fill="#E3B48C"/></g>
-        <path d="M37 60 q7 -4 14 0 M63 60 q7 -4 14 0" fill="none" stroke="#2A2F45" stroke-width="2.6" stroke-linecap="round"/>
-        <!-- yanaklar, ağız -->
-        <ellipse cx="36" cy="86" rx="6" ry="3.5" fill="#F09A86" opacity=".55"/><ellipse cx="80" cy="86" rx="6" ry="3.5" fill="#F09A86" opacity=".55"/>
-        <path d="M49 88 q8 8 16 0" fill="none" stroke="#7A3B2E" stroke-width="2.6" stroke-linecap="round"/>
-        <!-- kenarı tutan el -->
-        <path d="M-4 96 C6 92 16 94 18 100 C20 106 14 110 4 110 L-4 110 Z" fill="#F2C7A1"/>
-        <path d="M6 96 L8 108 M12 96 L13 108" stroke="#E3B48C" stroke-width="2" stroke-linecap="round"/>
-      </svg>
+  <div class="pkt-dock" data-pkt-dock="" style="--len:44vh">
+    <div class="pkt-hang" data-pkt-hang="">
+      <div class="pkt-swing">
+        <span class="pkt-cord" aria-hidden="true"></span>
+        <button type="button" class="pkt-grab pkt-kid" data-pkt-rope="" aria-expanded="false" aria-controls="pkt-board" aria-label="İpi yana çek: Acadex paketlerini göster">
+          <svg viewBox="0 0 96 180" aria-hidden="true">
+            <!-- ipi tutan eller -->
+            <path d="M37 26 C35 40 34 52 36 62" stroke="#2F6BFF" stroke-width="11" stroke-linecap="round" fill="none"/>
+            <path d="M59 26 C61 40 62 52 60 62" stroke="#2F6BFF" stroke-width="11" stroke-linecap="round" fill="none"/>
+            <ellipse cx="44" cy="20" rx="8" ry="7" fill="#F2C7A1"/><ellipse cx="52" cy="30" rx="8" ry="7" fill="#F2C7A1"/>
+            <path d="M40 16 h9 M44 26 h9" stroke="#E3B48C" stroke-width="1.6" stroke-linecap="round"/>
+            <!-- bacaklar -->
+            <g class="legs"><path d="M40 128 C38 142 36 152 34 162" stroke="#16244F" stroke-width="10" stroke-linecap="round" fill="none"/><path d="M56 128 C58 142 62 150 66 160" stroke="#16244F" stroke-width="10" stroke-linecap="round" fill="none"/>
+              <ellipse cx="31" cy="166" rx="9" ry="5" fill="#E8B53A"/><ellipse cx="69" cy="164" rx="9" ry="5" fill="#E8B53A"/></g>
+            <!-- gövde -->
+            <path d="M24 96 C24 80 34 72 48 72 C62 72 72 80 72 96 L70 132 L26 132 Z" fill="#2F6BFF"/>
+            <path d="M38 74 L48 86 L58 74" fill="none" stroke="#FFFFFF" stroke-width="3.5" stroke-linejoin="round"/>
+            <!-- kafa -->
+            <rect x="42" y="62" width="12" height="12" rx="4" fill="#E3B48C"/>
+            <ellipse cx="48" cy="48" rx="24" ry="22" fill="#F2C7A1"/>
+            <path d="M25 46 C24 32 34 26 48 26 C62 26 72 32 72 44 C66 38 58 37 50 40 C40 43 32 42 25 46 Z" fill="#2A2F45"/>
+            <!-- kep -->
+            <path d="M18 30 L48 19 L78 30 L48 40 Z" fill="#0D1838"/>
+            <path d="M30 33 L30 40 C38 44 58 44 66 40 L66 33 L48 40 Z" fill="#16244F"/>
+            <circle cx="48" cy="29" r="2.4" fill="#E8B53A"/>
+            <path d="M48 29 C60 30 70 32 74 36 L74 50" fill="none" stroke="#E8B53A" stroke-width="2" stroke-linecap="round"/>
+            <path d="M72 49 l2 8 l2 -8 z" fill="#E8B53A"/>
+            <!-- yüz -->
+            <ellipse cx="39" cy="50" rx="5.6" ry="6.4" fill="#FFFFFF"/><ellipse cx="57" cy="50" rx="5.6" ry="6.4" fill="#FFFFFF"/>
+            <g class="pup" data-pkt-pup=""><circle cx="40" cy="51" r="3" fill="#1F2533"/><circle cx="58" cy="51" r="3" fill="#1F2533"/><circle cx="41" cy="50" r="1" fill="#FFFFFF"/><circle cx="59" cy="50" r="1" fill="#FFFFFF"/></g>
+            <ellipse class="lid" cx="39" cy="50" rx="6" ry="6.8" fill="#E3B48C"/><ellipse class="lid" cx="57" cy="50" rx="6" ry="6.8" fill="#E3B48C"/>
+            <ellipse cx="33" cy="59" rx="4" ry="2.4" fill="#F09A86" opacity=".55"/><ellipse cx="63" cy="59" rx="4" ry="2.4" fill="#F09A86" opacity=".55"/>
+            <path d="M42 60 q6 6 12 0" fill="none" stroke="#7A3B2E" stroke-width="2.2" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
     </div>
+    <p class="pkt-bub" data-pkt-bub="" aria-hidden="true">ipi yana çek, <b>paketleri</b> gör! <i>→</i></p>
   </div>
 
   <div class="pkt-veil" data-pkt-veil=""></div>
@@ -3489,34 +3478,28 @@ if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded'
 <script>
 (function () {
   var root = document.querySelector('[data-pkt]'); if (!root) return;
-  var dock = root.querySelector('[data-pkt-dock]'), rope = root.querySelector('[data-pkt-rope]'), bub = root.querySelector('[data-pkt-bub]');
+  var dock = root.querySelector('[data-pkt-dock]'), hang = root.querySelector('[data-pkt-hang]'), rope = root.querySelector('[data-pkt-rope]'), bub = root.querySelector('[data-pkt-bub]');
   var board = root.querySelector('[data-pkt-board]'), veil = root.querySelector('[data-pkt-veil]'), xBtn = root.querySelector('[data-pkt-x]'), pup = root.querySelector('[data-pkt-pup]');
-  var calm = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches, open = false, lastFocus = null, seen = false;
+  var calm = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches, open = false, lastFocus = null;
   var store = function (k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } };
-
-  /* kahraman bölümü geçilince kenardan çık */
-  var hero = document.querySelector('[data-hero]');
-  var show = function (on) {
-    dock.classList.toggle('on', on);
-    if (on && !seen) { seen = true; dock.classList.add('idle'); bub.classList.remove('hide'); setTimeout(function () { if (!open) bub.classList.add('hide'); }, 9000); }
-  };
-  if (hero && 'IntersectionObserver' in window) new IntersectionObserver(function (es) { show(!es[0].isIntersecting); }, { threshold: 0.12 }).observe(hero);
-  else show(true);
-  if (store('acx.pkt.pulled')) bub.classList.add('hide');
+  var mobile = function () { return window.innerWidth < 1100; };
+  var show = function () {}; /* her zaman görünür */
+  setTimeout(function () { dock.classList.add('on'); }, 600);
+  setTimeout(function () { if (!open) bub.classList.add('hide'); }, store('acx.pkt.pulled') ? 5000 : 12000);
+  /* arada bir "beni çek" diye yana sallan */
+  var nudgeT = setInterval(function () { if (open || calm || hang.classList.contains('drag')) return; dock.classList.remove('nudge'); void dock.offsetWidth; dock.classList.add('nudge'); }, 7000);
 
   /* gözler fareyi izler */
   if (!calm && window.matchMedia && matchMedia('(pointer: fine)').matches) {
     var raf = 0;
     window.addEventListener('pointermove', function (e) {
-      if (raf || !dock.classList.contains('on')) return;
+      if (raf) return;
       raf = requestAnimationFrame(function () {
-        raf = 0; var r = dock.getBoundingClientRect(), cx = r.left + 50, cy = r.bottom - 70, dx = e.clientX - cx, dy = e.clientY - cy, d = Math.sqrt(dx * dx + dy * dy) || 1;
-        var k = window.innerWidth < 1100 ? -1 : 1;
-        pup.style.transform = 'translate(' + (k * dx / d * 3.2).toFixed(2) + 'px,' + (dy / d * 2.6).toFixed(2) + 'px)';
+        raf = 0; var r = rope.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + 50, dx = e.clientX - cx, dy = e.clientY - cy, d = Math.sqrt(dx * dx + dy * dy) || 1;
+        pup.style.transform = 'translate(' + (dx / d * 2.4).toFixed(2) + 'px,' + (dy / d * 2).toFixed(2) + 'px)';
       });
     }, { passive: true });
   }
-
   /* küçük "tık" sesi (yalnız kullanıcı çekince) */
   var tick = function () {
     if (calm) return;
@@ -3528,7 +3511,7 @@ if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded'
   var focusables = function () { return Array.prototype.slice.call(board.querySelectorAll('a[href],button')).filter(function (x) { return x.offsetParent !== null; }); };
   var openBoard = function () {
     if (open) return; open = true; lastFocus = document.activeElement; store('acx.pkt.pulled', '1'); bub.classList.add('hide');
-    rope.classList.add('tug'); tick(); setTimeout(function () { rope.classList.remove('tug'); }, 380);
+    tick();
     board.hidden = false; board.classList.remove('off'); void board.offsetWidth; board.classList.add('on'); veil.classList.add('on'); rope.setAttribute('aria-expanded', 'true');
     document.documentElement.style.overflow = 'hidden';
     setTimeout(function () { xBtn.focus({ preventScroll: true }); }, calm ? 0 : 450);
@@ -3540,24 +3523,25 @@ if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded'
     if (lastFocus && document.contains(lastFocus)) lastFocus.focus({ preventScroll: true });
   };
 
-  /* çek: tıkla, ya da ipi aşağı sürükle */
-  var y0 = null, dragged = false;
-  rope.addEventListener('pointerdown', function (e) { y0 = e.clientY; dragged = false; try { rope.setPointerCapture(e.pointerId); } catch (x) {} });
+  /* çek: ipi (öğrenciyi) yana sürükle ya da tıkla */
+  var x0 = null, y0 = null, moved = false, ang = 0;
+  var lenPx = function () { return Math.max(160, window.innerHeight * 0.44); };
+  var setAng = function (a) { ang = a; hang.style.setProperty('--a', a.toFixed(2) + 'deg'); };
+  rope.addEventListener('pointerdown', function (e) { x0 = e.clientX; y0 = e.clientY; moved = false; hang.classList.add('drag'); try { rope.setPointerCapture(e.pointerId); } catch (x) {} });
   rope.addEventListener('pointermove', function (e) {
-    if (y0 === null) return; var dy = Math.max(0, Math.min(60, e.clientY - y0)); if (dy > 6) dragged = true;
-    rope.querySelector('.cord').style.height = ''; rope.style.setProperty('--pull', dy + 'px');
-    rope.querySelector('.knob').style.transform = 'translateY(' + dy + 'px)'; rope.querySelector('.cord').style.transform = 'scaleY(' + (1 + dy / 112) + ')';
+    if (x0 === null) return; var dx = e.clientX - x0; if (Math.abs(dx) > 6 || Math.abs(e.clientY - y0) > 6) moved = true;
+    var dir = mobile() ? -1 : 1; /* mobilde öğrenci sağda: içeri (sola) çekilir */
+    var a = -Math.atan2(dx, lenPx()) * 180 / Math.PI; a = dir > 0 ? Math.max(-38, Math.min(8, a)) : Math.max(-8, Math.min(38, a));
+    setAng(a);
   });
-  var release = function (e) {
-    if (y0 === null) return; var dy = e.clientY - y0; y0 = null;
-    rope.querySelector('.knob').style.transform = ''; rope.querySelector('.cord').style.transform = '';
-    if (!dragged || dy > 30) { open ? closeBoard() : openBoard(); }
+  var release = function () {
+    if (x0 === null) return; x0 = null; hang.classList.remove('drag');
+    var pulled = Math.abs(ang) > 10; setAng(0);
+    if (!moved || pulled) { open ? closeBoard() : openBoard(); }
   };
   rope.addEventListener('pointerup', release);
-  rope.addEventListener('pointercancel', function () { y0 = null; rope.querySelector('.knob').style.transform = ''; rope.querySelector('.cord').style.transform = ''; });
+  rope.addEventListener('pointercancel', function () { x0 = null; hang.classList.remove('drag'); setAng(0); });
   rope.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open ? closeBoard() : openBoard(); } });
-  rope.addEventListener('click', function (e) { if (e.detail === 0) { /* klavye zaten keydown ile */ } });
-  root.querySelector('.pkt-kid').addEventListener('click', function () { open ? closeBoard() : openBoard(); });
   xBtn.addEventListener('click', closeBoard);
   veil.addEventListener('click', closeBoard);
   document.addEventListener('keydown', function (e) {
@@ -3565,9 +3549,9 @@ if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded'
     if (e.key === 'Escape') { e.preventDefault(); closeBoard(); return; }
     if (e.key === 'Tab') { var f = focusables(), a = f.indexOf(document.activeElement); if (e.shiftKey && a <= 0) { e.preventDefault(); f[f.length - 1].focus(); } else if (!e.shiftKey && a === f.length - 1) { e.preventDefault(); f[0].focus(); } }
   });
-  document.addEventListener('click', function (e) { var a = e.target.closest && e.target.closest('a[href="#paketler"]'); if (!a) return; e.preventDefault(); show(true); openBoard(); });
+  document.addEventListener('click', function (e) { var a = e.target.closest && e.target.closest('a[href="#paketler"]'); if (!a) return; e.preventDefault(); openBoard(); });
   /* başka bir yerden "#paketler" bağlantısı gelirse panoyu indir */
-  var fromHash = function () { if (location.hash === '#paketler') { show(true); setTimeout(openBoard, 500); } };
+  var fromHash = function () { if (location.hash === '#paketler') setTimeout(openBoard, 500); };
   window.addEventListener('hashchange', fromHash); fromHash();
 })();
 </script>
