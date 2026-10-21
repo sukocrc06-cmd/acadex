@@ -1263,6 +1263,28 @@ const VISUAL_MIN_BUDGET_MS = 100_000
 // Vision call, PDF.co render to merged patch, across four live runs:
 //   6.7s, 6.0s, 7.2s, 6.5s  -> ~6.6s average. The old 30s was 4.5x reality.
 const VISION_CALL_MS = 15_000
+/* GORSEL GECIS ICIN BEKLEME TAVANI (21.10.2026).
+ *
+ * Kapi bugune kadar yalnizca "yer var mi" diye soruyordu: budgetLeft() >
+ * visionNeedsMs. Gemini iki 503 ile erken dustugu bir kosuda geriye 130
+ * saniye kaldi, yani yer bol goruldu ve gecis onaylandi. Olculen sonuc:
+ *
+ *   TokenPacer[openai/gpt-oss-20b]: 57657ms bekliyor (used=5891/7200, est=1795)
+ *   Long-doc visual patch: +2 terms, +2 points, +2 quiz, +2 sections, +2 tables
+ *
+ * Pencereler 20,9. saniyede bitmisti; kart 90,6. saniyede cikti. 91
+ * saniyelik kosunun 57,7 saniyesi, yani %63'u, iki sekil sayfasindan 2
+ * terim almak icin Groq'un dakikalik token penceresinin donmesini
+ * beklemekle gecti. Ucretsiz katmanda TPM 7200 ve iki pencere cagrisi
+ * 5891 token yemis durumda; bekleme GERCEK ve gerekli, sorun beklemenin
+ * NEYE harcandigi.
+ *
+ * Kapi artik "yer var mi"nin yanina "deger mi"yi de koyuyor: gorsel gecis
+ * kartin kendisi degil, zenginlestirme. Cagrinin kendisi ~6,6 saniye
+ * olculdu; onun uc katindan uzun bir kuyruk beklemesi bu zenginlestirmeye
+ * degmiyor. Atlanirsa quality_meta.skipped_stages'e yaziliyor, yani kart
+ * neyi kaybettigini soyluyor. */
+const VISION_PACER_MAX_WAIT_MS = 20_000
 // Narrative writer, merge to accepted, once it stopped queueing for a busy
 // lane: 1.8s. The old 40s reserve was 22x reality — a figure from when the
 // writer could sit out a whole TPM window, which pickLane now prevents.
@@ -5910,6 +5932,34 @@ function geminiUnknownParameter(status: number, body: string): string | null {
  *     istiyoruz ki kapiya muaf olarak verilebilsin ve review de onlari
  *     KAYNAK olarak gorsun (bkz. visionNotes).
  */
+/* CIKTI BUTCESI — KALEM KOTASI TOPLAM UZUNLUGU BAGLAMIYOR (21.10.2026).
+ *
+ * Band 25-60 araliginda indirildi ve ISE YARADI: nokta 27'den 18'e, soru
+ * 13'ten 11'e dustu. Ama cikti BUYUDU — 34.372 karakterden 39.649'a.
+ *
+ * Sebep: kotali olan tek kisim terim/nokta/soru. "formulas", "tables" ve
+ * visual_findings bilerek TAVANSIZ, cunku golge yolun var olma sebebi
+ * onlar. Band kalemlerden yer bosaltinca model o yeri tavansiz kisma
+ * harcadi — gorsel bulgu uc kosuda 6 → 13 → 22 oldu. Ucu uce olcum:
+ *
+ *   ilk olay   olay   karakter   gorsel   sonuc
+ *   60.166ms   290    25.492     6        KISMI (tavan 105 sn)
+ *   26.132ms   392    34.372     13       KISMI (tavan 96,9 sn, 503)
+ *   17.524ms   517    39.649     22       KISMI (tavan 105 sn)
+ *
+ * Ilk olay 60 saniyeden 17,5'e indi, yani modele 87,5 saniye yazma suresi
+ * kaldi — ve o sureyi de doldurdu. Hicbir yerde TOPLAM uzunluk siniri
+ * olmadigi icin model her zaman duvara kadar yaziyor.
+ *
+ * 30.000 karakter uydurma degil: bu fonksiyonun kendi tarihcesindeki
+ * TAMAMLANAN tek kosu 30.374 karakterdi ve 72,4 saniye surmustu. Olculen
+ * yazma hizi 450-560 krk/sn; 30 KB, ilk olay 17-30 saniye araligindan sonra
+ * bile tavanin altinda bitiyor.
+ *
+ * Kalem kotasini daha da kismak bu deligi kapatmaz — model bosalan yeri
+ * yine tavansiz kisma harcar. Siniri TOPLAM uzunluga koymak gerekiyordu. */
+const GEMINI_CIKTI_BUTCESI_KRK = 30_000
+
 /**
  * Gemini yolunun KAPSAM KOTASI — belgenin boyuna gore.
  *
@@ -6030,7 +6080,9 @@ function geminiCoverageQuota(pageCount: number): string {
 COVERAGE FOR THIS RUN:
 Cover ${olcek}, not only the opening ones — a term or example from the last third is worth more than a third variation on the first idea.
 No cap on "formulas" (every equation, including the image-only ones) or "tables" (every table, including spreadsheet screenshots and regression output — copy the figures exactly, to the last decimal). These two are why you were given the original file: do them first and be complete.
-Then produce ${terms} key_terms, ${points} key_points and ${quiz} quiz_questions. ${destek} supports these counts — reach them. The one thing worse than falling short is restating the same idea in different words to fill the list.`
+Then produce ${terms} key_terms, ${points} key_points and ${quiz} quiz_questions. ${destek} supports these counts — reach them. The one thing worse than falling short is restating the same idea in different words to fill the list.
+
+LENGTH BUDGET: keep the ENTIRE JSON response under ${GEMINI_CIKTI_BUTCESI_KRK} characters. This is a wall, not a style note: the connection is cut at that point, and a card assembled from a truncated response loses its citations and is never cached, so the same file is re-read from scratch on every upload. Budget the space — formulas and tables first, then the counts above. Write definitions and points in one or two sentences; drop the lead-ins ("It is important to note that"). A COMPLETE response with fewer items is worth more than a longer one that gets cut off mid-field.`
 }
 
 function buildGeminiDocInstruction(pageMarkerLabel: string, pageCount: number): string {
@@ -6843,6 +6895,25 @@ async function geminiDraft(
      bu sayac sifirlanmiyor ve yuzeyin tamaminin yogun oldugunu gormemizi
      sagliyor (bkz. GEMINI_ARDISIK_GECICI_MAX). */
   let ardisikGecici = 0
+  /* GECICI HATA VEREN MODELLER (21.10.2026).
+   *
+   * `ardisikGecici` denemeleri sayiyordu, modelleri degil. Bir modele iki
+   * kez deneyip iki 503 almak sayaci doldurmaya yetiyordu ve "yuzey yogun"
+   * denip kalan uc aday model hic denenmiyordu. Oysa 503'un govdesi modeli
+   * ADIYLA soyluyor:
+   *
+   *   "gemini-3.7-flash is currently experiencing high demand"
+   *
+   * Tek modelin yogun olmasi yuzeyin tamaminin yogun oldugunu gostermez.
+   * 21.10 kosusu: iki 503 ikisi de gemini-3.7-flash'tan geldi, Gemini
+   * tamamen birakildi ve geriye 130 SANIYE butce kalmisti — bir sonraki
+   * adayi denemek gunluk kotadan tek istek goturecekti. Kart Groq yolundan
+   * cikti, sayisal kapsama %77'den %56'ya dustu.
+   *
+   * Artik "yuzey yogun" sonucu AYRI modellerden gecici hata gelmesini
+   * istiyor. Istek sayisini GEMINI_MAX_REQUESTS_PER_RUN, bosa giden sureyi
+   * GEMINI_FAIL_BUDGET_MS zaten baglıyor. */
+  const geciciModeller = new Set<string>()
 
   /* BASARISIZ DENEMELERIN TOPLAM SURESI.
    *
@@ -7164,13 +7235,16 @@ async function geminiDraft(
       if (res.status === 503 || res.status === 500) {
         gecici++
         ardisikGecici++
+        geciciModeller.add(model)
         console.warn(`Gemini ${model}: gecici hata ${res.status} (deneme ${gecici}/2): ${res.body.slice(0, 200)}`)
         /* Yuzeyin tamami yogunsa sonraki aday modeli denemek ayni duvara
-           carpmak: istek de sure de bosa gidiyor. */
-        if (ardisikGecici >= GEMINI_ARDISIK_GECICI_MAX) {
+           carpmak: istek de sure de bosa gidiyor. Ama bunun kaniti AYRI
+           modellerden gecici hata gelmesi — bkz. geciciModeller. */
+        if (geciciModeller.size >= GEMINI_ARDISIK_GECICI_MAX) {
           console.warn(
-            `Gemini: ${ardisikGecici} ardisik gecici hata — yuzey yogun sayiliyor, ` +
-            `kalan aday modeller denenmiyor, Groq yoluna dusuluyor`
+            `Gemini: ${geciciModeller.size} AYRI modelde gecici hata ` +
+            `(${[...geciciModeller].join(', ')}, ${ardisikGecici} deneme) — ` +
+            `yuzey yogun sayiliyor, kalan aday modeller denenmiyor, Groq yoluna dusuluyor`
           )
           return null
         }
@@ -9223,16 +9297,24 @@ Use CONCRETE topic names from digests and terms. No meta filler.`
       const visionEstTokens = visualPlan.indices.length * VISION_TOKENS_PER_IMAGE + 2000
       const visionWaitMs = tokenPacer.waitEstimate(visionEstTokens, MODEL_FAST, VISION_MAX_COMPLETION)
       const visionNeedsMs = visionWaitMs + VISION_CALL_MS + NARRATIVE_WRITER_RESERVE_MS
-      if (analyzeVisuals && visualPlan.indices.length > 0 && budgetLeft() <= visionNeedsMs) {
+      /* "Yer var mi" ile "deger mi" ayri sorular — bkz. VISION_PACER_MAX_WAIT_MS.
+         Iki kol ayni karari okuyor ki birbirinden kayamasinlar. */
+      const visionBeklemeAsiri = visionWaitMs > VISION_PACER_MAX_WAIT_MS
+      const visionAtlanir = budgetLeft() <= visionNeedsMs || visionBeklemeAsiri
+      if (analyzeVisuals && visualPlan.indices.length > 0 && visionAtlanir) {
         skippedStages.push('gorsel analiz')
         console.log(
-          `Gorsel gecis atlandi: butce ${budgetLeft()}ms <= ${visionNeedsMs}ms ` +
-          `[pacer ${visionWaitMs}ms + cagri ${VISION_CALL_MS}ms + yazar payi ${NARRATIVE_WRITER_RESERVE_MS}ms] — ` +
-          `anlati yazarina yer birakiliyor`
+          visionBeklemeAsiri
+            ? `Gorsel gecis atlandi: pacer ${visionWaitMs}ms bekletiyor ` +
+              `(tavan ${VISION_PACER_MAX_WAIT_MS}ms, cagrinin kendisi ~6600ms) — ` +
+              `butce ${budgetLeft()}ms olsa bile zenginlestirme icin bu kuyruk beklenmez`
+            : `Gorsel gecis atlandi: butce ${budgetLeft()}ms <= ${visionNeedsMs}ms ` +
+              `[pacer ${visionWaitMs}ms + cagri ${VISION_CALL_MS}ms + yazar payi ${NARRATIVE_WRITER_RESERVE_MS}ms] — ` +
+              `anlati yazarina yer birakiliyor`
         )
       }
 
-      if (analyzeVisuals && visualPlan.indices.length > 0 && budgetLeft() > visionNeedsMs) {
+      if (analyzeVisuals && visualPlan.indices.length > 0 && !visionAtlanir) {
         try {
           console.log(`Gorsel sayfa secimi: [${visualPlan.indices.join(',')}] — ${visualPlan.reason}`)
           await serviceClient.from('documents').update({ processing_stage: 'visual_analysis' }).eq('id', documentId)
