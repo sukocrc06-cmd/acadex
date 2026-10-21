@@ -2847,7 +2847,7 @@ window.axWhenProfile = function (cb) {
     }
     var src = r.source;
     if (src && +src.page > 0) {
-      var pg = 's. ' + (+src.page) + (src.page_end && +src.page_end > +src.page ? '–' + (+src.page_end) : '');
+      var pg = (src.unit === 'slide' ? 'slayt ' : 's. ') + (+src.page) + (src.page_end && +src.page_end > +src.page ? '–' + (+src.page_end) : '');
       h += '<p class="sn-src"><b>kaynak</b> belgede ' + pg + (src.quote ? ': <q>' + esc(src.quote) + '</q>' : '') + '</p>';
     }
     return h;

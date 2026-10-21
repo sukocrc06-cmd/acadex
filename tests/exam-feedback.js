@@ -31,14 +31,14 @@ const ANCHOR_NAMES = [
 ];
 
 const G = loadFromSource(GEN_PATH, [
-  'TRUE_FALSE_OPTIONS', 'KEY_FIELDS',
+  'TRUE_FALSE_OPTIONS', 'KEY_FIELDS', 'INTERNAL_FIELDS', 'GROQ_RETRY_MAX_WAIT_MS', 'groqRetryDelayMs', 'sourceUnitFor',
   'EXPLANATION_MAX_CHARS', 'RATIONALE_MAX_CHARS', 'RUBRIC_MIN_ITEMS', 'RUBRIC_MAX_ITEMS',
   'normalizeAnswerText', 'parseLooseNumber', 'cleanText', 'normalizeOptionRationales', 'normalizeRubric',
   'validateQuestion', 'splitPublicAndKey', 'shuffleInPlace',
   ...ANCHOR_NAMES, 'CHUNK_STORE_SIZE', 'joinChunkParts', 'buildPageIndexFromChunks', 'anchorQuestionToSource'
 ]);
 const R = loadFromSource(GRADE_PATH, [
-  'VERDICT_SHARE', 'parseCriteria', 'parseGradesResponse', 'scoreFromRubric', 'teachingFields'
+  'GROQ_RETRY_MAX_WAIT_MS', 'groqRetryDelayMs', 'VERDICT_SHARE', 'parseCriteria', 'parseGradesResponse', 'scoreFromRubric', 'teachingFields'
 ]);
 
 const { test, summary } = makeRunner();
@@ -75,6 +75,65 @@ const chunkRows = () => [
   { page_start: 3, page_end: 4, text: PAGES[3] + '\n\n' + PAGES[4] },
   { page_start: 5, page_end: 5, text: PAGES[5] }
 ];
+
+test('groqRetryDelayMs generate-exam ve grade-exam te birebir ayni', () => {
+  const ts = require('typescript');
+  const toJs = p => ts.transpileModule(fs.readFileSync(path.join(__dirname, '..', p), 'utf8'), {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext }
+  }).outputText;
+  const a = toJs(GEN_PATH), b = toJs(GRADE_PATH);
+  for (const name of ['GROQ_RETRY_MAX_WAIT_MS', 'groqRetryDelayMs']) assert.equal(sliceDeclaration(a, name), sliceDeclaration(b, name), name);
+});
+
+test('groqRetryDelayMs: Groq mesaji ve retry-after basligi okunur; uzun bekleme ya da baska hata null', () => {
+  const msg = 'Rate limit reached for model `openai/gpt-oss-120b` on tokens per minute (TPM): Limit 8000, Used 6512, Requested 3020. Please try again in 11.49s. Need more tokens?';
+  assert.equal(G.groqRetryDelayMs(429, null, msg), 11490 + 500);
+  assert.equal(G.groqRetryDelayMs(429, null, 'Please try again in 750ms.'), 750 + 500);
+  assert.equal(G.groqRetryDelayMs(429, '4', msg), 4000 + 500);
+  assert.equal(G.groqRetryDelayMs(429, null, 'Please try again in 1m2.5s.'), null, '62 sn bekleme siniri asar');
+  assert.equal(G.groqRetryDelayMs(500, null, msg), null);
+  assert.equal(G.groqRetryDelayMs(429, null, 'quota exceeded'), null);
+});
+
+test('diller arasi: Ingilizce slayt + Turkce soru, source_terms ile dogru slayta baglanir', () => {
+  // Canlı testteki durum (Week 3.pptx): belge İngilizce, sınav Türkçe.
+  const rows = [
+    { page_start: 1, page_end: 4, text: 'COMPUTING FOR FINANCE. Advanced Excel Formulas You Must Know. 1. INDEX MATCH Formula: =INDEX(C3:E9,MATCH(B13,C3:C9,0),MATCH(B14,C3:E3,0)) This is an advanced alternative to the VLOOKUP or HLOOKUP formulas, which have several drawbacks and limitations.' },
+    { page_start: 6, page_end: 8, text: '2. IF combined with AND / OR Formula: =IF(AND(C2>=C4,C2<=C5),C6,C7) Anyone who has spent time in financial models knows that nested IF formulas can be a nightmare. Combining IF with AND or OR keeps the formula easier to audit.' },
+    { page_start: 12, page_end: 13, text: '5. XNPV and XIRR Formula: =XNPV(discount rate, cash flows, dates) If you are an analyst working in investment banking, XNPV applies specific dates to each cash flow being discounted, unlike the regular NPV function which assumes equal periods.' },
+    { page_start: 14, page_end: 14, text: '7. PMT and IPMT Formula: =PMT(interest rate, # of periods, present value) If you work in commercial banking or real estate you will need to understand debt schedules.' }
+  ];
+  const { index, pageEnd } = G.buildPageIndexFromChunks(rows);
+  const idf = G.buildAnchorIdf(index);
+  const tr = {
+    type: 'multiple_choice',
+    question: 'Aşağıdakilerden hangisi XNPV fonksiyonunun standart NPV fonksiyonundan farklı bir özelliğini doğru ifade eder?',
+    correct_answer: 'Nakit akışlarını tarih bilgisiyle indirger',
+    explanation: 'XNPV, nakit akışlarını her birinin tarihine göre indirger.'
+  };
+  assert.equal(G.anchorQuestionToSource(tr, index, idf, pageEnd, 'slide'), null, 'terimler olmadan diller arasi eslesme beklenmiyordu');
+  const src = G.anchorQuestionToSource({ ...tr, source_terms: ['XNPV', 'cash flows', 'dates', 'discount rate', 'NPV'] }, index, idf, pageEnd, 'slide');
+  assert.equal(src.page, 12);
+  assert.equal(src.page_end, 13);
+  assert.equal(src.unit, 'slide');
+  const src2 = G.anchorQuestionToSource({ type: 'open_ended', question: 'INDEX-MATCH avantajları?', correct_answer: 'iki yönlü arama', source_terms: ['INDEX', 'MATCH', 'VLOOKUP', 'HLOOKUP'] }, index, idf, pageEnd, 'slide');
+  assert.equal(src2.page, 1);
+});
+
+test('source_terms temizlenir ve ne tarayiciya ne anahtara gider', () => {
+  const r = G.validateQuestion({ type: 'multiple_choice', question: 'Talep artarsa denge fiyatı?', options: ['Artar', 'Azalır', 'Değişmez', 'Sıfır'], correct_answer: 'Artar', source_terms: ['  XNPV ', '', 'cash   flows', 7] }, ['multiple_choice'], 'tr');
+  assert.deepEqual(r.question.source_terms, ['XNPV', 'cash flows']);
+  const { pub, key } = G.splitPublicAndKey({ id: 1, type: 'multiple_choice', question: 'S?', source_terms: ['x'], correct_answer: 'a' });
+  assert.ok(!('source_terms' in pub));
+  assert.ok(!('source_terms' in key));
+});
+
+test('sourceUnitFor: sunumda slayt, otekilerde sayfa', () => {
+  assert.equal(G.sourceUnitFor('Week 3.pptx'), 'slide');
+  assert.equal(G.sourceUnitFor('ders.PPT'), 'slide');
+  assert.equal(G.sourceUnitFor('kitap.pdf'), 'page');
+  assert.equal(G.sourceUnitFor(null), 'page');
+});
 
 test('chunk lardan sayfa dizini: ayni sayfanin parcalari birlesir, birlesik sayfalar aralik tutar', () => {
   const { index, pageEnd } = G.buildPageIndexFromChunks(chunkRows());
