@@ -41,7 +41,7 @@ Sıra önemli değil; her parça ötekinin eski sürümüyle de çalışıyor.
 ## Testler
 
 ```bash
-node tests/exam-feedback.js    # 21 test — Faz 2a
+node tests/exam-feedback.js    # 20 test — Faz 2a
 node tests/exam-integrity.js   # 30 test
 node tests/run-all.js          # 22 dosya, 828 test
 ```
