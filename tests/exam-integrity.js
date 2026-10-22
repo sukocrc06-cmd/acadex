@@ -27,7 +27,9 @@ const G = loadFromSource(GEN_PATH, [
   'TRUE_FALSE_OPTIONS', 'KEY_FIELDS', 'INTERNAL_FIELDS',
   'EXPLANATION_MAX_CHARS', 'RATIONALE_MAX_CHARS', 'RUBRIC_MIN_ITEMS', 'RUBRIC_MAX_ITEMS',
   'parseQuestionArray', 'normalizeAnswerText', 'parseLooseNumber',
-  'PLACEHOLDER_ANSWERS', 'isPlaceholderAnswer', 'cleanText', 'normalizeOptionRationales', 'normalizeRubric',
+  'PLACEHOLDER_ANSWERS', 'isPlaceholderAnswer', 'cleanText',
+  'EXPR_MAX_LENGTH', 'EXPR_MAX_DEPTH', 'EXPR_CONSTS', 'EXPR_FUNCS', 'evaluateExpression', 'sanitizeVariables',
+  'numberReadings', 'sameNumber', 'withinTolerance', 'templateMatches', 'verifyCalculation', 'normalizeOptionRationales', 'normalizeRubric',
   'allowedTypesFor', 'validateQuestion', 'shuffleInPlace', 'splitPublicAndKey'
 ]);
 const R = loadFromSource(GRADE_PATH, [
@@ -213,10 +215,12 @@ test('dogru-yanlis: siklar dile gore sunucuda konur, anahtar normalize edilir', 
   assert.equal(G.validateQuestion({ type: 'true_false', question: 'Bir ifade burada.', correct_answer: 'belki' }, ['true_false'], 'tr').reason, 'tf_answer_unclear');
 });
 
-test('hesaplama: sayi olmayan anahtar reddedilir, tolerans kistirilir', () => {
-  assert.equal(G.validateQuestion({ type: 'calculation', question: 'NBD kaç TL?', correct_answer: 'yaklaşık bin' }, ['calculation'], 'tr').reason, 'calc_answer_not_number');
-  const r = G.validateQuestion({ type: 'calculation', question: 'NBD kaç TL?', correct_answer: '1.432,50', tolerance_percent: 50 }, ['calculation'], 'tr');
-  assert.equal(r.question.correct_answer, 1432.5);
+test('hesaplama: formulsuz soru reddedilir, cevap formulden, tolerans kistirilir', () => {
+  // FAZ 3a (22.10.2026): cevabı artık kod hesaplıyor; formülsüz soru atılır.
+  assert.equal(G.validateQuestion({ type: 'calculation', question: 'NBD kaç TL?', correct_answer: '1.432,50' }, ['calculation'], 'tr').reason, 'calc_no_formula');
+  const r = G.validateQuestion({ type: 'calculation', question: '1.000 TL %10 faizle 2 yıl sonra kaç TL olur?', correct_answer: 'yaklaşık bin iki yüz',
+    tolerance_percent: 50, variables: { P: 1000, r: 10, n: 2 }, formula: 'P * (1 + r/100)^n' }, ['calculation'], 'tr');
+  assert.equal(r.question.correct_answer, 1210, 'modelin sayi olmayan cevabi yerine kodun hesabi');
   assert.equal(r.question.tolerance_percent, 10);
 });
 

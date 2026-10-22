@@ -777,6 +777,266 @@
     return !!active;
   }
 
+  // ------------------------------------------------------------------------
+  // FAZ 3a: kodla doğrulanmış hesap sorusunda "farklı sayılarla tekrar dene".
+  // evaluateExpression / sanitizeVariables, supabase/functions/grade-exam
+  // ve generate-exam'deki TypeScript kopyasından derlendi;
+  // tests/exam-calc.js iki tarafı aynı test vektörleriyle denetler.
+  // ------------------------------------------------------------------------
+  "use strict";
+  // ==========================================================================
+  // FAZ 3a — KODLA DOĞRULANAN HESAP: güvenli ifade hesaplayıcı (22.10.2026)
+  //
+  // Model hesap sorusu için değişkenleri ve formülü yazar, cevabı burada kod
+  // hesaplar. eval YOK: yalnızca sayılar, değişken adları, + - * / ^ (ya da
+  // **), parantez ve aşağıdaki fonksiyonlar. Herhangi bir hata NaN döner.
+  // generate-exam ve grade-exam'de BİREBİR aynı (tests/exam-calc.js denetler);
+  // tarayıcı kopyası js/exam-engine.js'te, aynı test vektörleriyle denetlenir.
+  // ==========================================================================
+  const EXPR_MAX_LENGTH = 400;
+  const EXPR_MAX_DEPTH = 40;
+  const EXPR_CONSTS = { pi: Math.PI, e: Math.E };
+  const EXPR_FUNCS = {
+      sqrt: { min: 1, max: 1, fn: Math.sqrt },
+      abs: { min: 1, max: 1, fn: Math.abs },
+      ln: { min: 1, max: 1, fn: Math.log },
+      log: { min: 1, max: 1, fn: Math.log10 },
+      log10: { min: 1, max: 1, fn: Math.log10 },
+      exp: { min: 1, max: 1, fn: Math.exp },
+      floor: { min: 1, max: 1, fn: Math.floor },
+      ceil: { min: 1, max: 1, fn: Math.ceil },
+      min: { min: 1, max: 12, fn: Math.min },
+      max: { min: 1, max: 12, fn: Math.max },
+      pow: { min: 2, max: 2, fn: Math.pow },
+      round: { min: 1, max: 2, fn: (x, d = 0) => { const f = Math.pow(10, Math.round(d)); return Math.round(x * f) / f; } }
+  };
+  /** Formülü değişkenlerle hesaplar. Geçersiz ifade, bilinmeyen ad, sonsuz
+   *  ya da tanımsız sonuç → NaN. */
+  function evaluateExpression(src, vars) {
+      const text = String(src ?? '');
+      if (!text.trim() || text.length > EXPR_MAX_LENGTH)
+          return NaN;
+      const tokens = [];
+      const re = /\s*(?:(\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|\.\d+)|([A-Za-z_][A-Za-z0-9_]*)|(\*\*|[-+*/^(),]))/y;
+      let pos = 0;
+      while (pos < text.length) {
+          if (/^\s*$/.test(text.slice(pos)))
+              break;
+          re.lastIndex = pos;
+          const m = re.exec(text);
+          if (!m)
+              return NaN;
+          if (m[1] !== undefined)
+              tokens.push({ t: 'num', v: m[1] });
+          else if (m[2] !== undefined)
+              tokens.push({ t: 'id', v: m[2] });
+          else
+              tokens.push({ t: 'op', v: m[3] === '**' ? '^' : m[3] });
+          pos = re.lastIndex;
+      }
+      let i = 0;
+      const peek = () => tokens[i];
+      const isOp = (v) => !!tokens[i] && tokens[i].t === 'op' && tokens[i].v === v;
+      const fail = () => { throw new Error('expr'); };
+      const expr = (d) => {
+          if (d > EXPR_MAX_DEPTH)
+              fail();
+          let v = term(d + 1);
+          while (isOp('+') || isOp('-')) {
+              const op = tokens[i++].v;
+              const r = term(d + 1);
+              v = op === '+' ? v + r : v - r;
+          }
+          return v;
+      };
+      const term = (d) => {
+          let v = unary(d + 1);
+          while (isOp('*') || isOp('/')) {
+              const op = tokens[i++].v;
+              const r = unary(d + 1);
+              v = op === '*' ? v * r : v / r;
+          }
+          return v;
+      };
+      const unary = (d) => {
+          if (d > EXPR_MAX_DEPTH)
+              fail();
+          if (isOp('-')) {
+              i++;
+              return -unary(d + 1);
+          }
+          if (isOp('+')) {
+              i++;
+              return unary(d + 1);
+          }
+          return power(d + 1);
+      };
+      const power = (d) => {
+          const base = primary(d + 1);
+          if (isOp('^')) {
+              i++;
+              return Math.pow(base, unary(d + 1));
+          }
+          return base;
+      };
+      const primary = (d) => {
+          if (d > EXPR_MAX_DEPTH)
+              fail();
+          const tk = peek();
+          if (!tk)
+              return fail();
+          if (tk.t === 'num') {
+              i++;
+              return Number(tk.v);
+          }
+          if (tk.t === 'op' && tk.v === '(') {
+              i++;
+              const v = expr(d + 1);
+              if (!isOp(')'))
+                  fail();
+              i++;
+              return v;
+          }
+          if (tk.t === 'id') {
+              i++;
+              if (isOp('(')) {
+                  const fname = tk.v.toLowerCase();
+                  const f = Object.prototype.hasOwnProperty.call(EXPR_FUNCS, fname) ? EXPR_FUNCS[fname] : null;
+                  if (!f)
+                      fail();
+                  i++;
+                  const args = [];
+                  if (!isOp(')')) {
+                      args.push(expr(d + 1));
+                      while (isOp(',')) {
+                          i++;
+                          args.push(expr(d + 1));
+                      }
+                  }
+                  if (!isOp(')'))
+                      fail();
+                  i++;
+                  if (args.length < f.min || args.length > f.max)
+                      fail();
+                  return f.fn(...args);
+              }
+              if (Object.prototype.hasOwnProperty.call(vars, tk.v))
+                  return Number(vars[tk.v]);
+              if (Object.prototype.hasOwnProperty.call(EXPR_CONSTS, tk.v))
+                  return EXPR_CONSTS[tk.v];
+              return fail();
+          }
+          return fail();
+      };
+      try {
+          const v = expr(0);
+          if (i !== tokens.length)
+              return NaN;
+          return Number.isFinite(v) ? v : NaN;
+      }
+      catch (_e) {
+          return NaN;
+      }
+  }
+  /** Modelin verdiği değişkenler: ad → sonlu sayı. Geçersiz ad ya da değer
+   *  atılır; fonksiyon ve sabit adları değişken olamaz. En fazla 10. */
+  function sanitizeVariables(raw) {
+      const out = {};
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+          return out;
+      for (const [k, v] of Object.entries(raw)) {
+          if (!/^[A-Za-z_][A-Za-z0-9_]{0,15}$/.test(k))
+              continue;
+          if (Object.prototype.hasOwnProperty.call(EXPR_FUNCS, k.toLowerCase()) || Object.prototype.hasOwnProperty.call(EXPR_CONSTS, k))
+              continue;
+          const n = typeof v === 'number' ? v : Number(String(v ?? '').trim());
+          if (!Number.isFinite(n))
+              continue;
+          out[k] = n;
+          if (Object.keys(out).length >= 10)
+              break;
+      }
+      return out;
+  }
+
+  /** grade-exam'deki parseLooseNumber ile aynı kural: "1.432,50", "1,432.50", "%12". */
+  function parseLooseNumber(value) {
+    if (typeof value === 'number') return Number.isFinite(value) ? value : NaN;
+    let s = String(value == null ? '' : value).trim().replace(/\s+/g, '');
+    s = s.replace(/[^0-9.,\-+eE]/g, '');
+    if (!s || !/\d/.test(s)) return NaN;
+    const hasComma = s.includes(','), hasDot = s.includes('.');
+    if (hasComma && hasDot) {
+      if (s.lastIndexOf(',') > s.lastIndexOf('.')) s = s.replace(/\./g, '').replace(',', '.');
+      else s = s.replace(/,/g, '');
+    } else if (hasComma) {
+      s = (s.match(/,/g) || []).length > 1 ? s.replace(/,/g, '') : s.replace(',', '.');
+    } else if (hasDot && (s.match(/\./g) || []).length > 1) {
+      s = s.replace(/\./g, '');
+    }
+    const n = Number(s);
+    return Number.isFinite(n) ? n : NaN;
+  }
+
+  function formatNumber(n, lang) {
+    return Number(n).toLocaleString(lang === 'en' ? 'en-US' : 'tr-TR', { maximumFractionDigits: 6 });
+  }
+
+  /** Şablondaki {ad} yer tutucularını sayılarla doldurur. */
+  function renderTemplate(template, vars, lang) {
+    return String(template || '').replace(/\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (m, k) =>
+      Object.prototype.hasOwnProperty.call(vars, k) ? formatNumber(vars[k], lang) : m);
+  }
+
+  function decimalsOf(n) {
+    const str = String(n);
+    if (/e/i.test(str)) return 6;
+    const i = str.indexOf('.');
+    return i < 0 ? 0 : Math.min(6, str.length - i - 1);
+  }
+
+  function significantDigits(n) {
+    const digits = String(Math.abs(n)).replace(/e.*$/i, '').replace('.', '').replace(/^0+/, '').replace(/0+$/, '');
+    return Math.max(1, digits.length);
+  }
+
+  /** Aynı formülle yeni sayılar: her değişken %60–%140 arasında, ondalık
+   *  basamağı ve işareti korunarak değişir; cevap formülden hesaplanır.
+   *  Üretilemezse null. rand testte sabitlenebilsin diye parametre. */
+  function makeVariant(practice, lang, rand) {
+    const rnd = typeof rand === 'function' ? rand : Math.random;
+    if (!practice || typeof practice.template !== 'string' || !practice.formula) return null;
+    const base = sanitizeVariables(practice.variables);
+    const names = Object.keys(base);
+    if (!names.length) return null;
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const vars = {};
+      names.forEach(k => {
+        const v = base[k], d = decimalsOf(v), f = Math.pow(10, d);
+        // Asıl sayı kadar "yuvarlak" kalsın: 1.000.000 → 790.000 (en az 2
+        // anlamlı basamak), ondalık basamak ve tamsayılık korunur.
+        let nv = v === 0 ? 0 : Number((v * (0.6 + rnd() * 0.8)).toPrecision(Math.max(2, significantDigits(v))));
+        nv = Math.round(nv * f) / f;
+        if (v !== 0 && nv === 0) nv = d > 0 ? Math.sign(v) / f : Math.sign(v);
+        vars[k] = nv;
+      });
+      if (names.every(k => vars[k] === base[k])) continue;
+      const answer = evaluateExpression(practice.formula, vars);
+      if (!Number.isFinite(answer)) continue;
+      return { text: renderTemplate(practice.template, vars, lang), variables: vars, answer: Math.round(answer * 1e4) / 1e4 };
+    }
+    return null;
+  }
+
+  /** Öğrencinin sayısını toleransla kontrol eder. */
+  function checkNumericAnswer(input, answer, tolerancePercent) {
+    const n = parseLooseNumber(input);
+    if (!Number.isFinite(n)) return { ok: false, filled: false, value: NaN };
+    const tol = Number(tolerancePercent) > 0 ? Number(tolerancePercent) : 2;
+    const margin = answer !== 0 ? Math.abs(answer) * tol / 100 : tol / 100;
+    return { ok: Math.abs(n - answer) <= margin, filled: true, value: n };
+  }
+
   const api = {
     // tip kaydı
     registerType,
@@ -805,7 +1065,14 @@
     formatSubmitWarning,
     computeRemainingSeconds,
     choiceIndexFromKey,
-    isAnswerFilled
+    isAnswerFilled,
+    // FAZ 3a: hesap pratiği
+    evaluateExpression,
+    sanitizeVariables,
+    parseLooseNumber,
+    renderTemplate,
+    makeVariant,
+    checkNumericAnswer
   };
   return api;
 });

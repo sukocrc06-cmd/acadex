@@ -2872,6 +2872,8 @@ window.axWhenProfile = function (cb) {
       }).join('');
       if (rows) h += '<details class="sn-optwhy"><summary>tüm şıkların açıklaması</summary><ul>' + rows + '</ul></details>';
     }
+    if (r.type === 'calculation' && r.verified) h += '<p class="sn-ver">cevap, sorunun formülünden kodla hesaplandı</p>';
+    h += pracBlock(r);
     h += fbBlock(r);
     var src = r.source;
     if (src && +src.page > 0) {
@@ -2886,6 +2888,35 @@ window.axWhenProfile = function (cb) {
      öğretmene iletilebilir. Fonksiyon kurulu değilse yalnızca hata mesajı
      görünür, sonuç kâğıdının geri kalanı etkilenmez. */
   var RES_EXAM = null;
+  /* FAZ 3a: kodla doğrulanmış hesap sorusunda "farklı sayılarla tekrar dene".
+     Yeni sayılar ve cevap tarayıcıda, sorunun formülünden üretilir
+     (exam-engine makeVariant); yapay zekâ çağrısı ve puan yok, yalnızca
+     pratik. */
+  var pracBlock = function (r) {
+    var E = ENG(); if (!r.practice || !E || typeof E.makeVariant !== 'function') return '';
+    return '<div class="sn-prac" data-prac="' + esc(String(r.question_id)) + '"><button type="button" class="sn-link" data-prac-new="">farklı sayılarla tekrar dene</button><div class="sn-prac-b" hidden></div></div>';
+  };
+  var pracOf = function (qid) { var rs = (RES_EXAM && RES_EXAM.question_results) || []; for (var i = 0; i < rs.length; i++) if (String(rs[i].question_id) === String(qid)) return rs[i].practice; return null; };
+  var pracNew = function (box) {
+    var E = ENG(), p = pracOf(box.getAttribute('data-prac')), b = box.querySelector('.sn-prac-b');
+    var v = E && p ? E.makeVariant(p, (RES_EXAM && RES_EXAM.language) || 'tr') : null;
+    if (!v) { b.innerHTML = '<p class="sn-prac-r no">Bu soru için yeni sayılar üretilemedi.</p>'; b.hidden = false; return; }
+    box.__v = v; box.__p = p;
+    var unit = p.units ? ' <span class="u">' + esc(p.units) + '</span>' : '';
+    b.innerHTML = '<p class="sn-prac-q">' + rich(v.text) + '</p><div class="sn-prac-in"><input type="text" inputmode="decimal" autocomplete="off" data-prac-ans="" aria-label="Cevabın">' + unit +
+      '<button type="button" class="btn btn-dark" data-prac-check="">kontrol et</button></div><p class="sn-prac-r" role="status" hidden></p>';
+    b.hidden = false;
+    var inp = b.querySelector('[data-prac-ans]'); if (inp) inp.focus();
+  };
+  var pracCheck = function (box) {
+    var E = ENG(), v = box.__v, p = box.__p, out = box.querySelector('.sn-prac-r'), inp = box.querySelector('[data-prac-ans]');
+    if (!E || !v || !out || !inp) return;
+    var c = E.checkNumericAnswer(inp.value, v.answer, p.tolerance_percent), lang = (RES_EXAM && RES_EXAM.language) || 'tr';
+    var shown = Number(v.answer).toLocaleString(lang === 'en' ? 'en-US' : 'tr-TR', { maximumFractionDigits: 4 }) + (p.units ? ' ' + p.units : '');
+    out.className = 'sn-prac-r ' + (c.ok ? 'ok' : 'no');
+    out.innerHTML = !c.filled ? 'Bir sayı yaz.' : c.ok ? 'Doğru! (' + esc(shown) + ') <button type="button" class="sn-link" data-prac-new="">yeni sayılar</button>' : 'Olmadı. Doğrusu ' + esc(shown) + ' (±%' + esc(String(p.tolerance_percent || 2)) + '). <button type="button" class="sn-link" data-prac-new="">yeni sayılar</button>';
+    out.hidden = false;
+  };
   var APPEALABLE = { open_ended: 1, fill_blank: 1 };
   var REPORT_CATS = [['wrong_key', 'cevap anahtarı yanlış'], ['ambiguous', 'soru belirsiz ya da birden çok doğru var'], ['off_source', 'kaynakta böyle bir şey yok'], ['typo', 'yazım ya da biçim hatası'], ['other', 'diğer']];
   var catLabel = function (k) { for (var i = 0; i < REPORT_CATS.length; i++) if (REPORT_CATS[i][0] === k) return REPORT_CATS[i][1]; return k || ''; };
@@ -2991,6 +3022,8 @@ window.axWhenProfile = function (cb) {
     window.showExamResults = showExamResults;
   }
   res.addEventListener('click', function (e) {
+    var pn = e.target.closest('[data-prac-new]'); if (pn) { pracNew(pn.closest('.sn-prac')); return; }
+    var pc = e.target.closest('[data-prac-check]'); if (pc) { pracCheck(pc.closest('.sn-prac')); return; }
     var fb = e.target.closest('[data-fb]'); if (fb) { fbForm(fb.closest('.sn-fbk'), fb.getAttribute('data-fb')); return; }
     var fs = e.target.closest('[data-fb-send]'); if (fs) { sendFb(fs); return; }
     var fc = e.target.closest('[data-fb-cancel]'); if (fc) { var ff = fc.closest('.sn-fbk-f'); ff.hidden = true; ff.innerHTML = ''; return; }
