@@ -412,6 +412,11 @@ function applyEscalation(results: Array<Record<string, unknown>>, idx: number, n
   return out
 }
 
+/** Bir kademe düşük düşünme payı (gpt-oss: low / medium / high). */
+function lowerEffort(effort: string): string {
+  return effort === 'high' ? 'medium' : 'low'
+}
+
 /** Groq çağrısı; 429'da söylenen süre kısaysa bir kez bekleyip yeniden dener. */
 async function callGroq(apiKey: string, system: string, user: string, opts: { effort: string; maxTokens: number }, attempt = 0): Promise<string | null> {
   const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -433,6 +438,16 @@ async function callGroq(apiKey: string, system: string, user: string, opts: { ef
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
+    // 22.10.2026 (canlı test): yüksek düşünme payı bütçeyi yanıt yazılmadan
+    // tüketince Groq json_validate_failed + boş failed_generation döndü.
+    // Kısmi çıktı varsa onu kullan; yoksa düşünme payını bir kademe indirip
+    // bütçeyi büyüterek bir kez daha dene.
+    if (data?.error?.code === 'json_validate_failed') {
+      const partial = String(data.error.failed_generation ?? '')
+      console.warn(`exam-appeal: Groq JSON dogrulamasi dustu (effort=${opts.effort}, failed_generation ${partial.length} karakter)`)
+      if (partial.trim()) return partial
+      if (attempt === 0) return callGroq(apiKey, system, user, { effort: lowerEffort(opts.effort), maxTokens: opts.maxTokens + 1500 }, attempt + 1)
+    }
     const waitMs = attempt === 0 ? groqRetryDelayMs(res.status, res.headers.get('retry-after'), data?.error?.message) : null
     if (waitMs !== null) {
       console.warn(`exam-appeal: Groq hiz siniri, ${Math.round(waitMs / 1000)} sn beklenip yeniden deneniyor`)
@@ -566,7 +581,7 @@ serve(async (req) => {
 
     let outcome: AppealOutcome | null = null
     if (result.type === 'open_ended') {
-      const raw = await callGroq(groqApiKey, STATIC_APPEAL_INSTRUCTIONS, buildOpenAppealPrompt(q, result, v.reason, language), { effort: 'high', maxTokens: 3000 })
+      const raw = await callGroq(groqApiKey, STATIC_APPEAL_INSTRUCTIONS, buildOpenAppealPrompt(q, result, v.reason, language), { effort: 'high', maxTokens: 5000 })
       const g = raw ? (parseGradesResponse(raw) || [])[0] : null
       if (g) {
         const rubric = Array.isArray(q.rubric) && q.rubric.length ? q.rubric as RubricItem[] : null
