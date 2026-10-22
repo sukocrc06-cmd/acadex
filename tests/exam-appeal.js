@@ -25,7 +25,8 @@ const GRADE_PATH = 'supabase/functions/grade-exam/index.ts';
 const SHARED = [
   'normalizeAnswerText', 'foldTurkish', 'mergeQuestionWithKey', 'parseGradesResponse', 'parseCriteria',
   'GROQ_RETRY_MAX_WAIT_MS', 'groqRetryDelayMs', 'PLACEHOLDER_ANSWERS', 'isPlaceholderAnswer',
-  'effectiveCorrectAnswer', 'VERDICT_SHARE', 'scoreFromRubric', 'computeFinalGrade'
+  'effectiveCorrectAnswer', 'VERDICT_SHARE', 'scoreFromRubric', 'computeFinalGrade',
+  'computeNetSummary', 'computeExamGrade'
 ];
 
 const A = loadFromSource(APPEAL_PATH, [
