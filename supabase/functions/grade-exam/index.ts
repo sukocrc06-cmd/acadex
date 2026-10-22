@@ -172,6 +172,150 @@ function gradeCalculation(studentAns: unknown, correctAns: unknown, tolerancePer
   return { score, studentNum, correctNum, tolPercent, percentScaled }
 }
 
+// ==========================================================================
+// FAZ 3a — KODLA DOĞRULANAN HESAP: güvenli ifade hesaplayıcı (22.10.2026)
+//
+// Model hesap sorusu için değişkenleri ve formülü yazar, cevabı burada kod
+// hesaplar. eval YOK: yalnızca sayılar, değişken adları, + - * / ^ (ya da
+// **), parantez ve aşağıdaki fonksiyonlar. Herhangi bir hata NaN döner.
+// generate-exam ve grade-exam'de BİREBİR aynı (tests/exam-calc.js denetler);
+// tarayıcı kopyası js/exam-engine.js'te, aynı test vektörleriyle denetlenir.
+// ==========================================================================
+const EXPR_MAX_LENGTH = 400
+const EXPR_MAX_DEPTH = 40
+const EXPR_CONSTS: Record<string, number> = { pi: Math.PI, e: Math.E }
+const EXPR_FUNCS: Record<string, { min: number; max: number; fn: (...a: number[]) => number }> = {
+  sqrt: { min: 1, max: 1, fn: Math.sqrt },
+  abs: { min: 1, max: 1, fn: Math.abs },
+  ln: { min: 1, max: 1, fn: Math.log },
+  log: { min: 1, max: 1, fn: Math.log10 },
+  log10: { min: 1, max: 1, fn: Math.log10 },
+  exp: { min: 1, max: 1, fn: Math.exp },
+  floor: { min: 1, max: 1, fn: Math.floor },
+  ceil: { min: 1, max: 1, fn: Math.ceil },
+  min: { min: 1, max: 12, fn: Math.min },
+  max: { min: 1, max: 12, fn: Math.max },
+  pow: { min: 2, max: 2, fn: Math.pow },
+  round: { min: 1, max: 2, fn: (x: number, d = 0) => { const f = Math.pow(10, Math.round(d)); return Math.round(x * f) / f } }
+}
+
+/** Formülü değişkenlerle hesaplar. Geçersiz ifade, bilinmeyen ad, sonsuz
+ *  ya da tanımsız sonuç → NaN. */
+function evaluateExpression(src: unknown, vars: Record<string, number>): number {
+  const text = String(src ?? '')
+  if (!text.trim() || text.length > EXPR_MAX_LENGTH) return NaN
+  const tokens: Array<{ t: string; v: string }> = []
+  const re = /\s*(?:(\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|\.\d+)|([A-Za-z_][A-Za-z0-9_]*)|(\*\*|[-+*/^(),]))/y
+  let pos = 0
+  while (pos < text.length) {
+    if (/^\s*$/.test(text.slice(pos))) break
+    re.lastIndex = pos
+    const m = re.exec(text)
+    if (!m) return NaN
+    if (m[1] !== undefined) tokens.push({ t: 'num', v: m[1] })
+    else if (m[2] !== undefined) tokens.push({ t: 'id', v: m[2] })
+    else tokens.push({ t: 'op', v: m[3] === '**' ? '^' : m[3] })
+    pos = re.lastIndex
+  }
+  let i = 0
+  const peek = () => tokens[i]
+  const isOp = (v: string) => !!tokens[i] && tokens[i].t === 'op' && tokens[i].v === v
+  const fail = (): never => { throw new Error('expr') }
+  const expr = (d: number): number => {
+    if (d > EXPR_MAX_DEPTH) fail()
+    let v = term(d + 1)
+    while (isOp('+') || isOp('-')) { const op = tokens[i++].v; const r = term(d + 1); v = op === '+' ? v + r : v - r }
+    return v
+  }
+  const term = (d: number): number => {
+    let v = unary(d + 1)
+    while (isOp('*') || isOp('/')) { const op = tokens[i++].v; const r = unary(d + 1); v = op === '*' ? v * r : v / r }
+    return v
+  }
+  const unary = (d: number): number => {
+    if (d > EXPR_MAX_DEPTH) fail()
+    if (isOp('-')) { i++; return -unary(d + 1) }
+    if (isOp('+')) { i++; return unary(d + 1) }
+    return power(d + 1)
+  }
+  const power = (d: number): number => {
+    const base = primary(d + 1)
+    if (isOp('^')) { i++; return Math.pow(base, unary(d + 1)) }
+    return base
+  }
+  const primary = (d: number): number => {
+    if (d > EXPR_MAX_DEPTH) fail()
+    const tk = peek()
+    if (!tk) return fail()
+    if (tk.t === 'num') { i++; return Number(tk.v) }
+    if (tk.t === 'op' && tk.v === '(') { i++; const v = expr(d + 1); if (!isOp(')')) fail(); i++; return v }
+    if (tk.t === 'id') {
+      i++
+      if (isOp('(')) {
+        const fname = tk.v.toLowerCase()
+        const f = Object.prototype.hasOwnProperty.call(EXPR_FUNCS, fname) ? EXPR_FUNCS[fname] : null
+        if (!f) fail()
+        i++
+        const args: number[] = []
+        if (!isOp(')')) {
+          args.push(expr(d + 1))
+          while (isOp(',')) { i++; args.push(expr(d + 1)) }
+        }
+        if (!isOp(')')) fail()
+        i++
+        if (args.length < f.min || args.length > f.max) fail()
+        return f.fn(...args)
+      }
+      if (Object.prototype.hasOwnProperty.call(vars, tk.v)) return Number(vars[tk.v])
+      if (Object.prototype.hasOwnProperty.call(EXPR_CONSTS, tk.v)) return EXPR_CONSTS[tk.v]
+      return fail()
+    }
+    return fail()
+  }
+  try {
+    const v = expr(0)
+    if (i !== tokens.length) return NaN
+    return Number.isFinite(v) ? v : NaN
+  } catch (_e) {
+    return NaN
+  }
+}
+
+/** Modelin verdiği değişkenler: ad → sonlu sayı. Geçersiz ad ya da değer
+ *  atılır; fonksiyon ve sabit adları değişken olamaz. En fazla 10. */
+function sanitizeVariables(raw: unknown): Record<string, number> {
+  const out: Record<string, number> = {}
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (!/^[A-Za-z_][A-Za-z0-9_]{0,15}$/.test(k)) continue
+    if (Object.prototype.hasOwnProperty.call(EXPR_FUNCS, k.toLowerCase()) || Object.prototype.hasOwnProperty.call(EXPR_CONSTS, k)) continue
+    const n = typeof v === 'number' ? v : Number(String(v ?? '').trim())
+    if (!Number.isFinite(n)) continue
+    out[k] = n
+    if (Object.keys(out).length >= 10) break
+  }
+  return out
+}
+
+/** FAZ 3a: öğrencinin yanlış sayısı, sorunun tipik hata formüllerinden
+ *  birine uyuyorsa o hatanın mesajı. */
+function matchCommonError(studentAns: unknown, q: Record<string, unknown>): string | null {
+  const student = parseLooseNumber(studentAns)
+  if (!Number.isFinite(student) || !Array.isArray(q.common_errors)) return null
+  const vars = sanitizeVariables(q.variables)
+  const tolRaw = Number(q.tolerance_percent)
+  const tol = Number.isFinite(tolRaw) && tolRaw > 0 ? tolRaw : 2
+  for (const ce of q.common_errors as unknown[]) {
+    if (!ce || typeof ce !== 'object') continue
+    const rec = ce as Record<string, unknown>
+    const v = evaluateExpression(rec.formula, vars)
+    if (!Number.isFinite(v)) continue
+    const margin = v !== 0 ? Math.abs(v) * tol / 100 : tol / 100
+    if (Math.abs(student - v) <= margin && typeof rec.message === 'string' && rec.message.trim()) return rec.message.trim()
+  }
+  return null
+}
+
 /** Puanlayıcı yanıtını ayrıştırır: {"grades":[...]} veya düz dizi. */
 type CriterionVerdict = { index: number; verdict: 'met' | 'partial' | 'missing'; note: string }
 type ParsedGrade = { question_id: number; score: number; feedback: string; criteria: CriterionVerdict[] | null }
@@ -305,6 +449,14 @@ function teachingFields(q: Record<string, unknown>): Record<string, unknown> {
   if (typeof q.explanation === 'string' && q.explanation) out.explanation = q.explanation
   if (q.option_rationales && typeof q.option_rationales === 'object') out.option_rationales = q.option_rationales
   if (q.source && typeof q.source === 'object') out.source = q.source
+  // FAZ 3a: kodla doğrulanmış hesap sorusu — sonuç kâğıdında "farklı
+  // sayılarla tekrar dene" bu veriden tarayıcıda yeni soru üretir.
+  if (q.type === 'calculation' && q.verified === true) {
+    out.verified = true
+    if (typeof q.template === 'string' && q.template && typeof q.formula === 'string' && q.variables && typeof q.variables === 'object') {
+      out.practice = { template: q.template, variables: q.variables, formula: q.formula, tolerance_percent: q.tolerance_percent ?? 2, units: q.units ?? '' }
+    }
+  }
   return out
 }
 
@@ -527,6 +679,9 @@ serve(async (req) => {
             ? `Yanlış cevap (${studentAns || '-'}${unitSuffix}). Doğru cevap: ${g.correctNum}${unitSuffix} (±%${g.tolPercent} tolerans).`
             : `Incorrect calculation (${studentAns || '-'}${unitSuffix}). Correct answer: ${g.correctNum}${unitSuffix} (±${g.tolPercent}% margin).`
         }
+        // FAZ 3a: yanlış cevap bilinen bir hataya uyuyorsa söyle.
+        const mistake = g.score < 100 ? matchCommonError(studentAns, q) : null
+        if (mistake) feedback += isTr ? ` Olası hata: ${mistake}` : ` Likely mistake: ${mistake}`
         results.push({
           ...base,
           options: null,
@@ -534,6 +689,7 @@ serve(async (req) => {
           units: q.units || null,
           tolerance_percent: g.tolPercent,
           solution_steps: q.solution_steps || [],
+          matched_error: mistake,
           is_correct: g.score === 100,
           score: g.score,
           feedback

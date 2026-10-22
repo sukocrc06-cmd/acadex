@@ -43,6 +43,10 @@ EXAM TYPE RULES:
    - "units": short unit string (e.g. "$", "%", "units", "kg", etc., or "" if unitless).
    - "solution_steps": array of strings demonstrating step 1, step 2, step 3 of the step-by-step mathematical solution.
    - "options": null.
+   - "variables": object mapping a short name to EVERY numeric input of the problem, with the value written exactly as it appears in the question text (5 for "%5", not 0.05; 1000000 for "1.000.000"). Only quantities that could change in a similar problem (amounts, rates, counts, periods); never years, dates or fixed constants such as 12 months, 100 for percent or 360 days — write those directly in the formula.
+   - "formula": ONE arithmetic expression over those names that computes correct_answer, e.g. "P * (r/100/12) / (1 - (1 + r/100/12)^(-n))". Allowed: numbers, the variable names, + - * / ^ ( ), sqrt, abs, ln, log10, exp, floor, ceil, min, max, round, pow, pi, e. No other functions, no implicit multiplication (write 2*x), no dates. Only write calculation problems whose answer this one formula computes exactly; the answer is recomputed by code and the question is discarded if they disagree.
+   - "template": the question text with each input number replaced by {name}, everything else identical.
+   - "common_errors": 1 to 3 typical mistakes as [{"formula": "...", "message": "..."}] using the same names (e.g. the annual rate not divided by 12); "message" is one short sentence in the exam language naming the mistake.
 4. 'mixed': A combination of question types (the user message's MIXED TYPE RULE line below states the exact type spread for this course).
    - For 'open_ended': options = null.
    - For 'multiple_choice': exactly the OPTION COUNT number of options, correct_answer matches one option.
@@ -64,6 +68,10 @@ The "questions" array's length must exactly equal the question count requested i
   "tolerance_percent": number | null,
   "units": "string" | null,
   "solution_steps": ["string"] | null,
+  "variables": {"name": number} | null,
+  "formula": "string" | null,
+  "template": "string" | null,
+  "common_errors": [{"formula": "string", "message": "string"}] | null,
   "hint": "string (short helpful clue that does NOT reveal the answer)",
   "concept": "string",
   "explanation": "string",
@@ -107,7 +115,9 @@ const ALLOWED_LANGUAGES = ['tr', 'en']
 const TRUE_FALSE_OPTIONS: Record<string, [string, string]> = { tr: ['Doğru', 'Yanlış'], en: ['True', 'False'] }
 // FAZ 2: açıklama, şık gerekçeleri, rubrik ve kaynak sayfası da anahtarda
 // durur; öğrenci bunları ancak sınav puanlandıktan sonra görür.
-const KEY_FIELDS = ['correct_answer', 'accepted_answers', 'solution_steps', 'tolerance_percent', 'hint', 'explanation', 'option_rationales', 'rubric', 'source']
+// FAZ 3a: hesap sorusunun değişkenleri, formülü, şablonu ve tipik hataları
+// da anahtarda; tarayıcıya ancak puanlamadan sonra gider.
+const KEY_FIELDS = ['correct_answer', 'accepted_answers', 'solution_steps', 'tolerance_percent', 'hint', 'explanation', 'option_rationales', 'rubric', 'source', 'variables', 'formula', 'template', 'common_errors', 'verified']
 // Yalnızca sunucuda kullanılan alanlar: ne tarayıcıya ne anahtara yazılır.
 const INTERNAL_FIELDS = ['source_terms']
 const EXPLANATION_MAX_CHARS = 600
@@ -176,6 +186,198 @@ const PLACEHOLDER_ANSWERS = ['null', 'none', 'undefined', 'n/a', 'nan']
 function isPlaceholderAnswer(value: unknown): boolean {
   if (typeof value === 'number') return false
   return PLACEHOLDER_ANSWERS.includes(normalizeAnswerText(value))
+}
+
+// ==========================================================================
+// FAZ 3a — KODLA DOĞRULANAN HESAP: güvenli ifade hesaplayıcı (22.10.2026)
+//
+// Model hesap sorusu için değişkenleri ve formülü yazar, cevabı burada kod
+// hesaplar. eval YOK: yalnızca sayılar, değişken adları, + - * / ^ (ya da
+// **), parantez ve aşağıdaki fonksiyonlar. Herhangi bir hata NaN döner.
+// generate-exam ve grade-exam'de BİREBİR aynı (tests/exam-calc.js denetler);
+// tarayıcı kopyası js/exam-engine.js'te, aynı test vektörleriyle denetlenir.
+// ==========================================================================
+const EXPR_MAX_LENGTH = 400
+const EXPR_MAX_DEPTH = 40
+const EXPR_CONSTS: Record<string, number> = { pi: Math.PI, e: Math.E }
+const EXPR_FUNCS: Record<string, { min: number; max: number; fn: (...a: number[]) => number }> = {
+  sqrt: { min: 1, max: 1, fn: Math.sqrt },
+  abs: { min: 1, max: 1, fn: Math.abs },
+  ln: { min: 1, max: 1, fn: Math.log },
+  log: { min: 1, max: 1, fn: Math.log10 },
+  log10: { min: 1, max: 1, fn: Math.log10 },
+  exp: { min: 1, max: 1, fn: Math.exp },
+  floor: { min: 1, max: 1, fn: Math.floor },
+  ceil: { min: 1, max: 1, fn: Math.ceil },
+  min: { min: 1, max: 12, fn: Math.min },
+  max: { min: 1, max: 12, fn: Math.max },
+  pow: { min: 2, max: 2, fn: Math.pow },
+  round: { min: 1, max: 2, fn: (x: number, d = 0) => { const f = Math.pow(10, Math.round(d)); return Math.round(x * f) / f } }
+}
+
+/** Formülü değişkenlerle hesaplar. Geçersiz ifade, bilinmeyen ad, sonsuz
+ *  ya da tanımsız sonuç → NaN. */
+function evaluateExpression(src: unknown, vars: Record<string, number>): number {
+  const text = String(src ?? '')
+  if (!text.trim() || text.length > EXPR_MAX_LENGTH) return NaN
+  const tokens: Array<{ t: string; v: string }> = []
+  const re = /\s*(?:(\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|\.\d+)|([A-Za-z_][A-Za-z0-9_]*)|(\*\*|[-+*/^(),]))/y
+  let pos = 0
+  while (pos < text.length) {
+    if (/^\s*$/.test(text.slice(pos))) break
+    re.lastIndex = pos
+    const m = re.exec(text)
+    if (!m) return NaN
+    if (m[1] !== undefined) tokens.push({ t: 'num', v: m[1] })
+    else if (m[2] !== undefined) tokens.push({ t: 'id', v: m[2] })
+    else tokens.push({ t: 'op', v: m[3] === '**' ? '^' : m[3] })
+    pos = re.lastIndex
+  }
+  let i = 0
+  const peek = () => tokens[i]
+  const isOp = (v: string) => !!tokens[i] && tokens[i].t === 'op' && tokens[i].v === v
+  const fail = (): never => { throw new Error('expr') }
+  const expr = (d: number): number => {
+    if (d > EXPR_MAX_DEPTH) fail()
+    let v = term(d + 1)
+    while (isOp('+') || isOp('-')) { const op = tokens[i++].v; const r = term(d + 1); v = op === '+' ? v + r : v - r }
+    return v
+  }
+  const term = (d: number): number => {
+    let v = unary(d + 1)
+    while (isOp('*') || isOp('/')) { const op = tokens[i++].v; const r = unary(d + 1); v = op === '*' ? v * r : v / r }
+    return v
+  }
+  const unary = (d: number): number => {
+    if (d > EXPR_MAX_DEPTH) fail()
+    if (isOp('-')) { i++; return -unary(d + 1) }
+    if (isOp('+')) { i++; return unary(d + 1) }
+    return power(d + 1)
+  }
+  const power = (d: number): number => {
+    const base = primary(d + 1)
+    if (isOp('^')) { i++; return Math.pow(base, unary(d + 1)) }
+    return base
+  }
+  const primary = (d: number): number => {
+    if (d > EXPR_MAX_DEPTH) fail()
+    const tk = peek()
+    if (!tk) return fail()
+    if (tk.t === 'num') { i++; return Number(tk.v) }
+    if (tk.t === 'op' && tk.v === '(') { i++; const v = expr(d + 1); if (!isOp(')')) fail(); i++; return v }
+    if (tk.t === 'id') {
+      i++
+      if (isOp('(')) {
+        const fname = tk.v.toLowerCase()
+        const f = Object.prototype.hasOwnProperty.call(EXPR_FUNCS, fname) ? EXPR_FUNCS[fname] : null
+        if (!f) fail()
+        i++
+        const args: number[] = []
+        if (!isOp(')')) {
+          args.push(expr(d + 1))
+          while (isOp(',')) { i++; args.push(expr(d + 1)) }
+        }
+        if (!isOp(')')) fail()
+        i++
+        if (args.length < f.min || args.length > f.max) fail()
+        return f.fn(...args)
+      }
+      if (Object.prototype.hasOwnProperty.call(vars, tk.v)) return Number(vars[tk.v])
+      if (Object.prototype.hasOwnProperty.call(EXPR_CONSTS, tk.v)) return EXPR_CONSTS[tk.v]
+      return fail()
+    }
+    return fail()
+  }
+  try {
+    const v = expr(0)
+    if (i !== tokens.length) return NaN
+    return Number.isFinite(v) ? v : NaN
+  } catch (_e) {
+    return NaN
+  }
+}
+
+/** Modelin verdiği değişkenler: ad → sonlu sayı. Geçersiz ad ya da değer
+ *  atılır; fonksiyon ve sabit adları değişken olamaz. En fazla 10. */
+function sanitizeVariables(raw: unknown): Record<string, number> {
+  const out: Record<string, number> = {}
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (!/^[A-Za-z_][A-Za-z0-9_]{0,15}$/.test(k)) continue
+    if (Object.prototype.hasOwnProperty.call(EXPR_FUNCS, k.toLowerCase()) || Object.prototype.hasOwnProperty.call(EXPR_CONSTS, k)) continue
+    const n = typeof v === 'number' ? v : Number(String(v ?? '').trim())
+    if (!Number.isFinite(n)) continue
+    out[k] = n
+    if (Object.keys(out).length >= 10) break
+  }
+  return out
+}
+
+/** Metindeki bir sayı belirtecinin olası okunuşları: "1.000" Türkçede bin,
+ *  İngilizcede bir; ikisi de aday sayılır. */
+function numberReadings(raw: string): number[] {
+  const out: number[] = []
+  const add = (n: number) => { if (Number.isFinite(n) && !out.some(x => sameNumber(x, n))) out.push(n) }
+  add(parseLooseNumber(raw))
+  add(Number(raw.replace(/\./g, '').replace(',', '.')))
+  add(Number(raw.replace(/,/g, '')))
+  return out
+}
+
+function sameNumber(a: number, b: number): boolean {
+  return Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(a), Math.abs(b))
+}
+
+function withinTolerance(value: number, target: number, tolPercent: number): boolean {
+  const margin = target !== 0 ? Math.abs(target) * tolPercent / 100 : tolPercent / 100
+  return Math.abs(value - target) <= margin
+}
+
+/** Şablon soruyla tutarlı mı: yer tutucular tam olarak değişkenler, ve
+ *  sayılar çıkarıldığında iki metnin harfleri aynı. */
+function templateMatches(template: string, question: string, names: string[]): boolean {
+  const ph = [...template.matchAll(/\{([A-Za-z_][A-Za-z0-9_]*)\}/g)].map(m => m[1])
+  if (ph.length === 0) return false
+  const set = new Set(ph)
+  if (names.some(n => !set.has(n)) || ph.some(p => !names.includes(p))) return false
+  const letters = (x: string) => x.toLocaleLowerCase('tr-TR').replace(/[^\p{L}]+/gu, '')
+  return letters(template.replace(/\{[^}]*\}/g, ' ')) === letters(question.replace(/\d[\d.,]*/g, ' '))
+}
+
+/** Hesap sorusunu kodla doğrular ve düzeltir: correct_answer formülden,
+ *  şablon ve tipik hatalar temizlenmiş. Başarısızsa nedeni. */
+function verifyCalculation(q: Record<string, unknown>): { ok: boolean; reason?: string } {
+  const vars = sanitizeVariables(q.variables)
+  const names = Object.keys(vars)
+  const formula = typeof q.formula === 'string' ? q.formula.trim() : ''
+  if (names.length === 0 || !formula) return { ok: false, reason: 'calc_no_formula' }
+  const value = evaluateExpression(formula, vars)
+  if (!Number.isFinite(value)) return { ok: false, reason: 'calc_formula_invalid' }
+  // Her değişken soru metninde yazılı olmalı (gizli girdi yok).
+  const text = String(q.question ?? '')
+  const readings = [...text.matchAll(/\d[\d.,]*/g)].flatMap(m => numberReadings(m[0].replace(/[.,]+$/, '')))
+  if (names.some(n => !readings.some(r => sameNumber(r, vars[n])))) return { ok: false, reason: 'calc_var_not_in_text' }
+  const tol = Number(q.tolerance_percent) || 2
+  const modelAnswer = parseLooseNumber(q.correct_answer)
+  if (Number.isFinite(modelAnswer) && !withinTolerance(modelAnswer, value, Math.max(tol, 1))) return { ok: false, reason: 'calc_mismatch' }
+  q.correct_answer = Math.round(value * 1e4) / 1e4
+  q.variables = vars
+  q.formula = formula
+  q.template = typeof q.template === 'string' && templateMatches(q.template, text, names) ? q.template : null
+  const errs: Array<{ formula: string; message: string }> = []
+  for (const ce of Array.isArray(q.common_errors) ? q.common_errors : []) {
+    if (!ce || typeof ce !== 'object') continue
+    const rec = ce as Record<string, unknown>
+    const f = typeof rec.formula === 'string' ? rec.formula.trim() : ''
+    const msg = cleanText(rec.message, 200)
+    const v = evaluateExpression(f, vars)
+    if (!f || !msg || !Number.isFinite(v) || withinTolerance(v, value, tol)) continue
+    errs.push({ formula: f, message: msg })
+    if (errs.length >= 3) break
+  }
+  q.common_errors = errs.length ? errs : null
+  q.verified = true
+  return { ok: true }
 }
 
 // ==========================================================================
@@ -258,14 +460,15 @@ function validateQuestion(raw: unknown, allowedTypes: string[], language: string
     q.accepted_answers = accepted.slice(0, 8)
     q.options = null
   } else if (type === 'calculation') {
-    const n = parseLooseNumber(q.correct_answer)
-    if (!Number.isFinite(n)) return { ok: false, reason: 'calc_answer_not_number' }
-    q.correct_answer = n
     const tol = parseLooseNumber(q.tolerance_percent)
     q.tolerance_percent = Number.isFinite(tol) ? Math.min(10, Math.max(0.1, tol)) : 2
     q.units = typeof q.units === 'string' ? q.units.trim().slice(0, 12) : ''
     q.solution_steps = Array.isArray(q.solution_steps) ? q.solution_steps.map(s => String(s ?? '')).filter(Boolean) : []
     q.options = null
+    // FAZ 3a: cevabı kod hesaplar; formül yoksa, hesaplanamıyorsa ya da
+    // modelin cevabıyla çelişiyorsa soru atılır.
+    const check = verifyCalculation(q)
+    if (!check.ok) return { ok: false, reason: check.reason }
   } else if (type === 'open_ended') {
     let ref = String(q.correct_answer ?? '').trim()
     // Örnek cevap "null": açıklama, o da yoksa rubrik maddeleri yerine geçer
@@ -356,6 +559,8 @@ const GEN_MAX_RETRIES = 2
 const GEN_TOKENS_BASE = 1200
 const GEN_TOKENS_PER_QUESTION = 420
 const GEN_TOKENS_MAX = 7000
+// FAZ 3a: hesap sorusu formül, şablon ve tipik hata da yazıyor.
+const GEN_TOKENS_CALC_EXTRA = 150
 
 function completionBudgetFor(count: number): number {
   const n = Math.max(1, Math.floor(Number(count) || 1))
@@ -1127,7 +1332,7 @@ Additional variation seed: ${Date.now()}`
           // soruda kesik geliyordu. Düşünme payı kısıldı, bütçe soru
           // sayısına göre açıkça veriliyor (hesap 8.000 TPM ile sınırlı).
           reasoning_effort: "low",
-          max_completion_tokens: completionBudgetFor(count),
+          max_completion_tokens: Math.min(GEN_TOKENS_MAX, completionBudgetFor(count) + (examType === 'calculation' ? GEN_TOKENS_CALC_EXTRA * count : 0)),
           // JSON modu üst düzeyde NESNE döndürür; prompt bu yüzden artık
           // {"questions":[...]} istiyor. Eskiden dizi istenip json_object
           // modu kullanılıyordu — ara sıra görülen "invalid formatting"
