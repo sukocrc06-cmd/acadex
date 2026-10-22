@@ -808,7 +808,13 @@
       min: { min: 1, max: 12, fn: Math.min },
       max: { min: 1, max: 12, fn: Math.max },
       pow: { min: 2, max: 2, fn: Math.pow },
-      round: { min: 1, max: 2, fn: (x, d = 0) => { const f = Math.pow(10, Math.round(d)); return Math.round(x * f) / f; } }
+      round: { min: 1, max: 2, fn: (x, d = 0) => { const f = Math.pow(10, Math.round(d)); return Math.round(x * f) / f; } },
+      // Finans (Excel adları, işaretsiz: tutarlar pozitif döner). rate dönem faizi
+      // (0.005 gibi), nper dönem sayısı. npv Excel gibi ilk akışı 1. dönem sayar.
+      pmt: { min: 3, max: 3, fn: (r, n, p) => Math.abs(r === 0 ? p / n : p * r / (1 - Math.pow(1 + r, -n))) },
+      pv: { min: 3, max: 3, fn: (r, n, a) => Math.abs(r === 0 ? a * n : a * (1 - Math.pow(1 + r, -n)) / r) },
+      fv: { min: 3, max: 4, fn: (r, n, a, p = 0) => r === 0 ? Math.abs(a) * n + Math.abs(p) : Math.abs(a) * (Math.pow(1 + r, n) - 1) / r + Math.abs(p) * Math.pow(1 + r, n) },
+      npv: { min: 2, max: 13, fn: (r, ...cf) => cf.reduce((s, c, i) => s + c / Math.pow(1 + r, i + 1), 0) }
   };
   /** Formülü değişkenlerle hesaplar. Geçersiz ifade, bilinmeyen ad, sonsuz
    *  ya da tanımsız sonuç → NaN. */
@@ -939,7 +945,8 @@
       }
   }
   /** Modelin verdiği değişkenler: ad → sonlu sayı. Geçersiz ad ya da değer
-   *  atılır; fonksiyon ve sabit adları değişken olamaz. En fazla 10. */
+   *  atılır; sabit adları (pi, e) değişken olamaz. Fonksiyon adı değişken
+   *  olabilir (PV gibi): ayrıştırıcı "ad(" ile "ad"ı ayırır. En fazla 10. */
   function sanitizeVariables(raw) {
       const out = {};
       if (!raw || typeof raw !== 'object' || Array.isArray(raw))
@@ -947,7 +954,7 @@
       for (const [k, v] of Object.entries(raw)) {
           if (!/^[A-Za-z_][A-Za-z0-9_]{0,15}$/.test(k))
               continue;
-          if (Object.prototype.hasOwnProperty.call(EXPR_FUNCS, k.toLowerCase()) || Object.prototype.hasOwnProperty.call(EXPR_CONSTS, k))
+          if (Object.prototype.hasOwnProperty.call(EXPR_CONSTS, k))
               continue;
           const n = typeof v === 'number' ? v : Number(String(v ?? '').trim());
           if (!Number.isFinite(n))
