@@ -2845,6 +2845,7 @@ window.axWhenProfile = function (cb) {
       }).join('');
       if (rows) h += '<details class="sn-optwhy"><summary>tüm şıkların açıklaması</summary><ul>' + rows + '</ul></details>';
     }
+    h += fbBlock(r);
     var src = r.source;
     if (src && +src.page > 0) {
       var pg = (src.unit === 'slide' ? 'slayt ' : 's. ') + (+src.page) + (src.page_end && +src.page_end > +src.page ? '–' + (+src.page_end) : '');
@@ -2852,9 +2853,80 @@ window.axWhenProfile = function (cb) {
     }
     return h;
   };
+  /* FAZ 2b: itiraz ve "bu soru hatalı" bildirimi (exam-appeal edge
+     function). Klasik ve boşluk sorusunda itiraz → daha güçlü yeniden
+     puanlama, puan asla düşmez; her soruda bildirim; reddedilen itiraz
+     öğretmene iletilebilir. Fonksiyon kurulu değilse yalnızca hata mesajı
+     görünür, sonuç kâğıdının geri kalanı etkilenmez. */
+  var RES_EXAM = null;
+  var APPEALABLE = { open_ended: 1, fill_blank: 1 };
+  var REPORT_CATS = [['wrong_key', 'cevap anahtarı yanlış'], ['ambiguous', 'soru belirsiz ya da birden çok doğru var'], ['off_source', 'kaynakta böyle bir şey yok'], ['typo', 'yazım ya da biçim hatası'], ['other', 'diğer']];
+  var catLabel = function (k) { for (var i = 0; i < REPORT_CATS.length; i++) if (REPORT_CATS[i][0] === k) return REPORT_CATS[i][1]; return k || ''; };
+  var fbBlock = function (r) {
+    var qid = esc(String(r.question_id)), ap = r.appeal, rp = r.report, chips = '', btns = '';
+    if (ap) {
+      var cls = ap.status === 'accepted' ? 'ok' : ap.status === 'escalated' ? 'esc' : 'no';
+      var txt = ap.status === 'accepted' ? 'itiraz kabul edildi · ' + esc(String(ap.old_score == null ? '–' : ap.old_score)) + ' → ' + esc(String(ap.new_score)) : ap.status === 'escalated' ? 'itiraz öğretmene iletildi' : 'itiraz incelendi · puan değişmedi';
+      chips += '<span class="sn-chip ' + cls + '">' + txt + '</span>';
+    }
+    if (rp) chips += '<span class="sn-chip rep">bildirildi · ' + esc(catLabel(rp.category)) + '</span>';
+    if (APPEALABLE[r.type] && !ap && !(typeof r.score === 'number' && r.score >= 100)) btns += '<button type="button" class="sn-link" data-fb="appeal">puana itiraz et</button>';
+    if (ap && ap.status === 'rejected') btns += '<button type="button" class="sn-link" data-fb="escalate">öğretmene ilet</button>';
+    if (!rp) btns += '<button type="button" class="sn-link" data-fb="report">soru hatalı</button>';
+    return '<div class="sn-fbk" data-fbq="' + qid + '">' + (chips ? '<div class="sn-fbk-c">' + chips + '</div>' : '') + (ap && ap.note ? '<p class="sn-apnote">' + esc(ap.note) + '</p>' : '') +
+      (btns ? '<div class="sn-fbk-b">' + btns + '</div>' : '') + '<div class="sn-fbk-f" hidden></div></div>';
+  };
+  var fbForm = function (box, kind) {
+    var f = box.querySelector('.sn-fbk-f'), qid = box.getAttribute('data-fbq'), h;
+    if (kind === 'appeal') {
+      h = '<label class="sn-fbk-l">neden puanının yanlış olduğunu düşünüyorsun?<small>cevabının hangi kısmının neyi karşıladığını yaz. yeniden puanlamada yalnızca cevabına bakılır; puan düşmez.</small><textarea data-fb-text rows="3" maxlength="800"></textarea></label>';
+    } else if (kind === 'report') {
+      h = '<fieldset class="sn-fbk-l"><legend>bu soruda ne yanlış?</legend>' + REPORT_CATS.map(function (c, i) { return '<label class="sn-fbk-r"><input type="radio" name="fbcat-' + esc(qid) + '" value="' + c[0] + '"' + (i ? '' : ' checked') + '>' + esc(c[1]) + '</label>'; }).join('') +
+        '</fieldset><label class="sn-fbk-l">not <small>isteğe bağlı; "diğer" için gerekli</small><textarea data-fb-text rows="2" maxlength="500"></textarea></label>';
+    } else {
+      h = '<label class="sn-fbk-l">öğretmene not <small>isteğe bağlı</small><textarea data-fb-text rows="2" maxlength="500"></textarea></label>';
+    }
+    var label = kind === 'appeal' ? 'itirazı gönder' : kind === 'report' ? 'bildir' : 'öğretmene ilet';
+    f.innerHTML = h + '<p class="sn-fbk-err" role="alert" hidden></p><div class="sn-fbk-b"><button type="button" class="btn btn-dark" data-fb-send="' + kind + '">' + label + '</button><button type="button" class="sn-ghost" data-fb-cancel="">vazgeç</button></div>';
+    f.hidden = false;
+    var t = f.querySelector('textarea, input'); if (t) t.focus();
+  };
+  var examFeedback = function (body) {
+    var c = lsafe(function () { return supabaseClient; }, null);
+    if (!c || !c.functions) return Promise.reject(new Error('Bağlantı yok.'));
+    var timeout = new Promise(function (_, rej) { setTimeout(function () { rej(new Error('İstek zaman aşımına uğradı; birazdan tekrar dene.')); }, 90000); });
+    return Promise.race([c.functions.invoke('exam-appeal', { body: body }), timeout]).then(function (r) {
+      if (!r.error) return r.data;
+      var ctx = r.error.context, st = ctx && ctx.status;
+      var fallback = st === 404 ? 'İtiraz sistemi henüz kurulmadı.' : 'İstek gönderilemedi; birazdan tekrar dene.';
+      if (!ctx || typeof ctx.json !== 'function') throw new Error(fallback);
+      return ctx.json().then(function (j) { throw new Error((j && j.error) || fallback); }, function () { throw new Error(fallback); });
+    });
+  };
+  var sendFb = function (btn) {
+    var box = btn.closest('.sn-fbk'), f = box.querySelector('.sn-fbk-f'), kind = btn.getAttribute('data-fb-send');
+    var qid = box.getAttribute('data-fbq'), err = f.querySelector('.sn-fbk-err'), ta = f.querySelector('[data-fb-text]');
+    var body = { action: kind, examId: RES_EXAM && RES_EXAM.id, questionId: +qid, reason: ta ? ta.value : '' };
+    if (kind === 'report') { var ch = f.querySelector('input[type="radio"]:checked'); body.category = ch ? ch.value : ''; }
+    if (kind === 'appeal' && String(body.reason).trim().length < 10) { err.textContent = 'Biraz daha açıkla: en az 10 karakter.'; err.hidden = false; if (ta) ta.focus(); return; }
+    var all = $$('button', f); all.forEach(function (b) { b.disabled = true; });
+    var old = btn.textContent; btn.textContent = kind === 'appeal' ? 'yeniden puanlanıyor…' : 'gönderiliyor…'; err.hidden = true;
+    examFeedback(body).then(function (d) {
+      if (!d || !d.exam || !RES_EXAM) throw new Error('Yanıt okunamadı.');
+      RES_EXAM.question_results = d.exam.question_results; if (d.exam.grade != null) RES_EXAM.grade = d.exam.grade;
+      var ap = d.appeal;
+      showExamResults(RES_EXAM);
+      var nb = res.querySelector('[data-fbq="' + qid + '"]'); if (nb) nb.scrollIntoView({ block: 'center' });
+      say(kind === 'report' ? 'Bildirimin alındı, teşekkürler.' : kind === 'escalate' ? 'İtirazın öğretmene iletildi.' : ap && ap.status === 'accepted' ? 'İtiraz kabul edildi: ' + ap.old_score + ' → ' + ap.new_score + '. Notun güncellendi.' : 'İtiraz incelendi; puan değişmedi.');
+    }).catch(function (e) {
+      all.forEach(function (b) { b.disabled = false; }); btn.textContent = old;
+      err.textContent = (e && e.message) || 'İstek gönderilemedi.'; err.hidden = false;
+    });
+  };
   var MK = { ok: '<path pathLength="1" d="M5 18 L13 27 L29 6"/>', no: '<path pathLength="1" d="M6 6 L28 28 M28 6 L6 28"/>', half: '<path pathLength="1" d="M6 26 L28 8"/>' };
   if (typeof showExamResults === 'function') {
     showExamResults = function (exam) {
+      RES_EXAM = exam;
       if (typeof stopExamTimer === 'function') stopExamTimer();
       clearInterval(ticker); ticker = 0; mode = 'result';
       var rs = exam.question_results || [], isTr = true, g = Math.round(+exam.grade || 0);
@@ -2892,6 +2964,9 @@ window.axWhenProfile = function (cb) {
     window.showExamResults = showExamResults;
   }
   res.addEventListener('click', function (e) {
+    var fb = e.target.closest('[data-fb]'); if (fb) { fbForm(fb.closest('.sn-fbk'), fb.getAttribute('data-fb')); return; }
+    var fs = e.target.closest('[data-fb-send]'); if (fs) { sendFb(fs); return; }
+    var fc = e.target.closest('[data-fb-cancel]'); if (fc) { var ff = fc.closest('.sn-fbk-f'); ff.hidden = true; ff.innerHTML = ''; return; }
     if (e.target.closest('[data-back]')) { closeHall(); if (typeof loadExamsPlatform === 'function') loadExamsPlatform(); return; }
     if (e.target.closest('[data-to-errs]')) { closeHall(); if (typeof loadExamsPlatform === 'function') loadExamsPlatform(); setTimeout(function () { $('#hata-defteri').scrollIntoView({ behavior: reduce ? 'auto' : 'smooth' }); }, 300); return; }
     var p = e.target.closest('[data-practice]'); if (p) { closeHall(); practice(p.getAttribute('data-practice'), p.getAttribute('data-concept')); return; }
