@@ -4054,6 +4054,15 @@ body.axs-hall-on #pomodoro-widget-container,body.axs-hall-on #acadia-widget-cont
 :is(#exams-view.axs,#axs-layer) .axs-srcs{grid-template-columns:repeat(2,minmax(0,1fr))}
 :is(#exams-view.axs,#axs-layer) .axs-types{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
 :is(#exams-view.axs,#axs-layer) .axs-types.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+:is(#exams-view.axs,#axs-layer) .axs-types.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+/* FAZ 2c (22.10.2026): puanlama bölümü ve sonuçta net */
+:is(#exams-view.axs,#axs-layer) .axs-score[data-off] .axs-types,:is(#exams-view.axs,#axs-layer) .axs-score[data-off] .sn-chk,:is(#exams-view.axs,#axs-layer) .axs-score[data-off] .axs-neg{opacity:.5}
+:is(#exams-view.axs,#axs-layer) .axs-neg{display:flex;align-items:center;gap:10px;margin:2px 0 4px;font-size:13px;color:var(--muted)}
+:is(#exams-view.axs,#axs-layer) .axs-neg[hidden]{display:none}
+:is(#exams-view.axs,#axs-layer) .axs-score [data-score-hint][hidden]{display:none}
+:is(#exams-view.axs,#axs-layer) .axs-neg select{min-height:36px;padding:4px 8px;border:1.4px solid #DCE2EE;border-radius:4px;background:#fff;font:inherit;font-size:14px;color:var(--ink)}
+:is(#exams-view.axs,#axs-layer) .sn-sum .sn-net{background:#E9EEF8}
+:is(#exams-view.axs,#axs-layer) .sn-net small{display:block;font-size:11px;color:var(--soft);font-weight:400}
 :is(#exams-view.axs,#axs-layer) .axs-opt{position:relative;cursor:pointer}
 :is(#exams-view.axs,#axs-layer) .axs-opt input{position:absolute;opacity:0;width:1px;height:1px}
 :is(#exams-view.axs,#axs-layer) .axs-opt span{display:block;height:100%;padding:8px 10px;border:1.6px solid #DCE2EE;border-radius:4px;background:#FAFBFD}

@@ -34,7 +34,7 @@ IMPORTANT LANGUAGE RULES:
 
 EXAM TYPE RULES:
 1. 'classic': All questions must be open-ended (free-text essay questions). The options field should be null.
-2. 'test': All questions must be multiple-choice. Each question must have exactly 4 options. The correct_answer field must be exactly equal to one of the options.
+2. 'test': All questions must be multiple-choice. Each question must have exactly the number of options stated in the user message's OPTION COUNT line (4 or 5). The correct_answer field must be exactly equal to one of the options.
 3. 'calculation': All questions must be numerical calculation problems. For 'calculation' questions:
    - "type": "calculation"
    - "question": a clear scenario with specific numerical inputs.
@@ -45,7 +45,7 @@ EXAM TYPE RULES:
    - "options": null.
 4. 'mixed': A combination of question types (the user message's MIXED TYPE RULE line below states the exact type spread for this course).
    - For 'open_ended': options = null.
-   - For 'multiple_choice': exactly 4 options, correct_answer matches one option.
+   - For 'multiple_choice': exactly the OPTION COUNT number of options, correct_answer matches one option.
    - For 'true_false': options = ['True', 'False'] (if en) or ['Doğru', 'Yanlış'] (if tr).
    - For 'fill_blank': use '______' in question text. options = null. The blank must be a single word or short term. Also give "accepted_answers": other spellings or exact synonyms that are equally correct (e.g. an abbreviation and its full form), or [] if none.
    - For 'calculation': use the calculation question format above.
@@ -71,7 +71,7 @@ The "questions" array's length must exactly equal the question count requested i
   "rubric": [{"criterion": "string", "points": number}] | null,
   "source_terms": ["string"]
 }
-For 'multiple_choice', the 4 options must be distinct and exactly one must be correct.
+For 'multiple_choice', the options must be distinct and exactly one must be correct; with 5 options every distractor must still be plausible.
 
 FEEDBACK FIELDS (the student reads these only AFTER submitting the exam):
 - "explanation" (every question): 1-2 sentences saying WHY the correct answer is correct. Reuse the source material's own key terms and wording so the claim can be traced back to the source.
@@ -178,6 +178,30 @@ function isPlaceholderAnswer(value: unknown): boolean {
   return PLACEHOLDER_ANSWERS.includes(normalizeAnswerText(value))
 }
 
+// ==========================================================================
+// FAZ 2c — ŞIK SAYISI VE "YANLIŞ DOĞRUYU GÖTÜRÜR" (22.10.2026)
+//
+// Öğrenci sınavı kurarken seçer: çoktan seçmeli sorular 4 ya da 5 şıklı,
+// ve isterse yanlışlar doğruyu götürür (3 ya da 4 yanlış 1 doğru). Ayar
+// exams.scoring'e yazılır (20261022b_exam_scoring.sql); tarayıcı sonradan
+// değiştiremez. Ceza yalnızca çoktan seçmeli sorularda; puanı grade-exam
+// hesaplar (computeExamGrade).
+// ==========================================================================
+const ALLOWED_OPTION_COUNTS = [4, 5]
+const ALLOWED_WRONG_PER_CORRECT = [3, 4]
+
+/** İstekteki ayarı doğrular. negativeMarking: 0/false = kapalı, 3 ya da 4 =
+ *  kaç yanlış bir doğruyu götürür, true = şık sayısına göre varsayılan
+ *  (4 şık → 3, 5 şık → 4). */
+function normalizeScoring(optionCount: unknown, negativeMarking: unknown): { option_count: number; negative_marking: boolean; wrong_per_correct: number } {
+  const oc = ALLOWED_OPTION_COUNTS.includes(Number(optionCount)) ? Number(optionCount) : 4
+  const defaultRatio = oc === 5 ? 4 : 3
+  let enabled = false, ratio = defaultRatio
+  if (negativeMarking === true) enabled = true
+  else if (ALLOWED_WRONG_PER_CORRECT.includes(Number(negativeMarking))) { enabled = true; ratio = Number(negativeMarking) }
+  return { option_count: oc, negative_marking: enabled, wrong_per_correct: ratio }
+}
+
 /** Sınav türüne göre kabul edilen soru tipleri. */
 function allowedTypesFor(examType: string, isQuant: boolean): string[] {
   if (examType === 'classic') return ['open_ended']
@@ -189,7 +213,7 @@ function allowedTypesFor(examType: string, isQuant: boolean): string[] {
 
 /** Tek bir soruyu denetler ve temizlenmiş halini döner. Geçmezse
  *  { ok: false, reason } — soru atılır. */
-function validateQuestion(raw: unknown, allowedTypes: string[], language: string): { ok: boolean; question?: Record<string, unknown>; reason?: string } {
+function validateQuestion(raw: unknown, allowedTypes: string[], language: string, optionCount = 4): { ok: boolean; question?: Record<string, unknown>; reason?: string } {
   if (!raw || typeof raw !== 'object') return { ok: false, reason: 'not_object' }
   const q = { ...(raw as Record<string, unknown>) }
   const type = String(q.type || '')
@@ -202,14 +226,14 @@ function validateQuestion(raw: unknown, allowedTypes: string[], language: string
 
   if (type === 'multiple_choice') {
     const options = Array.isArray(q.options) ? q.options.map(o => String(o ?? '').trim()).filter(Boolean) : []
-    if (options.length !== 4) return { ok: false, reason: 'mc_option_count' }
+    if (options.length !== optionCount) return { ok: false, reason: 'mc_option_count' }
     if (new Set(options.map(normalizeAnswerText)).size !== options.length) return { ok: false, reason: 'mc_duplicate_options' }
     const correctNorm = normalizeAnswerText(q.correct_answer)
     let match = options.filter(o => normalizeAnswerText(o) === correctNorm)
     // Model bazen "B" ya da "B) ..." biçiminde harf döndürüyor.
     if (match.length === 0) {
-      const letter = String(q.correct_answer ?? '').trim().match(/^([A-Da-d])(?:[).:\s]|$)/)
-      if (letter) match = [options['abcd'.indexOf(letter[1].toLowerCase())]]
+      const letter = String(q.correct_answer ?? '').trim().match(/^([A-Ea-e])(?:[).:\s]|$)/)
+      if (letter) match = [options['abcde'.indexOf(letter[1].toLowerCase())]].filter(Boolean)
     }
     if (match.length !== 1) return { ok: false, reason: 'mc_answer_not_in_options' }
     q.options = options
@@ -750,7 +774,8 @@ serve(async (req) => {
       })
     }
 
-    const { studyCardId, sourceType, courseCode, courseDepartment, examType, questionCount, language, difficulty, isSimulation, focusConcept } = await req.json()
+    const { studyCardId, sourceType, courseCode, courseDepartment, examType, questionCount, language, difficulty, isSimulation, focusConcept, optionCount, negativeMarking } = await req.json()
+    const scoring = normalizeScoring(optionCount, negativeMarking)
 
     // 'study_card' (default, backward-compatible) generates from one of the
     // student's own study cards, as before. 'course' generates directly from
@@ -1078,7 +1103,8 @@ ${context}
     // their optional focus concept, and a variation seed). Keeping this
     // short and putting everything reusable above in the system message
     // is what makes the system message worth caching in the first place.
-    const buildUserPrompt = (count: number, avoid: string[]) => `Generate exactly ${count} questions of type '${examType}' in the language '${language}' (en = English, tr = Turkish), at difficulty level '${resolvedDifficulty}'.${resolvedFocusConcept ? `\n\nIMPORTANT FOCUS RULE:\n- The student specifically wants to practice ONE topic: "${resolvedFocusConcept}". EVERY question must test this exact topic, approached from different angles (definition, application, comparison, scenario) — do not drift to unrelated concepts. Set the "concept" field on every question to "${resolvedFocusConcept}" (or a very close variant in the requested language).` : ''}${avoid.length > 0 ? `\n\nDo NOT repeat these questions that were already generated:\n${avoid.map(t => `- ${t.slice(0, 160)}`).join('\n')}` : ''}
+    const buildUserPrompt = (count: number, avoid: string[]) => `Generate exactly ${count} questions of type '${examType}' in the language '${language}' (en = English, tr = Turkish), at difficulty level '${resolvedDifficulty}'.
+OPTION COUNT: every 'multiple_choice' question has exactly ${scoring.option_count} options.${resolvedFocusConcept ? `\n\nIMPORTANT FOCUS RULE:\n- The student specifically wants to practice ONE topic: "${resolvedFocusConcept}". EVERY question must test this exact topic, approached from different angles (definition, application, comparison, scenario) — do not drift to unrelated concepts. Set the "concept" field on every question to "${resolvedFocusConcept}" (or a very close variant in the requested language).` : ''}${avoid.length > 0 ? `\n\nDo NOT repeat these questions that were already generated:\n${avoid.map(t => `- ${t.slice(0, 160)}`).join('\n')}` : ''}
 
 Additional variation seed: ${Date.now()}`
 
@@ -1166,7 +1192,7 @@ Additional variation seed: ${Date.now()}`
     const absorb = (items: unknown[]) => {
       for (const raw of items) {
         if (accepted.length >= requestedCount) break
-        const result = validateQuestion(raw, allowedTypes, language)
+        const result = validateQuestion(raw, allowedTypes, language, scoring.option_count)
         if (!result.ok || !result.question) {
           rejectReasons.push(result.reason || 'unknown')
           continue
@@ -1264,7 +1290,8 @@ Additional variation seed: ${Date.now()}`
       source_type: resolvedSourceType,
       is_simulation: resolvedIsSimulation,
       time_limit_seconds: timeLimitSeconds,
-      started_at: new Date().toISOString()
+      started_at: new Date().toISOString(),
+      scoring
     }
     if (resolvedSourceType === 'course') {
       examInsertPayload.study_card_id = null
@@ -1288,6 +1315,16 @@ Additional variation seed: ${Date.now()}`
     if (insertError && /started_at/.test(`${insertError.message || ''} ${insertError.details || ''}`)) {
       console.warn('generate-exam: started_at kolonu yok — 20261014_exam_integrity.sql migration i calistirilmamis. Sure kontrolu sunucuda yapilamayacak.')
       delete examInsertPayload.started_at
+      const retry = await serviceClient.from('exams').insert(examInsertPayload).select().single()
+      newExam = retry.data
+      insertError = retry.error
+    }
+
+    // 20261022b_exam_scoring.sql henüz çalıştırılmadıysa scoring kolonu
+    // yoktur: onsuz dene (ceza uygulanmaz, sınav yine üretilir).
+    if (insertError && /scoring/.test(`${insertError.message || ''} ${insertError.details || ''}`)) {
+      console.warn('generate-exam: scoring kolonu yok — 20261022b_exam_scoring.sql calistirilmamis. Yanlis dogruyu goturme uygulanmayacak.')
+      delete examInsertPayload.scoring
       const retry = await serviceClient.from('exams').insert(examInsertPayload).select().single()
       newExam = retry.data
       insertError = retry.error

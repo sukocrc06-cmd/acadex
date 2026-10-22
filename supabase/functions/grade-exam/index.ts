@@ -357,6 +357,38 @@ function computeFinalGrade(results: Array<{ score: number | null }>): number | n
   return Math.round(scored.reduce((sum, r) => sum + r.score, 0) / scored.length)
 }
 
+// FAZ 2c: "yanlış doğruyu götürür". Ceza yalnızca çoktan seçmeli sorularda:
+// net = doğru − yanlış / k (k: kaç yanlış bir doğruyu götürür), boş
+// götürmez. Çoktan seçmeli kısmın katkısı max(0, net) × 100 — net eksiye
+// düşse de öteki soru tiplerinin puanını silmez. Ayar yoksa ya da kapalıysa
+// not computeFinalGrade ile birebir aynı.
+type NetSummary = { enabled: boolean; wrong_per_correct: number; mc_total: number; correct: number; wrong: number; blank: number; net: number }
+
+function computeNetSummary(results: Array<Record<string, unknown>>, scoring: unknown): NetSummary | null {
+  const s = scoring && typeof scoring === 'object' ? scoring as Record<string, unknown> : null
+  if (!s || s.negative_marking !== true) return null
+  const k = [3, 4].includes(Number(s.wrong_per_correct)) ? Number(s.wrong_per_correct) : 4
+  let correct = 0, wrong = 0, blank = 0, total = 0
+  for (const r of results || []) {
+    if (!r || r.type !== 'multiple_choice') continue
+    total++
+    if (!String(r.student_answer ?? '').trim()) blank++
+    else if (r.is_correct === true || r.score === 100) correct++
+    else wrong++
+  }
+  const net = Math.round((correct - wrong / k) * 100) / 100
+  return { enabled: true, wrong_per_correct: k, mc_total: total, correct, wrong, blank, net }
+}
+
+function computeExamGrade(results: Array<Record<string, unknown>>, scoring: unknown): number | null {
+  const base = computeFinalGrade(results as Array<{ score: number | null }>)
+  const summary = computeNetSummary(results, scoring)
+  if (base === null || !summary || summary.mc_total === 0) return base
+  const scored = results.filter(r => typeof r.score === 'number')
+  const otherSum = scored.filter(r => r.type !== 'multiple_choice').reduce((a, r) => a + (r.score as number), 0)
+  return Math.round((otherSum + Math.max(0, summary.net) * 100) / scored.length)
+}
+
 const json = (body: unknown, status: number) => new Response(JSON.stringify(body), {
   status,
   headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -638,7 +670,7 @@ ${JSON.stringify(batch.map(c => ({
 
     results.sort((a, b) => a.question_id - b.question_id)
 
-    const finalGrade = computeFinalGrade(results)
+    const finalGrade = computeExamGrade(results, exam.scoring)
     if (finalGrade === null) {
       // Hiçbir soru puanlanamadı (ör. yalnızca açık uçlu sorular vardı ve
       // puanlama servisi yanıt vermedi). Sınavı tamamlanmış sayma ki

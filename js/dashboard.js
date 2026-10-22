@@ -7444,7 +7444,15 @@ async function generateExam() {
     language: document.querySelector('input[name="exam-lang"]:checked').value,
     questionCount: parseInt(document.getElementById('exam-question-count').value, 10),
     difficulty: (document.querySelector('input[name="exam-difficulty"]:checked') || {}).value || 'medium',
-    isSimulation: !!document.getElementById('exam-simulation-toggle')?.checked
+    isSimulation: !!document.getElementById('exam-simulation-toggle')?.checked,
+    // FAZ 2c: şık sayısı ve "yanlış doğruyu götürür" (0 = kapalı, 3/4 = kaç
+    // yanlış bir doğruyu götürür). Alanlar yoksa ya da pasifse eski davranış.
+    optionCount: parseInt((document.querySelector('input[name="exam-options"]:checked:not(:disabled)') || {}).value, 10) || 4,
+    negativeMarking: (() => {
+      const t = document.getElementById('exam-negative-toggle');
+      if (!t || t.disabled || !t.checked) return 0;
+      return parseInt(document.getElementById('exam-negative-ratio')?.value, 10) || true;
+    })()
   };
 
   if (examSelectedSource === 'course') {

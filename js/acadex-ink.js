@@ -2459,7 +2459,7 @@ window.axWhenProfile = function (cb) {
   var bdDlg = $('[data-builddlg]'), cover = $('[data-bd-cover]'), bdErr = $('[data-bd-err]'), bdKey = null, topicEl = $('[data-bd-topic]');
   var checkRadio = function (name, val) { var r = root.querySelector('input[name="' + name + '"][value="' + val + '"]'); if (r && !r.disabled) { r.checked = true; r.dispatchEvent(new Event('change', { bubbles: true })); } };
   var openBuild = async function (k, forceSrc) {
-    bdKey = k; bdErr.hidden = true; topicEl.value = '';
+    bdKey = k; bdErr.hidden = true; topicEl.value = ''; ratioTouched = false;
     var d = k ? desks().filter(function (x) { return x.key === k; })[0] : null, h = (k && hoca[k]) || {};
     if (!bdDlg.open) bdDlg.showModal();
     if (d && d.cards.length && forceSrc !== 'course') {
@@ -2486,7 +2486,23 @@ window.axWhenProfile = function (cb) {
   var countEl = $('#exam-question-count');
   $$('[data-cnt]').forEach(function (b) { b.addEventListener('click', function () { var v = (+countEl.value || 10) + (+b.getAttribute('data-cnt')), mn = +countEl.min || 1, mx = +countEl.max || 20; countEl.value = Math.max(mn, Math.min(mx, v)); countEl.dispatchEvent(new Event('change')); paintCover(); }); });
   var val = function (n) { var r = root.querySelector('input[name="' + n + '"]:checked'); return r ? r.value : ''; };
+  /* FAZ 2c: puanlama bölümü. Klasik ve hesaplamada çoktan seçmeli soru yok:
+     bölüm pasifleşir. Oran, öğrenci elle seçmedikçe şık sayısını izler
+     (4 şık → 3 yanlış, 5 şık → 4 yanlış bir doğruyu götürür). */
+  var scoreBox = $('[data-score-box]'), negT = $('#exam-negative-toggle'), negR = $('#exam-negative-ratio'), ratioTouched = false;
+  if (negR) negR.addEventListener('change', function () { ratioTouched = true; });
+  var hasMcType = function () { var t = val('exam-type'); return t === 'test' || t === 'mixed'; };
+  var syncScore = function () {
+    if (!scoreBox) return;
+    var on = hasMcType();
+    if (on) scoreBox.removeAttribute('data-off'); else scoreBox.setAttribute('data-off', '');
+    $$('input, select', scoreBox).forEach(function (i) { i.disabled = !on; });
+    var hint = $('[data-score-hint]', scoreBox); if (hint) hint.hidden = on;
+    if (negR && !ratioTouched) negR.value = val('exam-options') === '5' ? '4' : '3';
+    var row = $('[data-neg-row]', scoreBox); if (row) row.hidden = !(negT && negT.checked);
+  };
   var paintCover = function () {
+    syncScore();
     var src = val('exam-source'), name = '';
     if (src === 'course') { var cs = $('#exam-course-select'); name = cs && cs.selectedOptions[0] ? cs.selectedOptions[0].textContent : 'ders ağacı'; }
     else { var c = cardById($('#exam-card-select') && $('#exam-card-select').value); name = c ? (c.course_tag ? c.course_tag + ' · ' : '') + baseName(c.documents && c.documents.file_name) : 'belge seç'; }
@@ -2494,7 +2510,8 @@ window.axWhenProfile = function (cb) {
     $('[data-bd-note]').textContent = sim ? 'süre bitince kâğıt kendiliğinden toplanır.' : '';
     cover.innerHTML = '<span class="uni">ACADEX · SINAV SALONU</span><h3>' + esc(name.length > 60 ? name.slice(0, 58) + '…' : name) + '</h3><span class="sub">' + esc((TYPE[val('exam-type')] || '') + ' · ' + (DIFF[val('exam-difficulty')] || '') + ' · ' + (val('exam-lang') === 'tr' ? 'Türkçe' : 'English')) + '</span>' +
       '<div class="lines"><span>Ad Soyad: ' + esc(p.full_name || '') + '</span><span>Öğrenci no: ' + esc(p.student_number || '') + '</span><span>Tarih: ' + dshort(new Date()) + '</span></div>' +
-      '<table><tr><th>SORU</th><td>' + esc(countEl.value) + '</td></tr><tr><th>SÜRE</th><td>' + (sim ? 'gerçek sınav süresi' : 'serbest') + '</td></tr><tr><th>İPUCU</th><td>' + (sim ? 'yok' : 'soru başına bir') + '</td></tr>' + (topicEl.value.trim() && src === 'course' ? '<tr><th>ODAK</th><td>' + esc(topicEl.value.trim()) + '</td></tr>' : '') + '</table>' +
+      '<table><tr><th>SORU</th><td>' + esc(countEl.value) + '</td></tr><tr><th>SÜRE</th><td>' + (sim ? 'gerçek sınav süresi' : 'serbest') + '</td></tr><tr><th>İPUCU</th><td>' + (sim ? 'yok' : 'soru başına bir') + '</td></tr>' +
+      (hasMcType() ? '<tr><th>ŞIK</th><td>' + (val('exam-options') === '5' ? '5 (A–E)' : '4 (A–D)') + '</td></tr><tr><th>NET</th><td>' + (negT && negT.checked ? esc((negR ? negR.value : '3') + ' yanlış 1 doğruyu götürür') : 'yanlış götürmez') + '</td></tr>' : '') + (topicEl.value.trim() && src === 'course' ? '<tr><th>ODAK</th><td>' + esc(topicEl.value.trim()) + '</td></tr>' : '') + '</table>' +
       '<p class="warn">' + (sim ? 'KİTAPÇIĞI AÇINCA SÜRE BAŞLAR' : 'KOLAY GELSİN') + '</p>';
   };
   bdDlg.addEventListener('change', function () { setTimeout(paintCover, 0); });
@@ -2661,7 +2678,7 @@ window.axWhenProfile = function (cb) {
     var e = EXM, lim = e.is_simulation && e.time_limit_seconds ? Math.round(e.time_limit_seconds / 60) : 0;
     book.className = 'sn-book cover';
     book.innerHTML = '<span class="sn-k">' + esc($L('[data-hl-course]').textContent) + '</span><h3>' + esc((TYPE[e.exam_type] || 'deneme') + ' sınavı') + '</h3><p class="meta">' + QS.length + ' soru · ' + (DIFF[e.difficulty] || '') + ' · ' + (e.language === 'tr' ? 'Türkçe' : 'English') + '</p>' +
-      '<ul><li>' + (lim ? 'süre: ' + lim + ' dakika; sayaç sınav hazırlanınca başladı, bitince kâğıt kendiliğinden toplanır' : 'süre sınırı yok; kendi hızında çöz') + '</li><li>' + (e.is_simulation ? 'ipucu yok, gerçek sınav gibi' : 'her soruda bir ipucu alabilirsin') + '</li><li>sorular arasında optik formdan gezebilirsin</li><li>emin olmadığını “işaretle”, sonra dön</li></ul>' +
+      '<ul><li>' + (lim ? 'süre: ' + lim + ' dakika; sayaç sınav hazırlanınca başladı, bitince kâğıt kendiliğinden toplanır' : 'süre sınırı yok; kendi hızında çöz') + '</li><li>' + (e.is_simulation ? 'ipucu yok, gerçek sınav gibi' : 'her soruda bir ipucu alabilirsin') + '</li>' + (e.scoring && e.scoring.negative_marking ? '<li><b>yanlış doğruyu götürür:</b> ' + esc(String(e.scoring.wrong_per_correct || 4)) + ' yanlış 1 doğruyu siler (yalnızca çoktan seçmeli); emin değilsen boş bırak</li>' : '') + '<li>sorular arasında optik formdan gezebilirsin</li><li>emin olmadığını “işaretle”, sonra dön</li></ul>' +
       (e.is_simulation ? '<p class="warn">SEKMEDEN ÇIKARSAN NOT EDİLİR</p>' : '') + '<button type="button" class="btn btn-blue" data-open-book="">kitapçığı aç</button>';
     setTimeout(function () { var b = book.querySelector('[data-open-book]'); if (b) b.focus(); }, 60);
   };
@@ -2818,6 +2835,16 @@ window.axWhenProfile = function (cb) {
      olduğu, klasik soruda rubrik dökümü ve belgedeki sayfa. Alanlar
      puanlamadan sonra grade-exam'den gelir; eski sınavlarda yoktur ve
      hiçbir şey çizilmez. */
+  /* FAZ 2c: "yanlış doğruyu götürür" açık sınavda net (grade-exam'deki
+     computeNetSummary ile aynı kural: yalnızca çoktan seçmeli, boş götürmez). */
+  var netLine = function (exam) {
+    var s = exam && exam.scoring; if (!s || s.negative_marking !== true) return '';
+    var k = (+s.wrong_per_correct === 3 || +s.wrong_per_correct === 4) ? +s.wrong_per_correct : 4, c = 0, w = 0, b = 0, t = 0;
+    (exam.question_results || []).forEach(function (r) { if (!r || r.type !== 'multiple_choice') return; t++; if (!String(r.student_answer || '').trim()) b++; else if (r.is_correct === true || r.score === 100) c++; else w++; });
+    if (!t) return '';
+    var net = Math.round((c - w / k) * 100) / 100;
+    return '<span class="sn-net">test neti <b>' + esc(String(net).replace('.', ',')) + '</b><small>' + c + ' doğru · ' + w + ' yanlış · ' + b + ' boş · ' + k + ' yanlış 1 doğruyu götürür</small></span>';
+  };
   var VERD = { met: ['karşıladın', 'ok'], partial: ['kısmen', 'half'], missing: ['eksik', 'no'] };
   var rationaleFor = function (map, ans) {
     if (!map || !ans) return null;
@@ -2944,7 +2971,7 @@ window.axWhenProfile = function (cb) {
       var practice = wl.length && wl[0].a < 75 ? (code ? '<button type="button" class="sn-ghost" data-practice="' + esc(code) + '" data-concept="' + esc(wl[0].c) + '">“' + esc(wl[0].c) + '” konusundan yeni deneme</button>' : '<button type="button" class="sn-ghost" data-retry="' + esc(label) + '">bu belgeden yeni deneme</button>') : '';
       res.innerHTML = '<article class="sn-paper"><div class="sn-ph"><div><span class="sn-k">' + esc(course) + '</span><h2 class="disp">' + esc((TYPE[exam.exam_type] || 'deneme') + ' deneme') + (exam.is_simulation ? ' · gerçek süre' : '') + '</h2><p>' + esc(dshort(exam.completed_at || new Date())) + ' · ' + rs.length + ' soru · ' + (exam.language === 'tr' ? 'Türkçe' : 'English') + ' · ' + verdict + '</p></div>' +
         '<div class="sn-score" role="img" aria-label="Puan ' + g + ' / 100"><svg viewBox="0 0 118 96" aria-hidden="true"><path pathLength="1" d="M60 6 C24 4 4 26 8 52 C12 80 50 94 82 86 C110 78 118 50 104 28 C94 12 74 6 52 10"/></svg><b>' + g + '</b><small>/ 100</small></div></div>' +
-        '<p class="sn-sum"><span>doğru <b>' + cnt.ok + '</b></span><span>kısmen <b>' + cnt.half + '</b></span><span>yanlış <b>' + cnt.no + '</b></span>' + (cnt.blank ? '<span>boş <b>' + cnt.blank + '</b></span>' : '') + (el ? '<span>süre <b>' + mmss(el) + '</b></span>' : '') + '</p>' +
+        '<p class="sn-sum">' + netLine(exam) + '<span>doğru <b>' + cnt.ok + '</b></span><span>kısmen <b>' + cnt.half + '</b></span><span>yanlış <b>' + cnt.no + '</b></span>' + (cnt.blank ? '<span>boş <b>' + cnt.blank + '</b></span>' : '') + (el ? '<span>süre <b>' + mmss(el) + '</b></span>' : '') + '</p>' +
         rs.map(function (r, i) {
           var k = r.score >= 80 ? 'ok' : r.score >= 50 ? 'half' : 'no', blank = !String(r.student_answer || '').trim();
           var steps = Array.isArray(r.solution_steps) && r.solution_steps.length ? '<div class="sn-model"><b>çözüm adımları</b><ol>' + r.solution_steps.map(function (s) { return '<li>' + rich(s) + '</li>'; }).join('') + '</ol></div>' : '';
