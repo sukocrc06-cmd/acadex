@@ -34,7 +34,7 @@ const A = loadFromSource(APPEAL_PATH, [
   'REPORT_CATEGORIES', 'APPEALABLE_TYPES', 'STATIC_APPEAL_INSTRUCTIONS', 'STATIC_BLANK_APPEAL_INSTRUCTIONS',
   'validateFeedbackRequest', 'errorMessage', 'findResultIndex', 'appealEligibility',
   'buildOpenAppealPrompt', 'buildBlankAppealPrompt', 'parseBlankVerdict',
-  'applyAppealOutcome', 'applyReport', 'applyEscalation'
+  'applyAppealOutcome', 'applyReport', 'applyEscalation', 'lowerEffort'
 ]);
 
 const { test, summary } = makeRunner();
@@ -209,6 +209,12 @@ test('bosluk itiraz mesaji ve karar ayristirma', () => {
   assert.deepEqual(A.parseBlankVerdict('```json\n{"acceptable":"false","note":"Farklı kavram."}\n```'), { acceptable: false, note: 'Farklı kavram.' });
   assert.equal(A.parseBlankVerdict('{"acceptable": "belki"}'), null);
   assert.equal(A.parseBlankVerdict('bozuk'), null);
+});
+
+test('lowerEffort: yuksekten orta, ortadan dusuk; gpt-oss un kabul ettigi degerler', () => {
+  assert.equal(A.lowerEffort('high'), 'medium');
+  assert.equal(A.lowerEffort('medium'), 'low');
+  assert.equal(A.lowerEffort('low'), 'low');
 });
 
 summary();

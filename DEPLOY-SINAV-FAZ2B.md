@@ -42,8 +42,8 @@ Fonksiyon ya da tablo henüz kurulmamışsa bağlantılar yalnızca "İtiraz sis
 ## Testler
 
 ```bash
-node tests/exam-appeal.js   # 15 test — Faz 2b
-node tests/run-all.js       # 23 dosya, 888 test
+node tests/exam-appeal.js   # 16 test — Faz 2b
+node tests/run-all.js       # 23 dosya, 889 test
 ```
 
 `tests/exam-appeal.js`, `exam-appeal`'deki ortak yardımcıların `grade-exam`'dekilerle birebir aynı kaldığını da denetliyor.
