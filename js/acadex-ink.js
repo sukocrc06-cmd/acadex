@@ -2492,7 +2492,18 @@ window.axWhenProfile = function (cb) {
   var scoreBox = $('[data-score-box]'), negT = $('#exam-negative-toggle'), negR = $('#exam-negative-ratio'), ratioTouched = false;
   if (negR) negR.addEventListener('change', function () { ratioTouched = true; });
   var hasMcType = function () { var t = val('exam-type'); return t === 'test' || t === 'mixed'; };
+  /* FAZ 3c: sayı hassasiyeti yalnızca hesap sorusu olabilen türlerde. */
+  var precBox = $('[data-prec-box]'), precSel = $('#exam-decimal-places');
+  var hasCalcType = function () { var t = val('exam-type'); return t === 'calculation' || t === 'mixed'; };
+  var precLabel = function (d) { return +d ? 'virgülden sonra ' + (+d) + ' basamak' : ''; };
+  var syncPrec = function () {
+    if (!precBox) return;
+    var on = hasCalcType();
+    if (on) precBox.removeAttribute('data-off'); else precBox.setAttribute('data-off', '');
+    if (precSel) precSel.disabled = !on;
+  };
   var syncScore = function () {
+    syncPrec();
     if (!scoreBox) return;
     var on = hasMcType();
     if (on) scoreBox.removeAttribute('data-off'); else scoreBox.setAttribute('data-off', '');
@@ -2511,7 +2522,7 @@ window.axWhenProfile = function (cb) {
     cover.innerHTML = '<span class="uni">ACADEX · SINAV SALONU</span><h3>' + esc(name.length > 60 ? name.slice(0, 58) + '…' : name) + '</h3><span class="sub">' + esc((TYPE[val('exam-type')] || '') + ' · ' + (DIFF[val('exam-difficulty')] || '') + ' · ' + (val('exam-lang') === 'tr' ? 'Türkçe' : 'English')) + '</span>' +
       '<div class="lines"><span>Ad Soyad: ' + esc(p.full_name || '') + '</span><span>Öğrenci no: ' + esc(p.student_number || '') + '</span><span>Tarih: ' + dshort(new Date()) + '</span></div>' +
       '<table><tr><th>SORU</th><td>' + esc(countEl.value) + '</td></tr><tr><th>SÜRE</th><td>' + (sim ? 'gerçek sınav süresi' : 'serbest') + '</td></tr><tr><th>İPUCU</th><td>' + (sim ? 'yok' : 'soru başına bir') + '</td></tr>' +
-      (hasMcType() ? '<tr><th>ŞIK</th><td>' + (val('exam-options') === '5' ? '5 (A–E)' : '4 (A–D)') + '</td></tr><tr><th>NET</th><td>' + (negT && negT.checked ? esc((negR ? negR.value : '3') + ' yanlış 1 doğruyu götürür') : 'yanlış götürmez') + '</td></tr>' : '') + (topicEl.value.trim() && src === 'course' ? '<tr><th>ODAK</th><td>' + esc(topicEl.value.trim()) + '</td></tr>' : '') + '</table>' +
+      (hasMcType() ? '<tr><th>ŞIK</th><td>' + (val('exam-options') === '5' ? '5 (A–E)' : '4 (A–D)') + '</td></tr><tr><th>NET</th><td>' + (negT && negT.checked ? esc((negR ? negR.value : '3') + ' yanlış 1 doğruyu götürür') : 'yanlış götürmez') + '</td></tr>' : '') + (hasCalcType() && precSel && +precSel.value ? '<tr><th>HASSASİYET</th><td>' + esc(precLabel(precSel.value)) + '</td></tr>' : '') + (topicEl.value.trim() && src === 'course' ? '<tr><th>ODAK</th><td>' + esc(topicEl.value.trim()) + '</td></tr>' : '') + '</table>' +
       '<p class="warn">' + (sim ? 'KİTAPÇIĞI AÇINCA SÜRE BAŞLAR' : 'KOLAY GELSİN') + '</p>';
   };
   bdDlg.addEventListener('change', function () { setTimeout(paintCover, 0); });
@@ -2619,7 +2630,7 @@ window.axWhenProfile = function (cb) {
       if (/_{3,}/.test(txt)) { txt = txt.replace(/_{3,}/, inp); body = ''; } else body = '<p>' + inp + '</p>';
     } else if (q.type === 'calculation') {
       var pre = q.units && /^[$€₺£]$/.test(q.units);
-      body = '<div class="sn-calc">' + (pre ? '<span>' + esc(q.units) + '</span>' : '') + '<input type="number" step="any" class="sn-blank" name="' + name + '" aria-label="Sayısal cevap" placeholder="cevap">' + (!pre && q.units ? '<span>' + esc(q.units) + '</span>' : '') + '</div>';
+      body = '<div class="sn-calc">' + (pre ? '<span>' + esc(q.units) + '</span>' : '') + '<input type="number" step="any" class="sn-blank" name="' + name + '" aria-label="Sayısal cevap" placeholder="' + (EXM.scoring && +EXM.scoring.decimal_places ? 'cevap · ' + (+EXM.scoring.decimal_places) + ' basamak' : 'cevap') + '">' + (!pre && q.units ? '<span>' + esc(q.units) + '</span>' : '') + '</div>';
     } else if (!INK_TYPES[q.type] && ENG() && ENG().hasType(q.type)) {
       body = '<div class="sn-ext">' + ENG().getType(q.type).renderInput(q, { esc: esc, math: rich, lang: EXM.language || 'tr', name: name }) + '</div>';
     } else {
@@ -2678,7 +2689,7 @@ window.axWhenProfile = function (cb) {
     var e = EXM, lim = e.is_simulation && e.time_limit_seconds ? Math.round(e.time_limit_seconds / 60) : 0;
     book.className = 'sn-book cover';
     book.innerHTML = '<span class="sn-k">' + esc($L('[data-hl-course]').textContent) + '</span><h3>' + esc((TYPE[e.exam_type] || 'deneme') + ' sınavı') + '</h3><p class="meta">' + QS.length + ' soru · ' + (DIFF[e.difficulty] || '') + ' · ' + (e.language === 'tr' ? 'Türkçe' : 'English') + '</p>' +
-      '<ul><li>' + (lim ? 'süre: ' + lim + ' dakika; sayaç sınav hazırlanınca başladı, bitince kâğıt kendiliğinden toplanır' : 'süre sınırı yok; kendi hızında çöz') + '</li><li>' + (e.is_simulation ? 'ipucu yok, gerçek sınav gibi' : 'her soruda bir ipucu alabilirsin') + '</li>' + (e.scoring && e.scoring.negative_marking ? '<li><b>yanlış doğruyu götürür:</b> ' + esc(String(e.scoring.wrong_per_correct || 4)) + ' yanlış 1 doğruyu siler (yalnızca çoktan seçmeli); emin değilsen boş bırak</li>' : '') + '<li>sorular arasında optik formdan gezebilirsin</li><li>emin olmadığını “işaretle”, sonra dön</li></ul>' +
+      '<ul><li>' + (lim ? 'süre: ' + lim + ' dakika; sayaç sınav hazırlanınca başladı, bitince kâğıt kendiliğinden toplanır' : 'süre sınırı yok; kendi hızında çöz') + '</li><li>' + (e.is_simulation ? 'ipucu yok, gerçek sınav gibi' : 'her soruda bir ipucu alabilirsin') + '</li>' + (e.scoring && +e.scoring.decimal_places ? '<li><b>sayı hassasiyeti:</b> hesap cevapları ' + esc(precLabel(e.scoring.decimal_places)) + ' doğru olmalı; sonucu bu basamağa yuvarla.</li>' : '') + (e.scoring && e.scoring.negative_marking ? '<li><b>yanlış doğruyu götürür:</b> ' + esc(String(e.scoring.wrong_per_correct || 4)) + ' yanlış 1 doğruyu siler (yalnızca çoktan seçmeli); emin değilsen boş bırak</li>' : '') + '<li>sorular arasında optik formdan gezebilirsin</li><li>emin olmadığını “işaretle”, sonra dön</li></ul>' +
       (e.is_simulation ? '<p class="warn">SEKMEDEN ÇIKARSAN NOT EDİLİR</p>' : '') + '<button type="button" class="btn btn-blue" data-open-book="">kitapçığı aç</button>';
     setTimeout(function () { var b = book.querySelector('[data-open-book]'); if (b) b.focus(); }, 60);
   };
@@ -2904,11 +2915,48 @@ window.axWhenProfile = function (cb) {
      Yeni sayılar ve cevap tarayıcıda, sorunun formülünden üretilir
      (exam-engine makeVariant); yapay zekâ çağrısı ve puan yok, yalnızca
      pratik. */
+  /* FAZ 3c: doğrusal denklem ve NBD/faiz sorularında "adım adım çöz":
+     öğrenci her satıra bir adım yazar, tarayıcı satır satır kontrol eder
+     (exam-engine checkSteps). Açık bir "farklı sayılarla" sorusu varsa onu,
+     yoksa sınavdaki asıl soruyu çözdürür. Puan değişmez. */
   var pracBlock = function (r) {
-    var E = ENG(); if (!r.practice || !E || typeof E.makeVariant !== 'function') return '';
-    return '<div class="sn-prac" data-prac="' + esc(String(r.question_id)) + '"><button type="button" class="sn-link" data-prac-new="">farklı sayılarla tekrar dene</button><div class="sn-prac-b" hidden></div></div>';
+    var E = ENG(); if (!E) return '';
+    var pr = r.practice && typeof E.makeVariant === 'function', st = r.steps && typeof E.checkSteps === 'function';
+    if (!pr && !st) return '';
+    return '<div class="sn-prac" data-prac="' + esc(String(r.question_id)) + '">' +
+      (pr ? '<button type="button" class="sn-link" data-prac-new="">farklı sayılarla tekrar dene</button>' : '') +
+      (st ? '<button type="button" class="sn-link" data-steps-open="">adım adım çöz</button>' : '') +
+      '<div class="sn-prac-b" hidden></div><div class="sn-steps-b" hidden></div></div>';
   };
-  var pracOf = function (qid) { var rs = (RES_EXAM && RES_EXAM.question_results) || []; for (var i = 0; i < rs.length; i++) if (String(rs[i].question_id) === String(qid)) return rs[i].practice; return null; };
+  var resOf = function (qid) { var rs = (RES_EXAM && RES_EXAM.question_results) || []; for (var i = 0; i < rs.length; i++) if (String(rs[i].question_id) === String(qid)) return rs[i]; return null; };
+  var pracOf = function (qid) { var r = resOf(qid); return r ? r.practice : null; };
+  var STEP_PH = { linear: 'ör.\n3x + 5 = 2x - 7\n3x - 2x = -7 - 5\nx = -12', npv: 'ör.\nPV1 = 500 / 1,1 = 454,55\nPV2 = 600 / 1,1^2 = 495,87\nNBD = 454,55 + 495,87 - 900 = 50,42', interest: 'ör.\ni = 5 / 100 / 12 = 0,004167\n(1 + 0,004167)^360 = 4,4677\n…' };
+  var stepsOpen = function (box) {
+    var r = resOf(box.getAttribute('data-prac')), sb = box.querySelector('.sn-steps-b'), pb = box.querySelector('.sn-prac-b');
+    if (!r || !r.steps || !sb) return;
+    var useV = box.__v && pb && !pb.hidden, vars = useV ? box.__v.variables : r.steps.variables, txt = useV ? box.__v.text : r.question;
+    box.__sv = vars;
+    sb.innerHTML = '<p class="sn-steps-q"><b>' + (useV ? 'yeni sayılarla' : 'sınavdaki soru') + ':</b> ' + rich(txt) + '</p>' +
+      '<textarea class="sn-steps-in" rows="5" data-steps-in="" spellcheck="false" aria-label="Çözüm adımların, her satıra bir adım" placeholder="' + esc(STEP_PH[r.steps.kind] || '') + '"></textarea>' +
+      '<div class="sn-steps-bar"><button type="button" class="btn btn-dark" data-steps-check="">adımları kontrol et</button><span>her satıra bir adım; çarpma *, üs ^</span></div>' +
+      '<ol class="sn-steps-out" hidden></ol><p class="sn-steps-sum" role="status" hidden></p>';
+    sb.hidden = false;
+    var ta = sb.querySelector('[data-steps-in]'); if (ta) ta.focus();
+  };
+  var stepsCheck = function (box) {
+    var E = ENG(), r = resOf(box.getAttribute('data-prac')), sb = box.querySelector('.sn-steps-b');
+    if (!E || !r || !r.steps || !sb) return;
+    var ta = sb.querySelector('[data-steps-in]'), ol = sb.querySelector('.sn-steps-out'), sum = sb.querySelector('.sn-steps-sum');
+    var res2 = E.checkSteps(ta ? ta.value : '', r.steps, box.__sv, (RES_EXAM && RES_EXAM.language) || 'tr');
+    if (!res2) { sum.className = 'sn-steps-sum no'; sum.textContent = 'Bu soru adım adım kontrol edilemiyor.'; sum.hidden = false; ol.hidden = true; return; }
+    ol.innerHTML = res2.lines.map(function (l) {
+      var c = l.ok ? (l.code === 'on_track' || l.code === 'final' ? 'ok' : 'fine') : (l.code === 'carried' ? 'carry' : 'no');
+      return '<li class="' + c + '"><code>' + esc(l.line) + '</code><span>' + esc(l.message) + '</span></li>';
+    }).join('');
+    ol.hidden = !res2.lines.length;
+    sum.className = 'sn-steps-sum ' + (res2.status === 'solved' ? 'ok' : res2.status === 'error' || res2.status === 'empty' ? 'no' : 'half');
+    sum.textContent = res2.message; sum.hidden = false;
+  };
   var pracNew = function (box) {
     var E = ENG(), p = pracOf(box.getAttribute('data-prac')), b = box.querySelector('.sn-prac-b');
     var v = E && p ? E.makeVariant(p, (RES_EXAM && RES_EXAM.language) || 'tr') : null;
@@ -2923,10 +2971,10 @@ window.axWhenProfile = function (cb) {
   var pracCheck = function (box) {
     var E = ENG(), v = box.__v, p = box.__p, out = box.querySelector('.sn-prac-r'), inp = box.querySelector('[data-prac-ans]');
     if (!E || !v || !out || !inp) return;
-    var c = E.checkNumericAnswer(inp.value, v.answer, p.tolerance_percent), lang = (RES_EXAM && RES_EXAM.language) || 'tr';
-    var shown = Number(v.answer).toLocaleString(lang === 'en' ? 'en-US' : 'tr-TR', { maximumFractionDigits: 4 }) + (p.units ? ' ' + p.units : '');
+    var dp = +p.decimal_places || 0, c = E.checkNumericAnswer(inp.value, v.answer, p.tolerance_percent, dp), lang = (RES_EXAM && RES_EXAM.language) || 'tr';
+    var shown = Number(v.answer).toLocaleString(lang === 'en' ? 'en-US' : 'tr-TR', dp ? { minimumFractionDigits: dp, maximumFractionDigits: dp } : { maximumFractionDigits: 4 }) + (p.units ? ' ' + p.units : '');
     out.className = 'sn-prac-r ' + (c.ok ? 'ok' : 'no');
-    out.innerHTML = !c.filled ? 'Bir sayı yaz.' : c.ok ? 'Doğru! (' + esc(shown) + ') <button type="button" class="sn-link" data-prac-new="">yeni sayılar</button>' : 'Olmadı. Doğrusu ' + esc(shown) + ' (±%' + esc(String(p.tolerance_percent || 2)) + '). <button type="button" class="sn-link" data-prac-new="">yeni sayılar</button>';
+    out.innerHTML = !c.filled ? 'Bir sayı yaz.' : c.ok ? 'Doğru! (' + esc(shown) + ') <button type="button" class="sn-link" data-prac-new="">yeni sayılar</button>' : 'Olmadı. Doğrusu ' + esc(shown) + (dp ? ' (virgülden sonra ' + dp + ' basamak). ' : ' (±%' + esc(String(p.tolerance_percent || 2)) + '). ') + '<button type="button" class="sn-link" data-prac-new="">yeni sayılar</button>';
     out.hidden = false;
   };
   var APPEALABLE = { open_ended: 1, fill_blank: 1 };
@@ -3021,7 +3069,7 @@ window.axWhenProfile = function (cb) {
           var unit = r.units ? ' ' + esc(r.units) : '';
           return '<div class="sn-ri" style="--i:' + i + '"><svg class="mk ' + k + '" viewBox="0 0 34 34" aria-hidden="true">' + MK[k] + '</svg><div class="sn-ri-h"><b>' + (i + 1) + '</b><span class="ty">' + esc(QT[r.type] || r.type || '') + '</span>' + (r.concept ? '<span class="cpt">' + esc(r.concept) + '</span>' : '') + '<span class="pt">' + (+r.score || 0) + '</span></div>' +
             '<p class="q">' + rich(r.question) + '</p><p class="yours' + (k === 'no' && !blank ? ' wrong' : '') + '">senin cevabın: <span>' + (blank ? 'boş bıraktın' : ansHtml(r, r.student_answer) + (r.student_answer && r.units ? unit : '')) + '</span></p>' +
-            (r.type !== 'open_ended' && r.correct_answer != null && r.correct_answer !== '' && String(r.correct_answer).trim().toLowerCase() !== 'null' ? '<p class="right">doğrusu: ' + ansHtml(r, r.correct_answer) + (r.type === 'expression' && r.up_to_constant ? ' + C' : '') + unit + (r.tolerance_percent ? ' (±%' + esc(r.tolerance_percent) + ')' : '') + '</p>' : '') +
+            (r.type !== 'open_ended' && r.correct_answer != null && r.correct_answer !== '' && String(r.correct_answer).trim().toLowerCase() !== 'null' ? '<p class="right">doğrusu: ' + ansHtml(r, r.correct_answer) + (r.type === 'expression' && r.up_to_constant ? ' + C' : '') + unit + (r.decimal_places ? ' (virgülden sonra ' + esc(r.decimal_places) + ' basamak)' : r.tolerance_percent ? ' (±%' + esc(r.tolerance_percent) + ')' : '') + '</p>' : '') +
             (r.feedback ? '<p class="fb">' + rich(r.feedback) + '</p>' : '') + teach(r, blank) + steps + '</div>';
         }).join('') +
         '<div class="sn-res-b">' + practice + '<button type="button" class="sn-ghost" data-to-errs="">hata defterine bak</button><button type="button" class="btn btn-dark" data-back="">salona dön</button></div>' +
@@ -3034,7 +3082,9 @@ window.axWhenProfile = function (cb) {
     window.showExamResults = showExamResults;
   }
   res.addEventListener('click', function (e) {
-    var pn = e.target.closest('[data-prac-new]'); if (pn) { pracNew(pn.closest('.sn-prac')); return; }
+    var pn = e.target.closest('[data-prac-new]'); if (pn) { var pbx = pn.closest('.sn-prac'); pracNew(pbx); var sbx = pbx.querySelector('.sn-steps-b'); if (sbx && !sbx.hidden) stepsOpen(pbx); return; }
+    var so = e.target.closest('[data-steps-open]'); if (so) { stepsOpen(so.closest('.sn-prac')); return; }
+    var sk = e.target.closest('[data-steps-check]'); if (sk) { stepsCheck(sk.closest('.sn-prac')); return; }
     var pc = e.target.closest('[data-prac-check]'); if (pc) { pracCheck(pc.closest('.sn-prac')); return; }
     var fb = e.target.closest('[data-fb]'); if (fb) { fbForm(fb.closest('.sn-fbk'), fb.getAttribute('data-fb')); return; }
     var fs = e.target.closest('[data-fb-send]'); if (fs) { sendFb(fs); return; }

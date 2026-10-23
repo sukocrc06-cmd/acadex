@@ -1108,11 +1108,11 @@
       return out.map((t, i) => (i > 0 && t.k === 'num' && out[i - 1].k === 'num' ? ' ' : '') + t.v).join('');
   }
 
-  /** FAZ 3b: açık ifadeyi (normalizeMathInput çıktısı) KaTeX için TeX'e
-   *  çevirir; yalnızca önizleme ve sonuç kâğıdı için. Olmazsa ''. */
-  function exprToTex(src) {
+  /** FAZ 3b/3c: açık ifadenin sözdizimi ağacı (TeX ve adım kontrolü için).
+   *  Düğümler: num, id, par, neg, bin(op), fn(f, args). Olmazsa null. */
+  function parseExprAst(src) {
     const text = String(src || '');
-    if (!text) return '';
+    if (!text) return null;
     const tokens = [];
     const re = /\s*(?:(\d+(?:\.\d+)?|\.\d+)|([A-Za-z_][A-Za-z0-9_]*)|(\*\*|[-+*/^(),]))/y;
     let pos = 0;
@@ -1120,7 +1120,7 @@
       if (/^\s*$/.test(text.slice(pos))) break;
       re.lastIndex = pos;
       const m = re.exec(text);
-      if (!m) return '';
+      if (!m) return null;
       tokens.push(m[1] !== undefined ? { t: 'num', v: m[1] } : m[2] !== undefined ? { t: 'id', v: m[2] } : { t: 'op', v: m[3] === '**' ? '^' : m[3] });
       pos = re.lastIndex;
     }
@@ -1148,6 +1148,19 @@
       }
       return fail();
     };
+    try {
+      const ast = expr();
+      return i === tokens.length ? ast : null;
+    } catch (_e) {
+      return null;
+    }
+  }
+
+  /** FAZ 3b: açık ifadeyi (normalizeMathInput çıktısı) KaTeX için TeX'e
+   *  çevirir; yalnızca önizleme ve sonuç kâğıdı için. Olmazsa ''. */
+  function exprToTex(src) {
+    const ast = parseExprAst(src);
+    if (!ast) return '';
     const FN = { sin: '\\sin', cos: '\\cos', tan: '\\tan', ln: '\\ln', log: '\\log', log10: '\\log_{10}', exp: '\\exp', asin: '\\arcsin', acos: '\\arccos', atan: '\\arctan' };
     const strip = n => (n.k === 'par' ? n.a : n);
     const leftLeaf = n => (n.k === 'bin' ? leftLeaf(n.a) : n);
@@ -1175,12 +1188,230 @@
       return tex(n.a) + ' ' + n.op + ' ' + tex(n.b);
     };
     try {
-      const ast = expr();
-      if (i !== tokens.length) return '';
       return tex(ast);
     } catch (_e) {
       return '';
     }
+  }
+
+  // ------------------------------------------------------------------------
+  // FAZ 3c: adım adım kontrol — doğrusal denklem ve NBD/faiz. Tarayıcıda,
+  // LLM yok; yalnızca alıştırma (sınav puanını değiştirmez).
+  // ------------------------------------------------------------------------
+  const STEP_MAX_LINES = 20;
+
+  /** Formülün ara işlemlerinin değerleri (doğru ara sonuçları tanımak için). */
+  function subValues(formula, vars) {
+    const ast = parseExprAst(formula);
+    const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+    const out = [];
+    const ev = n => {
+      let v;
+      if (n.k === 'num') v = Number(n.v);
+      else if (n.k === 'id') v = has(vars, n.v) ? Number(vars[n.v]) : has(EXPR_CONSTS, n.v) ? EXPR_CONSTS[n.v] : NaN;
+      else if (n.k === 'par') v = ev(n.a);
+      else if (n.k === 'neg') v = -ev(n.a);
+      else if (n.k === 'fn') {
+        const f = has(EXPR_FUNCS, n.f) ? EXPR_FUNCS[n.f] : null;
+        const args = n.args.map(ev);
+        v = f && args.length >= f.min && args.length <= f.max ? f.fn(...args) : NaN;
+      } else {
+        const a = ev(n.a), b = ev(n.b);
+        v = n.op === '+' ? a + b : n.op === '-' ? a - b : n.op === '*' ? a * b : n.op === '/' ? a / b : Math.pow(a, b);
+      }
+      if (n.k !== 'num' && n.k !== 'id' && Number.isFinite(v)) out.push(v);
+      return v;
+    };
+    if (ast) ev(ast);
+    return out;
+  }
+
+  /** Öğrencinin metnini satırlara böler; "1.", "Adım 2:", "•", "⇒" gibi
+   *  başlıklar atılır. */
+  function stepLines(text) {
+    return String(text || '').split(/\r?\n/)
+      .map(l => l.replace(/^\s*(?:(?:adım|adim|step)\s*\d+\s*[:.)\-]?|\d+\s*[.)]\s+|[•*]\s*|=>|⇒|→)\s*/i, '').trim())
+      .filter(Boolean)
+      .slice(0, STEP_MAX_LINES);
+  }
+
+  /** L = R'nin bilinmeyene göre durumu: tek çözüm, çözümsüz, her x, doğrusal değil. */
+  function linearSolution(left, right, unknown, vars) {
+    const f = x => {
+      const v = Object.assign({}, vars || {});
+      v[unknown] = x;
+      return evaluateExpression(left, v) - evaluateExpression(right, v);
+    };
+    const f0 = f(0), f1 = f(1), f2 = f(2), fm = f(-1.5);
+    if (![f0, f1, f2, fm].every(Number.isFinite)) return { kind: 'nonlinear' };
+    const a = f1 - f0;
+    const tol = 1e-9 * Math.max(1, Math.abs(a), Math.abs(f0), Math.abs(f2));
+    if (Math.abs((f2 - f1) - a) > tol || Math.abs((f0 - fm) - 1.5 * a) > 10 * tol) return { kind: 'nonlinear' };
+    if (Math.abs(a) <= 1e-12) return { kind: Math.abs(f0) <= 1e-9 ? 'identity' : 'none' };
+    return { kind: 'one', x: -f0 / a };
+  }
+
+  /** Doğrusal denklemin çözümü (soru ya da varyant için); yoksa NaN. */
+  function solveLinearEquation(spec, vars) {
+    const parts = String((spec && spec.equation) || '').split('=');
+    const u = spec && spec.unknown;
+    if (parts.length !== 2 || !u) return NaN;
+    const s = linearSolution(parts[0], parts[1], u, sanitizeVariables(vars || spec.variables));
+    return s.kind === 'one' ? s.x : NaN;
+  }
+
+  function stepFmt(n, lang) { return formatNumber(Math.round(n * 1e4) / 1e4, lang); }
+
+  /** Doğrusal denklem: her satır bir denklem; çözümü bir öncekiyle aynı mı.
+   *  İlk farklılaşan satır hatanın olduğu geçiştir. Cevap söylenmez. */
+  function checkLinearSteps(text, spec, vars, lang) {
+    const tr = lang !== 'en';
+    const u = spec && spec.unknown;
+    const ref = solveLinearEquation(spec, vars);
+    if (!u || !Number.isFinite(ref)) return null;
+    const lines = stepLines(text);
+    if (!lines.length) return { status: 'empty', lines: [], message: tr ? 'Önce adımlarını yaz: her satıra bir denklem.' : 'Write your steps first: one equation per line.' };
+    const idRe = new RegExp('(^|[^A-Za-z0-9_])' + u + '(?![A-Za-z0-9_])');
+    const isolated = (L, R) => (L === u && !idRe.test(R)) || (R === u && !idRe.test(L));
+    const out = [];
+    let firstError = -1, prev = ref;
+    lines.forEach((line, idx) => {
+      const parts = line.split('=');
+      let r;
+      if (parts.length !== 2) {
+        r = { ok: false, code: 'no_equals', message: tr ? 'Her satır tek "=" içeren bir denklem olmalı.' : 'Each line must be an equation with a single "=".' };
+      } else {
+        const L = normalizeMathInput(parts[0], [u]), R = normalizeMathInput(parts[1], [u]);
+        const s = L && R ? linearSolution(L, R, u, {}) : null;
+        if (!s) r = { ok: false, code: 'unreadable', message: tr ? 'Bu satır okunamadı.' : 'This line could not be read.' };
+        else if (s.kind === 'one') {
+          const tolX = /\d[.,]\d/.test(line) ? 0.01 * Math.abs(ref) + 1e-6 : 1e-6 * Math.max(1, Math.abs(ref));
+          if (Math.abs(s.x - ref) <= tolX) {
+            const fin = isolated(L, R);
+            r = { ok: true, code: fin ? 'final' : 'ok', message: fin ? (tr ? `${u} yalnız kaldı: ${u} = ${stepFmt(s.x, lang)}` : `${u} is isolated: ${u} = ${stepFmt(s.x, lang)}`) : (tr ? 'doğru: çözüm değişmedi' : 'correct: the solution is unchanged') };
+          } else if (firstError >= 0 && Math.abs(s.x - prev) <= 1e-6 * Math.max(1, Math.abs(prev))) {
+            r = { ok: false, code: 'carried', message: tr ? 'önceki hatayı taşıyor; bu geçiş kendi içinde doğru' : 'carries the earlier mistake; this step itself is consistent' };
+          } else {
+            r = { ok: false, code: 'wrong', message: tr ? `Bu satır çözümü değiştiriyor (bu satıra göre ${u} = ${stepFmt(s.x, lang)}). Bir önceki satırdan geçişi kontrol et: karşıya geçen terimin işareti değişir, iki taraf aynı sayıyla çarpılır ya da bölünür.` : `This line changes the solution (here ${u} = ${stepFmt(s.x, lang)}). Check the step from the previous line: a term changes sign when it moves across, and both sides are multiplied or divided by the same number.` };
+          }
+          prev = s.x;
+        } else if (s.kind === 'nonlinear') {
+          r = { ok: false, code: 'nonlinear', message: tr ? `Bu satır ${u}'e göre doğrusal değil (${u}², 1/${u} gibi bir terim var).` : `This line is not linear in ${u}.` };
+        } else {
+          r = { ok: false, code: 'lost', message: tr ? `Bu satırda ${u}'in katsayısı 0 oldu; katsayıları kontrol et.` : `The coefficient of ${u} became 0 here; check the coefficients.` };
+        }
+      }
+      if (!r.ok && firstError < 0) firstError = idx;
+      out.push(Object.assign({ line }, r));
+    });
+    const last = out[out.length - 1];
+    if (firstError >= 0) return { status: 'error', first_error: firstError, lines: out, message: tr ? `${firstError + 1}. satırda hata var.` : `There is a mistake on line ${firstError + 1}.` };
+    if (last.code === 'final') return { status: 'solved', lines: out, message: tr ? `Tüm adımlar doğru, ${u} = ${stepFmt(ref, lang)}.` : `All steps are correct, ${u} = ${stepFmt(ref, lang)}.` };
+    return { status: 'unfinished', lines: out, message: tr ? `Adımlar doğru; ${u}'i yalnız bırakarak bitir.` : `Your steps are correct; finish by isolating ${u}.` };
+  }
+
+  /** "1.000.000" ve "1.250,50" gibi kesin Türkçe yazımları ifadeye uygun
+   *  sayıya çevirir (tek "1.000" belirsiz, dokunulmaz). */
+  function canonTrNumbers(s) {
+    return String(s).replace(/\d{1,3}(?:\.\d{3}){2,}(?:,\d+)?|\d{1,3}(?:\.\d{3})+,\d+/g, m => String(parseLooseNumber(m)));
+  }
+
+  function decimalsWritten(raw) {
+    const m = String(raw).match(/[.,](\d+)\s*\D*$/);
+    return m ? Math.min(6, m[1].length) : 0;
+  }
+
+  /** NBD/faiz: her satır "ifade = sonuç" zinciri. Her eşitlik hesaplanır;
+   *  formülün ara sonuçlarından birine uyan satır doğru yolda sayılır;
+   *  son satır doğru cevapla karşılaştırılır. */
+  function checkNumericSteps(text, spec, vars, lang) {
+    const tr = lang !== 'en';
+    const v = sanitizeVariables(vars || (spec && spec.variables));
+    const answer = evaluateExpression(spec && spec.formula, v);
+    if (!Number.isFinite(answer)) return null;
+    const refs = subValues(spec.formula, v).concat(Object.keys(v).map(k => v[k]), [answer]);
+    const near = (a, b, pct) => Math.abs(a - b) <= pct / 100 * Math.max(Math.abs(a), Math.abs(b), 1e-9);
+    const tolAns = Number(spec.tolerance_percent) > 0 ? Number(spec.tolerance_percent) : 2;
+    const lines = stepLines(text);
+    if (!lines.length) return { status: 'empty', lines: [], message: tr ? 'Önce adımlarını yaz: her satıra bir işlem (ör. 500/1,1 = 454,55).' : 'Write your steps first: one calculation per line (e.g. 500/1.1 = 454.55).' };
+    const out = [];
+    let firstError = -1, lastValue = NaN;
+    lines.forEach((line, idx) => {
+      const parts = line.split(/=|≈/).map(x => x.trim()).filter(Boolean);
+      const vals = parts.map(p => {
+        const plain = /^[-+−]?\d[\d.,]*\s*(?:[%\p{L}$€₺£]{0,6})$/u.test(p);
+        if (plain) {
+          const num = (p.match(/[-+−]?\d[\d.,]*/) || [''])[0].replace('−', '-').replace(/[.,]+$/, '');
+          const rd = numberReadingsJs(num);
+          return { raw: p, plain: true, readings: rd, v: rd.length ? rd[0] : NaN, d: decimalsWritten(num) };
+        }
+        const n = normalizeMathInput(canonTrNumbers(p), []);
+        return { raw: p, plain: false, v: n ? evaluateExpression(n, {}) : NaN };
+      });
+      // Baştaki etiketler ("NBD", "PV1", "Taksit") atlanır.
+      let k = 0;
+      while (k < vals.length && !Number.isFinite(vals[k].v) && /\p{L}/u.test(vals[k].raw)) k++;
+      const used = vals.slice(k);
+      let r = null;
+      if (!used.length || used.some(x => !Number.isFinite(x.v))) {
+        r = { ok: false, code: 'unreadable', message: tr ? 'Bu satır okunamadı (çarpma için *, üs için ^ kullan).' : 'This line could not be read (use * and ^).' };
+      } else {
+        for (let j = 0; j + 1 < used.length && !r; j++) {
+          const a = used[j], b = used[j + 1];
+          // Yazılan sayı, yuvarlama payı içinde ya da formülün gerçek ara
+          // sonucuyla aynıysa (yuvarlanmış girdiyle üs alınca oluşan fark)
+          // işlem doğru sayılır.
+          const matches = b.plain
+            ? b.readings.some(x => Math.abs(x - a.v) <= 0.5 * Math.pow(10, -b.d) * 1.0001 + 2e-4 * Math.abs(a.v) || (near(x, a.v, 0.5) && refs.some(y => near(x, y, 0.05))))
+            : Math.abs(a.v - b.v) <= 1e-6 * Math.max(1, Math.abs(a.v));
+          if (!matches) {
+            r = { ok: false, code: 'arith', expected: a.v, message: tr ? `İşlem hatası: ${a.raw} = ${stepFmt(a.v, lang)} olmalı, ${b.raw} yazmışsın.` : `Arithmetic slip: ${a.raw} = ${stepFmt(a.v, lang)}, not ${b.raw}.` };
+          }
+        }
+        const val = used[used.length - 1].plain ? used[used.length - 1].readings.find(x => true) : used[used.length - 1].v;
+        lastValue = Number.isFinite(val) ? val : used[used.length - 1].v;
+        if (!r) {
+          const onTrack = refs.some(x => near(x, lastValue, 0.5)) || (used[used.length - 1].plain && used[used.length - 1].readings.some(x => refs.some(y => near(x, y, 0.5))));
+          r = { ok: true, code: onTrack ? 'on_track' : 'ok', message: onTrack ? (tr ? 'doğru ara sonuç' : 'correct intermediate result') : (tr ? 'işlem doğru' : 'arithmetic is correct') };
+        }
+      }
+      if (!r.ok && firstError < 0) firstError = idx;
+      out.push(Object.assign({ line }, r));
+    });
+    const lastLine = out[out.length - 1];
+    const lastReadings = (() => {
+      const parts = lines[lines.length - 1].split(/=|≈/).map(x => x.trim()).filter(Boolean);
+      const p = parts[parts.length - 1] || '';
+      const num = (p.match(/^[-+−]?\d[\d.,]*/) || [''])[0].replace('−', '-').replace(/[.,]+$/, '');
+      return num && /^[-+−]?\d[\d.,]*\s*(?:[%\p{L}$€₺£]{0,6})$/u.test(p) ? numberReadingsJs(num) : [lastValue];
+    })();
+    const dp = [2, 3, 4].includes(Number(spec.decimal_places)) ? Number(spec.decimal_places) : 0;
+    const solved = lastLine.ok && lastReadings.some(x => dp ? withinDecimals(x, answer, dp) : near(x, answer, tolAns));
+    if (solved) return { status: firstError >= 0 ? 'solved_with_slips' : 'solved', first_error: firstError, lines: out, message: firstError >= 0 ? (tr ? `Sonuca ulaştın ama ${firstError + 1}. satırda bir işlem hatası var.` : `You reached the answer, but line ${firstError + 1} has a slip.`) : (tr ? 'Tüm adımlar doğru ve sonuca ulaştın.' : 'All steps are correct and you reached the answer.') };
+    if (firstError >= 0) return { status: 'error', first_error: firstError, lines: out, message: tr ? `${firstError + 1}. satırda hata var.` : `There is a mistake on line ${firstError + 1}.` };
+    let hint = '';
+    const errs = Array.isArray(spec.common_errors) ? spec.common_errors : [];
+    for (const ce of errs) {
+      const ev = ce && typeof ce.formula === 'string' ? evaluateExpression(ce.formula, v) : NaN;
+      if (Number.isFinite(ev) && lastReadings.some(x => near(x, ev, tolAns)) && ce.message) { hint = String(ce.message); break; }
+    }
+    return { status: 'method', lines: out, message: tr ? 'İşlemlerin doğru ama sonuç farklı: yöntemi ya da kullandığın sayıları kontrol et; ilk "doğru ara sonuç" olmayan satıra bak.' + (hint ? ' Olası hata: ' + hint : '') : 'Your arithmetic is right but the result differs: check the method or the numbers used.' + (hint ? ' Likely mistake: ' + hint : '') };
+  }
+
+  /** generate-exam numberReadings ile aynı: "1.000" iki türlü okunabilir. */
+  function numberReadingsJs(raw) {
+    const out = [];
+    const add = n => { if (Number.isFinite(n) && !out.some(x => Math.abs(x - n) <= 1e-9 * Math.max(1, Math.abs(x), Math.abs(n)))) out.push(n); };
+    add(parseLooseNumber(raw));
+    add(Number(String(raw).replace(/\./g, '').replace(',', '.')));
+    add(Number(String(raw).replace(/,/g, '')));
+    return out;
+  }
+
+  /** Sonuç kâğıdı için tek giriş noktası: tür doğrusal mı sayısal mı. */
+  function checkSteps(text, spec, vars, lang) {
+    if (!spec) return null;
+    return spec.kind === 'linear' ? checkLinearSteps(text, spec, vars, lang) : checkNumericSteps(text, spec, vars, lang);
   }
 
   /** Sorunun ifade değişkenleri (generate-exam expr_vars yazar). */
@@ -1310,10 +1541,17 @@
     return null;
   }
 
-  /** Öğrencinin sayısını toleransla kontrol eder. */
-  function checkNumericAnswer(input, answer, tolerancePercent) {
+  /** FAZ 3c: sayı hassasiyeti — doğru cevaptan en çok yarım son basamak
+   *  sapma (3 basamakta ±0,0005). grade-exam gradeCalculationPrecise ile aynı. */
+  function withinDecimals(value, answer, decimals) {
+    return Math.abs(value - answer) <= 0.5 * Math.pow(10, -decimals) + 1e-9 * Math.max(1, Math.abs(answer));
+  }
+
+  /** Öğrencinin sayısını toleransla (ya da sayı hassasiyetiyle) kontrol eder. */
+  function checkNumericAnswer(input, answer, tolerancePercent, decimals) {
     const n = parseLooseNumber(input);
     if (!Number.isFinite(n)) return { ok: false, filled: false, value: NaN };
+    if ([2, 3, 4].includes(Number(decimals))) return { ok: withinDecimals(n, answer, Number(decimals)), filled: true, value: n };
     const tol = Number(tolerancePercent) > 0 ? Number(tolerancePercent) : 2;
     const margin = answer !== 0 ? Math.abs(answer) * tol / 100 : tol / 100;
     return { ok: Math.abs(n - answer) <= margin, filled: true, value: n };
@@ -1355,10 +1593,19 @@
     renderTemplate,
     makeVariant,
     checkNumericAnswer,
+    withinDecimals,
     // FAZ 3b: cebirsel ifade
     normalizeMathInput,
     exprToTex,
-    exprPreviewHtml
+    exprPreviewHtml,
+    // FAZ 3c: adım adım kontrol
+    parseExprAst,
+    subValues,
+    stepLines,
+    solveLinearEquation,
+    checkLinearSteps,
+    checkNumericSteps,
+    checkSteps
   };
   return api;
 });

@@ -25,9 +25,12 @@ const G = loadFromSource(GEN_PATH, [
   'TRUE_FALSE_OPTIONS', 'ALLOWED_OPTION_COUNTS', 'ALLOWED_WRONG_PER_CORRECT', 'normalizeScoring',
   'EXPLANATION_MAX_CHARS', 'RATIONALE_MAX_CHARS', 'RUBRIC_MIN_ITEMS', 'RUBRIC_MAX_ITEMS',
   'normalizeAnswerText', 'parseLooseNumber', 'PLACEHOLDER_ANSWERS', 'isPlaceholderAnswer', 'cleanText',
-  'normalizeOptionRationales', 'normalizeRubric', 'validateQuestion', 'STATIC_EXAM_INSTRUCTIONS'
+  'normalizeOptionRationales', 'normalizeRubric', 'validateQuestion', 'STATIC_EXAM_INSTRUCTIONS',
+  'sameNumber', 'numberReadings', 'OPTION_NEAR_PERCENT', 'NUMERIC_OPTION', 'optionCanonical', 'hasAmbiguousOptions', 'MATH_INPUT_MAX', 'normalizeMathInput', 'STEP_KINDS', 'verifyLinearEquation', 'EXPR_SAMPLE_VALUES', 'EXPR_MIN_VALID_POINTS', 'EXPR_FORMS', 'exprSamplePoints', 'expressionsEquivalent', 'hasTopLevelSum', 'isExpandedForm', 'exprTokenCount', 'checkExpressionForm', 'verifyExpression'
 ]);
-const R = loadFromSource(GRADE_PATH, ['computeFinalGrade', 'computeNetSummary', 'computeExamGrade']);
+const R = loadFromSource(GRADE_PATH, ['computeFinalGrade', 'computeNetSummary', 'computeExamGrade', 'parseLooseNumber', 'decimalPlacesOf', 'gradeCalculationPrecise', 'gradeCalculation']);
+const G2 = loadFromSource(GEN_PATH, ['ALLOWED_DECIMAL_PLACES', 'normalizeDecimalPlaces']);
+const E = require(path.join(__dirname, '..', 'js', 'exam-engine.js'));
 
 const { test, summary } = makeRunner();
 
@@ -129,6 +132,52 @@ test('itiraz sonrasi not cezayi korur', () => {
   assert.equal(r.grade, Math.round((70 + 0 * 100) / 5), 'net 0: MC katkisi 0');
   const r2 = A.applyAppealOutcome(rs, 4, { regradeScore: 70, feedback: '', rubricResults: null, note: '' }, 'now');
   assert.equal(r2.grade, Math.round((100 + 70) / 5), 'ayar yoksa eski hesap');
+});
+
+// ---------------------------------------------------------------------------
+// Faz 3c: sayı hassasiyeti (virgülden sonra 2/3/4 basamak)
+// ---------------------------------------------------------------------------
+test('normalizeDecimalPlaces ve decimalPlacesOf: yalnizca 2, 3, 4', () => {
+  assert.equal(G2.normalizeDecimalPlaces(3), 3);
+  assert.equal(G2.normalizeDecimalPlaces('4'), 4);
+  for (const v of [0, 1, 5, '', null, undefined, 'üç', true]) assert.equal(G2.normalizeDecimalPlaces(v), null, String(v));
+  assert.equal(R.decimalPlacesOf({ option_count: 4, decimal_places: 3 }), 3);
+  assert.equal(R.decimalPlacesOf({ option_count: 4 }), null, 'eski sinav: standart');
+  assert.equal(R.decimalPlacesOf(null), null);
+  assert.equal(R.decimalPlacesOf({ decimal_places: 7 }), null);
+});
+
+test('hassas not: 3 basamakta yarim son basamak icinde tam, bir basamak eksik yarim', () => {
+  const g = (s, c = 1.2344, d = 3) => R.gradeCalculationPrecise(s, c, d, '').score;
+  assert.equal(g('1,234'), 100);
+  assert.equal(g('1.234'), 100, 'nokta da ondalik');
+  assert.equal(g('1,2344'), 100);
+  assert.equal(g('1,2348'), 100, 'fark 0,0004');
+  assert.equal(g('1,236'), 50, 'iki basamak dogru');
+  assert.equal(g('1,23'), 50, '2 basamaga dogru yuvarlanmis');
+  assert.equal(g('1,24'), 0, '1,2344 iki basamakta 1,23 olur');
+  assert.equal(g('1,3'), 0);
+  assert.equal(g(''), 0);
+  assert.equal(R.gradeCalculationPrecise('1,234', 1.2344, 3, '').correctNum, 1.234, 'dogru cevap basamaga yuvarlanir');
+  assert.equal(g('0,0125', 0.012500, 4), 100);
+  assert.equal(g('0,0126', 0.012500, 4), 50, '4 basamakta 0,0001 fark: yalnizca 3 basamak dogru, yarim puan');
+  assert.equal(g('0,0135', 0.012500, 4), 0);
+});
+
+test('standart modda ayni cevap yuzde payla dogru, hassas modda yanlis', () => {
+  assert.equal(R.gradeCalculation('1,236', 1.2344, 1, '').score, 100, '%1 pay');
+  assert.equal(R.gradeCalculationPrecise('1,236', 1.2344, 3, '').score, 50);
+  assert.equal(R.gradeCalculationPrecise('12', 0.12, 3, '%').score, 100, 'yuzde birimi donusturulur');
+});
+
+test('tarayici: pratik ve adim kontrolu ayni hassasiyet kuralini kullanir', () => {
+  assert.equal(E.checkNumericAnswer('1,234', 1.2344, 2, 3).ok, true);
+  assert.equal(E.checkNumericAnswer('1,236', 1.2344, 2, 3).ok, false);
+  assert.equal(E.checkNumericAnswer('1,236', 1.2344, 2).ok, true, 'hassasiyet yoksa yuzde pay');
+  const spec = { kind: 'interest', formula: 'P*(1+r)^n', variables: { P: 1, r: 0.05, n: 3 }, tolerance_percent: 2 };
+  assert.equal(E.checkSteps('1*1,05^3 = 1,158', spec, null, 'tr').status, 'solved', 'standart');
+  assert.equal(E.checkSteps('1*1,05^3 = 1,158', { ...spec, decimal_places: 3 }, null, 'tr').status, 'solved', '1,157625 → 1,158 yarim basamak icinde');
+  assert.notEqual(E.checkSteps('1*1,05^3 = 1,16', { ...spec, decimal_places: 3 }, null, 'tr').status, 'solved', '2 basamak yetmez');
 });
 
 summary();

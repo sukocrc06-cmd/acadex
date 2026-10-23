@@ -37,7 +37,8 @@ const G = loadFromSource(GEN_PATH, [
   'normalizeAnswerText', 'parseLooseNumber', 'PLACEHOLDER_ANSWERS', 'isPlaceholderAnswer', 'cleanText', 'normalizeOptionRationales', 'normalizeRubric',
   'termRegex', 'anchorByExactTerms',
   'validateQuestion', 'splitPublicAndKey', 'shuffleInPlace',
-  ...ANCHOR_NAMES, 'CHUNK_STORE_SIZE', 'joinChunkParts', 'buildPageIndexFromChunks', 'anchorQuestionToSource'
+  ...ANCHOR_NAMES, 'CHUNK_STORE_SIZE', 'joinChunkParts', 'buildPageIndexFromChunks', 'anchorQuestionToSource',
+  'sameNumber', 'numberReadings', 'OPTION_NEAR_PERCENT', 'NUMERIC_OPTION', 'optionCanonical', 'hasAmbiguousOptions', 'MATH_INPUT_MAX', 'normalizeMathInput', 'STEP_KINDS', 'verifyLinearEquation', 'EXPR_SAMPLE_VALUES', 'EXPR_MIN_VALID_POINTS', 'EXPR_FORMS', 'exprSamplePoints', 'expressionsEquivalent', 'hasTopLevelSum', 'isExpandedForm', 'exprTokenCount', 'checkExpressionForm', 'verifyExpression'
 ]);
 const R = loadFromSource(GRADE_PATH, [
   'GROQ_RETRY_MAX_WAIT_MS', 'groqRetryDelayMs', 'normalizeAnswerText', 'PLACEHOLDER_ANSWERS', 'isPlaceholderAnswer', 'effectiveCorrectAnswer',

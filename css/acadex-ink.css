@@ -4158,6 +4158,33 @@ body.axs-hall-on #pomodoro-widget-container,body.axs-hall-on #acadia-widget-cont
 :is(#exams-view.axs,#axs-layer) .sn-prac-r[hidden]{display:none}
 :is(#exams-view.axs,#axs-layer) .sn-prac-r.ok{color:var(--green)}
 :is(#exams-view.axs,#axs-layer) .sn-prac-r.no{color:var(--red)}
+/* FAZ 3c: adım adım çöz (sonuç kâğıdı) */
+:is(#exams-view.axs,#axs-layer) .sn-prac [data-steps-open]{margin-left:14px}
+:is(#exams-view.axs,#axs-layer) .sn-steps-b{margin-top:6px;padding:10px 12px;border:1.4px solid #DCE2EE;border-radius:6px;background:#FBFCFE}
+:is(#exams-view.axs,#axs-layer) .sn-steps-b[hidden]{display:none}
+:is(#exams-view.axs,#axs-layer) .sn-steps-q{margin:0 0 8px;font-size:14.5px;line-height:1.5;color:var(--ink)}
+:is(#exams-view.axs,#axs-layer) .sn-steps-in{display:block;width:100%;box-sizing:border-box;min-height:120px;padding:8px 10px;border:1.4px solid #C9D1E1;border-radius:6px;background:#fff;color:var(--navy);font-family:'JetBrains Mono',ui-monospace,monospace;font-size:14.5px;line-height:1.6;resize:vertical}
+:is(#exams-view.axs,#axs-layer) .sn-steps-in:focus{outline:2px solid var(--blue);outline-offset:1px}
+:is(#exams-view.axs,#axs-layer) .sn-steps-bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:8px}
+:is(#exams-view.axs,#axs-layer) .sn-steps-bar span{font-size:12.5px;color:var(--soft)}
+:is(#exams-view.axs,#axs-layer) .sn-steps-out{margin:10px 0 0;padding:0;list-style:none;display:grid;gap:6px;counter-reset:st}
+:is(#exams-view.axs,#axs-layer) .sn-steps-out[hidden]{display:none}
+:is(#exams-view.axs,#axs-layer) .sn-steps-out li{counter-increment:st;display:grid;grid-template-columns:auto 1fr;gap:2px 8px;padding:6px 8px;border-left:3px solid #C9D1E1;background:#fff;font-size:13.5px}
+:is(#exams-view.axs,#axs-layer) .sn-steps-out li::before{content:counter(st) ".";grid-row:span 2;font-family:'JetBrains Mono',ui-monospace,monospace;color:var(--soft)}
+:is(#exams-view.axs,#axs-layer) .sn-steps-out code{font-family:'JetBrains Mono',ui-monospace,monospace;color:var(--navy);overflow-wrap:anywhere}
+:is(#exams-view.axs,#axs-layer) .sn-steps-out li.ok{border-left-color:var(--green)}
+:is(#exams-view.axs,#axs-layer) .sn-steps-out li.ok span::before{content:"✓ ";color:var(--green);font-weight:700}
+:is(#exams-view.axs,#axs-layer) .sn-steps-out li.fine{border-left-color:#8FC7A9}
+:is(#exams-view.axs,#axs-layer) .sn-steps-out li.no{border-left-color:var(--red)}
+:is(#exams-view.axs,#axs-layer) .sn-steps-out li.no span{color:var(--red)}
+:is(#exams-view.axs,#axs-layer) .sn-steps-out li.no span::before{content:"✗ ";font-weight:700}
+:is(#exams-view.axs,#axs-layer) .sn-steps-out li.carry{border-left-color:var(--amber)}
+:is(#exams-view.axs,#axs-layer) .sn-steps-out li.carry span{color:var(--amber)}
+:is(#exams-view.axs,#axs-layer) .sn-steps-sum{margin:10px 0 0;font-size:14px;font-weight:600}
+:is(#exams-view.axs,#axs-layer) .sn-steps-sum[hidden]{display:none}
+:is(#exams-view.axs,#axs-layer) .sn-steps-sum.ok{color:var(--green)}
+:is(#exams-view.axs,#axs-layer) .sn-steps-sum.half{color:var(--amber)}
+:is(#exams-view.axs,#axs-layer) .sn-steps-sum.no{color:var(--red)}
 /* FAZ 3b: cebirsel ifade girişi (exam-engine 'expression' tipi) */
 .axe-expr{display:grid;gap:8px;max-width:560px}
 .axe-expr-in{width:100%;min-height:44px;padding:8px 12px;border:1.6px solid #C9D1E1;border-radius:8px;background:#fff;color:#0D1838;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:17px;box-sizing:border-box}

@@ -7452,6 +7452,13 @@ async function generateExam() {
       const t = document.getElementById('exam-negative-toggle');
       if (!t || t.disabled || !t.checked) return 0;
       return parseInt(document.getElementById('exam-negative-ratio')?.value, 10) || true;
+    })(),
+    // FAZ 3c: sayı hassasiyeti (0 = standart yüzde pay; 2/3/4 = virgülden
+    // sonra o kadar basamak doğru olmalı). Yalnızca hesap sorularına uygulanır.
+    decimalPlaces: (() => {
+      const sel = document.getElementById('exam-decimal-places');
+      const type = (document.querySelector('input[name="exam-type"]:checked') || {}).value;
+      return sel && (type === 'calculation' || type === 'mixed') ? (parseInt(sel.value, 10) || 0) : 0;
     })()
   };
 

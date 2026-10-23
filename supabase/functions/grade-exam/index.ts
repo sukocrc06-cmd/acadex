@@ -142,6 +142,40 @@ function gradeFillBlank(studentAns: string, correctAns: string, accepted: unknow
   return { correct: false, match: null }
 }
 
+/** FAZ 3c: sınavın sayı hassasiyeti (exams.scoring.decimal_places): 2, 3
+ *  ya da 4; yoksa null (standart yüzde pay). */
+function decimalPlacesOf(scoring: unknown): number | null {
+  const n = scoring && typeof scoring === 'object' ? Number((scoring as Record<string, unknown>).decimal_places) : NaN
+  return [2, 3, 4].includes(n) ? n : null
+}
+
+/** FAZ 3c: hassas hesap notu. Virgülden sonra d basamak doğru olmalı:
+ *  doğru cevaptan en çok yarım son basamak sapma tam puan (3 basamakta
+ *  ±0,0005), bir basamak eksik doğruluk yarım puan. Birim yüzdeyse "0,12"
+ *  ile "12" karışıklığı da kabul edilir. */
+function gradeCalculationPrecise(studentAns: unknown, correctAns: unknown, decimals: number, units: unknown): { score: number; studentNum: number; correctNum: number; percentScaled: boolean } {
+  const studentNum = parseLooseNumber(studentAns)
+  const exact = parseLooseNumber(correctAns)
+  const correctNum = Number.isFinite(exact) ? Number(exact.toFixed(decimals)) : exact
+  if (!Number.isFinite(studentNum) || !Number.isFinite(exact)) return { score: 0, studentNum, correctNum, percentScaled: false }
+  const eps = 1e-9 * Math.max(1, Math.abs(exact))
+  const scoreFor = (v: number) => {
+    const diff = Math.abs(v - exact)
+    if (diff <= 0.5 * Math.pow(10, -decimals) + eps) return 100
+    if (diff <= 0.5 * Math.pow(10, -(decimals - 1)) + eps) return 50
+    return 0
+  }
+  let score = scoreFor(studentNum)
+  let percentScaled = false
+  if (score < 100 && /%|yüzde|percent/i.test(String(units ?? ''))) {
+    for (const c of [studentNum * 100, studentNum / 100]) {
+      const alt = scoreFor(c)
+      if (alt > score) { score = alt; percentScaled = true }
+    }
+  }
+  return { score, studentNum, correctNum, percentScaled }
+}
+
 /** Hesaplama: tolerans içinde tam puan, iki katı içinde yarım puan. Birim
  *  yüzdeyse "0,12" ile "12" karışıklığı da kabul edilir. */
 function gradeCalculation(studentAns: unknown, correctAns: unknown, tolerancePercent: unknown, units: unknown): { score: number; studentNum: number; correctNum: number; tolPercent: number; percentScaled: boolean } {
@@ -666,6 +700,22 @@ function teachingFields(q: Record<string, unknown>): Record<string, unknown> {
     if (typeof q.template === 'string' && q.template && typeof q.formula === 'string' && q.variables && typeof q.variables === 'object') {
       out.practice = { template: q.template, variables: q.variables, formula: q.formula, tolerance_percent: q.tolerance_percent ?? 2, units: q.units ?? '' }
     }
+    // FAZ 3c: doğrusal denklem ve NBD/faiz — sonuç kâğıdında "adım adım
+    // çöz" bu veriyle tarayıcıda satır satır kontrol eder.
+    const kind = String(q.step_kind ?? '')
+    if (['linear', 'npv', 'interest'].includes(kind) && typeof q.formula === 'string' && q.variables && typeof q.variables === 'object' &&
+        (kind !== 'linear' || (typeof q.equation === 'string' && typeof q.unknown === 'string'))) {
+      out.steps = {
+        kind,
+        formula: q.formula,
+        variables: q.variables,
+        equation: kind === 'linear' ? q.equation : null,
+        unknown: kind === 'linear' ? q.unknown : null,
+        tolerance_percent: q.tolerance_percent ?? 2,
+        units: q.units ?? '',
+        common_errors: Array.isArray(q.common_errors) ? q.common_errors : []
+      }
+    }
   }
   return out
 }
@@ -819,6 +869,7 @@ serve(async (req) => {
     const questions = ((exam.questions || []) as Record<string, unknown>[]).map(q => mergeQuestionWithKey(q, keys))
 
     type Result = Record<string, unknown> & { question_id: number; score: number | null }
+    const decimalPlaces = decimalPlacesOf(exam.scoring)
     const results: Result[] = []
     const classicToGrade: Array<{ id: number; question: string; correct_answer: string; student_answer: string; concept: string | null; rubric: RubricItem[] | null; teach: Record<string, unknown> }> = []
 
@@ -865,6 +916,36 @@ serve(async (req) => {
           correct_answer: correctAns,
           is_correct: correct,
           score: correct ? 100 : 0,
+          feedback
+        })
+      } else if (q.type === 'calculation' && decimalPlaces) {
+        // FAZ 3c: sayı hassasiyeti seçili sınav.
+        const d = decimalPlaces
+        const g = gradeCalculationPrecise(studentAns, q.correct_answer, d, q.units)
+        const unitSuffix = q.units ? ` ${q.units}` : ''
+        const shown = Number.isFinite(g.correctNum) ? g.correctNum.toFixed(d) : String(q.correct_answer ?? '')
+        let feedback = g.score === 100
+          ? (isTr ? `Tebrikler! Virgülden sonra ${d} basamağa kadar doğru (${studentAns}${unitSuffix}).` : `Correct to ${d} decimal places (${studentAns}${unitSuffix}).`)
+          : g.score === 50
+            ? (isTr ? `Kısmi doğru: ${d - 1} basamağa kadar doğru ama virgülden sonraki ${d}. basamak tutmuyor. Doğru cevap: ${shown}${unitSuffix}.` : `Partly right: correct to ${d - 1} decimal places but not the ${d}th. Correct answer: ${shown}${unitSuffix}.`)
+            : (isTr ? `Yanlış cevap (${studentAns || '-'}${unitSuffix}). Doğru cevap: ${shown}${unitSuffix} (virgülden sonra ${d} basamak).` : `Incorrect (${studentAns || '-'}${unitSuffix}). Correct answer: ${shown}${unitSuffix} (${d} decimal places).`)
+        if (g.percentScaled && g.score === 100) feedback += isTr ? ' Not: cevap yüzde biçimine çevrilerek kabul edildi.' : ' Note: accepted after converting to percent form.'
+        const mistake = g.score < 100 ? matchCommonError(studentAns, q) : null
+        if (mistake) feedback += isTr ? ` Olası hata: ${mistake}` : ` Likely mistake: ${mistake}`
+        const tb = base as Record<string, unknown>
+        results.push({
+          ...base,
+          ...(tb.practice ? { practice: { ...(tb.practice as Record<string, unknown>), decimal_places: d } } : {}),
+          ...(tb.steps ? { steps: { ...(tb.steps as Record<string, unknown>), decimal_places: d } } : {}),
+          options: null,
+          correct_answer: g.correctNum,
+          units: q.units || null,
+          tolerance_percent: null,
+          decimal_places: d,
+          solution_steps: q.solution_steps || [],
+          matched_error: mistake,
+          is_correct: g.score === 100,
+          score: g.score,
           feedback
         })
       } else if (q.type === 'calculation') {
