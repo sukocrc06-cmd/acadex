@@ -952,7 +952,7 @@
       if (!raw || typeof raw !== 'object' || Array.isArray(raw))
           return out;
       for (const [k, v] of Object.entries(raw)) {
-          if (!/^[A-Za-z_][A-Za-z0-9_]{0,15}$/.test(k))
+          if (!/^[A-Za-z_][A-Za-z0-9_]{0,31}$/.test(k))
               continue;
           if (Object.prototype.hasOwnProperty.call(EXPR_CONSTS, k))
               continue;

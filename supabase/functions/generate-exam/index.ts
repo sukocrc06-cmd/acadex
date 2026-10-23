@@ -310,7 +310,7 @@ function sanitizeVariables(raw: unknown): Record<string, number> {
   const out: Record<string, number> = {}
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out
   for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
-    if (!/^[A-Za-z_][A-Za-z0-9_]{0,15}$/.test(k)) continue
+    if (!/^[A-Za-z_][A-Za-z0-9_]{0,31}$/.test(k)) continue
     if (Object.prototype.hasOwnProperty.call(EXPR_CONSTS, k)) continue
     const n = typeof v === 'number' ? v : Number(String(v ?? '').trim())
     if (!Number.isFinite(n)) continue
