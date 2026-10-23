@@ -99,7 +99,7 @@
     '.am-mug .st path:nth-child(2){animation-delay:1.1s}.am-mug .st path:nth-child(3){animation-delay:2.2s}',
     '@keyframes amSteam{0%{opacity:0;transform:translateY(8px)}30%{opacity:.8}100%{opacity:0;transform:translateY(-14px)}}',
     '.am-pencil{position:absolute;width:104px;top:-18px;left:var(--pen-x,60%)}.am-pencil svg{display:block;transform:rotate(-14deg)}',
-    '.am-objdim .objs,.am-objdim .desk-empty{filter:brightness(calc(.35 + var(--a-wood) * .65))}',
+    '.am-objdim .objs,.am-objdim .desk-empty,#home-view .band.am-objdim>.band-r{filter:brightness(calc(.4 + var(--a-wood) * .6))}',
 
     /* bant üzerindeki yazılar */
     '#home-view .band.axm .band-l>.eyb,#home-view .band.axm .band-l>.disp,#home-view .band.axm .band-l>.date{color:var(--a-txt)!important;text-shadow:0 1px 18px var(--a-glow),0 0 2px var(--a-glow)}',
@@ -149,6 +149,23 @@
     '.am-pick li button:hover{background:#EEF3FF}.am-pick li button[aria-current=true]{background:#0D1838;color:#fff}',
     /* koyu mod: sayfa ters çevrilir, bant aynı kalsın */
     'html.ax-dark #home-view .band.axm{filter:invert(1) hue-rotate(180deg)}',
+    /* klasik / manzara seçimi */
+    '#home-view .band:not(.axm) .am-scene,#home-view .band:not(.axm) .am-pick{display:none}',
+    '.am-mode{position:relative;display:inline-block;margin:4px 0 0 6px;z-index:6;vertical-align:top}',
+    '.am-mode>button{display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(255,255,255,.35);background:rgba(10,18,56,.35);color:#fff;border-radius:999px;padding:4px 11px 4px 8px;font:600 13px/1.4 "Instrument Sans",system-ui,sans-serif;cursor:pointer;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}',
+    '.axm[data-axm=day] .am-mode>button{background:rgba(255,255,255,.6);color:#0D1838;border-color:rgba(13,24,56,.25)}',
+    '.am-mode>button svg{width:15px;height:15px}',
+    '.am-mode>button:focus-visible,.am-mode li button:focus-visible{outline:2px solid #9DB8FF;outline-offset:2px}',
+    '.am-mode ul{position:absolute;left:0;top:calc(100% + 6px);margin:0;padding:6px;list-style:none;background:#fff;border-radius:14px;box-shadow:0 18px 40px rgba(5,10,40,.35);display:grid;grid-template-columns:1fr 1fr;gap:6px;min-width:260px}',
+    '.am-mode ul[hidden]{display:none}',
+    '.am-mode li button{width:100%;display:flex;flex-direction:column;align-items:stretch;gap:6px;border:2px solid transparent;background:#F6F4EE;border-radius:10px;padding:6px;font:600 13px "Instrument Sans",system-ui,sans-serif;color:#0D1838;cursor:pointer;text-align:left}',
+    '.am-mode li button:hover{border-color:#C9D7FF}.am-mode li button[aria-current=true]{border-color:#2F6BFF;background:#EEF3FF}',
+    '.am-mode li i{display:block;height:46px;border-radius:7px;position:relative;overflow:hidden}',
+    '.am-mode li i.k{background:radial-gradient(60px 30px at 80% 0,rgba(255,244,226,.35),transparent 70%),#0D1838}',
+    '.am-mode li i.k::after{content:"";position:absolute;left:62%;top:8px;width:18px;height:14px;border:2px solid #9DB8FF;border-radius:2px;background:#2F4C9E}',
+    '.am-mode li i.m{background:linear-gradient(#7DB8F5 0 62%,#C99A67 62%)}',
+    '.am-mode li i.m::after{content:"";position:absolute;left:8%;right:8%;bottom:38%;height:14px;background:linear-gradient(90deg,#56729E 0 14%,transparent 14% 18%,#7090BC 18% 34%,transparent 34% 38%,#56729E 38% 55%,transparent 55% 60%,#7090BC 60% 80%,transparent 80% 84%,#56729E 84%)}',
+    '.am-mode li small{display:block;font-weight:500;font-size:11.5px;color:#6A7593}',
     '@media (max-width:760px){#home-view .band.axm .band-l>.am-pick{margin-bottom:64px}}',
     '@media (prefers-reduced-motion:reduce){.am-scene *{animation:none!important;transition:none!important}}'
   ].join('\n');
@@ -527,6 +544,37 @@
     band.addEventListener('pointerleave', function () { tx = ty = sx = 0; kick(); });
   }
 
+  /* masa görünümü: klasik (eski koyu masa) ya da manzara (pencereli oda); seçim bu tarayıcıda kalır */
+  var modeBtn, modeList;
+  function setMode(m, save) {
+    m = m === 'klasik' ? 'klasik' : 'manzara';
+    var on = m === 'manzara';
+    band.classList.toggle('axm', on); band.classList.toggle('am-objdim', on);
+    if (save) store.set('axm-mode', m);
+    if (modeBtn) {
+      modeBtn.querySelector('span').textContent = on ? 'Manzara' : 'Klasik';
+      modeBtn.setAttribute('aria-label', 'Masa görünümü: ' + (on ? 'Manzara' : 'Klasik') + '. Değiştirmek için seç');
+      Array.prototype.forEach.call(modeList.querySelectorAll('button'), function (b) { b.setAttribute('aria-current', b.getAttribute('data-m') === m ? 'true' : 'false'); });
+    }
+    if (on) { layout(); apply(); }
+  }
+  function modeSwitch() {
+    var anchor = band.querySelector('.band-l > .am-pick') || band.querySelector('.band-l > .date'); if (!anchor) return;
+    var w = document.createElement('div'); w.className = 'am-mode';
+    w.innerHTML = '<button type="button" aria-haspopup="true" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg><span></span></button>' +
+      '<ul hidden><li><button type="button" data-m="klasik"><i class="k"></i>Klasik<small>koyu masa, lamba</small></button></li><li><button type="button" data-m="manzara"><i class="m"></i>Manzara<small>pencere, şehir, gün ışığı</small></button></li></ul>';
+    anchor.insertAdjacentElement('afterend', w);
+    modeBtn = w.firstChild; modeList = w.querySelector('ul');
+    var open = function (v) { modeList.hidden = !v; modeBtn.setAttribute('aria-expanded', v ? 'true' : 'false'); if (v) { var c = modeList.querySelector('[aria-current=true]') || modeList.querySelector('button'); c && c.focus(); } };
+    modeBtn.addEventListener('click', function () { open(modeList.hidden); });
+    modeList.addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; setMode(b.getAttribute('data-m'), true); open(false); modeBtn.focus(); });
+    document.addEventListener('click', function (e) { if (!w.contains(e.target)) open(false); });
+    w.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { open(false); modeBtn.focus(); }
+      if (!modeList.hidden && /Arrow(Left|Right|Up|Down)/.test(e.key)) { var bs = Array.prototype.slice.call(modeList.querySelectorAll('button')), i = bs.indexOf(document.activeElement); bs[(i + 1) % 2].focus(); e.preventDefault(); }
+    });
+  }
+
   function init() {
     band = document.querySelector('#home-view .band.land') || document.querySelector('.band[aria-labelledby="hello-t"]');
     if (!band || band.classList.contains('axm')) return;
@@ -537,7 +585,7 @@
     city = scene.querySelector('.am-city'); sunEl = scene.querySelector('.am-sun'); steam = scene.querySelector('.am-mug .st'); mug = scene.querySelector('.am-mug');
     var stars = scene.querySelector('.am-stars'); seed = 20261021;
     for (var i = 0; i < 110; i++) { var c = document.createElementNS(NS, 'circle'); c.setAttribute('cx', (R() * 1600).toFixed(0)); c.setAttribute('cy', (R() * 380).toFixed(0)); c.setAttribute('r', (R() * 1.3 + .4).toFixed(1)); c.style.animationDelay = (-R() * 4).toFixed(2) + 's'; stars.appendChild(c); }
-    picker();
+    picker(); modeSwitch();
     // takvim başlığı: ay ve yıl
     var br = band.querySelector('.band-r'), nowD = new Date();
     if (br) br.setAttribute('data-am-month', nowD.toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' }).toLocaleUpperCase('tr'));
@@ -554,10 +602,11 @@
     if ('ResizeObserver' in window) { var ro = new ResizeObserver(function () { layout(); }); ro.observe(band); var bl = band.querySelector('.band-l'); bl && ro.observe(bl); }
     else window.addEventListener('resize', layout);
     if ('MutationObserver' in window) new MutationObserver(layout).observe(band, { subtree: true, attributes: true, attributeFilter: ['hidden'] });
+    setMode(store.get('axm-mode') || 'manzara', false);
     setInterval(apply, 60000);
     document.addEventListener('visibilitychange', function () { if (!document.hidden) apply(); });
   }
 
-  window.axMasa = { setCity: function (k) { setCity(k, true); }, cities: ORDER.slice() };
+  window.axMasa = { setCity: function (k) { setCity(k, true); }, cities: ORDER.slice(), setMode: function (m) { setMode(m, true); } };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
