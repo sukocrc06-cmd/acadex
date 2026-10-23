@@ -177,6 +177,12 @@ test('tarayici: pratik ve adim kontrolu ayni hassasiyet kuralini kullanir', () =
   assert.equal(E.checkSteps('1*1,05^3 = 1,158', spec, null, 'tr').status, 'solved', 'standart');
   assert.equal(E.checkSteps('1*1,05^3 = 1,158', { ...spec, decimal_places: 3 }, null, 'tr').status, 'solved', '1,157625 → 1,158 yarim basamak icinde');
   assert.notEqual(E.checkSteps('1*1,05^3 = 1,16', { ...spec, decimal_places: 3 }, null, 'tr').status, 'solved', '2 basamak yetmez');
+  const p = E.checkSteps('1*1,05^3 = 1,16', { ...spec, decimal_places: 3 }, null, 'tr');
+  assert.equal(p.status, 'precision', 'yontem dogru, yalnizca basamak: yontem hatasi denmez');
+  assert.match(p.message, /3 basamak/);
+  const LOAN = { kind: 'interest', formula: 'P * (r/100/12) / (1 - (1 + r/100/12)^(-n))', variables: { P: 1000000, r: 5, n: 360 }, tolerance_percent: 1, decimal_places: 3 };
+  assert.equal(E.checkSteps('1.000.000 * 0,0041667 / (1 - 1/4,4677) = 5368,22', LOAN, null, 'tr').status, 'precision', 'canlida gorulen durum');
+  assert.equal(E.checkSteps('1.000.000 * 0,0041667 / (1 - 1/4,4677) = 5368,216', LOAN, null, 'tr').status, 'solved');
 });
 
 summary();
