@@ -4158,6 +4158,20 @@ body.axs-hall-on #pomodoro-widget-container,body.axs-hall-on #acadia-widget-cont
 :is(#exams-view.axs,#axs-layer) .sn-prac-r[hidden]{display:none}
 :is(#exams-view.axs,#axs-layer) .sn-prac-r.ok{color:var(--green)}
 :is(#exams-view.axs,#axs-layer) .sn-prac-r.no{color:var(--red)}
+/* FAZ 3b: cebirsel ifade girişi (exam-engine 'expression' tipi) */
+.axe-expr{display:grid;gap:8px;max-width:560px}
+.axe-expr-in{width:100%;min-height:44px;padding:8px 12px;border:1.6px solid #C9D1E1;border-radius:8px;background:#fff;color:#0D1838;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:17px;box-sizing:border-box}
+.axe-expr-in:focus{outline:2px solid #2F6BFF;outline-offset:1px;border-color:#2F6BFF}
+.axe-expr-keys{display:flex;flex-wrap:wrap;gap:6px}
+.axe-expr-keys button{min-width:40px;min-height:36px;padding:0 10px;border:1.4px solid #C9D1E1;border-radius:6px;background:#F7F9FD;color:#1A2A5C;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:15px;cursor:pointer}
+.axe-expr-keys button:hover{border-color:#2F6BFF;background:#EEF3FF}
+.axe-expr-keys button:focus-visible{outline:2px solid #2F6BFF;outline-offset:1px}
+.axe-expr-pv{min-height:40px;padding:8px 12px;border:1.4px dashed #DCE2EE;border-radius:8px;background:#FBFCFE;color:#6A7593;font-size:13px;overflow-x:auto}
+.axe-expr-pv.ok{color:#0D1838;font-size:18px;border-style:solid}
+.axe-expr-pv.bad{color:#C9483B;border-color:#F0C9C3}
+.axe-expr-note{margin:0;font-size:13px;color:#B4511F}
+.axe-expr-note::before{content:"→ "}
+:is(#exams-view.axs,#axs-layer) .sn-math{display:inline-block;font-family:inherit;font-size:1.05em;max-width:100%;overflow-x:auto;vertical-align:middle}
 :is(#exams-view.axs,#axs-layer) .sn-fbk{margin:8px 0 0}
 :is(#exams-view.axs,#axs-layer) .sn-fbk-c{display:flex;flex-wrap:wrap;gap:6px}
 :is(#exams-view.axs,#axs-layer) .sn-chip{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;border:1.3px solid currentColor}

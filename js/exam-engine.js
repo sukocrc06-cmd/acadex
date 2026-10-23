@@ -267,6 +267,34 @@
     }
   });
 
+  // FAZ 3b: cebirsel ifade. Metin alanı + sembol tuşları + KaTeX önizleme;
+  // cevap öğrencinin yazdığı metin (sunucu aynı kuralla açar ve denkliğe bakar).
+  registerType('expression', {
+    ...textValue,
+    renderInput(q, ctx) {
+      const tr = ctx.lang !== 'en';
+      const vars = exprVarsOf(q);
+      const fnKey = k => (k === '√' ? '√(' : ['sin', 'cos', 'ln'].includes(k) ? k + '(' : k);
+      const keys = [...vars, '^', '√', 'π', '(', ')', '/', 'sin', 'cos', 'ln'];
+      const forms = tr
+        ? { factored: 'çarpanlarına ayrılmış biçimde yaz', expanded: 'parantezleri açarak yaz', simplified: 'en sade biçimde yaz' }
+        : { factored: 'write it in factored form', expanded: 'write it expanded (no brackets)', simplified: 'write it in simplest form' };
+      const note = forms[q.form] || '';
+      return `
+        <div class="axe-expr" data-expr-vars="${ctx.esc(vars.join(','))}" data-lang="${tr ? 'tr' : 'en'}">
+          <input type="text" name="${ctx.name}" class="axe-expr-in" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="${MATH_INPUT_MAX}" placeholder="${tr ? 'ör. 2x(x+1)' : 'e.g. 2x(x+1)'}" aria-label="${tr ? 'İfade cevabı' : 'Expression answer'}">
+          <div class="axe-expr-keys" role="group" aria-label="${tr ? 'Sembol ekle' : 'Insert symbol'}">${keys.map(k => `<button type="button" data-expr-key="${ctx.esc(fnKey(k))}">${ctx.esc(k)}</button>`).join('')}</div>
+          <div class="axe-expr-pv" aria-live="polite">${tr ? 'yazdıkça burada matematik olarak görünür' : 'your expression appears here as you type'}</div>
+          ${note ? `<p class="axe-expr-note">${note}</p>` : ''}
+        </div>`;
+    },
+    writeAnswer(card, q, value) {
+      textValue.writeAnswer(card, q, value);
+      const box = card.querySelector('.axe-expr');
+      if (box) exprRefresh(box);
+    }
+  });
+
   registerType('open_ended', {
     ...textValue,
     renderInput(q, ctx) {
@@ -814,7 +842,14 @@
       pmt: { min: 3, max: 3, fn: (r, n, p) => Math.abs(r === 0 ? p / n : p * r / (1 - Math.pow(1 + r, -n))) },
       pv: { min: 3, max: 3, fn: (r, n, a) => Math.abs(r === 0 ? a * n : a * (1 - Math.pow(1 + r, -n)) / r) },
       fv: { min: 3, max: 4, fn: (r, n, a, p = 0) => r === 0 ? Math.abs(a) * n + Math.abs(p) : Math.abs(a) * (Math.pow(1 + r, n) - 1) / r + Math.abs(p) * Math.pow(1 + r, n) },
-      npv: { min: 2, max: 13, fn: (r, ...cf) => cf.reduce((s, c, i) => s + c / Math.pow(1 + r, i + 1), 0) }
+      npv: { min: 2, max: 13, fn: (r, ...cf) => cf.reduce((s, c, i) => s + c / Math.pow(1 + r, i + 1), 0) },
+      // Faz 3b: cebirsel ifadeler için trigonometri (radyan).
+      sin: { min: 1, max: 1, fn: Math.sin },
+      cos: { min: 1, max: 1, fn: Math.cos },
+      tan: { min: 1, max: 1, fn: Math.tan },
+      asin: { min: 1, max: 1, fn: Math.asin },
+      acos: { min: 1, max: 1, fn: Math.acos },
+      atan: { min: 1, max: 1, fn: Math.atan }
   };
   /** Formülü değişkenlerle hesaplar. Geçersiz ifade, bilinmeyen ad, sonsuz
    *  ya da tanımsız sonuç → NaN. */
@@ -966,6 +1001,243 @@
       return out;
   }
 
+  // FAZ 3b: öğrenci ifade yazımı — grade-exam'deki normalizeMathInput'un
+  // TypeScript'ten çevrilmiş birebir kopyası (tests/exam-expression.js).
+  const MATH_INPUT_MAX = 200;
+  function normalizeMathInput(src, varNames) {
+      let s = String(src ?? '').trim();
+      if (!s || s.length > MATH_INPUT_MAX)
+          return '';
+      s = s.replace(/[·×∙⋅]/g, '*').replace(/÷/g, '/').replace(/[−–—]/g, '-')
+          .replace(/π/g, ' pi ').replace(/√/g, ' sqrt ').replace(/²/g, '^2').replace(/³/g, '^3')
+          .replace(/[[{]/g, '(').replace(/[\]}]/g, ')').replace(/(\d),(\d)/g, '$1.$2');
+      const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+      const vars = (Array.isArray(varNames) ? varNames : []).filter(v => typeof v === 'string' && /^[A-Za-z_][A-Za-z0-9_]*$/.test(v));
+      const words = [...vars, ...Object.keys(EXPR_FUNCS), ...Object.keys(EXPR_CONSTS)].sort((a, b) => b.length - a.length);
+      const raw = [];
+      const re = /\s*(?:(\d+(?:\.\d+)?|\.\d+)|([A-Za-z_][A-Za-z0-9_]*)|(\*\*|[-+*/^(),]))/y;
+      let pos = 0;
+      while (pos < s.length) {
+          if (/^\s*$/.test(s.slice(pos)))
+              break;
+          re.lastIndex = pos;
+          const m = re.exec(s);
+          if (!m)
+              return '';
+          pos = re.lastIndex;
+          if (m[1] !== undefined) {
+              raw.push({ k: 'num', v: m[1] });
+              continue;
+          }
+          if (m[3] !== undefined) {
+              const o = m[3] === '**' ? '^' : m[3];
+              raw.push({ k: o === '(' ? 'lp' : o === ')' ? 'rp' : o === ',' ? 'comma' : 'op', v: o });
+              continue;
+          }
+          // Ad: değişken, fonksiyon ya da sabit; bitişik yazılmışsa ("xsinx",
+          // "2pix") en uzun eşleşmeyle parçalanır. Parçalanamayan ad okunamaz.
+          let id = m[2];
+          while (id) {
+              const low = id.toLowerCase();
+              const w = words.find(x => (has(EXPR_FUNCS, x) && !vars.includes(x)) ? low.startsWith(x) : id.startsWith(x));
+              if (!w)
+                  return '';
+              raw.push(has(EXPR_FUNCS, w) && !vars.includes(w) ? { k: 'fn', v: w } : { k: 'var', v: w });
+              id = id.slice(w.length);
+          }
+      }
+      const out = [];
+      const push = (t) => {
+          const p = out[out.length - 1];
+          const endsAtom = !!p && (p.k === 'num' || p.k === 'var' || p.k === 'rp');
+          const startsAtom = t.k === 'var' || t.k === 'fn' || t.k === 'lp' || (t.k === 'num' && !!p && p.k !== 'num');
+          if (endsAtom && startsAtom)
+              out.push({ k: 'op', v: '*' });
+          out.push(t);
+      };
+      for (let i = 0; i < raw.length; i++) {
+          const t = raw[i];
+          const nx = raw[i + 1];
+          // Üslü fonksiyon: "sin²x", "cos^2(x)" → sin(x)^2.
+          if (t.k === 'fn' && nx && nx.k === 'op' && nx.v === '^' && raw[i + 2] && raw[i + 2].k === 'num' && raw[i + 3]) {
+              const ex = raw[i + 2];
+              let j = i + 3;
+              let arg;
+              if (raw[j].k === 'lp') {
+                  let depth = 0;
+                  let e = j;
+                  for (; e < raw.length; e++) {
+                      if (raw[e].k === 'lp')
+                          depth++;
+                      else if (raw[e].k === 'rp' && --depth === 0)
+                          break;
+                  }
+                  if (e >= raw.length)
+                      return '';
+                  arg = raw.slice(j + 1, e);
+                  j = e;
+              }
+              else if (raw[j].k === 'num' || raw[j].k === 'var') {
+                  arg = [raw[j]];
+              }
+              else
+                  return '';
+              push(t);
+              push({ k: 'lp', v: '(' });
+              for (const a of arg)
+                  push(a);
+              push({ k: 'rp', v: ')' });
+              push(nx);
+              push(ex);
+              i = j;
+              continue;
+          }
+          // Parantezsiz fonksiyon: "sin x", "ln2" → sin(x), ln(2) (yalnızca tek terim).
+          if (t.k === 'fn' && nx && nx.k !== 'lp') {
+              if (nx.k !== 'num' && nx.k !== 'var')
+                  return '';
+              push(t);
+              push({ k: 'lp', v: '(' });
+              push(nx);
+              push({ k: 'rp', v: ')' });
+              i++;
+              continue;
+          }
+          push(t);
+      }
+      return out.map((t, i) => (i > 0 && t.k === 'num' && out[i - 1].k === 'num' ? ' ' : '') + t.v).join('');
+  }
+
+  /** FAZ 3b: açık ifadeyi (normalizeMathInput çıktısı) KaTeX için TeX'e
+   *  çevirir; yalnızca önizleme ve sonuç kâğıdı için. Olmazsa ''. */
+  function exprToTex(src) {
+    const text = String(src || '');
+    if (!text) return '';
+    const tokens = [];
+    const re = /\s*(?:(\d+(?:\.\d+)?|\.\d+)|([A-Za-z_][A-Za-z0-9_]*)|(\*\*|[-+*/^(),]))/y;
+    let pos = 0;
+    while (pos < text.length) {
+      if (/^\s*$/.test(text.slice(pos))) break;
+      re.lastIndex = pos;
+      const m = re.exec(text);
+      if (!m) return '';
+      tokens.push(m[1] !== undefined ? { t: 'num', v: m[1] } : m[2] !== undefined ? { t: 'id', v: m[2] } : { t: 'op', v: m[3] === '**' ? '^' : m[3] });
+      pos = re.lastIndex;
+    }
+    let i = 0;
+    const isOp = v => !!tokens[i] && tokens[i].t === 'op' && tokens[i].v === v;
+    const fail = () => { throw new Error('tex'); };
+    const expr = () => { let a = term(); while (isOp('+') || isOp('-')) { const op = tokens[i++].v; a = { k: 'bin', op, a, b: term() }; } return a; };
+    const term = () => { let a = unary(); while (isOp('*') || isOp('/')) { const op = tokens[i++].v; a = { k: 'bin', op, a, b: unary() }; } return a; };
+    const unary = () => { if (isOp('-')) { i++; return { k: 'neg', a: unary() }; } if (isOp('+')) { i++; return unary(); } return power(); };
+    const power = () => { const b = primary(); if (isOp('^')) { i++; return { k: 'bin', op: '^', a: b, b: unary() }; } return b; };
+    const primary = () => {
+      const tk = tokens[i];
+      if (!tk) fail();
+      if (tk.t === 'num') { i++; return { k: 'num', v: tk.v }; }
+      if (isOp('(')) { i++; const v = expr(); if (!isOp(')')) fail(); i++; return { k: 'par', a: v }; }
+      if (tk.t === 'id') {
+        i++;
+        if (!isOp('(')) return { k: 'id', v: tk.v };
+        i++;
+        const args = [];
+        if (!isOp(')')) { args.push(expr()); while (isOp(',')) { i++; args.push(expr()); } }
+        if (!isOp(')')) fail();
+        i++;
+        return { k: 'fn', f: tk.v.toLowerCase(), args };
+      }
+      return fail();
+    };
+    const FN = { sin: '\\sin', cos: '\\cos', tan: '\\tan', ln: '\\ln', log: '\\log', log10: '\\log_{10}', exp: '\\exp', asin: '\\arcsin', acos: '\\arccos', atan: '\\arctan' };
+    const strip = n => (n.k === 'par' ? n.a : n);
+    const leftLeaf = n => (n.k === 'bin' ? leftLeaf(n.a) : n);
+    const tex = n => {
+      if (n.k === 'num') return n.v;
+      if (n.k === 'id') return n.v === 'pi' ? '\\pi' : n.v.length > 1 ? '\\mathrm{' + n.v.replace(/_/g, '\\_') + '}' : n.v;
+      if (n.k === 'par') return '\\left(' + tex(n.a) + '\\right)';
+      if (n.k === 'neg') return '-' + tex(n.a);
+      if (n.k === 'fn') {
+        if (n.f === 'sqrt' && n.args.length === 1) return '\\sqrt{' + tex(strip(n.args[0])) + '}';
+        if (n.f === 'abs' && n.args.length === 1) return '\\left|' + tex(strip(n.args[0])) + '\\right|';
+        return (FN[n.f] || '\\operatorname{' + n.f + '}') + '\\left(' + n.args.map(a => tex(strip(a))).join(', ') + '\\right)';
+      }
+      if (n.op === '/') return '\\frac{' + tex(strip(n.a)) + '}{' + tex(strip(n.b)) + '}';
+      if (n.op === '^') {
+        const base = n.a.k === 'bin' || n.a.k === 'neg' ? '\\left(' + tex(n.a) + '\\right)' : '{' + tex(n.a) + '}';
+        return base + '^{' + tex(strip(n.b)) + '}';
+      }
+      if (n.op === '*') {
+        const r = leftLeaf(n.b);
+        return tex(n.a) + (r.k === 'num' || r.k === 'neg' ? ' \\cdot ' : ' ') + tex(n.b);
+      }
+      return tex(n.a) + ' ' + n.op + ' ' + tex(n.b);
+    };
+    try {
+      const ast = expr();
+      if (i !== tokens.length) return '';
+      return tex(ast);
+    } catch (_e) {
+      return '';
+    }
+  }
+
+  /** Sorunun ifade değişkenleri (generate-exam expr_vars yazar). */
+  function exprVarsOf(q) {
+    const v = q && Array.isArray(q.expr_vars) ? q.expr_vars : [];
+    return v.filter(x => typeof x === 'string' && /^[A-Za-z_][A-Za-z0-9_]*$/.test(x)).slice(0, 4);
+  }
+
+  /** Öğrenci yazımını KaTeX HTML'ine çevirir; okunamazsa null. */
+  function exprPreviewHtml(raw, vars) {
+    const norm = normalizeMathInput(raw, vars);
+    const tex = norm ? exprToTex(norm) : '';
+    if (!tex) return null;
+    if (typeof window !== 'undefined' && window.katex && typeof window.katex.renderToString === 'function') {
+      try { return window.katex.renderToString(tex, { throwOnError: false, displayMode: false }); } catch (_e) { /* düz metne düş */ }
+    }
+    return String(norm).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  }
+
+  function exprRefresh(box) {
+    const inp = box.querySelector('.axe-expr-in');
+    const pv = box.querySelector('.axe-expr-pv');
+    if (!inp || !pv) return;
+    const tr = box.getAttribute('data-lang') !== 'en';
+    const vars = (box.getAttribute('data-expr-vars') || '').split(',').filter(Boolean);
+    if (!String(inp.value).trim()) {
+      pv.className = 'axe-expr-pv';
+      pv.textContent = tr ? 'yazdıkça burada matematik olarak görünür' : 'your expression appears here as you type';
+      return;
+    }
+    const html = exprPreviewHtml(inp.value, vars);
+    if (html) { pv.className = 'axe-expr-pv ok'; pv.innerHTML = html; }
+    else {
+      pv.className = 'axe-expr-pv bad';
+      pv.textContent = tr ? 'okunamadı: çarpma için * ya da yan yana yaz (2x), üs için ^, bölme için / kullan' : 'could not read it: use * or juxtaposition (2x), ^ for powers, / for division';
+    }
+  }
+
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    document.addEventListener('input', e => {
+      const t = e.target;
+      if (t && t.classList && t.classList.contains('axe-expr-in')) { const box = t.closest('.axe-expr'); if (box) exprRefresh(box); }
+    });
+    document.addEventListener('click', e => {
+      const b = e.target && e.target.closest ? e.target.closest('[data-expr-key]') : null;
+      if (!b) return;
+      const box = b.closest('.axe-expr');
+      const inp = box && box.querySelector('.axe-expr-in');
+      if (!inp) return;
+      const k = b.getAttribute('data-expr-key') || '';
+      const s = typeof inp.selectionStart === 'number' ? inp.selectionStart : inp.value.length;
+      const en = typeof inp.selectionEnd === 'number' ? inp.selectionEnd : s;
+      inp.value = inp.value.slice(0, s) + k + inp.value.slice(en);
+      inp.focus();
+      try { inp.setSelectionRange(s + k.length, s + k.length); } catch (_e) { /* yok say */ }
+      inp.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  }
+
   /** grade-exam'deki parseLooseNumber ile aynı kural: "1.432,50", "1,432.50", "%12". */
   function parseLooseNumber(value) {
     if (typeof value === 'number') return Number.isFinite(value) ? value : NaN;
@@ -1079,7 +1351,11 @@
     parseLooseNumber,
     renderTemplate,
     makeVariant,
-    checkNumericAnswer
+    checkNumericAnswer,
+    // FAZ 3b: cebirsel ifade
+    normalizeMathInput,
+    exprToTex,
+    exprPreviewHtml
   };
   return api;
 });

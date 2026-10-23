@@ -35,7 +35,7 @@ IMPORTANT LANGUAGE RULES:
 EXAM TYPE RULES:
 1. 'classic': All questions must be open-ended (free-text essay questions). The options field should be null.
 2. 'test': All questions must be multiple-choice. Each question must have exactly the number of options stated in the user message's OPTION COUNT line (4 or 5). The correct_answer field must be exactly equal to one of the options.
-3. 'calculation': All questions must be numerical calculation problems. For 'calculation' questions:
+3. 'calculation': All questions must be numerical calculation problems (or symbolic 'expression' questions, see below). For 'calculation' questions:
    - "type": "calculation"
    - "question": a clear scenario with specific numerical inputs.
    - "correct_answer": numeric value (as a JSON number, e.g. 1432.50 or 42).
@@ -47,6 +47,15 @@ EXAM TYPE RULES:
    - "formula": ONE arithmetic expression over those names that computes correct_answer, e.g. "P * (r/100/12) / (1 - (1 + r/100/12)^(-n))". Allowed: numbers, the variable names, + - * / ^ ( ), sqrt, abs, ln, log10, exp, floor, ceil, min, max, round, pow, pi, e, and the finance functions pmt(rate, nper, pv), pv(rate, nper, pmt), fv(rate, nper, pmt, pv), npv(rate, cf1, cf2, ...) where rate is the per-period rate as a fraction (e.g. r/100/12) and amounts are positive. No other functions (no IRR, no Excel cell references), no implicit multiplication (write 2*x), no "=" sign, no dates. Only write calculation problems whose answer this one formula computes exactly; the answer is recomputed by code and the question is discarded if they disagree.
    - "template": the question text with each input number replaced by {name}, everything else identical.
    - "common_errors": 1 to 3 typical mistakes as [{"formula": "...", "message": "..."}] using the same names (e.g. the annual rate not divided by 12); "message" is one short sentence in the exam language naming the mistake.
+   A 'calculation' exam may also contain 'expression' questions, but ONLY when the SOURCE MATERIAL itself teaches symbolic algebra or calculus (simplifying, factoring, expanding, derivatives, integrals, solving for a variable symbolically); then make about half of the questions 'expression'. Never use 'expression' for finance, statistics, spreadsheet functions or any question whose answer is a number. For 'expression' questions:
+   - "type": "expression": the answer is an algebraic expression, not a number.
+   - "question": write every formula in LaTeX between single dollar signs, e.g. "$x^2 - 1$ ifadesini çarpanlarına ayırınız." or "$f(x) = x^2 \\sin x$ fonksiyonunun türevini bulunuz." (same in "solution_steps").
+   - "correct_answer": the expression in plain ASCII using only the variable names, numbers, + - * / ^ ( ), sqrt, abs, ln, log, exp, sin, cos, tan, pi, e, with explicit multiplication (write 2*x, not 2x). It is checked by code against the student's answer at sample points, so it must be exactly right.
+   - "expr_vars": the 1 to 3 variable names used, e.g. ["x"]. Single letters preferred; never e or pi.
+   - "form": "factored" (factor it), "expanded" (expand / multiply out), "simplified" (simplify) or "any" (e.g. derivatives).
+   - "given": the expression the question asks to rewrite (for factor / expand / simplify), in the same ASCII syntax; otherwise null.
+   - "up_to_constant": true only for indefinite integrals (any + C is accepted), otherwise false.
+   - "solution_steps": the step-by-step solution. "options", "tolerance_percent", "units", "variables", "formula", "template", "common_errors": null.
 4. 'mixed': A combination of question types (the user message's MIXED TYPE RULE line below states the exact type spread for this course).
    - For 'open_ended': options = null.
    - For 'multiple_choice': exactly the OPTION COUNT number of options, correct_answer matches one option.
@@ -60,7 +69,7 @@ You must output ONLY a valid JSON object of the form {"questions": [ ... ]}, wit
 The "questions" array's length must exactly equal the question count requested in the user message. Each object in it must match this JSON schema:
 {
   "id": number (1-based index),
-  "type": "multiple_choice" | "open_ended" | "true_false" | "fill_blank" | "calculation",
+  "type": "multiple_choice" | "open_ended" | "true_false" | "fill_blank" | "calculation" | "expression",
   "question": "string",
   "options": ["string"] | null,
   "correct_answer": "string" | number,
@@ -72,6 +81,10 @@ The "questions" array's length must exactly equal the question count requested i
   "formula": "string" | null,
   "template": "string" | null,
   "common_errors": [{"formula": "string", "message": "string"}] | null,
+  "expr_vars": ["string"] | null,
+  "form": "any" | "factored" | "expanded" | "simplified" | null,
+  "given": "string" | null,
+  "up_to_constant": boolean | null,
   "hint": "string (short helpful clue that does NOT reveal the answer)",
   "concept": "string",
   "explanation": "string",
@@ -218,7 +231,14 @@ const EXPR_FUNCS: Record<string, { min: number; max: number; fn: (...a: number[]
   pmt: { min: 3, max: 3, fn: (r: number, n: number, p: number) => Math.abs(r === 0 ? p / n : p * r / (1 - Math.pow(1 + r, -n))) },
   pv: { min: 3, max: 3, fn: (r: number, n: number, a: number) => Math.abs(r === 0 ? a * n : a * (1 - Math.pow(1 + r, -n)) / r) },
   fv: { min: 3, max: 4, fn: (r: number, n: number, a: number, p = 0) => r === 0 ? Math.abs(a) * n + Math.abs(p) : Math.abs(a) * (Math.pow(1 + r, n) - 1) / r + Math.abs(p) * Math.pow(1 + r, n) },
-  npv: { min: 2, max: 13, fn: (r: number, ...cf: number[]) => cf.reduce((s, c, i) => s + c / Math.pow(1 + r, i + 1), 0) }
+  npv: { min: 2, max: 13, fn: (r: number, ...cf: number[]) => cf.reduce((s, c, i) => s + c / Math.pow(1 + r, i + 1), 0) },
+  // Faz 3b: cebirsel ifadeler için trigonometri (radyan).
+  sin: { min: 1, max: 1, fn: Math.sin },
+  cos: { min: 1, max: 1, fn: Math.cos },
+  tan: { min: 1, max: 1, fn: Math.tan },
+  asin: { min: 1, max: 1, fn: Math.asin },
+  acos: { min: 1, max: 1, fn: Math.acos },
+  atan: { min: 1, max: 1, fn: Math.atan }
 }
 
 /** Formülü değişkenlerle hesaplar. Geçersiz ifade, bilinmeyen ad, sonsuz
@@ -408,6 +428,205 @@ function verifyCalculation(q: Record<string, unknown>): { ok: boolean; reason?: 
 }
 
 // ==========================================================================
+// FAZ 3b — CEBİRSEL İFADE: öğrenci yazımı, denklik, biçim (23.10.2026)
+//
+// Öğrencinin yazdığı ifade ("2x(x+1)", "sinx", "√x", "x²", "0,5x") önce
+// açık bir ifadeye çevrilir ("2*x*(x+1)"), sonra evaluateExpression ile
+// sabit örnek noktalarda referansla karşılaştırılır (LLM yok, rastgelelik
+// yok: aynı cevap her zaman aynı notu alır). generate-exam ve grade-exam'de
+// BİREBİR aynı (tests/exam-expression.js denetler); tarayıcı kopyası
+// js/exam-engine.js'te, aynı test vektörleriyle denetlenir.
+// ==========================================================================
+const MATH_INPUT_MAX = 200
+const EXPR_SAMPLE_VALUES = [0.37, 1.13, 2.71, 0.83, 1.9, 3.3, 0.61, 2.17, 1.47, 0.29]
+const EXPR_MIN_VALID_POINTS = 5
+const EXPR_FORMS = ['any', 'factored', 'expanded', 'simplified']
+
+/** Öğrenci yazımını hesaplayıcının anladığı açık ifadeye çevirir: örtük
+ *  çarpma, "sinx" → sin(x), √ π ² ³, ondalık virgül. Okunamazsa ''. */
+function normalizeMathInput(src: unknown, varNames: string[]): string {
+  let s = String(src ?? '').trim()
+  if (!s || s.length > MATH_INPUT_MAX) return ''
+  s = s.replace(/[·×∙⋅]/g, '*').replace(/÷/g, '/').replace(/[−–—]/g, '-')
+    .replace(/π/g, ' pi ').replace(/√/g, ' sqrt ').replace(/²/g, '^2').replace(/³/g, '^3')
+    .replace(/[[{]/g, '(').replace(/[\]}]/g, ')').replace(/(\d),(\d)/g, '$1.$2')
+  const has = (o: Record<string, unknown>, k: string) => Object.prototype.hasOwnProperty.call(o, k)
+  const vars = (Array.isArray(varNames) ? varNames : []).filter(v => typeof v === 'string' && /^[A-Za-z_][A-Za-z0-9_]*$/.test(v))
+  const words = [...vars, ...Object.keys(EXPR_FUNCS), ...Object.keys(EXPR_CONSTS)].sort((a, b) => b.length - a.length)
+  type Tok = { k: string; v: string }
+  const raw: Tok[] = []
+  const re = /\s*(?:(\d+(?:\.\d+)?|\.\d+)|([A-Za-z_][A-Za-z0-9_]*)|(\*\*|[-+*/^(),]))/y
+  let pos = 0
+  while (pos < s.length) {
+    if (/^\s*$/.test(s.slice(pos))) break
+    re.lastIndex = pos
+    const m = re.exec(s)
+    if (!m) return ''
+    pos = re.lastIndex
+    if (m[1] !== undefined) { raw.push({ k: 'num', v: m[1] }); continue }
+    if (m[3] !== undefined) {
+      const o = m[3] === '**' ? '^' : m[3]
+      raw.push({ k: o === '(' ? 'lp' : o === ')' ? 'rp' : o === ',' ? 'comma' : 'op', v: o })
+      continue
+    }
+    // Ad: değişken, fonksiyon ya da sabit; bitişik yazılmışsa ("xsinx",
+    // "2pix") en uzun eşleşmeyle parçalanır. Parçalanamayan ad okunamaz.
+    let id = m[2]
+    while (id) {
+      const low = id.toLowerCase()
+      const w = words.find(x => (has(EXPR_FUNCS, x) && !vars.includes(x)) ? low.startsWith(x) : id.startsWith(x))
+      if (!w) return ''
+      raw.push(has(EXPR_FUNCS, w) && !vars.includes(w) ? { k: 'fn', v: w } : { k: 'var', v: w })
+      id = id.slice(w.length)
+    }
+  }
+  const out: Tok[] = []
+  const push = (t: Tok) => {
+    const p = out[out.length - 1]
+    const endsAtom = !!p && (p.k === 'num' || p.k === 'var' || p.k === 'rp')
+    const startsAtom = t.k === 'var' || t.k === 'fn' || t.k === 'lp' || (t.k === 'num' && !!p && p.k !== 'num')
+    if (endsAtom && startsAtom) out.push({ k: 'op', v: '*' })
+    out.push(t)
+  }
+  for (let i = 0; i < raw.length; i++) {
+    const t = raw[i]
+    const nx = raw[i + 1]
+    // Üslü fonksiyon: "sin²x", "cos^2(x)" → sin(x)^2.
+    if (t.k === 'fn' && nx && nx.k === 'op' && nx.v === '^' && raw[i + 2] && raw[i + 2].k === 'num' && raw[i + 3]) {
+      const ex = raw[i + 2]
+      let j = i + 3
+      let arg: Tok[]
+      if (raw[j].k === 'lp') {
+        let depth = 0
+        let e = j
+        for (; e < raw.length; e++) {
+          if (raw[e].k === 'lp') depth++
+          else if (raw[e].k === 'rp' && --depth === 0) break
+        }
+        if (e >= raw.length) return ''
+        arg = raw.slice(j + 1, e)
+        j = e
+      } else if (raw[j].k === 'num' || raw[j].k === 'var') {
+        arg = [raw[j]]
+      } else return ''
+      push(t); push({ k: 'lp', v: '(' })
+      for (const a of arg) push(a)
+      push({ k: 'rp', v: ')' }); push(nx); push(ex)
+      i = j
+      continue
+    }
+    // Parantezsiz fonksiyon: "sin x", "ln2" → sin(x), ln(2) (yalnızca tek terim).
+    if (t.k === 'fn' && nx && nx.k !== 'lp') {
+      if (nx.k !== 'num' && nx.k !== 'var') return ''
+      push(t); push({ k: 'lp', v: '(' }); push(nx); push({ k: 'rp', v: ')' })
+      i++
+      continue
+    }
+    push(t)
+  }
+  return out.map((t, i) => (i > 0 && t.k === 'num' && out[i - 1].k === 'num' ? ' ' : '') + t.v).join('')
+}
+
+/** Değişkenlere sabit örnek değerler (pozitif; ln, √ gibi tanım kümeleri için). */
+function exprSamplePoints(varNames: string[]): Array<Record<string, number>> {
+  const pts: Array<Record<string, number>> = []
+  for (let k = 0; k < EXPR_SAMPLE_VALUES.length; k++) {
+    const p: Record<string, number> = {}
+    varNames.forEach((v, j) => { p[v] = EXPR_SAMPLE_VALUES[(k + 3 * j) % EXPR_SAMPLE_VALUES.length] + 0.05 * j })
+    pts.push(p)
+  }
+  return pts
+}
+
+/** İki açık ifade örnek noktalarda aynı mı. upToConstant: belirsiz integral
+ *  gibi, aralarındaki fark sabitse denk. Referans yeterince noktada
+ *  hesaplanamıyorsa 'invalid'. */
+function expressionsEquivalent(student: string, reference: string, varNames: string[], upToConstant = false): 'equal' | 'different' | 'invalid' {
+  const close = (a: number, b: number) => Math.abs(a - b) <= 1e-6 * Math.max(1, Math.abs(a), Math.abs(b))
+  let valid = 0
+  let offset = NaN
+  for (const p of exprSamplePoints(varNames)) {
+    const r = evaluateExpression(reference, p)
+    if (!Number.isFinite(r)) continue
+    const a = evaluateExpression(student, p)
+    if (!Number.isFinite(a)) return 'different'
+    valid++
+    if (upToConstant && Number.isNaN(offset)) offset = a - r
+    if (!close(upToConstant ? a - offset : a, r)) return 'different'
+  }
+  return valid >= EXPR_MIN_VALID_POINTS ? 'equal' : 'invalid'
+}
+
+/** Açık ifadenin en dış düzeyinde (parantez dışında) toplama ya da
+ *  çıkarma var mı (baştaki eksi işareti sayılmaz). */
+function hasTopLevelSum(s: string): boolean {
+  let depth = 0
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i]
+    if (c === '(') depth++
+    else if (c === ')') depth--
+    else if (depth === 0 && (c === '+' || c === '-') && i > 0 && !/[(*/^,+\-]/.test(s[i - 1])) return true
+  }
+  return false
+}
+
+/** Açılmış biçim: toplam içeren bir parantez çarpılmıyor ya da üssü
+ *  alınmıyor ("1/(x+1)" ve fonksiyon argümanları serbest). */
+function isExpandedForm(s: string): boolean {
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] !== '(' || (i > 0 && /[A-Za-z0-9_]/.test(s[i - 1]))) continue
+    let depth = 0
+    let j = i
+    for (; j < s.length; j++) {
+      if (s[j] === '(') depth++
+      else if (s[j] === ')' && --depth === 0) break
+    }
+    if (hasTopLevelSum(s.slice(i + 1, j)) && (s[i - 1] === '*' || s[j + 1] === '*' || s[j + 1] === '^')) return false
+  }
+  return true
+}
+
+function exprTokenCount(s: string): number {
+  return (s.match(/\d+(?:\.\d+)?|[A-Za-z_][A-Za-z0-9_]*|\S/g) || []).length
+}
+
+/** Denk bir cevap istenen biçimde mi. given: soruda verilen ifade; aynen
+ *  geri yazmak cevap sayılmaz (ör. "x^2-1 i çarpanlarına ayır"). */
+function checkExpressionForm(student: string, form: string, reference: string, given: string): boolean {
+  if (given && student === given) return false
+  if (form === 'factored') return !hasTopLevelSum(student)
+  if (form === 'expanded') return isExpandedForm(student)
+  if (form === 'simplified') return exprTokenCount(student) <= exprTokenCount(reference) + 2
+  return true
+}
+
+/** FAZ 3b: ifade sorusunu doğrular ve temizler (yalnızca generate-exam):
+ *  değişkenler geçerli, referans açılabiliyor ve örnek noktalarda
+ *  hesaplanabiliyor, istenen biçime kendisi uyuyor, verilen ifadenin aynısı
+ *  değil. Cevap açık biçimde saklanır ("2*x*(x+1)"). */
+function verifyExpression(q: Record<string, unknown>): { ok: boolean; reason?: string } {
+  const has = (o: Record<string, unknown>, k: string) => Object.prototype.hasOwnProperty.call(o, k)
+  const vars = [...new Set((Array.isArray(q.expr_vars) ? q.expr_vars : []).map(v => String(v ?? '').trim()))]
+    .filter(v => /^[A-Za-z][A-Za-z0-9_]{0,7}$/.test(v) && !has(EXPR_FUNCS, v.toLowerCase()) && !has(EXPR_CONSTS, v))
+    .slice(0, 3)
+  if (!vars.length) return { ok: false, reason: 'expr_no_vars' }
+  const ref = normalizeMathInput(q.correct_answer, vars)
+  if (!ref || expressionsEquivalent(ref, ref, vars) !== 'equal') return { ok: false, reason: 'expr_answer_invalid' }
+  const form = EXPR_FORMS.includes(String(q.form)) ? String(q.form) : 'any'
+  const given = q.given == null ? '' : normalizeMathInput(q.given, vars)
+  if (!checkExpressionForm(ref, form, ref, given)) return { ok: false, reason: 'expr_form_mismatch' }
+  q.correct_answer = ref
+  q.expr_vars = vars
+  q.form = form
+  q.given = given || null
+  q.up_to_constant = q.up_to_constant === true
+  q.solution_steps = Array.isArray(q.solution_steps) ? q.solution_steps.map(s => String(s ?? '')).filter(Boolean) : []
+  q.options = null
+  for (const k of ['tolerance_percent', 'units', 'variables', 'formula', 'template', 'common_errors', 'verified']) delete q[k]
+  return { ok: true }
+}
+
+// ==========================================================================
 // FAZ 2c — ŞIK SAYISI VE "YANLIŞ DOĞRUYU GÖTÜRÜR" (22.10.2026)
 //
 // Öğrenci sınavı kurarken seçer: çoktan seçmeli sorular 4 ya da 5 şıklı,
@@ -435,7 +654,7 @@ function normalizeScoring(optionCount: unknown, negativeMarking: unknown): { opt
 function allowedTypesFor(examType: string, isQuant: boolean): string[] {
   if (examType === 'classic') return ['open_ended']
   if (examType === 'test') return ['multiple_choice']
-  if (examType === 'calculation') return ['calculation']
+  if (examType === 'calculation') return ['calculation', 'expression']
   const mixed = ['open_ended', 'multiple_choice', 'true_false', 'fill_blank']
   return isQuant ? [...mixed, 'calculation'] : mixed
 }
@@ -503,6 +722,11 @@ function validateQuestion(raw: unknown, allowedTypes: string[], language: string
       q.correct_answer = n
       for (const k of ['variables', 'formula', 'template', 'common_errors', 'verified']) delete q[k]
     }
+  } else if (type === 'expression') {
+    // FAZ 3b: referans ifade kodla açılır ve örnek noktalarda hesaplanabilir
+    // olmalı; istenen biçime kendisi uymalı.
+    const check = verifyExpression(q)
+    if (!check.ok) return { ok: false, reason: check.reason }
   } else if (type === 'open_ended') {
     let ref = String(q.correct_answer ?? '').trim()
     // Örnek cevap "null": açıklama, o da yoksa rubrik maddeleri yerine geçer
