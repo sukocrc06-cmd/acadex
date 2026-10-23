@@ -202,7 +202,14 @@ const EXPR_FUNCS: Record<string, { min: number; max: number; fn: (...a: number[]
   pmt: { min: 3, max: 3, fn: (r: number, n: number, p: number) => Math.abs(r === 0 ? p / n : p * r / (1 - Math.pow(1 + r, -n))) },
   pv: { min: 3, max: 3, fn: (r: number, n: number, a: number) => Math.abs(r === 0 ? a * n : a * (1 - Math.pow(1 + r, -n)) / r) },
   fv: { min: 3, max: 4, fn: (r: number, n: number, a: number, p = 0) => r === 0 ? Math.abs(a) * n + Math.abs(p) : Math.abs(a) * (Math.pow(1 + r, n) - 1) / r + Math.abs(p) * Math.pow(1 + r, n) },
-  npv: { min: 2, max: 13, fn: (r: number, ...cf: number[]) => cf.reduce((s, c, i) => s + c / Math.pow(1 + r, i + 1), 0) }
+  npv: { min: 2, max: 13, fn: (r: number, ...cf: number[]) => cf.reduce((s, c, i) => s + c / Math.pow(1 + r, i + 1), 0) },
+  // Faz 3b: cebirsel ifadeler için trigonometri (radyan).
+  sin: { min: 1, max: 1, fn: Math.sin },
+  cos: { min: 1, max: 1, fn: Math.cos },
+  tan: { min: 1, max: 1, fn: Math.tan },
+  asin: { min: 1, max: 1, fn: Math.asin },
+  acos: { min: 1, max: 1, fn: Math.acos },
+  atan: { min: 1, max: 1, fn: Math.atan }
 }
 
 /** Formülü değişkenlerle hesaplar. Geçersiz ifade, bilinmeyen ad, sonsuz
@@ -302,6 +309,202 @@ function sanitizeVariables(raw: unknown): Record<string, number> {
     if (Object.keys(out).length >= 10) break
   }
   return out
+}
+
+// ==========================================================================
+// FAZ 3b — CEBİRSEL İFADE: öğrenci yazımı, denklik, biçim (23.10.2026)
+//
+// Öğrencinin yazdığı ifade ("2x(x+1)", "sinx", "√x", "x²", "0,5x") önce
+// açık bir ifadeye çevrilir ("2*x*(x+1)"), sonra evaluateExpression ile
+// sabit örnek noktalarda referansla karşılaştırılır (LLM yok, rastgelelik
+// yok: aynı cevap her zaman aynı notu alır). generate-exam ve grade-exam'de
+// BİREBİR aynı (tests/exam-expression.js denetler); tarayıcı kopyası
+// js/exam-engine.js'te, aynı test vektörleriyle denetlenir.
+// ==========================================================================
+const MATH_INPUT_MAX = 200
+const EXPR_SAMPLE_VALUES = [0.37, 1.13, 2.71, 0.83, 1.9, 3.3, 0.61, 2.17, 1.47, 0.29]
+const EXPR_MIN_VALID_POINTS = 5
+const EXPR_FORMS = ['any', 'factored', 'expanded', 'simplified']
+
+/** Öğrenci yazımını hesaplayıcının anladığı açık ifadeye çevirir: örtük
+ *  çarpma, "sinx" → sin(x), √ π ² ³, ondalık virgül. Okunamazsa ''. */
+function normalizeMathInput(src: unknown, varNames: string[]): string {
+  let s = String(src ?? '').trim()
+  if (!s || s.length > MATH_INPUT_MAX) return ''
+  s = s.replace(/[·×∙⋅]/g, '*').replace(/÷/g, '/').replace(/[−–—]/g, '-')
+    .replace(/π/g, ' pi ').replace(/√/g, ' sqrt ').replace(/²/g, '^2').replace(/³/g, '^3')
+    .replace(/[[{]/g, '(').replace(/[\]}]/g, ')').replace(/(\d),(\d)/g, '$1.$2')
+  const has = (o: Record<string, unknown>, k: string) => Object.prototype.hasOwnProperty.call(o, k)
+  const vars = (Array.isArray(varNames) ? varNames : []).filter(v => typeof v === 'string' && /^[A-Za-z_][A-Za-z0-9_]*$/.test(v))
+  const words = [...vars, ...Object.keys(EXPR_FUNCS), ...Object.keys(EXPR_CONSTS)].sort((a, b) => b.length - a.length)
+  type Tok = { k: string; v: string }
+  const raw: Tok[] = []
+  const re = /\s*(?:(\d+(?:\.\d+)?|\.\d+)|([A-Za-z_][A-Za-z0-9_]*)|(\*\*|[-+*/^(),]))/y
+  let pos = 0
+  while (pos < s.length) {
+    if (/^\s*$/.test(s.slice(pos))) break
+    re.lastIndex = pos
+    const m = re.exec(s)
+    if (!m) return ''
+    pos = re.lastIndex
+    if (m[1] !== undefined) { raw.push({ k: 'num', v: m[1] }); continue }
+    if (m[3] !== undefined) {
+      const o = m[3] === '**' ? '^' : m[3]
+      raw.push({ k: o === '(' ? 'lp' : o === ')' ? 'rp' : o === ',' ? 'comma' : 'op', v: o })
+      continue
+    }
+    // Ad: değişken, fonksiyon ya da sabit; bitişik yazılmışsa ("xsinx",
+    // "2pix") en uzun eşleşmeyle parçalanır. Parçalanamayan ad okunamaz.
+    let id = m[2]
+    while (id) {
+      const low = id.toLowerCase()
+      const w = words.find(x => (has(EXPR_FUNCS, x) && !vars.includes(x)) ? low.startsWith(x) : id.startsWith(x))
+      if (!w) return ''
+      raw.push(has(EXPR_FUNCS, w) && !vars.includes(w) ? { k: 'fn', v: w } : { k: 'var', v: w })
+      id = id.slice(w.length)
+    }
+  }
+  const out: Tok[] = []
+  const push = (t: Tok) => {
+    const p = out[out.length - 1]
+    const endsAtom = !!p && (p.k === 'num' || p.k === 'var' || p.k === 'rp')
+    const startsAtom = t.k === 'var' || t.k === 'fn' || t.k === 'lp' || (t.k === 'num' && !!p && p.k !== 'num')
+    if (endsAtom && startsAtom) out.push({ k: 'op', v: '*' })
+    out.push(t)
+  }
+  for (let i = 0; i < raw.length; i++) {
+    const t = raw[i]
+    const nx = raw[i + 1]
+    // Üslü fonksiyon: "sin²x", "cos^2(x)" → sin(x)^2.
+    if (t.k === 'fn' && nx && nx.k === 'op' && nx.v === '^' && raw[i + 2] && raw[i + 2].k === 'num' && raw[i + 3]) {
+      const ex = raw[i + 2]
+      let j = i + 3
+      let arg: Tok[]
+      if (raw[j].k === 'lp') {
+        let depth = 0
+        let e = j
+        for (; e < raw.length; e++) {
+          if (raw[e].k === 'lp') depth++
+          else if (raw[e].k === 'rp' && --depth === 0) break
+        }
+        if (e >= raw.length) return ''
+        arg = raw.slice(j + 1, e)
+        j = e
+      } else if (raw[j].k === 'num' || raw[j].k === 'var') {
+        arg = [raw[j]]
+      } else return ''
+      push(t); push({ k: 'lp', v: '(' })
+      for (const a of arg) push(a)
+      push({ k: 'rp', v: ')' }); push(nx); push(ex)
+      i = j
+      continue
+    }
+    // Parantezsiz fonksiyon: "sin x", "ln2" → sin(x), ln(2) (yalnızca tek terim).
+    if (t.k === 'fn' && nx && nx.k !== 'lp') {
+      if (nx.k !== 'num' && nx.k !== 'var') return ''
+      push(t); push({ k: 'lp', v: '(' }); push(nx); push({ k: 'rp', v: ')' })
+      i++
+      continue
+    }
+    push(t)
+  }
+  return out.map((t, i) => (i > 0 && t.k === 'num' && out[i - 1].k === 'num' ? ' ' : '') + t.v).join('')
+}
+
+/** Değişkenlere sabit örnek değerler (pozitif; ln, √ gibi tanım kümeleri için). */
+function exprSamplePoints(varNames: string[]): Array<Record<string, number>> {
+  const pts: Array<Record<string, number>> = []
+  for (let k = 0; k < EXPR_SAMPLE_VALUES.length; k++) {
+    const p: Record<string, number> = {}
+    varNames.forEach((v, j) => { p[v] = EXPR_SAMPLE_VALUES[(k + 3 * j) % EXPR_SAMPLE_VALUES.length] + 0.05 * j })
+    pts.push(p)
+  }
+  return pts
+}
+
+/** İki açık ifade örnek noktalarda aynı mı. upToConstant: belirsiz integral
+ *  gibi, aralarındaki fark sabitse denk. Referans yeterince noktada
+ *  hesaplanamıyorsa 'invalid'. */
+function expressionsEquivalent(student: string, reference: string, varNames: string[], upToConstant = false): 'equal' | 'different' | 'invalid' {
+  const close = (a: number, b: number) => Math.abs(a - b) <= 1e-6 * Math.max(1, Math.abs(a), Math.abs(b))
+  let valid = 0
+  let offset = NaN
+  for (const p of exprSamplePoints(varNames)) {
+    const r = evaluateExpression(reference, p)
+    if (!Number.isFinite(r)) continue
+    const a = evaluateExpression(student, p)
+    if (!Number.isFinite(a)) return 'different'
+    valid++
+    if (upToConstant && Number.isNaN(offset)) offset = a - r
+    if (!close(upToConstant ? a - offset : a, r)) return 'different'
+  }
+  return valid >= EXPR_MIN_VALID_POINTS ? 'equal' : 'invalid'
+}
+
+/** Açık ifadenin en dış düzeyinde (parantez dışında) toplama ya da
+ *  çıkarma var mı (baştaki eksi işareti sayılmaz). */
+function hasTopLevelSum(s: string): boolean {
+  let depth = 0
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i]
+    if (c === '(') depth++
+    else if (c === ')') depth--
+    else if (depth === 0 && (c === '+' || c === '-') && i > 0 && !/[(*/^,+\-]/.test(s[i - 1])) return true
+  }
+  return false
+}
+
+/** Açılmış biçim: toplam içeren bir parantez çarpılmıyor ya da üssü
+ *  alınmıyor ("1/(x+1)" ve fonksiyon argümanları serbest). */
+function isExpandedForm(s: string): boolean {
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] !== '(' || (i > 0 && /[A-Za-z0-9_]/.test(s[i - 1]))) continue
+    let depth = 0
+    let j = i
+    for (; j < s.length; j++) {
+      if (s[j] === '(') depth++
+      else if (s[j] === ')' && --depth === 0) break
+    }
+    if (hasTopLevelSum(s.slice(i + 1, j)) && (s[i - 1] === '*' || s[j + 1] === '*' || s[j + 1] === '^')) return false
+  }
+  return true
+}
+
+function exprTokenCount(s: string): number {
+  return (s.match(/\d+(?:\.\d+)?|[A-Za-z_][A-Za-z0-9_]*|\S/g) || []).length
+}
+
+/** Denk bir cevap istenen biçimde mi. given: soruda verilen ifade; aynen
+ *  geri yazmak cevap sayılmaz (ör. "x^2-1 i çarpanlarına ayır"). */
+function checkExpressionForm(student: string, form: string, reference: string, given: string): boolean {
+  if (given && student === given) return false
+  if (form === 'factored') return !hasTopLevelSum(student)
+  if (form === 'expanded') return isExpandedForm(student)
+  if (form === 'simplified') return exprTokenCount(student) <= exprTokenCount(reference) + 2
+  return true
+}
+
+/** FAZ 3b: ifade cevabını kodla puanlar (yalnızca grade-exam). Denk ve
+ *  istenen biçimde 100; denk ama biçim yanlış 50; verilen ifadeyi aynen
+ *  yazmak, denk olmayan ya da okunamayan cevap 0. Referans hesaplanamıyorsa
+ *  puan null (soru nota katılmaz). */
+function gradeExpression(studentRaw: unknown, q: Record<string, unknown>): { score: number | null; verdict: string; normalized: string; reference: string } {
+  const vars = Array.isArray(q.expr_vars) ? (q.expr_vars as unknown[]).map(v => String(v ?? '')) : []
+  const reference = normalizeMathInput(q.correct_answer, vars)
+  let raw = String(studentRaw ?? '').trim()
+  if (!raw) return { score: 0, verdict: 'blank', normalized: '', reference }
+  const upToConstant = q.up_to_constant === true
+  if (upToConstant && !vars.includes('C') && !vars.includes('c')) raw = raw.replace(/\s*\+\s*[cC]\s*$/, '')
+  const student = normalizeMathInput(raw, vars)
+  if (!student) return { score: 0, verdict: 'unreadable', normalized: '', reference }
+  const eq = expressionsEquivalent(student, reference, vars, upToConstant)
+  if (eq === 'invalid') return { score: null, verdict: 'invalid', normalized: student, reference }
+  const given = q.given ? normalizeMathInput(q.given, vars) : ''
+  if (given && student === given) return { score: 0, verdict: 'copied', normalized: student, reference }
+  if (eq === 'different') return { score: 0, verdict: 'wrong', normalized: student, reference }
+  const form = EXPR_FORMS.includes(String(q.form)) ? String(q.form) : 'any'
+  if (!checkExpressionForm(student, form, reference, given)) return { score: 50, verdict: 'wrong_form', normalized: student, reference }
+  return { score: 100, verdict: 'correct', normalized: student, reference }
 }
 
 /** FAZ 3a: öğrencinin yanlış sayısı, sorunun tipik hata formüllerinden
@@ -700,6 +903,34 @@ serve(async (req) => {
           is_correct: g.score === 100,
           score: g.score,
           feedback
+        })
+      } else if (q.type === 'expression') {
+        // FAZ 3b: denklik ve biçim kodla; LLM yok.
+        const g = gradeExpression(studentAns, q)
+        const ref = g.reference || String(q.correct_answer ?? '')
+        const FORM_TR: Record<string, string> = { factored: 'çarpanlarına ayrılmış', expanded: 'parantezleri açılmış', simplified: 'en sade' }
+        const FORM_EN: Record<string, string> = { factored: 'factored', expanded: 'expanded', simplified: 'simplest' }
+        const fb: Record<string, [string, string]> = {
+          correct: ['Doğru! İfaden doğru cevaba denk.', 'Correct! Your expression is equivalent to the answer.'],
+          wrong_form: [`Denk ama istenen biçimde değil (${FORM_TR[String(q.form)] || 'istenen'} biçim). Doğru cevap: ${ref}`, `Equivalent, but not in the required ${FORM_EN[String(q.form)] || 'requested'} form. Correct answer: ${ref}`],
+          copied: [`Verilen ifadeyi aynen yazdın; istenen dönüşümü yapmadın. Doğru cevap: ${ref}`, `You copied the given expression without transforming it. Correct answer: ${ref}`],
+          wrong: [`Yanlış: ifaden doğru cevaba denk değil. Doğru cevap: ${ref}`, `Incorrect: your expression is not equivalent to the answer. Correct answer: ${ref}`],
+          unreadable: [`Cevabın okunamadı. Doğru cevap: ${ref}`, `Your answer could not be read. Correct answer: ${ref}`],
+          blank: [`Boş bırakıldı. Doğru cevap: ${ref}`, `Left blank. Correct answer: ${ref}`],
+          invalid: ['Bu soru otomatik puanlanamadı ve nota katılmadı.', 'This question could not be graded automatically and is not counted.']
+        }
+        results.push({
+          ...base,
+          options: null,
+          correct_answer: ref,
+          expr_vars: Array.isArray(q.expr_vars) ? q.expr_vars : [],
+          form: q.form || 'any',
+          up_to_constant: q.up_to_constant === true,
+          solution_steps: q.solution_steps || [],
+          expr_verdict: g.verdict,
+          is_correct: g.score === 100,
+          score: g.score,
+          feedback: (fb[g.verdict] || fb.wrong)[isTr ? 0 : 1]
         })
       } else if (q.type === 'open_ended') {
         if (!studentAns) {

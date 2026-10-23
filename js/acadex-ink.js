@@ -2313,7 +2313,7 @@ window.axWhenProfile = function (cb) {
   var dshort = function (s) { var d = new Date(s); return isNaN(d) ? '' : pad(d.getDate()) + '.' + pad(d.getMonth() + 1) + '.' + String(d.getFullYear()).slice(2); };
   var TYPE = { classic: 'klasik', test: 'test', mixed: 'karışık', calculation: 'hesaplama' };
   var DIFF = { easy: 'kolay', medium: 'orta', hard: 'zor' };
-  var QT = { multiple_choice: 'test', true_false: 'doğru-yanlış', fill_blank: 'boşluk', calculation: 'hesaplama', open_ended: 'açık uçlu' };
+  var QT = { multiple_choice: 'test', true_false: 'doğru-yanlış', fill_blank: 'boşluk', calculation: 'hesaplama', open_ended: 'açık uçlu', expression: 'ifade' };
   $$('.land').forEach(function (el, i) { el.style.setProperty('--hr', (((i * 37) % 11 - 5) * 0.3).toFixed(2) + 'deg'); el.style.setProperty('--hx', (((i * 53) % 9 - 4) * 2) + 'px'); });
 
   /* bildirim */
@@ -2652,7 +2652,7 @@ window.axWhenProfile = function (cb) {
       opt.innerHTML = QS.map(function (q, i) {
         var bb, sec = info[i].sec;
         if ((q.type === 'multiple_choice' || q.type === 'true_false') && sec) bb = '<span class="bb" aria-hidden="true">' + $$('.sn-opt-b', sec).map(function (l) { return '<i>' + esc(l.getAttribute('data-letter')) + '</i>'; }).join('') + '</span>';
-        else bb = '<span class="tl">' + (q.type === 'fill_blank' ? 'boşluk' : q.type === 'calculation' ? 'sayı' : q.type === 'open_ended' ? 'yazılı' : 'test') + '</span>';
+        else bb = '<span class="tl">' + (q.type === 'fill_blank' ? 'boşluk' : q.type === 'calculation' ? 'sayı' : q.type === 'expression' ? 'ifade' : q.type === 'open_ended' ? 'yazılı' : 'test') + '</span>';
         return '<li><button type="button" data-go="' + i + '"><span class="n">' + (i + 1) + '</span>' + bb + '<span class="st"></span></button></li>';
       }).join('');
     }
@@ -2846,6 +2846,18 @@ window.axWhenProfile = function (cb) {
     return '<span class="sn-net">test neti <b>' + esc(String(net).replace('.', ',')) + '</b><small>' + c + ' doğru · ' + w + ' yanlış · ' + b + ' boş · ' + k + ' yanlış 1 doğruyu götürür</small></span>';
   };
   var VERD = { met: ['karşıladın', 'ok'], partial: ['kısmen', 'half'], missing: ['eksik', 'no'] };
+  /* FAZ 3b: ifade sorusunda cevaplar matematik olarak (KaTeX) gösterilir;
+     okunamazsa düz metin. */
+  var ansHtml = function (r, raw) {
+    var E = ENG();
+    if (r.type === 'expression' && E && typeof E.exprPreviewHtml === 'function') {
+      var vars = Array.isArray(r.expr_vars) ? r.expr_vars : [], plusC = '', s = String(raw == null ? '' : raw);
+      if (r.up_to_constant && vars.indexOf('C') < 0 && /\+\s*[cC]\s*$/.test(s)) { s = s.replace(/\s*\+\s*[cC]\s*$/, ''); plusC = ' + C'; }
+      var h = E.exprPreviewHtml(s, vars);
+      if (h) return '<span class="sn-math">' + h + '</span>' + plusC;
+    }
+    return esc(raw);
+  };
   var rationaleFor = function (map, ans) {
     if (!map || !ans) return null;
     if (map[ans]) return map[ans];
@@ -3008,8 +3020,8 @@ window.axWhenProfile = function (cb) {
           var steps = Array.isArray(r.solution_steps) && r.solution_steps.length ? '<div class="sn-model"><b>çözüm adımları</b><ol>' + r.solution_steps.map(function (s) { return '<li>' + rich(s) + '</li>'; }).join('') + '</ol></div>' : '';
           var unit = r.units ? ' ' + esc(r.units) : '';
           return '<div class="sn-ri" style="--i:' + i + '"><svg class="mk ' + k + '" viewBox="0 0 34 34" aria-hidden="true">' + MK[k] + '</svg><div class="sn-ri-h"><b>' + (i + 1) + '</b><span class="ty">' + esc(QT[r.type] || r.type || '') + '</span>' + (r.concept ? '<span class="cpt">' + esc(r.concept) + '</span>' : '') + '<span class="pt">' + (+r.score || 0) + '</span></div>' +
-            '<p class="q">' + rich(r.question) + '</p><p class="yours' + (k === 'no' && !blank ? ' wrong' : '') + '">senin cevabın: <span>' + (blank ? 'boş bıraktın' : esc(r.student_answer) + (r.student_answer && r.units ? unit : '')) + '</span></p>' +
-            (r.type !== 'open_ended' && r.correct_answer != null && r.correct_answer !== '' && String(r.correct_answer).trim().toLowerCase() !== 'null' ? '<p class="right">doğrusu: ' + esc(r.correct_answer) + unit + (r.tolerance_percent ? ' (±%' + esc(r.tolerance_percent) + ')' : '') + '</p>' : '') +
+            '<p class="q">' + rich(r.question) + '</p><p class="yours' + (k === 'no' && !blank ? ' wrong' : '') + '">senin cevabın: <span>' + (blank ? 'boş bıraktın' : ansHtml(r, r.student_answer) + (r.student_answer && r.units ? unit : '')) + '</span></p>' +
+            (r.type !== 'open_ended' && r.correct_answer != null && r.correct_answer !== '' && String(r.correct_answer).trim().toLowerCase() !== 'null' ? '<p class="right">doğrusu: ' + ansHtml(r, r.correct_answer) + (r.type === 'expression' && r.up_to_constant ? ' + C' : '') + unit + (r.tolerance_percent ? ' (±%' + esc(r.tolerance_percent) + ')' : '') + '</p>' : '') +
             (r.feedback ? '<p class="fb">' + rich(r.feedback) + '</p>' : '') + teach(r, blank) + steps + '</div>';
         }).join('') +
         '<div class="sn-res-b">' + practice + '<button type="button" class="sn-ghost" data-to-errs="">hata defterine bak</button><button type="button" class="btn btn-dark" data-back="">salona dön</button></div>' +
