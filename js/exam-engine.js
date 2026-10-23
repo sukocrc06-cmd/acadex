@@ -1491,7 +1491,9 @@
     const legendH = series.length > 1 ? 22 : 0;
     const longest = Math.max(...labels.map(l => l.length));
     const slotGuess = (W - 80) / labels.length, rotate = longest * (narrow ? 7.5 : 6.5) > slotGuess;
-    const m = { l: narrow ? 54 : 68, r: narrow ? 8 : 14, t: 14 + legendH, b: rotate ? (narrow ? 84 : 74) : 40 };
+    // FAZ 4c: eksen başlıkları (taranmış grafikten): y sol üstte, x altta.
+    const yTitle = c.y_title ? String(c.y_title) : '', xTitle = c.x_title ? String(c.x_title) : '';
+    const m = { l: narrow ? 54 : 68, r: narrow ? 8 : 14, t: 14 + legendH + (yTitle ? 16 : 0), b: (rotate ? (narrow ? 84 : 74) : 40) + (xTitle ? 18 : 0) };
     const pw = W - m.l - m.r, ph = H - m.t - m.b, slot = pw / labels.length;
     const y = v => m.t + ph - (v - t0) / (t1 - t0 || 1) * ph;
     let body = '';
@@ -1523,6 +1525,8 @@
         });
       });
     }
+    if (yTitle) body += `<text x="8" y="${(legendH + 16).toFixed(0)}" class="axc-ax">${chartEsc(yTitle)}</text>`;
+    if (xTitle) body += `<text x="${(m.l + pw / 2).toFixed(1)}" y="${H - 6}" text-anchor="middle" class="axc-ax">${chartEsc(xTitle)}</text>`;
     if (series.length > 1) {
       let lx = m.l;
       series.forEach((sr, k) => {

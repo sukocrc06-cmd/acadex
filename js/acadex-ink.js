@@ -2499,6 +2499,9 @@ window.axWhenProfile = function (cb) {
   var hasCalcType = function () { var t = val('exam-type'); return t === 'calculation' || t === 'mixed'; };
   var precLabel = function (d) { return +d ? 'virgülden sonra ' + (+d) + ' basamak' : ''; };
   var syncPrec = function () {
+    /* FAZ 4c: "dosyadaki grafik sorularına göre" yalnızca yüklenen belgede. */
+    var chRow = $('[data-chartq-row]'), chBox = $('#exam-chart-examples');
+    if (chRow && chBox) { var chOn = val('exam-source') !== 'course'; chRow.hidden = !chOn; chBox.disabled = !chOn; }
     if (!precBox) return;
     var on = hasCalcType();
     if (on) precBox.removeAttribute('data-off'); else precBox.setAttribute('data-off', '');
@@ -2524,7 +2527,7 @@ window.axWhenProfile = function (cb) {
     cover.innerHTML = '<span class="uni">ACADEX · SINAV SALONU</span><h3>' + esc(name.length > 60 ? name.slice(0, 58) + '…' : name) + '</h3><span class="sub">' + esc((TYPE[val('exam-type')] || '') + ' · ' + (DIFF[val('exam-difficulty')] || '') + ' · ' + (val('exam-lang') === 'tr' ? 'Türkçe' : 'English')) + '</span>' +
       '<div class="lines"><span>Ad Soyad: ' + esc(p.full_name || '') + '</span><span>Öğrenci no: ' + esc(p.student_number || '') + '</span><span>Tarih: ' + dshort(new Date()) + '</span></div>' +
       '<table><tr><th>SORU</th><td>' + esc(countEl.value) + '</td></tr><tr><th>SÜRE</th><td>' + (sim ? 'gerçek sınav süresi' : 'serbest') + '</td></tr><tr><th>İPUCU</th><td>' + (sim ? 'yok' : 'soru başına bir') + '</td></tr>' +
-      (hasMcType() ? '<tr><th>ŞIK</th><td>' + (val('exam-options') === '5' ? '5 (A–E)' : '4 (A–D)') + '</td></tr><tr><th>NET</th><td>' + (negT && negT.checked ? esc((negR ? negR.value : '3') + ' yanlış 1 doğruyu götürür') : 'yanlış götürmez') + '</td></tr>' : '') + (hasCalcType() && precSel && +precSel.value ? '<tr><th>HASSASİYET</th><td>' + esc(precLabel(precSel.value)) + '</td></tr>' : '') + (topicEl.value.trim() && src === 'course' ? '<tr><th>ODAK</th><td>' + esc(topicEl.value.trim()) + '</td></tr>' : '') + '</table>' +
+      (hasMcType() ? '<tr><th>ŞIK</th><td>' + (val('exam-options') === '5' ? '5 (A–E)' : '4 (A–D)') + '</td></tr><tr><th>NET</th><td>' + (negT && negT.checked ? esc((negR ? negR.value : '3') + ' yanlış 1 doğruyu götürür') : 'yanlış götürmez') + '</td></tr>' : '') + ($('#exam-chart-examples') && $('#exam-chart-examples').checked && !$('#exam-chart-examples').disabled ? '<tr><th>GRAFİK</th><td>dosyadaki örneklere göre</td></tr>' : '') + (hasCalcType() && precSel && +precSel.value ? '<tr><th>HASSASİYET</th><td>' + esc(precLabel(precSel.value)) + '</td></tr>' : '') + (topicEl.value.trim() && src === 'course' ? '<tr><th>ODAK</th><td>' + esc(topicEl.value.trim()) + '</td></tr>' : '') + '</table>' +
       '<p class="warn">' + (sim ? 'KİTAPÇIĞI AÇINCA SÜRE BAŞLAR' : 'KOLAY GELSİN') + '</p>';
   };
   bdDlg.addEventListener('change', function () { setTimeout(paintCover, 0); });
@@ -2551,8 +2554,10 @@ window.axWhenProfile = function (cb) {
       var t = topicEl.value.trim();
       if (t && val('exam-source') === 'course') { try { examFocusConcept = t; } catch (e) {} }
       var n = $('[data-bd-note]'); n.textContent = 'Acadia soruları yazıyor; bu biraz sürebilir…';
-      var r = await origGen.apply(this, arguments);
-      if (n.textContent.indexOf('Acadia') === 0) n.textContent = '';
+      window.__examProgress = function (msg) { n.textContent = msg; };
+      var r;
+      try { r = await origGen.apply(this, arguments); } finally { window.__examProgress = null; }
+      if (/^(Acadia|Belgedeki grafikler|\d+ grafik bulundu)/.test(n.textContent)) n.textContent = '';
       return r;
     };
     window.generateExam = generateExam;

@@ -915,6 +915,496 @@ function chartNumbers(chart: unknown): number[] {
   return c.series.flatMap(sr => Array.isArray(sr.data) ? sr.data.filter(Number.isFinite) : [])
 }
 
+// ==========================================================================
+// FAZ 4c — DOSYADAKİ GRAFİK SORULARINA GÖRE SINAV: yorum motoru (23.10.2026)
+//
+// Yüklenen dosyadaki her grafik için tarama (extract-chart-items) grafiğin
+// YAPISINI (tür, kategoriler, seriler, birim, ölçek) ve örnek sorunun
+// BİÇİMİNİ ("hangisi söylenebilir", öncüllü, D/Y, değer, yorum, boşluk) ile
+// sorduğu becerileri saklar. Burada:
+//   1. chartVariant: aynı yapıda, yeni değerli benzer grafik (yapay zekâ yok)
+//   2. iddialar (claims): yorum ifadelerini KOD üretir ve yeni veriye göre
+//      doğruluğunu KOD belirler — cevap anahtarı her zaman doğru
+//   3. buildChartQuestion: örnekle aynı biçimde yeni soru
+// Türkçe ekler (2021'den, Ege'ye, %15'ten) ünlü uyumuyla yazılır.
+// ==========================================================================
+type ChartExample = { stem: string; format: string; skills: string[]; options_count?: number }
+type ChartClaim = { kind: string; s: number; s2?: number; a?: number; b?: number; v?: number; n?: number }
+
+const CHART_FORMATS = ['which_true', 'which_false', 'premises', 'true_false', 'value', 'open', 'fill']
+const CHART_SKILLS = ['trend', 'extreme', 'compare', 'change', 'share', 'average', 'rank', 'gap']
+
+/** Tohumlu rastgele sayı (aynı sınav kimliği → aynı soru, test edilebilir). */
+function seededRandom(seed: string): () => number {
+  let h = 1779033703 ^ seed.length
+  for (let i = 0; i < seed.length; i++) { h = Math.imul(h ^ seed.charCodeAt(i), 3432918353); h = (h << 13) | (h >>> 19) }
+  let a = h >>> 0
+  return () => {
+    a |= 0; a = (a + 0x6D2B79F5) | 0
+    let t = Math.imul(a ^ (a >>> 15), 1 | a)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+// --------------------------------------------------------------------------
+// Türkçe ekler
+// --------------------------------------------------------------------------
+const TR_DIGIT_WORD = ['', 'bir', 'iki', 'üç', 'dört', 'beş', 'altı', 'yedi', 'sekiz', 'dokuz']
+const TR_TEN_WORD = ['', 'on', 'yirmi', 'otuz', 'kırk', 'elli', 'altmış', 'yetmiş', 'seksen', 'doksan']
+const TR_LETTER_NAME: Record<string, string> = { a: 'a', b: 'be', c: 'ce', ç: 'çe', d: 'de', e: 'e', f: 'fe', g: 'ge', ğ: 'yumuşak ge', h: 'he', ı: 'ı', i: 'i', j: 'je', k: 'ke', l: 'le', m: 'me', n: 'ne', o: 'o', ö: 'ö', p: 'pe', r: 're', s: 'se', ş: 'şe', t: 'te', u: 'u', ü: 'ü', v: 've', y: 'ye', z: 'ze', q: 'kü', w: 've', x: 'iks' }
+
+/** Bir sayının (ya da sayıyla biten etiketin) okunuşundaki son kelime. */
+function trSpokenTail(word: string): string {
+  const w = String(word).trim()
+  const num = w.match(/(\d[\d.,]*)\s*%?$/)
+  if (num) {
+    const raw = num[1].replace(/[.,]+$/, '')
+    const dec = raw.match(/[.,](\d+)$/)
+    if (dec && !/^\d{1,3}([.,]\d{3})+$/.test(raw)) return trSpokenTail(dec[1].replace(/0+$/, '') || '0')
+    const digits = raw.replace(/[.,]/g, '')
+    const n = Number(digits)
+    if (!Number.isFinite(n)) return w
+    if (n === 0) return 'sıfır'
+    if (n % 1e9 === 0) return 'milyar'
+    if (n % 1e6 === 0) return 'milyon'
+    if (n % 1000 === 0) return 'bin'
+    const r = n % 1000
+    if (r % 100 === 0) return 'yüz'
+    if (r % 10 === 0) return TR_TEN_WORD[(r % 100) / 10]
+    return TR_DIGIT_WORD[r % 10]
+  }
+  const last = w.split(/\s+/).pop() || w
+  // Kısaltma (ABD, TÜİK): son harfin adı okunur.
+  if (/^[A-ZÇĞİÖŞÜ]{2,5}$/.test(last)) return TR_LETTER_NAME[last.slice(-1).toLocaleLowerCase('tr-TR')] || last
+  return last.toLocaleLowerCase('tr-TR')
+}
+
+/** Kesme işaretiyle durum eki: abl (-dan/-den/-tan/-ten), loc (-da/-de/
+ *  -ta/-te), dat (-a/-e/-ya/-ye). Grafik etiketleri özel ad gibi yazılır. */
+function trSuffix(word: string, kase: 'abl' | 'loc' | 'dat', proper = true): string {
+  const tail = trSpokenTail(word)
+  const vowels = tail.match(/[aıoueiöü]/g) || ['e']
+  const back = /[aıou]/.test(vowels[vowels.length - 1])
+  const endsVowel = /[aıoueiöü]$/.test(tail)
+  const hard = /[çfhkpsşt]$/.test(tail)
+  let suf: string
+  if (kase === 'dat') suf = (endsVowel ? 'y' : '') + (back ? 'a' : 'e')
+  else suf = (hard ? 't' : 'd') + (back ? 'a' : 'e') + (kase === 'abl' ? 'n' : '')
+  return proper ? `${word}'${suf}` : `${word}${suf}`
+}
+
+// --------------------------------------------------------------------------
+// Benzer grafik
+// --------------------------------------------------------------------------
+function decimalsIn(n: number): number {
+  const s = String(n)
+  if (/e/i.test(s)) return 2
+  const i = s.indexOf('.')
+  return i < 0 ? 0 : Math.min(2, s.length - i - 1)
+}
+
+/** Aynı yapıda yeni değerler: her değer %78–%122 arası değişir (grafik
+ *  özgününe benzer kalır); özgün
+ *  değerlerin basamak sayısı ve "yuvarlaklığı" korunur; işaret korunur;
+ *  bir serideki değerler birbirinden farklı (en yüksek/en düşük belirsiz
+ *  kalmasın). Pasta ya da toplamı 100 olan yüzde serisi yine 100'e tamamlanır. */
+function chartVariant(chart: ChartSpec, rand: () => number): ChartSpec | null {
+  if (!chart || !Array.isArray(chart.series) || !chart.series.length) return null
+  const sig = (v: number) => Math.max(2, String(Math.abs(v)).replace(/e.*$/i, '').replace('.', '').replace(/^0+/, '').replace(/0+$/, '').length)
+  for (let attempt = 0; attempt < 30; attempt++) {
+    const series = chart.series.map(sr => {
+      const d = Math.max(0, ...sr.data.map(decimalsIn))
+      const f = Math.pow(10, d)
+      return { name: sr.name, data: sr.data.map(v => {
+        if (v === 0) return Math.round((rand() * 0.3) * f * (Math.max(...sr.data.map(Math.abs)) || 1)) / f
+        let nv = Number((v * (0.78 + rand() * 0.44)).toPrecision(Math.min(sig(v), 3)))
+        nv = Math.round(nv * f) / f
+        return nv === 0 ? Math.sign(v) / f : nv
+      }) }
+    })
+    const sums100 = chart.series.length === 1 && Math.abs(chart.series[0].data.reduce((a, b) => a + b, 0) - 100) <= 2 && chart.series[0].data.every(v => v >= 0)
+    if (chart.type === 'pie' || sums100) {
+      const sr = series[0], tot = sr.data.reduce((a, b) => a + Math.max(0, b), 0) || 1
+      const d = Math.max(0, ...chart.series[0].data.map(decimalsIn)), f = Math.pow(10, d)
+      if (sums100) {
+        sr.data = sr.data.map(v => Math.round(Math.max(0, v) / tot * 100 * f) / f)
+        const diff = Math.round((100 - sr.data.reduce((a, b) => a + b, 0)) * f) / f
+        const k = sr.data.indexOf(Math.max(...sr.data)); sr.data[k] = Math.round((sr.data[k] + diff) * f) / f
+      }
+    }
+    if (chart.unit === '%' && !sums100) series.forEach(sr => { sr.data = sr.data.map(v => Math.min(100, v)) })
+    const distinct = series.every(sr => new Set(sr.data).size === sr.data.length && sr.data.every(Number.isFinite))
+    const changed = series.some((sr, k) => sr.data.some((v, i) => v !== chart.series[k].data[i]))
+    if (distinct && changed) return { ...chart, series }
+  }
+  return null
+}
+
+// --------------------------------------------------------------------------
+// İddialar
+// --------------------------------------------------------------------------
+const pctChange = (from: number, to: number) => from === 0 ? NaN : (to - from) / Math.abs(from) * 100
+
+function claimTruth(c: ChartClaim, chart: ChartSpec): boolean | null {
+  const sr = chart.series[c.s]
+  if (!sr) return null
+  const d = sr.data
+  const at = (i: number | undefined) => (i == null ? NaN : d[i])
+  switch (c.kind) {
+    case 'rise': return at(c.b) > at(c.a)
+    case 'fall': return at(c.b) < at(c.a)
+    case 'steady_rise': { for (let i = c.a!; i < c.b!; i++) if (!(d[i + 1] > d[i])) return false; return true }
+    case 'steady_fall': { for (let i = c.a!; i < c.b!; i++) if (!(d[i + 1] < d[i])) return false; return true }
+    case 'max': return d.every((v, i) => i === c.a || v < d[c.a!])
+    case 'min': return d.every((v, i) => i === c.a || v > d[c.a!])
+    case 'greater': return at(c.a) > at(c.b)
+    case 'inc_gt': { const p = pctChange(at(c.a), at(c.b)); return p > c.v! }
+    case 'inc_lt': { const p = pctChange(at(c.a), at(c.b)); return p > 0 && p < c.v! }
+    case 'dec_gt': { const p = pctChange(at(c.a), at(c.b)); return -p > c.v! }
+    case 'share_gt': { const t = d.reduce((x, y) => x + y, 0); return t > 0 && at(c.a) / t * 100 > c.v! }
+    case 'share_lt': { const t = d.reduce((x, y) => x + y, 0); return t > 0 && at(c.a) / t * 100 < c.v! }
+    case 'avg_gt': return d.reduce((x, y) => x + y, 0) / d.length > c.v!
+    case 'avg_lt': return d.reduce((x, y) => x + y, 0) / d.length < c.v!
+    case 'rank': { const sorted = [...d].sort((x, y) => y - x); return sorted[c.n! - 1] === at(c.a) && sorted.filter(x => x === at(c.a)).length === 1 }
+    case 'above': { const o = chart.series[c.s2!]; return !!o && at(c.a) > o.data[c.a!] }
+    case 'gap_widen': { const o = chart.series[c.s2!]; return !!o && Math.abs(d[c.b!] - o.data[c.b!]) > Math.abs(d[c.a!] - o.data[c.a!]) }
+    default: return null
+  }
+}
+
+/** Seri adı (cümle içinde): adsız seride "değer". Türkçede cins isim
+ *  olduğu için ilk harf küçülür (kısaltma — GSYH — korunur). */
+function seriesWord(chart: ChartSpec, s: number, lang: string): string {
+  // "İhracat (milyar $)" → "ihracat": birim grafikte yazılı, cümlede ağır.
+  const n = chart.series[s] && String(chart.series[s].name || '').replace(/\s*\([^)]*\)\s*$/, '').trim()
+  if (!n) return lang === 'en' ? 'the value' : 'değer'
+  if (lang === 'en' || /^[A-ZÇĞİÖŞÜ0-9]{2}/.test(n)) return n
+  return n.charAt(0).toLocaleLowerCase('tr-TR') + n.slice(1)
+}
+
+function fmtPct(v: number, lang: string): string {
+  if (v < 0 && lang !== 'en') return '-' + fmtPct(-v, lang)
+  const t = Number(v).toLocaleString(lang === 'en' ? 'en-US' : 'tr-TR', { maximumFractionDigits: 1 })
+  return lang === 'en' ? `${t}%` : `%${t}`
+}
+
+function fmtNum(v: number, chart: ChartSpec, lang: string): string {
+  const t = Number(v).toLocaleString(lang === 'en' ? 'en-US' : 'tr-TR', { maximumFractionDigits: 2 })
+  return chart.unit === '%' ? (lang === 'en' ? `${t}%` : `%${t}`) : t
+}
+
+/** İddianın metni (Türkçe ekli). */
+function claimText(c: ChartClaim, chart: ChartSpec, lang: string): string {
+  const L = chart.labels, S = seriesWord(chart, c.s, lang), S2 = c.s2 != null ? seriesWord(chart, c.s2, lang) : ''
+  const A = c.a != null ? L[c.a] : '', B = c.b != null ? L[c.b] : ''
+  if (lang === 'en') {
+    switch (c.kind) {
+      case 'rise': return `From ${A} to ${B}, ${S} increased.`
+      case 'fall': return `From ${A} to ${B}, ${S} decreased.`
+      case 'steady_rise': return `${S} rose continuously from ${A} to ${B}.`
+      case 'steady_fall': return `${S} fell continuously from ${A} to ${B}.`
+      case 'max': return `${S} is highest in ${A}.`
+      case 'min': return `${S} is lowest in ${A}.`
+      case 'greater': return `${S} in ${A} is higher than in ${B}.`
+      case 'inc_gt': return `From ${A} to ${B}, ${S} increased by more than ${fmtPct(c.v!, lang)}.`
+      case 'inc_lt': return `From ${A} to ${B}, ${S} increased, but by less than ${fmtPct(c.v!, lang)}.`
+      case 'dec_gt': return `From ${A} to ${B}, ${S} decreased by more than ${fmtPct(c.v!, lang)}.`
+      case 'share_gt': return `${A} accounts for more than ${fmtPct(c.v!, lang)} of the total.`
+      case 'share_lt': return `${A} accounts for less than ${fmtPct(c.v!, lang)} of the total.`
+      case 'avg_gt': return `The average ${S} is above ${fmtNum(c.v!, chart, lang)}.`
+      case 'avg_lt': return `The average ${S} is below ${fmtNum(c.v!, chart, lang)}.`
+      case 'rank': return `${A} has the ${c.n === 2 ? 'second' : c.n === 3 ? 'third' : c.n + 'th'} highest ${S}.`
+      case 'above': return `In ${A}, ${S} is higher than ${S2}.`
+      case 'gap_widen': return `The gap between ${S} and ${S2} widened from ${A} to ${B}.`
+    }
+    return ''
+  }
+  const Sc = S.charAt(0).toLocaleUpperCase('tr-TR') + S.slice(1)
+  switch (c.kind) {
+    case 'rise': return `${trSuffix(A, 'abl')} ${trSuffix(B, 'dat')} ${S} artmıştır.`
+    case 'fall': return `${trSuffix(A, 'abl')} ${trSuffix(B, 'dat')} ${S} azalmıştır.`
+    case 'steady_rise': return `${A}–${B} döneminde ${S} sürekli artmıştır.`
+    case 'steady_fall': return `${A}–${B} döneminde ${S} sürekli azalmıştır.`
+    case 'max': return `En yüksek ${S} ${trSuffix(A, 'loc')}dır.`.replace(/'(d|t)(a|e)dır\.$/, (_m, t, v) => `'${t}${v}${v === 'a' ? 'dır' : 'dir'}.`)
+    case 'min': return `En düşük ${S} ${trSuffix(A, 'loc')}dır.`.replace(/'(d|t)(a|e)dır\.$/, (_m, t, v) => `'${t}${v}${v === 'a' ? 'dır' : 'dir'}.`)
+    case 'greater': return `${Sc} bakımından ${A}, ${trSuffix(B, 'abl')} yüksektir.`
+    case 'inc_gt': return `${trSuffix(A, 'abl')} ${trSuffix(B, 'dat')} ${S} ${trSuffix(fmtPct(c.v!, lang), 'abl')} fazla artmıştır.`
+    case 'inc_lt': return `${trSuffix(A, 'abl')} ${trSuffix(B, 'dat')} ${S} artmış, ancak artış ${trSuffix(fmtPct(c.v!, lang), 'abl')} azdır.`
+    case 'dec_gt': return `${trSuffix(A, 'abl')} ${trSuffix(B, 'dat')} ${S} ${trSuffix(fmtPct(c.v!, lang), 'abl')} fazla azalmıştır.`
+    case 'share_gt': return `${A}, toplamın ${trSuffix(fmtPct(c.v!, lang), 'abl')} fazlasını oluşturur.`
+    case 'share_lt': return `${A}, toplamın ${trSuffix(fmtPct(c.v!, lang), 'abl')} azını oluşturur.`
+    case 'avg_gt': return `${Sc} ortalaması ${trSuffix(fmtNum(c.v!, chart, lang), 'abl')} yüksektir.`
+    case 'avg_lt': return `${Sc} ortalaması ${trSuffix(fmtNum(c.v!, chart, lang), 'abl')} düşüktür.`
+    case 'rank': return `${Sc} bakımından ${A}, en yüksek ${c.n}. sıradadır.`
+    case 'above': return `${trSuffix(A, 'loc')} ${S}, ${trSuffix(S2, 'abl', /^[A-ZÇĞİÖŞÜ0-9]{2}/.test(S2))} yüksektir.`
+    case 'gap_widen': return `${A}–${B} döneminde ${S} ile ${S2} arasındaki fark açılmıştır.`
+  }
+  return ''
+}
+
+/** İddianın kanıtı (gerekçe metni): ilgili değerler. */
+function claimEvidence(c: ChartClaim, chart: ChartSpec, lang: string): string {
+  const L = chart.labels, d = chart.series[c.s].data, tr = lang !== 'en'
+  const val = (i: number) => `${L[i]}: ${fmtNum(d[i], chart, lang)}`
+  switch (c.kind) {
+    case 'rise': case 'fall': case 'greater': return `${val(c.a!)}, ${val(c.b!)}`
+    case 'steady_rise': case 'steady_fall': { const out: string[] = []; for (let i = c.a!; i <= c.b!; i++) out.push(val(i)); return out.join(', ') }
+    case 'max': case 'min': case 'rank': return [...d.keys()].map(val).join(', ')
+    case 'inc_gt': case 'inc_lt': case 'dec_gt': { const p = pctChange(d[c.a!], d[c.b!]); return `${val(c.a!)}, ${val(c.b!)}; ${tr ? 'değişim' : 'change'} ${fmtPct(Math.round(p * 10) / 10, lang)}` }
+    case 'share_gt': case 'share_lt': { const t = d.reduce((x, y) => x + y, 0); return `${val(c.a!)}; ${tr ? 'pay' : 'share'} ${fmtPct(Math.round(d[c.a!] / t * 1000) / 10, lang)}` }
+    case 'avg_gt': case 'avg_lt': return `${tr ? 'ortalama' : 'average'} ${fmtNum(Math.round(d.reduce((x, y) => x + y, 0) / d.length * 100) / 100, chart, lang)}`
+    case 'above': case 'gap_widen': {
+      const o = chart.series[c.s2!].data, idx = c.kind === 'above' ? [c.a!] : [c.a!, c.b!]
+      return idx.map(i => `${L[i]}: ${fmtNum(d[i], chart, lang)} / ${fmtNum(o[i], chart, lang)}`).join('; ')
+    }
+  }
+  return ''
+}
+
+/** Yüzde eşikleri: gerçek değerden en az 3 puan uzak, yuvarlak (5'in katı). */
+function thresholdsAround(actual: number): { below: number | null; above: number } {
+  const below = Math.floor((actual - 3) / 5) * 5
+  return { below: below > 0 ? below : null, above: Math.ceil((actual + 3) / 5) * 5 }
+}
+
+/** Zaman ekseni mi: çizgi grafik ya da etiketler yıl / çeyrek / ay. Değişim
+ *  ("artmıştır", "%15'ten fazla azalmıştır") yalnızca zamanda anlamlı. */
+const TR_MONTHS = /^(oca|şub|mar|nis|may|haz|tem|ağu|eyl|eki|kas|ara|jan|feb|apr|jun|jul|aug|sep|oct|nov|dec)/i
+function isTimeAxis(chart: ChartSpec): boolean {
+  if (chart.type === 'pie') return false
+  if (chart.type === 'line') return true
+  return chart.labels.every(l => /^(1[89]|20)\d{2}\b|^Q[1-4]\b|^[1-4]\.\s*çeyrek|^[1-4]Ç\b/i.test(l) || TR_MONTHS.test(l))
+}
+
+/** Grafikten, istenen becerilerle iddia adayları (doğru ve yanlış). */
+function claimCandidates(chart: ChartSpec, skills: string[], rand: () => number): ChartClaim[] {
+  const out: ChartClaim[] = []
+  const n = chart.labels.length, S = chart.series.length
+  const want = (k: string) => !skills.length || skills.includes(k)
+  const timeLike = isTimeAxis(chart)
+  for (let s = 0; s < S; s++) {
+    const d = chart.series[s].data
+    if (want('extreme')) for (let a = 0; a < n; a++) { out.push({ kind: 'max', s, a }); out.push({ kind: 'min', s, a }) }
+    if (want('compare') || want('trend') || want('change')) {
+      for (let a = 0; a < n; a++) for (let b = a + 1; b < n; b++) {
+        if (timeLike) { out.push({ kind: 'rise', s, a, b }); out.push({ kind: 'fall', s, a, b }) }
+        else { out.push({ kind: 'greater', s, a, b }); out.push({ kind: 'greater', s, a: b, b: a }) }
+      }
+    }
+    if (want('trend') && timeLike) for (let a = 0; a + 2 < n; a++) for (let b = a + 2; b < n; b++) { out.push({ kind: 'steady_rise', s, a, b }); out.push({ kind: 'steady_fall', s, a, b }) }
+    if (want('change') && timeLike) {
+      for (let a = 0; a < n; a++) for (let b = a + 1; b < n; b++) {
+        const p = pctChange(d[a], d[b])
+        if (!Number.isFinite(p)) continue
+        const th = thresholdsAround(Math.abs(p))
+        if (p > 0) { if (th.below) out.push({ kind: 'inc_gt', s, a, b, v: th.below }); out.push({ kind: 'inc_gt', s, a, b, v: th.above }); out.push({ kind: 'inc_lt', s, a, b, v: th.above }) }
+        else { if (th.below) out.push({ kind: 'dec_gt', s, a, b, v: th.below }); out.push({ kind: 'dec_gt', s, a, b, v: th.above }); out.push({ kind: 'inc_gt', s, a, b, v: 5 }) }
+      }
+    }
+    // Pay iddiası yalnızca bütünün parçaları olan grafikte (pasta ya da
+    // kategori sütunu); yıllar gibi zaman serisinde "toplamın %20'si" anlamsız.
+    // Değerleri zaten yüzde olan sütunlarda (pazar payı) "toplamın %25'i" yanıltıcı.
+    if (want('share') && (chart.type === 'pie' || (S === 1 && !timeLike && chart.unit !== '%')) && d.every(v => v >= 0)) {
+      const t = d.reduce((x, y) => x + y, 0)
+      for (let a = 0; a < n; a++) { const sh = d[a] / t * 100; const th = thresholdsAround(sh); if (th.below) out.push({ kind: 'share_gt', s, a, v: th.below }); out.push({ kind: 'share_gt', s, a, v: th.above }); out.push({ kind: 'share_lt', s, a, v: th.above }) }
+    }
+    if (want('average')) {
+      const avg = d.reduce((x, y) => x + y, 0) / n, mag = Math.pow(10, Math.max(0, Math.floor(Math.log10(Math.abs(avg) || 1)) - 1))
+      const lo = Math.floor(avg * 0.9 / mag) * mag, hi = Math.ceil(avg * 1.1 / mag) * mag
+      out.push({ kind: 'avg_gt', s, v: lo }, { kind: 'avg_gt', s, v: hi }, { kind: 'avg_lt', s, v: hi }, { kind: 'avg_lt', s, v: lo })
+    }
+    if (want('rank')) for (let a = 0; a < n; a++) for (const r of [2, 3]) if (r <= n) out.push({ kind: 'rank', s, a, n: r })
+  }
+  if (S > 1 && (want('gap') || want('compare'))) {
+    for (let s = 0; s < S; s++) for (let s2 = 0; s2 < S; s2++) if (s !== s2) {
+      for (let a = 0; a < n; a++) out.push({ kind: 'above', s, s2, a })
+      if (s < s2) for (let a = 0; a < n; a++) for (let b = a + 1; b < n; b++) out.push({ kind: 'gap_widen', s, s2, a, b })
+    }
+  }
+  // Karıştır (tohumlu)
+  for (let i = out.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [out[i], out[j]] = [out[j], out[i]] }
+  return out
+}
+
+/** Doğruluk değeri belli k iddia. Aynı sette her konudan (seri + kategori
+ *  ikilisi) en çok bir iddia: "%25'ten fazla" ile "%25'ten az" yan yana
+ *  gelip cevabı ele vermesin. */
+function claimSubject(c: ChartClaim): string {
+  return ['max', 'min', 'rank'].includes(c.kind) ? `x|${c.s}` : `${c.s}|${c.s2 ?? ''}|${Math.min(c.a ?? -1, c.b ?? -1)}|${Math.max(c.a ?? -1, c.b ?? -1)}|${c.kind.slice(0, 3)}`
+}
+
+function pickClaims(cands: ChartClaim[], chart: ChartSpec, lang: string, truth: boolean, k: number, avoid: Set<string>): ChartClaim[] {
+  const out: ChartClaim[] = []
+  for (const c of cands) {
+    if (out.length >= k) break
+    if (claimTruth(c, chart) !== truth) continue
+    const t = claimText(c, chart, lang), subj = 'subj:' + claimSubject(c)
+    if (!t || avoid.has(t) || avoid.has(subj)) continue
+    avoid.add(t); avoid.add(subj)
+    out.push(c)
+  }
+  return out
+}
+
+const ROMAN = ['I', 'II', 'III']
+const PREMISE_COMBOS: number[][] = [[0], [1], [2], [0, 1], [0, 2], [1, 2], [0, 1, 2]]
+function comboLabel(combo: number[], lang: string): string {
+  const r = combo.map(i => ROMAN[i])
+  if (lang === 'en') return r.length === 1 ? `${r[0]} only` : r.length === 2 ? `${r[0]} and ${r[1]}` : 'I, II and III'
+  return r.length === 1 ? `Yalnız ${r[0]}` : r.length === 2 ? `${r[0]} ve ${r[1]}` : 'I, II ve III'
+}
+
+/** Örnekle aynı biçimde, benzer grafikte yeni soru. Kurulamazsa null. */
+function buildChartQuestion(item: ChartExample, chart: ChartSpec, lang: string, rand: () => number, optionCount = 4): Record<string, unknown> | null {
+  const format = CHART_FORMATS.includes(item.format) ? item.format : 'which_true'
+  const skills = (item.skills || []).filter(s => CHART_SKILLS.includes(s))
+  // Önce örneğin becerileri; ifade yetmezse öteki beceriler de eklenir.
+  const cands = [...claimCandidates(chart, skills, rand), ...(skills.length ? claimCandidates(chart, [], rand) : [])]
+  const tr = lang !== 'en'
+  const genericStem = (f: string) => tr
+    ? ({ which_true: 'Grafiğe göre aşağıdakilerden hangisi söylenebilir?', which_false: 'Grafiğe göre aşağıdakilerden hangisi söylenemez?', premises: 'Grafiğe göre aşağıdaki ifadelerden hangileri doğrudur?', true_false: 'Grafiğe göre aşağıdaki ifade doğru mudur?' } as Record<string, string>)[f]
+    : ({ which_true: 'According to the chart, which of the following is true?', which_false: 'According to the chart, which of the following is NOT true?', premises: 'According to the chart, which of the statements are true?', true_false: 'According to the chart, is the following statement true?' } as Record<string, string>)[f]
+  // Örneğin kökü sayı içermiyorsa ve biçimi aynıysa aynen kullanılır.
+  const stem = (f: string) => {
+    const ex = String(item.stem || '').trim()
+    return ex && ex.length <= 200 && !/\d/.test(ex) && item.format === f ? ex : genericStem(f)
+  }
+  const base = { chart, concept: chart.title }
+  const rationales = (opts: Array<{ text: string; c: ChartClaim }>) => {
+    const out: Record<string, string> = {}
+    for (const o of opts) out[o.text] = `${claimTruth(o.c, chart) ? (tr ? 'Doğru' : 'True') : (tr ? 'Yanlış' : 'False')}: ${claimEvidence(o.c, chart, lang)}.`
+    return out
+  }
+  if (format === 'which_true' || format === 'which_false') {
+    const k = Math.max(4, Math.min(5, item.options_count || optionCount))
+    const truth = format === 'which_true'
+    const avoid = new Set<string>()
+    const odd = pickClaims(cands, chart, lang, truth, 1, avoid)
+    const rest = pickClaims(cands, chart, lang, !truth, k - 1, avoid)
+    if (odd.length !== 1 || rest.length !== k - 1) return null
+    const opts = [...odd, ...rest].map(c => ({ text: claimText(c, chart, lang), c }))
+    return { ...base, type: 'multiple_choice', question: stem(format), options: opts.map(o => o.text), correct_answer: opts[0].text,
+      option_rationales: rationales(opts), explanation: `${opts[0].text} ${tr ? '— grafikte' : '— the chart shows'} ${claimEvidence(odd[0], chart, lang)}.` }
+  }
+  if (format === 'premises') {
+    const k = Math.max(4, Math.min(5, item.options_count || optionCount))
+    for (let attempt = 0; attempt < 12; attempt++) {
+      const nTrue = 1 + Math.floor(rand() * 3)
+      const avoid = new Set<string>()
+      const t = pickClaims(cands.slice(attempt), chart, lang, true, nTrue, avoid)
+      const f = pickClaims(cands.slice(attempt), chart, lang, false, 3 - nTrue, avoid)
+      if (t.length !== nTrue || f.length !== 3 - nTrue) continue
+      const prem = [...t, ...f]
+      for (let i = prem.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [prem[i], prem[j]] = [prem[j], prem[i]] }
+      const correct = prem.map((c, i) => claimTruth(c, chart) ? i : -1).filter(i => i >= 0)
+      const correctLabel = comboLabel(correct, lang)
+      const others = PREMISE_COMBOS.filter(cb => comboLabel(cb, lang) !== correctLabel)
+      for (let i = others.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [others[i], others[j]] = [others[j], others[i]] }
+      const rank = (cb: number[]) => PREMISE_COMBOS.findIndex(p => p.join() === cb.join())
+      const opts = [correct, ...others.slice(0, k - 1)].sort((x, y) => rank(x) - rank(y)).map(cb => comboLabel(cb, lang))
+      const lines = prem.map((c, i) => `${ROMAN[i]}. ${claimText(c, chart, lang)}`)
+      const why = prem.map((c, i) => `${ROMAN[i]} ${claimTruth(c, chart) ? (tr ? 'doğru' : 'true') : (tr ? 'yanlış' : 'false')} (${claimEvidence(c, chart, lang)})`).join('; ')
+      return { ...base, type: 'multiple_choice', question: `${stem('premises')}\n\n${lines.join('\n')}`, premises: lines, keep_order: true, options: opts, correct_answer: correctLabel, explanation: `${why}.` }
+    }
+    return null
+  }
+  if (format === 'true_false') {
+    const truth = rand() < 0.5
+    const c = pickClaims(cands, chart, lang, truth, 1, new Set())[0] || pickClaims(cands, chart, lang, !truth, 1, new Set())[0]
+    if (!c) return null
+    const t = claimTruth(c, chart)
+    const pair = tr ? ['Doğru', 'Yanlış'] : ['True', 'False']
+    return { ...base, type: 'true_false', question: `${stem('true_false')}\n\n“${claimText(c, chart, lang)}”`, options: pair, correct_answer: t ? pair[0] : pair[1], explanation: `${claimEvidence(c, chart, lang)}.` }
+  }
+  if (format === 'fill') {
+    const s = Math.floor(rand() * chart.series.length), d = chart.series[s].data
+    const hi = rand() < 0.5, idx = d.indexOf(hi ? Math.max(...d) : Math.min(...d))
+    const S = seriesWord(chart, s, lang)
+    return { ...base, type: 'fill_blank', question: tr ? `Grafiğe göre en ${hi ? 'yüksek' : 'düşük'} ${S} ______ görülmektedir.` : `According to the chart, the ${hi ? 'highest' : 'lowest'} ${S} is in ______.`,
+      correct_answer: chart.labels[idx], accepted_answers: [], explanation: chart.labels.map((l, i) => `${l}: ${fmtNum(d[i], chart, lang)}`).join(', ') + '.' }
+  }
+  if (format === 'value') {
+    const s = Math.floor(rand() * chart.series.length), d = chart.series[s].data, n = d.length
+    const vars: Record<string, number> = {}
+    d.forEach((v, i) => { vars[`d${i + 1}`] = v })
+    const S = seriesWord(chart, s, lang)
+    let pick = skills.find(k => ['change', 'share', 'average', 'compare'].includes(k)) || (chart.type === 'pie' ? 'share' : isTimeAxis(chart) ? 'change' : 'compare')
+    if (pick === 'change' && !isTimeAxis(chart)) pick = 'compare'
+    let question: string, formula: string, units = ''
+    if (pick === 'share' && d.every(v => v >= 0)) {
+      const a = Math.floor(rand() * n)
+      formula = `d${a + 1} / (${d.map((_, i) => `d${i + 1}`).join(' + ')}) * 100`; units = '%'
+      question = tr ? `Grafiğe göre ${chart.labels[a]} toplamın yüzde kaçını oluşturur?` : `According to the chart, what percentage of the total is ${chart.labels[a]}?`
+    } else if (pick === 'average') {
+      formula = `(${d.map((_, i) => `d${i + 1}`).join(' + ')}) / ${n}`; units = chart.unit
+      question = tr ? `Grafiğe göre ${S} ortalaması kaçtır?` : `According to the chart, what is the average ${S}?`
+    } else if (pick === 'compare') {
+      const a = Math.floor(rand() * n); let b = Math.floor(rand() * (n - 1)); if (b >= a) b++
+      formula = `d${a + 1} - d${b + 1}`; units = chart.unit
+      question = tr ? `Grafiğe göre ${chart.labels[a]} ile ${chart.labels[b]} arasındaki ${S} farkı (${chart.labels[a]} − ${chart.labels[b]}) kaçtır?` : `According to the chart, what is ${S} in ${chart.labels[a]} minus ${S} in ${chart.labels[b]}?`
+    } else {
+      const a = Math.floor(rand() * (n - 1)), b = a + 1 + Math.floor(rand() * (n - 1 - a))
+      // Artış mı azalış mı, soru söyler; cevap her zaman pozitif yüzde.
+      const up = d[b] >= d[a]
+      formula = up ? `(d${b + 1} - d${a + 1}) / d${a + 1} * 100` : `(d${a + 1} - d${b + 1}) / d${a + 1} * 100`; units = '%'
+      question = tr ? `Grafiğe göre ${trSuffix(chart.labels[a], 'abl')} ${trSuffix(chart.labels[b], 'dat')} ${S} yüzde kaç ${up ? 'artmıştır' : 'azalmıştır'}?` : `According to the chart, by what percentage did ${S} ${up ? 'increase' : 'decrease'} from ${chart.labels[a]} to ${chart.labels[b]}?`
+    }
+    const used: Record<string, number> = {}
+    for (const k of Object.keys(vars)) if (new RegExp(`\\b${k}\\b`).test(formula)) used[k] = vars[k]
+    const value = evaluateExpression(formula, used)
+    if (!Number.isFinite(value)) return null
+    return { ...base, type: 'calculation', question, variables: used, formula, verified: true, correct_answer: Math.round(value * 1e4) / 1e4, tolerance_percent: 1, units,
+      solution_steps: [`${tr ? 'Grafikten' : 'From the chart'}: ${Object.keys(used).map(k => `${chart.labels[Number(k.slice(1)) - 1]} = ${fmtNum(used[k], chart, lang)}`).join(', ')}`, `${formula.replace(/d(\d+)/g, (_m, i) => chart.labels[Number(i) - 1])}`] }
+  }
+  // open: yorum sorusu; rubrik doğru iddialardan.
+  const avoid = new Set<string>()
+  const t = pickClaims(cands, chart, lang, true, 4, avoid)
+  if (t.length < 2) return null
+  const pts = t.length === 4 ? [25, 25, 25, 25] : t.length === 3 ? [34, 33, 33] : [50, 50]
+  const ex = String(item.stem || '').trim()
+  const q = ex && ex.length <= 240 && !/\d{2,}/.test(ex) ? ex : (tr ? 'Grafiği yorumlayınız: değişimi, en yüksek ve en düşük değerleri ve dikkat çeken farkları açıklayınız.' : 'Interpret the chart: describe the change, the highest and lowest values and notable differences.')
+  return { ...base, type: 'open_ended', question: q, correct_answer: t.map(c => claimText(c, chart, lang)).join(' '),
+    rubric: t.map((c, i) => ({ criterion: (tr ? 'Şunu belirtir: ' : 'States that: ') + claimText(c, chart, lang), points: pts[i] })), explanation: t.map(c => claimText(c, chart, lang)).join(' ') }
+}
+
+/** Taranmış örneklerden sınav soruları (yapay zekâ yok): her öğe için
+ *  benzer grafik + örnekle aynı biçimde soru; öğeler sırayla dönülür, her
+ *  turda yeni değerler. Kaynak sayfa taramadaki sayfadır. */
+function buildChartExamQuestions(items: Array<Record<string, unknown>>, count: number, lang: string, optionCount: number, seed: string): Record<string, unknown>[] {
+  const rand = seededRandom(seed)
+  const pool = (Array.isArray(items) ? items : []).map(it => {
+    const raw = (it && typeof it.chart === 'object' ? it.chart : null) as Record<string, unknown> | null
+    const chart = normalizeChartSpec(raw)
+    const e = (it && typeof it.example === 'object' && it.example ? it.example : {}) as Record<string, unknown>
+    const ex: ChartExample = {
+      stem: typeof e.stem === 'string' ? e.stem : '',
+      format: CHART_FORMATS.includes(String(e.format)) ? String(e.format) : 'which_true',
+      skills: Array.isArray(e.skills) ? (e.skills as unknown[]).map(String).filter(k => CHART_SKILLS.includes(k)) : [],
+      options_count: [4, 5].includes(Number(e.options_count)) ? Number(e.options_count) : undefined
+    }
+    const axes = { x_title: raw ? chartLabel(raw.x_title, 60) : '', y_title: raw ? chartLabel(raw.y_title, 60) : '' }
+    return chart ? { page: Number(it.page) || null, chart, ex, axes } : null
+  }).filter(Boolean) as Array<{ page: number | null; chart: ChartSpec; ex: ChartExample; axes: { x_title: string; y_title: string } }>
+  for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]] }
+  const out: Record<string, unknown>[] = []
+  const seen = new Set<string>()
+  for (let i = 0; pool.length && out.length < count && i < count * 4; i++) {
+    const it = pool[i % pool.length]
+    const variant = chartVariant(it.chart, rand)
+    if (!variant) continue
+    const chart = { ...variant, ...(it.axes.x_title ? { x_title: it.axes.x_title } : {}), ...(it.axes.y_title ? { y_title: it.axes.y_title } : {}) }
+    const q = buildChartQuestion(it.ex, chart, lang, rand, optionCount) || buildChartQuestion({ ...it.ex, format: 'which_true' }, chart, lang, rand, optionCount)
+    if (!q) continue
+    const key = String(q.question) + '|' + JSON.stringify(q.options || q.correct_answer)
+    if (seen.has(key)) continue
+    seen.add(key)
+    if (it.page) q.source = { page: it.page, page_end: null, quote: null, unit: 'page' }
+    out.push(q)
+  }
+  return out
+}
+
 /** Tek bir soruyu denetler ve temizlenmiş halini döner. Geçmezse
  *  { ok: false, reason } — soru atılır. allowUnverifiedCalc: son çare;
  *  formülü doğrulanamayan ama cevabı sayı olan hesap sorusu Faz 3a öncesi
@@ -1494,7 +1984,7 @@ serve(async (req) => {
       })
     }
 
-    const { studyCardId, sourceType, courseCode, courseDepartment, examType, questionCount, language, difficulty, isSimulation, focusConcept, optionCount, negativeMarking, decimalPlaces: decimalPlacesRaw } = await req.json()
+    const { studyCardId, sourceType, courseCode, courseDepartment, examType, questionCount, language, difficulty, isSimulation, focusConcept, optionCount, negativeMarking, decimalPlaces: decimalPlacesRaw, chartExamples } = await req.json()
     const scoring = normalizeScoring(optionCount, negativeMarking)
     // Yalnızca hesap sorusu olabilen türlerde (test ve klasikte anlamsız).
     const decimalPlaces = examType === 'calculation' || examType === 'mixed' ? normalizeDecimalPlaces(decimalPlacesRaw) : null
@@ -1812,6 +2302,25 @@ ${c.formulas && (c.formulas as unknown[]).length > 0 ? `FORMULAS: ${JSON.stringi
     // it instead of re-billing/re-counting it against our rate limit.
     if (chartSources.length > 0) context += `\n\nCHARTS (numbered; the student sees each drawn as a graph with labelled values):\n${describeCharts(chartSources)}`
 
+    // FAZ 4c: "dosyadaki grafik sorularına göre". Taranmış grafiklerden
+    // benzer grafik + aynı biçimde soru; tamamen kodla, yapay zekâ çağrısı yok.
+    let chartExampleQuestions: Record<string, unknown>[] | null = null
+    if (chartExamples === true) {
+      if (resolvedSourceType !== 'study_card' || !sourceDocumentId) {
+        return new Response(JSON.stringify({ error: 'Grafik soruları yalnızca yüklenen bir belgeden kurulabilir.' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+      const { data: chartItems, error: chartItemsErr } = await userClient.from('document_chart_items').select('page, chart, example').eq('document_id', sourceDocumentId).order('page')
+      if (chartItemsErr) console.warn('generate-exam: document_chart_items okunamadi (migration?):', chartItemsErr.message)
+      if (!chartItems || !chartItems.length) {
+        return new Response(JSON.stringify({ error: 'Bu belgede taranmış grafik sorusu yok. Önce grafik taramasını tamamlayın.', code: 'no_chart_items' }), { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+      chartExampleQuestions = buildChartExamQuestions(chartItems as Array<Record<string, unknown>>, requestedCount, language, scoring.option_count, `${user.id}:${Date.now()}:${Math.random()}`)
+      console.log(`generate-exam: ${chartItems.length} taranmis grafikten ${chartExampleQuestions.length} soru (kodla)`)
+      if (!chartExampleQuestions.length) {
+        return new Response(JSON.stringify({ error: 'Taranmış grafiklerden soru kurulamadı.' }), { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+    }
+
     const sysPrompt = `
 You are an academic study assistant. ${sourceDescription}
 
@@ -1942,7 +2451,8 @@ Additional variation seed: ${Date.now()}`
       }
     }
 
-    const first = await requestQuestions(requestedCount, [])
+    if (chartExampleQuestions) accepted.push(...chartExampleQuestions)
+    const first = chartExampleQuestions ? { items: [] as unknown[] } as { items?: unknown[]; error?: string } : await requestQuestions(requestedCount, [])
     if (first.error && !first.items) {
       const detail = first.error === 'invalid_format' ? 'AI returned invalid question formatting. Please try again.' : `AI generation service failed: ${first.error}`
       return new Response(JSON.stringify({ error: detail }), {
@@ -1953,7 +2463,7 @@ Additional variation seed: ${Date.now()}`
     absorb(first.items || [])
 
     // Eksik kalan soru varsa bir kez daha, yalnızca eksik sayı kadar iste.
-    if (accepted.length < requestedCount) {
+    if (accepted.length < requestedCount && !chartExampleQuestions) {
       const shortfall = requestedCount - accepted.length
       console.warn(`generate-exam: ${rejectReasons.length} soru dogrulamadan gecmedi (${rejectReasons.join(', ')}); ${shortfall} soru icin yeniden uretim isteniyor`)
       const second = await requestQuestions(shortfall, accepted.map(q => String(q.question)))
@@ -1985,7 +2495,7 @@ Additional variation seed: ${Date.now()}`
     // yansıtmasına güvenme), çoktan seçmeli şıkları karıştır.
     const finalQuestions = accepted.map((q, i) => {
       const out: Record<string, unknown> = { ...q, id: i + 1, difficulty: resolvedDifficulty }
-      if (out.type === 'multiple_choice' && Array.isArray(out.options)) {
+      if (out.type === 'multiple_choice' && Array.isArray(out.options) && out.keep_order !== true) {
         out.options = shuffleInPlace([...(out.options as string[])])
       }
       return out
@@ -2003,6 +2513,7 @@ Additional variation seed: ${Date.now()}`
           const unit = sourceUnitFor(docRow && (docRow as Record<string, unknown>).file_name)
           let anchored = 0
           for (const q of finalQuestions) {
+            if (q.source) { anchored++; continue }
             const src = anchorQuestionToSource(q, index, idf, pageEnd, unit)
             if (src) { q.source = src; anchored++ }
           }
