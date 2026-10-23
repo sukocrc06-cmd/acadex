@@ -226,6 +226,8 @@ test('exprToTex: kesir, us, kok, fonksiyon, carpma', () => {
   assert.equal(T('(x+1)^2'), '{\\left(x + 1\\right)}^{2}');
   assert.equal(T('2*3x'), '2 \\cdot 3 x');
   assert.equal(T('3pi*r^2'), '3 \\pi {r}^{2}');
+  assert.equal(T('√x sinx'), '\\sqrt{x} \\, \\sin\\left(x\\right)', 'fonksiyonla carpimda ince bosluk');
+  assert.equal(T('2sinx'), '2 \\, \\sin\\left(x\\right)');
   assert.equal(E.exprToTex(''), '');
   assert.equal(E.exprToTex('2*('), '');
 });

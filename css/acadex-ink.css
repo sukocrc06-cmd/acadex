@@ -4166,12 +4166,12 @@ body.axs-hall-on #pomodoro-widget-container,body.axs-hall-on #acadia-widget-cont
 .axe-expr-keys button{min-width:40px;min-height:36px;padding:0 10px;border:1.4px solid #C9D1E1;border-radius:6px;background:#F7F9FD;color:#1A2A5C;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:15px;cursor:pointer}
 .axe-expr-keys button:hover{border-color:#2F6BFF;background:#EEF3FF}
 .axe-expr-keys button:focus-visible{outline:2px solid #2F6BFF;outline-offset:1px}
-.axe-expr-pv{min-height:40px;padding:8px 12px;border:1.4px dashed #DCE2EE;border-radius:8px;background:#FBFCFE;color:#6A7593;font-size:13px;overflow-x:auto}
+.axe-expr-pv{min-height:40px;padding:10px 12px;border:1.4px dashed #DCE2EE;border-radius:8px;background:#FBFCFE;color:#6A7593;font-size:13px;line-height:1.5;overflow-x:auto;overflow-y:hidden}
 .axe-expr-pv.ok{color:#0D1838;font-size:18px;border-style:solid}
 .axe-expr-pv.bad{color:#C9483B;border-color:#F0C9C3}
 .axe-expr-note{margin:0;font-size:13px;color:#B4511F}
 .axe-expr-note::before{content:"→ "}
-:is(#exams-view.axs,#axs-layer) .sn-math{display:inline-block;font-family:inherit;font-size:1.05em;max-width:100%;overflow-x:auto;vertical-align:middle}
+:is(#exams-view.axs,#axs-layer) .sn-math{display:inline-block;font-family:inherit;font-size:1.05em;max-width:100%;overflow-x:auto;overflow-y:hidden;padding:4px 2px;vertical-align:middle}
 :is(#exams-view.axs,#axs-layer) .sn-fbk{margin:8px 0 0}
 :is(#exams-view.axs,#axs-layer) .sn-fbk-c{display:flex;flex-wrap:wrap;gap:6px}
 :is(#exams-view.axs,#axs-layer) .sn-chip{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;border:1.3px solid currentColor}
