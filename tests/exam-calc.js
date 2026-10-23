@@ -27,8 +27,7 @@ const EXPR = ['EXPR_MAX_LENGTH', 'EXPR_MAX_DEPTH', 'EXPR_CONSTS', 'EXPR_FUNCS', 
 const G = loadFromSource(GEN_PATH, [
   ...EXPR, 'normalizeAnswerText', 'parseLooseNumber', 'cleanText',
   'numberReadings', 'sameNumber', 'withinTolerance', 'templateMatches', 'normalizeFormula', 'DERIVED_FACTORS', 'verifyCalculation',
-  'MATH_INPUT_MAX', 'normalizeMathInput', 'STEP_KINDS', 'verifyLinearEquation'
-]);
+  'MATH_INPUT_MAX', 'normalizeMathInput', 'STEP_KINDS', 'verifyLinearEquation', 'STANDARD_CONSTANTS', 'referencesName', 'inlineName']);
 const R = loadFromSource(GRADE_PATH, [...EXPR, 'parseLooseNumber', 'matchCommonError', 'teachingFields']);
 const E = require(path.join(__dirname, '..', 'js', 'exam-engine.js'));
 
@@ -240,6 +239,41 @@ test('checkNumericAnswer: Turkce yazim, tolerans, bos', () => {
   assert.deepEqual(E.checkNumericAnswer('5000', 5368.2162, 1).ok, false);
   assert.deepEqual(E.checkNumericAnswer('', 5368.2162, 1).filled, false);
   assert.deepEqual(E.checkNumericAnswer('0,01', 0, 2).ok, true);
+});
+
+// ---------------------------------------------------------------------------
+// Faz 3c canlı test (23.10.2026): kullanılmayan değişken, standart sabit
+// ---------------------------------------------------------------------------
+test('formulde gecmeyen degisken atilir (A1, A2 gibi fazladan hucreler)', () => {
+  const q = { type: 'calculation', question: 'A3=20, A4=25 ve A5=30 ise =SUM(A3:A5) kaçtır?', correct_answer: 75,
+    variables: { A1: 10, A2: 15, A3: 20, A4: 25, A5: 30 }, formula: 'A3 + A4 + A5', template: 'A3={A3}, A4={A4} ve A5={A5} ise =SUM(A3:A5) kaçtır?' };
+  assert.deepEqual(G.verifyCalculation(q), { ok: true });
+  assert.deepEqual(Object.keys(q.variables), ['A3', 'A4', 'A5']);
+});
+
+test('metinde yazmayan standart sabit (aylik → 12) formule gomulur, sablon korunur', () => {
+  const q = { type: 'calculation', question: '500.000 TL kredi, yıllık %4 faiz, 20 yıl vade. Aylık taksit kaç TL?', correct_answer: 3029.9,
+    variables: { PV: 500000, interest_rate: 0.04, periods_per_year: 12, years: 20 },
+    formula: 'PV * (interest_rate/periods_per_year) / (1 - (1 + interest_rate/periods_per_year)^(-periods_per_year*years))',
+    template: '{PV} TL kredi, yıllık %{interest_rate} faiz, {years} yıl vade. Aylık taksit kaç TL?',
+    common_errors: [{ formula: 'PV * interest_rate / (1 - (1 + interest_rate)^(-years))', message: 'Yıllık faizi aya çevirmedin.' }] };
+  assert.deepEqual(G.verifyCalculation(q), { ok: true }, 'calc_var_not_in_text degil');
+  assert.ok(!('periods_per_year' in q.variables));
+  assert.match(q.formula, /\(12\)/);
+  assert.ok(Math.abs(q.correct_answer - 3029.9) < 0.1);
+  assert.equal(q.template, null, '0.04 metinde %4: turetilmis, sablon kapanir');
+  const q2 = { ...q, variables: { PV: 500000, r: 4, periods_per_year: 12, years: 20 }, formula: 'PV * (r/100/periods_per_year) / (1 - (1 + r/100/periods_per_year)^(-periods_per_year*years))',
+    template: '{PV} TL kredi, yıllık %{r} faiz, {years} yıl vade. Aylık taksit kaç TL?', common_errors: null };
+  assert.deepEqual(G.verifyCalculation(q2), { ok: true });
+  assert.ok(q2.template, 'tum degiskenler metinde: sablon korunur');
+  assert.equal(G.inlineName('pmt(r, n, PV) + PV*2', 'PV', 5), 'pmt(r, n, (5)) + (5)*2');
+  assert.equal(G.inlineName('pv(1,2,3)', 'pv', 5), 'pv(1,2,3)', 'fonksiyon cagrisi dokunulmaz');
+});
+
+test('tarihten turetilmis yil kesri (0,5) hala gizli girdi sayilir', () => {
+  const q = { type: 'calculation', question: '01.01.2024 -10.000 TL, 01.07.2024 3.000 TL; %6 iskonto ile XNPV?', correct_answer: -7087,
+    variables: { r: 0.06, cf1: -10000, cf2: 3000, t2: 0.4959 }, formula: 'cf1 + cf2/(1+r)^t2' };
+  assert.equal(G.verifyCalculation(q).reason, 'calc_var_not_in_text');
 });
 
 summary();

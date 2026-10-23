@@ -622,7 +622,7 @@ function parseCriteria(raw: unknown): CriterionVerdict[] | null {
 // küçük tutuyor (yol haritası kontrolü: fark 10 puanı geçmemeli).
 // Rubriği olmayan (eski) soru eskisi gibi bütüncül puanlanır.
 // ==========================================================================
-const GROQ_RETRY_MAX_WAIT_MS = 30_000
+const GROQ_RETRY_MAX_WAIT_MS = 45_000
 
 /** Groq 429 yanıtından beklenecek süre (ms); generate-exam'deki ile birebir
  *  aynı (tests/exam-feedback.js denetler). */

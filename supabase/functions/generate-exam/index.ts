@@ -417,21 +417,51 @@ function verifyLinearEquation(equation: unknown, unknown: unknown, vars: Record<
   return { equation: `${left}=${right}`, unknown: u }
 }
 
+/** Faz 3c: metinde yazmasa da gizli girdi sayılmayan standart sabitler. */
+const STANDARD_CONSTANTS = [12, 100, 360, 365, 52]
+
+/** İfadede bu ad (değişken olarak) geçiyor mu. */
+function referencesName(src: string, name: string): boolean {
+  return new RegExp(`(^|[^A-Za-z0-9_])${name}(?![A-Za-z0-9_])`).test(src)
+}
+
+/** Değişken adını sayıyla değiştirir (fonksiyon çağrısı "ad(" dokunulmaz). */
+function inlineName(src: string, name: string, value: number): string {
+  return src.replace(new RegExp(`(^|[^A-Za-z0-9_])${name}(?![A-Za-z0-9_(])`, 'g'), (_m, pre) => `${pre}(${value})`)
+}
+
 /** Hesap sorusunu kodla doğrular ve düzeltir: correct_answer formülden,
  *  şablon ve tipik hatalar temizlenmiş. Başarısızsa nedeni. */
 function verifyCalculation(q: Record<string, unknown>): { ok: boolean; reason?: string } {
   const vars = sanitizeVariables(q.variables)
-  const names = Object.keys(vars)
-  const formula = normalizeFormula(q.formula)
-  if (names.length === 0 || !formula) return { ok: false, reason: 'calc_no_formula' }
+  let formula = normalizeFormula(q.formula)
+  if (Object.keys(vars).length === 0 || !formula) return { ok: false, reason: 'calc_no_formula' }
   const value = evaluateExpression(formula, vars)
   if (!Number.isFinite(value)) return { ok: false, reason: 'calc_formula_invalid' }
+  // Faz 3c: formülde (ya da doğrusal denklemde) geçmeyen değişken atılır;
+  // model bazen kullanmadığı hücreleri de yazıyor (A1, A2…).
+  const equationSrc = String(q.equation ?? '')
+  for (const n of Object.keys(vars)) {
+    if (!referencesName(formula, n) && !referencesName(equationSrc, n)) delete vars[n]
+  }
   // Her değişken soru metninde yazılı olmalı ya da yazılı bir sayıdan
   // doğrudan türemeli (gizli girdi yok).
   const text = String(q.question ?? '')
   const readings = [...text.matchAll(/\d[\d.,]*/g)].flatMap(m => numberReadings(m[0].replace(/[.,]+$/, '')))
   const literal = (n: string) => readings.some(r => sameNumber(r, vars[n]))
   const derived = (n: string) => readings.some(r => DERIVED_FACTORS.some(k => sameNumber(r * k, vars[n])))
+  // Faz 3c: metinde yazmayan standart sabit (12 ay, 100, 360/365 gün, 52
+  // hafta) gizli girdi değildir: formüle sayı olarak gömülür, değişken
+  // olmaktan çıkar (böylece "farklı sayılarla" şablonu da korunur).
+  const inlined: Record<string, number> = {}
+  for (const n of Object.keys(vars)) {
+    if (!literal(n) && STANDARD_CONSTANTS.includes(vars[n]) && !referencesName(equationSrc, n)) {
+      inlined[n] = vars[n]
+      formula = inlineName(formula, n, vars[n])
+      delete vars[n]
+    }
+  }
+  const names = Object.keys(vars)
   if (names.some(n => !literal(n) && !derived(n))) return { ok: false, reason: 'calc_var_not_in_text' }
   const allLiteral = names.every(literal)
   const tol = Number(q.tolerance_percent) || 2
@@ -445,7 +475,8 @@ function verifyCalculation(q: Record<string, unknown>): { ok: boolean; reason?: 
   for (const ce of Array.isArray(q.common_errors) ? q.common_errors : []) {
     if (!ce || typeof ce !== 'object') continue
     const rec = ce as Record<string, unknown>
-    const f = normalizeFormula(rec.formula)
+    let f = normalizeFormula(rec.formula)
+    for (const [n, v] of Object.entries(inlined)) f = inlineName(f, n, v)
     const msg = cleanText(rec.message, 200)
     const v = evaluateExpression(f, vars)
     if (!f || !msg || !Number.isFinite(v) || withinTolerance(v, value, tol)) continue
@@ -902,7 +933,7 @@ function normalizeRubric(raw: unknown): Array<{ criterion: string; points: numbe
   return scaled
 }
 
-const GROQ_RETRY_MAX_WAIT_MS = 30_000
+const GROQ_RETRY_MAX_WAIT_MS = 45_000
 // Üretimde Groq hatası sonrası en fazla bu kadar yeniden deneme.
 const GEN_MAX_RETRIES = 2
 // Çıktı bütçesi: sabit pay (düşünme + sarmalayıcı) + soru başına pay.
