@@ -26,7 +26,7 @@ const SHARED = [
   'normalizeAnswerText', 'foldTurkish', 'mergeQuestionWithKey', 'parseGradesResponse', 'parseCriteria',
   'GROQ_RETRY_MAX_WAIT_MS', 'groqRetryDelayMs', 'PLACEHOLDER_ANSWERS', 'isPlaceholderAnswer',
   'effectiveCorrectAnswer', 'VERDICT_SHARE', 'scoreFromRubric', 'computeFinalGrade',
-  'computeNetSummary', 'computeExamGrade'
+  'computeNetSummary', 'computeExamGrade', 'chartAsText'
 ];
 
 const A = loadFromSource(APPEAL_PATH, [

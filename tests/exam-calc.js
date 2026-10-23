@@ -27,7 +27,7 @@ const EXPR = ['EXPR_MAX_LENGTH', 'EXPR_MAX_DEPTH', 'EXPR_CONSTS', 'EXPR_FUNCS', 
 const G = loadFromSource(GEN_PATH, [
   ...EXPR, 'normalizeAnswerText', 'parseLooseNumber', 'cleanText',
   'numberReadings', 'sameNumber', 'withinTolerance', 'templateMatches', 'normalizeFormula', 'DERIVED_FACTORS', 'verifyCalculation',
-  'MATH_INPUT_MAX', 'normalizeMathInput', 'STEP_KINDS', 'verifyLinearEquation', 'STANDARD_CONSTANTS', 'referencesName', 'inlineName']);
+  'MATH_INPUT_MAX', 'normalizeMathInput', 'STEP_KINDS', 'verifyLinearEquation', 'STANDARD_CONSTANTS', 'referencesName', 'inlineName', 'chartNumbers']);
 const R = loadFromSource(GRADE_PATH, [...EXPR, 'parseLooseNumber', 'matchCommonError', 'teachingFields']);
 const E = require(path.join(__dirname, '..', 'js', 'exam-engine.js'));
 

@@ -527,6 +527,7 @@
               <button type="button" class="btn btn-outline exam-flag-btn" data-exam-action="flag" aria-pressed="false">${t('flag')}</button>
             </div>
           </div>
+          ${q.chart ? chartFigureHtml(q.chart, active.lang) : ''}
           <div id="hint-box-${q.id}" class="exam-hint-box" style="display: none;"></div>
           ${input}
           <div class="exam-single-nav">
@@ -1418,6 +1419,131 @@
     return spec.kind === 'linear' ? checkLinearSteps(text, spec, vars, lang) : checkNumericSteps(text, spec, vars, lang);
   }
 
+  // ------------------------------------------------------------------------
+  // FAZ 4a: grafik okuma — kaynaktan gelen grafiğin SVG çizimi. Değerler
+  // etiketli (amaç piksel okumak değil, grafiği yorumlamak); ekran okuyucu
+  // için gizli veri tablosu. Saf işlev: aynı veri her yerde aynı çizim.
+  // ------------------------------------------------------------------------
+  const CHART_COLORS = ['#1A2A5C', '#2F6BFF', '#B4511F', '#1E8A55', '#8A5CF6', '#C9483B', '#0E8A9A', '#6A7593'];
+
+  function chartEsc(v) {
+    return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  /** Okunur eksen aralığı: 1, 2, 2,5, 5 × 10^n adımlı en çok ~6 çentik. */
+  function niceTicks(lo, hi) {
+    if (!Number.isFinite(lo) || !Number.isFinite(hi)) return [0, 1];
+    if (lo === hi) { const d = Math.abs(lo) || 1; lo -= d / 2; hi += d / 2; }
+    const raw = (hi - lo) / 5, mag = Math.pow(10, Math.floor(Math.log10(raw))), n = raw / mag;
+    const step = (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * mag;
+    const out = [];
+    for (let v = Math.floor(lo / step) * step; v <= hi + step * 1e-9; v += step) out.push(Math.round(v / step) * step);
+    if (out[out.length - 1] < hi - step * 1e-9) out.push(out[out.length - 1] + step);
+    return out.map(v => Math.round(v * 1e9) / 1e9);
+  }
+
+  function chartValue(v, unit, lang, compact) {
+    // Türkçede yüzde işareti sayıdan önce, eksi en başta: -%2.
+    if (unit === '%' && lang !== 'en' && v < 0) return '-' + chartValue(-v, unit, lang, compact);
+    let txt;
+    const a = Math.abs(v);
+    if (compact && a >= 1e6) txt = formatNumber(Math.round(v / 1e4) / 100, lang) + (lang === 'en' ? 'M' : ' Mn');
+    else if (compact && a >= 1e4) txt = formatNumber(Math.round(v / 10) / 100, lang) + (lang === 'en' ? 'k' : ' bin');
+    else txt = formatNumber(Math.round(v * 100) / 100, lang);
+    if (unit === '%') return lang === 'en' ? txt + '%' : '%' + txt;
+    return txt;
+  }
+
+  /** Grafik verisi → SVG metni (bar / line / pie). Geçersizse ''.
+   *  opts.narrow: telefon düzeni (360 genişlik, büyük yazı, pasta
+   *  göstergesi altta) — yazılar küçülüp okunmaz olmasın. */
+  function renderChartSvg(chart, lang, opts) {
+    const narrow = !!(opts && opts.narrow);
+    const c = chart && typeof chart === 'object' ? chart : null;
+    const labels = c && Array.isArray(c.labels) ? c.labels.map(String) : [];
+    const series = c && Array.isArray(c.series) ? c.series.filter(sr => sr && Array.isArray(sr.data) && sr.data.length === labels.length && sr.data.every(Number.isFinite)) : [];
+    if (labels.length < 2 || !series.length) return '';
+    const unit = c.unit || '', L = lang === 'en' ? 'en' : 'tr', type = c.type === 'line' || c.type === 'pie' ? c.type : 'bar';
+    const W = narrow ? 360 : 600;
+    const H = type === 'pie' && narrow ? 250 + labels.length * 26 : narrow ? 300 : 320;
+    const titleId = 'axct-' + (Math.random().toString(36).slice(2, 8));
+    const head = `<svg class="axc-svg${narrow ? ' axc-n' : ''}" viewBox="0 0 ${W} ${H}" role="img" aria-labelledby="${titleId}" xmlns="http://www.w3.org/2000/svg"><title id="${titleId}">${chartEsc(c.title || 'Grafik')}</title>`;
+    if (type === 'pie') {
+      const data = series[0].data, total = data.reduce((a, b) => a + Math.max(0, b), 0) || 1;
+      const cx = narrow ? W / 2 : 170, cy = narrow ? 120 : H / 2, r = narrow ? 105 : 120;
+      let ang = -Math.PI / 2, body = '';
+      data.forEach((v, i) => {
+        const frac = Math.max(0, v) / total, a2 = ang + frac * 2 * Math.PI;
+        const large = frac > 0.5 ? 1 : 0, col = CHART_COLORS[i % CHART_COLORS.length];
+        const x1 = cx + r * Math.cos(ang), y1 = cy + r * Math.sin(ang), x2 = cx + r * Math.cos(a2), y2 = cy + r * Math.sin(a2);
+        body += frac >= 0.9999 ? `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${col}"/>` : `<path d="M${cx} ${cy} L${x1.toFixed(2)} ${y1.toFixed(2)} A${r} ${r} 0 ${large} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} Z" fill="${col}" stroke="#fff" stroke-width="1.5"/>`;
+        const ly = narrow ? 254 + i * 26 : 40 + i * 26, lx = narrow ? 16 : 330;
+        body += `<rect x="${lx}" y="${ly - 11}" width="14" height="14" rx="3" fill="${col}"/><text x="${lx + 22}" y="${ly}" class="axc-lg">${chartEsc(labels[i])}: ${chartEsc(chartValue(v, unit, L))} (${chartEsc(chartValue(Math.round(frac * 1000) / 10, '%', L))})</text>`;
+        ang = a2;
+      });
+      return head + body + '</svg>';
+    }
+    const all = series.flatMap(sr => sr.data);
+    let lo = Math.min(...all), hi = Math.max(...all);
+    if (type === 'bar' || lo >= 0 && lo < hi * 0.5) lo = Math.min(0, lo);
+    if (type === 'bar') hi = Math.max(0, hi);
+    const ticks = niceTicks(lo, hi), t0 = ticks[0], t1 = ticks[ticks.length - 1];
+    const legendH = series.length > 1 ? 22 : 0;
+    const longest = Math.max(...labels.map(l => l.length));
+    const slotGuess = (W - 80) / labels.length, rotate = longest * (narrow ? 7.5 : 6.5) > slotGuess;
+    const m = { l: narrow ? 54 : 68, r: narrow ? 8 : 14, t: 14 + legendH, b: rotate ? (narrow ? 84 : 74) : 40 };
+    const pw = W - m.l - m.r, ph = H - m.t - m.b, slot = pw / labels.length;
+    const y = v => m.t + ph - (v - t0) / (t1 - t0 || 1) * ph;
+    let body = '';
+    ticks.forEach(tv => {
+      const yy = y(tv).toFixed(1);
+      body += `<line x1="${m.l}" x2="${W - m.r}" y1="${yy}" y2="${yy}" class="${tv === 0 ? 'axc-zero' : 'axc-grid'}"/><text x="${m.l - 8}" y="${(+yy + 4).toFixed(1)}" text-anchor="end" class="axc-tk">${chartEsc(chartValue(tv, unit, L, true))}</text>`;
+    });
+    labels.forEach((l, i) => {
+      const xx = m.l + slot * (i + 0.5), yy = H - m.b + 16;
+      body += rotate
+        ? `<text x="${xx.toFixed(1)}" y="${yy}" text-anchor="end" transform="rotate(-35 ${xx.toFixed(1)} ${yy})" class="axc-tk">${chartEsc(l.length > 18 ? l.slice(0, 17) + '…' : l)}</text>`
+        : `<text x="${xx.toFixed(1)}" y="${yy}" text-anchor="middle" class="axc-tk">${chartEsc(l)}</text>`;
+    });
+    const showVals = labels.length * series.length <= (narrow ? 12 : 24);
+    if (type === 'bar') {
+      const gw = slot * 0.72, bw = gw / series.length, zy = y(Math.max(t0, Math.min(0, t1)));
+      series.forEach((sr, k) => sr.data.forEach((v, i) => {
+        const x = m.l + slot * i + (slot - gw) / 2 + k * bw, yv = y(v), top = Math.min(yv, zy), h = Math.max(1, Math.abs(zy - yv));
+        body += `<rect x="${x.toFixed(1)}" y="${top.toFixed(1)}" width="${Math.max(1, bw - 2).toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="${CHART_COLORS[k]}" class="axc-bar"/>`;
+        if (showVals) body += `<text x="${(x + bw / 2 - 1).toFixed(1)}" y="${(v >= 0 ? top - 4 : top + h + 12).toFixed(1)}" text-anchor="middle" class="axc-val">${chartEsc(chartValue(v, unit, L, bw < 46))}</text>`;
+      }));
+    } else {
+      series.forEach((sr, k) => {
+        const pts = sr.data.map((v, i) => [m.l + slot * (i + 0.5), y(v)]);
+        body += `<polyline points="${pts.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ')}" fill="none" stroke="${CHART_COLORS[k]}" stroke-width="2.5" stroke-linejoin="round"/>`;
+        pts.forEach((p, i) => {
+          body += `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="4" fill="#fff" stroke="${CHART_COLORS[k]}" stroke-width="2.5"/>`;
+          if (showVals) body += `<text x="${p[0].toFixed(1)}" y="${(p[1] - 10).toFixed(1)}" text-anchor="middle" class="axc-val">${chartEsc(chartValue(sr.data[i], unit, L, slot < 60))}</text>`;
+        });
+      });
+    }
+    if (series.length > 1) {
+      let lx = m.l;
+      series.forEach((sr, k) => {
+        body += `<rect x="${lx}" y="6" width="12" height="12" rx="2" fill="${CHART_COLORS[k]}"/><text x="${lx + 17}" y="16" class="axc-lg">${chartEsc(sr.name || ('seri ' + (k + 1)))}</text>`;
+        lx += 30 + Math.min(28, String(sr.name || '').length) * 7;
+      });
+    }
+    return head + body + '</svg>';
+  }
+
+  /** Grafik + başlık + ekran okuyucu tablosu (soru, salon, sonuç kâğıdı). */
+  function chartFigureHtml(chart, lang, opts) {
+    const narrow = opts && typeof opts.narrow === 'boolean' ? opts.narrow : (typeof window !== 'undefined' && window.innerWidth > 0 && window.innerWidth < 560);
+    const svg = renderChartSvg(chart, lang, { narrow });
+    if (!svg) return '';
+    const L = lang === 'en' ? 'en' : 'tr', unit = chart.unit || '';
+    const rows = chart.labels.map((l, i) => `<tr><th scope="row">${chartEsc(l)}</th>${chart.series.map(sr => `<td>${chartEsc(chartValue(sr.data[i], unit, L))}</td>`).join('')}</tr>`).join('');
+    const headRow = `<tr><th scope="col"></th>${chart.series.map((sr, k) => `<th scope="col">${chartEsc(sr.name || (L === 'en' ? 'value' : 'değer') + (chart.series.length > 1 ? ' ' + (k + 1) : ''))}</th>`).join('')}</tr>`;
+    return `<figure class="axc-chart"><figcaption>${chartEsc(chart.title || '')}</figcaption>${svg}<table class="axc-sr"><caption>${chartEsc(chart.title || '')}</caption><thead>${headRow}</thead><tbody>${rows}</tbody></table></figure>`;
+  }
+
   /** Sorunun ifade değişkenleri (generate-exam expr_vars yazar). */
   function exprVarsOf(q) {
     const v = q && Array.isArray(q.expr_vars) ? q.expr_vars : [];
@@ -1602,6 +1728,10 @@
     normalizeMathInput,
     exprToTex,
     exprPreviewHtml,
+    // FAZ 4a: grafik okuma
+    niceTicks,
+    renderChartSvg,
+    chartFigureHtml,
     // FAZ 3c: adım adım kontrol
     parseExprAst,
     subValues,

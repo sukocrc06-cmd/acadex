@@ -4158,6 +4158,18 @@ body.axs-hall-on #pomodoro-widget-container,body.axs-hall-on #acadia-widget-cont
 :is(#exams-view.axs,#axs-layer) .sn-prac-r[hidden]{display:none}
 :is(#exams-view.axs,#axs-layer) .sn-prac-r.ok{color:var(--green)}
 :is(#exams-view.axs,#axs-layer) .sn-prac-r.no{color:var(--red)}
+/* FAZ 4a: grafik okuma (exam-engine chartFigureHtml) */
+.axc-chart{margin:12px 0;padding:10px 12px 6px;max-width:640px;border:1.4px solid #DCE2EE;border-radius:8px;background:#fff}
+.axc-chart figcaption{margin:0 0 4px;font-size:13.5px;font-weight:600;color:#1A2A5C}
+.axc-svg{display:block;width:100%;height:auto;font-family:'Instrument Sans',system-ui,sans-serif}
+.axc-svg .axc-tk{font-size:11.5px;fill:#4B5675}
+.axc-svg .axc-val{font-size:11.5px;font-weight:600;fill:#0D1838}
+.axc-svg .axc-lg{font-size:12.5px;fill:#1A2A5C}
+.axc-svg .axc-grid{stroke:#E6E9F1;stroke-width:1}
+.axc-svg .axc-zero{stroke:#6A7593;stroke-width:1.2}
+.axc-svg.axc-n .axc-tk,.axc-svg.axc-n .axc-val{font-size:13.5px}
+.axc-svg.axc-n .axc-lg{font-size:14px}
+.axc-sr{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
 /* FAZ 3c: adım adım çöz (sonuç kâğıdı) */
 :is(#exams-view.axs,#axs-layer) .sn-prac [data-steps-open]{margin-left:14px}
 :is(#exams-view.axs,#axs-layer) .sn-steps-b{margin-top:6px;padding:10px 12px;border:1.4px solid #DCE2EE;border-radius:6px;background:#FBFCFE}
