@@ -4054,6 +4054,15 @@ body.axs-hall-on #pomodoro-widget-container,body.axs-hall-on #acadia-widget-cont
 :is(#exams-view.axs,#axs-layer) .axs-srcs{grid-template-columns:repeat(2,minmax(0,1fr))}
 :is(#exams-view.axs,#axs-layer) .axs-types{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
 :is(#exams-view.axs,#axs-layer) .axs-types.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+:is(#exams-view.axs,#axs-layer) .axs-types.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+/* FAZ 2c (22.10.2026): puanlama bölümü ve sonuçta net */
+:is(#exams-view.axs,#axs-layer) .axs-score[data-off] .axs-types,:is(#exams-view.axs,#axs-layer) .axs-score[data-off] .sn-chk,:is(#exams-view.axs,#axs-layer) .axs-score[data-off] .axs-neg{opacity:.5}
+:is(#exams-view.axs,#axs-layer) .axs-neg{display:flex;align-items:center;gap:10px;margin:2px 0 4px;font-size:13px;color:var(--muted)}
+:is(#exams-view.axs,#axs-layer) .axs-neg[hidden]{display:none}
+:is(#exams-view.axs,#axs-layer) .axs-score [data-score-hint][hidden]{display:none}
+:is(#exams-view.axs,#axs-layer) .axs-neg select{min-height:36px;padding:4px 8px;border:1.4px solid #DCE2EE;border-radius:4px;background:#fff;font:inherit;font-size:14px;color:var(--ink)}
+:is(#exams-view.axs,#axs-layer) .sn-sum .sn-net{background:#E9EEF8}
+:is(#exams-view.axs,#axs-layer) .sn-net small{display:block;font-size:11px;color:var(--soft);font-weight:400}
 :is(#exams-view.axs,#axs-layer) .axs-opt{position:relative;cursor:pointer}
 :is(#exams-view.axs,#axs-layer) .axs-opt input{position:absolute;opacity:0;width:1px;height:1px}
 :is(#exams-view.axs,#axs-layer) .axs-opt span{display:block;height:100%;padding:8px 10px;border:1.6px solid #DCE2EE;border-radius:4px;background:#FAFBFD}
@@ -4134,6 +4143,92 @@ body.axs-hall-on #pomodoro-widget-container,body.axs-hall-on #acadia-widget-cont
 :is(#exams-view.axs,#axs-layer) .sn-rubr li.no .v{color:var(--red)}
 :is(#exams-view.axs,#axs-layer) .sn-rubr .p{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:var(--muted);white-space:nowrap}
 @media (max-width:560px){:is(#exams-view.axs,#axs-layer) .sn-rubr li{grid-template-columns:minmax(0,1fr) auto}:is(#exams-view.axs,#axs-layer) .sn-rubr .p{grid-column:2}}
+/* FAZ 2b (22.10.2026): itiraz ve bildirim */
+/* FAZ 3a (22.10.2026): kodla doğrulanan hesap ve benzer soru pratiği */
+:is(#exams-view.axs,#axs-layer) .sn-ver{margin:6px 0 0;font-size:12px;color:var(--soft)}
+:is(#exams-view.axs,#axs-layer) .sn-ver::before{content:"✓ ";color:var(--green);font-weight:700}
+:is(#exams-view.axs,#axs-layer) .sn-prac{margin:6px 0 0}
+:is(#exams-view.axs,#axs-layer) .sn-prac-b{margin-top:6px;padding:10px 12px;border:1.4px solid #DCE2EE;border-radius:6px;background:#FBFCFE}
+:is(#exams-view.axs,#axs-layer) .sn-prac-b[hidden]{display:none}
+:is(#exams-view.axs,#axs-layer) .sn-prac-q{margin:0 0 8px;font-size:14.5px;line-height:1.5;color:var(--ink)}
+:is(#exams-view.axs,#axs-layer) .sn-prac-in{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+:is(#exams-view.axs,#axs-layer) .sn-prac-in input{flex:1 1 140px;min-width:0;min-height:40px;padding:6px 10px;border:1.4px solid #C9D1E1;border-radius:6px;font:inherit;font-size:15px;background:#fff;color:var(--ink)}
+:is(#exams-view.axs,#axs-layer) .sn-prac-in .u{font-size:13px;color:var(--muted)}
+:is(#exams-view.axs,#axs-layer) .sn-prac-r{margin:8px 0 0;font-size:13.5px}
+:is(#exams-view.axs,#axs-layer) .sn-prac-r[hidden]{display:none}
+:is(#exams-view.axs,#axs-layer) .sn-prac-r.ok{color:var(--green)}
+:is(#exams-view.axs,#axs-layer) .sn-prac-r.no{color:var(--red)}
+/* FAZ 4a: grafik okuma (exam-engine chartFigureHtml) */
+.axc-chart{margin:12px 0;padding:10px 12px 6px;max-width:640px;border:1.4px solid #DCE2EE;border-radius:8px;background:#fff}
+.axc-chart figcaption{margin:0 0 4px;font-size:13.5px;font-weight:600;color:#1A2A5C}
+.axc-svg{display:block;width:100%;height:auto;font-family:'Instrument Sans',system-ui,sans-serif}
+.axc-svg .axc-tk{font-size:11.5px;fill:#4B5675}
+.axc-svg .axc-val{font-size:11.5px;font-weight:600;fill:#0D1838}
+.axc-svg .axc-lg{font-size:12.5px;fill:#1A2A5C}
+.axc-svg .axc-grid{stroke:#E6E9F1;stroke-width:1}
+.axc-svg .axc-zero{stroke:#6A7593;stroke-width:1.2}
+.axc-svg.axc-n .axc-tk,.axc-svg.axc-n .axc-val{font-size:13.5px}
+.axc-svg.axc-n .axc-lg{font-size:14px}
+.axc-sr{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+/* FAZ 3c: adım adım çöz (sonuç kâğıdı) */
+:is(#exams-view.axs,#axs-layer) .sn-prac [data-steps-open]{margin-left:14px}
+:is(#exams-view.axs,#axs-layer) .sn-steps-b{margin-top:6px;padding:10px 12px;border:1.4px solid #DCE2EE;border-radius:6px;background:#FBFCFE}
+:is(#exams-view.axs,#axs-layer) .sn-steps-b[hidden]{display:none}
+:is(#exams-view.axs,#axs-layer) .sn-steps-q{margin:0 0 8px;font-size:14.5px;line-height:1.5;color:var(--ink)}
+:is(#exams-view.axs,#axs-layer) .sn-steps-in{display:block;width:100%;box-sizing:border-box;min-height:120px;padding:8px 10px;border:1.4px solid #C9D1E1;border-radius:6px;background:#fff;color:var(--navy);font-family:'JetBrains Mono',ui-monospace,monospace;font-size:14.5px;line-height:1.6;resize:vertical}
+:is(#exams-view.axs,#axs-layer) .sn-steps-in:focus{outline:2px solid var(--blue);outline-offset:1px}
+:is(#exams-view.axs,#axs-layer) .sn-steps-bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:8px}
+:is(#exams-view.axs,#axs-layer) .sn-steps-bar span{font-size:12.5px;color:var(--soft)}
+:is(#exams-view.axs,#axs-layer) .sn-steps-out{margin:10px 0 0;padding:0;list-style:none;display:grid;gap:6px;counter-reset:st}
+:is(#exams-view.axs,#axs-layer) .sn-steps-out[hidden]{display:none}
+:is(#exams-view.axs,#axs-layer) .sn-steps-out li{counter-increment:st;display:grid;grid-template-columns:auto 1fr;gap:2px 8px;padding:6px 8px;border-left:3px solid #C9D1E1;background:#fff;font-size:13.5px}
+:is(#exams-view.axs,#axs-layer) .sn-steps-out li::before{content:counter(st) ".";grid-row:span 2;font-family:'JetBrains Mono',ui-monospace,monospace;color:var(--soft)}
+:is(#exams-view.axs,#axs-layer) .sn-steps-out code{font-family:'JetBrains Mono',ui-monospace,monospace;color:var(--navy);overflow-wrap:anywhere}
+:is(#exams-view.axs,#axs-layer) .sn-steps-out li.ok{border-left-color:var(--green)}
+:is(#exams-view.axs,#axs-layer) .sn-steps-out li.ok span::before{content:"✓ ";color:var(--green);font-weight:700}
+:is(#exams-view.axs,#axs-layer) .sn-steps-out li.fine{border-left-color:#8FC7A9}
+:is(#exams-view.axs,#axs-layer) .sn-steps-out li.no{border-left-color:var(--red)}
+:is(#exams-view.axs,#axs-layer) .sn-steps-out li.no span{color:var(--red)}
+:is(#exams-view.axs,#axs-layer) .sn-steps-out li.no span::before{content:"✗ ";font-weight:700}
+:is(#exams-view.axs,#axs-layer) .sn-steps-out li.carry{border-left-color:var(--amber)}
+:is(#exams-view.axs,#axs-layer) .sn-steps-out li.carry span{color:var(--amber)}
+:is(#exams-view.axs,#axs-layer) .sn-steps-sum{margin:10px 0 0;font-size:14px;font-weight:600}
+:is(#exams-view.axs,#axs-layer) .sn-steps-sum[hidden]{display:none}
+:is(#exams-view.axs,#axs-layer) .sn-steps-sum.ok{color:var(--green)}
+:is(#exams-view.axs,#axs-layer) .sn-steps-sum.half{color:var(--amber)}
+:is(#exams-view.axs,#axs-layer) .sn-steps-sum.no{color:var(--red)}
+/* FAZ 3b: cebirsel ifade girişi (exam-engine 'expression' tipi) */
+.axe-expr{display:grid;gap:8px;max-width:560px}
+.axe-expr-in{width:100%;min-height:44px;padding:8px 12px;border:1.6px solid #C9D1E1;border-radius:8px;background:#fff;color:#0D1838;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:17px;box-sizing:border-box}
+.axe-expr-in:focus{outline:2px solid #2F6BFF;outline-offset:1px;border-color:#2F6BFF}
+.axe-expr-keys{display:flex;flex-wrap:wrap;gap:6px}
+.axe-expr-keys button{min-width:40px;min-height:36px;padding:0 10px;border:1.4px solid #C9D1E1;border-radius:6px;background:#F7F9FD;color:#1A2A5C;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:15px;cursor:pointer}
+.axe-expr-keys button:hover{border-color:#2F6BFF;background:#EEF3FF}
+.axe-expr-keys button:focus-visible{outline:2px solid #2F6BFF;outline-offset:1px}
+.axe-expr-pv{min-height:40px;padding:10px 12px;border:1.4px dashed #DCE2EE;border-radius:8px;background:#FBFCFE;color:#6A7593;font-size:13px;line-height:1.5;overflow-x:auto;overflow-y:hidden}
+.axe-expr-pv.ok{color:#0D1838;font-size:18px;border-style:solid}
+.axe-expr-pv.bad{color:#C9483B;border-color:#F0C9C3}
+.axe-expr-note{margin:0;font-size:13px;color:#B4511F}
+.axe-expr-note::before{content:"→ "}
+:is(#exams-view.axs,#axs-layer) .sn-math{display:inline-block;font-family:inherit;font-size:1.05em;max-width:100%;overflow-x:auto;overflow-y:hidden;padding:6px 2px;vertical-align:middle}
+:is(#exams-view.axs,#axs-layer) .sn-fbk{margin:8px 0 0}
+:is(#exams-view.axs,#axs-layer) .sn-fbk-c{display:flex;flex-wrap:wrap;gap:6px}
+:is(#exams-view.axs,#axs-layer) .sn-chip{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;border:1.3px solid currentColor}
+:is(#exams-view.axs,#axs-layer) .sn-chip.ok{color:var(--green);background:#EAF6EF}
+:is(#exams-view.axs,#axs-layer) .sn-chip.no{color:var(--muted);background:#F3F5F9}
+:is(#exams-view.axs,#axs-layer) .sn-chip.esc{color:#8A5A12;background:#FFF6E6}
+:is(#exams-view.axs,#axs-layer) .sn-chip.rep{color:var(--blue);background:#EEF3FF}
+:is(#exams-view.axs,#axs-layer) .sn-apnote{margin:6px 0 0;font-size:13px;line-height:1.45;color:var(--muted)}
+:is(#exams-view.axs,#axs-layer) .sn-fbk-b{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;margin-top:6px}
+:is(#exams-view.axs,#axs-layer) .sn-link{background:none;border:0;padding:4px 0;font:inherit;font-size:12.5px;color:var(--soft);text-decoration:underline;text-underline-offset:3px;cursor:pointer;min-height:32px}
+:is(#exams-view.axs,#axs-layer) .sn-link:hover,:is(#exams-view.axs,#axs-layer) .sn-link:focus-visible{color:var(--blue)}
+:is(#exams-view.axs,#axs-layer) .sn-fbk-f{margin-top:8px;padding:10px 12px;border:1.4px dashed #C9D1E1;border-radius:6px;background:#FBFCFE}
+:is(#exams-view.axs,#axs-layer) .sn-fbk-l{display:block;margin:0 0 8px;padding:0;border:0;font-size:13px;font-weight:600;color:var(--ink)}
+:is(#exams-view.axs,#axs-layer) .sn-fbk-l legend{padding:0;margin-bottom:4px}
+:is(#exams-view.axs,#axs-layer) .sn-fbk-l small{display:block;font-weight:400;font-size:12px;color:var(--soft);margin:2px 0 4px}
+:is(#exams-view.axs,#axs-layer) .sn-fbk-l textarea{display:block;width:100%;box-sizing:border-box;margin-top:4px;padding:8px 10px;border:1.3px solid #C9D1E1;border-radius:6px;font:inherit;font-size:14px;font-weight:400;resize:vertical;background:#fff;color:var(--ink)}
+:is(#exams-view.axs,#axs-layer) .sn-fbk-r{display:flex;align-items:center;gap:8px;font-weight:400;font-size:13px;padding:3px 0;min-height:28px}
+:is(#exams-view.axs,#axs-layer) .sn-fbk-err{margin:0 0 8px;font-size:13px;color:var(--red)}
 :is(#exams-view.axs,#axs-layer) .sn-ri .cpt{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.06em;color:#6A7593;margin-left:6px}
 :is(#exams-view.axs,#axs-layer) .sn-model ol{margin:4px 0 0;padding-left:20px}
 @media (max-width:760px){:is(#exams-view.axs,#axs-layer) .axs-types{grid-template-columns:repeat(2,minmax(0,1fr))}:is(#exams-view.axs,#axs-layer) .axs-types.three{grid-template-columns:repeat(3,minmax(0,1fr))}:is(#exams-view.axs,#axs-layer) .sn-f3{grid-template-columns:minmax(0,1fr)}:is(#exams-view.axs,#axs-layer) .sn-hall-top{flex-wrap:wrap;padding:8px 12px;gap:8px}:is(#exams-view.axs,#axs-layer) .sn-hall-main{padding:10px;gap:10px}:is(#exams-view.axs,#axs-layer) .sn-book{padding:22px 16px 18px 26px}:is(#exams-view.axs,#axs-layer) .sn-paper{padding:22px 16px 22px 40px}:is(#exams-view.axs,#axs-layer) .sn-paper::before{left:22px}:is(#exams-view.axs,#axs-layer) .sn-ri .mk{left:-36px;width:28px;height:28px}:is(#exams-view.axs,#axs-layer) .sn-atts li{grid-template-columns:minmax(0,1fr) 60px}:is(#exams-view.axs,#axs-layer) .sn-atts .dt,:is(#exams-view.axs,#axs-layer) .sn-atts .du{display:none}}

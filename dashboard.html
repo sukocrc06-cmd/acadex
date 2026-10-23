@@ -1092,9 +1092,9 @@
 <fieldset class="sn-f"><legend>soru türü</legend>
 <div class="axs-types">
 <label class="axs-opt"><input type="radio" name="exam-type" value="classic" checked><span><b>klasik</b><small>açık uçlu, yapay zeka okur</small></span></label>
-<label class="axs-opt"><input type="radio" name="exam-type" value="test"><span><b>test</b><small>4 şıklı, tek doğru</small></span></label>
+<label class="axs-opt"><input type="radio" name="exam-type" value="test"><span><b>test</b><small>şıklı, tek doğru</small></span></label>
 <label class="axs-opt"><input type="radio" name="exam-type" value="mixed"><span><b>karışık</b><small>doğru-yanlış ve boşluk</small></span></label>
-<label class="axs-opt" id="exam-type-option-calc"><input type="radio" name="exam-type" value="calculation"><span><b>hesaplama</b><small>formül ve sayısal işlem</small></span></label>
+<label class="axs-opt" id="exam-type-option-calc"><input type="radio" name="exam-type" value="calculation"><span><b>hesaplama</b><small>sayısal işlem ve cebir</small></span></label>
 </div>
 <small id="exam-calc-hint" class="axs-hint" style="display:none">hesaplama sınavı yalnızca sayısal derslerde açılır.</small>
 </fieldset>
@@ -1104,6 +1104,19 @@
 <label class="axs-opt"><input type="radio" name="exam-difficulty" value="medium" checked><span><b>orta</b><small>kavrama ve uygulama</small></span></label>
 <label class="axs-opt"><input type="radio" name="exam-difficulty" value="hard"><span><b>zor</b><small>analiz ve senaryo</small></span></label>
 </div>
+</fieldset>
+<fieldset class="sn-f axs-score" data-score-box=""><legend>puanlama</legend>
+<div class="axs-types two">
+<label class="axs-opt"><input type="radio" name="exam-options" value="4" checked><span><b>4 şık</b><small>A–D</small></span></label>
+<label class="axs-opt"><input type="radio" name="exam-options" value="5"><span><b>5 şık</b><small>A–E, ÖSYM tarzı</small></span></label>
+</div>
+<label class="sn-chk"><input type="checkbox" id="exam-negative-toggle"><span>yanlış doğruyu götürür <small>yalnızca çoktan seçmeli sorularda; boş bırakılan götürmez</small></span></label>
+<label class="axs-neg" data-neg-row="" hidden><span>oran</span><select id="exam-negative-ratio" aria-label="Kaç yanlış bir doğruyu götürür"><option value="3">3 yanlış 1 doğruyu götürür</option><option value="4">4 yanlış 1 doğruyu götürür</option></select></label>
+<small class="axs-hint" data-score-hint="" hidden>bu soru türünde çoktan seçmeli soru yok; puanlama ayarı uygulanmaz.</small>
+</fieldset>
+<fieldset class="sn-f axs-score axs-prec" data-prec-box=""><legend>sayı hassasiyeti</legend>
+<label class="axs-neg"><span>hesap cevabı</span><select id="exam-decimal-places" aria-label="Sayı hassasiyeti"><option value="">standart: küçük yüzde payla kabul</option><option value="2">virgülden sonra 2 basamak doğru olmalı</option><option value="3">virgülden sonra 3 basamak doğru olmalı</option><option value="4">virgülden sonra 4 basamak doğru olmalı</option></select></label>
+<small class="axs-hint" data-prec-hint="">yalnızca hesap sorularında. ör. 3 basamakta doğru cevap 1,2344 ise 1,234 kabul, 1,236 değil.</small>
 </fieldset>
 <div class="sn-f3">
 <label class="sn-f axs-cnt"><span>soru sayısı</span><span class="sn-mx on"><button type="button" data-cnt="-1" aria-label="Bir azalt">−</button><input type="number" id="exam-question-count" value="10" min="1" max="20" aria-label="Soru sayısı"><button type="button" data-cnt="1" aria-label="Bir artır">+</button></span><small id="exam-question-count-range-hint" class="axs-hint"></small></label>

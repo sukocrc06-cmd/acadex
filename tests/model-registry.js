@@ -73,14 +73,15 @@ const KAPATILDI = {
 const BUTCESIZ_BORC = [
   /* acadia-assistant 17.10.2026'da listeden cikti: iki cagri yerinin
      ikisi de butce gonderiyor (translate 4000, sohbet 2000). */
+  /* generate-exam ve grade-exam 22.10.2026'da cikti: soru/cevap sayisina
+     gore butce gonderiyorlar (canli testte 8 yerine 1 soru gelmesinin
+     sebebi bu rezervdi). */
   'acadia-chat',
   'compare-documents',
-  'generate-exam',
   'generate-podcast-script',
   'generate-presentation',
   'generate-section-visual',
   'generate-slide-content',
-  'grade-exam',
   'regenerate-section',
 ];
 

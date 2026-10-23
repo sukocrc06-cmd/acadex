@@ -1263,6 +1263,35 @@ const VISUAL_MIN_BUDGET_MS = 100_000
 // Vision call, PDF.co render to merged patch, across four live runs:
 //   6.7s, 6.0s, 7.2s, 6.5s  -> ~6.6s average. The old 30s was 4.5x reality.
 const VISION_CALL_MS = 15_000
+/* OPSIYONEL ADIMLAR ICIN BEKLEME TAVANI (21.10.2026).
+ *
+ * IKI YERDE kullaniliyor: compact synthesis ve gorsel gecis. Ikisi de
+ * zenginlestirme — kartin kendisi pencerelerden cikiyor, bu ikisi onun
+ * ustune bir seyler koyuyor. Dolayisiyla ikisi de "yer varsa kos" degil
+ * "deger ediyorsa kos" kuralina tabi.
+ *
+ * ILK HALI YALNIZCA GORSEL GECISI KORUYORDU VE ISE YARAMADI (ayni gun,
+ * iki saat sonra olculdu). Tavan dogru fikirdi, yanlis cagriya kondu:
+ *
+ *   t=34,4  Window 1 ok / Window 2 ok
+ *   t=34,5  TokenPacer[openai/gpt-oss-20b]: 57955ms bekliyor (used=6095/7200)
+ *   t=93,6  Gorsel sayfa secimi [26,40]
+ *
+ * Bekleme gorsel cagridan ONCE, compact synthesis cagrisinda oluyor
+ * (callGroqJson -> tokenPacer.acquire). Gorsel kapisi sahneye geldiginde
+ * dakikalik pencere coktan donmustu, yani waitEstimate kucuk bir sayi
+ * dondurdu ve kapi — kendi mantigina gore DOGRU olarak — gecirdi.
+ *
+ * Kokeni yapisal: iki pencere cagrisi paralel kosuyor ve Groq'un iki
+ * seridini birlikte bosaltiyor (ucretsiz katmanda TPM 7200; W1 120b'de
+ * 5747, W2 20b'de 6095 token). Sonraki cagri hangi seride giderse gitsin
+ * dakikanin donmesini bekliyor. Iki ayri kosuda olculen bekleme 57.657ms
+ * ve 57.955ms — sabit, cunku bekledigi sey dakikalik pencerenin kendisi.
+ *
+ * 20 saniye: gorsel cagri dort canli kosuda 6,0-7,2 saniye olculdu, synthesis
+ * benzeri. Cagrinin kendisinin ucundan uzun bir kuyruk, zenginlestirmeye
+ * degmiyor. Atlanan adim quality_meta.skipped_stages'e yaziliyor. */
+const OPSIYONEL_ADIM_MAX_BEKLEME_MS = 20_000
 // Narrative writer, merge to accepted, once it stopped queueing for a busy
 // lane: 1.8s. The old 40s reserve was 22x reality — a figure from when the
 // writer could sit out a whole TPM window, which pickLane now prevents.
@@ -5910,6 +5939,34 @@ function geminiUnknownParameter(status: number, body: string): string | null {
  *     istiyoruz ki kapiya muaf olarak verilebilsin ve review de onlari
  *     KAYNAK olarak gorsun (bkz. visionNotes).
  */
+/* CIKTI BUTCESI — KALEM KOTASI TOPLAM UZUNLUGU BAGLAMIYOR (21.10.2026).
+ *
+ * Band 25-60 araliginda indirildi ve ISE YARADI: nokta 27'den 18'e, soru
+ * 13'ten 11'e dustu. Ama cikti BUYUDU — 34.372 karakterden 39.649'a.
+ *
+ * Sebep: kotali olan tek kisim terim/nokta/soru. "formulas", "tables" ve
+ * visual_findings bilerek TAVANSIZ, cunku golge yolun var olma sebebi
+ * onlar. Band kalemlerden yer bosaltinca model o yeri tavansiz kisma
+ * harcadi — gorsel bulgu uc kosuda 6 → 13 → 22 oldu. Ucu uce olcum:
+ *
+ *   ilk olay   olay   karakter   gorsel   sonuc
+ *   60.166ms   290    25.492     6        KISMI (tavan 105 sn)
+ *   26.132ms   392    34.372     13       KISMI (tavan 96,9 sn, 503)
+ *   17.524ms   517    39.649     22       KISMI (tavan 105 sn)
+ *
+ * Ilk olay 60 saniyeden 17,5'e indi, yani modele 87,5 saniye yazma suresi
+ * kaldi — ve o sureyi de doldurdu. Hicbir yerde TOPLAM uzunluk siniri
+ * olmadigi icin model her zaman duvara kadar yaziyor.
+ *
+ * 30.000 karakter uydurma degil: bu fonksiyonun kendi tarihcesindeki
+ * TAMAMLANAN tek kosu 30.374 karakterdi ve 72,4 saniye surmustu. Olculen
+ * yazma hizi 450-560 krk/sn; 30 KB, ilk olay 17-30 saniye araligindan sonra
+ * bile tavanin altinda bitiyor.
+ *
+ * Kalem kotasini daha da kismak bu deligi kapatmaz — model bosalan yeri
+ * yine tavansiz kisma harcar. Siniri TOPLAM uzunluga koymak gerekiyordu. */
+const GEMINI_CIKTI_BUTCESI_KRK = 30_000
+
 /**
  * Gemini yolunun KAPSAM KOTASI — belgenin boyuna gore.
  *
@@ -5990,9 +6047,36 @@ function geminiCoverageQuota(pageCount: number): string {
      biraz daha az terim tasiyan TAM bir kart, yarim bir karttan iyidir;
      ustelik tam kart onbellege girer ve ayni belge bir daha 105 saniye
      yakmaz. */
+  /* 21.10.2026 — EN BUYUK BANT 25-60 ARALIGINDAYDI.
+     20.10'da band 60 sayfa USTUNDE geri indirildi, ama zirve orada degildi:
+     25-60 araligi hem en yuksek istegi tasiyordu hem de gunluk kullanimin
+     tamami o araliga dusuyor. Ucu uce iki olcum, ikisi de bu bantta:
+
+       38 sayfa (economy ch.21): 22 terim / 25 nokta / 13 soru
+                                 36.680 krk, 105 sn tavanda kesildi, KISMI
+       42 sayfa (IPPT dummy):    16 terim / 27 nokta / 13 soru
+                                 34.372 krk, 96,9 sn tavanda kesildi, KISMI
+
+     Pencere hesabi: yazma hizi olculen 560 krk/sn, ilk olay 26-30 sn. Yani
+     tavan 105 sn iken yazilabilir en fazla ~44 KB; 503 tavani 96,9 sn'ye
+     indirdiginde ~40 KB. Band bu iki belgede modelden o siniri gecen bir
+     uretim istiyor ve kart her seferinde yarim kaliyor — onbellege de
+     girmedigi icin ayni dosya her yuklemede bastan 105 saniye yakiyor.
+
+     Bu fonksiyonun kendi tarihcesi ayni seyi zaten yaziyor: AYNI 42
+     sayfalik destede kota yokken kosu 30.374 karakterle 72,4 saniyede
+     TAMAMLANMISTI ve "modelden uc dort kati uretim istenince sure 68 sn'ye
+     de 90 sn'ye de sigmadi". 10.10'da band yer varmis gibi gorundugu icin
+     yukseltildi (o kosu 81,3 sn surmustu, 23,7 sn bosluk vardi) — ama o
+     olcumde ne 503 vardi ne de ilk olay 26 saniyeye kadar gecikiyordu.
+
+     Simdi 25-60 araligi 10-25 bandiyla ayni: bant 10 sayfadan 60 sayfaya
+     duz gidiyor. Takas yine bilincli ve yonu 20.10 ile ayni — biraz daha az
+     nokta tasiyan TAM bir kart, yarim karttan iyidir. En pahali kalem
+     noktalar (27 adet); formul ve tablo TAVANSIZ kaliyor, golge yolun var
+     olma sebebi onlar. */
   let terms = '12-18', points = '14-18', quiz = '8-10'
   if (pageCount > 60) { terms = '14-18'; points = '16-20'; quiz = '8-10' }
-  else if (pageCount > 25) { terms = '18-26'; points = '22-28'; quiz = '12-15' }
   else if (pageCount > 10) { terms = '15-22'; points = '16-20'; quiz = '10-13' }
   const olcek = pageCount > 0 ? `all ${pageCount} pages` : 'the whole document'
   const destek = pageCount > 0
@@ -6003,7 +6087,9 @@ function geminiCoverageQuota(pageCount: number): string {
 COVERAGE FOR THIS RUN:
 Cover ${olcek}, not only the opening ones — a term or example from the last third is worth more than a third variation on the first idea.
 No cap on "formulas" (every equation, including the image-only ones) or "tables" (every table, including spreadsheet screenshots and regression output — copy the figures exactly, to the last decimal). These two are why you were given the original file: do them first and be complete.
-Then produce ${terms} key_terms, ${points} key_points and ${quiz} quiz_questions. ${destek} supports these counts — reach them. The one thing worse than falling short is restating the same idea in different words to fill the list.`
+Then produce ${terms} key_terms, ${points} key_points and ${quiz} quiz_questions. ${destek} supports these counts — reach them. The one thing worse than falling short is restating the same idea in different words to fill the list.
+
+LENGTH BUDGET: keep the ENTIRE JSON response under ${GEMINI_CIKTI_BUTCESI_KRK} characters. This is a wall, not a style note: the connection is cut at that point, and a card assembled from a truncated response loses its citations and is never cached, so the same file is re-read from scratch on every upload. Budget the space — formulas and tables first, then the counts above. Write definitions and points in one or two sentences; drop the lead-ins ("It is important to note that"). A COMPLETE response with fewer items is worth more than a longer one that gets cut off mid-field.`
 }
 
 function buildGeminiDocInstruction(pageMarkerLabel: string, pageCount: number): string {
@@ -6205,6 +6291,40 @@ const GEMINI_PARTIAL_MIN_CHARS = 2_000
    istegi — sinirsiz birakmak bir dongude butceyi yiyebilir. */
 const GEMINI_MAX_RESUMES = 2
 
+/* DEVAM ETTIRME PENCERESI (21.10.2026).
+ *
+ * geminiToplamTavan URETIM istekleri icindir: toplami 105 saniyede tutup
+ * Groq'a sabit pay birakir. Devam ettirme ise uretim istegi degil — ayni
+ * etkilesim GET ile okunuyor, gunluk kotadan (RPD 20) istek goturmuyor.
+ * Ikisini ayni tavana baglamak devam ettirmeyi OLU KOD yapiyordu: akis tam
+ * `tavan` ms'de abort ediliyor, dolayisiyla resume dongusune varildiginda
+ * geriye daima ~0 kaliyor. 20.10 kosusu: "devam ettirmeye yer kalmadi
+ * (-12ms)" — tesadüf degil, aritmetik zorunluluk. O kosuda tam JSON'a
+ * 59 KARAKTER kalmisti ve ogrenci kismi kart gordu.
+ *
+ * Pencere GEMINI_RESERVE_MS'ten (review + kapilar + kayit) aliniyor.
+ * Olculen: review 33 saniye istedi, 2,66 saniyede bitti; daralan butceyi
+ * review'in kademe makinesi zaten yonetiyor. Karsiliginda kart tamamlanir
+ * ve ONBELLEGE YAZILIR — kismi kart yazilmiyor, yani bu pencere olmadan
+ * ayni PDF her yuklemede 105 saniye + 1 RPD yakmaya devam ediyor. */
+/* DEVAM ETTIRME BU MODELDE DESTEKLENMIYOR (21.10.2026, aksam kosusu).
+ *
+ * Sebep yazilmaya baslandigi ilk kosuda cevap geldi:
+ *
+ *   devam ettirme HTTP 400: {"error":{"message":"Streaming retrieval of
+ *   interactions is not supported for this model","code":"invalid_request"}}
+ *
+ * Yani GET ile kaldigi yerden okuma gemini-3.7-flash'ta hic yok. Dun acilan
+ * 15 saniyelik pencere dogru tasarlanmisti ama yuzey onu kabul etmiyor;
+ * bedeli her kesik akista bir bos HTTP istegi ve ~600ms. Model bir kez
+ * reddettiyse ayni ornekte bir daha denenmiyor. */
+const geminiDevamDesteklemeyen = new Set<string>()
+
+const GEMINI_DEVAM_PAYI_MS = 15_000
+/* Devam ettirme ne kadar yer bulursa bulsun kapilar + kayit icin bu kadari
+   dokunulmaz kalir; pencere butcenin sonunu yiyemez. */
+const GEMINI_DEVAM_KAYIT_PAYI_MS = 20_000
+
 type GeminiAkisDurum = {
   metin: string
   interactionId: string
@@ -6306,6 +6426,30 @@ async function geminiAkisiTuket(
     if (done) break
     dokun('byte')
     const parca = dec.decode(value, { stream: true })
+    /* ILK BYTE'IN ICERIGI (21.10.2026).
+     *
+     * Dort kosuda ilk byte 15.193 / 15.215 / 15.299 / 15.303ms — varyans
+     * 110ms, oysa govde %13,7 degisiyor (438-504 KB dosya + ~19 KB sistem
+     * promptu + ~40 KB userText). Boyuttan bagimsiz sabit bir sayi gecikme
+     * olcmez, PERIYOT olcer; en guclu aciklama Google'in SSE keepalive'i,
+     * yani `:` ile baslayan bir yorum satiri.
+     *
+     * `durum.ham` bugune kadar YALNIZCA olay hic gelmediginde logluyordu
+     * (asagidaki blok), yani basarili kosuda ilk byte'in ne oldugunu hic
+     * gormedik. Bu satir onu kesinlestiriyor:
+     *   `:` ile basliyorsa  -> dolgu, ilk byte kovalanacak bir sey degil,
+     *                          butun caba ilkOlayMs'e kayar
+     *   `data:` ile baslarsa -> icerik, o zaman gecikme gercek ve Files API
+     *                          olcmeye deger hale gelir
+     * dokun('byte') BU SATIRDAN ONCE cagriliyor, cunku ilkByteMs mumkun
+     * olan en erken anda kurulmali; bu yuzden icerik `durum.ham`'dan degil
+     * `parca`'dan okunuyor — ham henuz bos. */
+    if (durum.ham.length === 0) {
+      console.log(
+        `Gemini ilk byte icerigi (${durum.ilkByteMs}ms, ${value?.byteLength ?? 0} bayt): ` +
+        JSON.stringify(parca.slice(0, 120))
+      )
+    }
     durum.ham += parca
     tampon += parca
     let kes = tampon.indexOf('\n\n')
@@ -6415,6 +6559,13 @@ async function geminiAkisIstegi(
   dokun()
   try {
     const res = await fetch(url, { ...init, signal: controller.signal })
+    /* BASLIK SURESI (TTFB) — ilk byte'tan AYRI olcum (21.10.2026).
+       `ilkByteMs` tek basina "baglanti 15 saniye kuruldu" ile "basliklar
+       hemen geldi ama govde 15 saniye sustu" durumlarini ayirt edemiyor.
+       Ikisi cok farkli sey: ilki bizim odedigimiz bir maliyet (govde
+       yuklemesi, kabul kuyrugu), ikincisi Google'in keepalive takvimi ve
+       bize ait degil. Bu satir ayrimi yapiyor. */
+    console.log(`Gemini baslik suresi: ${Date.now() - durum.t0}ms (HTTP ${res.status})`)
     if (!res.ok) {
       let text = ''
       try { text = (await res.text()).slice(0, 1200) } catch (_e) { /* govde okunamadi */ }
@@ -6475,17 +6626,48 @@ async function geminiAkisiDevamEttir(
   apiKey: string,
   durum: GeminiAkisDurum,
   mutlakMs: number
-): Promise<void> {
+): Promise<{ status: number; body: string } | null> {
   const q = new URLSearchParams({ stream: 'true' })
   if (durum.lastEventId) q.set('last_event_id', durum.lastEventId)
   durum.hata = null
-  await geminiAkisIstegi(
+  const oncekiUzunluk = durum.metin.length
+  const oncekiOlay = durum.olaySayisi
+  const http = await geminiAkisIstegi(
     `${GEMINI_ENDPOINT}/${encodeURIComponent(durum.interactionId)}?${q.toString()}`,
     { method: 'GET', headers: { 'x-goog-api-key': apiKey } },
     durum,
     mutlakMs,
     GEMINI_SILENCE_MS
   )
+
+  /* HTTP HATASI YUTULUYORDU (21.10.2026).
+   *
+   * geminiAkisIstegi ok OLMAYAN cevapta {status, body} DONDURUYOR, durum.hata'ya
+   * hicbir sey yazmiyor. Bu fonksiyon donen degeri atiyordu ve ustunde
+   * durum.hata'yi null'a cekiyordu — yani GET ne dondurursa dondursun geriye
+   * hicbir iz kalmiyordu. 21.10 kosusunun logu tam bunu gosteriyor:
+   *
+   *   akis kesildi (mutlak tavan (95445ms)) — GET ile devam ettiriliyor (1/2)
+   *   akis kesildi (null) — GET ile devam ettiriliyor (2/2)
+   *   akis tamamlanmadi (null) — KISMI JSON kurtarildi
+   *
+   * Ikinci satirdaki `null` sebebin yoklugu degil, SILINMIS sebep. Iki GET
+   * 679ms ve 596ms surdu, tek karakter getirmedi ve neden basarisiz
+   * olduklarini soylemedi. Artik sebep yaziliyor; bos donen bir devam
+   * ettirme de sessiz gecmiyor. */
+  if (http) {
+    durum.hata = `devam ettirme HTTP ${http.status}: ${String(http.body || '').slice(0, 300)}`
+  } else if (durum.metin.length === oncekiUzunluk && !durum.tamamlandi) {
+    durum.hata = durum.hata ||
+      `devam ettirme bos dondu (last_event_id ${durum.lastEventId ? 'gonderildi' : 'YOK'}, ` +
+      `etkilesim durumu ${durum.status || 'bildirilmedi'})`
+  }
+  console.log(
+    `Gemini devam ettirme: +${durum.metin.length - oncekiUzunluk} karakter, ` +
+    `+${durum.olaySayisi - oncekiOlay} olay, tamamlandi=${durum.tamamlandi}` +
+    (durum.hata ? ` — ${durum.hata}` : '')
+  )
+  return http
 }
 
 /**
@@ -6712,7 +6894,11 @@ async function geminiDraft(
   fileMime: string,
   userText: string,
   budgetMs: number,
-  mode: 'only' | 'shadow' = 'only'
+  mode: 'only' | 'shadow' = 'only',
+  /* Cagiran icin TANI. Su an tek alani var: Gemini GECICI hatalar (503/500)
+     yuzunden hic taslak uretemediyse true. Cikan kart yedek yoldan geliyor
+     ve KALICI cevap sayilmamali — bkz. summary_cache yazimi. */
+  tani?: { geciciDustu?: boolean }
 ): Promise<{ raw: string; model: string; ms: number; usage: any; kismi?: boolean } | null> {
   /* Cagrinin zaman asimi:
      - her iki modda: GEMINI_RESERVE_MS, cagri BASARILI olursa kapilar+kayit
@@ -6751,6 +6937,25 @@ async function geminiDraft(
      bu sayac sifirlanmiyor ve yuzeyin tamaminin yogun oldugunu gormemizi
      sagliyor (bkz. GEMINI_ARDISIK_GECICI_MAX). */
   let ardisikGecici = 0
+  /* GECICI HATA VEREN MODELLER (21.10.2026).
+   *
+   * `ardisikGecici` denemeleri sayiyordu, modelleri degil. Bir modele iki
+   * kez deneyip iki 503 almak sayaci doldurmaya yetiyordu ve "yuzey yogun"
+   * denip kalan uc aday model hic denenmiyordu. Oysa 503'un govdesi modeli
+   * ADIYLA soyluyor:
+   *
+   *   "gemini-3.7-flash is currently experiencing high demand"
+   *
+   * Tek modelin yogun olmasi yuzeyin tamaminin yogun oldugunu gostermez.
+   * 21.10 kosusu: iki 503 ikisi de gemini-3.7-flash'tan geldi, Gemini
+   * tamamen birakildi ve geriye 130 SANIYE butce kalmisti — bir sonraki
+   * adayi denemek gunluk kotadan tek istek goturecekti. Kart Groq yolundan
+   * cikti, sayisal kapsama %77'den %56'ya dustu.
+   *
+   * Artik "yuzey yogun" sonucu AYRI modellerden gecici hata gelmesini
+   * istiyor. Istek sayisini GEMINI_MAX_REQUESTS_PER_RUN, bosa giden sureyi
+   * GEMINI_FAIL_BUDGET_MS zaten baglıyor. */
+  const geciciModeller = new Set<string>()
 
   /* BASARISIZ DENEMELERIN TOPLAM SURESI.
    *
@@ -6789,6 +6994,13 @@ async function geminiDraft(
    * yapsin Groq'a sabit bir pay kaliyor ve fallback esigi guvenilir
    * oluyor. */
   const geminiToplamTavan = tavan
+  /* Devam ettirmenin tavani URETIM tavanindan ayri — bkz.
+     GEMINI_DEVAM_PAYI_MS. Pencere butcede gercekten yer varsa aciliyor,
+     yoksa uretim tavaninda kaliyor ve davranis eskisi gibi. */
+  const geminiDevamTavan = Math.min(
+    geminiToplamTavan + GEMINI_DEVAM_PAYI_MS,
+    Math.max(geminiToplamTavan, budgetMs - GEMINI_DEVAM_KAYIT_PAYI_MS)
+  )
 
   /* RPM 5 (panelden okundu). Istekleri arka arkaya atmak dakikalik limite
      carpiyor ve o 429 "project has exceeded a quota" diye geliyor — gunluk
@@ -6863,7 +7075,14 @@ async function geminiDraft(
       if (!res.ok && res.durum) {
         const durum = res.durum
         for (let devam = 0; devam < GEMINI_MAX_RESUMES && !durum.tamamlandi && durum.interactionId; devam++) {
-          const kalanMs = geminiToplamTavan - (Date.now() - basladi)
+          if (geminiDevamDesteklemeyen.has(model)) {
+            console.warn(
+              `Gemini ${model}: GET ile devam ettirme bu modelde desteklenmiyor — ` +
+              `denenmiyor, dogrudan kurtarmaya iniliyor`
+            )
+            break
+          }
+          const kalanMs = geminiDevamTavan - (Date.now() - basladi)
           if (kalanMs < 10_000) {
             console.warn(`Gemini ${model}: devam ettirmeye yer kalmadi (${kalanMs}ms)`)
             break
@@ -6872,7 +7091,26 @@ async function geminiDraft(
             `Gemini ${model}: akis kesildi (${durum.hata}), ${durum.metin.length} karakter elde — ` +
             `GET ile devam ettiriliyor (${devam + 1}/${GEMINI_MAX_RESUMES}, ${kalanMs}ms kaldi)`
           )
-          await geminiAkisiDevamEttir(apiKey, durum, Math.min(kalanMs, buCagriMs))
+          const devamHata = await geminiAkisiDevamEttir(apiKey, durum, Math.min(kalanMs, buCagriMs))
+          /* 4xx kendi kendine duzelmez: etkilesim yok, bitmis ya da
+             last_event_id kabul edilmiyor. Ikinci GET'i yakmanin anlami
+             yok. 5xx gecici olabilir, ona pencere kalmissa devam. */
+          if (devamHata && devamHata.status >= 400 && devamHata.status < 500) {
+            /* "not supported for this model" kalici bir YETENEK eksigi, gecici
+               bir hata degil: bu ornek yasadikca bir daha denenmemeli. */
+            if (/not supported/i.test(String(devamHata.body || ''))) {
+              geminiDevamDesteklemeyen.add(model)
+              console.warn(
+                `Gemini ${model}: yuzey GET ile devam ettirmeyi desteklemiyor — ` +
+                `bu model icin kalici olarak kapatildi`
+              )
+            }
+            console.warn(
+              `Gemini ${model}: devam ettirme kalici hatayla dustu (HTTP ${devamHata.status}) — ` +
+              `yeniden denenmiyor`
+            )
+            break
+          }
         }
         if (durum.tamamlandi && durum.metin.trim()) {
           console.log(
@@ -7039,14 +7277,18 @@ async function geminiDraft(
       if (res.status === 503 || res.status === 500) {
         gecici++
         ardisikGecici++
+        geciciModeller.add(model)
         console.warn(`Gemini ${model}: gecici hata ${res.status} (deneme ${gecici}/2): ${res.body.slice(0, 200)}`)
         /* Yuzeyin tamami yogunsa sonraki aday modeli denemek ayni duvara
-           carpmak: istek de sure de bosa gidiyor. */
-        if (ardisikGecici >= GEMINI_ARDISIK_GECICI_MAX) {
+           carpmak: istek de sure de bosa gidiyor. Ama bunun kaniti AYRI
+           modellerden gecici hata gelmesi — bkz. geciciModeller. */
+        if (geciciModeller.size >= GEMINI_ARDISIK_GECICI_MAX) {
           console.warn(
-            `Gemini: ${ardisikGecici} ardisik gecici hata — yuzey yogun sayiliyor, ` +
-            `kalan aday modeller denenmiyor, Groq yoluna dusuluyor`
+            `Gemini: ${geciciModeller.size} AYRI modelde gecici hata ` +
+            `(${[...geciciModeller].join(', ')}, ${ardisikGecici} deneme) — ` +
+            `yuzey yogun sayiliyor, kalan aday modeller denenmiyor, Groq yoluna dusuluyor`
           )
+          if (tani) tani.geciciDustu = true
           return null
         }
         if (gecici < 2) continue
@@ -7057,7 +7299,14 @@ async function geminiDraft(
     }
   }
 
-  console.warn('Gemini: hicbir aday model taslak uretemedi — Groq yoluna dusuluyor')
+  /* Esik dolmadan liste tukendiginde de (ornegin bir model 503, digerleri
+     404) tasiyici sebep GECICI: yarin ayni belge Gemini kartini uretebilir,
+     yani bugunun yedek karti kalicilastirilmamali. */
+  if (tani && geciciModeller.size > 0) tani.geciciDustu = true
+  console.warn(
+    'Gemini: hicbir aday model taslak uretemedi — Groq yoluna dusuluyor' +
+    (geciciModeller.size > 0 ? ` (gecici hata veren: ${[...geciciModeller].join(', ')})` : '')
+  )
   return null
 }
 
@@ -7858,6 +8107,17 @@ ${styleInstruction}`
        sayisi. Sifir degilse kart tam degil: rozet yaziliyor ve onbellege
        ALINMIYOR (bkz. summary_cache yazimi). */
     let geminiKismiKrk = 0
+    /* Gemini GECICI hatalar yuzunden hic taslak uretemediyse true. Cikan
+       kart Groq yedek yolundan geliyor; tam olabilir ama ISTENEN kart
+       degil. Olculdu (21.10.2026, ayni 42 sayfalik deste):
+
+         Gemini yolu : kapsama %72-77, citation anchoring kept=30 / kept=15
+         Groq yedegi : kapsama %56,   citation anchoring kept=0
+
+       Onbellege yazilirsa o dosya icin KALICI cevap bu olur ve Gemini bir
+       daha hic denenmez — yuzeyin bir dakikalik yogunlugu kalici kalite
+       kaybina doner. Bkz. summary_cache yazimi. */
+    const geminiTani: { geciciDustu?: boolean } = {}
     /* Yogunluk kapisinin OLCUM modundaki bulgusu; kapi eledigi gun bu
        alan karari degil gecmisi tutacak. */
     let yogunlukOlcumu: { dropped: number; toplam: number; ornekler: string[] } | null = null
@@ -7940,7 +8200,8 @@ ${styleInstruction}`
           geminiMime,
           geminiUserText,
           budgetLeft(),
-          mod
+          mod,
+          geminiTani
         )
 
         /* TASLAK GECERLI MI? (17.10.2026)
@@ -9035,21 +9296,58 @@ Use CONCRETE topic names from digests and terms. No meta filler.`
           // the structuring and the better one stays free for the writing,
           // which is where the difference is visible. Either falls back if its
           // preferred lane is busy.
+          /* Sentezin completion rezervasyonu — bkz. cagri yerindeki yorum.
+             pickLane, waitEstimate ve cagrinin kendisi UCU de bu degeri
+             kullaniyor; biri 2048'de kalirsa serit secimi yanlis seride
+             gider ya da kapi sigacak bir cagriyi atlar. */
+          const synCompletion = 768
           const synLane = pickLane(
             [MODEL_EXTRACT, MODEL_HEAVY],
-            estimateTokens(synSys, synUser, 2048),
-            2048
+            estimateTokens(synSys, synUser, synCompletion),
+            synCompletion
           )
-          const syn = await callGroqJson(
-            groqApiKey,
-            synSys,
-            synUser,
-            { model: synLane, temperature: 0.25, maxCompletionTokens: 2048, timeoutMs: 30000, maxRetries: 0 }
+          /* SENTEZ DE OPSIYONEL — bkz. OPSIYONEL_ADIM_MAX_BEKLEME_MS.
+             21.10 kosusunda 57.955ms'lik pacer beklemesi TAM BURADA olustu:
+             iki pencere her iki seridi bosaltmis durumdaydi ve bu cagri
+             dakikalik pencerenin donmesini bekledi. Kartin icerigi
+             pencerelerden zaten gelmis; sentez onun uzerine ozet/anahat
+             koyuyor. 58 saniyelik kuyruk buna degmiyor. */
+          const synBekleme = tokenPacer.waitEstimate(
+            estimateTokens(synSys, synUser, synCompletion), synLane, synCompletion
           )
-          if (syn?.summary && String(syn.summary).length > 80) bestSummary = String(syn.summary)
-          if (syn?.summary_executive) bestExec = String(syn.summary_executive)
-          if (syn?.outline?.items?.length) bestOutline = syn.outline
-          if (Array.isArray(syn?.sections) && syn.sections.length) bestSections = syn.sections
+          if (synBekleme > OPSIYONEL_ADIM_MAX_BEKLEME_MS) {
+            skippedStages.push('compact synthesis')
+            console.log(
+              `Compact synthesis atlandi: pacer ${synBekleme}ms bekletiyor ` +
+              `(tavan ${OPSIYONEL_ADIM_MAX_BEKLEME_MS}ms) — pencerelerin ciktisi korunuyor`
+            )
+          } else {
+            const syn = await callGroqJson(
+              groqApiKey,
+              synSys,
+              synUser,
+              /* COMPLETION REZERVASYONU BEKLEMENIN ASIL SEBEBIYDI (21.10.2026).
+               *
+               * Logdaki `est=1795`in 1.229'u metin degil, rezervasyon:
+               * PACER_COMPLETION_FACTOR (0,6) x maxCompletionTokens (2048).
+               * Gercek prompt yalnizca ~566 token. Yani pacer, sentezin
+               * harcamayacagi bir yer icin dakikanin donmesini bekletiyordu.
+               *
+               * 768'e inince est ~1.048 oluyor ve olculen iki kosu da
+               * siğiyor: 6.095 + 1.048 = 7.143 <= 7.200 (sinir PACER_SAFETY
+               * ile kirpilmis 8.000). Yani bekleme SIFIRLANIYOR ve sentez
+               * ATLANMAK yerine gercekten kosuyor — kart da kazaniyor.
+               *
+               * En kotu hal "atlamakla ayni": 768 token cikti kesilirse JSON
+               * ayristirilamaz, asagidaki catch yutar ve pencerelerin ciktisi
+               * korunur. Ustteki atlama kapisi yine duruyor, ag olarak. */
+              { model: synLane, temperature: 0.25, maxCompletionTokens: synCompletion, timeoutMs: 30000, maxRetries: 0 }
+            )
+            if (syn?.summary && String(syn.summary).length > 80) bestSummary = String(syn.summary)
+            if (syn?.summary_executive) bestExec = String(syn.summary_executive)
+            if (syn?.outline?.items?.length) bestOutline = syn.outline
+            if (Array.isArray(syn?.sections) && syn.sections.length) bestSections = syn.sections
+          }
         } catch (synErr) {
           console.warn('Compact synthesis skipped:', synErr)
         }
@@ -9098,16 +9396,24 @@ Use CONCRETE topic names from digests and terms. No meta filler.`
       const visionEstTokens = visualPlan.indices.length * VISION_TOKENS_PER_IMAGE + 2000
       const visionWaitMs = tokenPacer.waitEstimate(visionEstTokens, MODEL_FAST, VISION_MAX_COMPLETION)
       const visionNeedsMs = visionWaitMs + VISION_CALL_MS + NARRATIVE_WRITER_RESERVE_MS
-      if (analyzeVisuals && visualPlan.indices.length > 0 && budgetLeft() <= visionNeedsMs) {
+      /* "Yer var mi" ile "deger mi" ayri sorular — bkz. OPSIYONEL_ADIM_MAX_BEKLEME_MS.
+         Iki kol ayni karari okuyor ki birbirinden kayamasinlar. */
+      const visionBeklemeAsiri = visionWaitMs > OPSIYONEL_ADIM_MAX_BEKLEME_MS
+      const visionAtlanir = budgetLeft() <= visionNeedsMs || visionBeklemeAsiri
+      if (analyzeVisuals && visualPlan.indices.length > 0 && visionAtlanir) {
         skippedStages.push('gorsel analiz')
         console.log(
-          `Gorsel gecis atlandi: butce ${budgetLeft()}ms <= ${visionNeedsMs}ms ` +
-          `[pacer ${visionWaitMs}ms + cagri ${VISION_CALL_MS}ms + yazar payi ${NARRATIVE_WRITER_RESERVE_MS}ms] — ` +
-          `anlati yazarina yer birakiliyor`
+          visionBeklemeAsiri
+            ? `Gorsel gecis atlandi: pacer ${visionWaitMs}ms bekletiyor ` +
+              `(tavan ${OPSIYONEL_ADIM_MAX_BEKLEME_MS}ms, cagrinin kendisi ~6600ms) — ` +
+              `butce ${budgetLeft()}ms olsa bile zenginlestirme icin bu kuyruk beklenmez`
+            : `Gorsel gecis atlandi: butce ${budgetLeft()}ms <= ${visionNeedsMs}ms ` +
+              `[pacer ${visionWaitMs}ms + cagri ${VISION_CALL_MS}ms + yazar payi ${NARRATIVE_WRITER_RESERVE_MS}ms] — ` +
+              `anlati yazarina yer birakiliyor`
         )
       }
 
-      if (analyzeVisuals && visualPlan.indices.length > 0 && budgetLeft() > visionNeedsMs) {
+      if (analyzeVisuals && visualPlan.indices.length > 0 && !visionAtlanir) {
         try {
           console.log(`Gorsel sayfa secimi: [${visualPlan.indices.join(',')}] — ${visualPlan.reason}`)
           await serviceClient.from('documents').update({ processing_stage: 'visual_analysis' }).eq('id', documentId)
@@ -9549,7 +9855,29 @@ ${narrative}`
         const sectionsBlock = sectionItems
           .map((s: any) => `## ${s.heading}\n${(s.summary || '').slice(0, depthFlags.longNarrative ? 900 : 600)}`)
           .join('\n\n')
-          .slice(0, depthFlags.longNarrative ? 10000 : 7000)
+          /* YAZARIN ISTEGI GERCEK TPM TAVANINI ASIYORDU (21.10.2026).
+           *
+           * Olculen: writerSys 2.234 krk, writerUser tavanlarinin toplami
+           * 20.300 krk. estimateTokens = (2.234 + 20.300)/3,2 + 0,6x2048 =
+           * 8.271 token; derin modda (completion 3072) 8.886. Seridin
+           * GERCEK limiti 8.000 (DEFAULT_TPM_LIMIT) — yani yazarin istegi
+           * tek basina tavani asiyor ve sogùk seritte gectiginde Groq'un
+           * kendisi "Request too large" ile reddetmeye adaydi.
+           *
+           * BU KIRPMA SURE KAZANDIRMIYOR, bilerek yaziyorum: pencerelerin
+           * biraktigi bosluk HEAVY'de 7.200-5.747 = 1.453, EXTRACT'te 1.105
+           * token. Kirpilmis est 6.709 bile bunun dort kati, yani yazar yine
+           * yalnizca `used === 0` kolundan (bkz. waitFor) geciyor ve seridin
+           * tamamen bosalmasini bekliyor. Harcama tek bir kayit olarak
+           * atomik eskidigi icin daha kucuk bir est beklemeyi kisaltmiyor da.
+           * Kazanc: istek gercek tavanin altina iniyor ve tahmin durustlesiyor.
+           *
+           * Sureyi dusuren sey ucuncu bir serit; bkz. pacer denetimi. */
+          /* Derin modda da 5.000: o yol completion'i 2048 yerine 3072
+             istiyor, yani rezervasyon 1.229 degil 1.844 token. Bolum
+             metnine fazladan 500 krk vermek payi 216 token'a dusuruyordu;
+             tek sayi hem daha basit hem daha guvenli (pay 373). */
+          .slice(0, 5000)
 
         const lengthHint =
           depthFlags.longNarrative || len === 'detailed' || len === 'long'
@@ -9631,7 +9959,7 @@ Worked results (numbers you may state):
 ${workedBlock || '(none)'}
 
 Existing draft summary (keep factual content; rewrite only for flow):
-${String(draftObj.summary || '').slice(0, 3500)}`
+${String(draftObj.summary || '').slice(0, 1500)}`
 
         // MODEL_HEAVY first — this is the one call where prose quality is the
         // product. But a 57s queue for it, measured on 05.10.2026, is not a
@@ -10405,11 +10733,29 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
       if (typeof parsedContent.summary === 'string') {
         parsedContent.summary = applyFootnoteRemap(parsedContent.summary, anchored.idMap)
       }
+      /* `kept=0` YANLIS TESHISE YOL ACTI (21.10.2026).
+       *
+       * Groq uzun-belge yolunda `kept` HER ZAMAN 0, cunku o yolda modelden
+       * atif hic istenmiyor: pencere semasinda `footnotes` yok ve birlesim
+       * onu sabit `footnotes: []` olarak gonderiyor. `kept` yalnizca GELEN
+       * atiflar uzerinde donen dongude artiyor, yani gelen bos oldugunda
+       * artabilecegi tek yer hic calismiyor.
+       *
+       * Bu satiri Gemini yolunun `kept=30` degeriyle yan yana koyup "Groq
+       * yolunda atiflarin tamami dusuyor" diye okudum — yanlisti. Dusen bir
+       * sey yok; istenen bir sey yok. `demoted=0` bunu zaten kesinlestiriyor
+       * (dizi dolu olup sayfalari hatali olsaydi demoted artardi).
+       *
+       * Artik log hangi halde oldugunu kendisi soyluyor. */
+      const atifIstenmedi = anchored.stats.kept === 0 && anchored.stats.demoted === 0
       console.log(
         `Citation anchoring: pages=${pageIndex.length} ` +
         `kept=${anchored.stats.kept} demoted=${anchored.stats.demoted} ` +
         `added=${anchored.stats.added} quoted=${anchored.stats.quoted} ` +
-        `unanchored=${anchored.stats.skipped}`
+        `unanchored=${anchored.stats.skipped}` +
+        (atifIstenmedi
+          ? ' — taslakta atif YOKTU (modelden istenmedi), tamami hesaplandi'
+          : '')
       )
     }
 
@@ -10544,7 +10890,19 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
     // dagitilmamali — o belge bir sonraki yuklemede tam kosuyla denenir.
     /* Kismi kart onbellege GIRMEZ: girerse ayni belgeyi bir daha ozetlemek
        isteyen herkes yarim karti alir ve bir daha hic tam kart uretilmez. */
-    if (summaryCacheKey && !eksikPencereler && geminiKismiKrk === 0) {
+    /* UCUNCU KOSUL (21.10.2026): yedek yoldan gelen kart kalicilastirilmaz.
+       Ilk iki kosul "kart TAM mi" diye soruyor; bu "kart ISTENEN kart mi"
+       diye soruyor. 21.10'da ayni deste icin Gemini iki 503 aldi, Groq
+       karti uretti (tam, yani iki kosul da gecti) ve onbellege girdi —
+       sonraki yukleme 1.929ms'de %56 kapsamali o karti dondurdu ve
+       Gemini'nin bir daha denenmesi imkansiz hale geldi. */
+    if (geminiTani.geciciDustu) {
+      console.log(
+        'summary_cache: yazilmadi — kart Gemini gecici hatasindan sonra Groq yedek ' +
+        'yolundan geldi, kalici cevap sayilmiyor (ayni belge sonraki yuklemede yeniden denenir)'
+      )
+    }
+    if (summaryCacheKey && !eksikPencereler && geminiKismiKrk === 0 && !geminiTani.geciciDustu) {
       const { document_id: _d, user_id: _u, course_tag: _c, ...shareable } = cardPayload
       /* IKI SATIR: dosya hash'i ve metin hash'i. Ikisi de ayni karti
          gosteriyor; hangisi once isabet ederse o kullanilir. */

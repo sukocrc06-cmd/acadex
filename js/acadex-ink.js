@@ -2313,7 +2313,9 @@ window.axWhenProfile = function (cb) {
   var dshort = function (s) { var d = new Date(s); return isNaN(d) ? '' : pad(d.getDate()) + '.' + pad(d.getMonth() + 1) + '.' + String(d.getFullYear()).slice(2); };
   var TYPE = { classic: 'klasik', test: 'test', mixed: 'karışık', calculation: 'hesaplama' };
   var DIFF = { easy: 'kolay', medium: 'orta', hard: 'zor' };
-  var QT = { multiple_choice: 'test', true_false: 'doğru-yanlış', fill_blank: 'boşluk', calculation: 'hesaplama', open_ended: 'açık uçlu' };
+  /* FAZ 4a: kaynaktan gelen grafik (exam-engine chartFigureHtml). */
+  var chartHtml = function (q, lang) { var E = window.AcadexExamEngine; return q && q.chart && E && typeof E.chartFigureHtml === 'function' ? E.chartFigureHtml(q.chart, lang || 'tr') : ''; };
+  var QT = { multiple_choice: 'test', true_false: 'doğru-yanlış', fill_blank: 'boşluk', calculation: 'hesaplama', open_ended: 'açık uçlu', expression: 'ifade' };
   $$('.land').forEach(function (el, i) { el.style.setProperty('--hr', (((i * 37) % 11 - 5) * 0.3).toFixed(2) + 'deg'); el.style.setProperty('--hx', (((i * 53) % 9 - 4) * 2) + 'px'); });
 
   /* bildirim */
@@ -2459,7 +2461,7 @@ window.axWhenProfile = function (cb) {
   var bdDlg = $('[data-builddlg]'), cover = $('[data-bd-cover]'), bdErr = $('[data-bd-err]'), bdKey = null, topicEl = $('[data-bd-topic]');
   var checkRadio = function (name, val) { var r = root.querySelector('input[name="' + name + '"][value="' + val + '"]'); if (r && !r.disabled) { r.checked = true; r.dispatchEvent(new Event('change', { bubbles: true })); } };
   var openBuild = async function (k, forceSrc) {
-    bdKey = k; bdErr.hidden = true; topicEl.value = '';
+    bdKey = k; bdErr.hidden = true; topicEl.value = ''; ratioTouched = false;
     var d = k ? desks().filter(function (x) { return x.key === k; })[0] : null, h = (k && hoca[k]) || {};
     if (!bdDlg.open) bdDlg.showModal();
     if (d && d.cards.length && forceSrc !== 'course') {
@@ -2486,7 +2488,34 @@ window.axWhenProfile = function (cb) {
   var countEl = $('#exam-question-count');
   $$('[data-cnt]').forEach(function (b) { b.addEventListener('click', function () { var v = (+countEl.value || 10) + (+b.getAttribute('data-cnt')), mn = +countEl.min || 1, mx = +countEl.max || 20; countEl.value = Math.max(mn, Math.min(mx, v)); countEl.dispatchEvent(new Event('change')); paintCover(); }); });
   var val = function (n) { var r = root.querySelector('input[name="' + n + '"]:checked'); return r ? r.value : ''; };
+  /* FAZ 2c: puanlama bölümü. Klasik ve hesaplamada çoktan seçmeli soru yok:
+     bölüm pasifleşir. Oran, öğrenci elle seçmedikçe şık sayısını izler
+     (4 şık → 3 yanlış, 5 şık → 4 yanlış bir doğruyu götürür). */
+  var scoreBox = $('[data-score-box]'), negT = $('#exam-negative-toggle'), negR = $('#exam-negative-ratio'), ratioTouched = false;
+  if (negR) negR.addEventListener('change', function () { ratioTouched = true; });
+  var hasMcType = function () { var t = val('exam-type'); return t === 'test' || t === 'mixed'; };
+  /* FAZ 3c: sayı hassasiyeti yalnızca hesap sorusu olabilen türlerde. */
+  var precBox = $('[data-prec-box]'), precSel = $('#exam-decimal-places');
+  var hasCalcType = function () { var t = val('exam-type'); return t === 'calculation' || t === 'mixed'; };
+  var precLabel = function (d) { return +d ? 'virgülden sonra ' + (+d) + ' basamak' : ''; };
+  var syncPrec = function () {
+    if (!precBox) return;
+    var on = hasCalcType();
+    if (on) precBox.removeAttribute('data-off'); else precBox.setAttribute('data-off', '');
+    if (precSel) precSel.disabled = !on;
+  };
+  var syncScore = function () {
+    syncPrec();
+    if (!scoreBox) return;
+    var on = hasMcType();
+    if (on) scoreBox.removeAttribute('data-off'); else scoreBox.setAttribute('data-off', '');
+    $$('input, select', scoreBox).forEach(function (i) { i.disabled = !on; });
+    var hint = $('[data-score-hint]', scoreBox); if (hint) hint.hidden = on;
+    if (negR && !ratioTouched) negR.value = val('exam-options') === '5' ? '4' : '3';
+    var row = $('[data-neg-row]', scoreBox); if (row) row.hidden = !(negT && negT.checked);
+  };
   var paintCover = function () {
+    syncScore();
     var src = val('exam-source'), name = '';
     if (src === 'course') { var cs = $('#exam-course-select'); name = cs && cs.selectedOptions[0] ? cs.selectedOptions[0].textContent : 'ders ağacı'; }
     else { var c = cardById($('#exam-card-select') && $('#exam-card-select').value); name = c ? (c.course_tag ? c.course_tag + ' · ' : '') + baseName(c.documents && c.documents.file_name) : 'belge seç'; }
@@ -2494,7 +2523,8 @@ window.axWhenProfile = function (cb) {
     $('[data-bd-note]').textContent = sim ? 'süre bitince kâğıt kendiliğinden toplanır.' : '';
     cover.innerHTML = '<span class="uni">ACADEX · SINAV SALONU</span><h3>' + esc(name.length > 60 ? name.slice(0, 58) + '…' : name) + '</h3><span class="sub">' + esc((TYPE[val('exam-type')] || '') + ' · ' + (DIFF[val('exam-difficulty')] || '') + ' · ' + (val('exam-lang') === 'tr' ? 'Türkçe' : 'English')) + '</span>' +
       '<div class="lines"><span>Ad Soyad: ' + esc(p.full_name || '') + '</span><span>Öğrenci no: ' + esc(p.student_number || '') + '</span><span>Tarih: ' + dshort(new Date()) + '</span></div>' +
-      '<table><tr><th>SORU</th><td>' + esc(countEl.value) + '</td></tr><tr><th>SÜRE</th><td>' + (sim ? 'gerçek sınav süresi' : 'serbest') + '</td></tr><tr><th>İPUCU</th><td>' + (sim ? 'yok' : 'soru başına bir') + '</td></tr>' + (topicEl.value.trim() && src === 'course' ? '<tr><th>ODAK</th><td>' + esc(topicEl.value.trim()) + '</td></tr>' : '') + '</table>' +
+      '<table><tr><th>SORU</th><td>' + esc(countEl.value) + '</td></tr><tr><th>SÜRE</th><td>' + (sim ? 'gerçek sınav süresi' : 'serbest') + '</td></tr><tr><th>İPUCU</th><td>' + (sim ? 'yok' : 'soru başına bir') + '</td></tr>' +
+      (hasMcType() ? '<tr><th>ŞIK</th><td>' + (val('exam-options') === '5' ? '5 (A–E)' : '4 (A–D)') + '</td></tr><tr><th>NET</th><td>' + (negT && negT.checked ? esc((negR ? negR.value : '3') + ' yanlış 1 doğruyu götürür') : 'yanlış götürmez') + '</td></tr>' : '') + (hasCalcType() && precSel && +precSel.value ? '<tr><th>HASSASİYET</th><td>' + esc(precLabel(precSel.value)) + '</td></tr>' : '') + (topicEl.value.trim() && src === 'course' ? '<tr><th>ODAK</th><td>' + esc(topicEl.value.trim()) + '</td></tr>' : '') + '</table>' +
       '<p class="warn">' + (sim ? 'KİTAPÇIĞI AÇINCA SÜRE BAŞLAR' : 'KOLAY GELSİN') + '</p>';
   };
   bdDlg.addEventListener('change', function () { setTimeout(paintCover, 0); });
@@ -2602,7 +2632,7 @@ window.axWhenProfile = function (cb) {
       if (/_{3,}/.test(txt)) { txt = txt.replace(/_{3,}/, inp); body = ''; } else body = '<p>' + inp + '</p>';
     } else if (q.type === 'calculation') {
       var pre = q.units && /^[$€₺£]$/.test(q.units);
-      body = '<div class="sn-calc">' + (pre ? '<span>' + esc(q.units) + '</span>' : '') + '<input type="number" step="any" class="sn-blank" name="' + name + '" aria-label="Sayısal cevap" placeholder="cevap">' + (!pre && q.units ? '<span>' + esc(q.units) + '</span>' : '') + '</div>';
+      body = '<div class="sn-calc">' + (pre ? '<span>' + esc(q.units) + '</span>' : '') + '<input type="number" step="any" class="sn-blank" name="' + name + '" aria-label="Sayısal cevap" placeholder="' + (EXM.scoring && +EXM.scoring.decimal_places ? 'cevap · ' + (+EXM.scoring.decimal_places) + ' basamak' : 'cevap') + '">' + (!pre && q.units ? '<span>' + esc(q.units) + '</span>' : '') + '</div>';
     } else if (!INK_TYPES[q.type] && ENG() && ENG().hasType(q.type)) {
       body = '<div class="sn-ext">' + ENG().getType(q.type).renderInput(q, { esc: esc, math: rich, lang: EXM.language || 'tr', name: name }) + '</div>';
     } else {
@@ -2611,7 +2641,7 @@ window.axWhenProfile = function (cb) {
     var hintB = EXM.is_simulation ? '' : '<button type="button" class="sn-ghost" id="btn-hint-' + esc(q.id) + '" data-hint="' + esc(q.id) + '">ipucu al</button>';
     var hintBox = EXM.is_simulation ? '' : '<div id="hint-box-' + esc(q.id) + '" class="exam-hint-box sn-hint" style="display:none"></div>';
     return '<section class="sn-q" data-qi="' + i + '" aria-label="Soru ' + (i + 1) + '" hidden><div class="sn-qn"><b>' + (i + 1) + '</b><span class="ty">' + esc(QT[q.type] || q.type) + '</span><span class="pt">' + (i + 1) + ' / ' + QS.length + '</span></div>' +
-      '<div class="sn-qtext">' + txt + '</div>' + body + hintBox +
+      '<div class="sn-qtext">' + txt + '</div>' + chartHtml(q, EXM.language) + body + hintBox +
       '<div class="sn-book-nav"><button type="button" class="sn-ghost" data-prev=""' + (i ? '' : ' disabled') + '>← önceki</button><button type="button" class="sn-ghost sn-flag" aria-pressed="false" data-flag="">işaretle</button>' + hintB + '<span class="sp"></span>' +
       (i < QS.length - 1 ? '<button type="button" class="btn btn-dark" data-next="">sonraki →</button>' : '<button type="button" class="btn btn-blue" data-hand="">kâğıdı teslim et</button>') + '</div></section>';
   };
@@ -2635,7 +2665,7 @@ window.axWhenProfile = function (cb) {
       opt.innerHTML = QS.map(function (q, i) {
         var bb, sec = info[i].sec;
         if ((q.type === 'multiple_choice' || q.type === 'true_false') && sec) bb = '<span class="bb" aria-hidden="true">' + $$('.sn-opt-b', sec).map(function (l) { return '<i>' + esc(l.getAttribute('data-letter')) + '</i>'; }).join('') + '</span>';
-        else bb = '<span class="tl">' + (q.type === 'fill_blank' ? 'boşluk' : q.type === 'calculation' ? 'sayı' : q.type === 'open_ended' ? 'yazılı' : 'test') + '</span>';
+        else bb = '<span class="tl">' + (q.type === 'fill_blank' ? 'boşluk' : q.type === 'calculation' ? 'sayı' : q.type === 'expression' ? 'ifade' : q.type === 'open_ended' ? 'yazılı' : 'test') + '</span>';
         return '<li><button type="button" data-go="' + i + '"><span class="n">' + (i + 1) + '</span>' + bb + '<span class="st"></span></button></li>';
       }).join('');
     }
@@ -2661,7 +2691,7 @@ window.axWhenProfile = function (cb) {
     var e = EXM, lim = e.is_simulation && e.time_limit_seconds ? Math.round(e.time_limit_seconds / 60) : 0;
     book.className = 'sn-book cover';
     book.innerHTML = '<span class="sn-k">' + esc($L('[data-hl-course]').textContent) + '</span><h3>' + esc((TYPE[e.exam_type] || 'deneme') + ' sınavı') + '</h3><p class="meta">' + QS.length + ' soru · ' + (DIFF[e.difficulty] || '') + ' · ' + (e.language === 'tr' ? 'Türkçe' : 'English') + '</p>' +
-      '<ul><li>' + (lim ? 'süre: ' + lim + ' dakika; sayaç sınav hazırlanınca başladı, bitince kâğıt kendiliğinden toplanır' : 'süre sınırı yok; kendi hızında çöz') + '</li><li>' + (e.is_simulation ? 'ipucu yok, gerçek sınav gibi' : 'her soruda bir ipucu alabilirsin') + '</li><li>sorular arasında optik formdan gezebilirsin</li><li>emin olmadığını “işaretle”, sonra dön</li></ul>' +
+      '<ul><li>' + (lim ? 'süre: ' + lim + ' dakika; sayaç sınav hazırlanınca başladı, bitince kâğıt kendiliğinden toplanır' : 'süre sınırı yok; kendi hızında çöz') + '</li><li>' + (e.is_simulation ? 'ipucu yok, gerçek sınav gibi' : 'her soruda bir ipucu alabilirsin') + '</li>' + (e.scoring && +e.scoring.decimal_places ? '<li><b>sayı hassasiyeti:</b> hesap cevapları ' + esc(precLabel(e.scoring.decimal_places)) + ' doğru olmalı; sonucu bu basamağa yuvarla.</li>' : '') + (e.scoring && e.scoring.negative_marking ? '<li><b>yanlış doğruyu götürür:</b> ' + esc(String(e.scoring.wrong_per_correct || 4)) + ' yanlış 1 doğruyu siler (yalnızca çoktan seçmeli); emin değilsen boş bırak</li>' : '') + '<li>sorular arasında optik formdan gezebilirsin</li><li>emin olmadığını “işaretle”, sonra dön</li></ul>' +
       (e.is_simulation ? '<p class="warn">SEKMEDEN ÇIKARSAN NOT EDİLİR</p>' : '') + '<button type="button" class="btn btn-blue" data-open-book="">kitapçığı aç</button>';
     setTimeout(function () { var b = book.querySelector('[data-open-book]'); if (b) b.focus(); }, 60);
   };
@@ -2818,7 +2848,29 @@ window.axWhenProfile = function (cb) {
      olduğu, klasik soruda rubrik dökümü ve belgedeki sayfa. Alanlar
      puanlamadan sonra grade-exam'den gelir; eski sınavlarda yoktur ve
      hiçbir şey çizilmez. */
+  /* FAZ 2c: "yanlış doğruyu götürür" açık sınavda net (grade-exam'deki
+     computeNetSummary ile aynı kural: yalnızca çoktan seçmeli, boş götürmez). */
+  var netLine = function (exam) {
+    var s = exam && exam.scoring; if (!s || s.negative_marking !== true) return '';
+    var k = (+s.wrong_per_correct === 3 || +s.wrong_per_correct === 4) ? +s.wrong_per_correct : 4, c = 0, w = 0, b = 0, t = 0;
+    (exam.question_results || []).forEach(function (r) { if (!r || r.type !== 'multiple_choice') return; t++; if (!String(r.student_answer || '').trim()) b++; else if (r.is_correct === true || r.score === 100) c++; else w++; });
+    if (!t) return '';
+    var net = Math.round((c - w / k) * 100) / 100;
+    return '<span class="sn-net">test neti <b>' + esc(String(net).replace('.', ',')) + '</b><small>' + c + ' doğru · ' + w + ' yanlış · ' + b + ' boş · ' + k + ' yanlış 1 doğruyu götürür</small></span>';
+  };
   var VERD = { met: ['karşıladın', 'ok'], partial: ['kısmen', 'half'], missing: ['eksik', 'no'] };
+  /* FAZ 3b: ifade sorusunda cevaplar matematik olarak (KaTeX) gösterilir;
+     okunamazsa düz metin. */
+  var ansHtml = function (r, raw) {
+    var E = ENG();
+    if (r.type === 'expression' && E && typeof E.exprPreviewHtml === 'function') {
+      var vars = Array.isArray(r.expr_vars) ? r.expr_vars : [], plusC = '', s = String(raw == null ? '' : raw);
+      if (r.up_to_constant && vars.indexOf('C') < 0 && /\+\s*[cC]\s*$/.test(s)) { s = s.replace(/\s*\+\s*[cC]\s*$/, ''); plusC = ' + C'; }
+      var h = E.exprPreviewHtml(s, vars);
+      if (h) return '<span class="sn-math">' + h + '</span>' + plusC;
+    }
+    return esc(raw);
+  };
   var rationaleFor = function (map, ans) {
     if (!map || !ans) return null;
     if (map[ans]) return map[ans];
@@ -2845,6 +2897,9 @@ window.axWhenProfile = function (cb) {
       }).join('');
       if (rows) h += '<details class="sn-optwhy"><summary>tüm şıkların açıklaması</summary><ul>' + rows + '</ul></details>';
     }
+    if (r.type === 'calculation' && r.verified) h += '<p class="sn-ver">cevap, sorunun formülünden kodla hesaplandı</p>';
+    h += pracBlock(r);
+    h += fbBlock(r);
     var src = r.source;
     if (src && +src.page > 0) {
       var pg = (src.unit === 'slide' ? 'slayt ' : 's. ') + (+src.page) + (src.page_end && +src.page_end > +src.page ? '–' + (+src.page_end) : '');
@@ -2852,14 +2907,151 @@ window.axWhenProfile = function (cb) {
     }
     return h;
   };
+  /* FAZ 2b: itiraz ve "bu soru hatalı" bildirimi (exam-appeal edge
+     function). Klasik ve boşluk sorusunda itiraz → daha güçlü yeniden
+     puanlama, puan asla düşmez; her soruda bildirim; reddedilen itiraz
+     öğretmene iletilebilir. Fonksiyon kurulu değilse yalnızca hata mesajı
+     görünür, sonuç kâğıdının geri kalanı etkilenmez. */
+  var RES_EXAM = null;
+  /* FAZ 3a: kodla doğrulanmış hesap sorusunda "farklı sayılarla tekrar dene".
+     Yeni sayılar ve cevap tarayıcıda, sorunun formülünden üretilir
+     (exam-engine makeVariant); yapay zekâ çağrısı ve puan yok, yalnızca
+     pratik. */
+  /* FAZ 3c: doğrusal denklem ve NBD/faiz sorularında "adım adım çöz":
+     öğrenci her satıra bir adım yazar, tarayıcı satır satır kontrol eder
+     (exam-engine checkSteps). Açık bir "farklı sayılarla" sorusu varsa onu,
+     yoksa sınavdaki asıl soruyu çözdürür. Puan değişmez. */
+  var pracBlock = function (r) {
+    var E = ENG(); if (!E) return '';
+    var pr = r.practice && typeof E.makeVariant === 'function', st = r.steps && typeof E.checkSteps === 'function';
+    if (!pr && !st) return '';
+    return '<div class="sn-prac" data-prac="' + esc(String(r.question_id)) + '">' +
+      (pr ? '<button type="button" class="sn-link" data-prac-new="">farklı sayılarla tekrar dene</button>' : '') +
+      (st ? '<button type="button" class="sn-link" data-steps-open="">adım adım çöz</button>' : '') +
+      '<div class="sn-prac-b" hidden></div><div class="sn-steps-b" hidden></div></div>';
+  };
+  var resOf = function (qid) { var rs = (RES_EXAM && RES_EXAM.question_results) || []; for (var i = 0; i < rs.length; i++) if (String(rs[i].question_id) === String(qid)) return rs[i]; return null; };
+  var pracOf = function (qid) { var r = resOf(qid); return r ? r.practice : null; };
+  var STEP_PH = { linear: 'ör.\n3x + 5 = 2x - 7\n3x - 2x = -7 - 5\nx = -12', npv: 'ör.\nPV1 = 500 / 1,1 = 454,55\nPV2 = 600 / 1,1^2 = 495,87\nNBD = 454,55 + 495,87 - 900 = 50,42', interest: 'ör.\ni = 5 / 100 / 12 = 0,004167\n(1 + 0,004167)^360 = 4,4677\n…' };
+  var stepsOpen = function (box) {
+    var r = resOf(box.getAttribute('data-prac')), sb = box.querySelector('.sn-steps-b'), pb = box.querySelector('.sn-prac-b');
+    if (!r || !r.steps || !sb) return;
+    var useV = box.__v && pb && !pb.hidden, vars = useV ? box.__v.variables : r.steps.variables, txt = useV ? box.__v.text : r.question;
+    box.__sv = vars;
+    sb.innerHTML = '<p class="sn-steps-q"><b>' + (useV ? 'yeni sayılarla' : 'sınavdaki soru') + ':</b> ' + rich(txt) + '</p>' +
+      '<textarea class="sn-steps-in" rows="5" data-steps-in="" spellcheck="false" aria-label="Çözüm adımların, her satıra bir adım" placeholder="' + esc(STEP_PH[r.steps.kind] || '') + '"></textarea>' +
+      '<div class="sn-steps-bar"><button type="button" class="btn btn-dark" data-steps-check="">adımları kontrol et</button><span>her satıra bir adım; çarpma *, üs ^</span></div>' +
+      '<ol class="sn-steps-out" hidden></ol><p class="sn-steps-sum" role="status" hidden></p>';
+    sb.hidden = false;
+    var ta = sb.querySelector('[data-steps-in]'); if (ta) ta.focus();
+  };
+  var stepsCheck = function (box) {
+    var E = ENG(), r = resOf(box.getAttribute('data-prac')), sb = box.querySelector('.sn-steps-b');
+    if (!E || !r || !r.steps || !sb) return;
+    var ta = sb.querySelector('[data-steps-in]'), ol = sb.querySelector('.sn-steps-out'), sum = sb.querySelector('.sn-steps-sum');
+    var res2 = E.checkSteps(ta ? ta.value : '', r.steps, box.__sv, (RES_EXAM && RES_EXAM.language) || 'tr');
+    if (!res2) { sum.className = 'sn-steps-sum no'; sum.textContent = 'Bu soru adım adım kontrol edilemiyor.'; sum.hidden = false; ol.hidden = true; return; }
+    ol.innerHTML = res2.lines.map(function (l) {
+      var c = l.ok ? (l.code === 'on_track' || l.code === 'final' ? 'ok' : 'fine') : (l.code === 'carried' ? 'carry' : 'no');
+      return '<li class="' + c + '"><code>' + esc(l.line) + '</code><span>' + esc(l.message) + '</span></li>';
+    }).join('');
+    ol.hidden = !res2.lines.length;
+    sum.className = 'sn-steps-sum ' + (res2.status === 'solved' ? 'ok' : res2.status === 'error' || res2.status === 'empty' ? 'no' : 'half');
+    sum.textContent = res2.message; sum.hidden = false;
+  };
+  var pracNew = function (box) {
+    var E = ENG(), p = pracOf(box.getAttribute('data-prac')), b = box.querySelector('.sn-prac-b');
+    var v = E && p ? E.makeVariant(p, (RES_EXAM && RES_EXAM.language) || 'tr') : null;
+    if (!v) { b.innerHTML = '<p class="sn-prac-r no">Bu soru için yeni sayılar üretilemedi.</p>'; b.hidden = false; return; }
+    box.__v = v; box.__p = p;
+    var unit = p.units ? ' <span class="u">' + esc(p.units) + '</span>' : '';
+    b.innerHTML = '<p class="sn-prac-q">' + rich(v.text) + '</p><div class="sn-prac-in"><input type="text" inputmode="decimal" autocomplete="off" data-prac-ans="" aria-label="Cevabın">' + unit +
+      '<button type="button" class="btn btn-dark" data-prac-check="">kontrol et</button></div><p class="sn-prac-r" role="status" hidden></p>';
+    b.hidden = false;
+    var inp = b.querySelector('[data-prac-ans]'); if (inp) inp.focus();
+  };
+  var pracCheck = function (box) {
+    var E = ENG(), v = box.__v, p = box.__p, out = box.querySelector('.sn-prac-r'), inp = box.querySelector('[data-prac-ans]');
+    if (!E || !v || !out || !inp) return;
+    var dp = +p.decimal_places || 0, c = E.checkNumericAnswer(inp.value, v.answer, p.tolerance_percent, dp), lang = (RES_EXAM && RES_EXAM.language) || 'tr';
+    var shown = Number(v.answer).toLocaleString(lang === 'en' ? 'en-US' : 'tr-TR', dp ? { minimumFractionDigits: dp, maximumFractionDigits: dp } : { maximumFractionDigits: 4 }) + (p.units ? ' ' + p.units : '');
+    out.className = 'sn-prac-r ' + (c.ok ? 'ok' : 'no');
+    out.innerHTML = !c.filled ? 'Bir sayı yaz.' : c.ok ? 'Doğru! (' + esc(shown) + ') <button type="button" class="sn-link" data-prac-new="">yeni sayılar</button>' : 'Olmadı. Doğrusu ' + esc(shown) + (dp ? ' (virgülden sonra ' + dp + ' basamak). ' : ' (±%' + esc(String(p.tolerance_percent || 2)) + '). ') + '<button type="button" class="sn-link" data-prac-new="">yeni sayılar</button>';
+    out.hidden = false;
+  };
+  var APPEALABLE = { open_ended: 1, fill_blank: 1 };
+  var REPORT_CATS = [['wrong_key', 'cevap anahtarı yanlış'], ['ambiguous', 'soru belirsiz ya da birden çok doğru var'], ['off_source', 'kaynakta böyle bir şey yok'], ['typo', 'yazım ya da biçim hatası'], ['other', 'diğer']];
+  var catLabel = function (k) { for (var i = 0; i < REPORT_CATS.length; i++) if (REPORT_CATS[i][0] === k) return REPORT_CATS[i][1]; return k || ''; };
+  var fbBlock = function (r) {
+    var qid = esc(String(r.question_id)), ap = r.appeal, rp = r.report, chips = '', btns = '';
+    if (ap) {
+      var cls = ap.status === 'accepted' ? 'ok' : ap.status === 'escalated' ? 'esc' : 'no';
+      var txt = ap.status === 'accepted' ? 'itiraz kabul edildi · ' + esc(String(ap.old_score == null ? '–' : ap.old_score)) + ' → ' + esc(String(ap.new_score)) : ap.status === 'escalated' ? 'itiraz öğretmene iletildi' : 'itiraz incelendi · puan değişmedi';
+      chips += '<span class="sn-chip ' + cls + '">' + txt + '</span>';
+    }
+    if (rp) chips += '<span class="sn-chip rep">bildirildi · ' + esc(catLabel(rp.category)) + '</span>';
+    if (APPEALABLE[r.type] && !ap && !(typeof r.score === 'number' && r.score >= 100)) btns += '<button type="button" class="sn-link" data-fb="appeal">puana itiraz et</button>';
+    if (ap && ap.status === 'rejected') btns += '<button type="button" class="sn-link" data-fb="escalate">öğretmene ilet</button>';
+    if (!rp) btns += '<button type="button" class="sn-link" data-fb="report">soru hatalı</button>';
+    return '<div class="sn-fbk" data-fbq="' + qid + '">' + (chips ? '<div class="sn-fbk-c">' + chips + '</div>' : '') + (ap && ap.note ? '<p class="sn-apnote">' + esc(ap.note) + '</p>' : '') +
+      (btns ? '<div class="sn-fbk-b">' + btns + '</div>' : '') + '<div class="sn-fbk-f" hidden></div></div>';
+  };
+  var fbForm = function (box, kind) {
+    var f = box.querySelector('.sn-fbk-f'), qid = box.getAttribute('data-fbq'), h;
+    if (kind === 'appeal') {
+      h = '<label class="sn-fbk-l">neden puanının yanlış olduğunu düşünüyorsun?<small>cevabının hangi kısmının neyi karşıladığını yaz. yeniden puanlamada yalnızca cevabına bakılır; puan düşmez.</small><textarea data-fb-text rows="3" maxlength="800"></textarea></label>';
+    } else if (kind === 'report') {
+      h = '<fieldset class="sn-fbk-l"><legend>bu soruda ne yanlış?</legend>' + REPORT_CATS.map(function (c, i) { return '<label class="sn-fbk-r"><input type="radio" name="fbcat-' + esc(qid) + '" value="' + c[0] + '"' + (i ? '' : ' checked') + '>' + esc(c[1]) + '</label>'; }).join('') +
+        '</fieldset><label class="sn-fbk-l">not <small>isteğe bağlı; "diğer" için gerekli</small><textarea data-fb-text rows="2" maxlength="500"></textarea></label>';
+    } else {
+      h = '<label class="sn-fbk-l">öğretmene not <small>isteğe bağlı</small><textarea data-fb-text rows="2" maxlength="500"></textarea></label>';
+    }
+    var label = kind === 'appeal' ? 'itirazı gönder' : kind === 'report' ? 'bildir' : 'öğretmene ilet';
+    f.innerHTML = h + '<p class="sn-fbk-err" role="alert" hidden></p><div class="sn-fbk-b"><button type="button" class="btn btn-dark" data-fb-send="' + kind + '">' + label + '</button><button type="button" class="sn-ghost" data-fb-cancel="">vazgeç</button></div>';
+    f.hidden = false;
+    var t = f.querySelector('textarea, input'); if (t) t.focus();
+  };
+  var examFeedback = function (body) {
+    var c = lsafe(function () { return supabaseClient; }, null);
+    if (!c || !c.functions) return Promise.reject(new Error('Bağlantı yok.'));
+    var timeout = new Promise(function (_, rej) { setTimeout(function () { rej(new Error('İstek zaman aşımına uğradı; birazdan tekrar dene.')); }, 90000); });
+    return Promise.race([c.functions.invoke('exam-appeal', { body: body }), timeout]).then(function (r) {
+      if (!r.error) return r.data;
+      var ctx = r.error.context, st = ctx && ctx.status;
+      var fallback = st === 404 ? 'İtiraz sistemi henüz kurulmadı.' : 'İstek gönderilemedi; birazdan tekrar dene.';
+      if (!ctx || typeof ctx.json !== 'function') throw new Error(fallback);
+      return ctx.json().then(function (j) { throw new Error((j && j.error) || fallback); }, function () { throw new Error(fallback); });
+    });
+  };
+  var sendFb = function (btn) {
+    var box = btn.closest('.sn-fbk'), f = box.querySelector('.sn-fbk-f'), kind = btn.getAttribute('data-fb-send');
+    var qid = box.getAttribute('data-fbq'), err = f.querySelector('.sn-fbk-err'), ta = f.querySelector('[data-fb-text]');
+    var body = { action: kind, examId: RES_EXAM && RES_EXAM.id, questionId: +qid, reason: ta ? ta.value : '' };
+    if (kind === 'report') { var ch = f.querySelector('input[type="radio"]:checked'); body.category = ch ? ch.value : ''; }
+    if (kind === 'appeal' && String(body.reason).trim().length < 10) { err.textContent = 'Biraz daha açıkla: en az 10 karakter.'; err.hidden = false; if (ta) ta.focus(); return; }
+    var all = $$('button', f); all.forEach(function (b) { b.disabled = true; });
+    var old = btn.textContent; btn.textContent = kind === 'appeal' ? 'yeniden puanlanıyor…' : 'gönderiliyor…'; err.hidden = true;
+    examFeedback(body).then(function (d) {
+      if (!d || !d.exam || !RES_EXAM) throw new Error('Yanıt okunamadı.');
+      RES_EXAM.question_results = d.exam.question_results; if (d.exam.grade != null) RES_EXAM.grade = d.exam.grade;
+      var ap = d.appeal;
+      showExamResults(RES_EXAM);
+      var nb = res.querySelector('[data-fbq="' + qid + '"]'); if (nb) nb.scrollIntoView({ block: 'center' });
+      say(kind === 'report' ? 'Bildirimin alındı, teşekkürler.' : kind === 'escalate' ? 'İtirazın öğretmene iletildi.' : ap && ap.status === 'accepted' ? 'İtiraz kabul edildi: ' + ap.old_score + ' → ' + ap.new_score + '. Notun güncellendi.' : 'İtiraz incelendi; puan değişmedi.');
+    }).catch(function (e) {
+      all.forEach(function (b) { b.disabled = false; }); btn.textContent = old;
+      err.textContent = (e && e.message) || 'İstek gönderilemedi.'; err.hidden = false;
+    });
+  };
   var MK = { ok: '<path pathLength="1" d="M5 18 L13 27 L29 6"/>', no: '<path pathLength="1" d="M6 6 L28 28 M28 6 L6 28"/>', half: '<path pathLength="1" d="M6 26 L28 8"/>' };
   if (typeof showExamResults === 'function') {
     showExamResults = function (exam) {
+      RES_EXAM = exam;
       if (typeof stopExamTimer === 'function') stopExamTimer();
       clearInterval(ticker); ticker = 0; mode = 'result';
       var rs = exam.question_results || [], isTr = true, g = Math.round(+exam.grade || 0);
       var cnt = { ok: 0, half: 0, no: 0, blank: 0 };
-      rs.forEach(function (r) { if (!String(r.student_answer || '').trim()) cnt.blank++; if (r.score >= 80) cnt.ok++; else if (r.score >= 50) cnt.half++; else cnt.no++; });
+      rs.forEach(function (r) { if (!String(r.student_answer || '').trim()) cnt.blank++; else if (r.score >= 80) cnt.ok++; else if (r.score >= 50) cnt.half++; else cnt.no++; });
       var sid = exam.study_card_id || (EXM && EXM.id === exam.id ? EXM.study_card_id : null), c = cardById(sid);
       if (!exam.source_type && EXM && EXM.id === exam.id) { exam.source_type = EXM.source_type; exam.course_code = exam.course_code || EXM.course_code; }
       if (!exam.study_card_id && sid) exam.study_card_id = sid;
@@ -2872,14 +3064,14 @@ window.axWhenProfile = function (cb) {
       var practice = wl.length && wl[0].a < 75 ? (code ? '<button type="button" class="sn-ghost" data-practice="' + esc(code) + '" data-concept="' + esc(wl[0].c) + '">“' + esc(wl[0].c) + '” konusundan yeni deneme</button>' : '<button type="button" class="sn-ghost" data-retry="' + esc(label) + '">bu belgeden yeni deneme</button>') : '';
       res.innerHTML = '<article class="sn-paper"><div class="sn-ph"><div><span class="sn-k">' + esc(course) + '</span><h2 class="disp">' + esc((TYPE[exam.exam_type] || 'deneme') + ' deneme') + (exam.is_simulation ? ' · gerçek süre' : '') + '</h2><p>' + esc(dshort(exam.completed_at || new Date())) + ' · ' + rs.length + ' soru · ' + (exam.language === 'tr' ? 'Türkçe' : 'English') + ' · ' + verdict + '</p></div>' +
         '<div class="sn-score" role="img" aria-label="Puan ' + g + ' / 100"><svg viewBox="0 0 118 96" aria-hidden="true"><path pathLength="1" d="M60 6 C24 4 4 26 8 52 C12 80 50 94 82 86 C110 78 118 50 104 28 C94 12 74 6 52 10"/></svg><b>' + g + '</b><small>/ 100</small></div></div>' +
-        '<p class="sn-sum"><span>doğru <b>' + cnt.ok + '</b></span><span>kısmen <b>' + cnt.half + '</b></span><span>yanlış <b>' + cnt.no + '</b></span>' + (cnt.blank ? '<span>boş <b>' + cnt.blank + '</b></span>' : '') + (el ? '<span>süre <b>' + mmss(el) + '</b></span>' : '') + '</p>' +
+        '<p class="sn-sum">' + netLine(exam) + '<span>doğru <b>' + cnt.ok + '</b></span><span>kısmen <b>' + cnt.half + '</b></span><span>yanlış <b>' + cnt.no + '</b></span>' + (cnt.blank ? '<span>boş <b>' + cnt.blank + '</b></span>' : '') + (el ? '<span>süre <b>' + mmss(el) + '</b></span>' : '') + '</p>' +
         rs.map(function (r, i) {
           var k = r.score >= 80 ? 'ok' : r.score >= 50 ? 'half' : 'no', blank = !String(r.student_answer || '').trim();
           var steps = Array.isArray(r.solution_steps) && r.solution_steps.length ? '<div class="sn-model"><b>çözüm adımları</b><ol>' + r.solution_steps.map(function (s) { return '<li>' + rich(s) + '</li>'; }).join('') + '</ol></div>' : '';
           var unit = r.units ? ' ' + esc(r.units) : '';
           return '<div class="sn-ri" style="--i:' + i + '"><svg class="mk ' + k + '" viewBox="0 0 34 34" aria-hidden="true">' + MK[k] + '</svg><div class="sn-ri-h"><b>' + (i + 1) + '</b><span class="ty">' + esc(QT[r.type] || r.type || '') + '</span>' + (r.concept ? '<span class="cpt">' + esc(r.concept) + '</span>' : '') + '<span class="pt">' + (+r.score || 0) + '</span></div>' +
-            '<p class="q">' + rich(r.question) + '</p><p class="yours' + (k === 'no' && !blank ? ' wrong' : '') + '">senin cevabın: <span>' + (blank ? 'boş bıraktın' : esc(r.student_answer) + (r.student_answer && r.units ? unit : '')) + '</span></p>' +
-            (r.type !== 'open_ended' && r.correct_answer != null && r.correct_answer !== '' ? '<p class="right">doğrusu: ' + esc(r.correct_answer) + unit + (r.tolerance_percent ? ' (±%' + esc(r.tolerance_percent) + ')' : '') + '</p>' : '') +
+            '<p class="q">' + rich(r.question) + '</p>' + chartHtml(r, exam.language) + '<p class="yours' + (k === 'no' && !blank ? ' wrong' : '') + '">senin cevabın: <span>' + (blank ? 'boş bıraktın' : ansHtml(r, r.student_answer) + (r.student_answer && r.units ? unit : '')) + '</span></p>' +
+            (r.type !== 'open_ended' && r.correct_answer != null && r.correct_answer !== '' && String(r.correct_answer).trim().toLowerCase() !== 'null' ? '<p class="right">doğrusu: ' + ansHtml(r, r.correct_answer) + (r.type === 'expression' && r.up_to_constant ? ' + C' : '') + unit + (r.decimal_places ? ' (virgülden sonra ' + esc(r.decimal_places) + ' basamak)' : r.tolerance_percent ? ' (±%' + esc(r.tolerance_percent) + ')' : '') + '</p>' : '') +
             (r.feedback ? '<p class="fb">' + rich(r.feedback) + '</p>' : '') + teach(r, blank) + steps + '</div>';
         }).join('') +
         '<div class="sn-res-b">' + practice + '<button type="button" class="sn-ghost" data-to-errs="">hata defterine bak</button><button type="button" class="btn btn-dark" data-back="">salona dön</button></div>' +
@@ -2892,6 +3084,13 @@ window.axWhenProfile = function (cb) {
     window.showExamResults = showExamResults;
   }
   res.addEventListener('click', function (e) {
+    var pn = e.target.closest('[data-prac-new]'); if (pn) { var pbx = pn.closest('.sn-prac'); pracNew(pbx); var sbx = pbx.querySelector('.sn-steps-b'); if (sbx && !sbx.hidden) stepsOpen(pbx); return; }
+    var so = e.target.closest('[data-steps-open]'); if (so) { stepsOpen(so.closest('.sn-prac')); return; }
+    var sk = e.target.closest('[data-steps-check]'); if (sk) { stepsCheck(sk.closest('.sn-prac')); return; }
+    var pc = e.target.closest('[data-prac-check]'); if (pc) { pracCheck(pc.closest('.sn-prac')); return; }
+    var fb = e.target.closest('[data-fb]'); if (fb) { fbForm(fb.closest('.sn-fbk'), fb.getAttribute('data-fb')); return; }
+    var fs = e.target.closest('[data-fb-send]'); if (fs) { sendFb(fs); return; }
+    var fc = e.target.closest('[data-fb-cancel]'); if (fc) { var ff = fc.closest('.sn-fbk-f'); ff.hidden = true; ff.innerHTML = ''; return; }
     if (e.target.closest('[data-back]')) { closeHall(); if (typeof loadExamsPlatform === 'function') loadExamsPlatform(); return; }
     if (e.target.closest('[data-to-errs]')) { closeHall(); if (typeof loadExamsPlatform === 'function') loadExamsPlatform(); setTimeout(function () { $('#hata-defteri').scrollIntoView({ behavior: reduce ? 'auto' : 'smooth' }); }, 300); return; }
     var p = e.target.closest('[data-practice]'); if (p) { closeHall(); practice(p.getAttribute('data-practice'), p.getAttribute('data-concept')); return; }

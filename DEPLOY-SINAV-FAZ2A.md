@@ -41,9 +41,9 @@ Sıra önemli değil; her parça ötekinin eski sürümüyle de çalışıyor.
 ## Testler
 
 ```bash
-node tests/exam-feedback.js    # 25 test — Faz 2a
+node tests/exam-feedback.js    # 33 test — Faz 2a
 node tests/exam-integrity.js   # 30 test
-node tests/run-all.js          # 22 dosya, 833 test
+node tests/run-all.js          # 22 dosya, 873 test
 ```
 
 `tests/exam-feedback.js`, `generate-exam`'deki atıf motoru kopyasının `summarize-document`'takiyle birebir aynı kaldığını da denetliyor. Birini değiştirirsen test ötekini de değiştirmeni ister.

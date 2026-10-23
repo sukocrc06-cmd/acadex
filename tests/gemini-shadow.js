@@ -32,18 +32,19 @@ const NAMES = [
   'GEMINI_MAX_CALL_MS', 'GEMINI_MAX_OUTPUT_TOKENS', 'GEMINI_GROQ_RESERVE_MS',
   'geminiMode', 'GEMINI_ONLY_BUDGET_MS', 'GEMINI_ONLY_MAX_CALL_MS',
   'GEMINI_ONLY_FALLBACK_MIN_MS',
-  'GEMINI_MAX_REQUESTS_PER_RUN', 'GEMINI_ARDISIK_GECICI_MAX', 'geminiRpmWaitMs',
+  'GEMINI_MAX_REQUESTS_PER_RUN', 'GEMINI_ARDISIK_GECICI_MAX', 'geminiRpmWaitMs', 'OPSIYONEL_ADIM_MAX_BEKLEME_MS',
+  'PACER_COMPLETION_FACTOR', 'DEFAULT_TPM_LIMIT', 'PACER_SAFETY',
   'GEMINI_RPM_RETRY_MIN_REMAINING_MS',
   'bytesToBase64',
   'geminiModelCandidates', 'geminiNativeMime', 'geminiModelMissing',
   'geminiFormatRejected', 'GEMINI_DUSURULEBILIR', 'geminiUnknownParameter',
   'geminiQuotaExhausted',
-  'PIPELINE_BUDGET_MS', 'GEMINI_PIPELINE_BUDGET_MS', 'geminiCoverageQuota',
+  'PIPELINE_BUDGET_MS', 'GEMINI_PIPELINE_BUDGET_MS', 'geminiCoverageQuota', 'GEMINI_CIKTI_BUTCESI_KRK',
   'buildGeminiDocInstruction', 'extractGeminiText',
   'geminiProblem', 'geminiFigureNotes', 'callGeminiOnce', 'geminiDraft',
   // Akis (SSE) yolu — 18.10.2026.
   'GEMINI_SILENCE_MS', 'GEMINI_FIRST_BYTE_MS', 'GEMINI_ILK_OLAY_MS', 'geminiKurtarmaYeterli', 'GEMINI_PARTIAL_MIN_CHARS',
-  'GEMINI_MAX_RESUMES',
+  'GEMINI_MAX_RESUMES', 'GEMINI_DEVAM_PAYI_MS', 'GEMINI_DEVAM_KAYIT_PAYI_MS', 'geminiDevamDesteklemeyen',
   'geminiAkisDurumu', 'geminiSseBlogunuIsle', 'geminiAkisiTuket',
   'geminiAkisIstegi', 'geminiAkisSonucu', 'geminiAkisiDevamEttir',
   'closeTruncatedJson', 'repairLatexEscapes', 'geminiAkisOlcumu'
@@ -392,14 +393,299 @@ test('geminiCoverageQuota: sayilar formul ve tablodan SONRA isteniyor', () => {
   assert.match(q, /do them first/);
 });
 
-test('geminiCoverageQuota: nokta bandi Groq un uretimine yetisiyor', () => {
-  // Groq ayni destede 25 nokta veriyordu, Gemini 18. Aradaki tek gercek
-  // fark buydu ve 81,3 sn'lik kosuda 23,7 sn bosluk vardi.
+/* 21.10.2026 — BU TEST ESKIDEN "nokta bandi Groq un uretimine yetisiyor"
+   diye alt siniri 20'de TUTUYORDU. Gerekcesi 10.10'daki olcumdu: Groq ayni
+   destede 25 nokta veriyordu, Gemini 18, ve 81,3 sn'lik kosuda 23,7 saniye
+   bosluk vardi. O bosluk artik yok — 21.10'da ayni deste 96,9 saniyede
+   kesildi, cunku ilk olay 26 saniyeye gecikiyor ve ilk denemeyi 503 yakiyor.
+   Groq'un nokta sayisina yetismek, olculdugu uzere, kartin kendisine mal
+   oluyor: iki belgede de 27 nokta uretildi ve ikisi de KISMI kaldi.
+
+   Artik korunan sey tersi: bandin pencereye sigmasi. */
+test('geminiCoverageQuota: nokta bandi PENCEREYE sigiyor', () => {
   const q = G.geminiCoverageQuota(42);
-  const alt = Number(q.match(/(\d+)-(\d+) key_points/)[1]);
-  assert.ok(alt >= 20, `nokta alt siniri ${alt} — Groq un 25'ine yaklasmiyor`);
-  assert.ok(Number(q.match(/(\d+)-(\d+) key_points/)[2]) <= 32,
-    'bant yine sisirildi — 09.10 aksami bu kosuyu tamamlanamaz yapmisti');
+  const ust = Number(q.match(/(\d+)-(\d+) key_points/)[2]);
+  /* 560 krk/sn olculen yazma hizi, ilk olay 26-30 sn, tavan 105 sn (503
+     varsa 96,9): yazilabilir en fazla ~40-44 KB. 22-28 bandi iki olcumde de
+     34-37 KB uretti ve bitiremedi. */
+  assert.ok(ust <= 20,
+    `nokta ust siniri ${ust} — 22-28 bandi iki belgede de karti yarim birakti`);
+  assert.ok(Number(q.match(/(\d+)-(\d+) key_points/)[1]) >= 14,
+    'alt sinir cok dustu, kart icerik tasimaz');
+});
+
+const QUOTA_RE = /(\d+)-(\d+) key_terms, (\d+)-(\d+) key_points and (\d+)-(\d+) quiz_questions/;
+const quotaBant = (n) => G.geminiCoverageQuota(n).match(QUOTA_RE).slice(1).map(Number);
+
+test('geminiCoverageQuota: 25-60 araligi ARTIK zirve degil', () => {
+  /* 20.10'da band 60 sayfa USTUNDE geri indirilmisti, ama zirve orada
+     degildi: gunluk kullanimin tamami 25-60 araligina dusuyor ve en yuksek
+     istek oradaydi. 38 ve 42 sayfalik iki belge, iki KISMI kart. */
+  assert.deepEqual(quotaBant(42), quotaBant(20),
+    '42 sayfa 20 sayfadan daha fazla uretim istiyor — zirve yine 25-60 arasinda');
+  assert.deepEqual(quotaBant(38), quotaBant(20),
+    '38 sayfa icin band hala yukseltilmis');
+});
+
+/* 21.10.2026 — KALEM KOTASI TOPLAM UZUNLUGU BAGLAMIYOR.
+   Band 25-60'ta indirildi, nokta 27 → 18 oldu ve cikti BUYUDU: 34.372 →
+   39.649 karakter. Kotali olan tek kisim terim/nokta/soru; "formulas",
+   "tables" ve visual_findings bilerek tavansiz. Model bosalan yeri tavansiz
+   kisma harcadi — gorsel bulgu 6 → 13 → 22. Sinir TOPLAM uzunluga konmali. */
+/* 21.10.2026 — 91 SANIYELIK KOSUNUN 57,7 SANIYESI BEKLEMEYDI.
+ *
+ *   TokenPacer[openai/gpt-oss-20b]: 57657ms bekliyor (used=5891/7200, est=1795)
+ *   Long-doc visual patch: +2 terms, +2 points, +2 quiz, +2 sections, +2 tables
+ *
+ * Pencereler 20,9. saniyede bitti, kart 90,6. saniyede cikti. Kapi yalnizca
+ * "yer var mi" diye soruyordu; Gemini iki 503 ile erken dustugu icin geriye
+ * 130 saniye kalmisti, yani yer boldu ve 57,7 saniyelik kuyruk beklemesi
+ * onaylandi — iki sekil sayfasindan 2 terim almak icin. */
+test('gorsel gecis: pacer kuyrugu uzunsa butce bol olsa bile ATLANIR', () => {
+  const src = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+  assert.ok(/const OPSIYONEL_ADIM_MAX_BEKLEME_MS = /.test(src),
+    'bekleme tavani yok — kapi yine yalnizca butceye bakar');
+  assert.ok(src.includes('visionWaitMs > OPSIYONEL_ADIM_MAX_BEKLEME_MS'),
+    'pacer beklemesi tavanla karsilastirilmiyor');
+  /* Iki kol ayni karari okumali: biri atlarken digeri cagirirsa gorsel
+     gecis hem atlanmis sayilir hem kosar. */
+  const atla = src.indexOf('const visionAtlanir =');
+  assert.ok(atla > 0, 'tek bir atlama karari yok');
+  assert.ok(src.includes('visualPlan.indices.length > 0 && visionAtlanir'), 'atlama kolu karari okumuyor');
+  assert.ok(src.includes('visualPlan.indices.length > 0 && !visionAtlanir'), 'cagri kolu karari okumuyor');
+  assert.ok(!/budgetLeft\(\) > visionNeedsMs/.test(src),
+    'cagri kolu hala dogrudan butceye bakiyor — iki kol birbirinden kayabilir');
+});
+
+/* 21.10.2026, IKINCI TUR — TAVAN YANLIS CAGRIYA KONMUSTU.
+ *
+ * Ilk hali yalnizca gorsel gecisi koruyordu ve kosu yine 57,9 saniye
+ * bekledi:
+ *
+ *   t=34,4  Window 1 ok / Window 2 ok
+ *   t=34,5  TokenPacer[openai/gpt-oss-20b]: 57955ms bekliyor (used=6095/7200)
+ *   t=93,6  Gorsel sayfa secimi [26,40]
+ *
+ * Bekleme gorsel cagridan ONCE, compact synthesis'te olusuyor. Gorsel kapisi
+ * sahneye geldiginde dakikalik pencere donmustu, waitEstimate kucuk cikti ve
+ * kapi kendi mantigina gore dogru olarak gecirdi. Iki pencere cagrisi her iki
+ * seridi birlikte bosaltiyor; sonraki cagri hangi seride giderse gitsin
+ * bekliyor (olculen: 57.657ms ve 57.955ms — dakikalik pencerenin kendisi). */
+test('compact synthesis de pacer kuyrugu uzunsa ATLANIYOR', () => {
+  const src = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+  const i = src.indexOf('const synBekleme = tokenPacer.waitEstimate');
+  assert.ok(i > 0,
+    'sentez cagrisinin pacer beklemesi hic olculmuyor — 58 saniyelik kuyruk yine yanar');
+  const blok = src.slice(i, i + 900);
+  assert.ok(blok.includes('synBekleme > OPSIYONEL_ADIM_MAX_BEKLEME_MS'),
+    'sentez beklemesi tavanla karsilastirilmiyor');
+  assert.ok(blok.includes("skippedStages.push('compact synthesis')"),
+    'atlanan sentez karta yazilmiyor — ogrenci neyi kaybettigini bilmiyor');
+  /* Atlama try/catch'e throw ile degil, else koluyla yapilmali: catch
+     'Compact synthesis skipped:' basiyor ve iki log birbiriyle celisirdi. */
+  assert.ok(/\} else \{\s*\n\s*const syn = await callGroqJson/.test(blok),
+    'sentez atlamasi else koluyla yapilmiyor');
+});
+
+/* 21.10.2026, UCUNCU TUR — BEKLEMENIN SEBEBI METIN DEGIL REZERVASYONDU.
+ *
+ * Logdaki `est=1795`in 1.229'u PACER_COMPLETION_FACTOR (0,6) x 2048
+ * rezervasyonu; gercek prompt ~566 token. Yani pacer, sentezin
+ * harcamayacagi bir yer icin dakikanin donmesini bekletiyordu:
+ *   6.095 (kullanilmis) + 1.816 (est) = 7.911 > 7.200 -> 57.955ms bekleme
+ * completion 768 olunca est ~1.048 ve 6.095 + 1.048 = 7.143 <= 7.200,
+ * yani bekleme sifir ve sentez ATLANMAK yerine kosuyor.
+ *
+ * Bu testin korudugu sey bir sayi degil, UC YERIN AYNI sayiyi kullanmasi:
+ * pickLane, waitEstimate ve cagrinin kendisi. Biri 2048'de kalirsa kapi
+ * sigacak bir cagriyi atlar ve rezervasyon hatasi geri doner. */
+/* 21.10.2026 — YAZARIN ISTEGI GERCEK TPM TAVANINI ASIYORDU.
+ *
+ * Olculen: writerSys 2.205 krk, writerUser tavanlarinin toplami 20.300 krk.
+ * est = (2.205 + 20.300)/3,2 + 0,6x2048 = 8.271 token; derin modda
+ * (completion 3072) 8.886. Seridin GERCEK limiti 8.000 — yani yazarin istegi
+ * TEK BASINA tavani asiyordu ve soguk seritte gectiginde Groq'un kendisi
+ * "Request too large" ile reddetmeye adaydi.
+ *
+ * ONEMLI: bu kirpma SURE KAZANDIRMIYOR. Pencerelerin biraktigi bosluk
+ * HEAVY'de 7.200-5.747 = 1.453, EXTRACT'te 1.105 token; kirpilmis est 7.012
+ * bile bunun dort kati. Yazar yine yalnizca `used === 0` kolundan geciyor ve
+ * seridin bosalmasini bekliyor; harcama tek kayit olarak atomik eskidigi icin
+ * daha kucuk est beklemeyi kisaltmiyor da. Test bu yuzden sureyi degil
+ * TAVANI koruyor. */
+test('anlati yazarinin istegi gercek TPM tavaninin ALTINDA', () => {
+  const src = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+  const i = src.indexOf('const writerSys = `');
+  assert.ok(i > 0, 'writerSys bulunamadi');
+  const sysLen = src.slice(i + 19, src.indexOf('`', i + 19)).length;
+
+  /* writerUser'in tavanlari. Kaynakta slice(0, N) olarak duruyorlar; biri
+     buyutulurse bu liste de guncellenmeli, yoksa test yanlis sayiyi korur. */
+  const caps = [
+    500,    // summary_executive
+    2500,   // terms/konu basliklari blogu
+    5000,   // sectionsBlock  <- 7000'den indirildi
+    2000,   // key_terms
+    2000,   // key_points
+    1600,   // formuller
+    1200,   // cozumlu ornekler
+    1500    // taslak ozet    <- 3500'den indirildi
+  ];
+  const userLen = caps.reduce((a, b) => a + b, 0);
+  const est = (c) => Math.ceil((sysLen + userLen) / 3.2) + Math.ceil(c * G.PACER_COMPLETION_FACTOR);
+
+  for (const [ad, completion] of [['standard', 2048], ['derin', 3072]]) {
+    assert.ok(est(completion) <= G.DEFAULT_TPM_LIMIT,
+      `${ad} modda yazar istegi ${est(completion)} token — gercek tavan ` +
+      `${G.DEFAULT_TPM_LIMIT}; Groq "Request too large" ile reddedebilir`);
+  }
+
+  // Kaynaktaki iki sayinin gercekten indirildigini de kilitle.
+  assert.ok(/\.slice\(0, 5000\)/.test(src), 'sectionsBlock kirpmasi geri alinmis');
+  assert.ok(!/slice\(0, depthFlags\.longNarrative \? 10000 : 7000\)/.test(src),
+    'sectionsBlock hala 7000/10000 — est tavani asar');
+  assert.ok(!/draftObj\.summary \|\| ''\)\.slice\(0, 3500\)/.test(src),
+    'taslak ozet hala 3500 — est tavani asar');
+});
+
+test('yazar kirpmasi sureyi DEGIL tavani koruyor (aritmetik)', () => {
+  /* Bu test bir iddiayi degil bir YANLIS BEKLENTIYI kilitliyor: kirpmanin
+     ~48 sn kazandirdigi soylenmisti, aritmetik tutmuyor. Birisi ileride
+     "yazar neden hala bekliyor" diye sorarsa cevap burada. */
+  const seritButcesi = Math.floor(G.DEFAULT_TPM_LIMIT * G.PACER_SAFETY);
+  assert.equal(seritButcesi, 7200, 'serit butcesi degismis, asagidaki sayilar yeniden hesaplanmali');
+  const w1 = 5747, w2 = 6095;   // olculen pencere harcamalari
+  const kalanHeavy = seritButcesi - w1;
+  const kalanExtract = seritButcesi - w2;
+  assert.ok(kalanHeavy < 2000 && kalanExtract < 2000,
+    'pencereler seritleri bosaltmiyor — yazarin beklemesi baska sebepten');
+  /* Yazarin en iyi haldeki est'i bile bu bosluklarin katlari; yani bekleme
+     promptu kirparak kaldirilamaz. Kaldirmanin yolu kapasite artirmak. */
+  assert.ok(7012 > kalanHeavy * 3,
+    'aritmetik degismis: kirpilmis est artik bosluga sigiyor olabilir, yeniden olc');
+});
+
+test('sentezin completion degeri UC yerde de ayni', () => {
+  const src = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+  const i = src.indexOf('const synCompletion =');
+  assert.ok(i > 0, 'sentez completion degeri tek degiskene baglanmamis');
+  const blok = src.slice(i, i + 1800);
+  assert.ok(/const synCompletion = (\d+)/.test(blok), 'synCompletion sayisi okunamadi');
+  const deger = Number(blok.match(/const synCompletion = (\d+)/)[1]);
+  assert.ok(deger <= 1024,
+    `synCompletion ${deger} — 0,6 carpaniyla rezervasyon ${Math.round(deger * 0.6)} token, ` +
+    'olculen 6.095 kullanimin ustune eklenince 7.200 asilir ve bekleme geri doner');
+  assert.ok(deger >= 512, `synCompletion ${deger} — ozet + anahat bu kadara sigmaz`);
+  // pickLane, waitEstimate ve cagri: ucu de degiskeni okumali, sabit yazmamali.
+  /* Tanim ile cagri arasi ~40 satir (araya gerekceli yorum giriyor), o yuzden
+     bu iki kontrol pencerede degil TUM kaynakta yapiliyor; isimler tekil. */
+  assert.equal(
+    (src.match(/estimateTokens\(synSys, synUser, synCompletion\)/g) || []).length, 2,
+    'pickLane ve waitEstimate ikisi de degiskeni okumali');
+  assert.ok(src.includes('maxCompletionTokens: synCompletion'),
+    'cagrinin kendisi hala sabit completion kullaniyor');
+  assert.ok(!/estimateTokens\(synSys, synUser, 2048\)/.test(src),
+    '2048 ile tahmin eden bir yer kalmis — kapi sigacak cagriyi atlar');
+});
+
+/* `kept=0` BENI YANLIS TESHISE GOTURDU (21.10.2026).
+   Groq uzun-belge yolunda `kept` her zaman 0, cunku o yolda modelden atif
+   istenmiyor: pencere semasinda `footnotes` yok, birlesim sabit `[]`
+   gonderiyor. Ben bunu Gemini'nin `kept=30`uyla yan yana koyup "atiflarin
+   tamami dusuyor" diye okudum. Dusen yok; istenen yok. */
+test('citation anchoring logu atif ISTENMEDIGI hali soyluyor', () => {
+  const src = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+  assert.ok(src.includes('const atifIstenmedi ='),
+    'log kept=0 halini ayirt etmiyor — ayni yanlis teshis tekrar edilir');
+  const i = src.indexOf('const atifIstenmedi =');
+  const blok = src.slice(i, i + 700);
+  assert.ok(/kept === 0 && anchored\.stats\.demoted === 0/.test(blok),
+    'ayrim demoted ile birlikte yapilmali: dizi dolu olup sayfalari hatali olsaydi demoted artardi');
+  assert.ok(/atif YOKTU/.test(blok), 'log metni durumu yazmiyor');
+});
+
+test('long-doc birlesimi atif istemiyor — bu BILINCLI, log da oyle demeli', () => {
+  const src = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+  /* Semaya footnotes eklemek olculerek reddedilmis bir taviz: her ek alan
+     maxCompletionTokens'i key_terms/key_points'ten caliyor. Bu test o
+     tavizi KORUYOR, degistirmek isteyen bilerek bu testi dusurecek. */
+  assert.ok(src.includes('footnotes: [],'),
+    'long-doc birlesimi artik footnotes gonderiyor — kota tavizi gozden gecirilmeli');
+});
+
+test('tavan IKI opsiyonel adimi da kapsiyor', () => {
+  const src = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+  const kullanim = (src.match(/OPSIYONEL_ADIM_MAX_BEKLEME_MS/g) || []).length;
+  // 1 tanim + sentez kapisi + gorsel kapisi + iki log satiri
+  assert.ok(kullanim >= 4,
+    `tavan ${kullanim} yerde geciyor — iki opsiyonel adimdan biri korunmasiz`);
+  assert.ok(!/VISION_PACER_MAX_WAIT_MS/.test(src),
+    'eski isim kalmis — tavan artik yalnizca gorsel gecise ait degil');
+});
+
+test('gorsel bekleme tavani cagrinin kendisinden buyuk ama kuyruga izin vermiyor', () => {
+  /* Cagrinin kendisi dort canli kosuda 6,0-7,2 saniye olculdu. Tavan onun
+     uzerinde olmali (kisa bir pacer beklemesi mesru), ama 57,7 saniyelik
+     kuyrugu gecirmemeli. */
+  assert.ok(G.OPSIYONEL_ADIM_MAX_BEKLEME_MS > 7_200,
+    `tavan ${G.OPSIYONEL_ADIM_MAX_BEKLEME_MS}ms — mesru kisa beklemeleri de keser`);
+  assert.ok(G.OPSIYONEL_ADIM_MAX_BEKLEME_MS < 57_657,
+    `tavan ${G.OPSIYONEL_ADIM_MAX_BEKLEME_MS}ms — 21.10'daki 57,7 saniyelik kuyrugu gecirir`);
+});
+
+test('geminiCoverageQuota: TOPLAM uzunluk butcesi veriliyor', () => {
+  const q = G.geminiCoverageQuota(42);
+  assert.match(q, /LENGTH BUDGET/, 'toplam uzunluk butcesi yok — model duvara kadar yazar');
+  assert.ok(q.includes(String(G.GEMINI_CIKTI_BUTCESI_KRK)),
+    `butce sayisi promptta gecmiyor (${G.GEMINI_CIKTI_BUTCESI_KRK})`);
+  assert.match(q, /ENTIRE JSON/, 'butce tek alana degil butun cevaba baglanmali');
+});
+
+test('cikti butcesi OLCULEN tamamlanmaya dayaniyor', () => {
+  /* Tamamlanan tek kosu 30.374 karakterdi (72,4 sn). Yazma hizi 450-560
+     krk/sn; butce bunun ustune cikarsa tavanin altinda bitmez. */
+  assert.ok(G.GEMINI_CIKTI_BUTCESI_KRK <= 32_000,
+    `butce ${G.GEMINI_CIKTI_BUTCESI_KRK} — tamamlanan kosu 30.374 karakterdi, bu ustu asiyor`);
+  assert.ok(G.GEMINI_CIKTI_BUTCESI_KRK >= 20_000,
+    `butce ${G.GEMINI_CIKTI_BUTCESI_KRK} — bu kadar kisa bir cevap kart tasimaz`);
+});
+
+test('cikti butcesi sayilari EMIR olmaktan cikarmiyor', () => {
+  /* 10.10 dersi: cekinceler sayilari istege cevirmisti. Butce metni
+     "elinden geldigince" gibi bir kacis kapisi getirmemeli. */
+  const q = G.geminiCoverageQuota(42);
+  assert.match(q, /reach them/, 'sayilar emir olmaktan cikmis');
+  assert.doesNotMatch(q, /if possible|try to keep|aim to stay/i,
+    'butce metni kacis kapisi iceriyor');
+});
+
+test('cikti butcesi formul ve tablo onceligini KORUYOR', () => {
+  // Butce kisarken ilk kesilecek sey golge yolun var olma sebebi olmamali.
+  const q = G.geminiCoverageQuota(42);
+  assert.match(q, /No cap on/, 'formul/tablo tavansizligi butceyle birlikte gitmis');
+  const butceAt = q.indexOf('LENGTH BUDGET');
+  assert.ok(/formulas and tables first/.test(q.slice(butceAt)),
+    'butce metni neyin once gelecegini soylemiyor');
+});
+
+test('geminiCoverageQuota: HICBIR sayfa sayisi 10-25 bandini gecmiyor', () => {
+  /* "Sayfa basina en az zamani oldugu anda en cok cikti" hatasinin genel
+     hali. Bir daha herhangi bir araliga gizlice zirve eklenmesin. */
+  const tavan = quotaBant(20);
+  for (const n of [0, 5, 10, 11, 25, 26, 42, 60, 61, 86, 200]) {
+    const b = quotaBant(n);
+    for (let i = 0; i < b.length; i++) {
+      assert.ok(b[i] <= tavan[i],
+        `${n} sayfa icin band 10-25 bandini geciyor: ${b} > ${tavan}`);
+    }
+  }
 });
 
 test('geminiCoverageQuota: formul ve tablo tavansiz kalir', () => {
@@ -855,37 +1141,135 @@ test('geminiDraft: TEK 503 sonrasi ayni model tekrar denenir ve tutar', async ()
   } finally { restoreFetch(); }
 });
 
-test('geminiDraft: IKI ARDISIK 503te durulur, sonraki aday DENENMEZ', async () => {
-  /* 20.10.2026 OLCUMU — bu testin davranisi burada DEGISTI.
-
-     Eski hali iki 503'ten sonra sonraki aday modelle devam ediyordu. O
-     gun 76 sayfalik bir destede ALTI istegin altisi da 503 dondu: 48
-     saniye ve gunluk kotanin (RPD 20) %30'u hicbir ise yaramadan yandi,
-     geriye kalan butce review'a yetmedi ve kart %43 kapsamayla cikti.
-
-     Ust uste 503 almak "bu model yogun" degil "yuzey yogun" demek;
-     sonraki adayi denemek ayni duvara carpmak. Ucuncu istek ARTIK
-     YAPILMIYOR — kukla siradaki 200'u hic gormemeli. */
+/* 21.10.2026 — BU TESTIN IDDIASI YINE DEGISTI, bir adim GERI.
+ *
+ * 20.10'da sayac denemeleri sayacak hale getirildi: alti 503'un alti da
+ * bosa gidiyordu, 48 saniye ve gunluk kotanin %30'u yaniyordu. Dogru
+ * teshisti ama fazla genis bir sonuc cikardi — tek modele iki kez deneyip
+ * iki 503 almak "yuzeyin tamami yogun" sayildi.
+ *
+ * 21.10 kosusu bedelini gosterdi: iki 503 IKISI DE gemini-3.7-flash'tan
+ * geldi, Gemini tamamen birakildi, geriye 130 SANIYE butce vardi. Kart
+ * Groq yolundan cikti ve sayisal kapsama %77'den %56'ya dustu. 503'un
+ * govdesi modeli adiyla soyluyor ("gemini-3.7-flash is currently
+ * experiencing high demand"), yani tek modelin yogunlugu yuzeyin
+ * yogunlugu degil.
+ *
+ * Simdi "yuzey yogun" sonucu AYRI modellerden hata gelmesini istiyor.
+ * Bedeli iki degil UC istek; 20.10'un korktugu alti istege hala uzak. */
+test('geminiDraft: tek model 503 verirse SONRAKI ADAY denenir', async () => {
   stubFetch([
-    { status: 503, text: 'currently experiencing high demand' },
-    { status: 503, text: 'currently experiencing high demand' },
+    { status: 503, text: 'gemini-3.7-flash is currently experiencing high demand' },
+    { status: 503, text: 'gemini-3.7-flash is currently experiencing high demand' },
     { status: 200, json: OK_JSON }
   ]);
   try {
     const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000));
-    assert.equal(out, null, 'ardisik 503te Groq yoluna dusulmeliydi');
-    assert.equal(fetchCalls.length, G.GEMINI_ARDISIK_GECICI_MAX,
-      `${fetchCalls.length} istek yapildi — esik ${G.GEMINI_ARDISIK_GECICI_MAX}`);
+    assert.ok(out, 'ikinci aday model denenmedi — 130 saniye butce varken Groq yoluna dusuldu');
+    assert.equal(fetchCalls.length, 3, `${fetchCalls.length} istek — ucuncu istek ikinci aday olmali`);
   } finally { restoreFetch(); }
 });
 
-test('ardisik sayaci BASARIYLA sifirlanir', () => {
-  /* Bir modelin tek seferlik aksakligi sonraki modeli cezalandirmamali:
-     arada basarili bir cevap varsa ardisiklik bozulur. */
+test('geminiDraft: IKI AYRI modelde 503 alinirsa durulur', async () => {
+  // Yuzeyin tamami yogunsa ucuncu adayi denemek ayni duvara carpmak.
+  stubFetch([
+    { status: 503, text: 'gemini-3.7-flash is currently experiencing high demand' },
+    { status: 503, text: 'gemini-3.7-flash is currently experiencing high demand' },
+    { status: 503, text: 'gemini-3.8-flash is currently experiencing high demand' },
+    { status: 200, json: OK_JSON }
+  ]);
+  try {
+    const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000));
+    assert.equal(out, null, 'iki ayri modelde 503 alindiginda Groq yoluna dusulmeliydi');
+    assert.equal(fetchCalls.length, 3,
+      `${fetchCalls.length} istek yapildi — dorduncu istek yapilmamaliydi`);
+  } finally { restoreFetch(); }
+});
+
+/* 21.10.2026 — ZAYIF YEDEK KART KALICILASIYORDU.
+ *
+ * Ilk kez gozlenen cache isabeti:
+ *
+ *   CACHE ISABETI [DOSYA]: 231eb9e17d522b74e1… — 1929ms, model cagrisi yok
+ *
+ * 1,9 saniye, harika. Ama donen kart bir onceki kosunun GROQ YEDEK karti:
+ * Gemini iki 503 almis, Groq devralmis, kart TAM oldugu icin (eksik pencere
+ * yok, Gemini kismi degil) onbellege girmis. Olculen fark, ayni deste:
+ *
+ *   Gemini yolu : kapsama %72-77, citation anchoring kept=30 / kept=15
+ *   Groq yedegi : kapsama %56,   citation anchoring kept=0
+ *
+ * Yani yuzeyin bir dakikalik yogunlugu, o dosya icin KALICI kalite kaybina
+ * dondu ve Gemini'nin bir daha denenmesi imkansiz hale geldi. Ilk iki kosul
+ * "kart tam mi" diye soruyor; eksik olan "kart ISTENEN kart mi". */
+test('gecici hatayla dusuldugunde tani cagirana BILDIRILIYOR', async () => {
+  stubFetch([
+    { status: 503, text: 'gemini-3.7-flash is currently experiencing high demand' },
+    { status: 503, text: 'gemini-3.7-flash is currently experiencing high demand' },
+    { status: 503, text: 'gemini-3.8-flash is currently experiencing high demand' }
+  ]);
+  const tani = {};
+  try {
+    const out = await quiet(() =>
+      G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000, 'only', tani));
+    assert.equal(out, null, 'gecici hatalarda Groq yoluna dusulmeliydi');
+    assert.equal(tani.geciciDustu, true,
+      'gecici dusus bildirilmiyor — zayif yedek kart yine onbellege girer');
+  } finally { restoreFetch(); }
+});
+
+test('esik dolmadan liste tukenirse de gecici dusus bildiriliyor', async () => {
+  /* Bir model 503, digerleri "boyle model yok": esik (AYRI iki model)
+     dolmuyor ama tasiyici sebep hala gecici. */
+  stubFetch([
+    { status: 503, text: 'gemini-3.7-flash is currently experiencing high demand' },
+    { status: 503, text: 'gemini-3.7-flash is currently experiencing high demand' },
+    { status: 404, text: 'models/gemini-3.8-flash is not found' },
+    { status: 404, text: 'models/gemini-3.5-flash is not found' },
+    { status: 404, text: 'models/gemini-3.6-flash is not found' }
+  ]);
+  const tani = {};
+  try {
+    await quiet(() =>
+      G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000, 'only', tani));
+    assert.equal(tani.geciciDustu, true, 'gecici hata gormus kosu temiz sayiliyor');
+  } finally { restoreFetch(); }
+});
+
+test('BASARILI kosuda gecici dusus BILDIRILMIYOR', async () => {
+  // Yoksa her kart onbellek disi kalir ve cache hic calismaz.
+  stubFetch([{ status: 200, json: OK_JSON }]);
+  const tani = {};
+  try {
+    const out = await quiet(() =>
+      G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000, 'only', tani));
+    assert.ok(out, 'taslak gelmeliydi');
+    assert.ok(!tani.geciciDustu, 'basarili kosu gecici dusmus sayilmis — cache hic yazilmaz');
+  } finally { restoreFetch(); }
+});
+
+test('onbellek kapisi gecici dusus KOSULUNU okuyor', () => {
+  const src = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+  assert.ok(src.includes('!geminiTani.geciciDustu'),
+    'cache kapisi yedek yolu ayirt etmiyor — zayif kart kalicilasir');
+  const kapi = src.indexOf('if (summaryCacheKey && !eksikPencereler');
+  assert.ok(kapi > 0, 'cache yazma kapisi bulunamadi');
+  /* Uc kosul birlikte: tam kart (iki) + istenen kart (bir). Biri dusunce
+     digerleri de gitmesin diye tek satirda tutuluyor. */
+  const satir = src.slice(kapi, src.indexOf('\n', kapi));
+  for (const k of ['!eksikPencereler', 'geminiKismiKrk === 0', '!geminiTani.geciciDustu']) {
+    assert.ok(satir.includes(k), `cache kapisinda ${k} yok: ${satir}`);
+  }
+});
+
+test('gecici hata sayaci MODEL ayirt ediyor', () => {
   const src = require('node:fs').readFileSync(
     require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
   assert.ok(src.includes('ardisikGecici = 0'), 'sayac basarida sifirlanmiyor');
-  assert.ok(src.includes('ardisikGecici >= GEMINI_ARDISIK_GECICI_MAX'), 'esik kontrolu yok');
+  assert.ok(src.includes('geciciModeller.size >= GEMINI_ARDISIK_GECICI_MAX'),
+    'esik MODEL sayisina degil deneme sayisina bakiyor');
+  assert.ok(src.includes('geciciModeller.add(model)'), 'hata veren model kaydedilmiyor');
 });
 
 // ===========================================================================
@@ -1080,7 +1464,12 @@ test('kapsam bandi COK BUYUK belgede geri iniyor', () => {
      Sebep: band 25 sayfada tavana vurup bir daha inmiyordu, yani sayfa
      basina en az zamani oldugu anda EN COK cikti isteniyordu. */
   const bant = (q) => (q.match(/\b\d+-\d+\b/g) || []).slice(0, 3).join('/');
-  assert.equal(bant(G.geminiCoverageQuota(42)), '18-26/22-28/12-15', 'orta bant degismis');
+  /* 21.10.2026: orta bant 18-26/22-28/12-15 DEGIL artik. O bant 38 ve 42
+     sayfalik iki belgede de karti yarim birakti (34-37 KB, 96,9 ve 105 sn
+     tavanlarinda kesildi), yani 20.10'da 86 sayfa icin verilen karar 25-60
+     araligi icin de gecerliydi. Bant 10-25 ile ayni; asagidaki notEqual
+     hala tutuyor, cunku dev belge terim ve soru bandinda daha da iniyor. */
+  assert.equal(bant(G.geminiCoverageQuota(42)), '15-22/16-20/10-13', 'orta bant degismis');
   assert.equal(bant(G.geminiCoverageQuota(86)), '14-18/16-20/8-10', 'dev belgede band geri inmiyor');
   assert.notEqual(
     bant(G.geminiCoverageQuota(86)),
