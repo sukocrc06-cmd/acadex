@@ -1388,6 +1388,10 @@
     const dp = [2, 3, 4].includes(Number(spec.decimal_places)) ? Number(spec.decimal_places) : 0;
     const solved = lastLine.ok && lastReadings.some(x => dp ? withinDecimals(x, answer, dp) : near(x, answer, tolAns));
     if (solved) return { status: firstError >= 0 ? 'solved_with_slips' : 'solved', first_error: firstError, lines: out, message: firstError >= 0 ? (tr ? `Sonuca ulaştın ama ${firstError + 1}. satırda bir işlem hatası var.` : `You reached the answer, but line ${firstError + 1} has a slip.`) : (tr ? 'Tüm adımlar doğru ve sonuca ulaştın.' : 'All steps are correct and you reached the answer.') };
+    // Sayı hassasiyeti: yöntem doğru, sonuç yalnızca istenen basamakta tutmuyor.
+    if (dp && firstError < 0 && lastLine.ok && lastReadings.some(x => near(x, answer, tolAns))) {
+      return { status: 'precision', lines: out, message: tr ? `Yöntemin doğru ve sonuca çok yakınsın; ama virgülden sonra ${dp} basamak doğru olmalı. Son sonucu ${dp} basamakla yaz (ara adımlarda daha çok basamak kullan).` : `Your method is right and you are very close, but the result must be correct to ${dp} decimal places. Write the final result with ${dp} decimals (keep more digits in intermediate steps).` };
+    }
     if (firstError >= 0) return { status: 'error', first_error: firstError, lines: out, message: tr ? `${firstError + 1}. satırda hata var.` : `There is a mistake on line ${firstError + 1}.` };
     let hint = '';
     const errs = Array.isArray(spec.common_errors) ? spec.common_errors : [];
