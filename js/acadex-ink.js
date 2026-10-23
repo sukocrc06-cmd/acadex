@@ -3001,7 +3001,7 @@ window.axWhenProfile = function (cb) {
       clearInterval(ticker); ticker = 0; mode = 'result';
       var rs = exam.question_results || [], isTr = true, g = Math.round(+exam.grade || 0);
       var cnt = { ok: 0, half: 0, no: 0, blank: 0 };
-      rs.forEach(function (r) { if (!String(r.student_answer || '').trim()) cnt.blank++; if (r.score >= 80) cnt.ok++; else if (r.score >= 50) cnt.half++; else cnt.no++; });
+      rs.forEach(function (r) { if (!String(r.student_answer || '').trim()) cnt.blank++; else if (r.score >= 80) cnt.ok++; else if (r.score >= 50) cnt.half++; else cnt.no++; });
       var sid = exam.study_card_id || (EXM && EXM.id === exam.id ? EXM.study_card_id : null), c = cardById(sid);
       if (!exam.source_type && EXM && EXM.id === exam.id) { exam.source_type = EXM.source_type; exam.course_code = exam.course_code || EXM.course_code; }
       if (!exam.study_card_id && sid) exam.study_card_id = sid;
