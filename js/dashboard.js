@@ -7435,6 +7435,42 @@ function computeRequiredGrade() {
 }
 window.computeRequiredGrade = computeRequiredGrade;
 
+// FAZ 4c: belgedeki grafik sorularını tarar (extract-chart-items, sayfa
+// sayfa; Groq'un dakikalık sınırında bekler). Tarama bir kez yapılır,
+// sonraki sınavlarda hemen "done" döner. İlerleme kurulum penceresinde.
+async function runChartScan(studyCardId, session, btn) {
+  const progress = (msg) => {
+    if (typeof window.__examProgress === 'function') window.__examProgress(msg);
+    else if (btn) btn.textContent = msg;
+  };
+  const call = async () => {
+    const r = await fetch(`${SUPABASE_URL}/functions/v1/extract-chart-items`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY },
+      body: JSON.stringify({ action: 'step', studyCardId })
+    });
+    let d = {};
+    try { d = await r.json(); } catch (_e) { /* boş */ }
+    return { ok: r.ok, d };
+  };
+  progress('Belgedeki grafikler aranıyor…');
+  for (let i = 0; i < 60; i++) {
+    const { ok, d } = await call();
+    if (!ok) { showDashboardAlert('error', d.error || 'Grafik taraması yapılamadı.'); return false; }
+    if (d.status === 'done') {
+      if (!d.found) { showDashboardAlert('error', 'Belgede grafik bulunamadı; bu belgeyle grafik sınavı kurulamıyor.'); return false; }
+      progress(`${d.found} grafik bulundu; benzer grafiklerle sorular kuruluyor…`);
+      return true;
+    }
+    if (d.status === 'failed' && !d.restart) { showDashboardAlert('error', 'Grafik taraması başarısız oldu; tekrar deneyin.'); return false; }
+    const total = (d.pages || []).length;
+    progress(`Belgedeki grafikler taranıyor: ${d.done_pages || 0}/${total} sayfa · ${d.found || 0} grafik` + (d.wait_ms ? ` · ${Math.ceil(d.wait_ms / 1000)} sn bekleniyor` : ''));
+    if (d.wait_ms) await new Promise(r => setTimeout(r, d.wait_ms));
+  }
+  showDashboardAlert('error', 'Grafik taraması çok uzun sürdü; birazdan tekrar deneyin.');
+  return false;
+}
+
 async function generateExam() {
   const btn = document.getElementById('btn-generate-exam');
   if (!btn) return;
@@ -7492,6 +7528,20 @@ async function generateExam() {
       btn.disabled = false;
       btn.textContent = originalText;
       return;
+    }
+
+    // FAZ 4c: "dosyadaki grafik sorularına göre" — belge önce (bir kez)
+    // taranır; sonra sorular taranmış grafiklerden kodla kurulur.
+    const chartBox = document.getElementById('exam-chart-examples');
+    if (chartBox && chartBox.checked && !chartBox.disabled && requestBody.studyCardId) {
+      const scanned = await runChartScan(requestBody.studyCardId, session, btn);
+      if (!scanned) {
+        btn.disabled = false;
+        btn.textContent = originalText;
+        return;
+      }
+      requestBody.chartExamples = true;
+      requestBody.examType = 'mixed';
     }
 
     const response = await fetch(`${SUPABASE_URL}/functions/v1/generate-exam`, {
