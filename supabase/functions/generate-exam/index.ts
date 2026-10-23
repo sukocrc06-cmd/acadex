@@ -678,6 +678,16 @@ const ALLOWED_WRONG_PER_CORRECT = [3, 4]
 /** İstekteki ayarı doğrular. negativeMarking: 0/false = kapalı, 3 ya da 4 =
  *  kaç yanlış bir doğruyu götürür, true = şık sayısına göre varsayılan
  *  (4 şık → 3, 5 şık → 4). */
+/** FAZ 3c: sayı hassasiyeti. Bazı derslerde virgülden sonraki basamaklar
+ *  cevabın doğruluğu için şart: hesap cevabı yüzde payla değil, doğru
+ *  cevaptan en çok yarım son basamak sapmayla kabul edilir (3 basamakta
+ *  ±0,0005). null = standart (yüzde pay). exams.scoring.decimal_places. */
+const ALLOWED_DECIMAL_PLACES = [2, 3, 4]
+function normalizeDecimalPlaces(value: unknown): number | null {
+  const n = Number(value)
+  return ALLOWED_DECIMAL_PLACES.includes(n) ? n : null
+}
+
 function normalizeScoring(optionCount: unknown, negativeMarking: unknown): { option_count: number; negative_marking: boolean; wrong_per_correct: number } {
   const oc = ALLOWED_OPTION_COUNTS.includes(Number(optionCount)) ? Number(optionCount) : 4
   const defaultRatio = oc === 5 ? 4 : 3
@@ -1321,8 +1331,10 @@ serve(async (req) => {
       })
     }
 
-    const { studyCardId, sourceType, courseCode, courseDepartment, examType, questionCount, language, difficulty, isSimulation, focusConcept, optionCount, negativeMarking } = await req.json()
+    const { studyCardId, sourceType, courseCode, courseDepartment, examType, questionCount, language, difficulty, isSimulation, focusConcept, optionCount, negativeMarking, decimalPlaces: decimalPlacesRaw } = await req.json()
     const scoring = normalizeScoring(optionCount, negativeMarking)
+    // Yalnızca hesap sorusu olabilen türlerde (test ve klasikte anlamsız).
+    const decimalPlaces = examType === 'calculation' || examType === 'mixed' ? normalizeDecimalPlaces(decimalPlacesRaw) : null
 
     // 'study_card' (default, backward-compatible) generates from one of the
     // student's own study cards, as before. 'course' generates directly from
@@ -1651,7 +1663,7 @@ ${context}
     // short and putting everything reusable above in the system message
     // is what makes the system message worth caching in the first place.
     const buildUserPrompt = (count: number, avoid: string[]) => `Generate exactly ${count} questions of type '${examType}' in the language '${language}' (en = English, tr = Turkish), at difficulty level '${resolvedDifficulty}'.
-OPTION COUNT: every 'multiple_choice' question has exactly ${scoring.option_count} options.${resolvedFocusConcept ? `\n\nIMPORTANT FOCUS RULE:\n- The student specifically wants to practice ONE topic: "${resolvedFocusConcept}". EVERY question must test this exact topic, approached from different angles (definition, application, comparison, scenario) — do not drift to unrelated concepts. Set the "concept" field on every question to "${resolvedFocusConcept}" (or a very close variant in the requested language).` : ''}${avoid.length > 0 ? `\n\nDo NOT repeat these questions that were already generated:\n${avoid.map(t => `- ${t.slice(0, 160)}`).join('\n')}` : ''}
+OPTION COUNT: every 'multiple_choice' question has exactly ${scoring.option_count} options.${decimalPlaces ? `\nNUMERIC PRECISION: 'calculation' answers are graded to exactly ${decimalPlaces} decimal places. In every 'calculation' question text ask for the result to ${decimalPlaces} decimal places, and let "formula" compute the exact value (no rounding inside the formula).` : ''}${resolvedFocusConcept ? `\n\nIMPORTANT FOCUS RULE:\n- The student specifically wants to practice ONE topic: "${resolvedFocusConcept}". EVERY question must test this exact topic, approached from different angles (definition, application, comparison, scenario) — do not drift to unrelated concepts. Set the "concept" field on every question to "${resolvedFocusConcept}" (or a very close variant in the requested language).` : ''}${avoid.length > 0 ? `\n\nDo NOT repeat these questions that were already generated:\n${avoid.map(t => `- ${t.slice(0, 160)}`).join('\n')}` : ''}
 
 Additional variation seed: ${Date.now()}`
 
@@ -1782,7 +1794,9 @@ Additional variation seed: ${Date.now()}`
 
     // FAZ 3a son çare: hâlâ eksikse, formülü doğrulanamayan ama cevabı sayı
     // olan hesap soruları eskisi gibi (doğrulanmamış) alınır. Çelişenler değil.
-    if (accepted.length < requestedCount && rejectedRaw.length) {
+    // Sayı hassasiyeti seçiliyse alınmaz: modelin yuvarladığı cevapla
+    // virgülden sonraki basamaklar notlanamaz.
+    if (accepted.length < requestedCount && rejectedRaw.length && !decimalPlaces) {
       const before = accepted.length
       absorb(rejectedRaw.splice(0), true)
       if (accepted.length > before) console.warn(`generate-exam: ${accepted.length - before} hesap sorusu dogrulanmadan alindi`)
@@ -1853,7 +1867,7 @@ Additional variation seed: ${Date.now()}`
       is_simulation: resolvedIsSimulation,
       time_limit_seconds: timeLimitSeconds,
       started_at: new Date().toISOString(),
-      scoring
+      scoring: decimalPlaces ? { ...scoring, decimal_places: decimalPlaces } : scoring
     }
     if (resolvedSourceType === 'course') {
       examInsertPayload.study_card_id = null

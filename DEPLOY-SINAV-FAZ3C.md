@@ -1,4 +1,4 @@
-# Sınav Platformu — Faz 3c: adım adım kontrol ve şık tekrarı denetimi
+# Sınav Platformu — Faz 3c: adım adım kontrol, şık tekrarı denetimi, sayı hassasiyeti
 
 ## 1. Adım adım çöz (doğrusal denklem, NBD, faiz)
 
@@ -34,6 +34,24 @@ Canlı testte "5.368,00 / 5.368 / 5.368,5" gibi aynı cevabı gösteren şıklar
 
 Bu denetim anlamca aynı ama farklı yazılmış ifadeleri yakalamaz (ör. aynı tarihin iki farklı yazımı); bunlar için "soru hatalı" bildirimi duruyor.
 
+## 3. Sayı hassasiyeti (virgülden sonra 2, 3 ya da 4 basamak)
+
+Bazı derslerde virgülden sonraki basamaklar cevabın doğruluğu için şart. Sınav kurulumuna **sayı hassasiyeti** seçeneği geldi; hesaplama ve karışık sınavlarda etkin, öteki türlerde pasif.
+
+- **standart** (varsayılan): eskisi gibi, küçük yüzde payla kabul.
+- **virgülden sonra N basamak doğru olmalı:** hesap cevabı yüzde payla değil basamakla notlanır.
+
+  | Cevap (3 basamak) | Puan |
+  |---|---|
+  | Doğru cevaptan en çok yarım son basamak sapma (doğru cevap 1,2344 ise 1,234 ya da 1,2348) | 100 |
+  | Yalnızca bir eksik basamağa kadar doğru (1,23 ya da 1,236) | 50 |
+  | Öteki cevaplar (1,24, 1,3) | 0 |
+
+- **Saklama:** ayar `exams.scoring.decimal_places` alanında. Not koruma tetikleyicisi scoring'i zaten kapsıyor; öğrenci sınav sırasında değiştiremez. Migration yok.
+- **Ekranda:** önizleme kapağında HASSASİYET satırı; kitapçık kapağında kural; cevap kutusunda "cevap · 3 basamak"; sonuç kâğıdında "doğrusu: 1,158 TL (virgülden sonra 3 basamak)".
+- **Pratik ve adım kontrolü:** "farklı sayılarla tekrar dene" ve "adım adım çöz" aynı basamak kuralıyla kontrol eder.
+- **Üretim:** model her hesap sorusunda sonucu bu basamağa yuvarlamayı ister ve formülde yuvarlama yapmaz. Kodla doğrulanamayan (yalnızca modelin cevabına dayanan) hesap soruları bu modda alınmaz, çünkü modelin yuvarladığı cevapla basamaklar notlanamaz.
+
 ## Mevcut işleyişe etkisi
 
 - Sınav puanlaması değişmedi; adım kontrolü yalnızca sonuç kâğıdında alıştırma.
@@ -53,3 +71,6 @@ Bu denetim anlamca aynı ama farklı yazılmış ifadeleri yakalamaz (ör. aynı
 - [ ] Sonuç kâğıdında **adım adım çöz**: doğru adımlar ✓, bilerek yapılan işlem hatası doğru değerle işaretlenir.
 - [ ] **farklı sayılarla tekrar dene** açıkken adım alanı yeni soruya geçer.
 - [ ] Test sınavında aynı cevabı gösteren şık çıkmaz. Edge function loglarında görülürse neden `mc_ambiguous_options`.
+- [ ] Hesaplama sınavında **virgülden sonra 3 basamak** seç; kapakta HASSASİYET satırı ve kitapçıkta kural görünür.
+- [ ] Bir soruya 3 basamak doğru, birine 2 basamak doğru cevap ver: sırasıyla 100 ve 50 puan.
+- [ ] Test sınavında ayar pasif; seçili bırakılsa da kaydedilmez.

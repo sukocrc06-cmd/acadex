@@ -1385,7 +1385,8 @@
       const num = (p.match(/^[-+−]?\d[\d.,]*/) || [''])[0].replace('−', '-').replace(/[.,]+$/, '');
       return num && /^[-+−]?\d[\d.,]*\s*(?:[%\p{L}$€₺£]{0,6})$/u.test(p) ? numberReadingsJs(num) : [lastValue];
     })();
-    const solved = lastLine.ok && lastReadings.some(x => near(x, answer, tolAns));
+    const dp = [2, 3, 4].includes(Number(spec.decimal_places)) ? Number(spec.decimal_places) : 0;
+    const solved = lastLine.ok && lastReadings.some(x => dp ? withinDecimals(x, answer, dp) : near(x, answer, tolAns));
     if (solved) return { status: firstError >= 0 ? 'solved_with_slips' : 'solved', first_error: firstError, lines: out, message: firstError >= 0 ? (tr ? `Sonuca ulaştın ama ${firstError + 1}. satırda bir işlem hatası var.` : `You reached the answer, but line ${firstError + 1} has a slip.`) : (tr ? 'Tüm adımlar doğru ve sonuca ulaştın.' : 'All steps are correct and you reached the answer.') };
     if (firstError >= 0) return { status: 'error', first_error: firstError, lines: out, message: tr ? `${firstError + 1}. satırda hata var.` : `There is a mistake on line ${firstError + 1}.` };
     let hint = '';
@@ -1540,10 +1541,17 @@
     return null;
   }
 
-  /** Öğrencinin sayısını toleransla kontrol eder. */
-  function checkNumericAnswer(input, answer, tolerancePercent) {
+  /** FAZ 3c: sayı hassasiyeti — doğru cevaptan en çok yarım son basamak
+   *  sapma (3 basamakta ±0,0005). grade-exam gradeCalculationPrecise ile aynı. */
+  function withinDecimals(value, answer, decimals) {
+    return Math.abs(value - answer) <= 0.5 * Math.pow(10, -decimals) + 1e-9 * Math.max(1, Math.abs(answer));
+  }
+
+  /** Öğrencinin sayısını toleransla (ya da sayı hassasiyetiyle) kontrol eder. */
+  function checkNumericAnswer(input, answer, tolerancePercent, decimals) {
     const n = parseLooseNumber(input);
     if (!Number.isFinite(n)) return { ok: false, filled: false, value: NaN };
+    if ([2, 3, 4].includes(Number(decimals))) return { ok: withinDecimals(n, answer, Number(decimals)), filled: true, value: n };
     const tol = Number(tolerancePercent) > 0 ? Number(tolerancePercent) : 2;
     const margin = answer !== 0 ? Math.abs(answer) * tol / 100 : tol / 100;
     return { ok: Math.abs(n - answer) <= margin, filled: true, value: n };
@@ -1585,6 +1593,7 @@
     renderTemplate,
     makeVariant,
     checkNumericAnswer,
+    withinDecimals,
     // FAZ 3b: cebirsel ifade
     normalizeMathInput,
     exprToTex,
