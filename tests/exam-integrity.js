@@ -29,7 +29,7 @@ const G = loadFromSource(GEN_PATH, [
   'parseQuestionArray', 'normalizeAnswerText', 'parseLooseNumber',
   'PLACEHOLDER_ANSWERS', 'isPlaceholderAnswer', 'cleanText',
   'EXPR_MAX_LENGTH', 'EXPR_MAX_DEPTH', 'EXPR_CONSTS', 'EXPR_FUNCS', 'evaluateExpression', 'sanitizeVariables',
-  'numberReadings', 'sameNumber', 'withinTolerance', 'templateMatches', 'verifyCalculation', 'normalizeOptionRationales', 'normalizeRubric',
+  'numberReadings', 'sameNumber', 'withinTolerance', 'templateMatches', 'normalizeFormula', 'DERIVED_FACTORS', 'verifyCalculation', 'normalizeOptionRationales', 'normalizeRubric',
   'allowedTypesFor', 'validateQuestion', 'shuffleInPlace', 'splitPublicAndKey'
 ]);
 const R = loadFromSource(GRADE_PATH, [
@@ -222,6 +222,17 @@ test('hesaplama: formulsuz soru reddedilir, cevap formulden, tolerans kistirilir
     tolerance_percent: 50, variables: { P: 1000, r: 10, n: 2 }, formula: 'P * (1 + r/100)^n' }, ['calculation'], 'tr');
   assert.equal(r.question.correct_answer, 1210, 'modelin sayi olmayan cevabi yerine kodun hesabi');
   assert.equal(r.question.tolerance_percent, 10);
+});
+
+test('hesaplama son care: dogrulanamayan ama cevabi sayi olan soru eskisi gibi alinir, celisen alinmaz', () => {
+  const raw = { type: 'calculation', question: 'NBD kaç TL?', correct_answer: '1.432,50', formula: 'XNPV(r)', variables: { r: 1 }, template: 'x', common_errors: [] };
+  const r = G.validateQuestion(raw, ['calculation'], 'tr', 4, true);
+  assert.equal(r.ok, true);
+  assert.equal(r.question.correct_answer, 1432.5);
+  for (const k of ['variables', 'formula', 'template', 'common_errors', 'verified']) assert.ok(!(k in r.question), k);
+  assert.equal(G.validateQuestion({ ...raw, correct_answer: 'bilinmiyor' }, ['calculation'], 'tr', 4, true).reason, 'calc_formula_invalid');
+  const mismatch = { type: 'calculation', question: '1.000 TL %10 faizle 2 yıl sonra kaç TL olur?', correct_answer: 1500, variables: { P: 1000, r: 10, n: 2 }, formula: 'P * (1 + r/100)^n' };
+  assert.equal(G.validateQuestion(mismatch, ['calculation'], 'tr', 4, true).reason, 'calc_mismatch');
 });
 
 test('bosluk doldurma: kabul edilen alternatifler temizlenir', () => {

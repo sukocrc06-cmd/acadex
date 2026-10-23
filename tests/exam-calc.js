@@ -26,7 +26,7 @@ const EXPR = ['EXPR_MAX_LENGTH', 'EXPR_MAX_DEPTH', 'EXPR_CONSTS', 'EXPR_FUNCS', 
 
 const G = loadFromSource(GEN_PATH, [
   ...EXPR, 'normalizeAnswerText', 'parseLooseNumber', 'cleanText',
-  'numberReadings', 'sameNumber', 'withinTolerance', 'templateMatches', 'verifyCalculation'
+  'numberReadings', 'sameNumber', 'withinTolerance', 'templateMatches', 'normalizeFormula', 'DERIVED_FACTORS', 'verifyCalculation'
 ]);
 const R = loadFromSource(GRADE_PATH, [...EXPR, 'parseLooseNumber', 'matchCommonError', 'teachingFields']);
 const E = require(path.join(__dirname, '..', 'js', 'exam-engine.js'));
@@ -60,11 +60,20 @@ const VECTORS = [
   ['P * (1 + r/100)^n', { P: 1000, r: 10, n: 2 }, 1210],
   [LOAN, { P: 1000000, r: 5, n: 360 }, 5368.2162],
   ['CF1/(1+k) + CF2/(1+k)^2 - I0', { CF1: 500, CF2: 600, k: 0.1, I0: 900 }, 500 / 1.1 + 600 / 1.21 - 900],
-  ['1.5e3 + .5', {}, 1500.5]
+  ['1.5e3 + .5', {}, 1500.5],
+  // Faz 3a.1: finans fonksiyonları (Excel değerleri, işaretsiz)
+  ['pmt(r/12, n, P)', { r: 0.06, n: 60, P: 100000 }, 1933.2802],
+  ['PMT(0.06/12, 5*12, -100000)', {}, 1933.2802],
+  ['pmt(0, 10, 1000)', {}, 100],
+  ['pv(0.08, 5, 1000)', {}, 3992.7101],
+  ['fv(0.05, 10, 0, 1000)', {}, 1628.8946],
+  ['fv(0.05, 3, 100)', {}, 315.25],
+  ['npv(0.1, 500, 600) - 900', {}, 500 / 1.1 + 600 / 1.21 - 900],
+  ['PV * 2', { PV: 3 }, 6]
 ];
 const BAD = [
   ['', {}], ['2x', { x: 3 }], ['2 * y', {}], ['(1 + 2', {}], ['1 + 2)', {}], ['1 / 0', {}], ['sqrt(-1)', {}],
-  ['foo(2)', {}], ['min()', {}], ['pow(2)', {}], ['sqrt(1, 2)', {}], ['1,2', {}], ['3 3', {}],
+  ['foo(2)', {}], ['min()', {}], ['pow(2)', {}], ['pmt(1, 2)', {}], ['npv(0.1)', {}], ['sqrt(1, 2)', {}], ['1,2', {}], ['3 3', {}],
   ['process.exit()', {}], ['constructor', {}], ['__proto__', {}], ['x.constructor', { x: 1 }],
   ['alert(1)', {}], ['"a"', {}], ['1; 2', {}], ['a[0]', { a: 1 }], ['x = 2', { x: 1 }],
   ['1 + '.repeat(200) + '1', {}], ['('.repeat(60) + '1' + ')'.repeat(60), {}]
@@ -83,12 +92,14 @@ for (const [name, impl] of [['sunucu (TS)', G.evaluateExpression], ['tarayici (J
 }
 
 test('sanitizeVariables: gecersiz ad, fonksiyon/sabit adi ve sayi olmayan deger atilir', () => {
-  const v = G.sanitizeVariables({ P: 1000, r: '5', 'bad name': 3, sqrt: 2, pi: 3, e: 1, x: 'abc', n: Infinity, k_2: 0.1, constructor: 5 });
+  const v = G.sanitizeVariables({ P: 1000, r: '5', 'bad name': 3, pi: 3, e: 1, x: 'abc', n: Infinity, k_2: 0.1, constructor: 5 });
   assert.deepEqual(v, { P: 1000, r: 5, k_2: 0.1, constructor: 5 });
+  assert.deepEqual(G.sanitizeVariables({ PV: 10, sqrt: 2 }), { PV: 10, sqrt: 2 }, 'fonksiyon adi degisken olabilir');
+  assert.equal(G.evaluateExpression('sqrt(sqrt) + PV', { sqrt: 16, PV: 1 }), 5, 'ad( fonksiyon, ad degisken');
   assert.equal(G.evaluateExpression('constructor + 1', v), 6, 'kendi alani olarak verilen ad calisir, prototipe ulasilmaz');
   assert.deepEqual(G.sanitizeVariables(null), {});
   assert.deepEqual(G.sanitizeVariables([1, 2]), {});
-  assert.deepEqual(E.sanitizeVariables({ P: 1000, sqrt: 2 }), { P: 1000 });
+  assert.deepEqual(E.sanitizeVariables({ P: 1000, pi: 2, PV: 4 }), { P: 1000, PV: 4 });
 });
 
 // ---------------------------------------------------------------------------
@@ -128,7 +139,26 @@ test('formul yok, hesaplanamiyor ya da girdi soru metninde yok → atilir', () =
   assert.equal(G.verifyCalculation(loanQ({ formula: '' })).reason, 'calc_no_formula');
   assert.equal(G.verifyCalculation(loanQ({ variables: {} })).reason, 'calc_no_formula');
   assert.equal(G.verifyCalculation(loanQ({ formula: 'XNPV(r, CF, dates)' })).reason, 'calc_formula_invalid');
-  assert.equal(G.verifyCalculation(loanQ({ variables: { P: 1000000, r: 0.05, n: 360 }, formula: 'P * (r/12) / (1 - (1 + r/12)^(-n))' })).reason, 'calc_var_not_in_text', 'oran metinde %5 olarak yaziyor, 0.05 degil');
+  assert.equal(G.verifyCalculation(loanQ({ variables: { P: 1000000, r: 7, n: 360 }, correct_answer: null })).reason, 'calc_var_not_in_text', '7 metinde yok');
+});
+
+test('turetilmis girdi (%5 → 0.05, 30 yil → 360 ay) kabul; sablon kapanir', () => {
+  const q = loanQ({ question: '1.000.000 TL konut kredisi yıllık %5 faizle 30 yılda ödenecek. Aylık taksit kaç TL?', variables: { P: 1000000, r: 0.05, n: 360 }, formula: 'pmt(r/12, n, P)', template: '{P} TL konut kredisi yıllık %{r} faizle {n} yılda ödenecek. Aylık taksit kaç TL?' });
+  assert.deepEqual(G.verifyCalculation(q), { ok: true });
+  assert.equal(q.correct_answer, 5368.2162);
+  assert.equal(q.template, null, 'turetilmis degisken sablona yazilamaz');
+  assert.equal(q.verified, true);
+});
+
+test('normalizeFormula: "=", "PMT =", ×÷− isaretleri, kare', () => {
+  assert.equal(G.normalizeFormula('= P × r ÷ 2 − 1'), 'P * r / 2 - 1');
+  assert.equal(G.normalizeFormula('PMT = pmt(r/12, n, P)'), 'pmt(r/12, n, P)');
+  assert.equal(G.normalizeFormula('x²+y³'), 'x^2+y^3');
+  assert.equal(G.normalizeFormula('a = b = c'), 'a = b = c', 'iki esittir: dokunulmaz, hesaplayici reddeder');
+  assert.equal(G.normalizeFormula(null), '');
+  const q = loanQ({ formula: 'Taksit = ' + LOAN.replace(/\*/g, '×') });
+  assert.equal(G.verifyCalculation(q).ok, true);
+  assert.equal(q.formula, LOAN.replace(/\*/g, '*'));
 });
 
 test('sayilarin Turkce ve Ingilizce yazimi tanınır', () => {

@@ -44,7 +44,7 @@ EXAM TYPE RULES:
    - "solution_steps": array of strings demonstrating step 1, step 2, step 3 of the step-by-step mathematical solution.
    - "options": null.
    - "variables": object mapping a short name to EVERY numeric input of the problem, with the value written exactly as it appears in the question text (5 for "%5", not 0.05; 1000000 for "1.000.000"). Only quantities that could change in a similar problem (amounts, rates, counts, periods); never years, dates or fixed constants such as 12 months, 100 for percent or 360 days — write those directly in the formula.
-   - "formula": ONE arithmetic expression over those names that computes correct_answer, e.g. "P * (r/100/12) / (1 - (1 + r/100/12)^(-n))". Allowed: numbers, the variable names, + - * / ^ ( ), sqrt, abs, ln, log10, exp, floor, ceil, min, max, round, pow, pi, e. No other functions, no implicit multiplication (write 2*x), no dates. Only write calculation problems whose answer this one formula computes exactly; the answer is recomputed by code and the question is discarded if they disagree.
+   - "formula": ONE arithmetic expression over those names that computes correct_answer, e.g. "P * (r/100/12) / (1 - (1 + r/100/12)^(-n))". Allowed: numbers, the variable names, + - * / ^ ( ), sqrt, abs, ln, log10, exp, floor, ceil, min, max, round, pow, pi, e, and the finance functions pmt(rate, nper, pv), pv(rate, nper, pmt), fv(rate, nper, pmt, pv), npv(rate, cf1, cf2, ...) where rate is the per-period rate as a fraction (e.g. r/100/12) and amounts are positive. No other functions (no IRR, no Excel cell references), no implicit multiplication (write 2*x), no "=" sign, no dates. Only write calculation problems whose answer this one formula computes exactly; the answer is recomputed by code and the question is discarded if they disagree.
    - "template": the question text with each input number replaced by {name}, everything else identical.
    - "common_errors": 1 to 3 typical mistakes as [{"formula": "...", "message": "..."}] using the same names (e.g. the annual rate not divided by 12); "message" is one short sentence in the exam language naming the mistake.
 4. 'mixed': A combination of question types (the user message's MIXED TYPE RULE line below states the exact type spread for this course).
@@ -212,7 +212,13 @@ const EXPR_FUNCS: Record<string, { min: number; max: number; fn: (...a: number[]
   min: { min: 1, max: 12, fn: Math.min },
   max: { min: 1, max: 12, fn: Math.max },
   pow: { min: 2, max: 2, fn: Math.pow },
-  round: { min: 1, max: 2, fn: (x: number, d = 0) => { const f = Math.pow(10, Math.round(d)); return Math.round(x * f) / f } }
+  round: { min: 1, max: 2, fn: (x: number, d = 0) => { const f = Math.pow(10, Math.round(d)); return Math.round(x * f) / f } },
+  // Finans (Excel adları, işaretsiz: tutarlar pozitif döner). rate dönem faizi
+  // (0.005 gibi), nper dönem sayısı. npv Excel gibi ilk akışı 1. dönem sayar.
+  pmt: { min: 3, max: 3, fn: (r: number, n: number, p: number) => Math.abs(r === 0 ? p / n : p * r / (1 - Math.pow(1 + r, -n))) },
+  pv: { min: 3, max: 3, fn: (r: number, n: number, a: number) => Math.abs(r === 0 ? a * n : a * (1 - Math.pow(1 + r, -n)) / r) },
+  fv: { min: 3, max: 4, fn: (r: number, n: number, a: number, p = 0) => r === 0 ? Math.abs(a) * n + Math.abs(p) : Math.abs(a) * (Math.pow(1 + r, n) - 1) / r + Math.abs(p) * Math.pow(1 + r, n) },
+  npv: { min: 2, max: 13, fn: (r: number, ...cf: number[]) => cf.reduce((s, c, i) => s + c / Math.pow(1 + r, i + 1), 0) }
 }
 
 /** Formülü değişkenlerle hesaplar. Geçersiz ifade, bilinmeyen ad, sonsuz
@@ -298,13 +304,14 @@ function evaluateExpression(src: unknown, vars: Record<string, number>): number 
 }
 
 /** Modelin verdiği değişkenler: ad → sonlu sayı. Geçersiz ad ya da değer
- *  atılır; fonksiyon ve sabit adları değişken olamaz. En fazla 10. */
+ *  atılır; sabit adları (pi, e) değişken olamaz. Fonksiyon adı değişken
+ *  olabilir (PV gibi): ayrıştırıcı "ad(" ile "ad"ı ayırır. En fazla 10. */
 function sanitizeVariables(raw: unknown): Record<string, number> {
   const out: Record<string, number> = {}
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out
   for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
     if (!/^[A-Za-z_][A-Za-z0-9_]{0,15}$/.test(k)) continue
-    if (Object.prototype.hasOwnProperty.call(EXPR_FUNCS, k.toLowerCase()) || Object.prototype.hasOwnProperty.call(EXPR_CONSTS, k)) continue
+    if (Object.prototype.hasOwnProperty.call(EXPR_CONSTS, k)) continue
     const n = typeof v === 'number' ? v : Number(String(v ?? '').trim())
     if (!Number.isFinite(n)) continue
     out[k] = n
@@ -344,31 +351,51 @@ function templateMatches(template: string, question: string, names: string[]): b
   return letters(template.replace(/\{[^}]*\}/g, ' ')) === letters(question.replace(/\d[\d.,]*/g, ' '))
 }
 
+/** Modelin formül yazımındaki zararsız farkları giderir: baştaki "=" ya da
+ *  "PMT =", ×·÷−– işaretleri, ² ³. Yalnızca generate-exam'de; saklanan
+ *  formül zaten temizdir. */
+function normalizeFormula(raw: unknown): string {
+  let f = typeof raw === 'string' ? raw.trim() : ''
+  f = f.replace(/^\s*=/, '')
+  const eq = f.indexOf('=')
+  if (eq > 0 && f.indexOf('=', eq + 1) === -1 && /^\s*[A-Za-z_][A-Za-z0-9_ ]*$/.test(f.slice(0, eq))) f = f.slice(eq + 1)
+  return f.replace(/[×·∙]/g, '*').replace(/÷/g, '/').replace(/[−–]/g, '-').replace(/²/g, '^2').replace(/³/g, '^3').trim()
+}
+
+/** Metindeki bir sayıdan doğrudan türeyen değerler: %6 → 0.06, 5 yıl → 60
+ *  ay, 60 ay → 5 yıl. Türeyen değişken gizli girdi sayılmaz ama şablonla
+ *  yeniden üretilemez (şablon kapatılır). */
+const DERIVED_FACTORS = [100, 0.01, 12, 1 / 12]
+
 /** Hesap sorusunu kodla doğrular ve düzeltir: correct_answer formülden,
  *  şablon ve tipik hatalar temizlenmiş. Başarısızsa nedeni. */
 function verifyCalculation(q: Record<string, unknown>): { ok: boolean; reason?: string } {
   const vars = sanitizeVariables(q.variables)
   const names = Object.keys(vars)
-  const formula = typeof q.formula === 'string' ? q.formula.trim() : ''
+  const formula = normalizeFormula(q.formula)
   if (names.length === 0 || !formula) return { ok: false, reason: 'calc_no_formula' }
   const value = evaluateExpression(formula, vars)
   if (!Number.isFinite(value)) return { ok: false, reason: 'calc_formula_invalid' }
-  // Her değişken soru metninde yazılı olmalı (gizli girdi yok).
+  // Her değişken soru metninde yazılı olmalı ya da yazılı bir sayıdan
+  // doğrudan türemeli (gizli girdi yok).
   const text = String(q.question ?? '')
   const readings = [...text.matchAll(/\d[\d.,]*/g)].flatMap(m => numberReadings(m[0].replace(/[.,]+$/, '')))
-  if (names.some(n => !readings.some(r => sameNumber(r, vars[n])))) return { ok: false, reason: 'calc_var_not_in_text' }
+  const literal = (n: string) => readings.some(r => sameNumber(r, vars[n]))
+  const derived = (n: string) => readings.some(r => DERIVED_FACTORS.some(k => sameNumber(r * k, vars[n])))
+  if (names.some(n => !literal(n) && !derived(n))) return { ok: false, reason: 'calc_var_not_in_text' }
+  const allLiteral = names.every(literal)
   const tol = Number(q.tolerance_percent) || 2
   const modelAnswer = parseLooseNumber(q.correct_answer)
   if (Number.isFinite(modelAnswer) && !withinTolerance(modelAnswer, value, Math.max(tol, 1))) return { ok: false, reason: 'calc_mismatch' }
   q.correct_answer = Math.round(value * 1e4) / 1e4
   q.variables = vars
   q.formula = formula
-  q.template = typeof q.template === 'string' && templateMatches(q.template, text, names) ? q.template : null
+  q.template = allLiteral && typeof q.template === 'string' && templateMatches(q.template, text, names) ? q.template : null
   const errs: Array<{ formula: string; message: string }> = []
   for (const ce of Array.isArray(q.common_errors) ? q.common_errors : []) {
     if (!ce || typeof ce !== 'object') continue
     const rec = ce as Record<string, unknown>
-    const f = typeof rec.formula === 'string' ? rec.formula.trim() : ''
+    const f = normalizeFormula(rec.formula)
     const msg = cleanText(rec.message, 200)
     const v = evaluateExpression(f, vars)
     if (!f || !msg || !Number.isFinite(v) || withinTolerance(v, value, tol)) continue
@@ -414,8 +441,10 @@ function allowedTypesFor(examType: string, isQuant: boolean): string[] {
 }
 
 /** Tek bir soruyu denetler ve temizlenmiş halini döner. Geçmezse
- *  { ok: false, reason } — soru atılır. */
-function validateQuestion(raw: unknown, allowedTypes: string[], language: string, optionCount = 4): { ok: boolean; question?: Record<string, unknown>; reason?: string } {
+ *  { ok: false, reason } — soru atılır. allowUnverifiedCalc: son çare;
+ *  formülü doğrulanamayan ama cevabı sayı olan hesap sorusu Faz 3a öncesi
+ *  gibi kabul edilir (çelişen soru yine atılır). */
+function validateQuestion(raw: unknown, allowedTypes: string[], language: string, optionCount = 4, allowUnverifiedCalc = false): { ok: boolean; question?: Record<string, unknown>; reason?: string } {
   if (!raw || typeof raw !== 'object') return { ok: false, reason: 'not_object' }
   const q = { ...(raw as Record<string, unknown>) }
   const type = String(q.type || '')
@@ -468,7 +497,12 @@ function validateQuestion(raw: unknown, allowedTypes: string[], language: string
     // FAZ 3a: cevabı kod hesaplar; formül yoksa, hesaplanamıyorsa ya da
     // modelin cevabıyla çelişiyorsa soru atılır.
     const check = verifyCalculation(q)
-    if (!check.ok) return { ok: false, reason: check.reason }
+    if (!check.ok) {
+      const n = parseLooseNumber(q.correct_answer)
+      if (!allowUnverifiedCalc || check.reason === 'calc_mismatch' || !Number.isFinite(n)) return { ok: false, reason: check.reason }
+      q.correct_answer = n
+      for (const k of ['variables', 'formula', 'template', 'common_errors', 'verified']) delete q[k]
+    }
   } else if (type === 'open_ended') {
     let ref = String(q.correct_answer ?? '').trim()
     // Örnek cevap "null": açıklama, o da yoksa rubrik maddeleri yerine geçer
@@ -1394,12 +1428,19 @@ Additional variation seed: ${Date.now()}`
     const seenTexts = new Set<string>()
     const rejectReasons: string[] = []
 
-    const absorb = (items: unknown[]) => {
+    const rejectedRaw: unknown[] = []
+    const absorb = (items: unknown[], allowUnverifiedCalc = false) => {
       for (const raw of items) {
         if (accepted.length >= requestedCount) break
-        const result = validateQuestion(raw, allowedTypes, language, scoring.option_count)
+        const result = validateQuestion(raw, allowedTypes, language, scoring.option_count, allowUnverifiedCalc)
         if (!result.ok || !result.question) {
-          rejectReasons.push(result.reason || 'unknown')
+          const reason = result.reason || 'unknown'
+          rejectReasons.push(reason)
+          if (reason.startsWith('calc_')) {
+            const r = (raw || {}) as Record<string, unknown>
+            console.warn(`generate-exam: ${reason} formula=${JSON.stringify(r.formula ?? null).slice(0, 160)} vars=${JSON.stringify(r.variables ?? null).slice(0, 160)}`)
+            if (!allowUnverifiedCalc) rejectedRaw.push(raw)
+          }
           continue
         }
         const textKey = normalizeAnswerText(result.question.question)
@@ -1429,6 +1470,14 @@ Additional variation seed: ${Date.now()}`
       const second = await requestQuestions(shortfall, accepted.map(q => String(q.question)))
       if (second.items) absorb(second.items)
       else console.warn('generate-exam: ikinci uretim basarisiz:', second.error)
+    }
+
+    // FAZ 3a son çare: hâlâ eksikse, formülü doğrulanamayan ama cevabı sayı
+    // olan hesap soruları eskisi gibi (doğrulanmamış) alınır. Çelişenler değil.
+    if (accepted.length < requestedCount && rejectedRaw.length) {
+      const before = accepted.length
+      absorb(rejectedRaw.splice(0), true)
+      if (accepted.length > before) console.warn(`generate-exam: ${accepted.length - before} hesap sorusu dogrulanmadan alindi`)
     }
 
     if (accepted.length === 0) {
