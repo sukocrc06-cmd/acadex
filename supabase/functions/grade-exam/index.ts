@@ -666,6 +666,22 @@ function teachingFields(q: Record<string, unknown>): Record<string, unknown> {
     if (typeof q.template === 'string' && q.template && typeof q.formula === 'string' && q.variables && typeof q.variables === 'object') {
       out.practice = { template: q.template, variables: q.variables, formula: q.formula, tolerance_percent: q.tolerance_percent ?? 2, units: q.units ?? '' }
     }
+    // FAZ 3c: doğrusal denklem ve NBD/faiz — sonuç kâğıdında "adım adım
+    // çöz" bu veriyle tarayıcıda satır satır kontrol eder.
+    const kind = String(q.step_kind ?? '')
+    if (['linear', 'npv', 'interest'].includes(kind) && typeof q.formula === 'string' && q.variables && typeof q.variables === 'object' &&
+        (kind !== 'linear' || (typeof q.equation === 'string' && typeof q.unknown === 'string'))) {
+      out.steps = {
+        kind,
+        formula: q.formula,
+        variables: q.variables,
+        equation: kind === 'linear' ? q.equation : null,
+        unknown: kind === 'linear' ? q.unknown : null,
+        tolerance_percent: q.tolerance_percent ?? 2,
+        units: q.units ?? '',
+        common_errors: Array.isArray(q.common_errors) ? q.common_errors : []
+      }
+    }
   }
   return out
 }

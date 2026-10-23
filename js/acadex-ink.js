@@ -2904,11 +2904,48 @@ window.axWhenProfile = function (cb) {
      Yeni sayılar ve cevap tarayıcıda, sorunun formülünden üretilir
      (exam-engine makeVariant); yapay zekâ çağrısı ve puan yok, yalnızca
      pratik. */
+  /* FAZ 3c: doğrusal denklem ve NBD/faiz sorularında "adım adım çöz":
+     öğrenci her satıra bir adım yazar, tarayıcı satır satır kontrol eder
+     (exam-engine checkSteps). Açık bir "farklı sayılarla" sorusu varsa onu,
+     yoksa sınavdaki asıl soruyu çözdürür. Puan değişmez. */
   var pracBlock = function (r) {
-    var E = ENG(); if (!r.practice || !E || typeof E.makeVariant !== 'function') return '';
-    return '<div class="sn-prac" data-prac="' + esc(String(r.question_id)) + '"><button type="button" class="sn-link" data-prac-new="">farklı sayılarla tekrar dene</button><div class="sn-prac-b" hidden></div></div>';
+    var E = ENG(); if (!E) return '';
+    var pr = r.practice && typeof E.makeVariant === 'function', st = r.steps && typeof E.checkSteps === 'function';
+    if (!pr && !st) return '';
+    return '<div class="sn-prac" data-prac="' + esc(String(r.question_id)) + '">' +
+      (pr ? '<button type="button" class="sn-link" data-prac-new="">farklı sayılarla tekrar dene</button>' : '') +
+      (st ? '<button type="button" class="sn-link" data-steps-open="">adım adım çöz</button>' : '') +
+      '<div class="sn-prac-b" hidden></div><div class="sn-steps-b" hidden></div></div>';
   };
-  var pracOf = function (qid) { var rs = (RES_EXAM && RES_EXAM.question_results) || []; for (var i = 0; i < rs.length; i++) if (String(rs[i].question_id) === String(qid)) return rs[i].practice; return null; };
+  var resOf = function (qid) { var rs = (RES_EXAM && RES_EXAM.question_results) || []; for (var i = 0; i < rs.length; i++) if (String(rs[i].question_id) === String(qid)) return rs[i]; return null; };
+  var pracOf = function (qid) { var r = resOf(qid); return r ? r.practice : null; };
+  var STEP_PH = { linear: 'ör.\n3x + 5 = 2x - 7\n3x - 2x = -7 - 5\nx = -12', npv: 'ör.\nPV1 = 500 / 1,1 = 454,55\nPV2 = 600 / 1,1^2 = 495,87\nNBD = 454,55 + 495,87 - 900 = 50,42', interest: 'ör.\ni = 5 / 100 / 12 = 0,004167\n(1 + 0,004167)^360 = 4,4677\n…' };
+  var stepsOpen = function (box) {
+    var r = resOf(box.getAttribute('data-prac')), sb = box.querySelector('.sn-steps-b'), pb = box.querySelector('.sn-prac-b');
+    if (!r || !r.steps || !sb) return;
+    var useV = box.__v && pb && !pb.hidden, vars = useV ? box.__v.variables : r.steps.variables, txt = useV ? box.__v.text : r.question;
+    box.__sv = vars;
+    sb.innerHTML = '<p class="sn-steps-q"><b>' + (useV ? 'yeni sayılarla' : 'sınavdaki soru') + ':</b> ' + rich(txt) + '</p>' +
+      '<textarea class="sn-steps-in" rows="5" data-steps-in="" spellcheck="false" aria-label="Çözüm adımların, her satıra bir adım" placeholder="' + esc(STEP_PH[r.steps.kind] || '') + '"></textarea>' +
+      '<div class="sn-steps-bar"><button type="button" class="btn btn-dark" data-steps-check="">adımları kontrol et</button><span>her satıra bir adım; çarpma *, üs ^</span></div>' +
+      '<ol class="sn-steps-out" hidden></ol><p class="sn-steps-sum" role="status" hidden></p>';
+    sb.hidden = false;
+    var ta = sb.querySelector('[data-steps-in]'); if (ta) ta.focus();
+  };
+  var stepsCheck = function (box) {
+    var E = ENG(), r = resOf(box.getAttribute('data-prac')), sb = box.querySelector('.sn-steps-b');
+    if (!E || !r || !r.steps || !sb) return;
+    var ta = sb.querySelector('[data-steps-in]'), ol = sb.querySelector('.sn-steps-out'), sum = sb.querySelector('.sn-steps-sum');
+    var res2 = E.checkSteps(ta ? ta.value : '', r.steps, box.__sv, (RES_EXAM && RES_EXAM.language) || 'tr');
+    if (!res2) { sum.className = 'sn-steps-sum no'; sum.textContent = 'Bu soru adım adım kontrol edilemiyor.'; sum.hidden = false; ol.hidden = true; return; }
+    ol.innerHTML = res2.lines.map(function (l) {
+      var c = l.ok ? (l.code === 'on_track' || l.code === 'final' ? 'ok' : 'fine') : (l.code === 'carried' ? 'carry' : 'no');
+      return '<li class="' + c + '"><code>' + esc(l.line) + '</code><span>' + esc(l.message) + '</span></li>';
+    }).join('');
+    ol.hidden = !res2.lines.length;
+    sum.className = 'sn-steps-sum ' + (res2.status === 'solved' ? 'ok' : res2.status === 'error' || res2.status === 'empty' ? 'no' : 'half');
+    sum.textContent = res2.message; sum.hidden = false;
+  };
   var pracNew = function (box) {
     var E = ENG(), p = pracOf(box.getAttribute('data-prac')), b = box.querySelector('.sn-prac-b');
     var v = E && p ? E.makeVariant(p, (RES_EXAM && RES_EXAM.language) || 'tr') : null;
@@ -3034,7 +3071,9 @@ window.axWhenProfile = function (cb) {
     window.showExamResults = showExamResults;
   }
   res.addEventListener('click', function (e) {
-    var pn = e.target.closest('[data-prac-new]'); if (pn) { pracNew(pn.closest('.sn-prac')); return; }
+    var pn = e.target.closest('[data-prac-new]'); if (pn) { var pbx = pn.closest('.sn-prac'); pracNew(pbx); var sbx = pbx.querySelector('.sn-steps-b'); if (sbx && !sbx.hidden) stepsOpen(pbx); return; }
+    var so = e.target.closest('[data-steps-open]'); if (so) { stepsOpen(so.closest('.sn-prac')); return; }
+    var sk = e.target.closest('[data-steps-check]'); if (sk) { stepsCheck(sk.closest('.sn-prac')); return; }
     var pc = e.target.closest('[data-prac-check]'); if (pc) { pracCheck(pc.closest('.sn-prac')); return; }
     var fb = e.target.closest('[data-fb]'); if (fb) { fbForm(fb.closest('.sn-fbk'), fb.getAttribute('data-fb')); return; }
     var fs = e.target.closest('[data-fb-send]'); if (fs) { sendFb(fs); return; }

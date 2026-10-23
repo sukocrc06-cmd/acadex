@@ -47,6 +47,8 @@ EXAM TYPE RULES:
    - "formula": ONE arithmetic expression over those names that computes correct_answer, e.g. "P * (r/100/12) / (1 - (1 + r/100/12)^(-n))". Allowed: numbers, the variable names, + - * / ^ ( ), sqrt, abs, ln, log10, exp, floor, ceil, min, max, round, pow, pi, e, and the finance functions pmt(rate, nper, pv), pv(rate, nper, pmt), fv(rate, nper, pmt, pv), npv(rate, cf1, cf2, ...) where rate is the per-period rate as a fraction (e.g. r/100/12) and amounts are positive. No other functions (no IRR, no Excel cell references), no implicit multiplication (write 2*x), no "=" sign, no dates. Only write calculation problems whose answer this one formula computes exactly; the answer is recomputed by code and the question is discarded if they disagree.
    - "template": the question text with each input number replaced by {name}, everything else identical.
    - "common_errors": 1 to 3 typical mistakes as [{"formula": "...", "message": "..."}] using the same names (e.g. the annual rate not divided by 12); "message" is one short sentence in the exam language naming the mistake.
+   - "step_kind": "linear" if the question asks to solve a linear equation in one unknown; "npv" for net present value or discounting a series of cash flows; "interest" for simple or compound interest, future or present value, or loan payments; otherwise null. Students practise these step by step after the exam.
+   - "equation" and "unknown" (only when step_kind is "linear", otherwise null): the equation written with the variable names and the unknown, e.g. "a*x + b = c*x - d", and the unknown's single-letter name, e.g. "x". The unknown is NOT in "variables"; "formula" gives its solution, e.g. "(-d - b) / (a - c)".
    A 'calculation' exam may also contain 'expression' questions, but ONLY when the SOURCE MATERIAL itself teaches symbolic algebra or calculus (simplifying, factoring, expanding, derivatives, integrals, solving for a variable symbolically); then make about half of the questions 'expression'. Never use 'expression' for finance, statistics, spreadsheet functions or any question whose answer is a number. For 'expression' questions:
    - "type": "expression": the answer is an algebraic expression, not a number.
    - "question": write every formula in LaTeX between single dollar signs, e.g. "$x^2 - 1$ ifadesini çarpanlarına ayırınız." or "$f(x) = x^2 \\sin x$ fonksiyonunun türevini bulunuz." (same in "solution_steps").
@@ -81,6 +83,9 @@ The "questions" array's length must exactly equal the question count requested i
   "formula": "string" | null,
   "template": "string" | null,
   "common_errors": [{"formula": "string", "message": "string"}] | null,
+  "step_kind": "linear" | "npv" | "interest" | null,
+  "equation": "string" | null,
+  "unknown": "string" | null,
   "expr_vars": ["string"] | null,
   "form": "any" | "factored" | "expanded" | "simplified" | null,
   "given": "string" | null,
@@ -130,7 +135,7 @@ const TRUE_FALSE_OPTIONS: Record<string, [string, string]> = { tr: ['Doğru', 'Y
 // durur; öğrenci bunları ancak sınav puanlandıktan sonra görür.
 // FAZ 3a: hesap sorusunun değişkenleri, formülü, şablonu ve tipik hataları
 // da anahtarda; tarayıcıya ancak puanlamadan sonra gider.
-const KEY_FIELDS = ['correct_answer', 'accepted_answers', 'solution_steps', 'tolerance_percent', 'hint', 'explanation', 'option_rationales', 'rubric', 'source', 'variables', 'formula', 'template', 'common_errors', 'verified']
+const KEY_FIELDS = ['correct_answer', 'accepted_answers', 'solution_steps', 'tolerance_percent', 'hint', 'explanation', 'option_rationales', 'rubric', 'source', 'variables', 'formula', 'template', 'common_errors', 'verified', 'step_kind', 'equation', 'unknown']
 // Yalnızca sunucuda kullanılan alanlar: ne tarayıcıya ne anahtara yazılır.
 const INTERNAL_FIELDS = ['source_terms']
 const EXPLANATION_MAX_CHARS = 600
@@ -383,9 +388,34 @@ function normalizeFormula(raw: unknown): string {
 }
 
 /** Metindeki bir sayıdan doğrudan türeyen değerler: %6 → 0.06, 5 yıl → 60
- *  ay, 60 ay → 5 yıl. Türeyen değişken gizli girdi sayılmaz ama şablonla
- *  yeniden üretilemez (şablon kapatılır). */
-const DERIVED_FACTORS = [100, 0.01, 12, 1 / 12]
+ *  ay, 60 ay → 5 yıl, "2x - 7" → -7 (Faz 3c). Türeyen değişken gizli
+ *  girdi sayılmaz ama şablonla yeniden üretilemez (şablon kapatılır). */
+const DERIVED_FACTORS = [100, 0.01, 12, 1 / 12, -1]
+
+/** FAZ 3c: adım adım kontrol edilebilen hesap türleri. */
+const STEP_KINDS = ['linear', 'npv', 'interest']
+
+/** Doğrusal denklemi kodla doğrular: tek "=", bilinmeyen tek harf ve
+ *  değişkenlerden ayrı, her iki taraf hesaplanabilir, bilinmeyene göre
+ *  doğrusal, tek çözümlü ve çözüm formülün sonucuna eşit. */
+function verifyLinearEquation(equation: unknown, unknown: unknown, vars: Record<string, number>, value: number): { equation: string; unknown: string } | null {
+  const u = String(unknown ?? '').trim()
+  if (!/^[A-Za-z]$/.test(u) || Object.prototype.hasOwnProperty.call(vars, u) || Object.prototype.hasOwnProperty.call(EXPR_CONSTS, u)) return null
+  const parts = String(equation ?? '').split('=')
+  if (parts.length !== 2) return null
+  const names = [...Object.keys(vars), u]
+  const left = normalizeMathInput(parts[0], names)
+  const right = normalizeMathInput(parts[1], names)
+  if (!left || !right) return null
+  const f = (x: number) => evaluateExpression(left, { ...vars, [u]: x }) - evaluateExpression(right, { ...vars, [u]: x })
+  const f0 = f(0), f1 = f(1), f2 = f(2)
+  if (![f0, f1, f2].every(Number.isFinite)) return null
+  const a = f1 - f0
+  if (Math.abs(a) < 1e-12 || Math.abs((f2 - f1) - a) > 1e-9 * Math.max(1, Math.abs(a))) return null
+  const sol = -f0 / a
+  if (Math.abs(sol - value) > 1e-6 * Math.max(1, Math.abs(value))) return null
+  return { equation: `${left}=${right}`, unknown: u }
+}
 
 /** Hesap sorusunu kodla doğrular ve düzeltir: correct_answer formülden,
  *  şablon ve tipik hatalar temizlenmiş. Başarısızsa nedeni. */
@@ -423,6 +453,13 @@ function verifyCalculation(q: Record<string, unknown>): { ok: boolean; reason?: 
     if (errs.length >= 3) break
   }
   q.common_errors = errs.length ? errs : null
+  // FAZ 3c: adım adım kontrol türü. Doğrusal denklem kodla çözülür ve
+  // formülün sonucuyla aynı olmalı; değilse yalnızca adım türü düşer.
+  const kind = STEP_KINDS.includes(String(q.step_kind)) ? String(q.step_kind) : null
+  const eq = kind === 'linear' ? verifyLinearEquation(q.equation, q.unknown, vars, value) : null
+  q.step_kind = kind === 'linear' && !eq ? null : kind
+  q.equation = eq ? eq.equation : null
+  q.unknown = eq ? eq.unknown : null
   q.verified = true
   return { ok: true }
 }
@@ -659,6 +696,52 @@ function allowedTypesFor(examType: string, isQuant: boolean): string[] {
   return isQuant ? [...mixed, 'calculation'] : mixed
 }
 
+/** FAZ 3c: aynı cevabı gösteren şıklar. Canlıda "5.368,00 / 5.368 /
+ *  5.368,5" ve "0.08" / "8%" gibi şıklar görüldü; birebir eşitlik
+ *  denetimi bunları kaçırıyordu.
+ *  - Sayısal şıklar (yalnızca sayı ve kısa birim): okunuşlarından biri
+ *    eşitse ya da (ikisi de tam sayı değilse) %0,5 içindeyse aynı sayılır.
+ *  - Öteki şıklar: sayılar ortak biçime ("5368", "0.08"), yüzde kesre
+ *    çevrilip boşluk ve noktalama atıldıktan sonra aynıysa aynı sayılır. */
+const OPTION_NEAR_PERCENT = 0.5
+const NUMERIC_OPTION = /^[^\d\p{L}]{0,3}\p{L}{0,3}\s*[-+−]?\d[\d.,]*\s*[%‰]?\s*[\p{L}$€₺£]{0,6}\.?$/u
+
+function optionCanonical(option: string): string {
+  return normalizeAnswerText(option)
+    .replace(/%\s*(\d[\d.,]*)|(\d[\d.,]*)\s*%/g, (_m, a, b) => {
+      const n = parseLooseNumber(a ?? b)
+      return Number.isFinite(n) ? ` ${String(Math.round(n / 100 * 1e9) / 1e9)} ` : _m
+    })
+    .replace(/\d[\d.,]*\d|\d/g, m => {
+      const n = parseLooseNumber(m)
+      return Number.isFinite(n) ? String(Math.round(n * 1e9) / 1e9) : m
+    })
+    .replace(/[^\p{L}\d.\-]+/gu, '')
+}
+
+function hasAmbiguousOptions(options: string[]): boolean {
+  if (new Set(options.map(optionCanonical)).size !== options.length) return true
+  // Yalnızca sayının dışındaki kısmı ("TL", "%") aynı olan şıklar
+  // karşılaştırılır: "a1" ile "b1" ayrı, "5.368 TL" ile "5.368,5 TL" değil.
+  const numeric = options
+    .map(o => o.trim())
+    .filter(o => NUMERIC_OPTION.test(o))
+    .map(o => ({
+      frame: normalizeAnswerText(o.replace(/\d[\d.,]*/, '#')),
+      readings: numberReadings((o.match(/\d[\d.,]*/) || [''])[0].replace(/[.,]+$/, ''))
+    }))
+  for (let i = 0; i < numeric.length; i++) {
+    for (let j = i + 1; j < numeric.length; j++) {
+      if (numeric[i].frame !== numeric[j].frame) continue
+      // Tam sayılar en az 1 farklıysa ayrıdır (1990 / 1991); kesirli ya da
+      // eşit olanlarda %0,5 yakınlık aynı cevap sayılır (5.368 / 5.368,5).
+      const near = (a: number, b: number) => a === b || (!(Number.isInteger(a) && Number.isInteger(b)) && Math.abs(a - b) <= OPTION_NEAR_PERCENT / 100 * Math.max(Math.abs(a), Math.abs(b)))
+      if (numeric[i].readings.some(a => numeric[j].readings.some(b => near(a, b)))) return true
+    }
+  }
+  return false
+}
+
 /** Tek bir soruyu denetler ve temizlenmiş halini döner. Geçmezse
  *  { ok: false, reason } — soru atılır. allowUnverifiedCalc: son çare;
  *  formülü doğrulanamayan ama cevabı sayı olan hesap sorusu Faz 3a öncesi
@@ -678,6 +761,7 @@ function validateQuestion(raw: unknown, allowedTypes: string[], language: string
     const options = Array.isArray(q.options) ? q.options.map(o => String(o ?? '').trim()).filter(Boolean) : []
     if (options.length !== optionCount) return { ok: false, reason: 'mc_option_count' }
     if (new Set(options.map(normalizeAnswerText)).size !== options.length) return { ok: false, reason: 'mc_duplicate_options' }
+    if (hasAmbiguousOptions(options)) return { ok: false, reason: 'mc_ambiguous_options' }
     const correctNorm = normalizeAnswerText(q.correct_answer)
     let match = options.filter(o => normalizeAnswerText(o) === correctNorm)
     // Model bazen "B" ya da "B) ..." biçiminde harf döndürüyor.
