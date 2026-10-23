@@ -352,6 +352,18 @@ function appealEligibility(result: Record<string, unknown>): string | null {
   return null
 }
 
+/** FAZ 4a: açık uçlu grafik sorusunda puanlayıcı model grafiği göremez;
+ *  verileri metin olarak soruya eklenir. */
+function chartAsText(chart: unknown): string {
+  if (!chart || typeof chart !== 'object') return ''
+  const c = chart as { title?: unknown; labels?: unknown; series?: unknown; unit?: unknown }
+  const labels = Array.isArray(c.labels) ? c.labels.map(String) : []
+  const series = Array.isArray(c.series) ? c.series as Array<{ name?: unknown; data?: unknown }> : []
+  if (!labels.length || !series.length) return ''
+  const lines = series.map(sr => `${String(sr.name || 'değerler')}: ` + labels.map((l, i) => `${l}=${Array.isArray(sr.data) ? sr.data[i] : ''}`).join(', '))
+  return `\n[Öğrencinin gördüğü grafik "${String(c.title || '')}"${c.unit ? ` (${String(c.unit)})` : ''}: ${lines.join('; ')}]`
+}
+
 /** Klasik soru için yeniden puanlama mesajı. */
 function buildOpenAppealPrompt(q: Record<string, unknown>, result: Record<string, unknown>, reason: string, language: string): string {
   const rubric = Array.isArray(q.rubric) && q.rubric.length ? (q.rubric as RubricItem[]) : null
@@ -362,7 +374,7 @@ function buildOpenAppealPrompt(q: Record<string, unknown>, result: Record<string
 Re-grade exactly this 1 question:
 ${JSON.stringify({
   question_id: Number(result.question_id),
-  question: String(q.question ?? result.question ?? ''),
+  question: String(q.question ?? result.question ?? '') + chartAsText(q.chart ?? result.chart),
   reference_answer: effectiveCorrectAnswer(q),
   rubric: rubric ? rubric.map((r, i) => ({ index: i + 1, criterion: r.criterion, points: r.points })) : null,
   student_answer: String(result.student_answer ?? ''),
@@ -375,7 +387,7 @@ ${JSON.stringify({
 function buildBlankAppealPrompt(q: Record<string, unknown>, result: Record<string, unknown>, reason: string, language: string): string {
   return `Write the note strictly in the requested language: '${language}' (en = English, tr = Turkish).
 ${JSON.stringify({
-  question: String(q.question ?? result.question ?? ''),
+  question: String(q.question ?? result.question ?? '') + chartAsText(q.chart ?? result.chart),
   correct_answer: effectiveCorrectAnswer(q),
   accepted_answers: Array.isArray(q.accepted_answers) ? q.accepted_answers : [],
   student_answer: String(result.student_answer ?? ''),

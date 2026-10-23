@@ -2313,6 +2313,8 @@ window.axWhenProfile = function (cb) {
   var dshort = function (s) { var d = new Date(s); return isNaN(d) ? '' : pad(d.getDate()) + '.' + pad(d.getMonth() + 1) + '.' + String(d.getFullYear()).slice(2); };
   var TYPE = { classic: 'klasik', test: 'test', mixed: 'karışık', calculation: 'hesaplama' };
   var DIFF = { easy: 'kolay', medium: 'orta', hard: 'zor' };
+  /* FAZ 4a: kaynaktan gelen grafik (exam-engine chartFigureHtml). */
+  var chartHtml = function (q, lang) { var E = window.AcadexExamEngine; return q && q.chart && E && typeof E.chartFigureHtml === 'function' ? E.chartFigureHtml(q.chart, lang || 'tr') : ''; };
   var QT = { multiple_choice: 'test', true_false: 'doğru-yanlış', fill_blank: 'boşluk', calculation: 'hesaplama', open_ended: 'açık uçlu', expression: 'ifade' };
   $$('.land').forEach(function (el, i) { el.style.setProperty('--hr', (((i * 37) % 11 - 5) * 0.3).toFixed(2) + 'deg'); el.style.setProperty('--hx', (((i * 53) % 9 - 4) * 2) + 'px'); });
 
@@ -2639,7 +2641,7 @@ window.axWhenProfile = function (cb) {
     var hintB = EXM.is_simulation ? '' : '<button type="button" class="sn-ghost" id="btn-hint-' + esc(q.id) + '" data-hint="' + esc(q.id) + '">ipucu al</button>';
     var hintBox = EXM.is_simulation ? '' : '<div id="hint-box-' + esc(q.id) + '" class="exam-hint-box sn-hint" style="display:none"></div>';
     return '<section class="sn-q" data-qi="' + i + '" aria-label="Soru ' + (i + 1) + '" hidden><div class="sn-qn"><b>' + (i + 1) + '</b><span class="ty">' + esc(QT[q.type] || q.type) + '</span><span class="pt">' + (i + 1) + ' / ' + QS.length + '</span></div>' +
-      '<div class="sn-qtext">' + txt + '</div>' + body + hintBox +
+      '<div class="sn-qtext">' + txt + '</div>' + chartHtml(q, EXM.language) + body + hintBox +
       '<div class="sn-book-nav"><button type="button" class="sn-ghost" data-prev=""' + (i ? '' : ' disabled') + '>← önceki</button><button type="button" class="sn-ghost sn-flag" aria-pressed="false" data-flag="">işaretle</button>' + hintB + '<span class="sp"></span>' +
       (i < QS.length - 1 ? '<button type="button" class="btn btn-dark" data-next="">sonraki →</button>' : '<button type="button" class="btn btn-blue" data-hand="">kâğıdı teslim et</button>') + '</div></section>';
   };
@@ -3068,7 +3070,7 @@ window.axWhenProfile = function (cb) {
           var steps = Array.isArray(r.solution_steps) && r.solution_steps.length ? '<div class="sn-model"><b>çözüm adımları</b><ol>' + r.solution_steps.map(function (s) { return '<li>' + rich(s) + '</li>'; }).join('') + '</ol></div>' : '';
           var unit = r.units ? ' ' + esc(r.units) : '';
           return '<div class="sn-ri" style="--i:' + i + '"><svg class="mk ' + k + '" viewBox="0 0 34 34" aria-hidden="true">' + MK[k] + '</svg><div class="sn-ri-h"><b>' + (i + 1) + '</b><span class="ty">' + esc(QT[r.type] || r.type || '') + '</span>' + (r.concept ? '<span class="cpt">' + esc(r.concept) + '</span>' : '') + '<span class="pt">' + (+r.score || 0) + '</span></div>' +
-            '<p class="q">' + rich(r.question) + '</p><p class="yours' + (k === 'no' && !blank ? ' wrong' : '') + '">senin cevabın: <span>' + (blank ? 'boş bıraktın' : ansHtml(r, r.student_answer) + (r.student_answer && r.units ? unit : '')) + '</span></p>' +
+            '<p class="q">' + rich(r.question) + '</p>' + chartHtml(r, exam.language) + '<p class="yours' + (k === 'no' && !blank ? ' wrong' : '') + '">senin cevabın: <span>' + (blank ? 'boş bıraktın' : ansHtml(r, r.student_answer) + (r.student_answer && r.units ? unit : '')) + '</span></p>' +
             (r.type !== 'open_ended' && r.correct_answer != null && r.correct_answer !== '' && String(r.correct_answer).trim().toLowerCase() !== 'null' ? '<p class="right">doğrusu: ' + ansHtml(r, r.correct_answer) + (r.type === 'expression' && r.up_to_constant ? ' + C' : '') + unit + (r.decimal_places ? ' (virgülden sonra ' + esc(r.decimal_places) + ' basamak)' : r.tolerance_percent ? ' (±%' + esc(r.tolerance_percent) + ')' : '') + '</p>' : '') +
             (r.feedback ? '<p class="fb">' + rich(r.feedback) + '</p>' : '') + teach(r, blank) + steps + '</div>';
         }).join('') +

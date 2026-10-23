@@ -541,6 +541,18 @@ function gradeExpression(studentRaw: unknown, q: Record<string, unknown>): { sco
   return { score: 100, verdict: 'correct', normalized: student, reference }
 }
 
+/** FAZ 4a: açık uçlu grafik sorusunda puanlayıcı model grafiği göremez;
+ *  verileri metin olarak soruya eklenir. */
+function chartAsText(chart: unknown): string {
+  if (!chart || typeof chart !== 'object') return ''
+  const c = chart as { title?: unknown; labels?: unknown; series?: unknown; unit?: unknown }
+  const labels = Array.isArray(c.labels) ? c.labels.map(String) : []
+  const series = Array.isArray(c.series) ? c.series as Array<{ name?: unknown; data?: unknown }> : []
+  if (!labels.length || !series.length) return ''
+  const lines = series.map(sr => `${String(sr.name || 'değerler')}: ` + labels.map((l, i) => `${l}=${Array.isArray(sr.data) ? sr.data[i] : ''}`).join(', '))
+  return `\n[Öğrencinin gördüğü grafik "${String(c.title || '')}"${c.unit ? ` (${String(c.unit)})` : ''}: ${lines.join('; ')}]`
+}
+
 /** FAZ 3a: öğrencinin yanlış sayısı, sorunun tipik hata formüllerinden
  *  birine uyuyorsa o hatanın mesajı. */
 function matchCommonError(studentAns: unknown, q: Record<string, unknown>): string | null {
@@ -885,6 +897,8 @@ serve(async (req) => {
         concept: q.concept || null,
         student_answer: studentAns,
         ...teachingFields(q),
+        // FAZ 4a: grafikli soru — sonuç kâğıdı grafiği yeniden çizer.
+        ...(q.chart && typeof q.chart === 'object' ? { chart: q.chart } : {}),
       }
 
       if (q.type === 'multiple_choice' || q.type === 'true_false') {
@@ -1028,7 +1042,7 @@ serve(async (req) => {
         } else {
           classicToGrade.push({
             id: qid,
-            question: String(q.question ?? ''),
+            question: String(q.question ?? '') + chartAsText(q.chart),
             correct_answer: correctAns,
             student_answer: studentAns,
             concept: (q.concept as string) || null,

@@ -26,7 +26,7 @@ const G = loadFromSource(GEN_PATH, [
   'EXPLANATION_MAX_CHARS', 'RATIONALE_MAX_CHARS', 'RUBRIC_MIN_ITEMS', 'RUBRIC_MAX_ITEMS',
   'normalizeAnswerText', 'parseLooseNumber', 'PLACEHOLDER_ANSWERS', 'isPlaceholderAnswer', 'cleanText',
   'normalizeOptionRationales', 'normalizeRubric', 'validateQuestion', 'STATIC_EXAM_INSTRUCTIONS',
-  'sameNumber', 'numberReadings', 'OPTION_NEAR_PERCENT', 'NUMERIC_OPTION', 'optionCanonical', 'hasAmbiguousOptions', 'MATH_INPUT_MAX', 'normalizeMathInput', 'STEP_KINDS', 'verifyLinearEquation', 'EXPR_SAMPLE_VALUES', 'EXPR_MIN_VALID_POINTS', 'EXPR_FORMS', 'exprSamplePoints', 'expressionsEquivalent', 'hasTopLevelSum', 'isExpandedForm', 'exprTokenCount', 'checkExpressionForm', 'verifyExpression', 'STANDARD_CONSTANTS', 'referencesName', 'inlineName']);
+  'sameNumber', 'numberReadings', 'OPTION_NEAR_PERCENT', 'NUMERIC_OPTION', 'optionCanonical', 'hasAmbiguousOptions', 'MATH_INPUT_MAX', 'normalizeMathInput', 'STEP_KINDS', 'verifyLinearEquation', 'EXPR_SAMPLE_VALUES', 'EXPR_MIN_VALID_POINTS', 'EXPR_FORMS', 'exprSamplePoints', 'expressionsEquivalent', 'hasTopLevelSum', 'isExpandedForm', 'exprTokenCount', 'checkExpressionForm', 'verifyExpression', 'STANDARD_CONSTANTS', 'referencesName', 'inlineName', 'chartNumbers']);
 const R = loadFromSource(GRADE_PATH, ['computeFinalGrade', 'computeNetSummary', 'computeExamGrade', 'parseLooseNumber', 'decimalPlacesOf', 'gradeCalculationPrecise', 'gradeCalculation']);
 const G2 = loadFromSource(GEN_PATH, ['ALLOWED_DECIMAL_PLACES', 'normalizeDecimalPlaces']);
 const E = require(path.join(__dirname, '..', 'js', 'exam-engine.js'));

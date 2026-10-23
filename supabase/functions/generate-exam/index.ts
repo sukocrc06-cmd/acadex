@@ -90,6 +90,7 @@ The "questions" array's length must exactly equal the question count requested i
   "form": "any" | "factored" | "expanded" | "simplified" | null,
   "given": "string" | null,
   "up_to_constant": boolean | null,
+  "chart_ref": number | null,
   "hint": "string (short helpful clue that does NOT reveal the answer)",
   "concept": "string",
   "explanation": "string",
@@ -98,6 +99,11 @@ The "questions" array's length must exactly equal the question count requested i
   "source_terms": ["string"]
 }
 For 'multiple_choice', the options must be distinct and exactly one must be correct; with 5 options every distractor must still be plausible.
+
+CHART QUESTIONS (only when the SOURCE MATERIAL has a CHARTS section):
+- The student sees every chart in CHARTS drawn as a graph with its values labelled. Make about one in four questions (at least one) chart-reading questions: set "chart_ref" to the chart's number, and write the question so it must be answered by reading that chart (trend, highest/lowest, difference, change, ratio or share). Refer to it as "the chart" / "grafik".
+- Do NOT restate the chart's numbers in the question text. For a 'calculation' chart question, "variables" take the values from the chart.
+- Use only charts that are listed; never invent data. "chart_ref" is null for every other question.
 
 FEEDBACK FIELDS (the student reads these only AFTER submitting the exam):
 - "explanation" (every question): 1-2 sentences saying WHY the correct answer is correct. Reuse the source material's own key terms and wording so the claim can be traced back to the source.
@@ -137,7 +143,7 @@ const TRUE_FALSE_OPTIONS: Record<string, [string, string]> = { tr: ['Doğru', 'Y
 // da anahtarda; tarayıcıya ancak puanlamadan sonra gider.
 const KEY_FIELDS = ['correct_answer', 'accepted_answers', 'solution_steps', 'tolerance_percent', 'hint', 'explanation', 'option_rationales', 'rubric', 'source', 'variables', 'formula', 'template', 'common_errors', 'verified', 'step_kind', 'equation', 'unknown']
 // Yalnızca sunucuda kullanılan alanlar: ne tarayıcıya ne anahtara yazılır.
-const INTERNAL_FIELDS = ['source_terms']
+const INTERNAL_FIELDS = ['source_terms', 'chart_ref']
 const EXPLANATION_MAX_CHARS = 600
 const RATIONALE_MAX_CHARS = 300
 const RUBRIC_MIN_ITEMS = 2
@@ -447,7 +453,9 @@ function verifyCalculation(q: Record<string, unknown>): { ok: boolean; reason?: 
   // Her değişken soru metninde yazılı olmalı ya da yazılı bir sayıdan
   // doğrudan türemeli (gizli girdi yok).
   const text = String(q.question ?? '')
-  const readings = [...text.matchAll(/\d[\d.,]*/g)].flatMap(m => numberReadings(m[0].replace(/[.,]+$/, '')))
+  // Faz 4a: grafikli soruda grafiğin sayıları ve etiketleri de "yazılı" sayılır.
+  const chartText = q.chart && typeof q.chart === 'object' ? ((q.chart as ChartSpec).labels || []).join(' ') : ''
+  const readings = [...`${text} ${chartText}`.matchAll(/\d[\d.,]*/g)].flatMap(m => numberReadings(m[0].replace(/[.,]+$/, ''))).concat(chartNumbers(q.chart))
   const literal = (n: string) => readings.some(r => sameNumber(r, vars[n]))
   const derived = (n: string) => readings.some(r => DERIVED_FACTORS.some(k => sameNumber(r * k, vars[n])))
   // Faz 3c: metinde yazmayan standart sabit (12 ay, 100, 360/365 gün, 52
@@ -470,7 +478,7 @@ function verifyCalculation(q: Record<string, unknown>): { ok: boolean; reason?: 
   q.correct_answer = Math.round(value * 1e4) / 1e4
   q.variables = vars
   q.formula = formula
-  q.template = allLiteral && typeof q.template === 'string' && templateMatches(q.template, text, names) ? q.template : null
+  q.template = allLiteral && !q.chart && typeof q.template === 'string' && templateMatches(q.template, text, names) ? q.template : null
   const errs: Array<{ formula: string; message: string }> = []
   for (const ce of Array.isArray(q.common_errors) ? q.common_errors : []) {
     if (!ce || typeof ce !== 'object') continue
@@ -781,6 +789,130 @@ function hasAmbiguousOptions(options: string[]): boolean {
     }
   }
   return false
+}
+
+// ==========================================================================
+// FAZ 4a — GRAFİK OKUMA (23.10.2026)
+//
+// Grafikler yalnızca kaynaktan gelir: kartın doğrulanmış "charts" verisi
+// (summarize-document sanitizeCharts) ve sayısal sütunlu "tables". Model
+// sayı kopyalamaz; soruya "chart_ref" (grafik numarası) yazar, grafiği
+// sunucu ekler. Böylece grafikteki her sayı belgede yazan sayıdır.
+// ==========================================================================
+const CHART_MAX_SOURCES = 6
+const CHART_MAX_POINTS = 24
+const CHART_MAX_SERIES = 3
+/** Grafik metni: sayı ya da kısa etiket de kabul ("Q1", 2021); boşluklar
+ *  sadeleşir, uzunsa kırpılır. */
+function chartLabel(value: unknown, max: number): string {
+  if (value == null || (typeof value !== 'string' && typeof value !== 'number')) return ''
+  const t = String(value).replace(/\s+/g, ' ').trim()
+  return t.length > max ? t.slice(0, max - 1) + '…' : t
+}
+type ChartSpec = { title: string; type: 'bar' | 'line' | 'pie'; labels: string[]; series: Array<{ name: string; data: number[] }>; unit: string }
+
+/** Grafik verisini doğrular ve kırpar; geçersizse null. Kabul: kart
+ *  charts biçimi ({labels, data}) ya da çok serili ({labels, series}). */
+function normalizeChartSpec(raw: unknown): ChartSpec | null {
+  if (!raw || typeof raw !== 'object') return null
+  const r = raw as Record<string, unknown>
+  const labels = (Array.isArray(r.labels) ? r.labels : []).map(l => chartLabel(l, 30)).slice(0, CHART_MAX_POINTS)
+  if (labels.length < 2 || labels.some(l => !l)) return null
+  const rawSeries = Array.isArray(r.series) ? r.series : (Array.isArray(r.data) ? [{ name: '', data: r.data }] : [])
+  const series: Array<{ name: string; data: number[] }> = []
+  for (const sr of rawSeries.slice(0, CHART_MAX_SERIES)) {
+    if (!sr || typeof sr !== 'object') continue
+    const d = (Array.isArray((sr as Record<string, unknown>).data) ? (sr as Record<string, unknown>).data as unknown[] : []).slice(0, labels.length).map(v => typeof v === 'number' ? v : parseLooseNumber(v))
+    if (d.length !== labels.length || d.some(v => !Number.isFinite(v))) continue
+    series.push({ name: chartLabel((sr as Record<string, unknown>).name, 40), data: d })
+  }
+  if (!series.length) return null
+  let type = ['bar', 'line', 'pie'].includes(String(r.type)) ? String(r.type) as ChartSpec['type'] : 'bar'
+  if (type === 'pie' && (series.length > 1 || series[0].data.some(v => v < 0))) type = 'bar'
+  return { title: chartLabel(r.title, 80) || 'Grafik', type, labels, series, unit: chartLabel(r.unit, 12) }
+}
+
+/** Tablo hücresi → sayı. "900.000" gibi tek noktalı ve noktadan sonra
+ *  tam üç rakamlı yazım (0 ile başlamıyorsa) binlik ayraç sayılır — Türkçe
+ *  belgelerde olağan olan bu; "0.125" ondalık kalır. */
+function tableNumber(v: unknown): number {
+  const raw = String(v ?? '').replace(/[%₺$€£]|TL/gi, '').replace(/\s+/g, '').trim()
+  if (/^[-+]?[1-9]\d{0,2}\.\d{3}$/.test(raw)) return Number(raw.replace('.', ''))
+  return parseLooseNumber(raw)
+}
+
+/** Tablo → grafik(ler): etiket sütunu ilk sayısal olmayan sütun (hepsi
+ *  sayıysa — yıl gibi — ilk sütun); tüm hücreleri sayı olan sütunlar seri.
+ *  Ölçeği 10 kattan fazla farklı sütunlar (TL ile %) ayrı grafiğe ayrılır;
+ *  her grafikte en çok 3 seri. Etiketler yıl/çeyrekse çizgi, değilse sütun. */
+function tableToCharts(table: unknown): ChartSpec[] {
+  if (!table || typeof table !== 'object') return []
+  const t = table as Record<string, unknown>
+  const headers = (Array.isArray(t.headers) ? t.headers : []).map(h => chartLabel(h, 40))
+  const rows = (Array.isArray(t.rows) ? t.rows : []).filter(Array.isArray) as unknown[][]
+  if (rows.length < 2 || rows.length > CHART_MAX_POINTS || headers.length < 2) return []
+  const num = (v: unknown) => tableNumber(v)
+  const numericCols = headers.map((_, j) => j).filter(j => rows.every(row => String(row[j] ?? '').trim() !== '' && Number.isFinite(num(row[j]))))
+  // Etiket: ilk sayısal olmayan sütun; hepsi sayıysa (yıl gibi) ilk sütun.
+  const firstText = headers.findIndex((_, j) => !numericCols.includes(j))
+  const labelCol = firstText >= 0 ? firstText : 0
+  const cols = numericCols.filter(j => j !== labelCol)
+  if (!cols.length) return []
+  const labels = rows.map(row => chartLabel(row[labelCol], 30))
+  const timeLike = labels.every(l => /^(1[89]|20)\d{2}\b|^Q[1-4]\b|^[1-4]\.\s*çeyrek/i.test(l))
+  const peak = (j: number) => Math.max(...rows.map(row => Math.abs(num(row[j])))) || 1
+  const groups: number[][] = []
+  for (const j of cols) {
+    const g = groups.find(gr => gr.length < CHART_MAX_SERIES && Math.max(peak(gr[0]), peak(j)) / Math.min(peak(gr[0]), peak(j)) <= 10)
+    if (g) g.push(j); else groups.push([j])
+  }
+  const out: ChartSpec[] = []
+  for (const g of groups) {
+    const percent = g.every(j => rows.every(row => /%/.test(String(row[j] ?? ''))))
+    const title = chartLabel(t.title, 80)
+    const spec = normalizeChartSpec({
+      title: groups.length > 1 || !title ? `${title ? title + ' — ' : ''}${g.map(j => headers[j]).join(', ')}`.slice(0, 80) : title,
+      type: timeLike ? 'line' : 'bar',
+      labels,
+      series: g.map(j => ({ name: headers[j], data: rows.map(row => num(row[j])) })),
+      unit: percent ? '%' : ''
+    })
+    if (spec) out.push(spec)
+  }
+  return out
+}
+
+/** Kartın (ya da ortak kartların) grafik ve tablolarından en çok 6 grafik. */
+function buildChartSources(charts: unknown, tables: unknown): ChartSpec[] {
+  const out: ChartSpec[] = []
+  for (const c of Array.isArray(charts) ? charts : []) { const n = normalizeChartSpec(c); if (n) out.push(n) }
+  for (const t of Array.isArray(tables) ? tables : []) out.push(...tableToCharts(t))
+  return out.slice(0, CHART_MAX_SOURCES)
+}
+
+/** Modele grafiklerin metin tarifi (numaralı). */
+function describeCharts(charts: ChartSpec[]): string {
+  return charts.map((c, i) => `[${i + 1}] "${c.title}" (${c.type})${c.unit ? ` unit ${c.unit}` : ''}\n` +
+    c.series.map(sr => `  ${sr.name || 'values'}: ` + c.labels.map((l, k) => `${l}=${sr.data[k]}`).join(', ')).join('\n')).join('\n')
+}
+
+/** Ham soruya chart_ref'e göre grafiği ekler (kopya); geçersizse grafik
+ *  yok. Model yazdıysa kendi "chart" alanı her zaman atılır. */
+function attachChart(raw: unknown, sources: ChartSpec[]): unknown {
+  if (!raw || typeof raw !== 'object') return raw
+  const q = { ...(raw as Record<string, unknown>) }
+  const ref = Number(q.chart_ref)
+  delete q.chart
+  delete q.chart_ref
+  if (Number.isInteger(ref) && ref >= 1 && ref <= sources.length) q.chart = sources[ref - 1]
+  return q
+}
+
+/** Grafikteki sayılar: hesap doğrulamasında "metinde yazan" sayılırlar. */
+function chartNumbers(chart: unknown): number[] {
+  const c = chart && typeof chart === 'object' ? chart as ChartSpec : null
+  if (!c || !Array.isArray(c.series)) return []
+  return c.series.flatMap(sr => Array.isArray(sr.data) ? sr.data.filter(Number.isFinite) : [])
 }
 
 /** Tek bir soruyu denetler ve temizlenmiş halini döner. Geçmezse
@@ -1487,6 +1619,8 @@ serve(async (req) => {
 
     let isQuant = false
     let context = ''
+    // FAZ 4a: kaynaktaki grafik ve tablolardan çizilebilir grafikler.
+    let chartSources: ChartSpec[] = []
     let isGrounded = true
     let isAdminKnowledgeGrounded = false
     let canonicalCourseCode: string | null = null
@@ -1524,6 +1658,7 @@ serve(async (req) => {
 
       isQuant = !!card.is_quantitative
       sourceDocumentId = typeof card.document_id === 'string' ? card.document_id : null
+      chartSources = buildChartSources(card.charts, card.tables)
       context = `
 SUMMARY:
 ${card.summary || ''}
@@ -1570,7 +1705,7 @@ ${card.worked_examples && card.worked_examples.length > 0 ? `WORKED EXAMPLES:\n$
       if (courseDeptName) {
         const { data: pooled, error: poolErr } = await userClient
           .from('study_cards')
-          .select('summary, key_terms, key_points, formulas, is_quantitative')
+          .select('summary, key_terms, key_points, formulas, is_quantitative, charts, tables')
           .eq('is_shared', true)
           .eq('department', courseDeptName)
           .ilike('course_tag', canonicalCourseCode)
@@ -1622,6 +1757,7 @@ ${card.worked_examples && card.worked_examples.length > 0 ? `WORKED EXAMPLES:\n$
       }
 
       if (sharedCards.length > 0) {
+        chartSources = sharedCards.flatMap(c => buildChartSources(c.charts, c.tables)).slice(0, CHART_MAX_SOURCES)
         const merged = sharedCards.map((c, idx) => `
 --- Shared Study Card ${idx + 1} ---
 SUMMARY: ${String(c.summary || '').slice(0, 1200)}
@@ -1674,6 +1810,8 @@ ${c.formulas && (c.formulas as unknown[]).length > 0 ? `FORMULAS: ${JSON.stringi
     // students requesting an exam for the same course (same branch, same
     // quant flag) send the exact same system message, letting Groq cache
     // it instead of re-billing/re-counting it against our rate limit.
+    if (chartSources.length > 0) context += `\n\nCHARTS (numbered; the student sees each drawn as a graph with labelled values):\n${describeCharts(chartSources)}`
+
     const sysPrompt = `
 You are an academic study assistant. ${sourceDescription}
 
@@ -1783,7 +1921,7 @@ Additional variation seed: ${Date.now()}`
     const absorb = (items: unknown[], allowUnverifiedCalc = false) => {
       for (const raw of items) {
         if (accepted.length >= requestedCount) break
-        const result = validateQuestion(raw, allowedTypes, language, scoring.option_count, allowUnverifiedCalc)
+        const result = validateQuestion(attachChart(raw, chartSources), allowedTypes, language, scoring.option_count, allowUnverifiedCalc)
         if (!result.ok || !result.question) {
           const reason = result.reason || 'unknown'
           rejectReasons.push(reason)
@@ -1840,6 +1978,8 @@ Additional variation seed: ${Date.now()}`
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
+
+    if (chartSources.length > 0) console.log(`generate-exam: ${chartSources.length} grafik kaynagi, ${accepted.filter(q => q.chart).length} grafikli soru`)
 
     // Sıra numaralarını yeniden ver, zorluğu sunucuda damgala (modelin geri
     // yansıtmasına güvenme), çoktan seçmeli şıkları karıştır.
