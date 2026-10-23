@@ -102,13 +102,31 @@ const CHART_SKILLS = ['trend', 'extreme', 'compare', 'change', 'share', 'average
 
 type ChunkRow = { page_start: number | null; page_end: number | null; text: string }
 
-/** document_chunks satırlarından sayfa → metin. */
+/** document_chunks satırlarından sayfa → metin. Birden çok sayfayı kapsayan
+ *  parça (page_start 2, page_end 4) satır sınırlarında, karakter payına göre
+ *  sırayla sayfalarına bölünür; yalnızca ilk sayfaya yazılırsa sonraki
+ *  sayfalardaki grafikli sorular aday olamaz (canlı test, 24.10.2026). */
 function pageTexts(rows: ChunkRow[]): Map<number, string> {
   const out = new Map<number, string>()
+  const add = (p: number, t: string) => out.set(p, (out.get(p) || '') + '\n' + t)
   for (const r of rows || []) {
     const p = Number(r && r.page_start)
     if (!Number.isInteger(p) || p <= 0) continue
-    out.set(p, (out.get(p) || '') + '\n' + String(r.text || ''))
+    const text = String(r.text || '')
+    const e = Number(r.page_end)
+    const span = Number.isInteger(e) && e > p ? Math.min(e - p + 1, 30) : 1
+    if (span === 1) { add(p, text); continue }
+    // Sayfalar boş satırla ayrılmışsa ve sayısı tutuyorsa bire bir.
+    const blocks = text.split(/\n[ \t]*\n/)
+    if (blocks.length === span) { blocks.forEach((b, i) => add(p + i, b)); continue }
+    const lines = text.split('\n')
+    const target = text.length / span
+    let page = p, used = 0, part: string[] = []
+    for (const ln of lines) {
+      part.push(ln); used += ln.length + 1
+      if (used >= target * (page - p + 1) && page < p + span - 1) { add(page, part.join('\n')); part = []; page++ }
+    }
+    add(page, part.join('\n'))
   }
   return out
 }

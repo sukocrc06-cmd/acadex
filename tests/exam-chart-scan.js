@@ -55,6 +55,26 @@ test('aday sayfalar: iz yoksa neredeyse bos sayfalar, o da yoksa ilk uc sayfa', 
   assert.deepEqual(S.selectCandidatePages(full, 4), [1, 2, 3]);
 });
 
+test('pageTexts: birden cok sayfali parca sayfalarina bolunur (canli test 24.10.2026)', () => {
+  const p2 = 'Yıllara göre ihracat\nGrafiğe göre aşağıdaki ifadelerden hangileri doğrudur?\nI. 2020 yılında ihracat azalmıştır.\nA) Yalnız I\nB) Yalnız II\nC) I ve II';
+  const p3 = 'Bir firmanın satış ve maliyetleri\nGrafiğe göre aşağıdakilerden hangisi söylenemez?\nA) Satışlar azalmıştır.\nB) Maliyetler artmıştır.';
+  const p4 = 'Bölgelere göre pazar payı (%)\nGrafiğe göre aşağıdakilerden hangisi söylenebilir?\nA) En düşük pay Ege\'dedir.\nB) Marmara en yüksektir.';
+  const rows = [
+    { page_start: 1, page_end: 1, text: 'Konu özeti. '.repeat(30) },
+    { page_start: 2, page_end: 4, text: [p2, p3, p4].join('\n\n') },
+    { page_start: 5, page_end: 5, text: 'Grafiğe göre 2. çeyrekten 3. çeyreğe satış yüzde kaç artmıştır?\nA) %15\nB) %20' }
+  ];
+  const t = S.pageTexts(rows);
+  assert.match(t.get(3), /söylenemez/);
+  assert.match(t.get(4), /söylenebilir/);
+  assert.doesNotMatch(t.get(2), /söylenemez/);
+  assert.deepEqual(S.selectCandidatePages(t, 5), [2, 3, 4, 5]);
+  // bos satir sayisi tutmazsa karakter payina gore bolunur; her sayfaya metin duser
+  const t2 = S.pageTexts([{ page_start: 2, page_end: 4, text: [p2, p3, p4].join('\n') }]);
+  for (const p of [2, 3, 4]) assert.ok((t2.get(p) || '').length > 20, 'sayfa ' + p);
+  assert.match(t2.get(4), /söylenebilir/);
+});
+
 test('inferFormat: model bicimi gecerliyse o; degilse metinden', () => {
   assert.equal(S.inferFormat('premises', '', [], []), 'premises');
   assert.equal(S.inferFormat('', 'Grafiğe göre aşağıdakilerden hangisi söylenemez?', ['a', 'b', 'c', 'd'], []), 'which_false');
