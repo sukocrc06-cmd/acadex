@@ -4171,7 +4171,7 @@ body.axs-hall-on #pomodoro-widget-container,body.axs-hall-on #acadia-widget-cont
 .axe-expr-pv.bad{color:#C9483B;border-color:#F0C9C3}
 .axe-expr-note{margin:0;font-size:13px;color:#B4511F}
 .axe-expr-note::before{content:"→ "}
-:is(#exams-view.axs,#axs-layer) .sn-math{display:inline-block;font-family:inherit;font-size:1.05em;max-width:100%;overflow-x:auto;overflow-y:hidden;padding:4px 2px;vertical-align:middle}
+:is(#exams-view.axs,#axs-layer) .sn-math{display:inline-block;font-family:inherit;font-size:1.05em;max-width:100%;overflow-x:auto;overflow-y:hidden;padding:6px 2px;vertical-align:middle}
 :is(#exams-view.axs,#axs-layer) .sn-fbk{margin:8px 0 0}
 :is(#exams-view.axs,#axs-layer) .sn-fbk-c{display:flex;flex-wrap:wrap;gap:6px}
 :is(#exams-view.axs,#axs-layer) .sn-chip{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;border:1.3px solid currentColor}
