@@ -95,6 +95,9 @@ test('sanitizeVariables: gecersiz ad, fonksiyon/sabit adi ve sayi olmayan deger 
   const v = G.sanitizeVariables({ P: 1000, r: '5', 'bad name': 3, pi: 3, e: 1, x: 'abc', n: Infinity, k_2: 0.1, constructor: 5 });
   assert.deepEqual(v, { P: 1000, r: 5, k_2: 0.1, constructor: 5 });
   assert.deepEqual(G.sanitizeVariables({ PV: 10, sqrt: 2 }), { PV: 10, sqrt: 2 }, 'fonksiyon adi degisken olabilir');
+  assert.deepEqual(G.sanitizeVariables({ number_of_periods: 240, ['x'.repeat(33)]: 1 }), { number_of_periods: 240 }, 'uzun ad (32 ye kadar) gecer');
+  assert.ok(Math.abs(G.evaluateExpression('pmt(interest_rate/12/100, number_of_periods, present_value)', G.sanitizeVariables({ interest_rate: 4, number_of_periods: 180, present_value: 500000 })) - 3698.44) < 0.01, 'canli testteki formul');
+  assert.deepEqual(E.sanitizeVariables({ number_of_periods: 240 }), { number_of_periods: 240 });
   assert.equal(G.evaluateExpression('sqrt(sqrt) + PV', { sqrt: 16, PV: 1 }), 5, 'ad( fonksiyon, ad degisken');
   assert.equal(G.evaluateExpression('constructor + 1', v), 6, 'kendi alani olarak verilen ad calisir, prototipe ulasilmaz');
   assert.deepEqual(G.sanitizeVariables(null), {});
