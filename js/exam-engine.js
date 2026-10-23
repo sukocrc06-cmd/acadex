@@ -1151,6 +1151,7 @@
     const FN = { sin: '\\sin', cos: '\\cos', tan: '\\tan', ln: '\\ln', log: '\\log', log10: '\\log_{10}', exp: '\\exp', asin: '\\arcsin', acos: '\\arccos', atan: '\\arctan' };
     const strip = n => (n.k === 'par' ? n.a : n);
     const leftLeaf = n => (n.k === 'bin' ? leftLeaf(n.a) : n);
+    const rightLeaf = n => (n.k === 'bin' && n.op !== '^' && n.op !== '/' ? rightLeaf(n.b) : n);
     const tex = n => {
       if (n.k === 'num') return n.v;
       if (n.k === 'id') return n.v === 'pi' ? '\\pi' : n.v.length > 1 ? '\\mathrm{' + n.v.replace(/_/g, '\\_') + '}' : n.v;
@@ -1167,8 +1168,9 @@
         return base + '^{' + tex(strip(n.b)) + '}';
       }
       if (n.op === '*') {
-        const r = leftLeaf(n.b);
-        return tex(n.a) + (r.k === 'num' || r.k === 'neg' ? ' \\cdot ' : ' ') + tex(n.b);
+        const r = leftLeaf(n.b), l = rightLeaf(n.a);
+        const sep = r.k === 'num' || r.k === 'neg' ? ' \\cdot ' : (r.k === 'fn' || l.k === 'fn') ? ' \\, ' : ' ';
+        return tex(n.a) + sep + tex(n.b);
       }
       return tex(n.a) + ' ' + n.op + ' ' + tex(n.b);
     };
@@ -1193,7 +1195,8 @@
     const tex = norm ? exprToTex(norm) : '';
     if (!tex) return null;
     if (typeof window !== 'undefined' && window.katex && typeof window.katex.renderToString === 'function') {
-      try { return window.katex.renderToString(tex, { throwOnError: false, displayMode: false }); } catch (_e) { /* düz metne düş */ }
+      // \displaystyle: kesirler satır içinde de tam boy (x³/3 okunur kalsın).
+      try { return window.katex.renderToString('\\displaystyle ' + tex, { throwOnError: false, displayMode: false }); } catch (_e) { /* düz metne düş */ }
     }
     return String(norm).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   }
