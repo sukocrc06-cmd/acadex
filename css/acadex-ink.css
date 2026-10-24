@@ -8697,3 +8697,22 @@ html.ax-themefx{transition:filter .6s ease}
 #summary-style-modal.axs2 .axs2-tile.soon .tl{background:repeating-linear-gradient(-45deg,#FBF9F3 0 8px,#F3EFE4 8px 16px);border-style:dashed;opacity:.75;transform:none!important;box-shadow:none!important}
 #summary-style-modal.axs2 .axs2-tile.soon .tk{display:none}
 #summary-style-modal.axs2 .axs2-soon{position:absolute;top:-10px;right:10px;padding:2px 10px;border-radius:999px;background:#E8B53A;color:#0D1838;font-size:17px;transform:rotate(3deg);box-shadow:2px 2px 0 #0D1838}
+
+/* ===== telefon/tablet (hata raporu 24.10.2026) ===== */
+/* çentik: dashboard.html viewport-fit=cover; üst bar, alt menü ve içerik güvenli alanda kalır */
+body.acx .ax-bar{height:calc(64px + env(safe-area-inset-top));padding-top:env(safe-area-inset-top);padding-left:max(14px,env(safe-area-inset-left));padding-right:max(20px,env(safe-area-inset-right))}
+body.acx .dashboard-layout{margin-top:calc(64px + env(safe-area-inset-top));padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
+body.acx .sidebar.ax-side{top:calc(64px + env(safe-area-inset-top))}
+@media (max-width:560px){body.acx .ax-bar{padding-left:max(8px,env(safe-area-inset-left));padding-right:max(8px,env(safe-area-inset-right))}}
+@media (max-width:760px){body.acx .ax-bnav{padding-left:max(6px,env(safe-area-inset-left));padding-right:max(6px,env(safe-area-inset-right))}}
+/* klavye açıkken tam ekran kart görünen alana sığar (--ax-vvh: js/acadex-ink.js sonu) */
+@media (max-width:900px){#study-card-modal.axr .axr-card{height:var(--ax-vvh,100dvh)!important}}
+/* modal ve çekmecelerde kaydırma arkadaki sayfaya taşmaz */
+.modal-overlay,dialog,body.acx .sidebar.ax-side,#study-card-modal.axr .axr-card{overscroll-behavior:contain}
+/* dokunmatikte en az 44px: optik form düğmeleri */
+@media (pointer:coarse){:is(#exams-view.axs,#axs-layer) .sn-opt li button{min-height:44px}}
+/* teslim edilirken düğme kilitli görünür (dashboard.js submitExam) */
+#btn-submit-exam:disabled{opacity:.65;cursor:progress;pointer-events:none}
+/* hareket azaltma ve yazdırma: animasyon yok, içerik anında görünür */
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+@media print{*,*::before,*::after{animation:none!important;transition:none!important}}

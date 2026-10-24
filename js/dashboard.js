@@ -7927,8 +7927,14 @@ function readExamFlagsFromDom(exam) {
   return flags;
 }
 
+// Çift teslim kilidi: süre sayacı iki yerden (dashboard + acadex-ink) otomatik
+// gönderim tetikleyebiliyor, dokunmatikte onay da iki kez basılabiliyor.
+// Biri yoldayken ikinci grade-exam POST'u atılmaz.
+let examSubmitInFlight = false;
+
 async function submitExam(opts = {}) {
   if (!currentActiveExam) return;
+  if (examSubmitInFlight) return;
 
   const btn = document.getElementById('btn-submit-exam');
   if (!btn) return;
@@ -7961,6 +7967,7 @@ async function submitExam(opts = {}) {
   const flags = engineActive ? E.getFlags() : readExamFlagsFromDom(currentActiveExam);
 
   const originalText = btn.textContent;
+  examSubmitInFlight = true;
   btn.disabled = true;
   btn.textContent = currentActiveExam.language === 'tr' ? 'Değerlendiriliyor...' : 'Grading...';
 
@@ -8023,6 +8030,7 @@ async function submitExam(opts = {}) {
     console.error("Exception submitting exam: ", err);
     showDashboardAlert('error', 'Sınav gönderilirken bağlantı hatası oluştu.');
   } finally {
+    examSubmitInFlight = false;
     btn.disabled = false;
     btn.textContent = originalText;
   }

@@ -21,10 +21,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
-  // Run on load and bind to scroll event
+  // Run on load and bind to scroll event (passive + one rAF per frame so
+  // scrolling never waits on this handler)
   if (header) {
     handleScroll();
-    window.addEventListener('scroll', handleScroll);
+    let scrollRaf = 0;
+    window.addEventListener('scroll', () => {
+      if (scrollRaf) return;
+      scrollRaf = requestAnimationFrame(() => { scrollRaf = 0; handleScroll(); });
+    }, { passive: true });
   }
 
   // ==========================================
