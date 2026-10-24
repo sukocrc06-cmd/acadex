@@ -48,7 +48,8 @@ const NAMES = [
   'GEMINI_MAX_RESUMES', 'GEMINI_DEVAM_PAYI_MS', 'GEMINI_DEVAM_KAYIT_PAYI_MS', 'geminiDevamDesteklemeyen',
   'geminiAkisDurumu', 'geminiSseBlogunuIsle', 'geminiAkisiTuket',
   'geminiAkisIstegi', 'geminiAkisSonucu', 'geminiAkisiDevamEttir',
-  'closeTruncatedJson', 'LATEX_IKI_HARFLI', 'repairLatexEscapes', 'geminiAkisOlcumu'
+  'closeTruncatedJson', 'LATEX_IKI_HARFLI', 'repairLatexEscapes', 'geminiAkisOlcumu', 'onbellegeYazilabilir', 'maddeMetni',
+  'dedupeByText', 'dedupeKeyTerms', 'normalizeForDedup', 'NEAR_DUP_THRESHOLD'
 ];
 
 // Deno global'i: cikarilan kod Deno.env.get cagiriyor. Node'da yok, kukla.
@@ -1249,18 +1250,146 @@ test('BASARILI kosuda gecici dusus BILDIRILMIYOR', async () => {
   } finally { restoreFetch(); }
 });
 
-test('onbellek kapisi gecici dusus KOSULUNU okuyor', () => {
+/* 24.10.2026 — BU TEST KOSULLARIN VARLIGINI OLCUYORDU, MANTIGINI DEGIL.
+ *
+ * Eski hali `satir.includes('geminiKismiKrk === 0')` gibi dizge aramalari
+ * yapiyordu. Yani `&&` -> `||` yazilsa, bir `!` dusse ya da kapi baska bir
+ * dalin icine tasinsa test YESIL kalir ve kismi/zayif kart kalici olarak
+ * onbellege girerdi. Karar artik saf bir fonksiyonda (onbellegeYazilabilir)
+ * ve 16 kombinasyonun tamami sinaniyor. */
+/* 24.10.2026 — SEMA SAPMASI BIRLESMEYI COKERTIYORDU VE BELGE ASKIDA KALIYORDU.
+ *
+ * Model (ozellikle gpt-oss-20b, ki pencere 2 sistematik olarak oraya dusuyor)
+ * `key_points`'i bazen [{point: "..."}] olarak donduruyor. Iki dedupeByText
+ * cagrisi kimlik fonksiyonu geciyordu ve normalizeForDedup dizge bekledigi
+ * icin TypeError atiyordu — olculdu:
+ *   normalizeForDedup({text:'...'}) -> (s || "").toLowerCase is not a function
+ * Ustune en dis catch markFailed CAGIRMIYORDU, yani belge sonsuza kadar
+ * 'processing' kaliyor ve ogrenci bekliyordu. */
+test('maddeMetni SEKILDEN bagimsiz okuyor', () => {
+  assert.equal(G.maddeMetni('Issizlik artti'), 'Issizlik artti');
+  assert.equal(G.maddeMetni({ text: 'Issizlik artti' }), 'Issizlik artti');
+  assert.equal(G.maddeMetni({ point: 'Issizlik artti' }), 'Issizlik artti');
+  assert.equal(G.maddeMetni(null), '');
+  assert.equal(G.maddeMetni({}), '');
+});
+
+test('birlesme NESNE maddelerde COKMUYOR', () => {
+  /* Asil kusur bir istisnaydi; bu yuzden "patlamiyor" iddiasini aciktan
+     yaziyorum. Kimlik fonksiyonu geri gelirse bu test duser. */
+  assert.doesNotThrow(() => G.dedupeByText([{ point: 'a' }, { point: 'b' }], G.maddeMetni));
+  assert.equal(G.dedupeByText([{ point: 'a' }, { point: 'b' }, { point: 'a' }], G.maddeMetni).length, 2);
+  assert.equal(G.dedupeByText(['a', { point: 'b' }, null], G.maddeMetni).length, 2,
+    'karisik dizi de tolere edilmeli');
+});
+
+test('cagri yerleri kimlik fonksiyonu KULLANMIYOR', () => {
   const src = require('node:fs').readFileSync(
     require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
-  assert.ok(src.includes('!geminiTani.geciciDustu'),
-    'cache kapisi yedek yolu ayirt etmiyor — zayif kart kalicilasir');
-  const kapi = src.indexOf('if (summaryCacheKey && !eksikPencereler');
-  assert.ok(kapi > 0, 'cache yazma kapisi bulunamadi');
-  /* Uc kosul birlikte: tam kart (iki) + istenen kart (bir). Biri dusunce
-     digerleri de gitmesin diye tek satirda tutuluyor. */
-  const satir = src.slice(kapi, src.indexOf('\n', kapi));
-  for (const k of ['!eksikPencereler', 'geminiKismiKrk === 0', '!geminiTani.geciciDustu']) {
-    assert.ok(satir.includes(k), `cache kapisinda ${k} yok: ${satir}`);
+  assert.ok(!/dedupeByText\([^)]*\(x: string\) => x\)/.test(src),
+    'kimlik getter geri gelmis — nesne maddede TypeError atar');
+  assert.equal((src.match(/dedupeByText\([^;]*maddeMetni\)/g) || []).length, 2,
+    'iki key_points birlesmesinin ikisi de sekil-toleransli okuyucu kullanmali');
+});
+
+test('key_terms DIZGE dizisi olarak gelirse sozluk KAYBOLMUYOR', () => {
+  /* Olculdu: dedupeKeyTerms(['Esneklik','GSYH']) -> 0 kayit. "Window 2 ok:
+     terms=24" yaziliyor, birlesim o 24'u hic icermiyor, hicbir satir neden
+     gittigini soylemiyordu. */
+  const r = G.dedupeKeyTerms(['Esneklik', 'GSYH', 'Esneklik']);
+  assert.equal(r.length, 2, 'dizge terimler hala sessizce dusuyor');
+  assert.equal(r[0].term, 'Esneklik');
+  assert.equal(r[0].definition, '', 'tanim alani bos dizge olmali');
+  // Nesne yolu bozulmadi.
+  assert.equal(G.dedupeKeyTerms([{ term: 'Esneklik', definition: 'tanim' }]).length, 1);
+  // Gercekten atilan kayit hala atiliyor (ama artik loglaniyor).
+  assert.equal(G.dedupeKeyTerms([{ definition: 'term alani yok' }]).length, 0);
+});
+
+test('beklenmeyen istisna belgeyi ASKIDA birakmiyor', () => {
+  const src = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+  const i = src.indexOf("console.error('Unexpected Edge Function exception: '");
+  assert.ok(i > 0, 'en dis catch bulunamadi');
+  const blok = src.slice(i, i + 600);
+  assert.ok(/markFailed\(hataIcinClient, hataIcinDocumentId\)/.test(blok),
+    'en dis catch belgeyi basarisiz isaretlemiyor — ogrenci sonsuza kadar bekler');
+  // documentId'nin catch'e ulasabilmesi icin try DISINDA tutulmasi gerekiyor.
+  assert.ok(/let hataIcinDocumentId: string \| null = null/.test(src),
+    'documentId catch e tasinmiyor');
+});
+
+test('ATLANAN pencereler eksik kapsamaya sayiliyor', () => {
+  /* Iki kisa devre (butce ve "enough extractions") kalan pencereleri hic
+     cagirmiyor, ama dusenPencereler'e girmiyordu: "EKSIK BELGE" olcumu ve
+     quality_meta.missing_windows bu kaybi hic gormuyordu. 12 pencereli bir
+     belgede ucte ikisi karta girmeyebilir ve hicbir yerde yazmazdi. */
+  const src = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+  assert.ok(/const kalanlariAtla = \(sebep: string\)/.test(src), 'atlama muhasebesi yok');
+  const i = src.indexOf('const kalanlariAtla =');
+  const blok = src.slice(i, i + 420);
+  assert.ok(/dusenPencereler\.push\(wi \+ 1\)/.test(blok),
+    'atlanan pencereler dusenPencereler e yazilmiyor');
+  /* Iki kisa devrenin IKISI de bu muhasebeden gecmeli: butce dar ve
+     "yeterli cikarim". Tanim `kalanlariAtla = (` biciminde oldugu icin
+     asagidaki desene uymuyor; sayilan sey yalnizca CAGRI yerleri. */
+  assert.equal((src.match(/kalanlariAtla\(`/g) || []).length, 2,
+    'iki kisa devreden biri muhasebeye baglanmamis');
+  assert.ok(/kalanlariAtla\(`Butce dar/.test(src), 'butce kisa devresi baglanmamis');
+  assert.ok(/kalanlariAtla\(`Yeterli cikarim/.test(src), 'yeterli-cikarim kisa devresi baglanmamis');
+  assert.ok(!/console\.log\('Enough extractions — skipping remaining windows'\)/.test(src),
+    'eski sessiz log hala duruyor');
+});
+
+test('onbellek kapisi: 16 kombinasyonun tamami', () => {
+  const T = [true, false];
+  let yazilan = 0;
+  for (const anahtarVar of T) {
+    for (const eksikPencereVar of T) {
+      for (const kismi of T) {
+        for (const geciciDustu of T) {
+          const k = { anahtarVar, eksikPencereVar, geminiKismiKrk: kismi ? 2000 : 0, geciciDustu };
+          const sonuc = G.onbellegeYazilabilir(k);
+          const beklenen = anahtarVar && !eksikPencereVar && !kismi && !geciciDustu;
+          assert.equal(sonuc, beklenen,
+            `yanlis karar: ${JSON.stringify(k)} -> ${sonuc}, beklenen ${beklenen}`);
+          if (sonuc) yazilan++;
+        }
+      }
+    }
+  }
+  // 16 kombinasyondan YALNIZCA biri yazmali: dort kosulun hepsi lehte.
+  assert.equal(yazilan, 1, `${yazilan} kombinasyon yaziyor — kapi gevsemis`);
+});
+
+test('onbellek kapisi: her kosul TEK BASINA engelliyor', () => {
+  const temel = { anahtarVar: true, eksikPencereVar: false, geminiKismiKrk: 0, geciciDustu: false };
+  assert.equal(G.onbellegeYazilabilir(temel), true, 'temel hal yazmali');
+  const engeller = [
+    ['anahtar yok', { anahtarVar: false }],
+    ['eksik pencere', { eksikPencereVar: true }],
+    ['kismi Gemini taslagi', { geminiKismiKrk: 1 }],
+    ['gecici hatayla dusus', { geciciDustu: true }],
+  ];
+  for (const [ad, fark] of engeller) {
+    assert.equal(G.onbellegeYazilabilir({ ...temel, ...fark }), false,
+      `${ad} tek basina engellemiyor — zayif kart kalicilasir`);
+  }
+});
+
+test('onbellek kapisi kaynakta SAF fonksiyondan cagriliyor', () => {
+  const src = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+  assert.ok(/if \(onbellegeYazilabilir\(\{/.test(src),
+    'kapi hala satir ici kosul zinciri — mantigi test edilemez');
+  assert.ok(!/if \(summaryCacheKey && !eksikPencereler/.test(src),
+    'eski satir ici kapi hala duruyor');
+  // Dort alanin dordu de gercekten baglanmis olmali.
+  const i = src.indexOf('if (onbellegeYazilabilir({');
+  const blok = src.slice(i, i + 320);
+  for (const alan of ['anahtarVar', 'eksikPencereVar', 'geminiKismiKrk', 'geciciDustu']) {
+    assert.ok(blok.includes(alan), `${alan} kapiya baglanmamis: ${blok.slice(0, 160)}`);
   }
 });
 

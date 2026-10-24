@@ -754,16 +754,34 @@ test('bekleme tavani pencereyi ASMALI (canli logdan gelen hata)', () => {
     `tavan (${A.PACER_MAX_WAIT_MS}) pencereden (${A.PACER_WINDOW_MS}) buyuk olmali`);
 });
 
-test('gereken sure tavandan buyukse HIC beklemez', async () => {
-  const p = freshPacer(8000);
-  p.lane(M_A).spent = [{ at: Date.now(), tokens: 7900 }];
-  const t0 = Date.now();
-  // acquire'i tavanin tuketildigi noktadan baslatmak icin: cok buyuk est ile
-  // bile bekleme gereken sureyi asamayacagindan hizli donmeli ya da gercek
-  // sureyi beklemeli — ikisi de kabul, ama 55s'lik olu bekleme OLMAMALI.
-  await Promise.race([p.acquire(3000, M_A), new Promise(r => setTimeout(r, 300))]);
-  const waited = Date.now() - t0;
-  assert.ok(waited < 1000 || waited >= 250, 'olu bekleme olmamali');
+test('GEREKEN bekleme her zaman tavanin ALTINDA — pacer bir beklemeden vazgecmez', () => {
+  /* 24.10.2026 — BU TEST HICBIR ZAMAN BASARISIZ OLAMIYORDU, VE ADI DA
+   * ARTIK ULASILAMAZ BIR DALI ANLATIYORDU.
+   *
+   * Eski iddia: `assert.ok(waited < 1000 || waited >= 250)`. `waited`
+   * negatif olamayacagina gore 1000'den buyukse 250'den de buyuktur — iki
+   * kosuldan biri HER ZAMAN dogruydu. Ustelik olcum `Promise.race` ile
+   * 300ms'de kapatiliyordu, yani sayinin kendisi de bir sey anlatmiyordu.
+   *
+   * Testi gercekten olcen hale getirdigimde DUSTU ve sebebi ogretici:
+   * senaryo (tek kayit, 7900/8000) bugun ~60 saniye bekleme GEREKTIRIYOR ve
+   * pacer dogru olarak BEKLIYOR. Yani "gereken sure tavandan buyukse hic
+   * beklemez" dali artik yapisal olarak olu — ve bu BILINCLI:
+   * PACER_MAX_WAIT_MS (65s) pencereden (60s) buyuk secilmis, cunku tek bir
+   * kayit en fazla pencere kadar bekletir. Sabitin kendi yorumu bunu
+   * soyluyor: "a wait that is needed is a wait that completes".
+   *
+   * Dolayisiyla korunacak sey o olu dal degil, onu olu yapan ARITMETIK.
+   * Boylece tavan yeniden pencerenin altina indirilirse (55s hatasi geri
+   * gelirse) bu test duser — eski haliyle dusmuyordu. */
+  assert.ok(A.PACER_WINDOW_MS < A.PACER_MAX_WAIT_MS,
+    `tavan (${A.PACER_MAX_WAIT_MS}) pencerenin (${A.PACER_WINDOW_MS}) altinda — ` +
+    'her uzun bekleme tanim geregi bosuna olur ve 55s olu bekleme geri doner');
+  /* Tek kaydin bekletebilecegi en uzun sure pencere kadardir; tavan onun
+     ustunde oldugu icin gereken her bekleme TAMAMLANABILIR. */
+  const enUzunGereken = A.PACER_WINDOW_MS;
+  assert.ok(enUzunGereken <= A.PACER_MAX_WAIT_MS,
+    'gereken bekleme tavani asabiliyor — pacer isine yarayan bir beklemeden vazgecer');
 });
 
 test('tamamlama tahmini tavanin tamamini saymaz', () => {
@@ -1576,7 +1594,13 @@ test('kaynakta olmayan yil, yil-only parantezle birlikte silinir', () => {
   const before = 'A brief history highlights the Great Depression (1929‑1933), the post-war era.';
   const r = A.scrubUnsupportedYears(before, YEAR_SOURCE);
   assert.equal(r.text, 'A brief history highlights the Great Depression, the post-war era.');
-  assert.deepEqual(r.removed, ['1933']);
+  /* 24.10.2026: `removed` artik metinden GERCEKTEN cikan butun yillari
+     tasiyor. Eskiden yalnizca ['1933'] diyordu, oysa 1929 da parantezle
+     birlikte gitmisti ve hicbir yerde yazmiyordu — log olani eksik
+     anlatiyordu. Davranis AYNI (parantez tumden siliniyor, bkz. oradaki
+     yorum); degisen tek sey raporlamanin durustlugu. */
+  assert.deepEqual(r.removed, ['1929', '1933'],
+    'parantezle birlikte giden desteklenen yil da raporlanmali');
   assert.deepEqual(r.flagged, [], 'silinen yil ayrica isaretlenmemeli');
 });
 
@@ -1631,7 +1655,13 @@ test('sanitizeNarrativeYears ozet, yonetici ozeti ve bolumleri kapsar', () => {
   assert.equal(draft.summary_executive, 'Covers 1929.');
   assert.equal(draft.sections[0].summary, 'Stagflation followed the 1973-1975 period.', 'desteklenen aralik durmali');
   assert.equal(r.changed, 2, 'iki alan degismeli');
-  assert.deepEqual(r.removed, ['1933']);
+  /* 24.10.2026: `removed` metinden GERCEKTEN cikan yillari tasiyor. summary
+     alanindaki parantez tumden silindigi icin 1929 da cikti (davranis ayni,
+     bkz. scrubUnsupportedYears yorumu); summary_executive'de parantez yok,
+     orada 1929 KORUNDU ve yalnizca 1933 atildi. Eskiden log ikisini de
+     ['1933'] diye raporluyordu, yani birinci alandaki kaybi hic soylemiyordu. */
+  assert.deepEqual(r.removed, ['1929', '1933'],
+    'parantezle birlikte giden desteklenen yil da raporlanmali');
   // key_points applyGroundingGate'in isi — bu kapi ona dokunmamali.
   assert.match(draft.key_points[0], /1933/);
 });

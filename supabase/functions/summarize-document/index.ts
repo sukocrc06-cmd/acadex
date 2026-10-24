@@ -2358,12 +2358,45 @@ EXAM-FOCUSED CONTENT FILTERING (not optional):
 If any part-summary contains course administration/logistics — grading weights, exam format/rules, attendance policy, grade-appeal procedures, office hours, textbook title/edition — EXCLUDE it from your final summary entirely, even if it was mistakenly included in a part-summary. Only synthesize the actual academic subject matter (concepts, theories, definitions, processes, relationships, formulas, examples).`
 }
 
+/* MADDE METNINI SEKILDEN BAGIMSIZ OKU (24.10.2026).
+ *
+ * Model sema disina ciktiginda (ozellikle gpt-oss-20b, ki pencere 2
+ * sistematik olarak oraya dusuyor) `key_points` bazen dizge yerine
+ * {text}/{point} nesnesi donuyor. Dosyanin bir yerinde bunu tolere eden
+ * okuyucu VAR, iki dedupeByText cagrisi ise kimlik fonksiyonu geciyordu ve
+ * normalizeForDedup dizge bekledigi icin TypeError atiyordu:
+ *
+ *   normalizeForDedup({text: '...'}) -> (s || "").toLowerCase is not a function
+ *
+ * Istisna birlesme sirasinda olusuyor; en dis catch de belgeyi askida
+ * birakiyordu (bkz. hataIcinDocumentId). Yani tek bir sema sapmasi =
+ * sonsuz bekleyen ogrenci. Ayni mantigin iki ayri yazimi, yine. */
+function maddeMetni(p: any): string {
+  return typeof p === 'string' ? p : String(p?.text || p?.point || '')
+}
+
+/* KEY_TERMS DIZGE DIZISI OLARAK GELIRSE (24.10.2026).
+ *
+ * `if (!t || !t.term) continue` dizge girdiyi hicbir sayac artirmadan
+ * dusuruyordu: model `key_terms: ["Esneklik","GSYH"]` dondugunde
+ * "Window 2 ok: terms=24" yaziliyor, birlesim o 24'u HIC icermiyor ve
+ * hicbir satir neden gittigini soylemiyordu. Olculdu:
+ *   dedupeKeyTerms(['Esneklik','GSYH']) -> 0 kayit
+ *
+ * Artik dizge girdi {term, definition:''} olarak normalize ediliyor ve
+ * gercekten atilan kayit SAYILIP loglaniyor. Tanimsiz terim karta girebilir;
+ * cloze uretimi onlari zaten atliyor, sessiz kaybetmek daha kotu. */
 function dedupeKeyTerms(terms: any[]): any[] {
   const seen = new Map<string, any>()
+  let atilan = 0
   for (const t of terms) {
-    if (!t || !t.term) continue
-    const key = String(t.term).trim().toLowerCase()
-    if (!seen.has(key)) seen.set(key, t)
+    const kayit = typeof t === 'string' ? { term: t, definition: '' } : t
+    if (!kayit || !kayit.term) { if (t != null) atilan++; continue }
+    const key = String(kayit.term).trim().toLowerCase()
+    if (!seen.has(key)) seen.set(key, kayit)
+  }
+  if (atilan > 0) {
+    console.warn(`dedupeKeyTerms: ${atilan} kayit 'term' alani olmadigi icin atildi`)
   }
   return Array.from(seen.values())
 }
@@ -4541,7 +4574,26 @@ function scrubUnsupportedYears(
     if (!years.length) return whole                       // "(3)" etc — not ours
     const bad = years.filter(y => !supported(y))
     if (!bad.length) return whole
-    removed.push(...bad)
+    /* LOG YALAN SOYLUYORDU (24.10.2026).
+     *
+     * Parantez butunuyle silindiginde icindeki DESTEKLENEN yillar da
+     * gidiyor, ama `removed`'a yalnizca desteklenmeyenler yaziliyordu.
+     * Olculdu, kaynak "began in 1929":
+     *   "Great Depression (1929-1933), the post-war era."
+     *     -> "Great Depression, the post-war era."   removed: ["1933"]
+     * 1929 metinden cikti ama hicbir yerde yazmadi.
+     *
+     * DAVRANIS BILEREK DEGISTIRILMEDI. Parantezli yarim bir aralik —
+     * "(1929)" — okuyana tam bir tarih gibi gorunur ve yanlis bilgi verir;
+     * bu yuzden parantezin tumden silinmesi savunulabilir bir editoryal
+     * karar ve "karttan birebir" notuyla teste baglanmis durumda. Degisen
+     * tek sey RAPORLAMA: `removed` artik metinden gercekten cikan butun
+     * yillari tasiyor, yani log olanı oldugu gibi soyluyor.
+     *
+     * Not: parantezsiz ayni aralik (2) numarali onarimda desteklenen ucu
+     * KORUYOR. Iki bicimin farkli davranmasi kasitli; biri cumle icinde
+     * akan bir tarih, oteki parantez icinde bir kunye. */
+    removed.push(...years)
     return ''
   })
 
@@ -7671,6 +7723,23 @@ serve(async (req) => {
    * Artik hazirlik suresi butceden DUSULUYOR: butce ne olursa olsun
    * istegin tamami duvarin altinda kaliyor. */
   const requestStartedAt = Date.now()
+  /* BEKLENMEYEN ISTISNA BELGEYI ASKIDA BIRAKIYORDU (24.10.2026).
+   *
+   * En dis catch 500 donuyor ama markFailed'i CAGIRMIYORDU; documents.status
+   * 'processing' olarak kaliyor ve ogrenci sonsuza kadar bekliyor. Akis
+   * icindeki ~10 ayri hata yolu markFailed cagiriyor, yalnizca "hic
+   * beklenmeyen" yol cagirmiyordu — yani en tehlikelisi.
+   *
+   * Somut ornek: model `key_points`'i [{point: "..."}] olarak dondurdugunde
+   * birlesme TypeError atiyor (normalizeForDedup dizge bekliyor) ve belge
+   * askida kaliyor. O sekil hatasi ayrica duzeltildi, ama ag burada olmali:
+   * hangi istisna olursa olsun kart basarisiz ISARETLENMELI.
+   *
+   * documentId try'in ICINDE ayristiriliyor; catch'in ona erisebilmesi icin
+   * disarida tutuluyor. Istisna req.json()'dan once olursa null kalir ve
+   * isaretleyecek bir belge de yoktur. */
+  let hataIcinDocumentId: string | null = null
+  let hataIcinClient: any = null
 
   try {
     if (req.method !== 'POST') {
@@ -7689,6 +7758,8 @@ serve(async (req) => {
     const { documentId, summaryStyle, language, summaryLength, analyzeVisuals: analyzeVisualsRequested, depth: depthRaw } = await req.json()
     // let: Lite planinda gorsel analiz kapali — kota okununca dusurulebilir.
     let analyzeVisuals = !!analyzeVisualsRequested
+    // En dis catch'in belgeyi isaretleyebilmesi icin — bkz. hataIcinDocumentId.
+    hataIcinDocumentId = documentId ?? null
     resetGeminiParallelUsage()
     console.log(`Istek alindi: documentId=${documentId ?? '(yok)'}, visuals=${analyzeVisuals ? 'evet' : 'hayir'}, gemini_mode=${geminiMode()}`)
     if (!documentId) {
@@ -7774,6 +7845,7 @@ serve(async (req) => {
     // Service role client for download and DB write modifications
     const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     const serviceClient = createClient(supabaseUrl, supabaseServiceRoleKey)
+    hataIcinClient = serviceClient   // bkz. hataIcinDocumentId
 
     // ==========================================================================
     // COURSE CATALOG LOOKUP — makes the AI's course-tag suggestion department-aware
@@ -9440,8 +9512,27 @@ Rules:
       // yarisinin eksik oldugunu soylemiyordu.
       const dusenPencereler: number[] = []
       for (let batchStart = 0; batchStart < windows.length; batchStart += windowConcurrency) {
+        /* ATLANAN PENCERELER DE KAYIP (24.10.2026).
+         *
+         * Iki kisa devre (bütce ve "enough extractions") kalan pencereleri
+         * hic cagirmiyor, ama bu pencereler `dusenPencereler`'e GIRMIYORDU.
+         * Sonuc: "EKSIK BELGE" olcumu ve karttaki quality_meta.missing_windows
+         * bu kaybi hic gormuyor; log yalnizca "Enough extractions" diyor.
+         *
+         * 12 pencereli bir belgede ilk dort pencere terim kotasini
+         * doldurdugunda 5-12. pencereler hic okunmuyor — yani belgenin
+         * ucte ikisi karta girmiyor ve HICBIR YERDE yazmiyor. Simdi ayni
+         * muhasebeye giriyorlar; rozet tarafi bugun ekrana baglandi, yani
+         * ogrenci de gorecek. */
+        const kalanlariAtla = (sebep: string) => {
+          for (let wi = batchStart; wi < windows.length; wi++) dusenPencereler.push(wi + 1)
+          console.warn(
+            `${sebep} — ${windows.length - batchStart}/${windows.length} pencere ATLANDI ` +
+            `(${batchStart + 1}-${windows.length}), eksik kapsama olarak sayiliyor`
+          )
+        }
         if (budgetLeft() < 20_000 && windowResults.length > 0) {
-          console.warn(`Budget low — stopping before batch starting at window ${batchStart}`)
+          kalanlariAtla(`Butce dar (${budgetLeft()}ms)`)
           break
         }
         // Enough good extractions already?
@@ -9450,7 +9541,7 @@ Rules:
         if (!parallelGemini && windowResults.length >= 4) {
           const termsSoFar = windowResults.reduce((n, r) => n + (r.key_terms?.length || 0), 0)
           if (termsSoFar >= 12) {
-            console.log('Enough extractions — skipping remaining windows')
+            kalanlariAtla(`Yeterli cikarim (${termsSoFar} terim)`)
             break
           }
         }
@@ -9565,7 +9656,7 @@ Rules:
         windowResults.map((r: any) => Array.isArray(r[key]) ? r[key] : [])
 
       const mergedKeyTerms = dedupeKeyTerms(roundRobinInterleave(perWindow('key_terms'))).slice(0, 40)
-      const mergedKeyPoints = dedupeByText(roundRobinInterleave(perWindow('key_points')), (x: string) => x).slice(0, 35)
+      const mergedKeyPoints = dedupeByText(roundRobinInterleave(perWindow('key_points')), maddeMetni).slice(0, 35)
       const mergedQuiz = dedupeByText(roundRobinInterleave(perWindow('quiz_questions')), (q: any) => q?.question || '').slice(0, 20)
       const mergedFormulas = roundRobinInterleave(perWindow('formulas')).slice(0, 30)
       const quantFraction = windowResults.filter(r => r.is_quantitative).length / Math.max(1, windowResults.length)
@@ -9958,7 +10049,7 @@ The example that used to sit here named a real-looking percentage, and a live ru
 
                 if (newTerms.length || newPoints.length || newQuiz.length) {
                   const patchedTerms = dedupeKeyTerms([...mergedKeyTerms, ...newTerms]).slice(0, 40)
-                  const patchedPoints = dedupeByText([...mergedKeyPoints, ...newPoints], (x: string) => x).slice(0, 35)
+                  const patchedPoints = dedupeByText([...mergedKeyPoints, ...newPoints], maddeMetni).slice(0, 35)
                   const patchedQuiz = dedupeByText([...mergedQuiz, ...newQuiz], (q: any) => q?.question || '').slice(0, 20)
                   mergedKeyTerms.length = 0; mergedKeyTerms.push(...patchedTerms)
                   mergedKeyPoints.length = 0; mergedKeyPoints.push(...patchedPoints)
@@ -11271,7 +11362,13 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
         'yolundan geldi, kalici cevap sayilmiyor (ayni belge sonraki yuklemede yeniden denenir)'
       )
     }
-    if (summaryCacheKey && !eksikPencereler && geminiKismiKrk === 0 && !geminiTani.geciciDustu) {
+    // Karar saf fonksiyonda — bkz. onbellegeYazilabilir (16 kombinasyon testli).
+    if (onbellegeYazilabilir({
+      anahtarVar: !!summaryCacheKey,
+      eksikPencereVar: !!eksikPencereler,
+      geminiKismiKrk,
+      geciciDustu: !!geminiTani.geciciDustu
+    })) {
       const { document_id: _d, user_id: _u, course_tag: _c, ...shareable } = cardPayload
       /* IKI SATIR: dosya hash'i ve metin hash'i. Ikisi de ayni karti
          gosteriyor; hangisi once isabet ederse o kullanilir. */
@@ -11294,6 +11391,12 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
 
   } catch (err) {
     console.error('Unexpected Edge Function exception: ', err)
+    /* Belge ASKIDA kalmasin — bkz. hataIcinDocumentId. Isaretleme bastirilan
+       bir hatayla da olsa denenir; markFailed kendi icinde try/catch'li. */
+    if (hataIcinClient && hataIcinDocumentId) {
+      console.error(`Beklenmeyen istisna: ${hataIcinDocumentId} basarisiz isaretleniyor`)
+      await markFailed(hataIcinClient, hataIcinDocumentId)
+    }
     return new Response(JSON.stringify({ error: 'An unexpected Edge Function error occurred' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -11315,6 +11418,33 @@ const CACHE_METIN_MIN_KRK = 400
 /** Cache icin metin normalizasyonu: bosluk sadelestirme + kucuk harf.
  *  Ayni destenin iki ayri taramasi bayt duzeyinde farkli, metin
  *  duzeyinde ayni oluyor; esitligi burada kuruyoruz. */
+/* ONBELLEGE YAZILABILIR MI — SAF KARAR (24.10.2026).
+ *
+ * Karar dort kosuldan olusuyor ve uc test bunu YALNIZCA DIZGE ARAYARAK
+ * dogruluyordu (`satir.includes('geminiKismiKrk === 0')` gibi). Yani
+ * `&&` -> `||` yazilsa, bir `!` dusse ya da kapi baska bir dalin icine
+ * tasinsa UC TESTIN UCU DE YESIL kalir ve kismi/zayif kart kalici olarak
+ * onbellege girer. Kosullarin VARLIGI olculuyordu, MANTIGI degil.
+ *
+ * Karar artik saf bir fonksiyon: 16 kombinasyonun tamami tabloyla
+ * sinanabiliyor.
+ *
+ * Kosullarin anlami:
+ *   anahtarVar      — anahtar uretilemediyse yazacak yer yok
+ *   eksikPencereYok — yarim kalan ozet baska ogrencilere dagitilmamali
+ *   kismiDegil      — kesilen Gemini akisindan kurtarilan kart tam degil
+ *   geciciDusmedi   — Gemini gecici hatayla dustuyse cikan kart YEDEK
+ *                     yoldan geliyor; tam olabilir ama ISTENEN kart degil
+ *                     ve o dosya icin Gemini bir daha hic denenmemeli */
+function onbellegeYazilabilir(k: {
+  anahtarVar: boolean
+  eksikPencereVar: boolean
+  geminiKismiKrk: number
+  geciciDustu: boolean
+}): boolean {
+  return k.anahtarVar && !k.eksikPencereVar && k.geminiKismiKrk === 0 && !k.geciciDustu
+}
+
 function cacheMetniNormalize(text: string): string {
   return String(text || '').replace(/\s+/g, ' ').trim().toLowerCase()
 }

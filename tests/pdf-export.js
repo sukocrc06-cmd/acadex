@@ -721,10 +721,17 @@ test('Tablolar/Grafikler/Diyagramlar ayni baslik dilini kullanir', () => {
   assert.ok(ciz, 'drawPlainSectionHeader bulunamadi');
   assert.ok(/drawPdfSectionHeader\(/.test(ciz[0]), 'duz baslik ortak ciziciyi cagirmiyor');
   assert.ok(!/roundedRect/.test(ciz[0]), 'renkli nokta hala ciziliyor');
-  for (const etiket of ['TABLOLAR', 'GRAF', 'DIYAGRAMLAR', 'DİYAGRAMLAR']) {
-    if (etiket === 'GRAF') {
-      assert.ok(/drawPlainSectionHeader\('GRAF[İI]KLER'/.test(govde), 'Grafikler etiketi buyuk harf degil');
-    }
+  /* 24.10.2026 — DONGUNUN DORT YINELEMESININ UCU BOS GECIYORDU.
+     `if (etiket === 'GRAF')` disindaki her yinelemede govde bostu; okuyana
+     "dort etiket denetlendi" izlenimi veriyordu, oysa TEK etiket
+     denetleniyordu. Yeni bir duz bolum eklenirse de hicbir sey kontrol
+     edilmezdi. Dongu kaldirildi, uc etiket tek tek araniyor. */
+  for (const desen of [
+    /drawPlainSectionHeader\('TABLOLAR'/,
+    /drawPlainSectionHeader\('GRAF[İI]KLER'/,
+    /drawPlainSectionHeader\('D[İI]YAGRAMLAR'/
+  ]) {
+    assert.ok(desen.test(govde), `duz bolum basligi bulunamadi: ${desen}`);
   }
   assert.ok(/drawPlainSectionHeader\('TABLOLAR'/.test(govde), 'Tablolar etiketi buyuk harf degil');
   assert.ok(/drawPlainSectionHeader\('D[İI]YAGRAMLAR'/.test(govde), 'Diyagramlar etiketi buyuk harf degil');
