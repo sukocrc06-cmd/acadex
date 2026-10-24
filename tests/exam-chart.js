@@ -147,6 +147,9 @@ test('renderChartSvg: sutun, cizgi, pasta; NaN yok; gecersiz bos', () => {
   const pie = E.renderChartSvg({ title: 'P', type: 'pie', labels: ['X', 'Y', 'Z'], series: [{ name: '', data: [50, 30, 20] }] }, 'tr');
   assert.equal((pie.match(/<path/g) || []).length, 3);
   assert.ok(pie.includes('(%50)'));
+  // birimi % ve pay ayniysa ikinci kez yazilmaz (canli test 24.10.2026)
+  const pieP = E.renderChartSvg({ title: 'P', type: 'pie', labels: ['Marmara', 'Ege'], series: [{ name: '', data: [62, 38] }], unit: '%' }, 'tr');
+  assert.ok(pieP.includes('Marmara: %62<') && !pieP.includes('(%62)'), 'tekrar yok');
   for (const svg of [bar, line, pie]) assert.ok(!/NaN|undefined|Infinity/.test(svg));
   assert.equal(E.renderChartSvg({ labels: ['a'], series: [{ data: [1] }] }, 'tr'), '');
   assert.equal(E.renderChartSvg(null, 'tr'), '');

@@ -18,7 +18,7 @@ const G = loadFromSource('supabase/functions/generate-exam/index.ts', [
   'EXPR_MAX_LENGTH', 'EXPR_MAX_DEPTH', 'EXPR_CONSTS', 'EXPR_FUNCS', 'evaluateExpression',
   'CHART_FORMATS', 'CHART_SKILLS', 'seededRandom', 'TR_DIGIT_WORD', 'TR_TEN_WORD', 'TR_LETTER_NAME', 'trSpokenTail', 'trSuffix',
   'decimalsIn', 'chartVariant', 'pctChange', 'claimTruth', 'seriesWord', 'fmtPct', 'fmtNum', 'claimText', 'claimEvidence',
-  'thresholdsAround', 'TR_MONTHS', 'isTimeAxis', 'claimCandidates', 'claimSubject', 'pickClaims', 'ROMAN', 'PREMISE_COMBOS', 'comboLabel',
+  'titleSubject', 'valueOptions', 'thresholdsAround', 'TR_MONTHS', 'isTimeAxis', 'claimCandidates', 'claimSubject', 'pickClaims', 'ROMAN', 'PREMISE_COMBOS', 'comboLabel',
   'buildChartQuestion', 'CHART_MAX_SOURCES', 'CHART_MAX_POINTS', 'CHART_MAX_SERIES', 'chartLabel', 'parseLooseNumber', 'normalizeChartSpec',
   'buildChartExamQuestions'
 ]);
@@ -160,6 +160,61 @@ test('dogru-yanlis, deger, bosluk ve yorum sorulari', () => {
   assert.equal(open.type, 'open_ended');
   assert.equal(open.question, 'Grafiği yorumlayınız.', 'ornegin koku korunur');
   assert.equal(open.rubric.reduce((a, r) => a + r.points, 0), 100);
+});
+
+test('canli test 24.10.2026: cins isim etiketi, basliktan seri adi, sikli deger sorusu', () => {
+  // "2. çeyrek" cins isim: kesme yok, yonelmede k → ğ
+  assert.equal(G.trSuffix('2. çeyrek', 'abl'), '2. çeyrekten');
+  assert.equal(G.trSuffix('4. çeyrek', 'dat'), '4. çeyreğe');
+  assert.equal(G.trSuffix('3. çeyrek', 'loc'), '3. çeyrekte');
+  assert.equal(G.trSuffix('1. dönem', 'dat'), '1. döneme');
+  assert.equal(G.trSuffix('Ege', 'dat'), "Ege'ye", 'ozel ad degismez');
+  assert.equal(G.trSuffix('2019', 'abl'), "2019'dan");
+  // adsiz tek seride ad basliktan
+  assert.equal(G.titleSubject('Yıllara göre ihracat', 'tr'), 'ihracat');
+  assert.equal(G.titleSubject('2024 yılı çeyreklik satış adedi', 'tr'), 'satış adedi');
+  assert.equal(G.titleSubject('Bölgelere göre pazar payı (%)', 'tr'), 'pazar payı');
+  assert.equal(G.titleSubject('Bir firmanın satış ve maliyetleri', 'tr'), '', 'iki seri: bos');
+  assert.equal(G.titleSubject('Exports by year', 'en'), 'Exports');
+  const ihr = { title: 'Yıllara göre ihracat', type: 'bar', labels: ['2019', '2020', '2021'], series: [{ name: '', data: [180, 169, 225] }], unit: 'Milyar $' };
+  assert.equal(G.seriesWord(ihr, 0, 'tr'), 'ihracat');
+  const q = { title: '2024 yılı çeyreklik satış adedi', type: 'bar', labels: ['1. çeyrek', '2. çeyrek', '3. çeyrek', '4. çeyrek'], series: [{ name: '', data: [40, 50, 65, 55] }], unit: 'Bin adet' };
+  const ex = { stem: 'Grafiğe göre 2. çeyrekten 3. çeyreğe satış adedi yüzde kaç artmıştır?', format: 'value', skills: ['change'], options_count: 5 };
+  const pos = [0, 0, 0, 0, 0];
+  for (let i = 0; i < 200; i++) {
+    const mc = G.buildChartQuestion(ex, q, 'tr', G.seededRandom('mc' + i), 4);
+    pos[mc.options.indexOf(mc.correct_answer)]++;
+    assert.equal(mc.type, 'multiple_choice', 'ornek sikliysa soru da sikli');
+    assert.equal(mc.options.length, 5);
+    assert.ok(mc.options.includes(mc.correct_answer));
+    assert.equal(new Set(mc.options).size, 5);
+    assert.equal(mc.keep_order, true);
+    const nums = mc.options.map(o => Number(o.replace('%', '').replace(',', '.')));
+    assert.deepEqual([...nums].sort((a, b) => a - b), nums, 'kucukten buyuge');
+    assert.doesNotMatch(mc.question, /çeyrek'|değer/, mc.question);
+    assert.match(mc.question, /satış adedi yüzde kaç (artmıştır|azalmıştır)\?$/);
+    // dogru sik gercekten hesaplanan deger
+    const m = mc.question.match(/göre (\d)\. çeyrek(?:ten|ten) (\d)\. çeyre/);
+    if (m) { const a = q.series[0].data[m[1] - 1], b = q.series[0].data[m[2] - 1]; const p = Math.abs(b - a) / a * 100; const c = Number(mc.correct_answer.replace('%', '').replace(',', '.')); assert.ok(Math.abs(c - p) <= (p >= 20 ? 0.5 : 0.05), mc.question + ' ' + mc.correct_answer); }
+  }
+  // iki seride sira korunur: satis maliyetin ustundeyse varyantta da
+  const SM = { title: 'Satış ve maliyet', type: 'line', labels: ['2019', '2020', '2021', '2022', '2023'], series: [{ name: 'Satış', data: [120, 135, 150, 140, 170] }, { name: 'Maliyet', data: [90, 100, 105, 115, 120] }], unit: 'Bin TL' };
+  let kept = 0;
+  for (let i = 0; i < 200; i++) { const vr = G.chartVariant(SM, G.seededRandom('o' + i)); if (vr.series[0].data.every((v, j) => v > vr.series[1].data[j])) kept++; }
+  assert.ok(kept >= 196, 'sira korunur: ' + kept + '/200');
+  // ayni donem cifti icin tek degisim iddiasi
+  assert.equal(G.claimSubject({ kind: 'rise', s: 0, a: 3, b: 4 }), G.claimSubject({ kind: 'inc_lt', s: 0, a: 3, b: 4, v: 15 }));
+  // oran celdiricisi (%100, %121) yok
+  const dec = G.valueOptions(4.3, '(d1 - d4) / d1 * 100', { d1: 58, d4: 55.5 }, '%', q, 'tr', 5);
+  assert.ok(!dec.options.some(o => /^%(9\d|1\d\d)/.test(o)), dec.options.join(' '));
+  assert.ok(pos.every(n => n >= 20), 'dogru sikkin yeri dagilir: ' + pos);
+  // sikli degilse hesap sorusu kalir
+  assert.equal(G.buildChartQuestion({ ...ex, options_count: 0 }, q, 'tr', G.seededRandom('c')).type, 'calculation');
+  // valueOptions: paylar arasi en az %8
+  const vo = G.valueOptions(30, '(d3 - d2) / d2 * 100', { d2: 50, d3: 65 }, '%', q, 'tr', 5, () => 0.5);
+  assert.deepEqual(vo.options.length, 5);
+  assert.equal(vo.correct, '%30');
+  assert.ok(vo.options.includes('%23,1') || vo.options.includes('%23'), 'yanlis taban celdirici: ' + vo.options);
 });
 
 test('ornegin koku: sayi icermiyorsa ve bicim ayniysa korunur', () => {

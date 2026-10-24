@@ -983,6 +983,11 @@ function trSpokenTail(word: string): string {
 /** Kesme işaretiyle durum eki: abl (-dan/-den/-tan/-ten), loc (-da/-de/
  *  -ta/-te), dat (-a/-e/-ya/-ye). Grafik etiketleri özel ad gibi yazılır. */
 function trSuffix(word: string, kase: 'abl' | 'loc' | 'dat', proper = true): string {
+  // Küçük harfle başlayan son kelime cins isimdir ("2. çeyrek"): kesme yok,
+  // ünlüyle başlayan ekte k → ğ ("2. çeyreğe"). Canlı test, 24.10.2026.
+  const common = !proper || /(^|\s)[a-zçğıöşü][^\s]*$/.test(String(word).trim())
+  if (common && kase === 'dat' && /[aıoueiöü]k$/.test(word) && (String(word).split(/\s+/).pop()!.match(/[aıoueiöü]/g) || []).length >= 2) word = word.slice(0, -1) + 'ğ'
+  proper = !common
   const tail = trSpokenTail(word)
   const vowels = tail.match(/[aıoueiöü]/g) || ['e']
   const back = /[aıou]/.test(vowels[vowels.length - 1])
@@ -1036,7 +1041,11 @@ function chartVariant(chart: ChartSpec, rand: () => number): ChartSpec | null {
     if (chart.unit === '%' && !sums100) series.forEach(sr => { sr.data = sr.data.map(v => Math.min(100, v)) })
     const distinct = series.every(sr => new Set(sr.data).size === sr.data.length && sr.data.every(Number.isFinite))
     const changed = series.some((sr, k) => sr.data.some((v, i) => v !== chart.series[k].data[i]))
-    if (distinct && changed) return { ...chart, series }
+    // Çok serili grafikte seriler aynı noktada aynı sırada kalır (satış
+    // maliyetin üstündeyse yeni grafikte de): yeni kesişme uydurulmaz. Son
+    // denemelerde bu şart gevşer, soru düşmesin.
+    const orderKept = attempt >= 24 || series.every((sr, k) => series.every((sr2, k2) => k2 <= k || sr.data.every((v, i) => Math.sign(v - sr2.data[i]) === Math.sign(chart.series[k].data[i] - chart.series[k2].data[i]))))
+    if (distinct && changed && orderKept) return { ...chart, series }
   }
   return null
 }
@@ -1073,11 +1082,30 @@ function claimTruth(c: ChartClaim, chart: ChartSpec): boolean | null {
   }
 }
 
-/** Seri adı (cümle içinde): adsız seride "değer". Türkçede cins isim
- *  olduğu için ilk harf küçülür (kısaltma — GSYH — korunur). */
+/** Adsız tek serinin cümledeki adı grafik başlığından: "Yıllara göre
+ *  ihracat" → "ihracat", "2024 yılı çeyreklik satış adedi" → "satış adedi",
+ *  "Bölgelere göre pazar payı (%)" → "pazar payı". Çıkmazsa boş. Grafikte
+ *  gösterge yokken model seri adı vermiyor (canlı test, 24.10.2026). */
+function titleSubject(title: string, lang: string): string {
+  let t = String(title || '').replace(/\s*\([^)]*\)\s*$/, '').trim()
+  if (lang === 'en') t = t.replace(/\s+(by|per|across|over)\s+.*$/i, '').replace(/^(annual|monthly|quarterly|yearly)\s+/i, '')
+  else {
+    const g = t.toLocaleLowerCase('tr-TR').lastIndexOf('göre ')
+    if (g >= 0) t = t.slice(g + 5)
+    t = t.replace(/^\d{4}(\s*[-–]\s*\d{4})?\s+(yılı(nda)?|yıllarında|döneminde|dönemi)\s+/i, '')
+      .replace(/^bir\s+\S+(nın|nin|nun|nün|ın|in|un|ün)\s+/i, '')
+      .replace(/^(yıllık|aylık|çeyreklik|haftalık|günlük|dönemlik)\s+/i, '')
+  }
+  t = t.trim()
+  if (!t || t.length > 32 || t.split(/\s+/).length > 4 || /\d/.test(t) || /\s(ve|and)\s/i.test(t)) return ''
+  return t
+}
+
+/** Seri adı (cümle içinde): adsız seride başlıktan, o da yoksa "değer".
+ *  Türkçede cins isim olduğu için ilk harf küçülür (kısaltma — GSYH — korunur). */
 function seriesWord(chart: ChartSpec, s: number, lang: string): string {
   // "İhracat (milyar $)" → "ihracat": birim grafikte yazılı, cümlede ağır.
-  const n = chart.series[s] && String(chart.series[s].name || '').replace(/\s*\([^)]*\)\s*$/, '').trim()
+  const n = (chart.series[s] && String(chart.series[s].name || '').replace(/\s*\([^)]*\)\s*$/, '').trim()) || (chart.series.length === 1 ? titleSubject(chart.title, lang) : '')
   if (!n) return lang === 'en' ? 'the value' : 'değer'
   if (lang === 'en' || /^[A-ZÇĞİÖŞÜ0-9]{2}/.test(n)) return n
   return n.charAt(0).toLocaleLowerCase('tr-TR') + n.slice(1)
@@ -1126,8 +1154,8 @@ function claimText(c: ChartClaim, chart: ChartSpec, lang: string): string {
     case 'fall': return `${trSuffix(A, 'abl')} ${trSuffix(B, 'dat')} ${S} azalmıştır.`
     case 'steady_rise': return `${A}–${B} döneminde ${S} sürekli artmıştır.`
     case 'steady_fall': return `${A}–${B} döneminde ${S} sürekli azalmıştır.`
-    case 'max': return `En yüksek ${S} ${trSuffix(A, 'loc')}dır.`.replace(/'(d|t)(a|e)dır\.$/, (_m, t, v) => `'${t}${v}${v === 'a' ? 'dır' : 'dir'}.`)
-    case 'min': return `En düşük ${S} ${trSuffix(A, 'loc')}dır.`.replace(/'(d|t)(a|e)dır\.$/, (_m, t, v) => `'${t}${v}${v === 'a' ? 'dır' : 'dir'}.`)
+    case 'max': return `En yüksek ${S} ${trSuffix(A, 'loc')}dır.`.replace(/(d|t)(a|e)dır\.$/, (_m, t, v) => `${t}${v}${v === 'a' ? 'dır' : 'dir'}.`)
+    case 'min': return `En düşük ${S} ${trSuffix(A, 'loc')}dır.`.replace(/(d|t)(a|e)dır\.$/, (_m, t, v) => `${t}${v}${v === 'a' ? 'dır' : 'dir'}.`)
     case 'greater': return `${Sc} bakımından ${A}, ${trSuffix(B, 'abl')} yüksektir.`
     case 'inc_gt': return `${trSuffix(A, 'abl')} ${trSuffix(B, 'dat')} ${S} ${trSuffix(fmtPct(c.v!, lang), 'abl')} fazla artmıştır.`
     case 'inc_lt': return `${trSuffix(A, 'abl')} ${trSuffix(B, 'dat')} ${S} artmış, ancak artış ${trSuffix(fmtPct(c.v!, lang), 'abl')} azdır.`
@@ -1231,7 +1259,10 @@ function claimCandidates(chart: ChartSpec, skills: string[], rand: () => number)
  *  ikilisi) en çok bir iddia: "%25'ten fazla" ile "%25'ten az" yan yana
  *  gelip cevabı ele vermesin. */
 function claimSubject(c: ChartClaim): string {
-  return ['max', 'min', 'rank'].includes(c.kind) ? `x|${c.s}` : `${c.s}|${c.s2 ?? ''}|${Math.min(c.a ?? -1, c.b ?? -1)}|${Math.max(c.a ?? -1, c.b ?? -1)}|${c.kind.slice(0, 3)}`
+  // Aynı iki dönem arasındaki değişim iddiaları tek konu: "artmıştır" ile
+  // "artmış, ancak %15'ten az" aynı sette birbirini ele verir.
+  const fam = ['rise', 'fall', 'inc_gt', 'inc_lt', 'dec_gt'].includes(c.kind) ? 'chg' : c.kind.slice(0, 3)
+  return ['max', 'min', 'rank'].includes(c.kind) ? `x|${c.s}` : `${c.s}|${c.s2 ?? ''}|${Math.min(c.a ?? -1, c.b ?? -1)}|${Math.max(c.a ?? -1, c.b ?? -1)}|${fam}`
 }
 
 function pickClaims(cands: ChartClaim[], chart: ChartSpec, lang: string, truth: boolean, k: number, avoid: Set<string>): ChartClaim[] {
@@ -1253,6 +1284,49 @@ function comboLabel(combo: number[], lang: string): string {
   const r = combo.map(i => ROMAN[i])
   if (lang === 'en') return r.length === 1 ? `${r[0]} only` : r.length === 2 ? `${r[0]} and ${r[1]}` : 'I, II and III'
   return r.length === 1 ? `Yalnız ${r[0]}` : r.length === 2 ? `${r[0]} ve ${r[1]}` : 'I, II ve III'
+}
+
+/** Şıklı değer sorusu: doğru değer + tipik hatalardan çeldiriciler (yanlış
+ *  taban, yalnızca fark; payda toplam yerine geri kalan; ortalamada
+ *  n−1), gerekirse ±%25–%100 sapmalar. Hepsi aynı yuvarlamayla, birbirinden
+ *  en az %8 uzak; küçükten büyüğe. Kurulamazsa null (hesap sorusu kalır). */
+function valueOptions(value: number, formula: string, used: Record<string, number>, units: string, chart: ChartSpec, lang: string, k: number, rand: () => number = Math.random): { options: string[]; correct: string } | null {
+  const v = (key: string) => used[key]
+  const vals = Object.values(used)
+  const alts: number[] = []
+  let m = formula.match(/^\((d\d+) - (d\d+)\) \/ (d\d+) \* 100$/)
+  if (m) { const x = v(m[1]), y = v(m[2]), z = v(m[3]), other = z === y ? x : y; alts.push((x - y) / other * 100, x - y) }
+  m = formula.match(/^(d\d+) \/ \((.+)\) \* 100$/)
+  if (m) { const a = v(m[1]), tot = vals.reduce((p, q) => p + q, 0); alts.push(a / (tot - a) * 100, a / Math.max(...vals) * 100) }
+  m = formula.match(/^\((.+)\) \/ (\d+)$/)
+  if (m) { const tot = vals.reduce((p, q) => p + q, 0), n = Number(m[2]), srt = [...vals].sort((p, q) => p - q); alts.push(tot / (n - 1), n % 2 ? srt[(n - 1) / 2] : (srt[n / 2 - 1] + srt[n / 2]) / 2) }
+  m = formula.match(/^(d\d+) - (d\d+)$/)
+  if (m) alts.push(v(m[1]) + v(m[2]))
+  const pct = units === '%'
+  const dec = pct ? (Math.abs(value) >= 20 ? 0 : 1) : Math.max(0, ...chart.series.flatMap(sr => sr.data.map(decimalsIn)))
+  const f = Math.pow(10, dec)
+  const round = (x: number) => Math.round(x * f) / f
+  const fmt = (x: number) => { const t = x.toLocaleString(lang === 'en' ? 'en-US' : 'tr-TR', { minimumFractionDigits: dec, maximumFractionDigits: dec }); return pct ? (lang === 'en' ? `${t}%` : `%${t}`) : t }
+  const correct = round(value)
+  const gap = Math.max(Math.abs(correct) * 0.08, 1 / f)
+  // Doğru şıkkın yeri rastgele: altında `below`, üstünde k−1−below çeldirici.
+  // (Simetrik sapmalarla sıralanınca doğru şık hep ortada kalıyordu.)
+  const below = Math.floor(rand() * k)
+  const lowOk = correct > 0 ? (r: number) => r > 0 : () => true
+  const pool = [...alts, ...[0.8, 0.65, 0.5, 0.35, 0.2].map(m => value * m), ...[1.2, 1.4, 1.6, 1.85, 2.1].map(m => value * m)]
+  const chosen = [correct]
+  let lo = 0, hi = 0
+  for (const a of pool) {
+    const r = round(a)
+    if (!Number.isFinite(r) || !lowOk(r) || chosen.some(c => Math.abs(c - r) < gap)) continue
+    const isLow = Math.abs(r) < Math.abs(correct)
+    if (isLow ? lo >= below : hi >= k - 1 - below) continue
+    chosen.push(r); if (isLow) lo++; else hi++
+  }
+  if (chosen.length < k) return null
+  const labels = chosen.sort((p, q) => p - q).map(fmt)
+  if (new Set(labels).size !== labels.length) return null
+  return { options: labels, correct: fmt(correct) }
 }
 
 /** Örnekle aynı biçimde, benzer grafikte yeni soru. Kurulamazsa null. */
@@ -1354,8 +1428,16 @@ function buildChartQuestion(item: ChartExample, chart: ChartSpec, lang: string, 
     for (const k of Object.keys(vars)) if (new RegExp(`\\b${k}\\b`).test(formula)) used[k] = vars[k]
     const value = evaluateExpression(formula, used)
     if (!Number.isFinite(value)) return null
+    const steps = [`${tr ? 'Grafikten' : 'From the chart'}: ${Object.keys(used).map(k => `${chart.labels[Number(k.slice(1)) - 1]} = ${fmtNum(used[k], chart, lang)}`).join(', ')}`, `${formula.replace(/d(\d+)/g, (_m, i) => chart.labels[Number(i) - 1])}`]
+    // Örnek şıklıysa (A–E) soru da şıklı: tipik hatalardan çeldiriciler,
+    // şıklar küçükten büyüğe. Soru tipi örnekle aynı kalsın (canlı test).
+    if ((item.options_count || 0) >= 2) {
+      const mc = valueOptions(value, formula, used, units, chart, lang, Math.max(4, Math.min(5, item.options_count || optionCount)), rand)
+      if (mc) return { ...base, type: 'multiple_choice', question, options: mc.options, correct_answer: mc.correct, keep_order: true,
+        explanation: `${steps.join('; ')} = ${mc.correct}.` }
+    }
     return { ...base, type: 'calculation', question, variables: used, formula, verified: true, correct_answer: Math.round(value * 1e4) / 1e4, tolerance_percent: 1, units,
-      solution_steps: [`${tr ? 'Grafikten' : 'From the chart'}: ${Object.keys(used).map(k => `${chart.labels[Number(k.slice(1)) - 1]} = ${fmtNum(used[k], chart, lang)}`).join(', ')}`, `${formula.replace(/d(\d+)/g, (_m, i) => chart.labels[Number(i) - 1])}`] }
+      solution_steps: steps }
   }
   // open: yorum sorusu; rubrik doğru iddialardan.
   const avoid = new Set<string>()
