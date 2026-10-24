@@ -1204,6 +1204,56 @@ test('geminiDraft: IKI AYRI modelde 503 alinirsa durulur', async () => {
  * Yani yuzeyin bir dakikalik yogunlugu, o dosya icin KALICI kalite kaybina
  * dondu ve Gemini'nin bir daha denenmesi imkansiz hale geldi. Ilk iki kosul
  * "kart tam mi" diye soruyor; eksik olan "kart ISTENEN kart mi". */
+/* 24.10.2026 — OLU AKIS GECICI SAYILMIYORDU VE ZAYIF KART KALICILASIYORDU.
+ *
+ * Canli olcum: yuzey istegi kabul etti, 15,4 sn'de baslik gonderdi, sonra
+ * 87 saniye boyunca TEK OLAY uretmedi ve cagri `status: 0` ile dustu
+ * ("ilk olay gelmedi"). Siniflandirma yalnizca 503/500'u gecici saydigi
+ * icin geciciModeller bos kaldi, cik() bayragi koymadi ve o kosunun zayif
+ * Groq karti (kapsama %49, yazar ve review atlanmis) onbellege KALICI
+ * yazildi. Sonraki yuklemeler 1,9 saniyede o karti aldi. */
+test('OLU AKIS gecici sayiliyor — zayif kart kalicilasmaz', async () => {
+  // status 0 + "ilk olay gelmedi": yuzey kabul etti, hicbir sey uretmedi.
+  stubFetch([
+    { status: 0, text: 'ilk olay gelmedi (72000ms, baglanti acik ama veri yok)' },
+    { status: 0, text: 'ilk olay gelmedi (72000ms, baglanti acik ama veri yok)' }
+  ]);
+  const tani = {};
+  try {
+    const out = await quiet(() =>
+      G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000, 'only', tani));
+    assert.equal(out, null, 'olu akista Groq yoluna dusulmeliydi');
+    assert.equal(tani.geciciDustu, true,
+      'olu akis gecici sayilmiyor — zayif Groq karti onbellege kalici yazilir');
+  } finally { restoreFetch(); }
+});
+
+test('OLU AKIS ayni modelde TEKRAR denenmiyor', async () => {
+  /* Olu akis 87 saniye yakti; ikinci deneme butceyi bitirir. 503'ten farki
+     bu: 503 hizli doner, tekrar denemek ucuzdur. */
+  stubFetch([
+    { status: 0, text: 'ilk olay gelmedi (72000ms, baglanti acik ama veri yok)' },
+    { status: 200, json: OK_JSON }
+  ]);
+  try {
+    const out = await quiet(() =>
+      G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000));
+    assert.ok(out, 'sonraki aday denenmeliydi');
+    assert.equal(out.model, G.GEMINI_MODEL_CANDIDATES[1],
+      `ayni model tekrar denenmis: ${out.model}`);
+    assert.equal(fetchCalls.length, 2, `${fetchCalls.length} istek — olu akis tekrar denenmis`);
+  } finally { restoreFetch(); }
+});
+
+test('503 hala AYNI modelde bir kez tekrar deneniyor (regresyon)', () => {
+  /* Olu akis ayrimi 503'un davranisini degistirmemeli. */
+  const src = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+  assert.ok(/if \(!oluAkis && gecici < 2\) return \{ tur: 'tekrar' \}/.test(src),
+    '503 icin tekrar denemesi kaybolmus');
+  assert.ok(/const oluAkis = res\.status === 0/.test(src), 'olu akis ayrimi yok');
+});
+
 test('gecici hatayla dusuldugunde tani cagirana BILDIRILIYOR', async () => {
   stubFetch([
     { status: 503, text: 'gemini-3.7-flash is currently experiencing high demand' },

@@ -7599,11 +7599,37 @@ async function geminiDraft(
       )
       return { tur: 'birak' }
     }
-    if (res.status === 503 || res.status === 500) {
+    /* OLU AKIS DA GECICI BIR HATADIR (24.10.2026).
+     *
+     * Burasi yalnizca 503/500'u gecici sayiyordu. Ama yuzey istegi KABUL
+     * edip hicbir sey uretmeyebiliyor; o hal `status: 0` ile donuyor.
+     * Canli olcum (24.10 kosusu):
+     *
+     *   Gemini akis [gemini-3.8-flash]: ilk byte 15422ms, ilk olay yok,
+     *     0 olay, 0 karakter, toplam 87424ms — AKIS SOZDE
+     *   Gemini gemini-3.8-flash: cagri basarisiz (0): ilk olay gelmedi
+     *     (72000ms, baglanti acik ama veri yok)
+     *
+     * Bu 503'ten farkli bir sey degil: yuzey o an is yapamiyor, yarin ayni
+     * belge Gemini karti uretebilir. Ama gecici sayilmadigi icin
+     * `geciciModeller` bos kaliyor, `cik()` bayragi koymuyor ve o kosunun
+     * ZAYIF Groq karti (kapsama %49, yazar ve review atlanmis) onbellege
+     * KALICI yaziliyordu. Sonraki yuklemeler 1,9 saniyede o karti aliyor ve
+     * Gemini bir daha hic denenmiyor — 21.10'da bu korumayi tam bunun icin
+     * eklemistim, deligi bugunku log gosterdi.
+     *
+     * Ayni modeli TEKRAR denemiyoruz: olu akis 87 saniye yakti, ikincisi
+     * butceyi bitirir. Dogrudan sonraki adaya geciliyor. */
+    const oluAkis = res.status === 0
+    if (oluAkis || res.status === 503 || res.status === 500) {
       gecici++
       ardisikGecici++
       geciciModeller.add(model)
-      console.warn(`Gemini ${model}: gecici hata ${res.status} (deneme ${gecici}/2): ${res.body.slice(0, 200)}`)
+      console.warn(
+        `Gemini ${model}: gecici hata ${res.status}` +
+        (oluAkis ? ' (akis olu: olay gelmedi)' : ` (deneme ${gecici}/2)`) +
+        `: ${res.body.slice(0, 200)}`
+      )
       /* Yuzeyin tamami yogunsa sonraki aday modeli denemek ayni duvara
          carpmak: istek de sure de bosa gidiyor. Ama bunun kaniti AYRI
          modellerden gecici hata gelmesi — bkz. geciciModeller. */
@@ -7616,7 +7642,8 @@ async function geminiDraft(
         // Bayragi cik() koyuyor — tek kural, tek yer.
         return { tur: 'birak' }
       }
-      if (gecici < 2) return { tur: 'tekrar' }
+      // Olu akis ayni modelde tekrar denenmez — bkz. yukaridaki not.
+      if (!oluAkis && gecici < 2) return { tur: 'tekrar' }
       return { tur: 'sonraki' }
     }
     console.warn(`Gemini ${model}: cagri basarisiz (${res.status}): ${res.body.slice(0, 300)}`)
