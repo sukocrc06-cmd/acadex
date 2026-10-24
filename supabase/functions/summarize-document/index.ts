@@ -9942,11 +9942,41 @@ Use CONCRETE topic names from digests and terms. No meta filler.`
               if (syn.outline.items.length >= eski * NARRATIVE_MIN_KEEP_RATIO) bestOutline = syn.outline
               else sentezRet('anahati', eski, syn.outline.items.length)
             }
+            /* BOLUMLERDE SAYI YANLIS OLCU (24.10.2026, duzeltme).
+             *
+             * Dun buraya sayi tabani koydum ve YANLISTI: sentezin isi tam
+             * olarak cok sayida pencere bolumunu daha az, daha derli toplu
+             * bolume indirmek. Sayiya bakan bir taban, sentezin yapmasi
+             * gereken seyi garanti olarak reddeder.
+             *
+             * Canli kanit — kullanicinin yan yana koydugu iki kart:
+             *   Compact synthesis bolumleri REDDEDILDI: 4 < 7 x 0.75
+             * Kart 7 pencere bolumu + 2 gorsel yama = 9 BOLUMLE kaldi.
+             * "Iyiydi" dedigi eski kart ise 4 BOLUMDU — yani sentezin
+             * onerdigi yapinin ta kendisi.
+             *
+             * Korunmasi gereken sey ICERIK, dagilim degil: sentez metni
+             * yariya dusurduyse kayip, 7 bolumu 4'e topladiysa duzenleme.
+             * Olcu artik toplam karakter.
+             *
+             * Anahat bolumlerle BIRLIKTE uretiliyor; bolumler kabul
+             * edildiyse 12 maddelik eski anahati 4 bolume yapistirmak
+             * tutarsiz olurdu, o yuzden o da sentezin surumune geciyor. */
             if (Array.isArray(syn?.sections) && syn.sections.length) {
-              if (syn.sections.length >= bestSections.length * NARRATIVE_MIN_KEEP_RATIO) {
+              const bolumKrk = (a: any[]) => a.reduce(
+                (n, s) => n + String(s?.heading || '').length + String(s?.summary || s?.content || '').length, 0
+              )
+              const eskiKrk = bolumKrk(bestSections)
+              const yeniKrk = bolumKrk(syn.sections)
+              if (eskiKrk === 0 || yeniKrk >= eskiKrk * NARRATIVE_MIN_KEEP_RATIO) {
+                console.log(
+                  `Compact synthesis bolumleri kabul edildi: ${bestSections.length} bolum ` +
+                  `${eskiKrk} krk -> ${syn.sections.length} bolum ${yeniKrk} krk`
+                )
                 bestSections = syn.sections
+                if (syn.outline?.items?.length) bestOutline = syn.outline
               } else {
-                sentezRet('bolumleri', bestSections.length, syn.sections.length)
+                sentezRet('bolumleri (icerik)', eskiKrk, yeniKrk)
               }
             }
           }

@@ -1915,10 +1915,18 @@ test('sentez ciktisi NARRATIVE_MIN_KEEP_RATIO tabanindan geciyor', () => {
   const src = SRC;
   const i = src.indexOf('const sentezRet =');
   assert.ok(i > 0, 'sentez reddi loglanmiyor — taban eklenmemis');
-  const blok = src.slice(i, i + 2400);
-  for (const alan of ['ozeti', 'anahati', 'bolumleri']) {
+  const blok = src.slice(i, i + 3200);
+  /* 24.10.2026 duzeltmesi: bolumler artik SAYI ile degil ICERIK ile
+     olculuyor, cunku sentezin isi cok bolumu az bolume toplamak — sayiya
+     bakan taban onu garanti olarak reddediyordu (canli kanit: "4 < 7 x
+     0.75" ve kartin 9 bolumle kalmasi, oysa iyi kart 4 bolumdu). */
+  for (const alan of ['ozeti', 'anahati', 'bolumleri (icerik)']) {
     assert.ok(blok.includes(`sentezRet('${alan}'`), `${alan} icin taban yok`);
   }
+  assert.ok(/const bolumKrk = \(a: any\[\]\) =>/.test(blok),
+    'bolumler hala SAYI ile olculuyor — sentezin toparlamasi reddedilir');
+  assert.ok(!/syn\.sections\.length >= bestSections\.length \* NARRATIVE_MIN_KEEP_RATIO/.test(src),
+    'eski sayi tabani hala duruyor');
   /* Uc atamanin ucu de tabanla kiyaslanmali. Tam sayi sabitlenmiyor: ret
      logu da tabani metne basiyor (${NARRATIVE_MIN_KEEP_RATIO}), yani sayim
      3'un uzerine cikabiliyor. Onemli olan uc kiyasin VARLIGI. */
