@@ -24,7 +24,7 @@ if (!globalThis.Deno) globalThis.Deno = { env: { get: () => undefined } };
 
 const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'geminiMode', 'geminiParallelActive',
-  'ANCHOR_STOPWORDS', 'anchorTerms',
+  'ANCHOR_STOPWORDS', 'trNormalize', 'anchorTerms',
   // Reasoning parametrelerinin model ailesine gore turetilmesi.
   // DIKKAT: bu dosyada loadFromSource SADECE burada cagrilmali. Her cagri
   // 5.900 satirlik kaynagi senkron olarak transpile ediyor ve olay dongusunu
@@ -72,7 +72,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   // Pencere dengeleme ve cozumlu ornek kapisi (08.10.2026).
   'kurPencereler', 'splitIntoChunks', 'splitIntoWindows',
   'gateWorkedExamples',
-  'JSON_GECERLI_KACIS', 'repairLatexEscapes',
+  'JSON_GECERLI_KACIS', 'LATEX_IKI_HARFLI', 'repairLatexEscapes',
   // Yokluk iddiasi kapisi (08.10.2026).
   'YOKLUK_IDDIASI',
   // Pencere cikis tavani serit butcesinden turetilir (09.10.2026).
@@ -3305,6 +3305,85 @@ test('GECERSIZ kacis sert ayristirma hatasini da duzeltiyor', () => {
   assert.equal(parse(ham).p, 'Inline \\(y = x\\) math');
 });
 
+/* 24.10.2026 — \u + HEX OLMAYAN DIZI SERT AYRISTIRMA HATASI VERIYORDU.
+   'u' JSON'da gecerli kacis oldugu icin gecersiz-kacis dali gormuyordu,
+   4 hex yoksa unicode dali dusuyordu, 'bfrt' kumesinde olmadigi icin LaTeX
+   dali da dusuyordu — ve `\u` oldugu gibi yaziliyordu. Tek bir \upsilon
+   butun Gemini taslagini dusuruyordu (105 sn + 1 RPD). */
+test('\\u + HEX OLMAYAN LaTeX komutlari ayristirma hatasi vermiyor', () => {
+  const vakalar = [
+    ['\\upsilon',    '{"p":"\\upsilon x"}',      '\\upsilon x'],
+    ['\\underline',  '{"p":"\\underline{x}"}',   '\\underline{x}'],
+    ['\\uparrow',    '{"p":"a \\uparrow b"}',    'a \\uparrow b'],
+    ['\\underbrace', '{"p":"\\underbrace{ab}"}', '\\underbrace{ab}'],
+  ];
+  for (const [ad, ham, beklenen] of vakalar) {
+    // Onarim OLMADAN gercekten PATLIYOR — testin korudugu sey bu.
+    assert.throws(() => JSON.parse(ham), SyntaxError, `${ad}: onarimsiz hali patlamiyor`);
+    assert.equal(parse(ham).p, beklenen, `${ad} korunmadi`);
+  }
+  // Gercek unicode kacisi bozulmadi.
+  assert.equal(parse('{"p":"\\u00e9cole"}').p, 'école');
+});
+
+/* 24.10.2026 — IKI HARFLI LaTeX KOMUTLARI KONTROL KARAKTERINE DONUYORDU.
+   Genel dal prefiksten SONRA iki harf ariyor, yani toplam uc harfliyi
+   taniyor. Iki harfli olanlar en alttaki "gercek JSON kacisi" satirina
+   dusuyordu: \to -> TAB, \bm -> geri silme, \rm -> satir basi. Hata
+   vermiyor, JSON gecerli, DIZE bozuk. */
+test('IKI HARFLI LaTeX komutlari kontrol karakterine donmuyor', () => {
+  const vakalar = [
+    /* Vakalarda BASKA gecersiz kacis olmamali: `\lim` yazsaydim `\l`
+       onarimsiz hali hic ayristirilamaz yapar ve asagidaki karsi-kontrol
+       "kontrol karakteri" yerine SyntaxError ile duserdi. */
+    ['\\to', '{"p":"x \\to 0 y"}',      'x \\to 0 y'],
+    ['\\bm', '{"p":"\\bm{x} vektoru"}', '\\bm{x} vektoru'],
+    ['\\rm', '{"p":"\\rm{d}x"}',        '\\rm{d}x'],
+  ];
+  for (const [ad, ham, beklenen] of vakalar) {
+    assert.equal(parse(ham).p, beklenen, `${ad} korunmadi`);
+    // Onarimsiz hali gercekten kontrol karakteri uretiyor.
+    assert.ok(/[\u0000-\u001f]/.test(JSON.parse(ham).p),
+      `${ad}: onarimsiz hali bozulmuyorsa bu testin koruduğu bir sey yok`);
+    // Ve onarilmis cikti kontrol karakteri TASIMIYOR.
+    assert.ok(!/[\u0000-\u001f]/.test(parse(ham).p), `${ad}: onarim sonrasi hala kontrol karakteri var`);
+  }
+});
+
+test('kapali liste SERBEST desen degil: gercek sekme korunuyor', () => {
+  /* Serbest bir {1,} deseni `\t`+harf dizilerini de LaTeX sayardi ve
+     "Adim 1:\tthe result" gibi mesru bir sekmeyi bozardi. Kapali liste
+     bu yuzden tercih edildi; LATEX_IKI_HARFLI'de olmayan ikililer
+     gercek kacis olarak kalmali. */
+  assert.equal(parse('{"p":"a\\tb"}').p, 'a\tb', 'listede olmayan \\tb sekme kalmali');
+  assert.ok(!A.LATEX_IKI_HARFLI.has('tb'), 'tb listeye girmis — gercek sekmeler bozulur');
+  for (const k of ['to', 'bm', 'rm']) {
+    assert.ok(A.LATEX_IKI_HARFLI.has(k), `${k} listede yok — kontrol karakterine doner`);
+  }
+});
+
+/* 24.10.2026 — TURKCE ONDALIK AYIRICI KUMEYI BOSALTIYORDU.
+   sourceNumbers yalnizca Ingilizce okuyordu: Number('0,09') NaN oldugu icin
+   Turkce bicimli kaynakta kume TAMAMEN bos kaliyordu. Bos kume grafik
+   kapisini ve cozumlu ornek kapisini birlikte yikiyor, ikisi de BUTUN
+   kayitlari "sayilar kaynakta yok" diye siliyordu. Dogru okuyucu
+   (sayiOkumalari) ayni dosyada zaten vardi — ayni mantigin iki ayri yazimi. */
+test('sourceNumbers TURKCE ondalik ayiriciyi okuyor', () => {
+  const tr = [...A.sourceNumbers('Katsayi 0,09 ve sabit 484,12 olarak tahmin edildi.')];
+  const en = [...A.sourceNumbers('Coefficient 0.09 and constant 484.12 estimated.')];
+  assert.ok(tr.length > 0, 'Turkce kaynakta kume BOS — butun grafik ve ornekler silinir');
+  assert.deepEqual(tr.slice().sort(), en.slice().sort(),
+    'iki dil ayni sayilari vermiyor: ' + JSON.stringify({ tr, en }));
+  for (const beklenen of [0.09, 484.12]) {
+    assert.ok(tr.includes(beklenen), `${beklenen} Turkce okumada yok`);
+  }
+});
+
+test('sourceNumbers iki binlik gelenegini de okuyor', () => {
+  assert.ok([...A.sourceNumbers('Toplam 1.500,25 TL')].includes(1500.25), 'TR binlik okunmadi');
+  assert.ok([...A.sourceNumbers('Total 1,500.25 USD')].includes(1500.25), 'EN binlik okunmadi');
+});
+
 test('GERCEK satir sonu bozulmuyor', () => {
   /* \n bilerek disarida: duz metinde satir sonu mesru ve sik. Onu da LaTeX
      saymak gercek satir sonlarini bozardi. Bedeli \nu ve \nabla'nin bozuk
@@ -4344,7 +4423,7 @@ test('hangi anahtarin isabet ettigi LOGLANIYOR', () => {
 // ==========================================================================
 
 const YOG = loadFromSource('supabase/functions/summarize-document/index.ts', [
-  'ANCHOR_STOPWORDS', 'gateNormalize', 'anchorTerms', 'YOGUNLUK_KAPISI_ELIYOR',
+  'ANCHOR_STOPWORDS', 'trNormalize', 'gateNormalize', 'anchorTerms', 'YOGUNLUK_KAPISI_ELIYOR',
   'yogunlukIsaretleri', 'applyDensityGate'
 ]);
 

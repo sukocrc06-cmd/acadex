@@ -169,6 +169,21 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2,
    =========================================================================== */
 const JSON_GECERLI_KACIS = new Set(['"', '\\', '/', 'b', 'f', 'n', 'r', 't', 'u'])
 
+/* IKI HARFLI LaTeX KOMUTLARI (24.10.2026) — bkz. repairLatexEscapes.
+ *
+ * 'b', 'f', 'r', 't' JSON'da gecerli kacis oldugu icin bu harflerle baslayan
+ * LaTeX komutlari ozel ayirt etme gerektiriyor. repairLatexEscapes'teki
+ * genel dal prefiksten SONRA en az iki harf ariyor, yani toplam uc harfli
+ * komutlari taniyor (\rho, \tau, \beta). Iki harfli olanlar disarida
+ * kaliyor ve gercek kontrol karakterine donuyordu — olculdu:
+ *   \to -> TAB, \bm -> geri silme, \rm -> satir basi
+ *
+ * Kapali liste, serbest desen ({1,}) yerine bilerek: gercek bir TAB'in
+ * ardindan harf gelmesi de mumkun ("Adim 1:\tthe result"). Boylece yalnizca
+ * BILINEN komutlar kacirilir. Yeni bir iki harfli komut lazim olursa buraya
+ * eklenir; uc harf ve uzunu genel dal zaten yakaliyor. */
+const LATEX_IKI_HARFLI = new Set(['to', 'bm', 'rm', 'bf', 'tt'])
+
 function repairLatexEscapes(json: string): string {
   const s = String(json || '')
   let out = ''
@@ -211,8 +226,49 @@ function repairLatexEscapes(json: string): string {
       out += c + n; i++; continue
     }
 
+    /* \u AMA 4 ONALTILIK YOK (24.10.2026) — SERT AYRISTIRMA HATASI.
+     *
+     * 'u' JSON'da gecerli kacis oldugu icin yukaridaki gecersiz-kacis dali
+     * onu gormuyor; 4 hex yoksa unicode dali da dusuyor; 'bfrt' kumesinde
+     * olmadigi icin LaTeX dali da dusuyordu. Akis en alttaki "gercek JSON
+     * kacisi" satirina inip `\u`'yu OLDUGU GIBI yaziyordu ve bu JSON'da
+     * gecersizdir. Olculdu:
+     *
+     *   {"a":"\upsilon x"}    -> Bad Unicode escape in JSON
+     *   {"a":"\underline{x}"} -> Bad Unicode escape in JSON
+     *   {"a":"\uparrow"}      -> Bad Unicode escape in JSON
+     *
+     * Yani \upsilon, \underline, \uparrow, \underbrace gecen TEK bir formul
+     * butun Gemini taslagini dusuruyordu: 8222'deki gecerlilik kapisi
+     * patliyor, 105 saniye + 1 RPD yaniyor ve kart Groq yedeginden cikiyor.
+     * Buraya dusen bir \u her zaman LaTeX komutudur. */
+    if (n === 'u') { out += '\\\\' + n; i++; continue }
+
     // LaTeX komutu: \beta, \frac, \tau, \rho ... (\n disarida — basliga bak)
     if (n !== 'n' && 'bfrt'.includes(n) && /^[A-Za-z]{2,}/.test(s.slice(i + 2))) {
+      out += '\\\\' + n; i++; continue
+    }
+
+    /* IKI HARFLI LaTeX KOMUTLARI (24.10.2026).
+     *
+     * Ustteki dal prefiksten SONRA en az iki harf istiyor, yani toplam uc
+     * harfli komutlari taniyor (\rho, \tau, \beta). Iki harfli olanlar
+     * disarida kaliyor ve en alttaki satirda GERCEK kontrol karakterine
+     * donuyorlardi. Olculdu:
+     *
+     *   {"a":"x \to 0 y"} -> "x <TAB>o 0 y"
+     *   {"a":"\bm{x}"}    -> geri silme karakteri
+     *   {"a":"\rm{d}"}    -> satir basi
+     *
+     * Hata vermiyor, JSON gecerli, DIZE bozuk — bu fonksiyonun var olma
+     * sebebi olan hata sinifinin aynisi. `\lim_{n \to \infty}` yazan her
+     * formul ekranda ortadan kesiliyordu.
+     *
+     * Serbest desen ({1,}) kullanmiyorum: gercek bir TAB'in ardindan harf
+     * gelmesi de mumkun ("Adim 1:\tthe result"). Bunun yerine prefiksle
+     * baslayan IKI HARFLI LaTeX komutlarinin kapali listesi — boylece
+     * yalnizca bilinen komutlar kacirilir, rastgele \t+harf dizisi degil. */
+    if (n !== 'n' && LATEX_IKI_HARFLI.has(n + (s[i + 2] ?? ''))) {
       out += '\\\\' + n; i++; continue
     }
 
@@ -3354,9 +3410,33 @@ const ANCHOR_STOPWORDS = new Set([
 ])
 
 /** Content-bearing terms of a string: >=4 chars, not a stopword, diacritics kept. */
+/* BUYUK "I" KELIMEYI IKIYE BOLUYORDU (24.10.2026).
+ *
+ * JavaScript'te 'İ'.toLowerCase() iki kod birimi uretiyor: 'i' + U+0307
+ * (birlesen ustteki nokta). U+0307 bir birlesme isareti oldugu icin
+ * \p{L} ve \p{N} kumelerine girmiyor, dolayisiyla asagidaki noktalama
+ * temizligi onu BOSLUGA cevirip kelimeyi ikiye boluyordu. Olculdu:
+ *
+ *   gateNormalize('İşsizlik Oranı') -> "i şsizlik oranı"
+ *   anchorTerms('İstatistik')       -> ["statistik"]   (bastaki 'i' 4
+ *                                      harf esigine takilip dusuyor)
+ *   anchorTerms('istatistik')       -> ["istatistik"]
+ *
+ * Sonuc: model terimi baslik bicimiyle (İ ile), kaynak cumle icinde kucuk
+ * harfle yazdiginda — ya da tersi — grounding kapisi terimi "uydurma"
+ * sayip siliyor, atif eslemesi de sayfa capasini kaybediyordu. Turkce bir
+ * urunde bu, kaynakta BIREBIR gecen icerigi silmek demek.
+ *
+ * Duzeltme once NFC ile birlestirip sonra kalan birlesen noktayi atiyor,
+ * yani 'İ' -> 'i'. Eslesme orani yalnizca YUKARI gidebilir: hicbir yeni
+ * eslesme uydurma bir terimi geciremez, cunku iki taraf da ayni
+ * fonksiyondan geciyor. Bu yuzden esiklerin kalibrasyonu degismiyor. */
+function trNormalize(s: string): string {
+  return String(s == null ? '' : s).normalize('NFC').toLowerCase().replace(/̇/g, '')
+}
+
 function anchorTerms(s: string): string[] {
-  return String(s == null ? '' : s)
-    .toLowerCase()
+  return trNormalize(s)
     .replace(/[^\p{L}\p{N}\s]/gu, ' ')
     .split(/\s+/)
     .filter(w => w.length >= 4 && !ANCHOR_STOPWORDS.has(w))
@@ -4120,9 +4200,30 @@ function sourceNumbers(text: string): Set<number> {
   const out = new Set<number>()
   const tokens = String(text || '').match(/-?\d[\d.,]*/g) || []
   for (const token of tokens) {
-    const cleaned = token.replace(/[.,]+$/, '').replace(/,(?=\d{3}\b)/g, '')
-    const value = Number(cleaned)
-    if (Number.isFinite(value)) {
+    /* TURKCE ONDALIK AYIRICI KUMEYI BOSALTIYORDU (24.10.2026).
+     *
+     * Burasi yalnizca Ingilizce okumayi deniyordu: `Number('0,09')` NaN
+     * oldugu icin Turkce bicimli bir kaynakta kume TAMAMEN bos kaliyordu.
+     * Olculdu — ayni cumlenin iki dili:
+     *
+     *   EN "Coefficient 0.09 and constant 484.12" -> [0.09, 0, 0.1, 484.12, …]
+     *   TR "Katsayi 0,09 ve sabit 484,12"         -> []
+     *
+     * Bos kume iki kapiyi birden yikiyordu: grafik kapisi
+     * (found/paired < CHART_MIN_GROUNDED_RATIO) BUTUN grafikleri, cozumlu
+     * ornek kapisi da BUTUN ornekleri "sayilar kaynakta yok" diye siliyordu.
+     * Yani Turkce bicimli sayi tasiyan her belgede — ekonometri/istatistik
+     * ders notu tam olarak bu — grafik ve ornek bolumu bos cikiyor ve log
+     * bunu "uydurma" diye raporluyordu.
+     *
+     * Dogru okuyucu AYNI DOSYADA zaten vardi: sayiOkumalari iki bicimi de
+     * cozuyor (`sayiOkumalari('0,09')` -> [0.09]). Ayni mantigin iki ayri
+     * yazimi ve ayrismasiydi; artik tek kaynaktan okunuyor.
+     *
+     * Kume buyudugu icin iki kapi biraz daha gecirgen olur — fonksiyonun
+     * kendi sozlesmesi bunu zaten kabul ediyor: fazladan uye yalnizca
+     * kontrolu DAHA MUSAMAHAKAR yapabilir, daha siki yapamaz. */
+    for (const value of sayiOkumalari(token)) {
       out.add(value)
       // The model routinely rounds what it read ("17,042 billion" -> 17000),
       // and a rounded value is still a read value, not an invented one.
@@ -4546,8 +4647,9 @@ function sanitizeNarrativeYears(
  * signal in the logs.
  */
 function gateNormalize(s: string): string {
-  return String(s == null ? '' : s)
-    .toLowerCase()
+  // Buyuk "I" icin bkz. trNormalize: 'İ'.toLowerCase() birlesen nokta
+  // uretiyor ve asagidaki temizlik onu bosluga cevirip kelimeyi boluyordu.
+  return trNormalize(s)
     .replace(/[^\p{L}\p{N}\s]/gu, ' ')   // dashes, quotes, brackets, punctuation
     .replace(/\s+/g, ' ')
     .trim()
