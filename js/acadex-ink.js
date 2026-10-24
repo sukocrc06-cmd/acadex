@@ -1595,7 +1595,7 @@ window.axWhenProfile = function (cb) {
       if (/^[A-Da-d]$/.test(ans) && Array.isArray(q.options)) { var o = q.options['ABCD'.indexOf(ans.toUpperCase())]; if (o) ans = ans.toUpperCase() + ') ' + o; }
       out.push({ id: deck.id + '|q|' + i, deck: deck.id, type: 'quiz', idx: i, key: keyOf(q, 'quiz', i), front: stripTags(q.question), back: stripTags(ans) + (q.explanation ? ' — ' + stripTags(q.explanation) : ''), user: false, src: src });
     });
-    (deck.cloze_cards || []).forEach(function (c, i) { if (!c || !c.prompt) return; out.push({ id: deck.id + '|c|' + i, deck: deck.id, type: 'cloze', idx: i, key: keyOf(c, 'cloze', i), front: stripTags(c.prompt), back: stripTags(c.full || c.sentence || c.answer), cloze: stripTags(c.answer), user: !!c.user, src: src }); });
+    (deck.cloze_cards || []).forEach(function (c, i) { if (!c || !c.prompt) return; out.push({ id: deck.id + '|c|' + i, deck: deck.id, type: 'cloze', idx: i, key: keyOf(c, 'cloze', i), front: stripTags(c.prompt), back: stripTags(c.full_text || c.full || c.sentence || c.answer), cloze: stripTags(c.answer), user: !!c.user, src: src }); });
     var cm = confMap(), now = Date.now();
     out.forEach(function (c) {
       var r = cm[c.deck + ':' + c.key]; c.conf = r || null;
@@ -7459,7 +7459,7 @@ var SBX = (function () {
       if (/^[A-Da-d]$/.test(ans) && Array.isArray(q.options)) { var o = q.options['ABCD'.indexOf(ans.toUpperCase())]; if (o) ans = o; }
       out.push({ id: deck.id + '|q|' + i, deck: deck.id, type: 'quiz', key: keyOf(q, 'quiz', i), front: stripMd(q.question), back: stripMd(ans) + (q.explanation ? ' — ' + stripMd(q.explanation) : ''), q: stripMd(q.question), src: src });
     });
-    arr(deck.cloze_cards).forEach(function (c, i) { if (!c || !c.prompt) return; var full = stripMd(c.full || c.sentence || c.answer || ''); out.push({ id: deck.id + '|c|' + i, deck: deck.id, type: 'cloze', key: keyOf(c, 'cloze', i), front: stripMd(c.prompt), back: full || stripMd(c.answer || ''), q: stripMd(c.prompt), src: src }); });
+    arr(deck.cloze_cards).forEach(function (c, i) { if (!c || !c.prompt) return; var full = stripMd(c.full_text || c.full || c.sentence || c.answer || ''); out.push({ id: deck.id + '|c|' + i, deck: deck.id, type: 'cloze', key: keyOf(c, 'cloze', i), front: stripMd(c.prompt), back: full || stripMd(c.answer || ''), q: stripMd(c.prompt), src: src }); });
     out.forEach(function (c) { var r = cm[c.deck + ':' + c.key]; c.conf = r || null; c.box = !r ? 1 : Math.min(5, 1 + (Number(r.repetitions) || 0)); c.due = !r || !r.next_review_at || new Date(r.next_review_at).getTime() <= now; });
     return out;
   };
@@ -8650,11 +8650,38 @@ var SBX = (function () {
   var findNumbers = function (card) {
     var src = [card.summary_executive || ''].concat(arr(card.key_points).map(plain)).concat([plain(card.summary || '')]).join(' \n ');
     var sents = src.split(/(?<=[.!?])\s+|\n/), out = [], seen = {};
-    var re = /(%\s?\d+(?:[.,]\d+)?|\d+(?:[.,]\d+)?\s?%|[$€₺]\s?\d+(?:[.,]\d+)?|\d+(?:[.,]\d+)?\s?(?:milyon|milyar|bin|TL|USD|dolar|yıl|ay|gün|adım|aşama|faktör|kat)\b|\b\dP\b)/i;
+    /* EKSI ISARETI VE CIPLAK ONDALIKLAR (24.10.2026).
+     *
+     * Iki kusur olculdu, ikisi de ayni desende:
+     *
+     * 1) ISARET KAYBI. Desende hicbir yerde `-` yoktu ve `parseFloat`
+     *    oncesi `replace(/[^\d.,]/g, '')` isareti ZATEN siliyordu:
+     *      "-5.06 dolar"  ->  eslesen "5.06 dolar"  ->  5.06
+     *    Metin "fatura AZALIYOR" derken kutu isaretsiz pozitif gosteriyordu.
+     *    Marjinal etki, egim, fark — bu kartta sayilarin cogu isaretli.
+     *
+     * 2) CIPLAK ONDALIK GORUNMUYOR. Desen yalnizca %, para birimi ve
+     *    TURKCE birimleri (milyon/TL/yil/kat...) taniyordu. Ingilizce bir
+     *    istatistik destesinde olculen sonuc:
+     *      "UtilityBill = 484.12 - 12.08 temp + 0.09 temp^2"  -> ESLESME YOK
+     *      "R2 = 0.87"                                        -> ESLESME YOK
+     *      "0.07 tons per $1000"                              -> "$1000" (!)
+     *    Yani belgenin ASIL sayilari gorunmez, geriye anlamsiz olanlar
+     *    kaliyordu: anlamlilik duzeyi "1%" ve "$1000" gibi.
+     *
+     * Cozum ondalik kismi OLAN ciplak sayilari da almak. Tam sayilar
+     * bilerek disarida: sayfa numarasi, yil, madde sirasi hep tam sayi ve
+     * onlari almak kutulari coplestirir. Nicel bir belgede sinyal
+     * ondalikta. Desen `-` ile basliyorsa isaret korunuyor. */
+    var re = /(-?\d+(?:[.,]\d+)?\s?%|%\s?-?\d+(?:[.,]\d+)?|[$€₺]\s?-?\d+(?:[.,]\d+)?|-?\d+(?:[.,]\d+)?\s?(?:milyon|milyar|bin|TL|USD|dolar|yıl|ay|gün|adım|aşama|faktör|kat)\b|-?\d+[.,]\d+|\b\dP\b)/i;
     sents.forEach(function (s) {
       if (out.length >= 3) return; var m = s.match(re); if (!m) return; var tok = m[1].trim(), key = tok.toLowerCase(); if (seen[key]) return; seen[key] = 1;
+      /* Isaret ayri tutuluyor: temizlik `-`i siliyor, o yuzden once okunur. */
+      var eksi = /^-/.test(tok) || /^[%$€₺]\s?-/.test(tok);
       var num = parseFloat(tok.replace(/[^\d.,]/g, '').replace(',', '.')); if (isNaN(num)) return;
-      out.push({ v: num, raw: tok, pre: tok.match(/^[%$€₺]/) ? tok.match(/^[%$€₺]/)[0] : '', post: tok.replace(/^[%$€₺]\s?/, '').replace(/^\d+(?:[.,]\d+)?\s?/, ''), dec: /[.,]\d/.test(tok), cap: cut(plain(s), 90) });
+      if (eksi) num = -num;
+      var birim = tok.match(/^[%$€₺]/);
+      out.push({ v: num, raw: tok, pre: birim ? birim[0] : '', post: tok.replace(/^[%$€₺]\s?/, '').replace(/^-?\d+(?:[.,]\d+)?\s?/, ''), dec: /[.,]\d/.test(tok), cap: cut(plain(s), 90) });
     });
     var secs = arr(card.sections).length, terms = arr(card.key_terms).length;
     if (out.length < 3 && secs) out.push({ v: secs, pre: '', post: ' bölüm', cap: 'belge bu kadar ana başlığa ayrılıyor' });
@@ -8949,8 +8976,33 @@ var SBX = (function () {
     var qm = c.quality_meta || {}, typ = plain(lsafe(function () { return getDocumentTypeBadgeHtml(c.document_type); }, '')), len = plain(lsafe(function () { return getLengthBadgeHtml(c.summary_length); }, ''));
     Q('#study-card-title').textContent = baseName(R.name);
     Q('[data-axr-eyb]').textContent = (c.course_tag ? c.course_tag + ' · ' : '') + 'ÖZET KARTI';
+    /* KALITE UYARILARI EKRANDA (24.10.2026).
+     *
+     * Edge function bu dort alani kartin quality_meta'sina YAZIYORDU ama
+     * canli okuyucu yalnizca OLUMLU ikisini (grounded, pass) okuyordu.
+     * Uyarilar gizli .axr-legacy DOM'una yaziliyordu ve o blok CSS'te
+     * display:none — yani %23 kapsamali bir kart tam kartla birebir ayni
+     * gorunuyor, ustune de yesil "kalite kontrolunden gecti" rozeti
+     * aliyordu. Ogrenci belgenin sonunun hic ozetlenmedigini goremiyordu.
+     *
+     * "kaynaga bagli" rozeti kaliyor: o dar anlamda dogru (grounding kapisi
+     * gecti). Bastirilan sey "kalite kontrolunden gecti", cunku uyari varken
+     * o cumle kartin tamam oldugunu ima ediyor. */
+    var uyarilar = [];
+    var mw = qm.missing_windows;
+    if (mw && mw.dusen > 0) {
+      uyarilar.push('eksik özet: ' + mw.dusen + '/' + (mw.toplam || '?') + ' pencere düştü');
+    }
+    if (qm.gemini_partial && qm.gemini_partial.kurtarilanKrk > 0) uyarilar.push('kısmi özet');
+    var atlanan = arr(qm.skipped_stages).filter(Boolean);
+    if (atlanan.length) uyarilar.push('atlanan: ' + atlanan.join(', '));
+    var nc = qm.numeric_coverage;
+    if (nc && nc.total > 0 && nc.kept / nc.total < 0.7) {
+      uyarilar.push('sayısal kapsama %' + Math.round((nc.kept / nc.total) * 100));
+    }
+    var uyariChip = uyarilar.map(function (u) { return chip(u, 'warn'); }).join('');
     mast.innerHTML = '<div class="axr-mastin"><div class="axr-ltbar' + (LT_ON ? '' : ' soon') + '"><span class="axr-ltlbl mono">ÖZETİN DİLİ</span>' + langTog('all') + (LT_ON ? '<span class="axr-ltprog hand" data-ltprog="" aria-live="polite"></span>' : '<span class="axr-ltsoon hand">yakında</span>') + '</div><span class="axr-kicker hand">' + X(c.course_tag ? c.course_tag + ' dersi' : 'çalışma kartın') + '</span><h1 class="disp axr-h1"><span>' + X(baseName(R.name)) + '</span></h1>' +
-      '<div class="axr-chips">' + chip(c.summary_language === 'tr' ? 'Türkçe' : c.summary_language === 'en' ? 'English' : '') + chip(styleLabel(c.summary_style || 'standard')) + chip(typ) + chip(len) + (c.is_quantitative ? chip('sayısal ders', 'q') : '') + (qm.grounded ? chip('kaynağa bağlı', 'ok') : '') + (qm.pass !== false && qm.grounded ? chip('kalite kontrolünden geçti', 'ok') : '') + '</div>' +
+      '<div class="axr-chips">' + chip(c.summary_language === 'tr' ? 'Türkçe' : c.summary_language === 'en' ? 'English' : '') + chip(styleLabel(c.summary_style || 'standard')) + chip(typ) + chip(len) + (c.is_quantitative ? chip('sayısal ders', 'q') : '') + (qm.grounded ? chip('kaynağa bağlı', 'ok') : '') + (qm.pass !== false && qm.grounded && !uyarilar.length ? chip('kalite kontrolünden geçti', 'ok') : '') + uyariChip + '</div>' +
       '<p class="axr-meta mono"><span>~' + mins + ' dk okuma</span>' + (secs.length ? '<span>' + secs.length + ' bölüm</span>' : '') + (arr(c.key_terms).length ? '<span>' + arr(c.key_terms).length + ' kavram</span>' : '') + (arr(c.quiz_questions).length ? '<span>' + arr(c.quiz_questions).length + ' soru</span>' : '') + '<span data-left=""></span></p></div>';
     /* 30 saniye + sayılar */
     var ex = String(c.summary_executive || '').trim(), nums = findNumbers(c);
@@ -8980,12 +9032,12 @@ var SBX = (function () {
       var hasNet = !!netData(c);
       h += ch('kavram', 'Kavramlar', '<div class="axr-sech"><span class="axr-lbl mono">KAVRAMLAR</span><h2 class="disp">' + (hasNet ? 'Kavram ağı' : 'Akılda kalsın') + '</h2>' + (own ? '<button type="button" class="axr-mini" data-regen="key_terms">' + ICON.redo + 'kavramları yenile</button>' : '') + '</div>' +
         (hasNet ? '<div class="axr-netw"><div class="axr-netbox" data-net=""></div><div class="axr-netinfo" data-netinfo="" hidden></div><p class="hand axr-tipline">düğümü sürükle, dokununca tanımını gör</p></div>' : '') +
-        (terms.length ? '<div class="axr-terms">' + terms.map(function (t, i) { return '<button type="button" class="axr-term" style="--r:' + ((i % 5) - 2) * .6 + 'deg" aria-pressed="false"><span class="f"><b>' + X(plain(t.term)) + '</b><i class="hand">çevir</i></span><span class="b">' + X(plain(t.definition)) + '</span></button>'; }).join('') + '</div>' : '') +
+        (terms.length ? '<div class="axr-terms">' + terms.map(function (t, i) { return '<button type="button" class="axr-term" style="--r:' + ((i % 5) - 2) * .6 + 'deg" aria-pressed="false"><span class="f"><b>' + sym(plain(t.term)) + '</b><i class="hand">çevir</i></span><span class="b">' + math(plain(t.definition)) + '</span></button>'; }).join('') + '</div>' : '') +
         (kp.length ? (hasNet || terms.length ? '<h3 class="hand axr-h3">akılda kalsın</h3>' : '') + '<ul class="axr-kps big" data-prose="kp">' + kp.map(function (p) { return '<li>' + imath(typeof formatFootnoteMarkers === 'function' ? formatFootnoteMarkers(String(p), c.footnotes) : X(p)) + '</li>'; }).join('') + '</ul>' : ''));
     }
     /* kendini sına */
     var qz = arr(c.quiz_questions);
-    if (qz.length) h += ch('sina', 'Kendini sına', '<div class="axr-sech"><span class="axr-lbl mono">KENDİNİ SINA</span><h2 class="disp">' + qz.length + ' soru</h2></div><ol class="axr-quiz">' + qz.map(function (q, i) { return '<li><button type="button" aria-expanded="false" data-q="' + i + '"><span class="mono">S' + (i + 1) + '</span>' + X(plain(q.question)) + '</button><div class="axr-ans" hidden><span class="hand">cevap</span> ' + X(plain(q.answer != null ? (/^[A-Da-d]$/.test(String(q.answer)) && Array.isArray(q.options) ? q.options['ABCD'.indexOf(String(q.answer).toUpperCase())] || q.answer : q.answer) : '')) + (q.explanation ? '<small>' + X(plain(q.explanation)) + '</small>' : '') + '</div></li>'; }).join('') + '</ol>');
+    if (qz.length) h += ch('sina', 'Kendini sına', '<div class="axr-sech"><span class="axr-lbl mono">KENDİNİ SINA</span><h2 class="disp">' + qz.length + ' soru</h2></div><ol class="axr-quiz">' + qz.map(function (q, i) { return '<li><button type="button" aria-expanded="false" data-q="' + i + '"><span class="mono">S' + (i + 1) + '</span>' + math(plain(q.question)) + '</button><div class="axr-ans" hidden><span class="hand">cevap</span> ' + math(plain(q.answer != null ? (/^[A-Da-d]$/.test(String(q.answer)) && Array.isArray(q.options) ? q.options['ABCD'.indexOf(String(q.answer).toUpperCase())] || q.answer : q.answer) : '')) + (q.explanation ? '<small>' + math(plain(q.explanation)) + '</small>' : '') + '</div></li>'; }).join('') + '</ol>');
     /* ilgili + kaynakça */
     var rel = lsafe(function () { return findRelatedStudyCards(c.id, 6); }, []) || [], fn = arr(c.footnotes);
     if (rel.length || fn.length) h += ch('kaynak', 'Kaynak ve bağlantılar', (rel.length ? '<div class="axr-sech"><span class="axr-lbl mono">BAĞLANTILI KARTLAR</span></div><div class="axr-rel">' + rel.map(function (r) { return '<button type="button" onclick="viewStudyCardFromLibrary(\'' + X(r.card.id) + '\')"><b>' + X(baseName(r.card.documents && r.card.documents.file_name)) + '</b><small>ortak: ' + X(arr(r.sharedLabels).join(', ')) + '</small></button>'; }).join('') + '</div>' : '') +

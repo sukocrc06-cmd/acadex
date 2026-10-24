@@ -18,7 +18,7 @@ const { loadFromSource, makeRunner } = require('./_ts-extract.js');
 // Cikarilacak bildirimler. Kaynakta biri yeniden adlandirilirsa test ACIK
 // HATA verir — sessizce eski bir kopyayi test etmeye devam etmez.
 const NAMES = [
-    'ANCHOR_STOPWORDS', 'anchorTerms', 'splitByPageMarkers', 'buildPageIndex',
+    'ANCHOR_STOPWORDS', 'trNormalize', 'anchorTerms', 'splitByPageMarkers', 'buildPageIndex',
     'buildAnchorIdf', 'ANCHOR_MIN_SCORE', 'ANCHOR_MIN_TERMS',
     // birebir alinti (span seviyesi atif)
     'SENTENCE_ABBREV', 'splitSentences', 'QUOTE_MIN_CHARS', 'QUOTE_MAX_CHARS',
@@ -409,6 +409,69 @@ test('SLAYT etiketli belge (PPTX) de dogru chunk lanir', () => {
   assert.equal(cs.length, 1);
   assert.equal(cs[0].page_start, 3);
   assert.ok(!/SLAYT/.test(cs[0].text), 'slayt isaretcisi metne sizmamali');
+});
+
+/* ==========================================================================
+   BUYUK "I" KELIMEYI IKIYE BOLUYORDU (24.10.2026)
+
+   JavaScript'te 'İ'.toLowerCase() iki kod birimi uretiyor: 'i' + U+0307
+   (birlesen ustteki nokta). U+0307 \p{L}/\p{N} kumelerinde olmadigi icin
+   noktalama temizligi onu BOSLUGA cevirip kelimeyi boluyordu. Olculen:
+
+     anchorTerms('İstatistik') -> ["statistik"]   (bastaki 'i' 4 harf
+                                   esigine takilip dusuyordu)
+     anchorTerms('istatistik') -> ["istatistik"]
+
+   Sonuc: model terimi baslik bicimiyle, kaynak cumle icinde kucuk harfle
+   yazdiginda sayfa capasi kayboluyordu. Turkce bir urunde bu, kaynakta
+   BIREBIR gecen icerigin atif alamamasi demek.
+   ========================================================================== */
+test('anchorTerms buyuk I ile kucuk i AYNI koke indiriyor', () => {
+  assert.deepEqual(A.anchorTerms('İstatistik'), A.anchorTerms('istatistik'),
+    'buyuk I farkli kok uretiyor — eslesme kaybolur');
+  assert.deepEqual(A.anchorTerms('İstatistik'), ['istatistik'],
+    'bastaki harf dusmus: ' + JSON.stringify(A.anchorTerms('İstatistik')));
+});
+
+test('anchorTerms Turkce basliklari bolmuyor', () => {
+  const vakalar = [
+    ['İşsizlik Oranı', ['işsizlik', 'oranı']],
+    ['İthalat ve İhracat', ['ithalat', 'ihracat']],   // "ve" durak kelimesi
+    ['İç Verim Oranı', ['verim', 'oranı']],           // "İç" 2 harf, esige takilir
+  ];
+  for (const [girdi, beklenen] of vakalar) {
+    assert.deepEqual(A.anchorTerms(girdi), beklenen,
+      `${girdi} -> ${JSON.stringify(A.anchorTerms(girdi))}`);
+  }
+});
+
+test('buyuk I ile yazilan iddia DOGRU sayfaya baglaniyor', () => {
+  /* Capa eslesmesinin kendisi: iddia baslik biciminde, kaynak cumle icinde
+     kucuk harfle. Duzeltmeden once bu iddia hic sayfa bulamiyordu. */
+  const metin = [
+    '--- SAYFA 1 ---',
+    'Bu bolumde arz ve talep dengesi ile fiyat olusumu anlatilir.',
+    '--- SAYFA 2 ---',
+    'İşsizlik orani 2023 yilinda yuzde on bire yukseldi ve istihdam daraldi.'
+  ].join('\n');
+  const idx = A.buildPageIndex(metin, 'SAYFA');
+  assert.equal(idx.length, 2, 'fixture okunmadi — isaret etiketi gecilmemis olabilir');
+  const idf = A.buildAnchorIdf(idx);
+  /* Kelimeler sayfada BIREBIR geciyor; tek fark bastaki buyuk I. Turkce ek
+     farki (orani / oranindaki) ayri ve bilinen bir sinir, bu testin konusu
+     degil — o yuzden iddia ek almamis kelimelerden kuruldu. */
+  const buyuk = A.anchorClaimToPage('İşsizlik orani istihdam daraldi', idx, idf);
+  assert.ok(buyuk, 'iddia hic sayfa bulamadi — buyuk I eslesmeyi bozuyor');
+  assert.equal(buyuk.page, 2, `yanlis sayfaya baglandi: ${buyuk && buyuk.page}`);
+  // Ayni iddia kucuk harfle de AYNI sayfayi bulmali: fark kalmadi.
+  const kucuk = A.anchorClaimToPage('işsizlik orani istihdam daraldi', idx, idf);
+  assert.ok(kucuk && kucuk.page === buyuk.page,
+    'buyuk ve kucuk harfli iddia farkli sayfa buluyor');
+});
+
+test('trNormalize Ingilizce metni degistirmiyor (regresyon)', () => {
+  assert.equal(A.trNormalize('Dummy Variable Trap'), 'dummy variable trap');
+  assert.deepEqual(A.anchorTerms('Reference Category'), ['reference', 'category']);
 });
 
 summary().then(() => process.exit(process.exitCode || 0));

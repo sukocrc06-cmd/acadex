@@ -51,7 +51,7 @@ const denoEnv = new Map();
 globalThis.Deno = { env: { get: (k) => (denoEnv.has(k) ? denoEnv.get(k) : undefined) } };
 
 const G = loadFromSource('supabase/functions/summarize-document/index.ts', [
-  'GEMINI_MODEL_CANDIDATES', 'GEMINI_MAX_REQUESTS_PER_RUN', 'GEMINI_ARDISIK_GECICI_MAX',
+  'GEMINI_MODEL_CANDIDATES', 'GEMINI_MAX_REQUESTS_PER_RUN', 'GEMINI_ARDISIK_GECICI_MAX', 'GEMINI_YARIS_GENISLIGI_VARSAYILAN', 'geminiYarisGenisligi', 'GEMINI_YARIS_YOKLAMA_MS',
   'GEMINI_RPM_RETRY_MIN_REMAINING_MS', 'geminiRpmWaitMs',
   'GEMINI_ENDPOINT', 'GEMINI_INLINE_MAX_BYTES', 'GEMINI_MAX_PAGES',
   'GEMINI_MIN_BUDGET_MS', 'GEMINI_RESERVE_MS', 'GEMINI_MAX_CALL_MS',
@@ -66,7 +66,7 @@ const G = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'GEMINI_MAX_RESUMES', 'GEMINI_DEVAM_PAYI_MS', 'GEMINI_DEVAM_KAYIT_PAYI_MS', 'geminiDevamDesteklemeyen',
   'geminiAkisDurumu', 'geminiSseBlogunuIsle', 'geminiAkisiTuket',
   'geminiAkisIstegi', 'geminiAkisSonucu', 'geminiAkisiDevamEttir',
-  'closeTruncatedJson', 'repairLatexEscapes', 'geminiAkisOlcumu'
+  'closeTruncatedJson', 'LATEX_IKI_HARFLI', 'repairLatexEscapes', 'geminiAkisOlcumu', 'onbellegeYazilabilir', 'maddeMetni'
 ]);
 
 // --- kukla fetch -----------------------------------------------------------
@@ -615,21 +615,68 @@ test('esik: cok kisa kismi cikti kurtarmaya GIRMEZ', () => {
 test('KISMI taslaktan uretilen kart ONBELLEGE ALINMAZ', () => {
   // Alinirsa ayni belgeyi ozetleyen herkes yarim karti alir ve bir daha
   // hic tam kart uretilmez.
-  /* 21.10.2026: kapiya DORDUNCU kosul eklendi (!geminiTani.geciciDustu),
-     o yuzden kapanis parantezine kadar birebir eslesme aranmiyor. Burada
-     korunan sey hala ayni: KISMI kart disarida kalmali. */
-  const kapi = FN_SRC.indexOf('if (summaryCacheKey && !eksikPencereler');
-  assert.ok(kapi > 0, 'onbellek yazma kapisi bulunamadi');
-  const kapiSatiri = FN_SRC.slice(kapi, FN_SRC.indexOf('\n', kapi));
-  assert.ok(kapiSatiri.includes('geminiKismiKrk === 0'),
-    `onbellek kapisi kismi karti disarida tutmuyor: ${kapiSatiri}`);
+  /* 24.10.2026: karar saf bir fonksiyona tasindi (onbellegeYazilabilir) ve
+     16 kombinasyonu gemini-shadow'da tabloyla sinaniyor. Burada korunan sey
+     hala ayni: KISMI kart disarida kalmali — ama artik dizge araniyor degil,
+     fonksiyonun KARARI olculuyor. */
+  assert.equal(
+    G.onbellegeYazilabilir({
+      anahtarVar: true, eksikPencereVar: false, geminiKismiKrk: 2074, geciciDustu: false
+    }),
+    false,
+    'onbellek kapisi kismi karti disarida tutmuyor'
+  );
+  assert.equal(
+    G.onbellegeYazilabilir({
+      anahtarVar: true, eksikPencereVar: false, geminiKismiKrk: 0, geciciDustu: false
+    }),
+    true,
+    'tam kart da yazilamiyor — kapi fazla sIki'
+  );
   assert.ok(/qualityMeta\.gemini_partial = \{ kurtarilanKrk: geminiKismiKrk \}/.test(FN_SRC),
     'kismi kart isaretlenmiyor — arayuz rozeti okuyamaz');
 });
 
-test('arayuz KISMI GEMINI rozetini okuyor', () => {
+/* 24.10.2026 — BU TEST OLU YOLU DOGRULUYORDU.
+ *
+ * `dashboard.js`'in yazdigi uyari `#study-card-summary-text`'e gidiyor; o
+ * dugum `dashboard.html`'de `<div class="axr-legacy" hidden>` blogunun
+ * icinde ve `css/acadex-ink.css` onu `display:none!important` yapiyor.
+ * Yani test yesil, ekran bos: ogrenci %23 kapsamali karti tam kart gibi
+ * goruyor ve ustune yesil "kalite kontrolunden gecti" rozeti aliyordu.
+ *
+ * Canli cizim yolu `js/acadex-ink.js` -> renderFlow. Test artik ONU
+ * dogruluyor; dashboard kontrolu de kaliyor (o yol hala PDF/diger
+ * yuzeyler icin duruyor), ama tek basina YETERLI sayilmiyor. */
+const INK_SRC = require('node:fs').readFileSync(
+  require('node:path').join(__dirname, '..', 'js/acadex-ink.js'), 'utf8');
+
+test('CANLI arayuz kalite uyarilarini okuyor', () => {
+  for (const alan of ['missing_windows', 'gemini_partial', 'skipped_stages', 'numeric_coverage']) {
+    assert.ok(INK_SRC.includes('qm.' + alan),
+      `acadex-ink ${alan} okumuyor — uyari ekranda gorunmez`);
+  }
+  // Uyarilar gercekten bir rozete donmeli, sadece okunup atilmasin.
+  assert.ok(/uyarilar\.push\(/.test(INK_SRC), 'uyarilar toplanmiyor');
+  assert.ok(/chip\(u, 'warn'\)/.test(INK_SRC), 'uyari rozeti uretilmiyor');
+  assert.ok(/uyariChip \+ '<\/div>'/.test(INK_SRC), 'uyari rozetleri rozet satirina eklenmiyor');
+});
+
+test('uyari varken "kalite kontrolunden gecti" BASTIRILIYOR', () => {
+  /* Asil kusur ikisinin BIRLIKTE gorunmesiydi: eksik kart + yesil onay. */
+  assert.ok(/qm\.pass !== false && qm\.grounded && !uyarilar\.length/.test(INK_SRC),
+    'olumlu rozet uyari varken de basiliyor');
+});
+
+test('uyari rozetinin CSS i var', () => {
+  const CSS = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'css/acadex-ink.css'), 'utf8');
+  assert.ok(/\.axr-chip\.warn\{/.test(CSS), 'warn rozeti icin stil yok — rozet notr gorunur');
+});
+
+test('arayuz KISMI GEMINI rozetini okuyor (eski/legacy yol)', () => {
   assert.ok(/qm\.gemini_partial/.test(DASH_SRC),
-    'dashboard gemini_partial okumuyor — kart tam kart gibi gorunur');
+    'dashboard gemini_partial okumuyor');
   const i = DASH_SRC.indexOf('qm.gemini_partial');
   const blok = DASH_SRC.slice(i, i + 800);
   assert.ok(/Kısmi özet/.test(blok), 'ogrenciye gosterilen metin yok');

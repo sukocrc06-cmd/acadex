@@ -24,13 +24,20 @@ if (!globalThis.Deno) globalThis.Deno = { env: { get: () => undefined } };
 
 const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'geminiMode', 'geminiParallelActive',
-  'ANCHOR_STOPWORDS', 'anchorTerms',
+  'ANCHOR_STOPWORDS', 'trNormalize', 'anchorTerms',
   // Reasoning parametrelerinin model ailesine gore turetilmesi.
   // DIKKAT: bu dosyada loadFromSource SADECE burada cagrilmali. Her cagri
   // 5.900 satirlik kaynagi senkron olarak transpile ediyor ve olay dongusunu
   // yuzlerce ms blokluyor; asagidaki pacer testleri gercek duvar saatine
   // bakiyor, bu yuzden testin ORTASINDA yapilan bir transpile onlari
   // uydurma sekilde basarisiz gosteriyor (05.10.2026'da tam bu oldu).
+  // 24.10.2026: asagidaki uc ek loadFromSource cagrisi buraya tasindi —
+  // dosyanin kendi kurali (yukarisi) tek cagri istiyordu ve biri TEST
+  // ICINDE idi: async bir teste donusturuldugu an transpile olay
+  // dongusunu bloklar ve pacer testlerini uydurma sekilde dusurur.
+  'CACHE_METIN_MIN_KRK', 'cacheMetniNormalize',
+  'YOGUNLUK_KAPISI_ELIYOR', 'yogunlukIsaretleri', 'applyDensityGate',
+  'PENCERE_DEVIR_ESIGI_MS', 'PENCERE_DEVIR_KAZANC_MS',
   'reasoningParamsFor',
   // token hizlandirici (TPM)
   'PACER_SAFETY', 'PACER_WINDOW_MS', 'PACER_MAX_WAIT_MS', 'PACER_COMPLETION_FACTOR',
@@ -53,7 +60,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'VISION_TOKENS_PER_IMAGE', 'VISION_MAX_IMAGES', 'VISUAL_MIN_BUDGET_MS',
   // bosluk doldurma kartlari
   'clozeTermPattern', 'turkishIClasses', 'blankAllOccurrences',
-  'REVIEW_ARRAY_FIELDS', 'applyCorrections', 'NARRATIVE_MIN_KEEP_RATIO', 'INLINE_PAGE_CITE', 'stripIntroducedCitations', 'mergeReviewOntoDraft', 'stripThinkBlock', 'buildClozeCards',
+  'REVIEW_ARRAY_FIELDS', 'maddeMetni', 'applyCorrections', 'gateWorkedExampleArithmetic', 'NARRATIVE_MIN_KEEP_RATIO', 'INLINE_PAGE_CITE', 'stripIntroducedCitations', 'mergeReviewOntoDraft', 'stripThinkBlock', 'buildClozeCards',
   // tekrarlayan ustbilgi/altbilgi temizligi
   'BOILERPLATE_MIN_PAGES', 'BOILERPLATE_PAGE_SHARE', 'BOILERPLATE_MAX_LINE_CHARS',
   'boilerplateKey', 'splitByPageMarkers', 'stripRepeatedBoilerplate',
@@ -72,7 +79,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   // Pencere dengeleme ve cozumlu ornek kapisi (08.10.2026).
   'kurPencereler', 'splitIntoChunks', 'splitIntoWindows',
   'gateWorkedExamples',
-  'JSON_GECERLI_KACIS', 'repairLatexEscapes',
+  'JSON_GECERLI_KACIS', 'LATEX_IKI_HARFLI', 'repairLatexEscapes',
   // Yokluk iddiasi kapisi (08.10.2026).
   'YOKLUK_IDDIASI',
   // Pencere cikis tavani serit butcesinden turetilir (09.10.2026).
@@ -754,16 +761,34 @@ test('bekleme tavani pencereyi ASMALI (canli logdan gelen hata)', () => {
     `tavan (${A.PACER_MAX_WAIT_MS}) pencereden (${A.PACER_WINDOW_MS}) buyuk olmali`);
 });
 
-test('gereken sure tavandan buyukse HIC beklemez', async () => {
-  const p = freshPacer(8000);
-  p.lane(M_A).spent = [{ at: Date.now(), tokens: 7900 }];
-  const t0 = Date.now();
-  // acquire'i tavanin tuketildigi noktadan baslatmak icin: cok buyuk est ile
-  // bile bekleme gereken sureyi asamayacagindan hizli donmeli ya da gercek
-  // sureyi beklemeli — ikisi de kabul, ama 55s'lik olu bekleme OLMAMALI.
-  await Promise.race([p.acquire(3000, M_A), new Promise(r => setTimeout(r, 300))]);
-  const waited = Date.now() - t0;
-  assert.ok(waited < 1000 || waited >= 250, 'olu bekleme olmamali');
+test('GEREKEN bekleme her zaman tavanin ALTINDA — pacer bir beklemeden vazgecmez', () => {
+  /* 24.10.2026 — BU TEST HICBIR ZAMAN BASARISIZ OLAMIYORDU, VE ADI DA
+   * ARTIK ULASILAMAZ BIR DALI ANLATIYORDU.
+   *
+   * Eski iddia: `assert.ok(waited < 1000 || waited >= 250)`. `waited`
+   * negatif olamayacagina gore 1000'den buyukse 250'den de buyuktur — iki
+   * kosuldan biri HER ZAMAN dogruydu. Ustelik olcum `Promise.race` ile
+   * 300ms'de kapatiliyordu, yani sayinin kendisi de bir sey anlatmiyordu.
+   *
+   * Testi gercekten olcen hale getirdigimde DUSTU ve sebebi ogretici:
+   * senaryo (tek kayit, 7900/8000) bugun ~60 saniye bekleme GEREKTIRIYOR ve
+   * pacer dogru olarak BEKLIYOR. Yani "gereken sure tavandan buyukse hic
+   * beklemez" dali artik yapisal olarak olu — ve bu BILINCLI:
+   * PACER_MAX_WAIT_MS (65s) pencereden (60s) buyuk secilmis, cunku tek bir
+   * kayit en fazla pencere kadar bekletir. Sabitin kendi yorumu bunu
+   * soyluyor: "a wait that is needed is a wait that completes".
+   *
+   * Dolayisiyla korunacak sey o olu dal degil, onu olu yapan ARITMETIK.
+   * Boylece tavan yeniden pencerenin altina indirilirse (55s hatasi geri
+   * gelirse) bu test duser — eski haliyle dusmuyordu. */
+  assert.ok(A.PACER_WINDOW_MS < A.PACER_MAX_WAIT_MS,
+    `tavan (${A.PACER_MAX_WAIT_MS}) pencerenin (${A.PACER_WINDOW_MS}) altinda — ` +
+    'her uzun bekleme tanim geregi bosuna olur ve 55s olu bekleme geri doner');
+  /* Tek kaydin bekletebilecegi en uzun sure pencere kadardir; tavan onun
+     ustunde oldugu icin gereken her bekleme TAMAMLANABILIR. */
+  const enUzunGereken = A.PACER_WINDOW_MS;
+  assert.ok(enUzunGereken <= A.PACER_MAX_WAIT_MS,
+    'gereken bekleme tavani asabiliyor — pacer isine yarayan bir beklemeden vazgecer');
 });
 
 test('tamamlama tahmini tavanin tamamini saymaz', () => {
@@ -1576,7 +1601,13 @@ test('kaynakta olmayan yil, yil-only parantezle birlikte silinir', () => {
   const before = 'A brief history highlights the Great Depression (1929‑1933), the post-war era.';
   const r = A.scrubUnsupportedYears(before, YEAR_SOURCE);
   assert.equal(r.text, 'A brief history highlights the Great Depression, the post-war era.');
-  assert.deepEqual(r.removed, ['1933']);
+  /* 24.10.2026: `removed` artik metinden GERCEKTEN cikan butun yillari
+     tasiyor. Eskiden yalnizca ['1933'] diyordu, oysa 1929 da parantezle
+     birlikte gitmisti ve hicbir yerde yazmiyordu — log olani eksik
+     anlatiyordu. Davranis AYNI (parantez tumden siliniyor, bkz. oradaki
+     yorum); degisen tek sey raporlamanin durustlugu. */
+  assert.deepEqual(r.removed, ['1929', '1933'],
+    'parantezle birlikte giden desteklenen yil da raporlanmali');
   assert.deepEqual(r.flagged, [], 'silinen yil ayrica isaretlenmemeli');
 });
 
@@ -1631,7 +1662,13 @@ test('sanitizeNarrativeYears ozet, yonetici ozeti ve bolumleri kapsar', () => {
   assert.equal(draft.summary_executive, 'Covers 1929.');
   assert.equal(draft.sections[0].summary, 'Stagflation followed the 1973-1975 period.', 'desteklenen aralik durmali');
   assert.equal(r.changed, 2, 'iki alan degismeli');
-  assert.deepEqual(r.removed, ['1933']);
+  /* 24.10.2026: `removed` metinden GERCEKTEN cikan yillari tasiyor. summary
+     alanindaki parantez tumden silindigi icin 1929 da cikti (davranis ayni,
+     bkz. scrubUnsupportedYears yorumu); summary_executive'de parantez yok,
+     orada 1929 KORUNDU ve yalnizca 1933 atildi. Eskiden log ikisini de
+     ['1933'] diye raporluyordu, yani birinci alandaki kaybi hic soylemiyordu. */
+  assert.deepEqual(r.removed, ['1929', '1933'],
+    'parantezle birlikte giden desteklenen yil da raporlanmali');
   // key_points applyGroundingGate'in isi — bu kapi ona dokunmamali.
   assert.match(draft.key_points[0], /1933/);
 });
@@ -1833,6 +1870,177 @@ test('CANLI HATA: kisalmis review icerigi SILEMEZ', () => {
   assert.equal(m.summary, 'z'.repeat(200), 'anlatim yine de guncellenmeli');
 });
 
+/* 24.10.2026 — DIZI BIRLESMESINDE YALNIZCA SAYI OLCULUYORDU.
+ *
+ * Tek kosul `rv.length >= draftLen` idi: eleman SAYISI esitse icerik ne
+ * olursa olsun kabul ediliyordu. Review kaynagin yalnizca ilk 11.000
+ * karakterini goruyor, taslak butun belgeyi kapsiyor; 20 maddeyi 20 madde
+ * olarak geri yazip gormedigi maddeleri kisaltirsa birlesme AYNEN kabul
+ * ediyordu. Metin alanlarinda NARRATIVE_MIN_KEEP_RATIO tabani zaten vardi,
+ * dizilerde karsiligi yoktu — ayni mantigin iki ayri yazimi. */
+/* 24.10.2026 — ARITMETIK KAPISINDA EMNIYET VALFI YOKTU.
+ *
+ * Tek bir yanlis-pozitif butun cozumlu ornekleri silebiliyordu. Bugun somut
+ * ornegi olculdu: sourceNumbers Turkce ondalik ayiriciyi okumuyordu, yani
+ * Turkce bicimli bir belgede kaynak sayi kumesi BOS kaliyor ve sayiya
+ * dayanan kapilar her kaydi "kaynakta yok" diye siliyordu. */
+/* 24.10.2026 — GORSEL YAMA SAGLAM TABLOLARI SILIYORDU.
+ *
+ * Sekil filtresi BIRLESTIRILMIS dizinin tamamina uygulaniyordu, yani metin
+ * pencerelerinden gelmis saglam bir tablo da kontrole giriyordu. Gorsel
+ * gecis en az bir tablo dondurdugu ANDA eski kayitlar silinebiliyordu;
+ * gorsel gecis hic calismadigi kosuda ayni tablolar karta giriyordu. Yani
+ * kayip ILGISIZ bir adimin calisip calismamasina bagliydi. */
+test('gorsel yama filtresi YALNIZCA yeni kayitlara uygulaniyor', () => {
+  const src = SRC;
+  const i = src.indexOf('if (newTables.length) {');
+  assert.ok(i > 0, 'tablo yama blogu bulunamadi');
+  const blok = src.slice(i, i + 700);
+  // Filtre yeni kayitlarin uzerinde olmali, birlesimin uzerinde DEGIL.
+  assert.ok(/const yeniTemiz = newTables\.filter\(/.test(blok),
+    'filtre hala birlestirilmis dizinin tamamina uygulaniyor');
+  assert.ok(!/dedupeByText\(\[\.\.\.mergedTables, \.\.\.newTables\][\s\S]{0,120}\.filter\(/.test(blok),
+    'eski "birlestir sonra filtrele" sirasi kalmis');
+  // Kayip artik loglaniyor: "+N tables" yalnizca EKLENENI sayiyordu.
+  assert.ok(/yamaKaybiLogla\('tablo'/.test(blok), 'tablo kaybi loglanmiyor');
+  assert.ok(/yamaKaybiLogla\('diyagram'/.test(src), 'diyagram kaybi loglanmiyor');
+});
+
+/* 24.10.2026 — SENTEZ PENCERELERIN CIKTISINI TABANSIZ EZIYORDU.
+ * bestSections 12 pencereden gelen bolumlerin birlesimi; tek kosul
+ * `length >= 1` oldugu icin sentez IKI baslik dondurunce 20 bolum 2'ye
+ * iniyordu. Sentez yalnizca 600 krk'lik ozetceleri goruyor ve 768 token ile
+ * kosuyor — yani pencerelerden DAHA AZ bilgiyle yaziyor. */
+test('sentez ciktisi NARRATIVE_MIN_KEEP_RATIO tabanindan geciyor', () => {
+  const src = SRC;
+  const i = src.indexOf('const sentezRet =');
+  assert.ok(i > 0, 'sentez reddi loglanmiyor — taban eklenmemis');
+  const blok = src.slice(i, i + 3200);
+  /* 24.10.2026 duzeltmesi: bolumler artik SAYI ile degil ICERIK ile
+     olculuyor, cunku sentezin isi cok bolumu az bolume toplamak — sayiya
+     bakan taban onu garanti olarak reddediyordu (canli kanit: "4 < 7 x
+     0.75" ve kartin 9 bolumle kalmasi, oysa iyi kart 4 bolumdu). */
+  for (const alan of ['ozeti', 'anahati', 'bolumleri (icerik)']) {
+    assert.ok(blok.includes(`sentezRet('${alan}'`), `${alan} icin taban yok`);
+  }
+  assert.ok(/const bolumKrk = \(a: any\[\]\) =>/.test(blok),
+    'bolumler hala SAYI ile olculuyor — sentezin toparlamasi reddedilir');
+  assert.ok(!/syn\.sections\.length >= bestSections\.length \* NARRATIVE_MIN_KEEP_RATIO/.test(src),
+    'eski sayi tabani hala duruyor');
+  /* Uc atamanin ucu de tabanla kiyaslanmali. Tam sayi sabitlenmiyor: ret
+     logu da tabani metne basiyor (${NARRATIVE_MIN_KEEP_RATIO}), yani sayim
+     3'un uzerine cikabiliyor. Onemli olan uc kiyasin VARLIGI. */
+  assert.ok((blok.match(/NARRATIVE_MIN_KEEP_RATIO/g) || []).length >= 3,
+    'uc alanin hepsi ayni tabandan gecmiyor');
+  assert.ok(!/if \(Array\.isArray\(syn\?\.sections\) && syn\.sections\.length\) bestSections = syn\.sections/.test(src),
+    'eski tabansiz atama hala duruyor');
+});
+
+test('aritmetik kapisi: cogunlugu atacaksa VALF aciliyor', () => {
+  // Hepsi aritmetik olarak bozuk: boyle bir oran modelden cok olcumu suclar.
+  const bozuk = Array.from({ length: 4 }, (_, i) => ({
+    title: `ornek${i}`,
+    steps: [`2 + 2 = 9`],
+    final_answer: '9'
+  }));
+  const r = A.gateWorkedExampleArithmetic(bozuk);
+  assert.equal(r.kept.length, 4, 'valf acilmadi — kart bosaltildi');
+  assert.deepEqual(r.dropped, [], 'valf acilinca hicbir sey atilmamali');
+});
+
+test('aritmetik kapisi: AZINLIK bozuksa yine buduyor', () => {
+  /* Valf kapiyi islevsiz yapmamali: gercekten yanlis olan tek ornek gitmeli. */
+  const karisik = [
+    { title: 'dogru1', steps: ['2 + 2 = 4'], final_answer: '4' },
+    { title: 'dogru2', steps: ['3 * 3 = 9'], final_answer: '9' },
+    { title: 'dogru3', steps: ['10 - 1 = 9'], final_answer: '9' },
+    { title: 'bozuk', steps: ['2 + 2 = 9'], final_answer: '9' }
+  ];
+  const r = A.gateWorkedExampleArithmetic(karisik);
+  assert.equal(r.kept.length, 3, 'gercekten bozuk ornek atilmadi');
+  assert.equal(r.dropped.length, 1);
+  assert.match(r.dropped[0], /bozuk/);
+});
+
+test('aritmetik kapisi: SEKIL hatasi sessiz gecmiyor', () => {
+  /* `typeof ex !== 'object'` dali hicbir sayaca yazmadan siliyordu: log
+     "0 dusuruldu" derken kart eksiliyordu. */
+  const r = A.gateWorkedExampleArithmetic(['dizge ornek', { title: 'ok', steps: ['2 + 2 = 4'], final_answer: '4' }]);
+  assert.equal(r.kept.length, 1);
+  assert.equal(r.dropped.length, 1, 'dizge ornek sessizce dusmus');
+  assert.match(r.dropped[0], /sekil hatasi/);
+});
+
+/* 24.10.2026 — OLCULEN ORANIN PAYDASI MODA GORE DEGISIYORDU.
+ * Log ve quality_meta `dropped/kept` yaziyordu. Olcum modunda dogru (orada
+ * kept = toplam), ama kapi elemeye gecirilince kept HAYATTA KALANLAR olur ve
+ * ayni ifade orani oldugundan buyuk gosterir. `toplam` artik ayri. */
+test('yogunluk olcumunun paydasi GIRDININ kendisi', () => {
+  const noktalar = [
+    'Issizlik orani 2023 yilinda yuzde on bire yukseldi.',
+    'Bu yaklasim genel olarak yaygin biçimde kullanilmaktadir.',
+    'Enflasyon ayni donemde yuzde kirk bese ulasti.'
+  ];
+  const r = A.applyDensityGate(noktalar, 'Issizlik orani 2023 yilinda yukseldi. Enflasyon yuzde kirk bese ulasti.', '');
+  assert.equal(r.stats.toplam, noktalar.length,
+    `payda ${r.stats.toplam}, girdi ${noktalar.length} — oran yanlis raporlanir`);
+  assert.ok(r.stats.dropped <= r.stats.toplam, 'atilan sayisi paydadan buyuk');
+});
+
+test('SAYI ayni ama ICERIK kisaldiysa dizi KORUNUR', () => {
+  const taslak = JSON.stringify({
+    summary: 'x'.repeat(400),
+    key_points: [
+      'Issizlik orani 2023 yilinda yuzde on bire yukseldi ve istihdam daraldi.',
+      'Enflasyon ayni donemde yuzde kirk bese ulasti ve alim gucu eridi.',
+      'Merkez bankasi faizi yuzde otuz bese cikardi ve kredi hacmi daraldi.'
+    ],
+    quality_gate: { pass: true, grounded: true, issues: [] }
+  });
+  // Ayni SAYIDA madde, ama hepsi budanmis.
+  const kisalmis = JSON.stringify({
+    key_points: ['Issizlik artti.', 'Enflasyon artti.', 'Faiz artti.'],
+    quality_gate: { pass: true, grounded: true, issues: [] }
+  });
+  const { merged, notes } = A.mergeReviewOntoDraft(taslak, kisalmis);
+  const m = JSON.parse(merged);
+  assert.deepEqual(m.key_points, JSON.parse(taslak).key_points,
+    'sayi ayni oldugu icin budanmis icerik kabul edilmis');
+  assert.ok(notes.some((n) => /icerik kisaldi/.test(n)),
+    'koruma loglanmiyor: ' + JSON.stringify(notes));
+});
+
+test('SAYI ve ICERIK korunuyorsa review yine kabul edilir', () => {
+  /* Taban fazla siki olmamali: review'in mesru yeniden yazimi gecmeli. */
+  const taslak = JSON.stringify({
+    summary: 'x'.repeat(400),
+    key_points: ['Issizlik orani 2023 yilinda yukseldi.', 'Enflasyon ayni donemde artti.'],
+    quality_gate: { pass: true, grounded: true, issues: [] }
+  });
+  const yeniden = JSON.stringify({
+    key_points: ['Issizlik orani 2023 yilinda yukselmistir.', 'Enflasyon da ayni donemde artmistir.'],
+    quality_gate: { pass: true, grounded: true, issues: [] }
+  });
+  const m = JSON.parse(A.mergeReviewOntoDraft(taslak, yeniden).merged);
+  assert.match(m.key_points[0], /yukselmistir/, 'mesru yeniden yazim reddedilmis');
+});
+
+test('OUTLINE da tabandan geciyor (eskiden hic kontrol yoktu)', () => {
+  /* 24 maddelik bir anahat 2 maddeye dusebilir ve log bile basilmazdi. */
+  const taslak = JSON.stringify({
+    summary: 'x'.repeat(400),
+    outline: { items: Array.from({ length: 12 }, (_, i) => ({ heading: `b${i}` })) },
+    quality_gate: { pass: true, grounded: true, issues: [] }
+  });
+  const budanmis = JSON.stringify({
+    outline: { items: [{ heading: 'b0' }, { heading: 'b1' }] },
+    quality_gate: { pass: true, grounded: true, issues: [] }
+  });
+  const { merged, notes } = A.mergeReviewOntoDraft(taslak, budanmis);
+  assert.equal(JSON.parse(merged).outline.items.length, 12, 'anahat budanmis');
+  assert.ok(notes.some((n) => /outline KORUNDU/.test(n)), 'koruma loglanmiyor: ' + JSON.stringify(notes));
+});
+
 test('review anlatimi duzeltirse kabul edilir', () => {
   const r = JSON.stringify({
     summary: 'Issizlik orani 1980-82 doneminde %10.5 zirve yapti. '.repeat(3),
@@ -1958,6 +2166,19 @@ console.log('\nPROMPT ICINDE ORNEK SAYI SIZINTISI\n');
    rakamdan ayirt edilemiyor. Bu testler o ornegin geri gelmesini engeller. */
 
 // Kaynaktaki sablon literallerini (prompt lari) yorum satirlarindan ayirarak al.
+/* 24.10.2026 — TARAMA 10 PROMPT'UN 3'UNU GORUYORDU.
+ *
+ * Desen yalnizca `SystemPrompt|UserPrompt|fixSys` ariyordu; olctum,
+ * promptLiterals(SRC) UC literal donduruyordu: visualSystemPrompt,
+ * reviewSystemPrompt, fixSys. Kaynaktaki `systemPrompt` (kucuk s),
+ * `synSys`/`synUser`, `writerSys`/`writerUser`, `fixUser` ve
+ * `compactWindowPrompt` HIC taranmiyordu.
+ *
+ * Yani "prompt'larda ornek yuzde yok" guvencesi prompt'larin ucte birini
+ * kapsiyordu; bir sizinti yazarin prompt'una girerse yakalanmazdi. Ustelik
+ * esleme sifira duserse (bir yeniden adlandirma) dongu hic donmez ve
+ * `assert.equal(ihlaller.length, 0)` YINE gecerdi — bu yuzden asagida bir
+ * ALT SINIR da var. */
 function promptLiterals(src) {
   const out = [];
   const lines = src.split('\n');
@@ -1965,7 +2186,9 @@ function promptLiterals(src) {
   for (const l of lines) {
     const t = l.trim();
     if (t.startsWith('//') || t.startsWith('*')) continue;
-    if (!inPrompt && /(SystemPrompt|UserPrompt|fixSys)\s*=\s*`/.test(l)) { inPrompt = true; buf = [l]; continue; }
+    if (!inPrompt && /\b\w*(SystemPrompt|UserPrompt|Prompt|Sys|User|Instruction)\s*=\s*`/.test(l)) {
+      inPrompt = true; buf = [l]; continue;
+    }
     if (inPrompt) {
       buf.push(l);
       if (/`\s*$/.test(t) || /`$/.test(t)) { out.push(buf.join('\n')); inPrompt = false; }
@@ -1973,6 +2196,19 @@ function promptLiterals(src) {
   }
   return out;
 }
+
+test('promptLiterals prompt larin TAMAMINI goruyor', () => {
+  /* Pozitif alt sinir: desen bir yeniden adlandirma yuzunden sifir literal
+     bulursa, ona dayanan uc test sessizce "ihlal yok" der. */
+  const bulunan = promptLiterals(SRC);
+  assert.ok(bulunan.length >= 8,
+    `yalnizca ${bulunan.length} prompt literali bulundu — desen prompt'larin cogunu kaciriyor`);
+  // Bilinen prompt'lardan birkaci gercekten taranmali.
+  const hepsi = bulunan.join('\n');
+  for (const iz of ['key_terms', 'JSON']) {
+    assert.ok(hepsi.includes(iz), `taranan prompt'larda "${iz}" izi yok — yanlis bloklar toplaniyor`);
+  }
+});
 
 test('prompt larda ornek yuzde degeri yok', () => {
   for (const p of promptLiterals(SRC)) {
@@ -3305,6 +3541,85 @@ test('GECERSIZ kacis sert ayristirma hatasini da duzeltiyor', () => {
   assert.equal(parse(ham).p, 'Inline \\(y = x\\) math');
 });
 
+/* 24.10.2026 — \u + HEX OLMAYAN DIZI SERT AYRISTIRMA HATASI VERIYORDU.
+   'u' JSON'da gecerli kacis oldugu icin gecersiz-kacis dali gormuyordu,
+   4 hex yoksa unicode dali dusuyordu, 'bfrt' kumesinde olmadigi icin LaTeX
+   dali da dusuyordu — ve `\u` oldugu gibi yaziliyordu. Tek bir \upsilon
+   butun Gemini taslagini dusuruyordu (105 sn + 1 RPD). */
+test('\\u + HEX OLMAYAN LaTeX komutlari ayristirma hatasi vermiyor', () => {
+  const vakalar = [
+    ['\\upsilon',    '{"p":"\\upsilon x"}',      '\\upsilon x'],
+    ['\\underline',  '{"p":"\\underline{x}"}',   '\\underline{x}'],
+    ['\\uparrow',    '{"p":"a \\uparrow b"}',    'a \\uparrow b'],
+    ['\\underbrace', '{"p":"\\underbrace{ab}"}', '\\underbrace{ab}'],
+  ];
+  for (const [ad, ham, beklenen] of vakalar) {
+    // Onarim OLMADAN gercekten PATLIYOR — testin korudugu sey bu.
+    assert.throws(() => JSON.parse(ham), SyntaxError, `${ad}: onarimsiz hali patlamiyor`);
+    assert.equal(parse(ham).p, beklenen, `${ad} korunmadi`);
+  }
+  // Gercek unicode kacisi bozulmadi.
+  assert.equal(parse('{"p":"\\u00e9cole"}').p, 'école');
+});
+
+/* 24.10.2026 — IKI HARFLI LaTeX KOMUTLARI KONTROL KARAKTERINE DONUYORDU.
+   Genel dal prefiksten SONRA iki harf ariyor, yani toplam uc harfliyi
+   taniyor. Iki harfli olanlar en alttaki "gercek JSON kacisi" satirina
+   dusuyordu: \to -> TAB, \bm -> geri silme, \rm -> satir basi. Hata
+   vermiyor, JSON gecerli, DIZE bozuk. */
+test('IKI HARFLI LaTeX komutlari kontrol karakterine donmuyor', () => {
+  const vakalar = [
+    /* Vakalarda BASKA gecersiz kacis olmamali: `\lim` yazsaydim `\l`
+       onarimsiz hali hic ayristirilamaz yapar ve asagidaki karsi-kontrol
+       "kontrol karakteri" yerine SyntaxError ile duserdi. */
+    ['\\to', '{"p":"x \\to 0 y"}',      'x \\to 0 y'],
+    ['\\bm', '{"p":"\\bm{x} vektoru"}', '\\bm{x} vektoru'],
+    ['\\rm', '{"p":"\\rm{d}x"}',        '\\rm{d}x'],
+  ];
+  for (const [ad, ham, beklenen] of vakalar) {
+    assert.equal(parse(ham).p, beklenen, `${ad} korunmadi`);
+    // Onarimsiz hali gercekten kontrol karakteri uretiyor.
+    assert.ok(/[\u0000-\u001f]/.test(JSON.parse(ham).p),
+      `${ad}: onarimsiz hali bozulmuyorsa bu testin koruduğu bir sey yok`);
+    // Ve onarilmis cikti kontrol karakteri TASIMIYOR.
+    assert.ok(!/[\u0000-\u001f]/.test(parse(ham).p), `${ad}: onarim sonrasi hala kontrol karakteri var`);
+  }
+});
+
+test('kapali liste SERBEST desen degil: gercek sekme korunuyor', () => {
+  /* Serbest bir {1,} deseni `\t`+harf dizilerini de LaTeX sayardi ve
+     "Adim 1:\tthe result" gibi mesru bir sekmeyi bozardi. Kapali liste
+     bu yuzden tercih edildi; LATEX_IKI_HARFLI'de olmayan ikililer
+     gercek kacis olarak kalmali. */
+  assert.equal(parse('{"p":"a\\tb"}').p, 'a\tb', 'listede olmayan \\tb sekme kalmali');
+  assert.ok(!A.LATEX_IKI_HARFLI.has('tb'), 'tb listeye girmis — gercek sekmeler bozulur');
+  for (const k of ['to', 'bm', 'rm']) {
+    assert.ok(A.LATEX_IKI_HARFLI.has(k), `${k} listede yok — kontrol karakterine doner`);
+  }
+});
+
+/* 24.10.2026 — TURKCE ONDALIK AYIRICI KUMEYI BOSALTIYORDU.
+   sourceNumbers yalnizca Ingilizce okuyordu: Number('0,09') NaN oldugu icin
+   Turkce bicimli kaynakta kume TAMAMEN bos kaliyordu. Bos kume grafik
+   kapisini ve cozumlu ornek kapisini birlikte yikiyor, ikisi de BUTUN
+   kayitlari "sayilar kaynakta yok" diye siliyordu. Dogru okuyucu
+   (sayiOkumalari) ayni dosyada zaten vardi — ayni mantigin iki ayri yazimi. */
+test('sourceNumbers TURKCE ondalik ayiriciyi okuyor', () => {
+  const tr = [...A.sourceNumbers('Katsayi 0,09 ve sabit 484,12 olarak tahmin edildi.')];
+  const en = [...A.sourceNumbers('Coefficient 0.09 and constant 484.12 estimated.')];
+  assert.ok(tr.length > 0, 'Turkce kaynakta kume BOS — butun grafik ve ornekler silinir');
+  assert.deepEqual(tr.slice().sort(), en.slice().sort(),
+    'iki dil ayni sayilari vermiyor: ' + JSON.stringify({ tr, en }));
+  for (const beklenen of [0.09, 484.12]) {
+    assert.ok(tr.includes(beklenen), `${beklenen} Turkce okumada yok`);
+  }
+});
+
+test('sourceNumbers iki binlik gelenegini de okuyor', () => {
+  assert.ok([...A.sourceNumbers('Toplam 1.500,25 TL')].includes(1500.25), 'TR binlik okunmadi');
+  assert.ok([...A.sourceNumbers('Total 1,500.25 USD')].includes(1500.25), 'EN binlik okunmadi');
+});
+
 test('GERCEK satir sonu bozulmuyor', () => {
   /* \n bilerek disarida: duz metinde satir sonu mesru ve sik. Onu da LaTeX
      saymak gercek satir sonlarini bozardi. Bedeli \nu ve \nabla'nin bozuk
@@ -4265,9 +4580,7 @@ test('kucuk dilimin riski ZATEN kapatilmis', () => {
 // metni hashliyor: dosya farkli, metin ayniysa isabet ediyor.
 // ==========================================================================
 
-const CACHE = loadFromSource('supabase/functions/summarize-document/index.ts', [
-  'CACHE_METIN_MIN_KRK', 'cacheMetniNormalize'
-]);
+const CACHE = A;   // bkz. tepedeki tek loadFromSource
 
 test('ayni metnin farkli bicimlenmis hali AYNI anahtari verir', () => {
   /* Iki tarama arasindaki fark genelde bosluk ve satir sonu: biri
@@ -4343,10 +4656,7 @@ test('hangi anahtarin isabet ettigi LOGLANIYOR', () => {
 // degildi). Once olcuyoruz.
 // ==========================================================================
 
-const YOG = loadFromSource('supabase/functions/summarize-document/index.ts', [
-  'ANCHOR_STOPWORDS', 'gateNormalize', 'anchorTerms', 'YOGUNLUK_KAPISI_ELIYOR',
-  'yogunlukIsaretleri', 'applyDensityGate'
-]);
+const YOG = A;   // bkz. tepedeki tek loadFromSource
 
 const KAYNAK = 'Dummy variables and interaction terms in multiple linear regression. '
   + 'The omitted category serves as the baseline. Logarithmic transformations '
@@ -4431,9 +4741,7 @@ test('devir esikleri makul araliklarda', () => {
   /* TPM penceresi 60 saniye. Esik cok kucukse her pencere serit
      degistirir ve zayif modele dusme riski bedavaya alinir; cok buyukse
      bugunku 58 saniyelik bekleme yine yasanir. */
-  const T = loadFromSource('supabase/functions/summarize-document/index.ts', [
-    'PENCERE_DEVIR_ESIGI_MS', 'PENCERE_DEVIR_KAZANC_MS'
-  ]);
+  const T = A;   // bkz. tepedeki tek loadFromSource
   assert.ok(T.PENCERE_DEVIR_ESIGI_MS >= 5_000 && T.PENCERE_DEVIR_ESIGI_MS <= 30_000,
     'devir esigi arali' + 'k disi: ' + T.PENCERE_DEVIR_ESIGI_MS);
   assert.ok(T.PENCERE_DEVIR_KAZANC_MS > 0 && T.PENCERE_DEVIR_KAZANC_MS <= T.PENCERE_DEVIR_ESIGI_MS,
