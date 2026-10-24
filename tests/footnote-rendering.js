@@ -740,6 +740,74 @@ test('kalin/italik hala calisiyor (regresyon)', () => {
   } finally { katexKaldir(); }
 });
 
+/* ==========================================================================
+   SAYI KUTULARI (24.10.2026)
+
+   Kartin ustundeki uc sayi kutusu findNumbers ile seciliyor
+   (js/acadex-ink.js). Canli kartta olculen hal:
+
+     $5,06  <- metin "-5.06 ... decreases by $5.06" diyor, ISARET KAYBOLMUS
+     1%     <- anlamlilik duzeyi, belgenin konusu degil
+     $1000  <- "0.07 tons per $1000" cumlesinden; asil sayi 0.07 GORUNMEZ
+
+   Iki kusur: (1) desende `-` yoktu ve parseFloat oncesi temizlik isareti
+   zaten siliyordu; (2) desen yalnizca %, para birimi ve TURKCE birimleri
+   taniyordu, ciplak ondalik hic eslesmiyordu. Ingilizce bir istatistik
+   destesinde belgenin ASIL sayilari gorunmez kaliyordu.
+
+   Tam sayilar bilerek disarida: sayfa numarasi, yil, madde sirasi hep tam
+   sayi. Nicel bir belgede sinyal ondalikta.
+   ========================================================================== */
+const INK_SAYI_RE = (() => {
+  const src = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'js/acadex-ink.js'), 'utf8');
+  const m = src.match(/var re = (\/\(-\?[^\n]*\/i);/);
+  if (!m) throw new Error('findNumbers deseni bulunamadi — yeniden adlandirilmis olabilir');
+  return eval(m[1]);
+})();
+
+function sayiSec(cumle) {
+  const x = cumle.match(INK_SAYI_RE);
+  if (!x) return null;
+  const tok = x[1].trim();
+  const eksi = /^-/.test(tok) || /^[%$€₺]\s?-/.test(tok);
+  let v = parseFloat(tok.replace(/[^\d.,]/g, '').replace(',', '.'));
+  if (eksi) v = -v;
+  return { tok, v };
+}
+
+test('sayi kutusu EKSI isaretini koruyor', () => {
+  const r = sayiSec('The marginal effect at temp=40 is -5.06, meaning the bill decreases by $5.06.');
+  assert.ok(r, 'hic sayi secilmedi');
+  assert.equal(r.v, -5.06,
+    `isaret kaybolmus: ${r.tok} -> ${r.v}. Kart "azaliyor" derken kutu pozitif gosterir.`);
+});
+
+test('sayi kutusu CIPLAK ondaligi goruyor', () => {
+  const vakalar = [
+    ['In the energy-GDP example, the slope (0.07 tons per $1000) is significant.', 0.07],
+    ['The quadratic model is UtilityBill = 484.12 - 12.08 temp + 0.09 temp^2.', 484.12],
+    ['The coefficient of determination R2 = 0.87 shows strong fit.', 0.87],
+  ];
+  for (const [cumle, beklenen] of vakalar) {
+    const r = sayiSec(cumle);
+    assert.ok(r, `eslesme yok: ${cumle.slice(0, 50)}`);
+    assert.equal(r.v, beklenen, `${cumle.slice(0, 40)} -> ${r.tok} (${r.v}), beklenen ${beklenen}`);
+  }
+});
+
+test('sayi kutusu TAM sayilari almiyor (sayfa/bolum copu)', () => {
+  /* Tam sayiyi da alsaydik kutular sayfa numarasi ve madde siralariyla
+     dolardi; bu yuzden ondalik sarti bilincli. */
+  assert.equal(sayiSec('Bolum 3 sayfa 12 de anlatiliyor.'), null);
+  assert.equal(sayiSec('There are 4 assumptions in this model.'), null);
+});
+
+test('sayi kutusu TURKCE davranisi bozulmadi (regresyon)', () => {
+  assert.equal(sayiSec('Issizlik orani 2023 yilinda %11 seviyesine yukseldi.').v, 11);
+  assert.equal(sayiSec('Toplam maliyet 1,5 milyon TL olarak hesaplandi.').v, 1.5);
+});
+
 test('renderMathSymbol STANDART ayiraclari da taniyor', () => {
   /* Ucuncu huni: buraya yalnizca `$` kontrolu vardi. `\(\beta_1\)` ayiraclari
      DOGRUDAN KaTeX'e gidiyor, KaTeX ParseError atiyor ve sembol ekranda ham

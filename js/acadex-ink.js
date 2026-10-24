@@ -8650,11 +8650,38 @@ var SBX = (function () {
   var findNumbers = function (card) {
     var src = [card.summary_executive || ''].concat(arr(card.key_points).map(plain)).concat([plain(card.summary || '')]).join(' \n ');
     var sents = src.split(/(?<=[.!?])\s+|\n/), out = [], seen = {};
-    var re = /(%\s?\d+(?:[.,]\d+)?|\d+(?:[.,]\d+)?\s?%|[$€₺]\s?\d+(?:[.,]\d+)?|\d+(?:[.,]\d+)?\s?(?:milyon|milyar|bin|TL|USD|dolar|yıl|ay|gün|adım|aşama|faktör|kat)\b|\b\dP\b)/i;
+    /* EKSI ISARETI VE CIPLAK ONDALIKLAR (24.10.2026).
+     *
+     * Iki kusur olculdu, ikisi de ayni desende:
+     *
+     * 1) ISARET KAYBI. Desende hicbir yerde `-` yoktu ve `parseFloat`
+     *    oncesi `replace(/[^\d.,]/g, '')` isareti ZATEN siliyordu:
+     *      "-5.06 dolar"  ->  eslesen "5.06 dolar"  ->  5.06
+     *    Metin "fatura AZALIYOR" derken kutu isaretsiz pozitif gosteriyordu.
+     *    Marjinal etki, egim, fark — bu kartta sayilarin cogu isaretli.
+     *
+     * 2) CIPLAK ONDALIK GORUNMUYOR. Desen yalnizca %, para birimi ve
+     *    TURKCE birimleri (milyon/TL/yil/kat...) taniyordu. Ingilizce bir
+     *    istatistik destesinde olculen sonuc:
+     *      "UtilityBill = 484.12 - 12.08 temp + 0.09 temp^2"  -> ESLESME YOK
+     *      "R2 = 0.87"                                        -> ESLESME YOK
+     *      "0.07 tons per $1000"                              -> "$1000" (!)
+     *    Yani belgenin ASIL sayilari gorunmez, geriye anlamsiz olanlar
+     *    kaliyordu: anlamlilik duzeyi "1%" ve "$1000" gibi.
+     *
+     * Cozum ondalik kismi OLAN ciplak sayilari da almak. Tam sayilar
+     * bilerek disarida: sayfa numarasi, yil, madde sirasi hep tam sayi ve
+     * onlari almak kutulari coplestirir. Nicel bir belgede sinyal
+     * ondalikta. Desen `-` ile basliyorsa isaret korunuyor. */
+    var re = /(-?\d+(?:[.,]\d+)?\s?%|%\s?-?\d+(?:[.,]\d+)?|[$€₺]\s?-?\d+(?:[.,]\d+)?|-?\d+(?:[.,]\d+)?\s?(?:milyon|milyar|bin|TL|USD|dolar|yıl|ay|gün|adım|aşama|faktör|kat)\b|-?\d+[.,]\d+|\b\dP\b)/i;
     sents.forEach(function (s) {
       if (out.length >= 3) return; var m = s.match(re); if (!m) return; var tok = m[1].trim(), key = tok.toLowerCase(); if (seen[key]) return; seen[key] = 1;
+      /* Isaret ayri tutuluyor: temizlik `-`i siliyor, o yuzden once okunur. */
+      var eksi = /^-/.test(tok) || /^[%$€₺]\s?-/.test(tok);
       var num = parseFloat(tok.replace(/[^\d.,]/g, '').replace(',', '.')); if (isNaN(num)) return;
-      out.push({ v: num, raw: tok, pre: tok.match(/^[%$€₺]/) ? tok.match(/^[%$€₺]/)[0] : '', post: tok.replace(/^[%$€₺]\s?/, '').replace(/^\d+(?:[.,]\d+)?\s?/, ''), dec: /[.,]\d/.test(tok), cap: cut(plain(s), 90) });
+      if (eksi) num = -num;
+      var birim = tok.match(/^[%$€₺]/);
+      out.push({ v: num, raw: tok, pre: birim ? birim[0] : '', post: tok.replace(/^[%$€₺]\s?/, '').replace(/^-?\d+(?:[.,]\d+)?\s?/, ''), dec: /[.,]\d/.test(tok), cap: cut(plain(s), 90) });
     });
     var secs = arr(card.sections).length, terms = arr(card.key_terms).length;
     if (out.length < 3 && secs) out.push({ v: secs, pre: '', post: ' bölüm', cap: 'belge bu kadar ana başlığa ayrılıyor' });
