@@ -1478,7 +1478,10 @@
         const x1 = cx + r * Math.cos(ang), y1 = cy + r * Math.sin(ang), x2 = cx + r * Math.cos(a2), y2 = cy + r * Math.sin(a2);
         body += frac >= 0.9999 ? `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${col}"/>` : `<path d="M${cx} ${cy} L${x1.toFixed(2)} ${y1.toFixed(2)} A${r} ${r} 0 ${large} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} Z" fill="${col}" stroke="#fff" stroke-width="1.5"/>`;
         const ly = narrow ? 254 + i * 26 : 40 + i * 26, lx = narrow ? 16 : 330;
-        body += `<rect x="${lx}" y="${ly - 11}" width="14" height="14" rx="3" fill="${col}"/><text x="${lx + 22}" y="${ly}" class="axc-lg">${chartEsc(labels[i])}: ${chartEsc(chartValue(v, unit, L))} (${chartEsc(chartValue(Math.round(frac * 1000) / 10, '%', L))})</text>`;
+        // Değer zaten yüzdeyse ve pay ile aynıysa pay ikinci kez yazılmaz
+        // ("Marmara: %37 (%37)"; canlı test, 24.10.2026).
+        const valTxt = chartValue(v, unit, L), shareTxt = chartValue(Math.round(frac * 1000) / 10, '%', L);
+        body += `<rect x="${lx}" y="${ly - 11}" width="14" height="14" rx="3" fill="${col}"/><text x="${lx + 22}" y="${ly}" class="axc-lg">${chartEsc(labels[i])}: ${chartEsc(valTxt)}${valTxt === shareTxt ? '' : ` (${chartEsc(shareTxt)})`}</text>`;
         ang = a2;
       });
       return head + body + '</svg>';
