@@ -8541,7 +8541,10 @@ body.axr-open #axa-layer .axa{z-index:10065;top:14px}
 @keyframes axaHint{from{opacity:0;transform:translateX(16px) scale(.9)}to{opacity:1;transform:none}}
 
 /* ---- sağ kenar maskotu ---- */
-#axa-layer .axa-mas{position:fixed;right:0;bottom:118px;z-index:10020;display:flex;align-items:center;gap:6px;padding:0;border:0;background:none;cursor:pointer;transform:translateX(24px);transition:transform .45s cubic-bezier(.3,1.5,.5,1)}
+/* maskot sağ kenardan 24px taşarak "bakıyor": taşan kısım düğmenin içinde kırpılır (overflow-x:clip), yoksa sabit öğe sayfaya yatay kaydırma açıyor */
+#axa-layer .axa-mas{position:fixed;right:0;bottom:118px;z-index:10020;display:flex;align-items:center;gap:6px;padding:0;border:0;background:none;cursor:pointer;overflow-x:clip;overflow-y:visible;transition:transform .45s cubic-bezier(.3,1.5,.5,1)}
+#axa-layer .axa-mas svg{transform:translateX(24px);transition:transform .45s cubic-bezier(.3,1.5,.5,1)}
+#axa-layer .axa-mas:hover svg,#axa-layer .axa-mas:focus-visible svg{transform:none}
 #axa-layer .axa-mas svg{width:92px;height:92px;overflow:visible;filter:drop-shadow(-4px 8px 8px rgba(13,24,56,.28))}
 #axa-layer .axa-mas .st{fill:#FFD86B;stroke:#1A2A5C;stroke-width:3.6;stroke-linejoin:round}
 #axa-layer .axa-mas .w{fill:#fff;stroke:#1A2A5C;stroke-width:2.2}
@@ -8579,6 +8582,8 @@ body.axr-open #axa-layer .axa-mas{bottom:28px}
 @media (prefers-reduced-motion:no-preference){
   body.acx .dashboard-view-section.active.ax-enter{animation:axEnter .55s cubic-bezier(.2,.75,.2,1) both;transform-origin:50% 0}
 }
+/* geçişteki 26px yana kayma içerik alanında kırpılır: aksi halde telefonda sayfa yana genişliyor ve alt menü ekranın altına kayıyordu */
+body.acx .dashboard-content{overflow-x:clip}
 @keyframes axEnter{0%{opacity:0;transform:translate(calc(var(--dir,1) * 26px),14px) rotate(calc(var(--dir,1) * .5deg))}60%{opacity:1}100%{opacity:1;transform:none}}
 
 /* tema düğmesi */

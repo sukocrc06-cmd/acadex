@@ -11,16 +11,45 @@
   <meta name="theme-color" content="#0D1838">
   
   <!-- Google Fonts - Inter -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="preload" href="assets/landing/fonts/caveat-latin.woff2" as="font" type="font/woff2" crossorigin>
 
   <!-- KaTeX CDN for Math Formula Rendering -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <!-- defer: yalnız fonksiyon içinden çağrılıyor; sayfa çizimini bekletmesin -->
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 
   <!-- Mermaid.js CDN — free client-side rendering of diagrams the "Kaynakla Sohbet" AI reconstructs (no image-generation API cost) -->
-  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <!-- Mermaid.js — yalnızca bir diyagram çizilmek istendiğinde yüklenir (3,5 MB; ilk açılışı bekletmesin).
+       Yer tutucu, gerçek kütüphaneyle aynı adları (initialize/parse/render/run) taşır; ilk çağrıda kütüphaneyi
+       çeker ve çağrıyı ona devreder. window.mermaid hep dolu olduğu için mevcut "if (window.mermaid)" kontrolleri değişmez. -->
+  <script>
+    (function () {
+      var cfg = null, yuk = null, yer = { __lazy: true };
+      function getir() {
+        if (yuk) return yuk;
+        yuk = new Promise(function (res, rej) {
+          var s = document.createElement('script');
+          s.src = 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js'; s.async = true;
+          s.onload = function () {
+            var m = window.mermaid;
+            if (!m || m === yer) { yuk = null; window.mermaid = yer; rej(new Error('Mermaid yuklenemedi')); return; }
+            if (cfg) { try { m.initialize(cfg); } catch (e) { console.warn('Mermaid initialize failed:', e); } }
+            res(m);
+          };
+          s.onerror = function () { yuk = null; window.mermaid = yer; rej(new Error('Mermaid yuklenemedi')); };
+          document.head.appendChild(s);
+        });
+        return yuk;
+      }
+      yer.initialize = function (c) { cfg = c; if (window.mermaid !== yer) { try { window.mermaid.initialize(c); } catch (e) {} } };
+      ['parse', 'render', 'run'].forEach(function (k) {
+        yer[k] = function () { var a = arguments; return getir().then(function (m) { return m[k].apply(m, a); }); };
+      });
+      window.mermaid = yer;
+      window.acadexLoadMermaid = getir;
+    })();
+  </script>
 
   <!-- Core Stylesheet -->
   <link rel="stylesheet" href="css/style.css">
@@ -28,7 +57,8 @@
 <link rel="stylesheet" href="css/acadex-medlab.css">
 
   <!-- Supabase CDN & Config (Route Guard) -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- defer + ana sürüm sabit: grafik yalnızca kart açılınca çiziliyor -->
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="js/supabase-config.js"></script>
   <script>
