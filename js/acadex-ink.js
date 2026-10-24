@@ -9890,3 +9890,15 @@ var SBX = (function () {
     window.proceedWithSummarization = proceedWithSummarization;
   }
 })();
+
+/* ---------- iOS klavyesi: tam ekran paneller görünen alana göre yeniden ölçülür ----------
+   100dvh klavye açılınca küçülmüyor; visualViewport'un yüksekliği --ax-vvh'ye yazılır
+   (css/acadex-ink.css'teki telefon/tablet bloğu kullanıyor). rAF ile kare başına bir yazma. */
+(function () {
+  var vv = window.visualViewport; if (!vv) return;
+  var raf = 0, root = document.documentElement;
+  var put = function () { raf = 0; root.style.setProperty('--ax-vvh', Math.round(vv.height) + 'px'); };
+  var on = function () { if (!raf) raf = requestAnimationFrame(put); };
+  vv.addEventListener('resize', on, { passive: true });
+  put();
+})();
