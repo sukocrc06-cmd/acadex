@@ -210,3 +210,20 @@ tr:last-child td{border-bottom:0}
 .lbox img{width:min(420px,80vw);height:min(420px,80vw);object-fit:cover;border-radius:20px;border:3px solid #fff;box-shadow:0 30px 60px rgba(0,0,0,.4);background:#fff;cursor:default}
 .lbox figcaption{color:#fff;font-weight:700;font-size:16px}
 .lbox .x{position:absolute;top:18px;right:18px;width:44px;height:44px;border-radius:50%;border:0;background:#fff;color:var(--ink);font-size:24px;cursor:pointer}
+
+/* ---------- test paneli (24.10.2026) ---------- */
+.pill.tk-hata,.pill.tk-tasarim,.pill.tk-oneri{gap:6px}
+.pill.tk-hata i,.pill.tk-tasarim i,.pill.tk-oneri i{width:8px;height:8px;border-radius:50%;background:currentColor}
+.pill.tk-hata{background:#FDEDEB;color:#A92F2F}.pill.tk-tasarim{background:#EAF0FF;color:#1F4FCC}.pill.tk-oneri{background:#E5F4EC;color:#156B41}
+.pill.ts-inceleniyor{background:#FFF3C4;color:#6B4A00}.pill.ts-duzeltildi{background:#EFE8FD;color:#5A35B8}.pill.ts-dogrulandi{background:#1A2A5C;color:#fff}
+.tst-kpi{border-left-width:6px}.tst-kpi.hata{border-left-color:#D64545}.tst-kpi.tasarim{border-left-color:#2F6BFF}.tst-kpi.oneri{border-left-color:#1E8A55}
+.tst-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.tst-item{display:block;color:inherit;text-decoration:none;transition:border-color .15s}
+.tst-item:hover{border-color:var(--ink)}
+.tst-item .item-h b{flex:1 1 200px;min-width:0;overflow-wrap:anywhere}
+.bar .t i.ts-bar.yeni{background:#6A7593}.bar .t i.ts-bar.inceleniyor{background:#C98A00}.bar .t i.ts-bar.duzeltildi{background:#7A4FD6}.bar .t i.ts-bar.dogrulandi{background:#1A2A5C}
+.tst-team td,.tst-team th{white-space:nowrap}
+.tst-strip{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-bottom:16px;padding:12px 18px;color:inherit;text-decoration:none;font-size:14px}
+.tst-strip .mono{font-size:11px;letter-spacing:.12em;color:var(--muted)}
+.tst-strip .tk-t{font-size:20px;margin-right:2px}.tk-t.hata{color:#D64545}.tk-t.tasarim{color:#2F6BFF}.tk-t.oneri{color:#1E8A55}
+.tst-strip .go-t{margin-left:auto;font-weight:700;color:var(--blue)}
