@@ -106,6 +106,30 @@ test('Fizyo Lab karti acilabilir, kapagi var, "tip ogrencileri icin" yaziyor', (
   assert.doesNotMatch(html, /axm-soon/, 'yakinda karti kalmamali');
 });
 
+/* Gorsel katman (24.10.2026): canli EKG monitoru, kart uzerinde tarama isigi, raf animasyonlari,
+   karttan buyuyen acilis ve "model hazirlaniyor" ekrani, milimetrik arka plan.
+   Hareketler prefers-reduced-motion'da durmali; EKG izi tam bir vurusluk kaymali ki dikis gorunmesin. */
+test('gorsel katman: monitor, yukleniyor ekrani ve hareket azaltma korumasi', () => {
+  assert.match(html, /class="axm-mon"/);
+  assert.match(html, /data-medlab-bpm=""/);
+  assert.match(html, /data-medlab-load="" hidden/);
+  const css = read('css/acadex-medlab.css');
+  for (const k of ['axm-trace', 'axm-pulse', 'axm-scan', 'axm-wave', 'axm-bubble', 'axm-draw']) {
+    assert.match(css, new RegExp('@keyframes ' + k + '\\{'), `@keyframes ${k} yok`);
+    const uses = [...css.matchAll(new RegExp('animation:' + k + '\\b', 'g'))];
+    assert.ok(uses.length, `${k} hic kullanilmiyor`);
+    for (const u of uses) {
+      const before = css.slice(0, u.index), m = before.lastIndexOf('@media');
+      assert.ok(m >= 0 && before.startsWith('@media (prefers-reduced-motion:no-preference)', m), `${k}: en yakin @media hareket azaltma korumasi degil`);
+      assert.ok(!/\n\}\n|\}\}/.test(before.slice(m)), `${k}: hareket azaltma blogu kullanimdan once kapanmis`);
+    }
+  }
+  // iz: 440 birimlik viewBox 420px'e cizilir -> bir vurus (110 birim) 105px; iki vurus = 210px kayma
+  const tr = /\.axm-mon-tr\{[^}]*width:(\d+)px/.exec(css), shift = /@keyframes axm-trace\{from\{transform:translateX\(0\)\}to\{transform:translateX\(-(\d+)px\)\}\}/.exec(css);
+  assert.ok(tr && shift);
+  assert.equal(+shift[1], (+tr[1]) * 220 / 440, 'EKG izi tam iki vurusluk kaymali');
+});
+
 /* ---------- davranis: acadex-medlab.js en kucuk sahte DOM'da ---------- */
 function el(attrs) {
   const e = {
@@ -130,7 +154,7 @@ function setup() {
   const body = el({}), docL = {};
   const calls = [];
   const ctx = {
-    console, setTimeout: (f) => f(), currentActiveTab: 'home',
+    console, setTimeout: (f) => f(), clearTimeout: () => {}, currentActiveTab: 'home',
     document: {
       body, getElementById: (id) => ({ 'medlab-view': sec, 'side-medlab': side })[id] || null,
       querySelector: (s) => s === '.dashboard-view-section.active' ? ctx.activeSection : null,

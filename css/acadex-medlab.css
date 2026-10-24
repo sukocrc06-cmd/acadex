@@ -15,10 +15,26 @@
 #medlab-view.axm .eyb{display:table;font-size:24px;color:var(--scrub);transform:rotate(-2deg)}
 #medlab-view.axm .axm-head h1{margin:0;font-size:clamp(30px,3vw,42px);letter-spacing:-.02em;line-height:1.05;font-weight:800;color:var(--navy,#0D1838);display:inline-block;padding-bottom:8px;background:var(--inkline) no-repeat 0 100%/100% 8px}
 #medlab-view.axm .axm-sub{margin:6px 0 0;font-size:22px;color:var(--muted,#4B5675)}
-#medlab-view.axm .axm-ecg{width:220px;max-width:40vw;height:60px}
-#medlab-view.axm .axm-ecg svg{width:100%;height:100%;fill:none;stroke:var(--mc);stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:420;stroke-dashoffset:0}
-@media (prefers-reduced-motion:no-preference){#medlab-view.axm .axm-ecg svg{animation:axm-beat 2.6s linear infinite}}
-@keyframes axm-beat{from{stroke-dashoffset:420}to{stroke-dashoffset:-420}}
+/* hasta başı monitörü: iz bir vuruşluk (110 birim) kayar, kalp ve artı aynı ritimde atar (72/dk ≈ .833 sn) */
+#medlab-view.axm{--beat:.833s}
+#medlab-view.axm .axm-mon{display:flex;align-items:stretch;gap:0;height:72px;border:2px solid #0D1838;border-radius:10px 12px 9px 11px;background:#0D1838;box-shadow:0 18px 24px -18px rgba(13,24,56,.7);overflow:hidden;transform:rotate(1.2deg)}
+#medlab-view.axm .axm-mon-scr{position:relative;width:210px;overflow:hidden;background:linear-gradient(rgba(62,207,142,.09) 1px,transparent 1px) 0 0/12px 12px,linear-gradient(90deg,rgba(62,207,142,.09) 1px,transparent 1px) 0 0/12px 12px,#0F2233}
+#medlab-view.axm .axm-mon-scr::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,#0F2233 0,transparent 22%,transparent 80%,rgba(15,34,51,.6) 100%);pointer-events:none}
+#medlab-view.axm .axm-mon-tr{position:absolute;left:0;top:6px;width:420px;height:60px;fill:none;stroke:#3ECF8E;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 3px rgba(62,207,142,.8))}
+#medlab-view.axm .axm-mon-r{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-width:74px;padding:0 10px;border-left:1px solid rgba(255,255,255,.12);color:#3ECF8E}
+#medlab-view.axm .axm-heart{width:20px;height:20px;fill:#E5544A;stroke:none}
+#medlab-view.axm .axm-mon-r b{font-size:22px;line-height:1;color:#3ECF8E}
+#medlab-view.axm .axm-mon-r small{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.55)}
+@media (prefers-reduced-motion:no-preference){
+  #medlab-view.axm .axm-mon-tr{animation:axm-trace calc(var(--beat) * 2) linear infinite}
+  #medlab-view.axm .axm-heart{animation:axm-pulse var(--beat) ease-out infinite}
+}
+@keyframes axm-trace{from{transform:translateX(0)}to{transform:translateX(-210px)}}
+@keyframes axm-pulse{0%,100%{transform:scale(1)}12%{transform:scale(1.28)}26%{transform:scale(.94)}40%{transform:scale(1.1)}}
+
+/* arka plan: soluk milimetrik kâğıt + köşede anatomik kalp çizimi */
+#medlab-view.axm .axm-main{position:relative;isolation:isolate;background:linear-gradient(rgba(46,140,130,.06) 1px,transparent 1px) 0 0/24px 24px,linear-gradient(90deg,rgba(46,140,130,.06) 1px,transparent 1px) 0 0/24px 24px}
+#medlab-view.axm .axm-main::before{content:"";position:absolute;right:2%;bottom:40px;z-index:-1;width:min(420px,60vw);aspect-ratio:1;opacity:.07;pointer-events:none;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200' fill='none' stroke='%230D1838' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M66 78 C46 90 38 120 50 146 C62 172 94 188 120 192 C136 178 152 150 158 122 C164 94 152 72 130 68 C116 66 104 72 98 80 C90 72 78 72 66 78 Z'/%3E%3Cpath d='M104 76 C102 52 108 32 126 26 C144 20 160 32 160 50 V76'/%3E%3Cpath d='M114 30 V10 M128 25 V7 M142 26 L150 9'/%3E%3Cpath d='M84 76 V38'/%3E%3Cpath d='M92 82 C86 64 74 54 56 52 M66 56 L52 70'/%3E%3Cpath d='M120 84 C110 114 112 152 120 188' stroke-dasharray='4 5'/%3E%3Cpath d='M58 112 C82 124 120 122 156 106' stroke-dasharray='4 5'/%3E%3C/svg%3E") no-repeat center/contain}
 
 /* ---------- tepsi ve raf ---------- */
 #medlab-view.axm .axm-tray{position:relative;padding:8px 0 0}
@@ -32,6 +48,20 @@
 #medlab-view.axm .axm-cross::before,#medlab-view.axm .axm-cross::after{content:"";position:absolute;background:var(--mc);border:2px solid #1A2A5C;border-radius:3px}
 #medlab-view.axm .axm-cross::before{left:11px;top:0;width:12px;height:34px}
 #medlab-view.axm .axm-cross::after{left:0;top:11px;width:34px;height:12px}
+/* raf: tüplerde dalgalanan sıvı ve kabarcık, sallanan hap, nabız gibi atan artı */
+#medlab-view.axm .axm-tube i::before{content:"";position:absolute;left:-6px;right:-6px;top:-4px;height:8px;border-radius:50%;background:inherit;filter:brightness(1.12)}
+#medlab-view.axm .axm-tube::after{content:"";position:absolute;left:4px;bottom:4px;width:3px;height:3px;border-radius:50%;background:rgba(255,255,255,.9);box-shadow:4px 8px 0 -.5px rgba(255,255,255,.8),-1px 14px 0 .5px rgba(255,255,255,.7);opacity:0}
+@media (prefers-reduced-motion:no-preference){
+  #medlab-view.axm .axm-tube i::before{animation:axm-wave 2.4s ease-in-out infinite}
+  #medlab-view.axm .axm-tube.t2 i::before{animation-delay:-1.2s}
+  #medlab-view.axm .axm-tube::after{animation:axm-bubble 2.8s ease-in infinite}
+  #medlab-view.axm .axm-tube.t2::after{animation-delay:-1.4s;animation-duration:3.4s}
+  #medlab-view.axm .axm-pill{animation:axm-wobble 4.5s ease-in-out infinite}
+  #medlab-view.axm .axm-cross{animation:axm-pulse var(--beat) ease-out infinite}
+}
+@keyframes axm-wave{0%,100%{transform:translateX(-3px) rotate(-4deg)}50%{transform:translateX(3px) rotate(4deg)}}
+@keyframes axm-bubble{0%{opacity:0;transform:translateY(0)}15%{opacity:1}100%{opacity:0;transform:translateY(-30px)}}
+@keyframes axm-wobble{0%,100%{transform:rotate(-14deg) translateY(0)}50%{transform:rotate(8deg) translateY(-3px)}}
 #medlab-view.axm .axm-tabletop{height:16px;margin:4px 0 0;border-radius:3px;background:linear-gradient(var(--steel),var(--steel2));box-shadow:0 14px 18px -14px rgba(20,40,60,.6)}
 
 /* ---------- laboratuvar kartları ---------- */
@@ -45,7 +75,17 @@
 #medlab-view.axm button.axm-labb:hover{transform:translateY(-6px) rotate(calc(var(--r) * -1));box-shadow:0 1px 0 #E1E5EE,0 30px 34px -22px rgba(13,24,56,.7)}
 #medlab-view.axm button.axm-labb:focus-visible{outline:3px solid #2F6BFF;outline-offset:4px}
 #medlab-view.axm .axm-cover{position:relative;display:block;width:100%;aspect-ratio:864/352;background:#ECEFF3;border-bottom:1.4px solid #E1E5EE}
-#medlab-view.axm .axm-cover img{display:block;width:100%;height:100%;object-fit:cover;object-position:30% 50%}
+#medlab-view.axm .axm-cover{overflow:hidden}
+#medlab-view.axm .axm-cover img{display:block;width:100%;height:100%;object-fit:cover;object-position:30% 50%;transition:transform .6s cubic-bezier(.2,.7,.2,1),filter .6s}
+/* üzerine gelince: kapak yakınlaşır, üstünden tarama ışığı geçer, etiket sallanır */
+#medlab-view.axm .axm-cover::after{content:"";position:absolute;left:0;right:0;top:0;height:38%;pointer-events:none;opacity:0;background:linear-gradient(180deg,transparent,color-mix(in srgb,var(--mc) 22%,transparent) 70%,rgba(255,255,255,.85) 96%,transparent);mix-blend-mode:screen;transform:translateY(-100%)}
+#medlab-view.axm button.axm-labb:hover .axm-cover img,#medlab-view.axm button.axm-labb:focus-visible .axm-cover img{transform:scale(1.07);filter:saturate(1.15) contrast(1.04)}
+@media (prefers-reduced-motion:no-preference){
+  #medlab-view.axm button.axm-labb:hover .axm-cover::after,#medlab-view.axm button.axm-labb:focus-visible .axm-cover::after{animation:axm-scan 1.6s cubic-bezier(.45,0,.55,1) infinite}
+  #medlab-view.axm button.axm-labb:hover .axm-tag{animation:axm-wiggle .6s ease-in-out}
+}
+@keyframes axm-scan{0%{opacity:0;transform:translateY(-100%)}15%{opacity:1}85%{opacity:1}100%{opacity:0;transform:translateY(270%)}}
+@keyframes axm-wiggle{0%,100%{transform:rotate(3deg)}25%{transform:rotate(-8deg) scale(1.1)}50%{transform:rotate(9deg) scale(1.1)}75%{transform:rotate(-4deg)}}
 #medlab-view.axm .axm-cover-soon{display:grid;place-items:center;background:repeating-linear-gradient(0deg,transparent 0 17px,#E4EEEC 17px 18px),repeating-linear-gradient(90deg,#F4FAF8 0 17px,#E4EEEC 17px 18px)}
 #medlab-view.axm .axm-cover-soon svg{width:60%;height:60%;fill:none;stroke:var(--mc);stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
 #medlab-view.axm .axm-tag{position:absolute;top:14px;right:12px;padding:2px 8px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#fff;background:var(--mc);border-radius:3px;transform:rotate(3deg)}
@@ -66,12 +106,25 @@
 .axm-back:focus-visible,.axm-newtab:focus-visible{outline:2px solid #2F6BFF;outline-offset:3px}
 .axm-newtab{font-size:14px;font-weight:600;color:#2F6BFF;text-underline-offset:4px}
 .axm-frame{flex:1;width:100%;border:0;background:#fff}
+/* açılış: katman kartın yerinden büyür (clip-path, js/acadex-medlab.js başlangıç kutusunu verir) */
+.axm-run.axm-grow{transition:clip-path .55s cubic-bezier(.7,0,.2,1)}
+.axm-load{position:absolute;left:0;right:0;top:58px;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:#F6F7FB;transition:opacity .35s}
+.axm-load[hidden]{display:none}
+.axm-load.out{opacity:0}
+.axm-load svg{width:220px;height:60px;fill:none;stroke:#C9483B;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:300;stroke-dashoffset:300}
+.axm-load p{margin:0;font-family:"Caveat","Segoe Print",cursive;font-weight:600;font-size:24px;color:#4B5675}
+@media (prefers-reduced-motion:no-preference){.axm-load svg{animation:axm-draw 1.4s linear infinite}}
+@media (prefers-reduced-motion:reduce){.axm-load svg{stroke-dashoffset:0}}
+@keyframes axm-draw{0%{stroke-dashoffset:300}70%{stroke-dashoffset:0}100%{stroke-dashoffset:-300}}
 body.axm-open{overflow:hidden}
 body.axm-open #acadia-widget-container,body.axm-open #pomodoro-widget-container,body.axm-open .ax-bnav{display:none!important}
 
 @media (max-width:760px){
   #medlab-view.axm .axm-main{padding:18px 14px 140px}
-  #medlab-view.axm .axm-ecg{display:none}
+  #medlab-view.axm .axm-mon{height:58px;transform:rotate(.8deg)}
+  #medlab-view.axm .axm-mon-scr{width:160px}
+  #medlab-view.axm .axm-mon-r{min-width:62px}
+  #medlab-view.axm .axm-mon-r b{font-size:18px}
   #medlab-view.axm .axm-shelf-note{font-size:19px}
   #medlab-view.axm .axm-labs{grid-template-columns:minmax(0,1fr);gap:18px;padding-top:18px}
   .axm-run-top{padding:6px 10px;gap:10px}
