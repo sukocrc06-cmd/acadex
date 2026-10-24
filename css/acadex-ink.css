@@ -7855,6 +7855,13 @@ body.axr-open #pomodoro-widget-container,body.axr-open #acadia-widget-container,
 #study-card-modal.axr .axr-chip{font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;border:1px solid #D9D3C3;background:#fff;color:var(--muted)}
 #study-card-modal.axr .axr-chip.ok{border-color:#B7DEC8;color:var(--green);background:#EFF8F2}
 #study-card-modal.axr .axr-chip.q{border-color:#F0D7A8;color:var(--amber);background:#FFF7E6}
+/* UYARI rozeti (24.10.2026): eksik pencere, kismi Gemini taslagi, atlanan
+   asama, dusuk sayisal kapsama. Oncesinde bu bilgiler yalnizca gizli
+   .axr-legacy DOM'una yaziliyordu, yani %23 kapsamali bir kart tam kartla
+   birebir ayni gorunuyordu — ustelik yaninda yesil "kalite kontrolunden
+   gecti" rozetiyle. Kirmizi degil kehribar/kiremit: kart KULLANILABILIR,
+   yalnizca eksik. */
+#study-card-modal.axr .axr-chip.warn{border-color:#E8B4A0;color:#B4541F;background:#FDF1EC}
 #study-card-modal.axr .axr-meta{display:flex;flex-wrap:wrap;gap:6px 16px;margin:0;font-size:12px;color:var(--soft);letter-spacing:.04em}
 #study-card-modal.axr .axr-meta span+span::before{content:'·';margin-right:16px;color:#C9C2B0}
 #study-card-modal.axr .axr-meta [data-left]{color:var(--blue);font-weight:700}

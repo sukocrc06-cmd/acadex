@@ -33,7 +33,9 @@ const UI = loadFromSource('js/dashboard.js', [
   // Anlati ve maddelerdeki $...$ (18.10.2026).
   'inlineMath', 'inlineMarkdown',
   // Cift ters bolu sadelestirmesi (20.10.2026).
-  'sadeKatexKomutu'
+  'sadeKatexKomutu',
+  // Ozet metninin KACIRAN yolu (24.10.2026) — depolanmis XSS duzeltmesi.
+  'inlineMarkdownGuvenli', 'summaryParagraphs', 'OZET_KISALTMA_RE', 'formatSummaryText'
 ]);
 
 const DASH_SRC = require('node:fs').readFileSync(
@@ -656,6 +658,140 @@ test('mathDelimRe HER cagrida yeni regex veriyor', () => {
   assert.notEqual(a, b, 'ayni regex nesnesi paylasiliyor — lastIndex sizar');
   a.exec('$x$');
   assert.equal(b.lastIndex, 0, 'lastIndex paylasilmis');
+});
+
+/* ==========================================================================
+   OZET METNI ARTIK KACIRILIYOR (24.10.2026) — DEPOLANMIS XSS
+
+   formatSummaryText modelin urettigi metni dogrudan innerHTML'e yaziyordu ve
+   zincirde hicbir yerde kacirma yoktu: baslik dallari metni ciplak enterpole
+   ediyor, paragraf/madde dallari ise inlineMarkdown'dan geciyordu — o da
+   kacirmiyor (inlineMath ayirac bulamazsa dizgeyi oldugu gibi donduruyor).
+   Projede sanitizer de yok.
+
+   Kaynaktan kopyalanmis bir `<img src=x onerror=...>` satiri, kart "bolumumle
+   paylas" ile paylasildiginda BASKA ogrencinin oturumunda calisirdi.
+   innerHTML'de <script> kosmaz ama onerror/onload kosar.
+
+   Sira: KACIR + matematik (renderMathInText) -> kalin/italik -> dipnot.
+   Kacirma matematikten ONCE yapilamaz, cunku LaTeX icinde < > & gecer ve
+   kacirilmis dizgeyi KaTeX'e vermek formulu bozar.
+   ========================================================================== */
+const XSS = '<img src=x onerror=alert(1)>';
+
+test('ozet metni DORT dalda da kaciriliyor', () => {
+  const c = sahteKatexKur();
+  try {
+    const vakalar = [
+      ['paragraf', 'Normal cumle ' + XSS + ' devam.'],
+      ['## baslik', '## ' + XSS],
+      ['sezgisel baslik', '1. ' + XSS],
+      ['madde', '- ' + XSS],
+    ];
+    for (const [ad, girdi] of vakalar) {
+      const html = UI.formatSummaryText(girdi, []);
+      assert.ok(html.includes('&lt;img'), `${ad}: kacirilmamis — ${html.slice(0, 120)}`);
+      assert.ok(!/<img/i.test(html), `${ad}: ham <img> hala ciktida`);
+      assert.ok(!/onerror=alert/.test(html.replace(/&lt;[^&]*&gt;/g, '')),
+        `${ad}: olay isleyicisi kacirilmamis`);
+    }
+  } finally { katexKaldir(); }
+});
+
+test('kacirma MATEMATIGI bozmuyor (sira dogru)', () => {
+  const c = sahteKatexKur();
+  try {
+    for (const girdi of ['Egim $\\beta_1$ pozitif.', 'Etki \\(\\beta_1 + \\beta_3 D\\) olur.']) {
+      const html = UI.formatSummaryText(girdi, []);
+      assert.ok(/<KTX>/.test(html), 'matematik dizilmemis: ' + html.slice(0, 140));
+      assert.ok(!/&lt;KTX/.test(html), 'KaTeX ciktisi kacirilmis — sira ters');
+    }
+    // LaTeX govdesi KaTeX'e KACIRILMADAN gitmeli, yoksa formul bozulur.
+    assert.ok(c.some((t) => t.includes('\\beta_1')), 'KaTeX e giden latex bozulmus: ' + JSON.stringify(c));
+    assert.ok(!c.some((t) => /&lt;|&amp;/.test(t)), 'KaTeX e kacirilmis dizge gonderilmis');
+  } finally { katexKaldir(); }
+});
+
+test('BASLIKLAR da artik matematik ve kalin isliyor', () => {
+  /* Baslik dallari inlineMarkdown'i hic cagirmiyordu; `## Egim $\beta_1$`
+     ekranda ham gorunuyordu ve CSS onu 1.15em display fontla diziyordu. */
+  const c = sahteKatexKur();
+  try {
+    assert.ok(/<KTX>/.test(UI.formatSummaryText('## Egim $\\beta_1$', [])),
+      'baslikta matematik hala ham');
+    assert.ok(/<strong>/.test(UI.formatSummaryText('## Bu **onemli**', [])),
+      'baslikta kalin islenmiyor');
+  } finally { katexKaldir(); }
+});
+
+test('DIPNOT isaretcisi hala baglanti uretiyor (en sonda)', () => {
+  const c = sahteKatexKur();
+  try {
+    const html = UI.formatSummaryText('Issizlik artti [3].', [{ id: 3, reference: 'Sayfa 2', page: 2 }]);
+    assert.ok(/<sup/.test(html), 'dipnot isaretcisi uretilmemis: ' + html.slice(0, 140));
+    assert.ok(!/&lt;sup/.test(html), 'dipnot isaretlemesi kacirilmis — sira ters');
+  } finally { katexKaldir(); }
+});
+
+test('kalin/italik hala calisiyor (regresyon)', () => {
+  const c = sahteKatexKur();
+  try {
+    assert.ok(/<strong>onemli<\/strong>/.test(UI.formatSummaryText('Bu **onemli** nokta.', [])));
+  } finally { katexKaldir(); }
+});
+
+test('renderMathSymbol STANDART ayiraclari da taniyor', () => {
+  /* Ucuncu huni: buraya yalnizca `$` kontrolu vardi. `\(\beta_1\)` ayiraclari
+     DOGRUDAN KaTeX'e gidiyor, KaTeX ParseError atiyor ve sembol ekranda ham
+     goruluyordu. inlineMath ve renderMathInText bugun genisletilmisti, bu
+     dal atlanmisti. */
+  const c = sahteKatexKur();
+  try {
+    for (const girdi of ['\\(\\beta_1\\)', '\\[\\alpha\\]']) {
+      const html = UI.renderMathSymbol(girdi);
+      assert.ok(/<KTX>/.test(html), `${girdi} dizilmemis: ${html}`);
+      assert.ok(!/\\\(|\\\[/.test(html), `${girdi}: ayiraclar ciktida kalmis: ${html}`);
+    }
+    // KaTeX'e ayiracsiz govde gitmeli.
+    assert.ok(c.every((t) => !/\\\(|\\\[/.test(t)), 'KaTeX e ayiracli dizge gonderilmis: ' + JSON.stringify(c));
+  } finally { katexKaldir(); }
+});
+
+test('KAVRAM ve SINAV kartlari matematik yolundan geciyor', () => {
+  /* Kavram tanimlari ve sinav sorulari yalnizca X(plain(...)) ile basiliyordu;
+     sayisal bir derste soru metnindeki formul ham kaliyordu. Ayni fonksiyonun
+     bir satir otesinde matematik yolu zaten vardi. */
+  const INK = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'js/acadex-ink.js'), 'utf8');
+  assert.ok(INK.includes("sym(plain(t.term))"), 'kavram terimi sembol yolundan gecmiyor');
+  assert.ok(INK.includes("math(plain(t.definition))"), 'kavram tanimi matematik yolundan gecmiyor');
+  assert.ok(INK.includes("math(plain(q.question))"), 'sinav sorusu matematik yolundan gecmiyor');
+  assert.ok(INK.includes("math(plain(q.explanation))"), 'sinav aciklamasi matematik yolundan gecmiyor');
+  assert.ok(!/X\(plain\(t\.definition\)\)/.test(INK), 'eski kacirma-only yol kalmis');
+});
+
+test('CLOZE kartinin tam cumlesi okunuyor (full_text)', () => {
+  /* Edge function `full_text` yaziyor (bkz. index.ts cloze uretimi), okuyucu
+     ise `c.full || c.sentence || c.answer` ariyordu — `full` hic olmadigi icin
+     `answer`a dusuyor ve ogrenci kartin arkasinda yalnizca TEK KELIME
+     goruyordu; baglam kayboluyordu. */
+  const INK = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'js/acadex-ink.js'), 'utf8');
+  const yerler = INK.match(/c\.full_text \|\| c\.full \|\| c\.sentence \|\| c\.answer/g) || [];
+  assert.equal(yerler.length, 2,
+    `full_text ${yerler.length} yerde okunuyor — iki cloze okuyucusunun ikisi de duzelmeli`);
+  assert.ok(!/stripTags\(c\.full \|\| c\.sentence/.test(INK), 'eski anahtar sirasi kalmis');
+});
+
+test('kacirma TEK yerden geciyor: dort dal da guvenli() cagiriyor', () => {
+  /* Dallardan biri ileride dogrudan enterpolasyona donerse XSS geri gelir;
+     bu yuzden sayiyi kilitliyorum. */
+  const i = DASH_SRC.indexOf('function formatSummaryText(');
+  const govde = DASH_SRC.slice(i, DASH_SRC.indexOf('\nfunction ', i + 10));
+  assert.equal((govde.match(/\$\{guvenli\(/g) || []).length, 4,
+    'dort enterpolasyon noktasinin hepsi guvenli() uzerinden gecmiyor');
+  assert.ok(!/\$\{inlineMarkdown\(/.test(govde), 'kacirmayan inlineMarkdown hala kullaniliyor');
+  assert.ok(!/\$\{trimmed\}|\$\{headingText\}/.test(govde), 'ciplak enterpolasyon kalmis');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));

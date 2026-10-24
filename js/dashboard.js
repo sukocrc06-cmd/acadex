@@ -2520,10 +2520,21 @@ function formatSummaryText(summary, footnotes) {
     const paras = summaryParagraphs(kaynak);
     if (paras.length > 1) kaynak = paras.map(p => (p.lead ? `**${p.lead}** ${p.body}` : p.body)).join('\n\n');
   }
-  const withFootnotes = formatFootnoteMarkers(kaynak, footnotes);
-  
+  /* DIPNOT ISARETCILERI ARTIK EN SONDA (24.10.2026).
+   *
+   * Eskiden burada, satirlara bolunmeden ONCE uygulaniyordu. O sira
+   * kacirmayi imkansiz kiliyordu: fonksiyon `[3]` yerine <sup> baglantisi
+   * koyuyor, yani metin bu noktadan sonra HTML tasiyor ve onu kacirmak
+   * dipnotun kendi isaretlemesini de kacirirdi.
+   *
+   * Yeni sira satir basina: KACIR + matematik (inlineMarkdownGuvenli) ->
+   * kalin/italik -> dipnot. `[n]` kalibi kacirmadan etkilenmedigi icin en
+   * sonda hala bulunuyor, ve formatFootnoteMarkers durumsuz (haritasini her
+   * cagrida kendi kuruyor) oldugu icin satir basina cagrilmasi guvenli. */
+  const guvenli = (t) => formatFootnoteMarkers(inlineMarkdownGuvenli(t), footnotes);
+
   // Split on raw or escaped newline
-  const lines = withFootnotes.split(/\n|\\n/);
+  const lines = String(kaynak).split(/\n|\\n/);
   
   let html = "";
   let insideList = false;
@@ -2548,7 +2559,7 @@ function formatSummaryText(summary, footnotes) {
         insideList = false;
       }
       const headingText = trimmed.replace(/^##\s*/, "");
-      html += `<h4 style="font-size: 0.95rem; font-weight: 700; color: var(--color-teal); margin-top: 0.75rem; margin-bottom: 0.35rem; font-family: 'Outfit', sans-serif;">${headingText}</h4>`;
+      html += `<h4 style="font-size: 0.95rem; font-weight: 700; color: var(--color-teal); margin-top: 0.75rem; margin-bottom: 0.35rem; font-family: 'Outfit', sans-serif;">${guvenli(headingText)}</h4>`;
       return;
     }
 
@@ -2560,7 +2571,7 @@ function formatSummaryText(summary, footnotes) {
         html += '<ul style="margin: 0.5rem 0; padding-left: 1.5rem; list-style-type: disc;">';
         insideList = true;
       }
-      html += `<li style="margin-bottom: 0.25rem; font-size: 0.85rem; color: var(--color-navy); line-height: 1.4;">${inlineMarkdown(bulletMatch[2])}</li>`;
+      html += `<li style="margin-bottom: 0.25rem; font-size: 0.85rem; color: var(--color-navy); line-height: 1.4;">${guvenli(bulletMatch[2])}</li>`;
     } else {
       if (insideList) {
         html += "</ul>";
@@ -2573,9 +2584,9 @@ function formatSummaryText(summary, footnotes) {
       const isSyllabusHeading = trimmed.startsWith("Anahtar ") || trimmed.startsWith("Önemli ") || trimmed.startsWith("Sınav ") || trimmed.startsWith("Key ") || trimmed.startsWith("Summary ");
 
       if (isNumberHeading || isShortTitleCase || isSyllabusHeading) {
-        html += `<h4 style="font-size: 0.95rem; font-weight: 700; color: var(--color-teal); margin-top: 0.75rem; margin-bottom: 0.35rem; font-family: 'Outfit', sans-serif;">${trimmed}</h4>`;
+        html += `<h4 style="font-size: 0.95rem; font-weight: 700; color: var(--color-teal); margin-top: 0.75rem; margin-bottom: 0.35rem; font-family: 'Outfit', sans-serif;">${guvenli(trimmed)}</h4>`;
       } else {
-        html += `<p style="margin: 0.35rem 0; font-size: 0.85rem; color: var(--color-navy); line-height: 1.5;">${inlineMarkdown(trimmed)}</p>`;
+        html += `<p style="margin: 0.35rem 0; font-size: 0.85rem; color: var(--color-navy); line-height: 1.5;">${guvenli(trimmed)}</p>`;
       }
     }
   });
@@ -3285,7 +3296,14 @@ window.renderMathInText = renderMathInText;
 function renderMathSymbol(sym) {
   const s = String(sym == null ? '' : sym).trim();
   if (!s) return '';
-  if (s.indexOf('$') !== -1) return renderMathInText(s);   // ayiracli gelmis
+  /* UCUNCU HUNI (24.10.2026). Buraya yalnizca `$` kontrolu vardi; model
+     `\(\beta_1\)` yazdiginda ayiraclar DOGRUDAN KaTeX'e gidiyordu, KaTeX
+     `\(` icin ParseError atiyor ve catch escapeHtml'e dusuyordu — yani
+     sembol ekranda ham gorunuyordu. inlineMath ve renderMathInText bugun
+     mathDelimRe ile genisletildi, bu dal atlanmisti. */
+  if (s.indexOf('$') !== -1 || s.indexOf('\\(') !== -1 || s.indexOf('\\[') !== -1) {
+    return renderMathInText(s);   // ayiracli gelmis
+  }
   const latexGibi = /[\\_^{}]/.test(s);
   if (!latexGibi || !window.katex) return escapeHtml(s);
   try {
@@ -3477,6 +3495,35 @@ function inlineMath(html) {
   });
 }
 window.inlineMath = inlineMath;
+
+/* inlineMarkdown'in HTML KACIRAN surumu (24.10.2026).
+ *
+ * formatSummaryText modelin urettigi metni dogrudan innerHTML'e yaziyordu ve
+ * bu zincirde HICBIR YERDE kacirma yoktu:
+ *   - baslik dallari (## ... ve sezgisel baslik) metni ciplak enterpole
+ *     ediyordu,
+ *   - paragraf/madde dallari inlineMarkdown'dan geciyordu ama o da
+ *     kacirmiyor: inlineMath ayirac bulamazsa dizgeyi OLDUGU GIBI donduruyor,
+ *     buldugunda da yalnizca matematik parcasini degistiriyor.
+ * Projede sanitizer de yok. Yani kaynaktan kopyalanmis bir
+ * `<img src=x onerror=...>` satiri, kart "bolumumle paylas" ile paylasildiginda
+ * BASKA ogrencinin oturumunda calisirdi. (innerHTML'de <script> kosmaz ama
+ * onerror/onload kosar.)
+ *
+ * SIRA ONEMLI ve nedeni su: kacirmayi matematikten ONCE yapamayiz, cunku
+ * LaTeX icinde <, >, & gecer ve kacirilmis bir dizgeyi KaTeX'e vermek formulu
+ * bozar. Dogru sira "matematik dısı parcalari kacir, matematigi dizge olarak
+ * isle" — ki renderMathInText zaten tam bunu yapiyor (inlineMath'in kacirmayan
+ * ikizidir). Bu yuzden bu surum inlineMath yerine onu kullaniyor.
+ *
+ * Kalin/italik ondan SONRA: isaretler (**) kacirmadan saglam cikiyor.
+ * Dipnot isaretcileri de en sona kaliyor, cunku onlar HTML uretiyor. */
+function inlineMarkdownGuvenli(html) {
+  return renderMathInText(String(html == null ? '' : html))
+    .replace(/\*\*([^*\n]+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[\s(“"])\*([^*\s][^*\n]*?[^*\s]|[^*\s])\*(?=[\s.,;:)!?”"]|$)/g, '$1<em>$2</em>');
+}
+window.inlineMarkdownGuvenli = inlineMarkdownGuvenli;
 
 function inlineMarkdown(html) {
   // Once matematik, sonra kalin/italik: tersi olsaydi $a*b$ gibi bir
