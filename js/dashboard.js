@@ -3218,6 +3218,27 @@ function splitCalcChain(calc, maxLen = 46) {
  * Artik sinirlar HAM metinde bulunur: formul ham haliyle KaTeX'e gider,
  * aradaki duz metin kacirilir. Hem dogru dizgi hem kacis korunur.
  */
+/* STANDART LATEX AYIRACLARI DA TANINIYOR (24.10.2026).
+ *
+ * Iki desen de yalnizca `$...$` ariyordu. Model ise regresyon anlatan bir
+ * belgede standart LaTeX yaziyor:
+ *
+ *   \(\partial y/\partial x = \beta_1 + \beta_3 D\)
+ *   \(UtilityBill = 484.12 - 12.08\,temp + 0.09\,temp^2\)
+ *
+ * Bunlar hicbir desene uymadigi icin ekranda HAM basiliyordu. Cizim yolu
+ * uctan uca dogrulandi: acadex-ink.js anlati/bolum metnini fmtS ile
+ * formatSummaryText'e, o da inlineMarkdown -> inlineMath'e veriyor.
+ *
+ * `\(...\)` satir ici, `\[...\]` blok. Para bicimi korumasi ($100 and $200)
+ * yalnizca dolar koluna ait: ters bolu ayiraclarinda boyle bir belirsizlik
+ * yok. Yeni bir g bayrakli regex HER cagrida uretiliyor, cunku
+ * renderMathInText exec dongusu kullaniyor ve paylasilan lastIndex iki
+ * fonksiyon arasinda sessiz atlama yapar. */
+function mathDelimRe() {
+  return /\$(?=\S)((?:[^$\\]|\\.)+?)(?<!\s)\$(?!\d)|\\\(([\s\S]+?)\\\)|\\\[([\s\S]+?)\\\]/g;
+}
+
 function renderMathInText(text) {
   if (!text) return '';
   const s = String(text);
@@ -3225,17 +3246,19 @@ function renderMathInText(text) {
      sondaki \S icin AYRI bir karakter istiyordu; $1\%$ gibi KACISLA
      biten formulde o karakter kacisin icinde kaldigi icin eslesme
      olmuyor ve formul ham basiliyordu (18.10.2026). */
-  const re = /\$(?=\S)((?:[^$\\]|\\.)+?)(?<!\s)\$(?!\d)/g;
+  const re = mathDelimRe();
   let out = '', son = 0, m;
   while ((m = re.exec(s)) !== null) {
-    const latex = m[1];
-    // Para bicimi formul degil: "$100 and $200".
-    if (/^\d[\d.,]*\s/.test(latex)) continue;
+    // m[1] = $...$, m[2] = \(...\), m[3] = \[...\] (blok)
+    const blok = m[3] != null;
+    const latex = m[1] != null ? m[1] : (m[2] != null ? m[2] : m[3]);
+    // Para bicimi formul degil: "$100 and $200". Yalnizca dolar kolunda.
+    if (m[1] != null && /^\d[\d.,]*\s/.test(latex)) continue;
     out += escapeHtml(s.slice(son, m.index));
     let dizgi = null;
     if (window.katex) {
       try {
-        dizgi = window.katex.renderToString(sadeKatexKomutu(latex), { displayMode: false, throwOnError: false });
+        dizgi = window.katex.renderToString(sadeKatexKomutu(latex), { displayMode: blok, throwOnError: false });
       } catch (e) {
         dizgi = null;
       }
@@ -3438,12 +3461,16 @@ function sadeKatexKomutu(latex) {
 
 function inlineMath(html) {
   const s = String(html == null ? '' : html);
-  if (!window.katex || s.indexOf('$') === -1) return s;
-  // Desen notu icin bkz. renderMathInText: kacisla biten formul.
-  return s.replace(/\$(?=\S)((?:[^\$\\]|\\.)+?)(?<!\s)\$(?!\d)/g, (match, latex) => {
-    if (/^\d[\d.,]*\s/.test(latex)) return match;
+  /* Erken cikis ucunu de gormeli: eskiden yalnizca '$' arıyordu, bu yuzden
+     icinde SADECE \(...\) olan bir metin hic incelenmeden geri donuyordu. */
+  if (!window.katex) return s;
+  if (s.indexOf('$') === -1 && s.indexOf('\\(') === -1 && s.indexOf('\\[') === -1) return s;
+  // Desen notu icin bkz. mathDelimRe ve renderMathInText.
+  return s.replace(mathDelimRe(), (match, dolar, paren, blokTex) => {
+    const latex = dolar != null ? dolar : (paren != null ? paren : blokTex);
+    if (dolar != null && /^\d[\d.,]*\s/.test(dolar)) return match;
     try {
-      return window.katex.renderToString(sadeKatexKomutu(latex), { displayMode: false, throwOnError: false });
+      return window.katex.renderToString(sadeKatexKomutu(latex), { displayMode: blokTex != null, throwOnError: false });
     } catch (e) {
       return match;
     }

@@ -27,7 +27,7 @@ const UI = loadFromSource('js/dashboard.js', [
   'escapeHtml', 'formatFootnoteMarkers', 'renderFootnotesSectionHtml',
   'renderSuggestedTagChipHtml',
   // Formul degiskenlerinin matematik yolu (18.10.2026).
-  'renderMathInText', 'renderMathSymbol',
+  'renderMathInText', 'renderMathSymbol', 'mathDelimRe',
   // Formul kutusuna sigdirma (18.10.2026).
   'FORMUL_MIN_REM', 'sigdirFormulKutusu',
   // Anlati ve maddelerdeki $...$ (18.10.2026).
@@ -568,6 +568,94 @@ test('dizim yolu sadelestirmeden GECIYOR', () => {
     require('node:path').join(__dirname, '..', 'js/dashboard.js'), 'utf8');
   const n = DASH.split('renderToString(sadeKatexKomutu(latex)').length - 1;
   assert.equal(n, 2, 'iki render noktasinin ikisi de sadelestirmeden gecmeli, gecen: ' + n);
+});
+
+/* ==========================================================================
+   STANDART LATEX AYIRACLARI (24.10.2026)
+
+   Iki desen de yalnizca `$...$` ariyordu. Model, regresyon anlatan bir
+   belgede standart LaTeX yaziyor ve ekranda HAM gorunuyordu:
+
+     \(\partial y/\partial x = \beta_1 + \beta_3 D\)
+     \(UtilityBill = 484.12 - 12.08\,temp + 0.09\,temp^2\)
+
+   Cizim yolu uctan uca: acadex-ink.js anlati/bolum metnini fmtS ->
+   formatSummaryText -> inlineMarkdown -> inlineMath'e veriyor.
+   ========================================================================== */
+test('SATIR ICI \\(...\\) KaTeX e gidiyor', () => {
+  const c = sahteKatexKur();
+  try {
+    const html = UI.inlineMath('marjinal etki \\(\\beta_1 + \\beta_3 D\\) olur');
+    assert.ok(/<KTX>/.test(html), 'satir ici ayirac hala ham basiliyor: ' + html);
+    assert.deepEqual(c, ['\\beta_1 + \\beta_3 D'], 'ayiraclar KaTeX e birlikte gonderilmis');
+    assert.ok(!/\\\(/.test(html), 'ayiraclar ciktida kalmis: ' + html);
+  } finally { katexKaldir(); }
+});
+
+test('BLOK \\[...\\] displayMode ile diziliyor', () => {
+  const modlar = [];
+  global.window = global.window || {};
+  window.katex = { renderToString: (tex, o) => { modlar.push(!!(o && o.displayMode)); return '<KTX>' + tex + '</KTX>'; } };
+  try {
+    UI.inlineMath('once \\[x^2 + y^2 = z^2\\] sonra');
+    assert.deepEqual(modlar, [true], 'blok ayirac satir ici dizilmis');
+    UI.inlineMath('once \\(a+b\\) sonra');
+    assert.deepEqual(modlar, [true, false], 'satir ici ayirac blok dizilmis');
+  } finally { katexKaldir(); }
+});
+
+test('ERKEN CIKIS ters bolu ayiraclarini da goruyor', () => {
+  /* Eski hali `s.indexOf('$') === -1` ile donuyordu; icinde yalnizca
+     \(...\) olan bir metin hic incelenmiyordu. Regresyon bu satirdaydi. */
+  const c = sahteKatexKur();
+  try {
+    const html = UI.inlineMath('icinde dolar olmayan \\(a^2\\) metin');
+    assert.ok(/<KTX>/.test(html), 'dolarsiz metin erken cikista atlanmis: ' + html);
+    assert.equal(c.length, 1);
+  } finally { katexKaldir(); }
+});
+
+test('DOLAR davranisi degismedi: para hala formul sanilmaz', () => {
+  const c = sahteKatexKur();
+  try {
+    assert.equal(UI.inlineMath('costs $100 and $200'), 'costs $100 and $200');
+    assert.deepEqual(c, [], 'para KaTeX e gonderilmis');
+    // Ters bolu kolunda para belirsizligi yok, o koruma dolara ozel kalmali.
+    UI.inlineMath('\\(100 and 200\\)');
+    assert.deepEqual(c, ['100 and 200'], 'ters bolu kolu para korumasina takilmis');
+  } finally { katexKaldir(); }
+});
+
+test('renderMathInText de iki yeni ayiraci taniyor', () => {
+  const c = sahteKatexKur();
+  try {
+    const html = UI.renderMathInText('egim \\(\\beta_3\\) ve blok \\[\\alpha\\] birlikte');
+    assert.equal(c.length, 2, 'iki ayiracin ikisi de dizilmemis: ' + JSON.stringify(c));
+    assert.ok(!/\\\(|\\\[/.test(html), 'ayiraclar ciktida kalmis: ' + html);
+  } finally { katexKaldir(); }
+});
+
+test('OLCULEN ORNEK: kullanicinin ekranda gordugu cumle', () => {
+  /* 24.10.2026 kosusunun kartindan birebir. Daha once bu satir ekranda
+     ters bolulerle birlikte goruluyordu. */
+  const c = sahteKatexKur();
+  try {
+    const html = UI.inlineMath(
+      'In the utility-bill example, \\(UtilityBill = 484.12 - 12.08\\,temp + 0.09\\,temp^2\\).'
+    );
+    assert.ok(/<KTX>/.test(html), 'ornek cumle hala ham: ' + html);
+    assert.ok(/UtilityBill/.test(c[0]), 'latex govdesi dogru alinmamis: ' + c[0]);
+    assert.ok(!/\\\(|\\\)/.test(html), 'ayiraclar ciktida kalmis: ' + html);
+  } finally { katexKaldir(); }
+});
+
+test('mathDelimRe HER cagrida yeni regex veriyor', () => {
+  /* g bayrakli bir regex paylasilirsa lastIndex iki fonksiyon arasinda
+     tasinir ve renderMathInText'in exec dongusu sessizce atlar. */
+  const a = UI.mathDelimRe(), b = UI.mathDelimRe();
+  assert.notEqual(a, b, 'ayni regex nesnesi paylasiliyor — lastIndex sizar');
+  a.exec('$x$');
+  assert.equal(b.lastIndex, 0, 'lastIndex paylasilmis');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));
