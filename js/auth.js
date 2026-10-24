@@ -23,6 +23,11 @@ function getMsg(key, defaultVal) {
 // ==========================================
 async function getPostLoginDestination(userId) {
   try {
+    // Kapalı beta (js/acadex-erisim.js): izinsiz hesap oturumdan çıkarılır.
+    if (window.acadexAccess) {
+      const acc = await window.acadexAccess.check(userId);
+      if (!acc.ok) { await supabaseClient.auth.signOut(); return 'login.html?erisim=yok'; }
+    }
     const { data: profile, error } = await supabaseClient
       .from('profiles')
       .select('is_admin, is_teacher')
@@ -423,6 +428,11 @@ function initLoginForm() {
 
       if (data && data.session) {
         const destination = await getPostLoginDestination(data.session.user.id);
+        if (destination.indexOf('login.html') === 0) {
+          showFormAlert(form, 'error', 'Acadex şu an geliştirme aşamasında ve yalnızca izin verilen hesaplar girebiliyor. Erişim için Acadex ekibine yaz.');
+          setButtonLoading(submitBtn, false);
+          return;
+        }
 
         // Maintenance mode: only admins are allowed through while it's on.
         // (site-status.js, loaded before this script, exposes the check.)

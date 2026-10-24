@@ -25,7 +25,7 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-const ALLOWED_ACTIONS = ['enrich', 'rewrite', 'regenerate', 'question', 'tone', 'notes', 'notes_all', 'new_slide']
+const ALLOWED_ACTIONS = ['enrich', 'rewrite', 'regenerate', 'question', 'tone', 'notes', 'notes_all', 'new_slide', 'shorten']
 
 const TONE_HINTS: Record<string, string> = {
   academic: 'Akademik bir dille yazın; kavramları net tanımlayın, terminolojiye özen gösterin — ama gerçek, spesifik bilgiden asla sapmayın.',
@@ -37,6 +37,34 @@ const TONE_HINTS: Record<string, string> = {
 function isTokenSizeError(status: number, body: any): boolean {
   return (status === 400 || status === 429 || status === 413) &&
     (body?.error?.code === 'rate_limit_exceeded' || /token/i.test(String(body?.error?.message || '')))
+}
+
+// Asetat kuralı (24.10.2026): zenginleştir her maddeye paragraf yazıyor, "(Wikipedia)" ve uydurma
+// sayı ekliyordu; asetat taşıyordu. Madde sayısı ve uzunluğu artık istemciden geliyor (kutunun
+// sığdırabileceği kadar) ve burada da zorla kesiliyor.
+const SLIDE_RULE = (maxB: number, maxW: number) => `ASETAT KURALI: En fazla ${maxB} madde. Her madde TEK cümle ve EN FAZLA ${maxW} kelime; slaytta okunacak kadar kısa, paragraf YASAK. Parantez içinde kaynak, "(Wikipedia)", "[1]" gibi atıf YAZMA. Emin olmadığın sayı, tarih, yüzde YAZMA; sayı yerine doğru bir olgu yaz. Maddeler birbirini tekrar etmesin.`
+
+function tidyBullet(line: string, maxW: number): string {
+  let t = String(line || '')
+    .replace(/^\s*(?:[-•▸▪✦*]|\d+[.)])\s*/, '')
+    .replace(/\s*\((?:[^)]*\b(?:wikipedia|vikipedi|kaynak|source)\b[^)]*)\)/gi, '')
+    .replace(/\s*\[(?:\d+|kaynak|source)\]/gi, '')
+    .replace(/[*_#`]/g, '')
+    .replace(/\s+/g, ' ').trim()
+  const first = t.split(/(?<=[a-zçğıöşü\d)]{3}[.!?])\s+(?=[A-ZÇĞİÖŞÜ\d])/)[0]
+  if (first && first.split(/\s+/).length >= 4) t = first
+  const w = t.split(/\s+/)
+  if (w.length > maxW) {
+    const cut = w.slice(0, maxW).join(' ')
+    let bi = -1
+    for (const m of cut.matchAll(/[,;:](?=\s)|\s[–—](?=\s)/g)) bi = m.index ?? -1
+    const clause = bi > 0 ? cut.slice(0, bi) : cut
+    t = bi > 0 && clause.split(/\s+/).length >= Math.ceil(maxW * 0.55) ? clause : cut + '…'
+  }
+  return t.replace(/[.;,:]+$/, '').trim()
+}
+function tidyContent(content: string, maxB: number, maxW: number): string {
+  return String(content || '').split('\n').map((l) => tidyBullet(l, maxW)).filter((l) => l.length > 2).slice(0, maxB).map((l) => '• ' + l).join('\n')
 }
 
 const GROUNDING_RULE = `KRİTİK KURAL: Bütün çıktı, verilen KONU hakkında gerçek, spesifik, doğru bilgi içermelidir (gerçek tarihler, isimler, sayılar, nedenler, mekanizmalar, örnekler — konuya göre neyse). "Erken netlik zaman kazandırır", "düzenli üretim ritmi", "kontrol listesi kullanın" gibi konudan bağımsız, jenerik prodüktivite klişeleri KESİNLİKLE YASAK — bunlar konuşulan KONU ile ilgisiz olduğu için kabul edilemez. Metin, konunun kendisi hakkında olmalı, konu hakkında konuşmak hakkında değil.`
@@ -68,6 +96,11 @@ serve(async (req) => {
     const currentText = String(body?.currentText || '').trim().slice(0, 2000)
     const tone = TONE_HINTS[body?.tone] ? body.tone : 'academic'
     const language = (body?.language === 'en') ? 'en' : 'tr'
+    const maxB = Math.max(2, Math.min(6, Number(body?.maxBullets) || 5))
+    const maxW = Math.max(6, Math.min(18, Number(body?.maxWords) || 14))
+    const sourceText = String(body?.sourceText || '').trim().slice(0, 8000)
+    const SOURCE_RULE = sourceText ? `KAYNAK KURALI: Aşağıda sunumun kaynak metni var. YALNIZCA bu kaynakta geçen bilgileri kullan; kaynakta olmayan sayı, tarih, isim EKLEME.` : ''
+    const sourceBlock = sourceText ? `\n\nKAYNAK METİN:\n${sourceText}` : ''
     const langLine = language === 'tr' ? 'Türkçe' : 'English'
 
     const authHeader = req.headers.get('Authorization')
@@ -106,11 +139,21 @@ serve(async (req) => {
     if (action === 'enrich') {
       systemPrompt = `
 Sen bir sunum içerik editörüsün. KONU: "${topic}". Mevcut slayt başlığı: "${slideTitle || topic}".
-Görevin: aşağıda verilen mevcut slayt metnini, aynı konuyu ele alarak daha DERİN ve daha ZENGİN içerikli hale getirmek — daha fazla gerçek detay, örnek, sayı, neden-sonuç ekleyerek.
+Görevin: mevcut slayt maddelerini aynı konuda daha bilgilendirici hale getirmek: belirsiz maddeyi somutlaştır, eksik kalan önemli bir noktayı ekle, bir neden-sonuç ya da örnek ver. Mevcut doğru bilgileri koru.
 ${GROUNDING_RULE}
-Çıktı: 4-6 madde işaretli (•) satır, her biri gerçek ve spesifik bilgi içersin, ${langLine} dilinde.
+${SLIDE_RULE(maxB, maxW)}
+${SOURCE_RULE}
+Çıktı: ${langLine} dilinde madde işaretli (•) satırlar.
 SADECE şu JSON formatında cevap ver, başka hiçbir şey yazma: {"content": "• ...\\n• ...\\n..."}`.trim()
-      userPrompt = `Mevcut metin:\n${currentText || '(boş, sıfırdan üret)'}`
+      userPrompt = `Mevcut maddeler:\n${currentText || '(boş, sıfırdan üret)'}${sourceBlock}`
+    } else if (action === 'shorten') {
+      systemPrompt = `
+Sen bir sunum içerik editörüsün. KONU: "${topic}". Slayt başlığı: "${slideTitle || topic}".
+Görevin: verilen maddeleri, bilgiyi kaybetmeden slaytta tek bakışta okunacak kadar KISALTMAK. Yeni bilgi EKLEME.
+${SLIDE_RULE(maxB, maxW)}
+Çıktı: ${langLine} dilinde madde işaretli (•) satırlar, madde sayısı mevcut sayıyı geçmesin.
+SADECE şu JSON formatında cevap ver, başka hiçbir şey yazma: {"content": "• ...\\n• ...\\n..."}`.trim()
+      userPrompt = `Maddeler:\n${currentText || topic}`
     } else if (action === 'rewrite') {
       systemPrompt = `
 Sen bir sunum içerik editörüsün. KONU: "${topic}". Mevcut slayt başlığı: "${slideTitle || topic}".
@@ -190,7 +233,7 @@ SADECE şu JSON formatında cevap ver, başka hiçbir şey yazma: {"title": "str
           // adopted by summarize-document, generate-section-visual, and the
           // other Acadex edge functions hit by this same deprecation.
           model: "openai/gpt-oss-120b",
-          temperature: 0.8,
+          temperature: (action === 'enrich' || action === 'shorten') ? 0.35 : 0.8,
           response_format: { type: "json_object" },
           messages: [
             { role: "system", content: systemPrompt },
@@ -234,7 +277,7 @@ SADECE şu JSON formatında cevap ver, başka hiçbir şey yazma: {"title": "str
 
     // Sanitize / cap fields depending on action
     const out: Record<string, unknown> = {}
-    if (typeof parsed?.content === 'string') out.content = parsed.content.trim().slice(0, 2000)
+    if (typeof parsed?.content === 'string') out.content = (action === 'enrich' || action === 'shorten') ? tidyContent(parsed.content, maxB, maxW) : parsed.content.trim().slice(0, 2000)
     if (typeof parsed?.title === 'string') out.title = parsed.title.trim().slice(0, 120)
     if (typeof parsed?.question === 'string') out.question = parsed.question.trim().slice(0, 300)
     if (typeof parsed?.notes === 'string') out.notes = parsed.notes.trim().slice(0, 800)

@@ -11,23 +11,54 @@
   <meta name="theme-color" content="#0D1838">
   
   <!-- Google Fonts - Inter -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="preload" href="assets/landing/fonts/caveat-latin.woff2" as="font" type="font/woff2" crossorigin>
 
   <!-- KaTeX CDN for Math Formula Rendering -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <!-- defer: yalnız fonksiyon içinden çağrılıyor; sayfa çizimini bekletmesin -->
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 
   <!-- Mermaid.js CDN — free client-side rendering of diagrams the "Kaynakla Sohbet" AI reconstructs (no image-generation API cost) -->
-  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <!-- Mermaid.js — yalnızca bir diyagram çizilmek istendiğinde yüklenir (3,5 MB; ilk açılışı bekletmesin).
+       Yer tutucu, gerçek kütüphaneyle aynı adları (initialize/parse/render/run) taşır; ilk çağrıda kütüphaneyi
+       çeker ve çağrıyı ona devreder. window.mermaid hep dolu olduğu için mevcut "if (window.mermaid)" kontrolleri değişmez. -->
+  <script>
+    (function () {
+      var cfg = null, yuk = null, yer = { __lazy: true };
+      function getir() {
+        if (yuk) return yuk;
+        yuk = new Promise(function (res, rej) {
+          var s = document.createElement('script');
+          s.src = 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js'; s.async = true;
+          s.onload = function () {
+            var m = window.mermaid;
+            if (!m || m === yer) { yuk = null; window.mermaid = yer; rej(new Error('Mermaid yuklenemedi')); return; }
+            if (cfg) { try { m.initialize(cfg); } catch (e) { console.warn('Mermaid initialize failed:', e); } }
+            res(m);
+          };
+          s.onerror = function () { yuk = null; window.mermaid = yer; rej(new Error('Mermaid yuklenemedi')); };
+          document.head.appendChild(s);
+        });
+        return yuk;
+      }
+      yer.initialize = function (c) { cfg = c; if (window.mermaid !== yer) { try { window.mermaid.initialize(c); } catch (e) {} } };
+      ['parse', 'render', 'run'].forEach(function (k) {
+        yer[k] = function () { var a = arguments; return getir().then(function (m) { return m[k].apply(m, a); }); };
+      });
+      window.mermaid = yer;
+      window.acadexLoadMermaid = getir;
+    })();
+  </script>
 
   <!-- Core Stylesheet -->
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/acadex-ink.css">
+<link rel="stylesheet" href="css/acadex-medlab.css">
 
   <!-- Supabase CDN & Config (Route Guard) -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- defer + ana sürüm sabit: grafik yalnızca kart açılınca çiziliyor -->
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="js/supabase-config.js"></script>
   <script>
@@ -99,6 +130,7 @@
           <li class="sidebar-item" id="side-cards"><a href="#cards" onclick="switchDashboardView('cards')"><svg viewBox="0 0 24 24"><rect x="3.5" y="7" width="13" height="10" rx="1.5"/><path d="M7 4.5 H19 C19.8 4.5 20.5 5.2 20.5 6 V14"/></svg><span class="lbl">Bilgi kartları</span></a></li>
           <li class="sidebar-item" id="side-sourcehub"><a href="#sourcehub" onclick="switchDashboardView('sourcehub')"><svg viewBox="0 0 24 24"><path d="M4 5.5 C7 4.5 10 5 12 6.5 C14 5 17 4.5 20 5.5 V18.5 C17 17.5 14 18 12 19.5 C10 18 7 17.5 4 18.5 Z"/><path d="M12 6.5 V19.5"/></svg><span class="lbl">Kaynakla çalış</span></a></li>
           <li class="sidebar-item" id="side-studylab"><a href="#studylab" onclick="switchDashboardView('studylab')"><svg viewBox="0 0 24 24"><path d="M9.5 3.5 H14.5 M10.5 3.5 V9 L5 18.5 C4.4 19.6 5.1 20.5 6.3 20.5 H17.7 C18.9 20.5 19.6 19.6 19 18.5 L13.5 9 V3.5"/><path d="M7.4 14.5 H16.6"/><circle cx="10.5" cy="17.2" r=".6"/><circle cx="13.6" cy="16.4" r=".5"/></svg><span class="lbl">Acadex Study Lab</span></a></li>
+          <li class="sidebar-item" id="side-medlab"><a href="#medlab" onclick="switchDashboardView('medlab')"><svg viewBox="0 0 24 24"><path d="M6 3.5 V9 C6 12.3 8.2 14.5 11 14.5 C13.8 14.5 16 12.3 16 9 V3.5"/><path d="M11 14.5 V16.5 C11 18.7 12.8 20.5 15 20.5 C17.2 20.5 18.5 18.9 18.5 17 V14.8"/><circle cx="18.5" cy="12.8" r="2"/></svg><span class="lbl">Acadex MedLab</span></a></li>
         </ul>
         <h4>belgeler</h4>
         <ul class="sidebar-nav">
@@ -1813,6 +1845,57 @@
 <div id="axl-layer"><div class="lab axl-l"></div></div>
 </section>
 
+      <!-- Acadex MedLab: tıp öğrencilerine özel laboratuvarlar (js/acadex-medlab.js) -->
+      <section id="medlab-view" class="dashboard-view-section axd axm">
+<div class="axm-main">
+<header class="axm-head land">
+<div>
+<span class="eyb hand">klinik masası</span>
+<h1 class="disp">Acadex MedLab</h1>
+<p class="axm-sub hand">tıp fakültesi için kurulmuş laboratuvarlar. kadavranın yerine değil, tekrarına.</p>
+</div>
+<div class="axm-mon" aria-hidden="true">
+<div class="axm-mon-scr"><svg class="axm-mon-tr" viewBox="0 0 440 60" preserveAspectRatio="none"><path d="M0 34 H30 L36 26 L42 34 H50 L56 8 L64 56 L70 34 H84 L90 28 L96 34 H110 H140 L146 26 L152 34 H160 L166 8 L174 56 L180 34 H194 L200 28 L206 34 H220 H250 L256 26 L262 34 H270 L276 8 L284 56 L290 34 H304 L310 28 L316 34 H330 H360 L366 26 L372 34 H380 L386 8 L394 56 L400 34 H414 L420 28 L426 34 H440"/></svg></div>
+<div class="axm-mon-r"><svg class="axm-heart" viewBox="0 0 24 24"><path d="M12 20.5 C6 16.5 3 13.2 3 9.4 C3 6.6 5.1 4.5 7.7 4.5 C9.4 4.5 11 5.5 12 7 C13 5.5 14.6 4.5 16.3 4.5 C18.9 4.5 21 6.6 21 9.4 C21 13.2 18 16.5 12 20.5 Z"/></svg><b class="mono" data-medlab-bpm="">72</b><small class="mono">nabız</small></div>
+</div>
+</header>
+
+<section class="axm-tray land" aria-labelledby="axm-tt">
+<h2 class="vh" id="axm-tt">Laboratuvarlar</h2>
+<div class="axm-shelf" aria-hidden="true"><span class="axm-pill"></span><span class="axm-tube"><i></i></span><span class="axm-shelf-note hand">bugün hangi sistemi açıyoruz?</span><span class="axm-tube t2"><i></i></span><span class="axm-cross"></span></div>
+<ul class="axm-labs" data-medlabs="">
+<li class="axm-lab" style="--i:0;--r:-.6deg;--mc:#C9483B">
+<button type="button" class="axm-labb" data-medlab-open="anatomi" aria-describedby="axm-anat-d">
+<span class="axm-cover"><img src="assets/medlab/anatomi-lab-kapak.jpg" alt="Anatomi Lab'deki 3B insan modelinde seçili iki başlı kol kası" width="864" height="352" loading="lazy"><span class="axm-tag mono">3B</span></span>
+<span class="axm-lab-t disp">Anatomi Lab</span>
+<span class="axm-lab-for hand">tıp öğrencileri için</span>
+<span class="axm-lab-d" id="axm-anat-d">Katman katman 3B insan modeli: atlas, kurul yolu, spot sınav ve klinik vaka.</span>
+</button>
+</li>
+<li class="axm-lab" style="--i:1;--r:.8deg;--mc:#1E8A55">
+<button type="button" class="axm-labb" data-medlab-open="fizyo" aria-describedby="axm-fiz-d">
+<span class="axm-cover"><img src="assets/medlab/fizyo-lab-kapak.jpg" alt="Fizyo Lab'de 3B modelde 110 derece omuz fleksiyonu ve gonyometre" width="888" height="364" loading="lazy"><span class="axm-tag mono">EHA</span></span>
+<span class="axm-lab-t disp">Fizyo Lab</span>
+<span class="axm-lab-for hand">tıp öğrencileri için</span>
+<span class="axm-lab-d" id="axm-fiz-d">Eklem hareket açıklığını 3B modelde ölç: gonyometre, özel testler, egzersiz ve OSCE provası.</span>
+</button>
+</li>
+</ul>
+<div class="axm-tabletop" aria-hidden="true"></div>
+</section>
+<p class="axm-cite mono">3B model: Z-Anatomy · BodyParts3D (DBCLS) · CC BY-SA 4.0</p>
+</div>
+<div class="axm-run" data-medlab-run="" hidden role="dialog" aria-modal="true" aria-labelledby="axm-run-t">
+<div class="axm-run-top">
+<button type="button" class="axm-back" data-medlab-close=""><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12 H5 M11 5.5 L4.5 12 L11 18.5"/></svg>MedLab'e dön</button>
+<h2 class="disp" id="axm-run-t" data-medlab-title="">Anatomi Lab</h2>
+<a class="axm-newtab" data-medlab-newtab="" href="labs/anatomi/index.html" target="_blank" rel="noopener">yeni sekmede aç</a>
+</div>
+<iframe class="axm-frame" data-medlab-frame="" title="Anatomi Lab" allow="fullscreen" allowfullscreen></iframe>
+<div class="axm-load" data-medlab-load="" hidden><svg viewBox="0 0 220 60" aria-hidden="true"><path d="M0 34 H40 L48 24 L56 34 H70 L78 6 L88 56 L96 34 H116 L124 26 L132 34 H220"/></svg><p class="hand">model hazırlanıyor…</p></div>
+</div>
+      </section>
+
       
 
     </main>
@@ -2527,12 +2610,14 @@
 
   <!-- Page Interaction JavaScript -->
   <script src="js/site-status.js"></script>
+  <script src="js/acadex-erisim.js"></script>
   <script src="js/i18n.js"></script>
   <script src="js/main.js"></script>
   <script src="js/achievements.js"></script>
   <script src="js/exam-engine.js"></script>
   <script src="js/dashboard.js"></script>
   <script src="js/acadex-ink.js"></script>
+<script src="js/acadex-medlab.js"></script>
   <script src="js/avatar-studio.js"></script>
   <script src="js/acadex-plus.js"></script>
   <script src="js/profile-complete.js"></script>

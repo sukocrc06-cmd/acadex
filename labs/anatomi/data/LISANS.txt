@@ -1,0 +1,12 @@
+Anatomi Lab v2 — 3D model kaynağı ve lisansı
+
+Bu klasördeki 3D model verileri (ax-*.js) şu kaynaklardan türetilmiştir:
+- "Z-Anatomy - The libre 3D atlas of anatomy" — CC BY-SA 4.0
+  https://github.com/Z-Anatomy/Models-of-human-anatomy
+- "BodyParts3D - The Database Center for Life Science" — CC BY-SA 2.1 Japan
+  https://dbarchive.biosciencedbc.jp/en/bodyparts3d/download.html
+
+Yapılan değişiklikler: Blender dosyasından ağ verileri çıkarıldı, üçgen sayısı azaltıldı
+(meshoptimizer), sıkıştırıldı; damar/sinir eğrileri tüplere dönüştürüldü.
+Bu türetilmiş veriler de CC BY-SA 4.0 lisansıyla paylaşılır. Sitede kaynak gösterimi
+(3D model: Z-Anatomy · BodyParts3D (DBCLS) · CC BY-SA 4.0) kaldırılmamalıdır.

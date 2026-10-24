@@ -4,7 +4,8 @@
    ========================================================================== */
 
 /* Academic Prestige Workspace fonts (headlines: Newsreader / UI: Plus Jakarta Sans) */
-@import url('https://fonts.googleapis.com/css2?family=Newsreader:wght@500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+/* Google Fonts artık style.css içinden @import edilmiyor (zincirleme, sayfayı bekleten istek; panel bu yazı tiplerini
+   kullanmıyor). Kullanan sayfalar (legal, changelog, ders-agaci) <link> ile yüklüyor. */
 
 /* 1. Design Tokens & CSS Custom Properties */
 :root {
