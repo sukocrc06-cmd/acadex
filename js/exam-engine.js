@@ -1694,6 +1694,814 @@
     return { ok: Math.abs(n - answer) <= margin, filled: true, value: n };
   }
 
+  // ------------------------------------------------------------------------
+  // FAZ 4b: grafik çizme (24.10.2026)
+  //
+  // Öğrenci cevabı ızgarada çizer ya da yazarak girer; ikisi birbirine bağlı.
+  //   - Araçlar: seç/taşı, nokta, doğru, parça, ışın, parabol, çember, alan,
+  //     bölge boyama, verilen doğruyu kaydırma. Yalnızca sorunun gerektirdiği
+  //     araçlar (ve nokta + doğru) görünür.
+  //   - Sürükleme GEREKMEZ (WCAG 2.5.7): dokun-dokun çizilir; seçili noktayı
+  //     taşımak için yeni yerine dokunulur ya da ok tuşları kullanılır.
+  //   - Noktalar ızgaraya yapışır; imlecin koordinatı canlı gösterilir.
+  //   - "Yazarak ekle": "y = -2x + 10", "P = 12 - 2Q", "E(3; 6)", "x = 4",
+  //     "(0; 12) (6; 0)". Her nesnenin koordinatları listede düzeltilebilir.
+  //   - Klavye: ok tuşları imleç, Enter yerleştir, Esc vazgeç, Sil kaldır,
+  //     Ctrl+Z / Ctrl+Y geri al / yinele. Ekran okuyucuya her işlem söylenir.
+  //   - Geri al / yinele / temizle; tekrar çizilen nesne ceza değildir.
+  // Cevap gizli alanda JSON: {"v":1,"o":[{"k":"line","p":[[x,y],[x,y]],
+  // "l":"D2","d":0}],"none":false}. Puanı grade-exam kodla verir.
+  // ------------------------------------------------------------------------
+  const GRAPH_TOOLS_TR = { select: 'seç / taşı', point: 'nokta', line: 'doğru', segment: 'doğru parçası', ray: 'ışın', parabola: 'parabol', circle: 'çember', polygon: 'alan', fill: 'bölge boya', shift: 'doğruyu kaydır' };
+  const GRAPH_TOOLS_EN = { select: 'select / move', point: 'point', line: 'line', segment: 'segment', ray: 'ray', parabola: 'parabola', circle: 'circle', polygon: 'area', fill: 'shade region', shift: 'shift a line' };
+  const GRAPH_NAMES_TR = { point: 'Nokta', line: 'Doğru', segment: 'Doğru parçası', ray: 'Işın', parabola: 'Parabol', circle: 'Çember', polygon: 'Alan', fill: 'Boyalı bölge' };
+  const GRAPH_NAMES_EN = { point: 'Point', line: 'Line', segment: 'Segment', ray: 'Ray', parabola: 'Parabola', circle: 'Circle', polygon: 'Area', fill: 'Shaded region' };
+  const GRAPH_TWO_POINT = ['line', 'segment', 'ray', 'parabola', 'circle'];
+  const GRAPH_LINE_LIKE = ['line', 'segment', 'ray'];
+  const GRAPH_MAX_OBJECTS = 20;
+
+  function graphAxisOf(raw, defVar) {
+    const r = raw && typeof raw === 'object' ? raw : {};
+    const min = Number(r.min), max = Number(r.max), step = Number(r.step);
+    if (![min, max, step].every(Number.isFinite) || !(max > min) || !(step > 0)) return null;
+    const snap = Number(r.snap) > 0 ? Number(r.snap) : step;
+    return { min, max, step, snap, label: String(r.label || ''), var: /^[A-Za-z]$/.test(String(r.var || '')) ? String(r.var) : defVar };
+  }
+
+  /** Sorunun ızgara tanımı (sunucu doğruladı; burada yine savunmacı okunur). */
+  function graphSpecOf(q) {
+    const g = q && q.graph && typeof q.graph === 'object' ? q.graph : null;
+    if (!g) return null;
+    const x = graphAxisOf(g.x, 'x'), y = graphAxisOf(g.y, 'y');
+    if (!x || !y) return null;
+    const tools = (Array.isArray(g.tools) ? g.tools : ['point', 'line']).filter(t => GRAPH_TOOLS_TR[t] && t !== 'select');
+    const given = (Array.isArray(g.given) ? g.given : []).filter(o => o && Array.isArray(o.points) && o.points.length);
+    const labels = (Array.isArray(g.labels) ? g.labels : []).map(String).filter(Boolean).slice(0, 12);
+    return { x, y, tools: tools.length ? tools : ['point', 'line'], given, labels };
+  }
+
+  /** Gizli alandaki cevap → durum. Bozuksa boş. */
+  function graphParseState(raw) {
+    let d = null;
+    try { d = raw && String(raw).trim() ? JSON.parse(String(raw)) : null; } catch (_e) { d = null; }
+    const objs = [];
+    (d && Array.isArray(d.o) ? d.o : []).slice(0, GRAPH_MAX_OBJECTS).forEach(o => {
+      if (!o || !GRAPH_NAMES_TR[o.k] || !Array.isArray(o.p)) return;
+      const p = o.p.map(v => Array.isArray(v) && v.length === 2 ? [Number(v[0]), Number(v[1])] : null);
+      if (p.some(v => !v || !v.every(Number.isFinite))) return;
+      objs.push({ k: o.k, p, l: o.l ? String(o.l).slice(0, 12) : '', d: o.d ? 1 : 0, g: Number.isInteger(o.g) ? o.g : null });
+    });
+    return { o: objs, none: !!(d && d.none === true) };
+  }
+
+  function graphSerialize(st) {
+    if (!st.o.length && !st.none) return '';
+    return JSON.stringify({ v: 1, o: st.o.map(o => { const r = { k: o.k, p: o.p }; if (o.l) r.l = o.l; if (o.d) r.d = 1; if (o.g != null) r.g = o.g; return r; }), none: !!st.none });
+  }
+
+  function graphRoundN(v) { return Math.round(v * 1e9) / 1e9; }
+
+  function graphNumText(v, lang) {
+    return Number(graphRoundN(v)).toLocaleString(lang === 'en' ? 'en-US' : 'tr-TR', { maximumFractionDigits: 3 }).replace('-', '−');
+  }
+
+  function graphPtText(p, lang) {
+    return `(${graphNumText(p[0], lang)}${lang === 'en' ? ', ' : '; '}${graphNumText(p[1], lang)})`;
+  }
+
+  function graphLineCoef(p, q) {
+    const a = q[1] - p[1], b = p[0] - q[0];
+    return { a, b, c: a * p[0] + b * p[1] };
+  }
+
+  /** Doğrunun denklemi eksen harfleriyle: "P = −2Q + 12", "Q = 4". */
+  function graphLineEq(p, spec, lang) {
+    const l = graphLineCoef(p[0], p[1]);
+    if (Math.abs(l.b) < 1e-12) return `${spec.x.var} = ${graphNumText(l.c / l.a, lang)}`;
+    const m = -l.a / l.b, k = l.c / l.b;
+    const mt = Math.abs(m) < 1e-12 ? '' : `${m < 0 ? '−' : ''}${Math.abs(Math.abs(m) - 1) < 1e-12 ? '' : graphNumText(Math.abs(m), lang)}${spec.x.var}`;
+    const kt = Math.abs(k) < 1e-12 ? (mt ? '' : '0') : mt ? ` ${k < 0 ? '−' : '+'} ${graphNumText(Math.abs(k), lang)}` : graphNumText(k, lang);
+    return `${spec.y.var} = ${mt}${kt}`;
+  }
+
+  /** Doğrunun kutu içindeki uçları. */
+  function graphClip(l, spec) {
+    const { x, y } = spec, pts = [];
+    const inBox = p => p[0] >= x.min - 1e-9 && p[0] <= x.max + 1e-9 && p[1] >= y.min - 1e-9 && p[1] <= y.max + 1e-9;
+    const add = (px, py) => { const p = [px, py]; if (inBox(p) && !pts.some(o => Math.abs(o[0] - px) < 1e-9 && Math.abs(o[1] - py) < 1e-9)) pts.push(p); };
+    if (Math.abs(l.b) > 1e-12) { add(x.min, (l.c - l.a * x.min) / l.b); add(x.max, (l.c - l.a * x.max) / l.b); }
+    if (Math.abs(l.a) > 1e-12) { add((l.c - l.b * y.min) / l.a, y.min); add((l.c - l.b * y.max) / l.a, y.max); }
+    if (pts.length < 2) return null;
+    let best = [pts[0], pts[1]], dd = -1;
+    for (let i = 0; i < pts.length; i++) for (let j = i + 1; j < pts.length; j++) {
+      const d = Math.hypot(pts[i][0] - pts[j][0], pts[i][1] - pts[j][1]);
+      if (d > dd) { dd = d; best = [pts[i], pts[j]]; }
+    }
+    return best;
+  }
+
+  /** Kutuyu bir yarım düzlemle kırpar (Sutherland–Hodgman). keep(p) true kalır. */
+  function graphClipPoly(poly, l, sign) {
+    const out = [];
+    const side = p => sign * (l.a * p[0] + l.b * p[1] - l.c);
+    for (let i = 0; i < poly.length; i++) {
+      const a = poly[i], b = poly[(i + 1) % poly.length], sa = side(a), sb = side(b);
+      if (sa >= -1e-9) out.push(a);
+      if ((sa >= -1e-9) !== (sb >= -1e-9)) { const t = sa / (sa - sb); out.push([a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])]); }
+    }
+    return out;
+  }
+
+  function graphBoxPoly(spec) {
+    const { x, y } = spec;
+    return [[x.min, y.min], [x.max, y.min], [x.max, y.max], [x.min, y.max]];
+  }
+
+  /** Öğrencinin boyadığı hücre: boyama noktasının, çizdiği her doğrunun
+   *  aynı tarafındaki bölge (grade-exam graphInStudentFill ile aynı kural). */
+  function graphFillPoly(seed, lines, spec) {
+    let poly = graphBoxPoly(spec);
+    lines.forEach(pq => {
+      const l = graphLineCoef(pq[0], pq[1]);
+      const s = l.a * seed[0] + l.b * seed[1] - l.c;
+      if (Math.abs(s) < 1e-12) return;
+      poly = graphClipPoly(poly, l, Math.sign(s));
+    });
+    return poly.length >= 3 ? poly : null;
+  }
+
+  /** Eşitsizlik bölgesi (doğru cevap çizimi için). */
+  function graphIneqPoly(ineq, spec) {
+    let poly = graphBoxPoly(spec);
+    (ineq || []).forEach(q => { poly = graphClipPoly(poly, { a: q.a, b: q.b, c: q.c }, q.op === '<' || q.op === '<=' ? -1 : 1); });
+    return poly.length >= 3 ? poly : null;
+  }
+
+  /** SVG yerleşimi: kareye yakın hücreler; dar ekranda SVG genişliğe uyar. */
+  function graphLayout(spec) {
+    const nx = Math.max(1, Math.round((spec.x.max - spec.x.min) / spec.x.step));
+    const ny = Math.max(1, Math.round((spec.y.max - spec.y.min) / spec.y.step));
+    const cell = Math.max(14, Math.min(44, 520 / nx, 380 / ny));
+    const L = 54, R = 16, T = 16, B = 46;
+    const pw = cell * nx, ph = cell * ny;
+    return { L, T, pw, ph, W: L + pw + R, H: T + ph + B, nx, ny };
+  }
+
+  function graphPx(spec, lay, p) {
+    return [lay.L + (p[0] - spec.x.min) / (spec.x.max - spec.x.min) * lay.pw, lay.T + (spec.y.max - p[1]) / (spec.y.max - spec.y.min) * lay.ph];
+  }
+
+  function graphAxisNum(v) {
+    return Number(graphRoundN(v)).toLocaleString('tr-TR', { maximumFractionDigits: 2 }).replace('-', '−');
+  }
+
+  /** Izgara, eksenler ve etiketler. */
+  function graphGridSvg(spec, lay, esc) {
+    const { x, y } = spec;
+    let s = '';
+    const lblEvery = (n) => n > 16 ? 4 : n > 10 ? 2 : 1;
+    const ex = lblEvery(lay.nx), ey = lblEvery(lay.ny);
+    for (let i = 0; i <= lay.nx; i++) {
+      const v = x.min + i * x.step, px = lay.L + i * lay.pw / lay.nx;
+      s += `<line class="axg-gl${Math.abs(v) < 1e-9 ? ' ax' : ''}" x1="${px.toFixed(1)}" y1="${lay.T}" x2="${px.toFixed(1)}" y2="${(lay.T + lay.ph).toFixed(1)}"/>`;
+      if (i % ex === 0) s += `<text class="axg-tk" x="${px.toFixed(1)}" y="${(lay.T + lay.ph + 15).toFixed(1)}" text-anchor="middle">${graphAxisNum(v)}</text>`;
+    }
+    for (let j = 0; j <= lay.ny; j++) {
+      const v = y.min + j * y.step, py = lay.T + lay.ph - j * lay.ph / lay.ny;
+      s += `<line class="axg-gl${Math.abs(v) < 1e-9 ? ' ax' : ''}" x1="${lay.L}" y1="${py.toFixed(1)}" x2="${(lay.L + lay.pw).toFixed(1)}" y2="${py.toFixed(1)}"/>`;
+      if (j % ey === 0) s += `<text class="axg-tk" x="${lay.L - 6}" y="${(py + 4).toFixed(1)}" text-anchor="end">${graphAxisNum(v)}</text>`;
+    }
+    s += `<rect class="axg-frame" x="${lay.L}" y="${lay.T}" width="${lay.pw.toFixed(1)}" height="${lay.ph.toFixed(1)}"/>`;
+    if (x.label) s += `<text class="axg-at" x="${(lay.L + lay.pw / 2).toFixed(1)}" y="${(lay.T + lay.ph + 36).toFixed(1)}" text-anchor="middle">${esc(x.label)}</text>`;
+    if (y.label) s += `<text class="axg-at" transform="translate(14 ${(lay.T + lay.ph / 2).toFixed(1)}) rotate(-90)" text-anchor="middle">${esc(y.label)}</text>`;
+    return s;
+  }
+
+  /** Tek nesnenin SVG'si. o: { kind, points, label, dashed, seedLines }. */
+  function graphObjSvg(spec, lay, o, cls, esc) {
+    const P = p => graphPx(spec, lay, p).map(v => v.toFixed(1)).join(',');
+    const dash = o.dashed ? ' stroke-dasharray="7 5"' : '';
+    let s = '', lab = null;
+    if (o.kind === 'point') {
+      const c = graphPx(spec, lay, o.points[0]);
+      s = `<circle class="${cls} axg-pt" cx="${c[0].toFixed(1)}" cy="${c[1].toFixed(1)}" r="5.5"/>`;
+      lab = [c[0] + 8, c[1] - 8];
+    } else if (GRAPH_LINE_LIKE.includes(o.kind)) {
+      let a = o.points[0], b = o.points[1];
+      if (o.kind !== 'segment') {
+        const clip = graphClip(graphLineCoef(a, b), spec);
+        if (!clip) return '';
+        if (o.kind === 'ray') {
+          const d = [b[0] - a[0], b[1] - a[1]];
+          const far = clip.map(p => ({ p, t: (p[0] - a[0]) * d[0] + (p[1] - a[1]) * d[1] })).sort((u, v) => v.t - u.t)[0];
+          b = far && far.t > 0 ? far.p : b;
+        } else { a = clip[0]; b = clip[1]; }
+      }
+      const pa = graphPx(spec, lay, a), pb = graphPx(spec, lay, b);
+      s = `<line class="${cls} axg-ln" x1="${pa[0].toFixed(1)}" y1="${pa[1].toFixed(1)}" x2="${pb[0].toFixed(1)}" y2="${pb[1].toFixed(1)}"${dash}/>`;
+      const top = pa[1] < pb[1] ? pa : pb;
+      lab = [Math.min(lay.L + lay.pw - 18, Math.max(lay.L + 4, top[0] + 6)), Math.max(lay.T + 12, top[1] + 14)];
+    } else if (o.kind === 'parabola') {
+      const h = o.points[0][0], k = o.points[0][1], dx = o.points[1][0] - h;
+      if (Math.abs(dx) < 1e-12) return '';
+      const a = (o.points[1][1] - k) / (dx * dx), pts = [];
+      for (let i = 0; i <= 120; i++) { const xv = spec.x.min + (spec.x.max - spec.x.min) * i / 120; pts.push(P([xv, a * (xv - h) * (xv - h) + k])); }
+      s = `<polyline class="${cls} axg-ln" fill="none" points="${pts.join(' ')}"${dash}/>`;
+      const v = graphPx(spec, lay, o.points[0]); lab = [v[0] + 8, v[1] + (a > 0 ? 16 : -8)];
+    } else if (o.kind === 'circle') {
+      const c = graphPx(spec, lay, o.points[0]), r = Math.hypot(o.points[1][0] - o.points[0][0], o.points[1][1] - o.points[0][1]);
+      const rx = r / (spec.x.max - spec.x.min) * lay.pw, ry = r / (spec.y.max - spec.y.min) * lay.ph;
+      s = `<ellipse class="${cls} axg-ln" fill="none" cx="${c[0].toFixed(1)}" cy="${c[1].toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}"${dash}/>`;
+      lab = [c[0] + rx * 0.72, c[1] - ry * 0.72];
+    } else if (o.kind === 'polygon' || o.kind === 'region') {
+      s = `<polygon class="${cls} axg-ar" points="${o.points.map(P).join(' ')}"/>`;
+      const c = o.points.reduce((u, p) => [u[0] + p[0] / o.points.length, u[1] + p[1] / o.points.length], [0, 0]);
+      lab = graphPx(spec, lay, c);
+    } else if (o.kind === 'fill') {
+      const poly = graphFillPoly(o.points[0], o.seedLines || [], spec);
+      if (poly) s = `<polygon class="${cls} axg-ar" points="${poly.map(P).join(' ')}"/>`;
+      const c = graphPx(spec, lay, o.points[0]);
+      s += `<circle class="${cls} axg-seed" cx="${c[0].toFixed(1)}" cy="${c[1].toFixed(1)}" r="3"/>`;
+    }
+    if (o.label && lab) s += `<text class="${cls} axg-lb" x="${lab[0].toFixed(1)}" y="${lab[1].toFixed(1)}">${esc(o.label)}</text>`;
+    return s;
+  }
+
+  /** Widget durumunun nesneleri çizim biçimine. */
+  function graphStateObjs(st) {
+    const lines = st.o.filter(o => GRAPH_LINE_LIKE.includes(o.k)).map(o => o.p);
+    return st.o.map(o => ({ kind: o.k, points: o.p, label: o.l, dashed: !!o.d, seedLines: o.k === 'fill' ? lines : null }));
+  }
+
+  function graphGivenObjs(spec) {
+    return spec.given.map(o => ({ kind: o.kind, points: o.points, label: o.label || '', dashed: o.style === 'dashed' }));
+  }
+
+  /** Tam SVG: verilenler (gri), öğrenci (mavi), doğru cevap (yeşil, sonuçta),
+   *  bekleyen tıklamalar ve seçili tutamaklar. */
+  function graphSvg(spec, layers, opts) {
+    const esc = (opts && opts.esc) || defaultEscape;
+    const lay = graphLayout(spec);
+    const id = 'axgc' + Math.random().toString(36).slice(2, 8);
+    let s = `<svg class="axg-svg${opts && opts.static ? ' st' : ''}" viewBox="0 0 ${lay.W.toFixed(0)} ${lay.H.toFixed(0)}" xmlns="http://www.w3.org/2000/svg"${opts && opts.attrs ? ' ' + opts.attrs : ''}>`;
+    if (opts && opts.title) s += `<title>${esc(opts.title)}</title>`;
+    s += `<defs><clipPath id="${id}"><rect x="${lay.L}" y="${lay.T}" width="${lay.pw.toFixed(1)}" height="${lay.ph.toFixed(1)}"/></clipPath></defs>`;
+    s += graphGridSvg(spec, lay, esc);
+    s += `<g clip-path="url(#${id})">`;
+    (layers.given || []).forEach(o => { s += graphObjSvg(spec, lay, o, 'axg-gv', esc); });
+    (layers.student || []).forEach((o, i) => { s += graphObjSvg(spec, lay, o, 'axg-st' + (opts && opts.sel === i ? ' sel' : ''), esc); });
+    // Doğrusu en üstte (kesikli yeşil): örtüşünce de görünür.
+    (layers.correct || []).forEach(o => { s += graphObjSvg(spec, lay, o, 'axg-ok', esc); });
+    s += '</g>';
+    if (opts && opts.handles) {
+      (layers.student || []).forEach((o, i) => o.points.forEach((p, h) => {
+        if (o.kind === 'fill') return;
+        const c = graphPx(spec, lay, p);
+        if (c[0] < lay.L - 1 || c[0] > lay.L + lay.pw + 1 || c[1] < lay.T - 1 || c[1] > lay.T + lay.ph + 1) return;
+        const on = opts.sel === i && opts.selH === h;
+        s += `<circle class="axg-hd${on ? ' on' : ''}" data-o="${i}" data-h="${h}" cx="${c[0].toFixed(1)}" cy="${c[1].toFixed(1)}" r="${on ? 7 : 4.5}"/>`;
+      }));
+    }
+    (opts && opts.pending || []).forEach(p => { const c = graphPx(spec, lay, p); s += `<circle class="axg-pd" cx="${c[0].toFixed(1)}" cy="${c[1].toFixed(1)}" r="6"/>`; });
+    if (opts && opts.cursor) {
+      const c = graphPx(spec, lay, opts.cursor);
+      s += `<g class="axg-cur"><line x1="${(c[0] - 9).toFixed(1)}" y1="${c[1].toFixed(1)}" x2="${(c[0] + 9).toFixed(1)}" y2="${c[1].toFixed(1)}"/><line x1="${c[0].toFixed(1)}" y1="${(c[1] - 9).toFixed(1)}" x2="${c[0].toFixed(1)}" y2="${(c[1] + 9).toFixed(1)}"/></g>`;
+    }
+    return s + '</svg>';
+  }
+
+  /** Nesnenin okunur tarifi (liste ve ekran okuyucu). */
+  function graphObjText(o, spec, lang) {
+    const tr = lang !== 'en';
+    const name = (tr ? GRAPH_NAMES_TR : GRAPH_NAMES_EN)[o.k] + (o.l ? ' ' + o.l : '');
+    const P = p => graphPtText(p, lang);
+    if (o.k === 'point') return `${name} ${P(o.p[0])}`;
+    if (o.k === 'line') return `${name}: ${graphLineEq(o.p, spec, lang)}${o.g != null ? (tr ? ' (kaydırılmış)' : ' (shifted)') : ''}`;
+    if (o.k === 'segment') return `${name}: ${P(o.p[0])} – ${P(o.p[1])}`;
+    if (o.k === 'ray') return `${name}: ${P(o.p[0])} → ${P(o.p[1])}`;
+    if (o.k === 'parabola') return `${name}: ${tr ? 'tepe' : 'vertex'} ${P(o.p[0])}, ${tr ? 'geçtiği nokta' : 'through'} ${P(o.p[1])}`;
+    if (o.k === 'circle') return `${name}: ${tr ? 'merkez' : 'centre'} ${P(o.p[0])}, r = ${graphNumText(Math.hypot(o.p[1][0] - o.p[0][0], o.p[1][1] - o.p[0][1]), lang)}`;
+    if (o.k === 'polygon') return `${name}: ${o.p.map(P).join(', ')}`;
+    if (o.k === 'fill') return `${name}: ${tr ? `${P(o.p[0])} noktasının bulunduğu bölge` : `region containing ${P(o.p[0])}`}`;
+    return name;
+  }
+
+  // --- yazarak giriş ------------------------------------------------------
+
+  /** Parantez içindeki iki sayı: "(3; 5)", "(2,5; 3)", "(3, 5)". */
+  function graphParsePair(inner) {
+    const t = String(inner).trim();
+    let parts = t.includes(';') ? t.split(';') : t.includes(', ') ? t.split(', ') : t.split(',');
+    if (parts.length !== 2) parts = t.split(/\s+/);
+    if (parts.length !== 2) return null;
+    const p = parts.map(parseLooseNumber);
+    return p.every(Number.isFinite) ? p : null;
+  }
+
+  /** Eksen harflerini (Q, P) x ve y'ye çevirir. */
+  function graphMapVars(t, spec) {
+    let s = String(t);
+    const swap = (from, to) => { if (from && from !== to) s = s.replace(new RegExp(`(^|[^A-Za-z])${from}(?![A-Za-z])`, 'g'), `$1${to}`); };
+    if (spec.x.var !== 'y' && spec.y.var !== 'x') { swap(spec.x.var, 'x'); swap(spec.y.var, 'y'); }
+    return s;
+  }
+
+  /** "y = …" ya da "x = …" → doğrusal katsayılar; değilse null. */
+  function graphLinearOf(eq) {
+    const parts = String(eq).split('=');
+    if (parts.length !== 2) return null;
+    const L = normalizeMathInput(parts[0], ['x', 'y']), R = normalizeMathInput(parts[1], ['x', 'y']);
+    if (!L || !R) return null;
+    const g = (x, y) => evaluateExpression(L, { x, y }) - evaluateExpression(R, { x, y });
+    const g0 = g(0, 0), a = g(1, 0) - g0, b = g(0, 1) - g0;
+    if (![g0, a, b].every(Number.isFinite) || (Math.abs(a) < 1e-12 && Math.abs(b) < 1e-12)) return null;
+    for (const [x, y] of [[2.7, -1.3], [-3.1, 4.6]]) {
+      const d = g(x, y) - (a * x + b * y + g0);
+      if (!Number.isFinite(d) || Math.abs(d) > 1e-6 * (1 + Math.abs(a * x) + Math.abs(b * y) + Math.abs(g0))) return null;
+    }
+    return { a, b, c: -g0 };
+  }
+
+  /** "y = a(x−h)² + k" biçimindeki ikinci derece: tepe ve bir nokta. */
+  function graphParabolaOf(eq) {
+    const parts = String(eq).split('=');
+    if (parts.length !== 2 || normalizeMathInput(parts[0], ['x', 'y']) !== 'y') return null;
+    const R = normalizeMathInput(parts[1], ['x']);
+    if (!R) return null;
+    const f = x => evaluateExpression(R, { x });
+    const f0 = f(0), f1 = f(1), f2 = f(2), f3 = f(3);
+    if (![f0, f1, f2, f3].every(Number.isFinite)) return null;
+    const A = (f2 - 2 * f1 + f0) / 2;
+    if (Math.abs(A) < 1e-12 || Math.abs((f3 - 2 * f2 + f1) / 2 - A) > 1e-9 * (1 + Math.abs(A))) return null;
+    const B = f1 - f0 - A, h = -B / (2 * A);
+    return [[graphRoundN(h), graphRoundN(f(h))], [graphRoundN(h + 1), graphRoundN(f(h + 1))]];
+  }
+
+  /** Yazılan girdiyi nesneye çevirir: { obj } ya da { error }. */
+  function graphParseTyped(text, spec, tool, lang) {
+    const tr = lang !== 'en';
+    let t = String(text || '').trim().replace(/[−–—]/g, '-').replace(/≤/g, '<=').replace(/≥/g, '>=');
+    if (!t) return { error: tr ? 'Bir denklem ya da nokta yaz.' : 'Type an equation or a point.' };
+    let label = '';
+    const lm = t.match(/^([A-Za-zÇĞİÖŞÜçğıöşü][A-Za-z0-9ÇĞİÖŞÜçğıöşü'₀-₉]{0,5})\s*:\s*(.+)$/);
+    if (lm) { label = lm[1]; t = lm[2].trim(); }
+    const groups = [...t.matchAll(/\(([^()]*)\)/g)];
+    const outside = t.replace(/\([^()]*\)/g, ' ').trim();
+    if (groups.length && /^([A-Za-zÇĞİÖŞÜçğıöşü][A-Za-z0-9'₀-₉]{0,5})?\s*=?\s*$/.test(outside.replace(/[-–,;]/g, ' ').trim().split(/\s+/)[0] || '')) {
+      const nameOnly = outside.replace(/[=\-–,;]/g, ' ').trim();
+      if (!label && /^[A-Za-zÇĞİÖŞÜçğıöşü][A-Za-z0-9'₀-₉]{0,5}$/.test(nameOnly)) label = nameOnly;
+      if (!nameOnly || nameOnly === label) {
+        const pts = groups.map(g => graphParsePair(g[1]));
+        if (pts.some(p => !p)) return { error: tr ? 'Nokta okunamadı: (3; 5) ya da (2,5; 4) gibi yaz.' : 'Could not read the point: write (3, 5).' };
+        if (pts.length === 1) return { obj: { k: 'point', p: pts, l: label, d: 0, g: null } };
+        if (pts.length === 2) {
+          const k = ['segment', 'ray', 'parabola', 'circle'].includes(tool) && spec.tools.includes(tool) ? tool : spec.tools.includes('line') ? 'line' : 'segment';
+          if (Math.hypot(pts[0][0] - pts[1][0], pts[0][1] - pts[1][1]) < 1e-12) return { error: tr ? 'İki nokta farklı olmalı.' : 'The two points must differ.' };
+          return { obj: { k, p: pts, l: label, d: 0, g: null } };
+        }
+        if (spec.tools.includes('polygon') && pts.length <= 8) return { obj: { k: 'polygon', p: pts, l: label, d: 0, g: null } };
+        return { error: tr ? 'En çok iki nokta yaz (doğru için) ya da alan aracını kullan.' : 'Write at most two points.' };
+      }
+    }
+    if (/[<>]/.test(t)) return { error: tr ? 'Bölge için önce sınır doğrusunu yaz (ör. y = -x + 4), sonra "bölge boya" ile bölgeye dokun.' : 'For a region, type its boundary line first, then use "shade region".' };
+    if (t.includes('=')) {
+      const eq = graphMapVars(t, spec);
+      const lin = graphLinearOf(eq);
+      if (lin) {
+        const clip = graphClip(lin, spec);
+        if (!clip) return { error: tr ? 'Bu doğru ızgaranın dışında kalıyor.' : 'This line lies outside the grid.' };
+        return { obj: { k: 'line', p: clip.map(p => [graphRoundN(p[0]), graphRoundN(p[1])]), l: label, d: 0, g: null } };
+      }
+      const par = spec.tools.includes('parabola') ? graphParabolaOf(eq) : null;
+      if (par) return { obj: { k: 'parabola', p: par, l: label, d: 0, g: null } };
+      return { error: tr ? `Denklem okunamadı: ${spec.y.var} = -2${spec.x.var} + 10 ya da ${spec.x.var} = 4 gibi yaz.` : `Could not read the equation: write ${spec.y.var} = -2${spec.x.var} + 10 or ${spec.x.var} = 4.` };
+    }
+    return { error: tr ? `Örnek: ${spec.y.var} = -2${spec.x.var} + 10 · E(3; 6) · (0; 12) (6; 0) · D2: ${spec.y.var} = 8 - ${spec.x.var}` : `Examples: ${spec.y.var} = -2${spec.x.var} + 10 · E(3, 6) · (0, 12) (6, 0)` };
+  }
+
+  // --- widget ------------------------------------------------------------
+
+  const graphUi = typeof WeakMap === 'function' ? new WeakMap() : null;
+
+  function graphUiOf(box) {
+    let u = graphUi && graphUi.get(box);
+    if (!u) {
+      const spec = (() => { try { return graphSpecOf({ graph: JSON.parse(box.getAttribute('data-graph') || 'null') }); } catch (_e) { return null; } })();
+      u = { spec, tool: spec && spec.tools.includes('line') ? 'line' : 'point', pending: [], sel: null, selH: 0, cursor: null, hist: [], fut: [], shiftFrom: null, drag: null };
+      if (spec) u.cursor = [spec.x.min + Math.round((spec.x.max - spec.x.min) / spec.x.snap / 2) * spec.x.snap, spec.y.min + Math.round((spec.y.max - spec.y.min) / spec.y.snap / 2) * spec.y.snap];
+      if (graphUi) graphUi.set(box, u);
+    }
+    return u;
+  }
+
+  function graphState(box) {
+    const inp = box.querySelector('.axg-val');
+    return graphParseState(inp ? inp.value : '');
+  }
+
+  function graphCommit(box, st, announce) {
+    const u = graphUiOf(box), inp = box.querySelector('.axg-val');
+    if (!inp) return;
+    const next = graphSerialize(st);
+    if (next !== inp.value) {
+      u.hist.push(inp.value);
+      if (u.hist.length > 60) u.hist.shift();
+      u.fut = [];
+      inp.value = next;
+      inp.dispatchEvent(new Event('input', { bubbles: true }));
+      inp.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    graphRender(box, announce);
+  }
+
+  function graphLang(box) { return box.getAttribute('data-lang') === 'en' ? 'en' : 'tr'; }
+
+  function graphHint(u, lang) {
+    const tr = lang !== 'en', n = u.pending.length;
+    const H = {
+      select: tr ? 'Bir noktasına dokunarak nesneyi seç; sonra yeni yerine dokun ya da ok tuşlarıyla taşı. Sürüklemek de olur.' : 'Tap a handle to select it, then tap the new position or use the arrow keys.',
+      point: tr ? 'Noktayı koymak istediğin yere dokun; ızgaraya oturur.' : 'Tap where the point goes; it snaps to the grid.',
+      line: n ? (tr ? 'İkinci noktaya dokun.' : 'Tap a second point.') : (tr ? 'Doğrunun geçtiği bir noktaya dokun.' : 'Tap a point on the line.'),
+      segment: n ? (tr ? 'Bitiş noktasına dokun.' : 'Tap the end point.') : (tr ? 'Başlangıç noktasına dokun.' : 'Tap the start point.'),
+      ray: n ? (tr ? 'Yönünü gösteren ikinci noktaya dokun.' : 'Tap a second point to give its direction.') : (tr ? 'Işının başladığı noktaya dokun.' : 'Tap where the ray starts.'),
+      parabola: n ? (tr ? 'Parabolün geçtiği başka bir noktaya dokun.' : 'Tap another point on the parabola.') : (tr ? 'Tepe noktasına dokun.' : 'Tap the vertex.'),
+      circle: n ? (tr ? 'Çemberin geçtiği bir noktaya dokun.' : 'Tap a point on the circle.') : (tr ? 'Merkeze dokun.' : 'Tap the centre.'),
+      polygon: n >= 3 ? (tr ? 'Sonraki köşeye dokun; bitirmek için ilk köşeye dokun ya da "alanı kapat".' : 'Tap the next corner; tap the first corner or "close area" to finish.') : (tr ? 'Alanın köşelerine sırayla dokun.' : 'Tap the corners of the area in order.'),
+      fill: tr ? 'Boyamak istediğin bölgenin içine dokun; bölge çizdiğin doğrularla sınırlanır.' : 'Tap inside the region to shade; it is bounded by the lines you drew.',
+      shift: u.shiftFrom != null ? (tr ? 'Yeni doğrunun geçeceği bir noktaya dokun; doğru paralel kayar.' : 'Tap a point the shifted line passes through; it stays parallel.') : (tr ? 'Kaydırmak istediğin verilen doğruya dokun.' : 'Tap the given line you want to shift.')
+    };
+    return H[u.tool] || '';
+  }
+
+  /** Listeyi, SVG'yi ve ipucunu yeniden çizer (odak korunur). */
+  function graphRender(box, announce) {
+    const u = graphUiOf(box), spec = u.spec;
+    if (!spec) return;
+    const lang = graphLang(box), tr = lang !== 'en';
+    const st = graphState(box);
+    const stage = box.querySelector('.axg-stage');
+    const focusedSvg = document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('axg-svg') && box.contains(document.activeElement);
+    if (stage) {
+      const desc = (tr ? 'Koordinat düzlemi. ' : 'Coordinate plane. ') + (st.o.length ? st.o.map(o => graphObjText(o, spec, lang)).join('; ') : (tr ? 'Henüz çizim yok.' : 'Nothing drawn yet.'));
+      stage.innerHTML = graphSvg(spec, { given: graphGivenObjs(spec), student: graphStateObjs(st) }, {
+        handles: true, sel: u.sel, selH: u.selH, pending: u.pending, cursor: u.cursor, title: desc,
+        attrs: `tabindex="0" role="application" aria-roledescription="${tr ? 'çizim alanı' : 'drawing area'}" aria-label="${defaultEscape(desc)}"`
+      });
+      if (focusedSvg) { const s = stage.querySelector('.axg-svg'); if (s) s.focus({ preventScroll: true }); }
+    }
+    box.querySelectorAll('[data-axg-tool]').forEach(b => b.setAttribute('aria-pressed', String(b.getAttribute('data-axg-tool') === u.tool)));
+    const undo = box.querySelector('[data-axg-act="undo"]'), redo = box.querySelector('[data-axg-act="redo"]'), close = box.querySelector('[data-axg-act="close"]');
+    if (undo) undo.disabled = !u.hist.length;
+    if (redo) redo.disabled = !u.fut.length;
+    if (close) close.hidden = !(u.tool === 'polygon' && u.pending.length >= 3);
+    const hint = box.querySelector('.axg-hint');
+    if (hint) hint.textContent = graphHint(u, lang);
+    const none = box.querySelector('[data-axg-none]');
+    if (none) none.checked = st.none;
+    const list = box.querySelector('.axg-list');
+    if (list) {
+      const active = document.activeElement;
+      const keep = active && list.contains(active) ? { o: active.getAttribute('data-o'), f: active.getAttribute('data-f') } : null;
+      const labels = spec.labels;
+      list.innerHTML = st.o.map((o, i) => {
+        const fields = o.k === 'fill' ? [] : o.p.map((p, h) => `<span class="axg-xy">${o.p.length > 1 ? `<b>${h + 1}</b>` : ''}(<input type="text" inputmode="decimal" data-o="${i}" data-f="${h}x" value="${defaultEscape(graphNumText(p[0], lang).replace('−', '-'))}" aria-label="${tr ? `${h + 1}. nokta ${spec.x.var}` : `point ${h + 1} ${spec.x.var}`}">${tr ? ';' : ','}<input type="text" inputmode="decimal" data-o="${i}" data-f="${h}y" value="${defaultEscape(graphNumText(p[1], lang).replace('−', '-'))}" aria-label="${tr ? `${h + 1}. nokta ${spec.y.var}` : `point ${h + 1} ${spec.y.var}`}">)</span>`).join('');
+        const labOpts = [...new Set(['', ...labels, ...(o.l ? [o.l] : [])])];
+        const labSel = labels.length || o.l ? `<select data-o="${i}" data-f="l" aria-label="${tr ? 'Etiket' : 'Label'}">${labOpts.map(l => `<option value="${defaultEscape(l)}"${l === o.l ? ' selected' : ''}>${l ? defaultEscape(l) : (tr ? 'etiket yok' : 'no label')}</option>`).join('')}</select>` : '';
+        const dash = GRAPH_LINE_LIKE.includes(o.k) || o.k === 'parabola' || o.k === 'circle' ? `<button type="button" class="axg-mini" data-o="${i}" data-f="d" aria-pressed="${o.d ? 'true' : 'false'}">${o.d ? (tr ? 'kesikli' : 'dashed') : (tr ? 'düz' : 'solid')}</button>` : '';
+        return `<li class="${u.sel === i ? 'sel' : ''}"><button type="button" class="axg-pick" data-o="${i}" data-f="s" aria-label="${tr ? 'Seç' : 'Select'}">${i + 1}</button><span class="axg-desc">${defaultEscape(graphObjText(o, spec, lang))}</span><span class="axg-row">${fields}${labSel}${dash}<button type="button" class="axg-mini del" data-o="${i}" data-f="x" aria-label="${tr ? 'Sil' : 'Delete'}">${tr ? 'sil' : 'delete'}</button></span></li>`;
+      }).join('');
+      list.hidden = !st.o.length;
+      if (keep) { const el = list.querySelector(`[data-o="${keep.o}"][data-f="${keep.f}"]`); if (el) el.focus(); }
+    }
+    const coord = box.querySelector('.axg-coord');
+    if (coord && u.cursor) coord.textContent = `${spec.x.var} = ${graphNumText(u.cursor[0], lang)}, ${spec.y.var} = ${graphNumText(u.cursor[1], lang)}`;
+    if (announce) { const live = box.querySelector('.axg-live'); if (live) live.textContent = announce; }
+  }
+
+  function graphSnap(spec, p) {
+    const s = (v, a) => Math.min(a.max, Math.max(a.min, graphRoundN(a.min + Math.round((v - a.min) / a.snap) * a.snap)));
+    return [s(p[0], spec.x), s(p[1], spec.y)];
+  }
+
+  function graphEventPoint(box, e) {
+    const u = graphUiOf(box), svg = box.querySelector('.axg-svg');
+    if (!svg || !u.spec || !svg.getScreenCTM) return null;
+    const lay = graphLayout(u.spec), m = svg.getScreenCTM();
+    if (!m) return null;
+    const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+    const q = pt.matrixTransform(m.inverse());
+    const raw = [u.spec.x.min + (q.x - lay.L) / lay.pw * (u.spec.x.max - u.spec.x.min), u.spec.y.max - (q.y - lay.T) / lay.ph * (u.spec.y.max - u.spec.y.min)];
+    return { data: graphSnap(u.spec, raw), px: [q.x, q.y] };
+  }
+
+  function graphSame(p, q) { return Math.abs(p[0] - q[0]) < 1e-9 && Math.abs(p[1] - q[1]) < 1e-9; }
+
+  /** Bir noktada araç işlemi (dokunma ya da Enter). */
+  function graphAct(box, pt) {
+    const u = graphUiOf(box), spec = u.spec, lang = graphLang(box), tr = lang !== 'en';
+    const st = graphState(box);
+    u.cursor = pt;
+    if (st.none) st.none = false;
+    const add = (o, msg) => {
+      if (st.o.length >= GRAPH_MAX_OBJECTS) { graphRender(box, tr ? 'En çok 20 nesne çizilebilir.' : 'At most 20 objects.'); return; }
+      st.o.push(o); u.sel = st.o.length - 1; u.selH = 0;
+      graphCommit(box, st, msg + (spec.labels.length && !o.l && o.k !== 'fill' ? (tr ? ' Listeden etiketini seçmeyi unutma.' : ' Remember to pick its label below.') : ''));
+    };
+    if (u.tool === 'select') {
+      if (u.sel != null && st.o[u.sel]) {
+        const o = st.o[u.sel];
+        if (o.g != null && GRAPH_LINE_LIKE.includes(o.k)) { const d = [pt[0] - o.p[u.selH][0], pt[1] - o.p[u.selH][1]]; o.p = o.p.map(p => [graphRoundN(p[0] + d[0]), graphRoundN(p[1] + d[1])]); }
+        else o.p[u.selH] = pt;
+        graphCommit(box, st, (tr ? 'Taşındı: ' : 'Moved: ') + graphObjText(o, spec, lang));
+        return;
+      }
+      for (let i = st.o.length - 1; i >= 0; i--) {
+        const h = st.o[i].p.findIndex(p => graphSame(p, pt));
+        if (h >= 0 && st.o[i].k !== 'fill') { u.sel = i; u.selH = h; graphRender(box, (tr ? 'Seçildi: ' : 'Selected: ') + graphObjText(st.o[i], spec, lang)); return; }
+      }
+      graphRender(box, tr ? 'Burada bir nokta yok.' : 'No handle here.');
+      return;
+    }
+    if (u.tool === 'point') { add({ k: 'point', p: [pt], l: '', d: 0, g: null }, (tr ? 'Nokta eklendi ' : 'Point added ') + graphPtText(pt, lang) + '.'); return; }
+    if (u.tool === 'fill') { add({ k: 'fill', p: [pt], l: '', d: 0, g: null }, tr ? 'Bölge boyandı.' : 'Region shaded.'); return; }
+    if (u.tool === 'shift') {
+      if (u.shiftFrom == null) {
+        const lay = graphLayout(spec), c = graphPx(spec, lay, pt);
+        let best = -1, bd = 1e9;
+        spec.given.forEach((g, i) => {
+          if (!GRAPH_LINE_LIKE.includes(g.kind) || g.points.length !== 2) return;
+          const a = graphPx(spec, lay, g.points[0]), b = graphPx(spec, lay, g.points[1]);
+          const d = Math.abs((b[1] - a[1]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[1] - a[1])) / Math.hypot(b[0] - a[0], b[1] - a[1]);
+          if (d < bd) { bd = d; best = i; }
+        });
+        if (best < 0 || bd > 26) { graphRender(box, tr ? 'Verilen bir doğruya dokun.' : 'Tap a given line.'); return; }
+        u.shiftFrom = best;
+        graphRender(box, tr ? 'Doğru seçildi; yeni konumda geçeceği noktaya dokun.' : 'Line selected; tap a point on its new position.');
+        return;
+      }
+      const g = spec.given[u.shiftFrom], d = [g.points[1][0] - g.points[0][0], g.points[1][1] - g.points[0][1]];
+      const from = u.shiftFrom; u.shiftFrom = null;
+      add({ k: 'line', p: [pt, [graphRoundN(pt[0] + d[0]), graphRoundN(pt[1] + d[1])]], l: '', d: 0, g: from }, (tr ? 'Kaydırılmış doğru eklendi.' : 'Shifted line added.'));
+      return;
+    }
+    if (GRAPH_TWO_POINT.includes(u.tool)) {
+      if (!u.pending.length) { u.pending = [pt]; graphRender(box, (tr ? 'İlk nokta ' : 'First point ') + graphPtText(pt, lang)); return; }
+      const a = u.pending[0];
+      if (graphSame(a, pt) || (u.tool === 'parabola' && Math.abs(a[0] - pt[0]) < 1e-9)) { graphRender(box, tr ? 'İkinci nokta farklı olmalı.' : 'The second point must differ.'); return; }
+      u.pending = [];
+      const o = { k: u.tool, p: [a, pt], l: '', d: 0, g: null };
+      add(o, (tr ? 'Eklendi: ' : 'Added: ') + graphObjText(o, spec, lang));
+      return;
+    }
+    if (u.tool === 'polygon') {
+      if (u.pending.length >= 3 && graphSame(u.pending[0], pt)) { graphClosePolygon(box); return; }
+      if (u.pending.some(p => graphSame(p, pt))) { graphRender(box, tr ? 'Bu köşe zaten var.' : 'Corner already used.'); return; }
+      u.pending.push(pt);
+      if (u.pending.length >= 8) { graphClosePolygon(box); return; }
+      graphRender(box, (tr ? `${u.pending.length}. köşe ` : `Corner ${u.pending.length} `) + graphPtText(pt, lang));
+    }
+  }
+
+  function graphClosePolygon(box) {
+    const u = graphUiOf(box), lang = graphLang(box);
+    if (u.pending.length < 3) return;
+    const st = graphState(box);
+    const o = { k: 'polygon', p: u.pending.slice(), l: '', d: 0, g: null };
+    u.pending = [];
+    st.o.push(o); u.sel = st.o.length - 1; u.selH = 0;
+    graphCommit(box, st, (lang === 'en' ? 'Area added: ' : 'Alan eklendi: ') + graphObjText(o, u.spec, lang));
+  }
+
+  function graphMoveSel(box, dx, dy) {
+    const u = graphUiOf(box), st = graphState(box), o = st.o[u.sel];
+    if (!o) return false;
+    const p = o.p[u.selH], q = graphSnap(u.spec, [p[0] + dx * u.spec.x.snap, p[1] + dy * u.spec.y.snap]);
+    if (o.g != null && GRAPH_LINE_LIKE.includes(o.k)) { const d = [q[0] - p[0], q[1] - p[1]]; o.p = o.p.map(r => [graphRoundN(r[0] + d[0]), graphRoundN(r[1] + d[1])]); }
+    else o.p[u.selH] = q;
+    u.cursor = q;
+    graphCommit(box, st, graphObjText(o, u.spec, graphLang(box)));
+    return true;
+  }
+
+  function graphUndo(box, redo) {
+    const u = graphUiOf(box), inp = box.querySelector('.axg-val');
+    const from = redo ? u.fut : u.hist, to = redo ? u.hist : u.fut;
+    if (!inp || !from.length) return;
+    to.push(inp.value);
+    inp.value = from.pop();
+    u.sel = null; u.pending = []; u.shiftFrom = null;
+    inp.dispatchEvent(new Event('input', { bubbles: true }));
+    inp.dispatchEvent(new Event('change', { bubbles: true }));
+    graphRender(box, graphLang(box) === 'en' ? (redo ? 'Redone.' : 'Undone.') : (redo ? 'Yinelendi.' : 'Geri alındı.'));
+  }
+
+  function graphTypeAdd(box) {
+    const u = graphUiOf(box), lang = graphLang(box), tr = lang !== 'en';
+    const inp = box.querySelector('.axg-type-in'), msg = box.querySelector('.axg-type-msg');
+    if (!inp) return;
+    const r = graphParseTyped(inp.value, u.spec, u.tool, lang);
+    if (r.error) { if (msg) { msg.textContent = r.error; msg.className = 'axg-type-msg bad'; } return; }
+    const st = graphState(box);
+    if (st.o.length >= GRAPH_MAX_OBJECTS) return;
+    st.none = false;
+    st.o.push(r.obj); u.sel = st.o.length - 1; u.selH = 0;
+    inp.value = '';
+    if (msg) { msg.textContent = (tr ? 'Eklendi: ' : 'Added: ') + graphObjText(r.obj, u.spec, lang); msg.className = 'axg-type-msg ok'; }
+    graphCommit(box, st, (tr ? 'Eklendi: ' : 'Added: ') + graphObjText(r.obj, u.spec, lang));
+  }
+
+  registerType('graph', {
+    renderInput(q, ctx) {
+      const spec = graphSpecOf(q), tr = ctx.lang !== 'en';
+      if (!spec) return `<p class="axg-err">${tr ? 'Bu çizim sorusu gösterilemiyor.' : 'This drawing question cannot be shown.'}</p><input type="hidden" name="${ctx.name}" class="axg-val" value="">`;
+      const names = tr ? GRAPH_TOOLS_TR : GRAPH_TOOLS_EN;
+      const tools = ['select', ...spec.tools];
+      const first = spec.tools.includes('line') ? 'line' : spec.tools[0];
+      const eg = spec.tools.includes('line') ? `${spec.y.var} = -2${spec.x.var} + 10 · E(3; 6) · ${spec.x.var} = 4` : 'E(3; 6)';
+      return `
+        <div class="axg" data-graph="${ctx.esc(JSON.stringify(q.graph))}" data-lang="${tr ? 'tr' : 'en'}">
+          <input type="hidden" name="${ctx.name}" class="axg-val" value="">
+          <div class="axg-tools" role="toolbar" aria-label="${tr ? 'Çizim araçları' : 'Drawing tools'}">${tools.map(t => `<button type="button" data-axg-tool="${t}" aria-pressed="${t === first}">${names[t]}</button>`).join('')}<span class="axg-sp"></span><button type="button" data-axg-act="undo" disabled>${tr ? '↶ geri al' : '↶ undo'}</button><button type="button" data-axg-act="redo" disabled>${tr ? '↷ yinele' : '↷ redo'}</button><button type="button" data-axg-act="clear">${tr ? 'temizle' : 'clear'}</button></div>
+          <p class="axg-hint">${ctx.esc(graphHint({ tool: first, pending: [], shiftFrom: null }, ctx.lang))}</p>
+          <div class="axg-stage">${graphSvg(spec, { given: graphGivenObjs(spec), student: [] }, { handles: true, attrs: `tabindex="0" role="application" aria-label="${tr ? 'Koordinat düzlemi' : 'Coordinate plane'}"` })}</div>
+          <div class="axg-bar"><span class="axg-coord" aria-hidden="true"></span><button type="button" class="axg-mini" data-axg-act="close" hidden>${tr ? 'alanı kapat' : 'close area'}</button></div>
+          <div class="axg-type"><label><span>${tr ? 'yazarak ekle' : 'type to add'}</span><input type="text" class="axg-type-in" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${ctx.esc(eg)}"></label><button type="button" data-axg-act="type">${tr ? 'ekle' : 'add'}</button><small class="axg-type-msg">${tr ? 'Çizmek istemezsen denklemi ya da noktayı yaz; çizim kendiliğinden oluşur.' : 'Prefer typing? Enter an equation or a point and it is drawn for you.'}</small></div>
+          <ol class="axg-list" hidden></ol>
+          <label class="axg-none"><input type="checkbox" data-axg-none> ${tr ? 'çizilecek bir şey yok (çözüm yok)' : 'nothing to draw (no solution)'}</label>
+          <p class="axg-keys">${tr ? 'Klavye: çizim alanında ok tuşları imleci taşır, Enter yerleştirir, Esc vazgeçer, Delete seçili nesneyi siler, Ctrl+Z geri alır.' : 'Keyboard: arrows move the cursor, Enter places, Esc cancels, Delete removes, Ctrl+Z undoes.'}</p>
+          <p class="axg-live sr-only" aria-live="polite"></p>
+        </div>`;
+    },
+    readAnswer(card) {
+      const inp = card.querySelector('.axg-val');
+      return inp ? inp.value : '';
+    },
+    writeAnswer(card, q, value) {
+      const inp = card.querySelector('.axg-val');
+      if (inp) inp.value = value == null ? '' : String(value);
+      const box = card.querySelector('.axg');
+      if (box) graphRender(box);
+    }
+  });
+
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    const boxOf = t => (t && t.closest ? t.closest('.axg') : null);
+    document.addEventListener('pointerdown', e => {
+      const svg = e.target && e.target.closest ? e.target.closest('.axg-svg') : null;
+      const box = boxOf(svg);
+      if (!svg || !box || svg.classList.contains('st')) return;
+      const u = graphUiOf(box);
+      if (!u.spec) return;
+      const ev = graphEventPoint(box, e);
+      if (!ev) return;
+      e.preventDefault();
+      const h = e.target.closest('.axg-hd');
+      if (u.tool === 'select' && h) {
+        u.sel = Number(h.getAttribute('data-o')); u.selH = Number(h.getAttribute('data-h'));
+        u.drag = { id: e.pointerId, moved: false };
+        try { svg.setPointerCapture(e.pointerId); } catch (_e) { /* yok say */ }
+        graphRender(box);
+        return;
+      }
+      graphAct(box, ev.data);
+    });
+    document.addEventListener('pointermove', e => {
+      const svg = e.target && e.target.closest ? e.target.closest('.axg-svg') : null;
+      const box = boxOf(svg);
+      if (!svg || !box || svg.classList.contains('st')) return;
+      const u = graphUiOf(box);
+      const ev = graphEventPoint(box, e);
+      if (!ev) return;
+      const coord = box.querySelector('.axg-coord');
+      if (coord) coord.textContent = `${u.spec.x.var} = ${graphNumText(ev.data[0], graphLang(box))}, ${u.spec.y.var} = ${graphNumText(ev.data[1], graphLang(box))}`;
+      if (u.drag && u.drag.id === e.pointerId && u.sel != null) {
+        const st = graphState(box), o = st.o[u.sel];
+        if (!o || graphSame(o.p[u.selH], ev.data)) return;
+        u.drag.moved = true;
+        if (o.g != null && GRAPH_LINE_LIKE.includes(o.k)) { const d = [ev.data[0] - o.p[u.selH][0], ev.data[1] - o.p[u.selH][1]]; o.p = o.p.map(p => [graphRoundN(p[0] + d[0]), graphRoundN(p[1] + d[1])]); }
+        else o.p[u.selH] = ev.data;
+        const inp = box.querySelector('.axg-val');
+        if (!u.drag.pushed) { u.hist.push(inp.value); u.fut = []; u.drag.pushed = true; }
+        inp.value = graphSerialize(st);
+        u.cursor = ev.data;
+        graphRender(box);
+      }
+    });
+    document.addEventListener('pointerup', e => {
+      const svg = e.target && e.target.closest ? e.target.closest('.axg-svg') : null;
+      const box = boxOf(svg) || Array.from(document.querySelectorAll('.axg')).find(b => { const uu = graphUi && graphUi.get(b); return uu && uu.drag && uu.drag.id === e.pointerId; });
+      if (!box) return;
+      const u = graphUiOf(box);
+      if (u.drag && u.drag.id === e.pointerId) {
+        const moved = u.drag.moved; u.drag = null;
+        const inp = box.querySelector('.axg-val');
+        if (moved && inp) { inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new Event('change', { bubbles: true })); graphRender(box, graphObjText(graphState(box).o[u.sel] || { k: 'point', p: [[0, 0]] }, u.spec, graphLang(box))); }
+      }
+    });
+    document.addEventListener('click', e => {
+      const b = e.target && e.target.closest ? e.target.closest('[data-axg-tool],[data-axg-act],.axg-list [data-f]') : null;
+      const box = boxOf(b);
+      if (!b || !box) return;
+      const u = graphUiOf(box), lang = graphLang(box), tr = lang !== 'en';
+      if (b.hasAttribute('data-axg-tool')) {
+        u.tool = b.getAttribute('data-axg-tool'); u.pending = []; u.shiftFrom = null;
+        if (u.tool !== 'select') u.sel = null;
+        graphRender(box, (tr ? 'Araç: ' : 'Tool: ') + b.textContent);
+        return;
+      }
+      const act = b.getAttribute('data-axg-act');
+      if (act === 'undo') return graphUndo(box, false);
+      if (act === 'redo') return graphUndo(box, true);
+      if (act === 'clear') { u.sel = null; u.pending = []; u.shiftFrom = null; return graphCommit(box, { o: [], none: false }, tr ? 'Temizlendi; geri almak için "geri al".' : 'Cleared; use undo to restore.'); }
+      if (act === 'close') return graphClosePolygon(box);
+      if (act === 'type') return graphTypeAdd(box);
+      const f = b.getAttribute('data-f'), i = Number(b.getAttribute('data-o'));
+      if (f === 's') { u.tool = 'select'; u.sel = i; u.selH = 0; graphRender(box, tr ? 'Seçildi; ok tuşlarıyla ya da yeni yerine dokunarak taşı.' : 'Selected; move it with the arrow keys or by tapping.'); return; }
+      if (f === 'x' || f === 'd') {
+        const st = graphState(box);
+        if (!st.o[i]) return;
+        if (f === 'x') { const t = graphObjText(st.o[i], u.spec, lang); st.o.splice(i, 1); u.sel = null; graphCommit(box, st, (tr ? 'Silindi: ' : 'Deleted: ') + t); }
+        else { st.o[i].d = st.o[i].d ? 0 : 1; graphCommit(box, st, st.o[i].d ? (tr ? 'Kesikli çizgi.' : 'Dashed.') : (tr ? 'Düz çizgi.' : 'Solid.')); }
+      }
+    });
+    document.addEventListener('change', e => {
+      const t = e.target, box = boxOf(t);
+      if (!box || !t.closest('.axg')) return;
+      if (t.hasAttribute && t.hasAttribute('data-axg-none')) {
+        const st = graphState(box); st.none = !!t.checked;
+        graphCommit(box, st, t.checked ? (graphLang(box) === 'en' ? 'Marked: nothing to draw.' : 'İşaretlendi: çizilecek bir şey yok.') : '');
+        return;
+      }
+      if (!t.closest('.axg-list')) return;
+      const i = Number(t.getAttribute('data-o')), f = String(t.getAttribute('data-f') || '');
+      const st = graphState(box), o = st.o[i];
+      if (!o) return;
+      if (f === 'l') { o.l = String(t.value || '').slice(0, 12); graphCommit(box, st, graphObjText(o, graphUiOf(box).spec, graphLang(box))); return; }
+      const m = f.match(/^(\d+)([xy])$/);
+      if (!m) return;
+      const v = parseLooseNumber(t.value);
+      if (!Number.isFinite(v)) { graphRender(box, graphLang(box) === 'en' ? 'Not a number.' : 'Sayı okunamadı.'); return; }
+      o.p[Number(m[1])][m[2] === 'x' ? 0 : 1] = graphRoundN(v);
+      graphCommit(box, st, graphObjText(o, graphUiOf(box).spec, graphLang(box)));
+    });
+    document.addEventListener('keydown', e => {
+      const t = e.target;
+      if (!t || !t.classList) return;
+      if (t.classList.contains('axg-type-in') && e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); graphTypeAdd(boxOf(t)); return; }
+      if (!t.classList.contains('axg-svg')) return;
+      const box = boxOf(t), u = box && graphUiOf(box);
+      if (!u || !u.spec) return;
+      const k = e.key, mod = e.ctrlKey || e.metaKey;
+      const arrows = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] };
+      let handled = true;
+      if (arrows[k]) {
+        const [dx, dy] = arrows[k];
+        if (u.tool === 'select' && u.sel != null) graphMoveSel(box, dx, dy);
+        else { u.cursor = graphSnap(u.spec, [u.cursor[0] + dx * u.spec.x.snap, u.cursor[1] + dy * u.spec.y.snap]); graphRender(box, graphPtText(u.cursor, graphLang(box))); }
+      } else if (k === 'Enter' || k === ' ') graphAct(box, u.cursor);
+      else if (k === 'Escape') { u.pending = []; u.shiftFrom = null; u.sel = null; graphRender(box, graphLang(box) === 'en' ? 'Cancelled.' : 'Vazgeçildi.'); }
+      else if ((k === 'Delete' || k === 'Backspace') && u.sel != null) { const st = graphState(box); st.o.splice(u.sel, 1); u.sel = null; graphCommit(box, st, graphLang(box) === 'en' ? 'Deleted.' : 'Silindi.'); }
+      else if (mod && (k === 'z' || k === 'Z')) graphUndo(box, e.shiftKey);
+      else if (mod && (k === 'y' || k === 'Y')) graphUndo(box, true);
+      else handled = false;
+      if (handled) { e.preventDefault(); e.stopPropagation(); }
+    }, true);
+  }
+
+  /** Sonuç kâğıdı: verilenler, doğrusu (yeşil, kesikli) ve öğrencinin çizimi
+   *  (mavi) üst üste. r: grade-exam sonucu (graph, graph_answer, graph_student). */
+  function graphResultHtml(r, lang) {
+    const spec = graphSpecOf(r);
+    if (!spec) return '';
+    const tr = lang !== 'en', esc = defaultEscape;
+    const ans = r.graph_answer && Array.isArray(r.graph_answer.elements) ? r.graph_answer.elements : [];
+    const correct = [];
+    ans.forEach(o => {
+      if (o.kind === 'fill') { const poly = graphIneqPoly(o.ineq, spec); if (poly) correct.push({ kind: 'region', points: poly, label: o.label || '' }); return; }
+      if (!Array.isArray(o.points) || !o.points.length) return;
+      correct.push({ kind: o.kind, points: o.points, label: o.label || '', dashed: true });
+    });
+    const stu = (Array.isArray(r.graph_student) ? r.graph_student : []);
+    const lines = stu.filter(o => GRAPH_LINE_LIKE.includes(o.kind)).map(o => o.points);
+    const student = stu.map(o => ({ kind: o.kind, points: o.points, label: o.label || '', dashed: !!o.dashed, seedLines: o.kind === 'fill' ? lines : null }));
+    const title = tr ? 'Senin çizimin (mavi) ve doğrusu (yeşil, kesikli)' : 'Your drawing (blue) and the correct answer (green, dashed)';
+    const els = Array.isArray(r.graph_elements) ? r.graph_elements : [];
+    const mark = c => c >= 1 ? 'ok' : c > 0 ? 'half' : 'no';
+    return `<figure class="axg-res"><div class="axg-stage">${graphSvg(spec, { given: graphGivenObjs(spec), correct, student }, { static: true, title, attrs: 'role="img"' })}</div>` +
+      `<figcaption><span class="k st">${tr ? 'senin çizimin' : 'your drawing'}</span><span class="k ok">${tr ? 'doğrusu' : 'correct'}</span>${spec.given.length ? `<span class="k gv">${tr ? 'verilen' : 'given'}</span>` : ''}</figcaption>` +
+      (els.length ? `<ul class="axg-els">${els.map(e => `<li class="${mark(e.credit)}"><b>${esc(e.name)}</b> ${esc(e.note || '')}</li>`).join('')}${r.graph_extra ? `<li class="no"><b>${tr ? 'Fazladan çizim' : 'Extra drawing'}</b> ${tr ? `${r.graph_extra} nesne cevapta yoktu; puan buna göre bölündü` : `${r.graph_extra} object(s) not in the answer`}</li>` : ''}</ul>` : '') +
+      `</figure>`;
+  }
+
+  /** Öğrencinin cevabının kısa metni (sonuç kâğıdında "senin cevabın"). */
+  function graphAnswerSummary(raw, r, lang) {
+    const spec = graphSpecOf(r);
+    const st = graphParseState(raw);
+    if (st.none) return lang === 'en' ? 'nothing to draw (no solution)' : 'çizilecek bir şey yok (çözüm yok)';
+    if (!spec || !st.o.length) return '';
+    return st.o.map(o => graphObjText(o, spec, lang)).join(' · ');
+  }
+
   const api = {
     // tip kaydı
     registerType,
@@ -1739,6 +2547,20 @@
     niceTicks,
     renderChartSvg,
     chartFigureHtml,
+    // FAZ 4b: grafik çizme
+    graphSpecOf,
+    graphParseState,
+    graphSerialize,
+    graphParseTyped,
+    graphLinearOf,
+    graphParabolaOf,
+    graphLineEq,
+    graphObjText,
+    graphFillPoly,
+    graphIneqPoly,
+    graphSvg,
+    graphResultHtml,
+    graphAnswerSummary,
     // FAZ 3c: adım adım kontrol
     parseExprAst,
     subValues,
