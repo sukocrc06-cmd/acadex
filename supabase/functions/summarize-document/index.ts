@@ -3216,9 +3216,30 @@ function mergeReviewOntoDraft(
     const dv = draft[field]
     if (!Array.isArray(rv)) continue
     const draftLen = Array.isArray(dv) ? dv.length : 0
-    if (rv.length >= draftLen) {
+    /* UZUNLUK YETMEZ, ICERIK DE OLCULMELI (24.10.2026).
+     *
+     * Tek kosul `rv.length >= draftLen` idi: eleman SAYISI esitse icerik ne
+     * olursa olsun kabul ediliyordu. Review kaynagin yalnizca ilk 11.000
+     * karakterini goruyor, taslak ise butun belgeyi kapsiyor; 20 maddeyi 20
+     * madde olarak geri yazip gormedigi (gec slaytlardan gelen) maddeleri
+     * kisaltirsa ya da bosaltirsa birlesme bunu AYNEN kabul ediyordu.
+     *
+     * Metin alanlarinda ayni karar icin NARRATIVE_MIN_KEEP_RATIO tabani
+     * zaten var (bkz. yukarisi); dizilerde hicbir karsiligi yoktu — ayni
+     * mantigin iki ayri yazimi. Simdi toplam KARAKTER de ayni tabandan
+     * geciyor. maddeMetni sekilden bagimsiz okuyor, yani dizge ve
+     * {text}/{point} nesneleri birlikte olculuyor; footnote gibi metin
+     * tasimayan alanlarda iki taraf da 0 olur ve kosul etkisiz kalir. */
+    const toplamKrk = (a: any[]) => a.reduce((n, x) => n + maddeMetni(x).length, 0)
+    const rvKrk = toplamKrk(rv)
+    const dvKrk = Array.isArray(dv) ? toplamKrk(dv) : 0
+    if (rv.length >= draftLen && (dvKrk === 0 || rvKrk >= dvKrk * NARRATIVE_MIN_KEEP_RATIO)) {
       if (rv.length > draftLen) notes.push(`${field} ${draftLen}→${rv.length}`)
       out[field] = rv
+    } else if (rv.length >= draftLen) {
+      notes.push(
+        `${field} KORUNDU (sayi ayni ama icerik kisaldi: review ${rvKrk} krk, taslak ${dvKrk} krk)`
+      )
     } else {
       notes.push(`${field} KORUNDU (review ${rv.length} dondu, taslakta ${draftLen})`)
     }
@@ -3229,7 +3250,18 @@ function mergeReviewOntoDraft(
     if (typeof review[field] === 'string' && review[field].trim()) out[field] = review[field].trim()
   }
   if (typeof review.is_quantitative === 'boolean') out.is_quantitative = review.is_quantitative
-  if (review.outline && typeof review.outline === 'object') out.outline = review.outline
+  /* OUTLINE HICBIR KONTROLDEN GECMIYORDU (24.10.2026).
+     24 maddelik bir anahat 2 maddeye dusebilir ve log bile basilmazdi.
+     Dizilerle ayni taban: madde sayisi dortte ucun altina inemez. */
+  if (review.outline && typeof review.outline === 'object') {
+    const yeniAdet = Array.isArray(review.outline.items) ? review.outline.items.length : 0
+    const eskiAdet = Array.isArray(draft?.outline?.items) ? draft.outline.items.length : 0
+    if (eskiAdet === 0 || yeniAdet >= eskiAdet * NARRATIVE_MIN_KEEP_RATIO) {
+      out.outline = review.outline
+    } else {
+      notes.push(`outline KORUNDU (review ${yeniAdet} madde dondu, taslakta ${eskiAdet})`)
+    }
+  }
   if (review.quality_gate && typeof review.quality_gate === 'object') {
     out.quality_gate = review.quality_gate
     // Log the verdict, always. Without it "degisiklik yok" is ambiguous in
@@ -5113,8 +5145,15 @@ function paragraphCount(text: string): number {
 
 function gateWorkedExampleArithmetic(examples: any[]): { kept: any[]; dropped: string[] } {
   const dropped: string[] = []
-  const kept = (Array.isArray(examples) ? examples : []).filter((ex: any) => {
-    if (!ex || typeof ex !== 'object') return false
+  const girdiler = Array.isArray(examples) ? examples : []
+  const kept = girdiler.filter((ex: any) => {
+    if (!ex || typeof ex !== 'object') {
+      /* SESSIZ DUSUS (24.10.2026): dizge seklinde gelen bir ornek hicbir
+         sayaca yazilmadan siliniyordu, yani log "0 dusuruldu" derken kart
+         eksiliyordu. */
+      if (ex != null) dropped.push(`sekil hatasi (${typeof ex}) — nesne bekleniyordu`)
+      return false
+    }
     const parts = [
       ...(Array.isArray(ex.steps) ? ex.steps : []),
       String(ex.final_answer || '')
@@ -5136,6 +5175,30 @@ function gateWorkedExampleArithmetic(examples: any[]): { kept: any[]; dropped: s
     )
     return false
   })
+
+  /* EMNIYET VALFI (24.10.2026) — grounding kapisindakinin aynisi.
+   *
+   * Bu kapida valf YOKTU: tek bir aritmetik yanlis-pozitifi butun cozumlu
+   * ornekleri silebiliyordu ve hicbir sey durdurmuyordu. Bugun somut bir
+   * ornegi olculdu — `sourceNumbers` Turkce ondalik ayiriciyi okumuyordu,
+   * yani Turkce bicimli bir belgede kaynak sayi kumesi BOS kaliyor ve
+   * sayiya dayanan kapilar her kaydi "kaynakta yok" diye siliyordu. O hata
+   * duzeltildi, ama ders genel: kartı BOSALTAN bir kapi, kutlesel uydurma
+   * konusunda hakli olmaktan cok KARSILASTIRMA konusunda yanlis olmaya
+   * yakindir — kodlama uyusmazligi, bicim okuma hatasi, beklenmedik bir
+   * normalizasyon hepsi "model her seyi uydurdu" gibi gorunur.
+   *
+   * Budayan bir kapi faydali; ogrencinin sonucunu silen bir kapi hatadir.
+   * Bu paydan sonra hicbir sey atilmiyor ve anomali loga yaziliyor. */
+  const atilanPay = girdiler.length > 0 ? dropped.length / girdiler.length : 0
+  if (girdiler.length >= 2 && atilanPay > GATE_MAX_DROP_SHARE) {
+    console.warn(
+      `Cozumlu ornek aritmetik kapisi IPTAL: ${girdiler.length} ornegin ` +
+      `${dropped.length}'i (%${Math.round(100 * atilanPay)}) atilacakti — bu, modelden cok ` +
+      `karsilastirmaya isaret ediyor, hepsi korunuyor. Ornek: ${dropped.slice(0, 2).join(' | ')}`
+    )
+    return { kept: girdiler, dropped: [] }
+  }
   return { kept, dropped }
 }
 
@@ -5172,6 +5235,17 @@ const YOGUNLUK_KAPISI_ELIYOR = false
 
 type YogunlukStats = {
   kept: number
+  /* OLCULEN ORANIN PAYDASI (24.10.2026).
+   *
+   * Log ve quality_meta `dropped/kept` yaziyordu. Olcum modunda bu DOGRU,
+   * cunku orada `kept = points.length`, yani zaten toplam. Ama kapi elemeye
+   * gecirilince (YOGUNLUK_KAPISI_ELIYOR = true) `kept` HAYATTA KALANLAR
+   * oluyor ve ayni ifade sessizce `dropped/hayattaKalan`a donuyor — orani
+   * oldugundan buyuk gosterir ve kimse bunu fark etmez.
+   *
+   * `toplam` bir kez, girdinin kendisinden kuruluyor; iki mod da ayni
+   * paydayi kullaniyor. */
+  toplam: number
   dropped: number
   droppedPoints: string[]
   valfAcildi: boolean
@@ -5212,7 +5286,7 @@ function applyDensityGate(
   figureText: string = ''
 ): { key_points: any[]; stats: YogunlukStats } {
   const points = Array.isArray(keyPoints) ? keyPoints : []
-  const stats: YogunlukStats = { kept: points.length, dropped: 0, droppedPoints: [], valfAcildi: false }
+  const stats: YogunlukStats = { kept: points.length, toplam: points.length, dropped: 0, droppedPoints: [], valfAcildi: false }
   if (!sourceText || sourceText.length < 200 || points.length === 0) return { key_points: points, stats }
 
   const birlesik = figureText ? sourceText + '\n' + figureText : sourceText
@@ -9803,10 +9877,51 @@ Use CONCRETE topic names from digests and terms. No meta filler.`
                * korunur. Ustteki atlama kapisi yine duruyor, ag olarak. */
               { model: synLane, temperature: 0.25, maxCompletionTokens: synCompletion, timeoutMs: 30000, maxRetries: 0 }
             )
-            if (syn?.summary && String(syn.summary).length > 80) bestSummary = String(syn.summary)
+            /* SENTEZ PENCERELERIN CIKTISINI TABANSIZ EZIYORDU (24.10.2026).
+             *
+             * `bestSections` 12 pencereden gelen bolumlerin flatMap'i; tek
+             * kosul `length >= 1` oldugu icin sentez IKI baslik dondurunce
+             * 20 bolum 2'ye iniyordu. `bestSummary` de pencerelerin birlesik
+             * ozeti (binlerce karakter) iken 81 karakterlik bir ciktiyla
+             * degistirilebiliyordu.
+             *
+             * Sentez yalnizca 600 karakterlik ozetceleri goruyor ve 768
+             * token butcesiyle kosuyor — yani PENCERELERDEN DAHA AZ bilgiyle
+             * yaziyor. Review tarafinda ayni karar icin NARRATIVE_MIN_KEEP_RATIO
+             * tabani var; burada ayni mantigin ikinci yazimi tabansizdi.
+             *
+             * Simdi ayni taban burada da: sentez ancak mevcut icerigin
+             * dortte ucunu koruyorsa gecerli. Reddedilen hal loglanir, cunku
+             * sessiz bir ret "sentez neden hic ise yaramiyor" sorusunu
+             * cevapsiz birakir. */
+            const sentezRet = (ad: string, eski: number, yeni: number) => {
+              console.warn(
+                `Compact synthesis ${ad} REDDEDILDI: ${yeni} < ${eski} x ` +
+                `${NARRATIVE_MIN_KEEP_RATIO} — pencerelerin ciktisi korunuyor`
+              )
+            }
+            if (syn?.summary && String(syn.summary).length > 80) {
+              const yeni = String(syn.summary)
+              if (!bestSummary || yeni.length >= bestSummary.length * NARRATIVE_MIN_KEEP_RATIO) {
+                bestSummary = yeni
+              } else {
+                sentezRet('ozeti', bestSummary.length, yeni.length)
+              }
+            }
             if (syn?.summary_executive) bestExec = String(syn.summary_executive)
-            if (syn?.outline?.items?.length) bestOutline = syn.outline
-            if (Array.isArray(syn?.sections) && syn.sections.length) bestSections = syn.sections
+            if (syn?.outline?.items?.length) {
+              // `arr` acadex-ink yardimcisi; bu dosyada YOK (scope-check yakaladi).
+              const eski = Array.isArray(bestOutline?.items) ? bestOutline.items.length : 0
+              if (syn.outline.items.length >= eski * NARRATIVE_MIN_KEEP_RATIO) bestOutline = syn.outline
+              else sentezRet('anahati', eski, syn.outline.items.length)
+            }
+            if (Array.isArray(syn?.sections) && syn.sections.length) {
+              if (syn.sections.length >= bestSections.length * NARRATIVE_MIN_KEEP_RATIO) {
+                bestSections = syn.sections
+              } else {
+                sentezRet('bolumleri', bestSections.length, syn.sections.length)
+              }
+            }
           }
         } catch (synErr) {
           console.warn('Compact synthesis skipped:', synErr)
@@ -10056,14 +10171,51 @@ The example that used to sit here named a real-looking percentage, and a live ru
                   mergedQuiz.length = 0; mergedQuiz.push(...patchedQuiz)
                 }
                 if (newSections.length) bestSections = bestSections.concat(newSections)
+                /* FILTRE YALNIZCA YENI KAYITLARA (24.10.2026).
+                 *
+                 * Sekil filtresi BIRLESTIRILMIS dizinin tamamina
+                 * uygulaniyordu, yani metin pencerelerinden gelmis saglam
+                 * bir tablo da sekil kontrolune giriyordu. Gorsel gecis en az
+                 * bir tablo dondurdugu ANDA, basligi olmayan ya da `rows`
+                 * yerine baska alan tasiyan eski kayitlar siliniyordu —
+                 * gorsel gecis hic calismadigi kosuda ayni tablolar karta
+                 * giriyordu. Yani kayip, ILGISIZ bir adimin calisip
+                 * calismamasina bagliydi ve hicbir log bunu bildirmiyordu:
+                 * "Long-doc visual patch: +N tables" yalnizca EKLENENI sayar.
+                 *
+                 * Ikinci kayip dedupeByText'in kendisinde: anahtar bos
+                 * normalize olursa kayit atiliyor (`if (!norm) continue`),
+                 * yani BASLIKSIZ bir tablo baslikla ayiklanirken dusuyor.
+                 * Davranis korunuyor (baslik olmadan ayiklama yapilamaz) ama
+                 * artik kac kayit dustugu loglaniyor. */
+                const yamaKaybiLogla = (ad: string, once: number, sonra: number, eklenen: number) => {
+                  const beklenen = once + eklenen
+                  if (sonra < beklenen) {
+                    console.warn(
+                      `Gorsel yama ${ad}: ${beklenen - sonra} kayit birlesmede dustu ` +
+                      `(${once} mevcut + ${eklenen} yeni -> ${sonra}); basligi olmayan ya da ` +
+                      `tekrar eden kayitlar ayiklanir`
+                    )
+                  }
+                }
                 if (newTables.length) {
-                  const patchedTables = dedupeByText([...mergedTables, ...newTables], (t: any) => t?.title || '')
-                    .filter((t: any) => t && t.title && Array.isArray(t.rows) && t.rows.length > 0).slice(0, 12)
+                  const yeniTemiz = newTables.filter(
+                    (t: any) => t && t.title && Array.isArray(t.rows) && t.rows.length > 0
+                  )
+                  const once = mergedTables.length
+                  const patchedTables = dedupeByText(
+                    [...mergedTables, ...yeniTemiz], (t: any) => t?.title || ''
+                  ).slice(0, 12)
+                  yamaKaybiLogla('tablo', once, patchedTables.length, yeniTemiz.length)
                   mergedTables.length = 0; mergedTables.push(...patchedTables)
                 }
                 if (newDiagrams.length) {
-                  const patchedDiagrams = dedupeByText([...mergedDiagrams, ...newDiagrams], (d: any) => d?.title || '')
-                    .filter((d: any) => d && d.title && d.mermaid).slice(0, 8)
+                  const yeniTemiz = newDiagrams.filter((d: any) => d && d.title && d.mermaid)
+                  const once = mergedDiagrams.length
+                  const patchedDiagrams = dedupeByText(
+                    [...mergedDiagrams, ...yeniTemiz], (d: any) => d?.title || ''
+                  ).slice(0, 8)
+                  yamaKaybiLogla('diyagram', once, patchedDiagrams.length, yeniTemiz.length)
                   mergedDiagrams.length = 0; mergedDiagrams.push(...patchedDiagrams)
                 }
 
@@ -11107,7 +11259,7 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
       )
       parsedContent.key_points = yogunluk.key_points
       yogunlukOlcumu = yogunluk.stats.dropped > 0
-        ? { dropped: yogunluk.stats.dropped, toplam: yogunluk.stats.kept, ornekler: yogunluk.stats.droppedPoints.slice(0, 5) }
+        ? { dropped: yogunluk.stats.dropped, toplam: yogunluk.stats.toplam, ornekler: yogunluk.stats.droppedPoints.slice(0, 5) }
         : null
       if (yogunluk.stats.valfAcildi) {
         console.warn(
@@ -11116,7 +11268,7 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
         )
       } else if (yogunluk.stats.dropped > 0) {
         console.log(
-          `Yogunluk olcumu: ${yogunluk.stats.dropped}/${yogunluk.stats.kept} madde somut capa tasimiyor` +
+          `Yogunluk olcumu: ${yogunluk.stats.dropped}/${yogunluk.stats.toplam} madde somut capa tasimiyor` +
           ` | dolgu: ${yogunluk.stats.droppedPoints.map((x) => '"' + x + '"').join(' ')}`
         )
       }
