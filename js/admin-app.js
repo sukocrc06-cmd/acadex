@@ -104,7 +104,7 @@
   };
 
   /* =========================== panel iskeleti =========================== */
-  var ME = null, CUR = 'overview', COUNTS = {};
+  var ME = null, CUR = 'overview', COUNTS = {}, TEST = null;
   var IC = {
     overview: '<path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-4H4zM14 4v4h6V4z"/>',
     users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5M16 4.5a3.5 3.5 0 0 1 0 7M18.5 14.8c1.6.8 2.7 2.5 3 5.2"/>',
@@ -114,15 +114,17 @@
     inbox: '<path d="M3 13l3-8h12l3 8v6H3zM3 13h5l1.5 2.5h5L16 13h5"/>',
     news: '<path d="M4 9v6h3l6 4V5L7 9zM17 9a4 4 0 0 1 0 6M19.5 6.5a7.5 7.5 0 0 1 0 11"/>',
     settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
-    audit: '<path d="M9 4h6M9 4a2 2 0 0 0-2 2v0H5v15h14V6h-2a2 2 0 0 0-2-2M9 12l2 2 4-4"/>'
+    audit: '<path d="M9 4h6M9 4a2 2 0 0 0-2 2v0H5v15h14V6h-2a2 2 0 0 0-2-2M9 12l2 2 4-4"/>',
+    test: '<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3M7.5 14h9"/>'
   };
   var NAV = [
     { g: 'MASA' }, { k: 'overview', t: 'Genel bakış' },
     { g: 'ÖĞRENCİLER' }, { k: 'users', t: 'Kullanıcılar' }, { k: 'reports', t: 'Şikâyetler', badge: 'open_reports' }, { k: 'plans', t: 'Planlar ve kota', soon: true },
     { g: 'İÇERİK VE İLETİŞİM' }, { k: 'content', t: 'İçerik' }, { k: 'inbox', t: 'Gelen kutusu', badge: 'unread_messages' }, { k: 'news', t: 'Duyurular' },
+    { g: 'TEST' }, { k: 'test', t: 'Test paneli', badge: 'test_open_hata' },
     { g: 'SİSTEM' }, { k: 'settings', t: 'Site ayarları' }, { k: 'audit', t: 'Denetim kaydı' }
   ];
-  var TITLES = { overview: 'Genel bakış', users: 'Kullanıcılar', reports: 'Şikâyetler ve moderasyon', plans: 'Planlar ve kota', content: 'İçerik', inbox: 'Gelen kutusu', news: 'Duyurular', settings: 'Site ayarları', audit: 'Denetim kaydı' };
+  var TITLES = { overview: 'Genel bakış', users: 'Kullanıcılar', reports: 'Şikâyetler ve moderasyon', plans: 'Planlar ve kota', content: 'İçerik', inbox: 'Gelen kutusu', news: 'Duyurular', settings: 'Site ayarları', audit: 'Denetim kaydı', test: 'Test paneli' };
   var paintNav = function () {
     $('#nav').innerHTML = NAV.map(function (n) {
       if (n.g) return '<div class="grp">' + n.g + '</div>';
@@ -140,7 +142,7 @@
     m.innerHTML = '<div class="card"><div class="skel" style="width:40%"></div><div class="skel" style="margin-top:12px"></div><div class="skel" style="margin-top:12px;width:70%"></div></div>';
     VIEWS[k](m).catch(function (e) { m.innerHTML = '<div class="card"><h2>Yüklenemedi</h2><p class="err">' + X(errMsg(e)) + '</p><button type="button" class="btn sm" data-go="' + k + '">tekrar dene</button></div>'; });
   };
-  var refreshCounts = async function () { try { var o = await rpc('admin_overview'); COUNTS = o; paintNav(); $('#maint-pill').hidden = !(SETTINGS_CACHE && SETTINGS_CACHE.maintenance_mode && SETTINGS_CACHE.maintenance_mode.enabled); return o; } catch (e) { return null; } };
+  var refreshCounts = async function () { try { var o = await rpc('admin_overview'); try { TEST = await rpc('admin_test_overview'); o.test_open_hata = TEST.open_hata; } catch (te) { TEST = null; } COUNTS = o; paintNav(); $('#maint-pill').hidden = !(SETTINGS_CACHE && SETTINGS_CACHE.maintenance_mode && SETTINGS_CACHE.maintenance_mode.enabled); return o; } catch (e) { return null; } };
   var SETTINGS_CACHE = null;
   var start = function () {
     $('#gate').hidden = true; $('#app').hidden = false; $('#me-name').textContent = ME.name || ME.email || 'yönetici';
@@ -201,7 +203,7 @@
       k('r', 'Açık şikâyet', o.open_reports, o.open_reports ? 'incelemeni bekliyor' : 'temiz', 'reports', o.open_reports > 0) +
       k('m', 'Okunmamış mesaj', o.unread_messages, 'iletişim formundan', 'inbox', o.unread_messages > 0) +
       k('g', 'Google ile gelen', o.google_users, NF(o.incomplete) + ' profili eksik · ' + NF(o.suspended) + ' askıda', 'users') +
-      '</div><div class="grid g-wide"><div class="card"><h2>Son 30 gün</h2><p class="sub">Günlük yeni kayıt, belge ve özet kartı</p>' + chart30(o.series || []) + '</div>' +
+      '</div>' + testStrip() + '<div class="grid g-wide"><div class="card"><h2>Son 30 gün</h2><p class="sub">Günlük yeni kayıt, belge ve özet kartı</p>' + chart30(o.series || []) + '</div>' +
       '<div class="card"><h2>Bölümlere göre öğrenci</h2><p class="sub">' + NF(o.users_total) + ' öğrenci</p><div class="bars">' + (o.by_department || []).map(function (b) { return '<div class="bar"><span title="' + X(dept(b.d === '(seçilmedi)' ? '' : b.d)) + '">' + X(dept(b.d === '(seçilmedi)' ? '' : b.d)) + '</span><span class="t"><i data-w="' + Math.round(b.n / tot * 100) + '"></i></span><b>' + b.n + '</b></div>'; }).join('') + '</div></div></div>';
     /* sayaçlar ve çubuklar canlansın */
     requestAnimationFrame(function () {
@@ -210,6 +212,56 @@
       $$('[data-count]', m).forEach(function (el) { var to = +el.getAttribute('data-count'), t0 = performance.now(); var f = function (t) { var p = Math.min(1, (t - t0) / 700); el.textContent = NF(Math.round(to * (1 - Math.pow(1 - p, 3)))); if (p < 1) requestAnimationFrame(f); }; requestAnimationFrame(f); });
     });
     $$('.kpi.go', m).forEach(function (el) { el.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(el.getAttribute('data-go')); } }); });
+  };
+
+  /* ---------- test paneli (tp_* tabloları; bkz. test-paneli.sql, test-paneli-2.sql) ---------- */
+  var TK = { hata: ['Hata', 'tk-hata'], tasarim: ['Tasarım', 'tk-tasarim'], oneri: ['Öneri', 'tk-oneri'] };
+  var TS = { yeni: 'Yeni', inceleniyor: 'İnceleniyor', duzeltildi: 'Düzeltildi', dogrulandi: 'Doğrulandı' };
+  var tKind = function (k) { var x = TK[k] || [k, '']; return '<span class="pill ' + x[1] + '"><i></i>' + x[0] + '</span>'; };
+  var tStat = function (s) { return '<span class="pill ts-' + X(s) + '">' + X(TS[s] || s) + '</span>'; };
+  var tLink = function (no) { return 'panel.html#k-' + encodeURIComponent(no); };
+  var testStrip = function () {
+    if (!TEST) return '';
+    return '<a class="card tst-strip" href="panel.html" target="_blank" rel="noopener"><span class="mono">TEST PANELİ</span>' +
+      '<span><b class="tk-t hata">' + NF(TEST.open_hata) + '</b> açık hata</span><span><b class="tk-t tasarim">' + NF(TEST.open_tasarim) + '</b> tasarım</span><span><b class="tk-t oneri">' + NF(TEST.open_oneri) + '</b> öneri</span>' +
+      '<span class="muted">bu hafta ' + NF(TEST.week_new) + ' yeni · ' + NF(TEST.week_done) + ' doğrulandı</span><span class="go-t" data-go="test">ayrıntı →</span></a>';
+  };
+  VIEWS.test = async function (m) {
+    var t;
+    try { t = await rpc('admin_test_overview'); TEST = t; }
+    catch (e) {
+      if (/admin_test_overview|PGRST202|does not exist|tp_/i.test(String((e && (e.message || e.code)) || ''))) {
+        m.innerHTML = '<div class="card"><h2>Test paneli henüz kurulmadı</h2><p class="sub">Supabase → SQL Editor\'de önce <b>test-paneli.sql</b>, sonra <b>test-paneli-2.sql</b> dosyasını çalıştır; bu sayfa kendiliğinden dolar.</p></div>';
+        return;
+      }
+      throw e;
+    }
+    var tot = Math.max(1, t.total), bs = t.by_status || {}, pmax = Math.max(1, Math.max.apply(null, (t.by_page || []).map(function (p) { return p.n; }).concat([1])));
+    var kpi = function (cls, label, val, sub, alert) { return '<div class="kpi tst-kpi ' + cls + (alert ? ' alert' : '') + '"><div class="k">' + label + '</div><div class="v">' + NF(val) + '</div><div class="s">' + sub + '</div></div>'; };
+    var row = function (x, withVotes) {
+      return '<a class="item tst-item" href="' + tLink(x.no) + '" target="_blank" rel="noopener"><div class="item-h">' + tKind(x.kind) + '<b>#' + X(x.no) + ' ' + X(x.title) + '</b>' + tStat(x.status) + '<span class="t">' + AGO(x.created_at) + '</span></div>' +
+        '<span class="muted" style="font-size:12.5px">' + X(x.author) + (x.page ? ' · ' + X(x.page) : '') + (x.source === 'uygulama' ? ' · uygulama içinden' : '') +
+        (withVotes && (x.votes || x.comments) ? ' · ' + (x.votes ? '+' + x.votes + ' bende de' : '') + (x.votes && x.comments ? ', ' : '') + (x.comments ? x.comments + ' yorum' : '') : '') + '</span></a>';
+    };
+    m.innerHTML =
+      '<div class="tst-head"><p class="muted" style="margin:0">Şevval, Asude ve Cemre\'nin hata, tasarım ve öneri kayıtları. Kayıtları düzenlemek ve durumunu değiştirmek Test Paneli\'nde.</p><a class="btn blue sm" href="panel.html" target="_blank" rel="noopener">Test panelini aç ↗</a></div>' +
+      '<div class="kpis">' +
+        kpi('hata', 'Açık hata', t.open_hata, 'doğrulanmamış', t.open_hata > 0) +
+        kpi('tasarim', 'Açık tasarım eksiği', t.open_tasarim, 'doğrulanmamış') +
+        kpi('oneri', 'Açık öneri', t.open_oneri, 'doğrulanmamış') +
+        kpi('', 'Bu hafta', t.week_new, NF(t.week_done) + ' doğrulandı · ' + NF(t.total) + ' toplam') +
+      '</div>' +
+      '<div class="grid g-wide"><div class="card"><h2>Son kayıtlar</h2><p class="sub">' + NF(t.from_app) + ' kayıt uygulama içindeki "Bildir" düğmesinden geldi</p><div class="list">' +
+        ((t.recent || []).length ? t.recent.map(function (x) { return row(x, true); }).join('') : '<p class="muted">Henüz kayıt yok.</p>') + '</div></div>' +
+      '<div class="grid" style="align-content:start"><div class="card"><h2>Durumlar</h2><p class="sub">' + NF(t.total) + ' kayıt</p><div class="bars">' +
+        ['yeni', 'inceleniyor', 'duzeltildi', 'dogrulandi'].map(function (s) { var n = bs[s] || 0; return '<div class="bar"><span>' + TS[s] + '</span><span class="t"><i class="ts-bar ' + s + '" style="width:' + Math.round(n / tot * 100) + '%"></i></span><b>' + n + '</b></div>'; }).join('') + '</div></div>' +
+        '<div class="card"><h2>Sayfalara göre açık kayıt</h2><p class="sub">en çok sorun çıkan yerler</p><div class="bars">' +
+        ((t.by_page || []).length ? t.by_page.slice(0, 10).map(function (p) { return '<div class="bar"><span title="' + X(p.page) + '">' + X(p.page) + '</span><span class="t"><i style="width:' + Math.round(p.n / pmax * 100) + '%"></i></span><b>' + p.n + '</b></div>'; }).join('') : '<p class="muted">Açık kayıt yok.</p>') + '</div></div></div></div>' +
+      '<div class="grid g-wide" style="margin-top:16px"><div class="card"><h2>Ekip</h2><p class="sub">kim ne kadar kayıt açtı</p><div class="tbl-w"><table class="tst-team"><thead><tr><th>Kişi</th><th>Açtı</th><th>Açık</th><th>Yorum</th><th>Son</th></tr></thead><tbody>' +
+        (t.people || []).map(function (p) { return '<tr><td><div class="who"><span class="av" style="background:' + X(p.color) + ';color:#fff">' + X(ini(p.name)) + '</span><span><b>' + X(p.name) + (p.role === 'owner' ? ' <span class="pill">sahip</span>' : '') + '</b></span></div></td><td>' + NF(p.opened) + '</td><td>' + NF(p.open) + '</td><td>' + NF(p.comments) + '</td><td class="muted">' + (p.last_at ? AGO(p.last_at) : '—') + '</td></tr>'; }).join('') +
+        '</tbody></table></div><p class="muted" style="font-size:12.5px;margin:10px 0 0">Ekibe kişi eklemek ya da çıkarmak için Test Paneli\'nde sağ üstteki ekip simgesini kullan.</p></div>' +
+      '<div class="card"><h2>En eski açık kayıtlar</h2><p class="sub">en uzun süredir bekleyenler</p><div class="list">' +
+        ((t.oldest || []).length ? t.oldest.map(function (x) { return row(x, false); }).join('') : '<p class="muted">Açık kayıt yok.</p>') + '</div></div></div>';
   };
 
   /* ---------- kullanıcılar ---------- */
