@@ -60,30 +60,50 @@ test('stil ve script dashboard.html\'e bagli, script acadex-ink.js\'ten sonra', 
   assert.ok(fs.existsSync(path.join(ROOT, 'css/acadex-medlab.css')));
 });
 
-test('Anatomi Lab: sayfanin istedigi her data/ dosyasi repoda var', () => {
-  const m = /const FILES = (\{[^}]+\})/.exec(lab);
-  assert.ok(m, 'FILES tablosu bulunamadi');
-  const files = Object.values(vm.runInNewContext('(' + m[1] + ')'));
-  assert.ok(files.length >= 8, 'en az 8 veri dosyasi beklenir');
-  for (const f of files) {
-    const p = path.join(ROOT, 'labs/anatomi', f);
-    assert.ok(fs.existsSync(p), `eksik: labs/anatomi/${f}`);
-    assert.match(fs.readFileSync(p, 'utf8').slice(0, 60), /window\.AXD=window\.AXD\|\|\{\}/, `${f} AXD'ye yazmiyor`);
-  }
-  assert.ok(fs.existsSync(path.join(ROOT, 'labs/anatomi/data/LISANS.txt')), 'CC BY-SA lisans notu kopyalanmali');
+/* Fizyo Lab (tasarim klasorundeki fizyo-lab-v2.html) ayri veri tasimiyor: FILES tablosu
+   '../anatomi/data/...' der, yani labs/fizyo/ ile labs/anatomi/ kardes kalmali. */
+const LABS = { anatomi: lab, fizyo: read('labs/fizyo/index.html') };
+for (const [k, src] of Object.entries(LABS)) {
+  test(`${k} lab: sayfanin istedigi her veri dosyasi repoda var`, () => {
+    const m = /const FILES = (\{[^}]+\})/.exec(src);
+    assert.ok(m, 'FILES tablosu bulunamadi');
+    const files = Object.values(vm.runInNewContext('(' + m[1] + ')'));
+    assert.ok(files.length >= 8, 'en az 8 veri dosyasi beklenir');
+    for (const f of files) {
+      const p = path.join(ROOT, 'labs', k, f);
+      assert.ok(fs.existsSync(p), `eksik: labs/${k}/${f}`);
+      assert.match(fs.readFileSync(p, 'utf8').slice(0, 60), /window\.AXD=window\.AXD\|\|\{\}/, `${f} AXD'ye yazmiyor`);
+    }
+  });
+
+  test(`${k} lab: goreli yol disinda yerel varlik istemiyor (kopya kendi basina calisir)`, () => {
+    const srcs = [...src.matchAll(/\b(?:src|href)=["']([^"'#]+)["']/g)].map(x => x[1]);
+    const local = srcs.filter(u => !/^(https?:|data:|mailto:|javascript:|\$\{)/.test(u)); // ${...}: JS sablonunda dis baglanti
+    assert.deepEqual(local, [], 'yerel varlik referansi: ' + local.join(', '));
+  });
+
+  test(`${k} lab: tasarim onizleme cubugu (Cihaz / Lab arkadasi simulasyonu) uygulamada gizli`, () => {
+    const tb = /<div class="tb"[^>]*>/.exec(src);
+    assert.ok(tb, '.tb ogesi silinmemeli: #tbW/#tbF script\'leri ona bagli');
+    assert.match(tb[0], /display:none/);
+    assert.match(src, /id="tbW"/);
+  });
+}
+
+test('3B model lisans notu (CC BY-SA) veriyle birlikte duruyor', () => {
+  assert.ok(fs.existsSync(path.join(ROOT, 'labs/anatomi/data/LISANS.txt')));
+  assert.match(html, /3B model: Z-Anatomy · BodyParts3D \(DBCLS\) · CC BY-SA 4.0/);
 });
 
-test('Anatomi Lab: goreli yol disinda yerel varlik istemiyor (kopya kendi basina calisir)', () => {
-  const srcs = [...lab.matchAll(/\b(?:src|href)=["']([^"'#]+)["']/g)].map(x => x[1]);
-  const local = srcs.filter(u => !/^(https?:|data:|mailto:|javascript:|\$\{)/.test(u)); // ${...}: JS sablonunda dis baglanti
-  assert.deepEqual(local, [], 'yerel varlik referansi: ' + local.join(', '));
-});
-
-test('Anatomi Lab: tasarim onizleme cubugu (Cihaz / Lab arkadasi simulasyonu) uygulamada gizli', () => {
-  const tb = /<div class="tb"[^>]*>/.exec(lab);
-  assert.ok(tb, '.tb ogesi silinmemeli: #tbW/#tbF script\'leri ona bagli');
-  assert.match(tb[0], /display:none/);
-  assert.match(lab, /id="tbW"/);
+test('Fizyo Lab karti acilabilir, kapagi var, "tip ogrencileri icin" yaziyor', () => {
+  const i = html.indexOf('data-medlab-open="fizyo"');
+  assert.ok(i > 0, 'Fizyo Lab karti buton olmali (yakinda karti degil)');
+  const card = html.slice(i, html.indexOf('</button>', i));
+  assert.match(card, /<span class="axm-lab-t disp">Fizyo Lab<\/span>/);
+  assert.match(card, /tıp öğrencileri için/);
+  const img = /<img src="([^"]+)"/.exec(card);
+  assert.ok(img && fs.existsSync(path.join(ROOT, img[1])), 'Fizyo Lab kapagi yok');
+  assert.doesNotMatch(html, /axm-soon/, 'yakinda karti kalmamali');
 });
 
 /* ---------- davranis: acadex-medlab.js en kucuk sahte DOM'da ---------- */
@@ -138,6 +158,10 @@ test('katman body\'ye tasinir, kart tiklaninca Anatomi Lab iframe\'e yuklenir', 
   assert.equal(run.querySelector('[data-medlab-title]').textContent, 'Anatomi Lab');
   assert.ok(body.classList.contains('axm-open'));
   assert.equal(ctx.AX_MEDLABS.anatomi.src, 'labs/anatomi/index.html');
+  sec.fire('click', { target: el({ 'data-medlab-open': 'fizyo' }) });
+  assert.equal(frame.getAttribute('src'), 'labs/fizyo/index.html', 'Fizyo Lab ayni katmanda acilmali');
+  assert.equal(run.querySelector('[data-medlab-title]').textContent, 'Fizyo Lab');
+  assert.equal(run.querySelector('[data-medlab-newtab]').href, 'labs/fizyo/index.html');
 });
 
 test('Esc ve "MedLab\'e don" kapatir; baska sekmeye gecis de kapatir', () => {
