@@ -1,0 +1,80 @@
+/* ===== Acadex MedLab (dashboard.html → #medlab-view, js/acadex-medlab.js) =====
+   Study Lab'in kâğıt-mürekkep dili; tezgâh ahşap yerine klinik çelik ve önlük yeşili. */
+#medlab-view.axm{--mc:#C9483B;--steel:#C8D3DC;--steel2:#97A6B4;--scrub:#2E8C82;--card:#FFFDF7}
+#medlab-view.axm *,.axm-run *{box-sizing:border-box}
+#medlab-view.axm .disp,.axm-run .disp{font-family:"Bricolage Grotesque",system-ui,sans-serif}
+#medlab-view.axm .mono,.axm-run .mono{font-family:"JetBrains Mono",ui-monospace,monospace}
+#medlab-view.axm .hand{font-family:"Caveat","Segoe Print","Bradley Hand",cursive;font-weight:600}
+#medlab-view.axm .vh{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+#medlab-view.axm .axm-main{padding:24px 28px 140px;color:var(--ink,#1A2A5C)}
+@media (prefers-reduced-motion:no-preference){#medlab-view.axm .land{animation:axm-land .7s cubic-bezier(.3,1.35,.5,1) both}}
+@keyframes axm-land{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
+
+/* ---------- başlık ---------- */
+#medlab-view.axm .axm-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px 24px;margin-bottom:14px}
+#medlab-view.axm .eyb{display:table;font-size:24px;color:var(--scrub);transform:rotate(-2deg)}
+#medlab-view.axm .axm-head h1{margin:0;font-size:clamp(30px,3vw,42px);letter-spacing:-.02em;line-height:1.05;font-weight:800;color:var(--navy,#0D1838);display:inline-block;padding-bottom:8px;background:var(--inkline) no-repeat 0 100%/100% 8px}
+#medlab-view.axm .axm-sub{margin:6px 0 0;font-size:22px;color:var(--muted,#4B5675)}
+#medlab-view.axm .axm-ecg{width:220px;max-width:40vw;height:60px}
+#medlab-view.axm .axm-ecg svg{width:100%;height:100%;fill:none;stroke:var(--mc);stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:420;stroke-dashoffset:0}
+@media (prefers-reduced-motion:no-preference){#medlab-view.axm .axm-ecg svg{animation:axm-beat 2.6s linear infinite}}
+@keyframes axm-beat{from{stroke-dashoffset:420}to{stroke-dashoffset:-420}}
+
+/* ---------- tepsi ve raf ---------- */
+#medlab-view.axm .axm-tray{position:relative;padding:8px 0 0}
+#medlab-view.axm .axm-shelf{position:relative;display:flex;align-items:flex-end;gap:18px;height:74px;margin:0 6px 4px;padding:0 18px;border-bottom:9px solid var(--steel2);border-radius:0 0 3px 3px;box-shadow:0 10px 12px -10px rgba(20,40,60,.5)}
+#medlab-view.axm .axm-shelf-note{flex:1;text-align:center;font-size:24px;color:var(--soft,#6A7593);transform:rotate(-1.5deg);padding-bottom:10px}
+#medlab-view.axm .axm-tube{position:relative;width:16px;height:52px;border:2px solid #1A2A5C;border-top-width:5px;border-radius:2px 2px 9px 9px;background:rgba(255,255,255,.6);overflow:hidden}
+#medlab-view.axm .axm-tube i{position:absolute;left:0;right:0;bottom:0;height:60%;background:#D8584A;opacity:.75}
+#medlab-view.axm .axm-tube.t2 i{background:#F2C14E;height:45%}
+#medlab-view.axm .axm-pill{width:40px;height:18px;margin-bottom:4px;border:2px solid #1A2A5C;border-radius:10px;background:linear-gradient(90deg,#9DB8FF 50%,#fff 50%);transform:rotate(-14deg)}
+#medlab-view.axm .axm-cross{position:relative;width:34px;height:34px;margin-bottom:6px}
+#medlab-view.axm .axm-cross::before,#medlab-view.axm .axm-cross::after{content:"";position:absolute;background:var(--mc);border:2px solid #1A2A5C;border-radius:3px}
+#medlab-view.axm .axm-cross::before{left:11px;top:0;width:12px;height:34px}
+#medlab-view.axm .axm-cross::after{left:0;top:11px;width:34px;height:12px}
+#medlab-view.axm .axm-tabletop{height:16px;margin:4px 0 0;border-radius:3px;background:linear-gradient(var(--steel),var(--steel2));box-shadow:0 14px 18px -14px rgba(20,40,60,.6)}
+
+/* ---------- laboratuvar kartları ---------- */
+#medlab-view.axm .axm-labs{list-style:none;margin:0;padding:26px 6px 10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:26px 22px}
+#medlab-view.axm .axm-lab{transform:rotate(var(--r,0deg))}
+@media (prefers-reduced-motion:no-preference){#medlab-view.axm .axm-lab{animation:axm-drop .55s cubic-bezier(.2,1.3,.4,1) both;animation-delay:calc(var(--i) * 80ms)}}
+@keyframes axm-drop{from{opacity:0;transform:translateY(-18px)}to{opacity:1;transform:rotate(var(--r))}}
+#medlab-view.axm .axm-labb{position:relative;display:flex;flex-direction:column;align-items:flex-start;width:100%;height:100%;padding:0 0 18px;border:0;border-radius:6px;background:var(--card);box-shadow:0 1px 0 #E1E5EE,0 22px 28px -22px rgba(13,24,56,.6);text-align:left;font:inherit;color:#1A2A5C;overflow:hidden}
+#medlab-view.axm button.axm-labb{cursor:pointer;transition:transform .25s cubic-bezier(.3,1.4,.5,1),box-shadow .25s}
+#medlab-view.axm .axm-labb::before{content:"";position:absolute;left:0;right:0;top:0;height:6px;z-index:1;background:var(--mc)}
+#medlab-view.axm button.axm-labb:hover{transform:translateY(-6px) rotate(calc(var(--r) * -1));box-shadow:0 1px 0 #E1E5EE,0 30px 34px -22px rgba(13,24,56,.7)}
+#medlab-view.axm button.axm-labb:focus-visible{outline:3px solid #2F6BFF;outline-offset:4px}
+#medlab-view.axm .axm-cover{position:relative;display:block;width:100%;aspect-ratio:864/352;background:#ECEFF3;border-bottom:1.4px solid #E1E5EE}
+#medlab-view.axm .axm-cover img{display:block;width:100%;height:100%;object-fit:cover;object-position:30% 50%}
+#medlab-view.axm .axm-cover-soon{display:grid;place-items:center;background:repeating-linear-gradient(0deg,transparent 0 17px,#E4EEEC 17px 18px),repeating-linear-gradient(90deg,#F4FAF8 0 17px,#E4EEEC 17px 18px)}
+#medlab-view.axm .axm-cover-soon svg{width:60%;height:60%;fill:none;stroke:var(--mc);stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+#medlab-view.axm .axm-tag{position:absolute;top:14px;right:12px;padding:2px 8px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#fff;background:var(--mc);border-radius:3px;transform:rotate(3deg)}
+#medlab-view.axm .axm-lab-t{margin:14px 18px 0;font-size:24px;font-weight:800;letter-spacing:-.01em;color:var(--navy,#0D1838)}
+#medlab-view.axm .axm-lab-for{margin:0 18px;font-size:22px;color:var(--mc);transform:rotate(-1.5deg)}
+#medlab-view.axm .axm-lab-d{margin:6px 18px 0;font-size:14.5px;line-height:1.5;color:var(--muted,#4B5675)}
+#medlab-view.axm .axm-soon .axm-labb{opacity:.72}
+#medlab-view.axm .axm-cite{margin:18px 6px 0;font-size:11.5px;color:var(--soft,#6A7593)}
+
+/* ---------- tam ekran laboratuvar ---------- */
+.axm-run{position:fixed;inset:0;z-index:6000;display:flex;flex-direction:column;background:#F6F7FB}
+.axm-run[hidden]{display:none}
+.axm-run-top{display:flex;align-items:center;gap:14px;min-height:56px;padding:6px 16px;background:#FFFDF7;border-bottom:1.4px solid #E1E5EE}
+.axm-run-top h2{flex:1;margin:0;font-size:20px;font-weight:800;color:#0D1838;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.axm-back{display:inline-flex;align-items:center;gap:7px;min-height:44px;padding:8px 13px;border:1.4px solid #C9D1E1;background:#fff;border-radius:7px 9px 6px 8px;font:inherit;font-size:14px;font-weight:600;color:#1A2A5C;cursor:pointer}
+.axm-back svg{width:18px;height:18px;fill:none;stroke:#C9483B;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.axm-back:hover{border-color:#C9483B}
+.axm-back:focus-visible,.axm-newtab:focus-visible{outline:2px solid #2F6BFF;outline-offset:3px}
+.axm-newtab{font-size:14px;font-weight:600;color:#2F6BFF;text-underline-offset:4px}
+.axm-frame{flex:1;width:100%;border:0;background:#fff}
+body.axm-open{overflow:hidden}
+body.axm-open #acadia-widget-container,body.axm-open #pomodoro-widget-container,body.axm-open .ax-bnav{display:none!important}
+
+@media (max-width:760px){
+  #medlab-view.axm .axm-main{padding:18px 14px 140px}
+  #medlab-view.axm .axm-ecg{display:none}
+  #medlab-view.axm .axm-shelf-note{font-size:19px}
+  #medlab-view.axm .axm-labs{grid-template-columns:minmax(0,1fr);gap:18px;padding-top:18px}
+  .axm-run-top{padding:6px 10px;gap:10px}
+  .axm-run-top h2{font-size:17px}
+  .axm-newtab{display:none}
+}

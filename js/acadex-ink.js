@@ -9367,7 +9367,7 @@ var SBX = (function () {
   var log = Q('[data-log]'), form = Q('[data-form]'), ta = Q('[data-in]'), sendB = Q('[data-send]'), stopB = Q('[data-stop]'), ctxEl = Q('[data-ctx]');
   var toast = layer.querySelector('[data-axa-toast]');
   var S = { msgs: [], running: false, stop: false, n: 0 };
-  var VIEWS = { home: 'Bugün', docs: 'Belgelerim', cards: 'Bilgi kartları', feed: 'Bölüm akışı', planner: 'Planlayıcı', notebook: 'Çalışma defteri', sourcehub: 'Kaynakla çalış', exams: 'Sınav platformu', studylab: 'Study Lab', acadexsunum: 'Acadex sunum', sandbox: 'Geliştirici sandbox', 'sandbox-interaction': 'Sandbox paneli', settings: 'Ayarlar' };
+  var VIEWS = { home: 'Bugün', docs: 'Belgelerim', cards: 'Bilgi kartları', feed: 'Bölüm akışı', planner: 'Planlayıcı', notebook: 'Çalışma defteri', sourcehub: 'Kaynakla çalış', exams: 'Sınav platformu', studylab: 'Study Lab', medlab: 'MedLab', acadexsunum: 'Acadex sunum', sandbox: 'Geliştirici sandbox', 'sandbox-interaction': 'Sandbox paneli', settings: 'Ayarlar' };
   var modalOpen = function () { var m = document.getElementById('study-card-modal'); return !!(m && m.classList.contains('active')); };
   var openCard = function () { return modalOpen() ? lsafe(function () { return currentActiveStudyCard; }, null) : null; };
   var VIEWNOW = null;
@@ -9404,6 +9404,7 @@ var SBX = (function () {
     sourcehub: ['Son özetimi oku ve bana 3 soru sor', 'Bu belgenin en önemli 5 kavramını açıkla'],
     exams: ['En zayıf konumdan sınav hazırla', 'Son sınav sonucumu yorumla', 'Yanlışlarımdan bilgi kartı çıkar'],
     studylab: ['Bugün hangi yöntemle çalışayım?', 'Feynman istasyonunu son özetimle aç', 'Bu hafta ne kadar çalıştım?'],
+    medlab: ['Üst ekstremite kaslarını bana sor', 'Brakiyal pleksusu anlat', 'Bu hafta anatomi için çalışma planı kur'],
     acadexsunum: ['Son özetimden 8 slaytlık sunum kurgula', 'Sunum için kurumsal tonda kurgu hazırla'],
     study_card_reader: ['Bu özetten 5 soruluk sınav hazırla', 'Bu özetten bilgi kartı çıkar', 'Bu özetin sesli anlatımını hazırla'],
     sandbox: ['Projem için yapılacaklar listesini deftere yaz'], 'sandbox-interaction': ['Bölümümdeki projeleri aç'], settings: ['Bu hafta için çalışma planı kur']
@@ -9762,7 +9763,7 @@ var SBX = (function () {
   var S = function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} };
 
   /* ---------- sayfa geçişi: yeni sayfa masaya bırakılan kâğıt gibi gelir ---------- */
-  var ORDER = ['home', 'planner', 'notebook', 'cards', 'sourcehub', 'studylab', 'docs', 'feed', 'acadexsunum', 'exams', 'settings', 'sandbox-interaction', 'sandbox'];
+  var ORDER = ['home', 'planner', 'notebook', 'cards', 'sourcehub', 'studylab', 'medlab', 'docs', 'feed', 'acadexsunum', 'exams', 'settings', 'sandbox-interaction', 'sandbox'];
   var last = lsafe(function () { return currentActiveTab; }, 'home') || 'home';
   if (typeof switchDashboardView === 'function') {
     var oSw = switchDashboardView;

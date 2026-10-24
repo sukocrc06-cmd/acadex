@@ -566,6 +566,7 @@
     { t: 'Bilgi kartları', s: 'desteler ve tekrar kutusu', k: 'kart deste tekrar flashcard', v: 'cards' },
     { t: 'Kaynakla çalış', s: 'belge, özet ve Acadia yan yana', k: 'kaynak ozet belge oku', v: 'sourcehub' },
     { t: 'Acadex Study Lab', s: 'çalışma yöntemleri', k: 'study lab yontem pomodoro feynman', v: 'studylab' },
+    { t: 'Acadex MedLab', s: 'tıp öğrencileri için laboratuvarlar', k: 'medlab tip anatomi lab 3b model spot', v: 'medlab' },
     { t: 'Belgelerim', s: 'yüklediğin dosyalar', k: 'belge dosya pdf yukle', v: 'docs' },
     { t: 'Bölüm akışı', s: 'arkadaşlarının özetleri', k: 'akis bolum pano arkadas', v: 'feed' },
     { t: 'Acadex sunum', s: 'asetatlar ve prova', k: 'sunum slayt prova', v: 'acadexsunum' },
