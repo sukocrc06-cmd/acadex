@@ -169,6 +169,21 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2,
    =========================================================================== */
 const JSON_GECERLI_KACIS = new Set(['"', '\\', '/', 'b', 'f', 'n', 'r', 't', 'u'])
 
+/* IKI HARFLI LaTeX KOMUTLARI (24.10.2026) — bkz. repairLatexEscapes.
+ *
+ * 'b', 'f', 'r', 't' JSON'da gecerli kacis oldugu icin bu harflerle baslayan
+ * LaTeX komutlari ozel ayirt etme gerektiriyor. repairLatexEscapes'teki
+ * genel dal prefiksten SONRA en az iki harf ariyor, yani toplam uc harfli
+ * komutlari taniyor (\rho, \tau, \beta). Iki harfli olanlar disarida
+ * kaliyor ve gercek kontrol karakterine donuyordu — olculdu:
+ *   \to -> TAB, \bm -> geri silme, \rm -> satir basi
+ *
+ * Kapali liste, serbest desen ({1,}) yerine bilerek: gercek bir TAB'in
+ * ardindan harf gelmesi de mumkun ("Adim 1:\tthe result"). Boylece yalnizca
+ * BILINEN komutlar kacirilir. Yeni bir iki harfli komut lazim olursa buraya
+ * eklenir; uc harf ve uzunu genel dal zaten yakaliyor. */
+const LATEX_IKI_HARFLI = new Set(['to', 'bm', 'rm', 'bf', 'tt'])
+
 function repairLatexEscapes(json: string): string {
   const s = String(json || '')
   let out = ''
@@ -211,8 +226,49 @@ function repairLatexEscapes(json: string): string {
       out += c + n; i++; continue
     }
 
+    /* \u AMA 4 ONALTILIK YOK (24.10.2026) — SERT AYRISTIRMA HATASI.
+     *
+     * 'u' JSON'da gecerli kacis oldugu icin yukaridaki gecersiz-kacis dali
+     * onu gormuyor; 4 hex yoksa unicode dali da dusuyor; 'bfrt' kumesinde
+     * olmadigi icin LaTeX dali da dusuyordu. Akis en alttaki "gercek JSON
+     * kacisi" satirina inip `\u`'yu OLDUGU GIBI yaziyordu ve bu JSON'da
+     * gecersizdir. Olculdu:
+     *
+     *   {"a":"\upsilon x"}    -> Bad Unicode escape in JSON
+     *   {"a":"\underline{x}"} -> Bad Unicode escape in JSON
+     *   {"a":"\uparrow"}      -> Bad Unicode escape in JSON
+     *
+     * Yani \upsilon, \underline, \uparrow, \underbrace gecen TEK bir formul
+     * butun Gemini taslagini dusuruyordu: 8222'deki gecerlilik kapisi
+     * patliyor, 105 saniye + 1 RPD yaniyor ve kart Groq yedeginden cikiyor.
+     * Buraya dusen bir \u her zaman LaTeX komutudur. */
+    if (n === 'u') { out += '\\\\' + n; i++; continue }
+
     // LaTeX komutu: \beta, \frac, \tau, \rho ... (\n disarida — basliga bak)
     if (n !== 'n' && 'bfrt'.includes(n) && /^[A-Za-z]{2,}/.test(s.slice(i + 2))) {
+      out += '\\\\' + n; i++; continue
+    }
+
+    /* IKI HARFLI LaTeX KOMUTLARI (24.10.2026).
+     *
+     * Ustteki dal prefiksten SONRA en az iki harf istiyor, yani toplam uc
+     * harfli komutlari taniyor (\rho, \tau, \beta). Iki harfli olanlar
+     * disarida kaliyor ve en alttaki satirda GERCEK kontrol karakterine
+     * donuyorlardi. Olculdu:
+     *
+     *   {"a":"x \to 0 y"} -> "x <TAB>o 0 y"
+     *   {"a":"\bm{x}"}    -> geri silme karakteri
+     *   {"a":"\rm{d}"}    -> satir basi
+     *
+     * Hata vermiyor, JSON gecerli, DIZE bozuk — bu fonksiyonun var olma
+     * sebebi olan hata sinifinin aynisi. `\lim_{n \to \infty}` yazan her
+     * formul ekranda ortadan kesiliyordu.
+     *
+     * Serbest desen ({1,}) kullanmiyorum: gercek bir TAB'in ardindan harf
+     * gelmesi de mumkun ("Adim 1:\tthe result"). Bunun yerine prefiksle
+     * baslayan IKI HARFLI LaTeX komutlarinin kapali listesi — boylece
+     * yalnizca bilinen komutlar kacirilir, rastgele \t+harf dizisi degil. */
+    if (n !== 'n' && LATEX_IKI_HARFLI.has(n + (s[i + 2] ?? ''))) {
       out += '\\\\' + n; i++; continue
     }
 
@@ -2302,12 +2358,45 @@ EXAM-FOCUSED CONTENT FILTERING (not optional):
 If any part-summary contains course administration/logistics — grading weights, exam format/rules, attendance policy, grade-appeal procedures, office hours, textbook title/edition — EXCLUDE it from your final summary entirely, even if it was mistakenly included in a part-summary. Only synthesize the actual academic subject matter (concepts, theories, definitions, processes, relationships, formulas, examples).`
 }
 
+/* MADDE METNINI SEKILDEN BAGIMSIZ OKU (24.10.2026).
+ *
+ * Model sema disina ciktiginda (ozellikle gpt-oss-20b, ki pencere 2
+ * sistematik olarak oraya dusuyor) `key_points` bazen dizge yerine
+ * {text}/{point} nesnesi donuyor. Dosyanin bir yerinde bunu tolere eden
+ * okuyucu VAR, iki dedupeByText cagrisi ise kimlik fonksiyonu geciyordu ve
+ * normalizeForDedup dizge bekledigi icin TypeError atiyordu:
+ *
+ *   normalizeForDedup({text: '...'}) -> (s || "").toLowerCase is not a function
+ *
+ * Istisna birlesme sirasinda olusuyor; en dis catch de belgeyi askida
+ * birakiyordu (bkz. hataIcinDocumentId). Yani tek bir sema sapmasi =
+ * sonsuz bekleyen ogrenci. Ayni mantigin iki ayri yazimi, yine. */
+function maddeMetni(p: any): string {
+  return typeof p === 'string' ? p : String(p?.text || p?.point || '')
+}
+
+/* KEY_TERMS DIZGE DIZISI OLARAK GELIRSE (24.10.2026).
+ *
+ * `if (!t || !t.term) continue` dizge girdiyi hicbir sayac artirmadan
+ * dusuruyordu: model `key_terms: ["Esneklik","GSYH"]` dondugunde
+ * "Window 2 ok: terms=24" yaziliyor, birlesim o 24'u HIC icermiyor ve
+ * hicbir satir neden gittigini soylemiyordu. Olculdu:
+ *   dedupeKeyTerms(['Esneklik','GSYH']) -> 0 kayit
+ *
+ * Artik dizge girdi {term, definition:''} olarak normalize ediliyor ve
+ * gercekten atilan kayit SAYILIP loglaniyor. Tanimsiz terim karta girebilir;
+ * cloze uretimi onlari zaten atliyor, sessiz kaybetmek daha kotu. */
 function dedupeKeyTerms(terms: any[]): any[] {
   const seen = new Map<string, any>()
+  let atilan = 0
   for (const t of terms) {
-    if (!t || !t.term) continue
-    const key = String(t.term).trim().toLowerCase()
-    if (!seen.has(key)) seen.set(key, t)
+    const kayit = typeof t === 'string' ? { term: t, definition: '' } : t
+    if (!kayit || !kayit.term) { if (t != null) atilan++; continue }
+    const key = String(kayit.term).trim().toLowerCase()
+    if (!seen.has(key)) seen.set(key, kayit)
+  }
+  if (atilan > 0) {
+    console.warn(`dedupeKeyTerms: ${atilan} kayit 'term' alani olmadigi icin atildi`)
   }
   return Array.from(seen.values())
 }
@@ -3127,9 +3216,30 @@ function mergeReviewOntoDraft(
     const dv = draft[field]
     if (!Array.isArray(rv)) continue
     const draftLen = Array.isArray(dv) ? dv.length : 0
-    if (rv.length >= draftLen) {
+    /* UZUNLUK YETMEZ, ICERIK DE OLCULMELI (24.10.2026).
+     *
+     * Tek kosul `rv.length >= draftLen` idi: eleman SAYISI esitse icerik ne
+     * olursa olsun kabul ediliyordu. Review kaynagin yalnizca ilk 11.000
+     * karakterini goruyor, taslak ise butun belgeyi kapsiyor; 20 maddeyi 20
+     * madde olarak geri yazip gormedigi (gec slaytlardan gelen) maddeleri
+     * kisaltirsa ya da bosaltirsa birlesme bunu AYNEN kabul ediyordu.
+     *
+     * Metin alanlarinda ayni karar icin NARRATIVE_MIN_KEEP_RATIO tabani
+     * zaten var (bkz. yukarisi); dizilerde hicbir karsiligi yoktu — ayni
+     * mantigin iki ayri yazimi. Simdi toplam KARAKTER de ayni tabandan
+     * geciyor. maddeMetni sekilden bagimsiz okuyor, yani dizge ve
+     * {text}/{point} nesneleri birlikte olculuyor; footnote gibi metin
+     * tasimayan alanlarda iki taraf da 0 olur ve kosul etkisiz kalir. */
+    const toplamKrk = (a: any[]) => a.reduce((n, x) => n + maddeMetni(x).length, 0)
+    const rvKrk = toplamKrk(rv)
+    const dvKrk = Array.isArray(dv) ? toplamKrk(dv) : 0
+    if (rv.length >= draftLen && (dvKrk === 0 || rvKrk >= dvKrk * NARRATIVE_MIN_KEEP_RATIO)) {
       if (rv.length > draftLen) notes.push(`${field} ${draftLen}→${rv.length}`)
       out[field] = rv
+    } else if (rv.length >= draftLen) {
+      notes.push(
+        `${field} KORUNDU (sayi ayni ama icerik kisaldi: review ${rvKrk} krk, taslak ${dvKrk} krk)`
+      )
     } else {
       notes.push(`${field} KORUNDU (review ${rv.length} dondu, taslakta ${draftLen})`)
     }
@@ -3140,7 +3250,18 @@ function mergeReviewOntoDraft(
     if (typeof review[field] === 'string' && review[field].trim()) out[field] = review[field].trim()
   }
   if (typeof review.is_quantitative === 'boolean') out.is_quantitative = review.is_quantitative
-  if (review.outline && typeof review.outline === 'object') out.outline = review.outline
+  /* OUTLINE HICBIR KONTROLDEN GECMIYORDU (24.10.2026).
+     24 maddelik bir anahat 2 maddeye dusebilir ve log bile basilmazdi.
+     Dizilerle ayni taban: madde sayisi dortte ucun altina inemez. */
+  if (review.outline && typeof review.outline === 'object') {
+    const yeniAdet = Array.isArray(review.outline.items) ? review.outline.items.length : 0
+    const eskiAdet = Array.isArray(draft?.outline?.items) ? draft.outline.items.length : 0
+    if (eskiAdet === 0 || yeniAdet >= eskiAdet * NARRATIVE_MIN_KEEP_RATIO) {
+      out.outline = review.outline
+    } else {
+      notes.push(`outline KORUNDU (review ${yeniAdet} madde dondu, taslakta ${eskiAdet})`)
+    }
+  }
   if (review.quality_gate && typeof review.quality_gate === 'object') {
     out.quality_gate = review.quality_gate
     // Log the verdict, always. Without it "degisiklik yok" is ambiguous in
@@ -3354,9 +3475,33 @@ const ANCHOR_STOPWORDS = new Set([
 ])
 
 /** Content-bearing terms of a string: >=4 chars, not a stopword, diacritics kept. */
+/* BUYUK "I" KELIMEYI IKIYE BOLUYORDU (24.10.2026).
+ *
+ * JavaScript'te 'İ'.toLowerCase() iki kod birimi uretiyor: 'i' + U+0307
+ * (birlesen ustteki nokta). U+0307 bir birlesme isareti oldugu icin
+ * \p{L} ve \p{N} kumelerine girmiyor, dolayisiyla asagidaki noktalama
+ * temizligi onu BOSLUGA cevirip kelimeyi ikiye boluyordu. Olculdu:
+ *
+ *   gateNormalize('İşsizlik Oranı') -> "i şsizlik oranı"
+ *   anchorTerms('İstatistik')       -> ["statistik"]   (bastaki 'i' 4
+ *                                      harf esigine takilip dusuyor)
+ *   anchorTerms('istatistik')       -> ["istatistik"]
+ *
+ * Sonuc: model terimi baslik bicimiyle (İ ile), kaynak cumle icinde kucuk
+ * harfle yazdiginda — ya da tersi — grounding kapisi terimi "uydurma"
+ * sayip siliyor, atif eslemesi de sayfa capasini kaybediyordu. Turkce bir
+ * urunde bu, kaynakta BIREBIR gecen icerigi silmek demek.
+ *
+ * Duzeltme once NFC ile birlestirip sonra kalan birlesen noktayi atiyor,
+ * yani 'İ' -> 'i'. Eslesme orani yalnizca YUKARI gidebilir: hicbir yeni
+ * eslesme uydurma bir terimi geciremez, cunku iki taraf da ayni
+ * fonksiyondan geciyor. Bu yuzden esiklerin kalibrasyonu degismiyor. */
+function trNormalize(s: string): string {
+  return String(s == null ? '' : s).normalize('NFC').toLowerCase().replace(/̇/g, '')
+}
+
 function anchorTerms(s: string): string[] {
-  return String(s == null ? '' : s)
-    .toLowerCase()
+  return trNormalize(s)
     .replace(/[^\p{L}\p{N}\s]/gu, ' ')
     .split(/\s+/)
     .filter(w => w.length >= 4 && !ANCHOR_STOPWORDS.has(w))
@@ -4120,9 +4265,30 @@ function sourceNumbers(text: string): Set<number> {
   const out = new Set<number>()
   const tokens = String(text || '').match(/-?\d[\d.,]*/g) || []
   for (const token of tokens) {
-    const cleaned = token.replace(/[.,]+$/, '').replace(/,(?=\d{3}\b)/g, '')
-    const value = Number(cleaned)
-    if (Number.isFinite(value)) {
+    /* TURKCE ONDALIK AYIRICI KUMEYI BOSALTIYORDU (24.10.2026).
+     *
+     * Burasi yalnizca Ingilizce okumayi deniyordu: `Number('0,09')` NaN
+     * oldugu icin Turkce bicimli bir kaynakta kume TAMAMEN bos kaliyordu.
+     * Olculdu — ayni cumlenin iki dili:
+     *
+     *   EN "Coefficient 0.09 and constant 484.12" -> [0.09, 0, 0.1, 484.12, …]
+     *   TR "Katsayi 0,09 ve sabit 484,12"         -> []
+     *
+     * Bos kume iki kapiyi birden yikiyordu: grafik kapisi
+     * (found/paired < CHART_MIN_GROUNDED_RATIO) BUTUN grafikleri, cozumlu
+     * ornek kapisi da BUTUN ornekleri "sayilar kaynakta yok" diye siliyordu.
+     * Yani Turkce bicimli sayi tasiyan her belgede — ekonometri/istatistik
+     * ders notu tam olarak bu — grafik ve ornek bolumu bos cikiyor ve log
+     * bunu "uydurma" diye raporluyordu.
+     *
+     * Dogru okuyucu AYNI DOSYADA zaten vardi: sayiOkumalari iki bicimi de
+     * cozuyor (`sayiOkumalari('0,09')` -> [0.09]). Ayni mantigin iki ayri
+     * yazimi ve ayrismasiydi; artik tek kaynaktan okunuyor.
+     *
+     * Kume buyudugu icin iki kapi biraz daha gecirgen olur — fonksiyonun
+     * kendi sozlesmesi bunu zaten kabul ediyor: fazladan uye yalnizca
+     * kontrolu DAHA MUSAMAHAKAR yapabilir, daha siki yapamaz. */
+    for (const value of sayiOkumalari(token)) {
       out.add(value)
       // The model routinely rounds what it read ("17,042 billion" -> 17000),
       // and a rounded value is still a read value, not an invented one.
@@ -4440,7 +4606,26 @@ function scrubUnsupportedYears(
     if (!years.length) return whole                       // "(3)" etc — not ours
     const bad = years.filter(y => !supported(y))
     if (!bad.length) return whole
-    removed.push(...bad)
+    /* LOG YALAN SOYLUYORDU (24.10.2026).
+     *
+     * Parantez butunuyle silindiginde icindeki DESTEKLENEN yillar da
+     * gidiyor, ama `removed`'a yalnizca desteklenmeyenler yaziliyordu.
+     * Olculdu, kaynak "began in 1929":
+     *   "Great Depression (1929-1933), the post-war era."
+     *     -> "Great Depression, the post-war era."   removed: ["1933"]
+     * 1929 metinden cikti ama hicbir yerde yazmadi.
+     *
+     * DAVRANIS BILEREK DEGISTIRILMEDI. Parantezli yarim bir aralik —
+     * "(1929)" — okuyana tam bir tarih gibi gorunur ve yanlis bilgi verir;
+     * bu yuzden parantezin tumden silinmesi savunulabilir bir editoryal
+     * karar ve "karttan birebir" notuyla teste baglanmis durumda. Degisen
+     * tek sey RAPORLAMA: `removed` artik metinden gercekten cikan butun
+     * yillari tasiyor, yani log olanı oldugu gibi soyluyor.
+     *
+     * Not: parantezsiz ayni aralik (2) numarali onarimda desteklenen ucu
+     * KORUYOR. Iki bicimin farkli davranmasi kasitli; biri cumle icinde
+     * akan bir tarih, oteki parantez icinde bir kunye. */
+    removed.push(...years)
     return ''
   })
 
@@ -4546,8 +4731,9 @@ function sanitizeNarrativeYears(
  * signal in the logs.
  */
 function gateNormalize(s: string): string {
-  return String(s == null ? '' : s)
-    .toLowerCase()
+  // Buyuk "I" icin bkz. trNormalize: 'İ'.toLowerCase() birlesen nokta
+  // uretiyor ve asagidaki temizlik onu bosluga cevirip kelimeyi boluyordu.
+  return trNormalize(s)
     .replace(/[^\p{L}\p{N}\s]/gu, ' ')   // dashes, quotes, brackets, punctuation
     .replace(/\s+/g, ' ')
     .trim()
@@ -4959,8 +5145,15 @@ function paragraphCount(text: string): number {
 
 function gateWorkedExampleArithmetic(examples: any[]): { kept: any[]; dropped: string[] } {
   const dropped: string[] = []
-  const kept = (Array.isArray(examples) ? examples : []).filter((ex: any) => {
-    if (!ex || typeof ex !== 'object') return false
+  const girdiler = Array.isArray(examples) ? examples : []
+  const kept = girdiler.filter((ex: any) => {
+    if (!ex || typeof ex !== 'object') {
+      /* SESSIZ DUSUS (24.10.2026): dizge seklinde gelen bir ornek hicbir
+         sayaca yazilmadan siliniyordu, yani log "0 dusuruldu" derken kart
+         eksiliyordu. */
+      if (ex != null) dropped.push(`sekil hatasi (${typeof ex}) — nesne bekleniyordu`)
+      return false
+    }
     const parts = [
       ...(Array.isArray(ex.steps) ? ex.steps : []),
       String(ex.final_answer || '')
@@ -4982,6 +5175,30 @@ function gateWorkedExampleArithmetic(examples: any[]): { kept: any[]; dropped: s
     )
     return false
   })
+
+  /* EMNIYET VALFI (24.10.2026) — grounding kapisindakinin aynisi.
+   *
+   * Bu kapida valf YOKTU: tek bir aritmetik yanlis-pozitifi butun cozumlu
+   * ornekleri silebiliyordu ve hicbir sey durdurmuyordu. Bugun somut bir
+   * ornegi olculdu — `sourceNumbers` Turkce ondalik ayiriciyi okumuyordu,
+   * yani Turkce bicimli bir belgede kaynak sayi kumesi BOS kaliyor ve
+   * sayiya dayanan kapilar her kaydi "kaynakta yok" diye siliyordu. O hata
+   * duzeltildi, ama ders genel: kartı BOSALTAN bir kapi, kutlesel uydurma
+   * konusunda hakli olmaktan cok KARSILASTIRMA konusunda yanlis olmaya
+   * yakindir — kodlama uyusmazligi, bicim okuma hatasi, beklenmedik bir
+   * normalizasyon hepsi "model her seyi uydurdu" gibi gorunur.
+   *
+   * Budayan bir kapi faydali; ogrencinin sonucunu silen bir kapi hatadir.
+   * Bu paydan sonra hicbir sey atilmiyor ve anomali loga yaziliyor. */
+  const atilanPay = girdiler.length > 0 ? dropped.length / girdiler.length : 0
+  if (girdiler.length >= 2 && atilanPay > GATE_MAX_DROP_SHARE) {
+    console.warn(
+      `Cozumlu ornek aritmetik kapisi IPTAL: ${girdiler.length} ornegin ` +
+      `${dropped.length}'i (%${Math.round(100 * atilanPay)}) atilacakti — bu, modelden cok ` +
+      `karsilastirmaya isaret ediyor, hepsi korunuyor. Ornek: ${dropped.slice(0, 2).join(' | ')}`
+    )
+    return { kept: girdiler, dropped: [] }
+  }
   return { kept, dropped }
 }
 
@@ -5018,6 +5235,17 @@ const YOGUNLUK_KAPISI_ELIYOR = false
 
 type YogunlukStats = {
   kept: number
+  /* OLCULEN ORANIN PAYDASI (24.10.2026).
+   *
+   * Log ve quality_meta `dropped/kept` yaziyordu. Olcum modunda bu DOGRU,
+   * cunku orada `kept = points.length`, yani zaten toplam. Ama kapi elemeye
+   * gecirilince (YOGUNLUK_KAPISI_ELIYOR = true) `kept` HAYATTA KALANLAR
+   * oluyor ve ayni ifade sessizce `dropped/hayattaKalan`a donuyor — orani
+   * oldugundan buyuk gosterir ve kimse bunu fark etmez.
+   *
+   * `toplam` bir kez, girdinin kendisinden kuruluyor; iki mod da ayni
+   * paydayi kullaniyor. */
+  toplam: number
   dropped: number
   droppedPoints: string[]
   valfAcildi: boolean
@@ -5058,7 +5286,7 @@ function applyDensityGate(
   figureText: string = ''
 ): { key_points: any[]; stats: YogunlukStats } {
   const points = Array.isArray(keyPoints) ? keyPoints : []
-  const stats: YogunlukStats = { kept: points.length, dropped: 0, droppedPoints: [], valfAcildi: false }
+  const stats: YogunlukStats = { kept: points.length, toplam: points.length, dropped: 0, droppedPoints: [], valfAcildi: false }
   if (!sourceText || sourceText.length < 200 || points.length === 0) return { key_points: points, stats }
 
   const birlesik = figureText ? sourceText + '\n' + figureText : sourceText
@@ -5759,6 +5987,58 @@ const GEMINI_ONLY_FALLBACK_MIN_MS = 32_000
    sigiyor. Alti istek, en kotu halde gunluk kotanin ucte biri. */
 const GEMINI_MAX_REQUESTS_PER_RUN = 6
 
+/* MODEL YARISI (24.10.2026) — "en bosta olani sec".
+ *
+ * Google'in "bu model ne kadar mesgul" diye bir ucu YOK; bunu sormakla degil
+ * YARISTIRARAK ogreniyoruz. Bugunun olcumleri bunu mumkun kiliyor:
+ *
+ *   - 503 ("currently experiencing high demand") 5-7 saniyede donuyor
+ *     (olculen: 6,9 / 7,5 / 5,6 sn) — mesgul model kendini HIZLI belli ediyor.
+ *   - Ilk byte her modelde ~15,2 sn: Google'in SSE keepalive'i, ayirt
+ *     ETMIYOR. Bu yuzden kazanan ilk BYTE'a gore secilmiyor.
+ *   - Ilk OLAY 17-60 sn arasinda savruluyor. "Bosta olma" sinyali bu: ilk
+ *     islenmis olayi getiren model, o an en hizli cevap verendir.
+ *
+ * Sirali denemeye gore kazanc: mesgul model basina ~7 saniye ODENMIYOR ve
+ * secim tahminle degil OLCUMLE yapiliyor. Bedeli: yarisa giren her modelin
+ * gunluk kotasindan (RPD 20, model BASINA) bir istek.
+ *
+ * VARSAYILAN KAPALI (1) — ve sebebi onemli.
+ *
+ * Yaris, BASARILI kosuda da bir istek fazla harciyor: iki POST ayni anda
+ * gidiyor, yani henuz hicbir sey bilmeden ikinci modelin RPD'sinden bir
+ * istek yaniyor. Bu, bu dosyada BILEREK konmus bir korumayla celisiyor:
+ * "terminal olmayan durumda SONRAKI ADAY MODEL denenmez — sorun modelde
+ * degil, yanit henuz hazir degil; aday turlamak gunluk kotadan bos yere
+ * istek goturur" (bkz. geminiProblem dali ve ayni adli test).
+ *
+ * Kazanci olculmus ve sinirli: mesgul model basina ~7 saniye (503'un donus
+ * suresi). Bedeli her kosuda +1 RPD. RPD model basina 20 oldugu icin gunluk
+ * kosu sayisi dogrudan etkilenir.
+ *
+ * Bu yuzden kod HAZIR ama kapali: 2 yazmak yarisi acar, 1 kalirsa sirali
+ * yol aynen isler ve butun kota korumalari yerinde kalir. Sirali yol da
+ * artik tek modele bagli degil — 503 veren model digerlerini kilitlemiyor
+ * (bkz. geciciModeller), yani "en bosta olani bul" davranisinin buyuk kismi
+ * yaris olmadan da calisiyor; yaris yalnizca o 7 saniyeyi kurtariyor.
+ *
+ * Yaris genisligi ayrica GEMINI_MAX_REQUESTS_PER_RUN'in kalanıyla kirpiliyor.
+ *
+ * Secret'tan okunuyor (GEMINI_MODE ile ayni desen) ve CAGRI aninda, sabit
+ * olarak degil: boylece yarisi acmak icin deploy gerekmiyor — Supabase
+ * panelinden GEMINI_YARIS_GENISLIGI=2 yazmak yeterli, geri almak icin de
+ * silmek. Testler de ayni env uzerinden her iki davranisi olcebiliyor. */
+const GEMINI_YARIS_GENISLIGI_VARSAYILAN = 1
+function geminiYarisGenisligi(): number {
+  const ham = Number(String(Deno.env.get('GEMINI_YARIS_GENISLIGI') ?? '').trim())
+  if (!Number.isFinite(ham) || ham < 1) return GEMINI_YARIS_GENISLIGI_VARSAYILAN
+  return Math.min(Math.floor(ham), GEMINI_MODEL_CANDIDATES.length)
+}
+/* Kazanani belirlemek icin durumlar bu araliklarla yoklaniyor. 250ms, ilk
+   olay gecikmesinin (17-60 sn) yaninda olcum hatasi sayilir; daha sik
+   yoklamak olay dongusunu bos mesgul eder. */
+const GEMINI_YARIS_YOKLAMA_MS = 250
+
 /* Ust uste kac gecici hata (503/500) sonrasi Gemini birakilir.
 
    20.10.2026 olcumu: 76 sayfalik bir destede ALTI istegin altisi da 503
@@ -6282,6 +6562,55 @@ const GEMINI_FIRST_BYTE_MS = 100_000
    karttan kucuk. */
 const GEMINI_ILK_OLAY_MS = 72_000
 
+/* GEMINI DEVRE KESICI (25.10.2026).
+ *
+ * 23.10 aksamindan beri HER kosu ayni: baglanti aciliyor (ilk byte ~15 sn,
+ * icerigi ": keep-alive"), sonra 72 sn hic olay gelmiyor ve cagri 87 sn'de
+ * olu akis olarak dusuyor. Groq yedek yolu ancak ondan SONRA basliyor ve
+ * Supabase'in 150 sn sinirina ~60 sn kaliyor. 42 sayfalik belgeler sigdi;
+ * 49 sayfalik BF415 Week01'de Groq'un ucuncu penceresi TokenPacer yuzunden
+ * 57 sn bekledi, isci 150. saniyede 546 ile kapatildi ve belge 'processing'
+ * durumunda takili kaldi.
+ *
+ * Bir kez olu akis/503 gorulunce sonraki GEMINI_DEVRE_MS boyunca Gemini hic
+ * denenmez; Groq butun butceyle hemen baslar. Sure dolunca ilk istek Gemini'yi
+ * yeniden dener; o da duserse devre yeniden acilir. Durum isciler arasinda
+ * paylasilsin diye site_settings'te (key = gemini_devre) tutuluyor. */
+const GEMINI_DEVRE_MS = 30 * 60_000
+const GEMINI_DEVRE_ANAHTAR = 'gemini_devre'
+
+async function geminiDevreOku(client: any): Promise<{ acik: boolean; kalanDk: number; neden: string }> {
+  try {
+    const { data } = await client.from('site_settings').select('value').eq('key', GEMINI_DEVRE_ANAHTAR).maybeSingle()
+    const v = (data && data.value) || {}
+    const until = Date.parse(String(v.until || '')) || 0
+    return { acik: until > Date.now(), kalanDk: Math.max(0, Math.ceil((until - Date.now()) / 60_000)), neden: String(v.neden || '') }
+  } catch (_e) {
+    return { acik: false, kalanDk: 0, neden: '' }
+  }
+}
+
+async function geminiDevreAc(client: any, neden: string) {
+  try {
+    const until = new Date(Date.now() + GEMINI_DEVRE_MS).toISOString()
+    await client.from('site_settings').upsert({
+      key: GEMINI_DEVRE_ANAHTAR,
+      value: { until, neden, acildi: new Date().toISOString() },
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'key' })
+    console.warn(`Gemini devre kesici ACILDI: ${GEMINI_DEVRE_MS / 60_000} dk boyunca dogrudan Groq (${neden})`)
+  } catch (e) {
+    console.warn('Gemini devre kesici yazilamadi: ', e)
+  }
+}
+
+/* ISCI NOBETCISI (25.10.2026): Supabase isciyi ~150 sn'de kapatiyor ve o anda
+ * hicbir catch calismiyor; belge 'processing' kalip ogrenci sonsuza kadar
+ * "isleniyor" goruyordu. 141. saniyede belge hala 'processing' ise 'failed'
+ * isaretlenir (ekran "tekrar dene" gosterir). Is ondan sonra yine de
+ * biterse 'summarized' yazimi bunu ezer. */
+const ISCI_NOBET_MS = 141_000
+
 /* Kurtarmaya deger en kucuk kismi cikti. Bunun altinda bir tampon zaten bir
    karta donusmez; kurtarmayi denemek yalnizca logu kirletir. */
 const GEMINI_PARTIAL_MIN_CHARS = 2_000
@@ -6506,11 +6835,27 @@ async function geminiAkisIstegi(
      100 saniye beklemeden hangi sayacin kestigini olcebiliyor. */
   ilkByteMsIstenen: number = GEMINI_FIRST_BYTE_MS,
   /* Ilk OLAY son tarihi — ayni sebeple parametre. */
-  ilkOlayMsIstenen: number = GEMINI_ILK_OLAY_MS
+  ilkOlayMsIstenen: number = GEMINI_ILK_OLAY_MS,
+  /* DIS IPTAL (24.10.2026). Model yarisinin altyapisi: kazanan belli olunca
+     kaybedenlerin akisi disaridan kesilir, yoksa iptal edilmeyen istekler
+     hem token hem baglanti tutmaya devam eder. Yaris henuz YAZILMADI —
+     once her denemenin sonucunu isleyen blok (devam ettirme + kismi kurtarma
+     + geminiProblem kapisi) ortak bir fonksiyona cikarilmali, yoksa yaris o
+     mantigi kopyalamak zorunda kalir ve "ayni mantik iki yerde" hatasinin
+     yenisi dogar. */
+  disSinyal?: AbortSignal
 ): Promise<{ status: number; body: string } | null> {
   const controller = new AbortController()
   let sebep = ''
   const mutlak = setTimeout(() => { sebep = `mutlak tavan (${mutlakMs}ms)`; controller.abort() }, mutlakMs)
+  /* Dis iptal: yarisi kaybeden akis buradan kesiliyor. Sebep YAZILIYOR,
+     cunku sebebi bos birakmak asagidaki catch'te "zaman asimi" diye
+     raporlanmasina yol aciyor ve log yanlis hikaye anlatirdi. */
+  const disIptal = () => { sebep = sebep || 'yaris kaybedildi'; controller.abort() }
+  if (disSinyal) {
+    if (disSinyal.aborted) disIptal()
+    else disSinyal.addEventListener('abort', disIptal, { once: true })
+  }
   /* IKI AYRI BEKLEME. Ilk byte'a kadar GEMINI_FIRST_BYTE_MS (yok sayilan
      akista yanitin tamami 90+ saniyede geliyor), ondan sonra sessizlikMs.
      Tek sayac bu ikisini ayirt edemiyordu — bkz. GEMINI_FIRST_BYTE_MS. */
@@ -6779,6 +7124,24 @@ type GeminiCagriSonucu =
   | { ok: true; data: any; durum?: GeminiAkisDurum }
   | { ok: false; status: number; body: string; durum?: GeminiAkisDurum }
 
+type GeminiTaslak = { raw: string; model: string; ms: number; usage: any; kismi?: boolean }
+
+/* Bir denemenin sonucu — bkz. denemeSonucunuIsle.
+ *
+ * Akis kontrolu DEGER olarak tasiniyor: `continue`/`break` yalnizca bir
+ * dongunun icinde anlamlidir, isleme mantigi ise iki ayri cagirandan
+ * (sirali dongu ve model yarisi) kullaniliyor. Cagiran ne yapacagina
+ * kendisi karar veriyor.
+ *   taslak  : kullanilabilir bir kart cikti
+ *   birak   : Gemini yolu burada biter (cik() ile bayrak konur)
+ *   tekrar  : AYNI modeli bir daha dene (alan dusurme, dakikalik limit)
+ *   sonraki : bu modelle isimiz bitti, SONRAKI adaya gec */
+type GeminiDenemeSonucu =
+  | { tur: 'taslak'; taslak: GeminiTaslak }
+  | { tur: 'birak' }
+  | { tur: 'tekrar' }
+  | { tur: 'sonraki' }
+
 /**
  * Tek Gemini cagrisi: belgenin tamami inline, JSON modu, AKIS (SSE) ve
  * sessizlik sayaci. Akis blogundaki nota bakin.
@@ -6795,7 +7158,16 @@ async function callGeminiOnce(
   fileMime: string,
   userText: string,
   timeoutMs: number,
-  drop: string[] = []
+  drop: string[] = [],
+  /* MODEL YARISI ICIN IKI EK (24.10.2026).
+   *
+   * `durumDisi`: akis durumunu CAGIRAN kuruyor. Yarisin kazananini secmek
+   * icin `durum.olaySayisi`'ni ucus sirasinda okumak gerekiyor; durum bu
+   * fonksiyonun icinde kalirsa disaridan gorulemez.
+   * `disSinyal`: kaybedenleri kesmek icin.
+   * Ikisi de opsiyonel — tek cagri yolu hic degismiyor. */
+  durumDisi?: GeminiAkisDurum,
+  disSinyal?: AbortSignal
 ): Promise<GeminiCagriSonucu> {
   const dusuruldu = (ad: string) => drop.indexOf(ad) !== -1
 
@@ -6839,9 +7211,13 @@ async function callGeminiOnce(
   }
 
   if (akisli) {
-    const durum = geminiAkisDurumu()
+    // Cagiran bir durum verdiyse ONU kullan — yaris onu ucus sirasinda okuyor.
+    const durum = durumDisi ?? geminiAkisDurumu()
     const akisBasladi = Date.now()
-    const hata = await geminiAkisIstegi(GEMINI_ENDPOINT, init, durum, timeoutMs, GEMINI_SILENCE_MS)
+    const hata = await geminiAkisIstegi(
+      GEMINI_ENDPOINT, init, durum, timeoutMs, GEMINI_SILENCE_MS,
+      GEMINI_FIRST_BYTE_MS, GEMINI_ILK_OLAY_MS, disSinyal
+    )
     if (hata) return { ok: false, status: hata.status, body: hata.body }
     console.log(`Gemini akis [${model}]: ${geminiAkisOlcumu(durum, Date.now() - akisBasladi)}`)
     /* Yuzey akisi yok saydiysa elimizde GERCEK yanit nesnesi var; sentez
@@ -6913,6 +7289,9 @@ async function geminiDraft(
   if (callMs < 35_000) {
     // 35 saniyenin altinda 42 sayfalik bir PDF'in donme ihtimali yok.
     console.log(`Gemini: atlandi (cagri icin ${callMs}ms kaliyor, en az 35.000ms gerekli)`)
+    /* cik() DEGIL: buraya henuz hic istek atilmadan geliniyor, yani
+       geciciModeller zorunlu olarak bos ve cik() ile ayni sey. Ustelik cik
+       asagida tanimli — burada cagirmak TDZ hatasi verir. */
     return null
   }
   console.log(
@@ -6925,6 +7304,7 @@ async function geminiDraft(
     fileBase64 = bytesToBase64(fileBytes)
   } catch (encErr) {
     console.warn('Gemini: base64 kodlama basarisiz, Groq yoluna dusuluyor:', encErr)
+    // cik() DEGIL — istek oncesi yol, bkz. yukaridaki not.
     return null
   }
 
@@ -6956,6 +7336,28 @@ async function geminiDraft(
    * istiyor. Istek sayisini GEMINI_MAX_REQUESTS_PER_RUN, bosa giden sureyi
    * GEMINI_FAIL_BUDGET_MS zaten baglıyor. */
   const geciciModeller = new Set<string>()
+
+  /* TEK CIKIS: GECICI-HATA BAYRAGI HER DONUS YOLUNDA KONUR (24.10.2026).
+   *
+   * Bayrak iki yerde set ediliyordu: "yuzey yogun" esigi ve dongunun
+   * tukenmesi. Ama bu fonksiyonun ON BIR ayri `return null` yolu var — fail
+   * butcesi, buCagriMs < esik, istek tavani, `incomplete`, terminal olmayan
+   * durum, kurtarma yetmedi... Bunlarin hicbiri bayragi koymuyordu.
+   *
+   * Senaryo (olculmus parcalardan kurulu): model-1 503 verir
+   * (geciciModeller = {gemini-3.7-flash}), model-2'nin akisi 105 sn'de
+   * kesilir, kurtarma "kart olmaya yetmiyor" der ve o daldan `return null`
+   * olur. Bayrak false kaldigi icin %56 kapsamali Groq karti
+   * `summary_cache`'e KALICI yazilir ve o dosya icin Gemini bir daha hic
+   * denenmez — 21.10'da bu koruma tam bunun icin eklenmisti ve yalnizca tek
+   * dalda calisiyordu.
+   *
+   * Kural tek yerde: gecici hata GORULDUYSE cikan kart yedek yoldan geliyor
+   * ve kalici cevap sayilmamali. */
+  const cik = (): null => {
+    if (tani && geciciModeller.size > 0) tani.geciciDustu = true
+    return null
+  }
 
   /* BASARISIZ DENEMELERIN TOPLAM SURESI.
    *
@@ -7009,7 +7411,386 @@ async function geminiDraft(
   const GEMINI_RETRY_WAIT_MS = 2_500
   let ilkIstek = true
 
+  /* HER DENEMENIN SONUCUNU ISLEYEN TEK YER (24.10.2026).
+   *
+   * Bu blok eskiden deneme dongusunun govdesinde duruyordu. Model yarisi
+   * da ayni isi yapmak zorunda — devam ettirme, kismi kurtarma,
+   * geminiProblem kapisi, 429/503 ayrimi. Kopyalamak bu dosyada butun gun
+   * avladigimiz hata sinifinin yenisini dogururdu: ayni mantik iki yerde
+   * yazilir, biri duzeltilir, oteki eskir (bkz. sourceNumbers/sayiOkumalari,
+   * sentez completion'i, kapi/genisletme butcesi).
+   *
+   * Akis kontrolu DEGER olarak donuyor, cunku `continue`/`break` yalnizca
+   * dongunun icinde anlamli: cagiran ne yapacagina kendisi karar veriyor.
+   * Ic devam-ettirme dongusunun kendi break'leri AYNEN korundu. */
+  const denemeSonucunuIsle = async (
+    model: string,
+    res: GeminiCagriSonucu,
+    startedAt: number,
+    buCagriMs: number
+  ): Promise<GeminiDenemeSonucu> => {
+    const ms = Date.now() - startedAt
+
+    /* AKIS YARIM KALDI (18.10.2026).
+     *
+     * Burasi eskiden yoktu, cunku yarim bir cikti diye bir sey yoktu: cagri
+     * ya tam JSON dondururdu ya 105 saniye sonra hicbir sey. Akisla birlikte
+     * ucuncu bir hal var — elde o ana kadar gelen metin.
+     *
+     * SIRA ONEMLI. Once DEVAM ETTIRMEYI deniyoruz (GET ile ayni etkilesime
+     * geri baglanmak, yeni bir uretim istegi degil), cunku tam bir kart yarim
+     * bir karttan her zaman iyidir ve gunluk kotadan (RPD 20) istek
+     * goturmuyor. Ancak o da olmazsa kurtarmaya iniyoruz.
+     *
+     * KURTARMA DOGRULANIR: closeTruncatedJson ayristiramadigi hicbir seyi
+     * dondurmuyor, yani buradan cikan taslak asagidaki JSON.parse kapisini
+     * zaten gecer. 17.10'da olculup kullanilmayan kismi metin artik
+     * ogrencinin karti oluyor. */
+    if (!res.ok && res.durum) {
+      const durum = res.durum
+      for (let devam = 0; devam < GEMINI_MAX_RESUMES && !durum.tamamlandi && durum.interactionId; devam++) {
+        if (geminiDevamDesteklemeyen.has(model)) {
+          console.warn(
+            `Gemini ${model}: GET ile devam ettirme bu modelde desteklenmiyor — ` +
+            `denenmiyor, dogrudan kurtarmaya iniliyor`
+          )
+          break
+        }
+        const kalanMs = geminiDevamTavan - (Date.now() - basladi)
+        if (kalanMs < 10_000) {
+          console.warn(`Gemini ${model}: devam ettirmeye yer kalmadi (${kalanMs}ms)`)
+          break
+        }
+        console.warn(
+          `Gemini ${model}: akis kesildi (${durum.hata}), ${durum.metin.length} karakter elde — ` +
+          `GET ile devam ettiriliyor (${devam + 1}/${GEMINI_MAX_RESUMES}, ${kalanMs}ms kaldi)`
+        )
+        const devamHata = await geminiAkisiDevamEttir(apiKey, durum, Math.min(kalanMs, buCagriMs))
+        /* 4xx kendi kendine duzelmez: etkilesim yok, bitmis ya da
+           last_event_id kabul edilmiyor. Ikinci GET'i yakmanin anlami
+           yok. 5xx gecici olabilir, ona pencere kalmissa devam. */
+        if (devamHata && devamHata.status >= 400 && devamHata.status < 500) {
+          /* "not supported for this model" kalici bir YETENEK eksigi, gecici
+             bir hata degil: bu ornek yasadikca bir daha denenmemeli. */
+          if (/not supported/i.test(String(devamHata.body || ''))) {
+            geminiDevamDesteklemeyen.add(model)
+            console.warn(
+              `Gemini ${model}: yuzey GET ile devam ettirmeyi desteklemiyor — ` +
+              `bu model icin kalici olarak kapatildi`
+            )
+          }
+          console.warn(
+            `Gemini ${model}: devam ettirme kalici hatayla dustu (HTTP ${devamHata.status}) — ` +
+            `yeniden denenmiyor`
+          )
+          break
+        }
+      }
+      if (durum.tamamlandi && durum.metin.trim()) {
+        console.log(
+          `Gemini ${model}: akis DEVAM ETTIRILEREK tamamlandi, ` +
+          `${durum.metin.length} karakter, ${Date.now() - startedAt}ms`
+        )
+        return { tur: 'taslak', taslak: { raw: durum.metin, model, ms: Date.now() - startedAt, usage: durum.usage } }
+      }
+      if (durum.metin.length >= GEMINI_PARTIAL_MIN_CHARS) {
+        const kurtarilan = closeTruncatedJson(durum.metin)
+        /* Karakter esigi yetmiyor: ICERIGE de bakiliyor (20.10.2026,
+           bkz. geminiKurtarmaYeterli). Bos bir kart, Groq'a dusmekten
+           kotudur. */
+        const yeterlilik = kurtarilan ? geminiKurtarmaYeterli(kurtarilan) : { yeterli: false, ozet: 'kurtarilamadi' }
+        if (kurtarilan && !yeterlilik.yeterli) {
+          console.warn(
+            `Gemini ${model}: kismi JSON kurtarildi ama KART OLMAYA YETMIYOR ` +
+            `(${yeterlilik.ozet}) — taslak yok sayiliyor, Groq yoluna dusuluyor`
+          )
+          return { tur: 'birak' }
+        }
+        if (kurtarilan) {
+          console.warn(
+            `Gemini ${model}: akis tamamlanmadi (${durum.hata}) — KISMI JSON kurtarildi, ` +
+            `${durum.metin.length} karakterden ${kurtarilan.length} karakter, ${Date.now() - startedAt}ms`
+          )
+          return { tur: 'taslak', taslak: { raw: kurtarilan, model, ms: Date.now() - startedAt, usage: durum.usage, kismi: true } }
+        }
+        console.warn(
+          `Gemini ${model}: kismi cikti KURTARILAMADI (${durum.metin.length} karakter, ` +
+          `${durum.olaySayisi} olay) — ${durum.hata}`
+        )
+      } else {
+        console.warn(
+          `Gemini ${model}: akis ${durum.metin.length} karakterde kesildi ` +
+          `(esik ${GEMINI_PARTIAL_MIN_CHARS}) — kurtarma denenmiyor: ${durum.hata}`
+        )
+      }
+      /* TERMINAL OLMAYAN DURUM, AKIS SURUMU. Akissiz yolda bu karari
+         geminiProblem veriyor: in_progress/queued/requires_action ise
+         sorun modelde DEGIL, yanit henuz hazir degil — sonraki aday
+         modeli denemek gunluk kotadan (RPD 20) bos yere istek goturur.
+         Akista ayni bilgi status_update olayindan geliyor, yani ayni
+         karar burada veriliyor. Devam ettirme ZATEN denendi (yukarida);
+         o da tutmadiysa yapacak sey Groq yoluna dusmek. */
+      if (durum.status === 'in_progress' || durum.status === 'queued' || durum.status === 'requires_action') {
+        console.warn(
+          `Gemini ${model}: akis status=${durum.status} ile bitti (terminal degil) — ` +
+          `baska aday model denenmiyor`
+        )
+        return { tur: 'birak' }
+      }
+    }
+
+    if (res.ok) {
+      // Yuzey cevap veriyor: ardisiklik bozuldu.
+      ardisikGecici = 0
+      const problem = geminiProblem(res.data)
+      if (problem) {
+        console.warn(`Gemini ${model}: cevap kullanilamaz — ${problem}`)
+        /* Cikti tavani: SONRAKI ADAYI DENEME. Ayni prompt, ayni tavan,
+           ayni sonuc — tek kazanci gunluk 20 istekten birini daha
+           yakmak, ustelik her deneme ~88 saniye suruyor. Kosuyu burada
+           bitirmek, uc kez ayni duvara carpmaktan iyidir. */
+        if (/incomplete/.test(problem)) {
+          /* 17.10.2026: once OLC, sonra kurtarmaya karar ver. Kesilen
+             govdede ne kadar metin oldugunu bilmiyoruz; "neredeyse tam
+             JSON" varsayimi bu repoda daha once olcumsuz yapilip geri
+             alinmisti. Log once gelsin. */
+          const kismi = extractGeminiText(res.data)
+          console.warn(
+            `Gemini ${model}: yarim cikti — kurtarilabilir metin ` +
+            `${kismi.length} karakter (esik yok, simdilik sadece olculuyor)`
+          )
+          return { tur: 'birak' }
+        }
+        /* Terminal olmayan durum (in_progress/queued/requires_action):
+           baska aday model denemek anlamsiz, cunku sorun modelde degil —
+           yanit henuz hazir degil. Sonraki adayi denemek gunluk kotadan
+           bos yere bir istek goturur. */
+        if (/terminal degil/.test(problem)) return { tur: 'birak' }
+        return { tur: 'sonraki' }   // ayni modeli tekrar denemek ayni sonucu verir   // ayni modeli tekrar denemek ayni sonucu verir
+      }
+      const text = extractGeminiText(res.data)
+      if (!text.trim()) {
+        console.warn(`Gemini ${model}: cevapta metin yok (${JSON.stringify(res.data).slice(0, 300)})`)
+        return { tur: 'sonraki' }
+      }
+      console.log(
+        `Gemini ${model}: taslak geldi, ${ms}ms, ${text.length} karakter` +
+        (dropped.length ? `, dusurulen alanlar: ${dropped.join(', ')}` : '')
+      )
+      return { tur: 'taslak', taslak: { raw: text, model, ms, usage: res.data?.usage ?? null } }
+    }
+
+    // Taninmayan bir alan: at ve AYNI modeli tekrar dene. Bu kontrol
+    // digerlerinden once geliyor, cunku "Unknown parameter 'X'" asagidaki
+    // model-yok desenine benzeyebilir ve yanlis teshis butun adaylari
+    // bosa harcar (09.10.2026'da tam olarak bu oldu).
+    const bilinmeyen = geminiUnknownParameter(res.status, res.body)
+    if (bilinmeyen && dropped.indexOf(bilinmeyen) === -1) {
+      dropped.push(bilinmeyen)
+      console.warn(`Gemini ${model}: '${bilinmeyen}' alani taninmadi — atilip tekrar denenecek`)
+      return { tur: 'tekrar' }
+    }
+
+    if (geminiModelMissing(res.status, res.body)) {
+      console.warn(`Gemini ${model}: model yok (${res.status}) — sonraki aday denenecek`)
+      return { tur: 'sonraki' }
+    }
+    if (dropped.indexOf('response_format') === -1 && geminiFormatRejected(res.status, res.body)) {
+      // Alan adini vermeyen bir bicim sikayeti (ornegin yalnizca "schema"
+      // ya da "mime_type" diyen). Prompt zaten "SADECE gecerli JSON"
+      // diyor, alani dusurup ayni modeli bir kez daha deniyoruz.
+      console.warn(`Gemini ${model}: response_format reddedildi (${res.status}: ${res.body.slice(0, 200)}) — JSON modu kapatilip tekrar denenecek`)
+      dropped.push('response_format')
+      return { tur: 'tekrar' }
+    }
+    // GUNLUK kota: baska model de, tekrar deneme de ayni duvara carpar ve
+    // her deneme gunluk kotadan bir istek daha goturur. Hemen cikilir.
+    if (geminiQuotaExhausted(res.status, res.body)) {
+      console.warn(
+        `Gemini ${model}: GUNLUK KOTA dolu (429) — baska aday denenmeyecek, ` +
+        `Groq yoluna dusuluyor: ${res.body.slice(0, 200)}`
+      )
+      return { tur: 'birak' }
+    }
+    /* GUNLUK OLMAYAN 429 = dakikalik limit (RPM 5).
+     *
+     * Google'in govdesi ikisini ayirt etmiyor: "Your project has exceeded
+     * a quota" hem gunluk hem dakikalik limitte geliyor. Eski kod hepsini
+     * olumcul sayiyordu ve dakikalik bir sinirlama Gemini yolunu tamamen
+     * kapatiyordu.
+     *
+     * Ama durust olmak gerekirse: RPM penceresi 60 saniye ve bizim tek
+     * istegimizin TAMAMI 150 saniye. Yani bu hatayi "bekleyip gecmek"
+     * ancak butce genisken mumkun. Butce dar ise beklemek, kalan zamani
+     * da yakip hicbir sey uretmemek demek — o yuzden cikiyoruz.
+     *
+     * Aday model turlamak da yok: limit projenin, modelin degil. */
+    if (res.status === 429) {
+      /* Kalan GERCEK zaman: cagri tavanindan degil, isin butcesinden
+         olculur — tavan 105 saniye sabit, butce ise kosu icinde erir. */
+      const kalanButce = budgetMs - (Date.now() - basladi)
+      const bekleme = Math.min(
+        geminiRpmWaitMs(),
+        Math.max(0, kalanButce - GEMINI_RPM_RETRY_MIN_REMAINING_MS)
+      )
+      if (gecici < 1 && kalanButce > GEMINI_RPM_RETRY_MIN_REMAINING_MS) {
+        gecici++
+        console.warn(
+          `Gemini ${model}: dakikalik limit (429) — ${bekleme}ms beklenip ` +
+          `BIR kez tekrar denenecek (kalan butce ${kalanButce}ms): ${res.body.slice(0, 160)}`
+        )
+        if (bekleme > 0) await new Promise((r) => setTimeout(r, bekleme))
+        return { tur: 'tekrar' }
+      }
+      console.warn(
+        `Gemini ${model}: dakikalik limit (429) ve beklemeye yer yok ` +
+        `(kalan ${kalanButce}ms) — Groq yoluna dusuluyor: ${res.body.slice(0, 160)}`
+      )
+      return { tur: 'birak' }
+    }
+    /* OLU AKIS DA GECICI BIR HATADIR (24.10.2026).
+     *
+     * Burasi yalnizca 503/500'u gecici sayiyordu. Ama yuzey istegi KABUL
+     * edip hicbir sey uretmeyebiliyor; o hal `status: 0` ile donuyor.
+     * Canli olcum (24.10 kosusu):
+     *
+     *   Gemini akis [gemini-3.8-flash]: ilk byte 15422ms, ilk olay yok,
+     *     0 olay, 0 karakter, toplam 87424ms — AKIS SOZDE
+     *   Gemini gemini-3.8-flash: cagri basarisiz (0): ilk olay gelmedi
+     *     (72000ms, baglanti acik ama veri yok)
+     *
+     * Bu 503'ten farkli bir sey degil: yuzey o an is yapamiyor, yarin ayni
+     * belge Gemini karti uretebilir. Ama gecici sayilmadigi icin
+     * `geciciModeller` bos kaliyor, `cik()` bayragi koymuyor ve o kosunun
+     * ZAYIF Groq karti (kapsama %49, yazar ve review atlanmis) onbellege
+     * KALICI yaziliyordu. Sonraki yuklemeler 1,9 saniyede o karti aliyor ve
+     * Gemini bir daha hic denenmiyor — 21.10'da bu korumayi tam bunun icin
+     * eklemistim, deligi bugunku log gosterdi.
+     *
+     * Ayni modeli TEKRAR denemiyoruz: olu akis 87 saniye yakti, ikincisi
+     * butceyi bitirir. Dogrudan sonraki adaya geciliyor. */
+    const oluAkis = res.status === 0
+    if (oluAkis || res.status === 503 || res.status === 500) {
+      gecici++
+      ardisikGecici++
+      geciciModeller.add(model)
+      console.warn(
+        `Gemini ${model}: gecici hata ${res.status}` +
+        (oluAkis ? ' (akis olu: olay gelmedi)' : ` (deneme ${gecici}/2)`) +
+        `: ${res.body.slice(0, 200)}`
+      )
+      /* Yuzeyin tamami yogunsa sonraki aday modeli denemek ayni duvara
+         carpmak: istek de sure de bosa gidiyor. Ama bunun kaniti AYRI
+         modellerden gecici hata gelmesi — bkz. geciciModeller. */
+      if (geciciModeller.size >= GEMINI_ARDISIK_GECICI_MAX) {
+        console.warn(
+          `Gemini: ${geciciModeller.size} AYRI modelde gecici hata ` +
+          `(${[...geciciModeller].join(', ')}, ${ardisikGecici} deneme) — ` +
+          `yuzey yogun sayiliyor, kalan aday modeller denenmiyor, Groq yoluna dusuluyor`
+        )
+        // Bayragi cik() koyuyor — tek kural, tek yer.
+        return { tur: 'birak' }
+      }
+      // Olu akis ayni modelde tekrar denenmez — bkz. yukaridaki not.
+      if (!oluAkis && gecici < 2) return { tur: 'tekrar' }
+      return { tur: 'sonraki' }
+    }
+    console.warn(`Gemini ${model}: cagri basarisiz (${res.status}): ${res.body.slice(0, 300)}`)
+    return { tur: 'sonraki' }
+  }
+
+  /* MODEL YARISI — bkz. GEMINI_YARIS_GENISLIGI.
+   *
+   * Isi yapan tek yeni sey "kazanan kim" sorusu; sonucu isleyen kod
+   * denemeSonucunuIsle, yani sirali yolla BIREBIR ayni. Yaris yalnizca bir
+   * hizlandirma katmani: hepsi 503 verirse sirali dongu kalan adaylarla
+   * devam ediyor ve yolun kendisi degismiyor. */
+  const yarisaGirenler = new Set<string>()
+  const yarisGenisligi = Math.max(0, Math.min(
+    geminiYarisGenisligi(),
+    GEMINI_MAX_REQUESTS_PER_RUN - toplamIstek,
+    geminiModelCandidates().length
+  ))
+  if (yarisGenisligi >= 2) {
+    const adaylar = geminiModelCandidates().slice(0, yarisGenisligi)
+    const yarisCagriMs = Math.min(callMs, geminiToplamTavan - (Date.now() - basladi))
+    if (yarisCagriMs < 35_000) {
+      console.log(`Gemini yaris: atlandi (cagri icin ${yarisCagriMs}ms kaliyor)`)
+    } else {
+      const kontroller = adaylar.map(() => new AbortController())
+      const durumlar = adaylar.map(() => geminiAkisDurumu())
+      const sonuclar: (GeminiCagriSonucu | null)[] = adaylar.map(() => null)
+      let biten = 0
+      const basladiYaris = Date.now()
+      console.log(
+        `Gemini yaris BASLIYOR: ${adaylar.join(' vs ')} ` +
+        `(tavan ${yarisCagriMs}ms, kazanan ilk OLAYI getiren)`
+      )
+      const istekler = adaylar.map((m, i) =>
+        callGeminiOnce(
+          apiKey, m, systemInstruction, fileBase64, fileMime, userText,
+          yarisCagriMs, dropped, durumlar[i], kontroller[i].signal
+        ).then((res) => { sonuclar[i] = res; biten++; return res })
+      )
+      toplamIstek += adaylar.length
+
+      // Kazanan: ilk ISLENMIS olayi getiren. Hepsi duserse kazanan yok.
+      let kazanan = -1
+      while (kazanan < 0 && biten < adaylar.length) {
+        kazanan = durumlar.findIndex((d) => d.olaySayisi > 0)
+        if (kazanan >= 0) break
+        await new Promise((r) => setTimeout(r, GEMINI_YARIS_YOKLAMA_MS))
+      }
+      if (kazanan < 0) kazanan = durumlar.findIndex((d) => d.olaySayisi > 0)
+
+      /* Yarista 503 verenler BILINEN mesgul: hem esige sayilsinlar hem de
+         sirali dongu onlari bir daha denemesin (kota bosa gitmesin). */
+      sonuclar.forEach((r, i) => {
+        if (r && !r.ok && (r.status === 503 || r.status === 500)) {
+          geciciModeller.add(adaylar[i])
+          yarisaGirenler.add(adaylar[i])
+        }
+      })
+
+      if (kazanan >= 0) {
+        const kazananModel = adaylar[kazanan]
+        kontroller.forEach((c, i) => { if (i !== kazanan) c.abort() })
+        console.log(
+          `Gemini yaris: ${kazananModel} kazandi ` +
+          `(ilk olay ${durumlar[kazanan].ilkOlayMs}ms, ${adaylar.length - 1} istek iptal edildi)`
+        )
+        const kazananRes = await istekler[kazanan]
+        const sonuc = await denemeSonucunuIsle(kazananModel, kazananRes, basladiYaris, yarisCagriMs)
+        if (sonuc.tur === 'taslak') return sonuc.taslak
+        if (sonuc.tur === 'birak') return cik()
+        /* 'tekrar'/'sonraki': kazananin sonucu kullanilabilir degil (alan
+           dusurme, bicim reddi...). Sirali dongu bu modeli yeniden
+           denesin — alan dusurme tam bu is icin var. */
+        console.warn(
+          `Gemini yaris: ${kazananModel} kazandi ama sonuc '${sonuc.tur}' — sirali yola donuluyor`
+        )
+        yarisaGirenler.delete(kazananModel)
+      } else {
+        console.warn(
+          `Gemini yaris: kazanan yok (${adaylar.length} adayin hicbiri olay getirmedi) — ` +
+          `sirali yola donuluyor`
+        )
+      }
+      if (geciciModeller.size >= GEMINI_ARDISIK_GECICI_MAX) {
+        console.warn(
+          `Gemini: yarista ${geciciModeller.size} AYRI modelde gecici hata ` +
+          `(${[...geciciModeller].join(', ')}) — yuzey yogun sayiliyor, Groq yoluna dusuluyor`
+        )
+        return cik()
+      }
+    }
+  }
+
   for (const model of geminiModelCandidates()) {
+    if (yarisaGirenler.has(model)) {
+      console.log(`Gemini ${model}: yarista 503 verdi — sirali yolda tekrar denenmiyor`)
+      continue
+    }
     gecici = 0
     for (let attempt = 0; attempt < 5; attempt++) {
       const gecen = Date.now() - basladi
@@ -7021,7 +7802,7 @@ async function geminiDraft(
               ? 'yeni deneme baslatilmiyor'
               : "Groq'a yer birakmak icin durduruluyor")
           )
-          return null
+          return cik()
         }
       }
       if (!ilkIstek) await new Promise((r) => setTimeout(r, GEMINI_RETRY_WAIT_MS))
@@ -7034,7 +7815,7 @@ async function geminiDraft(
           `Gemini: toplam tavandan geriye ${buCagriMs}ms kaldi — ` +
           `yeni deneme baslatilmiyor, Groq'a pay birakiliyor`
         )
-        return null
+        return cik()
       }
 
       /* GUNLUK KOTA KORUMASI (17.10.2026).
@@ -7047,7 +7828,7 @@ async function geminiDraft(
           `Gemini: bu yuklemede ${toplamIstek} istek harcandi (tavan ` +
           `${GEMINI_MAX_REQUESTS_PER_RUN}) — gunluk kotayi korumak icin duruluyor`
         )
-        return null
+        return cik()
       }
       toplamIstek++
 
@@ -7055,259 +7836,24 @@ async function geminiDraft(
       const res = await callGeminiOnce(
         apiKey, model, systemInstruction, fileBase64, fileMime, userText, buCagriMs, dropped
       )
-      const ms = Date.now() - startedAt
-
-      /* AKIS YARIM KALDI (18.10.2026).
-       *
-       * Burasi eskiden yoktu, cunku yarim bir cikti diye bir sey yoktu: cagri
-       * ya tam JSON dondururdu ya 105 saniye sonra hicbir sey. Akisla birlikte
-       * ucuncu bir hal var — elde o ana kadar gelen metin.
-       *
-       * SIRA ONEMLI. Once DEVAM ETTIRMEYI deniyoruz (GET ile ayni etkilesime
-       * geri baglanmak, yeni bir uretim istegi degil), cunku tam bir kart yarim
-       * bir karttan her zaman iyidir ve gunluk kotadan (RPD 20) istek
-       * goturmuyor. Ancak o da olmazsa kurtarmaya iniyoruz.
-       *
-       * KURTARMA DOGRULANIR: closeTruncatedJson ayristiramadigi hicbir seyi
-       * dondurmuyor, yani buradan cikan taslak asagidaki JSON.parse kapisini
-       * zaten gecer. 17.10'da olculup kullanilmayan kismi metin artik
-       * ogrencinin karti oluyor. */
-      if (!res.ok && res.durum) {
-        const durum = res.durum
-        for (let devam = 0; devam < GEMINI_MAX_RESUMES && !durum.tamamlandi && durum.interactionId; devam++) {
-          if (geminiDevamDesteklemeyen.has(model)) {
-            console.warn(
-              `Gemini ${model}: GET ile devam ettirme bu modelde desteklenmiyor — ` +
-              `denenmiyor, dogrudan kurtarmaya iniliyor`
-            )
-            break
-          }
-          const kalanMs = geminiDevamTavan - (Date.now() - basladi)
-          if (kalanMs < 10_000) {
-            console.warn(`Gemini ${model}: devam ettirmeye yer kalmadi (${kalanMs}ms)`)
-            break
-          }
-          console.warn(
-            `Gemini ${model}: akis kesildi (${durum.hata}), ${durum.metin.length} karakter elde — ` +
-            `GET ile devam ettiriliyor (${devam + 1}/${GEMINI_MAX_RESUMES}, ${kalanMs}ms kaldi)`
-          )
-          const devamHata = await geminiAkisiDevamEttir(apiKey, durum, Math.min(kalanMs, buCagriMs))
-          /* 4xx kendi kendine duzelmez: etkilesim yok, bitmis ya da
-             last_event_id kabul edilmiyor. Ikinci GET'i yakmanin anlami
-             yok. 5xx gecici olabilir, ona pencere kalmissa devam. */
-          if (devamHata && devamHata.status >= 400 && devamHata.status < 500) {
-            /* "not supported for this model" kalici bir YETENEK eksigi, gecici
-               bir hata degil: bu ornek yasadikca bir daha denenmemeli. */
-            if (/not supported/i.test(String(devamHata.body || ''))) {
-              geminiDevamDesteklemeyen.add(model)
-              console.warn(
-                `Gemini ${model}: yuzey GET ile devam ettirmeyi desteklemiyor — ` +
-                `bu model icin kalici olarak kapatildi`
-              )
-            }
-            console.warn(
-              `Gemini ${model}: devam ettirme kalici hatayla dustu (HTTP ${devamHata.status}) — ` +
-              `yeniden denenmiyor`
-            )
-            break
-          }
-        }
-        if (durum.tamamlandi && durum.metin.trim()) {
-          console.log(
-            `Gemini ${model}: akis DEVAM ETTIRILEREK tamamlandi, ` +
-            `${durum.metin.length} karakter, ${Date.now() - startedAt}ms`
-          )
-          return { raw: durum.metin, model, ms: Date.now() - startedAt, usage: durum.usage }
-        }
-        if (durum.metin.length >= GEMINI_PARTIAL_MIN_CHARS) {
-          const kurtarilan = closeTruncatedJson(durum.metin)
-          /* Karakter esigi yetmiyor: ICERIGE de bakiliyor (20.10.2026,
-             bkz. geminiKurtarmaYeterli). Bos bir kart, Groq'a dusmekten
-             kotudur. */
-          const yeterlilik = kurtarilan ? geminiKurtarmaYeterli(kurtarilan) : { yeterli: false, ozet: 'kurtarilamadi' }
-          if (kurtarilan && !yeterlilik.yeterli) {
-            console.warn(
-              `Gemini ${model}: kismi JSON kurtarildi ama KART OLMAYA YETMIYOR ` +
-              `(${yeterlilik.ozet}) — taslak yok sayiliyor, Groq yoluna dusuluyor`
-            )
-            return null
-          }
-          if (kurtarilan) {
-            console.warn(
-              `Gemini ${model}: akis tamamlanmadi (${durum.hata}) — KISMI JSON kurtarildi, ` +
-              `${durum.metin.length} karakterden ${kurtarilan.length} karakter, ${Date.now() - startedAt}ms`
-            )
-            return { raw: kurtarilan, model, ms: Date.now() - startedAt, usage: durum.usage, kismi: true }
-          }
-          console.warn(
-            `Gemini ${model}: kismi cikti KURTARILAMADI (${durum.metin.length} karakter, ` +
-            `${durum.olaySayisi} olay) — ${durum.hata}`
-          )
-        } else {
-          console.warn(
-            `Gemini ${model}: akis ${durum.metin.length} karakterde kesildi ` +
-            `(esik ${GEMINI_PARTIAL_MIN_CHARS}) — kurtarma denenmiyor: ${durum.hata}`
-          )
-        }
-        /* TERMINAL OLMAYAN DURUM, AKIS SURUMU. Akissiz yolda bu karari
-           geminiProblem veriyor: in_progress/queued/requires_action ise
-           sorun modelde DEGIL, yanit henuz hazir degil — sonraki aday
-           modeli denemek gunluk kotadan (RPD 20) bos yere istek goturur.
-           Akista ayni bilgi status_update olayindan geliyor, yani ayni
-           karar burada veriliyor. Devam ettirme ZATEN denendi (yukarida);
-           o da tutmadiysa yapacak sey Groq yoluna dusmek. */
-        if (durum.status === 'in_progress' || durum.status === 'queued' || durum.status === 'requires_action') {
-          console.warn(
-            `Gemini ${model}: akis status=${durum.status} ile bitti (terminal degil) — ` +
-            `baska aday model denenmiyor`
-          )
-          return null
-        }
-      }
-
-      if (res.ok) {
-        // Yuzey cevap veriyor: ardisiklik bozuldu.
-        ardisikGecici = 0
-        const problem = geminiProblem(res.data)
-        if (problem) {
-          console.warn(`Gemini ${model}: cevap kullanilamaz — ${problem}`)
-          /* Cikti tavani: SONRAKI ADAYI DENEME. Ayni prompt, ayni tavan,
-             ayni sonuc — tek kazanci gunluk 20 istekten birini daha
-             yakmak, ustelik her deneme ~88 saniye suruyor. Kosuyu burada
-             bitirmek, uc kez ayni duvara carpmaktan iyidir. */
-          if (/incomplete/.test(problem)) {
-            /* 17.10.2026: once OLC, sonra kurtarmaya karar ver. Kesilen
-               govdede ne kadar metin oldugunu bilmiyoruz; "neredeyse tam
-               JSON" varsayimi bu repoda daha once olcumsuz yapilip geri
-               alinmisti. Log once gelsin. */
-            const kismi = extractGeminiText(res.data)
-            console.warn(
-              `Gemini ${model}: yarim cikti — kurtarilabilir metin ` +
-              `${kismi.length} karakter (esik yok, simdilik sadece olculuyor)`
-            )
-            return null
-          }
-          /* Terminal olmayan durum (in_progress/queued/requires_action):
-             baska aday model denemek anlamsiz, cunku sorun modelde degil —
-             yanit henuz hazir degil. Sonraki adayi denemek gunluk kotadan
-             bos yere bir istek goturur. */
-          if (/terminal degil/.test(problem)) return null
-          break   // ayni modeli tekrar denemek ayni sonucu verir
-        }
-        const text = extractGeminiText(res.data)
-        if (!text.trim()) {
-          console.warn(`Gemini ${model}: cevapta metin yok (${JSON.stringify(res.data).slice(0, 300)})`)
-          break
-        }
-        console.log(
-          `Gemini ${model}: taslak geldi, ${ms}ms, ${text.length} karakter` +
-          (dropped.length ? `, dusurulen alanlar: ${dropped.join(', ')}` : '')
-        )
-        return { raw: text, model, ms, usage: res.data?.usage ?? null }
-      }
-
-      // Taninmayan bir alan: at ve AYNI modeli tekrar dene. Bu kontrol
-      // digerlerinden once geliyor, cunku "Unknown parameter 'X'" asagidaki
-      // model-yok desenine benzeyebilir ve yanlis teshis butun adaylari
-      // bosa harcar (09.10.2026'da tam olarak bu oldu).
-      const bilinmeyen = geminiUnknownParameter(res.status, res.body)
-      if (bilinmeyen && dropped.indexOf(bilinmeyen) === -1) {
-        dropped.push(bilinmeyen)
-        console.warn(`Gemini ${model}: '${bilinmeyen}' alani taninmadi — atilip tekrar denenecek`)
-        continue
-      }
-
-      if (geminiModelMissing(res.status, res.body)) {
-        console.warn(`Gemini ${model}: model yok (${res.status}) — sonraki aday denenecek`)
-        break
-      }
-      if (dropped.indexOf('response_format') === -1 && geminiFormatRejected(res.status, res.body)) {
-        // Alan adini vermeyen bir bicim sikayeti (ornegin yalnizca "schema"
-        // ya da "mime_type" diyen). Prompt zaten "SADECE gecerli JSON"
-        // diyor, alani dusurup ayni modeli bir kez daha deniyoruz.
-        console.warn(`Gemini ${model}: response_format reddedildi (${res.status}: ${res.body.slice(0, 200)}) — JSON modu kapatilip tekrar denenecek`)
-        dropped.push('response_format')
-        continue
-      }
-      // GUNLUK kota: baska model de, tekrar deneme de ayni duvara carpar ve
-      // her deneme gunluk kotadan bir istek daha goturur. Hemen cikilir.
-      if (geminiQuotaExhausted(res.status, res.body)) {
-        console.warn(
-          `Gemini ${model}: GUNLUK KOTA dolu (429) — baska aday denenmeyecek, ` +
-          `Groq yoluna dusuluyor: ${res.body.slice(0, 200)}`
-        )
-        return null
-      }
-      /* GUNLUK OLMAYAN 429 = dakikalik limit (RPM 5).
-       *
-       * Google'in govdesi ikisini ayirt etmiyor: "Your project has exceeded
-       * a quota" hem gunluk hem dakikalik limitte geliyor. Eski kod hepsini
-       * olumcul sayiyordu ve dakikalik bir sinirlama Gemini yolunu tamamen
-       * kapatiyordu.
-       *
-       * Ama durust olmak gerekirse: RPM penceresi 60 saniye ve bizim tek
-       * istegimizin TAMAMI 150 saniye. Yani bu hatayi "bekleyip gecmek"
-       * ancak butce genisken mumkun. Butce dar ise beklemek, kalan zamani
-       * da yakip hicbir sey uretmemek demek — o yuzden cikiyoruz.
-       *
-       * Aday model turlamak da yok: limit projenin, modelin degil. */
-      if (res.status === 429) {
-        /* Kalan GERCEK zaman: cagri tavanindan degil, isin butcesinden
-           olculur — tavan 105 saniye sabit, butce ise kosu icinde erir. */
-        const kalanButce = budgetMs - (Date.now() - basladi)
-        const bekleme = Math.min(
-          geminiRpmWaitMs(),
-          Math.max(0, kalanButce - GEMINI_RPM_RETRY_MIN_REMAINING_MS)
-        )
-        if (gecici < 1 && kalanButce > GEMINI_RPM_RETRY_MIN_REMAINING_MS) {
-          gecici++
-          console.warn(
-            `Gemini ${model}: dakikalik limit (429) — ${bekleme}ms beklenip ` +
-            `BIR kez tekrar denenecek (kalan butce ${kalanButce}ms): ${res.body.slice(0, 160)}`
-          )
-          if (bekleme > 0) await new Promise((r) => setTimeout(r, bekleme))
-          continue
-        }
-        console.warn(
-          `Gemini ${model}: dakikalik limit (429) ve beklemeye yer yok ` +
-          `(kalan ${kalanButce}ms) — Groq yoluna dusuluyor: ${res.body.slice(0, 160)}`
-        )
-        return null
-      }
-      if (res.status === 503 || res.status === 500) {
-        gecici++
-        ardisikGecici++
-        geciciModeller.add(model)
-        console.warn(`Gemini ${model}: gecici hata ${res.status} (deneme ${gecici}/2): ${res.body.slice(0, 200)}`)
-        /* Yuzeyin tamami yogunsa sonraki aday modeli denemek ayni duvara
-           carpmak: istek de sure de bosa gidiyor. Ama bunun kaniti AYRI
-           modellerden gecici hata gelmesi — bkz. geciciModeller. */
-        if (geciciModeller.size >= GEMINI_ARDISIK_GECICI_MAX) {
-          console.warn(
-            `Gemini: ${geciciModeller.size} AYRI modelde gecici hata ` +
-            `(${[...geciciModeller].join(', ')}, ${ardisikGecici} deneme) — ` +
-            `yuzey yogun sayiliyor, kalan aday modeller denenmiyor, Groq yoluna dusuluyor`
-          )
-          if (tani) tani.geciciDustu = true
-          return null
-        }
-        if (gecici < 2) continue
-        break
-      }
-      console.warn(`Gemini ${model}: cagri basarisiz (${res.status}): ${res.body.slice(0, 300)}`)
+      /* Isleme TEK yerde — bkz. denemeSonucunuIsle. Akis kontrolu burada
+         deger olarak karsilaniyor. */
+      const denemeSonucu = await denemeSonucunuIsle(model, res, startedAt, buCagriMs)
+      if (denemeSonucu.tur === 'taslak') return denemeSonucu.taslak
+      if (denemeSonucu.tur === 'birak') return cik()
+      if (denemeSonucu.tur === 'tekrar') continue
       break
     }
   }
 
   /* Esik dolmadan liste tukendiginde de (ornegin bir model 503, digerleri
      404) tasiyici sebep GECICI: yarin ayni belge Gemini kartini uretebilir,
-     yani bugunun yedek karti kalicilastirilmamali. */
-  if (tani && geciciModeller.size > 0) tani.geciciDustu = true
+     yani bugunun yedek karti kalicilastirilmamali. Bayragi cik() koyuyor. */
   console.warn(
     'Gemini: hicbir aday model taslak uretemedi — Groq yoluna dusuluyor' +
     (geciciModeller.size > 0 ? ` (gecici hata veren: ${[...geciciModeller].join(', ')})` : '')
   )
-  return null
+  return cik()
 }
 
 serve(async (req) => {
@@ -7327,6 +7873,23 @@ serve(async (req) => {
    * Artik hazirlik suresi butceden DUSULUYOR: butce ne olursa olsun
    * istegin tamami duvarin altinda kaliyor. */
   const requestStartedAt = Date.now()
+  /* BEKLENMEYEN ISTISNA BELGEYI ASKIDA BIRAKIYORDU (24.10.2026).
+   *
+   * En dis catch 500 donuyor ama markFailed'i CAGIRMIYORDU; documents.status
+   * 'processing' olarak kaliyor ve ogrenci sonsuza kadar bekliyor. Akis
+   * icindeki ~10 ayri hata yolu markFailed cagiriyor, yalnizca "hic
+   * beklenmeyen" yol cagirmiyordu — yani en tehlikelisi.
+   *
+   * Somut ornek: model `key_points`'i [{point: "..."}] olarak dondurdugunde
+   * birlesme TypeError atiyor (normalizeForDedup dizge bekliyor) ve belge
+   * askida kaliyor. O sekil hatasi ayrica duzeltildi, ama ag burada olmali:
+   * hangi istisna olursa olsun kart basarisiz ISARETLENMELI.
+   *
+   * documentId try'in ICINDE ayristiriliyor; catch'in ona erisebilmesi icin
+   * disarida tutuluyor. Istisna req.json()'dan once olursa null kalir ve
+   * isaretleyecek bir belge de yoktur. */
+  let hataIcinDocumentId: string | null = null
+  let hataIcinClient: any = null
 
   try {
     if (req.method !== 'POST') {
@@ -7345,7 +7908,10 @@ serve(async (req) => {
     const { documentId, summaryStyle, language, summaryLength, analyzeVisuals: analyzeVisualsRequested, depth: depthRaw } = await req.json()
     // let: Lite planinda gorsel analiz kapali — kota okununca dusurulebilir.
     let analyzeVisuals = !!analyzeVisualsRequested
+    // En dis catch'in belgeyi isaretleyebilmesi icin — bkz. hataIcinDocumentId.
+    hataIcinDocumentId = documentId ?? null
     resetGeminiParallelUsage()
+    const istekBasladi = Date.now()
     console.log(`Istek alindi: documentId=${documentId ?? '(yok)'}, visuals=${analyzeVisuals ? 'evet' : 'hayir'}, gemini_mode=${geminiMode()}`)
     if (!documentId) {
       console.warn('Erken cikis 400: documentId gonderilmedi')
@@ -7430,6 +7996,7 @@ serve(async (req) => {
     // Service role client for download and DB write modifications
     const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     const serviceClient = createClient(supabaseUrl, supabaseServiceRoleKey)
+    hataIcinClient = serviceClient   // bkz. hataIcinDocumentId
 
     // ==========================================================================
     // COURSE CATALOG LOOKUP — makes the AI's course-tag suggestion department-aware
@@ -7477,6 +8044,20 @@ serve(async (req) => {
       .from('documents')
       .update({ status: 'processing' })
       .eq('id', documentId)
+
+    // Isci nobetcisi — bkz. ISCI_NOBET_MS.
+    {
+      const nobetci = setTimeout(async () => {
+        try {
+          const { data: durumSatiri } = await serviceClient.from('documents').select('status').eq('id', documentId).maybeSingle()
+          if (durumSatiri && durumSatiri.status === 'processing') {
+            console.error(`Nobetci: ${Date.now() - istekBasladi}ms doldu, belge hala 'processing' — isci kapatilmadan once 'failed' isaretleniyor`)
+            await markFailed(serviceClient, documentId)
+          }
+        } catch (_e) { /* nobetci sessiz */ }
+      }, Math.max(5_000, ISCI_NOBET_MS - (Date.now() - istekBasladi)))
+      try { (Deno as any).unrefTimer(nobetci) } catch (_e) { /* eski calisma ortami */ }
+    }
 
     // 2. Download file blob from private storage bucket
     const { data: fileBlob, error: downloadError } = await serviceClient.storage
@@ -8138,8 +8719,30 @@ ${styleInstruction}`
 
     {
       const mod = geminiMode()
+      /* KAPI, GEMINI'NIN GERCEKTEN KOSACAGI BUTCEYE BAKMALI (24.10.2026).
+       *
+       * Asagidaki atlama kapisi `budgetLeft()` okuyordu, ama o fonksiyon
+       * `pipelineBudgetMs`'e bagli ve orasi Gemini kolu secilene kadar hala
+       * GROQ butcesi (PIPELINE_BUDGET_MS = 110 sn eksi hazirlik). Gemini'nin
+       * kendi butcesi (only modunda GEMINI_ONLY_BUDGET_MS = 145 sn) ancak
+       * kapi GECILDIKTEN sonra, birkac satir asagida kuruluyordu.
+       *
+       * Sonucu: hazirligi uzun bir belgede (OCR'li 42 sayfalik deste,
+       * hazirlik ~58 sn) kapi `52.000 < 55.000` diye Gemini'yi atliyordu —
+       * oysa only modunda o belgeye `145.000 - 58.000 = 87.000 ms` kalacakti,
+       * yani tam bir cagriya rahat yetiyordu. Belge sessizce Groq yoluna
+       * dusuyor ve (geciciDustu bayragi da set edilmediginden) o zayif kart
+       * onbellege KALICI yaziliyordu.
+       *
+       * Ayni ifade hem kapida hem genisletmede kullanilsin diye tek yerden
+       * okunuyor; ikisi ayrisirsa kapi yine yanlis butceye bakar. */
+      const geminiModButcesi = () => Math.max(0,
+        (mod === 'only' ? GEMINI_ONLY_BUDGET_MS : GEMINI_PIPELINE_BUDGET_MS) - hazirlikMs)
+      const geminiModKalan = () => Math.max(0,
+        geminiModButcesi() - (Date.now() - pipelineStartedAt))
       const geminiApiKey = Deno.env.get('GEMINI_API_KEY')
       const geminiMime = geminiNativeMime(mimeType)
+      const devre = (geminiApiKey && mod !== 'parallel') ? await geminiDevreOku(serviceClient) : null
       if (!geminiApiKey) {
         // Tek satir, her kosuda: hangi yolun calistigi loglardan belli olsun.
         console.log('Gemini: GEMINI_API_KEY yok — Groq yolu')
@@ -8150,21 +8753,31 @@ ${styleInstruction}`
           `Gemini: mod=parallel — tum-PDF cagrisi yok, hat paralel pencerelerle ` +
           `(${useChunkedPipeline ? 'uzun belge' : 'kisa belge'}) Gemini'de kosacak`
         )
+      } else if (devre && devre.acik) {
+        /* Devre kesici — bkz. GEMINI_DEVRE_MS. Bu kart Gemini'siz uretildi;
+           onbellege KALICI yazilmasin ki devre kapaninca ayni belge Gemini'yle
+           yeniden denenebilsin (geciciDustu ayni korumayi kullaniyor). */
+        geminiTani.geciciDustu = true
+        console.log(`Gemini: devre kesici ACIK (${devre.kalanDk} dk daha; ${devre.neden || 'olu akis'}) — denenmiyor, dogrudan Groq yolu`)
       } else if (!geminiMime) {
         console.log(`Gemini: atlandi (mime=${mimeType || '(yok)'}, gölge yol yalnizca PDF)`)
       } else if (fileBytes.byteLength > GEMINI_INLINE_MAX_BYTES) {
         console.log(`Gemini: atlandi (dosya ${Math.round(fileBytes.byteLength / 1024 / 1024)} MB > ${GEMINI_INLINE_MAX_BYTES / 1024 / 1024} MB)`)
       } else if (pdfPageCount > GEMINI_MAX_PAGES) {
         console.log(`Gemini: atlandi (${pdfPageCount} sayfa > ${GEMINI_MAX_PAGES})`)
-      } else if (budgetLeft() < GEMINI_MIN_BUDGET_MS) {
-        console.log(`Gemini: atlandi (butce ${budgetLeft()}ms < ${GEMINI_MIN_BUDGET_MS}ms)`)
+      } else if (geminiModKalan() < GEMINI_MIN_BUDGET_MS) {
+        // Groq butcesi degil, Gemini'nin KENDI butcesi — bkz. geminiModButcesi.
+        console.log(
+          `Gemini: atlandi (mod=${mod} butcesinden ${geminiModKalan()}ms kaldi ` +
+          `< ${GEMINI_MIN_BUDGET_MS}ms, hazirlik ${hazirlikMs}ms)`
+        )
       } else {
         /* Butce, cagridan SONRA degil ONCE genisletiliyor; Gemini hic
            DENENMEDIGINDE 110 saniyede kalir.
            only modunda butun butce Gemini'nin (Groq cagrilmayacak),
            shadow modunda Groq'a 62 saniye saklanir. */
-        pipelineBudgetMs = Math.max(0,
-          (mod === 'only' ? GEMINI_ONLY_BUDGET_MS : GEMINI_PIPELINE_BUDGET_MS) - hazirlikMs)
+        // Kapiyla AYNI ifade — bkz. geminiModButcesi.
+        pipelineBudgetMs = geminiModButcesi()
         if (hazirlikMs > 5_000) {
           console.log(`Butce: hazirlik ${hazirlikMs}ms dusuldu, kalan butce ${pipelineBudgetMs}ms`)
         }
@@ -8239,6 +8852,10 @@ ${styleInstruction}`
             `Gemini taslagi KISMI (kurtarilan ${geminiKismiKrk} karakter) — ` +
             `kart uretilecek, rozet yazilacak ve onbellege alinmayacak`
           )
+        }
+
+        if (!geminiResult && geminiTani.geciciDustu) {
+          await geminiDevreAc(serviceClient, 'olu akis / gecici hata')
         }
 
         if (!geminiResult && mod === 'only') {
@@ -9071,8 +9688,27 @@ Rules:
       // yarisinin eksik oldugunu soylemiyordu.
       const dusenPencereler: number[] = []
       for (let batchStart = 0; batchStart < windows.length; batchStart += windowConcurrency) {
+        /* ATLANAN PENCERELER DE KAYIP (24.10.2026).
+         *
+         * Iki kisa devre (bütce ve "enough extractions") kalan pencereleri
+         * hic cagirmiyor, ama bu pencereler `dusenPencereler`'e GIRMIYORDU.
+         * Sonuc: "EKSIK BELGE" olcumu ve karttaki quality_meta.missing_windows
+         * bu kaybi hic gormuyor; log yalnizca "Enough extractions" diyor.
+         *
+         * 12 pencereli bir belgede ilk dort pencere terim kotasini
+         * doldurdugunda 5-12. pencereler hic okunmuyor — yani belgenin
+         * ucte ikisi karta girmiyor ve HICBIR YERDE yazmiyor. Simdi ayni
+         * muhasebeye giriyorlar; rozet tarafi bugun ekrana baglandi, yani
+         * ogrenci de gorecek. */
+        const kalanlariAtla = (sebep: string) => {
+          for (let wi = batchStart; wi < windows.length; wi++) dusenPencereler.push(wi + 1)
+          console.warn(
+            `${sebep} — ${windows.length - batchStart}/${windows.length} pencere ATLANDI ` +
+            `(${batchStart + 1}-${windows.length}), eksik kapsama olarak sayiliyor`
+          )
+        }
         if (budgetLeft() < 20_000 && windowResults.length > 0) {
-          console.warn(`Budget low — stopping before batch starting at window ${batchStart}`)
+          kalanlariAtla(`Butce dar (${budgetLeft()}ms)`)
           break
         }
         // Enough good extractions already?
@@ -9081,7 +9717,7 @@ Rules:
         if (!parallelGemini && windowResults.length >= 4) {
           const termsSoFar = windowResults.reduce((n, r) => n + (r.key_terms?.length || 0), 0)
           if (termsSoFar >= 12) {
-            console.log('Enough extractions — skipping remaining windows')
+            kalanlariAtla(`Yeterli cikarim (${termsSoFar} terim)`)
             break
           }
         }
@@ -9196,7 +9832,7 @@ Rules:
         windowResults.map((r: any) => Array.isArray(r[key]) ? r[key] : [])
 
       const mergedKeyTerms = dedupeKeyTerms(roundRobinInterleave(perWindow('key_terms'))).slice(0, 40)
-      const mergedKeyPoints = dedupeByText(roundRobinInterleave(perWindow('key_points')), (x: string) => x).slice(0, 35)
+      const mergedKeyPoints = dedupeByText(roundRobinInterleave(perWindow('key_points')), maddeMetni).slice(0, 35)
       const mergedQuiz = dedupeByText(roundRobinInterleave(perWindow('quiz_questions')), (q: any) => q?.question || '').slice(0, 20)
       const mergedFormulas = roundRobinInterleave(perWindow('formulas')).slice(0, 30)
       const quantFraction = windowResults.filter(r => r.is_quantitative).length / Math.max(1, windowResults.length)
@@ -9343,10 +9979,81 @@ Use CONCRETE topic names from digests and terms. No meta filler.`
                * korunur. Ustteki atlama kapisi yine duruyor, ag olarak. */
               { model: synLane, temperature: 0.25, maxCompletionTokens: synCompletion, timeoutMs: 30000, maxRetries: 0 }
             )
-            if (syn?.summary && String(syn.summary).length > 80) bestSummary = String(syn.summary)
+            /* SENTEZ PENCERELERIN CIKTISINI TABANSIZ EZIYORDU (24.10.2026).
+             *
+             * `bestSections` 12 pencereden gelen bolumlerin flatMap'i; tek
+             * kosul `length >= 1` oldugu icin sentez IKI baslik dondurunce
+             * 20 bolum 2'ye iniyordu. `bestSummary` de pencerelerin birlesik
+             * ozeti (binlerce karakter) iken 81 karakterlik bir ciktiyla
+             * degistirilebiliyordu.
+             *
+             * Sentez yalnizca 600 karakterlik ozetceleri goruyor ve 768
+             * token butcesiyle kosuyor — yani PENCERELERDEN DAHA AZ bilgiyle
+             * yaziyor. Review tarafinda ayni karar icin NARRATIVE_MIN_KEEP_RATIO
+             * tabani var; burada ayni mantigin ikinci yazimi tabansizdi.
+             *
+             * Simdi ayni taban burada da: sentez ancak mevcut icerigin
+             * dortte ucunu koruyorsa gecerli. Reddedilen hal loglanir, cunku
+             * sessiz bir ret "sentez neden hic ise yaramiyor" sorusunu
+             * cevapsiz birakir. */
+            const sentezRet = (ad: string, eski: number, yeni: number) => {
+              console.warn(
+                `Compact synthesis ${ad} REDDEDILDI: ${yeni} < ${eski} x ` +
+                `${NARRATIVE_MIN_KEEP_RATIO} — pencerelerin ciktisi korunuyor`
+              )
+            }
+            if (syn?.summary && String(syn.summary).length > 80) {
+              const yeni = String(syn.summary)
+              if (!bestSummary || yeni.length >= bestSummary.length * NARRATIVE_MIN_KEEP_RATIO) {
+                bestSummary = yeni
+              } else {
+                sentezRet('ozeti', bestSummary.length, yeni.length)
+              }
+            }
             if (syn?.summary_executive) bestExec = String(syn.summary_executive)
-            if (syn?.outline?.items?.length) bestOutline = syn.outline
-            if (Array.isArray(syn?.sections) && syn.sections.length) bestSections = syn.sections
+            if (syn?.outline?.items?.length) {
+              // `arr` acadex-ink yardimcisi; bu dosyada YOK (scope-check yakaladi).
+              const eski = Array.isArray(bestOutline?.items) ? bestOutline.items.length : 0
+              if (syn.outline.items.length >= eski * NARRATIVE_MIN_KEEP_RATIO) bestOutline = syn.outline
+              else sentezRet('anahati', eski, syn.outline.items.length)
+            }
+            /* BOLUMLERDE SAYI YANLIS OLCU (24.10.2026, duzeltme).
+             *
+             * Dun buraya sayi tabani koydum ve YANLISTI: sentezin isi tam
+             * olarak cok sayida pencere bolumunu daha az, daha derli toplu
+             * bolume indirmek. Sayiya bakan bir taban, sentezin yapmasi
+             * gereken seyi garanti olarak reddeder.
+             *
+             * Canli kanit — kullanicinin yan yana koydugu iki kart:
+             *   Compact synthesis bolumleri REDDEDILDI: 4 < 7 x 0.75
+             * Kart 7 pencere bolumu + 2 gorsel yama = 9 BOLUMLE kaldi.
+             * "Iyiydi" dedigi eski kart ise 4 BOLUMDU — yani sentezin
+             * onerdigi yapinin ta kendisi.
+             *
+             * Korunmasi gereken sey ICERIK, dagilim degil: sentez metni
+             * yariya dusurduyse kayip, 7 bolumu 4'e topladiysa duzenleme.
+             * Olcu artik toplam karakter.
+             *
+             * Anahat bolumlerle BIRLIKTE uretiliyor; bolumler kabul
+             * edildiyse 12 maddelik eski anahati 4 bolume yapistirmak
+             * tutarsiz olurdu, o yuzden o da sentezin surumune geciyor. */
+            if (Array.isArray(syn?.sections) && syn.sections.length) {
+              const bolumKrk = (a: any[]) => a.reduce(
+                (n, s) => n + String(s?.heading || '').length + String(s?.summary || s?.content || '').length, 0
+              )
+              const eskiKrk = bolumKrk(bestSections)
+              const yeniKrk = bolumKrk(syn.sections)
+              if (eskiKrk === 0 || yeniKrk >= eskiKrk * NARRATIVE_MIN_KEEP_RATIO) {
+                console.log(
+                  `Compact synthesis bolumleri kabul edildi: ${bestSections.length} bolum ` +
+                  `${eskiKrk} krk -> ${syn.sections.length} bolum ${yeniKrk} krk`
+                )
+                bestSections = syn.sections
+                if (syn.outline?.items?.length) bestOutline = syn.outline
+              } else {
+                sentezRet('bolumleri (icerik)', eskiKrk, yeniKrk)
+              }
+            }
           }
         } catch (synErr) {
           console.warn('Compact synthesis skipped:', synErr)
@@ -9589,21 +10296,58 @@ The example that used to sit here named a real-looking percentage, and a live ru
 
                 if (newTerms.length || newPoints.length || newQuiz.length) {
                   const patchedTerms = dedupeKeyTerms([...mergedKeyTerms, ...newTerms]).slice(0, 40)
-                  const patchedPoints = dedupeByText([...mergedKeyPoints, ...newPoints], (x: string) => x).slice(0, 35)
+                  const patchedPoints = dedupeByText([...mergedKeyPoints, ...newPoints], maddeMetni).slice(0, 35)
                   const patchedQuiz = dedupeByText([...mergedQuiz, ...newQuiz], (q: any) => q?.question || '').slice(0, 20)
                   mergedKeyTerms.length = 0; mergedKeyTerms.push(...patchedTerms)
                   mergedKeyPoints.length = 0; mergedKeyPoints.push(...patchedPoints)
                   mergedQuiz.length = 0; mergedQuiz.push(...patchedQuiz)
                 }
                 if (newSections.length) bestSections = bestSections.concat(newSections)
+                /* FILTRE YALNIZCA YENI KAYITLARA (24.10.2026).
+                 *
+                 * Sekil filtresi BIRLESTIRILMIS dizinin tamamina
+                 * uygulaniyordu, yani metin pencerelerinden gelmis saglam
+                 * bir tablo da sekil kontrolune giriyordu. Gorsel gecis en az
+                 * bir tablo dondurdugu ANDA, basligi olmayan ya da `rows`
+                 * yerine baska alan tasiyan eski kayitlar siliniyordu —
+                 * gorsel gecis hic calismadigi kosuda ayni tablolar karta
+                 * giriyordu. Yani kayip, ILGISIZ bir adimin calisip
+                 * calismamasina bagliydi ve hicbir log bunu bildirmiyordu:
+                 * "Long-doc visual patch: +N tables" yalnizca EKLENENI sayar.
+                 *
+                 * Ikinci kayip dedupeByText'in kendisinde: anahtar bos
+                 * normalize olursa kayit atiliyor (`if (!norm) continue`),
+                 * yani BASLIKSIZ bir tablo baslikla ayiklanirken dusuyor.
+                 * Davranis korunuyor (baslik olmadan ayiklama yapilamaz) ama
+                 * artik kac kayit dustugu loglaniyor. */
+                const yamaKaybiLogla = (ad: string, once: number, sonra: number, eklenen: number) => {
+                  const beklenen = once + eklenen
+                  if (sonra < beklenen) {
+                    console.warn(
+                      `Gorsel yama ${ad}: ${beklenen - sonra} kayit birlesmede dustu ` +
+                      `(${once} mevcut + ${eklenen} yeni -> ${sonra}); basligi olmayan ya da ` +
+                      `tekrar eden kayitlar ayiklanir`
+                    )
+                  }
+                }
                 if (newTables.length) {
-                  const patchedTables = dedupeByText([...mergedTables, ...newTables], (t: any) => t?.title || '')
-                    .filter((t: any) => t && t.title && Array.isArray(t.rows) && t.rows.length > 0).slice(0, 12)
+                  const yeniTemiz = newTables.filter(
+                    (t: any) => t && t.title && Array.isArray(t.rows) && t.rows.length > 0
+                  )
+                  const once = mergedTables.length
+                  const patchedTables = dedupeByText(
+                    [...mergedTables, ...yeniTemiz], (t: any) => t?.title || ''
+                  ).slice(0, 12)
+                  yamaKaybiLogla('tablo', once, patchedTables.length, yeniTemiz.length)
                   mergedTables.length = 0; mergedTables.push(...patchedTables)
                 }
                 if (newDiagrams.length) {
-                  const patchedDiagrams = dedupeByText([...mergedDiagrams, ...newDiagrams], (d: any) => d?.title || '')
-                    .filter((d: any) => d && d.title && d.mermaid).slice(0, 8)
+                  const yeniTemiz = newDiagrams.filter((d: any) => d && d.title && d.mermaid)
+                  const once = mergedDiagrams.length
+                  const patchedDiagrams = dedupeByText(
+                    [...mergedDiagrams, ...yeniTemiz], (d: any) => d?.title || ''
+                  ).slice(0, 8)
+                  yamaKaybiLogla('diyagram', once, patchedDiagrams.length, yeniTemiz.length)
                   mergedDiagrams.length = 0; mergedDiagrams.push(...patchedDiagrams)
                 }
 
@@ -10647,7 +11391,7 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
       )
       parsedContent.key_points = yogunluk.key_points
       yogunlukOlcumu = yogunluk.stats.dropped > 0
-        ? { dropped: yogunluk.stats.dropped, toplam: yogunluk.stats.kept, ornekler: yogunluk.stats.droppedPoints.slice(0, 5) }
+        ? { dropped: yogunluk.stats.dropped, toplam: yogunluk.stats.toplam, ornekler: yogunluk.stats.droppedPoints.slice(0, 5) }
         : null
       if (yogunluk.stats.valfAcildi) {
         console.warn(
@@ -10656,7 +11400,7 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
         )
       } else if (yogunluk.stats.dropped > 0) {
         console.log(
-          `Yogunluk olcumu: ${yogunluk.stats.dropped}/${yogunluk.stats.kept} madde somut capa tasimiyor` +
+          `Yogunluk olcumu: ${yogunluk.stats.dropped}/${yogunluk.stats.toplam} madde somut capa tasimiyor` +
           ` | dolgu: ${yogunluk.stats.droppedPoints.map((x) => '"' + x + '"').join(' ')}`
         )
       }
@@ -10902,7 +11646,13 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
         'yolundan geldi, kalici cevap sayilmiyor (ayni belge sonraki yuklemede yeniden denenir)'
       )
     }
-    if (summaryCacheKey && !eksikPencereler && geminiKismiKrk === 0 && !geminiTani.geciciDustu) {
+    // Karar saf fonksiyonda — bkz. onbellegeYazilabilir (16 kombinasyon testli).
+    if (onbellegeYazilabilir({
+      anahtarVar: !!summaryCacheKey,
+      eksikPencereVar: !!eksikPencereler,
+      geminiKismiKrk,
+      geciciDustu: !!geminiTani.geciciDustu
+    })) {
       const { document_id: _d, user_id: _u, course_tag: _c, ...shareable } = cardPayload
       /* IKI SATIR: dosya hash'i ve metin hash'i. Ikisi de ayni karti
          gosteriyor; hangisi once isabet ederse o kullanilir. */
@@ -10925,6 +11675,12 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
 
   } catch (err) {
     console.error('Unexpected Edge Function exception: ', err)
+    /* Belge ASKIDA kalmasin — bkz. hataIcinDocumentId. Isaretleme bastirilan
+       bir hatayla da olsa denenir; markFailed kendi icinde try/catch'li. */
+    if (hataIcinClient && hataIcinDocumentId) {
+      console.error(`Beklenmeyen istisna: ${hataIcinDocumentId} basarisiz isaretleniyor`)
+      await markFailed(hataIcinClient, hataIcinDocumentId)
+    }
     return new Response(JSON.stringify({ error: 'An unexpected Edge Function error occurred' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -10946,6 +11702,33 @@ const CACHE_METIN_MIN_KRK = 400
 /** Cache icin metin normalizasyonu: bosluk sadelestirme + kucuk harf.
  *  Ayni destenin iki ayri taramasi bayt duzeyinde farkli, metin
  *  duzeyinde ayni oluyor; esitligi burada kuruyoruz. */
+/* ONBELLEGE YAZILABILIR MI — SAF KARAR (24.10.2026).
+ *
+ * Karar dort kosuldan olusuyor ve uc test bunu YALNIZCA DIZGE ARAYARAK
+ * dogruluyordu (`satir.includes('geminiKismiKrk === 0')` gibi). Yani
+ * `&&` -> `||` yazilsa, bir `!` dusse ya da kapi baska bir dalin icine
+ * tasinsa UC TESTIN UCU DE YESIL kalir ve kismi/zayif kart kalici olarak
+ * onbellege girer. Kosullarin VARLIGI olculuyordu, MANTIGI degil.
+ *
+ * Karar artik saf bir fonksiyon: 16 kombinasyonun tamami tabloyla
+ * sinanabiliyor.
+ *
+ * Kosullarin anlami:
+ *   anahtarVar      — anahtar uretilemediyse yazacak yer yok
+ *   eksikPencereYok — yarim kalan ozet baska ogrencilere dagitilmamali
+ *   kismiDegil      — kesilen Gemini akisindan kurtarilan kart tam degil
+ *   geciciDusmedi   — Gemini gecici hatayla dustuyse cikan kart YEDEK
+ *                     yoldan geliyor; tam olabilir ama ISTENEN kart degil
+ *                     ve o dosya icin Gemini bir daha hic denenmemeli */
+function onbellegeYazilabilir(k: {
+  anahtarVar: boolean
+  eksikPencereVar: boolean
+  geminiKismiKrk: number
+  geciciDustu: boolean
+}): boolean {
+  return k.anahtarVar && !k.eksikPencereVar && k.geminiKismiKrk === 0 && !k.geciciDustu
+}
+
 function cacheMetniNormalize(text: string): string {
   return String(text || '').replace(/\s+/g, ' ').trim().toLowerCase()
 }

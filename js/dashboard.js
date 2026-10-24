@@ -1397,6 +1397,18 @@ async function proceedWithSummarization() {
       } catch (parseErr) {
         console.error("Failed to parse HTTP error body:", parseErr);
       }
+      /* 546 = Supabase isciyi kapatti (sure/bellek siniri). Sunucu o anda
+         hicbir sey yazamadigi icin belge 'processing' kaliyor ve kart
+         sonsuza kadar "isleniyor" gosteriyordu (25.10.2026, BF415). Sunucu
+         nobetcisi 141. saniyede 'failed' yaziyor; bu satir nobetcinin de
+         yetisemedigi erken kapanmalar icin. Yalnizca hala 'processing' ise
+         degistirir — is bir sekilde bittiyse dokunmaz. */
+      const httpDurum = error.context && error.context.status;
+      if (httpDurum === 546 || httpDurum === 504) {
+        await supabaseClient.from('documents').update({ status: 'failed' }).eq('id', docId).eq('status', 'processing');
+        const isTrF = (localStorage.getItem('acadexUILang') || 'tr') === 'tr';
+        errorMsg = isTrF ? 'Özet zaman sınırına takıldı. Belgede "tekrar dene"ye bas; ikinci deneme genelde hızlı biter.' : 'Summarization hit the time limit. Press "retry" on the document.';
+      }
       showDashboardAlert('error', errorMsg);
       await loadDocuments(); // Reload to reset card state
       return;

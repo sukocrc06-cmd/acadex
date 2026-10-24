@@ -115,16 +115,18 @@
     news: '<path d="M4 9v6h3l6 4V5L7 9zM17 9a4 4 0 0 1 0 6M19.5 6.5a7.5 7.5 0 0 1 0 11"/>',
     settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
     audit: '<path d="M9 4h6M9 4a2 2 0 0 0-2 2v0H5v15h14V6h-2a2 2 0 0 0-2-2M9 12l2 2 4-4"/>',
+    ekip: '<circle cx="12" cy="5.5" r="2.5"/><circle cx="5" cy="17.5" r="2.5"/><circle cx="19" cy="17.5" r="2.5"/><path d="M12 8v4M5 15v-3h14v3"/>',
     test: '<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3M7.5 14h9"/>'
   };
   var NAV = [
     { g: 'MASA' }, { k: 'overview', t: 'Genel bakış' },
     { g: 'ÖĞRENCİLER' }, { k: 'users', t: 'Kullanıcılar' }, { k: 'reports', t: 'Şikâyetler', badge: 'open_reports' }, { k: 'plans', t: 'Planlar ve kota', soon: true },
     { g: 'İÇERİK VE İLETİŞİM' }, { k: 'content', t: 'İçerik' }, { k: 'inbox', t: 'Gelen kutusu', badge: 'unread_messages' }, { k: 'news', t: 'Duyurular' },
+    { g: 'ACADEX' }, { k: 'ekip', t: 'Acadex ekibi' },
     { g: 'TEST' }, { k: 'test', t: 'Test paneli', badge: 'test_open_hata' },
     { g: 'SİSTEM' }, { k: 'settings', t: 'Site ayarları' }, { k: 'audit', t: 'Denetim kaydı' }
   ];
-  var TITLES = { overview: 'Genel bakış', users: 'Kullanıcılar', reports: 'Şikâyetler ve moderasyon', plans: 'Planlar ve kota', content: 'İçerik', inbox: 'Gelen kutusu', news: 'Duyurular', settings: 'Site ayarları', audit: 'Denetim kaydı', test: 'Test paneli' };
+  var TITLES = { overview: 'Genel bakış', users: 'Kullanıcılar', reports: 'Şikâyetler ve moderasyon', plans: 'Planlar ve kota', content: 'İçerik', inbox: 'Gelen kutusu', news: 'Duyurular', settings: 'Site ayarları', audit: 'Denetim kaydı', test: 'Test paneli', ekip: 'Acadex ekibi' };
   var paintNav = function () {
     $('#nav').innerHTML = NAV.map(function (n) {
       if (n.g) return '<div class="grp">' + n.g + '</div>';
@@ -262,6 +264,158 @@
         '</tbody></table></div><p class="muted" style="font-size:12.5px;margin:10px 0 0">Ekibe kişi eklemek ya da çıkarmak için Test Paneli\'nde sağ üstteki ekip simgesini kullan.</p></div>' +
       '<div class="card"><h2>En eski açık kayıtlar</h2><p class="sub">en uzun süredir bekleyenler</p><div class="list">' +
         ((t.oldest || []).length ? t.oldest.map(function (x) { return row(x, false); }).join('') : '<p class="muted">Açık kayıt yok.</p>') + '</div></div></div>';
+  };
+
+  /* ---------- Acadex ekibi (ax_teams, ax_people; bkz. supabase/migrations/20261024e_acadex_ekip.sql) ---------- */
+  var EK = { teams: [], people: [], view: 'ekip' };
+  var EST = { aktif: 'aktif', yari: 'yarı zamanlı', ayrildi: 'ayrıldı' };
+  var EPAL = ['#1A2A5C', '#E06AA0', '#2F6BFF', '#8A5CF6', '#F08A24', '#C2417A', '#12A3A3', '#1E8A55', '#B5832A', '#D64545', '#5B6B8C'];
+  try { EK.view = localStorage.getItem('acadex.adm.ekipView') || 'ekip'; } catch (e) {}
+  var ekLoad = async function () {
+    var a = await Promise.all([sb.from('ax_teams').select('*').order('sort').order('name'), sb.from('ax_people').select('*').order('sort').order('full_name')]);
+    if (a[0].error) throw a[0].error; if (a[1].error) throw a[1].error;
+    EK.teams = a[0].data || []; EK.people = a[1].data || [];
+  };
+  var ekTeam = function (id) { return EK.teams.filter(function (t) { return t.id === id; })[0] || null; };
+  var ekOf = function (tid) { return EK.people.filter(function (p) { return p.team_id === tid; }).sort(function (a, b) { return (b.is_lead - a.is_lead) || (a.sort - b.sort) || a.full_name.localeCompare(b.full_name, 'tr'); }); };
+  var ekAv = function (p, c) { return '<span class="av ek-av" style="background:' + X(c || '#5B6B8C') + '">' + X(ini(p.full_name)) + '</span>'; };
+  var ekPerson = function (p, c) {
+    return '<button type="button" class="ek-p' + (p.status === 'ayrildi' ? ' gone' : '') + '" data-ekp="' + X(p.id) + '">' + ekAv(p, c) +
+      '<span class="ek-pn"><b>' + X(p.full_name) + (p.is_lead ? ' <span class="pill blue">lider</span>' : '') + (p.status !== 'aktif' ? ' <span class="pill' + (p.status === 'ayrildi' ? ' bad' : ' warn') + '">' + EST[p.status] + '</span>' : '') + '</b>' +
+      '<small>' + X(p.title || 'rol yazılmadı') + '</small>' + (p.job_description ? '<span class="ek-job">' + X(p.job_description) + '</span>' : '') + '</span></button>';
+  };
+  var ekTeamCard = function (t) {
+    var ps = ekOf(t.id);
+    return '<div class="card ek-team" style="--tc:' + X(t.color) + '"><div class="ek-th"><span class="ek-dot"></span><h2>' + X(t.name) + '</h2><span class="muted">' + ps.length + ' kişi</span><button type="button" class="btn ghost sm" data-ekt="' + X(t.id) + '">düzenle</button></div>' +
+      (t.description ? '<p class="sub">' + X(t.description) + '</p>' : '') +
+      '<div class="ek-ps">' + (ps.length ? ps.map(function (p) { return ekPerson(p, t.color); }).join('') : '<p class="muted ek-empty">Bu ekipte henüz kimse yok.</p>') + '</div>' +
+      '<button type="button" class="lnk ek-add" data-ekadd="' + X(t.id) + '">+ bu ekibe kişi ekle</button></div>';
+  };
+  var ekChart = function () {
+    var board = EK.teams.filter(function (t) { return t.is_board; }), rest = EK.teams.filter(function (t) { return !t.is_board; });
+    var node = function (p, c) { return '<button type="button" class="ek-node" data-ekp="' + X(p.id) + '" style="--tc:' + X(c) + '">' + ekAv(p, c) + '<span><b>' + X(p.full_name) + '</b><small>' + X(p.title || '') + '</small></span></button>'; };
+    var top = board.map(function (t) { return ekOf(t.id).map(function (p) { return node(p, t.color); }).join(''); }).join('');
+    var noTeam = EK.people.filter(function (p) { return !p.team_id || !ekTeam(p.team_id); });
+    return '<div class="card ek-chart"><div class="ek-top">' + (top || '<p class="muted">Şemanın tepesi için bir ekibi "yönetim" olarak işaretle.</p>') + '</div>' +
+      (rest.length ? '<div class="ek-stem"></div><div class="ek-row">' + rest.map(function (t) {
+        var ps = ekOf(t.id), lead = ps.filter(function (p) { return p.is_lead; })[0], others = ps.filter(function (p) { return p !== lead; });
+        return '<div class="ek-branch" style="--tc:' + X(t.color) + '"><button type="button" class="ek-tn" data-ekt="' + X(t.id) + '"><b>' + X(t.name) + '</b><small>' + ps.length + ' kişi</small></button>' +
+          (lead ? node(lead, t.color) : '') + (others.length ? '<div class="ek-sub">' + others.map(function (p) { return node(p, t.color); }).join('') + '</div>' : '') +
+          (!ps.length ? '<button type="button" class="ek-open" data-ekadd="' + X(t.id) + '">+ kişi ekle</button>' : '') + '</div>';
+      }).join('') + '</div>' : '') +
+      (noTeam.length ? '<div class="ek-loose"><span class="mono">EKİBİ YOK</span>' + noTeam.map(function (p) { return node(p, '#5B6B8C'); }).join('') + '</div>' : '') + '</div>';
+  };
+  VIEWS.ekip = async function (m) {
+    try { await ekLoad(); }
+    catch (e) {
+      if (/ax_teams|ax_people|does not exist|PGRST20/i.test(String((e && (e.message || e.code)) || ''))) {
+        m.innerHTML = '<div class="card"><h2>Ekip bölümü henüz kurulmadı</h2><p class="sub">Supabase → SQL Editor\'de <b>20261024e_acadex_ekip.sql</b> dosyasını çalıştır; bu sayfa kendiliğinden dolar.</p></div>';
+        return;
+      }
+      throw e;
+    }
+    var act = EK.people.filter(function (p) { return p.status !== 'ayrildi'; }).length;
+    m.innerHTML = '<div class="tst-head"><p class="muted" style="margin:0">' + act + ' kişi · ' + EK.teams.length + ' ekip. Kişiye ya da ekibe tıklayınca düzenleyebilirsin.</p>' +
+      '<div class="acts"><div class="ek-seg" role="group" aria-label="Görünüm"><button type="button" data-ekv="ekip" aria-pressed="' + (EK.view === 'ekip') + '">Ekipler</button><button type="button" data-ekv="sema" aria-pressed="' + (EK.view === 'sema') + '">Organizasyon şeması</button></div>' +
+      '<button type="button" class="btn ghost sm" id="ek-xlsx">Excel indir</button><button type="button" class="btn ghost sm" id="ek-newt">+ Ekip</button><button type="button" class="btn blue sm" id="ek-newp">+ Kişi</button></div></div>' +
+      (EK.view === 'sema' ? ekChart() : '<div class="ek-grid">' + EK.teams.map(ekTeamCard).join('') + '</div>' +
+        (EK.people.some(function (p) { return !p.team_id; }) ? '<div class="card" style="margin-top:16px"><h2>Ekibi olmayanlar</h2><div class="ek-ps">' + EK.people.filter(function (p) { return !p.team_id; }).map(function (p) { return ekPerson(p); }).join('') + '</div></div>' : ''));
+    m.onclick = function (e) {
+      var b;
+      if ((b = e.target.closest('[data-ekv]'))) { EK.view = b.getAttribute('data-ekv'); try { localStorage.setItem('acadex.adm.ekipView', EK.view); } catch (er) {} VIEWS.ekip(m); return; }
+      if ((b = e.target.closest('[data-ekp]'))) { ekPersonForm(m, EK.people.filter(function (p) { return p.id === b.getAttribute('data-ekp'); })[0]); return; }
+      if ((b = e.target.closest('[data-ekadd]'))) { ekPersonForm(m, null, b.getAttribute('data-ekadd')); return; }
+      if ((b = e.target.closest('[data-ekt]'))) { ekTeamForm(m, ekTeam(b.getAttribute('data-ekt'))); return; }
+      if (e.target.closest('#ek-newp')) { ekPersonForm(m, null); return; }
+      if (e.target.closest('#ek-newt')) { ekTeamForm(m, null); return; }
+      if (e.target.closest('#ek-xlsx')) { ekExcel(); }
+    };
+  };
+  var ekSave = async function (table, id, row) {
+    var r = id ? await sb.from(table).update(row).eq('id', id) : await sb.from(table).insert(row);
+    if (r.error) throw r.error;
+  };
+  var ekPersonForm = function (m, p, teamId) {
+    p = p || { full_name: '', title: '', team_id: teamId || '', is_lead: false, job_description: '', responsibilities: '', email: '', phone: '', start_date: '', status: 'aktif', sort: 100 };
+    openDrawer(p.id ? p.full_name : 'Yeni kişi',
+      '<form id="ekp-f" novalidate style="display:flex;flex-direction:column;gap:12px">' +
+      '<label class="fld">Ad soyad<input class="in" name="n" maxlength="80" required value="' + X(p.full_name) + '"></label>' +
+      '<label class="fld">Rol / unvan <small>ör. Test Uzmanı, Videographer</small><input class="in" name="ti" maxlength="80" value="' + X(p.title) + '"></label>' +
+      '<div class="grid g2" style="gap:10px"><label class="fld">Ekip<select class="in" name="t"><option value="">ekibi yok</option>' + EK.teams.map(function (t) { return '<option value="' + X(t.id) + '"' + (t.id === p.team_id ? ' selected' : '') + '>' + X(t.name) + '</option>'; }).join('') + '</select></label>' +
+      '<label class="fld">Durum<select class="in" name="s">' + Object.keys(EST).map(function (k) { return '<option value="' + k + '"' + (p.status === k ? ' selected' : '') + '>' + EST[k] + '</option>'; }).join('') + '</select></label></div>' +
+      '<label class="switch"><input type="checkbox" name="l"' + (p.is_lead ? ' checked' : '') + '><i></i>ekip lideri</label>' +
+      '<label class="fld">İş tanımı <small>ne yapıyor, kısaca</small><textarea class="in" name="j" maxlength="1200">' + X(p.job_description) + '</textarea></label>' +
+      '<label class="fld">Sorumluluklar <small>her satıra bir madde</small><textarea class="in" name="r" maxlength="2000">' + X(p.responsibilities) + '</textarea></label>' +
+      '<div class="grid g2" style="gap:10px"><label class="fld">E-posta<input class="in" type="email" name="e" maxlength="120" value="' + X(p.email) + '"></label><label class="fld">Telefon<input class="in" type="tel" name="ph" maxlength="30" value="' + X(p.phone) + '"></label></div>' +
+      '<div class="grid g2" style="gap:10px"><label class="fld">Başlangıç tarihi<input class="in" type="date" name="d" value="' + X(p.start_date || '') + '"></label><label class="fld">Sıra <small>küçük olan önce</small><input class="in" type="number" name="o" min="0" max="999" value="' + X(p.sort) + '"></label></div>' +
+      '<div class="acts"><button class="btn blue" type="submit">' + (p.id ? 'Kaydet' : 'Ekle') + '</button>' + (p.id ? '<button class="btn red" type="button" id="ekp-del">kaldır</button>' : '') + '</div></form>');
+    var f = $('#ekp-f');
+    f.addEventListener('submit', async function (ev) {
+      ev.preventDefault(); if (f.n.value.trim().length < 2) { toast('Ad yaz.', true); f.n.focus(); return; }
+      var b = $('button[type=submit]', f); b.disabled = true;
+      try {
+        await ekSave('ax_people', p.id, { full_name: f.n.value.trim(), title: f.ti.value.trim(), team_id: f.t.value || null, status: f.s.value, is_lead: f.l.checked, job_description: f.j.value.trim(), responsibilities: f.r.value.trim(), email: f.e.value.trim(), phone: f.ph.value.trim(), start_date: f.d.value || null, sort: parseInt(f.o.value, 10) || 100 });
+        toast(p.id ? 'Kaydedildi.' : 'Kişi eklendi.'); closeDrawer(); VIEWS.ekip(m);
+      } catch (er) { b.disabled = false; toast(errMsg(er), true); }
+    });
+    var del = $('#ekp-del'); if (del) del.addEventListener('click', async function () {
+      if (!confirmBox(p.full_name + ' ekip listesinden kaldırılsın mı? Ayrıldıysa "Durum: ayrıldı" seçmek kaydı korur.')) return;
+      try { var r = await sb.from('ax_people').delete().eq('id', p.id); if (r.error) throw r.error; toast('Kaldırıldı.'); closeDrawer(); VIEWS.ekip(m); } catch (er) { toast(errMsg(er), true); }
+    });
+  };
+  var ekTeamForm = function (m, t) {
+    var used = EK.teams.map(function (x) { return x.color; });
+    t = t || { name: '', color: EPAL.filter(function (c) { return used.indexOf(c) < 0; })[0] || EPAL[0], description: '', is_board: false, sort: (EK.teams.length + 1) * 10 };
+    var n = t.id ? ekOf(t.id).length : 0;
+    openDrawer(t.id ? t.name : 'Yeni ekip',
+      '<form id="ekt-f" novalidate style="display:flex;flex-direction:column;gap:12px">' +
+      '<label class="fld">Ekip adı<input class="in" name="n" maxlength="60" required value="' + X(t.name) + '" placeholder="ör. Finans"></label>' +
+      '<label class="fld">Görev tanımı<textarea class="in" name="d" maxlength="600">' + X(t.description) + '</textarea></label>' +
+      '<div class="fld">Renk<div class="ek-colors">' + EPAL.map(function (c) { return '<label><input type="radio" name="c" value="' + c + '"' + (c === t.color ? ' checked' : '') + '><i style="background:' + c + '"></i></label>'; }).join('') + '</div></div>' +
+      '<div class="grid g2" style="gap:10px"><label class="fld">Sıra <small>küçük olan önce</small><input class="in" type="number" name="o" min="0" max="999" value="' + X(t.sort) + '"></label>' +
+      '<label class="switch" style="align-self:end;min-height:40px"><input type="checkbox" name="b"' + (t.is_board ? ' checked' : '') + '><i></i>yönetim (şemada en üstte)</label></div>' +
+      '<div class="acts"><button class="btn blue" type="submit">' + (t.id ? 'Kaydet' : 'Ekip ekle') + '</button>' + (t.id ? '<button class="btn red" type="button" id="ekt-del">ekibi kaldır</button>' : '') + '</div>' +
+      (t.id && n ? '<p class="muted" style="font-size:12.5px;margin:0">Ekip kaldırılırsa ' + n + ' kişi silinmez, "ekibi yok" olarak kalır.</p>' : '') + '</form>');
+    var f = $('#ekt-f');
+    f.addEventListener('submit', async function (ev) {
+      ev.preventDefault(); if (f.n.value.trim().length < 2) { toast('Ekip adı yaz.', true); f.n.focus(); return; }
+      var c = $('input[name=c]:checked', f), b = $('button[type=submit]', f); b.disabled = true;
+      try {
+        await ekSave('ax_teams', t.id, { name: f.n.value.trim(), description: f.d.value.trim(), color: c ? c.value : t.color, sort: parseInt(f.o.value, 10) || 100, is_board: f.b.checked });
+        toast(t.id ? 'Ekip kaydedildi.' : 'Ekip eklendi.'); closeDrawer(); VIEWS.ekip(m);
+      } catch (er) { b.disabled = false; toast(/duplicate|unique/i.test(er.message || '') ? 'Bu adla bir ekip zaten var.' : errMsg(er), true); }
+    });
+    var del = $('#ekt-del'); if (del) del.addEventListener('click', async function () {
+      if (!confirmBox('"' + t.name + '" ekibi kaldırılsın mı?')) return;
+      try { var r = await sb.from('ax_teams').delete().eq('id', t.id); if (r.error) throw r.error; toast('Ekip kaldırıldı.'); closeDrawer(); VIEWS.ekip(m); } catch (er) { toast(errMsg(er), true); }
+    });
+  };
+  var xlsxP = null;
+  var loadXlsx = function () {
+    if (window.XLSX) return Promise.resolve(window.XLSX);
+    if (xlsxP) return xlsxP;
+    xlsxP = new Promise(function (res, rej) { var s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s.onload = function () { res(window.XLSX); }; s.onerror = function () { xlsxP = null; rej(new Error('Excel kütüphanesi yüklenemedi')); }; document.head.appendChild(s); });
+    return xlsxP;
+  };
+  var ekExcel = async function () {
+    var tName = function (id) { var t = ekTeam(id); return t ? t.name : 'ekibi yok'; };
+    var people = EK.people.slice().sort(function (a, b) { var ta = ekTeam(a.team_id), tb = ekTeam(b.team_id); return ((ta ? ta.sort : 9999) - (tb ? tb.sort : 9999)) || (b.is_lead - a.is_lead) || (a.sort - b.sort); });
+    var PH = ['Ad soyad', 'Rol / unvan', 'Ekip', 'Ekip lideri', 'Durum', 'İş tanımı', 'Sorumluluklar', 'E-posta', 'Telefon', 'Başlangıç'];
+    var PR = people.map(function (p) { return [p.full_name, p.title, tName(p.team_id), p.is_lead ? 'evet' : '', EST[p.status] || p.status, p.job_description, (p.responsibilities || '').split(/\n+/).filter(Boolean).map(function (x) { return '• ' + x.trim(); }).join('\n'), p.email, p.phone, p.start_date || '']; });
+    var TH = ['Ekip', 'Görev tanımı', 'Kişi sayısı', 'Lider', 'Kişiler'];
+    var TR = EK.teams.map(function (t) { var ps = ekOf(t.id); var l = ps.filter(function (p) { return p.is_lead; }).map(function (p) { return p.full_name; }).join(', '); return [t.name, t.description, ps.length, l, ps.map(function (p) { return p.full_name + (p.title ? ' (' + p.title + ')' : ''); }).join(', ')]; });
+    var day = new Date().toISOString().slice(0, 10);
+    try {
+      var XL = await loadXlsx(), wb = XL.utils.book_new();
+      var ws1 = XL.utils.aoa_to_sheet([PH].concat(PR)); ws1['!cols'] = [22, 26, 22, 10, 12, 60, 50, 28, 16, 12].map(function (w) { return { wch: w }; });
+      var ws2 = XL.utils.aoa_to_sheet([TH].concat(TR)); ws2['!cols'] = [24, 60, 10, 22, 60].map(function (w) { return { wch: w }; });
+      XL.utils.book_append_sheet(wb, ws1, 'Kişiler'); XL.utils.book_append_sheet(wb, ws2, 'Ekipler');
+      XL.writeFile(wb, 'acadex-ekip-' + day + '.xlsx');
+      toast('Excel indirildi.');
+    } catch (e) {
+      csv('acadex-ekip-' + day + '.csv', PH, PR);
+      toast('Excel kütüphanesi yüklenemedi; Excel\'de açılan CSV olarak indirdim.', true);
+    }
   };
 
   /* ---------- kullanıcılar ---------- */
