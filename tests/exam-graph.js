@@ -24,8 +24,8 @@ const G = loadFromSource(GEN, [
   'EXPR_MAX_LENGTH', 'EXPR_MAX_DEPTH', 'EXPR_CONSTS', 'EXPR_FUNCS', 'evaluateExpression', 'parseLooseNumber', 'MATH_INPUT_MAX', 'normalizeMathInput', 'chartLabel',
   'GRAPH_KINDS', 'GRAPH_TOOL_ORDER', 'GRAPH_MAX_STEPS', 'GRAPH_MAX_ELEMENTS', 'GRAPH_MAX_GIVEN', 'GRAPH_SHIFT_DIRS', 'graphRound', 'normalizeGraphAxis',
   'graphLinear', 'graphInequality', 'graphInBox', 'graphOnGrid', 'graphLineOf', 'graphClipLine', 'graphGridPointsOnLine', 'graphRef', 'graphResolvePoint',
-  'GRAPH_KIND_ALIASES', 'normalizeGraphObject', 'graphIneqHolds', 'graphShiftDir', 'graphElementSnap', 'graphNum', 'graphLineText', 'graphPointText',
-  'GRAPH_KIND_NAMES', 'graphAnswerText', 'verifyGraph', 'allowedTypesFor', 'KEY_FIELDS', 'INTERNAL_FIELDS', 'splitPublicAndKey'
+  'GRAPH_KIND_ALIASES', 'graphMapAxisVars', 'normalizeGraphObject', 'graphIneqHolds', 'graphShiftDir', 'graphElementSnap', 'graphNum', 'graphLineText', 'graphPointText',
+  'GRAPH_KIND_NAMES', 'graphAnswerText', 'GRAPH_SOURCE_CUES', 'sourceTeachesGraphs', 'verifyGraph', 'allowedTypesFor', 'KEY_FIELDS', 'INTERNAL_FIELDS', 'splitPublicAndKey'
 ]);
 const R = loadFromSource(GRADE, ['GRAPH_STUDENT_MAX_OBJECTS', 'GRAPH_STUDENT_KINDS', 'graphParseStudent', 'graphLabelKey', 'GRAPH_EL_NAMES', 'graphFmt',
   'graphFmtPt', 'graphScaled', 'graphDistToLine', 'graphAngle', 'graphShiftOf', 'graphInPolygon', 'graphIqHolds', 'graphInStudentFill', 'graphCredit', 'gradeGraph']);
@@ -98,6 +98,48 @@ test('verifyGraph: ızgaraya oturmayan, bozuk eksen, hatalı kaydırma atılır;
   const half = verified({ type: 'graph', question: 'x', graph: { x: { min: 0, max: 6, step: 1 }, y: { min: 0, max: 6, step: 1 } }, graph_answer: [{ kind: 'point', at: [2.5, 3] }] });
   assert.equal(half.graph.x.snap, 0.5);
   assert.equal(half.graph.y.snap, 0.5);
+});
+
+test('sourceTeachesGraphs: arz-talep / doğrusal fonksiyon notu evet; sözel ya da yalnızca "grafik" geçen not hayır (canlı test 25.10.2026)', () => {
+  assert.equal(G.sourceTeachesGraphs('Talep doğrusu negatif eğimlidir. Doğrusal talep fonksiyonu P = 12 - 2Q; arz P = 3 + Q. Piyasa dengesi kesişim noktasıdır.'), true);
+  assert.equal(G.sourceTeachesGraphs('Bütçe kısıtı 2x + y ≤ 8 eşitsizliğiyle gösterilir; bütçe doğrusu y = 8 - 2x.'), true);
+  assert.equal(G.sourceTeachesGraphs('Demand and supply determine the equilibrium price; the demand curve P = 20 - Q has a negative slope.'), true);
+  assert.equal(G.sourceTeachesGraphs('Sınavlarda grafik soruları genellikle yorum bazlıdır; sütun grafiği kategorileri karşılaştırır.'), false);
+  assert.equal(G.sourceTeachesGraphs('Talep ve arz kavramları ile piyasa dengesi sözel olarak anlatılır.'), false, 'denklem izi yok');
+  assert.equal(G.sourceTeachesGraphs('Fırsat maliyeti, vazgeçilen en iyi seçenektir. NPV = 120 TL.'), false);
+});
+
+test('verifyGraph: verilen ve cevap denklemleri eksen harfleriyle (P = 8 − Q) de okunur (canlı test 25.10.2026)', () => {
+  const q = verified({ type: 'graph', question: 'Talep sağa kayar.', graph: { x: { min: 0, max: 10, step: 1, label: 'Miktar (Q)' }, y: { min: 0, max: 10, step: 1, label: 'Fiyat (P)' }, given: [{ kind: 'line', equation: 'P = 8 - Q', label: 'D1' }] },
+    graph_answer: [{ kind: 'line', equation: 'P = 10 - Q', shift_of: 'g0', direction: 'right', label: 'D2' }, { kind: 'region', inequalities: ['P <= 10 - Q', 'Q >= 0'] }] });
+  assert.deepEqual(q.graph.given[0].points, [[0, 8], [8, 0]]);
+  assert.deepEqual(q.graph_answer.elements[0].points, [[0, 10], [10, 0]]);
+  assert.equal(q.graph_answer.elements[1].ineq.length, 2);
+  const bad = G.verifyGraph({ type: 'graph', question: 'x', graph: { x: { min: 0, max: 10, step: 1 }, y: { min: 0, max: 10, step: 1 }, given: [{ kind: 'line', equation: 'y = 50 + x' }] }, graph_answer: [{ kind: 'point', at: [1, 1] }] }, 'tr');
+  assert.equal(bad.reason, 'graph_given_invalid:graph_line_invalid', 'iç neden de yazılır');
+});
+
+test('verifyGraph: denge noktası doğruların gerçek kesişimi olmalı (canlı test 25.10.2026)', () => {
+  const live = { type: 'graph', question: "Talep P = 12 - 2Q ve arz P = 3 + Q verilmiştir. Gelir artışıyla talep P' = 14 - 2Q olur. Yeni denge noktasını işaretleyiniz.",
+    graph: { x: { min: 0, max: 10, step: 1, label: 'Miktar (Q)' }, y: { min: 0, max: 15, step: 1, label: 'Fiyat (P)' }, given: [{ kind: 'line', equation: 'P = 12 - 2Q' }, { kind: 'line', equation: 'P = 3 + Q' }] },
+    graph_answer: [{ kind: 'line', equation: 'y = 14 - 2*x' }, { kind: 'point', at: [4, 4], label: "E'" }] };
+  assert.equal(G.verifyGraph(live, 'tr').reason, 'graph_point_not_intersection');
+  const viaIntersect = { ...live, graph_answer: [{ kind: 'line', equation: 'y = 14 - 2*x' }, { kind: 'point', at: { intersect: ['a0', 'g1'] }, label: "E'" }] };
+  assert.equal(G.verifyGraph(viaIntersect, 'tr').reason, 'graph_off_grid', '(3,67; 6,67) ızgaraya oturmuyor');
+  const good = verified({ ...live, question: 'Talep P = 15 - 2Q olursa yeni denge?', graph_answer: [{ kind: 'line', equation: 'y = 15 - 2*x' }, { kind: 'point', at: [4, 7], label: "E'" }] });
+  assert.deepEqual(good.graph_answer.elements[1].points, [[4, 7]], 'elle yazılmış ama doğru kesişim kabul');
+  const plain = verified({ type: 'graph', question: 'A(2; 3) noktasını işaretleyiniz.', graph: { x: { min: 0, max: 5, step: 1 }, y: { min: 0, max: 5, step: 1 } }, graph_answer: [{ kind: 'point', at: [2, 3], label: 'A' }] });
+  assert.ok(plain, 'denge sorulmayan sıradan nokta etkilenmez');
+});
+
+test('gradeGraph: verilen doğruyu yeniden çizmek fazladan sayılmaz', () => {
+  const q = verified({ type: 'graph', question: 'Talep sağa kayar; yeni talebi çiziniz.', graph: { x: { min: 0, max: 10, step: 1, label: 'Q' }, y: { min: 0, max: 10, step: 1, label: 'P' }, given: [{ kind: 'line', equation: 'y = 8 - x' }] },
+    graph_answer: [{ kind: 'line', equation: 'y = 10 - x' }] });
+  const r = R.gradeGraph(S([{ k: 'line', p: [[0, 8], [8, 0]] }, { k: 'line', p: [[0, 10], [10, 0]] }]), q, true);
+  assert.equal(r.extra, 0);
+  assert.equal(r.score, 100);
+  const r2 = R.gradeGraph(S([{ k: 'line', p: [[0, 10], [10, 0]] }, { k: 'point', p: [[1, 1]] }]), q, true);
+  assert.equal(r2.extra, 1, 'başka fazladan çizim yine sayılır');
 });
 
 test('allowedTypesFor: çizim karışık ve hesaplamada, "grafik sorusu olmasın" ise yok', () => {

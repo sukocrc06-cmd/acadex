@@ -976,7 +976,12 @@ function gradeGraph(studentRaw: unknown, q: Record<string, unknown>, tr: boolean
       if (c.note) { used.add(i); results[k].note = c.note; break }
     }
   })
-  const extra = none ? 0 : objs.filter((_o, i) => !used.has(i)).length
+  // Verilen bir doğruyu yeniden çizmek fazladan sayılmaz (soru "talep ve
+  // arzı çiziniz" deyip onları verilen olarak gösterebiliyor).
+  const tnG = 0.5 * Math.min(spec.x.snap / spec.x.step, spec.y.snap / spec.y.step) + 1e-9
+  const onGiven = (o: GraphStu) => ['line', 'segment', 'ray'].includes(o.kind) && spec.given.some(g => ['line', 'segment', 'ray'].includes(g.kind) && g.points.length === 2 &&
+    o.points.every(p => graphDistToLine(graphScaled(p, spec.x, spec.y), graphScaled(g.points[0], spec.x, spec.y), graphScaled(g.points[1], spec.x, spec.y)) <= tnG))
+  const extra = none ? 0 : objs.filter((o, i) => !used.has(i) && !onGiven(o)).length
   const sum = results.reduce((a, r) => a + r.credit, 0)
   const score = Math.round(100 * sum / (els.length + extra))
   return { score, elements: results, extra, student: objs, none }
