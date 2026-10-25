@@ -40,7 +40,7 @@ const { jsPDF } = jsPDFmod;
 // olcer ya ACIK HATA verir (bkz. _ts-extract.js bas yorumu).
 const SRC = fs.readFileSync(path.join(__dirname, '..', 'js/dashboard.js'), 'utf8');
 const NEEDED = [
-  'PDF_INK', 'replaceTurkishChars', 'pdfSetFont', 'pdfText', 'getStyleLabel',
+  'PDF_INK', 'replaceTurkishChars', 'pdfSetFont', 'PDF_GORSEL_KP_RE', 'pdfKpMetni', 'pdfText', 'getStyleLabel',
   // LaTeX -> Unicode donusturucu ve tablolari (08.10.2026).
   'LATEX_SEMBOL', 'LATEX_ALT', 'LATEX_UST', 'LATEX_ASCII', 'latexToUnicode',
   'mermaidPrettyLabels',

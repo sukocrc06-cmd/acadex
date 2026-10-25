@@ -33,7 +33,7 @@ const NAMES = [
   'geminiMode', 'GEMINI_ONLY_BUDGET_MS', 'GEMINI_ONLY_MAX_CALL_MS',
   'GEMINI_ONLY_FALLBACK_MIN_MS',
   'GEMINI_MAX_REQUESTS_PER_RUN', 'GEMINI_ARDISIK_GECICI_MAX', 'geminiRpmWaitMs', 'geminiRetryWaitMs', 'OPSIYONEL_ADIM_MAX_BEKLEME_MS',
-  'GEMINI_YARIS_GENISLIGI_VARSAYILAN', 'geminiYarisGenisligi', 'GEMINI_YARIS_YOKLAMA_MS', 'GEMINI_YEDEK_GECIKME_MS_VARSAYILAN', 'geminiYedekGecikmeMs', 'GEMINI_YEDEK_MIN_KALAN_MS',
+  'GEMINI_YARIS_GENISLIGI_VARSAYILAN', 'geminiYarisGenisligi', 'GEMINI_YARIS_YOKLAMA_MS', 'GEMINI_YEDEK_GECIKME_MS_VARSAYILAN', 'geminiYedekGecikmeMs', 'GEMINI_YEDEK_MIN_KALAN_MS', 'GEMINI_AKIS_SONRASI_PAYI_MS',
   'PACER_COMPLETION_FACTOR', 'DEFAULT_TPM_LIMIT', 'PACER_SAFETY',
   'GEMINI_RPM_RETRY_MIN_REMAINING_MS',
   'bytesToBase64',
@@ -214,6 +214,13 @@ test('aday listesi: 503 yiyen model basta DEGIL', () => {
   assert.notEqual(G.GEMINI_MODEL_CANDIDATES[0], 'gemini-3.8-flash');
   assert.ok(G.GEMINI_MODEL_CANDIDATES.includes('gemini-3.8-flash'),
     'yine de listede kalmali — sirasi degisti, elenmedi');
+});
+
+/* 25.10.2026 — 3.8 canlida 0/5 (iki 503, uc olu akis); kosu 38'de gecikmeli
+   yedek olarak basladi ve yine olay getirmedi, bir RPD bosa gitti. */
+test('aday listesi: olculmus olarak calismayan 3.8 EN SONDA (yedek o olmasin)', () => {
+  assert.equal(G.GEMINI_MODEL_CANDIDATES[G.GEMINI_MODEL_CANDIDATES.length - 1], 'gemini-3.8-flash');
+  assert.equal(G.GEMINI_MODEL_CANDIDATES[0], 'gemini-3.7-flash', 'gercek akis veren model basta olmali');
 });
 
 test('aday listesi: gunluk 20 istekte tukenmeyecek kadar kisa', () => {

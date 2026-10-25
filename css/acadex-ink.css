@@ -7920,6 +7920,8 @@ body.axr-open #pomodoro-widget-container,body.axr-open #acadia-widget-container,
 #study-card-modal.axr .axr-sheet h2{position:relative;margin:0 0 14px;font-size:clamp(21px,2.3vw,27px);line-height:1.2;font-weight:800;color:var(--navy);padding-right:60px}
 #study-card-modal.axr .axr-kps{list-style:none;margin:16px 0 0;padding:14px 0 0;border-top:1px dashed #DDD6C3;font-size:calc(var(--fs) * .94);line-height:1.6}
 #study-card-modal.axr .axr-kps li{position:relative;padding-left:28px;margin:.45em 0}
+/* "Diagram/Visual:" oneki yerine etiket (25.10.2026) — bkz. gorselKp (acadex-ink.js). */
+#study-card-modal.axr .axr-kptag{display:inline-block;font-size:10px;letter-spacing:.12em;color:var(--blue);border:1.2px solid currentColor;border-radius:3px;padding:0 5px;margin-right:2px;vertical-align:.12em;text-transform:uppercase}
 #study-card-modal.axr .axr-kps li::before{content:'';position:absolute;left:3px;top:.38em;width:13px;height:13px;border:1.6px solid var(--blue);border-radius:3px;transform:rotate(-4deg)}
 #study-card-modal.axr .axr-kps li::after{content:'';position:absolute;left:6px;top:.5em;width:10px;height:5px;border-left:2px solid var(--blue);border-bottom:2px solid var(--blue);transform:rotate(-48deg) scale(0);transform-origin:left bottom;transition:transform .3s var(--ease)}
 #study-card-modal.axr .in .axr-kps li::after,#study-card-modal.axr .axr-kps.big li::after{transform:rotate(-48deg) scale(1)}

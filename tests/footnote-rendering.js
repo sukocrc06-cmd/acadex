@@ -490,11 +490,34 @@ test('ink madde listeleri de bu yoldan geciyor', () => {
   /* ONCE matematik, SONRA kacis — tersi KaTeX e &gt; gonderiyordu ve
      formul kirmizi hata metni olarak basiliyordu (18.10.2026). math()
      ikisini dogru sirada yapan tek huni. */
-  assert.ok(INK.includes('math(plain(p))'), 'bolum maddeleri matematikten gecmiyor');
+  /* 25.10.2026: madde once gorselKp'den geciyor (Diagram/Visual oneki
+     etikete doner); sira yine plain -> math. */
+  assert.ok(INK.includes('math(plain(p))') || INK.includes("var g = gorselKp(plain(p)); return '<li>' + g.tag + math(g.s)"),
+    'bolum maddeleri matematikten gecmiyor');
   assert.ok(!INK.includes('imath(X(plain'), 'kacir-sonra-diz sirasi geri gelmis');
   assert.ok(INK.includes('imath(typeof formatFootnoteMarkers'), 'kart maddeleri matematikten gecmiyor');
 });
 
+
+/* 25.10.2026 — kosu 38 karti: 'Diagram/Visual:' oneki ham metin olarak
+   basiliyordu; tablo hucresindeki \hat{\beta}_0 ham LaTeX kaliyordu. */
+test('ink: gorsel madde oneki etikete, LaTeX komutlu tablo hucresi KaTeX e gidiyor', () => {
+  const INK = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'js/acadex-ink.js'), 'utf8');
+  const m = INK.match(/var GORSEL_KP_RE = (\/.*\/i);/);
+  assert.ok(m, 'gorsel onek deseni yok');
+  const re = eval(m[1]);
+  for (const s of ['Diagram/Visual: x', 'Diyagram/Görsel: x', 'Diyagram: x', ' diagram / visual : x']) assert.ok(re.test(s), s);
+  assert.ok(!re.test('Diagrams show x'), 'onek olmayan madde etiketlendi');
+  assert.ok((INK.match(/g\.tag \+/g) || []).length >= 2, 'iki madde listesinden biri etiketi kullanmiyor');
+  assert.ok(INK.includes("'>' + tcell(r[c]) + '</td>'"), 'tablo hucresi hala duz X() ile kaciriliyor');
+  // Hucre kosulu: yalnizca LaTeX KOMUTU. Alt cizgi (Average_Monthly_Temperature) ve "$" (para) degil.
+  const k = INK.match(/return (\/\\\\\[A-Za-z\]\{2,\}\/)\.test\(s\) \? sym\(s\) : X\(s\)/);
+  assert.ok(k, 'hucre KaTeX kosulu degismis');
+  const hucreRe = eval(k[1]);
+  assert.ok(hucreRe.test('\\hat{\\beta}_0'));
+  assert.ok(!hucreRe.test('Average_Monthly_Temperature') && !hucreRe.test('$1,000s'));
+});
 
 test('cleanHTML KaTeX satir ici stillerini KORUR', () => {
   /* 18.10.2026 CANLI HATA: anlati metnindeki formullerin alt simgeleri

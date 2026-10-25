@@ -51,7 +51,7 @@ const denoEnv = new Map();
 globalThis.Deno = { env: { get: (k) => (denoEnv.has(k) ? denoEnv.get(k) : undefined) } };
 
 const G = loadFromSource('supabase/functions/summarize-document/index.ts', [
-  'GEMINI_MODEL_CANDIDATES', 'GEMINI_MAX_REQUESTS_PER_RUN', 'GEMINI_ARDISIK_GECICI_MAX', 'GEMINI_YARIS_GENISLIGI_VARSAYILAN', 'geminiYarisGenisligi', 'GEMINI_YARIS_YOKLAMA_MS', 'GEMINI_YEDEK_GECIKME_MS_VARSAYILAN', 'geminiYedekGecikmeMs', 'GEMINI_YEDEK_MIN_KALAN_MS',
+  'GEMINI_MODEL_CANDIDATES', 'GEMINI_MAX_REQUESTS_PER_RUN', 'GEMINI_ARDISIK_GECICI_MAX', 'GEMINI_YARIS_GENISLIGI_VARSAYILAN', 'geminiYarisGenisligi', 'GEMINI_YARIS_YOKLAMA_MS', 'GEMINI_YEDEK_GECIKME_MS_VARSAYILAN', 'geminiYedekGecikmeMs', 'GEMINI_YEDEK_MIN_KALAN_MS', 'GEMINI_AKIS_SONRASI_PAYI_MS',
   'GEMINI_RPM_RETRY_MIN_REMAINING_MS', 'geminiRpmWaitMs', 'geminiRetryWaitMs',
   'GEMINI_ENDPOINT', 'GEMINI_INLINE_MAX_BYTES', 'GEMINI_MAX_PAGES',
   'GEMINI_MIN_BUDGET_MS', 'GEMINI_RESERVE_MS', 'GEMINI_MAX_CALL_MS',
@@ -478,6 +478,83 @@ test('SESSIZLIK sayaci olay geldikce SIFIRLANIYOR', async () => {
   assert.equal(d.hata, null, `akis kesilmemeliydi: ${d.hata}`);
   assert.equal(d.tamamlandi, true);
   assert.equal(d.metin, '{"a":1,"b":2}');
+});
+
+/* 25.10.2026 — KOSU 38: AKAN AKIS 105 SN TAVANINDA KESILDI.
+ * 3.7 ilk olayi 75,7 sn'de getirdi, 185 olay / 16.329 krk akarken toplam
+ * tavanda kesildi; kart KISMI (%49 kapsama) cikti ve butceden ~33 sn
+ * kullanilmadan kaldi. Ilk olay geldiginde mutlak tavan akisTavanMs'e
+ * uzatiliyor; olay gelmeyen akis eski tavanda kalir. */
+test('AKAN akis mutlak tavanda KESILMEZ: ilk olayla tavan akisTavanMs e uzar', async () => {
+  fetchCalls = [];
+  stubGecikmeliAkis([
+    { ms: 60, metin: DELTA('{"a') },
+    { ms: 60, metin: DELTA('":1') },
+    { ms: 60, metin: DELTA(',"b"') },
+    { ms: 60, metin: DELTA(':2}') },
+    { ms: 60, metin: TAMAM }
+  ], { hangSonda: false });
+  const d = G.geminiAkisDurumu();
+  try {
+    // Mutlak tavan 150ms — uzatma olmasa ikinci olaydan sonra kesilirdi.
+    await quiet(() => G.geminiAkisIstegi('http://x', { method: 'POST' }, d, 150, 10_000,
+      G.GEMINI_FIRST_BYTE_MS, G.GEMINI_ILK_OLAY_MS, undefined, 5_000));
+  } finally { restoreFetch(); }
+  assert.equal(d.hata, null, `akan akis kesildi: ${d.hata}`);
+  assert.equal(d.tamamlandi, true);
+  assert.equal(d.metin, '{"a":1,"b":2}');
+});
+
+test('uzatma VERILMEZSE eski davranis: akis mutlak tavanda kesilir', async () => {
+  fetchCalls = [];
+  stubGecikmeliAkis([
+    { ms: 60, metin: DELTA('{"a') },
+    { ms: 60, metin: DELTA('":1') },
+    { ms: 60, metin: DELTA(',"b"') },
+    { ms: 60, metin: DELTA(':2}') },
+    { ms: 60, metin: TAMAM }
+  ], { hangSonda: false });
+  const d = G.geminiAkisDurumu();
+  try {
+    await quiet(() => G.geminiAkisIstegi('http://x', { method: 'POST' }, d, 150, 10_000));
+  } finally { restoreFetch(); }
+  assert.ok(/mutlak tavan \(150ms\)/.test(String(d.hata)), `beklenen kesilme yok: ${d.hata}`);
+  assert.equal(d.tamamlandi, false);
+});
+
+test('akis uzatmasi yalnizca only modunda ve butcenin sonundan pay birakarak', () => {
+  const i = FN_SRC.indexOf('const akisTavani = mode === ');
+  assert.ok(i > 0, 'geminiDraft akis tavanini hesaplamiyor');
+  const blok = FN_SRC.slice(i, i + 240);
+  assert.ok(/mode === 'only'/.test(blok), 'shadow modunda da uzatiliyor — Groq payi yenir');
+  assert.ok(/budgetMs - GEMINI_AKIS_SONRASI_PAYI_MS - \(k\.startedAt - basladi\)/.test(blok));
+  // Pay, Gemini sonrasi yazar kapisini (20 sn) gecebilmeli.
+  const pay = Number((FN_SRC.match(/const GEMINI_AKIS_SONRASI_PAYI_MS = ([\d_]+)/) || [])[1].replace(/_/g, ''));
+  assert.ok(pay >= 20_000 && pay <= 35_000, `pay ${pay}ms — yazar kapisi ya da akis uzatmasi bozulur`);
+  // Uzatma YALNIZCA olayla tetiklenir: olaysiz akis toplam tavanda kalir.
+  assert.ok(/if \(tur === 'olay' && !uzatildi && akisTavanMs !== undefined && akisTavanMs > mutlakMs\)/.test(FN_SRC));
+});
+
+/* 25.10.2026 — REVIEW DUSERSE BELGE DUSUYORDU. fetchWithRetry zaman
+   asiminda firlatiyor; catch markFailed cagirip 503 donuyordu — saglam bir
+   Gemini taslagi varken ogrencinin karti siliniyordu. Bos review cevabi da
+   ayni sekilde belgeyi dusuruyordu. */
+test('review istegi ya da cevabi duserse TASLAK korunur, belge dusmez', () => {
+  const i = FN_SRC.indexOf('} catch (fetchReviewErr) {');
+  assert.ok(i > 0);
+  // Yalnizca catch govdesi: ilk 'break'e kadar (sonraki markFailed'ler baska hatalar icin).
+  const blok = FN_SRC.slice(i, FN_SRC.indexOf('break', i) + 5);
+  assert.ok(!blok.includes('markFailed('), 'review zaman asimi hala belgeyi basarisiz isaretliyor');
+  assert.ok(/rawFinalContent = rawContent/.test(blok) && /skippedStages\.push\('review'\)/.test(blok));
+  assert.ok(!/Empty response content from Groq Review[\s\S]{0,120}markFailed/.test(FN_SRC),
+    'bos review cevabi hala belgeyi dusuruyor');
+});
+
+test('review deneme suresi kalan butceye uyuyor, taban 10 sn', () => {
+  assert.ok(/const REVIEW_MIN_ATTEMPT_MS = 10_000/.test(FN_SRC));
+  assert.ok(/Math\.min\(REVIEW_ATTEMPT_TIMEOUT_MS, Math\.max\(REVIEW_MIN_ATTEMPT_MS, budgetLeft\(\) - wait - REVIEW_TAIL_MS\)\)/.test(FN_SRC),
+    'kapi hala sabit 25 sn fiyatliyor — akis uzatmasi review u yer');
+  assert.ok(/\}, reviewRetries, tierAttemptMs\)/.test(FN_SRC), 'cagri kapinin fiyatladigi sureyi kullanmiyor');
 });
 
 test('error olayi cagriyi dusurur ve sebebi tasir', async () => {

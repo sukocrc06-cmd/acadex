@@ -1235,6 +1235,13 @@ const REVIEW_MAX_COMPLETION = 4096
 // Review timing, used both to budget the gate and to drive the call itself,
 // so the two can never disagree about what a review attempt costs.
 const REVIEW_ATTEMPT_TIMEOUT_MS = 25_000
+/* Review denemesinin EN KISA zaman asimi (25.10.2026). Kapi eskiden her
+   zaman 25 sn'lik tam denemeyi fiyatliyordu; olculen review sureleri ise
+   0,93 sn (kosu 38, qwen) ve 2,66 sn. Artik deneme suresi kalan butceye
+   uyuyor (en fazla REVIEW_ATTEMPT_TIMEOUT_MS) ve ancak bu tabanin altina
+   inerse review atlaniyor — olculenin ~4 kati. Akan Gemini akisina verilen
+   ek sure (GEMINI_AKIS_SONRASI_PAYI_MS) bunun sayesinde review'u yemiyor. */
+const REVIEW_MIN_ATTEMPT_MS = 10_000
 // Everything after the review call: JSON parse, grounding gate, near-duplicate
 // merge, citation anchoring, cloze build, DB save. All deterministic; measured
 // at ~200ms on a live 30-page run, so this is ~40x headroom.
@@ -5687,11 +5694,16 @@ const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/intera
    gölge yolun isi formul goruntusu ve Excel ekran goruntusu okumak, orada
    model kalitesi dogrudan kartin dogrulugu demek. Kota dar gelirse once
    olculur, sonra gecilir — GEMINI_MODEL=gemini-3.5-flash-lite yeter. */
+/* 3.8 EN SONA (25.10.2026). 24-25 Ekim canli kosularinda 0/5: iki 503, uc
+   olu akis (baslik 15,3 sn, sonra tek olay yok). Kosu 38'de gecikmeli yedek
+   olarak 3.8 basladi, yine olay getirmedi ve bir RPD bosa gitti. 3.5 ve 3.6
+   bu yuzeyde henuz olculmedi; olculmus olarak calismayan bir modelden once
+   denenmeleri daha iyi bahis. Olcum degisirse sira degisir. */
 const GEMINI_MODEL_CANDIDATES = [
   'gemini-3.7-flash',
-  'gemini-3.8-flash',
   'gemini-3.5-flash',
-  'gemini-3.6-flash'
+  'gemini-3.6-flash',
+  'gemini-3.8-flash'
 ]
 
 // Yukleme siniri zaten 20 MB. 18 MB'in ustunu Groq'a birakiyoruz: inline
@@ -6180,6 +6192,25 @@ function geminiYedekGecikmeMs(): number {
    olculen en gec mesru ilk olay (~45 sn baslik sonrasi) icin yer. Altinda
    baslatilan yedek olay getiremeden toplam tavanda kesilir; RPD bosa gider. */
 const GEMINI_YEDEK_MIN_KALAN_MS = 50_000
+
+/* AKAN AKIS KESILMEZ (25.10.2026, kosu 38).
+ *
+ * Kosu 38: yedek dogru calisti, 3.7 ilk olayi 75,7. saniyede getirdi ve
+ * GERCEK akis basladi (185 olay, ~560 krk/sn). Ama 105. saniyede toplam
+ * tavanda KESILDI: 16.329 krk elde, devam ettirme 3.7'de yok, kart KISMI
+ * ve sayisal kapsama %49. Kart 110. saniyede bitti — butceden ~33 sn hic
+ * kullanilmadan kaldi.
+ *
+ * 105 sn'lik tavanin gerekcesi Groq'a pay birakmakti. Akis AKIYORSA o pay
+ * gereksiz: Groq'a dusulmeyecek. Artik ilk olay geldiginde akisin mutlak
+ * tavani butcenin sonundan bu kadar oncesine uzatiliyor. Olay getirmeyen
+ * akis eskisi gibi toplam tavanda kesiliyor (Groq'un payi korunuyor).
+ *
+ * 24 sn neden: Gemini'den sonra yazar (kapi NARRATIVE_WRITER_RESERVE_MS =
+ * 20 sn, olculen ~2 sn) ve review (artik kalan butceye uyan deneme suresi,
+ * taban REVIEW_MIN_ATTEMPT_MS; olculen 0,9-2,7 sn) kosuyor. Kosu 38'de bu,
+ * 3.7'ye +14,5 sn yani ~8.000 krk daha demekti. */
+const GEMINI_AKIS_SONRASI_PAYI_MS = 24_000
 
 /* Ust uste kac gecici hata (503/500) sonrasi Gemini birakilir.
 
@@ -7006,11 +7037,16 @@ async function geminiAkisIstegi(
      + geminiProblem kapisi) ortak bir fonksiyona cikarilmali, yoksa yaris o
      mantigi kopyalamak zorunda kalir ve "ayni mantik iki yerde" hatasinin
      yenisi dogar. */
-  disSinyal?: AbortSignal
+  disSinyal?: AbortSignal,
+  /* AKAN AKISIN TAVANI (25.10.2026) — bkz. GEMINI_AKIS_SONRASI_PAYI_MS.
+     Ilk OLAY geldiginde mutlak tavan bu degere (istegin basindan, ms)
+     uzatilir. Verilmezse ya da mutlakMs'ten kucukse davranis aynen eski. */
+  akisTavanMs?: number
 ): Promise<{ status: number; body: string } | null> {
   const controller = new AbortController()
   let sebep = ''
-  const mutlak = setTimeout(() => { sebep = `mutlak tavan (${mutlakMs}ms)`; controller.abort() }, mutlakMs)
+  let mutlak = setTimeout(() => { sebep = `mutlak tavan (${mutlakMs}ms)`; controller.abort() }, mutlakMs)
+  let uzatildi = false
   /* Dis iptal: yarisi kaybeden akis buradan kesiliyor. Sebep YAZILIYOR,
      cunku sebebi bos birakmak asagidaki catch'te "zaman asimi" diye
      raporlanmasina yol aciyor ve log yanlis hikaye anlatirdi. */
@@ -7056,6 +7092,19 @@ async function geminiAkisIstegi(
        Artik ilk-olay son tarihi ILK BYTE'ta bir kez kuruluyor; sonraki
        byte'lar ona dokunmuyor. Sayaci yalnizca ISLENEN OLAY ileri tasir. */
     if (tur === 'byte' && !ilkByteMiydi) return
+    if (tur === 'olay' && !uzatildi && akisTavanMs !== undefined && akisTavanMs > mutlakMs) {
+      uzatildi = true
+      clearTimeout(mutlak)
+      const kalan = Math.max(0, akisTavanMs - (Date.now() - durum.t0))
+      mutlak = setTimeout(() => {
+        sebep = `mutlak tavan (${akisTavanMs}ms, akis uzatmasi)`
+        controller.abort()
+      }, kalan)
+      console.log(
+        `Gemini akis basladi (${Date.now() - durum.t0}ms) — mutlak tavan ${mutlakMs}ms -> ` +
+        `${akisTavanMs}ms'ye uzatildi`
+      )
+    }
     if (sessiz !== undefined) clearTimeout(sessiz)
     const sure = durum.olaySayisi > 0
       ? sessizlikMs
@@ -7338,7 +7387,9 @@ async function callGeminiOnce(
    * `disSinyal`: kaybedenleri kesmek icin.
    * Ikisi de opsiyonel — tek cagri yolu hic degismiyor. */
   durumDisi?: GeminiAkisDurum,
-  disSinyal?: AbortSignal
+  disSinyal?: AbortSignal,
+  // Akan akisin uzatilmis tavani — bkz. geminiAkisIstegi / GEMINI_AKIS_SONRASI_PAYI_MS.
+  akisTavanMs?: number
 ): Promise<GeminiCagriSonucu> {
   const dusuruldu = (ad: string) => drop.indexOf(ad) !== -1
 
@@ -7387,7 +7438,7 @@ async function callGeminiOnce(
     const akisBasladi = Date.now()
     const hata = await geminiAkisIstegi(
       GEMINI_ENDPOINT, init, durum, timeoutMs, GEMINI_SILENCE_MS,
-      GEMINI_FIRST_BYTE_MS, GEMINI_ILK_OLAY_MS, disSinyal
+      GEMINI_FIRST_BYTE_MS, GEMINI_ILK_OLAY_MS, disSinyal, akisTavanMs
     )
     if (hata) return { ok: false, status: hata.status, body: hata.body }
     console.log(`Gemini akis [${model}]: ${geminiAkisOlcumu(durum, Date.now() - akisBasladi)}`)
@@ -8040,9 +8091,13 @@ async function geminiDraft(
         durum: geminiAkisDurumu(), kontrol: new AbortController(), res: null
       } as unknown as Kosu
       sonIstekAni = k.startedAt
+      // Yalnizca only modunda: shadow modunda Groq'un payi pazarlik konusu degil.
+      const akisTavani = mode === 'only'
+        ? Math.max(0, budgetMs - GEMINI_AKIS_SONRASI_PAYI_MS - (k.startedAt - basladi))
+        : undefined
       k.p = callGeminiOnce(
         apiKey, m, systemInstruction, fileBase64, fileMime, userText, ms, dropped,
-        k.durum, k.kontrol.signal
+        k.durum, k.kontrol.signal, akisTavani
       ).then((r) => { k.res = r; return r })
       return k
     }
@@ -8651,21 +8706,38 @@ serve(async (req) => {
     let summaryCacheKey: string | null = null
     let metinCacheKey: string | null = null
     try {
-      const ayarlar = [lang, style, len, analyzeVisuals ? 'v' : 'nv', SUMMARY_CACHE_VERSION]
+      /* GORSEL BAYRAGI ISABETI ENGELLEMIYOR (25.10.2026).
+         Bayrak anahtarin parcasi oldugu icin gorseli acmak ya da kapatmak
+         ayni dosyanin eski hizli satirini gecersiz kiliyordu; kart 2 sn
+         yerine sifirdan uretiliyordu. Tam esleme HALA once gelir, yoksa
+         KARSI bayragin satiri yedek isabet sayilir: gorsel kapali istenip
+         acik satir gelirse icerik zengin, zarar yok; tersinde kart gorsel
+         analizi olmadan gelir — hic kart uretmemekten ucuz. */
+      const ayarlariKur = (gorsel: boolean) =>
+        [lang, style, len, gorsel ? 'v' : 'nv', SUMMARY_CACHE_VERSION]
+      const ayarlar = ayarlariKur(analyzeVisuals)
+      const ayarlarYedek = ayarlariKur(!analyzeVisuals)
       const contentHash = await sha256Hex(fileBytes)
       summaryCacheKey = [contentHash, ...ayarlar].join(':')
+      const yedekDosyaKey = [contentHash, ...ayarlarYedek].join(':')
       /* IKINCI ANAHTAR: cikarilan metnin hash'i. Ayni sunum yeniden
          kaydedilmis ya da baska bir araçla taranmissa bayt dizisi degisir,
          metin degismez — dosya hash'i iskalar, bu yakalar. */
       const metinHash = await sha256Metin(extractedText)
       metinCacheKey = metinHash ? ['t' + metinHash, ...ayarlar].join(':') : null
-      const anahtarlar = metinCacheKey ? [summaryCacheKey, metinCacheKey] : [summaryCacheKey]
+      const yedekMetinKey = metinHash ? ['t' + metinHash, ...ayarlarYedek].join(':') : null
+      /* SIRA ONEM TASIYOR: tam esleme > metin eslemesi > gorsel yedegi.
+         Bu yuzden .limit(1) KALKTI — surucu hangi satiri dondurecegini
+         secemez, siralamayi burada biz yapiyoruz. */
+      const anahtarlar = [summaryCacheKey, metinCacheKey, yedekDosyaKey, yedekMetinKey]
+        .filter(Boolean) as string[]
       const { data: cachedRows, error: cacheErr } = await serviceClient
         .from('summary_cache')
         .select('card, cache_key')
         .in('cache_key', anahtarlar)
-        .limit(1)
-      const cached = Array.isArray(cachedRows) ? cachedRows[0] : null
+      const cached = anahtarlar
+        .map(k => (Array.isArray(cachedRows) ? cachedRows.find((r: any) => r?.cache_key === k) : null))
+        .find((r: any) => r?.card) || null
       if (cacheErr) {
         console.warn(`summary_cache okunamadi (${cacheErr.message}) — cache atlandi`)
       } else if (cached?.card) {
@@ -8687,13 +8759,19 @@ serve(async (req) => {
             .from('documents')
             .update({ status: 'summarized', processing_stage: null })
             .eq('id', documentId)
-          await bestEffortRpc(serviceClient, 'touch_summary_cache', { p_key: summaryCacheKey })
+          /* ISABET EDEN satir dokunulur: yedek isabette yanlis anahtari
+             tazelemek o satiri soguma listesinde birakirdi. */
+          const isabetKey = String((cached as any)?.cache_key || summaryCacheKey)
+          await bestEffortRpc(serviceClient, 'touch_summary_cache', { p_key: isabetKey })
           await bestEffortRpc(serviceClient, 'record_summary_usage', { p_user: document.user_id, p_pages: 0, p_cache_hit: true })
           /* Hangi anahtarin isabet ettigi loga giriyor: metin anahtarinin
              gercekten is gorup gormedigi ancak boyle olculur. */
-          const isabetTuru = (cached as any)?.cache_key === metinCacheKey ? 'METIN' : 'DOSYA'
+          const isabetTuru = isabetKey === metinCacheKey ? 'METIN'
+            : isabetKey === yedekDosyaKey ? 'DOSYA/GORSEL-YEDEK'
+            : isabetKey === yedekMetinKey ? 'METIN/GORSEL-YEDEK'
+            : 'DOSYA'
           console.log(
-            `CACHE ISABETI [${isabetTuru}]: ${String((cached as any)?.cache_key || summaryCacheKey).slice(0, 18)}… ` +
+            `CACHE ISABETI [${isabetTuru}]: ${isabetKey.slice(0, 18)}… ` +
             `— ${Date.now() - requestStartedAt}ms, model cagrisi yok`
           )
           return new Response(JSON.stringify({ success: true, studyCardId: hit.data.id, cached: true }), {
@@ -11248,8 +11326,12 @@ ${String(draftObj.summary || '').slice(0, 1500)}`
       const lane = pickLane([MODEL_FAST, MODEL_EXTRACT, MODEL_HEAVY], est, t.maxCompletionTokens)
       const wait = tokenPacer.waitEstimate(est, lane, t.maxCompletionTokens)
       const retries = budgetLeft() >= wait + REVIEW_ATTEMPT_TIMEOUT_MS * 2 + REVIEW_TAIL_MS ? 1 : 0
-      const needs = wait + REVIEW_ATTEMPT_TIMEOUT_MS * (retries + 1) + REVIEW_TAIL_MS
-      return { tierIndex, est, lane, wait, retries, needs }
+      // Deneme suresi kalan butceye uyar; tabanin altindaysa needs butceyi asar ve kademe atlanir.
+      const attempt = retries
+        ? REVIEW_ATTEMPT_TIMEOUT_MS
+        : Math.min(REVIEW_ATTEMPT_TIMEOUT_MS, Math.max(REVIEW_MIN_ATTEMPT_MS, budgetLeft() - wait - REVIEW_TAIL_MS))
+      const needs = wait + attempt * (retries + 1) + REVIEW_TAIL_MS
+      return { tierIndex, est, lane, wait, retries, attempt, needs }
     }
     let reviewPlan = reviewTierPlan(0)
     let reviewStartTier = -1
@@ -11278,6 +11360,7 @@ ${String(draftObj.summary || '').slice(0, 1500)}`
     // which was a guess at one attempt plus a retry.
     const reviewRetries = reviewPlan.retries
     const reviewNeedsMs = reviewPlan.needs
+    const reviewAttemptMs = reviewPlan.attempt
 
     const shouldSkipReview =
       (!useChunkedPipeline && extractedText.length <= SKIP_REVIEW_MAX_CHARS) ||
@@ -11332,7 +11415,10 @@ ${String(draftObj.summary || '').slice(0, 1500)}`
           reviewLane,
           tierCompletion
         )
-        const tierNeedsMs = tierWaitMs + REVIEW_ATTEMPT_TIMEOUT_MS + REVIEW_TAIL_MS
+        const tierAttemptMs = i === Math.max(0, reviewStartTier)
+          ? reviewAttemptMs
+          : Math.min(REVIEW_ATTEMPT_TIMEOUT_MS, Math.max(REVIEW_MIN_ATTEMPT_MS, budgetLeft() - tierWaitMs - REVIEW_TAIL_MS))
+        const tierNeedsMs = tierWaitMs + tierAttemptMs + REVIEW_TAIL_MS
         if (i > Math.max(0, reviewStartTier) && budgetLeft() < tierNeedsMs) {
           console.warn(
             `Review tier ${i + 1} atlandi — butce yetmiyor ` +
@@ -11373,14 +11459,17 @@ ${String(draftObj.summary || '').slice(0, 1500)}`
                 { role: "user", content: attemptPrompt }
               ]
             })
-          }, reviewRetries, REVIEW_ATTEMPT_TIMEOUT_MS)
+          }, reviewRetries, tierAttemptMs)
         } catch (fetchReviewErr) {
-          console.error("Pass 2 Groq API fetchWithRetry exception: ", fetchReviewErr)
-          await markFailed(serviceClient, documentId)
-          return new Response(JSON.stringify({ error: 'Our AI service is experiencing high demand right now — please try again in a moment' }), {
-            status: 503,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          })
+          /* REVIEW DUSERSE BELGE DUSMEZ (25.10.2026). Burasi markFailed
+             cagirip 503 donuyordu: review isteginin zaman asimi (ya da ag
+             hatasi) elde SAGLAM bir taslak varken ogrencinin butun kartini
+             siliyordu. Review opsiyonel bir kalite gecisi — TPM hatasindaki
+             "taslagi koru" davranisi (asagida) burada da gecerli. */
+          console.warn('Review istegi dustu — taslak korunuyor (review atlandi): ', fetchReviewErr)
+          skippedStages.push('review')
+          rawFinalContent = rawContent
+          break
         }
 
         tokenPacer.observeHeaders(attemptResponse.headers, reviewLane)
@@ -11441,12 +11530,10 @@ ${String(draftObj.summary || '').slice(0, 1500)}`
         }
       }
       if (!rawFinalContent) {
-        console.error('Empty response content from Groq Review: ', JSON.stringify(groqReviewData))
-        await markFailed(serviceClient, documentId)
-        return new Response(JSON.stringify({ error: 'Our AI service is experiencing high demand right now — please try again in a moment' }), {
-          status: 502,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        })
+        // Bos review cevabi da taslagi silmez — bkz. "REVIEW DUSERSE BELGE DUSMEZ".
+        console.warn('Review bos cevap dondu — taslak korunuyor: ', JSON.stringify(groqReviewData).slice(0, 300))
+        skippedStages.push('review')
+        rawFinalContent = rawContent
       }
 
       await serviceClient.from('documents').update({ processing_stage: 'saving' }).eq('id', documentId)

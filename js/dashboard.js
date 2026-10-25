@@ -13767,6 +13767,15 @@ function pdfSetFont(doc, unicodeReady, style) {
   }
 }
 
+/* "Diagram/Visual:" oneki PDF'te de etikete donuyor (25.10.2026) — ekrandaki
+   karsiligi acadex-ink.js gorselKp. Prompt bu oneki bilerek koyduruyor; ham
+   haliyle sizmis bir prompt etiketi gibi okunuyordu. */
+const PDF_GORSEL_KP_RE = /^\s*(?:Diyagram\s*\/\s*G[öo]rsel|Diagram\s*\/\s*Visual|Diyagram|Diagram|G[öo]rsel|Visual)\s*:\s*/i;
+function pdfKpMetni(pt) {
+  const s = pt === undefined || pt === null ? '' : String(pt);
+  return PDF_GORSEL_KP_RE.test(s) ? '(görselden) ' + s.replace(PDF_GORSEL_KP_RE, '') : s;
+}
+
 /** Text ready to print: verbatim when the Unicode font is active, transliterated (old behavior) otherwise. */
 function pdfText(unicodeReady, txt) {
   const str = txt === undefined || txt === null ? '' : String(txt);
@@ -14880,13 +14889,13 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
       measure: (w) => {
         pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(PDF_TYPE.bodySize);
         let h = 0;
-        studyCard.key_points.forEach(pt => { h += doc.splitTextToSize(safeText(`– ${pt}`), w).length * 5.5; });
+        studyCard.key_points.forEach(pt => { h += doc.splitTextToSize(safeText(`– ${pdfKpMetni(pt)}`), w).length * 5.5; });
         return h;
       },
       render: (x, ry, w, allowBreak) => {
         pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(PDF_TYPE.bodySize); doc.setTextColor(...PDF_INK.body);
         studyCard.key_points.forEach(pt => {
-          doc.splitTextToSize(safeText(`– ${pt}`), w).forEach(line => {
+          doc.splitTextToSize(safeText(`– ${pdfKpMetni(pt)}`), w).forEach(line => {
             if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
             doc.text(line, x, ry); ry += 5.5;
           });

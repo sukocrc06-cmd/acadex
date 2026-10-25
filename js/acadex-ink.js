@@ -8622,6 +8622,24 @@ var SBX = (function () {
   /* Kacirmayan matematik: madde listeleri formatSummaryText'ten gecmiyor,
      kendi HTML'lerini kuruyorlar (bkz. axr-kps). */
   var imath = function (h) { return typeof inlineMath === 'function' ? inlineMath(h) : h; };
+  /* "Diagram/Visual:" ONEKI (25.10.2026). Prompt, gorselden yeniden kurulan
+     maddeye bu oneki BILEREK koyduruyor (ogrenci bunun bir yorum oldugunu
+     bilsin). Ama ham metin olarak "Diagram/Visual: ..." diye basilinca
+     sizmis bir prompt etiketi gibi okunuyordu (kosu 38 karti). Anlam
+     korunuyor, bicim etikete donuyor. */
+  var GORSEL_KP_RE = /^\s*(?:Diyagram\s*\/\s*G[öo]rsel|Diagram\s*\/\s*Visual|Diyagram|Diagram|G[öo]rsel|Visual)\s*:\s*/i;
+  var gorselKp = function (p) {
+    var s = String(p == null ? '' : p), m = s.match(GORSEL_KP_RE);
+    return m ? { tag: '<span class="axr-kptag mono">görselden</span> ', s: s.slice(m[0].length) } : { tag: '', s: s };
+  };
+  /* Tablo hucresi: yalnizca LaTeX KOMUTU (\hat, \beta...) tasiyan hucre
+     KaTeX'e gider. Kosu 38'de "\hat{\beta}_0" hucrede ham gorunuyordu. Alt
+     cizgi tek basina yetmez: "Average_Monthly_Temperature" ic ice alt simge
+     olarak dizilirdi. "$" de yetmez: "$1,000s" para birimi. */
+  var tcell = function (v) {
+    var s = v == null ? '' : String(v);
+    return /\\[A-Za-z]{2,}/.test(s) ? sym(s) : X(s);
+  };
   var COL = ['#2F6BFF', '#C9483B', '#1E8A55', '#C88A1C', '#6A4FA8', '#0F7C8A', '#D9677F', '#0D1838'];
   var ICON = {
     up: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5 L19 12 L8 19 Z"/></svg>',
@@ -8826,7 +8844,7 @@ var SBX = (function () {
     var hd = arr(t.headers).map(String), rows = arr(t.rows).map(function (r) { return arr(r); }), numCol = hd.map(function (h, c) { return rows.length && rows.every(function (r) { return isNum(r[c]); }); });
     return '<figure class="axr-fig axr-tbl" data-tbl="' + i + '"><figcaption><span class="mono">TABLO ' + (i + 1) + '</span><b>' + X(t.title || 'Tablo') + '</b></figcaption><div class="axr-tscroll"><table><thead><tr>' +
       hd.map(function (h, c) { return '<th scope="col"><button type="button" data-sort="' + c + '" aria-label="' + X(h) + ' sütununa göre sırala">' + X(h) + '<i aria-hidden="true"></i></button>' + (numCol[c] && c > 0 ? '<button type="button" class="axr-colc" data-colchart="' + c + '" aria-label="' + X(h) + ' sütununu grafiğe çevir">' + ICON.chart + '</button>' : '') + '</th>'; }).join('') +
-      '</tr></thead><tbody>' + rows.map(function (r, k) { return '<tr data-r="' + k + '" tabindex="0">' + hd.map(function (h, c) { return '<td' + (numCol[c] ? ' class="n"' : '') + '>' + X(r[c] == null ? '' : r[c]) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table></div><div class="axr-colchart" data-colout=""></div></figure>';
+      '</tr></thead><tbody>' + rows.map(function (r, k) { return '<tr data-r="' + k + '" tabindex="0">' + hd.map(function (h, c) { return '<td' + (numCol[c] ? ' class="n"' : '') + '>' + tcell(r[c]) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table></div><div class="axr-colchart" data-colout=""></div></figure>';
   };
 
   /* ---------- formül / çözümlü örnek ---------- */
@@ -9016,7 +9034,7 @@ var SBX = (function () {
       var kps = arr(s.key_points).filter(Boolean);
       h += ch('b' + (i + 1), (i + 1) + '. ' + plain(s.heading || 'Bölüm'), '<div class="axr-sheet" data-sec="' + i + '" style="--r:' + ((i % 3) - 1) * .25 + 'deg"><span class="axr-secn disp" aria-hidden="true">' + (i + 1 < 10 ? '0' : '') + (i + 1) + '</span><h2 class="disp">' + X(plain(s.heading || 'Bölüm ' + (i + 1))) + '</h2>' +
         '<div class="axr-prose" data-prose="s' + (i + 1) + '">' + cleanHTML(fmtS(s.summary || '', c.footnotes)) + '</div>' +
-        (kps.length ? '<ul class="axr-kps" data-prose="k' + (i + 1) + '">' + kps.map(function (p) { return '<li>' + math(plain(p)) + '</li>'; }).join('') + '</ul>' : '') +
+        (kps.length ? '<ul class="axr-kps" data-prose="k' + (i + 1) + '">' + kps.map(function (p) { var g = gorselKp(plain(p)); return '<li>' + g.tag + math(g.s) + '</li>'; }).join('') + '</ul>' : '') +
         (own ? '<div class="axr-secvis"><span class="hand">bu bölüme görsel:</span><button type="button" class="axr-mini" onclick="generateSectionVisual(event, ' + i + ', \'diagram\')">diyagram</button><button type="button" class="axr-mini" onclick="generateSectionVisual(event, ' + i + ', \'table\')">tablo</button><button type="button" class="axr-mini" onclick="generateSectionVisual(event, ' + i + ', \'chart\')">grafik</button></div>' : '') + '</div>', 'sec');
     });
     /* görseller */
@@ -9033,7 +9051,7 @@ var SBX = (function () {
       h += ch('kavram', 'Kavramlar', '<div class="axr-sech"><span class="axr-lbl mono">KAVRAMLAR</span><h2 class="disp">' + (hasNet ? 'Kavram ağı' : 'Akılda kalsın') + '</h2>' + (own ? '<button type="button" class="axr-mini" data-regen="key_terms">' + ICON.redo + 'kavramları yenile</button>' : '') + '</div>' +
         (hasNet ? '<div class="axr-netw"><div class="axr-netbox" data-net=""></div><div class="axr-netinfo" data-netinfo="" hidden></div><p class="hand axr-tipline">düğümü sürükle, dokununca tanımını gör</p></div>' : '') +
         (terms.length ? '<div class="axr-terms">' + terms.map(function (t, i) { return '<button type="button" class="axr-term" style="--r:' + ((i % 5) - 2) * .6 + 'deg" aria-pressed="false"><span class="f"><b>' + sym(plain(t.term)) + '</b><i class="hand">çevir</i></span><span class="b">' + math(plain(t.definition)) + '</span></button>'; }).join('') + '</div>' : '') +
-        (kp.length ? (hasNet || terms.length ? '<h3 class="hand axr-h3">akılda kalsın</h3>' : '') + '<ul class="axr-kps big" data-prose="kp">' + kp.map(function (p) { return '<li>' + imath(typeof formatFootnoteMarkers === 'function' ? formatFootnoteMarkers(String(p), c.footnotes) : X(p)) + '</li>'; }).join('') + '</ul>' : ''));
+        (kp.length ? (hasNet || terms.length ? '<h3 class="hand axr-h3">akılda kalsın</h3>' : '') + '<ul class="axr-kps big" data-prose="kp">' + kp.map(function (p) { var g = gorselKp(p); return '<li>' + g.tag + imath(typeof formatFootnoteMarkers === 'function' ? formatFootnoteMarkers(g.s, c.footnotes) : X(g.s)) + '</li>'; }).join('') + '</ul>' : ''));
     }
     /* kendini sına */
     var qz = arr(c.quiz_questions);
