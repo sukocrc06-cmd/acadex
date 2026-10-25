@@ -118,7 +118,7 @@ GRAPH DRAWING QUESTIONS (type 'graph'; only when the user message says GRAPH QUE
   {"kind": "polygon", "points": [vertex, vertex, ...]} for an area such as consumer surplus (vertices may use the intersect / on forms)
   {"kind": "fill", "inequalities": ["y <= -2*x + 10", "x >= 0"]} for a shaded region; also list its boundary lines, with "style": "dashed" for strict inequalities
   Any element may have "label" (e.g. "D2", "S", "E") the student must attach. "g0", "g1" are "given" objects by index; "a0", "a1" earlier graph_answer elements. Use "none" when nothing can be drawn (e.g. no solution).
-- Code recomputes every coordinate (intersections, points on lines) and discards the question if the answer does not fall on grid intersections, so choose numbers that give whole-step answers. "correct_answer": a short text such as "E(4; 6)"; "options": null. Ask only for what is drawn.
+- Code recomputes every coordinate (intersections, points on lines) and discards the question if the answer does not fall on grid intersections, so choose numbers that give whole-step answers. ALWAYS write an equilibrium or intersection point as {"intersect": [...]}, never as typed coordinates, and pick the equations (and shift sizes) so that the intersection lands exactly on the grid, e.g. demand P = 15 - 2Q with supply P = 3 + Q meet at (4; 7). "correct_answer": a short text such as "E(4; 6)"; "options": null. Ask only for what is drawn.
 
 FEEDBACK FIELDS (the student reads these only AFTER submitting the exam):
 - "explanation" (every question): 1-2 sentences saying WHY the correct answer is correct. Reuse the source material's own key terms and wording so the claim can be traced back to the source.
@@ -1860,6 +1860,18 @@ function verifyGraph(q: Record<string, unknown>, lang: string): { ok: boolean; r
       if (!r.obj) return { ok: false, reason: r.reason }
       ctx.answer.push(r.obj)
     }
+  }
+  // Denge / kesişim noktası çizilen doğruların gerçek kesişimi olmalı. Canlı
+  // test (25.10.2026): model yeni dengeyi "(4; 4)" diye elle yazdı; doğrular
+  // (3,67; 6,67)'de kesişiyordu ve doğru cevap yanlış sayıldı.
+  const asksIntersection = /denge|kesiş|equilibri|intersect/i.test(String(q.question ?? ''))
+  const lines = [...ctx.answer, ...ctx.given].filter(o => ['line', 'segment', 'ray'].includes(o.kind) && o.points.length === 2)
+  for (const o of ctx.answer) {
+    if (o.kind !== 'point') continue
+    const p = o.points[0]
+    const onLines = lines.filter(l => { const c = graphLineOf(l.points[0], l.points[1]); return Math.abs(c.a * p[0] + c.b * p[1] - c.c) <= 1e-6 * (1 + Math.abs(c.c) + Math.abs(c.a) + Math.abs(c.b)) }).length
+    const isEq = asksIntersection || /^E\b|^E['’*]|^E\d/.test(o.label || '')
+    if (isEq && lines.length >= 2 && onLines < 2) return { ok: false, reason: 'graph_point_not_intersection' }
   }
   let snap = 1
   for (const o of ctx.answer) {
