@@ -1243,6 +1243,9 @@ window.closeSummaryStyleModal = closeSummaryStyleModal;
 
 function summarizeDocument(docId) {
   activeSummarizingDocId = docId;
+  // Normal yol onbellegi KULLANIR — bkz. onbellegiYenile.
+  // Normal yol onbellegi KULLANIR — bkz. onbellegiYenile.
+  onbellegiYenile = false;
   openSummaryStyleModal();
 }
 window.summarizeDocument = summarizeDocument;
@@ -1252,6 +1255,23 @@ function openResummarizeModal(docId) {
   openSummaryStyleModal();
 }
 window.openResummarizeModal = openResummarizeModal;
+
+/* ONBELLEGI ATLAYAN YENIDEN OZETLEME (25.10.2026).
+   Edge function kismi karti artik ':k' ekli onbellek satirina yaziyor;
+   kazanci ayni dosyayi her yuklemede sifirdan odememek, bedeli yarim
+   kartta sikisabilmek. Bu bayrak istege yenile=true ekler ve edge
+   function'da onbellek OKUMASI tumden atlanir (yazma etkilenmez).
+
+   Tek kosuluk: proceedWithSummarization tuketir, normal "Ozetle" yolu
+   (summarizeDocument) sifirlar. Aksi halde iptal edilen bir yenileme
+   sonraki butun ozetlerde onbellegi atlatir ve kota bosa gider. */
+let onbellegiYenile = false;
+
+function resummarizeFresh(docId) {
+  onbellegiYenile = true;
+  openResummarizeModal(docId);
+}
+window.resummarizeFresh = resummarizeFresh;
 
 /** HOTFIX: Edge timeout can leave status=processing forever */
 async function resetStuckDocument(docId) {
@@ -1379,10 +1399,14 @@ async function proceedWithSummarization() {
     }
 
     const invokeStartedAt = Date.now();
-    console.log('[ozet] invoke gonderiliyor:', docId, 'gorsel:', analyzeVisuals ? 'evet' : 'hayir');
+    // Tek kosuluk bayrak, burada TUKETILIR — bkz. onbellegiYenile.
+    const yenile = onbellegiYenile;
+    onbellegiYenile = false;
+    console.log('[ozet] invoke gonderiliyor:', docId, 'gorsel:', analyzeVisuals ? 'evet' : 'hayir',
+      yenile ? 'ONBELLEK ATLANIYOR' : '');
 
     const { data, error } = await supabaseClient.functions.invoke('summarize-document', {
-      body: { documentId: docId, summaryStyle: summaryStyle, language: language, summaryLength: summaryLength, analyzeVisuals: analyzeVisuals, depth: summaryDepth }
+      body: { documentId: docId, summaryStyle: summaryStyle, language: language, summaryLength: summaryLength, analyzeVisuals: analyzeVisuals, depth: summaryDepth, yenile: yenile }
     });
 
     // Sure kritik: sunucu tarafi 130-180 saniye surebiliyor. Istemci bundan
@@ -13660,7 +13684,7 @@ async function proceedWithBulkSummarization(summaryStyle, language, summaryLengt
           // when unset — an undefined depth here lets the edge function
           // auto-select depth per-document from its own extracted length,
           // same as the simplified single-document flow above.
-          body: { documentId: docId, summaryStyle: summaryStyle, language: language, summaryLength: summaryLength, depth: summaryDepth }
+          body: { documentId: docId, summaryStyle: summaryStyle, language: language, summaryLength: summaryLength, depth: summaryDepth, yenile: yenile }
         });
 
         if (error || !data || !data.success) {

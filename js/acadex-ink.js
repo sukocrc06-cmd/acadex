@@ -9195,7 +9195,16 @@ var SBX = (function () {
     if (mw && mw.dusen > 0) {
       uyarilar.push('eksik özet: ' + mw.dusen + '/' + (mw.toplam || '?') + ' pencere düştü');
     }
-    if (qm.gemini_partial && qm.gemini_partial.kurtarilanKrk > 0) uyarilar.push('kısmi özet');
+    /* KISMI KART ROZETI CIKIS YOLU TASIYOR (25.10.2026).
+     *
+     * gemini_partial = BU kosuda kurtarilan taslak; cache_kismi = kart
+     * onbellekteki ':k' ekli KISMI satirdan geldi. Ikisi de ayni seyi
+     * anlatiyor ogrenciye: kart yarim. Ikincisi onbellek sayesinde 2
+     * saniyede geliyor, ama o satirda sikisip kalmamak icin tek tiklik
+     * bir cikis gerekiyor — rozetin yanindaki dugme onbellegi atlayan
+     * yeni bir kosu baslatiyor (dashboard.js -> resummarizeFresh). */
+    var kismiKart = (qm.gemini_partial && qm.gemini_partial.kurtarilanKrk > 0) || !!qm.cache_kismi;
+    if (kismiKart) uyarilar.push('kısmi özet');
     var atlanan = arr(qm.skipped_stages).filter(Boolean);
     if (atlanan.length) uyarilar.push('atlanan: ' + atlanan.join(', '));
     var nc = qm.numeric_coverage;
@@ -9203,6 +9212,11 @@ var SBX = (function () {
       uyarilar.push('sayısal kapsama %' + Math.round((nc.kept / nc.total) * 100));
     }
     var uyariChip = uyarilar.map(function (u) { return chip(u, 'warn'); }).join('');
+    // Cikis yolu yalnizca KENDI kartinda ve kart yarimsa — bkz. kismiKart.
+    if (kismiKart && own && c.document_id) {
+      uyariChip += '<button type="button" class="axr-chip warn hand" data-yenile="' + X(c.document_id) +
+        '" title="Önbelleği atlayıp sıfırdan özetler">' + ICON.redo + 'yeniden özetle</button>';
+    }
     mast.innerHTML = '<div class="axr-mastin"><div class="axr-ltbar' + (LT_ON ? '' : ' soon') + '"><span class="axr-ltlbl mono">ÖZETİN DİLİ</span>' + langTog('all') + (LT_ON ? '<span class="axr-ltprog hand" data-ltprog="" aria-live="polite"></span>' : '<span class="axr-ltsoon hand">yakında</span>') + '</div><span class="axr-kicker hand">' + X(c.course_tag ? c.course_tag + ' dersi' : 'çalışma kartın') + '</span><h1 class="disp axr-h1"><span>' + X(baseName(R.name)) + '</span></h1>' +
       '<div class="axr-chips">' + chip(c.summary_language === 'tr' ? 'Türkçe' : c.summary_language === 'en' ? 'English' : '') + chip(styleLabel(c.summary_style || 'standard')) + chip(typ) + chip(len) + (c.is_quantitative ? chip('sayısal ders', 'q') : '') + (qm.grounded ? chip('kaynağa bağlı', 'ok') : '') + (qm.pass !== false && qm.grounded && !uyarilar.length ? chip('kalite kontrolünden geçti', 'ok') : '') + uyariChip + '</div>' +
       '<p class="axr-meta mono"><span>~' + mins + ' dk okuma</span>' + (secs.length ? '<span>' + secs.length + ' bölüm</span>' : '') + (arr(c.key_terms).length ? '<span>' + arr(c.key_terms).length + ' kavram</span>' : '') + (arr(c.quiz_questions).length ? '<span>' + arr(c.quiz_questions).length + ' soru</span>' : '') + '<span data-left=""></span></p></div>';
@@ -9295,6 +9309,14 @@ var SBX = (function () {
   var bindFlow = function () {
     if (flow.dataset.bound) return; flow.dataset.bound = '1';
     mast.addEventListener('click', function (e) { var b = LT_ON && e.target.closest('[data-ltl]'); if (b) switchLang(b); });
+    /* "yeniden özetle" — bkz. kismiKart. Kart silinmiyor: yeni kosu
+       bitince dashboard listeyi kendisi yeniliyor. */
+    mast.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-yenile]'); if (!b) return;
+      if (typeof window.resummarizeFresh !== 'function') { say('Yeniden özetleme bu ekranda açık değil.'); return; }
+      b.disabled = true; b.classList.add('busy');
+      window.resummarizeFresh(b.getAttribute('data-yenile'));
+    });
     mast.addEventListener('pointerover', function (e) { var b = LT_ON && e.target.closest('[data-ltl]'); if (b) warm(b.getAttribute('data-ltl')); });
     mast.addEventListener('focusin', function (e) { var b = LT_ON && e.target.closest('[data-ltl]'); if (b) warm(b.getAttribute('data-ltl')); });
     flow.addEventListener('click', function (e) {

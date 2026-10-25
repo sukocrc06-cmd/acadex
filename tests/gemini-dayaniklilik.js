@@ -557,6 +557,28 @@ test('review deneme suresi kalan butceye uyuyor, taban 10 sn', () => {
   assert.ok(/\}, reviewRetries, tierAttemptMs\)/.test(FN_SRC), 'cagri kapinin fiyatladigi sureyi kullanmiyor');
 });
 
+/* 25.10.2026 — 150 SN DUVARI: butce disinda kalan beklemeler.
+   fetchWithRetry son denemeden sonra da 30 sn'ye kadar 429 bekliyordu
+   (maxRetries=0 cagrilarda bile); yazar sabit maxRetries=1 ile kalan
+   butcenin iki katini harcayabiliyordu. Akan Gemini akisi uzatildiktan
+   sonra ikisi de isciyi 150 sn'de kesilmeye yaklastiriyordu. */
+test('fetchWithRetry SON denemeden sonra 429 beklemesi yapmiyor', () => {
+  const i = FN_SRC.indexOf('async function fetchWithRetry(');
+  const blok = FN_SRC.slice(i, i + 4000);
+  const kir = blok.indexOf('if (attempt >= maxRetries) break');
+  const bekle = blok.indexOf('const suggested = parseGroqRetryAfterMs(bodyPreview)');
+  assert.ok(kir > 0, 'son denemede bekleme kesilmiyor');
+  assert.ok(kir < bekle, 'kirilma beklemeden SONRA — bos bekleme suruyor');
+  // Gunluk kota kontrolu hala ondan once: 429 yaniti yine donduruluyor.
+  assert.ok(blok.indexOf('isDailyQuotaError(bodyPreview)') < kir);
+});
+
+test('yazar ikinci denemeyi ancak butce IKI denemeye yetiyorsa yapiyor', () => {
+  assert.ok(/const yazarYenidenDene = budgetLeft\(\) >= yazarZamanAsimi \* 2 \+ 1000 \? 1 : 0/.test(FN_SRC));
+  assert.ok(/timeoutMs: yazarZamanAsimi,\s*maxRetries: yazarYenidenDene/.test(FN_SRC),
+    'yazar cagrisi hala sabit maxRetries kullaniyor');
+});
+
 test('error olayi cagriyi dusurur ve sebebi tasir', async () => {
   fetchCalls = [];
   stubGecikmeliAkis([
@@ -1037,6 +1059,53 @@ test('kalici 4xx ten sonra IKINCI GET yakilmiyor', () => {
   const blok = FN_SRC.slice(i, i + 600);
   assert.ok(/devamHata\.status >= 400 && devamHata\.status < 500/.test(blok),
     'kalici 4xx de dongu kirilmiyor, ikinci GET bos yere yaniyor');
+});
+
+
+test('KISMI kart rozetinde YENIDEN OZETLE yolu var', () => {
+  /* 25.10.2026. Kismi kart artik onbellege giriyor (':k' ekli satir), yani
+     ayni dosya her yuklemede 110 saniyeyi sifirdan odemiyor. Bedeli: o
+     yarim kartta sikisip kalmak. Cikis yolu rozetin yaninda: onbellek
+     OKUMASINI atlayan yeni bir kosu. Ekrana cizen dosya acadex-ink.js
+     (bkz. CLAUDE.md bolum 4) — dashboard.js'teki eski kart olu yol. */
+  assert.ok(INK_SRC.includes('var kismiKart = (qm.gemini_partial && qm.gemini_partial.kurtarilanKrk > 0) || !!qm.cache_kismi'),
+    'onbellekten gelen kismi kart rozet almiyor — ogrenci kartin yarim oldugunu goremez');
+  assert.ok(INK_SRC.includes("data-yenile="),
+    'cikis dugmesi cizilmiyor');
+  assert.ok(INK_SRC.includes('if (kismiKart && own && c.document_id)'),
+    'dugme TAM kartta ya da baskasinin kartinda da cikiyor');
+  assert.ok(INK_SRC.includes("e.target.closest('[data-yenile]')"),
+    'dugme baglanmamis — cizilmis ama hicbir sey yapmiyor');
+  assert.ok(INK_SRC.includes('window.resummarizeFresh(b.getAttribute(' + String.fromCharCode(39) + 'data-yenile' + String.fromCharCode(39) + '))'),
+    'tiklama dashboard yoluna baglanmamis');
+});
+
+test('YENILE bayragi istege giriyor ve TEK KOSULUK', () => {
+  /* Bayrak kalici olsa sonraki butun ozetler onbellegi atlar: her biri
+     110 saniye ve bir RPD. Bu yuzden uretim/tuketim/sifirlama ucu birden
+     olculuyor. */
+  assert.ok(DASH_SRC.includes('window.resummarizeFresh = resummarizeFresh'),
+    'giris noktasi global degil — ink cagiramaz');
+  assert.ok(DASH_SRC.includes('yenile: yenile'),
+    'istek govdesine yenile eklenmiyor — edge function onbellekten dondurur');
+  assert.ok(DASH_SRC.includes('const yenile = onbellegiYenile;') &&
+    DASH_SRC.includes('onbellegiYenile = false;'),
+    'bayrak tuketildiginde sifirlanmiyor');
+  const i = DASH_SRC.indexOf('function summarizeDocument(docId) {');
+  assert.ok(i > -1, 'normal ozet yolu bulunamadi');
+  assert.ok(DASH_SRC.slice(i, i + 260).includes('onbellegiYenile = false;'),
+    'normal "Ozetle" yolu bayragi sifirlamiyor — iptal edilen yenileme sonraki kosulara sizar');
+});
+
+test('EDGE FUNCTION yenile bayragini okuyor', () => {
+  /* Istemci gonderip sunucu okumazsa dugme sessizce hicbir sey yapmaz:
+     kullanici yine onbellekteki yarim karti alir. */
+  assert.ok(FN_SRC.includes('yenile: yenileRaw'), 'istek bayragi okunmuyor');
+  assert.ok(FN_SRC.includes('const onbellegiAtla = !!yenileRaw'), 'bayrak karara baglanmamis');
+  const i = FN_SRC.indexOf('const { data: cachedRows, error: cacheErr } =');
+  assert.ok(i > -1, 'onbellek okumasi bulunamadi');
+  assert.ok(FN_SRC.slice(i, i + 200).includes('onbellegiAtla'),
+    'bayrak okumayi atlatmiyor');
 });
 
 summary();
