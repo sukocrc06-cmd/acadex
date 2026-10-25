@@ -1635,15 +1635,46 @@ window.axNotify = function (title, opts) {
     setTimeout(function () { if (typeof resizeCanvasToDisplaySize === 'function') resizeCanvasToDisplaySize(); }, 120);
   });
 
-  /* ---------- parmakla ya da tabletle çizim (eski motor yalnızca fareyi dinliyordu) ---------- */
+  /* ---------- parmakla ya da kalemle çizim (eski motor yalnızca fareyi dinliyordu) ----------
+     KALEM VE PARMAK AYRI (25.10.2026, test raporu R31):
+       - Kalem (Apple Pencil, S Pen) de buradan çizer; eskiden yalnızca parmak
+         dinleniyordu, kalem farenin uyumluluk olaylarına kalıyordu.
+       - Bu cihazda bir kez kalem kullanılınca parmak artık çizmez, sayfayı
+         kaydırır (avuç ve kaydırma çizgisi olmaz). Kalem hiç kullanılmamışsa
+         (telefon) parmak eskisi gibi çizer.
+       - Çizgi kâğıdın kenarından çıkınca biter; parmak/kalem kâğıt dışına,
+         sayfa numarasına ya da "sayfayı sil"e kaysa da çizgi uzamaz. */
   var cv = $('#notebook-canvas');
   cv.style.touchAction = 'none';
-  var tp = null;
+  var tp = null, scrollP = null, lastY = 0, lastX = 0;
+  var penOnly = store.get('penOnly') === '1';
   var fake = function (e) { return { clientX: e.clientX, clientY: e.clientY, target: cv, preventDefault: function () { e.preventDefault(); } }; };
-  cv.addEventListener('pointerdown', function (e) { if (e.pointerType !== 'touch') return; tp = e.pointerId; e.preventDefault(); if (typeof startDrawing === 'function') startDrawing(fake(e)); });
-  cv.addEventListener('pointermove', function (e) { if (e.pointerId !== tp) return; e.preventDefault(); if (typeof draw === 'function') draw(fake(e)); });
-  var tEnd = function (e) { if (e.pointerId !== tp) return; tp = null; if (typeof stopDrawing === 'function') stopDrawing(fake(e)); };
+  var inside = function (e) { var r = cv.getBoundingClientRect(); return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom; };
+  var scroller = function () { return document.fullscreenElement || document.scrollingElement || document.documentElement; };
+  cv.addEventListener('pointerdown', function (e) {
+    if (e.pointerType !== 'touch' && e.pointerType !== 'pen') return;
+    if (e.pointerType === 'pen' && !penOnly) { penOnly = true; store.set('penOnly', '1'); }
+    e.preventDefault();
+    var inkMode = /^(pen|eraser)$/.test(lsafe(function () { return notebookMode; }, 'pen'));
+    if (e.pointerType === 'touch' && penOnly && inkMode) { if (scrollP === null) { scrollP = e.pointerId; lastY = e.clientY; lastX = e.clientX; } return; }
+    if (tp !== null) return;
+    tp = e.pointerId; try { cv.setPointerCapture(e.pointerId); } catch (er) {}
+    if (typeof startDrawing === 'function') startDrawing(fake(e));
+  });
+  cv.addEventListener('pointermove', function (e) {
+    if (e.pointerId === scrollP) { e.preventDefault(); var sc = scroller(); try { sc.scrollBy({ left: lastX - e.clientX, top: lastY - e.clientY, behavior: 'instant' }); } catch (er) { sc.scrollTop += lastY - e.clientY; } lastY = e.clientY; lastX = e.clientX; return; }
+    if (e.pointerId !== tp) return; e.preventDefault();
+    if (!inside(e)) { tEnd(e); return; }
+    if (typeof draw === 'function') draw(fake(e));
+  });
+  var tEnd = function (e) {
+    if (e.pointerId === scrollP) { scrollP = null; return; }
+    if (e.pointerId !== tp) return; tp = null;
+    try { cv.releasePointerCapture(e.pointerId); } catch (er) {}
+    if (typeof stopDrawing === 'function') stopDrawing(fake(e));
+  };
   cv.addEventListener('pointerup', tEnd); cv.addEventListener('pointercancel', tEnd);
+  /* farenin de kâğıttan çıkınca çizgisi biter (eski motor: mouseleave) — ek iş yok */
 
   /* ---------- sayfa göstergesi Türkçe, kayıt durumu ---------- */
   var ind = $('#notebook-page-indicator');

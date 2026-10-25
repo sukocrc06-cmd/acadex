@@ -629,6 +629,20 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 .js .rprog i{background:#2F6BFF}
 .rp-pen{position:absolute;top:-3.5px;left:0;width:40px;height:10px;transform:translateX(calc(var(--pg, 0) * 100vw - 37px));opacity:clamp(0, var(--pg, 0) * 60, 1);filter:drop-shadow(0 1px 1px rgba(13,24,56,0.25))}
 .rp-pen svg{display:block;width:100%;height:100%}
+/* R3 (25.10.2026): kalem kaydirmayla ayni karede gitsin. Destekleyen tarayicida
+   (Chrome/Edge, yeni Safari) cizgi ve kalem kaydirma zaman cizelgesiyle ekran
+   kartinda (ana is parcacigindan bagimsiz) hareket eder; digerlerinde eski --pg yolu. */
+.js .rprog i,.rp-pen{will-change:transform}
+@supports (animation-timeline: scroll()){
+.js .rprog i{animation:rpBar linear both;animation-timeline:scroll(root)}
+.js .rp-pen{animation:rpPen linear both;animation-timeline:scroll(root)}
+@keyframes rpBar{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes rpPen{0%{transform:translateX(-37px);opacity:0}1.7%{opacity:1}100%{transform:translateX(calc(100vw - 37px));opacity:1}}
+}
+/* R4 (25.10.2026): tablette kaydirma takilmasi. Masadaki buyuk golgeli parcalar
+   (masa yuzeyi, kagitlar, belge kartlari) her karede yeniden ciziliyordu
+   (olcum: tarama suresinin yarisi). Kendi katmanlarinda bir kez cizilir. */
+.dsk-top,.sheet,.dsk-i{will-change:transform}
 /* buttons: no pills; a hand-drawn line underneath */
 [data-acx-root] a[style*="999px"],[data-acx-root] button[style*="999px"]{border-radius:7px !important;position:relative}
 [data-acx-root] a[style*="999px"]::after,[data-acx-root] button[style*="999px"]::after{content:"";position:absolute;left:12%;right:10%;bottom:-9px;height:7px;pointer-events:none;

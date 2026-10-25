@@ -4287,6 +4287,18 @@ function setNotebookMode(mode) {
   }
 }
 
+/* EKRAN -> CIZIM KOORDINATI (25.10.2026, test raporu R31). Tuvalin piksel
+   boyutu yalnizca ilk acilista ayarlaniyor; tablet dondurulunce ya da pencere
+   boyu degisince CSS boyutu degisiyor ama piksel boyutu ayni kaliyordu.
+   Cizgi parmagin/kalemin altinda degil, kaymis yerde (kenara dogru) cikiyordu.
+   Tuvalin gercek olcegine gore cevrilir. */
+function canvasPointFromEvent(e) {
+  const rect = canvasElement.getBoundingClientRect();
+  const sx = rect.width ? canvasElement.width / rect.width : 1;
+  const sy = rect.height ? canvasElement.height / rect.height : 1;
+  return { x: (e.clientX - rect.left) * sx, y: (e.clientY - rect.top) * sy };
+}
+
 function startDrawing(e) {
   if (notebookMode === 'text') {
     e.preventDefault(); // Prevent default focus stealing by canvas mousedown
@@ -4303,9 +4315,7 @@ function startDrawing(e) {
   isDrawing = true;
   canvasCtx.beginPath();
   
-  const rect = canvasElement.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
+  const { x, y } = canvasPointFromEvent(e);
   
   canvasCtx.moveTo(x, y);
   
@@ -4333,9 +4343,7 @@ function draw(e) {
   }
   if (!isDrawing) return;
 
-  const rect = canvasElement.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
+  const { x, y } = canvasPointFromEvent(e);
   
   canvasCtx.lineTo(x, y);
   canvasCtx.stroke();
@@ -4390,15 +4398,9 @@ function addStickyNoteToNotebook(cardId, fileName, excerpt) {
     const rotation = Math.floor(Math.random() * 7) - 3; // -3 to +3 deg
     
     // Default position: Center of visible canvas viewport with cascading offset
-    const rect = overlay.getBoundingClientRect();
-    const noteWidth = 220;
-    const noteHeight = 150;
-    const centerX = (rect.width > noteWidth) ? (rect.width - noteWidth) / 2 : 50;
-    const centerY = (rect.height > noteHeight) ? (rect.height - noteHeight) / 2 : 50;
-    
-    const offset = (overlay.children.length * 20) % 200;
-    const x = centerX + offset;
-    const y = centerY + offset;
+    const spot = findFreeNoteSpot(overlay, 220, 150);
+    const x = spot.x;
+    const y = spot.y;
 
     const note = document.createElement('div');
     note.className = 'draggable-element draggable-note';
@@ -4614,7 +4616,12 @@ function makeElementDraggable(el, handle = el) {
   let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
   let startX = 0, startY = 0;
   
-  handle.onmousedown = dragMouseDown;
+  /* DOKUNMAYLA TASIMA (25.10.2026, test raporu R25). Eskiden yalnizca fare
+     dinleniyordu (onmousedown); tablette parmakla ya da kalemle not
+     tasinamiyordu. Isaretci olaylari fare, parmak ve kalemin ucunu da tasir. */
+  el.style.touchAction = 'none';
+  handle.onmousedown = null;
+  handle.onpointerdown = dragMouseDown;
 
   // Intercept click events in the capture phase to cancel them if a drag occurred
   el.addEventListener('click', (e) => {
@@ -4626,13 +4633,19 @@ function makeElementDraggable(el, handle = el) {
     }
   }, true);
 
+ let activePointer = null;
   function dragMouseDown(e) {
     isDrawing = false;
-    if (e.target.classList.contains('delete-overlay-btn')) return;
+    if (e.button !== undefined && e.button !== 0) return;
+    if (activePointer !== null) return;
+    if (e.target.classList.contains('delete-overlay-btn') || e.target.closest('.delete-overlay-btn')) return;
     if (e.target.tagName === 'TD' || e.target.closest('td') || e.target.closest('[contenteditable="true"]')) return;
+    if (e.target.closest('.table-resizer')) return;
     
     e = e || window.event;
     e.preventDefault();
+    activePointer = e.pointerId;
+    try { handle.setPointerCapture(e.pointerId); } catch (_e) { /* yoksay */ }
     
     startX = e.clientX;
     startY = e.clientY;
@@ -4641,12 +4654,14 @@ function makeElementDraggable(el, handle = el) {
     pos3 = e.clientX;
     pos4 = e.clientY;
     
-    document.onmouseup = closeDragElement;
-    document.onmousemove = elementDrag;
+    handle.onpointerup = closeDragElement;
+    handle.onpointercancel = closeDragElement;
+    handle.onpointermove = elementDrag;
   }
 
   function elementDrag(e) {
     e = e || window.event;
+    if (e.pointerId !== activePointer) return;
     e.preventDefault();
     
     const dist = Math.sqrt(Math.pow(e.clientX - startX, 2) + Math.pow(e.clientY - startY, 2));
@@ -4672,9 +4687,12 @@ function makeElementDraggable(el, handle = el) {
     el.style.left = `${newLeft}px`;
   }
 
-  function closeDragElement() {
-    document.onmouseup = null;
-    document.onmousemove = null;
+  function closeDragElement(e) {
+    if (e && e.pointerId !== activePointer) return;
+    activePointer = null;
+    handle.onpointerup = null;
+    handle.onpointercancel = null;
+    handle.onpointermove = null;
     if (el.getAttribute('data-dragged') === 'true') {
       notebookHasUnsavedChanges = true;
       if (typeof recordNotebookState === 'function') recordNotebookState();
@@ -9953,6 +9971,35 @@ async function pasteDepotItem(event, itemId, title, content) {
   showDashboardAlert('success', isTrP ? 'Deftere eklendi ✓ Kart depoda da duruyor; kaydetmeyi unutma.' : 'Added to notebook ✓ The card stays in the depot; remember to save.');
 }
 
+/* BOS YER BUL (25.10.2026, test raporu R25). Notlar eskiden hep sayfanin
+   ortasina 20 px kaydirmayla konuyordu; 10 notta bir ayni yere donuyor,
+   tablette (dar sayfa) ust uste biniyordu. Simdi ekranda gorunen kisimdan
+   baslayarak diger ogelere degmeyen ilk yer secilir; yer yoksa eski kaydirma. */
+function findFreeNoteSpot(overlay, w, h) {
+  const W = overlay.clientWidth || overlay.getBoundingClientRect().width;
+  const H = overlay.clientHeight || overlay.getBoundingClientRect().height;
+  const r = overlay.getBoundingClientRect();
+  const gap = 10, step = 20;
+  const boxes = Array.from(overlay.children).map(c => ({ x: c.offsetLeft, y: c.offsetTop, w: c.offsetWidth, h: c.offsetHeight }));
+  const free = (x, y) => boxes.every(b => x + w + gap <= b.x || b.x + b.w + gap <= x || y + h + gap <= b.y || b.y + b.h + gap <= y);
+  /* ekranda gorunen ust sinir: yapiskan arac cubugu kagidin ustunu ortuyorsa onun alti */
+  let viewTop = 0;
+  const bar = document.querySelector('#notebook-view .nb-top') || document.querySelector('#notebook-view .tools');
+  if (bar) { const br = bar.getBoundingClientRect(); if (getComputedStyle(bar).position !== 'static' && br.bottom > 0 && br.bottom < window.innerHeight) viewTop = br.bottom; }
+  const visTop = Math.max(0, Math.min(H - h, viewTop - r.top + 16));
+  const ys = [];
+  for (let y = visTop; y <= H - h; y += step) ys.push(y);
+  for (let y = 0; y < visTop; y += step) ys.push(y);
+  for (const y of ys) {
+    for (let x = 16; x <= Math.max(16, W - w - 8); x += step) {
+      if (free(x, y)) return { x, y };
+    }
+  }
+  const off = (overlay.children.length * 20) % 200;
+  return { x: Math.max(0, (W - w) / 2) + off, y: Math.max(0, (H - h) / 2) + off };
+}
+window.findFreeNoteSpot = findFreeNoteSpot;
+
 function addDepotStickyNoteToCanvas(cardId, title, content) {
   const overlay = document.getElementById('notebook-overlay-container');
   if (!overlay) return;
@@ -9960,15 +10007,9 @@ function addDepotStickyNoteToCanvas(cardId, title, content) {
   const id = 'note-' + Date.now();
   const rotation = Math.floor(Math.random() * 7) - 3; // -3 to +3 deg
   
-  const rect = overlay.getBoundingClientRect();
-  const noteWidth = 220;
-  const noteHeight = 150;
-  const centerX = (rect.width > noteWidth) ? (rect.width - noteWidth) / 2 : 50;
-  const centerY = (rect.height > noteHeight) ? (rect.height - noteHeight) / 2 : 50;
-  
-  const offset = (overlay.children.length * 20) % 200;
-  const x = centerX + offset;
-  const y = centerY + offset;
+  const spot = findFreeNoteSpot(overlay, 220, 150);
+  const x = spot.x;
+  const y = spot.y;
 
   const note = document.createElement('div');
   note.className = 'draggable-element draggable-note';
