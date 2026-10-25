@@ -1825,6 +1825,32 @@ function graphAnswerText(els: GraphObj[], none: boolean, x: GraphAxis, y: GraphA
   }).join(' · ')
 }
 
+/** FAZ 4b.2: taranmış grafik örneğini sınav türüne uyarlar (öğrenci
+ *  "dosyadaki grafik sorularına göre" demese de benzerleri sınava karışır).
+ *  test: yalnızca çoktan seçmeli biçimler (değer sorusu şıklı); klasik:
+ *  yorum; hesaplama: değer (hesap sorusu); karışık: örneğin biçimi, sayısal
+ *  olmayan kaynakta değer sorusu şıklı. Çizim örneği (format 'draw') null. */
+function chartItemForExam(item: Record<string, unknown>, examType: string, isQuant: boolean, optionCount: number): Record<string, unknown> | null {
+  const e = (item && typeof item.example === 'object' && item.example ? item.example : {}) as Record<string, unknown>
+  const f = String(e.format ?? '')
+  if (f === 'draw' || !item.chart || typeof item.chart !== 'object' || !Object.keys(item.chart as Record<string, unknown>).length) return null
+  const ex: Record<string, unknown> = { ...e }
+  const mcValue = () => { if (![4, 5].includes(Number(ex.options_count))) ex.options_count = optionCount }
+  if (examType === 'classic') ex.format = 'open'
+  else if (examType === 'calculation') { ex.format = 'value'; ex.options_count = null }
+  else if (examType === 'test') { if (f === 'value') mcValue(); else if (!['which_true', 'which_false', 'premises'].includes(f)) ex.format = 'which_true' }
+  else if (f === 'value' && !isQuant) mcValue()
+  return { ...item, example: ex }
+}
+
+/** Kodla kurulan soruları sınava eşit aralıklarla yerleştirir. */
+function spreadInsert<T>(base: T[], extra: T[]): T[] {
+  if (!extra.length) return base
+  const out = [...base], n = base.length + extra.length
+  extra.forEach((q, i) => out.splice(Math.min(out.length, Math.max(0, Math.round((i + 1) * n / (extra.length + 1)) - 1)), 0, q))
+  return out
+}
+
 /** FAZ 4b (canlı test 25.10.2026): kaynak koordinat düzleminde çizilen bir
  *  konu öğretiyor mu. Model "karışık sınavda beş tipe eşit dağıt" kuralına
  *  uyup arz-talep notunda bile çizim sorusu yazmadı; kaynak uygunsa çizim
@@ -2845,7 +2871,27 @@ ${c.formulas && (c.formulas as unknown[]).length > 0 ? `FORMULAS: ${JSON.stringi
     const graphsOff = noGraphs === true
     if (graphsOff) chartSources = []
     const graphsAllowed = !graphsOff && (examType === 'mixed' || examType === 'calculation')
-    const graphSource = graphsAllowed && sourceTeachesGraphs(context)
+    // FAZ 4b.2: belgede taranmış grafik / çizim soruları varsa (öğrenci
+    // ayrıca istemese de) benzerleri sınava karışır: grafik örneklerinden
+    // yaklaşık dörtte bir soru kodla kurulur, çizim örnekleri modele örnek
+    // olarak verilir. "Grafik sorusu olmasın" ise hiçbiri.
+    let fileChartQuestions: Record<string, unknown>[] = []
+    let fileDrawExamples: string[] = []
+    if (!graphsOff && chartExamples !== true && resolvedSourceType === 'study_card' && sourceDocumentId) {
+      const { data: fileItems, error: fileItemsErr } = await userClient.from('document_chart_items').select('page, chart, example').eq('document_id', sourceDocumentId).order('page')
+      if (!fileItemsErr && Array.isArray(fileItems) && fileItems.length) {
+        const rows = fileItems as Array<Record<string, unknown>>
+        if (graphsAllowed) fileDrawExamples = rows.filter(it => (it.example as Record<string, unknown>)?.format === 'draw').map(it => String((it.example as Record<string, unknown>).stem || '')).filter(Boolean).slice(0, 4)
+        const charts = rows.map(it => chartItemForExam(it, examType, isQuant, scoring.option_count)).filter(Boolean) as Array<Record<string, unknown>>
+        const k = !charts.length ? 0 : Math.min(charts.length * 2, requestedCount >= 3 ? Math.max(1, Math.round(requestedCount / 4)) : requestedCount === 2 ? 1 : 0)
+        if (k) {
+          const allowedHere = allowedTypesFor(examType, isQuant, graphsAllowed)
+          fileChartQuestions = buildChartExamQuestions(charts, k, language, scoring.option_count, `${user.id}:${Date.now()}:${Math.random()}`).filter(q => allowedHere.includes(String(q.type)))
+        }
+        console.log(`generate-exam: belgede ${charts.length} grafik, ${fileDrawExamples.length} cizim ornegi; ${fileChartQuestions.length} grafik sorusu kodla karisti`)
+      }
+    }
+    const graphSource = graphsAllowed && (fileDrawExamples.length > 0 || sourceTeachesGraphs(context))
     if (chartSources.length > 0) context += `\n\nCHARTS (numbered; the student sees each drawn as a graph with labelled values):\n${describeCharts(chartSources)}`
 
     // FAZ 4c: "dosyadaki grafik sorularına göre". Taranmış grafiklerden
@@ -2855,9 +2901,11 @@ ${c.formulas && (c.formulas as unknown[]).length > 0 ? `FORMULAS: ${JSON.stringi
       if (resolvedSourceType !== 'study_card' || !sourceDocumentId) {
         return new Response(JSON.stringify({ error: 'Grafik soruları yalnızca yüklenen bir belgeden kurulabilir.' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
-      const { data: chartItems, error: chartItemsErr } = await userClient.from('document_chart_items').select('page, chart, example').eq('document_id', sourceDocumentId).order('page')
+      const { data: allChartItems, error: chartItemsErr } = await userClient.from('document_chart_items').select('page, chart, example').eq('document_id', sourceDocumentId).order('page')
       if (chartItemsErr) console.warn('generate-exam: document_chart_items okunamadi (migration?):', chartItemsErr.message)
-      if (!chartItems || !chartItems.length) {
+      // FAZ 4b.2: çizim örnekleri (grafiksiz) bu kipte kullanılmaz.
+      const chartItems = (allChartItems || []).filter(it => ((it as Record<string, unknown>).example as Record<string, unknown> | null)?.format !== 'draw')
+      if (!chartItems.length) {
         return new Response(JSON.stringify({ error: 'Bu belgede taranmış grafik sorusu yok. Önce grafik taramasını tamamlayın.', code: 'no_chart_items' }), { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
       chartExampleQuestions = buildChartExamQuestions(chartItems as Array<Record<string, unknown>>, requestedCount, language, scoring.option_count, `${user.id}:${Date.now()}:${Math.random()}`)
@@ -2888,12 +2936,12 @@ ${context}
     // is what makes the system message worth caching in the first place.
     const buildUserPrompt = (count: number, avoid: string[], needGraph = false) => `Generate exactly ${count} questions of type '${examType}' in the language '${language}' (en = English, tr = Turkish), at difficulty level '${resolvedDifficulty}'.
 OPTION COUNT: every 'multiple_choice' question has exactly ${scoring.option_count} options.
-GRAPH QUESTIONS: ${!graphsAllowed ? 'not allowed (never use type graph)' : graphSource && (count >= 3 || needGraph) ? `required: this source teaches material drawn on coordinate axes, so at least ${needGraph ? 1 : Math.max(1, Math.round(count / 5))} of the ${count} questions MUST be type 'graph' (they count as part of the type spread above)` : 'allowed'}.${decimalPlaces ? `\nNUMERIC PRECISION: 'calculation' answers are graded to exactly ${decimalPlaces} decimal places. In every 'calculation' question text ask for the result to ${decimalPlaces} decimal places, and let "formula" compute the exact value (no rounding inside the formula).` : ''}${resolvedFocusConcept ? `\n\nIMPORTANT FOCUS RULE:\n- The student specifically wants to practice ONE topic: "${resolvedFocusConcept}". EVERY question must test this exact topic, approached from different angles (definition, application, comparison, scenario) — do not drift to unrelated concepts. Set the "concept" field on every question to "${resolvedFocusConcept}" (or a very close variant in the requested language).` : ''}${avoid.length > 0 ? `\n\nDo NOT repeat these questions that were already generated:\n${avoid.map(t => `- ${t.slice(0, 160)}`).join('\n')}` : ''}
+GRAPH QUESTIONS: ${!graphsAllowed ? 'not allowed (never use type graph)' : graphSource && (count >= 3 || needGraph) ? `required: this source teaches material drawn on coordinate axes, so at least ${needGraph ? 1 : Math.max(1, Math.round(count / 5))} of the ${count} questions MUST be type 'graph' (they count as part of the type spread above)` : 'allowed'}.${fileDrawExamples.length ? `\nDRAWING QUESTIONS FROM THE STUDENT'S FILE (write the 'graph' questions in this style and on these topics, with new numbers):\n${fileDrawExamples.map(t => `- ${t.slice(0, 300)}`).join('\n')}` : ''}${decimalPlaces ? `\nNUMERIC PRECISION: 'calculation' answers are graded to exactly ${decimalPlaces} decimal places. In every 'calculation' question text ask for the result to ${decimalPlaces} decimal places, and let "formula" compute the exact value (no rounding inside the formula).` : ''}${resolvedFocusConcept ? `\n\nIMPORTANT FOCUS RULE:\n- The student specifically wants to practice ONE topic: "${resolvedFocusConcept}". EVERY question must test this exact topic, approached from different angles (definition, application, comparison, scenario) — do not drift to unrelated concepts. Set the "concept" field on every question to "${resolvedFocusConcept}" (or a very close variant in the requested language).` : ''}${avoid.length > 0 ? `\n\nDo NOT repeat these questions that were already generated:\n${avoid.map(t => `- ${t.slice(0, 160)}`).join('\n')}` : ''}
 
 Additional variation seed: ${Date.now()}`
     // FAZ 4b: kaynak uygun ama model çizim sorusu yazmadıysa tek bir çizim sorusu.
     const buildGraphPrompt = (avoid: string[]) => `Generate exactly 1 question of type 'graph' (a GRAPH DRAWING QUESTION as described in the instructions) in the language '${language}' (en = English, tr = Turkish), at difficulty level '${resolvedDifficulty}', based on the SOURCE MATERIAL.
-GRAPH QUESTIONS: required. Choose numbers so every answer point falls on grid intersections.${avoid.length > 0 ? `\n\nDo NOT repeat these questions that were already generated:\n${avoid.map(t => `- ${t.slice(0, 160)}`).join('\n')}` : ''}
+GRAPH QUESTIONS: required. Choose numbers so every answer point falls on grid intersections.${fileDrawExamples.length ? `\nDRAWING QUESTIONS FROM THE STUDENT'S FILE (same style, new numbers):\n${fileDrawExamples.map(t => `- ${t.slice(0, 300)}`).join('\n')}` : ''}${avoid.length > 0 ? `\n\nDo NOT repeat these questions that were already generated:\n${avoid.map(t => `- ${t.slice(0, 160)}`).join('\n')}` : ''}
 
 Additional variation seed: ${Date.now()}`
 
@@ -2985,7 +3033,7 @@ Additional variation seed: ${Date.now()}`
     }
 
     const allowedTypes = allowedTypesFor(examType, isQuant, graphsAllowed)
-    const accepted: Record<string, unknown>[] = []
+    let accepted: Record<string, unknown>[] = []
     const seenTexts = new Set<string>()
     const rejectReasons: string[] = []
 
@@ -3019,7 +3067,9 @@ Additional variation seed: ${Date.now()}`
     }
 
     if (chartExampleQuestions) accepted.push(...chartExampleQuestions)
-    const first = chartExampleQuestions ? { items: [] as unknown[] } as { items?: unknown[]; error?: string } : await requestQuestions(requestedCount, [])
+    // FAZ 4b.2: dosyadan kodla kurulan grafik soruları; model kalanını yazar.
+    accepted.push(...fileChartQuestions)
+    const first = chartExampleQuestions ? { items: [] as unknown[] } as { items?: unknown[]; error?: string } : await requestQuestions(requestedCount - accepted.length, accepted.map(q => String(q.question)))
     if (first.error && !first.items) {
       const detail = first.error === 'invalid_format' ? 'AI returned invalid question formatting. Please try again.' : `AI generation service failed: ${first.error}`
       return new Response(JSON.stringify({ error: detail }), {
@@ -3058,8 +3108,8 @@ Additional variation seed: ${Date.now()}`
           const counts: Record<string, number> = {}
           accepted.forEach(q => { counts[String(q.type)] = (counts[String(q.type)] || 0) + 1 })
           let idx = -1
-          accepted.forEach((q, i) => { if (idx < 0 || counts[String(q.type)] > counts[String(accepted[idx].type)] || (counts[String(q.type)] === counts[String(accepted[idx].type)] && i > idx)) idx = i })
-          accepted[idx] = r.question
+          accepted.forEach((q, i) => { if (q.chart) return; if (idx < 0 || counts[String(q.type)] > counts[String(accepted[idx].type)] || (counts[String(q.type)] === counts[String(accepted[idx].type)] && i > idx)) idx = i })
+          if (idx >= 0) accepted[idx] = r.question
         }
         note = 'eklendi'
         break
@@ -3089,6 +3139,13 @@ Additional variation seed: ${Date.now()}`
 
     // Sıra numaralarını yeniden ver, zorluğu sunucuda damgala (modelin geri
     // yansıtmasına güvenme), çoktan seçmeli şıkları karıştır.
+    // FAZ 4b.2: dosyadan kurulan grafik soruları başa yığılmasın.
+    if (fileChartQuestions.length) {
+      const fileSet = new Set(fileChartQuestions)
+      const kept = accepted.filter(q => fileSet.has(q))
+      accepted = spreadInsert(accepted.filter(q => !fileSet.has(q)), kept)
+      console.log(`generate-exam: ${kept.length}/${accepted.length} soru dosyadaki grafiklerden`)
+    }
     const finalQuestions = accepted.map((q, i) => {
       const out: Record<string, unknown> = { ...q, id: i + 1, difficulty: resolvedDifficulty }
       if (out.type === 'multiple_choice' && Array.isArray(out.options) && out.keep_order !== true) {

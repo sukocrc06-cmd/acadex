@@ -21,7 +21,7 @@ const SCAN_PATH = 'supabase/functions/extract-chart-items/index.ts';
 const GEN_PATH = 'supabase/functions/generate-exam/index.ts';
 const SHARED = ['parseLooseNumber', 'CHART_MAX_SOURCES', 'CHART_MAX_POINTS', 'CHART_MAX_SERIES', 'chartLabel', 'normalizeChartSpec'];
 
-const S = loadFromSource(SCAN_PATH, [...SHARED, 'SCAN_MAX_PAGES', 'GROQ_WAIT_CAP_MS', 'CHART_FORMATS', 'CHART_SKILLS', 'pageTexts', 'CHART_CUE', 'QUESTION_CUE',
+const S = loadFromSource(SCAN_PATH, [...SHARED, 'SCAN_MAX_PAGES', 'GROQ_WAIT_CAP_MS', 'CHART_FORMATS', 'CHART_SKILLS', 'DRAW_KINDS', 'pageTexts', 'CHART_CUE', 'QUESTION_CUE', 'DRAW_CUE',
   'selectCandidatePages', 'inferFormat', 'normalizeScanItem', 'groqWaitMs']);
 const G = loadFromSource(GEN_PATH, ['CHART_FORMATS', 'CHART_SKILLS']);
 
@@ -73,6 +73,27 @@ test('pageTexts: birden cok sayfali parca sayfalarina bolunur (canli test 24.10.
   const t2 = S.pageTexts([{ page_start: 2, page_end: 4, text: [p2, p3, p4].join('\n') }]);
   for (const p of [2, 3, 4]) assert.ok((t2.get(p) || '').length > 20, 'sayfa ' + p);
   assert.match(t2.get(4), /söylenebilir/);
+});
+
+test('kendiliginden tarama (strict): yalnizca grafik+soru ya da cizim izi; geri donus yok (FAZ 4b.2)', () => {
+  const texts = new Map([
+    [1, 'Ekonomik veriler grafiklerle sunulur. Sütun grafiği kategorileri karşılaştırır. '.repeat(3)],
+    [2, 'Aşağıdaki grafiğe göre hangisi söylenebilir? A) B) C) D)'],
+    [3, 'Talep P = 12 - 2Q ve arz P = 3 + Q doğrularını çiziniz ve dengeyi E ile işaretleyiniz.'],
+    [4, ''],
+    [5, 'Konu anlatımı devam ediyor, soru yok. '.repeat(8)]
+  ]);
+  assert.deepEqual(S.selectCandidatePages(texts, 5, 8, true), [2, 3], 'konu anlatimi ve bos sayfa alinmaz');
+  assert.deepEqual(S.selectCandidatePages(new Map([[1, 'Uzun bir metin. '.repeat(20)], [2, '']]), 2, 8, true), [], 'iz yoksa hic sayfa yok');
+  assert.ok(S.selectCandidatePages(texts, 5).includes(3), 'istenen taramada cizim sorusu sayfasi da aday');
+});
+
+test('normalizeScanItem: cizim sorusu (grafik gerekmez) kaydedilir', () => {
+  const d = S.normalizeScanItem({ kind: 'draw', chart: null, example: { stem: 'Talep P = 12 - 2Q ve arz P = 3 + Q doğrularını çiziniz, dengeyi E ile işaretleyiniz.', format: 'draw', draw: ['line', 'point', 'uydurma'] } });
+  assert.deepEqual(d.chart, {});
+  assert.equal(d.example.format, 'draw');
+  assert.deepEqual(d.example.draw, ['line', 'point']);
+  assert.equal(S.normalizeScanItem({ kind: 'draw', example: { stem: 'çiz', format: 'draw' } }), null, 'kok cok kisa');
 });
 
 test('inferFormat: model bicimi gecerliyse o; degilse metinden', () => {
