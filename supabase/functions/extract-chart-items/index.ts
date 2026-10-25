@@ -99,6 +99,7 @@ function normalizeChartSpec(raw: unknown): ChartSpec | null {
 
 const CHART_FORMATS = ['which_true', 'which_false', 'premises', 'true_false', 'value', 'open', 'fill']
 const CHART_SKILLS = ['trend', 'extreme', 'compare', 'change', 'share', 'average', 'rank', 'gap']
+const DRAW_KINDS = ['point', 'line', 'segment', 'ray', 'parabola', 'circle', 'polygon', 'fill', 'shift']
 
 type ChunkRow = { page_start: number | null; page_end: number | null; text: string }
 
@@ -133,21 +134,28 @@ function pageTexts(rows: ChunkRow[]): Map<number, string> {
 
 const CHART_CUE = /(grafi[kğ]|şekil|şekl|chart|graph|figure|diyagram|histogram|pasta dilim|sütun|eğri|eksen|axis)/giu
 const QUESTION_CUE = /(hangisi|hangileri|söylenebilir|söylenemez|ulaşılabilir|ulaşılamaz|doğrudur|yanlıştır|yorumlayınız|açıklayınız|which of|\b[A-E]\)|\bI{1,3}\.\s|\?)/giu
+// FAZ 4b.2: çizim sorusu izi ("grafiğini çiziniz", "dengeyi işaretleyiniz").
+const DRAW_CUE = /(çiziniz|çizin\b|çizerek|gösteriniz|işaretleyiniz|tarayınız|kaydırınız|\bdraw\b|\bsketch\b|\bplot\b|\bshade\b|\bgraph the\b)/giu
 
 /** Taranacak sayfalar (1'den başlayan, artan sırada): grafik ve soru izi
  *  taşıyan sayfalar önce; hiç iz yoksa neredeyse boş sayfalar (grafik
  *  görüntü olarak gömülü, metin çıkmıyor); o da yoksa ilk üç sayfa. */
-function selectCandidatePages(texts: Map<number, string>, pageCount: number, max = SCAN_MAX_PAGES): number[] {
+/*  strict (FAZ 4b.2, kendiliğinden tarama — öğrenci istemedi): yalnızca
+ *  grafik + soru izi ya da çizim sorusu izi taşıyan sayfalar; boş sayfa ve
+ *  ilk üç sayfa geri dönüşü YOK (iz yoksa görsel model hiç çağrılmaz). */
+function selectCandidatePages(texts: Map<number, string>, pageCount: number, max = SCAN_MAX_PAGES, strict = false): number[] {
   const scored: Array<{ page: number; score: number }> = []
   for (let p = 1; p <= pageCount; p++) {
     const t = texts.get(p) || ''
     const charts = (t.match(CHART_CUE) || []).length
     const qs = Math.min(6, (t.match(QUESTION_CUE) || []).length)
+    const draws = (t.match(DRAW_CUE) || []).length
     const blank = t.trim().length < 150 ? 1 : 0
-    const score = charts * 3 + qs + (charts || qs ? blank : 0)
-    if (score >= 3) scored.push({ page: p, score })
+    const score = charts * 3 + qs + draws * 3 + (charts || qs ? blank : 0)
+    if (strict ? ((charts && qs) || draws) : score >= 3) scored.push({ page: p, score })
   }
   let pages = scored.sort((a, b) => b.score - a.score || a.page - b.page).slice(0, max).map(s => s.page)
+  if (strict) return pages.sort((a, b) => a - b)
   if (!pages.length) {
     for (let p = 1; p <= pageCount && pages.length < Math.min(4, max); p++) if ((texts.get(p) || '').trim().length < 150) pages.push(p)
   }
@@ -174,6 +182,15 @@ function inferFormat(format: unknown, stem: string, options: string[], premises:
 function normalizeScanItem(raw: unknown): { chart: Record<string, unknown>; example: Record<string, unknown> } | null {
   if (!raw || typeof raw !== 'object') return null
   const r = raw as Record<string, unknown>
+  // FAZ 4b.2: çizim sorusu (öğrenci grafiği kendisi çizer). Grafik verisi
+  // gerekmez; sınavda benzer çizim sorusunu model yazar, kod doğrular.
+  const ex0 = (r.example && typeof r.example === 'object' ? r.example : {}) as Record<string, unknown>
+  if (String(ex0.format ?? '') === 'draw' || r.kind === 'draw') {
+    const stem = chartLabel(ex0.stem, 500)
+    if (stem.length < 15) return null
+    const kinds = [...new Set((Array.isArray(ex0.draw) ? ex0.draw : []).map(String).filter(k => DRAW_KINDS.includes(k)))]
+    return { chart: {}, example: { stem, format: 'draw', draw: kinds, skills: [], options_count: null, has_question: true } }
+  }
   const c = (r.chart && typeof r.chart === 'object' ? r.chart : null) as Record<string, unknown> | null
   if (!c) return null
   const t = String(c.type ?? '').toLowerCase()
@@ -207,7 +224,9 @@ Item shape:
   "options": ["option texts"], "premises": ["I, II, III statement texts"], "skills": ["trend" | "extreme" | "compare" | "change" | "share" | "average" | "rank" | "gap"]} or null when no question uses the chart}
 Formats: which_true = asks which statement is true / can be concluded; which_false = which is NOT true / cannot be concluded; premises = lists I, II, III statements and asks which are true; true_false = one statement, true or false; value = asks for a number; open = asks to interpret or explain in writing; fill = fill in the blank.
 Skills: trend (rise/fall over time), extreme (highest/lowest), compare (one category vs another), change (amount or percent change), share (part of the whole), average, rank (order), gap (difference between two series).
-At most 3 series and 24 categories per chart. Use a dot as the decimal separator in JSON numbers. Never invent a chart that is not on the page; if there is none return {"items": []}.`
+DRAWING QUESTIONS: also add one item per question that asks the student to DRAW on axes (plot points, draw a line or curve such as supply/demand or a budget line, shift a curve, mark an equilibrium or intersection, shade a region or an area such as consumer surplus), whether or not a chart is printed:
+{"kind": "draw", "chart": null, "example": {"stem": "the full question text, with its numbers and equations", "format": "draw", "draw": ["point" | "line" | "segment" | "ray" | "parabola" | "circle" | "polygon" | "fill" | "shift" — what the student has to draw]}}
+At most 3 series and 24 categories per chart. Use a dot as the decimal separator in JSON numbers. Never invent a chart or question that is not on the page; if there is none return {"items": []}.`
 
 function bytesToBase64(bytes: Uint8Array): string {
   const CHUNK_SIZE = 8192
@@ -311,6 +330,9 @@ serve(async (req) => {
 
     const body = await req.json().catch(() => ({}))
     const action = String(body.action || 'status')
+    // FAZ 4b.2: kendiliğinden tarama (öğrenci istemeden, sınav kurulumunda):
+    // yalnızca iz taşıyan sayfalar; iz yoksa model hiç çağrılmaz.
+    const auto = body.auto === true
     let documentId = typeof body.documentId === 'string' ? body.documentId : ''
     if (!documentId && typeof body.studyCardId === 'string') {
       const { data: card } = await userClient.from('study_cards').select('document_id').eq('id', body.studyCardId).maybeSingle()
@@ -331,16 +353,20 @@ serve(async (req) => {
       pages: scan ? scan.pages : [],
       done_pages: scan ? scan.next_index : 0,
       found: items.length,
-      items: (items as Array<Record<string, unknown>>).map(it => ({ page: it.page, title: (it.chart as Record<string, unknown>).title, type: (it.chart as Record<string, unknown>).type, format: (it.example as Record<string, unknown>).format }))
+      draws: (items as Array<Record<string, unknown>>).filter(it => (it.example as Record<string, unknown>)?.format === 'draw').length,
+      items: (items as Array<Record<string, unknown>>).map(it => ({ page: it.page, title: (it.chart as Record<string, unknown>)?.title, type: (it.chart as Record<string, unknown>)?.type, format: (it.example as Record<string, unknown>)?.format }))
     })
 
     let { scan, items } = await loadState()
     if (action === 'status') return json(summary(scan, items))
     if (action !== 'step') return json({ error: 'Geçersiz işlem.' }, 400)
-    if (scan && scan.status === 'done') return json(summary(scan, items))
+    // Kendiliğinden taramanın "iz yok" sonucu, öğrencinin istediği taramayı
+    // (boş sayfalara da bakan) engellemez: yeniden başlar.
+    const autoEmpty = !!scan && scan.status === 'done' && scan.error === 'auto_no_cues'
+    if (scan && scan.status === 'done' && !(autoEmpty && !auto)) return json(summary(scan, items))
 
     // İlk adım (ya da başarısız taramayı yeniden başlatma): sayfaları seç, görüntüye çevir.
-    if (!scan || scan.status === 'failed') {
+    if (!scan || scan.status === 'failed' || autoEmpty) {
       const mime = String(doc.mime_type || '').toLowerCase()
       const { data: fileBlob, error: dlErr } = await serviceClient.storage.from('documents').download(doc.storage_path)
       if (dlErr || !fileBlob) return json({ error: 'Belge indirilemedi.' }, 500)
@@ -356,7 +382,13 @@ serve(async (req) => {
         }
         const texts = pageTexts(rows)
         const pageCount = Math.max(1, ...rows.map(r => Number(r.page_end || r.page_start || 1)))
-        pages = selectCandidatePages(texts, pageCount)
+        pages = selectCandidatePages(texts, pageCount, SCAN_MAX_PAGES, auto)
+        if (!pages.length) {
+          await serviceClient.from('document_chart_items').delete().eq('document_id', documentId)
+          const { data: empty } = await serviceClient.from('document_chart_scans').upsert({ document_id: documentId, user_id: user.id, status: 'done', pages: [], image_urls: [], next_index: 0, found: 0, error: auto ? 'auto_no_cues' : null, updated_at: new Date().toISOString() }).select('*').maybeSingle()
+          console.log('extract-chart-items: kendiliginden tarama, iz yok (model cagrilmadi)')
+          return json(summary(empty, []))
+        }
         const urls = await convertPagesToPng(bytes, pages)
         if (!urls) {
           await serviceClient.from('document_chart_scans').upsert({ document_id: documentId, user_id: user.id, status: 'failed', pages, error: 'page_conversion_failed', updated_at: new Date().toISOString() })
@@ -364,6 +396,11 @@ serve(async (req) => {
         }
         imageUrls = urls
       } else if (!mime.startsWith('image/')) {
+        if (auto) {
+          // Kendiliğinden taramada desteklenmeyen tür hata değil: "yok" kaydedilir.
+          const { data: empty } = await serviceClient.from('document_chart_scans').upsert({ document_id: documentId, user_id: user.id, status: 'done', pages: [], image_urls: [], next_index: 0, found: 0, error: 'unsupported_type', updated_at: new Date().toISOString() }).select('*').maybeSingle()
+          return json(summary(empty, []))
+        }
         return json({ error: 'Grafik taraması yalnızca PDF ve görüntü dosyalarında yapılabilir.' }, 400)
       }
       await serviceClient.from('document_chart_items').delete().eq('document_id', documentId)
@@ -394,8 +431,11 @@ serve(async (req) => {
       await serviceClient.from('document_chart_scans').update({ status: 'failed', error: 'page_image_expired', updated_at: new Date().toISOString() }).eq('document_id', documentId)
       return json({ ...summary({ ...scan, status: 'failed' }, items), restart: true })
     }
-    const { data: chunkRows } = await serviceClient.from('document_chunks').select('text').eq('document_id', documentId).eq('page_start', page).limit(5)
-    const pageText = (chunkRows || []).map((r: Record<string, unknown>) => String(r.text || '')).join('\n')
+    // Sayfayı kapsayan parçalar (page_start ≤ sayfa ≤ page_end); çok sayfalı
+    // parça pageTexts ile sayfasına bölünür. Önceden yalnızca page_start
+    // eşleşiyordu: 2–4. sayfaları tutan parçada 3 ve 4'ün metni gitmiyordu.
+    const { data: chunkRows } = await serviceClient.from('document_chunks').select('page_start, page_end, text').eq('document_id', documentId).lte('page_start', page).or(`page_end.gte.${page},page_end.is.null`).limit(8)
+    const pageText = pageTexts((chunkRows || []) as ChunkRow[]).get(page) || ''
     const read = await readPage(b64, mime, page, pageText)
     if ('waitMs' in read) return json({ ...summary(scan, items), wait_ms: read.waitMs })
     if ('error' in read) console.warn('extract-chart-items:', read.error)
@@ -405,7 +445,7 @@ serve(async (req) => {
     }
     const next = idx + 1
     await serviceClient.from('document_chart_scans').update({ next_index: next, found: (Number(scan.found) || 0) + found.length, status: next >= pages.length ? 'done' : 'running', updated_at: new Date().toISOString() }).eq('document_id', documentId)
-    console.log(`extract-chart-items: sayfa ${page} (${next}/${pages.length}) → ${found.length} grafik`)
+    console.log(`extract-chart-items: sayfa ${page} (${next}/${pages.length}) → ${found.length} oge (${found.filter(f => f.example.format === 'draw').length} cizim)`)
     ;({ scan, items } = await loadState())
     return json(summary(scan, items))
   } catch (err) {

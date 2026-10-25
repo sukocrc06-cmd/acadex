@@ -51,8 +51,8 @@ const denoEnv = new Map();
 globalThis.Deno = { env: { get: (k) => (denoEnv.has(k) ? denoEnv.get(k) : undefined) } };
 
 const G = loadFromSource('supabase/functions/summarize-document/index.ts', [
-  'GEMINI_MODEL_CANDIDATES', 'GEMINI_MAX_REQUESTS_PER_RUN', 'GEMINI_ARDISIK_GECICI_MAX', 'GEMINI_YARIS_GENISLIGI_VARSAYILAN', 'geminiYarisGenisligi', 'GEMINI_YARIS_YOKLAMA_MS',
-  'GEMINI_RPM_RETRY_MIN_REMAINING_MS', 'geminiRpmWaitMs',
+  'GEMINI_MODEL_CANDIDATES', 'GEMINI_MAX_REQUESTS_PER_RUN', 'GEMINI_ARDISIK_GECICI_MAX', 'GEMINI_YARIS_GENISLIGI_VARSAYILAN', 'geminiYarisGenisligi', 'GEMINI_YARIS_YOKLAMA_MS', 'GEMINI_YEDEK_GECIKME_MS_VARSAYILAN', 'geminiYedekGecikmeMs', 'GEMINI_YEDEK_MIN_KALAN_MS',
+  'GEMINI_RPM_RETRY_MIN_REMAINING_MS', 'geminiRpmWaitMs', 'geminiRetryWaitMs',
   'GEMINI_ENDPOINT', 'GEMINI_INLINE_MAX_BYTES', 'GEMINI_MAX_PAGES',
   'GEMINI_MIN_BUDGET_MS', 'GEMINI_RESERVE_MS', 'GEMINI_MAX_CALL_MS',
   'GEMINI_MAX_OUTPUT_TOKENS', 'GEMINI_GROQ_RESERVE_MS', 'geminiMode',

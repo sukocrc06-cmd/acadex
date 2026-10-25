@@ -474,4 +474,45 @@ test('trNormalize Ingilizce metni degistirmiyor (regresyon)', () => {
   assert.deepEqual(A.anchorTerms('Reference Category'), ['reference', 'category']);
 });
 
+/* 25.10.2026 — ONDALIK SAYI KORLUGU. "%9.3" noktalama temizliginde "9" ve
+   "3"e bolunup 4 harf esigine takiliyordu; iddiayi sayfasina baglayan en
+   ayirt edici sey (katsayi, oran) hicbir karsilastirmaya girmiyordu. */
+test('anchorTerms ondalik sayiyi TEK terim olarak tutuyor, virgulu noktaya indiriyor', () => {
+  assert.deepEqual(A.anchorTerms('unemployment peaked at %9.3'), ['unemployment', 'peaked', '9.3']);
+  assert.deepEqual(A.anchorTerms('işsizlik %9,3 oldu'), A.anchorTerms('işsizlik %9.3 oldu'));
+  assert.deepEqual(A.anchorTerms('delta = -0.21'), ['delta', '0.21']);
+  // Kisa tamsayilar hala gurultu (sayfa/madde numarasi); 4 haneli yil zaten geciyordu.
+  assert.deepEqual(A.anchorTerms('slide 3 of 20 in 1982'), ['slide', '1982']);
+  // Cumle sonu noktasi sayiya yapismaz.
+  assert.deepEqual(A.anchorTerms('Growth was 1982. Prices fell'), ['growth', '1982', 'prices', 'fell']);
+});
+
+test('ondalik sayi iddiayi DOGRU sayfaya baglar (kelimeler iki sayfada da ayniyken)', () => {
+  const doc = [
+    '--- SAYFA 1 ---', 'Estimated wage equation: the gender dummy coefficient equals 0.21 in the sample.',
+    '--- SAYFA 2 ---', 'Estimated wage equation: the gender dummy coefficient equals 0.35 in the sample.',
+    '--- SAYFA 3 ---', 'Seasonal dummies capture quarterly effects in retail sales data.'
+  ].join('\n');
+  const idx = A.buildPageIndex(doc, 'SAYFA');
+  const idf = A.buildAnchorIdf(idx);
+  const r = A.anchorClaimToPage('the gender dummy coefficient in the wage equation is 0.35', idx, idf);
+  assert.ok(r, 'iddia hic baglanmadi');
+  assert.equal(r.page, 2, `sayi dikkate alinmadi, esitlikte ilk sayfa secildi: ${r.page}`);
+});
+
+test('belgede OLMAYAN ondalik skoru DUSURUR — yeni yanlis atif uretemez', () => {
+  const doc = [
+    '--- SAYFA 1 ---', 'The Chow test compares restricted and unrestricted residual sums of squares across subsamples.',
+    '--- SAYFA 2 ---', 'Seasonal dummies capture quarterly effects in retail sales data.'
+  ].join('\n');
+  const idx = A.buildPageIndex(doc, 'SAYFA');
+  const idf = A.buildAnchorIdf(idx);
+  const sayisiz = A.anchorClaimToPage('Chow test compares restricted unrestricted residual sums', idx, idf);
+  const sayili = A.anchorClaimToPage('Chow test compares restricted unrestricted residual sums 4.87', idx, idf);
+  assert.ok(sayisiz, 'taban iddia baglanmali');
+  assert.ok(!sayili || sayili.score < sayisiz.score,
+    'belgede olmayan sayi skoru dusurmedi — atif temkinli olmuyor');
+  if (sayili) assert.equal(sayili.page, sayisiz.page, 'uydurma sayi iddiayi baska sayfaya tasidi');
+});
+
 summary().then(() => process.exit(process.exitCode || 0));

@@ -20,7 +20,7 @@ const G = loadFromSource('supabase/functions/generate-exam/index.ts', [
   'decimalsIn', 'chartVariant', 'pctChange', 'claimTruth', 'seriesWord', 'fmtPct', 'fmtNum', 'claimText', 'claimEvidence',
   'titleSubject', 'valueOptions', 'thresholdsAround', 'TR_MONTHS', 'isTimeAxis', 'claimCandidates', 'claimSubject', 'pickClaims', 'ROMAN', 'PREMISE_COMBOS', 'comboLabel',
   'buildChartQuestion', 'CHART_MAX_SOURCES', 'CHART_MAX_POINTS', 'CHART_MAX_SERIES', 'chartLabel', 'parseLooseNumber', 'normalizeChartSpec',
-  'buildChartExamQuestions'
+  'buildChartExamQuestions', 'chartItemForExam', 'spreadInsert'
 ]);
 
 const { test, summary } = makeRunner();
@@ -261,6 +261,42 @@ test('buildChartExamQuestions: taranmis ogelerden istenen sayida, bicim korunur,
   assert.equal(new Set(qs.map(q => q.question + JSON.stringify(q.options))).size, 6, 'tekrar yok');
   assert.deepEqual(G.buildChartExamQuestions([], 5, 'tr', 4, 's'), []);
   assert.deepEqual(G.buildChartExamQuestions(items, 4, 'tr', 4, 'ayni').map(q => q.question + q.correct_answer), G.buildChartExamQuestions(items, 4, 'tr', 4, 'ayni').map(q => q.question + q.correct_answer), 'tohum ayni → ayni sinav');
+});
+
+test('chartItemForExam: tarananlar sinav turune uyar, cizim ornegi alinmaz (FAZ 4b.2)', () => {
+  const it = f => ({ page: 2, chart: LINE, example: { stem: 'x', format: f, skills: ['change'] } });
+  assert.equal(G.chartItemForExam(it('which_false'), 'classic', false, 4).example.format, 'open');
+  assert.equal(G.chartItemForExam(it('fill'), 'test', false, 5).example.format, 'which_true');
+  assert.equal(G.chartItemForExam(it('premises'), 'test', false, 5).example.format, 'premises');
+  const tv = G.chartItemForExam(it('value'), 'test', false, 5).example;
+  assert.equal(tv.format, 'value'); assert.equal(tv.options_count, 5);
+  const cv = G.chartItemForExam({ ...it('which_true') }, 'calculation', true, 4).example;
+  assert.equal(cv.format, 'value'); assert.equal(cv.options_count, null);
+  assert.equal(G.chartItemForExam(it('value'), 'mixed', false, 4).example.options_count, 4, 'sayisal olmayan karisik: sikli');
+  assert.equal(G.chartItemForExam(it('value'), 'mixed', true, 4).example.options_count, undefined, 'sayisal karisik: hesap sorusu');
+  assert.equal(G.chartItemForExam({ page: 3, chart: {}, example: { stem: 'Doğruları çiziniz.', format: 'draw' } }, 'mixed', true, 4), null);
+  assert.equal(G.chartItemForExam({ page: 3, chart: null, example: {} }, 'mixed', true, 4), null);
+  const orig = it('fill'); G.chartItemForExam(orig, 'test', false, 4);
+  assert.equal(orig.example.format, 'fill', 'kaydi degistirmez');
+  // uyarlanan ogelerden kurulan sorular sinavin izinli tipinde
+  const types = { classic: ['open_ended'], test: ['multiple_choice'], calculation: ['calculation'] };
+  for (const [et, ok] of Object.entries(types)) {
+    const items = ['which_true', 'value', 'fill', 'true_false'].map(f => G.chartItemForExam(it(f), et, false, 4));
+    const qs = G.buildChartExamQuestions(items, 4, 'tr', 4, 'tur-' + et);
+    assert.ok(qs.length > 0, et);
+    for (const q of qs) assert.ok(ok.includes(q.type), et + ': ' + q.type);
+  }
+});
+
+test('spreadInsert: dosyadan kurulanlar esit araliklarla dagilir', () => {
+  const base = ['a', 'b', 'c', 'd', 'e', 'f'];
+  const out = G.spreadInsert(base, ['X', 'Y']);
+  assert.equal(out.length, 8);
+  assert.deepEqual(out.filter(x => x.length === 1 && x === x.toLowerCase()), base, 'sira korunur');
+  const ix = out.indexOf('X'), iy = out.indexOf('Y');
+  assert.ok(ix > 0 && iy < 7 && iy - ix >= 2, out.join(''));
+  assert.deepEqual(G.spreadInsert(base, []), base);
+  assert.deepEqual(G.spreadInsert([], ['X']), ['X']);
 });
 
 summary();
