@@ -7581,7 +7581,9 @@ async function generateExam() {
       const sel = document.getElementById('exam-decimal-places');
       const type = (document.querySelector('input[name="exam-type"]:checked') || {}).value;
       return sel && (type === 'calculation' || type === 'mixed') ? (parseInt(sel.value, 10) || 0) : 0;
-    })()
+    })(),
+    // FAZ 4b: "grafik sorusu olmasın" — grafik okuma ve çizim soruları gelmez.
+    noGraphs: !!(document.getElementById('exam-no-graphs') || {}).checked
   };
 
   if (examSelectedSource === 'course') {
@@ -7619,7 +7621,7 @@ async function generateExam() {
     // FAZ 4c: "dosyadaki grafik sorularına göre" — belge önce (bir kez)
     // taranır; sonra sorular taranmış grafiklerden kodla kurulur.
     const chartBox = document.getElementById('exam-chart-examples');
-    if (chartBox && chartBox.checked && !chartBox.disabled && requestBody.studyCardId) {
+    if (chartBox && chartBox.checked && !chartBox.disabled && !requestBody.noGraphs && requestBody.studyCardId) {
       const scanned = await runChartScan(requestBody.studyCardId, session, btn);
       if (!scanned) {
         btn.disabled = false;
@@ -8187,7 +8189,7 @@ function showExamResults(exam) {
         <span style="color: ${scoreColor};">${scoreText}</span>
       </div>
       <div style="font-size: 0.8rem; margin-top: 0.5rem;">
-        <strong>${isTr ? 'Sizin Cevabınız' : 'Your Answer'}:</strong> ${res.student_answer ? escapeHtml(String(res.student_answer)) : (isTr ? '[Boş bırakıldı]' : '[Left blank]')} ${res.units && res.student_answer ? escapeHtml(String(res.units)) : ''}
+        <strong>${isTr ? 'Sizin Cevabınız' : 'Your Answer'}:</strong> ${res.student_answer ? escapeHtml(res.type === 'graph' && window.AcadexExamEngine && AcadexExamEngine.graphAnswerSummary ? (AcadexExamEngine.graphAnswerSummary(res.student_answer, res, isTr ? 'tr' : 'en') || String(res.student_answer)) : String(res.student_answer)) : (isTr ? '[Boş bırakıldı]' : '[Left blank]')} ${res.units && res.student_answer ? escapeHtml(String(res.units)) : ''}
       </div>
       ${correctBlock}
       <div style="font-size: 0.8rem; color: var(--color-text-muted); margin-top: 0.5rem; background-color: var(--color-bg-alt); padding: 0.5rem; border-radius: var(--radius-sm); border-left: 3px solid rgba(22,50,92,0.15);">

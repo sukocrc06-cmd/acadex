@@ -4201,6 +4201,76 @@ body.axs-hall-on #pomodoro-widget-container,body.axs-hall-on #acadia-widget-cont
 :is(#exams-view.axs,#axs-layer) .sn-steps-sum.ok{color:var(--green)}
 :is(#exams-view.axs,#axs-layer) .sn-steps-sum.half{color:var(--amber)}
 :is(#exams-view.axs,#axs-layer) .sn-steps-sum.no{color:var(--red)}
+/* FAZ 4b: grafik çizme (exam-engine 'graph' tipi) */
+.axg{display:grid;gap:8px;max-width:680px}
+.axg-tools{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.axg-tools button,.axg-type button{min-height:38px;padding:0 12px;border:1.4px solid #C9D1E1;border-radius:6px;background:#F7F9FD;color:#1A2A5C;font:inherit;font-size:14px;cursor:pointer}
+.axg-tools button[aria-pressed="true"]{background:#0D1838;border-color:#0D1838;color:#fff}
+.axg-tools button:disabled{opacity:.45;cursor:default}
+.axg-tools button:focus-visible,.axg-type button:focus-visible,.axg-mini:focus-visible,.axg-pick:focus-visible{outline:2px solid #2F6BFF;outline-offset:1px}
+.axg-sp{flex:1 1 8px}
+.axg-hint{margin:0;font-size:13.5px;line-height:1.45;color:#4B5675;min-height:20px}
+.axg-stage{border:1.4px solid #DCE2EE;border-radius:8px;background:#fff;padding:4px}
+.axg-svg{display:block;width:100%;height:auto;max-height:min(520px,68vh);margin:0 auto;touch-action:none;user-select:none;-webkit-user-select:none;font-family:'Instrument Sans',system-ui,sans-serif;cursor:crosshair}
+.axg-svg.st{cursor:default;touch-action:auto}
+.axg-svg:focus{outline:none}
+.axg-svg:focus-visible{outline:2px solid #2F6BFF;outline-offset:2px;border-radius:6px}
+.axg-svg .axg-gl{stroke:#E6EAF2;stroke-width:1}
+.axg-svg .axg-gl.ax{stroke:#8E97B0;stroke-width:1.4}
+.axg-svg .axg-frame{fill:none;stroke:#C9D1E1;stroke-width:1.2}
+.axg-svg .axg-tk{font-size:11.5px;fill:#4B5675}
+.axg-svg .axg-at{font-size:12.5px;font-weight:600;fill:#1A2A5C}
+.axg-svg .axg-ln{fill:none;stroke-width:2.6;stroke-linecap:round}
+.axg-svg .axg-pt{stroke:#fff;stroke-width:1.6}
+.axg-svg .axg-ar{stroke-width:1.6}
+.axg-svg .axg-lb{font-size:13px;font-weight:700;paint-order:stroke;stroke:#fff;stroke-width:3px}
+.axg-svg .axg-seed{stroke:none}
+.axg-svg .axg-gv.axg-ln{stroke:#8A91A8}.axg-svg .axg-gv.axg-pt,.axg-svg .axg-gv.axg-lb{fill:#6A7593}.axg-svg .axg-gv.axg-ar{fill:rgba(138,145,168,.18);stroke:#8A91A8}
+.axg-svg .axg-st.axg-ln{stroke:#2F6BFF}.axg-svg .axg-st.axg-pt,.axg-svg .axg-st.axg-lb,.axg-svg .axg-st.axg-seed{fill:#2F6BFF}.axg-svg .axg-st.axg-ar{fill:rgba(47,107,255,.18);stroke:#2F6BFF}
+.axg-svg .axg-st.sel.axg-ln{stroke:#B4511F}.axg-svg .axg-st.sel.axg-pt{fill:#B4511F}.axg-svg .axg-st.sel.axg-ar{stroke:#B4511F}
+.axg-svg .axg-ok.axg-ln{stroke:#1E8A55;stroke-dasharray:8 5}.axg-svg .axg-ok.axg-pt,.axg-svg .axg-ok.axg-lb{fill:#1E8A55}.axg-svg .axg-ok.axg-ar{fill:rgba(30,138,85,.14);stroke:#1E8A55;stroke-dasharray:6 4}
+.axg-svg .axg-hd{fill:#fff;stroke:#2F6BFF;stroke-width:2;cursor:grab}
+.axg-svg .axg-hd.on{fill:#B4511F;stroke:#fff}
+.axg-svg .axg-pd{fill:none;stroke:#B4511F;stroke-width:2.4;stroke-dasharray:3 3}
+.axg-svg .axg-cur line{stroke:#B4511F;stroke-width:1.6}
+.axg-svg:not(:focus) .axg-cur{display:none}
+.axg-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;min-height:24px}
+.axg-coord{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:13px;color:#1A2A5C}
+.axg-type{display:flex;flex-wrap:wrap;gap:6px;align-items:flex-end}
+.axg-type label{display:grid;gap:3px;flex:1 1 240px;font-size:12.5px;font-weight:600;color:#1A2A5C}
+.axg-type-in{min-height:42px;padding:6px 10px;border:1.6px solid #C9D1E1;border-radius:8px;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:15px;color:#0D1838;background:#fff;box-sizing:border-box;width:100%}
+.axg-type-in:focus{outline:2px solid #2F6BFF;outline-offset:1px;border-color:#2F6BFF}
+.axg-type-msg{flex:1 1 100%;font-size:12.5px;color:#6A7593}
+.axg-type-msg.ok{color:#1E8A55}.axg-type-msg.bad{color:#C9483B}
+.axg-list{margin:0;padding:0;list-style:none;display:grid;gap:6px}
+.axg-list[hidden]{display:none}
+.axg-list li{display:grid;grid-template-columns:auto 1fr;gap:4px 8px;align-items:center;padding:7px 9px;border:1.3px solid #DCE2EE;border-radius:8px;background:#FBFCFE}
+.axg-list li.sel{border-color:#B4511F;background:#FFF8F2}
+.axg-pick{width:28px;height:28px;border-radius:50%;border:1.4px solid #C9D1E1;background:#fff;color:#1A2A5C;font-weight:700;cursor:pointer}
+.axg-desc{font-size:14px;color:#0D1838;font-weight:600}
+.axg-row{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
+.axg-xy{display:inline-flex;align-items:center;gap:2px;font-size:13px;color:#4B5675}
+.axg-xy b{font-size:11px;margin-right:2px}
+.axg-xy input{width:58px;min-height:32px;padding:2px 6px;border:1.3px solid #C9D1E1;border-radius:6px;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:14px;text-align:center}
+.axg-row select{min-height:32px;border:1.3px solid #C9D1E1;border-radius:6px;font:inherit;font-size:13px;padding:0 6px;background:#fff}
+.axg-mini{min-height:32px;padding:0 10px;border:1.3px solid #C9D1E1;border-radius:6px;background:#fff;color:#1A2A5C;font:inherit;font-size:13px;cursor:pointer}
+.axg-mini[aria-pressed="true"]{background:#EEF3FF;border-color:#2F6BFF}
+.axg-mini.del{color:#C9483B;border-color:#F0C9C3}
+.axg-mini[hidden]{display:none}
+.axg-none{display:flex;gap:8px;align-items:center;font-size:13.5px;color:#4B5675;min-height:32px}
+.axg-none input{width:18px;height:18px}
+.axg-keys{margin:0;font-size:12px;color:#6A7593}
+.axg-err{color:#C9483B}
+.axg .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.axg-res{margin:10px 0;max-width:640px}
+.axg-res figcaption{display:flex;flex-wrap:wrap;gap:12px;margin:6px 0 0;font-size:12.5px;color:#4B5675}
+.axg-res .k::before{content:"";display:inline-block;width:18px;height:0;border-top:3px solid;vertical-align:middle;margin-right:6px}
+.axg-res .k.st::before{border-color:#2F6BFF}.axg-res .k.ok::before{border-top:3px dashed #1E8A55}.axg-res .k.gv::before{border-color:#8A91A8}
+.axg-els{margin:8px 0 0;padding:0;list-style:none;display:grid;gap:4px;font-size:13.5px;line-height:1.45}
+.axg-els li{padding-left:22px;position:relative;color:#0D1838}
+.axg-els li::before{position:absolute;left:0;font-weight:700}
+.axg-els li.ok::before{content:"✓";color:#1E8A55}.axg-els li.half::before{content:"½";color:#B4511F}.axg-els li.no::before{content:"✗";color:#C9483B}
+@media (max-width:560px){.axg-tools button{padding:0 9px;font-size:13px;min-height:40px}.axg-xy input{width:50px}}
 /* FAZ 3b: cebirsel ifade girişi (exam-engine 'expression' tipi) */
 .axe-expr{display:grid;gap:8px;max-width:560px}
 .axe-expr-in{width:100%;min-height:44px;padding:8px 12px;border:1.6px solid #C9D1E1;border-radius:8px;background:#fff;color:#0D1838;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:17px;box-sizing:border-box}

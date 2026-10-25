@@ -698,6 +698,290 @@ function scoreFromRubric(rubric: RubricItem[], criteria: CriterionVerdict[] | nu
   return { score: Math.max(0, Math.min(100, Math.round(earnedSum * 100 / total))), items }
 }
 
+// ==========================================================================
+// FAZ 4b — ÇİZİM PUANLAMASI (24.10.2026)
+//
+// LLM yok: öğrencinin çizdiği nesneler cevap öğeleriyle geometrik olarak
+// karşılaştırılır. Kurallar:
+//   - Doğru: öğrencinin iki noktası da doğrunun üstündeyse doğru (hangi iki
+//     nokta olduğu önemsiz). Eğim doğru ama kaymışsa ya da bir noktası doğru
+//     ama eğimi farklıysa yarım.
+//   - Nokta: yarım ızgara adımı içinde. Yalnızca x ya da yalnızca y doğruysa yarım.
+//   - Kaydırma (yalnızca yön sorulmuşsa): verilene paralel ve doğru yönde.
+//   - Parabol / çember: tepe ya da merkez + biçim / yarıçap; biri doğruysa yarım.
+//   - Alan ve bölge: örnek noktalarla örtüşme (alan ≥ %90, bölge ≥ %97 tam).
+//   - Etiket istenmişse ve yanlışsa öğenin yarısı; kesikli/düz yanlışsa ¾.
+//   - Fazladan çizim: puan öğe sayısı + fazlalar üzerinden hesaplanır.
+//   - Aynı nesneyi iki kez çizmek ceza değildir (tekrar yok sayılır).
+// Sonuç her öğe için ad, kredi ve not taşır; sonuç kâğıdı bunları gösterir.
+// ==========================================================================
+const GRAPH_STUDENT_MAX_OBJECTS = 20
+const GRAPH_STUDENT_KINDS = ['point', 'line', 'segment', 'ray', 'parabola', 'circle', 'polygon', 'fill']
+type GraphPt = number[]
+type GraphAx = { min: number; max: number; step: number; snap: number; label?: string; var?: string }
+type GraphIq = { a: number; b: number; c: number; op: string }
+type GraphEl = { kind: string; points: GraphPt[]; label?: string; style?: string; ineq?: GraphIq[]; shift?: { of: number; dir: string } }
+type GraphStu = { kind: string; points: GraphPt[]; label: string; dashed: boolean }
+type GraphElResult = { name: string; credit: number; note: string }
+
+/** Öğrencinin cevabı: {"v":1,"o":[{"k":"line","p":[[x,y],[x,y]],"l":"D2","d":0}],"none":false}. */
+function graphParseStudent(raw: unknown): { objs: GraphStu[]; none: boolean } {
+  let d: Record<string, unknown> | null = null
+  try { d = typeof raw === 'string' ? (raw.trim() ? JSON.parse(raw) : null) : (raw as Record<string, unknown>) } catch (_e) { d = null }
+  const objs: GraphStu[] = []
+  const list = d && Array.isArray(d.o) ? (d.o as unknown[]) : []
+  for (const item of list.slice(0, GRAPH_STUDENT_MAX_OBJECTS)) {
+    if (!item || typeof item !== 'object') continue
+    const o = item as Record<string, unknown>
+    const kind = String(o.k ?? '')
+    if (!GRAPH_STUDENT_KINDS.includes(kind)) continue
+    const pts = (Array.isArray(o.p) ? o.p : []).slice(0, 12).map(p => Array.isArray(p) && p.length === 2 ? [Number(p[0]), Number(p[1])] : null)
+    if (pts.some(p => !p || !p.every(Number.isFinite))) continue
+    if (kind === 'polygon' ? pts.length < 3 : pts.length !== (kind === 'point' || kind === 'fill' ? 1 : 2)) continue
+    objs.push({ kind, points: pts as GraphPt[], label: String(o.l ?? '').slice(0, 12), dashed: o.d === 1 || o.d === true })
+  }
+  return { objs, none: !!(d && d.none === true) }
+}
+
+function graphLabelKey(s: unknown): string {
+  return String(s ?? '').toLocaleLowerCase('tr-TR').replace(/[₀-₉]/g, c => String(c.charCodeAt(0) - 0x2080)).replace(/[\s_\-.*]/g, '')
+}
+
+const GRAPH_EL_NAMES: Record<string, [string, string]> = {
+  point: ['Nokta', 'Point'], line: ['Doğru', 'Line'], segment: ['Doğru parçası', 'Segment'], ray: ['Işın', 'Ray'],
+  parabola: ['Parabol', 'Parabola'], circle: ['Çember', 'Circle'], polygon: ['Alan', 'Area'], fill: ['Boyalı bölge', 'Shaded region']
+}
+
+function graphFmt(v: number, tr: boolean): string {
+  return Number(Math.round(v * 1e6) / 1e6).toLocaleString(tr ? 'tr-TR' : 'en-US', { maximumFractionDigits: 3 })
+}
+function graphFmtPt(p: GraphPt, tr: boolean): string {
+  return `(${graphFmt(p[0], tr)}${tr ? '; ' : ', '}${graphFmt(p[1], tr)})`
+}
+
+/** Ölçekli uzay: her eksen kendi adımına bölünür (1 birim = 1 ızgara adımı). */
+function graphScaled(p: GraphPt, x: GraphAx, y: GraphAx): GraphPt {
+  return [p[0] / x.step, p[1] / y.step]
+}
+
+function graphDistToLine(p: GraphPt, a: GraphPt, b: GraphPt): number {
+  const dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy)
+  if (len < 1e-12) return Math.hypot(p[0] - a[0], p[1] - a[1])
+  return Math.abs(dy * (p[0] - a[0]) - dx * (p[1] - a[1])) / len
+}
+
+/** İki doğrultu arasındaki açı (derece, 0–90). */
+function graphAngle(a: GraphPt, b: GraphPt, c: GraphPt, d: GraphPt): number {
+  const u = [b[0] - a[0], b[1] - a[1]], v = [d[0] - c[0], d[1] - c[1]]
+  const lu = Math.hypot(u[0], u[1]), lv = Math.hypot(v[0], v[1])
+  if (lu < 1e-12 || lv < 1e-12) return 90
+  const cos = Math.min(1, Math.abs(u[0] * v[0] + u[1] * v[1]) / (lu * lv))
+  return Math.acos(cos) * 180 / Math.PI
+}
+
+/** Yön: yeni doğru eskisinin sağında / solunda / üstünde / altında mı
+ *  (kutunun ortasından). generate-exam graphShiftDir ile aynı kural. */
+function graphShiftOf(base: GraphPt[], moved: GraphPt[], x: GraphAx, y: GraphAx): string | null {
+  const lineOf = (p: GraphPt, q: GraphPt) => { const a = q[1] - p[1], b = p[0] - q[0]; return { a, b, c: a * p[0] + b * p[1] } }
+  const b = lineOf(base[0], base[1]), m = lineOf(moved[0], moved[1])
+  const midY = (y.min + y.max) / 2, midX = (x.min + x.max) / 2
+  if (Math.abs(b.a) > 1e-12 && Math.abs(m.a) > 1e-12) {
+    const dx = (m.c - m.b * midY) / m.a - (b.c - b.b * midY) / b.a
+    if (Math.abs(dx) > x.snap * 0.25) return dx > 0 ? 'right' : 'left'
+  }
+  if (Math.abs(b.b) > 1e-12 && Math.abs(m.b) > 1e-12) {
+    const dy = (m.c - m.a * midX) / m.b - (b.c - b.a * midX) / b.b
+    if (Math.abs(dy) > y.snap * 0.25) return dy > 0 ? 'up' : 'down'
+  }
+  return null
+}
+
+function graphInPolygon(p: GraphPt, poly: GraphPt[]): boolean {
+  let inside = false
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[i], b = poly[j]
+    if ((a[1] > p[1]) !== (b[1] > p[1]) && p[0] < (b[0] - a[0]) * (p[1] - a[1]) / (b[1] - a[1]) + a[0]) inside = !inside
+  }
+  return inside
+}
+
+function graphIqHolds(ineq: GraphIq[], px: number, py: number): boolean {
+  return ineq.every(q => {
+    const v = q.a * px + q.b * py
+    return q.op === '<' ? v < q.c : q.op === '<=' ? v <= q.c + 1e-9 : q.op === '>' ? v > q.c : v >= q.c - 1e-9
+  })
+}
+
+/** Öğrencinin boyadığı hücre: boyama noktasıyla, çizdiği her doğrunun aynı
+ *  tarafında kalan noktalar (doğru, parça ve ışın tam doğru sayılır). */
+function graphInStudentFill(px: number, py: number, seed: GraphPt, lines: GraphPt[][]): boolean {
+  for (const l of lines) {
+    const a = l[1][1] - l[0][1], b = l[0][0] - l[1][0], c = a * l[0][0] + b * l[0][1]
+    const s1 = a * seed[0] + b * seed[1] - c, s2 = a * px + b * py - c
+    if (Math.abs(s1) < 1e-12) continue
+    if (Math.sign(s1) !== Math.sign(s2)) return false
+  }
+  return true
+}
+
+/** Bir cevap öğesinin bir öğrenci nesnesine göre kredisi (0, 0.5, 1) ve notu. */
+function graphCredit(e: GraphEl, s: GraphStu, spec: { x: GraphAx; y: GraphAx; given: GraphEl[] }, stu: GraphStu[], tr: boolean): { credit: number; note: string } {
+  const { x, y } = spec
+  const tn = 0.5 * Math.min(x.snap / x.step, y.snap / y.step) + 1e-9
+  const S = (p: GraphPt) => graphScaled(p, x, y)
+  const near = (p: GraphPt, q: GraphPt) => Math.abs(p[0] - q[0]) <= x.snap / 2 + 1e-9 && Math.abs(p[1] - q[1]) <= y.snap / 2 + 1e-9
+  const lineLike = ['line', 'segment', 'ray']
+  let credit = 0, note = ''
+  if (e.kind === 'point') {
+    if (s.kind !== 'point') return { credit: 0, note: '' }
+    const p = s.points[0], q = e.points[0]
+    if (near(p, q)) { credit = 1; note = tr ? `doğru yerde ${graphFmtPt(q, tr)}` : `correct position ${graphFmtPt(q, tr)}` }
+    else if (Math.abs(p[0] - q[0]) <= x.snap / 2 + 1e-9 || Math.abs(p[1] - q[1]) <= y.snap / 2 + 1e-9) {
+      credit = 0.5
+      note = tr ? `koordinatlardan biri doğru; ${graphFmtPt(q, tr)} olmalıydı, sen ${graphFmtPt(p, tr)} koydun` : `one coordinate is right; it should be ${graphFmtPt(q, tr)}, you placed ${graphFmtPt(p, tr)}`
+    } else note = tr ? `${graphFmtPt(q, tr)} olmalıydı, sen ${graphFmtPt(p, tr)} koydun` : `should be ${graphFmtPt(q, tr)}, you placed ${graphFmtPt(p, tr)}`
+  } else if (lineLike.includes(e.kind) && e.points.length === 2) {
+    if (!lineLike.includes(s.kind)) return { credit: 0, note: '' }
+    const a = S(e.points[0]), b = S(e.points[1]), p = S(s.points[0]), q = S(s.points[1])
+    if (Math.hypot(p[0] - q[0], p[1] - q[1]) < 0.9) return { credit: 0, note: '' }
+    if (e.kind === 'line') {
+      const on1 = graphDistToLine(p, a, b) <= tn, on2 = graphDistToLine(q, a, b) <= tn
+      if (on1 && on2) { credit = 1; note = tr ? 'doğru yerde' : 'correct' }
+      else if (graphAngle(a, b, p, q) < 2) { credit = 0.5; note = tr ? 'eğim doğru ama doğru kaymış (kesişim noktaları tutmuyor)' : 'right slope, but the line is shifted' }
+      else if (graphDistToLine(a, p, q) <= tn || graphDistToLine(b, p, q) <= tn) { credit = 0.5; note = tr ? `${graphFmtPt(graphDistToLine(a, p, q) <= tn ? e.points[0] : e.points[1], tr)} noktasından doğru geçiyor ama eğimi farklı` : 'passes through a correct point but the slope differs' }
+      else note = tr ? 'eğimi de konumu da farklı' : 'slope and position both differ'
+    } else if (e.kind === 'segment') {
+      const m1 = near(s.points[0], e.points[0]) && near(s.points[1], e.points[1]), m2 = near(s.points[0], e.points[1]) && near(s.points[1], e.points[0])
+      if (m1 || m2) { credit = 1; note = tr ? 'uçlar doğru' : 'endpoints correct' }
+      else if (e.points.some(ep => s.points.some(sp => near(sp, ep)))) { credit = 0.5; note = tr ? `uçlardan biri doğru; uçlar ${graphFmtPt(e.points[0], tr)} ve ${graphFmtPt(e.points[1], tr)} olmalıydı` : 'one endpoint is right' }
+      else note = tr ? `uçlar ${graphFmtPt(e.points[0], tr)} ve ${graphFmtPt(e.points[1], tr)} olmalıydı` : `endpoints should be ${graphFmtPt(e.points[0], tr)} and ${graphFmtPt(e.points[1], tr)}`
+    } else {
+      // Işın: başlangıç ve yön.
+      const startOk = near(s.points[0], e.points[0])
+      const dirOk = graphDistToLine(q, a, b) <= tn && ((q[0] - a[0]) * (b[0] - a[0]) + (q[1] - a[1]) * (b[1] - a[1])) > 0
+      if (startOk && dirOk) { credit = 1; note = tr ? 'başlangıç ve yön doğru' : 'start and direction correct' }
+      else if (startOk) { credit = 0.5; note = tr ? 'başlangıç doğru, yön farklı' : 'start right, direction differs' }
+      else note = tr ? `ışın ${graphFmtPt(e.points[0], tr)} noktasından başlamalıydı` : `the ray should start at ${graphFmtPt(e.points[0], tr)}`
+    }
+  } else if (e.kind === 'line' && e.shift) {
+    // Yalnızca yönü sorulan kaydırma: verilene paralel ve doğru yönde.
+    const base = spec.given[e.shift.of]
+    if (!base || !lineLike.includes(s.kind)) return { credit: 0, note: '' }
+    const p = S(s.points[0]), q = S(s.points[1])
+    if (Math.hypot(p[0] - q[0], p[1] - q[1]) < 0.9) return { credit: 0, note: '' }
+    const parallel = graphAngle(S(base.points[0]), S(base.points[1]), p, q) < 2
+    const dir = graphShiftOf(base.points, s.points, x, y)
+    const D: Record<string, [string, string]> = { right: ['sağa', 'right'], left: ['sola', 'left'], up: ['yukarı', 'up'], down: ['aşağı', 'down'] }
+    const want = (D[e.shift.dir] || ['', ''])[tr ? 0 : 1]
+    if (parallel && dir === e.shift.dir) { credit = 1; note = tr ? `doğru yönde (${want}) paralel kaydırma` : `parallel shift to the ${want}` }
+    else if (dir === e.shift.dir) { credit = 0.5; note = tr ? `yön doğru (${want}) ama eğim değişmiş; kaydırmada doğru paralel kalır` : `right direction, but the slope changed` }
+    else if (parallel && !dir) note = tr ? 'doğru yerinden oynamamış' : 'the line has not moved'
+    else note = tr ? `doğru ${want} kaymalıydı` : `the line should shift ${want}`
+  } else if (e.kind === 'parabola' || e.kind === 'circle') {
+    if (s.kind !== e.kind) return { credit: 0, note: '' }
+    const c0 = near(s.points[0], e.points[0])
+    let c1: boolean
+    if (e.kind === 'parabola') {
+      const ae = (e.points[1][1] - e.points[0][1]) / Math.pow(e.points[1][0] - e.points[0][0], 2)
+      const dxs = s.points[1][0] - s.points[0][0]
+      const as = Math.abs(dxs) < 1e-12 ? NaN : (s.points[1][1] - s.points[0][1]) / (dxs * dxs)
+      c1 = Number.isFinite(as) && Math.abs(as - ae) <= Math.max(0.05 * Math.abs(ae), 1e-9)
+    } else {
+      const re = Math.hypot(e.points[1][0] - e.points[0][0], e.points[1][1] - e.points[0][1])
+      const rs = Math.hypot(s.points[1][0] - s.points[0][0], s.points[1][1] - s.points[0][1])
+      c1 = Math.abs(rs - re) <= Math.max(x.snap, y.snap) / 2 + 1e-9
+    }
+    const what = e.kind === 'parabola' ? (tr ? ['tepe noktası', 'açıklığı (a)'] : ['vertex', 'width (a)']) : (tr ? ['merkez', 'yarıçap'] : ['centre', 'radius'])
+    if (c0 && c1) { credit = 1; note = tr ? 'doğru' : 'correct' }
+    else if (c0 || c1) { credit = 0.5; note = tr ? `${c0 ? what[0] : what[1]} doğru, ${c0 ? what[1] : what[0]} farklı` : `${c0 ? what[0] : what[1]} right, ${c0 ? what[1] : what[0]} differs` }
+    else note = tr ? `${what[0]} ${graphFmtPt(e.points[0], tr)} olmalıydı` : `${what[0]} should be ${graphFmtPt(e.points[0], tr)}`
+  } else if (e.kind === 'polygon') {
+    if (s.kind !== 'polygon') return { credit: 0, note: '' }
+    let inter = 0, uni = 0
+    for (let i = 0; i < 60; i++) for (let j = 0; j < 60; j++) {
+      const px = x.min + (x.max - x.min) * (i + 0.5) / 60, py = y.min + (y.max - y.min) * (j + 0.5) / 60
+      const ie = graphInPolygon([px, py], e.points), is = graphInPolygon([px, py], s.points)
+      if (ie && is) inter++
+      if (ie || is) uni++
+    }
+    const iou = uni ? inter / uni : 0
+    if (iou >= 0.9) { credit = 1; note = tr ? 'alan doğru' : 'area correct' }
+    else if (iou >= 0.6) { credit = 0.5; note = tr ? `alan büyük ölçüde örtüşüyor (%${Math.round(iou * 100)}); köşeler ${e.points.map(p => graphFmtPt(p, tr)).join(', ')} olmalıydı` : `area mostly overlaps (${Math.round(iou * 100)}%)` }
+    else note = tr ? `köşeler ${e.points.map(p => graphFmtPt(p, tr)).join(', ')} olmalıydı` : `vertices should be ${e.points.map(p => graphFmtPt(p, tr)).join(', ')}`
+  } else if (e.kind === 'fill' && e.ineq) {
+    if (s.kind !== 'fill') return { credit: 0, note: '' }
+    const lines = stu.filter(o => lineLike.includes(o.kind)).map(o => o.points)
+    let agree = 0, total = 0
+    for (let i = 0; i < 48; i++) for (let j = 0; j < 48; j++) {
+      const px = x.min + (x.max - x.min) * (i + 0.5) / 48, py = y.min + (y.max - y.min) * (j + 0.5) / 48
+      // Sınıra çok yakın örnekler sayılmaz (çizim payı).
+      if (e.ineq.some(q => Math.abs(q.a * px + q.b * py - q.c) / Math.hypot(q.a * x.step, q.b * y.step) < 0.25)) continue
+      total++
+      if (graphIqHolds(e.ineq, px, py) === graphInStudentFill(px, py, s.points[0], lines)) agree++
+    }
+    const r = total ? agree / total : 0
+    if (r >= 0.97) { credit = 1; note = tr ? 'doğru bölge boyandı' : 'correct region shaded' }
+    else if (r >= 0.85) { credit = 0.5; note = tr ? 'bölge büyük ölçüde doğru ama sınırlardan biri farklı' : 'region mostly right, one boundary differs' }
+    else note = tr ? 'yanlış bölge boyandı' : 'wrong region shaded'
+  }
+  if (credit > 0 && e.label && graphLabelKey(s.label) !== graphLabelKey(e.label)) {
+    credit *= 0.5
+    note += tr ? `; etiketi ${e.label} olmalıydı${s.label ? ` (sen ${s.label} yazdın)` : ' (etiket yok)'}` : `; its label should be ${e.label}`
+  }
+  if (credit > 0 && e.style && lineLike.includes(s.kind) && (e.style === 'dashed') !== s.dashed) {
+    credit *= 0.75
+    note += tr ? (e.style === 'dashed' ? '; sınır kesikli çizilmeliydi (eşitlik dahil değil)' : '; sınır düz çizilmeliydi (eşitlik dahil)') : (e.style === 'dashed' ? '; the boundary should be dashed' : '; the boundary should be solid')
+  }
+  return { credit, note }
+}
+
+/** Çizim sorusunu puanlar. score null: soru puanlanamadı (anahtar bozuk). */
+function gradeGraph(studentRaw: unknown, q: Record<string, unknown>, tr: boolean): { score: number | null; elements: GraphElResult[]; extra: number; student: GraphStu[]; none: boolean } {
+  const spec = (q.graph && typeof q.graph === 'object' ? q.graph : null) as { x: GraphAx; y: GraphAx; given: GraphEl[] } | null
+  const key = (q.graph_answer && typeof q.graph_answer === 'object' ? q.graph_answer : null) as { none?: boolean; elements?: GraphEl[] } | null
+  const { objs: rawObjs, none } = graphParseStudent(studentRaw)
+  if (!spec || !spec.x || !spec.y || !key) return { score: null, elements: [], extra: 0, student: rawObjs, none }
+  spec.given = Array.isArray(spec.given) ? spec.given : []
+  // Aynı nesneyi iki kez çizmek ceza değil.
+  const objs: GraphStu[] = []
+  for (const o of rawObjs) {
+    const dup = objs.some(p => p.kind === o.kind && p.points.length === o.points.length && p.points.every((pt, i) => Math.abs(pt[0] - o.points[i][0]) < 1e-9 && Math.abs(pt[1] - o.points[i][1]) < 1e-9))
+    if (!dup) objs.push(o)
+  }
+  if (key.none === true) {
+    const ok = none && !objs.length
+    return { score: ok ? 100 : 0, elements: [{ name: tr ? 'Çözüm yok' : 'No solution', credit: ok ? 1 : 0, note: ok ? (tr ? 'doğru: çizilecek bir şey yok' : 'correct: nothing to draw') : (tr ? 'bu sorunun çizilecek bir cevabı yoktu (çözüm yok)' : 'this question had no solution to draw') }], extra: 0, student: objs, none }
+  }
+  const els = Array.isArray(key.elements) ? key.elements : []
+  if (!els.length) return { score: null, elements: [], extra: 0, student: objs, none }
+  const used = new Set<number>()
+  const results: GraphElResult[] = els.map(e => ({ name: (GRAPH_EL_NAMES[e.kind] || [e.kind, e.kind])[tr ? 0 : 1] + (e.label ? ` ${e.label}` : ''), credit: 0, note: tr ? 'çizilmemiş' : 'not drawn' }))
+  // 1. tur: kredi alan en iyi eşleşmeler. 2. tur: eşleşmeyen öğeye aynı
+  // türden kalan bir deneme bağlanır (yanlış deneme "fazladan" sayılmaz,
+  // notu da "çizilmemiş" değil neyin yanlış olduğu olur).
+  els.forEach((e, k) => {
+    let best = -1, bestC = { credit: 0, note: '' }
+    objs.forEach((s, i) => {
+      if (used.has(i)) return
+      const c = graphCredit(e, s, spec, objs, tr)
+      if (c.credit > bestC.credit) { best = i; bestC = c }
+    })
+    if (best >= 0) { used.add(best); results[k].credit = bestC.credit; results[k].note = bestC.note }
+  })
+  els.forEach((e, k) => {
+    if (results[k].credit > 0) return
+    for (let i = 0; i < objs.length; i++) {
+      if (used.has(i)) continue
+      const c = graphCredit(e, objs[i], spec, objs, tr)
+      if (c.note) { used.add(i); results[k].note = c.note; break }
+    }
+  })
+  const extra = none ? 0 : objs.filter((_o, i) => !used.has(i)).length
+  const sum = results.reduce((a, r) => a + r.credit, 0)
+  const score = Math.round(100 * sum / (els.length + extra))
+  return { score, elements: results, extra, student: objs, none }
+}
+
 /** Sonuç kâğıdına giden öğretici alanlar (anahtardan; sınav tamamlandığı
  *  için artık gösterilebilir). */
 function teachingFields(q: Record<string, unknown>): Record<string, unknown> {
@@ -1026,6 +1310,31 @@ serve(async (req) => {
           is_correct: g.score === 100,
           score: g.score,
           feedback: (fb[g.verdict] || fb.wrong)[isTr ? 0 : 1]
+        })
+      } else if (q.type === 'graph') {
+        // FAZ 4b: çizim kodla puanlanır; LLM yok.
+        const g = gradeGraph(studentAns, q, isTr)
+        const okN = g.elements.filter(e => e.credit === 1).length
+        let feedback: string
+        if (g.score === null) feedback = isTr ? 'Bu soru otomatik puanlanamadı ve nota katılmadı.' : 'This question could not be graded automatically and is not counted.'
+        else if (!studentAns) feedback = isTr ? `Boş bırakıldı. Doğrusu: ${q.correct_answer}` : `Left blank. Correct answer: ${q.correct_answer}`
+        else if (g.score === 100) feedback = isTr ? 'Tebrikler, çizimin doğru.' : 'Correct! Your drawing is right.'
+        else feedback = (isTr ? `${g.elements.length} öğeden ${okN} tanesi tam doğru.` : `${okN} of ${g.elements.length} elements fully correct.`) +
+          (g.extra ? (isTr ? ` Fazladan ${g.extra} çizim puanı düşürdü.` : ` ${g.extra} extra drawing(s) lowered the score.`) : '')
+        results.push({
+          ...base,
+          options: null,
+          correct_answer: q.correct_answer ?? '',
+          graph: q.graph,
+          graph_answer: q.graph_answer,
+          graph_student: g.student,
+          graph_none: g.none,
+          graph_elements: g.elements,
+          graph_extra: g.extra,
+          solution_steps: q.solution_steps || [],
+          is_correct: g.score === 100,
+          score: g.score,
+          feedback
         })
       } else if (q.type === 'open_ended') {
         if (!studentAns) {
