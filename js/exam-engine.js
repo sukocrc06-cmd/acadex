@@ -402,10 +402,19 @@
     const snap = snapshot();
     try {
       await active.saveRemote(snap);
-      if (active) setSaveStatus(t('saved'));
+      if (active) {
+        active.remoteDirty = false;
+        setSaveStatus(t('saved'));
+      }
     } catch (e) {
+      // Ağ kesikse yerel kayıt duruyor; bağlantı dönünce onOnline yeniden yazar.
+      if (active) active.remoteDirty = true;
       console.warn('exam-engine: taslak sunucuya yazilamadi (yerel kayit duruyor):', e);
     }
+  }
+
+  function onOnline() {
+    if (active && active.remoteDirty) flushRemote();
   }
 
   function setSaveStatus(text) {
@@ -683,6 +692,7 @@
     if (active.nav) active.nav.addEventListener('click', onClick);
     document.addEventListener('keydown', onKeyDown);
     window.addEventListener('pagehide', onPageHide);
+    window.addEventListener('online', onOnline);
     document.addEventListener('visibilitychange', onVisibility);
 
     applyMode();
@@ -750,6 +760,7 @@
     active.container.addEventListener('input', onInput);
     active.container.addEventListener('click', onHeadlessClick);
     window.addEventListener('pagehide', onPageHide);
+    window.addEventListener('online', onOnline);
     document.addEventListener('visibilitychange', onVisibility);
     return api;
   }
@@ -775,6 +786,7 @@
     }
     document.removeEventListener('keydown', onKeyDown);
     window.removeEventListener('pagehide', onPageHide);
+    window.removeEventListener('online', onOnline);
     document.removeEventListener('visibilitychange', onVisibility);
     active = null;
   }

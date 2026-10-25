@@ -1397,6 +1397,18 @@ async function proceedWithSummarization() {
       } catch (parseErr) {
         console.error("Failed to parse HTTP error body:", parseErr);
       }
+      /* 546 = Supabase isciyi kapatti (sure/bellek siniri). Sunucu o anda
+         hicbir sey yazamadigi icin belge 'processing' kaliyor ve kart
+         sonsuza kadar "isleniyor" gosteriyordu (25.10.2026, BF415). Sunucu
+         nobetcisi 141. saniyede 'failed' yaziyor; bu satir nobetcinin de
+         yetisemedigi erken kapanmalar icin. Yalnizca hala 'processing' ise
+         degistirir — is bir sekilde bittiyse dokunmaz. */
+      const httpDurum = error.context && error.context.status;
+      if (httpDurum === 546 || httpDurum === 504) {
+        await supabaseClient.from('documents').update({ status: 'failed' }).eq('id', docId).eq('status', 'processing');
+        const isTrF = (localStorage.getItem('acadexUILang') || 'tr') === 'tr';
+        errorMsg = isTrF ? 'Özet zaman sınırına takıldı. Belgede "tekrar dene"ye bas; ikinci deneme genelde hızlı biter.' : 'Summarization hit the time limit. Press "retry" on the document.';
+      }
       showDashboardAlert('error', errorMsg);
       await loadDocuments(); // Reload to reset card state
       return;
@@ -2520,10 +2532,21 @@ function formatSummaryText(summary, footnotes) {
     const paras = summaryParagraphs(kaynak);
     if (paras.length > 1) kaynak = paras.map(p => (p.lead ? `**${p.lead}** ${p.body}` : p.body)).join('\n\n');
   }
-  const withFootnotes = formatFootnoteMarkers(kaynak, footnotes);
-  
+  /* DIPNOT ISARETCILERI ARTIK EN SONDA (24.10.2026).
+   *
+   * Eskiden burada, satirlara bolunmeden ONCE uygulaniyordu. O sira
+   * kacirmayi imkansiz kiliyordu: fonksiyon `[3]` yerine <sup> baglantisi
+   * koyuyor, yani metin bu noktadan sonra HTML tasiyor ve onu kacirmak
+   * dipnotun kendi isaretlemesini de kacirirdi.
+   *
+   * Yeni sira satir basina: KACIR + matematik (inlineMarkdownGuvenli) ->
+   * kalin/italik -> dipnot. `[n]` kalibi kacirmadan etkilenmedigi icin en
+   * sonda hala bulunuyor, ve formatFootnoteMarkers durumsuz (haritasini her
+   * cagrida kendi kuruyor) oldugu icin satir basina cagrilmasi guvenli. */
+  const guvenli = (t) => formatFootnoteMarkers(inlineMarkdownGuvenli(t), footnotes);
+
   // Split on raw or escaped newline
-  const lines = withFootnotes.split(/\n|\\n/);
+  const lines = String(kaynak).split(/\n|\\n/);
   
   let html = "";
   let insideList = false;
@@ -2548,7 +2571,7 @@ function formatSummaryText(summary, footnotes) {
         insideList = false;
       }
       const headingText = trimmed.replace(/^##\s*/, "");
-      html += `<h4 style="font-size: 0.95rem; font-weight: 700; color: var(--color-teal); margin-top: 0.75rem; margin-bottom: 0.35rem; font-family: 'Outfit', sans-serif;">${headingText}</h4>`;
+      html += `<h4 style="font-size: 0.95rem; font-weight: 700; color: var(--color-teal); margin-top: 0.75rem; margin-bottom: 0.35rem; font-family: 'Outfit', sans-serif;">${guvenli(headingText)}</h4>`;
       return;
     }
 
@@ -2560,7 +2583,7 @@ function formatSummaryText(summary, footnotes) {
         html += '<ul style="margin: 0.5rem 0; padding-left: 1.5rem; list-style-type: disc;">';
         insideList = true;
       }
-      html += `<li style="margin-bottom: 0.25rem; font-size: 0.85rem; color: var(--color-navy); line-height: 1.4;">${inlineMarkdown(bulletMatch[2])}</li>`;
+      html += `<li style="margin-bottom: 0.25rem; font-size: 0.85rem; color: var(--color-navy); line-height: 1.4;">${guvenli(bulletMatch[2])}</li>`;
     } else {
       if (insideList) {
         html += "</ul>";
@@ -2573,9 +2596,9 @@ function formatSummaryText(summary, footnotes) {
       const isSyllabusHeading = trimmed.startsWith("Anahtar ") || trimmed.startsWith("Önemli ") || trimmed.startsWith("Sınav ") || trimmed.startsWith("Key ") || trimmed.startsWith("Summary ");
 
       if (isNumberHeading || isShortTitleCase || isSyllabusHeading) {
-        html += `<h4 style="font-size: 0.95rem; font-weight: 700; color: var(--color-teal); margin-top: 0.75rem; margin-bottom: 0.35rem; font-family: 'Outfit', sans-serif;">${trimmed}</h4>`;
+        html += `<h4 style="font-size: 0.95rem; font-weight: 700; color: var(--color-teal); margin-top: 0.75rem; margin-bottom: 0.35rem; font-family: 'Outfit', sans-serif;">${guvenli(trimmed)}</h4>`;
       } else {
-        html += `<p style="margin: 0.35rem 0; font-size: 0.85rem; color: var(--color-navy); line-height: 1.5;">${inlineMarkdown(trimmed)}</p>`;
+        html += `<p style="margin: 0.35rem 0; font-size: 0.85rem; color: var(--color-navy); line-height: 1.5;">${guvenli(trimmed)}</p>`;
       }
     }
   });
@@ -3218,6 +3241,27 @@ function splitCalcChain(calc, maxLen = 46) {
  * Artik sinirlar HAM metinde bulunur: formul ham haliyle KaTeX'e gider,
  * aradaki duz metin kacirilir. Hem dogru dizgi hem kacis korunur.
  */
+/* STANDART LATEX AYIRACLARI DA TANINIYOR (24.10.2026).
+ *
+ * Iki desen de yalnizca `$...$` ariyordu. Model ise regresyon anlatan bir
+ * belgede standart LaTeX yaziyor:
+ *
+ *   \(\partial y/\partial x = \beta_1 + \beta_3 D\)
+ *   \(UtilityBill = 484.12 - 12.08\,temp + 0.09\,temp^2\)
+ *
+ * Bunlar hicbir desene uymadigi icin ekranda HAM basiliyordu. Cizim yolu
+ * uctan uca dogrulandi: acadex-ink.js anlati/bolum metnini fmtS ile
+ * formatSummaryText'e, o da inlineMarkdown -> inlineMath'e veriyor.
+ *
+ * `\(...\)` satir ici, `\[...\]` blok. Para bicimi korumasi ($100 and $200)
+ * yalnizca dolar koluna ait: ters bolu ayiraclarinda boyle bir belirsizlik
+ * yok. Yeni bir g bayrakli regex HER cagrida uretiliyor, cunku
+ * renderMathInText exec dongusu kullaniyor ve paylasilan lastIndex iki
+ * fonksiyon arasinda sessiz atlama yapar. */
+function mathDelimRe() {
+  return /\$(?=\S)((?:[^$\\]|\\.)+?)(?<!\s)\$(?!\d)|\\\(([\s\S]+?)\\\)|\\\[([\s\S]+?)\\\]/g;
+}
+
 function renderMathInText(text) {
   if (!text) return '';
   const s = String(text);
@@ -3225,17 +3269,19 @@ function renderMathInText(text) {
      sondaki \S icin AYRI bir karakter istiyordu; $1\%$ gibi KACISLA
      biten formulde o karakter kacisin icinde kaldigi icin eslesme
      olmuyor ve formul ham basiliyordu (18.10.2026). */
-  const re = /\$(?=\S)((?:[^$\\]|\\.)+?)(?<!\s)\$(?!\d)/g;
+  const re = mathDelimRe();
   let out = '', son = 0, m;
   while ((m = re.exec(s)) !== null) {
-    const latex = m[1];
-    // Para bicimi formul degil: "$100 and $200".
-    if (/^\d[\d.,]*\s/.test(latex)) continue;
+    // m[1] = $...$, m[2] = \(...\), m[3] = \[...\] (blok)
+    const blok = m[3] != null;
+    const latex = m[1] != null ? m[1] : (m[2] != null ? m[2] : m[3]);
+    // Para bicimi formul degil: "$100 and $200". Yalnizca dolar kolunda.
+    if (m[1] != null && /^\d[\d.,]*\s/.test(latex)) continue;
     out += escapeHtml(s.slice(son, m.index));
     let dizgi = null;
     if (window.katex) {
       try {
-        dizgi = window.katex.renderToString(sadeKatexKomutu(latex), { displayMode: false, throwOnError: false });
+        dizgi = window.katex.renderToString(sadeKatexKomutu(latex), { displayMode: blok, throwOnError: false });
       } catch (e) {
         dizgi = null;
       }
@@ -3262,7 +3308,14 @@ window.renderMathInText = renderMathInText;
 function renderMathSymbol(sym) {
   const s = String(sym == null ? '' : sym).trim();
   if (!s) return '';
-  if (s.indexOf('$') !== -1) return renderMathInText(s);   // ayiracli gelmis
+  /* UCUNCU HUNI (24.10.2026). Buraya yalnizca `$` kontrolu vardi; model
+     `\(\beta_1\)` yazdiginda ayiraclar DOGRUDAN KaTeX'e gidiyordu, KaTeX
+     `\(` icin ParseError atiyor ve catch escapeHtml'e dusuyordu — yani
+     sembol ekranda ham gorunuyordu. inlineMath ve renderMathInText bugun
+     mathDelimRe ile genisletildi, bu dal atlanmisti. */
+  if (s.indexOf('$') !== -1 || s.indexOf('\\(') !== -1 || s.indexOf('\\[') !== -1) {
+    return renderMathInText(s);   // ayiracli gelmis
+  }
   const latexGibi = /[\\_^{}]/.test(s);
   if (!latexGibi || !window.katex) return escapeHtml(s);
   try {
@@ -3438,18 +3491,51 @@ function sadeKatexKomutu(latex) {
 
 function inlineMath(html) {
   const s = String(html == null ? '' : html);
-  if (!window.katex || s.indexOf('$') === -1) return s;
-  // Desen notu icin bkz. renderMathInText: kacisla biten formul.
-  return s.replace(/\$(?=\S)((?:[^\$\\]|\\.)+?)(?<!\s)\$(?!\d)/g, (match, latex) => {
-    if (/^\d[\d.,]*\s/.test(latex)) return match;
+  /* Erken cikis ucunu de gormeli: eskiden yalnizca '$' arıyordu, bu yuzden
+     icinde SADECE \(...\) olan bir metin hic incelenmeden geri donuyordu. */
+  if (!window.katex) return s;
+  if (s.indexOf('$') === -1 && s.indexOf('\\(') === -1 && s.indexOf('\\[') === -1) return s;
+  // Desen notu icin bkz. mathDelimRe ve renderMathInText.
+  return s.replace(mathDelimRe(), (match, dolar, paren, blokTex) => {
+    const latex = dolar != null ? dolar : (paren != null ? paren : blokTex);
+    if (dolar != null && /^\d[\d.,]*\s/.test(dolar)) return match;
     try {
-      return window.katex.renderToString(sadeKatexKomutu(latex), { displayMode: false, throwOnError: false });
+      return window.katex.renderToString(sadeKatexKomutu(latex), { displayMode: blokTex != null, throwOnError: false });
     } catch (e) {
       return match;
     }
   });
 }
 window.inlineMath = inlineMath;
+
+/* inlineMarkdown'in HTML KACIRAN surumu (24.10.2026).
+ *
+ * formatSummaryText modelin urettigi metni dogrudan innerHTML'e yaziyordu ve
+ * bu zincirde HICBIR YERDE kacirma yoktu:
+ *   - baslik dallari (## ... ve sezgisel baslik) metni ciplak enterpole
+ *     ediyordu,
+ *   - paragraf/madde dallari inlineMarkdown'dan geciyordu ama o da
+ *     kacirmiyor: inlineMath ayirac bulamazsa dizgeyi OLDUGU GIBI donduruyor,
+ *     buldugunda da yalnizca matematik parcasini degistiriyor.
+ * Projede sanitizer de yok. Yani kaynaktan kopyalanmis bir
+ * `<img src=x onerror=...>` satiri, kart "bolumumle paylas" ile paylasildiginda
+ * BASKA ogrencinin oturumunda calisirdi. (innerHTML'de <script> kosmaz ama
+ * onerror/onload kosar.)
+ *
+ * SIRA ONEMLI ve nedeni su: kacirmayi matematikten ONCE yapamayiz, cunku
+ * LaTeX icinde <, >, & gecer ve kacirilmis bir dizgeyi KaTeX'e vermek formulu
+ * bozar. Dogru sira "matematik dısı parcalari kacir, matematigi dizge olarak
+ * isle" — ki renderMathInText zaten tam bunu yapiyor (inlineMath'in kacirmayan
+ * ikizidir). Bu yuzden bu surum inlineMath yerine onu kullaniyor.
+ *
+ * Kalin/italik ondan SONRA: isaretler (**) kacirmadan saglam cikiyor.
+ * Dipnot isaretcileri de en sona kaliyor, cunku onlar HTML uretiyor. */
+function inlineMarkdownGuvenli(html) {
+  return renderMathInText(String(html == null ? '' : html))
+    .replace(/\*\*([^*\n]+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[\s(“"])\*([^*\s][^*\n]*?[^*\s]|[^*\s])\*(?=[\s.,;:)!?”"]|$)/g, '$1<em>$2</em>');
+}
+window.inlineMarkdownGuvenli = inlineMarkdownGuvenli;
 
 function inlineMarkdown(html) {
   // Once matematik, sonra kalin/italik: tersi olsaydi $a*b$ gibi bir
@@ -7902,8 +7988,14 @@ function readExamFlagsFromDom(exam) {
   return flags;
 }
 
+// Çift teslim kilidi: süre sayacı iki yerden (dashboard + acadex-ink) otomatik
+// gönderim tetikleyebiliyor, dokunmatikte onay da iki kez basılabiliyor.
+// Biri yoldayken ikinci grade-exam POST'u atılmaz.
+let examSubmitInFlight = false;
+
 async function submitExam(opts = {}) {
   if (!currentActiveExam) return;
+  if (examSubmitInFlight) return;
 
   const btn = document.getElementById('btn-submit-exam');
   if (!btn) return;
@@ -7936,6 +8028,7 @@ async function submitExam(opts = {}) {
   const flags = engineActive ? E.getFlags() : readExamFlagsFromDom(currentActiveExam);
 
   const originalText = btn.textContent;
+  examSubmitInFlight = true;
   btn.disabled = true;
   btn.textContent = currentActiveExam.language === 'tr' ? 'Değerlendiriliyor...' : 'Grading...';
 
@@ -7998,6 +8091,7 @@ async function submitExam(opts = {}) {
     console.error("Exception submitting exam: ", err);
     showDashboardAlert('error', 'Sınav gönderilirken bağlantı hatası oluştu.');
   } finally {
+    examSubmitInFlight = false;
     btn.disabled = false;
     btn.textContent = originalText;
   }

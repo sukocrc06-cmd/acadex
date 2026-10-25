@@ -4,7 +4,8 @@
    ========================================================================== */
 
 /* Academic Prestige Workspace fonts (headlines: Newsreader / UI: Plus Jakarta Sans) */
-@import url('https://fonts.googleapis.com/css2?family=Newsreader:wght@500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+/* Google Fonts artık style.css içinden @import edilmiyor (zincirleme, sayfayı bekleten istek; panel bu yazı tiplerini
+   kullanmıyor). Kullanan sayfalar (legal, changelog, ders-agaci) <link> ile yüklüyor. */
 
 /* 1. Design Tokens & CSS Custom Properties */
 :root {
@@ -74,6 +75,7 @@ html {
 
 body {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   overflow-x: hidden;
@@ -847,6 +849,8 @@ button, input {
     left: 0;
     width: 100%;
     height: calc(100vh - var(--header-height));
+    height: calc(100dvh - var(--header-height));
+    overscroll-behavior: contain;
     background-color: var(--color-white);
     flex-direction: column;
     padding: 3rem 1.5rem;
@@ -1585,6 +1589,7 @@ button, input {
   margin-top: var(--header-height);
   display: flex;
   min-height: calc(100vh - var(--header-height));
+  min-height: calc(100dvh - var(--header-height));
   background-color: var(--color-bg-alt);
 }
 
@@ -4298,6 +4303,7 @@ input:checked + .slider:before {
   max-width: none;
   width: 100vw;
   height: 100vh;
+  height: 100dvh;
 }
 #acadexsunum-iframe {
   width: 100%;

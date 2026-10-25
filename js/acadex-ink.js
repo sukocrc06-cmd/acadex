@@ -1595,7 +1595,7 @@ window.axWhenProfile = function (cb) {
       if (/^[A-Da-d]$/.test(ans) && Array.isArray(q.options)) { var o = q.options['ABCD'.indexOf(ans.toUpperCase())]; if (o) ans = ans.toUpperCase() + ') ' + o; }
       out.push({ id: deck.id + '|q|' + i, deck: deck.id, type: 'quiz', idx: i, key: keyOf(q, 'quiz', i), front: stripTags(q.question), back: stripTags(ans) + (q.explanation ? ' — ' + stripTags(q.explanation) : ''), user: false, src: src });
     });
-    (deck.cloze_cards || []).forEach(function (c, i) { if (!c || !c.prompt) return; out.push({ id: deck.id + '|c|' + i, deck: deck.id, type: 'cloze', idx: i, key: keyOf(c, 'cloze', i), front: stripTags(c.prompt), back: stripTags(c.full || c.sentence || c.answer), cloze: stripTags(c.answer), user: !!c.user, src: src }); });
+    (deck.cloze_cards || []).forEach(function (c, i) { if (!c || !c.prompt) return; out.push({ id: deck.id + '|c|' + i, deck: deck.id, type: 'cloze', idx: i, key: keyOf(c, 'cloze', i), front: stripTags(c.prompt), back: stripTags(c.full_text || c.full || c.sentence || c.answer), cloze: stripTags(c.answer), user: !!c.user, src: src }); });
     var cm = confMap(), now = Date.now();
     out.forEach(function (c) {
       var r = cm[c.deck + ':' + c.key]; c.conf = r || null;
@@ -5415,7 +5415,7 @@ var SBX = (function () {
 
   /* ---------- Acadia on this sheet (önizleme: yerel kurallarla) ---------- */
   var sentences = function (t) { return t.replace(/\n/g, ' ').split(/(?<=[.!?])\s+/).map(function (x) { return x.trim(); }).filter(Boolean); };
-  var shortLine = function (l) { var c = l.split(/[:;,–—(]/)[0].trim(), w = c.split(/\s+/); return (w.length > 9 ? w.slice(0, 9).join(' ') + '…' : c).replace(/\.$/, ''); };
+  var shortLine = function (l) { var c = l.split(/[:;(]|\s[–—]\s/)[0].trim(); return tidyLine(c.split(/\s+/).length >= 4 ? c : l, 9); };
   var AI = {
     short: function (s) { var n = 0; s.els.forEach(function (e) { if (e.muted) return; if (e.type === 'ul') { var v = e.text.split('\n').map(shortLine).join('\n'); if (v !== e.text) { e.text = v; n++; } } else if (e.type === 't' && sentences(e.text).length > 1) { e.text = sentences(e.text)[0]; n++; } }); return n ? 'Maddeler ve metinler kısaltıldı.' : 'Kısaltılacak uzun bir şey bulamadım.'; },
     rich: function (s) { var u = null; s.els.forEach(function (e) { if (e.type === 'ul' && !u) u = e; }); var t = titleOf(s) || 'bu konu'; if (u) { u.text = (u.muted ? '' : u.text + '\n') + 'Örnek: ' + t.toLocaleLowerCase('tr') + ' için gerçek hayattan bir örnek ekle'; u.muted = false; } else s.els.push(E('t', 90, 440, 780, 40, { text: 'Örnek: ' + t.toLocaleLowerCase('tr') + ' için gerçek hayattan bir örnek ekle', size: 20, color: SOFT })); return 'Acadia’ya şu an ulaşılamadı; örnek için yer açtım, sen doldur.'; },
@@ -5425,20 +5425,159 @@ var SBX = (function () {
       var EN = curLang() === 'en', w = EN ? ['First,', 'Next,', 'Then,', 'Finally,'] : ['İlk olarak', 'Ardından', 'Sonra', 'Son olarak'], txt = (t ? (EN ? 'Now let me walk you through “' + t + '”. ' : '“' + t + '” konusunu anlatıyorum. ') : '') + b.slice(0, 4).map(function (x, i) { return (b.length > 1 && i === Math.min(b.length, 4) - 1 ? w[3] : w[Math.min(i, 2)]) + ' ' + x.charAt(0).toLocaleLowerCase('tr') + x.slice(1).replace(/\.$/, '') + '.'; }).join(' ') + (b.length ? '' : 'Ana fikri bir cümleyle söyle, bir örnek ver.') + ' Bir cümleyle sıradaki asetata bağla.';
       s.notes = txt.trim(); if (!quiet) notesEl.value = s.notes; return 'Konuşmacı notu yazıldı; altta düzenleyebilirsin.';
     },
-    q: function (s) { var t = titleOf(s) || 'bu konu'; s.els.push(E('t', 70, 466, 820, 44, { text: 'Soru: Sizce ' + t.charAt(0).toLocaleLowerCase('tr') + t.slice(1) + ' neden önemli?', size: 22, color: BLUE, bold: true })); return 'Dinleyiciye bir soru eklendi.'; }
+    q: function (s) { var t = titleOf(s) || 'bu konu'; addQ(s, 'Soru: Sizce ' + t.charAt(0).toLocaleLowerCase('tr') + t.slice(1) + ' neden önemli?'); return 'Dinleyiciye bir soru eklendi.'; }
   };
   var bodyOf = function (s) { var out = []; s.els.forEach(function (e) { if ((e.type === 't' || e.type === 'ul') && !e.muted && e.text) out.push(e.text); }); return out.join('\n'); };
+  /* ---------- Acadia çıktısını asetata yerleştirme (24.10.2026) ----------
+     Eskiden "zenginleştir" ilk madde kutusuna 4-7 uzun paragraf basıyordu: iki kolonlu asetatta
+     her şey tek kolona yığılıyor, yazı asetattan taşıyor, başlığın üstüne biniyordu. Artık:
+     kutunun alabileceği kadar madde istenir (capOf), her kolon kendi başlığıyla ayrı zenginleşir
+     (targetsOf), kaynak belge varsa yalnız ondan yazılır (srcOfDeck), yeni sayılar sarı işaretlenir
+     (markNums), sonuç önce önizlenir (preview), uygulanınca sığmayan maddeler konuşmacı notuna
+     taşınır (settle). "asetatları denetle" bütün sunumu bu kurallarla tarar (audit). */
+  var DECOR = { mark: 1, arrow: 1, rect: 1, ellipse: 1 };
+  var measureH = function (e) {
+    if (!fitBox) { fitBox = document.createElement('div'); fitBox.className = 'sx-slide'; fitBox.setAttribute('aria-hidden', 'true'); fitBox.style.cssText = 'position:fixed;left:-20000px;top:0;visibility:hidden;pointer-events:none'; LY.appendChild(fitBox); }
+    fitBox.innerHTML = elHTML(e, false); var n = fitBox.firstChild, h = 0; if (n) { n.style.height = 'auto'; n.style.overflow = 'visible'; h = n.scrollHeight; } fitBox.innerHTML = ''; return h;
+  };
+  var overflows = function (e) { var h = measureH(e); return h > 0 && h > e.h + 3; };
+  var hit = function (a, b) { return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h; };
+  var capOf = function (e) { var sz = e.size || 24, cpl = Math.max(14, Math.floor(e.w / (sz * .52))); return { b: Math.max(2, Math.min(6, Math.floor(e.h / (sz * 1.25 * 2 + sz * .45)))), w: Math.max(6, Math.min(16, Math.floor(cpl * 1.8 / 7))) }; };
+  var settle = function (s, e) {
+    var moved = [];
+    if (!e || DECOR[e.type] || e.type === 'h') return moved;
+    e.x = Math.max(8, e.x); e.y = Math.max(8, e.y);
+    if (e.x + e.w > W - 8) e.w = Math.max(120, W - 8 - e.x); if (e.y + e.h > H - 8) e.h = Math.max(60, H - 8 - e.y);
+    /* kutu başka bir yazının üstüne biniyorsa ve asetat bir düzenden geldiyse, düzenin özgün yerine dön */
+    var over = s.els.some(function (o) { if (o === e || DECOR[o.type] || o.type === 'h' || o.muted || !hit(o, e)) return false; var ix = Math.min(o.x + o.w, e.x + e.w) - Math.max(o.x, e.x), iy = Math.min(o.y + o.h, e.y + e.h) - Math.max(o.y, e.y); return ix * iy > .15 * Math.min(o.w * o.h, e.w * e.h); });
+    if (over && s.lay && LAY[s.lay]) { try { var tpl = LAY[s.lay].f('x', [], {}), k = 0, same = s.els.filter(function (o) { return o.type === e.type; }), ti = same.indexOf(e), tt = tpl.filter(function (o) { return o.type === e.type; })[ti]; if (tt) { e.x = tt.x; e.y = tt.y; e.w = tt.w; e.h = tt.h; } } catch (er) {} }
+    var hd = null; s.els.forEach(function (x) { if (x.type === 'h' && x !== e && !hd) hd = x; });
+    if (hd && hit(hd, e) && e.y < hd.y + hd.h) {
+      var ny = hd.y + hd.h + 10;
+      s.els.forEach(function (m) { if (m.type === 'mark' && m.y >= hd.y && m.y < hd.y + hd.h + 30 && m.x < e.x + e.w && e.x < m.x + m.w) ny = Math.max(ny, m.y + m.h + 10); });
+      e.h = Math.max(80, e.h - (ny - e.y)); e.y = ny; if (e.y + e.h > H - 8) e.h = Math.max(60, H - 8 - e.y);
+    }
+    if (!e.text || e.muted || (e.type !== 'ul' && e.type !== 't')) return moved;
+    var min = e.type === 'ul' ? 16 : 14, g = 0;
+    while (overflows(e) && e.size > min && g++ < 30) e.size = Math.max(min, Math.floor(e.size * .93));
+    if (e.type === 'ul') { while (overflows(e)) { var L = e.text.split('\n').filter(Boolean); if (L.length <= 1) break; moved.unshift(L.pop()); e.text = L.join('\n'); } }
+    if (moved.length) s.notes = (s.notes ? String(s.notes).replace(/\s+$/, '') + '\n' : '') + (curLang() === 'en' ? 'Did not fit on the slide: ' : 'Asetata sığmayanlar: ') + moved.join(' · ');
+    return moved;
+  };
+  var headOf = function (s, e) { var hd = null; s.els.forEach(function (h) { if (h.type === 't' && h !== e && h.bold && !h.muted && Math.abs(h.x - e.x) < 40 && h.y < e.y && e.y - (h.y + h.h) < 40) hd = h; }); return hd ? hd.text : ''; };
+  var targetsOf = function (s) {
+    var sel = null; s.els.forEach(function (e) { if (e.id === selId && (e.type === 'ul' || (e.type === 't' && !e.bold))) sel = e; });
+    var list = sel ? [sel] : s.els.filter(function (e) { return e.type === 'ul'; });
+    if (!list.length) { var t = null; s.els.forEach(function (e) { if (!t && e.type === 't' && e.y > 120 && e.h >= 60) t = e; }); if (t) list = [t]; }
+    return list.map(function (e) { return { el: e, hint: headOf(s, e) }; });
+  };
+  var numKey = function (t) { return (String(t || '').match(/\d[\d.,]*/g) || []).map(function (n) { return n.replace(/[.,]/g, ''); }).filter(function (n) { return n.length >= 2; }); };
+  var markNums = function (e, before, src) {
+    var known = {}; numKey(before + '\n' + (src || '')).forEach(function (n) { known[n] = 1; });
+    var warn = [], why = {};
+    String(e.text || '').split('\n').forEach(function (l) { if (numKey(l).some(function (n) { return !known[n]; })) { warn.push(l); why[l] = src ? 'kaynakta yok' : 'Acadia ekledi, doğrula'; } });
+    e.warn = warn.length ? warn : null; e.why = warn.length ? why : null;
+  };
+  var srcOfDeck = function () {
+    if (deck.source !== 'study_card' || !isUuid(deck.sourceId)) return Promise.resolve(null);
+    return Promise.resolve(loadSrc()).then(function (list) { var c = null; (list || []).forEach(function (x) { if (x.id === deck.sourceId) c = x; }); return c ? { text: cardText(c).slice(0, 8000), name: docLabel(c) } : null; }, function () { return null; });
+  };
+  var tidyLine = function (l, maxW) {
+    var t = stripMd(cleanB(l)).replace(/\s*\((?:[^)]*\b(?:wikipedia|vikipedi|kaynak|source)\b[^)]*)\)/gi, '').replace(/\s*\[(?:\d+|kaynak|source)\]/gi, '').replace(/\s+/g, ' ').trim();
+    var w = t.split(/\s+/);
+    if (maxW && w.length > maxW + 4) { var cut = w.slice(0, maxW).join(' '), bi = -1, mm, rx = /[,;:](?=\s)|\s[–—](?=\s)/g; while ((mm = rx.exec(cut))) bi = mm.index; var cl = bi > 0 ? cut.slice(0, bi) : cut; t = bi > 0 && cl.split(/\s+/).length >= Math.ceil(maxW * .55) ? cl : cut + '…'; }
+    return t.replace(/[.;,:]+$/, '');
+  };
+  var addQ = function (s, text) {
+    var bottom = 120;
+    s.els.forEach(function (e) { if (!DECOR[e.type] && !e.muted && e.type !== 'h') bottom = Math.max(bottom, e.y + Math.min(e.h, measureH(e) || e.h)); });
+    if (bottom + 52 > H - 8) {
+      var big = null; s.els.forEach(function (e) { if ((e.type === 'ul' || e.type === 't') && !e.muted && (!big || e.h > big.h)) big = e; });
+      if (big) { big.h = Math.max(70, H - 8 - 52 - big.y); settle(s, big); }
+      bottom = H - 8 - 52;
+    }
+    var q = E('t', 70, Math.round(bottom + 8), 820, 44, { text: text, size: 22, color: BLUE, bold: true }); s.els.push(q); settle(s, q); return q;
+  };
+  var diffEls = function (a, b) { var m = {}; a.els.forEach(function (e) { m[e.id] = e; }); return b.els.filter(function (e) { var o = m[e.id]; return !o || o.text !== e.text || o.type !== e.type; }).map(function (e) { return e.id; }); };
+  var sxCss = function () {
+    if (document.getElementById('ax-sx2-css')) return;
+    var st = document.createElement('style'); st.id = 'ax-sx2-css';
+    st.textContent = '.ax-sxd .sxd-in{position:relative;width:min(780px,calc(100vw - 32px));background:#FFFDF7;border:1.5px solid #1A2A5C;border-radius:18px;box-shadow:5px 6px 0 #1A2A5C;padding:22px 24px 18px;color:#0D1838;font-family:"Instrument Sans",system-ui,sans-serif;box-sizing:border-box}' +
+      '.ax-sxd .sxd-eyb{display:block;font:700 22px/1 "Caveat",cursive;color:#2F6BFF}' +
+      '.ax-sxd h3{margin:4px 0 6px;font:800 24px/1.15 "Bricolage Grotesque",sans-serif;letter-spacing:-.01em;padding-right:40px}' +
+      '.ax-sxd .sxd-sub{margin:0 0 14px;font-size:13.5px;line-height:1.45;color:#4B5675}' +
+      '.ax-sxd .sxd-x{position:absolute;right:12px;top:12px;width:36px;height:36px;border:0;border-radius:50%;background:#F1ECDF;color:#1A2A5C;font-size:20px;cursor:pointer}' +
+      '.ax-sxd .pv-row{margin:0 0 12px}.ax-sxd .pv-row h4{margin:0 0 6px;font:700 15px "Bricolage Grotesque",sans-serif;color:#2F6BFF}' +
+      '.ax-sxd .pv-two{display:grid;grid-template-columns:1fr 1fr;gap:10px}' +
+      '.ax-sxd .pv-old,.ax-sxd .pv-new{border-radius:12px;padding:10px 12px 6px;font-size:14.5px;line-height:1.4}' +
+      '.ax-sxd .pv-old{background:#F3F0E7;color:#6A7593}.ax-sxd .pv-new{background:#EEF3FF;border:1.5px solid #9DB8FF}' +
+      '.ax-sxd .pv-k{display:block;font:700 10.5px ui-monospace,Menlo,monospace;letter-spacing:.12em;text-transform:uppercase;margin-bottom:6px}' +
+      '.ax-sxd ul{margin:0;padding-left:1.1em}.ax-sxd li{margin:0 0 .4em}' +
+      '.ax-sxd li.warn{background:#FFF1C2;border-radius:4px;box-shadow:0 0 0 2px #FFF1C2}' +
+      '.ax-sxd .sxd-hint{font-size:12.5px;color:#8A6A12;margin:0 0 10px}' +
+      '.ax-sxd .sxd-acts{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:8px}' +
+      '.ax-sxd .sxd-b{min-height:42px;padding:8px 16px;border-radius:12px;font:700 14.5px "Instrument Sans",sans-serif;cursor:pointer;border:1.5px solid #1A2A5C;background:#fff;color:#1A2A5C}' +
+      '.ax-sxd .sxd-b.pri{background:#0D1838;color:#fff;box-shadow:0 3px 0 #2F6BFF}.ax-sxd .sxd-b.sm{min-height:34px;padding:4px 12px;font-size:13px}' +
+      '.ax-sxd .au-sum{display:flex;align-items:center;gap:10px;margin:0 0 12px;padding:10px 12px;border-radius:12px;background:#F3F0E7;font-weight:600}' +
+      '.ax-sxd .au-sum.ok{background:#E6F5EC;color:#1E6A42}' +
+      '.ax-sxd .au-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;max-height:52vh;overflow:auto}' +
+      '.ax-sxd .au-it{border:1.5px solid #E4DCC8;border-radius:12px;padding:10px 12px;background:#fff}' +
+      '.ax-sxd .au-h{display:flex;align-items:center;gap:8px;justify-content:space-between;flex-wrap:wrap}' +
+      '.ax-sxd .au-h b{font:700 15px "Bricolage Grotesque",sans-serif}.ax-sxd .au-h b i{font:700 12px ui-monospace,monospace;font-style:normal;color:#2F6BFF;margin-right:6px}' +
+      '.ax-sxd .au-it ul{margin:6px 0 0;font-size:13.5px;color:#3A4362}.ax-sxd .au-it li.fx::marker{color:#1E8A55}.ax-sxd .au-it li.mn::marker{color:#C9483B}' +
+      '.ax-sxd .au-btns{display:flex;gap:6px}' +
+      '.sx-audit{display:block;width:100%;margin-top:10px;min-height:40px;border:1.5px dashed #9DB8FF;border-radius:12px;background:#F7F9FF;font:700 19px "Caveat",cursive;color:#2F6BFF;cursor:pointer}' +
+      '.sx-audit:hover{background:#EEF3FF}' +
+      '@media (max-width:640px){.ax-sxd .pv-two{grid-template-columns:1fr}}';
+    document.head.appendChild(st);
+  };
+  var sxDlg = function () { sxCss(); var d = document.createElement('dialog'); d.className = 'sx-dlg ax-sxd'; document.body.appendChild(d); return d; };
+  var pvDlg = null;
+  var preview = function (k, s, work, changed, msg, apply, again) {
+    if (!pvDlg) { pvDlg = sxDlg(); pvDlg.setAttribute('aria-labelledby', 'axpv-t'); pvDlg.addEventListener('close', function () { var f = pvDlg._on; pvDlg._on = null; if (f) f(pvDlg.returnValue); }); }
+    var NM = { rich: 'zenginleştir', short: 'kısalt', list: 'maddeye çevir' }, orig = {}; s.els.forEach(function (e) { orig[e.id] = e; });
+    var li = function (t, e) { return '<ul>' + String(t || '').split('\n').filter(function (l) { return l.trim(); }).map(function (l) { var w = e && e.warn && e.warn.indexOf(l) >= 0; return '<li' + (w ? ' class="warn" title="' + X((e.why && e.why[l]) || 'doğrula') + '"' : '') + '>' + X(l) + '</li>'; }).join('') + '</ul>'; };
+    var anyWarn = false;
+    var rows = work.els.filter(function (e) { return changed.indexOf(e.id) >= 0 && (e.type === 'ul' || e.type === 't'); }).map(function (e) {
+      var o = orig[e.id], hd = headOf(work, e); if (e.warn && e.warn.length) anyWarn = true;
+      return '<section class="pv-row">' + (hd ? '<h4>' + X(hd) + '</h4>' : '') + '<div class="pv-two"><div class="pv-old"><span class="pv-k">şimdi</span>' + (o && o.text && !o.muted ? li(o.text) : '<p style="margin:0 0 6px">boş</p>') + '</div><div class="pv-new"><span class="pv-k">Acadia önerisi</span>' + li(e.text, e) + '</div></div></section>';
+    }).join('');
+    var sub = k === 'rich' ? (work._src ? 'Kaynak: <b>' + X(work._src) + '</b>. Acadia yalnızca bu belgedeki bilgileri kullandı.' : 'Bu sunuma bağlı bir kaynak belge yok; Acadia genel bilgiyle yazdı.') : 'Asetata koymadan önce karşılaştır.';
+    pvDlg.innerHTML = '<form method="dialog" class="sxd-in"><button class="sxd-x" value="x" aria-label="Kapat">×</button><span class="sxd-eyb">Acadia · ' + NM[k] + '</span><h3 id="axpv-t">Asetata koymadan önce bak</h3><p class="sxd-sub">' + sub + ' Sığmayan madde olursa konuşmacı notuna taşınır.</p>' + rows +
+      (anyWarn ? '<p class="sxd-hint">Sarı satırlardaki sayılar ' + (work._src ? 'kaynak belgede geçmiyor' : 'eski metinde yoktu') + '; asetata koyduktan sonra da sarı kalır, doğrulayınca düzelt.</p>' : '') +
+      '<div class="sxd-acts"><button class="sxd-b" value="no">vazgeç</button><button class="sxd-b" value="again">tekrar dene</button><button class="sxd-b pri" value="ok">asetata koy</button></div></form>';
+    pvDlg._on = function (v) { if (v === 'ok') apply(); else if (v === 'again') again(); };
+    pvDlg.showModal(); var ok = pvDlg.querySelector('[value=ok]'); if (ok) ok.focus();
+  };
   var REMOTE = {
     rich: function (s) {
-      return fn('generate-slide-content', { action: 'enrich', language: curLang(), topic: deck.title || titleOf(s), slideTitle: titleOf(s), currentText: bodyOf(s) }).then(function (d) {
-        var c = d && (d.content || d.text); if (!c) throw new Error('boş');
-        var lines = String(c).split('\n').map(cleanB).filter(Boolean).slice(0, 7), u = null;
-        s.els.forEach(function (e) { if (e.type === 'ul' && !u) u = e; });
-        if (u) { u.text = lines.join('\n'); u.muted = false; }
-        else { var t = null; s.els.forEach(function (e) { if (e.type === 't' && !t && e.y > 120) t = e; }); if (t) { t.type = 'ul'; t.text = lines.join('\n'); t.muted = false; t.h = Math.max(t.h, 220); } else s.els.push(E('ul', 90, 160, 780, 330, { text: lines.join('\n'), size: 24 })); }
-        fitSlide(s);
-        return 'Acadia asetatı zenginleştirdi.';
+      var tg = targetsOf(s), ttl = titleOf(s), lang = curLang();
+      if (!tg.length) { var nu = E('ul', 90, 160, 780, 330, { text: '', size: 24 }); s.els.push(nu); tg = [{ el: nu, hint: '' }]; }
+      return srcOfDeck().then(function (src) {
+        return Promise.all(tg.map(function (t) {
+          var c = capOf(t.el), before = t.el.muted ? '' : (t.el.text || '');
+          return fn('generate-slide-content', { action: 'enrich', language: lang, topic: deck.title || ttl, slideTitle: ttl + (t.hint ? ' — ' + t.hint : ''), currentText: before, maxBullets: c.b, maxWords: c.w, sourceText: src ? src.text : '' }).then(function (d) {
+            var raw = d && (d.content || d.text); if (!raw) throw new Error('boş');
+            var lines = String(raw).split('\n').map(function (l) { return tidyLine(l, c.w); }).filter(function (l) { return l.length > 2; }).slice(0, c.b);
+            if (!lines.length) throw new Error('boş');
+            if (t.el.type === 't') { t.el.type = 'ul'; t.el.h = Math.max(t.el.h, 160); }
+            t.el.text = lines.join('\n'); t.el.muted = false; markNums(t.el, before, src && src.text);
+          });
+        })).then(function () { s._src = src ? src.name : ''; return src ? 'Acadia asetatı kaynağından zenginleştirdi.' : 'Acadia asetatı zenginleştirdi.'; });
       });
+    },
+    short: function (s) {
+      var tg = targetsOf(s).filter(function (t) { return !t.el.muted && t.el.text; });
+      if (!tg.length) return Promise.resolve('Kısaltılacak bir madde bulamadım.');
+      return Promise.all(tg.map(function (t) {
+        var n = t.el.text.split('\n').filter(Boolean).length, c = capOf(t.el);
+        return fn('generate-slide-content', { action: 'shorten', language: curLang(), topic: deck.title || titleOf(s), slideTitle: titleOf(s), currentText: t.el.text, maxBullets: Math.max(2, Math.min(6, Math.max(n, sentences(t.el.text).length))), maxWords: Math.min(10, c.w) }).then(function (d) {
+          var raw = d && d.content; if (!raw) throw new Error('boş');
+          var lines = String(raw).split('\n').map(function (l) { return tidyLine(l, 10); }).filter(function (l) { return l.length > 2; }); if (!lines.length) throw new Error('boş');
+          if (t.el.type === 't' && lines.length === 1) t.el.text = lines[0]; else { t.el.type = 'ul'; t.el.text = lines.join('\n'); }
+          t.el.warn = null; t.el.why = null;
+        });
+      })).then(function () { return 'Acadia maddeleri kısalttı.'; });
     },
     note: function (s) {
       return fn('generate-slide-content', { action: 'notes', language: curLang(), topic: deck.title || titleOf(s), slideTitle: titleOf(s), currentText: bodyOf(s) }).then(function (d) {
@@ -5448,18 +5587,98 @@ var SBX = (function () {
     q: function (s) {
       return fn('generate-slide-content', { action: 'question', language: curLang(), topic: deck.title || titleOf(s), slideTitle: titleOf(s), currentText: bodyOf(s) }).then(function (d) {
         var q = d && (d.question || d.content); if (!q) throw new Error('boş');
-        s.els.push(E('t', 70, 466, 820, 44, { text: 'Soru: ' + String(q).replace(/^\s*soru\s*:\s*/i, '').trim(), size: 22, color: BLUE, bold: true })); return 'Acadia dinleyiciye bir soru ekledi.';
+        addQ(s, 'Soru: ' + String(q).replace(/^\s*soru\s*:\s*/i, '').trim()); return 'Acadia dinleyiciye bir soru ekledi.';
       });
     }
   };
+  var PREV = { rich: 1, short: 1, list: 1 };
   QA('[data-ai]').forEach(function (b) { b.addEventListener('click', function () {
     var s = cur(); if (!s) { say('Önce bir asetat koy.'); return; } if (b.disabled) return; commitEdit();
-    var k = b.getAttribute('data-ai'), before = snap(), sid = s.id;
-    var done = function (m) { b.classList.remove('busy'); b.disabled = false; undoS.push(before); if (undoS.length > 60) undoS.shift(); redoS = []; paintHist(); if (cur() && cur().id === sid) renderStage(); refreshThumb(); dirty(); say(m, undo); };
-    b.classList.add('busy'); b.disabled = true;
-    if (REMOTE[k]) REMOTE[k](s).then(done, function (err) { console.warn('acadex-sunum: Acadia', k, err); var m = AI[k](s); if (k === 'note') m = 'Acadia’ya ulaşılamadı; not maddelerinden yazıldı.'; if (k === 'q') m = 'Acadia’ya ulaşılamadı; genel bir soru ekledim.'; done(m); });
-    else setTimeout(function () { done(AI[k](s)); }, calm ? 0 : 350);
+    var k = b.getAttribute('data-ai'), sid = s.id, work = clone(s);
+    var busy = function (on) { b.classList.toggle('busy', on); b.disabled = on; };
+    busy(true);
+    var run = REMOTE[k] ? REMOTE[k](work).catch(function (err) {
+      console.warn('acadex-sunum: Acadia', k, err);
+      if (k === 'rich') return null;
+      work = clone(s); var m = AI[k](work);
+      if (k === 'note') m = 'Acadia’ya ulaşılamadı; not maddelerinden yazıldı.'; if (k === 'q') m = 'Acadia’ya ulaşılamadı; genel bir soru ekledim.'; if (k === 'short') m = 'Acadia’ya ulaşılamadı; maddeleri ben kısalttım.';
+      return m;
+    }) : new Promise(function (res) { setTimeout(function () { res(AI[k](work)); }, calm ? 0 : 250); });
+    run.then(function (m) {
+      busy(false);
+      if (m === null) { say('Acadia’ya şu an ulaşılamadı; asetat değişmedi. Biraz sonra tekrar dene.'); return; }
+      if (!cur() || cur().id !== sid) return;
+      var changed = diffEls(s, work);
+      if (!changed.length && work.notes === s.notes) { say(m); return; }
+      var apply = function () {
+        var tgt = null; deck.slides.forEach(function (x) { if (x.id === sid) tgt = x; }); if (!tgt) return;
+        var before = snap(); delete work._src; tgt.els = work.els; tgt.notes = work.notes;
+        var moved = 0; tgt.els.forEach(function (e) { if (changed.indexOf(e.id) >= 0) moved += settle(tgt, e).length; });
+        if (cur() === tgt) notesEl.value = tgt.notes || '';
+        undoS.push(before); if (undoS.length > 60) undoS.shift(); redoS = []; paintHist();
+        if (cur() === tgt) renderStage(); refreshThumb(); dirty();
+        say(m + (moved ? ' ' + moved + ' madde sığmadı, konuşmacı notuna taşındı.' : ''), undo);
+      };
+      if (PREV[k] && changed.length) preview(k, s, work, changed, m, apply, function () { b.click(); }); else apply();
+    }, function (err) { busy(false); console.warn('acadex-sunum: Acadia', k, err); say('Bir şeyler ters gitti; asetat değişmedi.'); });
   }); });
+  /* ---------- asetat denetçisi ---------- */
+  var auDlg = null;
+  var audit = function () {
+    var out = [];
+    deck.slides.forEach(function (s, i) {
+      var iss = [], seen = {}, long = 0, warnN = 0;
+      var add = function (t, fixId) { if (seen[t + (fixId || '')]) return; seen[t + (fixId || '')] = 1; iss.push({ t: t, fix: fixId || null }); };
+      var vis = s.els.filter(function (e) { return !DECOR[e.type]; });
+      vis.forEach(function (e) {
+        if (e.x < -2 || e.y < -2 || e.x + e.w > W + 2 || e.y + e.h > H + 2) add('asetatın dışına taşan kutu', e.id);
+        if ((e.type === 'ul' || e.type === 't' || e.type === 'h') && e.text && !e.muted && overflows(e)) add('yazı kutusundan taşıyor', e.type === 'h' ? null : e.id);
+        if (e.muted && e.text && e.type !== 'h') add('doldurulmamış yer tutucu: “' + e.text.split('\n')[0].slice(0, 40) + '”');
+        if (e.type === 'ul' && !e.muted) e.text.split('\n').forEach(function (l) { if (l.split(/\s+/).length > 18) long++; });
+        if (e.warn && e.warn.length) warnN += e.warn.length;
+      });
+      for (var a = 0; a < vis.length; a++) for (var b = a + 1; b < vis.length; b++) {
+        var A = vis[a], B = vis[b]; if (A.muted || B.muted || !hit(A, B)) continue;
+        var ix = Math.min(A.x + A.w, B.x + B.w) - Math.max(A.x, B.x), iy = Math.min(A.y + A.h, B.y + B.h) - Math.max(A.y, B.y);
+        if (ix * iy > .15 * Math.min(A.w * A.h, B.w * B.h)) { var hdr = A.type === 'h' ? B : B.type === 'h' ? A : null; add(hdr ? 'başlığın üstüne binen kutu' : 'iki öğe üst üste biniyor', hdr && hdr.type !== 'h' ? hdr.id : null); }
+      }
+      if (long) add(long + ' madde çok uzun (18 kelimeden fazla); asetatı açıp “kısalt”a bas');
+      if (warnN) add(warnN + ' maddede doğrulanmamış sayı (sarı)');
+      if (!vis.some(function (e) { return !e.muted && (e.text || e.chart || e.table || e.latex || e.svg || e.src || e.viz); })) add('asetat boş');
+      if (iss.length) out.push({ i: i, s: s, iss: iss });
+    });
+    return out;
+  };
+  var fixSlide = function (s, ids) { var moved = 0; s.els.forEach(function (e) { if (!ids || ids.indexOf(e.id) >= 0) moved += settle(s, e).length; }); return moved; };
+  var openAudit = function () {
+    if (!deck.slides.length) { say('Denetlenecek asetat yok.'); return; }
+    commitEdit();
+    if (!auDlg) { auDlg = sxDlg(); auDlg.setAttribute('aria-labelledby', 'axau-t'); }
+    var paint = function () {
+      var res = audit(), nIss = 0, fixable = 0; res.forEach(function (r) { nIss += r.iss.length; r.iss.forEach(function (x) { if (x.fix) fixable++; }); });
+      auDlg.innerHTML = '<div class="sxd-in"><button type="button" class="sxd-x" data-au-x aria-label="Kapat">×</button><span class="sxd-eyb">Acadia · denetçi</span><h3 id="axau-t">Asetat denetimi</h3>' +
+        (res.length ? '<p class="au-sum">' + deck.slides.length + ' asetat tarandı · ' + res.length + ' asetatta ' + nIss + ' konu' + (fixable ? ' · ' + fixable + ' tanesini ben düzeltebilirim' : '') + '</p>' : '<p class="au-sum ok">✓ ' + deck.slides.length + ' asetat tarandı; taşan, üst üste binen ya da boş asetat yok.</p>') +
+        '<ul class="au-list">' + res.map(function (r) { var fx = r.iss.some(function (x) { return x.fix; });
+          return '<li class="au-it"><div class="au-h"><b><i>' + (r.i + 1) + '.</i>' + X(titleOf(r.s) || 'başlıksız asetat') + '</b><span class="au-btns"><button type="button" class="sxd-b sm" data-au-go="' + r.i + '">asetata git</button>' + (fx ? '<button type="button" class="sxd-b sm pri" data-au-fix="' + r.i + '">düzelt</button>' : '') + '</span></div><ul>' + r.iss.map(function (x) { return '<li class="' + (x.fix ? 'fx' : 'mn') + '">' + X(x.t) + '</li>'; }).join('') + '</ul></li>'; }).join('') + '</ul>' +
+        '<p class="sxd-sub" style="margin:10px 0 0">Yeşil noktalı konuları ben düzeltirim (kutuyu asetata ve başlığın altına çeker, yazıyı küçültür, sığmayan maddeyi konuşmacı notuna taşır). Kırmızılar senin kararın.</p>' +
+        '<div class="sxd-acts"><button type="button" class="sxd-b" data-au-x>kapat</button>' + (fixable ? '<button type="button" class="sxd-b pri" data-au-all>hepsini düzelt</button>' : '') + '</div></div>';
+    };
+    var doFix = function (list) {
+      var before = snap(), moved = 0;
+      list.forEach(function (r) { moved += fixSlide(r.s, r.iss.filter(function (x) { return x.fix; }).map(function (x) { return x.fix; })); });
+      undoS.push(before); if (undoS.length > 60) undoS.shift(); redoS = []; paintHist(); renderAll(); dirty();
+      say(list.length + ' asetat düzeltildi.' + (moved ? ' ' + moved + ' madde konuşmacı notuna taşındı.' : ''), undo); paint();
+    };
+    auDlg.onclick = function (e) {
+      var t = e.target.closest('button'); if (!t) return;
+      if (t.hasAttribute('data-au-x')) { auDlg.close(); return; }
+      if (t.hasAttribute('data-au-go')) { auDlg.close(); go(+t.getAttribute('data-au-go')); return; }
+      if (t.hasAttribute('data-au-fix')) { var i = +t.getAttribute('data-au-fix'); doFix(audit().filter(function (r) { return r.i === i; })); return; }
+      if (t.hasAttribute('data-au-all')) doFix(audit());
+    };
+    paint(); auDlg.showModal(); var f = auDlg.querySelector('[data-au-all],[data-au-x]'); if (f) f.focus();
+  };
+  (function () { var acs = Q('.sx-acs'); if (!acs || Q('[data-audit]')) return; sxCss(); acs.insertAdjacentHTML('afterend', '<button type="button" class="sx-audit" data-audit>✓ asetatları denetle</button>'); Q('[data-audit]').addEventListener('click', openAudit); })();
 
   /* ---------- Acadia: kurgu masası (outline first) ---------- */
   /* ---------- sunum dili: kilit ---------- */
@@ -7244,7 +7463,7 @@ var SBX = (function () {
       if (/^[A-Da-d]$/.test(ans) && Array.isArray(q.options)) { var o = q.options['ABCD'.indexOf(ans.toUpperCase())]; if (o) ans = o; }
       out.push({ id: deck.id + '|q|' + i, deck: deck.id, type: 'quiz', key: keyOf(q, 'quiz', i), front: stripMd(q.question), back: stripMd(ans) + (q.explanation ? ' — ' + stripMd(q.explanation) : ''), q: stripMd(q.question), src: src });
     });
-    arr(deck.cloze_cards).forEach(function (c, i) { if (!c || !c.prompt) return; var full = stripMd(c.full || c.sentence || c.answer || ''); out.push({ id: deck.id + '|c|' + i, deck: deck.id, type: 'cloze', key: keyOf(c, 'cloze', i), front: stripMd(c.prompt), back: full || stripMd(c.answer || ''), q: stripMd(c.prompt), src: src }); });
+    arr(deck.cloze_cards).forEach(function (c, i) { if (!c || !c.prompt) return; var full = stripMd(c.full_text || c.full || c.sentence || c.answer || ''); out.push({ id: deck.id + '|c|' + i, deck: deck.id, type: 'cloze', key: keyOf(c, 'cloze', i), front: stripMd(c.prompt), back: full || stripMd(c.answer || ''), q: stripMd(c.prompt), src: src }); });
     out.forEach(function (c) { var r = cm[c.deck + ':' + c.key]; c.conf = r || null; c.box = !r ? 1 : Math.min(5, 1 + (Number(r.repetitions) || 0)); c.due = !r || !r.next_review_at || new Date(r.next_review_at).getTime() <= now; });
     return out;
   };
@@ -8435,11 +8654,38 @@ var SBX = (function () {
   var findNumbers = function (card) {
     var src = [card.summary_executive || ''].concat(arr(card.key_points).map(plain)).concat([plain(card.summary || '')]).join(' \n ');
     var sents = src.split(/(?<=[.!?])\s+|\n/), out = [], seen = {};
-    var re = /(%\s?\d+(?:[.,]\d+)?|\d+(?:[.,]\d+)?\s?%|[$€₺]\s?\d+(?:[.,]\d+)?|\d+(?:[.,]\d+)?\s?(?:milyon|milyar|bin|TL|USD|dolar|yıl|ay|gün|adım|aşama|faktör|kat)\b|\b\dP\b)/i;
+    /* EKSI ISARETI VE CIPLAK ONDALIKLAR (24.10.2026).
+     *
+     * Iki kusur olculdu, ikisi de ayni desende:
+     *
+     * 1) ISARET KAYBI. Desende hicbir yerde `-` yoktu ve `parseFloat`
+     *    oncesi `replace(/[^\d.,]/g, '')` isareti ZATEN siliyordu:
+     *      "-5.06 dolar"  ->  eslesen "5.06 dolar"  ->  5.06
+     *    Metin "fatura AZALIYOR" derken kutu isaretsiz pozitif gosteriyordu.
+     *    Marjinal etki, egim, fark — bu kartta sayilarin cogu isaretli.
+     *
+     * 2) CIPLAK ONDALIK GORUNMUYOR. Desen yalnizca %, para birimi ve
+     *    TURKCE birimleri (milyon/TL/yil/kat...) taniyordu. Ingilizce bir
+     *    istatistik destesinde olculen sonuc:
+     *      "UtilityBill = 484.12 - 12.08 temp + 0.09 temp^2"  -> ESLESME YOK
+     *      "R2 = 0.87"                                        -> ESLESME YOK
+     *      "0.07 tons per $1000"                              -> "$1000" (!)
+     *    Yani belgenin ASIL sayilari gorunmez, geriye anlamsiz olanlar
+     *    kaliyordu: anlamlilik duzeyi "1%" ve "$1000" gibi.
+     *
+     * Cozum ondalik kismi OLAN ciplak sayilari da almak. Tam sayilar
+     * bilerek disarida: sayfa numarasi, yil, madde sirasi hep tam sayi ve
+     * onlari almak kutulari coplestirir. Nicel bir belgede sinyal
+     * ondalikta. Desen `-` ile basliyorsa isaret korunuyor. */
+    var re = /(-?\d+(?:[.,]\d+)?\s?%|%\s?-?\d+(?:[.,]\d+)?|[$€₺]\s?-?\d+(?:[.,]\d+)?|-?\d+(?:[.,]\d+)?\s?(?:milyon|milyar|bin|TL|USD|dolar|yıl|ay|gün|adım|aşama|faktör|kat)\b|-?\d+[.,]\d+|\b\dP\b)/i;
     sents.forEach(function (s) {
       if (out.length >= 3) return; var m = s.match(re); if (!m) return; var tok = m[1].trim(), key = tok.toLowerCase(); if (seen[key]) return; seen[key] = 1;
+      /* Isaret ayri tutuluyor: temizlik `-`i siliyor, o yuzden once okunur. */
+      var eksi = /^-/.test(tok) || /^[%$€₺]\s?-/.test(tok);
       var num = parseFloat(tok.replace(/[^\d.,]/g, '').replace(',', '.')); if (isNaN(num)) return;
-      out.push({ v: num, raw: tok, pre: tok.match(/^[%$€₺]/) ? tok.match(/^[%$€₺]/)[0] : '', post: tok.replace(/^[%$€₺]\s?/, '').replace(/^\d+(?:[.,]\d+)?\s?/, ''), dec: /[.,]\d/.test(tok), cap: cut(plain(s), 90) });
+      if (eksi) num = -num;
+      var birim = tok.match(/^[%$€₺]/);
+      out.push({ v: num, raw: tok, pre: birim ? birim[0] : '', post: tok.replace(/^[%$€₺]\s?/, '').replace(/^-?\d+(?:[.,]\d+)?\s?/, ''), dec: /[.,]\d/.test(tok), cap: cut(plain(s), 90) });
     });
     var secs = arr(card.sections).length, terms = arr(card.key_terms).length;
     if (out.length < 3 && secs) out.push({ v: secs, pre: '', post: ' bölüm', cap: 'belge bu kadar ana başlığa ayrılıyor' });
@@ -8734,8 +8980,33 @@ var SBX = (function () {
     var qm = c.quality_meta || {}, typ = plain(lsafe(function () { return getDocumentTypeBadgeHtml(c.document_type); }, '')), len = plain(lsafe(function () { return getLengthBadgeHtml(c.summary_length); }, ''));
     Q('#study-card-title').textContent = baseName(R.name);
     Q('[data-axr-eyb]').textContent = (c.course_tag ? c.course_tag + ' · ' : '') + 'ÖZET KARTI';
+    /* KALITE UYARILARI EKRANDA (24.10.2026).
+     *
+     * Edge function bu dort alani kartin quality_meta'sina YAZIYORDU ama
+     * canli okuyucu yalnizca OLUMLU ikisini (grounded, pass) okuyordu.
+     * Uyarilar gizli .axr-legacy DOM'una yaziliyordu ve o blok CSS'te
+     * display:none — yani %23 kapsamali bir kart tam kartla birebir ayni
+     * gorunuyor, ustune de yesil "kalite kontrolunden gecti" rozeti
+     * aliyordu. Ogrenci belgenin sonunun hic ozetlenmedigini goremiyordu.
+     *
+     * "kaynaga bagli" rozeti kaliyor: o dar anlamda dogru (grounding kapisi
+     * gecti). Bastirilan sey "kalite kontrolunden gecti", cunku uyari varken
+     * o cumle kartin tamam oldugunu ima ediyor. */
+    var uyarilar = [];
+    var mw = qm.missing_windows;
+    if (mw && mw.dusen > 0) {
+      uyarilar.push('eksik özet: ' + mw.dusen + '/' + (mw.toplam || '?') + ' pencere düştü');
+    }
+    if (qm.gemini_partial && qm.gemini_partial.kurtarilanKrk > 0) uyarilar.push('kısmi özet');
+    var atlanan = arr(qm.skipped_stages).filter(Boolean);
+    if (atlanan.length) uyarilar.push('atlanan: ' + atlanan.join(', '));
+    var nc = qm.numeric_coverage;
+    if (nc && nc.total > 0 && nc.kept / nc.total < 0.7) {
+      uyarilar.push('sayısal kapsama %' + Math.round((nc.kept / nc.total) * 100));
+    }
+    var uyariChip = uyarilar.map(function (u) { return chip(u, 'warn'); }).join('');
     mast.innerHTML = '<div class="axr-mastin"><div class="axr-ltbar' + (LT_ON ? '' : ' soon') + '"><span class="axr-ltlbl mono">ÖZETİN DİLİ</span>' + langTog('all') + (LT_ON ? '<span class="axr-ltprog hand" data-ltprog="" aria-live="polite"></span>' : '<span class="axr-ltsoon hand">yakında</span>') + '</div><span class="axr-kicker hand">' + X(c.course_tag ? c.course_tag + ' dersi' : 'çalışma kartın') + '</span><h1 class="disp axr-h1"><span>' + X(baseName(R.name)) + '</span></h1>' +
-      '<div class="axr-chips">' + chip(c.summary_language === 'tr' ? 'Türkçe' : c.summary_language === 'en' ? 'English' : '') + chip(styleLabel(c.summary_style || 'standard')) + chip(typ) + chip(len) + (c.is_quantitative ? chip('sayısal ders', 'q') : '') + (qm.grounded ? chip('kaynağa bağlı', 'ok') : '') + (qm.pass !== false && qm.grounded ? chip('kalite kontrolünden geçti', 'ok') : '') + '</div>' +
+      '<div class="axr-chips">' + chip(c.summary_language === 'tr' ? 'Türkçe' : c.summary_language === 'en' ? 'English' : '') + chip(styleLabel(c.summary_style || 'standard')) + chip(typ) + chip(len) + (c.is_quantitative ? chip('sayısal ders', 'q') : '') + (qm.grounded ? chip('kaynağa bağlı', 'ok') : '') + (qm.pass !== false && qm.grounded && !uyarilar.length ? chip('kalite kontrolünden geçti', 'ok') : '') + uyariChip + '</div>' +
       '<p class="axr-meta mono"><span>~' + mins + ' dk okuma</span>' + (secs.length ? '<span>' + secs.length + ' bölüm</span>' : '') + (arr(c.key_terms).length ? '<span>' + arr(c.key_terms).length + ' kavram</span>' : '') + (arr(c.quiz_questions).length ? '<span>' + arr(c.quiz_questions).length + ' soru</span>' : '') + '<span data-left=""></span></p></div>';
     /* 30 saniye + sayılar */
     var ex = String(c.summary_executive || '').trim(), nums = findNumbers(c);
@@ -8765,12 +9036,12 @@ var SBX = (function () {
       var hasNet = !!netData(c);
       h += ch('kavram', 'Kavramlar', '<div class="axr-sech"><span class="axr-lbl mono">KAVRAMLAR</span><h2 class="disp">' + (hasNet ? 'Kavram ağı' : 'Akılda kalsın') + '</h2>' + (own ? '<button type="button" class="axr-mini" data-regen="key_terms">' + ICON.redo + 'kavramları yenile</button>' : '') + '</div>' +
         (hasNet ? '<div class="axr-netw"><div class="axr-netbox" data-net=""></div><div class="axr-netinfo" data-netinfo="" hidden></div><p class="hand axr-tipline">düğümü sürükle, dokununca tanımını gör</p></div>' : '') +
-        (terms.length ? '<div class="axr-terms">' + terms.map(function (t, i) { return '<button type="button" class="axr-term" style="--r:' + ((i % 5) - 2) * .6 + 'deg" aria-pressed="false"><span class="f"><b>' + X(plain(t.term)) + '</b><i class="hand">çevir</i></span><span class="b">' + X(plain(t.definition)) + '</span></button>'; }).join('') + '</div>' : '') +
+        (terms.length ? '<div class="axr-terms">' + terms.map(function (t, i) { return '<button type="button" class="axr-term" style="--r:' + ((i % 5) - 2) * .6 + 'deg" aria-pressed="false"><span class="f"><b>' + sym(plain(t.term)) + '</b><i class="hand">çevir</i></span><span class="b">' + math(plain(t.definition)) + '</span></button>'; }).join('') + '</div>' : '') +
         (kp.length ? (hasNet || terms.length ? '<h3 class="hand axr-h3">akılda kalsın</h3>' : '') + '<ul class="axr-kps big" data-prose="kp">' + kp.map(function (p) { return '<li>' + imath(typeof formatFootnoteMarkers === 'function' ? formatFootnoteMarkers(String(p), c.footnotes) : X(p)) + '</li>'; }).join('') + '</ul>' : ''));
     }
     /* kendini sına */
     var qz = arr(c.quiz_questions);
-    if (qz.length) h += ch('sina', 'Kendini sına', '<div class="axr-sech"><span class="axr-lbl mono">KENDİNİ SINA</span><h2 class="disp">' + qz.length + ' soru</h2></div><ol class="axr-quiz">' + qz.map(function (q, i) { return '<li><button type="button" aria-expanded="false" data-q="' + i + '"><span class="mono">S' + (i + 1) + '</span>' + X(plain(q.question)) + '</button><div class="axr-ans" hidden><span class="hand">cevap</span> ' + X(plain(q.answer != null ? (/^[A-Da-d]$/.test(String(q.answer)) && Array.isArray(q.options) ? q.options['ABCD'.indexOf(String(q.answer).toUpperCase())] || q.answer : q.answer) : '')) + (q.explanation ? '<small>' + X(plain(q.explanation)) + '</small>' : '') + '</div></li>'; }).join('') + '</ol>');
+    if (qz.length) h += ch('sina', 'Kendini sına', '<div class="axr-sech"><span class="axr-lbl mono">KENDİNİ SINA</span><h2 class="disp">' + qz.length + ' soru</h2></div><ol class="axr-quiz">' + qz.map(function (q, i) { return '<li><button type="button" aria-expanded="false" data-q="' + i + '"><span class="mono">S' + (i + 1) + '</span>' + math(plain(q.question)) + '</button><div class="axr-ans" hidden><span class="hand">cevap</span> ' + math(plain(q.answer != null ? (/^[A-Da-d]$/.test(String(q.answer)) && Array.isArray(q.options) ? q.options['ABCD'.indexOf(String(q.answer).toUpperCase())] || q.answer : q.answer) : '')) + (q.explanation ? '<small>' + math(plain(q.explanation)) + '</small>' : '') + '</div></li>'; }).join('') + '</ol>');
     /* ilgili + kaynakça */
     var rel = lsafe(function () { return findRelatedStudyCards(c.id, 6); }, []) || [], fn = arr(c.footnotes);
     if (rel.length || fn.length) h += ch('kaynak', 'Kaynak ve bağlantılar', (rel.length ? '<div class="axr-sech"><span class="axr-lbl mono">BAĞLANTILI KARTLAR</span></div><div class="axr-rel">' + rel.map(function (r) { return '<button type="button" onclick="viewStudyCardFromLibrary(\'' + X(r.card.id) + '\')"><b>' + X(baseName(r.card.documents && r.card.documents.file_name)) + '</b><small>ortak: ' + X(arr(r.sharedLabels).join(', ')) + '</small></button>'; }).join('') + '</div>' : '') +
@@ -9371,7 +9642,7 @@ var SBX = (function () {
   var log = Q('[data-log]'), form = Q('[data-form]'), ta = Q('[data-in]'), sendB = Q('[data-send]'), stopB = Q('[data-stop]'), ctxEl = Q('[data-ctx]');
   var toast = layer.querySelector('[data-axa-toast]');
   var S = { msgs: [], running: false, stop: false, n: 0 };
-  var VIEWS = { home: 'Bugün', docs: 'Belgelerim', cards: 'Bilgi kartları', feed: 'Bölüm akışı', planner: 'Planlayıcı', notebook: 'Çalışma defteri', sourcehub: 'Kaynakla çalış', exams: 'Sınav platformu', studylab: 'Study Lab', acadexsunum: 'Acadex sunum', sandbox: 'Geliştirici sandbox', 'sandbox-interaction': 'Sandbox paneli', settings: 'Ayarlar' };
+  var VIEWS = { home: 'Bugün', docs: 'Belgelerim', cards: 'Bilgi kartları', feed: 'Bölüm akışı', planner: 'Planlayıcı', notebook: 'Çalışma defteri', sourcehub: 'Kaynakla çalış', exams: 'Sınav platformu', studylab: 'Study Lab', medlab: 'MedLab', acadexsunum: 'Acadex sunum', sandbox: 'Geliştirici sandbox', 'sandbox-interaction': 'Sandbox paneli', settings: 'Ayarlar' };
   var modalOpen = function () { var m = document.getElementById('study-card-modal'); return !!(m && m.classList.contains('active')); };
   var openCard = function () { return modalOpen() ? lsafe(function () { return currentActiveStudyCard; }, null) : null; };
   var VIEWNOW = null;
@@ -9408,6 +9679,7 @@ var SBX = (function () {
     sourcehub: ['Son özetimi oku ve bana 3 soru sor', 'Bu belgenin en önemli 5 kavramını açıkla'],
     exams: ['En zayıf konumdan sınav hazırla', 'Son sınav sonucumu yorumla', 'Yanlışlarımdan bilgi kartı çıkar'],
     studylab: ['Bugün hangi yöntemle çalışayım?', 'Feynman istasyonunu son özetimle aç', 'Bu hafta ne kadar çalıştım?'],
+    medlab: ['Üst ekstremite kaslarını bana sor', 'Brakiyal pleksusu anlat', 'Bu hafta anatomi için çalışma planı kur'],
     acadexsunum: ['Son özetimden 8 slaytlık sunum kurgula', 'Sunum için kurumsal tonda kurgu hazırla'],
     study_card_reader: ['Bu özetten 5 soruluk sınav hazırla', 'Bu özetten bilgi kartı çıkar', 'Bu özetin sesli anlatımını hazırla'],
     sandbox: ['Projem için yapılacaklar listesini deftere yaz'], 'sandbox-interaction': ['Bölümümdeki projeleri aç'], settings: ['Bu hafta için çalışma planı kur']
@@ -9766,7 +10038,7 @@ var SBX = (function () {
   var S = function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} };
 
   /* ---------- sayfa geçişi: yeni sayfa masaya bırakılan kâğıt gibi gelir ---------- */
-  var ORDER = ['home', 'planner', 'notebook', 'cards', 'sourcehub', 'studylab', 'docs', 'feed', 'acadexsunum', 'exams', 'settings', 'sandbox-interaction', 'sandbox'];
+  var ORDER = ['home', 'planner', 'notebook', 'cards', 'sourcehub', 'studylab', 'medlab', 'docs', 'feed', 'acadexsunum', 'exams', 'settings', 'sandbox-interaction', 'sandbox'];
   var last = lsafe(function () { return currentActiveTab; }, 'home') || 'home';
   if (typeof switchDashboardView === 'function') {
     var oSw = switchDashboardView;
@@ -9893,4 +10165,16 @@ var SBX = (function () {
     };
     window.proceedWithSummarization = proceedWithSummarization;
   }
+})();
+
+/* ---------- iOS klavyesi: tam ekran paneller görünen alana göre yeniden ölçülür ----------
+   100dvh klavye açılınca küçülmüyor; visualViewport'un yüksekliği --ax-vvh'ye yazılır
+   (css/acadex-ink.css'teki telefon/tablet bloğu kullanıyor). rAF ile kare başına bir yazma. */
+(function () {
+  var vv = window.visualViewport; if (!vv) return;
+  var raf = 0, root = document.documentElement;
+  var put = function () { raf = 0; root.style.setProperty('--ax-vvh', Math.round(vv.height) + 'px'); };
+  var on = function () { if (!raf) raf = requestAnimationFrame(put); };
+  vv.addEventListener('resize', on, { passive: true });
+  put();
 })();

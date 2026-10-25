@@ -7925,6 +7925,13 @@ body.axr-open #pomodoro-widget-container,body.axr-open #acadia-widget-container,
 #study-card-modal.axr .axr-chip{font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;border:1px solid #D9D3C3;background:#fff;color:var(--muted)}
 #study-card-modal.axr .axr-chip.ok{border-color:#B7DEC8;color:var(--green);background:#EFF8F2}
 #study-card-modal.axr .axr-chip.q{border-color:#F0D7A8;color:var(--amber);background:#FFF7E6}
+/* UYARI rozeti (24.10.2026): eksik pencere, kismi Gemini taslagi, atlanan
+   asama, dusuk sayisal kapsama. Oncesinde bu bilgiler yalnizca gizli
+   .axr-legacy DOM'una yaziliyordu, yani %23 kapsamali bir kart tam kartla
+   birebir ayni gorunuyordu — ustelik yaninda yesil "kalite kontrolunden
+   gecti" rozetiyle. Kirmizi degil kehribar/kiremit: kart KULLANILABILIR,
+   yalnizca eksik. */
+#study-card-modal.axr .axr-chip.warn{border-color:#E8B4A0;color:#B4541F;background:#FDF1EC}
 #study-card-modal.axr .axr-meta{display:flex;flex-wrap:wrap;gap:6px 16px;margin:0;font-size:12px;color:var(--soft);letter-spacing:.04em}
 #study-card-modal.axr .axr-meta span+span::before{content:'·';margin-right:16px;color:#C9C2B0}
 #study-card-modal.axr .axr-meta [data-left]{color:var(--blue);font-weight:700}
@@ -8611,7 +8618,10 @@ body.axr-open #axa-layer .axa{z-index:10065;top:14px}
 @keyframes axaHint{from{opacity:0;transform:translateX(16px) scale(.9)}to{opacity:1;transform:none}}
 
 /* ---- sağ kenar maskotu ---- */
-#axa-layer .axa-mas{position:fixed;right:0;bottom:118px;z-index:10020;display:flex;align-items:center;gap:6px;padding:0;border:0;background:none;cursor:pointer;transform:translateX(24px);transition:transform .45s cubic-bezier(.3,1.5,.5,1)}
+/* maskot sağ kenardan 24px taşarak "bakıyor": taşan kısım düğmenin içinde kırpılır (overflow-x:clip), yoksa sabit öğe sayfaya yatay kaydırma açıyor */
+#axa-layer .axa-mas{position:fixed;right:0;bottom:118px;z-index:10020;display:flex;align-items:center;gap:6px;padding:0;border:0;background:none;cursor:pointer;overflow-x:clip;overflow-y:visible;transition:transform .45s cubic-bezier(.3,1.5,.5,1)}
+#axa-layer .axa-mas svg{transform:translateX(24px);transition:transform .45s cubic-bezier(.3,1.5,.5,1)}
+#axa-layer .axa-mas:hover svg,#axa-layer .axa-mas:focus-visible svg{transform:none}
 #axa-layer .axa-mas svg{width:92px;height:92px;overflow:visible;filter:drop-shadow(-4px 8px 8px rgba(13,24,56,.28))}
 #axa-layer .axa-mas .st{fill:#FFD86B;stroke:#1A2A5C;stroke-width:3.6;stroke-linejoin:round}
 #axa-layer .axa-mas .w{fill:#fff;stroke:#1A2A5C;stroke-width:2.2}
@@ -8649,6 +8659,8 @@ body.axr-open #axa-layer .axa-mas{bottom:28px}
 @media (prefers-reduced-motion:no-preference){
   body.acx .dashboard-view-section.active.ax-enter{animation:axEnter .55s cubic-bezier(.2,.75,.2,1) both;transform-origin:50% 0}
 }
+/* geçişteki 26px yana kayma içerik alanında kırpılır: aksi halde telefonda sayfa yana genişliyor ve alt menü ekranın altına kayıyordu */
+body.acx .dashboard-content{overflow-x:clip}
 @keyframes axEnter{0%{opacity:0;transform:translate(calc(var(--dir,1) * 26px),14px) rotate(calc(var(--dir,1) * .5deg))}60%{opacity:1}100%{opacity:1;transform:none}}
 
 /* tema düğmesi */
@@ -8767,3 +8779,22 @@ html.ax-themefx{transition:filter .6s ease}
 #summary-style-modal.axs2 .axs2-tile.soon .tl{background:repeating-linear-gradient(-45deg,#FBF9F3 0 8px,#F3EFE4 8px 16px);border-style:dashed;opacity:.75;transform:none!important;box-shadow:none!important}
 #summary-style-modal.axs2 .axs2-tile.soon .tk{display:none}
 #summary-style-modal.axs2 .axs2-soon{position:absolute;top:-10px;right:10px;padding:2px 10px;border-radius:999px;background:#E8B53A;color:#0D1838;font-size:17px;transform:rotate(3deg);box-shadow:2px 2px 0 #0D1838}
+
+/* ===== telefon/tablet (hata raporu 24.10.2026) ===== */
+/* çentik: dashboard.html viewport-fit=cover; üst bar, alt menü ve içerik güvenli alanda kalır */
+body.acx .ax-bar{height:calc(64px + env(safe-area-inset-top));padding-top:env(safe-area-inset-top);padding-left:max(14px,env(safe-area-inset-left));padding-right:max(20px,env(safe-area-inset-right))}
+body.acx .dashboard-layout{margin-top:calc(64px + env(safe-area-inset-top));padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
+body.acx .sidebar.ax-side{top:calc(64px + env(safe-area-inset-top))}
+@media (max-width:560px){body.acx .ax-bar{padding-left:max(8px,env(safe-area-inset-left));padding-right:max(8px,env(safe-area-inset-right))}}
+@media (max-width:760px){body.acx .ax-bnav{padding-left:max(6px,env(safe-area-inset-left));padding-right:max(6px,env(safe-area-inset-right))}}
+/* klavye açıkken tam ekran kart görünen alana sığar (--ax-vvh: js/acadex-ink.js sonu) */
+@media (max-width:900px){#study-card-modal.axr .axr-card{height:var(--ax-vvh,100dvh)!important}}
+/* modal ve çekmecelerde kaydırma arkadaki sayfaya taşmaz */
+.modal-overlay,dialog,body.acx .sidebar.ax-side,#study-card-modal.axr .axr-card{overscroll-behavior:contain}
+/* dokunmatikte en az 44px: optik form düğmeleri */
+@media (pointer:coarse){:is(#exams-view.axs,#axs-layer) .sn-opt li button{min-height:44px}}
+/* teslim edilirken düğme kilitli görünür (dashboard.js submitExam) */
+#btn-submit-exam:disabled{opacity:.65;cursor:progress;pointer-events:none}
+/* hareket azaltma ve yazdırma: animasyon yok, içerik anında görünür */
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+@media print{*,*::before,*::after{animation:none!important;transition:none!important}}

@@ -32,7 +32,8 @@ const NAMES = [
   'GEMINI_MAX_CALL_MS', 'GEMINI_MAX_OUTPUT_TOKENS', 'GEMINI_GROQ_RESERVE_MS',
   'geminiMode', 'GEMINI_ONLY_BUDGET_MS', 'GEMINI_ONLY_MAX_CALL_MS',
   'GEMINI_ONLY_FALLBACK_MIN_MS',
-  'GEMINI_MAX_REQUESTS_PER_RUN', 'GEMINI_ARDISIK_GECICI_MAX', 'geminiRpmWaitMs', 'OPSIYONEL_ADIM_MAX_BEKLEME_MS',
+  'GEMINI_MAX_REQUESTS_PER_RUN', 'GEMINI_ARDISIK_GECICI_MAX', 'geminiRpmWaitMs', 'geminiRetryWaitMs', 'OPSIYONEL_ADIM_MAX_BEKLEME_MS',
+  'GEMINI_YARIS_GENISLIGI_VARSAYILAN', 'geminiYarisGenisligi', 'GEMINI_YARIS_YOKLAMA_MS', 'GEMINI_YEDEK_GECIKME_MS_VARSAYILAN', 'geminiYedekGecikmeMs', 'GEMINI_YEDEK_MIN_KALAN_MS',
   'PACER_COMPLETION_FACTOR', 'DEFAULT_TPM_LIMIT', 'PACER_SAFETY',
   'GEMINI_RPM_RETRY_MIN_REMAINING_MS',
   'bytesToBase64',
@@ -47,13 +48,16 @@ const NAMES = [
   'GEMINI_MAX_RESUMES', 'GEMINI_DEVAM_PAYI_MS', 'GEMINI_DEVAM_KAYIT_PAYI_MS', 'geminiDevamDesteklemeyen',
   'geminiAkisDurumu', 'geminiSseBlogunuIsle', 'geminiAkisiTuket',
   'geminiAkisIstegi', 'geminiAkisSonucu', 'geminiAkisiDevamEttir',
-  'closeTruncatedJson', 'repairLatexEscapes', 'geminiAkisOlcumu'
+  'closeTruncatedJson', 'LATEX_IKI_HARFLI', 'repairLatexEscapes', 'geminiAkisOlcumu', 'onbellegeYazilabilir', 'maddeMetni',
+  'dedupeByText', 'dedupeKeyTerms', 'normalizeForDedup', 'NEAR_DUP_THRESHOLD'
 ];
 
 // Deno global'i: cikarilan kod Deno.env.get cagiriyor. Node'da yok, kukla.
 const denoEnv = new Map();
 // Dakikalik 429 beklemesi gercekte 20 saniye; testi uyutmasin.
 denoEnv.set('GEMINI_RPM_WAIT_MS', '10');
+// Ardisik istekler arasi 2,5 sn'lik pay testte kisaltiliyor — bkz. geminiRetryWaitMs.
+denoEnv.set('GEMINI_RETRY_WAIT_MS', '10');
 globalThis.Deno = { env: { get: (k) => (denoEnv.has(k) ? denoEnv.get(k) : undefined) } };
 
 const G = loadFromSource('supabase/functions/summarize-document/index.ts', NAMES);
@@ -1126,18 +1130,59 @@ test('geminiDraft: ayni alan iki kez atilmaya calisilmaz (sonsuz dongu yok)', as
   } finally { restoreFetch(); }
 });
 
-test('geminiDraft: TEK 503 sonrasi ayni model tekrar denenir ve tutar', async () => {
-  /* Olculdu (09.10.2026): ilk deneme 503 aldi, ikincisi tuttu ve kart
-     Gemini'den geldi. 503 gercekten gecici — bu vaka korunuyor. */
+/* 25.10.2026 — 503 ALAN MODEL ARTIK SIRANIN SONUNDA TEKRAR DENENIYOR.
+ *
+ * 09.10 vakasi (ilk deneme 503, ikincisi tuttu) hala korunuyor: 503 alan
+ * model ikinci sansini aliyor. Degisen SIRASI: once el degmemis adaylar.
+ * Eski hali (2,5 sn sonra ayni model) dort aday x iki deneme = 8 istekle
+ * 6'lik tavana carpip dorduncu adayi hic denemiyordu. */
+test('geminiDraft: TEK 503 sonrasi ONCE diger aday denenir', async () => {
   stubFetch([
-    { status: 503, text: 'currently experiencing high demand' },
+    { status: 503, text: 'gemini-3.7-flash is currently experiencing high demand' },
     { status: 200, json: OK_JSON }
   ]);
   try {
     const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000));
-    assert.ok(out, 'tek 503 sonrasi tekrar deneme yapilmadi');
+    assert.ok(out, '503 sonrasi ikinci aday denenmedi');
     assert.equal(fetchCalls.length, 2);
-    assert.equal(out.model, G.GEMINI_MODEL_CANDIDATES[0], 'ayni model denenmeliydi');
+    assert.equal(out.model, G.GEMINI_MODEL_CANDIDATES[1], 'yogun model 2,5 sn sonra yine denenmis');
+  } finally { restoreFetch(); }
+});
+
+test('geminiDraft: 503 veren model SIRANIN SONUNDA ikinci sansini alir ve tutar', async () => {
+  // Diger adaylar yoksa (404) 503 veren model yine denenir — 09.10 vakasi.
+  stubFetch([
+    { status: 503, text: 'gemini-3.7-flash is currently experiencing high demand' },
+    { status: 404, text: 'model not found' },
+    { status: 404, text: 'model not found' },
+    { status: 404, text: 'model not found' },
+    { status: 200, json: OK_JSON }
+  ]);
+  try {
+    const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000));
+    assert.ok(out, '503 veren model ikinci kez denenmedi');
+    assert.equal(out.model, G.GEMINI_MODEL_CANDIDATES[0]);
+    assert.equal(fetchCalls.length, 5);
+    assert.equal(fetchCalls[4].body.model, G.GEMINI_MODEL_CANDIDATES[0]);
+  } finally { restoreFetch(); }
+});
+
+test('geminiDraft: 503 veren model en fazla IKI kez denenir (sonsuz kuyruk yok)', async () => {
+  stubFetch([
+    { status: 503, text: 'gemini-3.7-flash is currently experiencing high demand' },
+    { status: 404, text: 'model not found' },
+    { status: 404, text: 'model not found' },
+    { status: 404, text: 'model not found' },
+    { status: 503, text: 'gemini-3.7-flash is currently experiencing high demand' },
+    { status: 200, json: OK_JSON }
+  ]);
+  const tani = {};
+  try {
+    const out = await quiet(() =>
+      G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000, 'only', tani));
+    assert.equal(out, null);
+    assert.equal(fetchCalls.length, 5, `${fetchCalls.length} istek — ucuncu 503 denemesi yapilmis`);
+    assert.equal(tani.geciciDustu, true);
   } finally { restoreFetch(); }
 });
 
@@ -1170,19 +1215,36 @@ test('geminiDraft: tek model 503 verirse SONRAKI ADAY denenir', async () => {
   } finally { restoreFetch(); }
 });
 
-test('geminiDraft: IKI AYRI modelde 503 alinirsa durulur', async () => {
-  // Yuzeyin tamami yogunsa ucuncu adayi denemek ayni duvara carpmak.
+/* 25.10.2026 — IKI AYRI MODEL "YUZEY YOGUN" DEMEYE YETMIYOR.
+ *
+ * Kosu 37: 3.8 olu akis verdi, 3.7'ye hic sira gelmedi ve kart Groq'tan
+ * %67 kapsamayla cikti. O gun 3.8 0/4, 3.7 503 almadigi her denemede gercek
+ * akis verdi — model guvenilirligi modele gore degisiyor. Hedef: Groq
+ * YALNIZCA butun Gemini modelleri erisilemezken. */
+test('geminiDraft: IKI AYRI modelde 503 artik DURDURMUYOR — ucuncu aday denenir', async () => {
   stubFetch([
-    { status: 503, text: 'gemini-3.7-flash is currently experiencing high demand' },
     { status: 503, text: 'gemini-3.7-flash is currently experiencing high demand' },
     { status: 503, text: 'gemini-3.8-flash is currently experiencing high demand' },
     { status: 200, json: OK_JSON }
   ]);
   try {
     const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000));
-    assert.equal(out, null, 'iki ayri modelde 503 alindiginda Groq yoluna dusulmeliydi');
-    assert.equal(fetchCalls.length, 3,
-      `${fetchCalls.length} istek yapildi — dorduncu istek yapilmamaliydi`);
+    assert.ok(out, 'iki model yogunken ucuncu aday denenmedi — kart gereksiz yere Groq a dustu');
+    assert.equal(out.model, G.GEMINI_MODEL_CANDIDATES[2]);
+  } finally { restoreFetch(); }
+});
+
+test('geminiDraft: HER adayda gecici hata alinirsa durulur', async () => {
+  // Butun modeller yogunsa ikinci tur ayni duvara carpmak — Groq'un gercek isi bu.
+  stubFetch([
+    ...G.GEMINI_MODEL_CANDIDATES.map(m => ({ status: 503, text: `${m} is currently experiencing high demand` })),
+    { status: 200, json: OK_JSON }
+  ]);
+  try {
+    const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000));
+    assert.equal(out, null, 'butun modeller yogunken Groq yoluna dusulmeliydi');
+    assert.equal(fetchCalls.length, G.GEMINI_MODEL_CANDIDATES.length,
+      `${fetchCalls.length} istek — her aday bir kez yeterli`);
   } finally { restoreFetch(); }
 });
 
@@ -1202,6 +1264,136 @@ test('geminiDraft: IKI AYRI modelde 503 alinirsa durulur', async () => {
  * Yani yuzeyin bir dakikalik yogunlugu, o dosya icin KALICI kalite kaybina
  * dondu ve Gemini'nin bir daha denenmesi imkansiz hale geldi. Ilk iki kosul
  * "kart tam mi" diye soruyor; eksik olan "kart ISTENEN kart mi". */
+/* 24.10.2026 — OLU AKIS GECICI SAYILMIYORDU VE ZAYIF KART KALICILASIYORDU.
+ *
+ * Canli olcum: yuzey istegi kabul etti, 15,4 sn'de baslik gonderdi, sonra
+ * 87 saniye boyunca TEK OLAY uretmedi ve cagri `status: 0` ile dustu
+ * ("ilk olay gelmedi"). Siniflandirma yalnizca 503/500'u gecici saydigi
+ * icin geciciModeller bos kaldi, cik() bayragi koymadi ve o kosunun zayif
+ * Groq karti (kapsama %49, yazar ve review atlanmis) onbellege KALICI
+ * yazildi. Sonraki yuklemeler 1,9 saniyede o karti aldi. */
+test('OLU AKIS gecici sayiliyor — zayif kart kalicilasmaz', async () => {
+  // status 0 + "ilk olay gelmedi": yuzey kabul etti, hicbir sey uretmedi.
+  stubFetch([
+    { status: 0, text: 'ilk olay gelmedi (72000ms, baglanti acik ama veri yok)' },
+    { status: 0, text: 'ilk olay gelmedi (72000ms, baglanti acik ama veri yok)' }
+  ]);
+  const tani = {};
+  try {
+    const out = await quiet(() =>
+      G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000, 'only', tani));
+    assert.equal(out, null, 'olu akista Groq yoluna dusulmeliydi');
+    assert.equal(tani.geciciDustu, true,
+      'olu akis gecici sayilmiyor — zayif Groq karti onbellege kalici yazilir');
+  } finally { restoreFetch(); }
+});
+
+test('OLU AKIS ayni modelde TEKRAR denenmiyor', async () => {
+  /* Olu akis 87 saniye yakti; ikinci deneme butceyi bitirir. 503'ten farki
+     bu: 503 hizli doner, tekrar denemek ucuzdur. */
+  stubFetch([
+    { status: 0, text: 'ilk olay gelmedi (72000ms, baglanti acik ama veri yok)' },
+    { status: 200, json: OK_JSON }
+  ]);
+  try {
+    const out = await quiet(() =>
+      G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000));
+    assert.ok(out, 'sonraki aday denenmeliydi');
+    assert.equal(out.model, G.GEMINI_MODEL_CANDIDATES[1],
+      `ayni model tekrar denenmis: ${out.model}`);
+    assert.equal(fetchCalls.length, 2, `${fetchCalls.length} istek — olu akis tekrar denenmis`);
+  } finally { restoreFetch(); }
+});
+
+test('503 veren model SIRANIN SONUNDA bir kez daha deneniyor (regresyon)', () => {
+  /* Olu akis ayrimi 503'un ikinci sansini yok etmemeli; 25.10.2026'dan beri
+     ikinci sans 2,5 sn sonra degil, diger adaylardan SONRA. */
+  const src = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+  assert.ok(/if \(!oluAkis && bu503 < 2\) return \{ tur: 'sonra' \}/.test(src),
+    '503 icin ikinci sans kaybolmus');
+  assert.ok(/tur === 'sonra' && !sonaAlinan\.has\(m\)/.test(src), 'sona alma bir kezle sinirli degil');
+  assert.ok(/const oluAkis = res\.status === 0/.test(src), 'olu akis ayrimi yok');
+});
+
+/* 25.10.2026 — GECIKMELI YEDEK MODEL (kosu 37 dersi).
+ *
+ * 3.8 istegi kabul etti, 72 sn tek olay gelmedi; olu akis 87. saniyede
+ * anlasildi ve 3.7'ye 15 sn kaldi — hic denenmedi, kart Groq'tan cikti.
+ * Artik ilk model GEMINI_YEDEK_GECIKME_MS icinde olay getirmezse siradaki
+ * aday paralel baslar; ilk olayi getiren kazanir. */
+test('YEDEK: sessiz ilk model beklenirken ikinci aday baslar ve kazanir', async () => {
+  denoEnv.set('GEMINI_YEDEK_GECIKME_MS', '20');
+  stubFetch([
+    { status: 200, hang: true },       // 3.7: baglanti acik, olay yok (olu akis)
+    { status: 200, json: OK_JSON }     // 3.8: gercek akis
+  ]);
+  try {
+    const out = await quiet(() =>
+      G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000, 'only'));
+    assert.ok(out, 'yedek model baslamadi — olu akis butun Gemini butcesini yerdi');
+    assert.equal(out.model, G.GEMINI_MODEL_CANDIDATES[1]);
+    assert.equal(fetchCalls.length, 2, `${fetchCalls.length} istek`);
+  } finally { restoreFetch(); denoEnv.delete('GEMINI_YEDEK_GECIKME_MS'); }
+});
+
+test('YEDEK: hizli cevap veren modelde yedek HIC baslamaz (RPD korunur)', async () => {
+  denoEnv.set('GEMINI_YEDEK_GECIKME_MS', '20');
+  stubFetch([{ status: 200, json: OK_JSON }, { status: 200, json: OK_JSON }]);
+  try {
+    const out = await quiet(() =>
+      G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000, 'only'));
+    assert.ok(out);
+    assert.equal(fetchCalls.length, 1, 'hizli modelde yedek baslatilmis — her kosu +1 RPD');
+  } finally { restoreFetch(); denoEnv.delete('GEMINI_YEDEK_GECIKME_MS'); }
+});
+
+test('YEDEK: yedek de 503 verirse siradaki aday yedek olur', async () => {
+  denoEnv.set('GEMINI_YEDEK_GECIKME_MS', '20');
+  stubFetch([
+    { status: 200, hang: true },
+    { status: 503, text: 'gemini-3.8-flash is currently experiencing high demand' },
+    { status: 200, json: OK_JSON }
+  ]);
+  try {
+    const out = await quiet(() =>
+      G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000, 'only'));
+    assert.ok(out, 'ikinci yedek baslatilmadi');
+    assert.equal(out.model, G.GEMINI_MODEL_CANDIDATES[2]);
+    assert.equal(fetchCalls.length, 3);
+  } finally { restoreFetch(); denoEnv.delete('GEMINI_YEDEK_GECIKME_MS'); }
+});
+
+test('YEDEK: kurallar kaynakta — yalnizca only, akissiz yolda yok, toplam tavanda kesilir', () => {
+  const src = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+  assert.ok(/const yedekGecikme = mode === 'only' \? geminiYedekGecikmeMs\(\) : -1/.test(src),
+    'yedek shadow modunda da calisiyor — Gemini birincil degilken RPD yakar');
+  assert.ok(/yedekGecikme < 0 \|\| dropped\.indexOf\('stream'\) !== -1/.test(src),
+    'akissiz yolda olay hic gelmez; yedek her kosuda baslar');
+  // Yedegin tavani devam tavanina uzanir ama olaysiz yarisci toplam tavanda kesilir.
+  assert.ok(/const yedekMs = Math\.min\(callMs, geminiDevamTavan - gecen\)/.test(src));
+  assert.ok(/gecen >= geminiToplamTavan && !tavanKesti/.test(src),
+    'olay getirmeyen yedek Groq un payini yiyebilir');
+  // Kazanan once islenir; kesilen kaybeden hic islenmez.
+  assert.ok(/return \[kayit\(olayli\), \.\.\.dusen\]/.test(src));
+  assert.ok(/toplamIstek < GEMINI_MAX_REQUESTS_PER_RUN &&\s*geminiToplamTavan - gecen >= GEMINI_YEDEK_MIN_KALAN_MS/.test(src),
+    'yedek istek tavanina ya da kalan sureye bakmiyor');
+});
+
+test('YEDEK: gecikme olculen hizli ilk olaylarin ustunde, ikinci modele yer birakiyor', () => {
+  // Bant kucultulduktan sonra olculen ilk olaylar: 17,5 / 26,1 / 29,9 sn.
+  assert.ok(G.GEMINI_YEDEK_GECIKME_MS_VARSAYILAN > 29_900,
+    'hizli cevap veren modelde de yedek baslar — her kosu +1 RPD');
+  // Yedek bu anda baslarsa ~72 sn'lik bir uretim devam tavanina sigmali.
+  assert.ok(G.GEMINI_YEDEK_GECIKME_MS_VARSAYILAN + 72_000 <= G.GEMINI_ONLY_MAX_CALL_MS + G.GEMINI_DEVAM_PAYI_MS,
+    'yedek basladiginda tam bir uretime yer kalmiyor');
+  denoEnv.set('GEMINI_YEDEK_GECIKME_MS', 'kapali');
+  assert.equal(G.geminiYedekGecikmeMs(), -1);
+  denoEnv.delete('GEMINI_YEDEK_GECIKME_MS');
+  assert.equal(G.geminiYedekGecikmeMs(), G.GEMINI_YEDEK_GECIKME_MS_VARSAYILAN);
+});
+
 test('gecici hatayla dusuldugunde tani cagirana BILDIRILIYOR', async () => {
   stubFetch([
     { status: 503, text: 'gemini-3.7-flash is currently experiencing high demand' },
@@ -1248,19 +1440,324 @@ test('BASARILI kosuda gecici dusus BILDIRILMIYOR', async () => {
   } finally { restoreFetch(); }
 });
 
-test('onbellek kapisi gecici dusus KOSULUNU okuyor', () => {
+/* 24.10.2026 — BU TEST KOSULLARIN VARLIGINI OLCUYORDU, MANTIGINI DEGIL.
+ *
+ * Eski hali `satir.includes('geminiKismiKrk === 0')` gibi dizge aramalari
+ * yapiyordu. Yani `&&` -> `||` yazilsa, bir `!` dusse ya da kapi baska bir
+ * dalin icine tasinsa test YESIL kalir ve kismi/zayif kart kalici olarak
+ * onbellege girerdi. Karar artik saf bir fonksiyonda (onbellegeYazilabilir)
+ * ve 16 kombinasyonun tamami sinaniyor. */
+/* 24.10.2026 — SEMA SAPMASI BIRLESMEYI COKERTIYORDU VE BELGE ASKIDA KALIYORDU.
+ *
+ * Model (ozellikle gpt-oss-20b, ki pencere 2 sistematik olarak oraya dusuyor)
+ * `key_points`'i bazen [{point: "..."}] olarak donduruyor. Iki dedupeByText
+ * cagrisi kimlik fonksiyonu geciyordu ve normalizeForDedup dizge bekledigi
+ * icin TypeError atiyordu — olculdu:
+ *   normalizeForDedup({text:'...'}) -> (s || "").toLowerCase is not a function
+ * Ustune en dis catch markFailed CAGIRMIYORDU, yani belge sonsuza kadar
+ * 'processing' kaliyor ve ogrenci bekliyordu. */
+test('maddeMetni SEKILDEN bagimsiz okuyor', () => {
+  assert.equal(G.maddeMetni('Issizlik artti'), 'Issizlik artti');
+  assert.equal(G.maddeMetni({ text: 'Issizlik artti' }), 'Issizlik artti');
+  assert.equal(G.maddeMetni({ point: 'Issizlik artti' }), 'Issizlik artti');
+  assert.equal(G.maddeMetni(null), '');
+  assert.equal(G.maddeMetni({}), '');
+});
+
+test('birlesme NESNE maddelerde COKMUYOR', () => {
+  /* Asil kusur bir istisnaydi; bu yuzden "patlamiyor" iddiasini aciktan
+     yaziyorum. Kimlik fonksiyonu geri gelirse bu test duser. */
+  assert.doesNotThrow(() => G.dedupeByText([{ point: 'a' }, { point: 'b' }], G.maddeMetni));
+  assert.equal(G.dedupeByText([{ point: 'a' }, { point: 'b' }, { point: 'a' }], G.maddeMetni).length, 2);
+  assert.equal(G.dedupeByText(['a', { point: 'b' }, null], G.maddeMetni).length, 2,
+    'karisik dizi de tolere edilmeli');
+});
+
+test('cagri yerleri kimlik fonksiyonu KULLANMIYOR', () => {
   const src = require('node:fs').readFileSync(
     require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
-  assert.ok(src.includes('!geminiTani.geciciDustu'),
-    'cache kapisi yedek yolu ayirt etmiyor — zayif kart kalicilasir');
-  const kapi = src.indexOf('if (summaryCacheKey && !eksikPencereler');
-  assert.ok(kapi > 0, 'cache yazma kapisi bulunamadi');
-  /* Uc kosul birlikte: tam kart (iki) + istenen kart (bir). Biri dusunce
-     digerleri de gitmesin diye tek satirda tutuluyor. */
-  const satir = src.slice(kapi, src.indexOf('\n', kapi));
-  for (const k of ['!eksikPencereler', 'geminiKismiKrk === 0', '!geminiTani.geciciDustu']) {
-    assert.ok(satir.includes(k), `cache kapisinda ${k} yok: ${satir}`);
+  assert.ok(!/dedupeByText\([^)]*\(x: string\) => x\)/.test(src),
+    'kimlik getter geri gelmis — nesne maddede TypeError atar');
+  assert.equal((src.match(/dedupeByText\([^;]*maddeMetni\)/g) || []).length, 2,
+    'iki key_points birlesmesinin ikisi de sekil-toleransli okuyucu kullanmali');
+});
+
+test('key_terms DIZGE dizisi olarak gelirse sozluk KAYBOLMUYOR', () => {
+  /* Olculdu: dedupeKeyTerms(['Esneklik','GSYH']) -> 0 kayit. "Window 2 ok:
+     terms=24" yaziliyor, birlesim o 24'u hic icermiyor, hicbir satir neden
+     gittigini soylemiyordu. */
+  const r = G.dedupeKeyTerms(['Esneklik', 'GSYH', 'Esneklik']);
+  assert.equal(r.length, 2, 'dizge terimler hala sessizce dusuyor');
+  assert.equal(r[0].term, 'Esneklik');
+  assert.equal(r[0].definition, '', 'tanim alani bos dizge olmali');
+  // Nesne yolu bozulmadi.
+  assert.equal(G.dedupeKeyTerms([{ term: 'Esneklik', definition: 'tanim' }]).length, 1);
+  // Gercekten atilan kayit hala atiliyor (ama artik loglaniyor).
+  assert.equal(G.dedupeKeyTerms([{ definition: 'term alani yok' }]).length, 0);
+});
+
+test('beklenmeyen istisna belgeyi ASKIDA birakmiyor', () => {
+  const src = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+  const i = src.indexOf("console.error('Unexpected Edge Function exception: '");
+  assert.ok(i > 0, 'en dis catch bulunamadi');
+  const blok = src.slice(i, i + 600);
+  assert.ok(/markFailed\(hataIcinClient, hataIcinDocumentId\)/.test(blok),
+    'en dis catch belgeyi basarisiz isaretlemiyor — ogrenci sonsuza kadar bekler');
+  // documentId'nin catch'e ulasabilmesi icin try DISINDA tutulmasi gerekiyor.
+  assert.ok(/let hataIcinDocumentId: string \| null = null/.test(src),
+    'documentId catch e tasinmiyor');
+});
+
+test('ATLANAN pencereler eksik kapsamaya sayiliyor', () => {
+  /* Iki kisa devre (butce ve "enough extractions") kalan pencereleri hic
+     cagirmiyor, ama dusenPencereler'e girmiyordu: "EKSIK BELGE" olcumu ve
+     quality_meta.missing_windows bu kaybi hic gormuyordu. 12 pencereli bir
+     belgede ucte ikisi karta girmeyebilir ve hicbir yerde yazmazdi. */
+  const src = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+  assert.ok(/const kalanlariAtla = \(sebep: string\)/.test(src), 'atlama muhasebesi yok');
+  const i = src.indexOf('const kalanlariAtla =');
+  const blok = src.slice(i, i + 420);
+  assert.ok(/dusenPencereler\.push\(wi \+ 1\)/.test(blok),
+    'atlanan pencereler dusenPencereler e yazilmiyor');
+  /* Iki kisa devrenin IKISI de bu muhasebeden gecmeli: butce dar ve
+     "yeterli cikarim". Tanim `kalanlariAtla = (` biciminde oldugu icin
+     asagidaki desene uymuyor; sayilan sey yalnizca CAGRI yerleri. */
+  assert.equal((src.match(/kalanlariAtla\(`/g) || []).length, 2,
+    'iki kisa devreden biri muhasebeye baglanmamis');
+  assert.ok(/kalanlariAtla\(`Butce dar/.test(src), 'butce kisa devresi baglanmamis');
+  assert.ok(/kalanlariAtla\(`Yeterli cikarim/.test(src), 'yeterli-cikarim kisa devresi baglanmamis');
+  assert.ok(!/console\.log\('Enough extractions — skipping remaining windows'\)/.test(src),
+    'eski sessiz log hala duruyor');
+});
+
+test('onbellek kapisi: 16 kombinasyonun tamami', () => {
+  const T = [true, false];
+  let yazilan = 0;
+  for (const anahtarVar of T) {
+    for (const eksikPencereVar of T) {
+      for (const kismi of T) {
+        for (const geciciDustu of T) {
+          const k = { anahtarVar, eksikPencereVar, geminiKismiKrk: kismi ? 2000 : 0, geciciDustu };
+          const sonuc = G.onbellegeYazilabilir(k);
+          const beklenen = anahtarVar && !eksikPencereVar && !kismi && !geciciDustu;
+          assert.equal(sonuc, beklenen,
+            `yanlis karar: ${JSON.stringify(k)} -> ${sonuc}, beklenen ${beklenen}`);
+          if (sonuc) yazilan++;
+        }
+      }
+    }
   }
+  // 16 kombinasyondan YALNIZCA biri yazmali: dort kosulun hepsi lehte.
+  assert.equal(yazilan, 1, `${yazilan} kombinasyon yaziyor — kapi gevsemis`);
+});
+
+test('onbellek kapisi: her kosul TEK BASINA engelliyor', () => {
+  const temel = { anahtarVar: true, eksikPencereVar: false, geminiKismiKrk: 0, geciciDustu: false };
+  assert.equal(G.onbellegeYazilabilir(temel), true, 'temel hal yazmali');
+  const engeller = [
+    ['anahtar yok', { anahtarVar: false }],
+    ['eksik pencere', { eksikPencereVar: true }],
+    ['kismi Gemini taslagi', { geminiKismiKrk: 1 }],
+    ['gecici hatayla dusus', { geciciDustu: true }],
+  ];
+  for (const [ad, fark] of engeller) {
+    assert.equal(G.onbellegeYazilabilir({ ...temel, ...fark }), false,
+      `${ad} tek basina engellemiyor — zayif kart kalicilasir`);
+  }
+});
+
+test('onbellek kapisi kaynakta SAF fonksiyondan cagriliyor', () => {
+  const src = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+  assert.ok(/if \(onbellegeYazilabilir\(\{/.test(src),
+    'kapi hala satir ici kosul zinciri — mantigi test edilemez');
+  assert.ok(!/if \(summaryCacheKey && !eksikPencereler/.test(src),
+    'eski satir ici kapi hala duruyor');
+  // Dort alanin dordu de gercekten baglanmis olmali.
+  const i = src.indexOf('if (onbellegeYazilabilir({');
+  const blok = src.slice(i, i + 320);
+  for (const alan of ['anahtarVar', 'eksikPencereVar', 'geminiKismiKrk', 'geciciDustu']) {
+    assert.ok(blok.includes(alan), `${alan} kapiya baglanmamis: ${blok.slice(0, 160)}`);
+  }
+});
+
+/* 24.10.2026 — ATLAMA KAPISI YANLIS BUTCEYE BAKIYORDU.
+ *
+ * Kapi `budgetLeft()` okuyordu; o fonksiyon `pipelineBudgetMs`'e bagli ve
+ * orasi Gemini kolu secilene kadar hala GROQ butcesi (110 sn eksi hazirlik).
+ * Gemini'nin kendi butcesi (only modunda 145 sn) kapi GECILDIKTEN sonra
+ * kuruluyordu. Hazirligi uzun bir belgede (OCR'li deste, hazirlik ~58 sn)
+ * kapi 52.000 < 55.000 diye Gemini'yi atliyordu — oysa only modunda o
+ * belgeye 87.000 ms kalacakti. */
+/* ==========================================================================
+   MODEL YARISI (24.10.2026)
+
+   "En bosta olani sec" sorgulamayla yapilamaz — Google'in boyle bir ucu yok.
+   Olcumler yarisi mumkun kiliyor: 503 5-7 saniyede donuyor (mesgul model
+   kendini hizli belli ediyor), ilk byte her modelde ~15,2 sn oldugu icin
+   AYIRT ETMIYOR, ilk OLAY ise 17-60 sn arasinda savruluyor — kazanan ilk
+   islenmis olayi getiren.
+
+   VARSAYILAN KAPALI ve bu bilincli: yaris basarili kosuda da bir istek fazla
+   harciyor (iki POST ayni anda gider) ve bu, "terminal olmayan durumda
+   SONRAKI ADAY MODEL denenmez" korumasiyla celisiyor. Kazanc mesgul model
+   basina ~7 saniye, bedel her kosuda +1 RPD (model basina 20).
+   ========================================================================== */
+test('yaris VARSAYILAN KAPALI: basarili kosuda tek istek', async () => {
+  denoEnv.delete('GEMINI_YARIS_GENISLIGI');
+  assert.equal(G.geminiYarisGenisligi(), 1, 'varsayilan 1 degil — kota korumasi acilmis');
+  stubFetch([{ status: 200, json: OK_JSON }]);
+  try {
+    const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000));
+    assert.ok(out, 'taslak gelmeliydi');
+    assert.equal(fetchCalls.length, 1, 'yaris kapaliyken ikinci istek atilmis');
+  } finally { restoreFetch(); }
+});
+
+test('yaris genisligi secret ten okunuyor, deploy gerekmiyor', () => {
+  denoEnv.set('GEMINI_YARIS_GENISLIGI', '2');
+  assert.equal(G.geminiYarisGenisligi(), 2);
+  denoEnv.set('GEMINI_YARIS_GENISLIGI', '  3 ');
+  assert.equal(G.geminiYarisGenisligi(), 3, 'bosluk/yazim onemsiz olmali');
+  // Aday sayisindan fazlasi istenemez.
+  denoEnv.set('GEMINI_YARIS_GENISLIGI', '99');
+  assert.equal(G.geminiYarisGenisligi(), G.GEMINI_MODEL_CANDIDATES.length);
+  // Anlamsiz deger varsayilana doner (yaris kapali kalir).
+  for (const kotu of ['0', '-1', 'abc', '']) {
+    denoEnv.set('GEMINI_YARIS_GENISLIGI', kotu);
+    assert.equal(G.geminiYarisGenisligi(), G.GEMINI_YARIS_GENISLIGI_VARSAYILAN,
+      `"${kotu}" varsayilana donmeli`);
+  }
+  denoEnv.delete('GEMINI_YARIS_GENISLIGI');
+});
+
+test('yaris ACIKKEN iki model AYNI ANDA deneniyor', async () => {
+  denoEnv.set('GEMINI_YARIS_GENISLIGI', '2');
+  stubFetch([
+    { status: 200, json: OK_JSON },
+    { status: 200, json: OK_JSON }
+  ]);
+  try {
+    const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000));
+    assert.ok(out, 'taslak gelmeliydi');
+    assert.equal(fetchCalls.length, 2, 'yaris acikken iki istek gitmeli');
+    const modeller = fetchCalls.map((c) => {
+      return (c.body && c.body.model) || null;   // stubFetch body'yi ZATEN ayristiriyor
+    });
+    assert.deepEqual(modeller, G.GEMINI_MODEL_CANDIDATES.slice(0, 2),
+      'yarisa ilk iki aday girmedi: ' + JSON.stringify(modeller));
+  } finally { restoreFetch(); denoEnv.delete('GEMINI_YARIS_GENISLIGI'); }
+});
+
+test('yarista 503 veren model SIRALI yolda tekrar denenmiyor', async () => {
+  /* Yarista mesgul oldugu OLCULEN bir modeli sirali yolda bir daha denemek
+     gunluk kotadan bos yere istek goturur. */
+  denoEnv.set('GEMINI_YARIS_GENISLIGI', '2');
+  stubFetch([
+    { status: 503, text: 'gemini-3.7-flash is currently experiencing high demand' },
+    { status: 503, text: 'gemini-3.8-flash is currently experiencing high demand' },
+    { status: 200, json: OK_JSON }
+  ]);
+  try {
+    const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000));
+    /* Yarisin iki adayi 503 verdi; sirali yol onlari ATLAYIP ucuncu adayla
+       devam eder (25.10.2026: iki model artik "yuzey yogun" sayilmiyor). */
+    assert.ok(out, 'yarista iki model yogunken ucuncu aday denenmedi');
+    assert.equal(fetchCalls.length, 3);
+    assert.equal(fetchCalls[2].body.model, G.GEMINI_MODEL_CANDIDATES[2],
+      'yarista 503 veren model sirali yolda yine denenmis');
+  } finally { restoreFetch(); denoEnv.delete('GEMINI_YARIS_GENISLIGI'); }
+});
+
+test('yaris isleme blogunu PAYLASIYOR, kopyalamiyor', () => {
+  const src = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+  // Yaris ve sirali yol AYNI fonksiyonu cagirmali.
+  const cagrilar = (src.match(/await denemeSonucunuIsle\(/g) || []).length;
+  assert.equal(cagrilar, 2, `isleme fonksiyonu ${cagrilar} yerden cagriliyor — biri kopya olabilir`);
+  assert.equal((src.match(/const denemeSonucunuIsle = async/g) || []).length, 1,
+    'isleme fonksiyonu birden fazla tanimlanmis');
+  // Kaybedenler iptal edilmeli, yoksa token ve baglanti tutmaya devam ederler.
+  assert.ok(/kontroller\.forEach\(\(c, i\) => \{ if \(i !== kazanan\) c\.abort\(\) \}\)/.test(src),
+    'yarisi kaybedenler iptal edilmiyor');
+  assert.ok(/disSinyal\?: AbortSignal/.test(src), 'dis iptal borusu yok');
+});
+
+test('atlama kapisi MOD BUTCESINE bakiyor, Groq butcesine degil', () => {
+  const src = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+  assert.ok(src.includes('const geminiModButcesi = ()'), 'mod butcesi tek yerden okunmuyor');
+  assert.ok(src.includes('geminiModKalan() < GEMINI_MIN_BUDGET_MS'),
+    'kapi hala budgetLeft() okuyor — Groq butcesiyle karar veriyor');
+  assert.ok(!/else if \(budgetLeft\(\) < GEMINI_MIN_BUDGET_MS\)/.test(src),
+    'eski kapi hala duruyor');
+  /* Kapi ve genisletme AYNI ifadeyi okumali; ayrisirlarsa kapi yine yanlis
+     butceye bakar. Genisletme artik dogrudan yardimciyi cagiriyor. */
+  assert.ok(src.includes('pipelineBudgetMs = geminiModButcesi()'),
+    'genisletme kapiyla ayni ifadeyi kullanmiyor');
+});
+
+test('ARITMETIK: uzun hazirlikta only modu Gemini\'yi ATLAMAZ', () => {
+  const hazirlikMs = 58_000;   // OCR'li 42 sayfalik deste
+  const groqButcesi = G.PIPELINE_BUDGET_MS - hazirlikMs;
+  const onlyButcesi = G.GEMINI_ONLY_BUDGET_MS - hazirlikMs;
+  // Eski davranis: Groq butcesiyle karar -> atlanirdi.
+  assert.ok(groqButcesi < G.GEMINI_MIN_BUDGET_MS,
+    `Groq butcesi ${groqButcesi}ms esigin ustunde — bu testin anlatti­gi hata artik olusmaz, senaryoyu guncelle`);
+  // Yeni davranis: only butcesiyle karar -> atlanmaz.
+  assert.ok(onlyButcesi >= G.GEMINI_MIN_BUDGET_MS,
+    `only butcesi ${onlyButcesi}ms — esik ${G.GEMINI_MIN_BUDGET_MS}ms, Gemini hala atlanir`);
+});
+
+/* 24.10.2026 — GECICI-HATA BAYRAGI ON BIR CIKISIN IKISINDE KONUYORDU.
+ *
+ * Senaryo: model-1 503 verir, model-2'nin akisi tavanda kesilir, kurtarma
+ * "kart olmaya yetmiyor" der ve o daldan donulur. Bayrak false kaldigi icin
+ * %56 kapsamali Groq karti onbellege KALICI yazilir ve o dosya icin Gemini
+ * bir daha hic denenmez. Artik kural tek yerde: cik(). */
+test('geminiDraft butun cikislari cik() uzerinden gecirir', () => {
+  const src = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+  const bas = src.indexOf('async function geminiDraft(');
+  assert.ok(bas > 0, 'geminiDraft bulunamadi');
+  const son = src.indexOf('\n}', src.indexOf('hicbir aday model taslak uretemedi', bas));
+  const govde = src.slice(bas, son);
+
+  // Bayrak TEK yerde konmali: cik() icinde.
+  const bayrakSayisi = (govde.match(/geciciDustu = true/g) || []).length;
+  assert.equal(bayrakSayisi, 1,
+    `bayrak ${bayrakSayisi} yerde konuyor — kural dagilmis, bir cikis atlanabilir`);
+  assert.ok(/const cik = \(\): null => \{[\s\S]{0,160}geciciDustu = true/.test(govde),
+    'bayrak cik() icinde degil');
+
+  /* Ciplak `return null` yalnizca iki ISTEK ONCESI yolda ve cik()'in kendi
+     govdesinde mesru (orada geciciModeller zorunlu olarak bos). Bundan
+     fazlasi, bayragi atlayan yeni bir cikis demek. */
+  /* Yorumlar ayiklanir: gerekce metinleri `return null` ifadesini anlatiyor
+     ve sayimi sisiriyordu (bu test ilk yazildiginda tam bunu yasadi). */
+  const kod = govde
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|\s)\/\/[^\n]*/g, '$1');
+  const ciplak = (kod.match(/return null/g) || []).length;
+  assert.ok(ciplak <= 3,
+    `${ciplak} ciplak return null var — yeni bir cikis bayragi atliyor olabilir`);
+
+  /* 24.10.2026: isleme blogu ortak bir fonksiyona (denemeSonucunuIsle)
+     tasindiktan sonra "birak" karari DEGER olarak donuyor; bayragi dagitim
+     noktasi koyuyor. Korunan sey ayni: her birakma yolu cik()'ten geciyor.
+     Bu yuzden artik `return cik()` SAYISI degil, her `'birak'` degerinin
+     cik()'e baglandigi dogrulaniyor. */
+  assert.ok(/denemeSonucu\.tur === 'birak'\) return cik\(\)/.test(kod),
+    "dagitim 'birak' sonucunu cik()'e baglamiyor — bayrak atlanir");
+  assert.ok(/denemeSonucu\.tur === 'taslak'\) return denemeSonucu\.taslak/.test(kod),
+    'dagitim taslak sonucunu dondurmuyor');
+  assert.ok((kod.match(/return cik\(\)/g) || []).length >= 3,
+    'cik() neredeyse hic kullanilmiyor — bayrak yolu kopmus olabilir');
+  // Isleme blogu TEK yerde olmali: ikinci bir kopya dogmasin.
+  assert.equal((kod.match(/const denemeSonucunuIsle = async/g) || []).length, 1,
+    'isleme fonksiyonu birden fazla kez tanimlanmis');
 });
 
 test('gecici hata sayaci MODEL ayirt ediyor', () => {
@@ -1308,18 +1805,34 @@ test('geminiQuotaExhausted: 503 ve 500 kota degildir', () => {
   assert.equal(G.geminiQuotaExhausted(400, 'exceeded a quota'), false);
 });
 
-test('geminiDraft: GUNLUK kota dolunca TEK istekte durur', async () => {
-  // Gunluk kota proje seviyesinde: baska modeli denemek de, tekrar denemek de
-  // ayni duvara carpar ve kotadan bosuna istek goturur.
-  stubFetch([{ status: 429, text: 'Quota exceeded for metric generate_requests_per_day' }]);
-  {
-    try {
-      const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000));
-      assert.equal(out, null);
-      assert.equal(fetchCalls.length, 1,
-        `gunluk kota 429 undan sonra ${fetchCalls.length} istek yapildi — biri yeterli`);
-    } finally { restoreFetch(); }
-  }
+/* 25.10.2026 — GUNLUK KOTA MODEL BASINA. Eski test "proje seviyesinde"
+   diyordu; ucretsiz katmanda RPD model basina 20. 3.7'nin gunu bitince
+   3.5/3.6'nin kotasi duruyor — "Groq yalnizca kota bitince" butun modellerin
+   kotasi demek. */
+test('geminiDraft: bir modelin GUNLUK kotasi dolunca SONRAKI aday denenir', async () => {
+  stubFetch([
+    { status: 429, text: 'Quota exceeded for metric generate_requests_per_day, model: gemini-3.7-flash' },
+    { status: 200, json: OK_JSON }
+  ]);
+  try {
+    const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000));
+    assert.ok(out, 'tek modelin kotasi dolunca Groq a dusuldu');
+    assert.equal(out.model, G.GEMINI_MODEL_CANDIDATES[1]);
+    assert.equal(fetchCalls.length, 2);
+  } finally { restoreFetch(); }
+});
+
+test('geminiDraft: BUTUN modellerin kotasi doluysa durulur, kart kalicilasmaz', async () => {
+  stubFetch(G.GEMINI_MODEL_CANDIDATES.map(m =>
+    ({ status: 429, text: `Quota exceeded for metric generate_requests_per_day, model: ${m}` })));
+  const tani = {};
+  try {
+    const out = await quiet(() =>
+      G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000, 'only', tani));
+    assert.equal(out, null);
+    assert.equal(fetchCalls.length, G.GEMINI_MODEL_CANDIDATES.length, 'her model bir kez yeterli');
+    assert.equal(tani.geciciDustu, true, 'kota yarin acilir — bugunun Groq karti onbellege girmemeli');
+  } finally { restoreFetch(); }
 });
 
 test('geminiDraft: dakikalik 429 BIR kez tekrar denenir, aday turlanmaz', async () => {

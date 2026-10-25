@@ -46,7 +46,7 @@ const NEEDED = [
   'mermaidPrettyLabels',
   // Cozumlu ornek adimlari, para birimi, ozet paragraflari (09.10.2026).
   'escapeHtml', 'normalizeWorkedSteps', 'splitStepCalc', 'prettyCalc', 'splitCalcChain',
-  'sadeKatexKomutu', 'renderMathInText', 'renderWorkedStepHtml', 'acikVurgu', 'OZET_KISALTMA_RE', 'summaryParagraphs', 'inlineMath', 'inlineMarkdown',
+  'sadeKatexKomutu', 'mathDelimRe', 'renderMathInText', 'renderWorkedStepHtml', 'acikVurgu', 'OZET_KISALTMA_RE', 'summaryParagraphs', 'inlineMath', 'inlineMarkdown',
   'stripInlineMarkdown',
   'PDF_TYPE', 'drawPdfSectionHeader',
   // mermaidToSteps iki gecise cikti (09.10.2026); desenleri artik modul
@@ -74,7 +74,12 @@ function pdfToText(doc) {
   fs.writeFileSync(tmp, Buffer.from(doc.output('arraybuffer')));
   try {
     const { execFileSync } = require('node:child_process');
-    return execFileSync('pdftotext', ['-layout', tmp, '-'], { encoding: 'utf8' });
+    /* -enc UTF-8 ZORUNLU (25.10.2026). Bu makinedeki pdftotext xpdf 4.06 ve
+       varsayilan cikti kodlamasi Latin1: Latin1'de olmayan harfleri (İ ı ş Ş
+       ğ Ğ) sessizce ATIYOR. Canli PDF'in metin cikisinda gorulen "BELGE
+       SKELET", "ANAHTAR TERMLER", "BOLUK DOLDURMA" tam olarak buydu — PDF
+       saglam, okuyucu kodlamasi degil. */
+    return execFileSync('pdftotext', ['-enc', 'UTF-8', '-layout', tmp, '-'], { encoding: 'utf8' });
   } finally {
     fs.unlinkSync(tmp);
   }
@@ -721,10 +726,17 @@ test('Tablolar/Grafikler/Diyagramlar ayni baslik dilini kullanir', () => {
   assert.ok(ciz, 'drawPlainSectionHeader bulunamadi');
   assert.ok(/drawPdfSectionHeader\(/.test(ciz[0]), 'duz baslik ortak ciziciyi cagirmiyor');
   assert.ok(!/roundedRect/.test(ciz[0]), 'renkli nokta hala ciziliyor');
-  for (const etiket of ['TABLOLAR', 'GRAF', 'DIYAGRAMLAR', 'DİYAGRAMLAR']) {
-    if (etiket === 'GRAF') {
-      assert.ok(/drawPlainSectionHeader\('GRAF[İI]KLER'/.test(govde), 'Grafikler etiketi buyuk harf degil');
-    }
+  /* 24.10.2026 — DONGUNUN DORT YINELEMESININ UCU BOS GECIYORDU.
+     `if (etiket === 'GRAF')` disindaki her yinelemede govde bostu; okuyana
+     "dort etiket denetlendi" izlenimi veriyordu, oysa TEK etiket
+     denetleniyordu. Yeni bir duz bolum eklenirse de hicbir sey kontrol
+     edilmezdi. Dongu kaldirildi, uc etiket tek tek araniyor. */
+  for (const desen of [
+    /drawPlainSectionHeader\('TABLOLAR'/,
+    /drawPlainSectionHeader\('GRAF[İI]KLER'/,
+    /drawPlainSectionHeader\('D[İI]YAGRAMLAR'/
+  ]) {
+    assert.ok(desen.test(govde), `duz bolum basligi bulunamadi: ${desen}`);
   }
   assert.ok(/drawPlainSectionHeader\('TABLOLAR'/.test(govde), 'Tablolar etiketi buyuk harf degil');
   assert.ok(/drawPlainSectionHeader\('D[İI]YAGRAMLAR'/.test(govde), 'Diyagramlar etiketi buyuk harf degil');
@@ -790,6 +802,42 @@ test('diyagram bolumune ham mermaid kaynagi dusmez', () => {
   assert.ok(!t.includes('flowchart'), 'ham mermaid kaynagi PDF e dusmus');
   assert.ok(!/A\[/.test(t) && !/-->/.test(t), 'mermaid soz dizimi PDF e dusmus');
   assert.ok(t.includes('Baslangic') && t.includes('Son'), 'dugum etiketleri kaybolmus');
+});
+
+/* 25.10.2026 — "PDF'te Turkce harfler eksik" SORUSUNUN CEVABI.
+ *
+ * Canli kartin pdftotext cikisinda "BELGE SKELET", "ANAHTAR TERMLER",
+ * "DYAGRAMLAR", "BOLUK DOLDURMA", "Oluturulma", "ngilizce" vardi. Eksik olan
+ * harfler TAM OLARAK Latin1 disindakiler (İ ş Ş ğ ı); ç ö ü yerindeydi.
+ * Olculdu: ayni PDF `-enc UTF-8` ile okununca hepsi geri geliyor. Gomulu
+ * fontta glif de ToUnicode eslemesi de var (<00f8> -> U+0130 gibi), yani
+ * ogrencinin gordugu sayfa ve kopyaladigi metin dogru; eksiklik okuyucunun
+ * Latin1 varsayilanindan. Helvetica olsaydi desen farkli olurdu ("0SKELET0").
+ *
+ * Bu test o yolu GERCEK appendStudyCardToDoc ile, unicodeReady=TRUE ve gomulu
+ * bir TTF ile kilitliyor. DejaVu agdan indiriliyor (loadPdfUnicodeFont);
+ * test ag kullanmasin diye Windows'un Arial'i ayni ad altinda gomuluyor —
+ * gomulu-TTF yolu (Identity-H + ToUnicode) ayni. Font yoksa test atlanir. */
+test('Unicode font VARKEN Turkce bolum etiketleri ve metin PDF e eksiksiz basiliyor', () => {
+  const normal = 'C:/Windows/Fonts/arial.ttf', kalin = 'C:/Windows/Fonts/arialbd.ttf';
+  if (!fs.existsSync(normal) || !fs.existsSync(kalin)) {
+    console.log('    (atlandi: gomulecek yerel TTF yok)');
+    return;
+  }
+  const doc = new jsPDF();
+  doc.addFileToVFS('DejaVuSans.ttf', fs.readFileSync(normal).toString('base64'));
+  doc.addFont('DejaVuSans.ttf', 'DejaVuSans', 'normal');
+  doc.addFileToVFS('DejaVuSans-Bold.ttf', fs.readFileSync(kalin).toString('base64'));
+  doc.addFont('DejaVuSans-Bold.ttf', 'DejaVuSans', 'bold');
+  doc.setFont('DejaVuSans', 'normal');
+  const kart = { ...FULL_CARD, summary: 'İşsizlik oranı yükseldi; ğ, ş ve ı harfleri korunmalı.' };
+  appendStudyCardToDoc(doc, kart, true, null);
+  const t = pdfToText(doc);
+  for (const etiket of ['BELGE İSKELETİ', 'ANAHTAR TERİMLER']) {
+    assert.ok(t.includes(etiket), `"${etiket}" eksik basildi:\n${t.slice(0, 600)}`);
+  }
+  assert.ok(t.includes('İşsizlik oranı yükseldi'), 'ozet metnindeki Turkce harfler dustu');
+  assert.ok(t.includes('ğ, ş ve ı'), 'Latin1 disi kucuk harfler dustu');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));
