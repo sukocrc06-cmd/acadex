@@ -60,3 +60,13 @@ Kurulan soru sınavın izinli tipinde değilse atılır (testte denetleniyor).
 - [ ] Çizim sorusu içeren bir PDF'le ("doğruları çiziniz") karışık sınav kur. En az bir çizim sorusu gelmeli.
 - [ ] Grafiksiz bir belgeyle sınav kur. Tarama hızlı bitmeli; Groq'a görsel çağrı yapılmamalı (log: `iz yok (model cagrilmadi)`).
 - [ ] "Grafik sorusu olmasın" işaretliyken tarama isteği gitmemeli; grafik ve çizim sorusu gelmemeli.
+
+## Canlı test düzeltmesi (25.10.2026)
+
+Çizim sorulu örnek PDF'le (`tests/fixtures/cizim-sorulari-ornek.pdf`, dal `test-grafik-pdf`) canlı test:
+- **Tarama:** yalnızca 2. sayfa tarandı (konu özeti sayfası atlandı); 4 çizim sorusu doğru türleriyle tanındı (doğru/nokta, kaydırma, bölge).
+- **Sınav:** 8 soruluk karışık sınavda 2 çizim sorusu geldi. İki sorun görüldü ve düzeltildi:
+  1. **Cevap sızıntısı:** model öğrencinin çizeceği doğruları "given"a da koydu; doğrular ekranda hazır çizili geliyordu. `verifyGraph` artık cevaptaki bir doğruyla çakışan verilen nesneyi kaldırıyor (kaydırma sorusunun baz doğrusu hariç; kaydırma referansları yeniden sıralanıyor). Prompt'a da kural eklendi.
+  2. **Kopya:** model dosyadaki denklemleri aynen kullandı (P = 10 − Q, y = 2x − 2). Dosyadaki denklemlerden birini taşıyan çizim sorusu artık atılıyor (`graph_copied_from_file`); prompt "farklı denklem ve sayılar" diyor.
+
+Deploy: yalnızca `generate-exam`.
