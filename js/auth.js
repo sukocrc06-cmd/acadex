@@ -59,6 +59,23 @@ async function getPostLoginDestination(userId) {
 // profiles.is_admin / is_teacher — nothing about that changed.
 // ==========================================
 
+/* GERI TUSU (25.10.2026, test raporu R75). Telefonda panelden geri
+   gelindiginde tarayici giris sayfasini onbellekten (bfcache) aynen
+   geri getiriyordu; DOMContentLoaded yeniden calismadigi icin oturum
+   kontrolu yapilmiyor, kullanici giris formunu gorup "oturumdan atildim"
+   saniyordu. Sayfa onbellekten donunce oturum yeniden kontrol edilir. */
+window.addEventListener('pageshow', async (e) => {
+  if (!e.persisted) return;
+  const p = window.location.pathname;
+  if (!(p.includes('login.html') || (p.includes('register.html') && !p.includes('register-academic.html')))) return;
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (session) window.location.replace(await getPostLoginDestination(session.user.id));
+  } catch (err) {
+    console.error('Session check failed', err);
+  }
+});
+
 document.addEventListener('DOMContentLoaded', async () => {
   const path = window.location.pathname;
   const isLoginPage = path.includes('login.html');
@@ -73,7 +90,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (session) {
         // If user already logged in, send them straight to their portal
         // (admin/hoca panel or the regular student dashboard).
-        window.location.href = await getPostLoginDestination(session.user.id);
+        window.location.replace(await getPostLoginDestination(session.user.id));
         return;
       }
     } catch (e) {
@@ -367,7 +384,7 @@ function initRegisterForm() {
       }
 
       if (!error) {
-        window.location.href = "dashboard.html";
+        window.location.replace("dashboard.html");
       }
     } catch (err) {
       console.error("Signup exception: ", err);
@@ -459,7 +476,7 @@ function initLoginForm() {
           window.__acxGoto(destination, data.session);
         } else {
           setTimeout(() => {
-            window.location.href = destination;
+            window.location.replace(destination);
           }, 1200);
         }
       }

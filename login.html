@@ -598,7 +598,7 @@ select.fld{appearance:none;-webkit-appearance:none;background-image:url("data:im
 
   /* karşılama: isim, bugün sırası gelen kartlar, en yakın sınav, seri — sonra kapı açılır */
   window.__acxGoto = function (destination, session) {
-    var g = document.querySelector('[data-goto]'), go = function () { if (go.done) return; go.done = true; window.location.href = destination; };
+    var g = document.querySelector('[data-goto]'), go = function () { if (go.done) return; go.done = true; window.location.replace(destination); };
     var skip = document.querySelector('[data-gt-skip]'); skip.hidden = false; skip.addEventListener('click', go);
     var reduce = window.__acx.reduce, sb = typeof supabaseClient !== 'undefined' ? supabaseClient : null, uid = session && session.user && session.user.id;
     var timeout = function (p, ms) { return Promise.race([Promise.resolve(p).catch(function () { return {}; }), new Promise(function (r) { setTimeout(function () { r({}); }, ms); })]); };

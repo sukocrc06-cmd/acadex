@@ -3295,7 +3295,9 @@ window.axWhenProfile = function (cb) {
     tabs.forEach(function (b) { var on = b === t; b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1; });
     $$('[data-pg]').forEach(function (p) { var on = p.getAttribute('data-pg') === k; if (on && p.hidden) { p.hidden = false; p.classList.remove('in'); void p.offsetWidth; p.classList.add('in'); } else if (!on) p.hidden = true; });
     if (focus) t.focus();
-    try { history.replaceState(null, '', '#settings'); } catch (e) {}
+    /* yalnizca Ayarlar acikken; acilista adresi #settings yapip yenilemede
+       herkesi Ayarlar'a gotururdu (R33). Gecmis durumu da korunur. */
+    if (lsafe(function () { return currentActiveTab; }, '') === 'settings') { try { history.replaceState({ axv: 'settings' }, '', '#settings'); } catch (e) {} }
     try { sessionStorage.setItem('acadex.ayar.sec', k); } catch (e) {}
     if (k === 'plan') paintUse();
     if (k === 'cihaz') paintDev();

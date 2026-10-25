@@ -370,8 +370,16 @@ async function checkSessionAndLoadProfile() {
       currentActiveTab = deepLinkTab;
     }
 
+    // Yenileme / geri tusu (R33): adresteki #sekme, ?tab'dan sonra gelir
+    // (kullanicinin en son baktigi yer). Ders/sinav derin baglantilari onde.
+    if (!deepLinkCourse && !deepLinkExamCourse) {
+      const hashView = axNavHashView();
+      if (hashView) currentActiveTab = hashView;
+    }
+
     // Load default tab view content
     switchDashboardView(currentActiveTab);
+    axNavInstall(currentActiveTab);
     await updateDepotCountBadge();
     await checkNotifications();
 
@@ -3850,6 +3858,79 @@ function loadViewContent(viewId) {
   }
 }
 window.switchDashboardView = switchDashboardView;
+
+/* GERI TUSU VE YENILEME (25.10.2026, test raporu R33, R75).
+   Sekme degisimi tarayici gecmisine yazilmiyordu: yenileyince hep ana
+   sayfa aciliyor, telefonda geri tusu panelden cikip giris sayfasina
+   donuyordu (o da "oturumdan atildim" gibi gorunuyordu). Artik her sekme
+   adrese #sekme olarak yazilir; geri/ileri sekmeler arasinda gezer,
+   yenileme ayni sekmeyi acar. Ozet penceresi acikken geri tusu once
+   pencereyi kapatir. */
+const AX_NAV_EXTRA_VIEWS = ['studylab', 'medlab'];
+function axNavViewOk(v) {
+  if (!v || typeof v !== 'string' || v === 'admin') return false;
+  return AX_NAV_EXTRA_VIEWS.includes(v) || !!document.getElementById(`${v}-view`);
+}
+function axNavHashView() {
+  let h = '';
+  try { h = decodeURIComponent((window.location.hash || '').slice(1)); } catch (e) { h = ''; }
+  return axNavViewOk(h) ? h : null;
+}
+let axNavFromPop = false;
+let axNavClosingByPop = false;
+let axNavIgnorePop = 0;
+function axNavModalOpen() {
+  const m = document.getElementById('study-card-modal');
+  return !!m && (m.classList.contains('active') || m.style.display === 'flex' || m.style.display === 'block');
+}
+function axNavInstall(initialView) {
+  if (window.__axNavInstalled) return;
+  window.__axNavInstalled = true;
+  try { history.replaceState({ axv: initialView }, '', window.location.href); } catch (e) {}
+  const inner = window.switchDashboardView;
+  const wrapped = function (v) {
+    const r = inner.apply(this, arguments);
+    if (axNavViewOk(v) && !axNavFromPop) {
+      const st = history.state || {};
+      if (st.axv !== v || st.axm) {
+        try { history.pushState({ axv: v }, '', '#' + v); } catch (e) {}
+      }
+    }
+    return r;
+  };
+  switchDashboardView = wrapped;
+  window.switchDashboardView = wrapped;
+
+  window.addEventListener('popstate', (e) => {
+    if (axNavIgnorePop > 0) { axNavIgnorePop--; return; }
+    if (axNavModalOpen()) {
+      axNavClosingByPop = true;
+      try { closeStudyCardModal(); } finally { axNavClosingByPop = false; }
+      return;
+    }
+    const v = (e.state && e.state.axv) || axNavHashView() || 'home';
+    if (v !== currentActiveTab) {
+      axNavFromPop = true;
+      try { switchDashboardView(v); } finally { axNavFromPop = false; }
+    }
+  });
+
+  const modal = document.getElementById('study-card-modal');
+  if (modal) {
+    let wasOpen = axNavModalOpen();
+    new MutationObserver(() => {
+      const now = axNavModalOpen();
+      if (now === wasOpen) return;
+      wasOpen = now;
+      if (now) {
+        try { history.pushState({ axv: currentActiveTab, axm: 1 }, '', window.location.href); } catch (e) {}
+      } else if (!axNavClosingByPop && history.state && history.state.axm) {
+        axNavIgnorePop++;
+        history.back();
+      }
+    }).observe(modal, { attributes: true, attributeFilter: ['class', 'style'] });
+  }
+}
 
 function loadAcadexSunum() {
   const iframe = document.getElementById('acadexsunum-iframe');
