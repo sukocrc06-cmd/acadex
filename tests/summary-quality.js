@@ -60,7 +60,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'VISION_TOKENS_PER_IMAGE', 'VISION_MAX_IMAGES', 'VISUAL_MIN_BUDGET_MS',
   // bosluk doldurma kartlari
   'clozeTermPattern', 'turkishIClasses', 'blankAllOccurrences',
-  'REVIEW_ARRAY_FIELDS', 'maddeMetni', 'applyCorrections', 'gateWorkedExampleArithmetic', 'NARRATIVE_MIN_KEEP_RATIO', 'INLINE_PAGE_CITE', 'stripIntroducedCitations', 'mergeReviewOntoDraft', 'stripThinkBlock', 'buildClozeCards',
+  'REVIEW_ARRAY_FIELDS', 'maddeMetni', 'applyCorrections', 'gateWorkedExampleArithmetic', 'NARRATIVE_MIN_KEEP_RATIO', 'sentezGruplariniUygula', 'INLINE_PAGE_CITE', 'stripIntroducedCitations', 'mergeReviewOntoDraft', 'stripThinkBlock', 'buildClozeCards',
   // tekrarlayan ustbilgi/altbilgi temizligi
   'BOILERPLATE_MIN_PAGES', 'BOILERPLATE_PAGE_SHARE', 'BOILERPLATE_MAX_LINE_CHARS',
   'boilerplateKey', 'splitByPageMarkers', 'stripRepeatedBoilerplate',
@@ -74,7 +74,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'NEAR_DUP_KEY_OVERLAP', 'nearDupKeysMatch',
   'nearDupStem', 'nearDupTermSet', 'dedupeNearDuplicates',
   // Slayt destesi tespiti ve cikarim talimati (07.10.2026).
-  'DECK_MIN_PAGES', 'DECK_MAX_CHARS_PER_PAGE', 'DECK_PROMPT_CHARS',
+  'DECK_MIN_PAGES', 'DECK_MAX_CHARS_PER_PAGE', 'katalogdanDersEtiketi', 'DECK_PROMPT_CHARS',
   'detectSlideDeck', 'buildSlideDeckInstruction',
   // Pencere dengeleme ve cozumlu ornek kapisi (08.10.2026).
   'kurPencereler', 'splitIntoChunks', 'splitIntoWindows',
@@ -1915,7 +1915,9 @@ test('sentez ciktisi NARRATIVE_MIN_KEEP_RATIO tabanindan geciyor', () => {
   const src = SRC;
   const i = src.indexOf('const sentezRet =');
   assert.ok(i > 0, 'sentez reddi loglanmiyor — taban eklenmemis');
-  const blok = src.slice(i, i + 3200);
+  /* 3200 -> 4600 (25.10.2026): grup dali (sentezGruplariniUygula) bolum
+     tabaninin onune girdi; tabanlar yerinde, blok uzadi. */
+  const blok = src.slice(i, i + 4600);
   /* 24.10.2026 duzeltmesi: bolumler artik SAYI ile degil ICERIK ile
      olculuyor, cunku sentezin isi cok bolumu az bolume toplamak — sayiya
      bakan taban onu garanti olarak reddediyordu (canli kanit: "4 < 7 x
@@ -1934,6 +1936,117 @@ test('sentez ciktisi NARRATIVE_MIN_KEEP_RATIO tabanindan geciyor', () => {
     'uc alanin hepsi ayni tabandan gecmiyor');
   assert.ok(!/if \(Array\.isArray\(syn\?\.sections\) && syn\.sections\.length\) bestSections = syn\.sections/.test(src),
     'eski tabansiz atama hala duruyor');
+});
+
+/* 25.10.2026 — SENTEZ BOLUM YAZMIYOR, GRUPLUYOR.
+ * Kosu 37'de sentez uc alanda da reddedildi; sebep: 600 krk'lik ozetcelerden
+ * pencerelerin TAM bolumlerini yeniden uretmesi bekleniyordu. Artik
+ * numaralanmis bolumleri gruplara ayiriyor, birlestirmeyi kod yapiyor ve
+ * metin insa geregi korunuyor. Iyi kart 4 bolumdu; pencereler 7-9 veriyor. */
+const BOLUMLER7 = [
+  { heading: 'Dummy variables', summary: 'A dummy takes 0/1.', key_points: ['D=1 for group A'] },
+  { heading: 'Reference category', summary: 'One category is omitted.', key_points: ['Avoid the trap'] },
+  { heading: 'Intercept dummies', summary: 'Shift the intercept.', key_points: ['beta_0 + delta'] },
+  { heading: 'Slope dummies', summary: 'Interact D with x.', key_points: ['D*x term', 'beta_0 + delta'] },
+  { heading: 'Chow test', summary: 'Tests structural break.', key_points: ['F statistic'] },
+  { heading: 'Seasonal dummies', summary: 'Quarterly effects.', key_points: ['Q1-Q3 dummies'] },
+  { heading: 'Worked example', summary: 'Wage equation with gender dummy.', key_points: ['delta = -0.21'] }
+];
+
+test('sentez gruplari: 7 bolum 4 bolume iner, HICBIR metin kaybolmaz', () => {
+  const gruplar = [
+    { heading: 'Dummy basics', members: [1, 2] },
+    { heading: 'Intercept and slope shifts', members: [3, 4, 7] },
+    { heading: 'Testing for breaks', members: [5] },
+    { heading: 'Seasonality', members: [6] }
+  ];
+  const out = A.sentezGruplariniUygula(BOLUMLER7, gruplar);
+  assert.ok(out, 'gecerli gruplar uygulanmadi');
+  assert.equal(out.length, 4);
+  for (const b of BOLUMLER7) {
+    assert.ok(out.some(o => o.summary.includes(b.summary)), `"${b.summary}" kayboldu`);
+  }
+  // Tekrarlanan madde bir kez kalir; digerleri korunur.
+  const grup2 = out.find(o => o.heading === 'Intercept and slope shifts');
+  assert.deepEqual(grup2.key_points, ['beta_0 + delta', 'D*x term', 'delta = -0.21']);
+});
+
+test('sentez gruplari: gruba girmeyen bolum KENDI BASINA kalir, sira belge sirasi', () => {
+  const out = A.sentezGruplariniUygula(BOLUMLER7, [
+    { heading: 'Shifts', members: [4, 3] },        // ters sira, belge sirasina doner
+    { heading: 'Basics', members: [1, 2] }
+  ]);
+  assert.ok(out);
+  assert.equal(out.length, 5, '2 grup + gruba girmeyen 3 bolum');
+  assert.deepEqual(out.map(o => o.heading), ['Basics', 'Shifts', 'Chow test', 'Seasonal dummies', 'Worked example']);
+  assert.equal(out[1].summary, 'Shift the intercept.\n\nInteract D with x.');
+});
+
+test('sentez gruplari: bozuk/yararsiz grup ciktisi UYGULANMAZ (pencere bolumleri kalir)', () => {
+  assert.equal(A.sentezGruplariniUygula(BOLUMLER7, undefined), null);
+  assert.equal(A.sentezGruplariniUygula(BOLUMLER7, 'gruplar'), null);
+  // Tek grup: "her sey tek bolumde" bir duzenleme degil.
+  assert.equal(A.sentezGruplariniUygula(BOLUMLER7, [{ heading: 'All', members: [1, 2, 3, 4, 5, 6, 7] }]), null);
+  // Her uye tekil grupta: bolum sayisi azalmiyor.
+  assert.equal(A.sentezGruplariniUygula(BOLUMLER7, BOLUMLER7.map((_, i) => ({ heading: 'x', members: [i + 1] }))), null);
+  // Gecersiz numaralar yok sayilir; ayni numara iki gruba yazilamaz.
+  const out = A.sentezGruplariniUygula(BOLUMLER7, [
+    { heading: 'A', members: [1, 2, 99, 0, 'x'] },
+    { heading: 'B', members: [2, 3, 4] }
+  ]);
+  assert.ok(out);
+  assert.equal(out.filter(o => o.summary.includes('One category is omitted.')).length, 1,
+    'ayni bolum iki gruba girmis — metin tekrarlanir');
+  // Ucten az bolumde gruplamanin anlami yok.
+  assert.equal(A.sentezGruplariniUygula(BOLUMLER7.slice(0, 2), [{ heading: 'a', members: [1] }, { heading: 'b', members: [2] }]), null);
+});
+
+test('sentez promptu bolum YAZDIRMIYOR, gruplatiyor ve tek bir ozet istiyor', () => {
+  const i = SRC.indexOf('const synSys =');
+  assert.ok(i > 0);
+  const blok = SRC.slice(i, i + 700);
+  assert.ok(/"groups":\[\{"heading":"\.\.\.","members":\[1,2\]\}\]/.test(blok), 'grup semasi yok');
+  assert.ok(!/"sections":\[/.test(blok), 'sentez hala bolum metni yazdiriyor — 600 krk ozetceden tam bolum uretemez');
+  assert.ok(!/"outline":\{/.test(blok), 'anahat isteniyor: 3 maddelik anahat 25 maddelik tabana hep takiliyor');
+  assert.ok(/never open with "This part"/.test(blok), 'ozetin pencere ozeti gibi baslamasi engellenmiyor');
+  assert.ok(/Sections:\\n\$\{synBolumListesi\}/.test(SRC), 'bolum listesi sentez girdisine eklenmemis');
+  assert.ok(/const gruplu = sentezGruplariniUygula\(bestSections, syn\?\.groups\)/.test(SRC));
+  assert.ok(/if \(!gruplu && Array\.isArray\(syn\?\.sections\)/.test(SRC),
+    'gruplar kabul edildikten sonra eski bicim bolumleri ezebiliyor');
+});
+
+/* 25.10.2026 — uzun-belge yolunda document_type ve ders etiketi SABITTI
+   ('Lecture Notes/Slides' / null): kitap bolumu de "slayt" sayiliyordu. */
+test('uzun-belge: document_type deste tespitinden, ders etiketi katalogdan', () => {
+  assert.ok(/document_type: deste\.isDeck \? 'Lecture Notes\/Slides' : 'Other'/.test(SRC),
+    'uzun-belge yolu document_type i hala sabit yaziyor');
+  assert.ok(/suggested_course_tag: katalogdanDersEtiketi\(courseCatalogBlock, extractedText\)/.test(SRC),
+    'uzun-belge yolu ders etiketini hala null yaziyor');
+  assert.ok(!/document_type: 'Lecture Notes\/Slides',\n\s*suggested_course_tag: null/.test(SRC));
+});
+
+test('katalogdanDersEtiketi: TEK kesin eslesme kod doner, belirsizlik null', () => {
+  const katalog = 'ECON301 — Econometrics I\nECON302 — Econometrics II\nBUS330 — Corporate Finance';
+  assert.equal(A.katalogdanDersEtiketi(katalog, 'Week 7 slides — ECON 301 dummy variables'), 'ECON301');
+  assert.equal(A.katalogdanDersEtiketi(katalog, 'bus330 midterm review'), 'BUS330');
+  // Iki kod birden: hangisi oldugunu bilmiyoruz.
+  assert.equal(A.katalogdanDersEtiketi(katalog, 'ECON301 and ECON302 joint notes'), null);
+  // Kodun parcasi baska bir sayinin icinde: eslesme degil.
+  assert.equal(A.katalogdanDersEtiketi(katalog, 'see ECON3011 and BUS3305'), null);
+  // Katalog yok (varsayilan metin) ya da metin yok.
+  assert.equal(A.katalogdanDersEtiketi('No official course catalog is available for this student — suggest ...', 'ECON301'), null);
+  assert.equal(A.katalogdanDersEtiketi(katalog, ''), null);
+});
+
+test('cok pencereli promptta da caption ve worked-case kurali var', () => {
+  /* Kural yalnizca total === 1 iken prompta giriyordu; 42 sayfalik deste
+     iki pencereye bolununce sayisal kapsamayi besleyen talimat kayboluyordu
+     (kosu 37: 26/39). Kisa hali tek satir (~35 token): deste penceresinin
+     393 tokenlik payi icinde. */
+  const i = SRC.indexOf('const compactWindowPrompt = (wi: number, total: number) =>');
+  const blok = SRC.slice(i, i + 6000);
+  assert.ok(/do not skip them as filler` : `\n- Captions and worked cases/.test(blok),
+    'cok pencereli dal caption/worked-case kuralini tasimiyor');
 });
 
 test('aritmetik kapisi: cogunlugu atacaksa VALF aciliyor', () => {

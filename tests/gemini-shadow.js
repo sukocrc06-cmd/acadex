@@ -32,8 +32,8 @@ const NAMES = [
   'GEMINI_MAX_CALL_MS', 'GEMINI_MAX_OUTPUT_TOKENS', 'GEMINI_GROQ_RESERVE_MS',
   'geminiMode', 'GEMINI_ONLY_BUDGET_MS', 'GEMINI_ONLY_MAX_CALL_MS',
   'GEMINI_ONLY_FALLBACK_MIN_MS',
-  'GEMINI_MAX_REQUESTS_PER_RUN', 'GEMINI_ARDISIK_GECICI_MAX', 'geminiRpmWaitMs', 'OPSIYONEL_ADIM_MAX_BEKLEME_MS',
-  'GEMINI_YARIS_GENISLIGI_VARSAYILAN', 'geminiYarisGenisligi', 'GEMINI_YARIS_YOKLAMA_MS',
+  'GEMINI_MAX_REQUESTS_PER_RUN', 'GEMINI_ARDISIK_GECICI_MAX', 'geminiRpmWaitMs', 'geminiRetryWaitMs', 'OPSIYONEL_ADIM_MAX_BEKLEME_MS',
+  'GEMINI_YARIS_GENISLIGI_VARSAYILAN', 'geminiYarisGenisligi', 'GEMINI_YARIS_YOKLAMA_MS', 'GEMINI_YEDEK_GECIKME_MS_VARSAYILAN', 'geminiYedekGecikmeMs', 'GEMINI_YEDEK_MIN_KALAN_MS',
   'PACER_COMPLETION_FACTOR', 'DEFAULT_TPM_LIMIT', 'PACER_SAFETY',
   'GEMINI_RPM_RETRY_MIN_REMAINING_MS',
   'bytesToBase64',
@@ -56,6 +56,8 @@ const NAMES = [
 const denoEnv = new Map();
 // Dakikalik 429 beklemesi gercekte 20 saniye; testi uyutmasin.
 denoEnv.set('GEMINI_RPM_WAIT_MS', '10');
+// Ardisik istekler arasi 2,5 sn'lik pay testte kisaltiliyor — bkz. geminiRetryWaitMs.
+denoEnv.set('GEMINI_RETRY_WAIT_MS', '10');
 globalThis.Deno = { env: { get: (k) => (denoEnv.has(k) ? denoEnv.get(k) : undefined) } };
 
 const G = loadFromSource('supabase/functions/summarize-document/index.ts', NAMES);
@@ -1128,18 +1130,59 @@ test('geminiDraft: ayni alan iki kez atilmaya calisilmaz (sonsuz dongu yok)', as
   } finally { restoreFetch(); }
 });
 
-test('geminiDraft: TEK 503 sonrasi ayni model tekrar denenir ve tutar', async () => {
-  /* Olculdu (09.10.2026): ilk deneme 503 aldi, ikincisi tuttu ve kart
-     Gemini'den geldi. 503 gercekten gecici — bu vaka korunuyor. */
+/* 25.10.2026 — 503 ALAN MODEL ARTIK SIRANIN SONUNDA TEKRAR DENENIYOR.
+ *
+ * 09.10 vakasi (ilk deneme 503, ikincisi tuttu) hala korunuyor: 503 alan
+ * model ikinci sansini aliyor. Degisen SIRASI: once el degmemis adaylar.
+ * Eski hali (2,5 sn sonra ayni model) dort aday x iki deneme = 8 istekle
+ * 6'lik tavana carpip dorduncu adayi hic denemiyordu. */
+test('geminiDraft: TEK 503 sonrasi ONCE diger aday denenir', async () => {
   stubFetch([
-    { status: 503, text: 'currently experiencing high demand' },
+    { status: 503, text: 'gemini-3.7-flash is currently experiencing high demand' },
     { status: 200, json: OK_JSON }
   ]);
   try {
     const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000));
-    assert.ok(out, 'tek 503 sonrasi tekrar deneme yapilmadi');
+    assert.ok(out, '503 sonrasi ikinci aday denenmedi');
     assert.equal(fetchCalls.length, 2);
-    assert.equal(out.model, G.GEMINI_MODEL_CANDIDATES[0], 'ayni model denenmeliydi');
+    assert.equal(out.model, G.GEMINI_MODEL_CANDIDATES[1], 'yogun model 2,5 sn sonra yine denenmis');
+  } finally { restoreFetch(); }
+});
+
+test('geminiDraft: 503 veren model SIRANIN SONUNDA ikinci sansini alir ve tutar', async () => {
+  // Diger adaylar yoksa (404) 503 veren model yine denenir — 09.10 vakasi.
+  stubFetch([
+    { status: 503, text: 'gemini-3.7-flash is currently experiencing high demand' },
+    { status: 404, text: 'model not found' },
+    { status: 404, text: 'model not found' },
+    { status: 404, text: 'model not found' },
+    { status: 200, json: OK_JSON }
+  ]);
+  try {
+    const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000));
+    assert.ok(out, '503 veren model ikinci kez denenmedi');
+    assert.equal(out.model, G.GEMINI_MODEL_CANDIDATES[0]);
+    assert.equal(fetchCalls.length, 5);
+    assert.equal(fetchCalls[4].body.model, G.GEMINI_MODEL_CANDIDATES[0]);
+  } finally { restoreFetch(); }
+});
+
+test('geminiDraft: 503 veren model en fazla IKI kez denenir (sonsuz kuyruk yok)', async () => {
+  stubFetch([
+    { status: 503, text: 'gemini-3.7-flash is currently experiencing high demand' },
+    { status: 404, text: 'model not found' },
+    { status: 404, text: 'model not found' },
+    { status: 404, text: 'model not found' },
+    { status: 503, text: 'gemini-3.7-flash is currently experiencing high demand' },
+    { status: 200, json: OK_JSON }
+  ]);
+  const tani = {};
+  try {
+    const out = await quiet(() =>
+      G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000, 'only', tani));
+    assert.equal(out, null);
+    assert.equal(fetchCalls.length, 5, `${fetchCalls.length} istek — ucuncu 503 denemesi yapilmis`);
+    assert.equal(tani.geciciDustu, true);
   } finally { restoreFetch(); }
 });
 
@@ -1172,19 +1215,36 @@ test('geminiDraft: tek model 503 verirse SONRAKI ADAY denenir', async () => {
   } finally { restoreFetch(); }
 });
 
-test('geminiDraft: IKI AYRI modelde 503 alinirsa durulur', async () => {
-  // Yuzeyin tamami yogunsa ucuncu adayi denemek ayni duvara carpmak.
+/* 25.10.2026 — IKI AYRI MODEL "YUZEY YOGUN" DEMEYE YETMIYOR.
+ *
+ * Kosu 37: 3.8 olu akis verdi, 3.7'ye hic sira gelmedi ve kart Groq'tan
+ * %67 kapsamayla cikti. O gun 3.8 0/4, 3.7 503 almadigi her denemede gercek
+ * akis verdi — model guvenilirligi modele gore degisiyor. Hedef: Groq
+ * YALNIZCA butun Gemini modelleri erisilemezken. */
+test('geminiDraft: IKI AYRI modelde 503 artik DURDURMUYOR — ucuncu aday denenir', async () => {
   stubFetch([
-    { status: 503, text: 'gemini-3.7-flash is currently experiencing high demand' },
     { status: 503, text: 'gemini-3.7-flash is currently experiencing high demand' },
     { status: 503, text: 'gemini-3.8-flash is currently experiencing high demand' },
     { status: 200, json: OK_JSON }
   ]);
   try {
     const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000));
-    assert.equal(out, null, 'iki ayri modelde 503 alindiginda Groq yoluna dusulmeliydi');
-    assert.equal(fetchCalls.length, 3,
-      `${fetchCalls.length} istek yapildi — dorduncu istek yapilmamaliydi`);
+    assert.ok(out, 'iki model yogunken ucuncu aday denenmedi — kart gereksiz yere Groq a dustu');
+    assert.equal(out.model, G.GEMINI_MODEL_CANDIDATES[2]);
+  } finally { restoreFetch(); }
+});
+
+test('geminiDraft: HER adayda gecici hata alinirsa durulur', async () => {
+  // Butun modeller yogunsa ikinci tur ayni duvara carpmak — Groq'un gercek isi bu.
+  stubFetch([
+    ...G.GEMINI_MODEL_CANDIDATES.map(m => ({ status: 503, text: `${m} is currently experiencing high demand` })),
+    { status: 200, json: OK_JSON }
+  ]);
+  try {
+    const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000));
+    assert.equal(out, null, 'butun modeller yogunken Groq yoluna dusulmeliydi');
+    assert.equal(fetchCalls.length, G.GEMINI_MODEL_CANDIDATES.length,
+      `${fetchCalls.length} istek — her aday bir kez yeterli`);
   } finally { restoreFetch(); }
 });
 
@@ -1245,13 +1305,93 @@ test('OLU AKIS ayni modelde TEKRAR denenmiyor', async () => {
   } finally { restoreFetch(); }
 });
 
-test('503 hala AYNI modelde bir kez tekrar deneniyor (regresyon)', () => {
-  /* Olu akis ayrimi 503'un davranisini degistirmemeli. */
+test('503 veren model SIRANIN SONUNDA bir kez daha deneniyor (regresyon)', () => {
+  /* Olu akis ayrimi 503'un ikinci sansini yok etmemeli; 25.10.2026'dan beri
+     ikinci sans 2,5 sn sonra degil, diger adaylardan SONRA. */
   const src = require('node:fs').readFileSync(
     require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
-  assert.ok(/if \(!oluAkis && gecici < 2\) return \{ tur: 'tekrar' \}/.test(src),
-    '503 icin tekrar denemesi kaybolmus');
+  assert.ok(/if \(!oluAkis && bu503 < 2\) return \{ tur: 'sonra' \}/.test(src),
+    '503 icin ikinci sans kaybolmus');
+  assert.ok(/tur === 'sonra' && !sonaAlinan\.has\(m\)/.test(src), 'sona alma bir kezle sinirli degil');
   assert.ok(/const oluAkis = res\.status === 0/.test(src), 'olu akis ayrimi yok');
+});
+
+/* 25.10.2026 — GECIKMELI YEDEK MODEL (kosu 37 dersi).
+ *
+ * 3.8 istegi kabul etti, 72 sn tek olay gelmedi; olu akis 87. saniyede
+ * anlasildi ve 3.7'ye 15 sn kaldi — hic denenmedi, kart Groq'tan cikti.
+ * Artik ilk model GEMINI_YEDEK_GECIKME_MS icinde olay getirmezse siradaki
+ * aday paralel baslar; ilk olayi getiren kazanir. */
+test('YEDEK: sessiz ilk model beklenirken ikinci aday baslar ve kazanir', async () => {
+  denoEnv.set('GEMINI_YEDEK_GECIKME_MS', '20');
+  stubFetch([
+    { status: 200, hang: true },       // 3.7: baglanti acik, olay yok (olu akis)
+    { status: 200, json: OK_JSON }     // 3.8: gercek akis
+  ]);
+  try {
+    const out = await quiet(() =>
+      G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000, 'only'));
+    assert.ok(out, 'yedek model baslamadi — olu akis butun Gemini butcesini yerdi');
+    assert.equal(out.model, G.GEMINI_MODEL_CANDIDATES[1]);
+    assert.equal(fetchCalls.length, 2, `${fetchCalls.length} istek`);
+  } finally { restoreFetch(); denoEnv.delete('GEMINI_YEDEK_GECIKME_MS'); }
+});
+
+test('YEDEK: hizli cevap veren modelde yedek HIC baslamaz (RPD korunur)', async () => {
+  denoEnv.set('GEMINI_YEDEK_GECIKME_MS', '20');
+  stubFetch([{ status: 200, json: OK_JSON }, { status: 200, json: OK_JSON }]);
+  try {
+    const out = await quiet(() =>
+      G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000, 'only'));
+    assert.ok(out);
+    assert.equal(fetchCalls.length, 1, 'hizli modelde yedek baslatilmis — her kosu +1 RPD');
+  } finally { restoreFetch(); denoEnv.delete('GEMINI_YEDEK_GECIKME_MS'); }
+});
+
+test('YEDEK: yedek de 503 verirse siradaki aday yedek olur', async () => {
+  denoEnv.set('GEMINI_YEDEK_GECIKME_MS', '20');
+  stubFetch([
+    { status: 200, hang: true },
+    { status: 503, text: 'gemini-3.8-flash is currently experiencing high demand' },
+    { status: 200, json: OK_JSON }
+  ]);
+  try {
+    const out = await quiet(() =>
+      G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000, 'only'));
+    assert.ok(out, 'ikinci yedek baslatilmadi');
+    assert.equal(out.model, G.GEMINI_MODEL_CANDIDATES[2]);
+    assert.equal(fetchCalls.length, 3);
+  } finally { restoreFetch(); denoEnv.delete('GEMINI_YEDEK_GECIKME_MS'); }
+});
+
+test('YEDEK: kurallar kaynakta — yalnizca only, akissiz yolda yok, toplam tavanda kesilir', () => {
+  const src = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+  assert.ok(/const yedekGecikme = mode === 'only' \? geminiYedekGecikmeMs\(\) : -1/.test(src),
+    'yedek shadow modunda da calisiyor — Gemini birincil degilken RPD yakar');
+  assert.ok(/yedekGecikme < 0 \|\| dropped\.indexOf\('stream'\) !== -1/.test(src),
+    'akissiz yolda olay hic gelmez; yedek her kosuda baslar');
+  // Yedegin tavani devam tavanina uzanir ama olaysiz yarisci toplam tavanda kesilir.
+  assert.ok(/const yedekMs = Math\.min\(callMs, geminiDevamTavan - gecen\)/.test(src));
+  assert.ok(/gecen >= geminiToplamTavan && !tavanKesti/.test(src),
+    'olay getirmeyen yedek Groq un payini yiyebilir');
+  // Kazanan once islenir; kesilen kaybeden hic islenmez.
+  assert.ok(/return \[kayit\(olayli\), \.\.\.dusen\]/.test(src));
+  assert.ok(/toplamIstek < GEMINI_MAX_REQUESTS_PER_RUN &&\s*geminiToplamTavan - gecen >= GEMINI_YEDEK_MIN_KALAN_MS/.test(src),
+    'yedek istek tavanina ya da kalan sureye bakmiyor');
+});
+
+test('YEDEK: gecikme olculen hizli ilk olaylarin ustunde, ikinci modele yer birakiyor', () => {
+  // Bant kucultulduktan sonra olculen ilk olaylar: 17,5 / 26,1 / 29,9 sn.
+  assert.ok(G.GEMINI_YEDEK_GECIKME_MS_VARSAYILAN > 29_900,
+    'hizli cevap veren modelde de yedek baslar — her kosu +1 RPD');
+  // Yedek bu anda baslarsa ~72 sn'lik bir uretim devam tavanina sigmali.
+  assert.ok(G.GEMINI_YEDEK_GECIKME_MS_VARSAYILAN + 72_000 <= G.GEMINI_ONLY_MAX_CALL_MS + G.GEMINI_DEVAM_PAYI_MS,
+    'yedek basladiginda tam bir uretime yer kalmiyor');
+  denoEnv.set('GEMINI_YEDEK_GECIKME_MS', 'kapali');
+  assert.equal(G.geminiYedekGecikmeMs(), -1);
+  denoEnv.delete('GEMINI_YEDEK_GECIKME_MS');
+  assert.equal(G.geminiYedekGecikmeMs(), G.GEMINI_YEDEK_GECIKME_MS_VARSAYILAN);
 });
 
 test('gecici hatayla dusuldugunde tani cagirana BILDIRILIYOR', async () => {
@@ -1522,10 +1662,12 @@ test('yarista 503 veren model SIRALI yolda tekrar denenmiyor', async () => {
   ]);
   try {
     const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000));
-    /* Iki AYRI modelde gecici hata = yuzey yogun; ucuncu aday denenmez
-       (GEMINI_ARDISIK_GECICI_MAX korumasi yarista da gecerli). */
-    assert.equal(out, null, 'iki ayri modelde 503 alindiginda Groq yoluna dusulmeliydi');
-    assert.equal(fetchCalls.length, 2, `${fetchCalls.length} istek — ucuncu aday bos yere denenmis`);
+    /* Yarisin iki adayi 503 verdi; sirali yol onlari ATLAYIP ucuncu adayla
+       devam eder (25.10.2026: iki model artik "yuzey yogun" sayilmiyor). */
+    assert.ok(out, 'yarista iki model yogunken ucuncu aday denenmedi');
+    assert.equal(fetchCalls.length, 3);
+    assert.equal(fetchCalls[2].body.model, G.GEMINI_MODEL_CANDIDATES[2],
+      'yarista 503 veren model sirali yolda yine denenmis');
   } finally { restoreFetch(); denoEnv.delete('GEMINI_YARIS_GENISLIGI'); }
 });
 
@@ -1663,18 +1805,34 @@ test('geminiQuotaExhausted: 503 ve 500 kota degildir', () => {
   assert.equal(G.geminiQuotaExhausted(400, 'exceeded a quota'), false);
 });
 
-test('geminiDraft: GUNLUK kota dolunca TEK istekte durur', async () => {
-  // Gunluk kota proje seviyesinde: baska modeli denemek de, tekrar denemek de
-  // ayni duvara carpar ve kotadan bosuna istek goturur.
-  stubFetch([{ status: 429, text: 'Quota exceeded for metric generate_requests_per_day' }]);
-  {
-    try {
-      const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000));
-      assert.equal(out, null);
-      assert.equal(fetchCalls.length, 1,
-        `gunluk kota 429 undan sonra ${fetchCalls.length} istek yapildi — biri yeterli`);
-    } finally { restoreFetch(); }
-  }
+/* 25.10.2026 — GUNLUK KOTA MODEL BASINA. Eski test "proje seviyesinde"
+   diyordu; ucretsiz katmanda RPD model basina 20. 3.7'nin gunu bitince
+   3.5/3.6'nin kotasi duruyor — "Groq yalnizca kota bitince" butun modellerin
+   kotasi demek. */
+test('geminiDraft: bir modelin GUNLUK kotasi dolunca SONRAKI aday denenir', async () => {
+  stubFetch([
+    { status: 429, text: 'Quota exceeded for metric generate_requests_per_day, model: gemini-3.7-flash' },
+    { status: 200, json: OK_JSON }
+  ]);
+  try {
+    const out = await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000));
+    assert.ok(out, 'tek modelin kotasi dolunca Groq a dusuldu');
+    assert.equal(out.model, G.GEMINI_MODEL_CANDIDATES[1]);
+    assert.equal(fetchCalls.length, 2);
+  } finally { restoreFetch(); }
+});
+
+test('geminiDraft: BUTUN modellerin kotasi doluysa durulur, kart kalicilasmaz', async () => {
+  stubFetch(G.GEMINI_MODEL_CANDIDATES.map(m =>
+    ({ status: 429, text: `Quota exceeded for metric generate_requests_per_day, model: ${m}` })));
+  const tani = {};
+  try {
+    const out = await quiet(() =>
+      G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000, 'only', tani));
+    assert.equal(out, null);
+    assert.equal(fetchCalls.length, G.GEMINI_MODEL_CANDIDATES.length, 'her model bir kez yeterli');
+    assert.equal(tani.geciciDustu, true, 'kota yarin acilir — bugunun Groq karti onbellege girmemeli');
+  } finally { restoreFetch(); }
 });
 
 test('geminiDraft: dakikalik 429 BIR kez tekrar denenir, aday turlanmaz', async () => {
