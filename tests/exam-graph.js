@@ -25,7 +25,7 @@ const G = loadFromSource(GEN, [
   'GRAPH_KINDS', 'GRAPH_TOOL_ORDER', 'GRAPH_MAX_STEPS', 'GRAPH_MAX_ELEMENTS', 'GRAPH_MAX_GIVEN', 'GRAPH_SHIFT_DIRS', 'graphRound', 'normalizeGraphAxis',
   'graphLinear', 'graphInequality', 'graphInBox', 'graphOnGrid', 'graphLineOf', 'graphClipLine', 'graphGridPointsOnLine', 'graphRef', 'graphResolvePoint',
   'GRAPH_KIND_ALIASES', 'normalizeGraphObject', 'graphIneqHolds', 'graphShiftDir', 'graphElementSnap', 'graphNum', 'graphLineText', 'graphPointText',
-  'GRAPH_KIND_NAMES', 'graphAnswerText', 'verifyGraph', 'allowedTypesFor', 'KEY_FIELDS', 'INTERNAL_FIELDS', 'splitPublicAndKey'
+  'GRAPH_KIND_NAMES', 'graphAnswerText', 'GRAPH_SOURCE_CUES', 'sourceTeachesGraphs', 'verifyGraph', 'allowedTypesFor', 'KEY_FIELDS', 'INTERNAL_FIELDS', 'splitPublicAndKey'
 ]);
 const R = loadFromSource(GRADE, ['GRAPH_STUDENT_MAX_OBJECTS', 'GRAPH_STUDENT_KINDS', 'graphParseStudent', 'graphLabelKey', 'GRAPH_EL_NAMES', 'graphFmt',
   'graphFmtPt', 'graphScaled', 'graphDistToLine', 'graphAngle', 'graphShiftOf', 'graphInPolygon', 'graphIqHolds', 'graphInStudentFill', 'graphCredit', 'gradeGraph']);
@@ -98,6 +98,15 @@ test('verifyGraph: ızgaraya oturmayan, bozuk eksen, hatalı kaydırma atılır;
   const half = verified({ type: 'graph', question: 'x', graph: { x: { min: 0, max: 6, step: 1 }, y: { min: 0, max: 6, step: 1 } }, graph_answer: [{ kind: 'point', at: [2.5, 3] }] });
   assert.equal(half.graph.x.snap, 0.5);
   assert.equal(half.graph.y.snap, 0.5);
+});
+
+test('sourceTeachesGraphs: arz-talep / doğrusal fonksiyon notu evet; sözel ya da yalnızca "grafik" geçen not hayır (canlı test 25.10.2026)', () => {
+  assert.equal(G.sourceTeachesGraphs('Talep doğrusu negatif eğimlidir. Doğrusal talep fonksiyonu P = 12 - 2Q; arz P = 3 + Q. Piyasa dengesi kesişim noktasıdır.'), true);
+  assert.equal(G.sourceTeachesGraphs('Bütçe kısıtı 2x + y ≤ 8 eşitsizliğiyle gösterilir; bütçe doğrusu y = 8 - 2x.'), true);
+  assert.equal(G.sourceTeachesGraphs('Demand and supply determine the equilibrium price; the demand curve P = 20 - Q has a negative slope.'), true);
+  assert.equal(G.sourceTeachesGraphs('Sınavlarda grafik soruları genellikle yorum bazlıdır; sütun grafiği kategorileri karşılaştırır.'), false);
+  assert.equal(G.sourceTeachesGraphs('Talep ve arz kavramları ile piyasa dengesi sözel olarak anlatılır.'), false, 'denklem izi yok');
+  assert.equal(G.sourceTeachesGraphs('Fırsat maliyeti, vazgeçilen en iyi seçenektir. NPV = 120 TL.'), false);
 });
 
 test('allowedTypesFor: çizim karışık ve hesaplamada, "grafik sorusu olmasın" ise yok', () => {

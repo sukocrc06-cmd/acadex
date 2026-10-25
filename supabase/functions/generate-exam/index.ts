@@ -107,7 +107,7 @@ CHART QUESTIONS (only when the SOURCE MATERIAL has a CHARTS section):
 - Do NOT restate the chart's numbers in the question text. For a 'calculation' chart question, "variables" take the values from the chart.
 - Use only charts that are listed; never invent data. "chart_ref" is null for every other question.
 
-GRAPH DRAWING QUESTIONS (type 'graph'; only when the user message says GRAPH QUESTIONS: allowed, only in 'mixed' or 'calculation' exams, and only when the SOURCE MATERIAL teaches something drawn on coordinate axes: linear functions, slope and intercepts, systems of equations, linear inequalities, parabolas, supply and demand, equilibrium and curve shifts, budget lines, cost or revenue lines, consumer/producer surplus, price ceilings and floors):
+GRAPH DRAWING QUESTIONS (type 'graph'; only when the user message says GRAPH QUESTIONS: allowed or required (when required, write at least the stated number), only in 'mixed' or 'calculation' exams, and only when the SOURCE MATERIAL teaches something drawn on coordinate axes: linear functions, slope and intercepts, systems of equations, linear inequalities, parabolas, supply and demand, equilibrium and curve shifts, budget lines, cost or revenue lines, consumer/producer surplus, price ceilings and floors):
 - Make about one in five questions 'graph' (at least one when the source qualifies). The student draws the answer on a grid (points, lines, segments, rays, parabolas, circles, areas, shaded regions, shifting a given line, labels) or types equations and coordinates.
 - "graph": the grid and what is already drawn. "x" and "y": "min", "max", "step" (at most 20 steps per axis), "label" in the exam language (e.g. "Miktar (Q)", "Fiyat (P)") and "var" (the axis letter, e.g. "Q", "P"; default x and y). "given": objects already on the grid, e.g. the original demand line before a shift, in the element format below.
 - "graph_answer": the elements the student must draw, ALWAYS written with x (horizontal) and y (vertical), even when the axes are called Q and P:
@@ -1813,6 +1813,18 @@ function graphAnswerText(els: GraphObj[], none: boolean, x: GraphAxis, y: GraphA
   }).join(' · ')
 }
 
+/** FAZ 4b (canlı test 25.10.2026): kaynak koordinat düzleminde çizilen bir
+ *  konu öğretiyor mu. Model "karışık sınavda beş tipe eşit dağıt" kuralına
+ *  uyup arz-talep notunda bile çizim sorusu yazmadı; kaynak uygunsa çizim
+ *  sorusu zorunlu tutulur. En az iki güçlü kavram + bir denklem izi. */
+const GRAPH_SOURCE_CUES = ['talep', 'arz', 'denge', 'eğim', 'doğrusal', 'eşitsizli', 'parabol', 'koordinat', 'kesişim', 'bütçe doğrusu', 'tüketici artığı', 'üretici artığı', 'tavan fiyat', 'taban fiyat', 'demand', 'supply', 'equilibrium', 'slope', 'intercept', 'linear function', 'inequalit', 'parabola', 'coordinate', 'budget line', 'surplus', 'price ceiling', 'price floor']
+function sourceTeachesGraphs(text: unknown): boolean {
+  const t = String(text ?? '').toLocaleLowerCase('tr-TR')
+  const hits = GRAPH_SOURCE_CUES.filter(c => t.includes(c)).length
+  const equation = /(^|[^a-zçğıöşü])[a-zçğıöşü]\s*=\s*[-−(]?\s*\d/u.test(t) || /[a-zçğıöşü]\s*[<>≤≥]=?\s*-?\d/u.test(t)
+  return hits >= 2 && equation
+}
+
 /** FAZ 4b: çizim sorusunu doğrular; ızgarayı, verilenleri ve cevabı kodla
  *  hesaplanmış koordinatlarla yazar. Araçlar cevaptan türetilir. */
 function verifyGraph(q: Record<string, unknown>, lang: string): { ok: boolean; reason?: string } {
@@ -2805,6 +2817,7 @@ ${c.formulas && (c.formulas as unknown[]).length > 0 ? `FORMULAS: ${JSON.stringi
     const graphsOff = noGraphs === true
     if (graphsOff) chartSources = []
     const graphsAllowed = !graphsOff && (examType === 'mixed' || examType === 'calculation')
+    const graphSource = graphsAllowed && sourceTeachesGraphs(context)
     if (chartSources.length > 0) context += `\n\nCHARTS (numbered; the student sees each drawn as a graph with labelled values):\n${describeCharts(chartSources)}`
 
     // FAZ 4c: "dosyadaki grafik sorularına göre". Taranmış grafiklerden
@@ -2847,12 +2860,17 @@ ${context}
     // is what makes the system message worth caching in the first place.
     const buildUserPrompt = (count: number, avoid: string[]) => `Generate exactly ${count} questions of type '${examType}' in the language '${language}' (en = English, tr = Turkish), at difficulty level '${resolvedDifficulty}'.
 OPTION COUNT: every 'multiple_choice' question has exactly ${scoring.option_count} options.
-GRAPH QUESTIONS: ${graphsAllowed ? 'allowed' : 'not allowed (never use type graph)'}.${decimalPlaces ? `\nNUMERIC PRECISION: 'calculation' answers are graded to exactly ${decimalPlaces} decimal places. In every 'calculation' question text ask for the result to ${decimalPlaces} decimal places, and let "formula" compute the exact value (no rounding inside the formula).` : ''}${resolvedFocusConcept ? `\n\nIMPORTANT FOCUS RULE:\n- The student specifically wants to practice ONE topic: "${resolvedFocusConcept}". EVERY question must test this exact topic, approached from different angles (definition, application, comparison, scenario) — do not drift to unrelated concepts. Set the "concept" field on every question to "${resolvedFocusConcept}" (or a very close variant in the requested language).` : ''}${avoid.length > 0 ? `\n\nDo NOT repeat these questions that were already generated:\n${avoid.map(t => `- ${t.slice(0, 160)}`).join('\n')}` : ''}
+GRAPH QUESTIONS: ${!graphsAllowed ? 'not allowed (never use type graph)' : graphSource && count >= 3 ? `required: this source teaches material drawn on coordinate axes, so at least ${Math.max(1, Math.round(count / 5))} of the ${count} questions MUST be type 'graph' (they count as part of the type spread above)` : 'allowed'}.${decimalPlaces ? `\nNUMERIC PRECISION: 'calculation' answers are graded to exactly ${decimalPlaces} decimal places. In every 'calculation' question text ask for the result to ${decimalPlaces} decimal places, and let "formula" compute the exact value (no rounding inside the formula).` : ''}${resolvedFocusConcept ? `\n\nIMPORTANT FOCUS RULE:\n- The student specifically wants to practice ONE topic: "${resolvedFocusConcept}". EVERY question must test this exact topic, approached from different angles (definition, application, comparison, scenario) — do not drift to unrelated concepts. Set the "concept" field on every question to "${resolvedFocusConcept}" (or a very close variant in the requested language).` : ''}${avoid.length > 0 ? `\n\nDo NOT repeat these questions that were already generated:\n${avoid.map(t => `- ${t.slice(0, 160)}`).join('\n')}` : ''}
+
+Additional variation seed: ${Date.now()}`
+    // FAZ 4b: kaynak uygun ama model çizim sorusu yazmadıysa tek bir çizim sorusu.
+    const buildGraphPrompt = (avoid: string[]) => `Generate exactly 1 question of type 'graph' (a GRAPH DRAWING QUESTION as described in the instructions) in the language '${language}' (en = English, tr = Turkish), at difficulty level '${resolvedDifficulty}', based on the SOURCE MATERIAL.
+GRAPH QUESTIONS: required. Choose numbers so every answer point falls on grid intersections.${avoid.length > 0 ? `\n\nDo NOT repeat these questions that were already generated:\n${avoid.map(t => `- ${t.slice(0, 160)}`).join('\n')}` : ''}
 
 Additional variation seed: ${Date.now()}`
 
     // Tek bir üretim çağrısı. Başarısızsa { error } döner, istisna fırlatmaz.
-    const requestQuestions = async (count: number, avoid: string[], attempt = 0): Promise<{ items?: unknown[]; error?: string }> => {
+    const requestQuestions = async (count: number, avoid: string[], attempt = 0, forceGraph = false): Promise<{ items?: unknown[]; error?: string }> => {
       const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -2878,7 +2896,7 @@ Additional variation seed: ${Date.now()}`
           response_format: { type: "json_object" },
           messages: [
             { role: "system", content: sysPrompt },
-            { role: "user", content: buildUserPrompt(count, avoid) }
+            { role: "user", content: forceGraph ? buildGraphPrompt(avoid) : buildUserPrompt(count, avoid) }
           ]
         })
       })
@@ -2892,7 +2910,7 @@ Additional variation seed: ${Date.now()}`
           const salvaged = salvageQuestionObjects(String(groqData.error.failed_generation ?? ''))
           console.warn(`generate-exam: Groq JSON dogrulamasi dustu; ${salvaged.length} soru kurtarildi`)
           if (salvaged.length > 0) return { items: salvaged }
-          if (attempt < GEN_MAX_RETRIES) return requestQuestions(count, avoid, attempt + 1)
+          if (attempt < GEN_MAX_RETRIES) return requestQuestions(count, avoid, attempt + 1, forceGraph)
         }
         // FAZ 2 (canlı test): eksik sorular için yapılan ikinci istek
         // dakikalık token sınırına (TPM) takılıyordu. Groq'un söylediği süre
@@ -2902,7 +2920,7 @@ Additional variation seed: ${Date.now()}`
         if (waitMs !== null) {
           console.warn(`generate-exam: Groq hiz siniri, ${Math.round(waitMs / 1000)} sn beklenip yeniden deneniyor`)
           await new Promise(r => setTimeout(r, waitMs))
-          return requestQuestions(count, avoid, attempt + 1)
+          return requestQuestions(count, avoid, attempt + 1, forceGraph)
         }
         console.error("Groq generation failed: ", groqData)
         return { error: groqData?.error?.message || groqData?.error?.code || `HTTP ${groqResponse.status}` }
@@ -2975,6 +2993,30 @@ Additional variation seed: ${Date.now()}`
       const second = await requestQuestions(shortfall, accepted.map(q => String(q.question)))
       if (second.items) absorb(second.items)
       else console.warn('generate-exam: ikinci uretim basarisiz:', second.error)
+    }
+
+    // FAZ 4b (canlı test 25.10.2026): kaynak koordinat düzleminde çizilen bir
+    // konu öğretiyor, çizim sorusu zorunlu dendiği hâlde hiç gelmediyse bir kez
+    // yalnızca çizim sorusu istenir; gelen soru en kalabalık tipin son
+    // sorusunun yerine geçer (eksik varsa eklenir).
+    if (graphSource && requestedCount >= 3 && !chartExampleQuestions && !accepted.some(q => q.type === 'graph')) {
+      const g = await requestQuestions(1, accepted.map(q => String(q.question)), 0, true)
+      let note = g.error || 'soru yok'
+      for (const raw of g.items || []) {
+        const r = validateQuestion(attachChart(raw, chartSources), ['graph'], language, scoring.option_count, false)
+        if (!r.ok || !r.question) { note = r.reason || 'unknown'; rejectReasons.push(note); continue }
+        if (accepted.length < requestedCount) accepted.push(r.question)
+        else {
+          const counts: Record<string, number> = {}
+          accepted.forEach(q => { counts[String(q.type)] = (counts[String(q.type)] || 0) + 1 })
+          let idx = -1
+          accepted.forEach((q, i) => { if (idx < 0 || counts[String(q.type)] > counts[String(accepted[idx].type)] || (counts[String(q.type)] === counts[String(accepted[idx].type)] && i > idx)) idx = i })
+          accepted[idx] = r.question
+        }
+        note = 'eklendi'
+        break
+      }
+      console.log(`generate-exam: kaynak cizime uygun, cizim sorusu ayrica istendi: ${note}`)
     }
 
     // FAZ 3a son çare: hâlâ eksikse, formülü doğrulanamayan ama cevabı sayı
