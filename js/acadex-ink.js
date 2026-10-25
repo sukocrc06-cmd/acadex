@@ -33,6 +33,22 @@ window.axWhenProfile = function (cb) {
   };
   tick();
 };
+/* BILDIRIM GOSTER (25.10.2026, test raporu R7). Android Chrome'da sayfadan
+   new Notification() "Illegal constructor" atar; hata sessizce yutuldugu icin
+   telefonda hic bildirim gelmiyordu. Once servis calisani (sw.js) uzerinden
+   gosterilir, olmazsa eski yola duser. Sonuc: true/false. */
+window.axNotify = function (title, opts) {
+  opts = opts || {};
+  if (!('Notification' in window) || Notification.permission !== 'granted') return Promise.resolve(false);
+  var plain = function () { try { new Notification(title, opts); return true; } catch (e) { return false; } };
+  if (!('serviceWorker' in navigator)) return Promise.resolve(plain());
+  var reg = window.__axSwReg || (window.__axSwReg = navigator.serviceWorker.register('sw.js').then(function () { return navigator.serviceWorker.ready; }));
+  var timeout = new Promise(function (r) { setTimeout(function () { r(null); }, 4000); });
+  return Promise.race([reg, timeout]).then(function (r) {
+    if (r && r.showNotification) return r.showNotification(title, opts).then(function () { return true; }, function () { return plain(); });
+    return plain();
+  }, function () { return plain(); });
+};
 (function () {
   'use strict';
   var $ = function (s, r) { return (r || document).querySelector(s); };
@@ -1095,6 +1111,7 @@ window.axWhenProfile = function (cb) {
     if (sel && !$$('option', s).some(function (o) { return o.value === sel; })) { var o2 = document.createElement('option'); o2.value = sel; o2.textContent = sel; s.appendChild(o2); }
     s.value = sel || '';
   };
+  var quickPending = false;
   var openForm = function (ev, note) {
     lastFocus = document.activeElement; editing = ev && ev.id && byId(ev.id) ? ev.id : null; ev = ev || {};
     $('[data-form-t]').textContent = editing ? 'etkinliği düzenle' : 'yeni etkinlik';
@@ -1108,6 +1125,7 @@ window.axWhenProfile = function (cb) {
   };
   window.acxPlanOpen = function (ev) { openForm(ev || null); };
   var closeForm = function () { if (dlg.open) dlg.close(); };
+  dlg.addEventListener('close', function () { setTimeout(function () { quickPending = false; }, 0); });
   dlg.addEventListener('close', function () { if (lastFocus && document.contains(lastFocus)) lastFocus.focus(); });
   dlg.addEventListener('click', function (e) { if (e.target === dlg) closeForm(); });
   $('[data-f-cancel]').addEventListener('click', closeForm);
@@ -1123,6 +1141,8 @@ window.axWhenProfile = function (cb) {
       else { var row = await dbInsert(data); var ne = fromRow(row); events.push(ne); id = ne.id; }
     } catch (er) { sub.disabled = false; fErr.hidden = false; fErr.textContent = 'kaydedemedim; bağlantını kontrol edip tekrar dene.'; console.error(er); return; }
     sub.disabled = false;
+    /* hızlı yazıdan açılan form kaydedilince hızlı yaz kutusu da boşalır (R14) */
+    if (quickPending) { quickPending = false; var qi = $('#quick-in'); if (qi) qi.value = ''; }
     var fr = ff.getBoundingClientRect(), mv = goMonth(d);
     syncLegacy(); closeForm(); renderAll(mv);
     flyTo(id, fr, mv ? 480 : 0);
@@ -1245,7 +1265,13 @@ window.axWhenProfile = function (cb) {
     var t = ' ' + text + ' ', low = ' ' + text.toLocaleLowerCase('tr') + ' ', out = { time: '', date: '', type: 'calisma', doc: '' };
     var cut = function (m) { if (!m) return; var i = low.indexOf(m); if (i < 0) return; t = t.slice(0, i) + ' ' + t.slice(i + m.length); low = low.slice(0, i) + ' ' + low.slice(i + m.length); };
     var m;
-    if ((m = low.match(/(?:saat\s*)?([01]?\d|2[0-3]):([0-5]\d)(?:['’](?:de|da|te|ta))?/)) || (m = low.match(/saat\s*([01]?\d|2[0-3])\.([0-5]\d)(?:['’](?:de|da|te|ta))?/))) { out.time = pad(+m[1]) + ':' + m[2]; cut(m[0]); }
+    /* "10.00" de saat (25.10.2026, R21). "10.11" hem saat hem tarih olabilir:
+       yazıda gün sözcüğü varsa (yarın, cuma, 3 kasım…), dakika 12'den büyükse
+       ya da "00" ise saat sayılır; yoksa tarih olarak kalır ("10.11 ödev"). */
+    var dayWord = new RegExp('(?:^|\\s)(?:bugün|yarın|öbür|ertesi|haftaya|pazartesi|salı|çarşamba|perşembe|cuma|cumartesi|pazar|' + MONTHS.join('|') + ')').test(low);
+    var dotT = low.match(/(?:^|\s)((saat\s*)?([01]?\d|2[0-3])\.([0-5]\d)(?:['’](?:de|da|te|ta))?)(?=\s)/);
+    if ((m = low.match(/(?:saat\s*)?([01]?\d|2[0-3]):([0-5]\d)(?:['’](?:de|da|te|ta))?/))) { out.time = pad(+m[1]) + ':' + m[2]; cut(m[0]); }
+    else if (dotT && (dotT[2] || dayWord || +dotT[4] > 12 || dotT[4] === '00')) { out.time = pad(+dotT[3]) + ':' + dotT[4]; cut(dotT[1]); }
     else if ((m = low.match(/saat\s*([01]?\d|2[0-3])(?:['’](?:de|da|te|ta))?(?=\s)/))) { out.time = pad(+m[1]) + ':00'; cut(m[0]); }
     else if ((m = low.match(/\s([01]?\d|2[0-3])['’](?:de|da|te|ta)(?=\s)/))) { out.time = pad(+m[1]) + ':00'; cut(m[0].trim()); }
     if ((m = low.match(/(?:^|\s)(bugün)/))) { out.date = todayK; cut(m[1]); }
@@ -1255,10 +1281,13 @@ window.axWhenProfile = function (cb) {
       var y = m[3] ? +m[3] : now.getFullYear(), d = new Date(y, MONTHS.indexOf(m[2]), +m[1]);
       if (!m[3] && ymd(d) < todayK) d.setFullYear(y + 1);
       if (d.getDate() === +m[1]) out.date = ymd(d); cut(m[0].trim());
-    } else if ((m = low.match(/(?:^|\s)(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?(?=\s)/))) {
+    } else if ((m = low.match(/(?:^|\s)(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?(?=\s)/)) && (function () {
       var yy = m[3] ? (m[3].length === 2 ? 2000 + +m[3] : +m[3]) : now.getFullYear(), d2 = new Date(yy, +m[2] - 1, +m[1]);
       if (!m[3] && ymd(d2) < todayK) d2.setFullYear(yy + 1);
-      if (d2.getDate() === +m[1] && d2.getMonth() === +m[2] - 1) out.date = ymd(d2); cut(m[0].trim());
+      if (d2.getDate() !== +m[1] || d2.getMonth() !== +m[2] - 1) return false;
+      out.date = ymd(d2); cut(m[0].trim()); return true;
+    })()) {
+      /* geçerli gün.ay bulundu */
     } else {
       var order = ['cumartesi', 'pazartesi', 'çarşamba', 'perşembe', 'salı', 'cuma', 'pazar'];
       for (var i = 0; i < order.length; i++) {
@@ -1276,7 +1305,7 @@ window.axWhenProfile = function (cb) {
     var inp = $('#quick-in'), v = inp.value.trim(); if (!v) { inp.focus(); return; }
     await fillDocs('');
     var p = parseQuick(v);
-    if (!p.date) { openForm({ title: p.title, type: p.type, time: p.time, doc: p.doc, date: todayK }, 'günü anlayamadım; tarihi buradan seç.'); return; }
+    if (!p.date) { quickPending = true; openForm({ title: p.title, type: p.type, time: p.time, doc: p.doc, date: todayK }, 'günü anlayamadım; tarihi buradan seç.'); return; }
     var qr = $('[data-quick]').getBoundingClientRect(), ne;
     try { ne = fromRow(await dbInsert({ title: p.title, type: p.type, date: p.date, time: p.time, doc: p.doc, notes: '' })); }
     catch (er) { fail('Ekleyemedim; bağlantını kontrol et.', er); return; }
@@ -1299,7 +1328,11 @@ window.axWhenProfile = function (cb) {
     b.addEventListener('keydown', function (e) { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); var n = tabs[(i + 1) % 2]; n.focus(); n.click(); } });
   });
 
-  /* ---------- takvim uygulamasına aktar (.ics) ---------- */
+  /* ---------- takvim uygulamasına aktar (.ics) ----------
+     25.10.2026, test raporu R10. Eskiden yalnızca sınavlarda alarm vardı ve
+     telefonda dosya İndirilenler'e düşüp takvime gitmiyordu. Şimdi her
+     etkinlik alarmlı gider (planlayıcı hatırlatıcılarıyla aynı kural) ve
+     telefonda paylaş menüsü açılır; Acadex kapalıyken de takvim hatırlatır. */
   $('[data-ics]').addEventListener('click', function () {
     var list = real();
     if (!list.length) { say('Aktaracak etkinlik yok; önce bir tane ekle.'); return; }
@@ -1314,17 +1347,49 @@ window.axWhenProfile = function (cb) {
       L.push('SUMMARY:' + icsEsc(e.title), 'CATEGORIES:' + icsEsc(TYPE[e.type]));
       var desc = [e.doc ? 'Belge: ' + e.doc : '', e.notes || ''].filter(Boolean).join('\n');
       if (desc) L.push('DESCRIPTION:' + icsEsc(desc));
-      if (e.type === 'sinav') L.push('BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsEsc(e.title), 'TRIGGER:-P1D', 'END:VALARM');
+      /* alarmlar: saatli etkinlikte başlangıca göre, saatsizde gün başına (00:00) göre */
+      var alarms = e.type === 'sinav' ? (e.time ? ['-P1D', '-PT1H'] : ['-PT15H', 'PT8H']) : (e.time ? ['-PT1H'] : ['PT9H']);
+      if (!e.done) alarms.forEach(function (tr) { L.push('BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsEsc(e.title), 'TRIGGER:' + tr, 'END:VALARM'); });
       L.push('END:VEVENT');
     });
     L.push('END:VCALENDAR');
-    var blob = new Blob([L.join('\r\n') + '\r\n'], { type: 'text/calendar;charset=utf-8' }), a = document.createElement('a');
-    a.href = URL.createObjectURL(blob); a.download = 'acadex-planlayici.ics'; document.body.appendChild(a); a.click();
-    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-    say(list.length + ' etkinlik .ics dosyası olarak indi. Google Takvim, Outlook ya da iPhone takvimine ekleyebilirsin.');
+    /* RFC 5545: 75 bayttan uzun satırlar katlanır (Apple takvimi uzun başlıkta takılabiliyor) */
+    var fold = function (line) {
+      var out = [], cur = '', bytes = 0;
+      Array.from(line).forEach(function (ch) {
+        var b = unescape(encodeURIComponent(ch)).length, lim = out.length ? 74 : 75;
+        if (bytes + b > lim) { out.push(cur); cur = ''; bytes = 0; }
+        cur += ch; bytes += b;
+      });
+      out.push(cur); return out.join('\r\n ');
+    };
+    var text = L.map(fold).join('\r\n') + '\r\n', name = 'acadex-planlayici.ics';
+    var download = function () {
+      var blob = new Blob([text], { type: 'text/calendar;charset=utf-8' }), a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 60000);
+      say(list.length + ' etkinlik .ics dosyası olarak indi. Dosyayı açınca takvim uygulaman ekler; hatırlatmaları da birlikte gelir.');
+    };
+    var file = null;
+    try { file = new File([text], name, { type: 'text/calendar' }); } catch (er) { file = null; }
+    if ((mobile() || window.matchMedia('(pointer: coarse)').matches) && file && navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file], title: 'Acadex planlayıcı' }).then(function () {
+        say(list.length + ' etkinlik paylaşıldı. Takvim uygulamanı seçtiysen hatırlatmaları da eklendi.');
+      }, function (er) { if (!er || er.name !== 'AbortError') download(); });
+      return;
+    }
+    download();
   });
 
-  /* ---------- sınav hatırlatıcıları (tarayıcı bildirimi, sayfa açıkken) ---------- */
+  /* ---------- hatırlatıcılar (tarayıcı bildirimi, Acadex açıkken) ----------
+     25.10.2026, test raporu R7. Eskiden yalnızca sınavlar için, yalnızca o
+     oturumda planlayıcı açıldıysa çalışıyordu; Android'de new Notification()
+     hata verdiği için hiç gelmiyordu. Şimdi:
+       sınav  : 1 gün önce ve 1 saat önce (saat yoksa 09:00 sayılır)
+       saatli : 1 saat önce
+       saatsiz: o günün sabahı (09:00'dan itibaren) bir kez
+     Etkinlikler açılışta planlayıcıya girmeden de yüklenir; sekmeye dönünce
+     kaçırılanlar (süresi geçmemişse) gösterilir. Bildirim window.axNotify ile. */
   var sw = $('[data-remind-sw]'), swS = $('[data-remind-s]'), remindOn = !!store.get('remind'), notified = store.get('notified') || [];
   var hasN = 'Notification' in window;
   var paintRemind = function () {
@@ -1336,32 +1401,42 @@ window.axWhenProfile = function (cb) {
     else if (perm === 'denied') { swS.textContent = 'izin verilmedi · tarayıcı ayarlarından açabilirsin'; swS.classList.add('warn'); }
     else swS.textContent = 'kapalı';
   };
+  var remindPlan = function (e) {
+    var hm = (e.time || '09:00').split(':'), at = toD(e.date); at.setHours(+hm[0], +hm[1], 0, 0);
+    var eod = toD(e.date); eod.setHours(23, 59, 59, 0);
+    var tm = e.time ? ' (' + e.time + ')' : '';
+    if (e.type === 'sinav') return [{ k: 86400000, from: at - 86400000, to: at, body: e.title + ' yarın' + tm }, { k: 3600000, from: at - 3600000, to: at, body: e.title + ' 1 saat sonra' + tm }];
+    if (e.time) return [{ k: 3600000, from: at - 3600000, to: at, body: e.title + ' 1 saat sonra' + tm }];
+    return [{ k: 0, from: +at, to: +eod, body: e.title + ' bugün' }];
+  };
   var checkRemind = function () {
     if (!remindOn || !hasN || Notification.permission !== 'granted') return;
     var t = Date.now();
     real().forEach(function (e) {
-      if (e.type !== 'sinav' || e.done) return;
-      var at = toD(e.date), hm = (e.time || '09:00').split(':'); at.setHours(+hm[0], +hm[1], 0, 0);
-      [[86400000, 'yarın'], [3600000, '1 saat sonra']].forEach(function (r) {
-        var key = e.id + ':' + r[0] + ':' + e.date + e.time;
-        if (t >= at - r[0] && t < at && notified.indexOf(key) < 0) {
-          try { new Notification('Acadex · sınav hatırlatıcısı', { body: e.title + ' ' + r[1] + (e.time ? ' (' + e.time + ')' : ''), icon: 'assets/logo-icon-only.png' }); } catch (er) {}
+      if (e.done || !e.date) return;
+      remindPlan(e).forEach(function (r) {
+        var key = e.id + ':' + r.k + ':' + e.date + e.time;
+        if (t >= r.from && t < r.to && notified.indexOf(key) < 0) {
           notified.push(key); store.set('notified', notified.slice(-200));
+          window.axNotify('Acadex · ' + (e.type === 'sinav' ? 'sınav hatırlatıcısı' : 'hatırlatıcı'), { body: r.body, icon: 'assets/logo-icon-only.png', tag: key, data: { url: 'dashboard.html#planner' } });
         }
       });
     });
   };
+  window.axRemindCheck = function () { checkRemind(); };
+  window.axRemindEnable = function () { if (hasN && Notification.permission === 'granted') { remindOn = true; store.set('remind', true); paintRemind(); if (!loaded) load(true); else checkRemind(); } };
   sw.addEventListener('click', function () {
     if (!hasN) return;
     if (remindOn) { remindOn = false; store.set('remind', false); paintRemind(); return; }
-    var go = function (p) { remindOn = p === 'granted'; store.set('remind', remindOn); paintRemind(); if (remindOn) { say('Hatırlatıcılar açık. Bu sayfa açıkken sınavdan önce haber vereceğim.'); checkRemind(); } };
+    var go = function (p) { remindOn = p === 'granted'; store.set('remind', remindOn); paintRemind(); if (remindOn) { say('Hatırlatıcılar açık. Acadex açıkken etkinliklerinden önce haber vereceğim.'); if (!loaded) load(true); else checkRemind(); } };
     try { var pr = Notification.requestPermission(go); if (pr && pr.then) pr.then(go); } catch (er) { go(Notification.permission); }
   });
   paintRemind(); setInterval(checkRemind, 60000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) checkRemind(); });
 
   /* ---------- dashboard.js'in planlayıcı yükleyicisi yerine ---------- */
   var loading = false;
-  var load = async function () {
+  var load = async function (quiet) {
     if (!me() || !sb()) return;
     if (loading) return; loading = true;
     try {
@@ -1370,9 +1445,11 @@ window.axWhenProfile = function (cb) {
       var drafts = events.filter(function (e) { return e.draft; });
       events = (r.data || []).map(fromRow).concat(drafts); loaded = true;
       syncLegacy(); renderAll(); checkRemind();
-    } catch (er) { loaded = true; renderAll(); fail('Takvimin yüklenemedi. Sayfayı yenileyip tekrar dene.', er); }
+    } catch (er) { loaded = true; renderAll(); if (quiet === true) console.error('acadex-ink planlayıcı:', er); else fail('Takvimin yüklenemedi. Sayfayı yenileyip tekrar dene.', er); }
     finally { loading = false; }
   };
+  /* hatırlatıcı açıksa etkinlikler açılışta, planlayıcıya girmeden yüklenir (R7) */
+  window.axWhenProfile(function (p) { if (p && remindOn && !loaded) load(true); });
   if (typeof loadPlannerEvents === 'function') { loadPlannerEvents = load; window.loadPlannerEvents = load; }
   if (typeof openAddEventModal === 'function') {
     openAddEventModal = function () { if (typeof switchDashboardView === 'function' && !root.classList.contains('active')) switchDashboardView('planner'); setTimeout(function () { openForm(null); }, 200); };
@@ -3451,11 +3528,11 @@ window.axWhenProfile = function (cb) {
   };
   $('[data-perm]').addEventListener('click', function () {
     if (!('Notification' in window)) { say('Bu tarayıcı bildirim desteklemiyor.'); return; }
-    Notification.requestPermission().then(function (p) { paintPerm(); say(p === 'granted' ? 'Bildirim izni verildi; sınavından bir gün önce hatırlatırım.' : 'Bildirim izni verilmedi.'); if (p === 'granted' && typeof checkAndTriggerExamNotifications === 'function') checkAndTriggerExamNotifications(); });
+    Notification.requestPermission().then(function (p) { paintPerm(); if (p === 'granted' && typeof window.axRemindEnable === 'function') window.axRemindEnable(); say(p === 'granted' ? 'Bildirim izni verildi; planlayıcıdaki etkinliklerinden önce hatırlatırım.' : 'Bildirim izni verilmedi.'); if (p === 'granted' && typeof checkAndTriggerExamNotifications === 'function') checkAndTriggerExamNotifications(); });
   });
   $('[data-testn]').addEventListener('click', function () {
     if (!('Notification' in window) || Notification.permission !== 'granted') { say('Önce tarayıcı bildirimine izin ver.'); return; }
-    try { new Notification('Acadex', { body: 'Bildirimler çalışıyor. Bugün bir deneme çözmeye ne dersin?', icon: 'assets/landing/acadex-logo.webp' }); } catch (e) { say('Bildirim gösterilemedi.'); }
+    window.axNotify('Acadex', { body: 'Bildirimler çalışıyor. Bugün bir deneme çözmeye ne dersin?', icon: 'assets/landing/acadex-logo.webp' }).then(function (ok) { if (!ok) say('Bildirim gösterilemedi.'); });
   });
 
   /* ---------- görünüm ---------- */

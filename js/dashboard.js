@@ -17652,6 +17652,10 @@ function updateRemindersStatusText() {
 window.updateRemindersStatusText = updateRemindersStatusText;
 
 async function checkAndTriggerExamNotifications() {
+  /* 25.10.2026 (R7): hatirlaticilar artik acadex-ink.js planlayicisinda (tum
+     etkinlikler, Android icin servis calisani). Bu eski yol ayni sinav icin
+     Ingilizce ikinci bildirim atiyordu; oraya yonlendirilir. */
+  if (typeof window.axRemindCheck === 'function') { window.axRemindCheck(); return; }
   if (!currentUser) return;
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
 
