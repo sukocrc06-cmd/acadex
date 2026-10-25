@@ -6725,6 +6725,55 @@ const GEMINI_FIRST_BYTE_MS = 100_000
    karttan kucuk. */
 const GEMINI_ILK_OLAY_MS = 72_000
 
+/* GEMINI DEVRE KESICI (25.10.2026).
+ *
+ * 23.10 aksamindan beri HER kosu ayni: baglanti aciliyor (ilk byte ~15 sn,
+ * icerigi ": keep-alive"), sonra 72 sn hic olay gelmiyor ve cagri 87 sn'de
+ * olu akis olarak dusuyor. Groq yedek yolu ancak ondan SONRA basliyor ve
+ * Supabase'in 150 sn sinirina ~60 sn kaliyor. 42 sayfalik belgeler sigdi;
+ * 49 sayfalik BF415 Week01'de Groq'un ucuncu penceresi TokenPacer yuzunden
+ * 57 sn bekledi, isci 150. saniyede 546 ile kapatildi ve belge 'processing'
+ * durumunda takili kaldi.
+ *
+ * Bir kez olu akis/503 gorulunce sonraki GEMINI_DEVRE_MS boyunca Gemini hic
+ * denenmez; Groq butun butceyle hemen baslar. Sure dolunca ilk istek Gemini'yi
+ * yeniden dener; o da duserse devre yeniden acilir. Durum isciler arasinda
+ * paylasilsin diye site_settings'te (key = gemini_devre) tutuluyor. */
+const GEMINI_DEVRE_MS = 30 * 60_000
+const GEMINI_DEVRE_ANAHTAR = 'gemini_devre'
+
+async function geminiDevreOku(client: any): Promise<{ acik: boolean; kalanDk: number; neden: string }> {
+  try {
+    const { data } = await client.from('site_settings').select('value').eq('key', GEMINI_DEVRE_ANAHTAR).maybeSingle()
+    const v = (data && data.value) || {}
+    const until = Date.parse(String(v.until || '')) || 0
+    return { acik: until > Date.now(), kalanDk: Math.max(0, Math.ceil((until - Date.now()) / 60_000)), neden: String(v.neden || '') }
+  } catch (_e) {
+    return { acik: false, kalanDk: 0, neden: '' }
+  }
+}
+
+async function geminiDevreAc(client: any, neden: string) {
+  try {
+    const until = new Date(Date.now() + GEMINI_DEVRE_MS).toISOString()
+    await client.from('site_settings').upsert({
+      key: GEMINI_DEVRE_ANAHTAR,
+      value: { until, neden, acildi: new Date().toISOString() },
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'key' })
+    console.warn(`Gemini devre kesici ACILDI: ${GEMINI_DEVRE_MS / 60_000} dk boyunca dogrudan Groq (${neden})`)
+  } catch (e) {
+    console.warn('Gemini devre kesici yazilamadi: ', e)
+  }
+}
+
+/* ISCI NOBETCISI (25.10.2026): Supabase isciyi ~150 sn'de kapatiyor ve o anda
+ * hicbir catch calismiyor; belge 'processing' kalip ogrenci sonsuza kadar
+ * "isleniyor" goruyordu. 141. saniyede belge hala 'processing' ise 'failed'
+ * isaretlenir (ekran "tekrar dene" gosterir). Is ondan sonra yine de
+ * biterse 'summarized' yazimi bunu ezer. */
+const ISCI_NOBET_MS = 141_000
+
 /* Kurtarmaya deger en kucuk kismi cikti. Bunun altinda bir tampon zaten bir
    karta donusmez; kurtarmayi denemek yalnizca logu kirletir. */
 const GEMINI_PARTIAL_MIN_CHARS = 2_000
@@ -8192,6 +8241,7 @@ serve(async (req) => {
     // En dis catch'in belgeyi isaretleyebilmesi icin — bkz. hataIcinDocumentId.
     hataIcinDocumentId = documentId ?? null
     resetGeminiParallelUsage()
+    const istekBasladi = Date.now()
     console.log(`Istek alindi: documentId=${documentId ?? '(yok)'}, visuals=${analyzeVisuals ? 'evet' : 'hayir'}, gemini_mode=${geminiMode()}`)
     if (!documentId) {
       console.warn('Erken cikis 400: documentId gonderilmedi')
@@ -8324,6 +8374,20 @@ serve(async (req) => {
       .from('documents')
       .update({ status: 'processing' })
       .eq('id', documentId)
+
+    // Isci nobetcisi — bkz. ISCI_NOBET_MS.
+    {
+      const nobetci = setTimeout(async () => {
+        try {
+          const { data: durumSatiri } = await serviceClient.from('documents').select('status').eq('id', documentId).maybeSingle()
+          if (durumSatiri && durumSatiri.status === 'processing') {
+            console.error(`Nobetci: ${Date.now() - istekBasladi}ms doldu, belge hala 'processing' — isci kapatilmadan once 'failed' isaretleniyor`)
+            await markFailed(serviceClient, documentId)
+          }
+        } catch (_e) { /* nobetci sessiz */ }
+      }, Math.max(5_000, ISCI_NOBET_MS - (Date.now() - istekBasladi)))
+      try { (Deno as any).unrefTimer(nobetci) } catch (_e) { /* eski calisma ortami */ }
+    }
 
     // 2. Download file blob from private storage bucket
     const { data: fileBlob, error: downloadError } = await serviceClient.storage
@@ -9008,6 +9072,7 @@ ${styleInstruction}`
         geminiModButcesi() - (Date.now() - pipelineStartedAt))
       const geminiApiKey = Deno.env.get('GEMINI_API_KEY')
       const geminiMime = geminiNativeMime(mimeType)
+      const devre = (geminiApiKey && mod !== 'parallel') ? await geminiDevreOku(serviceClient) : null
       if (!geminiApiKey) {
         // Tek satir, her kosuda: hangi yolun calistigi loglardan belli olsun.
         console.log('Gemini: GEMINI_API_KEY yok — Groq yolu')
@@ -9018,6 +9083,12 @@ ${styleInstruction}`
           `Gemini: mod=parallel — tum-PDF cagrisi yok, hat paralel pencerelerle ` +
           `(${useChunkedPipeline ? 'uzun belge' : 'kisa belge'}) Gemini'de kosacak`
         )
+      } else if (devre && devre.acik) {
+        /* Devre kesici — bkz. GEMINI_DEVRE_MS. Bu kart Gemini'siz uretildi;
+           onbellege KALICI yazilmasin ki devre kapaninca ayni belge Gemini'yle
+           yeniden denenebilsin (geciciDustu ayni korumayi kullaniyor). */
+        geminiTani.geciciDustu = true
+        console.log(`Gemini: devre kesici ACIK (${devre.kalanDk} dk daha; ${devre.neden || 'olu akis'}) — denenmiyor, dogrudan Groq yolu`)
       } else if (!geminiMime) {
         console.log(`Gemini: atlandi (mime=${mimeType || '(yok)'}, gölge yol yalnizca PDF)`)
       } else if (fileBytes.byteLength > GEMINI_INLINE_MAX_BYTES) {
@@ -9111,6 +9182,10 @@ ${styleInstruction}`
             `Gemini taslagi KISMI (kurtarilan ${geminiKismiKrk} karakter) — ` +
             `kart uretilecek, rozet yazilacak ve onbellege alinmayacak`
           )
+        }
+
+        if (!geminiResult && geminiTani.geciciDustu) {
+          await geminiDevreAc(serviceClient, 'olu akis / gecici hata')
         }
 
         if (!geminiResult && mod === 'only') {

@@ -227,3 +227,49 @@ tr:last-child td{border-bottom:0}
 .tst-strip .mono{font-size:11px;letter-spacing:.12em;color:var(--muted)}
 .tst-strip .tk-t{font-size:20px;margin-right:2px}.tk-t.hata{color:#D64545}.tk-t.tasarim{color:#2F6BFF}.tk-t.oneri{color:#1E8A55}
 .tst-strip .go-t{margin-left:auto;font-weight:700;color:var(--blue)}
+/* ---------- Acadex ekibi (24.10.2026) ---------- */
+.ek-seg{display:inline-flex;padding:3px;border:1.5px solid var(--line2);border-radius:999px;background:var(--card)}
+.ek-seg button{min-height:32px;padding:0 12px;border:0;border-radius:999px;background:none;font-weight:700;font-size:13px;color:var(--muted);cursor:pointer}
+.ek-seg button[aria-pressed="true"]{background:var(--ink);color:#fff}
+.ek-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;align-items:start}
+.ek-team{position:relative;border-top:5px solid var(--tc)}
+.ek-th{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+.ek-th h2{margin:0;flex:1;min-width:0}
+.ek-dot{width:12px;height:12px;border-radius:4px;background:var(--tc);flex:none}
+.ek-ps{display:flex;flex-direction:column;gap:6px}
+.ek-p{display:flex;gap:12px;align-items:flex-start;width:100%;padding:10px;border:1.5px solid var(--line2);border-radius:12px;background:#fff;text-align:left;cursor:pointer;transition:border-color .15s}
+.ek-p:hover{border-color:var(--ink)}
+.ek-p.gone{opacity:.55}
+.ek-av{color:#fff!important;font-size:12px}
+.ek-pn{min-width:0;flex:1}
+.ek-pn b{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:14.5px}
+.ek-pn small{display:block;color:var(--muted);font-size:12.5px;margin-top:1px}
+.ek-job{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:4px;font-size:12.5px;color:var(--ink2)}
+.ek-empty{margin:4px 0;font-size:13px}
+.ek-add{margin-top:8px;align-self:flex-start;font-size:13px}
+.ek-colors{display:flex;flex-wrap:wrap;gap:8px}
+.ek-colors label{cursor:pointer}
+.ek-colors input{position:absolute;opacity:0;width:1px;height:1px}
+.ek-colors i{display:block;width:30px;height:30px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 1.5px var(--line2)}
+.ek-colors input:checked+i{box-shadow:0 0 0 2.5px var(--ink)}
+.ek-colors input:focus-visible+i{outline:2px solid var(--blue);outline-offset:3px}
+/* organizasyon şeması */
+.ek-chart{overflow-x:auto;padding:24px 18px}
+.ek-top{display:flex;justify-content:center;gap:14px;flex-wrap:wrap}
+.ek-stem{width:2px;height:22px;margin:0 auto;background:var(--line2)}
+.ek-row{display:flex;flex-wrap:wrap;gap:22px 14px;justify-content:center;padding-top:20px;border-top:2px solid var(--line2);margin:0 40px}
+.ek-branch{position:relative;display:flex;flex-direction:column;align-items:center;gap:8px;width:190px}
+.ek-branch::before{content:'';position:absolute;top:-20px;left:50%;width:2px;height:20px;background:var(--line2)}
+.ek-tn{width:100%;padding:8px 10px;border:none;border-radius:10px;background:var(--tc);color:#fff;text-align:center;cursor:pointer}
+.ek-tn b{display:block;font-size:13.5px}.ek-tn small{font-size:11.5px;opacity:.85}
+.ek-node{display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;border:1.5px solid var(--line2);border-left:4px solid var(--tc);border-radius:10px;background:#fff;text-align:left;cursor:pointer}
+.ek-node:hover{border-color:var(--ink);border-left-color:var(--tc)}
+.ek-node b{display:block;font-size:13px}.ek-node small{display:block;font-size:11.5px;color:var(--muted)}
+.ek-node .av{width:28px;height:28px;font-size:11px}
+.ek-top .ek-node{width:auto;min-width:200px;padding:10px 14px}
+.ek-sub{display:flex;flex-direction:column;gap:6px;width:100%;padding-left:12px;border-left:2px dashed var(--line2)}
+.ek-open{width:100%;min-height:36px;border:1.5px dashed var(--line2);border-radius:10px;background:none;color:var(--muted);font-size:12.5px;cursor:pointer}
+.ek-loose{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:20px;padding-top:12px;border-top:1px dashed var(--line2)}
+.ek-loose .mono{font-size:11px;color:var(--muted);letter-spacing:.1em}
+.ek-loose .ek-node{width:auto}
+@media (max-width:860px){.ek-grid{grid-template-columns:minmax(0,1fr)}.ek-row{margin:0}}
