@@ -7190,6 +7190,8 @@ async function onExamCardChange() {
 
   if (cardId) {
     updateExamCalcOptionState(cardId);
+    // FAZ 4b.2: grafik / çizim soruları için arka planda tarama başlar.
+    if (!(document.getElementById('exam-no-graphs') || {}).checked) autoChartScan(cardId);
     await loadPastAttempts(cardId);
   }
 }
@@ -7521,6 +7523,49 @@ function computeRequiredGrade() {
 }
 window.computeRequiredGrade = computeRequiredGrade;
 
+// FAZ 4b.2: kart seçilince belge arka planda kendiliğinden taranır (yalnızca
+// grafik + soru ya da çizim sorusu izi taşıyan sayfalar; iz yoksa model hiç
+// çağrılmaz). Bulunanların benzerleri sınava öğrenciye sorulmadan karışır;
+// "grafik sorusu olmasın" işaretliyse tarama yapılmaz. Hata sınavı durdurmaz.
+const autoChartScanJobs = {};
+function autoChartScan(studyCardId, onProgress) {
+  if (!studyCardId) return Promise.resolve(null);
+  const job = autoChartScanJobs[studyCardId];
+  if (job) { if (onProgress) job.listeners.push(onProgress); return job.promise; }
+  const listeners = onProgress ? [onProgress] : [];
+  const tell = (msg) => listeners.forEach(fn => { try { fn(msg); } catch (_e) { /* yoksay */ } });
+  const promise = (async () => {
+    try {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (!session) return null;
+      for (let i = 0; i < 60; i++) {
+        const r = await fetch(`${SUPABASE_URL}/functions/v1/extract-chart-items`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY },
+          body: JSON.stringify({ action: 'step', studyCardId, auto: true })
+        });
+        let d = {};
+        try { d = await r.json(); } catch (_e) { /* boş */ }
+        if (!r.ok) return null;
+        if (d.status === 'done') return d;
+        if (d.status === 'failed' && !d.restart) return null;
+        const total = (d.pages || []).length;
+        tell(`Belgedeki grafik ve çizim soruları taranıyor: ${d.done_pages || 0}/${total} sayfa` + (d.wait_ms ? ` · ${Math.ceil(d.wait_ms / 1000)} sn bekleniyor` : ''));
+        if (d.wait_ms) await new Promise(res => setTimeout(res, d.wait_ms));
+      }
+      return null;
+    } catch (_e) {
+      return null;
+    } finally {
+      // Başarısız ya da yarım kalan tarama sonraki seçimde yeniden denenebilsin.
+      setTimeout(() => { if (autoChartScanJobs[studyCardId] && autoChartScanJobs[studyCardId].promise === promise) delete autoChartScanJobs[studyCardId]; }, 0);
+    }
+  })();
+  autoChartScanJobs[studyCardId] = { promise, listeners };
+  return promise;
+}
+window.autoChartScan = autoChartScan;
+
 // FAZ 4c: belgedeki grafik sorularını tarar (extract-chart-items, sayfa
 // sayfa; Groq'un dakikalık sınırında bekler). Tarama bir kez yapılır,
 // sonraki sınavlarda hemen "done" döner. İlerleme kurulum penceresinde.
@@ -7622,6 +7667,9 @@ async function generateExam() {
     // taranır; sonra sorular taranmış grafiklerden kodla kurulur.
     const chartBox = document.getElementById('exam-chart-examples');
     if (chartBox && chartBox.checked && !chartBox.disabled && !requestBody.noGraphs && requestBody.studyCardId) {
+      // Arka plandaki kendiliğinden tarama sürüyorsa önce o biter (aynı
+      // sayfalar iki kez taranmasın).
+      if (autoChartScanJobs[requestBody.studyCardId]) await autoChartScan(requestBody.studyCardId, (msg) => { if (typeof window.__examProgress === 'function') window.__examProgress(msg); });
       const scanned = await runChartScan(requestBody.studyCardId, session, btn);
       if (!scanned) {
         btn.disabled = false;
@@ -7630,6 +7678,21 @@ async function generateExam() {
       }
       requestBody.chartExamples = true;
       requestBody.examType = 'mixed';
+    } else if (!requestBody.noGraphs && requestBody.studyCardId) {
+      // FAZ 4b.2: arka plandaki tarama bitmeden sınav kurulursa beklenir (en
+      // çok 3 dk; bitmezse sınav taramasız kurulur, tarama arkada sürer).
+      let waiting = true;
+      const progress = (msg) => {
+        if (!waiting) return;
+        if (typeof window.__examProgress === 'function') window.__examProgress(msg);
+        else btn.textContent = msg;
+      };
+      const scan = await Promise.race([
+        autoChartScan(requestBody.studyCardId, progress),
+        new Promise(res => setTimeout(() => res(null), 180000))
+      ]);
+      waiting = false;
+      if (scan && scan.found && typeof window.__examProgress === 'function') window.__examProgress(`Belgede ${scan.found} grafik/çizim sorusu bulundu; benzerleri sınava ekleniyor…`);
     }
 
     const response = await fetch(`${SUPABASE_URL}/functions/v1/generate-exam`, {
