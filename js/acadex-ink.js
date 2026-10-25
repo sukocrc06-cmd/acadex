@@ -1389,18 +1389,38 @@ window.axWhenProfile = function (cb) {
     showSummary(keep || cards[0]);
   };
   var cardById = function (id) { return (lsafe(function () { return notebookCards; }, []) || []).filter(function (c) { return c.id === id; })[0]; };
+  /* "Deftere ekle" geri bildirimi ve tekrar engeli (25.10.2026, R36): eskiden
+     hicbir sey soylemiyordu, ogrenci tekrar basiyor ve ayni not ust uste
+     ekleniyordu. Ayni kartin ayni metni bu sayfada varsa yenisi eklenmez,
+     var olan not gosterilir. */
+  var noteText = function (h) { var d = document.createElement('div'); d.innerHTML = String(h || ''); return (d.textContent || '').replace(/\s+/g, ' ').trim(); };
   var addNote = function (card, text, at) {
-    if (!card || typeof addStickyNoteToNotebook !== 'function') return;
-    var nm = baseName(card.documents && card.documents.file_name);
-    addStickyNoteToNotebook(card.id, nm, text != null ? text : (card.summary || ''));
+    if (!card || typeof addStickyNoteToNotebook !== 'function') return false;
+    var nm = baseName(card.documents && card.documents.file_name), body = text != null ? text : (card.summary || ''), want = noteText(body);
+    var same = $$('#notebook-overlay-container .draggable-note').filter(function (n) {
+      var t = n.querySelector('.draggable-note-text');
+      return n.getAttribute('data-card-id') === card.id && t && noteText(t.innerHTML) === want;
+    })[0];
+    if (same) {
+      same.classList.remove('ax-flash'); void same.offsetWidth; same.classList.add('ax-flash');
+      try { same.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (er) {}
+      if (typeof showDashboardAlert === 'function') showDashboardAlert('info', 'Bu not bu sayfada zaten var.');
+      return false;
+    }
+    addStickyNoteToNotebook(card.id, nm, body);
+    if (typeof showDashboardAlert === 'function') showDashboardAlert('success', 'Deftere eklendi ✓');
     if (at) setTimeout(function () {
       var notes = $$('#notebook-overlay-container .draggable-note'), n = notes[notes.length - 1];
       if (n) { n.style.left = Math.max(0, at.x - 100) + 'px'; n.style.top = Math.max(0, at.y - 30) + 'px'; }
     }, 160);
+    return true;
   };
   var ul = $('#notebook-sidebar-list');
   ul.addEventListener('click', function (e) {
-    var add = e.target.closest('[data-add]'); if (add) { addNote(cardById(add.getAttribute('data-add'))); return; }
+    var add = e.target.closest('[data-add]'); if (add) {
+      if (addNote(cardById(add.getAttribute('data-add')))) { var t0 = add.textContent; add.textContent = 'eklendi ✓'; add.disabled = true; setTimeout(function () { add.textContent = t0; add.disabled = false; }, 1800); }
+      return;
+    }
     if (e.target.closest('button, input, label, a')) return;
     var li = e.target.closest('.kc'); if (li) showSummary(cardById(li.getAttribute('data-card')));
   });

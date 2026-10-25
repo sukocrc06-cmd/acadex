@@ -8728,3 +8728,19 @@ body.acx .sidebar.ax-side{top:calc(64px + env(safe-area-inset-top))}
 /* hareket azaltma ve yazdırma: animasyon yok, içerik anında görünür */
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
 @media print{*,*::before,*::after{animation:none!important;transition:none!important}}
+
+/* ===== Defter: kaydedilmemiş değişiklik penceresi, depo "eklendi" işareti (25.10.2026, R24/R30/R32) ===== */
+.nb-dlg{position:fixed;inset:0;z-index:100000;display:grid;place-items:center;padding:16px;background:rgba(13,24,56,.42)}
+.nb-dlg-box{width:min(440px,100%);background:#FFFDF8;border:1.5px solid #1A2A5C;border-radius:16px;box-shadow:4px 4px 0 #1A2A5C;padding:20px 20px 16px;color:#0D1838;font-family:'Instrument Sans',system-ui,sans-serif}
+.nb-dlg-box h3{margin:0 0 6px;font:800 20px/1.2 'Bricolage Grotesque',system-ui,sans-serif;color:#0D1838}
+.nb-dlg-box p{margin:0 0 14px;font-size:15px;line-height:1.45;color:#3A4362}
+.nb-dlg-acts{display:flex;flex-direction:column;gap:8px}
+.nb-dlg-acts .btn{width:100%;min-height:44px;justify-content:center;border-radius:999px;font-weight:700}
+.nb-dlg-acts .btn:not(.btn-dark){background:#fff;border:1.5px solid #1A2A5C;color:#0D1838}
+.nb-dlg-acts .btn.ghost{border-color:#D9D3C3;color:#4B5675}
+.nb-dlg-box .nb-dlg-warn{margin:10px 0 0;font-size:12.5px;color:#6A7593}
+html.ax-dark .nb-dlg-box{box-shadow:4px 4px 0 #1A2A5C}
+.page-thumbnail-dirty{display:inline-block;margin-top:3px;padding:1px 7px;border-radius:999px;background:#FFF3C4;color:#6B4A00;font-size:.65rem;font-weight:700}
+.is-placed .depot-item-actions .btn{background:#E5F4EC!important;color:#156B41!important}
+@keyframes axNoteFlash{0%,100%{box-shadow:0 0 0 0 rgba(47,107,255,0)}30%{box-shadow:0 0 0 6px rgba(47,107,255,.45)}}
+.draggable-note.ax-flash{animation:axNoteFlash 1.2s ease 2}
