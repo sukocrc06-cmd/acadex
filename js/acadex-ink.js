@@ -304,37 +304,87 @@ window.axWhenProfile = function (cb) {
   ['t-log', 't-short'].forEach(function (k) { var c = byId(k); if (c) c.classList.add('curl'); });
   var cf = byId('t-facts'); if (cf) cf.classList.add('taped');
 
-  /* ---------- yarınki sana not (bu tarayıcıda) ---------- */
+  /* ---------- yarınki sana not ----------
+     HESAPTA (25.10.2026, test raporu R8). Eskiden yalnızca bu tarayıcıda
+     duruyordu: telefonda yazılan not bilgisayarda yoktu. Ayrıca "bugün"
+     sayfa açılırken bir kez hesaplanıyordu; sekme gece açık kalınca ertesi
+     gün not "dün yazmıştın" olarak çıkmıyordu. Şimdi not profiles.day_memo
+     alanında ({t, d, at}); tarayıcıdaki kopya yalnızca hızlı açılış içindir.
+     Ertesi gün (ya da sonra) Bugün sayfası açılınca not kendiliğinden açılır. */
   (function () {
-    var todayK = ymd(now), memo = $('#memo-t'), memoL = $('[data-memo-l]'), memoS = $('[data-memo-s]'), saved = store.get('memo');
-    if (saved && saved.t) {
-      memo.value = saved.t;
-      if (saved.d !== todayK) {
-        var y = new Date(now); y.setDate(now.getDate() - 1);
-        var when = saved.d === ymd(y) ? 'dün' : new Date(saved.d + 'T12:00').toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' }) + ' günü';
+    var memo = $('#memo-t'), memoL = $('[data-memo-l]'), memoS = $('[data-memo-s]');
+    var memoB = $('[data-memo-b]'), memoP = $('[data-memo-peek]'), box = $('[data-memo]');
+    var cur = store.get('memo'), shownFor = '';
+    var todayK = function () { return ymd(new Date()); };
+    var uid = function () { var u = me(); return u && u.id; };
+    var memoInView = false;
+    var paint = function () {
+      var t = todayK(), v = cur && cur.t ? cur.t : '';
+      if (document.activeElement !== memo) memo.value = v;
+      if (!v) memoL.textContent = 'yarınki sana bir not bırak';
+      else if (cur.d && cur.d < t) {
+        var y = new Date(); y.setDate(y.getDate() - 1);
+        var when = cur.d === ymd(y) ? 'dün' : new Date(cur.d + 'T12:00').toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' }) + ' günü';
         memoL.textContent = when + ' kendine şunu yazmıştın:';
       } else memoL.textContent = 'yarınki sana notun';
-    }
-    var memoB = $('[data-memo-b]'), memoP = $('[data-memo-peek]'), box = $('[data-memo]');
+      peek();
+      /* önceki günden kalan not, o gün not ekrana ilk geldiğinde kendiliğinden açılır */
+      if (v && cur.d && cur.d < t && shownFor !== t && store.get('memoSeen') !== t && box.hidden && memoInView) {
+        shownFor = t; store.set('memoSeen', t);
+        box.hidden = false; memoB.setAttribute('aria-expanded', 'true');
+      }
+    };
     var peek = function () {
       var v = memo.value.trim(); if (!v) { memoP.textContent = 'yarınki sana bir not bırak'; return; }
       var pre = /yazmıştın/.test(memoL.textContent) ? memoL.textContent.replace(' kendine şunu yazmıştın:', ' yazmıştın: ') : 'notun: ';
       memoP.textContent = pre + (v.length > 30 ? v.slice(0, 30).trim() + '…' : v);
     };
-    peek();
+    var pushToAccount = function (val) {
+      var id = uid(), sb = lsafe(function () { return supabaseClient; }, null);
+      if (!id || !sb) return Promise.resolve(false);
+      return sb.from('profiles').update({ day_memo: val }).eq('id', id).then(function (r) {
+        if (r && r.error) throw r.error;
+        var p = prof(); if (p) p.day_memo = val;
+        return true;
+      }).catch(function () { return false; });
+    };
+    paint();
+    /* hesaptaki not daha yeniyse onu kullan; hesapta yoksa bu tarayıcıdakini hesaba taşı */
+    window.axWhenProfile(function (p) {
+      if (!p) return;
+      var acc = p.day_memo && p.day_memo.t ? p.day_memo : null;
+      if (acc && (!cur || !cur.at || (acc.at || 0) >= cur.at)) { cur = acc; store.set('memo', cur); }
+      else if (cur && cur.t && !acc) pushToAccount(cur);
+      paint();
+    });
     var open = function (o) { box.hidden = !o; memoB.setAttribute('aria-expanded', String(o)); if (o) memo.focus(); else { peek(); memoB.focus(); } };
     memoB.addEventListener('click', function () { open(box.hidden); });
     $('[data-memo-x]').addEventListener('click', function () { open(false); });
     box.addEventListener('keydown', function (e) { if (e.key === 'Escape') { e.stopPropagation(); open(false); } });
     document.addEventListener('click', function (e) { if (!box.hidden && !e.target.closest('.memo-w')) { box.hidden = true; memoB.setAttribute('aria-expanded', 'false'); peek(); } });
+    /* gün değişti mi: sekmeye dönünce ve dakikada bir bak */
+    var lastDay = todayK();
+    var dayCheck = function () { var t = todayK(); if (t !== lastDay) { lastDay = t; paint(); } };
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) { dayCheck(); paint(); } });
+    setInterval(dayCheck, 60000);
+    /* Bugün sayfası ekrana gelince (başka sekmeden dönüş) de bak */
+    var mw = $('.memo-w'); if (mw && 'IntersectionObserver' in window) new IntersectionObserver(function (es) { memoInView = es.some(function (x) { return x.isIntersecting; }); if (memoInView) paint(); }).observe(mw);
     var mt = 0;
     memo.addEventListener('input', function () {
       clearTimeout(mt);
       mt = setTimeout(function () {
         var v = memo.value.trim();
-        if (!v) { store.del('memo'); memoL.textContent = 'yarınki sana bir not bırak'; memoS.textContent = 'yalnızca bu tarayıcıda kalır'; return; }
-        memoS.textContent = store.set('memo', { t: v, d: todayK }) ? 'kaydedildi, yarın burada olacak' : 'bu tarayıcı notu saklamıyor';
+        if (!v) {
+          cur = null; store.del('memo'); memoL.textContent = 'yarınki sana bir not bırak'; memoS.textContent = 'not silindi';
+          pushToAccount(null); return;
+        }
+        cur = { t: v, d: todayK(), at: Date.now() };
+        store.set('memo', cur);
         memoL.textContent = 'yarınki sana notun';
+        memoS.textContent = 'kaydediliyor…';
+        pushToAccount(cur).then(function (ok) {
+          memoS.textContent = ok ? 'kaydedildi, yarın her cihazında burada olacak' : 'yalnızca bu tarayıcıya kaydedildi (bağlantı yok)';
+        });
       }, 400);
     });
   })();
@@ -10080,17 +10130,21 @@ var SBX = (function () {
     window.switchDashboardView = switchDashboardView;
   }
 
-  /* ---------- gece masası (koyu tema): açık → koyu → saate göre ---------- */
+  /* ---------- gece masası (koyu tema): açık ↔ gece ----------
+     TEK TIKLAMA (25.10.2026, test raporu R6). Eskiden üç durum dönüyordu
+     (açık → gece → saate göre); 'saate göre' gündüz açık göründüğü için bir
+     tıklama boşa gidiyordu. Düğme artık ekranda görünen temanın tersine geçer.
+     Önceden 'saate göre' seçmiş olan, düğmeye basana kadar öyle kalır. */
   var tb = document.getElementById('ax-theme');
-  var LBL = { light: 'Tema: açık (gece masasına geç)', dark: 'Tema: gece masası (saate göre yap)', auto: 'Tema: saate göre, 19:00–07:00 arası gece (açık temaya geç)' };
+  var LBL = { light: 'Tema: açık (gece masasına geç)', dark: 'Tema: gece masası (açık temaya geç)' };
   var applyTheme = function (anim) {
     var t = G('acadex.theme', 'light'), h = new Date().getHours(), dark = t === 'dark' || (t === 'auto' && (h >= 19 || h < 7));
     if (anim && !calm) { html.classList.add('ax-themefx'); setTimeout(function () { html.classList.remove('ax-themefx'); }, 700); }
     html.classList.toggle('ax-dark', dark);
-    if (tb) { tb.setAttribute('data-mode', t); tb.setAttribute('aria-label', LBL[t]); tb.title = LBL[t]; }
+    if (tb) { var vm = dark ? 'dark' : 'light'; tb.setAttribute('data-mode', vm); tb.setAttribute('aria-label', LBL[vm]); tb.title = LBL[vm]; }
     var mc = document.querySelector('meta[name="theme-color"]'); if (mc) mc.setAttribute('content', dark ? '#06080F' : '#0D1838');
   };
-  if (tb) tb.addEventListener('click', function () { var t = G('acadex.theme', 'light'); S('acadex.theme', t === 'light' ? 'dark' : t === 'dark' ? 'auto' : 'light'); applyTheme(true); });
+  if (tb) tb.addEventListener('click', function () { S('acadex.theme', html.classList.contains('ax-dark') ? 'light' : 'dark'); applyTheme(true); });
   applyTheme(false); setInterval(function () { if (G('acadex.theme', 'light') === 'auto') applyTheme(false); }, 60000);
 
   /* ---------- telefon alt menüsü ---------- */

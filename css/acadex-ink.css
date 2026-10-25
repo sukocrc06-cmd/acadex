@@ -8814,3 +8814,9 @@ html.ax-dark .nb-dlg-box{box-shadow:4px 4px 0 #1A2A5C}
 .is-placed .depot-item-actions .btn{background:#E5F4EC!important;color:#156B41!important}
 @keyframes axNoteFlash{0%,100%{box-shadow:0 0 0 0 rgba(47,107,255,0)}30%{box-shadow:0 0 0 6px rgba(47,107,255,.45)}}
 .draggable-note.ax-flash{animation:axNoteFlash 1.2s ease 2}
+
+/* R5 (25.10.2026): gece modunda avatar renkleri. Sayfa tumden ters cevrilip resimler
+   tekrar ters cevriliyor; ust cubuktaki avatar kutusu da ters cevrildigi icin icindeki
+   resim UC kez cevriliyor, renkler bozuluyordu. Acadia yildizi da hic geri cevrilmiyordu. */
+html.ax-dark #topbar-user-avatar img{filter:none}
+html.ax-dark #axa-layer .axa-mas svg{filter:drop-shadow(-4px 8px 8px rgba(13,24,56,0.28)) invert(1) hue-rotate(180deg)}
