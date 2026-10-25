@@ -4726,11 +4726,45 @@ test('KISA metin ikinci anahtari KULLANMAZ', () => {
     'kisa metinde ikinci anahtar yine uretiliyor');
 });
 
-test('arama IKI anahtari birden soruyor', () => {
-  assert.ok(/\.in\('cache_key', anahtarlar\)/.test(SRC),
+test('arama DORT anahtari birden soruyor', () => {
+  assert.ok(SRC.includes(".in('cache_key', anahtarlar)"),
     'tek anahtarla aranmaya devam ediyor');
-  assert.ok(/const anahtarlar = metinCacheKey \? \[summaryCacheKey, metinCacheKey\]/.test(SRC),
-    'metin anahtari aramaya katilmiyor');
+  assert.ok(SRC.includes(
+    'const anahtarlar = [summaryCacheKey, metinCacheKey, yedekDosyaKey, yedekMetinKey]'),
+    'metin ya da gorsel-yedek anahtari aramaya katilmiyor');
+});
+
+test('GORSEL BAYRAGI cache isabetini engellemiyor', () => {
+  /* 25.10.2026. Bayrak anahtarin parcasi oldugu icin gorseli acmak ya da
+     kapatmak ayni dosyanin olculen ~2 sn'lik satirini gecersiz kiliyordu;
+     kart sifirdan uretiliyordu — "yavasladi" izleniminin kaynagi buydu.
+     Tam esleme hala once gelir, yoksa KARSI bayragin satiri yedek sayilir. */
+  assert.ok(SRC.includes('const ayarlarYedek = ayarlariKur(!analyzeVisuals)'),
+    'karsi bayrak icin ayar uretilmiyor');
+  assert.ok(SRC.includes('const yedekDosyaKey = [contentHash, ...ayarlarYedek]'),
+    'gorsel-yedek dosya anahtari yok');
+  assert.ok(SRC.includes("const yedekMetinKey = metinHash ? ['t' + metinHash, ...ayarlarYedek]"),
+    'gorsel-yedek metin anahtari yok');
+});
+
+test('ISABET SIRASI tam eslemeyi onde tutuyor', () => {
+  /* Dort anahtar birden soruluyor; .in() hangi satiri donduregini secmez.
+     Bu yuzden limit(1) kalkti ve siralama kodda yapiliyor: tam esleme >
+     metin eslemesi > gorsel yedegi. Aksi halde gorsel analizi istenen bir
+     kosu, duruma gore gorselsiz satiri alirdi. */
+  const j = SRC.indexOf(".in('cache_key', anahtarlar)");
+  assert.ok(j > -1, 'arama bulunamadi');
+  assert.ok(!SRC.slice(j, j + 60).includes('.limit(1)'),
+    'limit(1) geri gelmis — satir secimi surucuye birakilmis');
+  assert.ok(SRC.includes('const cached = anahtarlar'),
+    'isabet anahtar sirasina gore secilmiyor');
+  const i = SRC.indexOf('const anahtarlar = [summaryCacheKey');
+  assert.ok(i > -1, 'anahtar dizisi bulunamadi');
+  const dizi = SRC.slice(i, i + 160);
+  assert.ok(dizi.indexOf('summaryCacheKey') < dizi.indexOf('yedekDosyaKey'),
+    'gorsel yedegi tam eslemenin onune gecmis');
+  assert.ok(dizi.indexOf('metinCacheKey') < dizi.indexOf('yedekDosyaKey'),
+    'gorsel yedegi metin eslemesinin onune gecmis');
 });
 
 test('yazma IKI satir birden koyuyor', () => {
@@ -4745,17 +4779,23 @@ test('yazma IKI satir birden koyuyor', () => {
 test('anahtar AYARLARI tasimaya devam ediyor', () => {
   /* Dil/stil/uzunluk/gorsel ve surum anahtarin parcasi olmazsa Turkce
      isteyen ogrenciye Ingilizce kart verilir. */
-  assert.ok(/const ayarlar = \[lang, style, len, analyzeVisuals \? 'v' : 'nv', SUMMARY_CACHE_VERSION\]/.test(SRC),
+  assert.ok(SRC.includes("[lang, style, len, gorsel ? 'v' : 'nv', SUMMARY_CACHE_VERSION]"),
     'ayarlar anahtardan dusmus');
-  assert.ok(/metinCacheKey = metinHash \? \['t' \+ metinHash, \.\.\.ayarlar\]/.test(SRC),
+  assert.ok(SRC.includes('const ayarlar = ayarlariKur(analyzeVisuals)'),
+    'birincil anahtar istenen gorsel bayragini tasimiyor');
+  assert.ok(SRC.includes("metinCacheKey = metinHash ? ['t' + metinHash, ...ayarlar]"),
     'metin anahtari ayarlari tasimiyor');
 });
 
 test('hangi anahtarin isabet ettigi LOGLANIYOR', () => {
-  // Metin anahtarinin is gorup gormedigi ancak boyle olculur.
-  assert.ok(/CACHE ISABETI \[\$\{isabetTuru\}\]/.test(SRC), 'isabet turu loglanmiyor');
-  assert.ok(/isabetTuru = .*cache_key === metinCacheKey \? 'METIN' : 'DOSYA'/.test(SRC),
+  // Metin ve gorsel-yedek anahtarlarinin is gorup gormedigi ancak boyle olculur.
+  assert.ok(SRC.includes('CACHE ISABETI [${isabetTuru}]'), 'isabet turu loglanmiyor');
+  assert.ok(SRC.includes("const isabetTuru = isabetKey === metinCacheKey ? 'METIN'"),
     'isabet turu metin/dosya ayrimi yapmiyor');
+  assert.ok(SRC.includes("'DOSYA/GORSEL-YEDEK'") && SRC.includes("'METIN/GORSEL-YEDEK'"),
+    'gorsel-yedek isabeti loga ayri girmiyor — kazanci olculemez');
+  assert.ok(SRC.includes("touch_summary_cache', { p_key: isabetKey }"),
+    'yedek isabette yanlis anahtar tazeleniyor');
 });
 
 
