@@ -1616,7 +1616,19 @@ function graphGridPointsOnLine(l: { a: number; b: number; c: number }, x: GraphA
   return n
 }
 
-type GraphCtx = { given: GraphObj[]; answer: GraphObj[] }
+type GraphCtx = { given: GraphObj[]; answer: GraphObj[]; xv?: string; yv?: string }
+
+/** Eksen harfleriyle yazılmış denklemi x/y'ye çevirir ("P = 12 - 2Q" →
+ *  "y = 12 - 2x"). Model verilen nesneleri de eksen harfleriyle yazabiliyor
+ *  (canlı test 25.10.2026: graph_given_invalid). */
+function graphMapAxisVars(eq: unknown, ctx: GraphCtx): string {
+  let s = String(eq ?? '')
+  const swap = (from: string | undefined, to: string) => {
+    if (from && /^[A-Za-z]$/.test(from) && from.toLowerCase() !== to) s = s.replace(new RegExp(`(^|[^A-Za-z])${from}(?![A-Za-z])`, 'g'), `$1${to}`)
+  }
+  if (ctx.xv && ctx.yv && ctx.xv.toLowerCase() !== 'y' && ctx.yv.toLowerCase() !== 'x') { swap(ctx.xv, 'x'); swap(ctx.yv, 'y') }
+  return s
+}
 
 /** "g0" / "a1": verilen ya da önceki cevap öğesi (doğru türü). */
 function graphRef(ref: unknown, ctx: GraphCtx): GraphObj | null {
@@ -1679,7 +1691,7 @@ function normalizeGraphObject(raw: unknown, x: GraphAxis, y: GraphAxis, ctx: Gra
     let p = pts(r.points)
     if (p.length >= 2 && p[0] && p[1]) p = [p[0], p[1]]
     else if (r.equation != null) {
-      const lin = graphLinear(r.equation)
+      const lin = graphLinear(graphMapAxisVars(r.equation, ctx))
       const clip = lin ? graphClipLine(lin, x, y) : null
       if (!clip) return { reason: 'graph_line_invalid' }
       if (kind !== 'line') obj.kind = kind = 'line'
@@ -1716,7 +1728,7 @@ function normalizeGraphObject(raw: unknown, x: GraphAxis, y: GraphAxis, ctx: Gra
     if (Math.abs(area) < 1e-9) return { reason: 'graph_polygon_invalid' }
     obj.points = p as number[][]
   } else if (kind === 'fill') {
-    const ineq = (Array.isArray(r.inequalities) ? r.inequalities : []).slice(0, 6).map(graphInequality)
+    const ineq = (Array.isArray(r.inequalities) ? r.inequalities : []).slice(0, 6).map(v => graphInequality(graphMapAxisVars(v, ctx)))
     if (!ineq.length || ineq.some(v => !v)) return { reason: 'graph_fill_invalid' }
     obj.ineq = ineq as GraphIneq[]
     // Bölge kutu içinde boş olmamalı, kutunun tamamı da olmamalı.
@@ -1832,10 +1844,10 @@ function verifyGraph(q: Record<string, unknown>, lang: string): { ok: boolean; r
   const x = normalizeGraphAxis(g.x ?? { min: g.x_min, max: g.x_max, step: g.x_step, label: g.x_label }, 'x')
   const y = normalizeGraphAxis(g.y ?? { min: g.y_min, max: g.y_max, step: g.y_step, label: g.y_label }, 'y')
   if (!x || !y) return { ok: false, reason: 'graph_axes_invalid' }
-  const ctx: GraphCtx = { given: [], answer: [] }
+  const ctx: GraphCtx = { given: [], answer: [], xv: x.var, yv: y.var }
   for (const raw of (Array.isArray(g.given) ? g.given : []).slice(0, GRAPH_MAX_GIVEN)) {
     const r = normalizeGraphObject(raw, x, y, ctx)
-    if (!r.obj || r.obj.kind === 'fill' || r.obj.shift || !r.obj.points.length) return { ok: false, reason: 'graph_given_invalid' }
+    if (!r.obj || r.obj.kind === 'fill' || r.obj.shift || !r.obj.points.length) return { ok: false, reason: `graph_given_invalid${r.reason ? ':' + r.reason : ''}` }
     ctx.given.push(r.obj)
   }
   const rawAns = q.graph_answer
@@ -2038,6 +2050,10 @@ const GEN_TOKENS_MAX = 7000
 const GEN_TOKENS_CALC_EXTRA = 150
 // FAZ 4b: çizim sorusu ızgara ve cevap tanımı da yazıyor (yaklaşık beşte bir soru).
 const GEN_TOKENS_GRAPH_EXTRA = 60
+// Groq dakikalık token sınırı (istem + ayrılan çıktı birlikte sayılır) ve
+// kısma sonrası en az bırakılacak çıktı bütçesi.
+const GROQ_TPM_LIMIT = 8000
+const GEN_TOKENS_FLOOR = 1000
 
 function completionBudgetFor(count: number): number {
   const n = Math.max(1, Math.floor(Number(count) || 1))
@@ -2858,9 +2874,9 @@ ${context}
     // their optional focus concept, and a variation seed). Keeping this
     // short and putting everything reusable above in the system message
     // is what makes the system message worth caching in the first place.
-    const buildUserPrompt = (count: number, avoid: string[]) => `Generate exactly ${count} questions of type '${examType}' in the language '${language}' (en = English, tr = Turkish), at difficulty level '${resolvedDifficulty}'.
+    const buildUserPrompt = (count: number, avoid: string[], needGraph = false) => `Generate exactly ${count} questions of type '${examType}' in the language '${language}' (en = English, tr = Turkish), at difficulty level '${resolvedDifficulty}'.
 OPTION COUNT: every 'multiple_choice' question has exactly ${scoring.option_count} options.
-GRAPH QUESTIONS: ${!graphsAllowed ? 'not allowed (never use type graph)' : graphSource && count >= 3 ? `required: this source teaches material drawn on coordinate axes, so at least ${Math.max(1, Math.round(count / 5))} of the ${count} questions MUST be type 'graph' (they count as part of the type spread above)` : 'allowed'}.${decimalPlaces ? `\nNUMERIC PRECISION: 'calculation' answers are graded to exactly ${decimalPlaces} decimal places. In every 'calculation' question text ask for the result to ${decimalPlaces} decimal places, and let "formula" compute the exact value (no rounding inside the formula).` : ''}${resolvedFocusConcept ? `\n\nIMPORTANT FOCUS RULE:\n- The student specifically wants to practice ONE topic: "${resolvedFocusConcept}". EVERY question must test this exact topic, approached from different angles (definition, application, comparison, scenario) — do not drift to unrelated concepts. Set the "concept" field on every question to "${resolvedFocusConcept}" (or a very close variant in the requested language).` : ''}${avoid.length > 0 ? `\n\nDo NOT repeat these questions that were already generated:\n${avoid.map(t => `- ${t.slice(0, 160)}`).join('\n')}` : ''}
+GRAPH QUESTIONS: ${!graphsAllowed ? 'not allowed (never use type graph)' : graphSource && (count >= 3 || needGraph) ? `required: this source teaches material drawn on coordinate axes, so at least ${needGraph ? 1 : Math.max(1, Math.round(count / 5))} of the ${count} questions MUST be type 'graph' (they count as part of the type spread above)` : 'allowed'}.${decimalPlaces ? `\nNUMERIC PRECISION: 'calculation' answers are graded to exactly ${decimalPlaces} decimal places. In every 'calculation' question text ask for the result to ${decimalPlaces} decimal places, and let "formula" compute the exact value (no rounding inside the formula).` : ''}${resolvedFocusConcept ? `\n\nIMPORTANT FOCUS RULE:\n- The student specifically wants to practice ONE topic: "${resolvedFocusConcept}". EVERY question must test this exact topic, approached from different angles (definition, application, comparison, scenario) — do not drift to unrelated concepts. Set the "concept" field on every question to "${resolvedFocusConcept}" (or a very close variant in the requested language).` : ''}${avoid.length > 0 ? `\n\nDo NOT repeat these questions that were already generated:\n${avoid.map(t => `- ${t.slice(0, 160)}`).join('\n')}` : ''}
 
 Additional variation seed: ${Date.now()}`
     // FAZ 4b: kaynak uygun ama model çizim sorusu yazmadıysa tek bir çizim sorusu.
@@ -2869,8 +2885,18 @@ GRAPH QUESTIONS: required. Choose numbers so every answer point falls on grid in
 
 Additional variation seed: ${Date.now()}`
 
+    let lastPromptTokens = 0, firstUserChars = 0
     // Tek bir üretim çağrısı. Başarısızsa { error } döner, istisna fırlatmaz.
-    const requestQuestions = async (count: number, avoid: string[], attempt = 0, forceGraph = false): Promise<{ items?: unknown[]; error?: string }> => {
+    const requestQuestions = async (count: number, avoid: string[], attempt = 0, forceGraph = false, needGraph = false): Promise<{ items?: unknown[]; error?: string }> => {
+      const userContent = forceGraph ? buildGraphPrompt(avoid) : buildUserPrompt(count, avoid, needGraph)
+      // Groq TPM sınırı istemi VE ayrılan çıktı bütçesini birlikte sayar
+      // (canlı test 25.10.2026: "Request too large … Requested 8262"). İlk
+      // çağrının gerçek istem tokenı biliniyorsa ona göre, yoksa tahminle kısılır.
+      const promptEst = lastPromptTokens > 0 ? lastPromptTokens + Math.ceil(Math.max(0, userContent.length - firstUserChars) / 3) + 50 : Math.ceil((sysPrompt.length + userContent.length) / 3.4)
+      const wanted = Math.min(GEN_TOKENS_MAX, completionBudgetFor(count) + (examType === 'calculation' ? GEN_TOKENS_CALC_EXTRA * count : 0) + (graphsAllowed ? GEN_TOKENS_GRAPH_EXTRA * count : 0))
+      // İlk çağrı eskisi gibi (canlıda istem önbelleğiyle sorunsuz); kısma
+      // yalnızca tamamlama ve çizim isteklerinde.
+      const budget = forceGraph || count < requestedCount ? Math.max(GEN_TOKENS_FLOOR, Math.min(wanted, GROQ_TPM_LIMIT - promptEst - 100)) : wanted
       const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -2888,7 +2914,7 @@ Additional variation seed: ${Date.now()}`
           // soruda kesik geliyordu. Düşünme payı kısıldı, bütçe soru
           // sayısına göre açıkça veriliyor (hesap 8.000 TPM ile sınırlı).
           reasoning_effort: "low",
-          max_completion_tokens: Math.min(GEN_TOKENS_MAX, completionBudgetFor(count) + (examType === 'calculation' ? GEN_TOKENS_CALC_EXTRA * count : 0) + (graphsAllowed ? GEN_TOKENS_GRAPH_EXTRA * count : 0)),
+          max_completion_tokens: budget,
           // JSON modu üst düzeyde NESNE döndürür; prompt bu yüzden artık
           // {"questions":[...]} istiyor. Eskiden dizi istenip json_object
           // modu kullanılıyordu — ara sıra görülen "invalid formatting"
@@ -2896,7 +2922,7 @@ Additional variation seed: ${Date.now()}`
           response_format: { type: "json_object" },
           messages: [
             { role: "system", content: sysPrompt },
-            { role: "user", content: forceGraph ? buildGraphPrompt(avoid) : buildUserPrompt(count, avoid) }
+            { role: "user", content: userContent }
           ]
         })
       })
@@ -2910,7 +2936,7 @@ Additional variation seed: ${Date.now()}`
           const salvaged = salvageQuestionObjects(String(groqData.error.failed_generation ?? ''))
           console.warn(`generate-exam: Groq JSON dogrulamasi dustu; ${salvaged.length} soru kurtarildi`)
           if (salvaged.length > 0) return { items: salvaged }
-          if (attempt < GEN_MAX_RETRIES) return requestQuestions(count, avoid, attempt + 1, forceGraph)
+          if (attempt < GEN_MAX_RETRIES) return requestQuestions(count, avoid, attempt + 1, forceGraph, needGraph)
         }
         // FAZ 2 (canlı test): eksik sorular için yapılan ikinci istek
         // dakikalık token sınırına (TPM) takılıyordu. Groq'un söylediği süre
@@ -2920,7 +2946,7 @@ Additional variation seed: ${Date.now()}`
         if (waitMs !== null) {
           console.warn(`generate-exam: Groq hiz siniri, ${Math.round(waitMs / 1000)} sn beklenip yeniden deneniyor`)
           await new Promise(r => setTimeout(r, waitMs))
-          return requestQuestions(count, avoid, attempt + 1, forceGraph)
+          return requestQuestions(count, avoid, attempt + 1, forceGraph, needGraph)
         }
         console.error("Groq generation failed: ", groqData)
         return { error: groqData?.error?.message || groqData?.error?.code || `HTTP ${groqResponse.status}` }
@@ -2928,7 +2954,8 @@ Additional variation seed: ${Date.now()}`
       const choice = groqData.choices?.[0]
       const rawContent = choice?.message?.content ?? ""
       const usage = groqData.usage || {}
-      console.log(`generate-exam: groq finish=${choice?.finish_reason} istenen=${count} prompt=${usage.prompt_tokens} cikti=${usage.completion_tokens} butce=${completionBudgetFor(count)}`)
+      if (!lastPromptTokens && Number(usage.prompt_tokens) > 0) { lastPromptTokens = Number(usage.prompt_tokens); firstUserChars = userContent.length }
+      console.log(`generate-exam: groq finish=${choice?.finish_reason} istenen=${count} prompt=${usage.prompt_tokens} cikti=${usage.completion_tokens} butce=${budget}`)
       let items = parseQuestionArray(rawContent)
       // Bütçede kesilen yanıt: tamamlanmış soru nesnelerini kurtar.
       if (!items && rawContent) {
@@ -2958,6 +2985,10 @@ Additional variation seed: ${Date.now()}`
         if (!result.ok || !result.question) {
           const reason = result.reason || 'unknown'
           rejectReasons.push(reason)
+          if (reason.startsWith('graph_')) {
+            const r = (raw || {}) as Record<string, unknown>
+            console.warn(`generate-exam: ${reason} graph=${JSON.stringify(r.graph ?? null).slice(0, 400)} answer=${JSON.stringify(r.graph_answer ?? null).slice(0, 400)}`)
+          }
           if (reason.startsWith('calc_')) {
             const r = (raw || {}) as Record<string, unknown>
             console.warn(`generate-exam: ${reason} formula=${JSON.stringify(r.formula ?? null).slice(0, 160)} vars=${JSON.stringify(r.variables ?? null).slice(0, 160)}`)
@@ -2987,10 +3018,15 @@ Additional variation seed: ${Date.now()}`
     absorb(first.items || [])
 
     // Eksik kalan soru varsa bir kez daha, yalnızca eksik sayı kadar iste.
+    let shortfallCalled = false
     if (accepted.length < requestedCount && !chartExampleQuestions) {
       const shortfall = requestedCount - accepted.length
       console.warn(`generate-exam: ${rejectReasons.length} soru dogrulamadan gecmedi (${rejectReasons.join(', ')}); ${shortfall} soru icin yeniden uretim isteniyor`)
-      const second = await requestQuestions(shortfall, accepted.map(q => String(q.question)))
+      // FAZ 4b: çizim sorusu hâlâ yoksa aynı istekte en az biri çizim istenir
+      // (ayrı bir istek aynı dakikada TPM sınırına takılıyor).
+      const needGraph = graphSource && requestedCount >= 3 && !accepted.some(q => q.type === 'graph')
+      shortfallCalled = true
+      const second = await requestQuestions(shortfall, accepted.map(q => String(q.question)), 0, false, needGraph)
       if (second.items) absorb(second.items)
       else console.warn('generate-exam: ikinci uretim basarisiz:', second.error)
     }
@@ -2999,7 +3035,7 @@ Additional variation seed: ${Date.now()}`
     // konu öğretiyor, çizim sorusu zorunlu dendiği hâlde hiç gelmediyse bir kez
     // yalnızca çizim sorusu istenir; gelen soru en kalabalık tipin son
     // sorusunun yerine geçer (eksik varsa eklenir).
-    if (graphSource && requestedCount >= 3 && !chartExampleQuestions && !accepted.some(q => q.type === 'graph')) {
+    if (graphSource && requestedCount >= 3 && !chartExampleQuestions && !shortfallCalled && !accepted.some(q => q.type === 'graph')) {
       const g = await requestQuestions(1, accepted.map(q => String(q.question)), 0, true)
       let note = g.error || 'soru yok'
       for (const raw of g.items || []) {

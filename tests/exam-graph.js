@@ -24,7 +24,7 @@ const G = loadFromSource(GEN, [
   'EXPR_MAX_LENGTH', 'EXPR_MAX_DEPTH', 'EXPR_CONSTS', 'EXPR_FUNCS', 'evaluateExpression', 'parseLooseNumber', 'MATH_INPUT_MAX', 'normalizeMathInput', 'chartLabel',
   'GRAPH_KINDS', 'GRAPH_TOOL_ORDER', 'GRAPH_MAX_STEPS', 'GRAPH_MAX_ELEMENTS', 'GRAPH_MAX_GIVEN', 'GRAPH_SHIFT_DIRS', 'graphRound', 'normalizeGraphAxis',
   'graphLinear', 'graphInequality', 'graphInBox', 'graphOnGrid', 'graphLineOf', 'graphClipLine', 'graphGridPointsOnLine', 'graphRef', 'graphResolvePoint',
-  'GRAPH_KIND_ALIASES', 'normalizeGraphObject', 'graphIneqHolds', 'graphShiftDir', 'graphElementSnap', 'graphNum', 'graphLineText', 'graphPointText',
+  'GRAPH_KIND_ALIASES', 'graphMapAxisVars', 'normalizeGraphObject', 'graphIneqHolds', 'graphShiftDir', 'graphElementSnap', 'graphNum', 'graphLineText', 'graphPointText',
   'GRAPH_KIND_NAMES', 'graphAnswerText', 'GRAPH_SOURCE_CUES', 'sourceTeachesGraphs', 'verifyGraph', 'allowedTypesFor', 'KEY_FIELDS', 'INTERNAL_FIELDS', 'splitPublicAndKey'
 ]);
 const R = loadFromSource(GRADE, ['GRAPH_STUDENT_MAX_OBJECTS', 'GRAPH_STUDENT_KINDS', 'graphParseStudent', 'graphLabelKey', 'GRAPH_EL_NAMES', 'graphFmt',
@@ -107,6 +107,16 @@ test('sourceTeachesGraphs: arz-talep / doğrusal fonksiyon notu evet; sözel ya 
   assert.equal(G.sourceTeachesGraphs('Sınavlarda grafik soruları genellikle yorum bazlıdır; sütun grafiği kategorileri karşılaştırır.'), false);
   assert.equal(G.sourceTeachesGraphs('Talep ve arz kavramları ile piyasa dengesi sözel olarak anlatılır.'), false, 'denklem izi yok');
   assert.equal(G.sourceTeachesGraphs('Fırsat maliyeti, vazgeçilen en iyi seçenektir. NPV = 120 TL.'), false);
+});
+
+test('verifyGraph: verilen ve cevap denklemleri eksen harfleriyle (P = 8 − Q) de okunur (canlı test 25.10.2026)', () => {
+  const q = verified({ type: 'graph', question: 'Talep sağa kayar.', graph: { x: { min: 0, max: 10, step: 1, label: 'Miktar (Q)' }, y: { min: 0, max: 10, step: 1, label: 'Fiyat (P)' }, given: [{ kind: 'line', equation: 'P = 8 - Q', label: 'D1' }] },
+    graph_answer: [{ kind: 'line', equation: 'P = 10 - Q', shift_of: 'g0', direction: 'right', label: 'D2' }, { kind: 'region', inequalities: ['P <= 10 - Q', 'Q >= 0'] }] });
+  assert.deepEqual(q.graph.given[0].points, [[0, 8], [8, 0]]);
+  assert.deepEqual(q.graph_answer.elements[0].points, [[0, 10], [10, 0]]);
+  assert.equal(q.graph_answer.elements[1].ineq.length, 2);
+  const bad = G.verifyGraph({ type: 'graph', question: 'x', graph: { x: { min: 0, max: 10, step: 1 }, y: { min: 0, max: 10, step: 1 }, given: [{ kind: 'line', equation: 'y = 50 + x' }] }, graph_answer: [{ kind: 'point', at: [1, 1] }] }, 'tr');
+  assert.equal(bad.reason, 'graph_given_invalid:graph_line_invalid', 'iç neden de yazılır');
 });
 
 test('allowedTypesFor: çizim karışık ve hesaplamada, "grafik sorusu olmasın" ise yok', () => {
