@@ -2138,12 +2138,53 @@ const ANCHOR_STOPWORDS = new Set([
 ])
 
 /** Content-bearing terms of a string: >=4 chars, not a stopword, diacritics kept. */
+/* BUYUK "I" KELIMEYI IKIYE BOLUYORDU (24.10.2026).
+ *
+ * JavaScript'te 'İ'.toLowerCase() iki kod birimi uretiyor: 'i' + U+0307
+ * (birlesen ustteki nokta). U+0307 bir birlesme isareti oldugu icin
+ * \p{L} ve \p{N} kumelerine girmiyor, dolayisiyla asagidaki noktalama
+ * temizligi onu BOSLUGA cevirip kelimeyi ikiye boluyordu. Olculdu:
+ *
+ *   gateNormalize('İşsizlik Oranı') -> "i şsizlik oranı"
+ *   anchorTerms('İstatistik')       -> ["statistik"]   (bastaki 'i' 4
+ *                                      harf esigine takilip dusuyor)
+ *   anchorTerms('istatistik')       -> ["istatistik"]
+ *
+ * Sonuc: model terimi baslik bicimiyle (İ ile), kaynak cumle icinde kucuk
+ * harfle yazdiginda — ya da tersi — grounding kapisi terimi "uydurma"
+ * sayip siliyor, atif eslemesi de sayfa capasini kaybediyordu. Turkce bir
+ * urunde bu, kaynakta BIREBIR gecen icerigi silmek demek.
+ *
+ * Duzeltme once NFC ile birlestirip sonra kalan birlesen noktayi atiyor,
+ * yani 'İ' -> 'i'. Eslesme orani yalnizca YUKARI gidebilir: hicbir yeni
+ * eslesme uydurma bir terimi geciremez, cunku iki taraf da ayni
+ * fonksiyondan geciyor. Bu yuzden esiklerin kalibrasyonu degismiyor. */
+function trNormalize(s: string): string {
+  return String(s == null ? '' : s).normalize('NFC').toLowerCase().replace(/̇/g, '')
+}
+
+/* ONDALIK SAYI KORLUGU (25.10.2026).
+ *
+ * Noktalama temizligi "9.3"u "9" ve "3"e boluyordu, ikisi de 4 harf
+ * esigine takilip dusuyordu: "%9.3", "0.21", "1,96" gibi degerler hicbir
+ * karsilastirmaya girmiyordu. Bir ekonometri destesinde iddiayi sayfasina
+ * baglayan en ayirt edici sey cogu zaman tam olarak bu sayi; kosu 37'de
+ * atifsiz kalan madde sayisi 8-16 idi.
+ *
+ * Artik ondalik sayi TEK terim ("9,3" -> "9.3"; Turkce virgul de ayni
+ * terime iner). Kisa tamsayilar hala disarida: "3", "20" sayfa ve madde
+ * numarasi gurultusu. 4+ haneli tamsayilar (1982) zaten geciyordu.
+ *
+ * Kesinlik yonu: belgede bulunan bir ondalik dogru sayfaya agirlik ekler
+ * (idf'i yuksek, ayirt edici); belgede HIC bulunmayan bir ondalik
+ * (modelin hesapladigi bir deger) iddianin toplam agirligini buyutup
+ * skoru DUSURUR — yani yeni bir yanlis atif uretemez, ancak atifi daha
+ * temkinli yapar ("yanlis atif, eksik atiftan kotudur"). */
 function anchorTerms(s: string): string[] {
-  return String(s == null ? '' : s)
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-    .split(/\s+/)
-    .filter(w => w.length >= 4 && !ANCHOR_STOPWORDS.has(w))
+  const parcalar = trNormalize(s).match(/\d+(?:[.,]\d+)+|[\p{L}\p{N}]+/gu) || []
+  return parcalar
+    .map(w => /^\d+(?:[.,]\d+)+$/.test(w) ? w.replace(/,/g, '.') : w)
+    .filter(w => (w.length >= 4 || /^\d+\.\d+/.test(w)) && !ANCHOR_STOPWORDS.has(w))
 }
 
 type PageSegment = { page: number; terms: Set<string>; head: string; body: string }
