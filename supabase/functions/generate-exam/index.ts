@@ -71,7 +71,7 @@ You must output ONLY a valid JSON object of the form {"questions": [ ... ]}, wit
 The "questions" array's length must exactly equal the question count requested in the user message. Each object in it must match this JSON schema:
 {
   "id": number (1-based index),
-  "type": "multiple_choice" | "open_ended" | "true_false" | "fill_blank" | "calculation" | "expression",
+  "type": "multiple_choice" | "open_ended" | "true_false" | "fill_blank" | "calculation" | "expression" | "graph",
   "question": "string",
   "options": ["string"] | null,
   "correct_answer": "string" | number,
@@ -91,6 +91,8 @@ The "questions" array's length must exactly equal the question count requested i
   "given": "string" | null,
   "up_to_constant": boolean | null,
   "chart_ref": number | null,
+  "graph": {"x": {"min": number, "max": number, "step": number, "label": "string", "var": "string"}, "y": {...same}, "given": [element]} | null,
+  "graph_answer": [element] | "none" | null,
   "hint": "string (short helpful clue that does NOT reveal the answer)",
   "concept": "string",
   "explanation": "string",
@@ -104,6 +106,19 @@ CHART QUESTIONS (only when the SOURCE MATERIAL has a CHARTS section):
 - The student sees every chart in CHARTS drawn as a graph with its values labelled. Make about one in four questions (at least one) chart-reading questions: set "chart_ref" to the chart's number, and write the question so it must be answered by reading that chart (trend, highest/lowest, difference, change, ratio or share). Refer to it as "the chart" / "grafik".
 - Do NOT restate the chart's numbers in the question text. For a 'calculation' chart question, "variables" take the values from the chart.
 - Use only charts that are listed; never invent data. "chart_ref" is null for every other question.
+
+GRAPH DRAWING QUESTIONS (type 'graph'; only when the user message says GRAPH QUESTIONS: allowed or required (when required, write at least the stated number), only in 'mixed' or 'calculation' exams, and only when the SOURCE MATERIAL teaches something drawn on coordinate axes: linear functions, slope and intercepts, systems of equations, linear inequalities, parabolas, supply and demand, equilibrium and curve shifts, budget lines, cost or revenue lines, consumer/producer surplus, price ceilings and floors):
+- Make about one in five questions 'graph' (at least one when the source qualifies). The student draws the answer on a grid (points, lines, segments, rays, parabolas, circles, areas, shaded regions, shifting a given line, labels) or types equations and coordinates.
+- "graph": the grid and what is already drawn. "x" and "y": "min", "max", "step" (at most 20 steps per axis), "label" in the exam language (e.g. "Miktar (Q)", "Fiyat (P)") and "var" (the axis letter, e.g. "Q", "P"; default x and y). "given": objects already on the grid, e.g. the original demand line before a shift, in the element format below.
+- "graph_answer": the elements the student must draw, ALWAYS written with x (horizontal) and y (vertical), even when the axes are called Q and P:
+  {"kind": "point", "at": [x, y] | {"intersect": ["g0", "a1"]} | {"on": "a0", "x": 0}, "label": "E"}
+  {"kind": "line", "equation": "y = -2*x + 10"} (also for horizontal "y = 4" and vertical "x = 3" lines); {"kind": "segment" | "ray", "points": [[x1, y1], [x2, y2]]} (a ray starts at the first point)
+  {"kind": "line", "shift_of": "g0", "direction": "right" | "left" | "up" | "down"} when only the direction of a shift is determined; add "equation" when the new line is exactly determined
+  {"kind": "parabola", "vertex": [h, k], "through": [x, y]}, {"kind": "circle", "center": [a, b], "through": [x, y]}
+  {"kind": "polygon", "points": [vertex, vertex, ...]} for an area such as consumer surplus (vertices may use the intersect / on forms)
+  {"kind": "fill", "inequalities": ["y <= -2*x + 10", "x >= 0"]} for a shaded region; also list its boundary lines, with "style": "dashed" for strict inequalities
+  Any element may have "label" (e.g. "D2", "S", "E") the student must attach. "g0", "g1" are "given" objects by index; "a0", "a1" earlier graph_answer elements. Use "none" when nothing can be drawn (e.g. no solution).
+- Code recomputes every coordinate (intersections, points on lines) and discards the question if the answer does not fall on grid intersections, so choose numbers that give whole-step answers. ALWAYS write an equilibrium or intersection point as {"intersect": [...]}, never as typed coordinates, and pick the equations (and shift sizes) so that the intersection lands exactly on the grid, e.g. demand P = 15 - 2Q with supply P = 3 + Q meet at (4; 7). "correct_answer": a short text such as "E(4; 6)"; "options": null. Ask only for what is drawn.
 
 FEEDBACK FIELDS (the student reads these only AFTER submitting the exam):
 - "explanation" (every question): 1-2 sentences saying WHY the correct answer is correct. Reuse the source material's own key terms and wording so the claim can be traced back to the source.
@@ -141,7 +156,7 @@ const TRUE_FALSE_OPTIONS: Record<string, [string, string]> = { tr: ['Doğru', 'Y
 // durur; öğrenci bunları ancak sınav puanlandıktan sonra görür.
 // FAZ 3a: hesap sorusunun değişkenleri, formülü, şablonu ve tipik hataları
 // da anahtarda; tarayıcıya ancak puanlamadan sonra gider.
-const KEY_FIELDS = ['correct_answer', 'accepted_answers', 'solution_steps', 'tolerance_percent', 'hint', 'explanation', 'option_rationales', 'rubric', 'source', 'variables', 'formula', 'template', 'common_errors', 'verified', 'step_kind', 'equation', 'unknown']
+const KEY_FIELDS = ['correct_answer', 'accepted_answers', 'solution_steps', 'tolerance_percent', 'hint', 'explanation', 'option_rationales', 'rubric', 'source', 'variables', 'formula', 'template', 'common_errors', 'verified', 'step_kind', 'equation', 'unknown', 'graph_answer']
 // Yalnızca sunucuda kullanılan alanlar: ne tarayıcıya ne anahtara yazılır.
 const INTERNAL_FIELDS = ['source_terms', 'chart_ref']
 const EXPLANATION_MAX_CHARS = 600
@@ -736,13 +751,15 @@ function normalizeScoring(optionCount: unknown, negativeMarking: unknown): { opt
   return { option_count: oc, negative_marking: enabled, wrong_per_correct: ratio }
 }
 
-/** Sınav türüne göre kabul edilen soru tipleri. */
-function allowedTypesFor(examType: string, isQuant: boolean): string[] {
+/** Sınav türüne göre kabul edilen soru tipleri. FAZ 4b: çizim sorusu
+ *  karışık ve hesaplama sınavında; öğrenci "grafik sorusu olmasın" dediyse yok. */
+function allowedTypesFor(examType: string, isQuant: boolean, graphs = false): string[] {
   if (examType === 'classic') return ['open_ended']
   if (examType === 'test') return ['multiple_choice']
-  if (examType === 'calculation') return ['calculation', 'expression']
+  if (examType === 'calculation') return graphs ? ['calculation', 'expression', 'graph'] : ['calculation', 'expression']
   const mixed = ['open_ended', 'multiple_choice', 'true_false', 'fill_blank']
-  return isQuant ? [...mixed, 'calculation'] : mixed
+  const out = isQuant ? [...mixed, 'calculation'] : mixed
+  return graphs ? [...out, 'graph'] : out
 }
 
 /** FAZ 3c: aynı cevabı gösteren şıklar. Canlıda "5.368,00 / 5.368 /
@@ -1487,6 +1504,423 @@ function buildChartExamQuestions(items: Array<Record<string, unknown>>, count: n
   return out
 }
 
+// ==========================================================================
+// FAZ 4b — GRAFİK ÇİZME (24.10.2026)
+//
+// Öğrenci cevabı ızgarada çizer (nokta, doğru, parça, ışın, parabol, çember,
+// alan, bölge boyama, verilen doğruyu kaydırma) ya da değer yazarak girer.
+// Model yalnızca ızgarayı ve cevabın TANIMINI verir: "y = -2*x + 10",
+// kesişim {"intersect": ["g0", "a1"]}, doğru üstünde nokta {"on": "a0",
+// "x": 0}. Koordinatları burada kod hesaplar; cevap ızgaraya oturmuyorsa
+// soru atılır (graph_* nedenleri). Puanlama grade-exam'de, kodla.
+// Model cevap tanımında her zaman x ve y kullanır (eksenler Q ve P olsa da).
+// ==========================================================================
+const GRAPH_KINDS = ['point', 'line', 'segment', 'ray', 'parabola', 'circle', 'polygon', 'fill']
+const GRAPH_TOOL_ORDER = ['point', 'line', 'segment', 'ray', 'parabola', 'circle', 'polygon', 'fill', 'shift']
+const GRAPH_MAX_STEPS = 24
+const GRAPH_MAX_ELEMENTS = 6
+const GRAPH_MAX_GIVEN = 4
+const GRAPH_SHIFT_DIRS = ['right', 'left', 'up', 'down']
+type GraphAxis = { min: number; max: number; step: number; snap: number; label: string; var: string }
+type GraphIneq = { a: number; b: number; c: number; op: string }
+type GraphObj = { kind: string; points: number[][]; label?: string; style?: string; ineq?: GraphIneq[]; shift?: { of: number; dir: string } }
+type GraphSpec = { x: GraphAxis; y: GraphAxis; tools: string[]; given: GraphObj[]; labels: string[] }
+
+function graphRound(v: number): number {
+  return Math.round(v * 1e9) / 1e9
+}
+
+/** Eksen: min < max, adım > 0, en çok GRAPH_MAX_STEPS adım ve tam bölünür.
+ *  Eksen harfi (Q, P) verilmezse etiketteki parantezden ("Miktar (Q)"). */
+function normalizeGraphAxis(raw: unknown, defVar: string): GraphAxis | null {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+  const min = parseLooseNumber(r.min), max = parseLooseNumber(r.max), step = parseLooseNumber(r.step)
+  if (![min, max, step].every(Number.isFinite) || max <= min || step <= 0) return null
+  const n = (max - min) / step
+  if (n < 2 || n > GRAPH_MAX_STEPS + 1e-9 || Math.abs(n - Math.round(n)) > 1e-6) return null
+  const label = chartLabel(r.label, 40)
+  const v = String(r.var ?? '').trim()
+  const fromLabel = /^[A-Za-z]$/.test(label) ? label : (label.match(/\(([A-Za-z])\)\s*$/) || [])[1]
+  return { min, max, step, snap: step, label, var: /^[A-Za-z]$/.test(v) ? v : fromLabel || defVar }
+}
+
+/** "y = -2*x + 10", "x = 4", "2x + 3y = 12" → a·x + b·y = c. Doğrusal
+ *  değilse ya da okunamazsa null. */
+function graphLinear(eq: unknown): { a: number; b: number; c: number } | null {
+  const parts = String(eq ?? '').split('=')
+  if (parts.length !== 2) return null
+  const L = normalizeMathInput(parts[0], ['x', 'y']), R = normalizeMathInput(parts[1], ['x', 'y'])
+  if (!L || !R) return null
+  const g = (x: number, y: number) => evaluateExpression(L, { x, y }) - evaluateExpression(R, { x, y })
+  const g0 = g(0, 0), a = g(1, 0) - g0, b = g(0, 1) - g0
+  if (![g0, a, b].every(Number.isFinite) || (Math.abs(a) < 1e-12 && Math.abs(b) < 1e-12)) return null
+  for (const [x, y] of [[2.7, -1.3], [-3.1, 4.6], [5.5, 2.2]]) {
+    const d = g(x, y) - (a * x + b * y + g0)
+    if (!Number.isFinite(d) || Math.abs(d) > 1e-6 * (1 + Math.abs(a * x) + Math.abs(b * y) + Math.abs(g0))) return null
+  }
+  return { a, b, c: -g0 }
+}
+
+/** "y <= -2*x + 10" → a·x + b·y (op) c; op: <, <=, >, >=. */
+function graphInequality(s: unknown): GraphIneq | null {
+  const m = String(s ?? '').replace(/≤/g, '<=').replace(/≥/g, '>=').match(/^(.*?)(<=|>=|<|>)(.*)$/)
+  if (!m || /[<>=]/.test(m[3])) return null
+  const lin = graphLinear(`${m[1]} - (${m[3]}) = 0`)
+  return lin ? { a: lin.a, b: lin.b, c: lin.c, op: m[2] } : null
+}
+
+function graphInBox(p: number[], x: GraphAxis, y: GraphAxis): boolean {
+  const ex = (x.max - x.min) * 1e-9, ey = (y.max - y.min) * 1e-9
+  return p[0] >= x.min - ex && p[0] <= x.max + ex && p[1] >= y.min - ey && p[1] <= y.max + ey
+}
+
+function graphOnGrid(v: number, axis: GraphAxis, snap: number): boolean {
+  const k = (v - axis.min) / snap
+  return Math.abs(k - Math.round(k)) < 1e-6
+}
+
+/** İki noktadan doğru: a·x + b·y = c. */
+function graphLineOf(p: number[], q: number[]): { a: number; b: number; c: number } {
+  const a = q[1] - p[1], b = p[0] - q[0]
+  return { a, b, c: a * p[0] + b * p[1] }
+}
+
+/** Doğrunun kutu içindeki iki uç noktası (kutuyu kesmiyorsa null). */
+function graphClipLine(l: { a: number; b: number; c: number }, x: GraphAxis, y: GraphAxis): number[][] | null {
+  const pts: number[][] = []
+  const add = (px: number, py: number) => {
+    const p = [graphRound(px), graphRound(py)]
+    if (graphInBox(p, x, y) && !pts.some(o => Math.abs(o[0] - p[0]) < 1e-9 && Math.abs(o[1] - p[1]) < 1e-9)) pts.push(p)
+  }
+  if (Math.abs(l.b) > 1e-12) { add(x.min, (l.c - l.a * x.min) / l.b); add(x.max, (l.c - l.a * x.max) / l.b) }
+  if (Math.abs(l.a) > 1e-12) { add((l.c - l.b * y.min) / l.a, y.min); add((l.c - l.b * y.max) / l.a, y.max) }
+  if (pts.length < 2) return null
+  let best = [pts[0], pts[1]], d = -1
+  for (let i = 0; i < pts.length; i++) for (let j = i + 1; j < pts.length; j++) {
+    const dd = Math.hypot(pts[i][0] - pts[j][0], pts[i][1] - pts[j][1])
+    if (dd > d) { d = dd; best = [pts[i], pts[j]] }
+  }
+  return best
+}
+
+/** Doğrunun üstündeki ızgara kesişimleri (kutu içinde). */
+function graphGridPointsOnLine(l: { a: number; b: number; c: number }, x: GraphAxis, y: GraphAxis, snapX: number, snapY: number): number {
+  let n = 0
+  const nx = Math.round((x.max - x.min) / snapX)
+  for (let i = 0; i <= nx; i++) {
+    const gx = x.min + i * snapX
+    if (Math.abs(l.b) < 1e-12) { if (Math.abs(l.a * gx - l.c) < 1e-9 * (1 + Math.abs(l.c))) n += Math.round((y.max - y.min) / snapY) + 1; continue }
+    const gy = (l.c - l.a * gx) / l.b
+    if (graphInBox([gx, gy], x, y) && graphOnGrid(gy, y, snapY)) n++
+  }
+  return n
+}
+
+type GraphCtx = { given: GraphObj[]; answer: GraphObj[]; xv?: string; yv?: string }
+
+/** Eksen harfleriyle yazılmış denklemi x/y'ye çevirir ("P = 12 - 2Q" →
+ *  "y = 12 - 2x"). Model verilen nesneleri de eksen harfleriyle yazabiliyor
+ *  (canlı test 25.10.2026: graph_given_invalid). */
+function graphMapAxisVars(eq: unknown, ctx: GraphCtx): string {
+  let s = String(eq ?? '')
+  const swap = (from: string | undefined, to: string) => {
+    if (from && /^[A-Za-z]$/.test(from) && from.toLowerCase() !== to) s = s.replace(new RegExp(`(^|[^A-Za-z])${from}(?![A-Za-z])`, 'g'), `$1${to}`)
+  }
+  if (ctx.xv && ctx.yv && ctx.xv.toLowerCase() !== 'y' && ctx.yv.toLowerCase() !== 'x') { swap(ctx.xv, 'x'); swap(ctx.yv, 'y') }
+  return s
+}
+
+/** "g0" / "a1": verilen ya da önceki cevap öğesi (doğru türü). */
+function graphRef(ref: unknown, ctx: GraphCtx): GraphObj | null {
+  const m = String(ref ?? '').trim().match(/^([ga])(\d)$/)
+  if (!m) return null
+  const o = (m[1] === 'g' ? ctx.given : ctx.answer)[Number(m[2])]
+  return o && ['line', 'segment', 'ray'].includes(o.kind) && o.points.length === 2 ? o : null
+}
+
+/** Nokta tanımı: [x, y], {x, y}, {intersect: [r1, r2]}, {on: r, x} / {on: r, y}. */
+function graphResolvePoint(raw: unknown, ctx: GraphCtx): number[] | null {
+  if (Array.isArray(raw) && raw.length === 2) {
+    const p = raw.map(parseLooseNumber)
+    return p.every(Number.isFinite) ? p : null
+  }
+  if (!raw || typeof raw !== 'object') return null
+  const r = raw as Record<string, unknown>
+  if (Array.isArray(r.intersect) && r.intersect.length === 2) {
+    const A = graphRef(r.intersect[0], ctx), B = graphRef(r.intersect[1], ctx)
+    if (!A || !B) return null
+    const l1 = graphLineOf(A.points[0], A.points[1]), l2 = graphLineOf(B.points[0], B.points[1])
+    const det = l1.a * l2.b - l2.a * l1.b
+    if (Math.abs(det) < 1e-12) return null
+    return [graphRound((l1.c * l2.b - l2.c * l1.b) / det), graphRound((l1.a * l2.c - l2.a * l1.c) / det)]
+  }
+  if (r.on != null) {
+    const A = graphRef(r.on, ctx)
+    if (!A) return null
+    const l = graphLineOf(A.points[0], A.points[1])
+    const xv = parseLooseNumber(r.x), yv = parseLooseNumber(r.y)
+    if (Number.isFinite(xv) && Math.abs(l.b) > 1e-12) return [graphRound(xv), graphRound((l.c - l.a * xv) / l.b)]
+    if (Number.isFinite(yv) && Math.abs(l.a) > 1e-12) return [graphRound((l.c - l.b * yv) / l.a), graphRound(yv)]
+    return null
+  }
+  const p = [parseLooseNumber(r.x), parseLooseNumber(r.y)]
+  return p.every(Number.isFinite) ? p : null
+}
+
+const GRAPH_KIND_ALIASES: Record<string, string> = { area: 'polygon', shade: 'fill', region: 'fill', hline: 'line', vline: 'line', curve: 'line' }
+
+/** Bir nesneyi (verilen ya da cevap öğesi) doğrular ve koordinatlarını
+ *  hesaplar. Geçmezse { reason }. */
+function normalizeGraphObject(raw: unknown, x: GraphAxis, y: GraphAxis, ctx: GraphCtx): { obj?: GraphObj; reason?: string } {
+  if (!raw || typeof raw !== 'object') return { reason: 'graph_element_invalid' }
+  const r = raw as Record<string, unknown>
+  let kind = String(r.kind ?? '').trim().toLowerCase()
+  kind = GRAPH_KIND_ALIASES[kind] || kind
+  if (!GRAPH_KINDS.includes(kind)) return { reason: 'graph_kind_unknown' }
+  const obj: GraphObj = { kind, points: [] }
+  const label = chartLabel(r.label, 8)
+  if (label) obj.label = label
+  const style = String(r.style ?? '').toLowerCase()
+  if (style === 'dashed' || style === 'solid') obj.style = style
+  const pts = (v: unknown) => (Array.isArray(v) ? v : []).map(p => graphResolvePoint(p, ctx))
+  if (kind === 'point') {
+    const p = graphResolvePoint(r.at ?? r.point ?? (Array.isArray(r.points) ? r.points[0] : null) ?? (r.x != null ? { x: r.x, y: r.y } : null), ctx)
+    if (!p) return { reason: 'graph_point_invalid' }
+    obj.points = [p]
+  } else if (kind === 'line' || kind === 'segment' || kind === 'ray') {
+    let p = pts(r.points)
+    if (p.length >= 2 && p[0] && p[1]) p = [p[0], p[1]]
+    else if (r.equation != null) {
+      const lin = graphLinear(graphMapAxisVars(r.equation, ctx))
+      const clip = lin ? graphClipLine(lin, x, y) : null
+      if (!clip) return { reason: 'graph_line_invalid' }
+      if (kind !== 'line') obj.kind = kind = 'line'
+      p = clip
+    } else if (r.shift_of == null) return { reason: 'graph_line_invalid' }
+    else p = []
+    if (p.length === 2 && Math.hypot(p[0]![0] - p[1]![0], p[0]![1] - p[1]![1]) < 1e-9) return { reason: 'graph_line_invalid' }
+    obj.points = p as number[][]
+    if (r.shift_of != null) {
+      const m = String(r.shift_of).trim().match(/^g(\d)$/)
+      const dir = String(r.direction ?? '').trim().toLowerCase()
+      const base = m ? ctx.given[Number(m[1])] : null
+      if (!base || !['line', 'segment', 'ray'].includes(base.kind) || !GRAPH_SHIFT_DIRS.includes(dir)) return { reason: 'graph_shift_invalid' }
+      obj.kind = 'line'
+      obj.shift = { of: Number(m![1]), dir }
+      if (obj.points.length === 2) {
+        // Kesin yeni doğru verilmişse: verilene paralel ve söylenen yönde olmalı.
+        const b = graphLineOf(base.points[0], base.points[1]), n = graphLineOf(obj.points[0], obj.points[1])
+        if (Math.abs(b.a * n.b - n.a * b.b) > 1e-9 * (1 + Math.abs(b.a * n.b))) return { reason: 'graph_shift_not_parallel' }
+        if (graphShiftDir(base.points, obj.points, x, y) !== dir) return { reason: 'graph_shift_wrong_dir' }
+      }
+    }
+  } else if (kind === 'parabola' || kind === 'circle') {
+    const a = graphResolvePoint(kind === 'parabola' ? r.vertex : r.center, ctx), t = graphResolvePoint(r.through, ctx)
+    if (!a || !t) return { reason: `graph_${kind}_invalid` }
+    if (kind === 'parabola' && Math.abs(t[0] - a[0]) < 1e-9) return { reason: 'graph_parabola_invalid' }
+    if (kind === 'circle' && Math.hypot(t[0] - a[0], t[1] - a[1]) < 1e-9) return { reason: 'graph_circle_invalid' }
+    obj.points = [a, t]
+  } else if (kind === 'polygon') {
+    const p = pts(r.points ?? r.vertices)
+    if (p.length < 3 || p.length > 8 || p.some(v => !v)) return { reason: 'graph_polygon_invalid' }
+    let area = 0
+    for (let i = 0; i < p.length; i++) { const u = p[i]!, v = p[(i + 1) % p.length]!; area += u[0] * v[1] - v[0] * u[1] }
+    if (Math.abs(area) < 1e-9) return { reason: 'graph_polygon_invalid' }
+    obj.points = p as number[][]
+  } else if (kind === 'fill') {
+    const ineq = (Array.isArray(r.inequalities) ? r.inequalities : []).slice(0, 6).map(v => graphInequality(graphMapAxisVars(v, ctx)))
+    if (!ineq.length || ineq.some(v => !v)) return { reason: 'graph_fill_invalid' }
+    obj.ineq = ineq as GraphIneq[]
+    // Bölge kutu içinde boş olmamalı, kutunun tamamı da olmamalı.
+    let inside = 0, total = 0
+    for (let i = 0; i <= 40; i++) for (let j = 0; j <= 40; j++) {
+      const px = x.min + (x.max - x.min) * (i + 0.5) / 41, py = y.min + (y.max - y.min) * (j + 0.5) / 41
+      total++
+      if (graphIneqHolds(obj.ineq, px, py)) inside++
+    }
+    if (!inside || inside === total) return { reason: 'graph_fill_invalid' }
+  }
+  return { obj }
+}
+
+function graphIneqHolds(ineq: GraphIneq[], px: number, py: number): boolean {
+  return ineq.every(q => {
+    const v = q.a * px + q.b * py
+    return q.op === '<' ? v < q.c : q.op === '<=' ? v <= q.c + 1e-9 : q.op === '>' ? v > q.c : v >= q.c - 1e-9
+  })
+}
+
+/** Kaydırma yönü: yeni doğru, verilenin sağında/solunda (ya da üstünde/
+ *  altında) mı. Kutunun ortasından ölçülür. */
+function graphShiftDir(base: number[][], moved: number[][], x: GraphAxis, y: GraphAxis): string | null {
+  const b = graphLineOf(base[0], base[1]), m = graphLineOf(moved[0], moved[1])
+  const midY = (y.min + y.max) / 2, midX = (x.min + x.max) / 2
+  if (Math.abs(b.a) > 1e-12 && Math.abs(m.a) > 1e-12) {
+    const dx = (m.c - m.b * midY) / m.a - (b.c - b.b * midY) / b.a
+    if (Math.abs(dx) > 1e-9) return dx > 0 ? 'right' : 'left'
+  }
+  if (Math.abs(b.b) > 1e-12 && Math.abs(m.b) > 1e-12) {
+    const dy = (m.c - m.a * midX) / m.b - (b.c - b.a * midX) / b.b
+    if (Math.abs(dy) > 1e-9) return dy > 0 ? 'up' : 'down'
+  }
+  return null
+}
+
+/** Cevap öğesinin ızgaraya oturduğu en kaba yapışma adımı (1 = adım,
+ *  0.5 = yarım adım); oturmuyorsa 0. Öğrenci ızgaraya yapışarak da tam
+ *  puan alabilmeli. */
+function graphElementSnap(o: GraphObj, x: GraphAxis, y: GraphAxis): number {
+  for (const f of [1, 0.5]) {
+    const sx = x.step * f, sy = y.step * f
+    const onGrid = (p: number[]) => graphInBox(p, x, y) && graphOnGrid(p[0], x, sx) && graphOnGrid(p[1], y, sy)
+    let ok: boolean
+    if (o.kind === 'fill') ok = true
+    else if (o.kind === 'line' && !o.points.length) ok = true // yalnızca yönü sorulan kaydırma
+    else if (o.kind === 'line') ok = graphGridPointsOnLine(graphLineOf(o.points[0], o.points[1]), x, y, sx, sy) >= 2
+    else ok = o.points.every(onGrid)
+    if (ok) return f
+  }
+  return 0
+}
+
+function graphNum(v: number, lang: string): string {
+  return Number(graphRound(v)).toLocaleString(lang === 'en' ? 'en-US' : 'tr-TR', { maximumFractionDigits: 3 })
+}
+
+/** Doğrunun denklemi (eksen harfleriyle): "P = −2Q + 10", "Q = 4". */
+function graphLineText(p: number[][], x: GraphAxis, y: GraphAxis, lang: string): string {
+  const l = graphLineOf(p[0], p[1])
+  if (Math.abs(l.b) < 1e-12) return `${x.var} = ${graphNum(l.c / l.a, lang)}`
+  const m = -l.a / l.b, k = l.c / l.b
+  const mt = Math.abs(m) < 1e-12 ? '' : `${m < 0 ? '−' : ''}${Math.abs(Math.abs(m) - 1) < 1e-12 ? '' : graphNum(Math.abs(m), lang)}${x.var}`
+  const kt = Math.abs(k) < 1e-12 ? (mt ? '' : '0') : mt ? ` ${k < 0 ? '−' : '+'} ${graphNum(Math.abs(k), lang)}` : `${k < 0 ? '−' : ''}${graphNum(Math.abs(k), lang)}`
+  return `${y.var} = ${mt}${kt}`
+}
+
+function graphPointText(p: number[], lang: string): string {
+  return `(${graphNum(p[0], lang)}${lang === 'en' ? ', ' : '; '}${graphNum(p[1], lang)})`
+}
+
+const GRAPH_KIND_NAMES: Record<string, [string, string]> = {
+  point: ['Nokta', 'Point'], line: ['Doğru', 'Line'], segment: ['Doğru parçası', 'Segment'], ray: ['Işın', 'Ray'],
+  parabola: ['Parabol', 'Parabola'], circle: ['Çember', 'Circle'], polygon: ['Alan', 'Area'], fill: ['Boyalı bölge', 'Shaded region']
+}
+
+/** Cevabın okunur metni (sonuç kâğıdında "doğrusu"). */
+function graphAnswerText(els: GraphObj[], none: boolean, x: GraphAxis, y: GraphAxis, lang: string): string {
+  const tr = lang !== 'en'
+  if (none) return tr ? 'Çizilecek bir şey yok (çözüm yok)' : 'Nothing to draw (no solution)'
+  return els.map(o => {
+    const name = (GRAPH_KIND_NAMES[o.kind] || [o.kind, o.kind])[tr ? 0 : 1] + (o.label ? ` ${o.label}` : '')
+    if (o.kind === 'point') return `${name} ${graphPointText(o.points[0], lang)}`
+    if (o.kind === 'line' && o.points.length === 2) return `${name}: ${graphLineText(o.points, x, y, lang)}`
+    if (o.kind === 'line' && o.shift) {
+      const d: Record<string, [string, string]> = { right: ['sağa', 'right'], left: ['sola', 'left'], up: ['yukarı', 'up'], down: ['aşağı', 'down'] }
+      return tr ? `${name}: verilen doğru ${d[o.shift.dir][0]} kayar` : `${name}: the given line shifts ${d[o.shift.dir][1]}`
+    }
+    if (o.kind === 'fill') return name
+    if (o.kind === 'parabola') return tr ? `${name}: tepe ${graphPointText(o.points[0], lang)}, geçtiği nokta ${graphPointText(o.points[1], lang)}` : `${name}: vertex ${graphPointText(o.points[0], lang)}, through ${graphPointText(o.points[1], lang)}`
+    if (o.kind === 'circle') return tr ? `${name}: merkez ${graphPointText(o.points[0], lang)}, r = ${graphNum(Math.hypot(o.points[1][0] - o.points[0][0], o.points[1][1] - o.points[0][1]), lang)}` : `${name}: centre ${graphPointText(o.points[0], lang)}, r = ${graphNum(Math.hypot(o.points[1][0] - o.points[0][0], o.points[1][1] - o.points[0][1]), lang)}`
+    return `${name}: ${o.points.map(p => graphPointText(p, lang)).join(' – ')}`
+  }).join(' · ')
+}
+
+/** FAZ 4b.2: taranmış grafik örneğini sınav türüne uyarlar (öğrenci
+ *  "dosyadaki grafik sorularına göre" demese de benzerleri sınava karışır).
+ *  test: yalnızca çoktan seçmeli biçimler (değer sorusu şıklı); klasik:
+ *  yorum; hesaplama: değer (hesap sorusu); karışık: örneğin biçimi, sayısal
+ *  olmayan kaynakta değer sorusu şıklı. Çizim örneği (format 'draw') null. */
+function chartItemForExam(item: Record<string, unknown>, examType: string, isQuant: boolean, optionCount: number): Record<string, unknown> | null {
+  const e = (item && typeof item.example === 'object' && item.example ? item.example : {}) as Record<string, unknown>
+  const f = String(e.format ?? '')
+  if (f === 'draw' || !item.chart || typeof item.chart !== 'object' || !Object.keys(item.chart as Record<string, unknown>).length) return null
+  const ex: Record<string, unknown> = { ...e }
+  const mcValue = () => { if (![4, 5].includes(Number(ex.options_count))) ex.options_count = optionCount }
+  if (examType === 'classic') ex.format = 'open'
+  else if (examType === 'calculation') { ex.format = 'value'; ex.options_count = null }
+  else if (examType === 'test') { if (f === 'value') mcValue(); else if (!['which_true', 'which_false', 'premises'].includes(f)) ex.format = 'which_true' }
+  else if (f === 'value' && !isQuant) mcValue()
+  return { ...item, example: ex }
+}
+
+/** Kodla kurulan soruları sınava eşit aralıklarla yerleştirir. */
+function spreadInsert<T>(base: T[], extra: T[]): T[] {
+  if (!extra.length) return base
+  const out = [...base], n = base.length + extra.length
+  extra.forEach((q, i) => out.splice(Math.min(out.length, Math.max(0, Math.round((i + 1) * n / (extra.length + 1)) - 1)), 0, q))
+  return out
+}
+
+/** FAZ 4b (canlı test 25.10.2026): kaynak koordinat düzleminde çizilen bir
+ *  konu öğretiyor mu. Model "karışık sınavda beş tipe eşit dağıt" kuralına
+ *  uyup arz-talep notunda bile çizim sorusu yazmadı; kaynak uygunsa çizim
+ *  sorusu zorunlu tutulur. En az iki güçlü kavram + bir denklem izi. */
+const GRAPH_SOURCE_CUES = ['talep', 'arz', 'denge', 'eğim', 'doğrusal', 'eşitsizli', 'parabol', 'koordinat', 'kesişim', 'bütçe doğrusu', 'tüketici artığı', 'üretici artığı', 'tavan fiyat', 'taban fiyat', 'demand', 'supply', 'equilibrium', 'slope', 'intercept', 'linear function', 'inequalit', 'parabola', 'coordinate', 'budget line', 'surplus', 'price ceiling', 'price floor']
+function sourceTeachesGraphs(text: unknown): boolean {
+  const t = String(text ?? '').toLocaleLowerCase('tr-TR')
+  const hits = GRAPH_SOURCE_CUES.filter(c => t.includes(c)).length
+  const equation = /(^|[^a-zçğıöşü])[a-zçğıöşü]\s*=\s*[-−(]?\s*\d/u.test(t) || /[a-zçğıöşü]\s*[<>≤≥]=?\s*-?\d/u.test(t)
+  return hits >= 2 && equation
+}
+
+/** FAZ 4b: çizim sorusunu doğrular; ızgarayı, verilenleri ve cevabı kodla
+ *  hesaplanmış koordinatlarla yazar. Araçlar cevaptan türetilir. */
+function verifyGraph(q: Record<string, unknown>, lang: string): { ok: boolean; reason?: string } {
+  const g = (q.graph && typeof q.graph === 'object' ? q.graph : {}) as Record<string, unknown>
+  const x = normalizeGraphAxis(g.x ?? { min: g.x_min, max: g.x_max, step: g.x_step, label: g.x_label }, 'x')
+  const y = normalizeGraphAxis(g.y ?? { min: g.y_min, max: g.y_max, step: g.y_step, label: g.y_label }, 'y')
+  if (!x || !y) return { ok: false, reason: 'graph_axes_invalid' }
+  const ctx: GraphCtx = { given: [], answer: [], xv: x.var, yv: y.var }
+  for (const raw of (Array.isArray(g.given) ? g.given : []).slice(0, GRAPH_MAX_GIVEN)) {
+    const r = normalizeGraphObject(raw, x, y, ctx)
+    if (!r.obj || r.obj.kind === 'fill' || r.obj.shift || !r.obj.points.length) return { ok: false, reason: `graph_given_invalid${r.reason ? ':' + r.reason : ''}` }
+    ctx.given.push(r.obj)
+  }
+  const rawAns = q.graph_answer
+  const none = rawAns === 'none' || (!!rawAns && typeof rawAns === 'object' && !Array.isArray(rawAns) && (rawAns as Record<string, unknown>).none === true)
+  if (!none) {
+    const list = Array.isArray(rawAns) ? rawAns : (rawAns && typeof rawAns === 'object' && Array.isArray((rawAns as Record<string, unknown>).elements) ? (rawAns as Record<string, unknown>).elements as unknown[] : [])
+    if (!list.length || list.length > GRAPH_MAX_ELEMENTS) return { ok: false, reason: 'graph_no_answer' }
+    for (const raw of list) {
+      const r = normalizeGraphObject(raw, x, y, ctx)
+      if (!r.obj) return { ok: false, reason: r.reason }
+      ctx.answer.push(r.obj)
+    }
+  }
+  // Denge / kesişim noktası çizilen doğruların gerçek kesişimi olmalı. Canlı
+  // test (25.10.2026): model yeni dengeyi "(4; 4)" diye elle yazdı; doğrular
+  // (3,67; 6,67)'de kesişiyordu ve doğru cevap yanlış sayıldı.
+  const asksIntersection = /denge|kesiş|equilibri|intersect/i.test(String(q.question ?? ''))
+  const lines = [...ctx.answer, ...ctx.given].filter(o => ['line', 'segment', 'ray'].includes(o.kind) && o.points.length === 2)
+  for (const o of ctx.answer) {
+    if (o.kind !== 'point') continue
+    const p = o.points[0]
+    const onLines = lines.filter(l => { const c = graphLineOf(l.points[0], l.points[1]); return Math.abs(c.a * p[0] + c.b * p[1] - c.c) <= 1e-6 * (1 + Math.abs(c.c) + Math.abs(c.a) + Math.abs(c.b)) }).length
+    const isEq = asksIntersection || /^E\b|^E['’*]|^E\d/.test(o.label || '')
+    if (isEq && lines.length >= 2 && onLines < 2) return { ok: false, reason: 'graph_point_not_intersection' }
+  }
+  let snap = 1
+  for (const o of ctx.answer) {
+    const f = graphElementSnap(o, x, y)
+    if (!f) return { ok: false, reason: 'graph_off_grid' }
+    snap = Math.min(snap, f)
+  }
+  x.snap = x.step * snap
+  y.snap = y.step * snap
+  const kinds = new Set(ctx.answer.map(o => o.shift ? 'shift' : o.kind))
+  if (kinds.has('fill')) kinds.add('line')
+  const tools = GRAPH_TOOL_ORDER.filter(t => t === 'point' || t === 'line' || kinds.has(t))
+  const labels = [...new Set([...ctx.answer, ...ctx.given].map(o => o.label || '').filter(Boolean))].sort()
+  const spec: GraphSpec = { x, y, tools, given: ctx.given, labels }
+  q.graph = spec
+  q.graph_answer = { none, elements: ctx.answer }
+  q.correct_answer = graphAnswerText(ctx.answer, none, x, y, lang)
+  q.options = null
+  q.solution_steps = Array.isArray(q.solution_steps) ? q.solution_steps.map(s => String(s ?? '')).filter(Boolean) : []
+  for (const k of ['tolerance_percent', 'units', 'variables', 'formula', 'template', 'common_errors', 'verified', 'step_kind', 'equation', 'unknown', 'expr_vars', 'form', 'given', 'up_to_constant', 'chart_ref', 'chart']) delete q[k]
+  return { ok: true }
+}
+
 /** Tek bir soruyu denetler ve temizlenmiş halini döner. Geçmezse
  *  { ok: false, reason } — soru atılır. allowUnverifiedCalc: son çare;
  *  formülü doğrulanamayan ama cevabı sayı olan hesap sorusu Faz 3a öncesi
@@ -1555,6 +1989,10 @@ function validateQuestion(raw: unknown, allowedTypes: string[], language: string
     // FAZ 3b: referans ifade kodla açılır ve örnek noktalarda hesaplanabilir
     // olmalı; istenen biçime kendisi uymalı.
     const check = verifyExpression(q)
+    if (!check.ok) return { ok: false, reason: check.reason }
+  } else if (type === 'graph') {
+    // FAZ 4b: ızgara ve cevap kodla hesaplanır; ızgaraya oturmayan atılır.
+    const check = verifyGraph(q, language)
     if (!check.ok) return { ok: false, reason: check.reason }
   } else if (type === 'open_ended') {
     let ref = String(q.correct_answer ?? '').trim()
@@ -1648,6 +2086,12 @@ const GEN_TOKENS_PER_QUESTION = 420
 const GEN_TOKENS_MAX = 7000
 // FAZ 3a: hesap sorusu formül, şablon ve tipik hata da yazıyor.
 const GEN_TOKENS_CALC_EXTRA = 150
+// FAZ 4b: çizim sorusu ızgara ve cevap tanımı da yazıyor (yaklaşık beşte bir soru).
+const GEN_TOKENS_GRAPH_EXTRA = 60
+// Groq dakikalık token sınırı (istem + ayrılan çıktı birlikte sayılır) ve
+// kısma sonrası en az bırakılacak çıktı bütçesi.
+const GROQ_TPM_LIMIT = 8000
+const GEN_TOKENS_FLOOR = 1000
 
 function completionBudgetFor(count: number): number {
   const n = Math.max(1, Math.floor(Number(count) || 1))
@@ -1760,12 +2204,53 @@ const ANCHOR_STOPWORDS = new Set([
 ])
 
 /** Content-bearing terms of a string: >=4 chars, not a stopword, diacritics kept. */
+/* BUYUK "I" KELIMEYI IKIYE BOLUYORDU (24.10.2026).
+ *
+ * JavaScript'te 'İ'.toLowerCase() iki kod birimi uretiyor: 'i' + U+0307
+ * (birlesen ustteki nokta). U+0307 bir birlesme isareti oldugu icin
+ * \p{L} ve \p{N} kumelerine girmiyor, dolayisiyla asagidaki noktalama
+ * temizligi onu BOSLUGA cevirip kelimeyi ikiye boluyordu. Olculdu:
+ *
+ *   gateNormalize('İşsizlik Oranı') -> "i şsizlik oranı"
+ *   anchorTerms('İstatistik')       -> ["statistik"]   (bastaki 'i' 4
+ *                                      harf esigine takilip dusuyor)
+ *   anchorTerms('istatistik')       -> ["istatistik"]
+ *
+ * Sonuc: model terimi baslik bicimiyle (İ ile), kaynak cumle icinde kucuk
+ * harfle yazdiginda — ya da tersi — grounding kapisi terimi "uydurma"
+ * sayip siliyor, atif eslemesi de sayfa capasini kaybediyordu. Turkce bir
+ * urunde bu, kaynakta BIREBIR gecen icerigi silmek demek.
+ *
+ * Duzeltme once NFC ile birlestirip sonra kalan birlesen noktayi atiyor,
+ * yani 'İ' -> 'i'. Eslesme orani yalnizca YUKARI gidebilir: hicbir yeni
+ * eslesme uydurma bir terimi geciremez, cunku iki taraf da ayni
+ * fonksiyondan geciyor. Bu yuzden esiklerin kalibrasyonu degismiyor. */
+function trNormalize(s: string): string {
+  return String(s == null ? '' : s).normalize('NFC').toLowerCase().replace(/̇/g, '')
+}
+
+/* ONDALIK SAYI KORLUGU (25.10.2026).
+ *
+ * Noktalama temizligi "9.3"u "9" ve "3"e boluyordu, ikisi de 4 harf
+ * esigine takilip dusuyordu: "%9.3", "0.21", "1,96" gibi degerler hicbir
+ * karsilastirmaya girmiyordu. Bir ekonometri destesinde iddiayi sayfasina
+ * baglayan en ayirt edici sey cogu zaman tam olarak bu sayi; kosu 37'de
+ * atifsiz kalan madde sayisi 8-16 idi.
+ *
+ * Artik ondalik sayi TEK terim ("9,3" -> "9.3"; Turkce virgul de ayni
+ * terime iner). Kisa tamsayilar hala disarida: "3", "20" sayfa ve madde
+ * numarasi gurultusu. 4+ haneli tamsayilar (1982) zaten geciyordu.
+ *
+ * Kesinlik yonu: belgede bulunan bir ondalik dogru sayfaya agirlik ekler
+ * (idf'i yuksek, ayirt edici); belgede HIC bulunmayan bir ondalik
+ * (modelin hesapladigi bir deger) iddianin toplam agirligini buyutup
+ * skoru DUSURUR — yani yeni bir yanlis atif uretemez, ancak atifi daha
+ * temkinli yapar ("yanlis atif, eksik atiftan kotudur"). */
 function anchorTerms(s: string): string[] {
-  return String(s == null ? '' : s)
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-    .split(/\s+/)
-    .filter(w => w.length >= 4 && !ANCHOR_STOPWORDS.has(w))
+  const parcalar = trNormalize(s).match(/\d+(?:[.,]\d+)+|[\p{L}\p{N}]+/gu) || []
+  return parcalar
+    .map(w => /^\d+(?:[.,]\d+)+$/.test(w) ? w.replace(/,/g, '.') : w)
+    .filter(w => (w.length >= 4 || /^\d+\.\d+/.test(w)) && !ANCHOR_STOPWORDS.has(w))
 }
 
 type PageSegment = { page: number; terms: Set<string>; head: string; body: string }
@@ -2066,7 +2551,7 @@ serve(async (req) => {
       })
     }
 
-    const { studyCardId, sourceType, courseCode, courseDepartment, examType, questionCount, language, difficulty, isSimulation, focusConcept, optionCount, negativeMarking, decimalPlaces: decimalPlacesRaw, chartExamples } = await req.json()
+    const { studyCardId, sourceType, courseCode, courseDepartment, examType, questionCount, language, difficulty, isSimulation, focusConcept, optionCount, negativeMarking, decimalPlaces: decimalPlacesRaw, chartExamples, noGraphs } = await req.json()
     const scoring = normalizeScoring(optionCount, negativeMarking)
     // Yalnızca hesap sorusu olabilen türlerde (test ve klasikte anlamsız).
     const decimalPlaces = examType === 'calculation' || examType === 'mixed' ? normalizeDecimalPlaces(decimalPlacesRaw) : null
@@ -2382,6 +2867,31 @@ ${c.formulas && (c.formulas as unknown[]).length > 0 ? `FORMULAS: ${JSON.stringi
     // students requesting an exam for the same course (same branch, same
     // quant flag) send the exact same system message, letting Groq cache
     // it instead of re-billing/re-counting it against our rate limit.
+    // FAZ 4b: öğrenci "grafik sorusu olmasın" dediyse grafik okuma da çizim de yok.
+    const graphsOff = noGraphs === true
+    if (graphsOff) chartSources = []
+    const graphsAllowed = !graphsOff && (examType === 'mixed' || examType === 'calculation')
+    // FAZ 4b.2: belgede taranmış grafik / çizim soruları varsa (öğrenci
+    // ayrıca istemese de) benzerleri sınava karışır: grafik örneklerinden
+    // yaklaşık dörtte bir soru kodla kurulur, çizim örnekleri modele örnek
+    // olarak verilir. "Grafik sorusu olmasın" ise hiçbiri.
+    let fileChartQuestions: Record<string, unknown>[] = []
+    let fileDrawExamples: string[] = []
+    if (!graphsOff && chartExamples !== true && resolvedSourceType === 'study_card' && sourceDocumentId) {
+      const { data: fileItems, error: fileItemsErr } = await userClient.from('document_chart_items').select('page, chart, example').eq('document_id', sourceDocumentId).order('page')
+      if (!fileItemsErr && Array.isArray(fileItems) && fileItems.length) {
+        const rows = fileItems as Array<Record<string, unknown>>
+        if (graphsAllowed) fileDrawExamples = rows.filter(it => (it.example as Record<string, unknown>)?.format === 'draw').map(it => String((it.example as Record<string, unknown>).stem || '')).filter(Boolean).slice(0, 4)
+        const charts = rows.map(it => chartItemForExam(it, examType, isQuant, scoring.option_count)).filter(Boolean) as Array<Record<string, unknown>>
+        const k = !charts.length ? 0 : Math.min(charts.length * 2, requestedCount >= 3 ? Math.max(1, Math.round(requestedCount / 4)) : requestedCount === 2 ? 1 : 0)
+        if (k) {
+          const allowedHere = allowedTypesFor(examType, isQuant, graphsAllowed)
+          fileChartQuestions = buildChartExamQuestions(charts, k, language, scoring.option_count, `${user.id}:${Date.now()}:${Math.random()}`).filter(q => allowedHere.includes(String(q.type)))
+        }
+        console.log(`generate-exam: belgede ${charts.length} grafik, ${fileDrawExamples.length} cizim ornegi; ${fileChartQuestions.length} grafik sorusu kodla karisti`)
+      }
+    }
+    const graphSource = graphsAllowed && (fileDrawExamples.length > 0 || sourceTeachesGraphs(context))
     if (chartSources.length > 0) context += `\n\nCHARTS (numbered; the student sees each drawn as a graph with labelled values):\n${describeCharts(chartSources)}`
 
     // FAZ 4c: "dosyadaki grafik sorularına göre". Taranmış grafiklerden
@@ -2391,9 +2901,11 @@ ${c.formulas && (c.formulas as unknown[]).length > 0 ? `FORMULAS: ${JSON.stringi
       if (resolvedSourceType !== 'study_card' || !sourceDocumentId) {
         return new Response(JSON.stringify({ error: 'Grafik soruları yalnızca yüklenen bir belgeden kurulabilir.' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
-      const { data: chartItems, error: chartItemsErr } = await userClient.from('document_chart_items').select('page, chart, example').eq('document_id', sourceDocumentId).order('page')
+      const { data: allChartItems, error: chartItemsErr } = await userClient.from('document_chart_items').select('page, chart, example').eq('document_id', sourceDocumentId).order('page')
       if (chartItemsErr) console.warn('generate-exam: document_chart_items okunamadi (migration?):', chartItemsErr.message)
-      if (!chartItems || !chartItems.length) {
+      // FAZ 4b.2: çizim örnekleri (grafiksiz) bu kipte kullanılmaz.
+      const chartItems = (allChartItems || []).filter(it => ((it as Record<string, unknown>).example as Record<string, unknown> | null)?.format !== 'draw')
+      if (!chartItems.length) {
         return new Response(JSON.stringify({ error: 'Bu belgede taranmış grafik sorusu yok. Önce grafik taramasını tamamlayın.', code: 'no_chart_items' }), { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
       chartExampleQuestions = buildChartExamQuestions(chartItems as Array<Record<string, unknown>>, requestedCount, language, scoring.option_count, `${user.id}:${Date.now()}:${Math.random()}`)
@@ -2422,13 +2934,29 @@ ${context}
     // their optional focus concept, and a variation seed). Keeping this
     // short and putting everything reusable above in the system message
     // is what makes the system message worth caching in the first place.
-    const buildUserPrompt = (count: number, avoid: string[]) => `Generate exactly ${count} questions of type '${examType}' in the language '${language}' (en = English, tr = Turkish), at difficulty level '${resolvedDifficulty}'.
-OPTION COUNT: every 'multiple_choice' question has exactly ${scoring.option_count} options.${decimalPlaces ? `\nNUMERIC PRECISION: 'calculation' answers are graded to exactly ${decimalPlaces} decimal places. In every 'calculation' question text ask for the result to ${decimalPlaces} decimal places, and let "formula" compute the exact value (no rounding inside the formula).` : ''}${resolvedFocusConcept ? `\n\nIMPORTANT FOCUS RULE:\n- The student specifically wants to practice ONE topic: "${resolvedFocusConcept}". EVERY question must test this exact topic, approached from different angles (definition, application, comparison, scenario) — do not drift to unrelated concepts. Set the "concept" field on every question to "${resolvedFocusConcept}" (or a very close variant in the requested language).` : ''}${avoid.length > 0 ? `\n\nDo NOT repeat these questions that were already generated:\n${avoid.map(t => `- ${t.slice(0, 160)}`).join('\n')}` : ''}
+    const buildUserPrompt = (count: number, avoid: string[], needGraph = false) => `Generate exactly ${count} questions of type '${examType}' in the language '${language}' (en = English, tr = Turkish), at difficulty level '${resolvedDifficulty}'.
+OPTION COUNT: every 'multiple_choice' question has exactly ${scoring.option_count} options.
+GRAPH QUESTIONS: ${!graphsAllowed ? 'not allowed (never use type graph)' : graphSource && (count >= 3 || needGraph) ? `required: this source teaches material drawn on coordinate axes, so at least ${needGraph ? 1 : Math.max(1, Math.round(count / 5))} of the ${count} questions MUST be type 'graph' (they count as part of the type spread above)` : 'allowed'}.${fileDrawExamples.length ? `\nDRAWING QUESTIONS FROM THE STUDENT'S FILE (write the 'graph' questions in this style and on these topics, with new numbers):\n${fileDrawExamples.map(t => `- ${t.slice(0, 300)}`).join('\n')}` : ''}${decimalPlaces ? `\nNUMERIC PRECISION: 'calculation' answers are graded to exactly ${decimalPlaces} decimal places. In every 'calculation' question text ask for the result to ${decimalPlaces} decimal places, and let "formula" compute the exact value (no rounding inside the formula).` : ''}${resolvedFocusConcept ? `\n\nIMPORTANT FOCUS RULE:\n- The student specifically wants to practice ONE topic: "${resolvedFocusConcept}". EVERY question must test this exact topic, approached from different angles (definition, application, comparison, scenario) — do not drift to unrelated concepts. Set the "concept" field on every question to "${resolvedFocusConcept}" (or a very close variant in the requested language).` : ''}${avoid.length > 0 ? `\n\nDo NOT repeat these questions that were already generated:\n${avoid.map(t => `- ${t.slice(0, 160)}`).join('\n')}` : ''}
+
+Additional variation seed: ${Date.now()}`
+    // FAZ 4b: kaynak uygun ama model çizim sorusu yazmadıysa tek bir çizim sorusu.
+    const buildGraphPrompt = (avoid: string[]) => `Generate exactly 1 question of type 'graph' (a GRAPH DRAWING QUESTION as described in the instructions) in the language '${language}' (en = English, tr = Turkish), at difficulty level '${resolvedDifficulty}', based on the SOURCE MATERIAL.
+GRAPH QUESTIONS: required. Choose numbers so every answer point falls on grid intersections.${fileDrawExamples.length ? `\nDRAWING QUESTIONS FROM THE STUDENT'S FILE (same style, new numbers):\n${fileDrawExamples.map(t => `- ${t.slice(0, 300)}`).join('\n')}` : ''}${avoid.length > 0 ? `\n\nDo NOT repeat these questions that were already generated:\n${avoid.map(t => `- ${t.slice(0, 160)}`).join('\n')}` : ''}
 
 Additional variation seed: ${Date.now()}`
 
+    let lastPromptTokens = 0, firstUserChars = 0
     // Tek bir üretim çağrısı. Başarısızsa { error } döner, istisna fırlatmaz.
-    const requestQuestions = async (count: number, avoid: string[], attempt = 0): Promise<{ items?: unknown[]; error?: string }> => {
+    const requestQuestions = async (count: number, avoid: string[], attempt = 0, forceGraph = false, needGraph = false): Promise<{ items?: unknown[]; error?: string }> => {
+      const userContent = forceGraph ? buildGraphPrompt(avoid) : buildUserPrompt(count, avoid, needGraph)
+      // Groq TPM sınırı istemi VE ayrılan çıktı bütçesini birlikte sayar
+      // (canlı test 25.10.2026: "Request too large … Requested 8262"). İlk
+      // çağrının gerçek istem tokenı biliniyorsa ona göre, yoksa tahminle kısılır.
+      const promptEst = lastPromptTokens > 0 ? lastPromptTokens + Math.ceil(Math.max(0, userContent.length - firstUserChars) / 3) + 50 : Math.ceil((sysPrompt.length + userContent.length) / 3.4)
+      const wanted = Math.min(GEN_TOKENS_MAX, completionBudgetFor(count) + (examType === 'calculation' ? GEN_TOKENS_CALC_EXTRA * count : 0) + (graphsAllowed ? GEN_TOKENS_GRAPH_EXTRA * count : 0))
+      // İlk çağrı eskisi gibi (canlıda istem önbelleğiyle sorunsuz); kısma
+      // yalnızca tamamlama ve çizim isteklerinde.
+      const budget = forceGraph || count < requestedCount ? Math.max(GEN_TOKENS_FLOOR, Math.min(wanted, GROQ_TPM_LIMIT - promptEst - 100)) : wanted
       const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -2446,7 +2974,7 @@ Additional variation seed: ${Date.now()}`
           // soruda kesik geliyordu. Düşünme payı kısıldı, bütçe soru
           // sayısına göre açıkça veriliyor (hesap 8.000 TPM ile sınırlı).
           reasoning_effort: "low",
-          max_completion_tokens: Math.min(GEN_TOKENS_MAX, completionBudgetFor(count) + (examType === 'calculation' ? GEN_TOKENS_CALC_EXTRA * count : 0)),
+          max_completion_tokens: budget,
           // JSON modu üst düzeyde NESNE döndürür; prompt bu yüzden artık
           // {"questions":[...]} istiyor. Eskiden dizi istenip json_object
           // modu kullanılıyordu — ara sıra görülen "invalid formatting"
@@ -2454,7 +2982,7 @@ Additional variation seed: ${Date.now()}`
           response_format: { type: "json_object" },
           messages: [
             { role: "system", content: sysPrompt },
-            { role: "user", content: buildUserPrompt(count, avoid) }
+            { role: "user", content: userContent }
           ]
         })
       })
@@ -2468,7 +2996,7 @@ Additional variation seed: ${Date.now()}`
           const salvaged = salvageQuestionObjects(String(groqData.error.failed_generation ?? ''))
           console.warn(`generate-exam: Groq JSON dogrulamasi dustu; ${salvaged.length} soru kurtarildi`)
           if (salvaged.length > 0) return { items: salvaged }
-          if (attempt < GEN_MAX_RETRIES) return requestQuestions(count, avoid, attempt + 1)
+          if (attempt < GEN_MAX_RETRIES) return requestQuestions(count, avoid, attempt + 1, forceGraph, needGraph)
         }
         // FAZ 2 (canlı test): eksik sorular için yapılan ikinci istek
         // dakikalık token sınırına (TPM) takılıyordu. Groq'un söylediği süre
@@ -2478,7 +3006,7 @@ Additional variation seed: ${Date.now()}`
         if (waitMs !== null) {
           console.warn(`generate-exam: Groq hiz siniri, ${Math.round(waitMs / 1000)} sn beklenip yeniden deneniyor`)
           await new Promise(r => setTimeout(r, waitMs))
-          return requestQuestions(count, avoid, attempt + 1)
+          return requestQuestions(count, avoid, attempt + 1, forceGraph, needGraph)
         }
         console.error("Groq generation failed: ", groqData)
         return { error: groqData?.error?.message || groqData?.error?.code || `HTTP ${groqResponse.status}` }
@@ -2486,7 +3014,8 @@ Additional variation seed: ${Date.now()}`
       const choice = groqData.choices?.[0]
       const rawContent = choice?.message?.content ?? ""
       const usage = groqData.usage || {}
-      console.log(`generate-exam: groq finish=${choice?.finish_reason} istenen=${count} prompt=${usage.prompt_tokens} cikti=${usage.completion_tokens} butce=${completionBudgetFor(count)}`)
+      if (!lastPromptTokens && Number(usage.prompt_tokens) > 0) { lastPromptTokens = Number(usage.prompt_tokens); firstUserChars = userContent.length }
+      console.log(`generate-exam: groq finish=${choice?.finish_reason} istenen=${count} prompt=${usage.prompt_tokens} cikti=${usage.completion_tokens} butce=${budget}`)
       let items = parseQuestionArray(rawContent)
       // Bütçede kesilen yanıt: tamamlanmış soru nesnelerini kurtar.
       if (!items && rawContent) {
@@ -2503,8 +3032,8 @@ Additional variation seed: ${Date.now()}`
       return { items }
     }
 
-    const allowedTypes = allowedTypesFor(examType, isQuant)
-    const accepted: Record<string, unknown>[] = []
+    const allowedTypes = allowedTypesFor(examType, isQuant, graphsAllowed)
+    let accepted: Record<string, unknown>[] = []
     const seenTexts = new Set<string>()
     const rejectReasons: string[] = []
 
@@ -2516,6 +3045,10 @@ Additional variation seed: ${Date.now()}`
         if (!result.ok || !result.question) {
           const reason = result.reason || 'unknown'
           rejectReasons.push(reason)
+          if (reason.startsWith('graph_')) {
+            const r = (raw || {}) as Record<string, unknown>
+            console.warn(`generate-exam: ${reason} graph=${JSON.stringify(r.graph ?? null).slice(0, 400)} answer=${JSON.stringify(r.graph_answer ?? null).slice(0, 400)}`)
+          }
           if (reason.startsWith('calc_')) {
             const r = (raw || {}) as Record<string, unknown>
             console.warn(`generate-exam: ${reason} formula=${JSON.stringify(r.formula ?? null).slice(0, 160)} vars=${JSON.stringify(r.variables ?? null).slice(0, 160)}`)
@@ -2534,7 +3067,9 @@ Additional variation seed: ${Date.now()}`
     }
 
     if (chartExampleQuestions) accepted.push(...chartExampleQuestions)
-    const first = chartExampleQuestions ? { items: [] as unknown[] } as { items?: unknown[]; error?: string } : await requestQuestions(requestedCount, [])
+    // FAZ 4b.2: dosyadan kodla kurulan grafik soruları; model kalanını yazar.
+    accepted.push(...fileChartQuestions)
+    const first = chartExampleQuestions ? { items: [] as unknown[] } as { items?: unknown[]; error?: string } : await requestQuestions(requestedCount - accepted.length, accepted.map(q => String(q.question)))
     if (first.error && !first.items) {
       const detail = first.error === 'invalid_format' ? 'AI returned invalid question formatting. Please try again.' : `AI generation service failed: ${first.error}`
       return new Response(JSON.stringify({ error: detail }), {
@@ -2545,12 +3080,41 @@ Additional variation seed: ${Date.now()}`
     absorb(first.items || [])
 
     // Eksik kalan soru varsa bir kez daha, yalnızca eksik sayı kadar iste.
+    let shortfallCalled = false
     if (accepted.length < requestedCount && !chartExampleQuestions) {
       const shortfall = requestedCount - accepted.length
       console.warn(`generate-exam: ${rejectReasons.length} soru dogrulamadan gecmedi (${rejectReasons.join(', ')}); ${shortfall} soru icin yeniden uretim isteniyor`)
-      const second = await requestQuestions(shortfall, accepted.map(q => String(q.question)))
+      // FAZ 4b: çizim sorusu hâlâ yoksa aynı istekte en az biri çizim istenir
+      // (ayrı bir istek aynı dakikada TPM sınırına takılıyor).
+      const needGraph = graphSource && requestedCount >= 3 && !accepted.some(q => q.type === 'graph')
+      shortfallCalled = true
+      const second = await requestQuestions(shortfall, accepted.map(q => String(q.question)), 0, false, needGraph)
       if (second.items) absorb(second.items)
       else console.warn('generate-exam: ikinci uretim basarisiz:', second.error)
+    }
+
+    // FAZ 4b (canlı test 25.10.2026): kaynak koordinat düzleminde çizilen bir
+    // konu öğretiyor, çizim sorusu zorunlu dendiği hâlde hiç gelmediyse bir kez
+    // yalnızca çizim sorusu istenir; gelen soru en kalabalık tipin son
+    // sorusunun yerine geçer (eksik varsa eklenir).
+    if (graphSource && requestedCount >= 3 && !chartExampleQuestions && !shortfallCalled && !accepted.some(q => q.type === 'graph')) {
+      const g = await requestQuestions(1, accepted.map(q => String(q.question)), 0, true)
+      let note = g.error || 'soru yok'
+      for (const raw of g.items || []) {
+        const r = validateQuestion(attachChart(raw, chartSources), ['graph'], language, scoring.option_count, false)
+        if (!r.ok || !r.question) { note = r.reason || 'unknown'; rejectReasons.push(note); continue }
+        if (accepted.length < requestedCount) accepted.push(r.question)
+        else {
+          const counts: Record<string, number> = {}
+          accepted.forEach(q => { counts[String(q.type)] = (counts[String(q.type)] || 0) + 1 })
+          let idx = -1
+          accepted.forEach((q, i) => { if (q.chart) return; if (idx < 0 || counts[String(q.type)] > counts[String(accepted[idx].type)] || (counts[String(q.type)] === counts[String(accepted[idx].type)] && i > idx)) idx = i })
+          if (idx >= 0) accepted[idx] = r.question
+        }
+        note = 'eklendi'
+        break
+      }
+      console.log(`generate-exam: kaynak cizime uygun, cizim sorusu ayrica istendi: ${note}`)
     }
 
     // FAZ 3a son çare: hâlâ eksikse, formülü doğrulanamayan ama cevabı sayı
@@ -2575,6 +3139,13 @@ Additional variation seed: ${Date.now()}`
 
     // Sıra numaralarını yeniden ver, zorluğu sunucuda damgala (modelin geri
     // yansıtmasına güvenme), çoktan seçmeli şıkları karıştır.
+    // FAZ 4b.2: dosyadan kurulan grafik soruları başa yığılmasın.
+    if (fileChartQuestions.length) {
+      const fileSet = new Set(fileChartQuestions)
+      const kept = accepted.filter(q => fileSet.has(q))
+      accepted = spreadInsert(accepted.filter(q => !fileSet.has(q)), kept)
+      console.log(`generate-exam: ${kept.length}/${accepted.length} soru dosyadaki grafiklerden`)
+    }
     const finalQuestions = accepted.map((q, i) => {
       const out: Record<string, unknown> = { ...q, id: i + 1, difficulty: resolvedDifficulty }
       if (out.type === 'multiple_choice' && Array.isArray(out.options) && out.keep_order !== true) {

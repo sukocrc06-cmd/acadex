@@ -370,8 +370,16 @@ async function checkSessionAndLoadProfile() {
       currentActiveTab = deepLinkTab;
     }
 
+    // Yenileme / geri tusu (R33): adresteki #sekme, ?tab'dan sonra gelir
+    // (kullanicinin en son baktigi yer). Ders/sinav derin baglantilari onde.
+    if (!deepLinkCourse && !deepLinkExamCourse) {
+      const hashView = axNavHashView();
+      if (hashView) currentActiveTab = hashView;
+    }
+
     // Load default tab view content
     switchDashboardView(currentActiveTab);
+    axNavInstall(currentActiveTab);
     await updateDepotCountBadge();
     await checkNotifications();
 
@@ -3851,6 +3859,79 @@ function loadViewContent(viewId) {
 }
 window.switchDashboardView = switchDashboardView;
 
+/* GERI TUSU VE YENILEME (25.10.2026, test raporu R33, R75).
+   Sekme degisimi tarayici gecmisine yazilmiyordu: yenileyince hep ana
+   sayfa aciliyor, telefonda geri tusu panelden cikip giris sayfasina
+   donuyordu (o da "oturumdan atildim" gibi gorunuyordu). Artik her sekme
+   adrese #sekme olarak yazilir; geri/ileri sekmeler arasinda gezer,
+   yenileme ayni sekmeyi acar. Ozet penceresi acikken geri tusu once
+   pencereyi kapatir. */
+const AX_NAV_EXTRA_VIEWS = ['studylab', 'medlab'];
+function axNavViewOk(v) {
+  if (!v || typeof v !== 'string' || v === 'admin') return false;
+  return AX_NAV_EXTRA_VIEWS.includes(v) || !!document.getElementById(`${v}-view`);
+}
+function axNavHashView() {
+  let h = '';
+  try { h = decodeURIComponent((window.location.hash || '').slice(1)); } catch (e) { h = ''; }
+  return axNavViewOk(h) ? h : null;
+}
+let axNavFromPop = false;
+let axNavClosingByPop = false;
+let axNavIgnorePop = 0;
+function axNavModalOpen() {
+  const m = document.getElementById('study-card-modal');
+  return !!m && (m.classList.contains('active') || m.style.display === 'flex' || m.style.display === 'block');
+}
+function axNavInstall(initialView) {
+  if (window.__axNavInstalled) return;
+  window.__axNavInstalled = true;
+  try { history.replaceState({ axv: initialView }, '', window.location.href); } catch (e) {}
+  const inner = window.switchDashboardView;
+  const wrapped = function (v) {
+    const r = inner.apply(this, arguments);
+    if (axNavViewOk(v) && !axNavFromPop) {
+      const st = history.state || {};
+      if (st.axv !== v || st.axm) {
+        try { history.pushState({ axv: v }, '', '#' + v); } catch (e) {}
+      }
+    }
+    return r;
+  };
+  switchDashboardView = wrapped;
+  window.switchDashboardView = wrapped;
+
+  window.addEventListener('popstate', (e) => {
+    if (axNavIgnorePop > 0) { axNavIgnorePop--; return; }
+    if (axNavModalOpen()) {
+      axNavClosingByPop = true;
+      try { closeStudyCardModal(); } finally { axNavClosingByPop = false; }
+      return;
+    }
+    const v = (e.state && e.state.axv) || axNavHashView() || 'home';
+    if (v !== currentActiveTab) {
+      axNavFromPop = true;
+      try { switchDashboardView(v); } finally { axNavFromPop = false; }
+    }
+  });
+
+  const modal = document.getElementById('study-card-modal');
+  if (modal) {
+    let wasOpen = axNavModalOpen();
+    new MutationObserver(() => {
+      const now = axNavModalOpen();
+      if (now === wasOpen) return;
+      wasOpen = now;
+      if (now) {
+        try { history.pushState({ axv: currentActiveTab, axm: 1 }, '', window.location.href); } catch (e) {}
+      } else if (!axNavClosingByPop && history.state && history.state.axm) {
+        axNavIgnorePop++;
+        history.back();
+      }
+    }).observe(modal, { attributes: true, attributeFilter: ['class', 'style'] });
+  }
+}
+
 function loadAcadexSunum() {
   const iframe = document.getElementById('acadexsunum-iframe');
   if (iframe && !iframe.dataset.loaded) {
@@ -4206,6 +4287,18 @@ function setNotebookMode(mode) {
   }
 }
 
+/* EKRAN -> CIZIM KOORDINATI (25.10.2026, test raporu R31). Tuvalin piksel
+   boyutu yalnizca ilk acilista ayarlaniyor; tablet dondurulunce ya da pencere
+   boyu degisince CSS boyutu degisiyor ama piksel boyutu ayni kaliyordu.
+   Cizgi parmagin/kalemin altinda degil, kaymis yerde (kenara dogru) cikiyordu.
+   Tuvalin gercek olcegine gore cevrilir. */
+function canvasPointFromEvent(e) {
+  const rect = canvasElement.getBoundingClientRect();
+  const sx = rect.width ? canvasElement.width / rect.width : 1;
+  const sy = rect.height ? canvasElement.height / rect.height : 1;
+  return { x: (e.clientX - rect.left) * sx, y: (e.clientY - rect.top) * sy };
+}
+
 function startDrawing(e) {
   if (notebookMode === 'text') {
     e.preventDefault(); // Prevent default focus stealing by canvas mousedown
@@ -4222,9 +4315,7 @@ function startDrawing(e) {
   isDrawing = true;
   canvasCtx.beginPath();
   
-  const rect = canvasElement.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
+  const { x, y } = canvasPointFromEvent(e);
   
   canvasCtx.moveTo(x, y);
   
@@ -4252,9 +4343,7 @@ function draw(e) {
   }
   if (!isDrawing) return;
 
-  const rect = canvasElement.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
+  const { x, y } = canvasPointFromEvent(e);
   
   canvasCtx.lineTo(x, y);
   canvasCtx.stroke();
@@ -4309,15 +4398,9 @@ function addStickyNoteToNotebook(cardId, fileName, excerpt) {
     const rotation = Math.floor(Math.random() * 7) - 3; // -3 to +3 deg
     
     // Default position: Center of visible canvas viewport with cascading offset
-    const rect = overlay.getBoundingClientRect();
-    const noteWidth = 220;
-    const noteHeight = 150;
-    const centerX = (rect.width > noteWidth) ? (rect.width - noteWidth) / 2 : 50;
-    const centerY = (rect.height > noteHeight) ? (rect.height - noteHeight) / 2 : 50;
-    
-    const offset = (overlay.children.length * 20) % 200;
-    const x = centerX + offset;
-    const y = centerY + offset;
+    const spot = findFreeNoteSpot(overlay, 220, 150);
+    const x = spot.x;
+    const y = spot.y;
 
     const note = document.createElement('div');
     note.className = 'draggable-element draggable-note';
@@ -4349,6 +4432,7 @@ function addStickyNoteToNotebook(cardId, fileName, excerpt) {
     overlay.appendChild(note);
     makeElementDraggable(note);
     notebookHasUnsavedChanges = true;
+    if (typeof recordNotebookState === 'function') recordNotebookState();
   }, 100);
 }
 window.addStickyNoteToNotebook = addStickyNoteToNotebook;
@@ -4532,7 +4616,12 @@ function makeElementDraggable(el, handle = el) {
   let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
   let startX = 0, startY = 0;
   
-  handle.onmousedown = dragMouseDown;
+  /* DOKUNMAYLA TASIMA (25.10.2026, test raporu R25). Eskiden yalnizca fare
+     dinleniyordu (onmousedown); tablette parmakla ya da kalemle not
+     tasinamiyordu. Isaretci olaylari fare, parmak ve kalemin ucunu da tasir. */
+  el.style.touchAction = 'none';
+  handle.onmousedown = null;
+  handle.onpointerdown = dragMouseDown;
 
   // Intercept click events in the capture phase to cancel them if a drag occurred
   el.addEventListener('click', (e) => {
@@ -4544,13 +4633,19 @@ function makeElementDraggable(el, handle = el) {
     }
   }, true);
 
+ let activePointer = null;
   function dragMouseDown(e) {
     isDrawing = false;
-    if (e.target.classList.contains('delete-overlay-btn')) return;
+    if (e.button !== undefined && e.button !== 0) return;
+    if (activePointer !== null) return;
+    if (e.target.classList.contains('delete-overlay-btn') || e.target.closest('.delete-overlay-btn')) return;
     if (e.target.tagName === 'TD' || e.target.closest('td') || e.target.closest('[contenteditable="true"]')) return;
+    if (e.target.closest('.table-resizer')) return;
     
     e = e || window.event;
     e.preventDefault();
+    activePointer = e.pointerId;
+    try { handle.setPointerCapture(e.pointerId); } catch (_e) { /* yoksay */ }
     
     startX = e.clientX;
     startY = e.clientY;
@@ -4559,12 +4654,14 @@ function makeElementDraggable(el, handle = el) {
     pos3 = e.clientX;
     pos4 = e.clientY;
     
-    document.onmouseup = closeDragElement;
-    document.onmousemove = elementDrag;
+    handle.onpointerup = closeDragElement;
+    handle.onpointercancel = closeDragElement;
+    handle.onpointermove = elementDrag;
   }
 
   function elementDrag(e) {
     e = e || window.event;
+    if (e.pointerId !== activePointer) return;
     e.preventDefault();
     
     const dist = Math.sqrt(Math.pow(e.clientX - startX, 2) + Math.pow(e.clientY - startY, 2));
@@ -4590,15 +4687,115 @@ function makeElementDraggable(el, handle = el) {
     el.style.left = `${newLeft}px`;
   }
 
-  function closeDragElement() {
-    document.onmouseup = null;
-    document.onmousemove = null;
+  function closeDragElement(e) {
+    if (e && e.pointerId !== activePointer) return;
+    activePointer = null;
+    handle.onpointerup = null;
+    handle.onpointercancel = null;
+    handle.onpointermove = null;
     if (el.getAttribute('data-dragged') === 'true') {
       notebookHasUnsavedChanges = true;
       if (typeof recordNotebookState === 'function') recordNotebookState();
     }
   }
 }
+
+/* Defter ust katmanini (not, yazi, tablo, resim, sekil, AI tablo/grafik, deşifre)
+   kayda uygun diziye cevirir. Hem kaydetme hem geri al / ileri al bunu kullanir.
+   (25.10.2026, R37: geri al bu fonksiyonu cagiriyordu ama fonksiyon hic yoktu;
+   her geri alma sayfadaki BUTUN notlari, yazilari ve tablolari siliyordu.) */
+function captureCurrentOverlayElements() {
+  const overlay = document.getElementById('notebook-overlay-container');
+  const elementsArray = [];
+  
+  if (overlay) {
+    Array.from(overlay.children).forEach(el => {
+      const type = el.getAttribute('data-type');
+      const id = el.id;
+      const left = parseFloat(el.style.left) || 0;
+      const top = parseFloat(el.style.top) || 0;
+      const width = el.offsetWidth;
+      const height = el.offsetHeight;
+      
+      if (type === 'sticky') {
+        const cardId = el.getAttribute('data-card-id');
+        const fileName = el.querySelector('.draggable-note-title')?.textContent || '';
+        const excerpt = el.querySelector('.draggable-note-text')?.textContent || '';
+        const rotation = el.getAttribute('data-rotation');
+        elementsArray.push({
+          type, id, left, top, width, height, rotation,
+          content: { cardId, fileName, excerpt }
+        });
+      } 
+      else if (type === 'text') {
+        const color = el.getAttribute('data-color');
+        const fontSize = el.getAttribute('data-font-size');
+        const textContent = el.querySelector('[contenteditable]')?.innerHTML || '';
+        elementsArray.push({
+          type, id, left, top, width, height, color, fontSize,
+          content: textContent
+        });
+      }
+      else if (type === 'table') {
+        const rows = el.getAttribute('data-rows');
+        const cols = el.getAttribute('data-cols');
+        const cells = [];
+        el.querySelectorAll('td').forEach(td => {
+          cells.push(td.innerHTML);
+        });
+        
+        elementsArray.push({
+          type, id, left, top, width, height,
+          content: { rows, cols, cells }
+        });
+      }
+      else if (type === 'image') {
+        const src = el.getAttribute('data-src');
+        elementsArray.push({
+          type, id, left, top, width, height,
+          content: src
+        });
+      }
+      else if (type === 'shape') {
+        const shapeType = el.getAttribute('data-shape-type');
+        const color = el.getAttribute('data-color');
+        const flippedX = el.getAttribute('data-flipped-x');
+        const flippedY = el.getAttribute('data-flipped-y');
+        elementsArray.push({
+          type, id, left, top, width, height, color,
+          content: { shapeType, flippedX, flippedY }
+        });
+      }
+      else if (type === 'ai_table') {
+        const title = el.getAttribute('data-table-title');
+        const tableJson = el.getAttribute('data-table-json');
+        elementsArray.push({
+          type, id, left, top, width, height, title,
+          content: tableJson
+        });
+      }
+      else if (type === 'ai_chart') {
+        const title = el.getAttribute('data-chart-title');
+        const chartJson = el.getAttribute('data-chart-json');
+        elementsArray.push({
+          type, id, left, top, width, height, title,
+          content: chartJson
+        });
+      }
+      else if (type === 'transcript') {
+        const title = el.getAttribute('data-transcript-title');
+        const transcriptJson = el.getAttribute('data-transcript-json');
+        elementsArray.push({
+          type, id, left, top, width, height, title,
+          content: transcriptJson
+        });
+      }
+    });
+  }
+
+  return elementsArray;
+}
+window.captureCurrentOverlayElements = captureCurrentOverlayElements;
 
 async function saveNotebookData() {
   const btnSave = document.getElementById('btn-save-notebook');
@@ -4610,93 +4807,7 @@ async function saveNotebookData() {
 
   try {
     const canvasData = canvasElement.toDataURL('image/png');
-    const overlay = document.getElementById('notebook-overlay-container');
-    const elementsArray = [];
-    
-    if (overlay) {
-      Array.from(overlay.children).forEach(el => {
-        const type = el.getAttribute('data-type');
-        const id = el.id;
-        const left = parseFloat(el.style.left) || 0;
-        const top = parseFloat(el.style.top) || 0;
-        const width = el.offsetWidth;
-        const height = el.offsetHeight;
-        
-        if (type === 'sticky') {
-          const cardId = el.getAttribute('data-card-id');
-          const fileName = el.querySelector('.draggable-note-title')?.textContent || '';
-          const excerpt = el.querySelector('.draggable-note-text')?.textContent || '';
-          const rotation = el.getAttribute('data-rotation');
-          elementsArray.push({
-            type, id, left, top, width, height, rotation,
-            content: { cardId, fileName, excerpt }
-          });
-        } 
-        else if (type === 'text') {
-          const color = el.getAttribute('data-color');
-          const fontSize = el.getAttribute('data-font-size');
-          const textContent = el.querySelector('[contenteditable]')?.innerHTML || '';
-          elementsArray.push({
-            type, id, left, top, width, height, color, fontSize,
-            content: textContent
-          });
-        }
-        else if (type === 'table') {
-          const rows = el.getAttribute('data-rows');
-          const cols = el.getAttribute('data-cols');
-          const cells = [];
-          el.querySelectorAll('td').forEach(td => {
-            cells.push(td.innerHTML);
-          });
-          
-          elementsArray.push({
-            type, id, left, top, width, height,
-            content: { rows, cols, cells }
-          });
-        }
-        else if (type === 'image') {
-          const src = el.getAttribute('data-src');
-          elementsArray.push({
-            type, id, left, top, width, height,
-            content: src
-          });
-        }
-        else if (type === 'shape') {
-          const shapeType = el.getAttribute('data-shape-type');
-          const color = el.getAttribute('data-color');
-          const flippedX = el.getAttribute('data-flipped-x');
-          const flippedY = el.getAttribute('data-flipped-y');
-          elementsArray.push({
-            type, id, left, top, width, height, color,
-            content: { shapeType, flippedX, flippedY }
-          });
-        }
-        else if (type === 'ai_table') {
-          const title = el.getAttribute('data-table-title');
-          const tableJson = el.getAttribute('data-table-json');
-          elementsArray.push({
-            type, id, left, top, width, height, title,
-            content: tableJson
-          });
-        }
-        else if (type === 'ai_chart') {
-          const title = el.getAttribute('data-chart-title');
-          const chartJson = el.getAttribute('data-chart-json');
-          elementsArray.push({
-            type, id, left, top, width, height, title,
-            content: chartJson
-          });
-        }
-        else if (type === 'transcript') {
-          const title = el.getAttribute('data-transcript-title');
-          const transcriptJson = el.getAttribute('data-transcript-json');
-          elementsArray.push({
-            type, id, left, top, width, height, title,
-            content: transcriptJson
-          });
-        }
-      });
-    }
+    const elementsArray = captureCurrentOverlayElements();
 
     const activePage = notebookPages.find(p => p.page_number === currentNotebookPageNumber);
     const targetUserId = (activePage && activePage.is_shared) ? activePage.owner_id : currentUser.id;
@@ -4799,23 +4910,69 @@ async function loadNotebookData() {
   }
 }
 
+/* KAYDEDILMEMIS DEGISIKLIK PENCERESI (25.10.2026, R30/R32).
+   Eskiden tarayicinin confirm() kutusu soruluyordu: "Tamam" kaydet, "Iptal"
+   ise sessizce AT demekti. Ogrenciler "Iptal"i "vazgec" sandi ve cizimler
+   kayboldu. Simdi uc acik secenek var; sonuc 'save' | 'discard' | 'cancel'. */
+function askNotebookUnsaved(actionTr, actionEn) {
+  return new Promise(resolve => {
+    const isTr = (localStorage.getItem('acadexUILang') || 'tr') === 'tr';
+    const prev = document.getElementById('nb-unsaved-dlg');
+    if (prev) prev.remove();
+    const lastFocus = document.activeElement;
+    const dlg = document.createElement('div');
+    dlg.id = 'nb-unsaved-dlg';
+    dlg.className = 'nb-dlg';
+    dlg.innerHTML = `
+      <div class="nb-dlg-box" role="dialog" aria-modal="true" aria-labelledby="nb-dlg-t" aria-describedby="nb-dlg-d">
+        <h3 id="nb-dlg-t">${isTr ? 'Kaydedilmemiş değişiklik var' : 'You have unsaved changes'}</h3>
+        <p id="nb-dlg-d">${isTr ? `${actionTr} önce bu sayfadaki çizimleri ve notları kaydedelim mi?` : `Save this page's drawings and notes before ${actionEn}?`}</p>
+        <div class="nb-dlg-acts">
+          <button type="button" class="btn btn-dark" data-a="save">${isTr ? 'Kaydet ve devam et' : 'Save and continue'}</button>
+          <button type="button" class="btn" data-a="discard">${isTr ? 'Kaydetmeden devam et' : 'Continue without saving'}</button>
+          <button type="button" class="btn ghost" data-a="cancel">${isTr ? 'Vazgeç' : 'Cancel'}</button>
+        </div>
+        <p class="nb-dlg-warn">${isTr ? '“Kaydetmeden devam et” bu sayfadaki son değişiklikleri siler.' : '“Continue without saving” discards this page\'s latest changes.'}</p>
+      </div>`;
+    const done = (a) => {
+      document.removeEventListener('keydown', onKey, true);
+      dlg.remove();
+      if (lastFocus && lastFocus.focus) try { lastFocus.focus(); } catch (e) {}
+      resolve(a);
+    };
+    const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done('cancel'); } };
+    dlg.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-a]');
+      if (b) done(b.getAttribute('data-a'));
+      else if (e.target === dlg) done('cancel');
+    });
+    document.addEventListener('keydown', onKey, true);
+    document.body.appendChild(dlg);
+    setTimeout(() => { const f = dlg.querySelector('[data-a="save"]'); if (f) f.focus(); }, 30);
+  });
+}
+window.askNotebookUnsaved = askNotebookUnsaved;
+
+/* Sayfadan ayrilmadan once sor. true = devam edilebilir. Kaydetme basarisiz
+   olursa (ag yok vb.) devam edilmez; degisiklikler ekranda kalir. */
+async function confirmLeaveNotebookPage(actionTr, actionEn) {
+  if (!notebookHasUnsavedChanges) return true;
+  const a = await askNotebookUnsaved(actionTr, actionEn);
+  if (a === 'cancel') return false;
+  if (a === 'save') {
+    await saveNotebookData();
+    return !notebookHasUnsavedChanges;
+  }
+  return true;
+}
+
 async function navigateNotebookPage(direction) {
   const currentIdx = notebookPages.findIndex(p => p.page_number === currentNotebookPageNumber);
   if (currentIdx === -1) return;
   const nextIdx = currentIdx + direction;
   if (nextIdx < 0 || nextIdx >= notebookPages.length) return;
 
-  if (notebookHasUnsavedChanges) {
-    const isTr = localStorage.getItem('acadexUILang') === 'tr';
-    const confirmSave = confirm(
-      isTr 
-        ? "Kaydedilmemiş değişiklikleriniz var. Sayfa değiştirmeden önce kaydetmek ister misiniz?"
-        : "You have unsaved changes. Would you like to save before switching pages?"
-    );
-    if (confirmSave) {
-      await saveNotebookData();
-    }
-  }
+  if (!(await confirmLeaveNotebookPage('Sayfa değiştirmeden', 'switching pages'))) return;
 
   currentNotebookPageNumber = notebookPages[nextIdx].page_number;
   notebookHasUnsavedChanges = false;
@@ -4870,6 +5027,10 @@ function renderCurrentPageData() {
   const overlay = document.getElementById('notebook-overlay-container');
   if (!overlay || !canvasCtx || !canvasElement) return;
 
+  /* Silgi 'destination-out' birakiyor. O kipte drawImage resmi cizmez,
+     SILER: silgiden sonra geri al / ileri al / sayfa degistirme sayfayi
+     bombos gosteriyordu (25.10.2026, R37). Her cizimden once normal kipe. */
+  canvasCtx.globalCompositeOperation = 'source-over';
   canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
   overlay.innerHTML = '';
 
@@ -4878,9 +5039,14 @@ function renderCurrentPageData() {
 
   if (activePage.canvas_data) {
     const img = new Image();
+    const pageAtStart = currentNotebookPageNumber;
     img.src = activePage.canvas_data;
     img.onload = () => {
+      if (currentNotebookPageNumber !== pageAtStart) return; // bu arada sayfa degisti
+      const op = canvasCtx.globalCompositeOperation;
+      canvasCtx.globalCompositeOperation = 'source-over';
       canvasCtx.drawImage(img, 0, 0);
+      canvasCtx.globalCompositeOperation = op;
     };
   }
 
@@ -4906,7 +5072,9 @@ function renderCurrentPageData() {
 
       note.addEventListener('click', (e) => {
         if (e.target.classList.contains('delete-overlay-btn') || e.target.closest('.delete-overlay-btn')) return;
-        viewStudyCard(item.content.cardId, item.content.fileName, false, item.content.cardId);
+        const card = notebookCards.find(c => c.id === item.content.cardId) || libraryCards.find(c => c.id === item.content.cardId);
+        if (card) viewStudyCard(card.document_id, item.content.fileName, false, card.id);
+        else showDashboardAlert('error', 'Bu notun bağlı olduğu özet kartı silinmiş.');
       });
 
       overlay.appendChild(note);
@@ -7190,6 +7358,8 @@ async function onExamCardChange() {
 
   if (cardId) {
     updateExamCalcOptionState(cardId);
+    // FAZ 4b.2: grafik / çizim soruları için arka planda tarama başlar.
+    if (!(document.getElementById('exam-no-graphs') || {}).checked) autoChartScan(cardId);
     await loadPastAttempts(cardId);
   }
 }
@@ -7521,6 +7691,49 @@ function computeRequiredGrade() {
 }
 window.computeRequiredGrade = computeRequiredGrade;
 
+// FAZ 4b.2: kart seçilince belge arka planda kendiliğinden taranır (yalnızca
+// grafik + soru ya da çizim sorusu izi taşıyan sayfalar; iz yoksa model hiç
+// çağrılmaz). Bulunanların benzerleri sınava öğrenciye sorulmadan karışır;
+// "grafik sorusu olmasın" işaretliyse tarama yapılmaz. Hata sınavı durdurmaz.
+const autoChartScanJobs = {};
+function autoChartScan(studyCardId, onProgress) {
+  if (!studyCardId) return Promise.resolve(null);
+  const job = autoChartScanJobs[studyCardId];
+  if (job) { if (onProgress) job.listeners.push(onProgress); return job.promise; }
+  const listeners = onProgress ? [onProgress] : [];
+  const tell = (msg) => listeners.forEach(fn => { try { fn(msg); } catch (_e) { /* yoksay */ } });
+  const promise = (async () => {
+    try {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (!session) return null;
+      for (let i = 0; i < 60; i++) {
+        const r = await fetch(`${SUPABASE_URL}/functions/v1/extract-chart-items`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY },
+          body: JSON.stringify({ action: 'step', studyCardId, auto: true })
+        });
+        let d = {};
+        try { d = await r.json(); } catch (_e) { /* boş */ }
+        if (!r.ok) return null;
+        if (d.status === 'done') return d;
+        if (d.status === 'failed' && !d.restart) return null;
+        const total = (d.pages || []).length;
+        tell(`Belgedeki grafik ve çizim soruları taranıyor: ${d.done_pages || 0}/${total} sayfa` + (d.wait_ms ? ` · ${Math.ceil(d.wait_ms / 1000)} sn bekleniyor` : ''));
+        if (d.wait_ms) await new Promise(res => setTimeout(res, d.wait_ms));
+      }
+      return null;
+    } catch (_e) {
+      return null;
+    } finally {
+      // Başarısız ya da yarım kalan tarama sonraki seçimde yeniden denenebilsin.
+      setTimeout(() => { if (autoChartScanJobs[studyCardId] && autoChartScanJobs[studyCardId].promise === promise) delete autoChartScanJobs[studyCardId]; }, 0);
+    }
+  })();
+  autoChartScanJobs[studyCardId] = { promise, listeners };
+  return promise;
+}
+window.autoChartScan = autoChartScan;
+
 // FAZ 4c: belgedeki grafik sorularını tarar (extract-chart-items, sayfa
 // sayfa; Groq'un dakikalık sınırında bekler). Tarama bir kez yapılır,
 // sonraki sınavlarda hemen "done" döner. İlerleme kurulum penceresinde.
@@ -7581,7 +7794,9 @@ async function generateExam() {
       const sel = document.getElementById('exam-decimal-places');
       const type = (document.querySelector('input[name="exam-type"]:checked') || {}).value;
       return sel && (type === 'calculation' || type === 'mixed') ? (parseInt(sel.value, 10) || 0) : 0;
-    })()
+    })(),
+    // FAZ 4b: "grafik sorusu olmasın" — grafik okuma ve çizim soruları gelmez.
+    noGraphs: !!(document.getElementById('exam-no-graphs') || {}).checked
   };
 
   if (examSelectedSource === 'course') {
@@ -7619,7 +7834,10 @@ async function generateExam() {
     // FAZ 4c: "dosyadaki grafik sorularına göre" — belge önce (bir kez)
     // taranır; sonra sorular taranmış grafiklerden kodla kurulur.
     const chartBox = document.getElementById('exam-chart-examples');
-    if (chartBox && chartBox.checked && !chartBox.disabled && requestBody.studyCardId) {
+    if (chartBox && chartBox.checked && !chartBox.disabled && !requestBody.noGraphs && requestBody.studyCardId) {
+      // Arka plandaki kendiliğinden tarama sürüyorsa önce o biter (aynı
+      // sayfalar iki kez taranmasın).
+      if (autoChartScanJobs[requestBody.studyCardId]) await autoChartScan(requestBody.studyCardId, (msg) => { if (typeof window.__examProgress === 'function') window.__examProgress(msg); });
       const scanned = await runChartScan(requestBody.studyCardId, session, btn);
       if (!scanned) {
         btn.disabled = false;
@@ -7628,6 +7846,21 @@ async function generateExam() {
       }
       requestBody.chartExamples = true;
       requestBody.examType = 'mixed';
+    } else if (!requestBody.noGraphs && requestBody.studyCardId) {
+      // FAZ 4b.2: arka plandaki tarama bitmeden sınav kurulursa beklenir (en
+      // çok 3 dk; bitmezse sınav taramasız kurulur, tarama arkada sürer).
+      let waiting = true;
+      const progress = (msg) => {
+        if (!waiting) return;
+        if (typeof window.__examProgress === 'function') window.__examProgress(msg);
+        else btn.textContent = msg;
+      };
+      const scan = await Promise.race([
+        autoChartScan(requestBody.studyCardId, progress),
+        new Promise(res => setTimeout(() => res(null), 180000))
+      ]);
+      waiting = false;
+      if (scan && scan.found && typeof window.__examProgress === 'function') window.__examProgress(`Belgede ${scan.found} grafik/çizim sorusu bulundu; benzerleri sınava ekleniyor…`);
     }
 
     const response = await fetch(`${SUPABASE_URL}/functions/v1/generate-exam`, {
@@ -8187,7 +8420,7 @@ function showExamResults(exam) {
         <span style="color: ${scoreColor};">${scoreText}</span>
       </div>
       <div style="font-size: 0.8rem; margin-top: 0.5rem;">
-        <strong>${isTr ? 'Sizin Cevabınız' : 'Your Answer'}:</strong> ${res.student_answer ? escapeHtml(String(res.student_answer)) : (isTr ? '[Boş bırakıldı]' : '[Left blank]')} ${res.units && res.student_answer ? escapeHtml(String(res.units)) : ''}
+        <strong>${isTr ? 'Sizin Cevabınız' : 'Your Answer'}:</strong> ${res.student_answer ? escapeHtml(res.type === 'graph' && window.AcadexExamEngine && AcadexExamEngine.graphAnswerSummary ? (AcadexExamEngine.graphAnswerSummary(res.student_answer, res, isTr ? 'tr' : 'en') || String(res.student_answer)) : String(res.student_answer)) : (isTr ? '[Boş bırakıldı]' : '[Left blank]')} ${res.units && res.student_answer ? escapeHtml(String(res.units)) : ''}
       </div>
       ${correctBlock}
       <div style="font-size: 0.8rem; color: var(--color-text-muted); margin-top: 0.5rem; background-color: var(--color-bg-alt); padding: 0.5rem; border-radius: var(--radius-sm); border-left: 3px solid rgba(22,50,92,0.15);">
@@ -9722,35 +9955,50 @@ async function pasteDepotItem(event, itemId, title, content) {
     addDepotStickyNoteToCanvas(studyCardId, title, content);
   }
 
-  try {
-    const { error } = await supabaseClient
-      .from('card_depot')
-      .delete()
-      .eq('id', itemId);
+  /* KOPYALA, TASIMA (25.10.2026, R24). Eskiden yapistirilan kart depodan
+     siliniyordu; defterden yanlislikla silinince (ya da sayfa kaydedilmeden
+     kapaninca) kart her yerden kayboluyordu. Kart depoda kalir, istenirse
+     ✕ ile elle atilir; kartta "deftere eklendi" isareti gorunur. */
+  notebookHasUnsavedChanges = true;
+  setTimeout(() => { if (typeof recordNotebookState === 'function') recordNotebookState(); }, 150);
 
-    if (error) {
-      console.error("Error deleting placed depot item:", error);
-    }
-  } catch (err) {
-    console.error("Exception removing placed depot item:", err);
+  if (cardEl) {
+    cardEl.classList.add('is-placed');
+    const pasteBtn = cardEl.querySelector('.depot-item-actions .btn');
+    if (pasteBtn) pasteBtn.textContent = '✓ Deftere eklendi · tekrar ekle';
   }
-
-  if (cardEl) cardEl.remove();
-
-  await updateDepotCountBadge();
-
-  const depotList = document.getElementById('depot-items-list');
-  if (depotList && depotList.children.length === 0) {
-    depotList.innerHTML = `
-      <div class="search-empty-state" style="padding: 1.5rem 0.5rem; text-align: center;">
-        <p style="font-size: 0.8rem; color: var(--color-text-muted); margin-bottom: 0.5rem;">Deponuz boş. / Staging depot is empty.</p>
-        <a href="#" onclick="const modal = document.getElementById('depot-modal'); if (modal) modal.style.display = 'none'; switchDashboardView('cards');" style="color: var(--color-teal); font-weight: 700; font-size: 0.8rem; text-decoration: underline;">
-          Bilgi Kartları'na git ve terimleri, noktaları buraya gönder!
-        </a>
-      </div>
-    `;
-  }
+  const isTrP = (localStorage.getItem('acadexUILang') || 'tr') === 'tr';
+  showDashboardAlert('success', isTrP ? 'Deftere eklendi ✓ Kart depoda da duruyor; kaydetmeyi unutma.' : 'Added to notebook ✓ The card stays in the depot; remember to save.');
 }
+
+/* BOS YER BUL (25.10.2026, test raporu R25). Notlar eskiden hep sayfanin
+   ortasina 20 px kaydirmayla konuyordu; 10 notta bir ayni yere donuyor,
+   tablette (dar sayfa) ust uste biniyordu. Simdi ekranda gorunen kisimdan
+   baslayarak diger ogelere degmeyen ilk yer secilir; yer yoksa eski kaydirma. */
+function findFreeNoteSpot(overlay, w, h) {
+  const W = overlay.clientWidth || overlay.getBoundingClientRect().width;
+  const H = overlay.clientHeight || overlay.getBoundingClientRect().height;
+  const r = overlay.getBoundingClientRect();
+  const gap = 10, step = 20;
+  const boxes = Array.from(overlay.children).map(c => ({ x: c.offsetLeft, y: c.offsetTop, w: c.offsetWidth, h: c.offsetHeight }));
+  const free = (x, y) => boxes.every(b => x + w + gap <= b.x || b.x + b.w + gap <= x || y + h + gap <= b.y || b.y + b.h + gap <= y);
+  /* ekranda gorunen ust sinir: yapiskan arac cubugu kagidin ustunu ortuyorsa onun alti */
+  let viewTop = 0;
+  const bar = document.querySelector('#notebook-view .nb-top') || document.querySelector('#notebook-view .tools');
+  if (bar) { const br = bar.getBoundingClientRect(); if (getComputedStyle(bar).position !== 'static' && br.bottom > 0 && br.bottom < window.innerHeight) viewTop = br.bottom; }
+  const visTop = Math.max(0, Math.min(H - h, viewTop - r.top + 16));
+  const ys = [];
+  for (let y = visTop; y <= H - h; y += step) ys.push(y);
+  for (let y = 0; y < visTop; y += step) ys.push(y);
+  for (const y of ys) {
+    for (let x = 16; x <= Math.max(16, W - w - 8); x += step) {
+      if (free(x, y)) return { x, y };
+    }
+  }
+  const off = (overlay.children.length * 20) % 200;
+  return { x: Math.max(0, (W - w) / 2) + off, y: Math.max(0, (H - h) / 2) + off };
+}
+window.findFreeNoteSpot = findFreeNoteSpot;
 
 function addDepotStickyNoteToCanvas(cardId, title, content) {
   const overlay = document.getElementById('notebook-overlay-container');
@@ -9759,15 +10007,9 @@ function addDepotStickyNoteToCanvas(cardId, title, content) {
   const id = 'note-' + Date.now();
   const rotation = Math.floor(Math.random() * 7) - 3; // -3 to +3 deg
   
-  const rect = overlay.getBoundingClientRect();
-  const noteWidth = 220;
-  const noteHeight = 150;
-  const centerX = (rect.width > noteWidth) ? (rect.width - noteWidth) / 2 : 50;
-  const centerY = (rect.height > noteHeight) ? (rect.height - noteHeight) / 2 : 50;
-  
-  const offset = (overlay.children.length * 20) % 200;
-  const x = centerX + offset;
-  const y = centerY + offset;
+  const spot = findFreeNoteSpot(overlay, 220, 150);
+  const x = spot.x;
+  const y = spot.y;
 
   const note = document.createElement('div');
   note.className = 'draggable-element draggable-note';
@@ -17460,6 +17702,10 @@ function updateRemindersStatusText() {
 window.updateRemindersStatusText = updateRemindersStatusText;
 
 async function checkAndTriggerExamNotifications() {
+  /* 25.10.2026 (R7): hatirlaticilar artik acadex-ink.js planlayicisinda (tum
+     etkinlikler, Android icin servis calisani). Bu eski yol ayni sinav icin
+     Ingilizce ikinci bildirim atiyordu; oraya yonlendirilir. */
+  if (typeof window.axRemindCheck === 'function') { window.axRemindCheck(); return; }
   if (!currentUser) return;
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
 
@@ -19105,17 +19351,7 @@ function closeTemplatePickerModal() {
 async function selectNotebookTemplate(templateType) {
   closeTemplatePickerModal();
 
-  if (notebookHasUnsavedChanges) {
-    const isTr = localStorage.getItem('acadexUILang') === 'tr';
-    const confirmSave = confirm(
-      isTr 
-        ? "Kaydedilmemiş değişiklikleriniz var. Yeni sayfa oluşturmadan önce kaydetmek ister misiniz?"
-        : "You have unsaved changes. Would you like to save before creating a new page?"
-    );
-    if (confirmSave) {
-      await saveNotebookData();
-    }
-  }
+  if (!(await confirmLeaveNotebookPage('Yeni sayfa açmadan', 'opening a new page'))) return;
 
   const maxPageNum = notebookPages.reduce((max, p) => Math.max(max, p.page_number), 0);
   const newPageNum = maxPageNum + 1;
@@ -19260,10 +19496,28 @@ async function selectNotebookTemplate(templateType) {
   notebookPages.push(newPage);
   notebookPages.sort((a, b) => a.page_number - b.page_number);
   currentNotebookPageNumber = newPageNum;
-  notebookHasUnsavedChanges = true;
-  
+  notebookHasUnsavedChanges = false;
+
   resetNotebookHistory();
   renderCurrentPageData();
+
+  /* YENI SAYFA HEMEN BULUTA (25.10.2026, R32). Eskiden yeni sayfa yalnizca
+     bellekte duruyordu: kaydedilmeden yenilenince ya da baska sayfaya
+     gecilince yok oluyor, "Tum sayfalar" ile sayac birbirini tutmuyordu.
+     Bos sayfa (ve sablonun hazir ogeleri) acilir acilmaz yaziliyor. */
+  try {
+    const { error } = await supabaseClient.from('notebooks').upsert({
+      user_id: currentUser.id,
+      page_number: newPageNum,
+      canvas_data: null,
+      elements: starterElements,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id,page_number' });
+    if (error) throw error;
+  } catch (err) {
+    console.error('Yeni sayfa buluta yazilamadi:', err);
+    notebookHasUnsavedChanges = true; // en azindan "kaydet" uyarisi korusun
+  }
 }
 
 window.openTemplatePickerModal = openTemplatePickerModal;
@@ -19335,15 +19589,8 @@ function redoNotebookAction() {
 
 function applyNotebookStateSnapshot(snapshot) {
   if (!snapshot || !canvasCtx || !canvasElement) return;
-  
-  canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-  if (snapshot.canvasDataURL) {
-    const img = new Image();
-    img.src = snapshot.canvasDataURL;
-    img.onload = () => {
-      canvasCtx.drawImage(img, 0, 0);
-    };
-  }
+  // Cizim renderCurrentPageData'da, activePage.canvas_data'dan yapiliyor;
+  // burada ikinci kez cizmek ayni resmi iki kez bindiriyordu.
 
   const activePage = notebookPages.find(p => p.page_number === currentNotebookPageNumber);
   if (activePage) {
@@ -19389,14 +19636,16 @@ function openNotebookPagesOverview() {
 
   grid.innerHTML = '';
 
-  notebookPages.forEach(page => {
+  const isTrO = (localStorage.getItem('acadexUILang') || 'tr') === 'tr';
+  notebookPages.forEach((page, pageIdx) => {
     const isCurrent = (page.page_number === currentNotebookPageNumber);
     const elemCount = (page.elements || []).length;
+    const dirtyHere = isCurrent && notebookHasUnsavedChanges;
 
     const tile = document.createElement('div');
     tile.className = 'page-thumbnail-tile' + (isCurrent ? ' active-page' : '');
     
-    let previewContentHtml = `<div style="color: var(--color-text-muted); font-size: 0.75rem; font-style: italic;">Blank Canvas</div>`;
+    let previewContentHtml = `<div style="color: var(--color-text-muted); font-size: 0.75rem; font-style: italic;">${isTrO ? 'boş sayfa' : 'Blank page'}</div>`;
     if (page.canvas_data) {
       previewContentHtml = `<img src="${page.canvas_data}" alt="Page ${page.page_number}">`;
     }
@@ -19412,10 +19661,11 @@ function openNotebookPagesOverview() {
       </div>
       <div class="page-thumbnail-meta">
         <div>
-          <div class="page-thumbnail-title">Page ${page.page_number}</div>
+          <div class="page-thumbnail-title">${isTrO ? 'Sayfa' : 'Page'} ${pageIdx + 1}</div>
           ${sharedBadgeHtml}
+          ${dirtyHere ? `<span class="page-thumbnail-dirty">${isTrO ? 'kaydedilmedi' : 'unsaved'}</span>` : ''}
         </div>
-        <span class="page-thumbnail-badge">${elemCount} items</span>
+        <span class="page-thumbnail-badge">${elemCount} ${isTrO ? 'öğe' : 'items'}</span>
       </div>
     `;
 
@@ -19430,7 +19680,7 @@ function openNotebookPagesOverview() {
   addTile.className = 'page-thumbnail-add';
   addTile.innerHTML = `
     <span style="font-size: 1.8rem; line-height: 1;">+</span>
-    <span>New Page</span>
+    <span>${isTrO ? 'Yeni sayfa' : 'New page'}</span>
   `;
   addTile.addEventListener('click', () => {
     closeNotebookPagesOverview();
@@ -19450,17 +19700,7 @@ async function selectPageFromOverview(pageNum) {
   closeNotebookPagesOverview();
   if (pageNum === currentNotebookPageNumber) return;
 
-  if (notebookHasUnsavedChanges) {
-    const isTr = localStorage.getItem('acadexUILang') === 'tr';
-    const confirmSave = confirm(
-      isTr 
-        ? "Kaydedilmemiş değişiklikleriniz var. Sayfa değiştirmeden önce kaydetmek ister misiniz?"
-        : "You have unsaved changes. Would you like to save before switching pages?"
-    );
-    if (confirmSave) {
-      await saveNotebookData();
-    }
-  }
+  if (!(await confirmLeaveNotebookPage('Sayfa değiştirmeden', 'switching pages'))) return;
 
   currentNotebookPageNumber = pageNum;
   notebookHasUnsavedChanges = false;

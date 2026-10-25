@@ -225,7 +225,7 @@
 <button type="button" class="memo-x" data-memo-x="" aria-label="Notu kapat">×</button>
 <label for="memo-t" class="hand" data-memo-l="">yarınki sana bir not bırak</label>
 <textarea id="memo-t" rows="4" maxlength="160" placeholder="mesela: önce 10 kart, sonra deneme…"></textarea>
-<small class="memo-s" data-memo-s="" aria-live="polite">yalnızca bu tarayıcıda kalır</small>
+<small class="memo-s" data-memo-s="" aria-live="polite">hesabına kaydedilir, her cihazında görünür</small>
 </div>
 </div>
 <button type="button" class="tour" data-tour="">Bilgi tazelemek ister misin? Turu tekrar başlat</button>
@@ -341,9 +341,9 @@
 <div class="p-tools">
 <div class="remind" data-remind="">
 <button type="button" class="switch" role="switch" aria-checked="false" data-remind-sw="" aria-labelledby="remind-l"><i></i></button>
-<span id="remind-l" class="remind-l">Sınav hatırlatıcıları</span>
+<span id="remind-l" class="remind-l">Hatırlatıcılar</span>
 <span class="remind-s" data-remind-s="">kapalı</span>
-<small class="remind-n">yalnızca Acadex bu tarayıcıda açıkken çalışır: sınavdan 1 gün ve 1 saat önce haber verir.</small>
+<small class="remind-n">Acadex açıkken çalışır: sınavdan 1 gün ve 1 saat, saatli etkinlikten 1 saat önce, saatsiz etkinlikte o sabah haber verir. Acadex kapalıyken de hatırlatsın istersen “Takvime aktar”.</small>
 </div>
 <div class="p-tools-r">
 <button type="button" class="btn btn-line" data-ics=""><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4 V15 M8 11.4 C9.4 12.7 10.7 14 12 15.4 C13.3 14 14.6 12.7 16 11.4"/><path d="M5 15.5 V19.5 H19 V15.5"/></svg>Takvime aktar <small>.ics</small></button>
@@ -1150,7 +1150,8 @@
 <label class="axs-neg"><span>hesap cevabı</span><select id="exam-decimal-places" aria-label="Sayı hassasiyeti"><option value="">standart: küçük yüzde payla kabul</option><option value="2">virgülden sonra 2 basamak doğru olmalı</option><option value="3">virgülden sonra 3 basamak doğru olmalı</option><option value="4">virgülden sonra 4 basamak doğru olmalı</option></select></label>
 <small class="axs-hint" data-prec-hint="">yalnızca hesap sorularında. ör. 3 basamakta doğru cevap 1,2344 ise 1,234 kabul, 1,236 değil.</small>
 </fieldset>
-<label class="sn-f sn-chk axs-chartq" data-chartq-row=""><input type="checkbox" id="exam-chart-examples"><span>dosyadaki grafik sorularına göre <small>belgedeki grafikli soruların biçiminde (hangisi söylenebilir, öncüllü, D/Y, yorum…), benzer ama sayıları farklı grafiklerle. İlk seferde belge taranır (1–4 dk), sonra hazırdır.</small></span></label>
+<label class="sn-f sn-chk axs-nograph" data-nograph-row=""><input type="checkbox" id="exam-no-graphs"><span>grafik sorusu olmasın <small>işaretlersen grafik okuma ve çizim soruları gelmez. İşaretlemezsen, kaynak uygunsa çizim soruları (ızgarada nokta, doğru, kaydırma, alan…) ve belgendeki grafik/çizim sorularının benzerleri sana sorulmadan sınava karışır.</small></span></label>
+<label class="sn-f sn-chk axs-chartq" data-chartq-row=""><input type="checkbox" id="exam-chart-examples"><span>tamamı dosyadaki grafik sorularından <small>bütün sınav belgedeki grafikli soruların biçiminde (hangisi söylenebilir, öncüllü, D/Y, yorum…), benzer ama sayıları farklı grafiklerle. İlk seferde belge taranır (1–4 dk), sonra hazırdır.</small></span></label>
 <div class="sn-f3">
 <label class="sn-f axs-cnt"><span>soru sayısı</span><span class="sn-mx on"><button type="button" data-cnt="-1" aria-label="Bir azalt">−</button><input type="number" id="exam-question-count" value="10" min="1" max="20" aria-label="Soru sayısı"><button type="button" data-cnt="1" aria-label="Bir artır">+</button></span><small id="exam-question-count-range-hint" class="axs-hint"></small></label>
 <fieldset class="sn-f axs-lang"><legend>dil</legend><label><input type="radio" name="exam-lang" value="en" checked><span>English</span></label><label><input type="radio" name="exam-lang" value="tr"><span>Türkçe</span></label></fieldset>

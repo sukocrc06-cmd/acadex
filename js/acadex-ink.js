@@ -33,6 +33,22 @@ window.axWhenProfile = function (cb) {
   };
   tick();
 };
+/* BILDIRIM GOSTER (25.10.2026, test raporu R7). Android Chrome'da sayfadan
+   new Notification() "Illegal constructor" atar; hata sessizce yutuldugu icin
+   telefonda hic bildirim gelmiyordu. Once servis calisani (sw.js) uzerinden
+   gosterilir, olmazsa eski yola duser. Sonuc: true/false. */
+window.axNotify = function (title, opts) {
+  opts = opts || {};
+  if (!('Notification' in window) || Notification.permission !== 'granted') return Promise.resolve(false);
+  var plain = function () { try { new Notification(title, opts); return true; } catch (e) { return false; } };
+  if (!('serviceWorker' in navigator)) return Promise.resolve(plain());
+  var reg = window.__axSwReg || (window.__axSwReg = navigator.serviceWorker.register('sw.js').then(function () { return navigator.serviceWorker.ready; }));
+  var timeout = new Promise(function (r) { setTimeout(function () { r(null); }, 4000); });
+  return Promise.race([reg, timeout]).then(function (r) {
+    if (r && r.showNotification) return r.showNotification(title, opts).then(function () { return true; }, function () { return plain(); });
+    return plain();
+  }, function () { return plain(); });
+};
 (function () {
   'use strict';
   var $ = function (s, r) { return (r || document).querySelector(s); };
@@ -304,37 +320,87 @@ window.axWhenProfile = function (cb) {
   ['t-log', 't-short'].forEach(function (k) { var c = byId(k); if (c) c.classList.add('curl'); });
   var cf = byId('t-facts'); if (cf) cf.classList.add('taped');
 
-  /* ---------- yarınki sana not (bu tarayıcıda) ---------- */
+  /* ---------- yarınki sana not ----------
+     HESAPTA (25.10.2026, test raporu R8). Eskiden yalnızca bu tarayıcıda
+     duruyordu: telefonda yazılan not bilgisayarda yoktu. Ayrıca "bugün"
+     sayfa açılırken bir kez hesaplanıyordu; sekme gece açık kalınca ertesi
+     gün not "dün yazmıştın" olarak çıkmıyordu. Şimdi not profiles.day_memo
+     alanında ({t, d, at}); tarayıcıdaki kopya yalnızca hızlı açılış içindir.
+     Ertesi gün (ya da sonra) Bugün sayfası açılınca not kendiliğinden açılır. */
   (function () {
-    var todayK = ymd(now), memo = $('#memo-t'), memoL = $('[data-memo-l]'), memoS = $('[data-memo-s]'), saved = store.get('memo');
-    if (saved && saved.t) {
-      memo.value = saved.t;
-      if (saved.d !== todayK) {
-        var y = new Date(now); y.setDate(now.getDate() - 1);
-        var when = saved.d === ymd(y) ? 'dün' : new Date(saved.d + 'T12:00').toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' }) + ' günü';
+    var memo = $('#memo-t'), memoL = $('[data-memo-l]'), memoS = $('[data-memo-s]');
+    var memoB = $('[data-memo-b]'), memoP = $('[data-memo-peek]'), box = $('[data-memo]');
+    var cur = store.get('memo'), shownFor = '';
+    var todayK = function () { return ymd(new Date()); };
+    var uid = function () { var u = me(); return u && u.id; };
+    var memoInView = false;
+    var paint = function () {
+      var t = todayK(), v = cur && cur.t ? cur.t : '';
+      if (document.activeElement !== memo) memo.value = v;
+      if (!v) memoL.textContent = 'yarınki sana bir not bırak';
+      else if (cur.d && cur.d < t) {
+        var y = new Date(); y.setDate(y.getDate() - 1);
+        var when = cur.d === ymd(y) ? 'dün' : new Date(cur.d + 'T12:00').toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' }) + ' günü';
         memoL.textContent = when + ' kendine şunu yazmıştın:';
       } else memoL.textContent = 'yarınki sana notun';
-    }
-    var memoB = $('[data-memo-b]'), memoP = $('[data-memo-peek]'), box = $('[data-memo]');
+      peek();
+      /* önceki günden kalan not, o gün not ekrana ilk geldiğinde kendiliğinden açılır */
+      if (v && cur.d && cur.d < t && shownFor !== t && store.get('memoSeen') !== t && box.hidden && memoInView) {
+        shownFor = t; store.set('memoSeen', t);
+        box.hidden = false; memoB.setAttribute('aria-expanded', 'true');
+      }
+    };
     var peek = function () {
       var v = memo.value.trim(); if (!v) { memoP.textContent = 'yarınki sana bir not bırak'; return; }
       var pre = /yazmıştın/.test(memoL.textContent) ? memoL.textContent.replace(' kendine şunu yazmıştın:', ' yazmıştın: ') : 'notun: ';
       memoP.textContent = pre + (v.length > 30 ? v.slice(0, 30).trim() + '…' : v);
     };
-    peek();
+    var pushToAccount = function (val) {
+      var id = uid(), sb = lsafe(function () { return supabaseClient; }, null);
+      if (!id || !sb) return Promise.resolve(false);
+      return sb.from('profiles').update({ day_memo: val }).eq('id', id).then(function (r) {
+        if (r && r.error) throw r.error;
+        var p = prof(); if (p) p.day_memo = val;
+        return true;
+      }).catch(function () { return false; });
+    };
+    paint();
+    /* hesaptaki not daha yeniyse onu kullan; hesapta yoksa bu tarayıcıdakini hesaba taşı */
+    window.axWhenProfile(function (p) {
+      if (!p) return;
+      var acc = p.day_memo && p.day_memo.t ? p.day_memo : null;
+      if (acc && (!cur || !cur.at || (acc.at || 0) >= cur.at)) { cur = acc; store.set('memo', cur); }
+      else if (cur && cur.t && !acc) pushToAccount(cur);
+      paint();
+    });
     var open = function (o) { box.hidden = !o; memoB.setAttribute('aria-expanded', String(o)); if (o) memo.focus(); else { peek(); memoB.focus(); } };
     memoB.addEventListener('click', function () { open(box.hidden); });
     $('[data-memo-x]').addEventListener('click', function () { open(false); });
     box.addEventListener('keydown', function (e) { if (e.key === 'Escape') { e.stopPropagation(); open(false); } });
     document.addEventListener('click', function (e) { if (!box.hidden && !e.target.closest('.memo-w')) { box.hidden = true; memoB.setAttribute('aria-expanded', 'false'); peek(); } });
+    /* gün değişti mi: sekmeye dönünce ve dakikada bir bak */
+    var lastDay = todayK();
+    var dayCheck = function () { var t = todayK(); if (t !== lastDay) { lastDay = t; paint(); } };
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) { dayCheck(); paint(); } });
+    setInterval(dayCheck, 60000);
+    /* Bugün sayfası ekrana gelince (başka sekmeden dönüş) de bak */
+    var mw = $('.memo-w'); if (mw && 'IntersectionObserver' in window) new IntersectionObserver(function (es) { memoInView = es.some(function (x) { return x.isIntersecting; }); if (memoInView) paint(); }).observe(mw);
     var mt = 0;
     memo.addEventListener('input', function () {
       clearTimeout(mt);
       mt = setTimeout(function () {
         var v = memo.value.trim();
-        if (!v) { store.del('memo'); memoL.textContent = 'yarınki sana bir not bırak'; memoS.textContent = 'yalnızca bu tarayıcıda kalır'; return; }
-        memoS.textContent = store.set('memo', { t: v, d: todayK }) ? 'kaydedildi, yarın burada olacak' : 'bu tarayıcı notu saklamıyor';
+        if (!v) {
+          cur = null; store.del('memo'); memoL.textContent = 'yarınki sana bir not bırak'; memoS.textContent = 'not silindi';
+          pushToAccount(null); return;
+        }
+        cur = { t: v, d: todayK(), at: Date.now() };
+        store.set('memo', cur);
         memoL.textContent = 'yarınki sana notun';
+        memoS.textContent = 'kaydediliyor…';
+        pushToAccount(cur).then(function (ok) {
+          memoS.textContent = ok ? 'kaydedildi, yarın her cihazında burada olacak' : 'yalnızca bu tarayıcıya kaydedildi (bağlantı yok)';
+        });
       }, 400);
     });
   })();
@@ -1045,6 +1111,7 @@ window.axWhenProfile = function (cb) {
     if (sel && !$$('option', s).some(function (o) { return o.value === sel; })) { var o2 = document.createElement('option'); o2.value = sel; o2.textContent = sel; s.appendChild(o2); }
     s.value = sel || '';
   };
+  var quickPending = false;
   var openForm = function (ev, note) {
     lastFocus = document.activeElement; editing = ev && ev.id && byId(ev.id) ? ev.id : null; ev = ev || {};
     $('[data-form-t]').textContent = editing ? 'etkinliği düzenle' : 'yeni etkinlik';
@@ -1058,6 +1125,7 @@ window.axWhenProfile = function (cb) {
   };
   window.acxPlanOpen = function (ev) { openForm(ev || null); };
   var closeForm = function () { if (dlg.open) dlg.close(); };
+  dlg.addEventListener('close', function () { setTimeout(function () { quickPending = false; }, 0); });
   dlg.addEventListener('close', function () { if (lastFocus && document.contains(lastFocus)) lastFocus.focus(); });
   dlg.addEventListener('click', function (e) { if (e.target === dlg) closeForm(); });
   $('[data-f-cancel]').addEventListener('click', closeForm);
@@ -1073,6 +1141,8 @@ window.axWhenProfile = function (cb) {
       else { var row = await dbInsert(data); var ne = fromRow(row); events.push(ne); id = ne.id; }
     } catch (er) { sub.disabled = false; fErr.hidden = false; fErr.textContent = 'kaydedemedim; bağlantını kontrol edip tekrar dene.'; console.error(er); return; }
     sub.disabled = false;
+    /* hızlı yazıdan açılan form kaydedilince hızlı yaz kutusu da boşalır (R14) */
+    if (quickPending) { quickPending = false; var qi = $('#quick-in'); if (qi) qi.value = ''; }
     var fr = ff.getBoundingClientRect(), mv = goMonth(d);
     syncLegacy(); closeForm(); renderAll(mv);
     flyTo(id, fr, mv ? 480 : 0);
@@ -1195,7 +1265,13 @@ window.axWhenProfile = function (cb) {
     var t = ' ' + text + ' ', low = ' ' + text.toLocaleLowerCase('tr') + ' ', out = { time: '', date: '', type: 'calisma', doc: '' };
     var cut = function (m) { if (!m) return; var i = low.indexOf(m); if (i < 0) return; t = t.slice(0, i) + ' ' + t.slice(i + m.length); low = low.slice(0, i) + ' ' + low.slice(i + m.length); };
     var m;
-    if ((m = low.match(/(?:saat\s*)?([01]?\d|2[0-3]):([0-5]\d)(?:['’](?:de|da|te|ta))?/)) || (m = low.match(/saat\s*([01]?\d|2[0-3])\.([0-5]\d)(?:['’](?:de|da|te|ta))?/))) { out.time = pad(+m[1]) + ':' + m[2]; cut(m[0]); }
+    /* "10.00" de saat (25.10.2026, R21). "10.11" hem saat hem tarih olabilir:
+       yazıda gün sözcüğü varsa (yarın, cuma, 3 kasım…), dakika 12'den büyükse
+       ya da "00" ise saat sayılır; yoksa tarih olarak kalır ("10.11 ödev"). */
+    var dayWord = new RegExp('(?:^|\\s)(?:bugün|yarın|öbür|ertesi|haftaya|pazartesi|salı|çarşamba|perşembe|cuma|cumartesi|pazar|' + MONTHS.join('|') + ')').test(low);
+    var dotT = low.match(/(?:^|\s)((saat\s*)?([01]?\d|2[0-3])\.([0-5]\d)(?:['’](?:de|da|te|ta))?)(?=\s)/);
+    if ((m = low.match(/(?:saat\s*)?([01]?\d|2[0-3]):([0-5]\d)(?:['’](?:de|da|te|ta))?/))) { out.time = pad(+m[1]) + ':' + m[2]; cut(m[0]); }
+    else if (dotT && (dotT[2] || dayWord || +dotT[4] > 12 || dotT[4] === '00')) { out.time = pad(+dotT[3]) + ':' + dotT[4]; cut(dotT[1]); }
     else if ((m = low.match(/saat\s*([01]?\d|2[0-3])(?:['’](?:de|da|te|ta))?(?=\s)/))) { out.time = pad(+m[1]) + ':00'; cut(m[0]); }
     else if ((m = low.match(/\s([01]?\d|2[0-3])['’](?:de|da|te|ta)(?=\s)/))) { out.time = pad(+m[1]) + ':00'; cut(m[0].trim()); }
     if ((m = low.match(/(?:^|\s)(bugün)/))) { out.date = todayK; cut(m[1]); }
@@ -1205,10 +1281,13 @@ window.axWhenProfile = function (cb) {
       var y = m[3] ? +m[3] : now.getFullYear(), d = new Date(y, MONTHS.indexOf(m[2]), +m[1]);
       if (!m[3] && ymd(d) < todayK) d.setFullYear(y + 1);
       if (d.getDate() === +m[1]) out.date = ymd(d); cut(m[0].trim());
-    } else if ((m = low.match(/(?:^|\s)(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?(?=\s)/))) {
+    } else if ((m = low.match(/(?:^|\s)(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?(?=\s)/)) && (function () {
       var yy = m[3] ? (m[3].length === 2 ? 2000 + +m[3] : +m[3]) : now.getFullYear(), d2 = new Date(yy, +m[2] - 1, +m[1]);
       if (!m[3] && ymd(d2) < todayK) d2.setFullYear(yy + 1);
-      if (d2.getDate() === +m[1] && d2.getMonth() === +m[2] - 1) out.date = ymd(d2); cut(m[0].trim());
+      if (d2.getDate() !== +m[1] || d2.getMonth() !== +m[2] - 1) return false;
+      out.date = ymd(d2); cut(m[0].trim()); return true;
+    })()) {
+      /* geçerli gün.ay bulundu */
     } else {
       var order = ['cumartesi', 'pazartesi', 'çarşamba', 'perşembe', 'salı', 'cuma', 'pazar'];
       for (var i = 0; i < order.length; i++) {
@@ -1226,7 +1305,7 @@ window.axWhenProfile = function (cb) {
     var inp = $('#quick-in'), v = inp.value.trim(); if (!v) { inp.focus(); return; }
     await fillDocs('');
     var p = parseQuick(v);
-    if (!p.date) { openForm({ title: p.title, type: p.type, time: p.time, doc: p.doc, date: todayK }, 'günü anlayamadım; tarihi buradan seç.'); return; }
+    if (!p.date) { quickPending = true; openForm({ title: p.title, type: p.type, time: p.time, doc: p.doc, date: todayK }, 'günü anlayamadım; tarihi buradan seç.'); return; }
     var qr = $('[data-quick]').getBoundingClientRect(), ne;
     try { ne = fromRow(await dbInsert({ title: p.title, type: p.type, date: p.date, time: p.time, doc: p.doc, notes: '' })); }
     catch (er) { fail('Ekleyemedim; bağlantını kontrol et.', er); return; }
@@ -1249,7 +1328,11 @@ window.axWhenProfile = function (cb) {
     b.addEventListener('keydown', function (e) { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); var n = tabs[(i + 1) % 2]; n.focus(); n.click(); } });
   });
 
-  /* ---------- takvim uygulamasına aktar (.ics) ---------- */
+  /* ---------- takvim uygulamasına aktar (.ics) ----------
+     25.10.2026, test raporu R10. Eskiden yalnızca sınavlarda alarm vardı ve
+     telefonda dosya İndirilenler'e düşüp takvime gitmiyordu. Şimdi her
+     etkinlik alarmlı gider (planlayıcı hatırlatıcılarıyla aynı kural) ve
+     telefonda paylaş menüsü açılır; Acadex kapalıyken de takvim hatırlatır. */
   $('[data-ics]').addEventListener('click', function () {
     var list = real();
     if (!list.length) { say('Aktaracak etkinlik yok; önce bir tane ekle.'); return; }
@@ -1264,17 +1347,49 @@ window.axWhenProfile = function (cb) {
       L.push('SUMMARY:' + icsEsc(e.title), 'CATEGORIES:' + icsEsc(TYPE[e.type]));
       var desc = [e.doc ? 'Belge: ' + e.doc : '', e.notes || ''].filter(Boolean).join('\n');
       if (desc) L.push('DESCRIPTION:' + icsEsc(desc));
-      if (e.type === 'sinav') L.push('BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsEsc(e.title), 'TRIGGER:-P1D', 'END:VALARM');
+      /* alarmlar: saatli etkinlikte başlangıca göre, saatsizde gün başına (00:00) göre */
+      var alarms = e.type === 'sinav' ? (e.time ? ['-P1D', '-PT1H'] : ['-PT15H', 'PT8H']) : (e.time ? ['-PT1H'] : ['PT9H']);
+      if (!e.done) alarms.forEach(function (tr) { L.push('BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsEsc(e.title), 'TRIGGER:' + tr, 'END:VALARM'); });
       L.push('END:VEVENT');
     });
     L.push('END:VCALENDAR');
-    var blob = new Blob([L.join('\r\n') + '\r\n'], { type: 'text/calendar;charset=utf-8' }), a = document.createElement('a');
-    a.href = URL.createObjectURL(blob); a.download = 'acadex-planlayici.ics'; document.body.appendChild(a); a.click();
-    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-    say(list.length + ' etkinlik .ics dosyası olarak indi. Google Takvim, Outlook ya da iPhone takvimine ekleyebilirsin.');
+    /* RFC 5545: 75 bayttan uzun satırlar katlanır (Apple takvimi uzun başlıkta takılabiliyor) */
+    var fold = function (line) {
+      var out = [], cur = '', bytes = 0;
+      Array.from(line).forEach(function (ch) {
+        var b = unescape(encodeURIComponent(ch)).length, lim = out.length ? 74 : 75;
+        if (bytes + b > lim) { out.push(cur); cur = ''; bytes = 0; }
+        cur += ch; bytes += b;
+      });
+      out.push(cur); return out.join('\r\n ');
+    };
+    var text = L.map(fold).join('\r\n') + '\r\n', name = 'acadex-planlayici.ics';
+    var download = function () {
+      var blob = new Blob([text], { type: 'text/calendar;charset=utf-8' }), a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 60000);
+      say(list.length + ' etkinlik .ics dosyası olarak indi. Dosyayı açınca takvim uygulaman ekler; hatırlatmaları da birlikte gelir.');
+    };
+    var file = null;
+    try { file = new File([text], name, { type: 'text/calendar' }); } catch (er) { file = null; }
+    if ((mobile() || window.matchMedia('(pointer: coarse)').matches) && file && navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file], title: 'Acadex planlayıcı' }).then(function () {
+        say(list.length + ' etkinlik paylaşıldı. Takvim uygulamanı seçtiysen hatırlatmaları da eklendi.');
+      }, function (er) { if (!er || er.name !== 'AbortError') download(); });
+      return;
+    }
+    download();
   });
 
-  /* ---------- sınav hatırlatıcıları (tarayıcı bildirimi, sayfa açıkken) ---------- */
+  /* ---------- hatırlatıcılar (tarayıcı bildirimi, Acadex açıkken) ----------
+     25.10.2026, test raporu R7. Eskiden yalnızca sınavlar için, yalnızca o
+     oturumda planlayıcı açıldıysa çalışıyordu; Android'de new Notification()
+     hata verdiği için hiç gelmiyordu. Şimdi:
+       sınav  : 1 gün önce ve 1 saat önce (saat yoksa 09:00 sayılır)
+       saatli : 1 saat önce
+       saatsiz: o günün sabahı (09:00'dan itibaren) bir kez
+     Etkinlikler açılışta planlayıcıya girmeden de yüklenir; sekmeye dönünce
+     kaçırılanlar (süresi geçmemişse) gösterilir. Bildirim window.axNotify ile. */
   var sw = $('[data-remind-sw]'), swS = $('[data-remind-s]'), remindOn = !!store.get('remind'), notified = store.get('notified') || [];
   var hasN = 'Notification' in window;
   var paintRemind = function () {
@@ -1286,32 +1401,42 @@ window.axWhenProfile = function (cb) {
     else if (perm === 'denied') { swS.textContent = 'izin verilmedi · tarayıcı ayarlarından açabilirsin'; swS.classList.add('warn'); }
     else swS.textContent = 'kapalı';
   };
+  var remindPlan = function (e) {
+    var hm = (e.time || '09:00').split(':'), at = toD(e.date); at.setHours(+hm[0], +hm[1], 0, 0);
+    var eod = toD(e.date); eod.setHours(23, 59, 59, 0);
+    var tm = e.time ? ' (' + e.time + ')' : '';
+    if (e.type === 'sinav') return [{ k: 86400000, from: at - 86400000, to: at, body: e.title + ' yarın' + tm }, { k: 3600000, from: at - 3600000, to: at, body: e.title + ' 1 saat sonra' + tm }];
+    if (e.time) return [{ k: 3600000, from: at - 3600000, to: at, body: e.title + ' 1 saat sonra' + tm }];
+    return [{ k: 0, from: +at, to: +eod, body: e.title + ' bugün' }];
+  };
   var checkRemind = function () {
     if (!remindOn || !hasN || Notification.permission !== 'granted') return;
     var t = Date.now();
     real().forEach(function (e) {
-      if (e.type !== 'sinav' || e.done) return;
-      var at = toD(e.date), hm = (e.time || '09:00').split(':'); at.setHours(+hm[0], +hm[1], 0, 0);
-      [[86400000, 'yarın'], [3600000, '1 saat sonra']].forEach(function (r) {
-        var key = e.id + ':' + r[0] + ':' + e.date + e.time;
-        if (t >= at - r[0] && t < at && notified.indexOf(key) < 0) {
-          try { new Notification('Acadex · sınav hatırlatıcısı', { body: e.title + ' ' + r[1] + (e.time ? ' (' + e.time + ')' : ''), icon: 'assets/logo-icon-only.png' }); } catch (er) {}
+      if (e.done || !e.date) return;
+      remindPlan(e).forEach(function (r) {
+        var key = e.id + ':' + r.k + ':' + e.date + e.time;
+        if (t >= r.from && t < r.to && notified.indexOf(key) < 0) {
           notified.push(key); store.set('notified', notified.slice(-200));
+          window.axNotify('Acadex · ' + (e.type === 'sinav' ? 'sınav hatırlatıcısı' : 'hatırlatıcı'), { body: r.body, icon: 'assets/logo-icon-only.png', tag: key, data: { url: 'dashboard.html#planner' } });
         }
       });
     });
   };
+  window.axRemindCheck = function () { checkRemind(); };
+  window.axRemindEnable = function () { if (hasN && Notification.permission === 'granted') { remindOn = true; store.set('remind', true); paintRemind(); if (!loaded) load(true); else checkRemind(); } };
   sw.addEventListener('click', function () {
     if (!hasN) return;
     if (remindOn) { remindOn = false; store.set('remind', false); paintRemind(); return; }
-    var go = function (p) { remindOn = p === 'granted'; store.set('remind', remindOn); paintRemind(); if (remindOn) { say('Hatırlatıcılar açık. Bu sayfa açıkken sınavdan önce haber vereceğim.'); checkRemind(); } };
+    var go = function (p) { remindOn = p === 'granted'; store.set('remind', remindOn); paintRemind(); if (remindOn) { say('Hatırlatıcılar açık. Acadex açıkken etkinliklerinden önce haber vereceğim.'); if (!loaded) load(true); else checkRemind(); } };
     try { var pr = Notification.requestPermission(go); if (pr && pr.then) pr.then(go); } catch (er) { go(Notification.permission); }
   });
   paintRemind(); setInterval(checkRemind, 60000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) checkRemind(); });
 
   /* ---------- dashboard.js'in planlayıcı yükleyicisi yerine ---------- */
   var loading = false;
-  var load = async function () {
+  var load = async function (quiet) {
     if (!me() || !sb()) return;
     if (loading) return; loading = true;
     try {
@@ -1320,9 +1445,11 @@ window.axWhenProfile = function (cb) {
       var drafts = events.filter(function (e) { return e.draft; });
       events = (r.data || []).map(fromRow).concat(drafts); loaded = true;
       syncLegacy(); renderAll(); checkRemind();
-    } catch (er) { loaded = true; renderAll(); fail('Takvimin yüklenemedi. Sayfayı yenileyip tekrar dene.', er); }
+    } catch (er) { loaded = true; renderAll(); if (quiet === true) console.error('acadex-ink planlayıcı:', er); else fail('Takvimin yüklenemedi. Sayfayı yenileyip tekrar dene.', er); }
     finally { loading = false; }
   };
+  /* hatırlatıcı açıksa etkinlikler açılışta, planlayıcıya girmeden yüklenir (R7) */
+  window.axWhenProfile(function (p) { if (p && remindOn && !loaded) load(true); });
   if (typeof loadPlannerEvents === 'function') { loadPlannerEvents = load; window.loadPlannerEvents = load; }
   if (typeof openAddEventModal === 'function') {
     openAddEventModal = function () { if (typeof switchDashboardView === 'function' && !root.classList.contains('active')) switchDashboardView('planner'); setTimeout(function () { openForm(null); }, 200); };
@@ -1389,18 +1516,38 @@ window.axWhenProfile = function (cb) {
     showSummary(keep || cards[0]);
   };
   var cardById = function (id) { return (lsafe(function () { return notebookCards; }, []) || []).filter(function (c) { return c.id === id; })[0]; };
+  /* "Deftere ekle" geri bildirimi ve tekrar engeli (25.10.2026, R36): eskiden
+     hicbir sey soylemiyordu, ogrenci tekrar basiyor ve ayni not ust uste
+     ekleniyordu. Ayni kartin ayni metni bu sayfada varsa yenisi eklenmez,
+     var olan not gosterilir. */
+  var noteText = function (h) { var d = document.createElement('div'); d.innerHTML = String(h || ''); return (d.textContent || '').replace(/\s+/g, ' ').trim(); };
   var addNote = function (card, text, at) {
-    if (!card || typeof addStickyNoteToNotebook !== 'function') return;
-    var nm = baseName(card.documents && card.documents.file_name);
-    addStickyNoteToNotebook(card.id, nm, text != null ? text : (card.summary || ''));
+    if (!card || typeof addStickyNoteToNotebook !== 'function') return false;
+    var nm = baseName(card.documents && card.documents.file_name), body = text != null ? text : (card.summary || ''), want = noteText(body);
+    var same = $$('#notebook-overlay-container .draggable-note').filter(function (n) {
+      var t = n.querySelector('.draggable-note-text');
+      return n.getAttribute('data-card-id') === card.id && t && noteText(t.innerHTML) === want;
+    })[0];
+    if (same) {
+      same.classList.remove('ax-flash'); void same.offsetWidth; same.classList.add('ax-flash');
+      try { same.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (er) {}
+      if (typeof showDashboardAlert === 'function') showDashboardAlert('info', 'Bu not bu sayfada zaten var.');
+      return false;
+    }
+    addStickyNoteToNotebook(card.id, nm, body);
+    if (typeof showDashboardAlert === 'function') showDashboardAlert('success', 'Deftere eklendi ✓');
     if (at) setTimeout(function () {
       var notes = $$('#notebook-overlay-container .draggable-note'), n = notes[notes.length - 1];
       if (n) { n.style.left = Math.max(0, at.x - 100) + 'px'; n.style.top = Math.max(0, at.y - 30) + 'px'; }
     }, 160);
+    return true;
   };
   var ul = $('#notebook-sidebar-list');
   ul.addEventListener('click', function (e) {
-    var add = e.target.closest('[data-add]'); if (add) { addNote(cardById(add.getAttribute('data-add'))); return; }
+    var add = e.target.closest('[data-add]'); if (add) {
+      if (addNote(cardById(add.getAttribute('data-add')))) { var t0 = add.textContent; add.textContent = 'eklendi ✓'; add.disabled = true; setTimeout(function () { add.textContent = t0; add.disabled = false; }, 1800); }
+      return;
+    }
     if (e.target.closest('button, input, label, a')) return;
     var li = e.target.closest('.kc'); if (li) showSummary(cardById(li.getAttribute('data-card')));
   });
@@ -1488,15 +1635,46 @@ window.axWhenProfile = function (cb) {
     setTimeout(function () { if (typeof resizeCanvasToDisplaySize === 'function') resizeCanvasToDisplaySize(); }, 120);
   });
 
-  /* ---------- parmakla ya da tabletle çizim (eski motor yalnızca fareyi dinliyordu) ---------- */
+  /* ---------- parmakla ya da kalemle çizim (eski motor yalnızca fareyi dinliyordu) ----------
+     KALEM VE PARMAK AYRI (25.10.2026, test raporu R31):
+       - Kalem (Apple Pencil, S Pen) de buradan çizer; eskiden yalnızca parmak
+         dinleniyordu, kalem farenin uyumluluk olaylarına kalıyordu.
+       - Bu cihazda bir kez kalem kullanılınca parmak artık çizmez, sayfayı
+         kaydırır (avuç ve kaydırma çizgisi olmaz). Kalem hiç kullanılmamışsa
+         (telefon) parmak eskisi gibi çizer.
+       - Çizgi kâğıdın kenarından çıkınca biter; parmak/kalem kâğıt dışına,
+         sayfa numarasına ya da "sayfayı sil"e kaysa da çizgi uzamaz. */
   var cv = $('#notebook-canvas');
   cv.style.touchAction = 'none';
-  var tp = null;
+  var tp = null, scrollP = null, lastY = 0, lastX = 0;
+  var penOnly = store.get('penOnly') === '1';
   var fake = function (e) { return { clientX: e.clientX, clientY: e.clientY, target: cv, preventDefault: function () { e.preventDefault(); } }; };
-  cv.addEventListener('pointerdown', function (e) { if (e.pointerType !== 'touch') return; tp = e.pointerId; e.preventDefault(); if (typeof startDrawing === 'function') startDrawing(fake(e)); });
-  cv.addEventListener('pointermove', function (e) { if (e.pointerId !== tp) return; e.preventDefault(); if (typeof draw === 'function') draw(fake(e)); });
-  var tEnd = function (e) { if (e.pointerId !== tp) return; tp = null; if (typeof stopDrawing === 'function') stopDrawing(fake(e)); };
+  var inside = function (e) { var r = cv.getBoundingClientRect(); return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom; };
+  var scroller = function () { return document.fullscreenElement || document.scrollingElement || document.documentElement; };
+  cv.addEventListener('pointerdown', function (e) {
+    if (e.pointerType !== 'touch' && e.pointerType !== 'pen') return;
+    if (e.pointerType === 'pen' && !penOnly) { penOnly = true; store.set('penOnly', '1'); }
+    e.preventDefault();
+    var inkMode = /^(pen|eraser)$/.test(lsafe(function () { return notebookMode; }, 'pen'));
+    if (e.pointerType === 'touch' && penOnly && inkMode) { if (scrollP === null) { scrollP = e.pointerId; lastY = e.clientY; lastX = e.clientX; } return; }
+    if (tp !== null) return;
+    tp = e.pointerId; try { cv.setPointerCapture(e.pointerId); } catch (er) {}
+    if (typeof startDrawing === 'function') startDrawing(fake(e));
+  });
+  cv.addEventListener('pointermove', function (e) {
+    if (e.pointerId === scrollP) { e.preventDefault(); var sc = scroller(); try { sc.scrollBy({ left: lastX - e.clientX, top: lastY - e.clientY, behavior: 'instant' }); } catch (er) { sc.scrollTop += lastY - e.clientY; } lastY = e.clientY; lastX = e.clientX; return; }
+    if (e.pointerId !== tp) return; e.preventDefault();
+    if (!inside(e)) { tEnd(e); return; }
+    if (typeof draw === 'function') draw(fake(e));
+  });
+  var tEnd = function (e) {
+    if (e.pointerId === scrollP) { scrollP = null; return; }
+    if (e.pointerId !== tp) return; tp = null;
+    try { cv.releasePointerCapture(e.pointerId); } catch (er) {}
+    if (typeof stopDrawing === 'function') stopDrawing(fake(e));
+  };
   cv.addEventListener('pointerup', tEnd); cv.addEventListener('pointercancel', tEnd);
+  /* farenin de kâğıttan çıkınca çizgisi biter (eski motor: mouseleave) — ek iş yok */
 
   /* ---------- sayfa göstergesi Türkçe, kayıt durumu ---------- */
   var ind = $('#notebook-page-indicator');
@@ -2315,7 +2493,7 @@ window.axWhenProfile = function (cb) {
   var DIFF = { easy: 'kolay', medium: 'orta', hard: 'zor' };
   /* FAZ 4a: kaynaktan gelen grafik (exam-engine chartFigureHtml). */
   var chartHtml = function (q, lang) { var E = window.AcadexExamEngine; return q && q.chart && E && typeof E.chartFigureHtml === 'function' ? E.chartFigureHtml(q.chart, lang || 'tr') : ''; };
-  var QT = { multiple_choice: 'test', true_false: 'doğru-yanlış', fill_blank: 'boşluk', calculation: 'hesaplama', open_ended: 'açık uçlu', expression: 'ifade' };
+  var QT = { multiple_choice: 'test', true_false: 'doğru-yanlış', fill_blank: 'boşluk', calculation: 'hesaplama', open_ended: 'açık uçlu', expression: 'ifade', graph: 'çizim' };
   $$('.land').forEach(function (el, i) { el.style.setProperty('--hr', (((i * 37) % 11 - 5) * 0.3).toFixed(2) + 'deg'); el.style.setProperty('--hx', (((i * 53) % 9 - 4) * 2) + 'px'); });
 
   /* bildirim */
@@ -2501,7 +2679,8 @@ window.axWhenProfile = function (cb) {
   var syncPrec = function () {
     /* FAZ 4c: "dosyadaki grafik sorularına göre" yalnızca yüklenen belgede. */
     var chRow = $('[data-chartq-row]'), chBox = $('#exam-chart-examples');
-    if (chRow && chBox) { var chOn = val('exam-source') !== 'course'; chRow.hidden = !chOn; chBox.disabled = !chOn; }
+    var ngBox = $('#exam-no-graphs');
+    if (chRow && chBox) { var chOn = val('exam-source') !== 'course' && !(ngBox && ngBox.checked); chRow.hidden = !chOn; chBox.disabled = !chOn; }
     if (!precBox) return;
     var on = hasCalcType();
     if (on) precBox.removeAttribute('data-off'); else precBox.setAttribute('data-off', '');
@@ -2527,7 +2706,7 @@ window.axWhenProfile = function (cb) {
     cover.innerHTML = '<span class="uni">ACADEX · SINAV SALONU</span><h3>' + esc(name.length > 60 ? name.slice(0, 58) + '…' : name) + '</h3><span class="sub">' + esc((TYPE[val('exam-type')] || '') + ' · ' + (DIFF[val('exam-difficulty')] || '') + ' · ' + (val('exam-lang') === 'tr' ? 'Türkçe' : 'English')) + '</span>' +
       '<div class="lines"><span>Ad Soyad: ' + esc(p.full_name || '') + '</span><span>Öğrenci no: ' + esc(p.student_number || '') + '</span><span>Tarih: ' + dshort(new Date()) + '</span></div>' +
       '<table><tr><th>SORU</th><td>' + esc(countEl.value) + '</td></tr><tr><th>SÜRE</th><td>' + (sim ? 'gerçek sınav süresi' : 'serbest') + '</td></tr><tr><th>İPUCU</th><td>' + (sim ? 'yok' : 'soru başına bir') + '</td></tr>' +
-      (hasMcType() ? '<tr><th>ŞIK</th><td>' + (val('exam-options') === '5' ? '5 (A–E)' : '4 (A–D)') + '</td></tr><tr><th>NET</th><td>' + (negT && negT.checked ? esc((negR ? negR.value : '3') + ' yanlış 1 doğruyu götürür') : 'yanlış götürmez') + '</td></tr>' : '') + ($('#exam-chart-examples') && $('#exam-chart-examples').checked && !$('#exam-chart-examples').disabled ? '<tr><th>GRAFİK</th><td>dosyadaki örneklere göre</td></tr>' : '') + (hasCalcType() && precSel && +precSel.value ? '<tr><th>HASSASİYET</th><td>' + esc(precLabel(precSel.value)) + '</td></tr>' : '') + (topicEl.value.trim() && src === 'course' ? '<tr><th>ODAK</th><td>' + esc(topicEl.value.trim()) + '</td></tr>' : '') + '</table>' +
+      (hasMcType() ? '<tr><th>ŞIK</th><td>' + (val('exam-options') === '5' ? '5 (A–E)' : '4 (A–D)') + '</td></tr><tr><th>NET</th><td>' + (negT && negT.checked ? esc((negR ? negR.value : '3') + ' yanlış 1 doğruyu götürür') : 'yanlış götürmez') + '</td></tr>' : '') + ($('#exam-no-graphs') && $('#exam-no-graphs').checked ? '<tr><th>GRAFİK</th><td>grafik sorusu yok</td></tr>' : $('#exam-chart-examples') && $('#exam-chart-examples').checked && !$('#exam-chart-examples').disabled ? '<tr><th>GRAFİK</th><td>dosyadaki örneklere göre</td></tr>' : '') + (hasCalcType() && precSel && +precSel.value ? '<tr><th>HASSASİYET</th><td>' + esc(precLabel(precSel.value)) + '</td></tr>' : '') + (topicEl.value.trim() && src === 'course' ? '<tr><th>ODAK</th><td>' + esc(topicEl.value.trim()) + '</td></tr>' : '') + '</table>' +
       '<p class="warn">' + (sim ? 'KİTAPÇIĞI AÇINCA SÜRE BAŞLAR' : 'KOLAY GELSİN') + '</p>';
   };
   bdDlg.addEventListener('change', function () { setTimeout(paintCover, 0); });
@@ -2670,7 +2849,7 @@ window.axWhenProfile = function (cb) {
       opt.innerHTML = QS.map(function (q, i) {
         var bb, sec = info[i].sec;
         if ((q.type === 'multiple_choice' || q.type === 'true_false') && sec) bb = '<span class="bb" aria-hidden="true">' + $$('.sn-opt-b', sec).map(function (l) { return '<i>' + esc(l.getAttribute('data-letter')) + '</i>'; }).join('') + '</span>';
-        else bb = '<span class="tl">' + (q.type === 'fill_blank' ? 'boşluk' : q.type === 'calculation' ? 'sayı' : q.type === 'expression' ? 'ifade' : q.type === 'open_ended' ? 'yazılı' : 'test') + '</span>';
+        else bb = '<span class="tl">' + (q.type === 'fill_blank' ? 'boşluk' : q.type === 'calculation' ? 'sayı' : q.type === 'expression' ? 'ifade' : q.type === 'graph' ? 'çizim' : q.type === 'open_ended' ? 'yazılı' : 'test') + '</span>';
         return '<li><button type="button" data-go="' + i + '"><span class="n">' + (i + 1) + '</span>' + bb + '<span class="st"></span></button></li>';
       }).join('');
     }
@@ -2868,6 +3047,8 @@ window.axWhenProfile = function (cb) {
      okunamazsa düz metin. */
   var ansHtml = function (r, raw) {
     var E = ENG();
+    // FAZ 4b: çizim sorusunda cevap JSON; okunur özete çevrilir.
+    if (r.type === 'graph' && E && typeof E.graphAnswerSummary === 'function') return esc(E.graphAnswerSummary(raw, r, RES_EXAM && RES_EXAM.language === 'en' ? 'en' : 'tr') || String(raw || ''));
     if (r.type === 'expression' && E && typeof E.exprPreviewHtml === 'function') {
       var vars = Array.isArray(r.expr_vars) ? r.expr_vars : [], plusC = '', s = String(raw == null ? '' : raw);
       if (r.up_to_constant && vars.indexOf('C') < 0 && /\+\s*[cC]\s*$/.test(s)) { s = s.replace(/\s*\+\s*[cC]\s*$/, ''); plusC = ' + C'; }
@@ -3075,7 +3256,7 @@ window.axWhenProfile = function (cb) {
           var steps = Array.isArray(r.solution_steps) && r.solution_steps.length ? '<div class="sn-model"><b>çözüm adımları</b><ol>' + r.solution_steps.map(function (s) { return '<li>' + rich(s) + '</li>'; }).join('') + '</ol></div>' : '';
           var unit = r.units ? ' ' + esc(r.units) : '';
           return '<div class="sn-ri" style="--i:' + i + '"><svg class="mk ' + k + '" viewBox="0 0 34 34" aria-hidden="true">' + MK[k] + '</svg><div class="sn-ri-h"><b>' + (i + 1) + '</b><span class="ty">' + esc(QT[r.type] || r.type || '') + '</span>' + (r.concept ? '<span class="cpt">' + esc(r.concept) + '</span>' : '') + '<span class="pt">' + (+r.score || 0) + '</span></div>' +
-            '<p class="q">' + rich(r.question) + '</p>' + chartHtml(r, exam.language) + '<p class="yours' + (k === 'no' && !blank ? ' wrong' : '') + '">senin cevabın: <span>' + (blank ? 'boş bıraktın' : ansHtml(r, r.student_answer) + (r.student_answer && r.units ? unit : '')) + '</span></p>' +
+            '<p class="q">' + rich(r.question) + '</p>' + chartHtml(r, exam.language) + (r.type === 'graph' && ENG() && typeof ENG().graphResultHtml === 'function' ? ENG().graphResultHtml(r, exam.language) : '') + '<p class="yours' + (k === 'no' && !blank ? ' wrong' : '') + '">senin cevabın: <span>' + (blank ? 'boş bıraktın' : ansHtml(r, r.student_answer) + (r.student_answer && r.units ? unit : '')) + '</span></p>' +
             (r.type !== 'open_ended' && r.correct_answer != null && r.correct_answer !== '' && String(r.correct_answer).trim().toLowerCase() !== 'null' ? '<p class="right">doğrusu: ' + ansHtml(r, r.correct_answer) + (r.type === 'expression' && r.up_to_constant ? ' + C' : '') + unit + (r.decimal_places ? ' (virgülden sonra ' + esc(r.decimal_places) + ' basamak)' : r.tolerance_percent ? ' (±%' + esc(r.tolerance_percent) + ')' : '') + '</p>' : '') +
             (r.feedback ? '<p class="fb">' + rich(r.feedback) + '</p>' : '') + teach(r, blank) + steps + '</div>';
         }).join('') +
@@ -3172,7 +3353,7 @@ window.axWhenProfile = function (cb) {
         (wk.length ? '<p class="axs-wk">' + wk.map(function (w) { return '<span>' + esc(w.c) + ' <b>' + w.a + '</b></span>'; }).join('') + '</p>' : '') +
         '<ol>' + g.items.slice(0, 8).map(function (it) {
           var r = it.r;
-          return '<li><span><span class="q">' + rich(String(r.question || '').slice(0, 220)) + '</span><span class="a">senin: <s>' + esc(String(r.student_answer || '').trim() ? String(r.student_answer).slice(0, 120) : 'boş') + '</s>' + (r.type !== 'open_ended' && r.correct_answer != null && r.correct_answer !== '' ? ' · doğrusu: <b>' + esc(String(r.correct_answer).slice(0, 120)) + '</b>' : '') + '</span></span><button type="button" data-done="' + esc(it.id) + '" aria-label="Öğrendim, defterden sil" title="öğrendim">✓</button></li>';
+          return '<li><span><span class="q">' + rich(String(r.question || '').slice(0, 220)) + '</span><span class="a">senin: <s>' + esc(String(r.student_answer || '').trim() ? (r.type === 'graph' && ENG() && ENG().graphAnswerSummary ? (ENG().graphAnswerSummary(r.student_answer, r, 'tr') || 'çizim') : String(r.student_answer)).slice(0, 120) : 'boş') + '</s>' + (r.type !== 'open_ended' && r.correct_answer != null && r.correct_answer !== '' ? ' · doğrusu: <b>' + esc(String(r.correct_answer).slice(0, 120)) + '</b>' : '') + '</span></span><button type="button" data-done="' + esc(it.id) + '" aria-label="Öğrendim, defterden sil" title="öğrendim">✓</button></li>';
         }).join('') + '</ol>' + (g.items.length > 8 ? '<p class="sn-empty" style="font-size:18px">+' + (g.items.length - 8) + ' yanlış daha</p>' : '') + '</div>';
     }).join('');
   };
@@ -3235,6 +3416,7 @@ window.axWhenProfile = function (cb) {
   window.addEventListener('keydown', function (e) {
     if (P.ks !== false) return;
     var t = e.target; if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+    if (t && t.closest && t.closest('.axg-svg')) return; /* FAZ 4b: çizim alanının kendi tuşları */
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (/^(\/| |ArrowLeft|ArrowRight|[a-eA-E1-8])$/.test(e.key)) e.stopImmediatePropagation();
   }, true);
@@ -3271,7 +3453,9 @@ window.axWhenProfile = function (cb) {
     tabs.forEach(function (b) { var on = b === t; b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1; });
     $$('[data-pg]').forEach(function (p) { var on = p.getAttribute('data-pg') === k; if (on && p.hidden) { p.hidden = false; p.classList.remove('in'); void p.offsetWidth; p.classList.add('in'); } else if (!on) p.hidden = true; });
     if (focus) t.focus();
-    try { history.replaceState(null, '', '#settings'); } catch (e) {}
+    /* yalnizca Ayarlar acikken; acilista adresi #settings yapip yenilemede
+       herkesi Ayarlar'a gotururdu (R33). Gecmis durumu da korunur. */
+    if (lsafe(function () { return currentActiveTab; }, '') === 'settings') { try { history.replaceState({ axv: 'settings' }, '', '#settings'); } catch (e) {} }
     try { sessionStorage.setItem('acadex.ayar.sec', k); } catch (e) {}
     if (k === 'plan') paintUse();
     if (k === 'cihaz') paintDev();
@@ -3375,11 +3559,11 @@ window.axWhenProfile = function (cb) {
   };
   $('[data-perm]').addEventListener('click', function () {
     if (!('Notification' in window)) { say('Bu tarayıcı bildirim desteklemiyor.'); return; }
-    Notification.requestPermission().then(function (p) { paintPerm(); say(p === 'granted' ? 'Bildirim izni verildi; sınavından bir gün önce hatırlatırım.' : 'Bildirim izni verilmedi.'); if (p === 'granted' && typeof checkAndTriggerExamNotifications === 'function') checkAndTriggerExamNotifications(); });
+    Notification.requestPermission().then(function (p) { paintPerm(); if (p === 'granted' && typeof window.axRemindEnable === 'function') window.axRemindEnable(); say(p === 'granted' ? 'Bildirim izni verildi; planlayıcıdaki etkinliklerinden önce hatırlatırım.' : 'Bildirim izni verilmedi.'); if (p === 'granted' && typeof checkAndTriggerExamNotifications === 'function') checkAndTriggerExamNotifications(); });
   });
   $('[data-testn]').addEventListener('click', function () {
     if (!('Notification' in window) || Notification.permission !== 'granted') { say('Önce tarayıcı bildirimine izin ver.'); return; }
-    try { new Notification('Acadex', { body: 'Bildirimler çalışıyor. Bugün bir deneme çözmeye ne dersin?', icon: 'assets/landing/acadex-logo.webp' }); } catch (e) { say('Bildirim gösterilemedi.'); }
+    window.axNotify('Acadex', { body: 'Bildirimler çalışıyor. Bugün bir deneme çözmeye ne dersin?', icon: 'assets/landing/acadex-logo.webp' }).then(function (ok) { if (!ok) say('Bildirim gösterilemedi.'); });
   });
 
   /* ---------- görünüm ---------- */
@@ -10072,17 +10256,21 @@ var SBX = (function () {
     window.switchDashboardView = switchDashboardView;
   }
 
-  /* ---------- gece masası (koyu tema): açık → koyu → saate göre ---------- */
+  /* ---------- gece masası (koyu tema): açık ↔ gece ----------
+     TEK TIKLAMA (25.10.2026, test raporu R6). Eskiden üç durum dönüyordu
+     (açık → gece → saate göre); 'saate göre' gündüz açık göründüğü için bir
+     tıklama boşa gidiyordu. Düğme artık ekranda görünen temanın tersine geçer.
+     Önceden 'saate göre' seçmiş olan, düğmeye basana kadar öyle kalır. */
   var tb = document.getElementById('ax-theme');
-  var LBL = { light: 'Tema: açık (gece masasına geç)', dark: 'Tema: gece masası (saate göre yap)', auto: 'Tema: saate göre, 19:00–07:00 arası gece (açık temaya geç)' };
+  var LBL = { light: 'Tema: açık (gece masasına geç)', dark: 'Tema: gece masası (açık temaya geç)' };
   var applyTheme = function (anim) {
     var t = G('acadex.theme', 'light'), h = new Date().getHours(), dark = t === 'dark' || (t === 'auto' && (h >= 19 || h < 7));
     if (anim && !calm) { html.classList.add('ax-themefx'); setTimeout(function () { html.classList.remove('ax-themefx'); }, 700); }
     html.classList.toggle('ax-dark', dark);
-    if (tb) { tb.setAttribute('data-mode', t); tb.setAttribute('aria-label', LBL[t]); tb.title = LBL[t]; }
+    if (tb) { var vm = dark ? 'dark' : 'light'; tb.setAttribute('data-mode', vm); tb.setAttribute('aria-label', LBL[vm]); tb.title = LBL[vm]; }
     var mc = document.querySelector('meta[name="theme-color"]'); if (mc) mc.setAttribute('content', dark ? '#06080F' : '#0D1838');
   };
-  if (tb) tb.addEventListener('click', function () { var t = G('acadex.theme', 'light'); S('acadex.theme', t === 'light' ? 'dark' : t === 'dark' ? 'auto' : 'light'); applyTheme(true); });
+  if (tb) tb.addEventListener('click', function () { S('acadex.theme', html.classList.contains('ax-dark') ? 'light' : 'dark'); applyTheme(true); });
   applyTheme(false); setInterval(function () { if (G('acadex.theme', 'light') === 'auto') applyTheme(false); }, 60000);
 
   /* ---------- telefon alt menüsü ---------- */
