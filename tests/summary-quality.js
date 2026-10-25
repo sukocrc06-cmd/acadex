@@ -4726,12 +4726,17 @@ test('KISA metin ikinci anahtari KULLANMAZ', () => {
     'kisa metinde ikinci anahtar yine uretiliyor');
 });
 
-test('arama DORT anahtari birden soruyor', () => {
+test('arama SEKIZ anahtari birden soruyor', () => {
+  /* Dort tam satir (dosya/metin x istenen/karsi gorsel bayragi) ve ayni
+     dortlunun ':k' ekli KISMI karsiliklari. */
   assert.ok(SRC.includes(".in('cache_key', anahtarlar)"),
     'tek anahtarla aranmaya devam ediyor');
   assert.ok(SRC.includes(
-    'const anahtarlar = [summaryCacheKey, metinCacheKey, yedekDosyaKey, yedekMetinKey]'),
+    'const tamAnahtarlar = [summaryCacheKey, metinCacheKey, yedekDosyaKey, yedekMetinKey]'),
     'metin ya da gorsel-yedek anahtari aramaya katilmiyor');
+  assert.ok(SRC.includes(
+    'const anahtarlar = [...tamAnahtarlar, ...tamAnahtarlar.map(k => k + CACHE_KISMI_EKI)]'),
+    'kismi satirlar aramaya katilmiyor — kismi kart bir daha bulunamaz');
 });
 
 test('GORSEL BAYRAGI cache isabetini engellemiyor', () => {
@@ -4748,23 +4753,31 @@ test('GORSEL BAYRAGI cache isabetini engellemiyor', () => {
 });
 
 test('ISABET SIRASI tam eslemeyi onde tutuyor', () => {
-  /* Dort anahtar birden soruluyor; .in() hangi satiri donduregini secmez.
+  /* Sekiz anahtar birden soruluyor; .in() hangi satiri donduregini secmez.
      Bu yuzden limit(1) kalkti ve siralama kodda yapiliyor: tam esleme >
-     metin eslemesi > gorsel yedegi. Aksi halde gorsel analizi istenen bir
-     kosu, duruma gore gorselsiz satiri alirdi. */
+     metin eslemesi > gorsel yedegi > KISMI satirlar. Kismi satirlarin sonda
+     olmasi kritik: tam kart bir kez uretildiginde kismi satir bir daha
+     secilmemeli, yoksa yarim kart kalicilasir. */
   const j = SRC.indexOf(".in('cache_key', anahtarlar)");
   assert.ok(j > -1, 'arama bulunamadi');
   assert.ok(!SRC.slice(j, j + 60).includes('.limit(1)'),
     'limit(1) geri gelmis — satir secimi surucuye birakilmis');
   assert.ok(SRC.includes('const cached = anahtarlar'),
     'isabet anahtar sirasina gore secilmiyor');
-  const i = SRC.indexOf('const anahtarlar = [summaryCacheKey');
+  const i = SRC.indexOf('const tamAnahtarlar = [summaryCacheKey');
   assert.ok(i > -1, 'anahtar dizisi bulunamadi');
   const dizi = SRC.slice(i, i + 160);
   assert.ok(dizi.indexOf('summaryCacheKey') < dizi.indexOf('yedekDosyaKey'),
     'gorsel yedegi tam eslemenin onune gecmis');
   assert.ok(dizi.indexOf('metinCacheKey') < dizi.indexOf('yedekDosyaKey'),
     'gorsel yedegi metin eslemesinin onune gecmis');
+  const k = SRC.indexOf('const anahtarlar = [...tamAnahtarlar');
+  assert.ok(k > -1, 'birlesik dizi bulunamadi');
+  const birlesik = SRC.slice(k, k + 120);
+  /* indexOf karsilastirmasi yetmez: dizi yeniden siralandiginda arayacagimiz
+     dizge hic bulunmaz (-1) ve kontrol sessizce gecer. Basi aynen olcuyoruz. */
+  assert.ok(birlesik.startsWith('const anahtarlar = [...tamAnahtarlar, ...tamAnahtarlar.map('),
+    'kismi satirlar tam satirlarin onune gecmis: ' + birlesik.slice(0, 90));
 });
 
 test('yazma IKI satir birden koyuyor', () => {
@@ -4788,12 +4801,14 @@ test('anahtar AYARLARI tasimaya devam ediyor', () => {
 });
 
 test('hangi anahtarin isabet ettigi LOGLANIYOR', () => {
-  // Metin ve gorsel-yedek anahtarlarinin is gorup gormedigi ancak boyle olculur.
+  // Metin, gorsel-yedek ve kismi isabetlerin is gorup gormedigi boyle olculur.
   assert.ok(SRC.includes('CACHE ISABETI [${isabetTuru}]'), 'isabet turu loglanmiyor');
-  assert.ok(SRC.includes("const isabetTuru = isabetKey === metinCacheKey ? 'METIN'"),
+  assert.ok(SRC.includes("const isabetTuru = (kokKey === metinCacheKey ? 'METIN'"),
     'isabet turu metin/dosya ayrimi yapmiyor');
   assert.ok(SRC.includes("'DOSYA/GORSEL-YEDEK'") && SRC.includes("'METIN/GORSEL-YEDEK'"),
     'gorsel-yedek isabeti loga ayri girmiyor — kazanci olculemez');
+  assert.ok(SRC.includes("kismiIsabet ? '/KISMI' : ''"),
+    'kismi isabet loga ayri girmiyor — kac kez yarim kart dagittigimiz olculemez');
   assert.ok(SRC.includes("touch_summary_cache', { p_key: isabetKey }"),
     'yedek isabette yanlis anahtar tazeleniyor');
 });

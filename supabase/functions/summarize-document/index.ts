@@ -8290,7 +8290,10 @@ serve(async (req) => {
     // nothing else — which is exactly what the student's "first press errors,
     // second press works" looks like in the logs, with no way to tell WHICH
     // of the five exits it took. Each one now names itself.
-    const { documentId, summaryStyle, language, summaryLength, analyzeVisuals: analyzeVisualsRequested, depth: depthRaw } = await req.json()
+    const { documentId, summaryStyle, language, summaryLength, analyzeVisuals: analyzeVisualsRequested, depth: depthRaw, yenile: yenileRaw } = await req.json()
+    /* Onbellek okumasini atlar — kismi satira sikisan belgenin cikis yolu.
+       Yazma etkilenmez: tazelenen kosu tam kart uretirse tam satir dusuyor. */
+    const onbellegiAtla = !!yenileRaw
     // let: Lite planinda gorsel analiz kapali — kota okununca dusurulebilir.
     let analyzeVisuals = !!analyzeVisualsRequested
     // En dis catch'in belgeyi isaretleyebilmesi icin — bkz. hataIcinDocumentId.
@@ -8729,12 +8732,18 @@ serve(async (req) => {
       /* SIRA ONEM TASIYOR: tam esleme > metin eslemesi > gorsel yedegi.
          Bu yuzden .limit(1) KALKTI — surucu hangi satiri dondurecegini
          secemez, siralamayi burada biz yapiyoruz. */
-      const anahtarlar = [summaryCacheKey, metinCacheKey, yedekDosyaKey, yedekMetinKey]
+      const tamAnahtarlar = [summaryCacheKey, metinCacheKey, yedekDosyaKey, yedekMetinKey]
         .filter(Boolean) as string[]
-      const { data: cachedRows, error: cacheErr } = await serviceClient
-        .from('summary_cache')
-        .select('card, cache_key')
-        .in('cache_key', anahtarlar)
+      /* Kismi satirlar EN SONDA: tam kart bir kez uretildiginde kismi satir
+         bir daha secilmez — bkz. CACHE_KISMI_EKI. */
+      const anahtarlar = [...tamAnahtarlar, ...tamAnahtarlar.map(k => k + CACHE_KISMI_EKI)]
+      const { data: cachedRows, error: cacheErr } = onbellegiAtla
+        ? (console.log('summary_cache: okuma atlandi — istek yenile=true'),
+           { data: null, error: null })
+        : await serviceClient
+          .from('summary_cache')
+          .select('card, cache_key')
+          .in('cache_key', anahtarlar)
       const cached = anahtarlar
         .map(k => (Array.isArray(cachedRows) ? cachedRows.find((r: any) => r?.cache_key === k) : null))
         .find((r: any) => r?.card) || null
@@ -8766,10 +8775,12 @@ serve(async (req) => {
           await bestEffortRpc(serviceClient, 'record_summary_usage', { p_user: document.user_id, p_pages: 0, p_cache_hit: true })
           /* Hangi anahtarin isabet ettigi loga giriyor: metin anahtarinin
              gercekten is gorup gormedigi ancak boyle olculur. */
-          const isabetTuru = isabetKey === metinCacheKey ? 'METIN'
-            : isabetKey === yedekDosyaKey ? 'DOSYA/GORSEL-YEDEK'
-            : isabetKey === yedekMetinKey ? 'METIN/GORSEL-YEDEK'
-            : 'DOSYA'
+          const kismiIsabet = isabetKey.endsWith(CACHE_KISMI_EKI)
+          const kokKey = kismiIsabet ? isabetKey.slice(0, -CACHE_KISMI_EKI.length) : isabetKey
+          const isabetTuru = (kokKey === metinCacheKey ? 'METIN'
+            : kokKey === yedekDosyaKey ? 'DOSYA/GORSEL-YEDEK'
+            : kokKey === yedekMetinKey ? 'METIN/GORSEL-YEDEK'
+            : 'DOSYA') + (kismiIsabet ? '/KISMI' : '')
           console.log(
             `CACHE ISABETI [${isabetTuru}]: ${isabetKey.slice(0, 18)}… ` +
             `— ${Date.now() - requestStartedAt}ms, model cagrisi yok`
@@ -12100,30 +12111,40 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
        Gemini'nin bir daha denenmesi imkansiz hale geldi. */
     if (geminiTani.geciciDustu) {
       console.log(
-        'summary_cache: yazilmadi — kart Gemini gecici hatasindan sonra Groq yedek ' +
-        'yolundan geldi, kalici cevap sayilmiyor (ayni belge sonraki yuklemede yeniden denenir)'
+        'summary_cache: kart Gemini gecici hatasindan sonra Groq yedek yolundan ' +
+        'geldi — kalici cevap sayilmiyor, KISMI satira yaziliyor'
       )
     }
-    // Karar saf fonksiyonda — bkz. onbellegeYazilabilir (16 kombinasyon testli).
-    if (onbellegeYazilabilir({
+    /* Karar saf fonksiyonda — bkz. onbellekKayitTuru. 'tam' eski kapinin
+       kendisi; 'kismi' eskiden HIC yazmamak demekti ve ayni dosyayi her
+       yuklemede sifirdan odetiyordu. */
+    const kayitTuru = onbellekKayitTuru({
       anahtarVar: !!summaryCacheKey,
       eksikPencereVar: !!eksikPencereler,
       geminiKismiKrk,
       geciciDustu: !!geminiTani.geciciDustu
-    })) {
+    })
+    if (kayitTuru !== 'hayir') {
       const { document_id: _d, user_id: _u, course_tag: _c, ...shareable } = cardPayload
+      const kismiKayit = kayitTuru === 'kismi'
+      /* Kart KENDI icinde isaretli: arayuz rozeti ve sonraki teshis, satirin
+         anahtarini gormeden de kismi oldugunu bilmeli. */
+      const paylasilan = kismiKayit
+        ? { ...shareable, quality_meta: { ...((shareable as any).quality_meta || {}), cache_kismi: true } }
+        : shareable
       /* IKI SATIR: dosya hash'i ve metin hash'i. Ikisi de ayni karti
          gosteriyor; hangisi once isabet ederse o kullanilir. */
       const satirlar = [summaryCacheKey, metinCacheKey].filter(Boolean).map((k) => ({
-        cache_key: k as string,
+        cache_key: (k as string) + (kismiKayit ? CACHE_KISMI_EKI : ''),
         content_hash: (k as string).split(':')[0],
         page_count: billablePages,
-        card: shareable
+        card: paylasilan
       }))
       const { error: cacheWriteErr } = await serviceClient
         .from('summary_cache')
         .upsert(satirlar, { onConflict: 'cache_key', ignoreDuplicates: true })
       if (cacheWriteErr) console.warn(`summary_cache yazilamadi: ${cacheWriteErr.message}`)
+      else console.log(`summary_cache yazildi [${kayitTuru.toUpperCase()}]: ${satirlar.length} satir`)
     }
 
     return new Response(JSON.stringify({ success: true, studyCardId: newCard.id }), {
@@ -12157,6 +12178,11 @@ const SUMMARY_CACHE_VERSION = 'c1'
    ozetten cok daha kotu. */
 const CACHE_METIN_MIN_KRK = 400
 
+/* KISMI SATIRIN ANAHTAR EKI. Kismi kart ayni anahtara yazilsa tam kartin
+   yerini alirdi; ayri anahtara yazilinca arama onu YALNIZCA tam satir
+   yokken secer. Eki sona koyuyoruz: content_hash ayrismasi bozulmuyor. */
+const CACHE_KISMI_EKI = ':k'
+
 /** Cache icin metin normalizasyonu: bosluk sadelestirme + kucuk harf.
  *  Ayni destenin iki ayri taramasi bayt duzeyinde farkli, metin
  *  duzeyinde ayni oluyor; esitligi burada kuruyoruz. */
@@ -12178,6 +12204,19 @@ const CACHE_METIN_MIN_KRK = 400
  *   geciciDusmedi   — Gemini gecici hatayla dustuyse cikan kart YEDEK
  *                     yoldan geliyor; tam olabilir ama ISTENEN kart degil
  *                     ve o dosya icin Gemini bir daha hic denenmemeli */
+/* UC DEGERLI KARAR (25.10.2026). onbellegeYazilabilir "tam kart mi" diye
+   soruyor ve oldugu gibi kaliyor; bu sarmal ona "yazilmayacaksa bile kismi
+   satira yazilabilir mi" sorusunu ekliyor. Anahtar yoksa yazacak yer yok. */
+function onbellekKayitTuru(k: {
+  anahtarVar: boolean
+  eksikPencereVar: boolean
+  geminiKismiKrk: number
+  geciciDustu: boolean
+}): 'tam' | 'kismi' | 'hayir' {
+  if (!k.anahtarVar) return 'hayir'
+  return onbellegeYazilabilir(k) ? 'tam' : 'kismi'
+}
+
 function onbellegeYazilabilir(k: {
   anahtarVar: boolean
   eksikPencereVar: boolean

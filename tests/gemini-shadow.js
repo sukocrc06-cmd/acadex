@@ -48,7 +48,7 @@ const NAMES = [
   'GEMINI_MAX_RESUMES', 'GEMINI_DEVAM_PAYI_MS', 'GEMINI_DEVAM_KAYIT_PAYI_MS', 'geminiDevamDesteklemeyen',
   'geminiAkisDurumu', 'geminiSseBlogunuIsle', 'geminiAkisiTuket',
   'geminiAkisIstegi', 'geminiAkisSonucu', 'geminiAkisiDevamEttir',
-  'closeTruncatedJson', 'LATEX_IKI_HARFLI', 'repairLatexEscapes', 'geminiAkisOlcumu', 'onbellegeYazilabilir', 'maddeMetni',
+  'closeTruncatedJson', 'LATEX_IKI_HARFLI', 'repairLatexEscapes', 'geminiAkisOlcumu', 'onbellegeYazilabilir', 'onbellekKayitTuru', 'maddeMetni',
   'dedupeByText', 'dedupeKeyTerms', 'normalizeForDedup', 'NEAR_DUP_THRESHOLD'
 ];
 
@@ -1578,16 +1578,57 @@ test('onbellek kapisi: her kosul TEK BASINA engelliyor', () => {
 test('onbellek kapisi kaynakta SAF fonksiyondan cagriliyor', () => {
   const src = require('node:fs').readFileSync(
     require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
-  assert.ok(/if \(onbellegeYazilabilir\(\{/.test(src),
+  assert.ok(src.includes('const kayitTuru = onbellekKayitTuru({'),
     'kapi hala satir ici kosul zinciri — mantigi test edilemez');
-  assert.ok(!/if \(summaryCacheKey && !eksikPencereler/.test(src),
+  assert.ok(!src.includes('if (summaryCacheKey && !eksikPencereler'),
     'eski satir ici kapi hala duruyor');
   // Dort alanin dordu de gercekten baglanmis olmali.
-  const i = src.indexOf('if (onbellegeYazilabilir({');
+  const i = src.indexOf('const kayitTuru = onbellekKayitTuru({');
   const blok = src.slice(i, i + 320);
   for (const alan of ['anahtarVar', 'eksikPencereVar', 'geminiKismiKrk', 'geciciDustu']) {
-    assert.ok(blok.includes(alan), `${alan} kapiya baglanmamis: ${blok.slice(0, 160)}`);
+    assert.ok(blok.includes(alan), alan + ' kapiya baglanmamis: ' + blok.slice(0, 160));
   }
+});
+
+test('KAYIT TURU: 16 kombinasyonun tamami', () => {
+  /* 25.10.2026. Eski kapi kismi karti HIC yazmiyordu; gerekcesi dogruydu
+     ama sonucu ters dondu: ayni dosya her yuklemede 110 saniyeyi sifirdan
+     odedi. Artik kismi kart ':k' ekli satira giriyor. Burada olculen sey
+     'hayir' ile 'kismi' ayriminin KAYBOLMADIGI: anahtar yoksa yazacak yer
+     de yok, geri kalan her halde en azindan kismi satir yazilmali. */
+  const T = [true, false];
+  const sayac = { tam: 0, kismi: 0, hayir: 0 };
+  for (const anahtarVar of T) {
+    for (const eksikPencereVar of T) {
+      for (const kismi of T) {
+        for (const geciciDustu of T) {
+          const k = { anahtarVar, eksikPencereVar, geminiKismiKrk: kismi ? 2000 : 0, geciciDustu };
+          const sonuc = G.onbellekKayitTuru(k);
+          const beklenen = !anahtarVar
+            ? 'hayir'
+            : (!eksikPencereVar && !kismi && !geciciDustu) ? 'tam' : 'kismi';
+          assert.equal(sonuc, beklenen,
+            'yanlis karar: ' + JSON.stringify(k) + ' -> ' + sonuc + ', beklenen ' + beklenen);
+          sayac[sonuc]++;
+        }
+      }
+    }
+  }
+  assert.equal(sayac.tam, 1, sayac.tam + ' kombinasyon TAM yaziyor — kapi gevsemis');
+  assert.equal(sayac.hayir, 8, 'anahtarsiz haller yazmamali');
+  assert.equal(sayac.kismi, 7, 'kismi satira dusen haller eksik');
+});
+
+test('KISMI satir AYRI anahtara ve isaretli yaziliyor', () => {
+  const src = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+  assert.ok(src.includes("const CACHE_KISMI_EKI = ':k'"), 'kismi eki yok');
+  assert.ok(src.includes("cache_key: (k as string) + (kismiKayit ? CACHE_KISMI_EKI : '')"),
+    'kismi kart TAM satirin anahtarina yaziliyor — tam kartin yerini alir');
+  assert.ok(src.includes('cache_kismi: true'),
+    'kismi kart kendi icinde isaretlenmiyor — arayuz rozeti okuyamaz');
+  assert.ok(src.includes('const onbellegiAtla = !!yenileRaw'),
+    'yenile cikis yolu yok — kismi satira sikisan belge tazelenemez');
 });
 
 /* 24.10.2026 — ATLAMA KAPISI YANLIS BUTCEYE BAKIYORDU.

@@ -66,7 +66,7 @@ const G = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'GEMINI_MAX_RESUMES', 'GEMINI_DEVAM_PAYI_MS', 'GEMINI_DEVAM_KAYIT_PAYI_MS', 'geminiDevamDesteklemeyen',
   'geminiAkisDurumu', 'geminiSseBlogunuIsle', 'geminiAkisiTuket',
   'geminiAkisIstegi', 'geminiAkisSonucu', 'geminiAkisiDevamEttir',
-  'closeTruncatedJson', 'LATEX_IKI_HARFLI', 'repairLatexEscapes', 'geminiAkisOlcumu', 'onbellegeYazilabilir', 'maddeMetni'
+  'closeTruncatedJson', 'LATEX_IKI_HARFLI', 'repairLatexEscapes', 'geminiAkisOlcumu', 'onbellegeYazilabilir', 'onbellekKayitTuru', 'maddeMetni'
 ]);
 
 // --- kukla fetch -----------------------------------------------------------
@@ -689,27 +689,23 @@ test('esik: cok kisa kismi cikti kurtarmaya GIRMEZ', () => {
     'sessizlik esigi cok kucuk — dusunen model sessiz kalirken kesilir');
 });
 
-test('KISMI taslaktan uretilen kart ONBELLEGE ALINMAZ', () => {
-  // Alinirsa ayni belgeyi ozetleyen herkes yarim karti alir ve bir daha
-  // hic tam kart uretilmez.
-  /* 24.10.2026: karar saf bir fonksiyona tasindi (onbellegeYazilabilir) ve
-     16 kombinasyonu gemini-shadow'da tabloyla sinaniyor. Burada korunan sey
-     hala ayni: KISMI kart disarida kalmali — ama artik dizge araniyor degil,
-     fonksiyonun KARARI olculuyor. */
-  assert.equal(
-    G.onbellegeYazilabilir({
-      anahtarVar: true, eksikPencereVar: false, geminiKismiKrk: 2074, geciciDustu: false
-    }),
-    false,
-    'onbellek kapisi kismi karti disarida tutmuyor'
-  );
-  assert.equal(
-    G.onbellegeYazilabilir({
-      anahtarVar: true, eksikPencereVar: false, geminiKismiKrk: 0, geciciDustu: false
-    }),
-    true,
-    'tam kart da yazilamiyor — kapi fazla sIki'
-  );
+test('KISMI taslaktan uretilen kart TAM satira ALINMAZ', () => {
+  /* 24.10: kismi kart onbellege hic girmiyordu — girerse ayni belgeyi
+     ozetleyen herkes yarim karti alir ve bir daha hic tam kart uretilmezdi.
+     25.10: o kural TAM SATIR icin aynen duruyor, ama 'hic yazmamak' ayni
+     dosyayi her yuklemede sifirdan odetiyordu (kosu 37/38). Kismi kart
+     artik ':k' ekli AYRI satira giriyor ve arama onu yalnizca tam satir
+     yokken seciyor. Burada ikisi birden olculuyor. */
+  const kismi = { anahtarVar: true, eksikPencereVar: false, geminiKismiKrk: 2074, geciciDustu: false };
+  assert.equal(G.onbellegeYazilabilir(kismi), false,
+    'onbellek kapisi kismi karti TAM satirda tutuyor');
+  assert.equal(G.onbellekKayitTuru(kismi), 'kismi',
+    'kismi kart hic yazilmiyor — ayni dosya her yuklemede sifirdan odenir');
+
+  const tam = { anahtarVar: true, eksikPencereVar: false, geminiKismiKrk: 0, geciciDustu: false };
+  assert.equal(G.onbellegeYazilabilir(tam), true, 'tam kart da yazilamiyor — kapi fazla sIki');
+  assert.equal(G.onbellekKayitTuru(tam), 'tam');
+
   assert.ok(/qualityMeta\.gemini_partial = \{ kurtarilanKrk: geminiKismiKrk \}/.test(FN_SRC),
     'kismi kart isaretlenmiyor — arayuz rozeti okuyamaz');
 });
