@@ -26,11 +26,11 @@ const GRADE_PATH = 'supabase/functions/grade-exam/index.ts';
 const G = loadFromSource(GEN_PATH, [
   'TRUE_FALSE_OPTIONS', 'KEY_FIELDS', 'INTERNAL_FIELDS',
   'EXPLANATION_MAX_CHARS', 'RATIONALE_MAX_CHARS', 'RUBRIC_MIN_ITEMS', 'RUBRIC_MAX_ITEMS',
-  'parseQuestionArray', 'normalizeAnswerText', 'parseLooseNumber',
+  'fixJsonEscapes', 'parseQuestionArray', 'normalizeAnswerText', 'parseLooseNumber',
   'PLACEHOLDER_ANSWERS', 'isPlaceholderAnswer', 'cleanText',
   'EXPR_MAX_LENGTH', 'EXPR_MAX_DEPTH', 'EXPR_CONSTS', 'EXPR_FUNCS', 'evaluateExpression', 'sanitizeVariables',
-  'numberReadings', 'sameNumber', 'withinTolerance', 'templateMatches', 'normalizeFormula', 'DERIVED_FACTORS', 'verifyCalculation', 'normalizeOptionRationales', 'normalizeRubric',
-  'allowedTypesFor', 'validateQuestion', 'shuffleInPlace', 'splitPublicAndKey',
+  'numberReadings', 'sameNumber', 'withinTolerance', 'templateMatches', 'normalizeFormula', 'DERIVED_FACTORS', 'TEMPLATE_DISPLAY_OPS', 'verifyCalculation', 'normalizeOptionRationales', 'normalizeRubric',
+  'allowedTypesFor', 'repairLatex', 'validateQuestion', 'shuffleInPlace', 'splitPublicAndKey',
   'OPTION_NEAR_PERCENT', 'NUMERIC_OPTION', 'optionCanonical', 'hasAmbiguousOptions', 'MATH_INPUT_MAX', 'normalizeMathInput', 'STEP_KINDS', 'verifyLinearEquation', 'EXPR_SAMPLE_VALUES', 'EXPR_MIN_VALID_POINTS', 'EXPR_FORMS', 'exprSamplePoints', 'expressionsEquivalent', 'hasTopLevelSum', 'isExpandedForm', 'exprTokenCount', 'checkExpressionForm', 'verifyExpression', 'STANDARD_CONSTANTS', 'referencesName', 'inlineName', 'chartNumbers']);
 const R = loadFromSource(GRADE_PATH, [
   'SIMULATION_GRACE_MS',
@@ -284,6 +284,23 @@ test('buildAttemptRows: flags/hints bozuk gelirse yine calisir', () => {
   const rows = R.buildAttemptRows({ id: 1, user_id: 'u' }, [{ id: 1, type: 'true_false' }], [{ question_id: 1, score: 100, is_correct: true }], 'bozuk', null);
   assert.equal(rows[0].flagged, false);
   assert.equal(rows[0].hint_used, false);
+});
+
+test('LaTeX onarimi: bozuk kacislar ve ters egik cizgisini kaybetmis komutlar (canli test 26.10.2026)', () => {
+  assert.equal(G.repairLatex('Bir bütçe kısıtı $2x + y le 8$ olarak verildiğinde'), 'Bir bütçe kısıtı $2x + y \\le 8$ olarak verildiğinde');
+  assert.equal(G.repairLatex('$a geq b$ ve $3 times 4$'), '$a \\geq b$ ve $3 \\times 4$');
+  assert.equal(G.repairLatex('$x \\le 5$'), '$x \\le 5$', 'saglam komuta dokunmaz');
+  assert.equal(G.repairLatex('$\\u000crac{1}{2}$'.replace('\\u000c', '\u000c')), '$\\frac{1}{2}$');
+  assert.equal(G.repairLatex('$3 \times 4$'), '$3 \\times 4$', 'sekme + imes');
+  assert.equal(G.repairLatex('Fiyat le ge kelimeleri $ dışında: le'), 'Fiyat le ge kelimeleri $ dışında: le', 'matematik disi metin');
+  assert.equal(G.repairLatex('$y = mx + n$, $P = 12 - 2Q$'), '$y = mx + n$, $P = 12 - 2Q$');
+  // gecersiz JSON kacisi: soru dizisi yine ayrisir, komut metinde kalir
+  const raw = '{"questions":[{"type":"true_false","question":"$2x + y \\le 8$ ve $\\sqrt{4} = 2$ dogrudur.","correct_answer":"Doğru"}]}';
+  assert.throws(() => JSON.parse(raw));
+  const arr = G.parseQuestionArray(raw);
+  assert.equal(arr[0].question, '$2x + y \\le 8$ ve $\\sqrt{4} = 2$ dogrudur.');
+  assert.equal(G.fixJsonEscapes('"a\\n\\"b\\u00e7"'), '"a\\n\\"b\\u00e7"', 'gecerli kacislar ayni');
+  assert.equal(JSON.parse(G.fixJsonEscapes('"\\underline{x}"')), '\\underline{x}');
 });
 
 summary();
