@@ -109,7 +109,7 @@ CHART QUESTIONS (only when the SOURCE MATERIAL has a CHARTS section):
 
 GRAPH DRAWING QUESTIONS (type 'graph'; only when the user message says GRAPH QUESTIONS: allowed or required (when required, write at least the stated number), only in 'mixed' or 'calculation' exams, and only when the SOURCE MATERIAL teaches something drawn on coordinate axes: linear functions, slope and intercepts, systems of equations, linear inequalities, parabolas, supply and demand, equilibrium and curve shifts, budget lines, cost or revenue lines, consumer/producer surplus, price ceilings and floors):
 - Make about one in five questions 'graph' (at least one when the source qualifies). The student draws the answer on a grid (points, lines, segments, rays, parabolas, circles, areas, shaded regions, shifting a given line, labels) or types equations and coordinates.
-- "graph": the grid and what is already drawn. "x" and "y": "min", "max", "step" (at most 20 steps per axis), "label" in the exam language (e.g. "Miktar (Q)", "Fiyat (P)") and "var" (the axis letter, e.g. "Q", "P"; default x and y). "given": objects already on the grid, e.g. the original demand line before a shift, in the element format below.
+- "graph": the grid and what is already drawn. "x" and "y": "min", "max", "step" (at most 20 steps per axis), "label" in the exam language (e.g. "Miktar (Q)", "Fiyat (P)") and "var" (the axis letter, e.g. "Q", "P"; default x and y). "given": objects already on the grid, e.g. the original demand line before a shift, in the element format below. The student sees them, so NEVER put in "given" a line or point the question asks the student to draw.
 - "graph_answer": the elements the student must draw, ALWAYS written with x (horizontal) and y (vertical), even when the axes are called Q and P:
   {"kind": "point", "at": [x, y] | {"intersect": ["g0", "a1"]} | {"on": "a0", "x": 0}, "label": "E"}
   {"kind": "line", "equation": "y = -2*x + 10"} (also for horizontal "y = 4" and vertical "x = 3" lines); {"kind": "segment" | "ray", "points": [[x1, y1], [x2, y2]]} (a ray starts at the first point)
@@ -1865,6 +1865,23 @@ function sourceTeachesGraphs(text: unknown): boolean {
 
 /** FAZ 4b: çizim sorusunu doğrular; ızgarayı, verilenleri ve cevabı kodla
  *  hesaplanmış koordinatlarla yazar. Araçlar cevaptan türetilir. */
+/** İki doğru (parça / ışın) aynı doğru üstünde mi. */
+function graphSameLine(a: GraphObj, b: GraphObj): boolean {
+  const c = graphLineOf(a.points[0], a.points[1])
+  const tol = 1e-6 * (1 + Math.abs(c.c) + Math.abs(c.a) + Math.abs(c.b))
+  return b.points.every(p => Math.abs(c.a * p[0] + c.b * p[1] - c.c) <= tol)
+}
+
+/** FAZ 4b.2: dosyadaki çizim sorularının denklemleri ("P = 10 − Q",
+ *  "2x + y ≤ 6"). Model "yeni sayılarla" dense de aynılarını kopyaladı
+ *  (canlı test 25.10.2026); aynı denklemi taşıyan çizim sorusu atılır. */
+const GRAPH_EQ_TERM = String.raw`(?:\d+(?:[.,]\d+)?[a-zA-Z]?\b|\b[a-zA-Z]\b)`
+const GRAPH_EQ_RE = new RegExp(String.raw`${GRAPH_EQ_TERM}(?:\s*[-−+*/]\s*${GRAPH_EQ_TERM})*\s*(?:<=|>=|[=≤≥<>])\s*${GRAPH_EQ_TERM}(?:\s*[-−+*/]\s*${GRAPH_EQ_TERM})*`, 'g')
+function graphEquationsIn(text: string): string[] {
+  const t = String(text ?? '').replace(/\$/g, '').replace(/\\[,;!]/g, '').replace(/\\(?:le|leq)\b/g, '≤').replace(/\\(?:ge|geq)\b/g, '≥')
+  return [...new Set((t.match(GRAPH_EQ_RE) || []).map(e => e.replace(/\s+/g, '').replace(/−/g, '-').replace(/\*/g, '').replace(/,/g, '.').replace(/<=/g, '≤').replace(/>=/g, '≥').toLowerCase()).filter(e => e.length >= 5 && /\d/.test(e)))]
+}
+
 function verifyGraph(q: Record<string, unknown>, lang: string): { ok: boolean; reason?: string } {
   const g = (q.graph && typeof q.graph === 'object' ? q.graph : {}) as Record<string, unknown>
   const x = normalizeGraphAxis(g.x ?? { min: g.x_min, max: g.x_max, step: g.x_step, label: g.x_label }, 'x')
@@ -1885,6 +1902,22 @@ function verifyGraph(q: Record<string, unknown>, lang: string): { ok: boolean; r
       const r = normalizeGraphObject(raw, x, y, ctx)
       if (!r.obj) return { ok: false, reason: r.reason }
       ctx.answer.push(r.obj)
+    }
+  }
+  // FAZ 4b.2 (canlı test 25.10.2026): model öğrencinin çizeceği doğruları
+  // "given"a da koydu; doğrular ekranda hazır çizili geldi (cevap sızdı).
+  // Cevaptaki bir doğruyla çakışan verilen nesne kaldırılır (kaydırma
+  // sorusunun baz doğrusu hariç); kaydırma referansları yeniden sıralanır.
+  if (!none && ctx.given.length) {
+    const ansLines = ctx.answer.filter(o => !o.shift && ['line', 'segment', 'ray'].includes(o.kind) && o.points.length === 2)
+    const shiftBase = new Set(ctx.answer.filter(o => o.shift).map(o => o.shift!.of))
+    const leaks = (gv: GraphObj, i: number) => !shiftBase.has(i) && ['line', 'segment', 'ray'].includes(gv.kind) && gv.points.length === 2 && ansLines.some(a => graphSameLine(a, gv))
+    const map = new Map<number, number>()
+    const kept: GraphObj[] = []
+    ctx.given.forEach((gv, i) => { if (!leaks(gv, i)) { map.set(i, kept.length); kept.push(gv) } })
+    if (kept.length < ctx.given.length) {
+      for (const o of ctx.answer) if (o.shift) o.shift = { ...o.shift, of: map.get(o.shift.of)! }
+      ctx.given = kept
     }
   }
   // Denge / kesişim noktası çizilen doğruların gerçek kesişimi olmalı. Canlı
@@ -2891,6 +2924,7 @@ ${c.formulas && (c.formulas as unknown[]).length > 0 ? `FORMULAS: ${JSON.stringi
         console.log(`generate-exam: belgede ${charts.length} grafik, ${fileDrawExamples.length} cizim ornegi; ${fileChartQuestions.length} grafik sorusu kodla karisti`)
       }
     }
+    const fileDrawEquations = new Set(fileDrawExamples.flatMap(graphEquationsIn))
     const graphSource = graphsAllowed && (fileDrawExamples.length > 0 || sourceTeachesGraphs(context))
     if (chartSources.length > 0) context += `\n\nCHARTS (numbered; the student sees each drawn as a graph with labelled values):\n${describeCharts(chartSources)}`
 
@@ -2936,12 +2970,12 @@ ${context}
     // is what makes the system message worth caching in the first place.
     const buildUserPrompt = (count: number, avoid: string[], needGraph = false) => `Generate exactly ${count} questions of type '${examType}' in the language '${language}' (en = English, tr = Turkish), at difficulty level '${resolvedDifficulty}'.
 OPTION COUNT: every 'multiple_choice' question has exactly ${scoring.option_count} options.
-GRAPH QUESTIONS: ${!graphsAllowed ? 'not allowed (never use type graph)' : graphSource && (count >= 3 || needGraph) ? `required: this source teaches material drawn on coordinate axes, so at least ${needGraph ? 1 : Math.max(1, Math.round(count / 5))} of the ${count} questions MUST be type 'graph' (they count as part of the type spread above)` : 'allowed'}.${fileDrawExamples.length ? `\nDRAWING QUESTIONS FROM THE STUDENT'S FILE (write the 'graph' questions in this style and on these topics, with new numbers):\n${fileDrawExamples.map(t => `- ${t.slice(0, 300)}`).join('\n')}` : ''}${decimalPlaces ? `\nNUMERIC PRECISION: 'calculation' answers are graded to exactly ${decimalPlaces} decimal places. In every 'calculation' question text ask for the result to ${decimalPlaces} decimal places, and let "formula" compute the exact value (no rounding inside the formula).` : ''}${resolvedFocusConcept ? `\n\nIMPORTANT FOCUS RULE:\n- The student specifically wants to practice ONE topic: "${resolvedFocusConcept}". EVERY question must test this exact topic, approached from different angles (definition, application, comparison, scenario) — do not drift to unrelated concepts. Set the "concept" field on every question to "${resolvedFocusConcept}" (or a very close variant in the requested language).` : ''}${avoid.length > 0 ? `\n\nDo NOT repeat these questions that were already generated:\n${avoid.map(t => `- ${t.slice(0, 160)}`).join('\n')}` : ''}
+GRAPH QUESTIONS: ${!graphsAllowed ? 'not allowed (never use type graph)' : graphSource && (count >= 3 || needGraph) ? `required: this source teaches material drawn on coordinate axes, so at least ${needGraph ? 1 : Math.max(1, Math.round(count / 5))} of the ${count} questions MUST be type 'graph' (they count as part of the type spread above)` : 'allowed'}.${fileDrawExamples.length ? `\nDRAWING QUESTIONS FROM THE STUDENT'S FILE (write the 'graph' questions in this style and on these topics, but with DIFFERENT equations and numbers; a question that repeats one of these equations is discarded):\n${fileDrawExamples.map(t => `- ${t.slice(0, 300)}`).join('\n')}` : ''}${decimalPlaces ? `\nNUMERIC PRECISION: 'calculation' answers are graded to exactly ${decimalPlaces} decimal places. In every 'calculation' question text ask for the result to ${decimalPlaces} decimal places, and let "formula" compute the exact value (no rounding inside the formula).` : ''}${resolvedFocusConcept ? `\n\nIMPORTANT FOCUS RULE:\n- The student specifically wants to practice ONE topic: "${resolvedFocusConcept}". EVERY question must test this exact topic, approached from different angles (definition, application, comparison, scenario) — do not drift to unrelated concepts. Set the "concept" field on every question to "${resolvedFocusConcept}" (or a very close variant in the requested language).` : ''}${avoid.length > 0 ? `\n\nDo NOT repeat these questions that were already generated:\n${avoid.map(t => `- ${t.slice(0, 160)}`).join('\n')}` : ''}
 
 Additional variation seed: ${Date.now()}`
     // FAZ 4b: kaynak uygun ama model çizim sorusu yazmadıysa tek bir çizim sorusu.
     const buildGraphPrompt = (avoid: string[]) => `Generate exactly 1 question of type 'graph' (a GRAPH DRAWING QUESTION as described in the instructions) in the language '${language}' (en = English, tr = Turkish), at difficulty level '${resolvedDifficulty}', based on the SOURCE MATERIAL.
-GRAPH QUESTIONS: required. Choose numbers so every answer point falls on grid intersections.${fileDrawExamples.length ? `\nDRAWING QUESTIONS FROM THE STUDENT'S FILE (same style, new numbers):\n${fileDrawExamples.map(t => `- ${t.slice(0, 300)}`).join('\n')}` : ''}${avoid.length > 0 ? `\n\nDo NOT repeat these questions that were already generated:\n${avoid.map(t => `- ${t.slice(0, 160)}`).join('\n')}` : ''}
+GRAPH QUESTIONS: required. Choose numbers so every answer point falls on grid intersections.${fileDrawExamples.length ? `\nDRAWING QUESTIONS FROM THE STUDENT'S FILE (same style, but DIFFERENT equations and numbers; repeating one of these equations discards the question):\n${fileDrawExamples.map(t => `- ${t.slice(0, 300)}`).join('\n')}` : ''}${avoid.length > 0 ? `\n\nDo NOT repeat these questions that were already generated:\n${avoid.map(t => `- ${t.slice(0, 160)}`).join('\n')}` : ''}
 
 Additional variation seed: ${Date.now()}`
 
@@ -3054,6 +3088,11 @@ Additional variation seed: ${Date.now()}`
             console.warn(`generate-exam: ${reason} formula=${JSON.stringify(r.formula ?? null).slice(0, 160)} vars=${JSON.stringify(r.variables ?? null).slice(0, 160)}`)
             if (!allowUnverifiedCalc) rejectedRaw.push(raw)
           }
+          continue
+        }
+        if (result.question.type === 'graph' && fileDrawEquations.size && graphEquationsIn(String(result.question.question)).some(e => fileDrawEquations.has(e))) {
+          rejectReasons.push('graph_copied_from_file')
+          console.warn(`generate-exam: graph_copied_from_file: ${String(result.question.question).slice(0, 160)}`)
           continue
         }
         const textKey = normalizeAnswerText(result.question.question)
