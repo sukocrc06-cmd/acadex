@@ -98,6 +98,11 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2,
         // already spent from earlier calls — no amount of shrinking this
         // request helps until the window rolls over, so we must actually
         // wait). Parse Groq's own suggested wait time when present.
+        /* SON DENEMEDEN SONRA BEKLENMEZ (25.10.2026): bekleme yalnizca bir
+           SONRAKI denemeye yer acmak icin. maxRetries=0 cagrilar (review,
+           yazar) burada 30 sn'ye kadar bos bekleyip sonra 429'u donduruyordu
+           — 150 sn duvarina en yakin yerde. */
+        if (attempt >= maxRetries) break
         const suggested = parseGroqRetryAfterMs(bodyPreview)
         const waitMs = suggested !== null ? Math.min(suggested + 500, 30000) : 2500
         await new Promise(r => setTimeout(r, waitMs));
@@ -11196,12 +11201,19 @@ ${String(draftObj.summary || '').slice(0, 1500)}`
           skippedStages.push('anlati yazari')
           throw new Error('__yazar_butce__')
         }
+        /* IKINCI DENEME ANCAK SIGARSA (25.10.2026). maxRetries sabit 1'di:
+           zaman asiminda fetchWithRetry ayni sureyi bir kez DAHA bekliyor,
+           yani yazar kalan butcenin iki katini harcayabiliyordu. Akan Gemini
+           akisi uzatildiktan sonra yazar ~24 sn kalanla basliyor; iki
+           deneme orada 150 sn duvarini asar ve belge 'processing'te kalir. */
+        const yazarZamanAsimi = Math.min(35000, Math.max(12000, budgetLeft() - 5000))
+        const yazarYenidenDene = budgetLeft() >= yazarZamanAsimi * 2 + 1000 ? 1 : 0
         const written = await callGroqJson(groqApiKey, writerSys, writerUser, {
           model: writerLane,
           temperature: 0.2,
           maxCompletionTokens: writerCompletion,
-          timeoutMs: Math.min(35000, Math.max(12000, budgetLeft() - 5000)),
-          maxRetries: 1
+          timeoutMs: yazarZamanAsimi,
+          maxRetries: yazarYenidenDene
         })
 
         // Reject generic filler narratives — keep pre-writer draft if detection fires
