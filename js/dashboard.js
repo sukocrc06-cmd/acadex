@@ -13637,6 +13637,11 @@ async function uploadSingleFileCore(file, bildir) {
     throw new Error('Oturum bulunamadı veya süresi doldu — lütfen sayfayı yenileyip tekrar giriş yapın.');
   }
 
+  /* ASAMA SURELERI OLCULUYOR (27.10.2026). "Yavasladi mi, internet mi"
+     sorusu tahminle cevaplanmiyor: okuma yerel is (dosyanin tamami +
+     SHA-256), yukleme ag isi. Ikisi ayri yaziliyor. */
+  const olcum = { t0: Date.now(), okuma: 0, yukleme: 0, kayit: 0 };
+
   /* Hash dosyanin TAMAMINI okuyor (file.arrayBuffer + SHA-256); 20 MB'lik
      bir PDF'te bu adim tek basina saniyeler suruyor ve eskiden ekranda
      hicbir sey yazmiyordu. */
@@ -13646,16 +13651,20 @@ async function uploadSingleFileCore(file, bildir) {
     return; // user cancelled this file
   }
 
+  olcum.okuma = Date.now() - olcum.t0;
   const storagePath = `${currentUser.id}/${Date.now()}_${storageSafeName(file.name)}`;
 
   asama('yukleme');
+  const yuklemeBasladi = Date.now();
   const { data, error } = await supabaseClient.storage
     .from('documents')
     .upload(storagePath, file);
 
   if (error) throw error;
+  olcum.yukleme = Date.now() - yuklemeBasladi;
 
   asama('kayit');
+  const kayitBasladi = Date.now();
   const { data: insertedDoc, error: dbError } = await supabaseClient
     .from('documents')
     .insert({
@@ -13675,6 +13684,13 @@ async function uploadSingleFileCore(file, bildir) {
     await supabaseClient.storage.from('documents').remove([storagePath]);
     throw dbError;
   }
+
+  olcum.kayit = Date.now() - kayitBasladi;
+  console.log(
+    `[yukleme] ${file.name} ${(file.size / 1048576).toFixed(1)}MB — ` +
+    `okuma ${olcum.okuma}ms, yukleme ${olcum.yukleme}ms, kayit ${olcum.kayit}ms, ` +
+    `toplam ${Date.now() - olcum.t0}ms`
+  );
 
   if (insertedDoc) {
     activeDocuments.unshift(insertedDoc);

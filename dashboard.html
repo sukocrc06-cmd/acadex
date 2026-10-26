@@ -424,8 +424,10 @@
         </div>
         <div class="progress-container" id="progress-container">
           <div class="progress-bar" id="progress-bar"></div>
-          <div id="upload-progress-text" style="text-align:center;margin-top:6px"></div>
         </div>
+        <!-- Asama metni kutunun DISINDA: .progress-container 6-8px yuksek ve
+             overflow:hidden, icinde kalirsa kirpilir (27.10.2026). -->
+        <div id="upload-progress-text" style="text-align:center;margin-top:6px;display:none"></div>
         <div class="ax-arch-head">
           <h3>arşiv <small data-doc-count=""></small></h3>
           <div class="ax-arch-tools">

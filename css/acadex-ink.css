@@ -232,7 +232,7 @@ body.acx #dashboard-alert-container:empty{display:none}
 .ax-tray:focus-visible .ax-tray-front{outline:3px solid var(--blue);outline-offset:3px}
 #docs-view .progress-container{max-width:600px;margin:12px auto 0;height:8px;background:#DCE2EE;border-radius:4px}
 #docs-view .progress-bar{background:var(--blue)}
-#docs-view #upload-progress-text{font-family:var(--hand);font-size:19px;color:var(--ink)}
+#docs-view #upload-progress-text{max-width:600px;margin:8px auto 0;font-family:var(--hand);font-size:19px;color:var(--ink)}
 .ax-arch-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:22px}
 .ax-arch-head h3{margin:0;font-family:var(--hand);font-weight:700;font-size:30px;color:var(--ink);letter-spacing:0}
 .ax-arch-head h3 small{font-family:var(--mono);font-size:12px;color:var(--soft);margin-left:8px;font-weight:500}
