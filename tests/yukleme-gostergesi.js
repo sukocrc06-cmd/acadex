@@ -116,4 +116,41 @@ test('GOSTERGE kapanirken metin de TEMIZLENIYOR', () => {
     'asama metni temizlenmiyor');
 });
 
+test('ASAMA METNI kirpilan kutunun DISINDA', () => {
+  /* 27.10.2026, canli ekran goruntusu: cubuk gorunuyor, metin yok.
+     #upload-progress-text, #progress-container'in ICINDEYDI; o kutu
+     style.css'te height:6px + overflow:hidden, acadex-ink.css'te
+     height:8px — metin ciziliyordu ama kirpiliyordu. JS dogruydu
+     (display:block veriyordu), kusur markup'taydi. */
+  const base = read('css/style.css');
+  assert.ok(/\.progress-container \{[^}]*overflow: hidden/.test(base),
+    'kirpma kalkmis — bu test artik var olmayan bir sebebi koruyor');
+  const i = html.indexOf('id="progress-container"');
+  const j = html.indexOf('id="upload-progress-text"');
+  assert.ok(i > 0 && j > i, 'dugumler bulunamadi');
+  assert.ok(html.slice(i, j).includes('</div>'),
+    'asama metni hala kirpilan kutunun icinde — ekranda gorunmez');
+  assert.ok(html.slice(j, j + 240).includes('display:none'),
+    'metin varsayilan olarak gizli degil — bos satir yer kaplar');
+  const ink = read('css/acadex-ink.css');
+  assert.ok(ink.includes('#docs-view #upload-progress-text{max-width:600px;margin:8px auto 0;'),
+    'metin cubukla hizalanmiyor');
+});
+
+test('ASAMA SURELERI olculuyor', () => {
+  /* "Yavasladi mi, internet mi" sorusu ancak olcumle cevaplanir: okuma
+     yerel is (dosyanin tamami + SHA-256), yukleme ag isi. Ikisi ayri
+     yazilmazsa ekran goruntusunden teshis edilemez. */
+  const i = dash.indexOf('async function uploadSingleFileCore(file, bildir) {');
+  assert.ok(i > 0, 'cekirdek bulunamadi');
+  const g = dash.slice(i, i + 2800);
+  assert.ok(g.includes('const olcum = { t0: Date.now(), okuma: 0, yukleme: 0, kayit: 0 };'),
+    'olcum baslamiyor');
+  assert.ok(g.includes('olcum.okuma = Date.now() - olcum.t0;'), 'okuma olculmuyor');
+  assert.ok(g.includes('olcum.yukleme = Date.now() - yuklemeBasladi;'), 'yukleme olculmuyor');
+  assert.ok(g.includes('olcum.kayit = Date.now() - kayitBasladi;'), 'kayit olculmuyor');
+  assert.ok(g.includes('[yukleme] ') && g.includes('okuma ${olcum.okuma}ms'),
+    'olcum loga basilmiyor');
+});
+
 summary();
