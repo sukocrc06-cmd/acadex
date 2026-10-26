@@ -109,7 +109,7 @@ CHART QUESTIONS (only when the SOURCE MATERIAL has a CHARTS section):
 
 GRAPH DRAWING QUESTIONS (type 'graph'; only when the user message says GRAPH QUESTIONS: allowed or required (when required, write at least the stated number), only in 'mixed' or 'calculation' exams, and only when the SOURCE MATERIAL teaches something drawn on coordinate axes: linear functions, slope and intercepts, systems of equations, linear inequalities, parabolas, supply and demand, equilibrium and curve shifts, budget lines, cost or revenue lines, consumer/producer surplus, price ceilings and floors):
 - Make about one in five questions 'graph' (at least one when the source qualifies). The student draws the answer on a grid (points, lines, segments, rays, parabolas, circles, areas, shaded regions, shifting a given line, labels) or types equations and coordinates.
-- "graph": the grid and what is already drawn. "x" and "y": "min", "max", "step" (at most 20 steps per axis), "label" in the exam language (e.g. "Miktar (Q)", "Fiyat (P)") and "var" (the axis letter, e.g. "Q", "P"; default x and y). "given": objects already on the grid, e.g. the original demand line before a shift, in the element format below.
+- "graph": the grid and what is already drawn. "x" and "y": "min", "max", "step" (at most 20 steps per axis), "label" in the exam language (e.g. "Miktar (Q)", "Fiyat (P)") and "var" (the axis letter, e.g. "Q", "P"; default x and y). "given": objects already on the grid, e.g. the original demand line before a shift, in the element format below. The student sees them, so NEVER put in "given" a line or point the question asks the student to draw.
 - "graph_answer": the elements the student must draw, ALWAYS written with x (horizontal) and y (vertical), even when the axes are called Q and P:
   {"kind": "point", "at": [x, y] | {"intersect": ["g0", "a1"]} | {"on": "a0", "x": 0}, "label": "E"}
   {"kind": "line", "equation": "y = -2*x + 10"} (also for horizontal "y = 4" and vertical "x = 3" lines); {"kind": "segment" | "ray", "points": [[x1, y1], [x2, y2]]} (a ray starts at the first point)
@@ -164,6 +164,24 @@ const RATIONALE_MAX_CHARS = 300
 const RUBRIC_MIN_ITEMS = 2
 const RUBRIC_MAX_ITEMS = 6
 
+/** JSON dizelerindeki geçersiz kaçışları ("\l", "\s", "\c"…) çift ters
+ *  eğik çizgiye çevirir; LaTeX komutu metinde kalır. */
+function fixJsonEscapes(text: string): string {
+  return String(text ?? '').replace(/\\(\\|["\/bfnrt]|u[0-9a-fA-F]{4})|\\/g, (m, ok) => ok ? m : '\\\\')
+}
+
+/** Modelin bozduğu LaTeX'i onarır (canlı test 26.10.2026: "$2x + y le 8$").
+ *  - JSON kaçışına dönüşmüş komutlar: \f+"rac" (\frac), \t+"imes", \b+"eta"…
+ *  - $…$ içinde ters eğik çizgisini kaybetmiş le/ge/leq/geq/neq/cdot/times/infty. */
+function repairLatex(text: string): string {
+  let t = String(text ?? '')
+  t = t.replace(/\u000c(?=rac|box)/g, '\\f')
+    .replace(/\t(?=imes|ext|heta|au\b|an\b|riangle|ilde)/g, '\\t')
+    .replace(/\u0008(?=eta|ar\b|egin|ig|inom|oxed)/g, '\\b')
+    .replace(/\r(?=ho\b|ight|angle|ceil|floor)/g, '\\r')
+  return t.replace(/\$([^$\n]{1,300})\$/g, (_m, inner: string) => '$' + inner.replace(/(^|[^\\A-Za-z])(leq|geq|neq|le|ge|cdot|times|infty)(?![A-Za-z])/g, (_x, pre, cmd) => `${pre}\\${cmd}`) + '$')
+}
+
 /** Model yanıtını soru dizisine çevirir: {"questions":[...]}, düz dizi veya
  *  tek anahtarlı başka bir nesne kabul edilir. Ayrıştırılamazsa null. */
 function parseQuestionArray(raw: string): unknown[] | null {
@@ -173,7 +191,8 @@ function parseQuestionArray(raw: string): unknown[] | null {
   try {
     parsed = JSON.parse(cleaned)
   } catch (_e) {
-    return null
+    // LaTeX'te "\le", "\sqrt" gibi geçersiz JSON kaçışları: ters eğik çizgi korunur.
+    try { parsed = JSON.parse(fixJsonEscapes(cleaned)) } catch (_e2) { return null }
   }
   if (Array.isArray(parsed)) return parsed
   if (parsed && typeof parsed === 'object') {
@@ -412,6 +431,9 @@ function normalizeFormula(raw: unknown): string {
  *  ay, 60 ay → 5 yıl, "2x - 7" → -7 (Faz 3c). Türeyen değişken gizli
  *  girdi sayılmaz ama şablonla yeniden üretilemez (şablon kapatılır). */
 const DERIVED_FACTORS = [100, 0.01, 12, 1 / 12, -1]
+// Değişken = metindeki sayı × k ise şablonda metindeki sayı değişken OP ile
+// gösterilir: %4 → 0,04 için {rate*100}. exam-engine renderTemplate okur.
+const TEMPLATE_DISPLAY_OPS = new Map<number, string>([[100, '/100'], [0.01, '*100'], [12, '/12'], [1 / 12, '*12'], [-1, '*-1']])
 
 /** FAZ 3c: adım adım kontrol edilebilen hesap türleri. */
 const STEP_KINDS = ['linear', 'npv', 'interest']
@@ -493,7 +515,16 @@ function verifyCalculation(q: Record<string, unknown>): { ok: boolean; reason?: 
   q.correct_answer = Math.round(value * 1e4) / 1e4
   q.variables = vars
   q.formula = formula
-  q.template = allLiteral && !q.chart && typeof q.template === 'string' && templateMatches(q.template, text, names) ? q.template : null
+  // Türetilmiş değer (metinde %4, değişken 0,04): şablonda gösterim çarpanıyla
+  // yazılır ({rate*100}); "farklı sayılarla" alıştırması artık kapanmaz.
+  const displayOp = (n: string): string => {
+    if (literal(n)) return ''
+    for (const r of readings) for (const k of DERIVED_FACTORS) if (sameNumber(r * k, vars[n])) return TEMPLATE_DISPLAY_OPS.get(k) ?? ''
+    return ''
+  }
+  q.template = !q.chart && typeof q.template === 'string' && templateMatches(q.template, text, names)
+    ? (allLiteral ? q.template : (names.every(n => literal(n) || displayOp(n)) ? (q.template as string).replace(/\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (m, n) => names.includes(n) ? `{${n}${displayOp(n)}}` : m) : null))
+    : null
   const errs: Array<{ formula: string; message: string }> = []
   for (const ce of Array.isArray(q.common_errors) ? q.common_errors : []) {
     if (!ce || typeof ce !== 'object') continue
@@ -1856,6 +1887,15 @@ function spreadInsert<T>(base: T[], extra: T[]): T[] {
  *  uyup arz-talep notunda bile çizim sorusu yazmadı; kaynak uygunsa çizim
  *  sorusu zorunlu tutulur. En az iki güçlü kavram + bir denklem izi. */
 const GRAPH_SOURCE_CUES = ['talep', 'arz', 'denge', 'eğim', 'doğrusal', 'eşitsizli', 'parabol', 'koordinat', 'kesişim', 'bütçe doğrusu', 'tüketici artığı', 'üretici artığı', 'tavan fiyat', 'taban fiyat', 'demand', 'supply', 'equilibrium', 'slope', 'intercept', 'linear function', 'inequalit', 'parabola', 'coordinate', 'budget line', 'surplus', 'price ceiling', 'price floor']
+/** FAZ 3b (canlı test 26.10.2026): kaynak sembolik cebir ya da türev
+ *  öğretiyor mu. Prompt "yaklaşık yarısı ifade sorusu" dese de model türev
+ *  belgesinden yalnızca hesap sorusu yazdı; uygunsa istekte zorunlu denir. */
+const ALGEBRA_SOURCE_CUES = ['türev', 'sadeleştir', 'çarpanlara ayır', 'parantez aç', 'integral', 'zincir kuralı', 'çarpım kuralı', 'bölüm kuralı', 'kuvvet kuralı', 'rasyonel ifade', 'iki kare farkı', 'tam kare', 'derivative', 'simplif', 'factoris', 'factoriz', 'expand', 'chain rule', 'product rule', 'quotient rule', 'power rule', 'antiderivative']
+function sourceTeachesAlgebra(text: unknown): boolean {
+  const t = String(text ?? '').toLocaleLowerCase('tr-TR')
+  return ALGEBRA_SOURCE_CUES.filter(c => t.includes(c)).length >= 2
+}
+
 function sourceTeachesGraphs(text: unknown): boolean {
   const t = String(text ?? '').toLocaleLowerCase('tr-TR')
   const hits = GRAPH_SOURCE_CUES.filter(c => t.includes(c)).length
@@ -1865,6 +1905,43 @@ function sourceTeachesGraphs(text: unknown): boolean {
 
 /** FAZ 4b: çizim sorusunu doğrular; ızgarayı, verilenleri ve cevabı kodla
  *  hesaplanmış koordinatlarla yazar. Araçlar cevaptan türetilir. */
+/** Sorunun çizim istenen cümlelerindeki etiketler: "Talep (D) ve arz (S)
+ *  doğrularını çizin" → D, S. "verilmiştir" cümlesindekiler alınmaz. */
+function graphDrawLabels(text: string): Set<string> {
+  const out = new Set<string>()
+  for (const sentence of String(text ?? '').split(/(?<=[.!?;])\s+/)) {
+    if (!/çiz|draw|sketch|plot|graph the/i.test(sentence) || /veril|given/i.test(sentence)) continue
+    for (const m of sentence.matchAll(/\(\s*([A-Za-z]{1,2}\d?['’]?)\s*\)/g)) out.add(m[1].toUpperCase())
+  }
+  return out
+}
+
+/** İki doğru (parça / ışın) aynı doğru üstünde mi. */
+function graphSameLine(a: GraphObj, b: GraphObj): boolean {
+  const c = graphLineOf(a.points[0], a.points[1])
+  const tol = 1e-6 * (1 + Math.abs(c.c) + Math.abs(c.a) + Math.abs(c.b))
+  return b.points.every(p => Math.abs(c.a * p[0] + c.b * p[1] - c.c) <= tol)
+}
+
+/** FAZ 4b.2: dosyadaki çizim sorularının denklemleri ("P = 10 − Q",
+ *  "2x + y ≤ 6"). Model "yeni sayılarla" dense de aynılarını kopyaladı
+ *  (canlı test 25.10.2026); aynı denklemi taşıyan çizim sorusu atılır. */
+const GRAPH_EQ_TERM = String.raw`(?:\d+(?:[.,]\d+)?[a-zA-Z]?\b|\b[a-zA-Z]\b)`
+const GRAPH_EQ_RE = new RegExp(String.raw`${GRAPH_EQ_TERM}(?:\s*[-−+*/]\s*${GRAPH_EQ_TERM})*\s*(?:<=|>=|[=≤≥<>])\s*${GRAPH_EQ_TERM}(?:\s*[-−+*/]\s*${GRAPH_EQ_TERM})*`, 'g')
+function graphEquationsIn(text: string): string[] {
+  const t = String(text ?? '').replace(/\$/g, '').replace(/\\[,;!]/g, '').replace(/\\(?:le|leq)\b/g, '≤').replace(/\\(?:ge|geq)\b/g, '≥')
+  return [...new Set((t.match(GRAPH_EQ_RE) || []).map(e => e.replace(/\s+/g, '').replace(/−/g, '-').replace(/\*/g, '').replace(/,/g, '.').replace(/<=/g, '≤').replace(/>=/g, '≥').toLowerCase()).filter(e => e.length >= 5 && /\d/.test(e)))]
+}
+
+/** Çizim sorusu dosyadakinin kopyası mı: denklemlerinin HEPSİ dosyada geçiyor.
+ *  Canlı test (26.10.2026): yeni talep doğrusuyla "P = 2 + Q" arzını birlikte
+ *  kullanan soru da atılmıştı; tek ortak denklem kopya sayılmaz. */
+function graphCopiesFile(text: string, fileEqs: Set<string>): boolean {
+  if (!fileEqs.size) return false
+  const eqs = graphEquationsIn(text)
+  return eqs.length > 0 && eqs.every(e => fileEqs.has(e))
+}
+
 function verifyGraph(q: Record<string, unknown>, lang: string): { ok: boolean; reason?: string } {
   const g = (q.graph && typeof q.graph === 'object' ? q.graph : {}) as Record<string, unknown>
   const x = normalizeGraphAxis(g.x ?? { min: g.x_min, max: g.x_max, step: g.x_step, label: g.x_label }, 'x')
@@ -1885,6 +1962,34 @@ function verifyGraph(q: Record<string, unknown>, lang: string): { ok: boolean; r
       const r = normalizeGraphObject(raw, x, y, ctx)
       if (!r.obj) return { ok: false, reason: r.reason }
       ctx.answer.push(r.obj)
+    }
+  }
+  // FAZ 4b.2 (canlı test 25.10.2026): model öğrencinin çizeceği doğruları
+  // "given"a da koydu; doğrular ekranda hazır çizili geldi (cevap sızdı).
+  // Cevaptaki bir doğruyla çakışan verilen nesne kaldırılır (kaydırma
+  // sorusunun baz doğrusu hariç); kaydırma referansları yeniden sıralanır.
+  // İkinci canlı test (26.10.2026): model D ve S'yi yalnızca "given"a koydu,
+  // cevapta yalnızca E vardı; soru ise "D ve S doğrularını çizin" diyordu.
+  // Çizim cümlesinde etiketi geçen verilen doğru cevaba taşınır.
+  if (!none && ctx.given.length) {
+    const ansLines = ctx.answer.filter(o => !o.shift && ['line', 'segment', 'ray'].includes(o.kind) && o.points.length === 2)
+    const shiftBase = new Set(ctx.answer.filter(o => o.shift).map(o => o.shift!.of))
+    const drawLabels = graphDrawLabels(String(q.question ?? ''))
+    const isLine = (gv: GraphObj) => ['line', 'segment', 'ray'].includes(gv.kind) && gv.points.length === 2
+    const asked = (gv: GraphObj) => !!gv.label && drawLabels.has(gv.label.toUpperCase())
+    const leaks = (gv: GraphObj, i: number) => !shiftBase.has(i) && isLine(gv) && (ansLines.some(a => graphSameLine(a, gv)) || asked(gv))
+    const map = new Map<number, number>()
+    const kept: GraphObj[] = []
+    const moved: GraphObj[] = []
+    ctx.given.forEach((gv, i) => {
+      if (!leaks(gv, i)) { map.set(i, kept.length); kept.push(gv) }
+      else if (!ansLines.some(a => graphSameLine(a, gv))) moved.push(gv)
+    })
+    if (ctx.answer.length + moved.length > GRAPH_MAX_ELEMENTS) return { ok: false, reason: 'graph_given_is_answer' }
+    ctx.answer.unshift(...moved)
+    if (kept.length < ctx.given.length) {
+      for (const o of ctx.answer) if (o.shift) o.shift = { ...o.shift, of: map.get(o.shift.of)! }
+      ctx.given = kept
     }
   }
   // Denge / kesişim noktası çizilen doğruların gerçek kesişimi olmalı. Canlı
@@ -1930,6 +2035,8 @@ function validateQuestion(raw: unknown, allowedTypes: string[], language: string
   const q = { ...(raw as Record<string, unknown>) }
   const type = String(q.type || '')
   if (!allowedTypes.includes(type)) return { ok: false, reason: `type_not_allowed:${type}` }
+  for (const k of ['question', 'hint', 'explanation', 'correct_answer']) if (typeof q[k] === 'string') q[k] = repairLatex(q[k] as string)
+  for (const k of ['options', 'accepted_answers', 'solution_steps', 'premises', 'option_rationales']) if (Array.isArray(q[k])) q[k] = (q[k] as unknown[]).map(v => typeof v === 'string' ? repairLatex(v) : v)
   const text = typeof q.question === 'string' ? q.question.trim() : ''
   if (text.length < 5) return { ok: false, reason: 'empty_question' }
   q.question = text
@@ -2092,6 +2199,9 @@ const GEN_TOKENS_GRAPH_EXTRA = 60
 // kısma sonrası en az bırakılacak çıktı bütçesi.
 const GROQ_TPM_LIMIT = 8000
 const GEN_TOKENS_FLOOR = 1000
+// Üçüncü üretim isteği yalnızca istek bu süreden önceyse (Groq beklemesi en
+// çok 45 sn; Supabase işlev sınırı 150 sn).
+const THIRD_CALL_DEADLINE_MS = 60000
 
 function completionBudgetFor(count: number): number {
   const n = Math.max(1, Math.floor(Number(count) || 1))
@@ -2122,7 +2232,10 @@ function salvageQuestionObjects(raw: string): unknown[] {
     else if (c === '}') {
       depth--
       if (depth === 0 && objStart >= 0) {
-        try { out.push(JSON.parse(text.slice(objStart, i + 1))) } catch (_e) { /* bozuk nesne: atla */ }
+        const chunk = text.slice(objStart, i + 1)
+        try { out.push(JSON.parse(chunk)) } catch (_e) {
+          try { out.push(JSON.parse(fixJsonEscapes(chunk))) } catch (_e2) { /* bozuk nesne: atla */ }
+        }
         objStart = -1
       }
       if (depth < 0) break
@@ -2539,6 +2652,7 @@ async function loadDocumentChunks(client: ReturnType<typeof createClient>, docum
 }
 
 serve(async (req) => {
+  const requestStartedAt = Date.now()
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -2891,7 +3005,9 @@ ${c.formulas && (c.formulas as unknown[]).length > 0 ? `FORMULAS: ${JSON.stringi
         console.log(`generate-exam: belgede ${charts.length} grafik, ${fileDrawExamples.length} cizim ornegi; ${fileChartQuestions.length} grafik sorusu kodla karisti`)
       }
     }
+    const fileDrawEquations = new Set(fileDrawExamples.flatMap(graphEquationsIn))
     const graphSource = graphsAllowed && (fileDrawExamples.length > 0 || sourceTeachesGraphs(context))
+    const exprSource = examType === 'calculation' && sourceTeachesAlgebra(context)
     if (chartSources.length > 0) context += `\n\nCHARTS (numbered; the student sees each drawn as a graph with labelled values):\n${describeCharts(chartSources)}`
 
     // FAZ 4c: "dosyadaki grafik sorularına göre". Taranmış grafiklerden
@@ -2936,19 +3052,28 @@ ${context}
     // is what makes the system message worth caching in the first place.
     const buildUserPrompt = (count: number, avoid: string[], needGraph = false) => `Generate exactly ${count} questions of type '${examType}' in the language '${language}' (en = English, tr = Turkish), at difficulty level '${resolvedDifficulty}'.
 OPTION COUNT: every 'multiple_choice' question has exactly ${scoring.option_count} options.
-GRAPH QUESTIONS: ${!graphsAllowed ? 'not allowed (never use type graph)' : graphSource && (count >= 3 || needGraph) ? `required: this source teaches material drawn on coordinate axes, so at least ${needGraph ? 1 : Math.max(1, Math.round(count / 5))} of the ${count} questions MUST be type 'graph' (they count as part of the type spread above)` : 'allowed'}.${fileDrawExamples.length ? `\nDRAWING QUESTIONS FROM THE STUDENT'S FILE (write the 'graph' questions in this style and on these topics, with new numbers):\n${fileDrawExamples.map(t => `- ${t.slice(0, 300)}`).join('\n')}` : ''}${decimalPlaces ? `\nNUMERIC PRECISION: 'calculation' answers are graded to exactly ${decimalPlaces} decimal places. In every 'calculation' question text ask for the result to ${decimalPlaces} decimal places, and let "formula" compute the exact value (no rounding inside the formula).` : ''}${resolvedFocusConcept ? `\n\nIMPORTANT FOCUS RULE:\n- The student specifically wants to practice ONE topic: "${resolvedFocusConcept}". EVERY question must test this exact topic, approached from different angles (definition, application, comparison, scenario) — do not drift to unrelated concepts. Set the "concept" field on every question to "${resolvedFocusConcept}" (or a very close variant in the requested language).` : ''}${avoid.length > 0 ? `\n\nDo NOT repeat these questions that were already generated:\n${avoid.map(t => `- ${t.slice(0, 160)}`).join('\n')}` : ''}
+GRAPH QUESTIONS: ${!graphsAllowed ? 'not allowed (never use type graph)' : graphSource && (count >= 3 || needGraph) ? `required: this source teaches material drawn on coordinate axes, so at least ${needGraph ? 1 : Math.max(1, Math.round(count / 5))} of the ${count} questions MUST be type 'graph' (they count as part of the type spread above)` : 'allowed'}.${exprSource ? `\nEXPRESSION QUESTIONS: ${exprNeeded(count) ? `required: this source teaches symbolic algebra or calculus, so at least ${exprNeeded(count)} of the ${count} questions MUST be type 'expression' (the student types a formula, e.g. a derivative or a simplified expression)` : 'allowed'}.` : ''}${fileDrawExamples.length ? `\nDRAWING QUESTIONS FROM THE STUDENT'S FILE (write the 'graph' questions in this style and on these topics, but with DIFFERENT equations and numbers; a question that only reuses these equations is discarded):\n${fileDrawExamples.map(t => `- ${t.slice(0, 300)}`).join('\n')}` : ''}${decimalPlaces ? `\nNUMERIC PRECISION: 'calculation' answers are graded to exactly ${decimalPlaces} decimal places. In every 'calculation' question text ask for the result to ${decimalPlaces} decimal places, and let "formula" compute the exact value (no rounding inside the formula).` : ''}${resolvedFocusConcept ? `\n\nIMPORTANT FOCUS RULE:\n- The student specifically wants to practice ONE topic: "${resolvedFocusConcept}". EVERY question must test this exact topic, approached from different angles (definition, application, comparison, scenario) — do not drift to unrelated concepts. Set the "concept" field on every question to "${resolvedFocusConcept}" (or a very close variant in the requested language).` : ''}${avoid.length > 0 ? `\n\nDo NOT repeat these questions that were already generated:\n${avoid.map(t => `- ${t.slice(0, 160)}`).join('\n')}` : ''}
+
+Additional variation seed: ${Date.now()}`
+    // FAZ 3b: kaç ifade sorusu zorunlu (ilk istekte yaklaşık üçte bir; sonra
+    // hâlâ yoksa 1). accepted ve firstCallDone aşağıda tanımlı; çağrı anında okunur.
+    const exprNeeded = (count: number): number => {
+      if (!exprSource || accepted.some(q => q.type === 'expression')) return 0
+      return firstCallDone ? 1 : (count >= 2 ? Math.max(1, Math.round(count / 3)) : 0)
+    }
+    const buildExprPrompt = (avoid: string[]) => `Generate exactly 1 question of type 'expression' (a symbolic EXPRESSION question as described in the instructions) in the language '${language}' (en = English, tr = Turkish), at difficulty level '${resolvedDifficulty}', based on the SOURCE MATERIAL.${avoid.length > 0 ? `\n\nDo NOT repeat these questions that were already generated:\n${avoid.map(t => `- ${t.slice(0, 160)}`).join('\n')}` : ''}
 
 Additional variation seed: ${Date.now()}`
     // FAZ 4b: kaynak uygun ama model çizim sorusu yazmadıysa tek bir çizim sorusu.
     const buildGraphPrompt = (avoid: string[]) => `Generate exactly 1 question of type 'graph' (a GRAPH DRAWING QUESTION as described in the instructions) in the language '${language}' (en = English, tr = Turkish), at difficulty level '${resolvedDifficulty}', based on the SOURCE MATERIAL.
-GRAPH QUESTIONS: required. Choose numbers so every answer point falls on grid intersections.${fileDrawExamples.length ? `\nDRAWING QUESTIONS FROM THE STUDENT'S FILE (same style, new numbers):\n${fileDrawExamples.map(t => `- ${t.slice(0, 300)}`).join('\n')}` : ''}${avoid.length > 0 ? `\n\nDo NOT repeat these questions that were already generated:\n${avoid.map(t => `- ${t.slice(0, 160)}`).join('\n')}` : ''}
+GRAPH QUESTIONS: required. Choose numbers so every answer point falls on grid intersections.${fileDrawExamples.length ? `\nDRAWING QUESTIONS FROM THE STUDENT'S FILE (same style, but DIFFERENT equations and numbers; a question that only reuses these equations is discarded):\n${fileDrawExamples.map(t => `- ${t.slice(0, 300)}`).join('\n')}` : ''}${avoid.length > 0 ? `\n\nDo NOT repeat these questions that were already generated:\n${avoid.map(t => `- ${t.slice(0, 160)}`).join('\n')}` : ''}
 
 Additional variation seed: ${Date.now()}`
 
     let lastPromptTokens = 0, firstUserChars = 0
     // Tek bir üretim çağrısı. Başarısızsa { error } döner, istisna fırlatmaz.
-    const requestQuestions = async (count: number, avoid: string[], attempt = 0, forceGraph = false, needGraph = false): Promise<{ items?: unknown[]; error?: string }> => {
-      const userContent = forceGraph ? buildGraphPrompt(avoid) : buildUserPrompt(count, avoid, needGraph)
+    const requestQuestions = async (count: number, avoid: string[], attempt = 0, forceGraph = false, needGraph = false, forceExpr = false): Promise<{ items?: unknown[]; error?: string }> => {
+      const userContent = forceGraph ? buildGraphPrompt(avoid) : forceExpr ? buildExprPrompt(avoid) : buildUserPrompt(count, avoid, needGraph)
       // Groq TPM sınırı istemi VE ayrılan çıktı bütçesini birlikte sayar
       // (canlı test 25.10.2026: "Request too large … Requested 8262"). İlk
       // çağrının gerçek istem tokenı biliniyorsa ona göre, yoksa tahminle kısılır.
@@ -2956,7 +3081,7 @@ Additional variation seed: ${Date.now()}`
       const wanted = Math.min(GEN_TOKENS_MAX, completionBudgetFor(count) + (examType === 'calculation' ? GEN_TOKENS_CALC_EXTRA * count : 0) + (graphsAllowed ? GEN_TOKENS_GRAPH_EXTRA * count : 0))
       // İlk çağrı eskisi gibi (canlıda istem önbelleğiyle sorunsuz); kısma
       // yalnızca tamamlama ve çizim isteklerinde.
-      const budget = forceGraph || count < requestedCount ? Math.max(GEN_TOKENS_FLOOR, Math.min(wanted, GROQ_TPM_LIMIT - promptEst - 100)) : wanted
+      const budget = forceGraph || forceExpr || count < requestedCount ? Math.max(GEN_TOKENS_FLOOR, Math.min(wanted, GROQ_TPM_LIMIT - promptEst - 100)) : wanted
       const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -2996,7 +3121,7 @@ Additional variation seed: ${Date.now()}`
           const salvaged = salvageQuestionObjects(String(groqData.error.failed_generation ?? ''))
           console.warn(`generate-exam: Groq JSON dogrulamasi dustu; ${salvaged.length} soru kurtarildi`)
           if (salvaged.length > 0) return { items: salvaged }
-          if (attempt < GEN_MAX_RETRIES) return requestQuestions(count, avoid, attempt + 1, forceGraph, needGraph)
+          if (attempt < GEN_MAX_RETRIES) return requestQuestions(count, avoid, attempt + 1, forceGraph, needGraph, forceExpr)
         }
         // FAZ 2 (canlı test): eksik sorular için yapılan ikinci istek
         // dakikalık token sınırına (TPM) takılıyordu. Groq'un söylediği süre
@@ -3006,7 +3131,7 @@ Additional variation seed: ${Date.now()}`
         if (waitMs !== null) {
           console.warn(`generate-exam: Groq hiz siniri, ${Math.round(waitMs / 1000)} sn beklenip yeniden deneniyor`)
           await new Promise(r => setTimeout(r, waitMs))
-          return requestQuestions(count, avoid, attempt + 1, forceGraph, needGraph)
+          return requestQuestions(count, avoid, attempt + 1, forceGraph, needGraph, forceExpr)
         }
         console.error("Groq generation failed: ", groqData)
         return { error: groqData?.error?.message || groqData?.error?.code || `HTTP ${groqResponse.status}` }
@@ -3034,10 +3159,13 @@ Additional variation seed: ${Date.now()}`
 
     const allowedTypes = allowedTypesFor(examType, isQuant, graphsAllowed)
     let accepted: Record<string, unknown>[] = []
+    let firstCallDone = false
     const seenTexts = new Set<string>()
     const rejectReasons: string[] = []
 
     const rejectedRaw: unknown[] = []
+    // Dosyadaki çizim sorusunun kopyası: son çare olarak (eksik kalırsa) alınır.
+    const copiedGraphs: Record<string, unknown>[] = []
     const absorb = (items: unknown[], allowUnverifiedCalc = false) => {
       for (const raw of items) {
         if (accepted.length >= requestedCount) break
@@ -3054,6 +3182,12 @@ Additional variation seed: ${Date.now()}`
             console.warn(`generate-exam: ${reason} formula=${JSON.stringify(r.formula ?? null).slice(0, 160)} vars=${JSON.stringify(r.variables ?? null).slice(0, 160)}`)
             if (!allowUnverifiedCalc) rejectedRaw.push(raw)
           }
+          continue
+        }
+        if (result.question.type === 'graph' && graphCopiesFile(String(result.question.question), fileDrawEquations)) {
+          rejectReasons.push('graph_copied_from_file')
+          if (!allowUnverifiedCalc) copiedGraphs.push(result.question)
+          console.warn(`generate-exam: graph_copied_from_file: ${String(result.question.question).slice(0, 160)}`)
           continue
         }
         const textKey = normalizeAnswerText(result.question.question)
@@ -3078,6 +3212,7 @@ Additional variation seed: ${Date.now()}`
       })
     }
     absorb(first.items || [])
+    firstCallDone = true
 
     // Eksik kalan soru varsa bir kez daha, yalnızca eksik sayı kadar iste.
     let shortfallCalled = false
@@ -3117,6 +3252,28 @@ Additional variation seed: ${Date.now()}`
       console.log(`generate-exam: kaynak cizime uygun, cizim sorusu ayrica istendi: ${note}`)
     }
 
+    // FAZ 3b (canlı test 26.10.2026): kaynak cebir/türev öğretiyor, ifade
+    // sorusu zorunlu dendiği hâlde hiç gelmediyse bir kez yalnızca ifade
+    // sorusu istenir; gelen soru son hesap sorusunun yerine geçer.
+    if (exprSource && requestedCount >= 3 && !shortfallCalled && !accepted.some(q => q.type === 'expression') && Date.now() - requestStartedAt < THIRD_CALL_DEADLINE_MS) {
+      const ex = await requestQuestions(1, accepted.map(q => String(q.question)), 0, false, false, true)
+      let note = ex.error || 'soru yok'
+      for (const raw of ex.items || []) {
+        const r = validateQuestion(raw, ['expression'], language, scoring.option_count, false)
+        if (!r.ok || !r.question) { note = r.reason || 'unknown'; rejectReasons.push(note); continue }
+        if (accepted.length < requestedCount) accepted.push(r.question)
+        else {
+          let idx = -1
+          accepted.forEach((q, i) => { if (q.type === 'calculation' && !q.chart) idx = i })
+          if (idx < 0) { note = 'yer yok'; break }
+          accepted[idx] = r.question
+        }
+        note = 'eklendi'
+        break
+      }
+      console.log(`generate-exam: kaynak cebir/turev ogretiyor, ifade sorusu ayrica istendi: ${note}`)
+    }
+
     // FAZ 3a son çare: hâlâ eksikse, formülü doğrulanamayan ama cevabı sayı
     // olan hesap soruları eskisi gibi (doğrulanmamış) alınır. Çelişenler değil.
     // Sayı hassasiyeti seçiliyse alınmaz: modelin yuvarladığı cevapla
@@ -3125,6 +3282,26 @@ Additional variation seed: ${Date.now()}`
       const before = accepted.length
       absorb(rejectedRaw.splice(0), true)
       if (accepted.length > before) console.warn(`generate-exam: ${accepted.length - before} hesap sorusu dogrulanmadan alindi`)
+    }
+
+    // Canlı test (26.10.2026): 8 soru istendi, 7 geldi (ikinci üretimdeki tek
+    // soru da atıldı). Süre elveriyorsa eksik için bir kez daha istenir;
+    // hâlâ eksikse dosyadaki çizim sorusunun kopyası alınır.
+    if (accepted.length < requestedCount && !chartExampleQuestions && shortfallCalled && Date.now() - requestStartedAt < THIRD_CALL_DEADLINE_MS) {
+      const shortfall = requestedCount - accepted.length
+      console.warn(`generate-exam: hala ${shortfall} soru eksik; son kez isteniyor`)
+      const third = await requestQuestions(shortfall, accepted.map(q => String(q.question)))
+      if (third.items) absorb(third.items)
+    }
+    if (accepted.length < requestedCount && copiedGraphs.length) {
+      for (const q of copiedGraphs.splice(0)) {
+        if (accepted.length >= requestedCount) break
+        const key = normalizeAnswerText(q.question)
+        if (seenTexts.has(key)) continue
+        seenTexts.add(key)
+        accepted.push(q)
+        console.warn('generate-exam: eksik kaldi, dosyadaki cizim sorusuna benzeyen soru alindi')
+      }
     }
 
     if (accepted.length === 0) {

@@ -26,7 +26,7 @@ const EXPR = ['EXPR_MAX_LENGTH', 'EXPR_MAX_DEPTH', 'EXPR_CONSTS', 'EXPR_FUNCS', 
 
 const G = loadFromSource(GEN_PATH, [
   ...EXPR, 'normalizeAnswerText', 'parseLooseNumber', 'cleanText',
-  'numberReadings', 'sameNumber', 'withinTolerance', 'templateMatches', 'normalizeFormula', 'DERIVED_FACTORS', 'verifyCalculation',
+  'numberReadings', 'sameNumber', 'withinTolerance', 'templateMatches', 'normalizeFormula', 'DERIVED_FACTORS', 'TEMPLATE_DISPLAY_OPS', 'verifyCalculation',
   'MATH_INPUT_MAX', 'normalizeMathInput', 'STEP_KINDS', 'verifyLinearEquation', 'STANDARD_CONSTANTS', 'referencesName', 'inlineName', 'chartNumbers']);
 const R = loadFromSource(GRADE_PATH, [...EXPR, 'parseLooseNumber', 'matchCommonError', 'teachingFields']);
 const E = require(path.join(__dirname, '..', 'js', 'exam-engine.js'));
@@ -145,12 +145,26 @@ test('formul yok, hesaplanamiyor ya da girdi soru metninde yok → atilir', () =
   assert.equal(G.verifyCalculation(loanQ({ variables: { P: 1000000, r: 7, n: 360 }, correct_answer: null })).reason, 'calc_var_not_in_text', '7 metinde yok');
 });
 
-test('turetilmis girdi (%5 → 0.05, 30 yil → 360 ay) kabul; sablon kapanir', () => {
+test('turetilmis girdi (%5 → 0.05, 30 yil → 360 ay) kabul; 360 standart sabit oldugundan sablon kapanir', () => {
   const q = loanQ({ question: '1.000.000 TL konut kredisi yıllık %5 faizle 30 yılda ödenecek. Aylık taksit kaç TL?', variables: { P: 1000000, r: 0.05, n: 360 }, formula: 'pmt(r/12, n, P)', template: '{P} TL konut kredisi yıllık %{r} faizle {n} yılda ödenecek. Aylık taksit kaç TL?' });
   assert.deepEqual(G.verifyCalculation(q), { ok: true });
   assert.equal(q.correct_answer, 5368.2162);
-  assert.equal(q.template, null, 'turetilmis degisken sablona yazilamaz');
-  assert.equal(q.verified, true);
+  assert.equal(q.template, null, 'n=360 formule gomuldu; sablondaki {n} karsiliksiz');
+});
+
+test('turetilmis girdi (%5 → 0.05, 25 yil → 300 ay): sablon gosterim carpaniyla korunur, alistirma yuvarlak sayilarla', () => {
+  const q = loanQ({ question: '1.000.000 TL konut kredisi yıllık %5 faizle 25 yılda ödenecek. Aylık taksit kaç TL?', variables: { P: 1000000, r: 0.05, n: 300 }, correct_answer: null, formula: 'pmt(r/12, n, P)', template: '{P} TL konut kredisi yıllık %{r} faizle {n} yılda ödenecek. Aylık taksit kaç TL?' });
+  assert.deepEqual(G.verifyCalculation(q), { ok: true });
+  assert.equal(q.template, '{P} TL konut kredisi yıllık %{r*100} faizle {n/12} yılda ödenecek. Aylık taksit kaç TL?', 'turetilmis degisken carpanla');
+  // alistirma: metindeki sayi degisir (%5 → yuvarlak yuzde, 30 → tam yil), degisken ona gore
+  let i = 0; const seq = [0.1, 0.9, 0.5, 0.3];
+  const v = E.makeVariant({ template: q.template, variables: q.variables, formula: q.formula }, 'tr', () => seq[i++ % seq.length]);
+  assert.ok(v, 'alistirma uretildi');
+  const m = v.text.match(/%(\d+) faizle (\d+) yılda/);
+  assert.ok(m, v.text);
+  assert.equal(v.variables.r, Number(m[1]) / 100);
+  assert.equal(v.variables.n, Number(m[2]) * 12);
+  assert.ok(Math.abs(v.answer - E.evaluateExpression(q.formula, v.variables)) < 0.01);
 });
 
 test('normalizeFormula: "=", "PMT =", ×÷− isaretleri, kare', () => {
@@ -261,7 +275,8 @@ test('metinde yazmayan standart sabit (aylik → 12) formule gomulur, sablon kor
   assert.ok(!('periods_per_year' in q.variables));
   assert.match(q.formula, /\(12\)/);
   assert.ok(Math.abs(q.correct_answer - 3029.9) < 0.1);
-  assert.equal(q.template, null, '0.04 metinde %4: turetilmis, sablon kapanir');
+  assert.equal(q.template, '{PV} TL kredi, yıllık %{interest_rate*100} faiz, {years} yıl vade. Aylık taksit kaç TL?', '0.04 metinde %4: carpanla');
+  assert.equal(E.renderTemplate(q.template, { PV: 400000, interest_rate: 0.035, years: 15 }, 'tr'), '400.000 TL kredi, yıllık %3,5 faiz, 15 yıl vade. Aylık taksit kaç TL?');
   const q2 = { ...q, variables: { PV: 500000, r: 4, periods_per_year: 12, years: 20 }, formula: 'PV * (r/100/periods_per_year) / (1 - (1 + r/100/periods_per_year)^(-periods_per_year*years))',
     template: '{PV} TL kredi, yıllık %{r} faiz, {years} yıl vade. Aylık taksit kaç TL?', common_errors: null };
   assert.deepEqual(G.verifyCalculation(q2), { ok: true });

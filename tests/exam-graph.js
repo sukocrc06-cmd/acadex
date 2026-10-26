@@ -25,7 +25,7 @@ const G = loadFromSource(GEN, [
   'GRAPH_KINDS', 'GRAPH_TOOL_ORDER', 'GRAPH_MAX_STEPS', 'GRAPH_MAX_ELEMENTS', 'GRAPH_MAX_GIVEN', 'GRAPH_SHIFT_DIRS', 'graphRound', 'normalizeGraphAxis',
   'graphLinear', 'graphInequality', 'graphInBox', 'graphOnGrid', 'graphLineOf', 'graphClipLine', 'graphGridPointsOnLine', 'graphRef', 'graphResolvePoint',
   'GRAPH_KIND_ALIASES', 'graphMapAxisVars', 'normalizeGraphObject', 'graphIneqHolds', 'graphShiftDir', 'graphElementSnap', 'graphNum', 'graphLineText', 'graphPointText',
-  'GRAPH_KIND_NAMES', 'graphAnswerText', 'GRAPH_SOURCE_CUES', 'sourceTeachesGraphs', 'verifyGraph', 'allowedTypesFor', 'KEY_FIELDS', 'INTERNAL_FIELDS', 'splitPublicAndKey'
+  'GRAPH_KIND_NAMES', 'graphAnswerText', 'GRAPH_SOURCE_CUES', 'sourceTeachesGraphs', 'graphDrawLabels', 'graphSameLine', 'GRAPH_EQ_TERM', 'GRAPH_EQ_RE', 'graphEquationsIn', 'graphCopiesFile', 'verifyGraph', 'allowedTypesFor', 'KEY_FIELDS', 'INTERNAL_FIELDS', 'splitPublicAndKey'
 ]);
 const R = loadFromSource(GRADE, ['GRAPH_STUDENT_MAX_OBJECTS', 'GRAPH_STUDENT_KINDS', 'graphParseStudent', 'graphLabelKey', 'GRAPH_EL_NAMES', 'graphFmt',
   'graphFmtPt', 'graphScaled', 'graphDistToLine', 'graphAngle', 'graphShiftOf', 'graphInPolygon', 'graphIqHolds', 'graphInStudentFill', 'graphCredit', 'gradeGraph']);
@@ -249,6 +249,62 @@ test('tarayıcı: çizim ve sonuç kâğıdı HTML (NaN yok, tutamaklar, kesikli
   assert.match(res, /doğru bölge boyandı/);
   assert.ok(!/NaN|undefined/.test(res));
   assert.equal(E.graphAnswerSummary(S([{ k: 'line', p: [[0, 4], [4, 0]], d: 1 }]), q, 'tr'), 'Doğru: y = −x + 4');
+});
+
+test('verifyGraph: ogrencinin cizecegi dogru "given"da ise kaldirilir; kaydirma bazi kalir (FAZ 4b.2 canli test)', () => {
+  const q = verified({ type: 'graph', question: 'Talep (D) ve arz (S) doğrularını çiziniz ve dengeyi E ile işaretleyiniz.',
+    graph: { x: { min: 0, max: 10, step: 1, label: 'Miktar (Q)' }, y: { min: 0, max: 12, step: 1, label: 'Fiyat (P)' },
+      given: [{ kind: 'line', label: 'D', equation: 'P = 10 - Q' }, { kind: 'line', label: 'S', points: [[0, 2], [10, 12]] }, { kind: 'line', equation: 'y = 4' }] },
+    graph_answer: [{ kind: 'line', equation: 'y = 10 - x', label: 'D' }, { kind: 'line', equation: 'y = 2 + x', label: 'S' }, { kind: 'point', at: { intersect: ['a0', 'a1'] }, label: 'E' }] });
+  assert.equal(q.graph.given.length, 1, 'yalnizca y = 4 kalir');
+  assert.deepEqual(q.graph.given[0].points.map(p => p[1]), [4, 4]);
+  assert.deepEqual(q.graph_answer.elements[2].points[0], [4, 6]);
+  // kaydirma: baz dogru kalir, referans yeniden siralanir
+  const s = verified({ type: 'graph', question: 'Talep arttı; yeni talep doğrusunu çiziniz.',
+    graph: { x: { min: 0, max: 16, step: 1 }, y: { min: 0, max: 12, step: 1 },
+      given: [{ kind: 'line', equation: 'y = 2' }, { kind: 'line', label: 'D', equation: 'y = 10 - x' }] },
+    graph_answer: [{ kind: 'line', equation: 'y = 2' }, { kind: 'line', shift_of: 'g1', direction: 'right', equation: 'y = 14 - x', label: 'D2' }] });
+  assert.equal(s.graph.given.length, 1);
+  assert.equal(s.graph.given[0].label, 'D');
+  assert.equal(s.graph_answer.elements[1].shift.of, 0);
+});
+
+test('graphEquationsIn: dosyadaki denklemler (kopya denetimi)', () => {
+  assert.deepEqual(G.graphEquationsIn('Talep fonksiyonu P = 10 − Q ve arz fonksiyonu P = 2 + Q olarak verilmiştir.'), ['p=10-q', 'p=2+q']);
+  assert.deepEqual(G.graphEquationsIn('2x + y ≤ 6 bütçe kısıtını sağlayan bölgeyi tarayınız.'), ['2x+y≤6']);
+  assert.deepEqual(G.graphEquationsIn('$y = 2x - 2$ doğrusunu çizin; (0; 12) noktası.'), ['y=2x-2']);
+  assert.deepEqual(G.graphEquationsIn('$P = 12 - 2\\,Q$ ve $2x + y \\le 8$'), ['p=12-2q', '2x+y≤8']);
+  assert.deepEqual(G.graphEquationsIn('Doğrusal fonksiyon y = mx + n biçimindedir. Q = 3 iken.'), [], 'rakamsiz ya da cok kisa');
+  const file = new Set(G.graphEquationsIn('Talep P = 10 − Q ve arz P = 2 + Q'));
+  assert.ok(G.graphEquationsIn('Talep $P = 10 - Q$, arz $P = 4 + Q$').some(e => file.has(e)));
+  assert.ok(!G.graphEquationsIn('Talep $P = 12 - Q$, arz $P = 4 + Q$').some(e => file.has(e)));
+});
+
+test('verifyGraph: "D ve S dogrularini cizin" ama yalnizca given\'da → cevaba tasinir (FAZ 4b.2 ikinci canli test)', () => {
+  const q = verified({ type: 'graph', question: 'Talep fonksiyonu P = 12 - 2Q ve arz fonksiyonu P = 3 + Q olarak verilmiştir. Talep (D) ve arz (S) doğrularını aynı koordinat düzleminde çizin ve piyasa dengesini E harfiyle işaretleyiniz.',
+    graph: { x: { min: 0, max: 10, step: 1, label: 'Miktar (Q)' }, y: { min: 0, max: 12, step: 1, label: 'Fiyat (P)' },
+      given: [{ kind: 'line', label: 'D', points: [[0, 12], [6, 0]] }, { kind: 'line', label: 'S', points: [[0, 3], [9, 12]] }] },
+    graph_answer: [{ kind: 'point', at: { intersect: ['g0', 'g1'] }, label: 'E' }] });
+  assert.equal(q.graph.given.length, 0, 'cizilecekler ekranda hazir gelmez');
+  assert.deepEqual(q.graph_answer.elements.map(o => o.kind + (o.label || '')), ['lineD', 'lineS', 'pointE']);
+  assert.deepEqual(q.graph_answer.elements[2].points[0], [3, 6]);
+  // verilen dogrular uzerinde yalnizca dengeyi isaretleme: given kalir
+  const k = verified({ type: 'graph', question: 'Talep (D) ve arz (S) doğruları verilmiştir. Piyasa dengesini E harfiyle işaretleyiniz.',
+    graph: { x: { min: 0, max: 10, step: 1 }, y: { min: 0, max: 12, step: 1 },
+      given: [{ kind: 'line', label: 'D', points: [[0, 12], [6, 0]] }, { kind: 'line', label: 'S', points: [[0, 3], [9, 12]] }] },
+    graph_answer: [{ kind: 'point', at: { intersect: ['g0', 'g1'] }, label: 'E' }] });
+  assert.equal(k.graph.given.length, 2);
+  assert.deepEqual([...G.graphDrawLabels('Verilen talep doğrusu (D) sağa kayarsa yeni doğruyu (D2) çiziniz.')], []);
+  assert.deepEqual([...G.graphDrawLabels('Talep 4 birim arttı. Yeni talep doğrusunu (D2) çiziniz.')], ['D2']);
+});
+
+test('graphCopiesFile: yalnizca butun denklemleri dosyadan olan soru kopya (canli test 26.10.2026)', () => {
+  const file = new Set(G.graphEquationsIn('Talep P = 10 − Q ve arz P = 2 + Q; y = 2x − 2 doğrusunu çiziniz.'));
+  assert.equal(G.graphCopiesFile('Talep $P = 14 - 3Q$ ve arz $P = 2 + Q$ doğrularını çizin.', file), false, 'yeni talep + ayni arz');
+  assert.equal(G.graphCopiesFile('Talep $P = 10 - Q$ ve arz $P = 2 + Q$ doğrularını çizin.', file), true);
+  assert.equal(G.graphCopiesFile('$y = 2x - 2$ doğrusunu çizin.', file), true);
+  assert.equal(G.graphCopiesFile('Dengeyi işaretleyin.', file), false, 'denklemsiz soru');
+  assert.equal(G.graphCopiesFile('$y = 2x - 2$ doğrusunu çizin.', new Set()), false);
 });
 
 summary();

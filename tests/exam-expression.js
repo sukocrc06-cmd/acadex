@@ -29,8 +29,8 @@ const SHARED = ['MATH_INPUT_MAX', 'EXPR_SAMPLE_VALUES', 'EXPR_MIN_VALID_POINTS',
 const G = loadFromSource(GEN_PATH, [
   ...EXPR, ...SHARED, 'TRUE_FALSE_OPTIONS', 'normalizeAnswerText', 'parseLooseNumber', 'PLACEHOLDER_ANSWERS', 'isPlaceholderAnswer', 'cleanText',
   'EXPLANATION_MAX_CHARS', 'RATIONALE_MAX_CHARS', 'RUBRIC_MIN_ITEMS', 'RUBRIC_MAX_ITEMS', 'normalizeOptionRationales', 'normalizeRubric',
-  'sanitizeVariables', 'numberReadings', 'sameNumber', 'withinTolerance', 'templateMatches', 'normalizeFormula', 'DERIVED_FACTORS', 'verifyCalculation',
-  'verifyExpression', 'validateQuestion', 'allowedTypesFor', 'STANDARD_CONSTANTS', 'referencesName', 'inlineName', 'chartNumbers']);
+  'sanitizeVariables', 'numberReadings', 'sameNumber', 'withinTolerance', 'templateMatches', 'normalizeFormula', 'DERIVED_FACTORS', 'TEMPLATE_DISPLAY_OPS', 'verifyCalculation',
+  'verifyExpression', 'ALGEBRA_SOURCE_CUES', 'sourceTeachesAlgebra', 'repairLatex', 'validateQuestion', 'allowedTypesFor', 'STANDARD_CONSTANTS', 'referencesName', 'inlineName', 'chartNumbers']);
 const R = loadFromSource(GRADE_PATH, [...EXPR, ...SHARED, 'gradeExpression']);
 const E = require(path.join(__dirname, '..', 'js', 'exam-engine.js'));
 
@@ -240,6 +240,13 @@ test('expression tipi kayitli; preview okunamazsa null', () => {
   assert.match(html, /data-expr-vars="x,y"/);
   assert.match(html, /data-expr-key="√\("/);
   assert.match(html, /çarpanlarına ayrılmış/);
+});
+
+test('sourceTeachesAlgebra: cebir/turev ogreten kaynak ifade sorusu zorunlu (canli test 26.10.2026)', () => {
+  assert.equal(G.sourceTeachesAlgebra('Türev kuralları: kuvvet kuralı (xⁿ)′ = n·xⁿ⁻¹; zincir kuralı; çarpanlara ayırma.'), true);
+  assert.equal(G.sourceTeachesAlgebra('Derivatives: the power rule and the chain rule.'), true);
+  assert.equal(G.sourceTeachesAlgebra('Kredi taksiti, faiz ve net bugünkü değer hesapları.'), false, 'finans');
+  assert.equal(G.sourceTeachesAlgebra('Marjinal maliyet türev ile bulunur.'), false, 'tek iz yetmez');
 });
 
 summary();

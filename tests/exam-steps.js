@@ -25,10 +25,10 @@ const EXPR = ['EXPR_MAX_LENGTH', 'EXPR_MAX_DEPTH', 'EXPR_CONSTS', 'EXPR_FUNCS', 
 const G = loadFromSource(GEN_PATH, [
   ...EXPR, 'TRUE_FALSE_OPTIONS', 'normalizeAnswerText', 'parseLooseNumber', 'PLACEHOLDER_ANSWERS', 'isPlaceholderAnswer', 'cleanText',
   'EXPLANATION_MAX_CHARS', 'RATIONALE_MAX_CHARS', 'RUBRIC_MIN_ITEMS', 'RUBRIC_MAX_ITEMS', 'normalizeOptionRationales', 'normalizeRubric',
-  'numberReadings', 'sameNumber', 'withinTolerance', 'templateMatches', 'normalizeFormula', 'DERIVED_FACTORS',
+  'numberReadings', 'sameNumber', 'withinTolerance', 'templateMatches', 'normalizeFormula', 'DERIVED_FACTORS', 'TEMPLATE_DISPLAY_OPS',
   'STEP_KINDS', 'verifyLinearEquation', 'verifyCalculation', 'OPTION_NEAR_PERCENT', 'NUMERIC_OPTION', 'optionCanonical', 'hasAmbiguousOptions',
   'EXPR_SAMPLE_VALUES', 'EXPR_MIN_VALID_POINTS', 'EXPR_FORMS', 'exprSamplePoints', 'expressionsEquivalent', 'hasTopLevelSum', 'isExpandedForm',
-  'exprTokenCount', 'checkExpressionForm', 'verifyExpression', 'validateQuestion', 'STANDARD_CONSTANTS', 'referencesName', 'inlineName', 'chartNumbers']);
+  'exprTokenCount', 'checkExpressionForm', 'verifyExpression', 'repairLatex', 'validateQuestion', 'STANDARD_CONSTANTS', 'referencesName', 'inlineName', 'chartNumbers']);
 const R = loadFromSource(GRADE_PATH, ['teachingFields']);
 const E = require(path.join(__dirname, '..', 'js', 'exam-engine.js'));
 
@@ -92,7 +92,7 @@ test('dogrusal denklem tutmazsa yalnizca adim turu duser, soru kalir', () => {
   }
 });
 
-test('npv / interest korunur, gecersiz tur null; negatif sabit sablonu kapatir', () => {
+test('npv / interest korunur, gecersiz tur null; negatif sabit sablonda isaret carpaniyla', () => {
   const q = linQ({ step_kind: 'npv', equation: 'x' });
   G.verifyCalculation(q);
   assert.deepEqual([q.step_kind, q.equation, q.unknown], ['npv', null, null]);
@@ -102,7 +102,8 @@ test('npv / interest korunur, gecersiz tur null; negatif sabit sablonu kapatir',
   const q3 = linQ({ variables: { a: 3, b: 5, c: 2, d: -7 }, formula: '(d - b)/(a - c)', equation: 'a*x+b=c*x+d' });
   assert.equal(G.verifyCalculation(q3).ok, true);
   assert.equal(q3.step_kind, 'linear');
-  assert.equal(q3.template, null, '-7 metinde "- 7" olarak geciyor: sablon bozulmasin');
+  assert.equal(q3.template, '{a}x + {b} = {c}x - {d*-1} denklemini çözünüz. x kaçtır?', '-7 metinde "- 7": sablonda isaret carpani');
+  assert.equal(E.renderTemplate(q3.template, { a: 4, b: 6, c: 1, d: -9 }, 'tr'), '4x + 6 = 1x - 9 denklemini çözünüz. x kaçtır?');
 });
 
 test('grade-exam: dogrulanmis ve adim turlu soruda steps verisi gider', () => {
