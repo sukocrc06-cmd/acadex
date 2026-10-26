@@ -1010,9 +1010,13 @@ function resetUploadUI() {
   const progressBar = document.getElementById('progress-bar');
   const fileInput = document.getElementById('file-input');
 
+  const progressText = document.getElementById('upload-progress-text');
+
   uploadZone.style.pointerEvents = '';
   progressContainer.style.display = 'none';
   progressBar.style.width = '0%';
+  // Metin de gitmeli: kalirsa sonraki yuklemede eski dosyanin adi bir an gorunur.
+  if (progressText) { progressText.textContent = ''; progressText.style.display = 'none'; }
   fileInput.value = ''; // clear input selection
 }
 
@@ -13532,15 +13536,47 @@ async function handleMultipleFilesUpload(files) {
   if (progressContainer) progressContainer.style.display = 'block';
   if (progressText) progressText.style.display = 'block';
 
+  const isTrUpload = (localStorage.getItem('acadexUILang') || 'en') === 'tr';
   let completedCount = 0;
   const totalCount = validFiles.length;
 
+  /* CUBUK ILK DOSYADA GORUNMUYORDU (27.10.2026).
+     Yuzde tamamlanan/toplam idi; ilk dosyada 0, yani sifir genislik. Tek
+     dosya yukleyen biri cubugu ancak %100'e atlarken goruyordu. Artik her
+     dosyanin KENDI bandi var (ornegin tek dosyada %0-%100) ve asama
+     degistikce band icindeki hedefe dogru yumusak ilerliyor — ekranda
+     surekli bir sey oynuyor, is gercekten suruyorken. */
+  let oran = 0, hedef = 0;
+  const cizCubuk = () => {
+    if (!progressBar) return;
+    const a = (completedCount / totalCount) * 100;
+    const b = ((completedCount + 1) / totalCount) * 100;
+    // Taban %3: sifir genislikteki cubuk "hicbir sey olmuyor" demek.
+    progressBar.style.width = `${Math.max(3, Math.round(a + (b - a) * oran))}%`;
+  };
+  const ilerlemeTik = setInterval(() => {
+    if (oran < hedef) { oran += (hedef - oran) * 0.18; cizCubuk(); }
+  }, 180);
+
+  const asamaYaz = (tr, en) => {
+    if (!progressText) return;
+    progressText.style.display = 'block';
+    const sira = totalCount > 1 ? ` (${completedCount + 1}/${totalCount})` : '';
+    progressText.textContent = (isTrUpload ? tr : en) + sira;
+  };
+
   const updateUI = (currentFileName) => {
-    const percentage = Math.round((completedCount / totalCount) * 100);
-    if (progressBar) progressBar.style.width = `${percentage}%`;
-    if (progressText) {
-      progressText.textContent = `Uploading ${completedCount + 1} of ${totalCount}: ${currentFileName}...`;
-    }
+    oran = 0; hedef = 0.08; cizCubuk();
+    asamaYaz(`Hazırlanıyor: ${currentFileName}`, `Preparing: ${currentFileName}`);
+  };
+
+  /* Asamalari uploadSingleFileCore bildiriyor: isin hangi adiminda
+     oldugunu yalnizca o biliyor. Hedefler kabaca o adimin suresine gore. */
+  const asamaBildir = (ad, dosyaAdi) => {
+    if (ad === 'okuma') { hedef = 0.2; asamaYaz(`Dosya okunuyor: ${dosyaAdi}`, `Reading file: ${dosyaAdi}`); }
+    else if (ad === 'yukleme') { hedef = 0.85; asamaYaz(`Yükleniyor: ${dosyaAdi}`, `Uploading: ${dosyaAdi}`); }
+    else if (ad === 'kayit') { hedef = 0.97; asamaYaz(`Arşive kaydediliyor: ${dosyaAdi}`, `Saving to archive: ${dosyaAdi}`); }
+    cizCubuk();
   };
 
   let index = 0;
@@ -13551,7 +13587,7 @@ async function handleMultipleFilesUpload(files) {
       updateUI(file.name);
 
       try {
-        await uploadSingleFileCore(file);
+        await uploadSingleFileCore(file, (ad) => asamaBildir(ad, file.name));
       } catch (err) {
         console.error(`Error uploading ${file.name}:`, err);
         // Surface the real reason (expired session, storage RLS rejection,
@@ -13563,15 +13599,21 @@ async function handleMultipleFilesUpload(files) {
       }
 
       completedCount++;
-      updateUI(file.name);
+      oran = 0; hedef = 0;
+      cizCubuk();
     }
   }
 
   // Run with concurrency 2
   await Promise.all([worker(), worker()]);
 
+  clearInterval(ilerlemeTik);
   if (progressBar) progressBar.style.width = '100%';
-  if (progressText) progressText.textContent = 'All files uploaded successfully!';
+  if (progressText) {
+    progressText.textContent = isTrUpload
+      ? (totalCount > 1 ? 'Tüm dosyalar yüklendi' : 'Yüklendi')
+      : (totalCount > 1 ? 'All files uploaded successfully!' : 'Uploaded');
+  }
   
   await checkAndAwardFirstUpload();
 
@@ -13582,7 +13624,11 @@ async function handleMultipleFilesUpload(files) {
   }, 800);
 }
 
-async function uploadSingleFileCore(file) {
+/* bildir: canli yukleyicinin asama geri cagrisi — bkz. asamaBildir.
+   Opsiyonel, cunku window.uploadSingleFileCore baska yerlerden tek
+   argumanla da cagrilabiliyor. */
+async function uploadSingleFileCore(file, bildir) {
+  const asama = typeof bildir === 'function' ? bildir : () => {};
   // A stale/expired session (or an auth listener that hasn't resolved yet)
   // used to fail here with a bare "Cannot read properties of null/undefined
   // (reading 'id')" — indistinguishable from any other upload failure in the
@@ -13591,19 +13637,25 @@ async function uploadSingleFileCore(file) {
     throw new Error('Oturum bulunamadı veya süresi doldu — lütfen sayfayı yenileyip tekrar giriş yapın.');
   }
 
+  /* Hash dosyanin TAMAMINI okuyor (file.arrayBuffer + SHA-256); 20 MB'lik
+     bir PDF'te bu adim tek basina saniyeler suruyor ve eskiden ekranda
+     hicbir sey yazmiyordu. */
+  asama('okuma');
   const { shouldUpload, fileHash } = await checkFileHashDuplicate(file);
   if (!shouldUpload) {
     return; // user cancelled this file
   }
 
   const storagePath = `${currentUser.id}/${Date.now()}_${storageSafeName(file.name)}`;
-  
+
+  asama('yukleme');
   const { data, error } = await supabaseClient.storage
     .from('documents')
     .upload(storagePath, file);
 
   if (error) throw error;
 
+  asama('kayit');
   const { data: insertedDoc, error: dbError } = await supabaseClient
     .from('documents')
     .insert({
