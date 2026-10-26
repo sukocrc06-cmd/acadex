@@ -70,3 +70,11 @@ Kurulan soru sınavın izinli tipinde değilse atılır (testte denetleniyor).
   2. **Kopya:** model dosyadaki denklemleri aynen kullandı (P = 10 − Q, y = 2x − 2). Dosyadaki denklemlerden birini taşıyan çizim sorusu artık atılıyor (`graph_copied_from_file`); prompt "farklı denklem ve sayılar" diyor.
 
 Deploy: yalnızca `generate-exam`.
+
+## İkinci canlı test düzeltmesi (26.10.2026)
+
+- **Kopya düzeltmesi çalıştı:** yeni sınavda çizim sorusu farklı denklemlerle geldi (P = 12 − 2Q, P = 3 + Q).
+- **Yeni sızıntı biçimi:** model D ve S'yi yalnızca "given"a koydu, cevapta yalnızca E vardı; soru ise "Talep (D) ve arz (S) doğrularını çizin" diyordu. Çakışma kuralı yakalamadı çünkü cevapta doğru yoktu.
+- **Düzeltme:** sorunun çizim istenen cümlesinde (çiz / draw; "verilmiştir" geçmeyen) parantez içinde etiketi geçen verilen doğru cevaba taşınır (`graphDrawLabels`). Kaydırma sorusunun baz doğrusu ve "D ve S verilmiştir, dengeyi işaretleyin" türü sorular etkilenmez.
+
+Deploy: yalnızca `generate-exam`.

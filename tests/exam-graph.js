@@ -25,7 +25,7 @@ const G = loadFromSource(GEN, [
   'GRAPH_KINDS', 'GRAPH_TOOL_ORDER', 'GRAPH_MAX_STEPS', 'GRAPH_MAX_ELEMENTS', 'GRAPH_MAX_GIVEN', 'GRAPH_SHIFT_DIRS', 'graphRound', 'normalizeGraphAxis',
   'graphLinear', 'graphInequality', 'graphInBox', 'graphOnGrid', 'graphLineOf', 'graphClipLine', 'graphGridPointsOnLine', 'graphRef', 'graphResolvePoint',
   'GRAPH_KIND_ALIASES', 'graphMapAxisVars', 'normalizeGraphObject', 'graphIneqHolds', 'graphShiftDir', 'graphElementSnap', 'graphNum', 'graphLineText', 'graphPointText',
-  'GRAPH_KIND_NAMES', 'graphAnswerText', 'GRAPH_SOURCE_CUES', 'sourceTeachesGraphs', 'graphSameLine', 'GRAPH_EQ_TERM', 'GRAPH_EQ_RE', 'graphEquationsIn', 'verifyGraph', 'allowedTypesFor', 'KEY_FIELDS', 'INTERNAL_FIELDS', 'splitPublicAndKey'
+  'GRAPH_KIND_NAMES', 'graphAnswerText', 'GRAPH_SOURCE_CUES', 'sourceTeachesGraphs', 'graphDrawLabels', 'graphSameLine', 'GRAPH_EQ_TERM', 'GRAPH_EQ_RE', 'graphEquationsIn', 'verifyGraph', 'allowedTypesFor', 'KEY_FIELDS', 'INTERNAL_FIELDS', 'splitPublicAndKey'
 ]);
 const R = loadFromSource(GRADE, ['GRAPH_STUDENT_MAX_OBJECTS', 'GRAPH_STUDENT_KINDS', 'graphParseStudent', 'graphLabelKey', 'GRAPH_EL_NAMES', 'graphFmt',
   'graphFmtPt', 'graphScaled', 'graphDistToLine', 'graphAngle', 'graphShiftOf', 'graphInPolygon', 'graphIqHolds', 'graphInStudentFill', 'graphCredit', 'gradeGraph']);
@@ -278,6 +278,24 @@ test('graphEquationsIn: dosyadaki denklemler (kopya denetimi)', () => {
   const file = new Set(G.graphEquationsIn('Talep P = 10 − Q ve arz P = 2 + Q'));
   assert.ok(G.graphEquationsIn('Talep $P = 10 - Q$, arz $P = 4 + Q$').some(e => file.has(e)));
   assert.ok(!G.graphEquationsIn('Talep $P = 12 - Q$, arz $P = 4 + Q$').some(e => file.has(e)));
+});
+
+test('verifyGraph: "D ve S dogrularini cizin" ama yalnizca given\'da → cevaba tasinir (FAZ 4b.2 ikinci canli test)', () => {
+  const q = verified({ type: 'graph', question: 'Talep fonksiyonu P = 12 - 2Q ve arz fonksiyonu P = 3 + Q olarak verilmiştir. Talep (D) ve arz (S) doğrularını aynı koordinat düzleminde çizin ve piyasa dengesini E harfiyle işaretleyiniz.',
+    graph: { x: { min: 0, max: 10, step: 1, label: 'Miktar (Q)' }, y: { min: 0, max: 12, step: 1, label: 'Fiyat (P)' },
+      given: [{ kind: 'line', label: 'D', points: [[0, 12], [6, 0]] }, { kind: 'line', label: 'S', points: [[0, 3], [9, 12]] }] },
+    graph_answer: [{ kind: 'point', at: { intersect: ['g0', 'g1'] }, label: 'E' }] });
+  assert.equal(q.graph.given.length, 0, 'cizilecekler ekranda hazir gelmez');
+  assert.deepEqual(q.graph_answer.elements.map(o => o.kind + (o.label || '')), ['lineD', 'lineS', 'pointE']);
+  assert.deepEqual(q.graph_answer.elements[2].points[0], [3, 6]);
+  // verilen dogrular uzerinde yalnizca dengeyi isaretleme: given kalir
+  const k = verified({ type: 'graph', question: 'Talep (D) ve arz (S) doğruları verilmiştir. Piyasa dengesini E harfiyle işaretleyiniz.',
+    graph: { x: { min: 0, max: 10, step: 1 }, y: { min: 0, max: 12, step: 1 },
+      given: [{ kind: 'line', label: 'D', points: [[0, 12], [6, 0]] }, { kind: 'line', label: 'S', points: [[0, 3], [9, 12]] }] },
+    graph_answer: [{ kind: 'point', at: { intersect: ['g0', 'g1'] }, label: 'E' }] });
+  assert.equal(k.graph.given.length, 2);
+  assert.deepEqual([...G.graphDrawLabels('Verilen talep doğrusu (D) sağa kayarsa yeni doğruyu (D2) çiziniz.')], []);
+  assert.deepEqual([...G.graphDrawLabels('Talep 4 birim arttı. Yeni talep doğrusunu (D2) çiziniz.')], ['D2']);
 });
 
 summary();

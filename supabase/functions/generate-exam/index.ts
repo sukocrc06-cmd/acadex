@@ -1865,6 +1865,17 @@ function sourceTeachesGraphs(text: unknown): boolean {
 
 /** FAZ 4b: çizim sorusunu doğrular; ızgarayı, verilenleri ve cevabı kodla
  *  hesaplanmış koordinatlarla yazar. Araçlar cevaptan türetilir. */
+/** Sorunun çizim istenen cümlelerindeki etiketler: "Talep (D) ve arz (S)
+ *  doğrularını çizin" → D, S. "verilmiştir" cümlesindekiler alınmaz. */
+function graphDrawLabels(text: string): Set<string> {
+  const out = new Set<string>()
+  for (const sentence of String(text ?? '').split(/(?<=[.!?;])\s+/)) {
+    if (!/çiz|draw|sketch|plot|graph the/i.test(sentence) || /veril|given/i.test(sentence)) continue
+    for (const m of sentence.matchAll(/\(\s*([A-Za-z]{1,2}\d?['’]?)\s*\)/g)) out.add(m[1].toUpperCase())
+  }
+  return out
+}
+
 /** İki doğru (parça / ışın) aynı doğru üstünde mi. */
 function graphSameLine(a: GraphObj, b: GraphObj): boolean {
   const c = graphLineOf(a.points[0], a.points[1])
@@ -1908,13 +1919,25 @@ function verifyGraph(q: Record<string, unknown>, lang: string): { ok: boolean; r
   // "given"a da koydu; doğrular ekranda hazır çizili geldi (cevap sızdı).
   // Cevaptaki bir doğruyla çakışan verilen nesne kaldırılır (kaydırma
   // sorusunun baz doğrusu hariç); kaydırma referansları yeniden sıralanır.
+  // İkinci canlı test (26.10.2026): model D ve S'yi yalnızca "given"a koydu,
+  // cevapta yalnızca E vardı; soru ise "D ve S doğrularını çizin" diyordu.
+  // Çizim cümlesinde etiketi geçen verilen doğru cevaba taşınır.
   if (!none && ctx.given.length) {
     const ansLines = ctx.answer.filter(o => !o.shift && ['line', 'segment', 'ray'].includes(o.kind) && o.points.length === 2)
     const shiftBase = new Set(ctx.answer.filter(o => o.shift).map(o => o.shift!.of))
-    const leaks = (gv: GraphObj, i: number) => !shiftBase.has(i) && ['line', 'segment', 'ray'].includes(gv.kind) && gv.points.length === 2 && ansLines.some(a => graphSameLine(a, gv))
+    const drawLabels = graphDrawLabels(String(q.question ?? ''))
+    const isLine = (gv: GraphObj) => ['line', 'segment', 'ray'].includes(gv.kind) && gv.points.length === 2
+    const asked = (gv: GraphObj) => !!gv.label && drawLabels.has(gv.label.toUpperCase())
+    const leaks = (gv: GraphObj, i: number) => !shiftBase.has(i) && isLine(gv) && (ansLines.some(a => graphSameLine(a, gv)) || asked(gv))
     const map = new Map<number, number>()
     const kept: GraphObj[] = []
-    ctx.given.forEach((gv, i) => { if (!leaks(gv, i)) { map.set(i, kept.length); kept.push(gv) } })
+    const moved: GraphObj[] = []
+    ctx.given.forEach((gv, i) => {
+      if (!leaks(gv, i)) { map.set(i, kept.length); kept.push(gv) }
+      else if (!ansLines.some(a => graphSameLine(a, gv))) moved.push(gv)
+    })
+    if (ctx.answer.length + moved.length > GRAPH_MAX_ELEMENTS) return { ok: false, reason: 'graph_given_is_answer' }
+    ctx.answer.unshift(...moved)
     if (kept.length < ctx.given.length) {
       for (const o of ctx.answer) if (o.shift) o.shift = { ...o.shift, of: map.get(o.shift.of)! }
       ctx.given = kept
