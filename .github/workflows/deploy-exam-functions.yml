@@ -1,0 +1,69 @@
+# Sınav edge function'larını main'e birleşince Supabase'e deploy eder.
+#
+# Kurulum (bir kez, kullanıcı yapar):
+#   1. supabase.com → Account → Access Tokens → yeni token
+#   2. GitHub → repo Settings → Secrets and variables → Actions →
+#      New repository secret: SUPABASE_ACCESS_TOKEN
+# Token yoksa iş "atlandı" diye biter, hiçbir şey deploy edilmez.
+#
+# Güvenlik: deploy'dan önce canlı kod indirilir ve bir önceki main
+# sürümüyle karşılaştırılır. Panelden (GitHub dışından) değiştirilmişse
+# deploy yapılmaz; elle çalıştırıp "force" seçilirse yapılır.
+name: Deploy exam functions
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/functions/generate-exam/**'
+      - 'supabase/functions/grade-exam/**'
+      - 'supabase/functions/extract-chart-items/**'
+      - 'supabase/functions/exam-appeal/**'
+      - 'supabase/functions/get-exam-hint/**'
+  workflow_dispatch:
+    inputs:
+      functions:
+        description: 'Deploy edilecekler (boşlukla ayrılmış; boşsa değişenler)'
+        required: false
+        default: ''
+      force:
+        description: 'Canlı kod GitHub dışında değişmiş olsa da deploy et'
+        type: boolean
+        default: false
+
+concurrency:
+  group: deploy-exam-functions
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: yrcdvcsowblzmkpbmkut
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Token var mı
+        id: token
+        run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "SUPABASE_ACCESS_TOKEN tanımlı değil; deploy atlandı." >> "$GITHUB_STEP_SUMMARY"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: supabase/setup-cli@v1
+        if: steps.token.outputs.ok == 'true'
+        with:
+          version: latest
+
+      - name: Deploy
+        if: steps.token.outputs.ok == 'true'
+        env:
+          INPUT_FUNCTIONS: ${{ github.event.inputs.functions }}
+          FORCE: ${{ github.event.inputs.force }}
+        run: bash .github/scripts/deploy-exam-functions.sh
