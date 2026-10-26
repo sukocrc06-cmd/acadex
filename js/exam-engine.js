@@ -1644,10 +1644,30 @@
     return Number(n).toLocaleString(lang === 'en' ? 'en-US' : 'tr-TR', { maximumFractionDigits: 6 });
   }
 
-  /** Şablondaki {ad} yer tutucularını sayılarla doldurur. */
+  /** Şablondaki yer tutucu: {ad}, ya da gösterim çarpanıyla {ad*100},
+   *  {ad/12}, {ad*-1} (metinde %4 yazan, değişkeni 0,04 olan sayı). */
+  const TEMPLATE_PH = /\{([A-Za-z_][A-Za-z0-9_]*)(?:([*/])(-?\d+(?:\.\d+)?))?\}/g;
+
+  /** Ad → gösterim çarpanı (görünen = değişken × çarpan). */
+  function templateMultipliers(template) {
+    const out = {};
+    for (const m of String(template || '').matchAll(TEMPLATE_PH)) {
+      const n = Number(m[3]);
+      if (m[2] && Number.isFinite(n) && n !== 0) out[m[1]] = m[2] === '*' ? n : 1 / n;
+    }
+    return out;
+  }
+
+  function tidy(n) { return Number(Number(n).toPrecision(12)); }
+
+  /** Şablondaki yer tutucuları sayılarla doldurur. */
   function renderTemplate(template, vars, lang) {
-    return String(template || '').replace(/\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (m, k) =>
-      Object.prototype.hasOwnProperty.call(vars, k) ? formatNumber(vars[k], lang) : m);
+    return String(template || '').replace(TEMPLATE_PH, (m, k, op, num) => {
+      if (!Object.prototype.hasOwnProperty.call(vars, k)) return m;
+      const n = Number(num);
+      const shown = op && Number.isFinite(n) && n !== 0 ? (op === '*' ? vars[k] * n : vars[k] / n) : vars[k];
+      return formatNumber(tidy(shown), lang);
+    });
   }
 
   function decimalsOf(n) {
@@ -1671,16 +1691,20 @@
     const base = sanitizeVariables(practice.variables);
     const names = Object.keys(base);
     if (!names.length) return null;
+    // Gösterim çarpanı olan değişkende metindeki sayı değiştirilir (%4 → %3),
+    // sonra değişkene çevrilir (0,03); böylece metin yuvarlak kalır.
+    const mult = templateMultipliers(practice.template);
     for (let attempt = 0; attempt < 20; attempt++) {
       const vars = {};
       names.forEach(k => {
-        const v = base[k], d = decimalsOf(v), f = Math.pow(10, d);
+        const mk = mult[k] || 1;
+        const v = mk === 1 ? base[k] : tidy(base[k] * mk), d = decimalsOf(v), f = Math.pow(10, d);
         // Asıl sayı kadar "yuvarlak" kalsın: 1.000.000 → 790.000 (en az 2
         // anlamlı basamak), ondalık basamak ve tamsayılık korunur.
         let nv = v === 0 ? 0 : Number((v * (0.6 + rnd() * 0.8)).toPrecision(Math.max(2, significantDigits(v))));
         nv = Math.round(nv * f) / f;
         if (v !== 0 && nv === 0) nv = d > 0 ? Math.sign(v) / f : Math.sign(v);
-        vars[k] = nv;
+        vars[k] = mk === 1 ? nv : tidy(nv / mk);
       });
       if (names.every(k => vars[k] === base[k])) continue;
       const answer = evaluateExpression(practice.formula, vars);

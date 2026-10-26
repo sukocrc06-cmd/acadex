@@ -25,7 +25,7 @@ const G = loadFromSource(GEN, [
   'GRAPH_KINDS', 'GRAPH_TOOL_ORDER', 'GRAPH_MAX_STEPS', 'GRAPH_MAX_ELEMENTS', 'GRAPH_MAX_GIVEN', 'GRAPH_SHIFT_DIRS', 'graphRound', 'normalizeGraphAxis',
   'graphLinear', 'graphInequality', 'graphInBox', 'graphOnGrid', 'graphLineOf', 'graphClipLine', 'graphGridPointsOnLine', 'graphRef', 'graphResolvePoint',
   'GRAPH_KIND_ALIASES', 'graphMapAxisVars', 'normalizeGraphObject', 'graphIneqHolds', 'graphShiftDir', 'graphElementSnap', 'graphNum', 'graphLineText', 'graphPointText',
-  'GRAPH_KIND_NAMES', 'graphAnswerText', 'GRAPH_SOURCE_CUES', 'sourceTeachesGraphs', 'graphDrawLabels', 'graphSameLine', 'GRAPH_EQ_TERM', 'GRAPH_EQ_RE', 'graphEquationsIn', 'verifyGraph', 'allowedTypesFor', 'KEY_FIELDS', 'INTERNAL_FIELDS', 'splitPublicAndKey'
+  'GRAPH_KIND_NAMES', 'graphAnswerText', 'GRAPH_SOURCE_CUES', 'sourceTeachesGraphs', 'graphDrawLabels', 'graphSameLine', 'GRAPH_EQ_TERM', 'GRAPH_EQ_RE', 'graphEquationsIn', 'graphCopiesFile', 'verifyGraph', 'allowedTypesFor', 'KEY_FIELDS', 'INTERNAL_FIELDS', 'splitPublicAndKey'
 ]);
 const R = loadFromSource(GRADE, ['GRAPH_STUDENT_MAX_OBJECTS', 'GRAPH_STUDENT_KINDS', 'graphParseStudent', 'graphLabelKey', 'GRAPH_EL_NAMES', 'graphFmt',
   'graphFmtPt', 'graphScaled', 'graphDistToLine', 'graphAngle', 'graphShiftOf', 'graphInPolygon', 'graphIqHolds', 'graphInStudentFill', 'graphCredit', 'gradeGraph']);
@@ -296,6 +296,15 @@ test('verifyGraph: "D ve S dogrularini cizin" ama yalnizca given\'da → cevaba 
   assert.equal(k.graph.given.length, 2);
   assert.deepEqual([...G.graphDrawLabels('Verilen talep doğrusu (D) sağa kayarsa yeni doğruyu (D2) çiziniz.')], []);
   assert.deepEqual([...G.graphDrawLabels('Talep 4 birim arttı. Yeni talep doğrusunu (D2) çiziniz.')], ['D2']);
+});
+
+test('graphCopiesFile: yalnizca butun denklemleri dosyadan olan soru kopya (canli test 26.10.2026)', () => {
+  const file = new Set(G.graphEquationsIn('Talep P = 10 − Q ve arz P = 2 + Q; y = 2x − 2 doğrusunu çiziniz.'));
+  assert.equal(G.graphCopiesFile('Talep $P = 14 - 3Q$ ve arz $P = 2 + Q$ doğrularını çizin.', file), false, 'yeni talep + ayni arz');
+  assert.equal(G.graphCopiesFile('Talep $P = 10 - Q$ ve arz $P = 2 + Q$ doğrularını çizin.', file), true);
+  assert.equal(G.graphCopiesFile('$y = 2x - 2$ doğrusunu çizin.', file), true);
+  assert.equal(G.graphCopiesFile('Dengeyi işaretleyin.', file), false, 'denklemsiz soru');
+  assert.equal(G.graphCopiesFile('$y = 2x - 2$ doğrusunu çizin.', new Set()), false);
 });
 
 summary();
