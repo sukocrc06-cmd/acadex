@@ -8849,8 +8849,24 @@ var SBX = (function () {
   var scroller = Q('[data-axr-scroll]'), flow = Q('[data-axr-flow]'), mast = Q('[data-axr-mast]'), rail = Q('[data-axr-rail]'), story = Q('[data-axr-story]');
 
   /* ---------- sayılar: özetten öne çıkanlar ---------- */
+  /* LaTeX AYIRACI PARA SANILIYORDU (27.10.2026). Asagidaki desen "$" ile
+     baslayan sayiyi para birimi sayiyor; maddeler ise $...$ ayiracini
+     tasiyor. Olculen kart: "$1\%$" -> "$1", "$67.11^\circ F$" -> "$67,11",
+     "$0.69\%$" -> "$0,69". Taramadan once YALNIZCA matematik olan ciftler
+     aciliyor: icinde \ ^ _ { olan, ya da tek bir sayiyi saran. "from $10
+     to $12" gibi gercek para ifadesi bu iki kosula uymuyor, dokunulmuyor. */
+  var latexAyiracSiyir = function (s) {
+    var ic = function (t) {
+      return t.replace(/\^\s*\{?\\circ\}?/g, '°').replace(/\\%/g, '%').replace(/\\[,;: !]/g, ' ')
+        .replace(/\\[A-Za-z]+/g, ' ').replace(/[{}]/g, '').replace(/\s+/g, ' ').trim();
+    };
+    return String(s || '')
+      .replace(/\\\(([\s\S]+?)\\\)/g, function (_m, t) { return ic(t); })
+      .replace(/\$(?=[^$\n]*[\\^_{])([^$\n]+?)\$/g, function (_m, t) { return ic(t); })
+      .replace(/\$(-?\d+(?:[.,]\d+)?)\$(?!\d)/g, '$1');
+  }; /* latexAyiracSiyir sonu */
   var findNumbers = function (card) {
-    var src = [card.summary_executive || ''].concat(arr(card.key_points).map(plain)).concat([plain(card.summary || '')]).join(' \n ');
+    var src = latexAyiracSiyir([card.summary_executive || ''].concat(arr(card.key_points).map(plain)).concat([plain(card.summary || '')]).join(' \n '));
     var sents = src.split(/(?<=[.!?])\s+|\n/), out = [], seen = {};
     /* EKSI ISARETI VE CIPLAK ONDALIKLAR (24.10.2026).
      *

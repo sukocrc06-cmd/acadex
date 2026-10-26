@@ -482,6 +482,41 @@ test('KaTeX yoksa metin AYNEN kalir', () => {
   assert.equal(UI.inlineMath(girdi), girdi);
 });
 
+/* 27.10.2026 — "30 SANIYEDE" SAYI KUTULARI LaTeX "$"INI PARA SANIYORDU.
+   Canli kart (IPPT, 18.10 onbellek karti): kutular "$67,11", "$1", "$0,69"
+   gosterdi; ucu de $...$ matematik ayiraci, para degil. findNumbers'in deseni
+   ayiraci acmadan taradigi icin "$" birim, sayi para oluyordu. */
+test('ink: sayi kutulari LaTeX ayiracini para birimi saymiyor', () => {
+  const INK = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'js/acadex-ink.js'), 'utf8');
+  const bas = INK.indexOf('var latexAyiracSiyir = ');
+  const son = INK.indexOf('/* latexAyiracSiyir sonu */');
+  assert.ok(bas > 0 && son > bas, 'latexAyiracSiyir bulunamadi');
+  const siyir = new Function(INK.slice(bas, son) + '\nreturn latexAyiracSiyir;')();
+  // findNumbers'in KENDI deseni — kutuya giden ilk eslesme.
+  const reSatir = INK.match(/var re = (\/\(-\?\\d\+[^\n]*\/i);/);
+  assert.ok(reSatir, 'findNumbers deseni bulunamadi');
+  const re = eval(reSatir[1]);
+  const kutu = (s) => { const m = siyir(s).match(re); return m ? m[1].trim() : null; };
+
+  // Canli karttaki uc cumle: hicbiri "$" ile baslamamali.
+  assert.equal(kutu('the minimum monthly bill occurs at an average temperature of approximately $67.11^\\circ F$ [17].'), '67.11');
+  assert.equal(kutu('In a log-log model, a $1\\%$ change in $x_1$ produces an estimated $\\beta_1\\%$ change in $y$ [23].'), '1%');
+  assert.equal(kutu('yields an elasticity of $0.69\\%$, statistically significant at the $1\\%$ level [24].'), '0.69%');
+  // Ciplak sayiyi saran ayirac da acilir, isaret korunur.
+  assert.equal(kutu('the marginal effect at 40 degrees is $-5.06$ dollars'), '-5.06');
+  // \( ... \) ayiraci da.
+  assert.equal(kutu('a slope of \\(0.045\\) per square foot'), '0.045');
+
+  // GERCEK para dokunulmaz: ayirac cifti degil ya da icinde LaTeX isareti yok.
+  assert.equal(kutu('energy rises 0.07 tons per $1000 of GDP'), '0.07');
+  assert.equal(siyir('price rose from $10 to $12 per pie'), 'price rose from $10 to $12 per pie');
+  assert.equal(kutu('a ranch costs $43.96 thousand'), '$43.96');
+  // findNumbers gercekten siyirilmis metni tariyor.
+  assert.ok(/var src = latexAyiracSiyir\(\[card\.summary_executive/.test(INK),
+    'findNumbers ham metni tariyor — kutular yine "$1" gosterir');
+});
+
 test('ink madde listeleri de bu yoldan geciyor', () => {
   /* Maddeler formatSummaryText'ten GECMIYOR, kendi HTML'lerini kuruyorlar;
      yalnizca inlineMarkdown'i duzeltmek onlara ulasmazdi. */
