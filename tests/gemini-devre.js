@@ -6,8 +6,9 @@
      sonra 72 sn olay yok, 87 sn'de dusus). Groq yedek yolu ancak ondan sonra
      basliyor, 49 sayfalik belgede TokenPacer 57 sn bekledi ve isci 150 sn'de
      546 ile kapatildi; belge 'processing' kaldi.
-       - Gemini olu akis/gecici hata verince 30 dk devre kesici acilir,
-         bu surede Gemini denenmez, Groq butun butceyle baslar.
+       - BUTUN Gemini modelleri kota/gecici hata verince 5 dk devre kesici
+         acilir (27.10.2026'da daraltildi: ilk hali tek bir olu akista 30 dk
+         aciliyordu), bu surede Gemini denenmez, Groq butun butceyle baslar.
        - Devre acikken uretilen kart onbellege kalici yazilmaz.
        - 141. saniyede belge hala 'processing' ise 'failed' isaretlenir.
        - Istemci 546/504 alirsa belgeyi 'failed' yapar (tekrar dene).
@@ -25,7 +26,11 @@ const src = read('supabase/functions/summarize-document/index.ts');
 const { test, summary } = makeRunner();
 
 test('devre kesici sabitleri ve site_settings anahtari', () => {
-  assert.match(src, /const GEMINI_DEVRE_MS = 30 \* 60_000/);
+  /* 30 -> 5 dk (27.10.2026). Hedef "Gemini her durumda": devre acikken
+     Gemini geri gelse bile denenmiyor, sure kisa olmali. */
+  const m = src.match(/const GEMINI_DEVRE_MS = (\d+) \* 60_000/);
+  assert.ok(m, 'GEMINI_DEVRE_MS tanimli olmali');
+  assert.ok(Number(m[1]) >= 1 && Number(m[1]) <= 10, `devre ${m[1]} dk — Gemini gereksiz uzun kapali kalir`);
   assert.match(src, /const GEMINI_DEVRE_ANAHTAR = 'gemini_devre'/);
   assert.match(src, /async function geminiDevreOku\(/);
   assert.match(src, /async function geminiDevreAc\(/);
@@ -39,10 +44,14 @@ test('devre acikken Gemini denenmez ve kart onbellege kalici yazilmaz', () => {
   assert.match(dal, /geminiTani\.geciciDustu = true/);
 });
 
-test('olu akis/gecici hatada devre acilir', () => {
+test('devre YALNIZCA butun modeller dustugunde acilir (tek olu akista degil)', () => {
   const cagri = src.indexOf('geminiResult = await geminiDraft(');
   const sonra = src.slice(cagri, cagri + 6000);
-  assert.match(sonra, /if \(!geminiResult && geminiTani\.geciciDustu\) \{\n\s*await geminiDevreAc\(serviceClient/);
+  assert.match(sonra, /if \(!geminiResult && geminiTani\.hepsiDustu\) \{\n\s*await geminiDevreAc\(serviceClient/);
+  assert.doesNotMatch(sonra, /if \(!geminiResult && geminiTani\.geciciDustu\) \{\n\s*await geminiDevreAc/,
+    'tek bir gecici hata hala devreyi aciyor');
+  // Bayrak geminiDraft'in tek cikisinda, BUTUN adaylara bakilarak konuyor.
+  assert.match(src, /if \(tani && geminiModelCandidates\(\)\.every\(\(m\) => geciciModeller\.has\(m\)\)\) tani\.hepsiDustu = true/);
 });
 
 test('isci nobetcisi 150 sn sinirindan once failed yazar', () => {

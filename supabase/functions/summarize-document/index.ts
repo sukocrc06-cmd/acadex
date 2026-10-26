@@ -6771,11 +6771,29 @@ const GEMINI_ILK_OLAY_MS = 72_000
  * 57 sn bekledi, isci 150. saniyede 546 ile kapatildi ve belge 'processing'
  * durumunda takili kaldi.
  *
- * Bir kez olu akis/503 gorulunce sonraki GEMINI_DEVRE_MS boyunca Gemini hic
- * denenmez; Groq butun butceyle hemen baslar. Sure dolunca ilk istek Gemini'yi
- * yeniden dener; o da duserse devre yeniden acilir. Durum isciler arasinda
- * paylasilsin diye site_settings'te (key = gemini_devre) tutuluyor. */
-const GEMINI_DEVRE_MS = 30 * 60_000
+ * Sonraki GEMINI_DEVRE_MS boyunca Gemini hic denenmez; Groq butun butceyle
+ * hemen baslar. Sure dolunca ilk istek Gemini'yi yeniden dener; o da duserse
+ * devre yeniden acilir. Durum isciler arasinda paylasilsin diye
+ * site_settings'te (key = gemini_devre) tutuluyor.
+ *
+ * DARALTILDI (27.10.2026). Ilk hali TEK bir olu akis ya da 503'te 30 dk
+ * aciliyordu. Bu, "Gemini her durumda, Groq yalnizca cok acil durumda"
+ * hedefiyle celisiyordu ve olculen kosu bunu gosterdi: 26.10'da devre acikken
+ * IPPT destesi Gemini denenmeden Groq'tan cikti (kapsama %56, yazar 47 sn
+ * pacer bekledi). Oysa artik tek modelin dusmesi Gemini'nin dusmesi demek
+ * degil: gecikmeli yedek model ve aday kuyrugu var (kosu 38'de 3.8 olu akis
+ * verirken 3.7 karti getirdi).
+ *
+ * Artik devre YALNIZCA bir kosuda BUTUN aday modeller kota ya da gecici hata
+ * (503/500/olu akis) verdiginde aciliyor — bkz. geminiDraft tani.hepsiDustu.
+ * Zaman/istek tavani yuzunden denenemeyen aday varsa acilmiyor: o modelin
+ * dustugunu bilmiyoruz.
+ *
+ * 5 dk: "high demand" dalgalari dakikalar suruyor; butun modeller dusmusken
+ * her yuklemede ~30 sn'lik bos denemeyi (4 aday x ~7 sn 503) engellemeye
+ * yetiyor, ama Gemini geri geldiginde en fazla 5 dk kayip. Gunluk kota
+ * bittiyse her 5 dk'da bir yoklama 4 hizli 429 demek — kabul edilebilir. */
+const GEMINI_DEVRE_MS = 5 * 60_000
 const GEMINI_DEVRE_ANAHTAR = 'gemini_devre'
 
 async function geminiDevreOku(client: any): Promise<{ acik: boolean; kalanDk: number; neden: string }> {
@@ -7501,7 +7519,7 @@ async function geminiDraft(
   /* Cagiran icin TANI. Su an tek alani var: Gemini GECICI hatalar (503/500)
      yuzunden hic taslak uretemediyse true. Cikan kart yedek yoldan geliyor
      ve KALICI cevap sayilmamali — bkz. summary_cache yazimi. */
-  tani?: { geciciDustu?: boolean }
+  tani?: { geciciDustu?: boolean; hepsiDustu?: boolean }
 ): Promise<{ raw: string; model: string; ms: number; usage: any; kismi?: boolean } | null> {
   /* Cagrinin zaman asimi:
      - her iki modda: GEMINI_RESERVE_MS, cagri BASARILI olursa kapilar+kayit
@@ -7586,6 +7604,9 @@ async function geminiDraft(
    * ve kalici cevap sayilmamali. */
   const cik = (): null => {
     if (tani && geciciModeller.size > 0) tani.geciciDustu = true
+    /* BUTUN adaylar kota/gecici hata verdi mi — devre kesicinin TEK tetigi
+       (bkz. GEMINI_DEVRE_MS). Denenemeyen aday varsa false kalir. */
+    if (tani && geminiModelCandidates().every((m) => geciciModeller.has(m))) tani.hepsiDustu = true
     return null
   }
 
@@ -9122,7 +9143,7 @@ ${styleInstruction}`
        Onbellege yazilirsa o dosya icin KALICI cevap bu olur ve Gemini bir
        daha hic denenmez — yuzeyin bir dakikalik yogunlugu kalici kalite
        kaybina doner. Bkz. summary_cache yazimi. */
-    const geminiTani: { geciciDustu?: boolean } = {}
+    const geminiTani: { geciciDustu?: boolean; hepsiDustu?: boolean } = {}
     /* Yogunluk kapisinin OLCUM modundaki bulgusu; kapi eledigi gun bu
        alan karari degil gecmisi tutacak. */
     let yogunlukOlcumu: { dropped: number; toplam: number; ornekler: string[] } | null = null
@@ -9278,8 +9299,9 @@ ${styleInstruction}`
           )
         }
 
-        if (!geminiResult && geminiTani.geciciDustu) {
-          await geminiDevreAc(serviceClient, 'olu akis / gecici hata')
+        // Yalnizca BUTUN modeller dustuyse — bkz. GEMINI_DEVRE_MS (daraltildi).
+        if (!geminiResult && geminiTani.hepsiDustu) {
+          await geminiDevreAc(serviceClient, 'butun Gemini modelleri kota/gecici hata')
         }
 
         if (!geminiResult && mod === 'only') {

@@ -1435,6 +1435,55 @@ test('esik dolmadan liste tukenirse de gecici dusus bildiriliyor', async () => {
   } finally { restoreFetch(); }
 });
 
+/* 27.10.2026 — DEVRE KESICININ TETIGI. Devre yalnizca BUTUN adaylar kota ya
+   da gecici hata verdiginde acilir (bkz. GEMINI_DEVRE_MS). Tek modelin
+   dusmesi Gemini'nin dusmesi degil: yedek model ve aday kuyrugu var. */
+test('hepsiDustu: BUTUN adaylar 503 verince konur', async () => {
+  stubFetch(G.GEMINI_MODEL_CANDIDATES.map(m =>
+    ({ status: 503, text: `${m} is currently experiencing high demand` })));
+  const tani = {};
+  try {
+    const out = await quiet(() =>
+      G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000, 'only', tani));
+    assert.equal(out, null);
+    assert.equal(tani.geciciDustu, true);
+    assert.equal(tani.hepsiDustu, true, 'butun modeller dustu ama devre tetigi konmadi');
+  } finally { restoreFetch(); }
+});
+
+test('hepsiDustu: kota + 503 karisik ama HEPSI dustuyse yine konur', async () => {
+  const [a, b, c, d] = G.GEMINI_MODEL_CANDIDATES;
+  stubFetch([
+    { status: 429, text: `Quota exceeded for metric generate_requests_per_day, model: ${a}` },
+    { status: 503, text: `${b} is currently experiencing high demand` },
+    { status: 429, text: `Quota exceeded for metric generate_requests_per_day, model: ${c}` },
+    { status: 503, text: `${d} is currently experiencing high demand` }
+  ]);
+  const tani = {};
+  try {
+    await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000, 'only', tani));
+    assert.equal(tani.hepsiDustu, true);
+  } finally { restoreFetch(); }
+});
+
+test('hepsiDustu: TEK modelin gecici hatasi devreyi tetiklemez', async () => {
+  // 3.7 yogun, digerleri "boyle model yok": gecici dusus var ama butun
+  // modeller gecici hatada degil — devre acilmamali.
+  stubFetch([
+    { status: 503, text: 'gemini-3.7-flash is currently experiencing high demand' },
+    { status: 404, text: 'model not found' },
+    { status: 404, text: 'model not found' },
+    { status: 404, text: 'model not found' },
+    { status: 503, text: 'gemini-3.7-flash is currently experiencing high demand' }
+  ]);
+  const tani = {};
+  try {
+    await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000, 'only', tani));
+    assert.equal(tani.geciciDustu, true, 'kart yine kalici yazilmamali');
+    assert.ok(!tani.hepsiDustu, 'tek modelin 503u devreyi 5 dk aciyor');
+  } finally { restoreFetch(); }
+});
+
 test('BASARILI kosuda gecici dusus BILDIRILMIYOR', async () => {
   // Yoksa her kart onbellek disi kalir ve cache hic calismaz.
   stubFetch([{ status: 200, json: OK_JSON }]);
