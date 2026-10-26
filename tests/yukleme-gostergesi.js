@@ -128,7 +128,11 @@ test('ASAMA METNI kirpilan kutunun DISINDA', () => {
   const i = html.indexOf('id="progress-container"');
   const j = html.indexOf('id="upload-progress-text"');
   assert.ok(i > 0 && j > i, 'dugumler bulunamadi');
-  assert.ok(html.slice(i, j).includes('</div>'),
+  /* IKI kapanis: biri cubugun, biri kutunun. Tek kapanis, metnin hala
+     kutunun icinde oldugu anlamina gelir. Ilk surumde tek kapanis
+     ariyordum ve cubugun kendi kapanisi testi YANLIS yesil yapiyordu —
+     markup'i geri alan mutasyon testi dusurmedi. */
+  assert.ok((html.slice(i, j).match(/<\/div>/g) || []).length >= 2,
     'asama metni hala kirpilan kutunun icinde — ekranda gorunmez');
   assert.ok(html.slice(j, j + 240).includes('display:none'),
     'metin varsayilan olarak gizli degil — bos satir yer kaplar');
