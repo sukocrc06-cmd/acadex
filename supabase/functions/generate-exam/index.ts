@@ -1887,6 +1887,15 @@ function spreadInsert<T>(base: T[], extra: T[]): T[] {
  *  uyup arz-talep notunda bile çizim sorusu yazmadı; kaynak uygunsa çizim
  *  sorusu zorunlu tutulur. En az iki güçlü kavram + bir denklem izi. */
 const GRAPH_SOURCE_CUES = ['talep', 'arz', 'denge', 'eğim', 'doğrusal', 'eşitsizli', 'parabol', 'koordinat', 'kesişim', 'bütçe doğrusu', 'tüketici artığı', 'üretici artığı', 'tavan fiyat', 'taban fiyat', 'demand', 'supply', 'equilibrium', 'slope', 'intercept', 'linear function', 'inequalit', 'parabola', 'coordinate', 'budget line', 'surplus', 'price ceiling', 'price floor']
+/** FAZ 3b (canlı test 26.10.2026): kaynak sembolik cebir ya da türev
+ *  öğretiyor mu. Prompt "yaklaşık yarısı ifade sorusu" dese de model türev
+ *  belgesinden yalnızca hesap sorusu yazdı; uygunsa istekte zorunlu denir. */
+const ALGEBRA_SOURCE_CUES = ['türev', 'sadeleştir', 'çarpanlara ayır', 'parantez aç', 'integral', 'zincir kuralı', 'çarpım kuralı', 'bölüm kuralı', 'kuvvet kuralı', 'rasyonel ifade', 'iki kare farkı', 'tam kare', 'derivative', 'simplif', 'factoris', 'factoriz', 'expand', 'chain rule', 'product rule', 'quotient rule', 'power rule', 'antiderivative']
+function sourceTeachesAlgebra(text: unknown): boolean {
+  const t = String(text ?? '').toLocaleLowerCase('tr-TR')
+  return ALGEBRA_SOURCE_CUES.filter(c => t.includes(c)).length >= 2
+}
+
 function sourceTeachesGraphs(text: unknown): boolean {
   const t = String(text ?? '').toLocaleLowerCase('tr-TR')
   const hits = GRAPH_SOURCE_CUES.filter(c => t.includes(c)).length
@@ -2998,6 +3007,7 @@ ${c.formulas && (c.formulas as unknown[]).length > 0 ? `FORMULAS: ${JSON.stringi
     }
     const fileDrawEquations = new Set(fileDrawExamples.flatMap(graphEquationsIn))
     const graphSource = graphsAllowed && (fileDrawExamples.length > 0 || sourceTeachesGraphs(context))
+    const exprSource = examType === 'calculation' && sourceTeachesAlgebra(context)
     if (chartSources.length > 0) context += `\n\nCHARTS (numbered; the student sees each drawn as a graph with labelled values):\n${describeCharts(chartSources)}`
 
     // FAZ 4c: "dosyadaki grafik sorularına göre". Taranmış grafiklerden
@@ -3042,7 +3052,16 @@ ${context}
     // is what makes the system message worth caching in the first place.
     const buildUserPrompt = (count: number, avoid: string[], needGraph = false) => `Generate exactly ${count} questions of type '${examType}' in the language '${language}' (en = English, tr = Turkish), at difficulty level '${resolvedDifficulty}'.
 OPTION COUNT: every 'multiple_choice' question has exactly ${scoring.option_count} options.
-GRAPH QUESTIONS: ${!graphsAllowed ? 'not allowed (never use type graph)' : graphSource && (count >= 3 || needGraph) ? `required: this source teaches material drawn on coordinate axes, so at least ${needGraph ? 1 : Math.max(1, Math.round(count / 5))} of the ${count} questions MUST be type 'graph' (they count as part of the type spread above)` : 'allowed'}.${fileDrawExamples.length ? `\nDRAWING QUESTIONS FROM THE STUDENT'S FILE (write the 'graph' questions in this style and on these topics, but with DIFFERENT equations and numbers; a question that only reuses these equations is discarded):\n${fileDrawExamples.map(t => `- ${t.slice(0, 300)}`).join('\n')}` : ''}${decimalPlaces ? `\nNUMERIC PRECISION: 'calculation' answers are graded to exactly ${decimalPlaces} decimal places. In every 'calculation' question text ask for the result to ${decimalPlaces} decimal places, and let "formula" compute the exact value (no rounding inside the formula).` : ''}${resolvedFocusConcept ? `\n\nIMPORTANT FOCUS RULE:\n- The student specifically wants to practice ONE topic: "${resolvedFocusConcept}". EVERY question must test this exact topic, approached from different angles (definition, application, comparison, scenario) — do not drift to unrelated concepts. Set the "concept" field on every question to "${resolvedFocusConcept}" (or a very close variant in the requested language).` : ''}${avoid.length > 0 ? `\n\nDo NOT repeat these questions that were already generated:\n${avoid.map(t => `- ${t.slice(0, 160)}`).join('\n')}` : ''}
+GRAPH QUESTIONS: ${!graphsAllowed ? 'not allowed (never use type graph)' : graphSource && (count >= 3 || needGraph) ? `required: this source teaches material drawn on coordinate axes, so at least ${needGraph ? 1 : Math.max(1, Math.round(count / 5))} of the ${count} questions MUST be type 'graph' (they count as part of the type spread above)` : 'allowed'}.${exprSource ? `\nEXPRESSION QUESTIONS: ${exprNeeded(count) ? `required: this source teaches symbolic algebra or calculus, so at least ${exprNeeded(count)} of the ${count} questions MUST be type 'expression' (the student types a formula, e.g. a derivative or a simplified expression)` : 'allowed'}.` : ''}${fileDrawExamples.length ? `\nDRAWING QUESTIONS FROM THE STUDENT'S FILE (write the 'graph' questions in this style and on these topics, but with DIFFERENT equations and numbers; a question that only reuses these equations is discarded):\n${fileDrawExamples.map(t => `- ${t.slice(0, 300)}`).join('\n')}` : ''}${decimalPlaces ? `\nNUMERIC PRECISION: 'calculation' answers are graded to exactly ${decimalPlaces} decimal places. In every 'calculation' question text ask for the result to ${decimalPlaces} decimal places, and let "formula" compute the exact value (no rounding inside the formula).` : ''}${resolvedFocusConcept ? `\n\nIMPORTANT FOCUS RULE:\n- The student specifically wants to practice ONE topic: "${resolvedFocusConcept}". EVERY question must test this exact topic, approached from different angles (definition, application, comparison, scenario) — do not drift to unrelated concepts. Set the "concept" field on every question to "${resolvedFocusConcept}" (or a very close variant in the requested language).` : ''}${avoid.length > 0 ? `\n\nDo NOT repeat these questions that were already generated:\n${avoid.map(t => `- ${t.slice(0, 160)}`).join('\n')}` : ''}
+
+Additional variation seed: ${Date.now()}`
+    // FAZ 3b: kaç ifade sorusu zorunlu (ilk istekte yaklaşık üçte bir; sonra
+    // hâlâ yoksa 1). accepted ve firstCallDone aşağıda tanımlı; çağrı anında okunur.
+    const exprNeeded = (count: number): number => {
+      if (!exprSource || accepted.some(q => q.type === 'expression')) return 0
+      return firstCallDone ? 1 : (count >= 2 ? Math.max(1, Math.round(count / 3)) : 0)
+    }
+    const buildExprPrompt = (avoid: string[]) => `Generate exactly 1 question of type 'expression' (a symbolic EXPRESSION question as described in the instructions) in the language '${language}' (en = English, tr = Turkish), at difficulty level '${resolvedDifficulty}', based on the SOURCE MATERIAL.${avoid.length > 0 ? `\n\nDo NOT repeat these questions that were already generated:\n${avoid.map(t => `- ${t.slice(0, 160)}`).join('\n')}` : ''}
 
 Additional variation seed: ${Date.now()}`
     // FAZ 4b: kaynak uygun ama model çizim sorusu yazmadıysa tek bir çizim sorusu.
@@ -3053,8 +3072,8 @@ Additional variation seed: ${Date.now()}`
 
     let lastPromptTokens = 0, firstUserChars = 0
     // Tek bir üretim çağrısı. Başarısızsa { error } döner, istisna fırlatmaz.
-    const requestQuestions = async (count: number, avoid: string[], attempt = 0, forceGraph = false, needGraph = false): Promise<{ items?: unknown[]; error?: string }> => {
-      const userContent = forceGraph ? buildGraphPrompt(avoid) : buildUserPrompt(count, avoid, needGraph)
+    const requestQuestions = async (count: number, avoid: string[], attempt = 0, forceGraph = false, needGraph = false, forceExpr = false): Promise<{ items?: unknown[]; error?: string }> => {
+      const userContent = forceGraph ? buildGraphPrompt(avoid) : forceExpr ? buildExprPrompt(avoid) : buildUserPrompt(count, avoid, needGraph)
       // Groq TPM sınırı istemi VE ayrılan çıktı bütçesini birlikte sayar
       // (canlı test 25.10.2026: "Request too large … Requested 8262"). İlk
       // çağrının gerçek istem tokenı biliniyorsa ona göre, yoksa tahminle kısılır.
@@ -3062,7 +3081,7 @@ Additional variation seed: ${Date.now()}`
       const wanted = Math.min(GEN_TOKENS_MAX, completionBudgetFor(count) + (examType === 'calculation' ? GEN_TOKENS_CALC_EXTRA * count : 0) + (graphsAllowed ? GEN_TOKENS_GRAPH_EXTRA * count : 0))
       // İlk çağrı eskisi gibi (canlıda istem önbelleğiyle sorunsuz); kısma
       // yalnızca tamamlama ve çizim isteklerinde.
-      const budget = forceGraph || count < requestedCount ? Math.max(GEN_TOKENS_FLOOR, Math.min(wanted, GROQ_TPM_LIMIT - promptEst - 100)) : wanted
+      const budget = forceGraph || forceExpr || count < requestedCount ? Math.max(GEN_TOKENS_FLOOR, Math.min(wanted, GROQ_TPM_LIMIT - promptEst - 100)) : wanted
       const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -3102,7 +3121,7 @@ Additional variation seed: ${Date.now()}`
           const salvaged = salvageQuestionObjects(String(groqData.error.failed_generation ?? ''))
           console.warn(`generate-exam: Groq JSON dogrulamasi dustu; ${salvaged.length} soru kurtarildi`)
           if (salvaged.length > 0) return { items: salvaged }
-          if (attempt < GEN_MAX_RETRIES) return requestQuestions(count, avoid, attempt + 1, forceGraph, needGraph)
+          if (attempt < GEN_MAX_RETRIES) return requestQuestions(count, avoid, attempt + 1, forceGraph, needGraph, forceExpr)
         }
         // FAZ 2 (canlı test): eksik sorular için yapılan ikinci istek
         // dakikalık token sınırına (TPM) takılıyordu. Groq'un söylediği süre
@@ -3112,7 +3131,7 @@ Additional variation seed: ${Date.now()}`
         if (waitMs !== null) {
           console.warn(`generate-exam: Groq hiz siniri, ${Math.round(waitMs / 1000)} sn beklenip yeniden deneniyor`)
           await new Promise(r => setTimeout(r, waitMs))
-          return requestQuestions(count, avoid, attempt + 1, forceGraph, needGraph)
+          return requestQuestions(count, avoid, attempt + 1, forceGraph, needGraph, forceExpr)
         }
         console.error("Groq generation failed: ", groqData)
         return { error: groqData?.error?.message || groqData?.error?.code || `HTTP ${groqResponse.status}` }
@@ -3140,6 +3159,7 @@ Additional variation seed: ${Date.now()}`
 
     const allowedTypes = allowedTypesFor(examType, isQuant, graphsAllowed)
     let accepted: Record<string, unknown>[] = []
+    let firstCallDone = false
     const seenTexts = new Set<string>()
     const rejectReasons: string[] = []
 
@@ -3192,6 +3212,7 @@ Additional variation seed: ${Date.now()}`
       })
     }
     absorb(first.items || [])
+    firstCallDone = true
 
     // Eksik kalan soru varsa bir kez daha, yalnızca eksik sayı kadar iste.
     let shortfallCalled = false
@@ -3229,6 +3250,28 @@ Additional variation seed: ${Date.now()}`
         break
       }
       console.log(`generate-exam: kaynak cizime uygun, cizim sorusu ayrica istendi: ${note}`)
+    }
+
+    // FAZ 3b (canlı test 26.10.2026): kaynak cebir/türev öğretiyor, ifade
+    // sorusu zorunlu dendiği hâlde hiç gelmediyse bir kez yalnızca ifade
+    // sorusu istenir; gelen soru son hesap sorusunun yerine geçer.
+    if (exprSource && requestedCount >= 3 && !shortfallCalled && !accepted.some(q => q.type === 'expression') && Date.now() - requestStartedAt < THIRD_CALL_DEADLINE_MS) {
+      const ex = await requestQuestions(1, accepted.map(q => String(q.question)), 0, false, false, true)
+      let note = ex.error || 'soru yok'
+      for (const raw of ex.items || []) {
+        const r = validateQuestion(raw, ['expression'], language, scoring.option_count, false)
+        if (!r.ok || !r.question) { note = r.reason || 'unknown'; rejectReasons.push(note); continue }
+        if (accepted.length < requestedCount) accepted.push(r.question)
+        else {
+          let idx = -1
+          accepted.forEach((q, i) => { if (q.type === 'calculation' && !q.chart) idx = i })
+          if (idx < 0) { note = 'yer yok'; break }
+          accepted[idx] = r.question
+        }
+        note = 'eklendi'
+        break
+      }
+      console.log(`generate-exam: kaynak cebir/turev ogretiyor, ifade sorusu ayrica istendi: ${note}`)
     }
 
     // FAZ 3a son çare: hâlâ eksikse, formülü doğrulanamayan ama cevabı sayı

@@ -36,3 +36,13 @@ Faz 4b.2 canlı testinden ve yol haritasından kalan üç iş.
 2. **`generate-exam`.**
 
 `grade-exam` değişmedi (şablonu olduğu gibi iletir). Migration yok.
+
+## 4. Faz 3b canlı testi: ifade sorusu gelmedi (PR #62)
+
+- **Test:** cebir ve türev öğreten örnek PDF (`tests/fixtures/turev-cebir-ornek.pdf`, dal `test-grafik-pdf`) ile 5 soruluk hesaplama sınavı.
+- **Görülen:** 4 hesap sorusu geldi, hiç ifade sorusu yoktu. Prompt "kaynak cebir öğretiyorsa yaklaşık yarısı ifade sorusu" diyor ama model uymadı. Faz 4b.1'deki çizim sorusu sorununun aynısı.
+- **Kaynak denetimi:** `sourceTeachesAlgebra`, en az iki iz arıyor (türev, sadeleştir, çarpanlara ayır, zincir/çarpım/bölüm/kuvvet kuralı, integral…).
+- **Zorunluluk:** kaynak uygunsa hesaplama sınavı isteğinde `EXPRESSION QUESTIONS: required (at least N)` satırı çıkıyor (ilk istekte yaklaşık üçte bir).
+- **Son çare:** ifade sorusu yine gelmezse bir kez yalnızca ifade sorusu isteniyor; gelen soru son hesap sorusunun yerine geçiyor.
+
+Deploy: `generate-exam` (bu PR, #61'in sunucu değişikliklerini de içerir; tek deploy yeter).
