@@ -3199,7 +3199,7 @@ Additional variation seed: ${Date.now()}`
           }
           if (reason.startsWith('calc_')) {
             const r = (raw || {}) as Record<string, unknown>
-            console.warn(`generate-exam: ${reason} formula=${JSON.stringify(r.formula ?? null).slice(0, 160)} vars=${JSON.stringify(r.variables ?? null).slice(0, 160)}`)
+            console.warn(`generate-exam: ${reason} formula=${JSON.stringify(r.formula ?? null).slice(0, 160)} vars=${JSON.stringify(r.variables ?? null).slice(0, 160)} cevap=${JSON.stringify(r.correct_answer ?? null).slice(0, 120)}`)
             if (!allowUnverifiedCalc) rejectedRaw.push(raw)
           }
           continue
