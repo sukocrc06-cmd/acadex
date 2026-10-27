@@ -52,7 +52,41 @@ Kaynaklar:
 - `tests/exam-mastery.js`: 9 test.
 - Tarayıcı: 1280 ve 390 px'te ustalık haritası, ders sekmesi ve sonuç kâğıdı; yatay taşma yok.
 
+## Faz 5.2: akıllı deneme
+
+**İstek:** `generate-exam` gövdesinde `adaptive: { daysToExam }`.
+
+**Masa:** aynı ders etiketi (kartın `course_tag`'i ya da dersin kodu), etiket yoksa aynı kart. Ekrandaki karne masasıyla aynı gruplama.
+
+**Plan** (`buildAdaptivePlan`):
+- Tekrar zamanı gelenler en çok üçte bir.
+- Yeni konular (kaynağın henüz sorulmamış terimleri) en çok beşte bir. Sınava 7 gün ya da daha az kaldıysa yeni konu yok.
+- 5 ve üstü soruda bir pekiştirme sorusu: tekrar zamanı gelmemiş güçlü konudan, zor.
+- Kalanı zayıf ve tanıdık konular; en zayıflar ikinci soru alır. Konu başına en çok iki soru.
+- Zorluk: zayıf kolay, tanıdık orta, yetkin ve usta zor. Tekrar sorusu, hafıza %60 altındaysa orta, değilse zor. Yeni konu orta.
+- Sıra kolaydan zora; aynı konu yan yana gelmez.
+
+**İstemde:** `ADAPTIVE PLAN` satırları. Her satırda konu adı birebir, zorluk ve neden. Takip isteklerine yalnızca karşılanmamış satırlar gider. Akıllı denemede odak konu kullanılmaz.
+
+**Kayıt:**
+- Soru başına zorluk plandan damgalanır.
+- Plan `exams.scoring.adaptive` içinde saklanır (`plan`, `days_to_exam`); migration yok.
+
+**Model:** sunucudaki `conceptMastery`, `exam-engine`'dekinin TypeScript kopyası. `tests/exam-adaptive.js` iki uygulamayı aynı girdilerde karşılaştırır.
+
+**Ekran:**
+- **Kurulum penceresi:** "akıllı deneme" kutusu odak konunun altında. Açıkken odak konu ve zorluk soluklaşır; kapakta `AKILLI: konular ustalığına göre · sınava N gün`, alt satırda "zorluk konuya göre". Sınava kalan gün, sınav takviminde masa adıyla eşleşen en yakın sınavdan gelir.
+- **Ustalık haritası:**
+  - "akıllı deneme kur" düğmesi seçili masa için; "tümü"nde en öncelikli konunun masası için.
+  - "bu konudan deneme" artık belge masalarında da var (odak konu kartlı sınavda da gönderilir).
+- **Sonuç kâğıdı ve deneme listesi:** "akıllı deneme" başlığı. Her sorunun yanında neden: zayıf konu, tekrar zamanı, yeni konu, pekiştirme.
+
+**Test:**
+- `tests/exam-adaptive.js`: 7 test.
+- Tarayıcı (`run16`): kısayol, kapak, istek gövdesi, belge masası odak konusu, sonuç kâğıdı etiketleri.
+
+**Deploy:** `generate-exam` otomatik (GitHub Actions); ön yüz Vercel.
+
 ## Sıradaki
 
-- **5.2 akıllı deneme:** sınav kendiliğinden kurulur. Zayıf konular ağırlıklı, zamanı gelen tekrarlar ve konu başına zorluk; sınav takvimindeki yakın sınav önceliği etkiler. Belge masalarında da "bu konudan deneme".
-- **5.3:** tekrar zamanı gelen konular planlayıcıya ve bildirimlere; sorularda "emin değilim" işareti.
+- **5.3:** tekrar zamanı gelen konular planlayıcıya ve bildirimlere; sorularda "emin değilim" işareti (şansla doğru, ustalığı şişirmesin).

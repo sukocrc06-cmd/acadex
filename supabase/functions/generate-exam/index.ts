@@ -2037,6 +2037,183 @@ function verifyGraph(q: Record<string, unknown>, lang: string): { ok: boolean; r
   return { ok: true }
 }
 
+/* ---------- FAZ 5.2: akıllı deneme ----------
+   Konu ustalığı js/exam-engine.js conceptMastery ile AYNI modeldir
+   (tests/exam-adaptive.js iki uygulamayı aynı girdilerle karşılaştırır).
+   Birini değiştirirsen ötekini de değiştir. */
+const MASTERY_LEVELS = ['zayıf', 'tanıdık', 'yetkin', 'usta']
+const MASTERY_MIN = [0, 0.4, 0.7, 0.9]
+const MASTERY_PARAMS = { prior: 0.3, slip: 0.1, learn: 0.1, max: 0.98, dueRetention: 0.8 }
+const MASTERY_DAY_MS = 86400000
+
+type ConceptMastery = {
+  key: string; name: string; mastery: number; p: number; level: number; levelName: string; retention: number; stability: number
+  due: boolean; n: number; exams: number; okDays: number; lastAt: number; daysAgo: number; recentAvg: number; recentExams: number; fewData: boolean
+  history: Array<{ at: number; avg: number; n: number; exam: unknown }>
+}
+
+function conceptKey(name: unknown): string {
+  return String(name == null ? '' : name).normalize('NFC').replace(/\s*\([^()]{1,12}\)\s*$/, '')
+    .toLocaleLowerCase('tr-TR').replace(/[.,;:!?'"“”‘’]+/g, ' ').replace(/\s+/g, ' ').trim()
+}
+
+function guessRate(type: unknown, optionCount?: unknown): number {
+  if (type === 'multiple_choice') return 1 / (Number(optionCount) === 5 ? 5 : 4)
+  if (type === 'true_false') return 0.5
+  if (type === 'fill_blank' || type === 'open_ended') return 0.1
+  return 0.05
+}
+
+function masteryLevelOf(p: number, okDays: number, n: number): number {
+  let lv = 0
+  for (let i = MASTERY_MIN.length - 1; i >= 0; i--) if (p >= MASTERY_MIN[i]) { lv = i; break }
+  if (lv === 3 && (okDays < 2 || n < 5)) lv = 2
+  if (lv >= 2 && n < 3) lv = 1
+  return lv
+}
+
+function retentionOf(days: number, stability: number): number {
+  if (!(stability > 0) || !(days > 0)) return 1
+  return Math.pow(1 + (19 / 81) * days / stability, -0.5)
+}
+
+function conceptMastery(exams: unknown, opts?: { now?: number }): ConceptMastery[] {
+  const now = opts && Number.isFinite(opts.now) ? Number(opts.now) : Date.now()
+  const P = MASTERY_PARAMS
+  type St = { key: string; name: string; p: number; stability: number; lastAt: number; okDays: string[]; n: number; history: Array<{ at: number; avg: number; n: number; exam: unknown }> }
+  const map: Record<string, St> = {}
+  const list = (Array.isArray(exams) ? exams : []).filter((e: Record<string, unknown>) => e && e.completed_at && Array.isArray(e.question_results))
+    .slice().sort((a: Record<string, unknown>, b: Record<string, unknown>) => new Date(String(a.completed_at)).getTime() - new Date(String(b.completed_at)).getTime()) as Array<Record<string, unknown>>
+  list.forEach(exam => {
+    const at = new Date(String(exam.completed_at)).getTime()
+    if (!Number.isFinite(at)) return
+    const optionCount = exam.scoring && (exam.scoring as Record<string, unknown>).option_count
+    const groups: Record<string, { name: string; obs: Array<{ c: number; g: number }> }> = {}
+    ;(exam.question_results as Array<Record<string, unknown>>).forEach(r => {
+      if (!r || !r.concept) return
+      const k = conceptKey(r.concept)
+      if (!k) return
+      const score = Math.max(0, Math.min(100, Number(r.score) || 0))
+      const c = score >= 50 ? score / 100 : score / 200
+      ;(groups[k] = groups[k] || { name: String(r.concept).trim(), obs: [] }).obs.push({ c: c, g: guessRate(r.type, optionCount) })
+    })
+    Object.keys(groups).forEach(k => {
+      const grp = groups[k]
+      const s = map[k] = map[k] || { key: k, name: grp.name, p: P.prior, stability: 0, lastAt: 0, okDays: [], n: 0, history: [] }
+      const prevLevel = s.n ? masteryLevelOf(s.p, s.okDays.length, s.n) : -1
+      const before = s.n ? retentionOf((at - s.lastAt) / MASTERY_DAY_MS, s.stability) : 1
+      let p = s.p
+      grp.obs.forEach(o => {
+        const right = p * (1 - P.slip) / (p * (1 - P.slip) + (1 - p) * o.g)
+        const wrong = p * P.slip / (p * P.slip + (1 - p) * (1 - o.g))
+        p = o.c * right + (1 - o.c) * wrong
+      })
+      p = Math.min(P.max, p + (1 - p) * P.learn)
+      const avg = grp.obs.reduce((t, o) => t + o.c, 0) / grp.obs.length
+      const day = new Date(at).toISOString().slice(0, 10)
+      if (avg >= 0.8 && s.okDays.indexOf(day) < 0) s.okDays.push(day)
+      if (prevLevel > 0 && masteryLevelOf(p, s.okDays.length, s.n + grp.obs.length) < prevLevel - 1) p = MASTERY_MIN[prevLevel - 1]
+      const gapDays = s.n ? (at - s.lastAt) / MASTERY_DAY_MS : 0
+      if (!s.stability) s.stability = avg >= 0.8 ? 3 : avg >= 0.5 ? 1.5 : 1
+      else if (avg >= 0.8) s.stability = Math.min(365, s.stability * (gapDays >= 0.5 ? 1.8 + 2 * (1 - before) : 1.15))
+      else if (avg < 0.5) s.stability = Math.max(1, s.stability * 0.4)
+      else s.stability = s.stability * 1.1
+      s.p = p
+      s.name = grp.name
+      s.lastAt = at
+      s.n += grp.obs.length
+      s.history.push({ at: at, avg: Math.round(avg * 100), n: grp.obs.length, exam: exam.id == null ? null : exam.id })
+    })
+  })
+  return Object.keys(map).map(k => {
+    const s = map[k]
+    const days = Math.max(0, (now - s.lastAt) / MASTERY_DAY_MS)
+    const retention = retentionOf(days, s.stability)
+    const level = masteryLevelOf(s.p, s.okDays.length, s.n)
+    const recent = s.history.slice(-3)
+    return {
+      key: s.key, name: s.name, mastery: Math.round(s.p * 100), p: s.p, level: level, levelName: MASTERY_LEVELS[level],
+      retention: Math.round(retention * 100), stability: Math.round(s.stability * 10) / 10,
+      due: level >= 2 && retention < P.dueRetention, n: s.n, exams: s.history.length, okDays: s.okDays.length,
+      lastAt: s.lastAt, daysAgo: Math.floor(days), recentAvg: Math.round(recent.reduce((t, h) => t + h.avg, 0) / recent.length),
+      recentExams: recent.length, fewData: s.n < 3, history: s.history
+    }
+  }).sort((a, b) => (Number(b.due) - Number(a.due)) || (a.p * (0.5 + a.retention / 200)) - (b.p * (0.5 + b.retention / 200)) || a.name.localeCompare(b.name, 'tr'))
+}
+
+type AdaptiveSlot = { concept: string; key: string; reason: 'weak' | 'review' | 'new' | 'stretch'; difficulty: 'easy' | 'medium' | 'hard'; level: number | null }
+
+/** Akıllı deneme planı: soru başına bir konu, neden ve zorluk.
+ *  Karışım (araştırma: ALEKS öğrenme yolu, Khan "mastery challenge", FSRS):
+ *  - tekrar zamanı gelenler (hafızası düşen yetkin/usta) en çok üçte bir
+ *  - yeni konular (kaynağın henüz sorulmamış terimleri) en çok beşte bir;
+ *    sınava 7 gün ya da daha az kaldıysa yeni konu yok
+ *  - 5 ve üstü soruda bir pekiştirme sorusu (yetkin konudan, zor; karışık tekrar)
+ *  - kalanı zayıf/tanıdık konular, en zayıflar iki soru alabilir
+ *  Zorluk: zayıf → kolay, tanıdık → orta, yetkin/usta → zor; tekrar: hafıza
+ *  %60 altındaysa orta, değilse zor; yeni konu orta. */
+function buildAdaptivePlan(mastery: ConceptMastery[], sourceTerms: string[], count: number, opts?: { daysToExam?: number | null }): AdaptiveSlot[] {
+  const n = Math.max(0, Math.floor(count))
+  if (!n) return []
+  const days = opts && opts.daysToExam != null && Number.isFinite(Number(opts.daysToExam)) ? Number(opts.daysToExam) : null
+  const examSoon = days != null && days >= 0 && days <= 7
+  const known = new Set(mastery.map(c => c.key))
+  const newTerms: string[] = []
+  for (const t of sourceTerms) {
+    const k = conceptKey(t)
+    if (k && !known.has(k) && !newTerms.some(x => conceptKey(x) === k)) newTerms.push(String(t).trim())
+  }
+  const due = mastery.filter(c => c.due).sort((a, b) => a.retention - b.retention)
+  const weak = mastery.filter(c => !c.due && c.level <= 1).sort((a, b) => a.p - b.p)
+  const strong = mastery.filter(c => !c.due && c.level >= 2).sort((a, b) => a.retention - b.retention || a.p - b.p)
+  const diffOf = (c: ConceptMastery): AdaptiveSlot['difficulty'] => c.level === 0 ? 'easy' : c.level === 1 ? 'medium' : 'hard'
+  const slot = (c: ConceptMastery, reason: AdaptiveSlot['reason']): AdaptiveSlot => ({
+    concept: c.name, key: c.key, reason,
+    difficulty: reason === 'review' ? (c.retention < 60 ? 'medium' : 'hard') : diffOf(c), level: c.level
+  })
+  const plan: AdaptiveSlot[] = []
+  let nReview = Math.min(due.length, Math.ceil(n / 3))
+  let nNew = examSoon ? 0 : Math.min(newTerms.length, Math.round(n / 5))
+  let nStretch = n >= 5 && strong.length ? 1 : 0
+  if (!weak.length) { nReview = Math.min(due.length, n - nStretch); nNew = examSoon ? 0 : Math.min(newTerms.length, n - nReview - nStretch) }
+  due.slice(0, nReview).forEach(c => plan.push(slot(c, 'review')))
+  newTerms.slice(0, nNew).forEach(t => plan.push({ concept: t, key: conceptKey(t), reason: 'new', difficulty: 'medium', level: null }))
+  strong.slice(0, nStretch).forEach(c => plan.push(slot(c, 'stretch')))
+  // Zayıflar: önce birer, sonra en zayıflara ikinci soru (en çok ikişer).
+  for (let round = 0; round < 2 && plan.length < n; round++) {
+    for (const c of weak) { if (plan.length >= n) break; if (round === 1 && plan.filter(x => x.key === c.key).length >= 2) continue; plan.push(slot(c, 'weak')) }
+  }
+  // Hâlâ boşluk varsa: kalan tekrarlar, yeni konular, güçlüler (yine konu başına en çok iki soru).
+  const fill: AdaptiveSlot[] = [...due.slice(nReview).map(c => slot(c, 'review')), ...(examSoon ? [] : newTerms.slice(nNew).map(t => ({ concept: t, key: conceptKey(t), reason: 'new' as const, difficulty: 'medium' as const, level: null }))), ...strong.slice(nStretch).map(c => slot(c, 'stretch'))]
+  for (const f of fill) { if (plan.length >= n) break; plan.push(f) }
+  // Konu az: her konuya ikinci soru (en çok iki). Yine eksikse plan kısa
+  // kalır; kalan sorular planı olmadan normal üretilir.
+  for (const c of [...new Map(plan.map(x => [x.key, x])).values()]) {
+    if (plan.length >= n) break
+    if (plan.filter(x => x.key === c.key).length < 2) plan.push({ ...c })
+  }
+  // Sıra: kolaydan zora, aynı konular yan yana gelmesin.
+  const rank = { easy: 0, medium: 1, hard: 2 }
+  plan.sort((a, b) => rank[a.difficulty] - rank[b.difficulty])
+  for (let i = 1; i < plan.length; i++) {
+    if (plan[i].key !== plan[i - 1].key) continue
+    const j = plan.findIndex((x, k) => k > i && x.key !== plan[i].key)
+    if (j > 0) { const t = plan[i]; plan[i] = plan[j]; plan[j] = t }
+  }
+  return plan.slice(0, n)
+}
+
+/** Kaynağın terimleri: key_terms ["Esneklik", {term:"GSYH"}…] → ad listesi. */
+function termNames(list: unknown): string[] {
+  return (Array.isArray(list) ? list : []).map(t => typeof t === 'string' ? t : (t && typeof t === 'object' ? String((t as Record<string, unknown>).term ?? '') : '')).map(t => t.trim()).filter(t => t && t.length <= 120)
+}
+
+/** Planın istek metni: soru sırası, konu adı birebir, zorluk ve neden. */
+function adaptivePlanText(plan: AdaptiveSlot[]): string {
+  const why = { weak: 'weak topic for this student', review: 'mastered earlier, now fading — review', new: 'not tested yet', stretch: 'strong topic — harder application' }
+  return `ADAPTIVE PLAN (personalized exam; write exactly one question per line below, in this order; set "concept" to the quoted name verbatim; match the stated difficulty for that question instead of the overall level):\n${plan.map((s, i) => `${i + 1}. "${s.concept}" — ${s.difficulty} (${why[s.reason]})`).join('\n')}`
+}
+
 /** Hesap sorusunun formül anahtarı: boşluksuz formül + değişken adları.
  *  Aynı formülü farklı sayılarla soran iki soru aynı anahtarı alır. */
 function calcFormulaKey(q: Record<string, unknown>): string | null {
@@ -2684,7 +2861,7 @@ serve(async (req) => {
       })
     }
 
-    const { studyCardId, sourceType, courseCode, courseDepartment, examType, questionCount, language, difficulty, isSimulation, focusConcept, optionCount, negativeMarking, decimalPlaces: decimalPlacesRaw, chartExamples, noGraphs } = await req.json()
+    const { studyCardId, sourceType, courseCode, courseDepartment, examType, questionCount, language, difficulty, isSimulation, focusConcept, optionCount, negativeMarking, decimalPlaces: decimalPlacesRaw, chartExamples, noGraphs, adaptive } = await req.json()
     const scoring = normalizeScoring(optionCount, negativeMarking)
     // Yalnızca hesap sorusu olabilen türlerde (test ve klasikte anlamsız).
     const decimalPlaces = examType === 'calculation' || examType === 'mixed' ? normalizeDecimalPlaces(decimalPlacesRaw) : null
@@ -2818,6 +2995,9 @@ serve(async (req) => {
     let courseDeptName: string | null = null
     let sourceDocumentId: string | null = null
     let conceptRuleText = '- For every question, set a "concept" field to the single key term (from the KEY TERMS list provided) that the question is primarily testing.'
+    // FAZ 5.2: akıllı deneme için kaynağın terimleri ve masa (ders etiketi).
+    let sourceTerms: string[] = []
+    let deskTag: string | null = null
 
     // Evenly samples up to maxCount items across an array, so a very large
     // scanned book (hundreds of key points) still yields a representative
@@ -2847,6 +3027,8 @@ serve(async (req) => {
       }
 
       isQuant = !!card.is_quantitative
+      sourceTerms = termNames(card.key_terms)
+      deskTag = typeof card.course_tag === 'string' && card.course_tag.trim() ? card.course_tag.trim().toUpperCase() : null
       sourceDocumentId = typeof card.document_id === 'string' ? card.document_id : null
       chartSources = buildChartSources(card.charts, card.tables)
       context = `
@@ -2906,6 +3088,8 @@ ${card.worked_examples && card.worked_examples.length > 0 ? `WORKED EXAMPLES:\n$
       }
 
       isGrounded = sharedCards.length > 0
+      sourceTerms = sharedCards.flatMap(c => termNames(c.key_terms))
+      deskTag = canonicalCourseCode ? String(canonicalCourseCode).trim().toUpperCase() : null
       // A course counts as quantitative either because the official course
       // catalog says so (courses.is_quantitative, curated per course — e.g.
       // Financial Management is calculation-heavy regardless of whether any
@@ -3026,6 +3210,30 @@ ${c.formulas && (c.formulas as unknown[]).length > 0 ? `FORMULAS: ${JSON.stringi
     }
     const fileDrawEquations = new Set(fileDrawExamples.flatMap(graphEquationsIn))
     const graphSource = graphsAllowed && (fileDrawExamples.length > 0 || sourceTeachesGraphs(context))
+
+    // FAZ 5.2: akıllı deneme. Öğrencinin bu masadaki (aynı ders etiketi ya
+    // da aynı kart) geçmiş sınavlarından konu ustalığı hesaplanır; sorular
+    // plana göre konu konu ve zorluk zorluk istenir. Plan boşsa (hiç konu
+    // ve terim yok) sınav normal kurulur.
+    let adaptivePlan: AdaptiveSlot[] | null = null
+    const adaptiveReq = adaptive === true ? {} : (adaptive && typeof adaptive === 'object' ? adaptive as Record<string, unknown> : null)
+    const adaptiveDays = adaptiveReq && adaptiveReq.daysToExam != null && Number.isFinite(Number(adaptiveReq.daysToExam)) ? Math.round(Number(adaptiveReq.daysToExam)) : null
+    if (adaptiveReq && chartExamples !== true) {
+      const { data: past, error: pastErr } = await userClient.from('exams')
+        .select('id, completed_at, question_results, scoring, study_card_id, source_type, course_code, study_cards(course_tag)')
+        .eq('user_id', user.id).not('completed_at', 'is', null).order('completed_at', { ascending: false }).limit(300)
+      if (pastErr) console.warn('generate-exam: akilli deneme gecmis sinavlar okunamadi:', pastErr.message)
+      const tagOf = (e: Record<string, unknown>): string | null => {
+        if (e.source_type === 'course' && e.course_code) return String(e.course_code).trim().toUpperCase()
+        const t = e.study_cards && (e.study_cards as Record<string, unknown>).course_tag
+        return typeof t === 'string' && t.trim() ? t.trim().toUpperCase() : null
+      }
+      const desk = ((past || []) as Array<Record<string, unknown>>).filter(e => deskTag ? tagOf(e) === deskTag : (e.study_card_id === studyCardId && !tagOf(e)))
+      const mastery = conceptMastery(desk)
+      const plan = buildAdaptivePlan(mastery, sourceTerms, requestedCount, { daysToExam: adaptiveDays })
+      adaptivePlan = plan.length ? plan : null
+      console.log(`generate-exam: akilli deneme: ${desk.length} gecmis sinav, ${mastery.length} konu, ${sourceTerms.length} terim, sinava ${adaptiveDays ?? '-'} gun; plan ${plan.length}/${requestedCount} (${plan.map(x => x.reason).join(',')})`)
+    }
     const exprSource = examType === 'calculation' && sourceTeachesAlgebra(context)
     if (chartSources.length > 0) context += `\n\nCHARTS (numbered; the student sees each drawn as a graph with labelled values):\n${describeCharts(chartSources)}`
 
@@ -3071,9 +3279,17 @@ ${context}
     // is what makes the system message worth caching in the first place.
     const buildUserPrompt = (count: number, avoid: string[], needGraph = false) => `Generate exactly ${count} questions of type '${examType}' in the language '${language}' (en = English, tr = Turkish), at difficulty level '${resolvedDifficulty}'.
 OPTION COUNT: every 'multiple_choice' question has exactly ${scoring.option_count} options.
-GRAPH QUESTIONS: ${!graphsAllowed ? 'not allowed (never use type graph)' : graphSource && (count >= 3 || needGraph) ? `required: this source teaches material drawn on coordinate axes, so at least ${needGraph ? 1 : Math.max(1, Math.round(count / 5))} of the ${count} questions MUST be type 'graph' (they count as part of the type spread above)` : 'allowed'}.${exprSource ? `\nEXPRESSION QUESTIONS: ${exprNeeded(count) ? `required: this source teaches symbolic algebra or calculus, so at least ${exprNeeded(count)} of the ${count} questions MUST be type 'expression' (the student types a formula, e.g. a derivative or a simplified expression)` : 'allowed'}.` : ''}${fileDrawExamples.length ? `\nDRAWING QUESTIONS FROM THE STUDENT'S FILE (write the 'graph' questions in this style and on these topics, but with DIFFERENT equations and numbers; a question that only reuses these equations is discarded):\n${fileDrawExamples.map(t => `- ${t.slice(0, 300)}`).join('\n')}` : ''}${decimalPlaces ? `\nNUMERIC PRECISION: 'calculation' answers are graded to exactly ${decimalPlaces} decimal places. In every 'calculation' question text ask for the result to ${decimalPlaces} decimal places, and let "formula" compute the exact value (no rounding inside the formula).` : ''}${resolvedFocusConcept ? `\n\nIMPORTANT FOCUS RULE:\n- The student specifically wants to practice ONE topic: "${resolvedFocusConcept}". EVERY question must test this exact topic, approached from different angles (definition, application, comparison, scenario) — do not drift to unrelated concepts. Set the "concept" field on every question to "${resolvedFocusConcept}" (or a very close variant in the requested language).` : ''}${avoid.length > 0 ? `\n\nDo NOT repeat these questions that were already generated:\n${avoid.map(t => `- ${t.slice(0, 160)}`).join('\n')}` : ''}
+GRAPH QUESTIONS: ${!graphsAllowed ? 'not allowed (never use type graph)' : graphSource && (count >= 3 || needGraph) ? `required: this source teaches material drawn on coordinate axes, so at least ${needGraph ? 1 : Math.max(1, Math.round(count / 5))} of the ${count} questions MUST be type 'graph' (they count as part of the type spread above)` : 'allowed'}.${exprSource ? `\nEXPRESSION QUESTIONS: ${exprNeeded(count) ? `required: this source teaches symbolic algebra or calculus, so at least ${exprNeeded(count)} of the ${count} questions MUST be type 'expression' (the student types a formula, e.g. a derivative or a simplified expression)` : 'allowed'}.` : ''}${fileDrawExamples.length ? `\nDRAWING QUESTIONS FROM THE STUDENT'S FILE (write the 'graph' questions in this style and on these topics, but with DIFFERENT equations and numbers; a question that only reuses these equations is discarded):\n${fileDrawExamples.map(t => `- ${t.slice(0, 300)}`).join('\n')}` : ''}${decimalPlaces ? `\nNUMERIC PRECISION: 'calculation' answers are graded to exactly ${decimalPlaces} decimal places. In every 'calculation' question text ask for the result to ${decimalPlaces} decimal places, and let "formula" compute the exact value (no rounding inside the formula).` : ''}${adaptivePlan && remainingPlan(count).length ? `\n\n${adaptivePlanText(remainingPlan(count))}` : ''}${resolvedFocusConcept && !adaptivePlan ? `\n\nIMPORTANT FOCUS RULE:\n- The student specifically wants to practice ONE topic: "${resolvedFocusConcept}". EVERY question must test this exact topic, approached from different angles (definition, application, comparison, scenario) — do not drift to unrelated concepts. Set the "concept" field on every question to "${resolvedFocusConcept}" (or a very close variant in the requested language).` : ''}${avoid.length > 0 ? `\n\nDo NOT repeat these questions that were already generated:\n${avoid.map(t => `- ${t.slice(0, 160)}`).join('\n')}` : ''}
 
 Additional variation seed: ${Date.now()}`
+    // FAZ 5.2: planın henüz karşılanmamış satırları (kabul edilen soruların
+    // konuları düşülür); takip isteklerinde yalnızca bunlar istenir.
+    const remainingPlan = (count: number): AdaptiveSlot[] => {
+      if (!adaptivePlan) return []
+      const left = [...adaptivePlan]
+      for (const q of accepted) { const i = left.findIndex(x => x.key === conceptKey(q.concept)); if (i >= 0) left.splice(i, 1) }
+      return left.slice(0, count)
+    }
     // FAZ 3b: kaç ifade sorusu zorunlu (ilk istekte yaklaşık üçte bir; sonra
     // hâlâ yoksa 1). accepted ve firstCallDone aşağıda tanımlı; çağrı anında okunur.
     const exprNeeded = (count: number): number => {
@@ -3352,8 +3568,15 @@ Additional variation seed: ${Date.now()}`
       accepted = spreadInsert(accepted.filter(q => !fileSet.has(q)), kept)
       console.log(`generate-exam: ${kept.length}/${accepted.length} soru dosyadaki grafiklerden`)
     }
+    // FAZ 5.2: akıllı denemede zorluk soru başına plandan.
+    const planQueue = adaptivePlan ? [...adaptivePlan] : []
+    if (adaptivePlan) console.log(`generate-exam: akilli deneme plana uyan ${accepted.filter(q => adaptivePlan!.some(x => x.key === conceptKey(q.concept))).length}/${accepted.length} soru`)
     const finalQuestions = accepted.map((q, i) => {
       const out: Record<string, unknown> = { ...q, id: i + 1, difficulty: resolvedDifficulty }
+      if (planQueue.length) {
+        const j = planQueue.findIndex(x => x.key === conceptKey(q.concept))
+        if (j >= 0) { out.difficulty = planQueue[j].difficulty; planQueue.splice(j, 1) }
+      }
       if (out.type === 'multiple_choice' && Array.isArray(out.options) && out.keep_order !== true) {
         out.options = shuffleInPlace([...(out.options as string[])])
       }
@@ -3408,7 +3631,11 @@ Additional variation seed: ${Date.now()}`
       is_simulation: resolvedIsSimulation,
       time_limit_seconds: timeLimitSeconds,
       started_at: new Date().toISOString(),
-      scoring: decimalPlaces ? { ...scoring, decimal_places: decimalPlaces } : scoring
+      scoring: {
+        ...scoring,
+        ...(decimalPlaces ? { decimal_places: decimalPlaces } : {}),
+        ...(adaptivePlan ? { adaptive: { plan: adaptivePlan.map(x => ({ concept: x.concept, reason: x.reason, difficulty: x.difficulty, level: x.level })), days_to_exam: adaptiveDays } } : {})
+      }
     }
     if (resolvedSourceType === 'course') {
       examInsertPayload.study_card_id = null

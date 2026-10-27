@@ -2640,6 +2640,7 @@ window.axNotify = function (title, opts) {
   var checkRadio = function (name, val) { var r = root.querySelector('input[name="' + name + '"][value="' + val + '"]'); if (r && !r.disabled) { r.checked = true; r.dispatchEvent(new Event('change', { bubbles: true })); } };
   var openBuild = async function (k, forceSrc) {
     bdKey = k; bdErr.hidden = true; topicEl.value = ''; ratioTouched = false;
+    var adBox = $('#exam-adaptive'); if (adBox) { adBox.checked = false; if (typeof syncAdaptive === 'function') syncAdaptive(); }
     var d = k ? desks().filter(function (x) { return x.key === k; })[0] : null, h = (k && hoca[k]) || {};
     if (!bdDlg.open) bdDlg.showModal();
     if (d && d.cards.length && forceSrc !== 'course') {
@@ -2701,15 +2702,23 @@ window.axNotify = function (title, opts) {
     var src = val('exam-source'), name = '';
     if (src === 'course') { var cs = $('#exam-course-select'); name = cs && cs.selectedOptions[0] ? cs.selectedOptions[0].textContent : 'ders ağacı'; }
     else { var c = cardById($('#exam-card-select') && $('#exam-card-select').value); name = c ? (c.course_tag ? c.course_tag + ' · ' : '') + baseName(c.documents && c.documents.file_name) : 'belge seç'; }
-    var sim = $('#exam-simulation-toggle').checked, p = prof();
+    var sim = $('#exam-simulation-toggle').checked, p = prof(), adOn = !!($('#exam-adaptive') && $('#exam-adaptive').checked);
     $('[data-bd-note]').textContent = sim ? 'süre bitince kâğıt kendiliğinden toplanır.' : '';
-    cover.innerHTML = '<span class="uni">ACADEX · SINAV SALONU</span><h3>' + esc(name.length > 60 ? name.slice(0, 58) + '…' : name) + '</h3><span class="sub">' + esc((TYPE[val('exam-type')] || '') + ' · ' + (DIFF[val('exam-difficulty')] || '') + ' · ' + (val('exam-lang') === 'tr' ? 'Türkçe' : 'English')) + '</span>' +
+    cover.innerHTML = '<span class="uni">ACADEX · SINAV SALONU</span><h3>' + esc(name.length > 60 ? name.slice(0, 58) + '…' : name) + '</h3><span class="sub">' + esc((TYPE[val('exam-type')] || '') + ' · ' + (adOn ? 'zorluk konuya göre' : (DIFF[val('exam-difficulty')] || '')) + ' · ' + (val('exam-lang') === 'tr' ? 'Türkçe' : 'English')) + '</span>' +
       '<div class="lines"><span>Ad Soyad: ' + esc(p.full_name || '') + '</span><span>Öğrenci no: ' + esc(p.student_number || '') + '</span><span>Tarih: ' + dshort(new Date()) + '</span></div>' +
-      '<table><tr><th>SORU</th><td>' + esc(countEl.value) + '</td></tr><tr><th>SÜRE</th><td>' + (sim ? 'gerçek sınav süresi' : 'serbest') + '</td></tr><tr><th>İPUCU</th><td>' + (sim ? 'yok' : 'soru başına bir') + '</td></tr>' +
+      '<table>' + (adOn ? '<tr><th>AKILLI</th><td>konular ustalığına göre' + (bdKey && daysToDeskExam(bdKey) != null ? ' · sınava ' + daysToDeskExam(bdKey) + ' gün' : '') + '</td></tr>' : '') + '<tr><th>SORU</th><td>' + esc(countEl.value) + '</td></tr><tr><th>SÜRE</th><td>' + (sim ? 'gerçek sınav süresi' : 'serbest') + '</td></tr><tr><th>İPUCU</th><td>' + (sim ? 'yok' : 'soru başına bir') + '</td></tr>' +
       (hasMcType() ? '<tr><th>ŞIK</th><td>' + (val('exam-options') === '5' ? '5 (A–E)' : '4 (A–D)') + '</td></tr><tr><th>NET</th><td>' + (negT && negT.checked ? esc((negR ? negR.value : '3') + ' yanlış 1 doğruyu götürür') : 'yanlış götürmez') + '</td></tr>' : '') + ($('#exam-no-graphs') && $('#exam-no-graphs').checked ? '<tr><th>GRAFİK</th><td>grafik sorusu yok</td></tr>' : $('#exam-chart-examples') && $('#exam-chart-examples').checked && !$('#exam-chart-examples').disabled ? '<tr><th>GRAFİK</th><td>dosyadaki örneklere göre</td></tr>' : '') + (hasCalcType() && precSel && +precSel.value ? '<tr><th>HASSASİYET</th><td>' + esc(precLabel(precSel.value)) + '</td></tr>' : '') + (topicEl.value.trim() && src === 'course' ? '<tr><th>ODAK</th><td>' + esc(topicEl.value.trim()) + '</td></tr>' : '') + '</table>' +
       '<p class="warn">' + (sim ? 'KİTAPÇIĞI AÇINCA SÜRE BAŞLAR' : 'KOLAY GELSİN') + '</p>';
   };
   bdDlg.addEventListener('change', function () { setTimeout(paintCover, 0); });
+  /* FAZ 5.2: akıllı deneme açıkken odak konu ve zorluk plandan gelir; alanlar soluklaşır. */
+  var syncAdaptive = function () {
+    var on = !!($('#exam-adaptive') && $('#exam-adaptive').checked), db = $('[data-diff-box]'), nt = $('[data-ad-note]');
+    topicEl.disabled = on; topicEl.closest('label').classList.toggle('is-off', on);
+    if (db) db.classList.toggle('is-off', on);
+    if (nt) nt.hidden = !on;
+  };
+  bdDlg.addEventListener('change', function (e) { if (e.target && e.target.id === 'exam-adaptive') syncAdaptive(); });
   /* Acadia: sınav formunu verilen değerlerle hazırla */
   window.axSinavPrepare = async function (o) {
     o = o || {}; if (typeof switchDashboardView === 'function') switchDashboardView('exams');
@@ -2726,12 +2735,26 @@ window.axNotify = function (title, opts) {
     paintCover(); return true;
   };
   bdDlg.addEventListener('input', function () { setTimeout(paintCover, 0); });
+  /* FAZ 5.2: masanın takvimdeki en yakın sınavına kalan gün (yoksa null). */
+  var daysToDeskExam = function (k) {
+    if (!k) return null;
+    var nm = String(nameOfKey(k) || '').toLocaleLowerCase('tr-TR'), code = k.indexOf('c:') === 0 ? k.slice(2).toLocaleLowerCase('tr-TR') : '';
+    var best = null;
+    EV.forEach(function (e) {
+      var ti = String(e.title || '').toLocaleLowerCase('tr-TR'), d = e.event_date ? dayDiff(e.event_date) : -1;
+      if (d < 0 || !((nm && ti.indexOf(nm) === 0) || (code && ti.indexOf(code) >= 0))) return;
+      if (best == null || d < best) best = d;
+    });
+    return best;
+  };
   if (typeof generateExam === 'function') {
     var origGen = generateExam;
     generateExam = async function () {
       bdErr.hidden = true;
-      var t = topicEl.value.trim();
-      if (t && val('exam-source') === 'course') { try { examFocusConcept = t; } catch (e) {} }
+      var t = topicEl.value.trim(), adOn = !!($('#exam-adaptive') && $('#exam-adaptive').checked);
+      if (t && !adOn) { try { examFocusConcept = t; } catch (e) {} }
+      /* FAZ 5.2: akıllı denemede sınava kalan gün (takvimdeki en yakın sınav, masa adıyla) */
+      window.__examAdaptiveDays = adOn ? daysToDeskExam(bdKey) : null;
       var n = $('[data-bd-note]'); n.textContent = 'Acadia soruları yazıyor; bu biraz sürebilir…';
       window.__examProgress = function (msg) { n.textContent = msg; };
       var r;
@@ -3229,6 +3252,7 @@ window.axNotify = function (title, opts) {
       err.textContent = (e && e.message) || 'İstek gönderilemedi.'; err.hidden = false;
     });
   };
+  var AD_WHY = { weak: 'zayıf konu', review: 'tekrar zamanı', 'new': 'yeni konu', stretch: 'pekiştirme' };
   var MK = { ok: '<path pathLength="1" d="M5 18 L13 27 L29 6"/>', no: '<path pathLength="1" d="M6 6 L28 28 M28 6 L6 28"/>', half: '<path pathLength="1" d="M6 26 L28 8"/>' };
   if (typeof showExamResults === 'function') {
     showExamResults = function (exam) {
@@ -3258,15 +3282,18 @@ window.axNotify = function (title, opts) {
           return '<span class="' + (up ? 'up' : down ? 'down' : '') + '">' + esc(m.name) + ': ' + esc(txt) + (up ? ' ↑' : down ? ' ↓' : '') + '</span>';
         }).join('') + (mc.length > 6 ? '<span>+' + (mc.length - 6) + ' konu</span>' : '') + '</p>';
       }
+      /* FAZ 5.2: akıllı denemede her sorunun neden seçildiği */
+      var adPlan = exam.scoring && exam.scoring.adaptive && Array.isArray(exam.scoring.adaptive.plan) ? exam.scoring.adaptive.plan : null, adMap = {};
+      if (adPlan && ENG() && typeof ENG().conceptKey === 'function') adPlan.forEach(function (x) { adMap[ENG().conceptKey(x.concept)] = x.reason; });
       var practice = wl.length && wl[0].a < 75 ? (code ? '<button type="button" class="sn-ghost" data-practice="' + esc(code) + '" data-concept="' + esc(wl[0].c) + '">“' + esc(wl[0].c) + '” konusundan yeni deneme</button>' : '<button type="button" class="sn-ghost" data-retry="' + esc(label) + '">bu belgeden yeni deneme</button>') : '';
-      res.innerHTML = '<article class="sn-paper"><div class="sn-ph"><div><span class="sn-k">' + esc(course) + '</span><h2 class="disp">' + esc((TYPE[exam.exam_type] || 'deneme') + ' deneme') + (exam.is_simulation ? ' · gerçek süre' : '') + '</h2><p>' + esc(dshort(exam.completed_at || new Date())) + ' · ' + rs.length + ' soru · ' + (exam.language === 'tr' ? 'Türkçe' : 'English') + ' · ' + verdict + '</p></div>' +
+      res.innerHTML = '<article class="sn-paper"><div class="sn-ph"><div><span class="sn-k">' + esc(course) + '</span><h2 class="disp">' + esc((adPlan ? 'akıllı' : (TYPE[exam.exam_type] || 'deneme')) + ' deneme') + (exam.is_simulation ? ' · gerçek süre' : '') + '</h2><p>' + esc(dshort(exam.completed_at || new Date())) + ' · ' + rs.length + ' soru · ' + (exam.language === 'tr' ? 'Türkçe' : 'English') + ' · ' + verdict + '</p></div>' +
         '<div class="sn-score" role="img" aria-label="Puan ' + g + ' / 100"><svg viewBox="0 0 118 96" aria-hidden="true"><path pathLength="1" d="M60 6 C24 4 4 26 8 52 C12 80 50 94 82 86 C110 78 118 50 104 28 C94 12 74 6 52 10"/></svg><b>' + g + '</b><small>/ 100</small></div></div>' +
         '<p class="sn-sum">' + netLine(exam) + '<span>doğru <b>' + cnt.ok + '</b></span><span>kısmen <b>' + cnt.half + '</b></span><span>yanlış <b>' + cnt.no + '</b></span>' + (cnt.blank ? '<span>boş <b>' + cnt.blank + '</b></span>' : '') + (el ? '<span>süre <b>' + mmss(el) + '</b></span>' : '') + '</p>' + mch +
         rs.map(function (r, i) {
           var k = r.score >= 80 ? 'ok' : r.score >= 50 ? 'half' : 'no', blank = !String(r.student_answer || '').trim();
           var steps = Array.isArray(r.solution_steps) && r.solution_steps.length ? '<div class="sn-model"><b>çözüm adımları</b><ol>' + r.solution_steps.map(function (s) { return '<li>' + rich(s) + '</li>'; }).join('') + '</ol></div>' : '';
           var unit = r.units ? ' ' + esc(r.units) : '';
-          return '<div class="sn-ri" style="--i:' + i + '"><svg class="mk ' + k + '" viewBox="0 0 34 34" aria-hidden="true">' + MK[k] + '</svg><div class="sn-ri-h"><b>' + (i + 1) + '</b><span class="ty">' + esc(QT[r.type] || r.type || '') + '</span>' + (r.concept ? '<span class="cpt">' + esc(r.concept) + '</span>' : '') + '<span class="pt">' + (+r.score || 0) + '</span></div>' +
+          return '<div class="sn-ri" style="--i:' + i + '"><svg class="mk ' + k + '" viewBox="0 0 34 34" aria-hidden="true">' + MK[k] + '</svg><div class="sn-ri-h"><b>' + (i + 1) + '</b><span class="ty">' + esc(QT[r.type] || r.type || '') + '</span>' + (r.concept ? '<span class="cpt">' + esc(r.concept) + '</span>' : '') + (adPlan && r.concept && adMap[ENG().conceptKey(r.concept)] ? '<span class="why ' + esc(adMap[ENG().conceptKey(r.concept)]) + '">' + esc(AD_WHY[adMap[ENG().conceptKey(r.concept)]] || '') + '</span>' : '') + '<span class="pt">' + (+r.score || 0) + '</span></div>' +
             '<p class="q">' + rich(r.question) + '</p>' + chartHtml(r, exam.language) + (r.type === 'graph' && ENG() && typeof ENG().graphResultHtml === 'function' ? ENG().graphResultHtml(r, exam.language) : '') + '<p class="yours' + (k === 'no' && !blank ? ' wrong' : '') + '">senin cevabın: <span>' + (blank ? 'boş bıraktın' : ansHtml(r, r.student_answer) + (r.student_answer && r.units ? unit : '')) + '</span></p>' +
             (r.type !== 'open_ended' && r.correct_answer != null && r.correct_answer !== '' && String(r.correct_answer).trim().toLowerCase() !== 'null' ? '<p class="right">doğrusu: ' + ansHtml(r, r.correct_answer) + (r.type === 'expression' && r.up_to_constant ? ' + C' : '') + unit + (r.decimal_places ? ' (virgülden sonra ' + esc(r.decimal_places) + ' basamak)' : r.tolerance_percent ? ' (±%' + esc(r.tolerance_percent) + ')' : '') + '</p>' : '') +
             (r.feedback ? '<p class="fb">' + rich(r.feedback) + '</p>' : '') + teach(r, blank) + steps + '</div>';
@@ -3297,6 +3324,7 @@ window.axNotify = function (title, opts) {
     window.pendingExamCourse = { code: code, deptCode: null }; window.pendingFocusConcept = concept;
     var cr = root.querySelector('input[name="exam-source"][value="course"]'); if (cr) cr.checked = true;
     bdKey = 'c:' + code; bdErr.hidden = true; topicEl.value = '';
+    var adBox = $('#exam-adaptive'); if (adBox) { adBox.checked = false; if (typeof syncAdaptive === 'function') syncAdaptive(); }
     if (!bdDlg.open) bdDlg.showModal();
     Promise.resolve(typeof onExamSourceChange === 'function' ? onExamSourceChange() : null).then(function () { topicEl.value = concept || ''; paintCover(); });
   };
@@ -3334,12 +3362,12 @@ window.axNotify = function (title, opts) {
     var list = ex.slice().reverse();
     attsEl.innerHTML = list.length ? list.slice(0, 20).map(function (e) {
       var gg = Math.round(+e.grade || 0);
-      return '<li tabindex="0" role="button" data-ex="' + esc(e.id) + '" aria-label="' + esc(nameOfKey(keyOfExam(e))) + ' denemesi, ' + gg + ' puan, sonucu aç"><span class="dt">' + dshort(e.completed_at) + '</span><span class="ti">' + esc((TYPE[e.exam_type] || 'deneme') + ' · ' + nameOfKey(keyOfExam(e))) + (e.is_simulation ? ' · ⏱' : '') + '</span><span class="du">' + (e.question_count || (e.question_results || []).length) + ' soru' + (e.difficulty ? ' · ' + (DIFF[e.difficulty] || '') : '') + '</span><span class="sc' + (gg >= 75 ? ' ok' : gg >= 50 ? ' mid' : '') + '">' + gg + '</span></li>';
+      return '<li tabindex="0" role="button" data-ex="' + esc(e.id) + '" aria-label="' + esc(nameOfKey(keyOfExam(e))) + ' denemesi, ' + gg + ' puan, sonucu aç"><span class="dt">' + dshort(e.completed_at) + '</span><span class="ti">' + esc((e.scoring && e.scoring.adaptive ? 'akıllı' : (TYPE[e.exam_type] || 'deneme')) + ' · ' + nameOfKey(keyOfExam(e))) + (e.is_simulation ? ' · ⏱' : '') + '</span><span class="du">' + (e.question_count || (e.question_results || []).length) + ' soru' + (e.difficulty ? ' · ' + (DIFF[e.difficulty] || '') : '') + '</span><span class="sc' + (gg >= 75 ? ' ok' : gg >= 50 ? ' mid' : '') + '">' + gg + '</span></li>';
     }).join('') : '<li class="sn-empty" style="display:block;border:0">henüz tamamlanmış deneme yok.</li>';
   };
   /* FAZ 5.1: konu ustalığı (exam-engine conceptMastery). Seçili masa ya da
      tümü; tekrar zamanı gelenler ve en zayıflar başta. */
-  var mastEl = $('[data-mastery]'), mastSum = $('[data-mast-sum]'), mastAll = false;
+  var mastEl = $('[data-mastery]'), mastSum = $('[data-mast-sum]'), mastGo = $('[data-mast-go]'), mastAll = false;
   var LV_CLS = ['lo', 'mid', 'ok', 'top'];
   var paintMastery = function (ds) {
     if (!mastEl) return;
@@ -3353,8 +3381,11 @@ window.axNotify = function (title, opts) {
     if (!rows.length) {
       mastEl.innerHTML = '<li class="sn-empty">konu etiketli sorular çözdükçe her konudaki ustalığın burada belirir.</li>';
       if (mastSum) mastSum.textContent = '';
+      if (mastGo) mastGo.hidden = true;
       return;
     }
+    /* FAZ 5.2: akıllı deneme seçili masa için; "tümü"nde en öncelikli konunun masası */
+    if (mastGo) { var gk = rSel !== 'all' ? rSel : rows[0].desk.key; mastGo.hidden = false; mastGo.setAttribute('data-key', gk); mastGo.textContent = rSel !== 'all' ? 'akıllı deneme kur' : 'akıllı deneme · ' + rows[0].desk.name; }
     var cnt = [0, 0, 0, 0], due = 0;
     rows.forEach(function (c) { cnt[c.level]++; if (c.due) due++; });
     if (mastSum) mastSum.textContent = [3, 2, 1, 0].filter(function (i) { return cnt[i]; }).map(function (i) { return eng.MASTERY_LEVELS[i] + ' ' + cnt[i]; }).join(' · ') + (due ? ' · tekrar zamanı ' + due : '');
@@ -3362,14 +3393,21 @@ window.axNotify = function (title, opts) {
     mastEl.innerHTML = shown.map(function (c) {
       var when = c.daysAgo === 0 ? 'bugün' : c.daysAgo === 1 ? 'dün' : c.daysAgo + ' gün önce';
       var meta = (rSel === 'all' ? esc(c.desk.name) + ' · ' : '') + 'son ' + c.recentExams + ' denemede ort. ' + c.recentAvg + ' · ' + when + ' · ' + c.n + ' soru · hafıza %' + c.retention + (c.fewData ? ' · az veri' : '');
-      var act = c.desk.code && (c.level <= 1 || c.due) ? '<button type="button" class="sn-ghost" data-practice="' + esc(c.desk.code) + '" data-concept="' + esc(c.name) + '">bu konudan deneme</button>' : '';
+      var act = !(c.level <= 1 || c.due) ? '' : c.desk.code ? '<button type="button" class="sn-ghost" data-practice="' + esc(c.desk.code) + '" data-concept="' + esc(c.name) + '">bu konudan deneme</button>'
+        : '<button type="button" class="sn-ghost" data-focus-key="' + esc(c.desk.key) + '" data-concept="' + esc(c.name) + '">bu konudan deneme</button>';
       return '<li class="sn-mrow ' + LV_CLS[c.level] + '"><div class="nm"><b>' + esc(c.name) + '</b><span class="mt">' + meta + '</span></div>' +
         '<span class="lv">' + esc(c.levelName) + '</span>' + (c.due ? '<span class="due">tekrar zamanı</span>' : '') +
         '<span class="bar" role="img" aria-label="ustalık ' + c.mastery + ' / 100"><i style="width:' + c.mastery + '%"></i></span>' + act + '</li>';
     }).join('') + (rows.length > 10 ? '<li class="sn-mmore"><button type="button" class="sn-ghost" data-mast-all="">' + (mastAll ? 'daha az göster' : 'tümünü göster (' + rows.length + ')') + '</button></li>' : '');
   };
+  if (mastGo) mastGo.addEventListener('click', function () {
+    var k = mastGo.getAttribute('data-key');
+    Promise.resolve(openBuild(k)).then(function () { var ad = $('#exam-adaptive'); if (ad) { ad.checked = true; ad.dispatchEvent(new Event('change', { bubbles: true })); } paintCover(); });
+  });
   if (mastEl) mastEl.addEventListener('click', function (e) {
     if (e.target.closest('[data-mast-all]')) { mastAll = !mastAll; paintReport(); return; }
+    var fk = e.target.closest('[data-focus-key]');
+    if (fk) { var cpt = fk.getAttribute('data-concept'); Promise.resolve(openBuild(fk.getAttribute('data-focus-key'))).then(function () { topicEl.value = cpt || ''; paintCover(); }); return; }
     var p = e.target.closest('[data-practice]'); if (p) practice(p.getAttribute('data-practice'), p.getAttribute('data-concept'));
   });
   rtabs.addEventListener('click', function (e) { var b = e.target.closest('[data-rk]'); if (b) { rSel = b.getAttribute('data-rk'); paintReport(); } });

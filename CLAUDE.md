@@ -36,7 +36,8 @@
 
 | Değişen | Nasıl Yayına Girer |
 |---|---|
-| `supabase/functions/**/index.ts` | **Elle:** Supabase panelinden kopyala-yapıştır |
+| `supabase/functions/{generate-exam,grade-exam,extract-chart-items,exam-appeal,get-exam-hint}/index.ts` | **Otomatik:** main'e birleşince GitHub Actions (`.github/workflows/deploy-exam-functions.yml`); canlı kod panelden değiştirilmişse deploy etmez |
+| Öteki `supabase/functions/**/index.ts` | **Elle:** Supabase panelinden kopyala-yapıştır |
 | `supabase/migrations/*.sql` | **Elle:** Supabase SQL Editor |
 | `js/`, `css/`, `*.html` | **Push:** GitHub Desktop üzerinden → Vercel otomatik |
 | `tests/` | Hiçbir yere deploy edilmez, sadece yerelde koşar |
