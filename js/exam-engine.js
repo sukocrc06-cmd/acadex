@@ -1724,6 +1724,131 @@
     return null;
   }
 
+  /* ---------- FAZ 5.1: konu ustalığı ----------
+     Her konu için iki tahmin:
+     - p (ustalık): Bayesçi bilgi izleme (BKT). Kısmi puan kısmi kanıt sayılır;
+       şans payı soru tipine göre (çoktan seçmeli 1/şık, D/Y 1/2…).
+     - hafıza: FSRS'in unutma eğrisi R = (1 + 19/81 · t/S)^-0.5; S (gün)
+       aralıklı başarıyla büyür, başarısızlıkla küçülür.
+     Kullanıcı şikâyetlerinden kurallar (Khan Academy, ALEKS):
+     - Bir sınavda bir konu en fazla bir seviye düşer ("tek yanlış emeği silmez").
+     - "yetkin" için en az 3, "usta" için en az 5 soru ve iki ayrı günde başarı
+       gerekir (tek soru ya da tek günlük ezber yetmez).
+     - Ustalık sınav gerektirmez; seviyeyi gösteren kanıt satırı her zaman görünür. */
+  const MASTERY_LEVELS = ['zayıf', 'tanıdık', 'yetkin', 'usta'];
+  const MASTERY_MIN = [0, 0.4, 0.7, 0.9];
+  const MASTERY_PARAMS = { prior: 0.3, slip: 0.1, learn: 0.1, max: 0.98, dueRetention: 0.8 };
+  const DAY_MS = 86400000;
+
+  /** Kavram adını gruplama anahtarına çevirir: büyük/küçük harf, boşluk,
+   *  sondaki kısa parantez ("Marjinal maliyet (MC)") önemsiz. */
+  function conceptKey(name) {
+    return String(name == null ? '' : name).normalize('NFC').replace(/\s*\([^()]{1,12}\)\s*$/, '')
+      .toLocaleLowerCase('tr-TR').replace(/[.,;:!?'"“”‘’]+/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  /** Soru tipinin şans payı (bilmeden doğru cevaplama olasılığı). */
+  function guessRate(type, optionCount) {
+    if (type === 'multiple_choice') return 1 / (Number(optionCount) === 5 ? 5 : 4);
+    if (type === 'true_false') return 0.5;
+    if (type === 'fill_blank' || type === 'open_ended') return 0.1;
+    return 0.05;
+  }
+
+  function masteryLevelOf(p, okDays, n) {
+    let lv = 0;
+    for (let i = MASTERY_MIN.length - 1; i >= 0; i--) if (p >= MASTERY_MIN[i]) { lv = i; break; }
+    if (lv === 3 && (okDays < 2 || n < 5)) lv = 2;
+    if (lv >= 2 && n < 3) lv = 1;
+    return lv;
+  }
+
+  /** Hafıza: son kanıttan bu yana geçen gün ve kararlılık (gün). */
+  function retentionOf(days, stability) {
+    if (!(stability > 0) || !(days > 0)) return 1;
+    return Math.pow(1 + (19 / 81) * days / stability, -0.5);
+  }
+
+  /** Sınavlardan (completed_at + question_results) konu ustalıkları.
+   *  Dönen dizi önceliğe göre sıralı: önce tekrar zamanı gelenler ve en zayıflar. */
+  function conceptMastery(exams, opts) {
+    const now = opts && Number.isFinite(opts.now) ? opts.now : Date.now();
+    const P = MASTERY_PARAMS;
+    const map = {};
+    const list = (Array.isArray(exams) ? exams : []).filter(e => e && e.completed_at && Array.isArray(e.question_results))
+      .slice().sort((a, b) => new Date(a.completed_at) - new Date(b.completed_at));
+    list.forEach(exam => {
+      const at = new Date(exam.completed_at).getTime();
+      if (!Number.isFinite(at)) return;
+      const optionCount = exam.scoring && exam.scoring.option_count;
+      const groups = {};
+      exam.question_results.forEach(r => {
+        if (!r || !r.concept) return;
+        const k = conceptKey(r.concept);
+        if (!k) return;
+        const score = Math.max(0, Math.min(100, Number(r.score) || 0));
+        // 50 altı sonuç kâğıdında "yanlış" sayılır; kanıt olarak da çoğunlukla yanlış.
+        const c = score >= 50 ? score / 100 : score / 200;
+        (groups[k] = groups[k] || { name: String(r.concept).trim(), obs: [] }).obs.push({ c: c, g: guessRate(r.type, optionCount) });
+      });
+      Object.keys(groups).forEach(k => {
+        const grp = groups[k];
+        const s = map[k] = map[k] || { key: k, name: grp.name, p: P.prior, stability: 0, lastAt: 0, okDays: [], n: 0, history: [] };
+        const prevLevel = s.n ? masteryLevelOf(s.p, s.okDays.length, s.n) : -1;
+        const before = s.n ? retentionOf((at - s.lastAt) / DAY_MS, s.stability) : 1;
+        let p = s.p;
+        grp.obs.forEach(o => {
+          const right = p * (1 - P.slip) / (p * (1 - P.slip) + (1 - p) * o.g);
+          const wrong = p * P.slip / (p * P.slip + (1 - p) * (1 - o.g));
+          p = o.c * right + (1 - o.c) * wrong;
+        });
+        p = Math.min(P.max, p + (1 - p) * P.learn);
+        const avg = grp.obs.reduce((t, o) => t + o.c, 0) / grp.obs.length;
+        const day = new Date(at).toISOString().slice(0, 10);
+        if (avg >= 0.8 && s.okDays.indexOf(day) < 0) s.okDays.push(day);
+        // Bir sınavda en fazla bir seviye düşüş.
+        if (prevLevel > 0 && masteryLevelOf(p, s.okDays.length, s.n + grp.obs.length) < prevLevel - 1) p = MASTERY_MIN[prevLevel - 1];
+        const gapDays = s.n ? (at - s.lastAt) / DAY_MS : 0;
+        if (!s.stability) s.stability = avg >= 0.8 ? 3 : avg >= 0.5 ? 1.5 : 1;
+        else if (avg >= 0.8) s.stability = Math.min(365, s.stability * (gapDays >= 0.5 ? 1.8 + 2 * (1 - before) : 1.15));
+        else if (avg < 0.5) s.stability = Math.max(1, s.stability * 0.4);
+        else s.stability = s.stability * 1.1;
+        s.p = p;
+        s.name = grp.name;
+        s.lastAt = at;
+        s.n += grp.obs.length;
+        s.history.push({ at: at, avg: Math.round(avg * 100), n: grp.obs.length, exam: exam.id == null ? null : exam.id });
+      });
+    });
+    return Object.keys(map).map(k => {
+      const s = map[k];
+      const days = Math.max(0, (now - s.lastAt) / DAY_MS);
+      const retention = retentionOf(days, s.stability);
+      const level = masteryLevelOf(s.p, s.okDays.length, s.n);
+      const recent = s.history.slice(-3);
+      return {
+        key: s.key, name: s.name, mastery: Math.round(s.p * 100), p: s.p, level: level, levelName: MASTERY_LEVELS[level],
+        retention: Math.round(retention * 100), stability: Math.round(s.stability * 10) / 10,
+        due: level >= 2 && retention < P.dueRetention, n: s.n, exams: s.history.length, okDays: s.okDays.length,
+        lastAt: s.lastAt, daysAgo: Math.floor(days), recentAvg: Math.round(recent.reduce((t, h) => t + h.avg, 0) / recent.length),
+        recentExams: recent.length, fewData: s.n < 3, history: s.history
+      };
+    }).sort((a, b) => (Number(b.due) - Number(a.due)) || (a.p * (0.5 + a.retention / 200)) - (b.p * (0.5 + b.retention / 200)) || a.name.localeCompare(b.name, 'tr'));
+  }
+
+  /** Bir sınavın konu seviyelerini nasıl değiştirdiği: önceki sınavlarla
+   *  ve bu sınav dahil hesaplanan seviyeler karşılaştırılır. */
+  function masteryChanges(priorExams, exam, opts) {
+    const before = {};
+    conceptMastery(priorExams, opts).forEach(c => { before[c.key] = c; });
+    const keys = {};
+    (exam && Array.isArray(exam.question_results) ? exam.question_results : []).forEach(r => { if (r && r.concept) keys[conceptKey(r.concept)] = true; });
+    return conceptMastery((priorExams || []).concat([exam]), opts).filter(c => keys[c.key]).map(c => {
+      const b = before[c.key];
+      return { key: c.key, name: c.name, from: b ? b.level : null, fromName: b ? b.levelName : null, to: c.level, toName: c.levelName, mastery: c.mastery, delta: c.mastery - (b ? b.mastery : Math.round(MASTERY_PARAMS.prior * 100)) };
+    }).sort((a, b) => (b.to - (b.from == null ? -1 : b.from)) - (a.to - (a.from == null ? -1 : a.from)) || b.delta - a.delta);
+  }
+
   /** FAZ 3c: sayı hassasiyeti — doğru cevaptan en çok yarım son basamak
    *  sapma (3 basamakta ±0,0005). grade-exam gradeCalculationPrecise ile aynı. */
   function withinDecimals(value, answer, decimals) {
@@ -2586,6 +2711,13 @@
     makeVariant,
     checkNumericAnswer,
     withinDecimals,
+    // FAZ 5.1: konu ustalığı
+    MASTERY_LEVELS,
+    conceptKey,
+    guessRate,
+    retentionOf,
+    conceptMastery,
+    masteryChanges,
     // FAZ 3b: cebirsel ifade
     normalizeMathInput,
     exprToTex,

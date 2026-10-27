@@ -3247,10 +3247,21 @@ window.axNotify = function (title, opts) {
       var weak = {}; rs.forEach(function (r) { if (!r.concept) return; (weak[r.concept] = weak[r.concept] || { t: 0, n: 0 }); weak[r.concept].t += +r.score || 0; weak[r.concept].n++; });
       var wl = Object.keys(weak).map(function (k) { return { c: k, a: weak[k].t / weak[k].n }; }).sort(function (a, b) { return a.a - b.a; });
       var label = keyOfExam(exam), code = label.indexOf('c:') === 0 ? label.slice(2) : null;
+      /* FAZ 5.1: bu sınav konu seviyelerini nasıl değiştirdi */
+      var mch = '';
+      if (ENG() && typeof ENG().masteryChanges === 'function') {
+        var tEx = new Date(exam.completed_at || Date.now()).getTime();
+        var mc = ENG().masteryChanges(EX.filter(function (x) { return x.id !== exam.id && keyOfExam(x) === label && new Date(x.completed_at).getTime() < tEx; }), exam);
+        if (mc.length) mch = '<p class="sn-mch"><b>ustalık</b>' + mc.slice(0, 6).map(function (m) {
+          var up = m.from == null ? m.to >= 1 : m.to > m.from, down = m.from != null && m.to < m.from;
+          var txt = m.from == null ? 'yeni · ' + m.toName : m.from === m.to ? m.toName : m.fromName + ' → ' + m.toName;
+          return '<span class="' + (up ? 'up' : down ? 'down' : '') + '">' + esc(m.name) + ': ' + esc(txt) + (up ? ' ↑' : down ? ' ↓' : '') + '</span>';
+        }).join('') + (mc.length > 6 ? '<span>+' + (mc.length - 6) + ' konu</span>' : '') + '</p>';
+      }
       var practice = wl.length && wl[0].a < 75 ? (code ? '<button type="button" class="sn-ghost" data-practice="' + esc(code) + '" data-concept="' + esc(wl[0].c) + '">“' + esc(wl[0].c) + '” konusundan yeni deneme</button>' : '<button type="button" class="sn-ghost" data-retry="' + esc(label) + '">bu belgeden yeni deneme</button>') : '';
       res.innerHTML = '<article class="sn-paper"><div class="sn-ph"><div><span class="sn-k">' + esc(course) + '</span><h2 class="disp">' + esc((TYPE[exam.exam_type] || 'deneme') + ' deneme') + (exam.is_simulation ? ' · gerçek süre' : '') + '</h2><p>' + esc(dshort(exam.completed_at || new Date())) + ' · ' + rs.length + ' soru · ' + (exam.language === 'tr' ? 'Türkçe' : 'English') + ' · ' + verdict + '</p></div>' +
         '<div class="sn-score" role="img" aria-label="Puan ' + g + ' / 100"><svg viewBox="0 0 118 96" aria-hidden="true"><path pathLength="1" d="M60 6 C24 4 4 26 8 52 C12 80 50 94 82 86 C110 78 118 50 104 28 C94 12 74 6 52 10"/></svg><b>' + g + '</b><small>/ 100</small></div></div>' +
-        '<p class="sn-sum">' + netLine(exam) + '<span>doğru <b>' + cnt.ok + '</b></span><span>kısmen <b>' + cnt.half + '</b></span><span>yanlış <b>' + cnt.no + '</b></span>' + (cnt.blank ? '<span>boş <b>' + cnt.blank + '</b></span>' : '') + (el ? '<span>süre <b>' + mmss(el) + '</b></span>' : '') + '</p>' +
+        '<p class="sn-sum">' + netLine(exam) + '<span>doğru <b>' + cnt.ok + '</b></span><span>kısmen <b>' + cnt.half + '</b></span><span>yanlış <b>' + cnt.no + '</b></span>' + (cnt.blank ? '<span>boş <b>' + cnt.blank + '</b></span>' : '') + (el ? '<span>süre <b>' + mmss(el) + '</b></span>' : '') + '</p>' + mch +
         rs.map(function (r, i) {
           var k = r.score >= 80 ? 'ok' : r.score >= 50 ? 'half' : 'no', blank = !String(r.student_answer || '').trim();
           var steps = Array.isArray(r.solution_steps) && r.solution_steps.length ? '<div class="sn-model"><b>çözüm adımları</b><ol>' + r.solution_steps.map(function (s) { return '<li>' + rich(s) + '</li>'; }).join('') + '</ol></div>' : '';
@@ -3317,6 +3328,8 @@ window.axNotify = function (title, opts) {
     var rows = Object.keys(by).map(function (k) { return { k: k, a: Math.round(by[k].t / by[k].n), n: by[k].n }; }).sort(function (a, b) { return a.a - b.a; });
     timeEl.innerHTML = rows.length ? rows.map(function (r) { return '<div class="sn-trow"><span class="nm">' + esc(QT[r.k] || r.k) + '</span><span class="bar" role="img" aria-label="ortalama ' + r.a + '"><i class="' + (r.a < 50 ? 'lo' : r.a < 75 ? 'mid' : '') + '" style="width:' + r.a + '%"></i></span><span class="v">ort. ' + r.a + ' · ' + r.n + ' soru</span></div>'; }).join('') + (rows.length > 1 && rows[0].a < 75 ? '<p class="sn-tnote">en çok zorlandığın: ' + esc(QT[rows[0].k] || rows[0].k) + ' soruları.</p>' : '')
       : '<p class="sn-empty">denemelerden sonra hangi soru türünde zorlandığını burada görürsün.</p>';
+    /* ustalık haritası (FAZ 5.1) */
+    paintMastery(ds);
     /* denemeler */
     var list = ex.slice().reverse();
     attsEl.innerHTML = list.length ? list.slice(0, 20).map(function (e) {
@@ -3324,6 +3337,41 @@ window.axNotify = function (title, opts) {
       return '<li tabindex="0" role="button" data-ex="' + esc(e.id) + '" aria-label="' + esc(nameOfKey(keyOfExam(e))) + ' denemesi, ' + gg + ' puan, sonucu aç"><span class="dt">' + dshort(e.completed_at) + '</span><span class="ti">' + esc((TYPE[e.exam_type] || 'deneme') + ' · ' + nameOfKey(keyOfExam(e))) + (e.is_simulation ? ' · ⏱' : '') + '</span><span class="du">' + (e.question_count || (e.question_results || []).length) + ' soru' + (e.difficulty ? ' · ' + (DIFF[e.difficulty] || '') : '') + '</span><span class="sc' + (gg >= 75 ? ' ok' : gg >= 50 ? ' mid' : '') + '">' + gg + '</span></li>';
     }).join('') : '<li class="sn-empty" style="display:block;border:0">henüz tamamlanmış deneme yok.</li>';
   };
+  /* FAZ 5.1: konu ustalığı (exam-engine conceptMastery). Seçili masa ya da
+     tümü; tekrar zamanı gelenler ve en zayıflar başta. */
+  var mastEl = $('[data-mastery]'), mastSum = $('[data-mast-sum]'), mastAll = false;
+  var LV_CLS = ['lo', 'mid', 'ok', 'top'];
+  var paintMastery = function (ds) {
+    if (!mastEl) return;
+    var eng = ENG();
+    if (!eng || typeof eng.conceptMastery !== 'function') { mastEl.innerHTML = ''; if (mastSum) mastSum.textContent = ''; return; }
+    var rows = [];
+    (rSel === 'all' ? ds : ds.filter(function (d) { return d.key === rSel; })).forEach(function (d) {
+      eng.conceptMastery(d.ex).forEach(function (c) { c.desk = d; rows.push(c); });
+    });
+    rows.sort(function (a, b) { return (b.due - a.due) || (a.p * (0.5 + a.retention / 200)) - (b.p * (0.5 + b.retention / 200)); });
+    if (!rows.length) {
+      mastEl.innerHTML = '<li class="sn-empty">konu etiketli sorular çözdükçe her konudaki ustalığın burada belirir.</li>';
+      if (mastSum) mastSum.textContent = '';
+      return;
+    }
+    var cnt = [0, 0, 0, 0], due = 0;
+    rows.forEach(function (c) { cnt[c.level]++; if (c.due) due++; });
+    if (mastSum) mastSum.textContent = [3, 2, 1, 0].filter(function (i) { return cnt[i]; }).map(function (i) { return eng.MASTERY_LEVELS[i] + ' ' + cnt[i]; }).join(' · ') + (due ? ' · tekrar zamanı ' + due : '');
+    var shown = mastAll ? rows : rows.slice(0, 10);
+    mastEl.innerHTML = shown.map(function (c) {
+      var when = c.daysAgo === 0 ? 'bugün' : c.daysAgo === 1 ? 'dün' : c.daysAgo + ' gün önce';
+      var meta = (rSel === 'all' ? esc(c.desk.name) + ' · ' : '') + 'son ' + c.recentExams + ' denemede ort. ' + c.recentAvg + ' · ' + when + ' · ' + c.n + ' soru · hafıza %' + c.retention + (c.fewData ? ' · az veri' : '');
+      var act = c.desk.code && (c.level <= 1 || c.due) ? '<button type="button" class="sn-ghost" data-practice="' + esc(c.desk.code) + '" data-concept="' + esc(c.name) + '">bu konudan deneme</button>' : '';
+      return '<li class="sn-mrow ' + LV_CLS[c.level] + '"><div class="nm"><b>' + esc(c.name) + '</b><span class="mt">' + meta + '</span></div>' +
+        '<span class="lv">' + esc(c.levelName) + '</span>' + (c.due ? '<span class="due">tekrar zamanı</span>' : '') +
+        '<span class="bar" role="img" aria-label="ustalık ' + c.mastery + ' / 100"><i style="width:' + c.mastery + '%"></i></span>' + act + '</li>';
+    }).join('') + (rows.length > 10 ? '<li class="sn-mmore"><button type="button" class="sn-ghost" data-mast-all="">' + (mastAll ? 'daha az göster' : 'tümünü göster (' + rows.length + ')') + '</button></li>' : '');
+  };
+  if (mastEl) mastEl.addEventListener('click', function (e) {
+    if (e.target.closest('[data-mast-all]')) { mastAll = !mastAll; paintReport(); return; }
+    var p = e.target.closest('[data-practice]'); if (p) practice(p.getAttribute('data-practice'), p.getAttribute('data-concept'));
+  });
   rtabs.addEventListener('click', function (e) { var b = e.target.closest('[data-rk]'); if (b) { rSel = b.getAttribute('data-rk'); paintReport(); } });
   var openAtt = function (li) { var e = EX.filter(function (x) { return String(x.id) === li.getAttribute('data-ex'); })[0]; if (e) { lastElapsed = null; showExamResults(e); } };
   attsEl.addEventListener('click', function (e) { var li = e.target.closest('[data-ex]'); if (li) openAtt(li); });
