@@ -164,16 +164,21 @@
     }).catch(function () {});
   };
   var setUnread = function (n) { unread = n; var b = $('[data-ds-badge]'); b.hidden = !n; b.textContent = n; launch.classList.toggle('ring', !!n); };
+  /* tek döngü: aynı anda iki zamanlayıcı çalışmaz (gen); sekme arka plandayken de seyrek
+     sorar, sekmeye dönünce hemen çeker; mesaj gelmesi için sayfayı yenilemek gerekmez */
+  var gen = 0;
   var schedule = function () {
-    clearTimeout(pollT);
+    clearTimeout(pollT); var my = ++gen;
+    var next = function (ms) { if (my === gen) pollT = setTimeout(tick, ms); };
     var tick = function () {
-      if (D.hidden) { pollT = setTimeout(tick, 15000); return; }
-      if (mode === 'live' && openState) fetchNow().then(function () { pollT = setTimeout(tick, 4000); });
-      else if (mode === 'live') rpc('support_peek', { p_token: S.tok }).then(function (r) { if (r && r.unread) setUnread(r.unread); }).catch(function () {}).then(function () { pollT = setTimeout(tick, 30000); });
-      else rpc('support_status').then(function (r) { online = !!(r && r.online); paintStatus(); }).catch(function () {}).then(function () { pollT = setTimeout(tick, 60000); });
+      if (my !== gen) return;
+      if (mode === 'live' && openState) fetchNow().then(function () { next(D.hidden ? 10000 : 3000); });
+      else if (mode === 'live') rpc('support_peek', { p_token: S.tok }).then(function (r) { if (r && r.unread) setUnread(r.unread); }).catch(function () {}).then(function () { next(D.hidden ? 30000 : 12000); });
+      else rpc('support_status').then(function (r) { online = !!(r && r.online); paintStatus(); }).catch(function () {}).then(function () { next(60000); });
     };
     tick();
   };
+  D.addEventListener('visibilitychange', function () { if (!D.hidden) schedule(); });
 
   /* ---------- aç / kapat ---------- */
   var greeted = false;

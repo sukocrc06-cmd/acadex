@@ -597,7 +597,7 @@
      _set_status / _presence. "Çevrimiçiyim" açıkken panel her 15 sn nabız atar; ziyaretçi
      tarafı son 3 dakikada nabız atan yönetici varsa "ekip çevrimiçi" gösterir.
      Yeni mesajda: menüde rozet, sekme başlığında sayı, kısa ses ve tarayıcı bildirimi. */
-  var SUP = { unread: 0, online: false, latest: null, cur: null, filter: 'open', last: 0, t: 0, view: 0, base: '' };
+  var SUP = { unread: 0, online: false, latest: null, cur: null, filter: 'open', last: 0, t: 0, view: 0, base: '', rendered: null, lastId: 0, drafts: {} };
   var supBeep = function () {
     try { var A = window.AudioContext || window.webkitAudioContext; if (!A) return; var c = SUP.ac || (SUP.ac = new A()); [0, 0.16].forEach(function (d, i) { var o = c.createOscillator(), g = c.createGain(); o.frequency.value = i ? 1046 : 784; g.gain.setValueAtTime(0.0001, c.currentTime + d); g.gain.exponentialRampToValueAtTime(0.18, c.currentTime + d + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + d + 0.22); o.connect(g); g.connect(c.destination); o.start(c.currentTime + d); o.stop(c.currentTime + d + 0.25); }); } catch (e) {}
   };
@@ -627,26 +627,51 @@
         '<span class="sup-rl">' + X(last) + '</span><span class="sup-rt">' + (t.topic ? '<span class="pill">' + X(t.topic) + '</span>' : '') + (t.status === 'closed' ? '<span class="pill">kapalı</span>' : '') + (t.admin_unread ? '<span class="badge">' + t.admin_unread + '</span>' : '') + '</span></button>';
     }).join('') : '<p class="muted" style="padding:16px">' + (SUP.filter === 'open' ? 'açık görüşme yok. destek hattı sessiz.' : 'görüşme yok.') + '</p>';
   };
-  var supOpen = async function (id, keepScroll) {
-    SUP.cur = id; var pane = document.getElementById('sup-pane'); if (!pane) return;
-    var d = await rpc('admin_support_thread', { p_id: id }), t = d.thread, ms = d.messages || [];
-    var log = pane.querySelector('.sup-log'), atEnd = !log || log.scrollHeight - log.scrollTop - log.clientHeight < 40, draft = pane.querySelector('#sup-txt') ? pane.querySelector('#sup-txt').value : '';
+  /* görüşme bölmesi: ilk açılışta bir kez çizilir; yenilemede yalnız başlık güncellenir ve
+     yeni mesajlar sona eklenir. Cevap kutusuna dokunulmaz (yazarken odak ve imleç kaybolmaz). */
+  var supMsgHtml = function (m, t) {
+    if (m.s === 'system') return '<div class="sup-sys" data-mid="' + m.id + '">' + X(m.b) + '</div>';
+    return '<div class="sup-m sup-' + m.s + '" data-mid="' + m.id + '"><span class="sup-who">' + (m.s === 'admin' ? 'Acadex ekibi' : m.s === 'bot' ? 'Acadia (otomatik)' : X(t.name || 'ziyaretçi')) + ' · ' + DT(m.t, true) + '</span><p>' + X(m.b) + '</p></div>';
+  };
+  var supHead = function (t) {
     var seenAgo = t.last_visitor_seen ? (Date.now() - new Date(t.last_visitor_seen)) / 1000 : 1e9;
-    pane.innerHTML = '<header class="sup-ph"><div><h2>' + X(t.name || 'ziyaretçi') + ' ' + (seenAgo < 60 ? '<span class="pill ok">sayfada</span>' : '') + '</h2><p class="muted">' + (t.email ? '<a href="mailto:' + X(t.email) + '?subject=' + encodeURIComponent('Acadex destek') + '">' + X(t.email) + '</a> · ' : 'e-posta yok · ') + (t.topic ? X(t.topic) + ' · ' : '') + X(t.page || '') + ' · ' + DT(t.created_at, true) + '</p></div>' +
-      '<div class="sup-pa">' + (t.status === 'open' ? '<button type="button" class="btn ghost sm" data-sup-st="closed">görüşmeyi kapat</button>' : '<button type="button" class="btn ghost sm" data-sup-st="open">yeniden aç</button>') + '</div></header>' +
-      '<div class="sup-log">' + ms.map(function (m) {
-        if (m.s === 'system') return '<div class="sup-sys">' + X(m.b) + '</div>';
-        return '<div class="sup-m sup-' + m.s + '"><span class="sup-who">' + (m.s === 'admin' ? 'Acadex ekibi' : m.s === 'bot' ? 'Acadia (otomatik)' : X(t.name || 'ziyaretçi')) + ' · ' + DT(m.t, true) + '</span><p>' + X(m.b) + '</p></div>';
-      }).join('') + '</div>' +
+    return '<header class="sup-ph"><div><h2>' + X(t.name || 'ziyaretçi') + ' ' + (seenAgo < 60 ? '<span class="pill ok">sayfada</span>' : '') + '</h2><p class="muted">' + (t.email ? '<a href="mailto:' + X(t.email) + '?subject=' + encodeURIComponent('Acadex destek') + '">' + X(t.email) + '</a> · ' : 'e-posta yok · ') + (t.topic ? X(t.topic) + ' · ' : '') + X(t.page || '') + ' · ' + DT(t.created_at, true) + '</p></div>' +
+      '<div class="sup-pa">' + (t.status === 'open' ? '<button type="button" class="btn ghost sm" data-sup-st="closed">görüşmeyi kapat</button>' : '<button type="button" class="btn ghost sm" data-sup-st="open">yeniden aç</button>') + '</div></header>';
+  };
+  var supBindHead = function (pane, id) {
+    $$('[data-sup-st]', pane).forEach(function (b) { b.addEventListener('click', async function () { b.disabled = true; try { await rpc('admin_support_set_status', { p_id: id, p_status: b.getAttribute('data-sup-st') }); await supOpen(id, true); supList(); } catch (er) { b.disabled = false; toast(errMsg(er), true); } }); });
+  };
+  var supOpen = async function (id, refresh) {
+    var pane = document.getElementById('sup-pane'); if (!pane) return;
+    var same = refresh && SUP.rendered === id && pane.querySelector('.sup-log');
+    if (!same) SUP.cur = id;
+    var d = await rpc('admin_support_thread', { p_id: id }), t = d.thread, ms = d.messages || [];
+    if (SUP.cur !== id) return; /* bu arada başka görüşme seçildi */
+    pane = document.getElementById('sup-pane'); if (!pane) return;
+    if (same && pane.querySelector('.sup-log')) {
+      var log = pane.querySelector('.sup-log'), atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 60, added = 0;
+      ms.forEach(function (m) { if (m.id > SUP.lastId) { log.insertAdjacentHTML('beforeend', supMsgHtml(m, t)); SUP.lastId = m.id; added++; } });
+      if (added && atEnd) log.scrollTop = log.scrollHeight;
+      var oh = pane.querySelector('.sup-ph'), nh = supHead(t);
+      if (oh && oh.outerHTML !== nh) { oh.outerHTML = nh; supBindHead(pane, id); }
+      var ta0 = pane.querySelector('#sup-txt'); if (ta0) ta0.placeholder = t.status === 'closed' ? 'yazarsan görüşme yeniden açılır…' : 'cevabını yaz · Enter gönderir, Shift+Enter alt satır';
+      if (added) supPulse();
+      return;
+    }
+    SUP.rendered = id; SUP.lastId = ms.reduce(function (a, m) { return Math.max(a, m.id); }, 0);
+    pane.innerHTML = supHead(t) + '<div class="sup-log">' + ms.map(function (m) { return supMsgHtml(m, t); }).join('') + '</div>' +
       '<form class="sup-reply" id="sup-form"><textarea class="in" id="sup-txt" rows="2" maxlength="2000" placeholder="' + (t.status === 'closed' ? 'yazarsan görüşme yeniden açılır…' : 'cevabını yaz · Enter gönderir, Shift+Enter alt satır') + '"></textarea><button type="submit" class="btn blue">gönder</button></form>';
-    var nl = pane.querySelector('.sup-log'); if (atEnd || !keepScroll) nl.scrollTop = nl.scrollHeight;
-    var ta = pane.querySelector('#sup-txt'); ta.value = draft;
+    var nl = pane.querySelector('.sup-log'); nl.scrollTop = nl.scrollHeight;
+    var ta = pane.querySelector('#sup-txt'), draft = SUP.drafts[id]; if (draft) ta.value = draft;
+    ta.addEventListener('input', function () { SUP.drafts[id] = ta.value; });
     ta.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); pane.querySelector('#sup-form').requestSubmit(); } });
     pane.querySelector('#sup-form').addEventListener('submit', async function (e) {
       e.preventDefault(); var v = ta.value.trim(); if (!v) return; var b = this.querySelector('button'); b.disabled = true;
-      try { await rpc('admin_support_reply', { p_id: id, p_body: v }); ta.value = ''; await supOpen(id); supList(); } catch (er) { toast(errMsg(er), true); } b.disabled = false; ta.focus();
+      try { await rpc('admin_support_reply', { p_id: id, p_body: v }); ta.value = ''; delete SUP.drafts[id]; await supOpen(id, true); supList(); }
+      catch (er) { toast(errMsg(er), true); }
+      b.disabled = false; ta.focus();
     });
-    $$('[data-sup-st]', pane).forEach(function (b) { b.addEventListener('click', async function () { try { await rpc('admin_support_set_status', { p_id: id, p_status: b.getAttribute('data-sup-st') }); await supOpen(id); supList(); } catch (er) { toast(errMsg(er), true); } }); });
+    supBindHead(pane, id);
     $$('.sup-row', document).forEach(function (r) { r.setAttribute('aria-current', String(r.getAttribute('data-sup') === id)); });
     supPulse();
   };
@@ -658,11 +683,15 @@
     document.getElementById('sup-on').addEventListener('change', function () { var on = this.checked; supPulse(on).then(function () { toast(on ? 'Çevrimiçisin; yeni mesajlar sesle bildirilir.' : 'Çevrimdışısın.'); }); if (on && window.Notification && Notification.permission === 'default') Notification.requestPermission(); });
     var nb = document.getElementById('sup-notif'); if (nb) nb.addEventListener('click', function () { Notification.requestPermission().then(function () { nb.remove(); }); });
     m.querySelector('.sup-tabs').addEventListener('click', function (e) { var b = e.target.closest('[data-sup-f]'); if (!b) return; SUP.filter = b.getAttribute('data-sup-f'); $$('[data-sup-f]', m).forEach(function (x) { x.setAttribute('aria-selected', String(x === b)); }); supList(); });
-    m.querySelector('#sup-list').addEventListener('click', function (e) { var r = e.target.closest('[data-sup]'); if (r) supOpen(r.getAttribute('data-sup')).catch(function (er) { toast(errMsg(er), true); }); });
+    m.querySelector('#sup-list').addEventListener('click', function (e) { var r = e.target.closest('[data-sup]'); if (r) { SUP.cur = r.getAttribute('data-sup'); supOpen(SUP.cur).catch(function (er) { toast(errMsg(er), true); }); } });
     await supList();
     if (SUP.cur) supOpen(SUP.cur).catch(function () { SUP.cur = null; });
     var my = ++SUP.view;
-    clearInterval(SUP.t); SUP.t = setInterval(function () { if (CUR !== 'support' || my !== SUP.view) { clearInterval(SUP.t); return; } if (document.hidden) return; supList(); if (SUP.cur) supOpen(SUP.cur, true).catch(function () {}); }, 5000);
+    SUP.rendered = null;
+    var refresh = function () { supList().catch(function () {}); if (SUP.cur) supOpen(SUP.cur, true).catch(function () {}); };
+    var loop = function () { clearTimeout(SUP.t); if (CUR !== 'support' || my !== SUP.view) return; refresh(); SUP.t = setTimeout(loop, document.hidden ? 10000 : 3000); };
+    SUP.t = setTimeout(loop, 3000);
+    if (!SUP.visHook) { SUP.visHook = true; document.addEventListener('visibilitychange', function () { if (!document.hidden && CUR === 'support') { refresh(); supPulse(); } }); }
     supPulse();
   };
 

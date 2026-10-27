@@ -64,7 +64,9 @@ test('widget: Acadia SSS eşleştirmesi landing metinlerinden, yapay zekâ çağ
 test('widget: anahtar tarayıcıda üretilir; görüşme sürerken düzenli çekilir, kapalıyken yalnız okunmamış sorulur', () => {
   assert.match(js, /getRandomValues\(a\)/);
   assert.match(js, /rpc\('support_fetch', \{ p_token: S\.tok, p_after: S\.last \|\| 0 \}\)/);
-  assert.match(js, /pollT = setTimeout\(tick, 4000\)/);
+  assert.match(js, /next\(D\.hidden \? 10000 : 3000\)/, 'açıkken 3 sn, arka planda 10 sn');
+  assert.match(js, /D\.addEventListener\('visibilitychange', function \(\) \{ if \(!D\.hidden\) schedule\(\); \}\);/, 'sekmeye dönünce hemen çek');
+  assert.match(js, /var next = function \(ms\) \{ if \(my === gen\)/, 'tek döngü');
   assert.match(js, /rpc\('support_peek', \{ p_token: S\.tok \}\)/);
   assert.match(js, /costume: 'destek', forceCostume: true/);
 });
@@ -83,5 +85,20 @@ test('bağlantılar: landing destek dosyalarını kit\'ten sonra yükler', () =>
   assert.ok(a > 0 && b > a);
   assert.match(idx, /<link rel="stylesheet" href="css\/acadex-destek\.css">/);
   assert.match(read('js/acadia-kit.js'), /destek: \{ bas: 'cagri' \}/);
+});
+
+/* HATA (28.10.2026): admin cevap yazarken bölme her 5 sn baştan çiziliyordu; cevap kutusu
+   yeniden oluşunca odak ve imleç gidiyordu ("klavye gidiyor"). Arka plandaki sekmede de
+   yenileme durduğu için yeni mesaj ancak F5 ile görünüyordu. */
+test('admin: yenileme cevap kutusunu yeniden çizmez, yalnız yeni mesajları ekler', () => {
+  const i = adm.indexOf('var supOpen = async function (id, refresh)'), body = adm.slice(i, adm.indexOf('  VIEWS.support = async function', i));
+  const inc = body.slice(body.indexOf('if (same && pane.querySelector'), body.indexOf('SUP.rendered = id;'));
+  assert.ok(inc.length > 100, 'artımlı yol yok');
+  assert.doesNotMatch(inc, /pane\.innerHTML/, 'yenilemede bölme baştan çizilmemeli');
+  assert.match(inc, /log\.insertAdjacentHTML\('beforeend', supMsgHtml\(m, t\)\)/);
+  assert.match(inc, /if \(m\.id > SUP\.lastId\)/);
+  assert.match(body, /ta\.addEventListener\('input', function \(\) \{ SUP\.drafts\[id\] = ta\.value; \}\);/, 'taslak saklanır');
+  assert.match(adm, /SUP\.t = setTimeout\(loop, document\.hidden \? 10000 : 3000\)/, 'arka planda da yenilenir');
+  assert.match(adm, /document\.addEventListener\('visibilitychange', function \(\) \{ if \(!document\.hidden && CUR === 'support'\)/);
 });
 summary();
