@@ -64,6 +64,8 @@ for fn in $targets; do
     else
       decision="unknown"
       echo "canlı parmak izi: $(echo $live_fps | cut -c1-16) · main: ${cur_fp:0:16} · geçmişte $(echo "$hist_fps" | grep -c . ) sürüm"
+      livefile=$(find "$work/supabase" -name index.ts | head -1 || true)
+      [ -n "$livefile" ] && $FP --explain "$livefile" "$src" "$work/hist"/*.ts || true
     fi
   fi
 
