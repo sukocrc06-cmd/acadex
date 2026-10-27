@@ -1,0 +1,115 @@
+/* ==========================================================================
+   ACADEX DESTEK HATTI — landing canlı destek penceresi (css/acadex-destek.css)
+   Kulaklıklı Acadia'nın "santral" düğmesi + sohbet kartı. Kâğıt-mürekkep dili:
+   lacivert kontur, kayık gölge, el yazısı aksanlar. js/acadex-destek.js.
+   ========================================================================== */
+.axs-dest{--n:#0D1838;--i:#1A2A5C;--p:#FFFDF8;--b:#2F6BFF;--g:#2E9E6B;--y:#FFD86B;--soft:#5B6787;position:fixed;right:20px;bottom:20px;z-index:70;font-family:'Instrument Sans',system-ui,sans-serif;color:var(--i)}
+.axs-dest *{box-sizing:border-box}
+.axs-vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+/* santral düğmesi */
+.axs-launch{position:relative;display:flex;align-items:center;gap:8px;height:64px;padding:0 18px 0 6px;border:1.6px solid var(--i);border-radius:999px;background:var(--p);box-shadow:4px 4px 0 var(--i);cursor:pointer;font:inherit;color:var(--i);transition:transform .18s cubic-bezier(.3,1.4,.5,1),box-shadow .18s}
+.axs-launch:hover{transform:translate(-2px,-2px);box-shadow:6px 6px 0 var(--i)}
+.axs-launch:active{transform:translate(2px,2px);box-shadow:2px 2px 0 var(--i)}
+.axs-launch:focus-visible{outline:3px solid var(--b);outline-offset:3px}
+.axs-av{display:block;width:62px;height:62px;margin:-14px -2px -6px -4px}
+.axs-av .acd{width:100%;height:100%}
+.axs-l{display:flex;flex-direction:column;align-items:flex-start;line-height:1.1;text-align:left}
+.axs-l b{font-family:'Caveat',cursive;font-size:22px;font-weight:600}
+.axs-l small{font-size:11.5px;color:var(--soft)}
+.axs-dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#B9C1D3;box-shadow:0 0 0 2px var(--p)}
+.axs-dot.on{background:var(--g)}
+.axs-launch .axs-dot{position:absolute;left:48px;top:8px}
+.axs-badge{position:absolute;right:-6px;top:-8px;min-width:22px;height:22px;padding:0 6px;border:1.5px solid var(--i);border-radius:999px;background:#E0645A;color:#fff;font-size:12px;font-weight:700;line-height:19px;text-align:center}
+.axs-dest.open .axs-launch .axs-l{display:none}
+.axs-dest.open .axs-launch{padding-right:6px}
+
+/* sohbet kartı */
+.axs-panel{position:absolute;right:0;bottom:78px;display:flex;flex-direction:column;width:min(380px,calc(100vw - 24px));height:min(600px,calc(100vh - 120px));border:1.6px solid var(--i);border-radius:20px 20px 8px 20px;background:var(--p);box-shadow:6px 8px 0 var(--i);overflow:hidden;transform-origin:100% 100%}
+.axs-panel[hidden]{display:none}
+.axs-h{position:relative;display:flex;align-items:center;gap:10px;padding:12px 12px 12px 8px;background:var(--n);color:#F1F4FA}
+.axs-h::after{content:"";position:absolute;left:0;right:0;bottom:-6px;height:6px;background:repeating-linear-gradient(90deg,var(--n) 0 10px,transparent 10px 14px)}
+.axs-hav{flex:none;width:64px;height:64px;margin:-6px 0 -10px;border-radius:50%;background:radial-gradient(circle at 50% 45%,#2A3D78,#17244D);box-shadow:inset 0 0 0 2px rgba(255,216,107,.35)}
+.axs-hav .acd{width:100%;height:100%}
+.axs-ht{flex:1;min-width:0}
+.axs-k{display:block;font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.16em;color:var(--y)}
+.axs-ht h2{margin:1px 0 2px;font-family:'Bricolage Grotesque',system-ui,sans-serif;font-size:19px;font-weight:800;letter-spacing:-.01em;color:#fff}
+.axs-ht p{display:flex;align-items:center;gap:6px;margin:0;font-size:12px;color:#B9C4E4}
+.axs-ht p .axs-dot{box-shadow:none}
+.axs-x{flex:none;width:36px;height:36px;border:0;border-radius:10px;background:rgba(255,255,255,.08);color:#fff;font-size:22px;line-height:1;cursor:pointer}
+.axs-x:hover{background:rgba(255,255,255,.18)}
+.axs-x:focus-visible{outline:2px solid var(--y)}
+
+.axs-log{flex:1;overflow-y:auto;padding:18px 14px 10px;display:flex;flex-direction:column;gap:10px;background:repeating-linear-gradient(0deg,transparent 0 27px,rgba(47,107,255,.06) 27px 28px),var(--p);scroll-behavior:smooth}
+.axs-m{display:flex;align-items:flex-end;gap:6px;max-width:88%}
+.axs-m p{margin:0;white-space:pre-wrap;word-break:break-word}
+.axs-mb{position:relative;padding:8px 12px 6px;border-radius:14px 14px 14px 4px;background:#fff;border:1.4px solid #D6DCE8;font-size:14px;line-height:1.45}
+.axs-mb time{display:block;margin-top:2px;font-size:10px;color:#9AA3B8;text-align:right}
+.axs-who{display:block;margin-bottom:1px;font-family:'Caveat',cursive;font-size:16px;font-weight:600;color:var(--b)}
+.axs-mav{flex:none;display:grid;place-items:center;width:34px;height:34px}
+.axs-mav .acd{width:40px;height:40px}
+.axs-admin .axs-mav{border-radius:50%;background:var(--n);color:var(--y);font-family:'Bricolage Grotesque',sans-serif;font-size:15px}
+.axs-admin .axs-mb{border-color:var(--i);box-shadow:2px 2px 0 var(--i)}
+.axs-admin .axs-who{color:var(--g)}
+.axs-me{align-self:flex-end;flex-direction:row-reverse}
+.axs-me .axs-mb{background:var(--i);border-color:var(--i);color:#fff;border-radius:14px 14px 4px 14px}
+.axs-me .axs-mb time{color:#9DB1E3}
+.axs-me.sending{opacity:.6}
+.axs-me.failed .axs-mb{background:#B5432F;border-color:#B5432F}
+.axs-sys{align-self:center;max-width:90%;padding:4px 10px;border-radius:999px;background:#EEF1F8;color:var(--soft);font-size:12px;text-align:center}
+.axs-lnk{border:0;background:none;padding:0;font:inherit;color:var(--b);text-decoration:underline;cursor:pointer}
+.axs-mb .axs-lnk{display:block;margin-top:6px;font-size:13px}
+.axs-dots{display:inline-flex;gap:4px;padding:4px 2px}
+.axs-dots i{width:6px;height:6px;border-radius:50%;background:#9AA3B8}
+
+.axs-chips{display:flex;gap:6px;overflow-x:auto;padding:8px 12px;border-top:1px dashed #D6DCE8;scrollbar-width:thin}
+.axs-chips[hidden]{display:none}
+.axs-chips button{flex:none;min-height:34px;padding:0 12px;border:1.4px solid #C9D1E1;border-radius:999px;background:#fff;font:inherit;font-size:13px;color:var(--i);cursor:pointer;white-space:nowrap}
+.axs-chips button:hover{border-color:var(--i)}
+.axs-chips .axs-human{background:var(--n);border-color:var(--n);color:#fff}
+.axs-form{display:flex;align-items:flex-end;gap:8px;padding:10px 12px;border-top:1.4px solid #E3E7F0;background:#fff}
+.axs-form textarea{flex:1;min-height:42px;max-height:120px;padding:10px 12px;border:1.4px solid #C9D1E1;border-radius:14px;font:inherit;font-size:14px;resize:none;color:var(--i);background:#FBFCFE}
+.axs-form textarea:focus{outline:none;border-color:var(--b);box-shadow:0 0 0 3px rgba(47,107,255,.15)}
+.axs-form button{flex:none;width:42px;height:42px;border:0;border-radius:50%;background:var(--b);cursor:pointer}
+.axs-form button svg{width:20px;height:20px;fill:#fff}
+.axs-form button:focus-visible{outline:3px solid var(--i);outline-offset:2px}
+.axs-foot{margin:0;padding:0 12px 9px;background:#fff;font-size:11px;color:#9AA3B8;text-align:center}
+
+/* ekibe aktar kartı */
+.axs-hand{display:flex;flex-direction:column;gap:8px;margin:4px 0 4px 40px;padding:12px;border:1.5px solid var(--i);border-radius:12px;background:#FFF8E6;box-shadow:3px 3px 0 var(--i)}
+.axs-hand b{font-family:'Bricolage Grotesque',sans-serif;font-size:15px}
+.axs-hand p{margin:0;font-size:13px;color:var(--soft)}
+.axs-hand label{display:flex;flex-direction:column;gap:3px;font-size:12.5px;font-weight:600}
+.axs-hand label small{font-weight:400;color:var(--soft)}
+.axs-hand input,.axs-hand textarea{min-height:38px;padding:8px 10px;border:1.4px solid #C9D1E1;border-radius:10px;font:inherit;font-size:14px;font-weight:400;background:#fff;color:var(--i)}
+.axs-hand textarea{resize:vertical}
+.axs-hand button{min-height:42px;border:0;border-radius:10px;background:var(--n);color:#fff;font:inherit;font-weight:700;cursor:pointer}
+.axs-hand button:disabled{opacity:.55}
+.axs-err{margin:0;color:#B5432F!important;font-size:12.5px!important}
+.axs-kvkk{font-size:11px;color:var(--soft)}
+
+@media (prefers-reduced-motion:no-preference){
+  .axs-panel:not([hidden]){animation:axs-pop .32s cubic-bezier(.3,1.3,.5,1)}
+  .axs-m{animation:axs-in .28s ease both}
+  .axs-dots i{animation:axs-dot 1s infinite}.axs-dots i:nth-child(2){animation-delay:.15s}.axs-dots i:nth-child(3){animation-delay:.3s}
+  .axs-hav.talk .acd{animation:axs-talk .5s ease 2}
+  .axs-launch.ring .axs-av{animation:axs-ring .9s ease-in-out infinite}
+  .axs-dot.on{animation:axs-pulse 2s ease-in-out infinite}
+}
+@keyframes axs-pop{from{transform:translateY(16px) scale(.92);opacity:0}}
+@keyframes axs-in{from{transform:translateY(6px);opacity:0}}
+@keyframes axs-dot{50%{transform:translateY(-3px);background:var(--i)}}
+@keyframes axs-talk{50%{transform:translateY(-3px) rotate(-4deg)}}
+@keyframes axs-ring{0%,100%{transform:rotate(0)}20%{transform:rotate(-12deg)}40%{transform:rotate(10deg)}60%{transform:rotate(-6deg)}}
+@keyframes axs-pulse{0%,100%{box-shadow:0 0 0 2px var(--p),0 0 0 2px rgba(46,158,107,.4)}50%{box-shadow:0 0 0 2px var(--p),0 0 0 6px rgba(46,158,107,0)}}
+
+@media (max-width:600px){
+  .axs-dest{right:12px;bottom:12px}
+  .axs-launch{height:56px;padding-right:14px}
+  .axs-av{width:54px;height:54px}
+  .axs-l b{font-size:19px}
+  .axs-dest.open{left:0;right:0;bottom:0}
+  .axs-dest.open .axs-launch{display:none}
+  .axs-panel{position:fixed;left:0;right:0;bottom:0;width:100%;height:min(88vh,640px);border-radius:20px 20px 0 0;box-shadow:0 -10px 30px rgba(13,24,56,.25)}
+}
+/* landing'deki "yukarı çık" düğmesi destek düğmesinin üstüne çıkar */
+.totop{bottom:100px!important}

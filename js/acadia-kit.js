@@ -43,7 +43,7 @@
   var MOODS = [['mutlu', 'mutlu'], ['dusunuyor', 'düşünüyor'], ['saskin', 'şaşkın'], ['uykulu', 'uykulu'], ['kutlama', 'kutlama'], ['uzgun', 'üzgün'], ['odakli', 'odaklı'], ['kirp', 'göz kırpar']];
   var POSES = ['dur', 'selam', 'isaret', 'oku', 'zipla', 'dusun'];
   /* panel kılıkları: kullanıcı "panellere göre kılık" açıksa o yuvayı geçici olarak doldurur */
-  var COSTUMES = { medlab: { boyun: 'stetoskop' }, studylab: { goz: 'deney' }, kartoteks: { goz: 'gozluk' }, sinav: { bas: 'kep' }, kutlama: { bas: 'tac' } };
+  var COSTUMES = { destek: { bas: 'cagri' }, medlab: { boyun: 'stetoskop' }, studylab: { goz: 'deney' }, kartoteks: { goz: 'gozluk' }, sinav: { bas: 'kep' }, kutlama: { bas: 'tac' } };
   var DEF = { renk: 'sari', bas: '', goz: '', boyun: '', ifade: 'mutlu', kostum: true };
   var KEY = 'acadex.acadia.style';
 
@@ -97,6 +97,8 @@
   };
   var acc = {
     kep: '<g class="acc acc-bas"><path d="M-15 -46 V-37 Q0 -31 15 -37 V-46" style="fill:' + INK + '"/><path d="M0 -63 L32 -52 L0 -41 L-32 -52 Z" style="fill:' + INK + ';stroke:' + INK + ';stroke-width:2;stroke-linejoin:round"/><path d="M0 -52 L24 -47 V-33" style="fill:none;stroke:#FFC93C;stroke-width:2"/><circle cx="24" cy="-31" r="3" style="fill:#FFC93C"/></g>',
+    /* canlı destek kulaklığı: kulaklık + ağız mikrofonu (yalnız 'destek' kılığında, stüdyoda seçilmez) */
+    cagri: '<g class="acc acc-bas"><path d="M-31 -6 C-33 -54 33 -54 31 -6" style="fill:none;stroke:' + INK + ';stroke-width:5;stroke-linecap:round"/><rect x="-39" y="-15" width="13" height="20" rx="5" style="fill:#2E9E6B;stroke:' + INK + ';stroke-width:2.4"/><rect x="26" y="-15" width="13" height="20" rx="5" style="fill:#2E9E6B;stroke:' + INK + ';stroke-width:2.4"/><path class="acd-mic" d="M-32 4 Q-30 18 -12 17" style="fill:none;stroke:' + INK + ';stroke-width:2.6;stroke-linecap:round"/><rect x="-14" y="13" width="8" height="7" rx="3.5" style="fill:' + INK + '"/></g>',
     tac: '<g class="acc acc-bas"><path d="M-15 -42 L-17 -62 L-7 -53 L0 -67 L7 -53 L17 -62 L15 -42 Q0 -38 -15 -42 Z" style="fill:#FFC93C;stroke:' + INK + ';stroke-width:2.4;stroke-linejoin:round"/><circle cx="0" cy="-49" r="2.6" style="fill:#D9485F"/><circle cx="-9" cy="-47" r="1.8" style="fill:#2F6BFF"/><circle cx="9" cy="-47" r="1.8" style="fill:#2F6BFF"/></g>',
     kulaklik: '<g class="acc acc-bas"><path d="M-31 -6 C-33 -54 33 -54 31 -6" style="fill:none;stroke:' + INK + ';stroke-width:5;stroke-linecap:round"/><rect x="-39" y="-15" width="13" height="20" rx="5" style="fill:#2F6BFF;stroke:' + INK + ';stroke-width:2.4"/><rect x="26" y="-15" width="13" height="20" rx="5" style="fill:#2F6BFF;stroke:' + INK + ';stroke-width:2.4"/></g>',
     bere: '<g class="acc acc-bas"><path d="M-17 -38 C-19 -64 19 -64 17 -38 Z" style="fill:#E0645A;stroke:' + INK + ';stroke-width:2.4;stroke-linejoin:round"/><path d="M-9 -58 V-42 M0 -61 V-42 M9 -58 V-42" style="stroke:#C24B43;stroke-width:1.6"/><rect x="-20" y="-44" width="40" height="9" rx="4.5" style="fill:#C24B43;stroke:' + INK + ';stroke-width:2.2"/><circle cx="0" cy="-65" r="5.5" style="fill:#FFFDF4;stroke:' + INK + ';stroke-width:2"/></g>',
