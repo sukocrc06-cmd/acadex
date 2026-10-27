@@ -1580,10 +1580,16 @@ test('ATLANAN pencereler eksik kapsamaya sayiliyor', () => {
   /* Iki kisa devrenin IKISI de bu muhasebeden gecmeli: butce dar ve
      "yeterli cikarim". Tanim `kalanlariAtla = (` biciminde oldugu icin
      asagidaki desene uymuyor; sayilan sey yalnizca CAGRI yerleri. */
-  assert.equal((src.match(/kalanlariAtla\(`/g) || []).length, 2,
-    'iki kisa devreden biri muhasebeye baglanmamis');
+  assert.equal((src.match(/kalanlariAtla\(\s*\n?\s*`/g) || []).length, 3,
+    'kisa devrelerden biri muhasebeye baglanmamis');
   assert.ok(/kalanlariAtla\(`Butce dar/.test(src), 'butce kisa devresi baglanmamis');
   assert.ok(/kalanlariAtla\(`Yeterli cikarim/.test(src), 'yeterli-cikarim kisa devresi baglanmamis');
+  /* 27.10.2026: ucuncu kisa devre — bekleme kalan butceye sigmiyorsa pencere
+     CAGRILMADAN atlaniyor. Olculen kosuda 58,3 sn'lik TokenPacer beklemesi
+     51 sn'lik butceyi asti, nobetci belgeyi 'failed' yapti ve iki bitmis
+     pencere bosa gitti. O da ayni muhasebeden gecmeli. */
+  assert.ok(/kalanlariAtla\(\s*\n?\s*`Bekleme butceye sigmiyor/.test(src),
+    'bekleme kisa devresi muhasebeye baglanmamis');
   assert.ok(!/console\.log\('Enough extractions — skipping remaining windows'\)/.test(src),
     'eski sessiz log hala duruyor');
 });

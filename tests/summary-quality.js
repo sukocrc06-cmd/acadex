@@ -38,6 +38,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'CACHE_METIN_MIN_KRK', 'cacheMetniNormalize',
   'YOGUNLUK_KAPISI_ELIYOR', 'yogunlukIsaretleri', 'applyDensityGate',
   'PENCERE_DEVIR_ESIGI_MS', 'PENCERE_DEVIR_KAZANC_MS',
+  'pencereMaliyetiSigiyor',
   'reasoningParamsFor',
   // token hizlandirici (TPM)
   'PACER_SAFETY', 'PACER_WINDOW_MS', 'PACER_MAX_WAIT_MS', 'PACER_COMPLETION_FACTOR',
@@ -3228,7 +3229,10 @@ test('pencere tekrar denemesi BUYUK modeli tercih ediyor', () => {
   assert.ok(/: pickLane\(\[MODEL_HEAVY, MODEL_EXTRACT\]/.test(blok),
     'sigmiyorsa eski davranisa dusulmeli — kurtarma yine de olmali');
   // Ve bekleme butceyle karsilastirilmali, korü korune beklenmemeli.
-  assert.ok(/budgetLeft\(\) > heavyWaitMs \+ WINDOW_CALL_MS \+ NARRATIVE_WRITER_RESERVE_MS/.test(blok),
+  /* 27.10.2026: ayni hesap parti kapisina da girdi, formul
+     pencereMaliyetiSigiyor icine tasindi. Iddia degismedi — bekleme
+     butceye karsi tartilmali, koru korune beklenmemeli. */
+  assert.ok(/pencereMaliyetiSigiyor\(heavyWaitMs, budgetLeft\(\)\)/.test(blok),
     'buyuk serit beklemesi butceye karsi tartilmali');
 });
 
@@ -4921,6 +4925,64 @@ test('devir KARARI loglaniyor (iki yonlu)', () => {
      bekledik" sorusu bir dahaki sefere tahmin olmasin. */
   assert.ok(/devrediliyor \(\$\{altBekleme\}ms, kazanc/.test(SRC), 'devir logu yok');
   assert.ok(/devredilecek bos serit yok/.test(SRC), 'devredilemedi logu yok');
+});
+
+
+// ---------------------------------------------------------------------------
+// BUTCEYE SIGMAYAN BEKLEME (27.10.2026)
+// ---------------------------------------------------------------------------
+test('pencere maliyeti: bekleme + cagri + yazar payi birlikte tartiliyor', () => {
+  /* Olculen kosu (42 sayfalik deste, 3 pencere): ucuncu pencerenin karar
+     aninda 51 sn butce vardi, TokenPacer beklemesi 58,3 sn idi. Eski kapi
+     yalnizca "20 sn kaldi mi" diye soruyordu, gecti, pencere uyudu ve
+     nobetci t=141'de belgeyi 'failed' yapti — iki bitmis pencere elde
+     dururken kart HIC gelmedi. */
+  const F = A.pencereMaliyetiSigiyor;
+  assert.equal(F(58_300, 51_000), false, 'olculen kosu hala gecerse kart yine kaybolur');
+  // Tam maliyet: 58.300 + 15.000 (cagri) + 20.000 (yazar payi) = 93.300
+  assert.equal(F(58_300, 93_300), false, 'esitlikte sigmiyor sayilmali — pay yok');
+  assert.equal(F(58_300, 93_301), true, 'bir ms fazlasi sigiyor');
+  // Bekleme yoksa bile cagri + yazar payi duruyor.
+  assert.equal(F(0, 35_000), false, 'cagri ve yazar payi bedava degil');
+  assert.equal(F(0, 60_000), true, 'bol butcede pencere calisabilmeli');
+});
+
+test('maliyet hesabi sabitlerden turuyor, elle yazilmiyor', () => {
+  /* Sabitler degisirse kapi da degismeli. 15+20 sayilari teste de koda da
+     elle yazilirsa bir dahaki ayar sessizce kapinin disinda kalir. */
+  const F = A.pencereMaliyetiSigiyor;
+  const toplam = A.WINDOW_CALL_MS + A.NARRATIVE_WRITER_RESERVE_MS;
+  assert.equal(F(1_000, 1_000 + toplam), false);
+  assert.equal(F(1_000, 1_000 + toplam + 1), true);
+});
+
+test('parti kapisi: sigmayan bekleme CAGRILMADAN atlaniyor', () => {
+  const i = SRC.indexOf('BUTCEYE SIGMAYAN BEKLEME YAPILMIYOR');
+  assert.ok(i > -1, 'parti kapisi kaybolmus — sigmayan bekleme yine yapilir');
+  const blok = SRC.slice(i, i + 2200);
+  // Kapi serit ATAMASINDAN ve cagridan ONCE olmali.
+  assert.ok(i < SRC.indexOf('const batchLanes = batchIndices.map'),
+    'kapi serit atamasindan sonraya kalmis — karar cagriyi engellemiyor');
+  assert.ok(/!pencereMaliyetiSigiyor\(partiBeklemeMs, budgetLeft\(\)\)/.test(blok),
+    'kapi ortak maliyet hesabini kullanmiyor');
+  // Parti Promise.all ile bekleniyor: maliyeti EN YAVAS pencere belirler.
+  assert.ok(/Math\.max\(0, \.\.\.batchIndices\.map\(/.test(blok),
+    'parti beklemesi en yavas pencereden alinmiyor');
+  // Pencere basina TABAN: iki seridin en iyisi. Taban sigmiyorsa devir de kurtarmaz.
+  assert.ok(/Math\.min\(\.\.\.partiSeritleri\.map\(m => tokenPacer\.waitEstimate\(est, m, tavan\)\)\)/.test(blok),
+    'serit tabani olculmuyor — bos serit varken bosuna atlanir');
+  assert.ok(/partiSeritleri = parallelGemini \? \[MODEL_EXTRACT\]/.test(blok),
+    'paralel modda pencereler ucuz seride gidiyor, kapi da onu olcmeli');
+  assert.ok(/partiBeklemeMs > 0/.test(blok),
+    'bekleme yokken kapi susmali — o durumu 20 sn butce kapisi tutuyor');
+  assert.ok(/windowResults\.length > 0/.test(blok),
+    'hic sonuc yokken atlamak karti bostan bosa dusurur');
+  // Atlama MUHASEBEYE girmeli (eksik kapsama rozeti) ve dongu kirilmali.
+  assert.ok(/kalanlariAtla\(\s*\n?\s*`Bekleme butceye sigmiyor/.test(blok),
+    'atlanan pencereler eksik kapsamaya sayilmiyor');
+  const kapiSonu = blok.slice(blok.indexOf('kalanlariAtla('));
+  assert.ok(/\n\s*break\n/.test(kapiSonu.slice(0, 400)),
+    'kapi donguyu kirmiyor — sonraki parti yine bekler');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));

@@ -1366,6 +1366,23 @@ const OPSIYONEL_ADIM_MAX_BEKLEME_MS = 20_000
 // Its own wait is budgeted separately, so this is the call alone.
 const NARRATIVE_WRITER_RESERVE_MS = 20_000
 
+/* PENCERE MALIYETI KALAN BUTCEYE SIGIYOR MU (27.10.2026).
+ *
+ * Parti dongusundeki butce kapisi yalnizca "20 sn kaldi mi" diye soruyordu;
+ * pencerenin GERCEK maliyetini hic sormuyordu. Olculen kosuda (42 sayfalik
+ * deste, 31.817 krk, 3 pencere) karar aninda 51 sn kalmisti, kapi gecti —
+ * ama ucuncu pencerenin maliyeti 58,3 sn (TokenPacer beklemesi) + 15 sn
+ * (WINDOW_CALL_MS) + 20 sn (NARRATIVE_WRITER_RESERVE_MS) = 93 sn idi.
+ * TokenPacer 58,3 sn uyudu, nobetci 141. saniyede belgeyi 'failed' yapti ve
+ * kart HIC gelmedi — oysa Window 1+2 (16 terim, 17 nokta, 13 soru) elde
+ * hazirdi. Bekleme, yazilacak karti goturen seydi.
+ *
+ * extractWindow'un attempt > 0 dali ayni hesabi zaten yapiyordu (affordHeavy);
+ * eksik olan ilk denemeydi. Formul uc yere dagilmasin diye tek fonksiyon. */
+function pencereMaliyetiSigiyor(beklemeMs: number, kalanButceMs: number): boolean {
+  return kalanButceMs > beklemeMs + WINDOW_CALL_MS + NARRATIVE_WRITER_RESERVE_MS
+}
+
 /* ==========================================================================
    PENCERE CIKIS TAVANI SERIT BUTCESINDEN TURETILIR (09.10.2026)
 
@@ -9970,7 +9987,7 @@ Rules:
           } else {
             const est = estimateTokens(compactWindowPrompt(wi, windows.length), payload, winCompletion)
             const heavyWaitMs = tokenPacer.waitEstimate(est, MODEL_HEAVY, winCompletion)
-            const affordHeavy = budgetLeft() > heavyWaitMs + WINDOW_CALL_MS + NARRATIVE_WRITER_RESERVE_MS
+            const affordHeavy = pencereMaliyetiSigiyor(heavyWaitMs, budgetLeft())
             windowLane = affordHeavy
               ? MODEL_HEAVY
               : pickLane([MODEL_HEAVY, MODEL_EXTRACT], est, winCompletion)
@@ -10176,6 +10193,43 @@ Rules:
 
         const batchIndices: number[] = []
         for (let wi = batchStart; wi < batchEnd; wi++) batchIndices.push(wi)
+
+        /* BUTCEYE SIGMAYAN BEKLEME YAPILMIYOR (27.10.2026).
+         *
+         * Yukaridaki "Butce dar" kapisi 20 saniyeyi sorup geciyor, pencerenin
+         * ne kadar BEKLEYECEGINI sormuyordu. TokenPacer dakikalik pencerenin
+         * donmesini bekledigi icin tek bir pencere 58 saniye uyuyabiliyor:
+         * olculen kosuda karar aninda 51 sn butce vardi, kapi gecti, pencere
+         * 58,3 sn uyudu ve nobetci (ISCI_NOBET_MS) t=141'de belgeyi 'failed'
+         * yapti. Elde iki bitmis pencere vardi ve kart HIC gelmedi.
+         *
+         * Olculen sey BEKLEMENIN TABANI: her pencere icin iki seridin en
+         * iyisi, parti icin de en yavas pencere (parti Promise.all ile tek
+         * seferde bekleniyor, maliyeti en yavas pencere belirliyor). Taban
+         * bile sigmiyorsa serit devri de kurtarmaz — kalan pencereler
+         * atlanir, kart eksik kapsama rozetiyle de olsa cikar.
+         *
+         * Bekleme 0 ise kapi susar: kacinilacak bir sey yok, o durumu
+         * 20 saniyelik butce kapisi zaten tutuyor. */
+        const partiSeritleri = parallelGemini ? [MODEL_EXTRACT] : [MODEL_HEAVY, MODEL_EXTRACT]
+        const partiBeklemeMs = Math.max(0, ...batchIndices.map(wi => {
+          const prompt = compactWindowPrompt(wi, windows.length)
+          const tavan = windowCompletionFor(prompt, windows[wi])
+          const est = estimateTokens(prompt, windows[wi], tavan)
+          return Math.min(...partiSeritleri.map(m => tokenPacer.waitEstimate(est, m, tavan)))
+        }))
+        if (
+          partiBeklemeMs > 0 &&
+          windowResults.length > 0 &&
+          !pencereMaliyetiSigiyor(partiBeklemeMs, budgetLeft())
+        ) {
+          kalanlariAtla(
+            `Bekleme butceye sigmiyor (${partiBeklemeMs}ms bekleme + ` +
+            `${WINDOW_CALL_MS}ms cagri + ${NARRATIVE_WRITER_RESERVE_MS}ms yazar payi ` +
+            `> ${budgetLeft()}ms kalan butce)`
+          )
+          break
+        }
 
         // Assign lanes up front so siblings in this batch cannot pick the same
         // one. Done here rather than inside extractWindow because every call in
