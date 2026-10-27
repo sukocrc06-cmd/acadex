@@ -18,6 +18,11 @@ function tokens(src) {
   const out = [];
   const walk = (node) => {
     if (ts.isParenthesizedExpression(node)) return walk(node.expression);
+    // Derleyici tek deyimlik gövdeleri süslü paranteze alabiliyor
+    // ("if (x) for (…)" → "if (x) { for (…) }", canlı tanı 27.10.2026);
+    // blok ve boş deyim yapıya sayılmaz.
+    if (node.kind === ts.SyntaxKind.EmptyStatement) return;
+    if (ts.isBlock(node)) { ts.forEachChild(node, walk); return; }
     out.push(ts.SyntaxKind[node.kind]);
     if (ts.isIdentifier(node) || ts.isPrivateIdentifier(node)) out.push(node.text);
     else if (ts.isStringLiteral(node) || ts.isNumericLiteral(node) || ts.isBigIntLiteral(node) ||
