@@ -1484,6 +1484,37 @@ test('hepsiDustu: TEK modelin gecici hatasi devreyi tetiklemez', async () => {
   } finally { restoreFetch(); }
 });
 
+test('kota429: GUNLUK OLMAYAN 429 da devre tetigini koyuyor', async () => {
+  /* Google'in govdesi RPM ile RPD'yi ayirt etmiyor: "Your project has
+     exceeded a quota" ikisinde de ayni (bkz. geminiQuotaExhausted). Eski
+     kod bu metni dakikalik sayip `geciciModeller`'e DOKUNMUYORDU, yani
+     devre kesicinin tetigi (hepsiDustu) kota bittigi gun hic dolmuyordu.
+     Olculen kosu (27.10, 18:40): 3.7 olu akis, 3.5/3.6 bu 429, 3.8 503 —
+     devre acilmadi ve her yukleme 87 saniyeyi yeniden yakti.
+
+     Iki cevap: dal butceye yer varsa BIR kez tekrar deniyor. */
+  const kota = { status: 429, text: 'Your project has exceeded a quota. See https://ai.dev/rate-limit' };
+  stubFetch([kota, kota]);
+  const tani = {};
+  try {
+    const out = await quiet(() =>
+      G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000, 'only', tani));
+    assert.equal(out, null);
+    assert.equal(tani.kota429, true, 'kota bayragi konmadi — devre kesici acilmaz');
+    assert.equal(tani.geciciDustu, true, 'kota kartı kalici yazilmamali: yarin Gemini calisabilir');
+  } finally { restoreFetch(); }
+});
+
+test('kota429: BASARILI kosuda konmuyor', async () => {
+  // Yoksa bir model 429 verip oteki karti getirdiginde devre bosuna acilir.
+  stubFetch([{ status: 200, json: OK_JSON }]);
+  const tani = {};
+  try {
+    await quiet(() => G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000, 'only', tani));
+    assert.ok(!tani.kota429, 'kart geldigi halde kota bayragi konmus');
+  } finally { restoreFetch(); }
+});
+
 test('BASARILI kosuda gecici dusus BILDIRILMIYOR', async () => {
   // Yoksa her kart onbellek disi kalir ve cache hic calismaz.
   stubFetch([{ status: 200, json: OK_JSON }]);

@@ -6902,6 +6902,25 @@ const GEMINI_ILK_OLAY_MS = 72_000
  * yetiyor, ama Gemini geri geldiginde en fazla 5 dk kayip. Gunluk kota
  * bittiyse her 5 dk'da bir yoklama 4 hizli 429 demek — kabul edilebilir. */
 const GEMINI_DEVRE_MS = 5 * 60_000
+/* KOTA 429'U KENDI SURESI (27.10.2026).
+ *
+ * 5 dakika "high demand" dalgasi icin olculdu: o dalgalar dakikalar suruyor.
+ * KOTA bambaska bir sey. Ucretsiz katmanda Flash basina RPD 20 ve govde
+ * hangisine carptigimizi SOYLEMIYOR — "Your project has exceeded a quota"
+ * hem RPM hem RPD icin ayni metin (bkz. geminiQuotaExhausted). Gunluk kota
+ * bittiyse 5 dakikalik devre gunde ~288 yoklama demek ve her yoklama
+ * RPD'den yiyebilecek bir istek.
+ *
+ * 30 dakika iki tarafa da dayaniyor: RPM dalgasiysa en fazla 30 dk Gemini'siz
+ * kaliriz (kart yine cikar — Groq TAM butceyle kosar, ki olculen kosuda
+ * Gemini'nin yedigi 87 saniye tam da bu butceydi), RPD ise gunde ~48
+ * yoklamaya iniyoruz.
+ *
+ * Olculen kosu (27.10, 18:40): 3.7 olu akis, 3.5 ve 3.6 429, 3.8 503. Devre
+ * ACILMADI, cunku 429 dali `geciciModeller`'e model EKLEMIYORDU ve tetik
+ * hepsiDustu'ydu. Yani kota bittigi gun her yukleme 87 saniyeyi yeniden
+ * yakiyordu. */
+const GEMINI_KOTA_DEVRE_MS = 30 * 60_000
 const GEMINI_DEVRE_ANAHTAR = 'gemini_devre'
 
 async function geminiDevreOku(client: any): Promise<{ acik: boolean; kalanDk: number; neden: string }> {
@@ -6915,15 +6934,15 @@ async function geminiDevreOku(client: any): Promise<{ acik: boolean; kalanDk: nu
   }
 }
 
-async function geminiDevreAc(client: any, neden: string) {
+async function geminiDevreAc(client: any, neden: string, sureMs = GEMINI_DEVRE_MS) {
   try {
-    const until = new Date(Date.now() + GEMINI_DEVRE_MS).toISOString()
+    const until = new Date(Date.now() + sureMs).toISOString()
     await client.from('site_settings').upsert({
       key: GEMINI_DEVRE_ANAHTAR,
       value: { until, neden, acildi: new Date().toISOString() },
       updated_at: new Date().toISOString()
     }, { onConflict: 'key' })
-    console.warn(`Gemini devre kesici ACILDI: ${GEMINI_DEVRE_MS / 60_000} dk boyunca dogrudan Groq (${neden})`)
+    console.warn(`Gemini devre kesici ACILDI: ${Math.round(sureMs / 60_000)} dk boyunca dogrudan Groq (${neden})`)
   } catch (e) {
     console.warn('Gemini devre kesici yazilamadi: ', e)
   }
@@ -7627,7 +7646,7 @@ async function geminiDraft(
   /* Cagiran icin TANI. Su an tek alani var: Gemini GECICI hatalar (503/500)
      yuzunden hic taslak uretemediyse true. Cikan kart yedek yoldan geliyor
      ve KALICI cevap sayilmamali — bkz. summary_cache yazimi. */
-  tani?: { geciciDustu?: boolean; hepsiDustu?: boolean }
+  tani?: { geciciDustu?: boolean; hepsiDustu?: boolean; kota429?: boolean }
 ): Promise<{ raw: string; model: string; ms: number; usage: any; kismi?: boolean } | null> {
   /* Cagrinin zaman asimi:
      - her iki modda: GEMINI_RESERVE_MS, cagri BASARILI olursa kapilar+kayit
@@ -7689,6 +7708,12 @@ async function geminiDraft(
    * istiyor. Istek sayisini GEMINI_MAX_REQUESTS_PER_RUN, bosa giden sureyi
    * GEMINI_FAIL_BUDGET_MS zaten baglıyor. */
   const geciciModeller = new Set<string>()
+  /* BU KOSUDA KOTA 429'U GORULDU MU.
+     Limit PROJENIN, modelin degil (bkz. asagidaki 429 dali) — yani tek bir
+     429 butun adaylar hakkinda bilgi. Iki yerde kullaniliyor: yedek model
+     baslatmayi durduruyor (yedekliDene) ve cagirana devre kesiciyi actiriyor
+     (tani.kota429). */
+  let kota429Gorulen = false
   /* Model basina 503/500 sayisi — bkz. denemeSonucunuIsle'deki "ONCE
      DIGER MODELLER" notu. */
   const model503 = new Map<string, number>()
@@ -7712,6 +7737,10 @@ async function geminiDraft(
    * ve kalici cevap sayilmamali. */
   const cik = (): null => {
     if (tani && geciciModeller.size > 0) tani.geciciDustu = true
+    /* Kota 429'u TEK BASINA devre kesici sebebi: hepsiDustu'yu beklemek
+       anlamsiz, cunku oteki adaylari denemek ayni projenin ayni limitine
+       carpmak demek. Olculen kosuda tetik tam burada kayboluyordu. */
+    if (tani && kota429Gorulen) tani.kota429 = true
     /* BUTUN adaylar kota/gecici hata verdi mi — devre kesicinin TEK tetigi
        (bkz. GEMINI_DEVRE_MS). Denenemeyen aday varsa false kalir. */
     if (tani && geminiModelCandidates().every((m) => geciciModeller.has(m))) tani.hepsiDustu = true
@@ -7976,6 +8005,7 @@ async function geminiDraft(
      * aday kota/gecici hata verdiyse esik dolar ve Groq'a dusulur — tam da
      * "cok acil durum". */
     if (geminiQuotaExhausted(res.status, res.body)) {
+      kota429Gorulen = true
       geciciModeller.add(model)
       console.warn(
         `Gemini ${model}: GUNLUK KOTA dolu (429) — bu model bugun denenmeyecek, ` +
@@ -8004,6 +8034,12 @@ async function geminiDraft(
      *
      * Aday model turlamak da yok: limit projenin, modelin degil. */
     if (res.status === 429) {
+      /* Model DUSMUS sayiliyor (27.10.2026). Burasi `geciciModeller`'e
+         dokunmuyordu; sonuc: devre kesicinin tetigi (hepsiDustu) kota
+         bittigi gun hic dolmuyor ve her yukleme ayni 87 saniyeyi yakiyordu.
+         Limit projenin oldugu icin bu model yarin da ayni cevabi verecek. */
+      kota429Gorulen = true
+      geciciModeller.add(model)
       /* Kalan GERCEK zaman: cagri tavanindan degil, isin butcesinden
          olculur — tavan 105 saniye sabit, butce ise kosu icinde erir. */
       const kalanButce = budgetMs - (Date.now() - basladi)
@@ -8248,6 +8284,7 @@ async function geminiDraft(
     const aktif: Kosu[] = [ilk]
     const dusen: DenemeKaydi[] = []
     let tavanKesti = false
+    let kotaYedekSusturuldu = false
     for (;;) {
       /* Kazanan: ilk OLAYI getiren — ya da akissiz/duz JSON yolunda olay
          saymadan BASARIYLA biten. */
@@ -8265,7 +8302,15 @@ async function geminiDraft(
         return [kayit(olayli), ...dusen]
       }
       for (let i = aktif.length - 1; i >= 0; i--) {
-        if (aktif[i].res) dusen.push(kayit(aktif.splice(i, 1)[0]))
+        const bitti = aktif[i].res
+        if (!bitti) continue
+        /* Kota 429'u YARIS SIRASINDA goruluyor; denemeSonucunuIsle yarisin
+           SONUNDA calistigi icin bayrak oraya birakilamaz — bir sonraki
+           yedek coktan baslamis olur. Olculen kosuda (27.10, 18:40) tam
+           bu oldu: 3.5 429 dondu, saniyeler sonra 3.6 baslatildi, o da 429,
+           arkasindan 3.8. Uc istek, ayni projenin ayni limitine. */
+        if (bitti.ok === false && bitti.status === 429) kota429Gorulen = true
+        dusen.push(kayit(aktif.splice(i, 1)[0]))
       }
       if (aktif.length === 0) return dusen
 
@@ -8281,8 +8326,19 @@ async function geminiDraft(
         )
         for (const k of aktif) k.kontrol.abort(`toplam tavanda ilk olay yok (${geminiToplamTavan}ms)`)
       }
+      /* KOTA 429'DAN SONRA YEDEK YOK (27.10.2026).
+         Kodun kendi teshisi asagida yaziyor: "limit projenin, modelin
+         degil". Yedek baslatmak o limite bir kez daha carpmak, ustelik
+         RPD'den bir istek daha goturmek demek. Olculen kosuda uc yedegin
+         ucu de reddedildi; kurtarma stratejisinin kendisi hastaligi
+         buyutuyordu. */
+      if (kota429Gorulen && aktif.length < 2 && !kotaYedekSusturuldu) {
+        kotaYedekSusturuldu = true
+        console.warn('Gemini yedek: kota 429 goruldu — yedek model baslatilmiyor (limit projenin, modelin degil)')
+      }
       if (
         !tavanKesti &&
+        !kota429Gorulen &&
         aktif.length < 2 &&
         Date.now() - ilk.startedAt >= yedekGecikme &&
         Date.now() - sonIstekAni >= GEMINI_RETRY_WAIT_MS &&
@@ -9251,7 +9307,7 @@ ${styleInstruction}`
        Onbellege yazilirsa o dosya icin KALICI cevap bu olur ve Gemini bir
        daha hic denenmez — yuzeyin bir dakikalik yogunlugu kalici kalite
        kaybina doner. Bkz. summary_cache yazimi. */
-    const geminiTani: { geciciDustu?: boolean; hepsiDustu?: boolean } = {}
+    const geminiTani: { geciciDustu?: boolean; hepsiDustu?: boolean; kota429?: boolean } = {}
     /* Yogunluk kapisinin OLCUM modundaki bulgusu; kapi eledigi gun bu
        alan karari degil gecmisi tutacak. */
     let yogunlukOlcumu: { dropped: number; toplam: number; ornekler: string[] } | null = null
@@ -9407,8 +9463,13 @@ ${styleInstruction}`
           )
         }
 
-        // Yalnizca BUTUN modeller dustuyse — bkz. GEMINI_DEVRE_MS (daraltildi).
-        if (!geminiResult && geminiTani.hepsiDustu) {
+        /* Kota once bakilir: tek 429 yeter ve suresi daha uzun
+           (bkz. GEMINI_KOTA_DEVRE_MS). hepsiDustu'yu beklemek, oteki
+           adaylari ayni limite carptirmak demekti. Ikinci dal eskisi gibi:
+           yalnizca BUTUN modeller dustuyse (bkz. GEMINI_DEVRE_MS). */
+        if (!geminiResult && geminiTani.kota429) {
+          await geminiDevreAc(serviceClient, 'Gemini kota limiti (429)', GEMINI_KOTA_DEVRE_MS)
+        } else if (!geminiResult && geminiTani.hepsiDustu) {
           await geminiDevreAc(serviceClient, 'butun Gemini modelleri kota/gecici hata')
         }
 
