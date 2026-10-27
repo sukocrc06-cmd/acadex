@@ -6,9 +6,10 @@
 #      New repository secret: SUPABASE_ACCESS_TOKEN
 # Token yoksa iş "atlandı" diye biter, hiçbir şey deploy edilmez.
 #
-# Güvenlik: deploy'dan önce canlı kod indirilir ve bir önceki main
-# sürümüyle karşılaştırılır. Panelden (GitHub dışından) değiştirilmişse
-# deploy yapılmaz; elle çalıştırıp "force" seçilirse yapılır.
+# Güvenlik: her çalışmada canlı kod indirilir ve Git geçmişiyle karşılaştırılır.
+# main ile aynıysa atlanır; geçmişteki bir sürümse deploy edilir (kaçırılmış
+# deploy da tamamlanır); hiçbir sürüme uymuyorsa (panelden değişmiş) deploy
+# edilmez, elle çalıştırıp "force" seçilirse yapılır.
 name: Deploy exam functions
 
 on:
@@ -20,10 +21,12 @@ on:
       - 'supabase/functions/extract-chart-items/**'
       - 'supabase/functions/exam-appeal/**'
       - 'supabase/functions/get-exam-hint/**'
+      - '.github/workflows/deploy-exam-functions.yml'
+      - '.github/scripts/deploy-exam-functions.sh'
   workflow_dispatch:
     inputs:
       functions:
-        description: 'Deploy edilecekler (boşlukla ayrılmış; boşsa değişenler)'
+        description: 'Denetlenecekler (boşlukla ayrılmış; boşsa hepsi)'
         required: false
         default: ''
       force:
@@ -44,7 +47,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0
 
       - name: Token var mı
         id: token

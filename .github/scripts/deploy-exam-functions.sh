@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 # Sınav fonksiyonlarını deploy eder (bkz. .github/workflows/deploy-exam-functions.yml).
+#
+# Her fonksiyon için canlı kod indirilir ve Git geçmişiyle karşılaştırılır:
+#   - canlı kod main'deki sürümle aynı  → güncel, atlanır
+#   - canlı kod geçmişteki bir sürümle aynı → main'deki sürüm deploy edilir
+#   - hiçbir sürüme uymuyor (panelden değişmiş) → deploy edilmez (force hariç)
+# Böylece kaçırılmış bir deploy da sonraki çalışmada tamamlanır.
 set -euo pipefail
 
 # Fonksiyon → "Verify JWT" ayarı (panelde 26.10.2026'da okunan değerler).
@@ -11,12 +17,10 @@ declare -A VERIFY_JWT=(
   [exam-appeal]=true
   [get-exam-hint]=true
 )
+HISTORY_DEPTH=60
 
-if [ -n "${INPUT_FUNCTIONS:-}" ]; then
-  targets="$INPUT_FUNCTIONS"
-else
-  targets=$(git diff --name-only HEAD^ HEAD -- supabase/functions | cut -d/ -f3 | sort -u | tr '\n' ' ')
-fi
+targets="${INPUT_FUNCTIONS:-}"
+[ -z "$targets" ] && targets="${!VERIFY_JWT[*]}"
 
 summary() { echo "$1" | tee -a "${GITHUB_STEP_SUMMARY:-/dev/null}"; }
 
@@ -26,33 +30,60 @@ for fn in $targets; do
     summary "- $fn: listede yok, atlandı (elle deploy)"
     continue
   fi
+  src="supabase/functions/$fn/index.ts"
+  [ -f "$src" ] || { summary "- $fn: depoda yok, atlandı"; continue; }
 
-  # Canlı kod bir önceki main sürümüyle aynı mı (GitHub dışında değişmiş mi).
+  decision="deploy"
   if [ "${FORCE:-false}" != "true" ]; then
     work=$(mktemp -d)
-    git show "HEAD^:supabase/functions/$fn/index.ts" > "$work/expected.ts" 2>/dev/null || : > "$work/expected.ts"
-    if ! (cd "$work" && mkdir -p supabase && supabase functions download "$fn" --project-ref "$PROJECT_REF" >/dev/null 2>&1); then
-      summary "- $fn: canlı kod indirilemedi; güvenlik için deploy edilmedi (elle çalıştırıp force seçin)"
+    mkdir -p "$work/hist"
+    i=0
+    for c in $(git log -n "$HISTORY_DEPTH" --format=%H -- "$src"); do
+      git show "$c:$src" > "$work/hist/$i.ts" 2>/dev/null || true
+      i=$((i + 1))
+    done
+    if ! (cd "$work" && mkdir -p supabase && supabase functions download "$fn" --project-ref "$PROJECT_REF" > "$work/download.log" 2>&1); then
+      echo "--- indirme çıktısı ($fn) ---"; tail -n 20 "$work/download.log" || true
+      summary "- $fn: canlı kod indirilemedi; güvenlik için deploy edilmedi"
       failed=1; continue
     fi
-    live=$(find "$work/supabase/functions/$fn" -name index.ts | head -1 || true)
-    if [ -z "$live" ] || ! python3 - "$work/expected.ts" "$live" "supabase/functions/$fn/index.ts" <<'PY'
-import sys
-norm = lambda p: '\n'.join(l.rstrip() for l in open(p, encoding='utf-8').read().replace('\r\n', '\n').strip().split('\n'))
-live = norm(sys.argv[2])
-# Canlı kod önceki main sürümüyle (ya da zaten bu sürümle) aynıysa güvenli.
-sys.exit(0 if live in (norm(sys.argv[1]), norm(sys.argv[3])) else 1)
+    echo "--- indirilen index.ts dosyaları ($fn) ---"
+    find "$work/supabase" -name index.ts -printf '%s %p\n' | sed "s#$work/##" | head -n 40 || true
+    decision=$(python3 - "$work" "$src" <<'PY'
+import sys, glob, os
+work, current = sys.argv[1], sys.argv[2]
+def norm(p):
+    try:
+        t = open(p, encoding='utf-8', errors='replace').read()
+    except OSError:
+        return None
+    return '\n'.join(l.rstrip() for l in t.replace('\r\n', '\n').strip().split('\n'))
+live = {norm(p) for p in glob.glob(os.path.join(work, 'supabase', '**', 'index.ts'), recursive=True)}
+live.discard(None)
+cur = norm(current)
+hist = {norm(p) for p in glob.glob(os.path.join(work, 'hist', '*.ts'))}
+if cur in live:
+    print('current')
+elif live & hist:
+    print('deploy')
+else:
+    print('unknown')
 PY
-    then
-      summary "- $fn: canlı kod önceki main sürümünden farklı (panelden değişmiş olabilir); deploy edilmedi"
-      failed=1; continue
-    fi
+)
   fi
 
-  flag=""
-  [ "${VERIFY_JWT[$fn]}" = "false" ] && flag="--no-verify-jwt"
-  supabase functions deploy "$fn" --project-ref "$PROJECT_REF" $flag
-  summary "- $fn: deploy edildi ($(git rev-parse --short HEAD))"
+  case "$decision" in
+    current)
+      summary "- $fn: canlı kod main ile aynı, deploy gerekmedi" ;;
+    unknown)
+      summary "- $fn: canlı kod Git geçmişindeki hiçbir sürüme uymuyor (panelden değişmiş olabilir); deploy edilmedi"
+      failed=1 ;;
+    deploy)
+      flag=""
+      [ "${VERIFY_JWT[$fn]}" = "false" ] && flag="--no-verify-jwt"
+      supabase functions deploy "$fn" --project-ref "$PROJECT_REF" $flag
+      summary "- $fn: deploy edildi ($(git rev-parse --short HEAD))" ;;
+  esac
 done
 
 exit $failed
