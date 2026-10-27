@@ -2026,6 +2026,14 @@ function verifyGraph(q: Record<string, unknown>, lang: string): { ok: boolean; r
   return { ok: true }
 }
 
+/** Hesap sorusunun formül anahtarı: boşluksuz formül + değişken adları.
+ *  Aynı formülü farklı sayılarla soran iki soru aynı anahtarı alır. */
+function calcFormulaKey(q: Record<string, unknown>): string | null {
+  if (q.type !== 'calculation' || typeof q.formula !== 'string' || !q.formula.trim()) return null
+  const vars = q.variables && typeof q.variables === 'object' ? Object.keys(q.variables as Record<string, unknown>).sort().join(',') : ''
+  return `${q.formula.replace(/\s+/g, '')}|${vars}`
+}
+
 /** Tek bir soruyu denetler ve temizlenmiş halini döner. Geçmezse
  *  { ok: false, reason } — soru atılır. allowUnverifiedCalc: son çare;
  *  formülü doğrulanamayan ama cevabı sayı olan hesap sorusu Faz 3a öncesi
@@ -3164,6 +3172,7 @@ Additional variation seed: ${Date.now()}`
     const rejectReasons: string[] = []
 
     const rejectedRaw: unknown[] = []
+    const seenFormulas = new Set<string>()
     // Dosyadaki çizim sorusunun kopyası: son çare olarak (eksik kalırsa) alınır.
     const copiedGraphs: Record<string, unknown>[] = []
     const absorb = (items: unknown[], allowUnverifiedCalc = false) => {
@@ -3195,6 +3204,15 @@ Additional variation seed: ${Date.now()}`
           rejectReasons.push('duplicate_question')
           continue
         }
+        // Canlı test (26.10.2026): "R(q) = 50q − 2q² için q = 5'te MR" ve
+        // "q = 8'de MR" ayrı sorular olarak geldi. Aynı formülü yalnızca
+        // farklı sayılarla soran hesap sorusu tekrar sayılır.
+        const formulaKey = calcFormulaKey(result.question)
+        if (formulaKey && seenFormulas.has(formulaKey)) {
+          rejectReasons.push('duplicate_formula')
+          continue
+        }
+        if (formulaKey) seenFormulas.add(formulaKey)
         seenTexts.add(textKey)
         accepted.push(result.question)
       }
