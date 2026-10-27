@@ -21,7 +21,7 @@ const CHART = ['CHART_MAX_SOURCES', 'CHART_MAX_POINTS', 'CHART_MAX_SERIES', 'cha
 
 const G = loadFromSource(GEN_PATH, [
   'EXPR_MAX_LENGTH', 'EXPR_MAX_DEPTH', 'EXPR_CONSTS', 'EXPR_FUNCS', 'evaluateExpression', 'sanitizeVariables', 'MATH_INPUT_MAX', 'normalizeMathInput',
-  'TRUE_FALSE_OPTIONS', 'normalizeAnswerText', 'parseLooseNumber', 'PLACEHOLDER_ANSWERS', 'isPlaceholderAnswer', 'cleanText',
+  'TRUE_FALSE_OPTIONS', 'normalizeAnswerText', 'parseLooseNumber', 'answerNumber', 'PLACEHOLDER_ANSWERS', 'isPlaceholderAnswer', 'cleanText',
   'EXPLANATION_MAX_CHARS', 'RATIONALE_MAX_CHARS', 'RUBRIC_MIN_ITEMS', 'RUBRIC_MAX_ITEMS', 'normalizeOptionRationales', 'normalizeRubric',
   'numberReadings', 'sameNumber', 'withinTolerance', 'templateMatches', 'normalizeFormula', 'DERIVED_FACTORS', 'TEMPLATE_DISPLAY_OPS', 'STANDARD_CONSTANTS',
   'referencesName', 'inlineName', 'STEP_KINDS', 'verifyLinearEquation', 'verifyCalculation', 'OPTION_NEAR_PERCENT', 'NUMERIC_OPTION',

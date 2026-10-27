@@ -46,3 +46,16 @@ Faz 4b.2 canlı testinden ve yol haritasından kalan üç iş.
 - **Son çare:** ifade sorusu yine gelmezse bir kez yalnızca ifade sorusu isteniyor; gelen soru son hesap sorusunun yerine geçiyor.
 
 Deploy: `generate-exam` (bu PR, #61'in sunucu değişikliklerini de içerir; tek deploy yeter).
+
+## 5. Eşitlikli cevap yanlış okunuyordu (27.10.2026)
+
+- **Görülen:** türev kaynağından 4 soruluk hesaplama sınavında 3 soru `calc_mismatch` ile atıldı; sınav 2 soruyla geldi.
+- **Neden:** model cevabı "f'(2) = 76", "MR(8) = 18 TL" biçiminde yazıyor. `parseLooseNumber` rakam dışını silip bunları 276 ve 818 okuyordu; formülle tutmayınca doğru soru atılıyordu.
+- **Öğrenci tarafı:** aynı sorun vardı. "MR(8) = 18" yazan öğrenci 0 alırdı.
+- **Düzeltme:** `answerNumber`, son "=" ya da "≈" işaretinin sağındaki sayıyı okur; eşittir yoksa eskisi gibi. Kullanıldığı yerler:
+  - `generate-exam`: modelin cevabı
+  - `grade-exam`: öğrenci cevabı (hesap, hassas hesap, tipik hata eşleşmesi)
+  - `exam-engine`: "farklı sayılarla" alıştırması
+  - Üç kopya testte birebir aynı tutuluyor.
+
+Deploy: `generate-exam` ve `grade-exam` otomatik (GitHub Actions); ön yüz Vercel.

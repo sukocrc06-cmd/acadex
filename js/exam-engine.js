@@ -1640,6 +1640,16 @@
     return Number.isFinite(n) ? n : NaN;
   }
 
+  /** grade-exam answerNumber ile aynı kural: "MR(8) = 18" → 18 (son "=" ya
+   *  da "≈" işaretinin sağı); eşittir yoksa parseLooseNumber. */
+  function answerNumber(value) {
+    if (typeof value === 'number') return parseLooseNumber(value);
+    const s = String(value == null ? '' : value);
+    const i = Math.max(s.lastIndexOf('='), s.lastIndexOf('≈'));
+    const tail = i >= 0 ? s.slice(i + 1) : '';
+    return /\d/.test(tail) ? parseLooseNumber(tail) : parseLooseNumber(s);
+  }
+
   function formatNumber(n, lang) {
     return Number(n).toLocaleString(lang === 'en' ? 'en-US' : 'tr-TR', { maximumFractionDigits: 6 });
   }
@@ -1722,7 +1732,7 @@
 
   /** Öğrencinin sayısını toleransla (ya da sayı hassasiyetiyle) kontrol eder. */
   function checkNumericAnswer(input, answer, tolerancePercent, decimals) {
-    const n = parseLooseNumber(input);
+    const n = answerNumber(input);
     if (!Number.isFinite(n)) return { ok: false, filled: false, value: NaN };
     if ([2, 3, 4].includes(Number(decimals))) return { ok: withinDecimals(n, answer, Number(decimals)), filled: true, value: n };
     const tol = Number(tolerancePercent) > 0 ? Number(tolerancePercent) : 2;
@@ -2572,6 +2582,7 @@
     sanitizeVariables,
     parseLooseNumber,
     renderTemplate,
+    answerNumber,
     makeVariant,
     checkNumericAnswer,
     withinDecimals,

@@ -19,6 +19,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { loadFromSource, sliceDeclaration, makeRunner } = require('./_ts-extract.js');
+const E = require(path.join(__dirname, '..', 'js', 'exam-engine.js'));
 
 const GEN_PATH = 'supabase/functions/generate-exam/index.ts';
 const GRADE_PATH = 'supabase/functions/grade-exam/index.ts';
@@ -26,7 +27,7 @@ const GRADE_PATH = 'supabase/functions/grade-exam/index.ts';
 const G = loadFromSource(GEN_PATH, [
   'TRUE_FALSE_OPTIONS', 'KEY_FIELDS', 'INTERNAL_FIELDS',
   'EXPLANATION_MAX_CHARS', 'RATIONALE_MAX_CHARS', 'RUBRIC_MIN_ITEMS', 'RUBRIC_MAX_ITEMS',
-  'fixJsonEscapes', 'parseQuestionArray', 'normalizeAnswerText', 'parseLooseNumber',
+  'fixJsonEscapes', 'parseQuestionArray', 'normalizeAnswerText', 'parseLooseNumber', 'answerNumber',
   'PLACEHOLDER_ANSWERS', 'isPlaceholderAnswer', 'cleanText',
   'EXPR_MAX_LENGTH', 'EXPR_MAX_DEPTH', 'EXPR_CONSTS', 'EXPR_FUNCS', 'evaluateExpression', 'sanitizeVariables',
   'numberReadings', 'sameNumber', 'withinTolerance', 'templateMatches', 'normalizeFormula', 'DERIVED_FACTORS', 'TEMPLATE_DISPLAY_OPS', 'verifyCalculation', 'normalizeOptionRationales', 'normalizeRubric',
@@ -34,7 +35,7 @@ const G = loadFromSource(GEN_PATH, [
   'OPTION_NEAR_PERCENT', 'NUMERIC_OPTION', 'optionCanonical', 'hasAmbiguousOptions', 'MATH_INPUT_MAX', 'normalizeMathInput', 'STEP_KINDS', 'verifyLinearEquation', 'EXPR_SAMPLE_VALUES', 'EXPR_MIN_VALID_POINTS', 'EXPR_FORMS', 'exprSamplePoints', 'expressionsEquivalent', 'hasTopLevelSum', 'isExpandedForm', 'exprTokenCount', 'checkExpressionForm', 'verifyExpression', 'STANDARD_CONSTANTS', 'referencesName', 'inlineName', 'chartNumbers']);
 const R = loadFromSource(GRADE_PATH, [
   'SIMULATION_GRACE_MS',
-  'normalizeAnswerText', 'foldTurkish', 'parseLooseNumber',
+  'normalizeAnswerText', 'foldTurkish', 'parseLooseNumber', 'answerNumber',
   'checkSubmissionWindow', 'mergeQuestionWithKey',
   'gradeChoice', 'gradeFillBlank', 'gradeCalculation',
   'parseCriteria', 'parseGradesResponse', 'computeFinalGrade', 'buildAttemptRows'
@@ -46,13 +47,13 @@ const { test, summary } = makeRunner();
 // İki dosyadaki ortak fonksiyonlar birebir aynı kalmalı (edge function'lar
 // panelden yapıştırılarak deploy edildiği için _shared modülü kullanılamıyor).
 // ---------------------------------------------------------------------------
-test('normalizeAnswerText ve parseLooseNumber iki dosyada birebir ayni', () => {
+test('normalizeAnswerText, parseLooseNumber ve answerNumber iki dosyada birebir ayni', () => {
   const ts = require('typescript');
   const toJs = p => ts.transpileModule(fs.readFileSync(path.join(__dirname, '..', p), 'utf8'), {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext }
   }).outputText;
   const genJs = toJs(GEN_PATH), gradeJs = toJs(GRADE_PATH);
-  for (const name of ['normalizeAnswerText', 'parseLooseNumber']) {
+  for (const name of ['normalizeAnswerText', 'parseLooseNumber', 'answerNumber']) {
     assert.equal(sliceDeclaration(genJs, name), sliceDeclaration(gradeJs, name), `${name} iki dosyada farkli`);
   }
 });
@@ -301,6 +302,27 @@ test('LaTeX onarimi: bozuk kacislar ve ters egik cizgisini kaybetmis komutlar (c
   assert.equal(arr[0].question, '$2x + y \\le 8$ ve $\\sqrt{4} = 2$ dogrudur.');
   assert.equal(G.fixJsonEscapes('"a\\n\\"b\\u00e7"'), '"a\\n\\"b\\u00e7"', 'gecerli kacislar ayni');
   assert.equal(JSON.parse(G.fixJsonEscapes('"\\underline{x}"')), '\\underline{x}');
+});
+
+test('answerNumber: esitlikli cevapta son esittirin sagi (canli test 27.10.2026: "f\'(2) = 76" 276 okunuyordu)', () => {
+  for (const f of [G.answerNumber, R.answerNumber, E.answerNumber]) {
+    assert.equal(f("f'(2) = 76"), 76);
+    assert.equal(f('MR(8) = 18 TL'), 18);
+    assert.equal(f('MC(5) = 3(25) - 60 + 15 = 30'), 30);
+    assert.equal(f('x ≈ 1,25'), 1.25);
+    assert.equal(f('x = -3'), -3);
+    assert.equal(f('1.432,50 TL'), 1432.5, 'esittir yoksa eskisi gibi');
+    assert.equal(f('%12'), 12);
+    assert.equal(f(76), 76);
+    assert.ok(Number.isNaN(f('cevap =')), 'esittirin sagi bos: eski kurala duser, sayi yok');
+  }
+  // dogrulama: modelin "f'(2) = 76" cevabi formulle tutuyor, soru atilmiyor
+  const q = { type: 'calculation', question: "f(x) = x^4 - 5x^2 için f'(2) değerini bulunuz. x = 2", correct_answer: "f'(2) = 12", variables: { x: 2 }, formula: '4*x^3 - 10*x' };
+  assert.deepEqual(G.verifyCalculation(q), { ok: true });
+  assert.equal(q.correct_answer, 12);
+  // notlama: ogrenci "MR(8) = 18" yazarsa dogru
+  assert.equal(R.gradeCalculation('MR(8) = 18', 18, 1, '').score, 100);
+  assert.equal(E.checkNumericAnswer('MR(8) = 18', 18, 1, 0).ok, true);
 });
 
 summary();
