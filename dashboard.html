@@ -54,7 +54,7 @@
   <!-- Core Stylesheet -->
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/acadex-ink.css">
-<link rel="stylesheet" href="css/acadex-kart.css">
+<link rel="stylesheet" href="css/acadex-kartoteks.css">
 <link rel="stylesheet" href="css/acadex-medlab.css">
 
   <!-- Supabase CDN & Config (Route Guard) -->
@@ -709,56 +709,59 @@
       <!-- ==========================================
            TAB 4: BILGI KARTLARI VIEW (INFO CARDS)
            ========================================== -->
-      <section id="cards-view" class="dashboard-view-section axd axk kx">
+      <section id="cards-view" class="dashboard-view-section axd axk kx kt">
 <div style="display:none" aria-hidden="true">
 <div class="cards-status-chips"><button type="button" class="cards-status-chip active" data-status="all"></button><button type="button" class="cards-status-chip" data-status="inprogress"></button><button type="button" class="cards-status-chip" data-status="new"></button></div>
 <select id="cards-filter-style"><option value="all">all</option></select><select id="cards-filter-lang"><option value="all">all</option></select>
 <button type="button" id="btn-clear-filters"></button>
 </div>
 <div class="main-d kartlar">
-<header class="d-head land">
+<header class="d-head land kt-head">
 <div class="d-head-l">
-<span class="eyb hand">kartlar</span>
-<h1 class="disp">Bilgi kartları</h1>
-<p class="d-sub hand">özetten kart yap, çevir, tekrar et, deftere gönder.</p>
-</div>
-<div class="d-head-r">
+<span class="eyb hand">fiş dolabı</span>
+<h1 class="disp">Acadex Kartoteks</h1>
+<p class="d-sub hand">her kart bir fiş. bildiğin fiş bir göz ileri gider, unuttuğun başa döner.</p>
+<div class="kt-tools">
 <span class="due-st hand" data-due="" aria-live="polite" hidden></span>
+<button type="button" class="btn btn-dark" data-new-deck="">+ Belgeden deste oluştur</button>
 <button type="button" class="hbtn" id="btn-open-knowledge-graph" onclick="openKnowledgeGraphModal()">Kavram ağı</button>
 <button type="button" class="hbtn" id="btn-export-all-pdf">Hepsini PDF yap</button>
-<button type="button" class="btn btn-dark" data-new-deck="">+ Belgeden deste oluştur</button>
 </div>
-</header>
-
-<!-- bugün şeridi: günlük hedef, kart serisi, tekrar kutusu (Leitner) -->
-<section class="kx-today" aria-label="Bugünün kartları">
-<div class="kx-goal">
+</div>
+<!-- okuma fişi: kütüphane iade fişi gibi; çalıştığın her güne tarih damgası basılır -->
+<aside class="kt-slip" data-kx-streak="" aria-label="Okuma fişi">
+<span class="kt-slip-h">ACADEX KARTOTEKS · OKUMA FİŞİ</span>
+<div class="kt-slip-row">
+<div class="kt-slip-today">
 <span class="kx-k">bugün</span>
-<p class="kx-goal-n"><b data-kx-done="">0</b><span> / <span data-kx-goal="">0</span> kart</span></p>
+<p class="kx-goal-n"><b data-kx-done="">0</b><span> / <span data-kx-goal="">0</span> fiş</span></p>
 <div class="kx-bar" data-kx-bar="" role="progressbar" aria-label="Bugünkü tekrar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i></div>
 <p class="kx-goal-t hand" data-kx-goal-t=""></p>
 </div>
-<div class="kx-streak" data-kx-streak="">
-<span class="kx-k">kart serisi</span>
-<p class="kx-streak-n"><b data-kx-streak-n="">0</b><small>gün üst üste</small></p>
-<ol class="kx-week" data-kx-week="" aria-label="Son 7 gün"></ol>
+<div class="kt-slip-st"><span class="kx-k">seri</span><b data-kx-streak-n="">0</b><small>gün üst üste</small></div>
 </div>
-<div class="kx-leit">
-<div class="kx-leit-h"><span class="kx-k">tekrar kutusu</span><span class="kx-leit-d hand" data-kx-leit-deck=""></span></div>
-<div class="kx-leit-box" data-leit="" role="group" aria-label="Tekrar kutusunun bölmeleri"></div>
-<small class="kx-leit-n">bildiğin kart bir bölme ileri gider, bilmediğin başa döner · bölmeye dokun, o kartları çalış · aralıklı tekrar (SM-2), yapay zekâ değil</small>
+<ol class="kt-dates" data-kx-week="" aria-label="Son 7 günün damgaları"></ol>
+</aside>
+</header>
+
+<!-- fiş dolabı: her deste bir çekmece, altta 5 tekrar gözü -->
+<section class="kt-cab land" aria-label="Fiş dolabı">
+<div class="kt-top">
+<div class="card-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.6 15.8 C17.4 17.4 18.8 18.9 20.4 20.6"/></svg><label class="vh" for="cards-search">Çekmecelerde ara</label><input id="cards-search" type="search" placeholder="çekmecelerde ara…" autocomplete="off"></div>
+<label class="ax-course"><span class="hand">ders</span><select id="cards-filter-course" aria-label="Derse göre süz"><option value="all">tüm dersler</option></select></label>
+</div>
+<div id="cards-list-section" class="kt-drawers" role="list" aria-label="Çekmeceler (desteler)"></div>
+<div class="kt-leit">
+<div class="kx-leit-h"><span class="kx-k">tekrar gözleri</span><span class="kx-leit-d hand" data-kx-leit-deck=""></span></div>
+<div class="kx-leit-box" data-leit="" role="group" aria-label="Tekrar gözleri"></div>
+<small class="kx-leit-n">bir göze dokun, yalnız o gözdeki fişleri çalış · aralıklı tekrar (SM-2), yapay zekâ değil</small>
 </div>
 </section>
+<div class="kt-plinth" aria-hidden="true"><i></i><i></i></div>
 
-<div class="kx-desk">
-<aside class="kx-rail" aria-label="Desteler">
-<div class="card-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.6 15.8 C17.4 17.4 18.8 18.9 20.4 20.6"/></svg><label class="vh" for="cards-search">Destelerde ara</label><input id="cards-search" type="search" placeholder="destelerde ara…" autocomplete="off"></div>
-<label class="ax-course"><span class="hand">ders</span><select id="cards-filter-course" aria-label="Derse göre süz"><option value="all">tüm dersler</option></select></label>
-<div id="cards-list-section" class="kx-decks" role="list" aria-label="Desteler"></div>
-<button type="button" class="kx-add" data-new-deck="">+ belgeden yeni deste</button>
-</aside>
-
-<section class="study kx-stage" aria-label="Çalışma">
+<!-- okuma masası -->
+<section class="study kx-stage kt-desk" aria-label="Okuma masası">
+<span class="kt-desk-k hand" aria-hidden="true">okuma masası</span>
 <div class="kx-modes">
 <div class="modes" role="tablist" aria-label="Çalışma biçimi">
 <button type="button" role="tab" id="m-due" aria-selected="true" aria-controls="ktable" data-mode="due">bugünkü tekrar</button>
@@ -779,27 +782,25 @@
 <button type="button" class="j4 good" data-r="good"><b>bildim</b><small data-iv="good"></small><kbd>3</kbd></button>
 <button type="button" class="j4 easy" data-r="easy"><b>kolay</b><small data-iv="easy"></small><kbd>4</kbd></button>
 </div>
-<p class="j4-hint hand" data-j4hint="" hidden>önce cevabı içinden söyle, sonra kartı çevir; ne kadar kolay hatırladığını işaretle.</p>
+<p class="j4-hint hand" data-j4hint="" hidden>önce cevabı içinden söyle, sonra fişi çevir; ne kadar kolay hatırladığını işaretle.</p>
 <div class="judge" data-judge="" hidden>
 <button type="button" class="stampb no" data-j="0" aria-label="Tekrar (sol ok)"><span class="sb-h" aria-hidden="true"></span><span class="sb-f">TEKRAR</span></button>
 <div class="tally-w"><span class="tally-c" data-tally="" aria-hidden="true"></span><span class="j-prog hand" data-prog="" aria-live="polite"></span></div>
 <button type="button" class="stampb yes" data-j="1" aria-label="Biliyorum (sağ ok)"><span class="sb-h" aria-hidden="true"></span><span class="sb-f">BİLİYORUM</span></button>
 </div>
-<p class="keys hand" data-keys="" hidden>boşluk: çevir · ←: tekrar · →: biliyorum · telefonda kartı sağa/sola kaydır</p>
+<p class="keys hand" data-keys="" hidden>boşluk: çevir · ←: tekrar · →: biliyorum · telefonda fişi sağa/sola kaydır</p>
 
-<!-- özet çekmecesi: seçip karta çevir burada -->
 <section class="kx-sum" id="ozet-k" data-kx-sum="" aria-labelledby="oz-tk">
-<button type="button" class="kx-sum-h" data-kx-sum-t="" aria-expanded="false" aria-controls="kx-sum-b"><span class="kx-sum-ic" aria-hidden="true"></span><h2 id="oz-tk" class="hd">özet <small data-sum-n=""></small></h2><span class="kx-sum-a hand" data-kx-sum-a="">aç, seç, karta çevir</span></button>
+<button type="button" class="kx-sum-h" data-kx-sum-t="" aria-expanded="false" aria-controls="kx-sum-b"><span class="kx-sum-ic" aria-hidden="true"></span><h2 id="oz-tk" class="hd">kaynak özet <small data-sum-n=""></small></h2><span class="kx-sum-a hand" data-kx-sum-a="">aç, seç, karta çevir</span></button>
 <div class="kx-sum-b" id="kx-sum-b" hidden>
-<div class="sum-body" data-sum=""><p class="hand" style="font-size:20px;color:#6A7593">bir deste seç; özeti burada açılır.</p></div>
-<p class="sum-tip hand">bir cümle seç → “karta çevir”: cümle cevap olur, sen soruyu yazarsın. bir kelime seç → “boşluk yap”: kelime kartta _____ olur.</p>
+<div class="sum-body" data-sum=""><p class="hand" style="font-size:20px;color:#6A7593">bir çekmece seç; özeti burada açılır.</p></div>
+<p class="sum-tip hand">bir cümle seç → “karta çevir”: cümle cevap olur, sen soruyu yazarsın. bir kelime seç → “boşluk yap”: kelime fişte _____ olur.</p>
 <div class="ax-sum-act" data-sum-act="" hidden><button type="button" class="hbtn btn-view-summary" data-view-sum="">Tam özeti aç</button></div>
 </div>
 </section>
 
-<div class="fan-w kx-fan" data-fan-w="" hidden><h2 class="hd fan-t">destedeki kartların <small data-list-n="">0</small></h2><div class="fan" data-fan="" role="list"></div></div>
+<div class="fan-w kx-fan" data-fan-w="" hidden><h2 class="hd fan-t">çekmecedeki fişler <small data-list-n="">0</small></h2><div class="fan" data-fan="" role="list"></div></div>
 </section>
-</div>
 
 <div class="bubble" data-bubble="" role="toolbar" aria-label="Seçili metinle ne yapayım?" hidden>
 <button type="button" data-mk="card">karta çevir</button>
