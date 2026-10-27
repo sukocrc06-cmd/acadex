@@ -1971,7 +1971,7 @@ window.axNotify = function (title, opts) {
     if (!c) {
       var cs = cardsOf(deck), done = queue.length && idx >= queue.length;
       bigB.classList.remove('back'); setInteractive(false); judgeEl.hidden = !done; keysEl.hidden = true; jBtns.forEach(function (b) { b.disabled = true; }); j4.hidden = true; j4h.hidden = true;
-      if (root.classList.contains('kt')) { var dk = $('.kt-desk'); if (dk) dk.classList.toggle('kt-off', !!(deck && done)); }
+      if (root.classList.contains('kt')) { var dk = $('.kt-desk'); if (dk) dk.classList.toggle('kt-off', !!(deck && done)); var kac0 = $('[data-acd-kt]'); if (kac0 && window.AcadiaKit) window.AcadiaKit.setMood(kac0, deck && done ? 'uykulu' : null); }
       if (!deck) { bigIn.innerHTML = '<span class="side">DESTE YOK</span><span class="empty-t">kart çalışmak için önce bir belgeden deste oluştur.</span><button type="button" class="first" data-new-deck="">belgeden deste oluştur →</button>'; prog.textContent = ''; }
       else if (done) {
         bigIn.innerHTML = (root.classList.contains('kt') ? KT_BOOK : '') + '<span class="side">BUGÜNLÜK BU KADAR</span><span class="done-n">' + score.y + ' / ' + (score.y + score.n) + '</span><span class="a">' + (score.n ? 'kartı bildin. bilmediklerin en başa döndü, yakında yine sorulur.' : 'hepsini bildin, hepsi bir bölme ileri gitti.') + '</span><span class="note hand">' + (score.y >= score.n ? 'iyi gidiyorsun, yarın da uğra.' : 'zor kartlar böyledir; bir tur daha?') + '</span>' + (score.n ? '<button type="button" class="again" data-again="">bilmediklerimi bir daha sor</button>' : '');
@@ -1986,7 +1986,7 @@ window.axNotify = function (title, opts) {
       }
       return;
     }
-    if (root.classList.contains('kt')) { var dk2 = $('.kt-desk'); if (dk2) dk2.classList.remove('kt-off'); }
+    if (root.classList.contains('kt')) { var dk2 = $('.kt-desk'); if (dk2) dk2.classList.remove('kt-off'); var kac1 = $('[data-acd-kt]'); if (kac1 && kac1.dataset.moodNow === 'uykulu' && window.AcadiaKit) window.AcadiaKit.setMood(kac1, null); }
     setInteractive(true); judgeEl.hidden = mode === 'smart'; keysEl.hidden = mode === 'smart'; jBtns.forEach(function (b) { b.disabled = false; });
     paintJ4();
     var lvl = '<span class="lvl" aria-hidden="true">' + dots(c.box) + '</span>', kind = c.type === 'quiz' ? 'TEST SORUSU' : c.type === 'cloze' ? 'BOŞLUK' : 'SORU';
@@ -2039,6 +2039,7 @@ window.axNotify = function (title, opts) {
     var c = cur, nb = knew ? Math.min(5, c.box + 1) : 1;
     if (knew) score.y++; else score.n++;
     dayBump();
+    if (window.AcadiaKit) { var kac = $('[data-acd-kt]'); if (kac) window.AcadiaKit.react(kac, knew ? 'kutlama' : 'uzgun', 1300); }
     record(c, knew, rating);
     var im = document.createElement('span'); im.className = 'imprint ' + (knew ? 'yes' : 'no'); im.textContent = knew ? 'BİLİYORUM' : 'TEKRAR';
     if (knew && typeof computeSm2 === 'function') { var nx = lsafe(function () { return computeSm2(c.conf, rating || 'good'); }, null); if (nx && nx.interval_days >= 1) { var dn = new Date(Date.now() + nx.interval_days * 864e5); im.textContent = 'İADE ' + dn.getDate() + ' ' + MON[dn.getMonth()].toLocaleUpperCase('tr'); } }
@@ -10979,17 +10980,22 @@ var SBX = (function () {
   setTimeout(showHint, 2500);
   /* ---------- sağ kenardaki mürekkep yıldız maskot ---------- */
   var mas = document.createElement('button'); mas.type = 'button'; mas.className = 'axa-mas'; mas.setAttribute('aria-label', 'Acadia’ya sor');
-  mas.innerHTML = '<span class="lbl">Acadia’ya sor</span><svg viewBox="-60 -60 120 120" aria-hidden="true"><g class="bd"><path class="st" d="M0 -50 C6 -18 18 -6 50 0 C18 6 6 18 0 50 C-6 18 -18 6 -50 0 C-18 -6 -6 -18 0 -50 Z"/><ellipse class="ck" cx="-17" cy="10" rx="6" ry="3.5"/><ellipse class="ck" cx="17" cy="10" rx="6" ry="3.5"/><g class="eyes"><g class="ey" transform="translate(-10 -4)"><ellipse class="w" rx="6.5" ry="8"/><circle class="pu" r="3.6"/><circle class="gl" cx="1.4" cy="-2.2" r="1.2"/></g><g class="ey" transform="translate(10 -4)"><ellipse class="w" rx="6.5" ry="8"/><circle class="pu" r="3.6"/><circle class="gl" cx="1.4" cy="-2.2" r="1.2"/></g></g><path class="mo" d="M-6 10 Q0 16 6 10"/></g></svg>';
+  /* Acadia maskotu tek kaynaktan (js/acadia-kit.js): kullanıcının renk/aksesuar seçimi burada da görünür */
+  var MAS_OLD = '<svg viewBox="-60 -60 120 120" aria-hidden="true"><g class="bd"><path class="st" d="M0 -50 C6 -18 18 -6 50 0 C18 6 6 18 0 50 C-6 18 -18 6 -50 0 C-18 -6 -6 -18 0 -50 Z"/><ellipse class="ck" cx="-17" cy="10" rx="6" ry="3.5"/><ellipse class="ck" cx="17" cy="10" rx="6" ry="3.5"/><g class="eyes"><g class="ey" transform="translate(-10 -4)"><ellipse class="w" rx="6.5" ry="8"/><circle class="pu" r="3.6"/><circle class="gl" cx="1.4" cy="-2.2" r="1.2"/></g><g class="ey" transform="translate(10 -4)"><ellipse class="w" rx="6.5" ry="8"/><circle class="pu" r="3.6"/><circle class="gl" cx="1.4" cy="-2.2" r="1.2"/></g></g><path class="mo" d="M-6 10 Q0 16 6 10"/></g></svg>';
+  var masPaint = function (mood) { mas.innerHTML = '<span class="lbl">Acadia’ya sor</span>' + (window.AcadiaKit ? window.AcadiaKit.svg({ mood: mood }) : MAS_OLD); };
+  masPaint();
+  document.addEventListener('acadia:style', function () { masPaint(); });
+  mas.__acdReact = function (mood, ms) { clearTimeout(mas.__acdT); masPaint(mood); mas.classList.remove('hop'); void mas.offsetWidth; mas.classList.add('hop'); mas.__acdT = setTimeout(function () { masPaint(); }, ms || 1400); };
   layer.appendChild(mas);
   mas.addEventListener('click', function () { toggle(); });
   /* gözler fareyi izler */
-  var pus = mas.querySelectorAll('.pu, .gl'), eyeRaf = 0, mx = 0, my = 0;
+  var eyeRaf = 0, mx = 0, my = 0;
   document.addEventListener('pointermove', function (e) {
     mx = e.clientX; my = e.clientY; if (eyeRaf) return;
     eyeRaf = requestAnimationFrame(function () {
       eyeRaf = 0; var r = mas.querySelector('svg').getBoundingClientRect(); if (!r.width) return;
       var dx = mx - (r.left + r.width / 2), dy = my - (r.top + r.height / 2), d = Math.sqrt(dx * dx + dy * dy) || 1, k = Math.min(2.6, d / 60);
-      Array.prototype.forEach.call(pus, function (el) { el.style.transform = 'translate(' + (dx / d * k).toFixed(2) + 'px,' + (dy / d * k * 1.2).toFixed(2) + 'px)'; });
+      Array.prototype.forEach.call(mas.querySelectorAll('.pu, .gl'), function (el) { el.style.transform = 'translate(' + (dx / d * k).toFixed(2) + 'px,' + (dy / d * k * 1.2).toFixed(2) + 'px)'; });
     });
   }, { passive: true });
   /* durumlar: düşünüyor / bitti zıplaması */
