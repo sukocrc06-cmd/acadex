@@ -1790,6 +1790,9 @@ window.axNotify = function (title, opts) {
   toastA.addEventListener('click', function (e) { e.preventDefault(); toast.hidden = true; if (typeof switchDashboardView === 'function') switchDashboardView('notebook'); });
 
   /* ---------- kutular ---------- */
+  /* Kartoteks çizimleri: boş dolap, kapanmış kitap */
+  var KT_EMPTY = '<svg class="kt-empty-ill" viewBox="0 0 220 120" aria-hidden="true"><rect x="40" y="18" width="140" height="92" rx="6" fill="#9A6534"/><rect x="48" y="26" width="58" height="36" rx="3" fill="#C48D57"/><rect x="114" y="26" width="58" height="36" rx="3" fill="#C48D57"/><rect x="48" y="68" width="58" height="36" rx="3" fill="#C48D57"/><rect x="114" y="68" width="58" height="36" rx="3" fill="#C48D57" class="kt-ei-open"/><rect x="62" y="34" width="30" height="10" rx="1.5" fill="#FFFDF4" stroke="#C9A24A" stroke-width="2"/><rect x="128" y="34" width="30" height="10" rx="1.5" fill="#FFFDF4" stroke="#C9A24A" stroke-width="2"/><rect x="62" y="76" width="30" height="10" rx="1.5" fill="#FFFDF4" stroke="#C9A24A" stroke-width="2"/><g class="kt-ei-fis"><rect x="124" y="54" width="38" height="24" rx="1.5" fill="#FFFDF4" stroke="#E6DDBF"/><path d="M124 59 H162" stroke="#B5432F" stroke-width="1.6"/></g><path d="M71 52 h12 M137 52 h12 M71 94 h12" stroke="#C9A24A" stroke-width="3" stroke-linecap="round"/><rect x="50" y="110" width="12" height="7" rx="2" fill="#7E5028"/><rect x="158" y="110" width="12" height="7" rx="2" fill="#7E5028"/></svg>';
+  var KT_BOOK = '<svg class="kt-book" viewBox="0 0 120 60" aria-hidden="true"><path d="M8 46 L60 52 L112 46 L112 40 L60 46 L8 40 Z" fill="#7E5028"/><path d="M12 40 C30 30 50 34 60 44 C70 34 90 30 108 40 L108 44 C90 36 70 40 60 48 C50 40 30 36 12 44 Z" fill="#FFFDF4" stroke="#E6DDBF"/><path d="M60 44 V48" stroke="#E6DDBF"/><path d="M84 18 C92 12 100 14 104 20" fill="none" stroke="#C9A24A" stroke-width="2" stroke-linecap="round" stroke-dasharray="2 4"/></svg>';
   var DC = ['#2F6BFF', '#E0773A', '#2E9E6B', '#8A5CF6', '#D9485F', '#C99A1E'];
   /* ustalık: kartların 4. ve 5. bölmeye (haftalık / iki haftalık) çıkmış payı */
   var mastery = function (cs) { if (!cs.length) return 0; return Math.round(cs.filter(function (c) { return c.box >= 4; }).length / cs.length * 100); };
@@ -1805,7 +1808,7 @@ window.axNotify = function (title, opts) {
     var sec = $('#cards-list-section'); if (!sec) return;
     list = list || window.filteredLibraryCardsList || decks();
     if (!list.length) {
-      sec.innerHTML = '<p class="none">' + (decks().length ? 'bu aramayla çekmece bulamadım.' : 'dolap henüz boş. bir belgeni özetlediğinde ilk çekmecen burada açılır.') + '</p>' + '<button type="button" class="kx-add" data-kx-add=""><span class="kt-pull" aria-hidden="true"></span>+ yeni çekmece<small>belgeden deste oluştur</small></button>';
+      sec.innerHTML = (!decks().length && root.classList.contains('kt') ? '<div class="kt-empty">' + KT_EMPTY + '<p><b>dolap henüz boş.</b> bir belgeni özetlediğinde ilk çekmecen burada açılır; fişlerin kendiliğinden dizilir.</p></div>' : '<p class="none">' + (decks().length ? 'bu aramayla çekmece bulamadım.' : 'dolap henüz boş. bir belgeni özetlediğinde ilk çekmecen burada açılır.') + '</p>') + '<button type="button" class="kx-add" data-kx-add=""><span class="kt-pull" aria-hidden="true"></span>+ yeni çekmece<small>belgeden deste oluştur</small></button>';
       if (!decks().length) { activeId = null; paintAll(); }
       return;
     }
@@ -1815,7 +1818,7 @@ window.axNotify = function (title, opts) {
       var full = (d.documents && d.documents.file_name) || 'İsimsiz belge', nm = baseName(full), cs = cardsOf(d), due = cs.filter(function (c) { return c.due; }).length, mine = cs.filter(function (c) { return c.user; }).length;
       var m = mastery(cs), tag = d.course_tag || STY[d.summary_style] || 'DESTE';
       var peek = ''; for (var p = 0; p < Math.min(due, 3); p++) peek += '<i style="--p:' + p + '"></i>';
-      return '<div class="kx-deck kt-drawer" role="listitem" tabindex="0" data-card-id="' + d.id + '" aria-current="' + (d.id === activeId) + '" aria-label="' + esc(nm) + ' çekmecesi, ' + cs.length + ' fiş' + (due ? ', bugün ' + due : '') + ', ezber yüzde ' + m + '" style="--dc:' + DC[di % DC.length] + '">' +
+      return '<div class="kx-deck kt-drawer" role="listitem" tabindex="0" data-card-id="' + d.id + '" aria-current="' + (d.id === activeId) + '" aria-label="' + esc(nm) + ' çekmecesi, ' + cs.length + ' fiş' + (due ? ', bugün ' + due : '') + ', ezber yüzde ' + m + '" style="--dc:' + DC[di % DC.length] + ';--i:' + di + '">' +
         '<span class="kt-peek" aria-hidden="true">' + peek + '</span>' +
         '<span class="kt-label"><span class="kx-tab">' + esc(tag) + '</span><b class="kx-dn">' + esc(nm) + '</b></span>' +
         '<span class="kt-pull" aria-hidden="true"></span>' +
@@ -1828,14 +1831,39 @@ window.axNotify = function (title, opts) {
         '<label class="kx-sh"><input type="checkbox" id="share-switch-lib-' + d.id + '"' + (d.is_shared ? ' checked' : '') + ' onchange="toggleShareStudyCard(\'' + d.id + '\', this.checked)"> bölüm akışında paylaş</label>' +
         '<button type="button" class="kx-del" onclick="deleteStudyCard(event, \'' + d.id + '\', \'' + d.document_id + '\')">çekmeceyi sil</button>' +
         '</div></div>';
-    }).join('') + '<button type="button" class="kx-add" data-kx-add=""><span class="kt-pull" aria-hidden="true"></span>+ yeni çekmece<small>belgeden deste oluştur</small></button>';
+    }).join('') + '<button type="button" class="kx-add" data-kx-add="" style="--i:' + list.length + '"><span class="kt-pull" aria-hidden="true"></span>+ yeni çekmece<small>belgeden deste oluştur</small></button>';
+    if (!ktIntro && root.classList.contains('kt') && !reduce) { ktIntro = true; sec.classList.add('kt-intro'); setTimeout(function () { sec.classList.remove('kt-intro'); }, 900 + list.length * 70); }
     paintAll();
   };
+  var ktIntro = false;
   var pick = function (id) {
     if (id === activeId) return;
     activeId = id; try { libraryActiveCardId = id; } catch (e) {}
     $$('.kx-deck').forEach(function (b) { b.setAttribute('aria-current', String(b.getAttribute('data-card-id') === id)); });
     paintAll();
+    ktPull(id);
+  };
+  /* Kartoteks: çekmece dışarı kayar, en üstteki fiş yükselip okuma masasındaki büyük karta uçar */
+  var ktPull = function (id) {
+    if (reduce || !root.classList.contains('kt')) return;
+    var dr = $('.kx-deck[data-card-id="' + id + '"]'); if (!dr) return;
+    dr.classList.remove('kt-pulling'); void dr.offsetWidth; dr.classList.add('kt-pulling');
+    setTimeout(function () { dr.classList.remove('kt-pulling'); }, 700);
+    var a = dr.getBoundingClientRect(), b = bigIn.getBoundingClientRect();
+    if (!a.width || !b.width || b.top > window.innerHeight || b.bottom < 0) return;
+    var fis = document.createElement('div'); fis.className = 'kt-flyfis'; fis.setAttribute('aria-hidden', 'true');
+    var w = Math.min(120, a.width * 0.6), h = w * 0.62, x0 = a.left + a.width / 2 - w / 2, y0 = a.top - h * 0.3;
+    fis.style.cssText = 'left:' + x0 + 'px;top:' + y0 + 'px;width:' + w + 'px;height:' + h + 'px';
+    root.appendChild(fis);
+    var dx = b.left + b.width / 2 - (x0 + w / 2), dy = b.top + b.height / 2 - (y0 + h / 2), k = b.width / w;
+    bigIn.style.opacity = '0';
+    fis.animate([
+      { transform: 'translateY(30px) scale(.9)', opacity: 0 },
+      { transform: 'translateY(-40px) rotate(-6deg)', opacity: 1, offset: 0.3 },
+      { transform: 'translate(' + dx * 0.55 + 'px,' + (dy * 0.55 - 70) + 'px) rotate(4deg) scale(' + (1 + (k - 1) * 0.5).toFixed(2) + ')', offset: 0.7 },
+      { transform: 'translate(' + dx + 'px,' + dy + 'px) rotate(-.4deg) scale(' + k.toFixed(3) + ',' + (b.height / h).toFixed(3) + ')', opacity: 1 }
+    ], { duration: 720, easing: 'cubic-bezier(.45,0,.25,1)' }).onfinish = function () { fis.remove(); bigIn.style.opacity = ''; bigIn.classList.add('come'); setTimeout(function () { bigIn.classList.remove('come'); }, 420); };
+    setTimeout(function () { if (fis.isConnected) { fis.remove(); bigIn.style.opacity = ''; } }, 1400);
   };
   var closeMenus = function (except) { $$('[data-kx-menu]').forEach(function (m) { if (m === except) return; m.hidden = true; var b = m.parentNode.querySelector('[data-kx-more]'); if (b) b.setAttribute('aria-expanded', 'false'); }); };
   $('#cards-list-section').addEventListener('click', function (e) {
@@ -1943,9 +1971,10 @@ window.axNotify = function (title, opts) {
     if (!c) {
       var cs = cardsOf(deck), done = queue.length && idx >= queue.length;
       bigB.classList.remove('back'); setInteractive(false); judgeEl.hidden = !done; keysEl.hidden = true; jBtns.forEach(function (b) { b.disabled = true; }); j4.hidden = true; j4h.hidden = true;
+      if (root.classList.contains('kt')) { var dk = $('.kt-desk'); if (dk) dk.classList.toggle('kt-off', !!(deck && done)); }
       if (!deck) { bigIn.innerHTML = '<span class="side">DESTE YOK</span><span class="empty-t">kart çalışmak için önce bir belgeden deste oluştur.</span><button type="button" class="first" data-new-deck="">belgeden deste oluştur →</button>'; prog.textContent = ''; }
       else if (done) {
-        bigIn.innerHTML = '<span class="side">BUGÜNLÜK BU KADAR</span><span class="done-n">' + score.y + ' / ' + (score.y + score.n) + '</span><span class="a">' + (score.n ? 'kartı bildin. bilmediklerin en başa döndü, yakında yine sorulur.' : 'hepsini bildin, hepsi bir bölme ileri gitti.') + '</span><span class="note hand">' + (score.y >= score.n ? 'iyi gidiyorsun, yarın da uğra.' : 'zor kartlar böyledir; bir tur daha?') + '</span>' + (score.n ? '<button type="button" class="again" data-again="">bilmediklerimi bir daha sor</button>' : '');
+        bigIn.innerHTML = (root.classList.contains('kt') ? KT_BOOK : '') + '<span class="side">BUGÜNLÜK BU KADAR</span><span class="done-n">' + score.y + ' / ' + (score.y + score.n) + '</span><span class="a">' + (score.n ? 'kartı bildin. bilmediklerin en başa döndü, yakında yine sorulur.' : 'hepsini bildin, hepsi bir bölme ileri gitti.') + '</span><span class="note hand">' + (score.y >= score.n ? 'iyi gidiyorsun, yarın da uğra.' : 'zor kartlar böyledir; bir tur daha?') + '</span>' + (score.n ? '<button type="button" class="again" data-again="">bilmediklerimi bir daha sor</button>' : '');
         prog.textContent = 'bitti';
       } else if (!cs.length) {
         var fs = firstSentence();
@@ -1957,6 +1986,7 @@ window.axNotify = function (title, opts) {
       }
       return;
     }
+    if (root.classList.contains('kt')) { var dk2 = $('.kt-desk'); if (dk2) dk2.classList.remove('kt-off'); }
     setInteractive(true); judgeEl.hidden = mode === 'smart'; keysEl.hidden = mode === 'smart'; jBtns.forEach(function (b) { b.disabled = false; });
     paintJ4();
     var lvl = '<span class="lvl" aria-hidden="true">' + dots(c.box) + '</span>', kind = c.type === 'quiz' ? 'TEST SORUSU' : c.type === 'cloze' ? 'BOŞLUK' : 'SORU';
@@ -1976,7 +2006,20 @@ window.axNotify = function (title, opts) {
     else queue = (mode === 'due' ? cs.filter(function (c) { return c.due; }).sort(function (a, b) { return a.box - b.box || (a.conf ? 1 : 0) - (b.conf ? 1 : 0); }) : cs).slice(0, mode === 'due' ? 40 : 999).map(function (c) { return c.id; });
     idx = 0; score = { y: 0, n: 0 }; paintTally();
   };
-  var flip = function () { if (!cur || busy) return; if (reduce) { flipped = !flipped; face(); return; } bigIn.classList.add('squash'); setTimeout(function () { flipped = !flipped; face(); bigIn.classList.remove('squash'); }, 190); };
+  var ktTurning = false;
+  var flip = function () {
+    if (!cur || busy) return; if (reduce) { flipped = !flipped; face(); return; }
+    if (root.classList.contains('kt') && bigIn.animate) {
+      /* Kartoteks: fiş gerçekten arkasına döner; yarıda yüz değişir, gölge karşı yana kayar */
+      if (ktTurning) return; ktTurning = true; var dir = flipped ? -1 : 1;
+      bigIn.animate([{ transform: 'perspective(1400px) rotateY(0deg)' }, { transform: 'perspective(1400px) rotateY(' + 90 * dir + 'deg) translateZ(30px)', boxShadow: (-24 * dir) + 'px 30px 36px -26px rgba(60,30,10,.55)' }], { duration: 210, easing: 'cubic-bezier(.5,0,.9,.6)' }).onfinish = function () {
+        flipped = !flipped; face();
+        bigIn.animate([{ transform: 'perspective(1400px) rotateY(' + -90 * dir + 'deg) translateZ(30px)', boxShadow: (24 * dir) + 'px 30px 36px -26px rgba(60,30,10,.55)' }, { transform: 'perspective(1400px) rotateY(0deg)' }], { duration: 300, easing: 'cubic-bezier(.15,.6,.3,1.25)' }).onfinish = function () { ktTurning = false; };
+      };
+      return;
+    }
+    bigIn.classList.add('squash'); setTimeout(function () { flipped = !flipped; face(); bigIn.classList.remove('squash'); }, 190);
+  };
 
   /* SM-2 kaydı (Akıllı Tekrar ile aynı) */
   var record = async function (c, knew, rating) {
@@ -2001,6 +2044,13 @@ window.axNotify = function (title, opts) {
     if (knew && typeof computeSm2 === 'function') { var nx = lsafe(function () { return computeSm2(c.conf, rating || 'good'); }, null); if (nx && nx.interval_days >= 1) { var dn = new Date(Date.now() + nx.interval_days * 864e5); im.textContent = 'İADE ' + dn.getDate() + ' ' + MON[dn.getMonth()].toLocaleUpperCase('tr'); } }
     im.style.setProperty('--ir', ((Math.random() * 16) - 8).toFixed(1) + 'deg'); im.style.left = (28 + Math.random() * 30) + '%'; im.style.top = (30 + Math.random() * 25) + '%';
     bigIn.appendChild(im);
+    if (root.classList.contains('kt') && !reduce) {
+      /* mürekkep sıçraması: damganın çevresine birkaç damla */
+      var sp = document.createElement('span'); sp.className = 'kt-ink ' + (knew ? 'yes' : 'no'); sp.setAttribute('aria-hidden', 'true'); sp.style.left = im.style.left; sp.style.top = im.style.top;
+      for (var q = 0; q < 7; q++) { var dt = document.createElement('i'); var ang = q / 7 * 6.283 + Math.random() * 0.6, r = 46 + Math.random() * 34; dt.style.setProperty('--dx', (Math.cos(ang) * r).toFixed(0) + 'px'); dt.style.setProperty('--dy', (Math.sin(ang) * r * 0.6).toFixed(0) + 'px'); dt.style.setProperty('--ds', (3 + Math.random() * 5).toFixed(1) + 'px'); sp.appendChild(dt); }
+      bigIn.appendChild(sp);
+      if (!knew) { bigIn.classList.remove('kt-wobble'); void bigIn.offsetWidth; bigIn.classList.add('kt-wobble'); }
+    }
     var btn = $('[data-j="' + (knew ? 1 : 0) + '"]'); btn.classList.remove('press'); void btn.offsetWidth; btn.classList.add('press');
     paintTally();
     var next = function () { busy = false; idx++; load(); if (!reduce) { bigIn.classList.add('come'); setTimeout(function () { bigIn.classList.remove('come'); }, 420); } };
@@ -2012,11 +2062,26 @@ window.axNotify = function (title, opts) {
       var vis = b && b.bottom > 0 && b.top < window.innerHeight;
       var anim = vis ? [{ transform: 'none' }, { transform: 'translate(' + ((b.left + b.width / 2) - (a.left + a.width / 2)) * 0.5 + 'px,' + (((b.top) - (a.top + a.height / 2)) * 0.5 - 60) + 'px) scale(.45) rotate(' + (knew ? 10 : -10) + 'deg)', offset: 0.5 }, { transform: 'translate(' + ((b.left + b.width / 2) - (a.left + a.width / 2)) + 'px,' + ((b.top + b.height / 2) - (a.top + a.height / 2)) + 'px) scale(' + (b.width / a.width * 0.9).toFixed(3) + ',.05)', opacity: 0.6 }]
         : [{ transform: 'none' }, { transform: 'translate(' + (knew ? 140 : -140) + '%,-30px) rotate(' + (knew ? 18 : -18) + 'deg)', opacity: 0 }];
+      if (!vis && root.classList.contains('kt')) { /* göz ekranda değilse: fiş yukarı, dolaba doğru süzülür; kartın altında hangi göze düştüğü yazar */
+        anim = [{ transform: 'none' }, { transform: 'translate(0,-40px) rotate(' + (knew ? 6 : -6) + 'deg) scale(.6)', opacity: 0.9, offset: 0.45 }, { transform: 'translate(0,-' + (a.top + a.height) + 'px) rotate(' + (knew ? 10 : -10) + 'deg) scale(.25)', opacity: 0 }];
+        ktDropNote(nb);
+      }
       f.animate(anim, { duration: vis ? 620 : 380, easing: 'cubic-bezier(.5,0,.3,1)' }).onfinish = function () {
         f.remove(); var nc = leit.querySelector('[data-cp="' + nb + '"]'); if (nc) { nc.classList.remove('bump'); void nc.offsetWidth; nc.classList.add('bump'); }
       };
       next();
     }, 420);
+  };
+  (function () {
+    var dk = $('.kt-desk'); if (!dk || reduce || !(window.matchMedia && matchMedia('(hover: hover) and (pointer: fine)').matches)) return;
+    var raf = 0, px = 50, py = 0;
+    dk.addEventListener('pointermove', function (e) { var r = dk.getBoundingClientRect(); px = (e.clientX - r.left) / r.width * 100; py = (e.clientY - r.top) / r.height * 100; if (raf) return; raf = requestAnimationFrame(function () { raf = 0; dk.style.setProperty('--lx', (40 + px * 0.2).toFixed(1) + '%'); dk.style.setProperty('--ly', (-4 + py * 0.08).toFixed(1) + '%'); }); });
+    dk.addEventListener('pointerleave', function () { dk.style.removeProperty('--lx'); dk.style.removeProperty('--ly'); });
+  })();
+  var ktDropNote = function (nb) {
+    var t = $('#ktable'); if (!t) return; var n = t.querySelector('.kt-drop'); if (!n) { n = document.createElement('span'); n.className = 'kt-drop'; n.setAttribute('aria-hidden', 'true'); t.appendChild(n); }
+    n.innerHTML = '<b>' + nb + '</b> ' + (nb === 1 ? 'başa döndü · ' : 'göze düştü · ') + LB[nb - 1];
+    n.classList.remove('on'); void n.offsetWidth; n.classList.add('on');
   };
   var j4 = $('[data-judge4]'), j4h = $('[data-j4hint]');
   var IVL = function (iv) { if (iv < 0.04) return '~15 dk'; if (iv < 1) return Math.round(iv * 24) + ' sa'; if (iv < 30) return Math.round(iv) + ' gün'; return Math.round(iv / 30) + ' ay'; };

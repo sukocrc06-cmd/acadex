@@ -89,4 +89,34 @@ test('stil: dar ekranda desteler yatay şerit, hareket azaltma korumalı', () =>
   assert.match(css, /@media \(max-width:700px\)\{[\s\S]*?\.kt-drawers\{grid-auto-flow:column;[^}]*overflow-x:auto/);
   assert.match(css, /@media \(prefers-reduced-motion:reduce\)\{[\s\S]*?\.cp\.bump\{animation:none\}/);
 });
+
+/* Hareket katmanı (28.10.2026): çekmece açılışı, 3B çevirme, damga + göze düşme,
+   lamba, el yazısı. Hepsi hareket azaltmada kapalı olmalı; çevirme kilidi not
+   düğmelerini kilitlememeli (çevirme sürerken "bildim" yine çalışır). */
+test('hareket: 3B çevirme ayrı kilitle, not düğmeleri çevirme sırasında da çalışır', () => {
+  assert.match(mod, /var ktTurning = false;/);
+  assert.match(mod, /if \(ktTurning\) return; ktTurning = true;/);
+  assert.match(mod, /perspective\(1400px\) rotateY\(/);
+  assert.doesNotMatch(mod, /busy = true; var dir = flipped/);
+});
+
+test('hareket: çekmeceden uçan fiş, mürekkep, göz notu, lamba yalnız Kartoteks\'te ve hareket azaltmada yok', () => {
+  assert.match(mod, /var ktPull = function \(id\) \{\n    if \(reduce \|\| !root\.classList\.contains\('kt'\)\) return;/);
+  assert.match(mod, /root\.classList\.contains\('kt'\) && !reduce\) \{\n      \/\* mürekkep sıçraması/);
+  assert.match(mod, /var ktDropNote = function \(nb\)/);
+  assert.match(mod, /matchMedia\('\(hover: hover\) and \(pointer: fine\)'\)/);
+  assert.match(view, /<span class="kt-lamp" aria-hidden="true">/);
+});
+
+test('stil: yeni hareketlerin hepsi prefers-reduced-motion:no-preference bloğunda', () => {
+  const css = read('css/acadex-kartoteks.css');
+  const i = css.indexOf('HAREKET VE IŞIK'); assert.ok(i > 0);
+  const blk = css.slice(css.indexOf('@media (prefers-reduced-motion:no-preference){\n  /* panel ilk açılınca', i));
+  for (const k of ['kt-slot', 'kt-pull', 'kt-stamp-down', 'kt-splat', 'kt-wobble', 'kt-tick', 'kt-write', 'kt-drop', 'kt-flick']) {
+    assert.match(blk, new RegExp('@keyframes ' + k + '\\{'), k + ' tanımı yok');
+    const before = css.slice(i, css.indexOf('@keyframes ' + k + '{', i));
+    assert.ok(before.lastIndexOf('@media (prefers-reduced-motion:no-preference)') > 0, k + ' korumasız');
+  }
+});
+
 summary();
