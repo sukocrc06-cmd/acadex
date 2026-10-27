@@ -1,0 +1,64 @@
+/* ==========================================================================
+   LANDING · MEDLAB SCROLL FİLMİ (css/acadex-medlab-film.css + js/acadex-medlab-film.js)
+   index.html → section#medlab. Anatomi Lab'in gerçek 3B modelinden çekilmiş 96 kare
+   (assets/landing/medlab/fNNN.webp, 640×800) scroll'la oynar: kaslar → kas soyma →
+   iskelet ve organlar → damar ve sinir → göğüs yakın plan. Sahne ekrana sabitlenir,
+   yanında beş adımlık anlatım ve katman çizelgesi değişir.
+   ========================================================================== */
+.mf{position:relative;background:#0D1838;color:#F1F4FA}
+.mf-track{position:relative;height:560vh}
+.mf-stage{position:sticky;top:0;height:100vh;height:100svh;overflow:hidden;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);align-items:center;max-width:1240px;margin:0 auto;padding:0 28px;gap:24px}
+.mf-stage::before{content:"";position:absolute;inset:0 -50vw;z-index:0;background:radial-gradient(60% 70% at 70% 45%,#1E2E66 0,#111E45 55%,#0B1430 100%);pointer-events:none}
+.mf-copy{position:relative;z-index:2;min-width:0}
+.mf-eyb{display:inline-flex;align-items:center;gap:10px;font-family:'JetBrains Mono',monospace;font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:#9DB1E3}
+.mf-eyb i{width:8px;height:8px;border-radius:50%;background:#E0645A;box-shadow:0 0 0 4px rgba(224,100,90,.18)}
+.mf-h{margin:14px 0 0;font-family:'Bricolage Grotesque',system-ui,sans-serif;font-size:clamp(36px,4.4vw,60px);line-height:1.02;letter-spacing:-.025em;font-weight:800;color:#fff}
+.mf-h u{text-decoration:none;background:linear-gradient(transparent 70%,rgba(224,100,90,.55) 70%,rgba(224,100,90,.55) 90%,transparent 90%)}
+.mf-steps{position:relative;margin-top:22px;min-height:290px}
+.mf-step{position:absolute;inset:0 0 auto 0;opacity:0;transform:translateY(18px);transition:opacity .45s ease,transform .55s cubic-bezier(.2,.7,.2,1);pointer-events:none}
+.mf-step.on{opacity:1;transform:none;pointer-events:auto}
+.mf-step .k{font-family:'Caveat',cursive;font-size:28px;color:#FFD86B}
+.mf-step h3{margin:4px 0 8px;font-family:'Bricolage Grotesque',system-ui,sans-serif;font-size:clamp(24px,2.4vw,32px);line-height:1.12;letter-spacing:-.015em;color:#fff}
+.mf-step p{margin:0;max-width:470px;font-size:17px;line-height:1.6;color:#B9C4E4}
+.mf-step .mf-go{display:inline-flex;align-items:center;gap:10px;margin-top:18px;padding:14px 22px;border-radius:999px;background:#2F6BFF;color:#fff;font-weight:700;font-size:15px;text-decoration:none;min-height:48px}
+.mf-step .mf-go:focus-visible{outline:3px solid #FFD86B;outline-offset:3px}
+.mf-rail{display:flex;gap:6px;margin:26px 0 0;list-style:none;padding:0;max-width:470px}
+.mf-rail li{flex:1;min-width:0}
+.mf-rail span{display:block;height:4px;border-radius:2px;background:rgba(157,177,227,.22);overflow:hidden}
+.mf-rail span i{display:block;height:100%;width:0;background:var(--c,#E0645A);border-radius:2px}
+.mf-rail b{display:block;margin-top:7px;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:#6F80B0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .3s}
+.mf-rail li.on b{color:#fff}
+.mf-view{position:relative;z-index:1;height:min(88vh,860px);aspect-ratio:4/5;justify-self:center;max-width:100%}
+.mf-view canvas{display:block;width:100%;height:100%;-webkit-mask-image:radial-gradient(70% 62% at 50% 50%,#000 62%,transparent 100%);mask-image:radial-gradient(70% 62% at 50% 50%,#000 62%,transparent 100%)}
+.mf-view::after{content:"";position:absolute;left:18%;right:18%;bottom:4%;height:22px;border-radius:50%;background:radial-gradient(closest-side,rgba(0,0,0,.45),transparent);z-index:-1}
+.mf-tag{position:absolute;z-index:2;padding:6px 12px;border:1.5px solid rgba(255,255,255,.75);border-radius:999px;background:rgba(13,24,56,.72);backdrop-filter:blur(6px);font-family:'Caveat',cursive;font-size:20px;color:#fff;white-space:nowrap;opacity:0;transform:translateY(8px);transition:opacity .4s,transform .45s}
+.mf-tag::before{content:"";position:absolute;top:50%;width:34px;height:1.5px;background:rgba(255,255,255,.7)}
+.mf-tag.l::before{right:100%}.mf-tag.r::before{left:100%}
+.mf-tag.on{opacity:1;transform:none}
+.mf-load{position:absolute;left:50%;bottom:6%;z-index:3;transform:translateX(-50%);font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.1em;color:#9DB1E3;transition:opacity .4s}
+.mf-load.done{opacity:0}
+.mf-credit{position:absolute;right:0;bottom:2%;z-index:2;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#5C6C9C}
+.mf-skip{position:absolute;left:28px;bottom:24px;z-index:3;font-size:13px;color:#9DB1E3;text-decoration:underline}
+@media (max-width:860px){
+  .mf-track{height:480vh}
+  .mf-stage{grid-template-columns:1fr;grid-template-rows:auto 1fr;align-items:start;padding:72px 18px 0;gap:0}
+  .mf-copy{order:2;padding-bottom:18px}
+  .mf-view{order:1;height:52vh;height:52svh;margin-top:4px}
+  .mf-h{font-size:30px}
+  .mf-steps{margin-top:12px;min-height:180px}
+  .mf-step .k{font-size:22px}
+  .mf-step h3{font-size:21px}
+  .mf-step p{font-size:14.5px;line-height:1.5}
+  .mf-rail{margin-top:8px}
+  .mf-credit{display:none}
+  .mf-steps{min-height:200px}
+  .mf-rail b{font-size:9.5px}
+  .mf-tag{font-size:16px;padding:4px 9px}
+  .mf-tag::before{width:18px}
+  .mf-copy .mf-h{display:none}
+  .mf-copy .mf-eyb{font-size:11px}
+  .mf-skip{display:none}
+}
+@media (prefers-reduced-motion:reduce){.mf-step,.mf-tag{transition:none}}
+/* telefonda bölüm ekrandayken üst üste binmesin: rehber Acadia ve paket ipi çekilir */
+@media (max-width:860px){.mf-in .acd-guide{opacity:0!important;pointer-events:none}.mf-in .pkt-dock{opacity:0!important;pointer-events:none!important}.mf-in .axs-dest:not(.open) .axs-l{display:none}.mf-in .axs-dest:not(.open) .axs-launch{padding-right:6px}.mf-in .totop{opacity:0;pointer-events:none}.mf-copy{padding-right:64px}}

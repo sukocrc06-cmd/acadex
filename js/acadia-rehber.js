@@ -18,7 +18,7 @@
     { q: '#alanlar', pose: 'dusun', mood: 'dusunuyor', y: 52, t: 'Ezberden değil, anlamaktan yanayım.' },
     { q: '#yontemler', pose: 'isaret', mood: 'mutlu', y: 38, t: 'Pomodoro, aralıklı tekrar, Feynman… hepsi tek masada.' },
     { q: '#akis', pose: 'dur', mood: 'odakli', y: 48, t: 'Her derse ona uyan tekniği öneririm.' },
-    { q: '#dene', pose: 'zipla', mood: 'saskin', y: 40, t: 'Kayıt bile gerekmez, üç kart çöz bakalım!' },
+    { q: '#medlab', pose: 'isaret', mood: 'mutlu', y: 40, costume: 'medlab', t: 'Stetoskobumu taktım; MedLab’i birlikte gezelim.' },
     { q: '#gizlilik', pose: 'dur', mood: 'odakli', y: 46, t: 'Notların sende kalır; kimseye göstermem.' },
     { q: '#soru', pose: 'dusun', mood: 'dusunuyor', y: 42, t: 'Aklına takılan bir şey mi var? Sor, cevaplayalım.' },
     { q: '#kayit', pose: 'zipla', mood: 'kutlama', y: 38, t: 'Hazırsan başlayalım!' }
@@ -31,13 +31,21 @@
   g.appendChild(host); D.body.appendChild(g); D.body.appendChild(live);
   K.mount();
 
+  /* bölümler kendi anlatımlarını yaptırabilir (ör. MedLab filmi: js/acadex-medlab-film.js) */
+  var api = W.acadiaRehber = { at: '', say: function (text, mood, pose) {
+    if (mood) host.dataset.mood = mood; if (pose) host.dataset.pose = pose; host.__acdV = -1; K.mount();
+    if (!calm) { host.classList.remove('acd-hop'); void host.offsetWidth; host.classList.add('acd-hop'); }
+    K.say(host, text, narrow() ? 3800 : 0); live.textContent = text;
+  } };
   var cur = -1, extraI = 0, hideT = 0, narrow = function () { return W.innerWidth < 900; };
   var go = function (i) {
     if (i === cur || !STOPS[i]) return; cur = i; var s = STOPS[i];
     host.dataset.pose = s.pose; host.dataset.mood = s.mood; delete host.dataset.moodNow;
+    if (s.costume) host.dataset.costume = s.costume; else delete host.dataset.costume;
+    api.at = s.el ? s.el.id : '';
     host.__acdV = -1; K.mount();
     g.style.setProperty('--gy', s.y + 'vh');
-    g.classList.toggle('on-dark', !!(s.el && s.el.classList.contains('dk')));
+    g.classList.toggle('on-dark', !!(s.el && (s.el.classList.contains('dk') || s.el.classList.contains('mf'))));
     if (!calm) { host.classList.remove('acd-hop'); void host.offsetWidth; host.classList.add('acd-hop'); }
     K.say(host, s.t, narrow() ? 3800 : 0);
     live.textContent = s.t;
