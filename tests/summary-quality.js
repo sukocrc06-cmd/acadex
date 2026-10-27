@@ -74,6 +74,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'NEAR_DUP_THRESHOLD', 'NEAR_DUP_MIN_TERMS', 'NEAR_DUP_STEM_LEN',
   'NEAR_DUP_KEY_OVERLAP', 'nearDupKeysMatch',
   'nearDupStem', 'nearDupTermSet', 'dedupeNearDuplicates',
+  'dedupeBolumler',
   // Slayt destesi tespiti ve cikarim talimati (07.10.2026).
   'DECK_MIN_PAGES', 'DECK_MAX_CHARS_PER_PAGE', 'katalogdanDersEtiketi', 'DECK_PROMPT_CHARS',
   'detectSlideDeck', 'buildSlideDeckInstruction',
@@ -558,6 +559,97 @@ test('bos ve bozuk girdiler atlanir', () => {
 test('bos dizi guvenli', () => {
   assert.deepEqual(A.dedupeNearDuplicates([], txt), []);
   assert.deepEqual(A.dedupeNearDuplicates(null, txt), []);
+});
+
+// ---------------------------------------------------------------------------
+// BOLUM TEKRARI (27.10.2026)
+// ---------------------------------------------------------------------------
+/* Canli kart: RSH Hemsireligi, 55 slayt. Kartta alti bolum vardi, ikisi
+   aynisiydi — biri metin penceresinden, oteki gorsel yamadan. Gorsel yama
+   metin pencerelerinin okudugu sayfalari yeniden okuyor ve ayni konuyu
+   ikinci kez bolum olarak yaziyordu; bolumler kartta dedup'i OLMAYAN tek
+   listeydi. Sentezin gruplama adimi bunu toplardi ama o kosuda model
+   indirgeme yapmadi, review de butceye sigmadi. */
+const BOLUM_EGITIM_PENCERE = {
+  heading: 'Eğitim Gereksinimleri',
+  summary: "Türkiye'de psikiyatri hemşiresi olabilmek için lisans sonrası psikiyatri hemşireliği yüksek lisans programını tamamlamak zorunludur.",
+  key_points: ['Lisans sonrası yüksek lisans tamamlanması gereklidir.']
+};
+const BOLUM_EGITIM_GORSEL = {
+  heading: 'Psikiyatri Hemşireliği Eğitimi (Türkiye)',
+  summary: 'Ülkemizde psikiyatri hemşiresi olabilmek için lisans eğitiminden sonra psikiyatri hemşireliği yüksek lisans eğitimini tamamlamak gerektiği belirtilmektedir.',
+  key_points: ['Yüksek lisans şarttır.']
+};
+const BOLUM_KURAMSAL = {
+  heading: 'Kuramsal Temeller',
+  summary: "Peplau, Orlando ve Travelbee gibi kuramcıların kişilerarası bakım modelleri, hemşire‑hasta ilişkisini ve iyileşme sürecini açıklamaktadır."
+};
+const BOLUM_TABLO = {
+  heading: 'Kuramsal Çerçeveler Karşılaştırması',
+  summary: 'Tablo 1, Boyd, Shives, Clarke and Walsh, Basavanthappa, Halter (2013) ve Stickley and Wright tarafından psikiyatri hemşireliği için önerilen kuramsal modelleri karşılaştırmaktadır.'
+};
+
+test('bolum tekrari birlesiyor (canli kartin 02 ve 05 bolumu)', () => {
+  const r = A.dedupeBolumler([BOLUM_EGITIM_PENCERE, BOLUM_KURAMSAL, BOLUM_EGITIM_GORSEL]);
+  assert.equal(r.length, 2, 'ayni konudaki iki bolum hala ayri duruyor');
+  assert.equal(r[0].heading, 'Eğitim Gereksinimleri', 'ilk gorulen bolumun sirasi korunmali');
+  assert.equal(r[1].heading, 'Kuramsal Temeller');
+});
+
+test('birlesen bolumun MADDELERI kaybolmuyor', () => {
+  /* dedupeNearDuplicates kaybedeni tamamen atiyor; bolumde bu, otekinin
+     maddelerini de goturur. Tekrar eden bolum yeni bir madde getirmis
+     olabilir — kartta gorunen tek sey odur. */
+  const r = A.dedupeBolumler([BOLUM_EGITIM_PENCERE, BOLUM_EGITIM_GORSEL]);
+  assert.equal(r.length, 1);
+  assert.deepEqual(r[0].key_points, [
+    'Lisans sonrası yüksek lisans tamamlanması gereklidir.',
+    'Yüksek lisans şarttır.'
+  ], 'iki bolumun maddeleri birlesmeliydi');
+});
+
+test('uzun anlatim kaliyor, kisa olan degil', () => {
+  const r = A.dedupeBolumler([BOLUM_EGITIM_PENCERE, BOLUM_EGITIM_GORSEL]);
+  assert.equal(r[0].summary, BOLUM_EGITIM_GORSEL.summary, 'daha dolu ozet tutulmaliydi');
+  const ters = A.dedupeBolumler([BOLUM_EGITIM_GORSEL, BOLUM_EGITIM_PENCERE]);
+  assert.equal(ters[0].summary, BOLUM_EGITIM_GORSEL.summary, 'sira degisse de uzun olan');
+});
+
+test('GERCEKTEN farkli bolumler birlesmiyor', () => {
+  /* Olculen ayni kartta tekrar 0.82, en yakin gercek cift 0.17. Esik
+     (0.7) bu araliga oturuyor; yanlis birlesme bir konuyu karttan tumden
+     siler, o yuzden marj test altinda tutuluyor. */
+  const hepsi = [BOLUM_EGITIM_PENCERE, BOLUM_KURAMSAL, BOLUM_TABLO];
+  assert.equal(A.dedupeBolumler(hepsi).length, 3, 'ayri konular birlestirilmis');
+});
+
+test('bolum dedup: baslik metne dahil', () => {
+  /* Yalniz ozet karsilastirilirsa ayni cift 0.60 veriyor ve tekrar hayatta
+     kaliyor. Basliklar burada ayristiran degil BIRLESTIREN sinyal. */
+  const baslikSiz = (b) => ({ summary: b.summary, key_points: b.key_points });
+  assert.equal(
+    A.dedupeBolumler([baslikSiz(BOLUM_EGITIM_PENCERE), baslikSiz(BOLUM_EGITIM_GORSEL)]).length, 2,
+    'baslik olmadan 0.60 — bu cift esigin altinda kalmali (olcum boyle)'
+  );
+  assert.equal(A.dedupeBolumler([BOLUM_EGITIM_PENCERE, BOLUM_EGITIM_GORSEL]).length, 1,
+    'baslikla birlikte 0.82 — birlesmeli');
+});
+
+test('bolum dedup: bos ve bozuk girdiler', () => {
+  assert.deepEqual(A.dedupeBolumler([]), []);
+  assert.deepEqual(A.dedupeBolumler(null), []);
+  assert.equal(A.dedupeBolumler([{ heading: '', summary: '' }, BOLUM_KURAMSAL]).length, 1,
+    'bos bolum atlanmali');
+});
+
+test('gorsel yama bolumleri dedup EDILEREK ekleniyor', () => {
+  /* Tekrari ureten satir buydu: bestSections.concat(newSections). */
+  assert.ok(/bestSections = dedupeBolumler\(bestSections\.concat\(newSections\)\)/.test(SRC),
+    'gorsel yama hala dedup etmeden ekliyor');
+  assert.ok(/let bestSections = dedupeBolumler\(windowResults\.flatMap/.test(SRC),
+    'pencere bolumleri dedup edilmiyor');
+  assert.ok(/Gorsel yama: \$\{birlesen\} bolum metin pencereleriyle ayniydi/.test(SRC),
+    'birlesme loglanmiyor — bir dahaki sefere tahmin olur');
 });
 
 console.log('\nTOKEN HIZLANDIRICI (TPM)\n');

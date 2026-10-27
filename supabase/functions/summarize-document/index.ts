@@ -2657,6 +2657,97 @@ function dedupeNearDuplicates(
   return kept.sort((a, b) => a.order - b.order).map(k => k.item)
 }
 
+/* BOLUMLER HIC DEDUP'TAN GECMIYORDU (27.10.2026).
+ *
+ * Terimler, maddeler, sorular, tablolar — hepsinin bir dedup'i var; BOLUMLERIN
+ * yoktu. Bolumler iki yerde birikiyor: pencerelerin flatMap'i ve gorsel
+ * yamanin `bestSections.concat(newSections)` satiri. Gorsel yama metin
+ * pencerelerinin okudugu sayfalari yeniden okuyor, yani ayni konuyu ikinci
+ * kez bolum olarak yaziyor.
+ *
+ * Canli kart (27.10.2026, RSH Hemsireligi, 55 slayt): kartta alti bolum vardi
+ * ve ikisi aynisiydi —
+ *   02 "Egitim Gereksinimleri"  (pencereden)
+ *   05 "Psikiyatri Hemsireligi Egitimi (Turkiye)"  (gorsel yamadan)
+ * Ikisi de "lisans sonrasi yuksek lisans zorunludur" diyordu. Sentezin
+ * gruplama adimi bunu toplardi ama o kosuda model 4 bolum icin 4 grup
+ * dondurdu (indirgeme yok) ve review butceye sigmadigi icin hic kosmadi.
+ * Yani kartin tek dedup'i olmayan listesi, tam da tekrari ureten listeydi.
+ *
+ * OLCULDU (ayni kartin bolumleri, baslik + ozet metni uzerinde):
+ *   0.82  02 <-> 05   (tekrar — birlesmeli)
+ *   0.17  02 <-> 06
+ *   0.14  01 <-> 03
+ *   0.12  04 <-> 06
+ * Gercek tekrarla gercek farkin arasi genis; NEAR_DUP_THRESHOLD (0.7) bu
+ * araliga rahat oturuyor, yeni bir esik uydurmaya gerek yok.
+ *
+ * Baslik metne DAHIL: yalnizca ozet karsilastirildiginda ayni cift 0.60
+ * veriyor ve tekrar hayatta kaliyor. Basliklar ayrisan degil, birlestiren
+ * sinyal — ikisi de "egitim" diyor.
+ *
+ * dedupeNearDuplicates tek basina yetmiyordu cunku kaybedeni TAMAMEN atiyor;
+ * bolumun maddeleri de onunla giderdi. Burada ozetin uzunu kaliyor,
+ * maddeler BIRLESIYOR (sentezGruplariniUygula ile ayni mantik). */
+function dedupeBolumler(bolumler: any[]): any[] {
+  const list = Array.isArray(bolumler) ? bolumler : []
+  const bolumMetni = (b: any) =>
+    `${String(b?.heading || b?.title || '')} ${String(b?.summary || b?.content || b?.body || '')}`.trim()
+  type Tutulan = { bolum: any; terms: Set<string>; uzunluk: number }
+  const tutulan: Tutulan[] = []
+
+  for (const b of list) {
+    const metin = bolumMetni(b)
+    if (!metin) continue
+    const terms = nearDupTermSet(metin)
+    let birlestirilecek = -1
+    if (terms.size >= NEAR_DUP_MIN_TERMS) {
+      for (let k = 0; k < tutulan.length; k++) {
+        if (tutulan[k].terms.size < NEAR_DUP_MIN_TERMS) continue
+        let ortak = 0
+        for (const t of terms) if (tutulan[k].terms.has(t)) ortak++
+        if (ortak / Math.min(terms.size, tutulan[k].terms.size) >= NEAR_DUP_THRESHOLD) {
+          birlestirilecek = k
+          break
+        }
+      }
+    }
+    if (birlestirilecek === -1) {
+      tutulan.push({ bolum: b, terms, uzunluk: metin.length })
+      continue
+    }
+    // Maddeler birlesiyor: tekrar eden bolum yeni bir madde getirmis olabilir.
+    const once = tutulan[birlestirilecek].bolum
+    const maddeler: any[] = []
+    const gorulen = new Set<string>()
+    for (const kaynak of [once, b]) {
+      for (const m of (Array.isArray(kaynak?.key_points) ? kaynak.key_points : [])) {
+        const anahtar = maddeMetni(m).trim().toLowerCase()
+        if (!anahtar || gorulen.has(anahtar)) continue
+        gorulen.add(anahtar)
+        maddeler.push(m)
+      }
+    }
+    /* Uzun olan ANLATIM kaliyor, BASLIK ilk gorulenin: anahat pencerelerle
+       birlikte uretiliyor ve normalizeSections outline_id'yi baslik
+       esitligiyle buluyor. Gorsel yamanin basligina gecmek bolumu kendi
+       anahat maddesinden koparirdi. Sira da ilk gorulenin. */
+    const ozetOf = (x: any) => String(x?.summary || x?.content || x?.body || '')
+    const onceOzet = ozetOf(once)
+    const yeniOzet = ozetOf(b)
+    tutulan[birlestirilecek] = {
+      bolum: {
+        ...once,
+        summary: yeniOzet.length > onceOzet.length ? yeniOzet : onceOzet,
+        key_points: maddeler
+      },
+      terms: tutulan[birlestirilecek].terms,
+      uzunluk: Math.max(metin.length, tutulan[birlestirilecek].uzunluk)
+    }
+  }
+  return tutulan.map(t => t.bolum)
+}
+
 function dedupeByText(items: any[], getText: (item: any) => string): any[] {
   const seen = new Set<string>()
   const out: any[] = []
@@ -10407,7 +10498,7 @@ Rules:
           })) : []
         ).filter((it: any) => it.heading)
       }
-      let bestSections = windowResults.flatMap(r => Array.isArray(r.sections) ? r.sections : [])
+      let bestSections = dedupeBolumler(windowResults.flatMap(r => Array.isArray(r.sections) ? r.sections : []))
       let bestOutline: any = outlineFromWindows.items.length ? outlineFromWindows : null
 
       // Compact synthesis (small prompt — only digests)
@@ -10840,7 +10931,17 @@ The example that used to sit here named a real-looking percentage, and a live ru
                   mergedKeyPoints.length = 0; mergedKeyPoints.push(...patchedPoints)
                   mergedQuiz.length = 0; mergedQuiz.push(...patchedQuiz)
                 }
-                if (newSections.length) bestSections = bestSections.concat(newSections)
+                if (newSections.length) {
+                  const oncekiBolum = bestSections.length
+                  bestSections = dedupeBolumler(bestSections.concat(newSections))
+                  const birlesen = oncekiBolum + newSections.length - bestSections.length
+                  if (birlesen > 0) {
+                    console.log(
+                      `Gorsel yama: ${birlesen} bolum metin pencereleriyle ayniydi, birlestirildi ` +
+                      `(${oncekiBolum} + ${newSections.length} -> ${bestSections.length})`
+                    )
+                  }
+                }
                 /* FILTRE YALNIZCA YENI KAYITLARA (24.10.2026).
                  *
                  * Sekil filtresi BIRLESTIRILMIS dizinin tamamina
