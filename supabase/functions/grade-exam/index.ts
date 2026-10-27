@@ -104,6 +104,17 @@ function parseLooseNumber(value: unknown): number {
   return Number.isFinite(n) ? n : NaN
 }
 
+/** Cevaptaki sayı: "f'(2) = 76", "MR(8) = 18 TL" gibi yazımda son "=" ya da
+ *  "≈" işaretinin sağındaki sayı (canlı test 27.10.2026: parseLooseNumber
+ *  bunları 276 ve 818 okuyordu). Eşittir yoksa parseLooseNumber ile aynı. */
+function answerNumber(value: unknown): number {
+  if (typeof value === 'number') return parseLooseNumber(value)
+  const s = String(value ?? '')
+  const i = Math.max(s.lastIndexOf('='), s.lastIndexOf('≈'))
+  const tail = i >= 0 ? s.slice(i + 1) : ''
+  return /\d/.test(tail) ? parseLooseNumber(tail) : parseLooseNumber(s)
+}
+
 /** Gönderimin kabul edilip edilemeyeceği. nowMs testte sabitlenebilsin
  *  diye parametre. */
 function checkSubmissionWindow(exam: Record<string, unknown>, nowMs: number): { ok: boolean; reason?: string } {
@@ -154,8 +165,8 @@ function decimalPlacesOf(scoring: unknown): number | null {
  *  ±0,0005), bir basamak eksik doğruluk yarım puan. Birim yüzdeyse "0,12"
  *  ile "12" karışıklığı da kabul edilir. */
 function gradeCalculationPrecise(studentAns: unknown, correctAns: unknown, decimals: number, units: unknown): { score: number; studentNum: number; correctNum: number; percentScaled: boolean } {
-  const studentNum = parseLooseNumber(studentAns)
-  const exact = parseLooseNumber(correctAns)
+  const studentNum = answerNumber(studentAns)
+  const exact = answerNumber(correctAns)
   const correctNum = Number.isFinite(exact) ? Number(exact.toFixed(decimals)) : exact
   if (!Number.isFinite(studentNum) || !Number.isFinite(exact)) return { score: 0, studentNum, correctNum, percentScaled: false }
   const eps = 1e-9 * Math.max(1, Math.abs(exact))
@@ -179,8 +190,8 @@ function gradeCalculationPrecise(studentAns: unknown, correctAns: unknown, decim
 /** Hesaplama: tolerans içinde tam puan, iki katı içinde yarım puan. Birim
  *  yüzdeyse "0,12" ile "12" karışıklığı da kabul edilir. */
 function gradeCalculation(studentAns: unknown, correctAns: unknown, tolerancePercent: unknown, units: unknown): { score: number; studentNum: number; correctNum: number; tolPercent: number; percentScaled: boolean } {
-  const studentNum = parseLooseNumber(studentAns)
-  const correctNum = parseLooseNumber(correctAns)
+  const studentNum = answerNumber(studentAns)
+  const correctNum = answerNumber(correctAns)
   const tolRaw = Number(tolerancePercent)
   const tolPercent = Number.isFinite(tolRaw) && tolRaw > 0 ? tolRaw : 2
   if (!Number.isFinite(studentNum) || !Number.isFinite(correctNum)) {
@@ -556,7 +567,7 @@ function chartAsText(chart: unknown): string {
 /** FAZ 3a: öğrencinin yanlış sayısı, sorunun tipik hata formüllerinden
  *  birine uyuyorsa o hatanın mesajı. */
 function matchCommonError(studentAns: unknown, q: Record<string, unknown>): string | null {
-  const student = parseLooseNumber(studentAns)
+  const student = answerNumber(studentAns)
   if (!Number.isFinite(student) || !Array.isArray(q.common_errors)) return null
   const vars = sanitizeVariables(q.variables)
   const tolRaw = Number(q.tolerance_percent)

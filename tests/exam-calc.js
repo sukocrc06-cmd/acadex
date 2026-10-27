@@ -25,10 +25,10 @@ const GRADE_PATH = 'supabase/functions/grade-exam/index.ts';
 const EXPR = ['EXPR_MAX_LENGTH', 'EXPR_MAX_DEPTH', 'EXPR_CONSTS', 'EXPR_FUNCS', 'evaluateExpression', 'sanitizeVariables'];
 
 const G = loadFromSource(GEN_PATH, ['calcFormulaKey', 
-  ...EXPR, 'normalizeAnswerText', 'parseLooseNumber', 'cleanText',
+  ...EXPR, 'normalizeAnswerText', 'parseLooseNumber', 'answerNumber', 'cleanText',
   'numberReadings', 'sameNumber', 'withinTolerance', 'templateMatches', 'normalizeFormula', 'DERIVED_FACTORS', 'TEMPLATE_DISPLAY_OPS', 'verifyCalculation',
   'MATH_INPUT_MAX', 'normalizeMathInput', 'STEP_KINDS', 'verifyLinearEquation', 'STANDARD_CONSTANTS', 'referencesName', 'inlineName', 'chartNumbers']);
-const R = loadFromSource(GRADE_PATH, [...EXPR, 'parseLooseNumber', 'matchCommonError', 'teachingFields']);
+const R = loadFromSource(GRADE_PATH, [...EXPR, 'parseLooseNumber', 'answerNumber', 'matchCommonError', 'teachingFields']);
 const E = require(path.join(__dirname, '..', 'js', 'exam-engine.js'));
 
 const { test, summary } = makeRunner();

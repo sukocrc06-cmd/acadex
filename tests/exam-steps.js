@@ -23,7 +23,7 @@ const GRADE_PATH = 'supabase/functions/grade-exam/index.ts';
 const EXPR = ['EXPR_MAX_LENGTH', 'EXPR_MAX_DEPTH', 'EXPR_CONSTS', 'EXPR_FUNCS', 'evaluateExpression', 'sanitizeVariables', 'MATH_INPUT_MAX', 'normalizeMathInput'];
 
 const G = loadFromSource(GEN_PATH, [
-  ...EXPR, 'TRUE_FALSE_OPTIONS', 'normalizeAnswerText', 'parseLooseNumber', 'PLACEHOLDER_ANSWERS', 'isPlaceholderAnswer', 'cleanText',
+  ...EXPR, 'TRUE_FALSE_OPTIONS', 'normalizeAnswerText', 'parseLooseNumber', 'answerNumber', 'PLACEHOLDER_ANSWERS', 'isPlaceholderAnswer', 'cleanText',
   'EXPLANATION_MAX_CHARS', 'RATIONALE_MAX_CHARS', 'RUBRIC_MIN_ITEMS', 'RUBRIC_MAX_ITEMS', 'normalizeOptionRationales', 'normalizeRubric',
   'numberReadings', 'sameNumber', 'withinTolerance', 'templateMatches', 'normalizeFormula', 'DERIVED_FACTORS', 'TEMPLATE_DISPLAY_OPS',
   'STEP_KINDS', 'verifyLinearEquation', 'verifyCalculation', 'OPTION_NEAR_PERCENT', 'NUMERIC_OPTION', 'optionCanonical', 'hasAmbiguousOptions',

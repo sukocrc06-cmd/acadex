@@ -204,6 +204,17 @@ function parseQuestionArray(raw: string): unknown[] | null {
   return null
 }
 
+/** Cevaptaki sayı: "f'(2) = 76", "MR(8) = 18 TL" gibi yazımda son "=" ya da
+ *  "≈" işaretinin sağındaki sayı (canlı test 27.10.2026: parseLooseNumber
+ *  bunları 276 ve 818 okuyordu). Eşittir yoksa parseLooseNumber ile aynı. */
+function answerNumber(value: unknown): number {
+  if (typeof value === 'number') return parseLooseNumber(value)
+  const s = String(value ?? '')
+  const i = Math.max(s.lastIndexOf('='), s.lastIndexOf('≈'))
+  const tail = i >= 0 ? s.slice(i + 1) : ''
+  return /\d/.test(tail) ? parseLooseNumber(tail) : parseLooseNumber(s)
+}
+
 /** Cevap karşılaştırması için metin normalizasyonu: Unicode NFC, Türkçe
  *  küçük harf (I→ı, İ→i), baştaki/sondaki noktalama ve fazla boşluklar
  *  atılır. "KIRILMA".toLowerCase() "kirilma" verirdi; bu "kırılma" verir. */
@@ -510,7 +521,7 @@ function verifyCalculation(q: Record<string, unknown>): { ok: boolean; reason?: 
   if (names.some(n => !literal(n) && !derived(n))) return { ok: false, reason: 'calc_var_not_in_text' }
   const allLiteral = names.every(literal)
   const tol = Number(q.tolerance_percent) || 2
-  const modelAnswer = parseLooseNumber(q.correct_answer)
+  const modelAnswer = answerNumber(q.correct_answer)
   if (Number.isFinite(modelAnswer) && !withinTolerance(modelAnswer, value, Math.max(tol, 1))) return { ok: false, reason: 'calc_mismatch' }
   q.correct_answer = Math.round(value * 1e4) / 1e4
   q.variables = vars
@@ -2095,7 +2106,7 @@ function validateQuestion(raw: unknown, allowedTypes: string[], language: string
     // modelin cevabıyla çelişiyorsa soru atılır.
     const check = verifyCalculation(q)
     if (!check.ok) {
-      const n = parseLooseNumber(q.correct_answer)
+      const n = answerNumber(q.correct_answer)
       if (!allowUnverifiedCalc || check.reason === 'calc_mismatch' || !Number.isFinite(n)) return { ok: false, reason: check.reason }
       q.correct_answer = n
       for (const k of ['variables', 'formula', 'template', 'common_errors', 'verified']) delete q[k]
