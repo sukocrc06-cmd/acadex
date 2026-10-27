@@ -12380,7 +12380,16 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
       /* Kart KENDI icinde isaretli: arayuz rozeti ve sonraki teshis, satirin
          anahtarini gormeden de kismi oldugunu bilmeli. */
       const paylasilan = kismiKayit
-        ? { ...shareable, quality_meta: { ...((shareable as any).quality_meta || {}), cache_kismi: true } }
+        ? {
+          ...shareable,
+          quality_meta: {
+            ...((shareable as any).quality_meta || {}),
+            /* true DEGIL sebep yaziliyor — bkz. kismiKayitSebebi. Eski
+               satirlar `true` tasiyor; arayuz onu 'eksik' sayiyor, yani
+               geriye donuk davranis degismiyor. */
+            cache_kismi: kismiKayitSebebi({ eksikPencereVar: !!eksikPencereler, geminiKismiKrk })
+          }
+        }
         : shareable
       /* IKI SATIR: dosya hash'i ve metin hash'i. Ikisi de ayni karti
          gosteriyor; hangisi once isabet ederse o kullanilir. */
@@ -12457,6 +12466,29 @@ const CACHE_KISMI_EKI = ':k'
 /* UC DEGERLI KARAR (25.10.2026). onbellegeYazilabilir "tam kart mi" diye
    soruyor ve oldugu gibi kaliyor; bu sarmal ona "yazilmayacaksa bile kismi
    satira yazilabilir mi" sorusunu ekliyor. Anahtar yoksa yazacak yer yok. */
+/* KISMI SATIRIN SEBEBI (28.10.2026).
+ *
+ * 'kismi' iki bambaska durumu birden anlatiyordu ve ikisi de ogrenciye
+ * ayni rozet olarak donuyordu:
+ *
+ *   eksik  — kartin ICERIGINDE bosluk var: pencere dustu ya da Gemini
+ *            taslagi yarim kurtarildi. "Kismi ozet" demek dogru.
+ *   gecici — kart TAM; satir yalnizca Gemini denenemedigi icin kalici
+ *            sayilmiyor (devre kesici acik / kota 429). Kartta eksik bir
+ *            sey yok, yalnizca "yarin daha iyisi uretilebilir".
+ *
+ * OLCULDU (27.10.2026, 20:46 kosusu): devre kesici acikken Groq butun
+ * butceyi aldi, 3/3 pencere okundu, anlati yazari kostu, 27 kavram ve 33
+ * atif cikti. Kartta "eksik ozet" rozeti BILE YOKTU ama "kismi ozet"
+ * yaziyordu. Atlanan tek asama review'du ve kart onu zaten ayri bir
+ * rozette soyluyor.
+ *
+ * Satir her iki durumda da ':k' ekiyle yaziliyor — onbellek davranisi
+ * degismiyor, degisen yalnizca ogrenciye ne denildigi. */
+function kismiKayitSebebi(k: { eksikPencereVar: boolean; geminiKismiKrk: number }): 'eksik' | 'gecici' {
+  return (k.eksikPencereVar || k.geminiKismiKrk > 0) ? 'eksik' : 'gecici'
+}
+
 function onbellekKayitTuru(k: {
   anahtarVar: boolean
   eksikPencereVar: boolean

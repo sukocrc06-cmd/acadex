@@ -1062,17 +1062,47 @@ test('kalici 4xx ten sonra IKINCI GET yakilmiyor', () => {
 });
 
 
+test('ROZET ile DUGME ayri: tam kart "kismi ozet" demiyor ama cikis yolu kaliyor', () => {
+  /* 28.10.2026. Kota devre kesicisi geldikten sonra bir satir, kartin
+     icinde hicbir eksik olmadan da kismi olabiliyor: Gemini denenemedi,
+     o yuzden cevap kalici sayilmiyor. Eski kosul ikisini ayirt etmiyordu.
+
+     Olculen kart (27.10, 20:46): devre acikken Groq butun butceyi aldi,
+     3/3 pencere okundu, anlati yazari kostu, 27 kavram ve 33 atif cikti.
+     Kartta "eksik ozet" rozeti BILE YOKTU ama "kismi ozet" yaziyordu;
+     atlanan tek asama review'du ve onu yandaki rozet zaten soyluyordu.
+
+     Dugme iki durumda da kalmali: kota donunce Gemini kalitesinde kart
+     almanin tek yolu o. */
+  const i = INK_SRC.indexOf('var kismiSebep =');
+  assert.ok(i > -1, 'sebep okunmuyor');
+  const blok = INK_SRC.slice(i, i + 700);
+  // Rozet YALNIZCA gercek bosluk: 'gecici' rozete girmemeli.
+  assert.ok(!/kismiKart = [^;]*kismiSebep === 'gecici'/.test(blok),
+    'gecici sebep hala rozet uretiyor');
+  assert.ok(/if \(kismiKart\) uyarilar\.push\('kısmi özet'\)/.test(blok),
+    'rozet metni kismiKart disina kaymis');
+  // Dugme HER iki sebepte: kismiSebep dolu oldugu surece.
+  assert.ok(INK_SRC.includes('var yenileCikisi = kismiKart || !!kismiSebep;'),
+    'gecici sebepte cikis yolu kayboluyor — kullanici o satirda sikisir');
+  // Eski satirlar (cache_kismi: true) 'eksik' sayilmali: geriye donuk.
+  assert.ok(INK_SRC.includes("qm.cache_kismi === true ? 'eksik'"),
+    'eski true degeri gecici sayilirsa gercekten yarim kartlar rozetsiz kalir');
+});
+
 test('KISMI kart rozetinde YENIDEN OZETLE yolu var', () => {
   /* 25.10.2026. Kismi kart artik onbellege giriyor (':k' ekli satir), yani
      ayni dosya her yuklemede 110 saniyeyi sifirdan odemiyor. Bedeli: o
      yarim kartta sikisip kalmak. Cikis yolu rozetin yaninda: onbellek
      OKUMASINI atlayan yeni bir kosu. Ekrana cizen dosya acadex-ink.js
      (bkz. CLAUDE.md bolum 4) — dashboard.js'teki eski kart olu yol. */
-  assert.ok(INK_SRC.includes('var kismiKart = (qm.gemini_partial && qm.gemini_partial.kurtarilanKrk > 0) || !!qm.cache_kismi'),
-    'onbellekten gelen kismi kart rozet almiyor — ogrenci kartin yarim oldugunu goremez');
+  assert.ok(INK_SRC.includes("var kismiSebep = qm.cache_kismi === true ? 'eksik' : (qm.cache_kismi || '')"),
+    'kismi satirin SEBEBI okunmuyor — rozet ile dugme ayrilamaz');
+  assert.ok(INK_SRC.includes("var kismiKart = (qm.gemini_partial && qm.gemini_partial.kurtarilanKrk > 0) || kismiSebep === 'eksik'"),
+    'rozet icerikteki gercek bosluga bagli degil');
   assert.ok(INK_SRC.includes("data-yenile="),
     'cikis dugmesi cizilmiyor');
-  assert.ok(INK_SRC.includes('if (kismiKart && own && c.document_id)'),
+  assert.ok(INK_SRC.includes('if (yenileCikisi && own && c.document_id)'),
     'dugme TAM kartta ya da baskasinin kartinda da cikiyor');
   assert.ok(INK_SRC.includes("e.target.closest('[data-yenile]')"),
     'dugme baglanmamis — cizilmis ama hicbir sey yapmiyor');

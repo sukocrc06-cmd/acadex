@@ -9868,13 +9868,29 @@ var SBX = (function () {
     /* KISMI KART ROZETI CIKIS YOLU TASIYOR (25.10.2026).
      *
      * gemini_partial = BU kosuda kurtarilan taslak; cache_kismi = kart
-     * onbellekteki ':k' ekli KISMI satirdan geldi. Ikisi de ayni seyi
-     * anlatiyor ogrenciye: kart yarim. Ikincisi onbellek sayesinde 2
-     * saniyede geliyor, ama o satirda sikisip kalmamak icin tek tiklik
-     * bir cikis gerekiyor — rozetin yanindaki dugme onbellegi atlayan
-     * yeni bir kosu baslatiyor (dashboard.js -> resummarizeFresh). */
-    var kismiKart = (qm.gemini_partial && qm.gemini_partial.kurtarilanKrk > 0) || !!qm.cache_kismi;
+     * onbellekteki ':k' ekli KISMI satirdan geldi. Ikincisi onbellek
+     * sayesinde 2 saniyede geliyor, ama o satirda sikisip kalmamak icin
+     * tek tiklik bir cikis gerekiyor — rozetin yanindaki dugme onbellegi
+     * atlayan yeni bir kosu baslatiyor (dashboard.js -> resummarizeFresh).
+     *
+     * ROZET ILE DUGME AYRILDI (28.10.2026). Eskiden ikisi tek kosula
+     * bagliydi ve yorum "ikisi de ayni seyi anlatiyor: kart yarim" diyordu.
+     * Kota devre kesicisi geldikten sonra bu dogru degil: satir yalnizca
+     * Gemini denenemedigi icin de kismi olabiliyor ve o kart TAM.
+     *
+     * Olculen kart (27.10, 20:46): 3/3 pencere, anlati yazari kosmus, 27
+     * kavram, 33 atif — "eksik ozet" rozeti yok ama "kismi ozet" yaziyordu.
+     * Atlanan tek asama review'du, onu da yandaki rozet zaten soyluyor.
+     *
+     * Artik ROZET yalnizca icerikte gercekten bosluk varsa ('eksik'),
+     * DUGME ise her iki sebepte de cikiyor: kota donunce Gemini kalitesinde
+     * kart almanin tek yolu o. Eski satirlar cache_kismi=true tasiyor,
+     * onlar 'eksik' sayiliyor — geriye donuk davranis degismiyor. */
+    var kismiSebep = qm.cache_kismi === true ? 'eksik' : (qm.cache_kismi || '');
+    var kismiKart = (qm.gemini_partial && qm.gemini_partial.kurtarilanKrk > 0) || kismiSebep === 'eksik';
     if (kismiKart) uyarilar.push('kısmi özet');
+    // Onbellekteki kismi satirdan gelen her kart cikis yolunu hak ediyor.
+    var yenileCikisi = kismiKart || !!kismiSebep;
     var atlanan = arr(qm.skipped_stages).filter(Boolean);
     if (atlanan.length) uyarilar.push('atlanan: ' + atlanan.join(', '));
     var nc = qm.numeric_coverage;
@@ -9882,8 +9898,8 @@ var SBX = (function () {
       uyarilar.push('sayısal kapsama %' + Math.round((nc.kept / nc.total) * 100));
     }
     var uyariChip = uyarilar.map(function (u) { return chip(u, 'warn'); }).join('');
-    // Cikis yolu yalnizca KENDI kartinda ve kart yarimsa — bkz. kismiKart.
-    if (kismiKart && own && c.document_id) {
+    // Cikis yolu yalnizca KENDI kartinda — bkz. yenileCikisi.
+    if (yenileCikisi && own && c.document_id) {
       uyariChip += '<button type="button" class="axr-chip warn hand" data-yenile="' + X(c.document_id) +
         '" title="Önbelleği atlayıp sıfırdan özetler">' + ICON.redo + 'yeniden özetle</button>';
     }

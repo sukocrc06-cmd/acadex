@@ -48,7 +48,7 @@ const NAMES = [
   'GEMINI_MAX_RESUMES', 'GEMINI_DEVAM_PAYI_MS', 'GEMINI_DEVAM_KAYIT_PAYI_MS', 'geminiDevamDesteklemeyen',
   'geminiAkisDurumu', 'geminiSseBlogunuIsle', 'geminiAkisiTuket',
   'geminiAkisIstegi', 'geminiAkisSonucu', 'geminiAkisiDevamEttir',
-  'closeTruncatedJson', 'LATEX_IKI_HARFLI', 'repairLatexEscapes', 'geminiAkisOlcumu', 'onbellegeYazilabilir', 'onbellekKayitTuru', 'maddeMetni',
+  'closeTruncatedJson', 'LATEX_IKI_HARFLI', 'repairLatexEscapes', 'geminiAkisOlcumu', 'onbellegeYazilabilir', 'onbellekKayitTuru', 'kismiKayitSebebi', 'maddeMetni',
   'dedupeByText', 'dedupeKeyTerms', 'normalizeForDedup', 'NEAR_DUP_THRESHOLD'
 ];
 
@@ -1705,14 +1705,27 @@ test('KAYIT TURU: 16 kombinasyonun tamami', () => {
   assert.equal(sayac.kismi, 7, 'kismi satira dusen haller eksik');
 });
 
+test('kismiKayitSebebi: icerik boslugu ile Gemini yoklugunu ayiriyor', () => {
+  /* Satir her iki durumda da ':k' ile yaziliyor (onbellek davranisi ayni);
+     ayrilan sey ogrenciye ne denildigi — bkz. acadex-ink.js kismiSebep. */
+  const F = G.kismiKayitSebebi;
+  assert.equal(F({ eksikPencereVar: true, geminiKismiKrk: 0 }), 'eksik', 'dusen pencere gercek bosluktur');
+  assert.equal(F({ eksikPencereVar: false, geminiKismiKrk: 2000 }), 'eksik', 'yarim kurtarilan taslak da bosluktur');
+  assert.equal(F({ eksikPencereVar: true, geminiKismiKrk: 2000 }), 'eksik', 'ikisi birdeyse yine eksik');
+  /* Olculen kart (27.10, 20:46): 3/3 pencere, Gemini hic denenmedi
+     (devre kesici acik) — kartta eksik YOK, satir yalnizca gecici. */
+  assert.equal(F({ eksikPencereVar: false, geminiKismiKrk: 0 }), 'gecici',
+    'tam kart "eksik" sayilirsa ogrenciye ozetin yarim oldugu soylenir');
+});
+
 test('KISMI satir AYRI anahtara ve isaretli yaziliyor', () => {
   const src = require('node:fs').readFileSync(
     require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
   assert.ok(src.includes("const CACHE_KISMI_EKI = ':k'"), 'kismi eki yok');
   assert.ok(src.includes("cache_key: (k as string) + (kismiKayit ? CACHE_KISMI_EKI : '')"),
     'kismi kart TAM satirin anahtarina yaziliyor — tam kartin yerini alir');
-  assert.ok(src.includes('cache_kismi: true'),
-    'kismi kart kendi icinde isaretlenmiyor — arayuz rozeti okuyamaz');
+  assert.ok(src.includes('cache_kismi: kismiKayitSebebi({ eksikPencereVar: !!eksikPencereler, geminiKismiKrk })'),
+    'kismi kart kendi icinde isaretlenmiyor ya da SEBEP yazilmiyor — arayuz rozeti ayiramaz');
   assert.ok(src.includes('const onbellegiAtla = !!yenileRaw'),
     'yenile cikis yolu yok — kismi satira sikisan belge tazelenemez');
 });
