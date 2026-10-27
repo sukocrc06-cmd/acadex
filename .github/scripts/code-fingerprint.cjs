@@ -9,7 +9,7 @@ const fs = require('node:fs');
 const crypto = require('node:crypto');
 const ts = require('typescript');
 
-function fingerprint(src) {
+function tokens(src) {
   const js = ts.transpileModule(src, {
     fileName: 'x.ts',
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext, removeComments: true }
@@ -28,11 +28,35 @@ function fingerprint(src) {
     ts.forEachChild(node, walk);
   };
   walk(sf);
-  return crypto.createHash('sha256').update(out.join('\u0001')).digest('hex');
+  return out;
 }
 
-module.exports = { fingerprint };
-if (require.main === module) {
+function fingerprint(src) {
+  return crypto.createHash('sha256').update(tokens(src).join('\u0001')).digest('hex');
+}
+
+/** Tanı: canlı dosyayı adaylarla karşılaştırır; en uzun ortak başlangıcı
+ *  olan adayla ilk farkın çevresini yazar. */
+function explain(liveFile, candidates) {
+  const live = tokens(fs.readFileSync(liveFile, 'utf8'));
+  let best = null;
+  for (const c of candidates) {
+    const t = tokens(fs.readFileSync(c, 'utf8'));
+    let i = 0;
+    while (i < live.length && i < t.length && live[i] === t[i]) i++;
+    if (!best || i > best.i) best = { i, t, c };
+  }
+  if (!best) return;
+  const show = (arr) => arr.slice(Math.max(0, best.i - 12), best.i + 12).map(x => String(x).slice(0, 80)).join(' | ');
+  console.log(`ilk fark: ${best.i}. öğe (canlı ${live.length}, aday ${best.t.length} öğe; aday ${best.c.split('/').pop()})`);
+  console.log(`  git  : ${show(best.t)}`);
+  console.log(`  canlı: ${show(live)}`);
+}
+
+module.exports = { fingerprint, tokens };
+if (require.main === module && process.argv[2] === '--explain') {
+  explain(process.argv[3], process.argv.slice(4));
+} else if (require.main === module) {
   for (const f of process.argv.slice(2)) {
     let h = 'okunamadi';
     try { h = fingerprint(fs.readFileSync(f, 'utf8')); } catch (e) { h = 'hata'; }
