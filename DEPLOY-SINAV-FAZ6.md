@@ -102,3 +102,70 @@ Hoca paneli (teacher.html) 19.10.2026'da kaldırılmıştı (`20261019_yonetim_p
 
   `ACADEX_PG` verilirse koşar.
 - **Tarayıcı** (`run19`): öğrenci ve öğretmen akışı; 1280 ve 390 px; yatay taşma yok; liste açılıp kapanınca klavye odağı korunuyor.
+
+## Faz 6.2: ödev hazırlama (taslak, düzenleme, yayın)
+
+### Akış
+1. Öğretmen sınıf kartındaki "ödevler" bölümünde **"+ ödev hazırla"** der.
+2. Sınav kurulum penceresi **taslak kipinde** açılır:
+   - Üstte "ödev taslağı · sınıf adı" şeridi görünür.
+   - "Akıllı deneme" ve "gerçek sınav provası" gizlenir.
+   - Düğmenin adı "taslağı hazırla" olur.
+   - "Soruları kendim yazacağım" seçeneği boş bir taslak açar.
+3. `generate-exam` `{ assignmentDraft: true }` ile çağrılır:
+   - Sorular **cevaplarıyla** öğretmene döner.
+   - Sınav kaydı açılmaz ve öğrencinin saatlik sınav sınırına sayılmaz.
+   - Yalnızca etkin öğretmene açıktır; saatte 20 taslak sınırı var (`assignment_gen_take`).
+4. **Düzenleyici** (`[data-asgdlg]`):
+   - Ödev adı ve öğrenciye not.
+   - Takvim: açılış, son teslim.
+   - Kurallar: süre, deneme hakkı (en yüksek not sayılır), cevapların ne zaman görüneceği, geç teslim (kabul yok ya da günlük % kesinti ve en çok gün), soru/şık sırasını karıştırma, hesap sorularında öğrenciye özel sayılar (yalnızca şablonlu hesap sorusu varsa görünür).
+   - Puanlama satırı: şık sayısı, yanlış doğruyu götürür, basamak. Kurulumdan gelir, salt okunur.
+   - Sorular:
+     - Çoktan seçmeli, D/Y, boşluk ve açık uçlu sorular düzenlenir. Çoktan seçmelide şık eklenir, silinir ve doğru şık işaretlenir. Boşlukta diğer kabul edilen yazımlar girilir. Açık uçluda beklenen cevap ve rubrik ("puan | ölçüt" satırları, 100'e ölçeklenir) yazılır.
+     - **Hesap, ifade, çizim ve grafikli sorular elle düzenlenmez:** cevabı kod hesapladı; metin değişirse cevap bozulur. Bu sorular yalnızca **yeniden üretilir** (aynı kavramla, 1 soru).
+     - Her soruda: yukarı/aşağı taşıma, silme (geri alınabilir), "YZ / YZ · düzenlendi / senin sorun" etiketi.
+     - "+ yapay zekâ ile 1 soru" ve dört türde boş soru eklenebilir.
+   - Kaydetme: "taslağı kaydet"; düzenleyici kapanınca kaydedilmemiş değişiklik sessizce kaydedilir.
+5. **Yayınla** (`assignment_publish`):
+   - Sunucu denetler: her sorunun metni ve doğru cevabı var, çoktan seçmelide doğru şık şıklardan biri, aynı şık iki kez yok, son teslim en az 10 dk sonra.
+   - Sorular kilitlenir. Sonra yalnızca son teslim değişir (`assignment_set_dates`; yayındaki ödevin açılışı ileri alınamaz) ya da ödev kapanır (`assignment_close`; son teslim ileri alınınca yeniden yayına girer).
+
+### Veritabanı (`20261027b_sinav_faz6_odevler.sql`)
+- **`assignments`:** soruları cevap anahtarıyla tutar.
+  - **Öğrenci bu tabloyu hiç okuyamaz**; RLS yalnızca sınıfın öğretmenine ve yöneticiye okuma verir.
+  - Yazma yalnızca fonksiyonlarla.
+  - Öğrenci tarafı 6.3'te: ödevden öğrenciye özel sınav kaydı ve ayrı cevap anahtarı (`exam_answer_keys`).
+- **`assignment_gen_log`:** taslak sınırı.
+- **Ayarlar sunucuda temizlenir:** bilinmeyen anahtar atılır, değerler sınırlara çekilir.
+  - deneme 1-3
+  - süre 5-300 dk
+  - kesinti %1-50, en çok 1-7 gün
+  - şık 4/5, oran 3/4, basamak 2-4
+- **Taslakta boş soru metni serbest:** öğretmen soruyu ekleyip sonra doldurur. Yayında denetlenir.
+- Bir ödevde en çok 40 soru; sınıf başına en çok 20 taslak; arşivdeki sınıfa ödev verilemez.
+
+### Test
+- `tests/exam-assignments.js`: 10 test.
+  - taslak kipinin sınav kaydı açmaması
+  - tablo yetkileri
+  - yayın denetimleri
+  - ayar sınırları
+  - ön yüz ile SQL parametre eşliği
+  - rubrik ölçekleme
+- **Davranış testi** (`tests/sql/faz6-odevler.sql`, Postgres ve RLS ile):
+  - öğrenci taslak alamaz, ödev açamaz, ödev satırı göremez
+  - başka öğretmen göremez ve yönetemez
+  - saatte 20 taslak sınırı
+  - ayarlar temizleniyor
+  - yayın denetimleri tek tek
+  - yayın sonrası kilit
+  - tarih uzatma ve yeniden açma
+  - taslak silme
+  - arşiv
+  - yetki kalkınca erişim kapanıyor
+- **Tarayıcı** (`run20`): kurulum penceresinin taslak kipi, istek gövdesi, düzenleme, geri alma, taşıma, yeniden üretme, kaydetme yükü, yayın, tarih, kapatma, boş taslak; 390 px'te taşma yok. Normal sınav akışı (`run16`) değişmedi.
+
+### Deploy
+- `generate-exam` otomatik (GitHub Actions).
+- SQL elle (SQL Editor). SQL'den önce ön yüzde "ödevler" bölümü görünmez.

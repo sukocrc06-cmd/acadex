@@ -121,7 +121,7 @@ test('katılım kodu: 32 karakterli alfabe (I, O, 0, 1 yok), 6 hane, rastgele ba
 test('ön yüzün çağırdığı her fonksiyon ve parametre migration ile uyumlu', () => {
   const start = ink.indexOf('/* ---------- FAZ 6.1: sınıflar');
   assert.ok(start > 0);
-  const block = ink.slice(start, ink.indexOf('var paintAll = function () { paintCal();', start));
+  const block = ink.slice(start, ink.indexOf('/* ---------- FAZ 6.2: ödev hazırlama', start));
   const calls = [...block.matchAll(/(?:rpc|run)\('([a-z_]+)'(?:, (?:to \? )?\{([^}]*)\})?/g)];
   assert.ok(calls.length >= 9, 'çağrı sayısı ' + calls.length);
   const seen = new Set();

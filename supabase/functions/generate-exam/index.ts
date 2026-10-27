@@ -2862,7 +2862,11 @@ serve(async (req) => {
       })
     }
 
-    const { studyCardId, sourceType, courseCode, courseDepartment, examType, questionCount, language, difficulty, isSimulation, focusConcept, optionCount, negativeMarking, decimalPlaces: decimalPlacesRaw, chartExamples, noGraphs, adaptive } = await req.json()
+    const { studyCardId, sourceType, courseCode, courseDepartment, examType, questionCount, language, difficulty, isSimulation, focusConcept, optionCount, negativeMarking, decimalPlaces: decimalPlacesRaw, chartExamples, noGraphs, adaptive: adaptiveRaw, assignmentDraft } = await req.json()
+    // FAZ 6.2: öğretmenin ödev taslağı. Sınav kaydı açılmaz; sorular cevaplarıyla
+    // öğretmene döner, öğretmen düzenleyip assignment_save ile kaydeder.
+    const draftMode = assignmentDraft === true
+    const adaptive = draftMode ? null : adaptiveRaw
     const scoring = normalizeScoring(optionCount, negativeMarking)
     // Yalnızca hesap sorusu olabilen türlerde (test ve klasikte anlamsız).
     const decimalPlaces = examType === 'calculation' || examType === 'mixed' ? normalizeDecimalPlaces(decimalPlacesRaw) : null
@@ -2909,7 +2913,7 @@ serve(async (req) => {
     // mimic real vize/final/büt conditions. The time budget is computed
     // server-side (not trusted from the client) from question type/count,
     // roughly matching how long each question type realistically takes.
-    const resolvedIsSimulation = !!isSimulation
+    const resolvedIsSimulation = !draftMode && !!isSimulation
     let timeLimitSeconds: number | null = null
     if (resolvedIsSimulation) {
       const secondsPerQuestion: Record<string, number> = {
@@ -2957,9 +2961,27 @@ serve(async (req) => {
     const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     const serviceClient = createClient(supabaseUrl, supabaseServiceRoleKey)
 
+    // FAZ 6.2: ödev taslağı yalnızca etkin öğretmene; saatte 20 taslak (assignment_gen_take).
+    // Taslak sınav kaydı açmadığı için öğrenci sınav sınırına sayılmaz.
+    if (draftMode) {
+      const { data: okTake, error: takeErr } = await userClient.rpc('assignment_gen_take')
+      if (takeErr || okTake !== true) {
+        const tr = language === 'tr'
+        const notTeacher = !takeErr && okTake === false
+        return new Response(JSON.stringify({ error: takeErr
+          ? (tr ? 'Ödev taslağı şu an hazırlanamıyor (veritabanı adımı eksik olabilir).' : 'Assignment drafts are unavailable right now.')
+          : notTeacher
+            ? (tr ? 'Ödev taslağı için öğretmen yetkisi gerekli ya da son bir saatte 20 taslak sınırına ulaştın.' : 'Teacher permission required, or the hourly limit of 20 drafts was reached.')
+            : (tr ? 'Ödev taslağı hazırlanamadı.' : 'Could not prepare the draft.') }), {
+          status: takeErr ? 503 : 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+    }
+
     // Kullanıcı başına üretim limiti. Sayım başarısız olursa (ör. created_at
     // kolonu yoksa) üretimi engelleme — en iyi gayret.
-    try {
+    if (!draftMode) try {
       const now = Date.now()
       const countSince = async (ms: number) => {
         const { count, error } = await serviceClient
@@ -3616,6 +3638,21 @@ Additional variation seed: ${Date.now()}`
       const { pub, key } = splitPublicAndKey(q)
       publicQuestions.push(pub)
       answerKeys[String(q.id)] = key
+    }
+
+    // FAZ 6.2: ödev taslağı — kayıt yok; sorular cevaplarıyla öğretmene döner.
+    if (draftMode) {
+      return new Response(JSON.stringify({
+        draft: true,
+        questions: finalQuestions,
+        exam_type: examType,
+        language,
+        difficulty: resolvedDifficulty,
+        scoring: { ...scoring, ...(decimalPlaces ? { decimal_places: decimalPlaces } : {}) },
+        source: resolvedSourceType === 'course'
+          ? { type: 'course', course_code: canonicalCourseCode, course_department: courseDeptName, is_grounded: isGrounded }
+          : { type: 'study_card', study_card_id: studyCardId }
+      }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
     const examInsertPayload: Record<string, unknown> = {

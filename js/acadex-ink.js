@@ -3512,7 +3512,8 @@ window.axNotify = function (title, opts) {
     return sb().rpc('my_classes').then(function (r) {
       clsBusy = false;
       if (r.error) { if (!rpcMissing(r.error)) console.warn('acadex-ink: sınıflar yüklenemedi', r.error); clsEl.hidden = true; return; }
-      CL = r.data || { is_teacher: false, teaching: [], enrolled: [] }; paintClasses();
+      CL = r.data || { is_teacher: false, teaching: [], enrolled: [] };
+      return loadAsg().then(paintClasses);  /* FAZ 6.2: öğretmenin ödevleri */
     }, function (e) { clsBusy = false; console.warn(e); });
   };
   var clsCard = function (k, teach) {
@@ -3530,7 +3531,7 @@ window.axNotify = function (title, opts) {
           '<button type="button" class="sn-ghost" data-cl-newcode="">kodu yenile</button>' +
           '<button type="button" class="sn-ghost" data-cl-edit="">düzenle</button>' +
           '<button type="button" class="sn-ghost danger" data-cl-arch="">arşivle</button>') +
-        '</div><div class="sn-cl-r" data-cl-r=""' + (open ? '' : ' hidden') + '>' + (open ? rosterHtml(k.id) : '') + '</div></article>';
+        '</div>' + (k.archived ? '' : asgBlock(k)) + '<div class="sn-cl-r" data-cl-r=""' + (open ? '' : ' hidden') + '>' + (open ? rosterHtml(k.id) : '') + '</div></article>';
     }
     var armed = leaveArm[k.id] && leaveArm[k.id] > Date.now();
     return '<article class="sn-cl s' + (k.archived ? ' arch' : '') + '" data-cl="' + id + '">' +
@@ -3630,6 +3631,8 @@ window.axNotify = function (title, opts) {
         if (r.error) { say(clsErrText(r.error)); return null; }
         if (ok) say(ok); return r;
       };
+      if (b.hasAttribute('data-cl-asgnew')) { startAsg(k); return; }
+      if (b.hasAttribute('data-asg-open')) { openAsg(b.getAttribute('data-asg-open'), k); return; }
       if (b.hasAttribute('data-cl-copy')) {
         try { await navigator.clipboard.writeText(k.join_code); say('Kod kopyalandı: ' + k.join_code); } catch (x) { say('Kod: ' + k.join_code); }
       } else if (b.hasAttribute('data-cl-roster')) {
@@ -3657,6 +3660,301 @@ window.axNotify = function (title, opts) {
       }
     });
   }
+
+  /* ---------- FAZ 6.2: ödev hazırlama (öğretmen) ----------
+     Sınıf kartında "+ ödev hazırla" → sınav kurulum penceresi taslak kipinde açılır; generate-exam
+     { assignmentDraft: true } soruları CEVAPLARIYLA döndürür (sınav kaydı açılmaz). Öğretmen soruları
+     düzenler, siler, yeniden ürettirir, kendi sorusunu ekler; ayarları seçer ve yayınlar
+     (20261027b_sinav_faz6_odevler.sql). Yayınlanan ödevin soruları kilitlenir; yalnızca son teslim
+     değişir ya da ödev kapanır. Kodun hesapladığı sorular (hesap, ifade, çizim, grafik) elle
+     değiştirilmez: metin değişirse cevap bozulur; bunlar yalnızca yeniden üretilir. */
+  var ASG = null, asgDlg = $('[data-asgdlg]'), asgBody = $('[data-asg-body]'), AG = null, asgMode = null, asgBan = $('[data-asg-ban]');
+  var ASG_DEF = { attempts: 1, time_limit_minutes: null, late: 'none', late_penalty_pct: 10, late_days: 3, show_answers: 'after_due', shuffle: true, vary_numbers: false };
+  var EDITABLE = { multiple_choice: 1, true_false: 1, fill_blank: 1, open_ended: 1 };
+  var TYPE_FOR = { multiple_choice: 'test', true_false: 'mixed', fill_blank: 'mixed', open_ended: 'classic', calculation: 'calculation', expression: 'calculation', graph: 'mixed' };
+  var LET = 'ABCDEF', DUR = [0, 10, 15, 20, 30, 45, 60, 90, 120];
+  var dtl = function (s) { var d = new Date(s); return isNaN(d) ? '' : pad(d.getDate()) + '.' + pad(d.getMonth() + 1) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()); };
+  var toLocalInput = function (iso) { var d = iso ? new Date(iso) : null; return d && !isNaN(d) ? d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()) : ''; };
+  var fromLocalInput = function (v) { if (!v) return null; var d = new Date(v); return isNaN(d) ? null : d.toISOString(); };
+  var selHtml = function (attr, cur, opts) { return '<select ' + attr + '>' + opts.map(function (o) { return '<option value="' + esc(o[0]) + '"' + (String(o[0]) === String(cur) ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('') + '</select>'; };
+  var lab = function (t, inner) { return '<label class="sn-f"><span>' + esc(t) + '</span>' + inner + '</label>'; };
+  var loadAsg = function () {
+    if (!CL || !CL.is_teacher) { ASG = null; return Promise.resolve(); }
+    return sb().from('assignments').select('id, class_id, title, status, opens_at, due_at, updated_at').order('created_at', { ascending: false }).limit(300).then(function (r) {
+      if (r.error) { if (!/42P01|does not exist|schema cache/i.test(String(r.error.message || '') + ' ' + String(r.error.code || ''))) console.warn('acadex-ink: ödevler yüklenemedi', r.error); ASG = null; }
+      else ASG = r.data || [];
+    }, function () { ASG = null; });
+  };
+  var asgState = function (a) {
+    if (a.status === 'draft') return 'taslak · ' + dtl(a.updated_at);
+    if (a.status === 'closed') return 'kapalı';
+    var now = Date.now();
+    if (a.opens_at && new Date(a.opens_at).getTime() > now) return 'açılış ' + dtl(a.opens_at);
+    if (a.due_at && new Date(a.due_at).getTime() < now) return 'süresi doldu · ' + dtl(a.due_at);
+    return 'yayında · son teslim ' + dtl(a.due_at);
+  };
+  var asgBlock = function (k) {
+    if (ASG == null) return '';
+    var L = ASG.filter(function (a) { return a.class_id === k.id; });
+    return '<div class="sn-cl-asg"><div class="sn-cl-asg-h"><b>ödevler</b><button type="button" class="sn-lnk" data-cl-asgnew="">+ ödev hazırla</button></div>' +
+      (L.length ? '<ul>' + L.map(function (a) { return '<li><button type="button" class="sn-asg-row ' + esc(a.status) + '" data-asg-open="' + esc(a.id) + '"><b>' + esc(a.title) + '</b><span>' + esc(asgState(a)) + '</span></button></li>'; }).join('') + '</ul>'
+        : '<p class="sn-cl-meta">henüz ödev yok. yapay zekâ bir taslak hazırlar; her soruyu sen düzenleyip onaylarsın.</p>') + '</div>';
+  };
+  /* kurulum penceresi taslak kipi */
+  var asgUi = function (on) {
+    bdDlg.classList.toggle('asg', !!on);
+    asgBan.hidden = !on;
+    if (on) asgBan.innerHTML = '<b>ödev taslağı · ' + esc(asgMode.className) + '</b> Sorular cevaplarıyla düzenleyiciye gelir; öğrencilere sen yayınlayınca gider. <button type="button" class="sn-lnk" data-asg-blank="">soruları kendim yazacağım</button>';
+    var ar = $('[data-adaptive-row]'), sr = $('[data-sim-row]');
+    if (ar) ar.hidden = !!on; if (sr) sr.hidden = !!on;
+    if (on) { var ad = $('#exam-adaptive'); if (ad) ad.checked = false; var sm = $('#exam-simulation-toggle'); if (sm) sm.checked = false; if (typeof syncAdaptive === 'function') syncAdaptive(); }
+    var gb = $('#btn-generate-exam'); if (gb) { if (on && !gb.hasAttribute('data-orig')) gb.setAttribute('data-orig', gb.textContent); gb.textContent = on ? 'taslağı hazırla' : (gb.getAttribute('data-orig') || gb.textContent); }
+    window.__examAssignmentDraft = on ? { done: onDraft } : null;
+  };
+  var startAsg = async function (k) {
+    asgMode = { classId: k.id, className: k.name, course: k.course_code || '' };
+    await openBuild(null);
+    asgUi(true); paintCover();
+  };
+  bdDlg.addEventListener('close', function () { if (asgMode) { asgMode = null; asgUi(false); } });
+  asgBan.addEventListener('click', function (e) { if (e.target.closest('[data-asg-blank]')) onDraft({ questions: [], source: {}, scoring: {} }, {}); });
+  var newAsg = function (m, data, req) {
+    var S = Object.assign({}, ASG_DEF, { exam_type: data.exam_type || 'mixed', language: data.language || 'tr', difficulty: data.difficulty || 'medium', scoring: data.scoring || { option_count: 4, negative_marking: false, wrong_per_correct: 3 } });
+    var due = new Date(); due.setDate(due.getDate() + 7); due.setHours(23, 59, 0, 0);
+    return { class_id: m.classId, className: m.className, title: (m.course ? m.course + ' · ' : '') + 'ödev ' + dshort(new Date()), instructions: '', status: 'draft',
+      source: Object.assign({}, data.source || {}, req && req.noGraphs ? { no_graphs: true } : {}), settings: S,
+      questions: (data.questions || []).map(function (q) { var o = Object.assign({}, q); delete o.id; return o; }), opens_at: null, due_at: due.toISOString(), dirty: true };
+  };
+  var onDraft = async function (data, req) {
+    var m = asgMode; if (!m) return;
+    var a = newAsg(m, data, req);
+    var r = await sb().rpc('assignment_create', { p_class: m.classId, p_title: a.title });
+    if (r.error) { bdErr.textContent = clsErrText(r.error); bdErr.hidden = false; return; }
+    a.id = r.data.id; AG = a;
+    bdDlg.close();
+    await saveAsg(true);
+    openEditor();
+    agMsg(a.questions.length ? a.questions.length + ' soruluk taslak hazır ve kaydedildi. Soruları gözden geçir; düzenle, sil ya da yeniden ürettir.' : 'Boş taslak açıldı; aşağıdan soru ekle.');
+  };
+  var openAsg = async function (id, k) {
+    var r = await sb().from('assignments').select('*').eq('id', id).single();
+    if (r.error || !r.data) { say(clsErrText(r.error)); return; }
+    AG = Object.assign(r.data, { className: k ? k.name : '', dirty: false });
+    AG.settings = Object.assign({}, ASG_DEF, AG.settings || {});
+    AG.questions = Array.isArray(AG.questions) ? AG.questions : [];
+    openEditor();
+  };
+  var rulesText = function (S) {
+    return [S.time_limit_minutes ? S.time_limit_minutes + ' dk' : 'süre serbest', S.attempts + ' deneme' + (S.attempts > 1 ? ' (en yüksek not)' : ''),
+      S.late === 'penalty' ? 'geç teslim: günde %' + S.late_penalty_pct + ' kesinti, en çok ' + S.late_days + ' gün' : 'geç teslim yok',
+      { after_submit: 'cevaplar teslim edince', after_due: 'cevaplar son teslimden sonra', never: 'cevaplar gösterilmez' }[S.show_answers] || '',
+      S.shuffle ? 'sıra öğrenciye göre karışık' : '', S.vary_numbers ? 'öğrenciye özel sayılar' : ''].filter(Boolean).join(' · ');
+  };
+  var scoreText = function (S) {
+    var sc = S.scoring || {};
+    return (sc.option_count || 4) + ' şık · ' + (sc.negative_marking ? (sc.wrong_per_correct || 3) + ' yanlış 1 doğruyu götürür' : 'yanlış götürmez') + (sc.decimal_places ? ' · hesapta virgülden sonra ' + sc.decimal_places + ' basamak' : '');
+  };
+  var qHtml = function (q, i, n, locked) {
+    var ed = !locked && EDITABLE[q.type] && !q.chart, lang = (AG.settings && AG.settings.language) || 'tr';
+    var h = '<li class="sn-aq' + (ed ? '' : ' ro') + '" data-aq="' + i + '"><div class="sn-aq-h"><b>' + (i + 1) + '</b><span class="sn-aq-t">' + esc(QT[q.type] || q.type) + '</span>' +
+      (q.author === 'teacher' ? '<span class="sn-aq-by t">senin sorun</span>' : '<span class="sn-aq-by" title="yapay zekâ taslağı">YZ' + (q.edited ? ' · düzenlendi' : '') + '</span>') +
+      (q.concept ? '<span class="sn-aq-c">' + esc(q.concept) + '</span>' : '') + '<span class="sp"></span>' +
+      (locked ? '' : '<button type="button" class="sn-ib" data-aq-up="" aria-label="' + (i + 1) + '. soruyu yukarı taşı"' + (i ? '' : ' disabled') + '>↑</button>' +
+        '<button type="button" class="sn-ib" data-aq-dn="" aria-label="' + (i + 1) + '. soruyu aşağı taşı"' + (i < n - 1 ? '' : ' disabled') + '>↓</button>' +
+        (q.author === 'teacher' ? '' : '<button type="button" class="sn-lnk" data-aq-regen="">yeniden üret</button>') +
+        '<button type="button" class="sn-lnk danger" data-aq-del="" aria-label="' + (i + 1) + '. soruyu sil">sil</button>') + '</div>';
+    if (ed) {
+      h += '<label class="sn-f"><span>soru</span><textarea rows="3" data-aq-f="question" maxlength="4000">' + esc(q.question || '') + '</textarea></label>';
+      if (q.type === 'multiple_choice') {
+        var opts = Array.isArray(q.options) ? q.options : [];
+        h += '<fieldset class="sn-aq-opts"><legend>şıklar · doğru olanı işaretle</legend>' + opts.map(function (o, j) {
+          return '<div class="sn-aq-o"><input type="radio" name="aq-ok-' + i + '" data-aq-ok="' + j + '"' + (o !== '' && o === q.correct_answer ? ' checked' : '') + ' aria-label="' + LET[j] + ' doğru şık"><span aria-hidden="true">' + LET[j] + '</span>' +
+            '<input type="text" data-aq-opt="' + j + '" value="' + esc(o) + '" maxlength="400" aria-label="' + LET[j] + ' şıkkı"><button type="button" class="sn-ib" data-aq-optx="' + j + '" aria-label="' + LET[j] + ' şıkkını sil"' + (opts.length <= 2 ? ' disabled' : '') + '>×</button></div>';
+        }).join('') + (opts.length < 6 ? '<button type="button" class="sn-lnk" data-aq-optadd="">+ şık ekle</button>' : '') + '</fieldset>';
+      } else if (q.type === 'true_false') {
+        var tf = Array.isArray(q.options) && q.options.length === 2 ? q.options : (lang === 'en' ? ['True', 'False'] : ['Doğru', 'Yanlış']);
+        h += '<label class="sn-f sn-aq-s"><span>doğru cevap</span>' + selHtml('data-aq-f="correct_answer"', q.correct_answer, tf.map(function (x) { return [x, x]; })) + '</label>';
+      } else if (q.type === 'fill_blank') {
+        h += '<div class="sn-f2"><label class="sn-f"><span>doğru cevap</span><input type="text" data-aq-f="correct_answer" value="' + esc(q.correct_answer || '') + '" maxlength="200"></label>' +
+          '<label class="sn-f"><span>kabul edilen diğer yazımlar <small>(virgülle)</small></span><input type="text" data-aq-f="accepted_answers" value="' + esc((q.accepted_answers || []).join(', ')) + '" maxlength="400"></label></div>';
+      } else {
+        h += '<label class="sn-f"><span>beklenen cevap <small>(puanlamada örnek cevap)</small></span><textarea rows="3" data-aq-f="correct_answer" maxlength="3000">' + esc(q.correct_answer || '') + '</textarea></label>' +
+          '<label class="sn-f"><span>rubrik <small>her satır “puan | ölçüt”; en az 2 satır, toplam 100’e ölçeklenir</small></span><textarea rows="3" data-aq-f="rubric" maxlength="1500">' + esc((q.rubric || []).map(function (r) { return r.points + ' | ' + r.criterion; }).join('\n')) + '</textarea></label>';
+      }
+    } else {
+      h += chartHtml(q, lang) + '<div class="sn-aq-q">' + rich(q.question) + '</div>';
+      if (Array.isArray(q.options) && q.options.length && q.type !== 'true_false') h += '<ol class="sn-aq-ol">' + q.options.map(function (o) { return '<li' + (o === q.correct_answer ? ' class="ok"' : '') + '>' + rich(o) + (o === q.correct_answer ? ' <b>✓</b>' : '') + '</li>'; }).join('') + '</ol>';
+      else h += '<p class="sn-aq-a">doğru cevap: <b>' + (q.type === 'graph' ? 'çizim (kodla puanlanır)' : rich(String(q.correct_answer == null ? '—' : q.correct_answer)) + (q.units ? ' ' + esc(q.units) : '')) + '</b></p>';
+      if (!locked && !EDITABLE[q.type]) h += '<p class="sn-aq-n">Cevabı kod hesapladı; metni değişirse cevap bozulur. Değiştirmek için yeniden üret.</p>';
+      else if (!locked && q.chart) h += '<p class="sn-aq-n">Grafikli soru: cevabı grafikten kod hesapladı. Değiştirmek için yeniden üret.</p>';
+    }
+    h += locked ? (q.explanation ? '<p class="sn-aq-x">açıklama: ' + rich(q.explanation) + '</p>' : '')
+      : '<label class="sn-f"><span>açıklama <small>(öğrenci sonuçta görür)</small></span><textarea rows="2" data-aq-f="explanation" maxlength="1200">' + esc(q.explanation || '') + '</textarea></label>';
+    return h + '</li>';
+  };
+  var paintQs = function (focusSel) {
+    var locked = AG.status !== 'draft', qs = AG.questions;
+    $('[data-ag-qs]', asgBody).innerHTML = qs.map(function (q, i) { return qHtml(q, i, qs.length, locked); }).join('') || '<li class="sn-cl-meta">henüz soru yok. aşağıdan ekle.</li>';
+    $('[data-ag-qn]', asgBody).textContent = qs.length;
+    var vr = $('[data-ag-vary]', asgBody); if (vr) vr.hidden = !qs.some(function (q) { return q.type === 'calculation' && q.template; });
+    if (focusSel) { var f = $(focusSel, asgBody); if (f) f.focus(); }
+  };
+  var paintEditor = function () {
+    var a = AG, S = a.settings, locked = a.status !== 'draft';
+    var h = '<button type="button" class="sn-x" data-ag-x="" aria-label="Kapat">×</button>' +
+      '<span class="sn-k">' + esc(a.className || 'sınıf') + ' · ' + (a.status === 'draft' ? 'taslak' : a.status === 'closed' ? 'kapalı' : 'yayında') + '</span>' +
+      '<h2 id="ag-t" class="disp">' + (locked ? esc(a.title) : 'ödevi düzenle') + '</h2>';
+    if (!locked) h += lab('ödev adı', '<input type="text" data-ag="title" maxlength="120" value="' + esc(a.title) + '" required>') +
+      '<label class="sn-f"><span>öğrenciye not <small>(isteğe bağlı)</small></span><textarea rows="2" data-ag="instructions" maxlength="1000">' + esc(a.instructions || '') + '</textarea></label>';
+    else if (a.instructions) h += '<p class="sn-cl-meta">' + esc(a.instructions) + '</p>';
+    h += '<fieldset class="sn-asg-set"><legend>takvim ve kurallar</legend><div class="sn-f2">' +
+      '<label class="sn-f"><span>açılış <small>(boşsa yayınlanınca)</small></span><input type="datetime-local" data-ag="opens_at" value="' + toLocalInput(a.opens_at) + '"' + (locked && a.status !== 'draft' ? ' disabled' : '') + '></label>' +
+      '<label class="sn-f"><span>son teslim</span><input type="datetime-local" data-ag="due_at" value="' + toLocalInput(a.due_at) + '"></label></div>';
+    if (!locked) {
+      h += '<div class="sn-f3">' + lab('süre', selHtml('data-ags="time_limit_minutes"', S.time_limit_minutes || 0, DUR.map(function (d) { return [d, d ? d + ' dakika' : 'serbest']; }))) +
+        lab('deneme hakkı', selHtml('data-ags="attempts"', S.attempts, [[1, '1 deneme'], [2, '2 deneme (en yüksek not)'], [3, '3 deneme (en yüksek not)']])) +
+        lab('cevaplar ne zaman görünsün', selHtml('data-ags="show_answers"', S.show_answers, [['after_submit', 'teslim edince'], ['after_due', 'son teslimden sonra'], ['never', 'gösterme (yalnızca not)']])) + '</div>' +
+        '<div class="sn-f3">' + lab('geç teslim', selHtml('data-ags="late"', S.late, [['none', 'kabul edilmez'], ['penalty', 'kesintiyle kabul']])) +
+        '<span data-ag-late=""' + (S.late === 'penalty' ? '' : ' hidden') + ' class="sn-ag-late">' + lab('günlük kesinti', selHtml('data-ags="late_penalty_pct"', S.late_penalty_pct, [[5, '%5'], [10, '%10'], [20, '%20'], [25, '%25']])) +
+        lab('en çok', selHtml('data-ags="late_days"', S.late_days, [[1, '1 gün'], [2, '2 gün'], [3, '3 gün'], [7, '7 gün']])) + '</span></div>' +
+        '<label class="sn-f sn-chk"><input type="checkbox" data-ags="shuffle"' + (S.shuffle ? ' checked' : '') + '><span>soru ve şık sırası öğrenciye göre karışsın</span></label>' +
+        '<label class="sn-f sn-chk" data-ag-vary=""><input type="checkbox" data-ags="vary_numbers"' + (S.vary_numbers ? ' checked' : '') + '><span>hesap sorularında her öğrenciye farklı sayılar <small>cevabı kod her öğrenci için yeniden hesaplar; kopya çekmeyi zorlaştırır</small></span></label>';
+    } else h += '<p class="sn-cl-meta">' + esc(rulesText(S)) + '</p>';
+    h += '<p class="sn-cl-meta">puanlama: ' + esc(scoreText(S)) + '</p></fieldset>' +
+      '<h3 class="sn-k sn-asg-qh">sorular (<span data-ag-qn="">0</span>)</h3><ol class="sn-aqs" data-ag-qs=""></ol>';
+    if (!locked) h += '<div class="sn-asg-add"><span>soru ekle:</span>' + [['multiple_choice', 'çoktan seçmeli'], ['true_false', 'doğru-yanlış'], ['fill_blank', 'boşluk'], ['open_ended', 'açık uçlu']].map(function (t) { return '<button type="button" class="sn-ghost" data-ag-add="' + t[0] + '">' + t[1] + '</button>'; }).join('') +
+      (a.source && (a.source.study_card_id || a.source.course_code) ? '<button type="button" class="sn-ghost" data-ag-ai="">+ yapay zekâ ile 1 soru</button>' : '') + '</div>';
+    h += '<p class="sn-asg-msg" data-ag-msg="" role="status" aria-live="polite"></p><div class="sn-dlg-b">' +
+      (locked ? (a.status === 'published' ? '<button type="button" class="sn-ghost danger" data-ag-close="">ödevi kapat</button>' : '<span></span>') + '<button type="button" class="sn-ghost" data-ag-x="">kapat</button><button type="button" class="btn btn-dark" data-ag-dates="">son teslimi kaydet</button>'
+        : '<button type="button" class="sn-ghost danger" data-ag-del="">taslağı sil</button><button type="button" class="sn-ghost" data-ag-save="">taslağı kaydet</button><button type="button" class="btn btn-blue" data-ag-pub="">yayınla</button>') + '</div>';
+    asgBody.innerHTML = h;
+    paintQs();
+  };
+  var openEditor = function () { paintEditor(); if (!asgDlg.open) asgDlg.showModal(); asgBody.scrollTop = 0; var t = $('[data-ag="title"]', asgBody) || $('[data-ag-x]', asgBody); if (t) t.focus(); };
+  /* düzenleyici açıkken salon bildirimi modal katmanın arkasında kalır: mesajlar burada */
+  var agUndo = null;
+  var agMsg = function (t, bad, undo) { var m = $('[data-ag-msg]', asgBody); agUndo = undo || null; if (m) { m.innerHTML = esc(t) + (undo ? ' <button type="button" class="sn-lnk" data-ag-undo="">geri al</button>' : ''); m.className = 'sn-asg-msg' + (bad ? ' bad' : ''); } };
+  var asgPayload = function () {
+    return { p_id: AG.id, p_title: String(AG.title || '').trim(), p_instructions: AG.instructions || '', p_source: AG.source || {}, p_settings: AG.settings,
+      p_questions: AG.questions.map(function (q, i) { var o = Object.assign({}, q); o.id = i + 1; if (Array.isArray(o.options)) o.options = o.options.map(function (x) { return String(x).trim(); }); if (typeof o.correct_answer === 'string') o.correct_answer = o.correct_answer.trim(); return o; }),
+      p_opens_at: AG.opens_at || null, p_due_at: AG.due_at || null };
+  };
+  var saveAsg = async function (silent) {
+    if (!AG || AG.status !== 'draft') return true;
+    var r = await sb().rpc('assignment_save', asgPayload());
+    if (r.error) { agMsg(clsErrText(r.error), true); if (silent) say('Taslak kaydedilemedi: ' + clsErrText(r.error)); return false; }
+    AG.dirty = false; if (r.data && r.data.settings) AG.settings = Object.assign({}, ASG_DEF, r.data.settings);
+    if (!silent) agMsg('Taslak kaydedildi.');
+    loadAsg().then(paintClasses);
+    return true;
+  };
+  var parseRubric = function (txt) {
+    var items = String(txt || '').split('\n').map(function (l) { var m = l.match(/^\s*(\d+(?:[.,]\d+)?)\s*[|·:-]\s*(.+)$/); return m ? { points: parseFloat(m[1].replace(',', '.')), criterion: m[2].trim().slice(0, 240) } : null; }).filter(function (x) { return x && x.points > 0 && x.criterion; }).slice(0, 6);
+    if (items.length < 2) return null;
+    var tot = items.reduce(function (a, x) { return a + x.points; }, 0), sc = items.map(function (x) { return { criterion: x.criterion, points: Math.max(1, Math.round(x.points * 100 / tot)) }; });
+    var diff = 100 - sc.reduce(function (a, x) { return a + x.points; }, 0), k = 0; sc.forEach(function (x, j) { if (x.points > sc[k].points) k = j; }); sc[k].points += diff;
+    return sc;
+  };
+  var genOne = async function (focus, type) {
+    var src = AG.source || {}, S = AG.settings, sc = S.scoring || {};
+    var body = { assignmentDraft: true, examType: TYPE_FOR[type] || S.exam_type || 'mixed', language: S.language || 'tr', difficulty: S.difficulty || 'medium', questionCount: 1,
+      optionCount: sc.option_count || 4, negativeMarking: sc.negative_marking ? (sc.wrong_per_correct || true) : 0, decimalPlaces: sc.decimal_places || 0, noGraphs: type !== 'graph' };
+    if (focus) body.focusConcept = String(focus).slice(0, 120);
+    if (src.type === 'course' && src.course_code) { body.sourceType = 'course'; body.courseCode = src.course_code; body.courseDepartment = src.course_department || ''; }
+    else if (src.study_card_id) body.studyCardId = src.study_card_id;
+    else throw new Error('Bu ödevin kaynağı yok; soruyu elle yaz.');
+    var ses = (await sb().auth.getSession()).data.session; if (!ses) throw new Error('Oturum bulunamadı; yeniden giriş yap.');
+    var res = await fetch(SUPABASE_URL + '/functions/v1/generate-exam', { method: 'POST', headers: { Authorization: 'Bearer ' + ses.access_token, 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY }, body: JSON.stringify(body) });
+    var d = await res.json().catch(function () { return {}; });
+    if (!res.ok || !d.questions || !d.questions.length) throw new Error(d.error || 'Soru üretilemedi; tekrar dene.');
+    var q = Object.assign({}, d.questions[0]); delete q.id; return q;
+  };
+  var blankQ = function (t) {
+    var lang = AG.settings.language || 'tr', n = (AG.settings.scoring && AG.settings.scoring.option_count) || 4;
+    if (t === 'multiple_choice') return { type: t, author: 'teacher', question: '', options: Array.apply(null, Array(n)).map(function () { return ''; }), correct_answer: '' };
+    if (t === 'true_false') { var tf = lang === 'en' ? ['True', 'False'] : ['Doğru', 'Yanlış']; return { type: t, author: 'teacher', question: '', options: tf, correct_answer: tf[0] }; }
+    if (t === 'fill_blank') return { type: t, author: 'teacher', question: '', correct_answer: '', accepted_answers: [] };
+    return { type: 'open_ended', author: 'teacher', question: '', correct_answer: '' };
+  };
+  var qAt = function (el) { var li = el.closest('[data-aq]'); return li ? +li.getAttribute('data-aq') : -1; };
+  var onEdit = function (e) {
+    if (!AG || AG.status !== 'draft') { var dd = e.target.closest('[data-ag="due_at"]'); if (dd && AG) AG.due_at = fromLocalInput(dd.value); return; }
+    var t = e.target, f;
+    if ((f = t.getAttribute('data-ag'))) { AG[f] = f === 'opens_at' || f === 'due_at' ? fromLocalInput(t.value) : t.value; AG.dirty = true; return; }
+    if ((f = t.getAttribute('data-ags'))) {
+      AG.settings[f] = t.type === 'checkbox' ? t.checked : (/^\d+$/.test(t.value) ? +t.value : t.value);
+      if (f === 'time_limit_minutes' && !AG.settings[f]) AG.settings[f] = null;
+      if (f === 'late') { var lt = $('[data-ag-late]', asgBody); if (lt) lt.hidden = t.value !== 'penalty'; }
+      AG.dirty = true; return;
+    }
+    var i = qAt(t); if (i < 0) return; var q = AG.questions[i]; if (!q) return;
+    if (q.author !== 'teacher') q.edited = true;
+    if ((f = t.getAttribute('data-aq-f'))) {
+      if (f === 'accepted_answers') q.accepted_answers = t.value.split(',').map(function (x) { return x.trim(); }).filter(Boolean).slice(0, 10);
+      else if (f === 'rubric') { var rb = parseRubric(t.value); if (rb) q.rubric = rb; else delete q.rubric; }
+      else q[f] = t.value;
+    } else if (t.hasAttribute('data-aq-opt')) {
+      var j = +t.getAttribute('data-aq-opt'), old = q.options[j]; q.options[j] = t.value; if (old !== '' && q.correct_answer === old) q.correct_answer = t.value;
+    } else if (t.hasAttribute('data-aq-ok')) q.correct_answer = q.options[+t.getAttribute('data-aq-ok')];
+    AG.dirty = true;
+  };
+  asgBody.addEventListener('input', onEdit);
+  asgBody.addEventListener('change', onEdit);
+  asgBody.addEventListener('click', async function (e) {
+    var b = e.target.closest('button'); if (!b || !AG) return;
+    var i = qAt(b), Q = AG.questions;
+    if (b.hasAttribute('data-ag-x')) { asgDlg.close(); return; }
+    if (b.hasAttribute('data-ag-undo')) { var u = agUndo; agUndo = null; if (u) u(); return; }
+    if (b.hasAttribute('data-aq-up') && i > 0) { Q.splice(i - 1, 0, Q.splice(i, 1)[0]); AG.dirty = true; paintQs('[data-aq="' + (i - 1) + '"] [data-aq-up]:not(:disabled), [data-aq="' + (i - 1) + '"] [data-aq-dn]'); return; }
+    if (b.hasAttribute('data-aq-dn') && i < Q.length - 1) { Q.splice(i + 1, 0, Q.splice(i, 1)[0]); AG.dirty = true; paintQs('[data-aq="' + (i + 1) + '"] [data-aq-dn]:not(:disabled), [data-aq="' + (i + 1) + '"] [data-aq-up]'); return; }
+    if (b.hasAttribute('data-aq-del')) {
+      var gone = Q.splice(i, 1)[0]; AG.dirty = true; paintQs('[data-aq="' + Math.min(i, Q.length - 1) + '"] [data-aq-del]');
+      agMsg((i + 1) + '. soru silindi.', false, function () { Q.splice(i, 0, gone); AG.dirty = true; paintQs('[data-aq="' + i + '"] [data-aq-del]'); agMsg('Geri alındı.'); }); return;
+    }
+    if (b.hasAttribute('data-aq-optadd')) { if (Q[i].options.length < 6) Q[i].options.push(''); AG.dirty = true; paintQs('[data-aq="' + i + '"] [data-aq-opt="' + (Q[i].options.length - 1) + '"]'); return; }
+    if (b.hasAttribute('data-aq-optx')) { var j = +b.getAttribute('data-aq-optx'), o = Q[i].options[j]; if (Q[i].options.length <= 2) return; Q[i].options.splice(j, 1); if (Q[i].correct_answer === o) Q[i].correct_answer = ''; AG.dirty = true; paintQs('[data-aq="' + i + '"] [data-aq-opt="' + Math.max(0, j - 1) + '"]'); return; }
+    if (b.hasAttribute('data-ag-add')) { Q.push(blankQ(b.getAttribute('data-ag-add'))); AG.dirty = true; paintQs('[data-aq="' + (Q.length - 1) + '"] [data-aq-f="question"]'); return; }
+    if (b.hasAttribute('data-aq-regen') || b.hasAttribute('data-ag-ai')) {
+      var regen = b.hasAttribute('data-aq-regen'), txt = b.textContent; b.disabled = true; b.textContent = 'yazılıyor…'; agMsg('Acadia soruyu yazıyor; 15-40 sn sürebilir…');
+      try {
+        var nq = await genOne(regen ? Q[i].concept : null, regen ? Q[i].type : (AG.settings.exam_type === 'classic' ? 'open_ended' : AG.settings.exam_type === 'test' ? 'multiple_choice' : null));
+        if (regen) Q[i] = nq; else Q.push(nq);
+        AG.dirty = true; agMsg(regen ? (i + 1) + '. soru yeniden üretildi.' : 'Soru eklendi.');
+        paintQs(regen ? '[data-aq="' + i + '"] [data-aq-regen]' : '[data-aq="' + (Q.length - 1) + '"] [data-aq-regen]');
+      } catch (x) { agMsg(x.message || 'Soru üretilemedi.', true); if (b.isConnected) { b.disabled = false; b.textContent = txt; } }
+      return;
+    }
+    if (b.hasAttribute('data-ag-save')) { b.disabled = true; await saveAsg(false); b.disabled = false; return; }
+    if (b.hasAttribute('data-ag-pub')) {
+      if (!window.confirm('Ödev yayınlansın mı?\n\nSorular kilitlenir; sonra yalnızca son teslim tarihini değiştirebilir ya da ödevi kapatabilirsin. Öğrenciler ödevi açılış zamanında görür.')) return;
+      b.disabled = true;
+      if (await saveAsg(true)) {
+        var r = await sb().rpc('assignment_publish', { p_id: AG.id });
+        if (r.error) agMsg(clsErrText(r.error), true);
+        else { Object.assign(AG, r.data || {}, { status: 'published' }); paintEditor(); agMsg('Yayınlandı. Öğrenciler ' + (AG.opens_at && new Date(AG.opens_at) > new Date() ? dtl(AG.opens_at) + ' itibarıyla' : 'şimdi') + ' görebilir; son teslim ' + dtl(AG.due_at) + '.'); loadAsg().then(paintClasses); }
+      }
+      if (b.isConnected) b.disabled = false; return;
+    }
+    if (b.hasAttribute('data-ag-del')) {
+      if (!window.confirm('Taslak silinsin mi? Geri alınamaz.')) return;
+      var rd = await sb().rpc('assignment_delete', { p_id: AG.id });
+      if (rd.error) { agMsg(clsErrText(rd.error), true); return; }
+      AG = null; asgDlg.close(); say('Taslak silindi.'); loadAsg().then(paintClasses); return;
+    }
+    if (b.hasAttribute('data-ag-dates')) {
+      var rs = await sb().rpc('assignment_set_dates', { p_id: AG.id, p_opens_at: AG.opens_at || null, p_due_at: AG.due_at || null });
+      if (rs.error) { agMsg(clsErrText(rs.error), true); return; }
+      Object.assign(AG, rs.data || {}); paintEditor(); agMsg('Son teslim ' + dtl(AG.due_at) + ' oldu.'); loadAsg().then(paintClasses); return;
+    }
+    if (b.hasAttribute('data-ag-close')) {
+      if (!window.confirm('Ödev kapatılsın mı? Öğrenciler artık başlayamaz ve teslim edemez. Son teslimi ileri alarak yeniden açabilirsin.')) return;
+      var rc = await sb().rpc('assignment_close', { p_id: AG.id });
+      if (rc.error) { agMsg(clsErrText(rc.error), true); return; }
+      AG.status = 'closed'; paintEditor(); agMsg('Ödev kapandı.'); loadAsg().then(paintClasses);
+    }
+  });
+  /* kapanınca kaydedilmemiş taslak sessizce kaydedilir */
+  asgDlg.addEventListener('close', function () { if (AG && AG.dirty && AG.status === 'draft') saveAsg(true).then(function (ok) { if (ok) say('Taslak kaydedildi.'); }); });
 
   var paintAll = function () { paintCal(); paintDesks(); paintReport(); paintErrs(); };
 
