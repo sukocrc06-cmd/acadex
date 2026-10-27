@@ -1117,6 +1117,7 @@
 <button type="button" class="sn-x" data-dlg-x="" aria-label="Kapat">×</button>
 <div class="sn-bd-form">
 <h2 id="bd-t" class="disp">sınav kâğıdı hazırla</h2>
+<p class="sn-asg-ban" data-asg-ban="" hidden></p>
 <fieldset class="sn-f sn-srcs axs-srcs"><legend>sorular nereden?</legend>
 <label><input type="radio" name="exam-source" value="study_card" checked onchange="onExamSourceChange()"><span><b>belgem</b><small>özetlediğin bir belgeden</small></span></label>
 <label><input type="radio" name="exam-source" value="course" onchange="onExamSourceChange()"><span><b>ders ağacı</b><small>müfredattaki bir dersten, özet gerekmez</small></span></label>
@@ -1170,7 +1171,7 @@
 <div class="sn-f3">
 <label class="sn-f axs-cnt"><span>soru sayısı</span><span class="sn-mx on"><button type="button" data-cnt="-1" aria-label="Bir azalt">−</button><input type="number" id="exam-question-count" value="10" min="1" max="20" aria-label="Soru sayısı"><button type="button" data-cnt="1" aria-label="Bir artır">+</button></span><small id="exam-question-count-range-hint" class="axs-hint"></small></label>
 <fieldset class="sn-f axs-lang"><legend>dil</legend><label><input type="radio" name="exam-lang" value="en" checked><span>English</span></label><label><input type="radio" name="exam-lang" value="tr"><span>Türkçe</span></label></fieldset>
-<label class="sn-f sn-chk"><input type="checkbox" id="exam-simulation-toggle"><span>gerçek sınav provası <small>süreli, ipucu yok, süre bitince teslim</small></span></label>
+<label class="sn-f sn-chk" data-sim-row=""><input type="checkbox" id="exam-simulation-toggle"><span>gerçek sınav provası <small>süreli, ipucu yok, süre bitince teslim</small></span></label>
 </div>
 <p class="sn-err" data-bd-err="" role="alert" hidden></p>
 <div class="sn-dlg-b"><span class="axs-bd-note hand" data-bd-note=""></span><button type="button" class="sn-ghost" data-dlg-x="">vazgeç</button><button type="button" class="btn btn-blue" id="btn-generate-exam" onclick="generateExam()">kitapçığı dağıt</button></div>
@@ -1203,6 +1204,10 @@
 <p class="axs-pf-n">Sınıf açılınca 6 karakterlik bir katılım kodu verilir; öğrenciler kodu sınav salonunda girip katılır. Öğrencinin yalnızca adını, numarasını, bölümünü ve senin verdiğin ödevlerin sonuçlarını görürsün; konu ustalığını yalnızca izin veren öğrencilerde.</p>
 <div class="sn-dlg-b"><span></span><button type="button" class="sn-ghost" data-dlg-x="">vazgeç</button><button type="submit" class="btn btn-dark" data-cs-go="">sınıfı aç</button></div>
 </form>
+</dialog>
+<!-- Faz 6.2: ödev düzenleyici (içerik acadex-ink.js'te çizilir) -->
+<dialog class="sn-dlg sn-wide sn-asg-dlg" data-asgdlg="" aria-labelledby="ag-t">
+<div class="sn-dlg-in sn-asg-in" data-asg-body=""></div>
 </dialog>
 </div>
 

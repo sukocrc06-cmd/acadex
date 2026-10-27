@@ -7831,6 +7831,14 @@ async function generateExam() {
   if ((document.getElementById('exam-adaptive') || {}).checked) {
     requestBody.adaptive = { daysToExam: Number.isFinite(window.__examAdaptiveDays) ? window.__examAdaptiveDays : null };
   }
+  // FAZ 6.2: öğretmenin ödev taslağı — sınav açılmaz; sorular cevaplarıyla
+  // ödev düzenleyicisine gider (acadex-ink.js window.__examAssignmentDraft.done).
+  const asgDraft = window.__examAssignmentDraft && typeof window.__examAssignmentDraft.done === 'function' ? window.__examAssignmentDraft : null;
+  if (asgDraft) {
+    requestBody.assignmentDraft = true;
+    requestBody.isSimulation = false;
+    delete requestBody.adaptive;
+  }
 
   if (examSelectedSource === 'course') {
     if (!examSelectedCourse || !examSelectedCourse.code) {
@@ -7914,6 +7922,12 @@ async function generateExam() {
       showDashboardAlert('error', data.error || 'Sınav oluşturulamadı.');
       btn.disabled = false;
       btn.textContent = originalText;
+      return;
+    }
+
+    if (asgDraft) {
+      if (data && data.draft && Array.isArray(data.questions)) { clearExamFocusConcept(); asgDraft.done(data, requestBody); }
+      else showDashboardAlert('error', 'Ödev taslağı hazırlanamadı.');
       return;
     }
 
