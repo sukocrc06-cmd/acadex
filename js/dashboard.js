@@ -1306,6 +1306,15 @@ async function proceedWithSummarization() {
   const summaryDepth = undefined;
   const summaryLength = undefined;
 
+  /* TEK KOSULUK BAYRAK ERKEN DONUSLERDEN ONCE TUKETILIYOR (27.10.2026).
+     Asagidaki merge ve bulk dallari `return` ediyor ve eski tuketim yeri
+     invoke'un hemen ustundeydi: "yeniden ozetle" baslatilip ardindan
+     toplu/birlestirilmis bir ozet calistirildiginda bayrak sifirlanmadan
+     kaliyor ve SONRAKI ozet onbellegi bosu bosuna atliyordu — tam da
+     onbellegiYenile yorumunun onlemek istedigi sizinti. */
+  const yenile = onbellegiYenile;
+  onbellegiYenile = false;
+
   if (isMergeSummarize) {
     closeSummaryStyleModal();
     await triggerMergeSummarize(pendingMergeDocIds, summaryStyle, language, summaryLength, undefined, summaryDepth);
@@ -1403,9 +1412,6 @@ async function proceedWithSummarization() {
     }
 
     const invokeStartedAt = Date.now();
-    // Tek kosuluk bayrak, burada TUKETILIR — bkz. onbellegiYenile.
-    const yenile = onbellegiYenile;
-    onbellegiYenile = false;
     console.log('[ozet] invoke gonderiliyor:', docId, 'gorsel:', analyzeVisuals ? 'evet' : 'hayir',
       yenile ? 'ONBELLEK ATLANIYOR' : '');
 
@@ -13800,7 +13806,13 @@ async function proceedWithBulkSummarization(summaryStyle, language, summaryLengt
           // when unset — an undefined depth here lets the edge function
           // auto-select depth per-document from its own extracted length,
           // same as the simplified single-document flow above.
-          body: { documentId: docId, summaryStyle: summaryStyle, language: language, summaryLength: summaryLength, depth: summaryDepth, yenile: yenile }
+          /* yenile: TOPLU ozet normal yoldur, onbellegi kullanir.
+             Bu kapsamda `yenile` diye bir degisken YOK — 6a14385'te
+             tek-belge govdesiyle birlikte buraya da kopyalandi ve her
+             toplu ozet invoke'tan once ReferenceError atiyordu; disaridaki
+             catch onu yutuyor, belge ozetsiz kaliyordu. Bayragi yalnizca
+             proceedWithSummarization uretip tuketir (bkz. onbellegiYenile). */
+          body: { documentId: docId, summaryStyle: summaryStyle, language: language, summaryLength: summaryLength, depth: summaryDepth, yenile: false }
         });
 
         if (error || !data || !data.success) {

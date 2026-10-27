@@ -1097,6 +1097,42 @@ test('YENILE bayragi istege giriyor ve TEK KOSULUK', () => {
     'normal "Ozetle" yolu bayragi sifirlamiyor — iptal edilen yenileme sonraki kosulara sizar');
 });
 
+test('TOPLU ozet yolunda `yenile` TANIMSIZ degil', () => {
+  /* 6a14385 yenile'yi iki invoke govdesine birden kopyaladi ama degiskeni
+     yalnizca proceedWithSummarization'da tanimladi. proceedWithBulkSummarization
+     kapsaminda `yenile` diye bir baglanti YOK: govde degerlendirilirken
+     ReferenceError atiyor, disaridaki catch yutuyor ve toplu secilen her
+     belge ozetsiz kaliyordu. Testin yakaladigi sey tam olarak bu: bayragi
+     URETEN fonksiyonun disinda bare `yenile` okunmamali. */
+  const i = DASH_SRC.indexOf('async function proceedWithBulkSummarization(');
+  assert.ok(i > -1, 'toplu ozet yolu bulunamadi');
+  const son = DASH_SRC.indexOf('\nasync function ', i + 10);
+  const govde = DASH_SRC.slice(i, son > i ? son : i + 4000);
+  assert.ok(/yenile:\s*false/.test(govde),
+    'toplu yol onbellegi atlamali degil — yenile: false bekleniyor');
+  assert.ok(!/yenile:\s*yenile/.test(govde),
+    'toplu yolda tanimsiz `yenile` okunuyor — her toplu ozet ReferenceError ile duser');
+  // Degisken GERCEKTEN tek yerde uretiliyor: bayragin kapsami bu.
+  const uretim = (DASH_SRC.match(/const yenile = onbellegiYenile;/g) || []).length;
+  assert.equal(uretim, 1, 'bayrak birden fazla yerde uretiliyor — tek kosulukluk bozulur');
+});
+
+test('YENILE bayragi ERKEN DONUSLERDEN once tuketiliyor', () => {
+  /* proceedWithSummarization merge ve bulk dallarinda `return` ediyor;
+     tuketim invoke'un hemen ustundeydi, yani o iki yolda bayrak
+     sifirlanmadan kaliyordu. "Yeniden ozetle" baslatip ardindan toplu
+     ozet calistiran biri, SONRAKI normal ozette onbellegi bosu bosuna
+     atlatiyordu — 110 saniye ve bir RPD. */
+  const i = DASH_SRC.indexOf('async function proceedWithSummarization()');
+  assert.ok(i > -1, 'ozet yolu bulunamadi');
+  const tuket = DASH_SRC.indexOf('const yenile = onbellegiYenile;');
+  const merge = DASH_SRC.indexOf('await triggerMergeSummarize(');
+  const bulk = DASH_SRC.indexOf('await proceedWithBulkSummarization(');
+  assert.ok(tuket > i, 'tuketim fonksiyonun disina cikmis');
+  assert.ok(tuket < merge, 'merge donusu bayragi tuketmeden donuyor');
+  assert.ok(tuket < bulk, 'bulk donusu bayragi tuketmeden donuyor');
+});
+
 test('EDGE FUNCTION yenile bayragini okuyor', () => {
   /* Istemci gonderip sunucu okumazsa dugme sessizce hicbir sey yapmaz:
      kullanici yine onbellekteki yarim karti alir. */
