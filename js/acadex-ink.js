@@ -2898,7 +2898,7 @@ window.axNotify = function (title, opts) {
     var e = EXM, lim = e.is_simulation && e.time_limit_seconds ? Math.round(e.time_limit_seconds / 60) : 0;
     book.className = 'sn-book cover';
     book.innerHTML = '<span class="sn-k">' + esc($L('[data-hl-course]').textContent) + '</span><h3>' + esc((TYPE[e.exam_type] || 'deneme') + ' sınavı') + '</h3><p class="meta">' + QS.length + ' soru · ' + (DIFF[e.difficulty] || '') + ' · ' + (e.language === 'tr' ? 'Türkçe' : 'English') + '</p>' +
-      '<ul><li>' + (lim ? 'süre: ' + lim + ' dakika; sayaç sınav hazırlanınca başladı, bitince kâğıt kendiliğinden toplanır' : 'süre sınırı yok; kendi hızında çöz') + '</li><li>' + (e.is_simulation ? 'ipucu yok, gerçek sınav gibi' : 'her soruda bir ipucu alabilirsin') + '</li>' + (e.scoring && +e.scoring.decimal_places ? '<li><b>sayı hassasiyeti:</b> hesap cevapları ' + esc(precLabel(e.scoring.decimal_places)) + ' doğru olmalı; sonucu bu basamağa yuvarla.</li>' : '') + (e.scoring && e.scoring.negative_marking ? '<li><b>yanlış doğruyu götürür:</b> ' + esc(String(e.scoring.wrong_per_correct || 4)) + ' yanlış 1 doğruyu siler (yalnızca çoktan seçmeli); emin değilsen boş bırak</li>' : '') + '<li>sorular arasında optik formdan gezebilirsin</li><li>emin olmadığını “işaretle”, sonra dön</li></ul>' +
+      '<ul><li>' + (lim ? 'süre: ' + lim + ' dakika; sayaç sınav hazırlanınca başladı, bitince kâğıt kendiliğinden toplanır' : 'süre sınırı yok; kendi hızında çöz') + '</li><li>' + (e.is_simulation ? 'ipucu yok, gerçek sınav gibi' : 'her soruda bir ipucu alabilirsin') + '</li>' + (e.scoring && +e.scoring.decimal_places ? '<li><b>sayı hassasiyeti:</b> hesap cevapları ' + esc(precLabel(e.scoring.decimal_places)) + ' doğru olmalı; sonucu bu basamağa yuvarla.</li>' : '') + (e.scoring && e.scoring.negative_marking ? '<li><b>yanlış doğruyu götürür:</b> ' + esc(String(e.scoring.wrong_per_correct || 4)) + ' yanlış 1 doğruyu siler (yalnızca çoktan seçmeli); emin değilsen boş bırak</li>' : '') + '<li>sorular arasında optik formdan gezebilirsin</li><li>emin olmadığını “işaretle”, sonra dön; işaretli doğrular konu ustalığına daha az katkı yapar</li></ul>' +
       (e.is_simulation ? '<p class="warn">SEKMEDEN ÇIKARSAN NOT EDİLİR</p>' : '') + '<button type="button" class="btn btn-blue" data-open-book="">kitapçığı aç</button>';
     setTimeout(function () { var b = book.querySelector('[data-open-book]'); if (b) b.focus(); }, 60);
   };
@@ -3367,16 +3367,21 @@ window.axNotify = function (title, opts) {
   };
   /* FAZ 5.1: konu ustalığı (exam-engine conceptMastery). Seçili masa ya da
      tümü; tekrar zamanı gelenler ve en zayıflar başta. */
-  var mastEl = $('[data-mastery]'), mastSum = $('[data-mast-sum]'), mastGo = $('[data-mast-go]'), mastAll = false;
+  var mastEl = $('[data-mastery]'), mastSum = $('[data-mast-sum]'), mastGo = $('[data-mast-go]'), mastRev = $('[data-mrev]'), mastAll = false, revList = [];
   var LV_CLS = ['lo', 'mid', 'ok', 'top'];
   var paintMastery = function (ds) {
     if (!mastEl) return;
     var eng = ENG();
     if (!eng || typeof eng.conceptMastery !== 'function') { mastEl.innerHTML = ''; if (mastSum) mastSum.textContent = ''; return; }
-    var rows = [];
+    var rows = []; revList = [];
     (rSel === 'all' ? ds : ds.filter(function (d) { return d.key === rSel; })).forEach(function (d) {
-      eng.conceptMastery(d.ex).forEach(function (c) { c.desk = d; rows.push(c); });
+      var ms = eng.conceptMastery(d.ex);
+      ms.forEach(function (c) { c.desk = d; rows.push(c); });
+      /* FAZ 5.3: tekrar takvimi (yetkin/usta konularda hafızanın %80'e ineceği gün) */
+      if (typeof eng.reviewSchedule === 'function') eng.reviewSchedule(ms).forEach(function (r) { r.desk = d; revList.push(r); });
     });
+    revList.sort(function (a, b) { return a.dueAt - b.dueAt; });
+    paintReviews();
     rows.sort(function (a, b) { return (b.due - a.due) || (a.p * (0.5 + a.retention / 200)) - (b.p * (0.5 + b.retention / 200)); });
     if (!rows.length) {
       mastEl.innerHTML = '<li class="sn-empty">konu etiketli sorular çözdükçe her konudaki ustalığın burada belirir.</li>';
@@ -3400,6 +3405,35 @@ window.axNotify = function (title, opts) {
         '<span class="bar" role="img" aria-label="ustalık ' + c.mastery + ' / 100"><i style="width:' + c.mastery + '%"></i></span>' + act + '</li>';
     }).join('') + (rows.length > 10 ? '<li class="sn-mmore"><button type="button" class="sn-ghost" data-mast-all="">' + (mastAll ? 'daha az göster' : 'tümünü göster (' + rows.length + ')') + '</button></li>' : '');
   };
+  var MON_S = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+  var revWhen = function (r) { if (r.inDays === 0) return r.overdue ? 'bugün (gecikti)' : 'bugün'; if (r.inDays === 1) return 'yarın'; if (r.inDays < 7) return r.inDays + ' gün sonra'; var d = new Date(r.dueAt); return d.getDate() + ' ' + MON_S[d.getMonth()]; };
+  var paintReviews = function () {
+    if (!mastRev) return;
+    if (!revList.length) { mastRev.hidden = true; mastRev.innerHTML = ''; return; }
+    mastRev.hidden = false;
+    mastRev.innerHTML = '<p><b>sıradaki tekrarlar</b> ' + revList.slice(0, 4).map(function (r) { return '<span class="' + (r.inDays === 0 ? 'now' : '') + '">' + esc(r.name) + ' · ' + esc(revWhen(r)) + '</span>'; }).join('') + (revList.length > 4 ? '<span>+' + (revList.length - 4) + '</span>' : '') + '</p>' +
+      '<button type="button" class="sn-ghost" data-rev-add="">planlayıcıya ekle (' + Math.min(12, revList.length) + ')</button>';
+  };
+  /* Tekrar tarihlerini planlayıcıya "Tekrar zamanı: …" hedefi olarak ekler; açık
+     aynı başlıklı hedef varsa tekrar eklemez. */
+  var addReviews = async function (btn) {
+    if (!me() || !sb() || !revList.length) return;
+    btn.disabled = true;
+    try {
+      var r0 = await sb().from('study_events').select('title').eq('user_id', me().id).eq('is_done', false);
+      var have = {}; (r0.data || []).forEach(function (e) { have[e.title] = true; });
+      var rows = revList.slice(0, 12).map(function (r) {
+        return { user_id: me().id, title: 'Tekrar zamanı: ' + r.name, event_date: r.dueDate, event_type: 'goal', is_done: false,
+          notes: 'Acadex ustalık haritası (' + r.desk.name + '): bu konuda hafızanın %80\'e ineceği gün. Kısa bir akıllı deneme yeter.' };
+      }).filter(function (x) { return !have[x.title]; });
+      if (!rows.length) { say('Bu tekrarlar zaten planlayıcında.'); btn.disabled = false; return; }
+      var r1 = await sb().from('study_events').insert(rows).select('id');
+      if (r1.error) throw r1.error;
+      say(rows.length + ' tekrar planlayıcıya eklendi; günü gelince bildirim çanında da görünür.');
+      btn.textContent = 'planlayıcıda ✓';
+    } catch (e) { console.warn('acadex-ink: tekrarlar eklenemedi', e); say('Tekrarlar eklenemedi; birazdan tekrar dene.'); btn.disabled = false; }
+  };
+  if (mastRev) mastRev.addEventListener('click', function (e) { var b = e.target.closest('[data-rev-add]'); if (b) addReviews(b); });
   if (mastGo) mastGo.addEventListener('click', function () {
     var k = mastGo.getAttribute('data-key');
     Promise.resolve(openBuild(k)).then(function () { var ad = $('#exam-adaptive'); if (ad) { ad.checked = true; ad.dispatchEvent(new Event('change', { bubbles: true })); } paintCover(); });

@@ -12860,6 +12860,33 @@ async function gatherNotificationItems(lastCheck) {
     console.error('gatherNotificationItems (shared cards) error:', err);
   }
 
+  // 1b. FAZ 5.3: günü gelen konu tekrarları (ustalık haritasından planlayıcıya
+  // eklenen "Tekrar zamanı: …" hedefleri). Günü gelince bir kez görünür.
+  try {
+    const todayStr = getLocalDateString();
+    const lastDay = String(lastCheck || '').slice(0, 10);
+    const { data: revs, error } = await supabaseClient
+      .from('study_events')
+      .select('id, title, event_date, is_done')
+      .eq('user_id', currentUser.id)
+      .eq('is_done', false)
+      .like('title', 'Tekrar zamanı:%');
+    if (!error && revs) {
+      revs
+        .filter(ev => ev.event_date && ev.event_date <= todayStr && ev.event_date >= lastDay)
+        .forEach(ev => {
+          items.push({
+            time: ev.event_date + 'T08:00:00',
+            title: `🔁 ${escapeHtml(ev.title)}`,
+            subtitle: 'Bu konuda hafızan %80\'in altına indi; kısa bir akıllı deneme yeter.',
+            onClick: () => switchDashboardView('exams')
+          });
+        });
+    }
+  } catch (err) {
+    console.error('gatherNotificationItems (konu tekrarları) error:', err);
+  }
+
   // 2. Announcements — school-wide (audience_department null) or yours
   try {
     const { data: anns, error } = await supabaseClient

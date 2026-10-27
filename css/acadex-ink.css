@@ -3787,6 +3787,12 @@ body.acx .t-arrow path{stroke-dashoffset:0 !important;transition:none !important
 :is(#exams-view.axs,#axs-layer) .sn-mch span.up{background:#E3F2EA;color:var(--green)}
 :is(#exams-view.axs,#axs-layer) .sn-mch span.down{background:#FCEDE4;color:#9A3F2C}
 :is(#exams-view.axs,#axs-layer) .sn-mast-go{margin-left:auto;padding:6px 14px;font-size:13px;min-height:34px}
+:is(#exams-view.axs,#axs-layer) .sn-mrev{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 14px;margin-top:10px;padding:10px 12px;border-radius:12px;background:#F6F8FD}
+:is(#exams-view.axs,#axs-layer) .sn-mrev p{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0;font-size:12.5px}
+:is(#exams-view.axs,#axs-layer) .sn-mrev p b{color:var(--muted);font-size:12px;margin-right:2px}
+:is(#exams-view.axs,#axs-layer) .sn-mrev p span{padding:3px 9px;border-radius:12px;background:#fff;color:var(--ink);border:1px solid #E6EBF5}
+:is(#exams-view.axs,#axs-layer) .sn-mrev p span.now{background:#FFF2D6;color:var(--amber);border-color:#F6DFA8}
+:is(#exams-view.axs,#axs-layer) .sn-mrev .sn-ghost{padding:5px 12px;font-size:13px;min-height:32px}
 [data-builddlg] .is-off{opacity:.45}
 [data-builddlg] [data-diff-box].is-off{pointer-events:none}
 .axs-adnote{font-weight:500;color:#2C55C9;margin-left:6px}

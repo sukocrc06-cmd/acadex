@@ -1074,6 +1074,18 @@ function buildAttemptRows(
   })
 }
 
+/** FAZ 5.3: sonuçlara öğrencinin "işaretle" (emin değilim) ve ipucu
+ *  bilgisini yazar (yalnızca true olanlar; eski sonuçlar değişmez). */
+function markConfidence(results: Array<Record<string, unknown>>, flags: unknown, hintsUsed: unknown): void {
+  const flagSet = new Set((Array.isArray(flags) ? flags : []).map(String))
+  const hintSet = new Set((Array.isArray(hintsUsed) ? hintsUsed : []).map(String))
+  for (const r of results) {
+    const id = String(r.question_id ?? r.id ?? '')
+    if (flagSet.has(id)) r.flagged = true
+    if (hintSet.has(id)) r.hint_used = true
+  }
+}
+
 /** Nihai not: puanlanamayan (score === null) sorular ortalamaya girmez. */
 function computeFinalGrade(results: Array<{ score: number | null }>): number | null {
   const scored = results.filter(r => typeof r.score === 'number') as Array<{ score: number }>
@@ -1491,6 +1503,10 @@ ${JSON.stringify(batch.map(c => ({
       // öğrenci tekrar gönderebilsin.
       return json({ error: isTr ? 'Puanlama servisi şu anda yanıt vermiyor. Cevaplarınız kaybolmadı, lütfen tekrar gönderin.' : 'The grading service is not responding. Your answers are kept; please submit again.' }, 502)
     }
+
+    // FAZ 5.3: "işaretle" (emin değilim) ve ipucu bilgisi sonuçta da dursun;
+    // konu ustalığı şansla ya da ipucuyla gelen doğruyu zayıf kanıt sayar.
+    markConfidence(results, flags, exam.hints_used)
 
     // Koşullu tamamlama: completed_at hâlâ boşsa yaz. Aynı anda gelen ikinci
     // gönderim burada satır bulamaz ve 409 alır.

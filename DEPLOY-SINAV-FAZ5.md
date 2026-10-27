@@ -87,6 +87,30 @@ Kaynaklar:
 
 **Deploy:** `generate-exam` otomatik (GitHub Actions); ön yüz Vercel.
 
-## Sıradaki
+## Faz 5.3: güven işareti ve tekrar takvimi
 
-- **5.3:** tekrar zamanı gelen konular planlayıcıya ve bildirimlere; sorularda "emin değilim" işareti (şansla doğru, ustalığı şişirmesin).
+**"Emin değilim" işareti:** sınavdaki mevcut **"işaretle"** düğmesi kullanılır. Öğrenciye zaten "emin olmadığını işaretle, sonra dön" diye anlatılıyordu; ikinci bir düğme eklenmedi. Sınav girişindeki açıklamaya "işaretli doğrular konu ustalığına daha az katkı yapar" eklendi.
+- `grade-exam` → `markConfidence`: sonuçlara `flagged` ve `hint_used` yazılır (yalnızca true olanlar). Eskiden yalnızca `question_attempts`'te duruyordu.
+- **Ustalık modeli** (iki kopya):
+  - İşaretli doğru ×0,6, ipucuyla gelen doğru ×0,5 kanıt (Pearson DSM; Khan Academy'de ipucu ustalık saymaz).
+  - Yanlış cevapta işaret fark etmez.
+  - İşaretli 3 doğru "yetkin" yapmaz.
+
+**Tekrar takvimi** (`exam-engine` → `reviewSchedule`):
+- Yetkin ve usta konularda hafızanın %80'e ineceği gün: t* = S · 81/19 · (0,8⁻² − 1).
+- Geçmiş tarih bugüne çekilir; 60 günün ötesi gösterilmez.
+- **Ustalık haritası:** "sıradaki tekrarlar" satırı (bugün, yarın, N gün sonra, tarih) ve **"planlayıcıya ekle"** düğmesi. En çok 12 "Tekrar zamanı: …" hedefi eklenir (`study_events`, `goal`); aynı başlıklı açık hedef varsa eklenmez. Düğme öğrenci isteğiyle çalışır, planlayıcı kendiliğinden dolmaz.
+- **Bildirim çanı** (`gatherNotificationItems`): günü gelen "Tekrar zamanı" hedefi bir kez bildirim olur ("hafızan %80'in altına indi; kısa bir akıllı deneme yeter"); tıklayınca sınav salonu açılır.
+
+**Sınav ekranından atılma bildirimi (27.10.2026):** çizim aracında hata yok.
+- **Sebep:** canlı test, öğrencinin kullandığı sekmede sayfayı yenileyip yeni sınav kurdu.
+- **Deneme:** test ortamında ve canlıda ayrı sekmede 14 düzenleme adımı (seç, sürükle, koordinat + Enter/Tab, etiket, kesikli, Delete/Backspace, geri al, sil, Esc) denendi; sınav kapanmadı.
+- **Sonuç:** öğrencinin sınavı taslaktan "Yarım kalan bir sınavın var → Devam et" ile dönülebilir durumda.
+- **Kural:** canlı testler artık ayrı sekmede yapılıyor.
+
+**Test:**
+- `tests/exam-mastery.js`: 12 test.
+- `tests/exam-adaptive.js`: model eşliği işaretli ve ipuçlu verilerle de denetleniyor.
+- Tarayıcı: `run17` (çizim düzenleme), `run18` (tekrar satırı ve planlayıcı).
+
+**Deploy:** `grade-exam`, `generate-exam` otomatik; ön yüz Vercel.
