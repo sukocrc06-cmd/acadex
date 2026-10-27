@@ -3756,6 +3756,37 @@ body.acx .t-arrow path{stroke-dashoffset:0 !important;transition:none !important
 :is(#exams-view.axs,#axs-layer) .sn-trow .bar i.lo{background:var(--red)}
 :is(#exams-view.axs,#axs-layer) .sn-trow .bar i.mid{background:#5B8CFF}
 :is(#exams-view.axs,#axs-layer) .sn-trow .v{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:var(--muted);text-align:right}
+:is(#exams-view.axs,#axs-layer) .sn-mast-c{grid-column:1 / -1}
+:is(#exams-view.axs,#axs-layer) .sn-mast-h{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+:is(#exams-view.axs,#axs-layer) .sn-mast-sum{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:var(--muted)}
+:is(#exams-view.axs,#axs-layer) .sn-mast{list-style:none;margin:8px 0 0;padding:0}
+:is(#exams-view.axs,#axs-layer) .sn-mrow{display:grid;grid-template-columns:minmax(0,1fr) auto auto minmax(80px,140px) auto;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid #EEF1F7}
+:is(#exams-view.axs,#axs-layer) .sn-mrow .nm{display:flex;flex-direction:column;min-width:0}
+:is(#exams-view.axs,#axs-layer) .sn-mrow .nm b{font-size:14px;color:var(--ink);overflow-wrap:anywhere}
+:is(#exams-view.axs,#axs-layer) .sn-mrow .mt{font-size:11.5px;color:var(--muted)}
+:is(#exams-view.axs,#axs-layer) .sn-mrow .lv{font-size:12px;font-weight:700;padding:3px 10px;border-radius:12px;background:#FCEDE4;color:#9A3F2C;white-space:nowrap}
+:is(#exams-view.axs,#axs-layer) .sn-mrow.mid .lv{background:#EEF3FF;color:#2C55C9}
+:is(#exams-view.axs,#axs-layer) .sn-mrow.ok .lv{background:#E3F2EA;color:var(--green)}
+:is(#exams-view.axs,#axs-layer) .sn-mrow.top .lv{background:var(--green);color:#fff}
+:is(#exams-view.axs,#axs-layer) .sn-mrow .due{font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:12px;background:#FFF2D6;color:var(--amber);white-space:nowrap}
+:is(#exams-view.axs,#axs-layer) .sn-mrow .bar{position:relative;height:10px;border-radius:5px;background:#EEF1F7;overflow:hidden;grid-column:4}
+:is(#exams-view.axs,#axs-layer) .sn-mrow .bar i{position:absolute;left:0;top:0;bottom:0;border-radius:5px;background:var(--red)}
+:is(#exams-view.axs,#axs-layer) .sn-mrow.mid .bar i{background:#5B8CFF}
+:is(#exams-view.axs,#axs-layer) .sn-mrow.ok .bar i,:is(#exams-view.axs,#axs-layer) .sn-mrow.top .bar i{background:var(--green)}
+:is(#exams-view.axs,#axs-layer) .sn-mrow .sn-ghost{grid-column:5;white-space:nowrap;padding:5px 12px;font-size:13px;min-height:32px}
+:is(#exams-view.axs,#axs-layer) .sn-mrow .lv,:is(#exams-view.axs,#axs-layer) .sn-mrow .due{justify-self:start}
+:is(#exams-view.axs,#axs-layer) .sn-mrow .due{grid-column:3}
+:is(#exams-view.axs,#axs-layer) .sn-mrow .lv{grid-column:2}
+:is(#exams-view.axs,#axs-layer) .sn-mmore{list-style:none;padding:10px 0 0;text-align:center}
+:is(#exams-view.axs,#axs-layer) .sn-mast-how{margin-top:10px;font-size:12.5px;color:var(--muted)}
+:is(#exams-view.axs,#axs-layer) .sn-mast-how summary{cursor:pointer;font-weight:600}
+:is(#exams-view.axs,#axs-layer) .sn-mast-how p{margin:6px 0 0;line-height:1.55}
+:is(#exams-view.axs,#axs-layer) .sn-mch{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0 14px}
+:is(#exams-view.axs,#axs-layer) .sn-mch b{font-size:12px;text-transform:lowercase;color:var(--muted);margin-right:2px}
+:is(#exams-view.axs,#axs-layer) .sn-mch span{font-size:12.5px;padding:4px 10px;border-radius:14px;background:#F1F4FA;color:var(--ink)}
+:is(#exams-view.axs,#axs-layer) .sn-mch span.up{background:#E3F2EA;color:var(--green)}
+:is(#exams-view.axs,#axs-layer) .sn-mch span.down{background:#FCEDE4;color:#9A3F2C}
+@media (max-width: 640px){:is(#exams-view.axs,#axs-layer) .sn-mrow{grid-template-columns:minmax(0,1fr) auto;row-gap:6px}:is(#exams-view.axs,#axs-layer) .sn-mrow .nm{grid-column:1 / -1}:is(#exams-view.axs,#axs-layer) .sn-mrow .lv{grid-column:1}:is(#exams-view.axs,#axs-layer) .sn-mrow .due{grid-column:2;justify-self:end}:is(#exams-view.axs,#axs-layer) .sn-mrow .bar{grid-column:1 / -1;grid-row:3}:is(#exams-view.axs,#axs-layer) .sn-mrow .sn-ghost{grid-column:1 / -1;justify-self:start}}
 :is(#exams-view.axs,#axs-layer) .sn-tnote{margin:10px 0 0;font-family:"Caveat",cursive;font-size:20px;color:var(--blue)}
 :is(#exams-view.axs,#axs-layer) .sn-atts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
 :is(#exams-view.axs,#axs-layer) .sn-atts li{display:grid;grid-template-columns:110px minmax(0,1fr) 120px 70px;gap:10px;align-items:center;min-height:44px;border-bottom:1px dashed #DCE2EE;font-size:13.5px}
