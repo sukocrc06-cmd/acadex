@@ -2532,6 +2532,7 @@ window.axNotify = function (title, opts) {
   };
   var loadData = function () {
     if (!me() || !sb()) return Promise.resolve();
+    loadClasses();
     if (loading) return loading;
     loading = Promise.all([
       sb().from('exams').select('*, study_cards(course_tag, documents(file_name))').eq('user_id', me().id).not('completed_at', 'is', null).order('completed_at', { ascending: true }).limit(300),
@@ -3496,6 +3497,167 @@ window.axNotify = function (title, opts) {
     };
     window.revealExamHint = revealExamHint;
   }
+  /* ---------- FAZ 6.1: sınıflar ----------
+     Öğretmen (profiles.is_teacher, yönetici verir) sınıf açar ve katılım kodunu dağıtır; öğrenci kodla katılır.
+     Bütün yazmalar sunucu fonksiyonlarıyla (20261027_sinav_faz6_siniflar.sql). my_classes yanıt vermezse
+     (SQL henüz uygulanmamışsa) bölüm gizli kalır. Ödevler 6.2-6.3'te bu kartlara gelir. */
+  var clsEl = $('[data-classes]'), clsList = $('[data-cls-list]'), clsMsg = $('[data-cls-msg]'), clsDlg = $('[data-clsdlg]'), clsF = $('[data-clsf]');
+  var CL = null, clsBusy = false, ROSTER = {}, rosterOpen = {}, leaveArm = {}, clsEdit = null, clsCourses = null;
+  var DEPT = { 'Management Information Systems': 'YBS', 'Business Administration': 'İşletme', 'International Trade and Business': 'Uluslararası Ticaret', 'Banking and Finance': 'Bankacılık ve Finans' };
+  var rpcMissing = function (e) { return /PGRST202|could not find the function|does not exist/i.test(String((e && e.message) || '') + ' ' + String((e && e.code) || '')); };
+  var clsErrText = function (e) { var m = String((e && e.message) || ''); return m && !/fetch|network/i.test(m) ? m : 'Bağlantı sorunu; tekrar dene.'; };
+  var loadClasses = function () {
+    if (!clsEl || !me() || !sb() || clsBusy) return Promise.resolve();
+    clsBusy = true;
+    return sb().rpc('my_classes').then(function (r) {
+      clsBusy = false;
+      if (r.error) { if (!rpcMissing(r.error)) console.warn('acadex-ink: sınıflar yüklenemedi', r.error); clsEl.hidden = true; return; }
+      CL = r.data || { is_teacher: false, teaching: [], enrolled: [] }; paintClasses();
+    }, function (e) { clsBusy = false; console.warn(e); });
+  };
+  var clsCard = function (k, teach) {
+    var id = esc(k.id), course = k.course_code ? esc(k.course_code) : '';
+    if (teach) {
+      var open = rosterOpen[k.id];
+      return '<article class="sn-cl t' + (k.archived ? ' arch' : '') + '" data-cl="' + id + '">' +
+        '<span class="sn-k">öğretmeni olduğun sınıf' + (course ? ' · ' + course : '') + '</span><h3>' + esc(k.name) + '</h3>' +
+        (k.archived ? '' : '<div class="sn-cl-code' + (k.join_open ? '' : ' off') + '"><span>katılım kodu</span><b aria-label="' + esc(String(k.join_code).split('').join(' ')) + '">' + esc(k.join_code) + '</b><button type="button" class="sn-lnk" data-cl-copy="">kopyala</button></div>') +
+        '<p class="sn-cl-meta">' + (+k.members || 0) + ' öğrenci · ' + (+k.sharing || 0) + ' ustalığını paylaşıyor · ' + (k.archived ? 'arşivde' : k.join_open ? 'katılım açık' : 'katılım kapalı') + '</p>' +
+        '<div class="sn-cl-acts">' +
+        '<button type="button" class="sn-ghost" data-cl-roster="" aria-expanded="' + (open ? 'true' : 'false') + '">öğrenciler</button>' +
+        (k.archived ? '<button type="button" class="sn-ghost" data-cl-unarch="">arşivden çıkar</button>' :
+          '<button type="button" class="sn-ghost" data-cl-open="">' + (k.join_open ? 'katılımı kapat' : 'katılımı aç') + '</button>' +
+          '<button type="button" class="sn-ghost" data-cl-newcode="">kodu yenile</button>' +
+          '<button type="button" class="sn-ghost" data-cl-edit="">düzenle</button>' +
+          '<button type="button" class="sn-ghost danger" data-cl-arch="">arşivle</button>') +
+        '</div><div class="sn-cl-r" data-cl-r=""' + (open ? '' : ' hidden') + '>' + (open ? rosterHtml(k.id) : '') + '</div></article>';
+    }
+    var armed = leaveArm[k.id] && leaveArm[k.id] > Date.now();
+    return '<article class="sn-cl s' + (k.archived ? ' arch' : '') + '" data-cl="' + id + '">' +
+      '<span class="sn-k">' + (course ? course + ' · ' : '') + 'öğretmen: ' + esc(k.teacher_name) + '</span><h3>' + esc(k.name) + '</h3>' +
+      '<p class="sn-cl-meta">' + (k.archived ? 'öğretmen bu sınıfı arşivledi.' : dshort(k.joined_at) + ' tarihinde katıldın. ödevler burada görünecek.') + '</p>' +
+      '<label class="sn-chk sn-cl-share"><input type="checkbox" data-cl-share=""' + (k.share_mastery ? ' checked' : '') + '><span>öğretmenim bu dersteki konu ustalığımı görebilsin <small>kapalıyken yalnızca bu sınıfa verilen ödevlerin sonuçlarını görür. istediğin an kapatabilirsin.</small></span></label>' +
+      '<div class="sn-cl-acts"><button type="button" class="sn-ghost danger" data-cl-leave="">' + (armed ? 'eminsen tekrar bas: ayrıl' : 'sınıftan ayrıl') + '</button></div></article>';
+  };
+  var rosterHtml = function (id) {
+    var r = ROSTER[id];
+    if (!r) return '<p class="sn-cl-meta">liste açılıyor…</p>';
+    if (!r.length) return '<p class="sn-cl-meta">henüz öğrenci yok. katılım kodunu derste ya da duyuruda paylaş.</p>';
+    return '<ul class="sn-cl-rl">' + r.map(function (s) {
+      return '<li><b>' + esc(s.full_name) + '</b><span>' + esc(s.student_number || 'numara yok') + ' · ' + esc(DEPT[s.department] || s.department || 'bölüm yok') + '</span>' +
+        '<span>' + dshort(s.joined_at) + (s.share_mastery ? ' · <i class="ok">ustalık paylaşıyor</i>' : '') + '</span>' +
+        '<button type="button" class="sn-lnk danger" data-cl-kick="' + esc(s.user_id) + '" aria-label="' + esc(s.full_name) + ' sınıftan çıkar">çıkar</button></li>';
+    }).join('') + '</ul>';
+  };
+  var paintClasses = function () {
+    if (!clsEl || !CL) return;
+    clsEl.hidden = false;
+    var teach = (CL.teaching || []), enr = (CL.enrolled || []);
+    $('[data-cls-new]').hidden = !CL.is_teacher;
+    $('[data-cls-sub]').textContent = CL.is_teacher ? 'sınıf aç, kodu paylaş; ödevler yakında' : 'öğretmeninin verdiği kodla katıl';
+    clsEl.classList.toggle('has', !!(teach.length || enr.length));
+    clsEl.classList.toggle('tch', !!CL.is_teacher);  /* öğretmende katılım formu sona */
+    var act = teach.filter(function (k) { return !k.archived; }).map(function (k) { return clsCard(k, true); })
+      .concat(enr.filter(function (k) { return !k.archived; }).map(function (k) { return clsCard(k, false); }));
+    var arch = teach.filter(function (k) { return k.archived; }).map(function (k) { return clsCard(k, true); })
+      .concat(enr.filter(function (k) { return k.archived; }).map(function (k) { return clsCard(k, false); }));
+    /* yeniden çizimde odak kaybolmasın (klavye ile kullanım) */
+    var fa = document.activeElement, fk = null;
+    if (fa && clsList.contains(fa) && fa.closest('[data-cl]')) fk = { id: fa.closest('[data-cl]').getAttribute('data-cl'), at: Array.prototype.filter.call(fa.attributes, function (x) { return /^data-cl-/.test(x.name); }).map(function (x) { return x.name; })[0] };
+    clsList.innerHTML = (act.length ? '<div class="sn-cls-cards">' + act.join('') + '</div>' : (CL.is_teacher ? '<p class="sn-cal-empty">henüz sınıfın yok. “+ sınıf aç” ile başla; kodu öğrencilerine ver.</p>' : '')) +
+      (arch.length ? '<details class="sn-cls-arch"><summary>arşiv (' + arch.length + ')</summary><div class="sn-cls-cards">' + arch.join('') + '</div></details>' : '');
+    if (fk && fk.at) { var nf = clsList.querySelector('[data-cl="' + fk.id + '"] [' + fk.at + ']') || clsList.querySelector('[data-cl="' + fk.id + '"] button'); if (nf) nf.focus(); }
+  };
+  var clsById = function (id) { return (CL && (CL.teaching || []).concat(CL.enrolled || []).filter(function (k) { return String(k.id) === String(id); })[0]) || null; };
+  var loadRoster = function (id) {
+    return sb().rpc('class_roster', { p_class: id }).then(function (r) {
+      if (r.error) { say(clsErrText(r.error)); ROSTER[id] = []; } else ROSTER[id] = r.data || [];
+      paintClasses();
+    });
+  };
+  if (clsEl) {
+    $('[data-cls-join]').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      var inp = $('[data-cls-code]'), code = inp.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase(), btn = $('button[type="submit"]', this);
+      if (code.length !== 6) { clsMsg.textContent = 'Kod 6 karakter olmalı (harf ve rakam).'; clsMsg.className = 'sn-cls-msg bad'; inp.focus(); return; }
+      btn.disabled = true; clsMsg.textContent = 'kontrol ediliyor…'; clsMsg.className = 'sn-cls-msg';
+      var r = await sb().rpc('class_join', { p_code: code });
+      btn.disabled = false;
+      if (r.error || (r.data && r.data.error)) { clsMsg.textContent = r.error ? clsErrText(r.error) : r.data.error; clsMsg.className = 'sn-cls-msg bad'; inp.focus(); return; }
+      inp.value = ''; clsMsg.textContent = (r.data && r.data.name ? r.data.name : 'Sınıf') + ' sınıfına katıldın. Öğretmen: ' + ((r.data && r.data.teacher_name) || '—') + '.'; clsMsg.className = 'sn-cls-msg ok';
+      loadClasses();
+    });
+    var openClsDlg = function (k) {
+      clsEdit = k || null; clsF.reset();
+      $('[data-cs-h]').textContent = k ? 'sınıfı düzenle' : 'sınıf aç'; $('[data-cs-go]').textContent = k ? 'kaydet' : 'sınıfı aç';
+      if (k) { $('[data-cs-name]').value = k.name || ''; $('[data-cs-course]').value = k.course_code || ''; }
+      clsDlg.showModal(); setTimeout(function () { $('[data-cs-name]').focus(); }, 30);
+      if (!clsCourses) {
+        clsCourses = [];
+        sb().from('courses').select('course_code, course_name').order('course_code').limit(400).then(function (r) {
+          if (r.error) return; clsCourses = r.data || [];
+          $('#axs-cls-courses').innerHTML = clsCourses.map(function (c) { return '<option value="' + esc(c.course_code) + '">' + esc(c.course_name) + '</option>'; }).join('');
+        });
+      }
+    };
+    $('[data-cls-new]').addEventListener('click', function () { openClsDlg(null); });
+    clsF.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      var name = $('[data-cs-name]').value.trim(), course = $('[data-cs-course]').value.trim(), go = $('[data-cs-go]');
+      if (name.length < 2) return;
+      go.disabled = true;
+      var r = clsEdit ? await sb().rpc('class_update', { p_class: clsEdit.id, p_name: name, p_course_code: course })
+        : await sb().rpc('class_create', { p_name: name, p_course_code: course || null });
+      go.disabled = false;
+      if (r.error) { say(clsErrText(r.error)); return; }
+      clsDlg.close(); say(clsEdit ? 'Sınıf güncellendi.' : 'Sınıf açıldı. Katılım kodu: ' + ((r.data && r.data.join_code) || '')); loadClasses();
+    });
+    clsList.addEventListener('change', async function (e) {
+      var cb = e.target.closest('[data-cl-share]'); if (!cb) return;
+      var k = clsById(cb.closest('[data-cl]').getAttribute('data-cl')); if (!k) return;
+      cb.disabled = true;
+      var r = await sb().rpc('class_set_share', { p_class: k.id, p_value: cb.checked });
+      cb.disabled = false;
+      if (r.error) { cb.checked = !cb.checked; say(clsErrText(r.error)); return; }
+      k.share_mastery = cb.checked; say(cb.checked ? 'Öğretmenin bu dersteki konu ustalığını görebilir.' : 'Konu ustalığın artık öğretmenle paylaşılmıyor.');
+    });
+    clsList.addEventListener('click', async function (e) {
+      var b = e.target.closest('button'); if (!b) return;
+      var card = b.closest('[data-cl]'); if (!card) return;
+      var k = clsById(card.getAttribute('data-cl')); if (!k) return;
+      var run = async function (fn, args, ok) {
+        b.disabled = true; var r = await sb().rpc(fn, args); b.disabled = false;
+        if (r.error) { say(clsErrText(r.error)); return null; }
+        if (ok) say(ok); return r;
+      };
+      if (b.hasAttribute('data-cl-copy')) {
+        try { await navigator.clipboard.writeText(k.join_code); say('Kod kopyalandı: ' + k.join_code); } catch (x) { say('Kod: ' + k.join_code); }
+      } else if (b.hasAttribute('data-cl-roster')) {
+        rosterOpen[k.id] = !rosterOpen[k.id];
+        if (rosterOpen[k.id]) { paintClasses(); loadRoster(k.id); } else paintClasses();
+        var nb = $('[data-cl="' + k.id + '"] [data-cl-roster]'); if (nb) nb.focus();
+      } else if (b.hasAttribute('data-cl-open')) {
+        if (await run('class_update', { p_class: k.id, p_join_open: !k.join_open }, k.join_open ? 'Katılım kapandı; kod artık çalışmaz.' : 'Katılım açıldı.')) loadClasses();
+      } else if (b.hasAttribute('data-cl-newcode')) {
+        var r = await run('class_new_code', { p_class: k.id });
+        if (r) { say('Yeni kod: ' + r.data + '. Eski kod artık çalışmaz; sınıftakiler etkilenmez.'); loadClasses(); }
+      } else if (b.hasAttribute('data-cl-edit')) {
+        openClsDlg(k);
+      } else if (b.hasAttribute('data-cl-arch') || b.hasAttribute('data-cl-unarch')) {
+        var to = b.hasAttribute('data-cl-arch');
+        if (await run('class_update', to ? { p_class: k.id, p_archived: true } : { p_class: k.id, p_archived: false, p_join_open: true }, to ? 'Sınıf arşivlendi; öğrenciler ve sonuçlar duruyor.' : 'Sınıf yeniden açık.')) loadClasses();
+      } else if (b.hasAttribute('data-cl-kick')) {
+        var uid = b.getAttribute('data-cl-kick'), who = (ROSTER[k.id] || []).filter(function (s) { return s.user_id === uid; })[0];
+        if (!window.confirm((who ? who.full_name : 'Öğrenci') + ' sınıftan çıkarılsın mı? Tekrar katılmak için kodu girmesi gerekir.')) return;
+        if (await run('class_remove_member', { p_class: k.id, p_user: uid }, 'Öğrenci sınıftan çıkarıldı.')) { loadRoster(k.id); loadClasses(); }
+      } else if (b.hasAttribute('data-cl-leave')) {
+        if (!(leaveArm[k.id] > Date.now())) { leaveArm[k.id] = Date.now() + 6000; b.textContent = 'eminsen tekrar bas: ayrıl'; setTimeout(function () { if (b.isConnected && !(leaveArm[k.id] > Date.now())) b.textContent = 'sınıftan ayrıl'; }, 6100); return; }
+        leaveArm[k.id] = 0;
+        if (await run('class_leave', { p_class: k.id }, k.name + ' sınıfından ayrıldın.')) { clsMsg.textContent = ''; loadClasses(); }
+      }
+    });
+  }
+
   var paintAll = function () { paintCal(); paintDesks(); paintReport(); paintErrs(); };
 
   /* ---------- dashboard.js'in sınav ekranı yerine ---------- */

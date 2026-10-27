@@ -29,6 +29,7 @@
 | **Toplu PDF** ("Hepsini PDF yap") | `js/dashboard.js` → `exportAllFilteredCardsToPDF` |
 | **Kapak + üst/alt şerit** | `buildPdfCoverPage`, `applyBrandedLayout` |
 | **Özet üretimi** (Gemini/Groq, kapılar, atıflar) | `supabase/functions/summarize-document/index.ts` |
+| **Sınıflar / öğretmen** (sınav salonu "sınıflarım", `sn-cl*`) | `js/acadex-ink.js` → `FAZ 6.1: sınıflar` bloğu; yazmalar yalnızca SQL fonksiyonlarıyla (`20261027_sinav_faz6_siniflar.sql`). `teacher.html` kaldırıldı, geri getirme |
 
 ---
 
