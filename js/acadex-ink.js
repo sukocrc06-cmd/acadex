@@ -1790,6 +1790,16 @@ window.axNotify = function (title, opts) {
   toastA.addEventListener('click', function (e) { e.preventDefault(); toast.hidden = true; if (typeof switchDashboardView === 'function') switchDashboardView('notebook'); });
 
   /* ---------- kutular ---------- */
+  var DC = ['#2F6BFF', '#E0773A', '#2E9E6B', '#8A5CF6', '#D9485F', '#C99A1E'];
+  /* ustalık: kartların 4. ve 5. bölmeye (haftalık / iki haftalık) çıkmış payı */
+  var mastery = function (cs) { if (!cs.length) return 0; return Math.round(cs.filter(function (c) { return c.box >= 4; }).length / cs.length * 100); };
+  var kxMeta = function (cs, due, mine) { return cs.length ? cs.length + ' kart' + (due ? ' · <em>bugün ' + due + '</em>' : '') + (mine ? ' · ' + mine + ' senin' : '') : 'henüz kart yok'; };
+  /* günlük sayaç ve kart serisi: yalnızca bu cihazda, tekrar ettiğin kart sayısı (gün → sayı) */
+  var DAYK = 'acadex.kart.gun';
+  var ymdL = function (d) { d = d || new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); };
+  var dayLog = function () { return lsafe(function () { var o = JSON.parse(localStorage.getItem(DAYK) || '{}'); return o && typeof o === 'object' ? o : {}; }, {}); };
+  var dayBump = function () { var o = dayLog(), k = ymdL(); o[k] = (o[k] || 0) + 1; var ks = Object.keys(o).sort(); while (ks.length > 60) delete o[ks.shift()]; lsafe(function () { localStorage.setItem(DAYK, JSON.stringify(o)); }); };
+  var streakOf = function (o) { var n = 0, d = new Date(); if (!o[ymdL(d)]) d.setDate(d.getDate() - 1); while (o[ymdL(d)] && n < 365) { n++; d.setDate(d.getDate() - 1); } return n; };
   var dots = function (b) { var h = ''; for (var i = 1; i <= 5; i++) h += '<i class="' + (i <= b ? 'on' : '') + '"></i>'; return h; };
   var renderBoxes = function (list) {
     var sec = $('#cards-list-section'); if (!sec) return;
@@ -1801,41 +1811,73 @@ window.axNotify = function (title, opts) {
     }
     if (!activeId || !list.some(function (d) { return d.id === activeId; })) activeId = list[0].id;
     try { libraryActiveCardId = activeId; } catch (e) {}
-    sec.innerHTML = list.map(function (d) {
+    sec.innerHTML = list.map(function (d, di) {
       var full = (d.documents && d.documents.file_name) || 'İsimsiz belge', nm = baseName(full), cs = cardsOf(d), due = cs.filter(function (c) { return c.due; }).length, mine = cs.filter(function (c) { return c.user; }).length;
-      var stack = ''; for (var i = 0; i < Math.min(cs.length, 6); i++) stack += '<i style="--o:' + (6 - i) * 2 + 'px;--r:' + ((i % 3) - 1) * 1.5 + 'deg;bottom:' + (-i * 2) + 'px"></i>';
-      return '<div class="kbox land lib-md-item" role="listitem" tabindex="0" data-card-id="' + d.id + '" aria-current="' + (d.id === activeId) + '" aria-label="' + esc(nm) + ' destesi, ' + cs.length + ' kart">' +
-        '<div class="kbox-lid" aria-hidden="true"></div><div class="kbox-front">' +
-        '<span class="kbox-label"><b>' + esc(nm) + '</b><small>' + esc(dshort(d.created_at)) + '</small></span>' +
-        '<p class="kc-tags"><span>' + esc(STY[d.summary_style] || 'STANDART') + '</span><span>' + (d.summary_language === 'tr' ? 'TR' : 'EN') + '</span>' + (d.course_tag ? '<span>' + esc(d.course_tag) + '</span>' : '') + '</p>' +
-        '<p class="kbox-n hand">' + (cs.length ? cs.length + ' kart' + (mine ? ' · ' + mine + ' senin' : '') + (due ? ' · bugün ' + due : '') : 'bu destede kart yok') + '</p>' +
-        '<div class="kc-row"><span class="kc-share"><label class="ax-sw" title="Bölüm akışında paylaş"><input type="checkbox" id="share-switch-lib-' + d.id + '"' + (d.is_shared ? ' checked' : '') + ' onchange="toggleShareStudyCard(\'' + d.id + '\', this.checked)" aria-label="' + esc(nm) + ' destesini paylaş"><i></i></label>paylaş</span>' +
-        '<button type="button" class="kc-b btn-view-summary" data-doc-id="' + d.document_id + '" data-doc-name="' + esc(full) + '" data-card-id="' + d.id + '">Görüntüle</button>' +
-        '<button type="button" class="ax-kdel" title="Desteyi sil" onclick="deleteStudyCard(event, \'' + d.id + '\', \'' + d.document_id + '\')">sil</button></div>' +
-        '</div><div class="kbox-cards" aria-hidden="true">' + stack + '</div></div>';
+      var m = mastery(cs), tag = d.course_tag || STY[d.summary_style] || 'DESTE';
+      return '<div class="kx-deck" role="listitem" tabindex="0" data-card-id="' + d.id + '" aria-current="' + (d.id === activeId) + '" aria-label="' + esc(nm) + ' destesi, ' + cs.length + ' kart' + (due ? ', bugün ' + due : '') + ', ustalık yüzde ' + m + '" style="--dc:' + DC[di % DC.length] + '">' +
+        '<span class="kx-tab">' + esc(tag) + '</span>' +
+        '<b class="kx-dn">' + esc(nm) + '</b>' +
+        '<span class="kx-dm">' + kxMeta(cs, due, mine) + '</span>' +
+        '<span class="kx-mast" aria-hidden="true"><i style="width:' + m + '%"></i></span>' +
+        (m >= 80 && cs.length >= 4 ? '<span class="kx-stamp" aria-hidden="true">ustalaştın</span>' : '') +
+        '<button type="button" class="kx-more" data-kx-more="" aria-haspopup="true" aria-expanded="false" aria-label="' + esc(nm) + ' destesi seçenekleri">⋯</button>' +
+        '<div class="kx-menu" data-kx-menu="" hidden>' +
+        '<button type="button" class="btn-view-summary" data-doc-id="' + d.document_id + '" data-doc-name="' + esc(full) + '" data-card-id="' + d.id + '">özeti görüntüle</button>' +
+        '<label class="kx-sh"><input type="checkbox" id="share-switch-lib-' + d.id + '"' + (d.is_shared ? ' checked' : '') + ' onchange="toggleShareStudyCard(\'' + d.id + '\', this.checked)"> bölüm akışında paylaş</label>' +
+        '<button type="button" class="kx-del" onclick="deleteStudyCard(event, \'' + d.id + '\', \'' + d.document_id + '\')">desteyi sil</button>' +
+        '</div></div>';
     }).join('');
     paintAll();
   };
   var pick = function (id) {
     if (id === activeId) return;
     activeId = id; try { libraryActiveCardId = id; } catch (e) {}
-    $$('.kbox').forEach(function (b) { b.setAttribute('aria-current', String(b.getAttribute('data-card-id') === id)); });
+    $$('.kx-deck').forEach(function (b) { b.setAttribute('aria-current', String(b.getAttribute('data-card-id') === id)); });
     paintAll();
   };
-  $('#cards-list-section').addEventListener('click', function (e) { if (e.target.closest('button, input, label, a')) return; var b = e.target.closest('.kbox'); if (b) pick(b.getAttribute('data-card-id')); });
-  $('#cards-list-section').addEventListener('keydown', function (e) { if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('kbox')) { e.preventDefault(); pick(e.target.getAttribute('data-card-id')); } });
+  var closeMenus = function (except) { $$('[data-kx-menu]').forEach(function (m) { if (m === except) return; m.hidden = true; var b = m.parentNode.querySelector('[data-kx-more]'); if (b) b.setAttribute('aria-expanded', 'false'); }); };
+  $('#cards-list-section').addEventListener('click', function (e) {
+    var mb = e.target.closest('[data-kx-more]');
+    if (mb) { var mn = mb.parentNode.querySelector('[data-kx-menu]'); closeMenus(mn); mn.hidden = !mn.hidden; mb.setAttribute('aria-expanded', String(!mn.hidden)); if (!mn.hidden) { var f0 = mn.querySelector('button, input'); if (f0) f0.focus(); } return; }
+    if (e.target.closest('[data-kx-menu]')) { if (e.target.closest('button')) closeMenus(); return; }
+    if (e.target.closest('button, input, label, a')) return; var b = e.target.closest('.kx-deck'); if (b) pick(b.getAttribute('data-card-id'));
+  });
+  $('#cards-list-section').addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { var o = e.target.closest('.kx-deck'); closeMenus(); if (o) { var mb2 = o.querySelector('[data-kx-more]'); if (mb2) mb2.focus(); } return; }
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('kx-deck')) { e.preventDefault(); pick(e.target.getAttribute('data-card-id')); }
+  });
+  document.addEventListener('click', function (e) { if (!e.target.closest || !e.target.closest('.kx-deck')) closeMenus(); });
 
   /* ---------- tekrar kutusu, özet, yelpaze, başlıktaki sayaç ---------- */
   var leit = $('[data-leit]'), fan = $('[data-fan]'), fanW = $('[data-fan-w]'), listN = $('[data-list-n]'), dueEl = $('[data-due]');
+  /* bugün şeridi: kaç kart çevirdin, kaç kaldı, kart serisi */
+  var paintToday = function () {
+    var o = dayLog(), done = o[ymdL()] || 0, left = 0;
+    decks().forEach(function (d) { left += cardsOf(d).filter(function (c) { return c.due; }).length; });
+    var goal = done + left, pc = goal ? Math.round(done / goal * 100) : (done ? 100 : 0);
+    var q = function (k) { return $('[data-kx-' + k + ']'); };
+    q('done').textContent = done; q('goal').textContent = goal;
+    var bar = q('bar'); bar.setAttribute('aria-valuenow', String(pc)); bar.firstElementChild.style.width = pc + '%'; bar.classList.toggle('full', !!goal && !left);
+    q('goal-t').textContent = !decks().length ? 'ilk desteni oluşturunca burada sayarız.' : !goal ? 'bugün sorulacak kart yok; istersen sırayla çevir.' : !left ? 'bugünlük tamam. yarın kutu yine dolar.' : done ? left + ' kart kaldı, devam.' : left + ' kart seni bekliyor.';
+    var st = streakOf(o); q('streak-n').textContent = st;
+    q('streak').classList.toggle('lit', !!o[ymdL()]);
+    var wk = '', DN = ['Pz', 'Pt', 'Sa', 'Ça', 'Pe', 'Cu', 'Ct'];
+    for (var i = 6; i >= 0; i--) { var dd = new Date(); dd.setDate(dd.getDate() - i); var n = o[ymdL(dd)] || 0; wk += '<li class="' + (n ? 'on' : '') + (i === 0 ? ' now' : '') + '" title="' + dd.getDate() + ' ' + MON[dd.getMonth()] + ': ' + n + ' kart"><i></i><span>' + DN[dd.getDay()] + '</span></li>'; }
+    q('week').innerHTML = wk;
+  };
+  var boxOnly = 0;
   var paintSide = function () {
     var deck = activeDeck(), cs = cardsOf(deck), cnt = [0, 0, 0, 0, 0, 0], due = [0, 0, 0, 0, 0, 0];
     cs.forEach(function (c) { cnt[c.box]++; if (c.due) due[c.box]++; });
     var lh = '';
     for (var b = 1; b <= 5; b++) {
-      var fi = ''; for (var k = 0; k < Math.min(cnt[b], 14); k++) fi += '<i style="--k:' + k + ';--t:' + (((k * 7 + b) % 5) - 2) * 0.8 + 'deg"></i>';
-      lh += '<div class="cp' + (due[b] ? ' due' : '') + (cnt[b] ? '' : ' empty') + '" data-cp="' + b + '" role="img" aria-label="' + LB[b - 1] + ' bölmesi: ' + cnt[b] + ' kart' + (due[b] ? ', ' + due[b] + ' tanesi bugün' : '') + '"><span class="cp-l hand">' + LB[b - 1] + '</span><span class="cp-in">' + (cnt[b] ? fi : '<em class="hand">boş</em>') + '</span><span class="cp-n hand">' + cnt[b] + '</span></div>';
+      var fi = ''; for (var k = 0; k < Math.min(cnt[b], 10); k++) fi += '<i style="--k:' + k + '"></i>';
+      lh += '<button type="button" class="cp' + (due[b] ? ' due' : '') + (cnt[b] ? '' : ' empty') + (boxOnly === b ? ' on' : '') + '" data-cp="' + b + '"' + (cnt[b] ? '' : ' disabled') + ' aria-pressed="' + (boxOnly === b) + '" aria-label="' + LB[b - 1] + ' bölmesi: ' + cnt[b] + ' kart' + (due[b] ? ', ' + due[b] + ' tanesi bugün' : '') + (cnt[b] ? '. Bu bölmeyi çalış.' : '') + '">' +
+        '<span class="cp-no">' + b + '</span><span class="cp-l">' + LB[b - 1] + '</span><span class="cp-in" aria-hidden="true">' + fi + '</span><span class="cp-n">' + cnt[b] + (due[b] ? '<em>' + due[b] + ' bugün</em>' : '') + '</span></button>';
     }
     leit.innerHTML = lh;
+    var ld = $('[data-kx-leit-deck]'); if (ld) ld.textContent = deck ? baseName(deck.documents && deck.documents.file_name) : '';
+    paintToday();
     var all = 0; decks().forEach(function (d) { all += cardsOf(d).filter(function (c) { return c.due; }).length; });
     dueEl.textContent = all ? 'bugün ' + all + ' kart seni bekliyor' : (decks().length ? 'bugünlük tekrar bitti' : 'bugün tekrar yok'); dueEl.classList.toggle('on', !!all);
     listN.textContent = cs.length; fanW.hidden = !cs.length;
@@ -1846,6 +1888,14 @@ window.axNotify = function (title, opts) {
         '<span class="fc-q">' + esc(c.front.length > 90 ? c.front.slice(0, 90) + '…' : c.front) + '</span><span class="fc-d" aria-hidden="true">' + dots(c.box) + '</span></button>';
     }).join('');
   };
+  leit.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-cp]'); if (!b || b.disabled) return;
+    var n = +b.getAttribute('data-cp'); boxOnly = boxOnly === n ? 0 : n;
+    mode = boxOnly ? 'box' : 'due';
+    tabs.forEach(function (x) { var on = !boxOnly && x.getAttribute('data-mode') === 'due'; x.setAttribute('aria-selected', String(on)); x.tabIndex = on || (boxOnly && x.id === 'm-due') ? 0 : -1; });
+    buildQueue(); load();
+    var t = $('#ktable'); if (t && t.getBoundingClientRect().top > window.innerHeight * 0.6) t.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' });
+  });
   var sumEl = $('[data-sum]');
   var paintSummary = function () {
     var deck = activeDeck();
@@ -1856,8 +1906,19 @@ window.axNotify = function (title, opts) {
     var vb = $('[data-view-sum]'); vb.setAttribute('data-doc-id', deck.document_id); vb.setAttribute('data-doc-name', (deck.documents && deck.documents.file_name) || ''); vb.setAttribute('data-card-id', deck.id);
   };
   var startSmart = function () { var t = $('#m-smart'); if (t) t.click(); var k = $('#ktable'); if (k) k.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' }); };
-  $('[data-smart]').addEventListener('click', startSmart);
-  var paintAll = function () { paintSummary(); buildQueue(); load(); };
+  var smB = $('[data-smart]'); if (smB) smB.addEventListener('click', startSmart);
+  var sumT = $('[data-kx-sum-t]'), sumB = $('#kx-sum-b'), sumA = $('[data-kx-sum-a]'), SUMK = 'acadex.kart.ozet';
+  var setSum = function (open, keep) {
+    sumB.hidden = !open; sumT.setAttribute('aria-expanded', String(open)); $('[data-kx-sum]').classList.toggle('open', open);
+    sumA.textContent = open ? 'kapat' : 'aç, seç, karta çevir';
+    if (keep) lsafe(function () { localStorage.setItem(SUMK, open ? '1' : '0'); });
+  };
+  sumT.addEventListener('click', function () { setSum(sumB.hidden, true); });
+  var paintAll = function () {
+    paintSummary(); buildQueue(); load();
+    var deck = activeDeck(), pref = lsafe(function () { return localStorage.getItem(SUMK); }, null);
+    setSum(!!deck && (pref === '1' || !cardsOf(deck).length), false);
+  };
 
   /* ---------- çalışma masası ---------- */
   var mode = 'due', queue = [], idx = 0, cur = null, flipped = false, score = { y: 0, n: 0 }, busy = false;
@@ -1906,6 +1967,7 @@ window.axNotify = function (title, opts) {
     var cs = cardsOf(activeDeck());
     var lap = function (c) { return c.conf ? Number(c.conf.lapses) || 0 : 0; }, ov = function (c) { return c.conf && c.conf.next_review_at ? Date.now() - new Date(c.conf.next_review_at).getTime() : 0; };
     if (mode === 'smart') queue = cs.filter(function (c) { return c.due; }).sort(function (a, b) { return lap(b) - lap(a) || a.box - b.box || ov(b) - ov(a) || (a.conf ? 0 : 1) - (b.conf ? 0 : 1); }).slice(0, 60).map(function (c) { return c.id; });
+    else if (mode === 'box') queue = cs.filter(function (c) { return c.box === boxOnly; }).sort(function (a, b) { return (b.due ? 1 : 0) - (a.due ? 1 : 0); }).map(function (c) { return c.id; });
     else queue = (mode === 'due' ? cs.filter(function (c) { return c.due; }).sort(function (a, b) { return a.box - b.box || (a.conf ? 1 : 0) - (b.conf ? 1 : 0); }) : cs).slice(0, mode === 'due' ? 40 : 999).map(function (c) { return c.id; });
     idx = 0; score = { y: 0, n: 0 }; paintTally();
   };
@@ -1928,6 +1990,7 @@ window.axNotify = function (title, opts) {
     if (!cur || busy) return; busy = true;
     var c = cur, nb = knew ? Math.min(5, c.box + 1) : 1;
     if (knew) score.y++; else score.n++;
+    dayBump();
     record(c, knew, rating);
     var im = document.createElement('span'); im.className = 'imprint ' + (knew ? 'yes' : 'no'); im.textContent = knew ? 'BİLİYORUM' : 'TEKRAR';
     im.style.setProperty('--ir', ((Math.random() * 16) - 8).toFixed(1) + 'deg'); im.style.left = (28 + Math.random() * 30) + '%'; im.style.top = (30 + Math.random() * 25) + '%';
@@ -1992,12 +2055,12 @@ window.axNotify = function (title, opts) {
   });
   var tabs = $$('[data-mode]');
   tabs.forEach(function (b, i) {
-    b.addEventListener('click', function () { mode = b.getAttribute('data-mode'); tabs.forEach(function (x) { x.setAttribute('aria-selected', String(x === b)); x.tabIndex = x === b ? 0 : -1; }); $('#ktable').setAttribute('aria-labelledby', b.id); buildQueue(); load(); });
+    b.addEventListener('click', function () { boxOnly = 0; mode = b.getAttribute('data-mode'); tabs.forEach(function (x) { x.setAttribute('aria-selected', String(x === b)); x.tabIndex = x === b ? 0 : -1; }); $('#ktable').setAttribute('aria-labelledby', b.id); buildQueue(); load(); });
     b.addEventListener('keydown', function (e) { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); var n = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length]; n.focus(); n.click(); } });
   });
   fan.addEventListener('click', function (e) {
     var b = e.target.closest('.fc'); if (!b) return; var id = b.getAttribute('data-id');
-    mode = 'all'; tabs.forEach(function (x) { var on = x.getAttribute('data-mode') === 'all'; x.setAttribute('aria-selected', String(on)); x.tabIndex = on ? 0 : -1; });
+    mode = 'all'; boxOnly = 0; tabs.forEach(function (x) { var on = x.getAttribute('data-mode') === 'all'; x.setAttribute('aria-selected', String(on)); x.tabIndex = on ? 0 : -1; });
     buildQueue(); idx = Math.max(0, queue.indexOf(id)); load(); $('#ktable').scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' });
   });
 
@@ -2039,10 +2102,15 @@ window.axNotify = function (title, opts) {
     return item;
   };
   var renderBoxesKeep = function () {
-    var b = $('.kbox[aria-current="true"] .kbox-n'), d = activeDeck(); if (!b || !d) return;
-    var cs = cardsOf(d), due = cs.filter(function (c) { return c.due; }).length, mine = cs.filter(function (c) { return c.user; }).length;
-    b.textContent = cs.length ? cs.length + ' kart' + (mine ? ' · ' + mine + ' senin' : '') + (due ? ' · bugün ' + due : '') : 'bu destede kart yok';
+    var el = $('.kx-deck[aria-current="true"]'), d = activeDeck(); if (!el || !d) return;
+    var cs = cardsOf(d), due = cs.filter(function (c) { return c.due; }).length, mine = cs.filter(function (c) { return c.user; }).length, m = mastery(cs);
+    el.querySelector('.kx-dm').innerHTML = kxMeta(cs, due, mine);
+    el.querySelector('.kx-mast i').style.width = m + '%';
+    var stp = el.querySelector('.kx-stamp'), want = m >= 80 && cs.length >= 4;
+    if (want && !stp) { stp = document.createElement('span'); stp.className = 'kx-stamp fresh'; stp.setAttribute('aria-hidden', 'true'); stp.textContent = 'ustalaştın'; el.querySelector('.kx-mast').after(stp); }
+    else if (!want && stp) stp.remove();
   };
+
 
   /* özetten seç → karta çevir / boşluk yap */
   var bubble = $('[data-bubble]'), lastSel = null, selT = 0;
@@ -2108,7 +2176,7 @@ window.axNotify = function (title, opts) {
     catch (er) { sub.disabled = false; mkErr.hidden = false; mkErr.textContent = 'kaydedemedim; bağlantını kontrol edip tekrar dene.'; console.warn(er); return; }
     sub.disabled = false;
     var from = mkF.querySelector('.ic-f').getBoundingClientRect(); maker.close();
-    var boxEl = $('.kbox[aria-current="true"]');
+    var boxEl = $('.kx-deck[aria-current="true"]');
     if (!reduce && boxEl) {
       var to = boxEl.getBoundingClientRect(), fl = document.createElement('div'); fl.className = 'flycard';
       fl.style.cssText = 'left:' + from.left + 'px;top:' + from.top + 'px;width:' + from.width + 'px;height:' + from.height + 'px;background:#fff;border-top:4px solid #2F6BFF;border-radius:4px;box-shadow:0 20px 30px -16px rgba(13,24,56,.5);transform-origin:0 0';
@@ -2132,7 +2200,7 @@ window.axNotify = function (title, opts) {
       $('button[type="submit"]', rcF).disabled = !docs.length;
     } catch (er) { sel.innerHTML = '<option value="">belgeler yüklenemedi</option>'; }
   };
-  root.addEventListener('click', function (e) { if (e.target.closest('.d-head [data-new-deck]')) openRecipe(); });
+  root.addEventListener('click', function (e) { if (e.target.closest('.d-head [data-new-deck], .kx-add')) openRecipe(); });
   $('[data-rc-cancel]').addEventListener('click', function () { recipe.close(); });
   rcF.addEventListener('submit', function (e) {
     e.preventDefault(); var id = rcF.elements.doc.value; recipe.close(); if (!id) return;

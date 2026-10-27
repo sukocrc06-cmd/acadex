@@ -1,0 +1,155 @@
+/* ==========================================================================
+   ACADEX — BİLGİ KARTLARI v2 "kart kutusu masası" (css/acadex-kart.css), 27.10.2026
+   dashboard.html → #cards-view.axk.kx; davranış js/acadex-ink.js (BİLGİ KARTLARI bloğu).
+   Düzen: üstte bugün şeridi (günlük sayaç, kart serisi, 5 bölmeli tekrar kutusu),
+   altta solda deste sekmeleri, ortada tek büyük kart; özet kartın altında çekmece.
+   acadex-ink.css'teki eski .k-desk/.kbox/.leit kuralları bu sınıfları kullanmaz;
+   büyük kart, damgalar, 4'lü not düğmeleri oradan gelir, burada yalnız yerleşimleri değişir.
+   ========================================================================== */
+#cards-view.axk.kx{--kx-paper:#FFFEFA;--kx-line:#E3E7F0;--kx-soft:#6A7593;--kx-ink:#1A2A5C;--kx-amber:#E0A21E;--kx-red:#C9483B}
+
+/* ---------- başlık: eski sayaç rozeti şeride taşındı ---------- */
+#cards-view.axk.kx .d-head .due-st{display:none}
+
+/* ---------- bugün şeridi ---------- */
+#cards-view.axk.kx .kx-today{display:grid;grid-template-columns:minmax(200px,1fr) minmax(170px,.7fr) minmax(380px,2.1fr);gap:0;margin:6px 0 26px;background:var(--grain),var(--kx-paper);border-radius:10px;box-shadow:0 1px 0 var(--kx-line),0 18px 28px -26px rgba(13,24,56,.55);position:relative}
+#cards-view.axk.kx .kx-today::before{content:"";position:absolute;left:50%;top:-9px;width:86px;height:18px;transform:translateX(-50%) rotate(-2deg);background:rgba(255,216,107,.85);box-shadow:0 1px 2px rgba(13,24,56,.12)}
+#cards-view.axk.kx .kx-today > *{padding:16px 20px 15px;min-width:0}
+#cards-view.axk.kx .kx-today > * + *{border-left:1.5px dashed #D6DCE8}
+#cards-view.axk.kx .kx-k{display:block;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#8A93AB}
+
+#cards-view.axk.kx .kx-goal-n{margin:4px 0 8px;display:flex;align-items:baseline;gap:4px;color:var(--kx-soft);font-size:15px}
+#cards-view.axk.kx .kx-goal-n b{font-family:var(--disp,"Bricolage Grotesque",sans-serif);font-size:38px;line-height:1;font-weight:800;color:var(--kx-ink);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+#cards-view.axk.kx .kx-bar{position:relative;height:12px;border:1.5px solid var(--kx-ink);border-radius:7px 5px 6px 7px;background:#fff;overflow:hidden}
+#cards-view.axk.kx .kx-bar i{position:absolute;left:0;top:0;bottom:0;width:0;background:repeating-linear-gradient(-45deg,var(--blue) 0 6px,#5B8CFF 6px 10px);transition:width .5s var(--ease,ease)}
+#cards-view.axk.kx .kx-bar.full i{background:repeating-linear-gradient(-45deg,#1E8A55 0 6px,#36A86F 6px 10px)}
+#cards-view.axk.kx .kx-goal-t{margin:7px 0 0;font-size:18px;line-height:1.15;color:var(--kx-soft)}
+
+#cards-view.axk.kx .kx-streak-n{margin:4px 0 6px;display:flex;align-items:baseline;gap:6px}
+#cards-view.axk.kx .kx-streak-n b{font-family:var(--disp,"Bricolage Grotesque",sans-serif);font-size:38px;line-height:1;font-weight:800;color:#B9C1D3;font-variant-numeric:tabular-nums}
+#cards-view.axk.kx .kx-streak.lit .kx-streak-n b{color:var(--kx-amber)}
+#cards-view.axk.kx .kx-streak-n small{font-size:13px;color:var(--kx-soft)}
+#cards-view.axk.kx .kx-week{list-style:none;margin:0;padding:0;display:flex;gap:6px}
+#cards-view.axk.kx .kx-week li{display:flex;flex-direction:column;align-items:center;gap:2px}
+#cards-view.axk.kx .kx-week i{width:14px;height:14px;border-radius:50%;border:1.5px solid #C5CCDB;background:#fff}
+#cards-view.axk.kx .kx-week li.on i{border-color:var(--kx-amber);background:radial-gradient(circle at 35% 35%,#FFE38A,var(--kx-amber))}
+#cards-view.axk.kx .kx-week li.now i{outline:2px solid rgba(47,107,255,.35);outline-offset:1px}
+#cards-view.axk.kx .kx-week span{font-size:10px;color:#9AA3B8}
+
+/* tekrar kutusu: 5 bölmeli karton kutu, önde etiket kartları */
+#cards-view.axk.kx .kx-leit-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+#cards-view.axk.kx .kx-leit-d{font-size:18px;color:var(--kx-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#cards-view.axk.kx .kx-leit-box{display:grid;grid-template-columns:repeat(5,1fr);margin:8px 0 6px;border:2px solid var(--kx-ink);border-top-width:0;border-radius:0 0 8px 8px;background:linear-gradient(#EFE3CB,#E6D6B6);box-shadow:inset 0 -6px 0 rgba(120,90,40,.12)}
+#cards-view.axk.kx .kx-leit-box .cp{position:relative;display:grid;grid-template-rows:auto auto 1fr auto;justify-items:start;gap:0;min-height:96px;padding:6px 8px 6px;border:0;border-left:1.5px solid rgba(26,42,92,.35);background:none;text-align:left;font:inherit;color:var(--kx-ink);cursor:pointer;transition:background .15s}
+#cards-view.axk.kx .kx-leit-box .cp:first-child{border-left:0}
+#cards-view.axk.kx .kx-leit-box .cp:hover:not(:disabled){background:rgba(255,255,255,.35)}
+#cards-view.axk.kx .kx-leit-box .cp:focus-visible{outline:3px solid var(--blue);outline-offset:-3px}
+#cards-view.axk.kx .kx-leit-box .cp:disabled{cursor:default}
+#cards-view.axk.kx .kx-leit-box .cp.on{background:rgba(255,255,255,.6);box-shadow:inset 0 -3px 0 var(--blue)}
+#cards-view.axk.kx .cp-no{font-family:"JetBrains Mono",monospace;font-size:10px;font-weight:700;color:#8B6B33}
+#cards-view.axk.kx .cp-l{font-family:var(--hand);font-size:17px;font-weight:700;line-height:1;color:var(--kx-ink)}
+#cards-view.axk.kx .cp-in{position:relative;align-self:end;width:100%;height:32px;margin-top:4px;overflow:hidden}
+#cards-view.axk.kx .cp-in i{position:absolute;left:2px;right:2px;bottom:calc(var(--k) * 2px);height:12px;background:#fff;border-top:2px solid #9DB8FF;border-radius:2px 2px 0 0;box-shadow:0 1px 0 rgba(13,24,56,.12)}
+#cards-view.axk.kx .cp.due .cp-in i:last-child{border-top-color:var(--kx-red)}
+#cards-view.axk.kx .cp-n{display:flex;align-items:baseline;gap:5px;font-family:var(--disp,"Bricolage Grotesque",sans-serif);font-weight:800;font-size:17px;font-variant-numeric:tabular-nums}
+#cards-view.axk.kx .cp-n em{font-style:normal;font-family:var(--hand);font-weight:700;font-size:15px;color:var(--kx-red)}
+#cards-view.axk.kx .cp.empty .cp-n{color:#A89573}
+#cards-view.axk.kx .cp.bump{animation:kx-bump .45s cubic-bezier(.3,1.6,.5,1)}
+@keyframes kx-bump{40%{transform:translateY(-4px)}}
+#cards-view.axk.kx .kx-leit-n{display:block;font-size:11.5px;line-height:1.4;color:#8A93AB}
+
+/* ---------- masa: desteler + sahne ---------- */
+#cards-view.axk.kx .kx-desk{display:grid;grid-template-columns:minmax(230px,270px) minmax(0,1fr);gap:34px;align-items:start}
+#cards-view.axk.kx .kx-rail{position:sticky;top:86px;display:flex;flex-direction:column;gap:10px;max-height:calc(100vh - 110px);min-width:0}
+#cards-view.axk.kx .kx-rail .card-search{margin:0}
+#cards-view.axk.kx .kx-decks{display:flex;flex-direction:column;gap:8px;overflow:auto;padding:12px 4px 6px 2px;margin:0 -4px 0 -2px;min-height:0}
+#cards-view.axk.kx .kx-decks .none{margin:4px 2px;font-size:14px;line-height:1.45;color:var(--kx-soft)}
+
+/* deste: kart kutusundaki ayraç kartı — renkli sekme, ad, sayım, ustalık çizgisi */
+#cards-view.axk.kx .kx-deck{position:relative;display:grid;grid-template-columns:1fr auto;gap:2px 6px;padding:12px 10px 11px 14px;background:#fff;border-radius:3px 8px 8px 8px;box-shadow:0 1px 0 var(--kx-line),0 10px 16px -16px rgba(13,24,56,.6);cursor:pointer;transition:transform .15s var(--ease,ease),box-shadow .15s;outline:none}
+#cards-view.axk.kx .kx-deck::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;border-radius:3px 0 0 8px;background:var(--dc)}
+#cards-view.axk.kx .kx-deck:hover{transform:translateX(3px)}
+#cards-view.axk.kx .kx-deck:focus-visible{box-shadow:0 0 0 3px var(--blue)}
+#cards-view.axk.kx .kx-deck[aria-current="true"]{background:var(--kx-paper);box-shadow:0 0 0 2px var(--kx-ink),4px 5px 0 var(--kx-ink);transform:translateX(4px)}
+#cards-view.axk.kx .kx-tab{position:absolute;left:12px;top:-10px;max-width:70%;padding:2px 8px 1px;border-radius:5px 5px 0 0;background:var(--dc);color:#fff;font-family:"JetBrains Mono",monospace;font-size:9.5px;font-weight:700;letter-spacing:.08em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#cards-view.axk.kx .kx-dn{grid-column:1;font-size:15px;line-height:1.25;font-weight:700;color:var(--kx-ink);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word}
+#cards-view.axk.kx .kx-dm{grid-column:1;font-size:12.5px;color:var(--kx-soft)}
+#cards-view.axk.kx .kx-dm em{font-style:normal;font-weight:700;color:var(--kx-red)}
+#cards-view.axk.kx .kx-mast{grid-column:1 / -1;position:relative;height:5px;margin-top:6px;border-radius:3px;background:#EDF0F6;overflow:hidden}
+#cards-view.axk.kx .kx-mast i{position:absolute;left:0;top:0;bottom:0;background:var(--dc);border-radius:3px;transition:width .5s var(--ease,ease)}
+#cards-view.axk.kx .kx-stamp{position:absolute;right:38px;top:6px;padding:2px 7px;border:2px double #1E8A55;border-radius:6px;color:#1E8A55;font-family:"JetBrains Mono",monospace;font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;transform:rotate(-7deg);opacity:.85;pointer-events:none}
+@media (prefers-reduced-motion:no-preference){#cards-view.axk.kx .kx-stamp.fresh{animation:kx-stamp .5s cubic-bezier(.3,1.6,.5,1)}}
+@keyframes kx-stamp{from{transform:rotate(-7deg) scale(2);opacity:0}}
+#cards-view.axk.kx .kx-more{grid-column:2;grid-row:1 / 3;align-self:start;width:32px;height:32px;margin:-6px -4px 0 0;border:0;border-radius:6px;background:none;color:var(--kx-soft);font-size:20px;line-height:1;cursor:pointer}
+#cards-view.axk.kx .kx-more:hover,#cards-view.axk.kx .kx-more[aria-expanded="true"]{background:#EEF2FA;color:var(--kx-ink)}
+#cards-view.axk.kx .kx-more:focus-visible{outline:2px solid var(--blue)}
+#cards-view.axk.kx .kx-menu{position:absolute;right:6px;top:34px;z-index:20;display:flex;flex-direction:column;min-width:200px;padding:6px;background:#fff;border:1.5px solid var(--kx-ink);border-radius:8px;box-shadow:4px 5px 0 var(--kx-ink)}
+#cards-view.axk.kx .kx-menu[hidden]{display:none}
+#cards-view.axk.kx .kx-menu button,#cards-view.axk.kx .kx-menu label{display:flex;align-items:center;gap:8px;min-height:40px;padding:0 10px;border:0;border-radius:5px;background:none;font:inherit;font-size:14px;color:var(--kx-ink);text-align:left;cursor:pointer}
+#cards-view.axk.kx .kx-menu button:hover,#cards-view.axk.kx .kx-menu label:hover{background:#F1F4FA}
+#cards-view.axk.kx .kx-menu input{width:16px;height:16px;accent-color:var(--blue)}
+#cards-view.axk.kx .kx-menu .kx-del{color:var(--kx-red)}
+#cards-view.axk.kx .kx-add{min-height:46px;border:1.5px dashed #AEB8CD;border-radius:8px;background:none;font-family:var(--hand);font-size:20px;font-weight:700;color:var(--kx-soft);cursor:pointer}
+#cards-view.axk.kx .kx-add:hover{border-color:var(--kx-ink);color:var(--kx-ink);background:#fff}
+
+/* sahne */
+#cards-view.axk.kx .kx-stage{min-width:0}
+#cards-view.axk.kx .kx-modes{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px 16px;margin:0 0 20px}
+#cards-view.axk.kx .kx-modes .modes{margin:0}
+#cards-view.axk.kx .table{max-width:660px}
+#cards-view.axk.kx .judge,#cards-view.axk.kx .judge4{max-width:660px}
+
+/* özet çekmecesi */
+#cards-view.axk.kx .kx-sum{max-width:660px;margin:26px auto 0;background:var(--grain),#fff;border-radius:8px;box-shadow:0 1px 0 var(--kx-line),0 14px 22px -22px rgba(13,24,56,.6)}
+#cards-view.axk.kx .kx-sum-h{display:flex;align-items:center;gap:10px;width:100%;min-height:56px;padding:0 18px;border:0;background:none;font:inherit;text-align:left;cursor:pointer;border-radius:8px}
+#cards-view.axk.kx .kx-sum-h:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+#cards-view.axk.kx .kx-sum-h .hd{margin:0;flex:0 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#cards-view.axk.kx .kx-sum-h .hd small{font-family:var(--hand);font-size:18px;font-weight:600;color:var(--kx-soft);margin-left:6px}
+#cards-view.axk.kx .kx-sum-ic{flex:none;width:22px;height:16px;border:2px solid var(--kx-ink);border-radius:2px 2px 4px 4px;position:relative}
+#cards-view.axk.kx .kx-sum-ic::after{content:"";position:absolute;left:5px;right:5px;top:5px;height:2px;background:var(--kx-ink);border-radius:1px}
+#cards-view.axk.kx .kx-sum-a{flex:none;margin-left:auto;font-size:18px;color:var(--blue)}
+#cards-view.axk.kx .kx-sum-b{padding:0 20px 18px;border-top:1.5px dashed #D6DCE8}
+#cards-view.axk.kx .kx-sum-b .sum-body{max-height:min(56vh,520px);overflow:auto;padding-top:12px}
+#cards-view.axk.kx .kx-sum-b .ax-sum-act{margin-top:12px}
+
+/* destedeki kartlar: dağınık yelpaze yerine düzgün raf */
+#cards-view.axk.kx .kx-fan{max-width:900px;margin:30px auto 0}
+#cards-view.axk.kx .kx-fan .fan{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;height:auto;padding:0;margin-top:10px}
+#cards-view.axk.kx .kx-fan .fc{position:relative;transform:none!important;margin:0!important;left:auto!important;top:auto!important;width:auto!important;height:auto;min-height:84px;display:flex;flex-direction:column;justify-content:space-between;gap:8px;padding:10px 12px 9px;border:0;border-top:3px solid #9DB8FF;border-radius:3px 3px 6px 6px;background:#fff;box-shadow:0 1px 0 var(--kx-line),0 8px 12px -12px rgba(13,24,56,.5);text-align:left;cursor:pointer;transition:transform .15s var(--ease,ease)}
+#cards-view.axk.kx .kx-fan .fc:hover{transform:translateY(-3px)!important}
+#cards-view.axk.kx .kx-fan .fc[aria-current="true"]{border-top-color:var(--kx-ink);box-shadow:0 0 0 2px var(--kx-ink)}
+#cards-view.axk.kx .kx-fan .fc-q{font-size:13px;line-height:1.35;color:var(--kx-ink)}
+
+/* ---------- tablet ---------- */
+@media (max-width:1180px){
+  #cards-view.axk.kx .kx-today{grid-template-columns:1fr 1fr}
+  #cards-view.axk.kx .kx-leit{grid-column:1 / -1;border-left:0!important;border-top:1.5px dashed #D6DCE8}
+  #cards-view.axk.kx .kx-desk{grid-template-columns:minmax(210px,240px) minmax(0,1fr);gap:24px}
+}
+/* ---------- telefon / dar tablet: desteler yatay şerit ---------- */
+@media (max-width:860px){
+  #cards-view.axk.kx .kx-today > *{padding:14px 14px 12px}
+  #cards-view.axk.kx .kx-goal-n b,#cards-view.axk.kx .kx-streak-n b{font-size:30px}
+  #cards-view.axk.kx .kx-desk{grid-template-columns:minmax(0,1fr);gap:18px}
+  #cards-view.axk.kx .kx-rail{position:static;max-height:none}
+  #cards-view.axk.kx .kx-decks{flex-direction:row;overflow-x:auto;overflow-y:visible;padding:14px 4px 10px;scroll-snap-type:x mandatory}
+  #cards-view.axk.kx .kx-deck{flex:0 0 min(240px,72vw);scroll-snap-align:start}
+  #cards-view.axk.kx .kx-deck:hover,#cards-view.axk.kx .kx-deck[aria-current="true"]{transform:none}
+  #cards-view.axk.kx .kx-add{min-height:44px}
+}
+@media (max-width:560px){
+  #cards-view.axk.kx .kx-today{grid-template-columns:1fr 1fr;margin-bottom:18px}
+  #cards-view.axk.kx .kx-leit-box .cp{min-height:84px;padding:5px 5px}
+  #cards-view.axk.kx .cp-l{font-size:14px}
+  #cards-view.axk.kx .cp-n em{display:none}
+  #cards-view.axk.kx .kx-leit-n{display:none}
+  #cards-view.axk.kx .kx-sum-a{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  #cards-view.axk.kx .kx-bar i,#cards-view.axk.kx .kx-mast i,#cards-view.axk.kx .kx-deck{transition:none}
+  #cards-view.axk.kx .cp.bump{animation:none}
+}
+/* geçmiş karşılaştırmalar artık Belgelerim'in altında */
+#docs-view .ax-docs-comp{margin:28px 0 0}
+#docs-view .ax-docs-comp:has(#past-comparisons-list:empty){display:none}
+#docs-view .ax-docs-comp .hd{font-family:var(--hand,'Caveat',cursive);font-size:26px;font-weight:700;color:#1A2A5C;margin:0 0 10px}
