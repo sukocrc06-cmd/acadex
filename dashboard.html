@@ -1065,7 +1065,7 @@
 <div class="sn-rep-grid">
 <div class="sn-card sn-chart-c"><h3 class="sn-k">deneme puanları</h3><div class="sn-chart" data-chart=""></div></div>
 <div class="sn-card sn-time-c"><h3 class="sn-k">soru türlerine göre</h3><div data-time=""></div></div>
-<div class="sn-card sn-mast-c"><div class="sn-mast-h"><h3 class="sn-k">ustalık haritası</h3><span class="sn-mast-sum" data-mast-sum=""></span></div><ol class="sn-mast" data-mastery=""></ol><details class="sn-mast-how"><summary>nasıl hesaplanır?</summary><p>Her konu, o konudaki cevaplarından tahmin edilir; kısmi puan kısmi kanıt sayılır, şıkkı tutturma payı hesaba katılır. Bir sınavda bir konu en fazla bir seviye düşer. <b>yetkin</b> için en az 3 soru, <b>usta</b> için en az 5 soru ve iki ayrı günde başarı gerekir. <b>hafıza</b>, son çalışmandan bu yana geçen süreyle azalır; %80'in altına inen yetkin ya da usta konu <b>tekrar zamanı</b> olur.</p></details></div>
+<div class="sn-card sn-mast-c"><div class="sn-mast-h"><h3 class="sn-k">ustalık haritası</h3><span class="sn-mast-sum" data-mast-sum=""></span><button type="button" class="btn btn-dark sn-mast-go" data-mast-go="" hidden>akıllı deneme kur</button></div><ol class="sn-mast" data-mastery=""></ol><details class="sn-mast-how"><summary>nasıl hesaplanır?</summary><p>Her konu, o konudaki cevaplarından tahmin edilir; kısmi puan kısmi kanıt sayılır, şıkkı tutturma payı hesaba katılır. Bir sınavda bir konu en fazla bir seviye düşer. <b>yetkin</b> için en az 3 soru, <b>usta</b> için en az 5 soru ve iki ayrı günde başarı gerekir. <b>hafıza</b>, son çalışmandan bu yana geçen süreyle azalır; %80'in altına inen yetkin ya da usta konu <b>tekrar zamanı</b> olur.</p></details></div>
 <div class="sn-card sn-atts-c"><h3 class="sn-k">denemeler</h3><ol class="sn-atts" data-atts=""></ol></div>
 </div>
 </section>
@@ -1121,6 +1121,7 @@
 </div>
 <p id="exam-course-grounded-hint" class="sn-bd-src"></p>
 <label class="sn-f"><span>odak konu <small>(isteğe bağlı)</small></span><input type="text" maxlength="80" data-bd-topic="" placeholder="ör. varyans ve standart sapma"></label>
+<label class="sn-f sn-chk axs-adaptive" data-adaptive-row=""><input type="checkbox" id="exam-adaptive"><span>akıllı deneme <small>soruları ustalığına göre seçer: zayıf konular ağırlıklı, unutmaya başladıkların tekrar, birkaç yeni konu; zorluk konu başına ayarlanır. Sınav takviminde yakın sınav varsa yeni konu yerine eksiklere odaklanır.</small></span></label>
 <div id="exam-focus-concept-banner" class="axs-focus" style="display:none"><span id="exam-focus-concept-text"></span><button type="button" onclick="clearExamFocusConcept()" aria-label="Odağı kaldır">×</button></div>
 </div>
 <div id="exam-form-params">
@@ -1133,7 +1134,7 @@
 </div>
 <small id="exam-calc-hint" class="axs-hint" style="display:none">hesaplama sınavı yalnızca sayısal derslerde açılır.</small>
 </fieldset>
-<fieldset class="sn-f"><legend>zorluk</legend>
+<fieldset class="sn-f" data-diff-box=""><legend>zorluk <small class="axs-adnote" data-ad-note="" hidden>akıllı denemede konu başına ayarlanır</small></legend>
 <div class="axs-types three">
 <label class="axs-opt"><input type="radio" name="exam-difficulty" value="easy"><span><b>kolay</b><small>tanım ve hatırlama</small></span></label>
 <label class="axs-opt"><input type="radio" name="exam-difficulty" value="medium" checked><span><b>orta</b><small>kavrama ve uygulama</small></span></label>

@@ -7826,6 +7826,11 @@ async function generateExam() {
     // FAZ 4b: "grafik sorusu olmasın" — grafik okuma ve çizim soruları gelmez.
     noGraphs: !!(document.getElementById('exam-no-graphs') || {}).checked
   };
+  // FAZ 5.2: akıllı deneme — konular ustalığa göre sunucuda planlanır.
+  // Sınava kalan gün ink katmanı tarafından (sınav takviminden) verilir.
+  if ((document.getElementById('exam-adaptive') || {}).checked) {
+    requestBody.adaptive = { daysToExam: Number.isFinite(window.__examAdaptiveDays) ? window.__examAdaptiveDays : null };
+  }
 
   if (examSelectedSource === 'course') {
     if (!examSelectedCourse || !examSelectedCourse.code) {
@@ -7844,6 +7849,8 @@ async function generateExam() {
       return;
     }
     requestBody.studyCardId = studyCardId;
+    // FAZ 5.2: belge masalarında da "bu konudan deneme".
+    if (examFocusConcept && !requestBody.adaptive) requestBody.focusConcept = examFocusConcept;
   }
 
   const originalText = btn.textContent;
