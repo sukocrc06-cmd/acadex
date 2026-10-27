@@ -45,13 +45,25 @@
     for (var j = 0; j < N; j += stride) order.push(j);
     order = order.filter(function (x) { if (seen[x]) return false; seen[x] = 1; return true; });
     want = order.length;
-    var q = order.slice(), active = 0;
+    var q = order.slice(), active = 0, good = 0, tried = {};
+    var prog = function () {
+      if (!loadEl) return;
+      if (loaded < want) { loadEl.textContent = 'model yükleniyor · %' + Math.round(loaded / want * 100); return; }
+      if (good) { loadEl.classList.add('done'); return; }
+      sec.classList.add('mf-fail');
+      loadEl.innerHTML = 'Model şu an açılamadı. <a href="register.html">MedLab’de 3B olarak gör →</a>';
+    };
     var pump = function () {
       while (active < 6 && q.length) {
         (function (i) {
           active++; var im = new Image(); im.decoding = 'async'; im.src = SRC(i);
-          im.onload = function () { imgs[i] = im; ok[i] = true; loaded++; active--; if (loadEl) { loadEl.textContent = 'model yükleniyor · %' + Math.round(loaded / want * 100); if (loaded >= want) loadEl.classList.add('done'); } cur = -1; paint(); pump(); };
-          im.onerror = function () { active--; loaded++; pump(); };
+          im.onload = function () { imgs[i] = im; ok[i] = true; good++; loaded++; active--; prog(); cur = -1; paint(); pump(); };
+          /* bir kez daha dene; yine olmazsa sayılır. Hiç kare gelmezse "yükleniyor"da
+             takılı kalmaz, yerine açık bir not ve MedLab bağlantısı çıkar. */
+          im.onerror = function () {
+            if (!tried[i]) { tried[i] = 1; active--; q.push(i); return pump(); }
+            active--; loaded++; prog(); pump();
+          };
         })(q.shift());
       }
     };

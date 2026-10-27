@@ -58,4 +58,20 @@ test('css: hareket azaltma ve mobil düzen', () => {
   assert.match(css, /prefers-reduced-motion:reduce/);
   assert.match(css, /max-width:860px/);
 });
+test('git: kareler .gitignore tarafından DIŞLANMIYOR (siteye gitmezse film boş kalır)', () => {
+  // 28.10.2026: .gitignore'daki "/assets/landing" satırı kareleri GitHub'a hiç
+  // göndermedi; canlıda "model yükleniyor"da takıldı. Bu test onu yakalar.
+  const { spawnSync } = require('node:child_process');
+  const r = spawnSync('git', ['check-ignore', 'assets/landing/medlab/f000.webp', 'assets/landing/medlab/f095.webp'], { cwd: ROOT });
+  if (r.error || r.status === 128) return; // git yoksa / repo değilse atla
+  assert.equal(r.status, 1, 'assets/landing/medlab kareleri git tarafından yok sayılıyor');
+  const gi = read('.gitignore');
+  assert.match(gi, /!\/assets\/landing\/medlab\//);
+});
+test('js: kare gelmezse "yükleniyor"da takılmaz; bir kez yeniden dener, sonra not gösterir', () => {
+  assert.match(js, /tried\[i\]/);
+  assert.match(js, /mf-fail/);
+  assert.match(js, /Model şu an açılamadı/);
+  assert.match(css, /\.mf-fail \.mf-load/);
+});
 summary();

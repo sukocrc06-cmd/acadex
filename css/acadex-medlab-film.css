@@ -62,3 +62,5 @@
 @media (prefers-reduced-motion:reduce){.mf-step,.mf-tag{transition:none}}
 /* telefonda bölüm ekrandayken üst üste binmesin: rehber Acadia ve paket ipi çekilir */
 @media (max-width:860px){.mf-in .acd-guide{opacity:0!important;pointer-events:none}.mf-in .pkt-dock{opacity:0!important;pointer-events:none!important}.mf-in .axs-dest:not(.open) .axs-l{display:none}.mf-in .axs-dest:not(.open) .axs-launch{padding-right:6px}.mf-in .totop{opacity:0;pointer-events:none}.mf-copy{padding-right:64px}}
+/* kareler gelmezse: takılı 'yükleniyor' yerine açık not */
+.mf-fail .mf-load{opacity:1;color:#DDE4F7;font-size:13px}.mf-fail .mf-load a{color:#FFD86B}
