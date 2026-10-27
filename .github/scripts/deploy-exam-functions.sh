@@ -49,40 +49,22 @@ for fn in $targets; do
     fi
     echo "--- indirilen index.ts dosyaları ($fn) ---"
     find "$work/supabase" -name index.ts -printf '%s %p\n' | sed "s#$work/##" | head -n 40 || true
-    decision=$(python3 - "$work" "$src" <<'PY'
-import sys, glob, os
-work, current = sys.argv[1], sys.argv[2]
-def norm(p):
-    try:
-        t = open(p, encoding='utf-8', errors='replace').read()
-    except OSError:
-        return None
-    return '\n'.join(l.rstrip() for l in t.replace('\r\n', '\n').strip().split('\n'))
-live = {norm(p) for p in glob.glob(os.path.join(work, 'supabase', '**', 'index.ts'), recursive=True)}
-live.discard(None)
-cur = norm(current)
-hist = {norm(p) for p in glob.glob(os.path.join(work, 'hist', '*.ts'))}
-if cur in live:
-    print('current')
-elif live & hist:
-    print('deploy')
-else:
-    # Tanı: en yakın sürümle farkın ilk satırları stderr'e (loga).
-    import difflib
-    best = None
-    for l in live:
-        for h in hist | {cur}:
-            r = difflib.SequenceMatcher(None, l[:20000], h[:20000]).quick_ratio()
-            if best is None or r > best[0]:
-                best = (r, l, h)
-    if best:
-        d = list(difflib.unified_diff(best[2].split('\n'), best[1].split('\n'), 'git', 'canli', n=0, lineterm=''))
-        print(f'en yakin surum benzerligi {best[0]:.3f}; {len(d)} fark satiri', file=sys.stderr)
-        for line in d[:80]:
-            print(line[:200], file=sys.stderr)
-    print('unknown')
-PY
-)
+    # Supabase kodu derlenmiş JavaScript olarak veriyor (türler atılmış,
+    # biçim değişmiş); iki taraf da sözdizimi ağacı parmak iziyle karşılaştırılır.
+    FP="node $(dirname "$0")/code-fingerprint.cjs"
+    live_fps=$(find "$work/supabase" -name index.ts -print0 | xargs -0 -r $FP | awk '{print $1}' | grep -v -e '^hata$' -e '^okunamadi$' | sort -u || true)
+    cur_fp=$($FP "$src" | awk '{print $1}')
+    hist_fps=$(ls "$work/hist"/*.ts 2>/dev/null | xargs -r $FP | awk '{print $1}' | sort -u || true)
+    if [ -z "$live_fps" ]; then
+      decision="unknown"
+    elif grep -qx "$cur_fp" <<< "$live_fps"; then
+      decision="current"
+    elif [ -n "$hist_fps" ] && [ -n "$(comm -12 <(echo "$live_fps") <(echo "$hist_fps"))" ]; then
+      decision="deploy"
+    else
+      decision="unknown"
+      echo "canlı parmak izi: $(echo $live_fps | cut -c1-16) · main: ${cur_fp:0:16} · geçmişte $(echo "$hist_fps" | grep -c . ) sürüm"
+    fi
   fi
 
   case "$decision" in

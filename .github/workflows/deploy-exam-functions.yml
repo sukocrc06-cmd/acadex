@@ -23,6 +23,7 @@ on:
       - 'supabase/functions/get-exam-hint/**'
       - '.github/workflows/deploy-exam-functions.yml'
       - '.github/scripts/deploy-exam-functions.sh'
+      - '.github/scripts/code-fingerprint.cjs'
   workflow_dispatch:
     inputs:
       functions:
@@ -63,6 +64,13 @@ jobs:
         if: steps.token.outputs.ok == 'true'
         with:
           version: latest
+
+      # Kod parmak izi (code-fingerprint.cjs) için TypeScript derleyicisi.
+      - name: TypeScript
+        if: steps.token.outputs.ok == 'true'
+        run: |
+          npm install --no-save --no-audit --no-fund --prefix "$RUNNER_TEMP/ts" typescript@5.6.3 >/dev/null
+          echo "NODE_PATH=$RUNNER_TEMP/ts/node_modules" >> "$GITHUB_ENV"
 
       - name: Deploy
         if: steps.token.outputs.ok == 'true'
