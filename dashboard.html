@@ -1055,6 +1055,17 @@
 </div>
 </section>
 
+<!-- Faz 6.1: sınıflar (my_classes RPC yanıt verince görünür) -->
+<section class="sn-cls" aria-labelledby="cls-t" data-classes="" hidden>
+<div class="sn-sec-h"><h2 class="hd" id="cls-t">sınıflarım <small class="hand" data-cls-sub="">öğretmeninin verdiği kodla katıl</small></h2><button type="button" class="btn btn-dark sn-cls-new" data-cls-new="" hidden>+ sınıf aç</button></div>
+<form class="sn-cls-join" data-cls-join="" autocomplete="off">
+<label class="sn-f"><span>katılım kodu</span><input type="text" data-cls-code="" maxlength="9" inputmode="text" autocapitalize="characters" spellcheck="false" placeholder="K7M2QX" aria-describedby="cls-msg" required></label>
+<button type="submit" class="btn btn-blue">sınıfa katıl</button>
+<p class="sn-cls-msg" id="cls-msg" data-cls-msg="" role="status" aria-live="polite"></p>
+</form>
+<div class="sn-cls-grid" data-cls-list=""></div>
+</section>
+
 <section class="sn-room" aria-labelledby="room-t">
 <div class="sn-sec-h"><h2 class="hd" id="room-t">sıralar <small class="hand">her sıra bir ders</small></h2></div>
 <div class="sn-desks" data-desks=""></div>
@@ -1181,6 +1192,16 @@
 </div>
 <p class="axs-pf-n">Tarih çalışma planlayıcına da “sınav” olarak düşer.</p>
 <div class="sn-dlg-b"><span></span><button type="button" class="sn-ghost" data-dlg-x="">vazgeç</button><button type="submit" class="btn btn-dark">kapıya as</button></div>
+</form>
+</dialog>
+<dialog class="sn-dlg" data-clsdlg="" aria-labelledby="cs-t">
+<form class="sn-dlg-in" data-clsf="">
+<button type="button" class="sn-x" data-dlg-x="" aria-label="Kapat">×</button>
+<h2 id="cs-t" class="disp" data-cs-h="">sınıf aç</h2>
+<label class="sn-f"><span>sınıf adı</span><input type="text" maxlength="80" minlength="2" data-cs-name="" required placeholder="ör. FIN201 – A şubesi, 2026 güz"></label>
+<label class="sn-f"><span>ders kodu <small>(isteğe bağlı)</small></span><input type="text" maxlength="20" data-cs-course="" list="axs-cls-courses" placeholder="ör. FIN201"><datalist id="axs-cls-courses"></datalist></label>
+<p class="axs-pf-n">Sınıf açılınca 6 karakterlik bir katılım kodu verilir; öğrenciler kodu sınav salonunda girip katılır. Öğrencinin yalnızca adını, numarasını, bölümünü ve senin verdiğin ödevlerin sonuçlarını görürsün; konu ustalığını yalnızca izin veren öğrencilerde.</p>
+<div class="sn-dlg-b"><span></span><button type="button" class="sn-ghost" data-dlg-x="">vazgeç</button><button type="submit" class="btn btn-dark" data-cs-go="">sınıfı aç</button></div>
 </form>
 </dialog>
 </div>
