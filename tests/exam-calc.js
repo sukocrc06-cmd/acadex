@@ -24,7 +24,7 @@ const GEN_PATH = 'supabase/functions/generate-exam/index.ts';
 const GRADE_PATH = 'supabase/functions/grade-exam/index.ts';
 const EXPR = ['EXPR_MAX_LENGTH', 'EXPR_MAX_DEPTH', 'EXPR_CONSTS', 'EXPR_FUNCS', 'evaluateExpression', 'sanitizeVariables'];
 
-const G = loadFromSource(GEN_PATH, [
+const G = loadFromSource(GEN_PATH, ['calcFormulaKey', 
   ...EXPR, 'normalizeAnswerText', 'parseLooseNumber', 'cleanText',
   'numberReadings', 'sameNumber', 'withinTolerance', 'templateMatches', 'normalizeFormula', 'DERIVED_FACTORS', 'TEMPLATE_DISPLAY_OPS', 'verifyCalculation',
   'MATH_INPUT_MAX', 'normalizeMathInput', 'STEP_KINDS', 'verifyLinearEquation', 'STANDARD_CONSTANTS', 'referencesName', 'inlineName', 'chartNumbers']);
@@ -289,6 +289,16 @@ test('tarihten turetilmis yil kesri (0,5) hala gizli girdi sayilir', () => {
   const q = { type: 'calculation', question: '01.01.2024 -10.000 TL, 01.07.2024 3.000 TL; %6 iskonto ile XNPV?', correct_answer: -7087,
     variables: { r: 0.06, cf1: -10000, cf2: 3000, t2: 0.4959 }, formula: 'cf1 + cf2/(1+r)^t2' };
   assert.equal(G.verifyCalculation(q).reason, 'calc_var_not_in_text');
+});
+
+test('calcFormulaKey: ayni formulu farkli sayilarla soran hesap sorusu tekrar sayilir (canli test 26.10.2026)', () => {
+  const a = { type: 'calculation', formula: '50 - 4*q', variables: { q: 5 } };
+  const b = { type: 'calculation', formula: '50-4*q', variables: { q: 8 } };
+  const c = { type: 'calculation', formula: '3*q^2 - 12*q + 15', variables: { q: 5 } };
+  assert.equal(G.calcFormulaKey(a), G.calcFormulaKey(b));
+  assert.notEqual(G.calcFormulaKey(a), G.calcFormulaKey(c));
+  assert.equal(G.calcFormulaKey({ type: 'multiple_choice', formula: 'x' }), null);
+  assert.equal(G.calcFormulaKey({ type: 'calculation', formula: '' }), null, 'dogrulanmamis (formulsuz) soru denetlenmez');
 });
 
 summary();
