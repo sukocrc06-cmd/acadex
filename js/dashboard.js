@@ -18625,7 +18625,8 @@ async function sendAcadiaMessage(text) {
         'apikey': SUPABASE_ANON_KEY
       },
       body: JSON.stringify({
-        message: text,
+        // MedLab köprüsü: lab açıkken seçili yapının kart bilgisi soruya bağlam olarak eklenir (js/acadex-medlab.js)
+        message: (typeof window.axAcadiaPrefix === 'function' ? window.axAcadiaPrefix(text) : '') + text,
         history: priorHistory,
         language: uiLang,
         studyCardId: acadiaSelectedCardId || null

@@ -1049,6 +1049,7 @@ input[type=range]{accent-color:var(--mc,#2F6BFF)}
 }
 
 </style>
+<script>/* MedLab köprüsü: iframe içinde labın kendi Acadia'sı gizli */if(window.parent!==window&&/[?&]medlab=1(&|$)/.test(location.search))document.documentElement.classList.add('axm-embed')</script><style>.axm-embed #axaMas,.axm-embed #axaPanel{display:none!important}</style>
 </head>
 <body>
 <!-- Acadex MedLab: tasarım önizleme çubuğu uygulamada gizli (öğeler duruyor, script'ler onlara bağlı) -->
@@ -3572,6 +3573,73 @@ renderTabs();
   $('#loadBar').style.width = '100%'; setTimeout(() => $('#load').classList.add('done'), 250);
   renderLayers(); renderNotes(); setPins(); applyVis(); intro(); booted = true; renderTekrar(); renderCases(); renderHead();
   window.__lab = { st, S, TR, DIM, searchIndex: () => SIDX, pickSearch, select, selectMesh, goSid, setMode, meshesAll, byName, bySid, camera, controls, loadSys, withLoader, applyVis, startSpot, judge, friend, need, gpuPick, setQuality, drawLabels, setLabelsOn, runDemo, stopDemo, runSignal, setExplode, startTour, stopTour, startCase, caseClick, setHeat, CASE, TOUR, DEMO, EXP, FLOW, REV, recordSpot, renderTekrar, scene };
+  /* ===== MedLab köprüsü (27.10.2026) =====
+     Lab, Acadex MedLab katmanında (iframe, ?medlab=1) açıldığında kendi Acadia'sını gizler;
+     sorular sitenin tek Acadia'sından gelir. Lab bağlamı (seçili yapı, kart satırları, hazır sorular,
+     spot durumu) üst sayfaya postMessage ile gider; üst sayfa soru/göster/spot komutu yollar.
+     Yeni sekmede açılınca hiçbir şey değişmez. */
+  (function () {
+    var EMB = window.parent !== window && /(?:\?|&)medlab=1(?:&|$)/.test(location.search);
+    window.__labBridge = { embedded: EMB };
+    if (!EMB) return;
+    var LAB = /fizyo/i.test(location.pathname) ? 'fizyo' : 'anatomi', ORG = location.origin;
+    document.documentElement.classList.add('axm-embed');
+    var css = document.createElement('style'); css.textContent = '.axm-embed #axaMas,.axm-embed #axaPanel{display:none!important}'; document.head.appendChild(css);
+    var post = function (m) { m.src = 'axlab'; m.lab = LAB; try { window.parent.postMessage(m, ORG); } catch (e) { /* üst sayfa yok */ } };
+    var clip = function (s, n) { s = String(s == null ? '' : s); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
+    var spotWas = false;
+    var ctx = function () {
+      var key = st.sel, sp = !!(st.spot && st.spot.run), o = { type: 'ctx', mode: st.mode, spot: sp, sel: null, chips: [] };
+      if (key && !sp) {
+        var la = '', rows = [];
+        if (key.charAt(0) === '#') { la = st.selMesh.userData.la || prettyEn(baseOf(st.selMesh.name)); var t = trOf(st.selMesh); rows = t ? t.r : []; }
+        else { la = S[key].la; rows = S[key].rows || []; }
+        o.sel = { key: key, title: cardTitle(), la: la, rows: rows.slice(0, 10).map(function (r) { return [clip(r[0], 40), clip(r[1], 420)]; }) };
+        o.chips = chipsFor().map(function (c) { return [c[0], c[1]]; });
+      }
+      return o;
+    };
+    var send = function () {
+      var o = ctx();
+      if (spotWas && !o.spot && st.spot && st.spot.res && st.spot.res.length) {
+        o.spotRes = st.spot.res.map(function (r) { return { tr: S[r.sid].tr, la: S[r.sid].la, ok: !!r.ok, ans: clip(r.ans || '', 80) }; });
+      }
+      spotWas = o.spot; post(o);
+    };
+    var queue = function () { clearTimeout(queue.t); queue.t = setTimeout(send, 40); };
+    var _ra = renderAcadia; renderAcadia = function () { var r = _ra.apply(this, arguments); queue(); return r; };
+    window.__labBridge.ctx = ctx;
+
+    window.addEventListener('message', async function (e) {
+      if (e.origin !== ORG || e.source !== window.parent) return;
+      var d = e.data; if (!d || d.src !== 'axhost') return;
+      if (d.type === 'hello') { send(); return; }
+      if (d.type === 'show') { var m = byName.get(d.n); if (m) { selectMesh(m); frame([m], { dir: dirFor([m]), k: 1.4 }); } return; }
+      if (d.type === 'spot') { var rg0 = regionOf(d.sid); if (rg0) st.spotCfg.reg = rg0.id; setMode('spot'); return; }
+      if (d.type !== 'ask') return;
+      var reply = { type: 'reply', id: d.id };
+      if (!st.sel || (st.spot && st.spot.run)) { reply.miss = true; post(reply); return; }
+      var kind = d.kind || classify(String(d.q || ''));
+      if (!kind) { reply.miss = true; post(reply); return; }
+      post({ type: 'ack', id: d.id }); /* soru labda cevaplanacak; veri yüklenirken üst sayfa "yazıyor" gösterir */
+      if (kind === 'tour') {
+        var rg = regionOf(st.sel);
+        if (rg) { startTour(rg); reply.text = rg.ad + ' turunu başlattım. Yapılar sırayla modelde açılacak; alttaki çubuktan durdurabilirsin.'; } else reply.miss = true;
+        post(reply); return;
+      }
+      var n = acLog.length;
+      try { await ask(kind, d.label || d.q); } catch (err) { console.error(err); }
+      var last = acLog[acLog.length - 1];
+      if (acLog.length > n && last && last.a && !/cevaplayamıyorum/.test(last.a)) {
+        reply.text = last.a;
+        var seen = {}; /* sağ/sol eşleri tek çip */
+        reply.show = (last.show || []).map(function (nm) { var x = byName.get(nm); return x ? { n: nm, t: nameTR(x) } : null; }).filter(function (o) { if (!o || seen[o.t]) return false; seen[o.t] = 1; return true; }).slice(0, 8);
+        reply.spot = last.act === 'spot' ? last.sid : null;
+      } else reply.miss = true;
+      post(reply);
+    });
+    send();
+  })();
 })();
 </script>
 </body>

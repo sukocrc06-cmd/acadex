@@ -131,3 +131,18 @@ body.axm-open #acadia-widget-container,body.axm-open #pomodoro-widget-container,
   .axm-run-top h2{font-size:17px}
   .axm-newtab{display:none}
 }
+/* MedLab × Acadia köprüsü (js/acadex-medlab-acadia.js): spotta Acadia susar, lab çipleri, bağlam etiketi */
+body.axl-spot #acadia-panel,body.axl-spot .acadia-fab-wrap{display:none!important}
+.axl-chips{display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px;border-bottom:1px solid rgba(22,50,92,.06);flex-shrink:0;max-height:98px;overflow-y:auto;background:#FBF8F0}
+.axl-chips[hidden]{display:none}
+.axl-chips button,.axl-mchips button{font:600 11.5px/1.25 inherit;font-family:inherit;padding:5px 10px;border-radius:999px;border:1px solid rgba(22,50,92,.22);background:#fff;color:#16325C;cursor:pointer;text-align:left}
+.axl-chips button:hover,.axl-mchips button:hover{border-color:#16325C;background:#FFF8E6}
+.axl-chips button:focus-visible,.axl-mchips button:focus-visible{outline:2px solid #2F6BFF;outline-offset:1px}
+.axl-chips .axl-tour{background:#0D1838;color:#fff;border-color:#0D1838}
+.axl-chips .axl-tour::before{content:"\25B6  ";color:#FFD86B}
+.axl-mchips{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;white-space:normal}
+#btn-acadia-select-card.axl-ctx{cursor:default;border-style:solid;color:#16325C;font-weight:700;opacity:1}
+@media (prefers-reduced-motion:no-preference){
+.acadia-fab.axl-ping{animation:axl-ping .9s ease-in-out 3}
+@keyframes axl-ping{0%,100%{transform:scale(1)}50%{transform:scale(1.14)}}
+}

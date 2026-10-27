@@ -41,15 +41,19 @@
   var open = function (k) {
     var L = LABS[k]; if (!L) return false;
     cur = k; titleEl.textContent = L.t; frame.title = L.t; newTab.href = L.src;
-    if (frame.getAttribute('src') !== L.src) { if (loadEl) { loadEl.classList.remove('out'); loadEl.hidden = false; } frame.setAttribute('src', L.src); }
+    /* ?medlab=1: lab kendi Acadia'sını gizler, sitenin Acadia'sıyla köprü kurar (js/acadex-medlab-acadia.js); yeni sekme köprüsüz açılır */
+    var fsrc = L.src + '?medlab=1';
+    if (frame.getAttribute('src') !== fsrc) { if (loadEl) { loadEl.classList.remove('out'); loadEl.hidden = false; } frame.setAttribute('src', fsrc); }
     run.hidden = false; document.body.classList.add('axm-open');
     grow(lastBtn, false);
+    if (typeof window.axMedLabHook === 'function') lsafe(function () { window.axMedLabHook(k, frame); });
     setTimeout(function () { lsafe(function () { frame.focus(); }); }, 60);
     return true;
   };
   var close = function (now) {
     if (run.hidden) return;
     cur = null;
+    if (typeof window.axMedLabHook === 'function') lsafe(function () { window.axMedLabHook(null, frame); });
     var b = lastBtn, fin = function () { run.hidden = true; document.body.classList.remove('axm-open'); if (b && now !== true) lsafe(function () { b.focus(); }); };
     if (now !== true && sec.classList.contains('active')) grow(b, true, fin); else { clearTimeout(grow.t); run.classList.remove('axm-grow'); if (run.style) run.style.clipPath = ''; fin(); }
   };

@@ -178,12 +178,12 @@ test('katman body\'ye tasinir, kart tiklaninca Anatomi Lab iframe\'e yuklenir', 
   const btn = el({ 'data-medlab-open': 'anatomi' });
   sec.fire('click', { target: btn });
   assert.equal(run.hidden, false);
-  assert.equal(frame.getAttribute('src'), 'labs/anatomi/index.html');
+  assert.equal(frame.getAttribute('src'), 'labs/anatomi/index.html?medlab=1', 'iframe kopru parametresiyle acilir');
   assert.equal(run.querySelector('[data-medlab-title]').textContent, 'Anatomi Lab');
   assert.ok(body.classList.contains('axm-open'));
   assert.equal(ctx.AX_MEDLABS.anatomi.src, 'labs/anatomi/index.html');
   sec.fire('click', { target: el({ 'data-medlab-open': 'fizyo' }) });
-  assert.equal(frame.getAttribute('src'), 'labs/fizyo/index.html', 'Fizyo Lab ayni katmanda acilmali');
+  assert.equal(frame.getAttribute('src'), 'labs/fizyo/index.html?medlab=1', 'Fizyo Lab ayni katmanda acilmali');
   assert.equal(run.querySelector('[data-medlab-title]').textContent, 'Fizyo Lab');
   assert.equal(run.querySelector('[data-medlab-newtab]').href, 'labs/fizyo/index.html');
 });
