@@ -1788,7 +1788,10 @@
         if (!k) return;
         const score = Math.max(0, Math.min(100, Number(r.score) || 0));
         // 50 altı sonuç kâğıdında "yanlış" sayılır; kanıt olarak da çoğunlukla yanlış.
-        const c = score >= 50 ? score / 100 : score / 200;
+        // FAZ 5.3: "işaretle" (emin değilim) ya da ipucuyla gelen doğru zayıf kanıt
+        // (Pearson DSM güven derecelendirmesi; Khan Academy'de ipucu ustalık saymaz).
+        const conf = score >= 50 ? (r.flagged ? 0.6 : 1) * (r.hint_used ? 0.5 : 1) : 1;
+        const c = (score >= 50 ? score / 100 : score / 200) * conf;
         (groups[k] = groups[k] || { name: String(r.concept).trim(), obs: [] }).obs.push({ c: c, g: guessRate(r.type, optionCount) });
       });
       Object.keys(groups).forEach(k => {
@@ -1834,6 +1837,21 @@
         recentExams: recent.length, fewData: s.n < 3, history: s.history
       };
     }).sort((a, b) => (Number(b.due) - Number(a.due)) || (a.p * (0.5 + a.retention / 200)) - (b.p * (0.5 + b.retention / 200)) || a.name.localeCompare(b.name, 'tr'));
+  }
+
+  /** FAZ 5.3: tekrar takvimi. Yetkin ve usta konularda hafızanın hedefe
+   *  (varsayılan %80) ineceği gün: t* = S · 81/19 · (r^-2 − 1) (FSRS).
+   *  Tarihi geçmiş olan bugüne çekilir. Zayıf/tanıdık konular takvime
+   *  girmez; onlar "akıllı deneme"nin öğrenme listesinde. */
+  function reviewSchedule(mastery, opts) {
+    const now = opts && Number.isFinite(opts.now) ? opts.now : Date.now();
+    const target = opts && opts.retention > 0 && opts.retention < 1 ? opts.retention : MASTERY_PARAMS.dueRetention;
+    const horizon = opts && opts.horizonDays > 0 ? opts.horizonDays : 60;
+    return (Array.isArray(mastery) ? mastery : []).filter(c => c && c.level >= 2 && c.stability > 0 && c.lastAt).map(c => {
+      const days = c.stability * (81 / 19) * (Math.pow(target, -2) - 1);
+      const dueAt = Math.max(now, c.lastAt + days * DAY_MS);
+      return { key: c.key, name: c.name, level: c.level, dueAt: dueAt, dueDate: new Date(dueAt).toISOString().slice(0, 10), inDays: Math.max(0, Math.round((dueAt - now) / DAY_MS)), overdue: c.lastAt + days * DAY_MS <= now };
+    }).filter(r => r.inDays <= horizon).sort((a, b) => a.dueAt - b.dueAt || a.name.localeCompare(b.name, 'tr'));
   }
 
   /** Bir sınavın konu seviyelerini nasıl değiştirdiği: önceki sınavlarla
@@ -2718,6 +2736,7 @@
     retentionOf,
     conceptMastery,
     masteryChanges,
+    reviewSchedule,
     // FAZ 3b: cebirsel ifade
     normalizeMathInput,
     exprToTex,

@@ -16,8 +16,9 @@
 
 const assert = require('node:assert/strict');
 const path = require('node:path');
-const { makeRunner } = require('./_ts-extract.js');
+const { loadFromSource, makeRunner } = require('./_ts-extract.js');
 const E = require(path.join(__dirname, '..', 'js', 'exam-engine.js'));
+const R = loadFromSource('supabase/functions/grade-exam/index.ts', ['markConfidence']);
 
 const { test, summary } = makeRunner();
 
@@ -122,6 +123,41 @@ test('masteryChanges: sinavin konu seviyelerine etkisi; yalniz o sinavdaki konul
   assert.equal(ch[1].from, null, 'ilk kez gorulen konu');
   assert.equal(ch[1].toName, 'zayıf');
   assert.deepEqual(E.masteryChanges([], { question_results: [] }), []);
+});
+
+test('FAZ 5.3: "isaretle" ya da ipucuyla gelen dogru zayif kanit; yanlis etkilenmez', () => {
+  const mk = (extra) => [ex(0, [['A', 100], ['A', 100], ['A', 100]].map(([c, sc]) => [c, sc]))].map(e => ({ ...e, question_results: e.question_results.map(r => ({ ...r, ...extra })) }));
+  const plain = one(mk({}), 0).mastery, flagged = one(mk({ flagged: true }), 0).mastery, hinted = one(mk({ hint_used: true }), 0).mastery;
+  assert.ok(plain > flagged && flagged > hinted, `${plain} > ${flagged} > ${hinted}`);
+  assert.equal(one(mk({ flagged: true }), 0).levelName, 'tanıdık', 'isaretli 3 dogru yetkin yapmaz');
+  const w = (extra) => one([{ ...ex(0, []), question_results: [{ concept: 'A', score: 0, type: 'calculation', ...extra }] }], 0).mastery;
+  assert.equal(w({ flagged: true }), w({}), 'yanlis cevapta isaret fark etmez');
+});
+
+test('FAZ 5.3: tekrar takvimi: yetkin/usta konularda hafizanin %80e inecegi gun', () => {
+  const m = at(MASTER, 3);
+  const sch = E.reviewSchedule(m, { now: T0 + 3 * DAY });
+  assert.equal(sch.length, 1);
+  const c = m[0];
+  const expectDays = c.stability * 81 / 19 * (Math.pow(0.8, -2) - 1);
+  assert.ok(Math.abs((sch[0].dueAt - c.lastAt) / DAY - expectDays) < 0.01);
+  assert.ok(Math.abs(E.retentionOf(expectDays, c.stability) - 0.8) < 1e-9, 'o gun hafiza tam %80');
+  assert.match(sch[0].dueDate, /^\d{4}-\d{2}-\d{2}$/);
+  const late = E.reviewSchedule(at(MASTER, 200), { now: T0 + 200 * DAY });
+  assert.equal(late[0].inDays, 0, 'gecikmis tekrar bugune cekilir');
+  assert.equal(late[0].overdue, true);
+  assert.deepEqual(E.reviewSchedule(at([ex(0, wrong('Z', 3))], 0)), [], 'zayif konu takvime girmez');
+  assert.deepEqual(E.reviewSchedule(m, { now: T0 + 3 * DAY, horizonDays: 1 }), [], 'ufkun otesi yok');
+});
+
+test('FAZ 5.3: grade-exam markConfidence isaret ve ipucunu sonuca yazar', () => {
+  const res = [{ question_id: 1, score: 100 }, { question_id: 2, score: 0 }, { question_id: 3, score: 100 }];
+  R.markConfidence(res, ['1', 2], ['3']);
+  assert.equal(res[0].flagged, true);
+  assert.equal(res[1].flagged, true);
+  assert.equal(res[2].hint_used, true);
+  assert.equal('flagged' in res[2], false, 'isaretsiz soruya alan eklenmez');
+  R.markConfidence(res, null, undefined);
 });
 
 summary();

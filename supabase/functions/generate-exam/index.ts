@@ -2094,7 +2094,8 @@ function conceptMastery(exams: unknown, opts?: { now?: number }): ConceptMastery
       const k = conceptKey(r.concept)
       if (!k) return
       const score = Math.max(0, Math.min(100, Number(r.score) || 0))
-      const c = score >= 50 ? score / 100 : score / 200
+      const conf = score >= 50 ? (r.flagged ? 0.6 : 1) * (r.hint_used ? 0.5 : 1) : 1
+      const c = (score >= 50 ? score / 100 : score / 200) * conf
       ;(groups[k] = groups[k] || { name: String(r.concept).trim(), obs: [] }).obs.push({ c: c, g: guessRate(r.type, optionCount) })
     })
     Object.keys(groups).forEach(k => {

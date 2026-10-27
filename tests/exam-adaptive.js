@@ -47,6 +47,7 @@ test('sunucu ve tarayici ustalik modeli ayni sonucu verir', () => {
     HISTORY,
     [ex(0, R('A', 3, 100)), ex(3, R('A', 2, 100)), ex(6, R('A', 3, 0)), ex(7, R('A', 3, 0))],
     [ex(0, [['Marjinal maliyet (MC)', 100], ['marjinal maliyet', 40], ['Esneklik', 60, 'multiple_choice']]), ex(2, [['ESNEKLİK', 100, 'true_false']])],
+    [{ ...ex(0, R('İşaretli', 3, 100)), question_results: R('İşaretli', 3, 100).map(([c, sc], i) => ({ concept: c, score: sc, type: 'calculation', flagged: i === 0, hint_used: i === 1 })) }],
     [], [{ completed_at: null, question_results: [] }]
   ];
   for (const f of fixtures) {
