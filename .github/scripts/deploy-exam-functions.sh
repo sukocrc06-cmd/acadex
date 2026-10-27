@@ -67,6 +67,19 @@ if cur in live:
 elif live & hist:
     print('deploy')
 else:
+    # Tanı: en yakın sürümle farkın ilk satırları stderr'e (loga).
+    import difflib
+    best = None
+    for l in live:
+        for h in hist | {cur}:
+            r = difflib.SequenceMatcher(None, l[:20000], h[:20000]).quick_ratio()
+            if best is None or r > best[0]:
+                best = (r, l, h)
+    if best:
+        d = list(difflib.unified_diff(best[2].split('\n'), best[1].split('\n'), 'git', 'canli', n=0, lineterm=''))
+        print(f'en yakin surum benzerligi {best[0]:.3f}; {len(d)} fark satiri', file=sys.stderr)
+        for line in d[:80]:
+            print(line[:200], file=sys.stderr)
     print('unknown')
 PY
 )
