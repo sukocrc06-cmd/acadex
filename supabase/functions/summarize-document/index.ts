@@ -4693,10 +4693,25 @@ const URL_BENZERI_RE = /\b(?:https?:\/\/|www\.)\S+|\S+\.(?:html?|php|aspx?|jpe?g
  * kartta gectikleri icin zaten kept sayiliyorlar. */
 const BOZUK_US_RE = /(\d[.,]\d+)\s*[x×*]?\s*10-?\d{1,3}\b/gi
 
+/* CAG ISARETLI YIL DA YILDIR (28.10.2026 — olculmus).
+ *
+ * Asagidaki yil kuralı yalnizca 1500-2100 arasi DORT haneliyi eliyor.
+ * "BUS211 week4" kosusunda tek kayip sayi suydu:
+ *   390 <- "his Republic (ca. 390 bce), for example, Plato mocks"
+ * Antik tarihler uc haneli ve filtrenin disinda kaliyordu. Kapsama olcusu
+ * MIKTAR olcuyor, tarih degil — "1,800 dolar bir tutar, 1800 bir yil"
+ * ayrimi burada da gecerli, yalnizca cag isareti tasiyan hali atlanmisti.
+ *
+ * Bu, tarihin karta GIRMEMESI gerektigi anlamina GELMEZ: prompt zaten
+ * "dates, ranges and quantities ... carry them verbatim" diyor. Degisen
+ * sey yalnizca sayisal kapsama rozetinin neyi sayacagi. */
+const CAG_YILI_RE = /\b\d{1,4}\s*(?:bce|bc|ad|ce|mo|ms|m\.o\.|m\.s\.)\b/gi
+
 function distinctiveNumbers(text: string): number[] {
   const temiz = String(text || '')
     .replace(URL_BENZERI_RE, ' ')
     .replace(BOZUK_US_RE, '$1 ')
+    .replace(CAG_YILI_RE, ' ')
     .replace(SAYFA_ISARETI_RE, ' ')
   const out: number[] = []
   const gorulen = new Set<number>()
@@ -9188,6 +9203,11 @@ serve(async (req) => {
     // STEP 1 — TEXT EXTRACTION (based on document.mime_type)
     // ==========================================================================
     let extractedText = ""
+    /* Taranmis belge OCR'da sayfa sinirina takildiysa: kac sayfa okunabildi.
+       Karta rozet olarak yaziliyor (quality_meta.ocr_kismi) — ogrenci
+       ozetin belgenin tamamini gormedigini bilmeli. Bildirim BURADA,
+       cunku OCR blogu asagidaki oteki `let`lerden ONCE calisiyor (TDZ). */
+    let ocrKismi: { sayfa: number } | null = null
     const mimeType = document.mime_type?.toLowerCase() || ""
     // Per-page PDF text, kept around after extraction (Denetim Raporu,
     // 2026-08-31) so we can measure text density per page below — this is
@@ -9242,11 +9262,19 @@ serve(async (req) => {
           const ocrApiKey = Deno.env.get('OCR_SPACE_API_KEY')
           if (ocrApiKey) {
             try {
-              const ocrText = await tryOCR(fileBytes, ocrApiKey)
-              const ocrTextLen = (ocrText || "").trim().length
+              const ocr = await tryOCR(fileBytes, ocrApiKey)
+              const ocrTextLen = (ocr.text || "").trim().length
               if (ocrTextLen >= 200) {
-                console.log(`OCR succeeded! Extracted ${ocrTextLen} characters.`)
-                extractedText = detectAndFormatPdfTables(ocrText)
+                if (ocr.kesildi) {
+                  ocrKismi = { sayfa: ocr.sayfa }
+                  console.warn(
+                    `OCR KISMI: sayfa sinirina takildi, yalnizca ${ocr.sayfa} sayfa okundu ` +
+                    `(${ocrTextLen} karakter) — kart bu kadariyla uretiliyor ve rozetleniyor`
+                  )
+                } else {
+                  console.log(`OCR succeeded! Extracted ${ocrTextLen} characters.`)
+                }
+                extractedText = detectAndFormatPdfTables(ocr.text)
               } else {
                 throw new Error("SCANNED_PDF")
               }
@@ -12979,6 +13007,8 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
         qualityMeta.numeric_coverage = { kept: kapsama.kept, total: kapsama.total }
       }
       if (eksikPencereler) qualityMeta.missing_windows = eksikPencereler
+      // Taranmis belge yalnizca ilk N sayfasiyla okunduysa karta yaziliyor.
+      if (ocrKismi) qualityMeta.ocr_kismi = ocrKismi
       if (geminiKismiKrk > 0) qualityMeta.gemini_partial = { kurtarilanKrk: geminiKismiKrk }
       /* Olcum modundaki yogunluk kapisinin bulgusu karta da yaziliyor:
          loglar birkac gunde kayboluyor, kart kaliyor. Kurali veriye bakip
@@ -13247,7 +13277,10 @@ async function markFailed(client: any, documentId: string) {
   }
 }
 
-async function tryOCR(fileBytes: Uint8Array, apiKey: string): Promise<string> {
+async function tryOCR(
+  fileBytes: Uint8Array,
+  apiKey: string
+): Promise<{ text: string; kesildi: boolean; sayfa: number }> {
   const formData = new FormData();
   const blob = new Blob([fileBytes], { type: 'application/pdf' });
   formData.append('file', blob, 'document.pdf');
@@ -13261,8 +13294,26 @@ async function tryOCR(fileBytes: Uint8Array, apiKey: string): Promise<string> {
     body: formData,
   });
   const result = await response.json();
+  const parcalar = (result.ParsedResults ?? []) as any[]
+  const text = parcalar.map((r: any) => r.ParsedText).join('\n\n')
+
+  /* KESIK OCR SONUCU ATILMIYOR (28.10.2026 — olculmus kayip).
+   *
+   * OCR.space sayfa sinirina takildiginda HEM `IsErroredOnProcessing: true`
+   * koyuyor HEM DE sinira kadarki sayfalarin metnini donduruyor:
+   *   "The maximum page limit of 3 was reached and only pages upto the
+   *    limit were parsed successfully"
+   * Eski kod bayragi gorup firlatiyordu ve elindeki 3 sayfalik metni
+   * cope atiyordu; cagiran da SCANNED_PDF'e cevirip belgeyi 'failed'
+   * isaretliyordu. Week_8_Derivative_Problem_Solving_II_SS.pdf 20:07'de
+   * ve ondan onceki her denemede tam burada oluyordu.
+   * Artik kullanilabilir metin varsa donuyor, KESILDIGI soylenerek —
+   * cagiran bunu karta rozet olarak yaziyor. */
   if (result.IsErroredOnProcessing) {
+    if (text.trim().length >= 200) {
+      return { text, kesildi: true, sayfa: parcalar.length }
+    }
     throw new Error(result.ErrorMessage?.[0] || 'OCR processing failed');
   }
-  return (result.ParsedResults ?? []).map((r: any) => r.ParsedText).join('\n\n');
+  return { text, kesildi: false, sayfa: parcalar.length };
 }

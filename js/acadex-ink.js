@@ -10242,6 +10242,14 @@ var SBX = (function () {
     if (mw && mw.dusen > 0) {
       uyarilar.push('eksik özet: ' + mw.dusen + '/' + (mw.toplam || '?') + ' pencere düştü');
     }
+    /* Taranmis belge: OCR sayfa sinirina takildi, kart yalnizca ilk N
+       sayfadan uretildi. Eskiden bu durumda belge komple 'failed' oluyordu
+       (bkz. index.ts -> tryOCR). Kart cikiyor ama ogrenci neyi gormedigini
+       bilmeli, yoksa eksik ozeti tam sanar. */
+    var ok = qm.ocr_kismi;
+    if (ok && ok.sayfa > 0) {
+      uyarilar.push('taranmış belge: yalnızca ilk ' + ok.sayfa + ' sayfa okunabildi');
+    }
     /* KISMI KART ROZETI CIKIS YOLU TASIYOR (25.10.2026).
      *
      * gemini_partial = BU kosuda kurtarilan taslak; cache_kismi = kart
