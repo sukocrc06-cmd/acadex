@@ -1268,42 +1268,8 @@ const REVIEW_TAIL_MS = 8_000
 // win, without the aggressiveness of a bigger jump.
 const CHUNK_CONCURRENCY = 3
 const MAX_CHUNKS = 12 // hard ceiling: prefer finishing over analyzing every page under Edge timeout
-/* BUTCE TAVANI — BUTUN BUTCELERIN TEK KAYNAGI (28.10.2026).
- *
- * Uc butce elle secilmisti ve hicbiri isci nobetcisinden turetilmiyordu:
- *   PIPELINE_BUDGET_MS        110.000   (Groq yolu)
- *   GEMINI_PIPELINE_BUDGET_MS 130.000   (shadow)
- *   GEMINI_ONLY_BUDGET_MS     145.000   (only — canlida bu)
- *   ISCI_NOBET_MS             141.000
- * Yani only modunda Gemini kolu nobetciden 4 sn SONRASINA kadar
- * harcayabilecegini saniyordu (3c tutarsizligi), Groq yolu ise nobetciye
- * 31 saniye kullanilmadan gidiyordu.
- *
- * 28.10 "Chp 7 Attitudes" kosusu tavanin NEDEN 145 kaldigini gosterdi:
- * review kademe 1/3 kapisi budgetLeft=35.281ms ile gereken=33.000ms'yi
- * 2,3 saniye payla gecti. Tavani 135'e cekmek o kapiyi kapatir ve karttan
- * "kalite kontrolunden gecti" rozetini silerdi — olculdu, tahmin degil.
- * O 33.000ms fazla tahmin DEGIL: 25.000 fetch zaman asimi + 8.000 kuyruk,
- * yani kapinin "baslattiysam bitirebilirim" sozu. Zayiflatilamaz.
- *
- * Dolayisiyla tavan 145'te kaliyor ve NOBETCI butce sonundan turetiliyor
- * (bkz. ISCI_NOBET_MS): nobetci artik hala mesru calisan bir kosuyu asla
- * 'failed' yapamaz. Olculen saglikli kosu 111,0 sn surdu. */
-const BUTCE_TAVANI_MS = 145_000
-
-/* Butce bittikten sonra nobetcinin beklediği pay: son kaydin (kart + cache
-   + status) yazilmasina yetecek kadar, Supabase'in ~150 sn'lik sert
-   sinirindan once. Olculen son kayit kuyrugu 1,4 sn. */
-const NOBET_PAYI_MS = 3_000
-
-/* Groq yolu da tavana cikti (110 -> 145). 110, pacer beklemelerine gore
-   secilmisti ve nobetciye 31 saniye kullanilmadan gidiyordu: olculen bir
-   kosuda review budgetLeft=32.236ms ile, 28.10'da gorulen bir kartta ise
-   anlati yazari tam bu yuzden ATLANDI. Risk acikca soyleniyor: bu yol
-   uzun pacer uykularini da yetkilendiriyor, o yuzden 3a kapisi
-   (pencereMaliyetiSigiyor) artik tek koruma — ve o kapi beklemeyi,
-   cagriyi ve yazar payini birlikte olcuyor. */
-const PIPELINE_BUDGET_MS = BUTCE_TAVANI_MS
+// Soft wall-clock budget (ms) for the whole function — leave headroom under ~150s platform limit
+const PIPELINE_BUDGET_MS = 110_000
 
 /* Gemini yolu icin daha genis butce (09.10.2026 olcumu).
  *
@@ -1315,14 +1281,7 @@ const PIPELINE_BUDGET_MS = BUTCE_TAVANI_MS
  *
  * Supabase'in sert siniri ~150 saniye. 130 saniye, review'a yer acarken
  * 20 saniyelik emniyet payi birakiyor. YALNIZCA Gemini taslagi geldiginde
- * devreye giriyor; Groq yolu 110 saniyede kaliyor.
- *
- * 28.10.2026 — BU SAYI TAVANA CIKARILMADI. GEMINI_MAX_CALL_MS (78) =
- * bu (130) eksi GEMINI_GROQ_RESERVE_MS (52) ve uc sayi birbirine bagli
- * (bkz. GEMINI_MAX_CALL_MS notu, testte degismez kontrolu var). shadow
- * canli mod degil; 130 zaten BUTCE_TAVANI_MS'in altinda, yani tavan
- * invariantini bozmuyor. Yalnizca Gemini kolu secildiginde butcenin
- * KUCULMEMESI gerekiyor — bkz. pipelineBudgetMs atamasi. */
+ * devreye giriyor; Groq yolu 110 saniyede kaliyor. */
 const GEMINI_PIPELINE_BUDGET_MS = 130_000
 // A window call, compact-split to window-ok, measured across four live runs:
 // 2.9s, 3.3s, 4.0s, 5.3s. Used to budget a retry, and deliberately several
@@ -3651,8 +3610,7 @@ DECK MODE (lecture ${U}s, not prose):
 /* Talimatin pencere butcesinden dustugu karakter payi.
    BU SAYIYI OLCUM SECTI, BEN DEGIL. Canli referans: 30 sayfalik bir ders
    destesinden cikan 12.451 karakter. O belge iki pencereye bolundugunde
-   araya ~60 sn pacer beklemesi giriyor, PIPELINE_BUDGET_MS (o gun 110 sn;
-   bugun BUTCE_TAVANI_MS)
+   araya ~60 sn pacer beklemesi giriyor, PIPELINE_BUDGET_MS (110 sn)
    tukeniyor ve review pass hic calismiyor — olculmus, tahmin degil
    (bkz. tests/summary-quality.js, "tipik tek bolumluk belge tek pencereye
    sigar"). Dolayisiyla deste penceresi 12.451'in altina DUSEMEZ:
@@ -5641,24 +5599,22 @@ function applyDensityGate(
   return { key_points: tutulan, stats }
 }
 
-/* TERIMI BAGIMSIZ SINANACAK PARCALARA BOL (28.10.2026 olcumu).
+/* TERIMI BAGIMSIZ PARCALARA BOL — CAPRAZ DIL (28.10.2026 olcumu).
  *
  * "Chp 7 Attitudes" kosusunda OLCUM MODU 18 terimden 8'inin dusecegini
- * yakaladi ve sekizinin hepsi ayni kaliptaydi: "Bilissel Temelli Tutum
- * (Cognitively Based Attitude)". Kaynak INGILIZCE, ozet TURKCE. Eski yedek
- * kontrol terimin butun kelimelerini TEK havuzda ariyordu; Turkce etiketin
- * kelimeleri ("bilissel", "temelli") Ingilizce kaynakta yok, dolayisiyla
- * parantez ici ("cognitively based attitude") kaynakta AYNEN gectigi halde
- * terim dusuyordu. Kurtulan 10 terim ise yalnizca Turkce sekil notlarinda
- * (figureText) gectigi icin kurtuldu — yani o kart kazara kurtuldu.
+ * yakaladi; sekizi de ayni kaliptaydi: "Bilissel Temelli Tutum (Cognitively
+ * Based Attitude)". Kaynak INGILIZCE, ozet TURKCE. Eski yedek kontrol butun
+ * kelimeleri TEK havuzda ariyordu; Turkce etiketin kelimeleri Ingilizce
+ * kaynakta yok, dolayisiyla parantez ici kaynakta AYNEN gectigi halde terim
+ * dusuyordu. Kurtulan 10 terim yalnizca Turkce sekil notlarinda (figureText)
+ * gectigi icin kurtuldu — o kart kazara kurtuldu.
  *
- * Parantez modelin NOTUDUR: ceviri ya da kisaltma. Kaynak hakkinda ayri bir
- * iddia tasimaz. Bu yuzden parantez disi etiket ve her parantez grubu AYRI
+ * Parantez modelin NOTUDUR (ceviri ya da kisaltma), kaynak hakkinda ayri bir
+ * iddia tasimaz. Artik parantez disi etiket ve her parantez grubu AYRI
  * sinaniyor; biri tamamen temellenmisse terim temellenmis sayilir.
  *
- * Tam terim (ilk parca) listede DURUYOR: eski davranis aynen korunuyor ve
- * kontrol yalnizca GENISLIYOR, yani daha once KALAN hicbir terim bu
- * degisiklikle dusemez. */
+ * Tam terim ilk parca olarak DURUYOR: kontrol yalnizca genisledi, daha once
+ * KALAN hicbir terim bu degisiklikle dusemez. */
 function gateTermParcalari(term: string): string[][] {
   const kelimeler = (s: string) =>
     gateNormalize(s).split(' ').filter(w => w.length >= 4)
@@ -6612,7 +6568,7 @@ function geminiRetryWaitMs(): number {
    zamani yakip hicbir sey uretmemek demek. */
 const GEMINI_RPM_RETRY_MIN_REMAINING_MS = 90_000
 
-const GEMINI_ONLY_BUDGET_MS = BUTCE_TAVANI_MS
+const GEMINI_ONLY_BUDGET_MS = 145_000
 const GEMINI_ONLY_MAX_CALL_MS = 105_000
 
 /* 16.384 -> 32.768, GERI ALINDI (10.10.2026 15:03).
@@ -7243,16 +7199,8 @@ async function geminiDevreAc(client: any, neden: string, sureMs = GEMINI_DEVRE_M
  * hicbir catch calismiyor; belge 'processing' kalip ogrenci sonsuza kadar
  * "isleniyor" goruyordu. 141. saniyede belge hala 'processing' ise 'failed'
  * isaretlenir (ekran "tekrar dene" gosterir). Is ondan sonra yine de
- * biterse 'summarized' yazimi bunu ezer.
- *
- * 28.10.2026 — ARTIK BUTCE SONUNDAN TURETILIYOR. 141 elle secilmisti ve
- * GEMINI_ONLY_BUDGET_MS (145) ondan SONRAYA dusuyordu; nobetci hala mesru
- * calisan bir kosuyu 'failed' yapabiliyordu. Simdi butce BITTIKTEN sonra
- * calisiyor, yani yalnizca gercekten asili kalmis bir kosuyu isaretler.
- * Karsiliginda 141-148 arasinda asilan bir kosu artik nobetciye
- * yakalanmiyor; takas bilincli, cunku saglikli bir kosuyu yanlislikla
- * 'failed' yapmak ogrenci icin daha kotu. */
-const ISCI_NOBET_MS = BUTCE_TAVANI_MS + NOBET_PAYI_MS
+ * biterse 'summarized' yazimi bunu ezer. */
+const ISCI_NOBET_MS = 141_000
 
 /* Kurtarmaya deger en kucuk kismi cikti. Bunun altinda bir tampon zaten bir
    karta donusmez; kurtarmayi denemek yalnizca logu kirletir. */
@@ -9631,9 +9579,7 @@ ${styleInstruction}`
        *
        * Asagidaki atlama kapisi `budgetLeft()` okuyordu, ama o fonksiyon
        * `pipelineBudgetMs`'e bagli ve orasi Gemini kolu secilene kadar hala
-       * GROQ butcesi (o gun PIPELINE_BUDGET_MS = 110 sn eksi hazirlik;
-       * 28.10.2026'dan beri ikisi de BUTCE_TAVANI_MS, yani only modunda
-       * bu ayrisma artik yok — bkz. BUTCE_TAVANI_MS). Gemini'nin
+       * GROQ butcesi (PIPELINE_BUDGET_MS = 110 sn eksi hazirlik). Gemini'nin
        * kendi butcesi (only modunda GEMINI_ONLY_BUDGET_MS = 145 sn) ancak
        * kapi GECILDIKTEN sonra, birkac satir asagida kuruluyordu.
        *
@@ -9686,11 +9632,8 @@ ${styleInstruction}`
            DENENMEDIGINDE 110 saniyede kalir.
            only modunda butun butce Gemini'nin (Groq cagrilmayacak),
            shadow modunda Groq'a 62 saniye saklanir. */
-        /* Kapiyla AYNI ifade — bkz. geminiModButcesi. max() ile: shadow
-           butcesi (130) artik tavandan (145) KUCUK oldugu icin duz atama
-           Gemini kolu secildiginde butceyi DARALTIRDI. Butce bu noktada
-           yalnizca genisleyebilir. */
-        pipelineBudgetMs = Math.max(pipelineBudgetMs, geminiModButcesi())
+        // Kapiyla AYNI ifade — bkz. geminiModButcesi.
+        pipelineBudgetMs = geminiModButcesi()
         if (hazirlikMs > 5_000) {
           console.log(`Butce: hazirlik ${hazirlikMs}ms dusuldu, kalan butce ${pipelineBudgetMs}ms`)
         }
@@ -10320,8 +10263,7 @@ Rules:
       // deck measured 130s end to end, 114s of which (87%) was the pacer
       // waiting between two windows that would have fit in one. That wait is
       // also what kept budgetLeft() at 0 and made the review pass structurally
-      // unreachable (PIPELINE_BUDGET_MS was 110s then, BUTCE_TAVANI_MS now;
-      // the waits alone exceeded it).
+      // unreachable (PIPELINE_BUDGET_MS is 110s; the waits alone exceeded it).
       //
       // 13000 keeps the worst case at 3250 + 527 + 3072 = 6,849 tokens, under
       // the 7,200 ceiling, while letting a typical single-chapter upload land
@@ -11085,8 +11027,7 @@ groups: sort the numbered sections S1..Sn into 3-6 topic groups, every number ex
       // call would actually WAIT plus what it would actually COST, instead of
       // a flat reserve.
       //
-      // VISUAL_MIN_BUDGET_MS is 100s against what was then a 110s pipeline
-      // (BUTCE_TAVANI_MS now), so vision could
+      // VISUAL_MIN_BUDGET_MS is 100s against a 110s pipeline, so vision could
       // only ever run if it started inside the first ten seconds. On a
       // single-window document it does. On a multi-window one it never can —
       // and on 05.10.2026 that is exactly what happened: "Gorsel gecis
@@ -11850,8 +11791,7 @@ ${String(draftObj.summary || '').slice(0, 1500)}`
     ]
 
     // WHY THIS IS NOT A FLAT 55s ANY MORE (2026-10-04, measured):
-    // A live run finished all its work at 73.6s of a 110s budget (the budget
-    // is BUTCE_TAVANI_MS now), yet review
+    // A live run finished all its work at 73.6s of a 110s budget, yet review
     // was skipped at 72.2s because budgetLeft() was 39.2s and the gate wanted
     // 55s. The 55s came from the era of ONE shared token ledger, where any
     // call might have to sit out a whole 60s window. With per-model lanes the

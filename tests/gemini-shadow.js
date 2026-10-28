@@ -41,7 +41,6 @@ const NAMES = [
   'geminiFormatRejected', 'GEMINI_DUSURULEBILIR', 'geminiUnknownParameter',
   'geminiQuotaExhausted',
   'PIPELINE_BUDGET_MS', 'GEMINI_PIPELINE_BUDGET_MS', 'geminiCoverageQuota', 'GEMINI_CIKTI_BUTCESI_KRK',
-  'BUTCE_TAVANI_MS', 'NOBET_PAYI_MS', 'ISCI_NOBET_MS',
   'buildGeminiDocInstruction', 'extractGeminiText',
   'geminiProblem', 'geminiFigureNotes', 'callGeminiOnce', 'geminiDraft',
   // Akis (SSE) yolu — 18.10.2026.
@@ -718,55 +717,12 @@ test('geminiCoverageQuota: butun sayfalardan toplamasi istenir', () => {
 test('butce: Gemini yolu review a yer birakacak kadar genis, sert sinirin altinda', () => {
   // Olculdu: 72,4 sn Gemini cagrisindan sonra 110 sn butcede 26,8 sn
   // kaliyordu ve review un en kucuk kademesi 33 sn istiyor.
-  /* ESKI DEGISMEZ KALDIRILDI (28.10.2026): "GEMINI_PIPELINE > PIPELINE".
-     Groq yolu da BUTCE_TAVANI_MS'e cikti, yani ikisi artik ayrisamaz
-     yonde degil — shadow (130) tavanin ALTINDA kaldi, gerekcesi
-     GEMINI_MAX_CALL_MS notunda (130 - 52 = 78 ucluSu). Yerine konan
-     degismez: Gemini kolu secildiginde butce KUCULEMEZ. */
+  assert.ok(G.GEMINI_PIPELINE_BUDGET_MS > G.PIPELINE_BUDGET_MS,
+    'Gemini yolunda pencere cagrilari yok, butce dar kalmamali');
   assert.ok(G.GEMINI_PIPELINE_BUDGET_MS - 72_400 > 33_000,
     '72,4 sn lik bir cagridan sonra review (33 sn) hala sigmali');
-  assert.ok(G.GEMINI_PIPELINE_BUDGET_MS <= G.BUTCE_TAVANI_MS,
-    'shadow butcesi tavani asmamali');
-});
-
-test('BUTCE MERDIVENI: her butce tavanin altinda, nobetci tavanin USTUNDE', () => {
-  /* 3c tutarsizligi buradan dondu: GEMINI_ONLY_BUDGET_MS (145.000) eskiden
-     ISCI_NOBET_MS (141.000) uzerindeydi, yani Gemini kolu nobetciden SONRAYA
-     kadar harcayabilecegini saniyordu. Nobetci artik butce sonundan
-     turetiliyor, bu yuzden siralama yapi geregi dogru. */
-  for (const [ad, v] of [
-    ['PIPELINE_BUDGET_MS', G.PIPELINE_BUDGET_MS],
-    ['GEMINI_PIPELINE_BUDGET_MS', G.GEMINI_PIPELINE_BUDGET_MS],
-    ['GEMINI_ONLY_BUDGET_MS', G.GEMINI_ONLY_BUDGET_MS]
-  ]) {
-    assert.ok(v <= G.BUTCE_TAVANI_MS,
-      `${ad}=${v} tavani (${G.BUTCE_TAVANI_MS}) asiyor — nobetci mesru kosuyu kesebilir`);
-  }
-  assert.ok(G.ISCI_NOBET_MS > G.BUTCE_TAVANI_MS,
-    `nobetci ${G.ISCI_NOBET_MS} <= tavan ${G.BUTCE_TAVANI_MS}: hala calisan kosu 'failed' olur`);
-  assert.equal(G.ISCI_NOBET_MS, G.BUTCE_TAVANI_MS + G.NOBET_PAYI_MS,
-    'nobetci butce sonundan turetilmeli, elle secilmemeli');
-  assert.ok(G.ISCI_NOBET_MS <= 149_000,
-    `nobetci ${G.ISCI_NOBET_MS} — Supabase ~150 sn'de isciyi kapatiyor, tek UPDATE'e yer kalmali`);
-});
-
-test('BUTCE MERDIVENI: olculen 28.10 kosusunda review kademe 1/3 hala sigar', () => {
-  /* OLCULEN KOSU (28.10.2026 14:19:18 -> 14:21:09, "Chp 7 Attitudes"):
-       hazirlik 2.302ms  (log: "butce 142698ms" = 145.000 - 2.302)
-       Gemini taslagi    t=107,3 sn
-       anlati yazari     t=109,6 sn
-       Review BASLIYOR   budgetLeft=35.281ms, gereken=33.000ms
-     Pay 2,3 saniye. 33.000 fazla tahmin DEGIL: 25.000 fetch zaman asimi +
-     8.000 kuyruk, yani kapinin "baslattiysam bitirebilirim" sozu.
-     Tavani 135.000'e cekmek budgetLeft'i 25.400'e dusurur ve review
-     ATLANIR — karttan "kalite kontrolunden gecti" rozeti silinir. Bu test
-     tavanin o payi korudugunu tutuyor. */
-  const hazirlikMs = 2_302;
-  const yazarBittiMs = 109_600;
-  const butce = G.GEMINI_ONLY_BUDGET_MS - hazirlikMs;
-  const budgetLeft = butce - (yazarBittiMs - hazirlikMs);
-  assert.ok(budgetLeft >= 33_000,
-    `review kapisi kapandi: budgetLeft=${budgetLeft}ms < 33.000ms — tavan ${G.BUTCE_TAVANI_MS} fazla dar`);
+  assert.ok(G.GEMINI_PIPELINE_BUDGET_MS <= 135_000,
+    'Supabase nin ~150 sn sert sinirina emniyet payi kalmali');
 });
 
 // ===========================================================================
@@ -1953,29 +1909,20 @@ test('atlama kapisi MOD BUTCESINE bakiyor, Groq butcesine degil', () => {
     'eski kapi hala duruyor');
   /* Kapi ve genisletme AYNI ifadeyi okumali; ayrisirlarsa kapi yine yanlis
      butceye bakar. Genisletme artik dogrudan yardimciyi cagiriyor. */
-  /* max(): shadow butcesi (130) tavandan (145) kucuk oldugu icin duz atama
-     Gemini kolu secildiginde butceyi DARALTIRDI. Butce bu noktada yalnizca
-     genisleyebilir — ama ifade yine geminiModButcesi(), yani kapiyla ayni. */
-  assert.ok(src.includes('pipelineBudgetMs = Math.max(pipelineBudgetMs, geminiModButcesi())'),
-    'genisletme kapiyla ayni ifadeyi kullanmiyor ya da butceyi daraltabiliyor');
+  assert.ok(src.includes('pipelineBudgetMs = geminiModButcesi()'),
+    'genisletme kapiyla ayni ifadeyi kullanmiyor');
 });
 
-test('ARITMETIK: only modunda kapi artik YANLIS butceyi okuyamaz', () => {
-  /* Bu testin anlattigi hata (uzun hazirlikta kapinin Groq butcesine
-     bakip Gemini'yi atlamasi) 28.10.2026'da YAPI GEREGI olusmaz hale
-     geldi: PIPELINE_BUDGET_MS ve GEMINI_ONLY_BUDGET_MS artik ayni tavandan
-     geliyor, yani only modunda okunacak "dar butce" diye bir sey yok.
-     Eski senaryo (hazirlik 58 sn) bu yuzden kurulamiyor; degismezi
-     dogrudan yaziyoruz. Senaryo testi shadow modunda anlamli kalir. */
-  assert.equal(G.PIPELINE_BUDGET_MS, G.GEMINI_ONLY_BUDGET_MS,
-    'only modunda iki butce ayrisirsa kapi yine yanlis butceye bakabilir');
+test('ARITMETIK: uzun hazirlikta only modu Gemini\'yi ATLAMAZ', () => {
   const hazirlikMs = 58_000;   // OCR'li 42 sayfalik deste
+  const groqButcesi = G.PIPELINE_BUDGET_MS - hazirlikMs;
   const onlyButcesi = G.GEMINI_ONLY_BUDGET_MS - hazirlikMs;
+  // Eski davranis: Groq butcesiyle karar -> atlanirdi.
+  assert.ok(groqButcesi < G.GEMINI_MIN_BUDGET_MS,
+    `Groq butcesi ${groqButcesi}ms esigin ustunde — bu testin anlatti­gi hata artik olusmaz, senaryoyu guncelle`);
+  // Yeni davranis: only butcesiyle karar -> atlanmaz.
   assert.ok(onlyButcesi >= G.GEMINI_MIN_BUDGET_MS,
     `only butcesi ${onlyButcesi}ms — esik ${G.GEMINI_MIN_BUDGET_MS}ms, Gemini hala atlanir`);
-  // shadow hala ayrisik: orada kapi gercekten dogru butceyi okumali.
-  assert.ok(G.GEMINI_PIPELINE_BUDGET_MS - hazirlikMs >= G.GEMINI_MIN_BUDGET_MS,
-    'shadow butcesinde de uzun hazirlik Gemini\'yi atlatmamali');
 });
 
 /* 24.10.2026 — GECICI-HATA BAYRAGI ON BIR CIKISIN IKISINDE KONUYORDU.
