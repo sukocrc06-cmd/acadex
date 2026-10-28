@@ -104,6 +104,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   // Sayisal kapsama olcusu (09.10.2026).
   'SAYFA_ISARETI_RE', 'SAYISAL_KAPSAMA_TOLERANS', 'SAYI_BELIRTECI', 'SAYISAL_KAPSAMA_ORNEK',
   'sayiOkumalari', 'URL_BENZERI_RE', 'distinctiveNumbers', 'outputNumbers', 'yakinDegerVar',
+  'KAPSAMA_ROZET_MIN_ORNEK',
   'KAPSAMA_DISI_ALANLAR', 'coverageText', 'numericCoverage', 'formatCoverage',
   'SAYISAL_BAGLAM_KRK', 'sayisalKayipBaglami',
   // Denklem sayfalarinin yeniden dizilmesi (09.10.2026).
@@ -4648,6 +4649,12 @@ test('son kart olcusu INSERT\'TEN ONCE ve quality_meta\'ya yaziliyor', () => {
   assert.ok(insert > olcu, 'olcu insert\'ten sonra — karta hic girmez');
   assert.ok(/qualityMeta\.numeric_coverage = \{ kept: kapsama\.kept, total: kapsama\.total \}/.test(KAPSAMA_KOD),
     'kapsama karta yazilmiyor');
+  /* Payda 4'ten kucukken rozet basilmaz: tek hedef sayisi olan belge
+     ("3.ELECTRIC CIRCUIT", 0/1) kullaniciya "%0" rozetiyle cikmisti. */
+  assert.ok(/kapsama\.total >= KAPSAMA_ROZET_MIN_ORNEK/.test(KAPSAMA_KOD),
+    'kucuk orneklem korumasi kalkmis — 0/1 yine rozet basar');
+  assert.ok(A.KAPSAMA_ROZET_MIN_ORNEK >= 3,
+    `esik en az 3 olmali, gelen: ${A.KAPSAMA_ROZET_MIN_ORNEK}`);
   // quality_meta AYNI nesne olmali; kopya olsaydi eklenen alan insert'e girmezdi.
   assert.ok(/quality_meta: qualityMeta\b/.test(KAPSAMA_KOD), 'quality_meta referansla baglanmamis');
 });

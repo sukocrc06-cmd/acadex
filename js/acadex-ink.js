@@ -10268,7 +10268,11 @@ var SBX = (function () {
     var atlanan = arr(qm.skipped_stages).filter(Boolean);
     if (atlanan.length) uyarilar.push('atlanan: ' + atlanan.join(', '));
     var nc = qm.numeric_coverage;
-    if (nc && nc.total > 0 && nc.kept / nc.total < 0.7) {
+    // Payda 4'ten kucukken yuzde gurultudur: tek hedef sayisi olan bir belge
+    // ("3.ELECTRIC CIRCUIT", 0/1) kullaniciya "%0" rozetiyle cikmisti.
+    // index.ts artik bu alani hic yazmiyor; bu kontrol ONBELLEKTE duran
+    // eski kartlar icin.
+    if (nc && nc.total >= 4 && nc.kept / nc.total < 0.7) {
       uyarilar.push('sayısal kapsama %' + Math.round((nc.kept / nc.total) * 100));
     }
     var uyariChip = uyarilar.map(function (u) { return chip(u, 'warn'); }).join('');

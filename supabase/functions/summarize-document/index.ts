@@ -4729,6 +4729,9 @@ function yakinDegerVar(sirali: number[], v: number): boolean {
 /** Olcuye girmeyen alanlar. footnotes kaynaktan BIREBIR alinti tasir — onu
  *  saymak "ozet bu sayiyi ogretti mi" sorusunu "kaynak kendini tekrar etti mi"
  *  sorusuna cevirir. Digerleri sayfa numarasi ve kimlik tasir. */
+/* Rozet basmak icin gereken en az hedef sayi — bkz. qualityMeta.numeric_coverage. */
+const KAPSAMA_ROZET_MIN_ORNEK = 4
+
 const KAPSAMA_DISI_ALANLAR = new Set([
   'footnotes', 'quality_meta', 'outline', 'document_id', 'user_id',
   'page', 'page_start', 'page_end', 'source_pages'
@@ -12949,7 +12952,16 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
         const baglam = sayisalKayipBaglami(extractedText, kapsama.missing)
         if (baglam) console.log(`Sayisal kapsama kayiplari nerede: ${baglam}`)
       }
-      if (kapsama.total > 0) {
+      /* KUCUK ORNEKLEMDEN YUZDE CIKMAZ (28.10.2026 — olculmus).
+         "3.ELECTRIC CIRCUIT" kartinda belgenin TAMAMINDA tek bir hedef sayi
+         vardi (0,75 A) ve kart onu almayinca olcu 0/1 oldu; kullaniciya
+         "sayisal kapsama %0" rozeti gosterildi. Payda 1 iken sonuc yalnizca
+         %0 ya da %100 olabilir — bu bir kalite sinyali degil, gurultu.
+         Gercek sayisal belgelerde payda 21-33 olculdu (ch6 21, ch7 33,
+         BUS211 22), yani esik olcumu bozmuyor.
+         LOG yine basiliyor: oradaki 0,75 GERCEK bir eksikti ("0,75 A ceken
+         devreye 1 A sigorta"). Susturdugumuz sey olcu degil, ROZET. */
+      if (kapsama.total >= KAPSAMA_ROZET_MIN_ORNEK) {
         qualityMeta.numeric_coverage = { kept: kapsama.kept, total: kapsama.total }
       }
       if (eksikPencereler) qualityMeta.missing_windows = eksikPencereler
