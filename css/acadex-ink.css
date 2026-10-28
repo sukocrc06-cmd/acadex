@@ -3887,6 +3887,7 @@ body.acx .t-arrow path{stroke-dashoffset:0 !important;transition:none !important
 :is(#exams-view.axs,#axs-layer) .sn-aq-ol li.ok{color:var(--green);font-weight:600}
 :is(#exams-view.axs,#axs-layer) .sn-aq-a,:is(#exams-view.axs,#axs-layer) .sn-aq-x{margin:0 0 8px;font-size:14px;color:var(--ink);overflow-wrap:anywhere}
 :is(#exams-view.axs,#axs-layer) .sn-aq-n{margin:0 0 10px;font-size:12.5px;color:var(--soft)}
+:is(#exams-view.axs,#axs-layer) .sn-aq-n.bad{color:var(--red);line-height:1.45}
 :is(#exams-view.axs,#axs-layer) .sn-asg-add{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:14px 0 6px}
 :is(#exams-view.axs,#axs-layer) .sn-asg-add span{font-size:13px;color:var(--soft)}
 :is(#exams-view.axs,#axs-layer) .sn-asg-add .sn-ghost{min-height:38px;padding:6px 12px;font-size:13.5px}
