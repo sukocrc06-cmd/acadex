@@ -6172,8 +6172,12 @@ function geminiMode(): 'only' | 'shadow' | 'parallel' {
    Flash-Lite), MODEL_HEAVY seridi (sentez, anlati yazari) GEMINI_MODEL.
    Model adlari hizli degisiyor; ikisi de secret ile ezilebilir.
 
-   ON KOSUL: Gemini UCRETLI katmani. Ucretsiz katmanin RPM 5 / RPD 20
-   limiti tek bir paralel kosuyu bile kaldirmaz.
+   ON KOSUL — GUNCELLENDI (28.10.2026): "ucretli katman sart" notu, limitin
+   PROJE basina oldugu varsayimiyla yazilmisti. Panelden okunan limit model
+   basina RPM 5 / RPD 20. Pencere 13.000 krk ve GEMINI_PARALLEL_CONCURRENCY
+   4'e indirildi; ucretsiz katmanda ch7 boyutunda bir belge bu sinirlarin
+   icinde kosuyor. Gunluk tavan hala dar: ~3 istek/belge ile RPD 20, model
+   basina ~6 belge demek.
 
    KAPATMAK: GEMINI_MODE secret'ini 'shadow' yapmak ya da silmek.
    ========================================================================== */
@@ -6182,10 +6186,23 @@ function geminiParallelActive(): boolean {
 }
 
 const GROQ_CHAT_URL = 'https://api.groq.com/openai/v1/chat/completions'
-const GEMINI_GENERATE_BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
+/* SURUM v1, v1beta DEGIL (28.10.2026 — OLCULDU).
+   Ayni anahtar, ayni model, ayni govde ile:
+     v1beta/models/gemini-3.5-flash:generateContent  -> once 404, 20 dk sonra 503
+     v1alpha/...                                      -> 503
+     v1/...                                           -> 200, "Pong!"
+   Ve ch7 boyutunda (39.526 krk) tam istek: v1beta 503, v1 200 / 7 sn.
+   Yani gunlerdir "kota/model/boyut" diye arananin tamami SURUM hatasiymis.
+   v1beta bu hesapta 404 ile 503 arasinda saliniyor; uzerine kosu kurulmaz. */
+const GEMINI_GENERATE_BASE = 'https://generativelanguage.googleapis.com/v1/models'
 const GEMINI_FAST_MODEL_DEFAULT = 'gemini-3.5-flash-lite'
-/** Ayni anda ucusta olabilecek pencere sayisi. Ucretli katmanin RPM'i bunu rahat kaldirir. */
-const GEMINI_PARALLEL_CONCURRENCY = 10
+/* ESZAMANLILIK = RPM 5 EKSI PAY (28.10.2026).
+   10 ucretli katman varsayimiydi. Ucretsiz katmanda panelden okunan limit
+   model basina RPM 5; pencereler ayni seride (ayni Gemini modeli) gittigi
+   icin 10 eszamanli pencere ilk koside 429 yer. 4 secildi: bir kosu RPM'i
+   doldurmuyor ve ard arda iki kosu arasinda pay kaliyor.
+   Model basina dagitim yapilirsa (bkz. geminiModelsForLane) bu yukseltilebilir. */
+const GEMINI_PARALLEL_CONCURRENCY = 4
 /** Paralel modda okunabilecek en fazla pencere (13.000 krk x 40 ~ 200+ sayfa). */
 const GEMINI_PARALLEL_MAX_WINDOWS = 40
 /** Gorsel gecise kesilip gonderilecek en fazla sayfa (tek mini-PDF). */

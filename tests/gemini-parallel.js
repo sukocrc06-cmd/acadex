@@ -25,7 +25,8 @@ const G = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'geminiMode', 'geminiParallelActive',
   'GROQ_CHAT_URL', 'GEMINI_GENERATE_BASE', 'GEMINI_FAST_MODEL_DEFAULT', 'GEMINI_PARALLEL_MIN_OUTPUT',
   'geminiParallelUsage', 'resetGeminiParallelUsage',
-  'geminiModelsForLane', 'openAiContentToGeminiParts', 'groqViaGemini'
+  'geminiModelsForLane', 'openAiContentToGeminiParts', 'groqViaGemini',
+  'GEMINI_PARALLEL_CONCURRENCY'
 ]);
 
 // ---------------------------------------------------------------------------
@@ -205,6 +206,34 @@ test('groqViaGemini: cikti tavani finish_reason=length olarak isaretlenir', asyn
     const data = await res.json();
     assert.equal(data.choices[0].finish_reason, 'length');
   } finally { restoreFetch(); }
+});
+
+/* ---------------------------------------------------------------------------
+   API SURUMU — 28.10.2026'da olculmus, tekrar v1beta'ya kaymasin.
+
+   Ayni anahtar/model/govde ile v1beta once 404 sonra 503 donuyordu, v1 ise
+   200. ch7 boyutunda (39.526 krk) tam istek: v1beta 503, v1 200 / 7 sn.
+   Sabit v1beta'ya donerse butun Gemini yolu yine sessizce Groq'a duser ve
+   bu testten baska hicbir sey uyarmaz.
+   --------------------------------------------------------------------------- */
+test('GEMINI_GENERATE_BASE v1 surumunu kullanir (v1beta bu hesapta 404/503 saliniyor)', () => {
+  assert.ok(
+    G.GEMINI_GENERATE_BASE.includes('/v1/models'),
+    `v1 bekleniyordu, gelen: ${G.GEMINI_GENERATE_BASE}`
+  );
+  assert.ok(!G.GEMINI_GENERATE_BASE.includes('v1beta'));
+  assert.ok(!G.GEMINI_GENERATE_BASE.includes('v1alpha'));
+});
+
+/* Ucretsiz katmanda limit model basina RPM 5. Pencereler ayni seride gittigi
+   icin eszamanlilik 5'e dayanirsa ilk kosu 429 yer; 4 bir kosuyu guvenle
+   gecirir ve ard arda kosular icin pay birakir. */
+test('GEMINI_PARALLEL_CONCURRENCY ucretsiz katmanin RPM 5 limitinin altinda', () => {
+  assert.ok(G.GEMINI_PARALLEL_CONCURRENCY >= 1);
+  assert.ok(
+    G.GEMINI_PARALLEL_CONCURRENCY <= 4,
+    `RPM 5 icin en fazla 4 bekleniyordu, gelen: ${G.GEMINI_PARALLEL_CONCURRENCY}`
+  );
 });
 
 summary();
