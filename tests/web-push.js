@@ -128,7 +128,31 @@ test('anahtar aracı: VAPID anahtarı tarayıcıda üretilir, hiçbir yere gönd
   assert.doesNotMatch(t, /fetch\(|XMLHttpRequest|sendBeacon|<script src=/);
 });
 
-test('davranış (gerçek Postgres): güvenlik, beğeni/yorum/destek, hatırlatmalar, kuyruk', () => {
+test('admin paneli: Bildirimler sekmesi yalnız salt okunur admin fonksiyonlarını çağırır', () => {
+  const adm = read('js/admin-app.js'), asql = read('supabase/migrations/20261029b_push_admin.sql');
+  assert.match(adm, /\{ k: 'push', t: 'Bildirimler' \}/);
+  assert.match(adm, /VIEWS\.push = async function/);
+  const i = adm.indexOf('VIEWS.push = async function'), view = adm.slice(adm.indexOf('var PSH = {'), adm.indexOf('/* ---------- duyurular'));
+  assert.ok(i > 0 && view.length > 500);
+  const calls = [...view.matchAll(/rpc\('([a-z_]+)'/g)].map((m) => m[1]);
+  assert.deepEqual([...new Set(calls)].sort(), ['admin_push_feed', 'admin_push_stats']);
+  // yenileme yalnız veri alanlarını yazar; süzgeç kutuları bir kez çizilir (odak kaybolmasın)
+  const refresh = view.slice(view.indexOf('var refresh = async function'), view.indexOf('var loop = function'));
+  assert.doesNotMatch(refresh, /psh-st|psh-k"|psh-q/);
+  assert.match(refresh, /#psh-top/); assert.match(refresh, /#psh-feed/);
+  // sekmeden çıkınca döngü durur
+  assert.match(view, /CUR !== 'push'/);
+  // SQL: ikisi de admin_guard, cihaz adresi/anahtarı dönmez, hiçbir şey yazmaz
+  for (const f of ['admin_push_stats', 'admin_push_feed']) {
+    const b = asql.slice(asql.indexOf('function public.' + f + '('), asql.indexOf('end $$;', asql.indexOf('function public.' + f + '(')));
+    assert.match(b, /perform public\.admin_guard\(\);/, f);
+    assert.match(b, /stable security definer/, f);
+    assert.doesNotMatch(b, /\b(insert|update|delete)\b/i, f + ' yazıyor');
+    assert.doesNotMatch(b, /s\.endpoint\s+as|s\.p256dh|s\.auth\b|decrypted_secret/, f + ' gizli alan döndürüyor');
+  }
+  assert.match(asql, /grant execute on function public\.admin_push_stats\(\), public\.admin_push_feed\(text, text, text, int\) to authenticated;/);
+});
+test('davranış (gerçek Postgres): güvenlik, beğeni/yorum/destek, hatırlatmalar, kuyruk, yönetim paneli', () => {
   const pg = process.env.ACADEX_PG;
   if (!pg) { console.log('    (ACADEX_PG yok: davranış testi atlandı)'); return; }
   const P = 'psql ' + pg + ' -q -v ON_ERROR_STOP=1', q = (f) => JSON.stringify(path.join(ROOT, f));
@@ -137,6 +161,9 @@ test('davranış (gerçek Postgres): güvenlik, beğeni/yorum/destek, hatırlatm
     for (const f of ['tests/sql/web-push-stub.sql', 'supabase/migrations/20261028_canli_destek.sql', MIG, MIG]) execSync(P + ' -d ax_push -f ' + q(f), { stdio: 'pipe' });
     const out = execSync(P + ' -d ax_push -f ' + q('tests/sql/web-push.sql'), { stdio: 'pipe' }).toString();
     assert.match(out, /TUM SENARYOLAR GECTI/);
+    // yönetim paneli (29.10.2026): yetki, sayılar, süzgeçler, adres sızmaması, salt okunur
+    const adm = execSync(P + ' -d ax_push -f ' + q('tests/sql/web-push-admin.sql'), { stdio: 'pipe' }).toString();
+    assert.match(adm, /ADMIN PANEL GECTI/);
   } finally {
     execSync(P + ' -d postgres -c "drop database if exists ax_push"', { stdio: 'pipe' });
   }

@@ -112,6 +112,7 @@
     plans: '<path d="M4 6h16v12H4zM4 10h16M8 15h3"/>',
     content: '<path d="M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6"/>',
     support: '<path d="M4 13v-1a8 8 0 0 1 16 0v1"/><rect x="3" y="13" width="4" height="6" rx="1.5"/><rect x="17" y="13" width="4" height="6" rx="1.5"/><path d="M19 19c0 1.5-2 2.5-5 2.5h-1"/>',
+    push: '<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0"/>',
     inbox: '<path d="M3 13l3-8h12l3 8v6H3zM3 13h5l1.5 2.5h5L16 13h5"/>',
     news: '<path d="M4 9v6h3l6 4V5L7 9zM17 9a4 4 0 0 1 0 6M19.5 6.5a7.5 7.5 0 0 1 0 11"/>',
     settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
@@ -122,12 +123,12 @@
   var NAV = [
     { g: 'MASA' }, { k: 'overview', t: 'Genel bakış' },
     { g: 'ÖĞRENCİLER' }, { k: 'users', t: 'Kullanıcılar' }, { k: 'reports', t: 'Şikâyetler', badge: 'open_reports' }, { k: 'plans', t: 'Planlar ve kota', soon: true },
-    { g: 'İÇERİK VE İLETİŞİM' }, { k: 'content', t: 'İçerik' }, { k: 'support', t: 'Canlı destek', badge: 'support_unread' }, { k: 'inbox', t: 'Gelen kutusu', badge: 'unread_messages' }, { k: 'news', t: 'Duyurular' },
+    { g: 'İÇERİK VE İLETİŞİM' }, { k: 'content', t: 'İçerik' }, { k: 'support', t: 'Canlı destek', badge: 'support_unread' }, { k: 'push', t: 'Bildirimler' }, { k: 'inbox', t: 'Gelen kutusu', badge: 'unread_messages' }, { k: 'news', t: 'Duyurular' },
     { g: 'ACADEX' }, { k: 'ekip', t: 'Acadex ekibi' },
     { g: 'TEST' }, { k: 'test', t: 'Test paneli', badge: 'test_open_hata' },
     { g: 'SİSTEM' }, { k: 'settings', t: 'Site ayarları' }, { k: 'audit', t: 'Denetim kaydı' }
   ];
-  var TITLES = { overview: 'Genel bakış', users: 'Kullanıcılar', reports: 'Şikâyetler ve moderasyon', plans: 'Planlar ve kota', content: 'İçerik', support: 'Canlı destek', inbox: 'Gelen kutusu', news: 'Duyurular', settings: 'Site ayarları', audit: 'Denetim kaydı', test: 'Test paneli', ekip: 'Acadex ekibi' };
+  var TITLES = { overview: 'Genel bakış', users: 'Kullanıcılar', reports: 'Şikâyetler ve moderasyon', plans: 'Planlar ve kota', content: 'İçerik', support: 'Canlı destek', push: 'Telefon bildirimleri', inbox: 'Gelen kutusu', news: 'Duyurular', settings: 'Site ayarları', audit: 'Denetim kaydı', test: 'Test paneli', ekip: 'Acadex ekibi' };
   var paintNav = function () {
     $('#nav').innerHTML = NAV.map(function (n) {
       if (n.g) return '<div class="grp">' + n.g + '</div>';
@@ -693,6 +694,109 @@
     SUP.t = setTimeout(loop, 3000);
     if (!SUP.visHook) { SUP.visHook = true; document.addEventListener('visibilitychange', function () { if (!document.hidden && CUR === 'support') { refresh(); supPulse(); } }); }
     supPulse();
+  };
+
+  /* ---------- telefon bildirimleri (29.10.2026) ----------
+     Salt okunur izleme: admin_push_stats + admin_push_feed
+     (supabase/migrations/20261029b_push_admin.sql). Cihaz adresi ve anahtarı
+     hiç gelmez. 15 sn'de bir (sekme gizliyken 60 sn) yalnız VERİ alanları
+     yenilenir; süzgeç kutuları yeniden çizilmez, odak ve yazılan kaybolmaz. */
+  var PSH = { state: 'all', kind: 'all', q: '', t: 0, view: 0, qT: 0 };
+  var PSH_KIND = { like: 'Beğeni', comment: 'Yorum', support: 'Destek cevabı', study: 'Çalışma hatırlatması', review: 'Kart tekrarı', exam: 'Yarınki sınav', test: 'Deneme' };
+  var PSH_STATE = { gitti: ['ok', 'gitti'], bekliyor: ['blue', 'bekliyor'], hata: ['warn', 'hata · yeniden denenecek'], vazgecildi: ['bad', 'gönderilemedi'], atlandi: ['', 'atlandı'] };
+  var PSH_PLAT = { apple: 'iPhone / Mac', google: 'Android / Chrome', mozilla: 'Firefox', windows: 'Windows', diger: 'Diğer' };
+  var PSH_SKIP = { eskidi: '1 günden eski, gönderilmedi', goruldu: 'ziyaretçi mesajı zaten okumuştu' };
+  var ago = function (d) {
+    if (!d) return '—'; var s = Math.round((Date.now() - new Date(d).getTime()) / 1000);
+    if (s < 0) return Math.round(-s) + ' sn sonra'; if (s < 60) return s + ' sn önce'; if (s < 3600) return Math.round(s / 60) + ' dk önce';
+    if (s < 86400) return Math.round(s / 3600) + ' sa önce'; return DT(d, true);
+  };
+  var pshChart = function (series) {
+    var W = 760, H = 150, L = 30, R = 10, T = 10, B = 24, n = series.length || 1;
+    var max = Math.max(1, Math.max.apply(null, series.map(function (s) { return s.ok + s.err; })));
+    var top = Math.max(4, Math.ceil(max / 4) * 4), step = top / 4;
+    var x = function (i) { return L + (W - L - R) * i / n; }, y = function (v) { return T + (H - T - B) * (1 - v / top); }, bw = (W - L - R) / n * .7;
+    var grid = ''; for (var g = 0; g <= 4; g++) { var gy = y(g * step); grid += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + gy + '" y2="' + gy + '" stroke="#E3DECF"/><text x="' + (L - 6) + '" y="' + (gy + 4) + '" text-anchor="end" font-size="11" fill="#6A7593">' + Math.round(g * step) + '</text>'; }
+    var bars = series.map(function (s, i) {
+      var hh = new Date(s.h).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+      return '<rect x="' + (x(i) + 2) + '" y="' + y(s.ok) + '" width="' + bw + '" height="' + (y(0) - y(s.ok)) + '" rx="2" fill="#2E9E6B"><title>' + hh + ': ' + s.ok + ' gitti</title></rect>' +
+        (s.err ? '<rect x="' + (x(i) + 2) + '" y="' + y(s.ok + s.err) + '" width="' + bw + '" height="' + (y(s.ok) - y(s.ok + s.err)) + '" rx="2" fill="#C9483B"><title>' + hh + ': ' + s.err + ' hata</title></rect>' : '') +
+        (i % 4 === 0 || i === n - 1 ? '<text x="' + (x(i) + 2 + bw / 2) + '" y="' + (H - 7) + '" text-anchor="middle" font-size="11" fill="#6A7593">' + hh + '</text>' : '');
+    }).join('');
+    return '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Son 24 saatte saat saat giden ve hatalı bildirim sayısı">' + grid + bars + '</svg>';
+  };
+  var pshHealth = function (h, l24) {
+    var rows = [], now = Date.now();
+    var cronOk = function (j) { if (!j) return ['bad', 'kurulu değil']; if (!j.active) return ['bad', 'kapalı']; if (j.status && j.status !== 'succeeded') return ['bad', 'son çalışma başarısız · ' + ago(j.last)]; return j.last ? ['ok', 'çalışıyor · ' + ago(j.last)] : ['warn', 'henüz çalışmadı']; };
+    var cj = function (n) { return (h.cron || []).filter(function (j) { return j.job === n; })[0]; };
+    var f = cronOk(cj('push-flush')), d = cronOk(cj('push-daily'));
+    var oldest = h.oldest_pending ? (now - new Date(h.oldest_pending).getTime()) / 1000 : 0;
+    rows.push(['Gönderim zamanlayıcısı (her dakika)', f]);
+    rows.push(['Hatırlatma zamanlayıcısı (15 dk)', d]);
+    rows.push(['Kasadaki gizli anahtar', h.secret ? ['ok', 'kayıtlı'] : ['bad', 'yok · bildirim gönderilemez']]);
+    rows.push(['Bekleyen kuyruk', !h.oldest_pending ? ['ok', 'boş'] : oldest > 180 ? ['bad', 'en eskisi ' + ago(h.oldest_pending) + ' · takılmış olabilir'] : ['blue', 'en eskisi ' + ago(h.oldest_pending)]]);
+    rows.push(['Son başarılı gönderim', h.last_ok ? ['ok', ago(h.last_ok)] : ['', 'henüz yok']]);
+    if (h.last_error) rows.push(['Son hata', [(now - new Date(h.last_error.t).getTime()) < 3600e3 ? 'warn' : '', ago(h.last_error.t) + ' · ' + X(h.last_error.e)]]);
+    var bad = rows.some(function (r) { return r[1][0] === 'bad'; });
+    return '<div class="psh-health"><span class="pill ' + (bad ? 'bad' : 'ok') + '">' + (bad ? 'dikkat gerekiyor' : 'sistem sağlıklı') + '</span>' +
+      (l24.avg_sec != null ? '<span class="psh-s">ortalama gönderim süresi ' + String(l24.avg_sec).replace('.', ',') + ' sn</span>' : '') +
+      '<dl class="kv">' + rows.map(function (r) { return '<dt>' + r[0] + '</dt><dd><span class="pill ' + r[1][0] + '">' + r[1][1] + '</span></dd>'; }).join('') + '</dl></div>';
+  };
+  var pshFeed = function (rows) {
+    if (!rows.length) return '<div class="empty">' + (PSH.state !== 'all' || PSH.kind !== 'all' || PSH.q ? 'Bu süzgeçle bildirim yok.' : 'Henüz bildirim gönderilmedi. Biri telefonundan bildirimi açıp bir olay olunca burada görünür.') + '</div>';
+    return '<table><thead><tr><th>Zaman</th><th>Kime</th><th>Tür</th><th>Bildirim</th><th>Sonuç</th></tr></thead><tbody>' + rows.map(function (r) {
+      var st = PSH_STATE[r.state] || ['', r.state], who = r.visitor ? '<span class="muted">ziyaretçi ·</span> ' + X(r.visitor) : r.user_id ? '<button type="button" class="lnk" data-user="' + X(r.user_id) + '">' + X(r.user_name || 'kullanıcı') + '</button>' : '—';
+      var why = r.state === 'atlandi' ? (PSH_SKIP[r.error] || X(r.error || '')) : r.error ? X(r.error) : r.state === 'gitti' && r.sent_at ? Math.max(0, Math.round((new Date(r.sent_at) - new Date(r.send_after)) / 1000)) + ' sn içinde' : r.state === 'bekliyor' && new Date(r.send_after) > Date.now() ? 'gönderim ' + ago(r.send_after) : '';
+      return '<tr><td style="white-space:nowrap" title="' + X(DT(r.created_at, true)) + '">' + ago(r.created_at) + '</td><td>' + who + '<div class="psh-s">' + X(PSH_PLAT[r.platform] || r.platform) + '</div></td>' +
+        '<td>' + X(PSH_KIND[r.kind] || r.kind) + (r.n > 1 ? ' <span class="pill">×' + r.n + '</span>' : '') + '</td>' +
+        '<td class="psh-msg"><b>' + X(r.title) + '</b><div class="muted">' + X(r.body) + '</div></td>' +
+        '<td><span class="pill ' + st[0] + '">' + st[1] + '</span>' + (why ? '<div class="psh-s">' + why + (r.tries > 1 && r.state !== 'gitti' ? ' · ' + r.tries + '. deneme' : '') + '</div>' : '') + '</td></tr>';
+    }).join('') + '</tbody></table>';
+  };
+  VIEWS.push = async function (m) {
+    var my = ++PSH.view;
+    m.innerHTML = '<div id="psh-top"><div class="card"><div class="skel" style="width:40%"></div><div class="skel" style="margin-top:12px"></div></div></div>' +
+      '<div class="card psh-feed-c"><div class="psh-feed-h"><div><h2>Bildirim akışı</h2><p class="sub">Son 14 gün · en yeni üstte · <span id="psh-at">yükleniyor</span></p></div>' +
+      '<div class="tools"><label class="fld">Sonuç<select class="in" id="psh-st"><option value="all">hepsi</option><option value="gitti">gitti</option><option value="bekliyor">bekliyor</option><option value="hata">hatalı</option><option value="atlandi">atlandı</option></select></label>' +
+      '<label class="fld">Tür<select class="in" id="psh-k"><option value="all">hepsi</option>' + Object.keys(PSH_KIND).map(function (k) { return '<option value="' + k + '">' + PSH_KIND[k] + '</option>'; }).join('') + '</select></label>' +
+      '<label class="fld">Ara<input class="in" id="psh-q" type="search" placeholder="kişi, e-posta, başlık" autocomplete="off"></label></div></div>' +
+      '<div class="tbl-w" id="psh-feed"><div class="empty">yükleniyor…</div></div></div>';
+    $('#psh-st').value = PSH.state; $('#psh-k').value = PSH.kind; $('#psh-q').value = PSH.q;
+    var refresh = async function () {
+      if (my !== PSH.view || CUR !== 'push') return;
+      var res = await Promise.all([rpc('admin_push_stats'), rpc('admin_push_feed', { p_state: PSH.state, p_kind: PSH.kind, p_q: PSH.q || null, p_limit: 150 })]);
+      if (my !== PSH.view || CUR !== 'push') return;
+      var s = res[0] || {}, sb = s.subs || {}, l = s.last24 || {}, pf = s.prefs_off || {}, plat = sb.by_platform || {};
+      var k = function (label, val, sub, alert) { return '<div class="kpi' + (alert ? ' alert' : '') + '"><div class="k">' + label + '</div><div class="v">' + NF(val) + '</div><div class="s">' + sub + '</div></div>'; };
+      var platTxt = Object.keys(plat).sort(function (a, b) { return plat[b] - plat[a]; }).map(function (p) { return NF(plat[p]) + ' ' + (PSH_PLAT[p] || p); }).join(' · ') || 'henüz yok';
+      $('#psh-top').innerHTML = '<div class="kpis">' +
+        k('Bildirim açık cihaz', sb.total, NF(sb.users) + ' kişi · ' + NF(sb.visitors) + ' destek ziyaretçisi · +' + NF(sb.new_7d) + ' son 7 gün') +
+        k('Son 24 saatte giden', l.gitti, NF(l.total) + ' bildirim oluştu · ' + NF(l.atlandi) + ' atlandı') +
+        k('Bekleyen', l.bekliyor, l.bekliyor ? 'sırada, birazdan gider' : 'kuyruk boş') +
+        k('Hatalı (24 saat)', l.hata, NF(sb.failing) + ' cihazda tekrarlayan hata', l.hata > 0) + '</div>' +
+        '<div class="grid g-wide"><div class="card"><h2>Son 24 saat</h2><p class="sub">Saat saat giden ve hatalı bildirim</p>' + pshChart(s.series || []) +
+        '<div class="legend"><span><i style="background:#2E9E6B"></i>gitti</span><span><i style="background:#C9483B"></i>hata</span></div></div>' +
+        '<div class="card"><h2>Sistem sağlığı</h2>' + pshHealth(s.health || {}, l) + '</div></div>' +
+        '<div class="grid g2"><div class="card"><h2>Bildirim türleri</h2><p class="sub">Son 24 saat · cihazlar: ' + platTxt + '</p><div class="bars">' +
+        Object.keys(PSH_KIND).filter(function (x) { return (l.by_kind || {})[x]; }).map(function (x) { var n = l.by_kind[x]; return '<div class="bar"><span>' + PSH_KIND[x] + '</span><span class="t"><i style="width:' + Math.round(n / Math.max(1, l.total) * 100) + '%"></i></span><b>' + NF(n) + '</b></div>'; }).join('') +
+        ((l.total || 0) ? '' : '<p class="muted">Son 24 saatte bildirim yok.</p>') + '</div></div>' +
+        '<div class="card"><h2>Kapatılan bildirimler</h2><p class="sub">Bildirim açık kişilerden kaçı hangi türü kapattı</p><div class="bars">' +
+        [['likes', 'Beğeni'], ['comments', 'Yorum'], ['study', 'Çalışma hatırlatması'], ['review', 'Kart tekrarı']].map(function (x) { var n = pf[x[0]] || 0; return '<div class="bar"><span>' + x[1] + '</span><span class="t"><i style="width:' + Math.round(n / Math.max(1, sb.users) * 100) + '%;background:#C9483B"></i></span><b>' + NF(n) + '</b></div>'; }).join('') + '</div></div></div>';
+      var fe = $('#psh-feed'), sc = fe.scrollTop;
+      fe.innerHTML = pshFeed(res[1] || []); fe.scrollTop = sc;
+      $$('[data-user]', fe).forEach(function (b) { b.addEventListener('click', function () { userDetail(b.getAttribute('data-user')); }); });
+      $('#psh-at').textContent = 'canlı · ' + new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' güncellendi';
+    };
+    var loop = function () {
+      clearTimeout(PSH.t); if (my !== PSH.view || CUR !== 'push') return;
+      refresh().catch(function (e) { var a = $('#psh-at'); if (a) a.textContent = 'güncellenemedi: ' + errMsg(e); })
+        .then(function () { clearTimeout(PSH.t); if (my === PSH.view && CUR === 'push') PSH.t = setTimeout(loop, document.hidden ? 60000 : 15000); });
+    };
+    $('#psh-st').addEventListener('change', function () { PSH.state = this.value; loop(); });
+    $('#psh-k').addEventListener('change', function () { PSH.kind = this.value; loop(); });
+    $('#psh-q').addEventListener('input', function () { var v = this.value.trim(); clearTimeout(PSH.qT); PSH.qT = setTimeout(function () { PSH.q = v; loop(); }, 350); });
+    if (!PSH.visHook) { PSH.visHook = true; document.addEventListener('visibilitychange', function () { if (!document.hidden && CUR === 'push') loop(); }); }
+    await refresh(); clearTimeout(PSH.t); PSH.t = setTimeout(loop, 15000); /* ilk yükleme hatası görünümün kendi hata kartına düşer */
   };
 
   /* ---------- duyurular ---------- */
