@@ -111,13 +111,13 @@ test('grade-exam: kesinti ve gizleme kayda uygulanıyor, attempt anahtarı boş'
   assert.match(grade, /from\('exam_hidden_results'\)\s*\.upsert\(\{ exam_id: exam\.id, user_id: exam\.user_id, results, reveal_at: reveal\.revealAt \}/);
 });
 
-test('itiraz: gizliyken yok, açıklanınca var; kesinti yeniden hesaplanan nota da', () => {
+test('itiraz: gizliyken yok (açılışa RLS karar verir); kesinti yeniden hesaplanan nota da', () => {
   const ex = (a) => ({ assignment_id: 'a', scoring: { assignment: a } });
-  assert.equal(A.assignmentAnswersHidden(ex({ answers_hidden: true, reveal_at: new Date(DUE).toISOString() }), DUE - 1), true);
-  assert.equal(A.assignmentAnswersHidden(ex({ answers_hidden: true, reveal_at: new Date(DUE).toISOString() }), DUE + 1), false);
-  assert.equal(A.assignmentAnswersHidden(ex({ answers_hidden: true, reveal_at: null }), DUE), true, 'hiç gösterilmeyecek');
-  assert.equal(A.assignmentAnswersHidden(ex({ answers_hidden: false }), DUE), false);
-  assert.equal(A.assignmentAnswersHidden({ scoring: {} }, DUE), false, 'ödev değil');
+  assert.equal(A.assignmentAnswersHidden(ex({ answers_hidden: true })), true);
+  assert.equal(A.assignmentAnswersHidden(ex({ answers_hidden: false })), false);
+  assert.equal(A.assignmentAnswersHidden({ scoring: { assignment: { answers_hidden: true } } }), false, 'ödev değil');
+  const appeal = readSource('supabase/functions/exam-appeal/index.ts');
+  assert.match(appeal, /if \(kind === 'appeal' && assignmentAnswersHidden\(exam\)\) \{\s*const \{ data: shown \} = await userClient\.from\('exam_hidden_results'\)\.select\('exam_id'\)\.eq\('exam_id', exam\.id\)\.maybeSingle\(\)\s*if \(!shown\) return fail\('answers_hidden', 403\)/);
   assert.equal(A.withLatePenalty(80, { assignment: { late_applied: { pct: 10 } } }), 72);
   assert.equal(A.withLatePenalty(80, { assignment: { late_applied: null } }), 80);
   assert.equal(A.withLatePenalty(80, {}), 80);
@@ -152,7 +152,7 @@ test('davranış testi (Postgres + RLS)', () => {
   const P = 'psql ' + pg + ' -q -v ON_ERROR_STOP=1';
   execSync(P + ' -d postgres -c "drop database if exists ax_t63" -c "create database ax_t63"', { stdio: 'pipe' });
   try {
-    for (const f of ['tests/sql/_supabase-stub.sql', 'supabase/migrations/20261027_sinav_faz6_siniflar.sql', 'supabase/migrations/20261027b_sinav_faz6_odevler.sql', 'supabase/migrations/20261028b_sinav_faz6_ogrenci.sql', 'supabase/migrations/20261028b_sinav_faz6_ogrenci.sql'])
+    for (const f of ['tests/sql/_supabase-stub.sql', 'supabase/migrations/20261027_sinav_faz6_siniflar.sql', 'supabase/migrations/20261027b_sinav_faz6_odevler.sql', 'supabase/migrations/20261028b_sinav_faz6_ogrenci.sql', 'supabase/migrations/20261028c_sinav_faz6_cevap_acilisi.sql', 'supabase/migrations/20261028c_sinav_faz6_cevap_acilisi.sql'])
       execSync(P + ' -d ax_t63 -f ' + JSON.stringify(path.join(root, f)), { stdio: 'pipe' });
     const out = execSync(P + ' -d ax_t63 -f ' + JSON.stringify(path.join(root, 'tests/sql/faz6-ogrenci.sql')), { stdio: 'pipe' }).toString();
     assert.match(out, /HEPSI GECTI/);

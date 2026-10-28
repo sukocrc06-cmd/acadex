@@ -243,3 +243,13 @@ Hoca paneli (teacher.html) 19.10.2026'da kaldırılmıştı (`20261019_yonetim_p
 ### Deploy
 - `generate-exam`, `grade-exam`, `exam-appeal` otomatik (GitHub Actions).
 - SQL elle; sıra: 6.2 → 6.3.
+
+### 6.3b: cevapların açılma zamanı (`20261028c_sinav_faz6_cevap_acilisi.sql`)
+- **Sorun:** canlı teste hazırlanırken fark edildi. `reveal_at` teslim anında yazılıyordu; öğretmen son teslimi uzatırsa erken teslim eden öğrenci cevapları, diğerleri hâlâ çözerken görebilirdi.
+- **Düzeltme:** `exam_hidden_results` okuma izni artık ödevin **güncel** durumuna bakar (`exam_hidden_revealed`):
+  - "son teslimden sonra": teslim penceresi bitince ya da öğretmen ödevi kapatınca açılır
+  - "hiç": asla açılmaz
+  - Son teslim uzatılırsa cevaplar yeniden gizlenir.
+  - Ödev silinmişse kayıttaki eski açılış zamanı geçerli.
+- Ön yüz ve `exam-appeal` aynı kararı kullanır: satır okunabiliyorsa cevaplar açılmıştır.
+- **Test:** `tests/sql/faz6-ogrenci.sql` bu durumları tek tek dener.

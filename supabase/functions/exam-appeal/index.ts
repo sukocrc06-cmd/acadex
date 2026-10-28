@@ -296,13 +296,12 @@ function validateFeedbackRequest(body: unknown): FeedbackRequest | { ok: false; 
   return { ok: true, action, examId, questionId, reason, category }
 }
 
-/** FAZ 6.3: ödev sınavında cevaplar hâlâ gizli mi (reveal_at gelmedi ya da hiç açılmayacak). */
-function assignmentAnswersHidden(exam: Record<string, unknown>, nowMs: number): boolean {
+/** FAZ 6.3: ödev sınavının cevapları gizli olarak mı kaydedildi. Açılıp açılmadığına
+ *  exam_hidden_results'ın RLS'i karar verir (ödevin GÜNCEL son teslimi; 20261028c). */
+function assignmentAnswersHidden(exam: Record<string, unknown>): boolean {
   const sc = exam && exam.scoring && typeof exam.scoring === 'object' ? exam.scoring as Record<string, unknown> : null
   const asg = exam && exam.assignment_id && sc && sc.assignment && typeof sc.assignment === 'object' ? sc.assignment as Record<string, unknown> : null
-  if (!asg || asg.answers_hidden !== true) return false
-  const at = asg.reveal_at ? Date.parse(String(asg.reveal_at)) : NaN
-  return !(Number.isFinite(at) && at <= nowMs)
+  return !!asg && asg.answers_hidden === true
 }
 
 /** FAZ 6.3: itirazla yeniden hesaplanan nota ödevin geç teslim kesintisi de uygulanır. */
@@ -597,7 +596,10 @@ serve(async (req) => {
     const kind = v.action === 'report' ? 'report' : 'appeal'
     const result = results[idx]
     // FAZ 6.3: ödev cevapları gizliyken yapay zekâ itirazı yok (öğrenci doğrusunu görmeden itiraz edemez)
-    if (kind === 'appeal' && assignmentAnswersHidden(exam, Date.now())) return fail('answers_hidden', 403)
+    if (kind === 'appeal' && assignmentAnswersHidden(exam)) {
+      const { data: shown } = await userClient.from('exam_hidden_results').select('exam_id').eq('exam_id', exam.id).maybeSingle()
+      if (!shown) return fail('answers_hidden', 403)
+    }
     if (kind === 'appeal') {
       const why = appealEligibility(result)
       if (why) return fail(why, why === 'already_full' ? 409 : 400)
