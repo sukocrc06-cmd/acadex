@@ -181,7 +181,10 @@ window.axNotify = function (title, opts) {
         } else {
           main = '<button type="button" class="ax-btn ax-btn-line btn-view-summary" data-doc-id="' + doc.id + '" data-doc-name="' + esc(doc.file_name) + '" data-card-id="' + (dc[0] ? dc[0].id : '') + '">Özeti gör</button>';
         }
-        body += '<button type="button" class="ax-resum" onclick="openResummarizeModal(\'' + doc.id + '\')">yeniden özetle</button>';
+        // Yeniden ozetleme gecici olarak kapali — bkz. dashboard.js -> YENIDEN_OZETLE_ACIK.
+        if (window.YENIDEN_OZETLE_ACIK) {
+          body += '<button type="button" class="ax-resum" onclick="openResummarizeModal(\'' + doc.id + '\')">yeniden özetle</button>';
+        }
       } else {
         stamp = doc.status === 'failed' ? '<span class="ax-stamp bad">hata</span>' : '<span class="ax-stamp new">yüklendi</span>';
         if (doc.status === 'failed') body = '<span class="ax-fail">özetleme yarım kaldı; bir daha deneyelim.</span>';
@@ -10277,7 +10280,8 @@ var SBX = (function () {
     }
     var uyariChip = uyarilar.map(function (u) { return chip(u, 'warn'); }).join('');
     // Cikis yolu yalnizca KENDI kartinda — bkz. yenileCikisi.
-    if (yenileCikisi && own && c.document_id) {
+    // YENIDEN_OZETLE_ACIK kapaliyken cikis yolu da cizilmiyor — bkz. dashboard.js.
+    if (window.YENIDEN_OZETLE_ACIK && yenileCikisi && own && c.document_id) {
       uyariChip += '<button type="button" class="axr-chip warn hand" data-yenile="' + X(c.document_id) +
         '" title="Önbelleği atlayıp sıfırdan özetler">' + ICON.redo + 'yeniden özetle</button>';
     }

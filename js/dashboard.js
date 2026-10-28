@@ -716,13 +716,13 @@ function renderDocumentsList() {
               }).join('')}
             </div>
           </div>
-          <button class="btn-resummarize" onclick="openResummarizeModal('${doc.id}')" style="width: 100%; margin-top: 0.35rem; font-size: 0.75rem; color: var(--color-teal); background: none; border: none; cursor: pointer; text-decoration: underline; text-align: center; font-weight: 600;">Re-summarize with different style</button>
+          ${window.YENIDEN_OZETLE_ACIK ? `<button class="btn-resummarize" onclick="openResummarizeModal('${doc.id}')" style="width: 100%; margin-top: 0.35rem; font-size: 0.75rem; color: var(--color-teal); background: none; border: none; cursor: pointer; text-decoration: underline; text-align: center; font-weight: 600;">Re-summarize with different style</button>` : ''}
         `;
       } else {
         const cardId = docCards.length === 1 ? docCards[0].id : '';
         actionBtnHtml = `
           <button class="btn btn-outline btn-view-summary" data-doc-id="${doc.id}" data-doc-name="${doc.file_name.replace(/'/g, "\\'")}" data-card-id="${cardId}" style="width: 100%; padding: 0.5rem 1rem; font-size: 0.85rem; margin-top: 0.5rem;">View Summary</button>
-          <button class="btn-resummarize" onclick="openResummarizeModal('${doc.id}')" style="width: 100%; margin-top: 0.35rem; font-size: 0.75rem; color: var(--color-teal); background: none; border: none; cursor: pointer; text-decoration: underline; text-align: center; font-weight: 600;">Re-summarize with different style</button>
+          ${window.YENIDEN_OZETLE_ACIK ? `<button class="btn-resummarize" onclick="openResummarizeModal('${doc.id}')" style="width: 100%; margin-top: 0.35rem; font-size: 0.75rem; color: var(--color-teal); background: none; border: none; cursor: pointer; text-decoration: underline; text-align: center; font-weight: 600;">Re-summarize with different style</button>` : ''}
         `;
       }
     } else {
@@ -1260,6 +1260,7 @@ window.summarizeDocument = summarizeDocument;
    donduruyordu — yeniden ozetlemenin tek amaci yeni bir kosu almak. Bayrak
    yine tek kosuluk: proceedWithSummarization tuketir, summarizeDocument sifirlar. */
 function openResummarizeModal(docId) {
+  if (!window.YENIDEN_OZETLE_ACIK) return;   // bkz. YENIDEN_OZETLE_ACIK
   onbellegiYenile = true;
   activeSummarizingDocId = docId;
   openSummaryStyleModal();
@@ -1275,9 +1276,19 @@ window.openResummarizeModal = openResummarizeModal;
    Tek kosuluk: proceedWithSummarization tuketir, normal "Ozetle" yolu
    (summarizeDocument) sifirlar. Aksi halde iptal edilen bir yenileme
    sonraki butun ozetlerde onbellegi atlatir ve kota bosa gider. */
+/* YENIDEN OZETLEME GECICI OLARAK KAPALI (28.10.2026, Berkay'in karari).
+   Su an ozet KALITESI uzerinde calisiliyor; makine ogrenmesi eklendiginde
+   yeniden acilacak. Tek bayrak: dugmeleri her iki dosyada da gizliyor ve
+   acilis fonksiyonunu da kapatiyor, boylece onbellekten/eski HTML'den gelen
+   bir tiklama da bir sey baslatmiyor. Acmak icin true yeter.
+   acadex-ink.js bunu window uzerinden okuyor; tanimsizken de KAPALI
+   sayiliyor, yani yanlis tarafa dusmez. */
+window.YENIDEN_OZETLE_ACIK = false;
+
 let onbellegiYenile = false;
 
 function resummarizeFresh(docId) {
+  if (!window.YENIDEN_OZETLE_ACIK) return;   // bkz. YENIDEN_OZETLE_ACIK
   onbellegiYenile = true;
   openResummarizeModal(docId);
 }

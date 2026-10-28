@@ -1146,8 +1146,17 @@ test('KISMI kart rozetinde YENIDEN OZETLE yolu var', () => {
     'rozet icerikteki gercek bosluga bagli degil');
   assert.ok(INK_SRC.includes("data-yenile="),
     'cikis dugmesi cizilmiyor');
-  assert.ok(INK_SRC.includes('if (yenileCikisi && own && c.document_id)'),
-    'dugme TAM kartta ya da baskasinin kartinda da cikiyor');
+  /* 28.10.2026: YENIDEN OZETLEME GECICI OLARAK KAPALI (Berkay'in karari —
+     once ozet kalitesi, makine ogrenmesi sonra). Dugme artik bir bayrakla
+     gizleniyor. Bu testin asil isi degismedi: KABLOLAMA yerinde durmali ki
+     acmak tek satir olsun. Ustteki ve asagidaki iddialar onu olcuyor.
+     Bilinen bedel: bayrak kapaliyken KISMI karttan cikis yolu da yok. */
+  assert.ok(INK_SRC.includes('if (window.YENIDEN_OZETLE_ACIK && yenileCikisi && own && c.document_id)'),
+    'dugme TAM kartta, baskasinin kartinda ya da bayrak kapaliyken cikiyor');
+  assert.ok(/window\.YENIDEN_OZETLE_ACIK = (true|false);/.test(DASH_SRC),
+    'bayrak dashboard.js\'te tek yerde tanimli degil');
+  assert.ok(DASH_SRC.includes('if (!window.YENIDEN_OZETLE_ACIK) return;'),
+    'eski HTML\'den gelen tiklama kapiyi gecmemeli — dugmeyi gizlemek tek basina yetmez');
   assert.ok(INK_SRC.includes("e.target.closest('[data-yenile]')"),
     'dugme baglanmamis — cizilmis ama hicbir sey yapmiyor');
   assert.ok(INK_SRC.includes('window.resummarizeFresh(b.getAttribute(' + String.fromCharCode(39) + 'data-yenile' + String.fromCharCode(39) + '))'),
@@ -1176,8 +1185,15 @@ test('YENIDEN OZETLE dugmesi onbellegi atliyor', () => {
      icin her basista onbellekteki eski kart 2 sn'de geri geliyordu. */
   const i = DASH_SRC.indexOf('function openResummarizeModal(docId) {');
   assert.ok(i > -1, 'yeniden ozetle giris noktasi bulunamadi');
-  assert.ok(DASH_SRC.slice(i, i + 120).includes('onbellegiYenile = true;'),
+  /* Pencere 120'den 240'a cikti: 28.10.2026'da fonksiyonun basina
+     YENIDEN_OZETLE_ACIK kapisi eklendi (ozellik gecici olarak kapali) ve
+     bayrak satiri 120 karakterin disina tasti. Olculen sey ayni: kapi
+     gecildikten SONRA bayrak konuyor. */
+  const govde = DASH_SRC.slice(i, i + 240);
+  assert.ok(govde.includes('onbellegiYenile = true;'),
     'yeniden ozetle bayragi koymuyor — her seferinde eski kart doner');
+  assert.ok(govde.indexOf('if (!window.YENIDEN_OZETLE_ACIK) return;') < govde.indexOf('onbellegiYenile = true;'),
+    'kapi bayraktan SONRA geliyor — kapali ozellik yine de bayrak birakirdi');
   assert.ok(!INK_SRC.includes('farklı stille yeniden özetle'),
     'dugme olmayan bir stil secimini vaat ediyor');
 });
