@@ -103,7 +103,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'windowCompletionFor', 'windowCompletionFloored',
   // Sayisal kapsama olcusu (09.10.2026).
   'SAYFA_ISARETI_RE', 'SAYISAL_KAPSAMA_TOLERANS', 'SAYI_BELIRTECI', 'SAYISAL_KAPSAMA_ORNEK',
-  'sayiOkumalari', 'URL_BENZERI_RE', 'BOZUK_US_RE', 'distinctiveNumbers', 'outputNumbers', 'yakinDegerVar',
+  'sayiOkumalari', 'URL_BENZERI_RE', 'BOZUK_US_RE', 'CAG_YILI_RE', 'distinctiveNumbers', 'outputNumbers', 'yakinDegerVar',
   'KAPSAMA_ROZET_MIN_ORNEK',
   'KAPSAMA_DISI_ALANLAR', 'coverageText', 'numericCoverage', 'formatCoverage',
   'SAYISAL_BAGLAM_KRK', 'sayisalKayipBaglami',
@@ -4639,6 +4639,43 @@ test('uc asamada da LOGLANIYOR: pencere, birlesim, son kart', () => {
     'birlesim olculmuyor');
   assert.ok(/numericCoverage\(extractedText, cardPayload\)/.test(KAPSAMA_KOD),
     'son kart olculmuyor');
+});
+
+/* KESIK OCR SONUCU ATILMIYOR (28.10.2026).
+ *
+ * OCR.space sayfa sinirinda hem hata bayragi koyuyor hem de sinira kadarki
+ * sayfalari donduruyor: "The maximum page limit of 3 was reached and only
+ * pages upto the limit were parsed successfully". Eski kod bayragi gorup
+ * firlatiyor, elindeki metni cope atiyor ve belge 'failed' oluyordu
+ * (Week_8_Derivative_Problem_Solving_II_SS.pdf, 20:07 ve oncesi).
+ * Karar (Berkay): kart ilk N sayfadan uretilsin, ROZETLENSIN. */
+test('tryOCR: sayfa sinirinda kesik metin atilmiyor, kesildi bayragiyla donuyor', () => {
+  const i = SRC.indexOf('async function tryOCR(');
+  assert.ok(i > -1, 'tryOCR bulunamadi');
+  const govde = SRC.slice(i, i + 2200);
+  assert.ok(/return \{ text, kesildi: true, sayfa: parcalar\.length \}/.test(govde),
+    'kesik sonuc hala atiliyor — belge yine failed olur');
+  assert.ok(govde.indexOf('if (text.trim().length >= 200)') < govde.indexOf("throw new Error(result.ErrorMessage"),
+    'kullanilabilir metin kontrolu firlatmadan ONCE gelmeli');
+});
+
+test('kismi OCR karta rozet olarak yaziliyor', () => {
+  assert.ok(/if \(ocrKismi\) qualityMeta\.ocr_kismi = ocrKismi/.test(SRC),
+    'kismi OCR karta yazilmiyor — ogrenci eksigi fark edemez');
+  /* Bildirim OCR blogundan ONCE olmali: blok oteki `let`lerden once
+     calisiyor, sonra bildirilirse TDZ hatasi verir. */
+  assert.ok(SRC.indexOf('let ocrKismi') < SRC.indexOf('const ocr = await tryOCR('),
+    'ocrKismi kullanimdan SONRA bildirilmis — TDZ');
+});
+
+/* Cag isaretli antik tarih de yildir: olcu MIKTAR sayiyor, tarih degil.
+   "ca. 390 bce" kaynakta duruyordu ve tek kayip o oldugu icin kapsama
+   %67 gorunuyordu. */
+test('distinctiveNumbers: cag isaretli yil hedef degildir', () => {
+  assert.deepEqual(A.distinctiveNumbers('his Republic (ca. 390 bce), for example'), []);
+  assert.deepEqual(A.distinctiveNumbers('Catalhoyuk: 7500 BC to 5700 BC'), []);
+  // Miktar etkilenmemeli — yaninda cag isareti yok.
+  assert.ok(A.distinctiveNumbers('a fuse rated 390 ohm').includes(390));
 });
 
 /* BELGEYE SADAKAT KURALLARI (28.10.2026, Berkay'in karari).
