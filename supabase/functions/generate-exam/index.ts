@@ -2848,6 +2848,188 @@ async function loadDocumentChunks(client: ReturnType<typeof createClient>, docum
   return out
 }
 
+// ==========================================================================
+// FAZ 6.3 — ÖDEVİ BAŞLATMA (28.10.2026)
+//
+// Öğrenci "başla" der: { assignmentStart: <ödev id> }. Model çağrılmaz.
+// Kurallar (üyelik, açılış, son teslim ve geç pencere, deneme hakkı, yarım
+// deneme) SQL'de: assignment_begin yalnızca service_role'e açık ve soruları
+// cevap anahtarıyla döndürür. Burada öğrenciye özel kopya kurulur:
+//   - sıra karıştırma (soru ve şık; keep_order şıklara dokunulmaz)
+//   - "öğrenciye özel sayılar": şablonlu hesap sorusunda makeVariant (aşağıdaki
+//     üç fonksiyon js/exam-engine.js'ten BİREBİR kopya; tests/exam-assignment-
+//     student.js iki kopyayı aynı rastgele sayılarla karşılaştırır)
+//   - süre: kendi süresi ile teslim penceresinin sonundan kısa olanı; ödev
+//     sınavı is_simulation (ipucu yok, süre sunucuda denetlenir)
+// Sonra her sınav gibi: genel sorular exams'e, anahtar exam_answer_keys'e.
+// ==========================================================================
+
+const TEMPLATE_PH = /\{([A-Za-z_][A-Za-z0-9_]*)(?:([*/])(-?\d+(?:\.\d+)?))?\}/g
+
+function formatNumber(n: number, lang: string): string {
+  return Number(n).toLocaleString(lang === 'en' ? 'en-US' : 'tr-TR', { maximumFractionDigits: 6 })
+}
+
+/** Ad → gösterim çarpanı (görünen = değişken × çarpan). */
+function templateMultipliers(template: unknown): Record<string, number> {
+  const out: Record<string, number> = {}
+  for (const m of String(template || '').matchAll(TEMPLATE_PH)) {
+    const n = Number(m[3])
+    if (m[2] && Number.isFinite(n) && n !== 0) out[m[1]] = m[2] === '*' ? n : 1 / n
+  }
+  return out
+}
+
+function tidy(n: number): number { return Number(Number(n).toPrecision(12)) }
+
+/** Şablondaki yer tutucuları sayılarla doldurur. */
+function renderTemplate(template: unknown, vars: Record<string, number>, lang: string): string {
+  return String(template || '').replace(TEMPLATE_PH, (m, k, op, num) => {
+    if (!Object.prototype.hasOwnProperty.call(vars, k)) return m
+    const n = Number(num)
+    const shown = op && Number.isFinite(n) && n !== 0 ? (op === '*' ? vars[k] * n : vars[k] / n) : vars[k]
+    return formatNumber(tidy(shown), lang)
+  })
+}
+
+function decimalsOf(n: number): number {
+  const str = String(n)
+  if (/e/i.test(str)) return 6
+  const i = str.indexOf('.')
+  return i < 0 ? 0 : Math.min(6, str.length - i - 1)
+}
+
+function significantDigits(n: number): number {
+  const digits = String(Math.abs(n)).replace(/e.*$/i, '').replace('.', '').replace(/^0+/, '').replace(/0+$/, '')
+  return Math.max(1, digits.length)
+}
+
+/** Aynı formülle yeni sayılar: her değişken %60–%140 arasında, ondalık
+ *  basamağı ve işareti korunarak değişir; cevap formülden hesaplanır.
+ *  Üretilemezse null. rand testte sabitlenebilsin diye parametre. */
+function makeVariant(practice: Record<string, unknown>, lang: string, rand?: () => number): { text: string; variables: Record<string, number>; answer: number } | null {
+  const rnd = typeof rand === 'function' ? rand : Math.random
+  if (!practice || typeof practice.template !== 'string' || !practice.formula) return null
+  const base = sanitizeVariables(practice.variables)
+  const names = Object.keys(base)
+  if (!names.length) return null
+  const mult = templateMultipliers(practice.template)
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const vars: Record<string, number> = {}
+    names.forEach(k => {
+      const mk = mult[k] || 1
+      const v = mk === 1 ? base[k] : tidy(base[k] * mk), d = decimalsOf(v), f = Math.pow(10, d)
+      let nv = v === 0 ? 0 : Number((v * (0.6 + rnd() * 0.8)).toPrecision(Math.max(2, significantDigits(v))))
+      nv = Math.round(nv * f) / f
+      if (v !== 0 && nv === 0) nv = d > 0 ? Math.sign(v) / f : Math.sign(v)
+      vars[k] = mk === 1 ? nv : tidy(nv / mk)
+    })
+    if (names.every(k => vars[k] === base[k])) continue
+    const answer = evaluateExpression(practice.formula, vars)
+    if (!Number.isFinite(answer)) continue
+    return { text: renderTemplate(practice.template, vars, lang), variables: vars, answer: Math.round(answer * 1e4) / 1e4 }
+  }
+  return null
+}
+
+/** Ödevin sorularından öğrenciye özel kopya. rand testte sabitlenebilsin diye. */
+function buildAssignmentQuestions(questions: unknown, settings: Record<string, unknown>, lang: string, rand: () => number = Math.random): Record<string, unknown>[] {
+  const src = (Array.isArray(questions) ? questions : []).filter(q => q && typeof q === 'object') as Record<string, unknown>[]
+  let qs = src.map(q => {
+    const o: Record<string, unknown> = { ...q }
+    delete o.author; delete o.edited; delete o.id
+    if (o.type === 'multiple_choice' && Array.isArray(o.options) && o.keep_order !== true && settings.shuffle !== false) o.options = shuffleInPlace([...(o.options as string[])], rand)
+    if (settings.vary_numbers === true && o.type === 'calculation' && typeof o.template === 'string' && typeof o.formula === 'string' && o.variables && typeof o.variables === 'object' && !o.chart) {
+      const v = makeVariant(o, lang, rand)
+      if (v) {
+        o.question = v.text; o.variables = v.variables; o.correct_answer = v.answer; o.varied = true
+        // eski sayılara bağlı alanlar: yeni sayılarla yanlış olur
+        for (const k of ['solution_steps', 'common_errors', 'explanation', 'step_kind', 'equation', 'unknown', 'option_rationales']) delete o[k]
+      }
+    }
+    return o
+  })
+  if (settings.shuffle !== false) qs = shuffleInPlace(qs, rand)
+  return qs.map((q, i) => ({ ...q, id: i + 1 }))
+}
+
+async function startAssignmentExam(serviceClient: any, userId: string, assignmentId: string): Promise<Response> {
+  const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  const { data: b, error: bErr } = await serviceClient.rpc('assignment_begin', { p_id: assignmentId, p_user: userId })
+  if (bErr || !b) {
+    const msg = String(bErr?.message || '')
+    return reply({ error: /could not find|PGRST202|does not exist/i.test(msg) ? 'Ödevler şu an açılamıyor (veritabanı adımı eksik).' : (msg || 'Ödev başlatılamadı.') }, bErr && /could not find|PGRST202/i.test(msg) ? 503 : 403)
+  }
+  if (b.resume_exam_id) {
+    const { data: ex } = await serviceClient.from('exams').select('*').eq('id', b.resume_exam_id).single()
+    return ex ? reply({ ...ex, resumed: true }) : reply({ error: 'Yarım kalan deneme bulunamadı.' }, 404)
+  }
+  const settings = (b.settings && typeof b.settings === 'object' ? b.settings : {}) as Record<string, unknown>
+  const lang = settings.language === 'en' ? 'en' : 'tr'
+  const qs = buildAssignmentQuestions(b.questions, settings, lang)
+  if (!qs.length) return reply({ error: 'Bu ödevde soru yok.' }, 409)
+  const now = Date.now()
+  const windowLeft = Math.floor((Date.parse(String(b.window_end)) - now) / 1000)
+  const own = Number(settings.time_limit_minutes) > 0 ? Number(settings.time_limit_minutes) * 60 : Infinity
+  const limit = Math.max(60, Math.min(own, windowLeft))
+  const publicQuestions: Record<string, unknown>[] = []
+  const answerKeys: Record<string, Record<string, unknown>> = {}
+  for (const q of qs) { const { pub, key } = splitPublicAndKey(q); publicQuestions.push(pub); answerKeys[String(q.id)] = key }
+  const sc = (settings.scoring && typeof settings.scoring === 'object' ? settings.scoring : {}) as Record<string, unknown>
+  const showAnswers = ['after_submit', 'after_due', 'never'].includes(String(settings.show_answers)) ? String(settings.show_answers) : 'after_due'
+  const payload: Record<string, unknown> = {
+    user_id: userId,
+    exam_type: settings.exam_type || 'mixed',
+    language: lang,
+    question_count: qs.length,
+    questions: publicQuestions,
+    answers: null, question_results: null, grade: null, completed_at: null,
+    // karne masası: sınıfın ders kodu (yoksa sınıf adı) altında
+    source_type: 'course',
+    study_card_id: null,
+    course_code: String(b.course_code || b.class_name || 'ÖDEV').slice(0, 40),
+    is_grounded: true,
+    is_simulation: true,
+    time_limit_seconds: limit,
+    started_at: new Date(now).toISOString(),
+    assignment_id: b.assignment_id,
+    attempt_no: b.attempt_no,
+    scoring: {
+      option_count: Number(sc.option_count) === 5 ? 5 : 4,
+      negative_marking: sc.negative_marking === true,
+      wrong_per_correct: Number(sc.wrong_per_correct) === 4 ? 4 : 3,
+      ...(Number(sc.decimal_places) >= 2 ? { decimal_places: Number(sc.decimal_places) } : {}),
+      assignment: {
+        id: b.assignment_id, title: b.title, class_name: b.class_name, instructions: b.instructions || '',
+        due_at: b.due_at, window_end: b.window_end, attempt_no: b.attempt_no, attempts: Number(settings.attempts) || 1,
+        time_limit_minutes: Number(settings.time_limit_minutes) || null, show_answers: showAnswers,
+        late: settings.late === 'penalty' ? { pct: Number(settings.late_penalty_pct) || 10, days: Number(settings.late_days) || 1 } : null,
+        late_days: Number(b.late_days) || 0,
+        varied: qs.some(q => q.varied === true)
+      }
+    }
+  }
+  const { data: newExam, error: insErr } = await serviceClient.from('exams').insert(payload).select().single()
+  if (insErr || !newExam) {
+    // aynı anda iki "başla": benzersiz indeks ikinciyi durdurur → var olana dön
+    if (insErr && /duplicate|unique/i.test(String(insErr.message))) {
+      const { data: ex } = await serviceClient.from('exams').select('*').eq('assignment_id', b.assignment_id).eq('user_id', userId).is('completed_at', null).maybeSingle()
+      if (ex) return reply({ ...ex, resumed: true })
+    }
+    console.error('generate-exam: odev sinavi kaydedilemedi', insErr)
+    return reply({ error: 'Ödev başlatılamadı: ' + (insErr?.message || 'kayıt hatası') }, 500)
+  }
+  const { error: keyErr } = await serviceClient.from('exam_answer_keys').insert({ exam_id: newExam.id, user_id: userId, keys: answerKeys })
+  if (keyErr) {
+    // anahtarsız ödev sınavı puanlanamaz: kaydı geri al
+    await serviceClient.from('exams').delete().eq('id', newExam.id)
+    console.error('generate-exam: odev anahtari yazilamadi', keyErr)
+    return reply({ error: 'Ödev başlatılamadı (cevap anahtarı kaydedilemedi).' }, 500)
+  }
+  console.log(`generate-exam: odev ${b.assignment_id} deneme ${b.attempt_no} basladi (${qs.length} soru, ${limit} sn${payload.scoring && (payload.scoring as any).assignment.varied ? ', ozel sayilar' : ''})`)
+  return reply(newExam)
+}
+
 serve(async (req) => {
   const requestStartedAt = Date.now()
   if (req.method === 'OPTIONS') {
@@ -2862,10 +3044,12 @@ serve(async (req) => {
       })
     }
 
-    const { studyCardId, sourceType, courseCode, courseDepartment, examType, questionCount, language, difficulty, isSimulation, focusConcept, optionCount, negativeMarking, decimalPlaces: decimalPlacesRaw, chartExamples, noGraphs, adaptive: adaptiveRaw, assignmentDraft } = await req.json()
+    const { studyCardId, sourceType, courseCode, courseDepartment, examType, questionCount, language, difficulty, isSimulation, focusConcept, optionCount, negativeMarking, decimalPlaces: decimalPlacesRaw, chartExamples, noGraphs, adaptive: adaptiveRaw, assignmentDraft, assignmentStart } = await req.json()
     // FAZ 6.2: öğretmenin ödev taslağı. Sınav kaydı açılmaz; sorular cevaplarıyla
     // öğretmene döner, öğretmen düzenleyip assignment_save ile kaydeder.
     const draftMode = assignmentDraft === true
+    // FAZ 6.3: ödevi başlatma — parametreler ödevden gelir, aşağıdaki denetimler atlanır.
+    const startMode = typeof assignmentStart === 'string' && assignmentStart.length > 0
     const adaptive = draftMode ? null : adaptiveRaw
     const scoring = normalizeScoring(optionCount, negativeMarking)
     // Yalnızca hesap sorusu olabilen türlerde (test ve klasikte anlamsız).
@@ -2877,19 +3061,19 @@ serve(async (req) => {
     // is built (pooled shared study cards for that course if any exist, else
     // a general-knowledge fallback).
     const resolvedSourceType = sourceType === 'course' ? 'course' : 'study_card'
-    if (resolvedSourceType === 'study_card' && !studyCardId) {
+    if (!startMode && resolvedSourceType === 'study_card' && !studyCardId) {
       return new Response(JSON.stringify({ error: 'Missing required parameter: studyCardId' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
-    if (resolvedSourceType === 'course' && !courseCode) {
+    if (!startMode && resolvedSourceType === 'course' && !courseCode) {
       return new Response(JSON.stringify({ error: 'Missing required parameter: courseCode' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
-    if (!examType || !questionCount || !language) {
+    if (!startMode && (!examType || !questionCount || !language)) {
       return new Response(JSON.stringify({ error: 'Missing required parameters' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -2897,7 +3081,7 @@ serve(async (req) => {
     }
     // Arayüz 1–20 sınırını koyuyor ama sunucu da koymalı: aksi halde tek bir
     // istek 500 soruluk bir üretimle Groq kotasını tüketebilir.
-    if (!ALLOWED_EXAM_TYPES.includes(examType) || !ALLOWED_LANGUAGES.includes(language)) {
+    if (!startMode && (!ALLOWED_EXAM_TYPES.includes(examType) || !ALLOWED_LANGUAGES.includes(language))) {
       return new Response(JSON.stringify({ error: 'Geçersiz sınav türü veya dil.' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -2960,6 +3144,9 @@ serve(async (req) => {
     // Service role client: rate limit sayımı, sınav kaydı ve cevap anahtarı.
     const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     const serviceClient = createClient(supabaseUrl, supabaseServiceRoleKey)
+
+    // FAZ 6.3: öğrencinin ödevi — model çağrılmaz, sınır sayımı yok (ödev kuralları SQL'de).
+    if (startMode) return await startAssignmentExam(serviceClient, user.id, assignmentStart)
 
     // FAZ 6.2: ödev taslağı yalnızca etkin öğretmene; saatte 20 taslak (assignment_gen_take).
     // Taslak sınav kaydı açmadığı için öğrenci sınav sınırına sayılmaz.

@@ -12907,6 +12907,26 @@ async function gatherNotificationItems(lastCheck) {
     console.error('gatherNotificationItems (konu tekrarları) error:', err);
   }
 
+  // 1c. FAZ 6.3: ödevler — son kontrolden sonra açılan yeni ödev ve 24 saatten
+  // az kalan, henüz teslim edilmemiş ödev. my_assignments yoksa sessizce atlanır.
+  try {
+    const { data: asgs, error } = await supabaseClient.rpc('my_assignments');
+    if (!error && Array.isArray(asgs)) {
+      const now = Date.now(), last = Date.parse(lastCheck || 0) || 0;
+      asgs.forEach(a => {
+        const opened = Date.parse(a.opens_at || '') || 0, due = Date.parse(a.due_at || '') || 0;
+        const fmt = d => new Date(d).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+        if ((a.state === 'open' || a.state === 'in_progress') && opened > last && opened <= now) {
+          items.push({ time: new Date(opened).toISOString(), title: `📝 Yeni ödev: ${escapeHtml(a.title)}`, subtitle: `${escapeHtml(a.class_name || '')} · son teslim ${fmt(due)}`, onClick: () => switchDashboardView('exams') });
+        } else if ((a.state === 'open' || a.state === 'in_progress') && due > now && due - now < 86400000 && !(a.used > 0)) {
+          items.push({ time: new Date(now).toISOString(), title: `⏰ ${escapeHtml(a.title)}: son teslime ${Math.max(1, Math.round((due - now) / 3600000))} saat`, subtitle: `${escapeHtml(a.class_name || '')} · henüz teslim etmedin`, onClick: () => switchDashboardView('exams') });
+        }
+      });
+    }
+  } catch (err) {
+    console.error('gatherNotificationItems (ödevler) error:', err);
+  }
+
   // 2. Announcements — school-wide (audience_department null) or yours
   try {
     const { data: anns, error } = await supabaseClient

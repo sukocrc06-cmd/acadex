@@ -296,6 +296,25 @@ function validateFeedbackRequest(body: unknown): FeedbackRequest | { ok: false; 
   return { ok: true, action, examId, questionId, reason, category }
 }
 
+/** FAZ 6.3: ödev sınavında cevaplar hâlâ gizli mi (reveal_at gelmedi ya da hiç açılmayacak). */
+function assignmentAnswersHidden(exam: Record<string, unknown>, nowMs: number): boolean {
+  const sc = exam && exam.scoring && typeof exam.scoring === 'object' ? exam.scoring as Record<string, unknown> : null
+  const asg = exam && exam.assignment_id && sc && sc.assignment && typeof sc.assignment === 'object' ? sc.assignment as Record<string, unknown> : null
+  if (!asg || asg.answers_hidden !== true) return false
+  const at = asg.reveal_at ? Date.parse(String(asg.reveal_at)) : NaN
+  return !(Number.isFinite(at) && at <= nowMs)
+}
+
+/** FAZ 6.3: itirazla yeniden hesaplanan nota ödevin geç teslim kesintisi de uygulanır. */
+function withLatePenalty(grade: number | null | undefined, scoring: unknown): number | null | undefined {
+  if (grade === null || grade === undefined) return grade
+  const sc = scoring && typeof scoring === 'object' ? scoring as Record<string, unknown> : null
+  const asg = sc && sc.assignment && typeof sc.assignment === 'object' ? sc.assignment as Record<string, unknown> : null
+  const la = asg && asg.late_applied && typeof asg.late_applied === 'object' ? asg.late_applied as Record<string, unknown> : null
+  const pct = la ? Number(la.pct) : 0
+  return pct > 0 ? Math.round(grade * (100 - Math.min(100, pct))) / 100 : grade
+}
+
 function errorMessage(code: string, isTr: boolean): string {
   const tr: Record<string, string> = {
     bad_body: 'İstek okunamadı.',
@@ -314,6 +333,7 @@ function errorMessage(code: string, isTr: boolean): string {
     daily_limit: 'Bugünlük sınırına ulaştın; yarın tekrar deneyebilirsin.',
     no_appeal: 'Bu soruya ait bir itiraz yok.',
     not_rejected: 'Yalnızca reddedilen bir itiraz öğretmene iletilebilir.',
+    answers_hidden: 'Bu ödevin cevapları henüz açıklanmadı; açıklanınca itiraz edebilirsin. Cevaplar hiç gösterilmeyecekse itiraz öğretmene gider.',
     regrade_failed: 'Yeniden puanlama şu anda yapılamadı; itirazın kaydedilmedi, birazdan tekrar dene.',
     table_missing: 'İtiraz sistemi henüz kurulmadı.',
   }
@@ -334,6 +354,7 @@ function errorMessage(code: string, isTr: boolean): string {
     daily_limit: 'Daily limit reached; try again tomorrow.',
     no_appeal: 'There is no appeal for this question.',
     not_rejected: 'Only a rejected appeal can be sent to a teacher.',
+    answers_hidden: 'The answers for this assignment are not released yet; you can appeal once they are. If they are never released, appeals go to the teacher.',
     regrade_failed: 'Re-grading failed right now; your appeal was not saved, try again shortly.',
     table_missing: 'The appeal system is not set up yet.',
   }
@@ -575,6 +596,8 @@ serve(async (req) => {
 
     const kind = v.action === 'report' ? 'report' : 'appeal'
     const result = results[idx]
+    // FAZ 6.3: ödev cevapları gizliyken yapay zekâ itirazı yok (öğrenci doğrusunu görmeden itiraz edemez)
+    if (kind === 'appeal' && assignmentAnswersHidden(exam, Date.now())) return fail('answers_hidden', 403)
     if (kind === 'appeal') {
       const why = appealEligibility(result)
       if (why) return fail(why, why === 'already_full' ? 409 : 400)
@@ -644,7 +667,7 @@ serve(async (req) => {
     const applied = applyAppealOutcome(results, idx, outcome, nowIso, exam.scoring)
     let saved
     try {
-      saved = await saveResults(applied.results, applied.grade)
+      saved = await saveResults(applied.results, withLatePenalty(applied.grade, exam.scoring))
     } catch (e) {
       console.error('exam-appeal: sinav guncellenemedi:', e)
       await release()
