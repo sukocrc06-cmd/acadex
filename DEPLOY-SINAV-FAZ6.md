@@ -169,3 +169,77 @@ Hoca paneli (teacher.html) 19.10.2026'da kaldırılmıştı (`20261019_yonetim_p
 ### Deploy
 - `generate-exam` otomatik (GitHub Actions).
 - SQL elle (SQL Editor). SQL'den önce ön yüzde "ödevler" bölümü görünmez.
+
+## Faz 6.3: öğrenci tarafı (ödev listesi, çözme, geç teslim, gizli cevaplar)
+
+### Öğrenci
+- **Liste:** "Sınıflarım" kartında her ödev bir satır (`my_assignments`; soru ve cevap içermez). Satır durumları:
+  - **açık:** son teslim ve kalan süre, soru sayısı, süre, deneme hakkı
+  - **geç teslim:** "günde %X kesintiyle … tarihine kadar"
+  - **yakında:** açılış tarihi
+  - **yarım kaldı:** "devam et"
+  - **teslim edildi:** not ("sonuç")
+  - **kapandı**
+- **Başla:**
+  - Önce bir onay sorulur: soru sayısı, süre, ipucu olmadığı, deneme sırası, geç teslim kesintisi, öğretmenin notu.
+  - Sonra `generate-exam { assignmentStart }` çağrılır.
+  - Ödev sınavı süreli ve ipuçsuz (`is_simulation`). Süre, ödevin kendi süresi ile teslim penceresinin sonundan hangisi kısaysa o; süre dolunca kâğıt kendiliğinden toplanır.
+  - Yarım deneme varsa ona dönülür; taslak cevaplar geri gelir.
+  - Kapakta "ödev · başlık", öğretmenin notu ve son teslim yazar. Sayaç 1 saati geçince s:dd:ss gösterir.
+- **Sonuç kâğıdı:**
+  - Başlık "ödev · başlık"; deneme sırası, geç teslim kesintisi (kesintisiz not da yazar), öğrenciye özel sayılar notu.
+  - Cevaplar gizliyse yalnızca puan ve doğru/yanlış görünür; "doğru cevaplar … sonrasında" ya da "öğretmen göstermiyor" yazar.
+  - Açıklanınca tam sonuç `exam_hidden_results`'tan birleştirilir. Bu sırada itiraz sonucu (yeni puan) korunur.
+- **Bildirim çanı:**
+  - Yeni ödev ("📝 Yeni ödev: …").
+  - Teslim edilmemiş ödevde son teslime 24 saatten az kaldıysa "⏰ …".
+- **Sınıfı olmayan öğrenci ("ikisi birden" kararı):** "acadex önerisi · bu hafta" kartı çıkar.
+  - Karneye göre tekrar zamanı gelen ve zayıf konusu en çok olan masa için pazar 23:59'a kadar kısa bir akıllı deneme önerir.
+  - Bu hafta bir akıllı deneme çözüldüyse "tamamladın ✓" yazar.
+  - Kartta açıkça "bir öğretmenin ödevi değildir" yazar.
+
+### Sunucu
+- **`generate-exam` (`startAssignmentExam`):** model çağrılmaz, sınav sınırına sayılmaz.
+  - Kurallar SQL'de: `assignment_begin` yalnızca service_role'e açık.
+  - Öğrenciye özel kopya: soru ve şık sırası karışır (`keep_order` olan şıklara dokunulmaz). "Öğrenciye özel sayılar" açıksa şablonlu hesap sorusunda `makeVariant` çalışır.
+    - `makeVariant` exam-engine'den birebir kopya; testte iki kopya aynı rastgele sayılarla karşılaştırılır.
+    - Cevap formülden yeniden hesaplanır; eski sayılara bağlı çözüm adımları, tipik hatalar ve açıklama atılır.
+  - Kayıt: genel sorular `exams`'e, anahtar `exam_answer_keys`'e. `exams.assignment_id` ve `attempt_no` doldurulur; `scoring.assignment` başlık, son teslim, pencere ve kuralları taşır.
+  - Masa: sınıfın ders kodu (yoksa sınıf adı).
+  - Aynı anda iki "başla" gelirse benzersiz indeks ikinciyi durdurur ve var olan denemeye dönülür.
+- **`grade-exam`:**
+  - **Geç teslim:** son teslimden sonra her başlamış gün için %pct kesinti (2 dk tolerans); `scoring.assignment.late_applied` kesintisiz notu da tutar.
+  - **Gizli cevaplar ("son teslimden sonra" / "hiç"):** `exams.question_results`'a yalnızca puan, doğru/yanlış ve nötr geri bildirim yazılır. Tam sonuç `exam_hidden_results`'a gider (`reveal_at` = pencere sonu ya da null). `question_attempts`'in anahtar alanı boş kalır.
+- **`exam-appeal`:**
+  - Cevaplar gizliyken yapay zekâ itirazı yok (`answers_hidden`).
+  - İtirazla yeniden hesaplanan nota da geç teslim kesintisi uygulanır.
+
+### Veritabanı (`20261028b_sinav_faz6_ogrenci.sql`)
+- `exams.assignment_id`, `exams.attempt_no`. Bir öğrencinin bir ödevde aynı anda yalnızca bir yarım denemesi olabilir (benzersiz indeks).
+- `exam_hidden_results`: öğrenci yalnızca kendi satırını, `reveal_at` geçince okur. Yazma yalnızca sunucu.
+- `assignment_window_end`, `assignment_begin` (service_role), `my_assignments`.
+
+### Test
+- `tests/exam-assignment-student.js`: 10 test.
+  - `makeVariant` sunucu ve tarayıcı eşliği
+  - kopya kurma
+  - kesinti
+  - gizleme
+  - itiraz
+  - başlatma yolu
+  - ön yüz
+- **Davranış testi** (`tests/sql/faz6-ogrenci.sql`, Postgres ve RLS ile):
+  - taslak listede yok
+  - listede soru ve cevap sızmıyor
+  - öğrenci `assignment_begin`'i çağıramıyor
+  - sınıf dışı öğrenci görmüyor
+  - yarım denemeye dönülüyor, ikinci yarım deneme engelleniyor
+  - deneme hakkı ve en yüksek not
+  - geç gün sayısı, pencere sonu, kesintisiz ödevde son teslimde kapanma
+  - yakında ve kapalı ödev
+  - gizli sonuç yalnızca açılınca ve yalnızca sahibine
+- **Tarayıcı** (`run21`): liste durumları, onay metni, kapak ve sayaç, gizli ve açıklanmış sonuç, sınıfsız öğrenciye öneri ve akıllı deneme kısayolu; 390 px'te taşma yok. 6.1 ve 6.2 tarayıcı testleri (`run19`, `run20`) ile normal sınav akışı (`run16`) yeniden geçti.
+
+### Deploy
+- `generate-exam`, `grade-exam`, `exam-appeal` otomatik (GitHub Actions).
+- SQL elle; sıra: 6.2 → 6.3.

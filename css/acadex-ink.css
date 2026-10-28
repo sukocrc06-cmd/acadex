@@ -3893,6 +3893,28 @@ body.acx .t-arrow path{stroke-dashoffset:0 !important;transition:none !important
 :is(#exams-view.axs,#axs-layer) .sn-asg-msg{margin:8px 0 0;font-size:13.5px;color:var(--green);min-height:0}
 :is(#exams-view.axs,#axs-layer) .sn-asg-msg:empty{display:none}
 :is(#exams-view.axs,#axs-layer) .sn-asg-msg.bad{color:var(--red)}
+/* Faz 6.3: öğrenci ödevleri */
+:is(#exams-view.axs,#axs-layer) .sn-sa{display:flex;align-items:center;justify-content:space-between;gap:8px 12px;flex-wrap:wrap;padding:8px 10px;border:1.4px solid #DCE2EE;border-left:4px solid var(--green);border-radius:4px;background:#fff}
+:is(#exams-view.axs,#axs-layer) .sn-sa.late{border-left-color:var(--amber)}
+:is(#exams-view.axs,#axs-layer) .sn-sa.in_progress{border-left-color:var(--blue);background:#F5F8FF}
+:is(#exams-view.axs,#axs-layer) .sn-sa.upcoming,:is(#exams-view.axs,#axs-layer) .sn-sa.done,:is(#exams-view.axs,#axs-layer) .sn-sa.closed{border-left-color:#C9D1E1}
+:is(#exams-view.axs,#axs-layer) .sn-sa-b{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1 1 200px}
+:is(#exams-view.axs,#axs-layer) .sn-sa-b b{font-size:14px;color:var(--navy);overflow-wrap:anywhere}
+:is(#exams-view.axs,#axs-layer) .sn-sa-b span{font-size:12.5px;color:var(--muted);line-height:1.4}
+:is(#exams-view.axs,#axs-layer) .sn-sa-b .st{font-style:normal;font-weight:700;margin-right:4px;color:var(--green)}
+:is(#exams-view.axs,#axs-layer) .sn-sa.late .st{color:var(--amber)}
+:is(#exams-view.axs,#axs-layer) .sn-sa.in_progress .st{color:var(--blue)}
+:is(#exams-view.axs,#axs-layer) .sn-sa.upcoming .st,:is(#exams-view.axs,#axs-layer) .sn-sa.done .st,:is(#exams-view.axs,#axs-layer) .sn-sa.closed .st{color:var(--soft)}
+:is(#exams-view.axs,#axs-layer) .sn-sa-a{display:flex;align-items:center;gap:8px}
+:is(#exams-view.axs,#axs-layer) .sn-sa-a .btn{min-height:40px;padding:6px 14px;font-size:14px}
+:is(#exams-view.axs,#axs-layer) .sn-acx{margin:0 0 16px;padding:14px 16px;background:#FFFDF8;border:1.4px dashed #C9D1E1;border-radius:6px;max-width:640px}
+:is(#exams-view.axs,#axs-layer) .sn-acx b{display:block;margin:2px 0 4px;font-size:16px;color:var(--navy)}
+:is(#exams-view.axs,#axs-layer) .sn-acx p{margin:0 0 10px;font-size:14px;line-height:1.45;color:var(--ink)}
+:is(#exams-view.axs,#axs-layer) .sn-acx small{display:block;margin-top:4px;font-size:12px;color:var(--soft)}
+:is(#exams-view.axs,#axs-layer) .sn-acx.done{border-style:solid;border-color:#BFE3CF;background:#F2FBF6}
+:is(#exams-view.axs,#axs-layer) .sn-asg-note{margin:0 0 14px;padding:10px 12px;background:#EEF3FF;border-left:4px solid var(--blue);border-radius:4px}
+:is(#exams-view.axs,#axs-layer) .sn-asg-note p{margin:0 0 4px;font-size:13.5px;line-height:1.45;color:var(--ink)}
+:is(#exams-view.axs,#axs-layer) .sn-asg-note p:last-child{margin:0}
 @media (max-width:640px){:is(#exams-view.axs,#axs-layer) .sn-aq{padding:10px 10px 2px}:is(#exams-view.axs,#axs-layer) .sn-aq-o{grid-template-columns:22px 16px minmax(0,1fr) 36px;gap:6px}}
 [data-builddlg] .is-off{opacity:.45}
 [data-builddlg] [data-diff-box].is-off{pointer-events:none}

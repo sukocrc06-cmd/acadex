@@ -1,17 +1,19 @@
 -- Supabase benzeri iskelet (yalnızca test): auth.uid() = request.jwt.claim.sub; anon/authenticated rolleri; varsayılan tablo yetkileri
 do $$ begin if not exists (select 1 from pg_roles where rolname='anon') then create role anon nologin; create role authenticated nologin; end if; end $$;
+do $$ begin if not exists (select 1 from pg_roles where rolname='service_role') then create role service_role nologin bypassrls; end if; end $$;
 alter default privileges in schema public grant all on tables to anon, authenticated;
 create schema auth;
 create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
 create function auth.role() returns text language sql stable as $$ select coalesce(nullif(current_setting('request.jwt.claim.role', true), ''), 'authenticated') $$;
 grant usage on schema auth to anon, authenticated;
-grant usage on schema public to anon, authenticated;
+grant usage on schema public to anon, authenticated, service_role;
+grant usage on schema auth to service_role;
 
 create table public.profiles (id uuid primary key, full_name text, email text, department text default '', student_number text,
   is_admin boolean not null default false, is_teacher boolean not null default false, is_suspended boolean not null default false,
   access_allowed boolean not null default true);
 create table public.study_cards (id uuid primary key default gen_random_uuid(), user_id uuid);
-create table public.exams (id uuid primary key default gen_random_uuid(), user_id uuid);
+create table public.exams (id uuid primary key default gen_random_uuid(), user_id uuid, grade numeric, completed_at timestamptz, created_at timestamptz default now());
 create table public.documents (id uuid primary key default gen_random_uuid(), user_id uuid);
 create table public.teacher_materials (id uuid primary key default gen_random_uuid(), teacher_id uuid, department text);
 create table public.admin_audit_log (actor_id uuid, actor_name text, action text, target_user_id uuid, target_label text, details jsonb);
