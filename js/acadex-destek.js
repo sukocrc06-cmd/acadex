@@ -138,12 +138,29 @@
         .then(function () {
           S.live = true; S.name = n; S.last = 0; mode = 'live'; save(); c.remove(); logEl.innerHTML = '';
           sys('Görüşme ekibe iletildi. ' + (online ? 'Ekip birazdan burada.' : 'Cevabı burada ve ' + (em ? 'e-postanda' : 'bu sayfada') + ' göreceksin.'));
-          chips(); paintStatus(); seen = {}; fetchNow(); schedule();
+          chips(); paintStatus(); seen = {}; fetchNow(); schedule(); pushOffer();
         })
         .catch(function (er) {
           b.disabled = false; var m = String(er && er.message || er);
           bad(/SINIR/.test(m) ? 'Çok fazla görüşme açıldı; biraz sonra tekrar dene.' : /EPOSTA/.test(m) ? 'E-posta adresini kontrol eder misin?' : 'Bağlanamadım; internetini kontrol edip tekrar dene.');
         });
+    });
+  };
+
+  /* ---------- cevap gelince telefona bildirim (js/acadex-push.js, 29.10.2026) ----------
+     Görüşme ekibe aktarılınca teklif edilir. Bu tarayıcıda zaten izin ve abonelik
+     varsa sorulmadan bu görüşmeye bağlanır. iPhone'da Safari sekmesinden
+     (ana ekrana eklenmeden) bildirim mümkün değil; orada teklif gösterilmez. */
+  var pushSave = function (p) { return rpc('support_push_subscribe', { p_token: S.tok, p_endpoint: p.endpoint, p_p256dh: p.p256dh, p_auth: p.auth }); };
+  var pushOffer = function () {
+    var P = W.AxPush; if (!P || !P.supported() || P.needsInstall()) return;
+    if (W.Notification && Notification.permission === 'denied') return;
+    P.current().then(function (sub) {
+      if (sub && Notification.permission === 'granted') { P.enable(pushSave).catch(function () {}); return; }
+      if (logEl.querySelector('.axs-push')) return;
+      var c = D.createElement('div'); c.className = 'axs-push';
+      c.innerHTML = '<b>Cevap gelince haber vereyim mi?</b><p>Sayfayı kapatsan da telefonuna ya da bilgisayarına bildirim gelir.</p><div><button type="button" data-ds-push>bildirim aç</button><button type="button" class="axs-lnk" data-ds-nopush>gerek yok</button></div>';
+      logEl.appendChild(c); logEl.scrollTop = logEl.scrollHeight;
     });
   };
 
@@ -200,10 +217,22 @@
   D.addEventListener('keydown', function (e) { if (e.key === 'Escape' && openState && root.contains(D.activeElement)) close(); });
 
   root.addEventListener('click', function (e) {
+    var endTok = S.tok;
     var q = e.target.closest('[data-ds-q]');
     if (q) { var f = FAQ.filter(function (x) { return x.k === q.getAttribute('data-ds-q'); })[0]; if (!f) return; S.topic = f.k; bubble('me', f.q); S.log.push({ s: 'v', b: f.q }); save(); botSay(f.a, '<button type="button" class="axs-lnk" data-ds-human>yetmedi, ekiple konuşayım</button>'); return; }
     if (e.target.closest('[data-ds-human]')) { if (mode === 'live') return; botSay('Tamam, seni ekibe bağlıyorum.', null, false).then(function () { handoffCard(''); }); return; }
-    if (e.target.closest('[data-ds-end]')) { rpc('support_close', { p_token: S.tok }).catch(function () {}); S.live = false; S.last = 0; S.log = []; S.tok = newTok(); mode = 'bot'; save(); logEl.innerHTML = ''; sys('Görüşmeyi bitirdin. Teşekkürler!'); chips(); paintStatus(); return; }
+    var pb = e.target.closest('[data-ds-push]');
+    if (pb) {
+      pb.disabled = true; pb.textContent = 'açılıyor…';
+      var card = pb.closest('.axs-push');
+      W.AxPush.enable(pushSave).then(function () { if (card) card.remove(); sys('Tamam; cevap gelince bildirim gelecek.'); }, function (er) {
+        if (card) card.remove(); var m = String(er && er.message || er);
+        sys(m === 'engelli' || m === 'izin-yok' ? 'Bildirim izni verilmedi; cevabı burada göreceksin.' : 'Bildirim şu an açılamadı; cevabı burada göreceksin.');
+      });
+      return;
+    }
+    if (e.target.closest('[data-ds-nopush]')) { var cc = e.target.closest('.axs-push'); if (cc) cc.remove(); return; }
+    if (e.target.closest('[data-ds-end]')) { if (W.AxPush) W.AxPush.current().then(function (sub) { if (sub) rpc('support_push_unsubscribe', { p_token: endTok, p_endpoint: sub.endpoint }).catch(function () {}); }); rpc('support_close', { p_token: S.tok }).catch(function () {}); S.live = false; S.last = 0; S.log = []; S.tok = newTok(); mode = 'bot'; save(); logEl.innerHTML = ''; sys('Görüşmeyi bitirdin. Teşekkürler!'); chips(); paintStatus(); return; }
     if (e.target.closest('[data-ds-new]')) { S.live = false; S.last = 0; S.log = []; S.tok = newTok(); mode = 'bot'; save(); logEl.innerHTML = ''; greeted = false; open(); }
   });
 
@@ -227,4 +256,7 @@
   D.addEventListener('acadia:style', function () { $('[data-ds-av]').innerHTML = avatar('mutlu', 'selam'); talk('mutlu'); });
   W.axDestek = { open: open, close: close, state: function () { return { mode: mode, online: online, tok: S.tok.slice(0, 6) }; }, match: match, FAQ: FAQ };
   paintStatus(); schedule();
+  /* bildirimden gelindi (/#destek): pencereyi aç */
+  var hashOpen = function () { if (location.hash === '#destek' && !openState) open(); };
+  W.addEventListener('hashchange', hashOpen); hashOpen();
 })();

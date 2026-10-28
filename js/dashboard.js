@@ -8678,6 +8678,14 @@ async function loadSettingsView() {
     if (announcementsCheck) announcementsCheck.checked = prefs.announcements !== false;
     const materialsCheck = document.getElementById('notif-pref-materials');
     if (materialsCheck) materialsCheck.checked = prefs.materials !== false;
+    // Telefon bildirimi hatırlatmaları (29.10.2026, js/acadex-push.js +
+    // supabase/migrations/20261029_web_push.sql): study / review / study_hour.
+    const studyCheck = document.getElementById('notif-pref-study');
+    if (studyCheck) studyCheck.checked = prefs.study !== false;
+    const reviewCheck = document.getElementById('notif-pref-review');
+    if (reviewCheck) reviewCheck.checked = prefs.review !== false;
+    const hourSel = document.getElementById('notif-pref-hour');
+    if (hourSel) hourSel.value = String(Number.isInteger(prefs.study_hour) ? prefs.study_hour : 20);
 
   } catch (err) {
     console.error("Exception loading settings profile: ", err);
@@ -18302,13 +18310,23 @@ window.uploadProfileBanner = uploadProfileBanner;
 // (category filtering) and showSocialNotificationToast() (sound toggle).
 // ==========================================
 async function saveNotificationPrefs() {
+  // Eski kayıttaki (ve sunucunun okuduğu) diğer anahtarlar korunur; yalnız
+  // bu sayfadaki alanlar yazılır. study / review / study_hour telefon bildirimi
+  // hatırlatmaları içindir (supabase/migrations/20261029_web_push.sql).
+  const prev = (currentUserProfile && currentUserProfile.notification_prefs) || {};
+  const hourEl = document.getElementById('notif-pref-hour');
+  const hour = hourEl ? parseInt(hourEl.value, 10) : NaN;
   const prefs = {
+    ...prev,
     sound: !!document.getElementById('notif-pref-sound')?.checked,
     comments: !!document.getElementById('notif-pref-comments')?.checked,
     likes: !!document.getElementById('notif-pref-likes')?.checked,
     announcements: !!document.getElementById('notif-pref-announcements')?.checked,
     materials: !!document.getElementById('notif-pref-materials')?.checked,
   };
+  if (document.getElementById('notif-pref-study')) prefs.study = !!document.getElementById('notif-pref-study').checked;
+  if (document.getElementById('notif-pref-review')) prefs.review = !!document.getElementById('notif-pref-review').checked;
+  if (Number.isInteger(hour) && hour >= 0 && hour <= 23) prefs.study_hour = hour;
 
   try {
     const { error } = await supabaseClient

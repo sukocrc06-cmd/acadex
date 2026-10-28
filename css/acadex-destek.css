@@ -113,3 +113,10 @@
 }
 /* landing'deki "yukarı çık" düğmesi destek düğmesinin üstüne çıkar */
 .totop{bottom:100px!important}
+/* cevap gelince bildirim teklifi (js/acadex-destek.js pushOffer, 29.10.2026) */
+.axs-push{display:flex;flex-direction:column;gap:6px;margin:4px 0 4px 40px;padding:12px;border:1.5px dashed var(--i);border-radius:12px;background:#EEF3FF}
+.axs-push b{font-family:'Bricolage Grotesque',sans-serif;font-size:15px}
+.axs-push p{margin:0;font-size:13px;color:var(--soft)}
+.axs-push div{display:flex;align-items:center;gap:12px}
+.axs-push button[data-ds-push]{min-height:38px;padding:0 16px;border:0;border-radius:10px;background:var(--b);color:#fff;font:inherit;font-weight:700;cursor:pointer}
+.axs-push button[data-ds-push]:disabled{opacity:.6}
