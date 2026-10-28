@@ -74,7 +74,7 @@ jobs:
         with:
           version: latest
 
-      # Kod parmak izi (code-fingerprint.cjs) için TypeScript derleyicisi.
+      # Kod parmak izi (code-fingerprint.cjs) için TypeScript derleyicisi
       - name: TypeScript
         if: steps.token.outputs.ok == 'true'
         run: |
