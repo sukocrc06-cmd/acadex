@@ -16,12 +16,6 @@ declare -A VERIFY_JWT=(
   [extract-chart-items]=true
   [exam-appeal]=true
   [get-exam-hint]=true
-  # 28.10.2026: elle yapistirma 646 KB'de kirpiyor — bkz. workflow'daki not.
-  # Bu fonksiyon tek "false": platform kapisi kapali ama yetkilendirmeyi
-  # fonksiyonun KENDISI yapiyor (index.ts:8819 Authorization basligi yoksa
-  # 401, 8832 sahiplik anon key + cagiranin JWT'siyle dogrulaniyor).
-  # Deger panelden 28.10.2026'da okundu; true yazmak butun cagrilari kirar.
-  [summarize-document]=false
 )
 HISTORY_DEPTH=60
 
