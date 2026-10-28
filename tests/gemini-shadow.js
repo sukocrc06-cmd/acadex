@@ -220,7 +220,12 @@ test('aday listesi: 503 yiyen model basta DEGIL', () => {
    yedek olarak basladi ve yine olay getirmedi, bir RPD bosa gitti. */
 test('aday listesi: olculmus olarak calismayan 3.8 EN SONDA (yedek o olmasin)', () => {
   assert.equal(G.GEMINI_MODEL_CANDIDATES[G.GEMINI_MODEL_CANDIDATES.length - 1], 'gemini-3.8-flash');
-  assert.equal(G.GEMINI_MODEL_CANDIDATES[0], 'gemini-3.7-flash', 'gercek akis veren model basta olmali');
+  /* 28.10.2026: 3.7 dort kosuda dort kez 0 karakter (keep-alive, sonra
+     sessizlik); 3.5 olculmus AKIS GERCEK. Bas artik 3.5, 3.7 basa donmemeli. */
+  assert.equal(G.GEMINI_MODEL_CANDIDATES[0], 'gemini-3.5-flash', 'gercek akis veren model basta olmali');
+  assert.ok(G.GEMINI_MODEL_CANDIDATES.indexOf('gemini-3.7-flash') >
+    G.GEMINI_MODEL_CANDIDATES.indexOf('gemini-3.6-flash'),
+    'olculmus olu akis veren 3.7, olculmemis 3.6 dan once denenmemeli');
 });
 
 test('aday listesi: gunluk 20 istekte tukenmeyecek kadar kisa', () => {

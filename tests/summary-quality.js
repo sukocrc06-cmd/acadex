@@ -16,6 +16,16 @@
 
 const assert = require('node:assert/strict');
 const { loadFromSource, makeRunner } = require('./_ts-extract.js');
+const fs = require('node:fs');
+const path = require('node:path');
+
+/* Kaynak metni EN USTTE okunuyor (28.10.2026): eskiden ~2000. satirda
+   tanimliydi, ondan once kosan kaynak-okuyan testler (olcum modu, gorsel
+   yama) "Cannot access 'SRC' before initialization" ile dusuyordu. */
+const SRC = fs.readFileSync(
+  path.join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'),
+  'utf8'
+);
 
 // tokenPacer, Gemini paralel modunu soruyor (geminiParallelActive -> Deno.env).
 // Bos kukla: GEMINI_MODE tanimsiz, yani bu dosyadaki pacer testleri Groq
@@ -558,12 +568,18 @@ test('CAPRAZ DIL: TR etiket + EN parantez, kaynak Ingilizce — hicbiri dusmez',
 
 test('MUTASYON: parantez ici de kaynakta yoksa terim HALA dusuyor', () => {
   /* Duzeltme kapiyi genisletti; korumayi kaldirmadigini bu test tutuyor.
-     Iki parca da kaynakta yok -> dusmeli. */
-  const r = A.applyGroundingGate(
-    [{ term: 'Kuantum Baglanim (Quantum Entanglement Bias)' }], [], EN_KAYNAK);
+     Iki parca da kaynakta yok -> dusmeli.
+     Yanina iki temelli terim konuyor: tek terimle pay 1/1 = %100 olur ve
+     terim supabi (GATE_MAX_DROP_SHARE) acilip terimi KORUR — test o zaman
+     parantez mantigini degil supabi olcmus olurdu. */
+  const r = A.applyGroundingGate([
+    { term: 'Kuantum Baglanim (Quantum Entanglement Bias)' },
+    CAPRAZ_TERIMLER[1], CAPRAZ_TERIMLER[2]
+  ], [], EN_KAYNAK);
+  assert.ok(!r.stats.aborted, 'supap acilmis — fixture parantez mantigini olcmuyor');
   assert.equal(r.stats.termsDropped, 1,
     'iki parcasi da kaynakta olmayan terim dusmeliydi — kapi islevsiz kalmis');
-  assert.equal(r.key_terms.length, 0);
+  assert.deepEqual(r.stats.droppedTerms, ['Kuantum Baglanim (Quantum Entanglement Bias)']);
 });
 
 test('MUTASYON: yalniz TR etiket temellenirse de yetiyor (tek yon degil)', () => {
@@ -642,10 +658,13 @@ test('SUPAP yalnizca SORUNLU populasyonu koruyor', () => {
   const uydurmaTerimler = [{ term: 'Fotosentez' }, { term: 'Mitokondri' }];
   const maddeler = [
     'Talep esnekligi fiyat degisimine duyarliligi olcer',
-    'Kloroplast granasinda tilakoid zarlar bulunur'
+    // "bulunur" DEGIL: o fiil SOURCE'ta geciyor, madde tek ortusmeyle
+    // gecip hic dusmuyordu ve test supabi hic olcmuyordu.
+    'Kloroplast granasinda tilakoid zarlar istiflenir'
   ];
   const r = A.applyGroundingGate(uydurmaTerimler, maddeler, SOURCE);
   assert.equal(r.stats.abortedTerms, true);
+  assert.equal(r.stats.pointsDropped, 1, 'fixture maddesi kaynakla ortusuyor — test bos kosuyor');
   assert.ok(r.key_points.length < maddeler.length,
     'terim supabi maddeleri de kurtarmis — populasyonlar ayrilmamis');
 });
@@ -2017,12 +2036,7 @@ test('sanitizeNarrativeYears bozuk girdide patlamaz', () => {
    fonksiyonuyla toplanir ve pacer tavaniyla karsilastirilir. Uc sayidan biri
    buyutuldugunde burasi patlar.
    ------------------------------------------------------------------------ */
-const fs = require('node:fs');
-const path = require('node:path');
-const SRC = fs.readFileSync(
-  path.join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'),
-  'utf8'
-);
+// SRC dosyanin basinda tanimli (olcum modu testleri ondan once kosuyor).
 
 // Sablon literalini kacislari ve ${...} ifadelerini sayarak oku.
 function readTemplate(src, startIdx) {
@@ -3255,7 +3269,9 @@ test('vision notlari kapsamda (ReferenceError olmasin)', () => {
   // visionGroundedClaims ayni hatayi canlida yapmisti: chunked blok icinde
   // tanimlanip disarida okunmak.
   const decl = SRC.indexOf('const visionNotes');
-  const use = SRC.indexOf('visionNotes.slice(0, 20)');
+  // `${...}` ile: ayni ifade iki yorum satirinda da geciyor (7009, 7075)
+  // ve yorumdaki ilk eslesme tanimdan once geldigi icin test yanlis dusuyordu.
+  const use = SRC.indexOf('${visionNotes.slice(0, 20)');
   assert.ok(decl > 0 && use > 0, 'ikisi de bulunmali');
   assert.ok(decl < use, 'tanim kullanimdan once gelmeli');
 });
