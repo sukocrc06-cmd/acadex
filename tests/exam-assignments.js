@@ -107,7 +107,7 @@ test('kodun hesapladığı sorular elle düzenlenmez', () => {
 
 test('ön yüzün çağırdığı ödev fonksiyonları ve parametreleri migration ile uyumlu', () => {
   const start = ink.indexOf('/* ---------- FAZ 6.2: ödev hazırlama');
-  const block = ink.slice(start, ink.indexOf('var paintAll = function () { paintCal();', start));
+  const block = ink.slice(start, ink.indexOf('/* ---------- FAZ 6.3: ödevler (öğrenci)', start));
   const calls = [...block.matchAll(/rpc\('([a-z_]+)', (?:asgPayload\(\)|\{([^}]*)\})/g)];
   const seen = new Set();
   for (const c of calls) {

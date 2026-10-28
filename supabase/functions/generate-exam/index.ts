@@ -2935,8 +2935,9 @@ function makeVariant(practice: Record<string, unknown>, lang: string, rand?: () 
 /** Ödevin sorularından öğrenciye özel kopya. rand testte sabitlenebilsin diye. */
 function buildAssignmentQuestions(questions: unknown, settings: Record<string, unknown>, lang: string, rand: () => number = Math.random): Record<string, unknown>[] {
   const src = (Array.isArray(questions) ? questions : []).filter(q => q && typeof q === 'object') as Record<string, unknown>[]
-  let qs = src.map(q => {
-    const o: Record<string, unknown> = { ...q }
+  let qs = src.map((q, i) => {
+    // src: ödevdeki asıl sıra (FAZ 6.4 soru analizi karışık sırayı buna göre toplar)
+    const o: Record<string, unknown> = { ...q, src: i }
     delete o.author; delete o.edited; delete o.id
     if (o.type === 'multiple_choice' && Array.isArray(o.options) && o.keep_order !== true && settings.shuffle !== false) o.options = shuffleInPlace([...(o.options as string[])], rand)
     if (settings.vary_numbers === true && o.type === 'calculation' && typeof o.template === 'string' && typeof o.formula === 'string' && o.variables && typeof o.variables === 'object' && !o.chart) {
