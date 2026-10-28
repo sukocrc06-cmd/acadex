@@ -10,6 +10,8 @@ create or replace view vault.decrypted_secrets as select name, null::text as dec
 create schema if not exists cron;
 create table if not exists cron.job (jobid serial primary key, jobname text, active boolean default true);
 create table if not exists cron.job_run_details (runid serial primary key, jobid int, end_time timestamptz, status text);
+-- Supabase yeni fonksiyonlara authenticated için açık EXECUTE verir; aynısını yap
+alter default privileges in schema public grant execute on functions to authenticated;
 \ir ../../supabase/migrations/20261029b_push_admin.sql
 \ir ../../supabase/migrations/20261029b_push_admin.sql
 

@@ -120,6 +120,9 @@ begin
   return r;
 end $$;
 
+-- Supabase yeni fonksiyonlara authenticated için de doğrudan EXECUTE verir;
+-- "from public" bunu kaldırmaz, yardımcılarda authenticated ayrıca geri alınır.
 revoke all on function public.push_platform(text), public.push_state(timestamptz, text, int),
   public.admin_push_stats(), public.admin_push_feed(text, text, text, int) from public, anon;
+revoke all on function public.push_platform(text), public.push_state(timestamptz, text, int) from authenticated;
 grant execute on function public.admin_push_stats(), public.admin_push_feed(text, text, text, int) to authenticated;
