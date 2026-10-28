@@ -181,7 +181,7 @@ window.axNotify = function (title, opts) {
         } else {
           main = '<button type="button" class="ax-btn ax-btn-line btn-view-summary" data-doc-id="' + doc.id + '" data-doc-name="' + esc(doc.file_name) + '" data-card-id="' + (dc[0] ? dc[0].id : '') + '">Özeti gör</button>';
         }
-        body += '<button type="button" class="ax-resum" onclick="openResummarizeModal(\'' + doc.id + '\')">farklı stille yeniden özetle</button>';
+        body += '<button type="button" class="ax-resum" onclick="openResummarizeModal(\'' + doc.id + '\')">yeniden özetle</button>';
       } else {
         stamp = doc.status === 'failed' ? '<span class="ax-stamp bad">hata</span>' : '<span class="ax-stamp new">yüklendi</span>';
         if (doc.status === 'failed') body = '<span class="ax-fail">özetleme yarım kaldı; bir daha deneyelim.</span>';

@@ -48,7 +48,7 @@ const NAMES = [
   'GEMINI_MAX_RESUMES', 'GEMINI_DEVAM_PAYI_MS', 'GEMINI_DEVAM_KAYIT_PAYI_MS', 'geminiDevamDesteklemeyen',
   'geminiAkisDurumu', 'geminiSseBlogunuIsle', 'geminiAkisiTuket',
   'geminiAkisIstegi', 'geminiAkisSonucu', 'geminiAkisiDevamEttir',
-  'closeTruncatedJson', 'LATEX_IKI_HARFLI', 'repairLatexEscapes', 'geminiAkisOlcumu', 'onbellegeYazilabilir', 'onbellekKayitTuru', 'kismiKayitSebebi', 'maddeMetni',
+  'closeTruncatedJson', 'LATEX_IKI_HARFLI', 'repairLatexEscapes', 'geminiAkisOlcumu', 'onbellegeYazilabilir', 'onbellekKayitTuru', 'onbellekUzerineYaz', 'kismiKayitSebebi', 'maddeMetni',
   'dedupeByText', 'dedupeKeyTerms', 'normalizeForDedup', 'NEAR_DUP_THRESHOLD'
 ];
 
@@ -1762,6 +1762,20 @@ test('onbellek kapisi: her kosul TEK BASINA engelliyor', () => {
     assert.equal(G.onbellegeYazilabilir({ ...temel, ...fark }), false,
       `${ad} tek basina engellemiyor — zayif kart kalicilasir`);
   }
+});
+
+test('YENILE: yalnizca TAM yeniden-ozet eski satirin ustune yazar', () => {
+  /* ignoreDuplicates: true iken yeniden ozetin yeni karti hic
+     kalicilasmiyordu; sonraki normal ozet yine eski karti donduruyordu. */
+  assert.equal(G.onbellekUzerineYaz('tam', true), true, 'tam yeniden-ozet eskiyi guncellemeli');
+  assert.equal(G.onbellekUzerineYaz('kismi', true), false, 'kismi yeniden-ozet eski satiri ezmemeli');
+  assert.equal(G.onbellekUzerineYaz('hayir', true), false);
+  assert.equal(G.onbellekUzerineYaz('tam', false), false, 'normal kosu davranisi degismemeli');
+  const src = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+  assert.ok(src.includes('const uzerineYaz = onbellekUzerineYaz(kayitTuru, onbellegiAtla)'),
+    'karar yazim yerine baglanmamis');
+  assert.ok(src.includes("ignoreDuplicates: !uzerineYaz"), 'upsert karari kullanmiyor');
 });
 
 test('onbellek kapisi kaynakta SAF fonksiyondan cagriliyor', () => {

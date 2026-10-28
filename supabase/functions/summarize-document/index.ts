@@ -12862,11 +12862,13 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
         page_count: billablePages,
         card: paylasilan
       }))
+      // Bkz. onbellekUzerineYaz: yalnizca TAM yeniden-ozet eski satiri ezer.
+      const uzerineYaz = onbellekUzerineYaz(kayitTuru, onbellegiAtla)
       const { error: cacheWriteErr } = await serviceClient
         .from('summary_cache')
-        .upsert(satirlar, { onConflict: 'cache_key', ignoreDuplicates: true })
+        .upsert(satirlar, { onConflict: 'cache_key', ignoreDuplicates: !uzerineYaz })
       if (cacheWriteErr) console.warn(`summary_cache yazilamadi: ${cacheWriteErr.message}`)
-      else console.log(`summary_cache yazildi [${kayitTuru.toUpperCase()}]: ${satirlar.length} satir`)
+      else console.log(`summary_cache yazildi [${kayitTuru.toUpperCase()}${uzerineYaz ? ', YENILE: eski satir guncellendi' : ''}]: ${satirlar.length} satir`)
     }
 
     return new Response(JSON.stringify({ success: true, studyCardId: newCard.id }), {
@@ -12960,6 +12962,21 @@ function onbellekKayitTuru(k: {
 }): 'tam' | 'kismi' | 'hayir' {
   if (!k.anahtarVar) return 'hayir'
   return onbellegeYazilabilir(k) ? 'tam' : 'kismi'
+}
+
+/* YENIDEN OZETLE ESKI KARTIN USTUNE YAZAR (28.10.2026).
+ *
+ * Yazim `ignoreDuplicates: true` idi: ayni anahtarda satir varsa yeni kart
+ * hic yazilmiyordu. Yeniden ozetleme (yenile=true) onbellek OKUMASINI
+ * atliyor, yani yeni karti uretiyor ama kalicilastiramiyordu — belge bir
+ * sonraki normal "Ozetle"de yine ESKI karti 2 sn'de donduruyordu.
+ *
+ * Yalnizca TAM kart ustune yazar. Kismi kart zaten ':k' satirina gidiyor
+ * ve tam satir siralamada onden geldigi icin iyi karti golgeleyemez; ama
+ * kismi bir yeniden-ozet ayni ':k' satirini da ezmesin — onun da eskisinden
+ * iyi oldugunu bilmiyoruz. Normal kosu davranisi DEGISMEZ. */
+function onbellekUzerineYaz(kayitTuru: 'tam' | 'kismi' | 'hayir', onbellegiAtla: boolean): boolean {
+  return onbellegiAtla && kayitTuru === 'tam'
 }
 
 function onbellegeYazilabilir(k: {

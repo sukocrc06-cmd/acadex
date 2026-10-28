@@ -1171,6 +1171,17 @@ test('YENILE bayragi istege giriyor ve TEK KOSULUK', () => {
     'normal "Ozetle" yolu bayragi sifirlamiyor — iptal edilen yenileme sonraki kosulara sizar');
 });
 
+test('YENIDEN OZETLE dugmesi onbellegi atliyor', () => {
+  /* Stil secimi kalkinca anahtar hep ayni kaldi; dugme bayragi koymadigi
+     icin her basista onbellekteki eski kart 2 sn'de geri geliyordu. */
+  const i = DASH_SRC.indexOf('function openResummarizeModal(docId) {');
+  assert.ok(i > -1, 'yeniden ozetle giris noktasi bulunamadi');
+  assert.ok(DASH_SRC.slice(i, i + 120).includes('onbellegiYenile = true;'),
+    'yeniden ozetle bayragi koymuyor — her seferinde eski kart doner');
+  assert.ok(!INK_SRC.includes('farklı stille yeniden özetle'),
+    'dugme olmayan bir stil secimini vaat ediyor');
+});
+
 test('TOPLU ozet yolunda `yenile` TANIMSIZ degil', () => {
   /* 6a14385 yenile'yi iki invoke govdesine birden kopyaladi ama degiskeni
      yalnizca proceedWithSummarization'da tanimladi. proceedWithBulkSummarization

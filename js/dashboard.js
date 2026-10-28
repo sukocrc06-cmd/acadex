@@ -1254,7 +1254,13 @@ function summarizeDocument(docId) {
 }
 window.summarizeDocument = summarizeDocument;
 
+/* YENIDEN OZETLE ONBELLEGI ATLIYOR (28.10.2026).
+   Stil/uzunluk secimi 31.08'de arayuzden kalkti (bkz. proceedWithSummarization),
+   yani anahtar hep ayni ve bu dugme HER SEFERINDE onbellekteki eski karti
+   donduruyordu — yeniden ozetlemenin tek amaci yeni bir kosu almak. Bayrak
+   yine tek kosuluk: proceedWithSummarization tuketir, summarizeDocument sifirlar. */
 function openResummarizeModal(docId) {
+  onbellegiYenile = true;
   activeSummarizingDocId = docId;
   openSummaryStyleModal();
 }

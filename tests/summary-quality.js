@@ -5420,7 +5420,9 @@ test('yazma IKI satir birden koyuyor', () => {
      etmez: arama onu sorar ama tabloda karsiligi olmaz. */
   assert.ok(/\[summaryCacheKey, metinCacheKey\]\.filter\(Boolean\)/.test(SRC),
     'iki anahtar birden yazilmiyor');
-  assert.ok(/\.upsert\(satirlar, \{ onConflict: 'cache_key', ignoreDuplicates: true \}\)/.test(SRC),
+  // Koruma normal kosuda duruyor; yalnizca TAM yeniden-ozet ezer
+  // (bkz. onbellekUzerineYaz, gemini-shadow.js).
+  assert.ok(/\.upsert\(satirlar, \{ onConflict: 'cache_key', ignoreDuplicates: !uzerineYaz \}\)/.test(SRC),
     'carpisma korumasi kalkmis');
 });
 
