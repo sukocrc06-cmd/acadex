@@ -31,10 +31,6 @@
 .mf-view{position:relative;z-index:1;height:min(88vh,860px);aspect-ratio:4/5;justify-self:center;max-width:100%}
 .mf-view canvas{display:block;width:100%;height:100%;-webkit-mask-image:radial-gradient(70% 62% at 50% 50%,#000 62%,transparent 100%);mask-image:radial-gradient(70% 62% at 50% 50%,#000 62%,transparent 100%)}
 .mf-view::after{content:"";position:absolute;left:18%;right:18%;bottom:4%;height:22px;border-radius:50%;background:radial-gradient(closest-side,rgba(0,0,0,.45),transparent);z-index:-1}
-.mf-tag{position:absolute;z-index:2;padding:6px 12px;border:1.5px solid rgba(255,255,255,.75);border-radius:999px;background:rgba(13,24,56,.72);backdrop-filter:blur(6px);font-family:'Caveat',cursive;font-size:20px;color:#fff;white-space:nowrap;opacity:0;transform:translateY(8px);transition:opacity .4s,transform .45s}
-.mf-tag::before{content:"";position:absolute;top:50%;width:34px;height:1.5px;background:rgba(255,255,255,.7)}
-.mf-tag.l::before{right:100%}.mf-tag.r::before{left:100%}
-.mf-tag.on{opacity:1;transform:none}
 .mf-load{position:absolute;left:50%;bottom:6%;z-index:3;transform:translateX(-50%);font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.1em;color:#9DB1E3;transition:opacity .4s}
 .mf-load.done{opacity:0}
 .mf-credit{position:absolute;right:0;bottom:2%;z-index:2;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#5C6C9C}
@@ -53,14 +49,26 @@
   .mf-credit{display:none}
   .mf-steps{min-height:200px}
   .mf-rail b{font-size:9.5px}
-  .mf-tag{font-size:16px;padding:4px 9px}
-  .mf-tag::before{width:18px}
-  .mf-copy .mf-h{display:none}
+      .mf-copy .mf-h{display:none}
   .mf-copy .mf-eyb{font-size:11px}
   .mf-skip{display:none}
 }
-@media (prefers-reduced-motion:reduce){.mf-step,.mf-tag{transition:none}}
+@media (prefers-reduced-motion:reduce){.mf-step,.mf-pin,.mf-lines path{transition:none}}
 /* telefonda bölüm ekrandayken üst üste binmesin: rehber Acadia ve paket ipi çekilir */
 @media (max-width:860px){.mf-in .acd-guide{opacity:0!important;pointer-events:none}.mf-in .pkt-dock{opacity:0!important;pointer-events:none!important}.mf-in .axs-dest:not(.open) .axs-l{display:none}.mf-in .axs-dest:not(.open) .axs-launch{padding-right:6px}.mf-in .totop{opacity:0;pointer-events:none}.mf-copy{padding-right:64px}}
 /* kareler gelmezse: takılı 'yükleniyor' yerine açık not */
 .mf-fail .mf-load{opacity:1;color:#DDE4F7;font-size:13px}.mf-fail .mf-load a{color:#FFD86B}
+/* yapıya bağlı etiketler (js: pins). Nokta yapının üstünde, çizgi dışarı, ad yanda. */
+.mf-pins{position:absolute;inset:0;z-index:2;pointer-events:none}
+.mf-lines{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.mf-lines path{fill:none;stroke:rgba(255,255,255,.75);stroke-width:1.4;opacity:0;transition:opacity .35s}
+.mf-lines path.on{opacity:1}
+.mf-pin{position:absolute;left:var(--lx);top:var(--ly);display:flex;flex-direction:column;align-items:flex-start;gap:0;padding:4px 10px 5px;margin-left:6px;border:1.4px solid rgba(255,255,255,.7);border-radius:10px;background:rgba(13,24,56,.78);backdrop-filter:blur(6px);color:#fff;white-space:nowrap;line-height:1.15;transform:translateY(-50%);opacity:0;transition:opacity .35s}
+.mf-pin.l{margin-left:-6px;transform:translate(-100%,-50%);align-items:flex-end}
+.mf-pin.on{opacity:1}
+.mf-pin b{font-family:'Caveat',cursive;font-size:19px;font-weight:600}
+.mf-pin small{font-size:11px;letter-spacing:.02em;color:#B9C4E4}
+.mf-pin i{position:absolute;left:calc(var(--x) - var(--lx) - 6px);top:calc(var(--y) - var(--ly));width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;background:#FFD86B;box-shadow:0 0 0 3px rgba(255,216,107,.3)}
+.mf-pin.l i{left:auto;right:calc(var(--lx) - var(--x) - 6px);margin:-5px -5px 0 0}
+.mf-pin:not(.l) i{top:calc(var(--y) - var(--ly) + 50%)}.mf-pin.l i{top:calc(var(--y) - var(--ly) + 50%)}
+@media (max-width:860px){.mf-pin{padding:2px 7px 3px}.mf-pin b{font-size:15px}.mf-pin small{display:none}}
