@@ -117,7 +117,16 @@ test('MedLab: kart, katman kaydı ve Acadia köprüsü Odyoloji Lab\'i tanır', 
   assert.match(read('js/acadex-medlab.js'), /odyoloji: \{ t: 'Odyoloji Lab', src: 'labs\/odyoloji\/index\.html' \}/);
   const br = read('js/acadex-medlab-acadia.js');
   assert.match(br, /odyoloji: 'Odyoloji Lab'/); assert.match(br, /s\.about \?/);
-  assert.ok(fs.existsSync(path.join(ROOT, 'assets/medlab/odyoloji-lab-kapak.jpg')));
+  /* kapak: animasyonlu kulak maskotu (SVG), hareket azaltma tercihinde durur */
+  const dash = read('dashboard.html'), css = read('css/acadex-medlab.css');
+  const card = dash.slice(dash.indexOf('data-medlab-open="odyoloji"'), dash.indexOf('</li>', dash.indexOf('data-medlab-open="odyoloji"')));
+  assert.match(card, /class="axm-cover axm-cover-ody" role="img" aria-label="[^"]+"/);
+  assert.match(card, /<svg class="axm-ody"[^>]*aria-hidden="true"/);
+  for (const k of ['ody-body', 'ody-eyes', 'ody-w w1', 'ody-w w3', 'ody-note']) assert.ok(card.includes(k), k);
+  const rm = css.slice(css.indexOf('Odyoloji Lab kapağı'));
+  const motion = rm.slice(rm.indexOf('@media (prefers-reduced-motion:no-preference)'), rm.indexOf('@keyframes'));
+  assert.match(motion, /animation:ody-wave/); assert.match(motion, /animation:ody-hear/);
+  assert.ok(!/animation:ody-/.test(rm.replace(motion, '')), 'animasyonlar yalnızca hareket tercihi açıkken');
   const app = read('labs/odyoloji/odyo-app.js');
   assert.match(app, /m\.src = 'axlab'; m\.lab = 'odyoloji'/); assert.match(app, /e\.origin !== ORG \|\| e\.source !== W\.parent/);
 });
