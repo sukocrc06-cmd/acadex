@@ -253,3 +253,11 @@ Hoca paneli (teacher.html) 19.10.2026'da kaldırılmıştı (`20261019_yonetim_p
   - Ödev silinmişse kayıttaki eski açılış zamanı geçerli.
 - Ön yüz ve `exam-appeal` aynı kararı kullanır: satır okunabiliyorsa cevaplar açılmıştır.
 - **Test:** `tests/sql/faz6-ogrenci.sql` bu durumları tek tek dener.
+
+### 6.3c: sınav satırı koruması (`20261028d_sinav_faz6_koruma.sql`)
+- **Açık:** "Users can update own exams" politikası öğrenciye kendi `exams` satırını güncelleme izni veriyor; tetikleyici yalnızca puanlama alanlarını kilitliyordu. Bu yüzden öğrenci:
+  - `assignment_id`'yi boşaltıp ödevin deneme hakkını sıfırlayabilirdi,
+  - `is_simulation` ya da `time_limit_seconds` ile süre sınırını ve ipucu yasağını kaldırabilirdi. Bu yalnızca ödevlerde değil, her "gerçek sınav provası"nda mümkündü (eski bir açık).
+  - `teacher_note` yazabilirdi.
+- **Düzeltme:** `exams_guard_grading_fields` bu alanları da kilitler. Öğrenci INSERT'inde ödev alanları ve öğretmen notu boş olmalı. Ön yüz bu alanları hiç güncellemiyor; sunucu (service_role) serbest.
+- **Test:** `tests/sql/faz6-koruma.sql` (Postgres).
