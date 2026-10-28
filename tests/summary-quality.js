@@ -73,6 +73,8 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   // applyGroundingGate'in bagimliligi — izole degerlendirme icin sart.
   'gateTermParcalari',
   // yakin kopya
+  // anlati cumle dedup (bagimlilik: trNormalize, yukarida)
+  'NARRATIVE_DUP_MIN_CHARS', 'narrativeDupKey', 'dedupeNarrativeSentences',
   'NEAR_DUP_THRESHOLD', 'NEAR_DUP_MIN_TERMS', 'NEAR_DUP_STEM_LEN',
   'NEAR_DUP_KEY_OVERLAP', 'nearDupKeysMatch',
   'nearDupStem', 'nearDupTermSet', 'dedupeNearDuplicates',
@@ -2036,6 +2038,150 @@ function readTemplate(src, startIdx) {
   }
   return out;
 }
+
+/* ------------------------------------------------------------------------
+   GROUNDED BAYRAGI — SIRA DEGISMEZI (28.10.2026 olcumu)
+
+   Olculen kosu: 28.10.2026 18:36:56, "economy chapter 25", Groq uzun-belge
+   yolu (Gemini 4 modelde 503). Loglar:
+     Review birlestirme: quality_gate: pass=false, grounded=false, 3 sorun
+     Review sorunlari suzuldu: 3 madde dusuruldu (hepsi yanlis pozitif)
+     Citation anchoring: ... added=24 quoted=24 — taslakta atif YOKTU
+   Kart "kaynaga bagli" VE "kalite kontrolunden gecti" rozetlerini kaybetti.
+
+   Kok neden: grounded sezgiseli (hasInlineCite/footWithPage) anchorCitations'
+   tan ONCE kosuyordu, yani henuz bos olan footnotes dizisine bakiyordu.
+   Bu testler sirayi ve tek-yonlulugu tutuyor.
+   ------------------------------------------------------------------------ */
+
+test('grounded: atif baglamadan SONRA yeniden sorulyor (sira degismezi)', () => {
+  const iAnchor = SRC.indexOf('parsedContent.footnotes = anchored.footnotes');
+  const iRecheck = SRC.indexOf('if (!qualityMeta.grounded && anchored.footnotes.some(');
+  const iSezgisel = SRC.indexOf('if (hasInlineCite || footWithPage) qualityMeta.grounded = true');
+  assert.ok(iAnchor > 0, 'atif atamasi bulunamadi — kaynak degismis, testi guncelle');
+  assert.ok(iRecheck > 0, 'grounded yeniden sorulmuyor: Groq yolunda rozet yine kaybolur');
+  assert.ok(iSezgisel > 0, 'erken sezgisel kaldirilmis — Gemini yolunda karar kaybolur');
+  assert.ok(iSezgisel < iAnchor, 'sezgisel atif baglamadan once olmali (Gemini yolu icin)');
+  assert.ok(iRecheck > iAnchor, 'yeniden sorma atif ATAMASINDAN sonra olmali, yoksa bos diziye bakar');
+});
+
+test('grounded: yeniden sorma TEK YONLU — true asla false a donmez', () => {
+  const i = SRC.indexOf('if (!qualityMeta.grounded && anchored.footnotes.some(');
+  const blok = SRC.slice(i, i + 400);
+  assert.match(blok, /qualityMeta\.grounded = true/, 'true ye cekmesi gerek');
+  assert.doesNotMatch(blok, /qualityMeta\.grounded = false/,
+    'grounded false a cekilemez: Gemini yolunda sezgisel dogru karari vermis olabilir');
+  assert.match(blok, /!qualityMeta\.grounded/, 'yalnizca false iken sorulmali');
+});
+
+test('grounded: olculen kosunun degerleriyle IKI rozet de geri geliyor', () => {
+  /* Rozet kosullari js/acadex-ink.js:10281 den aynen:
+       (qm.grounded ? 'kaynaga bagli' : '')
+       (qm.pass !== false && qm.grounded && !uyarilar.length ? 'kalite kontrolunden gecti' : '')
+     Tek bayrak IKI rozeti birden goturuyor — bu testin asil anlattigi sey bu. */
+  const rozetler = (qm, uyarilar) => []
+    .concat(qm.grounded ? ['kaynaga bagli'] : [])
+    .concat(qm.pass !== false && qm.grounded && !uyarilar.length ? ['kalite kontrolunden gecti'] : []);
+
+  // Olculen kosu: review false dedi, 3 sorun suzuldu (pass->true), 24 atif hesaplandi.
+  const eski = { pass: true, grounded: false };            // duzeltmeden ONCE
+  const yeni = { pass: true, grounded: true };             // atif baglamadan SONRA
+  assert.deepEqual(rozetler(eski, []), [], 'hatanin kendisi: iki rozet de yok');
+  assert.deepEqual(rozetler(yeni, []), ['kaynaga bagli', 'kalite kontrolunden gecti']);
+
+  // Uyari varsa kalite rozeti yine bastirilir — o davranis degismedi.
+  assert.deepEqual(rozetler(yeni, ['eksik kapsama']), ['kaynaga bagli']);
+});
+
+test('grounded: rozet kosulu hala qm.grounded a bagli (arayuz kaymasin)', () => {
+  const ink = fs.readFileSync(path.join(__dirname, '..', 'js/acadex-ink.js'), 'utf8');
+  assert.ok(ink.includes("qm.grounded ? chip('kaynağa bağlı'"),
+    'kaynaga bagli rozeti artik qm.grounded a bagli degil — bu testin dayanagi kaymis');
+  assert.ok(/qm\.pass !== false && qm\.grounded/.test(ink),
+    'kalite rozeti artik grounded a bagli degil — edge function tarafini gozden gecir');
+});
+
+/* ------------------------------------------------------------------------
+   ANLATIDA BIREBIR TEKRAR EDEN CUMLE (28.10.2026 olcumu)
+
+   "economy chapter 25" kartinda profesyonel ozet AYNI cumleyi iki kez
+   tasiyordu. Asagidaki P1/P2 o kartin GERCEK metni (U+2011 tireler dahil).
+   Sebep: dedupeNearDuplicates terim/madde/soruya uygulaniyordu, anlati
+   metnine hic uygulanmiyordu.
+   ------------------------------------------------------------------------ */
+const ANLATI_P1 = "Federal Reserve Tools and Structure. The Fed uses open‑market operations, reserve requirement changes, and the discount rate to influence the money supply. The Fed uses open‑market operations, reserve requirement changes, and the discount rate to influence the money supply. Figure 25.4 maps the 12 Federal Reserve districts and shows the roles of the Board of Governors, the FOMC, the Federal Reserve Banks, and the Open Market Desk. The Fed also serves as lender of last resort, providing funds to banks that cannot find other sources.";
+const ANLATI_P2 = "Additional Concepts. The demand for money rises with transaction size and falls with higher interest rates. A run on a bank occurs when many depositors demand withdrawals simultaneously, threatening liquidity. The demand for money rises with transaction size and falls with higher interest rates. The Fed also facilitates interbank payments and regulates banks.";
+// Ondalik sayi: cumle bolucu "$2,988.2" icinde bolme yapar; metnin bozulmadigini bu tutuyor.
+const ANLATI_P3 = "Monetary Aggregates. M1, the stock of transactions money, was $2,988.2 billion in February 2015. M2, which adds near‑monies such as savings and money‑market accounts, was $11,820.3 billion in the same month. These figures illustrate the breadth of the money supply.";
+
+test('anlati dedup: olculen kartin tekrar eden cumlesi dusuyor', () => {
+  const r1 = A.dedupeNarrativeSentences(ANLATI_P1);
+  assert.equal(r1.dropped.length, 1, 'tekrar eden cumle yakalanmadi');
+  assert.equal(
+    r1.text.indexOf('The Fed uses open‑market'),
+    r1.text.lastIndexOf('The Fed uses open‑market'),
+    'cumle metinde hala iki kez geciyor'
+  );
+  assert.ok(r1.text.includes('Figure 25.4 maps'), 'tekrar olmayan cumle silinmis');
+  assert.ok(r1.text.includes('lender of last resort'), 'son cumle silinmis');
+
+  const r2 = A.dedupeNarrativeSentences(ANLATI_P2);
+  assert.equal(r2.dropped.length, 1);
+  assert.ok(r2.text.includes('run on a bank'), 'arada kalan mesru cumle silinmis');
+});
+
+test('anlati dedup: tekrar yoksa metin BIREBIR korunuyor', () => {
+  /* En onemli garanti bu: ayirici cumleye bitisik birakilip join('') ile geri
+     yapistiriliyor, yani ondalik sayida olusan yanlis bolunme metni bozmuyor. */
+  const r = A.dedupeNarrativeSentences(ANLATI_P3);
+  assert.equal(r.dropped.length, 0);
+  assert.equal(r.text, ANLATI_P3, '$2,988.2 gibi ondalik sayilar bozuldu');
+});
+
+test('anlati dedup: paragraf yapisi korunuyor, capraz tekrar da yakaniyor', () => {
+  const r = A.dedupeNarrativeSentences([ANLATI_P1, ANLATI_P2, ANLATI_P3].join('\n\n'));
+  assert.equal(r.text.split('\n\n').length, 3, 'paragraf sayisi degisti');
+  assert.equal(r.dropped.length, 2);
+
+  const capraz = 'Birinci paragraf burada duruyor. Ayni cumle iki ayri paragrafta geciyor ve bu bir kusur.'
+    + '\n\nIkinci paragraf burada duruyor. Ayni cumle iki ayri paragrafta geciyor ve bu bir kusur.';
+  assert.equal(A.dedupeNarrativeSentences(capraz).dropped.length, 1,
+    'paragraflar ARASI tekrar yakalanmiyor');
+});
+
+test('anlati dedup: kisa cumle mesru olarak tekrarlanabilir', () => {
+  /* Esik NARRATIVE_DUP_MIN_CHARS: "Bu onemlidir." gibi baglayicilar bir
+     ozette birden fazla kez gecebilir, onlara dokunulmuyor. */
+  const kisa = 'Bu onemlidir. Birinci konu anlatiliyor. Bu onemlidir. Ikinci konu anlatiliyor.';
+  const r = A.dedupeNarrativeSentences(kisa);
+  assert.equal(r.dropped.length, 0, 'kisa baglayici dusuruldu');
+  assert.equal(r.text, kisa);
+  assert.ok(A.NARRATIVE_DUP_MIN_CHARS >= 25,
+    'esik cok dusuk: mesru kisa tekrarlar silinmeye baslar');
+});
+
+test('anlati dedup: sinir durumlarinda cokmez', () => {
+  assert.equal(A.dedupeNarrativeSentences('').text, '');
+  assert.equal(A.dedupeNarrativeSentences(null).text, '');
+  assert.equal(A.dedupeNarrativeSentences(undefined).dropped.length, 0);
+  assert.equal(A.dedupeNarrativeSentences('Tek cumle.').text, 'Tek cumle.');
+  const nk = 'Noktalama olmayan cok uzun bir metin parcasi burada duruyor ve hic bitmiyor';
+  assert.equal(A.dedupeNarrativeSentences(nk).text, nk, 'noktalamasiz metin bozuldu');
+});
+
+test('anlati dedup: Turkce karakterli tekrar da yakalaniyor', () => {
+  const tr = 'Giris cumlesi burada. Tutumlar duygusal, davranışsal ve bilişsel bileşenlerden oluşur.'
+    + ' Ikinci cumle burada duruyor. Tutumlar duygusal, davranışsal ve bilişsel bileşenlerden oluşur.';
+  assert.equal(A.dedupeNarrativeSentences(tr).dropped.length, 1);
+});
+
+test('anlati dedup: (c2) adimi kaynakta near-duplicate merge SONRASINDA cagriliyor', () => {
+  const iMerge = SRC.indexOf('Near-duplicate merge: terms');
+  const iCall = SRC.indexOf('dedupeNarrativeSentences(parsedContent.summary)');
+  assert.ok(iCall > 0, 'anlati dedup hic cagrilmiyor — kart yine tekrar tasir');
+  assert.ok(iCall > iMerge, '(c2) adimi (c) den once calisiyor, sira bozulmus');
+  assert.match(SRC, /Anlati tekrar temizligi/, 'dusen cumleler loglanmiyor');
+});
 
 test('pencere token butcesi pacer tavaninin altinda', () => {
   /* 07.10.2026: WINDOW artik sabit degil, deste moduna gore iki degerden

@@ -2657,6 +2657,62 @@ function dedupeNearDuplicates(
   return kept.sort((a, b) => a.order - b.order).map(k => k.item)
 }
 
+/* ANLATIDA BIREBIR TEKRAR EDEN CUMLE (28.10.2026 olcumu).
+ *
+ * "economy chapter 25" kartinda profesyonel ozet AYNI cumleyi iki kez
+ * tasiyordu:
+ *   "The Fed uses open-market operations, reserve requirement changes, and
+ *    the discount rate to influence the money supply."   (ust uste iki kez)
+ *   "The demand for money rises with transaction size and falls with higher
+ *    interest rates."                                     (ayni paragrafta)
+ * Ogrenci profesyonel ozette ayni cumleyi iki kere okuyor.
+ *
+ * Sebep: dedupeNearDuplicates terim/madde/soruya uygulaniyor (bkz.
+ * "Near-duplicate merge" logu) ama ANLATI metnine HIC uygulanmiyordu.
+ *
+ * Ozette birebir tekrar eden bir cumle hicbir zaman kasitli degil: ya iki
+ * pencere ayni seyi yazdi, ya yazar kendi girdisini tekrarladi.
+ *
+ * ESIK NEDEN TAM ESLESME: yakin-kopya olcusu (nearDupKeysMatch) burada
+ * tehlikeli — ozet cumleleri kisa ve ayni konuyu farkli yonden anlatan iki
+ * mesru cumle kolayca yuksek ortusme verir. Birebir tekrar ise tartismasiz
+ * kusur. Uzunluk esigi de var: kisa baglayicilar ("Bu onemlidir.") mesru
+ * olarak tekrarlanabilir.
+ *
+ * METIN AYNEN KORUNUYOR: ayirici cumleye BITISIK birakiliyor ve parcalar
+ * join('') ile geri yapistiriliyor, yani hicbir sey dusmediginde cikti
+ * girdiyle bayt bayt ayni. Bu yuzden ondalik sayida ("$2,988.2") olusan
+ * yanlis bolunme de zararsiz: parca 40 krk esiginin altinda kalip hic
+ * dedup'a girmiyor, metin de bozulmuyor. */
+const NARRATIVE_DUP_MIN_CHARS = 40
+
+function narrativeDupKey(s: string): string {
+  return trNormalize(s).replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim()
+}
+
+function dedupeNarrativeSentences(text: string): { text: string; dropped: string[] } {
+  if (typeof text !== 'string' || !text.trim()) return { text: typeof text === 'string' ? text : '', dropped: [] }
+  const gorulen = new Set<string>()
+  const dropped: string[] = []
+  const paragraflar = text.split(/\n{2,}/)
+  const cikti = paragraflar.map((p) => {
+    const cumleler = p.match(/[^.!?]+[.!?]+\s*|[^.!?]+$/g) || [p]
+    const tut: string[] = []
+    for (const c of cumleler) {
+      const key = narrativeDupKey(c)
+      if (key.length >= NARRATIVE_DUP_MIN_CHARS) {
+        if (gorulen.has(key)) { dropped.push(c.trim().slice(0, 90)); continue }
+        gorulen.add(key)
+      }
+      tut.push(c)
+    }
+    return tut.join('').replace(/[ \t]+$/, '')
+  })
+  /* Tamamen bosalan paragraf dusuyor; geri kalanlar arasindaki bos satir
+     korunuyor ki paragraf yapisi bozulmasin. */
+  return { text: cikti.filter((p) => p.trim()).join('\n\n'), dropped }
+}
+
 /* BOLUMLER HIC DEDUP'TAN GECMIYORDU (27.10.2026).
  *
  * Terimler, maddeler, sorular, tablolar — hepsinin bir dedup'i var; BOLUMLERIN
@@ -12477,6 +12533,18 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
         `quiz ${beforeDedup.quiz}→${parsedContent.quiz_questions.length}`
       )
 
+      // --- (c2) Anlatida birebir tekrar eden cumle — bkz. dedupeNarrativeSentences
+      if (typeof parsedContent.summary === 'string') {
+        const anlatiDedup = dedupeNarrativeSentences(parsedContent.summary)
+        if (anlatiDedup.dropped.length > 0) {
+          parsedContent.summary = anlatiDedup.text
+          console.log(
+            `Anlati tekrar temizligi: ${anlatiDedup.dropped.length} cumle dusuruldu — ` +
+            anlatiDedup.dropped.map((d) => `"${d}"`).join(' | ')
+          )
+        }
+      }
+
       // --- (d) Citations, computed from the page index (see above)
       const pageIndex = buildPageIndex(extractedText, pageMarkerLabel)
       const anchored = anchorCitations(
@@ -12487,6 +12555,32 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
       )
       parsedContent.key_points = anchored.key_points
       parsedContent.footnotes = anchored.footnotes
+      /* GROUNDED'I BURADA BIR DAHA SOR (28.10.2026 olcumu).
+       *
+       * Sezgisel (hasInlineCite / footWithPage) ~330 satir YUKARIDA kosuyor,
+       * yani anchorCitations'tan ONCE. Groq uzun-belge yolunda taslakta atif
+       * HIC istenmiyor ("taslakta atif YOKTU, tamami hesaplandi"), dolayisiyla
+       * sezgisel bos diziye bakip grounded'i false birakiyordu — oysa atiflar
+       * tam bu satirda hesaplanmis oluyor.
+       *
+       * Olculen kosu (28.10.2026 18:36:56, "economy chapter 25"): review
+       * grounded=false dedi, atif baglama 24 sayfali atif URETTI, kart yine de
+       * "kaynaga bagli" rozetini kaybetti. Bedeli tek rozet degil: rozet
+       * js/acadex-ink.js:10281'de qm.grounded'a bagli ve "kalite kontrolunden
+       * gecti" de ONA bagli, yani tek bayrak IKI rozeti birden goturuyor —
+       * review'in uc sorunu yanlis pozitif diye suzulup pass dogru sekilde
+       * true'ya cekilmis olsa bile (bkz. filterReviewIssues).
+       *
+       * Sezgiseli silmiyorum: Gemini yolunda taslak atifla geliyor (olculen
+       * kosuda kept=16) ve orada erken karar dogru. Burada yalnizca TEKRAR
+       * soruluyor, hicbir zaman true'dan false'a dondurulmuyor. */
+      if (!qualityMeta.grounded && anchored.footnotes.some((f: any) => f && f.page != null)) {
+        qualityMeta.grounded = true
+        console.log(
+          `grounded: atif baglamadan sonra true — ${anchored.stats.added} atif hesaplandi ` +
+          `(sezgisel, taslakta atif olmadigi icin false birakmisti)`
+        )
+      }
       // Footnote ids were renumbered to a dense sequence, so markers already
       // embedded in the summary text have to follow them.
       if (typeof parsedContent.summary === 'string') {
