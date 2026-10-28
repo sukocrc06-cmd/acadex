@@ -9240,9 +9240,64 @@ serve(async (req) => {
       const cached = anahtarlar
         .map(k => (Array.isArray(cachedRows) ? cachedRows.find((r: any) => r?.cache_key === k) : null))
         .find((r: any) => r?.card) || null
+
+      /* 'GECICI' KISMI KART SURESIZ SERVIS EDILIYORDU (28.10.2026 olcumu).
+       *
+       * Gemini kesintisinde kart Groq yedek yolundan cikiyor ve ':k' satirina
+       * yaziliyor — TAM O YUZDEN: devre kapaninca ayni belge Gemini'yle
+       * yeniden denenebilsin (bkz. kismiKayitSebebi, onbellegeYazilabilir).
+       * Ama ARAMA tarafinda boyle bir kontrol yoktu: ':k' satiri bulundugu
+       * surece sonsuza kadar servis ediliyordu, yani "yeniden denenebilsin"
+       * vaadi hic islemiyordu.
+       *
+       * OLCULDU: 28.10.2026 18:37'de Gemini 4 modelde de 503 verdi, kart
+       * Groq'tan tam cikti (2/2 pencere, 24 kavram) ve KISMI/'gecici'
+       * yazildi. 15:50 ve 16:01'deki iki yuklemede ayni kart 1.489 ms ve
+       * 2.325 ms'de onbellekten dondu. documentId her seferinde farkliydi —
+       * cache anahtari dosyanin sha256'si oldugu icin YENIDEN YUKLEMEK kacis
+       * degil. Ogrenci "yeniden ozetle" dugmesini bilmiyorsa zayif karti
+       * kalici sanıyor.
+       *
+       * Artik: isabet 'gecici' sebepli KISMI satirsa VE Gemini su an gercekten
+       * kullanilabilirse (anahtar var, mod parallel degil, devre KAPALI)
+       * onbellek ISKA sayilir ve tam kosu yapilir.
+       *
+       * KENDI KENDINI SINIRLIYOR: Gemini hala dusukse devre ACIK olur, kosul
+       * saglanmaz, kart yine aninda doner — yani bu dal kesinti suresince
+       * hicbir ek maliyet getirmiyor. Devre kapandiginda bir kez tam kosu
+       * yapilir; basarili olursa TAM satir yazilir ve ':k' bir daha hic
+       * secilmez (tam anahtarlar listede ONCE geliyor).
+       *
+       * 'eksik' sebepli kismi kartlar bu daldan ETKILENMIYOR: oradaki boslugu
+       * (dusen pencere, yarim kurtarilan taslak) Gemini'nin donmesi
+       * duzeltmez. */
+      let geciciIskasi = ''
+      if (cached?.card && String((cached as any)?.cache_key || '').endsWith(CACHE_KISMI_EKI)
+          && (cached.card as any)?.quality_meta?.cache_kismi === 'gecici') {
+        const geminiAnahtarVar = !!Deno.env.get('GEMINI_API_KEY')
+        const kacisModu = geminiMode()
+        if (geminiAnahtarVar && kacisModu !== 'parallel') {
+          const devreSimdi = await geminiDevreOku(serviceClient)
+          if (!devreSimdi || !devreSimdi.acik) {
+            geciciIskasi = `mod=${kacisModu}, devre kapali`
+          } else {
+            console.log(
+              `summary_cache: KISMI/'gecici' isabet SERVIS EDILIYOR — Gemini devresi ` +
+              `hala acik (${devreSimdi.kalanDk} dk), yeniden denemek bos gider`
+            )
+          }
+        }
+      }
+      if (geciciIskasi) {
+        console.log(
+          `summary_cache: KISMI/'gecici' isabet ATLANDI (${geciciIskasi}) — ` +
+          `kart Gemini'siz uretilmisti, tam kosu yapiliyor`
+        )
+      }
+
       if (cacheErr) {
         console.warn(`summary_cache okunamadi (${cacheErr.message}) — cache atlandi`)
-      } else if (cached?.card) {
+      } else if (cached?.card && !geciciIskasi) {
         const cachedPayload: Record<string, unknown> = {
           ...cached.card,
           document_id: documentId,

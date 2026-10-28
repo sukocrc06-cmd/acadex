@@ -2183,6 +2183,80 @@ test('anlati dedup: (c2) adimi kaynakta near-duplicate merge SONRASINDA cagriliy
   assert.match(SRC, /Anlati tekrar temizligi/, 'dusen cumleler loglanmiyor');
 });
 
+/* ------------------------------------------------------------------------
+   'GECICI' KISMI ONBELLEK ISKASI (28.10.2026 olcumu)
+
+   Gemini kesintisinde kart Groq'tan cikiyor ve ':k' satirina yaziliyor —
+   devre kapaninca yeniden denenebilsin diye. Ama ARAMA tarafinda kontrol
+   yoktu: satir sonsuza kadar servis ediliyordu.
+
+   Olculen: 18:37'de Gemini 4 modelde 503, kart KISMI/'gecici' yazildi.
+   15:50 ve 16:01'de ayni kart 1.489 ms / 2.325 ms'de onbellekten dondu;
+   documentId her seferinde farkliydi (cache anahtari dosya sha256'si, yani
+   yeniden yuklemek kacis degil).
+   ------------------------------------------------------------------------ */
+
+// Kaynaktaki kosullarin replikasi — kosullar degisirse asagidaki sekil
+// testleri uyarir ve bu tablo guncellenir.
+function geciciIskaReplika(k) {
+  if (!String(k.key).endsWith(':k')) return '';
+  if (k.sebep !== 'gecici') return '';
+  if (!k.anahtar) return '';
+  if (k.mod === 'parallel') return '';
+  if (k.devreAcik) return '';
+  return `mod=${k.mod}, devre kapali`;
+}
+
+test("onbellek: 'gecici' kismi kart Gemini musaitken ISKA sayiliyor", () => {
+  assert.ok(geciciIskaReplika(
+    { key: 'abc:k', sebep: 'gecici', anahtar: true, mod: 'only', devreAcik: false }),
+    'olculen vaka: kart Gemini siz uretilmisti, yeniden denenmeli');
+});
+
+test("onbellek: devre ACIKKEN kart aninda servis ediliyor (bos deneme yok)", () => {
+  /* Kendi kendini sinirlama: Gemini hala dusukse yeniden denemek bos gider,
+     o yuzden kesinti suresince bu dal hicbir ek maliyet getirmiyor. */
+  assert.equal(geciciIskaReplika(
+    { key: 'abc:k', sebep: 'gecici', anahtar: true, mod: 'only', devreAcik: true }), '');
+});
+
+test("onbellek: 'eksik' sebepli kismi kart ISKA SAYILMIYOR", () => {
+  /* 'eksik' = kartin ICERIGINDE bosluk var (dusen pencere / yarim taslak).
+     Gemini'nin donmesi bunu duzeltmez — bkz. kismiKayitSebebi. */
+  assert.equal(geciciIskaReplika(
+    { key: 'abc:k', sebep: 'eksik', anahtar: true, mod: 'only', devreAcik: false }), '');
+});
+
+test('onbellek: TAM satir, anahtarsizlik ve parallel modu iskayi kapatiyor', () => {
+  assert.equal(geciciIskaReplika(
+    { key: 'abc', sebep: 'gecici', anahtar: true, mod: 'only', devreAcik: false }), '',
+    'TAM satir her zaman servis edilmeli');
+  assert.equal(geciciIskaReplika(
+    { key: 'abc:k', sebep: 'gecici', anahtar: false, mod: 'only', devreAcik: false }), '',
+    'GEMINI_API_KEY yoksa yeniden denemenin anlami yok');
+  assert.equal(geciciIskaReplika(
+    { key: 'abc:k', sebep: 'gecici', anahtar: true, mod: 'parallel', devreAcik: false }), '',
+    'parallel modunda tum-PDF cagrisi yok');
+  assert.equal(geciciIskaReplika(
+    { key: 'abc:k', sebep: true, anahtar: true, mod: 'only', devreAcik: false }), '',
+    "eski satirlar sebep=true tasiyor; geriye donuk davranis bozulmamali");
+});
+
+test('onbellek: iska kaynakta cache isabeti dalini GERCEKTEN koruyor', () => {
+  assert.ok(SRC.includes('} else if (cached?.card && !geciciIskasi) {'),
+    'bayrak hesaplaniyor ama isabet dalini korumuyor — iska islevsiz');
+  assert.ok(SRC.includes("quality_meta?.cache_kismi === 'gecici'"),
+    "iska 'gecici' sebebine bagli degil");
+  assert.ok(SRC.includes('await geminiDevreOku(serviceClient)'),
+    'devre durumu okunmuyor — kesintide bos deneme yapar');
+  const iFlag = SRC.indexOf('let geciciIskasi =');
+  assert.ok(iFlag > 0 && iFlag < SRC.indexOf('!geciciIskasi'),
+    'bayrak kullanimdan sonra tanimli (TDZ)');
+  const blok = SRC.slice(iFlag, iFlag + 1400);
+  assert.ok(blok.includes("kacisModu !== 'parallel'"), 'parallel modu haric tutulmuyor');
+  assert.ok(blok.includes('!devreSimdi || !devreSimdi.acik'), 'devre kapali kontrolu yok');
+});
+
 test('pencere token butcesi pacer tavaninin altinda', () => {
   /* 07.10.2026: WINDOW artik sabit degil, deste moduna gore iki degerden
      biri. Capa "const WINDOW = (\d+)" idi ve ternary'ye donunce "WINDOW
