@@ -70,6 +70,8 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'yearInSource', 'scrubUnsupportedYears', 'sanitizeNarrativeYears',
   // temellendirme kapisi
   'gateNormalize', 'GATE_MIN_TERMS_TO_JUDGE', 'GATE_MAX_DROP_SHARE', 'applyGroundingGate',
+  // applyGroundingGate'in bagimliligi — izole degerlendirme icin sart.
+  'gateTermParcalari',
   // yakin kopya
   'NEAR_DUP_THRESHOLD', 'NEAR_DUP_MIN_TERMS', 'NEAR_DUP_STEM_LEN',
   'NEAR_DUP_KEY_OVERLAP', 'nearDupKeysMatch',
@@ -515,6 +517,73 @@ test('parantezli terim atilmaz (GDP deflator vakasi)', () => {
   const src = 'The inflation rate measured by the GDP deflator rose sharply. '.repeat(10);
   const r = A.applyGroundingGate([{ term: 'Inflation rate (GDP deflator)' }], [], src);
   assert.equal(r.key_terms.length, 1, 'parantezler yuzunden atilmamaliydi');
+});
+
+/* CAPRAZ DIL — 28.10.2026 "Chp 7 Attitudes" OLCUM MODU KOSUSU.
+   Kaynak INGILIZCE, ozet TURKCE. Kapi 18 terimden 8'ini dusurecekti ve
+   sekizi de "TR etiket (EN karsiligi)" kalibindaydi. Asagidaki sekiz terim
+   o logdan AYNEN alindi; kaynak metin de o terimlerin kaynaktaki Ingilizce
+   karsiliklarindan kuruldu. 200 krk alti fixture kapiyi erken dondurur
+   (bkz. sourceText.length < 200), o yuzden metin tekrarla uzatiliyor. */
+const EN_KAYNAK = [
+  'Cognitively based attitudes rest on beliefs about the properties of an object.',
+  'Self-perception theory explains how people infer attitudes from behavior.',
+  'Implicit attitudes are involuntary and often unconscious.',
+  'Attitude accessibility predicts spontaneous behavior.',
+  'The Yale attitude change approach asks who said what to whom.',
+  'A fear-arousing communication works best at moderate levels.',
+  'The heuristic-systematic model of persuasion describes two processing modes.',
+  'Gender roles in advertising reinforce cultural stereotypes.'
+].join(' ').repeat(3);
+
+const CAPRAZ_TERIMLER = [
+  'Bilissel Temelli Tutum (Cognitively Based Attitude)',
+  'Oz-Algilama Kurami (Self-Perception Theory)',
+  'Ortuk Tutumlar (Implicit Attitudes)',
+  'Tutum Erisilebilirligi (Attitude Accessibility)',
+  'Yale Tutum Degisimi Yaklasimi (Yale Attitude Change Approach)',
+  'Korku Uyandiran Iletisim (Fear-Arousing Communication)',
+  'Sezgisel-Sistematik Ikna Modeli (Heuristic-Systematic Model of Persuasion)',
+  'Cinsiyet Rolleri (Gender Roles)'
+].map((term) => ({ term, definition: '...' }));
+
+test('CAPRAZ DIL: TR etiket + EN parantez, kaynak Ingilizce — hicbiri dusmez', () => {
+  const r = A.applyGroundingGate(CAPRAZ_TERIMLER, [], EN_KAYNAK);
+  assert.equal(r.stats.termsDropped, 0,
+    `dusen: ${JSON.stringify(r.stats.droppedTerms)} — parantez ici kaynakta AYNEN geciyor`);
+  assert.equal(r.key_terms.length, 8);
+});
+
+test('MUTASYON: parantez ici de kaynakta yoksa terim HALA dusuyor', () => {
+  /* Duzeltme kapiyi genisletti; korumayi kaldirmadigini bu test tutuyor.
+     Iki parca da kaynakta yok -> dusmeli. */
+  const r = A.applyGroundingGate(
+    [{ term: 'Kuantum Baglanim (Quantum Entanglement Bias)' }], [], EN_KAYNAK);
+  assert.equal(r.stats.termsDropped, 1,
+    'iki parcasi da kaynakta olmayan terim dusmeliydi — kapi islevsiz kalmis');
+  assert.equal(r.key_terms.length, 0);
+});
+
+test('MUTASYON: yalniz TR etiket temellenirse de yetiyor (tek yon degil)', () => {
+  const tr = 'Tutum erisilebilirligi kendiliginden davranisi yordar. '.repeat(10);
+  const r = A.applyGroundingGate(
+    [{ term: 'Tutum Erisilebilirligi (Attitude Accessibility)' }], [], tr);
+  assert.equal(r.stats.termsDropped, 0, 'TR kaynakta TR etiket geciyor, dusmemeliydi');
+});
+
+test('gateTermParcalari: tam terim + parantez disi + her parantez grubu', () => {
+  const p = A.gateTermParcalari('Bilissel Temelli Tutum (Cognitively Based Attitude)');
+  assert.equal(p.length, 3, 'tam terim, parantez disi ve bir parantez grubu beklenir');
+  // Ilk parca eski davranis: butun kelimeler tek havuzda.
+  assert.ok(p[0].includes('bilissel') && p[0].includes('cognitively'),
+    'ilk parca eski tek-havuz davranisi olmali');
+  assert.ok(p[1].includes('bilissel') && !p[1].includes('cognitively'),
+    'ikinci parca parantez DISI etiket olmali');
+  assert.ok(p[2].includes('cognitively') && !p[2].includes('bilissel'),
+    'ucuncu parca parantez ICI olmali');
+  // 4 harften kisa belirtecler suzuluyor (bkz. Hematokrit (Htc) notu).
+  const htc = A.gateTermParcalari('Hematokrit (Htc)');
+  assert.deepEqual(htc[2], [], 'Htc 4 harften kisa, suzulmeli');
 });
 
 test('gateNormalize tum tire varyantlarini ayni yere indirger', () => {
