@@ -25,7 +25,9 @@ const G = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'geminiMode', 'geminiParallelActive',
   'GROQ_CHAT_URL', 'GEMINI_GENERATE_BASE', 'GEMINI_FAST_MODEL_DEFAULT', 'GEMINI_PARALLEL_MIN_OUTPUT',
   'geminiParallelUsage', 'resetGeminiParallelUsage',
-  'geminiSerit', 'geminiModelsForLane', 'openAiContentToGeminiParts', 'groqViaGemini',
+  'geminiSerit', 'URL_BENZERI_RE', 'SAYFA_ISARETI_RE', 'SAYI_BELIRTECI', 'sayiOkumalari',
+  'distinctiveNumbers',
+  'geminiModelsForLane', 'openAiContentToGeminiParts', 'groqViaGemini',
   'geminiHataCevabi', 'geminiKotaOlu', 'geminiSorunlu', 'geminiModelDiri', 'geminiDiriAdayVar',
   'GEMINI_TAM_MODEL_BUTCESI', 'GEMINI_SORUNLU_ESIK', 'GEMINI_KOTA_OLU_MS',
   'GEMINI_LITE_CANDIDATES',
@@ -202,13 +204,35 @@ test('groqViaGemini: thinkingConfig reddedilirse dusurulup ayni model tekrar den
   } finally { restoreFetch(); }
 });
 
-test('groqViaGemini: gunluk kota 429 baska model denemeden doner', async () => {
-  stubFetch([{ status: 429, text: 'Quota exceeded for GenerateRequestsPerDay' }]);
+/* DAVRANIS DEGISTI (28.10.2026). Eskiden gunluk kotada hic baska model
+   denemeden donuyordu — limit PROJE basina saniliyordu. Panel limitin MODEL
+   basina oldugunu gosterdi; donmek yuzunden anlati yazari atlanmisti.
+   Artik olu model isaretlenip SIRADAKI aday deneniyor. */
+test('groqViaGemini: gunluk kotada siradaki aday denenir', async () => {
+  G.geminiKotaOlu.clear(); G.geminiSorunlu.clear();
+  denoEnv.delete('GEMINI_MODEL'); denoEnv.delete('GEMINI_FAST_MODEL');
+  stubFetch([
+    { status: 429, text: 'Quota exceeded for GenerateRequestsPerDay' },
+    OK('{"ok":1}')
+  ]);
   try {
     const res = await quiet(() => G.groqViaGemini(groqBody(), 2, 5000));
-    assert.equal(res.status, 429);
-    assert.equal(calls.length, 1);
-  } finally { restoreFetch(); }
+    assert.equal(res.status, 200, 'ikinci aday cevap vermeli');
+    assert.equal(calls.length, 2, 'tam olarak bir sonraki aday denenmeli');
+    assert.ok(G.geminiKotaOlu.size >= 1, 'kotasi dolan model isaretlenmeli');
+  } finally { restoreFetch(); G.geminiKotaOlu.clear(); }
+});
+
+/* Hepsi kotadaysa yine de gecerli JSON ve 4xx donmeli. */
+test('groqViaGemini: butun adaylar kotadaysa gecerli JSON doner', async () => {
+  G.geminiKotaOlu.clear(); G.geminiSorunlu.clear();
+  stubFetch(Array.from({ length: 12 }, () => ({ status: 429, text: 'Quota exceeded for GenerateRequestsPerDay' })));
+  try {
+    const res = await quiet(() => G.groqViaGemini(groqBody(), 0, 5000));
+    assert.ok(res.status >= 400);
+    const data = await res.json();
+    assert.ok(data.error.message.length > 0);
+  } finally { restoreFetch(); G.geminiKotaOlu.clear(); }
 });
 
 test('groqViaGemini: cikti tavani finish_reason=length olarak isaretlenir', async () => {
@@ -268,15 +292,26 @@ test('geminiModelsForLane: pencere seridi Lite ile baslar, tam modeller sonda', 
 
 /* RPD model basina 20; pencereleri tek modele yigmak hem kaliteyi hem
    kotayi ayni yere bagliyordu. Ard arda cagrilar sirayla dagilmali. */
-/* Dagitim kota icin degil 503 dayanikliligi icin: bir Lite modeli yogunsa
-   digeri denensin. */
-test('geminiModelsForLane: ard arda pencere cagrilari Lite adaylarina dagitilir', () => {
+/* Sira SABIT: her cagri olculmus calisan modelden baslar. Donusumlu sira
+   19:21 kosusunda 3.1'i basa alip iki 503 yedirmisti. */
+test('geminiModelsForLane: her cagri ayni Lite modeliyle baslar', () => {
   G.geminiKotaOlu.clear(); G.geminiSorunlu.clear();
   denoEnv.delete('GEMINI_MODEL'); denoEnv.delete('GEMINI_FAST_MODEL');
-  const n = G.GEMINI_LITE_CANDIDATES.length;
-  const ilkler = [];
-  for (let i = 0; i < n; i++) ilkler.push(G.geminiModelsForLane(G.MODEL_EXTRACT)[0]);
-  assert.equal(new Set(ilkler).size, n, `${n} ayri Lite bekleniyordu, gelen: ${ilkler.join(', ')}`);
+  for (let i = 0; i < 4; i++) {
+    assert.equal(G.geminiModelsForLane(G.MODEL_EXTRACT)[0], G.GEMINI_LITE_CANDIDATES[0]);
+  }
+});
+
+/* Agir serit (sentez / anlati yazari) de Lite'ta: tam Flash'in RPD'si 20 ve
+   19:21 kosusunda anlati yazari tam o yuzden dustu. */
+test('geminiModelsForLane: agir serit de Lite ile baslar', () => {
+  G.geminiKotaOlu.clear(); G.geminiSorunlu.clear();
+  denoEnv.delete('GEMINI_MODEL'); denoEnv.delete('GEMINI_FAST_MODEL');
+  assert.equal(G.geminiModelsForLane(G.MODEL_HEAVY)[0], G.GEMINI_LITE_CANDIDATES[0]);
+  denoEnv.set('GEMINI_MODEL', 'elle-verilen');
+  try {
+    assert.equal(G.geminiModelsForLane(G.MODEL_HEAVY)[0], 'elle-verilen', 'secret hala ezebilmeli');
+  } finally { denoEnv.delete('GEMINI_MODEL'); }
 });
 
 /* GEMINI_FAST_MODEL acikca verilmisse dagitim yapilmaz. */
@@ -288,29 +323,31 @@ test('geminiModelsForLane: GEMINI_FAST_MODEL verilmisse dagitim devre disi', () 
   } finally { denoEnv.delete('GEMINI_FAST_MODEL'); }
 });
 
-/* Gunluk kota govdesi 800 karakterde kesiliyordu ve ham dondurulunce
-   cagiranda "Unterminated string in JSON at position 800" oluyordu.
-   Zarf artik her zaman gecerli JSON; ham govde bir alanin icinde. */
-test('groqViaGemini: gunluk kota cevabi ayristirilabilir JSON doner', async () => {
-  const kesik = '{"error":{"message":"' + 'x'.repeat(900);
-  stubFetch([{ status: 429, text: 'Quota exceeded for GenerateRequestsPerDay ' + kesik }]);
-  try {
-    const res = await quiet(() => G.groqViaGemini(groqBody(), 2, 5000));
-    assert.equal(res.status, 429);
-    const data = await res.json();   // eskiden SyntaxError atiyordu
-    assert.match(data.error.message, /gunluk kota dolu/);
-  } finally { restoreFetch(); }
-});
-
-/* Ayni tuzak terminal olmayan hata yolunda da vardi. */
-test('groqViaGemini: terminal hata cevabi da gecerli JSON doner', async () => {
+/* Ham govde 800 karakterde kesiliyor; oldugu gibi dondurulunce cagiranda
+   "Unterminated string in JSON at position 800" oluyordu. Zarf artik her
+   zaman gecerli JSON, kesik govde bir ALANIN icinde tasiniyor. */
+test('groqViaGemini: terminal hata cevabi gecerli JSON doner', async () => {
+  G.geminiKotaOlu.clear(); G.geminiSorunlu.clear();
   stubFetch([{ status: 400, text: 'bu hic JSON degil ' + 'y'.repeat(900) }]);
   try {
     const res = await quiet(() => G.groqViaGemini(groqBody(), 0, 5000));
     assert.equal(res.status, 400);
-    const data = await res.json();
+    const data = await res.json();   // eskiden SyntaxError atiyordu
     assert.ok(data.error.message.includes('400'));
-  } finally { restoreFetch(); }
+    assert.ok(data.error.gemini_body.length <= 400, 'ham govde alanda ve kirpik');
+  } finally { restoreFetch(); G.geminiKotaOlu.clear(); }
+});
+
+/* URL ve dosya adi icindeki sayilar HEDEF sayilmaz: BUS211 kosusunda kart
+   "%41 sayisal kapsama" rozetiyle cikmisti, kayiplarin cogu linkti. */
+test('distinctiveNumbers: URL ve dosya adi icindeki sayilar hedef degildir', () => {
+  const link = 'http://www.gly.uga.edu/railsback/1122sciencedefns.html ' +
+               'article-0-03B05683000005DC-812_306x516.jpg';
+  assert.deepEqual(G.distinctiveNumbers(link), [], 'linkten hedef sayi cikmamali');
+  // Gercek icerik sayisi etkilenmemeli.
+  const metin = 'Leaders controlled resources for 5,000 to 20,000 people.';
+  const hedef = G.distinctiveNumbers(metin);
+  assert.ok(hedef.includes(5000) && hedef.includes(20000), `gelen: ${hedef.join(', ')}`);
 });
 
 /* ---------------------------------------------------------------------------

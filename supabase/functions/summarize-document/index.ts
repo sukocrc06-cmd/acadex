@@ -4663,8 +4663,27 @@ function sayiOkumalari(token: string): number[] {
  *  isaretini sik kaybediyor (sembol fontu), ve "12.08 kayboldu mu" sorusu
  *  isaretten bagimsiz. Yil gibi duran tam sayilar (1500-2100) disarida — ders
  *  icerigi degil, ama her donem slaytinda var. */
+/* URL VE DOSYA ADI SAYI DEGILDIR (28.10.2026 — olculmus).
+ *
+ * BUS211 week2 kosusunda kart "sayisal kapsama %41" rozetiyle cikti ve
+ * kullaniciya oyle gosterildi. Kayip sayilarin baglami (bkz. asagidaki
+ * "KAYIP SAYILARIN BAGLAMI" notunun sordugu soru) cevabi verdi:
+ *   1122  <- "1122sciencedefns.html"
+ *   10393 <- "/topic/1350805/history-of-technology/10393/Stone"
+ *   812   <- "article-0-03B05683000005DC-812_306x516.jpg"
+ * Ucu de kaynak linki. Kaynak slayt destesi link dolu; ozet onlari
+ * "ogretmedigi" icin degil, ogretilecek bir sey olmadigi icin almiyor.
+ * Kartin gercek sayilari (15.000 yillik mamut disi, 7500-5700 BC, 12000
+ * yil, 5.000-20.000 kisi) yerindeydi — kusur KAPIDAYDI, kartta degil.
+ *
+ * Yalnizca HEDEF listesinden dusuyorlar: ciktida bir URL sayisi geciyorsa
+ * zarar yok, sadece hedef sayilmiyorlar. */
+const URL_BENZERI_RE = /\b(?:https?:\/\/|www\.)\S+|\S+\.(?:html?|php|aspx?|jpe?g|png|gif|pdf|svg|webp)\b/gi
+
 function distinctiveNumbers(text: string): number[] {
-  const temiz = String(text || '').replace(SAYFA_ISARETI_RE, ' ')
+  const temiz = String(text || '')
+    .replace(URL_BENZERI_RE, ' ')
+    .replace(SAYFA_ISARETI_RE, ' ')
   const out: number[] = []
   const gorulen = new Set<number>()
   for (const token of temiz.match(SAYI_BELIRTECI) || []) {
@@ -6291,8 +6310,9 @@ function geminiHataCevabi(status: number, mesaj: string, ham: string): Response 
  * hala bir cevap gelsin. GEMINI_FAST_MODEL secret'i acikca tanimliysa
  * dagitim yapilmaz — elle verilen model olcum yapanin karari. */
 /* Sayac bir const nesnede tutuluyor: testlerin kaynak cikaricisi (bkz.
-   tests/_ts-extract.js) ciplak bir `let` bildirimini dilimleyemiyor. */
-const geminiSerit = { sayac: 0, tamIstek: 0 }
+   tests/_ts-extract.js) ciplak bir `let` bildirimini dilimleyemiyor.
+   tamIstek: bu kosuda RPD 20'lik tam Flash havuzuna kac kez dokunuldugu. */
+const geminiSerit = { tamIstek: 0 }
 
 /* KOTASI DOLAN MODEL BIR DAHA DENENMEZ (28.10.2026 — olculmus israf).
  *
@@ -6353,13 +6373,22 @@ const GEMINI_TAM_MODEL_BUTCESI = 6
  *
  * Lite ADAYLARI birden fazla: biri 503 verirse otekine gecilsin diye.
  * Tam modeller listeden ATILMADI, derin yedek olarak sonda duruyor. */
+/* SIRA SABIT, DONUSUMLU DEGIL. Kisa sure donusumlu denendi; 19:21
+   kosusunda sira 3.1-flash-lite'i basa aldi, o iki kez 503 verdi ve pencere
+   ancak 3.5'e dustukten sonra calisti. RPD 500 ile donusume kota gerekcesi
+   yok; 3.5-flash-lite olculmus calisan model, oteki yalnizca yedek. */
 const GEMINI_LITE_CANDIDATES = [
   'gemini-3.5-flash-lite',
   'gemini-3.1-flash-lite'
 ]
 
 function geminiModelsForLane(groqModel: string): string[] {
-  const heavy = String(Deno.env.get('GEMINI_MODEL') || '').trim() || GEMINI_MODEL_CANDIDATES[0]
+  /* AGIR SERIT DE LITE (28.10.2026 karari).
+     Varsayilan eskiden GEMINI_MODEL_CANDIDATES[0] (tam Flash, RPD 20) idi.
+     Tam Flash'in gunluk hakki 20, Lite'inki 500 ve 19:21 kosusunda agir
+     serit tam o yuzden 429 yiyip anlati yazarini dusurdu. Artik butun
+     seritler ayni Lite modelinde; GEMINI_MODEL secret'i hala ezebiliyor. */
+  const heavy = String(Deno.env.get('GEMINI_MODEL') || '').trim() || GEMINI_LITE_CANDIDATES[0]
   const fastSecret = String(Deno.env.get('GEMINI_FAST_MODEL') || '').trim()
   const lite = fastSecret || GEMINI_FAST_MODEL_DEFAULT
   let first: string
@@ -6368,8 +6397,7 @@ function geminiModelsForLane(groqModel: string): string[] {
   } else if (fastSecret) {
     first = fastSecret
   } else {
-    // Lite adaylari arasinda sirayla: kota degil, 503 dayanikliligi icin.
-    first = GEMINI_LITE_CANDIDATES[geminiSerit.sayac++ % GEMINI_LITE_CANDIDATES.length]
+    first = GEMINI_LITE_CANDIDATES[0]
   }
   /* Sira: once Lite adaylari (RPD 500), sonra agir serit modeli, en sonda
      tam Flash adaylari (RPD 20) — derin yedek. */
@@ -6516,12 +6544,22 @@ async function groqViaGemini(options: RequestInit, maxRetries: number, timeoutMs
       }
       if (res.status === 429 || res.status >= 500) {
         if (geminiQuotaExhausted(res.status, lastBody)) {
+          /* SIRADAKI ADAYA GEC (28.10.2026 duzeltmesi).
+             Burasi eskiden dogrudan donuyordu ("baska model denemeden") —
+             limitin PROJE basina oldugu sanildigi donemde dogruydu, cunku
+             sonraki modeli denemek ayni duvara carpmakti. Panel okumasi
+             limitin MODEL basina oldugunu gosterdi (3.6 ve 3.8 bagimsiz
+             olarak 21/20). Donmek yuzunden 19:21 kosusunda anlati yazari
+             atlandi: agir serit 3.5-flash'ta 429 yedi, arkasindaki Lite
+             adaylari hic denenmedi. Olu model zaten isaretlendigi icin
+             sonrakine gecmek bedava. */
           geminiKotaOlu.set(model, Date.now())
           console.error(
             `Gemini[${model}] paralel: GUNLUK kota dolu — bu model ` +
-            `${Math.round(GEMINI_KOTA_OLU_MS / 60000)} dk aday listesinden dusuruldu`
+            `${Math.round(GEMINI_KOTA_OLU_MS / 60000)} dk aday listesinden dusuruldu, ` +
+            `siradaki aday deneniyor`
           )
-          return geminiHataCevabi(429, `Gemini gunluk kota dolu (${model})`, lastBody)
+          break
         }
         geminiSorunlu.set(model, (geminiSorunlu.get(model) || 0) + 1)
         console.warn(`Gemini[${model}] paralel: gecici ${res.status} (deneme ${attempt + 1}) — ${lastBody.slice(0, 160)}`)

@@ -103,7 +103,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'windowCompletionFor', 'windowCompletionFloored',
   // Sayisal kapsama olcusu (09.10.2026).
   'SAYFA_ISARETI_RE', 'SAYISAL_KAPSAMA_TOLERANS', 'SAYI_BELIRTECI', 'SAYISAL_KAPSAMA_ORNEK',
-  'sayiOkumalari', 'distinctiveNumbers', 'outputNumbers', 'yakinDegerVar',
+  'sayiOkumalari', 'URL_BENZERI_RE', 'distinctiveNumbers', 'outputNumbers', 'yakinDegerVar',
   'KAPSAMA_DISI_ALANLAR', 'coverageText', 'numericCoverage', 'formatCoverage',
   'SAYISAL_BAGLAM_KRK', 'sayisalKayipBaglami',
   // Denklem sayfalarinin yeniden dizilmesi (09.10.2026).
