@@ -21,15 +21,6 @@ on:
       - 'supabase/functions/extract-chart-items/**'
       - 'supabase/functions/exam-appeal/**'
       - 'supabase/functions/get-exam-hint/**'
-      # 28.10.2026 — OZET MOTORU DA BURAYA ALINDI.
-      # 646 KB'lik index.ts'i Supabase panelinden elle yapistirmak sessizce
-      # KIRPIYOR. version 190 boyle olustu: modul hic degerlendirilemedi,
-      # log yalnizca "booted (20ms)" gosterdi, "Listening on" satiri HIC
-      # gelmedi ve isci 150,003 sn sonra reason=WallClockTime ile olduruldu
-      # (cpu 60ms, heap 7,5 MB — calisan kosularda 584-1035ms / 28-34 MB).
-      # Ozet uretimi o sure boyunca canlida calismadi.
-      # generate-exam 232 KB ile zaten bu yoldan sorunsuz deploy oluyor.
-      - 'supabase/functions/summarize-document/**'
       - '.github/workflows/deploy-exam-functions.yml'
       - '.github/scripts/deploy-exam-functions.sh'
       - '.github/scripts/code-fingerprint.cjs'
@@ -74,7 +65,7 @@ jobs:
         with:
           version: latest
 
-      # Kod parmak izi (code-fingerprint.cjs) için TypeScript derleyicisi
+      # Kod parmak izi (code-fingerprint.cjs) için TypeScript derleyicisi.
       - name: TypeScript
         if: steps.token.outputs.ok == 'true'
         run: |
