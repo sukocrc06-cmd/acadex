@@ -159,4 +159,21 @@ test('davranış testi (Postgres + RLS)', () => {
   } finally { execSync(P + ' -d postgres -c "drop database if exists ax_t63"', { stdio: 'pipe' }); }
 });
 
+test('sınav satırı koruması: ödev alanları, süre, gerçek sınav ayarı, öğretmen notu (Postgres)', () => {
+  const mig = readSource('supabase/migrations/20261028d_sinav_faz6_koruma.sql');
+  for (const c of ['assignment_id', 'attempt_no', 'is_simulation', 'time_limit_seconds', 'teacher_note', 'user_id']) assert.match(mig, new RegExp('or new\\.' + c + ' is distinct from old\\.' + c), c);
+  assert.match(mig, /or new\.assignment_id is not null or new\.attempt_no is not null/);
+  const pg = process.env.ACADEX_PG;
+  if (!pg) { console.log('    (ACADEX_PG yok: davranış testi atlandı)'); return; }
+  const root = path.join(__dirname, '..');
+  const P = 'psql ' + pg + ' -q -v ON_ERROR_STOP=1';
+  execSync(P + ' -d postgres -c "drop database if exists ax_t63c" -c "create database ax_t63c"', { stdio: 'pipe' });
+  try {
+    for (const f of ['tests/sql/_supabase-stub.sql', 'supabase/migrations/20261027_sinav_faz6_siniflar.sql', 'supabase/migrations/20261027b_sinav_faz6_odevler.sql', 'supabase/migrations/20261028b_sinav_faz6_ogrenci.sql', 'supabase/migrations/20261028d_sinav_faz6_koruma.sql', 'supabase/migrations/20261028d_sinav_faz6_koruma.sql'])
+      execSync(P + ' -d ax_t63c -f ' + JSON.stringify(path.join(root, f)), { stdio: 'pipe' });
+    const out = execSync(P + ' -d ax_t63c -f ' + JSON.stringify(path.join(root, 'tests/sql/faz6-koruma.sql')), { stdio: 'pipe' }).toString();
+    assert.match(out, /HEPSI GECTI/);
+  } finally { execSync(P + ' -d postgres -c "drop database if exists ax_t63c"', { stdio: 'pipe' }); }
+});
+
 summary();
