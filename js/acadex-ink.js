@@ -1790,6 +1790,9 @@ window.axNotify = function (title, opts) {
   toastA.addEventListener('click', function (e) { e.preventDefault(); toast.hidden = true; if (typeof switchDashboardView === 'function') switchDashboardView('notebook'); });
 
   /* ---------- kutular ---------- */
+  /* Kartoteks çizimleri: boş dolap, kapanmış kitap */
+  var KT_EMPTY = '<svg class="kt-empty-ill" viewBox="0 0 220 120" aria-hidden="true"><rect x="40" y="18" width="140" height="92" rx="6" fill="#9A6534"/><rect x="48" y="26" width="58" height="36" rx="3" fill="#C48D57"/><rect x="114" y="26" width="58" height="36" rx="3" fill="#C48D57"/><rect x="48" y="68" width="58" height="36" rx="3" fill="#C48D57"/><rect x="114" y="68" width="58" height="36" rx="3" fill="#C48D57" class="kt-ei-open"/><rect x="62" y="34" width="30" height="10" rx="1.5" fill="#FFFDF4" stroke="#C9A24A" stroke-width="2"/><rect x="128" y="34" width="30" height="10" rx="1.5" fill="#FFFDF4" stroke="#C9A24A" stroke-width="2"/><rect x="62" y="76" width="30" height="10" rx="1.5" fill="#FFFDF4" stroke="#C9A24A" stroke-width="2"/><g class="kt-ei-fis"><rect x="124" y="54" width="38" height="24" rx="1.5" fill="#FFFDF4" stroke="#E6DDBF"/><path d="M124 59 H162" stroke="#B5432F" stroke-width="1.6"/></g><path d="M71 52 h12 M137 52 h12 M71 94 h12" stroke="#C9A24A" stroke-width="3" stroke-linecap="round"/><rect x="50" y="110" width="12" height="7" rx="2" fill="#7E5028"/><rect x="158" y="110" width="12" height="7" rx="2" fill="#7E5028"/></svg>';
+  var KT_BOOK = '<svg class="kt-book" viewBox="0 0 120 60" aria-hidden="true"><path d="M8 46 L60 52 L112 46 L112 40 L60 46 L8 40 Z" fill="#7E5028"/><path d="M12 40 C30 30 50 34 60 44 C70 34 90 30 108 40 L108 44 C90 36 70 40 60 48 C50 40 30 36 12 44 Z" fill="#FFFDF4" stroke="#E6DDBF"/><path d="M60 44 V48" stroke="#E6DDBF"/><path d="M84 18 C92 12 100 14 104 20" fill="none" stroke="#C9A24A" stroke-width="2" stroke-linecap="round" stroke-dasharray="2 4"/></svg>';
   var DC = ['#2F6BFF', '#E0773A', '#2E9E6B', '#8A5CF6', '#D9485F', '#C99A1E'];
   /* ustalık: kartların 4. ve 5. bölmeye (haftalık / iki haftalık) çıkmış payı */
   var mastery = function (cs) { if (!cs.length) return 0; return Math.round(cs.filter(function (c) { return c.box >= 4; }).length / cs.length * 100); };
@@ -1805,7 +1808,7 @@ window.axNotify = function (title, opts) {
     var sec = $('#cards-list-section'); if (!sec) return;
     list = list || window.filteredLibraryCardsList || decks();
     if (!list.length) {
-      sec.innerHTML = '<p class="none">' + (decks().length ? 'bu aramayla çekmece bulamadım.' : 'dolap henüz boş. bir belgeni özetlediğinde ilk çekmecen burada açılır.') + '</p>' + '<button type="button" class="kx-add" data-kx-add=""><span class="kt-pull" aria-hidden="true"></span>+ yeni çekmece<small>belgeden deste oluştur</small></button>';
+      sec.innerHTML = (!decks().length && root.classList.contains('kt') ? '<div class="kt-empty">' + KT_EMPTY + '<p><b>dolap henüz boş.</b> bir belgeni özetlediğinde ilk çekmecen burada açılır; fişlerin kendiliğinden dizilir.</p></div>' : '<p class="none">' + (decks().length ? 'bu aramayla çekmece bulamadım.' : 'dolap henüz boş. bir belgeni özetlediğinde ilk çekmecen burada açılır.') + '</p>') + '<button type="button" class="kx-add" data-kx-add=""><span class="kt-pull" aria-hidden="true"></span>+ yeni çekmece<small>belgeden deste oluştur</small></button>';
       if (!decks().length) { activeId = null; paintAll(); }
       return;
     }
@@ -1815,7 +1818,7 @@ window.axNotify = function (title, opts) {
       var full = (d.documents && d.documents.file_name) || 'İsimsiz belge', nm = baseName(full), cs = cardsOf(d), due = cs.filter(function (c) { return c.due; }).length, mine = cs.filter(function (c) { return c.user; }).length;
       var m = mastery(cs), tag = d.course_tag || STY[d.summary_style] || 'DESTE';
       var peek = ''; for (var p = 0; p < Math.min(due, 3); p++) peek += '<i style="--p:' + p + '"></i>';
-      return '<div class="kx-deck kt-drawer" role="listitem" tabindex="0" data-card-id="' + d.id + '" aria-current="' + (d.id === activeId) + '" aria-label="' + esc(nm) + ' çekmecesi, ' + cs.length + ' fiş' + (due ? ', bugün ' + due : '') + ', ezber yüzde ' + m + '" style="--dc:' + DC[di % DC.length] + '">' +
+      return '<div class="kx-deck kt-drawer" role="listitem" tabindex="0" data-card-id="' + d.id + '" aria-current="' + (d.id === activeId) + '" aria-label="' + esc(nm) + ' çekmecesi, ' + cs.length + ' fiş' + (due ? ', bugün ' + due : '') + ', ezber yüzde ' + m + '" style="--dc:' + DC[di % DC.length] + ';--i:' + di + '">' +
         '<span class="kt-peek" aria-hidden="true">' + peek + '</span>' +
         '<span class="kt-label"><span class="kx-tab">' + esc(tag) + '</span><b class="kx-dn">' + esc(nm) + '</b></span>' +
         '<span class="kt-pull" aria-hidden="true"></span>' +
@@ -1828,14 +1831,39 @@ window.axNotify = function (title, opts) {
         '<label class="kx-sh"><input type="checkbox" id="share-switch-lib-' + d.id + '"' + (d.is_shared ? ' checked' : '') + ' onchange="toggleShareStudyCard(\'' + d.id + '\', this.checked)"> bölüm akışında paylaş</label>' +
         '<button type="button" class="kx-del" onclick="deleteStudyCard(event, \'' + d.id + '\', \'' + d.document_id + '\')">çekmeceyi sil</button>' +
         '</div></div>';
-    }).join('') + '<button type="button" class="kx-add" data-kx-add=""><span class="kt-pull" aria-hidden="true"></span>+ yeni çekmece<small>belgeden deste oluştur</small></button>';
+    }).join('') + '<button type="button" class="kx-add" data-kx-add="" style="--i:' + list.length + '"><span class="kt-pull" aria-hidden="true"></span>+ yeni çekmece<small>belgeden deste oluştur</small></button>';
+    if (!ktIntro && root.classList.contains('kt') && !reduce) { ktIntro = true; sec.classList.add('kt-intro'); setTimeout(function () { sec.classList.remove('kt-intro'); }, 900 + list.length * 70); }
     paintAll();
   };
+  var ktIntro = false;
   var pick = function (id) {
     if (id === activeId) return;
     activeId = id; try { libraryActiveCardId = id; } catch (e) {}
     $$('.kx-deck').forEach(function (b) { b.setAttribute('aria-current', String(b.getAttribute('data-card-id') === id)); });
     paintAll();
+    ktPull(id);
+  };
+  /* Kartoteks: çekmece dışarı kayar, en üstteki fiş yükselip okuma masasındaki büyük karta uçar */
+  var ktPull = function (id) {
+    if (reduce || !root.classList.contains('kt')) return;
+    var dr = $('.kx-deck[data-card-id="' + id + '"]'); if (!dr) return;
+    dr.classList.remove('kt-pulling'); void dr.offsetWidth; dr.classList.add('kt-pulling');
+    setTimeout(function () { dr.classList.remove('kt-pulling'); }, 700);
+    var a = dr.getBoundingClientRect(), b = bigIn.getBoundingClientRect();
+    if (!a.width || !b.width || b.top > window.innerHeight || b.bottom < 0) return;
+    var fis = document.createElement('div'); fis.className = 'kt-flyfis'; fis.setAttribute('aria-hidden', 'true');
+    var w = Math.min(120, a.width * 0.6), h = w * 0.62, x0 = a.left + a.width / 2 - w / 2, y0 = a.top - h * 0.3;
+    fis.style.cssText = 'left:' + x0 + 'px;top:' + y0 + 'px;width:' + w + 'px;height:' + h + 'px';
+    root.appendChild(fis);
+    var dx = b.left + b.width / 2 - (x0 + w / 2), dy = b.top + b.height / 2 - (y0 + h / 2), k = b.width / w;
+    bigIn.style.opacity = '0';
+    fis.animate([
+      { transform: 'translateY(30px) scale(.9)', opacity: 0 },
+      { transform: 'translateY(-40px) rotate(-6deg)', opacity: 1, offset: 0.3 },
+      { transform: 'translate(' + dx * 0.55 + 'px,' + (dy * 0.55 - 70) + 'px) rotate(4deg) scale(' + (1 + (k - 1) * 0.5).toFixed(2) + ')', offset: 0.7 },
+      { transform: 'translate(' + dx + 'px,' + dy + 'px) rotate(-.4deg) scale(' + k.toFixed(3) + ',' + (b.height / h).toFixed(3) + ')', opacity: 1 }
+    ], { duration: 720, easing: 'cubic-bezier(.45,0,.25,1)' }).onfinish = function () { fis.remove(); bigIn.style.opacity = ''; bigIn.classList.add('come'); setTimeout(function () { bigIn.classList.remove('come'); }, 420); };
+    setTimeout(function () { if (fis.isConnected) { fis.remove(); bigIn.style.opacity = ''; } }, 1400);
   };
   var closeMenus = function (except) { $$('[data-kx-menu]').forEach(function (m) { if (m === except) return; m.hidden = true; var b = m.parentNode.querySelector('[data-kx-more]'); if (b) b.setAttribute('aria-expanded', 'false'); }); };
   $('#cards-list-section').addEventListener('click', function (e) {
@@ -1943,9 +1971,10 @@ window.axNotify = function (title, opts) {
     if (!c) {
       var cs = cardsOf(deck), done = queue.length && idx >= queue.length;
       bigB.classList.remove('back'); setInteractive(false); judgeEl.hidden = !done; keysEl.hidden = true; jBtns.forEach(function (b) { b.disabled = true; }); j4.hidden = true; j4h.hidden = true;
+      if (root.classList.contains('kt')) { var dk = $('.kt-desk'); if (dk) dk.classList.toggle('kt-off', !!(deck && done)); var kac0 = $('[data-acd-kt]'); if (kac0 && window.AcadiaKit) window.AcadiaKit.setMood(kac0, deck && done ? 'uykulu' : null); }
       if (!deck) { bigIn.innerHTML = '<span class="side">DESTE YOK</span><span class="empty-t">kart çalışmak için önce bir belgeden deste oluştur.</span><button type="button" class="first" data-new-deck="">belgeden deste oluştur →</button>'; prog.textContent = ''; }
       else if (done) {
-        bigIn.innerHTML = '<span class="side">BUGÜNLÜK BU KADAR</span><span class="done-n">' + score.y + ' / ' + (score.y + score.n) + '</span><span class="a">' + (score.n ? 'kartı bildin. bilmediklerin en başa döndü, yakında yine sorulur.' : 'hepsini bildin, hepsi bir bölme ileri gitti.') + '</span><span class="note hand">' + (score.y >= score.n ? 'iyi gidiyorsun, yarın da uğra.' : 'zor kartlar böyledir; bir tur daha?') + '</span>' + (score.n ? '<button type="button" class="again" data-again="">bilmediklerimi bir daha sor</button>' : '');
+        bigIn.innerHTML = (root.classList.contains('kt') ? KT_BOOK : '') + '<span class="side">BUGÜNLÜK BU KADAR</span><span class="done-n">' + score.y + ' / ' + (score.y + score.n) + '</span><span class="a">' + (score.n ? 'kartı bildin. bilmediklerin en başa döndü, yakında yine sorulur.' : 'hepsini bildin, hepsi bir bölme ileri gitti.') + '</span><span class="note hand">' + (score.y >= score.n ? 'iyi gidiyorsun, yarın da uğra.' : 'zor kartlar böyledir; bir tur daha?') + '</span>' + (score.n ? '<button type="button" class="again" data-again="">bilmediklerimi bir daha sor</button>' : '');
         prog.textContent = 'bitti';
       } else if (!cs.length) {
         var fs = firstSentence();
@@ -1957,6 +1986,7 @@ window.axNotify = function (title, opts) {
       }
       return;
     }
+    if (root.classList.contains('kt')) { var dk2 = $('.kt-desk'); if (dk2) dk2.classList.remove('kt-off'); var kac1 = $('[data-acd-kt]'); if (kac1 && kac1.dataset.moodNow === 'uykulu' && window.AcadiaKit) window.AcadiaKit.setMood(kac1, null); }
     setInteractive(true); judgeEl.hidden = mode === 'smart'; keysEl.hidden = mode === 'smart'; jBtns.forEach(function (b) { b.disabled = false; });
     paintJ4();
     var lvl = '<span class="lvl" aria-hidden="true">' + dots(c.box) + '</span>', kind = c.type === 'quiz' ? 'TEST SORUSU' : c.type === 'cloze' ? 'BOŞLUK' : 'SORU';
@@ -1976,7 +2006,20 @@ window.axNotify = function (title, opts) {
     else queue = (mode === 'due' ? cs.filter(function (c) { return c.due; }).sort(function (a, b) { return a.box - b.box || (a.conf ? 1 : 0) - (b.conf ? 1 : 0); }) : cs).slice(0, mode === 'due' ? 40 : 999).map(function (c) { return c.id; });
     idx = 0; score = { y: 0, n: 0 }; paintTally();
   };
-  var flip = function () { if (!cur || busy) return; if (reduce) { flipped = !flipped; face(); return; } bigIn.classList.add('squash'); setTimeout(function () { flipped = !flipped; face(); bigIn.classList.remove('squash'); }, 190); };
+  var ktTurning = false;
+  var flip = function () {
+    if (!cur || busy) return; if (reduce) { flipped = !flipped; face(); return; }
+    if (root.classList.contains('kt') && bigIn.animate) {
+      /* Kartoteks: fiş gerçekten arkasına döner; yarıda yüz değişir, gölge karşı yana kayar */
+      if (ktTurning) return; ktTurning = true; var dir = flipped ? -1 : 1;
+      bigIn.animate([{ transform: 'perspective(1400px) rotateY(0deg)' }, { transform: 'perspective(1400px) rotateY(' + 90 * dir + 'deg) translateZ(30px)', boxShadow: (-24 * dir) + 'px 30px 36px -26px rgba(60,30,10,.55)' }], { duration: 210, easing: 'cubic-bezier(.5,0,.9,.6)' }).onfinish = function () {
+        flipped = !flipped; face();
+        bigIn.animate([{ transform: 'perspective(1400px) rotateY(' + -90 * dir + 'deg) translateZ(30px)', boxShadow: (24 * dir) + 'px 30px 36px -26px rgba(60,30,10,.55)' }, { transform: 'perspective(1400px) rotateY(0deg)' }], { duration: 300, easing: 'cubic-bezier(.15,.6,.3,1.25)' }).onfinish = function () { ktTurning = false; };
+      };
+      return;
+    }
+    bigIn.classList.add('squash'); setTimeout(function () { flipped = !flipped; face(); bigIn.classList.remove('squash'); }, 190);
+  };
 
   /* SM-2 kaydı (Akıllı Tekrar ile aynı) */
   var record = async function (c, knew, rating) {
@@ -1996,11 +2039,19 @@ window.axNotify = function (title, opts) {
     var c = cur, nb = knew ? Math.min(5, c.box + 1) : 1;
     if (knew) score.y++; else score.n++;
     dayBump();
+    if (window.AcadiaKit) { var kac = $('[data-acd-kt]'); if (kac) window.AcadiaKit.react(kac, knew ? 'kutlama' : 'uzgun', 1300); }
     record(c, knew, rating);
     var im = document.createElement('span'); im.className = 'imprint ' + (knew ? 'yes' : 'no'); im.textContent = knew ? 'BİLİYORUM' : 'TEKRAR';
     if (knew && typeof computeSm2 === 'function') { var nx = lsafe(function () { return computeSm2(c.conf, rating || 'good'); }, null); if (nx && nx.interval_days >= 1) { var dn = new Date(Date.now() + nx.interval_days * 864e5); im.textContent = 'İADE ' + dn.getDate() + ' ' + MON[dn.getMonth()].toLocaleUpperCase('tr'); } }
     im.style.setProperty('--ir', ((Math.random() * 16) - 8).toFixed(1) + 'deg'); im.style.left = (28 + Math.random() * 30) + '%'; im.style.top = (30 + Math.random() * 25) + '%';
     bigIn.appendChild(im);
+    if (root.classList.contains('kt') && !reduce) {
+      /* mürekkep sıçraması: damganın çevresine birkaç damla */
+      var sp = document.createElement('span'); sp.className = 'kt-ink ' + (knew ? 'yes' : 'no'); sp.setAttribute('aria-hidden', 'true'); sp.style.left = im.style.left; sp.style.top = im.style.top;
+      for (var q = 0; q < 7; q++) { var dt = document.createElement('i'); var ang = q / 7 * 6.283 + Math.random() * 0.6, r = 46 + Math.random() * 34; dt.style.setProperty('--dx', (Math.cos(ang) * r).toFixed(0) + 'px'); dt.style.setProperty('--dy', (Math.sin(ang) * r * 0.6).toFixed(0) + 'px'); dt.style.setProperty('--ds', (3 + Math.random() * 5).toFixed(1) + 'px'); sp.appendChild(dt); }
+      bigIn.appendChild(sp);
+      if (!knew) { bigIn.classList.remove('kt-wobble'); void bigIn.offsetWidth; bigIn.classList.add('kt-wobble'); }
+    }
     var btn = $('[data-j="' + (knew ? 1 : 0) + '"]'); btn.classList.remove('press'); void btn.offsetWidth; btn.classList.add('press');
     paintTally();
     var next = function () { busy = false; idx++; load(); if (!reduce) { bigIn.classList.add('come'); setTimeout(function () { bigIn.classList.remove('come'); }, 420); } };
@@ -2012,11 +2063,26 @@ window.axNotify = function (title, opts) {
       var vis = b && b.bottom > 0 && b.top < window.innerHeight;
       var anim = vis ? [{ transform: 'none' }, { transform: 'translate(' + ((b.left + b.width / 2) - (a.left + a.width / 2)) * 0.5 + 'px,' + (((b.top) - (a.top + a.height / 2)) * 0.5 - 60) + 'px) scale(.45) rotate(' + (knew ? 10 : -10) + 'deg)', offset: 0.5 }, { transform: 'translate(' + ((b.left + b.width / 2) - (a.left + a.width / 2)) + 'px,' + ((b.top + b.height / 2) - (a.top + a.height / 2)) + 'px) scale(' + (b.width / a.width * 0.9).toFixed(3) + ',.05)', opacity: 0.6 }]
         : [{ transform: 'none' }, { transform: 'translate(' + (knew ? 140 : -140) + '%,-30px) rotate(' + (knew ? 18 : -18) + 'deg)', opacity: 0 }];
+      if (!vis && root.classList.contains('kt')) { /* göz ekranda değilse: fiş yukarı, dolaba doğru süzülür; kartın altında hangi göze düştüğü yazar */
+        anim = [{ transform: 'none' }, { transform: 'translate(0,-40px) rotate(' + (knew ? 6 : -6) + 'deg) scale(.6)', opacity: 0.9, offset: 0.45 }, { transform: 'translate(0,-' + (a.top + a.height) + 'px) rotate(' + (knew ? 10 : -10) + 'deg) scale(.25)', opacity: 0 }];
+        ktDropNote(nb);
+      }
       f.animate(anim, { duration: vis ? 620 : 380, easing: 'cubic-bezier(.5,0,.3,1)' }).onfinish = function () {
         f.remove(); var nc = leit.querySelector('[data-cp="' + nb + '"]'); if (nc) { nc.classList.remove('bump'); void nc.offsetWidth; nc.classList.add('bump'); }
       };
       next();
     }, 420);
+  };
+  (function () {
+    var dk = $('.kt-desk'); if (!dk || reduce || !(window.matchMedia && matchMedia('(hover: hover) and (pointer: fine)').matches)) return;
+    var raf = 0, px = 50, py = 0;
+    dk.addEventListener('pointermove', function (e) { var r = dk.getBoundingClientRect(); px = (e.clientX - r.left) / r.width * 100; py = (e.clientY - r.top) / r.height * 100; if (raf) return; raf = requestAnimationFrame(function () { raf = 0; dk.style.setProperty('--lx', (40 + px * 0.2).toFixed(1) + '%'); dk.style.setProperty('--ly', (-4 + py * 0.08).toFixed(1) + '%'); }); });
+    dk.addEventListener('pointerleave', function () { dk.style.removeProperty('--lx'); dk.style.removeProperty('--ly'); });
+  })();
+  var ktDropNote = function (nb) {
+    var t = $('#ktable'); if (!t) return; var n = t.querySelector('.kt-drop'); if (!n) { n = document.createElement('span'); n.className = 'kt-drop'; n.setAttribute('aria-hidden', 'true'); t.appendChild(n); }
+    n.innerHTML = '<b>' + nb + '</b> ' + (nb === 1 ? 'başa döndü · ' : 'göze düştü · ') + LB[nb - 1];
+    n.classList.remove('on'); void n.offsetWidth; n.classList.add('on');
   };
   var j4 = $('[data-judge4]'), j4h = $('[data-j4hint]');
   var IVL = function (iv) { if (iv < 0.04) return '~15 dk'; if (iv < 1) return Math.round(iv * 24) + ' sa'; if (iv < 30) return Math.round(iv) + ' gün'; return Math.round(iv / 30) + ' ay'; };
@@ -2873,7 +2939,7 @@ window.axNotify = function (title, opts) {
     if (E.isHeadless()) E.destroy();
   };
   var wedgeD = function (f) { f = Math.max(0, Math.min(1, f)); if (f >= 0.9999) return 'M50 50 m-46 0 a46 46 0 1 0 92 0 a46 46 0 1 0 -92 0'; var a = f * 2 * Math.PI, x = 50 + 46 * Math.sin(a), y = 50 - 46 * Math.cos(a); return 'M50 50 L50 4 A46 46 0 ' + (f > 0.5 ? 1 : 0) + ' 1 ' + x.toFixed(2) + ' ' + y.toFixed(2) + ' Z'; };
-  var mmss = function (s) { s = Math.max(0, Math.round(s)); return pad(Math.floor(s / 60)) + ':' + pad(s % 60); };
+  var mmss = function (s) { s = Math.max(0, Math.round(s)); return s >= 3600 ? Math.floor(s / 3600) + ':' + pad(Math.floor(s % 3600 / 60)) + ':' + pad(s % 60) : pad(Math.floor(s / 60)) + ':' + pad(s % 60); };
   var tick = function () {
     if (!EXM) return;
     var lim = EXM.is_simulation && EXM.time_limit_seconds ? +EXM.time_limit_seconds : 0;
@@ -2972,8 +3038,8 @@ window.axNotify = function (title, opts) {
   var coverPage = function () {
     var e = EXM, lim = e.is_simulation && e.time_limit_seconds ? Math.round(e.time_limit_seconds / 60) : 0;
     book.className = 'sn-book cover';
-    book.innerHTML = '<span class="sn-k">' + esc($L('[data-hl-course]').textContent) + '</span><h3>' + esc((TYPE[e.exam_type] || 'deneme') + ' sınavı') + '</h3><p class="meta">' + QS.length + ' soru · ' + (DIFF[e.difficulty] || '') + ' · ' + (e.language === 'tr' ? 'Türkçe' : 'English') + '</p>' +
-      '<ul><li>' + (lim ? 'süre: ' + lim + ' dakika; sayaç sınav hazırlanınca başladı, bitince kâğıt kendiliğinden toplanır' : 'süre sınırı yok; kendi hızında çöz') + '</li><li>' + (e.is_simulation ? 'ipucu yok, gerçek sınav gibi' : 'her soruda bir ipucu alabilirsin') + '</li>' + (e.scoring && +e.scoring.decimal_places ? '<li><b>sayı hassasiyeti:</b> hesap cevapları ' + esc(precLabel(e.scoring.decimal_places)) + ' doğru olmalı; sonucu bu basamağa yuvarla.</li>' : '') + (e.scoring && e.scoring.negative_marking ? '<li><b>yanlış doğruyu götürür:</b> ' + esc(String(e.scoring.wrong_per_correct || 4)) + ' yanlış 1 doğruyu siler (yalnızca çoktan seçmeli); emin değilsen boş bırak</li>' : '') + '<li>sorular arasında optik formdan gezebilirsin</li><li>emin olmadığını “işaretle”, sonra dön; işaretli doğrular konu ustalığına daha az katkı yapar</li></ul>' +
+    book.innerHTML = '<span class="sn-k">' + esc($L('[data-hl-course]').textContent) + '</span><h3>' + esc(e.scoring && e.scoring.assignment ? 'ödev · ' + (e.scoring.assignment.title || '') : (TYPE[e.exam_type] || 'deneme') + ' sınavı') + '</h3><p class="meta">' + QS.length + ' soru · ' + (DIFF[e.difficulty] || '') + ' · ' + (e.language === 'tr' ? 'Türkçe' : 'English') + '</p>' +
+      '<ul>' + (e.scoring && e.scoring.assignment && e.scoring.assignment.instructions ? '<li><b>öğretmenin notu:</b> ' + esc(e.scoring.assignment.instructions) + '</li>' : '') + '<li>' + (e.scoring && e.scoring.assignment && !e.scoring.assignment.time_limit_minutes ? 'ödev: süre teslim penceresinin sonuna (' + esc(dtl(e.scoring.assignment.window_end)) + ') kadar işler; bitince kâğıt kendiliğinden toplanır' : lim ? 'süre: ' + lim + ' dakika; sayaç sınav hazırlanınca başladı, bitince kâğıt kendiliğinden toplanır' : 'süre sınırı yok; kendi hızında çöz') + '</li><li>' + (e.is_simulation ? 'ipucu yok, gerçek sınav gibi' : 'her soruda bir ipucu alabilirsin') + '</li>' + (e.scoring && +e.scoring.decimal_places ? '<li><b>sayı hassasiyeti:</b> hesap cevapları ' + esc(precLabel(e.scoring.decimal_places)) + ' doğru olmalı; sonucu bu basamağa yuvarla.</li>' : '') + (e.scoring && e.scoring.negative_marking ? '<li><b>yanlış doğruyu götürür:</b> ' + esc(String(e.scoring.wrong_per_correct || 4)) + ' yanlış 1 doğruyu siler (yalnızca çoktan seçmeli); emin değilsen boş bırak</li>' : '') + '<li>sorular arasında optik formdan gezebilirsin</li><li>emin olmadığını “işaretle”, sonra dön; işaretli doğrular konu ustalığına daha az katkı yapar</li></ul>' +
       (e.is_simulation ? '<p class="warn">SEKMEDEN ÇIKARSAN NOT EDİLİR</p>' : '') + '<button type="button" class="btn btn-blue" data-open-book="">kitapçığı aç</button>';
     setTimeout(function () { var b = book.querySelector('[data-open-book]'); if (b) b.focus(); }, 60);
   };
@@ -3020,7 +3086,7 @@ window.axNotify = function (title, opts) {
       if (typeof stopExamTimer === 'function') stopExamTimer();
       var c = cardById(exam.study_card_id);
       $L('[data-hl-course]').textContent = exam.source_type === 'course' ? (exam.course_code || 'ders ağacı') : (c ? (c.course_tag ? c.course_tag + ' · ' : '') + baseName(c.documents && c.documents.file_name) : 'belge');
-      $L('[data-hl-title]').textContent = (TYPE[exam.exam_type] || 'deneme') + ' deneme' + (exam.is_simulation ? ' · gerçek süre' : '');
+      $L('[data-hl-title]').textContent = exam.scoring && exam.scoring.assignment ? 'ödev · ' + (exam.scoring.assignment.title || '') : (TYPE[exam.exam_type] || 'deneme') + ' deneme' + (exam.is_simulation ? ' · gerçek süre' : '');
       hMain.hidden = false; res.hidden = true; res.innerHTML = ''; clockW.hidden = false; subBtn.hidden = false; exitBtn.hidden = false; exitBtn.textContent = 'çık';
       openHall(); coverPage(); paintOpt();
       /* Simülasyon süresi sunucuda sınavın oluşturulduğu andan (started_at)
@@ -3269,15 +3335,20 @@ window.axNotify = function (title, opts) {
   var fbBlock = function (r) {
     var qid = esc(String(r.question_id)), ap = r.appeal, rp = r.report, chips = '', btns = '';
     if (ap) {
-      var cls = ap.status === 'accepted' ? 'ok' : ap.status === 'escalated' ? 'esc' : 'no';
-      var txt = ap.status === 'accepted' ? 'itiraz kabul edildi · ' + esc(String(ap.old_score == null ? '–' : ap.old_score)) + ' → ' + esc(String(ap.new_score)) : ap.status === 'escalated' ? 'itiraz öğretmene iletildi' : 'itiraz incelendi · puan değişmedi';
+      var cls = ap.status === 'accepted' || ap.status === 'teacher_accepted' ? 'ok' : ap.status === 'escalated' ? 'esc' : 'no';
+      /* FAZ 6.4: öğretmene iletilen itirazı öğretmen karara bağlar */
+      var txt = ap.status === 'accepted' ? 'itiraz kabul edildi · ' + esc(String(ap.old_score == null ? '–' : ap.old_score)) + ' → ' + esc(String(ap.new_score)) : ap.status === 'escalated' ? 'itiraz öğretmene iletildi' : ap.status === 'teacher_accepted' ? 'öğretmen itirazı kabul etti' : ap.status === 'teacher_rejected' ? 'öğretmen inceledi · puan değişmedi' : 'itiraz incelendi · puan değişmedi';
       chips += '<span class="sn-chip ' + cls + '">' + txt + '</span>';
     }
+    var to = r.teacher_override;
+    if (to && typeof to === 'object') chips += '<span class="sn-chip ' + (to.old_score == null || to.score >= to.old_score ? 'ok' : 'no') + '">öğretmen puanı · ' + esc(String(to.old_score == null ? '–' : to.old_score)) + ' → ' + esc(String(to.score)) + '</span>';
     if (rp) chips += '<span class="sn-chip rep">bildirildi · ' + esc(catLabel(rp.category)) + '</span>';
     if (APPEALABLE[r.type] && !ap && !(typeof r.score === 'number' && r.score >= 100)) btns += '<button type="button" class="sn-link" data-fb="appeal">puana itiraz et</button>';
-    if (ap && ap.status === 'rejected') btns += '<button type="button" class="sn-link" data-fb="escalate">öğretmene ilet</button>';
+    /* "öğretmene ilet" yalnızca ödevde: kendi denemesinde öğretmen yok (eskiden boşa düşüyordu) */
+    if (ap && ap.status === 'rejected' && RES_EXAM && RES_EXAM.assignment_id) btns += '<button type="button" class="sn-link" data-fb="escalate">öğretmene ilet</button>';
     if (!rp) btns += '<button type="button" class="sn-link" data-fb="report">soru hatalı</button>';
     return '<div class="sn-fbk" data-fbq="' + qid + '">' + (chips ? '<div class="sn-fbk-c">' + chips + '</div>' : '') + (ap && ap.note ? '<p class="sn-apnote">' + esc(ap.note) + '</p>' : '') +
+      (ap && ap.teacher_note ? '<p class="sn-apnote"><b>öğretmen:</b> ' + esc(ap.teacher_note) + '</p>' : to && to.note ? '<p class="sn-apnote"><b>öğretmen:</b> ' + esc(to.note) + '</p>' : '') +
       (btns ? '<div class="sn-fbk-b">' + btns + '</div>' : '') + '<div class="sn-fbk-f" hidden></div></div>';
   };
   var fbForm = function (box, kind) {
@@ -3587,7 +3658,7 @@ window.axNotify = function (title, opts) {
       clsBusy = false;
       if (r.error) { if (!rpcMissing(r.error)) console.warn('acadex-ink: sınıflar yüklenemedi', r.error); clsEl.hidden = true; return; }
       CL = r.data || { is_teacher: false, teaching: [], enrolled: [] };
-      return loadAsg().then(paintClasses);  /* FAZ 6.2: öğretmenin ödevleri */
+      return Promise.all([loadAsg(), (CL.enrolled || []).length ? loadMya() : Promise.resolve()]).then(paintClasses);  /* FAZ 6.2-6.3: ödevler */
     }, function (e) { clsBusy = false; console.warn(e); });
   };
   var clsCard = function (k, teach) {
@@ -3610,7 +3681,7 @@ window.axNotify = function (title, opts) {
     var armed = leaveArm[k.id] && leaveArm[k.id] > Date.now();
     return '<article class="sn-cl s' + (k.archived ? ' arch' : '') + '" data-cl="' + id + '">' +
       '<span class="sn-k">' + (course ? course + ' · ' : '') + 'öğretmen: ' + esc(k.teacher_name) + '</span><h3>' + esc(k.name) + '</h3>' +
-      '<p class="sn-cl-meta">' + (k.archived ? 'öğretmen bu sınıfı arşivledi.' : dshort(k.joined_at) + ' tarihinde katıldın. ödevler burada görünecek.') + '</p>' +
+      '<p class="sn-cl-meta">' + (k.archived ? 'öğretmen bu sınıfı arşivledi.' : dshort(k.joined_at) + ' tarihinde katıldın.') + '</p>' + (k.archived ? '' : stuAsgBlock(k)) +
       '<label class="sn-chk sn-cl-share"><input type="checkbox" data-cl-share=""' + (k.share_mastery ? ' checked' : '') + '><span>öğretmenim bu dersteki konu ustalığımı görebilsin <small>kapalıyken yalnızca bu sınıfa verilen ödevlerin sonuçlarını görür. istediğin an kapatabilirsin.</small></span></label>' +
       '<div class="sn-cl-acts"><button type="button" class="sn-ghost danger" data-cl-leave="">' + (armed ? 'eminsen tekrar bas: ayrıl' : 'sınıftan ayrıl') + '</button></div></article>';
   };
@@ -3629,7 +3700,7 @@ window.axNotify = function (title, opts) {
     clsEl.hidden = false;
     var teach = (CL.teaching || []), enr = (CL.enrolled || []);
     $('[data-cls-new]').hidden = !CL.is_teacher;
-    $('[data-cls-sub]').textContent = CL.is_teacher ? 'sınıf aç, kodu paylaş; ödevler yakında' : 'öğretmeninin verdiği kodla katıl';
+    $('[data-cls-sub]').textContent = CL.is_teacher ? 'sınıf aç, kodu paylaş, ödev ver' : 'öğretmeninin verdiği kodla katıl';
     clsEl.classList.toggle('has', !!(teach.length || enr.length));
     clsEl.classList.toggle('tch', !!CL.is_teacher);  /* öğretmende katılım formu sona */
     var act = teach.filter(function (k) { return !k.archived; }).map(function (k) { return clsCard(k, true); })
@@ -3639,7 +3710,8 @@ window.axNotify = function (title, opts) {
     /* yeniden çizimde odak kaybolmasın (klavye ile kullanım) */
     var fa = document.activeElement, fk = null;
     if (fa && clsList.contains(fa) && fa.closest('[data-cl]')) fk = { id: fa.closest('[data-cl]').getAttribute('data-cl'), at: Array.prototype.filter.call(fa.attributes, function (x) { return /^data-cl-/.test(x.name); }).map(function (x) { return x.name; })[0] };
-    clsList.innerHTML = (act.length ? '<div class="sn-cls-cards">' + act.join('') + '</div>' : (CL.is_teacher ? '<p class="sn-cal-empty">henüz sınıfın yok. “+ sınıf aç” ile başla; kodu öğrencilerine ver.</p>' : '')) +
+    var acx = !CL.is_teacher && !enr.length ? acadexWeekly() : '';
+    clsList.innerHTML = acx + (act.length ? '<div class="sn-cls-cards">' + act.join('') + '</div>' : (CL.is_teacher ? '<p class="sn-cal-empty">henüz sınıfın yok. “+ sınıf aç” ile başla; kodu öğrencilerine ver.</p>' : '')) +
       (arch.length ? '<details class="sn-cls-arch"><summary>arşiv (' + arch.length + ')</summary><div class="sn-cls-cards">' + arch.join('') + '</div></details>' : '');
     if (fk && fk.at) { var nf = clsList.querySelector('[data-cl="' + fk.id + '"] [' + fk.at + ']') || clsList.querySelector('[data-cl="' + fk.id + '"] button'); if (nf) nf.focus(); }
   };
@@ -3698,6 +3770,7 @@ window.axNotify = function (title, opts) {
     });
     clsList.addEventListener('click', async function (e) {
       var b = e.target.closest('button'); if (!b) return;
+      if (b.hasAttribute('data-acx-go')) { var ak = b.getAttribute('data-acx-go'); Promise.resolve(openBuild(ak)).then(function () { var ad = $('#exam-adaptive'); if (ad) { ad.checked = true; ad.dispatchEvent(new Event('change', { bubbles: true })); } paintCover(); }); return; }
       var card = b.closest('[data-cl]'); if (!card) return;
       var k = clsById(card.getAttribute('data-cl')); if (!k) return;
       var run = async function (fn, args, ok) {
@@ -3706,7 +3779,10 @@ window.axNotify = function (title, opts) {
         if (ok) say(ok); return r;
       };
       if (b.hasAttribute('data-cl-asgnew')) { startAsg(k); return; }
+      if (b.hasAttribute('data-sa-go')) { var sa = (MYA || []).filter(function (x) { return x.id === b.getAttribute('data-sa-go'); })[0]; if (sa) startAssignment(sa, b); return; }
+      if (b.hasAttribute('data-sa-res')) { openAsgResult(b.getAttribute('data-sa-res')); return; }
       if (b.hasAttribute('data-asg-open')) { openAsg(b.getAttribute('data-asg-open'), k); return; }
+      if (b.hasAttribute('data-asg-res')) { openResults(b.getAttribute('data-asg-res'), k); return; }
       if (b.hasAttribute('data-cl-copy')) {
         try { await navigator.clipboard.writeText(k.join_code); say('Kod kopyalandı: ' + k.join_code); } catch (x) { say('Kod: ' + k.join_code); }
       } else if (b.hasAttribute('data-cl-roster')) {
@@ -3771,7 +3847,7 @@ window.axNotify = function (title, opts) {
     if (ASG == null) return '';
     var L = ASG.filter(function (a) { return a.class_id === k.id; });
     return '<div class="sn-cl-asg"><div class="sn-cl-asg-h"><b>ödevler</b><button type="button" class="sn-lnk" data-cl-asgnew="">+ ödev hazırla</button></div>' +
-      (L.length ? '<ul>' + L.map(function (a) { return '<li><button type="button" class="sn-asg-row ' + esc(a.status) + '" data-asg-open="' + esc(a.id) + '"><b>' + esc(a.title) + '</b><span>' + esc(asgState(a)) + '</span></button></li>'; }).join('') + '</ul>'
+      (L.length ? '<ul>' + L.map(function (a) { return '<li class="sn-asg-li"><button type="button" class="sn-asg-row ' + esc(a.status) + '" data-asg-open="' + esc(a.id) + '"><b>' + esc(a.title) + '</b><span>' + esc(asgState(a)) + '</span></button>' + (a.status !== 'draft' ? '<button type="button" class="sn-lnk" data-asg-res="' + esc(a.id) + '">sonuçlar</button>' : '') + '</li>'; }).join('') + '</ul>'
         : '<p class="sn-cl-meta">henüz ödev yok. yapay zekâ bir taslak hazırlar; her soruyu sen düzenleyip onaylarsın.</p>') + '</div>';
   };
   /* kurulum penceresi taslak kipi */
@@ -3829,10 +3905,12 @@ window.axNotify = function (title, opts) {
     return (sc.option_count || 4) + ' şık · ' + (sc.negative_marking ? (sc.wrong_per_correct || 3) + ' yanlış 1 doğruyu götürür' : 'yanlış götürmez') + (sc.decimal_places ? ' · hesapta virgülden sonra ' + sc.decimal_places + ' basamak' : '');
   };
   var qHtml = function (q, i, n, locked) {
-    var ed = !locked && EDITABLE[q.type] && !q.chart, lang = (AG.settings && AG.settings.language) || 'tr';
+    /* FAZ 6.5: kodla doğrulanamamış hesap sorusu (formülü yok) elle düzeltilebilir; cevabı model yazdı */
+    var unv = q.type === 'calculation' && !q.formula && !q.chart;
+    var ed = !locked && (EDITABLE[q.type] || unv) && !q.chart, lang = (AG.settings && AG.settings.language) || 'tr';
     var h = '<li class="sn-aq' + (ed ? '' : ' ro') + '" data-aq="' + i + '"><div class="sn-aq-h"><b>' + (i + 1) + '</b><span class="sn-aq-t">' + esc(QT[q.type] || q.type) + '</span>' +
       (q.author === 'teacher' ? '<span class="sn-aq-by t">senin sorun</span>' : '<span class="sn-aq-by" title="yapay zekâ taslağı">YZ' + (q.edited ? ' · düzenlendi' : '') + '</span>') +
-      (q.concept ? '<span class="sn-aq-c">' + esc(q.concept) + '</span>' : '') + '<span class="sp"></span>' +
+      (q.concept ? '<span class="sn-aq-c">' + esc(q.concept) + '</span>' : '') + (unv && q.author !== 'teacher' ? '<span class="sn-flag bad" title="formülü yok; cevabı yapay zekâ yazdı">kodla doğrulanmadı</span>' : '') + '<span class="sp"></span>' +
       (locked ? '' : '<button type="button" class="sn-ib" data-aq-up="" aria-label="' + (i + 1) + '. soruyu yukarı taşı"' + (i ? '' : ' disabled') + '>↑</button>' +
         '<button type="button" class="sn-ib" data-aq-dn="" aria-label="' + (i + 1) + '. soruyu aşağı taşı"' + (i < n - 1 ? '' : ' disabled') + '>↓</button>' +
         (q.author === 'teacher' ? '' : '<button type="button" class="sn-lnk" data-aq-regen="">yeniden üret</button>') +
@@ -3848,6 +3926,10 @@ window.axNotify = function (title, opts) {
       } else if (q.type === 'true_false') {
         var tf = Array.isArray(q.options) && q.options.length === 2 ? q.options : (lang === 'en' ? ['True', 'False'] : ['Doğru', 'Yanlış']);
         h += '<label class="sn-f sn-aq-s"><span>doğru cevap</span>' + selHtml('data-aq-f="correct_answer"', q.correct_answer, tf.map(function (x) { return [x, x]; })) + '</label>';
+      } else if (q.type === 'calculation') {
+        h += '<p class="sn-aq-n bad">Bu sorunun cevabını kod doğrulayamadı. Soru tek bir sayı istemeli; cevabı ve birimi kontrol et.' + (Array.isArray(q.solution_steps) && q.solution_steps.length ? ' Modelin çözümü: ' + esc(q.solution_steps.join(' → ')) : '') + '</p>' +
+          '<div class="sn-f2"><label class="sn-f"><span>doğru cevap (sayı)</span><input type="text" inputmode="decimal" data-aq-f="correct_answer" value="' + esc(q.correct_answer == null ? '' : String(q.correct_answer)) + '" maxlength="40"></label>' +
+          '<label class="sn-f"><span>birim <small>(isteğe bağlı)</small></span><input type="text" data-aq-f="units" value="' + esc(q.units || '') + '" maxlength="12"></label></div>';
       } else if (q.type === 'fill_blank') {
         h += '<div class="sn-f2"><label class="sn-f"><span>doğru cevap</span><input type="text" data-aq-f="correct_answer" value="' + esc(q.correct_answer || '') + '" maxlength="200"></label>' +
           '<label class="sn-f"><span>kabul edilen diğer yazımlar <small>(virgülle)</small></span><input type="text" data-aq-f="accepted_answers" value="' + esc((q.accepted_answers || []).join(', ')) + '" maxlength="400"></label></div>';
@@ -3899,7 +3981,7 @@ window.axNotify = function (title, opts) {
     if (!locked) h += '<div class="sn-asg-add"><span>soru ekle:</span>' + [['multiple_choice', 'çoktan seçmeli'], ['true_false', 'doğru-yanlış'], ['fill_blank', 'boşluk'], ['open_ended', 'açık uçlu']].map(function (t) { return '<button type="button" class="sn-ghost" data-ag-add="' + t[0] + '">' + t[1] + '</button>'; }).join('') +
       (a.source && (a.source.study_card_id || a.source.course_code) ? '<button type="button" class="sn-ghost" data-ag-ai="">+ yapay zekâ ile 1 soru</button>' : '') + '</div>';
     h += '<p class="sn-asg-msg" data-ag-msg="" role="status" aria-live="polite"></p><div class="sn-dlg-b">' +
-      (locked ? (a.status === 'published' ? '<button type="button" class="sn-ghost danger" data-ag-close="">ödevi kapat</button>' : '<span></span>') + '<button type="button" class="sn-ghost" data-ag-x="">kapat</button><button type="button" class="btn btn-dark" data-ag-dates="">son teslimi kaydet</button>'
+      (locked ? (a.status === 'published' ? '<button type="button" class="sn-ghost danger" data-ag-close="">ödevi kapat</button>' : '<span></span>') + '<button type="button" class="sn-ghost" data-ag-res="">sonuçlar</button><button type="button" class="sn-ghost" data-ag-x="">kapat</button><button type="button" class="btn btn-dark" data-ag-dates="">son teslimi kaydet</button>'
         : '<button type="button" class="sn-ghost danger" data-ag-del="">taslağı sil</button><button type="button" class="sn-ghost" data-ag-save="">taslağı kaydet</button><button type="button" class="btn btn-blue" data-ag-pub="">yayınla</button>') + '</div>';
     asgBody.innerHTML = h;
     paintQs();
@@ -3966,6 +4048,7 @@ window.axNotify = function (title, opts) {
     if ((f = t.getAttribute('data-aq-f'))) {
       if (f === 'accepted_answers') q.accepted_answers = t.value.split(',').map(function (x) { return x.trim(); }).filter(Boolean).slice(0, 10);
       else if (f === 'rubric') { var rb = parseRubric(t.value); if (rb) q.rubric = rb; else delete q.rubric; }
+      else if (f === 'correct_answer' && q.type === 'calculation') { var nv = Number(String(t.value).trim().replace(/\s/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.')); q.correct_answer = isFinite(nv) && String(t.value).trim() !== '' ? nv : t.value; q.solution_steps = []; }
       else q[f] = t.value;
     } else if (t.hasAttribute('data-aq-opt')) {
       var j = +t.getAttribute('data-aq-opt'), old = q.options[j]; q.options[j] = t.value; if (old !== '' && q.correct_answer === old) q.correct_answer = t.value;
@@ -3978,6 +4061,7 @@ window.axNotify = function (title, opts) {
     var b = e.target.closest('button'); if (!b || !AG) return;
     var i = qAt(b), Q = AG.questions;
     if (b.hasAttribute('data-ag-x')) { asgDlg.close(); return; }
+    if (b.hasAttribute('data-ag-res')) { var aid = AG.id, kk = clsById(AG.class_id); asgDlg.close(); openResults(aid, kk); return; }
     if (b.hasAttribute('data-ag-undo')) { var u = agUndo; agUndo = null; if (u) u(); return; }
     if (b.hasAttribute('data-aq-up') && i > 0) { Q.splice(i - 1, 0, Q.splice(i, 1)[0]); AG.dirty = true; paintQs('[data-aq="' + (i - 1) + '"] [data-aq-up]:not(:disabled), [data-aq="' + (i - 1) + '"] [data-aq-dn]'); return; }
     if (b.hasAttribute('data-aq-dn') && i < Q.length - 1) { Q.splice(i + 1, 0, Q.splice(i, 1)[0]); AG.dirty = true; paintQs('[data-aq="' + (i + 1) + '"] [data-aq-dn]:not(:disabled), [data-aq="' + (i + 1) + '"] [data-aq-up]'); return; }
@@ -4000,6 +4084,8 @@ window.axNotify = function (title, opts) {
     }
     if (b.hasAttribute('data-ag-save')) { b.disabled = true; await saveAsg(false); b.disabled = false; return; }
     if (b.hasAttribute('data-ag-pub')) {
+      var badCalc = Q.map(function (q, j) { return q.type === 'calculation' && !isFinite(Number(q.correct_answer)) ? j + 1 : 0; }).filter(Boolean);
+      if (badCalc.length) { agMsg(badCalc.join(', ') + '. soru: hesap sorusunun doğru cevabı tek bir sayı olmalı.', true); return; }
       if (!window.confirm('Ödev yayınlansın mı?\n\nSorular kilitlenir; sonra yalnızca son teslim tarihini değiştirebilir ya da ödevi kapatabilirsin. Öğrenciler ödevi açılış zamanında görür.')) return;
       b.disabled = true;
       if (await saveAsg(true)) {
@@ -4029,6 +4115,294 @@ window.axNotify = function (title, opts) {
   });
   /* kapanınca kaydedilmemiş taslak sessizce kaydedilir */
   asgDlg.addEventListener('close', function () { if (AG && AG.dirty && AG.status === 'draft') saveAsg(true).then(function (ok) { if (ok) say('Taslak kaydedildi.'); }); });
+
+  /* ---------- FAZ 6.3: ödevler (öğrenci) ----------
+     my_assignments soru ve cevap içermez. "başla" generate-exam { assignmentStart } çağırır:
+     kurallar (açılış, son teslim/geç pencere, deneme hakkı, yarım deneme) sunucuda; ödev sınavı
+     süreli (kendi süresi ya da teslim penceresinin sonu) ve ipuçsuz. Cevaplar gizliyse sonuç
+     kâğıdında yalnızca puan ve doğru/yanlış görünür; açıklanınca tam sonuç exam_hidden_results'tan
+     birleştirilir. Sınıfı olmayan öğrenciye "Acadex önerisi" (haftalık akıllı deneme) gösterilir;
+     öğretmenden geliyormuş gibi sunulmaz. */
+  var MYA = null;
+  var loadMya = function () {
+    return sb().rpc('my_assignments').then(function (r) { MYA = r.error ? null : (r.data || []); if (r.error && !rpcMissing(r.error)) console.warn('acadex-ink: ödev listesi yüklenemedi', r.error); }, function () { MYA = null; });
+  };
+  var leftText = function (iso) {
+    var ms = new Date(iso).getTime() - Date.now(); if (!isFinite(ms)) return '';
+    if (ms <= 0) return 'süre geçti';
+    if (ms < 3600e3) return Math.max(1, Math.round(ms / 60e3)) + ' dk kaldı';
+    if (ms < 48 * 3600e3) return Math.round(ms / 3600e3) + ' saat kaldı';
+    return Math.round(ms / 864e5) + ' gün kaldı';
+  };
+  var SA_LBL = { open: 'açık', late: 'geç teslim', upcoming: 'yakında', in_progress: 'yarım kaldı', done: 'teslim edildi', closed: 'kapandı' };
+  var saRow = function (a) {
+    var att = a.attempts > 1 ? (a.used ? ' · deneme ' + a.used + '/' + a.attempts : ' · ' + a.attempts + ' deneme hakkı') : '', best = a.best_grade != null ? Math.round(+a.best_grade) : null;
+    var meta = a.state === 'open' ? 'son teslim ' + dtl(a.due_at) + ' · ' + leftText(a.due_at) + ' · ' + a.question_count + ' soru' + (a.time_limit_minutes ? ' · ' + a.time_limit_minutes + ' dk' : '') + att
+      : a.state === 'late' ? 'son teslim geçti; günde %' + a.late_penalty_pct + ' kesintiyle ' + dtl(a.window_end) + '’e kadar' + att
+      : a.state === 'upcoming' ? 'açılış ' + dtl(a.opens_at) + ' · son teslim ' + dtl(a.due_at)
+      : a.state === 'in_progress' ? 'yarım kaldı; süre işliyor · son teslim ' + dtl(a.due_at)
+      : a.state === 'done' ? 'not ' + (best == null ? '—' : best) + (a.attempts > 1 ? ' (en yüksek)' : '')
+      : (a.used ? 'kapandı · not ' + (best == null ? '—' : best) : 'kapandı · teslim edilmedi');
+    var btn = a.state === 'in_progress' ? '<button type="button" class="btn btn-blue" data-sa-go="' + esc(a.id) + '">devam et</button>'
+      : a.state === 'open' || a.state === 'late' ? '<button type="button" class="btn btn-blue" data-sa-go="' + esc(a.id) + '">' + (a.used ? 'tekrar dene' : 'başla') + '</button>' : '';
+    var res = a.last_exam_id ? '<button type="button" class="sn-lnk" data-sa-res="' + esc(a.last_exam_id) + '">sonuç</button>' : '';
+    return '<li class="sn-sa ' + esc(a.state) + '"><div class="sn-sa-b"><b>' + esc(a.title) + '</b><span><i class="st">' + esc(SA_LBL[a.state] || a.state) + '</i> ' + esc(meta) + '</span></div><div class="sn-sa-a">' + res + btn + '</div></li>';
+  };
+  var stuAsgBlock = function (k) {
+    if (MYA == null) return '';
+    var L = MYA.filter(function (a) { return a.class_id === k.id; });
+    return '<div class="sn-cl-asg s"><div class="sn-cl-asg-h"><b>ödevler</b></div>' + (L.length ? '<ul>' + L.map(saRow).join('') + '</ul>' : '<p class="sn-cl-meta">öğretmenin ödev verince burada görünür; bildirim çanına da düşer.</p>') + '</div>';
+  };
+  /* sınıfı olmayan öğrenciye haftalık öneri (Acadex'ten; öğretmen ödevi değil) */
+  var weekStart = function () { var d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d; };
+  var acadexWeekly = function () {
+    var eng = ENG(); if (!eng || typeof eng.conceptMastery !== 'function') return '';
+    var best = null;
+    desks().forEach(function (d) {
+      if (!d.ex.length) return;
+      var ms = eng.conceptMastery(d.ex), due = ms.filter(function (c) { return c.due; }).length, weak = ms.filter(function (c) { return c.level === 0; }).length;
+      if (due + weak && (!best || due * 2 + weak > best.due * 2 + best.weak)) best = { desk: d, due: due, weak: weak };
+    });
+    if (!best) return '';
+    var ws = weekStart().getTime(), sun = new Date(ws + 6 * 864e5); sun.setHours(23, 59, 0, 0);
+    var done = EX.some(function (e) { return e.scoring && e.scoring.adaptive && new Date(e.completed_at).getTime() >= ws; });
+    return '<div class="sn-acx' + (done ? ' done' : '') + '"><span class="sn-k">acadex önerisi · bu hafta</span><b>' + esc(best.desk.name) + '</b><p>' +
+      (done ? 'Bu haftanın akıllı denemesini çözdün ✓ Yeni öneri pazartesi.' : [best.due ? best.due + ' konunun tekrar zamanı geldi' : '', best.weak ? best.weak + ' zayıf konu' : ''].filter(Boolean).join(', ') + '. Pazar ' + pad(sun.getDate()) + '.' + pad(sun.getMonth() + 1) + ' 23:59’a kadar kısa bir akıllı deneme çöz.') +
+      ' <small>Bu öneriyi Acadex senin karnene bakarak yapar; bir öğretmenin ödevi değildir.</small></p>' + (done ? '' : '<button type="button" class="btn btn-dark" data-acx-go="' + esc(best.desk.key) + '">akıllı deneme kur</button>') + '</div>';
+  };
+  var startAssignment = async function (a, btn) {
+    if (a.state !== 'in_progress') {
+      var lines = ['“' + a.title + '” başlasın mı?', '', a.question_count + ' soru · ' + (a.time_limit_minutes ? a.time_limit_minutes + ' dakika; süre başlayınca durmaz' : 'süre son teslime kadar işler (' + dtl(a.window_end) + ')') + ' · ipucu yok'];
+      if (a.attempts > 1) lines.push('Deneme ' + ((a.used || 0) + 1) + '/' + a.attempts + '; en yüksek notun sayılır.');
+      if (a.state === 'late') lines.push('Son teslim geçti: her geç gün için %' + a.late_penalty_pct + ' kesinti uygulanır.');
+      if (a.instructions) lines.push('', 'Öğretmenin notu: ' + a.instructions);
+      if (!window.confirm(lines.join('\n'))) return;
+    }
+    var txt = btn ? btn.textContent : ''; if (btn) { btn.disabled = true; btn.textContent = 'açılıyor…'; }
+    try {
+      var ses = (await sb().auth.getSession()).data.session; if (!ses) throw new Error('Oturum bulunamadı; yeniden giriş yap.');
+      var res = await fetch(SUPABASE_URL + '/functions/v1/generate-exam', { method: 'POST', headers: { Authorization: 'Bearer ' + ses.access_token, 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY }, body: JSON.stringify({ assignmentStart: a.id }) });
+      var d = await res.json().catch(function () { return {}; });
+      if (!res.ok || !d || !d.id) throw new Error(d && d.error || 'Ödev açılamadı.');
+      var draft = null, E = ENG();
+      if (d.resumed && E) {
+        try { var dr = await sb().from('exam_drafts').select('exam_id, answers, flags, current_index, view_mode, updated_at').eq('exam_id', d.id).maybeSingle(); if (dr.data) draft = E.draftFromRow(dr.data); } catch (x) {}
+        try { var loc = (E.listLocalDrafts(me().id) || []).filter(function (x) { return String(x.examId) === String(d.id); })[0]; if (loc) draft = E.pickNewerDraft(draft, loc.draft); } catch (x) {}
+      }
+      try { currentActiveExam = d; } catch (x) {}
+      window.startActiveExam(d, draft ? { draft: draft } : {});
+      loadMya().then(paintClasses);
+    } catch (x) { say(x.message || 'Ödev açılamadı.'); }
+    finally { if (btn && btn.isConnected) { btn.disabled = false; btn.textContent = txt; } }
+  };
+  var openAsgResult = async function (examId) {
+    var e = EX.filter(function (x) { return String(x.id) === String(examId); })[0];
+    if (!e) { var r = await sb().from('exams').select('*').eq('id', examId).maybeSingle(); e = r.data; }
+    if (e) { lastElapsed = null; showExamResults(e); } else say('Sonuç bulunamadı.');
+  };
+  /* sonuç kâğıdı: ödev başlığı, gizli cevaplar, geç teslim */
+  if (typeof showExamResults === 'function') {
+    var showRes0 = showExamResults;
+    showExamResults = function (exam) {
+      var A = exam && exam.assignment_id && exam.scoring && exam.scoring.assignment;
+      /* açılıp açılmadığına sunucu karar verir (ödevin güncel son teslimi); satır gelmezse hâlâ gizli */
+      if (A && A.answers_hidden && !exam.__hidTried && A.show_answers !== 'never') {
+        exam.__hidTried = 1;
+        return sb().from('exam_hidden_results').select('results').eq('exam_id', exam.id).maybeSingle().then(function (r) {
+          if (r.data && Array.isArray(r.data.results)) {
+            var cur = {}; (exam.question_results || []).forEach(function (x) { cur[x.question_id] = x; });
+            exam.question_results = r.data.results.map(function (f) { var c = cur[f.question_id] || {}; return Object.assign({}, f, { score: c.score != null ? c.score : f.score, is_correct: c.is_correct != null ? c.is_correct : f.is_correct, appeal: c.appeal || f.appeal, report: c.report || f.report }); });
+            exam.__revealed = 1;
+          }
+          showExamResults(exam);
+        }, function () { showExamResults(exam); });
+      }
+      var out = showRes0.apply(this, arguments);
+      if (A) {
+        var h2 = res.querySelector('.sn-ph h2'); if (h2) h2.textContent = 'ödev · ' + (A.title || '');
+        var notes = [];
+        notes.push((A.class_name ? A.class_name + ' · ' : '') + 'deneme ' + (A.attempt_no || 1) + '/' + (A.attempts || 1) + (A.attempts > 1 ? ' (en yüksek not sayılır)' : ''));
+        if (A.late_applied) notes.push('Geç teslim: ' + A.late_applied.days + ' gün, %' + A.late_applied.pct + ' kesinti (kesintisiz not ' + Math.round(+A.late_applied.raw_grade) + ').');
+        var mya = (MYA || []).filter(function (x) { return x.id === A.id; })[0], openAt = mya ? mya.window_end : A.reveal_at;
+        if (A.answers_hidden && !exam.__revealed) notes.push(A.show_answers === 'never' || !openAt ? 'Öğretmen bu ödevin doğru cevaplarını göstermiyor; yalnızca puan ve doğru/yanlış görünür.' : 'Doğru cevaplar teslim süresi bitince (şu an ' + dtl(openAt) + ') burada görünecek; şimdilik puan ve doğru/yanlış.');
+        if (A.varied) notes.push('Hesap sorularındaki sayılar sana özel.');
+        if (exam.teacher_note) notes.push('Öğretmenin notu: ' + exam.teacher_note);
+        var sum = res.querySelector('.sn-sum');
+        if (sum) sum.insertAdjacentHTML('afterend', '<div class="sn-asg-note">' + notes.map(function (n) { return '<p>' + esc(n) + '</p>'; }).join('') + '</div>');
+        var hon = res.querySelector('.sn-honest'); if (hon) hon.textContent = 'Bu bir ödev: notu öğretmenin kurallarıyla Acadex verdi; açık uçlu sorularda yapay zekâ puanını öğretmenin görür ve değiştirebilir.';
+      }
+      return out;
+    };
+    window.showExamResults = showExamResults;
+  }
+
+  /* ---------- FAZ 6.4: ödev sonuçları ve analiz (öğretmen) ----------
+     assignment_results (SQL; yalnızca sınıfın öğretmeni) + exam-engine assignmentAnalysis.
+     Sekmeler: öğrenciler (kâğıt, puan düzeltme, öğrenciye not), sorular (doğru oranı, çeldirici
+     dağılımı, ayırt edicilik, uyarılar), itirazlar ("öğretmene ilet" ve "soru hatalı"), ustalık
+     (YALNIZCA paylaşan öğrenciler; class_mastery_data). Yazma exam-appeal üzerinden
+     (teacher_score / teacher_note; yetki exam_teacher_ok). */
+  var rsDlg = $('[data-resdlg]'), rsBody = $('[data-rs-body]'), RS = null, RSA = null, RSM = null, rsTab = 'students', rsStu = null, rsExam = null, rsK = null;
+  var FLAG_TIP = { 'zor': 'öğrencilerin %30’undan azı doğru yaptı', 'kolay': '%90’dan fazlası doğru yaptı', 'ayırt etmiyor': 'iyi ve zayıf öğrenciler benzer başarıda; soru bilgiyi ölçmüyor olabilir', 'ters': 'zayıf öğrenciler iyilerden daha başarılı: cevap anahtarını kontrol et', 'çok boş': 'öğrencilerin %30’undan fazlası boş bıraktı' };
+  var pctT = function (x) { return x == null ? '—' : '%' + Math.round(x * 100); };
+  var callAppealFn = async function (body) {
+    var ses = (await sb().auth.getSession()).data.session; if (!ses) throw new Error('Oturum bulunamadı; yeniden giriş yap.');
+    var res = await fetch(SUPABASE_URL + '/functions/v1/exam-appeal', { method: 'POST', headers: { Authorization: 'Bearer ' + ses.access_token, 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY }, body: JSON.stringify(body) });
+    var d = await res.json().catch(function () { return {}; });
+    if (!res.ok) throw new Error(d.error || 'Kaydedilemedi.');
+    return d;
+  };
+  var openResults = async function (id, k, keep) {
+    rsK = k || rsK;
+    if (!keep) { rsTab = 'students'; rsStu = null; rsExam = null; RSM = null; rsBody.innerHTML = '<p class="sn-cl-meta">sonuçlar yükleniyor…</p>'; }
+    if (!rsDlg.open) rsDlg.showModal();
+    var r = await sb().rpc('assignment_results', { p_id: id });
+    if (r.error) { rsBody.innerHTML = '<button type="button" class="sn-x" data-rs-x="" aria-label="Kapat">×</button><p class="sn-asg-msg bad">' + esc(clsErrText(r.error)) + '</p>'; return; }
+    RS = r.data; RSA = ENG().assignmentAnalysis(RS);
+    paintResults();
+  };
+  var rsStudentsHtml = function () {
+    var S = RSA.students.slice().sort(function (a, b) { return (a.best == null) - (b.best == null) || String(a.name).localeCompare(String(b.name), 'tr'); });
+    if (!S.length) return '<p class="sn-cl-meta">sınıfta henüz öğrenci yok.</p>';
+    return '<ul class="sn-rs-st">' + S.map(function (s) {
+      var st = s.status === 'done' ? 'teslim etti' : s.status === 'in_progress' ? 'çözüyor' : 'başlamadı';
+      return '<li class="' + s.status + '"><div class="nm"><b>' + esc(s.name) + '</b><span>' + esc(s.number || '') + '</span></div>' +
+        '<span class="st">' + st + (s.attempts > 1 ? ' · ' + s.attempts + ' deneme' : '') + '</span>' +
+        '<span class="gr">' + (s.best == null ? '—' : '<b>' + esc(String(Math.round(s.best))) + '</b>' + (s.lateDays ? '<small>geç ' + s.lateDays + ' gün, %' + s.latePct + ' kesinti' + (s.rawBest != null ? ' (' + Math.round(s.rawBest) + ')' : '') + '</small>' : '')) + '</span>' +
+        '<span class="dt">' + (s.submittedAt ? dtl(s.submittedAt) : '') + '</span>' +
+        (s.bestExamId ? '<button type="button" class="sn-lnk" data-rs-stu="' + esc(s.user_id) + '">kâğıdı aç</button>' : '<span></span>') + '</li>';
+    }).join('') + '</ul>';
+  };
+  var rsPaperHtml = function () {
+    var s = RSA.students.filter(function (x) { return x.user_id === rsStu; })[0]; if (!s) return '';
+    var L = RS.exams.filter(function (e) { return e.user_id === rsStu && e.completed_at; });
+    var ex = L.filter(function (e) { return e.id === rsExam; })[0] || L.filter(function (e) { return e.id === s.bestExamId; })[0] || L[0];
+    if (!ex) return '';
+    rsExam = ex.id;
+    var qmap = {}; (ex.questions || []).forEach(function (q) { qmap[String(q.id)] = q; });
+    var fbBy = {}; RS.feedback.filter(function (f) { return f.exam_id === ex.id; }).forEach(function (f) { (fbBy[f.question_id] = fbBy[f.question_id] || []).push(f); });
+    var lang = ex.assignment && ex.assignment.language || 'tr';
+    var h = '<button type="button" class="sn-lnk" data-rs-back="">← öğrenciler</button><h3 class="sn-rs-h">' + esc(s.name) + ' <small>' + esc(s.number || '') + '</small></h3>' +
+      (L.length > 1 ? '<p class="sn-rs-att">deneme: ' + L.map(function (e) { return '<button type="button" class="sn-ghost' + (e.id === ex.id ? ' on' : '') + '" data-rs-ex="' + esc(e.id) + '" aria-pressed="' + (e.id === ex.id) + '">' + (e.attempt_no || '?') + ' · ' + Math.round(+e.grade) + '</button>'; }).join('') + '</p>' : '') +
+      '<p class="sn-cl-meta">not <b>' + Math.round(+ex.grade) + '</b> · teslim ' + dtl(ex.completed_at) + (ex.assignment && ex.assignment.late_applied ? ' · geç ' + ex.assignment.late_applied.days + ' gün, %' + ex.assignment.late_applied.pct + ' kesinti (kesintisiz ' + Math.round(+ex.assignment.late_applied.raw_grade) + ')' : '') + '</p>';
+    var rows = (ex.results || []).slice().sort(function (a, b) { var sa = qmap[String(a.question_id)], sb2 = qmap[String(b.question_id)]; return ((sa && sa.src) || 0) - ((sb2 && sb2.src) || 0); });
+    h += '<ol class="sn-rs-qs">' + rows.map(function (r) {
+      var pq = qmap[String(r.question_id)] || {}, n = Number.isInteger(pq.src) ? pq.src + 1 : r.question_id, sc = typeof r.score === 'number' ? r.score : null;
+      var to = r.teacher_override, fbs = fbBy[r.question_id] || [], esc8 = fbs.filter(function (f) { return f.kind === 'appeal'; })[0];
+      var ans = r.type === 'graph' ? (ENG() && ENG().graphResultHtml ? ENG().graphResultHtml(r, lang) : 'çizim') : rich(String(r.student_answer == null || r.student_answer === '' ? '— boş —' : r.student_answer)) + (r.units ? ' ' + esc(r.units) : '');
+      return '<li class="sn-rs-q ' + (sc == null ? '' : sc >= 80 ? 'ok' : sc >= 50 ? 'half' : 'no') + '" data-rs-q="' + esc(String(r.question_id)) + '"><div class="sn-aq-h"><b>' + esc(String(n)) + '</b><span class="sn-aq-t">' + esc(QT[r.type] || r.type || '') + '</span>' + (r.concept ? '<span class="sn-aq-c">' + esc(r.concept) + '</span>' : '') +
+        (r.flagged ? '<span class="sn-aq-by">işaretledi</span>' : '') + (r.hint_used ? '<span class="sn-aq-by">ipucu</span>' : '') + '<span class="sp"></span><b class="sc">' + (sc == null ? '—' : sc) + '</b></div>' +
+        '<div class="sn-aq-q">' + rich(r.question || pq.question || '') + '</div>' +
+        '<p class="sn-aq-a">cevabı: ' + ans + '</p>' +
+        (r.type !== 'graph' && r.correct_answer != null && r.correct_answer !== '' ? '<p class="sn-aq-a">doğrusu: <b>' + rich(String(r.correct_answer)) + '</b></p>' : '') +
+        (r.feedback ? '<p class="sn-aq-x">' + (r.type === 'open_ended' ? 'YZ puanlaması: ' : '') + rich(r.feedback) + '</p>' : '') +
+        (to ? '<p class="sn-aq-n">senin düzeltmen: ' + esc(String(to.old_score == null ? '–' : to.old_score)) + ' → ' + esc(String(to.score)) + (to.note ? ' · “' + esc(to.note) + '”' : '') + '</p>' : '') +
+        (esc8 ? '<p class="sn-rs-ap ' + esc(esc8.status) + '"><b>' + (esc8.status === 'escalated' ? 'öğretmene iletilen itiraz' : 'itiraz') + ':</b> “' + esc(esc8.reason || '') + '”' + (esc8.details && esc8.details.note ? ' <span>YZ: ' + esc(esc8.details.note) + '</span>' : '') + '</p>' : '') +
+        fbs.filter(function (f) { return f.kind === 'report'; }).map(function (f) { return '<p class="sn-rs-ap rep"><b>soru hatalı bildirimi:</b> ' + esc(catLabel(f.category)) + (f.reason ? ' · “' + esc(f.reason) + '”' : '') + '</p>'; }).join('') +
+        '<div class="sn-rs-ov"><label><span>puan</span><input type="number" min="0" max="100" step="1" value="' + (sc == null ? '' : sc) + '" data-ov-score="" aria-label="' + esc(String(n)) + '. soru puanı"></label>' +
+        '<label class="nt"><span>öğrenciye not <small>(isteğe bağlı)</small></span><input type="text" maxlength="500" data-ov-note="" value="' + esc(to && to.note || '') + '"></label>' +
+        '<button type="button" class="sn-ghost" data-ov-save="' + esc(String(r.question_id)) + '">' + (esc8 && esc8.status === 'escalated' ? 'itirazı karara bağla' : 'puanı kaydet') + '</button></div></li>';
+    }).join('') + '</ol>' +
+      '<label class="sn-f"><span>öğrenciye genel not <small>(sonuç kâğıdında görünür)</small></span><textarea rows="2" maxlength="1000" data-tn="">' + esc(ex.teacher_note || '') + '</textarea></label><button type="button" class="btn btn-dark" data-tn-save="">notu kaydet</button>';
+    return h;
+  };
+  var rsQuestionsHtml = function () {
+    if (!RSA.analyzed) return '<p class="sn-cl-meta">henüz teslim yok; analiz ilk teslimle başlar.</p>';
+    return '<p class="sn-cl-meta">Analiz her öğrencinin ilk denemesinden (' + RSA.analyzed + ' öğrenci). Doğru: puan ≥ 80. Ayırt edicilik, notu en yüksek ve en düşük öğrencilerin o sorudaki başarı farkı' + (RSA.analyzed < 4 ? '; 4 öğrenciden az olduğu için hesaplanmadı' : '') + '.</p><ol class="sn-rs-qa">' + RSA.questions.map(function (q) {
+      return '<li><div class="sn-aq-h"><b>' + (q.index + 1) + '</b><span class="sn-aq-t">' + esc(QT[q.type] || q.type) + '</span>' + (q.concept ? '<span class="sn-aq-c">' + esc(q.concept) + '</span>' : '') +
+        q.flags.map(function (f) { var k = f.indexOf('işlemeyen') === 0 ? 'işlemeyen' : f; return '<span class="sn-flag ' + (k === 'ters' ? 'bad' : '') + '" title="' + esc(FLAG_TIP[k] || 'hiç kimse seçmedi; çeldirici işe yaramıyor') + '">' + esc(f) + '</span>'; }).join('') + '</div>' +
+        '<div class="sn-aq-q">' + rich(String(q.question || '').slice(0, 400)) + '</div>' +
+        '<div class="sn-rs-bar" role="img" aria-label="doğru oranı ' + pctT(q.correctRate) + '"><i style="width:' + Math.round((q.correctRate || 0) * 100) + '%"></i></div>' +
+        '<p class="sn-cl-meta">' + q.n + ' öğrenci · doğru ' + pctT(q.correctRate) + (q.avgScore != null ? ' · ort. puan ' + q.avgScore : '') + (q.blank ? ' · boş ' + q.blank : '') + ' · ayırt edicilik ' + (q.discrimination == null ? '—' : String(q.discrimination).replace('.', ',')) + '</p>' +
+        (q.optionCounts ? '<ul class="sn-rs-opt">' + q.optionCounts.map(function (o) { var w = q.n ? Math.round(o.count / q.n * 100) : 0; return '<li class="' + (o.correct ? 'ok' : '') + '"><span>' + rich(o.option) + (o.correct ? ' ✓' : '') + '</span><i style="width:' + w + '%"></i><b>' + o.count + '</b></li>'; }).join('') + '</ul>' : '') + '</li>';
+    }).join('') + '</ol>';
+  };
+  var rsAppealsHtml = function () {
+    var P = RSA.pendingAppeals, R = RSA.reports;
+    var done = RS.feedback.filter(function (f) { return f.kind === 'appeal' && f.status === 'resolved' && f.details && f.details.teacher; });
+    if (!P.length && !R.length && !done.length) return '<p class="sn-cl-meta">itiraz ya da “soru hatalı” bildirimi yok. Yapay zekânın reddettiği bir itirazı öğrenci sana iletirse burada görünür.</p>';
+    var row = function (f, kind) { return '<li><b>' + esc(f.name) + '</b> · ' + (f.src != null ? (f.src + 1) + '. soru' : 'soru') + (kind === 'rep' ? ' · ' + esc(catLabel(f.category)) : '') + (f.reason ? '<p>“' + esc(f.reason) + '”</p>' : '') + (kind === 'ap' && f.details && f.details.note ? '<p class="ai">YZ’nin kararı: ' + esc(f.details.note) + '</p>' : '') + (kind === 'done' ? '<p class="ai">kararın: ' + esc(String(f.details.teacher.old_score)) + ' → ' + esc(String(f.details.teacher.score)) + (f.details.teacher.note ? ' · “' + esc(f.details.teacher.note) + '”' : '') + '</p>' : '') +
+      '<button type="button" class="sn-lnk" data-rs-goto="' + esc(f.exam_id) + '" data-rs-gq="' + esc(String(f.question_id)) + '" data-rs-gu="' + esc(f.user_id) + '">kâğıtta aç</button></li>'; };
+    return (P.length ? '<h4 class="sn-k">karar bekleyen itirazlar (' + P.length + ')</h4><ul class="sn-rs-fb">' + P.map(function (f) { return row(f, 'ap'); }).join('') + '</ul>' : '') +
+      (R.length ? '<h4 class="sn-k">“soru hatalı” bildirimleri (' + R.length + ')</h4><ul class="sn-rs-fb">' + R.map(function (f) { return row(f, 'rep'); }).join('') + '</ul>' : '') +
+      (done.length ? '<h4 class="sn-k">karara bağladıkların</h4><ul class="sn-rs-fb">' + done.map(function (f) { f.name = (RSA.students.filter(function (s) { return s.user_id === f.user_id; })[0] || {}).name || ''; return row(f, 'done'); }).join('') + '</ul>' : '');
+  };
+  var rsMasteryHtml = function () {
+    if (RSM === null) return '<p class="sn-cl-meta">yükleniyor…</p>';
+    if (RSM === false) return '<p class="sn-asg-msg bad">ustalık verisi alınamadı.</p>';
+    var sharing = RSM.length, total = RSA.students.length;
+    if (!sharing) return '<p class="sn-cl-meta">Öğrencilerden hiçbiri konu ustalığını paylaşmıyor (' + total + ' öğrenci). Paylaşım öğrencinin kendi kararıdır ve varsayılan olarak kapalıdır.</p>';
+    var eng = ENG(), agg = {};
+    RSM.forEach(function (st) {
+      eng.conceptMastery(st.exams || []).forEach(function (c) {
+        var a = agg[c.key] = agg[c.key] || { name: c.name, lv: [0, 0, 0, 0], weak: [], n: 0 };
+        a.lv[c.level]++; a.n++; if (c.level === 0) a.weak.push(st.full_name);
+      });
+    });
+    var L = Object.keys(agg).map(function (k) { return agg[k]; }).sort(function (a, b) { return (b.lv[0] / b.n) - (a.lv[0] / a.n) || b.n - a.n; });
+    return '<p class="sn-cl-meta">' + sharing + '/' + total + ' öğrenci konu ustalığını paylaşıyor; yalnızca bu dersin sınavları sayılır. En çok zorlanılan konular başta.</p>' +
+      '<ul class="sn-rs-ms">' + L.map(function (a) {
+        return '<li><b>' + esc(a.name) + '</b><span class="lv">' + ['zayıf', 'tanıdık', 'yetkin', 'usta'].map(function (nm, i) { return a.lv[i] ? '<i class="l' + i + '" style="flex:' + a.lv[i] + '" title="' + nm + ': ' + a.lv[i] + '">' + a.lv[i] + '</i>' : ''; }).join('') + '</span>' +
+          (a.weak.length ? '<small>zayıf: ' + esc(a.weak.slice(0, 6).join(', ')) + (a.weak.length > 6 ? ' +' + (a.weak.length - 6) : '') + '</small>' : '') + '</li>';
+      }).join('') + '</ul><p class="sn-rs-lg">' + ['zayıf', 'tanıdık', 'yetkin', 'usta'].map(function (nm, i) { return '<span><i class="l' + i + '"></i>' + nm + '</span>'; }).join('') + '<span>(kutudaki sayı: öğrenci)</span></p>';
+  };
+  var paintResults = function () {
+    var a = RS.assignment, S = RSA.summary, P = RSA.pendingAppeals.length;
+    var fa = document.activeElement, fsel = fa && rsBody.contains(fa) ? (fa.getAttribute('data-rs-tab') ? '[data-rs-tab="' + fa.getAttribute('data-rs-tab') + '"]' : null) : null;
+    var h = '<button type="button" class="sn-x" data-rs-x="" aria-label="Kapat">×</button><span class="sn-k">' + esc((rsK && rsK.name) || '') + ' · ' + (a.status === 'closed' ? 'kapalı' : 'yayında') + ' · son teslim ' + esc(dtl(a.due_at)) + '</span><h2 id="rs-t" class="disp">' + esc(a.title) + '</h2>' +
+      '<p class="sn-rs-sum"><span>teslim <b>' + S.submitted + '/' + S.members + '</b></span><span>ortalama <b>' + (S.avg == null ? '—' : String(S.avg).replace('.', ',')) + '</b></span><span>medyan <b>' + (S.median == null ? '—' : String(Math.round(S.median * 10) / 10).replace('.', ',')) + '</b></span>' + (S.inProgress ? '<span>çözüyor <b>' + S.inProgress + '</b></span>' : '') + (S.late ? '<span>geç <b>' + S.late + '</b></span>' : '') + '</p>' +
+      '<div class="sn-rs-tabs" role="tablist">' + [['students', 'öğrenciler'], ['questions', 'sorular'], ['appeals', 'itirazlar' + (P ? ' (' + P + ')' : '')], ['mastery', 'ustalık']].map(function (t) { return '<button type="button" role="tab" aria-selected="' + (rsTab === t[0]) + '" data-rs-tab="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>' +
+      '<div class="sn-rs-pane" role="tabpanel">' + (rsTab === 'students' ? (rsStu ? rsPaperHtml() : rsStudentsHtml()) : rsTab === 'questions' ? rsQuestionsHtml() : rsTab === 'appeals' ? rsAppealsHtml() : rsMasteryHtml()) + '</div>' +
+      '<p class="sn-asg-msg" data-rs-msg="" role="status" aria-live="polite"></p><div class="sn-dlg-b"><span></span><button type="button" class="sn-ghost" data-rs-csv="">notları CSV indir</button><button type="button" class="btn btn-dark" data-rs-x="">kapat</button></div>';
+    rsBody.innerHTML = h;
+    if (fsel) { var f = $(fsel, rsBody); if (f) f.focus(); }
+  };
+  var rsMsg = function (t, bad) { var m = $('[data-rs-msg]', rsBody); if (m) { m.textContent = t; m.className = 'sn-asg-msg' + (bad ? ' bad' : ''); } };
+  rsBody.addEventListener('click', async function (e) {
+    var b = e.target.closest('button'); if (!b || !RS) { if (b && b.hasAttribute('data-rs-x')) rsDlg.close(); return; }
+    if (b.hasAttribute('data-rs-x')) { rsDlg.close(); return; }
+    if (b.hasAttribute('data-rs-tab')) {
+      rsTab = b.getAttribute('data-rs-tab'); if (rsTab !== 'students') rsStu = null;
+      if (rsTab === 'mastery' && RSM === null) sb().rpc('class_mastery_data', { p_class: RS.assignment.class_id }).then(function (r) { RSM = r.error ? false : (r.data || []); if (rsTab === 'mastery') paintResults(); });
+      paintResults(); return;
+    }
+    if (b.hasAttribute('data-rs-stu')) { rsStu = b.getAttribute('data-rs-stu'); rsExam = null; paintResults(); rsBody.scrollTop = 0; var bk = $('[data-rs-back]', rsBody); if (bk) bk.focus(); return; }
+    if (b.hasAttribute('data-rs-back')) { var was = rsStu; rsStu = null; paintResults(); var sb3 = $('[data-rs-stu="' + was + '"]', rsBody); if (sb3) sb3.focus(); return; }
+    if (b.hasAttribute('data-rs-ex')) { rsExam = b.getAttribute('data-rs-ex'); paintResults(); return; }
+    if (b.hasAttribute('data-rs-goto')) {
+      rsTab = 'students'; rsStu = b.getAttribute('data-rs-gu'); rsExam = b.getAttribute('data-rs-goto'); paintResults();
+      var q = $('[data-rs-q="' + b.getAttribute('data-rs-gq') + '"]', rsBody); if (q) { q.scrollIntoView({ block: 'center' }); var inp = $('[data-ov-score]', q); if (inp) inp.focus(); }
+      return;
+    }
+    if (b.hasAttribute('data-ov-save')) {
+      var li = b.closest('[data-rs-q]'), sc = $('[data-ov-score]', li).value, note = $('[data-ov-note]', li).value.trim();
+      if (sc === '' || isNaN(+sc) || +sc < 0 || +sc > 100) { rsMsg('Puan 0 ile 100 arasında olmalı.', true); $('[data-ov-score]', li).focus(); return; }
+      b.disabled = true;
+      try {
+        var d = await callAppealFn({ action: 'teacher_score', examId: rsExam, questionId: +b.getAttribute('data-ov-save'), score: +sc, reason: note });
+        var qid = b.getAttribute('data-ov-save');
+        await openResults(RS.assignment.id, null, true);
+        rsMsg('Kaydedildi; not ' + Math.round(+d.exam.grade) + ' oldu. Öğrenci sonuç kâğıdında görür.');
+        var q2 = $('[data-rs-q="' + qid + '"] [data-ov-save]', rsBody); if (q2) q2.focus();
+      } catch (x) { rsMsg(x.message, true); b.disabled = false; }
+      return;
+    }
+    if (b.hasAttribute('data-tn-save')) {
+      b.disabled = true;
+      try { await callAppealFn({ action: 'teacher_note', examId: rsExam, reason: $('[data-tn]', rsBody).value.trim() }); await openResults(RS.assignment.id, null, true); rsMsg('Not kaydedildi; öğrenci sonuç kâğıdında görür.'); }
+      catch (x) { rsMsg(x.message, true); b.disabled = false; }
+      return;
+    }
+    if (b.hasAttribute('data-rs-csv')) {
+      var q3 = function (v) { v = String(v == null ? '' : v); return /[;"\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+      var lines = [['Ad', 'Numara', 'Durum', 'Deneme', 'Not', 'Kesintisiz not', 'Geç gün', 'Teslim'].join(';')].concat(RSA.students.map(function (s) {
+        return [s.name, s.number || '', s.status === 'done' ? 'teslim etti' : s.status === 'in_progress' ? 'çözüyor' : 'başlamadı', s.attempts, s.best == null ? '' : String(s.best).replace('.', ','), s.rawBest == null ? '' : String(s.rawBest).replace('.', ','), s.lateDays || '', s.submittedAt ? new Date(s.submittedAt).toLocaleString('tr-TR') : ''].map(q3).join(';');
+      }));
+      var blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }), url = URL.createObjectURL(blob), aEl = document.createElement('a');
+      aEl.href = url; aEl.download = String(RS.assignment.title || 'odev').replace(/[^\wçğıöşüÇĞİÖŞÜ -]+/g, '').slice(0, 60) + ' - notlar.csv'; document.body.appendChild(aEl); aEl.click(); aEl.remove(); setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+      rsMsg('CSV indirildi (Excel’de Türkçe karakterlerle açılır).');
+    }
+  });
 
   var paintAll = function () { paintCal(); paintDesks(); paintReport(); paintErrs(); };
 
@@ -10914,17 +11288,22 @@ var SBX = (function () {
   setTimeout(showHint, 2500);
   /* ---------- sağ kenardaki mürekkep yıldız maskot ---------- */
   var mas = document.createElement('button'); mas.type = 'button'; mas.className = 'axa-mas'; mas.setAttribute('aria-label', 'Acadia’ya sor');
-  mas.innerHTML = '<span class="lbl">Acadia’ya sor</span><svg viewBox="-60 -60 120 120" aria-hidden="true"><g class="bd"><path class="st" d="M0 -50 C6 -18 18 -6 50 0 C18 6 6 18 0 50 C-6 18 -18 6 -50 0 C-18 -6 -6 -18 0 -50 Z"/><ellipse class="ck" cx="-17" cy="10" rx="6" ry="3.5"/><ellipse class="ck" cx="17" cy="10" rx="6" ry="3.5"/><g class="eyes"><g class="ey" transform="translate(-10 -4)"><ellipse class="w" rx="6.5" ry="8"/><circle class="pu" r="3.6"/><circle class="gl" cx="1.4" cy="-2.2" r="1.2"/></g><g class="ey" transform="translate(10 -4)"><ellipse class="w" rx="6.5" ry="8"/><circle class="pu" r="3.6"/><circle class="gl" cx="1.4" cy="-2.2" r="1.2"/></g></g><path class="mo" d="M-6 10 Q0 16 6 10"/></g></svg>';
+  /* Acadia maskotu tek kaynaktan (js/acadia-kit.js): kullanıcının renk/aksesuar seçimi burada da görünür */
+  var MAS_OLD = '<svg viewBox="-60 -60 120 120" aria-hidden="true"><g class="bd"><path class="st" d="M0 -50 C6 -18 18 -6 50 0 C18 6 6 18 0 50 C-6 18 -18 6 -50 0 C-18 -6 -6 -18 0 -50 Z"/><ellipse class="ck" cx="-17" cy="10" rx="6" ry="3.5"/><ellipse class="ck" cx="17" cy="10" rx="6" ry="3.5"/><g class="eyes"><g class="ey" transform="translate(-10 -4)"><ellipse class="w" rx="6.5" ry="8"/><circle class="pu" r="3.6"/><circle class="gl" cx="1.4" cy="-2.2" r="1.2"/></g><g class="ey" transform="translate(10 -4)"><ellipse class="w" rx="6.5" ry="8"/><circle class="pu" r="3.6"/><circle class="gl" cx="1.4" cy="-2.2" r="1.2"/></g></g><path class="mo" d="M-6 10 Q0 16 6 10"/></g></svg>';
+  var masPaint = function (mood) { mas.innerHTML = '<span class="lbl">Acadia’ya sor</span>' + (window.AcadiaKit ? window.AcadiaKit.svg({ mood: mood }) : MAS_OLD); };
+  masPaint();
+  document.addEventListener('acadia:style', function () { masPaint(); });
+  mas.__acdReact = function (mood, ms) { clearTimeout(mas.__acdT); masPaint(mood); mas.classList.remove('hop'); void mas.offsetWidth; mas.classList.add('hop'); mas.__acdT = setTimeout(function () { masPaint(); }, ms || 1400); };
   layer.appendChild(mas);
   mas.addEventListener('click', function () { toggle(); });
   /* gözler fareyi izler */
-  var pus = mas.querySelectorAll('.pu, .gl'), eyeRaf = 0, mx = 0, my = 0;
+  var eyeRaf = 0, mx = 0, my = 0;
   document.addEventListener('pointermove', function (e) {
     mx = e.clientX; my = e.clientY; if (eyeRaf) return;
     eyeRaf = requestAnimationFrame(function () {
       eyeRaf = 0; var r = mas.querySelector('svg').getBoundingClientRect(); if (!r.width) return;
       var dx = mx - (r.left + r.width / 2), dy = my - (r.top + r.height / 2), d = Math.sqrt(dx * dx + dy * dy) || 1, k = Math.min(2.6, d / 60);
-      Array.prototype.forEach.call(pus, function (el) { el.style.transform = 'translate(' + (dx / d * k).toFixed(2) + 'px,' + (dy / d * k * 1.2).toFixed(2) + 'px)'; });
+      Array.prototype.forEach.call(mas.querySelectorAll('.pu, .gl'), function (el) { el.style.transform = 'translate(' + (dx / d * k).toFixed(2) + 'px,' + (dy / d * k * 1.2).toFixed(2) + 'px)'; });
     });
   }, { passive: true });
   /* durumlar: düşünüyor / bitti zıplaması */

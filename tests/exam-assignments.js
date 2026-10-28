@@ -20,7 +20,7 @@
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { execSync } = require('node:child_process');
-const { readSource, makeRunner } = require('./_ts-extract.js');
+const { readSource, loadFromSource, makeRunner } = require('./_ts-extract.js');
 
 const { test, summary } = makeRunner();
 const MIG = 'supabase/migrations/20261027b_sinav_faz6_odevler.sql';
@@ -102,12 +102,12 @@ test('ön yüz: taslak kancası sınavı başlatmaz', () => {
 
 test('kodun hesapladığı sorular elle düzenlenmez', () => {
   assert.match(ink, /var EDITABLE = \{ multiple_choice: 1, true_false: 1, fill_blank: 1, open_ended: 1 \};/);
-  assert.match(ink, /var ed = !locked && EDITABLE\[q\.type\] && !q\.chart/);
+  assert.match(ink, /var ed = !locked && \(EDITABLE\[q\.type\] \|\| unv\) && !q\.chart/, 'yalnızca formülü olmayan (doğrulanmamış) hesap sorusu istisna');
 });
 
 test('ön yüzün çağırdığı ödev fonksiyonları ve parametreleri migration ile uyumlu', () => {
   const start = ink.indexOf('/* ---------- FAZ 6.2: ödev hazırlama');
-  const block = ink.slice(start, ink.indexOf('var paintAll = function () { paintCal();', start));
+  const block = ink.slice(start, ink.indexOf('/* ---------- FAZ 6.3: ödevler (öğrenci)', start));
   const calls = [...block.matchAll(/rpc\('([a-z_]+)', (?:asgPayload\(\)|\{([^}]*)\})/g)];
   const seen = new Set();
   for (const c of calls) {
@@ -141,6 +141,23 @@ test('davranış testi (Postgres + RLS)', () => {
     const out = execSync(P + ' -d ax_t62 -f ' + JSON.stringify(path.join(root, 'tests/sql/faz6-odevler.sql')), { stdio: 'pipe' }).toString();
     assert.match(out, /HEPSI GECTI/);
   } finally { execSync(P + ' -d postgres -c "drop database if exists ax_t62"', { stdio: 'pipe' }); }
+});
+
+test('doğrulanamayan hesap sorusu: cevap son çözüm adımında yoksa atılır (canlı test 28.10)', () => {
+  const G = loadFromSource('supabase/functions/generate-exam/index.ts', ['parseLooseNumber', 'unverifiedAnswerConsistent']);
+  const steps = ['Talep ve arzı eşitle: 14 - 3Q = 2 + Q', '12 = 4Q', 'Q* = 12 / 4 = 3', 'P* = 14 - 3*3 = 5'];
+  assert.equal(G.unverifiedAnswerConsistent(steps, 4), false);
+  assert.equal(G.unverifiedAnswerConsistent(steps, 5), true);
+  assert.equal(G.unverifiedAnswerConsistent(['Tutar = 1.250,5 TL'], 1250.5), true);
+  assert.equal(G.unverifiedAnswerConsistent([], 7), true, 'adım yoksa eski davranış');
+  assert.equal(G.unverifiedAnswerConsistent(['sonucu yaz'], 7), true, 'son adımda sayı yoksa');
+  assert.match(gen, /if \(!unverifiedAnswerConsistent\(q\.solution_steps, n\)\) return \{ ok: false, reason: 'calc_unverified_inconsistent' \}/);
+});
+
+test('düzenleyici: doğrulanmamış hesap sorusu elle düzeltilir, yayında sayı olmalı', () => {
+  assert.match(ink, /var unv = q\.type === 'calculation' && !q\.formula && !q\.chart;/);
+  assert.match(ink, /var ed = !locked && \(EDITABLE\[q\.type\] \|\| unv\) && !q\.chart/);
+  assert.match(ink, /hesap sorusunun doğru cevabı tek bir sayı olmalı/);
 });
 
 summary();

@@ -15,4 +15,7 @@ Thumbs.db
 .env
 .env.local
 .env.*.local
-/assets/landing
+# landing'deki yeni dosyalar varsayılan olarak dışarıda; MedLab scroll filminin
+# kareleri (assets/landing/medlab/fNNN.webp) siteye gitmek ZORUNDA.
+/assets/landing/*
+!/assets/landing/medlab/

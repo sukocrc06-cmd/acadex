@@ -111,6 +111,7 @@
     reports: '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>',
     plans: '<path d="M4 6h16v12H4zM4 10h16M8 15h3"/>',
     content: '<path d="M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6"/>',
+    support: '<path d="M4 13v-1a8 8 0 0 1 16 0v1"/><rect x="3" y="13" width="4" height="6" rx="1.5"/><rect x="17" y="13" width="4" height="6" rx="1.5"/><path d="M19 19c0 1.5-2 2.5-5 2.5h-1"/>',
     inbox: '<path d="M3 13l3-8h12l3 8v6H3zM3 13h5l1.5 2.5h5L16 13h5"/>',
     news: '<path d="M4 9v6h3l6 4V5L7 9zM17 9a4 4 0 0 1 0 6M19.5 6.5a7.5 7.5 0 0 1 0 11"/>',
     settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
@@ -121,12 +122,12 @@
   var NAV = [
     { g: 'MASA' }, { k: 'overview', t: 'Genel bakış' },
     { g: 'ÖĞRENCİLER' }, { k: 'users', t: 'Kullanıcılar' }, { k: 'reports', t: 'Şikâyetler', badge: 'open_reports' }, { k: 'plans', t: 'Planlar ve kota', soon: true },
-    { g: 'İÇERİK VE İLETİŞİM' }, { k: 'content', t: 'İçerik' }, { k: 'inbox', t: 'Gelen kutusu', badge: 'unread_messages' }, { k: 'news', t: 'Duyurular' },
+    { g: 'İÇERİK VE İLETİŞİM' }, { k: 'content', t: 'İçerik' }, { k: 'support', t: 'Canlı destek', badge: 'support_unread' }, { k: 'inbox', t: 'Gelen kutusu', badge: 'unread_messages' }, { k: 'news', t: 'Duyurular' },
     { g: 'ACADEX' }, { k: 'ekip', t: 'Acadex ekibi' },
     { g: 'TEST' }, { k: 'test', t: 'Test paneli', badge: 'test_open_hata' },
     { g: 'SİSTEM' }, { k: 'settings', t: 'Site ayarları' }, { k: 'audit', t: 'Denetim kaydı' }
   ];
-  var TITLES = { overview: 'Genel bakış', users: 'Kullanıcılar', reports: 'Şikâyetler ve moderasyon', plans: 'Planlar ve kota', content: 'İçerik', inbox: 'Gelen kutusu', news: 'Duyurular', settings: 'Site ayarları', audit: 'Denetim kaydı', test: 'Test paneli', ekip: 'Acadex ekibi' };
+  var TITLES = { overview: 'Genel bakış', users: 'Kullanıcılar', reports: 'Şikâyetler ve moderasyon', plans: 'Planlar ve kota', content: 'İçerik', support: 'Canlı destek', inbox: 'Gelen kutusu', news: 'Duyurular', settings: 'Site ayarları', audit: 'Denetim kaydı', test: 'Test paneli', ekip: 'Acadex ekibi' };
   var paintNav = function () {
     $('#nav').innerHTML = NAV.map(function (n) {
       if (n.g) return '<div class="grp">' + n.g + '</div>';
@@ -137,19 +138,19 @@
   var main = function () { return $('#adm-main'); };
   var go = function (k, push) {
     if (!VIEWS[k]) k = 'overview'; CUR = k; paintNav(); closeDrawer();
-    $('#page-t').textContent = TITLES[k]; $('#crumb').textContent = TITLES[k].toLocaleUpperCase('tr'); document.title = 'Acadex · ' + TITLES[k];
+    $('#page-t').textContent = TITLES[k]; $('#crumb').textContent = TITLES[k].toLocaleUpperCase('tr'); document.title = 'Acadex · ' + TITLES[k]; supTitle();
     if (push !== false) history.replaceState(null, '', '#' + k);
     $('#app').classList.remove('nav-open'); $('#menu-b').setAttribute('aria-expanded', 'false');
     var m = main(); m.style.animation = 'none'; void m.offsetWidth; m.style.animation = '';
     m.innerHTML = '<div class="card"><div class="skel" style="width:40%"></div><div class="skel" style="margin-top:12px"></div><div class="skel" style="margin-top:12px;width:70%"></div></div>';
     VIEWS[k](m).catch(function (e) { m.innerHTML = '<div class="card"><h2>Yüklenemedi</h2><p class="err">' + X(errMsg(e)) + '</p><button type="button" class="btn sm" data-go="' + k + '">tekrar dene</button></div>'; });
   };
-  var refreshCounts = async function () { try { var o = await rpc('admin_overview'); try { TEST = await rpc('admin_test_overview'); o.test_open_hata = TEST.open_hata; } catch (te) { TEST = null; } COUNTS = o; paintNav(); $('#maint-pill').hidden = !(SETTINGS_CACHE && SETTINGS_CACHE.maintenance_mode && SETTINGS_CACHE.maintenance_mode.enabled); return o; } catch (e) { return null; } };
+  var refreshCounts = async function () { try { var o = await rpc('admin_overview'); try { TEST = await rpc('admin_test_overview'); o.test_open_hata = TEST.open_hata; } catch (te) { TEST = null; } o.support_unread = SUP.unread; COUNTS = o; paintNav(); $('#maint-pill').hidden = !(SETTINGS_CACHE && SETTINGS_CACHE.maintenance_mode && SETTINGS_CACHE.maintenance_mode.enabled); return o; } catch (e) { return null; } };
   var SETTINGS_CACHE = null;
   var start = function () {
     $('#gate').hidden = true; $('#app').hidden = false; $('#me-name').textContent = ME.name || ME.email || 'yönetici';
     rpc('admin_settings').then(function (s) { SETTINGS_CACHE = s.settings || {}; $('#maint-pill').hidden = !(SETTINGS_CACHE.maintenance_mode && SETTINGS_CACHE.maintenance_mode.enabled); }, function () {});
-    refreshCounts();
+    refreshCounts(); supPulse();
     go((location.hash || '#overview').slice(1), false);
   };
   document.addEventListener('click', function (e) { var b = e.target.closest('[data-go]'); if (b) { e.preventDefault(); go(b.getAttribute('data-go')); } });
@@ -588,6 +589,110 @@
     if (!rows.length) { m.innerHTML = '<div class="card empty"><span class="hand">gelen kutusu boş</span>İletişim formundan gelen mesajlar burada görünür.</div>'; return; }
     m.innerHTML = '<div class="list">' + rows.map(function (r) { return '<div class="item' + (r.is_read ? '' : ' unread') + '" data-mid="' + r.id + '"><div class="item-h"><b>' + X(r.name || 'isimsiz') + '</b><span class="muted" style="font-size:13px">' + X(r.email) + '</span><span class="t">' + DT(r.created_at, true) + '</span></div><p>' + X(r.message) + '</p><div class="acts"><a class="btn sm" href="mailto:' + X(r.email) + '?subject=' + encodeURIComponent('Acadex: mesajın hakkında') + '">yanıtla</a><button type="button" class="btn ghost sm" data-read="' + (r.is_read ? '0' : '1') + '">' + (r.is_read ? 'okunmadı işaretle' : 'okundu işaretle') + '</button></div></div>'; }).join('') + '</div>';
     $$('[data-read]', m).forEach(function (b) { b.addEventListener('click', async function () { var it = b.closest('[data-mid]'); b.disabled = true; try { await rpc('admin_message_read', { p_id: it.getAttribute('data-mid'), p_read: b.getAttribute('data-read') === '1' }); refreshCounts(); VIEWS.inbox(m); } catch (e) { b.disabled = false; toast(errMsg(e), true); } }); });
+  };
+
+  /* ---------- canlı destek (28.10.2026) ----------
+     Landing'deki Acadia destek hattından (js/acadex-destek.js) ekibe aktarılan görüşmeler.
+     supabase/migrations/20261028_canli_destek.sql: admin_support_threads / _thread / _reply /
+     _set_status / _presence. "Çevrimiçiyim" açıkken panel her 15 sn nabız atar; ziyaretçi
+     tarafı son 3 dakikada nabız atan yönetici varsa "ekip çevrimiçi" gösterir.
+     Yeni mesajda: menüde rozet, sekme başlığında sayı, kısa ses ve tarayıcı bildirimi. */
+  var SUP = { unread: 0, online: false, latest: null, cur: null, filter: 'open', last: 0, t: 0, view: 0, base: '', rendered: null, lastId: 0, drafts: {} };
+  var supBeep = function () {
+    try { var A = window.AudioContext || window.webkitAudioContext; if (!A) return; var c = SUP.ac || (SUP.ac = new A()); [0, 0.16].forEach(function (d, i) { var o = c.createOscillator(), g = c.createGain(); o.frequency.value = i ? 1046 : 784; g.gain.setValueAtTime(0.0001, c.currentTime + d); g.gain.exponentialRampToValueAtTime(0.18, c.currentTime + d + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + d + 0.22); o.connect(g); g.connect(c.destination); o.start(c.currentTime + d); o.stop(c.currentTime + d + 0.25); }); } catch (e) {}
+  };
+  var supTitle = function () { var b = document.title.replace(/^\(\d+\)\s*/, ''); document.title = (SUP.unread ? '(' + SUP.unread + ') ' : '') + b; };
+  var supPulse = async function (setOnline) {
+    try {
+      var r = await rpc('admin_support_presence', { p_online: typeof setOnline === 'boolean' ? setOnline : null });
+      var before = SUP.unread, beforeLatest = SUP.latest;
+      SUP.online = !!r.online; SUP.unread = +r.unread || 0; SUP.latest = r.latest;
+      COUNTS.support_unread = SUP.unread; paintNav(); supTitle();
+      if (SUP.unread > before || (SUP.unread && r.latest && beforeLatest && r.latest !== beforeLatest)) {
+        supBeep();
+        if (window.Notification && Notification.permission === 'granted' && (document.hidden || CUR !== 'support')) { try { var n = new Notification('Acadex · canlı destek', { body: SUP.unread + ' okunmamış destek mesajı', icon: 'assets/logo-icon-only.png', tag: 'acadex-destek' }); n.onclick = function () { window.focus(); go('support'); n.close(); }; } catch (e) {} }
+        if (CUR === 'support') supList();
+      }
+      var sw = document.getElementById('sup-on'); if (sw) sw.checked = SUP.online;
+    } catch (e) { /* tablo henüz yoksa sessiz */ }
+  };
+  setInterval(function () { if (ME) supPulse(); }, 15000);
+  var supWhen = function (d) { if (!d) return ''; var x = new Date(d), s = (Date.now() - x) / 1000; if (s < 60) return 'şimdi'; if (s < 3600) return Math.floor(s / 60) + ' dk'; if (s < 86400) return Math.floor(s / 3600) + ' sa'; return DT(d); };
+  var supList = async function () {
+    var box = document.getElementById('sup-list'); if (!box) return;
+    var rows = await rpc('admin_support_threads', { p_status: SUP.filter, p_limit: 150 });
+    box.innerHTML = rows.length ? rows.map(function (t) {
+      var last = t.last ? (t.last.s === 'admin' ? 'sen: ' : t.last.s === 'bot' ? 'Acadia: ' : '') + t.last.b : '';
+      return '<button type="button" class="sup-row' + (t.admin_unread ? ' unread' : '') + '" data-sup="' + t.id + '"' + (SUP.cur === t.id ? ' aria-current="true"' : '') + '><span class="sup-rh"><b>' + X(t.name || t.email || 'ziyaretçi') + '</b><span class="t">' + supWhen(t.last_msg_at) + '</span></span>' +
+        '<span class="sup-rl">' + X(last) + '</span><span class="sup-rt">' + (t.topic ? '<span class="pill">' + X(t.topic) + '</span>' : '') + (t.status === 'closed' ? '<span class="pill">kapalı</span>' : '') + (t.admin_unread ? '<span class="badge">' + t.admin_unread + '</span>' : '') + '</span></button>';
+    }).join('') : '<p class="muted" style="padding:16px">' + (SUP.filter === 'open' ? 'açık görüşme yok. destek hattı sessiz.' : 'görüşme yok.') + '</p>';
+  };
+  /* görüşme bölmesi: ilk açılışta bir kez çizilir; yenilemede yalnız başlık güncellenir ve
+     yeni mesajlar sona eklenir. Cevap kutusuna dokunulmaz (yazarken odak ve imleç kaybolmaz). */
+  var supMsgHtml = function (m, t) {
+    if (m.s === 'system') return '<div class="sup-sys" data-mid="' + m.id + '">' + X(m.b) + '</div>';
+    return '<div class="sup-m sup-' + m.s + '" data-mid="' + m.id + '"><span class="sup-who">' + (m.s === 'admin' ? 'Acadex ekibi' : m.s === 'bot' ? 'Acadia (otomatik)' : X(t.name || 'ziyaretçi')) + ' · ' + DT(m.t, true) + '</span><p>' + X(m.b) + '</p></div>';
+  };
+  var supHead = function (t) {
+    var seenAgo = t.last_visitor_seen ? (Date.now() - new Date(t.last_visitor_seen)) / 1000 : 1e9;
+    return '<header class="sup-ph"><div><h2>' + X(t.name || 'ziyaretçi') + ' ' + (seenAgo < 60 ? '<span class="pill ok">sayfada</span>' : '') + '</h2><p class="muted">' + (t.email ? '<a href="mailto:' + X(t.email) + '?subject=' + encodeURIComponent('Acadex destek') + '">' + X(t.email) + '</a> · ' : 'e-posta yok · ') + (t.topic ? X(t.topic) + ' · ' : '') + X(t.page || '') + ' · ' + DT(t.created_at, true) + '</p></div>' +
+      '<div class="sup-pa">' + (t.status === 'open' ? '<button type="button" class="btn ghost sm" data-sup-st="closed">görüşmeyi kapat</button>' : '<button type="button" class="btn ghost sm" data-sup-st="open">yeniden aç</button>') + '</div></header>';
+  };
+  var supBindHead = function (pane, id) {
+    $$('[data-sup-st]', pane).forEach(function (b) { b.addEventListener('click', async function () { b.disabled = true; try { await rpc('admin_support_set_status', { p_id: id, p_status: b.getAttribute('data-sup-st') }); await supOpen(id, true); supList(); } catch (er) { b.disabled = false; toast(errMsg(er), true); } }); });
+  };
+  var supOpen = async function (id, refresh) {
+    var pane = document.getElementById('sup-pane'); if (!pane) return;
+    var same = refresh && SUP.rendered === id && pane.querySelector('.sup-log');
+    if (!same) SUP.cur = id;
+    var d = await rpc('admin_support_thread', { p_id: id }), t = d.thread, ms = d.messages || [];
+    if (SUP.cur !== id) return; /* bu arada başka görüşme seçildi */
+    pane = document.getElementById('sup-pane'); if (!pane) return;
+    if (same && pane.querySelector('.sup-log')) {
+      var log = pane.querySelector('.sup-log'), atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 60, added = 0;
+      ms.forEach(function (m) { if (m.id > SUP.lastId) { log.insertAdjacentHTML('beforeend', supMsgHtml(m, t)); SUP.lastId = m.id; added++; } });
+      if (added && atEnd) log.scrollTop = log.scrollHeight;
+      var oh = pane.querySelector('.sup-ph'), nh = supHead(t);
+      if (oh && oh.outerHTML !== nh) { oh.outerHTML = nh; supBindHead(pane, id); }
+      var ta0 = pane.querySelector('#sup-txt'); if (ta0) ta0.placeholder = t.status === 'closed' ? 'yazarsan görüşme yeniden açılır…' : 'cevabını yaz · Enter gönderir, Shift+Enter alt satır';
+      if (added) supPulse();
+      return;
+    }
+    SUP.rendered = id; SUP.lastId = ms.reduce(function (a, m) { return Math.max(a, m.id); }, 0);
+    pane.innerHTML = supHead(t) + '<div class="sup-log">' + ms.map(function (m) { return supMsgHtml(m, t); }).join('') + '</div>' +
+      '<form class="sup-reply" id="sup-form"><textarea class="in" id="sup-txt" rows="2" maxlength="2000" placeholder="' + (t.status === 'closed' ? 'yazarsan görüşme yeniden açılır…' : 'cevabını yaz · Enter gönderir, Shift+Enter alt satır') + '"></textarea><button type="submit" class="btn blue">gönder</button></form>';
+    var nl = pane.querySelector('.sup-log'); nl.scrollTop = nl.scrollHeight;
+    var ta = pane.querySelector('#sup-txt'), draft = SUP.drafts[id]; if (draft) ta.value = draft;
+    ta.addEventListener('input', function () { SUP.drafts[id] = ta.value; });
+    ta.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); pane.querySelector('#sup-form').requestSubmit(); } });
+    pane.querySelector('#sup-form').addEventListener('submit', async function (e) {
+      e.preventDefault(); var v = ta.value.trim(); if (!v) return; var b = this.querySelector('button'); b.disabled = true;
+      try { await rpc('admin_support_reply', { p_id: id, p_body: v }); ta.value = ''; delete SUP.drafts[id]; await supOpen(id, true); supList(); }
+      catch (er) { toast(errMsg(er), true); }
+      b.disabled = false; ta.focus();
+    });
+    supBindHead(pane, id);
+    $$('.sup-row', document).forEach(function (r) { r.setAttribute('aria-current', String(r.getAttribute('data-sup') === id)); });
+    supPulse();
+  };
+  VIEWS.support = async function (m) {
+    m.innerHTML = '<div class="sup-top card"><label class="switch"><input type="checkbox" id="sup-on"' + (SUP.online ? ' checked' : '') + '><i></i>Çevrimiçiyim</label><span class="muted" style="font-size:13px">açıkken ziyaretçiler “ekip çevrimiçi” görür. panel kapanınca 3 dk içinde kendiliğinden çevrimdışı olursun.</span>' +
+      '<span style="flex:1"></span>' + (window.Notification && Notification.permission !== 'granted' ? '<button type="button" class="btn ghost sm" id="sup-notif">tarayıcı bildirimlerini aç</button>' : '') + '</div>' +
+      '<div class="sup-grid"><aside class="sup-side card"><div class="sup-tabs" role="tablist">' + [['open', 'açık'], ['closed', 'kapalı'], ['all', 'tümü']].map(function (f) { return '<button type="button" role="tab" data-sup-f="' + f[0] + '" aria-selected="' + (SUP.filter === f[0]) + '">' + f[1] + '</button>'; }).join('') + '</div><div id="sup-list" class="sup-list"></div></aside>' +
+      '<section class="sup-pane card" id="sup-pane"><div class="empty"><span class="hand">bir görüşme seç</span>Landing’deki Acadia’nın ekibe aktardığı sorular burada.</div></section></div>';
+    document.getElementById('sup-on').addEventListener('change', function () { var on = this.checked; supPulse(on).then(function () { toast(on ? 'Çevrimiçisin; yeni mesajlar sesle bildirilir.' : 'Çevrimdışısın.'); }); if (on && window.Notification && Notification.permission === 'default') Notification.requestPermission(); });
+    var nb = document.getElementById('sup-notif'); if (nb) nb.addEventListener('click', function () { Notification.requestPermission().then(function () { nb.remove(); }); });
+    m.querySelector('.sup-tabs').addEventListener('click', function (e) { var b = e.target.closest('[data-sup-f]'); if (!b) return; SUP.filter = b.getAttribute('data-sup-f'); $$('[data-sup-f]', m).forEach(function (x) { x.setAttribute('aria-selected', String(x === b)); }); supList(); });
+    m.querySelector('#sup-list').addEventListener('click', function (e) { var r = e.target.closest('[data-sup]'); if (r) { SUP.cur = r.getAttribute('data-sup'); supOpen(SUP.cur).catch(function (er) { toast(errMsg(er), true); }); } });
+    await supList();
+    if (SUP.cur) supOpen(SUP.cur).catch(function () { SUP.cur = null; });
+    var my = ++SUP.view;
+    SUP.rendered = null;
+    var refresh = function () { supList().catch(function () {}); if (SUP.cur) supOpen(SUP.cur, true).catch(function () {}); };
+    var loop = function () { clearTimeout(SUP.t); if (CUR !== 'support' || my !== SUP.view) return; refresh(); SUP.t = setTimeout(loop, document.hidden ? 10000 : 3000); };
+    SUP.t = setTimeout(loop, 3000);
+    if (!SUP.visHook) { SUP.visHook = true; document.addEventListener('visibilitychange', function () { if (!document.hidden && CUR === 'support') { refresh(); supPulse(); } }); }
+    supPulse();
   };
 
   /* ---------- duyurular ---------- */

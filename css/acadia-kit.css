@@ -1,0 +1,126 @@
+/* ==========================================================================
+   ACADIA KİTİ — maskot stilleri (css/acadia-kit.css), 28.10.2026
+   js/acadia-kit.js'in çizdiği SVG'ler (.acd), yerleşimler (.acd-host), konuşma
+   balonu (.acd-say) ve "Acadia'nı giydir" stüdyosu (.acd-studio). Landing ve panel
+   ortak; renkler SVG içinde satır içi, burada yalnız hareket ve yerleşim.
+   ========================================================================== */
+.acd-host{position:relative;display:inline-block;line-height:0;vertical-align:middle}
+.acd{display:block;overflow:visible;width:100%;height:auto}
+.acd-host[data-size] .acd{width:auto}
+.acd .bd{transform-origin:0 0}
+.acd .acd-flip{transform:scaleX(-1)}
+.acd .ey .pu,.acd .ey .gl{transition:transform .12s linear}
+.acd .eyes.look-up .pu,.acd .eyes.look-up .gl{transform:translate(-1.6px,-2.4px)}
+.acd.acd-glow .st{filter:drop-shadow(0 0 6px rgba(156,203,255,.55))}
+
+/* konuşma balonu: el yazısı, kâğıt, mürekkep gölgesi */
+.acd-say{position:absolute;left:50%;bottom:100%;z-index:3;min-width:150px;max-width:240px;margin-bottom:6px;padding:8px 12px 9px;transform:translate(-50%,6px) scale(.9);transform-origin:50% 100%;border:1.5px solid #1A2A5C;border-radius:14px 16px 14px 12px;background:#FFFDF8;box-shadow:3px 3px 0 #1A2A5C;color:#1A2A5C;font:600 17px/1.15 'Caveat','Segoe Print',cursive;text-align:center;white-space:normal;line-height:1.15;opacity:0;pointer-events:none;transition:opacity .25s,transform .3s cubic-bezier(.3,1.5,.5,1)}
+.acd-say::after{content:"";position:absolute;left:50%;top:100%;width:12px;height:12px;margin:-6px 0 0 -6px;background:#FFFDF8;border-right:1.5px solid #1A2A5C;border-bottom:1.5px solid #1A2A5C;transform:rotate(45deg)}
+.acd-say.on{opacity:1;transform:translate(-50%,0) scale(1)}
+.acd-host.say-l .acd-say{left:auto;right:70%;transform-origin:100% 100%;transform:translate(0,6px) scale(.9)}
+.acd-host.say-l .acd-say.on{transform:none}
+.acd-host.say-l .acd-say::after{left:auto;right:18px}
+
+@media (prefers-reduced-motion:no-preference){
+  .acd .bd{animation:acd-bob 4.2s ease-in-out infinite}
+  .acd .ey{animation:acd-blink 5.4s infinite}
+  .acd .ey .w,.acd .ey .pu,.acd .ey .gl{transform-box:fill-box}
+  .acd .acd-wave{transform-origin:38px -4px;animation:acd-wave 1.4s ease-in-out infinite}
+  .acd .acd-point{animation:acd-point 1.6s ease-in-out infinite}
+  .acd .acd-book{animation:acd-read 3.6s ease-in-out infinite}
+  .acd.acd-p-zipla .bd{animation:acd-jump 1.1s cubic-bezier(.3,1.4,.5,1) infinite}
+  .acd .acd-spark{animation:acd-twinkle 1.2s ease-in-out infinite}
+  .acd .acd-z text{animation:acd-z 2.4s ease-in-out infinite}
+  .acd .acd-z text:last-child{animation-delay:.6s}
+  .acd .acd-dots circle{animation:acd-dot 1.8s ease-in-out infinite}
+  .acd .acd-dots circle:nth-child(2){animation-delay:.25s}.acd .acd-dots circle:nth-child(3){animation-delay:.5s}
+  .acd.acd-m-uykulu .bd{animation-duration:6s}
+  .acd-host.acd-hop .acd{animation:acd-hop .7s cubic-bezier(.3,1.6,.5,1)}
+}
+@keyframes acd-bob{0%,100%{transform:rotate(-4deg) translateY(0)}50%{transform:rotate(4deg) translateY(-4px)}}
+@keyframes acd-blink{0%,94%,100%{transform:var(--t,none) scaleY(1)}96.5%{transform:var(--t,none) scaleY(.1)}}
+@keyframes acd-wave{0%,100%{transform:rotate(0)}25%{transform:rotate(-18deg)}50%{transform:rotate(6deg)}75%{transform:rotate(-14deg)}}
+@keyframes acd-point{0%,100%{transform:translateX(0)}50%{transform:translateX(4px)}}
+@keyframes acd-read{0%,100%{transform:rotate(0)}50%{transform:rotate(-3deg)}}
+@keyframes acd-jump{0%,100%{transform:translateY(0) scale(1)}30%{transform:translateY(-14px) scale(1.05,.97) rotate(-6deg)}60%{transform:translateY(0) scale(1.06,.94)}}
+@keyframes acd-twinkle{50%{opacity:.35;transform:scale(.9)}}
+@keyframes acd-z{0%{opacity:0;transform:translate(0,6px)}40%{opacity:1}100%{opacity:0;transform:translate(6px,-10px)}}
+@keyframes acd-dot{0%,100%{opacity:.25}50%{opacity:1}}
+@keyframes acd-hop{0%{transform:none}35%{transform:translateY(-16px) scale(1.08) rotate(-8deg)}70%{transform:translateY(2px) scale(.96,1.04)}100%{transform:none}}
+
+/* ---------- stüdyo ---------- */
+.acd-studio{width:min(960px,calc(100vw - 24px));max-height:calc(100vh - 24px);padding:0;border:1.5px solid #1A2A5C;border-radius:18px;background:#FBF8F0;color:#1A2A5C;box-shadow:6px 8px 0 #1A2A5C;overflow:auto}
+.acd-studio::backdrop{background:rgba(13,24,56,.45)}
+.acd-st-f{padding:22px 24px 18px;font-family:'Instrument Sans',system-ui,sans-serif}
+.acd-st-f header .hand{font-family:'Caveat',cursive;font-size:22px;color:#2F6BFF}
+.acd-st-f header h2{margin:0;font-size:30px;font-weight:800;letter-spacing:-.02em}
+.acd-st-f header p{margin:4px 0 14px;color:#5B6787;font-size:14px}
+.acd-st-grid{display:grid;grid-template-columns:minmax(220px,300px) 1fr;gap:22px}
+.acd-st-prev{position:sticky;top:0;align-self:start}
+.acd-st-stage{display:grid;place-items:center;aspect-ratio:1;padding:18px;border-radius:16px;background:radial-gradient(circle at 50% 45%,#FFFFFF,#EEF1F8 70%);border:1.5px dashed #C9D1E1}
+.acd-st-stage .acd{width:86%}
+.acd-st-moods{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.acd-st-moods button{min-height:34px;padding:0 10px;border:1px solid #C9D1E1;border-radius:999px;background:#fff;font:inherit;font-size:13px;color:#1A2A5C;cursor:pointer}
+.acd-st-moods button[aria-pressed="true"]{background:#1A2A5C;color:#fff;border-color:#1A2A5C}
+.acd-st-opts fieldset{margin:0 0 12px;padding:0;border:0}
+.acd-st-opts legend{margin-bottom:6px;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#6A7593}
+.acd-row{display:flex;flex-wrap:wrap;gap:8px}
+.acd-opt{display:flex;flex-direction:column;align-items:center;gap:4px;width:84px;min-height:84px;padding:8px 4px 6px;border:1.5px solid #D6DCE8;border-radius:12px;background:#fff;font:inherit;color:#1A2A5C;cursor:pointer;transition:transform .15s,border-color .15s}
+.acd-opt:hover{transform:translateY(-2px);border-color:#9DB8FF}
+.acd-opt:focus-visible{outline:3px solid #2F6BFF;outline-offset:2px}
+.acd-opt.on{border-color:#1A2A5C;box-shadow:3px 3px 0 #1A2A5C;background:#FFFDF4}
+.acd-opt b{font-size:12px;font-weight:600;line-height:1.15;text-align:center}
+.acd-opt i{width:42px;height:42px;margin-top:4px;border-radius:50%;border:2px solid #1A2A5C}
+.acd-mini{display:block;width:60px;height:60px}
+.acd-mini .acd .bd,.acd-mini .acd .ey,.acd-mini .acd *{animation:none!important}
+.acd-row-t .acd-opt{width:auto;min-height:38px;padding:0 12px;flex-direction:row}
+.acd-chk{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:4px;font-size:14px}
+.acd-chk input{width:18px;height:18px;accent-color:#2F6BFF}
+.acd-chk small{flex-basis:100%;margin-left:26px;color:#6A7593;font-size:12px}
+.acd-st-msg{min-height:20px;margin:10px 0 0;font-size:13px;color:#B5432F}
+.acd-st-f footer{display:flex;align-items:center;gap:10px;margin-top:8px}
+.acd-st-f footer span{flex:1}
+.acd-b{min-height:44px;padding:0 18px;border-radius:10px;font:inherit;font-weight:700;cursor:pointer}
+.acd-b.pri{border:0;background:#1A2A5C;color:#fff}
+.acd-b.ghost{border:1.5px solid #C9D1E1;background:#fff;color:#1A2A5C}
+.acd-b:disabled{opacity:.5}
+@media (max-width:720px){
+  .acd-st-f{padding:16px 14px 14px}
+  .acd-st-grid{grid-template-columns:1fr}
+  .acd-st-prev{position:static}
+  .acd-st-stage{max-width:220px;margin:0 auto}
+  .acd-opt{width:72px;min-height:76px}
+  .acd-st-f footer{flex-wrap:wrap}
+}
+
+/* ---------- dashboard yerleşimleri (js/acadia-yerinde.js) ---------- */
+.acd-head{width:84px;margin:0 0 -14px 4px;vertical-align:bottom}
+.acd-head[data-acd-studio]{cursor:pointer;border-radius:12px}
+.acd-head[data-acd-studio]:focus-visible{outline:3px solid #2F6BFF;outline-offset:2px}
+.acd-host.say-r .acd-say{left:100%;bottom:46%;margin:0 0 0 4px;transform:translate(0,4px) scale(.9);transform-origin:0 100%;text-align:left}
+.acd-host.say-r .acd-say.on{transform:none}
+.acd-host.say-r .acd-say::after{left:-7px;top:auto;bottom:10px;margin:0;border:0;border-left:1.5px solid #1A2A5C;border-bottom:1.5px solid #1A2A5C;transform:rotate(45deg)}
+@media (max-width:700px){.acd-head{width:48px}.acd-host.say-r .acd-say{max-width:170px;font-size:15px}}
+/* Kartoteks: dolabın üst pervazında oturur */
+#cards-view.kt .kt-cab{position:relative}
+#cards-view.kt .acd-perch{position:absolute;left:34px;top:-84px;width:96px;z-index:3}
+@media (max-width:700px){#cards-view.kt .acd-perch{right:20px;top:-52px;width:58px}}
+
+/* ---------- landing rehberi (js/acadia-rehber.js) ---------- */
+.acd-live{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.acd-guide{position:fixed;right:clamp(8px,2.2vw,34px);top:var(--gy,40vh);z-index:46;width:150px;pointer-events:none;transform:translateX(160px) rotate(var(--gt,0deg));opacity:0;transition:top .9s cubic-bezier(.45,0,.25,1),transform .6s cubic-bezier(.3,1.3,.5,1),opacity .4s}
+.acd-guide.in{transform:translateX(0) rotate(var(--gt,0deg));opacity:1}
+.acd-guide.away{transform:translateX(170px) rotate(10deg);opacity:0}
+.acd-guide .acd-gh{width:150px;cursor:pointer;filter:drop-shadow(-4px 10px 10px rgba(13,24,56,.25))}
+.acd-guide.on-dark .acd-gh{filter:drop-shadow(0 0 14px rgba(255,216,107,.35))}
+.acd-guide .acd-say{font-size:19px;min-width:190px;max-width:250px}
+.acd-guide .acd-gh.say-l .acd-say{right:86%;bottom:58%}
+@media (max-width:899px){
+  .acd-guide{top:auto!important;bottom:84px;right:auto;left:8px;width:76px;transform:translateX(-160px) rotate(var(--gt,0deg))}
+  .acd-guide.away{transform:translateX(-170px) rotate(-10deg)}
+  .acd-guide .acd-gh.say-l .acd-say{right:auto;left:78%;bottom:62%;transform-origin:0 100%;text-align:left}
+  .acd-guide .acd-gh.say-l .acd-say::after{right:auto;left:16px}
+  .acd-guide .acd-gh{width:76px}
+  .acd-guide .acd-say{font-size:16px;min-width:150px;max-width:200px}
+}
+@media (prefers-reduced-motion:reduce){.acd-guide{transition:opacity .3s;transform:none}.acd-guide.away{transform:none}}
