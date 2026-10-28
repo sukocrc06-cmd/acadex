@@ -1,5 +1,5 @@
 -- Faz 6.3 davranış testi: tests/exam-assignment-student.js koşturur (ACADEX_PG verilirse).
--- Sıra: _supabase-stub.sql → 20261027_… → 20261027b_… → 20261028b_… → bu dosya
+-- Sıra: _supabase-stub.sql → 20261027_… → 20261027b_… → 20261028b_… → 20261028c_… → bu dosya
 \set ON_ERROR_STOP 1
 create or replace function public.t_err(q text, pat text) returns void language plpgsql as $$
 begin
@@ -105,20 +105,39 @@ set role service_role;
 select t_err($q$ select assignment_begin((select v::uuid from t_vars where k='a1'), '00000000-0000-0000-0000-00000000000c') $q$, 'kapattı');
 reset role;
 
--- gizli sonuç: yalnızca açıklanınca, yalnızca kendi
+-- gizli sonuç: ödevin GÜNCEL durumuna göre, yalnızca kendi (20261028c)
+update assignments set status = 'published', opens_at = now() - interval '2 days', due_at = now() + interval '1 day', settings = settings || '{"late":"none","show_answers":"after_due"}' where id = (select v::uuid from t_vars where k='a1');
 insert into exams (id, user_id, assignment_id, completed_at, grade) values ('10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000c', (select v::uuid from t_vars where k='a1'), now(), 50);
 insert into exams (id, user_id, assignment_id, completed_at, grade) values ('10000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-00000000000c', null, now(), 50);
-insert into exam_hidden_results values ('10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000c', '[{"correct_answer":"A1"}]', now() + interval '1 day');
+-- reveal_at geçmiş olsa da ödev hâlâ açıkken görünmez (son teslim uzatılmış olabilir)
+insert into exam_hidden_results values ('10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000c', '[{"correct_answer":"A1"}]', now() - interval '1 hour');
+-- ödevi silinmiş sınav: eski reveal_at geçerli
 insert into exam_hidden_results values ('10000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-00000000000c', '[{"correct_answer":"B1"}]', now() - interval '1 minute');
 set role authenticated; set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000c';
-select t_ok((select count(*) from exam_hidden_results) = 1 and (select results->0->>'correct_answer' from exam_hidden_results) = 'B1', 'yalnızca açıklanan sonuç');
+select t_ok((select count(*) from exam_hidden_results) = 1 and (select results->0->>'correct_answer' from exam_hidden_results) = 'B1', 'açık ödevin cevabı görünmez; ödevsiz eski kayıt görünür');
 select t_err($q$ insert into exam_hidden_results values ('10000000-0000-0000-0000-000000000002', auth.uid(), '[]', now()) $q$, 'permission');
 set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000d';
 select t_ok((select count(*) from exam_hidden_results) = 0, 'başkasının sonucu görünmez');
 reset role;
-update exam_hidden_results set reveal_at = null;
+-- son teslim geçince açılır
+update assignments set due_at = now() - interval '1 minute' where id = (select v::uuid from t_vars where k='a1');
 set role authenticated; set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000c';
-select t_ok((select count(*) from exam_hidden_results) = 0, 'hiç gösterilmeyecek sonuç görünmez');
+select t_ok((select count(*) from exam_hidden_results) = 2, 'son teslim geçince açılır');
+reset role;
+-- son teslim uzatılınca yeniden kapanır
+update assignments set due_at = now() + interval '1 day' where id = (select v::uuid from t_vars where k='a1');
+set role authenticated; set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000c';
+select t_ok((select count(*) from exam_hidden_results) = 1, 'son teslim uzayınca yeniden gizli');
+reset role;
+-- öğretmen erken kapatırsa açılır
+update assignments set status = 'closed' where id = (select v::uuid from t_vars where k='a1');
+set role authenticated; set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000c';
+select t_ok((select count(*) from exam_hidden_results) = 2, 'kapanınca açılır');
+reset role;
+-- "hiç": kapansa da görünmez
+update assignments set settings = settings || '{"show_answers":"never"}' where id = (select v::uuid from t_vars where k='a1');
+set role authenticated; set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000c';
+select t_ok((select count(*) from exam_hidden_results) = 1, 'hiç gösterilmeyecek cevap görünmez');
 set role anon;
 select t_err($q$ select my_assignments() $q$, 'permission');
 reset role;

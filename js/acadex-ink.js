@@ -4189,7 +4189,8 @@ window.axNotify = function (title, opts) {
     var showRes0 = showExamResults;
     showExamResults = function (exam) {
       var A = exam && exam.assignment_id && exam.scoring && exam.scoring.assignment;
-      if (A && A.answers_hidden && !exam.__hidTried && A.reveal_at && new Date(A.reveal_at).getTime() <= Date.now()) {
+      /* açılıp açılmadığına sunucu karar verir (ödevin güncel son teslimi); satır gelmezse hâlâ gizli */
+      if (A && A.answers_hidden && !exam.__hidTried && A.show_answers !== 'never') {
         exam.__hidTried = 1;
         return sb().from('exam_hidden_results').select('results').eq('exam_id', exam.id).maybeSingle().then(function (r) {
           if (r.data && Array.isArray(r.data.results)) {
@@ -4206,7 +4207,8 @@ window.axNotify = function (title, opts) {
         var notes = [];
         notes.push((A.class_name ? A.class_name + ' · ' : '') + 'deneme ' + (A.attempt_no || 1) + '/' + (A.attempts || 1) + (A.attempts > 1 ? ' (en yüksek not sayılır)' : ''));
         if (A.late_applied) notes.push('Geç teslim: ' + A.late_applied.days + ' gün, %' + A.late_applied.pct + ' kesinti (kesintisiz not ' + Math.round(+A.late_applied.raw_grade) + ').');
-        if (A.answers_hidden && !exam.__revealed) notes.push(A.reveal_at ? 'Doğru cevaplar ' + dtl(A.reveal_at) + ' sonrasında burada görünecek; şimdilik puan ve doğru/yanlış.' : 'Öğretmen bu ödevin doğru cevaplarını göstermiyor; yalnızca puan ve doğru/yanlış görünür.');
+        var mya = (MYA || []).filter(function (x) { return x.id === A.id; })[0], openAt = mya ? mya.window_end : A.reveal_at;
+        if (A.answers_hidden && !exam.__revealed) notes.push(A.show_answers === 'never' || !openAt ? 'Öğretmen bu ödevin doğru cevaplarını göstermiyor; yalnızca puan ve doğru/yanlış görünür.' : 'Doğru cevaplar teslim süresi bitince (şu an ' + dtl(openAt) + ') burada görünecek; şimdilik puan ve doğru/yanlış.');
         if (A.varied) notes.push('Hesap sorularındaki sayılar sana özel.');
         var sum = res.querySelector('.sn-sum');
         if (sum) sum.insertAdjacentHTML('afterend', '<div class="sn-asg-note">' + notes.map(function (n) { return '<p>' + esc(n) + '</p>'; }).join('') + '</div>');
