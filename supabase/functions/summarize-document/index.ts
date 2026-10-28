@@ -6241,13 +6241,62 @@ async function buildPdfSubsetBase64(fileBytes: Uint8Array, pageIndices: number[]
   }
 }
 
+/* HATA CEVABI HER ZAMAN GECERLI JSON (28.10.2026 — olculmus hata).
+ *
+ * `lastBody` yukarida `(await res.text()).slice(0, 800)` ile KESILIYOR.
+ * Kesik govdeyi oldugu gibi dondurmek, cagiranin icine JSON ayristirma
+ * hatasi olarak patliyordu — callGroqJson govdeyi `!response.ok`
+ * kontrolunden ONCE `response.json()` ile okuyor:
+ *
+ *   Madde 3 narrative writer skipped (keeping draft summary):
+ *     SyntaxError: Unterminated string in JSON at position 800
+ *
+ * "position 800" tam olarak o slice. Gercek sebep (gunluk kota dolu) log
+ * disinda hicbir yere ulasmiyordu ve kuyruk yanlis yerde hata aratiyordu.
+ * Artik ham govde bir ALANIN icinde tasiniyor, zarf her zaman gecerli. */
+function geminiHataCevabi(status: number, mesaj: string, ham: string): Response {
+  return new Response(
+    JSON.stringify({ error: { message: mesaj, gemini_body: ham.slice(0, 400) } }),
+    { status, headers: { 'Content-Type': 'application/json' } }
+  )
+}
+
 /** Groq model seridine karsilik gelen Gemini aday listesi. */
+/* PENCERE SERIDI ARTIK FLASH-LITE'TA DEGIL (28.10.2026 olcumu).
+ *
+ * ACCOUNTING ch6, ilk canli paralel kosu. Pencereler flash-lite'a gitti:
+ *   Window 1 sayisal kapsama: 0/11 (%0) — kayip: 720, 750, 800, 1200, 1470...
+ *   Window 2 sayisal kapsama: 10/10 (%100)
+ * Pencere 1'in sayfalarindaki Crivitz (specific identification) ve FIFO
+ * ornekleri karta HIC girmedi; son kart %76'da kaldi. Pencereler kartin
+ * ICERIGINI uretiyor ve only modunun kendi notu bunu zaten soyluyor:
+ * "model kalitesi dogrudan kartin dogrulugu demek" — orada Flash-Lite
+ * bilerek listeye alinmamisti, paralel modda ise serit basindaydi.
+ *
+ * DAGITIM: RPD model BASINA 20. Pencereleri tek modele yigmak kaliteyi ve
+ * kotayi ayni yere bagliyordu. Sirayla dagitmak dort modelin RPD'sini
+ * (4 x 20) kullanilir kiliyor ve model basina RPM 5'e de yaklasmiyor.
+ *
+ * Flash-Lite listeden ATILMADI, SONA alindi: butun tam modeller duserse
+ * hala bir cevap gelsin. GEMINI_FAST_MODEL secret'i acikca tanimliysa
+ * dagitim yapilmaz — elle verilen model olcum yapanin karari. */
+/* Sayac bir const nesnede tutuluyor: testlerin kaynak cikaricisi (bkz.
+   tests/_ts-extract.js) ciplak bir `let` bildirimini dilimleyemiyor. */
+const geminiSerit = { sayac: 0 }
+
 function geminiModelsForLane(groqModel: string): string[] {
   const heavy = String(Deno.env.get('GEMINI_MODEL') || '').trim() || GEMINI_MODEL_CANDIDATES[0]
-  const fast = String(Deno.env.get('GEMINI_FAST_MODEL') || '').trim() || GEMINI_FAST_MODEL_DEFAULT
-  const first = groqModel === MODEL_HEAVY ? heavy : fast
+  const fastSecret = String(Deno.env.get('GEMINI_FAST_MODEL') || '').trim()
+  let first: string
+  if (groqModel === MODEL_HEAVY) {
+    first = heavy
+  } else if (fastSecret) {
+    first = fastSecret
+  } else {
+    first = GEMINI_MODEL_CANDIDATES[geminiSerit.sayac++ % GEMINI_MODEL_CANDIDATES.length]
+  }
   const out: string[] = []
-  for (const m of [first, fast, heavy, ...GEMINI_MODEL_CANDIDATES]) {
+  for (const m of [first, heavy, ...GEMINI_MODEL_CANDIDATES, fastSecret || GEMINI_FAST_MODEL_DEFAULT]) {
     if (m && out.indexOf(m) === -1) out.push(m)
   }
   return out
@@ -6382,14 +6431,14 @@ async function groqViaGemini(options: RequestInit, maxRetries: number, timeoutMs
       if (res.status === 429 || res.status >= 500) {
         if (geminiQuotaExhausted(res.status, lastBody)) {
           console.error(`Gemini[${model}] paralel: GUNLUK kota dolu — ucretli katman acik mi?`)
-          return new Response(lastBody, { status: 429 })
+          return geminiHataCevabi(429, `Gemini gunluk kota dolu (${model})`, lastBody)
         }
         console.warn(`Gemini[${model}] paralel: gecici ${res.status} (deneme ${attempt + 1}) — ${lastBody.slice(0, 160)}`)
         await new Promise(r => setTimeout(r, 1200 * (attempt + 1)))
         continue
       }
       console.warn(`Gemini[${model}] paralel: basarisiz ${res.status} — ${lastBody.slice(0, 240)}`)
-      return new Response(lastBody || JSON.stringify({ error: { message: `Gemini ${res.status}` } }), { status: res.status })
+      return geminiHataCevabi(res.status, `Gemini ${res.status} (${model})`, lastBody)
     }
   }
   return new Response(

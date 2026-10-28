@@ -25,7 +25,8 @@ const G = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'geminiMode', 'geminiParallelActive',
   'GROQ_CHAT_URL', 'GEMINI_GENERATE_BASE', 'GEMINI_FAST_MODEL_DEFAULT', 'GEMINI_PARALLEL_MIN_OUTPUT',
   'geminiParallelUsage', 'resetGeminiParallelUsage',
-  'geminiModelsForLane', 'openAiContentToGeminiParts', 'groqViaGemini',
+  'geminiSerit', 'geminiModelsForLane', 'openAiContentToGeminiParts', 'groqViaGemini',
+  'geminiHataCevabi',
   'GEMINI_PARALLEL_CONCURRENCY'
 ]);
 
@@ -106,11 +107,15 @@ test('geminiParallelActive: anahtar yoksa kapali (Groq yolu bozulmaz)', () => {
 // ===========================================================================
 // Model sirasi
 // ===========================================================================
-test('geminiModelsForLane: pencere seridi ucuz modelle baslar', () => {
+/* ESKIDEN "ucuz modelle baslar" DIYORDU — 28.10.2026'da degisti.
+   Flash-Lite pencerelerde Window 1 sayisal kapsamasini 0/11'e dusurdu;
+   serit basi tam model oldu, Flash-Lite son careye alindi. Liste kuralinin
+   geri kalani (tekrar eden aday olmamasi) aynen duruyor. */
+test('geminiModelsForLane: aday listesinde tekrar eden model olmaz', () => {
   denoEnv.delete('GEMINI_MODEL'); denoEnv.delete('GEMINI_FAST_MODEL');
   const m = G.geminiModelsForLane(G.MODEL_EXTRACT);
-  assert.equal(m[0], G.GEMINI_FAST_MODEL_DEFAULT);
   assert.equal(new Set(m).size, m.length, 'tekrar eden aday olmamali');
+  assert.ok(m.includes(G.GEMINI_FAST_MODEL_DEFAULT), 'flash-lite listeden silinmemeli');
 });
 
 test('geminiModelsForLane: MODEL_HEAVY agir modelle baslar, secret ezer', () => {
@@ -159,7 +164,12 @@ test('groqViaGemini: istek Gemini bicimine cevrilir, cevap Groq biciminde doner'
     assert.equal(data.usage.prompt_tokens, 1000);
 
     const call = calls[0];
-    assert.ok(call.url.startsWith(G.GEMINI_GENERATE_BASE + '/' + G.GEMINI_FAST_MODEL_DEFAULT + ':generateContent'));
+    // Pencere seridi artik Flash-Lite'tan degil tam modellerden basliyor
+    // (bkz. geminiModelsForLane ustundeki 28.10 olcumu).
+    assert.ok(
+      G.GEMINI_MODEL_CANDIDATES.some((m) => call.url.startsWith(G.GEMINI_GENERATE_BASE + '/' + m + ':generateContent')),
+      `tam model bekleniyordu, cagrilan: ${call.url}`
+    );
     assert.equal(call.body.systemInstruction.parts[0].text, 'SISTEM');
     assert.deepEqual(call.body.contents, [{ role: 'user', parts: [{ text: 'METIN' }] }]);
     assert.equal(call.body.generationConfig.responseMimeType, 'application/json');
@@ -234,6 +244,67 @@ test('GEMINI_PARALLEL_CONCURRENCY ucretsiz katmanin RPM 5 limitinin altinda', ()
     G.GEMINI_PARALLEL_CONCURRENCY <= 4,
     `RPM 5 icin en fazla 4 bekleniyordu, gelen: ${G.GEMINI_PARALLEL_CONCURRENCY}`
   );
+});
+
+/* ---------------------------------------------------------------------------
+   28.10.2026 canli kosusunun iki hatasi.
+   --------------------------------------------------------------------------- */
+
+/* Pencereler flash-lite'a gidince Window 1 sayisal kapsamasi 0/11 cikti.
+   Serit basi artik tam model; Flash-Lite yalnizca son care olarak listede. */
+test('geminiModelsForLane: pencere seridi tam modelle baslar, flash-lite sonda', () => {
+  denoEnv.delete('GEMINI_FAST_MODEL');
+  const liste = G.geminiModelsForLane(G.MODEL_EXTRACT);
+  assert.ok(
+    G.GEMINI_MODEL_CANDIDATES.includes(liste[0]),
+    `tam model bekleniyordu, gelen: ${liste[0]}`
+  );
+  assert.notEqual(liste[0], G.GEMINI_FAST_MODEL_DEFAULT);
+  assert.equal(liste[liste.length - 1], G.GEMINI_FAST_MODEL_DEFAULT, 'flash-lite son care olarak kalmali');
+});
+
+/* RPD model basina 20; pencereleri tek modele yigmak hem kaliteyi hem
+   kotayi ayni yere bagliyordu. Ard arda cagrilar sirayla dagilmali. */
+test('geminiModelsForLane: ard arda pencere cagrilari modellere dagitilir', () => {
+  denoEnv.delete('GEMINI_FAST_MODEL');
+  const n = G.GEMINI_MODEL_CANDIDATES.length;
+  const ilkler = [];
+  for (let i = 0; i < n; i++) ilkler.push(G.geminiModelsForLane(G.MODEL_EXTRACT)[0]);
+  assert.equal(new Set(ilkler).size, n, `${n} ayri model bekleniyordu, gelen: ${ilkler.join(', ')}`);
+});
+
+/* GEMINI_FAST_MODEL acikca verilmisse dagitim yapilmaz. */
+test('geminiModelsForLane: GEMINI_FAST_MODEL verilmisse dagitim devre disi', () => {
+  denoEnv.set('GEMINI_FAST_MODEL', 'gemini-3.5-flash-lite');
+  try {
+    assert.equal(G.geminiModelsForLane(G.MODEL_EXTRACT)[0], 'gemini-3.5-flash-lite');
+    assert.equal(G.geminiModelsForLane(G.MODEL_EXTRACT)[0], 'gemini-3.5-flash-lite');
+  } finally { denoEnv.delete('GEMINI_FAST_MODEL'); }
+});
+
+/* Gunluk kota govdesi 800 karakterde kesiliyordu ve ham dondurulunce
+   cagiranda "Unterminated string in JSON at position 800" oluyordu.
+   Zarf artik her zaman gecerli JSON; ham govde bir alanin icinde. */
+test('groqViaGemini: gunluk kota cevabi ayristirilabilir JSON doner', async () => {
+  const kesik = '{"error":{"message":"' + 'x'.repeat(900);
+  stubFetch([{ status: 429, text: 'Quota exceeded for GenerateRequestsPerDay ' + kesik }]);
+  try {
+    const res = await quiet(() => G.groqViaGemini(groqBody(), 2, 5000));
+    assert.equal(res.status, 429);
+    const data = await res.json();   // eskiden SyntaxError atiyordu
+    assert.match(data.error.message, /gunluk kota dolu/);
+  } finally { restoreFetch(); }
+});
+
+/* Ayni tuzak terminal olmayan hata yolunda da vardi. */
+test('groqViaGemini: terminal hata cevabi da gecerli JSON doner', async () => {
+  stubFetch([{ status: 400, text: 'bu hic JSON degil ' + 'y'.repeat(900) }]);
+  try {
+    const res = await quiet(() => G.groqViaGemini(groqBody(), 0, 5000));
+    assert.equal(res.status, 400);
+    const data = await res.json();
+    assert.ok(data.error.message.includes('400'));
+  } finally { restoreFetch(); }
 });
 
 summary();
