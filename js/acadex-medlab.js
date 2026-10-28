@@ -8,7 +8,8 @@
   var lsafe = function (fn, fb) { try { return fn(); } catch (e) { return fb; } };
   var LABS = {
     anatomi: { t: 'Anatomi Lab', src: 'labs/anatomi/index.html' },
-    fizyo: { t: 'Fizyo Lab', src: 'labs/fizyo/index.html' } /* 3B veriyi ../anatomi/data/ yolundan paylaşır */
+    fizyo: { t: 'Fizyo Lab', src: 'labs/fizyo/index.html' }, /* 3B veriyi ../anatomi/data/ yolundan paylaşır */
+    odyoloji: { t: 'Odyoloji Lab', src: 'labs/odyoloji/index.html' } /* kabin, 3B kulak (data/ax-kulak.js), vaka masası */
   };
   window.AX_MEDLABS = LABS;
 

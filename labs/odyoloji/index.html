@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Acadex · Odyoloji Lab</title>
+<meta name="description" content="Acadex MedLab Odyoloji Lab: sanal odyometri kabini, 3B kulak ve işitme yolu, klinik vaka masası. Eğitim amaçlıdır.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Caveat:wght@500;600;700&family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script>/* MedLab köprüsü: iframe içinde (?medlab=1) labın kendi uyarı balonları sade kalır */if(window.parent!==window&&/[?&]medlab=1(&|$)/.test(location.search))document.documentElement.classList.add('axm-embed')</script>
+<style>
+/* =====================================================================
+   ODYOLOJİ LAB · görsel sistem "odyometri kabini" (29.10.2026)
+   Kabin: akustik köpük dokusu (koyu lacivert-gri piramitler)
+   Cihaz: krem gövde, amber LCD, basılan tuşlar, yanıt lambası
+   Kâğıt: odyogram ızgarası; sağ kulak kırmızı, sol kulak mavi (klinik standart)
+   Acadex dili: Bricolage başlık, Instrument gövde, JetBrains okuma, Caveat el yazısı
+   ===================================================================== */
+:root{
+  --booth:#262D40;--booth-2:#2E364D;--booth-3:#20263A;--booth-4:#343D57;
+  --panel:#ECE6D6;--panel-2:#E2DAC6;--panel-e:#B8AD92;--panel-s:#CFC5AE;
+  --lcd:#151A10;--lcd-2:#1F2617;--amber:#FFB547;--amber-d:#B9821F;
+  --R:#D64545;--R-s:#FBE6E6;--L:#2F6BFF;--L-s:#E5EDFF;
+  --ink:#0D1838;--ink2:#46506A;--muted:#6A7593;--paper:#FFFDF8;--grid:#DCE2EE;--grid-2:#C6CEDF;
+  --yel:#FFD86B;--ok:#2E9E6B;--ok-s:#E3F4EC;--bad:#C9483B;--bad-s:#FBE9E6;--warn:#B9821F;--warn-s:#FFF4DC;
+  --r:14px;--ease:cubic-bezier(.2,.8,.2,1);
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{font-family:'Instrument Sans',system-ui,sans-serif;color:var(--ink);background-color:var(--booth);
+  /* akustik köpük: her karede dört eğik yüz */
+  background-image:conic-gradient(from 45deg at 50% 50%,var(--booth-4) 0 25%,var(--booth-2) 0 50%,var(--booth-3) 0 75%,var(--booth) 0);
+  background-size:30px 30px;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--yel);outline-offset:2px}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.mono{font-family:'JetBrains Mono',monospace}
+.hand{font-family:'Caveat',cursive}
+.disp{font-family:'Bricolage Grotesque',system-ui,sans-serif;letter-spacing:-.015em}
+
+/* ---------- üst şerit ---------- */
+.ol-top{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:14px;padding:10px 18px;background:rgba(13,24,56,.94);backdrop-filter:blur(8px);color:#F1F4FA;border-bottom:1px solid rgba(255,255,255,.08)}
+.ol-brand{display:flex;align-items:center;gap:10px;min-width:0}
+.ol-brand svg{width:34px;height:34px;flex:none}
+.ol-brand b{display:block;font-family:'Bricolage Grotesque',sans-serif;font-size:19px;font-weight:800;line-height:1.05}
+.ol-brand small{display:block;font-family:'Caveat',cursive;font-size:17px;color:var(--yel);line-height:1}
+.ol-tabs{display:flex;gap:4px;margin-left:12px;padding:4px;border-radius:999px;background:rgba(255,255,255,.07)}
+.ol-tabs button{display:flex;align-items:center;gap:7px;min-height:38px;padding:0 15px;border:0;border-radius:999px;background:none;color:#C6D0EA;font-weight:600;font-size:14px}
+.ol-tabs button svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.ol-tabs button[aria-selected="true"]{background:var(--panel);color:var(--ink)}
+.ol-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.ol-cal{padding:4px 10px;border:1px dashed rgba(255,216,107,.6);border-radius:999px;font-size:12px;color:var(--yel);white-space:nowrap}
+.ol-snd{display:flex;align-items:center;gap:8px;padding:4px 6px 4px 4px;border-radius:999px;background:rgba(255,255,255,.08)}
+.ol-snd button{width:34px;height:34px;border:0;border-radius:50%;background:rgba(255,255,255,.12);color:#fff;display:grid;place-items:center}
+.ol-snd button svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.ol-snd button[aria-pressed="false"]{color:#8A95B3}
+.ol-snd input{width:86px;accent-color:var(--yel)}
+
+.ol-view{display:none;padding:18px;max-width:1440px;margin:0 auto}
+.ol-view.on{display:block}
+.ol-note{margin:14px auto 0;max-width:1440px;padding:0 18px 18px;color:#AEB8D3;font-size:12.5px;text-align:center}
+
+/* ---------- kâğıt kart ---------- */
+.card{background:var(--paper);border-radius:var(--r);box-shadow:0 1px 0 rgba(255,255,255,.4) inset,0 18px 40px -22px rgba(0,0,0,.65);padding:16px 18px}
+.card h2{margin:0 0 4px;font-family:'Bricolage Grotesque',sans-serif;font-size:19px;letter-spacing:-.01em}
+.card .sub{margin:0 0 10px;color:var(--muted);font-size:13px}
+.k{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.pill{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:700;background:#EEF0F5;color:var(--ink2);white-space:nowrap}
+.pill.ok{background:var(--ok-s);color:var(--ok)}.pill.bad{background:var(--bad-s);color:var(--bad)}.pill.warn{background:var(--warn-s);color:#8A5A00}
+.pill.R{background:var(--R-s);color:var(--R)}.pill.L{background:var(--L-s);color:var(--L)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:42px;padding:0 16px;border:1.5px solid var(--ink);border-radius:999px;background:var(--paper);color:var(--ink);font-weight:700;font-size:14px}
+.btn.pri{background:var(--ink);color:#fff}
+.btn.pri:hover{background:#1A2A5C}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+/* =========================== KABİN =========================== */
+.kb{display:grid;grid-template-columns:minmax(0,480px) minmax(0,1fr);gap:18px;align-items:start}
+.kb-left{display:flex;flex-direction:column;gap:16px}
+/* hasta seçimi */
+.pt-lv{display:flex;gap:6px;margin:4px 0 10px}
+.pt-lv button{flex:1;min-height:34px;border:1.5px solid var(--grid-2);border-radius:10px;background:#fff;font-size:13px;font-weight:700;color:var(--ink2)}
+.pt-lv button[aria-pressed="true"]{border-color:var(--ink);background:var(--ink);color:#fff}
+.pt-list{display:flex;flex-direction:column;gap:6px}
+.pt{display:flex;gap:10px;align-items:flex-start;width:100%;padding:9px 10px;border:1.5px solid var(--grid);border-radius:12px;background:#fff;text-align:left}
+.pt:hover{border-color:var(--ink2)}
+.pt[aria-pressed="true"]{border-color:var(--ink);box-shadow:3px 3px 0 var(--ink)}
+.pt .av{flex:none;width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:var(--panel);font-weight:800;font-size:14px}
+.pt b{display:block;font-size:14.5px}.pt small{display:block;color:var(--muted);font-size:12.5px;line-height:1.35}
+.pt .done{margin-left:auto;flex:none}
+
+/* odyometre cihazı */
+.dev{position:relative;padding:18px 18px 16px;border-radius:22px;background:linear-gradient(180deg,var(--panel) 0%,var(--panel-2) 100%);border:1px solid var(--panel-e);
+  box-shadow:0 2px 0 rgba(255,255,255,.7) inset,0 -3px 0 rgba(0,0,0,.08) inset,0 22px 44px -20px rgba(0,0,0,.7)}
+.dev::before,.dev::after{content:"";position:absolute;top:10px;width:9px;height:9px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fff,#A79C82);box-shadow:0 1px 0 rgba(0,0,0,.2)}
+.dev::before{left:10px}.dev::after{right:10px}
+.dev-h{display:flex;align-items:baseline;justify-content:space-between;margin:0 6px 10px}
+.dev-h b{font-family:'JetBrains Mono',monospace;font-size:13px;letter-spacing:.18em;color:#6E6450}
+.dev-h small{font-family:'Caveat',cursive;font-size:17px;color:#8A7F66}
+.lcds{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding:10px;border-radius:12px;background:#C3B99F;box-shadow:inset 0 2px 6px rgba(0,0,0,.25)}
+.lcd{padding:7px 8px 6px;border-radius:7px;background:linear-gradient(180deg,var(--lcd-2),var(--lcd));box-shadow:inset 0 0 0 1px rgba(0,0,0,.6),inset 0 6px 14px rgba(0,0,0,.5)}
+.lcd span{display:block;font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.14em;color:#8C7A4E}
+.lcd b{display:block;font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:600;color:var(--amber);text-shadow:0 0 8px rgba(255,181,71,.45);font-variant-numeric:tabular-nums;white-space:nowrap}
+.lcd b small{font-size:11px;color:var(--amber-d);text-shadow:none;margin-left:2px}
+.lcd.R b{color:#FF8A7A;text-shadow:0 0 8px rgba(255,120,100,.45)}.lcd.L b{color:#8FB2FF;text-shadow:0 0 8px rgba(120,160,255,.45)}
+.lcd.off b{color:#5A5136;text-shadow:none}
+.ctl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:14px}
+.grp{padding:9px 10px 10px;border-radius:12px;background:rgba(255,255,255,.35);border:1px solid var(--panel-s)}
+.grp>.k{display:block;margin-bottom:6px;color:#7C7258}
+.row{display:flex;gap:6px;align-items:center}
+.key{flex:1;min-height:40px;border:0;border-radius:10px;background:linear-gradient(180deg,#FBF8F0,#E3DAC4);color:var(--ink);font-weight:700;font-size:13.5px;
+  box-shadow:0 3px 0 #A99E83,0 4px 6px rgba(0,0,0,.18);transition:transform .06s,box-shadow .06s}
+.key:active,.key.down{transform:translateY(2px);box-shadow:0 1px 0 #A99E83,0 1px 2px rgba(0,0,0,.2)}
+.key[aria-pressed="true"]{background:linear-gradient(180deg,#2A3558,#0D1838);color:#fff;box-shadow:0 3px 0 #050B1E,0 4px 6px rgba(0,0,0,.25)}
+.key.R[aria-pressed="true"]{background:linear-gradient(180deg,#E86A6A,#C23636);box-shadow:0 3px 0 #8A1F1F}
+.key.L[aria-pressed="true"]{background:linear-gradient(180deg,#5B8BFF,#2459D8);box-shadow:0 3px 0 #163C99}
+.key.sm{flex:none;width:44px}
+.key svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-3px}
+.ton{display:flex;align-items:center;gap:14px;margin-top:14px;padding:12px;border-radius:14px;background:rgba(0,0,0,.05)}
+.ton-b{position:relative;flex:none;width:96px;height:96px;border:0;border-radius:50%;background:radial-gradient(circle at 40% 32%,#FFE2A8,#F2A93A 62%,#C47F17);color:#3A2400;font-family:'JetBrains Mono',monospace;font-weight:600;font-size:17px;letter-spacing:.12em;
+  box-shadow:0 6px 0 #8F5B0C,0 10px 18px rgba(0,0,0,.35),inset 0 2px 0 rgba(255,255,255,.6);transition:transform .07s,box-shadow .07s}
+.ton-b small{display:block;font-size:9.5px;letter-spacing:.08em;opacity:.75}
+.ton-b:active,.ton-b.down{transform:translateY(4px);box-shadow:0 2px 0 #8F5B0C,0 3px 6px rgba(0,0,0,.3),inset 0 2px 0 rgba(255,255,255,.5)}
+.ton-b.play::after{content:"";position:absolute;inset:-8px;border-radius:50%;border:3px solid rgba(255,181,71,.55);animation:ring 1s ease-out}
+@keyframes ring{from{transform:scale(.9);opacity:1}to{transform:scale(1.25);opacity:0}}
+.lamp{display:flex;flex-direction:column;align-items:center;gap:4px;flex:none}
+.lamp i{width:30px;height:30px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#7A715A,#3A3526);box-shadow:inset 0 2px 4px rgba(0,0,0,.6),0 1px 0 rgba(255,255,255,.6)}
+.lamp.on i{background:radial-gradient(circle at 35% 30%,#FFF6C8,#FFD23F 55%,#E0A500);box-shadow:0 0 18px 4px rgba(255,210,63,.75),inset 0 -2px 4px rgba(150,90,0,.4)}
+.lamp span{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.1em;color:#7C7258;text-align:center;line-height:1.2}
+.ton-act{display:flex;flex-direction:column;gap:8px;flex:1;min-width:0}
+.ton-act .row .key{min-height:38px;font-size:13px}
+.kbd-hint{font-size:11.5px;color:#7C7258;line-height:1.4}
+.kbd-hint kbd{font-family:'JetBrains Mono',monospace;font-size:10.5px;padding:1px 5px;border-radius:4px;background:#fff;border:1px solid var(--panel-e)}
+
+/* kabin camı: hasta */
+.win{position:relative;display:flex;align-items:flex-end;gap:12px;padding:12px 14px 0;border-radius:14px;background:linear-gradient(180deg,#9EB3CF,#7D93B4);border:6px solid #5B6474;box-shadow:inset 0 0 0 2px rgba(255,255,255,.35),0 14px 30px -18px rgba(0,0,0,.8);overflow:hidden;min-height:150px}
+.win::before{content:"";position:absolute;inset:0;background:linear-gradient(115deg,rgba(255,255,255,.28) 0 18%,transparent 18% 32%,rgba(255,255,255,.14) 32% 36%,transparent 36%);pointer-events:none}
+.win svg{width:150px;height:140px;flex:none}
+.win .say{position:relative;margin:0 0 18px;padding:9px 12px;border-radius:12px 12px 12px 3px;background:#fff;font-family:'Caveat',cursive;font-size:21px;line-height:1.1;color:var(--ink);max-width:220px;box-shadow:0 6px 14px -8px rgba(0,0,0,.6);opacity:0;transform:translateY(6px);transition:opacity .25s,transform .25s}
+.win .say.on{opacity:1;transform:none}
+.hand-up{transition:transform .25s var(--ease);transform-origin:96px 118px}
+.win.heard .hand-up{transform:rotate(-155deg)}
+
+/* kayıt şeridi */
+.tape{display:flex;gap:4px;overflow-x:auto;padding:8px 2px 2px;scrollbar-width:thin}
+.tape span{flex:none;min-width:58px;padding:4px 6px;border-radius:6px;background:#fff;border:1px solid var(--grid);font-family:'JetBrains Mono',monospace;font-size:11px;text-align:center;line-height:1.3}
+.tape span b{display:block;font-size:12.5px}
+.tape span.y{border-color:var(--ok);background:var(--ok-s)}.tape span.n{border-color:var(--grid-2);color:var(--muted)}
+.tape span.R b{color:var(--R)}.tape span.L b{color:var(--L)}
+.tape:empty::before{content:"Henüz ton vermedin. Hughson-Westlake: yanıt varsa 10 dB in, yoksa 5 dB çık.";font-size:12.5px;color:var(--muted)}
+
+/* odyogram */
+.ag-wrap{position:relative}
+.ag{display:block;width:100%;height:auto;background:var(--paper);border-radius:12px;cursor:crosshair;touch-action:manipulation}
+.ag .gl{stroke:var(--grid);stroke-width:1}.ag .gl.o{stroke:var(--grid-2)}
+.ag .ax{font-family:'JetBrains Mono',monospace;font-size:11px;fill:var(--muted)}
+.ag .band{fill:#F2F6EE}
+.ag .cur{fill:none;stroke:var(--yel);stroke-width:3}
+.ag .sR{stroke:var(--R);fill:none;stroke-width:2.2}.ag .sL{stroke:var(--L);fill:none;stroke-width:2.2}
+.ag .lnR{stroke:var(--R);stroke-width:1.6;fill:none}.ag .lnL{stroke:var(--L);stroke-width:1.6;fill:none}
+.ag .tru{opacity:.55}.ag .tru .sR,.ag .tru .sL{stroke-dasharray:3 2}
+.ag .bad{stroke:var(--bad);stroke-width:2;fill:none}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;font-size:12.5px;color:var(--ink2)}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.legend svg{width:16px;height:16px}
+.mk-tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+.mk-tools .btn{min-height:36px;font-size:13px;padding:0 12px}
+
+/* maskeleme kural kutusu */
+.rule{margin-top:10px;padding:10px 12px;border-radius:10px;background:var(--warn-s);border:1px dashed #E8C77A;font-size:13px;line-height:1.45}
+.rule b{color:#7A5200}
+
+/* yorum + karne */
+.yor{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.yor fieldset{margin:0;padding:10px 12px 12px;border:1.5px solid var(--grid);border-radius:12px}
+.yor legend{padding:0 6px;font-weight:800}
+.yor label{display:flex;flex-direction:column;gap:3px;margin-top:6px;font-size:12.5px;font-weight:700;color:var(--ink2)}
+.yor select{min-height:38px;padding:0 10px;border:1.5px solid var(--grid-2);border-radius:9px;background:#fff;font-weight:500;color:var(--ink)}
+.karne{position:relative;margin-top:14px;padding:16px 18px 14px 30px;border-radius:6px;background:#FFFDF7 repeating-linear-gradient(transparent 0 27px,#EEF1F7 27px 28px);box-shadow:0 1px 0 #E1E5EE,0 24px 50px -28px rgba(13,24,56,.7);animation:kin .45s var(--ease) both}
+.karne::before{content:"";position:absolute;left:16px;top:0;bottom:0;width:1.5px;background:#F2B8B8}
+@keyframes kin{from{opacity:0;transform:translateY(10px)}}
+.stamp{position:absolute;right:16px;top:12px;width:82px;height:82px;border-radius:50%;border:3px solid currentColor;display:flex;flex-direction:column;align-items:center;justify-content:center;transform:rotate(-12deg);font-family:'JetBrains Mono',monospace;animation:stamp .5s .2s cubic-bezier(.3,1.6,.5,1) both}
+.stamp b{font-size:24px;line-height:1}.stamp small{font-size:9.5px;letter-spacing:.1em}
+@keyframes stamp{from{transform:rotate(-12deg) scale(1.8);opacity:0}}
+.karne ul{margin:6px 0 0;padding-left:18px;font-size:13.5px;line-height:1.55}
+.karne h3{margin:0 0 4px;font-family:'Bricolage Grotesque',sans-serif;font-size:18px;padding-right:100px}
+
+/* =========================== KULAK (3B) =========================== */
+.ku{position:relative;height:calc(100vh - 150px);min-height:540px;border-radius:18px;overflow:hidden;background:radial-gradient(120% 90% at 60% 40%,#2B3656,#141A2B 70%);box-shadow:0 22px 50px -24px rgba(0,0,0,.8)}
+.ku canvas{display:block;width:100%;height:100%;outline:none}
+.ku-list{position:absolute;left:12px;top:12px;bottom:70px;width:250px;overflow:auto;padding:10px;border-radius:14px;background:rgba(255,253,248,.95);box-shadow:0 14px 30px -16px rgba(0,0,0,.7)}
+.ku-list h3{margin:10px 4px 4px;font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase}
+.ku-list h3:first-child{margin-top:2px}
+.ku-list button{display:flex;align-items:center;gap:8px;width:100%;min-height:34px;padding:4px 8px;border:0;border-radius:8px;background:none;text-align:left;font-size:13.5px}
+.ku-list button i{flex:none;width:10px;height:10px;border-radius:3px}
+.ku-list button:hover{background:#EEF1F7}
+.ku-list button[aria-pressed="true"]{background:var(--ink);color:#fff}
+.ku-card{position:absolute;right:12px;top:12px;width:300px;max-height:calc(100% - 94px);overflow:auto;padding:14px 16px;border-radius:14px;background:rgba(255,253,248,.97);box-shadow:0 14px 30px -16px rgba(0,0,0,.7)}
+.ku-card[hidden]{display:none}
+.ku-card h2{margin:2px 0 0;font-family:'Bricolage Grotesque',sans-serif;font-size:20px}
+.ku-card .la{margin:0 0 8px;font-style:italic;color:var(--muted)}
+.ku-card p{margin:6px 0;font-size:13.5px;line-height:1.5}
+.ku-card .clin{margin-top:8px;padding:8px 10px;border-radius:10px;background:var(--warn-s);font-size:13px}
+.ku-bar{position:absolute;left:12px;right:12px;bottom:12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px;border-radius:14px;background:rgba(13,24,56,.85);color:#fff}
+.ku-bar .seg{display:flex;padding:3px;border-radius:999px;background:rgba(255,255,255,.1)}
+.ku-bar .seg button{min-height:32px;padding:0 12px;border:0;border-radius:999px;background:none;color:#C6D0EA;font-weight:700;font-size:13px}
+.ku-bar .seg button[aria-pressed="true"]{background:#fff;color:var(--ink)}
+.ku-bar .btn{min-height:36px;font-size:13px;border-color:rgba(255,255,255,.4);background:transparent;color:#fff}
+.ku-bar .btn.pri{background:var(--yel);border-color:var(--yel);color:var(--ink)}
+.ku-bar label{display:flex;align-items:center;gap:6px;font-size:13px}
+.ku-load{position:absolute;inset:0;display:grid;place-items:center;color:#C6D0EA;font-family:'JetBrains Mono',monospace;font-size:13px;letter-spacing:.08em}
+.ku-tour{position:absolute;left:50%;bottom:76px;transform:translateX(-50%);width:min(560px,calc(100% - 24px));padding:12px 16px;border-radius:14px;background:var(--paper);box-shadow:0 18px 40px -18px rgba(0,0,0,.8)}
+.ku-tour[hidden]{display:none}
+.ku-tour .k{color:var(--R)}
+.ku-tour h3{margin:2px 0 4px;font-family:'Bricolage Grotesque',sans-serif;font-size:18px}
+.ku-tour p{margin:0 0 8px;font-size:13.5px;line-height:1.5}
+.ku-tour .row{justify-content:space-between}
+.ku-spot{position:absolute;left:50%;top:14px;transform:translateX(-50%);width:min(440px,calc(100% - 24px));padding:12px 14px;border-radius:14px;background:var(--paper);box-shadow:0 18px 40px -18px rgba(0,0,0,.8)}
+.ku-spot[hidden]{display:none}
+.ku-spot form{display:flex;gap:8px;margin-top:8px}
+.ku-spot input{flex:1;min-width:0;min-height:42px;padding:0 12px;border:1.5px solid var(--grid-2);border-radius:10px}
+.ku-msg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);padding:18px 22px;border-radius:14px;background:var(--paper);max-width:420px;text-align:center}
+
+/* =========================== VAKA MASASI =========================== */
+.vk{display:grid;grid-template-columns:270px minmax(0,1fr);gap:18px;align-items:start}
+.vk-list{display:flex;flex-direction:column;gap:8px}
+.vk-list button{display:block;width:100%;padding:10px 12px;border:0;border-radius:12px;background:var(--paper);text-align:left;box-shadow:0 10px 24px -18px rgba(0,0,0,.8);border-left:5px solid var(--grid-2)}
+.vk-list button b{display:block;font-size:14px;line-height:1.3}
+.vk-list button small{display:block;margin-top:2px;color:var(--muted);font-size:12px}
+.vk-list button[aria-pressed="true"]{border-left-color:var(--yel);box-shadow:4px 4px 0 var(--yel)}
+.vk-list button.done{border-left-color:var(--ok)}
+.folder{position:relative;padding:22px 22px 18px;border-radius:4px 16px 16px 16px;background:#F7EBCB;box-shadow:0 22px 50px -26px rgba(0,0,0,.85)}
+.folder::before{content:attr(data-tab);position:absolute;left:0;top:-26px;height:28px;padding:5px 14px 0;border-radius:10px 10px 0 0;background:#F7EBCB;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.12em;color:#7A6A3E}
+.folder h2{margin:0 0 6px;font-family:'Bricolage Grotesque',sans-serif;font-size:22px}
+.oyku{margin:0 0 14px;padding:12px 14px;border-radius:8px;background:var(--paper);font-size:14.5px;line-height:1.55;box-shadow:0 1px 0 rgba(0,0,0,.06)}
+.tests{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px;margin:6px 0 14px}
+.tests button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-height:58px;padding:8px 10px;border:1.5px dashed #C7B47E;border-radius:10px;background:rgba(255,255,255,.55);text-align:left}
+.tests button b{font-size:13.5px}.tests button small{font-size:11.5px;color:#7A6A3E;line-height:1.3}
+.tests button[aria-pressed="true"]{border-style:solid;border-color:var(--ink);background:#fff;box-shadow:3px 3px 0 var(--ink)}
+.tests button:disabled{cursor:default}
+.reps{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;margin-bottom:14px}
+.rep{position:relative;padding:12px 14px;border-radius:4px;background:#fff;box-shadow:0 10px 24px -16px rgba(0,0,0,.6);animation:kin .35s var(--ease) both}
+.rep::before{content:"";position:absolute;left:50%;top:-8px;width:56px;height:16px;margin-left:-28px;background:rgba(255,216,107,.7);transform:rotate(-2deg)}
+.rep h3{margin:0 0 6px;font-size:14px}
+.rep p{margin:0;font-size:13.5px;line-height:1.5}
+.rep table{width:100%;border-collapse:collapse;font-size:13px}
+.rep td,.rep th{padding:4px 6px;border-bottom:1px solid var(--grid);text-align:left}
+.tp{display:block;width:100%;height:auto}
+.dx{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.dx fieldset{margin:0;padding:10px 12px;border:1.5px solid #D9C690;border-radius:12px;background:rgba(255,255,255,.5)}
+.dx legend{padding:0 6px;font-weight:800}
+.dx label{display:flex;gap:8px;align-items:flex-start;padding:6px 4px;font-size:13.5px;line-height:1.4;cursor:pointer}
+.dx input{margin-top:3px;accent-color:var(--ink)}
+.vk-act{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:14px}
+
+/* ilk ses uyarısı */
+.modal{position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:16px;background:rgba(10,14,26,.6)}
+.modal[hidden]{display:none}
+.modal .card{max-width:440px}
+.modal p{font-size:14px;line-height:1.55}
+.toast{position:fixed;left:50%;bottom:22px;z-index:70;transform:translateX(-50%);padding:10px 16px;border-radius:999px;background:var(--ink);color:#fff;font-size:14px;box-shadow:0 12px 30px -12px rgba(0,0,0,.8);opacity:0;transition:opacity .25s;pointer-events:none}
+.toast.on{opacity:1}
+
+@media (max-width:1100px){
+  .kb{grid-template-columns:minmax(0,1fr)}
+  .vk{grid-template-columns:minmax(0,1fr)}
+  .vk-list{flex-direction:row;overflow-x:auto;padding-bottom:4px}
+  .vk-list button{flex:none;width:230px}
+}
+@media (max-width:760px){
+  .ol-top{flex-wrap:wrap;padding:8px 10px;gap:8px}
+  .ol-tabs{order:3;width:100%;margin:0;justify-content:space-between}
+  .ol-tabs button{flex:1;justify-content:center;padding:0 8px}
+  .ol-cal{display:none}
+  .ol-view{padding:10px}
+  .lcds{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .ctl{grid-template-columns:minmax(0,1fr)}
+  .ton-b{width:84px;height:84px}
+  .yor,.dx{grid-template-columns:minmax(0,1fr)}
+  .ku{height:calc(100vh - 170px)}
+  .ku-list{top:auto;bottom:118px;width:auto;right:12px;max-height:150px}
+  .ku-card{left:12px;right:12px;width:auto;top:12px;max-height:42%}
+}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<header class="ol-top">
+  <div class="ol-brand">
+    <svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="19" fill="#FFD86B"/><path d="M24.5 29.5c-1.6 2.6-6 2.4-6.8-.8-.5-2 .6-3.2 1.6-4.4 1.2-1.4 2.2-2.6 2.2-5a5.5 5.5 0 0 0-11 0" fill="none" stroke="#0D1838" stroke-width="2.6" stroke-linecap="round"/><path d="M15.5 19.5a2.5 2.5 0 0 1 5 0c0 1.6-1.6 1.8-1.6 3.4" fill="none" stroke="#0D1838" stroke-width="2.2" stroke-linecap="round"/><path d="M27 12.5c2 1.8 3.2 4.3 3.2 7.2M30.2 9.6c2.8 2.6 4.4 6.2 4.4 10.1" fill="none" stroke="#D64545" stroke-width="2" stroke-linecap="round"/></svg>
+    <div><b>Odyoloji Lab</b><small>işitme kabini</small></div>
+  </div>
+  <nav class="ol-tabs" role="tablist" aria-label="Odyoloji Lab bölümleri">
+    <button type="button" role="tab" id="t-kabin" aria-controls="kabin" aria-selected="true" data-tab="kabin"><svg viewBox="0 0 24 24"><path d="M4 20V9a8 8 0 0 1 16 0v11"/><rect x="2.5" y="12" width="4.5" height="7" rx="2"/><rect x="17" y="12" width="4.5" height="7" rx="2"/></svg>Kabin</button>
+    <button type="button" role="tab" id="t-kulak" aria-controls="kulak" aria-selected="false" data-tab="kulak"><svg viewBox="0 0 24 24"><path d="M15 18.5c-.9 2-3.9 2-4.5-.3-.4-1.6.6-2.5 1.4-3.5 1-1.1 1.7-2 1.7-3.9a4.4 4.4 0 0 0-8.8 0"/><path d="M8 11a2 2 0 0 1 4 0c0 1.3-1.3 1.5-1.3 2.7"/></svg>3B Kulak</button>
+    <button type="button" role="tab" id="t-vaka" aria-controls="vaka" aria-selected="false" data-tab="vaka"><svg viewBox="0 0 24 24"><path d="M3 7h6l2 2h10v10H3z"/><path d="M8 14h8M8 17h5"/></svg>Vaka masası</button>
+  </nav>
+  <div class="ol-right">
+    <span class="ol-cal" title="Tarayıcı sesi kalibre değildir; bu laboratuvar bir işitme testi değildir.">kalibre değil · eğitim amaçlı</span>
+    <div class="ol-snd" role="group" aria-label="Ses">
+      <button type="button" id="snd" aria-pressed="true" aria-label="Sesi kapat"><svg viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg></button>
+      <label class="vh" for="vol">Ses düzeyi</label><input type="range" id="vol" min="0" max="100" value="35">
+    </div>
+  </div>
+</header>
+
+<!-- =========================== KABİN =========================== -->
+<main>
+<section class="ol-view on" id="kabin" role="tabpanel" aria-labelledby="t-kabin">
+  <div class="kb">
+    <div class="kb-left">
+      <div class="card">
+        <span class="k">sanal hasta</span>
+        <h2>Kabine kimi alıyorsun?</h2>
+        <div class="pt-lv" role="group" aria-label="Zorluk"><button type="button" data-lv="1" aria-pressed="true">Başlangıç</button><button type="button" data-lv="2" aria-pressed="false">Orta · maskeleme</button><button type="button" data-lv="3" aria-pressed="false">İleri</button></div>
+        <div class="pt-list" id="pt-list"></div>
+      </div>
+      <div class="dev" aria-label="Sanal odyometre">
+        <div class="dev-h"><b>AX-ODY 01</b><small>klinik odyometre · sanal</small></div>
+        <div class="lcds">
+          <div class="lcd R" id="lc-ear"><span>KANAL</span><b>SAĞ</b></div>
+          <div class="lcd" id="lc-mode"><span>UYARAN</span><b>HAVA</b></div>
+          <div class="lcd" id="lc-f"><span>FREKANS</span><b>1000<small>Hz</small></b></div>
+          <div class="lcd" id="lc-db"><span>SEVİYE</span><b>40<small>dB HL</small></b></div>
+        </div>
+        <div class="ctl">
+          <div class="grp"><span class="k">kulak</span><div class="row"><button type="button" class="key R" id="k-R" aria-pressed="true">Sağ</button><button type="button" class="key L" id="k-L" aria-pressed="false">Sol</button></div></div>
+          <div class="grp"><span class="k">uyaran</span><div class="row"><button type="button" class="key" id="k-ac" aria-pressed="true">Hava</button><button type="button" class="key" id="k-bc" aria-pressed="false">Kemik</button></div></div>
+          <div class="grp"><span class="k">frekans</span><div class="row"><button type="button" class="key sm" id="f-dn" aria-label="Frekansı düşür"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><button type="button" class="key" id="f-1k">1 kHz</button><button type="button" class="key sm" id="f-up" aria-label="Frekansı yükselt"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button></div></div>
+          <div class="grp"><span class="k">seviye (dB HL)</span><div class="row"><button type="button" class="key sm" id="l-dn10" aria-label="10 dB azalt">−10</button><button type="button" class="key sm" id="l-dn" aria-label="5 dB azalt">−5</button><button type="button" class="key sm" id="l-up" aria-label="5 dB artır">+5</button><button type="button" class="key sm" id="l-up10" aria-label="10 dB artır">+10</button></div></div>
+          <div class="grp" style="grid-column:1/-1"><span class="k">maskeleme · karşı kulağa dar bant gürültü</span>
+            <div class="row"><button type="button" class="key" id="m-on" aria-pressed="false" style="flex:0 0 96px">Maske</button><div class="lcd off" id="lc-m" style="flex:1"><span>MASKE (dB EM)</span><b>KAPALI</b></div><button type="button" class="key sm" id="m-dn" aria-label="Maskeyi 5 dB azalt">−5</button><button type="button" class="key sm" id="m-up" aria-label="Maskeyi 5 dB artır">+5</button></div>
+          </div>
+        </div>
+        <div class="ton">
+          <button type="button" class="ton-b" id="ton" aria-describedby="ton-h">TON<small>boşluk</small></button>
+          <div class="lamp" id="lamp" aria-hidden="true"><i></i><span>HASTA<br>YANITI</span></div>
+          <div class="ton-act">
+            <div class="row"><button type="button" class="key" id="mark">İşaretle</button><button type="button" class="key" id="nr">Yanıt yok</button><button type="button" class="key sm" id="undo" aria-label="Son işareti geri al"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg></button></div>
+            <p class="kbd-hint" id="ton-h"><kbd>boşluk</kbd> ton · <kbd>↑</kbd><kbd>↓</kbd> 5 dB · <kbd>←</kbd><kbd>→</kbd> frekans · <kbd>S</kbd>/<kbd>L</kbd> kulak · <kbd>M</kbd> maske · <kbd>Enter</kbd> işaretle</p>
+          </div>
+        </div>
+      </div>
+      <div class="win" id="win" aria-hidden="true">
+        <svg viewBox="0 0 150 140"><path d="M20 140c4-30 26-44 55-44s51 14 55 44" fill="#3C4A6B"/><circle cx="75" cy="58" r="28" fill="#F2C7A1"/><path d="M47 52c0-20 13-30 28-30s28 10 28 30c-6-8-14-12-28-12s-22 4-28 12z" fill="#2A2F45"/><path d="M44 58a31 31 0 0 1 62 0" fill="none" stroke="#1A1F2E" stroke-width="5"/><rect x="38" y="50" width="11" height="20" rx="5" fill="#D64545"/><rect x="101" y="50" width="11" height="20" rx="5" fill="#2F6BFF"/><g class="hand-up"><path d="M96 118l18 6" stroke="#3C4A6B" stroke-width="12" stroke-linecap="round"/><circle cx="118" cy="125" r="7" fill="#F2C7A1"/></g><circle cx="66" cy="60" r="2.2" fill="#1A1F2E"/><circle cx="84" cy="60" r="2.2" fill="#1A1F2E"/><path d="M69 72c4 3 8 3 12 0" fill="none" stroke="#1A1F2E" stroke-width="2" stroke-linecap="round"/></svg>
+        <p class="say" id="say"></p>
+      </div>
+      <div class="card"><span class="k">kayıt şeridi · son 12 uyaran</span><div class="tape" id="tape"></div></div>
+    </div>
+
+    <div class="kb-right" style="display:flex;flex-direction:column;gap:16px">
+      <div class="card">
+        <div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;align-items:baseline"><div><span class="k">odyogram</span><h2 id="ag-t">Hasta seç</h2></div><span class="pill" id="ag-c">0 / 24 nokta</span></div>
+        <div class="ag-wrap"><svg class="ag" id="ag" viewBox="0 0 640 470" role="img" aria-label="Odyogram"></svg></div>
+        <div class="legend" id="legend"></div>
+        <div class="rule" id="rule"></div>
+        <div class="mk-tools"><button type="button" class="btn" id="show-t" aria-pressed="false">Gerçek eşikleri göster</button><button type="button" class="btn" id="clr">Odyogramı temizle</button></div>
+      </div>
+      <div class="card">
+        <span class="k">yorum</span><h2>Odyogramı yorumla</h2>
+        <p class="sub">Saf ses ortalaması (SSO) 500–1000–2000 Hz; derece Clark ölçeğine göre.</p>
+        <div class="yor" id="yor"></div>
+        <div class="vk-act"><button type="button" class="btn pri" id="eval">Değerlendir</button><span class="sub" id="eval-n" style="margin:0"></span></div>
+        <div id="karne"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =========================== 3B KULAK =========================== -->
+<section class="ol-view" id="kulak" role="tabpanel" aria-labelledby="t-kulak">
+  <div class="ku" id="ku">
+    <div class="ku-load" id="ku-load">3B kulak hazırlanıyor…</div>
+    <nav class="ku-list" id="ku-list" aria-label="Yapılar"></nav>
+    <aside class="ku-card" id="ku-card" hidden aria-live="polite"></aside>
+    <div class="ku-spot" id="ku-spot" hidden></div>
+    <div class="ku-tour" id="ku-tour" hidden></div>
+    <div class="ku-bar">
+      <div class="seg" role="group" aria-label="Taraf"><button type="button" data-side="r" aria-pressed="true">Sağ kulak</button><button type="button" data-side="l" aria-pressed="false">Sol kulak</button><button type="button" data-side="b" aria-pressed="false">Yol (iki taraf)</button></div>
+      <label><input type="checkbox" id="ku-bone" checked> temporal kemik</label>
+      <button type="button" class="btn pri" id="ku-tour-b">Sesin yolculuğu</button>
+      <button type="button" class="btn" id="ku-spot-b">Spot sınav</button>
+    </div>
+  </div>
+</section>
+
+<!-- =========================== VAKA MASASI =========================== -->
+<section class="ol-view" id="vaka" role="tabpanel" aria-labelledby="t-vaka">
+  <div class="vk">
+    <div class="vk-list" id="vk-list"></div>
+    <div id="vk-main"></div>
+  </div>
+</section>
+</main>
+<p class="ol-note">Odyoloji Lab eğitim amaçlıdır; tanı koymaz ve bir işitme testi değildir. Tarayıcı sesi kalibre değildir. Vakalar kurgusaldır. 3B model: Z-Anatomy · BodyParts3D (DBCLS) · CC BY-SA 4.0</p>
+
+<div class="modal" id="snd-modal" hidden role="dialog" aria-modal="true" aria-labelledby="snd-t">
+  <div class="card">
+    <span class="k">ses uyarısı</span><h2 id="snd-t">Bu bir işitme testi değil</h2>
+    <p>Kabin, saf sesleri gerçekten çalar; ama tarayıcı ve kulaklık <b>kalibre değildir</b>. Duyduğun ses, ekrandaki dB HL değerini temsil etmez ve kendi işitmen hakkında bilgi vermez.</p>
+    <p>Ses düşük başlar ve güvenli bir üst sınırla kısıtlıdır. Kulaklık takıyorsan cihazının sesini kıs. İstersen üstteki hoparlör simgesiyle sesi kapatıp sessiz çalışabilirsin.</p>
+    <div class="vk-act"><button type="button" class="btn pri" id="snd-ok">Anladım, devam</button><button type="button" class="btn" id="snd-off">Sessiz çalış</button></div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<p class="vh" id="live" aria-live="assertive"></p>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script src="odyo-model.js"></script>
+<script src="odyo-app.js"></script>
+<script type="module" src="odyo-kulak.js"></script>
+</body>
+</html>
