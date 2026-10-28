@@ -62,8 +62,16 @@ function isDailyQuotaError(body: string): boolean {
 async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2, timeoutMs = 25000): Promise<Response> {
   // GEMINI_MODE=parallel: Groq'a giden HER cagri (callGroqJson, gorsel
   // gecisler, review) burada Gemini'ye cevrilir — bkz. groqViaGemini.
+  /* YEDEK YOLU (28.10.2026). Paralel modda Groq'a giden her cagri Gemini'ye
+     cevriliyordu ve Gemini olunce geriye dusecek yer YOKTU: 19:03 ve 19:07
+     kosularinda dort modelin dordu de (iki kota, iki 503) dustu, "All windows
+     failed" sonrasi nobetci 141 saniyede belgeyi 'failed' isaretledi. only
+     modunda boyle bir sey olmuyordu cunku Groq devralıyordu.
+     Artik denenecek diri model kalmadiysa yakalama hic yapilmiyor ve cagri
+     GERCEK Groq'a gidiyor — kart ucuz yoldan da olsa cikiyor. */
   if (url === GROQ_CHAT_URL && geminiParallelActive()) {
-    return groqViaGemini(options, maxRetries, timeoutMs)
+    if (geminiDiriAdayVar()) return groqViaGemini(options, maxRetries, timeoutMs)
+    console.warn('Gemini paralel: diri aday model kalmadi — cagri GERCEK Groq yoluna birakiliyor')
   }
   let lastRateLimitedResponse: Response | null = null
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -6214,6 +6222,8 @@ const GEMINI_PARALLEL_MIN_OUTPUT = 8192
 const geminiParallelUsage = { calls: 0, prompt: 0, output: 0, thoughts: 0, models: {} as Record<string, number> }
 function resetGeminiParallelUsage() {
   geminiParallelUsage.calls = 0
+  geminiSerit.tamIstek = 0
+  geminiSorunlu.clear()
   geminiParallelUsage.prompt = 0
   geminiParallelUsage.output = 0
   geminiParallelUsage.thoughts = 0
@@ -6282,23 +6292,97 @@ function geminiHataCevabi(status: number, mesaj: string, ham: string): Response 
  * dagitim yapilmaz — elle verilen model olcum yapanin karari. */
 /* Sayac bir const nesnede tutuluyor: testlerin kaynak cikaricisi (bkz.
    tests/_ts-extract.js) ciplak bir `let` bildirimini dilimleyemiyor. */
-const geminiSerit = { sayac: 0 }
+const geminiSerit = { sayac: 0, tamIstek: 0 }
+
+/* KOTASI DOLAN MODEL BIR DAHA DENENMEZ (28.10.2026 — olculmus israf).
+ *
+ * AI Studio panelinden okunan gercek limitler:
+ *   Flash-Lite : RPM 15, RPD 500
+ *   tam Flash  : RPM  5, RPD  20      <-- 25 kat dar
+ *
+ * 19:03 kosusunda 3.5 ve 3.6 gunluk kotayi doldurmustu; dis yeniden-deneme
+ * dongusu (Window N attempt 1/2/3) her denemede ayni olu modellere yeniden
+ * istek atti ve her biri RPD'den bir tane daha goturdu. Panelde iki model de
+ * 21/20'ye cikti. Olu model artik 30 dk boyunca aday listesinden dusuyor. */
+const GEMINI_KOTA_OLU_MS = 30 * 60_000
+const geminiKotaOlu = new Map<string, number>()
+
+/* AYNI KOSUDA IKI KEZ 503/zaman asimi veren model de atlanir. Ayni kosuda
+   3.7 ve 3.8 once 503 verdi, sonra 40.000ms zaman asimina girdi; 139
+   saniyelik butcenin cogu orada yandi ve belge 'failed' oldu. */
+const GEMINI_SORUNLU_ESIK = 2
+const geminiSorunlu = new Map<string, number>()
+
+function geminiModelDiri(m: string): boolean {
+  const t = geminiKotaOlu.get(m)
+  if (t !== undefined) {
+    if (Date.now() - t <= GEMINI_KOTA_OLU_MS) return false
+    geminiKotaOlu.delete(m)
+  }
+  return (geminiSorunlu.get(m) || 0) < GEMINI_SORUNLU_ESIK
+}
+
+/** Paralel modda hala denenebilecek bir Gemini modeli var mi. */
+function geminiDiriAdayVar(): boolean {
+  const hepsi = [...GEMINI_LITE_CANDIDATES, ...GEMINI_MODEL_CANDIDATES, GEMINI_FAST_MODEL_DEFAULT,
+    String(Deno.env.get('GEMINI_MODEL') || '').trim(),
+    String(Deno.env.get('GEMINI_FAST_MODEL') || '').trim()]
+  return hepsi.some(m => m && geminiModelDiri(m))
+}
+
+/* TAM MODEL BUTCESI: pencereler kalite icin tam modelden baslar ama RPD 20
+   ile bir kosu havuzu bosaltmamali. Butce dolunca serit basi Flash-Lite'a
+   (RPD 500) donuyor — kart yine cikiyor, yalnizca ucuz seritten. */
+const GEMINI_TAM_MODEL_BUTCESI = 6
+
+/* PENCERELER LITE'TA KALIYOR (28.10.2026 — panel okumasi karari verdi).
+ *
+ * Bir ara pencere seridi tam modellere tasinmisti: ACCOUNTING ch6 kosusunda
+ * "Window 1 sayisal kapsama: 0/11" gorulmustu ve kalite gerekcesi mantikli
+ * duruyordu. Panel okununca takas sacma cikti:
+ *   Flash-Lite : RPM 15, RPD 500
+ *   tam Flash  : RPM  5, RPD  20
+ * Pencereler kosu basina EN COK cagri gonderen yer; onlari 25 kat dar bir
+ * havuza baglamak ayni gun kotayi bitirdi (3.6 ve 3.8 panelde 21/20).
+ *
+ * Ustelik elimizdeki TEK tam basarili paralel kosu bastan sona Lite'ti:
+ *   modeller={"gemini-3.5-flash-lite":5}, 62 sn, cache TAM, grounded=true,
+ *   son kart sayisal kapsama %76.
+ * Tek pencerenin sayi kaybi, 25 kat kotayi harcamak icin yeterli kanit
+ * degil. Kalite sorunu olcumle ayrica kovalanacak.
+ *
+ * Lite ADAYLARI birden fazla: biri 503 verirse otekine gecilsin diye.
+ * Tam modeller listeden ATILMADI, derin yedek olarak sonda duruyor. */
+const GEMINI_LITE_CANDIDATES = [
+  'gemini-3.5-flash-lite',
+  'gemini-3.1-flash-lite'
+]
 
 function geminiModelsForLane(groqModel: string): string[] {
   const heavy = String(Deno.env.get('GEMINI_MODEL') || '').trim() || GEMINI_MODEL_CANDIDATES[0]
   const fastSecret = String(Deno.env.get('GEMINI_FAST_MODEL') || '').trim()
+  const lite = fastSecret || GEMINI_FAST_MODEL_DEFAULT
   let first: string
   if (groqModel === MODEL_HEAVY) {
     first = heavy
   } else if (fastSecret) {
     first = fastSecret
   } else {
-    first = GEMINI_MODEL_CANDIDATES[geminiSerit.sayac++ % GEMINI_MODEL_CANDIDATES.length]
+    // Lite adaylari arasinda sirayla: kota degil, 503 dayanikliligi icin.
+    first = GEMINI_LITE_CANDIDATES[geminiSerit.sayac++ % GEMINI_LITE_CANDIDATES.length]
   }
+  /* Sira: once Lite adaylari (RPD 500), sonra agir serit modeli, en sonda
+     tam Flash adaylari (RPD 20) — derin yedek. */
+  const sira = groqModel === MODEL_HEAVY
+    ? [first, heavy, ...GEMINI_MODEL_CANDIDATES, lite, ...GEMINI_LITE_CANDIDATES]
+    : [first, lite, ...GEMINI_LITE_CANDIDATES, heavy, ...GEMINI_MODEL_CANDIDATES]
   const out: string[] = []
-  for (const m of [first, heavy, ...GEMINI_MODEL_CANDIDATES, fastSecret || GEMINI_FAST_MODEL_DEFAULT]) {
-    if (m && out.indexOf(m) === -1) out.push(m)
+  for (const m of sira) {
+    if (m && out.indexOf(m) === -1 && geminiModelDiri(m)) out.push(m)
   }
+  /* Hepsi olu: bos liste dondurmek cagiranin "hicbir model cevap vermedi"
+     demesine yol acardi. Bos donuyoruz ve fetchWithRetry bu durumda
+     yakalamayi hic yapmayip cagriyi GERCEK Groq'a birakiyor. */
   return out
 }
 
@@ -6363,6 +6447,7 @@ async function groqViaGemini(options: RequestInit, maxRetries: number, timeoutMs
   let lastBody = ''
   for (const model of geminiModelsForLane(String(req.model || ''))) {
     for (let attempt = 0; attempt <= Math.max(1, maxRetries); attempt++) {
+      if (GEMINI_MODEL_CANDIDATES.indexOf(model) !== -1) geminiSerit.tamIstek++
       const controller = new AbortController()
       const timer = setTimeout(() => controller.abort(), timeoutMs)
       let res: Response
@@ -6377,6 +6462,7 @@ async function groqViaGemini(options: RequestInit, maxRetries: number, timeoutMs
         clearTimeout(timer)
         lastStatus = 0
         lastBody = (err as any)?.name === 'AbortError' ? `zaman asimi (${timeoutMs}ms)` : String((err as any)?.message || err)
+        geminiSorunlu.set(model, (geminiSorunlu.get(model) || 0) + 1)
         console.warn(`Gemini[${model}] paralel: ${lastBody}`)
         continue
       }
@@ -6430,9 +6516,14 @@ async function groqViaGemini(options: RequestInit, maxRetries: number, timeoutMs
       }
       if (res.status === 429 || res.status >= 500) {
         if (geminiQuotaExhausted(res.status, lastBody)) {
-          console.error(`Gemini[${model}] paralel: GUNLUK kota dolu — ucretli katman acik mi?`)
+          geminiKotaOlu.set(model, Date.now())
+          console.error(
+            `Gemini[${model}] paralel: GUNLUK kota dolu — bu model ` +
+            `${Math.round(GEMINI_KOTA_OLU_MS / 60000)} dk aday listesinden dusuruldu`
+          )
           return geminiHataCevabi(429, `Gemini gunluk kota dolu (${model})`, lastBody)
         }
+        geminiSorunlu.set(model, (geminiSorunlu.get(model) || 0) + 1)
         console.warn(`Gemini[${model}] paralel: gecici ${res.status} (deneme ${attempt + 1}) — ${lastBody.slice(0, 160)}`)
         await new Promise(r => setTimeout(r, 1200 * (attempt + 1)))
         continue

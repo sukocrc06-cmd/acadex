@@ -26,7 +26,9 @@ const G = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'GROQ_CHAT_URL', 'GEMINI_GENERATE_BASE', 'GEMINI_FAST_MODEL_DEFAULT', 'GEMINI_PARALLEL_MIN_OUTPUT',
   'geminiParallelUsage', 'resetGeminiParallelUsage',
   'geminiSerit', 'geminiModelsForLane', 'openAiContentToGeminiParts', 'groqViaGemini',
-  'geminiHataCevabi',
+  'geminiHataCevabi', 'geminiKotaOlu', 'geminiSorunlu', 'geminiModelDiri', 'geminiDiriAdayVar',
+  'GEMINI_TAM_MODEL_BUTCESI', 'GEMINI_SORUNLU_ESIK', 'GEMINI_KOTA_OLU_MS',
+  'GEMINI_LITE_CANDIDATES',
   'GEMINI_PARALLEL_CONCURRENCY'
 ]);
 
@@ -164,11 +166,11 @@ test('groqViaGemini: istek Gemini bicimine cevrilir, cevap Groq biciminde doner'
     assert.equal(data.usage.prompt_tokens, 1000);
 
     const call = calls[0];
-    // Pencere seridi artik Flash-Lite'tan degil tam modellerden basliyor
-    // (bkz. geminiModelsForLane ustundeki 28.10 olcumu).
+    // Pencere seridi Lite adaylarindan baslar (RPD 500 / RPD 20 takasi,
+    // bkz. GEMINI_LITE_CANDIDATES ustundeki panel okumasi).
     assert.ok(
-      G.GEMINI_MODEL_CANDIDATES.some((m) => call.url.startsWith(G.GEMINI_GENERATE_BASE + '/' + m + ':generateContent')),
-      `tam model bekleniyordu, cagrilan: ${call.url}`
+      G.GEMINI_LITE_CANDIDATES.some((m) => call.url.startsWith(G.GEMINI_GENERATE_BASE + '/' + m + ':generateContent')),
+      `Lite modeli bekleniyordu, cagrilan: ${call.url}`
     );
     assert.equal(call.body.systemInstruction.parts[0].text, 'SISTEM');
     assert.deepEqual(call.body.contents, [{ role: 'user', parts: [{ text: 'METIN' }] }]);
@@ -252,25 +254,29 @@ test('GEMINI_PARALLEL_CONCURRENCY ucretsiz katmanin RPM 5 limitinin altinda', ()
 
 /* Pencereler flash-lite'a gidince Window 1 sayisal kapsamasi 0/11 cikti.
    Serit basi artik tam model; Flash-Lite yalnizca son care olarak listede. */
-test('geminiModelsForLane: pencere seridi tam modelle baslar, flash-lite sonda', () => {
-  denoEnv.delete('GEMINI_FAST_MODEL');
+/* RPD 500 / RPD 20 takasi: pencereler kosu basina en cok cagri gonderen yer,
+   onlar Lite'ta kalir. Tam modeller listeden silinmez, SONDA derin yedek. */
+test('geminiModelsForLane: pencere seridi Lite ile baslar, tam modeller sonda', () => {
+  G.geminiKotaOlu.clear(); G.geminiSorunlu.clear(); G.resetGeminiParallelUsage();
+  denoEnv.delete('GEMINI_MODEL'); denoEnv.delete('GEMINI_FAST_MODEL');
   const liste = G.geminiModelsForLane(G.MODEL_EXTRACT);
-  assert.ok(
-    G.GEMINI_MODEL_CANDIDATES.includes(liste[0]),
-    `tam model bekleniyordu, gelen: ${liste[0]}`
-  );
-  assert.notEqual(liste[0], G.GEMINI_FAST_MODEL_DEFAULT);
-  assert.equal(liste[liste.length - 1], G.GEMINI_FAST_MODEL_DEFAULT, 'flash-lite son care olarak kalmali');
+  assert.ok(G.GEMINI_LITE_CANDIDATES.includes(liste[0]), `Lite bekleniyordu, gelen: ${liste[0]}`);
+  const ilkTam = liste.findIndex((m) => G.GEMINI_MODEL_CANDIDATES.includes(m));
+  const sonLite = liste.map((m, i) => (G.GEMINI_LITE_CANDIDATES.includes(m) ? i : -1)).filter((i) => i >= 0).pop();
+  assert.ok(ilkTam > sonLite, 'tam modeller butun Lite adaylarindan SONRA gelmeli');
 });
 
 /* RPD model basina 20; pencereleri tek modele yigmak hem kaliteyi hem
    kotayi ayni yere bagliyordu. Ard arda cagrilar sirayla dagilmali. */
-test('geminiModelsForLane: ard arda pencere cagrilari modellere dagitilir', () => {
-  denoEnv.delete('GEMINI_FAST_MODEL');
-  const n = G.GEMINI_MODEL_CANDIDATES.length;
+/* Dagitim kota icin degil 503 dayanikliligi icin: bir Lite modeli yogunsa
+   digeri denensin. */
+test('geminiModelsForLane: ard arda pencere cagrilari Lite adaylarina dagitilir', () => {
+  G.geminiKotaOlu.clear(); G.geminiSorunlu.clear();
+  denoEnv.delete('GEMINI_MODEL'); denoEnv.delete('GEMINI_FAST_MODEL');
+  const n = G.GEMINI_LITE_CANDIDATES.length;
   const ilkler = [];
   for (let i = 0; i < n; i++) ilkler.push(G.geminiModelsForLane(G.MODEL_EXTRACT)[0]);
-  assert.equal(new Set(ilkler).size, n, `${n} ayri model bekleniyordu, gelen: ${ilkler.join(', ')}`);
+  assert.equal(new Set(ilkler).size, n, `${n} ayri Lite bekleniyordu, gelen: ${ilkler.join(', ')}`);
 });
 
 /* GEMINI_FAST_MODEL acikca verilmisse dagitim yapilmaz. */
@@ -305,6 +311,59 @@ test('groqViaGemini: terminal hata cevabi da gecerli JSON doner', async () => {
     const data = await res.json();
     assert.ok(data.error.message.includes('400'));
   } finally { restoreFetch(); }
+});
+
+/* ---------------------------------------------------------------------------
+   19:03 kosusunun israfi: kotasi dolan modele yeniden istek atmak.
+   Panelden okunan gercek limitler — Flash-Lite RPD 500, tam Flash RPD 20.
+   --------------------------------------------------------------------------- */
+
+test('kotasi dolan model aday listesinden dusurulur', () => {
+  G.geminiKotaOlu.clear(); G.geminiSorunlu.clear(); G.resetGeminiParallelUsage();
+  denoEnv.delete('GEMINI_MODEL'); denoEnv.delete('GEMINI_FAST_MODEL');
+  const olu = G.GEMINI_LITE_CANDIDATES[0];
+  G.geminiKotaOlu.set(olu, Date.now());
+  try {
+    assert.equal(G.geminiModelDiri(olu), false);
+    for (let i = 0; i < 6; i++) {
+      assert.ok(!G.geminiModelsForLane(G.MODEL_EXTRACT).includes(olu), 'olu model listede olmamali');
+    }
+  } finally { G.geminiKotaOlu.clear(); }
+});
+
+test('ust uste 503/zaman asimi veren model esikten sonra atlanir', () => {
+  G.geminiKotaOlu.clear(); G.geminiSorunlu.clear();
+  const m = G.GEMINI_LITE_CANDIDATES[1];
+  G.geminiSorunlu.set(m, G.GEMINI_SORUNLU_ESIK);
+  try {
+    assert.equal(G.geminiModelDiri(m), false);
+    assert.ok(!G.geminiModelsForLane(G.MODEL_EXTRACT).includes(m));
+  } finally { G.geminiSorunlu.clear(); }
+});
+
+/* Tam modellerin RPD'si 20; bir kosu havuzu bosaltmamali. Butce dolunca
+   serit basi RPD 500'luk Flash-Lite'a doner. */
+/* Tam model istekleri sayiliyor ve her kosuda sifirlaniyor: RPD 20'lik
+   havuza kac kez dokunuldugunu gormeden ayar yapilamaz. */
+test('tam model istek sayaci her kosuda sifirlanir', () => {
+  G.geminiSerit.tamIstek = G.GEMINI_TAM_MODEL_BUTCESI;
+  G.resetGeminiParallelUsage();
+  assert.equal(G.geminiSerit.tamIstek, 0, 'butce her kosuda sifirlanmali');
+});
+
+/* Butun modeller olunce paralel mod belgeyi batiriyordu (19:03/19:07:
+   "All windows failed" -> nobetci 141 sn -> failed). Artik diri aday
+   kalmayinca yakalama yapilmiyor, cagri gercek Groq'a gidiyor. */
+test('diri aday kalmayinca yakalama devre disi kalir (Groq yedegi)', () => {
+  G.geminiKotaOlu.clear(); G.geminiSorunlu.clear();
+  denoEnv.delete('GEMINI_MODEL'); denoEnv.delete('GEMINI_FAST_MODEL');
+  assert.equal(G.geminiDiriAdayVar(), true);
+  const simdi = Date.now();
+  for (const m of [...G.GEMINI_LITE_CANDIDATES, ...G.GEMINI_MODEL_CANDIDATES]) G.geminiKotaOlu.set(m, simdi);
+  G.geminiKotaOlu.set(G.GEMINI_FAST_MODEL_DEFAULT, simdi);
+  try {
+    assert.equal(G.geminiDiriAdayVar(), false, 'hepsi oluyken yedege gecilmeli');
+  } finally { G.geminiKotaOlu.clear(); }
 });
 
 summary();
