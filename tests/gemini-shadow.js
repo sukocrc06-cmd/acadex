@@ -32,7 +32,7 @@ const NAMES = [
   'GEMINI_MAX_CALL_MS', 'GEMINI_MAX_OUTPUT_TOKENS', 'GEMINI_GROQ_RESERVE_MS',
   'geminiMode', 'GEMINI_ONLY_BUDGET_MS', 'GEMINI_ONLY_MAX_CALL_MS',
   'GEMINI_ONLY_FALLBACK_MIN_MS',
-  'GEMINI_MAX_REQUESTS_PER_RUN', 'GEMINI_ARDISIK_GECICI_MAX', 'geminiRpmWaitMs', 'geminiRetryWaitMs', 'OPSIYONEL_ADIM_MAX_BEKLEME_MS',
+  'GEMINI_MAX_REQUESTS_PER_RUN', 'GEMINI_ARDISIK_GECICI_MAX', 'geminiRpmWaitMs', 'geminiRetryWaitMs', 'OPSIYONEL_ADIM_MAX_BEKLEME_MS', 'GEMINI_SEKIL_NOTU_TAVANI', 'mermaidEtiketleri',
   'GEMINI_YARIS_GENISLIGI_VARSAYILAN', 'geminiYarisGenisligi', 'GEMINI_YARIS_YOKLAMA_MS', 'GEMINI_YEDEK_GECIKME_MS_VARSAYILAN', 'geminiYedekGecikmeMs', 'GEMINI_YEDEK_MIN_KALAN_MS', 'GEMINI_AKIS_SONRASI_PAYI_MS',
   'PACER_COMPLETION_FACTOR', 'DEFAULT_TPM_LIMIT', 'PACER_SAFETY',
   'GEMINI_RPM_RETRY_MIN_REMAINING_MS',
@@ -940,11 +940,78 @@ test('geminiFigureNotes: bosluklar tek bosluga iner, 300 karakterde kesilir', ()
   assert.equal(uzun[0].length, 300);
 });
 
-test('geminiFigureNotes: 60 kayitta durur (review prompt sismesin)', () => {
+test('geminiFigureNotes: tavanda durur (60 -> 200, 28.10.2026)', () => {
+  /* 60'in gerekcesi "review prompt sismesin" idi ama review zaten
+     visionNotes.slice(0, 20) aliyor — tavan onu hic korumuyordu. Tavanin
+     gercek musterisi temellendirme kapisi: notlarin TAMAMINI kaynak metne
+     ekliyor. Tablo hucreleri eklenince 60 hemen doluyordu. */
   const notes = G.geminiFigureNotes({
-    visual_findings: Array.from({ length: 200 }, (_, i) => `bulgu numarasi ${i}`)
+    visual_findings: Array.from({ length: 400 }, (_, i) => `bulgu numarasi ${i}`)
   });
-  assert.equal(notes.length, 60);
+  assert.equal(notes.length, G.GEMINI_SEKIL_NOTU_TAVANI);
+  assert.ok(G.GEMINI_SEKIL_NOTU_TAVANI >= 100, 'tavan tablo hucrelerine yetmiyor');
+});
+
+test('geminiFigureNotes: tablo HUCRELERI de toplanir', () => {
+  /* Olculen kosu (28.10, Kanin Ozellikleri): uc tablonun 25+ satiri
+     figureText'e hic ulasmiyordu, cunku yalnizca baslik+sutun aliniyordu.
+     Yalnizca resim olarak var olan icerik tam da hucrelerde. */
+  const notes = G.geminiFigureNotes({
+    tables: [{
+      title: 'Plazma inorganik bilesenleri',
+      headers: ['Madde', 'Miktar'],
+      rows: [['Sodyum', '145 mM'], ['Klor', '103 mM']]
+    }]
+  });
+  assert.ok(notes.some(function (n) { return /Sodyum \| 145 mM/.test(n); }),
+    'tablo hucresi toplanmiyor: ' + JSON.stringify(notes));
+  assert.ok(notes.some(function (n) { return /Klor \| 103 mM/.test(n); }));
+  // Baslik+sutun satiri ONCE gelmeli: review ilk 20'yi aliyor.
+  assert.ok(/Plazma inorganik bilesenleri \(Madde \| Miktar\)/.test(notes[0]),
+    'ozet satir sona dusmus — review hacimli malzemeyi gorur');
+});
+
+test('geminiFigureNotes: diyagram ETIKETLERI ve aciklamasi toplanir', () => {
+  const notes = G.geminiFigureNotes({
+    diagrams: [{
+      title: 'Eritropoez basamaklari',
+      description: 'Kok hucreden olgun eritrosite gecis evreleri',
+      mermaid: 'graph TD; A[Proeritroblast] --> B[Basofilik Eritroblast]; B --> C{Retikulosit}'
+    }]
+  });
+  assert.equal(notes[0], 'Eritropoez basamaklari', 'baslik ilk sirada kalmali');
+  assert.ok(notes.some(function (n) { return n === 'Proeritroblast'; }),
+    'mermaid dugum etiketi alinmiyor: ' + JSON.stringify(notes));
+  assert.ok(notes.some(function (n) { return n === 'Basofilik Eritroblast'; }));
+  assert.ok(notes.some(function (n) { return n === 'Retikulosit'; }), 'suslu parantezli dugum atlandi');
+  assert.ok(notes.some(function (n) { return /olgun eritrosite/.test(n); }), 'aciklama alinmiyor');
+});
+
+test('geminiFigureNotes: formul DEGISKENLERI toplanir', () => {
+  const notes = G.geminiFigureNotes({
+    formulas: [{
+      name: 'Bagil viskozite',
+      latex: 'n_2 = n_1 (t_2/t_1)',
+      variables: [{ symbol: 'n_1', meaning: 'Saf suyun viskozitesi' }]
+    }]
+  });
+  assert.ok(/Bagil viskozite: /.test(notes[0]), 'formul adi+latex ilk sirada kalmali');
+  assert.ok(notes.some(function (n) { return /n_1: Saf suyun viskozitesi/.test(n); }),
+    'degisken anlami alinmiyor: ' + JSON.stringify(notes));
+});
+
+test('geminiFigureNotes: govde malzemesi SONA ekleniyor', () => {
+  /* Review prompt'u ilk 20 notu aliyor. Hacimli hucre/etiket malzemesi
+     basa gecerse review'un gordugu ozet bulgular disari itilir. */
+  const notes = G.geminiFigureNotes({
+    visual_findings: ['Tabloda sodyum 145 mM olarak okundu'],
+    tables: [{ title: 'T', headers: ['a'], rows: [['hucre degeri']] }],
+    diagrams: [{ title: 'D', mermaid: 'graph TD; X[dugum etiketi]' }]
+  });
+  assert.ok(/sodyum 145/.test(notes[0]), 'visual_findings basta degil');
+  const hucreI = notes.findIndex(function (n) { return /hucre degeri/.test(n); });
+  const ozetI = notes.findIndex(function (n) { return /^T \(a\)$/.test(n); });
+  assert.ok(ozetI > -1 && hucreI > ozetI, 'hucre satiri ozet satirindan once gelmis');
 });
 
 test('geminiFigureNotes: cop girdi bos dizi dondurur, patlamaz', () => {

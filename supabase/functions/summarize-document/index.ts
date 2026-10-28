@@ -4566,6 +4566,8 @@ const SAYISAL_KAPSAMA_TOLERANS = 0.025
 // sonucundan ikisi tam olarak bu bicimde.
 const SAYI_BELIRTECI = /\.?\d[\d.,]*/g
 const SAYISAL_KAPSAMA_ORNEK = 8
+// Kayip sayinin iki yanindan basilan baglam uzunlugu — bkz. sayisalKayipBaglami.
+const SAYISAL_BAGLAM_KRK = 40
 
 /** Bir sayi belirtecinin okumalari; ILK eleman birincil okuma.
  *
@@ -4672,6 +4674,56 @@ function numericCoverage(
     else missing.push(v)
   }
   return { total: hedef.length, kept, missing }
+}
+
+/* KAYIP SAYILARIN BAGLAMI (28.10.2026).
+ *
+ * Olcum sekiz ardisik kosuda ayni orani ve ayni sekiz sayiyi bildirdi:
+ *   Son kart sayisal kapsama: 7/15 (%47) — kayip: 3787, 976, 765, 0.3,
+ *   0.798, 805, 0.123, 0.24
+ * Groq yolunda da, Gemini devre kesicisi acikken de, iki pencerede de uc
+ * pencerede de AYNI. Yani kayip butceyle, pencere sayisiyla ya da motorla
+ * ilgili degil — belgenin o dilimindeki bu sekiz sayiyi hicbir yol almiyor.
+ *
+ * Ama satir sayiyi soyluyor, YERINI soylemiyor. Bu sekiz deger ders
+ * icerigi ise kusur modelin cikariminda; kaynakca sayfa araligi, DOI ya da
+ * istatistik tablosu artigi ise kusur KAPIDA ve kart aslinda saglam.
+ * Ikisi tamamen farkli isler ve logdan ayirt edilemiyor. Tahmin yurutmek
+ * yerine bir kosu olcsun diye baglam basiliyor (bkz. CLAUDE.md bolum 9).
+ *
+ * Ayni belirteci (SAYI_BELIRTECI) ve ayni okumayi (sayiOkumalari)
+ * kullaniyor, yani basilan baglam sayinin GERCEKTEN cikarildigi yer —
+ * ikinci bir ayristirici tahmini degil.
+ *
+ * "KAYNAKTA BULUNAMADI" kendi basina bulgu: kayip diye bildirilen bir deger
+ * ayni metinde yeniden bulunamiyorsa sorun modelde degil olcumun
+ * kendisinde. */
+function sayisalKayipBaglami(sourceText: string, missing: number[], enFazla = 5): string {
+  const metin = String(sourceText || '')
+  const aranan = missing.slice(0, enFazla)
+  if (aranan.length === 0 || !metin) return ''
+  const istenen = new Set(aranan)
+  const bulunan = new Map<number, string>()
+  /* Kendi lastIndex'i: SAYI_BELIRTECI modul duzeyinde /g ve paylasilan bir
+     regex nesnesinin lastIndex'ini tasimak baska cagiranlari bozar. */
+  const re = new RegExp(SAYI_BELIRTECI.source, 'g')
+  let m: RegExpExecArray | null
+  while ((m = re.exec(metin)) !== null) {
+    for (const okuma of sayiOkumalari(m[0])) {
+      const v = Math.abs(okuma)
+      if (!istenen.has(v) || bulunan.has(v)) continue
+      const bas = Math.max(0, m.index - SAYISAL_BAGLAM_KRK)
+      const son = Math.min(metin.length, m.index + m[0].length + SAYISAL_BAGLAM_KRK)
+      bulunan.set(v, metin.slice(bas, son).replace(/\s+/g, ' ').trim())
+    }
+    if (bulunan.size === istenen.size) break
+    // Sifir uzunluklu eslesme olamaz (desen en az bir hane istiyor), yine de
+    // sonsuz dongu olmasin.
+    if (m[0].length === 0) re.lastIndex++
+  }
+  return aranan
+    .map((v) => `${v} <- ${bulunan.has(v) ? `"${bulunan.get(v)}"` : 'KAYNAKTA BULUNAMADI'}`)
+    .join(' | ')
 }
 
 function formatCoverage(cov: { total: number; kept: number; missing: number[] }): string {
@@ -4969,6 +5021,12 @@ type GroundingStats = {
   pointsKept: number; pointsDropped: number; droppedPoints: string[]
   score: number | null
   aborted?: boolean
+  /* Supap hangi populasyon icin acildi — bkz. terimSupabi/maddeSupabi. */
+  abortedTerms?: boolean
+  abortedPoints?: boolean
+  /* Kapi OLCUM modunda kostu: sayilar gercek, hicbir sey dusurulmedi.
+     Bkz. applyGroundingGate'in olcumModu parametresi. */
+  olcumModu?: boolean
 }
 
 /**
@@ -5546,7 +5604,12 @@ function applyGroundingGate(
   keyPoints: any[],
   sourceText: string,
   visionGrounded: Set<string> = new Set(),
-  figureText: string = ''
+  figureText: string = '',
+  /* OLCUM MODU (28.10.2026) — kapi KARSILASTIRMASINA guvenemedigi kosullarda
+     yalnizca olcer, kesmez. Varsayilan false, yani butun mevcut cagiranlar
+     eskisi gibi caliyor; karari cagiran veriyor cunku motoru ve belgeyi
+     yalnizca o biliyor (bkz. cagri yerindeki uzun not). */
+  olcumModu = false
 ): { key_terms: any[]; key_points: any[]; stats: GroundingStats } {
   const terms = Array.isArray(keyTerms) ? keyTerms : []
   const points = Array.isArray(keyPoints) ? keyPoints : []
@@ -5603,8 +5666,26 @@ function applyGroundingGate(
     // Multi-word term: accept when every word of it occurs somewhere. Some
     // documents write "esneklik katsayısı" across a line break, and the
     // model legitimately reassembles it.
+    /* PARANTEZLI KISALTMA TERIMI DISKALIFIYE EDIYORDU (28.10.2026).
+     *
+     * Eski kosul `words.length > 1` isterdi. 4 harften kisa belirtecler
+     * yukarida suzuldugu icin "Hematokrit (Htc)" -> norm "hematokrit htc"
+     * -> words ["hematokrit"] -> uzunluk 1 -> yedek kontrol HIC calismiyor
+     * ve terim, tek icerik kelimesi kaynakta gectigi halde dusuyordu.
+     * Olculen kosuda (28.10, Kanin Ozellikleri) dusen alti terimden biri
+     * tam bu yuzdendi. Turkce akademik metinde parantezli kisaltma cok
+     * yaygin: ESH, Htc, EPO, KOAH, EKG.
+     *
+     * Kisaltma terimin kendisi degil, modelin notu. Atildiktan sonra kalan
+     * icerik kelimelerinin HEPSI kaynakta geciyorsa terim temellendirilmis.
+     *
+     * Esigi `> 0` yapmak CIPLAK tek kelimeli terimler icin davranisi
+     * degistirmiyor: orada norm zaten tek kelime, yani yukaridaki dogrudan
+     * `haystack.includes(norm)` kontrolu ayni soruyu sormus ve hayir
+     * demisti; yedek kontrol ayni sonuca varir. Degisen YALNIZCA kisa
+     * belirtec tasiyan terimler. */
     const words = norm.split(' ').filter(w => w.length >= 4)
-    if (words.length > 1 && words.every(w => haystack.includes(w))) { stats.termsKept++; return true }
+    if (words.length > 0 && words.every(w => haystack.includes(w))) { stats.termsKept++; return true }
     stats.termsDropped++
     if (stats.droppedTerms.length < 8) stats.droppedTerms.push(term)
     return false
@@ -5629,6 +5710,17 @@ function applyGroundingGate(
     ? Math.round(100 * (stats.termsKept + stats.pointsKept) / judged)
     : null
 
+  /* OLCUM MODU: sayilar hesaplandi, hicbir sey dusurulmuyor. Supaptan ONCE
+     donuyor cunku supabin "ABORTED — keeping everything" uyarisi burada
+     yanlis olurdu: zaten hicbir sey atilmayacak. */
+  if (olcumModu) {
+    return {
+      key_terms: terms,
+      key_points: points,
+      stats: { ...stats, olcumModu: true } as GroundingStats
+    }
+  }
+
   // SAFETY VALVE. A gate that guts the output is far more likely to be wrong
   // about the comparison than right about mass fabrication — an encoding
   // mismatch, a failed extraction that left `extractedText` holding
@@ -5637,18 +5729,54 @@ function applyGroundingGate(
   // everything". A trimming gate is useful; a gate that empties the study
   // card is a bug that deletes the student's result. So past this share,
   // nothing is dropped and the anomaly is logged for investigation.
-  const droppedShare = judged > 0 ? (stats.termsDropped + stats.pointsDropped) / judged : 0
-  if (droppedShare > GATE_MAX_DROP_SHARE) {
+  /* SUPAP HER POPULASYON ICIN AYRI OLCUYOR (28.10.2026).
+   *
+   * Eski hesap terimlerle maddeleri tek havuzda ortaliyordu. Ama ikisinin
+   * yanlis-dusme orani YAPISAL olarak farkli: terim birebir altdizi
+   * esleşmesi istiyor, madde ise tek bir ortusen terimle geciyor. Yani
+   * terimler cok daha kolay yanlis dusuyor ve maddeler ortalamayi aşağı
+   * cekip supabi tam gerektigi yerde kor ediyor.
+   *
+   * OLCULEN KOSU (28.10, Kanin Ozellikleri, 67 sayfa):
+   *   terms  8 kept / 6 dropped  -> %43
+   *   points 18 kept / 0 dropped -> %0
+   *   havuz  6/32 = %19  <  esik %60   -> supap acilmadi
+   * Alti terimin altisi gercekti. Havuz, terime ozgu bir karsilastirma
+   * kusurunu maddelerin arkasina sakliyordu.
+   *
+   * Supap artik yalnizca SORUNLU populasyonu koruyor: terimler anomali
+   * gosteriyorsa butun terimler kaliyor ama temellendirilmemis maddeler
+   * yine duser. Hepsini birden geri vermek, ikinci populasyon saglikliyken
+   * gereksiz bir taviz.
+   *
+   * Takasin oteki yuzu: eskiden terim %60'in ALTINDA kalirken havuz esigi
+   * asabiliyor ve terimler de kurtuluyordu (orn. terim %60, madde %70).
+   * Artik o durumda yalnizca maddeler kurtuluyor — terimler anomali
+   * gostermiyordu, ortalama gosteriyordu. */
+  const termsJudged = stats.termsKept + stats.termsDropped
+  const pointsJudged = stats.pointsKept + stats.pointsDropped
+  const termShare = termsJudged > 0 ? stats.termsDropped / termsJudged : 0
+  const pointShare = pointsJudged > 0 ? stats.pointsDropped / pointsJudged : 0
+  const terimSupabi = termShare > GATE_MAX_DROP_SHARE
+  const maddeSupabi = pointShare > GATE_MAX_DROP_SHARE
+  if (terimSupabi || maddeSupabi) {
     console.warn(
-      `Grounding gate ABORTED: would have dropped ${Math.round(100 * droppedShare)}% of claims ` +
-      `(${stats.termsDropped} terms, ${stats.pointsDropped} points of ${judged} judged). ` +
-      `That points at the comparison, not the model — keeping everything. ` +
+      `Grounding gate ABORTED [${[terimSupabi ? 'terim' : '', maddeSupabi ? 'madde' : ''].filter(Boolean).join('+')}]: ` +
+      `terim %${Math.round(100 * termShare)} (${stats.termsDropped}/${termsJudged}), ` +
+      `madde %${Math.round(100 * pointShare)} (${stats.pointsDropped}/${pointsJudged}) ` +
+      `dusecekti. Bu oran modeli degil KARSILASTIRMAYI gosterir — ` +
+      `${terimSupabi && maddeSupabi ? 'ikisi de' : terimSupabi ? 'terimler' : 'maddeler'} korunuyor. ` +
       `Ornek atilacaklar: ${[...stats.droppedTerms, ...stats.droppedPoints].slice(0, 4).join(' | ')}`
     )
     return {
-      key_terms: terms,
-      key_points: points,
-      stats: { ...stats, aborted: true } as GroundingStats
+      key_terms: terimSupabi ? terms : keptTerms,
+      key_points: maddeSupabi ? points : keptPoints,
+      stats: {
+        ...stats,
+        aborted: true,
+        abortedTerms: terimSupabi,
+        abortedPoints: maddeSupabi
+      } as GroundingStats
     }
   }
 
@@ -5811,11 +5939,32 @@ const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/intera
    olu akis (baslik 15,3 sn, sonra tek olay yok). Kosu 38'de gecikmeli yedek
    olarak 3.8 basladi, yine olay getirmedi ve bir RPD bosa gitti. 3.5 ve 3.6
    bu yuzeyde henuz olculmedi; olculmus olarak calismayan bir modelden once
-   denenmeleri daha iyi bahis. Olcum degisirse sira degisir. */
+   denenmeleri daha iyi bahis. Olcum degisirse sira degisir.
+
+   3.7 DE EN SONA (28.10.2026) — yukaridaki kuralin kendisi geregi, cunku
+   olcum degisti. 3.7-flash bu yuzeyde DORT kosuda dort kez 0 karakter:
+     27.10 18:40  ilk byte 15.348ms, ilk olay yok, 0 olay, toplam 87.350ms
+     27.10 20:34  ilk byte 15.391ms, ilk olay yok, 0 olay, toplam 87.393ms
+     28.10 10:21  ilk byte 15.546ms, ilk olay yok, 0 olay, toplam 60.859ms
+     (+ devir oncesi kosu, ayni desen)
+   Her seferinde HTTP 200 ve ": keep-alive" ilk byte'i geliyor, sonra hicbir
+   sey. Listenin basinda oldugu icin her kosu once onu deniyor ve calisan bir
+   modele ancak GEMINI_YEDEK_GECIKME_MS_VARSAYILAN (35 sn) sonra sira geliyor.
+
+   3.5-flash ise OLCULMUS olarak CALISIYOR — oturumun ilk AKIS GERCEK satiri:
+     28.10 10:22  ilk byte 15.556ms, ILK OLAY 25.560ms, 345 olay,
+                  26.025 karakter, toplam 66.971ms — AKIS GERCEK
+   Taslak kabul edildi, kart Gemini'den cikti, Groq yolu hic calismadi.
+
+   Bu satir ayni zamanda GEMINI_ILK_OLAY_MS tartismasini kapatiyor: saglikli
+   bir akisin ilk olayi 25,6 saniyede geliyor (ilk byte'tan ~10 sn sonra),
+   esik ise 72 sn. Yani esigi dusurmek gerekmiyordu; gereken sey olu modeli
+   listenin basindan almakti. Yedek gecikmesinin 35 sn olmasi da bu olcumle
+   dogrulaniyor: saglikli pencerenin hemen ustunde duruyor. */
 const GEMINI_MODEL_CANDIDATES = [
-  'gemini-3.7-flash',
   'gemini-3.5-flash',
   'gemini-3.6-flash',
+  'gemini-3.7-flash',
   'gemini-3.8-flash'
 ]
 
@@ -6767,11 +6916,36 @@ function geminiProblem(data: any): string | null {
  * visual_findings'in yaninda formul adlari ve tablo basliklari da alinir:
  * ikisi de taniminda gorselden geliyor ve kapi ikisini de metinde arar.
  */
+/* SEKIL NOTU TAVANI (28.10.2026'da 60 -> 200).
+ *
+ * 60'in gerekcesi "review prompt sismesin" idi. Ama review prompt'u zaten
+ * visionNotes.slice(0, 20) aliyor (bkz. figureBlock) — tavan onu hic
+ * korumuyordu. Tavanin gercek musterisi temellendirme kapisi: o notlarin
+ * TAMAMINI kaynak metne ekliyor ve resimden okunan icerik ne kadar genisse
+ * o kadar az gercek terim "uydurma" sayiliyor. Tablo hucreleri eklenince
+ * 60 hemen doluyor (uc tablo x 11 satir + diyagram dugumleri). */
+const GEMINI_SEKIL_NOTU_TAVANI = 200
+
+/* Mermaid kaynagindaki dugum etiketleri: A[Metin], B(Metin), C{Metin}.
+   Yalnizca kapinin kaynak metnini genisletmek icin cikariliyor — yeniden
+   cizim yok, bu yuzden ayristirma kasitli olarak kaba. */
+function mermaidEtiketleri(src: string): string[] {
+  const out: string[] = []
+  const re = /\[([^\]\n]{2,120})\]|\(([^)\n]{2,120})\)|\{([^}\n]{2,120})\}/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(src)) !== null) {
+    const etiket = String(m[1] ?? m[2] ?? m[3] ?? '').replace(/^["']|["']$/g, '').trim()
+    if (etiket) out.push(etiket)
+    if (out.length >= 40) break
+  }
+  return out
+}
+
 function geminiFigureNotes(parsed: any): string[] {
   const out: string[] = []
   const push = (s: unknown) => {
     const t = String(s ?? '').replace(/\s+/g, ' ').trim()
-    if (t.length >= 3 && out.length < 60) out.push(t.slice(0, 300))
+    if (t.length >= 3 && out.length < GEMINI_SEKIL_NOTU_TAVANI) out.push(t.slice(0, 300))
   }
   if (!parsed || typeof parsed !== 'object') return out
 
@@ -6795,6 +6969,48 @@ function geminiFigureNotes(parsed: any): string[] {
   }
   if (Array.isArray(parsed.diagrams)) {
     for (const d of parsed.diagrams) push(String(d?.title ?? '').trim())
+  }
+
+  /* RESIMDEN OKUNANIN GOVDESI DE KAYNAK (28.10.2026).
+   *
+   * Yukarisi yalnizca BASLIK topluyordu: tablo basligi + sutun adlari,
+   * diyagram basligi, formul adi. Oysa yalnizca resim olarak var olan
+   * icerik tam da govdede duruyor: tablo HUCRELERI, diyagram DUGUM
+   * etiketleri, formul DEGISKENLERININ anlamlari.
+   *
+   * Olculen kosu (28.10, Kanin Ozellikleri, 67 sayfa, 160 krk/sayfa):
+   * kartta uc tablonun 25+ satiri ve iki diyagramin 18 dugumu
+   * (Pluripotent Kok Hucre, CFU-GEMM, Proeritroblast ...) vardi; hicbiri
+   * figureText'e ulasmiyordu. 9592'deki yorum hedefi zaten yazmis:
+   * "Gemini'nin tek kattigi deger — resimden okunan formul ve TABLO".
+   * Tablo adi geciyordu, icerigi degil.
+   *
+   * SIRA ONEM TASIYOR: review prompt'u visionNotes.slice(0, 20) aliyor.
+   * Hacimli govde malzemesi bu yuzden SONA ekleniyor — review'un gordugu
+   * ozet bulgular degismiyor, kapi ise tamamini aliyor (join('\n')). */
+  if (Array.isArray(parsed.formulas)) {
+    for (const f of parsed.formulas) {
+      for (const v of (Array.isArray(f?.variables) ? f.variables : [])) {
+        const sembol = String(v?.symbol ?? '').trim()
+        const anlam = String(v?.meaning ?? '').trim()
+        if (sembol && anlam) push(`${sembol}: ${anlam}`)
+        else push(anlam)
+      }
+    }
+  }
+  if (Array.isArray(parsed.tables)) {
+    for (const t of parsed.tables) {
+      for (const satir of (Array.isArray(t?.rows) ? t.rows : [])) {
+        if (!Array.isArray(satir)) { push(satir); continue }
+        push(satir.map((c: unknown) => String(c ?? '').trim()).filter(Boolean).join(' | '))
+      }
+    }
+  }
+  if (Array.isArray(parsed.diagrams)) {
+    for (const d of parsed.diagrams) {
+      push(String(d?.description ?? '').trim())
+      for (const etiket of mermaidEtiketleri(String(d?.mermaid ?? ''))) push(etiket)
+    }
   }
   return out
 }
@@ -12078,7 +12294,47 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
         )
       }
 
-      // --- (b) Grounding gate: remove claims the source does not support
+      /* --- (b) Grounding gate: remove claims the source does not support
+       *
+       * KAPI MOTORA VE CIKARIM KALITESINE BAKIYOR (28.10.2026).
+       *
+       * Kapinin onermesi kendi yorumunda yazili: "model YALNIZCA cikarilan
+       * metni gordu, dolayisiyla metinde gecmeyen bir terim uydurma". Taslak
+       * Gemini'den geldiginde bu onerme YANLIS — o sayfalarin kendisini
+       * okuyor. figureText muafiyeti bunu kismen kapatiyor ama yalnizca
+       * modelin SEKIL olarak bildirdigini kapsiyor; slayt govdesinde duran,
+       * cikaricinin goremedigi metni kapsamiyor.
+       *
+       * OLCULEN KOSU (28.10.2026, 10:22 — Kanin Ozellikleri, 67 sayfa):
+       *   Visual-density signal tripped: avgCharsPerPage=160, nearBlankPages=40/67
+       *   GOLGE YOL: taslak Gemini'den (67 sayfa, 10 gorsel bulgu)
+       *   Grounding gate: score=81% terms 8 kept / 6 dropped
+       *     | uydurma terim: Hematokrit (Htc), Eritrosit Sedimantasyon Hizi
+       *       (ESH), Klor Gocu (Chloride Shift), Buffy Coat,
+       *       Ekstrameduller Hematopoez, Kolloidal Dispers Sistem
+       * Altisi da GERCEK: kartin kendi bolumleri ve kaynakcasi onlari
+       * kullaniyor. 67 sayfadan 10.750 karakter cikmis, 40 sayfa neredeyse
+       * bos. Yani kapi modelin dogrulugunu degil CIKARICININ KORLUGUNU
+       * olcuyor ve ogrenci 14 kavramin 6'sini kaybediyor.
+       *
+       * Guvenlik supabi bunu yakalayamadi: terimler %43 dustu ama maddeler
+       * %0, havuz %19 ve esik %60. Iki populasyonun yanlis-dusme orani
+       * yapisal olarak farkli (terim birebir altdizi ister, madde tek bir
+       * ortusen terimle gecer), ortalamak supabi tam gerektigi yerde kor
+       * ediyor.
+       *
+       * Artik kapi, GUVENEMEDIGI karsilastirmada kesmiyor yalnizca olcuyor —
+       * supabin zaten aldigi durusun aynisi, farki tetigin yuksek dusme
+       * orani degil BILINEN-BOZUK karsilastirma olmasi. Iki kosul birden
+       * gerekiyor: taslak Gemini'den gelmis OLACAK (yani sayfalari okudu) VE
+       * cikarim olculmus olarak ince OLACAK. Groq yolunda ya da metni duzgun
+       * cikan bir belgede kapi eskisi gibi kesiyor.
+       *
+       * Takas acikca: uyduran bir Gemini, gorsel agirlikli bir belgede bu agi
+       * kaybediyor. Kapinin kendi yorumu bunu zaten cevapliyor —
+       * "halusinasyon korumasinin asil yuku zaten review ve sanitizeCharts'ta"
+       * — ve olculen kosuda review gercekten kostu, dort duzeltme uyguladi. */
+      const kapiOlcumModu = draftEngine === 'gemini' && isVisuallyDenseDocument
       const gated = applyGroundingGate(
         parsedContent.key_terms,
         parsedContent.key_points,
@@ -12086,16 +12342,25 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
         visionGroundedClaims,
         // Modelin sekillerden okudugunu bildirdigi satirlar da kaynak
         // sayilir — bkz. applyGroundingGate'teki uzun not.
-        visionNotes.join('\n')
+        visionNotes.join('\n'),
+        kapiOlcumModu
       )
       parsedContent.key_terms = gated.key_terms
       parsedContent.key_points = gated.key_points
+      /* Olcum modunda "uydurma" kelimesi yanlis olur: hicbir sey atilmadi,
+         sayilar yalnizca karsilastirmanin ne dediğini gosteriyor. */
+      const olcum = !!gated.stats.olcumModu
       console.log(
-        `Grounding gate: score=${gated.stats.score ?? '—'}% ` +
-        `terms ${gated.stats.termsKept} kept / ${gated.stats.termsDropped} dropped, ` +
-        `points ${gated.stats.pointsKept} kept / ${gated.stats.pointsDropped} dropped` +
-        (gated.stats.droppedTerms.length ? ` | uydurma terim: ${gated.stats.droppedTerms.join(', ')}` : '') +
-        (gated.stats.droppedPoints.length ? ` | uydurma nokta: ${gated.stats.droppedPoints.map(p => `"${p}"`).join(' ')}` : '')
+        `Grounding gate${olcum ? ' [OLCUM MODU: Gemini taslagi + gorsel agirlikli belge — kesilmedi]' : ''}: ` +
+        `score=${gated.stats.score ?? '—'}% ` +
+        `terms ${gated.stats.termsKept} kept / ${gated.stats.termsDropped} ${olcum ? 'would-drop' : 'dropped'}, ` +
+        `points ${gated.stats.pointsKept} kept / ${gated.stats.pointsDropped} ${olcum ? 'would-drop' : 'dropped'}` +
+        (gated.stats.droppedTerms.length
+          ? ` | ${olcum ? 'olculen terim (KORUNDU)' : 'uydurma terim'}: ${gated.stats.droppedTerms.join(', ')}`
+          : '') +
+        (gated.stats.droppedPoints.length
+          ? ` | ${olcum ? 'olculen nokta (KORUNDU)' : 'uydurma nokta'}: ${gated.stats.droppedPoints.map(p => `"${p}"`).join(' ')}`
+          : '')
       )
 
       /* --- (b0) BILGI YOGUNLUGU KAPISI.
@@ -12291,6 +12556,10 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
     {
       const kapsama = numericCoverage(extractedText, cardPayload)
       console.log(`Son kart sayisal kapsama: ${formatCoverage(kapsama)}`)
+      if (kapsama.missing.length > 0) {
+        const baglam = sayisalKayipBaglami(extractedText, kapsama.missing)
+        if (baglam) console.log(`Sayisal kapsama kayiplari nerede: ${baglam}`)
+      }
       if (kapsama.total > 0) {
         qualityMeta.numeric_coverage = { kept: kapsama.kept, total: kapsama.total }
       }

@@ -144,6 +144,50 @@ test('tavan, mesru akislari kesmeyecek kadar genis', () => {
     `(${G.GEMINI_MODEL_CANDIDATES.length}) kucuk — model yedeklemesi calisamaz`);
 });
 
+test('model sirasi OLCUME uyuyor: olu modeller bastan sirada degil', () => {
+  /* Sira kuralini kodun kendi yorumu koyuyor: "olculmus olarak calismayan
+     bir modelden once denenmeleri daha iyi bahis. Olcum degisirse sira
+     degisir." 28.10.2026'da olcum degisti.
+
+     gemini-3.7-flash, bu yuzeyde DORT kosuda dort kez 0 karakter dondurdu
+     (her seferinde HTTP 200 + ": keep-alive" ilk byte, sonra tek olay yok):
+       27.10 18:40  ilk byte 15.348ms, toplam 87.350ms
+       27.10 20:34  ilk byte 15.391ms, toplam 87.393ms
+       28.10 10:21  ilk byte 15.546ms, toplam 60.859ms
+     gemini-3.8-flash'in sicili de 0/5 (bkz. index.ts'teki "3.8 EN SONA").
+
+     gemini-3.5-flash ise olculmus olarak CALISIYOR — oturumun ilk
+     AKIS GERCEK satiri: ilk olay 25.560ms, 345 olay, 26.025 karakter. */
+  const sira = G.GEMINI_MODEL_CANDIDATES;
+  const olu = ['gemini-3.7-flash', 'gemini-3.8-flash'];
+  const calisan = 'gemini-3.5-flash';
+  assert.ok(sira.indexOf(calisan) > -1, 'olculmus olarak calisan model listede yok');
+  olu.forEach(function (m) {
+    const i = sira.indexOf(m);
+    if (i === -1) return;   // listeden tumden cikarilmissa sorun yok
+    assert.ok(i > sira.indexOf(calisan),
+      m + ' olculmus olarak 0 karakter veriyor ama ' + calisan + "'ten once deneniyor");
+  });
+});
+
+test('yedek gecikmesi SAGLIKLI ilk olay penceresinin ustunde', () => {
+  /* Olculen saglikli akis (3.5-flash, 28.10 10:22) ilk olayini 25.560ms'de
+     getirdi. Yedek gecikmesi bunun ALTINA inerse calisan bir modeli tam is
+     basindayken yedekleriz ve bosa bir RPD yakariz; cok uzerine cikarsa olu
+     modeli bekleme suresi uzar. */
+  const OLCULEN_ILK_OLAY_MS = 25560;
+  assert.ok(G.GEMINI_YEDEK_GECIKME_MS_VARSAYILAN > OLCULEN_ILK_OLAY_MS,
+    `yedek gecikmesi (${G.GEMINI_YEDEK_GECIKME_MS_VARSAYILAN}ms) olculen ilk olay ` +
+    `suresinin (${OLCULEN_ILK_OLAY_MS}ms) altinda — calisan model bosuna yedeklenir`);
+  assert.ok(G.GEMINI_YEDEK_GECIKME_MS_VARSAYILAN < 2 * OLCULEN_ILK_OLAY_MS,
+    'yedek gecikmesi olculen pencerenin cok uzerinde — olu model gereksiz beklenir');
+  /* Ilk olay esigi ayni olcume gore COK genis (72 sn ve 25,6 sn). Daraltmak
+     bu kusuru cozmuyordu: cozen sey model sirasiydi. Esik degisirse bu test
+     hatirlatir. */
+  assert.ok(G.GEMINI_ILK_OLAY_MS > OLCULEN_ILK_OLAY_MS,
+    'ilk olay esigi olculen saglikli sureden kisa — iyi kosular kesilir');
+});
+
 test('tavan, gunluk kotanin yarisindan az', () => {
   // RPD 20 panelden okundu (index.ts:5195 civari). Tek yukleme gunun
   // yarisini yakiyorsa koruma degil, kota tuketicisidir.

@@ -91,6 +91,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'SAYFA_ISARETI_RE', 'SAYISAL_KAPSAMA_TOLERANS', 'SAYI_BELIRTECI', 'SAYISAL_KAPSAMA_ORNEK',
   'sayiOkumalari', 'distinctiveNumbers', 'outputNumbers', 'yakinDegerVar',
   'KAPSAMA_DISI_ALANLAR', 'coverageText', 'numericCoverage', 'formatCoverage',
+  'SAYISAL_BAGLAM_KRK', 'sayisalKayipBaglami',
   // Denklem sayfalarinin yeniden dizilmesi (09.10.2026).
   'SYMBOL_PUA', 'PUA_BULLET_CODES', 'PUA_ANY_RE', 'PUA_LINE_BULLET_RE', 'mapSymbolPua',
   'countMathPua', 'MATH_PUA_MIN', 'EQ_OPERATORS', 'HAT_GLYPH_RE', 'medianOf', 'largestGap',
@@ -369,6 +370,85 @@ test('figureText uydurmaya GECIS IZNI vermiyor', () => {
     `alakasiz terim gecti: ${JSON.stringify(r.key_terms.map(t => t.term))}`);
 });
 
+// ---------------------------------------------------------------------------
+// KAPI OLCUM MODU (28.10.2026)
+// ---------------------------------------------------------------------------
+/* Kapinin onermesi: "model yalnizca cikarilan metni gordu". Taslak
+   Gemini'den geldiginde ve belge gorsel agirlikli oldugunda bu yanlis.
+
+   OLCULEN KOSU (28.10, 10:22 — Kanin Ozellikleri, 67 sayfa):
+     avgCharsPerPage=160, nearBlankPages=40/67, taslak Gemini'den
+     Grounding gate: score=81% terms 8 kept / 6 dropped
+       | uydurma terim: Hematokrit (Htc), Eritrosit Sedimantasyon Hizi (ESH),
+         Klor Gocu (Chloride Shift), Buffy Coat, Ekstrameduller Hematopoez,
+         Kolloidal Dispers Sistem
+   Altisi da gercek — kartin kendi bolumleri onlari kullaniyor. Ogrenci 14
+   kavramin 6'sini cikaricinin korlugu yuzunden kaybetti. */
+
+test('olcum modu: sayilar gercek, kart DEGISMIYOR', () => {
+  const girdi = [
+    { term: 'Talep esnekligi', definition: '...' },
+    { term: 'Fotosentez', definition: 'kaynakta yok' }
+  ];
+  const r = A.applyGroundingGate(girdi, [], SOURCE, new Set(), '', true);
+  assert.equal(r.stats.olcumModu, true, 'olcum modu bayragi konmadi');
+  assert.equal(r.key_terms.length, 2, 'olcum modunda terim dusurulmus');
+  assert.ok(r.stats.termsDropped > 0, 'olcum yapilmiyor — sayilar bos');
+  assert.ok(r.stats.droppedTerms.includes('Fotosentez'),
+    'hangi terimin dusecegi kaydedilmiyor, teshis degeri kalmaz');
+});
+
+test('olcum modu VARSAYILAN DEGIL: mevcut cagiranlar eskisi gibi kesiyor', () => {
+  const girdi = [
+    { term: 'Talep esnekligi', definition: '...' },
+    { term: 'Fotosentez', definition: 'kaynakta yok' }
+  ];
+  const kesen = A.applyGroundingGate(girdi, [], SOURCE);
+  assert.ok(!kesen.stats.olcumModu, 'bayrak varsayilan olarak aciksa kapi hic kesmez');
+  assert.equal(kesen.key_terms.length, 1, 'varsayilan davranis degismis');
+});
+
+test('olcum modu GUVENLIK SUPABINDAN once donuyor', () => {
+  /* Supabin "ABORTED — keeping everything" uyarisi olcum modunda yanlis
+     olurdu: zaten hicbir sey atilmayacak. Bayraklar karismamali. */
+  const hepsiUydurma = [
+    { term: 'Fotosentez', definition: '...' },
+    { term: 'Mitokondri', definition: '...' },
+    { term: 'Kloroplast', definition: '...' }
+  ];
+  const r = A.applyGroundingGate(hepsiUydurma, [], SOURCE, new Set(), '', true);
+  assert.equal(r.stats.olcumModu, true);
+  assert.ok(!r.stats.aborted, 'olcum modunda supap bayragi da konmus — iki durum karisti');
+  assert.equal(r.key_terms.length, 3, 'olcum modunda kart degismemeli');
+});
+
+test('olcum modu IKI kosula birden bagli', () => {
+  /* Yalniz Gemini yetmez (metni duzgun cikan belgede kapi calismali),
+     yalniz gorsel yogunluk da yetmez (Groq yolunda model gercekten yalnizca
+     metni gordu, onerme dogru). */
+  const i = SRC.indexOf('const kapiOlcumModu =');
+  assert.ok(i > -1, 'kapi motora baglanmamis');
+  const satir = SRC.slice(i, SRC.indexOf('\n', i));
+  assert.ok(/draftEngine === 'gemini'/.test(satir), 'motor sorulmuyor');
+  assert.ok(/&&/.test(satir) && /isVisuallyDenseDocument/.test(satir),
+    'cikarim kalitesi sorulmuyor — her Gemini taslaginda kapi kapanir');
+  // Ve karar KAPIYA degil CAGIRANA ait: motoru yalnizca cagiran biliyor.
+  assert.ok(SRC.indexOf('kapiOlcumModu') < SRC.indexOf('parsedContent.key_terms = gated.key_terms'),
+    'bayrak cagri yerinde hesaplanmiyor');
+});
+
+test('olcum modunda log "uydurma" demiyor', () => {
+  /* Hicbir sey atilmadi; "uydurma terim" yazmak sonraki teshisi yanlis
+     yone sokardi (sekiz kosu boyunca tam bu oldu). */
+  const i = SRC.indexOf('`Grounding gate${olcum');
+  assert.ok(i > -1, 'log satiri olcum modunu bildirmiyor');
+  const blok = SRC.slice(i, i + 900);
+  assert.ok(/OLCUM MODU/.test(blok), 'log satirinda mod yazmiyor');
+  assert.ok(/olculen terim \(KORUNDU\)/.test(blok),
+    'olcum modunda terimler yine "uydurma" diye raporlaniyor');
+  assert.ok(/would-drop/.test(blok), 'olcum modunda "dropped" yaziyor — yanlis');
+});
+
 test('figureText verilmezse davranis eskisiyle AYNI', () => {
   const girdi = [
     { term: 'Talep esnekligi', definition: '...' },
@@ -461,6 +541,81 @@ test('GUVENLIK VALFI: kapi cogunu atacaksa HICBIR SEY atmaz', () => {
   assert.equal(r.key_terms.length, 5,
     'esik asilinca kapi kendine guvenmemeli — cikti silinmemeli');
   assert.equal(r.stats.aborted, true, 'abort isaretlenmeli');
+});
+
+test('SUPAP her populasyon icin AYRI olcuyor', () => {
+  /* Eski hesap terimle maddeyi tek havuzda ortaliyordu. Olculen kosu
+     (28.10, Kanin Ozellikleri): terim %43 dustu, madde %0, havuz %19 ve
+     esik %60 — supap acilmadi, alti gercek terim gitti. Terim birebir
+     altdizi ister, madde tek ortusen terimle gecer; ortalamak supabi tam
+     gerektigi yerde kor ediyordu. */
+  const uydurmaTerimler = [
+    { term: 'Fotosentez' }, { term: 'Mitokondri' }, { term: 'Kloroplast' }
+  ];
+  // Maddeler SAGLAM: hepsi kaynakta gecen terimler tasiyor.
+  const saglamMaddeler = [
+    'Talep esnekligi fiyat degisimine duyarliligi olcer',
+    'Esneklik katsayisi fiyat ve talep arasindaki iliskiyi gosterir'
+  ];
+  const r = A.applyGroundingGate(uydurmaTerimler, saglamMaddeler, SOURCE);
+  assert.equal(r.stats.abortedTerms, true, 'terim supabi acilmadi');
+  assert.equal(r.key_terms.length, 3, 'terimler korunmadi');
+  assert.ok(!r.stats.abortedPoints, 'maddeler saglamken onlarin supabi da acilmis');
+  assert.equal(r.stats.aborted, true, 'genel bayrak geriye donuk kalmali');
+});
+
+test('SUPAP yalnizca SORUNLU populasyonu koruyor', () => {
+  /* Terimler anomali gosteriyorsa butun terimler kaliyor ama
+     temellendirilmemis maddeler yine duser — hepsini birden geri vermek,
+     ikinci populasyon saglikliyken gereksiz bir taviz. */
+  const uydurmaTerimler = [{ term: 'Fotosentez' }, { term: 'Mitokondri' }];
+  const maddeler = [
+    'Talep esnekligi fiyat degisimine duyarliligi olcer',
+    'Kloroplast granasinda tilakoid zarlar bulunur'
+  ];
+  const r = A.applyGroundingGate(uydurmaTerimler, maddeler, SOURCE);
+  assert.equal(r.stats.abortedTerms, true);
+  assert.ok(r.key_points.length < maddeler.length,
+    'terim supabi maddeleri de kurtarmis — populasyonlar ayrilmamis');
+});
+
+/* 200 karakterin ALTINDA kapi hic calismiyor (applyGroundingGate'in erken
+   donusu). Ilk yazimda bu fixture 173 karakterdi ve test dogru sonucu
+   YANLIS sebepten veriyordu — kapi hic kosmadigi icin her sey korunuyordu.
+   Fixture bilerek esigin uzerinde tutuluyor. */
+const KAN_KAYNAGI = [
+  'Hematokrit santrifuj edilmis kanda eritrosit hacminin toplam hacme',
+  'oranidir ve erkeklerde ortalama kirk yedi, kadinlarda kirk iki',
+  'seviyesindedir. Olcumde plazma ile eritrositler arasinda lokosit ve',
+  'trombositlerden olusan ince bir tabaka bulunur. Kanin ozgul agirligi',
+  'puberteden sonra erkeklerde androjenlerin etkisiyle daha yuksektir.'
+].join(' ');
+
+test('parantezli KISALTMA terimi diskalifiye etmiyor', () => {
+  /* "Hematokrit (Htc)" -> norm "hematokrit htc" -> 4+ harfli kelimeler
+     ["hematokrit"] -> eski kosul (uzunluk > 1) yedek kontrolu HIC
+     calistirmiyordu ve terim, tek icerik kelimesi kaynakta gectigi halde
+     dusuyordu. Olculen kosuda dusen alti terimden biri tam buydu. */
+  const r = A.applyGroundingGate([{ term: 'Hematokrit (Htc)' }], [], KAN_KAYNAGI);
+  assert.equal(r.stats.termsDropped, 0,
+    'parantezli kisaltma terimi dusuruyor: ' + r.stats.droppedTerms.join(', '));
+  assert.equal(r.key_terms.length, 1);
+});
+
+test('kisaltma muafiyeti UYDURMAYA gecis izni vermiyor', () => {
+  /* Kalan icerik kelimelerinin HEPSI kaynakta gecmeli; kisaltma yalnizca
+     gurultu sayiliyor, kapiyi acmiyor. */
+  const r = A.applyGroundingGate([{ term: 'Fotosentez (FTS)' }], [], KAN_KAYNAGI);
+  assert.ok(r.stats.droppedTerms.includes('Fotosentez (FTS)') || r.stats.aborted,
+    'alakasiz terim kisaltma sayesinde gecti');
+});
+
+test('CIPLAK tek kelimeli terimde davranis DEGISMIYOR', () => {
+  /* Esigi > 0 yapmak orada bir sey degistirmiyor: norm tek kelime, yani
+     dogrudan haystack kontrolu ayni soruyu sormus ve hayir demisti. */
+  const r = A.applyGroundingGate([{ term: 'Fotosentez' }], [], SOURCE);
+  assert.ok(r.stats.droppedTerms.includes('Fotosentez') || r.stats.aborted,
+    'ciplak tek kelimeli uydurma terim gecmeye basladi');
 });
 
 test('kaynak metin yoksa/kisaysa kapi hic calismaz', () => {
@@ -4045,6 +4200,85 @@ test('footnotes SAYILMAZ — kaynaktan birebir alinti, ogretilen icerik degil', 
   const cov = A.numericCoverage('goes up by .69%', cikti);
   assert.equal(cov.kept, 0, 'yalnizca dipnotta gecen sayi ozete ulasmis sayilmamali');
   assert.deepEqual(cov.missing, [0.69]);
+});
+
+// ---------------------------------------------------------------------------
+// KAYIP SAYILARIN BAGLAMI (28.10.2026)
+// ---------------------------------------------------------------------------
+/* Sekiz ardisik canli kosu ayni orani ve ayni sekiz sayiyi bildirdi
+   (7/15 %47 — 3787, 976, 765, 0.3, 0.798, 805, 0.123, 0.24); Groq'ta da,
+   Gemini devresi acikken de, iki pencerede de uc pencerede de ayni. Satir
+   sayiyi soyluyor ama YERINI soylemiyor, dolayisiyla bunlarin ders icerigi
+   mi (modelin kusuru) yoksa kaynakca/istatistik artigi mi (kapinin kusuru)
+   oldugu logdan anlasilamiyordu. */
+
+test('kayip sayinin kaynaktaki baglami basiliyor', () => {
+  const kaynak = 'Olcegin ic tutarliligi Cronbach alfa 0.798 olarak bulunmustur.';
+  const r = A.sayisalKayipBaglami(kaynak, [0.798]);
+  assert.ok(r.indexOf('0.798 <- "') === 0, 'baglam bicimi bozuk: ' + r);
+  assert.ok(/Cronbach alfa 0\.798/.test(r), 'sayinin cevresi basilmiyor: ' + r);
+});
+
+test('baglam AYNI belirteci kullaniyor — bastaki noktali sayi da bulunuyor', () => {
+  /* SAYI_BELIRTECI bastaki noktayi DAHIL ediyor (".69%" -> 0.69). Baglam
+     ikinci bir ayristirici kullanirsa bu sinifi kaciririz. */
+  const r = A.sayisalKayipBaglami('artis goes up by .69% seviyesinde', [0.69]);
+  assert.ok(/\.69%/.test(r), 'bastaki noktali sayi bulunamadi: ' + r);
+});
+
+test('kaynakta bulunamayan kayip ACIKCA isaretleniyor', () => {
+  /* Kendi basina bulgu: kayip diye bildirilen bir deger ayni metinde
+     yeniden bulunamiyorsa kusur modelde degil olcumun kendisindedir. */
+  const r = A.sayisalKayipBaglami('metinde hic sayi yok denecek kadar az', [3787]);
+  assert.equal(r, '3787 <- KAYNAKTA BULUNAMADI');
+});
+
+test('baglam satiri sinirli: en fazla bes sayi', () => {
+  const kaynak = 'a 101 b 202 c 303 d 404 e 505 f 606 g 707';
+  const r = A.sayisalKayipBaglami(kaynak, [101, 202, 303, 404, 505, 606, 707]);
+  assert.equal(r.split(' | ').length, 5, 'log satiri sinirsiz buyuyor');
+  /* '606' metnin kendisinde gecebilir — baglam penceresi komsu sayilari da
+     kapsiyor. Olculen sey onun KENDI maddesi olarak listelenmemesi. */
+  assert.ok(r.indexOf('606 <- ') === -1, 'altinci sayi da listelenmis');
+});
+
+test('baglam tek satira indiriliyor', () => {
+  /* Kaynak metin satir sonlari tasiyor; log satiri bolunmemeli. */
+  const r = A.sayisalKayipBaglami('ilk satir\n\n  deger 3787  \n son satir', [3787]);
+  assert.ok(r.indexOf('\n') === -1, 'baglam satir sonu tasiyor');
+  assert.ok(/ilk satir deger 3787 son satir/.test(r), 'bosluklar sadelestirilmedi: ' + r);
+});
+
+test('baglam PAYLASILAN regexin lastIndex ini bozmuyor', () => {
+  /* SAYI_BELIRTECI modul duzeyinde /g. Paylasilan nesne uzerinde exec
+     dongusu kurulursa sonraki cagiranlar (distinctiveNumbers,
+     outputNumbers) metnin ortasindan taramaya baslar ve kapsama orani
+     kosudan kosuya oynar. Iki kez cagirip ayni cevabi bekliyoruz. */
+  const kaynak = 'deger 3787 ve ikinci deger 976 burada';
+  const bir = A.sayisalKayipBaglami(kaynak, [3787, 976]);
+  const iki = A.sayisalKayipBaglami(kaynak, [3787, 976]);
+  assert.equal(bir, iki, 'ikinci cagri farkli sonuc verdi — lastIndex tasiniyor');
+  // Ve kapsama olcumu de etkilenmemeli.
+  assert.deepEqual(A.distinctiveNumbers(kaynak), [3787, 976]);
+});
+
+test('bos girdiler guvenli', () => {
+  assert.equal(A.sayisalKayipBaglami('', [123]), '');
+  assert.equal(A.sayisalKayipBaglami('metin', []), '');
+  assert.equal(A.sayisalKayipBaglami(null, [123]), '');
+});
+
+test('teshis SON KART logunun yanina baglanmis', () => {
+  /* Yorum blogu da ayni cumleyi tasiyor (olculen kosu oraya yazili),
+     o yuzden CAGRIYA baglaniyor. */
+  const i = SRC.indexOf('console.log(`Son kart sayisal kapsama:');
+  assert.ok(i > -1, 'son kart kapsama logu kaybolmus');
+  const blok = SRC.slice(i, i + 420);
+  assert.ok(/kapsama\.missing\.length > 0/.test(blok),
+    'baglam kayip yokken de basiliyor — her kosuda bos satir');
+  assert.ok(/sayisalKayipBaglami\(extractedText, kapsama\.missing\)/.test(blok),
+    'baglam KAYNAK metinle cagrilmiyor');
+  assert.ok(/Sayisal kapsama kayiplari nerede/.test(blok), 'log satiri yok');
 });
 
 test('canli deste: dort ozetin SIRASINI yeniden uretiyor', () => {
