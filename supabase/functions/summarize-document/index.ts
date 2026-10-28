@@ -4680,9 +4680,23 @@ function sayiOkumalari(token: string): number[] {
  * zarar yok, sadece hedef sayilmiyorlar. */
 const URL_BENZERI_RE = /\b(?:https?:\/\/|www\.)\S+|\S+\.(?:html?|php|aspx?|jpe?g|png|gif|pdf|svg|webp)\b/gi
 
+/* BOZUK 10'UN KUVVETI SAYI DEGILDIR (28.10.2026 — olculmus).
+ *
+ * "2.CURRENT, VOLTAGE AND RESISTANCE" kosusunda kart %65 rozetiyle cikti.
+ * Kayiplarin baglami:
+ *   1018 <- "(1.6 10-19 )-1 that is 6.25 1018 electrons has to move"
+ * PDF'ten ust simge duzlesiyor: 6,25x10^18 -> "6,25x1018", 1,6x10^-19 ->
+ * "1,6 x 10-19". Yani 1018 OLCULEN bir deger degil, usun kendisi. Kart
+ * zaten "6.25 \times 10^{18}" yaziyordu — olcu var olani yok sayiyordu.
+ *
+ * Yalnizca US atiliyor, MANTIS kaliyor: 1.6 ve 6.25 gercek hedeflerdir ve
+ * kartta gectikleri icin zaten kept sayiliyorlar. */
+const BOZUK_US_RE = /(\d[.,]\d+)\s*[x×*]?\s*10-?\d{1,3}\b/gi
+
 function distinctiveNumbers(text: string): number[] {
   const temiz = String(text || '')
     .replace(URL_BENZERI_RE, ' ')
+    .replace(BOZUK_US_RE, '$1 ')
     .replace(SAYFA_ISARETI_RE, ' ')
   const out: number[] = []
   const gorulen = new Set<number>()
@@ -10554,17 +10568,17 @@ Respond ONLY with JSON. In every string, a backslash must be written TWICE ("\\\
   "worked_examples": [{"title":"...","problem_statement":"...","steps":["..."],"final_answer":"..."}]
 }
 Rules:
-- Extract ${termQuota(total)} key_terms and ${pointQuota(total)} key_points when content allows; every reported result (estimate, % change, significance) is its own key_point WITH its numbers
+- Extract ${termQuota(total)} key_terms and ${pointQuota(total)} key_points when content allows; every number stated (result, count, constant, rating, tolerance, coded value) must reach a key_point, table or worked_example WITH its units — verbatim, never invented
 - ${quizQuota(total)} quiz_questions when content allows; if is_quantitative, at least half make the student calculate or read a number from ${scopeWord(total)} (the answer shows the result)${total === 1 ? `
 - This is the WHOLE document, not an excerpt: cover every section, and if it ends with a glossary or "review terms" list, every entry on that list must appear in key_terms
 - Keep definitions to one sentence so the full set fits
-- A figure or table CAPTION is content, not decoration: it is often the only place a date, range, period or quantity is written out in words, and those are exactly what gets examined — carry them into key_points and quiz_questions verbatim
+- A figure or table CAPTION is content: dates, ranges and quantities are often written out only there — carry them verbatim
 - Worked cases, named examples and boxed features ("in practice", "case study", applications) are testable material too; do not skip them as filler` : `
 - Captions and worked cases ("in practice", case studies) are testable: carry their dates, ranges and numbers into key_points and quiz_questions verbatim`}
 - NEVER write meta text like "no draft provided" or "qualitative overview"
 - Use real topic names from the text (e.g. supervised learning, neural networks)
 - Ignore grading/attendance/admin text
-- 'tables': real tabular data in ${scopeWord(total)}, or facts it states in parallel for several cases (each group's intercept and slope, each test's H0) lined up as one table — every cell from ${scopeWord(total)}; empty array if none, never fabricate
+- 'tables': real tabular data in ${scopeWord(total)}, or facts stated in parallel for several cases (each group's intercept and slope, each test's H0) or a value->notation list (470 -> 470Ω, 5K6 -> 5,6KΩ) with EVERY pair as its own row — every cell from ${scopeWord(total)}; empty array if none, never fabricate
 - 'charts': only chart-worthy numeric data actually present in ${scopeWord(total)} (pick bar for category comparisons, pie for proportions of a whole, line for progression over time) — empty array if none
 - 'diagrams': when short disconnected phrases, stage names, or paired opposing terms in ${scopeWord(total)} clearly reconstruct a flowchart/comparison/hierarchy/cycle, rebuild it as valid Mermaid source (flowchart TD/LR, graph TD, sequenceDiagram, or mindmap); at most ${total === 1 ? '2-3' : '1-2'}; empty array if nothing reconstructible — never invent
 - 'formulas': EVERY equation in ${scopeWord(total)} — model forms, estimated equations with their numbers, derivatives, hypotheses (H0/H1) — latex copied from the source, each once

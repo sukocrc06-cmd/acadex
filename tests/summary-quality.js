@@ -103,7 +103,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'windowCompletionFor', 'windowCompletionFloored',
   // Sayisal kapsama olcusu (09.10.2026).
   'SAYFA_ISARETI_RE', 'SAYISAL_KAPSAMA_TOLERANS', 'SAYI_BELIRTECI', 'SAYISAL_KAPSAMA_ORNEK',
-  'sayiOkumalari', 'URL_BENZERI_RE', 'distinctiveNumbers', 'outputNumbers', 'yakinDegerVar',
+  'sayiOkumalari', 'URL_BENZERI_RE', 'BOZUK_US_RE', 'distinctiveNumbers', 'outputNumbers', 'yakinDegerVar',
   'KAPSAMA_ROZET_MIN_ORNEK',
   'KAPSAMA_DISI_ALANLAR', 'coverageText', 'numericCoverage', 'formatCoverage',
   'SAYISAL_BAGLAM_KRK', 'sayisalKayipBaglami',
@@ -4641,6 +4641,36 @@ test('uc asamada da LOGLANIYOR: pencere, birlesim, son kart', () => {
     'son kart olculmuyor');
 });
 
+/* BELGEYE SADAKAT KURALLARI (28.10.2026, Berkay'in karari).
+ *
+ * "2.CURRENT, VOLTAGE AND RESISTANCE" kartinda kayip sayilarin dordu tek bir
+ * notasyon listesinden geliyordu: "470 470Ω | 5K6 5,6KΩ | 330 330Ω | 2K2
+ * 2,2K". Kart kurali almis ama on esleme yerine iki ornek yazmisti. Karar:
+ * olcu gevsetilmeyecek, KART yakalayacak — sinavda 5K6 sorulursa kartta
+ * olmali. Prompt iki kuralla bunu istiyor; kurallar silinirse olcu yine
+ * duser ama kimse NEDEN dustugunu bilmez. */
+test('pencere promptu belgeye sadakati acikca istiyor', () => {
+  const promptIdx = SRC.indexOf('const compactWindowPrompt');
+  assert.ok(promptIdx > -1, 'compactWindowPrompt bulunamadi');
+  const prompt = readTemplate(SRC, SRC.indexOf('`', promptIdx) + 1);
+  assert.ok(/every number stated/.test(prompt), 'her sayi kurali promptta yok');
+  assert.ok(/EVERY pair as its own row/.test(prompt), 'esleme listesinin her satiri istenmeli');
+  /* Kurallar PENCERE BUTCESINE sigmali: yeni madde EKLEMEK yerine mevcut
+     maddeler sikilastirildi, cunku WINDOW/4 + prompt + completion <= 7200
+     (Groq 8000 TPM) payi sifira yakindi. Parallel modda bu tavan islemiyor
+     ama Groq yedek yolu icin gecerli kalmali — bkz. "TAVAN KORUNUYOR" testi. */
+});
+
+/* PDF ust simgeyi duzlestiriyor: 6,25x10^18 -> "6,25x1018". O 1018 bir
+   olcu degil, usun kendisi — hedef sayilmamali. Mantis (6,25) kalmali. */
+test('distinctiveNumbers: bozuk 10 kuvveti hedef degildir, mantis kalir', () => {
+  const metin = 'Electron charge = 1,6 x 10-19 coulomb 1 Coulomb = 6,25x1018 electron';
+  const hedef = A.distinctiveNumbers(metin);
+  assert.ok(!hedef.includes(1018), `1018 hedef olmamali, gelen: ${hedef.join(', ')}`);
+  assert.ok(!hedef.includes(1019), `1019 hedef olmamali, gelen: ${hedef.join(', ')}`);
+  assert.ok(hedef.includes(1.6) && hedef.includes(6.25), `mantis kalmali, gelen: ${hedef.join(', ')}`);
+});
+
 test('son kart olcusu INSERT\'TEN ONCE ve quality_meta\'ya yaziliyor', () => {
   const olcu = KAPSAMA_KOD.indexOf('numericCoverage(extractedText, cardPayload)');
   const insert = KAPSAMA_KOD.indexOf(".from('study_cards').insert(cardPayload)");
@@ -4940,10 +4970,20 @@ console.log('\nPROMPTLAR: PENCERE, YAZAR, KULLANIM LOGU\n');
 test('pencere promptu: sayili bulgu, her denklem, uydurmasiz ornek, paralel tablo, hesap sorusu', () => {
   for (const total of [1, 2]) {
     const p = pencerePromptu(total, '');
-    assert.ok(/every reported result \(estimate, % change, significance\) is its own key_point WITH its numbers/.test(p), 'sayili key_point kurali');
+    /* 28.10.2026: kural "reported result"tan HER SAYIYA genisletildi.
+       Sebep: "2.CURRENT, VOLTAGE AND RESISTANCE" kartinda 470/5K6/330/2K2 ve
+       "109 elements" kaynakta vardi, kartta yoktu. Berkay'in karari belgeye
+       en yuksek sadakat. Uydurma yasagi AYNI maddede durmali — sadakat
+       istemek tek basina uydurma davet eder. */
+    assert.ok(/every number stated .* must reach a key_point, table or worked_example WITH its units/.test(p), 'sayili key_point kurali');
+    assert.ok(/verbatim, never invented/.test(p), 'uydurma yasagi sadakat kuralinin yaninda durmali');
     assert.ok(/'formulas': EVERY equation/.test(p), 'her denklem kurali');
     assert.ok(/never invent a coefficient; every "a = b" you write must compute; one action per steps item, no numbering/.test(p), 'ornek kurali');
-    assert.ok(/lined up as one table — every cell from/.test(p), 'paralel tablo kurali');
+    assert.ok(/every cell from/.test(p), 'paralel tablo kurali');
+    /* Notasyon esleme listeleri de tablodur: kart kurali alip on eslemeden
+       ikisini yazmisti ("4M7", "33R"), kalan dordu olcude kayip cikti. */
+    assert.ok(/value->notation list \(470 -> 470Ω, 5K6 -> 5,6KΩ\) with EVERY pair as its own row/.test(p),
+      'notasyon esleme listesi kurali');
     assert.ok(/at least half make the student calculate or read a number/.test(p), 'hesap sorusu kurali');
   }
 });
