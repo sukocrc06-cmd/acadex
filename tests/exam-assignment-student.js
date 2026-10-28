@@ -59,6 +59,7 @@ test('öğrenciye özel kopya: karıştırma, keep_order, yeniden numara, öğre
   assert.deepEqual([...s1.options].sort(), ['a', 'b', 'c', 'd']);
   assert.deepEqual(s2.options, ['I', 'II', 'I ve II'], 'keep_order şıkları korunur');
   assert.ok(!('author' in s1) && !('edited' in s1));
+  assert.deepEqual(out.map(q => q.src).sort(), [0, 1, 2]); assert.equal(s1.src, 0); assert.equal(s2.src, 1);
   const plain = G.buildAssignmentQuestions(qs, { shuffle: false }, 'tr', seq([0.1]));
   assert.deepEqual(plain.map(q => q.question), ['S1', 'S2', 'S3']);
   assert.deepEqual(plain[0].options, ['a', 'b', 'c', 'd']);

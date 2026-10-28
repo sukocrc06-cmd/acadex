@@ -1724,6 +1724,89 @@
     return null;
   }
 
+  /* ---------- FAZ 6.4: ödev sonuçları ve soru analizi ----------
+     assignment_results (SQL) çıktısından öğretmen ekranının sayıları:
+     - öğrenci: durum, deneme, en yüksek not (ödevin notu), teslim, geç gün
+     - soru analizi her öğrencinin İLK tamamlanan denemesinden (sonraki denemeler
+       aynı soruları tekrar gördüğü için analizi şişirir). Karışık sıradaki soru
+       asıl sırasına exam.questions[].src ile döner (yoksa metinle eşlenir).
+     - doğru: puan ≥ 80; ayırt edicilik D = üst grup − alt grup doğru oranı
+       (n ≥ 10'da %27'lik gruplar, daha azında yarılar; n < 4'te hesaplanmaz)
+     - uyarılar: zor (< %30), kolay (> %90, n ≥ 5), ayırt etmiyor (D < 0,15),
+       ters (D < 0: anahtarı kontrol et), çok boş (> %30), işlemeyen çeldirici */
+  function assignmentAnalysis(data) {
+    const A = (data && data.assignment) || {}, Q = Array.isArray(A.questions) ? A.questions : [];
+    const members = Array.isArray(data && data.members) ? data.members : [];
+    const exams = (Array.isArray(data && data.exams) ? data.exams : []).slice().sort((a, b) => new Date(a.started_at || 0) - new Date(b.started_at || 0));
+    const fb = Array.isArray(data && data.feedback) ? data.feedback : [];
+    const byUser = {};
+    exams.forEach(e => { (byUser[e.user_id] = byUser[e.user_id] || []).push(e); });
+    const students = members.map(m => {
+      const L = byUser[m.user_id] || [], done = L.filter(e => e.completed_at), open = L.filter(e => !e.completed_at)[0] || null;
+      let best = null;
+      done.forEach(e => { if (best == null || Number(e.grade) > Number(best.grade)) best = e; });
+      const la = best && best.assignment && best.assignment.late_applied;
+      return { user_id: m.user_id, name: m.full_name || 'İsimsiz öğrenci', number: m.student_number || null, share: !!m.share_mastery,
+        status: done.length ? 'done' : open ? 'in_progress' : 'none', attempts: done.length,
+        best: best ? Math.round(Number(best.grade) * 100) / 100 : null, bestExamId: best ? best.id : null, firstExamId: done.length ? done[0].id : null,
+        openExamId: open ? open.id : null, submittedAt: best ? best.completed_at : null,
+        lateDays: la ? Number(la.days) || 0 : 0, latePct: la ? Number(la.pct) || 0 : 0, rawBest: la ? Number(la.raw_grade) : null };
+    });
+    const grades = students.filter(s => s.best != null).map(s => s.best).sort((a, b) => a - b);
+    const med = grades.length ? (grades.length % 2 ? grades[(grades.length - 1) / 2] : (grades[grades.length / 2 - 1] + grades[grades.length / 2]) / 2) : null;
+    const summary = { members: members.length, submitted: grades.length, inProgress: students.filter(s => s.status === 'in_progress').length,
+      notStarted: students.filter(s => s.status === 'none').length, avg: grades.length ? Math.round(grades.reduce((a, b) => a + b, 0) / grades.length * 10) / 10 : null,
+      median: med, late: students.filter(s => s.lateDays > 0).length };
+    // ilk denemeler: öğrenci → (asıl sıra → sonuç)
+    const norm = t => String(t == null ? '' : t).replace(/\s+/g, ' ').trim().toLocaleLowerCase('tr-TR');
+    const firsts = [];
+    members.forEach(m => {
+      const e = (byUser[m.user_id] || []).filter(x => x.completed_at)[0]; if (!e) return;
+      const qmap = {};
+      (Array.isArray(e.questions) ? e.questions : []).forEach(q => { qmap[String(q.id)] = q; });
+      const rows = {};
+      (Array.isArray(e.results) ? e.results : []).forEach(r => {
+        const pq = qmap[String(r.question_id)];
+        let src = pq && Number.isInteger(pq.src) ? pq.src : -1;
+        if (src < 0) { const t = norm((pq && pq.question) || r.question); src = Q.findIndex(q => norm(q.question) === t); }
+        if (src >= 0 && src < Q.length) rows[src] = r;
+      });
+      firsts.push({ user_id: m.user_id, grade: Number(e.grade) || 0, rows });
+    });
+    const ranked = firsts.slice().sort((a, b) => b.grade - a.grade), n = ranked.length;
+    const k = n >= 10 ? Math.round(n * 0.27) : Math.floor(n / 2);
+    const top = n >= 4 ? ranked.slice(0, k) : [], bottom = n >= 4 ? ranked.slice(n - k) : [];
+    const ok = r => !!r && typeof r.score === 'number' && r.score >= 80;
+    const questions = Q.map((q, i) => {
+      const rs = firsts.map(f => f.rows[i]).filter(Boolean);
+      const blank = rs.filter(r => !String(r.student_answer == null ? '' : r.student_answer).trim()).length;
+      const scored = rs.filter(r => typeof r.score === 'number');
+      const correctRate = rs.length ? rs.filter(ok).length / rs.length : null;
+      const avgScore = scored.length ? Math.round(scored.reduce((a, r) => a + r.score, 0) / scored.length) : null;
+      const pOf = G => { const g = G.map(f => f.rows[i]).filter(Boolean); return g.length ? g.filter(ok).length / g.length : null; };
+      const pt = pOf(top), pb = pOf(bottom);
+      const D = pt == null || pb == null ? null : Math.round((pt - pb) * 100) / 100;
+      let optionCounts = null;
+      if (q.type === 'multiple_choice' && Array.isArray(q.options)) {
+        optionCounts = q.options.map(o => ({ option: o, correct: norm(o) === norm(q.correct_answer), count: rs.filter(r => norm(r.student_answer) === norm(o)).length }));
+      }
+      const flags = [];
+      if (rs.length >= 3 && correctRate < 0.3) flags.push('zor');
+      if (rs.length >= 5 && correctRate > 0.9) flags.push('kolay');
+      if (D != null && D < 0) flags.push('ters');
+      else if (D != null && D < 0.15) flags.push('ayırt etmiyor');
+      if (rs.length >= 3 && blank / rs.length > 0.3) flags.push('çok boş');
+      if (optionCounts && rs.length >= 5) optionCounts.filter(o => !o.correct && o.count === 0).forEach(o => flags.push('işlemeyen çeldirici: ' + o.option));
+      return { index: i, type: q.type, question: q.question, concept: q.concept || null, correct_answer: q.correct_answer, options: q.options || null,
+        n: rs.length, blank, correctRate, avgScore, discrimination: D, optionCounts, flags };
+    });
+    const nameOf = {}; students.forEach(s => { nameOf[s.user_id] = s.name; });
+    const srcOf = (examId, qid) => { const e = exams.filter(x => x.id === examId)[0]; const pq = e && (e.questions || []).filter(q => String(q.id) === String(qid))[0]; return pq && Number.isInteger(pq.src) ? pq.src : null; };
+    const pendingAppeals = fb.filter(f => f.kind === 'appeal' && f.status === 'escalated').map(f => Object.assign({}, f, { name: nameOf[f.user_id] || '', src: srcOf(f.exam_id, f.question_id) }));
+    const reports = fb.filter(f => f.kind === 'report').map(f => Object.assign({}, f, { name: nameOf[f.user_id] || '', src: srcOf(f.exam_id, f.question_id) }));
+    return { students, summary, questions, pendingAppeals, reports, analyzed: n };
+  }
+
   /* ---------- FAZ 5.1: konu ustalığı ----------
      Her konu için iki tahmin:
      - p (ustalık): Bayesçi bilgi izleme (BKT). Kısmi puan kısmi kanıt sayılır;
@@ -2737,6 +2820,8 @@
     conceptMastery,
     masteryChanges,
     reviewSchedule,
+    // FAZ 6.4: ödev sonuçları
+    assignmentAnalysis,
     // FAZ 3b: cebirsel ifade
     normalizeMathInput,
     exprToTex,

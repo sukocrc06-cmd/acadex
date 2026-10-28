@@ -3335,15 +3335,20 @@ window.axNotify = function (title, opts) {
   var fbBlock = function (r) {
     var qid = esc(String(r.question_id)), ap = r.appeal, rp = r.report, chips = '', btns = '';
     if (ap) {
-      var cls = ap.status === 'accepted' ? 'ok' : ap.status === 'escalated' ? 'esc' : 'no';
-      var txt = ap.status === 'accepted' ? 'itiraz kabul edildi · ' + esc(String(ap.old_score == null ? '–' : ap.old_score)) + ' → ' + esc(String(ap.new_score)) : ap.status === 'escalated' ? 'itiraz öğretmene iletildi' : 'itiraz incelendi · puan değişmedi';
+      var cls = ap.status === 'accepted' || ap.status === 'teacher_accepted' ? 'ok' : ap.status === 'escalated' ? 'esc' : 'no';
+      /* FAZ 6.4: öğretmene iletilen itirazı öğretmen karara bağlar */
+      var txt = ap.status === 'accepted' ? 'itiraz kabul edildi · ' + esc(String(ap.old_score == null ? '–' : ap.old_score)) + ' → ' + esc(String(ap.new_score)) : ap.status === 'escalated' ? 'itiraz öğretmene iletildi' : ap.status === 'teacher_accepted' ? 'öğretmen itirazı kabul etti' : ap.status === 'teacher_rejected' ? 'öğretmen inceledi · puan değişmedi' : 'itiraz incelendi · puan değişmedi';
       chips += '<span class="sn-chip ' + cls + '">' + txt + '</span>';
     }
+    var to = r.teacher_override;
+    if (to && typeof to === 'object') chips += '<span class="sn-chip ' + (to.old_score == null || to.score >= to.old_score ? 'ok' : 'no') + '">öğretmen puanı · ' + esc(String(to.old_score == null ? '–' : to.old_score)) + ' → ' + esc(String(to.score)) + '</span>';
     if (rp) chips += '<span class="sn-chip rep">bildirildi · ' + esc(catLabel(rp.category)) + '</span>';
     if (APPEALABLE[r.type] && !ap && !(typeof r.score === 'number' && r.score >= 100)) btns += '<button type="button" class="sn-link" data-fb="appeal">puana itiraz et</button>';
-    if (ap && ap.status === 'rejected') btns += '<button type="button" class="sn-link" data-fb="escalate">öğretmene ilet</button>';
+    /* "öğretmene ilet" yalnızca ödevde: kendi denemesinde öğretmen yok (eskiden boşa düşüyordu) */
+    if (ap && ap.status === 'rejected' && RES_EXAM && RES_EXAM.assignment_id) btns += '<button type="button" class="sn-link" data-fb="escalate">öğretmene ilet</button>';
     if (!rp) btns += '<button type="button" class="sn-link" data-fb="report">soru hatalı</button>';
     return '<div class="sn-fbk" data-fbq="' + qid + '">' + (chips ? '<div class="sn-fbk-c">' + chips + '</div>' : '') + (ap && ap.note ? '<p class="sn-apnote">' + esc(ap.note) + '</p>' : '') +
+      (ap && ap.teacher_note ? '<p class="sn-apnote"><b>öğretmen:</b> ' + esc(ap.teacher_note) + '</p>' : to && to.note ? '<p class="sn-apnote"><b>öğretmen:</b> ' + esc(to.note) + '</p>' : '') +
       (btns ? '<div class="sn-fbk-b">' + btns + '</div>' : '') + '<div class="sn-fbk-f" hidden></div></div>';
   };
   var fbForm = function (box, kind) {
@@ -3777,6 +3782,7 @@ window.axNotify = function (title, opts) {
       if (b.hasAttribute('data-sa-go')) { var sa = (MYA || []).filter(function (x) { return x.id === b.getAttribute('data-sa-go'); })[0]; if (sa) startAssignment(sa, b); return; }
       if (b.hasAttribute('data-sa-res')) { openAsgResult(b.getAttribute('data-sa-res')); return; }
       if (b.hasAttribute('data-asg-open')) { openAsg(b.getAttribute('data-asg-open'), k); return; }
+      if (b.hasAttribute('data-asg-res')) { openResults(b.getAttribute('data-asg-res'), k); return; }
       if (b.hasAttribute('data-cl-copy')) {
         try { await navigator.clipboard.writeText(k.join_code); say('Kod kopyalandı: ' + k.join_code); } catch (x) { say('Kod: ' + k.join_code); }
       } else if (b.hasAttribute('data-cl-roster')) {
@@ -3841,7 +3847,7 @@ window.axNotify = function (title, opts) {
     if (ASG == null) return '';
     var L = ASG.filter(function (a) { return a.class_id === k.id; });
     return '<div class="sn-cl-asg"><div class="sn-cl-asg-h"><b>ödevler</b><button type="button" class="sn-lnk" data-cl-asgnew="">+ ödev hazırla</button></div>' +
-      (L.length ? '<ul>' + L.map(function (a) { return '<li><button type="button" class="sn-asg-row ' + esc(a.status) + '" data-asg-open="' + esc(a.id) + '"><b>' + esc(a.title) + '</b><span>' + esc(asgState(a)) + '</span></button></li>'; }).join('') + '</ul>'
+      (L.length ? '<ul>' + L.map(function (a) { return '<li class="sn-asg-li"><button type="button" class="sn-asg-row ' + esc(a.status) + '" data-asg-open="' + esc(a.id) + '"><b>' + esc(a.title) + '</b><span>' + esc(asgState(a)) + '</span></button>' + (a.status !== 'draft' ? '<button type="button" class="sn-lnk" data-asg-res="' + esc(a.id) + '">sonuçlar</button>' : '') + '</li>'; }).join('') + '</ul>'
         : '<p class="sn-cl-meta">henüz ödev yok. yapay zekâ bir taslak hazırlar; her soruyu sen düzenleyip onaylarsın.</p>') + '</div>';
   };
   /* kurulum penceresi taslak kipi */
@@ -3969,7 +3975,7 @@ window.axNotify = function (title, opts) {
     if (!locked) h += '<div class="sn-asg-add"><span>soru ekle:</span>' + [['multiple_choice', 'çoktan seçmeli'], ['true_false', 'doğru-yanlış'], ['fill_blank', 'boşluk'], ['open_ended', 'açık uçlu']].map(function (t) { return '<button type="button" class="sn-ghost" data-ag-add="' + t[0] + '">' + t[1] + '</button>'; }).join('') +
       (a.source && (a.source.study_card_id || a.source.course_code) ? '<button type="button" class="sn-ghost" data-ag-ai="">+ yapay zekâ ile 1 soru</button>' : '') + '</div>';
     h += '<p class="sn-asg-msg" data-ag-msg="" role="status" aria-live="polite"></p><div class="sn-dlg-b">' +
-      (locked ? (a.status === 'published' ? '<button type="button" class="sn-ghost danger" data-ag-close="">ödevi kapat</button>' : '<span></span>') + '<button type="button" class="sn-ghost" data-ag-x="">kapat</button><button type="button" class="btn btn-dark" data-ag-dates="">son teslimi kaydet</button>'
+      (locked ? (a.status === 'published' ? '<button type="button" class="sn-ghost danger" data-ag-close="">ödevi kapat</button>' : '<span></span>') + '<button type="button" class="sn-ghost" data-ag-res="">sonuçlar</button><button type="button" class="sn-ghost" data-ag-x="">kapat</button><button type="button" class="btn btn-dark" data-ag-dates="">son teslimi kaydet</button>'
         : '<button type="button" class="sn-ghost danger" data-ag-del="">taslağı sil</button><button type="button" class="sn-ghost" data-ag-save="">taslağı kaydet</button><button type="button" class="btn btn-blue" data-ag-pub="">yayınla</button>') + '</div>';
     asgBody.innerHTML = h;
     paintQs();
@@ -4048,6 +4054,7 @@ window.axNotify = function (title, opts) {
     var b = e.target.closest('button'); if (!b || !AG) return;
     var i = qAt(b), Q = AG.questions;
     if (b.hasAttribute('data-ag-x')) { asgDlg.close(); return; }
+    if (b.hasAttribute('data-ag-res')) { var aid = AG.id, kk = clsById(AG.class_id); asgDlg.close(); openResults(aid, kk); return; }
     if (b.hasAttribute('data-ag-undo')) { var u = agUndo; agUndo = null; if (u) u(); return; }
     if (b.hasAttribute('data-aq-up') && i > 0) { Q.splice(i - 1, 0, Q.splice(i, 1)[0]); AG.dirty = true; paintQs('[data-aq="' + (i - 1) + '"] [data-aq-up]:not(:disabled), [data-aq="' + (i - 1) + '"] [data-aq-dn]'); return; }
     if (b.hasAttribute('data-aq-dn') && i < Q.length - 1) { Q.splice(i + 1, 0, Q.splice(i, 1)[0]); AG.dirty = true; paintQs('[data-aq="' + (i + 1) + '"] [data-aq-dn]:not(:disabled), [data-aq="' + (i + 1) + '"] [data-aq-up]'); return; }
@@ -4210,6 +4217,7 @@ window.axNotify = function (title, opts) {
         var mya = (MYA || []).filter(function (x) { return x.id === A.id; })[0], openAt = mya ? mya.window_end : A.reveal_at;
         if (A.answers_hidden && !exam.__revealed) notes.push(A.show_answers === 'never' || !openAt ? 'Öğretmen bu ödevin doğru cevaplarını göstermiyor; yalnızca puan ve doğru/yanlış görünür.' : 'Doğru cevaplar teslim süresi bitince (şu an ' + dtl(openAt) + ') burada görünecek; şimdilik puan ve doğru/yanlış.');
         if (A.varied) notes.push('Hesap sorularındaki sayılar sana özel.');
+        if (exam.teacher_note) notes.push('Öğretmenin notu: ' + exam.teacher_note);
         var sum = res.querySelector('.sn-sum');
         if (sum) sum.insertAdjacentHTML('afterend', '<div class="sn-asg-note">' + notes.map(function (n) { return '<p>' + esc(n) + '</p>'; }).join('') + '</div>');
         var hon = res.querySelector('.sn-honest'); if (hon) hon.textContent = 'Bu bir ödev: notu öğretmenin kurallarıyla Acadex verdi; açık uçlu sorularda yapay zekâ puanını öğretmenin görür ve değiştirebilir.';
@@ -4218,6 +4226,174 @@ window.axNotify = function (title, opts) {
     };
     window.showExamResults = showExamResults;
   }
+
+  /* ---------- FAZ 6.4: ödev sonuçları ve analiz (öğretmen) ----------
+     assignment_results (SQL; yalnızca sınıfın öğretmeni) + exam-engine assignmentAnalysis.
+     Sekmeler: öğrenciler (kâğıt, puan düzeltme, öğrenciye not), sorular (doğru oranı, çeldirici
+     dağılımı, ayırt edicilik, uyarılar), itirazlar ("öğretmene ilet" ve "soru hatalı"), ustalık
+     (YALNIZCA paylaşan öğrenciler; class_mastery_data). Yazma exam-appeal üzerinden
+     (teacher_score / teacher_note; yetki exam_teacher_ok). */
+  var rsDlg = $('[data-resdlg]'), rsBody = $('[data-rs-body]'), RS = null, RSA = null, RSM = null, rsTab = 'students', rsStu = null, rsExam = null, rsK = null;
+  var FLAG_TIP = { 'zor': 'öğrencilerin %30’undan azı doğru yaptı', 'kolay': '%90’dan fazlası doğru yaptı', 'ayırt etmiyor': 'iyi ve zayıf öğrenciler benzer başarıda; soru bilgiyi ölçmüyor olabilir', 'ters': 'zayıf öğrenciler iyilerden daha başarılı: cevap anahtarını kontrol et', 'çok boş': 'öğrencilerin %30’undan fazlası boş bıraktı' };
+  var pctT = function (x) { return x == null ? '—' : '%' + Math.round(x * 100); };
+  var callAppealFn = async function (body) {
+    var ses = (await sb().auth.getSession()).data.session; if (!ses) throw new Error('Oturum bulunamadı; yeniden giriş yap.');
+    var res = await fetch(SUPABASE_URL + '/functions/v1/exam-appeal', { method: 'POST', headers: { Authorization: 'Bearer ' + ses.access_token, 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY }, body: JSON.stringify(body) });
+    var d = await res.json().catch(function () { return {}; });
+    if (!res.ok) throw new Error(d.error || 'Kaydedilemedi.');
+    return d;
+  };
+  var openResults = async function (id, k, keep) {
+    rsK = k || rsK;
+    if (!keep) { rsTab = 'students'; rsStu = null; rsExam = null; RSM = null; rsBody.innerHTML = '<p class="sn-cl-meta">sonuçlar yükleniyor…</p>'; }
+    if (!rsDlg.open) rsDlg.showModal();
+    var r = await sb().rpc('assignment_results', { p_id: id });
+    if (r.error) { rsBody.innerHTML = '<button type="button" class="sn-x" data-rs-x="" aria-label="Kapat">×</button><p class="sn-asg-msg bad">' + esc(clsErrText(r.error)) + '</p>'; return; }
+    RS = r.data; RSA = ENG().assignmentAnalysis(RS);
+    paintResults();
+  };
+  var rsStudentsHtml = function () {
+    var S = RSA.students.slice().sort(function (a, b) { return (a.best == null) - (b.best == null) || String(a.name).localeCompare(String(b.name), 'tr'); });
+    if (!S.length) return '<p class="sn-cl-meta">sınıfta henüz öğrenci yok.</p>';
+    return '<ul class="sn-rs-st">' + S.map(function (s) {
+      var st = s.status === 'done' ? 'teslim etti' : s.status === 'in_progress' ? 'çözüyor' : 'başlamadı';
+      return '<li class="' + s.status + '"><div class="nm"><b>' + esc(s.name) + '</b><span>' + esc(s.number || '') + '</span></div>' +
+        '<span class="st">' + st + (s.attempts > 1 ? ' · ' + s.attempts + ' deneme' : '') + '</span>' +
+        '<span class="gr">' + (s.best == null ? '—' : '<b>' + esc(String(Math.round(s.best))) + '</b>' + (s.lateDays ? '<small>geç ' + s.lateDays + ' gün, %' + s.latePct + ' kesinti' + (s.rawBest != null ? ' (' + Math.round(s.rawBest) + ')' : '') + '</small>' : '')) + '</span>' +
+        '<span class="dt">' + (s.submittedAt ? dtl(s.submittedAt) : '') + '</span>' +
+        (s.bestExamId ? '<button type="button" class="sn-lnk" data-rs-stu="' + esc(s.user_id) + '">kâğıdı aç</button>' : '<span></span>') + '</li>';
+    }).join('') + '</ul>';
+  };
+  var rsPaperHtml = function () {
+    var s = RSA.students.filter(function (x) { return x.user_id === rsStu; })[0]; if (!s) return '';
+    var L = RS.exams.filter(function (e) { return e.user_id === rsStu && e.completed_at; });
+    var ex = L.filter(function (e) { return e.id === rsExam; })[0] || L.filter(function (e) { return e.id === s.bestExamId; })[0] || L[0];
+    if (!ex) return '';
+    rsExam = ex.id;
+    var qmap = {}; (ex.questions || []).forEach(function (q) { qmap[String(q.id)] = q; });
+    var fbBy = {}; RS.feedback.filter(function (f) { return f.exam_id === ex.id; }).forEach(function (f) { (fbBy[f.question_id] = fbBy[f.question_id] || []).push(f); });
+    var lang = ex.assignment && ex.assignment.language || 'tr';
+    var h = '<button type="button" class="sn-lnk" data-rs-back="">← öğrenciler</button><h3 class="sn-rs-h">' + esc(s.name) + ' <small>' + esc(s.number || '') + '</small></h3>' +
+      (L.length > 1 ? '<p class="sn-rs-att">deneme: ' + L.map(function (e) { return '<button type="button" class="sn-ghost' + (e.id === ex.id ? ' on' : '') + '" data-rs-ex="' + esc(e.id) + '" aria-pressed="' + (e.id === ex.id) + '">' + (e.attempt_no || '?') + ' · ' + Math.round(+e.grade) + '</button>'; }).join('') + '</p>' : '') +
+      '<p class="sn-cl-meta">not <b>' + Math.round(+ex.grade) + '</b> · teslim ' + dtl(ex.completed_at) + (ex.assignment && ex.assignment.late_applied ? ' · geç ' + ex.assignment.late_applied.days + ' gün, %' + ex.assignment.late_applied.pct + ' kesinti (kesintisiz ' + Math.round(+ex.assignment.late_applied.raw_grade) + ')' : '') + '</p>';
+    var rows = (ex.results || []).slice().sort(function (a, b) { var sa = qmap[String(a.question_id)], sb2 = qmap[String(b.question_id)]; return ((sa && sa.src) || 0) - ((sb2 && sb2.src) || 0); });
+    h += '<ol class="sn-rs-qs">' + rows.map(function (r) {
+      var pq = qmap[String(r.question_id)] || {}, n = Number.isInteger(pq.src) ? pq.src + 1 : r.question_id, sc = typeof r.score === 'number' ? r.score : null;
+      var to = r.teacher_override, fbs = fbBy[r.question_id] || [], esc8 = fbs.filter(function (f) { return f.kind === 'appeal'; })[0];
+      var ans = r.type === 'graph' ? (ENG() && ENG().graphResultHtml ? ENG().graphResultHtml(r, lang) : 'çizim') : rich(String(r.student_answer == null || r.student_answer === '' ? '— boş —' : r.student_answer)) + (r.units ? ' ' + esc(r.units) : '');
+      return '<li class="sn-rs-q ' + (sc == null ? '' : sc >= 80 ? 'ok' : sc >= 50 ? 'half' : 'no') + '" data-rs-q="' + esc(String(r.question_id)) + '"><div class="sn-aq-h"><b>' + esc(String(n)) + '</b><span class="sn-aq-t">' + esc(QT[r.type] || r.type || '') + '</span>' + (r.concept ? '<span class="sn-aq-c">' + esc(r.concept) + '</span>' : '') +
+        (r.flagged ? '<span class="sn-aq-by">işaretledi</span>' : '') + (r.hint_used ? '<span class="sn-aq-by">ipucu</span>' : '') + '<span class="sp"></span><b class="sc">' + (sc == null ? '—' : sc) + '</b></div>' +
+        '<div class="sn-aq-q">' + rich(r.question || pq.question || '') + '</div>' +
+        '<p class="sn-aq-a">cevabı: ' + ans + '</p>' +
+        (r.type !== 'graph' && r.correct_answer != null && r.correct_answer !== '' ? '<p class="sn-aq-a">doğrusu: <b>' + rich(String(r.correct_answer)) + '</b></p>' : '') +
+        (r.feedback ? '<p class="sn-aq-x">' + (r.type === 'open_ended' ? 'YZ puanlaması: ' : '') + rich(r.feedback) + '</p>' : '') +
+        (to ? '<p class="sn-aq-n">senin düzeltmen: ' + esc(String(to.old_score == null ? '–' : to.old_score)) + ' → ' + esc(String(to.score)) + (to.note ? ' · “' + esc(to.note) + '”' : '') + '</p>' : '') +
+        (esc8 ? '<p class="sn-rs-ap ' + esc(esc8.status) + '"><b>' + (esc8.status === 'escalated' ? 'öğretmene iletilen itiraz' : 'itiraz') + ':</b> “' + esc(esc8.reason || '') + '”' + (esc8.details && esc8.details.note ? ' <span>YZ: ' + esc(esc8.details.note) + '</span>' : '') + '</p>' : '') +
+        fbs.filter(function (f) { return f.kind === 'report'; }).map(function (f) { return '<p class="sn-rs-ap rep"><b>soru hatalı bildirimi:</b> ' + esc(catLabel(f.category)) + (f.reason ? ' · “' + esc(f.reason) + '”' : '') + '</p>'; }).join('') +
+        '<div class="sn-rs-ov"><label><span>puan</span><input type="number" min="0" max="100" step="1" value="' + (sc == null ? '' : sc) + '" data-ov-score="" aria-label="' + esc(String(n)) + '. soru puanı"></label>' +
+        '<label class="nt"><span>öğrenciye not <small>(isteğe bağlı)</small></span><input type="text" maxlength="500" data-ov-note="" value="' + esc(to && to.note || '') + '"></label>' +
+        '<button type="button" class="sn-ghost" data-ov-save="' + esc(String(r.question_id)) + '">' + (esc8 && esc8.status === 'escalated' ? 'itirazı karara bağla' : 'puanı kaydet') + '</button></div></li>';
+    }).join('') + '</ol>' +
+      '<label class="sn-f"><span>öğrenciye genel not <small>(sonuç kâğıdında görünür)</small></span><textarea rows="2" maxlength="1000" data-tn="">' + esc(ex.teacher_note || '') + '</textarea></label><button type="button" class="btn btn-dark" data-tn-save="">notu kaydet</button>';
+    return h;
+  };
+  var rsQuestionsHtml = function () {
+    if (!RSA.analyzed) return '<p class="sn-cl-meta">henüz teslim yok; analiz ilk teslimle başlar.</p>';
+    return '<p class="sn-cl-meta">Analiz her öğrencinin ilk denemesinden (' + RSA.analyzed + ' öğrenci). Doğru: puan ≥ 80. Ayırt edicilik, notu en yüksek ve en düşük öğrencilerin o sorudaki başarı farkı' + (RSA.analyzed < 4 ? '; 4 öğrenciden az olduğu için hesaplanmadı' : '') + '.</p><ol class="sn-rs-qa">' + RSA.questions.map(function (q) {
+      return '<li><div class="sn-aq-h"><b>' + (q.index + 1) + '</b><span class="sn-aq-t">' + esc(QT[q.type] || q.type) + '</span>' + (q.concept ? '<span class="sn-aq-c">' + esc(q.concept) + '</span>' : '') +
+        q.flags.map(function (f) { var k = f.indexOf('işlemeyen') === 0 ? 'işlemeyen' : f; return '<span class="sn-flag ' + (k === 'ters' ? 'bad' : '') + '" title="' + esc(FLAG_TIP[k] || 'hiç kimse seçmedi; çeldirici işe yaramıyor') + '">' + esc(f) + '</span>'; }).join('') + '</div>' +
+        '<div class="sn-aq-q">' + rich(String(q.question || '').slice(0, 400)) + '</div>' +
+        '<div class="sn-rs-bar" role="img" aria-label="doğru oranı ' + pctT(q.correctRate) + '"><i style="width:' + Math.round((q.correctRate || 0) * 100) + '%"></i></div>' +
+        '<p class="sn-cl-meta">' + q.n + ' öğrenci · doğru ' + pctT(q.correctRate) + (q.avgScore != null ? ' · ort. puan ' + q.avgScore : '') + (q.blank ? ' · boş ' + q.blank : '') + ' · ayırt edicilik ' + (q.discrimination == null ? '—' : String(q.discrimination).replace('.', ',')) + '</p>' +
+        (q.optionCounts ? '<ul class="sn-rs-opt">' + q.optionCounts.map(function (o) { var w = q.n ? Math.round(o.count / q.n * 100) : 0; return '<li class="' + (o.correct ? 'ok' : '') + '"><span>' + rich(o.option) + (o.correct ? ' ✓' : '') + '</span><i style="width:' + w + '%"></i><b>' + o.count + '</b></li>'; }).join('') + '</ul>' : '') + '</li>';
+    }).join('') + '</ol>';
+  };
+  var rsAppealsHtml = function () {
+    var P = RSA.pendingAppeals, R = RSA.reports;
+    var done = RS.feedback.filter(function (f) { return f.kind === 'appeal' && f.status === 'resolved' && f.details && f.details.teacher; });
+    if (!P.length && !R.length && !done.length) return '<p class="sn-cl-meta">itiraz ya da “soru hatalı” bildirimi yok. Yapay zekânın reddettiği bir itirazı öğrenci sana iletirse burada görünür.</p>';
+    var row = function (f, kind) { return '<li><b>' + esc(f.name) + '</b> · ' + (f.src != null ? (f.src + 1) + '. soru' : 'soru') + (kind === 'rep' ? ' · ' + esc(catLabel(f.category)) : '') + (f.reason ? '<p>“' + esc(f.reason) + '”</p>' : '') + (kind === 'ap' && f.details && f.details.note ? '<p class="ai">YZ’nin kararı: ' + esc(f.details.note) + '</p>' : '') + (kind === 'done' ? '<p class="ai">kararın: ' + esc(String(f.details.teacher.old_score)) + ' → ' + esc(String(f.details.teacher.score)) + (f.details.teacher.note ? ' · “' + esc(f.details.teacher.note) + '”' : '') + '</p>' : '') +
+      '<button type="button" class="sn-lnk" data-rs-goto="' + esc(f.exam_id) + '" data-rs-gq="' + esc(String(f.question_id)) + '" data-rs-gu="' + esc(f.user_id) + '">kâğıtta aç</button></li>'; };
+    return (P.length ? '<h4 class="sn-k">karar bekleyen itirazlar (' + P.length + ')</h4><ul class="sn-rs-fb">' + P.map(function (f) { return row(f, 'ap'); }).join('') + '</ul>' : '') +
+      (R.length ? '<h4 class="sn-k">“soru hatalı” bildirimleri (' + R.length + ')</h4><ul class="sn-rs-fb">' + R.map(function (f) { return row(f, 'rep'); }).join('') + '</ul>' : '') +
+      (done.length ? '<h4 class="sn-k">karara bağladıkların</h4><ul class="sn-rs-fb">' + done.map(function (f) { f.name = (RSA.students.filter(function (s) { return s.user_id === f.user_id; })[0] || {}).name || ''; return row(f, 'done'); }).join('') + '</ul>' : '');
+  };
+  var rsMasteryHtml = function () {
+    if (RSM === null) return '<p class="sn-cl-meta">yükleniyor…</p>';
+    if (RSM === false) return '<p class="sn-asg-msg bad">ustalık verisi alınamadı.</p>';
+    var sharing = RSM.length, total = RSA.students.length;
+    if (!sharing) return '<p class="sn-cl-meta">Öğrencilerden hiçbiri konu ustalığını paylaşmıyor (' + total + ' öğrenci). Paylaşım öğrencinin kendi kararıdır ve varsayılan olarak kapalıdır.</p>';
+    var eng = ENG(), agg = {};
+    RSM.forEach(function (st) {
+      eng.conceptMastery(st.exams || []).forEach(function (c) {
+        var a = agg[c.key] = agg[c.key] || { name: c.name, lv: [0, 0, 0, 0], weak: [], n: 0 };
+        a.lv[c.level]++; a.n++; if (c.level === 0) a.weak.push(st.full_name);
+      });
+    });
+    var L = Object.keys(agg).map(function (k) { return agg[k]; }).sort(function (a, b) { return (b.lv[0] / b.n) - (a.lv[0] / a.n) || b.n - a.n; });
+    return '<p class="sn-cl-meta">' + sharing + '/' + total + ' öğrenci konu ustalığını paylaşıyor; yalnızca bu dersin sınavları sayılır. En çok zorlanılan konular başta.</p>' +
+      '<ul class="sn-rs-ms">' + L.map(function (a) {
+        return '<li><b>' + esc(a.name) + '</b><span class="lv">' + ['zayıf', 'tanıdık', 'yetkin', 'usta'].map(function (nm, i) { return a.lv[i] ? '<i class="l' + i + '" style="flex:' + a.lv[i] + '" title="' + nm + ': ' + a.lv[i] + '">' + a.lv[i] + '</i>' : ''; }).join('') + '</span>' +
+          (a.weak.length ? '<small>zayıf: ' + esc(a.weak.slice(0, 6).join(', ')) + (a.weak.length > 6 ? ' +' + (a.weak.length - 6) : '') + '</small>' : '') + '</li>';
+      }).join('') + '</ul><p class="sn-rs-lg">' + ['zayıf', 'tanıdık', 'yetkin', 'usta'].map(function (nm, i) { return '<span><i class="l' + i + '"></i>' + nm + '</span>'; }).join('') + '<span>(kutudaki sayı: öğrenci)</span></p>';
+  };
+  var paintResults = function () {
+    var a = RS.assignment, S = RSA.summary, P = RSA.pendingAppeals.length;
+    var fa = document.activeElement, fsel = fa && rsBody.contains(fa) ? (fa.getAttribute('data-rs-tab') ? '[data-rs-tab="' + fa.getAttribute('data-rs-tab') + '"]' : null) : null;
+    var h = '<button type="button" class="sn-x" data-rs-x="" aria-label="Kapat">×</button><span class="sn-k">' + esc((rsK && rsK.name) || '') + ' · ' + (a.status === 'closed' ? 'kapalı' : 'yayında') + ' · son teslim ' + esc(dtl(a.due_at)) + '</span><h2 id="rs-t" class="disp">' + esc(a.title) + '</h2>' +
+      '<p class="sn-rs-sum"><span>teslim <b>' + S.submitted + '/' + S.members + '</b></span><span>ortalama <b>' + (S.avg == null ? '—' : String(S.avg).replace('.', ',')) + '</b></span><span>medyan <b>' + (S.median == null ? '—' : String(Math.round(S.median * 10) / 10).replace('.', ',')) + '</b></span>' + (S.inProgress ? '<span>çözüyor <b>' + S.inProgress + '</b></span>' : '') + (S.late ? '<span>geç <b>' + S.late + '</b></span>' : '') + '</p>' +
+      '<div class="sn-rs-tabs" role="tablist">' + [['students', 'öğrenciler'], ['questions', 'sorular'], ['appeals', 'itirazlar' + (P ? ' (' + P + ')' : '')], ['mastery', 'ustalık']].map(function (t) { return '<button type="button" role="tab" aria-selected="' + (rsTab === t[0]) + '" data-rs-tab="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>' +
+      '<div class="sn-rs-pane" role="tabpanel">' + (rsTab === 'students' ? (rsStu ? rsPaperHtml() : rsStudentsHtml()) : rsTab === 'questions' ? rsQuestionsHtml() : rsTab === 'appeals' ? rsAppealsHtml() : rsMasteryHtml()) + '</div>' +
+      '<p class="sn-asg-msg" data-rs-msg="" role="status" aria-live="polite"></p><div class="sn-dlg-b"><span></span><button type="button" class="sn-ghost" data-rs-csv="">notları CSV indir</button><button type="button" class="btn btn-dark" data-rs-x="">kapat</button></div>';
+    rsBody.innerHTML = h;
+    if (fsel) { var f = $(fsel, rsBody); if (f) f.focus(); }
+  };
+  var rsMsg = function (t, bad) { var m = $('[data-rs-msg]', rsBody); if (m) { m.textContent = t; m.className = 'sn-asg-msg' + (bad ? ' bad' : ''); } };
+  rsBody.addEventListener('click', async function (e) {
+    var b = e.target.closest('button'); if (!b || !RS) { if (b && b.hasAttribute('data-rs-x')) rsDlg.close(); return; }
+    if (b.hasAttribute('data-rs-x')) { rsDlg.close(); return; }
+    if (b.hasAttribute('data-rs-tab')) {
+      rsTab = b.getAttribute('data-rs-tab'); if (rsTab !== 'students') rsStu = null;
+      if (rsTab === 'mastery' && RSM === null) sb().rpc('class_mastery_data', { p_class: RS.assignment.class_id }).then(function (r) { RSM = r.error ? false : (r.data || []); if (rsTab === 'mastery') paintResults(); });
+      paintResults(); return;
+    }
+    if (b.hasAttribute('data-rs-stu')) { rsStu = b.getAttribute('data-rs-stu'); rsExam = null; paintResults(); rsBody.scrollTop = 0; var bk = $('[data-rs-back]', rsBody); if (bk) bk.focus(); return; }
+    if (b.hasAttribute('data-rs-back')) { var was = rsStu; rsStu = null; paintResults(); var sb3 = $('[data-rs-stu="' + was + '"]', rsBody); if (sb3) sb3.focus(); return; }
+    if (b.hasAttribute('data-rs-ex')) { rsExam = b.getAttribute('data-rs-ex'); paintResults(); return; }
+    if (b.hasAttribute('data-rs-goto')) {
+      rsTab = 'students'; rsStu = b.getAttribute('data-rs-gu'); rsExam = b.getAttribute('data-rs-goto'); paintResults();
+      var q = $('[data-rs-q="' + b.getAttribute('data-rs-gq') + '"]', rsBody); if (q) { q.scrollIntoView({ block: 'center' }); var inp = $('[data-ov-score]', q); if (inp) inp.focus(); }
+      return;
+    }
+    if (b.hasAttribute('data-ov-save')) {
+      var li = b.closest('[data-rs-q]'), sc = $('[data-ov-score]', li).value, note = $('[data-ov-note]', li).value.trim();
+      if (sc === '' || isNaN(+sc) || +sc < 0 || +sc > 100) { rsMsg('Puan 0 ile 100 arasında olmalı.', true); $('[data-ov-score]', li).focus(); return; }
+      b.disabled = true;
+      try {
+        var d = await callAppealFn({ action: 'teacher_score', examId: rsExam, questionId: +b.getAttribute('data-ov-save'), score: +sc, reason: note });
+        var qid = b.getAttribute('data-ov-save');
+        await openResults(RS.assignment.id, null, true);
+        rsMsg('Kaydedildi; not ' + Math.round(+d.exam.grade) + ' oldu. Öğrenci sonuç kâğıdında görür.');
+        var q2 = $('[data-rs-q="' + qid + '"] [data-ov-save]', rsBody); if (q2) q2.focus();
+      } catch (x) { rsMsg(x.message, true); b.disabled = false; }
+      return;
+    }
+    if (b.hasAttribute('data-tn-save')) {
+      b.disabled = true;
+      try { await callAppealFn({ action: 'teacher_note', examId: rsExam, reason: $('[data-tn]', rsBody).value.trim() }); await openResults(RS.assignment.id, null, true); rsMsg('Not kaydedildi; öğrenci sonuç kâğıdında görür.'); }
+      catch (x) { rsMsg(x.message, true); b.disabled = false; }
+      return;
+    }
+    if (b.hasAttribute('data-rs-csv')) {
+      var q3 = function (v) { v = String(v == null ? '' : v); return /[;"\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+      var lines = [['Ad', 'Numara', 'Durum', 'Deneme', 'Not', 'Kesintisiz not', 'Geç gün', 'Teslim'].join(';')].concat(RSA.students.map(function (s) {
+        return [s.name, s.number || '', s.status === 'done' ? 'teslim etti' : s.status === 'in_progress' ? 'çözüyor' : 'başlamadı', s.attempts, s.best == null ? '' : String(s.best).replace('.', ','), s.rawBest == null ? '' : String(s.rawBest).replace('.', ','), s.lateDays || '', s.submittedAt ? new Date(s.submittedAt).toLocaleString('tr-TR') : ''].map(q3).join(';');
+      }));
+      var blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }), url = URL.createObjectURL(blob), aEl = document.createElement('a');
+      aEl.href = url; aEl.download = String(RS.assignment.title || 'odev').replace(/[^\wçğıöşüÇĞİÖŞÜ -]+/g, '').slice(0, 60) + ' - notlar.csv'; document.body.appendChild(aEl); aEl.click(); aEl.remove(); setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+      rsMsg('CSV indirildi (Excel’de Türkçe karakterlerle açılır).');
+    }
+  });
 
   var paintAll = function () { paintCal(); paintDesks(); paintReport(); paintErrs(); };
 

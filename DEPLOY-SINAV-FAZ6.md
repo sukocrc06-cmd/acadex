@@ -261,3 +261,64 @@ Hoca paneli (teacher.html) 19.10.2026'da kaldırılmıştı (`20261019_yonetim_p
   - `teacher_note` yazabilirdi.
 - **Düzeltme:** `exams_guard_grading_fields` bu alanları da kilitler. Öğrenci INSERT'inde ödev alanları ve öğretmen notu boş olmalı. Ön yüz bu alanları hiç güncellemiyor; sunucu (service_role) serbest.
 - **Test:** `tests/sql/faz6-koruma.sql` (Postgres).
+
+## Faz 6.4: öğretmenin sonuç ve analiz ekranı
+
+### Ekran
+Sınıf kartındaki ödev satırında ya da yayınlanmış ödevin düzenleyicisinde **"sonuçlar"**.
+- **Özet:** teslim (n/sınıf), ortalama, medyan, çözüyor, geç teslim.
+- **Öğrenciler:**
+  - Her öğrencinin durumu: teslim etti, çözüyor ya da başlamadı.
+  - Deneme sayısı ve en yüksek not (ödevin notu). Geç teslimde kesinti ve kesintisiz not da görünür.
+  - **"Kâğıdı aç":** soru soru cevap, doğrusu, yapay zekânın puanlama gerekçesi ("YZ puanlaması"), işaret/ipucu, itiraz ve "soru hatalı" bildirimi.
+    - **Puan düzeltme:** 0-100 puan ve öğrenciye not (yukarı da aşağı da). Not yeniden hesaplanır: yanlış doğruyu götürür ve geç teslim kesintisi uygulanır. Bekleyen "öğretmene ilet" itirazı bu sırada karara bağlanır.
+    - **Öğrenciye genel not:** sonuç kâğıdında görünür.
+  - Birden çok deneme varsa denemeler arasında geçilebilir.
+- **Sorular:** her öğrencinin **ilk** denemesinden (sonraki denemeler aynı soruları tekrar gördüğü için analizi şişirir).
+  - Doğru oranı (puan ≥ 80), ortalama puan, boş sayısı.
+  - Çoktan seçmelide şık dağılımı; doğru şık işaretli.
+  - Ayırt edicilik: notu en yüksek ve en düşük grupların o sorudaki başarı farkı. n ≥ 10'da %27'lik gruplar, daha azında yarılar; 4 öğrenciden azsa hesaplanmaz.
+  - **Uyarılar:**
+    - zor (< %30)
+    - kolay (> %90)
+    - ayırt etmiyor (< 0,15)
+    - **ters** (zayıflar iyilerden başarılı: anahtarı kontrol et)
+    - çok boş (> %30)
+    - işlemeyen çeldirici (kimse seçmedi)
+  - Karışık sıradaki soru, asıl sırasına `src` ile döner (6.4'ten önce başlamış denemelerde soru metniyle eşlenir).
+- **İtirazlar:** karar bekleyen "öğretmene ilet" itirazları (öğrencinin gerekçesi ve yapay zekânın kararı), "soru hatalı" bildirimleri, karara bağlananlar. "Kâğıtta aç" doğrudan o soruya gider.
+- **Ustalık:** yalnızca ustalığını paylaşan öğrenciler, yalnızca bu dersin sınavları (sınıfın ders kodu ve sınıfın ödevleri). Konu başına zayıf/tanıdık/yetkin/usta öğrenci sayısı ve zayıf öğrenciler; en çok zorlanılan konular başta.
+- **CSV:** ad, numara, durum, deneme, not, kesintisiz not, geç gün, teslim. Excel'de Türkçe karakterlerle açılır (BOM, `;`).
+
+### Öğrenci tarafındaki değişiklikler
+- Sonuç kâğıdında "öğretmen puanı · eski → yeni" ve öğretmenin notu. İtiraz durumları "öğretmen itirazı kabul etti" ya da "öğretmen inceledi · puan değişmedi".
+- **"Öğretmene ilet" artık yalnızca ödevde çıkıyor.** Kendi denemelerinde öğretmen yok; düğme eskiden boşa düşüyordu.
+
+### Sunucu
+- **`exam-appeal`:**
+  - `teacher_score` ve `teacher_note`. Yetki `exam_teacher_ok` ile (sınavın ödevi çağıranın sınıfında olmalı ve çağıran etkin öğretmen olmalı); bu denetim öğrenci sahiplik denetiminden önce.
+  - Yazma service_role ile. Cevaplar gizliyse hem `exam_hidden_results` hem öğrencinin gördüğü özet güncellenir. `question_attempts` ve `exam_question_feedback` (durum `resolved`, `details.teacher`) da güncellenir.
+- **SQL (`20261028e_sinav_faz6_sonuclar.sql`):**
+  - `exam_teacher_ok`.
+  - `assignment_results`: ödevin tam sonuçları; gizli cevaplıda tam sonuç öğretmene.
+  - `class_mastery_data`: yalnızca paylaşan öğrenci ve yalnızca o ders; soru metni yok.
+- **`generate-exam`:** öğrenci kopyasındaki her soruya asıl sırası (`src`) yazılır.
+
+### Test
+- `tests/exam-assignment-results.js`: 10 test.
+  - analiz (durum, özet, ilk deneme, `src` ve metin eşlemesi, ayırt edicilik ve uyarılar, itirazlar)
+  - istek denetimi
+  - öğretmen puanı
+  - öğretmen dalının yeri ve yetkisi
+  - ön yüz
+- **Davranış testi** (`tests/sql/faz6-sonuclar.sql`, Postgres ve RLS ile):
+  - ödev dışı sınav sızmıyor
+  - gizli cevaplıda tam sonuç yalnızca öğretmene
+  - ustalık yalnızca paylaşanlardan ve yalnızca o dersten, soru metni yok
+  - başka öğretmen ve öğrenci erişemiyor
+  - paylaşım kapanınca görünmüyor
+- **Tarayıcı** (`run22`): sekmeler, kâğıt, puan düzeltme isteği, hatalı puan, öğrenciye not, soru analizi, itiraz → kâğıtta aç (odak puan kutusunda), ustalık, CSV dosyası; 390 px'te taşma yok. `run19`, `run20`, `run21` yeniden geçti.
+
+### Deploy
+- `exam-appeal` ve `generate-exam` otomatik (GitHub Actions).
+- SQL elle.
