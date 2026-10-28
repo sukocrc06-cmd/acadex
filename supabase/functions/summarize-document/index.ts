@@ -8643,7 +8643,21 @@ async function geminiDraft(
         !tavanKesti &&
         !kota429Gorulen &&
         aktif.length < 2 &&
-        Date.now() - ilk.startedAt >= yedekGecikme &&
+      /* YEDEK GECIKMESI ARTIK SON ISTEKTEN SAYILIYOR (28.10.2026).
+         Esik `ilk.startedAt`e bakiyordu: ilk gecikme bir kez dolduktan sonra
+         kosul kalici olarak dogru kaliyor ve dusen her yarisci yerine tek fren
+         olarak GEMINI_RETRY_WAIT_MS (2,5 sn) kaliyordu. 28.10 19:52 kosusunda
+         tam bu oldu: 3.5 olu akis, 3.6 35,2 sn de basladi, 3.7 bes saniye
+         sonra, 3.8 iki saniye sonra — DORT istek YEDI saniyeye sigdi, ucu de
+         503 ve bir kosuda dort RPD yandi. Oysa olculen saglikli akisin ilk
+         olayi 25,6 sn de geliyor; aninda baslatilan yedegin kendi penceresi
+         hic verilmemis oluyordu. sonIstekAni her baslat() cagrisinda
+         guncellendigi icin ILK yedek yine tam gecikmede basliyor, sonrakiler
+         de kendi penceresini aliyor. Hepsi 503 veren bir yuzeyde aktif
+         bosalinca dongu dusenleri donduruyor, yani kuyruk SIRAYLA yurutuluyor.
+         Not: GEMINI_RETRY_WAIT_MS kosulu altta duruyor — gecikme secret ile
+         2,5 sn nin altina cekilirse RPM payi yine korunsun. */
+        Date.now() - sonIstekAni >= yedekGecikme &&
         Date.now() - sonIstekAni >= GEMINI_RETRY_WAIT_MS &&
         toplamIstek < GEMINI_MAX_REQUESTS_PER_RUN &&
         geminiToplamTavan - gecen >= GEMINI_YEDEK_MIN_KALAN_MS
@@ -8655,7 +8669,7 @@ async function geminiDraft(
           toplamIstek++
           modelDenemesi.set(yedek, (modelDenemesi.get(yedek) || 0) + 1)
           console.warn(
-            `Gemini yedek: ${aktif.map((k) => k.model).join(', ')} ${Date.now() - ilk.startedAt}ms'dir ` +
+            `Gemini yedek: ${aktif.map((k) => `${k.model} ${Date.now() - k.startedAt}ms`).join(', ')} ` +
             `olay getirmedi — ${yedek} paralel baslatiliyor (tavan ${yedekMs}ms, ` +
             `istek ${toplamIstek}/${GEMINI_MAX_REQUESTS_PER_RUN})`
           )

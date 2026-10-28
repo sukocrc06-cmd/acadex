@@ -74,6 +74,7 @@ function stubFetch(responses) {
   fetchQueue = responses.slice();
   globalThis.fetch = async (url, options) => {
     fetchCalls.push({
+      at: Date.now(),
       url,
       method: (options && options.method) || 'POST',
       body: options && options.body ? JSON.parse(options.body) : null,
@@ -1443,6 +1444,33 @@ test('YEDEK: yedek de 503 verirse siradaki aday yedek olur', async () => {
   } finally { restoreFetch(); denoEnv.delete('GEMINI_YEDEK_GECIKME_MS'); }
 });
 
+/* 28.10.2026 — YEDEK GECIKMESI ILK ISTEKTEN SAYILIYORDU (19:52 kosusu dersi).
+ *
+ * Esik `ilk.startedAt`e bakinca ilk gecikme dolduktan sonra kalici olarak
+ * dogru kaliyor ve dusen her yarisci yerine GEMINI_RETRY_WAIT_MS sonra
+ * yenisi giriyordu. Canlida: 3.5 olu akis, 3.6 35,2 sn, 3.7 +5 sn, 3.8
+ * +2 sn — dort istek yedi saniyeye sigdi, ucu de 503. Olculen saglikli
+ * akisin ilk olayi 25,6 sn de geldigi icin her yedegin KENDI penceresi
+ * olmali; yoksa yedek stratejisi RPD yi bosa yakmaktan ibaret kaliyor. */
+test('YEDEK: her yedek kendi gecikmesini bekler (dusen yerine aninda yenisi girmez)', async () => {
+  denoEnv.set('GEMINI_YEDEK_GECIKME_MS', '400');
+  stubFetch([
+    { status: 200, hang: true },                                                    // 3.5: olu akis, acik kalir
+    { status: 503, text: 'gemini-3.6-flash is currently experiencing high demand' }, // 3.6: aninda duser
+    { status: 200, json: OK_JSON }                                                  // 3.7: gercek akis
+  ]);
+  try {
+    const out = await quiet(() =>
+      G.geminiDraft('K', 'SIS', BYTES, 'application/pdf', 'KUL', 120_000, 'only'));
+    assert.ok(out, 'ucuncu aday hic baslatilmadi');
+    assert.equal(fetchCalls.length, 3, `${fetchCalls.length} istek`);
+    const aralik = fetchCalls[2].at - fetchCalls[1].at;
+    assert.ok(aralik >= 350,
+      `3. istek 2.'den yalnizca ${aralik}ms sonra basladi — yedek gecikmesi ilk ` +
+      'istekten sayiliyor, dusen yarisci yerine aninda yenisi giriyor (RPD bosa yanar)');
+  } finally { restoreFetch(); denoEnv.delete('GEMINI_YEDEK_GECIKME_MS'); }
+});
+
 test('YEDEK: kurallar kaynakta — yalnizca only, akissiz yolda yok, toplam tavanda kesilir', () => {
   const src = require('node:fs').readFileSync(
     require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
@@ -1458,6 +1486,9 @@ test('YEDEK: kurallar kaynakta — yalnizca only, akissiz yolda yok, toplam tava
   assert.ok(/return \[kayit\(olayli\), \.\.\.dusen\]/.test(src));
   assert.ok(/toplamIstek < GEMINI_MAX_REQUESTS_PER_RUN &&\s*geminiToplamTavan - gecen >= GEMINI_YEDEK_MIN_KALAN_MS/.test(src),
     'yedek istek tavanina ya da kalan sureye bakmiyor');
+  // 28.10.2026 — gecikme SON istekten sayilir, ilk yarisciningkinden degil.
+  assert.ok(/Date\.now\(\) - sonIstekAni >= yedekGecikme &&/.test(src),
+    'gecikme ilk istekten sayiliyor — dusen yarisci yerine aninda yenisi baslar, RPD yanar');
 });
 
 test('YEDEK: gecikme olculen hizli ilk olaylarin ustunde, ikinci modele yer birakiyor', () => {
