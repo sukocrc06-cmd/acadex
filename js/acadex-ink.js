@@ -3700,7 +3700,7 @@ window.axNotify = function (title, opts) {
     clsEl.hidden = false;
     var teach = (CL.teaching || []), enr = (CL.enrolled || []);
     $('[data-cls-new]').hidden = !CL.is_teacher;
-    $('[data-cls-sub]').textContent = CL.is_teacher ? 'sınıf aç, kodu paylaş; ödevler yakında' : 'öğretmeninin verdiği kodla katıl';
+    $('[data-cls-sub]').textContent = CL.is_teacher ? 'sınıf aç, kodu paylaş, ödev ver' : 'öğretmeninin verdiği kodla katıl';
     clsEl.classList.toggle('has', !!(teach.length || enr.length));
     clsEl.classList.toggle('tch', !!CL.is_teacher);  /* öğretmende katılım formu sona */
     var act = teach.filter(function (k) { return !k.archived; }).map(function (k) { return clsCard(k, true); })
@@ -3905,10 +3905,12 @@ window.axNotify = function (title, opts) {
     return (sc.option_count || 4) + ' şık · ' + (sc.negative_marking ? (sc.wrong_per_correct || 3) + ' yanlış 1 doğruyu götürür' : 'yanlış götürmez') + (sc.decimal_places ? ' · hesapta virgülden sonra ' + sc.decimal_places + ' basamak' : '');
   };
   var qHtml = function (q, i, n, locked) {
-    var ed = !locked && EDITABLE[q.type] && !q.chart, lang = (AG.settings && AG.settings.language) || 'tr';
+    /* FAZ 6.5: kodla doğrulanamamış hesap sorusu (formülü yok) elle düzeltilebilir; cevabı model yazdı */
+    var unv = q.type === 'calculation' && !q.formula && !q.chart;
+    var ed = !locked && (EDITABLE[q.type] || unv) && !q.chart, lang = (AG.settings && AG.settings.language) || 'tr';
     var h = '<li class="sn-aq' + (ed ? '' : ' ro') + '" data-aq="' + i + '"><div class="sn-aq-h"><b>' + (i + 1) + '</b><span class="sn-aq-t">' + esc(QT[q.type] || q.type) + '</span>' +
       (q.author === 'teacher' ? '<span class="sn-aq-by t">senin sorun</span>' : '<span class="sn-aq-by" title="yapay zekâ taslağı">YZ' + (q.edited ? ' · düzenlendi' : '') + '</span>') +
-      (q.concept ? '<span class="sn-aq-c">' + esc(q.concept) + '</span>' : '') + '<span class="sp"></span>' +
+      (q.concept ? '<span class="sn-aq-c">' + esc(q.concept) + '</span>' : '') + (unv && q.author !== 'teacher' ? '<span class="sn-flag bad" title="formülü yok; cevabı yapay zekâ yazdı">kodla doğrulanmadı</span>' : '') + '<span class="sp"></span>' +
       (locked ? '' : '<button type="button" class="sn-ib" data-aq-up="" aria-label="' + (i + 1) + '. soruyu yukarı taşı"' + (i ? '' : ' disabled') + '>↑</button>' +
         '<button type="button" class="sn-ib" data-aq-dn="" aria-label="' + (i + 1) + '. soruyu aşağı taşı"' + (i < n - 1 ? '' : ' disabled') + '>↓</button>' +
         (q.author === 'teacher' ? '' : '<button type="button" class="sn-lnk" data-aq-regen="">yeniden üret</button>') +
@@ -3924,6 +3926,10 @@ window.axNotify = function (title, opts) {
       } else if (q.type === 'true_false') {
         var tf = Array.isArray(q.options) && q.options.length === 2 ? q.options : (lang === 'en' ? ['True', 'False'] : ['Doğru', 'Yanlış']);
         h += '<label class="sn-f sn-aq-s"><span>doğru cevap</span>' + selHtml('data-aq-f="correct_answer"', q.correct_answer, tf.map(function (x) { return [x, x]; })) + '</label>';
+      } else if (q.type === 'calculation') {
+        h += '<p class="sn-aq-n bad">Bu sorunun cevabını kod doğrulayamadı. Soru tek bir sayı istemeli; cevabı ve birimi kontrol et.' + (Array.isArray(q.solution_steps) && q.solution_steps.length ? ' Modelin çözümü: ' + esc(q.solution_steps.join(' → ')) : '') + '</p>' +
+          '<div class="sn-f2"><label class="sn-f"><span>doğru cevap (sayı)</span><input type="text" inputmode="decimal" data-aq-f="correct_answer" value="' + esc(q.correct_answer == null ? '' : String(q.correct_answer)) + '" maxlength="40"></label>' +
+          '<label class="sn-f"><span>birim <small>(isteğe bağlı)</small></span><input type="text" data-aq-f="units" value="' + esc(q.units || '') + '" maxlength="12"></label></div>';
       } else if (q.type === 'fill_blank') {
         h += '<div class="sn-f2"><label class="sn-f"><span>doğru cevap</span><input type="text" data-aq-f="correct_answer" value="' + esc(q.correct_answer || '') + '" maxlength="200"></label>' +
           '<label class="sn-f"><span>kabul edilen diğer yazımlar <small>(virgülle)</small></span><input type="text" data-aq-f="accepted_answers" value="' + esc((q.accepted_answers || []).join(', ')) + '" maxlength="400"></label></div>';
@@ -4042,6 +4048,7 @@ window.axNotify = function (title, opts) {
     if ((f = t.getAttribute('data-aq-f'))) {
       if (f === 'accepted_answers') q.accepted_answers = t.value.split(',').map(function (x) { return x.trim(); }).filter(Boolean).slice(0, 10);
       else if (f === 'rubric') { var rb = parseRubric(t.value); if (rb) q.rubric = rb; else delete q.rubric; }
+      else if (f === 'correct_answer' && q.type === 'calculation') { var nv = Number(String(t.value).trim().replace(/\s/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.')); q.correct_answer = isFinite(nv) && String(t.value).trim() !== '' ? nv : t.value; q.solution_steps = []; }
       else q[f] = t.value;
     } else if (t.hasAttribute('data-aq-opt')) {
       var j = +t.getAttribute('data-aq-opt'), old = q.options[j]; q.options[j] = t.value; if (old !== '' && q.correct_answer === old) q.correct_answer = t.value;
@@ -4077,6 +4084,8 @@ window.axNotify = function (title, opts) {
     }
     if (b.hasAttribute('data-ag-save')) { b.disabled = true; await saveAsg(false); b.disabled = false; return; }
     if (b.hasAttribute('data-ag-pub')) {
+      var badCalc = Q.map(function (q, j) { return q.type === 'calculation' && !isFinite(Number(q.correct_answer)) ? j + 1 : 0; }).filter(Boolean);
+      if (badCalc.length) { agMsg(badCalc.join(', ') + '. soru: hesap sorusunun doğru cevabı tek bir sayı olmalı.', true); return; }
       if (!window.confirm('Ödev yayınlansın mı?\n\nSorular kilitlenir; sonra yalnızca son teslim tarihini değiştirebilir ya da ödevi kapatabilirsin. Öğrenciler ödevi açılış zamanında görür.')) return;
       b.disabled = true;
       if (await saveAsg(true)) {

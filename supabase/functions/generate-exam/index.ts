@@ -2223,6 +2223,16 @@ function calcFormulaKey(q: Record<string, unknown>): string | null {
   return `${q.formula.replace(/\s+/g, '')}|${vars}`
 }
 
+/** FAZ 6.5: doğrulanamayan hesap sorusunda cevap, çözümün son adımındaki
+ *  sayılardan biri olmalı (adım yoksa ya da son adımda sayı yoksa kabul). */
+function unverifiedAnswerConsistent(steps: unknown, answer: number): boolean {
+  const list = Array.isArray(steps) ? steps.map(s => String(s ?? '')).filter(s => s.trim()) : []
+  if (!list.length) return true
+  const nums = (list[list.length - 1].match(/-?\d+(?:[.,]\d+)*/g) || []).map(t => parseLooseNumber(t)).filter(x => Number.isFinite(x))
+  if (!nums.length) return true
+  return nums.some(x => Math.abs(x - answer) <= Math.max(1e-9, Math.abs(answer) * 0.005))
+}
+
 /** Tek bir soruyu denetler ve temizlenmiş halini döner. Geçmezse
  *  { ok: false, reason } — soru atılır. allowUnverifiedCalc: son çare;
  *  formülü doğrulanamayan ama cevabı sayı olan hesap sorusu Faz 3a öncesi
@@ -2286,6 +2296,10 @@ function validateQuestion(raw: unknown, allowedTypes: string[], language: string
     if (!check.ok) {
       const n = answerNumber(q.correct_answer)
       if (!allowUnverifiedCalc || check.reason === 'calc_mismatch' || !Number.isFinite(n)) return { ok: false, reason: check.reason }
+      // Canlı ödev testi (28.10.2026): "denge fiyatı ve miktarı" soran soruda
+      // cevap 4, kendi çözüm adımları ise Q*=3, P*=5 diyordu. Doğrulanamayan
+      // soruda cevap, son çözüm adımındaki sayılardan biri değilse soru atılır.
+      if (!unverifiedAnswerConsistent(q.solution_steps, n)) return { ok: false, reason: 'calc_unverified_inconsistent' }
       q.correct_answer = n
       for (const k of ['variables', 'formula', 'template', 'common_errors', 'verified']) delete q[k]
     }

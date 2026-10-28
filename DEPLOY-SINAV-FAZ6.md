@@ -322,3 +322,13 @@ Sınıf kartındaki ödev satırında ya da yayınlanmış ödevin düzenleyicis
 ### Deploy
 - `exam-appeal` ve `generate-exam` otomatik (GitHub Actions).
 - SQL elle.
+
+### 6.5: doğrulanamayan hesap sorusu (canlı ödev testi, 28.10.2026)
+- **Bulgu:** yapay zekânın ödev taslağında bir hesap sorusu iki değer soruyordu ("denge fiyatı (P*) ve denge miktarı (Q*)"). Cevap anahtarında 4 yazıyordu; sorunun kendi çözüm adımları ise Q*=3, P*=5 diyordu.
+  - Soru kodla doğrulanamamış ve Faz 3a'nın "son çare" yoluyla alınmıştı.
+  - Düzenleyici hesap sorularını kilitlediği için öğretmen bu cevabı düzeltemiyordu.
+- **Sunucu (`generate-exam`, `unverifiedAnswerConsistent`):** doğrulanamayan hesap sorusunda cevap, son çözüm adımındaki sayılardan biri değilse soru atılır. Bu kural normal sınavlarda da geçerli.
+- **Düzenleyici:** formülü olmayan (kodla doğrulanmamış) hesap sorusu "kodla doğrulanmadı" diye işaretlenir. Öğretmen soruyu, cevabı ve birimi düzeltebilir; modelin çözüm adımları yanında gösterilir. Yayında hesap cevabının sayı olması denetlenir. Formülü olan, kodla doğrulanmış sorular eskisi gibi kilitli kalır.
+- **Test:**
+  - `tests/exam-integrity.js` (son çare kuralı)
+  - `tests/exam-assignments.js` (yardımcı ve düzenleyici)
