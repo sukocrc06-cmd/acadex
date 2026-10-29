@@ -3328,18 +3328,34 @@ function retryUserPrompt(items: RetrySource[], lang: string, optionCount: number
     `QUESTION COUNT: ${items.length}`,
     `OPTION COUNT: every 'multiple_choice' question has exactly ${optionCount} options.`,
     `GRAPH QUESTIONS: not allowed.`,
-    `SECOND CHANCE: the student got each SOURCE QUESTION below wrong. For each one, in the same order, write exactly ONE new question of the SAME type that tests the SAME concept and skill with different specifics (a different example, case, numbers or angle), so it is not the source reworded and, where possible, its correct answer differs. Keep "concept" equal to the source concept. Write the full schema (hint, explanation, option_rationales or rubric, variables/formula/template for calculation). "source_terms" may be [].`,
+    `SECOND CHANCE: the student got each SOURCE QUESTION below wrong. For each one, in the same order, write exactly ONE new question of the SAME type that tests the SAME concept and skill with different specifics (a different example, case, numbers or angle), so it is not the source reworded: do not reuse the source sentence; ask about a different aspect, case or example. For 'fill_blank' and 'true_false' the answer should differ from the source answer where possible. Keep "concept" equal to the source concept. Write the full schema (hint, explanation, option_rationales or rubric, variables/formula/template for calculation). "source_terms" may be [].`,
     `SOURCE QUESTIONS:`,
     ...lines
   ].join('\n')
 }
 
-/** Modelin sorusu, kaynağıyla aynı tipte geçerli ve kaynağın kendisi değilse. */
+/** Kaba kök benzerliği: 3+ harfli kelimelerin ilk 5 harfiyle Jaccard. */
+function retrySimilarity(a: unknown, b: unknown): number {
+  const stems = (t: unknown) => new Set(normalizeAnswerText(t).split(/[^\p{L}\p{N}]+/u).filter(w => w.length >= 3).map(w => w.slice(0, 5)))
+  const A = stems(a), B = stems(b)
+  if (!A.size || !B.size) return 0
+  let common = 0
+  A.forEach(w => { if (B.has(w)) common++ })
+  return common / (A.size + B.size - common)
+}
+
+/** Modelin sorusu, kaynağıyla aynı tipte geçerli ve kaynağın kılık
+ *  değiştirmiş hali değilse. Canlı test (30.10.2026): boşluk sorusu
+ *  kaynağın yeniden yazılmışı geldi ("Kısa vadeli borçların toplamı…
+ *  dönen varlıkları içinde ___" → "Şirketin kısa vadeli borçları, dönen
+ *  varlıkların içinde ___"), cevap da aynıydı. */
 function acceptRetryQuestion(raw: unknown, src: RetrySource, lang: string, optionCount: number): Record<string, unknown> | null {
   const v = validateQuestion(raw, [String(src.result.type)], lang, optionCount, true)
-  if (!v.ok || !v.question) return null
+  if (!v.ok || !v.question) { console.warn(`generate-exam ikinci sans: soru atildi (${src.result.type}): ${v.reason}`); return null }
   const q = v.question
-  if (normalizeAnswerText(q.question) === normalizeAnswerText(src.result.question)) return null
+  const sim = retrySimilarity(q.question, src.result.question)
+  const sameAnswer = q.type !== 'open_ended' && q.type !== 'calculation' && normalizeAnswerText(q.correct_answer) === normalizeAnswerText(src.result.correct_answer)
+  if (sim >= 0.5 || (sameAnswer && sim >= 0.35)) { console.warn(`generate-exam ikinci sans: soru kaynaga cok benziyor (${sim.toFixed(2)}${sameAnswer ? ', ayni cevap' : ''})`); return null }
   if (!q.concept && src.result.concept) q.concept = src.result.concept
   delete q.chart_ref
   return q

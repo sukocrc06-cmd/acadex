@@ -30,7 +30,7 @@ const G = loadFromSource(GEN, [
   'repairLatex', 'unverifiedAnswerConsistent', 'validateQuestion', 'shuffleInPlace',
   'OPTION_NEAR_PERCENT', 'NUMERIC_OPTION', 'optionCanonical', 'hasAmbiguousOptions', 'MATH_INPUT_MAX', 'normalizeMathInput', 'STEP_KINDS', 'verifyLinearEquation', 'EXPR_SAMPLE_VALUES', 'EXPR_MIN_VALID_POINTS', 'EXPR_FORMS', 'exprSamplePoints', 'expressionsEquivalent', 'hasTopLevelSum', 'isExpandedForm', 'exprTokenCount', 'checkExpressionForm', 'verifyExpression', 'STANDARD_CONSTANTS', 'referencesName', 'inlineName', 'chartNumbers',
   'TEMPLATE_PH', 'formatNumber', 'templateMultipliers', 'tidy', 'renderTemplate', 'decimalsOf', 'significantDigits', 'makeVariant',
-  'RETRY_MAX_ITEMS', 'RETRY_TYPES', 'retryCalcVariant', 'retryUserPrompt', 'acceptRetryQuestion']);
+  'RETRY_MAX_ITEMS', 'RETRY_TYPES', 'retryCalcVariant', 'retryUserPrompt', 'retrySimilarity', 'acceptRetryQuestion']);
 const E = require(path.join(__dirname, '..', 'js', 'exam-engine.js'));
 const seq = (vals) => { let i = 0; return () => vals[i++ % vals.length]; };
 const D = 86400000, T0 = Date.parse('2026-10-20T10:00:00Z');
@@ -94,6 +94,13 @@ test('model sorusu: aynı tip, kaynağın kendisi değil, konu taşınır', () =
   assert.ok(q); assert.equal(q.concept, 'Talep kanunu');
   assert.equal(G.acceptRetryQuestion({ ...good, question: src.result.question }, src, 'tr', 4), null, 'aynı soru');
   assert.equal(G.acceptRetryQuestion({ ...good, type: 'multiple_choice' }, src, 'tr', 4), null, 'tip değişemez');
+  // canlı test 30.10: kaynağın yeniden yazılmışı geri çevrilir
+  const fb = { examId: 'e1', questionId: 3, exam: {}, key: {}, result: { type: 'fill_blank', question: 'Kısa vadeli borçların toplamı, şirketin dönen varlıkları içinde ________ olarak sınıflandırılır.', correct_answer: 'kısa vadeli yükümlülük', concept: 'Kısa vadeli borçlar' } };
+  const reworded = { type: 'fill_blank', question: 'Şirketin kısa vadeli borçları, dönen varlıkların içinde ________ kısmına dahil edilir.', correct_answer: 'kısa vadeli yükümlülük', explanation: 'x' };
+  assert.ok(G.retrySimilarity(reworded.question, fb.result.question) >= 0.5);
+  assert.equal(G.acceptRetryQuestion(reworded, fb, 'tr', 4), null);
+  const fresh = { type: 'fill_blank', question: 'Bir yıl içinde nakde çevrilmesi beklenen varlıklara ________ denir.', correct_answer: 'dönen varlık', explanation: 'x' };
+  assert.ok(G.acceptRetryQuestion(fresh, fb, 'tr', 4));
   const p = G.retryUserPrompt([src], 'tr', 4);
   assert.match(p, /QUESTION COUNT: 1/); assert.match(p, /GRAPH QUESTIONS: not allowed/); assert.match(p, /CONCEPT: Talep kanunu/);
   assert.deepEqual(G.RETRY_TYPES.sort(), ['calculation', 'fill_blank', 'multiple_choice', 'open_ended', 'true_false']);
