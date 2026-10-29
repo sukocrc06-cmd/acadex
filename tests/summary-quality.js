@@ -111,9 +111,11 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'windowCompletionFor', 'windowCompletionFloored',
   // Sayisal kapsama olcusu (09.10.2026).
   'SAYFA_ISARETI_RE', 'SAYISAL_KAPSAMA_TOLERANS', 'SAYI_BELIRTECI', 'SAYISAL_KAPSAMA_ORNEK',
-  'sayiOkumalari', 'URL_BENZERI_RE', 'BOZUK_US_RE', 'CAG_YILI_RE', 'DERS_KODU_RE',
+  'sayiOkumalari', 'URL_BENZERI_RE', 'BOZUK_US_RE', 'CAG_YILI_RE', 'DERS_KODU_RE', 'ATIF_ETIKETI_RE',
   // Maddeler veritabanina duz metin olarak gider (29.10.2026 olcumu).
   'duzMaddeMetni', 'normalizeKeyPoints',
+  // Chunk yazimi Postgres kacisinda dusuyordu (29.10.2026 olcumu).
+  'pgGuvenliMetin',
   // Anlatidaki ham LaTeX ve formuldeki ciplak sozcuk (29.10.2026 olcumu).
   'ANLATI_MATEMATIK_ADACIK_RE', 'anlatiLatexYumusat', 'onarAnlatiLatex',
   // Ayiracsiz LaTeX anlati disina da siziyordu (29.10.2026 olcumu).
@@ -4916,6 +4918,64 @@ test('sarma DOGRULAMADAN ONCE uygulaniyor', () => {
   // Karta giden hali sarilmis hali; validateLatex onu gormeli.
   assert.match(SRC, /validateLatex\(formulSozcukleriniSar\(deduped\)\)/,
     'sarma sanitizeFormulas icinde dogrulamaya baglanmamis');
+});
+
+/* ATIF ETIKETI ve POSTGRES KACISI (29.10.2026 — IKI AYRI OLCUM).
+
+   Kapsama artefakti, iki bagimsiz kosudan:
+     "Chp 9":  9.4 <- "Figure 9.4 Groupthink: Antecedents..."
+     "Chp8":   349 <- "...reality and truth (p. 349)."
+
+   Chunk yazimi ise "Chp8 - Conformity" kosusunda TAMAMEN dustu:
+     document_chunks: insert failed at 0: unsupported Unicode escape sequence
+   78 sayfalik belge icin "Kaynakla calis" bos kaldi. Ozet akisi
+   etkilenmedi, cunku kart MODEL metninden kuruluyor; chunk ise HAM
+   metinden ve PDF cikarimi NUL / yarim vekil karakter uretebiliyor. */
+console.log('\nATIF ETIKETI VE POSTGRES KACISI\n');
+
+test('OLCULEN ATIF ETIKETLERI sayi sayilmiyor', () => {
+  for (const g of [
+    'urns his back on reality and truth (p. 349). These are classic',
+    'Figure 9.4 Groupthink: Antecedents, Symptoms',
+    'Figure 9.5 Fiedler Contingency Theory',
+    'see Table 2 and Tablo 3 and Sayfa 56',
+    'as shown in Chapter 12, Section 4.2 and pp. 18'
+  ]) assert.deepEqual(A.distinctiveNumbers(g), [], g);
+});
+
+test('ONEK SARTI: ciplak sayi hala MIKTAR', () => {
+  /* Yalnizca onekli bicim eleniyor. Ciplak bolum numarasi ("9.3 Group
+     Decision Making") BILEREK disarida: tek ornekten guvenli kural cikmaz
+     ve "3.5 Million dollars" gibi gercek miktarlari yutabilir. */
+  assert.deepEqual(A.distinctiveNumbers('At 150 volts, when the learner gave his first'), [150]);
+  assert.ok(A.distinctiveNumbers('beginning inventory of $43,803 million').includes(43803));
+  assert.ok(A.distinctiveNumbers('drifted backward every 1,460 years').includes(1460));
+  // 'ek' ve 'bolum' listede YOK: "ek 5 birim" gercek bir miktardir.
+  assert.ok(A.distinctiveNumbers('ek 5 birim daha gerekli, toplam 250 adet').includes(250));
+});
+
+test('POSTGRES KACISI: NUL ve yarim vekil karakter temizleniyor', () => {
+  const nul = 'metin' + String.fromCharCode(0) + 'devam';
+  assert.equal(A.pgGuvenliMetin(nul), 'metin devam', 'NUL bosluga donmeli');
+  // Yarim vekil karakter SILINIYOR (yerine bosluk konmuyor).
+  const yarim = 'a' + String.fromCharCode(0xD800) + 'b';
+  assert.equal(A.pgGuvenliMetin(yarim), 'ab');
+  // GECERLI vekil cifti (emoji) BOZULMAMALI: 'u' bayragiyla tek kod noktasi.
+  const emoji = String.fromCodePoint(0x1F600);
+  assert.equal(A.pgGuvenliMetin('gule ' + emoji + ' gule'), 'gule ' + emoji + ' gule');
+  // Satir sonu ve sekme KORUNUR — sayfa isaretleri onlara dayaniyor.
+  assert.equal(A.pgGuvenliMetin('bir\n--- SAYFA 2 ---\tiki'), 'bir\n--- SAYFA 2 ---\tiki');
+  assert.equal(A.pgGuvenliMetin(null), '');
+});
+
+test('temizlik INSERT in tam onunde kosuyor', () => {
+  /* buildStorableChunks'ta yapmak da olurdu ama chunk'lari baska bir yol
+     uretirse oradan da gecmesi gerekir. */
+  assert.match(SRC, /const temiz = pgGuvenliMetin\(c\.text\)/,
+    'chunk metni insert oncesi temizlenmiyor');
+  const i = SRC.indexOf('const temiz = pgGuvenliMetin(c.text)');
+  const j = SRC.indexOf("from('document_chunks').insert(rows)");
+  assert.ok(i > 0 && j > 0 && i < j, 'temizlik insert ten ONCE olmali');
 });
 
 console.log('\nMADDELER DUZ METIN OLARAK KAYDEDILIR\n');

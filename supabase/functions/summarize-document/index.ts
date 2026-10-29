@@ -4336,6 +4336,31 @@ function buildStorableChunks(text: string, pageMarkerLabel: string): StorableChu
  * re-processed document replaces its chunks instead of accumulating stale
  * ones (and so a shorter re-extraction cannot leave orphan tail chunks).
  */
+/* POSTGRES NUL VE ESI OLMAYAN VEKIL KARAKTERI KABUL ETMIYOR (29.10.2026).
+ *
+ * "Chp8 - Conformity" kosusunda chunk yazimi TAMAMEN dustu:
+ *   document_chunks: insert failed at 0: unsupported Unicode escape sequence
+ * 78 sayfalik belge icin "Kaynakla calis" ve belge sohbeti bos kaldi. Hata
+ * Postgres'ten geliyor: JSON dizesinde \u0000 ya da esi olmayan vekil
+ * karakter varsa jsonb/text donusumu reddediyor. PDF metin cikarimi ikisini
+ * de uretebiliyor (gomulu font tablolari, bozuk kodlama).
+ *
+ * Ozet akisi bu hatadan etkilenmiyordu — kart modelin urettigi metinden
+ * kuruluyor, chunk ise HAM metinden. Bu yuzden hata yalnizca chunk
+ * yolunda goruldu ve sessizce 'uyari' olarak gecti.
+ *
+ * Temizlik insert'in TAM ONUNDE: buildStorableChunks'ta yapmak da olurdu
+ * ama chunk'lari baska bir yol uretirse oradan da gecmesi gerekir. */
+function pgGuvenliMetin(deger: string): string {
+  return String(deger ?? '')
+    // NUL ve oteki C0 kontrol karakterleri (\t \n \r haric) bosluga donuyor.
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, ' ')
+    /* Esi olmayan vekil karakter: 'u' bayragiyla gecerli cift TEK kod
+       noktasi sayilir ve Cs kategorisine girmez, yani bu desen yalnizca
+       YARIM kalanlari siliyor. */
+    .replace(/\p{Cs}/gu, '')
+}
+
 async function persistDocumentChunks(
   serviceClient: any,
   documentId: string,
@@ -4353,7 +4378,15 @@ async function persistDocumentChunks(
     const BATCH = 200
     let written = 0
     for (let i = 0; i < chunks.length; i += BATCH) {
-      const rows = chunks.slice(i, i + BATCH).map(c => ({ ...c, document_id: documentId }))
+      let temizlenen = 0
+      const rows = chunks.slice(i, i + BATCH).map(c => {
+        const temiz = pgGuvenliMetin(c.text)
+        if (temiz !== c.text) temizlenen++
+        return { ...c, text: temiz, document_id: documentId }
+      })
+      if (temizlenen > 0) {
+        console.log(`document_chunks: ${temizlenen} chunk Postgres icin temizlendi (NUL / yarim vekil karakter)`)
+      }
       const { error: insError } = await serviceClient.from('document_chunks').insert(rows)
       if (insError) return { written, error: `insert failed at ${i}: ${insError.message}` }
       written += rows.length
@@ -5071,11 +5104,33 @@ const CAG_YILI_RE = /\b\d{1,4}\s*(?:b\.?c\.?e\.?|b\.?c\.?|a\.?d\.?|c\.?e\.?|m\.?
  * daldan dusuyor — onlar da miktar degil. */
 const DERS_KODU_RE = /\b[A-Za-z]{2,}\d{1,4}\b/g
 
+/* ATIF ETIKETI SAYI DEGILDIR (29.10.2026 — iki bagimsiz olcum).
+ *
+ * "Chp 9 - Group Processes" kosusunda kapsama kayiplarinin baglami:
+ *   9.4 <- "Figure 9.4 Groupthink: Antecedents, Symptoms, and..."
+ *   9.5 <- "Figure 9.5 Fiedler's Contingency Theory of Leaders"
+ * "Chp8 - Conformity" kosusunda:
+ *   349 <- "urns his back on reality and truth” (p. 349)."
+ *
+ * Ucu de SEKIL/SAYFA etiketi: belgenin kendi numaralandirmasi, olculen bir
+ * miktar degil. Kapsama olcusu MIKTAR olcuyor (bkz. CAG_YILI_RE yanindaki
+ * ayni gerekce).
+ *
+ * YALNIZCA ONEKLI bicim eleniyor. Ciplak bolum numarasi ("9.3 Group
+ * Decision Making" gibi bir gundem satiri) BILEREK disarida: onun icin
+ * guvenli bir kural tek ornekten cikmaz ve "3.5 Million dollars" gibi
+ * gercek miktarlari da yutabilir. Onek sarti o riski sifirliyor.
+ *
+ * 'ek' ve 'bolum' listede YOK: "ek 5 birim" gercek bir miktardir. */
+const ATIF_ETIKETI_RE =
+  /\b(?:figure|fig|table|tablo|\u015fekil|sekil|chart|exhibit|slide|slayt|appendix|page|sayfa|chapter|section|equation|eq|pp|p)\s*\.?\s*\d+(?:\.\d+)*\b/gi
+
 function distinctiveNumbers(text: string): number[] {
   const temiz = String(text || '')
     .replace(URL_BENZERI_RE, ' ')
     .replace(BOZUK_US_RE, '$1 ')
     .replace(CAG_YILI_RE, ' ')
+    .replace(ATIF_ETIKETI_RE, ' ')
     .replace(DERS_KODU_RE, ' ')
     .replace(SAYFA_ISARETI_RE, ' ')
   const out: number[] = []
