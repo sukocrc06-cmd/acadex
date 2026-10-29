@@ -8494,10 +8494,7 @@ var SBX = (function () {
       '<div class="lb-pctl"><button type="button" class="btn btn-dark" data-pgo=""></button><button type="button" class="hbtn" data-pskip="">atla</button><button type="button" class="hbtn" data-preset="">sıfırla</button></div>' +
       '<p class="lb-dots" data-dots="" aria-live="polite"></p><div class="lb-seeds" data-seeds="" role="radiogroup" aria-label="Tohum seç"></div>' +
       '<details class="lb-pset"><summary class="hand">süreleri ayarla</summary><div class="lb-psrow">' +
-      /* GECICI — BILDIRIM TESTI (29.10.2026). 1 dk secenegi yalnizca
-         pomodoro bitis bildirimini beklemeden denemek icin eklendi.
-         KALDIRMAK ICIN: asagidaki satirdaki <option>1</option>'i sil. */
-      '<label>odak <select data-pf=""><option>1</option><option>15</option><option>20</option><option>25</option><option>30</option><option>45</option><option>50</option></select> dk</label>' +
+      '<label>odak <select data-pf=""><option>15</option><option>20</option><option>25</option><option>30</option><option>45</option><option>50</option></select> dk</label>' +
       '<label>mola <select data-pb=""><option>3</option><option>5</option><option>10</option></select> dk</label>' +
       '<label>uzun mola <select data-pl=""><option>10</option><option>15</option><option>20</option><option>30</option></select> dk</label>' +
       '<label>her <select data-pn=""><option>2</option><option>3</option><option>4</option><option>5</option></select> turda bir</label></div></details>' +
@@ -9379,8 +9376,27 @@ var SBX = (function () {
       .replace(/\$(?=[^$\n]*[\\^_{])([^$\n]+?)\$/g, function (_m, t) { return ic(t); })
       .replace(/\$(-?\d+(?:[.,]\d+)?)\$(?!\d)/g, '$1');
   }; /* latexAyiracSiyir sonu */
+  /* ATIF ETIKETI SAYI DEGILDIR (29.10.2026, uc kartta olculdu).
+   *
+   * Kartin tepesindeki sayi rozetleri belgenin KENDI numaralandirmasini
+   * gosteriyordu. Olculen ornekler:
+   *   "Figure 3.2 shows that participants who memorized..."  -> rozet "3,2"
+   *   "Figure 3.4 demonstrates that students expected..."    -> rozet "3,4"
+   *   "Figure 5.3 illustrates Self-Awareness Theory..."      -> rozet "5,3"
+   * Sebep: asagidaki desende `-?\d+[.,]\d+` dali ciplak ondaligi
+   * yakaliyor ve "3.2" tam o sekle uyuyor. Yani ogrenci kartin basinda
+   * olgu yerine sekil numarasi goruyordu.
+   *
+   * Ayni eleme sunucuda da var (summarize-document icindeki
+   * ATIF_ETIKETI_RE): orada sayisal KAPSAMA olcusunu duzeltiyor, burada
+   * ekrandaki rozeti. Iki yer ayri kod yolu oldugu icin iki kez yazili.
+   *
+   * Yalnizca ONEKLI bicim eleniyor. Ciplak bolum numarasi disarida:
+   * "3.5 Million dollars" gibi gercek bir miktari yutma riski var. */
+  var ATIF_ETIKETI_RE = /\b(?:figure|fig|table|tablo|şekil|sekil|chart|exhibit|slide|slayt|appendix|page|sayfa|chapter|section|equation|eq|pp|p)\s*\.?\s*\d+(?:[.,]\d+)*/gi;
   var findNumbers = function (card) {
-    var src = latexAyiracSiyir([card.summary_executive || ''].concat(arr(card.key_points).map(plain)).concat([plain(card.summary || '')]).join(' \n '));
+    var src = latexAyiracSiyir([card.summary_executive || ''].concat(arr(card.key_points).map(plain)).concat([plain(card.summary || '')]).join(' \n '))
+      .replace(ATIF_ETIKETI_RE, ' ');
     var sents = src.split(/(?<=[.!?])\s+|\n/), out = [], seen = {};
     /* EKSI ISARETI VE CIPLAK ONDALIKLAR (24.10.2026).
      *

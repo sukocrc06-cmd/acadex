@@ -2877,6 +2877,86 @@ function nearDupKeysMatch(a: string, b: string): boolean {
  * items whose keys name different things are never merged, no matter how
  * alike their full text reads.
  */
+/* AYNI DIYAGRAM KARTA IKI KEZ GIRIYOR (29.10.2026 olcumu).
+ *
+ * "Weeks 4-5 Chp 3" kartinda ikinci ve ucuncu diyagram ayni seydi:
+ *   "The Self-Fulfilling Prophecy Cycle"                    (pencereden)
+ *   "The Self-Fulfilling Prophecy: A sad cycle in four acts" (gorsel gecisten)
+ * Log sebebi soyluyor:
+ *   Long-doc visual patch: ... +1 diagrams
+ *   Near-duplicate merge: terms 20->20, points 27->27, quiz 16->16
+ * Kopya birlestirme terim/madde/soru'ya bakiyor, DIYAGRAMLARA hic bakmiyor.
+ *
+ * NEDEN GENEL DEDUPE YETMIYOR: olculdu, iki diyagramin dugum metni
+ * ortusmesi 0,643 — NEAR_DUP_THRESHOLD (0,7) bunu KACIRIYOR. Esigi genel
+ * olarak dusurmek madde ve terimleri de etkilerdi.
+ *
+ * IKI KOSUL. Baslik ortusmesi bu veride cok daha keskin: ayni diyagram icin
+ * 1,000, farkli diyagramla (Types of Social Cognition) 0,000. Ama baslik
+ * TEK BASINA yetmez — "Social Cognition: Automatic" ile ".. Controlled"
+ * baslikta ortusur, iceride ortusmez. Bu yuzden ikisi birden isteniyor:
+ *   baslik ortusmesi >= DIYAGRAM_BASLIK_ESIGI (0,7)  VE
+ *   dugum ortusmesi  >= DIYAGRAM_DUGUM_ESIGI  (0,5)
+ * Olculen cift: baslik 1,000, dugum 0,500 -> kopya. Farkli cift (Types of
+ * Social Cognition): 0,000 / 0,000 -> ayri.
+ *
+ * DUGUM ESIGI BILEREK GEVSETILMEDI. Olculen kopya tam 0,500'de, yani
+ * sinirda. Esigi dusurmek merging'i kolaylastirir ve yanlis tarafa hata
+ * yapar: bir kopyayi KACIRMAK (iki diyagram gorunur) gercek bir diyagrami
+ * SILMEKTEN iyidir. Sinirda kalmasi kabul; kaybetmemek esas. */
+const DIYAGRAM_BASLIK_ESIGI = NEAR_DUP_THRESHOLD
+const DIYAGRAM_DUGUM_ESIGI = 0.5
+
+/** Mermaid dugum etiketleri: A[Metin], B("Metin"), C{Metin}. Ok bicimi ve
+ *  yon anahtar sozcukleri disarida — ayni diyagram farkli ok yazabilir. */
+function diagramDugumMetni(d: any): string {
+  const src = String(d?.mermaid || '')
+  const out: string[] = []
+  const re = /[[({]\s*"?([^\])}"|]+)"?\s*[\])}]/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(src)) !== null) out.push(m[1].trim())
+  return out.join(' ')
+}
+
+function kumeOrtusmesi(a: Set<string>, b: Set<string>): number {
+  if (!a.size || !b.size) return 0
+  let paylasilan = 0
+  for (const t of a) if (b.has(t)) paylasilan++
+  return paylasilan / Math.min(a.size, b.size)
+}
+
+function dedupeDiagrams(diagrams: any[]): { diagrams: any[]; dropped: string[] } {
+  const list = Array.isArray(diagrams) ? diagrams : []
+  type Tutulan = { d: any; bas: Set<string>; dug: Set<string>; uz: number }
+  const kept: Tutulan[] = []
+  const dropped: string[] = []
+  for (const d of list) {
+    const dugMetin = diagramDugumMetni(d)
+    const aday: Tutulan = {
+      d,
+      bas: nearDupTermSet(String(d?.title || '')),
+      dug: nearDupTermSet(dugMetin),
+      uz: dugMetin.length
+    }
+    let es = -1
+    for (let i = 0; i < kept.length; i++) {
+      if (aday.bas.size < NEAR_DUP_MIN_TERMS || kept[i].bas.size < NEAR_DUP_MIN_TERMS) continue
+      if (kumeOrtusmesi(aday.bas, kept[i].bas) < DIYAGRAM_BASLIK_ESIGI) continue
+      if (kumeOrtusmesi(aday.dug, kept[i].dug) < DIYAGRAM_DUGUM_ESIGI) continue
+      es = i
+      break
+    }
+    if (es === -1) { kept.push(aday); continue }
+    /* Ayni diyagram: DAHA DOLU olan kalir, sirasi degismez. Gorsel gecisten
+       gelen kopya genelde belgenin kendi sekil altyazisini ve numarali
+       adimlarini tasiyor, yani daha iyi olani odur. */
+    const dusen = aday.uz > kept[es].uz ? kept[es].d : d
+    dropped.push(String(dusen?.title || '(isimsiz)'))
+    if (aday.uz > kept[es].uz) kept[es] = aday
+  }
+  return { diagrams: kept.map((k) => k.d), dropped }
+}
+
 function dedupeNearDuplicates(
   items: any[],
   getText: (item: any) => string,
@@ -12191,6 +12271,7 @@ groups: sort the numbered sections S1..Sn into 3-6 topic groups, every number ex
 Respond ONLY with JSON in ${langLabel}: {"key_terms":[{"term":"...","definition":"..."}],"key_points":["..."],"quiz_questions":[{"question":"...","answer":"..."}],"sections":[{"heading":"...","summary":"..."}],"tables":[{"title":"...","headers":["..."],"rows":[["..."]]}],"diagrams":[{"title":"...","mermaid":"...","description":"..."}]}
 Rules: only include content actually visible in the images; return empty arrays for any field with nothing new; do not repeat terms already listed above. Reconstruct any table you can read as 'tables' and any flowchart/framework/process image as a Mermaid 'diagrams' entry. Never invent one that isn't visibly there.
 When a chart's shape carries the lesson — where it peaks, when it falls, which period is highest — write that in WORDS as a key_point. Do not attempt to output a series of numbers.
+PHRASE EVERY key_point AND quiz_question AS THE FACT, NEVER AS A DESCRIPTION OF THE FIGURE. Write "Negative priming produced a far more unfavourable impression than positive priming" — never "Figure 3.2 shows that...", "Table 1 lists...", "The chart demonstrates...". A student revising reads the finding, not the figure number, and a question that asks about "the cycle shown in Figure 3.3" is unanswerable once the figure is gone. Do not mention figure, table or slide numbers at all.
 Give a numeric value ONLY when that number is PRINTED on the image: an axis tick, a data label, a gridline you can read the plotted point against. If you are estimating a level by eye, say it in relative words instead ("the highest of the five", "roughly double the previous peak", "falls back to about where it started"). A shape described correctly is worth more than a decimal invented to look precise.
 The example that used to sit here named a real-looking percentage, and a live run copied that number straight out of this prompt into the summary as if it were read from the chart — attached to the wrong period, no less. So there is no numeric example here on purpose. Any figure in your answer must come from the image in front of you.`
 
@@ -13605,10 +13686,21 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
         parsedContent.quiz_questions,
         (q: any) => String(q?.question || '')
       )
+      /* Diyagramlar AYRI kural ile — bkz. dedupeDiagrams yanindaki olcum
+         notu. Genel esik (0,7) olculen kopya cifti icin fazla yuksek. */
+      const diyagramDedup = dedupeDiagrams(parsedContent.diagrams)
+      if (diyagramDedup.dropped.length > 0) {
+        parsedContent.diagrams = diyagramDedup.diagrams
+        console.log(
+          `Diyagram kopyasi birlestirildi: ${diyagramDedup.dropped.length} dustu — ` +
+          diyagramDedup.dropped.map((t) => `"${t}"`).join(' | ')
+        )
+      }
       console.log(
         `Near-duplicate merge: terms ${beforeDedup.terms}→${parsedContent.key_terms.length}, ` +
         `points ${beforeDedup.points}→${parsedContent.key_points.length}, ` +
-        `quiz ${beforeDedup.quiz}→${parsedContent.quiz_questions.length}`
+        `quiz ${beforeDedup.quiz}→${parsedContent.quiz_questions.length}, ` +
+        `diagrams ${Array.isArray(parsedContent.diagrams) ? parsedContent.diagrams.length : 0}`
       )
 
       /* --- (c1) Anlatidaki kayip LaTeX ters bolusu — bkz.

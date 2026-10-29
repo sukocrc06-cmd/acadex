@@ -114,6 +114,9 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'sayiOkumalari', 'URL_BENZERI_RE', 'BOZUK_US_RE', 'CAG_YILI_RE', 'DERS_KODU_RE', 'ATIF_ETIKETI_RE',
   // Maddeler veritabanina duz metin olarak gider (29.10.2026 olcumu).
   'duzMaddeMetni', 'normalizeKeyPoints',
+  // Diyagram kopyasi (29.10.2026 olcumu).
+  'DIYAGRAM_BASLIK_ESIGI', 'DIYAGRAM_DUGUM_ESIGI', 'diagramDugumMetni',
+  'kumeOrtusmesi', 'dedupeDiagrams',
   // Chunk yazimi Postgres kacisinda dusuyordu (29.10.2026 olcumu).
   'pgGuvenliMetin',
   // Anlatidaki ham LaTeX ve formuldeki ciplak sozcuk (29.10.2026 olcumu).
@@ -4953,6 +4956,94 @@ test('sarma DOGRULAMADAN ONCE uygulaniyor', () => {
    78 sayfalik belge icin "Kaynakla calis" bos kaldi. Ozet akisi
    etkilenmedi, cunku kart MODEL metninden kuruluyor; chunk ise HAM
    metinden ve PDF cikarimi NUL / yarim vekil karakter uretebiliyor. */
+/* AYNI DİYAGRAM KARTA İKİ KEZ GİRİYOR
+   (29.10.2026 — "Weeks 4-5 Chp 3" OLÇÜMÜ).
+
+   Kartta ikinci ve üçüncü diyagram aynı şeydi:
+     "The Self-Fulfilling Prophecy Cycle"                     (pencereden)
+     "The Self-Fulfilling Prophecy: A sad cycle in four acts"  (görsel geçişten)
+   Log sebebi söylüyor:
+     Long-doc visual patch: ... +1 diagrams
+     Near-duplicate merge: terms 20->20, points 27->27, quiz 16->16
+   Kopya birleştirme terim/madde/soruya bakıyor, DİYAGRAMLARA bakmıyordu.
+
+   Genel eşik yetmiyor: ölçüldü, düğüm örtüşmesi 0,643 ve
+   NEAR_DUP_THRESHOLD 0,7 bunu kaçırıyor. Eşiği genel olarak düşürmek
+   maddeleri de etkilerdi. Bu yüzden diyagrama özel İKİ KOŞUL. */
+console.log('\nDİYAGRAM KOPYASI\n');
+
+/* Veritabanından BİREBİR alınmış üç diyagram. */
+const DIA_OLCUM = [
+  { title: 'Types of Social Cognition', mermaid: 'flowchart TD\n    A[Social Cognition] --> B[Automatic Thinking]\n    A --> C[Controlled Thinking]\n    B --> B1[Quick]\n    B --> B2[Nonconscious]\n    B --> B3[Effortfulless]\n    C --> C1[Effortful]\n    C --> C2[Deliberate]\n    C --> C3[Careful Selection]' },
+  { title: 'The Self-Fulfilling Prophecy Cycle', mermaid: 'flowchart TD\n    A[Expectation about another person] --> B[Influences how you act toward that person]\n    B --> C[Causes that person to behave consistently with expectations]\n    C --> D[Expectations come true]' },
+  { title: 'The Self-Fulfilling Prophecy: A sad cycle in four acts', mermaid: 'graph TD\n    A["1. You have an expectancy about the target person"] --> B["2. You behave toward the target in a way consistent with your expectancy"]\n    B --> C["3. The target responds to your behavior in a similar manner"]\n    C --> D["4. You see the target\'s behavior as proof that your expectancy was right"]\n    D --> A' }
+];
+
+test('OLCULEN KOPYA dusuyor, DAHA DOLU olan kaliyor', () => {
+  const r = A.dedupeDiagrams(DIA_OLCUM);
+  assert.equal(r.diagrams.length, 2, 'kopya dusmedi');
+  assert.deepEqual(r.dropped, ['The Self-Fulfilling Prophecy Cycle']);
+  /* Gorsel gecisten gelen kopya belgenin kendi sekil altyazisini ve
+     numarali adimlarini tasiyor; kalan o olmali. */
+  assert.match(r.diagrams[1].title, /sad cycle in four acts/);
+  assert.equal(r.diagrams[0].title, 'Types of Social Cognition', 'sira bozulmus');
+});
+
+test('FARKLI diyagram birlestirilmiyor', () => {
+  const r = A.dedupeDiagrams([DIA_OLCUM[0], DIA_OLCUM[1]]);
+  assert.equal(r.diagrams.length, 2);
+  assert.deepEqual(r.dropped, []);
+});
+
+test('IKI KOSUL: baslik tek basina YETMEZ', () => {
+  /* "Social Cognition: Automatic" ile ".. Controlled" baslikta ortusur,
+     iceride ortusmez. Dugum kosulu olmasa gercek bir diyagram silinirdi. */
+  const a1 = { title: 'Social Cognition Types Overview', mermaid: 'flowchart TD\n    A[Automatic Thinking] --> B[Quick]\n    A --> C[Nonconscious]\n    A --> D[Effortless]' };
+  const a2 = { title: 'Social Cognition Types Overview', mermaid: 'flowchart TD\n    X[Controlled Thinking] --> Y[Deliberate]\n    X --> Z[Mental energy]\n    X --> W[One thing at a time]' };
+  const r = A.dedupeDiagrams([a1, a2]);
+  assert.equal(r.diagrams.length, 2, 'ayni baslik ama ayri icerik birlestirilmis');
+});
+
+test('OLCULEN ORTUSME DEGERLERI (esikler buradan turuyor)', () => {
+  const bas = DIA_OLCUM.map((d) => A.nearDupTermSet(String(d.title)));
+  const dug = DIA_OLCUM.map((d) => A.nearDupTermSet(A.diagramDugumMetni(d)));
+  // Kopya cifti: baslik tam ortusuyor, dugum SINIRDA.
+  assert.equal(A.kumeOrtusmesi(bas[1], bas[2]).toFixed(3), '1.000');
+  assert.ok(A.kumeOrtusmesi(dug[1], dug[2]) >= A.DIYAGRAM_DUGUM_ESIGI);
+  // Farkli cift: ikisi de sifir — ayirma payi cok genis.
+  assert.equal(A.kumeOrtusmesi(bas[0], bas[1]), 0);
+  assert.equal(A.kumeOrtusmesi(dug[0], dug[1]), 0);
+  /* Dugum esigi BILEREK gevsetilmedi: kopyayi kacirmak, gercek bir
+     diyagrami silmekten iyidir. */
+  assert.equal(A.DIYAGRAM_DUGUM_ESIGI, 0.5);
+  assert.equal(A.DIYAGRAM_BASLIK_ESIGI, A.NEAR_DUP_THRESHOLD);
+});
+
+test('dugum etiketleri cikariliyor: koseli, yuvarlak, susli, tirnakli', () => {
+  const m = { mermaid: 'flowchart TD\n    A[Koseli] --> B(Yuvarlak)\n    B --> C{Susli}\n    C -->|etiket| D["Tirnakli"]' };
+  const t = A.diagramDugumMetni(m);
+  for (const bekle of ['Koseli', 'Yuvarlak', 'Susli', 'Tirnakli']) {
+    assert.ok(t.includes(bekle), bekle + ' cikarilmadi: ' + t);
+  }
+  // Ok etiketi dugum DEGIL: ayni diyagram farkli ok bicimi yazabilir.
+  assert.ok(!t.includes('etiket'), 'ok etiketi dugum sayilmis');
+});
+
+test('bos ve bozuk girdi dusurmuyor', () => {
+  assert.deepEqual(A.dedupeDiagrams(null).diagrams, []);
+  assert.equal(A.dedupeDiagrams([{ title: '' }, { title: '' }]).diagrams.length, 2,
+    'basliksiz diyagram min terim esiginin altinda, birlestirilmemeli');
+  assert.equal(A.diagramDugumMetni(null), '');
+});
+
+test('diyagram dedupe CIKISA baglanmis ve sayisi loglaniyor', () => {
+  assert.match(SRC, /const diyagramDedup = dedupeDiagrams\(parsedContent\.diagrams\)/,
+    'dedupeDiagrams cagrilmiyor — olu kod');
+  assert.match(SRC, /Diyagram kopyasi birlestirildi/, 'dusen diyagram loglanmiyor');
+  assert.match(SRC, /diagrams \$\{Array\.isArray\(parsedContent\.diagrams\)/,
+    'Near-duplicate merge satiri diyagram sayisini da yazmali');
+});
+
 console.log('\nATIF ETIKETI VE POSTGRES KACISI\n');
 
 test('OLCULEN ATIF ETIKETLERI sayi sayilmiyor', () => {
