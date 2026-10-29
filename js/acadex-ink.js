@@ -4044,7 +4044,7 @@ window.axNotify = function (title, opts) {
   };
   root.addEventListener('click', function (e) {
     var l = e.target.closest('[data-lang]');
-    if (l) { var v = l.getAttribute('data-lang'); if (typeof applyLanguage === 'function') applyLanguage(v); else try { localStorage.setItem('acadexUILang', v); } catch (er) {} var sel = document.querySelector('.lang-switcher-select'); if (sel) sel.value = v; paintLook(); savedMark(); say(v === 'tr' ? 'Arayüz dili Türkçe.' : 'Interface language set to English. Yeni tasarımlı paneller Türkçe kalır.'); return; }
+    if (l) { var v = l.getAttribute('data-lang'); if (typeof applyLanguage === 'function') applyLanguage(v); else try { localStorage.setItem('acadexUILang', v); } catch (er) {} var sel = document.querySelector('.lang-switcher-select'); if (sel) sel.value = v; paintLook(); savedMark(); say(v === 'tr' ? 'Arayüz dili Türkçe.' : 'Interface language set to English. Your documents and summaries stay as they are.'); return; }
     var f = e.target.closest('[data-fs]');
     if (f) { P.fs = +f.getAttribute('data-fs'); putP(); applyGlobal(); paintLook(); savedMark(); return; }
     var pr = e.target.closest('[data-ppr]');
@@ -10870,7 +10870,8 @@ var SBX = (function () {
       var r = oOpen.apply(this, arguments);
       var multi = lsafe(function () { return isMergeSummarize || isBulkSummarize; }, false);
       var last = null; try { last = localStorage.getItem(LK); } catch (e) {}
-      if (!last) last = (lsafe(function () { return localStorage.getItem('acadexUILang'); }, 'tr') || 'tr') === 'en' ? 'en' : 'tr';
+      /* özet dili arayüz dilinden bağımsız (30.10.2026): öğrenci İngilizce arayüzde Türkçe çalışmak isteyebilir; ilk seferde Türkçe, sonra son seçim */
+      if (!last) last = 'tr';
       if (last === 'both') last = 'tr'; /* İkisi de: yakında */
       radio('summary-language-choice', last);
       M.querySelector('[data-sd-both]').hidden = !!multi;
