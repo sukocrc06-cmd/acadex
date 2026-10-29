@@ -5694,28 +5694,156 @@ type YogunlukStats = {
   valfAcildi: boolean
 }
 
-/** Somut capa tasiyan bir maddede bulunan isaretler. Bos dizi = dolgu. */
-function yogunlukIsaretleri(text: string, docTerms: Set<string>): string[] {
+/* ==========================================================================
+   CAPA LISTESI YENIDEN KURULDU (29.10.2026 CANLI OLCUM)
+   ==========================================================================
+   Eski kural tekti: madde RAKAM ya da FORMUL IZI tasimiyorsa dolgu. Olculdu
+   — 18 kartta %39-78'i dolgu isaretlendi; 7 derste (turev, anatomi, muhasebe,
+   tarih, hemsirelik, tuketici psikolojisi, immunoloji) 48 isaretli madde tek
+   tek okundu ve GERCEK dolgu sayisi ~0 cikti. Isaretlenenlerden ornekler:
+
+     "The power rule moves the exponent down and decreases it by one."
+     "The inside argument of every logarithm must be strictly positive."
+     "Addison hastaligi anemiye, Cushing hastaligi ise polisitemiye zemin..."
+     "Olgun eritrositlerde cekirdek, mitokondri, ribozom ve golgi bulunmaz."
+     "TSMC, ABD'ye fabrika kurarak tedarik zinciri riskini azaltmaktadir."
+
+   Hepsi sinavda sorulabilir somut bilgi. Yani eski kural "dolgu" degil
+   "NICEL MI" olcuyordu: rakamsiz yazilmis bir kalkulus kurali bile eliyordu
+   (12/17). Valf esigi 1/3 oldugu icin kapi canliya alinsa her kartta valf
+   acilir ve hicbir sey elenmezdi — yani olcu hem yanlis hem islevsizdi.
+
+   Kuralin kendisini yazdiran 20.10 ornekleri ("Logarithmic transformations
+   help linearize...", "These specifications are widely used...") ise artik
+   HIC uretilmiyor: butun key_points kulliyatinda hedge kaliplari tek bir
+   cumle yakaliyor, o da yanlis pozitif. Sadakat kurallari dolguyu bitirdi.
+
+   IKI KOSUL, TEK YONLU GUVENLIK. Bir madde ancak (1) hicbir capa tasimiyor
+   VE (2) bilinen bos-yuklem kaliplarindan birine uyuyorsa dolgu sayiliyor.
+   Sebep olculdu: capa listesi el yapimi bir fiil sozlugu ve her sozluk
+   deliginden GERCEK icerik dolgu gorunur ("Insulin lowers blood glucose...",
+   "The accrual basis records expenses..." ilk surumde tam boyle kacti).
+   Ikinci kosul o deliklerin yanlis pozitif uretmesini imkansiz kiliyor:
+   eksik kalan sozluk yalnizca bir dolguyu KACIRABILIR, ki bu zararsiz —
+   kapinin isi regresyonu gormek, kart budamak degil.
+
+   Testteki olculen korpusa karsi: 32 somut maddenin HICBIRI elenmiyor,
+   10/10 dolgu cumlesi yakalaniyor (bkz. YOG_SOMUT / YOG_DOLGU).
+   ========================================================================== */
+
+/* Yaziyla yazilmis sayi ve sira sayisi. "decreases it by one", "less than
+   four valence electrons", "seventh century", "dort ana bolum". */
+const YOG_SAYI_SOZCUGU = /\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|fifty|hundred|thousand|million|first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|half|twice|double|triple|single|iki|üç|dört|beş|altı|yedi|sekiz|dokuz|on|yirmi|otuz|elli|yüz|bin|milyon|ilk|ikinci|üçüncü|dördüncü|beşinci|yarı|çift)\b/i
+
+/* Kural/tanim kipi: zorunluluk, esitlik, kapsama. Bir SAV kuruyor. */
+const YOG_KURAL_KIPI = /\b(must|cannot|can not|never|always|only|requires?|required|necessary|sufficient|equals?|consists? of|contains?|defined as|indicates?|implies|prevents?|triggers?|yields?|ensures?)\b|\b(zorunlu|gerekir|gerekmekte|olamaz|bulunmaz|yalnızca|sadece|oluşur|oluşmakta|tanımlanır|yol aç|zemin hazırla|eşittir|içerir)/i
+
+/* Adlandirilmis kural: "power rule", "quotient rule", "chain rule". Bosluk
+   SART: "power-law relationships" (tireli) bilerek eslesmiyor, cunku o
+   olculen dolgu cumlesinin ta kendisi. */
+const YOG_ADLANDIRILMIS_KURAL = /\b[A-Za-zçğıöşü]+\s+(rule|law|theorem|principle|identity|test|criterion|effect|bias|equation)\b|\b[A-Za-zçğıöşü]+\s+(kuralı|yasası|teoremi|ilkesi|etkisi|denklemi)\b/i
+
+/* Kisaltma: iki buyuk harf tasiyan tek sozcuk (TSMC, ABD, BRICS, ESH, IgG)
+   ya da cumle basinda OLMAYAN tek buyuk harf ("B hucreleri", "R, K, M"). */
+const YOG_KISALTMA = /\b[A-ZÇĞİÖŞÜ][A-Za-zÇĞİÖŞÜçğıöşü]*[A-ZÇĞİÖŞÜ][A-Za-z]*\b|(?<=[a-zçğıöşü,;:)\]] )[A-ZÇĞİÖŞÜ](?=[\s.,;:'’])/
+
+const YOG_KOSUL = /\b(when|whenever|if|unless|until|while)\b|\b(iken|ise|durumunda|halinde)\b/i
+const YOG_DEGISIM = /\b(more than|less than|fewer|greater than|higher|lowers?|increases?|decreases?|reduces?|raises?|rises?|falls?|shifts?|doubles?)\b|\b(artır|artar|azalt|azalır|yüksel|düşür|düşer|yavaşlat|hızlandır)/i
+
+/* BOS YUKLEM KALIPLARI. Ikinci kosul (bkz. ustteki blok): bir madde ancak
+   capasi yoksa VE bunlardan birine uyuyorsa dolgu. Liste writerSys'teki
+   genericHits ile bilerek ortusuyor — ayni cumle sinifi. */
+const YOG_DOLGU_KALIBI: RegExp[] = [
+  /\b(widely|commonly|often|frequently|generally|broadly)\s+(used|applied|employed|discussed|recognized)\b/i,
+  /\bhelps?\s+[a-z]+/i,
+  /\bprovides?\s+(a|an)?\s*(broad|general|deeper|better|comprehensive|holistic)\s+(overview|understanding|view|picture|perspective)/i,
+  /\b(is|are)\s+(important|essential|crucial|fundamental|valuable|useful|key|central)\s+(for|to|in)\b/i,
+  /\boffers?\s+(valuable|useful|important|key)\s+(insights?|perspectives?)/i,
+  /\b(theoretical|conceptual)\s+(frameworks?|underpinnings?|terrain|depth|clarity)/i,
+  /\bbroader\s+(field|landscape|context|scholarly|academic)/i,
+  /\bplays?\s+an?\s+(important|key|crucial|significant|vital)\s+role/i,
+  /\b(various|numerous|several|many)\s+(applications|contexts|fields|areas|ways|methods|settings)/i,
+  /genel\s+bir\s+(değerlendirme|bakış|çerçeve|fikir)/i,
+  /bütüncül\s+bir\s+bakış/i,
+  /(geniş\s+biçimde|yaygın\s+olarak)\s+(tartışıl|kullanıl|kabul\s+edil)/i,
+  /önemli\s+bir\s+rol/i,
+  /\b(önemlidir|gereklidir|katkı\s+sağlar)\b/i
+]
+
+/** Madde bilinen bir bos-yuklem kalibina uyuyor mu. */
+function yogunlukBosYuklem(text: string): boolean {
+  const s = String(text || '')
+  return YOG_DOLGU_KALIBI.some((re) => re.test(s))
+}
+
+/* KAYNAKTAN OGRENILEN OZEL ADLAR. "Thales sought natural causes..." somut
+   ama ozel adi CUMLE BASINDA, yani konum kuraliyla gorunmez. Cozum: belgede
+   CUMLE ICINDE buyuk harfle gecen sozcukler toplanip maddede araniyor.
+   Cumle basi buyuk harfi capa SAYILMIYOR, cunku "Logarithmic
+   transformations help..." da oyle baslıyor ve o dolgu.
+   Virgulden sonraki buyuk harf alinmiyor (", The" gibi) ve islevsel
+   sozcukler listede: biri capa sayilsa butun maddeler capali olurdu. */
+const YOG_KAYNAK_OZELAD_RE = /(?<=[a-zçğıöşü]\s)([A-ZÇĞİÖŞÜ][a-zçğıöşü]{2,})/g
+const YOG_OZELAD_DISI = new Set([
+  'The', 'This', 'These', 'Those', 'That', 'And', 'But', 'For', 'When', 'While',
+  'With', 'From', 'They', 'Their', 'Its', 'Each', 'Every', 'All', 'Both', 'Such',
+  'Bir', 'Bunu', 'Bunun', 'Ancak', 'Ama', 'Ile', 'Için', 'Veya', 'Daha', 'Olarak'
+])
+function yogunlukKaynakOzelAdlari(sourceText: string): Set<string> {
+  const out = new Set<string>()
+  const s = String(sourceText || '')
+  let m: RegExpExecArray | null
+  const re = new RegExp(YOG_KAYNAK_OZELAD_RE.source, 'g')
+  while ((m = re.exec(s)) !== null) {
+    const ad = m[1]
+    if (!YOG_OZELAD_DISI.has(ad)) out.add(ad)
+    if (out.size >= 4000) break   // bellek siniri; kapi teshis, sozluk degil
+  }
+  return out
+}
+
+/** Somut capa tasiyan bir maddede bulunan isaretler. Bos dizi = capasiz. */
+function yogunlukIsaretleri(text: string, kaynakOzelAdlar: Set<string>): string[] {
   const t = String(text || '')
   const isaretler: string[] = []
+  const atifsiz = t.replace(/\[\d+(?:\s*,\s*\d+)*\]/g, '')
 
-  // SAYI: yil ve madde numarasi disinda bir sayi. "k - 1" gibi tek haneli
-  // sembolik ifadeler de sayilir, cunku onlar kuralin kendisi.
-  if (/\d/.test(t.replace(/\[\d+(?:\s*,\s*\d+)*\]/g, ''))) isaretler.push('sayi')
+  // SAYI: atif numarasi disinda bir rakam. "k - 1" gibi tek haneli sembolik
+  // ifadeler de sayilir, cunku onlar kuralin kendisi.
+  if (/\d/.test(atifsiz)) isaretler.push('sayi')
 
   // FORMUL IZI: esitlik, us, alt simge, Yunan harfi ya da LaTeX komutu.
   if (/[=^_\\]|[α-ωΑ-Ω]/.test(t)) isaretler.push('formul')
 
-  /* KAYNAK TERIMI BILEREK SAYILMIYOR. Her dolgu cumle de kaynakta gecen
-     terimleri tasiyor ("logarithmic transformations help linearize..."),
-     yani terim capasi olcuyu anlamsiz kiliyordu: hicbir sey dolgu
-     sayilmiyordu. docTerms yine de parametrede duruyor; kurali veriye
-     bakip yeniden kurarken gerekecek. */
-  void docTerms
+  if (YOG_SAYI_SOZCUGU.test(t)) isaretler.push('sayi-sozcugu')
+  if (YOG_KISALTMA.test(t)) isaretler.push('kisaltma')
+
+  /* OZEL AD: cumle BASI OLMAYAN buyuk harfli sozcuk. Once cumle basi
+     sozcukleri dusuruluyor, kalanda buyuk harf araniyor. */
+  const govde = t
+    .replace(/^[^A-Za-zÇĞİÖŞÜçğıöşü]*[A-ZÇĞİÖŞÜ][^\s]*\s?/, ' ')
+    .replace(/([.;:!?]\s+)[A-ZÇĞİÖŞÜ][^\s]*/g, '$1')
+  if (/(?:^|\s)[A-ZÇĞİÖŞÜ][a-zçğıöşü]{2,}/.test(govde)) isaretler.push('ozel-ad')
+  if (!isaretler.includes('ozel-ad') && kaynakOzelAdlar && kaynakOzelAdlar.size) {
+    for (const ad of kaynakOzelAdlar) {
+      if (t.includes(ad)) { isaretler.push('ozel-ad-kaynak'); break }
+    }
+  }
+
+  /* SIRALAMA: 3+ ogeli liste. Parantez ici ve atif disarida tutuluyor. */
+  const virgul = (atifsiz.replace(/\([^)]*\)/g, '').match(/,/g) || []).length
+  if (virgul >= 2 || (virgul >= 1 && /\b(and|or|ve|veya|ile)\b/i.test(t))) isaretler.push('siralama')
+
+  // PARANTEZ: rakamla baslamayan, en az uc karakterlik parantez ici = ornekleme.
+  if (/\([^)\d][^)]{2,}\)/.test(t)) isaretler.push('parantez')
+
+  if (YOG_KURAL_KIPI.test(t)) isaretler.push('kural-kipi')
+  if (YOG_ADLANDIRILMIS_KURAL.test(t)) isaretler.push('adlandirilmis-kural')
+  if (YOG_KOSUL.test(t)) isaretler.push('kosul')
+  if (YOG_DEGISIM.test(t)) isaretler.push('degisim')
 
   return isaretler
 }
-
 /**
  * Somut capasi olmayan maddeleri eler.
  *
@@ -5733,14 +5861,17 @@ function applyDensityGate(
   if (!sourceText || sourceText.length < 200 || points.length === 0) return { key_points: points, stats }
 
   const birlesik = figureText ? sourceText + '\n' + figureText : sourceText
-  const docTerms = new Set(anchorTerms(birlesik))
+  const kaynakOzelAdlar = yogunlukKaynakOzelAdlari(birlesik)
   const oku = (raw: any) => typeof raw === 'string' ? raw : String(raw?.text || raw?.point || '')
 
   const tutulan: any[] = []
   const atilan: any[] = []
   for (const p of points) {
     const metin = oku(p)
-    if (yogunlukIsaretleri(metin, docTerms).length > 0) tutulan.push(p)
+    /* IKI KOSUL: capasiz OLMASI yetmiyor, bilinen bir bos-yuklem kalibina da
+       uymasi gerekiyor. Sebep yukarida olculdu — capa sozlugunun her deligi
+       aksi halde GERCEK icerigi dolgu ilan ediyor. */
+    if (yogunlukIsaretleri(metin, kaynakOzelAdlar).length > 0 || !yogunlukBosYuklem(metin)) tutulan.push(p)
     else atilan.push(p)
   }
 
@@ -12913,7 +13044,7 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
         )
       } else if (yogunluk.stats.dropped > 0) {
         console.log(
-          `Yogunluk olcumu: ${yogunluk.stats.dropped}/${yogunluk.stats.toplam} madde somut capa tasimiyor` +
+          `Yogunluk olcumu: ${yogunluk.stats.dropped}/${yogunluk.stats.toplam} madde capasiz VE bos yuklemli` +
           ` | dolgu: ${yogunluk.stats.droppedPoints.map((x) => '"' + x + '"').join(' ')}`
         )
       }

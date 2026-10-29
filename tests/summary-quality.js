@@ -47,6 +47,10 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   // dongusunu bloklar ve pacer testlerini uydurma sekilde dusurur.
   'CACHE_METIN_MIN_KRK', 'cacheMetniNormalize',
   'YOGUNLUK_KAPISI_ELIYOR', 'yogunlukIsaretleri', 'applyDensityGate',
+  // Capa listesi yeniden kuruldu (29.10.2026 olcumu).
+  'YOG_SAYI_SOZCUGU', 'YOG_KURAL_KIPI', 'YOG_ADLANDIRILMIS_KURAL', 'YOG_KISALTMA',
+  'YOG_KOSUL', 'YOG_DEGISIM', 'YOG_DOLGU_KALIBI', 'yogunlukBosYuklem',
+  'YOG_KAYNAK_OZELAD_RE', 'YOG_OZELAD_DISI', 'yogunlukKaynakOzelAdlari',
   'PENCERE_DEVIR_ESIGI_MS', 'PENCERE_DEVIR_KAZANC_MS',
   'pencereMaliyetiSigiyor',
   'reasoningParamsFor',
@@ -5942,6 +5946,127 @@ test('olcum KARTA da yaziliyor', () => {
      koyarken bu alan kaynak olacak. */
   assert.ok(/qualityMeta\.dolgu_adayi = yogunlukOlcumu/.test(SRC),
     'olcum quality_meta ye yazilmiyor');
+});
+
+
+/* ==========================================================================
+   YOGUNLUK CAPALARI: OLCULEN REGRESYON KORPUSU (29.10.2026)
+   ==========================================================================
+   Eski kural tekti — rakam ya da formul izi. 18 kartta %39-78 dolgu
+   isaretledi; 7 derste 48 isaretli madde okundu ve gercek dolgu ~0 cikti.
+   Asagidaki SOMUT dizisi o karlardan BIREBIR alinmis maddeler artı ilk
+   surumun kacirdigi dort ek ornek. Hicbiri dolgu degil; biri dolgu
+   sayilirsa bu test duser ve gercek icerik silinmeden once haber verir.
+
+   DOLGU dizisi ise kuralin var olma sebebi: ilk ikisi 20.10'da olculen
+   gercek cumleler, gerisi ayni sinifin tipik ornekleri.
+   ========================================================================== */
+console.log('\nYOGUNLUK CAPALARI: OLCULEN KORPUS\n');
+
+/* applyDensityGate kaynak metin 200 karakterden kisaysa hic olcmuyor; kaynak
+   ayrica Thales/Greek/Post-decision/High-pressure adlarini CUMLE ICINDE
+   tasiyor, cunku ozel ad capasi tam oradan ogreniliyor. */
+const YOG_KAYNAK = 'The philosopher Thales proposed natural causes. Hellenic Greek science '
+  + 'detached knowledge from practice. Consumer research describes Post-decision '
+  + 'dissonance and High-pressure selling tactics. Aristotle wrote on matter. '
+  + 'Muhasebede Income Summary hesabı kapatılır ve Addison ile Cushing '
+  + 'hastalıkları kan tablosunu değiştirir. Apple ve TSMC tedarik zinciri örnekleri.';
+
+const YOG_SOMUT = [
+  'A derivative sign change from negative to positive indicates a local minimum.',
+  'Addison hastalığı anemiye, Cushing hastalığı ise polisitemiye zemin hazırlar.',
+  'Apple Ar-Ge faaliyetlerini ABD\'de yürütürken üretimini Çin\'de gerçekleştirmektedir.',
+  'Apple tedarik zincirini çeşitlendirerek AirPods üretimini Çin dışına taşımıştır.',
+  'Aristotle\'s theory of matter consists of four elements plus aether, and his political classification includes monarchy, aristocracy, and democracy.',
+  'Continuity alone is not sufficient for differentiability; left-hand and right-hand slopes must agree.',
+  'ESH değerini artıran faktörler rulo formasyonu, anemi ve artmış fibrinojen oranı iken; polisitemi ESH\'yi yavaşlatır.',
+  'Gelişmekte olan BRICS ekonomileri Brezilya, Rusya, Hindistan, Çin ve Güney Afrika\'dan oluşmaktadır.',
+  'Greek science and philosophy separated pure thought from practical knowledge, establishing science initially as an elite activity.',
+  'Hem sentezi mitokondride ALA sentaz enzimi ile başlar; protoporfirin halkasına demirin eklenmesiyle son bulur.',
+  'High-pressure satış teknikleri (lowballing, kalıcılık illüzyonu) tüketiciyi satın almaya yönlendirir.',
+  'Higher interest rates reduce planned investment, shifting the AE curve left and lowering equilibrium output.',
+  'İmmünolojik tolerans, bağışıklık sisteminin kendi antijenlerine (öz antijenler) yanıt oluşturmaması durumudur.',
+  'Kemik iliğinde öz antijeni zayıf afinite ile tanıyan immatür B hücreleri anerjik hale gelir.',
+  'Kitabın yapısı Foundations, Tools, Strategy ve Functions olmak üzere dört ana bölümden oluşmaktadır.',
+  'Olgun eritrositlerde çekirdek, mitokondri, ribozom ve golgi bulunmaz; protein sentezleyemezler.',
+  'Optimization requires finding a model, taking its derivative, solving for critical points, testing, and interpreting the result.',
+  'Pandemi sonrası firmalar scenario planning yöntemini zorunlu hale getirmiştir.',
+  'Post-decision disonans, seçilen alternatifin cazibesini artırarak ortaya çıkar.',
+  'The inside argument of every logarithm must be strictly positive.',
+  'The power rule moves the exponent down and decreases it by one.',
+  'The quotient rule maintains order: derivative of top times bottom minus top times derivative of bottom.',
+  'Tolerans mekanizmalarının başarısız olması otoimmüniteye ve doku hasarına yol açar.',
+  'TSMC, ABD\'ye fabrika kurarak tedarik zinciri riskini azaltmaktadır.',
+  'Thales sought natural causes for natural phenomena, proposing that the earth floats on water.',
+  'Each atom contains equal numbers of protons and electrons.',
+  'Elements having less than four valence electrons in the outermost orbit are conductors.',
+  'Corners, cusps, discontinuities, and vertical tangents prevent differentiability.',
+  'Revenue is recognized when control transfers to the customer.',
+  'The accrual basis records expenses in the period incurred.',
+  'Insulin lowers blood glucose by promoting cellular uptake.',
+  'Mitoz bölünme sonucunda genetik olarak aynı iki hücre oluşur.',
+];
+
+const YOG_DOLGU = [
+  'Logarithmic transformations help linearize power-law relationships',
+  'These specifications are widely used in economic modeling',
+  'These specifications are widely used [21, 22]',
+  'This chapter provides a broad overview of the subject matter.',
+  'Understanding these concepts is essential for further study.',
+  'The theoretical frameworks discussed offer valuable insights.',
+  'These ideas are important for understanding the broader field.',
+  'Bu bölüm konunun genel bir değerlendirmesini sunmaktadır.',
+  'Kavramlar arası ilişkiler bütüncül bir bakış açısı kazandırır.',
+  'Konu akademik literatürde geniş biçimde tartışılmaktadır.',
+];
+
+// Kapi olcum modunda: madde silinmiyor, yalnizca aday isaretleniyor.
+const yogDolguMu = (m) => YOG.applyDensityGate([m], YOG_KAYNAK).stats.dropped === 1;
+
+test('OLCULEN 32 SOMUT MADDENIN HICBIRI dolgu sayilmiyor', () => {
+  const yanlis = YOG_SOMUT.filter(yogDolguMu);
+  assert.deepEqual(yanlis, [],
+    `${yanlis.length}/${YOG_SOMUT.length} somut madde dolgu sayildi:\n  ` + yanlis.join('\n  '));
+});
+
+test('DOLGU CUMLELERI yakalanmaya devam ediyor', () => {
+  const kacan = YOG_DOLGU.filter((m) => !yogDolguMu(m));
+  assert.deepEqual(kacan, [],
+    `${kacan.length}/${YOG_DOLGU.length} dolgu cumlesi capali sayildi:\n  ` + kacan.join('\n  '));
+});
+
+test('IKI KOSUL: capasizlik TEK BASINA elemiyor', () => {
+  /* Capa listesi el yapimi bir sozluk ve her deligi gercek icerigi dolgu
+     ilan eder. Ikinci kosul o deliklerin yanlis pozitif uretmesini
+     imkansiz kiliyor: eksik sozluk yalnizca bir dolguyu KACIRABILIR. */
+  const capasiz = 'The accrual basis records expenses in the period incurred.';
+  assert.deepEqual(YOG.yogunlukIsaretleri(capasiz, new Set()), [],
+    'bu madde capasiz olmali — test varsayimi degismis');
+  assert.ok(!YOG.yogunlukBosYuklem(capasiz), 'bos yuklem kalibina uymamali');
+  assert.ok(!yogDolguMu(capasiz), 'capasiz ama bos yuklemsiz madde ELENMEMELI');
+  assert.match(SRC, /yogunlukIsaretleri\(metin, kaynakOzelAdlar\)\.length > 0 \|\| !yogunlukBosYuklem\(metin\)/,
+    'ikinci kosul kaynaktan kaldirilmis');
+});
+
+test('ozel ad capasi CUMLE BASINI saymiyor', () => {
+  /* Saysa "Logarithmic transformations help..." da capali olurdu ve kural
+     hicbir sey yakalamazdi. */
+  assert.ok(!YOG.yogunlukIsaretleri('Logarithmic transformations help linearize power-law relationships', new Set()).includes('ozel-ad'));
+  assert.ok(YOG.yogunlukIsaretleri('Her atom Addison ve Cushing kadar nadir değildir', new Set()).includes('ozel-ad'),
+    'cumle ICINDEKI ozel ad capa sayilmali');
+});
+
+test('kaynaktan ogrenilen ozel adlar: islevsel sozcukler DISARIDA', () => {
+  /* ", The" gibi bir eslesme capa sayilsaydi butun maddeler capali olurdu. */
+  const adlar = YOG.yogunlukKaynakOzelAdlari('bir cumle, The next one and Thales said');
+  assert.ok(!adlar.has('The'), 'islevsel sozcuk ozel ad sayilmis');
+  assert.ok(adlar.has('Thales'), 'gercek ozel ad toplanmamis');
+});
+
+test('adlandirilmis kural: bosluk SART, tire eslesmemeli', () => {
+  // "power rule" capa; "power-law relationships" olculen dolgu cumlesi.
+  assert.ok(YOG.yogunlukIsaretleri('The power rule applies here', new Set()).includes('adlandirilmis-kural'));
+  assert.ok(!YOG.yogunlukIsaretleri('power-law relationships appear', new Set()).includes('adlandirilmis-kural'));
 });
 
 
